@@ -15,8 +15,8 @@ vi.mock('@data/DataApiService', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useMCPServers', () => ({
-  useMCPServers: () => ({
+vi.mock('@renderer/hooks/useMcpServers', () => ({
+  useMcpServers: () => ({
     mcpServers: mockMcpServers
   })
 }))
@@ -25,7 +25,7 @@ vi.mock('@renderer/hooks/agents/useActiveAgent', () => ({
   useActiveAgent: () => ({ agent: null })
 }))
 
-vi.mock('@renderer/utils/mcp-tools', () => ({
+vi.mock('@renderer/utils/mcpTools', () => ({
   isToolAutoApproved: vi.fn(() => false)
 }))
 
@@ -51,7 +51,7 @@ vi.mock('@renderer/store', () => ({
 
 vi.mock('@renderer/store/mcp', () => ({
   hubMCPServer: { id: 'hub', name: 'MCP Hub', type: 'inMemory', isActive: true },
-  addMCPServer: vi.fn()
+  addMcpServer: vi.fn()
 }))
 
 vi.mock('@renderer/store/assistants', () => ({
@@ -85,7 +85,7 @@ vi.stubGlobal('api', {
 })
 vi.stubGlobal('toast', { success: vi.fn() })
 
-import { isToolAutoApproved } from '@renderer/utils/mcp-tools'
+import { isToolAutoApproved } from '@renderer/utils/mcpTools'
 
 import { useMcpToolApproval } from '../useMcpToolApproval'
 

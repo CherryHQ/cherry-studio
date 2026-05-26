@@ -130,6 +130,8 @@ A few invariants govern recovery decisions; the matrix above abstracts over them
 
 ## 5. Error codes (renderer maps via i18next)
 
+Constants live at `src/main/core/job/errorCodes.ts` and are thrown by `JobManager` / `JobScheduleService`. Renderer reads the `code` string off `JobSnapshot.error`.
+
 | Code | Origin | Retryable | Meaning |
 |---|---|---|---|
 | `JOB_UNKNOWN_TYPE` | enqueue | no | No handler registered for this type |

@@ -8,6 +8,36 @@ import dayjs from 'dayjs'
 
 const logger = loggerService.withContext('FileManager')
 
+/**
+ * @deprecated Slated for v2 redesign — do not extend.
+ *
+ * This class predates the v2 file module and bundles three unrelated
+ * responsibilities that should be split apart:
+ *
+ *   1. **Dexie `db.files` CRUD + reference counting** — superseded by the
+ *      v2 `file_entry` + `file_ref` tables. Renderer never writes those
+ *      directly; it goes through File IPC (`createInternalEntry`,
+ *      `ensureExternalEntry`, `permanentDelete`, …).
+ *   2. **Thin IPC wrappers** (`selectFiles`, `readBinaryImage`, …) — should
+ *      either be inlined at call sites or moved into a focused IPC client.
+ *   3. **Pure utility helpers** (`getFilePath`, `getSafePath`, `getFileUrl`,
+ *      `isDangerFile`, `formatFileName`) — belong in `@renderer/utils/file`.
+ *
+ * Phase 2 Batch 0 attempted to migrate `addFile` / `uploadFile` / `deleteFile`
+ * to v2 IPC in place, but doing so broke the v1 contract: the v1 `addFile`
+ * was a Dexie-only reference-count operation that assumed the physical file
+ * was already on disk (written upstream by `saveBase64Image` / `download` /
+ * etc.), whereas the v2 path-based `createInternalEntry` re-copies the file
+ * and mints a new uuid. Production callers (`imageCallbacks`, paintings
+ * pages) discard the return value, leaving a duplicate physical copy plus
+ * an unreferenced `file_entry`, while the business object still points at
+ * the original (now entry-less) uuid.
+ *
+ * The cutover is being reverted here and the class re-marked as legacy
+ * pending its v2-shaped replacement. The replacement work is tracked
+ * separately; until it lands, **do not add new call sites** — write straight
+ * to File IPC (`window.api.file.createInternalEntry` etc.) from new code.
+ */
 class FileManager {
   static async selectFiles(options?: Electron.OpenDialogOptions): Promise<FileMetadata[] | null> {
     return await window.api.file.select(options)

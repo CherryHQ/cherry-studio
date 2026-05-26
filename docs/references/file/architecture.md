@@ -98,9 +98,9 @@ Data Module dependencies (src/main/data/)
 └── DataApi Handler (files.ts) — pure SQL read-only endpoints; no FS access, no main-side resolvers
 ```
 
-**Deferred implementation**:
+**Implementation status**:
 
-- **`FileUploadService` + `file_upload` table + `FileUploadRepository`** — integrates with Vercel AI SDK's Files Upload API. The AI SDK API is still pre-release and its dependency is unstable, so this is deferred to a separate PR after the SDK reaches a stable version. The design is preserved in `file-manager-architecture.md §9` for reference.
+- **`FileUploadService` — manual implementation ahead of AI SDK stable.** Provider-specific file uploads (OpenAI Files API, Gemini, etc.) are a real, currently-unmet need; the existing `FileServiceManager` (`src/main/services/remotefile/`) already implements per-provider upload but is wired as an ad-hoc v1 IPC layer rather than a lifecycle service. **No longer deferred** — we will refactor `FileServiceManager` into a proper `FileUploadService` lifecycle service ahead of the Vercel AI SDK Files Upload API stabilising. Concrete design (interface, table schema, IPC surface, whether `file_upload` table + `FileUploadRepository` ship in the same PR or split out) is **TBD**; when the AI SDK ships its stable Files API the manual implementation should converge toward `file-manager-architecture.md §9`. AI SDK reference: [`uploadFile`](https://ai-sdk.dev/v7/docs/reference/ai-sdk-core/upload-file).
 
 ### 1.2 FileManager's Position Within the Module
 
@@ -161,7 +161,7 @@ Reference layer     FileEntryHandle                    FilePathHandle
                           ▼ FileManager.getEntry             ▼ fs.stat + projection
 Data-shape layer    FileEntry                          FileInfo
 (after resolution)  { id, origin, name, ext,           { path, name, ext, size,
-                      size, trashedAt, ... }             mime, type, modifiedAt, ... }
+                      size, deletedAt, ... }             mime, type, modifiedAt, ... }
 ```
 
 Picking a handle variant is a **call-site choice of reference form**, not a statement about the file itself. Crucially, **the two axes are orthogonal**:
@@ -184,7 +184,7 @@ Once a handle is dispatched, the handler works with either a `FileEntry` (the DB
 | Aspect         | `FileEntry`                                                | `FileInfo`                                                |
 |----------------|------------------------------------------------------------|-----------------------------------------------------------|
 | Role           | DB row identified by `id`                                  | Live descriptor identified by `path`                      |
-| Identity field | `id` (UUID v7)                                             | `path` (absolute filesystem path)                         |
+| Identity field | `id` (UUID — v7 from `uuidPrimaryKeyOrdered`, v4 preserved from v1 migration) | `path` (absolute filesystem path)                         |
 | Liveness       | Persistent record — identity + stable projections only     | Live view — re-read from `fs.stat`                        |
 | Lifecycle      | Persistent; trash/restore (internal-origin only)           | Transient — per-call descriptor                           |
 | Produced by    | `createInternalEntry` / `ensureExternalEntry` / DataApi    | `fs.stat(path)` / `toFileInfo(entry)`                    |
@@ -192,7 +192,7 @@ Once a handle is dispatched, the handler works with either a `FileEntry` (the DB
 
 **Field overlap is inherent, not redundant**: `name`, `ext`, `type` (and `mime` / `size` on `FileInfo`) describe a file regardless of whether an entry row exists for it. What distinguishes the two types is the *surrounding* fields and the *liveness* of the shared ones:
 
-- **`FileEntry` has identity fields** `FileInfo` lacks: `id`, `origin`, `externalPath`, `trashedAt`.
+- **`FileEntry` has identity fields** `FileInfo` lacks: `id`, `origin`, `externalPath`, `deletedAt`.
 - **`FileInfo` has live fields** `FileEntry` lacks: `path` (derived, never stored on `FileEntry`), `modifiedAt`, and a live `size`.
 - **`FileEntry.size` is origin-gated**. For `origin='internal'` it is an authoritative byte count (kept in sync by atomic writes). For `origin='external'` it is **always `null`** — external files may change outside Cherry at any time, so no DB snapshot is stored. Consumers that need a live value for an external entry call File IPC `getMetadata(id)`, which runs `fs.stat` on demand. This eliminates the "is this snapshot current?" question at the type level rather than at call sites.
 - **`FileEntry.name` / `FileEntry.ext` never drift**. For internal they are user-editable SoT; for external they are pure projections of `externalPath` (basename / extname) and therefore stable as long as the entry itself exists.
@@ -272,7 +272,7 @@ All operations that can act on any file (FileEntry or arbitrary path) **accept a
 |---|---|
 | `createInternalEntry` / `batchCreateInternalEntries` | Create a new Cherry-owned FileEntry (writes to `{userData}/Data/Files/{id}.{ext}`; each call produces an independent new entry, no conflict possible) |
 | `ensureExternalEntry` / `batchEnsureExternalEntries` | Pure upsert by `externalPath`—the entry point first `canonicalizeExternalPath(raw)` normalizes it (see `pathResolver.ts`); reuses the existing entry with the same path or inserts a new one. Idempotent by design—callers may safely repeat calls. No "restore" branch: external entries cannot be trashed. External rows carry no stored `size` (always `null`); live values come from `getMetadata`. |
-| `trash` / `restore` | Soft delete based on trashedAt (DB only). **Internal-origin only** — external-origin entries cannot be trashed (`fe_external_no_trash` CHECK); passing an external id throws. |
+| `trash` / `restore` | Soft delete based on deletedAt (DB only). **Internal-origin only** — external-origin entries cannot be trashed (`fe_external_no_delete` CHECK); passing an external id throws. |
 | `batchTrash` / `batchRestore` | Batch versions of `trash` / `restore` — same internal-origin-only rule. |
 | `batchPermanentDelete` | Batch version of `permanentDelete`. |
 | `withTempCopy` | Copy isolation for calling third-party libraries |
@@ -299,7 +299,7 @@ All operations that can act on any file (FileEntry or arbitrary path) **accept a
 
 | User action | Physical external file |
 |---|---|
-| Trash from Cherry | **Not applicable** — external-origin entries cannot be trashed (`fe_external_no_trash` CHECK) |
+| Trash from Cherry | **Not applicable** — external-origin entries cannot be trashed (`fe_external_no_delete` CHECK) |
 | Restore from Cherry | **Not applicable** — external-origin entries are never trashed |
 | permanentDelete from Cherry (entry-level) | **Untouched** — only the DB row is deleted; the physical file remains on disk |
 | write / writeIfUnchanged from Cherry | **Overwritten** (atomic write) |
@@ -340,9 +340,9 @@ FilesPage and similar user-facing **list surfaces** SHOULD hide external entries
 
 **Exception — reference-oriented surfaces**: when a specific message's attachment list, a knowledge item's source files, or any other view that consumes `file_ref` shows entries, dangling rows MUST remain visible (with a "file missing" marker). Hiding them would silently suppress the "your attached file is gone" signal the user needs in order to act — re-attach, remove the reference, etc. The auto-cleanup rule specifically excludes `refs > 0` entries for the same reason.
 
-### 3.5 AI SDK Integration (Deferred)
+### 3.5 AI SDK Integration
 
-**AI SDK upload-related** → FileUploadService methods (**deferred implementation**, to be introduced after the AI SDK Files API is stable):
+**AI SDK upload-related** → FileUploadService methods. The service itself is no longer deferred (see §1.1 — it will be refactored out of `FileServiceManager` ahead of the AI SDK stabilising); the method shapes below are the **AI-SDK-aligned target** the manual implementation should converge toward once the SDK ships:
 
 | Method                              | Description                      |
 | ----------------------------------- | -------------------------------- |
@@ -469,7 +469,7 @@ DataApi endpoints (read-only, SQL-only, fixed-shape):
 >
 > Rule of thumb: if a handler must call anything outside the Drizzle / `@db/*` surface to answer the request, it belongs in IPC. If two callers want the same data in different shapes, the answer is **two endpoints**, not one endpoint with a flag.
 
-**List queries for external entries**: DataApi returns the DB row directly — identity (`id`, `origin`, `externalPath`), stable projections (`name`, `ext`), timestamps, `trashedAt`. External rows carry `size: null` by design (no snapshot stored). Consumers needing **live `size` / `mtime`** call File IPC `getMetadata(id)`; those needing only **whether the file currently exists** (dangling) call File IPC `getDanglingState` / `batchGetDanglingStates`.
+**List queries for external entries**: DataApi returns the DB row directly — identity (`id`, `origin`, `externalPath`), stable projections (`name`, `ext`), timestamps, `deletedAt`. External rows carry `size: null` by design (no snapshot stored). Consumers needing **live `size` / `mtime`** call File IPC `getMetadata(id)`; those needing only **whether the file currently exists** (dangling) call File IPC `getDanglingState` / `batchGetDanglingStates`.
 
 ### 4.1.1 DataApi Boundary: SQL-Only, Fixed Shape
 
@@ -902,21 +902,20 @@ WhenReady (after app.whenReady(), Electron API available)
        pipeline in Phase 2)
       onInit(): awaits DanglingCache.initFromDb(), calls
                 this.registerIpcHandlers() (the dedicated helper wires
-                File_GetDanglingState + File_BatchGetDanglingStates),
-                fires void runStartupSweeps() (FS-level + DB-level
-                orphan passes; runs async; does NOT block ready)
+                File_GetDanglingState + File_BatchGetDanglingStates +
+                File_RunSweep). No startup auto-sweep — the cleanup UI
+                triggers `runSweep` via IPC on demand.
 
-Background (fire-and-forget, non-blocking)
-+-- FileManager.runStartupSweeps -- started fire-and-forget from onInit,
-                                    runs two concurrent passes:
-                                    • runStartupFileSweep:  cleans orphan UUID
-                                                            files + *.tmp-<uuid>
-                                                            residues
-                                    • runDbSweep (uses an internal
-                                      OrphanRefScanner class — NOT a separate
-                                      lifecycle service, NOT delayed 30s):
-                                      DB-level orphan-ref + orphan-entry scan
-                                      per §7 Layer 3
+On-Demand (user-triggered via File_RunSweep IPC)
++-- FileManager.runSweep -- runs two concurrent passes and returns one
+                            OrphanReport when both settle:
+                            • runFileSweep:       cleans orphan UUID files +
+                                                  *.tmp-<uuid> residues
+                            • runDbSweep (uses an internal
+                              OrphanRefScanner class — NOT a separate
+                              lifecycle service, NOT scheduled):
+                              DB-level orphan-ref + orphan-entry scan
+                              per §7 Layer 3
 
 Singletons / Primitives (no lifecycle):
 +-- @main/utils/file/*            -- sole FS owner, stateless pure functions
@@ -949,26 +948,26 @@ Data Repositories (not lifecycle, managed by DataApiService):
                            — external rows are never trashed by invariant)
                        2. this.registerIpcHandlers()
                           (wires File_GetDanglingState +
-                           File_BatchGetDanglingStates;
+                           File_BatchGetDanglingStates + File_RunSweep;
                            other File_* channels land in Phase 2)
-                       3. fire void this.runStartupSweeps()  ◄── not awaited
                           (version cache constructs at field-init time;
                            §3.6 broadcast wiring is deferred to Phase 2)
                                    │
-                          (ready signal emitted immediately; ready not blocked)
-                          │                            │
-                          ▼                            ▼
-                      onAllReady()                 (background in parallel)
-                          │                   orphan sweep:
-                          ▼                     UUID files not in DB → unlink
-                 runDbSweep (in-process,         *.tmp-<uuid> → unlink
-                 fired from runStartupSweeps;     (uuid here is v4 from
-                 no separate scheduling)          node:crypto.randomUUID;
-                                                  orphan sweep regex is
-                                                  version-agnostic)
+                          (ready signal emitted immediately)
+                          │
+                          ▼
+                      onAllReady()
+                          │
+                          ▼ (on-demand, when cleanup UI calls File_RunSweep)
+                 FileManager.runSweep — runs concurrently:
+                   • FS-level: UUID files not in DB → unlink,
+                     *.tmp-<uuid> → unlink
+                   • DB-level: orphan-ref deletion + orphan-entry report
+                 (uuid here is v4 from node:crypto.randomUUID;
+                  orphan sweep regex is version-agnostic)
 ```
 
-**Key**: `runOrphanSweep()` starts with `void` rather than `await`, so `onInit` returns immediately and the service becomes ready immediately. DanglingCache reverse index initialization is a **synchronous DB query** that should be fast (external entries are usually <10000 rows), so no additional signal mechanism is introduced.
+**Key**: `onInit` is non-blocking — only the DanglingCache reverse-index init is awaited (a synchronous DB query, fast for typical <10k external-entry counts). No sweep runs at startup; the cleanup UI is the sole trigger for `runSweep` via the `File_RunSweep` IPC channel.
 
 ### 6.3 Dependency Declarations for Business Services
 
@@ -1028,7 +1027,7 @@ src/main/utils/file/                  -- pure FS primitives, sole FS owner, open
 
 - **External entry is a best-effort reference**: no guarantee the file remains stable, no guarantee content matches the reference-time content. Equivalent to "the user expressed intent to reference this path at some point" semantics in tools like codex
 - **External entry path is globally unique**: at most one row per `externalPath` at any time, regardless of any state (SQLite global unique index on `externalPath`; internal rows have `externalPath = null` and are exempt, since SQLite treats multiple NULLs as distinct). `ensureExternalEntry` is therefore a pure upsert by path — reuse if an entry exists, otherwise insert; no "restore" branch is possible because external entries cannot be trashed.
-- **External entries cannot be trashed**: enforced at the DB layer by `CHECK (origin != 'external' OR trashedAt IS NULL)` (`fe_external_no_trash`). External lifecycle is monotonic: create via `ensureExternalEntry` → update in place via `write` / `rename` → remove via `permanentDelete` (DB row only). There is no soft-delete / restore cycle for external entries. Calling `trash` / `restore` on an external id throws.
+- **External entries cannot be trashed**: enforced at the DB layer by `CHECK (origin != 'external' OR deletedAt IS NULL)` (`fe_external_no_delete`). External lifecycle is monotonic: create via `ensureExternalEntry` → update in place via `write` / `rename` → remove via `permanentDelete` (DB row only). There is no soft-delete / restore cycle for external entries. Calling `trash` / `restore` on an external id throws.
 - **External entries allow explicit user edits**: `write` / `writeIfUnchanged` / `createWriteStream` / `rename` take effect on external (delegated to ops' atomic write / fs.rename), triggered by explicit user action. Cherry does **not** perform automatic / watcher-driven external file modifications
 - **`permanentDelete` on external is entry-level, not file-level**: removes only the DB row + CASCADE-cleans `file_ref`; the physical file is left untouched. Path-level deletion remains available via `remove(path)` (from `@main/utils/file/fs`, reached through a `FilePathHandle`), which is a separate explicit call not bound to any entry id.
 - **Cherry does not track rename/move of external files**: an external rename turns the entry dangling; the user must re-@ to establish a new reference
@@ -1045,7 +1044,7 @@ src/main/utils/file/                  -- pure FS primitives, sole FS owner, open
 
 | Extension direction                     | Integration path                                                                                |
 | --------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| AI provider uploads (after SDK stable)  | Add `FileUploadService` + `file_upload` table; FileEntry structure unchanged; migrate via additive migration |
+| AI provider uploads                     | Refactor `FileServiceManager` into a lifecycle `FileUploadService` ahead of AI SDK stable (see §1.1); add `file_upload` table additively when persistence is needed; FileEntry structure unchanged |
 | New business reference source           | Add `sourceType` enum value + register `SourceTypeChecker` (compile-time enforced)              |
 | Business module needs to watch external dir | Obtain an instance via `createDirectoryWatcher()` factory; subscribe to events; DanglingCache auto-syncs |
 | Dangling reactivity (real-time push to renderer) | Currently pull-based via File IPC `getDanglingState` + React Query refresh; future could push state changes over IPC so renderer invalidates presence queries on DanglingCache events |

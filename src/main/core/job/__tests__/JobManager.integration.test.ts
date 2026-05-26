@@ -456,4 +456,166 @@ describe('JobManager integration', () => {
       await teardownManager(scheduler, jobManager)
     })
   })
+
+  describe('global cap cross-queue wakeup', () => {
+    // Regression: when a dispatch is blocked purely by the GLOBAL concurrency
+    // cap (the queue itself has free slots), a job finishing on a DIFFERENT
+    // queue must re-kick all queues — not just the finished job's own queue.
+    // Previously resolveAndDispatch only dispatched snapshot.queue, so a queue
+    // starved solely by the global cap stalled until the next 5-minute promotion
+    // tick or a fresh enqueue (a lost wakeup).
+    it('re-dispatches a globally-starved queue after a global slot frees', async () => {
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['cap.task', makeSlowHandler('abandon') as JobHandler]]
+      })
+      // Force the global cap to bind with a single slot.
+      ;(jobManager as unknown as { globalMaxConcurrency: number }).globalMaxConcurrency = 1
+
+      // Queue qB occupies the only global slot with a slow job.
+      const occupant = await jobManager.enqueue(
+        'cap.task' as never,
+        { message: 'occupant', sleepMs: 150 } as never,
+        { queue: 'qB' } as never
+      )
+      await drainAllQueues(jobManager)
+
+      // Queue qA is enqueued while the global cap is saturated → blocked pending,
+      // even though qA's own per-queue slots are free.
+      const starved = await jobManager.enqueue(
+        'cap.task' as never,
+        { message: 'starved', sleepMs: 10 } as never,
+        { queue: 'qA' } as never
+      )
+
+      // Pin the regression deterministically: qA's dispatch must have observed
+      // the global cap saturated and set the flag. Drain first so qA's (fire-and-
+      // forget) dispatch tx has run — async-mutex is FIFO, so qA's earlier
+      // mutex.acquire() resolves before drain's, guaranteeing the flag is set by
+      // the time drain returns. Without this assertion the test could pass
+      // vacuously if timing left a global slot free at qA enqueue time.
+      await drainAllQueues(jobManager)
+      expect((jobManager as unknown as { globalCapReached: boolean }).globalCapReached).toBe(true)
+
+      // Occupant finishes → frees the global slot → must wake qA.
+      await occupant.finished
+      const settled = await Promise.race([
+        starved.finished,
+        new Promise<'timeout'>((r) => setTimeout(() => r('timeout'), 2000))
+      ])
+      expect(settled).not.toBe('timeout')
+      expect((settled as { status: string }).status).toBe('completed')
+
+      await drainAllQueues(jobManager)
+      await teardownManager(scheduler, jobManager)
+    })
+  })
+
+  describe('scheduleRetry persistence failure → fallback finalize', () => {
+    it('degrades to failed(retryable=true) when retry tx persistently fails (non-BUSY)', async () => {
+      // Handler always throws a retryable error so JobManager attempts retry.
+      const handler: JobHandler = {
+        recovery: 'retry',
+        cancelTimeoutMs: 500,
+        defaultConcurrency: 2,
+        async execute() {
+          throw new Error('handler-intentional-failure')
+        }
+      }
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['retry.fallback.task', handler]]
+      })
+
+      // Capture unhandled rejections to assert none leak from the fallback chain.
+      const unhandled: unknown[] = []
+      const listener = (reason: unknown) => unhandled.push(reason)
+      process.on('unhandledRejection', listener)
+
+      // Persistently fail the retry persist path with a non-BUSY error so
+      // withWriteTx does NOT retry (only BUSY is retried) — the failure
+      // propagates back to scheduleRetry, triggering the fallback finalize.
+      const retrySpy = vi.spyOn(jobService, 'setDelayedRetryTx').mockImplementation(async () => {
+        throw Object.assign(new Error('synthetic-corrupt'), { code: 'SQLITE_CORRUPT' })
+      })
+
+      const handle = await jobManager.enqueue(
+        'retry.fallback.task' as never,
+        { message: 'doomed' } as never,
+        { maxAttempts: 3 } as never
+      )
+
+      // Drive the dispatch + handler.execute + fallback finalize chain to
+      // completion. Poll the row instead of using a fixed sleep — the
+      // exact ordering of microtasks across enqueue → dispatch → spawnExecute
+      // → catch → scheduleRetry → fallback finalizeJob is timing-sensitive
+      // and a flat 50 ms can be flaky under load.
+      const deadline = Date.now() + 3000
+      let final: Awaited<ReturnType<typeof jobService.getById>> = null
+      while (Date.now() < deadline) {
+        await drainAllQueues(jobManager)
+        await new Promise((r) => setTimeout(r, 20))
+        final = await jobService.getById(handle.id)
+        if (final?.status === 'failed') break
+      }
+
+      expect(final?.status).toBe('failed')
+      expect(final?.error?.retryable).toBe(true)
+      expect(final?.error?.message).toContain('Retry persist failed')
+
+      expect(unhandled).toHaveLength(0)
+
+      process.off('unhandledRejection', listener)
+      retrySpy.mockRestore()
+      await teardownManager(scheduler, jobManager)
+    })
+
+    it('outer .catch chain swallows leaked errors even when fallback finalize also throws', async () => {
+      const handler: JobHandler = {
+        recovery: 'retry',
+        cancelTimeoutMs: 500,
+        defaultConcurrency: 2,
+        async execute() {
+          throw new Error('handler-intentional-failure')
+        }
+      }
+      const { scheduler, jobManager } = await bootstrapManager({
+        handlers: [['retry.fallback.task.2', handler]]
+      })
+
+      const unhandled: unknown[] = []
+      const listener = (reason: unknown) => unhandled.push(reason)
+      process.on('unhandledRejection', listener)
+
+      // Force both writes to fail so the §D outer .catch path becomes the
+      // last line of defense.
+      const retrySpy = vi.spyOn(jobService, 'setDelayedRetryTx').mockImplementation(async () => {
+        throw Object.assign(new Error('synthetic-corrupt'), { code: 'SQLITE_CORRUPT' })
+      })
+      const terminalSpy = vi.spyOn(jobService, 'setTerminalTx').mockImplementation(async () => {
+        throw Object.assign(new Error('synthetic-corrupt-terminal'), { code: 'SQLITE_CORRUPT' })
+      })
+
+      await jobManager.enqueue(
+        'retry.fallback.task.2' as never,
+        { message: 'doubled-doom' } as never,
+        { maxAttempts: 3 } as never
+      )
+
+      // Drive the dispatch + handler + fallback chain. With both retry and
+      // terminal writes mocked to fail, the production code falls all the
+      // way through to synthesizeFailedSnapshot in finalizeJob and then
+      // exits the IIFE via the finally block. We assert only the absence
+      // of unhandled rejections — the DB row is intentionally left in
+      // 'running' (which the watchdog or startup recovery would reclaim
+      // in production).
+      await drainAllQueues(jobManager)
+      await new Promise((r) => setTimeout(r, 100))
+
+      expect(unhandled).toHaveLength(0)
+
+      process.off('unhandledRejection', listener)
+      retrySpy.mockRestore()
+      terminalSpy.mockRestore()
+      await teardownManager(scheduler, jobManager)
+    })
+  })
 })

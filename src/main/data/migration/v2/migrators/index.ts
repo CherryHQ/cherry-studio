@@ -9,10 +9,12 @@ import { AgentsMigrator } from './AgentsMigrator'
 import { AssistantMigrator } from './AssistantMigrator'
 import { BootConfigMigrator } from './BootConfigMigrator'
 import { ChatMigrator } from './ChatMigrator'
+import { FileMigrator } from './FileMigrator'
 import { KnowledgeMigrator } from './KnowledgeMigrator'
 import { KnowledgeVectorMigrator } from './KnowledgeVectorMigrator'
 import { McpServerMigrator } from './McpServerMigrator'
 import { MiniAppMigrator } from './MiniAppMigrator'
+import { NoteMigrator } from './NoteMigrator'
 import { PaintingMigrator } from './PaintingMigrator'
 import { PreferencesMigrator } from './PreferencesMigrator'
 import { PromptMigrator } from './PromptMigrator'
@@ -25,10 +27,12 @@ export {
   AssistantMigrator,
   BootConfigMigrator,
   ChatMigrator,
+  FileMigrator,
   KnowledgeMigrator,
   KnowledgeVectorMigrator,
   McpServerMigrator,
   MiniAppMigrator,
+  NoteMigrator,
   PaintingMigrator,
   PreferencesMigrator,
   PromptMigrator,
@@ -43,10 +47,12 @@ export function getAllMigrators() {
   return [
     new BootConfigMigrator(),
     new PreferencesMigrator(),
+    new NoteMigrator(),
     new MiniAppMigrator(),
     new McpServerMigrator(),
     new ProviderModelMigrator(),
     new AssistantMigrator(),
+    new FileMigrator(),
     new AgentsMigrator(),
     new KnowledgeMigrator(),
     new KnowledgeVectorMigrator(),

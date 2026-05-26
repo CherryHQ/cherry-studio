@@ -1,4 +1,4 @@
-import McpMarketList from '@renderer/pages/settings/MCPSettings/McpMarketList'
+import McpMarketList from '@renderer/pages/settings/McpSettings/McpMarketList'
 import { createFileRoute } from '@tanstack/react-router'
 
 const MarketplacesWrapper = () => (

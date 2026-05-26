@@ -562,7 +562,7 @@ function buildAIGatewayOptions(
   // Keys here must stay aligned with the language-model class each SDK layer builds, otherwise
   // AI SDK drops the custom provider options. See:
   //   - packages/ai-sdk-provider/src/cherryin-provider.ts (createChatModel)
-  //   - src/renderer/src/aiCore/provider/custom/newapi-provider.ts (createChatModel)
+  //   - src/renderer/src/aiCore/provider/custom/newapiProvider.ts (createChatModel)
   //
   //   endpoint_type      | SDK language-model class           | AI SDK providerOptions key
   //   -------------------+------------------------------------+---------------------------

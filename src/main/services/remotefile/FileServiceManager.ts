@@ -3,7 +3,7 @@ import type { Provider } from '@types'
 import type { BaseFileService } from './BaseFileService'
 import { GeminiService } from './GeminiService'
 import { MistralService } from './MistralService'
-import { OpenaiService } from './OpenAIService'
+import { OpenaiService } from './OpenaiService'
 
 export class FileServiceManager {
   private services: Map<string, BaseFileService> = new Map()

@@ -7,17 +7,17 @@ import {
 import type { Provider } from '@shared/data/types/provider'
 import type { ReactNode } from 'react'
 
-import OpenAIAlert from '../components/OpenAIAlert'
+import OpenaiAlert from '../components/OpenaiAlert'
 import type { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import AwsBedrockSettings from './AwsBedrockSettings'
-import CherryINOAuth from './CherryINOAuth'
-import DMXAPISettings from './DMXAPISettings'
+import CherryInOauth from './CherryInOauth'
+import DmxapiSettings from './DmxapiSettings'
 import GithubCopilotSettings from './GithubCopilotSettings'
-import GPUStackSettings from './GPUStackSettings'
-import LMStudioSettings from './LMStudioSettings'
-import OVMSSettings from './OVMSSettings'
-import ProviderOAuth from './ProviderOAuth'
-import VertexAISettings from './VertexAISettings'
+import GpuStackSettings from './GpuStackSettings'
+import LmStudioSettings from './LmStudioSettings'
+import OvmsSettings from './OvmsSettings'
+import ProviderOauth from './ProviderOauth'
+import VertexAiSettings from './VertexAiSettings'
 
 export type ProviderSpecificPlacement = 'beforeAuth' | 'afterAuth'
 
@@ -37,39 +37,39 @@ export const PROVIDER_SPECIFIC_SETTINGS_REGISTRY: Record<ProviderSpecificPlaceme
     {
       key: 'oauth',
       when: ({ provider }) => isProviderSupportAuth(provider),
-      render: (providerId) => <ProviderOAuth providerId={providerId} />
+      render: (providerId) => <ProviderOauth providerId={providerId} />
     },
     {
       key: 'cherryin-oauth',
       when: ({ meta }) => meta.isCherryIN,
-      render: (providerId) => <CherryINOAuth providerId={providerId} />
+      render: (providerId) => <CherryInOauth providerId={providerId} />
     },
     {
       key: 'openai-alert',
       when: ({ provider }) => matchesPreset(provider, 'openai'),
-      render: () => <OpenAIAlert />
+      render: () => <OpenaiAlert />
     },
     {
       key: 'ovms-settings',
       when: ({ provider }) => matchesPreset(provider, 'ovms'),
-      render: () => <OVMSSettings />
+      render: () => <OvmsSettings />
     },
     {
       key: 'dmxapi-settings',
       when: ({ meta }) => meta.isDmxapi,
-      render: (providerId) => <DMXAPISettings providerId={providerId} />
+      render: (providerId) => <DmxapiSettings providerId={providerId} />
     }
   ],
   afterAuth: [
     {
       key: 'lmstudio-settings',
       when: ({ provider }) => matchesPreset(provider, 'lmstudio'),
-      render: (providerId) => <LMStudioSettings providerId={providerId} />
+      render: (providerId) => <LmStudioSettings providerId={providerId} />
     },
     {
       key: 'gpustack-settings',
       when: ({ provider }) => matchesPreset(provider, 'gpustack'),
-      render: (providerId) => <GPUStackSettings providerId={providerId} />
+      render: (providerId) => <GpuStackSettings providerId={providerId} />
     },
     {
       key: 'copilot-settings',
@@ -84,7 +84,7 @@ export const PROVIDER_SPECIFIC_SETTINGS_REGISTRY: Record<ProviderSpecificPlaceme
     {
       key: 'vertexai-settings',
       when: ({ provider }) => isVertexProvider(provider),
-      render: (providerId) => <VertexAISettings providerId={providerId} />
+      render: (providerId) => <VertexAiSettings providerId={providerId} />
     }
   ]
 }

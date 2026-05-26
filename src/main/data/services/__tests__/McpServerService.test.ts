@@ -1,11 +1,11 @@
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
-import { MCPServerService, mcpServerService } from '@data/services/McpServerService'
+import { McpServerService, mcpServerService } from '@data/services/McpServerService'
 import { DataApiError, ErrorCode } from '@shared/data/api'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
-describe('MCPServerService', () => {
+describe('McpServerService', () => {
   const dbh = setupTestDatabase()
 
   async function seedServer(overrides: Partial<typeof mcpServerTable.$inferInsert> = {}) {
@@ -25,7 +25,7 @@ describe('MCPServerService', () => {
   }
 
   it('should export a module-level singleton', () => {
-    expect(mcpServerService).toBeInstanceOf(MCPServerService)
+    expect(mcpServerService).toBeInstanceOf(McpServerService)
   })
 
   describe('getById', () => {

@@ -21,7 +21,7 @@ const mockLoggerWarn = mockMainLoggerService.warn
 const { application } = await import('@application')
 const { fileEntryService } = await import('@data/services/FileEntryService')
 const { fileRefService } = await import('@data/services/FileRefService')
-const { createDefaultOrphanCheckerRegistry } = await import('@data/services/orphan/FileRefCheckerRegistry')
+const { createDefaultOrphanCheckerRegistry } = await import('@main/services/file/orphanCheckerRegistry')
 const { batchPermanentDelete, batchRestore, batchTrash, permanentDelete, restore, trash } = await import('../lifecycle')
 const { exists } = await import('@main/utils/file/fs')
 const { createInternal, ensureExternal } = await import('../create')
@@ -86,30 +86,30 @@ describe('internal/entry/lifecycle', () => {
       const id = await makeInternal()
       await trash(deps, id)
       const entry = await fileEntryService.getById(id)
-      // trashedAt is an `optional` ms-epoch number on internal entries —
+      // deletedAt is an `optional` ms-epoch number on internal entries —
       // present + non-zero when trashed, absent (undefined) when live.
       expect(entry.origin).toBe('internal')
       if (entry.origin === 'internal') {
-        expect(typeof entry.trashedAt).toBe('number')
+        expect(typeof entry.deletedAt).toBe('number')
       }
     })
 
-    it('throws when called on an external entry (CHECK fe_external_no_trash)', async () => {
+    it('throws when called on an external entry (CHECK fe_external_no_delete)', async () => {
       const id = await makeExternal()
       await expect(trash(deps, id)).rejects.toThrow()
     })
   })
 
   describe('restore', () => {
-    it('clears trashedAt on a trashed internal entry', async () => {
+    it('clears deletedAt on a trashed internal entry', async () => {
       const id = await makeInternal()
       await trash(deps, id)
       await restore(deps, id)
       const entry = await fileEntryService.getById(id)
-      // After restore, trashedAt is absent (undefined) on the BO.
+      // After restore, deletedAt is absent (undefined) on the BO.
       expect(entry.origin).toBe('internal')
       if (entry.origin === 'internal') {
-        expect(entry.trashedAt).toBeUndefined()
+        expect(entry.deletedAt).toBeUndefined()
       }
     })
 

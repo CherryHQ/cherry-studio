@@ -19,6 +19,7 @@
  */
 
 import type { FileEntryId } from '@shared/data/types/file'
+import { LRUCache } from 'lru-cache'
 
 import type { FileVersion } from './FileManager'
 
@@ -40,46 +41,24 @@ export interface VersionCache {
 }
 
 /**
- * LRU implementation backed by JavaScript's insertion-ordered Map.
+ * Construct a fresh VersionCache. Production callers go through `FileManager`.
  *
- * Recency is updated on every successful `get` (the entry is removed and
- * re-inserted to move it to the tail) and every `set` (already-present keys
- * are deleted before re-insert). When the store size exceeds `capacity`, the
- * head of the map (the least-recently used entry) is evicted.
- *
- * The default singleton uses capacity 2000 per architecture.md §4.4.
+ * Backed by `lru-cache`'s default LRU behavior: `get()` promotes the entry
+ * to most-recently-used; `set()` evicts the least-recently-used entry once
+ * `capacity` is exceeded.
  */
-class VersionCacheImpl implements VersionCache {
-  private readonly store = new Map<FileEntryId, FileVersion>()
-  constructor(private readonly capacity: number) {}
-
-  get(id: FileEntryId): FileVersion | undefined {
-    const v = this.store.get(id)
-    if (v === undefined) return undefined
-    this.store.delete(id)
-    this.store.set(id, v)
-    return v
-  }
-
-  set(id: FileEntryId, version: FileVersion): void {
-    if (this.store.has(id)) this.store.delete(id)
-    this.store.set(id, version)
-    if (this.store.size > this.capacity) {
-      const oldest = this.store.keys().next().value
-      if (oldest !== undefined) this.store.delete(oldest)
+export function createVersionCacheImpl(capacity: number): VersionCache {
+  const store = new LRUCache<FileEntryId, FileVersion>({ max: capacity })
+  return {
+    get: (id) => store.get(id),
+    set: (id, version) => {
+      store.set(id, version)
+    },
+    invalidate: (id) => {
+      store.delete(id)
+    },
+    clear: () => {
+      store.clear()
     }
   }
-
-  invalidate(id: FileEntryId): void {
-    this.store.delete(id)
-  }
-
-  clear(): void {
-    this.store.clear()
-  }
-}
-
-/** Construct a fresh VersionCache. Production callers go through `FileManager`. */
-export function createVersionCacheImpl(capacity: number): VersionCache {
-  return new VersionCacheImpl(capacity)
 }

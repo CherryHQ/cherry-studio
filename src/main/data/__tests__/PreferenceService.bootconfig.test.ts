@@ -23,6 +23,20 @@ vi.mock('@main/data/bootConfig', () => ({
   }
 }))
 
+// Mock application.get('DbService') to return a stub with withWriteTx + getDb
+const mockWithWriteTx = vi.fn()
+const mockGetDb = vi.fn()
+vi.mock('@application', () => ({
+  application: {
+    get: vi.fn((name: string) => {
+      if (name === 'DbService') {
+        return { withWriteTx: mockWithWriteTx, getDb: mockGetDb }
+      }
+      throw new Error(`Unexpected application.get(${name})`)
+    })
+  }
+}))
+
 // Mock lifecycle decorators to no-ops so PreferenceService can be instantiated
 vi.mock('@main/core/lifecycle', () => ({
   BaseService: class {
@@ -48,9 +62,6 @@ vi.mock('drizzle-orm', () => ({
 vi.mock('../db/schemas/preference', () => ({
   preferenceTable: { scope: 'scope', key: 'key' }
 }))
-
-// Mock db types
-vi.mock('../db/types', () => ({}))
 
 const BOOT_CONFIG_KEY = 'BootConfig.app.disable_hardware_acceleration' as const
 const PREFERENCE_KEY = 'app.language' as const
@@ -110,12 +121,14 @@ describe('PreferenceService BootConfig routing', () => {
     })
 
     it('does not call bootConfigService for preference keys', async () => {
-      const mockUpdate = vi.fn().mockReturnValue({
-        set: vi.fn().mockReturnValue({
-          where: vi.fn().mockResolvedValue(undefined)
+      const mockTx = {
+        update: vi.fn().mockReturnValue({
+          set: vi.fn().mockReturnValue({
+            where: vi.fn().mockResolvedValue(undefined)
+          })
         })
-      })
-      service.db = { update: mockUpdate }
+      }
+      mockWithWriteTx.mockImplementation(async (fn: any) => fn(mockTx))
 
       await service.set(PREFERENCE_KEY, 'zh-CN')
 
@@ -134,9 +147,7 @@ describe('PreferenceService BootConfig routing', () => {
           })
         })
       }
-      service.db = {
-        transaction: vi.fn(async (fn: any) => fn(mockTx))
-      }
+      mockWithWriteTx.mockImplementation(async (fn: any) => fn(mockTx))
 
       await service.setMultiple({
         [BOOT_CONFIG_KEY]: true,
@@ -149,10 +160,6 @@ describe('PreferenceService BootConfig routing', () => {
 
     it('skips unchanged BootConfig values in batch', async () => {
       mockBootConfigGet.mockReturnValue(false)
-
-      service.db = {
-        transaction: vi.fn(async (fn: any) => fn({ update: vi.fn() }))
-      }
 
       await service.setMultiple({
         [BOOT_CONFIG_KEY]: false

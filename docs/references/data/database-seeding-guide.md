@@ -157,5 +157,5 @@ No changes to `DbService` are needed.
 - **Idempotency**: Seed logic must check existing data before inserting. Users may have modified or deleted seeded records; the seeder should only insert records that do not already exist.
 - **Transaction atomicity**: Each seed runs in its own transaction together with its journal update. If the seed fails, neither the data nor the journal entry is committed.
 - **Phase**: Seeds run at `Phase.BeforeReady` during app initialization, before any services that depend on the seeded data are active.
-- **Journal storage**: Journal entries are stored in the `app_state` table with key prefix `seed:` and a JSON value containing `version`. The table's built-in `updatedAt` column serves as the applied-at timestamp.
+- **Journal storage**: Journal entries are stored in the `app_state` table with key prefix `seed:` and a JSON value containing `version`. The table's built-in `updatedAt` column serves as the applied-at timestamp. The `seed:` prefix follows the `app_state` key-naming convention — see [App State Overview](./app-state-overview.md).
 - **No manual DbService changes**: Adding a seeder only requires creating the class and registering it in the `seeders` array.

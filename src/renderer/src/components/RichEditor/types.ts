@@ -21,6 +21,8 @@ export interface RichEditorProps {
   showTableOfContents?: boolean
   /** Custom CSS class name */
   className?: string
+  /** Custom styles for the outer editor wrapper */
+  wrapperStyle?: React.CSSProperties
   /** Whether to show the toolbar */
   showToolbar?: boolean
   /** Minimum height of the editor */

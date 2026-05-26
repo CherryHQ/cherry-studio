@@ -135,7 +135,7 @@ class ShikiStreamService {
     this.workerInitPromise = (async () => {
       try {
         // 动态导入 worker
-        const WorkerModule = await import('../workers/shiki-stream.worker?worker')
+        const WorkerModule = await import('../workers/shikiStream.worker?worker')
         this.worker = new WorkerModule.default()
 
         // 设置消息处理器

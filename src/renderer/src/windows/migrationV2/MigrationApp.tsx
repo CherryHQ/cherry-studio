@@ -156,7 +156,18 @@ const MigrationApp: React.FC = () => {
       case 'introduction':
         return (
           <>
-            <Button onClick={actions.cancel}>{t('migration.buttons.cancel')}</Button>
+            <Space>
+              <Button onClick={actions.cancel}>{t('migration.buttons.cancel')}</Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  if (window.confirm(t('migration.introduction.confirm_skip'))) {
+                    void actions.skipMigration()
+                  }
+                }}>
+                {t('migration.buttons.skip_migration')}
+              </Button>
+            </Space>
             <Spacer />
             <Button onClick={actions.proceedToBackup}>{t('migration.buttons.next')}</Button>
           </>

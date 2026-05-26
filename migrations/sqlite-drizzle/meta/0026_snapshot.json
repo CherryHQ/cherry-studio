@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "26e1a0b6-782a-4469-a4c7-c8e59da474b7",
+  "id": "3693bd3e-7915-4bdd-bfe0-7cb58b5984d4",
   "prevId": "eda75c54-7724-4482-bfa5-d78033f6c964",
   "tables": {
     "agent": {
@@ -1334,8 +1334,8 @@
           "notNull": false,
           "autoincrement": false
         },
-        "trashed_at": {
-          "name": "trashed_at",
+        "deleted_at": {
+          "name": "deleted_at",
           "type": "integer",
           "primaryKey": false,
           "notNull": false,
@@ -1357,9 +1357,9 @@
         }
       },
       "indexes": {
-        "fe_trashed_at_idx": {
-          "name": "fe_trashed_at_idx",
-          "columns": ["trashed_at"],
+        "fe_deleted_at_idx": {
+          "name": "fe_deleted_at_idx",
+          "columns": ["deleted_at"],
           "isUnique": false
         },
         "fe_created_at_idx": {
@@ -1390,9 +1390,9 @@
           "name": "fe_origin_consistency",
           "value": "(\"file_entry\".\"origin\" = 'internal' AND \"file_entry\".\"external_path\" IS NULL) OR (\"file_entry\".\"origin\" = 'external' AND \"file_entry\".\"external_path\" IS NOT NULL)"
         },
-        "fe_external_no_trash": {
-          "name": "fe_external_no_trash",
-          "value": "\"file_entry\".\"origin\" != 'external' OR \"file_entry\".\"trashed_at\" IS NULL"
+        "fe_external_no_delete": {
+          "name": "fe_external_no_delete",
+          "value": "\"file_entry\".\"origin\" != 'external' OR \"file_entry\".\"deleted_at\" IS NULL"
         },
         "fe_size_internal_only": {
           "name": "fe_size_internal_only",
@@ -1564,8 +1564,9 @@
           "name": "name",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
         },
         "trigger": {
           "name": "trigger",
@@ -2734,109 +2735,6 @@
         }
       }
     },
-    "painting": {
-      "name": "painting",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "provider_id": {
-          "name": "provider_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "model_id": {
-          "name": "model_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "mode": {
-          "name": "mode",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "media_type": {
-          "name": "media_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "prompt": {
-          "name": "prompt",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "params": {
-          "name": "params",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "files": {
-          "name": "files",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "order_key": {
-          "name": "order_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "painting_order_key_idx": {
-          "name": "painting_order_key_idx",
-          "columns": ["order_key"],
-          "isUnique": false
-        },
-        "painting_provider_mode_created_idx": {
-          "name": "painting_provider_mode_created_idx",
-          "columns": ["provider_id", "mode", "created_at"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "painting_media_type_check": {
-          "name": "painting_media_type_check",
-          "value": "\"painting\".\"media_type\" IN ('image', 'video')"
-        }
-      }
-    },
     "pin": {
       "name": "pin",
       "columns": {
@@ -3749,7 +3647,9 @@
   "_meta": {
     "schemas": {},
     "tables": {},
-    "columns": {}
+    "columns": {
+      "\"file_entry\".\"trashed_at\"": "\"file_entry\".\"deleted_at\""
+    }
   },
   "internal": {
     "indexes": {

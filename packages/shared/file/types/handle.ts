@@ -30,6 +30,8 @@
  */
 
 import type { FileEntryId } from '@shared/data/types/file'
+import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
+import * as z from 'zod'
 
 import type { FilePath } from './common'
 
@@ -46,9 +48,27 @@ export type FilePathHandle = {
 export type FileHandle = FileEntryHandle | FilePathHandle
 
 /**
+ * Zod schemas for `FileHandle`, used to validate IPC payloads at the main-process
+ * boundary. The runtime factories `createFileEntryHandle` / `createFilePathHandle`
+ * are for in-process construction; these schemas are the gate for untrusted
+ * input crossing the IPC seam.
+ */
+export const FileEntryHandleSchema = z.strictObject({
+  kind: z.literal('entry'),
+  entryId: FileEntryIdSchema
+})
+
+export const FilePathHandleSchema = z.strictObject({
+  kind: z.literal('path'),
+  path: AbsolutePathSchema
+})
+
+export const FileHandleSchema = z.discriminatedUnion('kind', [FileEntryHandleSchema, FilePathHandleSchema])
+
+/**
  * Wrap a FileEntry ID as a `FileEntryHandle`.
  *
- * The caller is responsible for ensuring `entryId` is a valid UUID v7 —
+ * The caller is responsible for ensuring `entryId` is a valid UUID —
  * typically produced by a FileManager factory or the DataApi response. This
  * factory does not re-validate: `FileEntryId` is a type alias over `string`
  * (see `FileEntryIdSchema`), and runtime validation happens at the entry

@@ -3059,24 +3059,24 @@
           "originalKey": "activeNodeId",
           "type": "string",
           "defaultValue": null,
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "cache",
           "targetKey": null
         },
         {
           "originalKey": "activeFilePath",
           "type": "string",
           "defaultValue": null,
-          "status": "pending",
-          "category": null,
-          "targetKey": null
+          "status": "classified",
+          "category": "cache",
+          "targetKey": "notes.active_file_path"
         },
         {
           "originalKey": "settings",
           "type": "unknown",
           "defaultValue": "{ isFullWidth: true, fontFamily: 'default', fontSize: 16, showTableOfContents: true, defaultViewMode: 'edit', defaultEditMode: 'preview', showTabStatus: true, showWorkspace: true }",
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "preferences",
           "targetKey": null,
           "children": [
             {
@@ -3165,16 +3165,16 @@
           "originalKey": "starredPaths",
           "type": "string",
           "defaultValue": [],
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "user_data",
           "targetKey": null
         },
         {
           "originalKey": "expandedPaths",
           "type": "string",
           "defaultValue": null,
-          "status": "pending",
-          "category": null,
+          "status": "classified",
+          "category": "user_data",
           "targetKey": null
         }
       ]
