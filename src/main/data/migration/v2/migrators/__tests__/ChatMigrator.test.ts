@@ -10,6 +10,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
+import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { pinTable } from '@data/db/schemas/pin'
 import { setupTestDatabase } from '@test-helpers/db'
 import { asc, eq } from 'drizzle-orm'
@@ -801,5 +802,190 @@ describe('ChatMigrator model reference sanitization', () => {
 
     expect(dropped).toBe(1)
     expect(messages[0].modelId).toBeNull()
+  })
+})
+
+describe('ChatMigrator.insertStagedTopics file_ref backfill', () => {
+  const dbh = setupTestDatabase()
+
+  /** Seed a minimal file_entry row so FK-constrained file_ref inserts succeed. */
+  async function seedFileEntry(id: string): Promise<void> {
+    const now = Date.now()
+    await dbh.db.insert(fileEntryTable).values({
+      id,
+      origin: 'internal',
+      name: `test-${id}`,
+      ext: 'png',
+      size: 1024,
+      createdAt: now,
+      updatedAt: now
+    })
+  }
+
+  function newTopic(id: string, updatedAt: number): NewTopic {
+    return {
+      id,
+      name: id,
+      isNameManuallyEdited: false,
+      assistantId: null,
+      activeNodeId: null,
+      groupId: null,
+      orderKey: '',
+      createdAt: updatedAt,
+      updatedAt
+    }
+  }
+
+  function newMessage(
+    id: string,
+    topicId: string,
+    blocks: Array<{ type: string; fileId?: string; content?: string }>
+  ): NewMessage {
+    return {
+      id,
+      parentId: null,
+      topicId,
+      role: 'user',
+      data: {
+        blocks: blocks.map((b) => {
+          if (b.type === 'image') return { type: 'image', fileId: b.fileId } as any
+          if (b.type === 'file') return { type: 'file', fileId: b.fileId } as any
+          return { type: 'main_text', content: b.content ?? 'hello' } as any
+        })
+      },
+      searchableText: '',
+      status: 'success',
+      siblingsGroupId: 0,
+      modelId: null,
+      modelSnapshot: null,
+      traceId: null,
+      stats: null,
+      createdAt: 1,
+      updatedAt: 1
+    }
+  }
+
+  function stage(migrator: ChatMigrator, items: PreparedTopicData[], fileEntryIds: string[]): void {
+    const m = migrator as unknown as Record<string, unknown>
+    m['stagedTopics'] = items
+    m['validAssistantIds'] = new Set<string>()
+    m['validModelIds'] = null
+    m['migratedFileEntryIds'] = new Set(fileEntryIds)
+    m['skippedWarnings'] = new Map()
+    m['fileRefInsertCount'] = 0
+  }
+
+  function ctxOf(): MigrationContext {
+    return { db: dbh.db } as unknown as MigrationContext
+  }
+
+  it('creates file_ref rows for image/file blocks referencing existing file_entry', async () => {
+    await seedFileEntry('fe-img-1')
+    await seedFileEntry('fe-file-1')
+
+    const migrator = new ChatMigrator()
+    const messages = [
+      newMessage('m1', 't1', [
+        { type: 'image', fileId: 'fe-img-1' },
+        { type: 'file', fileId: 'fe-file-1' }
+      ])
+    ]
+    stage(migrator, [{ topic: newTopic('t1', 100), messages, pinned: false }], ['fe-img-1', 'fe-file-1'])
+
+    const fn = (migrator as unknown as Record<string, unknown>)['insertStagedTopics'] as (
+      ctx: MigrationContext
+    ) => Promise<{ pinsInserted: number }>
+    await fn.call(migrator, ctxOf())
+
+    const refs = await dbh.db.select().from(fileRefTable)
+    expect(refs).toHaveLength(2)
+    expect(refs.every((r) => r.sourceType === 'chat_message')).toBe(true)
+    expect(refs.every((r) => r.role === 'attachment')).toBe(true)
+    expect(refs.every((r) => r.sourceId === 'm1')).toBe(true)
+    const fileEntryIds = refs.map((r) => r.fileEntryId).sort()
+    expect(fileEntryIds).toEqual(['fe-file-1', 'fe-img-1'])
+  })
+
+  it('skips file_ref for dangling fileId and records warning', async () => {
+    const migrator = new ChatMigrator()
+    const messages = [newMessage('m-dangle', 't-dangle', [{ type: 'image', fileId: 'nonexistent-fe' }])]
+    // migratedFileEntryIds is empty — simulates no matching file_entry
+    stage(migrator, [{ topic: newTopic('t-dangle', 100), messages, pinned: false }], [])
+
+    const fn = (migrator as unknown as Record<string, unknown>)['insertStagedTopics'] as (
+      ctx: MigrationContext
+    ) => Promise<{ pinsInserted: number }>
+    await fn.call(migrator, ctxOf())
+
+    const refs = await dbh.db.select().from(fileRefTable)
+    expect(refs).toHaveLength(0)
+
+    const m = migrator as unknown as Record<string, unknown>
+    const warnings = m['skippedWarnings'] as Map<string, { count: number; samples: string[] }>
+    expect(warnings.has('chat_message_dangling_file_entry')).toBe(true)
+    expect(warnings.get('chat_message_dangling_file_entry')!.count).toBe(1)
+  })
+
+  it('deduplicates same fileId within one message', async () => {
+    await seedFileEntry('fe-dup')
+
+    const migrator = new ChatMigrator()
+    const messages = [
+      newMessage('m-dup', 't-dup', [
+        { type: 'image', fileId: 'fe-dup' },
+        { type: 'image', fileId: 'fe-dup' }
+      ])
+    ]
+    stage(migrator, [{ topic: newTopic('t-dup', 100), messages, pinned: false }], ['fe-dup'])
+
+    const fn = (migrator as unknown as Record<string, unknown>)['insertStagedTopics'] as (
+      ctx: MigrationContext
+    ) => Promise<{ pinsInserted: number }>
+    await fn.call(migrator, ctxOf())
+
+    const refs = await dbh.db.select().from(fileRefTable)
+    expect(refs).toHaveLength(1)
+    expect(refs[0].fileEntryId).toBe('fe-dup')
+  })
+
+  it('inserts zero file_ref rows for text-only messages', async () => {
+    const migrator = new ChatMigrator()
+    const messages = [newMessage('m-text', 't-text', [{ type: 'main_text', content: 'just text' }])]
+    stage(migrator, [{ topic: newTopic('t-text', 100), messages, pinned: false }], [])
+
+    const fn = (migrator as unknown as Record<string, unknown>)['insertStagedTopics'] as (
+      ctx: MigrationContext
+    ) => Promise<{ pinsInserted: number }>
+    await fn.call(migrator, ctxOf())
+
+    const refs = await dbh.db.select().from(fileRefTable)
+    expect(refs).toHaveLength(0)
+  })
+
+  it('handles mixed scenario: text-only, valid image, and dangling file', async () => {
+    await seedFileEntry('fe-valid')
+
+    const migrator = new ChatMigrator()
+    const messages = [
+      newMessage('m-txt', 't-mix', [{ type: 'main_text', content: 'hello' }]),
+      newMessage('m-img', 't-mix', [{ type: 'image', fileId: 'fe-valid' }]),
+      newMessage('m-bad', 't-mix', [{ type: 'file', fileId: 'fe-gone' }])
+    ]
+    stage(migrator, [{ topic: newTopic('t-mix', 100), messages, pinned: false }], ['fe-valid'])
+
+    const fn = (migrator as unknown as Record<string, unknown>)['insertStagedTopics'] as (
+      ctx: MigrationContext
+    ) => Promise<{ pinsInserted: number }>
+    await fn.call(migrator, ctxOf())
+
+    const refs = await dbh.db.select().from(fileRefTable)
+    expect(refs).toHaveLength(1)
+    expect(refs[0].fileEntryId).toBe('fe-valid')
+    expect(refs[0].sourceId).toBe('m-img')
+
+    const m = migrator as unknown as Record<string, unknown>
+    const warnings = m['skippedWarnings'] as Map<string, { count: number; samples: string[] }>
+    expect(warnings.has('chat_message_dangling_file_entry')).toBe(true)
+    expect(warnings.get('chat_message_dangling_file_entry')!.count).toBe(1)
   })
 })
