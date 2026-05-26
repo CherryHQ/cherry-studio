@@ -24,7 +24,14 @@
 
 | Document | Description |
 |----------|-------------|
-| [AI Core Architecture](./references/ai-core-architecture.md) | Complete data flow and architecture from user input to LLM response |
+| [AI Reference](./references/ai/README.md) | Main-process AI pipeline: stream manager, agent loop, providers, tools |
+| [Core Architecture](./references/ai/core-architecture.md) | End-to-end call flow from user input to LLM response |
+| [Stream Manager](./references/ai/stream-manager.md) | Active-stream registry, broker, reconnect, persistence |
+| [Adapter Family](./references/ai/adapter-family.md) | How endpoint → `@ai-sdk/*` package routing is decided |
+| [CherryClaw Overview](./references/ai/cherryclaw/overview.md) | Autonomous agent architecture, memory system, API |
+| [CherryClaw Channels](./references/ai/cherryclaw/channels.md) | IM channel integration for autonomous agents |
+| [CherryClaw MCP Server](./references/ai/cherryclaw/mcp-claw.md) | Built-in MCP tools (cron, notify, skills, memory) |
+| [CherryClaw Scheduler](./references/ai/cherryclaw/scheduler.md) | Task-based polling scheduler |
 
 ### Data System
 
@@ -71,15 +78,6 @@
 |----------|-------------|
 | [KnowledgeService](./references/knowledge/knowledge-service.md) | Concurrency control and workload management |
 | [Knowledge Operation Guards](./references/knowledge/operation-guards.md) | Guard, enqueue failure, and recovery semantics for add/delete/reindex |
-
-### CherryClaw (Autonomous Agent)
-
-| Document | Description |
-|----------|-------------|
-| [CherryClaw Overview](./references/cherryclaw/overview.md) | Architecture, memory system, API |
-| [Channel System](./references/cherryclaw/channels.md) | IM integration (Telegram, etc.) |
-| [Claw MCP Server](./references/cherryclaw/mcp-claw.md) | Built-in MCP tools (cron, notify, skills, memory) |
-| [Scheduler](./references/cherryclaw/scheduler.md) | Task-based polling scheduler |
 
 ### Components
 
