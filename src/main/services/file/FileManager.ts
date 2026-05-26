@@ -135,7 +135,7 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { orphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry'
 import { atomicWriteFile, move as fsMove, remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
-import { isNotEmptyDir } from '@main/utils/file/path'
+import { canWrite, isNotEmptyDir } from '@main/utils/file/path'
 import { listDirectory } from '@main/utils/file/search'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
@@ -270,6 +270,8 @@ export const BatchEnsureExternalEntriesIpcSchema = z.array(EnsureExternalEntryIp
 export const BatchGetPhysicalPathsIpcSchema = z.strictObject({
   ids: z.array(FileEntryIdSchema).max(FILE_BATCH_MAX_IDS)
 })
+
+export const CanWriteIpcSchema = AbsolutePathSchema
 
 export const GetPhysicalPathIpcSchema = z.strictObject({ id: FileEntryIdSchema })
 
@@ -991,6 +993,9 @@ export class FileManager extends BaseService implements IFileManager {
       const pairs = await Promise.all(ids.map(async (id) => [id, await this.getPhysicalPath(id)] as const))
       return Object.fromEntries(pairs) as Record<string, FilePath>
     })
+    this.ipcHandle(IpcChannel.File_CanWrite, async (_e, params: unknown) =>
+      canWrite(CanWriteIpcSchema.parse(params) as FilePath)
+    )
   }
 
   /**
