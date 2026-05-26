@@ -155,7 +155,7 @@ import * as z from 'zod'
 
 import { danglingCache } from './danglingCache'
 import { hash as internalHash, hashByPath } from './internal/content/hash'
-import { read as internalRead } from './internal/content/read'
+import { read as internalRead, readByPath } from './internal/content/read'
 import {
   createWriteStream as internalCreateWriteStream,
   write as internalWrite,
@@ -278,6 +278,12 @@ export const BatchGetMetadataIpcSchema = z.strictObject({
   ids: z.array(FileEntryIdSchema).max(FILE_BATCH_MAX_IDS)
 })
 export const GetVersionIpcSchema = FileHandleSchema
+export const ReadIpcOptionsSchema = z
+  .object({
+    encoding: z.enum(['text', 'base64', 'binary']).optional(),
+    detectEncoding: z.boolean().optional()
+  })
+  .optional()
 
 // ─── Version types ───
 
@@ -809,6 +815,15 @@ export class FileManager extends BaseService implements IFileManager {
           const s = await fsStat(p)
           return { mtime: s.modifiedAt, size: s.size } as FileVersion
         }
+      )
+    })
+    this.ipcHandle(IpcChannel.File_Read, async (_e, rawHandle: unknown, rawOptions: unknown) => {
+      const handle = FileHandleSchema.parse(rawHandle) as FileHandle
+      const options = ReadIpcOptionsSchema.parse(rawOptions)
+      return dispatchHandle(
+        handle,
+        (id) => this.read(id, options),
+        (p) => readByPath(this.deps, p, options)
       )
     })
     this.ipcHandle(IpcChannel.File_RunSweep, async () => this.runSweep())

@@ -21,6 +21,7 @@ import {
   GetMetadataIpcSchema,
   GetVersionIpcSchema,
   OpenIpcSchema,
+  ReadIpcOptionsSchema,
   RestoreIpcSchema,
   ShowInFolderIpcSchema,
   TrashIpcSchema
@@ -224,5 +225,26 @@ describe('GetVersionIpcSchema', () => {
   })
   it('rejects invalid handle', () => {
     expect(() => GetVersionIpcSchema.parse({ kind: 'bad' })).toThrow()
+  })
+})
+
+describe('ReadIpcOptionsSchema', () => {
+  it('accepts undefined (default text)', () => {
+    expect(ReadIpcOptionsSchema.parse(undefined)).toBeUndefined()
+  })
+  it('accepts text encoding', () => {
+    expect(ReadIpcOptionsSchema.parse({ encoding: 'text' })).toEqual({ encoding: 'text' })
+  })
+  it('accepts base64 encoding', () => {
+    expect(ReadIpcOptionsSchema.parse({ encoding: 'base64' })).toEqual({ encoding: 'base64' })
+  })
+  it('accepts binary encoding', () => {
+    expect(ReadIpcOptionsSchema.parse({ encoding: 'binary' })).toEqual({ encoding: 'binary' })
+  })
+  it('accepts detectEncoding flag', () => {
+    expect(ReadIpcOptionsSchema.parse({ detectEncoding: true })).toEqual({ detectEncoding: true })
+  })
+  it('rejects invalid encoding', () => {
+    expect(() => ReadIpcOptionsSchema.parse({ encoding: 'utf16' })).toThrow()
   })
 })
