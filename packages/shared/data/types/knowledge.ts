@@ -2,6 +2,7 @@ import * as z from 'zod'
 
 import { FileTypeSchema } from './file'
 import { type FileMetadata } from './file/legacyFileMetadata'
+import { GroupIdSchema } from './group'
 
 /**
  * Knowledge domain types.
@@ -85,6 +86,9 @@ export const KnowledgeDocumentCountSchema = z.number().int().positive()
 export const KnowledgeHybridAlphaSchema = z.number().min(0).max(1)
 export const KnowledgeBaseEmojiSchema = z.emoji()
 export type KnowledgeBaseEmoji = z.infer<typeof KnowledgeBaseEmojiSchema>
+export const KnowledgeBaseIdSchema = z.uuidv4()
+export const KnowledgeItemIdSchema = z.uuidv7()
+export const KnowledgeBaseGroupIdInputSchema = z.string().trim().pipe(GroupIdSchema)
 export const DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE = 1024
 export const DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP = 200
 export const DEFAULT_KNOWLEDGE_BASE_EMOJI = '📁'
@@ -99,9 +103,9 @@ export const KNOWLEDGE_NOTE_CONTENT_MAX = 1_000_000
  * Knowledge base metadata stored in SQLite.
  */
 export const KnowledgeBaseEntitySchema = z.strictObject({
-  id: z.string(),
+  id: KnowledgeBaseIdSchema,
   name: z.string().trim().min(1),
-  groupId: z.string().trim().min(1).nullable(),
+  groupId: GroupIdSchema.nullable(),
   emoji: KnowledgeBaseEmojiSchema,
   dimensions: z.number().int().positive().nullable(),
   embeddingModelId: z.string().trim().min(1).nullable(),
@@ -251,13 +255,9 @@ export type KnowledgeItemData = z.infer<typeof KnowledgeItemDataSchema>
 // ============================================================================
 
 const KnowledgeItemEntityBaseSchema = z.strictObject({
-  id: z.string().describe('Stable knowledge item identifier.'),
-  baseId: z.string().describe('Owning knowledge base identifier.'),
-  groupId: z
-    .string()
-    .trim()
-    .min(1)
-    .nullable()
+  id: KnowledgeItemIdSchema.describe('Stable knowledge item identifier.'),
+  baseId: KnowledgeBaseIdSchema.describe('Owning knowledge base identifier.'),
+  groupId: KnowledgeItemIdSchema.nullable()
     .optional()
     .describe('Parent container item identifier; null or undefined means the item is a root item.'),
   createdAt: z.iso.datetime().describe('ISO timestamp when the item row was created.'),
@@ -424,7 +424,7 @@ export type KnowledgeItemOf<T extends KnowledgeItemType> = Extract<KnowledgeItem
 // ============================================================================
 
 export const KnowledgeChunkMetadataSchema = z.strictObject({
-  itemId: z.string(),
+  itemId: KnowledgeItemIdSchema,
   itemType: KnowledgeItemTypeSchema,
   source: z.string().trim().min(1),
   chunkIndex: z.number().int().min(0),
@@ -442,14 +442,14 @@ export const KnowledgeSearchResultSchema = z.strictObject({
   scoreKind: KnowledgeSearchScoreKindSchema,
   rank: z.number().int().positive(),
   metadata: KnowledgeChunkMetadataSchema,
-  itemId: z.string().optional(),
+  itemId: KnowledgeItemIdSchema.optional(),
   chunkId: z.string()
 })
 export type KnowledgeSearchResult = z.infer<typeof KnowledgeSearchResultSchema>
 
 export const KnowledgeItemChunkSchema = z.strictObject({
   id: z.string(),
-  itemId: z.string(),
+  itemId: KnowledgeItemIdSchema,
   content: z.string(),
   metadata: KnowledgeChunkMetadataSchema
 })
@@ -496,13 +496,13 @@ const refineRuntimeConfig = (value: z.infer<typeof KnowledgeBaseRuntimeConfigSch
  */
 export const CreateKnowledgeBaseSchema = KnowledgeBaseRuntimeConfigSchema.extend({
   name: z.string().trim().min(1),
-  groupId: z.string().trim().min(1).optional(),
+  groupId: KnowledgeBaseGroupIdInputSchema.optional(),
   emoji: KnowledgeBaseEmojiSchema.optional()
 }).superRefine(refineRuntimeConfig)
 export type CreateKnowledgeBaseDto = z.input<typeof CreateKnowledgeBaseSchema>
 
 export const RestoreKnowledgeBaseSchema = z.strictObject({
-  sourceBaseId: z.string().trim().min(1),
+  sourceBaseId: z.string().trim().pipe(KnowledgeBaseIdSchema),
   name: z.string().trim().min(1),
   // Dimensions must be the resolved embedding vector size for embeddingModelId.
   // Automatic callers should fill this from AI Core dimension detection; manual
@@ -514,7 +514,7 @@ export const RestoreKnowledgeBaseSchema = z.strictObject({
 export type RestoreKnowledgeBaseDto = z.input<typeof RestoreKnowledgeBaseSchema>
 
 const CreateKnowledgeItemBaseSchema = z.strictObject({
-  groupId: z.string().trim().min(1).nullable().optional()
+  groupId: KnowledgeItemIdSchema.nullable().optional()
 })
 
 export const CreateKnowledgeItemSchema = z.discriminatedUnion('type', [

@@ -10,6 +10,11 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
+const KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
+const SECOND_KNOWLEDGE_BASE_ID = '22222222-2222-4222-8222-222222222222'
+const FAILED_NULL_ERROR_BASE_ID = '33333333-3333-4333-8333-333333333333'
+const FAILED_EMPTY_ERROR_BASE_ID = '44444444-4444-4444-8444-444444444444'
+
 describe('KnowledgeBaseService', () => {
   const dbh = setupTestDatabase()
   let service: KnowledgeBaseService
@@ -39,7 +44,7 @@ describe('KnowledgeBaseService', () => {
 
   async function seedKnowledgeBase(overrides: Partial<typeof knowledgeBaseTable.$inferInsert> = {}) {
     const values: typeof knowledgeBaseTable.$inferInsert = {
-      id: 'kb-1',
+      id: KNOWLEDGE_BASE_ID,
       name: 'Knowledge Base',
       emoji: '📁',
       dimensions: 1536,
@@ -63,7 +68,7 @@ describe('KnowledgeBaseService', () => {
   describe('list', () => {
     it('should return paginated knowledge bases', async () => {
       await seedKnowledgeBase()
-      await seedKnowledgeBase({ id: 'kb-2', name: 'Another Base' })
+      await seedKnowledgeBase({ id: SECOND_KNOWLEDGE_BASE_ID, name: 'Another Base' })
 
       const result = await service.list({ page: 2, limit: 1 })
 
@@ -77,10 +82,10 @@ describe('KnowledgeBaseService', () => {
     it('should return a knowledge base by id', async () => {
       await seedKnowledgeBase()
 
-      const result = await service.getById('kb-1')
+      const result = await service.getById(KNOWLEDGE_BASE_ID)
 
       expect(result).toMatchObject({
-        id: 'kb-1',
+        id: KNOWLEDGE_BASE_ID,
         name: 'Knowledge Base',
         dimensions: 1536
       })
@@ -96,7 +101,7 @@ describe('KnowledgeBaseService', () => {
     it('should reject invalid persisted chunk configuration at the read boundary', async () => {
       await seedKnowledgeBase({ chunkSize: 100, chunkOverlap: 100 })
 
-      await expect(service.getById('kb-1')).rejects.toThrow('Chunk overlap must be smaller than chunk size')
+      await expect(service.getById(KNOWLEDGE_BASE_ID)).rejects.toThrow('Chunk overlap must be smaller than chunk size')
     })
   })
 
@@ -193,7 +198,7 @@ describe('KnowledgeBaseService', () => {
         })
       ).resolves.toBeDefined()
 
-      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, 'kb-1'))
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
       expect(row).toMatchObject({
         dimensions: null,
         embeddingModelId: null,
@@ -201,7 +206,7 @@ describe('KnowledgeBaseService', () => {
         error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
       })
 
-      await expect(service.getById('kb-1')).resolves.toMatchObject({
+      await expect(service.getById(KNOWLEDGE_BASE_ID)).resolves.toMatchObject({
         dimensions: null,
         embeddingModelId: null,
         status: 'failed',
@@ -221,7 +226,7 @@ describe('KnowledgeBaseService', () => {
 
       await expect(
         seedKnowledgeBase({
-          id: 'kb-failed-null-error',
+          id: FAILED_NULL_ERROR_BASE_ID,
           embeddingModelId: null,
           status: 'failed',
           error: null
@@ -230,7 +235,7 @@ describe('KnowledgeBaseService', () => {
 
       await expect(
         seedKnowledgeBase({
-          id: 'kb-failed-empty-error',
+          id: FAILED_EMPTY_ERROR_BASE_ID,
           embeddingModelId: null,
           status: 'failed',
           error: '' as typeof knowledgeBaseTable.$inferInsert.error
@@ -243,16 +248,16 @@ describe('KnowledgeBaseService', () => {
     it('should return the existing knowledge base when update is empty', async () => {
       await seedKnowledgeBase()
 
-      const result = await service.update('kb-1', {})
+      const result = await service.update(KNOWLEDGE_BASE_ID, {})
 
-      expect(result.id).toBe('kb-1')
+      expect(result.id).toBe(KNOWLEDGE_BASE_ID)
       expect(result.name).toBe('Knowledge Base')
     })
 
     it('should update and return the knowledge base', async () => {
       await seedKnowledgeBase()
 
-      const result = await service.update('kb-1', {
+      const result = await service.update(KNOWLEDGE_BASE_ID, {
         name: '  Updated Base  ',
         emoji: '📚',
         chunkSize: 1024,
@@ -266,7 +271,7 @@ describe('KnowledgeBaseService', () => {
       expect(result.hybridAlpha).toBe(0.9)
       expect(result.emoji).toBe('📚')
 
-      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, 'kb-1'))
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
       expect(row.name).toBe('Updated Base')
       expect(row.chunkSize).toBe(1024)
       expect(row.chunkOverlap).toBe(128)
@@ -279,7 +284,7 @@ describe('KnowledgeBaseService', () => {
         fileProcessorId: 'processor-1'
       })
 
-      const result = await service.update('kb-1', {
+      const result = await service.update(KNOWLEDGE_BASE_ID, {
         rerankModelId: null,
         fileProcessorId: null
       })
@@ -287,7 +292,7 @@ describe('KnowledgeBaseService', () => {
       expect(result.rerankModelId).toBeNull()
       expect(result.fileProcessorId).toBeNull()
 
-      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, 'kb-1'))
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
       expect(row.rerankModelId).toBeNull()
       expect(row.fileProcessorId).toBeNull()
     })
@@ -300,7 +305,7 @@ describe('KnowledgeBaseService', () => {
         hybridAlpha: 0.7
       })
 
-      const result = await service.update('kb-1', {
+      const result = await service.update(KNOWLEDGE_BASE_ID, {
         searchMode: 'default'
       })
 
@@ -309,7 +314,7 @@ describe('KnowledgeBaseService', () => {
       expect(result.chunkOverlap).toBe(120)
       expect(result.hybridAlpha).toBeUndefined()
 
-      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, 'kb-1'))
+      const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
       expect(row.searchMode).toBe('default')
       expect(row.chunkSize).toBe(256)
       expect(row.chunkOverlap).toBe(120)
@@ -320,7 +325,7 @@ describe('KnowledgeBaseService', () => {
       await seedKnowledgeBase({ chunkSize: 256, chunkOverlap: 120 })
 
       await expect(
-        service.update('kb-1', {
+        service.update(KNOWLEDGE_BASE_ID, {
           chunkSize: 100
         })
       ).rejects.toMatchObject({
@@ -337,7 +342,7 @@ describe('KnowledgeBaseService', () => {
       await seedKnowledgeBase({ chunkSize: 256, chunkOverlap: 120 })
 
       await expect(
-        service.update('kb-1', {
+        service.update(KNOWLEDGE_BASE_ID, {
           chunkOverlap: 256
         })
       ).rejects.toMatchObject({
@@ -354,7 +359,7 @@ describe('KnowledgeBaseService', () => {
       await seedKnowledgeBase({ searchMode: 'default', hybridAlpha: 0.7 })
 
       await expect(
-        service.update('kb-1', {
+        service.update(KNOWLEDGE_BASE_ID, {
           name: 'Renamed Base'
         })
       ).rejects.toThrow('Hybrid alpha requires hybrid search mode')
@@ -364,7 +369,7 @@ describe('KnowledgeBaseService', () => {
       await seedKnowledgeBase({ searchMode: 'hybrid', hybridAlpha: 0.7 })
 
       await expect(
-        service.update('kb-1', {
+        service.update(KNOWLEDGE_BASE_ID, {
           searchMode: 'default',
           hybridAlpha: 0.7
         })
@@ -383,9 +388,9 @@ describe('KnowledgeBaseService', () => {
     it('should delete an existing knowledge base', async () => {
       await seedKnowledgeBase()
 
-      await expect(service.delete('kb-1')).resolves.toBeUndefined()
+      await expect(service.delete(KNOWLEDGE_BASE_ID)).resolves.toBeUndefined()
 
-      const rows = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, 'kb-1'))
+      const rows = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
       expect(rows).toHaveLength(0)
     })
 

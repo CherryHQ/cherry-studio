@@ -12,6 +12,8 @@ import {
   KnowledgeRuntimeSearchPayloadSchema
 } from '../ipc'
 
+const BASE_ID = '11111111-1111-4111-8111-111111111111'
+
 const createBaseInput = () => ({
   name: 'Knowledge Base',
   dimensions: 1024,
@@ -44,7 +46,7 @@ describe('knowledge runtime payload schemas', () => {
         name: 'restore base',
         schema: KnowledgeRuntimeRestoreBasePayloadSchema,
         payload: {
-          sourceBaseId: 'base-1',
+          sourceBaseId: BASE_ID,
           name: 'Base 1_bak',
           dimensions: 3072,
           embeddingModelId: 'openai::text-embedding-3-large'
