@@ -437,6 +437,12 @@ export const getKnowledgeReferences = async ({
   // 获取用户消息内容
   const question = getMessageContent(lastUserMessage) || ''
 
+  // 如果没有文本内容，跳过知识库搜索（防止空参数导致 400 错误）
+  if (!question || question.trim() === '') {
+    logger.info('Skipping knowledge search: No text content in message with attachments')
+    return []
+  }
+
   // 获取知识库引用
   const knowledgeReferences = await processKnowledgeSearch(
     {
