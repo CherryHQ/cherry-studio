@@ -171,12 +171,6 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       group: 'OpenAI'
     },
     {
-      id: 'gpt-image-2',
-      provider: 'aihubmix',
-      name: 'gpt-image-2',
-      group: 'OpenAI'
-    },
-    {
       id: 'DeepSeek-V3',
       provider: 'aihubmix',
       name: 'DeepSeek-V3',
@@ -235,6 +229,68 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'aihubmix',
       name: 'Llama-4-Maverick-17B-128E-Instruct-FP8',
       group: 'llama'
+    }
+  ],
+  ofoxai: [
+    {
+      id: 'gpt-4o',
+      name: 'gpt-4o',
+      provider: 'ofoxai',
+      group: 'OpenAI'
+    },
+    {
+      id: 'gpt-4o-mini',
+      name: 'gpt-4o-mini',
+      provider: 'ofoxai',
+      group: 'OpenAI'
+    },
+    {
+      id: 'o3-mini',
+      name: 'o3-mini',
+      provider: 'ofoxai',
+      group: 'OpenAI'
+    },
+    {
+      id: 'claude-sonnet-4-20250514',
+      name: 'claude-sonnet-4',
+      provider: 'ofoxai',
+      group: 'Anthropic'
+    },
+    {
+      id: 'claude-3-7-sonnet-20250219',
+      name: 'claude-3.7-sonnet',
+      provider: 'ofoxai',
+      group: 'Anthropic'
+    },
+    {
+      id: 'gemini-2.5-pro',
+      name: 'gemini-2.5-pro',
+      provider: 'ofoxai',
+      group: 'Gemini'
+    },
+    {
+      id: 'gemini-2.5-flash',
+      name: 'gemini-2.5-flash',
+      provider: 'ofoxai',
+      group: 'Gemini'
+    },
+    {
+      id: 'deepseek-v3',
+      name: 'deepseek-v3',
+      provider: 'ofoxai',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'deepseek-r1',
+      name: 'deepseek-r1',
+      provider: 'ofoxai',
+      group: 'DeepSeek'
+    },
+    {
+      id: 'qwen2.5-coder-32b-instruct',
+      name: 'qwen2.5-coder-32b-instruct',
+      provider: 'ofoxai',
+      group: 'Qwen'
     }
   ],
   burncloud: [
@@ -380,12 +436,6 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   anthropic: [
     {
-      id: 'claude-opus-4-7',
-      provider: 'anthropic',
-      name: 'Claude Opus 4.7',
-      group: 'Claude 4.7'
-    },
-    {
       id: 'claude-opus-4-6',
       provider: 'anthropic',
       name: 'Claude Opus 4.6',
@@ -418,16 +468,16 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   deepseek: [
     {
-      id: 'deepseek-v4-flash',
+      id: 'deepseek-chat',
       provider: 'deepseek',
-      name: 'deepseek-v4-flash',
-      group: 'DeepSeek'
+      name: 'DeepSeek Chat',
+      group: 'DeepSeek Chat'
     },
     {
-      id: 'deepseek-v4-pro',
+      id: 'deepseek-reasoner',
       provider: 'deepseek',
-      name: 'deepseek-v4-pro',
-      group: 'DeepSeek'
+      name: 'DeepSeek Reasoner',
+      group: 'DeepSeek Reasoner'
     }
   ],
   together: [
