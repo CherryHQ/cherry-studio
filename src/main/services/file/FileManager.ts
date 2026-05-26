@@ -126,6 +126,7 @@
  */
 
 import { createReadStream as nodeCreateReadStream } from 'node:fs'
+import path from 'node:path'
 import type { Readable, Writable } from 'node:stream'
 import { pathToFileURL } from 'node:url'
 
@@ -135,6 +136,7 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { orphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry'
 import { atomicWriteFile, move as fsMove, remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
+import { untildify } from '@main/utils/file/legacyFile'
 import { canWrite, isNotEmptyDir } from '@main/utils/file/path'
 import { listDirectory } from '@main/utils/file/search'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
@@ -272,6 +274,8 @@ export const BatchGetPhysicalPathsIpcSchema = z.strictObject({
 })
 
 export const CanWriteIpcSchema = AbsolutePathSchema
+
+export const ToAbsolutePathIpcSchema = z.string().min(1)
 
 export const GetPhysicalPathIpcSchema = z.strictObject({ id: FileEntryIdSchema })
 
@@ -996,6 +1000,10 @@ export class FileManager extends BaseService implements IFileManager {
     this.ipcHandle(IpcChannel.File_CanWrite, async (_e, params: unknown) =>
       canWrite(CanWriteIpcSchema.parse(params) as FilePath)
     )
+    this.ipcHandle(IpcChannel.File_ToAbsolutePath, async (_e, params: unknown) => {
+      const raw = ToAbsolutePathIpcSchema.parse(params)
+      return path.resolve(untildify(raw)) as FilePath
+    })
   }
 
   /**
