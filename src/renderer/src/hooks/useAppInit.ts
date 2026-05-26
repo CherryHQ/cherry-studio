@@ -265,7 +265,7 @@ export function useAppInit() {
   }, [dispatch, t])
 
   useEffect(() => {
-    // TODO: init data collection
+    void window.api.config.set('enableDataCollection', enableDataCollection)
   }, [enableDataCollection])
 
   // Update memory service configuration when it changes

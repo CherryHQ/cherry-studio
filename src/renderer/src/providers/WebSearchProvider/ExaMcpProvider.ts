@@ -144,15 +144,13 @@ export default class ExaMcpProvider extends BaseWebSearchProvider {
       lines.forEach((line, idx) => {
         if (line.startsWith('Title:')) {
           title = line.replace(/^Title:\s*/, '')
-        } else if (line.startsWith('Published Date:')) {
-          publishedDate = line.replace(/^Published Date:\s*/, '')
+        } else if (line.startsWith('Published:')) {
+          publishedDate = line.replace(/^Published:\s*/, '')
         } else if (line.startsWith('URL:')) {
           url = line.replace(/^URL:\s*/, '')
-        } else if (line.startsWith('Text:') && textStartIndex === -1) {
-          // mark where "Text:" starts
+        } else if ((line.startsWith('Text:') || line.startsWith('Highlights:')) && textStartIndex === -1) {
           textStartIndex = idx
-          // text on the same line after "Text: "
-          fullText = line.replace(/^Text:\s*/, '')
+          fullText = line.replace(/^(?:Text|Highlights):\s*/, '')
         }
       })
       if (textStartIndex !== -1) {
