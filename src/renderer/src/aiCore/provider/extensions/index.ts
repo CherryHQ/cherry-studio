@@ -32,6 +32,7 @@ import { createOvmsProvider, type OvmsProviderSettings } from '../custom/ovms-pr
 import { createPpioProvider, type PpioProviderSettings } from '../custom/ppio-provider'
 import { createSiliconProvider, type SiliconProviderSettings } from '../custom/silicon-provider'
 import { createTokenFluxProvider, type TokenFluxProviderSettings } from '../custom/tokenflux-provider'
+import { createZhipuProvider, type ZhipuProviderSettings } from '../custom/zhipu-provider'
 
 /**
  * Google Vertex AI Extension
@@ -245,6 +246,15 @@ export const SiliconExtension = ProviderExtension.create({
 } as const satisfies ProviderExtensionConfig<SiliconProviderSettings, ProviderV3, 'silicon'>)
 
 /**
+ * Zhipu Extension - OpenAI-compatible chat + embedding, URL-returning sync image generation.
+ */
+export const ZhipuExtension = ProviderExtension.create({
+  name: 'zhipu',
+  supportsImageGeneration: true,
+  create: createZhipuProvider
+} as const satisfies ProviderExtensionConfig<ZhipuProviderSettings, ProviderV3, 'zhipu'>)
+
+/**
  * OVMS Extension - unified chat + embedding + image (local OpenVINO Model Server, no auth)
  */
 export const OvmsExtension = ProviderExtension.create({
@@ -283,6 +293,7 @@ export const extensions = [
   TokenFluxExtension,
   DmxapiExtension,
   SiliconExtension,
+  ZhipuExtension,
   OvmsExtension,
   VoyageExtension,
   TogetherAIExtension,

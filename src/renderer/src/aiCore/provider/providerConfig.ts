@@ -138,6 +138,7 @@ export function providerToAiSdkConfig(
     { match: (_, id) => id === 'ppio', build: buildPpioConfig },
     { match: (_, id) => id === 'tokenflux', build: buildTokenFluxConfig },
     { match: (_, id) => id === 'silicon', build: buildSiliconConfig },
+    { match: (_, id) => id === 'zhipu', build: buildZhipuConfig },
     { match: (p) => p.id === 'dmxapi', build: buildDmxapiConfig },
     { match: (p) => p.id === 'ovms', build: buildOvmsConfig }
   ]
@@ -389,6 +390,19 @@ function buildSiliconConfig(ctx: BuilderContext): ProviderConfig<'silicon'> {
 
   return {
     providerId: 'silicon',
+    endpoint: ctx.endpoint,
+    providerSettings: { ...ctx.baseConfig, ...commonOptions, includeUsage }
+  }
+}
+
+function buildZhipuConfig(ctx: BuilderContext): ProviderConfig<'zhipu'> {
+  const commonOptions = buildCommonOptions(ctx)
+  const includeUsage = isSupportStreamOptionsProvider(ctx.actualProvider)
+    ? store.getState().settings.openAI?.streamOptions?.includeUsage
+    : undefined
+
+  return {
+    providerId: 'zhipu',
     endpoint: ctx.endpoint,
     providerSettings: { ...ctx.baseConfig, ...commonOptions, includeUsage }
   }
