@@ -80,7 +80,7 @@ export const FileList = memo(function FileList({
   selectedIds,
   onSelect,
   onContextMenu,
-  onPreview,
+  onOpen,
   sortKey,
   sortDir,
   onSort,
@@ -92,7 +92,7 @@ export const FileList = memo(function FileList({
   selectedIds: Set<string>
   onSelect: (id: string, multi: boolean) => void
   onContextMenu: (e: React.MouseEvent, id: string) => void
-  onPreview: (file: FileItem) => void
+  onOpen: (file: FileItem) => void
   sortKey: SortKey
   sortDir: SortDir
   onSort: (key: SortKey) => void
@@ -128,7 +128,7 @@ export const FileList = memo(function FileList({
             }}
             onContextMenu={(e) => onContextMenu(e, file.id)}
             onDoubleClick={() => {
-              if (!isRenaming) onPreview(file)
+              if (!isRenaming) onOpen(file)
             }}
             className={`flex cursor-pointer items-center gap-2 border-b border-border/15 px-4 py-[6px] transition-colors ${
               selected ? 'bg-accent/50' : 'hover:bg-accent/50'
