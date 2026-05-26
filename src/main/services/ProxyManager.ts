@@ -1,13 +1,14 @@
 import { loggerService } from '@logger'
 import type { ProxyConfig } from 'electron'
 import { app, session } from 'electron'
+import { EventEmitter } from 'events'
 import { getSystemProxy } from 'os-proxy-config'
 
 import { NodeProxyController } from './proxy/nodeProxy'
 
 const logger = loggerService.withContext('ProxyManager')
 
-export class ProxyManager {
+export class ProxyManager extends EventEmitter {
   private config: ProxyConfig = { mode: 'direct' }
   private systemProxyInterval: NodeJS.Timeout | null = null
   private isSettingProxy = false
@@ -65,6 +66,10 @@ export class ProxyManager {
 
       this.setGlobalProxy(config)
       this.config = config
+      // Notify long-lived consumers (MCP clients, etc.) that the proxy
+      // boundary has changed so they can drop cached connections that
+      // were bound to the previous dispatcher / session config.
+      this.emit('change', this.config)
     } catch (error) {
       logger.error('Failed to config proxy:', error as Error)
       throw error

@@ -62,7 +62,14 @@ import DxtService from './DxtService'
 import { CallBackServer } from './mcp/oauth/callback'
 import { McpOAuthClientProvider } from './mcp/oauth/provider'
 import { ServerLogBuffer } from './mcp/ServerLogBuffer'
+import { proxyManager } from './ProxyManager'
 import { windowService } from './WindowService'
+
+// MCP transports whose connections are bound to the current proxy / session
+// config. When the user changes the proxy, cached clients of these types
+// must be closed so the next request rebuilds with the new dispatcher.
+// stdio / inmemory transports are local IPC and unaffected by HTTP proxy.
+const NETWORK_BACKED_MCP_TYPES = new Set(['sse', 'streamableHttp', 'http'])
 
 // Generic type for caching wrapped functions
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
@@ -150,6 +157,7 @@ function withCache<T extends unknown[], R>(
 
 class McpService {
   private clients: Map<string, Client> = new Map()
+  private clientServerTypes: Map<string, string> = new Map()
   private pendingClients: Map<string, Promise<Client>> = new Map()
   private dxtService = new DxtService()
   private activeToolCalls: Map<string, AbortController> = new Map()
@@ -172,6 +180,29 @@ class McpService {
     this.checkMcpConnectivity = this.checkMcpConnectivity.bind(this)
     this.getServerVersion = this.getServerVersion.bind(this)
     this.getServerLogs = this.getServerLogs.bind(this)
+    this.invalidateNetworkClients = this.invalidateNetworkClients.bind(this)
+
+    // When the user changes the global proxy, cached MCP clients of
+    // network-backed transports are still bound to the previous
+    // dispatcher / session config — close them so the next request
+    // rebuilds against the new proxy boundary (fixes #14454).
+    proxyManager.on('change', this.invalidateNetworkClients)
+  }
+
+  private async invalidateNetworkClients(): Promise<void> {
+    const targets: string[] = []
+    for (const [serverKey, serverType] of this.clientServerTypes) {
+      if (NETWORK_BACKED_MCP_TYPES.has(serverType)) {
+        targets.push(serverKey)
+      }
+    }
+    if (targets.length === 0) {
+      return
+    }
+    logger.info(`Proxy changed — closing ${targets.length} network-backed MCP client(s)`, {
+      serverKeys: targets
+    })
+    await Promise.allSettled(targets.map((serverKey) => this.closeClient(serverKey)))
   }
 
   /**
@@ -283,12 +314,14 @@ class McpService {
         // and create a new one
         if (!pingResult) {
           this.clients.delete(serverKey)
+          this.clientServerTypes.delete(serverKey)
         } else {
           return existingClient
         }
       } catch (error: any) {
         getServerLogger(server).error(`Error pinging server ${server.name}`, error as Error)
         this.clients.delete(serverKey)
+        this.clientServerTypes.delete(serverKey)
       }
     }
 
@@ -633,6 +666,7 @@ class McpService {
 
           // Store the new client in the cache
           this.clients.set(serverKey, client)
+          this.clientServerTypes.set(serverKey, server.type ?? '')
 
           // Set up notification handlers
           this.setupNotificationHandlers(client, server)
@@ -758,6 +792,7 @@ class McpService {
       await client.close()
       logger.debug(`Closed server`, { serverKey })
       this.clients.delete(serverKey)
+      this.clientServerTypes.delete(serverKey)
       // Clear all caches for this server
       this.clearServerCache(serverKey)
       this.serverLogs.remove(serverKey)
