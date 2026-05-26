@@ -32,10 +32,10 @@ const CatalogApiFeaturesSchema = z.object({
 /** Provider website schema (type used for catalog ProviderWebsite type) */
 const ProviderWebsiteSchema = z.object({
   website: z.object({
-    official: z.string().url().optional(),
-    docs: z.string().url().optional(),
-    apiKey: z.string().url().optional(),
-    models: z.string().url().optional()
+    official: z.url().optional(),
+    docs: z.url().optional(),
+    apiKey: z.url().optional(),
+    models: z.url().optional()
   })
 })
 
@@ -229,7 +229,9 @@ export const EndpointConfigSchema = z.object({
   /** How this endpoint type expects reasoning parameters */
   reasoningFormatType: ReasoningFormatTypeSchema.optional(),
   /** URLs for fetching available models via this endpoint type */
-  modelsApiUrls: ModelsApiUrlsSchema.optional()
+  modelsApiUrls: ModelsApiUrlsSchema.optional(),
+  /** AI SDK adapter family that handles this endpoint. Carried over from the catalog */
+  adapterFamily: z.string().optional()
 })
 
 export type EndpointConfig = z.infer<typeof EndpointConfigSchema>
