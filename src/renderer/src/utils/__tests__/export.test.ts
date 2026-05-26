@@ -17,7 +17,7 @@ vi.mock('@renderer/config/miniApps', () => {
 beforeEach(() => {
   Object.defineProperty(window, 'api', {
     value: {
-      file: {
+      legacyFile: {
         read: vi.fn().mockResolvedValue('[]'),
         writeWithId: vi.fn()
       }

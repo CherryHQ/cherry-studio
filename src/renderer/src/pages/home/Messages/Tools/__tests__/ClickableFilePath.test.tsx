@@ -7,7 +7,7 @@ const mockOpenPath = vi.fn().mockResolvedValue(undefined)
 const mockShowInFolder = vi.fn().mockResolvedValue(undefined)
 
 vi.stubGlobal('api', {
-  file: {
+  legacyFile: {
     openPath: mockOpenPath,
     showInFolder: mockShowInFolder,
     read: vi.fn(),
