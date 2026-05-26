@@ -1,5 +1,9 @@
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
 import * as z from 'zod'
+
+export const MessageIdSchema = z.uuid()
+export type MessageId = z.infer<typeof MessageIdSchema>
+
 /**
  * Message Statistics - combines token usage and performance metrics
  * Replaces the separate `usage` and `metrics` fields

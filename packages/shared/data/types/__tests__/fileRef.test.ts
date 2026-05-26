@@ -16,10 +16,10 @@ const TS = 1700000000000
 
 describe('FileRefSourceType', () => {
   it('exposes exactly the currently-registered source types', () => {
-    // Defensive: this assertion locks the Phase 1b registered set.
+    // Defensive: this assertion locks the currently-registered set.
     // Adding a new variant must also extend (a) the discriminated union and
     // (b) the OrphanRefScanner registry — see ref/README.md.
-    expect([...allSourceTypes]).toEqual(['temp_session', 'knowledge_item'])
+    expect([...allSourceTypes]).toEqual(['temp_session', 'knowledge_item', 'chat_message'])
   })
 })
 
@@ -104,7 +104,7 @@ describe('FileRefSchema discriminated union', () => {
     // Pre-cleanup the discriminated union still recognised these four; today
     // they must be rejected so DataApi rounds-trip stays consistent. When a
     // new variant lands, this test should be updated alongside the union.
-    for (const sourceType of ['chat_message', 'painting', 'note']) {
+    for (const sourceType of ['painting', 'note']) {
       expect(() =>
         FileRefSchema.parse({
           id: REF_ID,
