@@ -1,14 +1,15 @@
-import type { PollingSubmitInput, PollingTransport } from '../pollingImageModel'
+import { DEFAULT_TIMEOUT } from '@shared/config/constant'
+
+import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
 
 /**
  * PPIO submit/poll transport.
  *
- * Relocated verbatim from the legacy painting service
+ * Ported from the legacy painting service
  * (`src/renderer/src/pages/paintings/providers/ppio/service.ts`):
  * same API host, adaptive 3s(<60s)/10s poll interval, `maxAttempts` 120,
  * `maxTransientRetries` 10, `TASK_STATUS_*` machine, per-model param builders
- * and the synchronous (`isSync`) path. Only the transport surface changed —
- * behavior and constants are identical.
+ * and the synchronous (`isSync`) path.
  */
 
 export const DEFAULT_PPIO_BASE_URL = 'https://api.ppio.com'
@@ -91,7 +92,7 @@ export interface PpioTaskResult {
 }
 
 export interface PpioSyncResult {
-  images?: string[]
+  images?: Array<string | { image_url?: string; url?: string }>
 }
 
 /**
@@ -102,6 +103,7 @@ export interface PpioModelDescriptor {
   id: string
   endpoint: string
   isSync?: boolean
+  mode?: 'ppio_draw' | 'ppio_edit'
 }
 
 /**
@@ -130,7 +132,7 @@ export interface PpioTransportSettings {
   baseURL?: string
 }
 
-class PpioTransport implements PollingTransport {
+class PpioTransport implements ImageGenerationTransport {
   private apiKey: string
   private baseURL: string
 
@@ -143,9 +145,10 @@ class PpioTransport implements PollingTransport {
     endpoint: string,
     body: Record<string, unknown>,
     method: 'POST' | 'GET' = 'POST',
-    timeout: number = 120000,
-    externalSignal?: AbortSignal
+    requestOptions?: { timeout?: number; signal?: AbortSignal }
   ): Promise<T> {
+    const timeout = requestOptions?.timeout ?? DEFAULT_TIMEOUT
+    const externalSignal = requestOptions?.signal
     const url = `${this.baseURL}${endpoint}`
     const controller = new AbortController()
     let externallyAborted = false
@@ -166,7 +169,7 @@ class PpioTransport implements PollingTransport {
       externalSignal?.addEventListener('abort', onExternalAbort, { once: true })
     }
 
-    const options: RequestInit = {
+    const fetchOptions: RequestInit = {
       method,
       headers: {
         'Content-Type': 'application/json',
@@ -176,11 +179,11 @@ class PpioTransport implements PollingTransport {
     }
 
     if (method === 'POST') {
-      options.body = JSON.stringify(body)
+      fetchOptions.body = JSON.stringify(body)
     }
 
     try {
-      const response = await fetch(url, options)
+      const response = await fetch(url, fetchOptions)
 
       if (!response.ok) {
         const errorText = (await response.text().catch(() => '')).slice(0, 500)
@@ -204,33 +207,26 @@ class PpioTransport implements PollingTransport {
     }
   }
 
-  async submit(input: PollingSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
+  async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const params = input.providerParams as PpioProviderParams
     const descriptor = params.modelDescriptor
     if (!descriptor) {
       throw new Error(`Unknown model: ${params.model}`)
     }
 
-    const requestParams = this.buildRequestParams(input, params, descriptor.id)
+    const requestParams = this.buildRequestParams(input, params, descriptor)
 
     if (descriptor.isSync) {
-      const result = await this.request<PpioSyncResult>(
-        descriptor.endpoint,
-        requestParams,
-        'POST',
-        120000,
-        input.signal
-      )
-      return { imageUrls: result.images }
+      const result = await this.request<PpioSyncResult>(descriptor.endpoint, requestParams, 'POST', {
+        signal: input.signal
+      })
+      return { imageUrls: this.extractSyncImageUrls(result) }
     }
 
-    const result = await this.request<{ task_id: string }>(
-      descriptor.endpoint,
-      requestParams,
-      'POST',
-      120000,
-      input.signal
-    )
+    const result = await this.request<{ task_id: string }>(descriptor.endpoint, requestParams, 'POST', {
+      timeout: 120000,
+      signal: input.signal
+    })
     // Surface the async task id so the painting layer can record/resume it
     // (parity with the bespoke `onGenerationStateChange({ generationTaskId })`).
     if (typeof params.onSubmitTaskId === 'function') {
@@ -240,10 +236,11 @@ class PpioTransport implements PollingTransport {
   }
 
   private buildRequestParams(
-    input: PollingSubmitInput,
+    input: ImageGenerationSubmitInput,
     painting: PpioProviderParams,
-    modelId: string
+    descriptor: PpioModelDescriptor
   ): Record<string, unknown> {
+    const modelId = descriptor.id
     const params: Record<string, unknown> = {}
 
     if (input.prompt) {
@@ -260,16 +257,24 @@ class PpioTransport implements PollingTransport {
         return this.buildQwenTxt2ImgParams(input, painting)
       case 'qwen-image-edit':
         return this.buildQwenEditParams(input, painting)
+      case 'glm-image':
+        return this.buildGlmParams(input, painting)
       case 'z-image-turbo':
         return this.buildZImageParams(input, painting)
       case 'z-image-turbo-lora':
         return this.buildZImageLoraParams(input, painting)
+      case 'seedream-5.0-lite':
+      case 'seedream-4.5':
+      case 'seedream-4.0':
+        return descriptor.mode === 'ppio_edit'
+          ? this.buildSeedreamEditParams(input, painting, modelId)
+          : this.buildSeedreamDrawParams(input, painting)
       case 'seedream-4.5-draw':
       case 'seedream-4.0-draw':
         return this.buildSeedreamDrawParams(input, painting)
       case 'seedream-4.5-edit':
       case 'seedream-4.0-edit':
-        return this.buildSeedreamEditParams(input, painting)
+        return this.buildSeedreamEditParams(input, painting, modelId)
       case 'image-upscaler':
         return this.buildUpscalerParams(painting)
       case 'image-remove-background':
@@ -281,7 +286,7 @@ class PpioTransport implements PollingTransport {
     }
   }
 
-  private buildJimengParams(input: PollingSubmitInput, painting: PpioProviderParams): Record<string, unknown> {
+  private buildJimengParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): Record<string, unknown> {
     const params: Record<string, unknown> = {
       prompt: input.prompt,
       use_pre_llm: painting.usePreLlm ?? true,
@@ -305,7 +310,7 @@ class PpioTransport implements PollingTransport {
     return params
   }
 
-  private buildHunyuanParams(input: PollingSubmitInput, painting: PpioProviderParams): Record<string, unknown> {
+  private buildHunyuanParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): Record<string, unknown> {
     return {
       prompt: input.prompt,
       size: painting.size?.replace('x', '*') || '1024*1024',
@@ -314,7 +319,10 @@ class PpioTransport implements PollingTransport {
     }
   }
 
-  private buildQwenTxt2ImgParams(input: PollingSubmitInput, painting: PpioProviderParams): Record<string, unknown> {
+  private buildQwenTxt2ImgParams(
+    input: ImageGenerationSubmitInput,
+    painting: PpioProviderParams
+  ): Record<string, unknown> {
     return {
       prompt: input.prompt,
       size: painting.size?.replace('x', '*') || '1024*1024',
@@ -322,7 +330,10 @@ class PpioTransport implements PollingTransport {
     }
   }
 
-  private buildQwenEditParams(input: PollingSubmitInput, painting: PpioProviderParams): Record<string, unknown> {
+  private buildQwenEditParams(
+    input: ImageGenerationSubmitInput,
+    painting: PpioProviderParams
+  ): Record<string, unknown> {
     return {
       prompt: input.prompt,
       image: painting.imageFile,
@@ -332,7 +343,16 @@ class PpioTransport implements PollingTransport {
     }
   }
 
-  private buildZImageParams(input: PollingSubmitInput, painting: PpioProviderParams): Record<string, unknown> {
+  private buildGlmParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): Record<string, unknown> {
+    return {
+      prompt: input.prompt,
+      size: painting.size || '1280x1280',
+      quality: 'hd',
+      watermark_enabled: painting.addWatermark ?? true
+    }
+  }
+
+  private buildZImageParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): Record<string, unknown> {
     return {
       prompt: input.prompt,
       size: painting.size?.replace('x', '*') || '1024*1024',
@@ -340,7 +360,10 @@ class PpioTransport implements PollingTransport {
     }
   }
 
-  private buildZImageLoraParams(input: PollingSubmitInput, painting: PpioProviderParams): Record<string, unknown> {
+  private buildZImageLoraParams(
+    input: ImageGenerationSubmitInput,
+    painting: PpioProviderParams
+  ): Record<string, unknown> {
     return {
       prompt: input.prompt,
       size: painting.size?.replace('x', '*') || '1024*1024',
@@ -349,7 +372,10 @@ class PpioTransport implements PollingTransport {
     }
   }
 
-  private buildSeedreamDrawParams(input: PollingSubmitInput, painting: PpioProviderParams): Record<string, unknown> {
+  private buildSeedreamDrawParams(
+    input: ImageGenerationSubmitInput,
+    painting: PpioProviderParams
+  ): Record<string, unknown> {
     return {
       prompt: input.prompt,
       size: painting.size || '2048x2048',
@@ -358,8 +384,22 @@ class PpioTransport implements PollingTransport {
     }
   }
 
-  private buildSeedreamEditParams(input: PollingSubmitInput, painting: PpioProviderParams): Record<string, unknown> {
+  private buildSeedreamEditParams(
+    input: ImageGenerationSubmitInput,
+    painting: PpioProviderParams,
+    modelId: string
+  ): Record<string, unknown> {
     const rawImage = painting.imageFile ?? ''
+    if (modelId === 'seedream-4.0' || modelId === 'seedream-4.0-edit') {
+      return {
+        prompt: input.prompt,
+        images: rawImage ? [rawImage] : [],
+        size: painting.size || '2048x2048',
+        watermark: painting.addWatermark ?? true,
+        sequential_image_generation: 'disabled'
+      }
+    }
+
     const base64Image = rawImage.replace(/^data:[^;]+;base64,/, '')
     return {
       prompt: input.prompt,
@@ -384,7 +424,7 @@ class PpioTransport implements PollingTransport {
     }
   }
 
-  private buildEraserParams(input: PollingSubmitInput, painting: PpioProviderParams): Record<string, unknown> {
+  private buildEraserParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): Record<string, unknown> {
     // Bespoke omitted `prompt` entirely when unset; preserve that (eraser is
     // one of the no-prompt models, so an empty string would change the body).
     return {
@@ -395,9 +435,20 @@ class PpioTransport implements PollingTransport {
     }
   }
 
+  private extractSyncImageUrls(result: PpioSyncResult): string[] | undefined {
+    if (!result.images) return undefined
+
+    return result.images
+      .map((image) => {
+        if (typeof image === 'string') return image
+        return image.image_url ?? image.url
+      })
+      .filter((url): url is string => typeof url === 'string' && url.length > 0)
+  }
+
   async getTaskResult(taskId: string, timeout: number = 120000, signal?: AbortSignal): Promise<PpioTaskResult> {
     const endpoint = `/v3/async/task-result?task_id=${encodeURIComponent(taskId)}`
-    return this.request<PpioTaskResult>(endpoint, {}, 'GET', timeout, signal)
+    return this.request<PpioTaskResult>(endpoint, {}, 'GET', { timeout, signal })
   }
 
   async poll(

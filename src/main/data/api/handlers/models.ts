@@ -165,7 +165,10 @@ export const modelHandlers: HandlersFor<ModelSchemas> = {
 
   '/providers/:providerId/models:resolve': {
     GET: async ({ params, query }) => {
-      const parsed = ResolveProviderModelsQuerySchema.parse(query)
+      const parsed = ResolveProviderModelsQuerySchema.parse(query ?? {})
+      if (parsed.ids === undefined) {
+        return await providerRegistryService.listProviderRegistryModels({ providerId: params.providerId })
+      }
       const ids = Array.isArray(parsed.ids) ? parsed.ids : [parsed.ids]
       return await providerRegistryService.resolveModels(params.providerId, ids)
     }

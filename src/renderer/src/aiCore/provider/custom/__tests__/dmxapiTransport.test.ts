@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { createDmxapiTransport } from '../pollingTransports/dmxapi'
+import { createDmxapiTransport } from '../imageTransports/dmxapi'
 
 vi.mock('i18next', () => ({
   default: {
@@ -13,7 +13,7 @@ vi.mock('@renderer/i18n', () => ({ default: { t: (k: string) => k } }))
 /**
  * Covers the relocated DMXAPI single-shot request building (V1 JSON
  * generations / V2 FormData edits + merge), response parsing, abort and the
- * no-poll guarantee. Mirrors the bespoke `providers/dmxapi/generate.ts`.
+ * sync-only transport shape. Mirrors the bespoke `providers/dmxapi/generate.ts`.
  */
 describe('DmxapiTransport', () => {
   afterEach(() => {
@@ -210,8 +210,8 @@ describe('DmxapiTransport', () => {
     expect((fetchMock.mock.calls[0][1] as RequestInit).signal).toBe(controller.signal)
   })
 
-  it('poll() throws and is never reached on the single-shot path', async () => {
+  it('does not expose polling for the single-shot path', () => {
     const transport = createDmxapiTransport({ apiKey: 'token' })
-    await expect(transport.poll()).rejects.toThrow(/does not support polling/)
+    expect('poll' in transport).toBe(false)
   })
 })

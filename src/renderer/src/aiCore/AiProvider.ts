@@ -16,7 +16,7 @@ import { adaptProvider, getActualProvider, providerToAiSdkConfig } from './provi
 import { listModels } from './services/listModels'
 import type { AppProviderSettingsMap, CompletionsResult, ProviderConfig } from './types'
 import type { AiSdkMiddlewareConfig } from './types/middlewareConfig'
-import { type ClassifiedImage, classifyImageOutput, passthroughImageDownload } from './utils/imageDownload'
+import { type ClassifiedImage, classifyImageOutput, downloadImageUrls } from './utils/imageDownload'
 import { buildImageProviderOptions } from './utils/imageOptions'
 
 const logger = loggerService.withContext('AiProvider')
@@ -406,13 +406,9 @@ export default class AiProvider {
   /**
    * Painting-oriented image generation (R1 shared infra).
    *
-   * Unlike {@link generateImage} (which flattens everything to base64 via
-   * {@link convertImageResult} and lets the patched SDK download URLs through
-   * a renderer `fetch`), this passes a pass-through download so URL-returning
-   * models keep their URLs. The classified result lets each painting
-   * `generateUnified` hand URLs back to the main-process, proxy-aware
-   * `downloadImages` (with `showProxyWarning` / `allowBase64DataUrls` /
-   * per-URL partial success) exactly like the bespoke painting path.
+   * Keeps the painting result shape (`url` or raw base64) while allowing AI SDK
+   * URL outputs to be downloaded through `experimental_download` before media
+   * sniffing.
    */
   public async generatePaintingImage(params: GenerateImageParams): Promise<ClassifiedImage[]> {
     await this.ensureConfig(params.model)
@@ -472,9 +468,8 @@ export default class AiProvider {
 
   /**
    * Painting variant of {@link modernGenerateImage}: identical request
-   * construction, but injects {@link passthroughImageDownload} so the patched
-   * SDK does NOT fetch URL results, then classifies each returned value into
-   * a URL (hand to the painting downloader) or raw base64.
+   * construction, but injects {@link downloadImageUrls} so URL results are
+   * downloaded before the SDK wraps them as generated files.
    */
   private async modernGeneratePaintingImage(
     params: GenerateImageParams,
@@ -492,7 +487,7 @@ export default class AiProvider {
       prompt,
       ...(resolvedSize !== undefined && { size: resolvedSize }),
       n: batchSize || 1,
-      experimental_download: passthroughImageDownload,
+      experimental_download: downloadImageUrls,
       ...(Object.keys(providerOptions).length > 0 && {
         providerOptions: providerOptions as Record<string, Record<string, JSONValue>>
       }),

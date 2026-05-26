@@ -36,6 +36,11 @@ export interface ProviderDisplayMetadata {
   websites?: ProviderWebsites
 }
 
+export interface ListProviderRegistryModelsOptions {
+  providerId?: string
+  disabled?: boolean
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Registry → Runtime Model merge functions
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -492,8 +497,8 @@ class ProviderRegistryService {
     reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
   }> {
     const loader = this.getLoader()
-    const presetModel = loader.findModel(modelId)
     const registryOverride = loader.findOverride(providerId, modelId)
+    const presetModel = loader.findModel(registryOverride?.modelId ?? modelId)
     const reasoningConfig = await this.getEffectiveReasoningConfig(providerId)
 
     return { presetModel, registryOverride, ...reasoningConfig }
@@ -528,8 +533,8 @@ class ProviderRegistryService {
       seen.add(modelId)
 
       // O(1) lookup with exact match + normalized fallback
-      const presetModel = loader.findModel(modelId)
       const registryOverride = loader.findOverride(providerId, modelId)
+      const presetModel = loader.findModel(registryOverride?.modelId ?? modelId)
 
       if (presetModel) {
         results.push(
@@ -541,6 +546,59 @@ class ProviderRegistryService {
     }
 
     return results
+  }
+
+  async listProviderRegistryModels(options: ListProviderRegistryModelsOptions = {}): Promise<Model[]> {
+    const loader = this.getLoader()
+    const overrides = options.providerId
+      ? loader.getOverridesForProvider(options.providerId)
+      : loader.loadProviderModels()
+    const includeDisabled = options.disabled ?? false
+    const reasoningConfigByProvider = new Map<
+      string,
+      {
+        defaultChatEndpoint?: EndpointType
+        reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
+      }
+    >()
+    const results: Model[] = []
+
+    for (const override of overrides) {
+      if ((override.disabled ?? false) !== includeDisabled) continue
+
+      const presetModel = loader.findModel(override.modelId)
+      if (!presetModel) continue
+
+      let reasoningConfig = reasoningConfigByProvider.get(override.providerId)
+      if (!reasoningConfig) {
+        reasoningConfig = this.getRegistryReasoningConfig(override.providerId)
+        reasoningConfigByProvider.set(override.providerId, reasoningConfig)
+      }
+
+      const model = mergePresetModel(
+        presetModel,
+        override,
+        override.providerId,
+        reasoningConfig.reasoningFormatTypes,
+        reasoningConfig.defaultChatEndpoint
+      )
+
+      const apiModelId = model.apiModelId ?? override.apiModelId ?? override.modelId
+      results.push({
+        ...model,
+        id: createUniqueModelId(override.providerId, apiModelId),
+        apiModelId,
+        presetModelId: presetModel.id
+      })
+    }
+
+    return results
+  }
+
+  async isActiveProviderRegistryModel(providerId: string, modelId: string): Promise<boolean> {
+    const loader = this.getLoader()
+    const override = loader.findOverride(providerId, modelId)
+    return override !== null && !(override.disabled ?? false) && loader.findModel(override.modelId) !== null
   }
 
   /**

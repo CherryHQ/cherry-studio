@@ -1,16 +1,9 @@
 import type { ImageModelV3, ImageModelV3CallOptions } from '@ai-sdk/provider'
 
-/**
- * Generic submit→poll strategy for async image-generation providers.
- *
- * `submit` either returns image URLs directly (synchronous providers that
- * respond with the finished images) or a `taskId` for asynchronous providers
- * that must be polled. `poll` resolves to image URLs and must honor the
- * `AbortSignal` and report 0-100 integer progress via `onProgress`.
- */
-export interface PollingTransport {
-  submit(input: PollingSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }>
-  poll(taskId: string, options: { signal?: AbortSignal; onProgress?: (progress: number) => void }): Promise<string[]>
+export interface ImageGenerationTransport {
+  submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }>
+  poll?(taskId: string, options: { signal?: AbortSignal; onProgress?: (progress: number) => void }): Promise<string[]>
+  cancel?(taskId: string): Promise<void>
 }
 
 /**
@@ -20,7 +13,7 @@ export interface PollingTransport {
  * (`options.providerOptions[provider]`) by reference, so a non-JSON
  * `onProgress` callback nested in it survives to the transport.
  */
-export interface PollingSubmitInput {
+export interface ImageGenerationSubmitInput {
   prompt: string | undefined
   n: number
   size: `${number}x${number}` | undefined
@@ -29,7 +22,7 @@ export interface PollingSubmitInput {
   mask: ImageModelV3CallOptions['mask']
   providerParams: Record<string, unknown>
   /**
-   * Abort signal forwarded from `options.abortSignal`. Polling providers
+   * Abort signal forwarded from `options.abortSignal`. Async providers
    * (ppio/tokenflux) ignore it (they abort during `poll()`); single-shot
    * providers (dmxapi/ovms) use it to make their one `submit()` fetch
    * cancellable, since `poll()` is never reached.
@@ -37,9 +30,9 @@ export interface PollingSubmitInput {
   signal?: AbortSignal
 }
 
-export interface CreatePollingImageModelOptions {
+export interface CreateImageGenerationModelOptions {
   provider: string
-  transport: PollingTransport
+  transport: ImageGenerationTransport
 }
 
 function createAbortError(message: string): Error {
@@ -49,8 +42,8 @@ function createAbortError(message: string): Error {
 }
 
 /**
- * Builds an `ImageModelV3` whose `doGenerate` runs submit→poll→return-urls,
- * parameterized by an injected `PollingTransport`. It returns image **URLs**;
+ * Builds an `ImageModelV3` whose `doGenerate` runs submit→optional-poll→return-urls,
+ * parameterized by an injected `ImageGenerationTransport`. It returns image **URLs**;
  * the patched `ai` SDK auto-downloads them (default download function) into a
  * `GeneratedFile` so no AiProvider/convertImageResult change is needed.
  *
@@ -58,9 +51,9 @@ function createAbortError(message: string): Error {
  * (typed loosely / cast — the function survives by reference through the
  * plugin chain). Abort is propagated via `options.abortSignal`.
  */
-export function createPollingImageModel(
+export function createImageGenerationModel(
   modelId: string,
-  { provider, transport }: CreatePollingImageModelOptions
+  { provider, transport }: CreateImageGenerationModelOptions
 ): ImageModelV3 {
   return {
     specificationVersion: 'v3',
@@ -96,7 +89,28 @@ export function createPollingImageModel(
       if (submitResult.imageUrls) {
         urls = submitResult.imageUrls
       } else if (submitResult.taskId) {
-        urls = await transport.poll(submitResult.taskId, { signal: abortSignal, onProgress })
+        if (!transport.poll) {
+          throw new Error(`${provider} returned a task id but does not implement polling`)
+        }
+
+        let cancelRequested = false
+        const cancelRemoteTask = () => {
+          if (cancelRequested) return
+          cancelRequested = true
+          void transport.cancel?.(submitResult.taskId as string).catch(() => {})
+        }
+
+        if (abortSignal?.aborted) {
+          cancelRemoteTask()
+          throw createAbortError('Image generation aborted')
+        }
+
+        abortSignal?.addEventListener('abort', cancelRemoteTask, { once: true })
+        try {
+          urls = await transport.poll(submitResult.taskId, { signal: abortSignal, onProgress })
+        } finally {
+          abortSignal?.removeEventListener('abort', cancelRemoteTask)
+        }
       } else {
         urls = []
       }

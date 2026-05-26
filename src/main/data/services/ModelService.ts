@@ -279,6 +279,40 @@ class ModelService {
     return { ...dtoValues, presetModelId: dto.presetModelId ?? null }
   }
 
+  private async filterReconcileRemovals(providerId: string, toRemove: string[], db: DbType): Promise<string[]> {
+    if (toRemove.length === 0) return toRemove
+
+    const rows = await db
+      .select({
+        id: userModelTable.id,
+        modelId: userModelTable.modelId,
+        presetModelId: userModelTable.presetModelId,
+        isDeprecated: userModelTable.isDeprecated
+      })
+      .from(userModelTable)
+      .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, toRemove)))
+
+    const protectedIds = new Set<string>()
+    for (const row of rows) {
+      if (row.presetModelId == null || row.presetModelId === '' || row.isDeprecated) {
+        continue
+      }
+      if (await providerRegistryService.isActiveProviderRegistryModel(providerId, row.presetModelId)) {
+        protectedIds.add(row.id)
+      }
+    }
+
+    if (protectedIds.size > 0) {
+      logger.warn('Skipped active registry model removal during reconcile', {
+        providerId,
+        skippedCount: protectedIds.size,
+        skippedIds: [...protectedIds]
+      })
+    }
+
+    return toRemove.filter((id) => !protectedIds.has(id))
+  }
+
   /**
    * List models with optional filters
    */
@@ -610,15 +644,16 @@ class ModelService {
 
     const db = application.get('DbService').getDb()
     const values = payload.toAdd.map(({ dto, registryData }) => this.buildCreateValues(dto, registryData))
+    const toRemove = await this.filterReconcileRemovals(providerId, payload.toRemove, db)
 
     let actuallyDeleted = 0
     const rows = await withSqliteErrors(
       () =>
         db.transaction(async (tx) => {
-          if (payload.toRemove.length > 0) {
+          if (toRemove.length > 0) {
             const deletedRows = await tx
               .delete(userModelTable)
-              .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, payload.toRemove)))
+              .where(and(eq(userModelTable.providerId, providerId), inArray(userModelTable.id, toRemove)))
               .returning({ id: userModelTable.id })
             actuallyDeleted = deletedRows.length
 
@@ -651,7 +686,7 @@ class ModelService {
       createModelsSqliteHandlers(values)
     )
 
-    if (actuallyDeleted < payload.toRemove.length) {
+    if (actuallyDeleted < toRemove.length) {
       // Stale renderer state — caller's toRemove referenced IDs that no longer
       // exist (concurrent edit, second window, race with another sync). The
       // transaction still succeeded but the renderer's diff was based on a
@@ -659,7 +694,7 @@ class ModelService {
       // refetch will reconcile what the user actually sees.
       logger.warn('Reconcile toRemove count mismatch', {
         providerId,
-        requestedRemove: payload.toRemove.length,
+        requestedRemove: toRemove.length,
         actuallyDeleted
       })
     }

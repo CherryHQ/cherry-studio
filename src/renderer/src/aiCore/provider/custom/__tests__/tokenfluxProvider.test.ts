@@ -21,7 +21,7 @@ vi.mock('@ai-sdk/openai-compatible', () => ({
   }
 }))
 
-vi.mock('../pollingTransports/tokenflux', () => ({
+vi.mock('../imageTransports/tokenflux', () => ({
   createTokenFluxTransport: (settings: { apiKey: string; baseURL?: string }) => {
     TransportCtor(settings)
     return { submit: vi.fn(), poll: vi.fn() }
@@ -55,12 +55,12 @@ describe('createTokenFluxProvider', () => {
     expect((provider.embeddingModel('e') as unknown as { provider: string }).provider).toBe('tokenflux.embedding')
   })
 
-  it('imageModel returns a PollingImageModel with provider="tokenflux"', () => {
+  it('imageModel returns an ImageGenerationModel with provider="tokenflux"', () => {
     const provider = createTokenFluxProvider({ apiKey: 'sk', baseURL: 'https://api.tokenflux.ai/openai/v1' })
     expect(provider.imageModel('flux-pro').provider).toBe('tokenflux')
   })
 
-  it('polling transport uses imageBaseURL, not chat baseURL', () => {
+  it('image transport uses imageBaseURL, not chat baseURL', () => {
     createTokenFluxProvider({
       apiKey: 'sk',
       baseURL: 'https://api.tokenflux.ai/openai/v1',

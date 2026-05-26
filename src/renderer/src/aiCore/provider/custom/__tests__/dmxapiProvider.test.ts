@@ -21,10 +21,10 @@ vi.mock('@ai-sdk/openai-compatible', () => ({
   }
 }))
 
-vi.mock('../pollingTransports/dmxapi', () => ({
+vi.mock('../imageTransports/dmxapi', () => ({
   createDmxapiTransport: (settings: { apiKey: string; baseURL?: string }) => {
     TransportCtor(settings)
-    return { submit: vi.fn(), poll: vi.fn() }
+    return { submit: vi.fn() }
   },
   DEFAULT_DMXAPI_BASE_URL: 'https://www.dmxapi.com'
 }))
@@ -52,17 +52,17 @@ describe('createDmxapiProvider', () => {
     expect((provider.embeddingModel('e') as unknown as { provider: string }).provider).toBe('dmxapi.embedding')
   })
 
-  it('imageModel returns a PollingImageModel with provider="dmxapi"', () => {
+  it('imageModel returns an ImageGenerationModel with provider="dmxapi"', () => {
     const provider = createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
     expect(provider.imageModel('gpt-image-1').provider).toBe('dmxapi')
   })
 
-  it('polling transport uses imageBaseURL when provided', () => {
+  it('image transport uses imageBaseURL when provided', () => {
     createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn', imageBaseURL: 'https://www.dmxapi.com' })
     expect(TransportCtor).toHaveBeenCalledWith({ apiKey: 'sk', baseURL: 'https://www.dmxapi.com' })
   })
 
-  it('polling transport falls back to DEFAULT_DMXAPI_BASE_URL when imageBaseURL is omitted', () => {
+  it('image transport falls back to DEFAULT_DMXAPI_BASE_URL when imageBaseURL is omitted', () => {
     createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
     expect(TransportCtor).toHaveBeenCalledWith({ apiKey: 'sk', baseURL: 'https://www.dmxapi.com' })
   })

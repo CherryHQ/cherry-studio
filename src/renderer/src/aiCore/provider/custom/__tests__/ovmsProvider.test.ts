@@ -21,10 +21,10 @@ vi.mock('@ai-sdk/openai-compatible', () => ({
   }
 }))
 
-vi.mock('../pollingTransports/ovms', () => ({
+vi.mock('../imageTransports/ovms', () => ({
   createOvmsTransport: (settings: { baseURL?: string }) => {
     TransportCtor(settings)
-    return { submit: vi.fn(), poll: vi.fn() }
+    return { submit: vi.fn() }
   },
   DEFAULT_OVMS_BASE_URL: 'http://localhost:8000'
 }))
@@ -60,17 +60,17 @@ describe('createOvmsProvider', () => {
     expect((provider.embeddingModel('e') as unknown as { provider: string }).provider).toBe('ovms.embedding')
   })
 
-  it('imageModel returns a PollingImageModel with provider="ovms"', () => {
+  it('imageModel returns an ImageGenerationModel with provider="ovms"', () => {
     const provider = createOvmsProvider({ baseURL: 'http://localhost:8000/v3' })
     expect(provider.imageModel('m').provider).toBe('ovms')
   })
 
-  it('polling transport uses imageBaseURL when provided', () => {
+  it('image transport uses imageBaseURL when provided', () => {
     createOvmsProvider({ baseURL: 'http://localhost:8000/v3', imageBaseURL: 'http://localhost:8000' })
     expect(TransportCtor).toHaveBeenCalledWith({ baseURL: 'http://localhost:8000' })
   })
 
-  it('polling transport falls back to DEFAULT_OVMS_BASE_URL when imageBaseURL is omitted', () => {
+  it('image transport falls back to DEFAULT_OVMS_BASE_URL when imageBaseURL is omitted', () => {
     createOvmsProvider({ baseURL: 'http://localhost:8000/v3' })
     expect(TransportCtor).toHaveBeenCalledWith({ baseURL: 'http://localhost:8000' })
   })

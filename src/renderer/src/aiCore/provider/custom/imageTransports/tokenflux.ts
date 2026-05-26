@@ -1,4 +1,4 @@
-import type { PollingSubmitInput, PollingTransport } from '../pollingImageModel'
+import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
 
 /**
  * TokenFlux submit/poll transport.
@@ -47,7 +47,7 @@ export interface TokenFluxTransportSettings {
   baseURL?: string
 }
 
-class TokenFluxTransport implements PollingTransport {
+class TokenFluxTransport implements ImageGenerationTransport {
   private apiKey: string
   private baseURL: string
 
@@ -73,7 +73,7 @@ class TokenFluxTransport implements PollingTransport {
     })
   }
 
-  async submit(input: PollingSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
+  async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const params = input.providerParams as TokenFluxProviderParams
     const request: TokenFluxGenerationRequest = {
       model: params.model ?? '',

@@ -11,6 +11,14 @@ index d257090..e9cd53e 100644
  }
  
  // src/google-generative-ai-options.ts
+@@ -2727,6 +2727,6 @@ var GoogleGenerativeAIImageModel = class {
+ };
+ function isGeminiModel(modelId) {
+-  return modelId.startsWith("gemini-");
++  return modelId.replace(/^google\//i, "").startsWith("gemini-");
+ }
+ var googleImageResponseSchema = (0, import_provider_utils14.lazySchema)(
+   () => (0, import_provider_utils14.zodSchema)(
 diff --git a/dist/index.mjs b/dist/index.mjs
 index b5f41bc..c75255d 100644
 --- a/dist/index.mjs
@@ -24,6 +32,14 @@ index b5f41bc..c75255d 100644
  }
  
  // src/google-generative-ai-options.ts
+@@ -2765,6 +2765,6 @@ var GoogleGenerativeAIImageModel = class {
+ };
+ function isGeminiModel(modelId) {
+-  return modelId.startsWith("gemini-");
++  return modelId.replace(/^google\//i, "").startsWith("gemini-");
+ }
+ var googleImageResponseSchema = lazySchema11(
+   () => zodSchema11(
 diff --git a/dist/internal/index.js b/dist/internal/index.js
 index bfc039b..e239776 100644
 --- a/dist/internal/index.js

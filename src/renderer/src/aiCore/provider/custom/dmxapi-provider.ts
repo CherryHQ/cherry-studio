@@ -3,8 +3,8 @@ import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
-import { createPollingImageModel } from './pollingImageModel'
-import { createDmxapiTransport, DEFAULT_DMXAPI_BASE_URL } from './pollingTransports/dmxapi'
+import { createImageGenerationModel } from './imageGenerationModel'
+import { createDmxapiTransport, DEFAULT_DMXAPI_BASE_URL } from './imageTransports/dmxapi'
 
 export const DMXAPI_PROVIDER_NAME = 'dmxapi' as const
 
@@ -33,7 +33,7 @@ export interface DmxapiProvider extends ProviderV3 {
  * Unified DMXAPI provider — chat, embedding, and image off one `ProviderV3`,
  * mirroring `newapi-provider.ts`. Chat/embedding go through the OpenAI-
  * compatible SDK aimed at `settings.baseURL`; the image model keeps the
- * bespoke single-shot V1/V2 routing via `createPollingImageModel +
+ * bespoke single-shot V1/V2 routing via `createImageGenerationModel +
  * createDmxapiTransport` aimed at `settings.imageBaseURL`.
  */
 export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): DmxapiProvider {
@@ -78,7 +78,7 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
       fetch: customFetch
     })
   provider.imageModel = (modelId: string) =>
-    createPollingImageModel(modelId, { provider: DMXAPI_PROVIDER_NAME, transport })
+    createImageGenerationModel(modelId, { provider: DMXAPI_PROVIDER_NAME, transport })
 
   return provider as DmxapiProvider
 }

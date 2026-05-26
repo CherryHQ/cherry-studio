@@ -1,7 +1,7 @@
 import { createPaintingGenerateError } from '@renderer/aiCore/errors/paintingGenerateError'
 import { readErrorMessage } from '@renderer/aiCore/errors/readErrorMessage'
 
-import type { PollingSubmitInput, PollingTransport } from '../pollingImageModel'
+import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
 
 /**
  * DMXAPI single-shot transport.
@@ -14,16 +14,10 @@ import type { PollingSubmitInput, PollingTransport } from '../pollingImageModel'
  * `extend_params` passthrough, seed `-1` sentinel, `style_type` prompt-prepend,
  * V1 inline base64 image / V2 FormData blobs, response `data.data[{url,b64_json}]`
  * → urls or `data:` strings. DMXAPI responds synchronously with the finished
- * images, so `submit()` does the one request and `poll()` is never invoked.
+ * images, so this transport only implements `submit()`.
  */
 
 export const DEFAULT_DMXAPI_BASE_URL = 'https://www.dmxapi.com'
-
-function createAbortError(message: string): Error {
-  const error = new Error(message)
-  error.name = 'AbortError'
-  return error
-}
 
 /** Edit/merge modes route to the V2 `/v1/images/edits` FormData endpoint. */
 const EDIT_OR_MERGE_MODES = new Set(['edit', 'merge'])
@@ -64,7 +58,7 @@ function uint8ToBase64(bytes: Uint8Array): string {
   return btoa(binary)
 }
 
-class DmxapiTransport implements PollingTransport {
+class DmxapiTransport implements ImageGenerationTransport {
   private apiKey: string
   private baseURL: string
 
@@ -138,7 +132,7 @@ class DmxapiTransport implements PollingTransport {
     return this.prepareV1Request(prompt, params)
   }
 
-  async submit(input: PollingSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
+  async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const params = input.providerParams as DmxapiProviderParams
     const prompt = input.prompt ?? ''
 
@@ -176,10 +170,6 @@ class DmxapiTransport implements PollingTransport {
       .filter((url: string) => url.length > 0)
 
     return { imageUrls }
-  }
-
-  async poll(): Promise<string[]> {
-    throw createAbortError('DMXAPI does not support polling')
   }
 }
 

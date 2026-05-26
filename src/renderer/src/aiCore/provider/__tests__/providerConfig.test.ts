@@ -927,6 +927,23 @@ describe('providerToAiSdkConfig', () => {
   })
 
   describe('OpenAI-compatible fallback', () => {
+    it('routes SiliconFlow to its custom provider config', async () => {
+      const provider = makeProvider({
+        id: 'silicon',
+        type: 'openai',
+        apiHost: 'https://api.siliconflow.cn/v1'
+      })
+
+      const config = (await providerToAiSdkConfig(
+        provider,
+        makeModel('Qwen/Qwen-Image', provider.id)
+      )) as ProviderConfig<'silicon'>
+
+      expect(config.providerId).toBe('silicon')
+      const settings = config.providerSettings
+      expect(settings.baseURL).toBe('https://api.siliconflow.cn/v1')
+    })
+
     it('includes includeUsage when provider supports stream options', async () => {
       setupStoreMock({ includeUsage: true })
 

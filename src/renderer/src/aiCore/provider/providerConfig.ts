@@ -34,10 +34,10 @@ import { cloneDeep, isEmpty } from 'lodash'
 
 import type { ProviderConfig } from '../types'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
-import { DEFAULT_DMXAPI_BASE_URL } from './custom/pollingTransports/dmxapi'
-import { DEFAULT_OVMS_BASE_URL } from './custom/pollingTransports/ovms'
-import { DEFAULT_PPIO_BASE_URL } from './custom/pollingTransports/ppio'
-import { DEFAULT_TOKENFLUX_BASE_URL } from './custom/pollingTransports/tokenflux'
+import { DEFAULT_DMXAPI_BASE_URL } from './custom/imageTransports/dmxapi'
+import { DEFAULT_OVMS_BASE_URL } from './custom/imageTransports/ovms'
+import { DEFAULT_PPIO_BASE_URL } from './custom/imageTransports/ppio'
+import { DEFAULT_TOKENFLUX_BASE_URL } from './custom/imageTransports/tokenflux'
 import { getAiSdkProviderId } from './factory'
 
 // === Types ===
@@ -137,6 +137,7 @@ export function providerToAiSdkConfig(
     { match: (_, id) => id === 'aihubmix', build: buildAiHubMixConfig },
     { match: (_, id) => id === 'ppio', build: buildPpioConfig },
     { match: (_, id) => id === 'tokenflux', build: buildTokenFluxConfig },
+    { match: (_, id) => id === 'silicon', build: buildSiliconConfig },
     { match: (p) => p.id === 'dmxapi', build: buildDmxapiConfig },
     { match: (p) => p.id === 'ovms', build: buildOvmsConfig }
   ]
@@ -350,7 +351,12 @@ function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'opena
   return {
     providerId: 'openai-compatible',
     endpoint: ctx.endpoint,
-    providerSettings: { ...ctx.baseConfig, ...commonOptions, name: ctx.actualProvider.id, includeUsage }
+    providerSettings: {
+      ...ctx.baseConfig,
+      ...commonOptions,
+      name: ctx.actualProvider.id,
+      includeUsage
+    }
   }
 }
 
@@ -372,6 +378,19 @@ function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
       ...ctx.baseConfig,
       headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
     }
+  }
+}
+
+function buildSiliconConfig(ctx: BuilderContext): ProviderConfig<'silicon'> {
+  const commonOptions = buildCommonOptions(ctx)
+  const includeUsage = isSupportStreamOptionsProvider(ctx.actualProvider)
+    ? store.getState().settings.openAI?.streamOptions?.includeUsage
+    : undefined
+
+  return {
+    providerId: 'silicon',
+    endpoint: ctx.endpoint,
+    providerSettings: { ...ctx.baseConfig, ...commonOptions, includeUsage }
   }
 }
 

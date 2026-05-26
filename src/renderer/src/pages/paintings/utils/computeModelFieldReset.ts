@@ -3,6 +3,7 @@ import { loggerService } from '@logger'
 import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/types/model'
 
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
+import type { BaseConfigItem } from '../providers/shared/providerFieldSchema'
 
 const logger = loggerService.withContext('paintings/modelFieldReset')
 
@@ -17,11 +18,13 @@ const logger = loggerService.withContext('paintings/modelFieldReset')
  *
  * This helper diff'es the old model's form fields against the new model's
  * (via the same `imageGenerationToFields` the renderer uses) and returns a
- * patch that nulls every key that's no longer in scope. Apply it alongside
+ * patch that nulls every key that's no longer in scope. For shared option
+ * fields like `size`, it also restores the new model's default when the old
+ * value is not valid for the new model. Apply it alongside
  * `{ model: newModelId, ...onModelChange?.(...) }` so the painting state
  * post-switch contains exactly the fields the new model accepts.
  *
- * Returns `{}` when the old or new model has no registry block (custom or
+ * Returns `{}` when the old model has no registry block (custom or
  * user-named models) — that's the conservative choice: no info, no reset.
  * Cross-provider switches are already handled by the caller via
  * `createPaintingData`, which produces a fresh painting from defaults.
@@ -32,8 +35,9 @@ export async function computeModelFieldReset(input: {
   newModelId: string
   providerKeyMap: Record<string, string> | undefined
   mode: ImageGenerationMode | undefined
-}): Promise<Record<string, undefined>> {
-  const { providerId, oldModelId, newModelId, providerKeyMap, mode } = input
+  currentValues?: Record<string, unknown>
+}): Promise<Record<string, unknown>> {
+  const { providerId, oldModelId, newModelId, providerKeyMap, mode, currentValues = {} } = input
   if (!oldModelId || oldModelId === newModelId) return {}
 
   const fetchSupport = async (modelId: string): Promise<ImageGenerationSupport | undefined> => {
@@ -51,10 +55,11 @@ export async function computeModelFieldReset(input: {
   const [oldSupport, newSupport] = await Promise.all([fetchSupport(oldModelId), fetchSupport(newModelId)])
   if (!oldSupport) return {}
 
-  const collectKeys = (support: ImageGenerationSupport | undefined): Set<string> => {
+  const oldItems = imageGenerationToFields(oldSupport, { keyMap: providerKeyMap, mode })
+  const newItems = newSupport ? imageGenerationToFields(newSupport, { keyMap: providerKeyMap, mode }) : []
+
+  const collectKeys = (items: BaseConfigItem[]): Set<string> => {
     const keys = new Set<string>()
-    if (!support) return keys
-    const items = imageGenerationToFields(support, { keyMap: providerKeyMap, mode })
     for (const item of items) {
       if (item.key) keys.add(item.key)
       // `customSize` widget aliases multiple persisted fields under one
@@ -68,12 +73,27 @@ export async function computeModelFieldReset(input: {
     return keys
   }
 
-  const oldKeys = collectKeys(oldSupport)
-  const newKeys = collectKeys(newSupport)
+  const oldKeys = collectKeys(oldItems)
+  const newKeys = collectKeys(newItems)
 
-  const patch: Record<string, undefined> = {}
+  const patch: Record<string, unknown> = {}
   for (const key of oldKeys) {
     if (!newKeys.has(key)) patch[key] = undefined
   }
+
+  for (const item of newItems) {
+    if (!item.key || item.initialValue === undefined || Object.prototype.hasOwnProperty.call(patch, item.key)) continue
+    const options = typeof item.options === 'function' ? item.options(item, currentValues) : (item.options ?? [])
+    if (options.length === 0) continue
+
+    const currentValue = currentValues[item.key]
+    if (currentValue === undefined || currentValue === null || currentValue === '') continue
+
+    const allowedValues = new Set(options.map((option) => String(option.value)))
+    if (!allowedValues.has(String(currentValue))) {
+      patch[item.key] = item.initialValue
+    }
+  }
+
   return patch
 }

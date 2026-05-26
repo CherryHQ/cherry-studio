@@ -1,20 +1,9 @@
 /**
  * Painting-side image-result plumbing (R1 shared infra).
  *
- * The patched `ai` `generateImage` auto-downloads any `http(s)` image string
- * via a renderer `fetch` unless a custom `experimental_download` is supplied.
- * For painting we do NOT want that: bespoke painting downloads image URLs
- * through the main-process, proxy-aware `window.api.file.download`
- * (`paintings/utils/downloadImages.ts`) with per-URL partial success, the
- * empty-URL toast, `showProxyWarning`, and `allowBase64DataUrls`.
- *
- * So painting passes {@link passthroughImageDownload} — a `DownloadFunction`
- * that returns `null` for every requested URL. The patched SDK then skips the
- * download and stores the original URL string verbatim as the
- * `GeneratedFile`'s `base64` value. {@link classifyImageOutput} recovers it:
- * an `http(s)://` value is a pass-through URL (hand back to the painting
- * downloader); anything else is real base64 bytes (with a defensive strip of
- * a redundant `data:<mediaType>;base64,` prefix some transports emit).
+ * AI SDK image models return raw base64 strings or URL strings. URL strings
+ * must be converted to bytes through `experimental_download`; otherwise the
+ * SDK falls through to media sniffing and treats the URL as base64.
  */
 
 /** Structural shape of the `ai` SDK `DownloadFunction` (not exported by `ai`). */
@@ -23,11 +12,21 @@ export type ImageDownloadFunction = (
 ) => Promise<Array<{ data: Uint8Array; mediaType: string | undefined } | null>>
 
 /**
- * Pass-through download: never downloads. Returning `null` per item tells the
- * patched SDK to keep the original URL string instead of fetching it, so the
- * painting layer can download it through the main process.
+ * Download URL outputs before AI SDK wraps them as `GeneratedFile`.
  */
-export const passthroughImageDownload: ImageDownloadFunction = (options) => Promise.resolve(options.map(() => null))
+export const downloadImageUrls: ImageDownloadFunction = async (options) =>
+  Promise.all(
+    options.map(async ({ url }) => {
+      const response = await fetch(url)
+      if (!response.ok) {
+        throw new Error(`Failed to download image: ${response.status} ${response.statusText}`)
+      }
+      return {
+        data: new Uint8Array(await response.arrayBuffer()),
+        mediaType: response.headers.get('content-type') ?? undefined
+      }
+    })
+  )
 
 export type ClassifiedImage = { type: 'url'; url: string } | { type: 'base64'; base64: string }
 
@@ -35,9 +34,9 @@ const DATA_URL_BASE64_PREFIX = /^data:[^;,]*;base64,/
 
 /**
  * Classify one `GeneratedFile.base64` value produced under
- * {@link passthroughImageDownload}:
+ * `generateImage`:
  *
- * - `http://` / `https://` → a pass-through remote URL.
+ * - `http://` / `https://` → a defensive pass-through remote URL.
  * - `data:<mediaType>;base64,<b64>` → strip the prefix, return raw base64
  *   (prevents the double-prefix corruption when a transport already returned
  *   a data URL and `convertImageResult` would prepend another prefix).

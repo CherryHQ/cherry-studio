@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { createOvmsTransport } from '../pollingTransports/ovms'
+import { createOvmsTransport } from '../imageTransports/ovms'
 
 /**
  * Covers the relocated OVMS single-shot request (no `/v1`, no auth header),
- * response parsing (b64_json → data: URL else url), abort and the no-poll
- * guarantee. Mirrors the bespoke `providers/ovms/generate.ts`.
+ * response parsing (b64_json → data: URL else url), abort and the sync-only
+ * transport shape. Mirrors the bespoke `providers/ovms/generate.ts`.
  */
 describe('OvmsTransport', () => {
   afterEach(() => {
@@ -118,8 +118,8 @@ describe('OvmsTransport', () => {
     expect((fetchMock.mock.calls[0][1] as RequestInit).signal).toBe(controller.signal)
   })
 
-  it('poll() throws and is never reached on the single-shot path', async () => {
+  it('does not expose polling for the single-shot path', () => {
     const transport = createOvmsTransport({ baseURL: 'http://localhost:8000' })
-    await expect(transport.poll()).rejects.toThrow(/does not support polling/)
+    expect('poll' in transport).toBe(false)
   })
 })

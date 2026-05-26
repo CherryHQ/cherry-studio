@@ -52,6 +52,14 @@ export const PPIO_MODELS: PpioModel[] = [
     description: '擅长创建带有本地文本的图形海报'
   },
   {
+    id: 'glm-image',
+    name: 'GLM 图像生成',
+    endpoint: '/v3/async/glm-image',
+    group: '智谱',
+    mode: 'ppio_draw',
+    description: '根据文本提示词生成高质量图像'
+  },
+  {
     id: 'z-image-turbo',
     name: 'Z Image Turbo',
     endpoint: '/v3/async/z-image-turbo',
@@ -66,6 +74,33 @@ export const PPIO_MODELS: PpioModel[] = [
     group: 'Z Image',
     mode: 'ppio_draw',
     description: '支持自定义 LoRA 权重的高速图像生成'
+  },
+  {
+    id: 'seedream-5.0-lite',
+    name: 'Seedream 5.0 Lite',
+    endpoint: '/v3/seedream-5.0-lite',
+    group: 'Seedream',
+    mode: 'ppio_draw',
+    isSync: true,
+    description: '支持文生图、单图生图、多图生图和组图生成'
+  },
+  {
+    id: 'seedream-4.5',
+    name: 'Seedream 4.5',
+    endpoint: '/v3/seedream-4.5',
+    group: 'Seedream',
+    mode: 'ppio_draw',
+    isSync: true,
+    description: '支持文生图、单图生图、多图生图和组图生成'
+  },
+  {
+    id: 'seedream-4.0',
+    name: 'Seedream 4.0',
+    endpoint: '/v3/seedream-4.0',
+    group: 'Seedream',
+    mode: 'ppio_draw',
+    isSync: true,
+    description: '支持4K分辨率的图像生成'
   },
   {
     id: 'seedream-4.5-draw',
@@ -87,6 +122,33 @@ export const PPIO_MODELS: PpioModel[] = [
   },
 
   // ===== Edit 模式 (图像编辑) =====
+  {
+    id: 'seedream-5.0-lite',
+    name: 'Seedream 5.0 Lite 图生图',
+    endpoint: '/v3/seedream-5.0-lite',
+    group: 'Seedream',
+    mode: 'ppio_edit',
+    isSync: true,
+    description: '基于参考图生成新图像'
+  },
+  {
+    id: 'seedream-4.5',
+    name: 'Seedream 4.5 图生图',
+    endpoint: '/v3/seedream-4.5',
+    group: 'Seedream',
+    mode: 'ppio_edit',
+    isSync: true,
+    description: '基于参考图生成新图像'
+  },
+  {
+    id: 'seedream-4.0',
+    name: 'Seedream 4.0 图生图',
+    endpoint: '/v3/seedream-4.0',
+    group: 'Seedream',
+    mode: 'ppio_edit',
+    isSync: true,
+    description: '基于参考图生成新图像'
+  },
   {
     id: 'seedream-4.5-edit',
     name: 'Seedream 4.5 图生图',
@@ -143,6 +205,6 @@ export function getModelsByMode(mode: PpioMode): PpioModel[] {
   return PPIO_MODELS.filter((m) => m.mode === mode)
 }
 
-export function getModelConfig(modelId: string): PpioModel | undefined {
-  return PPIO_MODELS.find((m) => m.id === modelId)
+export function getModelConfig(modelId: string, mode?: PpioMode): PpioModel | undefined {
+  return PPIO_MODELS.find((m) => m.id === modelId && (!mode || m.mode === mode))
 }

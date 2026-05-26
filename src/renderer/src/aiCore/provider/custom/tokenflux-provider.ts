@@ -3,8 +3,8 @@ import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
-import { createPollingImageModel } from './pollingImageModel'
-import { createTokenFluxTransport, DEFAULT_TOKENFLUX_BASE_URL } from './pollingTransports/tokenflux'
+import { createImageGenerationModel } from './imageGenerationModel'
+import { createTokenFluxTransport, DEFAULT_TOKENFLUX_BASE_URL } from './imageTransports/tokenflux'
 
 export const TOKENFLUX_PROVIDER_NAME = 'tokenflux' as const
 
@@ -30,7 +30,7 @@ export interface TokenFluxProvider extends ProviderV3 {
  * Unified TokenFlux provider — chat, embedding, and image off one `ProviderV3`,
  * mirroring `newapi-provider.ts`. Chat/embedding go through the OpenAI-
  * compatible SDK aimed at `settings.baseURL`; the image model keeps its
- * bespoke submit/poll behavior via `createPollingImageModel + createTokenFluxTransport`
+ * bespoke submit/poll behavior via `createImageGenerationModel + createTokenFluxTransport`
  * aimed at `settings.imageBaseURL` (defaults to `DEFAULT_TOKENFLUX_BASE_URL`).
  */
 export function createTokenFluxProvider(settings: TokenFluxProviderSettings = {}): TokenFluxProvider {
@@ -75,7 +75,7 @@ export function createTokenFluxProvider(settings: TokenFluxProviderSettings = {}
       fetch: customFetch
     })
   provider.imageModel = (modelId: string) =>
-    createPollingImageModel(modelId, { provider: TOKENFLUX_PROVIDER_NAME, transport })
+    createImageGenerationModel(modelId, { provider: TOKENFLUX_PROVIDER_NAME, transport })
 
   return provider as TokenFluxProvider
 }

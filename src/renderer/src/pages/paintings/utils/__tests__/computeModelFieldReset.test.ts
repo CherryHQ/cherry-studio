@@ -165,4 +165,36 @@ describe('computeModelFieldReset', () => {
     expect(patch).not.toHaveProperty('numberOfImages')
     expect(patch).not.toHaveProperty('personGeneration')
   })
+
+  it('resets a stale shared option value to the new model default', async () => {
+    mockSupportPerModel({
+      'jimeng-txt2img-v3.1': {
+        modes: ['generate'],
+        sizes: ['1328x1328', '2048x2048'],
+        sizeMode: 'pixel',
+        defaultSize: '1328x1328'
+      },
+      'seedream-5.0-lite': {
+        modes: ['generate', 'edit'],
+        sizes: ['2K', '3K', '2048x2048', '2304x1728', '1728x2304', '2560x1440', '1440x2560'],
+        sizeMode: 'pixel',
+        defaultSize: '2048x2048'
+      }
+    })
+
+    const patch = await computeModelFieldReset({
+      providerId: 'ppio',
+      oldModelId: 'jimeng-txt2img-v3.1',
+      newModelId: 'seedream-5.0-lite',
+      providerKeyMap: undefined,
+      mode: 'generate',
+      currentValues: {
+        size: '1328x1328'
+      }
+    })
+
+    expect(patch).toEqual({
+      size: '2048x2048'
+    })
+  })
 })

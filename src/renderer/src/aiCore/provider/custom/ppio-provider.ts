@@ -3,8 +3,8 @@ import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
-import { createPollingImageModel } from './pollingImageModel'
-import { createPpioTransport, DEFAULT_PPIO_BASE_URL } from './pollingTransports/ppio'
+import { createImageGenerationModel } from './imageGenerationModel'
+import { createPpioTransport, DEFAULT_PPIO_BASE_URL } from './imageTransports/ppio'
 
 export const PPIO_PROVIDER_NAME = 'ppio' as const
 
@@ -31,7 +31,7 @@ export interface PpioProvider extends ProviderV3 {
  * Unified PPIO provider — chat, embedding, and image off one `ProviderV3`,
  * mirroring `newapi-provider.ts`. Chat/embedding go through the OpenAI-
  * compatible SDK aimed at `settings.baseURL`; the image model keeps its
- * bespoke submit/poll behavior via `createPollingImageModel + createPpioTransport`
+ * bespoke submit/poll behavior via `createImageGenerationModel + createPpioTransport`
  * aimed at `settings.imageBaseURL` (defaults to `DEFAULT_PPIO_BASE_URL`).
  */
 export function createPpioProvider(settings: PpioProviderSettings = {}): PpioProvider {
@@ -76,7 +76,7 @@ export function createPpioProvider(settings: PpioProviderSettings = {}): PpioPro
       fetch: customFetch
     })
   provider.imageModel = (modelId: string) =>
-    createPollingImageModel(modelId, { provider: PPIO_PROVIDER_NAME, transport })
+    createImageGenerationModel(modelId, { provider: PPIO_PROVIDER_NAME, transport })
 
   return provider as PpioProvider
 }

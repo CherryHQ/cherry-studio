@@ -26,11 +26,10 @@ vi.mock('@renderer/i18n', () => ({
 import { createAihubmixImageModel } from '../aihubmix-image-model'
 
 /**
- * Covers the relocated AiHubMix special branches (gemini stream, Ideogram V_3
- * FormData, Ideogram V_1/V_2 JSON/FormData), response parsing, abort, error
- * handling, and the byte-identical default delegate to the inner
- * `OpenAICompatibleImageModel`. Mirrors the bespoke
- * `providers/aihubmix/generate.ts`.
+ * Covers the relocated AiHubMix special branches (Google native image models,
+ * Ideogram V_3 FormData, Ideogram V_1/V_2 JSON/FormData), response parsing,
+ * abort, error handling, and the byte-identical default delegate to the inner
+ * `OpenAICompatibleImageModel`.
  */
 describe('AihubmixImageModel', () => {
   afterEach(() => {
@@ -68,39 +67,60 @@ describe('AihubmixImageModel', () => {
     expect(model.maxImagesPerCall).toBe(10)
   })
 
-  describe('gemini-3-pro-image-preview', () => {
-    it('posts to the gemini streamGenerateContent endpoint with x-goog-api-key and parses inlineData', async () => {
+  describe('Google native image models', () => {
+    it('routes Gemini image models through @ai-sdk/google and normalizes image config', async () => {
       const fetchMock = vi.fn().mockResolvedValue(
-        okJson([
-          {
-            candidates: [{ content: { parts: [{ inlineData: { data: 'AAA' } }, { inlineData: { data: 'BBB' } }] } }]
-          }
-        ])
+        okJson({
+          candidates: [
+            {
+              content: {
+                parts: [
+                  { inlineData: { mimeType: 'image/png', data: 'AAA' } },
+                  { inlineData: { mimeType: 'image/png', data: 'BBB' } }
+                ]
+              }
+            }
+          ]
+        })
       )
       vi.stubGlobal('fetch', fetchMock)
 
       const model = make('gemini-3-pro-image-preview')
       const result = await model.doGenerate(
-        callOptions({ providerOptions: { aihubmix: { mode: 'generate', aspectRatio: 'ASPECT_16_9' } } as any })
+        callOptions({
+          providerOptions: { aihubmix: { mode: 'generate', aspectRatio: 'ASPECT_16_9', imageSize: '2k' } } as any
+        })
       )
 
       const [url, init] = fetchMock.mock.calls[0]
-      expect(url).toBe('https://aihubmix.com/gemini/v1beta/models/gemini-3-pro-image-preview:streamGenerateContent')
+      expect(url).toBe('https://aihubmix.com/gemini/v1beta/models/gemini-3-pro-image-preview:generateContent')
       expect((init.headers as Record<string, string>)['x-goog-api-key']).toBe('sk-test')
       const body = JSON.parse(init.body as string)
-      expect(body.generationConfig.imageConfig.aspectRatio).toBe('16:9')
-      expect(body.generationConfig.imageConfig.imageSize).toBe('1k')
-      expect(result.images).toEqual(['data:image/png;base64,AAA', 'data:image/png;base64,BBB'])
+      expect(body.generationConfig.responseModalities).toEqual(['IMAGE'])
+      expect(body.generationConfig.imageConfig).toMatchObject({ aspectRatio: '16:9', imageSize: '2K' })
+      expect(result.images).toEqual(['AAA', 'BBB'])
     })
 
-    it('handles a single (non-array) gemini response object', async () => {
-      const fetchMock = vi
-        .fn()
-        .mockResolvedValue(okJson({ candidates: [{ content: { parts: [{ inlineData: { data: 'ZZZ' } }] } }] }))
+    it('routes Imagen models through @ai-sdk/google predict and normalizes personGeneration', async () => {
+      const fetchMock = vi.fn().mockResolvedValue(okJson({ predictions: [{ bytesBase64Encoded: 'IMG' }] }))
       vi.stubGlobal('fetch', fetchMock)
 
-      const result = await make('gemini-3-pro-image-preview').doGenerate(callOptions())
-      expect(result.images).toEqual(['data:image/png;base64,ZZZ'])
+      const result = await make('imagen-4.0-generate-preview-06-06').doGenerate(
+        callOptions({
+          size: '16:9' as never,
+          providerOptions: { aihubmix: { personGeneration: 'ALLOW_ADULT' } } as any
+        })
+      )
+
+      const [url, init] = fetchMock.mock.calls[0]
+      expect(url).toBe('https://aihubmix.com/gemini/v1beta/models/imagen-4.0-generate-preview-06-06:predict')
+      const body = JSON.parse(init.body as string)
+      expect(body.parameters).toMatchObject({
+        aspectRatio: '16:9',
+        personGeneration: 'allow_adult',
+        sampleCount: 1
+      })
+      expect(result.images).toEqual(['IMG'])
     })
   })
 
@@ -314,7 +334,7 @@ describe('AihubmixImageModel', () => {
   })
 
   describe('default branch delegates byte-identically to the inner OpenAICompatibleImageModel', () => {
-    for (const id of ['gpt-image-1', 'gpt-image-2', 'FLUX.1-Kontext-pro', 'imagen-3.0', 'some-unknown-model']) {
+    for (const id of ['gpt-image-1', 'gpt-image-2', 'FLUX.1-Kontext-pro', 'some-unknown-model']) {
       it(`delegates ${id} with the same options object and returns its result unchanged`, async () => {
         const innerResult = { images: ['data:image/png;base64,DELEGATED'], warnings: [], response: {} }
         innerDoGenerate.mockResolvedValue(innerResult)

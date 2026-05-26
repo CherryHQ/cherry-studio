@@ -1,6 +1,7 @@
+import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createPpioTransport, PpioTaskFailedError } from '../pollingTransports/ppio'
+import { createPpioTransport, PpioTaskFailedError } from '../imageTransports/ppio'
 
 /**
  * Ported from the legacy `providers/ppio/__tests__/PpioService.test.ts` plus
@@ -125,5 +126,143 @@ describe('PpioTransport', () => {
     })
 
     expect(result).toEqual({ imageUrls: ['https://img/a.png'] })
+  })
+
+  it('uses the default request timeout for isSync models', async () => {
+    const transport = createPpioTransport({ apiKey: 'token' })
+    vi.spyOn(globalThis, 'fetch').mockImplementation(
+      (_input, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          const signal = init?.signal as AbortSignal
+          signal.addEventListener('abort', () => {
+            const error = new Error('aborted')
+            error.name = 'AbortError'
+            reject(error)
+          })
+        })
+    )
+
+    const promise = transport
+      .submit({
+        prompt: 'a fox',
+        n: 1,
+        size: undefined,
+        seed: undefined,
+        files: undefined,
+        mask: undefined,
+        providerParams: {
+          model: 'seedream-4.5-draw',
+          modelDescriptor: { id: 'seedream-4.5-draw', endpoint: '/v3/seedream-4.5', isSync: true }
+        }
+      })
+      .catch((error) => error)
+
+    await vi.advanceTimersByTimeAsync(DEFAULT_TIMEOUT)
+
+    const error = await promise
+    expect(error).toBeInstanceOf(Error)
+    expect((error as Error).message).toBe(`PPIO API request timeout after ${DEFAULT_TIMEOUT / 1000}s`)
+  })
+
+  it('supports official Seedream 5.0 Lite sync endpoint and object image results', async () => {
+    const transport = createPpioTransport({ apiKey: 'token' })
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ images: [{ url: 'https://img/a.png' }, { image_url: 'https://img/b.png' }] }), {
+        status: 200
+      })
+    )
+
+    const result = await transport.submit({
+      prompt: 'a fox',
+      n: 1,
+      size: undefined,
+      seed: undefined,
+      files: undefined,
+      mask: undefined,
+      providerParams: {
+        model: 'seedream-5.0-lite',
+        modelDescriptor: {
+          id: 'seedream-5.0-lite',
+          endpoint: '/v3/seedream-5.0-lite',
+          isSync: true,
+          mode: 'ppio_draw'
+        },
+        size: '2K',
+        addWatermark: false
+      }
+    })
+
+    expect(fetchMock.mock.calls[0][0]).toBe('https://api.ppio.com/v3/seedream-5.0-lite')
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
+    expect(body).toMatchObject({
+      prompt: 'a fox',
+      size: '2K',
+      watermark: false,
+      sequential_image_generation: 'disabled'
+    })
+    expect(result).toEqual({ imageUrls: ['https://img/a.png', 'https://img/b.png'] })
+  })
+
+  it('uses Seedream 4.0 plural images field for edit requests', async () => {
+    const transport = createPpioTransport({ apiKey: 'token' })
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ images: ['https://img/a.png'] }), { status: 200 }))
+
+    await transport.submit({
+      prompt: 'edit it',
+      n: 1,
+      size: undefined,
+      seed: undefined,
+      files: undefined,
+      mask: undefined,
+      providerParams: {
+        model: 'seedream-4.0',
+        modelDescriptor: {
+          id: 'seedream-4.0',
+          endpoint: '/v3/seedream-4.0',
+          isSync: true,
+          mode: 'ppio_edit'
+        },
+        imageFile: 'data:image/png;base64,abc',
+        size: '2048x2048'
+      }
+    })
+
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
+    expect(body.images).toEqual(['data:image/png;base64,abc'])
+    expect(body.image).toBeUndefined()
+  })
+
+  it('builds GLM Image async params with watermark_enabled', async () => {
+    const transport = createPpioTransport({ apiKey: 'token' })
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ task_id: 't-glm' }), { status: 200 }))
+
+    const result = await transport.submit({
+      prompt: 'a fox',
+      n: 1,
+      size: undefined,
+      seed: undefined,
+      files: undefined,
+      mask: undefined,
+      providerParams: {
+        model: 'glm-image',
+        modelDescriptor: { id: 'glm-image', endpoint: '/v3/async/glm-image', mode: 'ppio_draw' },
+        size: '1568x1056',
+        addWatermark: false
+      }
+    })
+
+    expect(fetchMock.mock.calls[0][0]).toBe('https://api.ppio.com/v3/async/glm-image')
+    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
+    expect(body).toEqual({
+      prompt: 'a fox',
+      size: '1568x1056',
+      quality: 'hd',
+      watermark_enabled: false
+    })
+    expect(result).toEqual({ taskId: 't-glm' })
   })
 })

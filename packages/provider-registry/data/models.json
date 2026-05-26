@@ -1,5 +1,5 @@
 {
-  "version": "2026.04.09",
+  "version": "2026.05.26",
   "models": [
     {
       "id": "multilingual-e5-large-instruct",
@@ -34886,7 +34886,18 @@
       "id": "glm-image",
       "name": "glm-image",
       "capabilities": ["image-generation"],
-      "ownedBy": "zhipu"
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "ownedBy": "zhipu",
+      "imageGeneration": {
+        "modes": ["generate"],
+        "sizes": ["1280x1280", "1568x1056", "1056x1568", "1472x1088", "1088x1472", "1728x960", "960x1728"],
+        "sizeMode": "pixel",
+        "defaultSize": "1280x1280",
+        "supports": {
+          "addWatermark": true
+        }
+      }
     },
     {
       "id": "s2",
@@ -48217,6 +48228,57 @@
         },
         "supports": {
           "seed": true
+        }
+      }
+    },
+    {
+      "id": "seedream-5.0-lite",
+      "name": "Seedream 5.0 Lite",
+      "description": "支持文生图、单图生图、多图生图，以及组图生成功能。",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": ["generate", "edit"],
+        "sizes": ["2K", "3K", "2048x2048", "2304x1728", "1728x2304", "2560x1440", "1440x2560"],
+        "sizeMode": "pixel",
+        "defaultSize": "2048x2048",
+        "supports": {
+          "addWatermark": true
+        }
+      }
+    },
+    {
+      "id": "seedream-4.5",
+      "name": "Seedream 4.5",
+      "description": "支持文生图、单图生图、多图生图，以及组图生成功能。",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": ["generate", "edit"],
+        "sizes": ["2K", "4K", "2048x2048", "2304x1728", "1728x2304", "2560x1440", "1440x2560"],
+        "sizeMode": "pixel",
+        "defaultSize": "2048x2048",
+        "supports": {
+          "addWatermark": true
+        }
+      }
+    },
+    {
+      "id": "seedream-4.0",
+      "name": "Seedream 4.0",
+      "description": "支持4K分辨率的图像生成。",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": ["generate", "edit"],
+        "sizes": ["1K", "2K", "4K", "2048x2048", "2304x1728", "1728x2304", "2560x1440", "1440x2560"],
+        "sizeMode": "pixel",
+        "defaultSize": "2048x2048",
+        "supports": {
+          "addWatermark": true
         }
       }
     },

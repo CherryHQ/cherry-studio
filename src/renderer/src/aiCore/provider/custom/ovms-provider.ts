@@ -3,8 +3,8 @@ import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
-import { createPollingImageModel } from './pollingImageModel'
-import { createOvmsTransport, DEFAULT_OVMS_BASE_URL } from './pollingTransports/ovms'
+import { createImageGenerationModel } from './imageGenerationModel'
+import { createOvmsTransport, DEFAULT_OVMS_BASE_URL } from './imageTransports/ovms'
 
 export const OVMS_PROVIDER_NAME = 'ovms' as const
 
@@ -33,7 +33,7 @@ export interface OvmsProvider extends ProviderV3 {
  * mirroring `newapi-provider.ts`. OVMS is a local OpenVINO Model Server with
  * NO auth, so headers carry only what the caller passes (no `Authorization`).
  * Chat/embedding hit `settings.baseURL`; the image model keeps its bespoke
- * single-shot behavior via `createPollingImageModel + createOvmsTransport`
+ * single-shot behavior via `createImageGenerationModel + createOvmsTransport`
  * aimed at `settings.imageBaseURL`.
  */
 export function createOvmsProvider(settings: OvmsProviderSettings = {}): OvmsProvider {
@@ -71,7 +71,7 @@ export function createOvmsProvider(settings: OvmsProviderSettings = {}): OvmsPro
       fetch: customFetch
     })
   provider.imageModel = (modelId: string) =>
-    createPollingImageModel(modelId, { provider: OVMS_PROVIDER_NAME, transport })
+    createImageGenerationModel(modelId, { provider: OVMS_PROVIDER_NAME, transport })
 
   return provider as OvmsProvider
 }

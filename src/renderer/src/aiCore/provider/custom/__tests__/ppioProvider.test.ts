@@ -21,7 +21,7 @@ vi.mock('@ai-sdk/openai-compatible', () => ({
   }
 }))
 
-vi.mock('../pollingTransports/ppio', () => ({
+vi.mock('../imageTransports/ppio', () => ({
   createPpioTransport: (settings: { apiKey: string; baseURL?: string }) => {
     TransportCtor(settings)
     return { submit: vi.fn(), poll: vi.fn() }
@@ -57,14 +57,14 @@ describe('createPpioProvider', () => {
     expect(model.provider).toBe('ppio.embedding')
   })
 
-  it('imageModel still returns a PollingImageModel with provider="ppio" (painting regression guard)', () => {
+  it('imageModel still returns an ImageGenerationModel with provider="ppio" (painting regression guard)', () => {
     const provider = createPpioProvider({ apiKey: 'sk-test', baseURL: 'https://api.ppinfra.com/v3/openai' })
     const img = provider.imageModel('z-image-turbo')
     expect(img.provider).toBe('ppio')
     expect(img.specificationVersion).toBe('v3')
   })
 
-  it('polling transport is built from imageBaseURL, NOT chat baseURL', () => {
+  it('image transport is built from imageBaseURL, NOT chat baseURL', () => {
     createPpioProvider({
       apiKey: 'sk-test',
       baseURL: 'https://api.ppinfra.com/v3/openai',
@@ -73,7 +73,7 @@ describe('createPpioProvider', () => {
     expect(TransportCtor).toHaveBeenCalledWith({ apiKey: 'sk-test', baseURL: 'https://api.ppio.com' })
   })
 
-  it('polling transport falls back to DEFAULT_PPIO_BASE_URL when imageBaseURL is omitted', () => {
+  it('image transport falls back to DEFAULT_PPIO_BASE_URL when imageBaseURL is omitted', () => {
     createPpioProvider({ apiKey: 'sk-test', baseURL: 'https://api.ppinfra.com/v3/openai' })
     expect(TransportCtor).toHaveBeenCalledWith({ apiKey: 'sk-test', baseURL: 'https://api.ppio.com' })
   })

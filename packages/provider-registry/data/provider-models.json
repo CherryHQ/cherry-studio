@@ -1,5 +1,5 @@
 {
-  "version": "2026.03.09",
+  "version": "2026.05.26",
   "overrides": [
     {
       "providerId": "deepseek",
@@ -14397,6 +14397,50 @@
       }
     },
     {
+      "providerId": "ppio",
+      "modelId": "jimeng-txt2img-v3.1"
+    },
+    {
+      "providerId": "ppio",
+      "modelId": "jimeng-txt2img-v3.0"
+    },
+    {
+      "providerId": "ppio",
+      "modelId": "hunyuan-image-3"
+    },
+    {
+      "providerId": "ppio",
+      "modelId": "qwen-image-txt2img"
+    },
+    {
+      "providerId": "ppio",
+      "modelId": "qwen-image-edit"
+    },
+    {
+      "providerId": "ppio",
+      "modelId": "glm-image"
+    },
+    {
+      "providerId": "ppio",
+      "modelId": "z-image-turbo"
+    },
+    {
+      "providerId": "ppio",
+      "modelId": "z-image-turbo-lora"
+    },
+    {
+      "providerId": "ppio",
+      "modelId": "seedream-5.0-lite"
+    },
+    {
+      "providerId": "ppio",
+      "modelId": "seedream-4.5"
+    },
+    {
+      "providerId": "ppio",
+      "modelId": "seedream-4.0"
+    },
+    {
       "providerId": "qiniu",
       "modelId": "deepseek-r1"
     },
@@ -14662,6 +14706,16 @@
       "providerId": "sophnet",
       "modelId": "deepseek-v3",
       "apiModelId": "DeepSeek-v3"
+    },
+    {
+      "providerId": "silicon",
+      "modelId": "qwen-image",
+      "apiModelId": "Qwen/Qwen-Image"
+    },
+    {
+      "providerId": "silicon",
+      "modelId": "qwen-image-edit",
+      "apiModelId": "Qwen/Qwen-Image-Edit"
     },
     {
       "providerId": "tokenflux",

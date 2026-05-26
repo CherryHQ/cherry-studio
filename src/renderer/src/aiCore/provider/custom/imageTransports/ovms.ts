@@ -1,4 +1,4 @@
-import type { PollingSubmitInput, PollingTransport } from '../pollingImageModel'
+import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
 
 /**
  * OVMS (OpenVINO Model Server) single-shot transport.
@@ -8,17 +8,11 @@ import type { PollingSubmitInput, PollingTransport } from '../pollingImageModel'
  * `${apiHost}/images/generations` (NO `/v1`), NO auth header, JSON body
  * `{model,prompt,size,num_inference_steps,rng_seed}`, response
  * `data.data[]` b64_json → `data:` strings else url. OVMS responds
- * synchronously, so `submit()` does the one request and `poll()` is never
- * invoked. `apiHost` is the local OpenVINO host (no pinned default).
+ * synchronously, so this transport only implements `submit()`. `apiHost` is
+ * the local OpenVINO host (no pinned default).
  */
 
 export const DEFAULT_OVMS_BASE_URL = 'http://localhost:8000'
-
-function createAbortError(message: string): Error {
-  const error = new Error(message)
-  error.name = 'AbortError'
-  return error
-}
 
 /**
  * OVMS painting fields forwarded through `providerOptions['ovms']`.
@@ -35,14 +29,14 @@ export interface OvmsTransportSettings {
   baseURL?: string
 }
 
-class OvmsTransport implements PollingTransport {
+class OvmsTransport implements ImageGenerationTransport {
   private baseURL: string
 
   constructor(settings: OvmsTransportSettings) {
     this.baseURL = settings.baseURL || DEFAULT_OVMS_BASE_URL
   }
 
-  async submit(input: PollingSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
+  async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const params = input.providerParams as OvmsProviderParams
 
     const requestBody = {
@@ -77,10 +71,6 @@ class OvmsTransport implements PollingTransport {
 
     const urls = items.filter((item: { url?: string }) => item.url).map((item: { url: string }) => item.url)
     return { imageUrls: urls }
-  }
-
-  async poll(): Promise<string[]> {
-    throw createAbortError('OVMS does not support polling')
   }
 }
 
