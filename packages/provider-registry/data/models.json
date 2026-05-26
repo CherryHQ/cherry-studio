@@ -1544,7 +1544,17 @@
       },
       "family": "gemini-flash",
       "ownedBy": "google",
-      "openWeights": false
+      "openWeights": false,
+      "imageGeneration": {
+        "modes": ["generate"],
+        "supports": {
+          "aspectRatio": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
+          "imageResolution": ["1K", "2K", "4K"]
+        },
+        "keyMap": {
+          "imageResolution": "imageSize"
+        }
+      }
     },
     {
       "id": "deepseek-chat",
@@ -9031,7 +9041,17 @@
       },
       "family": "gemini-pro",
       "ownedBy": "google",
-      "openWeights": false
+      "openWeights": false,
+      "imageGeneration": {
+        "modes": ["generate"],
+        "supports": {
+          "aspectRatio": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
+          "imageResolution": ["1K", "2K", "4K"]
+        },
+        "keyMap": {
+          "imageResolution": "imageSize"
+        }
+      }
     },
     {
       "id": "text-embedding-005",
@@ -9087,7 +9107,17 @@
       },
       "family": "gemini-flash",
       "ownedBy": "google",
-      "openWeights": false
+      "openWeights": false,
+      "imageGeneration": {
+        "modes": ["generate"],
+        "supports": {
+          "aspectRatio": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
+          "imageResolution": ["1K", "2K", "4K"]
+        },
+        "keyMap": {
+          "imageResolution": "imageSize"
+        }
+      }
     },
     {
       "id": "gemini-3-flash",
@@ -9293,14 +9323,7 @@
       "id": "gpt-5-chat",
       "name": "GPT-5 Chat",
       "description": "GPT-5 Chat is designed for advanced, natural, multimodal, and context-aware conversations for enterprise applications.",
-      "capabilities": [
-        "reasoning",
-        "function-call",
-        "file-input",
-        "image-recognition",
-        "image-generation",
-        "web-search"
-      ],
+      "capabilities": ["reasoning", "function-call", "file-input", "image-recognition", "web-search"],
       "inputModalities": ["text", "image"],
       "outputModalities": ["text", "image"],
       "contextWindow": 128000,
@@ -13776,7 +13799,6 @@
         "function-call",
         "file-input",
         "image-recognition",
-        "image-generation",
         "audio-recognition",
         "audio-generation",
         "web-search"
@@ -37841,7 +37863,17 @@
           "perMillionTokens": 3
         }
       },
-      "ownedBy": "google"
+      "ownedBy": "google",
+      "imageGeneration": {
+        "modes": ["generate"],
+        "supports": {
+          "aspectRatio": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
+          "imageResolution": ["1K", "2K", "4K"]
+        },
+        "keyMap": {
+          "imageResolution": "imageSize"
+        }
+      }
     },
     {
       "id": "qwen3-5-flash-02-23",
