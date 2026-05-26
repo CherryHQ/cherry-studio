@@ -135,6 +135,7 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { orphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry'
 import { atomicWriteFile, move as fsMove, remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
+import { isNotEmptyDir } from '@main/utils/file/path'
 import { listDirectory } from '@main/utils/file/search'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
@@ -324,6 +325,8 @@ export const DirectoryListOptionsIpcSchema = z
     searchPattern: z.string().optional()
   })
   .optional()
+
+export const IsNotEmptyDirIpcSchema = AbsolutePathSchema
 
 // ─── Version types ───
 
@@ -964,6 +967,9 @@ export class FileManager extends BaseService implements IFileManager {
       const options = DirectoryListOptionsIpcSchema.parse(rawOptions)
       return listDirectory(dirPath, options)
     })
+    this.ipcHandle(IpcChannel.File_IsNotEmptyDir, async (_e, params: unknown) =>
+      isNotEmptyDir(IsNotEmptyDirIpcSchema.parse(params) as FilePath)
+    )
   }
 
   /**

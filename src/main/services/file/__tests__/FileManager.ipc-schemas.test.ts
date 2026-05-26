@@ -23,6 +23,7 @@ import {
   GetDanglingStateIpcSchema,
   GetMetadataIpcSchema,
   GetVersionIpcSchema,
+  IsNotEmptyDirIpcSchema,
   OpenIpcSchema,
   OpenSaveDialogIpcSchema,
   OpenSelectDialogIpcSchema,
@@ -359,5 +360,17 @@ describe('DirectoryListOptionsIpcSchema', () => {
   })
   it('accepts empty object', () => {
     expect(DirectoryListOptionsIpcSchema.parse({})).toEqual({})
+  })
+})
+
+describe('IsNotEmptyDirIpcSchema', () => {
+  it('accepts absolute path', () => {
+    expect(IsNotEmptyDirIpcSchema.parse('/test')).toBe('/test')
+  })
+  it('rejects relative path', () => {
+    expect(() => IsNotEmptyDirIpcSchema.parse('relative')).toThrow()
+  })
+  it('rejects empty string', () => {
+    expect(() => IsNotEmptyDirIpcSchema.parse('')).toThrow()
   })
 })
