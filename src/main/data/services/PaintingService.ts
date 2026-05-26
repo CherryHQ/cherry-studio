@@ -12,9 +12,10 @@
  */
 
 import { application } from '@application'
-import { fileRefTable } from '@data/db/schemas/file'
+import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { type NewPainting, type Painting as PaintingRow, paintingTable } from '@data/db/schemas/painting'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
+import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
@@ -190,7 +191,7 @@ class PaintingService {
 
           const insertedRow = inserted as PaintingRow
           const now = Date.now()
-          const refRows = buildPaintingRefRows(insertedRow.id, dto.files, now)
+          const refRows = await buildPaintingRefRowsFiltered(tx, insertedRow.id, dto.files, now)
           if (refRows.length > 0) {
             await tx.insert(fileRefTable).values(refRows).onConflictDoNothing()
           }
@@ -253,7 +254,7 @@ class PaintingService {
             // per-id diffing that would also need to honor the UNIQUE
             // (fileEntryId, sourceType, sourceId, role) constraint.
             await fileRefService.cleanupBySourceTx(tx, { sourceType: paintingSourceType, sourceId: id })
-            const refRows = buildPaintingRefRows(id, dto.files!, Date.now())
+            const refRows = await buildPaintingRefRowsFiltered(tx, id, dto.files!, Date.now())
             if (refRows.length > 0) {
               await tx.insert(fileRefTable).values(refRows).onConflictDoNothing()
             }
@@ -326,14 +327,46 @@ class PaintingService {
   }
 }
 
-function buildPaintingRefRows(
+/**
+ * Build the `file_ref` rows for a painting, **filtered against `file_entry`**
+ * so dangling ids don't trip the FK constraint.
+ *
+ * During the v1→v2 transition the renderer still writes new painting outputs
+ * through the legacy `FileManager.addFiles` path (Dexie + disk only), so the
+ * v2 `file_entry` row doesn't exist for those ids yet. Pre-filtering keeps
+ * the painting create/update succeeding for v2-migrated paintings (whose ids
+ * are already in `file_entry`) while letting v1-side ids drop silently —
+ * matches the same defensive pattern the `PaintingMigrator` uses on backfill.
+ *
+ * The dropped ids are logged so the gap is visible in dev consoles until
+ * the renderer cuts over to `window.api.file.createInternalEntry`. After
+ * that cutover all ids should resolve and the filter becomes a no-op.
+ */
+async function buildPaintingRefRowsFiltered(
+  tx: Pick<DbType, 'select'>,
   paintingId: string,
   files: PaintingFiles | undefined,
   now: number
-): Array<typeof fileRefTable.$inferInsert> {
+): Promise<Array<typeof fileRefTable.$inferInsert>> {
   if (!files) return []
+  const requested = new Set<string>()
+  for (const id of files.output) requested.add(id)
+  for (const id of files.input) requested.add(id)
+  if (requested.size === 0) return []
+
+  const existing = await tx
+    .select({ id: fileEntryTable.id })
+    .from(fileEntryTable)
+    .where(inArray(fileEntryTable.id, [...requested]))
+  const existingIds = new Set(existing.map((r) => r.id))
+
   const rows: Array<typeof fileRefTable.$inferInsert> = []
+  let dropped = 0
   for (const fileId of files.output) {
+    if (!existingIds.has(fileId)) {
+      dropped += 1
+      continue
+    }
     rows.push({
       fileEntryId: fileId,
       sourceType: paintingSourceType,
@@ -344,6 +377,10 @@ function buildPaintingRefRows(
     })
   }
   for (const fileId of files.input) {
+    if (!existingIds.has(fileId)) {
+      dropped += 1
+      continue
+    }
     rows.push({
       fileEntryId: fileId,
       sourceType: paintingSourceType,
@@ -351,6 +388,13 @@ function buildPaintingRefRows(
       role: 'input',
       createdAt: now,
       updatedAt: now
+    })
+  }
+  if (dropped > 0) {
+    logger.warn('Dropped painting file refs without matching file_entry', {
+      paintingId,
+      dropped,
+      total: requested.size
     })
   }
   return rows
