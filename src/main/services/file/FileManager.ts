@@ -264,6 +264,7 @@ export const GetPhysicalPathIpcSchema = z.strictObject({ id: FileEntryIdSchema }
 export const PermanentDeleteIpcSchema = FileHandleSchema
 
 export const GetContentHashIpcSchema = FileHandleSchema
+export const OpenIpcSchema = FileHandleSchema
 
 export const TrashIpcSchema = z.strictObject({ id: FileEntryIdSchema })
 export const RestoreIpcSchema = z.strictObject({ id: FileEntryIdSchema })
@@ -733,6 +734,14 @@ export class FileManager extends BaseService implements IFileManager {
         handle,
         (id) => this.getContentHash(id),
         (p) => hashByPath(this.deps, p)
+      )
+    })
+    this.ipcHandle(IpcChannel.File_Open, async (_e, rawHandle: unknown) => {
+      const handle = OpenIpcSchema.parse(rawHandle) as FileHandle
+      return dispatchHandle(
+        handle,
+        (id) => this.open(id),
+        (p) => internalShellOpen(p)
       )
     })
     this.ipcHandle(IpcChannel.File_RunSweep, async () => this.runSweep())

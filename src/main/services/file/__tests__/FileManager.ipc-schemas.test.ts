@@ -17,6 +17,7 @@ import {
   FILE_BATCH_MAX_IDS,
   GetContentHashIpcSchema,
   GetDanglingStateIpcSchema,
+  OpenIpcSchema,
   RestoreIpcSchema,
   TrashIpcSchema
 } from '../FileManager'
@@ -137,5 +138,20 @@ describe('GetContentHashIpcSchema', () => {
   })
   it('rejects path handle with relative path', () => {
     expect(() => GetContentHashIpcSchema.parse({ kind: 'path', path: 'relative' })).toThrow()
+  })
+})
+
+describe('OpenIpcSchema', () => {
+  it('accepts entry handle', () => {
+    expect(OpenIpcSchema.parse({ kind: 'entry', entryId: VALID_UUID_V7 })).toEqual({
+      kind: 'entry',
+      entryId: VALID_UUID_V7
+    })
+  })
+  it('accepts path handle', () => {
+    expect(OpenIpcSchema.parse({ kind: 'path', path: '/test' })).toEqual({ kind: 'path', path: '/test' })
+  })
+  it('rejects invalid handle', () => {
+    expect(() => OpenIpcSchema.parse({ kind: 'invalid' })).toThrow()
   })
 })
