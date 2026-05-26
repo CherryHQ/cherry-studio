@@ -1,4 +1,19 @@
-import { RowFlex } from '@cherrystudio/ui'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbSeparator,
+  Input,
+  MenuDivider,
+  MenuItem,
+  MenuList,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  RowFlex,
+  Tooltip
+} from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { NavbarCenter, NavbarHeader, NavbarRight } from '@renderer/components/app/Navbar'
 import BaseNavbarIcon from '@renderer/components/NavbarIcon'
@@ -7,25 +22,42 @@ import { useActiveNode } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
 import { useShowWorkspace } from '@renderer/hooks/useShowWorkspace'
 import { findNode } from '@renderer/services/NotesTreeService'
-import { Breadcrumb, Dropdown, Input, Tooltip } from 'antd'
+import type { NotesTreeNode } from '@renderer/types/note'
 import { t } from 'i18next'
-import { MoreHorizontal, PanelLeftClose, PanelRightClose, Star } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
-import styled from 'styled-components'
+import { Check, ChevronRight, MoreHorizontal, PanelLeftClose, PanelRightClose, Star } from 'lucide-react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 
+import type { MenuItem as NotesMenuItem } from './MenuConfig'
 import { menuItems } from './MenuConfig'
 import NotesSettings from './NotesSettings'
 
 const logger = loggerService.withContext('HeaderNavbar')
 
-const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpandPath, onRenameNode }) => {
+interface HeaderNavbarProps {
+  notesTree: NotesTreeNode[]
+  activeFilePath?: string
+  getCurrentNoteContent?: () => string
+  onToggleStar?: (nodeId: string) => void
+  onExpandPath?: (treePath: string) => void
+  onRenameNode?: (nodeId: string, newName: string) => void
+}
+
+const HeaderNavbar = ({
+  notesTree,
+  activeFilePath,
+  getCurrentNoteContent,
+  onToggleStar,
+  onExpandPath,
+  onRenameNode
+}: HeaderNavbarProps) => {
   const { showWorkspace, toggleShowWorkspace } = useShowWorkspace()
-  const { activeNode } = useActiveNode(notesTree)
+  const { activeNode } = useActiveNode(notesTree, activeFilePath)
   const [breadcrumbItems, setBreadcrumbItems] = useState<
     Array<{ key: string; title: string; treePath: string; isFolder: boolean }>
   >([])
   const [titleValue, setTitleValue] = useState('')
-  const titleInputRef = useRef<any>(null)
+  const [menuOpen, setMenuOpen] = useState(false)
+  const titleInputRef = useRef<HTMLInputElement>(null)
   const { settings, updateSettings } = useNotesSettings()
   const canShowStarButton = activeNode?.type === 'file' && onToggleStar
 
@@ -34,7 +66,7 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
   }, [toggleShowWorkspace])
 
   const handleToggleStarred = useCallback(() => {
-    if (activeNode) {
+    if (activeNode && onToggleStar) {
       onToggleStar(activeNode.id)
     }
   }, [activeNode, onToggleStar])
@@ -121,56 +153,50 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
     [activeNode]
   )
 
-  const buildMenuItem = (item: any) => {
+  const renderMenuItem = (item: NotesMenuItem) => {
     if (item.type === 'divider') {
-      return { type: 'divider' as const, key: item.key }
+      return <MenuDivider key={item.key} />
     }
 
     if (item.type === 'component') {
-      return {
-        key: item.key,
-        label: item.component(settings, updateSettings),
-        onClick: () => {} // No-op since component handles its own interactions
-      }
+      return <div key={item.key}>{item.component?.(settings, updateSettings)}</div>
     }
 
     const IconComponent = item.icon
 
-    // Handle submenu items
     if (item.children) {
-      return {
-        key: item.key,
-        label: (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {IconComponent && <IconComponent size={16} />}
+      return (
+        <div key={item.key} className="space-y-1">
+          <div className="flex items-center gap-2.5 px-2.5 py-1 font-medium text-muted-foreground text-xs">
+            {IconComponent && <IconComponent size={14} />}
             <span>{t(item.labelKey)}</span>
           </div>
-        ),
-        children: item.children.map(buildMenuItem)
-      }
+          <div className="pl-3">{item.children.map(renderMenuItem)}</div>
+        </div>
+      )
     }
 
-    return {
-      key: item.key,
-      label: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {IconComponent && <IconComponent size={16} />}
-          <span>{t(item.labelKey)}</span>
-          {item.isActive?.(settings) && <span style={{ color: 'var(--color-primary)' }}>✓</span>}
-        </div>
-      ),
-      onClick: () => {
-        if (item.copyAction) {
-          void handleCopyContent()
-        } else if (item.exportToWordAction) {
-          void handleExportToWord()
-        } else if (item.showSettingsPopup) {
-          handleShowSettings()
-        } else if (item.action) {
-          item.action(settings, updateSettings)
-        }
-      }
-    }
+    return (
+      <MenuItem
+        key={item.key}
+        label={t(item.labelKey)}
+        icon={IconComponent ? <IconComponent size={16} /> : undefined}
+        active={item.isActive?.(settings)}
+        suffix={item.isActive?.(settings) ? <Check size={14} /> : undefined}
+        onClick={() => {
+          if (item.copyAction) {
+            void handleCopyContent()
+          } else if (item.exportToWordAction) {
+            void handleExportToWord()
+          } else if (item.showSettingsPopup) {
+            handleShowSettings()
+          } else if (item.action) {
+            item.action(settings, updateSettings)
+          }
+          setMenuOpen(false)
+        }}
+      />
+    )
   }
 
   // 同步标题值
@@ -205,248 +231,99 @@ const HeaderNavbar = ({ notesTree, getCurrentNoteContent, onToggleStar, onExpand
   }, [activeNode, notesTree])
 
   return (
-    <NavbarHeader
-      className="home-navbar"
-      style={{ justifyContent: 'flex-start', borderBottom: '0.5px solid var(--color-border)' }}>
+    <NavbarHeader className="home-navbar shrink-0 justify-start [border-bottom:1px_solid_var(--color-border)]">
       <RowFlex className="flex-[0_0_auto] items-center">
         {showWorkspace && (
-          <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
-            <NavbarIcon onClick={handleToggleShowWorkspace}>
+          <Tooltip title={t('navbar.hide_sidebar')} delay={800}>
+            <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-icon" onClick={handleToggleShowWorkspace}>
               <PanelLeftClose size={18} />
-            </NavbarIcon>
+            </BaseNavbarIcon>
           </Tooltip>
         )}
         {!showWorkspace && (
-          <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8} placement="right">
-            <NavbarIcon onClick={handleToggleShowWorkspace}>
+          <Tooltip title={t('navbar.show_sidebar')} delay={800} placement="right">
+            <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-icon" onClick={handleToggleShowWorkspace}>
               <PanelRightClose size={18} />
-            </NavbarIcon>
+            </BaseNavbarIcon>
           </Tooltip>
         )}
       </RowFlex>
-      <NavbarCenter style={{ flex: 1, minWidth: 0 }}>
-        <BreadcrumbsContainer>
-          <Breadcrumb
-            separator={'>'}
-            items={breadcrumbItems.map((item, index) => {
-              const isLastItem = index === breadcrumbItems.length - 1
-              const isCurrentNote = isLastItem && !item.isFolder
-              return {
-                title: (
-                  <div key={item.key} className="flex">
-                    {isCurrentNote ? (
-                      <TitleInputWrapper>
-                        <TitleInput
-                          ref={titleInputRef}
-                          value={titleValue}
-                          onChange={handleTitleChange}
-                          onBlur={handleTitleBlur}
-                          onKeyDown={handleTitleKeyDown}
-                          size="small"
-                          variant="borderless"
-                          style={{
-                            fontSize: 'inherit',
-                            padding: 0,
-                            height: 'auto',
-                            lineHeight: 'inherit'
-                          }}
-                        />
-                      </TitleInputWrapper>
-                    ) : (
-                      <BreadcrumbTitle
-                        onClick={() => handleBreadcrumbClick(item)}
-                        $clickable={item.isFolder && !isLastItem}>
-                        {item.title}
-                      </BreadcrumbTitle>
+      <NavbarCenter className="min-w-0 flex-1">
+        <div className="w-full overflow-hidden">
+          <Breadcrumb className="**:data-[slot=breadcrumb-list]:flex-nowrap **:data-[slot=breadcrumb-list]:overflow-hidden **:data-[slot=breadcrumb-list]:whitespace-nowrap [&_[data-slot=breadcrumb-item]:last-child]:min-w-0 [&_[data-slot=breadcrumb-item]:last-child]:flex-1">
+            <BreadcrumbList className="flex-nowrap gap-0 overflow-hidden">
+              {breadcrumbItems.map((item, index) => {
+                const isLastItem = index === breadcrumbItems.length - 1
+                const isCurrentNote = isLastItem && !item.isFolder
+
+                return (
+                  <Fragment key={item.key}>
+                    <BreadcrumbItem className={cn('min-w-0 shrink', isLastItem && 'min-w-0 flex-1')}>
+                      {isCurrentNote ? (
+                        <div className="flex w-full min-w-0 max-w-none flex-1 items-center">
+                          <Input
+                            ref={titleInputRef}
+                            value={titleValue}
+                            onChange={handleTitleChange}
+                            onBlur={handleTitleBlur}
+                            onKeyDown={handleTitleKeyDown}
+                            className="h-auto min-w-0 flex-1 border-0! bg-transparent! p-0 font-[inherit] text-inherit leading-[inherit] shadow-none outline-none focus-visible:border-transparent! focus-visible:ring-0! dark:bg-transparent!"
+                          />
+                        </div>
+                      ) : (
+                        <span
+                          className={cn(
+                            'inline-block min-w-0 max-w-37.5 shrink overflow-hidden text-ellipsis whitespace-nowrap',
+                            item.isFolder && !isLastItem && 'cursor-pointer hover:text-primary hover:underline'
+                          )}
+                          onClick={() => handleBreadcrumbClick(item)}>
+                          {item.title}
+                        </span>
+                      )}
+                    </BreadcrumbItem>
+                    {!isLastItem && (
+                      <BreadcrumbSeparator className="mx-2 shrink-0">
+                        <ChevronRight size={14} />
+                      </BreadcrumbSeparator>
                     )}
-                  </div>
+                  </Fragment>
                 )
-              }
-            })}></Breadcrumb>
-        </BreadcrumbsContainer>
+              })}
+            </BreadcrumbList>
+          </Breadcrumb>
+        </div>
       </NavbarCenter>
-      <NavbarRight style={{ paddingRight: 0 }}>
+      <NavbarRight className="pr-0">
         {canShowStarButton && (
-          <Tooltip title={activeNode.isStarred ? t('notes.unstar') : t('notes.star')} mouseEnterDelay={0.8}>
-            <StarButton onClick={handleToggleStarred}>
+          <Tooltip title={activeNode.isStarred ? t('notes.unstar') : t('notes.star')} delay={800}>
+            <div
+              className="flex h-7.5 cursor-pointer flex-row items-center justify-center rounded-lg px-1.75 transition-all duration-200 ease-in-out [-webkit-app-region:none] hover:bg-muted [&_svg]:text-icon"
+              onClick={handleToggleStarred}>
               {activeNode.isStarred ? (
-                <Star size={18} fill="var(--color-status-warning)" stroke="var(--color-status-warning)" />
+                <Star size={18} fill="var(--color-warning-base)" stroke="var(--color-warning-base)" />
               ) : (
                 <Star size={18} />
               )}
-            </StarButton>
+            </div>
           </Tooltip>
         )}
-        <Tooltip title={t('notes.settings.title')} mouseEnterDelay={0.8}>
-          <Dropdown
-            menu={{ items: menuItems.map(buildMenuItem) }}
-            trigger={['click']}
-            placement="bottomRight"
-            destroyOnHidden={false}>
-            <NavbarIcon>
-              <MoreHorizontal size={18} />
-            </NavbarIcon>
-          </Dropdown>
-        </Tooltip>
+        <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+          <PopoverTrigger asChild>
+            <div>
+              <Tooltip title={t('notes.settings.title')} delay={800}>
+                <BaseNavbarIcon className="[&_svg]:size-4.5 [&_svg]:text-icon">
+                  <MoreHorizontal size={18} />
+                </BaseNavbarIcon>
+              </Tooltip>
+            </div>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-64 p-1.5">
+            <MenuList>{menuItems.map(renderMenuItem)}</MenuList>
+          </PopoverContent>
+        </Popover>
       </NavbarRight>
     </NavbarHeader>
   )
 }
-
-const NavbarIcon = styled(BaseNavbarIcon)`
-  svg {
-      color: var(--color-icon);
-      width: 18px;
-      height: 18px;
-    }
-`
-
-export const StarButton = styled.div`
-  -webkit-app-region: none;
-  border-radius: 8px;
-  height: 30px;
-  padding: 0 7px;
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  transition: all 0.2s ease-in-out;
-  cursor: pointer;
-  svg {
-    color: var(--color-icon);
-  }
-
-  &:hover {
-    background-color: var(--color-background-mute);
-  }
-`
-
-export const BreadcrumbsContainer = styled.div`
-  width: 100%;
-  overflow: hidden;
-
-  /* 确保 HeroUI Breadcrumbs 组件保持在一行 */
-  & > nav {
-    white-space: nowrap;
-    overflow: hidden;
-  }
-
-  & ol {
-    flex-wrap: nowrap !important;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-  }
-
-  & li {
-    flex-shrink: 1;
-    min-width: 0;
-    display: flex;
-    align-items: center;
-  }
-
-  /* 最后一个面包屑项（当前笔记）可以扩展 */
-  & li:last-child {
-    flex: 1 !important;
-    min-width: 0 !important;
-    max-width: none !important;
-  }
-
-  /* 更强的样式覆盖 */
-  & li:last-child * {
-    max-width: none !important;
-  }
-
-  & li:last-child > * {
-    flex: 1 !important;
-    width: 100% !important;
-  }
-
-  /* 确保分隔符不会与标题重叠 */
-  & li:not(:last-child)::after {
-    flex-shrink: 0;
-    margin: 0 8px;
-  }
-`
-
-export const BreadcrumbTitle = styled.span<{ $clickable?: boolean }>`
-  max-width: 150px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: inline-block;
-  flex-shrink: 1;
-  min-width: 0;
-
-  ${({ $clickable }) =>
-    $clickable &&
-    `
-    cursor: pointer;
-    &:hover {
-      color: var(--color-primary);
-      text-decoration: underline;
-    }
-  `}
-`
-
-export const TitleInputWrapper = styled.div`
-  width: 100%;
-  flex: 1;
-  min-width: 0;
-  max-width: none;
-  display: flex;
-  align-items: center;
-`
-
-export const TitleInput = styled(Input)`
-  &&& {
-    border: none !important;
-    box-shadow: none !important;
-    background: transparent !important;
-    color: inherit !important;
-    font-size: inherit !important;
-    font-weight: inherit !important;
-    font-family: inherit !important;
-    padding: 0 !important;
-    height: auto !important;
-    line-height: inherit !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    max-width: none !important;
-    flex: 1 !important;
-
-    &:focus,
-    &:hover {
-      border: none !important;
-      box-shadow: none !important;
-      background: transparent !important;
-    }
-
-    &::placeholder {
-      color: var(--color-text-3) !important;
-    }
-
-    input {
-      border: none !important;
-      box-shadow: none !important;
-      background: transparent !important;
-      color: inherit !important;
-      font-size: inherit !important;
-      font-weight: inherit !important;
-      font-family: inherit !important;
-      padding: 0 !important;
-      height: auto !important;
-      line-height: inherit !important;
-      width: 100% !important;
-
-      &:focus,
-      &:hover {
-        border: none !important;
-        box-shadow: none !important;
-        background: transparent !important;
-      }
-    }
-  }
-`
 
 export default HeaderNavbar
