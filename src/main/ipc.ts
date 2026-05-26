@@ -411,7 +411,15 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.Backup_CreateLanTransferBackup, backupManager.createLanTransferBackup.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_DeleteLanTransferBackup, backupManager.deleteLanTransferBackup.bind(backupManager))
 
-  // file
+  // [v2] v1 legacy file IPC — these 44 channels expose physical file IO
+  // (read/write/delete/move on <userData>/Data/Files/<v1uuid>.<ext>, plus
+  // notes/watcher/directory utilities) backed by the FileStorage singleton.
+  // The Dexie `db.files` metadata + refcount layer lives entirely in the
+  // renderer (`src/renderer/src/services/FileManager.ts`); main never
+  // touches IndexedDB. Both sides stay live until Batch A-E migrates the
+  // renderer callers to the v2 surface (createInternalEntry /
+  // ensureExternalEntry / getPhysicalPath / permanentDelete / runSweep)
+  // registered by the v2 FileManager lifecycle service, not here.
   ipcMain.handle(IpcChannel.File_Open, fileManager.open.bind(fileManager))
   ipcMain.handle(IpcChannel.File_OpenPath, fileManager.openPath.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Save, fileManager.save.bind(fileManager))
@@ -458,9 +466,11 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.File_ShowInFolder, fileManager.showInFolder.bind(fileManager))
 
   // pdf
+  // TODO: It should be handled by FileProcessingService
   ipcMain.handle(IpcChannel.Pdf_ExtractText, (_, data: Uint8Array | ArrayBuffer | string) => extractPdfText(data))
 
   // file service
+  // TODO: They should be handled by FileUploadService
   ipcMain.handle(IpcChannel.FileService_Upload, async (_, provider: Provider, file: FileMetadata) => {
     const service = fileServiceManager.getService(provider)
     return await service.uploadFile(file)

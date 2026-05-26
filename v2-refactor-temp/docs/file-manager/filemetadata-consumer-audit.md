@@ -10,6 +10,7 @@
 > - `createEntry({origin:'external',...})` → `ensureExternalEntry(...)`（纯 upsert by path）
 > - External entry 不进入 trash 生命周期；`permanentDelete` 对 external 只动 DB 行
 > - **类型角色拆分**：旧 `FileMetadata` 同时承担"DB 行"与"通用文件描述符"两个角色。v2 把这两个角色拆成 `FileEntry`（持久化）与 `FileInfo`（描述符），跨边界统一用 `FileHandle` 引用。每个消费者按"持久化 / 描述符 / 两栖"分 P/I/A 桶——§6 域分析已标注桶归属。
+> - **ID 翻译列也过期**（Batch 0 实现期间确认）：本报告多处提到"v1 v4 id 翻译为 v2 v7"或把"id 不一致"列为风险。实际方案按 migration-plan §2.9 执行——v1 id（包括 v4）**原样保留**到 v2 `file_entry.id`，schema 已放宽至 `z.uuid()` 同时接受两种形态。跨表引用（message_blocks / paintings / knowledge_item / file_ref）零翻译。
 >
 > **新 IPC 形状请以以下为准**：[`docs/references/file/architecture.md`](../../../docs/references/file/architecture.md)、[`rfc-file-manager.md`](./rfc-file-manager.md)、[`file-arch-problems-response.md`](./file-arch-problems-response.md)。
 
@@ -72,10 +73,10 @@ v2 把消费者分为三桶，对应不同的迁移目标：
 
 | 阶段                 | 目标                                                                                                                                | 风险                                                 |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| **Phase 1 (进行中)** | 新 FileEntry/FileManager/FileRef/IPC 架构落地（`src/main/file/**`、`packages/shared/file/types/**`）；旧 FileStorage 不动           | 低，当前 branch 已完成                               |
-| **Phase 2**          | Dexie `files` 表 + 旧 `FileStorage` 双读双写 shim；renderer 侧 `services/FileManager.ts` 改为同时操作两侧                           | 中，双写期需测试一致性                               |
-| **Phase 3**          | 按域切换：**Messages 优先**（影响最大但数据结构最规整），其次 Knowledge（已有 migrator），然后 Painting，最后 Translate/Paste/Video | 高，业务域的 `FileMetadata` 字段内嵌需要全域 UI 改造 |
-| **Phase 4**          | 删除 Dexie `files` 表、`FileStorage.ts`、`services/FileManager.ts`；清理 `FileMetadata` 类型；OCR/remotefile 域独立迁移             | 中，清理期需全回归                                   |
+| **Phase 1**          | 新 FileEntry/FileManager/FileRef/IPC 架构落地（`src/main/file/**`、`packages/shared/file/types/**`）；旧 FileStorage 不动           | 低（已完成于 PR #13451）                             |
+| **Batch 0**          | Dexie `files` 表 + 旧 `FileStorage` 双读双写 shim；renderer 侧 `services/FileManager.ts` 改为同时操作两侧                           | 中，双写期需测试一致性                               |
+| **Batch A-E**        | 按域切换：**Messages 优先**（影响最大但数据结构最规整），其次 Knowledge（已有 migrator），然后 Painting，最后 Translate/Paste/Video | 高，业务域的 `FileMetadata` 字段内嵌需要全域 UI 改造 |
+| **Cleanup Batch**    | 删除 Dexie `files` 表、`FileStorage.ts`、`services/FileManager.ts`；清理 `FileMetadata` 类型；OCR/remotefile 域独立迁移             | 中，清理期需全回归                                   |
 
 ---
 
@@ -613,7 +614,7 @@ files: 'id, name, origin_name, path, size, ext, type, created_at, count'
 - 被 SQLite `knowledge_item.data` 当 JSON 存
 - 是 KnowledgeMigrator 的终点 shape
 
-建议的方案：**迁移完成后把 `KnowledgeItemData.file` 改为 `FileEntryId`**，然后在 query handler 里 JOIN fileEntry 返回 file 对象给 renderer。这是 Phase 3 的工作。
+建议的方案：**迁移完成后把 `KnowledgeItemData.file` 改为 `FileEntryId`**，然后在 query handler 里 JOIN fileEntry 返回 file 对象给 renderer。这是 Batch A-E 的工作。
 
 ---
 

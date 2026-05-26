@@ -16,11 +16,11 @@ vi.mock('@application', async () => {
 const mockLoggerWarn = mockMainLoggerService.warn
 
 const { createDefaultOrphanCheckerRegistry, knowledgeItemChecker, orphanCheckerRegistry, tempSessionChecker } =
-  await import('../FileRefCheckerRegistry')
+  await import('../orphanCheckerRegistry')
 
-import type { OrphanCheckerRegistry } from '../FileRefCheckerRegistry'
+import type { OrphanCheckerRegistry } from '../orphanCheckerRegistry'
 
-describe('FileRefCheckerRegistry', () => {
+describe('orphanCheckerRegistry', () => {
   const dbh = setupTestDatabase()
 
   beforeEach(() => {

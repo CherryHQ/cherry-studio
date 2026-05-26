@@ -39,12 +39,17 @@
  * legitimate responsibility (translating request shape), not business
  * orchestration.
  *
- * **Phase 1 status — deferred**: `dispatchHandle` lives in
- * `internal/dispatch.ts` and is referenced only by its own unit tests; no
- * shipped IPC handler imports it yet. The two wired Phase 1 channels
- * (`File_GetDanglingState` / `File_BatchGetDanglingStates`) accept
- * `FileEntryId` directly. When Phase 2 channels that take `FileHandle`
- * land, they will route through `dispatchHandle`:
+ * **Current status (through Batch 0)**: `dispatchHandle` lives in
+ * `internal/dispatch.ts` and is wired by exactly one IPC handler today —
+ * `File_PermanentDelete`, which accepts a `FileHandle` and routes
+ * `{ kind: 'entry' }` to `FileManager.permanentDelete` and `{ kind: 'path' }`
+ * to `@main/utils/file/fs.remove`. The Phase 1 dangling channels
+ * (`File_GetDanglingState` / `File_BatchGetDanglingStates`) and the Phase 2
+ * entry-shaped channels (`File_CreateInternalEntry`, `File_EnsureExternalEntry`,
+ * `File_GetPhysicalPath`) take typed params directly and bypass the dispatcher
+ * because their semantics are entry-only by design. When `FileHandle`-accepting
+ * read/write/metadata channels land in later batches, they will follow the
+ * same pattern as `File_PermanentDelete`:
  *
  * - `{ kind: 'entry', entryId }` → the corresponding FileManager public
  *   method (e.g. `this.read(entryId, opts)`)
@@ -126,12 +131,13 @@ import { pathToFileURL } from 'node:url'
 
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
-import { orphanCheckerRegistry } from '@data/services/orphan/FileRefCheckerRegistry'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
-import { stat as fsStat } from '@main/utils/file/fs'
+import { orphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry'
+import { remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
-import { FileEntryIdSchema } from '@shared/data/types/file'
+import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
+import { SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
 import type {
   BatchCreateResult,
   BatchMutationResult,
@@ -141,6 +147,8 @@ import type {
   FileURLString,
   PhysicalFileMetadata
 } from '@shared/file/types'
+import type { FileHandle } from '@shared/file/types/handle'
+import { FileHandleSchema } from '@shared/file/types/handle'
 import { IpcChannel } from '@shared/IpcChannel'
 import mime from 'mime'
 import * as z from 'zod'
@@ -154,6 +162,7 @@ import {
   writeIfUnchanged as internalWriteIfUnchanged
 } from './internal/content/write'
 import type { FileManagerDeps } from './internal/deps'
+import { dispatchHandle } from './internal/dispatch'
 import { copy as internalCopy } from './internal/entry/copy'
 import {
   createInternal as internalCreateInternal,
@@ -169,13 +178,41 @@ import {
 } from './internal/entry/lifecycle'
 import { rename as internalRename } from './internal/entry/rename'
 import { observeExternalAccess } from './internal/observe'
-import { type DbSweepReport, type OrphanReport, runDbSweep, runStartupFileSweep } from './internal/orphanSweep'
+import {
+  type DbSweepReport,
+  type FileSweepReport,
+  type OrphanReport,
+  runDbSweep,
+  runFileSweep
+} from './internal/orphanSweep'
 import { open as internalShellOpen, showInFolder as internalShellShowInFolder } from './internal/system/shell'
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
 import { canonicalizeExternalPath, resolvePhysicalPath } from './utils/pathResolver'
 import { createVersionCacheImpl, type VersionCache } from './versionCache'
 
 const fileManagerLogger = loggerService.withContext('FileManager')
+
+/**
+ * Render a one-line description of a non-`'completed'` FS sweep outcome,
+ * suitable for the `fsSweepIssue` field on a degraded `OrphanReport.partial`.
+ * Returns `undefined` when the sweep ran clean (no degradation needed).
+ */
+function summariseFsSweepIssue(report: FileSweepReport): string | undefined {
+  switch (report.outcome) {
+    case 'completed':
+      return undefined
+    case 'partial':
+      // First sample is enough to identify the failure class (e.g. EACCES on
+      // <id>.txt); the full list lives in the FS sweep log line.
+      return `FS sweep partial: ${report.failedDeleteCount} of ${report.plannedDeleteCount} unlinks failed${
+        report.failedSamples.length > 0 ? ` (first: ${report.failedSamples[0]})` : ''
+      }`
+    case 'aborted':
+      return `FS sweep aborted by safety threshold (${report.abortReason})`
+    case 'failed':
+      return `FS sweep failed: ${report.errorMessage}`
+  }
+}
 
 // Main-side parameter types are structurally identical to the IPC variants —
 // `CreateInternalEntryIpcParams` is a discriminated union on `source`
@@ -185,7 +222,7 @@ const fileManagerLogger = loggerService.withContext('FileManager')
 export type CreateInternalEntryParams = CreateInternalEntryIpcParams
 export type EnsureExternalEntryParams = EnsureExternalEntryIpcParams
 
-// ─── File IPC input schemas (Phase 1 wired channels only) ───
+// ─── File IPC input schemas ───
 
 /**
  * Maximum number of entry ids a single `File_BatchGetDanglingStates` call may
@@ -199,6 +236,29 @@ export const GetDanglingStateIpcSchema = z.strictObject({ id: FileEntryIdSchema 
 export const BatchGetDanglingStatesIpcSchema = z.strictObject({
   ids: z.array(FileEntryIdSchema).max(FILE_BATCH_DANGLING_MAX_IDS)
 })
+
+// Phase 2 schemas — reuse the canonical essential.ts validators so the IPC
+// boundary is the gate (path-traversal / null bytes / whitespace-only names
+// rejected here, before downstream factories see them).
+const SafeExtNullableSchema = SafeExtSchema.nullable()
+
+export const CreateInternalEntryIpcSchema = z.discriminatedUnion('source', [
+  z.strictObject({ source: z.literal('path'), path: AbsolutePathSchema }),
+  z.strictObject({ source: z.literal('url'), url: z.url() }),
+  z.strictObject({ source: z.literal('base64'), data: z.string().min(1), name: SafeNameSchema.optional() }),
+  z.strictObject({
+    source: z.literal('bytes'),
+    data: z.instanceof(Uint8Array),
+    name: SafeNameSchema,
+    ext: SafeExtNullableSchema
+  })
+])
+
+export const EnsureExternalEntryIpcSchema = z.strictObject({ externalPath: AbsolutePathSchema })
+
+export const GetPhysicalPathIpcSchema = z.strictObject({ id: FileEntryIdSchema })
+
+export const PermanentDeleteIpcSchema = FileHandleSchema
 
 // ─── Version types ───
 
@@ -319,7 +379,7 @@ export class StaleVersionError extends Error {
  *   - Metadata / version / hash / URL / physical path resolution
  *   - DanglingCache surface (`getDanglingState` /
  *     `batchGetDanglingStates` / `subscribeDangling`)
- *   - Orphan report (`getOrphanReport`)
+ *   - On-demand orphan sweep (`runSweep`)
  *   - 3rd-party escape hatch (`withTempCopy`), `open` / `showInFolder`
  *
  * **Out** — kept on the class but **not** in the interface:
@@ -328,8 +388,6 @@ export class StaleVersionError extends Error {
  *     authoritative read surface is `fileEntryService` directly. Adding them
  *     to the interface would expose persistence concerns business code
  *     should not depend on.
- *   - Lifecycle internals (`runStartupSweeps`). Public on the class so tests
- *     can `await` it, but not a binding consumer-facing contract.
  *
  * If a new "consumer-facing" method lands on the class, add it to this
  * interface in the same PR; the `implements` clause will fail the build
@@ -544,14 +602,19 @@ export interface IFileManager {
    */
   subscribeDangling(params: { id: FileEntryId }, listener: (state: 'present' | 'missing') => void): () => void
 
-  // ─── Orphan report (cleanup UI) ───
+  // ─── Orphan sweep (cleanup UI) ───
 
   /**
-   * Snapshot of the last DB-level orphan sweep. `outcome` discriminator
-   * distinguishes `'unknown'` (no sweep yet), `'completed'`, `'partial'`,
-   * and `'failed'` so the renderer cannot read a failed run as healthy zero.
+   * Run both the FS-level orphan sweep (architecture §10) and the DB-level
+   * orphan-ref / entry sweep (§7 Layer 3) concurrently, returning a single
+   * `OrphanReport` once both settle. The `outcome` discriminator on the
+   * report distinguishes `'completed'` / `'partial'` / `'failed'` so the
+   * renderer cannot read a failed run as a healthy zero.
+   *
+   * User-triggered via IPC (`File_RunSweep`); no startup auto-run. See
+   * architecture §10 for the sweep mechanics.
    */
-  getOrphanReport(): OrphanReport
+  runSweep(): Promise<OrphanReport>
 
   // ─── 3rd-party Library Escape Hatch ───
 
@@ -602,26 +665,15 @@ export class FileManager extends BaseService implements IFileManager {
     orphanRegistry: orphanCheckerRegistry
   }
 
-  /**
-   * Most recent DbSweepReport produced by `runStartupSweeps`. Captured with
-   * its completion timestamp into `lastDbSweepRanAt` so `getOrphanReport()`
-   * can answer "when did the last scan run" — not "when did the renderer
-   * last poll".
-   */
-  private lastDbSweepReport: DbSweepReport | null = null
-  private lastDbSweepRanAt: number | null = null
-
   protected override async onInit(): Promise<void> {
     await this.deps.danglingCache.initFromDb()
     this.registerIpcHandlers()
-    void this.runStartupSweeps()
   }
 
   /**
-   * Register the Phase 1 File_* IPC handlers. Kept as a dedicated helper so
-   * `onInit` stays a narrow three-step sequence (init → register → sweep) and
-   * Phase 2 channels land next to these two without bloating the lifecycle
-   * method.
+   * Register all File_* IPC handlers (Phase 1 dangling-state + Phase 2
+   * entry CRUD / sweep). Kept as a dedicated helper so `onInit` stays a
+   * narrow two-step sequence (init → register).
    *
    * Every handler Zod-parses its `params` before delegating, matching the
    * DataApi handler discipline (`b8709c964` / `2437c1104`). Without this the
@@ -629,114 +681,142 @@ export class FileManager extends BaseService implements IFileManager {
    * would saturate the event loop and the DB connection pool.
    */
   private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.File_GetDanglingState, (_e, params: unknown) =>
+    // Handlers are async so a synchronous `Schema.parse` throw becomes a
+    // Promise rejection at the IPC boundary (matching Electron's contract
+    // for `ipcMain.handle` listeners).
+    this.ipcHandle(IpcChannel.File_GetDanglingState, async (_e, params: unknown) =>
       this.getDanglingState(GetDanglingStateIpcSchema.parse(params))
     )
-    this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, (_e, params: unknown) =>
+    this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, async (_e, params: unknown) =>
       this.batchGetDanglingStates(BatchGetDanglingStatesIpcSchema.parse(params))
     )
+    // Phase 2 channels.
+    //
+    // Zod outputs the structural shapes (`{ path: string }`, `{ kind: 'path';
+    // path: string }`, etc.). The TS-side param types use template literal
+    // brands (`FilePath`, `FileHandle`) that Zod can't reproduce without a
+    // `.transform()` per field. The cast at this single boundary keeps the
+    // brand-as-doc convention intact while letting runtime validation (Zod)
+    // remain the actual gate — same pattern used by every other IPC handler
+    // in this file.
+    this.ipcHandle(IpcChannel.File_CreateInternalEntry, async (_e, params: unknown) =>
+      this.createInternalEntry(CreateInternalEntryIpcSchema.parse(params) as CreateInternalEntryIpcParams)
+    )
+    this.ipcHandle(IpcChannel.File_EnsureExternalEntry, async (_e, params: unknown) =>
+      this.ensureExternalEntry(EnsureExternalEntryIpcSchema.parse(params) as EnsureExternalEntryIpcParams)
+    )
+    this.ipcHandle(IpcChannel.File_GetPhysicalPath, async (_e, params: unknown) =>
+      this.getPhysicalPath(GetPhysicalPathIpcSchema.parse(params).id)
+    )
+    this.ipcHandle(IpcChannel.File_PermanentDelete, async (_e, params: unknown) => {
+      const handle = PermanentDeleteIpcSchema.parse(params) as FileHandle
+      return dispatchHandle(
+        handle,
+        (entryId) => this.permanentDelete(entryId),
+        (path) => fsRemove(path)
+      )
+    })
+    this.ipcHandle(IpcChannel.File_RunSweep, async () => this.runSweep())
   }
 
   /**
-   * Run both the FS-level orphan sweep (file-manager-architecture §10) and
-   * the DB-level orphan-ref/entry sweep (file-manager-architecture §7 Layer 3)
-   * concurrently, returning once both
-   * settle. The fire-and-forget call site in `onInit` (line above) is what
-   * keeps the ready signal unblocked — this method itself awaits both
-   * branches so tests and explicit callers can deterministically observe
-   * the side effects (e.g. `await fm.runStartupSweeps()`).
+   * Run the FS-level orphan sweep (file-manager-architecture §10) and
+   * the DB-level orphan-ref / entry sweep (file-manager-architecture §7
+   * Layer 3) concurrently, returning a single `OrphanReport` once both
+   * settle. User-triggered via the `File_RunSweep` IPC channel; there is
+   * no startup auto-run.
    *
-   * Both branches absorb their own errors via inner try/catch (returning a
-   * `'failed'` report); the outer `.catch()` here is a belt-and-suspenders
-   * fallback for synchronous throws in dep wiring (e.g. registry property
-   * access racing with service shutdown).
+   * Each branch absorbs its own errors via inner try/catch and surfaces
+   * them through the umbrella `OrphanReport`:
+   *
+   * - DB sweep collapse → `outcome: 'failed'` (counts are meaningless;
+   *   `errorMessage` carries the cause). FS sweep status no longer
+   *   matters in this branch.
+   * - DB sweep per-sourceType checker throws → `outcome: 'partial'` with
+   *   `errorsByType`.
+   * - DB sweep clean BUT FS sweep returned `'partial'` / `'aborted'` /
+   *   `'failed'` (or threw before producing a report) → umbrella degrades
+   *   to `'partial'` with empty `errorsByType` and a populated
+   *   `fsSweepIssue`. Without this degrade, an EACCES or safety-threshold
+   *   abort on the FS side would silently surface as `'completed'` to
+   *   the cleanup UI, which is the inverse of what the discriminator
+   *   exists to prevent.
+   * - Both clean → `outcome: 'completed'`.
    */
-  async runStartupSweeps(): Promise<void> {
-    await Promise.all([
-      runStartupFileSweep({ fileEntryService: this.deps.fileEntryService }).catch((err) => {
-        fileManagerLogger.error('Startup file sweep failed', err)
-      }),
-      runDbSweep({
-        fileEntryService: this.deps.fileEntryService,
-        fileRefService: this.deps.fileRefService,
-        registry: this.deps.orphanRegistry
-      })
-        .then((report) => {
-          this.lastDbSweepReport = report
-          this.lastDbSweepRanAt = Date.now()
-        })
-        .catch((err) => {
-          fileManagerLogger.error('DB orphan sweep failed', err)
-          // Surface the outer-catch path through `lastDbSweepReport` so
-          // `getOrphanReport()` can distinguish "sweep collapsed" from
-          // "no sweep yet". Without this assignment a synchronous wiring
-          // throw (e.g. registry property access racing with shutdown)
-          // would leave the report null forever, and the renderer-side
-          // cleanup UI would see `outcome: 'unknown'` indistinguishable
-          // from the pre-first-sweep state. Counts stay zero because
-          // nothing was actually scanned.
-          this.lastDbSweepReport = {
-            outcome: 'failed',
-            errorMessage: err instanceof Error ? err.message : String(err),
-            orphanRefsByType: {},
-            orphanRefsTotal: 0,
-            orphanEntriesByOrigin: {},
-            orphanEntriesTotal: 0,
-            scanDurationMs: 0
-          }
-          this.lastDbSweepRanAt = Date.now()
-        })
-    ])
-  }
+  async runSweep(): Promise<OrphanReport> {
+    const startedAt = Date.now()
+    const fsSweepPromise = runFileSweep({ fileEntryService: this.deps.fileEntryService }).catch(
+      (err): FileSweepReport => {
+        fileManagerLogger.error('File sweep failed', err)
+        // Promote a thrown FS sweep into a structured `'failed'` report so
+        // the umbrella merge below can degrade `outcome` to `'partial'`
+        // (otherwise a permission error would surface as a clean
+        // `'completed'` umbrella — the regression 0xfullex flagged in
+        // PRRT_kwDOL_2xws6EeQI5).
+        return {
+          outcome: 'failed',
+          errorMessage: err instanceof Error ? err.message : String(err),
+          entriesInDb: 0,
+          direntsScanned: 0,
+          filesOnDisk: 0,
+          bytesOnDisk: 0,
+          plannedDeleteCount: 0,
+          plannedDeleteBytes: 0,
+          actualDeleteCount: 0,
+          actualDeleteBytes: 0,
+          statFailedCount: 0,
+          scanDurationMs: 0
+        }
+      }
+    )
 
-  /**
-   * The most recent DbSweepReport projection, or an empty default before
-   * the first sweep completes. Cleanup UI consumes this to surface orphan
-   * refs (already deleted by the sweep) and orphan entries (preserved per
-   * architecture §7.1; user decides).
-   *
-   * `lastRunAt` is the **sweep completion** timestamp, not the call time —
-   * UI surfaces like "last scanned at HH:MM" can render this directly.
-   * Null until the first sweep settles.
-   */
-  getOrphanReport(): OrphanReport {
-    if (!this.lastDbSweepReport) {
+    const dbSweepPromise = runDbSweep({
+      fileEntryService: this.deps.fileEntryService,
+      fileRefService: this.deps.fileRefService,
+      registry: this.deps.orphanRegistry
+    }).catch((err): DbSweepReport => {
+      fileManagerLogger.error('DB orphan sweep failed', err)
       return {
-        outcome: 'unknown',
+        outcome: 'failed',
+        errorMessage: err instanceof Error ? err.message : String(err),
         orphanRefsByType: {},
         orphanRefsTotal: 0,
         orphanEntriesByOrigin: {},
         orphanEntriesTotal: 0,
-        lastRunAt: null
+        scanDurationMs: 0
       }
-    }
+    })
+
+    const [fsReport, dbReport] = await Promise.all([fsSweepPromise, dbSweepPromise])
+    const lastRunAt = startedAt
     const counts = {
-      orphanRefsByType: this.lastDbSweepReport.orphanRefsByType,
-      orphanRefsTotal: this.lastDbSweepReport.orphanRefsTotal,
-      orphanEntriesByOrigin: this.lastDbSweepReport.orphanEntriesByOrigin,
-      orphanEntriesTotal: this.lastDbSweepReport.orphanEntriesTotal
+      orphanRefsByType: dbReport.orphanRefsByType,
+      orphanRefsTotal: dbReport.orphanRefsTotal,
+      orphanEntriesByOrigin: dbReport.orphanEntriesByOrigin,
+      orphanEntriesTotal: dbReport.orphanEntriesTotal
     }
-    // lastDbSweepRanAt is non-null once lastDbSweepReport is populated
-    // (set in lockstep in runStartupSweeps); narrow for the non-'unknown'
-    // variants which require number.
-    const lastRunAt = this.lastDbSweepRanAt ?? Date.now()
-    switch (this.lastDbSweepReport.outcome) {
+    const fsSweepIssue = summariseFsSweepIssue(fsReport)
+    switch (dbReport.outcome) {
       case 'completed':
-        return { ...counts, outcome: 'completed', lastRunAt }
+        // DB clean; degrade umbrella to partial iff the FS sweep didn't also
+        // come back clean — UI must not render "all clear" when an FS-side
+        // permission error / safety abort silently swallowed the unlink work.
+        if (fsSweepIssue === undefined) {
+          return { ...counts, outcome: 'completed', lastRunAt }
+        }
+        return { ...counts, outcome: 'partial', errorsByType: {}, fsSweepIssue, lastRunAt }
       case 'partial':
         return {
           ...counts,
           outcome: 'partial',
-          errorsByType: this.lastDbSweepReport.errorsByType,
+          errorsByType: dbReport.errorsByType,
+          ...(fsSweepIssue !== undefined && { fsSweepIssue }),
           lastRunAt
         }
       case 'failed':
-        return {
-          ...counts,
-          outcome: 'failed',
-          errorMessage: this.lastDbSweepReport.errorMessage,
-          lastRunAt
-        }
+        // DB-level collapse dominates: counts are meaningless either way,
+        // so the FS sweep's status doesn't change the umbrella.
+        return { ...counts, outcome: 'failed', errorMessage: dbReport.errorMessage, lastRunAt }
     }
   }
 

@@ -1,5 +1,5 @@
 /**
- * FileRefCheckerRegistry — typed compile-safe registry for OrphanRefScanner.
+ * orphanCheckerRegistry — typed compile-safe registry for OrphanRefScanner.
  *
  * Each `FileRefSourceType` variant must have a `SourceTypeChecker` registered
  * here; the `Record<FileRefSourceType, SourceTypeChecker<...>>` shape forces
