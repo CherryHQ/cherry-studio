@@ -14,11 +14,18 @@ import styled from 'styled-components'
 
 import { type AgentOrSessionSettingsProps, SettingsContainer, SettingsItem, SettingsTitle } from '../shared'
 
-const PromptSettings: FC<AgentOrSessionSettingsProps> = ({ agentBase, update }) => {
+type PromptSettingsProps = AgentOrSessionSettingsProps & {
+  instructionsDraft?: string
+  setInstructionsDraft?: (value: string) => void
+}
+
+const PromptSettings: FC<PromptSettingsProps> = ({ agentBase, update, instructionsDraft, setInstructionsDraft }) => {
   const { t } = useTranslation()
-  const [instructions, setInstructions] = useState<string>(agentBase?.instructions ?? '')
+  const [localInstructions, setLocalInstructions] = useState<string>(agentBase?.instructions ?? '')
   const [showPreview, setShowPreview] = useState<boolean>(!!agentBase?.instructions?.length)
   const [tokenCount, setTokenCount] = useState(0)
+  const instructions = instructionsDraft ?? localInstructions
+  const setInstructions = setInstructionsDraft ?? setLocalInstructions
 
   useEffect(() => {
     const updateTokenCount = async () => {
