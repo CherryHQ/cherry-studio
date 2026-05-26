@@ -36,6 +36,26 @@ const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
   actionsClassName,
   translate
 }) => {
+  const isGenerateDisabled = generateDisabled ?? Boolean(disabled)
+
+  const handleKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = (event) => {
+    if (event.nativeEvent.isComposing || event.key === 'Process') {
+      return
+    }
+
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+
+      if (!isGenerateDisabled) {
+        void onGenerate()
+      }
+
+      return
+    }
+
+    onKeyDown?.(event)
+  }
+
   return (
     <div className="relative mx-5 mb-[15px] flex max-h-[95px] min-h-[95px] flex-col rounded-[10px] border border-[var(--color-border-soft)] transition-all duration-300">
       <TextArea
@@ -47,7 +67,7 @@ const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
         spellCheck={false}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        onKeyDown={onKeyDown}
+        onKeyDown={handleKeyDown}
       />
       <div className={footerClassName ?? 'flex h-10 flex-row justify-end px-2 pb-0'}>
         <div className={actionsClassName ?? (translate ? 'flex flex-row items-center gap-1.5' : 'flex gap-2')}>
@@ -60,7 +80,7 @@ const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
               style={{ marginRight: 6, borderRadius: '50%' }}
             />
           )}
-          <SendMessageButton sendMessage={onGenerate} disabled={generateDisabled ?? Boolean(disabled)} />
+          <SendMessageButton sendMessage={onGenerate} disabled={isGenerateDisabled} />
         </div>
       </div>
     </div>

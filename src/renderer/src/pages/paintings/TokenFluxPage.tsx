@@ -10,10 +10,8 @@ import { isMac } from '@renderer/config/constant'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
-import { translateText } from '@renderer/services/TranslateService'
 import type { TokenFluxPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { Select } from 'antd'
 import type { FC } from 'react'
@@ -27,6 +25,7 @@ import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { DEFAULT_TOKENFLUX_PAINTING, type TokenFluxModel } from './config/tokenFluxConfig'
+import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
 import { checkProviderEnabled } from './utils'
 import TokenFluxService from './utils/TokenFluxService'
 
@@ -40,8 +39,6 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [abortController, setAbortController] = useState<AbortController | null>(null)
-  const [spaceClickCount, setSpaceClickCount] = useState(0)
-  const [isTranslating, setIsTranslating] = useState(false)
 
   const { t, i18n } = useTranslation()
   const providers = useAllProviders()
@@ -54,7 +51,6 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const navigate = useNavigate()
   const location = useLocation()
   const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
-  const spaceClickTimer = useRef<NodeJS.Timeout>(null)
   const tokenfluxProvider = providers.find((p) => p.id === 'tokenflux')!
   const textareaRef = useRef<any>(null)
   const tokenFluxService = useMemo(
@@ -222,45 +218,12 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
     void removePainting('tokenflux_paintings', paintingToDelete)
   }
 
-  const translate = async () => {
-    if (isTranslating) {
-      return
-    }
-
-    if (!painting.prompt) {
-      return
-    }
-
-    try {
-      setIsTranslating(true)
-      const translatedText = await translateText(painting.prompt, BUILTIN_LANGUAGE.enUS.langCode)
-      updatePaintingState({ prompt: translatedText })
-    } catch (error) {
-      logger.error('Translation failed:', error as Error)
-    } finally {
-      setIsTranslating(false)
-    }
-  }
-
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (autoTranslateWithSpace && event.key === ' ') {
-      setSpaceClickCount((prev) => prev + 1)
-
-      if (spaceClickTimer.current) {
-        clearTimeout(spaceClickTimer.current)
-      }
-
-      spaceClickTimer.current = setTimeout(() => {
-        setSpaceClickCount(0)
-      }, 200)
-
-      if (spaceClickCount === 2) {
-        setSpaceClickCount(0)
-        setIsTranslating(true)
-        void translate()
-      }
-    }
-  }
+  const { isTranslating, handleKeyDown } = usePaintingPromptTranslation({
+    prompt: painting.prompt,
+    enabled: autoTranslateWithSpace,
+    onTranslated: (translatedText) => updatePaintingState({ prompt: translatedText }),
+    onError: (error) => logger.error('Translation failed:', error as Error)
+  })
 
   const handleProviderChange = (providerId: string) => {
     const routeName = location.pathname.split('/').pop()
@@ -308,15 +271,6 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       setPainting(newPainting)
     }
   }, [tokenFluxPaintings, addPainting, getNewPainting])
-
-  useEffect(() => {
-    const timer = spaceClickTimer.current
-    return () => {
-      if (timer) {
-        clearTimeout(timer)
-      }
-    }
-  }, [])
 
   useEffect(() => {
     if (painting.status === 'processing' && painting.generationId) {

@@ -10,10 +10,8 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { translateText } from '@renderer/services/TranslateService'
 import type { PaintingsState, PpioPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
 import { useNavigate } from '@tanstack/react-router'
 import type { UploadFile } from 'antd'
 import { Button, Input, Segmented, Select, Tooltip, Upload } from 'antd'
@@ -35,6 +33,7 @@ import {
   type PpioConfigItem,
   type PpioMode
 } from './config/ppioConfig'
+import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
 import { checkProviderEnabled } from './utils'
 import { saveGeneratedPaintingFiles } from './utils/imageFiles'
 import PpioService from './utils/PpioService'
@@ -77,13 +76,10 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [abortController, setAbortController] = useState<AbortController | null>(null)
-  const [spaceClickCount, setSpaceClickCount] = useState(0)
-  const [isTranslating, setIsTranslating] = useState(false)
 
   const [, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const { autoTranslateWithSpace } = useSettings()
-  const spaceClickTimer = useRef<NodeJS.Timeout>(null)
   const textareaRef = useRef<any>(null)
 
   // 模式选项
@@ -301,44 +297,16 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }
 
-  const handleTranslate = async () => {
-    if (!painting.prompt?.trim() || isTranslating) return
-
-    setIsTranslating(true)
-    try {
-      const translatedText = await translateText(painting.prompt, BUILTIN_LANGUAGE.enUS.langCode)
+  const { isTranslating, handleKeyDown } = usePaintingPromptTranslation({
+    prompt: painting.prompt,
+    enabled: autoTranslateWithSpace,
+    onTranslated: (translatedText) => {
       if (translatedText) {
         updatePaintingState({ prompt: translatedText })
       }
-    } finally {
-      setIsTranslating(false)
-    }
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      void onGenerate()
-    }
-
-    if (e.key === ' ' && autoTranslateWithSpace && !painting.prompt?.trim()) {
-      setSpaceClickCount((prev) => prev + 1)
-
-      if (spaceClickTimer.current) {
-        clearTimeout(spaceClickTimer.current)
-      }
-
-      spaceClickTimer.current = setTimeout(() => {
-        setSpaceClickCount(0)
-      }, 500)
-
-      if (spaceClickCount >= 2) {
-        e.preventDefault()
-        void handleTranslate()
-        setSpaceClickCount(0)
-      }
-    }
-  }
+    },
+    onError: (error) => logger.error('Translation failed:', error as Error)
+  })
 
   // 处理图片上传
   const handleImageUpload = async (file: UploadFile, fieldKey: keyof PpioPainting = 'imageFile') => {
@@ -472,12 +440,6 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
       const newPainting = getNewPainting()
       addPainting(mode, newPainting)
       setPainting(newPainting)
-    }
-
-    return () => {
-      if (spaceClickTimer.current) {
-        clearTimeout(spaceClickTimer.current)
-      }
     }
   }, [filteredPaintings.length, addPainting, getNewPainting, mode])
 

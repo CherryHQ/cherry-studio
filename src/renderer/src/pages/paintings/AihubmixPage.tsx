@@ -13,11 +13,9 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
-import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata } from '@renderer/types'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { Input, InputNumber, Radio, Segmented, Select, Slider, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
@@ -31,6 +29,7 @@ import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { type ConfigItem, createModeConfigs, DEFAULT_PAINTING } from './config/aihubmixConfig'
+import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
 import { checkProviderEnabled } from './utils'
 import { saveGeneratedPaintingFiles } from './utils/imageFiles'
 
@@ -65,8 +64,6 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [abortController, setAbortController] = useState<AbortController | null>(null)
-  const [spaceClickCount, setSpaceClickCount] = useState(0)
-  const [isTranslating, setIsTranslating] = useState(false)
   const [fileMap, setFileMap] = useState<{ [key: string]: FileMetadata }>({})
 
   const { t } = useTranslation()
@@ -76,7 +73,6 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const navigate = useNavigate()
   const location = useLocation()
   const [autoTranslateWithSpace] = usePreference('chat.input.translate.auto_translate_with_space')
-  const spaceClickTimer = useRef<NodeJS.Timeout>(null)
   const aihubmixProvider = providers.find((p) => p.id === 'aihubmix')!
 
   const modeOptions = [
@@ -593,45 +589,12 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     void removePainting(mode, paintingToDelete)
   }
 
-  const translate = async () => {
-    if (isTranslating) {
-      return
-    }
-
-    if (!painting.prompt) {
-      return
-    }
-
-    try {
-      setIsTranslating(true)
-      const translatedText = await translateText(painting.prompt, BUILTIN_LANGUAGE.enUS.langCode)
-      updatePaintingState({ prompt: translatedText })
-    } catch (error) {
-      logger.error('Translation failed:', error as Error)
-    } finally {
-      setIsTranslating(false)
-    }
-  }
-
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (autoTranslateWithSpace && event.key === ' ') {
-      setSpaceClickCount((prev) => prev + 1)
-
-      if (spaceClickTimer.current) {
-        clearTimeout(spaceClickTimer.current)
-      }
-
-      spaceClickTimer.current = setTimeout(() => {
-        setSpaceClickCount(0)
-      }, 200)
-
-      if (spaceClickCount === 2) {
-        setSpaceClickCount(0)
-        setIsTranslating(true)
-        void translate()
-      }
-    }
-  }
+  const { isTranslating, handleKeyDown } = usePaintingPromptTranslation({
+    prompt: painting.prompt,
+    enabled: autoTranslateWithSpace,
+    onTranslated: (translatedText) => updatePaintingState({ prompt: translatedText }),
+    onError: (error) => logger.error('Translation failed:', error as Error)
+  })
 
   const handleProviderChange = (providerId: string) => {
     const routeName = location.pathname.split('/').pop()
@@ -830,15 +793,6 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       setPainting(newPainting)
     }
   }, [filteredPaintings, mode, addPainting, painting, getNewPainting])
-
-  useEffect(() => {
-    const timer = spaceClickTimer.current
-    return () => {
-      if (timer) {
-        clearTimeout(timer)
-      }
-    }
-  }, [])
 
   return (
     <div className="flex h-full flex-1 flex-col">

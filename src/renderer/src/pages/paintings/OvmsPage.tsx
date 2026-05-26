@@ -11,10 +11,8 @@ import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { getProviderLabel } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
-import { translateText } from '@renderer/services/TranslateService'
 import type { OvmsPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
-import { BUILTIN_LANGUAGE } from '@shared/data/presets/translate-languages'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { Input, InputNumber, Select, Slider } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
@@ -35,6 +33,7 @@ import {
   getOvmsModels,
   OVMS_MODELS
 } from './config/ovmsConfig'
+import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
 import { saveGeneratedPaintingFiles } from './utils/imageFiles'
 
 const logger = loggerService.withContext('OvmsPage')
@@ -46,8 +45,6 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [abortController, setAbortController] = useState<AbortController | null>(null)
-  const [spaceClickCount, setSpaceClickCount] = useState(0)
-  const [isTranslating, setIsTranslating] = useState(false)
   const [availableModels, setAvailableModels] = useState<Array<{ label: string; value: string }>>([])
   const [ovmsConfig, setOvmsConfig] = useState<ConfigItem[]>([])
 
@@ -72,7 +69,6 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
   const navigate = useNavigate()
   const location = useLocation()
   const { autoTranslateWithSpace } = useSettings()
-  const spaceClickTimer = useRef<NodeJS.Timeout>(null)
   const ovmsProvider = providers.find((p) => p.id === 'ovms')!
 
   const getNewPainting = useCallback(() => {
@@ -264,45 +260,12 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
     void removePainting('ovms_paintings', paintingToDelete)
   }
 
-  const translate = async () => {
-    if (isTranslating) {
-      return
-    }
-
-    if (!painting.prompt) {
-      return
-    }
-
-    try {
-      setIsTranslating(true)
-      const translatedText = await translateText(painting.prompt, BUILTIN_LANGUAGE.enUS.langCode)
-      updatePaintingState({ prompt: translatedText })
-    } catch (error) {
-      logger.error('Translation failed:', error as Error)
-    } finally {
-      setIsTranslating(false)
-    }
-  }
-
-  const handleKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (autoTranslateWithSpace && event.key === ' ') {
-      setSpaceClickCount((prev) => prev + 1)
-
-      if (spaceClickTimer.current) {
-        clearTimeout(spaceClickTimer.current)
-      }
-
-      spaceClickTimer.current = setTimeout(() => {
-        setSpaceClickCount(0)
-      }, 200)
-
-      if (spaceClickCount === 2) {
-        setSpaceClickCount(0)
-        setIsTranslating(true)
-        void translate()
-      }
-    }
-  }
+  const { isTranslating, handleKeyDown } = usePaintingPromptTranslation({
+    prompt: painting.prompt,
+    enabled: autoTranslateWithSpace,
+    onTranslated: (translatedText) => updatePaintingState({ prompt: translatedText }),
+    onError: (error) => logger.error('Translation failed:', error as Error)
+  })
 
   const handleProviderChange = (providerId: string) => {
     const routeName = location.pathname.split('/').pop()
@@ -443,15 +406,6 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
       setPainting(newPainting)
     }
   }, [ovmsPaintings, addPainting, getNewPainting])
-
-  useEffect(() => {
-    const timer = spaceClickTimer.current
-    return () => {
-      if (timer) {
-        clearTimeout(timer)
-      }
-    }
-  }, [])
 
   return (
     <div className="flex h-full flex-1 flex-col">
