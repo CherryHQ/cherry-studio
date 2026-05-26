@@ -12,6 +12,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   BatchGetDanglingStatesIpcSchema,
+  BatchGetMetadataIpcSchema,
   BatchIdsIpcSchema,
   FILE_BATCH_DANGLING_MAX_IDS,
   FILE_BATCH_MAX_IDS,
@@ -188,5 +189,24 @@ describe('GetMetadataIpcSchema', () => {
   })
   it('rejects invalid handle', () => {
     expect(() => GetMetadataIpcSchema.parse({ kind: 'invalid' })).toThrow()
+  })
+})
+
+describe('BatchGetMetadataIpcSchema', () => {
+  it('accepts array of valid UUIDs', () => {
+    expect(BatchGetMetadataIpcSchema.parse({ ids: [VALID_UUID_V7] })).toEqual({ ids: [VALID_UUID_V7] })
+  })
+  it('accepts empty array', () => {
+    expect(BatchGetMetadataIpcSchema.parse({ ids: [] })).toEqual({ ids: [] })
+  })
+  it('rejects non-UUID in array', () => {
+    expect(() => BatchGetMetadataIpcSchema.parse({ ids: ['bad'] })).toThrow()
+  })
+  it(`caps at FILE_BATCH_MAX_IDS`, () => {
+    const tooMany = Array.from({ length: FILE_BATCH_MAX_IDS + 1 }, () => VALID_UUID_V7)
+    expect(() => BatchGetMetadataIpcSchema.parse({ ids: tooMany })).toThrow()
+  })
+  it('rejects extra keys', () => {
+    expect(() => BatchGetMetadataIpcSchema.parse({ ids: [], extra: 1 })).toThrow()
   })
 })

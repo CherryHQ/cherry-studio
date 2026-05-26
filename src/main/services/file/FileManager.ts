@@ -274,6 +274,9 @@ export const BatchIdsIpcSchema = z.strictObject({
 })
 
 export const GetMetadataIpcSchema = FileHandleSchema
+export const BatchGetMetadataIpcSchema = z.strictObject({
+  ids: z.array(FileEntryIdSchema).max(FILE_BATCH_MAX_IDS)
+})
 
 // ─── Version types ───
 
@@ -782,6 +785,19 @@ export class FileManager extends BaseService implements IFileManager {
           } as PhysicalFileMetadata
         }
       )
+    })
+    this.ipcHandle(IpcChannel.File_BatchGetMetadata, async (_e, params: unknown) => {
+      const { ids } = BatchGetMetadataIpcSchema.parse(params)
+      const results = await Promise.all(
+        ids.map(async (id) => {
+          try {
+            return [id, await this.getMetadata(id)] as const
+          } catch {
+            return [id, null] as const
+          }
+        })
+      )
+      return Object.fromEntries(results) as Record<string, PhysicalFileMetadata | null>
     })
     this.ipcHandle(IpcChannel.File_RunSweep, async () => this.runSweep())
     this.ipcHandle(IpcChannel.File_Trash, async (_e, params: unknown) => this.trash(TrashIpcSchema.parse(params).id))
