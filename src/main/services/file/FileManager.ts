@@ -159,7 +159,8 @@ import { read as internalRead, readByPath } from './internal/content/read'
 import {
   createWriteStream as internalCreateWriteStream,
   write as internalWrite,
-  writeIfUnchanged as internalWriteIfUnchanged
+  writeIfUnchanged as internalWriteIfUnchanged,
+  writeIfUnchangedByPath
 } from './internal/content/write'
 import type { FileManagerDeps } from './internal/deps'
 import { dispatchHandle } from './internal/dispatch'
@@ -279,6 +280,7 @@ export const BatchGetMetadataIpcSchema = z.strictObject({
 })
 export const GetVersionIpcSchema = FileHandleSchema
 export const WriteDataIpcSchema = z.union([z.string(), z.instanceof(Uint8Array)])
+export const FileVersionIpcSchema = z.strictObject({ mtime: z.number(), size: z.number() })
 export const ReadIpcOptionsSchema = z
   .object({
     encoding: z.enum(['text', 'base64', 'binary']).optional(),
@@ -840,6 +842,23 @@ export class FileManager extends BaseService implements IFileManager {
         }
       )
     })
+    this.ipcHandle(
+      IpcChannel.File_WriteIfUnchanged,
+      async (_e, rawHandle: unknown, rawData: unknown, rawVersion: unknown, rawHash: unknown) => {
+        const handle = FileHandleSchema.parse(rawHandle) as FileHandle
+        const data = WriteDataIpcSchema.parse(rawData)
+        const version = FileVersionIpcSchema.parse(rawVersion) as FileVersion
+        const contentHash = rawHash != null ? z.string().parse(rawHash) : undefined
+        return dispatchHandle(
+          handle,
+          (id) => this.writeIfUnchanged(id, data, version, contentHash),
+          async (p) => {
+            const out = await writeIfUnchangedByPath(this.deps, p, data, version, contentHash)
+            return { mtime: out.mtime, size: out.size } as FileVersion
+          }
+        )
+      }
+    )
     this.ipcHandle(IpcChannel.File_RunSweep, async () => this.runSweep())
     this.ipcHandle(IpcChannel.File_Trash, async (_e, params: unknown) => this.trash(TrashIpcSchema.parse(params).id))
     this.ipcHandle(IpcChannel.File_Restore, async (_e, params: unknown) =>

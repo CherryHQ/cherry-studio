@@ -16,6 +16,7 @@ import {
   BatchIdsIpcSchema,
   FILE_BATCH_DANGLING_MAX_IDS,
   FILE_BATCH_MAX_IDS,
+  FileVersionIpcSchema,
   GetContentHashIpcSchema,
   GetDanglingStateIpcSchema,
   GetMetadataIpcSchema,
@@ -260,5 +261,17 @@ describe('WriteDataIpcSchema', () => {
   })
   it('rejects number', () => {
     expect(() => WriteDataIpcSchema.parse(42)).toThrow()
+  })
+})
+
+describe('FileVersionIpcSchema', () => {
+  it('accepts valid version', () => {
+    expect(FileVersionIpcSchema.parse({ mtime: 1000, size: 42 })).toEqual({ mtime: 1000, size: 42 })
+  })
+  it('rejects missing mtime', () => {
+    expect(() => FileVersionIpcSchema.parse({ size: 42 })).toThrow()
+  })
+  it('rejects missing size', () => {
+    expect(() => FileVersionIpcSchema.parse({ mtime: 1000 })).toThrow()
   })
 })
