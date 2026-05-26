@@ -770,9 +770,9 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
           </NavbarRight>
         )}
       </Navbar>
-      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-[var(--color-background)]">
-        <Scrollbar className="flex h-full max-w-[var(--assistants-width)] flex-1 flex-col bg-[var(--color-background)] p-5 [border-right:0.5px_solid_var(--color-border)]">
-          <div className="mb-[5px] flex flex-row items-center justify-between">
+      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-background">
+        <Scrollbar className="flex h-full max-w-(--assistants-width) flex-1 flex-col bg-background p-5 [border-right:0.5px_solid_var(--color-border)]">
+          <div className="mb-1.25 flex flex-row items-center justify-between">
             <SettingTitle className="mb-1">{t('common.provider')}</SettingTitle>
             <div className="flex flex-row items-center gap-2">
               <SettingHelpLink target="_blank" href={COURSE_URL}>
@@ -810,7 +810,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           <SettingTitle className="mt-4 mb-1">
             {t('common.model')}{' '}
-            <div className="ml-auto font-medium text-[11px] text-[var(--color-primary)]">
+            <div className="ml-auto font-medium text-[11px] text-primary">
               {painting.priceModel !== '0' ? painting.priceModel : ''}
             </div>
           </SettingTitle>
@@ -877,7 +877,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
                   max={parseInt(allModels.find((m) => m.id === painting.model)?.max_image_size || '2048')}
                   style={{ width: 80, flex: 1 }}
                 />
-                <span style={{ color: 'var(--color-text-2)', fontSize: '12px' }}>x</span>
+                <span style={{ color: 'var(--color-foreground-secondary)', fontSize: '12px' }}>x</span>
                 <InputNumber
                   placeholder="H"
                   value={customHeight}
@@ -887,7 +887,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
                   max={parseInt(allModels.find((m) => m.id === painting.model)?.max_image_size || 2048)}
                   style={{ width: 80, flex: 1 }}
                 />
-                <span style={{ color: 'var(--color-text-3)', fontSize: '11px' }}>px</span>
+                <span style={{ color: 'var(--color-foreground-muted)', fontSize: '11px' }}>px</span>
               </RowFlex>
             </div>
           )}
@@ -905,7 +905,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
                 suffix={
                   <RedoOutlined
                     onClick={() => updatePaintingState({ seed: Math.floor(Math.random() * 1000000).toString() })}
-                    style={{ cursor: 'pointer', color: 'var(--color-text-2)' }}
+                    style={{ cursor: 'pointer', color: 'var(--color-foreground-secondary)' }}
                   />
                 }
               />
@@ -921,8 +921,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
                   className={classNames(
                     'cursor-pointer rounded-md px-1.5 py-0.5 transition-all duration-200',
                     painting.style_type === ele.value
-                      ? 'border border-[var(--color-primary,#1890ff)] bg-[var(--color-primary,#1890ff)] text-white'
-                      : 'border border-[var(--color-border)] bg-[var(--color-background)] hover:bg-[var(--color-hover,#f0f0f0)]'
+                      ? 'border border-primary bg-primary text-primary-foreground'
+                      : 'border border-border bg-background hover:bg-accent'
                   )}
                   onClick={() => onSelectStyleType(ele.value)}>
                   {t(ele.labelKey)}
@@ -939,7 +939,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             <Switch checked={painting.autoCreate} onCheckedChange={(checked) => onChangeAutoCreate(checked)} />
           </RowFlex>
         </Scrollbar>
-        <div className="flex h-full flex-1 flex-col bg-[var(--color-background)]">
+        <div className="flex h-full flex-1 flex-col bg-background">
           <div className="flex justify-center pt-6">
             <Segmented
               shape="round"

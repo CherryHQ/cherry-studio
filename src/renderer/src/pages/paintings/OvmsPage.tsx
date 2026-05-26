@@ -319,7 +319,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
               onChange={(v) => updatePaintingState({ [item.key!]: v })}
             />
             <InputNumber
-              className="!w-[70px]"
+              className="w-17.5!"
               min={item.min}
               max={item.max}
               step={item.step}
@@ -336,7 +336,10 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
             onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}
             suffix={
               item.key === 'rng_seed' ? (
-                <RedoOutlined onClick={handleRandomSeed} style={{ cursor: 'pointer', color: 'var(--color-text-2)' }} />
+                <RedoOutlined
+                  onClick={handleRandomSeed}
+                  style={{ cursor: 'pointer', color: 'var(--color-foreground-secondary)' }}
+                />
               ) : (
                 item.suffix
               )
@@ -384,7 +387,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
           {t(item.title!)}
           {item.tooltip && (
             <Tooltip title={t(item.tooltip)}>
-              <Info className="ml-[5px] h-4 w-3.5 cursor-help text-[var(--color-text-2)] opacity-60 hover:opacity-100" />
+              <Info className="ml-1.25 h-4 w-3.5 cursor-help text-foreground-secondary opacity-60 hover:opacity-100" />
             </Tooltip>
           )}
         </SettingTitle>
@@ -420,11 +423,11 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
           </NavbarRight>
         )}
       </Navbar>
-      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-[var(--color-background)]">
-        <div className="flex h-full max-w-[var(--assistants-width)] flex-1 flex-col overflow-hidden bg-[var(--color-background)] [border-right:0.5px_solid_var(--color-border)]">
+      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-background">
+        <div className="flex h-full max-w-(--assistants-width) flex-1 flex-col overflow-hidden bg-background [border-right:0.5px_solid_var(--color-border)]">
           <Scrollbar>
             <div className="p-5">
-              <div className="mb-[5px] flex items-center justify-between">
+              <div className="mb-1.25 flex items-center justify-between">
                 <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
                 <SettingHelpLink
                   target="_blank"
@@ -459,7 +462,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
             </div>
           </Scrollbar>
         </div>
-        <div className="flex h-full flex-1 flex-col bg-[var(--color-background)]">
+        <div className="flex h-full flex-1 flex-col bg-background">
           <Artboard
             painting={painting}
             isLoading={isLoading}

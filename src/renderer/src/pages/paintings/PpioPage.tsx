@@ -346,7 +346,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
               suffix={
                 <RedoOutlined
                   onClick={() => updatePaintingState({ ppioSeed: Math.floor(Math.random() * 2147483647) })}
-                  style={{ cursor: 'pointer', color: 'var(--color-text-2)' }}
+                  style={{ cursor: 'pointer', color: 'var(--color-foreground-secondary)' }}
                 />
               }
             />
@@ -372,7 +372,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
         const imageValue = painting[imageKey] as string | undefined
         return (
           <Upload
-            className="[&_.ant-upload.ant-upload-select]:!m-0 [&_.ant-upload.ant-upload-select]:!h-[120px] [&_.ant-upload.ant-upload-select]:!w-full [&_.ant-upload.ant-upload-select]:!rounded-lg"
+            className="[&_.ant-upload.ant-upload-select]:m-0! [&_.ant-upload.ant-upload-select]:h-30! [&_.ant-upload.ant-upload-select]:w-full! [&_.ant-upload.ant-upload-select]:rounded-lg!"
             accept="image/png, image/jpeg, image/gif, image/webp"
             maxCount={1}
             showUploadList={false}
@@ -425,7 +425,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
           {t(item.title!)}
           {item.tooltip && (
             <Tooltip title={t(item.tooltip)}>
-              <Info className="ml-[5px] size-4 cursor-help text-[var(--color-text-2)] opacity-60 hover:opacity-100" />
+              <Info className="ml-1.25 size-4 cursor-help text-foreground-secondary opacity-60 hover:opacity-100" />
             </Tooltip>
           )}
         </SettingTitle>
@@ -459,8 +459,8 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
           </NavbarRight>
         )}
       </Navbar>
-      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-[var(--color-background)]">
-        <Scrollbar className="flex h-full max-w-[var(--assistants-width)] flex-1 flex-col bg-[var(--color-background)] p-5 [border-right:0.5px_solid_var(--color-border)]">
+      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-background">
+        <Scrollbar className="flex h-full max-w-(--assistants-width) flex-1 flex-col bg-background p-5 [border-right:0.5px_solid_var(--color-border)]">
           <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
           {ppioProvider && <ProviderSelect provider={ppioProvider} options={Options} onChange={handleProviderChange} />}
 
@@ -470,7 +470,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
           {/* 渲染其他配置项 */}
           {modeConfigs[mode].map(renderConfigItem)}
         </Scrollbar>
-        <div className="flex h-full flex-1 flex-col bg-[var(--color-background)]">
+        <div className="flex h-full flex-1 flex-col bg-background">
           {/* 模式切换 */}
           <div className="flex justify-center pt-6">
             <Segmented shape="round" value={mode} onChange={handleModeChange} options={modeOptions} />

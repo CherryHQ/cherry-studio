@@ -112,7 +112,7 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
               style={{
                 flex: 1,
                 fontSize: '12px',
-                color: 'var(--color-text-secondary)',
+                color: 'var(--color-foreground-secondary)',
                 minWidth: 0,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis'

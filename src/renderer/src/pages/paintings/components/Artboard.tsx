@@ -44,11 +44,11 @@ const Artboard: FC<ArtboardProps> = ({
           isLoading ? 'opacity-50' : 'opacity-100'
         }`}>
         {painting.files.length > 0 ? (
-          <div className="[&_.ant-spin-spinning]:-translate-x-1/2 [&_.ant-spin-spinning]:-translate-y-1/2 relative flex items-center justify-center [&_.ant-spin-spinning]:absolute [&_.ant-spin-spinning]:top-1/2 [&_.ant-spin-spinning]:left-1/2 [&_.ant-spin-spinning]:z-[3] [&_.ant-spin]:max-h-none">
+          <div className="[&_.ant-spin-spinning]:-translate-x-1/2 [&_.ant-spin-spinning]:-translate-y-1/2 relative flex items-center justify-center [&_.ant-spin-spinning]:absolute [&_.ant-spin-spinning]:top-1/2 [&_.ant-spin-spinning]:left-1/2 [&_.ant-spin-spinning]:z-3 [&_.ant-spin]:max-h-none">
             {painting.files.length > 1 && (
               <Button
                 onClick={onPrevImage}
-                className="-translate-y-1/2 absolute top-1/2 left-2.5 z-[2] opacity-70 hover:opacity-100">
+                className="-translate-y-1/2 absolute top-1/2 left-2.5 z-2 opacity-70 hover:opacity-100">
                 ←
               </Button>
             )}
@@ -59,14 +59,14 @@ const Artboard: FC<ArtboardProps> = ({
                 maxWidth: 'var(--artboard-max)',
                 maxHeight: 'var(--artboard-max)',
                 objectFit: 'contain',
-                backgroundColor: 'var(--color-background-soft)',
+                backgroundColor: 'var(--color-background-subtle)',
                 cursor: 'pointer'
               }}
             />
             {painting.files.length > 1 && (
               <Button
                 onClick={onNextImage}
-                className="-translate-y-1/2 absolute top-1/2 right-2.5 z-[2] opacity-70 hover:opacity-100">
+                className="-translate-y-1/2 absolute top-1/2 right-2.5 z-2 opacity-70 hover:opacity-100">
                 →
               </Button>
             )}
@@ -75,12 +75,12 @@ const Artboard: FC<ArtboardProps> = ({
             </div>
           </div>
         ) : (
-          <div className="box-border flex h-[var(--artboard-max)] w-[var(--artboard-max)] items-center justify-center bg-[var(--color-background-soft)] p-6">
+          <div className="box-border flex h-(--artboard-max) w-(--artboard-max) items-center justify-center bg-background-subtle p-6">
             {painting.urls.length > 0 && retry ? (
               <div>
                 <ul className="m-0 select-text list-none break-all p-0">
                   {painting.urls.map((url, index) => (
-                    <li key={url || index} className="mb-2.5 text-[var(--color-text-secondary)]">
+                    <li key={url || index} className="mb-2.5 text-foreground-secondary">
                       {url}
                     </li>
                   ))}
@@ -105,7 +105,7 @@ const Artboard: FC<ArtboardProps> = ({
           <div className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 flex flex-col items-center gap-5">
             <Spin size="large" />
             {loadText ? loadText : ''}
-            <Button onClick={onCancel} className="z-[1001] mt-2.5">
+            <Button onClick={onCancel} className="z-1001 mt-2.5">
               {t('common.cancel')}
             </Button>
           </div>

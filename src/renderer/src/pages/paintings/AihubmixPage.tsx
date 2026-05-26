@@ -686,7 +686,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               onChange={(v) => updatePaintingState({ [item.key!]: v })}
             />
             <InputNumber
-              className="!w-[70px]"
+              className="w-17.5!"
               min={item.min}
               max={item.max}
               step={item.step}
@@ -703,7 +703,10 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}
             suffix={
               item.key === 'seed' ? (
-                <RedoOutlined onClick={handleRandomSeed} style={{ cursor: 'pointer', color: 'var(--color-text-2)' }} />
+                <RedoOutlined
+                  onClick={handleRandomSeed}
+                  style={{ cursor: 'pointer', color: 'var(--color-foreground-secondary)' }}
+                />
               ) : (
                 item.suffix
               )
@@ -741,7 +744,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       case 'image': {
         return (
           <Upload
-            className="[&_.ant-upload-list-item-container]:!aspect-square [&_.ant-upload-list-item-container]:!h-full [&_.ant-upload-list-item-container]:!w-full [&_.ant-upload.ant-upload-select]:!aspect-square [&_.ant-upload.ant-upload-select]:!h-full [&_.ant-upload.ant-upload-select]:!w-full"
+            className="[&_.ant-upload-list-item-container]:aspect-square! [&_.ant-upload-list-item-container]:h-full! [&_.ant-upload-list-item-container]:w-full! [&_.ant-upload.ant-upload-select]:aspect-square! [&_.ant-upload.ant-upload-select]:h-full! [&_.ant-upload.ant-upload-select]:w-full!"
             accept="image/png, image/jpeg, image/gif"
             maxCount={1}
             showUploadList={false}
@@ -807,9 +810,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           </NavbarRight>
         )}
       </Navbar>
-      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-[var(--color-background)]">
-        <Scrollbar className="flex h-full max-w-[var(--assistants-width)] flex-1 flex-col bg-[var(--color-background)] p-5 [border-right:0.5px_solid_var(--color-border)]">
-          <div className="mb-[5px] flex items-center justify-between">
+      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-background">
+        <Scrollbar className="flex h-full max-w-(--assistants-width) flex-1 flex-col bg-background p-5 [border-right:0.5px_solid_var(--color-border)]">
+          <div className="mb-1.25 flex items-center justify-between">
             <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
             <SettingHelpLink target="_blank" href={aihubmixProvider.apiHost}>
               {t('paintings.learn_more')}
@@ -829,7 +832,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           {/* 使用JSON配置渲染设置项 */}
           {modeConfigs[mode].filter((item) => (item.condition ? item.condition(painting) : true)).map(renderConfigItem)}
         </Scrollbar>
-        <div className="flex h-full flex-1 flex-col bg-[var(--color-background)]">
+        <div className="flex h-full flex-1 flex-col bg-background">
           {/* 添加功能切换分段控制器 */}
           <div className="flex justify-center pt-6">
             <Segmented shape="round" value={mode} onChange={handleModeChange} options={modeOptions} />

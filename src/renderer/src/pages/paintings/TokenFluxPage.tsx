@@ -310,10 +310,10 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
           </NavbarRight>
         )}
       </Navbar>
-      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-[var(--color-background)]">
-        <Scrollbar className="flex h-full max-w-[var(--assistants-width)] flex-1 flex-col bg-[var(--color-background)] p-5 [border-right:0.5px_solid_var(--color-border)]">
+      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-background">
+        <Scrollbar className="flex h-full max-w-(--assistants-width) flex-1 flex-col bg-background p-5 [border-right:0.5px_solid_var(--color-border)]">
           {/* Provider Section */}
-          <div className="mb-[5px] flex items-center justify-between">
+          <div className="mb-1.25 flex items-center justify-between">
             <SettingTitle style={{ marginBottom: 8 }}>{t('common.provider')}</SettingTitle>
             <SettingHelpLink target="_blank" href="https://tokenflux.ai">
               {t('paintings.learn_more')}
@@ -327,11 +327,11 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
           <ProviderSelect provider={tokenfluxProvider} options={Options} onChange={handleProviderChange} />
 
           {/* Model & Pricing Section */}
-          <div className="mt-[15px] mb-[5px] flex items-center justify-between font-semibold text-[14px] text-[var(--color-text)]">
+          <div className="mt-3.75 mb-1.25 flex items-center justify-between font-semibold text-[14px] text-foreground">
             {t('paintings.model_and_pricing')}
             {selectedModel && selectedModel.pricing && (
               <div className="flex justify-end">
-                <div className="rounded border border-[var(--color-primary-border)] bg-[var(--color-primary-bg)] px-0 py-1 font-medium text-[11px] text-[var(--color-primary)]">
+                <div className="rounded border border-primary/20 bg-primary/10 px-0 py-1 font-medium text-[11px] text-primary">
                   {selectedModel.pricing.price} {selectedModel.pricing.currency}{' '}
                   {selectedModel.pricing.unit > 1 ? t('paintings.per_images') : t('paintings.per_image')}
                 </div>
@@ -361,7 +361,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                   <Select.Option key={model.id} value={model.id}>
                     <Tooltip placement="right" content={model.description}>
                       <div className="flex flex-col">
-                        <div className="text-[var(--color-text)]">{model.name}</div>
+                        <div className="text-foreground">{model.name}</div>
                       </div>
                     </Tooltip>
                   </Select.Option>
@@ -373,7 +373,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
           {/* Input Parameters Section */}
           {selectedModel && selectedModel.input_schema && (
             <>
-              <div className="mt-2.5 mb-[5px] flex items-center font-semibold text-[14px] text-[var(--color-text)]">
+              <div className="mt-2.5 mb-1.25 flex items-center font-semibold text-[14px] text-foreground">
                 {t('paintings.input_parameters')}
               </div>
               <div className="flex flex-col gap-3">
@@ -385,9 +385,9 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                   return (
                     <div key={key} className="flex flex-col">
                       <div className="mb-1.5 flex items-center">
-                        <span className="font-medium text-[13px] text-[var(--color-text)] capitalize">
+                        <span className="font-medium text-[13px] text-foreground capitalize">
                           {readI18nContext(property, 'title')}
-                          {isRequired && <span className="font-semibold text-[var(--color-error)]"> *</span>}
+                          {isRequired && <span className="font-semibold text-destructive"> *</span>}
                         </span>
                         {property.description && <InfoTooltip content={readI18nContext(property, 'description')} />}
                       </div>
@@ -405,15 +405,15 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
           )}
         </Scrollbar>
 
-        <div className="flex h-full flex-1 flex-col bg-[var(--color-background)]">
+        <div className="flex h-full flex-1 flex-col bg-background">
           {/* Check if any form field contains an uploaded image */}
           {Object.keys(formData).some((key) => key.toLowerCase().includes('image') && formData[key]) ? (
             <div className="flex h-full flex-1 flex-row gap-px">
-              <div className="flex h-full flex-1 flex-col bg-[var(--color-background)] [border-right:0.5px_solid_var(--color-border)]">
-                <div className="border-[var(--color-border)] border-b bg-[var(--color-background-soft)] px-5 py-2.5 text-center font-medium text-[14px] text-[var(--color-text-2)]">
+              <div className="flex h-full flex-1 flex-col bg-background [border-right:0.5px_solid_var(--color-border)]">
+                <div className="border-border border-b bg-background-subtle px-5 py-2.5 text-center font-medium text-[14px] text-foreground-secondary">
                   {t('paintings.input_image')}
                 </div>
-                <div className="flex flex-1 items-center justify-center bg-[var(--color-background)]">
+                <div className="flex flex-1 items-center justify-center bg-background">
                   {Object.entries(formData).map(([key, value]) => {
                     if (key.toLowerCase().includes('image') && value) {
                       return (
@@ -425,7 +425,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                               maxWidth: '100%',
                               maxHeight: '70vh',
                               objectFit: 'contain',
-                              backgroundColor: 'var(--color-background-soft)'
+                              backgroundColor: 'var(--color-background-subtle)'
                             }}
                           />
                         </div>
@@ -435,8 +435,8 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                   })}
                 </div>
               </div>
-              <div className="flex h-full flex-1 flex-col bg-[var(--color-background)]">
-                <div className="border-[var(--color-border)] border-b bg-[var(--color-background-soft)] px-5 py-2.5 text-center font-medium text-[14px] text-[var(--color-text-2)]">
+              <div className="flex h-full flex-1 flex-col bg-background">
+                <div className="border-border border-b bg-background-subtle px-5 py-2.5 text-center font-medium text-[14px] text-foreground-secondary">
                   {t('paintings.generated_image')}
                 </div>
                 <Artboard

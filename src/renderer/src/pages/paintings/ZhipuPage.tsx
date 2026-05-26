@@ -327,7 +327,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
         )}
       </Navbar>
       <div id="content-container" className="flex flex-1 overflow-hidden">
-        <Scrollbar className="flex h-full max-w-[var(--assistants-width)] flex-1 flex-col bg-[var(--color-background)] p-5 [border-right:0.5px_solid_var(--color-border)]">
+        <Scrollbar className="flex h-full max-w-(--assistants-width) flex-1 flex-col bg-background p-5 [border-right:0.5px_solid_var(--color-border)]">
           <div className="mb-2.5 flex items-center justify-between">
             <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
             <div className="flex flex-row items-center gap-2">
@@ -339,7 +339,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
               </SettingHelpLink>
               {(() => {
                 const Icon = resolveProviderIcon(zhipuProvider.id)
-                return Icon ? <Icon.Avatar size={16} className="ml-[5px]" /> : null
+                return Icon ? <Icon.Avatar size={16} className="ml-1.25" /> : null
               })()}
             </div>
           </div>
@@ -397,7 +397,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
                   max={2048}
                   style={{ width: 80, flex: 1 }}
                 />
-                <span style={{ color: 'var(--color-text-2)', fontSize: '12px' }}>x</span>
+                <span style={{ color: 'var(--color-foreground-secondary)', fontSize: '12px' }}>x</span>
                 <InputNumber
                   placeholder="H"
                   value={customHeight}
@@ -407,15 +407,15 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
                   max={2048}
                   style={{ width: 80, flex: 1 }}
                 />
-                <span style={{ color: 'var(--color-text-2)', fontSize: '12px' }}>px</span>
+                <span style={{ color: 'var(--color-foreground-secondary)', fontSize: '12px' }}>px</span>
               </RowFlex>
-              <div style={{ marginTop: 5, fontSize: '12px', color: 'var(--color-text-3)' }}>
+              <div style={{ marginTop: 5, fontSize: '12px', color: 'var(--color-foreground-muted)' }}>
                 {t('paintings.zhipu.custom_size_hint')}
               </div>
             </div>
           )}
         </Scrollbar>
-        <div className="flex h-full flex-1 flex-col bg-[var(--color-background)]">
+        <div className="flex h-full flex-1 flex-col bg-background">
           <Artboard
             painting={painting}
             isLoading={isLoading}

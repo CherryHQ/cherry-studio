@@ -57,10 +57,10 @@ const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
   }
 
   return (
-    <div className="relative mx-5 mb-[15px] flex max-h-[95px] min-h-[95px] flex-col rounded-[10px] border border-[var(--color-border-soft)] transition-all duration-300">
+    <div className="relative mx-5 mb-3.75 flex max-h-23.75 min-h-23.75 flex-col rounded-[10px] border border-border-subtle transition-all duration-300">
       <TextArea
         ref={textareaRef}
-        className="!w-auto !resize-none flex flex-1 overflow-auto rounded-none p-2.5"
+        className="resize-none! flex w-auto! flex-1 overflow-auto rounded-none p-2.5"
         variant="borderless"
         disabled={disabled}
         value={value}

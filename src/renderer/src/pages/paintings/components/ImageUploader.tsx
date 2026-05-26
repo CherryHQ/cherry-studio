@@ -58,9 +58,9 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
         {fileMap.paths && fileMap.paths.length > 0 ? (
           <>
             {fileMap.paths.map((src, index) => (
-              <div key={index} className="relative mr-[5px] mb-[5px] h-[45%] w-[45%]">
+              <div key={index} className="relative mr-1.25 mb-1.25 h-[45%] w-[45%]">
                 <Upload
-                  className="[&_.ant-upload-list-item-container]:!aspect-square [&_.ant-upload-list-item-container]:!h-full [&_.ant-upload-list-item-container]:!w-full [&_.ant-upload.ant-upload-select]:!aspect-square [&_.ant-upload.ant-upload-select]:!h-full [&_.ant-upload.ant-upload-select]:!w-full mb-[5px]"
+                  className="mb-1.25 [&_.ant-upload-list-item-container]:aspect-square! [&_.ant-upload-list-item-container]:h-full! [&_.ant-upload-list-item-container]:w-full! [&_.ant-upload.ant-upload-select]:aspect-square! [&_.ant-upload.ant-upload-select]:h-full! [&_.ant-upload.ant-upload-select]:w-full!"
                   accept="image/png, image/jpeg"
                   maxCount={1}
                   multiple={false}
@@ -86,7 +86,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
                   onConfirm={() => onDeleteImage(index)}>
                   <button
                     type="button"
-                    className="absolute top-[5px] right-[5px] z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-black/60 text-white opacity-70 transition-opacity duration-300 ease-in-out hover:opacity-100">
+                    className="absolute top-1.25 right-1.25 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-black/60 text-white opacity-70 transition-opacity duration-300 ease-in-out hover:opacity-100">
                     <DeleteOutlined />
                   </button>
                 </Popconfirm>
@@ -98,9 +98,9 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
         )}
 
         {remainingImages > 0 ? (
-          <div className="relative mr-[5px] mb-[5px] h-[45%] w-[45%]">
+          <div className="relative mr-1.25 mb-1.25 h-[45%] w-[45%]">
             <Upload
-              className="[&_.ant-upload-list-item-container]:!aspect-square [&_.ant-upload-list-item-container]:!h-full [&_.ant-upload-list-item-container]:!w-full [&_.ant-upload.ant-upload-select]:!aspect-square [&_.ant-upload.ant-upload-select]:!h-full [&_.ant-upload.ant-upload-select]:!w-full mb-[5px]"
+              className="mb-1.25 [&_.ant-upload-list-item-container]:aspect-square! [&_.ant-upload-list-item-container]:h-full! [&_.ant-upload-list-item-container]:w-full! [&_.ant-upload.ant-upload-select]:aspect-square! [&_.ant-upload.ant-upload-select]:h-full! [&_.ant-upload.ant-upload-select]:w-full!"
               multiple={remainingImages > 1}
               accept="image/png, image/jpeg"
               maxCount={remainingImages}

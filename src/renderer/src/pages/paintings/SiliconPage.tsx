@@ -498,8 +498,8 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
           </NavbarRight>
         )}
       </Navbar>
-      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-[var(--color-background)]">
-        <Scrollbar className="flex h-full max-w-[var(--assistants-width)] flex-1 flex-col bg-[var(--color-background)] p-5 [border-right:0.5px_solid_var(--color-border)]">
+      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-background">
+        <Scrollbar className="flex h-full max-w-(--assistants-width) flex-1 flex-col bg-background p-5 [border-right:0.5px_solid_var(--color-border)]">
           <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
           <ProviderSelect provider={siliconFlowProvider} options={Options} onChange={handleProviderChange} />
           <SettingTitle className="mt-4 mb-1">{t('common.model')}</SettingTitle>
@@ -528,7 +528,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
                   <Radio.Button
                     value={size.value}
                     key={size.value}
-                    className="!flex !h-[55px] !w-[30px] flex-1 flex-col items-center justify-center">
+                    className="flex! h-13.75! w-7.5! flex-1 flex-col items-center justify-center">
                     <ColFlex className="items-center">
                       <img src={size.icon} alt="" className={theme === 'dark' ? 'mt-2 invert' : 'mt-2'} />
                       <span>{size.label}</span>
@@ -564,7 +564,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
             suffix={
               <RedoOutlined
                 onClick={() => updatePaintingState({ seed: Math.floor(Math.random() * 1000000).toString() })}
-                style={{ cursor: 'pointer', color: 'var(--color-text-2)' }}
+                style={{ cursor: 'pointer', color: 'var(--color-foreground-secondary)' }}
               />
             }
           />
@@ -578,7 +578,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
               <div className="flex items-center gap-4 [&_.ant-slider]:flex-1">
                 <Slider min={1} max={100} value={painting.steps} onChange={(v) => updatePaintingState({ steps: v })} />
                 <InputNumber
-                  className="!w-[70px]"
+                  className="w-17.5!"
                   min={1}
                   max={100}
                   value={painting.steps}
@@ -603,7 +603,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
                   onChange={(v) => updatePaintingState({ guidanceScale: v })}
                 />
                 <InputNumber
-                  className="!w-[70px]"
+                  className="w-17.5!"
                   min={0}
                   max={20}
                   step={0.1}
@@ -624,7 +624,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
             rows={4}
           />
         </Scrollbar>
-        <div className="flex h-full flex-1 flex-col bg-[var(--color-background)]">
+        <div className="flex h-full flex-1 flex-col bg-background">
           <Artboard
             painting={painting}
             isLoading={isLoading}

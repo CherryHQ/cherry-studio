@@ -513,9 +513,9 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
           </NavbarRight>
         )}
       </Navbar>
-      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-[var(--color-background)]">
-        <Scrollbar className="flex h-full max-w-[var(--assistants-width)] flex-1 flex-col bg-[var(--color-background)] p-5 [border-right:0.5px_solid_var(--color-border)]">
-          <div className="mb-[5px] flex items-center justify-between">
+      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-background">
+        <Scrollbar className="flex h-full max-w-(--assistants-width) flex-1 flex-col bg-background p-5 [border-right:0.5px_solid_var(--color-border)]">
+          <div className="mb-1.25 flex items-center justify-between">
             <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
             <SettingHelpLink
               target="_blank"
@@ -549,7 +549,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
                 <>
                   <SettingTitle style={{ marginTop: 20 }}>{t('paintings.input_image')}</SettingTitle>
                   <Upload
-                    className="[&_.ant-upload.ant-upload-select]:!h-[60px] [&_.ant-upload.ant-upload-select]:!w-full [&_.ant-upload.ant-upload-select]:!border [&_.ant-upload.ant-upload-select]:!border-[var(--color-border)] [&_.ant-upload.ant-upload-select]:!border-dashed"
+                    className="[&_.ant-upload.ant-upload-select]:border! [&_.ant-upload.ant-upload-select]:h-15! [&_.ant-upload.ant-upload-select]:w-full! [&_.ant-upload.ant-upload-select]:border-border! [&_.ant-upload.ant-upload-select]:border-dashed!"
                     accept="image/png, image/jpeg, image/gif"
                     maxCount={16}
                     showUploadList={true}
@@ -685,7 +685,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
             </>
           )}
         </Scrollbar>
-        <div className="flex h-full flex-1 flex-col bg-[var(--color-background)]">
+        <div className="flex h-full flex-1 flex-col bg-background">
           {/* 添加功能切换分段控制器 */}
           <div className="flex justify-center pt-6">
             <Segmented shape="round" value={mode} onChange={handleModeChange} options={modeOptions} />
