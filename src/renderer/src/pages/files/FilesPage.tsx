@@ -1,11 +1,10 @@
 import { Button, EmptyState } from '@cherrystudio/ui'
-import { Copy, Download, Eye, FolderClosed, Pencil, RotateCcw, Share2, Trash2, Upload, X } from 'lucide-react'
+import { FolderClosed, Pencil, RotateCcw, Trash2, Upload, X } from 'lucide-react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { FileGrid } from './FileGrid'
 import type { SortDir, SortKey } from './FileList'
 import { FileList } from './FileList'
-import { FilePreview } from './FilePreview'
 import type { SidebarFilter } from './FileSidebar'
 import { FileSidebar } from './FileSidebar'
 import type { FileItem } from './mockData'
@@ -100,26 +99,16 @@ function CMenuItem({
 const BatchBar = memo(function BatchBar({
   count,
   onDelete,
-  onDownload,
   onClear
 }: {
   count: number
   onDelete: () => void
-  onDownload: () => void
   onClear: () => void
 }) {
   return (
     <div className="flex items-center gap-2 border-b border-border/30 bg-accent/50 px-4 py-1.5">
       <span className="text-xs font-medium text-muted-foreground">已选择 {count} 个文件</span>
       <div className="flex-1" />
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onDownload}
-        className="flex items-center gap-1 rounded-md px-2 py-[3px] text-xs text-muted-foreground/60 transition-colors hover:bg-accent">
-        <Download size={10} />
-        <span>下载</span>
-      </Button>
       <Button
         variant="ghost"
         size="sm"
@@ -138,19 +127,20 @@ const BatchBar = memo(function BatchBar({
   )
 })
 
-const RE_EXT_SUFFIX = new RegExp('(' + String.fromCharCode(92) + '.' + String.fromCharCode(92) + 'w+)$')
-
 // ─── Main FilePage ───
 
 function FilesPage() {
   const [files, setFiles] = useState<FileItem[]>(MOCK_FILES)
   const [filter, setFilter] = useState<SidebarFilter>({ kind: 'library', value: 'all' })
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [previewFile, setPreviewFile] = useState<FileItem | null>(null)
+
   const [sortKey, setSortKey] = useState<SortKey>('updatedAt')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; fileId: string } | null>(null)
   const [dragOver, setDragOver] = useState(false)
+
+  // TODO: wire to File IPC open
+  const handleOpen = useCallback((_file: FileItem) => {}, [])
   const [renamingId, setRenamingId] = useState<string | null>(null)
 
   const folderList = useMemo(() => {
@@ -263,13 +253,7 @@ function FilesPage() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (renamingId) return
-      if (e.key === ' ' && selectedIds.size === 1 && !previewFile) {
-        e.preventDefault()
-        const file = files.find((f) => selectedIds.has(f.id))
-        if (file) setPreviewFile(file)
-      }
-      if (e.key === 'Escape' && previewFile) setPreviewFile(null)
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0 && !previewFile) {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0) {
         handleDelete()
       }
       if (e.key === 'F2' && selectedIds.size === 1) {
@@ -279,7 +263,7 @@ function FilesPage() {
     }
     document.addEventListener('keydown', handler)
     return () => document.removeEventListener('keydown', handler)
-  }, [selectedIds, files, previewFile, handleDelete, renamingId])
+  }, [selectedIds, handleDelete, renamingId])
 
   const isTrash = filter.kind === 'library' && filter.value === 'trash'
   const contextFile = contextMenu ? files.find((f) => f.id === contextMenu.fileId) : null
@@ -312,7 +296,6 @@ function FilesPage() {
           <BatchBar
             count={selectedIds.size}
             onDelete={() => handleDelete()}
-            onDownload={() => {}}
             onClear={() => setSelectedIds(new Set())}
           />
         )}
@@ -348,7 +331,7 @@ function FilesPage() {
               selectedIds={selectedIds}
               onSelect={handleSelect}
               onContextMenu={handleContextMenu}
-              onPreview={setPreviewFile}
+              onOpen={handleOpen}
               onDelete={(id) => handleDelete(new Set([id]))}
               renamingId={renamingId}
               onRenameConfirm={handleRename}
@@ -360,7 +343,7 @@ function FilesPage() {
               selectedIds={selectedIds}
               onSelect={handleSelect}
               onContextMenu={handleContextMenu}
-              onPreview={setPreviewFile}
+              onOpen={handleOpen}
               sortKey={sortKey}
               sortDir={sortDir}
               onSort={handleSort}
@@ -406,37 +389,10 @@ function FilesPage() {
             ) : (
               <div>
                 <CMenuItem
-                  icon={Eye}
-                  label="预览"
-                  onClick={() => {
-                    setPreviewFile(contextFile)
-                    setContextMenu(null)
-                  }}
-                />
-                <CMenuItem icon={Download} label="下载" onClick={() => setContextMenu(null)} />
-                <CMenuItem icon={Share2} label="分享" onClick={() => setContextMenu(null)} />
-                <div className="mx-1.5 my-0.5 border-t border-border/30" />
-                <CMenuItem
                   icon={Pencil}
                   label="重命名"
                   onClick={() => {
                     setRenamingId(contextMenu.fileId)
-                    setContextMenu(null)
-                  }}
-                />
-                <CMenuItem
-                  icon={Copy}
-                  label="复制"
-                  onClick={() => {
-                    const orig = files.find((f) => f.id === contextMenu.fileId)
-                    if (orig) {
-                      const copy: FileItem = {
-                        ...orig,
-                        id: `${orig.id}_copy_${Date.now()}`,
-                        name: `${orig.name.replace(RE_EXT_SUFFIX, ' (副本)$1')}`
-                      }
-                      setFiles((prev) => [...prev, copy])
-                    }
                     setContextMenu(null)
                   }}
                 />
@@ -458,9 +414,6 @@ function FilesPage() {
           </div>
         </Popover>
       )}
-
-      {/* Preview Modal */}
-      {previewFile && <FilePreview file={previewFile} onClose={() => setPreviewFile(null)} />}
     </div>
   )
 }

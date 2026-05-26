@@ -59,7 +59,7 @@ export const FileGrid = memo(function FileGrid({
   selectedIds,
   onSelect,
   onContextMenu,
-  onPreview,
+  onOpen,
   onDelete,
   renamingId,
   onRenameConfirm,
@@ -69,7 +69,7 @@ export const FileGrid = memo(function FileGrid({
   selectedIds: Set<string>
   onSelect: (id: string, multi: boolean) => void
   onContextMenu: (e: React.MouseEvent, id: string) => void
-  onPreview: (file: FileItem) => void
+  onOpen: (file: FileItem) => void
   onDelete: (id: string) => void
   renamingId: string | null
   onRenameConfirm: (id: string, name: string) => void
@@ -87,12 +87,12 @@ export const FileGrid = memo(function FileGrid({
             key={file.id}
             onClick={(e) => {
               if (isRenaming) return
-              if (isImage) onPreview(file)
+              if (isImage) onOpen(file)
               else onSelect(file.id, e.metaKey || e.ctrlKey)
             }}
             onContextMenu={(e) => onContextMenu(e, file.id)}
             onDoubleClick={() => {
-              if (!isRenaming) onPreview(file)
+              if (!isRenaming) onOpen(file)
             }}
             className={`group relative cursor-pointer rounded-lg border transition-all ${
               selected ? 'border-border/50 bg-accent/50' : 'border-border/30 hover:border-border/50 hover:bg-accent/50'
