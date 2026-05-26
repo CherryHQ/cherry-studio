@@ -305,7 +305,7 @@ export const GetVersionIpcSchema = FileHandleSchema
 export const WriteDataIpcSchema = z.union([z.string(), z.instanceof(Uint8Array)])
 export const FileVersionIpcSchema = z.strictObject({ mtime: z.number(), size: z.number() })
 export const RenameNewTargetIpcSchema = z.string().min(1)
-export const CopyIpcSchema = z.object({
+export const CopyIpcSchema = z.strictObject({
   source: FileHandleSchema,
   newName: z.string().optional()
 })
@@ -862,7 +862,8 @@ export class FileManager extends BaseService implements IFileManager {
         ids.map(async (id) => {
           try {
             return [id, await this.getMetadata(id)] as const
-          } catch {
+          } catch (err) {
+            fileManagerLogger.warn('batchGetMetadata item failed', { id, err })
             return [id, null] as const
           }
         })
@@ -1000,8 +1001,17 @@ export class FileManager extends BaseService implements IFileManager {
     })
     this.ipcHandle(IpcChannel.File_BatchGetPhysicalPaths, async (_e, params: unknown) => {
       const { ids } = BatchGetPhysicalPathsIpcSchema.parse(params)
-      const pairs = await Promise.all(ids.map(async (id) => [id, await this.getPhysicalPath(id)] as const))
-      return Object.fromEntries(pairs) as Record<string, FilePath>
+      const pairs = await Promise.all(
+        ids.map(async (id) => {
+          try {
+            return [id, await this.getPhysicalPath(id)] as const
+          } catch (err) {
+            fileManagerLogger.warn('batchGetPhysicalPaths item failed', { id, err })
+            return [id, null] as const
+          }
+        })
+      )
+      return Object.fromEntries(pairs) as Record<string, FilePath | null>
     })
     this.ipcHandle(IpcChannel.File_CanWrite, async (_e, params: unknown) =>
       canWrite(CanWriteIpcSchema.parse(params) as FilePath)

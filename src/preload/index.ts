@@ -196,7 +196,8 @@ const fileV2: FilePreloadApi = {
   // K. Path utilities
   canWrite: (dirPath: any) => ipcRenderer.invoke(IpcChannel.File_CanWrite, dirPath),
   toAbsolutePath: (filePath: any) => ipcRenderer.invoke(IpcChannel.File_ToAbsolutePath, filePath),
-  isPathInside: (child: any, parent: any) => ipcRenderer.invoke(IpcChannel.File_IsPathInside, child, parent),
+  isPathInside: (child: any, parent: any) =>
+    ipcRenderer.invoke(IpcChannel.File_IsPathInside, { childPath: child, parentPath: parent }),
 
   // L. Preload-only
   getPathForFile: (file: File) => webUtils.getPathForFile(file)

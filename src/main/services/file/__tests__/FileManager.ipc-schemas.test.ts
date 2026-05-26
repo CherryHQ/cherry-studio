@@ -312,6 +312,9 @@ describe('CopyIpcSchema', () => {
   it('rejects invalid source handle', () => {
     expect(() => CopyIpcSchema.parse({ source: { kind: 'bad' } })).toThrow()
   })
+  it('rejects extra keys', () => {
+    expect(() => CopyIpcSchema.parse({ source: { kind: 'entry', entryId: VALID_UUID_V7 }, extra: 1 })).toThrow()
+  })
 })
 
 describe('OpenSelectDialogIpcSchema', () => {
