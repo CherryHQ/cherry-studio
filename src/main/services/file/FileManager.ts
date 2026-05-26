@@ -1420,12 +1420,16 @@ export class FileManager extends BaseService implements IFileManager {
    * (microtask); cache-miss external entries run a single parallel `fs.stat`.
    */
   async batchGetDanglingStates(params: { ids: FileEntryId[] }): Promise<Record<FileEntryId, DanglingState>> {
-    const entries = await Promise.all(params.ids.map((id) => this.deps.fileEntryService.findById(id)))
     const pairs = await Promise.all(
-      entries.map(async (entry, index) => {
-        const id = params.ids[index]
-        const state: DanglingState = entry ? await this.deps.danglingCache.check(entry) : 'unknown'
-        return [id, state] as const
+      params.ids.map(async (id) => {
+        try {
+          const entry = await this.deps.fileEntryService.findById(id)
+          const state: DanglingState = entry ? await this.deps.danglingCache.check(entry) : 'unknown'
+          return [id, state] as const
+        } catch (err) {
+          fileManagerLogger.warn('batchGetDanglingStates item failed', { id, err })
+          return [id, 'unknown' as DanglingState] as const
+        }
       })
     )
     return Object.fromEntries(pairs) as Record<FileEntryId, DanglingState>
