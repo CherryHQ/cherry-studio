@@ -267,6 +267,10 @@ export const BatchCreateInternalEntriesIpcSchema = z.array(CreateInternalEntryIp
 
 export const BatchEnsureExternalEntriesIpcSchema = z.array(EnsureExternalEntryIpcSchema).max(FILE_BATCH_MAX_IDS)
 
+export const BatchGetPhysicalPathsIpcSchema = z.strictObject({
+  ids: z.array(FileEntryIdSchema).max(FILE_BATCH_MAX_IDS)
+})
+
 export const GetPhysicalPathIpcSchema = z.strictObject({ id: FileEntryIdSchema })
 
 export const PermanentDeleteIpcSchema = FileHandleSchema
@@ -981,6 +985,11 @@ export class FileManager extends BaseService implements IFileManager {
     this.ipcHandle(IpcChannel.File_BatchEnsureExternalEntries, async (_e, params: unknown) => {
       const items = BatchEnsureExternalEntriesIpcSchema.parse(params) as EnsureExternalEntryIpcParams[]
       return this.batchEnsureExternalEntries(items)
+    })
+    this.ipcHandle(IpcChannel.File_BatchGetPhysicalPaths, async (_e, params: unknown) => {
+      const { ids } = BatchGetPhysicalPathsIpcSchema.parse(params)
+      const pairs = await Promise.all(ids.map(async (id) => [id, await this.getPhysicalPath(id)] as const))
+      return Object.fromEntries(pairs) as Record<string, FilePath>
     })
   }
 
