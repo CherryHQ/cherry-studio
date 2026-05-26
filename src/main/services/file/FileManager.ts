@@ -134,7 +134,7 @@ import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { orphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry'
-import { atomicWriteFile, remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
+import { atomicWriteFile, move as fsMove, remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
 import { SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
@@ -281,6 +281,7 @@ export const BatchGetMetadataIpcSchema = z.strictObject({
 export const GetVersionIpcSchema = FileHandleSchema
 export const WriteDataIpcSchema = z.union([z.string(), z.instanceof(Uint8Array)])
 export const FileVersionIpcSchema = z.strictObject({ mtime: z.number(), size: z.number() })
+export const RenameNewTargetIpcSchema = z.string().min(1)
 export const ReadIpcOptionsSchema = z
   .object({
     encoding: z.enum(['text', 'base64', 'binary']).optional(),
@@ -859,6 +860,17 @@ export class FileManager extends BaseService implements IFileManager {
         )
       }
     )
+    this.ipcHandle(IpcChannel.File_Rename, async (_e, rawHandle: unknown, rawNewTarget: unknown) => {
+      const handle = FileHandleSchema.parse(rawHandle) as FileHandle
+      const newTarget = RenameNewTargetIpcSchema.parse(rawNewTarget)
+      return dispatchHandle(
+        handle,
+        (id) => this.rename(id, newTarget),
+        async (p) => {
+          await fsMove(p, newTarget as FilePath)
+        }
+      )
+    })
     this.ipcHandle(IpcChannel.File_RunSweep, async () => this.runSweep())
     this.ipcHandle(IpcChannel.File_Trash, async (_e, params: unknown) => this.trash(TrashIpcSchema.parse(params).id))
     this.ipcHandle(IpcChannel.File_Restore, async (_e, params: unknown) =>

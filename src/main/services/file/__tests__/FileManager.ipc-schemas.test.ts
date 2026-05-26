@@ -23,6 +23,7 @@ import {
   GetVersionIpcSchema,
   OpenIpcSchema,
   ReadIpcOptionsSchema,
+  RenameNewTargetIpcSchema,
   RestoreIpcSchema,
   ShowInFolderIpcSchema,
   TrashIpcSchema,
@@ -273,5 +274,14 @@ describe('FileVersionIpcSchema', () => {
   })
   it('rejects missing size', () => {
     expect(() => FileVersionIpcSchema.parse({ mtime: 1000 })).toThrow()
+  })
+})
+
+describe('RenameNewTargetIpcSchema', () => {
+  it('accepts non-empty string', () => {
+    expect(RenameNewTargetIpcSchema.parse('new-name')).toBe('new-name')
+  })
+  it('rejects empty string', () => {
+    expect(() => RenameNewTargetIpcSchema.parse('')).toThrow()
   })
 })
