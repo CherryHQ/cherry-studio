@@ -128,6 +128,8 @@ const { createIndexDocumentsJobHandler } = await import('../indexDocumentsJobHan
 const { createPrepareRootJobHandler } = await import('../prepareRootJobHandler')
 const { createReindexSubtreeJobHandler } = await import('../reindexSubtreeJobHandler')
 
+const NOTE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
+
 function createBase(): KnowledgeBase {
   return {
     id: 'kb-1',
@@ -272,14 +274,16 @@ describe('knowledge job handlers', () => {
 
   it('index-documents updates statuses, writes vectors, and completes the item', async () => {
     const handler = createIndexDocumentsJobHandler(mutationCoordinator as never)
+    knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
+    knowledgeItemUpdateStatusMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
 
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'note-1', parentJobId: null }))
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
 
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('note-1', 'reading')
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('note-1', 'embedding')
-    expect(replaceByExternalIdMock).toHaveBeenCalledWith('note-1', expect.any(Array))
-    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('note-1', 'completed')
-    expect(handler.defaultQueue?.({ baseId: 'kb-1', itemId: 'note-1', parentJobId: null })).toBe('base.kb-1')
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'reading')
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'embedding')
+    expect(replaceByExternalIdMock).toHaveBeenCalledWith(NOTE_ITEM_ID, expect.any(Array))
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
+    expect(handler.defaultQueue?.({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null })).toBe('base.kb-1')
   })
 
   it('index-documents onSettled skips failed status when the item is deleting', async () => {

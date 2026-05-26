@@ -17,7 +17,7 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it, vi } from 'vitest'
 
 import { FileMigrator } from '../FileMigrator'
-import { KnowledgeMigrator } from '../KnowledgeMigrator'
+import { KNOWLEDGE_ITEM_ID_REMAP_SHARED_DATA_KEY, KnowledgeMigrator } from '../KnowledgeMigrator'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -130,8 +130,11 @@ describe('KnowledgeMigrator dangling file_ref guard (integration)', () => {
     const fileRefRows = await dbh.db
       .select({ fileEntryId: fileRefTable.fileEntryId, sourceId: fileRefTable.sourceId })
       .from(fileRefTable)
+    const itemIdRemap = (ctx as unknown as { sharedData: Map<string, unknown> }).sharedData.get(
+      KNOWLEDGE_ITEM_ID_REMAP_SHARED_DATA_KEY
+    ) as Map<string, string>
     expect(fileRefRows).toHaveLength(1)
-    expect(fileRefRows[0]).toMatchObject({ fileEntryId: 'abc-survivor', sourceId: 'item-survivor' })
+    expect(fileRefRows[0]).toMatchObject({ fileEntryId: 'abc-survivor', sourceId: itemIdRemap.get('item-survivor') })
 
     // Also exercise the post-migration check that the engine runs.
     const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
@@ -216,8 +219,8 @@ describe('KnowledgeMigrator dangling file_ref guard (integration)', () => {
     const flushed = allWarnings.find((w) => w.includes('knowledge_item_dangling_file_entry'))
     expect(flushed).toBeDefined()
     expect(flushed).toContain('count=2')
-    expect(flushed).toContain('item-dangling-a')
-    expect(flushed).toContain('item-dangling-b')
+    expect(flushed).toContain('abc-skipped-a')
+    expect(flushed).toContain('abc-skipped-b')
 
     // KB + items committed normally despite the dropped refs.
     const baseRows = await dbh.db.select().from(knowledgeBaseTable)

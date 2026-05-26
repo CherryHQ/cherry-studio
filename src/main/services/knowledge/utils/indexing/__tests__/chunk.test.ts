@@ -5,9 +5,13 @@ import { describe, expect, it } from 'vitest'
 
 import { chunkDocuments, mapChunkDocument } from '../chunk'
 
+const KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
+const KNOWLEDGE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
+const CHUNK_ITEM_ID = '0198f3f2-7d1b-7abc-8def-123456789abc'
+
 function createBase(): KnowledgeBase {
   return {
-    id: 'kb-1',
+    id: KNOWLEDGE_BASE_ID,
     name: 'KB',
     groupId: null,
     emoji: '📁',
@@ -25,8 +29,8 @@ function createBase(): KnowledgeBase {
 
 function createItem() {
   return {
-    id: 'item-1',
-    baseId: 'kb-1',
+    id: KNOWLEDGE_ITEM_ID,
+    baseId: KNOWLEDGE_BASE_ID,
     groupId: null,
     type: 'note' as const,
     data: { source: 'item-1', content: 'hello' },
@@ -60,7 +64,7 @@ describe('chunkDocuments', () => {
     expect(chunks).toHaveLength(2)
     expect(metadata[0]).toMatchObject({
       source: 'https://example.com/1',
-      itemId: 'item-1',
+      itemId: KNOWLEDGE_ITEM_ID,
       itemType: 'note',
       chunkIndex: 0,
       tokenCount: expect.any(Number)
@@ -68,7 +72,7 @@ describe('chunkDocuments', () => {
     expect(metadata[0]).not.toHaveProperty('page')
     expect(metadata[1]).toMatchObject({
       source: 'https://example.com/2',
-      itemId: 'item-1',
+      itemId: KNOWLEDGE_ITEM_ID,
       itemType: 'note',
       chunkIndex: 1,
       tokenCount: expect.any(Number)
@@ -105,7 +109,7 @@ describe('mapChunkDocument', () => {
       id_: 'chunk-1',
       metadata: {
         source: 'note-1',
-        itemId: 'item-1',
+        itemId: CHUNK_ITEM_ID,
         itemType: 'note',
         chunkIndex: 0,
         tokenCount: 3
@@ -115,11 +119,11 @@ describe('mapChunkDocument', () => {
 
     expect(mapChunkDocument(chunk)).toEqual({
       id: 'chunk-1',
-      itemId: 'item-1',
+      itemId: CHUNK_ITEM_ID,
       content: 'chunk text',
       metadata: {
         source: 'note-1',
-        itemId: 'item-1',
+        itemId: CHUNK_ITEM_ID,
         itemType: 'note',
         chunkIndex: 0,
         tokenCount: 3

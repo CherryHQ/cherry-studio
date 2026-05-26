@@ -16,6 +16,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { BaseMigrator } from './BaseMigrator'
+import { KNOWLEDGE_BASE_ID_REMAP_SHARED_DATA_KEY, KNOWLEDGE_ITEM_ID_REMAP_SHARED_DATA_KEY } from './KnowledgeMigrator'
 
 const logger = loggerService.withContext('KnowledgeVectorMigrator')
 
@@ -75,6 +76,10 @@ interface PreparedBasePlan {
   dimensions: number
   rows: PreparedVectorRow[]
   sourceRowCount: number
+}
+
+function isStringMap(value: unknown): value is Map<string, string> {
+  return value instanceof Map
 }
 
 export class KnowledgeVectorMigrator extends BaseMigrator {
@@ -263,7 +268,8 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
 
   private buildLoaderTargetMap(
     legacyBase: LegacyKnowledgeBaseWithLoaders | undefined,
-    migratedItemsById: Map<string, MigratedKnowledgeItemForVector>
+    migratedItemsById: Map<string, MigratedKnowledgeItemForVector>,
+    legacyItemIdRemap: Map<string, string>
   ): Map<string, LoaderTarget> {
     const map = new Map<string, LoaderTarget>()
     if (!legacyBase || !Array.isArray(legacyBase.items)) {
@@ -275,7 +281,12 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
         continue
       }
 
-      const migratedItem = migratedItemsById.get(item.id)
+      const migratedItemId = legacyItemIdRemap.get(item.id)
+      if (!migratedItemId) {
+        continue
+      }
+
+      const migratedItem = migratedItemsById.get(migratedItemId)
       if (!migratedItem) {
         continue
       }
@@ -336,6 +347,13 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           .filter((base): base is LegacyKnowledgeBaseWithLoaders & { id: string } => typeof base.id === 'string')
           .map((base) => [base.id, base])
       )
+      const sharedBaseRemap = ctx.sharedData.get(KNOWLEDGE_BASE_ID_REMAP_SHARED_DATA_KEY)
+      const legacyBaseIdRemap = isStringMap(sharedBaseRemap) ? sharedBaseRemap : new Map<string, string>()
+      const legacyBaseIdByMigratedId = new Map(
+        [...legacyBaseIdRemap.entries()].map(([legacyBaseId, migratedBaseId]) => [migratedBaseId, legacyBaseId])
+      )
+      const sharedItemRemap = ctx.sharedData.get(KNOWLEDGE_ITEM_ID_REMAP_SHARED_DATA_KEY)
+      const legacyItemIdRemap = isStringMap(sharedItemRemap) ? sharedItemRemap : new Map<string, string>()
 
       for (const base of migratedBases) {
         if (base.status === 'failed' || base.embeddingModelId === null) {
@@ -351,14 +369,21 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
           continue
         }
 
-        const legacyBase = legacyBasesById.get(base.id)
+        const legacyBaseId = legacyBaseIdByMigratedId.get(base.id)
+        if (!legacyBaseId) {
+          const warningMessage = `Skipped knowledge vector base ${base.id}: migrated base id cannot be mapped to legacy knowledge base id`
+          this.recordSkippedWarning('unmapped_base', warningMessage)
+          continue
+        }
+
+        const legacyBase = legacyBasesById.get(legacyBaseId)
         if (!legacyBase) {
-          const warningMessage = `Skipped knowledge vector base ${base.id}: legacy knowledge base not found`
+          const warningMessage = `Skipped knowledge vector base ${base.id}: legacy knowledge base ${legacyBaseId} not found`
           this.recordSkippedWarning('legacy_base_missing', warningMessage)
           continue
         }
 
-        const source = await ctx.sources.knowledgeVectorSource.loadBase(base.id)
+        const source = await ctx.sources.knowledgeVectorSource.loadBase(legacyBaseId)
         switch (source.status) {
           case 'invalid_path': {
             const warningMessage = `Skipped knowledge vector base ${base.id}: invalid legacy vector DB path`
@@ -387,7 +412,8 @@ export class KnowledgeVectorMigrator extends BaseMigrator {
 
         const loaderTargetMap = this.buildLoaderTargetMap(
           legacyBase,
-          migratedItemsByBaseId.get(base.id) ?? new Map<string, MigratedKnowledgeItemForVector>()
+          migratedItemsByBaseId.get(base.id) ?? new Map<string, MigratedKnowledgeItemForVector>(),
+          legacyItemIdRemap
         )
         const rows: PreparedVectorRow[] = []
         const chunkIndexByItemId = new Map<string, number>()

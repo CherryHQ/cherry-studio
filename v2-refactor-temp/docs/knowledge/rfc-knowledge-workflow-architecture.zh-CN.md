@@ -4,6 +4,9 @@
 >
 > 目标是把 add / delete / reindex / file processing / indexing 的职责边界讲清楚，
 > 不作为逐文件实施清单。
+>
+> Canonical reference: [docs/references/knowledge/workflow-architecture.md](../../../docs/references/knowledge/workflow-architecture.md).
+> `v2-refactor-temp` 下的文档会在 v2 收尾时移除。
 
 ---
 
@@ -144,10 +147,12 @@ itemId
 职责：
 
 - 展开 `directory` / `sitemap`。
-- 创建或替换 leaf items。
-- 对每个 leaf 调用 `coordinator.scheduleItem(baseId, leafId)`。
+- 创建或替换 child items。
+- 对每个 child 调用 `coordinator.scheduleItem(baseId, childId)`。
+- child 仍可能是 `directory` / `sitemap`；此时由 coordinator 再次分派到 `knowledge.prepare-root`，形成递归展开。
+- 只有 `file` / `note` / `url` child 会进入 source planning 和 indexing。
 
-不负责 leaf source planning、reader、embedding、vector write。
+不负责 child type 分支、source planning、reader、embedding、vector write。
 
 ### `knowledge.check-file-processing-result`（Round 2）
 

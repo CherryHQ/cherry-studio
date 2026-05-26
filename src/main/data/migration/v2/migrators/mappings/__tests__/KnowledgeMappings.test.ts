@@ -5,6 +5,9 @@ import { describe, expect, it } from 'vitest'
 import { legacyModelToUniqueId } from '../../transformers/ModelTransformers'
 import { inferKnowledgeItemStatus, transformKnowledgeBase, transformKnowledgeItem } from '../KnowledgeMappings'
 
+const UUIDV7_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const UUIDV4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
 const fileMetadata = {
   id: 'file-1',
   name: 'report.pdf',
@@ -44,7 +47,7 @@ describe('KnowledgeMappings', () => {
     ).toStrictEqual({
       ok: true,
       value: expect.objectContaining({
-        id: 'kb-1',
+        id: expect.stringMatching(UUIDV4_PATTERN),
         embeddingModelId: null,
         status: 'failed',
         error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
@@ -107,7 +110,7 @@ describe('KnowledgeMappings', () => {
     ).toStrictEqual({
       ok: true,
       value: expect.objectContaining({
-        id: 'kb-soft-limit-config',
+        id: expect.stringMatching(UUIDV4_PATTERN),
         name: 'KB soft limit config',
         embeddingModelId: 'silicon::BAAI/bge-m3',
         chunkSize: 80,
@@ -134,7 +137,7 @@ describe('KnowledgeMappings', () => {
     ).toStrictEqual({
       ok: true,
       value: expect.objectContaining({
-        id: 'kb-invalid-config',
+        id: expect.stringMatching(UUIDV4_PATTERN),
         name: 'KB invalid config',
         embeddingModelId: 'silicon::BAAI/bge-m3',
         chunkSize: 200,
@@ -211,7 +214,7 @@ describe('KnowledgeMappings', () => {
     expect(result).toStrictEqual({
       ok: true,
       value: {
-        id: 'note-1',
+        id: expect.stringMatching(UUIDV7_PATTERN),
         baseId: 'kb-1',
         groupId: null,
         type: 'note',
@@ -246,7 +249,7 @@ describe('KnowledgeMappings', () => {
     expect(result).toStrictEqual({
       ok: true,
       value: {
-        id: 'file-item-1',
+        id: expect.stringMatching(UUIDV7_PATTERN),
         baseId: 'kb-1',
         groupId: null,
         type: 'file',
@@ -369,7 +372,7 @@ describe('KnowledgeMappings', () => {
     expect(result).toStrictEqual({
       ok: true,
       value: {
-        id: 'dir-1',
+        id: expect.stringMatching(UUIDV7_PATTERN),
         baseId: 'kb-1',
         groupId: null,
         type: 'directory',

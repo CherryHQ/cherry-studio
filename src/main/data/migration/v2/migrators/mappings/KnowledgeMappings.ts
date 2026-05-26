@@ -10,6 +10,7 @@ import {
   type KnowledgeItemData,
   type KnowledgeItemStatus
 } from '@shared/data/types/knowledge'
+import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
 import { legacyModelToUniqueId } from '../transformers/ModelTransformers'
 
@@ -220,7 +221,7 @@ export const transformKnowledgeBase = (
   const rerankModelId = legacyModelToUniqueId(base.rerankModel ?? null)
 
   const transformedBase: NewKnowledgeBase = {
-    id: base.id,
+    id: uuidv4(),
     name: base.name,
     groupId: null,
     emoji: DEFAULT_KNOWLEDGE_BASE_EMOJI,
@@ -335,9 +336,7 @@ export const transformKnowledgeItem = (
   return {
     ok: true,
     value: {
-      // Preserve legacy item IDs during migration for identity stability.
-      // UUID v7 ordering benefits apply only to knowledge items created after migration.
-      id: item.id,
+      id: uuidv7(),
       baseId,
       // Official v1 exports are flat, so migrated items do not carry grouping
       // metadata by default.

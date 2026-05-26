@@ -135,6 +135,10 @@ vi.mock('../rerank/rerank', () => ({
 
 const { KnowledgeOrchestrationService } = await import('../KnowledgeOrchestrationService')
 
+const NOTE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
+const DELETING_NOTE_ITEM_ID = '0198f3f2-7d1b-7abc-8def-123456789abc'
+const MISSING_NOTE_ITEM_ID = '0198f3f2-7d1c-7abc-8def-123456789abc'
+
 function createBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
   return {
     id: 'kb-1',
@@ -529,12 +533,12 @@ describe('KnowledgeOrchestrationService', () => {
       nodes: [
         {
           id_: 'chunk-1',
-          metadata: { itemId: 'note-1', itemType: 'note', source: 'note-1', chunkIndex: 0, tokenCount: 3 },
+          metadata: { itemId: NOTE_ITEM_ID, itemType: 'note', source: 'note-1', chunkIndex: 0, tokenCount: 3 },
           getContent: () => 'hello world'
         },
         {
           id_: 'chunk-2',
-          metadata: { itemId: 'note-1', itemType: 'note', source: 'note-1', chunkIndex: 1, tokenCount: 3 },
+          metadata: { itemId: NOTE_ITEM_ID, itemType: 'note', source: 'note-1', chunkIndex: 1, tokenCount: 3 },
           getContent: () => 'low score'
         }
       ],
@@ -542,17 +546,17 @@ describe('KnowledgeOrchestrationService', () => {
     })
 
     await expect(service.search('kb-1', 'hello')).resolves.toEqual([
-      expect.objectContaining({ chunkId: 'chunk-1', itemId: 'note-1', rank: 1, score: 0.8 })
+      expect.objectContaining({ chunkId: 'chunk-1', itemId: NOTE_ITEM_ID, rank: 1, score: 0.8 })
     ])
   })
 
   it('filters search results for missing or deleting items', async () => {
     const service = new KnowledgeOrchestrationService()
     knowledgeItemGetByIdMock.mockImplementation(async (id: string) => {
-      if (id === 'missing-note') {
+      if (id === MISSING_NOTE_ITEM_ID) {
         throw DataApiErrorFactory.notFound('KnowledgeItem', id)
       }
-      if (id === 'deleting-note') {
+      if (id === DELETING_NOTE_ITEM_ID) {
         return createNoteItem(id, 'kb-1', null, 'deleting')
       }
       return createNoteItem(id)
@@ -561,13 +565,13 @@ describe('KnowledgeOrchestrationService', () => {
       nodes: [
         {
           id_: 'chunk-active',
-          metadata: { itemId: 'note-1', itemType: 'note', source: 'note-1', chunkIndex: 0, tokenCount: 3 },
+          metadata: { itemId: NOTE_ITEM_ID, itemType: 'note', source: 'note-1', chunkIndex: 0, tokenCount: 3 },
           getContent: () => 'active'
         },
         {
           id_: 'chunk-deleting',
           metadata: {
-            itemId: 'deleting-note',
+            itemId: DELETING_NOTE_ITEM_ID,
             itemType: 'note',
             source: 'deleting-note',
             chunkIndex: 0,
@@ -578,7 +582,7 @@ describe('KnowledgeOrchestrationService', () => {
         {
           id_: 'chunk-missing',
           metadata: {
-            itemId: 'missing-note',
+            itemId: MISSING_NOTE_ITEM_ID,
             itemType: 'note',
             source: 'missing-note',
             chunkIndex: 0,
@@ -591,7 +595,7 @@ describe('KnowledgeOrchestrationService', () => {
     })
 
     await expect(service.search('kb-1', 'hello')).resolves.toEqual([
-      expect.objectContaining({ chunkId: 'chunk-active', itemId: 'note-1', rank: 1, score: 0.9 })
+      expect.objectContaining({ chunkId: 'chunk-active', itemId: NOTE_ITEM_ID, rank: 1, score: 0.9 })
     ])
   })
 
@@ -600,13 +604,13 @@ describe('KnowledgeOrchestrationService', () => {
     vectorListByExternalIdMock.mockResolvedValueOnce([
       {
         id_: 'chunk-1',
-        metadata: { itemId: 'note-1', itemType: 'note', source: 'note-1', chunkIndex: 0, tokenCount: 2 },
+        metadata: { itemId: NOTE_ITEM_ID, itemType: 'note', source: 'note-1', chunkIndex: 0, tokenCount: 2 },
         getContent: () => 'chunk text'
       }
     ])
 
     await expect(service.listItemChunks('kb-1', 'note-1')).resolves.toEqual([
-      expect.objectContaining({ id: 'chunk-1', itemId: 'note-1', content: 'chunk text' })
+      expect.objectContaining({ id: 'chunk-1', itemId: NOTE_ITEM_ID, content: 'chunk text' })
     ])
     await service.deleteItemChunk('kb-1', 'note-1', 'chunk-1')
 

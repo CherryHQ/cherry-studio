@@ -1,6 +1,6 @@
 import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
 import { formatFileSize } from '@renderer/utils'
-import type { KnowledgeItem, KnowledgeItemOf, KnowledgeItemType } from '@shared/data/types/knowledge'
+import type { KnowledgeItemOf, KnowledgeItemStatus, KnowledgeItemType } from '@shared/data/types/knowledge'
 import type { LucideIcon } from 'lucide-react'
 import { FileText, Folder, Globe, Link2, StickyNote } from 'lucide-react'
 
@@ -43,7 +43,7 @@ export interface DataSourceTypeDisplayConfig<T extends KnowledgeItemType> {
   getTitle: (item: KnowledgeItemOf<T>) => string
   getSuffix: (item: KnowledgeItemOf<T>) => string
   getMetaParts: (item: KnowledgeItemOf<T>, context: DataSourceDisplayContext) => string[]
-  getStatus: (item: KnowledgeItemOf<T>) => DataSourceStatusViewModel
+  getStatus: (status: KnowledgeItemStatus) => DataSourceStatusViewModel
 }
 
 type DataSourceTypeDisplayConfigMap = {
@@ -62,8 +62,8 @@ const getNoteTitle = (content: string) => {
   return firstLine || ''
 }
 
-export const resolveDataSourceStatusViewModel = (item: Pick<KnowledgeItem, 'status'>): DataSourceStatusViewModel => {
-  if (item.status === 'completed') {
+export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): DataSourceStatusViewModel => {
+  if (status === 'completed') {
     return {
       kind: 'completed',
       labelKey: 'knowledge.data_source.status.ready',
@@ -72,7 +72,7 @@ export const resolveDataSourceStatusViewModel = (item: Pick<KnowledgeItem, 'stat
     }
   }
 
-  if (item.status === 'failed') {
+  if (status === 'failed') {
     return {
       kind: 'failed',
       labelKey: 'knowledge.data_source.status.error',
@@ -81,7 +81,7 @@ export const resolveDataSourceStatusViewModel = (item: Pick<KnowledgeItem, 'stat
     }
   }
 
-  if (item.status === 'embedding') {
+  if (status === 'embedding') {
     return {
       kind: 'processing',
       labelKey: 'knowledge.data_source.status.embedding',
@@ -90,7 +90,7 @@ export const resolveDataSourceStatusViewModel = (item: Pick<KnowledgeItem, 'stat
     }
   }
 
-  if (item.status === 'reading') {
+  if (status === 'reading') {
     return {
       kind: 'processing',
       labelKey: 'knowledge.rag.file_processing',
@@ -99,7 +99,7 @@ export const resolveDataSourceStatusViewModel = (item: Pick<KnowledgeItem, 'stat
     }
   }
 
-  if (item.status === 'processing') {
+  if (status === 'processing') {
     return {
       kind: 'processing',
       labelKey: 'knowledge.status.processing',
@@ -108,7 +108,7 @@ export const resolveDataSourceStatusViewModel = (item: Pick<KnowledgeItem, 'stat
     }
   }
 
-  if (item.status === 'idle' || item.status === 'preparing') {
+  if (status === 'idle' || status === 'preparing') {
     return {
       kind: 'processing',
       labelKey: 'knowledge.data_source.status.pending',
