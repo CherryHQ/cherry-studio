@@ -4,7 +4,7 @@ import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
 import { getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
-import type { FileInfo } from '@shared/file/types'
+import { type FileInfo, FileInfoSchema } from '@shared/file/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PreparedTesseractContext } from '../../types'
@@ -49,7 +49,7 @@ async function flushPromises(): Promise<void> {
 }
 
 function createFileInfo(overrides: Partial<FileInfo> = {}): FileInfo {
-  return {
+  return FileInfoSchema.parse({
     path: '/tmp/scan.png',
     name: 'scan',
     ext: 'png',
@@ -59,7 +59,7 @@ function createFileInfo(overrides: Partial<FileInfo> = {}): FileInfo {
     createdAt: 1,
     modifiedAt: 1,
     ...overrides
-  } as FileInfo
+  }) as FileInfo
 }
 
 const cleanupCases = [
@@ -540,7 +540,7 @@ describe('TesseractRuntimeService', () => {
     service = new TesseractRuntimeService()
     await service._doInit()
 
-    const file = createFileInfo() as const
+    const file = createFileInfo()
 
     await service.extract({
       file,
@@ -594,7 +594,7 @@ describe('TesseractRuntimeService', () => {
     service = new TesseractRuntimeService()
     await service._doInit()
 
-    const file = createFileInfo() as const
+    const file = createFileInfo()
     const first = service.extract({
       file,
       langs: ['eng']

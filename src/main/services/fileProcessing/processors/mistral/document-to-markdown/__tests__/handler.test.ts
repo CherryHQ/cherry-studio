@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
-import type { FileInfo } from '@shared/file/types'
+import { type FileInfo, FileInfoSchema } from '@shared/file/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { MistralMock, deleteMock, getSignedUrlMock, ocrProcessMock, uploadMock } = vi.hoisted(() => {
@@ -185,7 +185,7 @@ function createConfig(): FileProcessorMerged {
 }
 
 function createFile(): FileInfo {
-  return {
+  return FileInfoSchema.parse({
     path: '/tmp/input.pdf',
     name: 'input',
     size: 1024,
@@ -194,5 +194,5 @@ function createFile(): FileInfo {
     type: 'document',
     createdAt: 1,
     modifiedAt: 1
-  } as FileInfo
+  }) as FileInfo
 }

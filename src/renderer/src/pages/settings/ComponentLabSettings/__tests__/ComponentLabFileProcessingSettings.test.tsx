@@ -50,15 +50,15 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   return {
     ...actual,
     Badge: ({ children, ...props }: React.HTMLAttributes<HTMLSpanElement>) => <span {...props}>{children}</span>,
-    Button: ({
-      children,
-      loading: _loading,
-      ...props
-    }: React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) => (
-      <button type="button" {...props}>
-        {children}
-      </button>
-    )
+    Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean }) => {
+      delete props.loading
+
+      return (
+        <button type="button" {...props}>
+          {children}
+        </button>
+      )
+    }
   }
 })
 
