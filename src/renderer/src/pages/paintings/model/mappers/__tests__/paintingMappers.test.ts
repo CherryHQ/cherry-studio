@@ -6,15 +6,24 @@ import { paintingDataToCreateDto } from '../paintingDataToCreateDto'
 import { paintingDataToUpdateDto } from '../paintingDataToUpdateDto'
 import { recordsToPaintingDataList, recordToPaintingData } from '../recordToPaintingData'
 
-const { mockGetFile } = vi.hoisted(() => ({
-  mockGetFile: vi.fn()
+const { mockDataApiGet, mockGetPhysicalPath } = vi.hoisted(() => ({
+  mockDataApiGet: vi.fn(),
+  mockGetPhysicalPath: vi.fn()
 }))
 
-vi.mock('@renderer/services/FileManager', () => ({
-  default: {
-    getFile: mockGetFile
+vi.mock('@data/DataApiService', () => ({
+  dataApiService: {
+    get: mockDataApiGet
   }
 }))
+
+vi.stubGlobal('window', {
+  api: {
+    file: {
+      getPhysicalPath: mockGetPhysicalPath
+    }
+  }
+})
 
 describe('paintingMappers', () => {
   const file: FileMetadata = {
@@ -44,14 +53,25 @@ describe('paintingMappers', () => {
   }
 
   beforeEach(() => {
-    mockGetFile.mockReset()
-    mockGetFile.mockImplementation(async (id: string) => {
+    mockDataApiGet.mockReset()
+    mockGetPhysicalPath.mockReset()
+    mockDataApiGet.mockImplementation(async (path: string) => {
+      // DataApi path is `/files/entries/${id}` after template-literal resolution.
+      const id = path.split('/').pop() ?? ''
       if (id === 'file-1' || id === 'input-file-1') {
-        return { ...file, id, name: `${id}.png` }
+        return {
+          id,
+          origin: 'internal',
+          name: id,
+          ext: 'png',
+          size: 10,
+          createdAt: Date.parse('2026-01-01T00:00:00.000Z'),
+          updatedAt: Date.parse('2026-01-01T00:00:00.000Z')
+        }
       }
-
-      return undefined
+      throw new Error(`not found: ${id}`)
     })
+    mockGetPhysicalPath.mockImplementation(async ({ id }: { id: string }) => `/tmp/${id}.png`)
   })
 
   it('hydrates a Painting record into PaintingData with resolved files', async () => {
@@ -63,8 +83,16 @@ describe('paintingMappers', () => {
       mode: 'generate',
       model: 'model-1',
       prompt: 'draw a cat',
-      files: [{ ...file, name: 'file-1.png' }],
-      inputFiles: [{ ...file, id: 'input-file-1', name: 'input-file-1.png' }],
+      files: [{ ...file, name: 'file-1.png', path: '/tmp/file-1.png' }],
+      inputFiles: [
+        {
+          ...file,
+          id: 'input-file-1',
+          name: 'input-file-1.png',
+          origin_name: 'input-file-1.png',
+          path: '/tmp/input-file-1.png'
+        }
+      ],
       persistedAt: '2026-01-01T00:00:00.000Z'
     })
   })

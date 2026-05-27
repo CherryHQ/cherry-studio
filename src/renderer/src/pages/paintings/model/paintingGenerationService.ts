@@ -4,9 +4,9 @@ import {
   normalizePaintingGenerateError
 } from '@renderer/aiCore/errors/paintingGenerateError'
 import type { FileMetadata } from '@renderer/types'
-import type { FileEntry } from '@shared/data/types/file/fileEntry'
 
 import { downloadImages } from '../utils/downloadImages'
+import { fileEntryToMetadata } from '../utils/fileEntryAdapter'
 
 const logger = loggerService.withContext('paintings/generation')
 
@@ -14,28 +14,6 @@ export type GenerationResult =
   | { urls: string[]; downloadOptions?: { allowBase64DataUrls?: boolean; showProxyWarning?: boolean } }
   | { base64s: string[] }
   | { files: FileMetadata[] }
-
-async function fileEntryToMetadata(entry: FileEntry): Promise<FileMetadata> {
-  const path = await window.api.file.getPhysicalPath({ id: entry.id })
-  const dottedExt = entry.ext ? `.${entry.ext}` : ''
-  const fullName = `${entry.name}${dottedExt}`
-  // `entry.size` only exists on the internal variant of FileEntry; painting
-  // outputs always create internal entries via `source: 'base64' | 'url'`,
-  // so the external branch is unreachable here but TS can't narrow without
-  // an explicit check.
-  const size = entry.origin === 'internal' ? entry.size : 0
-  return {
-    id: entry.id,
-    name: fullName,
-    origin_name: fullName,
-    path,
-    size,
-    ext: dottedExt,
-    type: 'image',
-    created_at: new Date(entry.createdAt).toISOString(),
-    count: 1
-  }
-}
 
 export async function resolvePaintingFiles(result: GenerationResult): Promise<FileMetadata[]> {
   let files: FileMetadata[] = []

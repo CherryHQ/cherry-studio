@@ -1,9 +1,14 @@
-import FileManager from '@renderer/services/FileManager'
+import { dataApiService } from '@data/DataApiService'
+import { loggerService } from '@logger'
 import type { FileMetadata } from '@renderer/types'
+import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { Painting as PaintingRecord } from '@shared/data/types/painting'
 
+import { fileEntryToMetadata } from '../../utils/fileEntryAdapter'
 import type { PaintingData } from '../types/paintingData'
+
+const logger = loggerService.withContext('paintings/recordToPaintingData')
 
 /** Maps DB `painting.model_id` into the renderer's API model slug (never the user_model row id alone). */
 function normalizeStoredPaintingModel(value: unknown): string | undefined {
@@ -21,10 +26,32 @@ function normalizeStoredPaintingModel(value: unknown): string | undefined {
   return trimmed
 }
 
+/**
+ * Look up v2 `FileEntry` rows by id via DataApi, then adapt to FileMetadata.
+ *
+ * Replaces the v1 `FileManager.getFile(id)` Dexie lookup that returned null
+ * for any file produced via the v2 `createInternalEntry` path — which is the
+ * default now for painting outputs. Missing ids (404 / migrator drop / user
+ * deletion) are filtered out so the painting still hydrates with whatever
+ * files do resolve.
+ */
 async function resolveFiles(ids: string[]): Promise<FileMetadata[]> {
-  return (await Promise.all(ids.map(async (id) => (await FileManager.getFile(id)) ?? null))).filter(
-    (file): file is FileMetadata => Boolean(file)
+  if (ids.length === 0) return []
+  const entries = await Promise.all(
+    ids.map(async (id) => {
+      try {
+        return (await dataApiService.get(`/files/entries/${id}` as never)) as FileEntry
+      } catch (error) {
+        // Entry deleted or never registered (v1 file the migrator skipped,
+        // FK-filtered ref-insert, manual cleanup). Skip silently — the
+        // painting hydrates with whatever's still resolvable.
+        logger.warn('Skipping unresolved file_entry for painting', { id, error })
+        return null
+      }
+    })
   )
+  const resolved = entries.filter((e): e is FileEntry => e !== null)
+  return Promise.all(resolved.map(fileEntryToMetadata))
 }
 
 /**
