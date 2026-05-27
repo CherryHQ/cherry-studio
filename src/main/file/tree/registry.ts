@@ -28,30 +28,25 @@ import { randomUUID } from 'node:crypto'
 import { loggerService } from '@logger'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { AbsolutePathSchema } from '@shared/data/types/file'
-import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/file/types'
+import {
+  type CreateTreeIpcResult,
+  type DirectoryTreeOptions,
+  DirectoryTreeOptionsSchema,
+  type TreeMutationPushPayload
+} from '@shared/file/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { WebContents } from 'electron'
 import * as z from 'zod'
 
 import { createDirectoryTree, type DirectoryTreeBuilder } from './builder'
 
-// Zod mirror of `DirectoryTreeOptions` for IPC validation. Kept structural —
-// the renderer is trusted enough to pass arbitrary booleans/numbers, but the
-// shape must match so a malformed payload fails fast at the boundary instead
-// of corrupting the builder's resolved options downstream.
-const DirectoryTreeOptionsSchema = z
-  .strictObject({
-    extensions: z.array(z.string()).optional(),
-    respectGitignore: z.boolean().optional(),
-    includeHidden: z.boolean().optional(),
-    withStats: z.boolean().optional(),
-    maxDepth: z.int().nonnegative().optional()
-  })
-  .optional()
-
+// IPC param schemas. `DirectoryTreeOptionsSchema` is the shared source of
+// truth (see `@shared/file/types/tree`); the IPC-level wrappers stay here
+// next to the handlers, matching the FileManager / DataApi convention where
+// leaf schemas live in shared and per-channel param schemas live in main.
 const TreeCreateParamsSchema = z.strictObject({
   rootPath: AbsolutePathSchema,
-  options: DirectoryTreeOptionsSchema
+  options: DirectoryTreeOptionsSchema.optional()
 })
 
 const TreeDisposeParamsSchema = z.strictObject({ treeId: z.string().min(1) })
@@ -125,7 +120,7 @@ export class TreeRegistry extends BaseService {
     // at the boundary instead of silently mis-typing downstream state.
     this.ipcHandle(IpcChannel.Tree_Create, async (event, params: unknown) => {
       const { rootPath, options } = TreeCreateParamsSchema.parse(params)
-      return this.create(event.sender, rootPath, options as DirectoryTreeOptions | undefined)
+      return this.create(event.sender, rootPath, options)
     })
     this.ipcHandle(IpcChannel.Tree_Dispose, (_event, params: unknown) => {
       const { treeId } = TreeDisposeParamsSchema.parse(params)

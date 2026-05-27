@@ -17,6 +17,8 @@
  * renderer-side after the tree mirror has been built (see RFC §12.6).
  */
 
+import * as z from 'zod'
+
 import type { FilePath } from './common'
 
 // ─── Wire DTOs ──────────────────────────────────────────────────────────────
@@ -40,30 +42,38 @@ export interface SerializedTreeNode {
   readonly stats?: TreeNodeStats
 }
 
-export interface DirectoryTreeOptions {
+/**
+ * Schema is source-of-truth: the inferred type below stays in lockstep with
+ * the runtime validation used at the `Tree_Create` IPC boundary. Both sides
+ * (main parser + renderer producer) import this schema; drift is structurally
+ * impossible.
+ */
+export const DirectoryTreeOptionsSchema = z.strictObject({
   /**
    * File-extension allowlist (case-insensitive). Empty / omitted means "all
    * files". Compared against the file basename's last `.`-separated segment.
    * Example: `['.md']` for the Notes tree.
    */
-  readonly extensions?: readonly string[]
+  extensions: z.array(z.string()).optional(),
 
   /** Honor `.gitignore` etc. Default `true`. Notes opt out (`false`). */
-  readonly respectGitignore?: boolean
+  respectGitignore: z.boolean().optional(),
 
   /** Include dotfiles / dot-dirs. Default `false`. */
-  readonly includeHidden?: boolean
+  includeHidden: z.boolean().optional(),
 
   /**
    * When `true`, the builder stats every entry up front and exposes
    * `mtime`/`birthtime` on each node (and `SerializedTreeNode.stats`).
    * Costs `O(n)` stat calls; only enable when actually needed for sorting.
    */
-  readonly withStats?: boolean
+  withStats: z.boolean().optional(),
 
   /** Max depth from root. Default unlimited. */
-  readonly maxDepth?: number
-}
+  maxDepth: z.int().nonnegative().optional()
+})
+
+export type DirectoryTreeOptions = z.infer<typeof DirectoryTreeOptionsSchema>
 
 /**
  * Tree mutation pushed from main → renderer as the watcher observes changes.
