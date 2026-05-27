@@ -46,11 +46,18 @@ export class KnowledgeWorkflowCoordinator {
     })
 
     const jobs: KnowledgeJobHandle[] = []
-    for (const item of acceptedItems) {
-      const job = await this.scheduleItem(item.baseId, item.id)
-      if (job) {
-        jobs.push(job)
+    const completedSchedulingItemIds = new Set<string>()
+    try {
+      for (const item of acceptedItems) {
+        const job = await this.scheduleItem(item.baseId, item.id)
+        completedSchedulingItemIds.add(item.id)
+        if (job) {
+          jobs.push(job)
+        }
       }
+    } catch (error) {
+      await this.markUnscheduledAcceptedItemsFailed(base.id, acceptedItems, completedSchedulingItemIds, error)
+      throw error
     }
 
     return { items: acceptedItems, jobs }
@@ -156,6 +163,36 @@ export class KnowledgeWorkflowCoordinator {
             baseId,
             itemId: item.id,
             addError: originalError instanceof Error ? originalError.message : String(originalError)
+          }
+        )
+      }
+    }
+  }
+
+  private async markUnscheduledAcceptedItemsFailed(
+    baseId: string,
+    items: KnowledgeItem[],
+    completedSchedulingItemIds: Set<string>,
+    originalError: unknown
+  ): Promise<void> {
+    const message = originalError instanceof Error ? originalError.message : String(originalError)
+    for (const item of items) {
+      if (completedSchedulingItemIds.has(item.id)) {
+        continue
+      }
+
+      try {
+        await knowledgeItemService.updateStatus(item.id, 'failed', {
+          error: `Failed to schedule knowledge item job: ${message}`
+        })
+      } catch (cleanupError) {
+        logger.error(
+          'Failed to mark unscheduled knowledge item after addItems scheduling failure',
+          cleanupError instanceof Error ? cleanupError : new Error(String(cleanupError)),
+          {
+            baseId,
+            itemId: item.id,
+            scheduleError: message
           }
         )
       }

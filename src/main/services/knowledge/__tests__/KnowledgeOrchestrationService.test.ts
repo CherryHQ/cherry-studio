@@ -466,6 +466,27 @@ describe('KnowledgeOrchestrationService', () => {
     expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['note-1'], 'deleting')
   })
 
+  it('marks accepted addItems rows failed when job scheduling fails', async () => {
+    const service = new KnowledgeOrchestrationService()
+    enqueueMock
+      .mockResolvedValueOnce({ id: 'job-1', snapshot: {}, finished: Promise.resolve({}) })
+      .mockRejectedValueOnce(new Error('enqueue failed'))
+
+    await expect(
+      service.addItems('kb-1', [
+        { type: 'note', data: { source: 'note-1', content: 'hello 1' } },
+        { type: 'note', data: { source: 'note-2', content: 'hello 2' } }
+      ])
+    ).rejects.toThrow('enqueue failed')
+
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('note-1', 'processing')
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('note-2', 'processing')
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('note-2', 'failed', {
+      error: 'Failed to schedule knowledge item job: enqueue failed'
+    })
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith('note-1', 'failed', expect.anything())
+  })
+
   it('keeps items deleting when delete cleanup enqueue fails', async () => {
     const service = new KnowledgeOrchestrationService()
     knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem('note-1'))
