@@ -114,8 +114,9 @@ describe('KnowledgeItemService', () => {
   }
 
   async function seedKnowledgeFileRef(sourceId: string, fileEntryId: FileEntryId = FILE_ENTRY_A_ID) {
+    const [, sourceSequence] = sourceId.split('-')
     await dbh.db.insert(fileRefTable).values({
-      id: `11111111-1111-4111-8111-${sourceId.slice(-12)}`,
+      id: `11111111-1111-4111-8111-${sourceSequence}${sourceId.slice(-8)}`,
       fileEntryId,
       sourceType: 'knowledge_item',
       sourceId,
@@ -792,6 +793,12 @@ describe('KnowledgeItemService', () => {
         data: { source: '/docs', path: '/docs' }
       })
       await seedItem({
+        id: FILE_A_ID,
+        type: 'file',
+        data: createFileItemData(FILE_ENTRY_A_ID)
+      })
+      await seedKnowledgeFileRef(FILE_A_ID, FILE_ENTRY_A_ID)
+      await seedItem({
         id: DIR_CHILD_ID,
         groupId: DIR_ROOT_ID,
         type: 'directory',
@@ -809,13 +816,26 @@ describe('KnowledgeItemService', () => {
         type: 'note',
         data: { source: 'keep me', content: 'keep me' }
       })
+      await seedItem({
+        id: FILE_B_ID,
+        type: 'file',
+        data: createFileItemData(FILE_ENTRY_A_ID)
+      })
+      await seedKnowledgeFileRef(FILE_B_ID, FILE_ENTRY_A_ID)
 
-      await service.deleteLeafDescendantItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID])
+      await service.deleteLeafDescendantItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID, FILE_A_ID])
 
       const remaining = await dbh.db.select().from(knowledgeItemTable).orderBy(knowledgeItemTable.id)
-      expect(remaining.map((r) => r.id)).toEqual([DIR_ROOT_ID, OTHER_ITEM_ID])
-      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, FILE_GRANDCHILD_ID))
-      expect(refs).toHaveLength(0)
+      expect(remaining.map((r) => r.id)).toEqual([DIR_ROOT_ID, OTHER_ITEM_ID, FILE_A_ID, FILE_B_ID])
+      const deletedDescendantRefs = await dbh.db
+        .select()
+        .from(fileRefTable)
+        .where(eq(fileRefTable.sourceId, FILE_GRANDCHILD_ID))
+      const keptRootRefs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, FILE_A_ID))
+      const keptSiblingRefs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, FILE_B_ID))
+      expect(deletedDescendantRefs).toHaveLength(0)
+      expect(keptRootRefs).toHaveLength(1)
+      expect(keptSiblingRefs).toHaveLength(1)
     })
 
     it('throws NotFound when deleting a missing knowledge item', async () => {

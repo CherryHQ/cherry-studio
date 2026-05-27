@@ -13,7 +13,7 @@ import { loggerService } from '@logger'
 import type { OffsetPaginationResponse } from '@shared/data/api'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { ListKnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
-import { knowledgeItemSourceType } from '@shared/data/types/file/ref'
+import { knowledgeItemRoles, knowledgeItemSourceType } from '@shared/data/types/file/ref'
 import {
   type CreateKnowledgeItemDto,
   type KnowledgeItem,
@@ -157,12 +157,14 @@ export class KnowledgeItemService {
 
       if (item.type === 'file') {
         const now = Date.now()
+        // Keep this ref row in sync with item.data.fileEntryId; together they
+        // model the same knowledge-item source file relationship.
         await tx.insert(fileRefTable).values({
           id: uuidv4(),
           fileEntryId: item.data.fileEntryId,
           sourceType: knowledgeItemSourceType,
           sourceId: insertedRow.id,
-          role: 'source',
+          role: knowledgeItemRoles[0],
           createdAt: now,
           updatedAt: now
         })
