@@ -3,7 +3,6 @@ import { InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import DMXAPIToImg from '@renderer/assets/images/providers/DMXAPI-to-img.webp'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import { useAllProviders } from '@renderer/hooks/useProvider'
 import type { FileMetadata } from '@renderer/types'
 import { classNames, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
@@ -24,6 +23,7 @@ import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
 import { usePaintingImageNavigation } from './hooks/usePaintingImageNavigation'
+import { usePaintingProvider } from './hooks/usePaintingProvider'
 import {
   COURSE_URL,
   DEFAULT_PAINTING,
@@ -50,9 +50,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [painting, setPainting] = useState<DmxapiPainting>(dmxapi_paintings?.[0] || DEFAULT_PAINTING)
   const { currentImageIndex, nextImage, prevImage, resetImageIndex } = usePaintingImageNavigation(painting.files.length)
   const { t } = useTranslation()
-  const providers = useAllProviders()
 
-  const dmxapiProvider = providers.find((p) => p.id === 'dmxapi')!
+  const { provider: dmxapiProvider } = usePaintingProvider('dmxapi')
 
   // 动态模型数据状态
   const [dynamicModelGroups, setDynamicModelGroups] = useState<DMXApiModelGroups | null>(null)

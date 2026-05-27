@@ -2,7 +2,6 @@ import { RowFlex } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import { useAllProviders } from '@renderer/hooks/useProvider'
 import type { Painting, PaintingAction } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
@@ -21,6 +20,7 @@ import ProviderSelect from './components/ProviderSelect'
 import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
 import { usePaintingImageNavigation } from './hooks/usePaintingImageNavigation'
 import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
+import { usePaintingProvider } from './hooks/usePaintingProvider'
 import {
   COURSE_URL,
   DEFAULT_PAINTING,
@@ -56,7 +56,6 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { zhipu_paintings, addPainting, removePainting, updatePainting } = usePaintings()
   const [painting, setPainting] = useState<ZhipuPainting>(() => toZhipuPainting(zhipu_paintings?.[0]))
   const { t } = useTranslation()
-  const providers = useAllProviders()
 
   // 确保painting使用智谱的cogview系列模型
   useEffect(() => {
@@ -68,7 +67,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [painting?.id]) // 只在painting的id改变时执行，避免无限循环
 
-  const zhipuProvider = providers.find((p) => p.id === 'zhipu')!
+  const { provider: zhipuProvider } = usePaintingProvider('zhipu')
 
   const { currentImageIndex, nextImage, prevImage, resetImageIndex } = usePaintingImageNavigation(painting.files.length)
   const navigate = useNavigate()

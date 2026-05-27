@@ -227,8 +227,12 @@ export function useProviderAuthConfig(providerId: string) {
   return { ...result, data: result.data }
 }
 
-export function useProviderApiKeys(providerId: string) {
-  return useQuery('/providers/:providerId/api-keys', { params: { providerId } })
+export function useProviderApiKeys(providerId: string, options?: { enabled?: boolean; onlyEnabled?: boolean }) {
+  return useQuery('/providers/:providerId/api-keys', {
+    params: { providerId },
+    ...(options?.onlyEnabled ? { query: { enabled: true } } : {}),
+    ...(options?.enabled !== undefined ? { enabled: options.enabled } : {})
+  })
 }
 
 // ─── Dynamic ID operations (for context menus, URL schema handlers) ──

@@ -6,7 +6,6 @@ import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import { useAllProviders } from '@renderer/hooks/useProvider'
 import {
   getPaintingsBackgroundOptionsLabel,
   getPaintingsImageSizeOptionsLabel,
@@ -35,6 +34,7 @@ import ProviderSelect from './components/ProviderSelect'
 import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
 import { usePaintingImageNavigation } from './hooks/usePaintingImageNavigation'
 import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
+import { usePaintingProvider, usePaintingProviders } from './hooks/usePaintingProvider'
 import { generateNewApiImages, type NewApiImageMode } from './providers/newapi/provider'
 import { checkProviderEnabled, findPaintingByFiles } from './utils'
 import { fileEntryToImageFile, saveGeneratedPaintingFiles, savePaintingGenerationResult } from './utils/imageFiles'
@@ -56,13 +56,14 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const providers = useAllProviders()
+  const { providers } = usePaintingProviders()
   const location = useLocation()
   const routeName = location.pathname.split('/').pop() || 'new-api'
   const newApiProviders = providers.filter((p) => isNewApiProvider(p))
 
   const navigate = useNavigate()
-  const newApiProvider = newApiProviders.find((p) => p.id === routeName) || newApiProviders[0]
+  const routeNewApiProvider = newApiProviders.find((p) => p.id === routeName) || newApiProviders[0]
+  const { provider: newApiProvider } = usePaintingProvider(routeNewApiProvider?.id || 'new-api')
 
   const filteredPaintings = useMemo(
     () => (newApiPaintings[mode] || []).filter((p) => p.providerId === newApiProvider.id),
@@ -445,7 +446,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
             <>
               {mode === 'openai_image_edit' && (
                 <>
-                  <SettingTitle className="mt-5">{t('paintings.input_image')}</SettingTitle>
+                  <SettingTitle className="mt-5 mb-1.25">{t('paintings.input_image')}</SettingTitle>
                   <Upload
                     className="[&_.ant-upload.ant-upload-select]:border! [&_.ant-upload.ant-upload-select]:h-15! [&_.ant-upload.ant-upload-select]:w-full! [&_.ant-upload.ant-upload-select]:border-border! [&_.ant-upload.ant-upload-select]:border-dashed!"
                     accept="image/png, image/jpeg, image/gif"
@@ -485,7 +486,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
               )}
 
               {/* Model Selector */}
-              <SettingTitle className="mt-5">{t('paintings.model')}</SettingTitle>
+              <SettingTitle className="mt-5 mb-1.25">{t('paintings.model')}</SettingTitle>
               <Select value={painting.model} onChange={handleModelChange} className="mb-3.75 w-full">
                 {Object.entries(groupedModelOptions).map(([groupName, options]) => (
                   <Select.OptGroup label={groupName} key={groupName}>
@@ -501,7 +502,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
               {/* Image Size */}
               {selectedModelConfig?.imageSizes && selectedModelConfig.imageSizes.length > 0 && (
                 <>
-                  <SettingTitle>{t('paintings.image.size')}</SettingTitle>
+                  <SettingTitle className="mt-3.75 mb-1.25">{t('paintings.image.size')}</SettingTitle>
                   <Select value={painting.size} onChange={handleSizeChange} className="mb-3.75 w-full">
                     {selectedModelConfig.imageSizes.map((s) => (
                       <Select.Option value={s.value} key={s.value}>
@@ -515,7 +516,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
               {/* Quality */}
               {selectedModelConfig?.quality && selectedModelConfig.quality.length > 0 && (
                 <>
-                  <SettingTitle>{t('paintings.quality')}</SettingTitle>
+                  <SettingTitle className="mt-3.75 mb-1.25">{t('paintings.quality')}</SettingTitle>
                   <Select value={painting.quality} onChange={handleQualityChange} className="mb-3.75 w-full">
                     {selectedModelConfig.quality.map((q) => (
                       <Select.Option value={q.value} key={q.value}>
@@ -531,7 +532,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
                 selectedModelConfig?.moderation &&
                 selectedModelConfig.moderation.length > 0 && (
                   <>
-                    <SettingTitle>{t('paintings.moderation')}</SettingTitle>
+                    <SettingTitle className="mt-3.75 mb-1.25">{t('paintings.moderation')}</SettingTitle>
                     <Select value={painting.moderation} onChange={handleModerationChange} className="mb-3.75 w-full">
                       {selectedModelConfig.moderation.map((m) => (
                         <Select.Option value={m.value} key={m.value}>
@@ -547,7 +548,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
                 selectedModelConfig?.background &&
                 selectedModelConfig.background.length > 0 && (
                   <>
-                    <SettingTitle>{t('paintings.background')}</SettingTitle>
+                    <SettingTitle className="mt-3.75 mb-1.25">{t('paintings.background')}</SettingTitle>
                     <Select
                       value={painting.background}
                       onChange={(value) => updatePaintingState({ background: value })}
@@ -564,7 +565,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
               {/* Number of Images (n) */}
               {selectedModelConfig?.max_images && (
                 <>
-                  <SettingTitle>{t('paintings.number_images')}</SettingTitle>
+                  <SettingTitle className="mt-3.75 mb-1.25">{t('paintings.number_images')}</SettingTitle>
                   <InputNumber
                     min={1}
                     max={selectedModelConfig.max_images}

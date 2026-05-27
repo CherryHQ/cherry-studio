@@ -2,7 +2,6 @@ import { InfoTooltip, Tooltip } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import { useAllProviders } from '@renderer/hooks/useProvider'
 import type { TokenFluxPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
@@ -22,6 +21,7 @@ import ProviderSelect from './components/ProviderSelect'
 import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
 import { usePaintingImageNavigation } from './hooks/usePaintingImageNavigation'
 import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
+import { usePaintingProvider } from './hooks/usePaintingProvider'
 import { DEFAULT_TOKENFLUX_PAINTING, type TokenFluxFormData, type TokenFluxModel } from './providers/tokenflux/config'
 import TokenFluxService from './providers/tokenflux/service'
 import { checkProviderEnabled } from './utils'
@@ -34,7 +34,6 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [formData, setFormData] = useState<TokenFluxFormData>({})
 
   const { t, i18n } = useTranslation()
-  const providers = useAllProviders()
   const { addPainting, removePainting, updatePainting, tokenflux_paintings } = usePaintings()
   const tokenFluxPaintings = tokenflux_paintings
   const [painting, setPainting] = useState<TokenFluxPainting>(
@@ -44,7 +43,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const navigate = useNavigate()
   const location = useLocation()
-  const tokenfluxProvider = providers.find((p) => p.id === 'tokenflux')!
+  const { provider: tokenfluxProvider } = usePaintingProvider('tokenflux')
   const textareaRef = useRef<TextAreaRef>(null)
   const tokenFluxService = useMemo(
     () => new TokenFluxService(tokenfluxProvider.apiHost, tokenfluxProvider.apiKey),

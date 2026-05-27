@@ -4,7 +4,6 @@ import { loggerService } from '@logger'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import { useAllProviders } from '@renderer/hooks/useProvider'
 import type { PaintingsState, PpioPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useNavigate } from '@tanstack/react-router'
@@ -26,6 +25,7 @@ import ProviderSelect from './components/ProviderSelect'
 import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
 import { usePaintingImageNavigation } from './hooks/usePaintingImageNavigation'
 import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
+import { usePaintingProvider } from './hooks/usePaintingProvider'
 import {
   createModeConfigs,
   DEFAULT_PPIO_PAINTING,
@@ -72,8 +72,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
     painting.files?.length ?? 0
   )
 
-  const providers = useAllProviders()
-  const ppioProvider = providers.find((p) => p.id === 'ppio')
+  const { provider: ppioProvider } = usePaintingProvider('ppio')
 
   const navigate = useNavigate()
   const textareaRef = useRef<TextAreaRef>(null)

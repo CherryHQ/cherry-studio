@@ -3,7 +3,6 @@ import { RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import { useAllProviders } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
 import type { OvmsPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
@@ -25,6 +24,7 @@ import PaintingsList from './components/PaintingsList'
 import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
 import { usePaintingImageNavigation } from './hooks/usePaintingImageNavigation'
 import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
+import { usePaintingProvider, usePaintingProviders } from './hooks/usePaintingProvider'
 import {
   type ConfigItem,
   createDefaultOvmsPainting,
@@ -47,7 +47,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [ovmsConfig, setOvmsConfig] = useState<ConfigItem[]>([])
 
   const { t } = useTranslation()
-  const providers = useAllProviders()
+  const { providers } = usePaintingProviders()
   const providerOptions = Options.map((option) => {
     const provider = providers.find((p) => p.id === option)
     if (provider) {
@@ -64,7 +64,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
   })
   const navigate = useNavigate()
   const location = useLocation()
-  const ovmsProvider = providers.find((p) => p.id === 'ovms')!
+  const { provider: ovmsProvider } = usePaintingProvider('ovms')
 
   const getNewPainting = useCallback(() => {
     if (availableModels.length > 0) {
@@ -82,9 +82,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
   useEffect(() => {
     const loadModels = () => {
       try {
-        // Get OVMS provider to access its models
-        const ovmsProvider = providers.find((p) => p.id === 'ovms')
-        const providerModels = ovmsProvider?.models || []
+        const providerModels = ovmsProvider.models || []
 
         // Filter and format models for image generation
         const filteredModels = getOvmsModels(providerModels)
@@ -104,7 +102,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     loadModels()
-  }, [providers, painting.model]) // Re-run when providers change
+  }, [ovmsProvider.models, painting.model]) // Re-run when models change
 
   const updatePaintingState = (updates: Partial<OvmsPainting>) => {
     const updatedPainting = { ...painting, ...updates }

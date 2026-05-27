@@ -3,7 +3,6 @@ import { ColFlex, InfoTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import { useAllProviders } from '@renderer/hooks/useProvider'
 import type { FileMetadata, Painting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
@@ -24,6 +23,7 @@ import ProviderSelect from './components/ProviderSelect'
 import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
 import { usePaintingImageNavigation } from './hooks/usePaintingImageNavigation'
 import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
+import { usePaintingProvider } from './hooks/usePaintingProvider'
 import {
   DEFAULT_PAINTING,
   generateRandomSeed,
@@ -43,9 +43,8 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { siliconflow_paintings, addPainting, removePainting, updatePainting } = usePaintings()
   const [painting, setPainting] = useState<Painting>(siliconflow_paintings[0] || DEFAULT_PAINTING)
   const { theme } = useTheme()
-  const providers = useAllProviders()
 
-  const siliconFlowProvider = providers.find((p) => p.id === 'silicon')!
+  const { provider: siliconFlowProvider } = usePaintingProvider('silicon')
   const { currentImageIndex, nextImage, prevImage, resetImageIndex } = usePaintingImageNavigation(painting.files.length)
 
   const [fileMap, setFileMap] = useState<{ imageFiles: FileMetadata[]; paths: string[] }>({

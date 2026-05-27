@@ -4,11 +4,10 @@ import { loggerService } from '@logger'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { addPainting, removePainting, updatePainting, updatePaintings } from '@renderer/store/paintings'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
-import { isNewApiProvider } from '@renderer/utils/provider'
 import type { Painting, PaintingMode } from '@shared/data/types/painting'
 import { useCallback, useEffect, useMemo } from 'react'
 
-import { useAllProviders } from './useProvider'
+import { useProviders } from './useProviders'
 
 const logger = loggerService.withContext('usePaintings')
 
@@ -174,6 +173,10 @@ function isNewApiPaintingProvider(providerId: string, newApiProviderIds: Set<str
   return newApiProviderIds.has(providerId) || (!FIXED_PROVIDER_IDS.has(providerId) && providerId.length > 0)
 }
 
+function isNewApiRuntimeProvider(provider: { id: string; presetProviderId?: string }): boolean {
+  return ['new-api', 'cherryin', 'aionly'].includes(provider.id) || provider.presetProviderId === 'new-api'
+}
+
 function firstString(...values: unknown[]): string | undefined {
   return values.find((value): value is string => typeof value === 'string' && value.length > 0)
 }
@@ -197,11 +200,16 @@ export function usePaintings() {
   const ppio_draw = useAppSelector((state) => state.paintings.ppio_draw)
   const ppio_edit = useAppSelector((state) => state.paintings.ppio_edit)
   const dispatch = useAppDispatch()
-  const providers = useAllProviders()
+  const { providers } = useProviders()
 
   const newApiProviderIds = useMemo(
     () =>
-      new Set(['new-api', 'cherryin', 'aionly', ...providers.filter(isNewApiProvider).map((provider) => provider.id)]),
+      new Set([
+        'new-api',
+        'cherryin',
+        'aionly',
+        ...providers.filter(isNewApiRuntimeProvider).map((provider) => provider.id)
+      ]),
     [providers]
   )
 

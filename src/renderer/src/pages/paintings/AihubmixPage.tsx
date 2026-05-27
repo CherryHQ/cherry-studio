@@ -5,7 +5,6 @@ import { loggerService } from '@logger'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import { useAllProviders } from '@renderer/hooks/useProvider'
 import type { FileMetadata } from '@renderer/types'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
@@ -27,6 +26,7 @@ import ProviderSelect from './components/ProviderSelect'
 import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
 import { usePaintingImageNavigation } from './hooks/usePaintingImageNavigation'
 import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
+import { usePaintingProvider } from './hooks/usePaintingProvider'
 import { type AihubmixMode, type ConfigItem, createModeConfigs, DEFAULT_PAINTING } from './providers/aihubmix/config'
 import { generateAihubmixImages } from './providers/aihubmix/provider'
 import { checkProviderEnabled } from './utils'
@@ -65,10 +65,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const { t } = useTranslation()
   const { theme } = useTheme()
-  const providers = useAllProviders()
   const navigate = useNavigate()
   const location = useLocation()
-  const aihubmixProvider = providers.find((p) => p.id === 'aihubmix')!
+  const { provider: aihubmixProvider } = usePaintingProvider('aihubmix')
 
   const modeOptions = [
     { label: t('paintings.mode.generate'), value: 'aihubmix_image_generate' },
