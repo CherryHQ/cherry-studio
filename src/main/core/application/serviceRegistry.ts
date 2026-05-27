@@ -5,6 +5,7 @@ import { PreferenceService } from '@data/PreferenceService'
 import { JobManager } from '@main/core/job/JobManager'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { WindowManager } from '@main/core/window/WindowManager'
+import { TreeRegistry } from '@main/file/tree/registry'
 import { AgentBootstrapService } from '@main/services/AgentBootstrapService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { ApiServerService } from '@main/services/ApiServerService'
@@ -77,6 +78,7 @@ export const services = {
   CodeCliService,
   LanTransferService,
   FileManager,
+  TreeRegistry,
   FileProcessingOrchestrationService,
   PowerMonitorService,
   SelectionService,

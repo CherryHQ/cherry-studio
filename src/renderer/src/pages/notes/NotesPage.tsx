@@ -2,6 +2,7 @@ import { loggerService } from '@logger'
 import type { CodeEditorHandles } from '@renderer/components/CodeEditor'
 import type { RichEditorRef } from '@renderer/components/RichEditor/types'
 import { useCache } from '@renderer/data/hooks/useCache'
+import { useDirectoryTree } from '@renderer/hooks/useDirectoryTree'
 import { useNote } from '@renderer/hooks/useNote'
 import { useActiveNode, useFileContent, useFileContentSync } from '@renderer/hooks/useNotesQuery'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
@@ -11,7 +12,7 @@ import {
   addDir,
   addNote,
   delNode,
-  loadTree,
+  projectNotesTree,
   renameNode as renameEntry,
   resolveNotesPath,
   sortTree,
@@ -26,8 +27,8 @@ import {
   updateTreeNode
 } from '@renderer/services/NotesTreeService'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
-import type { FileChangeEvent } from '@shared/config/types'
 import type { Note } from '@shared/data/types/note'
+import type { DirectoryTreeOptions } from '@shared/file/types'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
@@ -41,6 +42,16 @@ import NotesSidebar from './NotesSidebar'
 const logger = loggerService.withContext('NotesPage')
 const SAVE_FAILURE_TOAST_INTERVAL_MS = 5000
 
+const NOTES_TREE_OPTIONS: DirectoryTreeOptions = {
+  // Notes ships only `.md` files. Stats fuel `sortType: sort_updated_*` /
+  // `sort_created_*`. We deliberately ignore `.gitignore` — the notes root
+  // is the user's working directory, not a git-versioned repo.
+  extensions: ['.md'],
+  respectGitignore: false,
+  includeHidden: false,
+  withStats: true
+}
+
 type NoteMetadataSnapshot = Pick<Note, 'path' | 'isStarred' | 'isExpanded'>
 
 const NotesPage: FC = () => {
@@ -52,6 +63,12 @@ const NotesPage: FC = () => {
   const { settings, notesPath, updateNotesPath, sortType, updateSortType } = useNotesSettings()
   const { noteByPath, patchNode, removePath, rewritePath } = useNote(notesPath)
 
+  // `useDirectoryTree` owns the FS scan + chokidar watcher behind a single
+  // `Tree_Create` IPC. Whenever the watcher observes add / unlink / rename
+  // events, `root` (mutated in place) + `version` (tick) drive the
+  // projection effect below to refresh `notesTree`.
+  const { root: treeRoot, version: treeVersion } = useDirectoryTree(notesPath || undefined, NOTES_TREE_OPTIONS)
+
   // 混合策略：useLiveQuery用于笔记树，React Query用于文件内容
   const [notesTree, setNotesTree] = useState<NotesTreeNode[]>([])
   const noteByPathRef = useRef(noteByPath)
@@ -62,7 +79,6 @@ const NotesPage: FC = () => {
 
   const [tokenCount, setTokenCount] = useState(0)
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
-  const watcherRef = useRef<(() => void) | null>(null)
   const lastContentRef = useRef<string>('')
   const lastFilePathRef = useRef<string | undefined>(undefined)
   const lastSaveFailureToastAtRef = useRef(0)
@@ -93,33 +109,21 @@ const NotesPage: FC = () => {
     })
   }, [])
 
-  const refreshTree = useCallback(async () => {
-    if (!notesPath) {
+  // Project the FS tree (from `useDirectoryTree`) into the legacy
+  // `NotesTreeNode[]` shape every time the FS changes — watcher events
+  // bump `treeVersion`, the user toggling sort changes `sortType`, and
+  // the initial mount triggers when `treeRoot` first becomes non-null.
+  useEffect(() => {
+    if (!treeRoot || !notesPath) {
       setNotesTree([])
       return
     }
-
-    try {
-      const rawTree = await loadTree(notesPath)
-      const sortedTree = sortTree(rawTree, sortType)
-      setNotesTree(mergeTreeState(sortedTree))
-    } catch (error) {
-      logger.error('Failed to refresh notes tree:', error as Error)
-    }
-  }, [mergeTreeState, notesPath, sortType])
-
-  useEffect(() => {
-    const updateCharCount = () => {
-      const textContent = editorRef.current?.getContent() || currentContent
-      const plainText = textContent.replace(/<[^>]*>/g, '')
-      setTokenCount(plainText.length)
-    }
-    updateCharCount()
-  }, [currentContent])
-
-  useEffect(() => {
-    void refreshTree()
-  }, [refreshTree])
+    const projected = projectNotesTree(treeRoot, notesPath)
+    const sorted = sortTree(projected, sortType)
+    setNotesTree(mergeTreeState(sorted))
+    // `treeVersion` participates so that watcher-driven mutations re-derive
+    // the projection even though `treeRoot` is the same object identity.
+  }, [treeRoot, treeVersion, notesPath, sortType, mergeTreeState])
 
   // Re-merge tree state when note metadata changes
   useEffect(() => {
@@ -128,6 +132,12 @@ const NotesPage: FC = () => {
       setNotesTree((prev) => mergeTreeState(prev))
     }
   }, [mergeTreeState, noteByPath, notesTree.length])
+
+  useEffect(() => {
+    const textContent = editorRef.current?.getContent() || currentContent
+    const plainText = textContent.replace(/<[^>]*>/g, '')
+    setTokenCount(plainText.length)
+  }, [currentContent])
 
   // 保存当前笔记内容
   const saveCurrentNote = useCallback(
@@ -165,10 +175,19 @@ const NotesPage: FC = () => {
     [saveCurrentNote]
   )
 
+  // `useDirectoryTree` owns the FS scan + watcher pipeline now. We keep a
+  // hook-stable identity for `refreshTree` so all the rollback paths /
+  // optimistic-update recovery branches below can hold it in their
+  // dependency arrays unchanged — the actual tree refresh happens
+  // automatically via the projection effect every time the watcher
+  // observes a mutation.
+  const refreshTree = useCallback(async (): Promise<void> => {
+    /* no-op — see comment above */
+  }, [])
+
   const saveCurrentNoteRef = useRef(saveCurrentNote)
   const debouncedSaveRef = useRef(debouncedSave)
   const invalidateFileContentRef = useRef(invalidateFileContent)
-  const refreshTreeRef = useRef(refreshTree)
 
   const handleMarkdownChange = useCallback(
     (newMarkdown: string) => {
@@ -218,10 +237,6 @@ const NotesPage: FC = () => {
   }, [invalidateFileContent])
 
   useEffect(() => {
-    refreshTreeRef.current = refreshTree
-  }, [refreshTree])
-
-  useEffect(() => {
     async function initialize() {
       if (!notesPath) {
         // 首次启动，获取默认路径
@@ -249,8 +264,12 @@ const NotesPage: FC = () => {
 
         // 检查默认路径下是否有笔记文件
         try {
-          const tree = await window.api.file.getDirectoryStructure(defaultPath)
-          if (!tree || tree.length === 0) {
+          const entries = await window.api.file.listDirectory(defaultPath, {
+            recursive: false,
+            includeFiles: true,
+            includeDirectories: true
+          })
+          if (!entries || entries.length === 0) {
             // 默认目录为空，提示用户需要迁移文件
             window.toast.warning({
               title: t('notes.crossPlatformRestoreWarning', { path: defaultPath }),
@@ -286,98 +305,35 @@ const NotesPage: FC = () => {
     }
   }, [notesTree, activeFilePath, activeNode, setActiveFilePath])
 
+  // Active-file content invalidation when the watcher reports a `change`
+  // on the file the user is currently viewing — pipes through
+  // `useDirectoryTree`'s mutation stream is overkill (it would re-project
+  // the entire tree on every keystroke save), so we listen to the same
+  // chokidar events via a tiny `Tree_Mutation` side-subscriber instead.
+  // The unlink → clear-active-file path is implicit: when the file leaves
+  // the tree, the `shouldClearPath` guard above clears `activeFilePath`.
   useEffect(() => {
     if (!notesPath) return
-    let cancelled = false
-
-    async function startFileWatcher() {
-      // 清理之前的监控
-      if (watcherRef.current) {
-        watcherRef.current()
-        watcherRef.current = null
+    const unsubscribe = window.api.tree.onMutation((payload) => {
+      // Best-effort: any `updated` event for the active file triggers a
+      // content-cache invalidation so the renderer re-reads from disk.
+      if (payload.event.type !== 'updated') return
+      const activePath = activeFilePathRef.current
+      if (!activePath) return
+      const normalized = normalizePathValue(payload.event.path)
+      if (normalizePathValue(activePath) === normalized) {
+        invalidateFileContentRef.current?.(normalized)
       }
-
-      // 定义文件变化处理函数
-      const handleFileChange = async (data: FileChangeEvent) => {
-        try {
-          if (!notesPath) return
-          const { eventType, filePath } = data
-          const normalizedEventPath = normalizePathValue(filePath)
-
-          switch (eventType) {
-            case 'change': {
-              // 处理文件内容变化 - 只有内容真正改变时才触发更新
-              const activePath = activeFilePathRef.current
-              if (activePath && normalizePathValue(activePath) === normalizedEventPath) {
-                invalidateFileContentRef.current?.(normalizedEventPath)
-              }
-              break
-            }
-
-            case 'refresh': {
-              // 批量操作完成后的单次刷新
-              logger.debug('Received refresh event, triggering tree refresh')
-              const refresh = refreshTreeRef.current
-              if (refresh) {
-                await refresh()
-              }
-              break
-            }
-
-            case 'add':
-            case 'addDir':
-            case 'unlink':
-            case 'unlinkDir': {
-              // 如果删除的是当前活动文件，清空选择
-              if (
-                (eventType === 'unlink' || eventType === 'unlinkDir') &&
-                activeFilePathRef.current &&
-                normalizePathValue(activeFilePathRef.current) === normalizedEventPath
-              ) {
-                setActiveFilePath(undefined)
-                editorRef.current?.clear()
-              }
-
-              const refresh = refreshTreeRef.current
-              if (refresh) {
-                await refresh()
-              }
-              break
-            }
-
-            default:
-              logger.debug('Unhandled file event type:', { eventType })
-          }
-        } catch (error) {
-          logger.error('Failed to handle file change:', error as Error)
-        }
-      }
-
-      try {
-        await window.api.file.startFileWatcher(notesPath)
-        if (cancelled) {
-          await window.api.file.stopFileWatcher()
-          return
-        }
-        watcherRef.current = window.api.file.onFileChange(handleFileChange)
-      } catch (error) {
-        logger.error('Failed to start file watcher:', error as Error)
-      }
-    }
-
-    void startFileWatcher()
-
+    })
     return () => {
-      cancelled = true
-      if (watcherRef.current) {
-        watcherRef.current()
-        watcherRef.current = null
-      }
-      window.api.file.stopFileWatcher().catch((error) => {
-        logger.error('Failed to stop file watcher:', error)
-      })
+      unsubscribe()
+    }
+  }, [notesPath])
 
-      // 如果有未保存的内容，立即保存
+  // Emergency-save the in-flight edit if the page unmounts while the
+  // debounced writer hasn't flushed.
+  useEffect(() => {
+    return () => {
       if (lastContentRef.current && lastFilePathRef.current && lastContentRef.current !== currentContentRef.current) {
         const saveFn = saveCurrentNoteRef.current
         if (saveFn) {
@@ -386,11 +342,9 @@ const NotesPage: FC = () => {
           })
         }
       }
-
-      // 清理防抖函数
       debouncedSaveRef.current?.cancel()
     }
-  }, [notesPath, setActiveFilePath])
+  }, [])
 
   useEffect(() => {
     const editor = editorRef.current

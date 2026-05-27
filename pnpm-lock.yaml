@@ -408,7 +408,7 @@ importers:
         version: 0.3.4
       '@langchain/community':
         specifier: ^1.0.0
-        version: 1.1.1(4d25058ca33bda72c75cd13bf5fd0bc0)
+        version: 1.1.1(76cee61343088f8e51accb271fc8d091)
       '@langchain/core':
         specifier: 1.0.2
         version: 1.0.2(patch_hash=8dc787a82cebafe8b23c8826f25f29aca64fc8b43a0a1878e0010782e4da96ed)(@opentelemetry/api@1.9.0)(@opentelemetry/sdk-trace-base@2.2.0(@opentelemetry/api@1.9.0))(openai@6.15.0(ws@8.20.0)(zod@4.3.4))
@@ -919,6 +919,9 @@ importers:
       iconv-lite:
         specifier: ^0.6.3
         version: 0.6.3
+      ignore:
+        specifier: ^7.0.5
+        version: 7.0.5
       ipaddr.js:
         specifier: ^2.2.0
         version: 2.3.0
@@ -17840,7 +17843,7 @@ snapshots:
       - openai
       - ws
 
-  '@langchain/community@1.1.1(4d25058ca33bda72c75cd13bf5fd0bc0)':
+  '@langchain/community@1.1.1(76cee61343088f8e51accb271fc8d091)':
     dependencies:
       '@browserbasehq/stagehand': 1.14.0(@playwright/test@1.57.0)(deepmerge@4.3.1)(dotenv@16.6.1)(encoding@0.1.13)(openai@6.15.0(ws@8.20.0)(zod@4.3.4))(zod@4.3.4)
       '@ibm-cloud/watsonx-ai': 1.7.5
@@ -17868,7 +17871,7 @@ snapshots:
       fast-xml-parser: 5.4.1
       google-auth-library: 9.15.1(encoding@0.1.13)
       html-to-text: 9.0.5
-      ignore: 5.3.2
+      ignore: 7.0.5
       jsdom: 26.1.0
       jsonwebtoken: 9.0.3
       lodash: 4.18.1

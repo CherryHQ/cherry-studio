@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { getFileDirectory } from '@renderer/utils'
+import type { TreeDirRoot, TreeNode } from '@shared/file/types'
 
 const logger = loggerService.withContext('NotesService')
 
@@ -16,8 +17,56 @@ export interface UploadResult {
   folderCount: number
 }
 
-export async function loadTree(rootPath: string): Promise<NotesTreeNode[]> {
-  return window.api.file.getDirectoryStructure(normalizePath(rootPath))
+/**
+ * Adapter — project the `DirectoryTreeBuilder` snapshot into the legacy
+ * `NotesTreeNode[]` shape that the Notes sidebar / drag-drop / merge logic
+ * still consumes.
+ *
+ * The transformation is purely structural; sorting and `isStarred` /
+ * `expanded` decoration happen elsewhere (`sortTree` + `mergeTreeState`
+ * inside `NotesPage`).
+ */
+export function projectNotesTree(root: TreeDirRoot, notesPath: string): NotesTreeNode[] {
+  const rootPath = normalizePath(notesPath)
+  return Object.values(root.children).map((child) => projectChild(child, rootPath))
+}
+
+function projectChild(node: TreeNode, rootPath: string): NotesTreeNode {
+  const isFile = node.kind === 'file'
+  const externalPath = node.path
+  const baseName = node.basename
+  const displayName =
+    isFile && baseName.toLowerCase().endsWith(MARKDOWN_EXT) ? baseName.slice(0, -MARKDOWN_EXT.length) : baseName
+
+  const relative = relativePath(externalPath, rootPath)
+  const treePath = isFile ? `/${stripMarkdownExt(relative)}` : `/${relative}`.replace(/\/+$/, '') || '/'
+
+  const stats = node.stats
+  const projected: NotesTreeNode = {
+    id: externalPath,
+    name: displayName,
+    type: isFile ? 'file' : 'folder',
+    treePath,
+    externalPath,
+    createdAt: stats?.birthtime ? new Date(stats.birthtime).toISOString() : '',
+    updatedAt: stats?.mtime ? new Date(stats.mtime).toISOString() : ''
+  }
+
+  if (!isFile && node.isTreeDir()) {
+    projected.children = Object.values(node.children).map((c) => projectChild(c, rootPath))
+  }
+
+  return projected
+}
+
+function relativePath(absolute: string, rootPath: string): string {
+  if (absolute === rootPath) return ''
+  if (absolute.startsWith(`${rootPath}/`)) return absolute.slice(rootPath.length + 1)
+  return absolute
+}
+
+function stripMarkdownExt(p: string): string {
+  return p.toLowerCase().endsWith(MARKDOWN_EXT) ? p.slice(0, -MARKDOWN_EXT.length) : p
 }
 
 export function sortTree(nodes: NotesTreeNode[], sortType: NotesSortType): NotesTreeNode[] {
@@ -193,24 +242,20 @@ export async function uploadNotes(files: File[], targetPath: string): Promise<Up
       }
     }
 
-    // Pause file watcher to prevent N refresh events
-    await window.api.file.pauseFileWatcher()
+    // Note: the legacy `pauseFileWatcher`/`resumeFileWatcher` IPCs used to
+    // wrap this call to coalesce N watcher pings into one refresh — they're
+    // gone with the FileStorage chokidar singleton. The new per-tree
+    // chokidar instance still fires N `add` events; the renderer's
+    // projection effect debounces them implicitly via React batching.
+    const result = await window.api.file.batchUploadMarkdown(filePaths, basePath)
 
-    try {
-      // Use the new optimized batch upload API that runs in Main process
-      const result = await window.api.file.batchUploadMarkdown(filePaths, basePath)
-
-      return {
-        uploadedNodes: [],
-        totalFiles,
-        skippedFiles: result.skippedFiles,
-        failedFiles: result.failedFiles,
-        fileCount: result.fileCount,
-        folderCount: result.folderCount
-      }
-    } finally {
-      // Resume watcher and trigger single refresh
-      await window.api.file.resumeFileWatcher()
+    return {
+      uploadedNodes: [],
+      totalFiles,
+      skippedFiles: result.skippedFiles,
+      failedFiles: result.failedFiles,
+      fileCount: result.fileCount,
+      folderCount: result.folderCount
     }
   } catch (error) {
     logger.error('Batch upload failed:', error as Error)
