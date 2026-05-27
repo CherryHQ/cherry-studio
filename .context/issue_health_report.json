@@ -1,238 +1,207 @@
 {
-  "generated_at": "2026-05-26T00:00:00Z",
-  "snapshot_date": "2026-05-26",
-  "health_overview": {
-    "total_open_issues": 883,
-    "prev_total": 887,
-    "delta": -4,
-    "health_score": 57,
-    "health_grade": "C",
-    "trend": "stable_slight_degradation",
-    "notes": [
-      "Total open issues decreased by 4 since 2026-05-24 (887 → 883) — marginal improvement",
-      "72 issues closed in last 7 days, but 82% closed as 'not_planned' (bot/inactive sweeps)",
-      "54% of issues estimated Stale (31-90 days without update) — persistent triage debt",
-      "3 confirmed P1 issues: 1 Active (v2.4.0), 2 Stale (69+/83+ days without update)",
-      "Unlabeled issues increased from ~53 to 66 confirmed (+13) — labeling debt growing",
-      "Avg time to close: 43.94 days — high backlog age persists"
-    ]
-  },
-  "age_classification": {
-    "methodology": "Based on updatedAt date. Today: 2026-05-26. Active ≤14d, Aging 15-30d, Stale 31-90d, Zombie >90d.",
-    "active": {
-      "definition": "Updated within 14 days (after 2026-05-12)",
-      "estimated_count": 268,
-      "percentage": 30.4,
-      "evidence": "100 confirmed from most-recently-updated page (all updated 2026-05-23 to 2026-05-26). Remaining ~168 estimated from 2026-05-24 multi-page sample ratios."
-    },
-    "aging": {
-      "definition": "Updated 15-30 days ago (2026-04-26 to 2026-05-11)",
-      "estimated_count": 130,
-      "percentage": 14.7,
-      "evidence": "Interpolated from prior multi-page sample distribution."
-    },
-    "stale": {
-      "definition": "Updated 31-90 days ago (2026-02-25 to 2026-04-25)",
-      "estimated_count": 477,
-      "percentage": 54.0,
-      "evidence": "Dominant cohort. Confirmed from prior sample; consistent with batch-close pattern."
-    },
-    "zombie": {
-      "definition": "Updated 90+ days ago (before 2026-02-25)",
-      "confirmed_count": 4,
-      "percentage": 0.5,
-      "evidence": "Confirmed from prior oldest-100 page. Likely undercount.",
-      "examples": [
-        {"number": 5712, "title": "【需求汇总】Agents with Workflows / 工作流&协同", "updated_at": "2025-10-23"},
-        {"number": 10844, "title": "[Feature]: Backup feature enhance", "updated_at": "2025-11-01"},
-        {"number": 11578, "title": "Upgrade to the MCP protocol by November 25, 2025", "updated_at": "2025-11-30"},
-        {"number": 5640, "title": "【需求汇总】Cherry Studio as a Service (CSaaS)", "updated_at": "2026-01-31"}
-      ]
-    }
-  },
-  "p1_urgent_issues": {
-    "count": 3,
-    "issues": [
-      {
-        "number": 14899,
-        "title": "[Feature]: Unified Notification Center",
-        "status": "Active — Planned for v2.4.0",
-        "labels": ["P1", "Planned", "feature", "UI/UX"],
-        "milestone": "v2.4.0",
-        "assignee": null,
-        "days_open": 19,
-        "days_since_update": 19,
-        "comment_count": 0,
-        "action": "Monitor — in milestone v2.4.0, on track"
-      },
-      {
-        "number": 13608,
-        "title": "[Bug]: xiaomi mimo response only displays the last line",
-        "status": "Stale — milestone v1.8.1 closed, no further activity",
-        "labels": ["P1", "Models"],
-        "milestone": "v1.8.1 (closed 2026-04-01)",
-        "assignee": null,
-        "days_open": 69,
-        "days_since_update": 68,
-        "comment_count": 8,
-        "action": "⚠️ Triage needed — milestone closed, verify if fixed in newer release or reopen with updated repro"
-      },
-      {
-        "number": 13193,
-        "title": "[Bug]: Azure OpenAI AI_APICallError: Resource not found (responses API routing)",
-        "status": "Stale — assigned to DeJeune, no update in 82+ days",
-        "labels": ["P1", "Models"],
-        "assignee": "DeJeune",
-        "days_open": 83,
-        "days_since_update": 82,
-        "comment_count": 1,
-        "action": "⚠️ Follow-up needed — Azure OpenAI regression, high impact (5 reactions), assigned but stalled 82 days"
-      }
-    ]
+  "generated_at": "2026-05-27T17:50:35.248960+00:00",
+  "snapshot_date": "2026-05-27",
+  "health_score": 95,
+  "health_grade": "A",
+  "total_open_issues": 100,
+  "age_distribution": {
+    "Active": 100,
+    "Aging": 0,
+    "Stale": 0,
+    "Zombie": 0
   },
   "label_health": {
-    "unlabeled_count_confirmed": 66,
-    "unlabeled_percentage": 7.5,
-    "change_from_prev": "+13 (was ~53 estimated on 2026-05-24)",
-    "top_action_labels": {
-      "needs_repro": 9,
-      "needs_more_info": 2,
-      "inactive": 57
-    },
-    "label_coverage": "92.5% of issues have at least one label (from search total 883, 66 confirmed unlabeled)"
+    "unlabeled_count": 8,
+    "unlabeled_pct": 8.0,
+    "top_labels": {
+      "inactive": 50,
+      "UI/UX": 29,
+      "Models": 20,
+      "Assistant": 18,
+      "MCP": 6,
+      "help wanted": 6,
+      "discussion": 6,
+      "needs-repro": 6,
+      "Data": 5,
+      "Connectivity": 5,
+      "feature": 4,
+      "RAG": 4,
+      "Performance": 2,
+      "BUG": 2,
+      "P3": 1,
+      "needs-more-info": 1,
+      "Agent": 1,
+      "needs-triage": 1,
+      "area/UI/UX": 1
+    }
   },
-  "high_engagement_issues": [
+  "p1_critical_issues": [],
+  "inferred_high_priority": [
+    {
+      "number": 12890,
+      "title": "[Bug]: Image-based PDF file content cannot be properly read by the model in single-session file upload, even with powerful document extraction models like Paddle OCR or MinerU enabled",
+      "labels": [
+        "BUG",
+        "Models",
+        "inactive"
+      ],
+      "comments": 5,
+      "priority_signal": "BUG label + 5 comments"
+    }
+  ],
+  "action_needed_issues": [
+    {
+      "number": 14621,
+      "title": "[Discussion]: AI-generated embedded code is recognized as a path and becomes clickable, how to disable this feature?",
+      "labels": [
+        "help wanted",
+        "discussion",
+        "UI/UX",
+        "inactive"
+      ]
+    },
+    {
+      "number": 15332,
+      "title": "[Bug]: Frequent Crashes on Desktop Application",
+      "labels": [
+        "needs-repro"
+      ]
+    },
     {
       "number": 14603,
       "title": "[Bug] Web search returns unrelated results",
-      "comments": 9,
-      "labels": ["inactive"],
-      "status": "Active"
+      "labels": [
+        "needs-repro"
+      ]
     },
     {
-      "number": 14300,
-      "title": "[Bug]: Backup to WebDAV and S3 failed",
-      "comments": 8,
-      "labels": ["BUG"],
-      "status": "Active"
+      "number": 15341,
+      "title": "[Bug]: GPT image is not work",
+      "labels": [
+        "needs-more-info"
+      ]
     },
     {
-      "number": 13608,
-      "title": "[Bug]: xiaomi mimo response only displays the last line",
-      "comments": 8,
-      "labels": ["P1", "Models"],
-      "status": "Stale"
+      "number": 15337,
+      "title": "[Bug]: Added large models in model service, but still cannot select configured models when creating knowledge base",
+      "labels": [
+        "needs-repro",
+        "RAG"
+      ]
     },
     {
-      "number": 14585,
-      "title": "[Bug]: Fatal bug: Ongoing response/thinking reset when switching topic",
-      "comments": 4,
-      "labels": [],
-      "status": "Active"
+      "number": 15328,
+      "title": "[Discussion]: Which configuration should be used for codex-gpt5.5?",
+      "labels": [
+        "help wanted",
+        "discussion",
+        "Models"
+      ]
     },
     {
-      "number": 14552,
-      "title": "[Feature]: Automatically compact context for agent when reached limit",
-      "comments": 4,
-      "labels": [],
-      "status": "Active"
+      "number": 14569,
+      "title": "[Discussion]: Code tool unable to start CLI properly",
+      "labels": [
+        "help wanted",
+        "discussion",
+        "inactive"
+      ]
+    },
+    {
+      "number": 14600,
+      "title": "[Bug] Agent crashes and becomes unusable",
+      "labels": [
+        "needs-repro",
+        "inactive"
+      ]
+    },
+    {
+      "number": 15317,
+      "title": "[Bug]: During Cherryclaw task execution, after clicking pause, all agents disappeared, claw function completely failed with &#34;Failed to list agents.&#34;, still unusable after restart",
+      "labels": [
+        "MCP",
+        "needs-repro",
+        "Assistant"
+      ]
+    },
+    {
+      "number": 14532,
+      "title": "[Discussion]: Cherry Studio V1.9.2 - Agent cannot create files in specified directory",
+      "labels": [
+        "help wanted",
+        "discussion",
+        "inactive"
+      ]
+    },
+    {
+      "number": 14549,
+      "title": "[Discussion]: Agent Environment Variables When Using Non-Claude Models",
+      "labels": [
+        "help wanted",
+        "discussion",
+        "Assistant",
+        "Models",
+        "inactive"
+      ]
+    },
+    {
+      "number": 15296,
+      "title": "[Discussion] Why can&#39;t agent model selection use all available chat models?",
+      "labels": [
+        "help wanted",
+        "discussion"
+      ]
+    },
+    {
+      "number": 14434,
+      "title": "[Bug]: Assistant settings interface freezes after switching models",
+      "labels": [
+        "needs-repro",
+        "UI/UX",
+        "inactive"
+      ]
     }
   ],
-  "unlabeled_top_issues": {
-    "total_confirmed": 66,
-    "sample_analyzed": 50,
-    "by_inferred_category": {
-      "bug": 25,
-      "feature": 23,
-      "other": 2
-    },
-    "highest_priority_unlabeled": [
-      {"number": 15315, "title": "[Bug]: A JavaScript error occurred in the main process", "created_at": "2026-05-25", "comments": 0},
-      {"number": 15220, "title": "[Bug]: Claude Code Provider 'Content block is not a text block' during streaming", "created_at": "2026-05-20", "comments": 0},
-      {"number": 15055, "title": "[Bug]: V8 SIGTRAP crash — app quits unexpectedly multiple times per day (macOS Apple Silicon)", "created_at": "2026-05-13", "comments": 0},
-      {"number": 14928, "title": "[Bug]: All agent settings lost and reset after restoring from backup", "created_at": "2026-05-08", "comments": 0},
-      {"number": 14356, "title": "[Bug]: v2 fresh install — every message fails with 'Topic not found'", "created_at": "2026-04-17", "comments": 0, "note": "39 days old, zero response"}
-    ]
-  },
-  "stale_bugs_top10": [
+  "unlabeled_sample": [
     {
-      "number": 13193,
-      "title": "[Bug]: AI_APICallError: Resource not found, default use responses API",
-      "labels": ["P1", "Models"],
-      "updated_at": "2026-03-05",
-      "days_stale": 82
+      "number": 15357,
+      "title": "Support adding both regular API and token plan API for the same provider",
+      "updatedAt": "2026-05-27T06:50:10Z"
     },
     {
-      "number": 12996,
-      "title": "[Bug]: Anthropic models returns 'Invalid signature in thinking'",
-      "labels": ["BUG", "Models"],
-      "updated_at": "2026-03-11",
-      "days_stale": 76
+      "number": 15347,
+      "title": "[Bug]: Claude Code update installation failed",
+      "updatedAt": "2026-05-27T06:06:21Z"
     },
     {
-      "number": 12962,
-      "title": "[Bug]: OpenAI Responses Format Invalid Request Body",
-      "labels": ["BUG", "Models"],
-      "updated_at": "2026-03-11",
-      "days_stale": 76
+      "number": 15323,
+      "title": "[Feature]: Agent session supports /clear command to reset context",
+      "updatedAt": "2026-05-26T01:48:37Z"
     },
     {
-      "number": 12925,
-      "title": "[Bug]: Multiple OOM Crashes in Renderer Process",
-      "labels": ["BUG", "Performance"],
-      "updated_at": "2026-03-11",
-      "days_stale": 76
+      "number": 14568,
+      "title": "[Bug]: v1.9.3 code block not rendered",
+      "updatedAt": "2026-05-25T12:14:47Z"
     },
     {
-      "number": 12623,
-      "title": "[Bug]: Official Perplexity MCP server incorrectly recognized",
-      "labels": ["BUG", "MCP"],
-      "updated_at": "2026-03-11",
-      "days_stale": 76
+      "number": 15315,
+      "title": "[Bug]: A JavaScript error occurred in the main process",
+      "updatedAt": "2026-05-25T09:01:34Z"
     },
     {
-      "number": 12516,
-      "title": "[Bug]: Program gets stuck when 'Auto' mode is used",
-      "labels": ["BUG", "MCP", "needs-repro"],
-      "updated_at": "2026-03-11",
-      "days_stale": 76
+      "number": 15300,
+      "title": "[Bug]: Error downloading SVG images output by the model",
+      "updatedAt": "2026-05-24T15:07:50Z"
     },
     {
-      "number": 12689,
-      "title": "[Bug]: Mac App Creates 'Default Assistant' Using Unconfigured Model",
-      "labels": ["BUG", "Models", "v2"],
-      "updated_at": "2026-03-11",
-      "days_stale": 76
+      "number": 15299,
+      "title": "Suggestion: Do not override &#39;backup directory&#39; path when restoring backup, or add a toggle",
+      "updatedAt": "2026-05-24T13:11:21Z"
     },
     {
-      "number": 12618,
-      "title": "[Bug]: Unable to properly configure and use Anthropic (Claude)",
-      "labels": ["BUG", "Models"],
-      "updated_at": "2026-03-11",
-      "days_stale": 76
-    },
-    {
-      "number": 12819,
-      "title": "[Bug]: Synchronization ensures consistent multi-device sessions",
-      "labels": ["BUG", "Data"],
-      "updated_at": "2026-03-11",
-      "days_stale": 76
-    },
-    {
-      "number": 12472,
-      "title": "[Bug]: ModelScope model unable to think",
-      "labels": ["BUG", "Models"],
-      "updated_at": "2026-03-11",
-      "days_stale": 76
+      "number": 15286,
+      "title": "[Feature]: Improve built-in web search support for Aliyun Bailian models",
+      "updatedAt": "2026-05-23T15:50:25Z"
     }
-  ],
-  "recommendations": [
-    "🔴 URGENT: Follow up on #13193 (Azure OpenAI P1, assigned DeJeune, 82d stalled — regression regression affects users on Azure)",
-    "🟠 TRIAGE: #13608 (P1 mimo bug, 68d stale, milestone closed — verify if fixed in v1.9.x or reopen)",
-    "🟠 LABEL DEBT: 66 confirmed unlabeled issues — assign bug/feature/discussion labels and severity",
-    "🟡 BATCH CLOSE: ~57 'inactive'-labeled issues in open state may be candidates for final closure review",
-    "🟡 UNLABELED CRITICAL: #15055 (V8 SIGTRAP crash macOS), #14356 (v2 Topic not found), #14928 (agent settings lost on restore) need immediate triage",
-    "🔵 ZOMBIE SWEEP: 4+ confirmed zombie issues (>90d) — evaluate for closure or v2 migration tracking",
-    "🔵 MONITOR: Unlabeled count grew from ~53→66 (+13) — triage cadence may need to increase"
   ]
 }
