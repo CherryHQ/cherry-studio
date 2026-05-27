@@ -1,3 +1,4 @@
+import type { FileEntryId } from '@shared/data/types/file'
 import type { FileInfo } from '@shared/file/types'
 import * as z from 'zod'
 
@@ -44,6 +45,7 @@ export type PreparedMineruContext = {
 }
 
 export type PreparedMineruStartContext = PreparedMineruContext & {
+  fileEntryId: FileEntryId
   file: FileInfo
   modelVersion?: string
 }

@@ -17,6 +17,10 @@ export const resolveKnowledgeFileEntryData = async (
     throw new Error(`Failed to resolve a local path for "${displayName}"`)
   }
 
+  if (source.startsWith('file://') || (!source.startsWith('/') && !/^[A-Za-z]:\\/.test(source))) {
+    throw new Error(`Failed to resolve an absolute local path for "${displayName}"`)
+  }
+
   const entry = await window.api.file.ensureExternalEntry({ externalPath: source as FilePath })
 
   return {

@@ -1,5 +1,4 @@
 import fs from 'node:fs/promises'
-import path from 'node:path'
 
 import type { FileInfo } from '@shared/file/types'
 
@@ -94,7 +93,7 @@ export async function uploadDocument(context: PreparedMistralContext): Promise<s
   const uploadedFile = await context.client.files.upload(
     {
       file: {
-        fileName: context.file.name,
+        fileName: context.file.ext ? `${context.file.name}.${context.file.ext}` : context.file.name,
         content: new Uint8Array(fileBuffer)
       },
       purpose: 'ocr'
@@ -133,7 +132,7 @@ export async function deleteUploadedDocument(context: PreparedMistralContext, fi
 
 async function createImageDataUrl(file: FileInfo): Promise<string> {
   const filePath = file.path
-  const extension = (path.extname(filePath) || (file.ext ? `.${file.ext}` : '')).toLowerCase()
+  const extension = file.ext ? `.${file.ext.toLowerCase()}` : ''
   const mime = IMAGE_MIME_BY_EXTENSION[extension]
 
   if (!mime) {

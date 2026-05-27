@@ -178,6 +178,9 @@ describe('remotePollJobHandler.execute', () => {
     const result = (await remotePollJobHandler.execute(ctx)) as { artifacts: unknown[] }
 
     expect(result.artifacts).toEqual([{ kind: 'file', format: 'markdown', path: '/tmp/results/job-2/output.md' }])
+    expect(capabilityHandlerMock.prepare).toHaveBeenCalledWith(FAKE_FILE_INFO, expect.any(Object), ctx.signal, {
+      fileEntryId: FILE_ENTRY_ID
+    })
     expect(toPersistableMock).toHaveBeenCalledWith(remoteCtx, 'provider-task-xyz')
 
     const patchCalls = (ctx.patchMetadata as ReturnType<typeof vi.fn>).mock.calls

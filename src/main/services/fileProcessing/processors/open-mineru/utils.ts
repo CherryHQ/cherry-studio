@@ -23,7 +23,7 @@ export async function executeTask(context: PreparedOpenMineruContext): Promise<R
   formData.append('return_md', 'true')
   formData.append('response_format_zip', 'true')
   formData.append('files', fileStream, {
-    filename: context.file.name
+    filename: context.file.ext ? `${context.file.name}.${context.file.ext}` : context.file.name
   })
 
   try {

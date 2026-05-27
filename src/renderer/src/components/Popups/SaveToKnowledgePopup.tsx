@@ -354,14 +354,25 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
         }
 
         if (result.files.length > 0 && selectedTypes.includes(CONTENT_TYPES.FILE)) {
-          const fileData = await Promise.all(result.files.map(resolveKnowledgeFileMetadataEntryData))
+          const fileResults = await Promise.allSettled(result.files.map(resolveKnowledgeFileMetadataEntryData))
+          const fileData = fileResults.flatMap((item) => (item.status === 'fulfilled' ? [item.value] : []))
+          const failedCount = fileResults.length - fileData.length
+
+          if (failedCount > 0) {
+            logger.warn('Failed to resolve some knowledge file entries', {
+              failedCount,
+              totalCount: fileResults.length
+            })
+            window.toast.warning(t('chat.save.knowledge.error.file_partial_failed', { count: failedCount }))
+          }
+
           items.push(
             ...fileData.map((data) => ({
               type: 'file' as const,
               data
             }))
           )
-          savedCount += result.files.length
+          savedCount += fileData.length
         }
       }
 

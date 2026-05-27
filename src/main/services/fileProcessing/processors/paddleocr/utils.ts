@@ -42,7 +42,7 @@ export async function createJob(context: PreparedPaddleStartContext): Promise<{
     formData.append('model', context.model)
   }
   formData.append('file', fileBuffer, {
-    filename: context.file.name
+    filename: context.file.ext ? `${context.file.name}.${context.file.ext}` : context.file.name
   })
   const requestBody = formData.getBuffer()
   const requestHeaders = {

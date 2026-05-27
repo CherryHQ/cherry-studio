@@ -27,6 +27,7 @@ const FAKE_PDF = createFileInfo({
   createdAt: 1,
   modifiedAt: 1
 })
+const FAKE_FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000001'
 
 function buildConfig(id: 'doc2x' | 'mineru' | 'paddleocr', apiHost: string): FileProcessorMerged {
   return {
@@ -51,7 +52,7 @@ async function prepareRemote(
     | typeof paddleDocumentToMarkdownHandler,
   config: FileProcessorMerged
 ): Promise<PreparedRemoteTask<'document_to_markdown'>> {
-  const prepared = await handler.prepare(FAKE_PDF, config)
+  const prepared = await handler.prepare(FAKE_PDF, config, undefined, { fileEntryId: FAKE_FILE_ENTRY_ID })
   if (prepared.mode !== 'remote-poll') {
     throw new Error('Expected remote-poll prepared task')
   }

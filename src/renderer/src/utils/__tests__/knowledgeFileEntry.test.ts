@@ -69,4 +69,18 @@ describe('knowledgeFileEntry', () => {
     )
     expect(mockEnsureExternalEntry).not.toHaveBeenCalled()
   })
+
+  it('rejects relative paths before creating a file entry', async () => {
+    await expect(resolveKnowledgeFileEntryData('docs/report.pdf', 'report.pdf')).rejects.toThrow(
+      'Failed to resolve an absolute local path for "report.pdf"'
+    )
+    expect(mockEnsureExternalEntry).not.toHaveBeenCalled()
+  })
+
+  it('rejects file urls before creating a file entry', async () => {
+    await expect(resolveKnowledgeFileEntryData('file:///tmp/report.pdf', 'report.pdf')).rejects.toThrow(
+      'Failed to resolve an absolute local path for "report.pdf"'
+    )
+    expect(mockEnsureExternalEntry).not.toHaveBeenCalled()
+  })
 })

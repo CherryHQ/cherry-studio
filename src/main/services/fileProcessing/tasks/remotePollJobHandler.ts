@@ -54,7 +54,7 @@ export const remotePollJobHandler: JobHandler<FileProcessingJobPayload> = {
     const file = await resolveFileProcessingFileInfo(fileEntryId)
     assertFileTypeSupported(file, feature, config)
 
-    const prepared = await capability.prepare(file, config, ctx.signal)
+    const prepared = await capability.prepare(file, config, ctx.signal, { fileEntryId })
     assertModeMatches(prepared, 'remote-poll')
     const remote = prepared as PreparedRemoteTask<typeof feature, FileProcessingRemoteContext>
 

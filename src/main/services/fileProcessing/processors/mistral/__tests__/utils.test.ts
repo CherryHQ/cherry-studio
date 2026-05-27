@@ -23,7 +23,8 @@ describe('mistral utils', () => {
       uploadDocument({
         file: {
           path: '/tmp/input.pdf',
-          name: 'input'
+          name: 'input',
+          ext: 'pdf'
         },
         client: {
           files: {
@@ -37,7 +38,7 @@ describe('mistral utils', () => {
     expect(upload).toHaveBeenCalledWith(
       {
         file: {
-          fileName: 'input',
+          fileName: 'input.pdf',
           content: new Uint8Array(Buffer.from('pdf-data'))
         },
         purpose: 'ocr'

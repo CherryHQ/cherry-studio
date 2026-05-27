@@ -140,9 +140,13 @@ describe('backgroundJobHandler.execute', () => {
     preparedExecuteMock.mockResolvedValue({ kind: 'text', text: 'recognized text' })
     setupCapability({ mode: 'background', execute: preparedExecuteMock })
 
-    const result = (await backgroundJobHandler.execute(createCtx())) as { artifacts: unknown[] }
+    const ctx = createCtx()
+    const result = (await backgroundJobHandler.execute(ctx)) as { artifacts: unknown[] }
 
     expect(result.artifacts).toEqual([{ kind: 'text', format: 'plain', text: 'recognized text' }])
+    expect(capabilityHandlerMock.prepare).toHaveBeenCalledWith(FAKE_FILE_INFO, expect.any(Object), ctx.signal, {
+      fileEntryId: FILE_ENTRY_ID
+    })
     expect(cleanupResultsDirMock).not.toHaveBeenCalled()
     expect(persistResultMock).not.toHaveBeenCalled()
   })
