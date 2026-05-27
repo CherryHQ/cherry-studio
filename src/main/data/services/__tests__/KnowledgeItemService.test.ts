@@ -796,6 +796,22 @@ describe('KnowledgeItemService', () => {
       })
     })
 
+    it('preserves explicit failed container status instead of reconciling it from children', async () => {
+      await seedItem({
+        id: DIR_ROOT_ID,
+        type: 'directory',
+        data: { source: '/docs', path: '/docs' },
+        status: 'preparing'
+      })
+
+      await service.updateStatus(DIR_ROOT_ID, 'failed', { error: 'enqueue failed' })
+
+      await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({
+        status: 'failed',
+        error: 'enqueue failed'
+      })
+    })
+
     it('throws NotFound when updating status for a missing item', async () => {
       await expect(service.updateStatus('missing', 'failed', { error: 'missing' })).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND,

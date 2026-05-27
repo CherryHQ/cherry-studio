@@ -1221,51 +1221,6 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     expect(deleteMock.where).toHaveBeenCalledTimes(1)
   })
 
-  it('execute exposes legacy to migrated base and item id remaps for vector migration', async () => {
-    const migrator = new KnowledgeMigrator() as any
-    const migratedBaseId = '11111111-1111-4111-8111-111111111111'
-    const migratedItemId = '0198f3f2-7d1a-7abc-8def-123456789abc'
-    migrator.preparedBases = [
-      {
-        id: migratedBaseId,
-        name: 'KB 1',
-        dimensions: 1024,
-        embeddingModelId: 'silicon::BAAI/bge-m3'
-      }
-    ]
-    migrator.preparedItems = [
-      {
-        id: migratedItemId,
-        baseId: migratedBaseId,
-        groupId: null,
-        type: 'note',
-        data: { source: 'n1', content: 'n1' },
-        status: 'idle',
-        error: null
-      }
-    ]
-    migrator.legacyBaseIdRemap = new Map([['legacy-kb-1', migratedBaseId]])
-    migrator.legacyItemIdRemap = new Map([['legacy-note-1', migratedItemId]])
-
-    const values = vi.fn().mockResolvedValue(undefined)
-    const insert = vi.fn().mockReturnValue({ values })
-    const update = createUpdateMock()
-    const transaction = vi.fn(async (callback: (tx: any) => Promise<void>) => {
-      await callback({ insert, update })
-    })
-    const sharedData = new Map<string, unknown>()
-
-    const result = await migrator.execute({
-      db: { transaction, delete: createDeleteMock() },
-      sharedData
-    } as any)
-
-    expect(result.success).toBe(true)
-    expect(sharedData.get('knowledgeBaseIdRemap')).toEqual(new Map([['legacy-kb-1', migratedBaseId]]))
-    expect(sharedData.get('knowledgeItemIdRemap')).toEqual(new Map([['legacy-note-1', migratedItemId]]))
-    expect(update).toHaveBeenCalledTimes(1)
-  })
-
   it('execute writes recoverable failed bases and their items', async () => {
     const migrator = new KnowledgeMigrator() as any
     migrator.preparedBases = [

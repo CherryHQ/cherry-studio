@@ -452,7 +452,10 @@ export class KnowledgeItemService {
 
       return {
         item: rowToKnowledgeItem(updatedRow),
-        startContainerIds: [updatedRow.id, existingRow.groupId]
+        startContainerIds:
+          status === 'failed' && (updatedRow.type === 'directory' || updatedRow.type === 'sitemap')
+            ? [existingRow.groupId]
+            : [updatedRow.id, existingRow.groupId]
       }
     })
 

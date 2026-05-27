@@ -313,6 +313,17 @@ describe('knowledge job handlers', () => {
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'deleting' })
   })
 
+  it('prepare-root keeps terminal failure from an empty expansion', async () => {
+    const handler = createPrepareRootJobHandler(mutationCoordinator as never, workflowCoordinator as never)
+    knowledgeItemGetByIdMock.mockResolvedValue(createDirectoryItem())
+    prepareKnowledgeItemMock.mockResolvedValue([])
+
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
+
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith('dir-1', 'processing')
+    expect(scheduleItemMock).not.toHaveBeenCalled()
+  })
+
   it('prepare-root marks unscheduled child leaves failed when enqueueing a child fails', async () => {
     const handler = createPrepareRootJobHandler(mutationCoordinator as never, workflowCoordinator as never)
     const leaves = [

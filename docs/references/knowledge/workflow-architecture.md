@@ -25,11 +25,11 @@ Helpers may own source planning, lifecycle writes, artifact refs, and FileProces
 
 ## Workflow Entry Points
 
-`addItems`, `deleteItem`, and `reindexItem` are async workflow entry points. API resolution means the durable workflow has been accepted, not that every physical side effect has finished.
+`addItems`, `deleteItems`, and `reindexItems` are async workflow entry points. API resolution means the durable workflow has been accepted, not that every physical side effect has finished.
 
 - `addItems` resolves after root rows are created and first Knowledge jobs are queued.
-- `deleteItem` resolves after the target subtree is marked `deleting` and `knowledge.delete-subtree` is queued.
-- `reindexItem` resolves after `knowledge.reindex-subtree` is queued.
+- `deleteItems` resolves after top-level target subtrees are marked `deleting` and `knowledge.delete-subtree` is queued.
+- `reindexItems` resolves after `knowledge.reindex-subtree` is queued for the top-level target subtrees.
 
 Default item list, search, and RAG hydration exclude `deleting` items. `deleting` is a durable cleanup marker, not a tombstone or terminal success state.
 
@@ -83,4 +83,3 @@ Same-base Knowledge mutations must go through `KnowledgeMutationCoordinator`. Ma
 Crash safety comes from durable jobs, durable item states, JobManager recovery, and idempotent cleanup. The in-memory mutation lock only serializes concurrent work in the current process.
 
 Delete and reindex span two stores: the main SQLite database and the per-base vector store. They cannot be one cross-store transaction. Consistency relies on durable re-entry and idempotent vector/artifact/row cleanup.
-

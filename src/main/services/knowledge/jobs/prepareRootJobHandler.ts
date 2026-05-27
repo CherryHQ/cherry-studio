@@ -157,7 +157,9 @@ async function scanRootItem(
       runMutation: async (task) => await task(),
       signal: ctx.signal
     })
-    await knowledgeItemService.updateStatus(itemId, 'processing')
+    if (leaves.length > 0) {
+      await knowledgeItemService.updateStatus(itemId, 'processing')
+    }
     return leaves
   })
 }
