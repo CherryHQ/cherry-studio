@@ -1,5 +1,5 @@
 import type { FileMetadata } from '@renderer/types'
-import type { FileEntryId } from '@shared/data/types/file'
+import { AbsolutePathSchema, type FileEntryId } from '@shared/data/types/file'
 import type { FilePath } from '@shared/file/types'
 
 export interface KnowledgeFileItemData {
@@ -17,7 +17,7 @@ export const resolveKnowledgeFileEntryData = async (
     throw new Error(`Failed to resolve a local path for "${displayName}"`)
   }
 
-  if (source.startsWith('file://') || (!source.startsWith('/') && !/^[A-Za-z]:\\/.test(source))) {
+  if (!AbsolutePathSchema.safeParse(source).success) {
     throw new Error(`Failed to resolve an absolute local path for "${displayName}"`)
   }
 
