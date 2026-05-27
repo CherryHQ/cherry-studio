@@ -1,13 +1,8 @@
 import { Mistral } from '@mistralai/mistralai'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
-import type { FileMetadata } from '@types'
+import type { FileInfo } from '@shared/file/types'
 
-import {
-  assertHasFilePath,
-  getRequiredApiHost,
-  getRequiredApiKey,
-  getRequiredCapability
-} from '../../../utils/provider'
+import { getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '../../../utils/provider'
 import type { FileProcessingCapabilityHandler } from '../../types'
 import type { PreparedMistralContext } from '../types'
 import { buildTextExtractionResult, executeExtraction, prepareDocumentPayload } from '../utils'
@@ -33,11 +28,10 @@ export const mistralImageToTextHandler: FileProcessingCapabilityHandler<'image_t
   }
 }
 
-function prepareContext(file: FileMetadata, config: FileProcessorMerged, signal?: AbortSignal): PreparedMistralContext {
+function prepareContext(file: FileInfo, config: FileProcessorMerged, signal?: AbortSignal): PreparedMistralContext {
   signal?.throwIfAborted()
 
   const capability = getRequiredCapability(config, 'image_to_text', 'mistral')
-  assertHasFilePath(file)
 
   return {
     file,

@@ -1,9 +1,9 @@
 import type { Mistral } from '@mistralai/mistralai'
-import type { FileMetadata } from '@types'
+import type { FileInfo } from '@shared/file/types'
 import * as z from 'zod'
 
 export type PreparedMistralContext = {
-  file: FileMetadata
+  file: FileInfo
   signal?: AbortSignal
   client: Mistral
   model?: string
