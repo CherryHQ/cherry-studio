@@ -7,12 +7,15 @@
  * post-success failure).
  */
 import type { JobContext } from '@main/core/job/types'
-import type { FileMetadata } from '@types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { FileProcessingJobPayload } from '../shared'
 
 const {
+  appGetMock,
+  fileManagerGetByIdMock,
+  fileManagerGetMetadataMock,
+  toFileInfoMock,
   resolveProcessorConfigByFeatureMock,
   processorRegistryMock,
   persistResultMock,
@@ -20,6 +23,10 @@ const {
   capabilityHandlerMock,
   preparedExecuteMock
 } = vi.hoisted(() => ({
+  appGetMock: vi.fn(),
+  fileManagerGetByIdMock: vi.fn(),
+  fileManagerGetMetadataMock: vi.fn(),
+  toFileInfoMock: vi.fn(),
   resolveProcessorConfigByFeatureMock: vi.fn(),
   processorRegistryMock: {} as Record<string, unknown>,
   persistResultMock: vi.fn(),
@@ -29,6 +36,14 @@ const {
     prepare: vi.fn()
   },
   preparedExecuteMock: vi.fn()
+}))
+
+vi.mock('@application', () => ({
+  application: { get: appGetMock }
+}))
+
+vi.mock('@main/services/file/toFileInfo', () => ({
+  toFileInfo: toFileInfoMock
 }))
 
 vi.mock('../../config/resolveProcessorConfig', () => ({
@@ -46,16 +61,25 @@ vi.mock('../../persistence/MarkdownResultStore', () => ({
 
 const { backgroundJobHandler } = await import('../backgroundJobHandler')
 
-const FAKE_FILE: FileMetadata = {
-  id: 'file-1',
-  name: 'photo.png',
-  origin_name: 'photo.png',
+const FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000201'
+const FAKE_ENTRY = {
+  id: FILE_ENTRY_ID,
+  origin: 'external',
+  name: 'photo',
+  ext: 'png',
+  externalPath: '/tmp/photo.png',
+  createdAt: 1,
+  updatedAt: 1
+}
+const FAKE_FILE_INFO = {
   path: '/tmp/photo.png',
+  name: 'photo',
+  ext: 'png',
   size: 1024,
-  ext: '.png',
+  mime: 'image/png',
   type: 'image',
-  created_at: '2026-05-01T00:00:00.000Z',
-  count: 1
+  createdAt: 1,
+  modifiedAt: 1
 }
 
 function createCtx(
@@ -64,7 +88,7 @@ function createCtx(
   const controller = new AbortController()
   return {
     jobId: 'job-1',
-    input: { feature: 'image_to_text', file: FAKE_FILE, processorId: 'tesseract' },
+    input: { feature: 'image_to_text', fileEntryId: FILE_ENTRY_ID, processorId: 'tesseract' },
     attempt: 0,
     signal: controller.signal,
     metadata: {},
@@ -89,6 +113,25 @@ function setupCapability(prepared: unknown) {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  appGetMock.mockImplementation((name: string) => {
+    if (name === 'FileManager') {
+      return {
+        getById: fileManagerGetByIdMock,
+        getMetadata: fileManagerGetMetadataMock
+      }
+    }
+    throw new Error(`Unexpected application.get(${name})`)
+  })
+  fileManagerGetMetadataMock.mockResolvedValue({
+    kind: 'file',
+    type: 'other',
+    size: 1024,
+    mime: 'application/octet-stream',
+    createdAt: 1,
+    modifiedAt: 1
+  })
+  fileManagerGetByIdMock.mockResolvedValue(FAKE_ENTRY)
+  toFileInfoMock.mockResolvedValue(FAKE_FILE_INFO)
   capabilityHandlerMock.mode = 'background'
 })
 
@@ -97,9 +140,13 @@ describe('backgroundJobHandler.execute', () => {
     preparedExecuteMock.mockResolvedValue({ kind: 'text', text: 'recognized text' })
     setupCapability({ mode: 'background', execute: preparedExecuteMock })
 
-    const result = (await backgroundJobHandler.execute(createCtx())) as { artifacts: unknown[] }
+    const ctx = createCtx()
+    const result = (await backgroundJobHandler.execute(ctx)) as { artifacts: unknown[] }
 
     expect(result.artifacts).toEqual([{ kind: 'text', format: 'plain', text: 'recognized text' }])
+    expect(capabilityHandlerMock.prepare).toHaveBeenCalledWith(FAKE_FILE_INFO, expect.any(Object), ctx.signal, {
+      fileEntryId: FILE_ENTRY_ID
+    })
     expect(cleanupResultsDirMock).not.toHaveBeenCalled()
     expect(persistResultMock).not.toHaveBeenCalled()
   })

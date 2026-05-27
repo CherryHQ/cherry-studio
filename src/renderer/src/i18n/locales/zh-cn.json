@@ -1380,6 +1380,7 @@
           "no_knowledge_base": "暂无可用知识库，请先创建知识库"
         },
         "error": {
+          "file_partial_failed": "{{count}} 个文件保存失败",
           "invalid_base": "所选知识库未正确配置",
           "no_content_selected": "请至少选择一种内容",
           "save_failed": "保存失败，请检查知识库配置"

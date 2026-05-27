@@ -698,17 +698,6 @@ describe('KnowledgeOrchestrationService', () => {
 
   it('passes all add item variants through to runtime without normalizing in orchestration', async () => {
     const service = new KnowledgeOrchestrationService()
-    const file = {
-      id: 'file-meta-1',
-      name: 'guide.md',
-      origin_name: 'guide.md',
-      path: '/docs/guide.md',
-      created_at: '2026-04-08T00:00:00.000Z',
-      size: 12,
-      ext: '.md',
-      type: 'text' as const,
-      count: 1
-    }
     const inputs = [
       {
         type: 'url' as const,
@@ -719,7 +708,13 @@ describe('KnowledgeOrchestrationService', () => {
         data: { source: 'https://example.com/sitemap.xml', url: 'https://example.com/sitemap.xml' }
       },
       { type: 'directory' as const, data: { source: '/docs/reference/', path: '/docs/reference/' } },
-      { type: 'file' as const, data: { source: file.path, file } }
+      {
+        type: 'file' as const,
+        data: {
+          source: '/docs/guide.md',
+          fileEntryId: '019606a0-0000-7000-8000-000000000001'
+        }
+      }
     ]
 
     await expect(service.addItems('kb-1', inputs)).resolves.toBeUndefined()

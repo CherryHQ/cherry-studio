@@ -1,6 +1,7 @@
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
-import type { FileMetadata } from '@types'
+import type { FileEntryId } from '@shared/data/types/file'
+import type { FileInfo } from '@shared/file/types'
 
 export type ImageToTextHandlerOutput = {
   kind: 'text'
@@ -36,6 +37,10 @@ export interface FileProcessingExecutionContext {
 }
 
 export type FileProcessingRemoteContext = object
+
+export interface FileProcessingPrepareContext {
+  fileEntryId: FileEntryId
+}
 
 /**
  * Minimal cross-restart state persisted to jobTable.metadata for remote-poll
@@ -137,9 +142,10 @@ export interface FileProcessingCapabilityHandler<
    */
   readonly mode: 'background' | 'remote-poll'
   prepare(
-    file: FileMetadata,
+    file: FileInfo,
     config: FileProcessorMerged,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    context?: FileProcessingPrepareContext
   ): Promise<PreparedFileProcessingTask<Feature, RemoteContext>> | PreparedFileProcessingTask<Feature, RemoteContext>
 }
 

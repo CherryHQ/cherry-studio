@@ -2,8 +2,7 @@ import { loggerService } from '@logger'
 import { isLinux, isWin } from '@main/core/platform'
 import { OcrAccuracy, recognize } from '@napi-rs/system-ocr'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
-import type { FileMetadata } from '@types'
-import { isImageFileMetadata } from '@types'
+import { FILE_TYPE, type FileInfo } from '@shared/file/types'
 
 import type { FileProcessingCapabilityHandler } from '../../types'
 import type { PreparedSystemOcrContext } from '../types'
@@ -21,7 +20,6 @@ export const systemImageToTextHandler: FileProcessingCapabilityHandler<'image_to
       mode: 'background',
       async execute(executionContext) {
         logger.debug('Running system OCR for image_to_text', {
-          fileId: context.file.id,
           filePath: context.file.path,
           langs: context.langs
         })
@@ -42,22 +40,14 @@ export const systemImageToTextHandler: FileProcessingCapabilityHandler<'image_to
   }
 }
 
-function prepareContext(
-  file: FileMetadata,
-  config: FileProcessorMerged,
-  signal?: AbortSignal
-): PreparedSystemOcrContext {
+function prepareContext(file: FileInfo, config: FileProcessorMerged, signal?: AbortSignal): PreparedSystemOcrContext {
   signal?.throwIfAborted()
 
   if (isLinux) {
     throw new Error('System OCR is not supported on Linux')
   }
 
-  if (!file.path) {
-    throw new Error('File path is required')
-  }
-
-  if (!isImageFileMetadata(file)) {
+  if (file.type !== FILE_TYPE.IMAGE) {
     throw new Error('System OCR only supports image files')
   }
 

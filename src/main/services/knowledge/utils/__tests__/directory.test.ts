@@ -4,6 +4,37 @@ import path from 'node:path'
 
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+const ensureExternalEntryMock = vi.hoisted(() => {
+  function hashPathForId(value: string): number {
+    let hash = 0
+    for (const char of value) {
+      hash = (hash * 31 + char.charCodeAt(0)) % 1_000_000_000_000
+    }
+    return hash
+  }
+
+  return vi.fn(async ({ externalPath }: { externalPath: string }) => ({
+    id: `019606a0-0000-7000-8000-${String(Math.abs(hashPathForId(externalPath)))
+      .padStart(12, '0')
+      .slice(0, 12)}`,
+    name: path.basename(externalPath),
+    ext: path.extname(externalPath).slice(1),
+    origin: 'external',
+    externalPath,
+    createdAt: 1776948000000,
+    updatedAt: 1776948000000
+  }))
+})
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    FileManager: {
+      ensureExternalEntry: ensureExternalEntryMock
+    }
+  } as Parameters<typeof mockApplicationFactory>[0])
+})
+
 const { expandDirectoryOwnerToTree } = await import('../directory')
 const realFs = await vi.importActual<typeof NodeFs>('node:fs')
 const realOs = await vi.importActual<typeof NodeOs>('node:os')
@@ -65,13 +96,7 @@ describe('expandDirectoryOwnerToTree', () => {
                 type: 'file',
                 data: {
                   source: path.join(nestedDir, 'skill.md'),
-                  file: expect.objectContaining({
-                    name: 'skill.md',
-                    origin_name: 'skill.md',
-                    path: path.join(nestedDir, 'skill.md'),
-                    ext: '.md',
-                    count: 1
-                  })
+                  fileEntryId: expect.stringMatching(/^019606a0-0000-7000-8000-\d{12}$/)
                 }
               }
             ]
@@ -114,7 +139,8 @@ describe('expandDirectoryOwnerToTree', () => {
       expect.objectContaining({
         type: 'file',
         data: expect.objectContaining({
-          file: expect.objectContaining({ path: path.join(rootDir, 'readme.md') })
+          source: path.join(rootDir, 'readme.md'),
+          fileEntryId: expect.stringMatching(/^019606a0-0000-7000-8000-\d{12}$/)
         })
       })
     )
@@ -130,7 +156,8 @@ describe('expandDirectoryOwnerToTree', () => {
               expect.objectContaining({
                 type: 'file',
                 data: expect.objectContaining({
-                  file: expect.objectContaining({ path: path.join(nestedDir, 'reference.md') })
+                  source: path.join(nestedDir, 'reference.md'),
+                  fileEntryId: expect.stringMatching(/^019606a0-0000-7000-8000-\d{12}$/)
                 })
               })
             ]

@@ -60,14 +60,9 @@ import { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempS
  * ## Currently registered variants
  *
  * - `temp_session` — transient paste/draft refs (`./tempSession.ts`).
+ * - `chat_message` — refs from migrated chat message attachments (`./chatMessage.ts`).
  * - `knowledge_item` — refs from `knowledge_item` rows (`./knowledgeItem.ts`).
- *   `role` is a single-element placeholder enum; KnowledgeService wiring will
- *   extend it once the role vocabulary settles. No production code currently
- *   writes `knowledge_item` refs, so the choice of placeholder value
- *   (`'attachment'`) is inconsequential.
- * - `chat_message` — refs from message rows (`./chatMessage.ts`).
- *   `sourceId` accepts both UUIDv4 (legacy) and UUIDv7 (v2-native) because
- *   v1 message IDs are preserved verbatim during migration.
+ *   `role='source'` marks the indexed source file.
  *
  * Other business domains (painting / note) deliberately do NOT appear here.
  * They will be added when their owning DB tables migrate to v2 — at which

@@ -8,7 +8,7 @@ Each business domain that references files (e.g. chat messages, knowledge items,
 ref/
 ├── essential.ts       # Common fields (id, fileEntryId, timestamps) + createRefSchema factory
 ├── tempSession.ts     # Temp session variant (tracks temp files in use)
-├── knowledgeItem.ts   # knowledge_item variant (role is a Phase-2 placeholder)
+├── knowledgeItem.ts   # knowledge_item variant (source file refs)
 ├── index.ts           # Aggregates all variants into FileRefSchema (discriminatedUnion)
 └── README.md
 ```

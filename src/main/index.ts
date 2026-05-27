@@ -41,8 +41,11 @@ const startApp = async () => {
   const migrationResult = await runV2MigrationGate()
   if (migrationResult === 'handled') return
 
-  // TODO(v2): move to a lifecycle service — here temporarily for timing.
-  electronApp.setAppUserModelId(import.meta.env.VITE_MAIN_BUNDLE_ID || 'com.kangfenmao.CherryStudio')
+  // Set the Windows AppUserModelID — the identity Windows uses to attribute this
+  // app's notifications, taskbar icon grouping, and Jump Lists (no-op on macOS/Linux).
+  // Must run before any window is created or notification fires, hence after the
+  // migration gate returns and before lifecycle bootstrap.
+  electronApp.setAppUserModelId('com.cherryai.CherryStudio')
 
   // Start lifecycle (BeforeReady runs parallel with app.whenReady)
   application.registerAll(serviceList)

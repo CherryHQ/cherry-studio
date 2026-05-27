@@ -122,20 +122,20 @@ jobs:
               path: 'electron-builder.yml',
               replace: (content) =>
                 content
-                  .replace(/^appId: .+$/m, 'appId: com.cherryai.cherrystudio')
+                  .replace(/^appId: .+$/m, 'appId: com.cherryai.CherryStudio.preview')
                   .replace(/^productName: .+$/m, 'productName: Cherry Studio Next')
             },
             {
               path: 'scripts/notarize.js',
-              replace: (content) => content.replaceAll('com.kangfenmao.CherryStudio', 'com.cherryai.cherrystudio')
+              replace: (content) => content.replaceAll('com.cherryai.CherryStudio', 'com.cherryai.CherryStudio.preview')
             },
             {
               path: 'src/main/index.ts',
-              replace: (content) => content.replaceAll('com.kangfenmao.CherryStudio', 'com.cherryai.cherrystudio')
+              replace: (content) => content.replaceAll('com.cherryai.CherryStudio', 'com.cherryai.CherryStudio.preview')
             },
             {
               path: 'src/main/services/selection/SelectionService.ts',
-              replace: (content) => content.replaceAll('com.kangfenmao.CherryStudio', 'com.cherryai.cherrystudio')
+              replace: (content) => content.replaceAll('com.cherryai.CherryStudio', 'com.cherryai.CherryStudio.preview')
             }
           ]
 
