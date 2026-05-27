@@ -29,7 +29,7 @@ Helpers may own source planning, lifecycle writes, artifact refs, and FileProces
 
 - `addItems` resolves after root rows are created and first Knowledge jobs are queued.
 - `deleteItems` resolves after top-level target subtrees are marked `deleting` and `knowledge.delete-subtree` is queued.
-- `reindexItems` resolves after `knowledge.reindex-subtree` is queued for the top-level target subtrees.
+- `reindexItems` resolves after each top-level target subtree is confirmed terminal (`completed` or `failed`) and `knowledge.reindex-subtree` is queued.
 
 Default item list, search, and RAG hydration exclude `deleting` items. `deleting` is a durable cleanup marker, not a tombstone or terminal success state.
 
@@ -66,9 +66,9 @@ If a child is another `directory` or `sitemap`, `scheduleItem` queues another `k
 Round 1 job types:
 
 - `knowledge.prepare-root`: expand a container and schedule each child.
-- `knowledge.index-documents`: read/chunk/embed/write vectors for a concrete document source.
-- `knowledge.delete-subtree`: cancel active subtree jobs, delete vectors, detach processed artifact refs, cleanup internal artifacts by ref count, then hard-delete rows.
-- `knowledge.reindex-subtree`: run the shared cleanup prefix, reset subtree item state, then call `scheduleItem`.
+- `knowledge.index-documents`: read/chunk/embed/write vectors for a concrete document source. Empty reader results or zero chunks still write an empty vector set and complete the item.
+- `knowledge.delete-subtree`: cancel active subtree jobs, delete vectors, detach Knowledge file refs, then delete resolved item ids with `deleteItemsByIds`. Detached `FileEntry` rows are preserved by the file module's no-reference policy.
+- `knowledge.reindex-subtree`: for terminal subtrees only, delete vectors, detach file refs, reset subtree item state, then call `scheduleItem`.
 
 Round 2 adds FileProcessing:
 
@@ -83,3 +83,5 @@ Same-base Knowledge mutations must go through `KnowledgeMutationCoordinator`. Ma
 Crash safety comes from durable jobs, durable item states, JobManager recovery, and idempotent cleanup. The in-memory mutation lock only serializes concurrent work in the current process.
 
 Delete and reindex span two stores: the main SQLite database and the per-base vector store. They cannot be one cross-store transaction. Consistency relies on durable re-entry and idempotent vector/artifact/row cleanup.
+
+User-triggered reindex is not a cancellation primitive. The service admits reindex only when the entire selected subtree is already `completed` or `failed`. Active states (`idle`, `preparing`, `processing`, `reading`, `embedding`) and `deleting` are rejected; delete remains the operation that can be requested at any time.

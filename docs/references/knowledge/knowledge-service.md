@@ -107,6 +107,12 @@ Current product scope does not allow users to add nested `directory` / `sitemap`
 
 These IPC handlers are workflow-oriented. They validate payloads, call data services, and call runtime services internally.
 
+Chunk IPC entrypoints are runtime inspection/mutation helpers:
+
+- `list-item-chunks` and `delete-item-chunk` reject failed bases.
+- Both require the requested item to be `completed`.
+- Listing chunks for a completed `directory` / `sitemap` also rejects when the subtree still contains `deleting` descendants, because container status reconciliation ignores deleting children.
+
 ## Runtime Behavior
 
 `KnowledgeRuntimeService` keeps a single in-memory runtime queue with:
@@ -124,7 +130,7 @@ Current status writes are:
 - `processing, phase = reading` while a leaf item reads source documents
 - `processing, phase = embedding` while a leaf item embeds and writes vectors
 - `processing, phase = null` after a container's own preparation finishes while descendant leaf items are still processing
-- `completed, phase = null` after successful leaf indexing or when a container has no active children
+- `completed, phase = null` after successful leaf indexing, including leaf indexing that writes zero chunks, or when a container has no active children
 - `failed, phase = null` on error, cleanup failure, or shutdown interruption
 
 `status` is the aggregate business state. `phase` is runtime progress. Container status is reconciled from its own phase and child statuses.
@@ -168,7 +174,7 @@ delete-base(baseId)
 ```
 
 If SQLite deletion fails after runtime work was interrupted, orchestration marks the interrupted items failed and rethrows the SQLite error.
-If post-SQLite artifact cleanup fails, orchestration logs the cleanup error and rejects the delete call with a partial-deletion error. At that point the durable SQLite rows are already gone, but callers should not report the operation as fully successful because vector artifacts may remain on disk.
+Knowledge delete/reindex workflows detach Knowledge-owned `FileRef` rows but do not actively remove detached `FileEntry` rows. Unreferenced file entries are left to the file module's orphan handling policy.
 
 Base restore creates a new knowledge base from an existing base when the caller needs a fresh embedding/index setup, such as a migrated base whose legacy embedding model is unavailable or a completed base whose embedding model was changed by the user:
 

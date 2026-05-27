@@ -360,6 +360,10 @@ addItems
        -> status = completed, phase = null
 ```
 
+如果 reader 返回空 documents，或 chunk 后没有可索引 chunks，`index-leaf` 仍视为成功：写入
+`replaceByExternalId(itemId, [])` 清空该 item 的旧 chunks，然后把 item 标记为
+`completed`。`directory` / `sitemap` 展开为空仍由 preparation 阶段按失败处理。
+
 非中断错误抛出时，由 `JobManager` 调度 retry（最多 3 次）。Retry 耗尽或 job cancel 时 handler `onSettled` 把 `knowledge_item.status` 翻为 `failed`，error message 写入行；旧 chunks 由 `replaceByExternalId` 的事务保留（未发生过的 INSERT 不会改动 DB）。
 
 `directory` / `sitemap` 的一次 preparation 流程，当前是：
@@ -518,10 +522,11 @@ reader 由 `loadKnowledgeItemDocuments(item)` 按 leaf `item.type` 分派：
 
 `embedDocuments(model, documents, signal)` 当前会：
 
-1. 用 `embedMany` 批量生成 embeddings
-2. 支持把 `AbortSignal` 传给 AI SDK
-3. 构造 `TextNode`
-4. 在 `NodeRelationship.SOURCE` 上写回 `itemId` 和 metadata
+1. 对空 documents 直接返回空数组，不调用 embed model
+2. 用 `embedMany` 批量生成 embeddings
+3. 支持把 `AbortSignal` 传给 AI SDK
+4. 构造 `TextNode`
+5. 在 `NodeRelationship.SOURCE` 上写回 `itemId` 和 metadata
 
 ### 10.4 Search
 

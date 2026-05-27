@@ -5,7 +5,6 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { JobContext, JobHandler } from '@main/core/job/types'
-import { ErrorCode, isDataApiError } from '@shared/data/api'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import type { KnowledgeMutationCoordinator } from '../KnowledgeMutationCoordinator'
@@ -17,9 +16,9 @@ import { embedDocuments } from '../utils/indexing/embed'
 import { isIndexableKnowledgeItem } from '../utils/items'
 import { getEmbedModel } from '../utils/model/embedding'
 import type { KnowledgeIndexDocumentsPayload } from './jobTypes'
+import { isDataApiNotFoundError, markKnowledgeItemFailedOnSettled } from './utils/settled'
 
 const logger = loggerService.withContext('Knowledge:IndexDocumentsJobHandler')
-const KNOWLEDGE_EMPTY_CONTENT_REASON = 'KNOWLEDGE_EMPTY_CONTENT'
 
 type LoadedIndexDocumentsInput = {
   base: KnowledgeBase
@@ -28,12 +27,6 @@ type LoadedIndexDocumentsInput = {
 type LoadedDocuments = Awaited<ReturnType<typeof loadKnowledgeItemDocuments>>
 type ChunkedDocuments = ReturnType<typeof chunkDocuments>
 type EmbeddedNodes = Awaited<ReturnType<typeof embedDocuments>>
-
-function assertHasIndexableContent<T>(items: T[]): void {
-  if (items.length === 0) {
-    throw new Error(KNOWLEDGE_EMPTY_CONTENT_REASON)
-  }
-}
 
 export function createIndexDocumentsJobHandler(
   mutationCoordinator: KnowledgeMutationCoordinator
@@ -61,7 +54,9 @@ export function createIndexDocumentsJobHandler(
 
       // Mark reading before file/network IO so the UI reflects the current long-running phase.
       ctx.reportProgress(0, { stage: 'reading', currentFile: 0, totalFiles: 1 })
-      await updateItemStatus(ctx, mutationCoordinator, 'reading')
+      await mutationCoordinator.withBaseMutationLock(ctx.input.baseId, () =>
+        knowledgeItemService.updateStatus(ctx.input.itemId, 'reading')
+      )
 
       // Read and chunk outside the base lock; these phases can be slow and do not mutate shared state.
       const documents = await readItemDocuments(ctx, item)
@@ -69,7 +64,9 @@ export function createIndexDocumentsJobHandler(
 
       // Mark embedding separately so a retry can report where the previous attempt stopped.
       ctx.reportProgress(40, { stage: 'embedding', currentFile: 0, totalFiles: 1 })
-      await updateItemStatus(ctx, mutationCoordinator, 'embedding')
+      await mutationCoordinator.withBaseMutationLock(ctx.input.baseId, () =>
+        knowledgeItemService.updateStatus(ctx.input.itemId, 'embedding')
+      )
 
       const nodes = await embedItemChunks(ctx, base, chunks)
 
@@ -81,27 +78,7 @@ export function createIndexDocumentsJobHandler(
     },
 
     async onSettled(event) {
-      if (event.status === 'completed') return
-
-      const jobManager = application.get('JobManager')
-      const snapshot = await jobManager.get(event.jobId)
-      const input = snapshot?.input as { itemId?: string } | undefined
-      if (!input?.itemId) return
-
-      const reason = event.error?.message?.trim() || `Job ${event.status}`
-      try {
-        const item = await knowledgeItemService.getById(input.itemId)
-        if (item.status === 'deleting') return
-
-        await knowledgeItemService.updateStatus(input.itemId, 'failed', { error: reason })
-      } catch (error) {
-        if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return
-        logger.error(
-          'Failed to flip knowledge item to failed in onSettled',
-          error instanceof Error ? error : new Error(String(error)),
-          { jobId: event.jobId, itemId: input.itemId }
-        )
-      }
+      await markKnowledgeItemFailedOnSettled(event, logger, 'Failed to flip knowledge item to failed in onSettled')
     }
   }
 }
@@ -132,7 +109,7 @@ async function loadIndexDocumentsInputOrSkip(
 
     return { base, item }
   } catch (error) {
-    if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+    if (isDataApiNotFoundError(error)) {
       logger.info('Skipping index-documents for missing base or item', { baseId, itemId, jobId: ctx.jobId })
       ctx.reportProgress(100, { stage: 'item-gone', currentFile: 1, totalFiles: 1 })
       return null
@@ -141,24 +118,12 @@ async function loadIndexDocumentsInputOrSkip(
   }
 }
 
-async function updateItemStatus(
-  ctx: JobContext<KnowledgeIndexDocumentsPayload>,
-  mutationCoordinator: KnowledgeMutationCoordinator,
-  status: 'reading' | 'embedding'
-): Promise<void> {
-  const { baseId, itemId } = ctx.input
-
-  await mutationCoordinator.withBaseMutationLock(baseId, () => knowledgeItemService.updateStatus(itemId, status))
-}
-
 async function readItemDocuments(
   ctx: JobContext<KnowledgeIndexDocumentsPayload>,
   item: IndexableKnowledgeItem
 ): Promise<LoadedDocuments> {
   ctx.signal.throwIfAborted()
-  const documents = await loadKnowledgeItemDocuments(item, ctx.signal)
-  assertHasIndexableContent(documents)
-  return documents
+  return await loadKnowledgeItemDocuments(item, ctx.signal)
 }
 
 function chunkItemDocuments(
@@ -166,9 +131,7 @@ function chunkItemDocuments(
   item: IndexableKnowledgeItem,
   documents: LoadedDocuments
 ): ChunkedDocuments {
-  const chunks = chunkDocuments(base, item, documents)
-  assertHasIndexableContent(chunks)
-  return chunks
+  return chunkDocuments(base, item, documents)
 }
 
 async function embedItemChunks(

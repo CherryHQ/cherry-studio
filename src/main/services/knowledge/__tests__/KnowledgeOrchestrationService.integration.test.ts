@@ -192,16 +192,10 @@ describe('KnowledgeOrchestrationService integration', () => {
       .where(eq(knowledgeItemTable.id, SOURCE_CHILD_ITEM_ID))
     expect(sourceChildRows).toHaveLength(1)
 
-    await service.reindexItems(restoredBase.id, [restoredItems[0].id])
-
-    expect(enqueueMock).toHaveBeenLastCalledWith(
-      'knowledge.reindex-subtree',
-      { baseId: restoredBase.id, rootItemIds: [restoredItems[0].id] },
-      {
-        idempotencyKey: `knowledge:${restoredBase.id}:${restoredItems[0].id}:reindex`,
-        queue: `base.${restoredBase.id}`
-      }
-    )
+    await expect(service.reindexItems(restoredBase.id, [restoredItems[0].id])).rejects.toMatchObject({
+      message: 'Cannot reindex knowledge item until the entire subtree is completed or failed'
+    })
+    expect(enqueueMock).toHaveBeenCalledTimes(1)
 
     const ungroupedRestoredItems = await dbh.db
       .select()

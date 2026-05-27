@@ -9,8 +9,8 @@ import type { JobHandler } from '@main/core/job/types'
 
 import type { KnowledgeMutationCoordinator } from '../KnowledgeMutationCoordinator'
 import { KNOWLEDGE_ACTIVE_JOB_LIMIT, KNOWLEDGE_ACTIVE_JOB_STATUSES, knowledgeQueueName } from '../types'
-import { cleanupUnreferencedInternalEntries } from '../utils/cleanup/artifactCleanup'
 import { deleteKnowledgeItemVectors } from '../utils/cleanup/vectorCleanup'
+import { isIndexableKnowledgeItem } from '../utils/items'
 import type { KnowledgeDeleteSubtreePayload } from './jobTypes'
 
 const logger = loggerService.withContext('Knowledge:DeleteSubtreeJobHandler')
@@ -56,15 +56,12 @@ export function createDeleteSubtreeJobHandler(
           await knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true })
         ).filter((item) => item.status === 'deleting')
         const subtreeItemIds = subtreeItems.map((item) => item.id)
-        const leafItemIds = subtreeItems
-          .filter((item) => item.type === 'file' || item.type === 'url' || item.type === 'note')
-          .map((item) => item.id)
+        const leafItemIds = subtreeItems.filter((item) => isIndexableKnowledgeItem(item)).map((item) => item.id)
 
         // Vector cleanup precedes DB deletion so a retry can still discover affected item ids.
         await deleteKnowledgeItemVectors(base, leafItemIds)
 
-        const { detachedFileEntryIds } = await knowledgeItemService.hardDeleteItems(baseId, subtreeItemIds)
-        await cleanupUnreferencedInternalEntries(detachedFileEntryIds)
+        await knowledgeItemService.deleteItemsByIds(baseId, subtreeItemIds)
       })
 
       ctx.reportProgress(100, { stage: 'done' })

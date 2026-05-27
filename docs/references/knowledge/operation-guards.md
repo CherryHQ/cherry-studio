@@ -40,6 +40,28 @@ Used by subtree operations.
 
 Any non-delete subtree status update must reconcile parent containers outside the updated subtree. For example, if a child subtree is marked `failed` after a scheduling failure, the parent directory must also be recalculated so it does not remain `processing` without active work.
 
+### `assertSubtreesCanReindex`
+
+Used only by `reindexItems`.
+
+- Runs after selected item ids have been collapsed to top-level roots.
+- Loads each selected root subtree with roots included.
+- Allows reindex only when every item in every selected subtree is terminal: `completed` or `failed`.
+- Rejects active or deleting subtree state: `idle`, `preparing`, `processing`, `reading`, `embedding`, or `deleting`.
+
+This is the backend authority for user-triggered reindex. UI may hide the reindex action for non-terminal rows, but the service guard must still reject stale or direct calls.
+
+### Chunk Operations
+
+Used by `listItemChunks` and `deleteItemChunk`.
+
+- Rejects failed bases through `assertBaseCanRunRuntimeOperation`.
+- Loads the requested item and rejects items outside the requested `baseId`.
+- Allows chunk list/delete only when the requested item itself is `completed`.
+- For completed `directory` / `sitemap` list requests, also rejects if any descendant is `deleting`.
+
+The UI should only expose chunk viewing for completed rows, but the service guard remains the backend authority for stale or direct IPC calls. The extra container descendant check exists because container reconciliation ignores `deleting` children, so a container can stay `completed` while cleanup is still pending below it.
+
 ## `addItems`
 
 `addItems` accepts new item payloads and creates persisted `knowledge_item` rows before scheduling the first workflow jobs.
@@ -92,7 +114,6 @@ deleteItems(baseId, itemIds)
        idempotency key = sorted root ids
   -> if enqueue throws:
        keep rows deleting
-       schedule in-session deleting recovery
        log and rethrow
 ```
 
@@ -100,26 +121,24 @@ deleteItems(baseId, itemIds)
 
 `deleting` is a recoverable intermediate state, not a terminal error. Once a subtree is marked `deleting`, other runtime paths can stop treating it as normal searchable/indexable content.
 
-If enqueue fails, the rows remain `deleting`. The service schedules an in-session deleting recovery pass, and startup recovery also scans deleting roots and re-enqueues cleanup jobs:
+If enqueue fails, the rows remain `deleting`. The service does not run an in-session retry loop. Startup recovery scans deleting roots once and re-enqueues cleanup jobs best-effort:
 
 ```text
 deleteItems enqueue failure
-  -> schedule deleting recovery once
-  -> scan deleting root groups
-  -> enqueue knowledge.delete-subtree in bounded chunks
-  -> retry with backoff if scan or enqueue fails
+  -> keep rows deleting
+  -> throw the enqueue error to the caller
 
 onAllReady
   -> scan deleting root groups
   -> enqueue knowledge.delete-subtree in bounded chunks
-  -> retry with backoff if scan or enqueue fails
+  -> log scan or enqueue failures without retrying in-session
 ```
 
-Only one deleting recovery run is active at a time. If another delete enqueue fails while recovery is already active, the service records a pending recovery and runs another scan after the active pass completes. This makes delete cleanup durable across enqueue failure, process crash, and restart.
+This keeps delete cleanup durable across process restart without maintaining a runtime recovery scheduler for the small enqueue-failure window.
 
 ### Why Delete Cleanup Failure Does Not Mark Items `failed`
 
-`knowledge.delete-subtree` is responsible for removing vector artifacts, detaching file references, and hard-deleting the `knowledge_item` rows. If that job fails or is cancelled after rows were already marked `deleting`, the rows must stay `deleting`.
+`knowledge.delete-subtree` is responsible for removing vector artifacts, detaching Knowledge file references, and deleting the resolved `knowledge_item` rows. If that job fails or is cancelled after rows were already marked `deleting`, the rows must stay `deleting`.
 
 Do not convert these rows to ordinary `failed` items as a terminal fallback:
 
@@ -128,7 +147,7 @@ Do not convert these rows to ordinary `failed` items as a terminal fallback:
 - if vector cleanup failed before all chunks were removed, `deleting -> failed` can make stale chunks searchable again;
 - delete-base may cancel delete-subtree jobs because base deletion has taken ownership of cleanup, so cancellation is not always an item-level failure.
 
-The recovery path for failed delete cleanup is to keep `deleting`, then let in-session or startup recovery enqueue another `knowledge.delete-subtree` job. If the product needs a user-visible terminal delete failure later, add an explicit delete-failure state or job-level UI, and keep that state excluded from default list, search, and RAG reads.
+The recovery path for failed delete cleanup is to keep `deleting`, then let JobManager retry an existing `knowledge.delete-subtree` job or startup recovery enqueue another cleanup job for orphan deleting roots. If the product needs a user-visible terminal delete failure later, add an explicit delete-failure state or job-level UI, and keep that state excluded from default list, search, and RAG reads.
 
 ## `reindexItems`
 
@@ -142,9 +161,23 @@ reindexItems(baseId, itemIds)
   -> reject items outside baseId
   -> collapse nested selections to top-level roots
   -> no-op if no roots remain
+  -> reject unless every selected root subtree is completed or failed
   -> enqueue knowledge.reindex-subtree
        idempotency key = sorted root ids
 ```
+
+### Why Reindex Requires Terminal Subtrees
+
+User-triggered reindex is intentionally an offline rebuild of an existing subtree, not a cancellation or preemption primitive.
+
+Allowing reindex while a subtree is still `preparing`, `processing`, `reading`, or `embedding` would force `reindex-subtree` to coordinate with active indexing and expansion jobs. That reintroduces cancellation races: old jobs may still be reading, writing vectors, attaching refs, or expanding children while the reindex job is deleting vectors and resetting rows.
+
+The simpler rule is:
+
+- active work must finish as `completed` or `failed` before the user can reindex;
+- failed work can be retried by reindexing because it is already terminal;
+- deleting work cannot be reindexed because delete owns cleanup once the durable `deleting` intent is written;
+- delete remains available at any time and is the only user action allowed to preempt active work.
 
 ### Why Reindex Does Not Pre-Mark Items Active
 
@@ -153,7 +186,7 @@ The reindex entrypoint only accepts the durable job. It does not set roots to `p
 The reindex job owns the destructive and stateful work:
 
 - run the shared cleanup prefix;
-- skip if the target subtree is already `deleting`;
+- skip if the target subtree became `deleting` after the entrypoint guard;
 - reset subtree item state;
 - call `scheduleItem` for each selected root.
 
@@ -161,13 +194,21 @@ Because the entrypoint does not write an active status before enqueueing, enqueu
 
 ### Delete Wins Reindex Races
 
-`reindex-subtree` treats `deleting` as a higher-priority state:
+`reindexItems` rejects `deleting` before enqueue, and `reindex-subtree` treats `deleting` as a higher-priority state if delete wins the race after enqueue:
 
-- before cancelling old work, it checks the target subtree and completes as skipped if any item is `deleting`;
-- after cancelling old non-delete work, it checks again under the same-base mutation lock before clearing vectors or resetting statuses;
-- it does not cancel active `knowledge.delete-subtree` jobs that touch the same subtree.
+- at job entry, it checks the target subtree and completes as skipped if any item is `deleting`;
+- under the same-base mutation lock, it checks again before clearing vectors or resetting statuses;
+- it does not cancel active jobs. Reindex is only admitted for terminal subtrees, so there should be no active indexing or expansion work to cancel.
 
 This prevents a later reindex request from cancelling delete cleanup or turning a deleting row back into `preparing` / `processing`.
+
+These two `deleting` checks are intentional, even though the entrypoint already rejects deleting subtrees. They cover the window between enqueue and job execution while preserving the rule that delete is always available.
+
+### Why Reindex Keeps Schedule-Failure Compensation
+
+After the reset mutation, selected roots are deliberately visible as `preparing` or `processing` before their follow-up jobs are scheduled. This keeps the UI honest: a user-triggered reindex immediately appears as active work.
+
+Because those active statuses are written before `scheduleItem`, the handler must compensate if scheduling fails. The failing roots are marked `failed` so the UI does not show stuck active work without a durable job. Do not remove this compensation unless reindex introduces a separate non-active pending state, such as a dedicated `reindexing` or `pending_reindex` lifecycle state.
 
 ## `prepare-root`
 
@@ -181,7 +222,7 @@ knowledge.prepare-root(baseId, itemId)
        ignore descendants already deleting
        clear vectors for removable leaf descendants
        detach file refs for removable descendants
-       hard-delete removable descendants
+       delete removable descendants by resolved id
   -> under same-base mutation lock:
        re-read root and skip if it is now missing or deleting
        expand source into new child rows
@@ -193,7 +234,7 @@ knowledge.prepare-root(baseId, itemId)
          rethrow
 ```
 
-The stale expansion cleanup clears vectors and file refs before hard-deleting rows so a retry does not leave orphan artifacts from a previous partial expansion.
+The stale expansion cleanup clears vectors and file refs before deleting resolved descendant rows so a retry does not leave stale vectors or file refs from a previous partial expansion.
 
 The second root read closes the race where `prepare-root` loads an active root, then a delete request marks that root `deleting` before expansion starts. Once a root is deleting, no new children may be created under it.
 
@@ -207,10 +248,11 @@ The child scheduling compensation mirrors `addItems`: once a child job was accep
 
 When changing these operations, check the operation-specific failure behavior before extracting shared code.
 
-| Operation | Failed base | Root collapse | State before enqueue | Enqueue failure |
-| --- | --- | --- | --- | --- |
-| `addItems` | Reject | N/A | `preparing` / `processing` | Mark unscheduled accepted rows `failed` |
-| `deleteItems` | Allow | Yes | `deleting` | Keep `deleting`; in-session and startup recovery retry |
-| `reindexItems` | Reject | Yes | None | Throw; no active state was written |
+| Operation | Failed base | Root collapse | Extra status guard | State before enqueue | Enqueue failure |
+| --- | --- | --- | --- | --- | --- |
+| `addItems` | Reject | N/A | N/A | `preparing` / `processing` | Mark unscheduled accepted rows `failed` |
+| `deleteItems` | Allow | Yes | N/A | `deleting` | Keep `deleting`; startup recovery best-effort re-enqueues |
+| `reindexItems` | Reject | Yes | Entire selected subtree must be `completed` or `failed` | None | Throw; no active state was written |
+| `listItemChunks` / `deleteItemChunk` | Reject | N/A | Requested item must be `completed`; container list rejects deleting descendants | N/A | N/A |
 
 Prefer shared helpers for exact common behavior, such as base-state guards, base ownership checks, root collapse, queue names, and idempotency key builders. Keep operation flows explicit when the state or recovery semantics differ.

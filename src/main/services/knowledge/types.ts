@@ -1,14 +1,3 @@
-import type { KnowledgeItem } from '@shared/data/types/knowledge'
-
-export type KnowledgeJobHandle = {
-  id: string
-}
-
-export type KnowledgeAddResult = {
-  items: KnowledgeItem[]
-  jobs: KnowledgeJobHandle[]
-}
-
 export type KnowledgeWorkflowJobType =
   | 'knowledge.prepare-root'
   | 'knowledge.index-documents'

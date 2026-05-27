@@ -50,11 +50,6 @@ export type DeletingKnowledgeItemRootGroup = {
   rootItemIds: string[]
 }
 
-export type HardDeleteKnowledgeItemsResult = {
-  deletedCount: number
-  detachedFileEntryIds: FileEntryId[]
-}
-
 function rowToKnowledgeItem(row: KnowledgeItemRow): KnowledgeItem {
   return KnowledgeItemSchema.parse({
     id: row.id,
@@ -126,6 +121,32 @@ export class KnowledgeItemService {
       .orderBy(knowledgeItemTable.createdAt, knowledgeItemTable.id)
 
     return rows.map((row) => rowToKnowledgeItem(row))
+  }
+
+  async getRootItemsByBaseId(baseId: string): Promise<KnowledgeItem[]> {
+    return await this.getItemsByBaseId(baseId, { groupId: null })
+  }
+
+  async getOutermostSelectedItemIds(baseId: string, itemIds: string[]): Promise<string[]> {
+    const selectedIds = [...new Set(itemIds)]
+    const selectedItems = await Promise.all(selectedIds.map((itemId) => this.getById(itemId)))
+    const invalidItem = selectedItems.find((item) => item.baseId !== baseId)
+
+    if (invalidItem) {
+      throw new Error(`Knowledge item '${invalidItem.id}' does not belong to base '${baseId}'`)
+    }
+
+    const descendantSelectedIds = new Set<string>()
+    for (const itemId of selectedIds) {
+      const descendants = await this.getSubtreeItems(baseId, [itemId])
+      for (const descendant of descendants) {
+        if (selectedIds.includes(descendant.id)) {
+          descendantSelectedIds.add(descendant.id)
+        }
+      }
+    }
+
+    return selectedIds.filter((itemId) => !descendantSelectedIds.has(itemId))
   }
 
   async getDeletingRootGroups(): Promise<DeletingKnowledgeItemRootGroup[]> {
@@ -345,10 +366,10 @@ export class KnowledgeItemService {
     return updatedIds
   }
 
-  async hardDeleteItems(baseId: string, itemIds: string[]): Promise<HardDeleteKnowledgeItemsResult> {
+  async deleteItemsByIds(baseId: string, itemIds: string[]): Promise<void> {
     const uniqueItemIds = [...new Set(itemIds)]
     if (uniqueItemIds.length === 0) {
-      return { deletedCount: 0, detachedFileEntryIds: [] }
+      return
     }
 
     const dbService = application.get('DbService')
@@ -357,27 +378,21 @@ export class KnowledgeItemService {
         .select({ groupId: knowledgeItemTable.groupId })
         .from(knowledgeItemTable)
         .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, uniqueItemIds)))
-      const detachedRefs = await tx
+      await tx
         .delete(fileRefTable)
         .where(and(eq(fileRefTable.sourceType, knowledgeItemSourceType), inArray(fileRefTable.sourceId, uniqueItemIds)))
-        .returning({ fileEntryId: fileRefTable.fileEntryId })
       await tx
         .delete(knowledgeItemTable)
         .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, uniqueItemIds)))
       return {
         rowsAffected: targetRows.length,
-        groupIds: targetRows.map((row) => row.groupId),
-        detachedFileEntryIds: [...new Set(detachedRefs.map((row) => row.fileEntryId))]
+        groupIds: targetRows.map((row) => row.groupId)
       }
     })
 
     await this.reconcileContainers(baseId, deleted.groupIds)
 
-    logger.info('Hard deleted knowledge items', { baseId, count: deleted.rowsAffected })
-    return {
-      deletedCount: deleted.rowsAffected,
-      detachedFileEntryIds: deleted.detachedFileEntryIds
-    }
+    logger.info('Deleted knowledge items by ids', { baseId, count: deleted.rowsAffected })
   }
 
   async detachFileRefs(itemIds: string[]): Promise<FileEntryId[]> {

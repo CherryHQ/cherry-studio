@@ -227,6 +227,30 @@ describe('KnowledgeItemService', () => {
       expect(result.map((item) => item.id)).toEqual([ROOT_1_ID, ROOT_2_ID])
     })
 
+    it('returns root items through the explicit root helper', async () => {
+      await seedItem({ id: ROOT_1_ID, data: { source: ROOT_1_ID, content: 'root 1' } })
+      await seedItem({ id: CHILD_1_ID, groupId: ROOT_1_ID, data: { source: CHILD_1_ID, content: 'child 1' } })
+
+      const result = await service.getRootItemsByBaseId(KNOWLEDGE_BASE_ID)
+
+      expect(result.map((item) => item.id)).toEqual([ROOT_1_ID])
+    })
+
+    it('collapses selected descendants to their outermost selected roots', async () => {
+      await seedItem({ id: DIR_A_ID, type: 'directory', data: { source: '/a', path: '/a' } })
+      await seedItem({ id: NOTE_A_ID, groupId: DIR_A_ID, data: { source: 'a', content: 'a' } })
+      await seedItem({ id: NOTE_ROOT_ID, data: { source: 'root', content: 'root' } })
+
+      const result = await service.getOutermostSelectedItemIds(KNOWLEDGE_BASE_ID, [
+        DIR_A_ID,
+        NOTE_A_ID,
+        NOTE_ROOT_ID,
+        DIR_A_ID
+      ])
+
+      expect(result).toEqual([DIR_A_ID, NOTE_ROOT_ID])
+    })
+
     it('filters items by group id', async () => {
       await seedItem({ id: DIR_A_ID, type: 'directory', data: { source: '/a', path: '/a' } })
       await seedItem({ id: NOTE_A_ID, groupId: DIR_A_ID, data: { source: 'a', content: 'a' } })
@@ -1001,14 +1025,13 @@ describe('KnowledgeItemService', () => {
       })
 
       const descendants = await service.getSubtreeItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID])
-      const result = await service.hardDeleteItems(
+      await service.deleteItemsByIds(
         KNOWLEDGE_BASE_ID,
         descendants.map((item) => item.id)
       )
 
       const remaining = await dbh.db.select().from(knowledgeItemTable).orderBy(knowledgeItemTable.id)
       expect(remaining.map((r) => r.id)).toEqual([DIR_ROOT_ID, OTHER_ITEM_ID])
-      expect(result).toEqual({ deletedCount: 2, detachedFileEntryIds: [FILE_ENTRY_A_ID] })
       const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, FILE_GRANDCHILD_ID))
       expect(refs).toHaveLength(0)
     })
@@ -1212,7 +1235,7 @@ describe('KnowledgeItemService', () => {
         status: 'processing'
       })
 
-      await service.hardDeleteItems(KNOWLEDGE_BASE_ID, [NOTE_1_ID])
+      await service.deleteItemsByIds(KNOWLEDGE_BASE_ID, [NOTE_1_ID])
 
       await expect(getItemRow(NOTE_1_ID)).resolves.toBeUndefined()
       await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({ status: 'completed', error: null })

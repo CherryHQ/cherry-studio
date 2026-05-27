@@ -25,6 +25,8 @@ const {
   knowledgeItemGetDeletingRootGroupsMock,
   knowledgeItemGetByIdMock,
   knowledgeItemGetItemsByBaseIdMock,
+  knowledgeItemGetOutermostSelectedItemIdsMock,
+  knowledgeItemGetRootItemsByBaseIdMock,
   knowledgeItemGetSubtreeItemsMock,
   knowledgeItemSetSubtreeStatusMock,
   knowledgeItemUpdateStatusMock,
@@ -47,6 +49,8 @@ const {
   knowledgeItemGetDeletingRootGroupsMock: vi.fn(),
   knowledgeItemGetByIdMock: vi.fn(),
   knowledgeItemGetItemsByBaseIdMock: vi.fn(),
+  knowledgeItemGetOutermostSelectedItemIdsMock: vi.fn(),
+  knowledgeItemGetRootItemsByBaseIdMock: vi.fn(),
   knowledgeItemGetSubtreeItemsMock: vi.fn(),
   knowledgeItemSetSubtreeStatusMock: vi.fn(),
   knowledgeItemUpdateStatusMock: vi.fn(),
@@ -116,6 +120,8 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
     getById: knowledgeItemGetByIdMock,
     getSubtreeItems: knowledgeItemGetSubtreeItemsMock,
     getItemsByBaseId: knowledgeItemGetItemsByBaseIdMock,
+    getOutermostSelectedItemIds: knowledgeItemGetOutermostSelectedItemIdsMock,
+    getRootItemsByBaseId: knowledgeItemGetRootItemsByBaseIdMock,
     setSubtreeStatus: knowledgeItemSetSubtreeStatusMock,
     updateStatus: knowledgeItemUpdateStatusMock
   }
@@ -184,15 +190,21 @@ function createNoteItem(
   }
 }
 
-function createDirectoryItem(id = 'dir-1', groupId: string | null = null): KnowledgeItemOf<'directory'> {
+function createDirectoryItem(
+  id = 'dir-1',
+  groupId: string | null = null,
+  status: KnowledgeItemOf<'directory'>['status'] = 'idle'
+): KnowledgeItemOf<'directory'> {
+  const lifecycle =
+    status === 'failed' ? ({ status, error: `failed ${id}` } as const) : ({ status, error: null } as const)
+
   return {
     id,
     baseId: 'kb-1',
     groupId,
     type: 'directory',
     data: { source: id, path: `/docs/${id}` },
-    status: 'idle',
-    error: null,
+    ...lifecycle,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
   }
@@ -229,9 +241,17 @@ describe('KnowledgeOrchestrationService', () => {
       return createNoteItem(id, createdItemBaseIds.get(id) ?? 'kb-1')
     })
     knowledgeItemGetItemsByBaseIdMock.mockResolvedValue([])
+    knowledgeItemGetOutermostSelectedItemIdsMock.mockImplementation(async (_baseId: string, itemIds: string[]) => [
+      ...new Set(itemIds)
+    ])
     knowledgeItemGetSubtreeItemsMock.mockImplementation(
-      async (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean; leafOnly?: boolean } = {}) =>
-        options.leafOnly ? [createNoteItem('note-1')] : []
+      async (_baseId: string, rootIds: string[], options: { includeRoots?: boolean; leafOnly?: boolean } = {}) => {
+        if (options.leafOnly) {
+          return [createNoteItem('note-1', 'kb-1', null, 'completed')]
+        }
+
+        return options.includeRoots ? rootIds.map((id) => createNoteItem(id, 'kb-1', null, 'completed')) : []
+      }
     )
     knowledgeItemSetSubtreeStatusMock.mockResolvedValue(['note-1'])
     knowledgeItemUpdateStatusMock.mockImplementation(async (id: string, status: KnowledgeItemOf<'note'>['status']) => {
@@ -245,6 +265,7 @@ describe('KnowledgeOrchestrationService', () => {
     })
     vectorListByExternalIdMock.mockResolvedValue([])
     vectorQueryMock.mockResolvedValue({ nodes: [], similarities: [] })
+    knowledgeItemGetRootItemsByBaseIdMock.mockResolvedValue([])
   })
 
   it('uses WhenReady phase and depends on same-phase runtime services', () => {
@@ -365,52 +386,13 @@ describe('KnowledgeOrchestrationService', () => {
     expect(enqueueMock).toHaveBeenCalledTimes(2)
   })
 
-  it('retries deleting recovery when the initial scan fails', async () => {
-    vi.useFakeTimers()
+  it('logs and stops startup deleting recovery when the initial scan fails', async () => {
     const service = new KnowledgeOrchestrationService()
-    knowledgeItemGetDeletingRootGroupsMock
-      .mockRejectedValueOnce(new Error('scan failed'))
-      .mockResolvedValueOnce([{ baseId: 'kb-1', rootItemIds: ['note-1'] }])
+    knowledgeItemGetDeletingRootGroupsMock.mockRejectedValueOnce(new Error('scan failed'))
 
-    await (service as unknown as { onAllReady: () => Promise<void> }).onAllReady()
+    await expect((service as unknown as { onAllReady: () => Promise<void> }).onAllReady()).resolves.toBeUndefined()
+
     expect(enqueueMock).not.toHaveBeenCalled()
-
-    await vi.advanceTimersByTimeAsync(30_000)
-
-    expect(enqueueMock).toHaveBeenCalledWith(
-      'knowledge.delete-subtree',
-      { baseId: 'kb-1', rootItemIds: ['note-1'] },
-      expect.objectContaining({
-        idempotencyKey: 'knowledge:kb-1:note-1:delete',
-        queue: 'base.kb-1'
-      })
-    )
-  })
-
-  it('retries deleting recovery when a cleanup enqueue fails', async () => {
-    vi.useFakeTimers()
-    const service = new KnowledgeOrchestrationService()
-    knowledgeItemGetDeletingRootGroupsMock.mockResolvedValue([{ baseId: 'kb-1', rootItemIds: ['note-1'] }])
-    enqueueMock.mockRejectedValueOnce(new Error('enqueue failed')).mockResolvedValueOnce({
-      id: 'job-retry',
-      snapshot: {},
-      finished: Promise.resolve({})
-    })
-
-    await (service as unknown as { onAllReady: () => Promise<void> }).onAllReady()
-    expect(enqueueMock).toHaveBeenCalledTimes(1)
-
-    await vi.advanceTimersByTimeAsync(30_000)
-
-    expect(enqueueMock).toHaveBeenCalledTimes(2)
-    expect(enqueueMock).toHaveBeenLastCalledWith(
-      'knowledge.delete-subtree',
-      { baseId: 'kb-1', rootItemIds: ['note-1'] },
-      expect.objectContaining({
-        idempotencyKey: 'knowledge:kb-1:note-1:delete',
-        queue: 'base.kb-1'
-      })
-    )
   })
 
   it('creates vector artifacts after creating the base and rolls back on artifact failure', async () => {
@@ -447,7 +429,7 @@ describe('KnowledgeOrchestrationService', () => {
       .mockResolvedValueOnce(restoredBase)
       .mockResolvedValueOnce(restoredBase)
     knowledgeBaseCreateMock.mockResolvedValueOnce(restoredBase)
-    knowledgeItemGetItemsByBaseIdMock.mockResolvedValueOnce([createNoteItem('source-note', 'source-kb')])
+    knowledgeItemGetRootItemsByBaseIdMock.mockResolvedValueOnce([createNoteItem('source-note', 'source-kb')])
 
     await expect(
       service.restoreBase({
@@ -462,6 +444,32 @@ describe('KnowledgeOrchestrationService', () => {
       'knowledge.index-documents',
       expect.objectContaining({ baseId: 'restored-kb' }),
       expect.objectContaining({ idempotencyKey: expect.stringContaining('knowledge:restored-kb:') })
+    )
+  })
+
+  it('restores a completed base when embedding model and dimensions are unchanged', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const sourceBase = createBase({ id: 'source-kb', embeddingModelId: 'provider::embed', dimensions: 3 })
+    const restoredBase = createBase({ id: 'restored-kb', embeddingModelId: 'provider::embed', dimensions: 3 })
+    knowledgeBaseGetByIdMock.mockResolvedValueOnce(sourceBase)
+    knowledgeBaseCreateMock.mockResolvedValueOnce(restoredBase)
+    knowledgeItemGetRootItemsByBaseIdMock.mockResolvedValueOnce([])
+
+    await expect(
+      service.restoreBase({
+        sourceBaseId: 'source-kb',
+        name: 'Restored KB',
+        embeddingModelId: 'provider::embed',
+        dimensions: 3
+      })
+    ).resolves.toBe(restoredBase)
+
+    expect(knowledgeBaseCreateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Restored KB',
+        embeddingModelId: 'provider::embed',
+        dimensions: 3
+      })
     )
   })
 
@@ -503,45 +511,27 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('keeps items deleting when delete cleanup enqueue fails', async () => {
-    vi.useFakeTimers()
     const service = new KnowledgeOrchestrationService()
     knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem('note-1'))
-    enqueueMock.mockRejectedValueOnce(new Error('enqueue failed')).mockResolvedValueOnce({
-      id: 'job-recovered',
-      snapshot: {},
-      finished: Promise.resolve({})
-    })
-    knowledgeItemGetDeletingRootGroupsMock.mockResolvedValueOnce([{ baseId: 'kb-1', rootItemIds: ['note-1'] }])
+    enqueueMock.mockRejectedValueOnce(new Error('enqueue failed'))
 
     await expect(service.deleteItems('kb-1', ['note-1'])).rejects.toThrow('enqueue failed')
 
     expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['note-1'], 'deleting')
     expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalledWith('kb-1', ['note-1'], 'failed', expect.anything())
-
-    await vi.advanceTimersByTimeAsync(0)
-
-    expect(enqueueMock).toHaveBeenLastCalledWith(
-      'knowledge.delete-subtree',
-      { baseId: 'kb-1', rootItemIds: ['note-1'] },
-      expect.objectContaining({
-        idempotencyKey: 'knowledge:kb-1:note-1:delete',
-        queue: 'base.kb-1'
-      })
-    )
+    expect(enqueueMock).toHaveBeenCalledTimes(1)
   })
 
   it('collapses nested delete and reindex inputs to top-level roots', async () => {
     const service = new KnowledgeOrchestrationService()
-    const parent = createDirectoryItem('dir-1')
-    const child = createNoteItem('note-1', 'kb-1', 'dir-1')
-    knowledgeItemGetByIdMock.mockImplementation(async (id: string) => (id === 'dir-1' ? parent : child))
-    knowledgeItemGetSubtreeItemsMock.mockImplementation(
-      async (_baseId: string, rootIds: string[], options: { includeRoots?: boolean; leafOnly?: boolean } = {}) =>
-        !options.includeRoots && rootIds.includes('dir-1') ? [child] : []
-    )
+    knowledgeItemGetOutermostSelectedItemIdsMock.mockResolvedValue(['dir-1'])
+    knowledgeItemGetSubtreeItemsMock.mockResolvedValue([createDirectoryItem('dir-1', null, 'completed')])
 
     await service.deleteItems('kb-1', ['dir-1', 'note-1'])
     await service.reindexItems('kb-1', ['dir-1', 'note-1'])
+
+    expect(knowledgeItemGetOutermostSelectedItemIdsMock).toHaveBeenNthCalledWith(1, 'kb-1', ['dir-1', 'note-1'])
+    expect(knowledgeItemGetOutermostSelectedItemIdsMock).toHaveBeenNthCalledWith(2, 'kb-1', ['dir-1', 'note-1'])
 
     expect(enqueueMock).toHaveBeenNthCalledWith(
       1,
@@ -555,6 +545,50 @@ describe('KnowledgeOrchestrationService', () => {
       { baseId: 'kb-1', rootItemIds: ['dir-1'] },
       expect.any(Object)
     )
+  })
+
+  it('rejects reindex when any selected subtree item is not completed or failed', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const root = createDirectoryItem('dir-1', null, 'completed')
+    const processingChild = createNoteItem('note-1', 'kb-1', 'dir-1', 'processing')
+    knowledgeItemGetByIdMock.mockResolvedValue(root)
+    knowledgeItemGetSubtreeItemsMock.mockImplementation(
+      async (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean } = {}) =>
+        options.includeRoots ? [root, processingChild] : [processingChild]
+    )
+
+    await expect(service.reindexItems('kb-1', ['dir-1'])).rejects.toMatchObject({
+      code: ErrorCode.VALIDATION_ERROR,
+      message: 'Cannot reindex knowledge item until the entire subtree is completed or failed'
+    })
+
+    expect(enqueueMock).not.toHaveBeenCalled()
+    expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects a whole reindex batch when one root subtree is still active', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const completedRoot = createNoteItem('note-1', 'kb-1', null, 'completed')
+    const failedRoot = createNoteItem('note-2', 'kb-1', null, 'failed')
+    const activeRoot = createNoteItem('note-3', 'kb-1', null, 'embedding')
+    knowledgeItemGetByIdMock.mockImplementation(async (id: string) => {
+      return { 'note-1': completedRoot, 'note-2': failedRoot, 'note-3': activeRoot }[id] ?? completedRoot
+    })
+    knowledgeItemGetSubtreeItemsMock.mockImplementation(
+      async (_baseId: string, rootIds: string[], options: { includeRoots?: boolean } = {}) => {
+        if (!options.includeRoots) {
+          return []
+        }
+
+        return rootIds.map((id) => ({ 'note-1': completedRoot, 'note-2': failedRoot, 'note-3': activeRoot })[id])
+      }
+    )
+
+    await expect(service.reindexItems('kb-1', ['note-1', 'note-2', 'note-3'])).rejects.toMatchObject({
+      code: ErrorCode.VALIDATION_ERROR
+    })
+
+    expect(enqueueMock).not.toHaveBeenCalled()
   })
 
   it('rejects runtime operations on failed bases before scheduling work', async () => {
@@ -654,6 +688,7 @@ describe('KnowledgeOrchestrationService', () => {
 
   it('lists and deletes chunks after checking item ownership', async () => {
     const service = new KnowledgeOrchestrationService()
+    knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem('note-1', 'kb-1', null, 'completed'))
     vectorListByExternalIdMock.mockResolvedValueOnce([
       {
         id_: 'chunk-1',
@@ -670,9 +705,30 @@ describe('KnowledgeOrchestrationService', () => {
     expect(vectorDeleteByIdAndExternalIdMock).toHaveBeenCalledWith('chunk-1', 'note-1')
   })
 
-  it('rejects chunk operations for deleting subtrees', async () => {
+  it('lists chunks for completed directories without deleting children', async () => {
     const service = new KnowledgeOrchestrationService()
-    knowledgeItemGetByIdMock.mockResolvedValueOnce(createDirectoryItem('dir-1'))
+    knowledgeItemGetByIdMock.mockResolvedValueOnce(createDirectoryItem('dir-1', null, 'completed'))
+    knowledgeItemGetSubtreeItemsMock
+      .mockResolvedValueOnce([createNoteItem('note-1', 'kb-1', 'dir-1', 'completed')])
+      .mockResolvedValueOnce([createNoteItem('note-1', 'kb-1', 'dir-1', 'completed')])
+    vectorListByExternalIdMock.mockResolvedValueOnce([
+      {
+        id_: 'chunk-1',
+        metadata: { itemId: NOTE_ITEM_ID, itemType: 'note', source: 'note-1', chunkIndex: 0, tokenCount: 2 },
+        getContent: () => 'chunk text'
+      }
+    ])
+
+    await expect(service.listItemChunks('kb-1', 'dir-1')).resolves.toEqual([
+      expect.objectContaining({ id: 'chunk-1', itemId: NOTE_ITEM_ID, content: 'chunk text' })
+    ])
+
+    expect(vectorListByExternalIdMock).toHaveBeenCalledWith('note-1')
+  })
+
+  it('rejects listing chunks for completed directories with deleting children', async () => {
+    const service = new KnowledgeOrchestrationService()
+    knowledgeItemGetByIdMock.mockResolvedValueOnce(createDirectoryItem('dir-1', null, 'completed'))
     knowledgeItemGetSubtreeItemsMock.mockResolvedValueOnce([
       createNoteItem('deleting-note', 'kb-1', 'dir-1', 'deleting')
     ])
@@ -682,33 +738,25 @@ describe('KnowledgeOrchestrationService', () => {
       message: 'Cannot list chunks for a deleting knowledge item'
     })
     expect(vectorListByExternalIdMock).not.toHaveBeenCalled()
-
-    knowledgeItemGetByIdMock.mockResolvedValueOnce(createNoteItem('deleting-note', 'kb-1', null, 'deleting'))
-
-    await expect(service.deleteItemChunk('kb-1', 'deleting-note', 'chunk-1')).rejects.toMatchObject({
-      code: ErrorCode.VALIDATION_ERROR,
-      message: 'Cannot delete chunk for a deleting knowledge item'
-    })
-    expect(vectorDeleteByIdAndExternalIdMock).not.toHaveBeenCalled()
   })
 
-  it('rejects manual chunk delete while the item or subtree is indexing', async () => {
-    const service = new KnowledgeOrchestrationService()
-    knowledgeItemGetByIdMock.mockResolvedValueOnce(createNoteItem('note-1', 'kb-1', null, 'embedding'))
+  it.each(['idle', 'processing', 'reading', 'embedding', 'failed', 'deleting'] as const)(
+    'rejects chunk operations for %s leaf items',
+    async (status) => {
+      const service = new KnowledgeOrchestrationService()
+      knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem('note-1', 'kb-1', null, status))
 
-    await expect(service.deleteItemChunk('kb-1', 'note-1', 'chunk-1')).rejects.toMatchObject({
-      code: ErrorCode.VALIDATION_ERROR,
-      message: 'Cannot delete chunk while knowledge item is indexing'
-    })
-    expect(vectorDeleteByIdAndExternalIdMock).not.toHaveBeenCalled()
+      await expect(service.listItemChunks('kb-1', 'note-1')).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'Cannot list chunks for a non-completed knowledge item'
+      })
+      await expect(service.deleteItemChunk('kb-1', 'note-1', 'chunk-1')).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: 'Cannot delete chunk for a non-completed knowledge item'
+      })
 
-    knowledgeItemGetByIdMock.mockResolvedValueOnce(createDirectoryItem('dir-1'))
-    knowledgeItemGetSubtreeItemsMock.mockResolvedValueOnce([createNoteItem('note-1', 'kb-1', 'dir-1', 'processing')])
-
-    await expect(service.deleteItemChunk('kb-1', 'dir-1', 'chunk-1')).rejects.toMatchObject({
-      code: ErrorCode.VALIDATION_ERROR,
-      message: 'Cannot delete chunk while knowledge item is indexing'
-    })
-    expect(vectorDeleteByIdAndExternalIdMock).not.toHaveBeenCalled()
-  })
+      expect(vectorListByExternalIdMock).not.toHaveBeenCalled()
+      expect(vectorDeleteByIdAndExternalIdMock).not.toHaveBeenCalled()
+    }
+  )
 })

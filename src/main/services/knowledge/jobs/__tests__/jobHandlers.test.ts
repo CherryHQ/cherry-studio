@@ -7,12 +7,9 @@ const {
   createStoreMock,
   detachFileRefsMock,
   enqueueMock,
-  fileEntryFindByIdMock,
-  fileRefCountByEntryIdsMock,
-  fileManagerPermanentDeleteMock,
   getJobMock,
   getStoreIfExistsMock,
-  hardDeleteItemsMock,
+  deleteItemsByIdsMock,
   knowledgeBaseGetByIdMock,
   knowledgeItemGetByIdMock,
   knowledgeItemGetSubtreeItemsMock,
@@ -28,12 +25,9 @@ const {
   createStoreMock: vi.fn(),
   detachFileRefsMock: vi.fn(),
   enqueueMock: vi.fn(),
-  fileEntryFindByIdMock: vi.fn(),
-  fileRefCountByEntryIdsMock: vi.fn(),
-  fileManagerPermanentDeleteMock: vi.fn(),
   getJobMock: vi.fn(),
   getStoreIfExistsMock: vi.fn(),
-  hardDeleteItemsMock: vi.fn(),
+  deleteItemsByIdsMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
   knowledgeItemGetByIdMock: vi.fn(),
   knowledgeItemGetSubtreeItemsMock: vi.fn(),
@@ -54,9 +48,6 @@ vi.mock('@application', async () => {
       enqueue: enqueueMock,
       get: getJobMock,
       list: listMock
-    },
-    FileManager: {
-      permanentDelete: fileManagerPermanentDeleteMock
     },
     KnowledgeVectorStoreService: {
       createStore: createStoreMock,
@@ -86,21 +77,9 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
     detachFileRefs: detachFileRefsMock,
     getById: knowledgeItemGetByIdMock,
     getSubtreeItems: knowledgeItemGetSubtreeItemsMock,
-    hardDeleteItems: hardDeleteItemsMock,
+    deleteItemsByIds: deleteItemsByIdsMock,
     setSubtreeStatus: knowledgeItemSetSubtreeStatusMock,
     updateStatus: knowledgeItemUpdateStatusMock
-  }
-}))
-
-vi.mock('@data/services/FileEntryService', () => ({
-  fileEntryService: {
-    findById: fileEntryFindByIdMock
-  }
-}))
-
-vi.mock('@data/services/FileRefService', () => ({
-  fileRefService: {
-    countByEntryIds: fileRefCountByEntryIdsMock
   }
 }))
 
@@ -113,7 +92,9 @@ vi.mock('../../utils/sources/prepare', () => ({
 }))
 
 vi.mock('../../utils/indexing/embed', () => ({
-  embedDocuments: vi.fn(async () => [{ id_: 'node-1', metadata: {}, getContent: () => 'chunk' }])
+  embedDocuments: vi.fn(async (_model, documents: unknown[]) =>
+    documents.length === 0 ? [] : [{ id_: 'node-1', metadata: {}, getContent: () => 'chunk' }]
+  )
 }))
 
 vi.mock('../../utils/model/embedding', () => ({
@@ -235,10 +216,7 @@ describe('knowledge job handlers', () => {
     getJobMock.mockResolvedValue(null)
     enqueueMock.mockResolvedValue({ id: 'job-index', snapshot: {}, finished: Promise.resolve({}) })
     detachFileRefsMock.mockResolvedValue([])
-    fileEntryFindByIdMock.mockResolvedValue(null)
-    fileRefCountByEntryIdsMock.mockResolvedValue(new Map())
-    fileManagerPermanentDeleteMock.mockResolvedValue(undefined)
-    hardDeleteItemsMock.mockResolvedValue({ deletedCount: 0, detachedFileEntryIds: [] })
+    deleteItemsByIdsMock.mockResolvedValue(undefined)
     cancelMock.mockResolvedValue(undefined)
     scheduleItemMock.mockResolvedValue({ id: 'scheduled-job' })
   })
@@ -250,29 +228,24 @@ describe('knowledge job handlers', () => {
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
 
     expect(knowledgeItemGetSubtreeItemsMock).toHaveBeenCalledWith('kb-1', ['dir-1'])
-    expect(hardDeleteItemsMock).toHaveBeenCalledWith('kb-1', [])
+    expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', [])
     expect(prepareKnowledgeItemMock).toHaveBeenCalledWith(expect.objectContaining({ baseId: 'kb-1' }))
     expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'leaf-1', 'prepare-job')
     expect(handler.defaultQueue?.({ baseId: 'kb-1', itemId: 'dir-1' })).toBe('base.kb-1')
   })
 
-  it('prepare-root clears stale expansion artifacts before deleting rows', async () => {
+  it('prepare-root clears stale expansion vectors before deleting rows', async () => {
     const handler = createPrepareRootJobHandler(mutationCoordinator as never, workflowCoordinator as never)
     const activeChild = createNoteItem('active-note', 'dir-1')
     knowledgeItemGetByIdMock.mockResolvedValue(createDirectoryItem())
     knowledgeItemGetSubtreeItemsMock.mockResolvedValue([activeChild])
-    hardDeleteItemsMock.mockResolvedValue({
-      deletedCount: 1,
-      detachedFileEntryIds: ['019606a0-0000-7000-8000-000000000001']
-    })
 
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
 
     expect(replaceByExternalIdMock).toHaveBeenCalledWith('active-note', [])
-    expect(hardDeleteItemsMock).toHaveBeenCalledWith('kb-1', ['active-note'])
-    expect(fileRefCountByEntryIdsMock).toHaveBeenCalledWith(['019606a0-0000-7000-8000-000000000001'])
+    expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['active-note'])
     expect(replaceByExternalIdMock.mock.invocationCallOrder[0]).toBeLessThan(
-      hardDeleteItemsMock.mock.invocationCallOrder[0]
+      deleteItemsByIdsMock.mock.invocationCallOrder[0]
     )
   })
 
@@ -286,9 +259,9 @@ describe('knowledge job handlers', () => {
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
 
     expect(replaceByExternalIdMock).toHaveBeenCalledWith('active-note', [])
-    expect(hardDeleteItemsMock).toHaveBeenCalledWith('kb-1', ['active-note'])
+    expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['active-note'])
     expect(replaceByExternalIdMock).not.toHaveBeenCalledWith('deleting-note', [])
-    expect(hardDeleteItemsMock).not.toHaveBeenCalledWith('kb-1', expect.arrayContaining(['deleting-note']))
+    expect(deleteItemsByIdsMock).not.toHaveBeenCalledWith('kb-1', expect.arrayContaining(['deleting-note']))
   })
 
   it('prepare-root skips expansion when the root becomes deleting inside the mutation lock', async () => {
@@ -358,6 +331,20 @@ describe('knowledge job handlers', () => {
     expect(handler.defaultQueue?.({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null })).toBe('base.kb-1')
   })
 
+  it('index-documents completes with empty vectors when the reader returns no documents', async () => {
+    const handler = createIndexDocumentsJobHandler(mutationCoordinator as never)
+    knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
+    knowledgeItemUpdateStatusMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
+    loadKnowledgeItemDocumentsMock.mockResolvedValueOnce([])
+
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
+
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'reading')
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'embedding')
+    expect(replaceByExternalIdMock).toHaveBeenCalledWith(NOTE_ITEM_ID, [])
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
+  })
+
   it('index-documents onSettled skips failed status when the item is deleting', async () => {
     const handler = createIndexDocumentsJobHandler(mutationCoordinator as never)
     getJobMock.mockResolvedValue({
@@ -414,62 +401,20 @@ describe('knowledge job handlers', () => {
     expect(cancelMock).toHaveBeenCalledWith('index-job', 'knowledge-delete-subtree')
     expect(cancelMock).not.toHaveBeenCalledWith('unrelated-job', expect.anything())
     expect(replaceByExternalIdMock).toHaveBeenCalledWith('note-1', [])
-    expect(hardDeleteItemsMock).toHaveBeenCalledWith('kb-1', ['dir-1', 'note-1'])
+    expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['dir-1', 'note-1'])
   })
 
-  it('delete-subtree permanent deletes detached internal artifacts with no remaining refs', async () => {
+  it('delete-subtree deletes deleting rows by id', async () => {
     const handler = createDeleteSubtreeJobHandler(mutationCoordinator as never)
     const subtreeItems: KnowledgeItem[] = [
       createDirectoryItem('dir-1', 'deleting'),
       createNoteItem('note-1', 'dir-1', 'deleting')
     ]
     knowledgeItemGetSubtreeItemsMock.mockResolvedValue(subtreeItems)
-    hardDeleteItemsMock.mockResolvedValue({
-      deletedCount: 2,
-      detachedFileEntryIds: ['019606a0-0000-7000-8000-000000000001']
-    })
-    fileEntryFindByIdMock.mockResolvedValue({
-      id: '019606a0-0000-7000-8000-000000000001',
-      origin: 'internal',
-      name: 'artifact',
-      ext: 'md',
-      size: 12,
-      createdAt: 1,
-      updatedAt: 1
-    })
 
     await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'delete-job'))
 
-    expect(hardDeleteItemsMock).toHaveBeenCalledWith('kb-1', ['dir-1', 'note-1'])
-    expect(fileRefCountByEntryIdsMock).toHaveBeenCalledWith(['019606a0-0000-7000-8000-000000000001'])
-    expect(fileManagerPermanentDeleteMock).toHaveBeenCalledWith('019606a0-0000-7000-8000-000000000001')
-  })
-
-  it('delete-subtree keeps detached artifacts that still have refs or are external', async () => {
-    const handler = createDeleteSubtreeJobHandler(mutationCoordinator as never)
-    const subtreeItems: KnowledgeItem[] = [
-      createDirectoryItem('dir-1', 'deleting'),
-      createNoteItem('note-1', 'dir-1', 'deleting')
-    ]
-    knowledgeItemGetSubtreeItemsMock.mockResolvedValue(subtreeItems)
-    hardDeleteItemsMock.mockResolvedValue({
-      deletedCount: 2,
-      detachedFileEntryIds: ['019606a0-0000-7000-8000-000000000001', '019606a0-0000-7000-8000-000000000002']
-    })
-    fileRefCountByEntryIdsMock.mockResolvedValue(new Map([['019606a0-0000-7000-8000-000000000001', 1]]))
-    fileEntryFindByIdMock.mockResolvedValue({
-      id: '019606a0-0000-7000-8000-000000000002',
-      origin: 'external',
-      name: 'external',
-      ext: 'md',
-      externalPath: '/tmp/external.md',
-      createdAt: 1,
-      updatedAt: 1
-    })
-
-    await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'delete-job'))
-
-    expect(fileManagerPermanentDeleteMock).not.toHaveBeenCalled()
+    expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['dir-1', 'note-1'])
   })
 
   it('delete-subtree stops before cleanup when subtree job cancellation fails', async () => {
@@ -487,7 +432,7 @@ describe('knowledge job handlers', () => {
     )
 
     expect(replaceByExternalIdMock).not.toHaveBeenCalled()
-    expect(hardDeleteItemsMock).not.toHaveBeenCalled()
+    expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
   })
 
   it('delete-subtree stops before cleanup when subtree job cancellation times out', async () => {
@@ -511,7 +456,7 @@ describe('knowledge job handlers', () => {
     )
 
     expect(replaceByExternalIdMock).not.toHaveBeenCalled()
-    expect(hardDeleteItemsMock).not.toHaveBeenCalled()
+    expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
   })
 
   it('delete-subtree completes when the subtree is already gone', async () => {
@@ -523,7 +468,7 @@ describe('knowledge job handlers', () => {
     expect(listMock).not.toHaveBeenCalled()
     expect(knowledgeBaseGetByIdMock).not.toHaveBeenCalled()
     expect(replaceByExternalIdMock).not.toHaveBeenCalled()
-    expect(hardDeleteItemsMock).not.toHaveBeenCalled()
+    expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
   })
 
   it('delete-subtree no-ops when a stale job targets visible rows', async () => {
@@ -536,7 +481,7 @@ describe('knowledge job handlers', () => {
     expect(listMock).not.toHaveBeenCalled()
     expect(knowledgeBaseGetByIdMock).not.toHaveBeenCalled()
     expect(replaceByExternalIdMock).not.toHaveBeenCalled()
-    expect(hardDeleteItemsMock).not.toHaveBeenCalled()
+    expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
   })
 
   it('reindex-subtree clears old artifacts, resets selected roots, and schedules selected roots', async () => {
@@ -554,12 +499,12 @@ describe('knowledge job handlers', () => {
     await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'reindex-job'))
 
     expect(replaceByExternalIdMock).toHaveBeenCalledWith('note-1', [])
-    expect(hardDeleteItemsMock).toHaveBeenCalledWith('kb-1', ['note-1'])
+    expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['note-1'])
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('dir-1', 'preparing')
     expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'dir-1', 'reindex-job')
   })
 
-  it('reindex-subtree skips deleting subtrees before cancelling active jobs', async () => {
+  it('reindex-subtree skips deleting subtrees before reset', async () => {
     const handler = createReindexSubtreeJobHandler(mutationCoordinator as never, workflowCoordinator as never)
     const root = createDirectoryItem('dir-1', 'deleting')
     const child = createNoteItem('note-1', 'dir-1', 'deleting')
@@ -572,7 +517,7 @@ describe('knowledge job handlers', () => {
     expect(listMock).not.toHaveBeenCalled()
     expect(cancelMock).not.toHaveBeenCalled()
     expect(replaceByExternalIdMock).not.toHaveBeenCalled()
-    expect(hardDeleteItemsMock).not.toHaveBeenCalled()
+    expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
     expect(scheduleItemMock).not.toHaveBeenCalled()
   })
@@ -583,41 +528,15 @@ describe('knowledge job handlers', () => {
     const child = createNoteItem('note-1', 'dir-1')
     const deletingChild = createNoteItem('note-1', 'dir-1', 'deleting')
     const ctx = createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'reindex-job')
-    knowledgeItemGetSubtreeItemsMock
-      .mockResolvedValueOnce([root, child])
-      .mockResolvedValueOnce([root, child])
-      .mockResolvedValueOnce([root, deletingChild])
+    knowledgeItemGetSubtreeItemsMock.mockResolvedValueOnce([root, child]).mockResolvedValueOnce([root, deletingChild])
 
     await handler.execute(ctx)
 
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'deleting', totalFiles: 0 })
     expect(replaceByExternalIdMock).not.toHaveBeenCalled()
-    expect(hardDeleteItemsMock).not.toHaveBeenCalled()
+    expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
     expect(scheduleItemMock).not.toHaveBeenCalled()
-  })
-
-  it('reindex-subtree does not cancel active delete cleanup jobs touching the same subtree', async () => {
-    const handler = createReindexSubtreeJobHandler(mutationCoordinator as never, workflowCoordinator as never)
-    const root = createDirectoryItem('dir-1')
-    const child = createNoteItem('note-1', 'dir-1')
-    knowledgeItemGetSubtreeItemsMock.mockImplementation(
-      async (_baseId: string, _rootIds: string[], options: { includeRoots?: boolean; leafOnly?: boolean } = {}) => {
-        if (options.leafOnly) return [child]
-        if (options.includeRoots) return [root, child]
-        return [child]
-      }
-    )
-    listMock.mockResolvedValue([
-      { id: 'delete-job', type: 'knowledge.delete-subtree', input: { rootItemIds: ['dir-1'] } },
-      { id: 'index-job', type: 'knowledge.index-documents', input: { itemId: 'note-1' } }
-    ])
-
-    await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'reindex-job'))
-
-    expect(cancelMock).toHaveBeenCalledWith('index-job', 'knowledge-reindex-subtree')
-    expect(cancelMock).not.toHaveBeenCalledWith('delete-job', expect.anything())
-    expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'dir-1', 'reindex-job')
   })
 
   it('reindex-subtree clears old artifacts for selected leaf roots', async () => {
@@ -634,7 +553,7 @@ describe('knowledge job handlers', () => {
     await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['note-1'] }, 'reindex-job'))
 
     expect(detachFileRefsMock).toHaveBeenCalledWith(['note-1'])
-    expect(hardDeleteItemsMock).not.toHaveBeenCalled()
+    expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('note-1', 'processing')
     expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'note-1', 'reindex-job')
   })
@@ -660,47 +579,5 @@ describe('knowledge job handlers', () => {
     expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['dir-1'], 'failed', {
       error: 'Failed to schedule reindex after reset: enqueue failed'
     })
-  })
-
-  it('reindex-subtree stops before reset when subtree job cancellation fails', async () => {
-    const handler = createReindexSubtreeJobHandler(mutationCoordinator as never, workflowCoordinator as never)
-    const root = createDirectoryItem('dir-1')
-    const child = createNoteItem('note-1', 'dir-1')
-    knowledgeItemGetSubtreeItemsMock.mockResolvedValue([root, child])
-    listMock.mockResolvedValue([{ id: 'index-job', input: { itemId: 'note-1' } }])
-    cancelMock.mockRejectedValue(new Error('cancel failed'))
-
-    await expect(handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'reindex-job'))).rejects.toThrow(
-      'cancel failed'
-    )
-
-    expect(replaceByExternalIdMock).not.toHaveBeenCalled()
-    expect(hardDeleteItemsMock).not.toHaveBeenCalled()
-    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
-    expect(scheduleItemMock).not.toHaveBeenCalled()
-  })
-
-  it('reindex-subtree stops before reset when subtree job cancellation times out', async () => {
-    const handler = createReindexSubtreeJobHandler(mutationCoordinator as never, workflowCoordinator as never)
-    const root = createDirectoryItem('dir-1')
-    const child = createNoteItem('note-1', 'dir-1')
-    knowledgeItemGetSubtreeItemsMock.mockResolvedValue([root, child])
-    listMock.mockResolvedValue([{ id: 'index-job', input: { itemId: 'note-1' } }])
-    getJobMock.mockResolvedValue({
-      error: {
-        code: 'JOB_CANCELLED',
-        message: 'Cancel timed out after 30000ms (reason: knowledge-reindex-subtree)',
-        retryable: false
-      }
-    })
-
-    await expect(handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'reindex-job'))).rejects.toThrow(
-      'Knowledge subtree job cancel timed out: index-job'
-    )
-
-    expect(replaceByExternalIdMock).not.toHaveBeenCalled()
-    expect(hardDeleteItemsMock).not.toHaveBeenCalled()
-    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
-    expect(scheduleItemMock).not.toHaveBeenCalled()
   })
 })

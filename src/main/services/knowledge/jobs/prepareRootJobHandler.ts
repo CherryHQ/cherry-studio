@@ -1,21 +1,19 @@
 import './jobTypes'
 
-import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { JobContext, JobHandler } from '@main/core/job/types'
-import { ErrorCode, isDataApiError } from '@shared/data/api'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
 import type { KnowledgeMutationCoordinator } from '../KnowledgeMutationCoordinator'
 import type { KnowledgeWorkflowCoordinator } from '../KnowledgeWorkflowCoordinator'
 import { knowledgeQueueName } from '../types'
-import { cleanupUnreferencedInternalEntries } from '../utils/cleanup/artifactCleanup'
 import { deleteKnowledgeItemVectors } from '../utils/cleanup/vectorCleanup'
 import { isIndexableKnowledgeItem } from '../utils/items'
 import { prepareKnowledgeItem } from '../utils/sources/prepare'
 import type { KnowledgePrepareRootPayload } from './jobTypes'
+import { isDataApiNotFoundError, markKnowledgeItemFailedOnSettled } from './utils/settled'
 
 const logger = loggerService.withContext('Knowledge:PrepareRootJobHandler')
 
@@ -58,27 +56,7 @@ export function createPrepareRootJobHandler(
     },
 
     async onSettled(event) {
-      if (event.status === 'completed') return
-
-      const jobManager = application.get('JobManager')
-      const snapshot = await jobManager.get(event.jobId)
-      const input = snapshot?.input as { itemId?: string } | undefined
-      if (!input?.itemId) return
-
-      const reason = event.error?.message?.trim() || `Job ${event.status}`
-      try {
-        const item = await knowledgeItemService.getById(input.itemId)
-        if (item.status === 'deleting') return
-
-        await knowledgeItemService.updateStatus(input.itemId, 'failed', { error: reason })
-      } catch (error) {
-        if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) return
-        logger.error(
-          'Failed to flip knowledge container to failed in onSettled',
-          error instanceof Error ? error : new Error(String(error)),
-          { jobId: event.jobId, itemId: input.itemId }
-        )
-      }
+      await markKnowledgeItemFailedOnSettled(event, logger, 'Failed to flip knowledge container to failed in onSettled')
     }
   }
 }
@@ -98,7 +76,7 @@ async function loadPrepareRootItemOrSkip(ctx: JobContext<KnowledgePrepareRootPay
 
     return item
   } catch (error) {
-    if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+    if (isDataApiNotFoundError(error)) {
       logger.info('Skipping prepare-root for missing base or item', { baseId, itemId, jobId: ctx.jobId })
       ctx.reportProgress(100, { stage: 'item-gone' })
       return null
@@ -120,8 +98,7 @@ async function deletePreviousLeafExpansion(
     const removableLeafIds = removableDescendants.filter(isIndexableKnowledgeItem).map((item) => item.id)
 
     await deleteKnowledgeItemVectors(base, removableLeafIds)
-    const { detachedFileEntryIds } = await knowledgeItemService.hardDeleteItems(baseId, removableDescendantIds)
-    await cleanupUnreferencedInternalEntries(detachedFileEntryIds)
+    await knowledgeItemService.deleteItemsByIds(baseId, removableDescendantIds)
   })
 }
 
@@ -136,7 +113,7 @@ async function scanRootItem(
     try {
       currentItem = await knowledgeItemService.getById(itemId)
     } catch (error) {
-      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+      if (isDataApiNotFoundError(error)) {
         logger.info('Skipping prepare-root for missing item before expansion', { baseId, itemId, jobId: ctx.jobId })
         ctx.reportProgress(100, { stage: 'item-gone' })
         return []

@@ -1,3 +1,5 @@
+import '@testing-library/jest-dom/vitest'
+
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -216,6 +218,22 @@ describe('KnowledgeItemRow', () => {
     expect(handleClick).toHaveBeenCalledTimes(1)
   })
 
+  it('does not call onClick for non-completed items', () => {
+    const handleClick = vi.fn()
+
+    render(
+      <KnowledgeItemRow
+        item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs', status: 'processing' })}
+        {...defaultHandlers}
+        onClick={handleClick}
+      />
+    )
+
+    fireEvent.click(screen.getByText('https://example.com/product-docs'))
+
+    expect(handleClick).not.toHaveBeenCalled()
+  })
+
   it('renders the more button', () => {
     render(
       <KnowledgeItemRow
@@ -316,6 +334,18 @@ describe('KnowledgeItemRow', () => {
     expect(handleClick).not.toHaveBeenCalled()
   })
 
+  it.each(['idle', 'processing', 'reading', 'embedding', 'failed', 'deleting'] as const)(
+    'hides view chunks for %s leaf items',
+    (status) => {
+      render(<KnowledgeItemRow item={createUrlItem({ id: `url-${status}`, status })} {...defaultHandlers} />)
+
+      fireEvent.click(screen.getByRole('button', { name: '更多' }))
+
+      expect(screen.queryByRole('button', { name: '查看 Chunks' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument()
+    }
+  )
+
   it('calls onDelete without calling onClick when the delete action is clicked', () => {
     const handleClick = vi.fn()
     const handleDelete = vi.fn()
@@ -376,4 +406,24 @@ describe('KnowledgeItemRow', () => {
       expect(window.toast.error).toHaveBeenCalledWith('数据源重新索引失败: reindex failed')
     })
   })
+
+  it.each(['completed', 'failed'] as const)('shows reindex for %s items', (status) => {
+    render(<KnowledgeItemRow item={createUrlItem({ id: `url-${status}`, status })} {...defaultHandlers} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+
+    expect(screen.getByRole('button', { name: '重新索引' })).toBeInTheDocument()
+  })
+
+  it.each(['idle', 'processing', 'reading', 'embedding', 'deleting'] as const)(
+    'hides reindex for %s leaf items',
+    (status) => {
+      render(<KnowledgeItemRow item={createUrlItem({ id: `url-${status}`, status })} {...defaultHandlers} />)
+
+      fireEvent.click(screen.getByRole('button', { name: '更多' }))
+
+      expect(screen.queryByRole('button', { name: '重新索引' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument()
+    }
+  )
 })
