@@ -4,9 +4,10 @@ import ImageStorage from '@renderer/services/ImageStorage'
 import { getProviderNameById } from '@renderer/services/ProviderService'
 import { cn } from '@renderer/utils'
 import type { Provider } from '@types'
-import { Select } from 'antd'
 import type { FC } from 'react'
 import React, { useEffect, useState } from 'react'
+
+import PaintingSelect from './PaintingSelect'
 
 type ProviderSelectProps = {
   provider: Provider
@@ -54,46 +55,27 @@ const ProviderSelect: FC<ProviderSelectProps> = ({ provider, options, onChange, 
   })
 
   return (
-    <Select
+    <PaintingSelect
       value={provider.id}
       onChange={onChange}
       style={style}
       className={cn('w-full', className)}
-      options={providerOptions}
-      labelRender={(props) => {
-        const providerId = props.value as string
-        const providerName = providerOptions.find((opt) => opt.value === providerId)?.label || ''
-        return (
+      options={providerOptions.map((option) => ({
+        value: option.value,
+        label: (
           <div className="flex items-center gap-2">
             <div className="flex h-4 w-4 items-center justify-center">
               <ProviderAvatarPrimitive
-                providerId={providerId}
-                providerName={providerName}
-                logo={resolveProviderIconOrSrc(providerId)}
+                providerId={option.value}
+                providerName={option.label}
+                logo={resolveProviderIconOrSrc(option.value)}
                 size={16}
               />
             </div>
-            <span>{providerName}</span>
+            <span>{option.label}</span>
           </div>
         )
-      }}
-      optionRender={(option) => {
-        const providerId = option.value as string
-        const providerName = option.label as string
-        return (
-          <div className="flex items-center gap-2">
-            <div className="flex h-4 w-4 items-center justify-center">
-              <ProviderAvatarPrimitive
-                providerId={providerId}
-                providerName={providerName}
-                logo={resolveProviderIconOrSrc(providerId)}
-                size={16}
-              />
-            </div>
-            <span>{providerName}</span>
-          </div>
-        )
-      }}
+      }))}
     />
   )
 }

@@ -1,20 +1,20 @@
-import { RowFlex } from '@cherrystudio/ui'
+import { RadioGroup, RadioGroupItem, RowFlex } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import type { Painting, PaintingAction } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
-import { InputNumber, Radio, Select } from 'antd'
-import type { TextAreaRef } from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
+import { NumberField } from './components/PaintingControls'
 import PaintingPageShell from './components/PaintingPageShell'
 import PaintingPromptBar from './components/PaintingPromptBar'
+import PaintingSelect from './components/PaintingSelect'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
@@ -72,7 +72,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { currentImageIndex, nextImage, prevImage, resetImageIndex } = usePaintingImageNavigation(painting.files.length)
   const navigate = useNavigate()
   const location = useLocation()
-  const textareaRef = useRef<TextAreaRef>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // 自定义尺寸相关状态
   const [isCustomSize, setIsCustomSize] = useState(false)
@@ -320,7 +320,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
           <ProviderSelect provider={zhipuProvider} options={Options} onChange={handleProviderChange} className="mb-4" />
 
           <SettingTitle className="mt-3.75 mb-1.25">{t('common.model')}</SettingTitle>
-          <Select
+          <PaintingSelect
             value={painting.model}
             onChange={onSelectModel}
             className="w-full"
@@ -333,46 +333,48 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
           {painting.model === 'cogview-4-250304' && (
             <>
               <SettingTitle className="mt-3.75 mb-1.25">{t('paintings.quality')}</SettingTitle>
-              <Radio.Group value={painting.quality} onChange={(e) => onSelectQuality(e.target.value)}>
+              <RadioGroup value={painting.quality} onValueChange={onSelectQuality} className="flex gap-3">
                 {QUALITY_OPTIONS.map((option) => (
-                  <Radio key={option.value} value={option.value}>
+                  <label key={option.value} className="flex cursor-pointer items-center gap-2 text-sm">
+                    <RadioGroupItem value={option.value} />
                     {t(option.label)}
-                  </Radio>
+                  </label>
                 ))}
-              </Radio.Group>
+              </RadioGroup>
             </>
           )}
 
           <SettingTitle className="mt-3.75 mb-1.25">{t('paintings.image.size')}</SettingTitle>
-          <Select value={isCustomSize ? 'custom' : painting.imageSize} onChange={onSelectImageSize} className="w-full">
+          <PaintingSelect
+            value={isCustomSize ? 'custom' : painting.imageSize}
+            onChange={onSelectImageSize}
+            className="w-full">
             {IMAGE_SIZES.map((size) => (
-              <Select.Option key={size.value} value={size.value}>
+              <PaintingSelect.Option key={size.value} value={size.value}>
                 {t(size.label)}
-              </Select.Option>
+              </PaintingSelect.Option>
             ))}
-            <Select.Option value="custom" key="custom">
+            <PaintingSelect.Option value="custom" key="custom">
               {t('paintings.custom_size')}
-            </Select.Option>
-          </Select>
+            </PaintingSelect.Option>
+          </PaintingSelect>
 
           {/* 自定义尺寸输入框 */}
           {isCustomSize && (
             <div className="mt-2.5">
               <RowFlex className="items-center gap-2">
-                <InputNumber
+                <NumberField
                   placeholder="W"
                   value={customWidth}
-                  controls={false}
                   onChange={(value) => onCustomSizeChange(value || undefined, 'width')}
                   min={512}
                   max={2048}
                   className="w-20 flex-1"
                 />
                 <span className="text-foreground-secondary text-xs">x</span>
-                <InputNumber
+                <NumberField
                   placeholder="H"
                   value={customHeight}
-                  controls={false}
                   onChange={(value) => onCustomSizeChange(value || undefined, 'height')}
                   min={512}
                   max={2048}

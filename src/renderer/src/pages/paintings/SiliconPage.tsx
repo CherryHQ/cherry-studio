@@ -1,14 +1,11 @@
-import { RedoOutlined } from '@ant-design/icons'
-import { ColFlex, InfoTooltip } from '@cherrystudio/ui'
+import { ColFlex, InfoTooltip, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import type { FileMetadata, Painting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
-import { Input, InputNumber, Radio, Select, Slider } from 'antd'
-import type { TextAreaRef } from 'antd/es/input/TextArea'
-import TextArea from 'antd/es/input/TextArea'
+import { RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,8 +13,10 @@ import { useTranslation } from 'react-i18next'
 import { SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import ImageUploader from './components/ImageUploader'
+import { NumberField, SliderField, TextInput } from './components/PaintingControls'
 import PaintingPageShell from './components/PaintingPageShell'
 import PaintingPromptBar from './components/PaintingPromptBar'
+import PaintingSelect from './components/PaintingSelect'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
@@ -69,7 +68,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   const modelParams = getSiliconModelParams(painting.model)
   const imageSizes = modelParams.imageSizes
 
-  const textareaRef = useRef<TextAreaRef>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   // _painting = painting
 
   const updatePaintingState = (updates: Partial<Painting>) => {
@@ -120,7 +119,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
 
-    const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
+    const prompt = textareaRef.current?.value || ''
 
     updatePaintingState({ prompt })
 
@@ -279,7 +278,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
           <SettingTitle className="mb-1.25">{t('common.provider')}</SettingTitle>
           <ProviderSelect provider={siliconFlowProvider} options={Options} onChange={handleProviderChange} />
           <SettingTitle className="mt-4 mb-1">{t('common.model')}</SettingTitle>
-          <Select value={painting.model} options={modelOptions} onChange={onSelectModel} />
+          <PaintingSelect value={painting.model} options={modelOptions} onChange={onSelectModel} />
           {modelParams.maxInputImages > 0 && (
             <>
               <SettingTitle className="mt-3.75 mb-1.25">{t('paintings.remix.image_file')}</SettingTitle>
@@ -296,22 +295,22 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
           {modelParams.supportsImageSize && (
             <>
               <SettingTitle className="mt-3.75 mb-1.25">{t('paintings.image.size')}</SettingTitle>
-              <Radio.Group
-                value={painting.imageSize}
-                onChange={(e) => onSelectImageSize(e.target.value)}
-                className="flex!">
+              <div className="flex">
                 {imageSizes.map((size) => (
-                  <Radio.Button
-                    value={size.value}
+                  <button
+                    type="button"
                     key={size.value}
-                    className="flex! h-13.75! w-7.5! flex-1 flex-col items-center justify-center">
+                    className={`flex h-13.75 w-7.5 flex-1 flex-col items-center justify-center border border-border bg-background text-sm first:rounded-l-md last:rounded-r-md hover:bg-accent ${
+                      painting.imageSize === size.value ? 'border-primary bg-primary/10 text-primary' : ''
+                    }`}
+                    onClick={() => onSelectImageSize(size.value)}>
                     <ColFlex className="items-center">
                       <img src={size.icon} alt="" className={theme === 'dark' ? 'mt-2 invert' : 'mt-2'} />
                       <span>{size.label}</span>
                     </ColFlex>
-                  </Radio.Button>
+                  </button>
                 ))}
-              </Radio.Group>
+              </div>
             </>
           )}
 
@@ -321,7 +320,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
                 {t('paintings.number_images')}
                 <InfoTooltip content={t('paintings.number_images_tip')} />
               </SettingTitle>
-              <InputNumber
+              <NumberField
                 min={1}
                 max={4}
                 value={painting.numImages}
@@ -334,13 +333,13 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
             {t('paintings.seed')}
             <InfoTooltip content={t('paintings.seed_tip')} />
           </SettingTitle>
-          <Input
+          <TextInput
             value={painting.seed}
             onChange={(e) => updatePaintingState({ seed: e.target.value })}
             suffix={
-              <RedoOutlined
+              <RefreshCw
                 onClick={() => updatePaintingState({ seed: Math.floor(Math.random() * 1000000).toString() })}
-                className="cursor-pointer text-foreground-secondary"
+                className="size-4 cursor-pointer text-foreground-secondary"
               />
             }
           />
@@ -351,14 +350,20 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
                 {t('paintings.inference_steps')}
                 <InfoTooltip content={t('paintings.inference_steps_tip')} />
               </SettingTitle>
-              <div className="flex items-center gap-4 [&_.ant-slider]:flex-1">
-                <Slider min={1} max={100} value={painting.steps} onChange={(v) => updatePaintingState({ steps: v })} />
-                <InputNumber
-                  className="w-17.5!"
+              <div className="flex items-center gap-4">
+                <SliderField
                   min={1}
                   max={100}
                   value={painting.steps}
-                  onChange={(v) => updatePaintingState({ steps: (v as number) || 20 })}
+                  onChange={(v) => updatePaintingState({ steps: v })}
+                />
+                <NumberField
+                  block={false}
+                  className="w-17.5"
+                  min={1}
+                  max={100}
+                  value={painting.steps}
+                  onChange={(v) => updatePaintingState({ steps: v || 20 })}
                 />
               </div>
             </>
@@ -370,21 +375,22 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
                 {t('paintings.guidance_scale')}
                 <InfoTooltip content={t('paintings.guidance_scale_tip')} />
               </SettingTitle>
-              <div className="flex items-center gap-4 [&_.ant-slider]:flex-1">
-                <Slider
+              <div className="flex items-center gap-4">
+                <SliderField
                   min={0}
                   max={20}
                   step={0.1}
                   value={painting.guidanceScale}
                   onChange={(v) => updatePaintingState({ guidanceScale: v })}
                 />
-                <InputNumber
-                  className="w-17.5!"
+                <NumberField
+                  block={false}
+                  className="w-17.5"
                   min={0}
                   max={20}
                   step={0.1}
                   value={painting.guidanceScale}
-                  onChange={(v) => updatePaintingState({ guidanceScale: (v as number) || 7.5 })}
+                  onChange={(v) => updatePaintingState({ guidanceScale: v || 7.5 })}
                 />
               </div>
             </>
@@ -393,7 +399,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
             {t('paintings.negative_prompt')}
             <InfoTooltip content={t('paintings.negative_prompt_tip')} />
           </SettingTitle>
-          <TextArea
+          <Textarea.Input
             value={painting.negativePrompt}
             onChange={(e) => updatePaintingState({ negativePrompt: e.target.value })}
             spellCheck={false}

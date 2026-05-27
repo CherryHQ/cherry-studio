@@ -1,4 +1,4 @@
-import { Button } from '@cherrystudio/ui'
+import { EmptyState, SegmentedControl } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { AiProvider } from '@renderer/aiCore'
@@ -18,18 +18,17 @@ import type { PaintingAction, PaintingsState } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { isNewApiProvider } from '@renderer/utils/provider'
 import { useLocation, useNavigate } from '@tanstack/react-router'
-import { Empty, InputNumber, Segmented, Select, Upload } from 'antd'
-import type { TextAreaRef } from 'antd/es/input/TextArea'
-import type { RcFile } from 'antd/es/upload'
-import type { UploadFile } from 'antd/es/upload/interface'
+import { X } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
+import { FilePicker, NumberField } from './components/PaintingControls'
 import PaintingPageShell from './components/PaintingPageShell'
 import PaintingPromptBar from './components/PaintingPromptBar'
+import PaintingSelect from './components/PaintingSelect'
 import ProviderSelect from './components/ProviderSelect'
 import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
 import { usePaintingImageNavigation } from './hooks/usePaintingImageNavigation'
@@ -77,10 +76,20 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     { label: t('paintings.mode.edit'), value: 'openai_image_edit' }
   ]
 
-  const textareaRef = useRef<TextAreaRef>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // 获取编辑模式的图片文件
   const editImages = editImageFiles
+  const editImagePreviews = useMemo(
+    () => editImageFiles.map((file) => ({ file, url: URL.createObjectURL(file) })),
+    [editImageFiles]
+  )
+
+  useEffect(() => {
+    return () => {
+      editImagePreviews.forEach(({ url }) => URL.revokeObjectURL(url))
+    }
+  }, [editImagePreviews])
 
   useEffect(() => {
     if (mode !== 'openai_image_edit') {
@@ -227,7 +236,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (!confirmed) return
     }
 
-    const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
+    const prompt = textareaRef.current?.value || ''
     updatePaintingState({ prompt })
 
     const AI = new AiProvider(newApiProvider)
@@ -431,15 +440,15 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           {/* 当没有可用的 Image Generation 模型时，提示用户先去新增 */}
           {modelOptions.length === 0 && (
-            <Empty
+            <EmptyState
               className="mt-6"
+              compact
               description={t('paintings.no_image_generation_model', {
                 endpoint_type: t('endpoint_type.image-generation')
-              })}>
-              <Button variant="default" onClick={handleShowAddModelPopup}>
-                {t('paintings.go_to_settings')}
-              </Button>
-            </Empty>
+              })}
+              actionLabel={t('paintings.go_to_settings')}
+              onAction={handleShowAddModelPopup}
+            />
           )}
 
           {modelOptions.length > 0 && (
@@ -447,69 +456,63 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
               {mode === 'openai_image_edit' && (
                 <>
                   <SettingTitle className="mt-5 mb-1.25">{t('paintings.input_image')}</SettingTitle>
-                  <Upload
-                    className="[&_.ant-upload.ant-upload-select]:border! [&_.ant-upload.ant-upload-select]:h-15! [&_.ant-upload.ant-upload-select]:w-full! [&_.ant-upload.ant-upload-select]:border-border! [&_.ant-upload.ant-upload-select]:border-dashed!"
+                  <FilePicker
+                    className="flex h-15 w-full cursor-pointer flex-row items-center justify-center gap-2 rounded-md border border-border border-dashed bg-background-subtle hover:bg-muted"
                     accept="image/png, image/jpeg, image/gif"
-                    maxCount={16}
-                    showUploadList={true}
-                    listType="picture"
-                    beforeUpload={handleImageUpload}
-                    fileList={editImageFiles.map((file, idx): UploadFile<unknown> => {
-                      const rcFile: RcFile = {
-                        ...file,
-                        uid: String(idx),
-                        lastModifiedDate: file.lastModified ? new Date(file.lastModified) : new Date()
-                      }
-                      return {
-                        uid: rcFile.uid,
-                        name: rcFile.name || `image_${idx + 1}.png`,
-                        status: 'done',
-                        url: URL.createObjectURL(file),
-                        originFileObj: rcFile,
-                        lastModifiedDate: rcFile.lastModifiedDate
-                      }
-                    })}
-                    onRemove={(file) => {
-                      setEditImageFiles((prev) =>
-                        prev.filter((f) => {
-                          const idx = prev.indexOf(f)
-                          return String(idx) !== file.uid
-                        })
-                      )
-                      return true
-                    }}>
-                    <div className="flex h-full cursor-pointer flex-row items-center justify-center gap-2">
-                      <img src={IcImageUp} alt="" className={theme === 'dark' ? 'h-5 w-5 invert' : 'h-5 w-5'} />
+                    multiple
+                    onFiles={(files) => files.slice(0, 16 - editImageFiles.length).forEach(handleImageUpload)}>
+                    <img src={IcImageUp} alt="" className={theme === 'dark' ? 'h-5 w-5 invert' : 'h-5 w-5'} />
+                  </FilePicker>
+                  {editImageFiles.length > 0 && (
+                    <div className="mt-2 flex flex-col gap-1.5">
+                      {editImagePreviews.map(({ file, url }, idx) => (
+                        <div
+                          key={`${file.name}-${idx}`}
+                          className="flex items-center gap-2 rounded-md border border-border bg-background-subtle px-2 py-1 text-xs">
+                          <img
+                            src={url}
+                            alt={file.name || `image_${idx + 1}.png`}
+                            className="size-8 shrink-0 rounded border border-border object-cover"
+                          />
+                          <span className="min-w-0 flex-1 truncate">{file.name || `image_${idx + 1}.png`}</span>
+                          <button
+                            type="button"
+                            className="text-foreground-secondary hover:text-destructive"
+                            onClick={() => setEditImageFiles((prev) => prev.filter((_, index) => index !== idx))}>
+                            <X className="size-3.5" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                  </Upload>
+                  )}
                 </>
               )}
 
               {/* Model Selector */}
               <SettingTitle className="mt-5 mb-1.25">{t('paintings.model')}</SettingTitle>
-              <Select value={painting.model} onChange={handleModelChange} className="mb-3.75 w-full">
+              <PaintingSelect value={painting.model} onChange={handleModelChange} className="mb-3.75 w-full">
                 {Object.entries(groupedModelOptions).map(([groupName, options]) => (
-                  <Select.OptGroup label={groupName} key={groupName}>
+                  <PaintingSelect.OptGroup label={groupName} key={groupName}>
                     {options.map((m) => (
-                      <Select.Option value={m.value} key={m.value}>
+                      <PaintingSelect.Option value={m.value} key={m.value}>
                         {m.label}
-                      </Select.Option>
+                      </PaintingSelect.Option>
                     ))}
-                  </Select.OptGroup>
+                  </PaintingSelect.OptGroup>
                 ))}
-              </Select>
+              </PaintingSelect>
 
               {/* Image Size */}
               {selectedModelConfig?.imageSizes && selectedModelConfig.imageSizes.length > 0 && (
                 <>
                   <SettingTitle className="mt-3.75 mb-1.25">{t('paintings.image.size')}</SettingTitle>
-                  <Select value={painting.size} onChange={handleSizeChange} className="mb-3.75 w-full">
+                  <PaintingSelect value={painting.size} onChange={handleSizeChange} className="mb-3.75 w-full">
                     {selectedModelConfig.imageSizes.map((s) => (
-                      <Select.Option value={s.value} key={s.value}>
+                      <PaintingSelect.Option value={s.value} key={s.value}>
                         {getPaintingsImageSizeOptionsLabel(s.value) ?? s.value}
-                      </Select.Option>
+                      </PaintingSelect.Option>
                     ))}
-                  </Select>
+                  </PaintingSelect>
                 </>
               )}
 
@@ -517,13 +520,13 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
               {selectedModelConfig?.quality && selectedModelConfig.quality.length > 0 && (
                 <>
                   <SettingTitle className="mt-3.75 mb-1.25">{t('paintings.quality')}</SettingTitle>
-                  <Select value={painting.quality} onChange={handleQualityChange} className="mb-3.75 w-full">
+                  <PaintingSelect value={painting.quality} onChange={handleQualityChange} className="mb-3.75 w-full">
                     {selectedModelConfig.quality.map((q) => (
-                      <Select.Option value={q.value} key={q.value}>
+                      <PaintingSelect.Option value={q.value} key={q.value}>
                         {getPaintingsQualityOptionsLabel(q.value) ?? q.value}
-                      </Select.Option>
+                      </PaintingSelect.Option>
                     ))}
-                  </Select>
+                  </PaintingSelect>
                 </>
               )}
 
@@ -533,13 +536,16 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
                 selectedModelConfig.moderation.length > 0 && (
                   <>
                     <SettingTitle className="mt-3.75 mb-1.25">{t('paintings.moderation')}</SettingTitle>
-                    <Select value={painting.moderation} onChange={handleModerationChange} className="mb-3.75 w-full">
+                    <PaintingSelect
+                      value={painting.moderation}
+                      onChange={handleModerationChange}
+                      className="mb-3.75 w-full">
                       {selectedModelConfig.moderation.map((m) => (
-                        <Select.Option value={m.value} key={m.value}>
+                        <PaintingSelect.Option value={m.value} key={m.value}>
                           {getPaintingsModerationOptionsLabel(m.value) ?? m.value}
-                        </Select.Option>
+                        </PaintingSelect.Option>
                       ))}
-                    </Select>
+                    </PaintingSelect>
                   </>
                 )}
 
@@ -549,16 +555,16 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
                 selectedModelConfig.background.length > 0 && (
                   <>
                     <SettingTitle className="mt-3.75 mb-1.25">{t('paintings.background')}</SettingTitle>
-                    <Select
+                    <PaintingSelect
                       value={painting.background}
                       onChange={(value) => updatePaintingState({ background: value })}
                       className="mb-3.75 w-full">
                       {selectedModelConfig.background.map((b) => (
-                        <Select.Option value={b.value} key={b.value}>
+                        <PaintingSelect.Option value={b.value} key={b.value}>
                           {getPaintingsBackgroundOptionsLabel(b.value) ?? b.value}
-                        </Select.Option>
+                        </PaintingSelect.Option>
                       ))}
-                    </Select>
+                    </PaintingSelect>
                   </>
                 )}
 
@@ -566,7 +572,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
               {selectedModelConfig?.max_images && (
                 <>
                   <SettingTitle className="mt-3.75 mb-1.25">{t('paintings.number_images')}</SettingTitle>
-                  <InputNumber
+                  <NumberField
                     min={1}
                     max={selectedModelConfig.max_images}
                     value={painting.n || 1}
@@ -583,7 +589,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
         <>
           {/* 添加功能切换分段控制器 */}
           <div className="flex justify-center pt-6">
-            <Segmented shape="round" value={mode} onChange={handleModeChange} options={modeOptions} />
+            <SegmentedControl value={mode} onValueChange={handleModeChange} options={modeOptions} />
           </div>
           <Artboard
             painting={painting}

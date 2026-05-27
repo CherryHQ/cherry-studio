@@ -1,5 +1,4 @@
-import { RedoOutlined } from '@ant-design/icons'
-import { RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { RowFlex, Switch, Textarea, Tooltip } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { usePaintings } from '@renderer/hooks/usePaintings'
@@ -7,19 +6,17 @@ import { getProviderLabel } from '@renderer/i18n/label'
 import type { OvmsPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
-import type { SelectProps } from 'antd'
-import { Input, InputNumber, Select, Slider } from 'antd'
-import type { TextAreaRef } from 'antd/es/input/TextArea'
-import TextArea from 'antd/es/input/TextArea'
-import { Info } from 'lucide-react'
+import { Info, RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
+import { NumberField, SliderField, TextInput } from './components/PaintingControls'
 import PaintingPageShell from './components/PaintingPageShell'
 import PaintingPromptBar from './components/PaintingPromptBar'
+import PaintingSelect, { type PaintingSelectOptionItem } from './components/PaintingSelect'
 import PaintingsList from './components/PaintingsList'
 import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
 import { usePaintingImageNavigation } from './hooks/usePaintingImageNavigation'
@@ -76,7 +73,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }, [availableModels])
 
-  const textareaRef = useRef<TextAreaRef>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Load available models on component mount
   useEffect(() => {
@@ -132,7 +129,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (!confirmed) return
     }
 
-    const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
+    const prompt = textareaRef.current?.value || ''
     updatePaintingState({ prompt })
 
     if (!painting.model || !painting.prompt) {
@@ -229,21 +226,20 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
     switch (item.type) {
       case 'select': {
         const isDisabled = typeof item.disabled === 'function' ? item.disabled(item, painting) : item.disabled
-        const selectOptions: SelectProps['options'] =
-          typeof item.options === 'function'
-            ? item.options(item, painting).map((option) => ({
-                ...option,
-                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
-              }))
-            : item.options?.map((option) => ({
-                ...option,
-                label: option.label.startsWith('paintings.') ? t(option.label) : option.label
-              }))
+        const rawOptions = typeof item.options === 'function' ? item.options(item, painting) : item.options
+        const selectOptions: PaintingSelectOptionItem[] | undefined = rawOptions?.flatMap((option) => {
+          const label = option.label.startsWith('paintings.') ? t(option.label) : option.label
+
+          if (option.value === undefined) {
+            return []
+          }
+
+          return [{ label, value: option.value }]
+        })
 
         return (
-          <Select
+          <PaintingSelect
             className="w-full"
-            listHeight={500}
             disabled={isDisabled}
             value={painting[item.key!] || item.initialValue}
             options={selectOptions}
@@ -253,16 +249,17 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
       case 'slider': {
         return (
-          <div className="flex items-center gap-4 [&_.ant-slider]:flex-1">
-            <Slider
+          <div className="flex items-center gap-4">
+            <SliderField
               min={item.min}
               max={item.max}
               step={item.step}
               value={(painting[item.key!] || item.initialValue) as number}
               onChange={(v) => updatePaintingState({ [item.key!]: v })}
             />
-            <InputNumber
-              className="w-17.5!"
+            <NumberField
+              block={false}
+              className="w-17.5"
               min={item.min}
               max={item.max}
               step={item.step}
@@ -274,12 +271,12 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
       case 'input':
         return (
-          <Input
+          <TextInput
             value={(painting[item.key!] || item.initialValue) as string}
             onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}
             suffix={
               item.key === 'rng_seed' ? (
-                <RedoOutlined onClick={handleRandomSeed} className="cursor-pointer text-foreground-secondary" />
+                <RefreshCw onClick={handleRandomSeed} className="size-4 cursor-pointer text-foreground-secondary" />
               ) : (
                 item.suffix
               )
@@ -288,7 +285,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
         )
       case 'inputNumber':
         return (
-          <InputNumber
+          <NumberField
             min={item.min}
             max={item.max}
             className="w-full"
@@ -298,7 +295,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
         )
       case 'textarea':
         return (
-          <TextArea
+          <Textarea.Input
             value={(painting[item.key!] || item.initialValue) as string}
             onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}
             spellCheck={false}
@@ -310,7 +307,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
           <RowFlex>
             <Switch
               checked={(painting[item.key!] || item.initialValue) as boolean}
-              onChange={(checked) => updatePaintingState({ [item.key!]: checked })}
+              onCheckedChange={(checked) => updatePaintingState({ [item.key!]: checked })}
             />
           </RowFlex>
         )
@@ -372,12 +369,12 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
             </SettingHelpLink>
           </div>
 
-          <Select
+          <PaintingSelect
             value={providerOptions.find((p) => p.value === 'ovms')?.value || 'ovms'}
             onChange={handleProviderChange}
             className="mb-3.75 w-full">
             {providerOptions.map((provider) => (
-              <Select.Option value={provider.value} key={provider.value}>
+              <PaintingSelect.Option value={provider.value || ''} key={provider.value}>
                 <div className="flex items-center gap-2">
                   {(() => {
                     const Icon = resolveProviderIcon(provider.value || '')
@@ -385,9 +382,9 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
                   })()}
                   {provider.label}
                 </div>
-              </Select.Option>
+              </PaintingSelect.Option>
             ))}
-          </Select>
+          </PaintingSelect>
 
           {/* Render configuration items using JSON config */}
           {ovmsConfig.map(renderConfigItem)}

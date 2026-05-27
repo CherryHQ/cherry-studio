@@ -5,8 +5,6 @@ import { usePaintings } from '@renderer/hooks/usePaintings'
 import type { TokenFluxPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
-import { Select } from 'antd'
-import type { TextAreaRef } from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,6 +14,7 @@ import Artboard from './components/Artboard'
 import { DynamicFormRender } from './components/DynamicFormRender'
 import PaintingPageShell from './components/PaintingPageShell'
 import PaintingPromptBar from './components/PaintingPromptBar'
+import PaintingSelect from './components/PaintingSelect'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
@@ -44,7 +43,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const navigate = useNavigate()
   const location = useLocation()
   const { provider: tokenfluxProvider } = usePaintingProvider('tokenflux')
-  const textareaRef = useRef<TextAreaRef>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const tokenFluxService = useMemo(
     () => new TokenFluxService(tokenfluxProvider.apiHost, tokenfluxProvider.apiKey),
     [tokenfluxProvider]
@@ -119,7 +118,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (!confirmed) return
     }
 
-    const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
+    const prompt = textareaRef.current?.value || ''
 
     if (!selectedModel || !prompt) {
       window.modal.error({
@@ -300,7 +299,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
               </div>
             )}
           </div>
-          <Select
+          <PaintingSelect
             style={{ width: '100%', marginBottom: 12 }}
             value={selectedModel?.id}
             onChange={handleModelChange}
@@ -318,19 +317,19 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                 {} as Record<string, typeof models>
               )
             ).map(([provider, providerModels]) => (
-              <Select.OptGroup key={provider} label={provider}>
+              <PaintingSelect.OptGroup key={provider} label={provider}>
                 {providerModels.map((model) => (
-                  <Select.Option key={model.id} value={model.id}>
+                  <PaintingSelect.Option key={model.id} value={model.id}>
                     <Tooltip placement="right" content={model.description}>
                       <div className="flex flex-col">
                         <div className="text-foreground">{model.name}</div>
                       </div>
                     </Tooltip>
-                  </Select.Option>
+                  </PaintingSelect.Option>
                 ))}
-              </Select.OptGroup>
+              </PaintingSelect.OptGroup>
             ))}
-          </Select>
+          </PaintingSelect>
 
           {/* Input Parameters Section */}
           {selectedModel && selectedModel.input_schema && (

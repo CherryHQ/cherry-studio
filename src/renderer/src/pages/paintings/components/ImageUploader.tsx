@@ -1,12 +1,12 @@
-import { DeleteOutlined } from '@ant-design/icons'
 import { Button } from '@cherrystudio/ui'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import type { FileMetadata } from '@renderer/types'
-import { Popconfirm, Upload } from 'antd'
-import type { RcFile, UploadProps } from 'antd/es/upload'
+import { Trash2 } from 'lucide-react'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { ConfirmAction, FilePicker } from './PaintingControls'
 
 interface ImageUploaderProps {
   fileMap: {
@@ -32,14 +32,8 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
   const imageCount = fileMap.imageFiles?.length || 0
   const remainingImages = Math.max(maxImages - imageCount, 0)
 
-  const handleBeforeUpload = (file: RcFile, index?: number) => {
+  const handleBeforeUpload = (file: File, index?: number) => {
     onAddImage(file, index)
-    return false // 阻止默认上传行为
-  }
-
-  // 自定义上传请求，不执行任何网络请求
-  const customRequest: UploadProps['customRequest'] = ({ onSuccess }) => {
-    onSuccess?.('ok')
   }
 
   return (
@@ -57,17 +51,15 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
           <>
             {fileMap.paths.map((src, index) => (
               <div key={index} className="relative mr-1.25 mb-1.25 h-[45%] w-[45%]">
-                <Upload
-                  className="mb-1.25 [&_.ant-upload-list-item-container]:aspect-square! [&_.ant-upload-list-item-container]:h-full! [&_.ant-upload-list-item-container]:w-full! [&_.ant-upload.ant-upload-select]:aspect-square! [&_.ant-upload.ant-upload-select]:h-full! [&_.ant-upload.ant-upload-select]:w-full!"
+                <FilePicker
+                  className="mb-1.25 block aspect-square h-full w-full"
                   accept="image/png, image/jpeg"
-                  maxCount={1}
                   multiple={false}
-                  showUploadList={false}
-                  listType="picture-card"
-                  action=""
-                  customRequest={customRequest}
-                  beforeUpload={(file) => {
-                    handleBeforeUpload(file, index)
+                  onFiles={(files) => {
+                    const file = files[0]
+                    if (file) {
+                      handleBeforeUpload(file, index)
+                    }
                   }}>
                   <div className="group relative h-full w-full overflow-hidden rounded-md">
                     <img
@@ -79,18 +71,19 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
                       {t('common.click_to_replace')}
                     </div>
                   </div>
-                </Upload>
-                <Popconfirm
+                </FilePicker>
+                <ConfirmAction
                   title={t('paintings.button.delete.image.confirm')}
-                  okText={t('common.confirm')}
                   cancelText={t('common.cancel')}
+                  confirmText={t('common.confirm')}
+                  destructive
                   onConfirm={() => onDeleteImage(index)}>
                   <button
                     type="button"
                     className="absolute top-1.25 right-1.25 z-10 flex h-6 w-6 cursor-pointer items-center justify-center rounded-full border-0 bg-black/60 text-white opacity-70 transition-opacity duration-300 ease-in-out hover:opacity-100">
-                    <DeleteOutlined />
+                    <Trash2 className="size-3.5" />
                   </button>
-                </Popconfirm>
+                </ConfirmAction>
               </div>
             ))}
           </>
@@ -100,20 +93,15 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
 
         {remainingImages > 0 ? (
           <div className="relative mr-1.25 mb-1.25 h-[45%] w-[45%]">
-            <Upload
-              className="mb-1.25 [&_.ant-upload-list-item-container]:aspect-square! [&_.ant-upload-list-item-container]:h-full! [&_.ant-upload-list-item-container]:w-full! [&_.ant-upload.ant-upload-select]:aspect-square! [&_.ant-upload.ant-upload-select]:h-full! [&_.ant-upload.ant-upload-select]:w-full!"
+            <FilePicker
+              className="mb-1.25 flex aspect-square h-full w-full items-center justify-center rounded-md border border-border border-dashed bg-background-subtle hover:bg-muted"
               multiple={remainingImages > 1}
               accept="image/png, image/jpeg"
-              maxCount={remainingImages}
-              showUploadList={false}
-              listType="picture-card"
-              action=""
-              customRequest={customRequest}
-              beforeUpload={(file) => {
-                handleBeforeUpload(file)
+              onFiles={(files) => {
+                files.slice(0, remainingImages).forEach((file) => handleBeforeUpload(file))
               }}>
               <img src={IcImageUp} alt="" className={theme === 'dark' ? 'mt-2 invert' : 'mt-2'} />
-            </Upload>
+            </FilePicker>
           </div>
         ) : (
           ''

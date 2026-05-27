@@ -1,4 +1,3 @@
-import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { DraggableList } from '@renderer/components/DraggableList'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -6,11 +5,12 @@ import { usePaintings } from '@renderer/hooks/usePaintings'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import type { FileEntry } from '@shared/data/types/file'
-import { Popconfirm } from 'antd'
+import { Plus, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { getPaintingFileUrl } from '../utils/imageFiles'
+import { ConfirmAction } from './PaintingControls'
 
 const logger = loggerService.withContext('PaintingsList')
 
@@ -71,7 +71,7 @@ const PaintingsList = <T extends PaintingAction>({
         <div
           className="flex h-20 min-h-20 w-20 cursor-pointer items-center justify-center border border-border border-dashed bg-background-subtle text-foreground-secondary transition-colors duration-200 hover:border-primary hover:bg-muted hover:text-primary"
           onClick={onNewPainting}>
-          <PlusOutlined />
+          <Plus className="size-4" />
         </div>
       )}
       <DraggableList
@@ -92,13 +92,14 @@ const PaintingsList = <T extends PaintingAction>({
               <PaintingThumbnail file={item.files[0]} />
             </div>
             <div className="absolute top-1 right-1 flex cursor-pointer items-center justify-center rounded-full bg-background-subtle p-1 text-destructive opacity-0 transition-opacity duration-200 group-hover:opacity-100">
-              <Popconfirm
+              <ConfirmAction
                 title={t('paintings.button.delete.image.confirm')}
-                onConfirm={() => onDeletePainting(item)}
-                okButtonProps={{ danger: true }}
-                placement="left">
-                <DeleteOutlined />
-              </Popconfirm>
+                confirmText={t('common.confirm')}
+                cancelText={t('common.cancel')}
+                destructive
+                onConfirm={() => onDeletePainting(item)}>
+                <Trash2 className="size-4" />
+              </ConfirmAction>
             </div>
           </div>
         )}

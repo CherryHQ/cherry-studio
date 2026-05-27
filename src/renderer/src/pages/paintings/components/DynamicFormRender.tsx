@@ -1,14 +1,13 @@
-import { CloseOutlined, LinkOutlined, RedoOutlined, UploadOutlined } from '@ant-design/icons'
-import { Switch } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
+import { Button, Switch, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { convertToBase64 } from '@renderer/utils'
-import { Input, InputNumber, Select, Upload } from 'antd'
-import TextArea from 'antd/es/input/TextArea'
+import { Link, RefreshCw, Upload, X } from 'lucide-react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { DynamicFormSchemaProperty, DynamicFormValue } from '../providers/types'
+import { FilePicker, NumberField, TextInput } from './PaintingControls'
+import PaintingSelect from './PaintingSelect'
 
 interface DynamicFormRenderProps {
   schemaProperty: DynamicFormSchemaProperty
@@ -65,24 +64,26 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
     return (
       <div className="flex flex-col gap-3">
         <div className="flex">
-          <Input
-            className="rounded-r-none! border-r-0!"
+          <TextInput
+            className="rounded-r-none border-r-0"
             value={inputValue}
             onChange={(e) => onChange(propertyName, e.target.value)}
             placeholder={t('common.image_url_or_upload')}
-            prefix={<LinkOutlined className="text-[#999]" />}
+            prefix={<Link className="size-4 text-foreground-muted" />}
           />
-          <Upload
+          <FilePicker
             accept="image/*"
-            showUploadList={false}
-            beforeUpload={(file) => {
-              void handleImageUpload(propertyName, file, onChange)
-              return false
+            className="rounded-l-none"
+            onFiles={(files) => {
+              const file = files[0]
+              if (file) {
+                void handleImageUpload(propertyName, file, onChange)
+              }
             }}>
             <Button title={t('common.upload_image')} className="h-8 rounded-l-none">
-              <UploadOutlined />
+              <Upload className="size-4" />
             </Button>
-          </Upload>
+          </FilePicker>
         </div>
 
         {imageValue && (
@@ -101,7 +102,7 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
               onClick={() => onChange(propertyName, '')}
               title={t('common.remove_image')}
               className="min-w-0 shrink-0 px-2">
-              <CloseOutlined />
+              <X className="size-4" />
             </Button>
           </div>
         )}
@@ -111,9 +112,9 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
 
   if (type === 'string' && enumValues) {
     return (
-      <Select
+      <PaintingSelect
         className="w-full"
-        value={value || defaultValue}
+        value={(value || defaultValue) as string | number | undefined}
         options={enumValues.map((val: string) => ({ label: val, value: val }))}
         onChange={(v) => onChange(propertyName, v)}
       />
@@ -125,7 +126,7 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
 
     if (propertyName.toLowerCase().includes('prompt') && propertyName !== 'prompt') {
       return (
-        <TextArea
+        <Textarea.Input
           value={stringValue}
           onChange={(e) => onChange(propertyName, e.target.value)}
           rows={3}
@@ -134,7 +135,11 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
       )
     }
     return (
-      <Input value={stringValue} onChange={(e) => onChange(propertyName, e.target.value)} placeholder={description} />
+      <TextInput
+        value={stringValue}
+        onChange={(e) => onChange(propertyName, e.target.value)}
+        placeholder={description}
+      />
     )
   }
 
@@ -144,7 +149,7 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
 
     return (
       <div className="flex items-center gap-2">
-        <InputNumber
+        <NumberField
           className="flex-1"
           value={numericValue}
           onChange={(v) => onChange(propertyName, v)}
@@ -156,7 +161,7 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
           size="sm"
           onClick={() => onChange(propertyName, generateRandomSeed())}
           title={t('common.generate_random_seed')}>
-          <RedoOutlined />
+          <RefreshCw className="size-4" />
         </Button>
       </div>
     )
@@ -167,7 +172,7 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
     const numericValue = typeof value === 'number' ? value : typeof defaultValue === 'number' ? defaultValue : undefined
 
     return (
-      <InputNumber
+      <NumberField
         className="w-full"
         value={numericValue}
         onChange={(v) => onChange(propertyName, v)}

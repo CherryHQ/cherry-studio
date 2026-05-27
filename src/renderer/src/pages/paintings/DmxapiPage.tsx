@@ -1,5 +1,4 @@
-import { RedoOutlined } from '@ant-design/icons'
-import { InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
+import { InfoTooltip, RowFlex, SegmentedControl, Switch } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import DMXAPIToImg from '@renderer/assets/images/providers/DMXAPI-to-img.webp'
 import { usePaintings } from '@renderer/hooks/usePaintings'
@@ -7,8 +6,7 @@ import type { FileMetadata } from '@renderer/types'
 import { classNames, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import type { DmxapiPainting } from '@types'
-import { Input, InputNumber, Segmented, Select } from 'antd'
-import type { TextAreaRef } from 'antd/es/input/TextArea'
+import { RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,8 +15,10 @@ import { generationModeType } from '../../types'
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import ImageUploader from './components/ImageUploader'
+import { NumberField, TextInput } from './components/PaintingControls'
 import PaintingPageShell from './components/PaintingPageShell'
 import PaintingPromptBar from './components/PaintingPromptBar'
+import PaintingSelect from './components/PaintingSelect'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
@@ -106,7 +106,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     return getModelOptions(currentMode)
   })
 
-  const textareaRef = useRef<TextAreaRef>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // 加载模型数据
   const loadModelData = async () => {
@@ -389,7 +389,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     try {
       // 获取提示词
-      const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
+      const prompt = textareaRef.current?.value || ''
       updatePaintingState({ prompt })
 
       // 检查提供者状态
@@ -656,7 +656,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
               {painting.priceModel !== '0' ? painting.priceModel : ''}
             </div>
           </SettingTitle>
-          <Select
+          <PaintingSelect
             value={painting.model}
             onChange={onSelectModel}
             className="w-full"
@@ -665,19 +665,19 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             {Object.entries(modelOptions).map(([provider, models]) => {
               if (models.length === 0) return null
               return (
-                <Select.OptGroup label={provider} key={provider}>
+                <PaintingSelect.OptGroup label={provider} key={provider}>
                   {models.map((model) => (
-                    <Select.Option key={model.id} value={model.id}>
+                    <PaintingSelect.Option key={model.id} value={model.id}>
                       {model.name}
-                    </Select.Option>
+                    </PaintingSelect.Option>
                   ))}
-                </Select.OptGroup>
+                </PaintingSelect.OptGroup>
               )
             })}
-          </Select>
+          </PaintingSelect>
 
           <SettingTitle className="mt-4 mb-1">{t('paintings.image.size')}</SettingTitle>
-          <Select
+          <PaintingSelect
             value={isCustomSize ? 'custom' : painting.image_size}
             onChange={(value) => onSelectImageSize(value)}
             className="w-full">
@@ -688,42 +688,40 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
               // 直接使用模型返回的image_sizes数据，包含label和value
               return modelImageSizes.map((size) => {
                 return (
-                  <Select.Option key={size.value} value={size.value}>
+                  <PaintingSelect.Option key={size.value} value={size.value}>
                     <RowFlex className="items-center gap-2">
                       <span>{size.label}</span>
                     </RowFlex>
-                  </Select.Option>
+                  </PaintingSelect.Option>
                 )
               })
             })()}
             {/* 检查当前模型是否支持自定义尺寸 */}
             {allModels.find((m) => m.id === painting.model)?.is_custom_size && (
-              <Select.Option value="custom" key="custom">
+              <PaintingSelect.Option value="custom" key="custom">
                 <RowFlex className="items-center gap-2">
                   <span>{t('paintings.custom_size')}</span>
                 </RowFlex>
-              </Select.Option>
+              </PaintingSelect.Option>
             )}
-          </Select>
+          </PaintingSelect>
 
           {/* 自定义尺寸输入框 */}
           {isCustomSize && allModels.find((m) => m.id === painting.model)?.is_custom_size && (
             <div className="mt-2.5">
               <RowFlex className="items-center gap-2">
-                <InputNumber
+                <NumberField
                   placeholder="W"
                   value={customWidth}
-                  controls={false}
                   onChange={(value) => onCustomSizeChange(value, 'width')}
                   min={parseImageSizeLimit(allModels.find((m) => m.id === painting.model)?.min_image_size, 512)}
                   max={parseImageSizeLimit(allModels.find((m) => m.id === painting.model)?.max_image_size, 2048)}
                   className="w-20 flex-1"
                 />
                 <span className="text-foreground-secondary text-xs">x</span>
-                <InputNumber
+                <NumberField
                   placeholder="H"
                   value={customHeight}
-                  controls={false}
                   onChange={(value) => onCustomSizeChange(value, 'height')}
                   min={parseImageSizeLimit(allModels.find((m) => m.id === painting.model)?.min_image_size, 512)}
                   max={parseImageSizeLimit(allModels.find((m) => m.id === painting.model)?.max_image_size, 2048)}
@@ -740,14 +738,14 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
                 {t('paintings.seed')}
                 <InfoTooltip content={t('paintings.seed_desc_tip')} />
               </SettingTitle>
-              <Input
+              <TextInput
                 value={painting.seed}
                 pattern="[0-9]*"
                 onChange={(e) => onInputSeed(e)}
                 suffix={
-                  <RedoOutlined
+                  <RefreshCw
                     onClick={() => updatePaintingState({ seed: Math.floor(Math.random() * 1000000).toString() })}
-                    className="cursor-pointer text-foreground-secondary"
+                    className="size-4 cursor-pointer text-foreground-secondary"
                   />
                 }
               />
@@ -755,7 +753,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
           )}
 
           <SettingTitle className="mt-4 mb-1">{t('paintings.style_type')}</SettingTitle>
-          <div className="flex items-center gap-4 [&_.ant-slider]:flex-1">
+          <div className="flex items-center gap-4">
             <div className="flex flex-wrap items-start gap-2">
               {STYLE_TYPE_OPTIONS.map((ele) => (
                 <div
@@ -785,10 +783,9 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       artboard={
         <>
           <div className="flex justify-center pt-6">
-            <Segmented
-              shape="round"
+            <SegmentedControl
               value={painting.generationMode}
-              onChange={onGenerationModeChange}
+              onValueChange={onGenerationModeChange}
               options={modeOptions}
             />
           </div>

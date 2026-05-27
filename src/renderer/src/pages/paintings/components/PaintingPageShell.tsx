@@ -1,8 +1,8 @@
-import { PlusOutlined } from '@ant-design/icons'
 import { Button } from '@cherrystudio/ui'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { isMac } from '@renderer/config/constant'
+import { Plus } from 'lucide-react'
 import type { ComponentProps, FC, ReactNode } from 'react'
 
 interface PaintingPageShellProps {
@@ -41,7 +41,7 @@ const PaintingPageShell: FC<PaintingPageShellProps> = ({
         {isMac && onAddPainting && (
           <NavbarRight className={navbarRightClassName}>
             <Button size="sm" className="nodrag" variant={addButtonVariant} onClick={onAddPainting}>
-              <PlusOutlined />
+              <Plus className="size-4" />
               {addButtonLabel}
             </Button>
           </NavbarRight>

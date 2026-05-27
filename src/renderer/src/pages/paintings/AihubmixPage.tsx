@@ -1,5 +1,4 @@
-import { RedoOutlined } from '@ant-design/icons'
-import { InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
+import { InfoTooltip, RowFlex, SegmentedControl, Switch, Textarea } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
@@ -9,18 +8,17 @@ import type { FileMetadata } from '@renderer/types'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
-import type { SelectProps } from 'antd'
-import { Input, InputNumber, Radio, Segmented, Select, Slider, Upload } from 'antd'
-import type { TextAreaRef } from 'antd/es/input/TextArea'
-import TextArea from 'antd/es/input/TextArea'
+import { RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
+import { FilePicker, NumberField, SliderField, TextInput } from './components/PaintingControls'
 import PaintingPageShell from './components/PaintingPageShell'
 import PaintingPromptBar from './components/PaintingPromptBar'
+import PaintingSelect, { type PaintingSelectOptionItem } from './components/PaintingSelect'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
@@ -83,7 +81,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }, [mode])
 
-  const textareaRef = useRef<TextAreaRef>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const updatePaintingState = (updates: Partial<PaintingAction>) => {
     const updatedPainting = { ...painting, ...updates }
@@ -115,7 +113,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (!confirmed) return
     }
 
-    const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
+    const prompt = textareaRef.current?.value || ''
     updatePaintingState({ prompt })
 
     if (!aihubmixProvider.apiKey) {
@@ -254,21 +252,31 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         const isDisabled = typeof item.disabled === 'function' ? item.disabled(item, painting) : item.disabled
 
         // 处理函数类型的options属性
-        const selectOptions: SelectProps['options'] =
-          typeof item.options === 'function'
-            ? item.options(item, painting).map((option) => ({
-                ...option,
-                label: option.labelKey ? t(option.labelKey) : option.label
+        const rawOptions = typeof item.options === 'function' ? item.options(item, painting) : item.options
+        const selectOptions = rawOptions?.reduce<PaintingSelectOptionItem[]>((acc, option) => {
+          const label = option.labelKey ? t(option.labelKey) : option.label
+
+          if ('options' in option && option.options) {
+            acc.push({
+              label,
+              options: option.options.map((subOption) => ({
+                label: subOption.labelKey ? t(subOption.labelKey) : subOption.label,
+                value: subOption.value
               }))
-            : item.options?.map((option) => ({
-                ...option,
-                label: option.labelKey ? t(option.labelKey) : option.label
-              }))
+            })
+            return acc
+          }
+
+          if (option.value !== undefined) {
+            acc.push({ label, value: option.value })
+          }
+
+          return acc
+        }, [])
 
         return (
-          <Select
+          <PaintingSelect
             className="w-full"
-            listHeight={500}
             disabled={isDisabled}
             value={painting[item.key!] || item.initialValue}
             options={selectOptions}
@@ -290,29 +298,36 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               }))
 
         return (
-          <Radio.Group
-            value={painting[item.key!] || item.initialValue}
-            onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}>
+          <div className="flex gap-0">
             {radioOptions!.map((option) => (
-              <Radio.Button key={option.value} value={option.value}>
+              <button
+                type="button"
+                key={option.value}
+                className={`border border-border px-3 py-1.5 text-sm first:rounded-l-md last:rounded-r-md hover:bg-accent ${
+                  (painting[item.key!] || item.initialValue) === option.value
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : ''
+                }`}
+                onClick={() => updatePaintingState({ [item.key!]: option.value })}>
                 {option.label}
-              </Radio.Button>
+              </button>
             ))}
-          </Radio.Group>
+          </div>
         )
       }
       case 'slider': {
         return (
-          <div className="flex items-center gap-4 [&_.ant-slider]:flex-1">
-            <Slider
+          <div className="flex items-center gap-4">
+            <SliderField
               min={item.min}
               max={item.max}
               step={item.step}
               value={(painting[item.key!] || item.initialValue) as number}
               onChange={(v) => updatePaintingState({ [item.key!]: v })}
             />
-            <InputNumber
-              className="w-17.5!"
+            <NumberField
+              block={false}
+              className="w-17.5"
               min={item.min}
               max={item.max}
               step={item.step}
@@ -324,12 +339,12 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
       case 'input':
         return (
-          <Input
+          <TextInput
             value={(painting[item.key!] || item.initialValue) as string}
             onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}
             suffix={
               item.key === 'seed' ? (
-                <RedoOutlined onClick={handleRandomSeed} className="cursor-pointer text-foreground-secondary" />
+                <RefreshCw onClick={handleRandomSeed} className="size-4 cursor-pointer text-foreground-secondary" />
               ) : (
                 item.suffix
               )
@@ -338,7 +353,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         )
       case 'inputNumber':
         return (
-          <InputNumber
+          <NumberField
             min={item.min}
             max={item.max}
             className="w-full"
@@ -348,7 +363,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         )
       case 'textarea':
         return (
-          <TextArea
+          <Textarea.Input
             value={(painting[item.key!] || item.initialValue) as string}
             onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}
             spellCheck={false}
@@ -366,17 +381,17 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         )
       case 'image': {
         return (
-          <Upload
-            className="[&_.ant-upload-list-item-container]:aspect-square! [&_.ant-upload-list-item-container]:h-full! [&_.ant-upload-list-item-container]:w-full! [&_.ant-upload.ant-upload-select]:aspect-square! [&_.ant-upload.ant-upload-select]:h-full! [&_.ant-upload.ant-upload-select]:w-full!"
+          <FilePicker
+            className="flex aspect-square h-full w-full items-center justify-center rounded-md border border-border border-dashed bg-background-subtle hover:bg-muted"
             accept="image/png, image/jpeg, image/gif"
-            maxCount={1}
-            showUploadList={false}
-            listType="picture-card"
-            beforeUpload={(file) => {
+            onFiles={(files) => {
+              const file = files[0]
+              if (!file) {
+                return
+              }
               const path = URL.createObjectURL(file)
               setFileMap({ ...fileMap, [path]: file as unknown as FileMetadata })
               updatePaintingState({ [item.key!]: path })
-              return false // 阻止默认上传行为
             }}>
             {painting[item.key!] ? (
               <div className="group relative h-full w-full overflow-hidden rounded-md">
@@ -388,7 +403,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             ) : (
               <img src={IcImageUp} alt="" className={theme === 'dark' ? 'mt-2 invert' : 'mt-2'} />
             )}
-          </Upload>
+          </FilePicker>
         )
       }
       default:
@@ -456,7 +471,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         <>
           {/* 添加功能切换分段控制器 */}
           <div className="flex justify-center pt-6">
-            <Segmented shape="round" value={mode} onChange={handleModeChange} options={modeOptions} />
+            <SegmentedControl value={mode} onValueChange={handleModeChange} options={modeOptions} />
           </div>
           <Artboard
             painting={painting}

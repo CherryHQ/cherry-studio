@@ -1,8 +1,7 @@
-import { Button } from '@cherrystudio/ui'
+import { Button, Spinner } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ImageViewer from '@renderer/components/ImageViewer'
 import type { Painting } from '@renderer/types'
-import { Spin } from 'antd'
 import type { FC } from 'react'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -67,7 +66,7 @@ const Artboard: FC<ArtboardProps> = ({
           isLoading ? 'opacity-50' : 'opacity-100'
         }`}>
         {painting.files.length > 0 ? (
-          <div className="[&_.ant-spin-spinning]:-translate-x-1/2 [&_.ant-spin-spinning]:-translate-y-1/2 relative flex items-center justify-center [&_.ant-spin-spinning]:absolute [&_.ant-spin-spinning]:top-1/2 [&_.ant-spin-spinning]:left-1/2 [&_.ant-spin-spinning]:z-3 [&_.ant-spin]:max-h-none">
+          <div className="relative flex items-center justify-center">
             {painting.files.length > 1 && (
               <Button
                 onClick={onPrevImage}
@@ -126,7 +125,7 @@ const Artboard: FC<ArtboardProps> = ({
         )}
         {isLoading && (
           <div className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 flex flex-col items-center gap-5">
-            <Spin size="large" />
+            <Spinner text="" className="size-8 justify-center" />
             {loadText ? loadText : ''}
             <Button onClick={onCancel} className="z-1001 mt-2.5">
               {t('common.cancel')}

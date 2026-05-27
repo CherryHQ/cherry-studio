@@ -1,5 +1,4 @@
-import { RedoOutlined } from '@ant-design/icons'
-import { Switch } from '@cherrystudio/ui'
+import { SegmentedControl, Switch, Textarea, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -7,19 +6,17 @@ import { usePaintings } from '@renderer/hooks/usePaintings'
 import type { PaintingsState, PpioPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useNavigate } from '@tanstack/react-router'
-import type { UploadFile } from 'antd'
-import { Input, Segmented, Select, Tooltip, Upload } from 'antd'
-import type { TextAreaRef } from 'antd/es/input/TextArea'
-import TextArea from 'antd/es/input/TextArea'
-import { Info } from 'lucide-react'
+import { Info, RefreshCw } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
+import { FilePicker, TextInput } from './components/PaintingControls'
 import PaintingPageShell from './components/PaintingPageShell'
 import PaintingPromptBar from './components/PaintingPromptBar'
+import PaintingSelect from './components/PaintingSelect'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
@@ -75,7 +72,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { provider: ppioProvider } = usePaintingProvider('ppio')
 
   const navigate = useNavigate()
-  const textareaRef = useRef<TextAreaRef>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // 模式选项
   const modeOptions = [
@@ -301,16 +298,13 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
   })
 
   // 处理图片上传
-  const handleImageUpload = async (file: UploadFile, fieldKey: keyof PpioPainting = 'imageFile') => {
-    if (file.originFileObj) {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        const base64 = e.target?.result as string
-        updatePaintingState({ [fieldKey]: base64 })
-      }
-      reader.readAsDataURL(file.originFileObj)
+  const handleImageUpload = async (file: File, fieldKey: keyof PpioPainting = 'imageFile') => {
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const base64 = e.target?.result as string
+      updatePaintingState({ [fieldKey]: base64 })
     }
-    return false
+    reader.readAsDataURL(file)
   }
 
   // 渲染配置项表单
@@ -318,8 +312,8 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
     switch (item.type) {
       case 'select':
         return (
-          <Select
-            value={painting[item.key!] || item.initialValue}
+          <PaintingSelect
+            value={(painting[item.key!] || item.initialValue) as string | number | undefined}
             options={item.options}
             onChange={(v) => updatePaintingState({ [item.key!]: v })}
             className="w-full"
@@ -328,7 +322,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
       case 'input':
         if (item.key === 'ppioSeed') {
           return (
-            <Input
+            <TextInput
               value={painting.ppioSeed === -1 ? '' : painting.ppioSeed}
               placeholder={t('paintings.seed_random')}
               onChange={(e) => {
@@ -336,16 +330,16 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
                 updatePaintingState({ ppioSeed: value ? parseInt(value, 10) : -1 })
               }}
               suffix={
-                <RedoOutlined
+                <RefreshCw
                   onClick={() => updatePaintingState({ ppioSeed: Math.floor(Math.random() * 2147483647) })}
-                  className="cursor-pointer text-foreground-secondary"
+                  className="size-4 cursor-pointer text-foreground-secondary"
                 />
               }
             />
           )
         }
         return (
-          <Input
+          <TextInput
             value={(painting[item.key!] || item.initialValue) as string}
             onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}
           />
@@ -363,13 +357,15 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
         const imageKey = item.key as keyof PpioPainting
         const imageValue = painting[imageKey] as string | undefined
         return (
-          <Upload
-            className="[&_.ant-upload.ant-upload-select]:m-0! [&_.ant-upload.ant-upload-select]:h-30! [&_.ant-upload.ant-upload-select]:w-full! [&_.ant-upload.ant-upload-select]:rounded-lg!"
+          <FilePicker
+            className="flex h-30 w-full items-center justify-center rounded-lg border border-border border-dashed bg-background-subtle hover:bg-muted"
             accept="image/png, image/jpeg, image/gif, image/webp"
-            maxCount={1}
-            showUploadList={false}
-            listType="picture-card"
-            beforeUpload={(file) => handleImageUpload({ originFileObj: file } as UploadFile, imageKey)}>
+            onFiles={(files) => {
+              const file = files[0]
+              if (file) {
+                void handleImageUpload(file, imageKey)
+              }
+            }}>
             {imageValue ? (
               <div className="flex h-full w-full items-center justify-center overflow-hidden">
                 <img
@@ -381,12 +377,12 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
             ) : (
               <img src={IcImageUp} alt="" className={theme === 'dark' ? 'h-10 w-10 invert' : 'h-10 w-10'} />
             )}
-          </Upload>
+          </FilePicker>
         )
       }
       case 'textarea':
         return (
-          <TextArea
+          <Textarea.Input
             value={(painting[item.key!] || '') as string}
             onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}
             placeholder={item.required ? t('paintings.prompt_placeholder') : ''}
@@ -447,7 +443,17 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
           {ppioProvider && <ProviderSelect provider={ppioProvider} options={Options} onChange={handleProviderChange} />}
 
           <SettingTitle className="mt-4 mb-1">{t('common.model')}</SettingTitle>
-          <Select value={painting.model} options={modelOptions} onChange={onSelectModel} className="w-full" />
+          <PaintingSelect value={painting.model} onChange={onSelectModel} className="w-full">
+            {modelOptions.map((group) => (
+              <PaintingSelect.OptGroup key={group.label} label={group.label}>
+                {group.options.map((option) => (
+                  <PaintingSelect.Option key={option.value} value={option.value}>
+                    {option.label}
+                  </PaintingSelect.Option>
+                ))}
+              </PaintingSelect.OptGroup>
+            ))}
+          </PaintingSelect>
 
           {/* 渲染其他配置项 */}
           {modeConfigs[mode].map(renderConfigItem)}
@@ -457,7 +463,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
         <>
           {/* 模式切换 */}
           <div className="flex justify-center pt-6">
-            <Segmented shape="round" value={mode} onChange={handleModeChange} options={modeOptions} />
+            <SegmentedControl value={mode} onValueChange={handleModeChange} options={modeOptions} />
           </div>
           <Artboard
             painting={painting}

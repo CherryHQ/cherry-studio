@@ -1,12 +1,12 @@
+import { Textarea } from '@cherrystudio/ui'
 import TranslateButton from '@renderer/components/TranslateButton'
-import type { TextAreaRef } from 'antd/es/input/TextArea'
-import TextArea from 'antd/es/input/TextArea'
+import { cn } from '@renderer/utils'
 import type { FC, KeyboardEventHandler, RefObject } from 'react'
 
 import SendMessageButton from '../../home/Inputbar/SendMessageButton'
 
 interface PaintingPromptBarProps {
-  textareaRef?: RefObject<TextAreaRef | null>
+  textareaRef?: RefObject<HTMLTextAreaElement | null>
   value?: string
   disabled?: boolean
   placeholder?: string
@@ -58,10 +58,9 @@ const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
 
   return (
     <div className="relative mx-5 mb-3.75 flex max-h-23.75 min-h-23.75 flex-col rounded-[10px] border border-border-subtle transition-all duration-300">
-      <TextArea
+      <Textarea.Input
         ref={textareaRef}
-        className="resize-none! flex w-auto! flex-1 overflow-auto rounded-none p-2.5"
-        variant="borderless"
+        className="resize-none! flex w-auto! flex-1 overflow-auto rounded-none border-0 p-2.5 focus-visible:border-0 focus-visible:ring-0"
         disabled={disabled}
         value={value}
         spellCheck={false}
@@ -69,11 +68,16 @@ const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
         placeholder={placeholder}
         onKeyDown={handleKeyDown}
       />
-      <div className={footerClassName ?? 'flex h-10 flex-row justify-end px-2 pb-0'}>
-        <div className={actionsClassName ?? (translate ? 'flex flex-row items-center gap-1.5' : 'flex gap-2')}>
+      <div className={cn('flex h-10 shrink-0 flex-row items-center justify-end px-2 pb-1', footerClassName)}>
+        <div
+          className={cn(
+            'flex h-8 flex-row items-center [&_.icon-ic_send]:mt-0! [&_.icon-ic_send]:mr-0! [&_.icon-ic_send]:flex [&_.icon-ic_send]:size-8 [&_.icon-ic_send]:items-center [&_.icon-ic_send]:justify-center [&_.icon-ic_send]:leading-none!',
+            translate ? 'gap-1.5' : 'gap-2',
+            actionsClassName
+          )}>
           {translate && (
             <TranslateButton
-              text={textareaRef?.current?.resizableTextArea?.textArea?.value}
+              text={textareaRef?.current?.value}
               onTranslated={translate.onTranslated}
               disabled={translate.disabled}
               isLoading={translate.isLoading}
