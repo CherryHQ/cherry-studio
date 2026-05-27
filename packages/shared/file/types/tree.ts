@@ -48,9 +48,6 @@ export interface DirectoryTreeOptions {
    */
   readonly extensions?: readonly string[]
 
-  /** Glob patterns to exclude. Defaults to the cherry exclude set. */
-  readonly excludeGlobs?: readonly string[]
-
   /** Honor `.gitignore` etc. Default `true`. Notes opt out (`false`). */
   readonly respectGitignore?: boolean
 
