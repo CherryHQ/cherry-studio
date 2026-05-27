@@ -6,6 +6,7 @@
 > 不作为逐文件实施清单。
 >
 > Canonical reference: [docs/references/knowledge/workflow-architecture.md](../../../docs/references/knowledge/workflow-architecture.md).
+> Operation guard reference: [docs/references/knowledge/operation-guards.md](../../../docs/references/knowledge/operation-guards.md).
 > `v2-refactor-temp` 下的文档会在 v2 收尾时移除。
 
 ---
@@ -75,8 +76,8 @@ file-processing adapter helpers
 ```ts
 class KnowledgeWorkflowCoordinator {
   addItems(baseId, inputs): Promise<AddResult>
-  deleteItem(baseId, itemId): Promise<JobHandle>
-  reindexItem(baseId, itemId): Promise<JobHandle>
+  deleteItems(baseId, itemIds): Promise<JobHandle>
+  reindexItems(baseId, itemIds): Promise<JobHandle>
 
   scheduleItem(baseId, itemId): Promise<void>
   // Round 2
@@ -87,7 +88,7 @@ class KnowledgeWorkflowCoordinator {
 
 调用边界：
 
-- `addItems` / `deleteItem` / `reindexItem` 给 API/service 层调用。
+- `addItems` / `deleteItems` / `reindexItems` 给 API/service 层调用。
 - `scheduleItem` / `scheduleFileProcessingCheck` / `scheduleIndexing` 给 job handlers 调用。
 - handler 可以在本阶段完成后调用 coordinator，但不能自己决定 workflow 分支。
 - 所有“下一步去哪”的判断都集中在 coordinator。
@@ -95,11 +96,11 @@ class KnowledgeWorkflowCoordinator {
 
 公开 API 语义：
 
-- `addItems` / `deleteItem` / `reindexItem` 都是异步 workflow 入口。
+- `addItems` / `deleteItems` / `reindexItems` 都是异步 workflow 入口。
 - API resolve 只表示用户动作已经进入 durable workflow，不表示整条 workflow 已完成。
 - `addItems` resolve：item rows 已创建，首批 Knowledge jobs 已入队。
-- `reindexItem` resolve：`reindex-subtree` job 已入队。
-- `deleteItem` resolve：subtree 已同步标记为 `deleting`，默认 UI 查询和检索不再返回这些 items，`delete-subtree` cleanup job 已入队。
+- `reindexItems` resolve：`reindex-subtree` job 已入队。
+- `deleteItems` resolve：subtree 已同步标记为 `deleting`，默认 UI 查询和检索不再返回这些 items，`delete-subtree` cleanup job 已入队。
 
 `scheduleItem(baseId, itemId)` 的决策：
 
@@ -299,6 +300,17 @@ cancel/drain active subtree jobs
 
 ## 4. Workflows
 
+本节只描述入口 guard 和状态边界。三条入口不要强行抽成一个通用 validation pipeline：
+
+```text
+addItems    -> 新建 rows，先写 active 状态，再调度首批 jobs
+deleteItems -> 先写 durable deleting intent，再调度 cleanup job，失败后靠恢复扫描补偿
+reindexItems -> 入口只接受 durable job，不提前写 active 状态
+```
+
+共享 guard 应只覆盖语义完全一致的部分，例如 base 失败态拦截、item/base 归属检查、
+嵌套选择归并、queue name 和 idempotency key。状态写入、enqueue 失败补偿和恢复策略必须保留在各自 workflow 中显式表达。
+
 ### Add
 
 ```text
@@ -308,20 +320,31 @@ addItems(baseId, inputs)
 -> coordinator.scheduleItem(baseId, itemId)
 ```
 
-预检只做便宜、同步、可快速失败的检查：
+入口预检只做便宜、同步、属于入口职责的检查：
 
-- base 存在。
-- embedding 配置可用。
-- item type / payload shape 合法。
-- file/directory/source 基本存在。
-- Round 2：必要时 fileProcessorId 可用。
+- base 存在，且不是需要 restore 的 `failed` base。
+- IPC / schema 层保证 item type / payload shape 合法。
+- Data service 在 create 时再次校验 type/data 一致性。
 
-job 执行时仍要做 runtime guard，因为 enqueue 后 base/item/source 可能已经变化。
+入口不做这些检查：
+
+- 不要求 file/directory/url/source 在 API resolve 前一定仍可读取。
+- 不要求 embedding runtime 在入口阶段可用。
+- Round 2 不要求 FileProcessing provider 在入口阶段完成可用性校验。
+
+这些检查放到 job/runtime guard 中处理，因为 enqueue 后 base/item/source/runtime 仍可能变化。
+入口做过重 source preflight 会制造 TOCTOU 假安全，也会把可恢复的单 item indexing 失败放大成整批 add reject。
+
+调度补偿规则：
+
+- create/status update 阶段失败：删除本轮已创建 rows。
+- job enqueue 阶段失败：把本轮已创建但尚未完成调度的 rows 标记为 `failed`，然后把原 enqueue 错误抛给调用方。
+- 已完成调度的 rows 不回滚，避免删除已经被 durable job 引用的数据。
 
 ### Delete
 
 ```text
-deleteItem(baseId, itemId)
+deleteItems(baseId, itemIds)
 -> preflight
 -> mark knowledge_item subtree status = deleting
 -> enqueue knowledge.delete-subtree
@@ -340,11 +363,13 @@ delete 是破坏性 workflow，但用户可见删除必须在 API resolve 前完
 - 如果 `delete-subtree` 失败，items 保持 `deleting`，不重新出现在 UI；通过 job retry / 恢复机制继续 cleanup。
 - `deleting` 是 durable delete intent marker。正常路径会立即创建 `delete-subtree` job；如果 enqueue 失败或进程在两步之间退出，恢复扫描会为残留 `deleting` roots 补 enqueue。
 - 如果 enqueue 失败，当前 API call reject，但 items 保持 `deleting`，不回滚成用户可见状态。
+- delete 不拒绝 failed base。失败知识库中的 item 仍应允许删除，以便用户清理迁移失败或恢复前的残留数据。
+- `itemIds` 先去重并折叠为 top-level roots；如果同时选中目录和其 descendant，只保留目录，避免同一 subtree 被重复 cleanup。
 
 ### Reindex
 
 ```text
-reindexItem(baseId, itemId)
+reindexItems(baseId, itemIds)
 -> preflight
 -> enqueue knowledge.reindex-subtree
 ```
@@ -367,6 +392,13 @@ reindex -> reset knowledge_item subtree rows -> scheduleItem
 
 对 `directory` / `sitemap`，descendants 的重建发生在后续 `prepare-root` 阶段，不在
 `reindex-subtree` 的 reset 阶段做。
+
+规则：
+
+- reindex 拒绝 failed base；failed base 必须先走 restore。
+- `itemIds` 先去重并折叠为 top-level roots；如果同时选中目录和其 descendant，只保留目录，避免重复 reindex。
+- 入口不提前把 item 标记为 `preparing` / `processing`。状态 reset 和重新调度由 `reindex-subtree` job 负责。
+- 因为入口未写 active 状态，enqueue 失败时只需把错误抛给调用方，不会留下卡住的 active rows。
 
 ---
 
