@@ -39,13 +39,23 @@ export function createReindexSubtreeJobHandler(
       ctx.signal.throwIfAborted()
       logger.info('Running knowledge reindex-subtree reset', { baseId, rootItemIds, jobId: ctx.jobId })
 
+      if (await shouldSkipDeletingSubtreeReindex(baseId, rootItemIds, ctx.jobId)) {
+        ctx.reportProgress(100, { stage: 'deleting' })
+        return
+      }
+
       // Cancel old work first so stale handlers cannot race the vector reset.
       await cancelActiveSubtreeJobs(baseId, rootItemIds, 'knowledge-reindex-subtree', ctx.jobId)
 
       // Reset vectors, expanded children, and root statuses as one base-level mutation.
-      await mutationCoordinator.withBaseMutationLock(baseId, async () => {
+      const resetResult = await mutationCoordinator.withBaseMutationLock(baseId, async () => {
         const base = await knowledgeBaseService.getById(baseId)
         const rootItems = await knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true })
+        if (rootItems.some((item) => item.status === 'deleting')) {
+          logger.info('Skipping reindex-subtree reset for deleting subtree', { baseId, rootItemIds, jobId: ctx.jobId })
+          return { roots: [], skippedDeleting: true }
+        }
+
         const selectedRoots = rootItems.filter((item) => rootItemIds.includes(item.id))
         const leafItemIds = (
           await knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true, leafOnly: true })
@@ -77,13 +87,19 @@ export function createReindexSubtreeJobHandler(
             item.type === 'directory' || item.type === 'sitemap' ? 'preparing' : 'processing'
           )
         }
+        return { roots: selectedRoots, skippedDeleting: false }
       })
+      if (resetResult.roots.length === 0) {
+        ctx.reportProgress(100, {
+          stage: resetResult.skippedDeleting ? 'deleting' : 'done',
+          totalFiles: 0
+        })
+        return
+      }
 
       // Re-enqueue only the selected roots; container children will be recreated by prepare-root.
-      const rootItems = await knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true })
-      const selectedRoots = rootItems.filter((item) => rootItemIds.includes(item.id))
       try {
-        for (const item of selectedRoots) {
+        for (const item of resetResult.roots) {
           ctx.signal.throwIfAborted()
           await workflowCoordinator.scheduleItem(baseId, item.id, ctx.jobId)
         }
@@ -95,9 +111,22 @@ export function createReindexSubtreeJobHandler(
         throw error
       }
 
-      ctx.reportProgress(100, { stage: 'done', totalFiles: selectedRoots.length })
+      ctx.reportProgress(100, { stage: 'done', totalFiles: resetResult.roots.length })
     }
   }
+}
+
+async function shouldSkipDeletingSubtreeReindex(
+  baseId: string,
+  rootItemIds: string[],
+  jobId: string
+): Promise<boolean> {
+  const subtreeItems = await knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true })
+  const hasDeletingItem = subtreeItems.some((item) => item.status === 'deleting')
+  if (hasDeletingItem) {
+    logger.info('Skipping reindex-subtree for deleting subtree', { baseId, rootItemIds, jobId })
+  }
+  return hasDeletingItem
 }
 
 async function cancelActiveSubtreeJobs(
@@ -120,6 +149,7 @@ async function cancelActiveSubtreeJobs(
   })
   const jobIds = activeJobs
     .filter((job) => job.id !== currentJobId && jobTouchesSubtree(job.input as JobInputWithItem, subtreeIds))
+    .filter((job) => job.type !== 'knowledge.delete-subtree')
     .map((job) => job.id)
 
   await Promise.all(jobIds.map((jobId) => cancelKnowledgeSubtreeJobOrThrow(jobId, reason)))

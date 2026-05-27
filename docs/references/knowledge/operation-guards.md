@@ -88,6 +88,7 @@ deleteItems(baseId, itemIds)
        idempotency key = sorted root ids
   -> if enqueue throws:
        keep rows deleting
+       schedule in-session deleting recovery
        log and rethrow
 ```
 
@@ -95,16 +96,22 @@ deleteItems(baseId, itemIds)
 
 `deleting` is a recoverable intermediate state, not a terminal error. Once a subtree is marked `deleting`, other runtime paths can stop treating it as normal searchable/indexable content.
 
-If enqueue fails, the rows remain `deleting` because startup recovery scans deleting roots and re-enqueues cleanup jobs:
+If enqueue fails, the rows remain `deleting`. The service schedules an in-session deleting recovery pass, and startup recovery also scans deleting roots and re-enqueues cleanup jobs:
 
 ```text
+deleteItems enqueue failure
+  -> schedule deleting recovery once
+  -> scan deleting root groups
+  -> enqueue knowledge.delete-subtree in bounded chunks
+  -> retry with backoff if scan or enqueue fails
+
 onAllReady
   -> scan deleting root groups
   -> enqueue knowledge.delete-subtree in bounded chunks
   -> retry with backoff if scan or enqueue fails
 ```
 
-This makes delete cleanup durable across enqueue failure, process crash, and restart.
+Only one deleting recovery run is active at a time. If another delete enqueue fails while recovery is already active, the service records a pending recovery and runs another scan after the active pass completes. This makes delete cleanup durable across enqueue failure, process crash, and restart.
 
 ## `reindexItems`
 
@@ -129,10 +136,52 @@ The reindex entrypoint only accepts the durable job. It does not set roots to `p
 The reindex job owns the destructive and stateful work:
 
 - run the shared cleanup prefix;
+- skip if the target subtree is already `deleting`;
 - reset subtree item state;
 - call `scheduleItem` for each selected root.
 
 Because the entrypoint does not write an active status before enqueueing, enqueue failure can be reported directly without leaving stuck active rows.
+
+### Delete Wins Reindex Races
+
+`reindex-subtree` treats `deleting` as a higher-priority state:
+
+- before cancelling old work, it checks the target subtree and completes as skipped if any item is `deleting`;
+- after cancelling old non-delete work, it checks again under the same-base mutation lock before clearing vectors or resetting statuses;
+- it does not cancel active `knowledge.delete-subtree` jobs that touch the same subtree.
+
+This prevents a later reindex request from cancelling delete cleanup or turning a deleting row back into `preparing` / `processing`.
+
+## `prepare-root`
+
+`prepare-root` is an internal job, but it creates child rows and schedules their leaf indexing jobs, so it has its own cleanup and compensation rules.
+
+```text
+knowledge.prepare-root(baseId, itemId)
+  -> skip missing or deleting roots
+  -> under same-base mutation lock:
+       find previous descendants
+       ignore descendants already deleting
+       clear vectors for removable leaf descendants
+       detach file refs for removable descendants
+       hard-delete removable descendants
+  -> under same-base mutation lock:
+       expand source into new child rows
+       set root status processing
+  -> schedule each recreated leaf
+       if scheduling fails:
+         mark leaves that did not finish scheduling failed
+         leave already scheduled leaves alone
+         rethrow
+```
+
+The stale expansion cleanup clears vectors and file refs before hard-deleting rows so a retry does not leave orphan artifacts from a previous partial expansion.
+
+The child scheduling compensation mirrors `addItems`: once a child job was accepted, the row is left alone; the failing child and later children are marked `failed` so no `processing` leaf remains without a job.
+
+## Shutdown
+
+`KnowledgeOrchestrationService` does not cancel knowledge jobs during service shutdown. Knowledge job handlers use JobManager `recovery: 'retry'`, so unfinished pending, delayed, or running rows are left for JobManager startup recovery instead of being terminal-cancelled while their knowledge items still show active statuses.
 
 ## Review Checklist
 
@@ -141,7 +190,7 @@ When changing these operations, check the operation-specific failure behavior be
 | Operation | Failed base | Root collapse | State before enqueue | Enqueue failure |
 | --- | --- | --- | --- | --- |
 | `addItems` | Reject | N/A | `preparing` / `processing` | Mark unscheduled accepted rows `failed` |
-| `deleteItems` | Allow | Yes | `deleting` | Keep `deleting`; startup recovery retries |
+| `deleteItems` | Allow | Yes | `deleting` | Keep `deleting`; in-session and startup recovery retry |
 | `reindexItems` | Reject | Yes | None | Throw; no active state was written |
 
 Prefer shared helpers for exact common behavior, such as base-state guards, base ownership checks, root collapse, queue names, and idempotency key builders. Keep operation flows explicit when the state or recovery semantics differ.

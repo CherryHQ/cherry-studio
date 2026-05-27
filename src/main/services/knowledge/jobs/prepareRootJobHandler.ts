@@ -11,6 +11,9 @@ import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import type { KnowledgeMutationCoordinator } from '../KnowledgeMutationCoordinator'
 import type { KnowledgeWorkflowCoordinator } from '../KnowledgeWorkflowCoordinator'
 import { knowledgeQueueName } from '../types'
+import { detachKnowledgeItemFileRefs } from '../utils/cleanup/artifactCleanup'
+import { deleteKnowledgeItemVectors } from '../utils/cleanup/vectorCleanup'
+import { isIndexableKnowledgeItem } from '../utils/items'
 import { prepareKnowledgeItem } from '../utils/sources/prepare'
 import type { KnowledgePrepareRootPayload } from './jobTypes'
 
@@ -110,12 +113,15 @@ async function deletePreviousLeafExpansion(
   mutationCoordinator: KnowledgeMutationCoordinator
 ): Promise<void> {
   await mutationCoordinator.withBaseMutationLock(baseId, async () => {
+    const base = await knowledgeBaseService.getById(baseId)
     const descendants = await knowledgeItemService.getSubtreeItems(baseId, [itemId])
     const removableDescendants = descendants.filter((item) => item.status !== 'deleting')
-    await knowledgeItemService.hardDeleteItems(
-      baseId,
-      removableDescendants.map((item) => item.id)
-    )
+    const removableDescendantIds = removableDescendants.map((item) => item.id)
+    const removableLeafIds = removableDescendants.filter(isIndexableKnowledgeItem).map((item) => item.id)
+
+    await deleteKnowledgeItemVectors(base, removableLeafIds)
+    await detachKnowledgeItemFileRefs(removableDescendantIds)
+    await knowledgeItemService.hardDeleteItems(baseId, removableDescendantIds)
   })
 }
 
@@ -147,9 +153,16 @@ async function enqueueLeafItems(
   const { baseId } = ctx.input
 
   ctx.reportProgress(50, { stage: 'enqueuing', currentFile: 0, totalFiles: leafItems.length })
+  const completedSchedulingLeafIds = new Set<string>()
   for (const [index, leaf] of leafItems.entries()) {
     ctx.signal.throwIfAborted()
-    await workflowCoordinator.scheduleItem(baseId, leaf.id, ctx.jobId)
+    try {
+      await workflowCoordinator.scheduleItem(baseId, leaf.id, ctx.jobId)
+      completedSchedulingLeafIds.add(leaf.id)
+    } catch (error) {
+      await markUnscheduledLeafItemsFailed(baseId, leafItems, completedSchedulingLeafIds, error)
+      throw error
+    }
     ctx.reportProgress(50 + Math.round(((index + 1) / Math.max(leafItems.length, 1)) * 50), {
       stage: 'enqueuing',
       currentFile: index + 1,
@@ -158,4 +171,34 @@ async function enqueueLeafItems(
   }
 
   ctx.reportProgress(100, { stage: 'done', currentFile: leafItems.length, totalFiles: leafItems.length })
+}
+
+async function markUnscheduledLeafItemsFailed(
+  baseId: string,
+  leafItems: KnowledgeItem[],
+  completedSchedulingLeafIds: Set<string>,
+  originalError: unknown
+): Promise<void> {
+  const message = originalError instanceof Error ? originalError.message : String(originalError)
+  for (const leaf of leafItems) {
+    if (completedSchedulingLeafIds.has(leaf.id)) {
+      continue
+    }
+
+    try {
+      await knowledgeItemService.updateStatus(leaf.id, 'failed', {
+        error: `Failed to schedule knowledge child item job: ${message}`
+      })
+    } catch (cleanupError) {
+      logger.error(
+        'Failed to mark unscheduled knowledge child item after prepare-root scheduling failure',
+        cleanupError instanceof Error ? cleanupError : new Error(String(cleanupError)),
+        {
+          baseId,
+          itemId: leaf.id,
+          scheduleError: message
+        }
+      )
+    }
+  }
 }

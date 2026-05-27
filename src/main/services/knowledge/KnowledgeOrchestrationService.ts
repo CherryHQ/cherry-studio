@@ -70,6 +70,9 @@ const KNOWLEDGE_JOB_TYPES = new Set([
 export class KnowledgeOrchestrationService extends BaseService {
   private readonly mutationCoordinator = new KnowledgeMutationCoordinator()
   private readonly workflowCoordinator = new KnowledgeWorkflowCoordinator(this.mutationCoordinator)
+  private deletingRecoveryActive = false
+  private deletingRecoveryPending = false
+  private deletingRecoveryScheduled = false
 
   protected onInit(): void {
     const jobManager = application.get('JobManager')
@@ -88,16 +91,6 @@ export class KnowledgeOrchestrationService extends BaseService {
 
   protected async onAllReady(): Promise<void> {
     await this.recoverDeletingItemsWithRetry()
-  }
-
-  protected async onStop(): Promise<void> {
-    const jobManager = application.get('JobManager')
-    await Promise.allSettled([
-      jobManager.cancelMany({ type: 'knowledge.prepare-root' }, 'service-shutdown'),
-      jobManager.cancelMany({ type: 'knowledge.index-documents' }, 'service-shutdown'),
-      jobManager.cancelMany({ type: 'knowledge.delete-subtree' }, 'service-shutdown'),
-      jobManager.cancelMany({ type: 'knowledge.reindex-subtree' }, 'service-shutdown')
-    ])
   }
 
   async createBase(dto: CreateKnowledgeBaseDto): Promise<KnowledgeBase> {
@@ -227,10 +220,15 @@ export class KnowledgeOrchestrationService extends BaseService {
       return
     }
 
-    await this.workflowCoordinator.deleteItems(
-      baseId,
-      items.map((item) => item.id)
-    )
+    try {
+      await this.workflowCoordinator.deleteItems(
+        baseId,
+        items.map((item) => item.id)
+      )
+    } catch (error) {
+      this.scheduleDeletingItemsRecovery()
+      throw error
+    }
   }
 
   async reindexItems(baseId: string, itemIds: string[]): Promise<void> {
@@ -372,15 +370,45 @@ export class KnowledgeOrchestrationService extends BaseService {
   }
 
   private async recoverDeletingItemsWithRetry(attempt = 1): Promise<void> {
+    if (this.deletingRecoveryActive) {
+      this.deletingRecoveryPending = true
+      return
+    }
+
+    this.deletingRecoveryActive = true
+    this.deletingRecoveryPending = false
     const recovered = await this.recoverDeletingItems()
     if (recovered) {
+      this.deletingRecoveryActive = false
+      if (this.deletingRecoveryPending) {
+        this.scheduleDeletingItemsRecovery()
+      }
       return
     }
 
     const delayMs = Math.min(DELETE_RECOVERY_RETRY_BASE_DELAY_MS * attempt, DELETE_RECOVERY_RETRY_MAX_DELAY_MS)
     const timer = setTimeout(() => {
+      this.deletingRecoveryActive = false
       void this.recoverDeletingItemsWithRetry(attempt + 1)
     }, delayMs)
+    timer.unref()
+    this.registerDisposable(() => clearTimeout(timer))
+  }
+
+  private scheduleDeletingItemsRecovery(): void {
+    if (this.deletingRecoveryActive) {
+      this.deletingRecoveryPending = true
+      return
+    }
+    if (this.deletingRecoveryScheduled) {
+      return
+    }
+
+    this.deletingRecoveryScheduled = true
+    const timer = setTimeout(() => {
+      this.deletingRecoveryScheduled = false
+      void this.recoverDeletingItemsWithRetry()
+    }, 0)
     timer.unref()
     this.registerDisposable(() => clearTimeout(timer))
   }

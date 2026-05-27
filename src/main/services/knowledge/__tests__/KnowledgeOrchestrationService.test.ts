@@ -278,6 +278,17 @@ describe('KnowledgeOrchestrationService', () => {
     ])
   })
 
+  it('does not cancel knowledge jobs during service shutdown', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const stop = (service as unknown as { onStop?: () => Promise<void> }).onStop
+
+    if (stop) {
+      await stop.call(service)
+    }
+
+    expect(cancelManyMock).not.toHaveBeenCalled()
+  })
+
   it('recovers deleting roots by enqueueing delete cleanup jobs after all services are ready', async () => {
     const service = new KnowledgeOrchestrationService()
     knowledgeItemGetDeletingRootGroupsMock.mockResolvedValueOnce([
@@ -488,14 +499,31 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('keeps items deleting when delete cleanup enqueue fails', async () => {
+    vi.useFakeTimers()
     const service = new KnowledgeOrchestrationService()
     knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem('note-1'))
-    enqueueMock.mockRejectedValueOnce(new Error('enqueue failed'))
+    enqueueMock.mockRejectedValueOnce(new Error('enqueue failed')).mockResolvedValueOnce({
+      id: 'job-recovered',
+      snapshot: {},
+      finished: Promise.resolve({})
+    })
+    knowledgeItemGetDeletingRootGroupsMock.mockResolvedValueOnce([{ baseId: 'kb-1', rootItemIds: ['note-1'] }])
 
     await expect(service.deleteItems('kb-1', ['note-1'])).rejects.toThrow('enqueue failed')
 
     expect(knowledgeItemSetSubtreeStatusMock).toHaveBeenCalledWith('kb-1', ['note-1'], 'deleting')
     expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalledWith('kb-1', ['note-1'], 'failed', expect.anything())
+
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(enqueueMock).toHaveBeenLastCalledWith(
+      'knowledge.delete-subtree',
+      { baseId: 'kb-1', rootItemIds: ['note-1'] },
+      expect.objectContaining({
+        idempotencyKey: 'knowledge:kb-1:note-1:delete',
+        queue: 'base.kb-1'
+      })
+    )
   })
 
   it('collapses nested delete and reindex inputs to top-level roots', async () => {
