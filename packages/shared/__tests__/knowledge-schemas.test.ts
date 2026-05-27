@@ -172,6 +172,26 @@ describe('Knowledge base schemas', () => {
     ).toBe(true)
 
     expect(
+      CreateKnowledgeItemSchema.safeParse({
+        type: 'file',
+        data: {
+          source: '/docs/guide.md',
+          fileEntryId: '/docs/guide.md'
+        }
+      }).success
+    ).toBe(false)
+
+    expect(
+      KnowledgeRuntimeAddItemInputSchema.safeParse({
+        type: 'file',
+        data: {
+          source: '/docs/guide.md',
+          fileEntryId: '/docs/guide.md'
+        }
+      }).success
+    ).toBe(false)
+
+    expect(
       KnowledgeRuntimeAddItemInputSchema.safeParse({
         type: 'url',
         url: 'https://example.com/docs',

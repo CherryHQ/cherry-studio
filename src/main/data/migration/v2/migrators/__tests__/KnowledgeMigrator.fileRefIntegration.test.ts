@@ -226,6 +226,16 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
     const knowledgeExecute = await knowledgeMigrator.execute(ctx)
     expect(knowledgeExecute.success).toBe(true)
     expect(knowledgeExecute.processedCount).toBe(2)
+    const knowledgeValidate = await knowledgeMigrator.validate(ctx)
+    expect(knowledgeValidate.success).toBe(true)
+    expect(knowledgeValidate.stats).toMatchObject({
+      sourceCount: 3,
+      targetCount: 2,
+      skippedCount: 1
+    })
+    expect(knowledgeValidate.stats.targetCount).toBe(
+      knowledgeValidate.stats.sourceCount - knowledgeValidate.stats.skippedCount
+    )
 
     const fileEntryRows = await dbh.db.select({ id: fileEntryTable.id }).from(fileEntryTable)
     expect(fileEntryRows.map((r) => r.id).sort()).toEqual([FILE_SURVIVOR_ID])

@@ -177,6 +177,10 @@ export class KnowledgeMigrator extends BaseMigrator {
     }
   }
 
+  private getEffectiveSkippedCount(): number {
+    return this.skippedCount + this.skippedPreparedItemIds.size
+  }
+
   private static readonly INARRAY_CHUNK = 500
 
   private async dropDanglingAssistantKnowledgeBaseRefs(ctx: MigrationContext): Promise<void> {
@@ -828,7 +832,7 @@ export class KnowledgeMigrator extends BaseMigrator {
         targetBaseCount,
         targetItemCount,
         targetCount,
-        skippedCount: this.skippedCount,
+        skippedCount: this.getEffectiveSkippedCount(),
         errors: errors.length
       })
 
@@ -838,7 +842,7 @@ export class KnowledgeMigrator extends BaseMigrator {
         stats: {
           sourceCount: this.sourceCount,
           targetCount,
-          skippedCount: this.skippedCount
+          skippedCount: this.getEffectiveSkippedCount()
         }
       }
     } catch (error) {
@@ -854,7 +858,7 @@ export class KnowledgeMigrator extends BaseMigrator {
         stats: {
           sourceCount: this.sourceCount,
           targetCount: 0,
-          skippedCount: this.skippedCount
+          skippedCount: this.getEffectiveSkippedCount()
         }
       }
     }
