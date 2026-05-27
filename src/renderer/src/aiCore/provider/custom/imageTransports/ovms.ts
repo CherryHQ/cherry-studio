@@ -3,30 +3,45 @@ import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../im
 /**
  * OVMS (OpenVINO Model Server) single-shot transport.
  *
- * Relocated verbatim from the legacy painting service
- * (`src/renderer/src/pages/paintings/providers/ovms/generate.ts`): single
- * `${apiHost}/images/generations` (NO `/v1`), NO auth header, JSON body
- * `{model,prompt,size,num_inference_steps,rng_seed}`, response
- * `data.data[]` b64_json → `data:` strings else url. OVMS responds
+ * POSTs `${apiHost}/images/generations` (no `/v1`, no auth) with body
+ * `{model,prompt,size,num_inference_steps,rng_seed}`. OVMS responds
  * synchronously, so this transport only implements `submit()`. `apiHost` is
  * the local OpenVINO host (no pinned default).
+ *
+ * Field sourcing under the unified-schema flow:
+ *   - `size` comes from AI SDK `input.size` (canonicalGenerate's
+ *     POSITIONAL_RENAME routes `params.size → aiSdkParams.imageSize → AI SDK
+ *     options.size → input.size`).
+ *   - `num_inference_steps` comes from the providerOptions bag — either
+ *     camelCase `numInferenceSteps` (canonical) or `num_inference_steps`
+ *     (snake_case via `buildImageProviderOptions`'s default branch). Read
+ *     both for forward/backward compatibility.
+ *   - `rng_seed` is OVMS's bespoke wire name for seed. Source from the bag
+ *     under any of `rngSeed` / `seed` (camelCase) or `rng_seed` /
+ *     `num_inference_steps` (snake_case from `buildImageProviderOptions`).
  */
 
 export const DEFAULT_OVMS_BASE_URL = 'http://localhost:8000'
 
-/**
- * OVMS painting fields forwarded through `providerOptions['ovms']`.
- * Mirrors the `OvmsPaintingData` subset the legacy request consumed.
- */
-export interface OvmsProviderParams {
-  model?: string
-  size?: string
-  numInferenceSteps?: number
-  rngSeed?: number
-}
-
 export interface OvmsTransportSettings {
   baseURL?: string
+}
+
+function readNumber(bag: Record<string, unknown>, ...keys: string[]): number | undefined {
+  for (const key of keys) {
+    const value = bag[key]
+    if (typeof value === 'number') return value
+    if (typeof value === 'string' && /^-?\d+(\.\d+)?$/.test(value)) return Number(value)
+  }
+  return undefined
+}
+
+function readString(bag: Record<string, unknown>, ...keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = bag[key]
+    if (typeof value === 'string' && value !== '') return value
+  }
+  return undefined
 }
 
 class OvmsTransport implements ImageGenerationTransport {
@@ -37,14 +52,14 @@ class OvmsTransport implements ImageGenerationTransport {
   }
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
-    const params = input.providerParams as OvmsProviderParams
+    const bag = (input.providerParams ?? {}) as Record<string, unknown>
 
     const requestBody = {
-      model: params.model,
+      model: readString(bag, 'model'),
       prompt: input.prompt ?? '',
-      size: params.size || '512x512',
-      num_inference_steps: params.numInferenceSteps || 4,
-      rng_seed: params.rngSeed || 0
+      size: input.size ?? readString(bag, 'size') ?? '512x512',
+      num_inference_steps: readNumber(bag, 'numInferenceSteps', 'num_inference_steps') ?? 4,
+      rng_seed: readNumber(bag, 'rngSeed', 'rng_seed', 'seed') ?? input.seed ?? 0
     }
 
     const response = await fetch(`${this.baseURL}/images/generations`, {

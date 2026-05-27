@@ -210,10 +210,21 @@ class PpioTransport implements ImageGenerationTransport {
   }
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
-    const params = input.providerParams as PpioProviderParams
-    const descriptor = params.modelDescriptor
+    const bagParams = input.providerParams as PpioProviderParams
+    const descriptor = bagParams.modelDescriptor
     if (!descriptor) {
-      throw new Error(`Unknown model: ${params.model}`)
+      throw new Error(`Unknown model: ${bagParams.model}`)
+    }
+
+    // Native AI SDK fields (size / seed) land on `input.*` post-canonicalGenerate
+    // partition, not in the providerOptions bag. Merge them into a unified
+    // view so the per-model builders below can read uniformly. `ppioSeed`
+    // remains PPIO's bespoke wire field name; if the bag carries one
+    // explicitly we keep it, otherwise fall back to `input.seed`.
+    const params: PpioProviderParams = {
+      ...bagParams,
+      size: bagParams.size ?? input.size,
+      ppioSeed: bagParams.ppioSeed ?? input.seed
     }
 
     const requestParams = this.buildRequestParams(input, params, descriptor)

@@ -22,6 +22,13 @@ export const DEFAULT_DMXAPI_BASE_URL = 'https://www.dmxapi.com'
 /** Edit/merge modes route to the V2 `/v1/images/edits` FormData endpoint. */
 const EDIT_OR_MERGE_MODES = new Set(['edit', 'merge'])
 
+interface NormalizedInput {
+  prompt: string
+  n: number
+  size: string | undefined
+  seed: number | undefined
+}
+
 /**
  * DMXAPI painting fields forwarded through `providerOptions['dmxapi']`.
  * Mirrors the `DmxapiPaintingData` subset the legacy `prepare*Request`
@@ -35,11 +42,14 @@ export interface DmxapiTransportFile {
   name?: string
 }
 
+/**
+ * Vendor-specific fields forwarded through `providerOptions.dmxapi`. AI SDK
+ * native fields (size / n / seed / prompt) source from `input.*` at submit
+ * entry, not from this bag — canonicalGenerate's POSITIONAL_RENAME +
+ * AI_SDK_NATIVE_KEYS partition puts them on the AI SDK call options instead.
+ */
 export interface DmxapiProviderParams {
   model?: string
-  n?: number
-  imageSize?: string
-  seed?: string
   mode?: string
   extendParams?: Record<string, unknown>
   imageFiles?: DmxapiTransportFile[]
@@ -67,19 +77,17 @@ class DmxapiTransport implements ImageGenerationTransport {
     this.baseURL = settings.baseURL || DEFAULT_DMXAPI_BASE_URL
   }
 
-  private prepareV1Request(prompt: string, params: DmxapiProviderParams) {
+  private prepareV1Request(input: NormalizedInput, params: DmxapiProviderParams) {
     const body: Record<string, any> = {
-      prompt,
+      prompt: input.prompt,
       model: params.model,
-      n: params.n,
+      n: input.n,
       ...params.extendParams
     }
 
-    if (params.imageSize) body.size = params.imageSize
-    if (params.seed && Number(params.seed) >= -1) {
-      body.seed = Number(params.seed)
-    } else if (params.seed) {
-      body.seed = -1
+    if (input.size) body.size = input.size
+    if (input.seed !== undefined) {
+      body.seed = Number.isFinite(input.seed) && input.seed >= -1 ? input.seed : -1
     }
 
     const files = params.imageFiles ?? []
@@ -95,15 +103,15 @@ class DmxapiTransport implements ImageGenerationTransport {
     }
   }
 
-  private prepareV2Request(prompt: string, params: DmxapiProviderParams) {
+  private prepareV2Request(input: NormalizedInput, params: DmxapiProviderParams) {
     const body: Record<string, any> = {
-      prompt,
-      n: params.n,
+      prompt: input.prompt,
+      n: input.n,
       model: params.model,
       ...params.extendParams
     }
 
-    if (params.imageSize) body.size = params.imageSize
+    if (input.size) body.size = input.size
 
     const formData = new FormData()
     for (const key in body) {
@@ -123,20 +131,25 @@ class DmxapiTransport implements ImageGenerationTransport {
     }
   }
 
-  private prepareRequestConfig(prompt: string, params: DmxapiProviderParams) {
+  private prepareRequestConfig(input: NormalizedInput, params: DmxapiProviderParams) {
     const isEditOrMerge = EDIT_OR_MERGE_MODES.has(params.mode ?? '')
 
     if (isEditOrMerge && params.model !== 'seededit-3.0') {
-      return this.prepareV2Request(prompt, params)
+      return this.prepareV2Request(input, params)
     }
-    return this.prepareV1Request(prompt, params)
+    return this.prepareV1Request(input, params)
   }
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const params = input.providerParams as DmxapiProviderParams
-    const prompt = input.prompt ?? ''
+    const normalized: NormalizedInput = {
+      prompt: input.prompt ?? '',
+      n: input.n,
+      size: input.size,
+      seed: input.seed
+    }
 
-    const requestConfig = this.prepareRequestConfig(prompt, params)
+    const requestConfig = this.prepareRequestConfig(normalized, params)
 
     const headers: Record<string, string> = {
       Accept: 'application/json',
