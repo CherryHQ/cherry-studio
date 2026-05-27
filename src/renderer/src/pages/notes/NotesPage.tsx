@@ -32,7 +32,7 @@ import type { DirectoryTreeOptions } from '@shared/file/types'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import HeaderNavbar from './HeaderNavbar'
@@ -166,15 +166,6 @@ const NotesPage: FC = () => {
     [activeFilePath, currentContent, invalidateFileContent, t]
   )
 
-  // 防抖保存函数，在停止输入后才保存，避免输入过程中的文件写入
-  const debouncedSave = useMemo(
-    () =>
-      debounce((content: string, filePath: string | undefined) => {
-        void saveCurrentNote(content, filePath)
-      }, 800), // 800ms防抖延迟
-    [saveCurrentNote]
-  )
-
   // `useDirectoryTree` owns the FS scan + watcher pipeline now. We keep a
   // hook-stable identity for `refreshTree` so all the rollback paths /
   // optimistic-update recovery branches below can hold it in their
@@ -186,7 +177,18 @@ const NotesPage: FC = () => {
   }, [])
 
   const saveCurrentNoteRef = useRef(saveCurrentNote)
-  const debouncedSaveRef = useRef(debouncedSave)
+  // Stable debounce instance constructed once. Reads the latest
+  // `saveCurrentNote` via `saveCurrentNoteRef` so a SWR revalidation that
+  // changes `saveCurrentNote`'s identity does NOT rebuild the debouncer —
+  // rebuilding would fire any pending timer through a stale closure and
+  // skip the write when the new SWR `currentContent` matches `content`.
+  const debouncedSaveRef =
+    useRef<ReturnType<typeof debounce<(content: string, filePath: string | undefined) => void>>>(undefined)
+  if (!debouncedSaveRef.current) {
+    debouncedSaveRef.current = debounce((content: string, filePath: string | undefined) => {
+      void saveCurrentNoteRef.current(content, filePath)
+    }, 800) // 800ms 防抖延迟
+  }
   const invalidateFileContentRef = useRef(invalidateFileContent)
 
   const handleMarkdownChange = useCallback(
@@ -200,9 +202,9 @@ const NotesPage: FC = () => {
       lastContentRef.current = newMarkdown
       lastFilePathRef.current = activeFilePath
       // 捕获当前文件路径，避免在防抖执行时文件路径已改变的竞态条件
-      debouncedSave(newMarkdown, activeFilePath)
+      debouncedSaveRef.current?.(newMarkdown, activeFilePath)
     },
-    [debouncedSave, activeFilePath, contentLoadError, t]
+    [activeFilePath, contentLoadError, t]
   )
 
   useEffect(() => {
@@ -227,10 +229,6 @@ const NotesPage: FC = () => {
   useEffect(() => {
     saveCurrentNoteRef.current = saveCurrentNote
   }, [saveCurrentNote])
-
-  useEffect(() => {
-    debouncedSaveRef.current = debouncedSave
-  }, [debouncedSave])
 
   useEffect(() => {
     invalidateFileContentRef.current = invalidateFileContent
@@ -398,7 +396,7 @@ const NotesPage: FC = () => {
       }
 
       // 取消防抖保存并清理状态
-      debouncedSave.cancel()
+      debouncedSaveRef.current?.cancel()
       lastContentRef.current = ''
       lastFilePathRef.current = undefined
     }
