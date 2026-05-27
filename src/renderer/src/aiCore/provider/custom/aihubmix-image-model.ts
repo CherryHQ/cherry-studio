@@ -106,6 +106,54 @@ function normalizeAspectRatio(value: unknown): `${number}:${number}` | undefined
   return /^\d+:\d+$/.test(normalized) ? (normalized as `${number}:${number}`) : undefined
 }
 
+/** Ideogram V_3 FormData branch wants `aspect_ratio=1x1`. Accepts both
+ *  legacy `ASPECT_1_1` and new canonical `1:1`. */
+function aspectRatioToIdeogramV3(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  return value
+    .replace(/^ASPECT_/i, '')
+    .replace(/[_:]/g, 'x')
+    .toLowerCase()
+}
+
+/** Ideogram V_1/V_2 JSON body wants `ASPECT_1_1`. Accepts both legacy
+ *  `ASPECT_1_1` and new canonical `1:1`. */
+function aspectRatioToIdeogramV1V2(value: string | undefined): string | undefined {
+  if (!value) return undefined
+  if (/^ASPECT_/i.test(value)) return value
+  if (/^\d+:\d+$/.test(value)) return `ASPECT_${value.replace(':', '_')}`
+  return value
+}
+
+/**
+ * Aihubmix gateway / FLUX expect snake_case body keys for the bespoke
+ * fields (`safety_tolerance`). Renderer emits canonical camelCase
+ * `safetyTolerance` in `providerOptions.aihubmix`. Rename known keys so
+ * `OpenAICompatibleImageModel`'s "spread bag into body" produces the wire
+ * shape the gateway accepts.
+ */
+const AIHUBMIX_SNAKE_CASE_KEYS: Record<string, string> = {
+  safetyTolerance: 'safety_tolerance',
+  personGeneration: 'person_generation',
+  negativePrompt: 'negative_prompt',
+  magicPromptOption: 'magic_prompt_option',
+  styleType: 'style_type',
+  renderingSpeed: 'rendering_speed'
+}
+
+function snakeCaseAihubmixBag(
+  providerOptions: ImageModelV3CallOptions['providerOptions']
+): ImageModelV3CallOptions['providerOptions'] {
+  if (!providerOptions?.aihubmix) return providerOptions
+  const aihubmix = providerOptions.aihubmix as Record<string, JSONValue>
+  const renamed: Record<string, JSONValue> = {}
+  for (const [key, value] of Object.entries(aihubmix)) {
+    const wireKey = AIHUBMIX_SNAKE_CASE_KEYS[key] ?? key
+    renamed[wireKey] = value
+  }
+  return { ...providerOptions, aihubmix: renamed }
+}
+
 function normalizeImageSize(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
   const normalized = value.toUpperCase()
@@ -203,7 +251,16 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
       response: { timestamp: currentDate, modelId, headers: {} }
     })
 
-    // ---- Ideogram V_3 FormData branch (relocated verbatim) ----
+    // Canonical AI-SDK options. Renderer's canonicalGenerate routes:
+    //   painting.params.aspectRatio → options.aspectRatio
+    //   painting.params.numImages   → options.n
+    //   painting.params.seed        → options.seed (or bag.seed for non-native)
+    // Vendor-specific keys (styleType / magicPromptOption / renderingSpeed
+    // / etc.) flow through `bag`.
+    const aspectRatio = options.aspectRatio ?? (typeof bag.aspectRatio === 'string' ? bag.aspectRatio : undefined)
+    const numImages = options.n ?? bag.numImages ?? 1
+
+    // ---- Ideogram V_3 FormData branch ----
     if (modelId === 'V_3') {
       if (mode === 'generate') {
         const formData = new FormData()
@@ -211,10 +268,11 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
 
         const renderSpeed = bag.renderingSpeed || 'DEFAULT'
         formData.append('rendering_speed', renderSpeed)
-        formData.append('num_images', String(bag.numImages || 1))
+        formData.append('num_images', String(numImages))
 
-        if (bag.aspectRatio) {
-          formData.append('aspect_ratio', bag.aspectRatio.replace('ASPECT_', '').replace('_', 'x').toLowerCase())
+        const v3Aspect = aspectRatioToIdeogramV3(aspectRatio)
+        if (v3Aspect) {
+          formData.append('aspect_ratio', v3Aspect)
         }
         if (bag.styleType && bag.styleType !== 'AUTO') {
           formData.append('style_type', bag.styleType)
@@ -259,10 +317,11 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
         const formData = new FormData()
         formData.append('prompt', prompt)
         formData.append('rendering_speed', bag.renderingSpeed || 'DEFAULT')
-        formData.append('num_images', String(bag.numImages || 1))
+        formData.append('num_images', String(numImages))
 
-        if (bag.aspectRatio) {
-          formData.append('aspect_ratio', bag.aspectRatio.replace('ASPECT_', '').replace('_', 'x').toLowerCase())
+        const v3Aspect = aspectRatioToIdeogramV3(aspectRatio)
+        if (v3Aspect) {
+          formData.append('aspect_ratio', v3Aspect)
         }
         if (bag.styleType) {
           formData.append('style_type', bag.styleType)
@@ -306,12 +365,12 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
     }
 
     // ---- DEFAULT: reconstruct the inner OpenAICompatibleImageModel byte-identically ----
-    // gpt-image-1/2, FLUX.1-Kontext-pro, and any unknown id in
-    // `generate` mode. The bespoke service POSTed gpt-image/FLUX to
-    // `${apiHost}/v1/images/generations` with `{model,prompt,size,n,quality,
-    // moderation,safety_tolerance}`; the inner `OpenAICompatibleImageModel`
-    // POSTs the same `/images/generations` endpoint and spreads
-    // `providerOptions.aihubmix` into the body.
+    // gpt-image-1/2, FLUX.1-Kontext-pro, and any unknown id in `generate` mode.
+    // The inner `OpenAICompatibleImageModel` POSTs `/images/generations` and
+    // spreads `providerOptions.aihubmix` into the body. FLUX expects
+    // `safety_tolerance`; renderer emits canonical camelCase
+    // `safetyTolerance`. Rename camelCase → snake_case before delegating so
+    // the gateway sees the wire-format the bespoke service produced.
     if (isDefaultModel(modelId, mode)) {
       const inner = new OpenAICompatibleImageModel(modelId, {
         provider: AIHUBMIX_IMAGE_PROVIDER,
@@ -319,7 +378,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
         headers,
         fetch: customFetch
       })
-      return inner.doGenerate(options)
+      return inner.doGenerate({ ...options, providerOptions: snakeCaseAihubmixBag(options.providerOptions) })
     }
 
     // ---- Ideogram V_1/V_2 (non-default) + V_3 upscale branch (relocated verbatim) ----
@@ -327,13 +386,15 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
     const reqHeaders: Record<string, string> = { 'Api-Key': resolveApiKey() }
     const url = `${apiRoot}/ideogram/${MODE_TO_CONFIG[mode]}`
 
+    const v1v2Aspect = aspectRatioToIdeogramV1V2(aspectRatio)
+
     if (mode === 'generate') {
       const requestData = {
         image_request: {
           prompt,
           model: modelId,
-          aspect_ratio: bag.aspectRatio,
-          num_images: bag.numImages,
+          aspect_ratio: v1v2Aspect,
+          num_images: numImages,
           style_type: bag.styleType,
           seed: bag.seed ? +bag.seed : undefined,
           negative_prompt: bag.negativePrompt || undefined,
@@ -351,10 +412,10 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
       const imageRequest: Record<string, any> = {
         prompt,
         model: modelId,
-        aspect_ratio: bag.aspectRatio,
+        aspect_ratio: v1v2Aspect,
         image_weight: bag.imageWeight,
         style_type: bag.styleType,
-        num_images: bag.numImages,
+        num_images: numImages,
         seed: bag.seed ? +bag.seed : undefined,
         negative_prompt: bag.negativePrompt || undefined,
         magic_prompt_option: bag.magicPromptOption ? 'ON' : 'OFF'
@@ -373,7 +434,7 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
         prompt,
         resemblance: bag.resemblance,
         detail: bag.detail,
-        num_images: bag.numImages,
+        num_images: numImages,
         seed: bag.seed ? +bag.seed : undefined,
         magic_prompt_option: bag.magicPromptOption ? 'AUTO' : 'OFF'
       }
