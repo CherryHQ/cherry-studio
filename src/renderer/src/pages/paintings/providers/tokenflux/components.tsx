@@ -6,10 +6,14 @@ import { useTranslation } from 'react-i18next'
 import Artboard from '../../components/Artboard'
 import PaintingSectionTitle from '../../components/PaintingSectionTitle'
 import { SchemaValueField } from '../../form/fields/SchemaField'
-import type { TokenFluxPaintingData as TokenFluxPainting } from '../../model/types/paintingData'
+import type { TokenFluxPainting } from './config'
 
 function readI18nContext(property: Record<string, any>, key: string, lang: string): string {
   return property[`${key}_${lang}`] || property[key]
+}
+
+function getInputParams(painting: TokenFluxPainting): Record<string, unknown> {
+  return (painting.params?.inputParams as Record<string, unknown> | undefined) ?? {}
 }
 
 export const TokenFluxSetting: FC<{
@@ -19,15 +23,13 @@ export const TokenFluxSetting: FC<{
 }> = ({ painting, patchPainting, selectedModel }) => {
   const { t, i18n } = useTranslation()
   const lang = i18n.language.split('-')[0]
-  const formData: Record<string, any> = painting.inputParams || {}
+  const formData = getInputParams(painting)
 
   const handleFormFieldChange = (field: string, value: any) => {
     const newFormData = { ...formData, [field]: value }
-    patchPainting({ inputParams: newFormData })
+    patchPainting({ params: { ...painting.params, inputParams: newFormData } })
   }
 
-  // Registry's `imageGeneration.inputSchema` carries the full JSON Schema
-  // (`properties` + `required`) for tokenflux's dynamic form.
   const inputSchema = selectedModel?.imageGeneration?.inputSchema as
     | { properties?: Record<string, any>; required?: string[] }
     | undefined
@@ -81,7 +83,7 @@ export const TokenFluxCenterContent: FC<{
   onCancel: () => void
 }> = ({ painting, isLoading, onCancel }) => {
   const { t } = useTranslation()
-  const formData: Record<string, any> = painting.inputParams || {}
+  const formData = getInputParams(painting)
   const hasImageInput = Object.keys(formData).some((key) => key.toLowerCase().includes('image') && formData[key])
 
   if (!hasImageInput) {
@@ -96,7 +98,7 @@ export const TokenFluxCenterContent: FC<{
         </div>
         <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-background">
           {Object.entries(formData).map(([key, value]) => {
-            if (key.toLowerCase().includes('image') && value) {
+            if (key.toLowerCase().includes('image') && value && typeof value === 'string') {
               return (
                 <img
                   key={key}

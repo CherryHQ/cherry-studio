@@ -48,9 +48,8 @@ export function usePaintingModelSwitch({
           providerId: currentProviderId,
           oldModelId: painting.model,
           newModelId: modelId,
-          providerKeyMap: currentDefinition.registryKeyMap,
           mode: tabToImageGenerationMode(currentDefinition.mode.tabToDbMode(currentTab)),
-          currentValues: painting as unknown as Record<string, unknown>
+          currentValues: (painting.params ?? {}) as Record<string, unknown>
         })
         onPaintingChange({ ...resetPatch, model: modelId, ...modelUpdates } as Partial<PaintingData>)
         return

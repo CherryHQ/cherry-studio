@@ -1,6 +1,5 @@
 import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
-import type { FileMetadata } from '@renderer/types'
 import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import { isUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import type { Painting as PaintingRecord } from '@shared/data/types/painting'
@@ -40,23 +39,19 @@ function normalizeStoredPaintingModel(value: unknown): string | undefined {
  * custom protocol. `resolveFiles` would then be a thin DataApi pass-through
  * returning `FileEntry[]`.
  */
-async function resolveFiles(ids: string[]): Promise<FileMetadata[]> {
+async function resolveEntries(ids: string[]): Promise<FileEntry[]> {
   if (ids.length === 0) return []
   const entries = await Promise.all(
     ids.map(async (id) => {
       try {
         return (await dataApiService.get(`/files/entries/${id}` as never)) as FileEntry
       } catch (error) {
-        // Entry deleted or never registered (v1 file the migrator skipped,
-        // FK-filtered ref-insert, manual cleanup). Skip silently — the
-        // painting hydrates with whatever's still resolvable.
         logger.warn('Skipping unresolved file_entry for painting', { id, error })
         return null
       }
     })
   )
-  const resolved = entries.filter((e): e is FileEntry => e !== null)
-  return Promise.all(resolved.map(fileEntryToMetadata))
+  return entries.filter((e): e is FileEntry => e !== null)
 }
 
 /**
@@ -68,8 +63,9 @@ async function resolveFiles(ids: string[]): Promise<FileMetadata[]> {
  * a different tab.
  */
 export async function recordToPaintingData(record: PaintingRecord): Promise<PaintingData> {
-  const files = await resolveFiles(record.files.output)
-  const inputFiles = await resolveFiles(record.files.input)
+  const outputEntries = await resolveEntries(record.files.output)
+  const inputFiles = await resolveEntries(record.files.input)
+  const files = await Promise.all(outputEntries.map(fileEntryToMetadata))
 
   const model = normalizeStoredPaintingModel(record.modelId)
 
@@ -82,7 +78,7 @@ export async function recordToPaintingData(record: PaintingRecord): Promise<Pain
     inputFiles,
     persistedAt: record.createdAt,
     model
-  } as PaintingData
+  }
 }
 
 export function recordsToPaintingDataList(records: PaintingRecord[]): Promise<PaintingData[]> {

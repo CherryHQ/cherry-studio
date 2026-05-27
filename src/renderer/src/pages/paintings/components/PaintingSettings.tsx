@@ -61,40 +61,15 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange,
     painting,
     shouldPrefetch: false
   })
-  // Always call the hook (rules-of-hooks); it stays disabled when the
-  // provider doesn't opt in or has no model selected.
-  const registrySupport = useImageGenerationSupport(
-    providerDefinition.useRegistryForm ? painting.providerId : undefined,
-    providerDefinition.useRegistryForm ? painting.model : undefined
-  )
+  const registrySupport = useImageGenerationSupport(painting.providerId, painting.model)
   const configItems = useMemo(() => {
     const ownFields = providerDefinition.fields.byTab[tab] || []
-    if (providerDefinition.useRegistryForm) {
-      // Current tab feeds the per-mode merge so registry's
-      // `modeSchemas[currentMode]` overrides extend the top-level shape
-      // (ideogram remix gains `imageWeight`, upscale gains `resemblance` etc.).
-      const derived = imageGenerationToFields(registrySupport, {
-        keyMap: providerDefinition.registryKeyMap,
-        mode: tabToImageGenerationMode(providerDefinition.mode.tabToDbMode(tab))
-      })
-      // Fall back to the provider's own fields on a registry miss so the page
-      // never renders empty during the first load or for unknown models.
-      if (derived.length === 0) return ownFields
-      // When the provider declares `useRegistryForm` AND ships its own
-      // `fields.byTab`, treat the byTab list as "extra fields" appended
-      // after the registry-derived ones. Lets a provider compose registry
-      // size/batch/etc. with vendor-specific UI knobs that don't fit the
-      // standard registry schema (dmxapi's `style_type`, `autoCreate`).
-      return [...derived, ...ownFields]
-    }
-    return ownFields
-  }, [
-    providerDefinition.useRegistryForm,
-    providerDefinition.registryKeyMap,
-    providerDefinition.fields.byTab,
-    registrySupport,
-    tab
-  ])
+    const derived = imageGenerationToFields(registrySupport, {
+      mode: tabToImageGenerationMode(providerDefinition.mode.tabToDbMode(tab))
+    })
+    if (derived.length === 0) return ownFields
+    return [...derived, ...ownFields]
+  }, [providerDefinition.fields.byTab, providerDefinition.mode, registrySupport, tab])
 
   const handleImageUpload = useCallback(
     (key: string, file: File) => {

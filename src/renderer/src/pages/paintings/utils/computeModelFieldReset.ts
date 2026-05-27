@@ -33,11 +33,10 @@ export async function computeModelFieldReset(input: {
   providerId: string
   oldModelId: string | undefined
   newModelId: string
-  providerKeyMap: Record<string, string> | undefined
   mode: ImageGenerationMode | undefined
   currentValues?: Record<string, unknown>
 }): Promise<Record<string, unknown>> {
-  const { providerId, oldModelId, newModelId, providerKeyMap, mode, currentValues = {} } = input
+  const { providerId, oldModelId, newModelId, mode, currentValues = {} } = input
   if (!oldModelId || oldModelId === newModelId) return {}
 
   const fetchSupport = async (modelId: string): Promise<ImageGenerationSupport | undefined> => {
@@ -55,8 +54,8 @@ export async function computeModelFieldReset(input: {
   const [oldSupport, newSupport] = await Promise.all([fetchSupport(oldModelId), fetchSupport(newModelId)])
   if (!oldSupport) return {}
 
-  const oldItems = imageGenerationToFields(oldSupport, { keyMap: providerKeyMap, mode })
-  const newItems = newSupport ? imageGenerationToFields(newSupport, { keyMap: providerKeyMap, mode }) : []
+  const oldItems = imageGenerationToFields(oldSupport, { mode })
+  const newItems = newSupport ? imageGenerationToFields(newSupport, { mode }) : []
 
   const collectKeys = (items: BaseConfigItem[]): Set<string> => {
     const keys = new Set<string>()

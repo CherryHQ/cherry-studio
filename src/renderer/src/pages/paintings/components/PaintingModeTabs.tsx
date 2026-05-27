@@ -30,15 +30,13 @@ export function PaintingModeTabs({ painting, onPaintingChange }: PaintingModeTab
   const registrySupport = useImageGenerationSupport(painting.providerId, painting.model)
 
   const visibleTabs = useMemo(() => {
-    const supportedModes = registrySupport?.modes
-    if (!supportedModes || supportedModes.length === 0) {
+    const supportedModes = registrySupport?.modes ? Object.keys(registrySupport.modes) : []
+    if (supportedModes.length === 0) {
       return definition.mode.tabs
     }
     const supported = new Set(supportedModes)
     const filtered = definition.mode.tabs.filter((tab) => {
       const canonical = tabToImageGenerationMode(definition.mode.tabToDbMode(tab.value))
-      // Tabs whose canonical mode is undefined (custom dbMode the bridge
-      // doesn't recognize) stay visible — conservative on unknown data.
       return canonical === undefined || supported.has(canonical)
     })
     return filtered.length > 0 ? filtered : definition.mode.tabs

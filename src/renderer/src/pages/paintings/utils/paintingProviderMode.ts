@@ -1,8 +1,7 @@
 import type { ImageGenerationMode } from '@shared/data/types/model'
 import type { PaintingMode } from '@shared/data/types/painting'
 
-import { createNewApiProvider } from '../providers/newapi'
-import { providerRegistry } from '../providers/registry'
+import { buildOpenAiCompatibleProvider, providerRegistry } from '../providers/registry'
 import type { PaintingProviderDefinition } from '../providers/shared/provider'
 
 const MODE_ALIASES: Record<string, string[]> = {
@@ -11,7 +10,7 @@ const MODE_ALIASES: Record<string, string[]> = {
 }
 
 export function resolvePaintingProviderDefinition(providerId: string): PaintingProviderDefinition {
-  return providerRegistry[providerId] ?? createNewApiProvider(providerId)
+  return providerRegistry[providerId] ?? buildOpenAiCompatibleProvider(providerId)
 }
 
 export function resolvePaintingTabForMode(

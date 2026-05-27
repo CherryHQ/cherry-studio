@@ -118,7 +118,7 @@ export function usePaintingList({
     async (target: PaintingData) => {
       cancelGeneration(target.id)
       await deletePainting(target.id)
-      await FileManager.deleteFiles([...(target.files ?? []), ...(target.inputFiles ?? [])])
+      await FileManager.deleteFiles(target.files ?? [])
       if (target.id === painting.id) {
         await selectNextAfterDelete(target.id)
       } else {

@@ -14,7 +14,6 @@ import {
 } from '../model/paintingAbortControllerStore'
 import type { PaintingData } from '../model/types/paintingData'
 import type { PaintingGenerationState } from '../model/utils/paintingGenerationParams'
-import { moveEditImageFiles } from '../providers/newapi/editFiles'
 import { resolvePaintingProviderDefinition, resolvePaintingTabForMode } from '../utils/paintingProviderMode'
 import { usePaintingProviderRuntime } from './usePaintingProviderRuntime'
 
@@ -85,10 +84,6 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
     } catch (error) {
       presentPaintingGenerateError(error)
       return
-    }
-
-    if (shouldCreate) {
-      moveEditImageFiles(painting.id, targetPaintingInput.id)
     }
 
     const targetPainting = await recordToPaintingData(targetRecord)
