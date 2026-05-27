@@ -1,10 +1,6 @@
-import { PlusOutlined } from '@ant-design/icons'
-import { Button, InfoTooltip, Tooltip } from '@cherrystudio/ui'
+import { InfoTooltip, Tooltip } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
-import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
-import Scrollbar from '@renderer/components/Scrollbar'
-import { isMac } from '@renderer/config/constant'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
@@ -19,6 +15,7 @@ import { useTranslation } from 'react-i18next'
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import { DynamicFormRender } from './components/DynamicFormRender'
+import PaintingPageShell from './components/PaintingPageShell'
 import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
@@ -278,20 +275,13 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   }, [painting.generationId, painting.status, tokenFluxService, updatePaintingState])
 
   return (
-    <div className="flex h-full flex-1 flex-col">
-      <Navbar>
-        <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
-        {isMac && (
-          <NavbarRight style={{ justifyContent: 'flex-end' }}>
-            <Button size="sm" className="nodrag" onClick={handleAddPainting}>
-              <PlusOutlined />
-              {t('paintings.button.new.image')}
-            </Button>
-          </NavbarRight>
-        )}
-      </Navbar>
-      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-background">
-        <Scrollbar className="flex h-full max-w-(--assistants-width) flex-1 flex-col bg-background p-5 [border-right:0.5px_solid_var(--color-border)]">
+    <PaintingPageShell
+      title={t('paintings.title')}
+      addButtonLabel={t('paintings.button.new.image')}
+      onAddPainting={handleAddPainting}
+      navbarRightClassName="justify-end"
+      settings={
+        <>
           {/* Provider Section */}
           <div className="mb-1.25 flex items-center justify-between">
             <SettingTitle style={{ marginBottom: 8 }}>{t('common.provider')}</SettingTitle>
@@ -311,7 +301,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
             {t('paintings.model_and_pricing')}
             {selectedModel && selectedModel.pricing && (
               <div className="flex justify-end">
-                <div className="rounded border border-primary/20 bg-primary/10 px-0 py-1 font-medium text-[11px] text-primary">
+                <div className="rounded border border-primary/20 bg-primary/10 px-2 py-0.5 font-medium text-[11px] text-primary">
                   {selectedModel.pricing.price} {selectedModel.pricing.currency}{' '}
                   {selectedModel.pricing.unit > 1 ? t('paintings.per_images') : t('paintings.per_image')}
                 </div>
@@ -383,9 +373,10 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
               </div>
             </>
           )}
-        </Scrollbar>
-
-        <div className="flex h-full flex-1 flex-col bg-background">
+        </>
+      }
+      artboard={
+        <>
           {/* Check if any form field contains an uploaded image */}
           {Object.keys(formData).some((key) => key.toLowerCase().includes('image') && formData[key]) ? (
             <div className="flex h-full flex-1 flex-row gap-px">
@@ -439,22 +430,25 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
               onCancel={onCancel}
             />
           )}
-          <PaintingPromptBar
-            textareaRef={textareaRef}
-            value={painting.prompt || ''}
-            disabled={isLoading}
-            placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder')}
-            onChange={(prompt) => updatePaintingState({ prompt })}
-            onKeyDown={handleKeyDown}
-            onGenerate={onGenerate}
-            translate={{
-              onTranslated: (translatedText) => updatePaintingState({ prompt: translatedText }),
-              disabled: isLoading || isTranslating,
-              isLoading: isTranslating
-            }}
-          />
-        </div>
-
+        </>
+      }
+      promptBar={
+        <PaintingPromptBar
+          textareaRef={textareaRef}
+          value={painting.prompt || ''}
+          disabled={isLoading}
+          placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder')}
+          onChange={(prompt) => updatePaintingState({ prompt })}
+          onKeyDown={handleKeyDown}
+          onGenerate={onGenerate}
+          translate={{
+            onTranslated: (translatedText) => updatePaintingState({ prompt: translatedText }),
+            disabled: isLoading || isTranslating,
+            isLoading: isTranslating
+          }}
+        />
+      }
+      history={
         <PaintingsList
           namespace="tokenflux_paintings"
           paintings={tokenFluxPaintings}
@@ -463,8 +457,8 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
           onDeletePainting={onDeletePainting as any}
           onNewPainting={handleAddPainting}
         />
-      </div>
-    </div>
+      }
+    />
   )
 }
 export default TokenFluxPage

@@ -1,11 +1,8 @@
-import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
-import { Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
+import { RedoOutlined } from '@ant-design/icons'
+import { InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
-import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
-import Scrollbar from '@renderer/components/Scrollbar'
-import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
@@ -22,6 +19,7 @@ import { useTranslation } from 'react-i18next'
 
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
+import PaintingPageShell from './components/PaintingPageShell'
 import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
@@ -434,20 +432,13 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   }, [filteredPaintings, mode, addPainting, painting, getNewPainting])
 
   return (
-    <div className="flex h-full flex-1 flex-col">
-      <Navbar>
-        <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
-        {isMac && (
-          <NavbarRight style={{ justifyContent: 'flex-end' }}>
-            <Button size="sm" className="nodrag" onClick={handleAddPainting}>
-              <PlusOutlined />
-              {t('paintings.button.new.image')}
-            </Button>
-          </NavbarRight>
-        )}
-      </Navbar>
-      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-background">
-        <Scrollbar className="flex h-full max-w-(--assistants-width) flex-1 flex-col bg-background p-5 [border-right:0.5px_solid_var(--color-border)]">
+    <PaintingPageShell
+      title={t('paintings.title')}
+      addButtonLabel={t('paintings.button.new.image')}
+      onAddPainting={handleAddPainting}
+      navbarRightClassName="justify-end"
+      settings={
+        <>
           <div className="mb-1.25 flex items-center justify-between">
             <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
             <SettingHelpLink target="_blank" href={aihubmixProvider.apiHost}>
@@ -467,8 +458,10 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           {/* 使用JSON配置渲染设置项 */}
           {modeConfigs[mode].filter((item) => (item.condition ? item.condition(painting) : true)).map(renderConfigItem)}
-        </Scrollbar>
-        <div className="flex h-full flex-1 flex-col bg-background">
+        </>
+      }
+      artboard={
+        <>
           {/* 添加功能切换分段控制器 */}
           <div className="flex justify-center pt-6">
             <Segmented shape="round" value={mode} onChange={handleModeChange} options={modeOptions} />
@@ -482,27 +475,31 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             onCancel={onCancel}
             retry={handleRetry}
           />
-          <PaintingPromptBar
-            textareaRef={textareaRef}
-            value={painting.prompt}
-            disabled={isLoading}
-            placeholder={
-              isTranslating
-                ? t('paintings.translating')
-                : painting.model?.startsWith('imagen-') || painting.model?.startsWith('FLUX')
-                  ? t('paintings.prompt_placeholder_en')
-                  : t('paintings.prompt_placeholder_edit')
-            }
-            onChange={(prompt) => updatePaintingState({ prompt })}
-            onKeyDown={handleKeyDown}
-            onGenerate={onGenerate}
-            translate={{
-              onTranslated: (translatedText) => updatePaintingState({ prompt: translatedText }),
-              disabled: isLoading || isTranslating,
-              isLoading: isTranslating
-            }}
-          />
-        </div>
+        </>
+      }
+      promptBar={
+        <PaintingPromptBar
+          textareaRef={textareaRef}
+          value={painting.prompt}
+          disabled={isLoading}
+          placeholder={
+            isTranslating
+              ? t('paintings.translating')
+              : painting.model?.startsWith('imagen-') || painting.model?.startsWith('FLUX')
+                ? t('paintings.prompt_placeholder_en')
+                : t('paintings.prompt_placeholder_edit')
+          }
+          onChange={(prompt) => updatePaintingState({ prompt })}
+          onKeyDown={handleKeyDown}
+          onGenerate={onGenerate}
+          translate={{
+            onTranslated: (translatedText) => updatePaintingState({ prompt: translatedText }),
+            disabled: isLoading || isTranslating,
+            isLoading: isTranslating
+          }}
+        />
+      }
+      history={
         <PaintingsList
           namespace={mode}
           paintings={filteredPaintings}
@@ -511,8 +508,8 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           onDeletePainting={onDeletePainting}
           onNewPainting={handleAddPainting}
         />
-      </div>
-    </div>
+      }
+    />
   )
 }
 

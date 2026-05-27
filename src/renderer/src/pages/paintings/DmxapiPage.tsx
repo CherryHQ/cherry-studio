@@ -1,10 +1,7 @@
-import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
-import { Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
+import { RedoOutlined } from '@ant-design/icons'
+import { InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import DMXAPIToImg from '@renderer/assets/images/providers/DMXAPI-to-img.webp'
-import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
-import Scrollbar from '@renderer/components/Scrollbar'
-import { isMac } from '@renderer/config/constant'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
@@ -21,6 +18,7 @@ import { generationModeType } from '../../types'
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import ImageUploader from './components/ImageUploader'
+import PaintingPageShell from './components/PaintingPageShell'
 import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
@@ -616,20 +614,13 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   }, [painting.model, allModels, isCustomSize])
 
   return (
-    <div className="flex h-full flex-1 flex-col">
-      <Navbar>
-        <NavbarCenter className="border-r-0">{t('paintings.title')}</NavbarCenter>
-        {isMac && (
-          <NavbarRight className="justify-end">
-            <Button size="sm" className="nodrag" onClick={createNewPainting}>
-              <PlusOutlined />
-              {t('paintings.button.new.image')}
-            </Button>
-          </NavbarRight>
-        )}
-      </Navbar>
-      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-background">
-        <Scrollbar className="flex h-full max-w-(--assistants-width) flex-1 flex-col bg-background p-5 [border-right:0.5px_solid_var(--color-border)]">
+    <PaintingPageShell
+      title={t('paintings.title')}
+      addButtonLabel={t('paintings.button.new.image')}
+      onAddPainting={createNewPainting}
+      navbarRightClassName="justify-end"
+      settings={
+        <>
           <div className="mb-1.25 flex flex-row items-center justify-between">
             <SettingTitle className="mb-1">{t('common.provider')}</SettingTitle>
             <div className="flex flex-row items-center gap-2">
@@ -796,8 +787,10 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
           <RowFlex>
             <Switch checked={painting.autoCreate} onCheckedChange={(checked) => onChangeAutoCreate(checked)} />
           </RowFlex>
-        </Scrollbar>
-        <div className="flex h-full flex-1 flex-col bg-background">
+        </>
+      }
+      artboard={
+        <>
           <div className="flex justify-center pt-6">
             <Segmented
               shape="round"
@@ -816,17 +809,21 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             imageCover={defaultCoverImage()}
             loadText={defaultLoadText()}
           />
-          <PaintingPromptBar
-            textareaRef={textareaRef}
-            value={painting.prompt}
-            disabled={isLoading}
-            placeholder={t('paintings.prompt_placeholder')}
-            onChange={(prompt) => updatePaintingState({ prompt })}
-            onGenerate={onGenerate}
-            footerClassName="flex h-10 flex-row justify-end px-2"
-            actionsClassName="flex flex-row items-center gap-1.5"
-          />
-        </div>
+        </>
+      }
+      promptBar={
+        <PaintingPromptBar
+          textareaRef={textareaRef}
+          value={painting.prompt}
+          disabled={isLoading}
+          placeholder={t('paintings.prompt_placeholder')}
+          onChange={(prompt) => updatePaintingState({ prompt })}
+          onGenerate={onGenerate}
+          footerClassName="flex h-10 flex-row justify-end px-2"
+          actionsClassName="flex flex-row items-center gap-1.5"
+        />
+      }
+      history={
         <PaintingsList
           namespace="dmxapi_paintings"
           paintings={dmxapi_paintings}
@@ -835,8 +832,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
           onDeletePainting={onDeletePainting}
           onNewPainting={createNewPainting}
         />
-      </div>
-    </div>
+      }
+    />
   )
 }
 

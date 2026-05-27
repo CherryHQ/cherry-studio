@@ -1,10 +1,7 @@
-import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
-import { Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
+import { RedoOutlined } from '@ant-design/icons'
+import { RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
-import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
-import Scrollbar from '@renderer/components/Scrollbar'
-import { isMac } from '@renderer/config/constant'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
@@ -21,6 +18,7 @@ import { useTranslation } from 'react-i18next'
 
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
+import PaintingPageShell from './components/PaintingPageShell'
 import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
@@ -365,79 +363,73 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
   }, [ovmsPaintings, addPainting, getNewPainting])
 
   return (
-    <div className="flex h-full flex-1 flex-col">
-      <Navbar>
-        <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
-        {isMac && (
-          <NavbarRight style={{ justifyContent: 'flex-end' }}>
-            <Button size="sm" className="nodrag" onClick={handleAddPainting}>
-              <PlusOutlined />
-              {t('paintings.button.new.image')}
-            </Button>
-          </NavbarRight>
-        )}
-      </Navbar>
-      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-background">
-        <div className="flex h-full max-w-(--assistants-width) flex-1 flex-col overflow-hidden bg-background [border-right:0.5px_solid_var(--color-border)]">
-          <Scrollbar>
-            <div className="p-5">
-              <div className="mb-1.25 flex items-center justify-between">
-                <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
-                <SettingHelpLink
-                  target="_blank"
-                  href="https://docs.openvino.ai/2025/model-server/ovms_demos_image_generation.html">
-                  {t('paintings.learn_more')}
+    <PaintingPageShell
+      title={t('paintings.title')}
+      addButtonLabel={t('paintings.button.new.image')}
+      onAddPainting={handleAddPainting}
+      navbarRightClassName="justify-end"
+      settingsClassName="flex h-full max-w-(--assistants-width) flex-1 flex-col overflow-hidden bg-background [border-right:0.5px_solid_var(--color-border)]"
+      settings={
+        <div className="p-5">
+          <div className="mb-1.25 flex items-center justify-between">
+            <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
+            <SettingHelpLink
+              target="_blank"
+              href="https://docs.openvino.ai/2025/model-server/ovms_demos_image_generation.html">
+              {t('paintings.learn_more')}
+              {(() => {
+                const Icon = resolveProviderIcon(ovmsProvider.id)
+                return Icon ? <Icon.Avatar size={16} className="ml-1.25" /> : null
+              })()}
+            </SettingHelpLink>
+          </div>
+
+          <Select
+            value={providerOptions.find((p) => p.value === 'ovms')?.value || 'ovms'}
+            onChange={handleProviderChange}
+            style={{ width: '100%', marginBottom: 15 }}>
+            {providerOptions.map((provider) => (
+              <Select.Option value={provider.value} key={provider.value}>
+                <div className="flex items-center gap-2">
                   {(() => {
-                    const Icon = resolveProviderIcon(ovmsProvider.id)
-                    return Icon ? <Icon.Avatar size={16} className="ml-1.25" /> : null
+                    const Icon = resolveProviderIcon(provider.value || '')
+                    return Icon ? <Icon.Avatar size={16} /> : null
                   })()}
-                </SettingHelpLink>
-              </div>
+                  {provider.label}
+                </div>
+              </Select.Option>
+            ))}
+          </Select>
 
-              <Select
-                value={providerOptions.find((p) => p.value === 'ovms')?.value || 'ovms'}
-                onChange={handleProviderChange}
-                style={{ width: '100%', marginBottom: 15 }}>
-                {providerOptions.map((provider) => (
-                  <Select.Option value={provider.value} key={provider.value}>
-                    <div className="flex items-center gap-2">
-                      {(() => {
-                        const Icon = resolveProviderIcon(provider.value || '')
-                        return Icon ? <Icon.Avatar size={16} /> : null
-                      })()}
-                      {provider.label}
-                    </div>
-                  </Select.Option>
-                ))}
-              </Select>
-
-              {/* Render configuration items using JSON config */}
-              {ovmsConfig.map(renderConfigItem)}
-            </div>
-          </Scrollbar>
+          {/* Render configuration items using JSON config */}
+          {ovmsConfig.map(renderConfigItem)}
         </div>
-        <div className="flex h-full flex-1 flex-col bg-background">
-          <Artboard
-            painting={painting}
-            isLoading={isLoading}
-            currentImageIndex={currentImageIndex}
-            onPrevImage={prevImage}
-            onNextImage={nextImage}
-            onCancel={onCancel}
-            retry={handleRetry}
-          />
-          <PaintingPromptBar
-            textareaRef={textareaRef}
-            value={painting.prompt}
-            disabled={isLoading}
-            placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder')}
-            onChange={(prompt) => updatePaintingState({ prompt })}
-            onKeyDown={handleKeyDown}
-            onGenerate={onGenerate}
-            generateDisabled={isLoading || !painting.model || painting.model === OVMS_MODELS[0]?.value}
-            actionsClassName="flex flex-row items-center gap-1.5"
-          />
-        </div>
+      }
+      artboard={
+        <Artboard
+          painting={painting}
+          isLoading={isLoading}
+          currentImageIndex={currentImageIndex}
+          onPrevImage={prevImage}
+          onNextImage={nextImage}
+          onCancel={onCancel}
+          retry={handleRetry}
+        />
+      }
+      promptBar={
+        <PaintingPromptBar
+          textareaRef={textareaRef}
+          value={painting.prompt}
+          disabled={isLoading}
+          placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder')}
+          onChange={(prompt) => updatePaintingState({ prompt })}
+          onKeyDown={handleKeyDown}
+          onGenerate={onGenerate}
+          generateDisabled={isLoading || !painting.model || painting.model === OVMS_MODELS[0]?.value}
+          actionsClassName="flex flex-row items-center gap-1.5"
+        />
+      }
+      history={
         <PaintingsList
           namespace="ovms_paintings"
           paintings={ovmsPaintings}
@@ -446,8 +438,8 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
           onDeletePainting={onDeletePainting}
           onNewPainting={handleAddPainting}
         />
-      </div>
-    </div>
+      }
+    />
   )
 }
 

@@ -1,10 +1,7 @@
-import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
+import { RedoOutlined } from '@ant-design/icons'
 import { Switch } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
-import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
-import Scrollbar from '@renderer/components/Scrollbar'
-import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
@@ -12,7 +9,7 @@ import type { PaintingsState, PpioPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useNavigate } from '@tanstack/react-router'
 import type { UploadFile } from 'antd'
-import { Button, Input, Segmented, Select, Tooltip, Upload } from 'antd'
+import { Input, Segmented, Select, Tooltip, Upload } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
@@ -21,6 +18,7 @@ import { useTranslation } from 'react-i18next'
 
 import { SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
+import PaintingPageShell from './components/PaintingPageShell'
 import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
@@ -135,6 +133,12 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
         setPainting(newPainting)
       }
     }
+  }
+
+  const handleAddPainting = () => {
+    const newPainting = addPainting(mode, getNewPainting())
+    setPainting(newPainting)
+    return newPainting
   }
 
   const prevImage = () => {
@@ -442,23 +446,13 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
   }, [filteredPaintings.length, addPainting, getNewPainting, mode])
 
   return (
-    <div className="flex h-full flex-1 flex-col">
-      <Navbar>
-        <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
-        {isMac && (
-          <NavbarRight style={{ justifyContent: 'flex-end' }}>
-            <Button
-              size="small"
-              className="nodrag"
-              icon={<PlusOutlined />}
-              onClick={() => setPainting(addPainting(mode, getNewPainting()))}>
-              {t('paintings.button.new.image')}
-            </Button>
-          </NavbarRight>
-        )}
-      </Navbar>
-      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-background">
-        <Scrollbar className="flex h-full max-w-(--assistants-width) flex-1 flex-col bg-background p-5 [border-right:0.5px_solid_var(--color-border)]">
+    <PaintingPageShell
+      title={t('paintings.title')}
+      addButtonLabel={t('paintings.button.new.image')}
+      onAddPainting={handleAddPainting}
+      navbarRightClassName="justify-end"
+      settings={
+        <>
           <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
           {ppioProvider && <ProviderSelect provider={ppioProvider} options={Options} onChange={handleProviderChange} />}
 
@@ -467,8 +461,10 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           {/* 渲染其他配置项 */}
           {modeConfigs[mode].map(renderConfigItem)}
-        </Scrollbar>
-        <div className="flex h-full flex-1 flex-col bg-background">
+        </>
+      }
+      artboard={
+        <>
           {/* 模式切换 */}
           <div className="flex justify-center pt-6">
             <Segmented shape="round" value={mode} onChange={handleModeChange} options={modeOptions} />
@@ -481,31 +477,35 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
             onNextImage={nextImage}
             onCancel={onCancel}
           />
-          <PaintingPromptBar
-            textareaRef={textareaRef}
-            value={painting.prompt}
-            disabled={isLoading}
-            placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder')}
-            onChange={(prompt) => updatePaintingState({ prompt })}
-            onKeyDown={handleKeyDown}
-            onGenerate={onGenerate}
-            translate={{
-              onTranslated: (translatedText) => updatePaintingState({ prompt: translatedText }),
-              disabled: isLoading || isTranslating,
-              isLoading: isTranslating
-            }}
-          />
-        </div>
+        </>
+      }
+      promptBar={
+        <PaintingPromptBar
+          textareaRef={textareaRef}
+          value={painting.prompt}
+          disabled={isLoading}
+          placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder')}
+          onChange={(prompt) => updatePaintingState({ prompt })}
+          onKeyDown={handleKeyDown}
+          onGenerate={onGenerate}
+          translate={{
+            onTranslated: (translatedText) => updatePaintingState({ prompt: translatedText }),
+            disabled: isLoading || isTranslating,
+            isLoading: isTranslating
+          }}
+        />
+      }
+      history={
         <PaintingsList
           namespace={mode as keyof PaintingsState}
           paintings={filteredPaintings}
           selectedPainting={painting}
           onSelectPainting={onSelectPainting}
           onDeletePainting={onDeletePainting}
-          onNewPainting={() => setPainting(addPainting(mode, getNewPainting()))}
+          onNewPainting={handleAddPainting}
         />
-      </div>
-    </div>
+      }
+    />
   )
 }
 

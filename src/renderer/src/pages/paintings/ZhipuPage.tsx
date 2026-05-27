@@ -1,11 +1,6 @@
-import { PlusOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
-import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
-import Scrollbar from '@renderer/components/Scrollbar'
-import { isMac } from '@renderer/config/constant'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
@@ -18,6 +13,7 @@ import { useTranslation } from 'react-i18next'
 
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
+import PaintingPageShell from './components/PaintingPageShell'
 import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
@@ -289,20 +285,14 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   }, [painting.imageSize, painting.customWidth, painting.customHeight])
 
   return (
-    <div className="flex h-full flex-1 flex-col">
-      <Navbar>
-        <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
-        {isMac && (
-          <NavbarRight>
-            <Button size="sm" className="nodrag" variant="ghost" onClick={handleAddPainting}>
-              <PlusOutlined />
-              {t('paintings.button.new.image')}
-            </Button>
-          </NavbarRight>
-        )}
-      </Navbar>
-      <div id="content-container" className="flex flex-1 overflow-hidden">
-        <Scrollbar className="flex h-full max-w-(--assistants-width) flex-1 flex-col bg-background p-5 [border-right:0.5px_solid_var(--color-border)]">
+    <PaintingPageShell
+      title={t('paintings.title')}
+      addButtonLabel={t('paintings.button.new.image')}
+      onAddPainting={handleAddPainting}
+      addButtonVariant="ghost"
+      contentClassName="flex flex-1 overflow-hidden"
+      settings={
+        <>
           <div className="mb-2.5 flex items-center justify-between">
             <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
             <div className="flex flex-row items-center gap-2">
@@ -389,31 +379,35 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
               </div>
             </div>
           )}
-        </Scrollbar>
-        <div className="flex h-full flex-1 flex-col bg-background">
-          <Artboard
-            painting={painting}
-            isLoading={isLoading}
-            currentImageIndex={currentImageIndex}
-            onPrevImage={prevImage}
-            onNextImage={nextImage}
-            onCancel={onCancel}
-          />
-          <PaintingPromptBar
-            textareaRef={textareaRef}
-            value={painting.prompt}
-            disabled={isLoading}
-            placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder')}
-            onChange={(prompt) => updatePaintingState({ prompt })}
-            onKeyDown={handleKeyDown}
-            onGenerate={onGenerate}
-            translate={{
-              onTranslated: (translatedText) => updatePaintingState({ prompt: translatedText }),
-              disabled: isLoading || isTranslating,
-              isLoading: isTranslating
-            }}
-          />
-        </div>
+        </>
+      }
+      artboard={
+        <Artboard
+          painting={painting}
+          isLoading={isLoading}
+          currentImageIndex={currentImageIndex}
+          onPrevImage={prevImage}
+          onNextImage={nextImage}
+          onCancel={onCancel}
+        />
+      }
+      promptBar={
+        <PaintingPromptBar
+          textareaRef={textareaRef}
+          value={painting.prompt}
+          disabled={isLoading}
+          placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder')}
+          onChange={(prompt) => updatePaintingState({ prompt })}
+          onKeyDown={handleKeyDown}
+          onGenerate={onGenerate}
+          translate={{
+            onTranslated: (translatedText) => updatePaintingState({ prompt: translatedText }),
+            disabled: isLoading || isTranslating,
+            isLoading: isTranslating
+          }}
+        />
+      }
+      history={
         <PaintingsList
           namespace="zhipu_paintings"
           paintings={zhipu_paintings}
@@ -422,8 +416,8 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
           onDeletePainting={onDeletePainting}
           onNewPainting={handleAddPainting}
         />
-      </div>
-    </div>
+      }
+    />
   )
 }
 

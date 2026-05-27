@@ -1,9 +1,6 @@
-import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
-import { Button, ColFlex, InfoTooltip } from '@cherrystudio/ui'
+import { RedoOutlined } from '@ant-design/icons'
+import { ColFlex, InfoTooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
-import Scrollbar from '@renderer/components/Scrollbar'
-import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
@@ -20,6 +17,7 @@ import { useTranslation } from 'react-i18next'
 import { SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import ImageUploader from './components/ImageUploader'
+import PaintingPageShell from './components/PaintingPageShell'
 import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
@@ -247,6 +245,12 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
     void removePainting('siliconflow_paintings', paintingToDelete)
   }
 
+  const handleAddPainting = () => {
+    const newPainting = addPainting('siliconflow_paintings', getNewPainting())
+    setPainting(newPainting)
+    return newPainting
+  }
+
   const onSelectPainting = (newPainting: Painting) => {
     if (generating) return
     setPainting(newPainting)
@@ -275,23 +279,13 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   }, [siliconflow_paintings.length, addPainting])
 
   return (
-    <div className="flex h-full flex-1 flex-col">
-      <Navbar>
-        <NavbarCenter style={{ borderRight: 'none' }}>{t('paintings.title')}</NavbarCenter>
-        {isMac && (
-          <NavbarRight style={{ justifyContent: 'flex-end' }}>
-            <Button
-              size="sm"
-              className="nodrag"
-              onClick={() => setPainting(addPainting('siliconflow_paintings', getNewPainting()))}>
-              <PlusOutlined />
-              {t('paintings.button.new.image')}
-            </Button>
-          </NavbarRight>
-        )}
-      </Navbar>
-      <div id="content-container" className="flex h-full flex-1 flex-row overflow-hidden bg-background">
-        <Scrollbar className="flex h-full max-w-(--assistants-width) flex-1 flex-col bg-background p-5 [border-right:0.5px_solid_var(--color-border)]">
+    <PaintingPageShell
+      title={t('paintings.title')}
+      addButtonLabel={t('paintings.button.new.image')}
+      onAddPainting={handleAddPainting}
+      navbarRightClassName="justify-end"
+      settings={
+        <>
           <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
           <ProviderSelect provider={siliconFlowProvider} options={Options} onChange={handleProviderChange} />
           <SettingTitle className="mt-4 mb-1">{t('common.model')}</SettingTitle>
@@ -415,41 +409,45 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
             spellCheck={false}
             rows={4}
           />
-        </Scrollbar>
-        <div className="flex h-full flex-1 flex-col bg-background">
-          <Artboard
-            painting={painting}
-            isLoading={isLoading}
-            currentImageIndex={currentImageIndex}
-            onPrevImage={prevImage}
-            onNextImage={nextImage}
-            onCancel={onCancel}
-          />
-          <PaintingPromptBar
-            textareaRef={textareaRef}
-            value={painting.prompt}
-            disabled={isLoading}
-            placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder')}
-            onChange={(prompt) => updatePaintingState({ prompt })}
-            onKeyDown={handleKeyDown}
-            onGenerate={onGenerate}
-            translate={{
-              onTranslated: (translatedText) => updatePaintingState({ prompt: translatedText }),
-              disabled: isLoading || isTranslating,
-              isLoading: isTranslating
-            }}
-          />
-        </div>
+        </>
+      }
+      artboard={
+        <Artboard
+          painting={painting}
+          isLoading={isLoading}
+          currentImageIndex={currentImageIndex}
+          onPrevImage={prevImage}
+          onNextImage={nextImage}
+          onCancel={onCancel}
+        />
+      }
+      promptBar={
+        <PaintingPromptBar
+          textareaRef={textareaRef}
+          value={painting.prompt}
+          disabled={isLoading}
+          placeholder={isTranslating ? t('paintings.translating') : t('paintings.prompt_placeholder')}
+          onChange={(prompt) => updatePaintingState({ prompt })}
+          onKeyDown={handleKeyDown}
+          onGenerate={onGenerate}
+          translate={{
+            onTranslated: (translatedText) => updatePaintingState({ prompt: translatedText }),
+            disabled: isLoading || isTranslating,
+            isLoading: isTranslating
+          }}
+        />
+      }
+      history={
         <PaintingsList
           namespace="siliconflow_paintings"
           paintings={siliconflow_paintings}
           selectedPainting={painting}
           onSelectPainting={onSelectPainting}
           onDeletePainting={onDeletePainting}
-          onNewPainting={() => setPainting(addPainting('siliconflow_paintings', getNewPainting()))}
+          onNewPainting={handleAddPainting}
         />
-      </div>
-    </div>
+      }
+    />
   )
 }
 
