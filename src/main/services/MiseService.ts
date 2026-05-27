@@ -91,7 +91,7 @@ export class MiseService extends BaseService {
 
   protected async onInit() {
     this.registerIpcHandlers()
-    this.extractBundledBinary()
+    this.extractBundledBinaries()
     this.miseBin = this.findMiseBin()
     if (!this.miseBin) {
       logger.warn('mise binary not found, tool management disabled')
@@ -145,36 +145,39 @@ export class MiseService extends BaseService {
     })
   }
 
-  private extractBundledBinary(): void {
+  private extractBundledBinaries(): void {
     const platformKey = `${process.platform}-${process.arch}`
-    const binaryName = isWin ? 'mise.exe' : 'mise'
     const bundledDir = path.join(application.getPath('app.root.resources.binaries'), platformKey)
-    const bundled = path.join(bundledDir, binaryName)
-
-    if (!fs.existsSync(bundled)) {
-      return
-    }
-
     const binDir = application.getPath('cherry.bin')
     fs.mkdirSync(binDir, { recursive: true })
-    const dest = path.join(binDir, binaryName)
-    const versionMarker = path.join(binDir, '.mise-version')
 
-    const bundledVersion = this.readVersionMarker(path.join(bundledDir, '.mise-version'))
-    const installedVersion = this.readVersionMarker(versionMarker)
+    const tools: Array<{ name: string; binaries: string[]; versionFile: string }> = [
+      { name: 'mise', binaries: [isWin ? 'mise.exe' : 'mise'], versionFile: '.mise-version' },
+      { name: 'bun', binaries: [isWin ? 'bun.exe' : 'bun'], versionFile: '.bun-version' },
+      { name: 'uv', binaries: isWin ? ['uv.exe', 'uvx.exe'] : ['uv', 'uvx'], versionFile: '.uv-version' }
+    ]
 
-    if (fs.existsSync(dest) && bundledVersion && bundledVersion === installedVersion) {
-      return
-    }
+    for (const tool of tools) {
+      const bundledVersion = this.readVersionMarker(path.join(bundledDir, tool.versionFile))
+      if (!bundledVersion) continue
 
-    fs.copyFileSync(bundled, dest)
-    if (!isWin) {
-      fs.chmodSync(dest, 0o755)
+      const firstBundled = path.join(bundledDir, tool.binaries[0])
+      if (!fs.existsSync(firstBundled)) continue
+
+      const installedVersion = this.readVersionMarker(path.join(binDir, tool.versionFile))
+      const firstDest = path.join(binDir, tool.binaries[0])
+      if (fs.existsSync(firstDest) && bundledVersion === installedVersion) continue
+
+      for (const bin of tool.binaries) {
+        const src = path.join(bundledDir, bin)
+        const dest = path.join(binDir, bin)
+        if (!fs.existsSync(src)) continue
+        fs.copyFileSync(src, dest)
+        if (!isWin) fs.chmodSync(dest, 0o755)
+      }
+      fs.writeFileSync(path.join(binDir, tool.versionFile), bundledVersion)
+      logger.info(`Extracted bundled ${tool.name}`, { binDir, version: bundledVersion })
     }
-    if (bundledVersion) {
-      fs.writeFileSync(versionMarker, bundledVersion)
-    }
-    logger.info('Extracted bundled mise binary', { dest, version: bundledVersion })
   }
 
   private readVersionMarker(filePath: string): string | null {

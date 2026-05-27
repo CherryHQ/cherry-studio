@@ -495,7 +495,7 @@ describe('MiseService', () => {
     })
   })
 
-  describe('extractBundledBinary', () => {
+  describe('extractBundledBinaries', () => {
     it('skips extraction when bundled version matches installed version', () => {
       const service = new MiseService()
       ;(service as any).miseBin = '/mock/mise'
@@ -506,7 +506,7 @@ describe('MiseService', () => {
         return ''
       })
 
-      ;(service as any).extractBundledBinary()
+      ;(service as any).extractBundledBinaries()
 
       expect(mockFs.copyFileSync).not.toHaveBeenCalled()
     })
@@ -524,7 +524,7 @@ describe('MiseService', () => {
         return ''
       })
 
-      ;(service as any).extractBundledBinary()
+      ;(service as any).extractBundledBinaries()
 
       expect(mockFs.copyFileSync).toHaveBeenCalled()
     })
@@ -542,7 +542,7 @@ describe('MiseService', () => {
           throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
         })
 
-      ;(service as any).extractBundledBinary()
+      ;(service as any).extractBundledBinaries()
 
       expect(mockFs.copyFileSync).toHaveBeenCalled()
     })

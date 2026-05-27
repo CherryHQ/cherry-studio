@@ -57,9 +57,9 @@ exports.default = async function (context) {
   const platformName = context.packager.platform.name
   const platform = platformToArch[platformName]
 
-  // Download mise binary for the target platform
-  console.log(`Downloading mise binary for ${platform}-${arch}...`)
-  execFileSync('node', [path.join(__dirname, 'download-mise-binary.js'), platform, arch], { stdio: 'inherit' })
+  // Download bundled binaries (mise, bun, uv) for the target platform
+  console.log(`Downloading binaries for ${platform}-${arch}...`)
+  execFileSync('node', [path.join(__dirname, 'download-binaries.js'), platform, arch], { stdio: 'inherit' })
 
   const downloadPackages = async () => {
     // Skip if target platform and architecture match current system
