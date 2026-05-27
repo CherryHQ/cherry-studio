@@ -9,40 +9,31 @@ import dayjs from 'dayjs'
 const logger = loggerService.withContext('FileManager')
 
 /**
- * @deprecated Slated for v2 redesign — do not extend.
+ * @deprecated Slated for deletion — do not add new call sites.
  *
- * This class predates the v2 file module and bundles three unrelated
- * responsibilities that should be split apart:
+ * v2 moves all file state to the main process; the renderer no longer
+ * needs a stateful "manager" — IPC is the service. Replacement targets:
  *
- *   1. **Dexie `db.files` CRUD + reference counting** — superseded by the
- *      v2 `file_entry` + `file_ref` tables. Renderer never writes those
- *      directly; it goes through File IPC (`createInternalEntry`,
- *      `ensureExternalEntry`, `permanentDelete`, …).
- *   2. **Thin IPC wrappers** (`selectFiles`, `readBinaryImage`, …) — should
- *      either be inlined at call sites or moved into a focused IPC client.
- *   3. **Pure utility helpers** (`getFilePath`, `getSafePath`, `getFileUrl`,
- *      `isDangerFile`, `formatFileName`) — belong in `@renderer/utils/file`.
+ * - **React components** → TanStack Query hooks (e.g. `useFileEntry(id)`)
+ * - **Imperative code** (thunks, callbacks) → `window.api.file.*` directly
+ * - **Display logic** → pure utilities in `@renderer/utils/file`
  *
- * Phase 2 Batch 0 attempted to migrate `addFile` / `uploadFile` / `deleteFile`
- * to v2 IPC in place, but doing so broke the v1 contract: the v1 `addFile`
- * was a Dexie-only reference-count operation that assumed the physical file
- * was already on disk (written upstream by `saveBase64Image` / `download` /
- * etc.), whereas the v2 path-based `createInternalEntry` re-copies the file
- * and mints a new uuid. Production callers (`imageCallbacks`, paintings
- * pages) discard the return value, leaving a duplicate physical copy plus
- * an unreferenced `file_entry`, while the business object still points at
- * the original (now entry-less) uuid.
- *
- * The cutover is being reverted here and the class re-marked as legacy
- * pending its v2-shaped replacement. The replacement work is tracked
- * separately; until it lands, **do not add new call sites** — write straight
- * to File IPC (`window.api.file.createInternalEntry` etc.) from new code.
+ * See each method's JSDoc for its specific v2 replacement.
  */
 class FileManager {
+  /** @deprecated Dead code (0 callers). v2: `window.api.file.openSelectDialog(options)` */
   static async selectFiles(options?: Electron.OpenDialogOptions): Promise<FileMetadata[] | null> {
     return await window.api.legacyFile.select(options)
   }
 
+  /**
+   * @deprecated v2: **delete the call site** — db writes are now main-side.
+   *
+   * The only real consumer is `imageCallbacks`. In that context, replacing
+   * `saveBase64Image` with `window.api.file.createInternalEntry` already
+   * creates the `file_entry` on the main side — the separate `addFile`
+   * step becomes redundant and should simply be removed.
+   */
   static async addFile(file: FileMetadata): Promise<FileMetadata> {
     const fileRecord = await db.files.get(file.id)
 
@@ -56,20 +47,24 @@ class FileManager {
     return file
   }
 
+  /** @deprecated v2: **delete the call site** — more callers than `addFile` but similar migration path. See {@link addFile}. */
   static async addFiles(files: FileMetadata[]): Promise<FileMetadata[]> {
     return Promise.all(files.map((file) => this.addFile(file)))
   }
 
+  /** @deprecated Dead code (0 callers). v2: `window.api.file.read(id, { encoding: 'binary' })` */
   static async readBinaryImage(file: FileMetadata): Promise<Buffer> {
     const fileData = await window.api.legacyFile.binaryImage(file.id + file.ext)
     return fileData.data
   }
 
+  /** @deprecated Dead code (0 callers). v2: `window.api.file.read(id, { encoding: 'base64' })` */
   static async readBase64File(file: FileMetadata): Promise<string> {
     const fileData = await window.api.legacyFile.base64File(file.id + file.ext)
     return fileData.data
   }
 
+  /** @deprecated Dead code (0 callers). v2: `window.api.file.createInternalEntry({ source: 'base64' })` + `fileRefService.create(...)` */
   static async addBase64File(file: FileMetadata): Promise<FileMetadata> {
     logger.info(`Adding base64 file: ${JSON.stringify(file)}`)
 
@@ -86,6 +81,12 @@ class FileManager {
     return base64File
   }
 
+  /**
+   * @deprecated v2: `window.api.file.createInternalEntry({ source: 'path' })` + `fileRefService.create(...)`
+   *
+   * v2 handles disk copy + entry creation in one IPC call; no separate
+   * "upload then record" step.
+   */
   static async uploadFile(file: FileMetadata): Promise<FileMetadata> {
     logger.info(`Uploading file: ${JSON.stringify(file)}`)
 
@@ -103,10 +104,17 @@ class FileManager {
     return uploadFile
   }
 
+  /** @deprecated v2: `window.api.file.batchCreateInternalEntries(...)` + batch ref. See {@link uploadFile}. */
   static async uploadFiles(files: FileMetadata[]): Promise<FileMetadata[]> {
     return Promise.all(files.map((file) => this.uploadFile(file)))
   }
 
+  /**
+   * @deprecated v2: `window.api.file.getMetadata(id)` or DataApi `GET /files/entries/:id`
+   *
+   * v1 reads Dexie + runtime-patches `path`. v2 returns `FileEntry` from
+   * SQLite; use `window.api.file.getPhysicalPath(id)` if you need the path.
+   */
   static async getFile(id: string): Promise<FileMetadata | undefined> {
     const file = await db.files.get(id)
 
@@ -118,11 +126,24 @@ class FileManager {
     return file
   }
 
+  /**
+   * @deprecated v2: `window.api.file.getPhysicalPath(id)`
+   *
+   * Renderer must not construct physical paths from `id + ext` — the
+   * storage layout is a main-side concern.
+   */
   static getFilePath(file: FileMetadata) {
     const filesPath = cacheService.get('app.path.files') ?? ''
     return filesPath + '/' + file.id + file.ext
   }
 
+  /**
+   * @deprecated
+   * - `force=false`: `fileRefService.delete(sourceType, sourceId, entryId)` —
+   *   ref removal only; OrphanRefScanner handles cleanup at zero refs.
+   * - `force=true`: `window.api.file.permanentDelete(id)` — immediate
+   *   physical deletion regardless of refs.
+   */
   static async deleteFile(id: string, force: boolean = false): Promise<void> {
     const file = await this.getFile(id)
 
@@ -148,6 +169,7 @@ class FileManager {
     }
   }
 
+  /** @deprecated v2: `fileRefService.cleanupBySource(sourceType, sourceId)` or `window.api.file.batchPermanentDelete(ids)` depending on force semantics. */
   static async deleteFiles(files: FileMetadata[]): Promise<void> {
     if (!files || files.length === 0) return
 
@@ -159,25 +181,30 @@ class FileManager {
     }
   }
 
+  /** @deprecated Dead code (0 callers). v2: DataApi `GET /files/entries` */
   static async allFiles(): Promise<FileMetadata[]> {
     return db.files.toArray()
   }
 
+  /** @deprecated Dead code (0 callers). v2: `isDangerExt(ext)` from `@shared/file/urlUtil` */
   static isDangerFile(file: FileMetadata) {
     return ['.sh', '.bat', '.cmd', '.ps1', '.vbs', 'reg'].includes(file.ext)
   }
 
+  /** @deprecated v2: `toSafeFileUrl(path, ext)` from `@shared/file/urlUtil` — already implemented with a more complete dangerous-ext list. */
   static getSafePath(file: FileMetadata) {
     // use the path from the file metadata instead
     // this function is used to get path for files which are not in the filestorage
     return this.isDangerFile(file) ? getFileDirectory(file.path) : file.path
   }
 
+  /** @deprecated v2: `window.api.file.getPhysicalPath(id)` + `toFileUrl()` from `@shared/file/urlUtil` */
   static getFileUrl(file: FileMetadata) {
     const filesPath = cacheService.get('app.path.files') ?? ''
     return 'file://' + filesPath + '/' + file.name
   }
 
+  /** @deprecated v2: `window.api.file.rename(id, newName)` — only caller is the rename handler. */
   static async updateFile(file: FileMetadata) {
     if (!file.origin_name.includes(file.ext)) {
       file.origin_name = file.origin_name + file.ext
@@ -186,6 +213,7 @@ class FileManager {
     await db.files.update(file.id, file)
   }
 
+  /** @deprecated v2: move to `@renderer/utils/file` with `FileEntry` input — change `file.origin_name` to `entry.name + entry.ext`. */
   static formatFileName(file: FileMetadata) {
     if (!file || !file.origin_name) {
       return ''

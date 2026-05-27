@@ -67,6 +67,24 @@ migration-plan §3.4.3 proposed freezing Dexie `files` writes and §4.1 proposed
 
 3. **Data consistency requires producer-consumer atomicity.** FileMigrator (Batch 0) copied all *existing* Dexie file entries to SQLite with preserved IDs, so old data is accessible from both systems. However, *new* files created after FileMigrator pose a gap: a v1-created file (Dexie-only) is invisible to v2 consumers (SQLite-only), and vice versa. This gap is closed by the following invariant.
 
+### Main-Side Consumer Scope
+
+An audit of `src/main/` identified several categories of v1 FileStorage / FileMetadata consumers beyond renderer IPC. Their Phase 2 disposition:
+
+| Category | Disposition | Rationale |
+|----------|------------|-----------|
+| `legacyFile.ts` (main utils) | **Phase 2 (BATCH A)** | Core file utility consumed by migration batches; must be retired before CLEANUP |
+| Export utilities (renderer) | **Phase 2 (BATCH A)** | No strict module boundary; file module owns the migration |
+| remotefile/* services | **Phase 2 (BATCH A)** | Purpose field internalization; file module owns the migration |
+| Translate module | **Independent module migration** | Business-module-level refactor; out of Phase 2 scope |
+| Agent module | **Independent module migration** | Business-module-level refactor; out of Phase 2 scope |
+| Knowledge module (`KnowledgeService`, `KnowledgeFileReader`, `embedjs/loader`, preprocessing providers) | **Independent module migration** | Business-module-level refactor; out of Phase 2 scope |
+| Painting module (`TokenFluxService`, `paintings/utils`, PaintingMigrator) | **Independent module migration** | Business-module-level refactor; out of Phase 2 scope |
+| Backup module (`BackupManager`) | **Independent module migration** | Business-module-level refactor; tracked in [#12659](https://github.com/CherryHQ/cherry-studio/issues/12659) |
+| FileProcessing module (OCR services, preprocessing providers) | **Independent module migration** | Preprocessing providers are deprecated and migrating into fileProcessing module |
+| `McpService` / `ExportService` (main) | **CLEANUP (mechanical)** | Not true file consumers — use `FileStorage.writeFile` / `createTempFile` as convenience I/O; trivially replace with `fs` / v2 when FileStorage is deleted |
+| `ipc.ts` legacy handlers | **CLEANUP (CL-4)** | Deleted with v1 preload API removal |
+
 ### Invariant: Producer-Consumer Atomicity
 
 **Rule:** Each batch must migrate the complete producer→consumer chain for its domain. If a batch migrates a consumer to read from v2, the producer that feeds data into that consumer must also move to v2 in the same batch.
@@ -76,16 +94,16 @@ migration-plan §3.4.3 proposed freezing Dexie `files` writes and §4.1 proposed
 | File creation entry point | Migrates with... | Rationale |
 |---------------------------|------------------|-----------|
 | Paste image in chat → `savePastedImage` | BATCH E (Messages) | The message immediately displays the pasted file; creation and consumption are one user operation |
-| Upload file in knowledge → `uploadFile` | BATCH D (Knowledge) | Knowledge item references the uploaded file |
+| Upload file in knowledge → `uploadFile` | Knowledge module (independent) | Knowledge item references the uploaded file |
 | Paste image in rich editor → `savePastedImage` | BATCH E (Messages) | Rich editor lives within message context |
 | AI Core reads file → `fileProcessor.read` | BATCH E (Messages) | fileProcessor receives file refs from the message; it reads content by physical path, but the caller passes `FileMetadata`/`FileEntry` through the pipeline — the whole pipeline must be on the same type system |
 
-**What this means for Batch B:** Batch B as defined (Paste/OCR/AI Core) does NOT switch file creation or `fileProcessor`'s input type. Instead, Batch B's scope is limited to:
-- Main-side OCR providers: these receive already-resolved physical paths, independent of Dexie/SQLite
+**What this means for BATCH A:** BATCH A (Export + remotefile + legacyFile) does NOT switch file creation or `fileProcessor`'s input type. Its scope is limited to:
+- Export utilities: no strict module boundary, file module owns migration
 - `remotefile/*` service field adaptation: internal service change, no data-layer boundary crossing
-- Shared infrastructure preparation for later batches (e.g., OCR `withTempCopy` pattern)
+- `legacyFile.ts` utility retirement: mechanical migration to v2 patterns
 
-`fileProcessor` and `messageConverter` signature changes (`FileMetadata → FileEntry`) happen in **BATCH E**, because they are part of the message domain's pipeline. Batch B prepares the *infrastructure* (v2 IPC wiring, shared utils) but does not switch the message domain's data path.
+`fileProcessor` and `messageConverter` signature changes (`FileMetadata → FileEntry`) happen in **BATCH E**, because they are part of the message domain's pipeline. OCR and preprocessing providers migrate independently with the FileProcessing module.
 
 **Why this doesn't need a shim or freeze:** Unmigrated domains stay entirely on v1 (Dexie reads + Dexie writes). Migrated domains move entirely to v2 (SQLite reads + v2 IPC writes). The two never cross. Physical files are at the same path (`{userData}/files/{id}.{ext}`) regardless of which metadata system tracks them.
 
@@ -106,35 +124,35 @@ migration-plan §3.4.3 proposed freezing Dexie `files` writes and §4.1 proposed
                           │ DataApi, hooks   │
                           └────────┬─────────┘
                                    │
-                    ┌──────────────┼──────────────┬──────────────┐
-                    ▼              ▼              ▼              ▼
-          ┌──────────────┐ ┌────────────┐ ┌────────────┐ ┌────────────┐
-          │ BATCH A:     │ │ BATCH B:   │ │ BATCH C:   │ │ BATCH D:   │
-          │ Translate /  │ │ OCR /      │ │ Painting   │ │ Knowledge  │
-          │ Agent /      │ │ remotefile │ │ (L)        │ │ (L)        │
-          │ Export (S)   │ │ (S-M)      │ │            │ │            │
-          └──────┬───────┘ └──────┬─────┘ └──────┬─────┘ └──────┬─────┘
-                 │                │              │              │
-                 └────────────────┴──────────────┴──────────────┘
-                                         │
-                                         ▼
-                          ┌──────────────────────────┐
-                          │ BATCH E: Messages (XL)   │  (4-6 PRs)
-                          │ + AI Core pipeline       │
-                          │ + paste/upload flows      │
-                          └────────────┬─────────────┘
-                                       │
-                                       ▼
-                          ┌──────────────────────────┐
-                          │ CLEANUP: Remove Dexie    │
-                          │ files, FileMetadata,     │
-                          │ FileStorage, v1 preload  │
-                          └──────────────────────────┘
+                    ┌──────────────┴──────────────┐
+                    ▼                             ▼
+          ┌──────────────────┐      ┌──────────────────────────┐
+          │ BATCH A:         │      │ BATCH E: Messages (XL)   │
+          │ Export +         │      │ + AI Core pipeline       │
+          │ remotefile +     │      │ + paste/upload flows      │
+          │ legacyFile (S)   │      │ (depends on #14911)      │
+          └────────┬─────────┘      └────────────┬─────────────┘
+                   └──────────────┬───────────────┘
+                                  ▼
+                  ┌──────────────────────────┐
+                  │ CLEANUP: Remove Dexie    │
+                  │ files, FileMetadata,     │
+                  │ FileStorage, v1 preload  │
+                  └──────────────────────────┘
+
+             ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
+               Independent module migrations
+             │ (out of Phase 2 scope):               │
+               • Translate module
+             │ • Agent module                        │
+               • Knowledge module
+             │ • Painting module                     │
+               • FileProcessing module (+ OCR)
+             │ • Backup module                       │
+             └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
 ```
 
-**Key parallelization opportunities:**
-- Batches A, B, C, D all depend only on PREREQ-INFRA and can run in parallel
-- In practice, BATCH A serves as the pattern-validation pilot; A then B is recommended ordering, while C and D can start as soon as PREREQ-INFRA lands
+**Key insight:** After PREREQ-INFRA, the file module as infrastructure is complete. All consumers — whether Phase 2 scope or independent modules — can migrate in parallel. Phase 2 covers only consumers without a clear module owner (Export, remotefile, legacyFile) plus the Messages domain (BATCH E). Business modules (Translate, Agent, Knowledge, Painting, FileProcessing, Backup) each own their own migration timeline.
 
 ---
 
@@ -161,7 +179,7 @@ migration-plan §3.4.3 proposed freezing Dexie `files` writes and §4.1 proposed
   - Fix preload gap: expose `getDanglingState` / `batchGetDanglingStates` in preload
   - These are the methods that every domain batch's "read existing files" path depends on
 
-- [ ] **INF-2: Wire write/lifecycle IPC** (needed by BATCH B)
+- [ ] **INF-2: Wire write/lifecycle IPC** (needed by BATCH A)
   - Register IPC handlers + preload stubs for: `write`, `writeIfUnchanged`, `trash`, `restore`, `batchTrash`, `batchRestore`, `batchPermanentDelete`
   - These unlock file mutation operations for renderer consumers
 
@@ -169,7 +187,7 @@ migration-plan §3.4.3 proposed freezing Dexie `files` writes and §4.1 proposed
   - Register IPC handlers + preload stubs for: `open`, `showInFolder`, `select` (3 overloads), `save`, `listDirectory`, `isNotEmptyDir`
   - These are Electron-native operations that domain batches need to replace v1 `window.api.file.open/select/save` calls
 
-- [ ] **INF-4: Wire remaining IPC** (needed by BATCH B-E)
+- [ ] **INF-4: Wire remaining IPC** (needed by BATCH A-E)
   - Register IPC handlers + preload stubs for: `rename`, `copy`, `batchCreateInternalEntries`, `batchEnsureExternalEntries`, `batchGetPhysicalPaths`
   - These complete the v2 IPC surface
 
@@ -197,10 +215,7 @@ migration-plan §3.4.3 proposed freezing Dexie `files` writes and §4.1 proposed
 
 | Batch needs → | read/meta | write/lifecycle | system/nav | rename/copy/batch |
 |---------------|-----------|-----------------|------------|-------------------|
-| BATCH A | ✅ INF-1 | | ✅ INF-3 | |
-| BATCH B | ✅ INF-1 | ✅ INF-2 | | ✅ INF-4 (batch create) |
-| BATCH C | ✅ INF-1 | ✅ INF-2 | | |
-| BATCH D | ✅ INF-1 | ✅ INF-2 | | |
+| BATCH A | ✅ INF-1 | ✅ INF-2 | ✅ INF-3 | ✅ INF-4 (batch create) |
 | BATCH E | ✅ INF-1 | ✅ INF-2 | ✅ INF-3 | ✅ INF-4 (all) |
 
 **Dependencies:** None — can start immediately  
@@ -209,115 +224,49 @@ migration-plan §3.4.3 proposed freezing Dexie `files` writes and §4.1 proposed
 
 ---
 
-### BATCH A: Translate / Agent Workspace / Export (S)
+### ~~BATCH A: Translate / Agent Workspace~~ → Independent Module Migrations
 
-**Scope:** Lowest-risk consumers — primarily `path` field users (§2.6 C4/C5/C3 categories). These domains do light file operations (read external content, get paths for agent context, export to files).
+Translate module (`TranslatePage.tsx`) and Agent module (`AgentSessionInputbar.tsx`, `AgentModal.tsx`) are scoped as **independent business-module-level migrations**, not part of Phase 2 consumer migration. Both are primarily `path` field users (§2.6 C4/C5 categories) with straightforward migration patterns once PREREQ-INFRA is available.
 
-**Why first:** Validates the "v2 File IPC + shared util" migration pattern on simple, isolated consumers before tackling complex domains.
+---
+
+### BATCH A: Export + remotefile + Legacy File Utilities (S)
+
+**Scope:** Consumers without a clear business module owner — the file module takes responsibility for migrating these. Three concerns: (1) Export utilities (no strict module boundary), (2) remotefile/* services needing `purpose` field internalization, (3) `legacyFile.ts` utility retirement.
 
 **PR(s):** 1-2 PRs
 
-- [ ] **A-1: Translate page migration**
-  - `TranslatePage.tsx` — replace `isTextFile(path)` / `readExternal(path)` / `readText(path)` with File IPC `getMetadata(handle)` / `read(handle)`
-  - Replace `getFileExtension(file.path)` with `file.ext` (§2.6 Step F)
-
-- [ ] **A-2: Agent workspace migration**
-  - `AgentSessionInputbar.tsx:395` — `files.map(f => f.path)` → `useFileEntryPaths(ids)` hook (§2.6 Step E)
-  - `AgentModal.tsx` — file/folder select dialog (may use v1 `window.api.file.select`, which is in the "keep" category — verify)
-
-- [ ] **A-3: Export utilities migration**
+- [ ] **A-1: Export utilities migration**
   - `export.ts` — `window.api.file.save/write/saveImage/readExternal` → assess which are v2 File IPC candidates vs. kept-as-is Electron wrappers
   - `exportExcel.ts` — similar assessment
   - `ObsidianExportDialog.tsx` — stop using `file.path` as key, use `entry.id` instead
 
-**Dependencies:** PREREQ-INFRA (shared infra + IPC wiring)  
-**Risk:** Low — isolated domains, few cross-cutting concerns  
-**Files touched:** ~8-10  
-**Verification:** Translate page file upload/read, agent file @-mention, all export formats (markdown, PDF, image)
-
----
-
-### BATCH B: OCR / remotefile / Main-side File Services (S-M)
-
-**Scope:** Main-side services that consume file paths independently of the renderer data pipeline. These services receive already-resolved physical paths — their migration doesn't cross the Dexie/SQLite metadata boundary.
-
-**Why narrowed from original "Paste/OCR/AI Core":** Per the producer-consumer atomicity invariant (§0), `fileProcessor` / `messageConverter` / paste flows migrate with their consuming domain (BATCH E for messages, BATCH D for knowledge). Batch B only covers services where migration doesn't create a cross-system data gap.
-
-**PR(s):** 1-2 PRs
-
-- [ ] **B-1: Main-side OCR providers** (migration-plan §2.6 Step G)
-  - `TesseractService.ts`, `OvOcrService.ts`, `ocr.ts` — use `resolvePhysicalPath(entry)` or `withTempCopy` pattern
-  - `OcrService.ts` (renderer) — update types
-  - These receive physical paths, not Dexie/SQLite metadata — safe to migrate independently
-
-- [ ] **B-2: remotefile/* services — purpose internalization** (migration-plan §3.4.5 + §2.2)
+- [ ] **A-2: remotefile/* services — purpose internalization** (migration-plan §3.4.5 + §2.2)
   - `OpenAIService.ts` / `GeminiService.ts` / `MistralService.ts` — `OpenAIService` receives `context?: { model? }` and infers purpose internally (`inferPurpose(model)`), replacing the `file.purpose` field dependency
   - Note: `fileProcessor.ts` still passes `FileMetadata` to these services during transition; the services accept both v1 and v2 input until BATCH E completes the message pipeline migration
 
-- [ ] **B-3: Main-side file utility consolidation** (utils-file-migration.md)
-  - Migrate remaining `src/main/utils/file/` functions to v2 patterns where they serve main-side-only consumers
+- [ ] **A-3: `legacyFile.ts` migration** (utils-file-migration.md)
+  - `src/main/utils/file/legacyFile.ts` — migrate `getAllFiles()`, `base64Image(file: FileMetadata)`, and remaining v1 utility functions to v2 patterns or inline into callers
+  - Must complete before CLEANUP removes FileStorage, as downstream consumers depend on these utilities
 
-**Dependencies:** PREREQ-INFRA (IPC wiring for OCR withTempCopy)  
-**Risk:** **MEDIUM** — OCR and remotefile are secondary features; regression is contained.  
+**Dependencies:** PREREQ-INFRA  
+**Risk:** **LOW** — Export and remotefile are secondary features; legacyFile migration is mostly mechanical.  
 **Files touched:** ~10-12  
-**Verification:** OCR processing across providers. File upload to OpenAI/Gemini/Mistral APIs.
+**Verification:** All export formats (markdown, PDF, image, Obsidian). File upload to OpenAI/Gemini/Mistral APIs. Verify no remaining imports of `legacyFile` utilities in Phase 2 scope.
 
 ---
 
-### BATCH C: Painting (L)
+### ~~BATCH C: Painting~~ → Independent Module Migration
 
-**Scope:** Painting module's file references and PaintingMigrator.
+Painting module (`TokenFluxService`, `paintings/utils`, PaintingMigrator, `painting` sourceType registration) is scoped as an **independent business-module-level migration**, not part of Phase 2 consumer migration.
 
-**Why separate from Knowledge:** Painting has its own data model (Redux state with `PaintingParams.files: FileMetadata[]`), independent of Knowledge.
-
-**PR(s):** 2-3 PRs
-
-- [ ] **C-1: Painting page consumer migration**
-  - `TokenFluxService.ts` — FileMetadata → FileEntry
-  - `paintings/utils/index.ts` — FileMetadata → FileEntry
-  - Painting page UI components — update rendering to use v2 types
-
-- [ ] **C-2: PaintingMigrator + `painting` sourceType registration** (atomic, see below)
-  - **Must be one atomic PR** — adding `'painting'` to `allSourceTypes` without a working `SourceTypeChecker` changes OrphanRefScanner behavior: it will attempt to scan painting refs but have no checker to verify existence.
-  - Full three-piece set in one PR: (a) `allSourceTypes` tuple + `createRefSchema` variant, (b) `SourceTypeChecker` registration in `OrphanRefCheckerRegistry`, (c) PaintingMigrator creates `file_ref` records from Redux paintings state
-  - **If PaintingMigrator is deferred** (RFC §8.5): do NOT register `'painting'` sourceType at all — leave it out of the union entirely. Painting files remain zero-ref but untouched by OrphanRefScanner since the sourceType doesn't exist. Add the full three-piece set when the migrator is ready.
-
-**Dependencies:** PREREQ-INFRA  
-**Risk:** Medium — Painting module may be undergoing its own refactoring  
-**Files touched:** ~8-12  
-**Can parallelize with:** BATCH D (Knowledge) — both C and D depend only on PREREQ-INFRA, not on each other or on BATCH B
+**Note on PaintingMigrator atomicity:** When eventually implemented, `'painting'` sourceType registration **must** be one atomic PR — the three-piece set (allSourceTypes tuple + SourceTypeChecker + PaintingMigrator file_ref creation) must land together. Until then, do NOT register `'painting'` sourceType; painting files remain zero-ref but untouched by OrphanRefScanner.
 
 ---
 
-### BATCH D: Knowledge (L)
+### ~~BATCH D: Knowledge~~ → Independent Module Migration
 
-**Scope:** Knowledge domain — file items, preprocessing, readers, embeddings.
-
-**PR(s):** 2-4 PRs
-
-- [ ] **D-1: Knowledge main-side reader migration** (migration-plan §2.6 Step H)
-  - `KnowledgeFileReader.ts` — `file.path` → `resolvePhysicalPath(entry)` (main-side direct call)
-  - `embedjs/loader/index.ts` — same pattern
-  - `PreprocessingService.ts` — update log calls
-
-- [ ] **D-2: Knowledge renderer consumer migration**
-  - `KnowledgeFiles.tsx` — stop constructing `FileMetadata` literals, use v2 `createInternalEntry`
-  - `KnowledgeVideos.tsx` — filter by `getFileType(ext)` instead of `file.type`
-  - `store/knowledge.ts` — FileMetadata → FileEntry in store types
-  - `knowledgeThunk.ts` — update file reference handling to use `file_ref` service
-
-- [ ] **D-3: Knowledge preprocessing providers**
-  - `MistralPreprocessProvider.ts:185` — stop constructing FileMetadata literal
-  - Other preprocessing providers that touch file metadata
-
-- [ ] **D-4: Knowledge Migrator alignment**
-  - Verify `KnowledgeMigrator` file_ref creation (already done in Batch 0) is correct
-  - `KnowledgeMappings.ts` — relax `hasCompleteFileMetadata` checks as fields retire
-
-**Dependencies:** PREREQ-INFRA  
-**Risk:** Medium — Knowledge is a complex subsystem with preprocessing pipeline  
-**Files touched:** ~10-15  
-**Can parallelize with:** BATCH C (Painting) — both C and D depend only on PREREQ-INFRA
+Knowledge module (including `KnowledgeService`, `KnowledgeFileReader`, `embedjs/loader`, preprocessing providers, and renderer consumers) is scoped as an **independent business-module-level migration**, not part of Phase 2 consumer migration. Preprocessing providers are deprecated and migrating into the FileProcessing module.
 
 ---
 
@@ -386,7 +335,7 @@ migration-plan §3.4.3 proposed freezing Dexie `files` writes and §4.1 proposed
   - `CodeBlockView/view.tsx` — `save`
   - `SaveToKnowledgePopup.tsx` — `readExternal` → `fileIpc.read`
 
-**Dependencies:** PREREQ-INFRA; recommended after A/B/C/D (pattern validated), but only hard-blocked on PREREQ-INFRA  
+**Dependencies:** PREREQ-INFRA + [#14911](https://github.com/CherryHQ/cherry-studio/pull/14911)  
 **Risk:** **HIGH** — touches the core messaging experience + AI Core pipeline; regression = broken conversations  
 **Files touched:** ~30-40 (largest batch: includes fileProcessor, messageConverter, paste flows, message CRUD, FilesPage)  
 **Verification:** Full message lifecycle (create, edit, delete, fork), file attachments, image display, FilesPage CRUD, Trash/Restore  
@@ -424,10 +373,15 @@ migration-plan §3.4.3 proposed freezing Dexie `files` writes and §4.1 proposed
 - [ ] **CL-5: Remove renderer `FileManager` v1 service**
   - `src/renderer/src/services/FileManager.ts` — the v1 wrapper around Dexie; replaced by v2 hooks + IPC
 
-- [ ] **CL-6: Verify Backup/Restore v2 awareness**
+- [ ] **CL-6: Rewire incidental FileStorage consumers**
+  - `McpService.ts` — `fileStorage.createTempFile()` + `writeFile()` (DXT upload staging) → replace with `fs.mkdtemp` + `fs.writeFile` or v2 equivalent
+  - `ExportService.ts` — `fileStorage.writeFile()` (DOCX export to user-chosen path) → replace with direct `fs.writeFile`
+  - These are NOT file metadata consumers — purely mechanical replacement when FileStorage is deleted
+
+- [ ] **CL-7: Verify Backup/Restore v2 awareness**
   - Ensure [#12659](https://github.com/CherryHQ/cherry-studio/issues/12659) is complete before release — BackupManager must dump/restore SQLite DB alongside Dexie export
 
-**Dependencies:** ALL batches complete; #12659 complete  
+**Dependencies:** ALL Phase 2 batches complete. CLEANUP cannot delete `FileMetadata` / `FileStorage` until independent module migrations (Translate, Agent, Knowledge, Painting, FileProcessing, Backup) have also migrated off v1 — they do NOT block Phase 2 batches but DO gate CLEANUP. #12659 should be complete before release.  
 **Risk:** Low — purely subtractive if all batches properly migrated  
 **Files touched:** ~20-30
 
@@ -453,13 +407,13 @@ Per the atomic domain cutover strategy (§0), fields are NOT retired independent
 
 | Field | Dies when... | Key batch(es) |
 |-------|-------------|---------------|
-| `purpose` | Upload services accept v2 types | BATCH B (B-2) internalizes in remotefile; BATCH E (E-7) removes from fileProcessor |
+| `purpose` | Upload services accept v2 types | BATCH A (A-2) internalizes in remotefile; BATCH E (E-7) removes from fileProcessor |
 | `tokens` | Never had consumers; vanishes with type | CLEANUP |
-| `type` | All `file.type === X` replaced by `getFileType(ext)` | BATCH D (Knowledge) + E (Messages + AI Core E-7) |
-| `path` | All `file.path` replaced by IPC / helper | BATCH A (first) through E (last) |
+| `type` | All `file.type === X` replaced by `getFileType(ext)` | BATCH E (Messages + AI Core E-7); independent module migrations (Knowledge, Painting) handle their own |
+| `path` | All `file.path` replaced by IPC / helper | BATCH A + E; independent modules handle their own |
 | `count` | All `count++/--` replaced by `file_ref` ops | BATCH E |
-| `name` (storage name) | Replaced by `resolvePhysicalPath` | BATCH B + E |
-| `origin_name` | Split into `FileEntry.name` + `FileEntry.ext` | Each batch as it migrates |
+| `name` (storage name) | Replaced by `resolvePhysicalPath` | BATCH A + E |
+| `origin_name` | Split into `FileEntry.name` + `FileEntry.ext` | Each batch as it migrates; independent modules handle their own |
 
 No shim is used — unmigrated consumers read native `FileMetadata` from Dexie; migrated consumers read `FileEntry` from v2. CLEANUP removes `FileMetadata` and Dexie `files` table together.
 
@@ -470,15 +424,14 @@ No shim is used — unmigrated consumers read native `FileMetadata` from Dexie; 
 | Task Group | PRs | Complexity | Est. Effort | Parallelizable? |
 |------------|-----|------------|-------------|------------------|
 | PREREQ-INFRA | 2-4 | M-L | 4-7 days | — |
-| BATCH A | 1-2 | S | 2-3 days | After INFRA (pilot) |
-| BATCH B | 1-2 | S-M | 2-4 days | After INFRA, ∥ with A/C/D |
-| BATCH C | 2-3 | L | 4-6 days | After INFRA, ∥ with A/B/D |
-| BATCH D | 2-4 | L | 4-7 days | After INFRA, ∥ with A/B/C |
-| BATCH E | 5-8 | XL | 10-16 days | After A/B/C/D (recommended) |
-| CLEANUP | 1-2 | M | 2-3 days | After BATCH E |
-| **Total** | **~14-25** | | **~28-46 days** | |
+| BATCH A | 1-2 | S | 2-3 days | After INFRA, ∥ with E |
+| BATCH E | 5-8 | XL | 10-16 days | After INFRA + #14911, ∥ with A |
+| CLEANUP | 1-2 | M | 2-3 days | After A + E |
+| **Total** | **~9-16** | | **~18-29 days** | |
 
-**Critical path:** PREREQ-INFRA → BATCH E → CLEANUP (A/B/C/D are all parallel with each other, but E is the bottleneck)
+**Critical path:** PREREQ-INFRA → BATCH E → CLEANUP (BATCH A is parallel with E but much smaller; E + #14911 is the bottleneck)
+
+**Out-of-scope (independent module migrations):** Translate, Agent, Knowledge, Painting, FileProcessing, Backup — these proceed on their own timelines and do not block the Phase 2 critical path. They DO gate CLEANUP (v1 artifacts can't be deleted until all modules have migrated off them).
 
 ---
 
@@ -490,7 +443,7 @@ No shim is used — unmigrated consumers read native `FileMetadata` from Dexie; 
 | fileProcessor regression breaks ALL conversations | 🔴 | E-7 needs comprehensive provider-matrix testing; feature-flag if possible |
 | count retirement changes UX (delayed cleanup) | 🟡 | Product decision needed (§2.3.10); OrphanRefScanner delay = user sees file after unlinking |
 | 142 call sites across 59 files — hard to track migration completeness | 🟡 | Grep count regression check per PR: `FileMetadata` imports and `window.api.file.*` calls should decrease monotonically |
-| PaintingMigrator deferred → painting files are zero-ref | 🟢 | `'painting'` not registered in union → OrphanRefScanner can't scan it; three-piece set added atomically only when migrator is ready |
+| Independent module migrations lag behind Phase 2 | 🟡 | CLEANUP cannot delete `FileMetadata` type / `FileStorage` until all independent modules (Translate, Agent, Knowledge, Painting, FileProcessing, Backup) have also migrated off v1. Track independently but gate CLEANUP on completion. |
 | Backup/Restore v2 awareness | 🟢 | Handled independently in [#12659](https://github.com/CherryHQ/cherry-studio/issues/12659); not a blocker for consumer migration (v1/v2 coexistence is dev-only) |
 
 ---
@@ -502,8 +455,7 @@ No shim is used — unmigrated consumers read native `FileMetadata` from Dexie; 
 | 1 | Zero-ref file cleanup: immediate vs delayed? (§2.3.10) | (a) Trigger permanentDelete on last ref removal (b) OrphanRefScanner delayed cleanup | (b) Delayed — simpler, undo-friendly | BATCH E-2 |
 | 2 | FilesPage force-delete: renderer-driven cascade or main-driven? (§6 Q8) | (a) Renderer scans blocks + cascades (b) Main-side FileManager handles cascade | (b) Main-side — cleaner boundary | BATCH E-2 |
 | 3 | ChatMigrator file_ref: batch at migration or lazy-create? (§8.4) | (a) Batch create during ChatMigrator (b) Lazy-create on first access | (a) Batch — ensures complete ref graph | BATCH E-6 |
-| 4 | PaintingMigrator scope: include in this plan or defer? (§8.5) | (a) Include as BATCH C-3 (b) Defer to Painting refactoring | Depends on Painting refactoring timeline | BATCH C |
-| 5 | Shared vs per-batch feature flags? | (a) Global v2-file flag (b) Per-domain flags | (b) Per-domain — enables independent rollback | All batches |
+| 4 | Shared vs per-batch feature flags? | (a) Global v2-file flag (b) Per-domain flags | (b) Per-domain — enables independent rollback | All batches |
 
 ---
 
@@ -516,19 +468,15 @@ Each batch PR must pass:
 
 | Scenario | Batches |
 |----------|---------|
+| Export (markdown, PDF, image, Obsidian) | A |
+| remotefile provider upload (OpenAI/Gemini/Mistral) | A |
 | Upload file (internal) via paste, drag-drop, file picker | E |
 | Send message with file attachment (text, image, document) | E |
 | AI conversation with file context (OpenAI, Claude, Gemini, Qwen) | E |
-| OCR processing | B |
-| remotefile provider upload (OpenAI/Gemini/Mistral) | B |
-| Knowledge base file operations | D |
-| Painting file references | C |
-| Translate page file read | A |
-| Agent workspace file @-mention | A |
-| Export (markdown, PDF, image, Obsidian) | A |
 | FilesPage: list, filter by type, sort by count, delete, open | E |
 | Trash / Restore file | E |
-| Backup / Restore with files | [#12659](https://github.com/CherryHQ/cherry-studio/issues/12659) (independent) |
 | Fresh install (no migration) + returning user (with migration) | All |
+
+**Independent module verification (out of Phase 2 scope):** Translate page file read, Agent workspace file @-mention, Knowledge base file operations, Painting file references, OCR processing, Backup/Restore — each verified within their own module migration.
 
 3. **Regression grep:** After each batch, count of `FileMetadata` imports and `window.api.file.*` calls should decrease monotonically.
