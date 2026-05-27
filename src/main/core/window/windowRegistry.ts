@@ -36,7 +36,7 @@ export const DEFAULT_WINDOW_CONFIG: WindowOptions = {
 export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata>> = {
   // Main application window — singleton primary surface.
   // Managed by MainWindowService: dynamic options (window-state position/size, theme-driven
-  // backgroundColor / titleBarOverlay / backgroundMaterial / frame / icon / zoomFactor) are
+  // backgroundColor / backgroundMaterial / frame / icon / zoomFactor) are
   // injected via wm.open({ options }). showMode 'manual' lets MainWindowService decide first
   // show in the ready-to-show handler (so tray-on-launch can suppress it).
   //
@@ -66,11 +66,16 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       platformOverrides: {
         mac: {
           titleBarStyle: 'hidden',
-          trafficLightPosition: { x: 13, y: 16 }
-          // titleBarOverlay is theme-dependent → injected via args.options
+          trafficLightPosition: { x: 13, y: 16 },
+          // WCO height; consumed by renderer's env(titlebar-area-height)
+          titleBarOverlay: { height: 42 }
+        },
+        win: {
+          // Frameless + renderer-drawn WindowControls (mirrors SubWindow). Windows is
+          // always frameless; backgroundMaterial stays runtime-computed → args.options.
+          frame: false
         }
-        // win: backgroundMaterial is runtime-computed (may be undefined) → args.options
-        // linux: frame depends on `app.use_system_title_bar` preference, icon is nativeImage
+        // linux: frame honors `app.use_system_title_bar` preference, icon is nativeImage
         //        → both injected via args.options
       },
       webPreferences: {
@@ -128,7 +133,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
   // (a Tab dragged out of Main becomes its own BrowserWindow here; drag back
   // to the Main tab bar re-attaches).
   // Managed by SubWindowService: dynamic options (per-tab title, theme-driven
-  // titleBarOverlay / backgroundColor / darkTheme, Linux-only icon nativeImage,
+  // backgroundColor / darkTheme, Linux-only icon nativeImage,
   // optional initial x/y) are injected via wm.open({ options }). showMode
   // 'manual' lets SubWindowService decide show timing based on whether an
   // initial position was provided at Tab_Detach time (drop-at-cursor detach
@@ -158,8 +163,9 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       platformOverrides: {
         mac: {
           titleBarStyle: 'hidden',
-          trafficLightPosition: { x: 8, y: 13 }
-          // titleBarOverlay is theme-dependent → injected via args.options
+          trafficLightPosition: { x: 8, y: 13 },
+          // WCO height; consumed by renderer's env(titlebar-area-height)
+          titleBarOverlay: { height: 42 }
         },
         win: {
           frame: false
@@ -182,7 +188,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     }
     // NOTE: Fields intentionally NOT set here, injected per-call via wm.open({ options }):
     //   - title (per-tab dynamic)
-    //   - titleBarOverlay / backgroundColor / darkTheme (theme snapshot at create time)
+    //   - backgroundColor / darkTheme (theme snapshot at create time)
     //   - icon (Linux-only nativeImage; see SubWindowService.linuxIcon — mac/Windows omit)
     //   - x / y (only when Tab_Detach payload carries a drop position)
     // NOTE: setWindowOpenHandler + will-navigate are registered by WindowManager for
