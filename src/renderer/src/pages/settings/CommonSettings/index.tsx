@@ -8,6 +8,7 @@ import {
   Input,
   MenuItem,
   MenuList,
+  PageHeader,
   RowFlex,
   SegmentedControl,
   Switch,
@@ -47,6 +48,7 @@ import {
   settingsContentBodyClassName,
   settingsContentScrollClassName,
   settingsSubmenuItemClassName,
+  settingsSubmenuItemLabelClassName,
   settingsSubmenuListClassName,
   settingsSubmenuScrollClassName,
   SettingTitle
@@ -806,23 +808,24 @@ const CommonSettings: FC = () => {
   return (
     <div className="flex flex-1" data-theme-mode={theme}>
       <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 flex-row overflow-hidden">
-        <Scrollbar className={settingsSubmenuScrollClassName}>
-          <MenuList className={settingsSubmenuListClassName}>
-            <div className="px-2.5 pt-1 pb-2 font-medium text-foreground-muted text-xs">
-              {t('settings.general.common.title')}
-            </div>
-            {sectionItems.map((item) => (
-              <MenuItem
-                key={item.key}
-                label={item.label}
-                icon={item.icon}
-                active={activeSection === item.key}
-                onClick={() => setActiveSection(item.key)}
-                className={settingsSubmenuItemClassName}
-              />
-            ))}
-          </MenuList>
-        </Scrollbar>
+        <div className={`flex flex-col ${settingsSubmenuScrollClassName}`}>
+          <PageHeader title={t('settings.general.common.title')} />
+          <Scrollbar className="min-h-0 flex-1">
+            <MenuList className={settingsSubmenuListClassName}>
+              {sectionItems.map((item) => (
+                <MenuItem
+                  key={item.key}
+                  label={item.label}
+                  icon={item.icon}
+                  active={activeSection === item.key}
+                  onClick={() => setActiveSection(item.key)}
+                  className={settingsSubmenuItemClassName}
+                  labelClassName={settingsSubmenuItemLabelClassName}
+                />
+              ))}
+            </MenuList>
+          </Scrollbar>
+        </div>
 
         <Scrollbar className={settingsContentScrollClassName}>
           <div className={settingsContentBodyClassName}>{renderSectionContent()}</div>

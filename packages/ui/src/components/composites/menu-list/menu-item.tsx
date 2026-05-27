@@ -9,7 +9,7 @@ import * as React from 'react'
 
 const menuItemVariants = cva(
   cn(
-    'group relative flex w-full items-center gap-2.5 rounded-lg font-medium',
+    'group relative flex w-full items-center gap-2.5 rounded-lg font-normal',
     'border border-transparent',
     'transition-all duration-150',
     'outline-none select-none',
@@ -21,20 +21,16 @@ const menuItemVariants = cva(
     variants: {
       variant: {
         default: cn(
-          'text-foreground-secondary',
-          'hover:bg-accent hover:text-foreground',
-          'data-[active=true]:bg-accent data-[active=true]:text-foreground',
+          'text-foreground',
+          'hover:bg-accent',
+          'data-[active=true]:bg-accent',
           'data-[active=true]:border-transparent'
         ),
-        ghost: cn(
-          'text-foreground-secondary',
-          'hover:bg-accent hover:text-foreground',
-          'data-[active=true]:bg-accent data-[active=true]:text-foreground'
-        )
+        ghost: cn('text-foreground', 'hover:bg-accent', 'data-[active=true]:bg-accent')
       },
       size: {
-        default: 'px-2.5 py-1.25 text-[13px]',
-        sm: 'px-2.5 py-1 text-[11px]'
+        default: 'px-2.5 py-1.5 text-sm',
+        sm: 'px-2.5 py-1 text-xs'
       }
     },
     defaultVariants: {
@@ -48,6 +44,7 @@ type MenuItemProps = React.ComponentProps<'button'> &
   VariantProps<typeof menuItemVariants> & {
     icon?: React.ReactNode
     label: string
+    labelClassName?: string
     description?: React.ReactNode
     descriptionLines?: number
     descriptionClassName?: string
@@ -62,6 +59,7 @@ function MenuItem({
   size,
   icon,
   label,
+  labelClassName,
   description,
   descriptionLines,
   descriptionClassName,
@@ -92,8 +90,8 @@ function MenuItem({
       className={cn(menuItemVariants({ variant, size }), className)}
       {...props}>
       {icon && <span className="flex shrink-0 items-center justify-center">{icon}</span>}
-      <span className={`min-w-0 text-left ${suffix ? 'flex-1' : ''}`}>
-        <span className="block truncate">{label}</span>
+      <span className={cn('min-w-0 text-left', suffix && 'flex-1')}>
+        <span className={cn('block truncate', labelClassName)}>{label}</span>
         {description && (
           <span
             className={cn(

@@ -5569,9 +5569,6 @@
       }
     },
     "integrations": {
-      "groups": {
-        "notes": "笔记"
-      },
       "title": "集成"
     },
     "launch": {
@@ -5619,6 +5616,7 @@
       },
       "addSuccess": "服务器添加成功",
       "advancedSettings": "高级设置",
+      "allServers": "MCP 服务器",
       "args": "参数",
       "argsTooltip": "每个参数占一行",
       "baseUrlTooltip": "远程 URL 地址",
@@ -5768,6 +5766,7 @@
       "serverPlural": "服务器",
       "serverSingular": "服务器",
       "servers": "MCP 服务器",
+      "shortTitle": "MCP",
       "sse": "服务器发送事件 (sse)",
       "startError": "启动失败",
       "stdio": "标准输入 / 输出 (stdio)",
@@ -6483,7 +6482,8 @@
         "agent": "支持 Agent",
         "all": "全部服务商",
         "disabled": "仅已禁用",
-        "enabled": "仅已启用"
+        "enabled": "仅已启用",
+        "label": "筛选服务商"
       },
       "filter_agent": "筛选支持 Agent 的服务商",
       "get_api_key": "点击这里获取密钥",

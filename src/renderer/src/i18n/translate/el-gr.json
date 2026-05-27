@@ -5568,9 +5568,6 @@
       }
     },
     "integrations": {
-      "groups": {
-        "notes": "Σημειώσεις"
-      },
       "title": "Ενσωματώσεις"
     },
     "launch": {
@@ -5618,6 +5615,7 @@
       },
       "addSuccess": "Ο διακομιστής προστέθηκε επιτυχώς",
       "advancedSettings": "Προχωρημένες Ρυθμίσεις",
+      "allServers": "[to be translated]:MCP Servers",
       "args": "Παράμετροι",
       "argsTooltip": "Κάθε παράμετρος σε μια γραμμή",
       "baseUrlTooltip": "Σύνδεσμος Απομακρυσμένης διεύθυνσης URL",
@@ -5767,6 +5765,7 @@
       "serverPlural": "Διακομιστές",
       "serverSingular": "Διακομιστής",
       "servers": "Διακομιστές MCP",
+      "shortTitle": "[to be translated]:MCP",
       "sse": "Συμβάντα Αποστολής από τον Διακομιστή (sse)",
       "startError": "Εκκίνηση Απέτυχε",
       "stdio": "Πρότυπη Είσοδος/Έξοδος (stdio)",
@@ -6482,7 +6481,8 @@
         "agent": "Υποστηριζόμενος από πράκτορα",
         "all": "Όλοι οι Πάροχοι",
         "disabled": "[to be translated]:Disabled Only",
-        "enabled": "[to be translated]:Enabled Only"
+        "enabled": "[to be translated]:Enabled Only",
+        "label": "[to be translated]:Filter providers"
       },
       "filter_agent": "Υποστηριζόμενοι Πάροχοι του Φίλτρου Πράκτορα",
       "get_api_key": "Κάντε κλικ εδώ για να πάρετε κλειδί",

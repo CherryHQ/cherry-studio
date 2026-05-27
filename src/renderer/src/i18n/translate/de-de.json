@@ -5568,9 +5568,6 @@
       }
     },
     "integrations": {
-      "groups": {
-        "notes": "Notizen"
-      },
       "title": "Integrationen"
     },
     "launch": {
@@ -5618,6 +5615,7 @@
       },
       "addSuccess": "Server erfolgreich hinzugefügt",
       "advancedSettings": "Erweiterte Einstellungen",
+      "allServers": "[to be translated]:MCP Servers",
       "args": "Parameter",
       "argsTooltip": "Ein Parameter pro Zeile",
       "baseUrlTooltip": "Remote-URL-Adresse",
@@ -5767,6 +5765,7 @@
       "serverPlural": "Server",
       "serverSingular": "Server",
       "servers": "MCP-Server",
+      "shortTitle": "[to be translated]:MCP",
       "sse": "Server-Sende-Ereignisse (sse)",
       "startError": "Start fehlgeschlagen",
       "stdio": "Standard-Eingabe / -Ausgabe (stdio)",
@@ -6482,7 +6481,8 @@
         "agent": "Vom Agenten unterstützt",
         "all": "Alle Anbieter",
         "disabled": "[to be translated]:Disabled Only",
-        "enabled": "[to be translated]:Enabled Only"
+        "enabled": "[to be translated]:Enabled Only",
+        "label": "[to be translated]:Filter providers"
       },
       "filter_agent": "Von Filter-Agent unterstützte Anbieter",
       "get_api_key": "Hier klicken um Schlüssel zu erhalten",

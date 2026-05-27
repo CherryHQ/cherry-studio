@@ -1,4 +1,3 @@
-import { titleBarOverlayDark, titleBarOverlayLight } from '@main/config'
 import { isMac, isWin } from '@main/core/platform'
 import { randomUUID } from 'crypto'
 import { app, BrowserView, BrowserWindow, nativeTheme } from 'electron'
@@ -349,7 +348,7 @@ export class CdpBrowserController {
       ...(isMac
         ? {
             titleBarStyle: 'hidden',
-            titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
+            titleBarOverlay: { height: 42 }, // WCO height (macOS)
             trafficLightPosition: { x: 13, y: 13 }
           }
         : {
