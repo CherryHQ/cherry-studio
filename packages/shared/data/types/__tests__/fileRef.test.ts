@@ -44,22 +44,17 @@ describe('knowledgeItemFileRefSchema', () => {
     expect(parsed.role).toBe('attachment')
   })
 
-  it('accepts every role in the placeholder enum (Phase 1b: single value)', () => {
-    // Phase 2 will extend the enum with the rest of KnowledgeService's
-    // vocabulary; this test pins the current set so a future extension is
-    // an explicit `knowledgeItemRoles` edit, not an accidental widening.
-    for (const role of ['attachment']) {
+  it('accepts every knowledge_item role', () => {
+    // Pin the current vocabulary so future role additions are explicit
+    // `knowledgeItemRoles` edits, not accidental widening.
+    for (const role of ['attachment', 'source']) {
       const parsed = knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef({ role }))
       expect(parsed.role).toBe(role)
     }
   })
 
-  it('rejects role values outside the placeholder enum', () => {
-    // These are the roles Phase 2 is most likely to add (`source`, `preview`).
-    // They must reject today — when Phase 2 lands, this test should be
-    // updated alongside the `knowledgeItemRoles` extension to assert the new
-    // vocabulary explicitly.
-    for (const role of ['source', 'preview', 'thumbnail', '']) {
+  it('rejects role values outside the knowledge_item enum', () => {
+    for (const role of ['preview', 'thumbnail', '']) {
       expect(() => knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef({ role }))).toThrow()
     }
   })
@@ -93,11 +88,12 @@ describe('FileRefSchema discriminated union', () => {
       fileEntryId: ENTRY_ID,
       sourceType: knowledgeItemSourceType,
       sourceId: KB_ITEM_ID,
-      role: 'attachment',
+      role: 'source',
       createdAt: TS,
       updatedAt: TS
     })
     expect(parsed.sourceType).toBe('knowledge_item')
+    expect(parsed.role).toBe('source')
   })
 
   it('rejects an unregistered sourceType (no longer in allSourceTypes)', () => {
