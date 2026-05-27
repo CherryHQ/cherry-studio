@@ -61,17 +61,7 @@ describe('useKnowledgeItems', () => {
         type: 'file',
         data: {
           source: '/tmp/report.pdf',
-          file: {
-            id: 'file-1',
-            name: 'report.pdf',
-            origin_name: 'report.pdf',
-            path: '/tmp/report.pdf',
-            size: 1024,
-            ext: 'pdf',
-            type: 'document',
-            created_at: '2026-04-21T10:00:00+08:00',
-            count: 1
-          }
+          fileEntryId: '019606a0-0000-7000-8000-000000000001'
         },
         status: 'completed',
         error: null,
@@ -187,17 +177,7 @@ describe('useKnowledgeItems', () => {
             type: 'file',
             data: {
               source: '/docs/grouped.md',
-              file: {
-                id: 'grouped-file-meta',
-                name: 'grouped.md',
-                origin_name: 'grouped.md',
-                path: '/docs/grouped.md',
-                size: 10,
-                ext: '.md',
-                type: 'text',
-                created_at: '2026-04-21T10:00:00+08:00',
-                count: 1
-              }
+              fileEntryId: '019606a0-0000-7000-8000-000000000002'
             },
             status: 'embedding',
             error: null,

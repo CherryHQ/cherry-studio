@@ -1,5 +1,6 @@
 import { Button, MenuItem, MenuList, NormalTooltip, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { useQuery } from '@data/hooks/useDataApi'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { BookOpen, Check, CircleAlert, Eye, LoaderCircle, MoreHorizontal, RefreshCw, Trash2 } from 'lucide-react'
@@ -285,7 +286,11 @@ const KnowledgeItemRow = ({
   const {
     i18n: { language }
   } = useTranslation()
-  const { icon, metaParts, status, suffix, title } = toKnowledgeItemRowViewModel(item, language)
+  const { data: fileEntry } = useQuery('/files/entries/:id', {
+    params: { id: item.type === 'file' ? item.data.fileEntryId : '' },
+    enabled: item.type === 'file'
+  })
+  const { icon, metaParts, status, suffix, title } = toKnowledgeItemRowViewModel(item, language, fileEntry)
   const failureReason = item.status === 'failed' ? item.error : null
 
   return (

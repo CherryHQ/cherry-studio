@@ -27,6 +27,7 @@ import {
   processMessageContent,
   processTopicContent
 } from '@renderer/utils/knowledge'
+import { resolveKnowledgeFileMetadataEntryData } from '@renderer/utils/knowledgeFileEntry'
 import type { KnowledgeRuntimeAddItemInput } from '@shared/data/types/knowledge'
 import { Check } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -353,13 +354,11 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
         }
 
         if (result.files.length > 0 && selectedTypes.includes(CONTENT_TYPES.FILE)) {
+          const fileData = await Promise.all(result.files.map(resolveKnowledgeFileMetadataEntryData))
           items.push(
-            ...result.files.map((file) => ({
+            ...fileData.map((data) => ({
               type: 'file' as const,
-              data: {
-                source: file.path || file.origin_name || file.name,
-                file
-              }
+              data
             }))
           )
           savedCount += result.files.length

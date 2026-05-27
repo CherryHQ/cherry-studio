@@ -1,6 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
 
 const loadDataMock = vi.hoisted(() => vi.fn())
+const getPhysicalPathMock = vi.hoisted(() => vi.fn(async (id: string) => id))
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    FileManager: {
+      getPhysicalPath: getPhysicalPathMock
+    }
+  } as Parameters<typeof mockApplicationFactory>[0])
+})
 
 vi.mock('@main/utils/file', () => ({
   getFileExt: (path: string) => path.slice(path.lastIndexOf('.'))
@@ -47,17 +57,7 @@ describe('knowledge reader metadata', () => {
       type: 'file',
       data: {
         source: '/tmp/original.txt',
-        file: {
-          id: 'file-1',
-          name: 'stored.txt',
-          origin_name: 'Original.txt',
-          path: '/tmp/original.txt',
-          size: 12,
-          ext: 'txt',
-          type: 'text',
-          created_at: '2026-04-08T00:00:00.000Z',
-          count: 1
-        }
+        fileEntryId: '/tmp/original.txt'
       },
       status: 'idle',
       error: null,

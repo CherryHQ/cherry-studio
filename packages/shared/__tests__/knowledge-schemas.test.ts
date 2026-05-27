@@ -166,17 +166,7 @@ describe('Knowledge base schemas', () => {
         type: 'file',
         data: {
           source: '/docs/guide.md',
-          file: {
-            id: 'file-1',
-            name: 'guide.md',
-            origin_name: 'guide.md',
-            path: '/docs/guide.md',
-            size: 12,
-            ext: '.md',
-            type: 'text',
-            created_at: '2026-04-10T00:00:00.000Z',
-            count: 1
-          }
+          fileEntryId: '019606a0-0000-7000-8000-000000000001'
         }
       }).success
     ).toBe(true)

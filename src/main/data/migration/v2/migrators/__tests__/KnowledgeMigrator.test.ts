@@ -608,10 +608,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     })
     expect(fileItem?.data).toEqual({
       source: '/tmp/report.pdf',
-      file: expect.objectContaining({
-        id: 'file-1',
-        name: 'report.pdf'
-      })
+      fileEntryId: 'file-1'
     })
     expect(noteReader.readInBatches).toHaveBeenCalledTimes(1)
     expect(fileReader.readInBatches).toHaveBeenCalledTimes(1)
@@ -1453,7 +1450,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
         baseId: 'kb-1',
         groupId: null,
         type: 'file',
-        data: { source: '/tmp/foo.pdf', file: { id: legacyFileId, name: 'foo.pdf' } },
+        data: { source: '/tmp/foo.pdf', fileEntryId: legacyFileId },
         status: 'idle'
       }
     ]
@@ -1512,7 +1509,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
         baseId: 'kb-1',
         groupId: null,
         type: 'file',
-        data: { source: '/tmp/a.pdf', file: { id: 'legacy-a', name: 'a.pdf' } },
+        data: { source: '/tmp/a.pdf', fileEntryId: 'legacy-a' },
         status: 'idle'
       },
       {
@@ -1520,7 +1517,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
         baseId: 'kb-1',
         groupId: null,
         type: 'file',
-        data: { source: '/tmp/b.pdf', file: { id: 'legacy-b', name: 'b.pdf' } },
+        data: { source: '/tmp/b.pdf', fileEntryId: 'legacy-b' },
         status: 'idle'
       },
       {
@@ -1555,7 +1552,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
         baseId: 'kb-1',
         groupId: null,
         type: 'file',
-        data: { source: '/tmp/a.pdf', file: { id: 'legacy-a', name: 'a.pdf' } },
+        data: { source: '/tmp/a.pdf', fileEntryId: 'legacy-a' },
         status: 'idle'
       }
     ]
@@ -1582,7 +1579,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
         baseId: 'kb-1',
         groupId: null,
         type: 'file',
-        data: { source: '/tmp/ok.pdf', file: { id: 'legacy-survivor', name: 'ok.pdf' } },
+        data: { source: '/tmp/ok.pdf', fileEntryId: 'legacy-survivor' },
         status: 'idle'
       },
       {
@@ -1590,7 +1587,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
         baseId: 'kb-1',
         groupId: null,
         type: 'file',
-        data: { source: '/tmp/bad.xyz', file: { id: 'legacy-skipped', name: 'bad.xyz' } },
+        data: { source: '/tmp/bad.xyz', fileEntryId: 'legacy-skipped' },
         status: 'idle'
       },
       {
@@ -1598,7 +1595,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
         baseId: 'kb-1',
         groupId: null,
         type: 'file',
-        data: { source: '/tmp/ghost.pdf', file: { id: 'legacy-ghost', name: 'ghost.pdf' } },
+        data: { source: '/tmp/ghost.pdf', fileEntryId: 'legacy-ghost' },
         status: 'idle'
       }
     ]

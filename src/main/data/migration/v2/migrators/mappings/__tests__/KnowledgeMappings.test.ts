@@ -255,7 +255,7 @@ describe('KnowledgeMappings', () => {
         type: 'file',
         data: {
           source: '/tmp/report.pdf',
-          file: fileMetadata
+          fileEntryId: 'file-1'
         },
         status: 'completed',
         error: null,

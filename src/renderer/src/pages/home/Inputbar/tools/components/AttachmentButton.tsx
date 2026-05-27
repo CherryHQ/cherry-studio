@@ -6,9 +6,8 @@ import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBases'
 import { useKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import type { FileMetadata } from '@renderer/types'
-import { filterSupportedFiles, formatFileSize } from '@renderer/utils/file'
+import { filterSupportedFiles } from '@renderer/utils/file'
 import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
-import dayjs from 'dayjs'
 import { FileSearch, FileText, Paperclip, Upload } from 'lucide-react'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -80,29 +79,44 @@ const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions
   const createKnowledgeFileItems = useCallback(
     (items: KnowledgeItemOf<'file'>[]) =>
       items.map<QuickPanelListItem>((item) => {
-        const fileContent = item.data.file
+        const filePath = item.data.source
+        const fileName =
+          filePath
+            .replace(/[/\\]+$/, '')
+            .split(/[/\\]/)
+            .pop() || filePath
+
         return {
-          label: fileContent.origin_name || fileContent.name,
-          description:
-            formatFileSize(fileContent.size) + ' · ' + dayjs(fileContent.created_at).format('YYYY-MM-DD HH:mm'),
+          label: fileName,
+          description: filePath,
           icon: <FileText />,
-          isSelected: files.some((f) => f.path === fileContent.path),
+          isSelected: files.some((f) => f.path === filePath),
           action: async ({ item }) => {
             item.isSelected = !item.isSelected
-            if (fileContent.path) {
-              setFiles((prevFiles) => {
-                const fileExists = prevFiles.some((f) => f.path === fileContent.path)
-                if (fileExists) {
-                  return prevFiles.filter((f) => f.path !== fileContent.path)
-                } else {
-                  return [...prevFiles, fileContent]
-                }
-              })
+
+            const fileExists = files.some((f) => f.path === filePath)
+            if (fileExists) {
+              setFiles((prevFiles) => prevFiles.filter((f) => f.path !== filePath))
+              return
             }
+
+            const fileContent = await window.api.file.get(filePath)
+            if (!fileContent) {
+              window.toast.warning(t('chat.input.tools.file_not_found', { path: filePath }))
+              return
+            }
+
+            setFiles((prevFiles) => {
+              if (prevFiles.some((file) => file.path === filePath)) {
+                return prevFiles.filter((file) => file.path !== filePath)
+              }
+
+              return [...prevFiles, fileContent]
+            })
           }
         }
       }),
-    [files, setFiles]
+    [files, setFiles, t]
   )
 
   const openKnowledgeFileList = useCallback(
