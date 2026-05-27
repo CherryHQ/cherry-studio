@@ -1,6 +1,6 @@
 /* eslint-disable no-restricted-syntax */
-import { isDev } from '@main/constant'
 import { LOGS_DIR } from '@main/core/paths/constants'
+import { isDev } from '@main/core/platform'
 import type { LogContextData, LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import { LEVEL, LEVEL_MAP } from '@shared/config/logger'
 import { IpcChannel } from '@shared/IpcChannel'

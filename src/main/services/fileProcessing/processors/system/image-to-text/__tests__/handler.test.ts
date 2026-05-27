@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../../../tests/__mocks__/MainLoggerService'
 
-vi.mock('@main/constant', () => ({
+vi.mock('@main/core/platform', () => ({
   isLinux: false,
   isWin: true
 }))

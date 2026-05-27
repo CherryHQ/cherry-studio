@@ -133,6 +133,7 @@ export const inferKnowledgeItemStatus = (
 
 const normalizeKnowledgeItemError = (
   status: KnowledgeItemStatus,
+  processingStatus: LegacyProcessingStatus | undefined,
   processingError: string | undefined
 ): string | null => {
   if (status !== 'failed') {
@@ -140,7 +141,15 @@ const normalizeKnowledgeItemError = (
   }
 
   const normalizedError = processingError?.trim()
-  return normalizedError ? normalizedError : 'Legacy knowledge item failed without an error message.'
+  if (normalizedError) {
+    return normalizedError
+  }
+
+  if (processingStatus === 'pending' || processingStatus === 'processing') {
+    return 'Legacy knowledge item indexing was interrupted and needs to be retried.'
+  }
+
+  return 'Legacy knowledge item failed without an error message.'
 }
 
 const getDefaultChunkOverlap = (chunkSize: number): number => {
@@ -352,7 +361,7 @@ export const transformKnowledgeItem = (
       type,
       data,
       status,
-      error: normalizeKnowledgeItemError(status, item.processingError),
+      error: normalizeKnowledgeItemError(status, item.processingStatus, item.processingError),
       createdAt: toTimestamp(item.created_at),
       updatedAt: toTimestamp(item.updated_at)
     }

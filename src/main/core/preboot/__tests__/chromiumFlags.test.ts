@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * Tests for src/main/core/preboot/chromiumFlags.ts
  *
  * Mocking strategy (mirrors userDataLocation.test.ts):
- *   - `@main/constant` exposes module-level booleans (isLinux/isWin/etc.)
+ *   - `@main/core/platform` exposes module-level booleans (isLinux/isWin/etc.)
  *     computed at evaluation time. We use `vi.doMock` + `vi.resetModules()` and
  *     dynamically import the module-under-test in each test, so we can swap
  *     platform values per scenario.
@@ -41,7 +41,7 @@ function stubElectron() {
 }
 
 function stubConstants(flags: PlatformFlags) {
-  vi.doMock('@main/constant', () => ({
+  vi.doMock('@main/core/platform', () => ({
     isLinux: flags.isLinux,
     isWin: flags.isWin,
     isPortable: false,

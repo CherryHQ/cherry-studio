@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
-import { isLinux, isMac, isWin } from '@main/constant'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isLinux, isMac, isWin } from '@main/core/platform'
 import ElectronShutdownHandler from '@paymoapp/electron-shutdown-handler'
 import { app, BrowserWindow, powerMonitor } from 'electron'
 

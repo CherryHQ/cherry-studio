@@ -2,7 +2,7 @@ import { execFileSync, spawn } from 'child_process'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Force Windows code path regardless of the host platform.
-vi.mock('@main/constant', () => ({
+vi.mock('@main/core/platform', () => ({
   isWin: true,
   isMac: false,
   isLinux: false,

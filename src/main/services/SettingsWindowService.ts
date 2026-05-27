@@ -1,6 +1,6 @@
 import { application } from '@application'
-import { isMac } from '@main/constant'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isMac } from '@main/core/platform'
 import { type WindowOptions, WindowType } from '@main/core/window/types'
 import type { SettingsPath } from '@shared/data/types/settingsPath'
 import { normalizeSettingsPath } from '@shared/data/types/settingsPath'

@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { isMac, isWin } from '@main/core/platform'
 import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'
@@ -38,9 +39,9 @@ class ObsidianVaultService {
 
   constructor() {
     // 根据操作系统获取Obsidian配置文件路径
-    if (process.platform === 'win32') {
+    if (isWin) {
       this.obsidianConfigPath = path.join(app.getPath('appData'), 'obsidian', 'obsidian.json')
-    } else if (process.platform === 'darwin') {
+    } else if (isMac) {
       this.obsidianConfigPath = path.join(
         app.getPath('home'),
         'Library',

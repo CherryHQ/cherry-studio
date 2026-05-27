@@ -5,7 +5,7 @@ import path from 'node:path'
 import { promisify } from 'node:util'
 
 import { application } from '@application'
-import { isWin } from '@main/constant'
+import { isWin } from '@main/core/platform'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type { FileMetadata } from '@types'
 import { isImageFileMetadata } from '@types'

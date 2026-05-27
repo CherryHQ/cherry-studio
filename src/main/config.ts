@@ -14,7 +14,7 @@
  * migrated to `core/preboot/userDataLocation.ts`.
  */
 
-import { isWin } from '@main/constant'
+import { isWin } from '@main/core/platform'
 
 // [v2] should move to somewhere else
 export const titleBarOverlayDark = {
