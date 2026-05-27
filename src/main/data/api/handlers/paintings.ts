@@ -26,7 +26,7 @@ export const paintingHandlers: HandlersFor<PaintingSchemas> = {
   '/paintings/file-usage': {
     GET: async ({ query }) => {
       const parsed = PaintingFileUsageQuerySchema.parse(query)
-      return await paintingService.getFileUsage(parsed.fileId)
+      return await paintingService.getFileUsage(parsed.fileEntryId)
     }
   },
 

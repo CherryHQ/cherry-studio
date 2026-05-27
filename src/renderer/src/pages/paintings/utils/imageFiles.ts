@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
-import FileManager from '@renderer/services/FileManager'
-import type { FileMetadata } from '@renderer/types'
+import type { FileEntry } from '@shared/data/types/file'
+import type { Base64String, FilePath, URLString } from '@shared/file/types'
+import { toSafeFileUrl } from '@shared/file/urlUtil'
 import type { TFunction } from 'i18next'
 
 import type { PaintingGenerationResult } from '../providers/types'
@@ -31,32 +32,44 @@ const getEmptyUrlMessage = (options: DownloadPaintingUrlsOptions) =>
 const shouldWarnEmptyUrl = (error: unknown) =>
   error instanceof Error && (error.message.includes('Failed to parse URL') || error.message.includes('Invalid URL'))
 
-export function compactPaintingFiles(files: Array<FileMetadata | null | undefined>): FileMetadata[] {
-  return files.filter((file): file is FileMetadata => file !== null && file !== undefined)
+const isBase64DataUri = (value: string): value is Base64String =>
+  value.startsWith('data:') && value.includes(';base64,')
+
+const toBase64DataUri = (value: string): Base64String =>
+  isBase64DataUri(value) ? value : `data:image/png;base64,${value}`
+
+const toHttpUrl = (value: string): URLString => {
+  if (!value.startsWith('http://') && !value.startsWith('https://')) {
+    throw new Error('Invalid URL')
+  }
+
+  return value as URLString
+}
+
+export function compactPaintingFiles(files: Array<FileEntry | null | undefined>): FileEntry[] {
+  return files.filter((file): file is FileEntry => file !== null && file !== undefined)
 }
 
 export async function downloadPaintingUrls(
   urls: string[],
   options: DownloadPaintingUrlsOptions = {}
-): Promise<FileMetadata[]> {
+): Promise<FileEntry[]> {
   const downloadedFiles = await Promise.all(
     urls.map(async (url) => {
       try {
-        if (!url?.trim()) {
+        const imageUrl = url?.trim()
+
+        if (!imageUrl) {
           logger.error(options.emptyUrlLogMessage ?? 'Image URL is empty')
           window.toast.warning(getEmptyUrlMessage(options))
           return null
         }
 
-        if (options.saveDataImage && url.startsWith('data:image')) {
-          return await window.api.file.saveBase64Image(url)
+        if (imageUrl.startsWith('data:image')) {
+          return await window.api.file.createInternalEntry({ source: 'base64', data: toBase64DataUri(imageUrl) })
         }
 
-        if (options.forceDownload === undefined) {
-          return await window.api.file.download(url)
-        }
-
-        return await window.api.file.download(url, options.forceDownload)
+        return await window.api.file.createInternalEntry({ source: 'url', url: toHttpUrl(imageUrl) })
       } catch (error) {
         logger.error(options.errorLogMessage ?? 'Failed to download image', error as Error)
 
@@ -72,11 +85,11 @@ export async function downloadPaintingUrls(
   return compactPaintingFiles(downloadedFiles)
 }
 
-export async function savePaintingBase64Images(base64s: string[]): Promise<FileMetadata[]> {
+export async function savePaintingBase64Images(base64s: string[]): Promise<FileEntry[]> {
   const savedFiles = await Promise.all(
     base64s.map(async (base64) => {
       try {
-        return await window.api.file.saveBase64Image(base64)
+        return await window.api.file.createInternalEntry({ source: 'base64', data: toBase64DataUri(base64) })
       } catch (error) {
         logger.error('Failed to save base64 image', error as Error)
         return null
@@ -87,25 +100,19 @@ export async function savePaintingBase64Images(base64s: string[]): Promise<FileM
   return compactPaintingFiles(savedFiles)
 }
 
-export async function saveGeneratedPaintingFiles(options: SaveGeneratedPaintingFilesOptions): Promise<FileMetadata[]> {
-  const files = [
+export async function saveGeneratedPaintingFiles(options: SaveGeneratedPaintingFilesOptions): Promise<FileEntry[]> {
+  return [
     ...(options.urls?.length ? await downloadPaintingUrls(options.urls, options) : []),
     ...(options.base64s?.length ? await savePaintingBase64Images(options.base64s) : [])
   ]
-
-  if (files.length > 0) {
-    await FileManager.addFiles(files)
-  }
-
-  return files
 }
 
 export async function savePaintingGenerationResult(
   result: PaintingGenerationResult,
   options: SavePaintingGenerationResultOptions = {}
-): Promise<{ files: FileMetadata[]; urls: string[] } | null> {
-  let urlFiles: FileMetadata[] = []
-  let base64Files: FileMetadata[] = []
+): Promise<{ files: FileEntry[]; urls: string[] } | null> {
+  let urlFiles: FileEntry[] = []
+  let base64Files: FileEntry[] = []
 
   if (options.preferredResult === 'urls') {
     if (result.base64s.length > 0) {
@@ -138,4 +145,22 @@ export async function savePaintingGenerationResult(
   }
 
   return null
+}
+
+export async function getPaintingFileUrl(file: Pick<FileEntry, 'id' | 'ext'>): Promise<string> {
+  const physicalPath = await window.api.file.getPhysicalPath({ id: file.id })
+  return toSafeFileUrl(physicalPath as FilePath, file.ext)
+}
+
+export async function fileEntryToImageFile(file: FileEntry, index: number): Promise<File> {
+  const physicalPath = await window.api.file.getPhysicalPath({ id: file.id })
+  const data = await window.api.fs.read(physicalPath)
+  const ext = file.ext ? `.${file.ext}` : ''
+  const fileName = `${file.name || `image_${index + 1}`}${ext}`
+  const mime = file.ext ? `image/${file.ext === 'jpg' ? 'jpeg' : file.ext}` : 'image/png'
+
+  return new File([data], fileName, {
+    type: mime,
+    lastModified: file.updatedAt
+  })
 }

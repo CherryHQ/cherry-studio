@@ -3,7 +3,6 @@ import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
-import FileManager from '@renderer/services/FileManager'
 import type { TokenFluxPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
@@ -119,7 +118,6 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       })
 
       if (!confirmed) return
-      await FileManager.deleteFiles(painting.files)
     }
 
     const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''
@@ -159,7 +157,6 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (result && result.images && result.images.length > 0) {
         const urls = result.images.map((img: { url: string }) => img.url)
         const validFiles = await tokenFluxService.downloadImages(urls)
-        await FileManager.addFiles(validFiles)
         updatePaintingState({ files: validFiles, urls, status: 'succeeded' })
       }
     })
@@ -259,7 +256,6 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
           if (result && result.images && result.images.length > 0) {
             const urls = result.images.map((img: { url: string }) => img.url)
             void tokenFluxService.downloadImages(urls).then(async (validFiles) => {
-              await FileManager.addFiles(validFiles)
               updatePaintingState({ files: validFiles, urls, status: 'succeeded' })
             })
           }

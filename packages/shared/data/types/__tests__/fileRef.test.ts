@@ -5,6 +5,8 @@ import {
   FileRefSchema,
   knowledgeItemFileRefSchema,
   knowledgeItemSourceType,
+  paintingFileRefSchema,
+  paintingSourceType,
   tempSessionFileRefSchema,
   tempSessionSourceType
 } from '../file/ref'
@@ -19,7 +21,7 @@ describe('FileRefSourceType', () => {
     // Defensive: this assertion locks the currently-registered set.
     // Adding a new variant must also extend (a) the discriminated union and
     // (b) the OrphanRefScanner registry — see ref/README.md.
-    expect([...allSourceTypes]).toEqual(['temp_session', 'knowledge_item', 'chat_message'])
+    expect([...allSourceTypes]).toEqual(['temp_session', 'knowledge_item', 'chat_message', 'painting'])
   })
 })
 
@@ -100,11 +102,39 @@ describe('FileRefSchema discriminated union', () => {
     expect(parsed.sourceType).toBe('knowledge_item')
   })
 
+  it('dispatches to the painting variant', () => {
+    const parsed = FileRefSchema.parse({
+      id: REF_ID,
+      fileEntryId: ENTRY_ID,
+      sourceType: paintingSourceType,
+      sourceId: '550e8400-e29b-41d4-a716-446655440000',
+      role: 'image',
+      createdAt: TS,
+      updatedAt: TS
+    })
+    expect(parsed.sourceType).toBe('painting')
+  })
+
+  it('validates painting roles locally', () => {
+    const valid = {
+      id: REF_ID,
+      fileEntryId: ENTRY_ID,
+      sourceType: paintingSourceType,
+      sourceId: '550e8400-e29b-41d4-a716-446655440000',
+      role: 'image',
+      createdAt: TS,
+      updatedAt: TS
+    }
+
+    expect(() => paintingFileRefSchema.parse(valid)).not.toThrow()
+    expect(() => paintingFileRefSchema.parse({ ...valid, role: 'attachment' })).toThrow()
+  })
+
   it('rejects an unregistered sourceType (no longer in allSourceTypes)', () => {
     // Pre-cleanup the discriminated union still recognised these four; today
     // they must be rejected so DataApi rounds-trip stays consistent. When a
     // new variant lands, this test should be updated alongside the union.
-    for (const sourceType of ['painting', 'note']) {
+    for (const sourceType of ['note']) {
       expect(() =>
         FileRefSchema.parse({
           id: REF_ID,

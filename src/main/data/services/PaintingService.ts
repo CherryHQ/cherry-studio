@@ -1,5 +1,7 @@
 import { application } from '@application'
+import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { paintingTable } from '@data/db/schemas/painting'
+import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
@@ -10,18 +12,49 @@ import type {
   ReorderPaintingsDto,
   UpdatePaintingDto
 } from '@shared/data/api/schemas/paintings'
+import type { FileEntry, FileEntryId } from '@shared/data/types/file'
+import { FileEntrySchema, paintingSourceType } from '@shared/data/types/file'
 import type { Painting } from '@shared/data/types/painting'
 import { PaintingSchema } from '@shared/data/types/painting'
 import { and, asc, desc, eq, inArray, type SQL, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 
 import { insertWithOrderKey, resetOrder } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:PaintingService')
+const PAINTING_FILE_ROLE = 'image'
+const SQLITE_INARRAY_CHUNK = 500
 
 type PaintingRow = typeof paintingTable.$inferSelect
+type FileEntryRow = typeof fileEntryTable.$inferSelect
 
-function rowToPainting(row: PaintingRow): Painting {
+function rowToFileEntry(row: FileEntryRow): FileEntry {
+  if (row.origin === 'internal') {
+    return FileEntrySchema.parse({
+      id: row.id,
+      origin: 'internal',
+      name: row.name,
+      ext: row.ext,
+      size: row.size,
+      ...(row.deletedAt !== null ? { deletedAt: row.deletedAt } : {}),
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt
+    })
+  }
+
+  return FileEntrySchema.parse({
+    id: row.id,
+    origin: 'external',
+    name: row.name,
+    ext: row.ext,
+    externalPath: row.externalPath,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt
+  })
+}
+
+function rowToPainting(row: PaintingRow, files: FileEntry[] = []): Painting {
   const clean = nullsToUndefined(row)
   return PaintingSchema.parse({
     ...clean,
@@ -29,6 +62,7 @@ function rowToPainting(row: PaintingRow): Painting {
     prompt: clean.prompt,
     negativePrompt: clean.negativePrompt,
     status: clean.status,
+    files,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   })
@@ -46,8 +80,8 @@ function buildOrderScope(dto: Pick<CreatePainting, 'provider' | 'mode'>): SQL {
   return and(eq(paintingTable.provider, dto.provider), eq(paintingTable.mode, dto.mode))!
 }
 
-function hasFile(row: Pick<PaintingRow, 'files'>, fileId: string): boolean {
-  return row.files.some((file) => file.id === fileId)
+function uniqueFileEntryIds(fileEntryIds: readonly FileEntryId[]): FileEntryId[] {
+  return [...new Set(fileEntryIds)]
 }
 
 export class PaintingService {
@@ -58,18 +92,20 @@ export class PaintingService {
   async list(query: ListPaintingsQuery): Promise<OffsetPaginationResponse<Painting>> {
     const offset = (query.page - 1) * query.limit
     const conditions = buildConditions(query)
-    const where = conditions.length > 0 ? and(...conditions) : undefined
+    const fileEntryId = query.fileEntryId
 
-    if (query.fileId !== undefined) {
-      const rows = await this.db.select().from(paintingTable).where(where).orderBy(desc(paintingTable.createdAt))
-      const filtered = rows.filter((row) => hasFile(row, query.fileId!))
-      return {
-        items: filtered.slice(offset, offset + query.limit).map(rowToPainting),
-        total: filtered.length,
-        page: query.page
-      }
+    if (fileEntryId !== undefined) {
+      conditions.push(
+        sql`EXISTS (
+          SELECT 1 FROM ${fileRefTable}
+          WHERE ${fileRefTable.sourceType} = ${paintingSourceType}
+            AND ${fileRefTable.sourceId} = ${paintingTable.id}
+            AND ${fileRefTable.fileEntryId} = ${fileEntryId}
+        )`
+      )
     }
 
+    const where = conditions.length > 0 ? and(...conditions) : undefined
     const orderBy =
       query.provider !== undefined && query.mode !== undefined
         ? asc(paintingTable.orderKey)
@@ -79,8 +115,10 @@ export class PaintingService {
       this.db.select({ count: sql<number>`count(*)` }).from(paintingTable).where(where)
     ])
 
+    const filesByPaintingId = await this.getFilesByPaintingIds(rows.map((row) => row.id))
+
     return {
-      items: rows.map(rowToPainting),
+      items: rows.map((row) => rowToPainting(row, filesByPaintingId.get(row.id))),
       total: count,
       page: query.page
     }
@@ -91,11 +129,12 @@ export class PaintingService {
     if (!row) {
       throw DataApiErrorFactory.notFound('Painting', id)
     }
-    return rowToPainting(row)
+    const filesByPaintingId = await this.getFilesByPaintingIds([id])
+    return rowToPainting(row, filesByPaintingId.get(id))
   }
 
   async create(dto: CreatePainting): Promise<Painting> {
-    return application.get('DbService').withWriteTx(async (tx) => {
+    const row = await application.get('DbService').withWriteTx(async (tx) => {
       const inserted = await insertWithOrderKey(
         tx,
         paintingTable,
@@ -108,7 +147,6 @@ export class PaintingService {
           negativePrompt: dto.negativePrompt,
           status: dto.status,
           urls: dto.urls,
-          files: dto.files,
           params: dto.params
         },
         {
@@ -117,13 +155,17 @@ export class PaintingService {
         }
       )
       const row = inserted as PaintingRow
+      await this.replaceFileRefs(tx, row.id, dto.fileEntryIds)
       logger.info('Created painting', { id: row.id, provider: row.provider, mode: row.mode })
-      return rowToPainting(row)
+      return row
     })
+
+    const filesByPaintingId = await this.getFilesByPaintingIds([row.id])
+    return rowToPainting(row, filesByPaintingId.get(row.id))
   }
 
   async update(id: string, dto: UpdatePaintingDto): Promise<Painting> {
-    return application.get('DbService').withWriteTx(async (tx) => {
+    const row = await application.get('DbService').withWriteTx(async (tx) => {
       const updates: Partial<typeof paintingTable.$inferInsert> = {}
       if (dto.provider !== undefined) updates.provider = dto.provider
       if (dto.mode !== undefined) updates.mode = dto.mode
@@ -132,12 +174,13 @@ export class PaintingService {
       if (dto.negativePrompt !== undefined) updates.negativePrompt = dto.negativePrompt
       if (dto.status !== undefined) updates.status = dto.status
       if (dto.urls !== undefined) updates.urls = dto.urls
-      if (dto.files !== undefined) updates.files = dto.files
       if (dto.params !== undefined) updates.params = dto.params
 
-      const result = await tx.update(paintingTable).set(updates).where(eq(paintingTable.id, id))
-      if (result.rowsAffected === 0) {
-        throw DataApiErrorFactory.notFound('Painting', id)
+      if (Object.keys(updates).length > 0) {
+        const result = await tx.update(paintingTable).set(updates).where(eq(paintingTable.id, id))
+        if (result.rowsAffected === 0) {
+          throw DataApiErrorFactory.notFound('Painting', id)
+        }
       }
 
       const [row] = await tx.select().from(paintingTable).where(eq(paintingTable.id, id)).limit(1)
@@ -145,13 +188,24 @@ export class PaintingService {
         throw DataApiErrorFactory.notFound('Painting', id)
       }
 
+      if (dto.fileEntryIds !== undefined) {
+        await this.replaceFileRefs(tx, id, dto.fileEntryIds)
+      }
+
       logger.info('Updated painting', { id, changes: Object.keys(dto) })
-      return rowToPainting(row)
+      return row
     })
+
+    const filesByPaintingId = await this.getFilesByPaintingIds([id])
+    return rowToPainting(row, filesByPaintingId.get(id))
   }
 
   async delete(id: string): Promise<void> {
     await application.get('DbService').withWriteTx(async (tx) => {
+      await tx
+        .delete(fileRefTable)
+        .where(and(eq(fileRefTable.sourceType, paintingSourceType), eq(fileRefTable.sourceId, id)))
+
       const result = await tx.delete(paintingTable).where(eq(paintingTable.id, id))
       if (result.rowsAffected === 0) {
         throw DataApiErrorFactory.notFound('Painting', id)
@@ -189,14 +243,92 @@ export class PaintingService {
     logger.info('Reordered paintings', { provider: dto.provider, mode: dto.mode, count: dto.ids.length })
   }
 
-  async getFileUsage(fileId: string): Promise<PaintingFileUsage> {
-    const rows = await this.db.select({ id: paintingTable.id, files: paintingTable.files }).from(paintingTable)
-    const paintingIds = rows.filter((row) => hasFile(row, fileId)).map((row) => row.id)
+  async getFileUsage(fileEntryId: FileEntryId): Promise<PaintingFileUsage> {
+    const rows = await this.db
+      .select({ id: fileRefTable.sourceId })
+      .from(fileRefTable)
+      .where(
+        and(
+          eq(fileRefTable.sourceType, paintingSourceType),
+          eq(fileRefTable.fileEntryId, fileEntryId),
+          eq(fileRefTable.role, PAINTING_FILE_ROLE)
+        )
+      )
+      .orderBy(asc(fileRefTable.createdAt), asc(fileRefTable.id))
+    const paintingIds = rows.map((row) => row.id)
     return {
-      fileId,
+      fileEntryId,
       paintingIds,
       count: paintingIds.length
     }
+  }
+
+  private async getFilesByPaintingIds(paintingIds: readonly string[]): Promise<Map<string, FileEntry[]>> {
+    const filesByPaintingId = new Map<string, FileEntry[]>()
+    if (paintingIds.length === 0) return filesByPaintingId
+
+    for (let i = 0; i < paintingIds.length; i += SQLITE_INARRAY_CHUNK) {
+      const chunk = paintingIds.slice(i, i + SQLITE_INARRAY_CHUNK)
+      const rows = await this.db
+        .select({
+          sourceId: fileRefTable.sourceId,
+          entry: fileEntryTable
+        })
+        .from(fileRefTable)
+        .innerJoin(fileEntryTable, eq(fileEntryTable.id, fileRefTable.fileEntryId))
+        .where(
+          and(
+            eq(fileRefTable.sourceType, paintingSourceType),
+            eq(fileRefTable.role, PAINTING_FILE_ROLE),
+            inArray(fileRefTable.sourceId, chunk)
+          )
+        )
+        .orderBy(asc(fileRefTable.createdAt), asc(fileRefTable.id))
+
+      for (const row of rows) {
+        const files = filesByPaintingId.get(row.sourceId)
+        const entry = rowToFileEntry(row.entry)
+        if (files) {
+          files.push(entry)
+        } else {
+          filesByPaintingId.set(row.sourceId, [entry])
+        }
+      }
+    }
+
+    return filesByPaintingId
+  }
+
+  private async replaceFileRefs(
+    tx: Pick<DbOrTx, 'delete' | 'insert'>,
+    paintingId: string,
+    fileEntryIds: readonly FileEntryId[]
+  ): Promise<void> {
+    await tx
+      .delete(fileRefTable)
+      .where(
+        and(
+          eq(fileRefTable.sourceType, paintingSourceType),
+          eq(fileRefTable.sourceId, paintingId),
+          eq(fileRefTable.role, PAINTING_FILE_ROLE)
+        )
+      )
+
+    const uniqueIds = uniqueFileEntryIds(fileEntryIds)
+    if (uniqueIds.length === 0) return
+
+    const now = Date.now()
+    await tx.insert(fileRefTable).values(
+      uniqueIds.map((fileEntryId, index) => ({
+        id: uuidv4(),
+        fileEntryId,
+        sourceType: paintingSourceType,
+        sourceId: paintingId,
+        role: PAINTING_FILE_ROLE,
+        createdAt: now + index,
+        updatedAt: now + index
+      }))
+    )
   }
 }
 

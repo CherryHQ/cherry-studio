@@ -14,7 +14,7 @@ export type SortOrder = 'asc' | 'desc'
 const logger = loggerService.withContext('FileAction')
 
 export async function isFileUsedInPaintings(fileId: string): Promise<boolean> {
-  const usage = await dataApiService.get('/paintings/file-usage', { query: { fileId } })
+  const usage = await dataApiService.get('/paintings/file-usage', { query: { fileEntryId: fileId } })
   return usage.count > 0
 }
 

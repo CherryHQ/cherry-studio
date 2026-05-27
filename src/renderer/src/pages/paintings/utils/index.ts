@@ -1,4 +1,5 @@
-import type { FileMetadata, Provider } from '@renderer/types'
+import type { Provider } from '@renderer/types'
+import type { FileEntry } from '@shared/data/types/file'
 import type { TFunction } from 'i18next'
 import { isEmpty } from 'lodash'
 
@@ -23,10 +24,10 @@ export function checkProviderEnabled(provider: Provider, t: TFunction): Promise<
   })
 }
 
-export function findPaintingByFiles<T extends { providerId?: string; files: ReadonlyArray<Pick<FileMetadata, 'id'>> }>(
+export function findPaintingByFiles<T extends { providerId?: string; files: ReadonlyArray<Pick<FileEntry, 'id'>> }>(
   paintings: ReadonlyArray<T>,
   providerId: string,
-  files: ReadonlyArray<Pick<FileMetadata, 'id'>>
+  files: ReadonlyArray<Pick<FileEntry, 'id'>>
 ): T | undefined {
   return paintings.find(
     (painting) =>

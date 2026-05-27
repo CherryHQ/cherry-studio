@@ -4,7 +4,6 @@ import { loggerService } from '@logger'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
-import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata, Painting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
@@ -120,8 +119,6 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (!confirmed) {
         return
       }
-
-      await FileManager.deleteFiles(painting.files)
     }
 
     const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''

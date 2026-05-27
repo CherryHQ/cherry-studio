@@ -1,6 +1,7 @@
 import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
-import type { FileMetadata, TokenFluxPainting } from '@renderer/types'
+import type { TokenFluxPainting } from '@renderer/types'
+import type { FileEntry } from '@shared/data/types/file'
 
 import { downloadPaintingUrls } from '../../utils/imageFiles'
 import type { TokenFluxFormData, TokenFluxModel } from './config'
@@ -216,7 +217,7 @@ export class TokenFluxService {
     return this.pollGenerationResult(generationId, { ...pollOptions, onStatusUpdate })
   }
 
-  async downloadImages(urls: string[]): Promise<FileMetadata[]> {
+  async downloadImages(urls: string[]): Promise<FileEntry[]> {
     return downloadPaintingUrls(urls, {
       emptyUrlLogMessage: 'Image URL is empty',
       emptyUrlMessage: 'Image URL is empty',

@@ -4,7 +4,6 @@ import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import DMXAPIToImg from '@renderer/assets/images/providers/DMXAPI-to-img.webp'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
-import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata } from '@renderer/types'
 import { classNames, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
@@ -427,15 +426,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           if (validFiles?.length > 0) {
             if (painting.autoCreate && painting.files.length > 0) {
-              // 保存文件并更新状态
-              await FileManager.addFiles(validFiles)
               getNewPaintingPanel({ files: validFiles, urls })
             } else {
-              // 删除之前的图片
-              await FileManager.deleteFiles(painting.files)
-
-              // 保存文件并更新状态
-              await FileManager.addFiles(validFiles)
               updatePaintingState({ files: validFiles, urls })
             }
           } else {

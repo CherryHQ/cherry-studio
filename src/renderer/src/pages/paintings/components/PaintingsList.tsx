@@ -1,13 +1,18 @@
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
+import { loggerService } from '@logger'
 import { DraggableList } from '@renderer/components/DraggableList'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import FileManager from '@renderer/services/FileManager'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
 import { classNames } from '@renderer/utils'
+import type { FileEntry } from '@shared/data/types/file'
 import { Popconfirm } from 'antd'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { getPaintingFileUrl } from '../utils/imageFiles'
+
+const logger = loggerService.withContext('PaintingsList')
 
 interface PaintingsListProps<T extends PaintingAction = PaintingAction> {
   paintings: T[]
@@ -16,6 +21,34 @@ interface PaintingsListProps<T extends PaintingAction = PaintingAction> {
   onDeletePainting: (painting: T) => void
   onNewPainting: () => void
   namespace: keyof PaintingsState
+}
+
+const PaintingThumbnail = ({ file }: { file?: FileEntry }) => {
+  const [url, setUrl] = useState('')
+
+  useEffect(() => {
+    let active = true
+
+    if (!file) {
+      setUrl('')
+      return
+    }
+
+    getPaintingFileUrl(file)
+      .then((value) => {
+        if (active) setUrl(value)
+      })
+      .catch((error) => {
+        logger.error('Failed to resolve painting thumbnail URL', error as Error)
+        if (active) setUrl('')
+      })
+
+    return () => {
+      active = false
+    }
+  }, [file])
+
+  return url ? <img src={url} alt="" className="block h-full w-full object-cover" /> : null
 }
 
 const PaintingsList = <T extends PaintingAction>({
@@ -56,9 +89,7 @@ const PaintingsList = <T extends PaintingAction>({
                   : 'border border-background-subtle'
               )}
               onClick={() => onSelectPainting(item)}>
-              {item.files[0] && (
-                <img src={FileManager.getFileUrl(item.files[0])} alt="" className="block h-full w-full object-cover" />
-              )}
+              <PaintingThumbnail file={item.files[0]} />
             </div>
             <div className="absolute top-1 right-1 flex cursor-pointer items-center justify-center rounded-full bg-background-subtle p-1 text-destructive opacity-0 transition-opacity duration-200 group-hover:opacity-100">
               <Popconfirm

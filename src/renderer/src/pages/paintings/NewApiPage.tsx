@@ -15,7 +15,6 @@ import {
 } from '@renderer/i18n/label'
 import PaintingsList from '@renderer/pages/paintings/components/PaintingsList'
 import { DEFAULT_PAINTING, MODELS, SUPPORTED_MODELS } from '@renderer/pages/paintings/providers/newapi/config'
-import FileManager from '@renderer/services/FileManager'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { isNewApiProvider } from '@renderer/utils/provider'
@@ -38,7 +37,7 @@ import { usePaintingImageNavigation } from './hooks/usePaintingImageNavigation'
 import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
 import { generateNewApiImages, type NewApiImageMode } from './providers/newapi/provider'
 import { checkProviderEnabled, findPaintingByFiles } from './utils'
-import { saveGeneratedPaintingFiles, savePaintingGenerationResult } from './utils/imageFiles'
+import { fileEntryToImageFile, saveGeneratedPaintingFiles, savePaintingGenerationResult } from './utils/imageFiles'
 
 const logger = loggerService.withContext('NewApiPage')
 
@@ -96,17 +95,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
 
       try {
-        const files = await Promise.all(
-          painting.files.map(async (file, index) => {
-            const { data, mime } = await window.api.file.binaryImage(file.id + file.ext)
-            const fileName = file.name || `image_${index + 1}${file.ext}`
-
-            return new File([data], fileName, {
-              type: mime,
-              lastModified: new Date(file.created_at).getTime()
-            })
-          })
-        )
+        const files = await Promise.all(painting.files.map(async (file, index) => fileEntryToImageFile(file, index)))
 
         if (isActive) {
           setEditImageFiles(files)
@@ -235,7 +224,6 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       })
 
       if (!confirmed) return
-      await FileManager.deleteFiles(painting.files)
     }
 
     const prompt = textareaRef.current?.resizableTextArea?.textArea?.value || ''

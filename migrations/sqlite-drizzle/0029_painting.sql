@@ -7,7 +7,6 @@ CREATE TABLE `painting` (
 	`negative_prompt` text,
 	`status` text,
 	`urls` text DEFAULT '[]' NOT NULL,
-	`files` text DEFAULT '[]' NOT NULL,
 	`params` text DEFAULT '{}' NOT NULL,
 	`order_key` text NOT NULL,
 	`created_at` integer NOT NULL,

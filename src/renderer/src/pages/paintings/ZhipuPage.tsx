@@ -3,7 +3,6 @@ import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
-import FileManager from '@renderer/services/FileManager'
 import type { Painting, PaintingAction } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
@@ -128,7 +127,6 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
         centered: true
       })
       if (!confirmed) return
-      await FileManager.deleteFiles(painting.files)
     }
 
     await runGeneration(async (signal) => {

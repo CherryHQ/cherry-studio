@@ -1,11 +1,15 @@
 import { Button } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import ImageViewer from '@renderer/components/ImageViewer'
-import FileManager from '@renderer/services/FileManager'
 import type { Painting } from '@renderer/types'
 import { Spin } from 'antd'
 import type { FC } from 'react'
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { getPaintingFileUrl } from '../utils/imageFiles'
+
+const logger = loggerService.withContext('PaintingArtboard')
 
 interface ArtboardProps {
   painting: Painting
@@ -31,11 +35,30 @@ const Artboard: FC<ArtboardProps> = ({
   loadText
 }) => {
   const { t } = useTranslation()
+  const [currentImageUrl, setCurrentImageUrl] = useState('')
+  const currentFile = painting.files[currentImageIndex]
 
-  const getCurrentImageUrl = () => {
-    const currentFile = painting.files[currentImageIndex]
-    return currentFile ? FileManager.getFileUrl(currentFile) : ''
-  }
+  useEffect(() => {
+    let active = true
+
+    if (!currentFile) {
+      setCurrentImageUrl('')
+      return
+    }
+
+    getPaintingFileUrl(currentFile)
+      .then((url) => {
+        if (active) setCurrentImageUrl(url)
+      })
+      .catch((error) => {
+        logger.error('Failed to resolve painting image URL', error as Error)
+        if (active) setCurrentImageUrl('')
+      })
+
+    return () => {
+      active = false
+    }
+  }, [currentFile])
 
   return (
     <div className="flex flex-1 flex-row items-center justify-center [--artboard-max:calc(100vh-256px)]">
@@ -53,7 +76,7 @@ const Artboard: FC<ArtboardProps> = ({
               </Button>
             )}
             <ImageViewer
-              src={getCurrentImageUrl()}
+              src={currentImageUrl}
               preview={{ mask: false }}
               style={{
                 maxWidth: 'var(--artboard-max)',

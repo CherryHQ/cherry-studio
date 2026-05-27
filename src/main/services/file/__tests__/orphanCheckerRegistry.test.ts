@@ -1,5 +1,6 @@
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { messageTable } from '@data/db/schemas/message'
+import { paintingTable } from '@data/db/schemas/painting'
 import { topicTable } from '@data/db/schemas/topic'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
@@ -22,6 +23,7 @@ const {
   createDefaultOrphanCheckerRegistry,
   knowledgeItemChecker,
   orphanCheckerRegistry,
+  paintingChecker,
   tempSessionChecker
 } = await import('../orphanCheckerRegistry')
 
@@ -338,18 +340,60 @@ describe('orphanCheckerRegistry', () => {
     })
   })
 
+  describe('painting checker', () => {
+    async function seedPainting(id: string) {
+      await dbh.db.insert(paintingTable).values({
+        id,
+        provider: 'aihubmix',
+        mode: 'generate',
+        model: null,
+        prompt: null,
+        negativePrompt: null,
+        status: null,
+        urls: [],
+        params: {},
+        orderKey: id,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      })
+    }
+
+    it('returns the subset of painting ids that exist', async () => {
+      await seedPainting('550e8400-e29b-41d4-a716-446655440010')
+      await seedPainting('550e8400-e29b-41d4-a716-446655440011')
+
+      const alive = await paintingChecker.checkExists([
+        '550e8400-e29b-41d4-a716-446655440010',
+        '550e8400-e29b-41d4-a716-446655440011',
+        '550e8400-e29b-41d4-a716-446655440012'
+      ])
+      expect(alive).toEqual(new Set(['550e8400-e29b-41d4-a716-446655440010', '550e8400-e29b-41d4-a716-446655440011']))
+    })
+
+    it('returns empty set for an empty input', async () => {
+      const alive = await paintingChecker.checkExists([])
+      expect(alive.size).toBe(0)
+    })
+
+    it('declares its sourceType', () => {
+      expect(paintingChecker.sourceType).toBe('painting')
+    })
+  })
+
   describe('registry exhaustiveness', () => {
-    it('createDefaultOrphanCheckerRegistry includes chat_message', () => {
+    it('createDefaultOrphanCheckerRegistry includes chat_message and painting', () => {
       const registry = createDefaultOrphanCheckerRegistry()
       expect(registry).toHaveProperty('chat_message')
       expect(registry.chat_message.sourceType).toBe('chat_message')
+      expect(registry).toHaveProperty('painting')
+      expect(registry.painting.sourceType).toBe('painting')
     })
   })
 
   describe('createDefaultOrphanCheckerRegistry / orphanCheckerRegistry', () => {
     it('exposes a checker for every FileRefSourceType', () => {
       const registry = createDefaultOrphanCheckerRegistry()
-      const expected = ['temp_session', 'knowledge_item'] as const
+      const expected = ['temp_session', 'knowledge_item', 'chat_message', 'painting'] as const
       for (const sourceType of expected) {
         expect(registry[sourceType].sourceType).toBe(sourceType)
         expect(typeof registry[sourceType].checkExists).toBe('function')
@@ -359,6 +403,8 @@ describe('orphanCheckerRegistry', () => {
     it('singleton wires the same checker instances', () => {
       expect(orphanCheckerRegistry.temp_session).toBe(tempSessionChecker)
       expect(orphanCheckerRegistry.knowledge_item).toBe(knowledgeItemChecker)
+      expect(orphanCheckerRegistry.chat_message).toBe(chatMessageChecker)
+      expect(orphanCheckerRegistry.painting).toBe(paintingChecker)
     })
   })
 
@@ -374,11 +420,12 @@ describe('orphanCheckerRegistry', () => {
    */
   describe('type-level exhaustiveness (file-manager-architecture §7 compile-time invariant)', () => {
     it('rejects a registry literal missing any FileRefSourceType key', () => {
-      // @ts-expect-error — `knowledge_item` and `chat_message` are missing → TS2741
+      // @ts-expect-error — `knowledge_item`, `chat_message`, and `painting` are missing → TS2741
       const incomplete: OrphanCheckerRegistry = {
         temp_session: tempSessionChecker
         // knowledge_item: knowledgeItemChecker  ← intentionally omitted
         // chat_message: chatMessageChecker  ← intentionally omitted
+        // painting: paintingChecker  ← intentionally omitted
       }
       expect(incomplete).toBeDefined()
     })
@@ -389,7 +436,8 @@ describe('orphanCheckerRegistry', () => {
         // not assignable to slot keyed 'temp_session'
         temp_session: knowledgeItemChecker,
         knowledge_item: knowledgeItemChecker,
-        chat_message: chatMessageChecker
+        chat_message: chatMessageChecker,
+        painting: paintingChecker
       }
       expect(wrongBrand).toBeDefined()
     })

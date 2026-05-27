@@ -1,7 +1,6 @@
 import { dataApiService } from '@data/DataApiService'
 import { useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import FileManager from '@renderer/services/FileManager'
 import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { addPainting, removePainting, updatePainting, updatePaintings } from '@renderer/store/paintings'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
@@ -100,7 +99,7 @@ function toDataApiBody(namespace: PaintingNamespace, painting: PaintingAction, o
     negativePrompt: typeof painting.negativePrompt === 'string' ? painting.negativePrompt : undefined,
     status: typeof painting.status === 'string' ? painting.status : firstString(painting.ppioStatus),
     urls: Array.isArray(painting.urls) ? painting.urls : [],
-    files: Array.isArray(painting.files) ? painting.files : [],
+    fileEntryIds: Array.isArray(painting.files) ? painting.files.map((file) => file.id) : [],
     params
   }
 
@@ -284,7 +283,6 @@ export function usePaintings() {
       return painting
     },
     removePainting: async (namespace: PaintingNamespace, painting: PaintingAction) => {
-      void FileManager.deleteFiles(painting.files)
       dispatch(removePainting({ namespace, painting }))
       persistDelete(painting)
     },

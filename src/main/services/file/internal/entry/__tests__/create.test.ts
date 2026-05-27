@@ -112,7 +112,7 @@ describe('internal/entry/create.createInternal', () => {
   describe('source: url', () => {
     let server: Server
     let baseUrl: string
-    let routes: Map<string, { status: number; body: Buffer; type?: string }>
+    let routes: Map<string, { status: number; body: Buffer; type?: string; disposition?: string }>
 
     beforeEach(async () => {
       routes = new Map()
@@ -126,6 +126,7 @@ describe('internal/entry/create.createInternal', () => {
         }
         res.statusCode = route.status
         if (route.type) res.setHeader('Content-Type', route.type)
+        if (route.disposition) res.setHeader('Content-Disposition', route.disposition)
         res.end(route.body)
       })
       await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve))
@@ -155,6 +156,45 @@ describe('internal/entry/create.createInternal', () => {
       const entry = await createInternal(deps, { source: 'url', url: `${baseUrl}/no-extension-here` as never })
       expect(entry.name).toBe('no-extension-here')
       expect(entry.ext).toBeNull()
+    })
+
+    it('derives extension from Content-Type when the URL path has no extension', async () => {
+      routes.set('/signed/no-extension?token=abc.def', {
+        status: 200,
+        body: Buffer.from('webp'),
+        type: 'image/webp'
+      })
+      const entry = await createInternal(deps, {
+        source: 'url',
+        url: `${baseUrl}/signed/no-extension?token=abc.def` as never
+      })
+      expect(entry.name).toBe('no-extension')
+      expect(entry.ext).toBe('webp')
+    })
+
+    it('prefers Content-Disposition filename metadata over URL tail', async () => {
+      routes.set('/download?id=123', {
+        status: 200,
+        body: Buffer.from('jpg'),
+        type: 'image/png',
+        disposition: 'attachment; filename="provider-result.jpg"'
+      })
+      const entry = await createInternal(deps, { source: 'url', url: `${baseUrl}/download?id=123` as never })
+      expect(entry.name).toBe('provider-result')
+      expect(entry.ext).toBe('jpg')
+    })
+
+    it('ignores signed query params when deriving the stored extension', async () => {
+      routes.set('/signed/image.webp?x-amz-signature=abc.def&token=long.value', {
+        status: 200,
+        body: Buffer.from('webp')
+      })
+      const entry = await createInternal(deps, {
+        source: 'url',
+        url: `${baseUrl}/signed/image.webp?x-amz-signature=abc.def&token=long.value` as never
+      })
+      expect(entry.name).toBe('image')
+      expect(entry.ext).toBe('webp')
     })
 
     it('strips only the final dot segment when the path contains multiple dots', async () => {

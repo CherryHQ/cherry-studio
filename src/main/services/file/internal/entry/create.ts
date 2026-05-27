@@ -14,7 +14,13 @@ import { realpath } from 'node:fs/promises'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { atomicWriteFile, copy as fsCopy, download, remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
+import {
+  atomicWriteFile,
+  copy as fsCopy,
+  createAtomicWriteStream,
+  remove as fsRemove,
+  stat as fsStat
+} from '@main/utils/file/fs'
 import type { FileEntry } from '@shared/data/types/file'
 import type { FilePath } from '@shared/file/types'
 import mime from 'mime'
@@ -60,7 +66,7 @@ interface NormalisedSource {
 
 const BASE64_DATA_URI = /^data:([^;,]+);base64,(.+)$/
 
-function normaliseSource(params: CreateInternalEntryParams): NormalisedSource {
+async function normaliseSource(params: CreateInternalEntryParams): Promise<NormalisedSource> {
   if (params.source === 'bytes') {
     const data = params.data
     return {
@@ -94,10 +100,18 @@ function normaliseSource(params: CreateInternalEntryParams): NormalisedSource {
   }
   // url
   const url = params.url
+  const response = await fetch(url)
+  if (!response.ok) {
+    throw new Error(`download(${url}): HTTP ${response.status} ${response.statusText}`)
+  }
+  if (!response.body) {
+    throw new Error(`download(${url}): response has no body`)
+  }
+  const contentDispositionName = filenameFromContentDisposition(response.headers.get('Content-Disposition'))
   return {
-    name: urlTail(url),
-    ext: extWithoutDot(url),
-    writeTo: (target) => download(url, target)
+    name: contentDispositionName ? basenameWithoutExt(contentDispositionName) : urlTail(url),
+    ext: extWithoutDot(contentDispositionName ?? '') ?? urlExtWithoutDot(url) ?? extFromContentType(response.headers),
+    writeTo: (target) => writeResponseBodyToFile(response, target)
   }
 }
 
@@ -114,6 +128,36 @@ function extWithoutDot(p: string): string | null {
   return base.slice(dot + 1).toLowerCase()
 }
 
+function filenameFromContentDisposition(contentDisposition: string | null): string | null {
+  if (!contentDisposition) return null
+
+  const encoded = /filename\*=UTF-8''([^;]+)/i.exec(contentDisposition)
+  if (encoded?.[1]) {
+    try {
+      return decodeURIComponent(encoded[1].trim())
+    } catch {
+      return encoded[1].trim()
+    }
+  }
+
+  const plain = /filename="?([^";]+)"?/i.exec(contentDisposition)
+  return plain?.[1]?.trim() || null
+}
+
+function extFromContentType(headers: Headers): string | null {
+  const contentType = headers.get('Content-Type')?.split(';', 1)[0]?.trim()
+  if (!contentType) return null
+  return mime.getExtension(contentType) ?? null
+}
+
+function urlExtWithoutDot(url: string): string | null {
+  try {
+    return extWithoutDot(new URL(url).pathname)
+  } catch {
+    return extWithoutDot(url.split(/[?#]/)[0])
+  }
+}
+
 function urlTail(url: string): string {
   try {
     const u = new URL(url)
@@ -125,13 +169,46 @@ function urlTail(url: string): string {
   }
 }
 
+async function writeResponseBodyToFile(response: Response, target: FilePath): Promise<void> {
+  if (!response.body) {
+    throw new Error('download: response has no body')
+  }
+
+  const writer = createAtomicWriteStream(target)
+  const reader = response.body.getReader()
+  await new Promise<void>((resolve, reject) => {
+    writer.on('error', (err) => {
+      reader.cancel(err).catch(() => undefined)
+      reject(err)
+    })
+    writer.on('finish', resolve)
+    const pump = async () => {
+      try {
+        for (;;) {
+          const { value, done } = await reader.read()
+          if (done) {
+            writer.end()
+            return
+          }
+          if (!writer.write(Buffer.from(value))) {
+            await new Promise<void>((r) => writer.once('drain', r))
+          }
+        }
+      } catch (err) {
+        writer.destroy(err as Error)
+      }
+    }
+    void pump()
+  })
+}
+
 /**
  * Create a Cherry-owned (internal) FileEntry. The physical file lives at
  * `{userData}/Data/Files/{newId}{.ext}`. DB-insert failure best-effort unlinks
  * the just-written physical file to avoid orphan blobs.
  */
 export async function createInternal(deps: FileManagerDeps, params: CreateInternalEntryParams): Promise<FileEntry> {
-  const source = normaliseSource(params)
+  const source = await normaliseSource(params)
   const id = uuidv7()
   const filename = `${id}${source.ext ? `.${source.ext}` : ''}`
   const physical = application.getPath('feature.files.data', filename) as FilePath

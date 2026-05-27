@@ -1,4 +1,3 @@
-import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import type { PaintingMode, PaintingParams, PaintingProvider } from '@shared/data/types/painting'
 import { sql } from 'drizzle-orm'
 import { check, index, sqliteTable, text } from 'drizzle-orm/sqlite-core'
@@ -16,7 +15,6 @@ export const paintingTable = sqliteTable(
     negativePrompt: text(),
     status: text(),
     urls: text({ mode: 'json' }).$type<string[]>().notNull().default([]),
-    files: text({ mode: 'json' }).$type<FileMetadata[]>().notNull().default([]),
     params: text({ mode: 'json' }).$type<PaintingParams>().notNull().default({}),
     orderKey: text('order_key').notNull(),
     ...createUpdateTimestamps

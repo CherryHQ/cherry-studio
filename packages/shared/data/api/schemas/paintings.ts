@@ -1,7 +1,6 @@
 import type { OffsetPaginationResponse } from '@shared/data/api'
-import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
+import { type FileEntryId, FileEntryIdSchema } from '@shared/data/types/file'
 import {
-  FileMetadataSchema,
   type Painting,
   PaintingIdSchema,
   PaintingModeSchema,
@@ -25,7 +24,7 @@ export const CreatePaintingSchema = z.strictObject({
   negativePrompt: z.string().optional(),
   status: z.string().min(1).optional(),
   urls: z.array(z.string()).default([]),
-  files: z.array(FileMetadataSchema).default([]),
+  fileEntryIds: z.array(FileEntryIdSchema).default([]),
   params: PaintingParamsSchema.default({})
 })
 export type CreatePaintingDto = z.input<typeof CreatePaintingSchema>
@@ -40,7 +39,7 @@ export const UpdatePaintingSchema = z
     negativePrompt: z.string().nullable().optional(),
     status: z.string().min(1).nullable().optional(),
     urls: z.array(z.string()).optional(),
-    files: z.array(FileMetadataSchema).optional(),
+    fileEntryIds: z.array(FileEntryIdSchema).optional(),
     params: PaintingParamsSchema.optional()
   })
   .refine((dto) => Object.keys(dto).length > 0, { message: 'At least one field is required' })
@@ -50,7 +49,7 @@ export const ListPaintingsQuerySchema = z.strictObject({
   provider: PaintingProviderSchema.optional(),
   mode: PaintingModeSchema.optional(),
   status: z.string().min(1).optional(),
-  fileId: z.string().min(1).optional(),
+  fileEntryId: FileEntryIdSchema.optional(),
   page: z.int().positive().default(PAINTINGS_DEFAULT_PAGE),
   limit: z.int().positive().max(PAINTINGS_MAX_LIMIT).default(PAINTINGS_DEFAULT_LIMIT)
 })
@@ -65,12 +64,12 @@ export const ReorderPaintingsSchema = z.strictObject({
 export type ReorderPaintingsDto = z.infer<typeof ReorderPaintingsSchema>
 
 export const PaintingFileUsageQuerySchema = z.strictObject({
-  fileId: z.string().min(1)
+  fileEntryId: FileEntryIdSchema
 })
 export type PaintingFileUsageQuery = z.infer<typeof PaintingFileUsageQuerySchema>
 
 export interface PaintingFileUsage {
-  fileId: FileMetadata['id']
+  fileEntryId: FileEntryId
   paintingIds: string[]
   count: number
 }

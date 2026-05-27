@@ -16,6 +16,7 @@ export * from './file'
 export * from './note'
 export type { LanguageVarious, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 
+import type { FileEntry } from '@shared/data/types/file'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import type { TranslateLanguage } from '@shared/data/types/translate'
 import * as z from 'zod'
@@ -343,7 +344,7 @@ export type Suggestion = {
 export type PaintingParams = {
   id: string
   urls: string[]
-  files: FileMetadata[]
+  files: FileEntry[]
   // provider that this painting belongs to (for new-api family separation)
   providerId?: string
 }

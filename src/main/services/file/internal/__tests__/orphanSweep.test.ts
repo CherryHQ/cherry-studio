@@ -311,8 +311,9 @@ describe('runDbSweep (umbrella + observability)', () => {
     expect(report.outcome).toBe('partial')
     if (report.outcome === 'partial') {
       // Every registered sourceType's listDistinctSourceIds throws → all errored.
-      expect(Object.keys(report.errorsByType)).toHaveLength(3)
+      expect(Object.keys(report.errorsByType)).toHaveLength(4)
       expect(report.errorsByType.temp_session).toMatch(/boom/)
+      expect(report.errorsByType.painting).toMatch(/boom/)
     }
     expect(warnSpy).toHaveBeenCalledWith(
       'orphan-sweep',
