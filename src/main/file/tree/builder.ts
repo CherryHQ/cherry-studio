@@ -135,6 +135,10 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     this.initialScanPromise = this.runInitialScan()
     this.attachWatcher()
     await this.initialScanPromise
+    // Clear once the scan is done so subsequent watcher events take the
+    // synchronous fast path in the dispatcher instead of attaching another
+    // `.then()` continuation to a settled promise per event.
+    this.initialScanPromise = null
   }
 
   private async runInitialScan(): Promise<void> {
