@@ -17,13 +17,20 @@ import {
   RestoreKnowledgeBaseSchema
 } from '../data/types/knowledge'
 
+const KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
+const SECOND_KNOWLEDGE_BASE_ID = '22222222-2222-4222-8222-222222222222'
+const SOURCE_KNOWLEDGE_BASE_ID = '33333333-3333-4333-8333-333333333333'
+const KNOWLEDGE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
+const CONTAINER_KNOWLEDGE_ITEM_ID = '0198f3f2-7d1c-7abc-8def-123456789abc'
+const GROUP_ID = '44444444-4444-4444-8444-444444444444'
+
 describe('Knowledge base schemas', () => {
   it('accepts valid numeric tuning fields', () => {
     const result = CreateKnowledgeBaseSchema.safeParse({
       name: 'KB',
       dimensions: 1024,
       embeddingModelId: 'embed-model',
-      groupId: '  group-1  ',
+      groupId: GROUP_ID,
       emoji: '📚',
       chunkSize: 800,
       chunkOverlap: 120,
@@ -35,7 +42,7 @@ describe('Knowledge base schemas', () => {
 
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data.groupId).toBe('group-1')
+      expect(result.data.groupId).toBe(GROUP_ID)
     }
   })
 
@@ -113,7 +120,7 @@ describe('Knowledge base schemas', () => {
 
   it('validates restore-base DTOs', () => {
     const result = RestoreKnowledgeBaseSchema.safeParse({
-      sourceBaseId: 'base-1',
+      sourceBaseId: SOURCE_KNOWLEDGE_BASE_ID,
       name: '  Base 1_bak  ',
       dimensions: 3072,
       embeddingModelId: 'openai::text-embedding-3-large'
@@ -128,7 +135,7 @@ describe('Knowledge base schemas', () => {
   it('rejects extra fields in restore-base DTOs', () => {
     expect(
       RestoreKnowledgeBaseSchema.safeParse({
-        sourceBaseId: 'base-1',
+        sourceBaseId: SOURCE_KNOWLEDGE_BASE_ID,
         dimensions: 3072,
         embeddingModelId: 'openai::text-embedding-3-large',
         chunkSize: 800
@@ -227,7 +234,7 @@ describe('Knowledge base schemas', () => {
 
   it('rejects invalid numeric tuning fields in entity schema', () => {
     const result = KnowledgeBaseSchema.safeParse({
-      id: 'kb-1',
+      id: KNOWLEDGE_BASE_ID,
       name: 'KB',
       dimensions: 1024,
       embeddingModelId: 'embed-model',
@@ -249,7 +256,7 @@ describe('Knowledge base schemas', () => {
 
   it('accepts nullable groupId and requires persisted defaults in entity schema', () => {
     const result = KnowledgeBaseSchema.safeParse({
-      id: 'kb-1',
+      id: KNOWLEDGE_BASE_ID,
       name: 'KB',
       dimensions: 1024,
       embeddingModelId: 'embed-model',
@@ -273,7 +280,7 @@ describe('Knowledge base schemas', () => {
 
   it('requires completed bases to have positive dimensions and allows failed bases with unknown dimensions', () => {
     const failedBase = {
-      id: 'kb-1',
+      id: KNOWLEDGE_BASE_ID,
       name: 'KB',
       embeddingModelId: null,
       groupId: null,
@@ -303,7 +310,7 @@ describe('Knowledge base schemas', () => {
   it('requires persisted config to be present in entity schema', () => {
     expect(
       KnowledgeBaseSchema.safeParse({
-        id: 'kb-1',
+        id: KNOWLEDGE_BASE_ID,
         name: 'KB',
         dimensions: 1024,
         embeddingModelId: 'embed-model',
@@ -316,7 +323,7 @@ describe('Knowledge base schemas', () => {
 
     expect(
       KnowledgeBaseSchema.safeParse({
-        id: 'kb-1',
+        id: KNOWLEDGE_BASE_ID,
         name: 'KB',
         dimensions: 1024,
         embeddingModelId: 'embed-model',
@@ -365,7 +372,7 @@ describe('Knowledge base schemas', () => {
 
     expect(
       KnowledgeBaseSchema.safeParse({
-        id: 'kb-1',
+        id: KNOWLEDGE_BASE_ID,
         name: 'KB',
         dimensions: 1024,
         embeddingModelId: 'embed-model',
@@ -383,13 +390,12 @@ describe('Knowledge base schemas', () => {
   it('requires knowledge items to carry an explicit nullable error field', () => {
     expect(
       KnowledgeItemSchema.safeParse({
-        id: 'item-1',
-        baseId: 'kb-1',
+        id: KNOWLEDGE_ITEM_ID,
+        baseId: KNOWLEDGE_BASE_ID,
         groupId: null,
         type: 'note',
         data: { source: 'hello', content: 'hello' },
         status: 'idle',
-        phase: null,
         error: null,
         createdAt: '2026-04-10T00:00:00.000Z',
         updatedAt: '2026-04-10T00:00:00.000Z'
@@ -398,29 +404,27 @@ describe('Knowledge base schemas', () => {
 
     expect(
       KnowledgeItemSchema.safeParse({
-        id: 'item-1',
-        baseId: 'kb-1',
+        id: KNOWLEDGE_ITEM_ID,
+        baseId: KNOWLEDGE_BASE_ID,
         groupId: null,
         type: 'note',
         data: { source: 'hello', content: 'hello' },
         status: 'idle',
-        phase: null,
         createdAt: '2026-04-10T00:00:00.000Z',
         updatedAt: '2026-04-10T00:00:00.000Z'
       }).success
     ).toBe(false)
   })
 
-  it('separates knowledge item status from runtime phase', () => {
+  it('uses status for knowledge item runtime progress', () => {
     expect(
       KnowledgeItemSchema.safeParse({
-        id: 'item-1',
-        baseId: 'kb-1',
+        id: KNOWLEDGE_ITEM_ID,
+        baseId: KNOWLEDGE_BASE_ID,
         groupId: null,
         type: 'note',
         data: { source: 'hello', content: 'hello' },
-        status: 'processing',
-        phase: 'reading',
+        status: 'reading',
         error: null,
         createdAt: '2026-04-10T00:00:00.000Z',
         updatedAt: '2026-04-10T00:00:00.000Z'
@@ -429,13 +433,12 @@ describe('Knowledge base schemas', () => {
 
     expect(
       KnowledgeItemSchema.safeParse({
-        id: 'item-1',
-        baseId: 'kb-1',
+        id: KNOWLEDGE_ITEM_ID,
+        baseId: KNOWLEDGE_BASE_ID,
         groupId: null,
         type: 'note',
         data: { source: 'hello', content: 'hello' },
         status: 'read',
-        phase: null,
         error: null,
         createdAt: '2026-04-10T00:00:00.000Z',
         updatedAt: '2026-04-10T00:00:00.000Z'
@@ -443,10 +446,10 @@ describe('Knowledge base schemas', () => {
     ).toBe(false)
   })
 
-  it('rejects invalid knowledge item status phase error combinations', () => {
+  it('rejects invalid knowledge item status error combinations', () => {
     const validItem = {
-      id: 'item-1',
-      baseId: 'kb-1',
+      id: KNOWLEDGE_ITEM_ID,
+      baseId: KNOWLEDGE_BASE_ID,
       groupId: null,
       type: 'note' as const,
       data: { source: 'hello', content: 'hello' },
@@ -454,41 +457,30 @@ describe('Knowledge base schemas', () => {
       updatedAt: '2026-04-10T00:00:00.000Z'
     }
 
-    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'idle', phase: null, error: null }).success).toBe(true)
-    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'completed', phase: null, error: null }).success).toBe(
-      true
-    )
-    expect(
-      KnowledgeItemSchema.safeParse({ ...validItem, status: 'processing', phase: null, error: null }).success
-    ).toBe(true)
-    expect(
-      KnowledgeItemSchema.safeParse({ ...validItem, status: 'processing', phase: 'reading', error: null }).success
-    ).toBe(true)
-    expect(
-      KnowledgeItemSchema.safeParse({ ...validItem, status: 'failed', phase: null, error: 'read failed' }).success
-    ).toBe(true)
+    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'idle', error: null }).success).toBe(true)
+    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'completed', error: null }).success).toBe(true)
+    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'processing', error: null }).success).toBe(true)
+    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'reading', error: null }).success).toBe(true)
+    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'embedding', error: null }).success).toBe(true)
+    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'failed', error: 'read failed' }).success).toBe(true)
+    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'deleting', error: null }).success).toBe(true)
 
     expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'idle', phase: 'reading', error: null }).success).toBe(
       false
     )
-    expect(
-      KnowledgeItemSchema.safeParse({ ...validItem, status: 'completed', phase: null, error: 'stale' }).success
-    ).toBe(false)
-    expect(
-      KnowledgeItemSchema.safeParse({ ...validItem, status: 'processing', phase: null, error: 'stale' }).success
-    ).toBe(false)
+    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'completed', error: 'stale' }).success).toBe(false)
+    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'processing', error: 'stale' }).success).toBe(false)
     expect(
       KnowledgeItemSchema.safeParse({ ...validItem, status: 'failed', phase: 'reading', error: 'read failed' }).success
     ).toBe(false)
-    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'failed', phase: null, error: '' }).success).toBe(
-      false
-    )
+    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'failed', error: '' }).success).toBe(false)
+    expect(KnowledgeItemSchema.safeParse({ ...validItem, status: 'deleting', error: 'stale' }).success).toBe(false)
   })
 
-  it('restricts processing phase by knowledge item type', () => {
+  it('restricts progress statuses by knowledge item type', () => {
     const leafItem = {
-      id: 'leaf-1',
-      baseId: 'kb-1',
+      id: KNOWLEDGE_ITEM_ID,
+      baseId: KNOWLEDGE_BASE_ID,
       groupId: null,
       type: 'note' as const,
       data: { source: 'leaf', content: 'leaf content' },
@@ -498,8 +490,8 @@ describe('Knowledge base schemas', () => {
       updatedAt: '2026-04-10T00:00:00.000Z'
     }
     const containerItem = {
-      id: 'container-1',
-      baseId: 'kb-1',
+      id: CONTAINER_KNOWLEDGE_ITEM_ID,
+      baseId: KNOWLEDGE_BASE_ID,
       groupId: null,
       type: 'directory' as const,
       data: { source: '/docs', path: '/docs' },
@@ -509,21 +501,21 @@ describe('Knowledge base schemas', () => {
       updatedAt: '2026-04-10T00:00:00.000Z'
     }
 
-    expect(KnowledgeItemSchema.safeParse({ ...leafItem, phase: null }).success).toBe(true)
-    expect(KnowledgeItemSchema.safeParse({ ...leafItem, phase: 'reading' }).success).toBe(true)
-    expect(KnowledgeItemSchema.safeParse({ ...leafItem, phase: 'embedding' }).success).toBe(true)
-    expect(KnowledgeItemSchema.safeParse({ ...leafItem, phase: 'preparing' }).success).toBe(false)
+    expect(KnowledgeItemSchema.safeParse({ ...leafItem }).success).toBe(true)
+    expect(KnowledgeItemSchema.safeParse({ ...leafItem, status: 'reading' }).success).toBe(true)
+    expect(KnowledgeItemSchema.safeParse({ ...leafItem, status: 'embedding' }).success).toBe(true)
+    expect(KnowledgeItemSchema.safeParse({ ...leafItem, status: 'preparing' }).success).toBe(false)
 
-    expect(KnowledgeItemSchema.safeParse({ ...containerItem, phase: null }).success).toBe(true)
-    expect(KnowledgeItemSchema.safeParse({ ...containerItem, phase: 'preparing' }).success).toBe(true)
-    expect(KnowledgeItemSchema.safeParse({ ...containerItem, phase: 'reading' }).success).toBe(false)
-    expect(KnowledgeItemSchema.safeParse({ ...containerItem, phase: 'embedding' }).success).toBe(false)
+    expect(KnowledgeItemSchema.safeParse({ ...containerItem }).success).toBe(true)
+    expect(KnowledgeItemSchema.safeParse({ ...containerItem, status: 'preparing' }).success).toBe(true)
+    expect(KnowledgeItemSchema.safeParse({ ...containerItem, status: 'reading' }).success).toBe(false)
+    expect(KnowledgeItemSchema.safeParse({ ...containerItem, status: 'embedding' }).success).toBe(false)
   })
 })
 
 it('accepts failed knowledge bases with a null embedding model id', () => {
   const result = KnowledgeBaseSchema.safeParse({
-    id: 'kb-null-model',
+    id: SECOND_KNOWLEDGE_BASE_ID,
     name: 'KB nullable model',
     dimensions: 1024,
     embeddingModelId: null,
@@ -543,7 +535,7 @@ it('accepts failed knowledge bases with a null embedding model id', () => {
 
 it('rejects invalid knowledge base status error combinations', () => {
   const validBase = {
-    id: 'kb-1',
+    id: KNOWLEDGE_BASE_ID,
     name: 'KB',
     dimensions: 1024,
     groupId: null,
@@ -649,7 +641,7 @@ it('rejects non-nullable optional config null clears in patch schema', () => {
 
 it('keeps patch groupId aligned with topic semantics', () => {
   expect(UpdateKnowledgeBaseSchema.safeParse({ groupId: null }).success).toBe(true)
-  expect(UpdateKnowledgeBaseSchema.safeParse({ groupId: '  group-1  ' }).success).toBe(true)
+  expect(UpdateKnowledgeBaseSchema.safeParse({ groupId: GROUP_ID }).success).toBe(true)
   expect(UpdateKnowledgeBaseSchema.safeParse({ groupId: '   ' }).success).toBe(false)
   expect(UpdateKnowledgeBaseSchema.safeParse({ emoji: null }).success).toBe(false)
 })

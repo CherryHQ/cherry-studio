@@ -1,6 +1,6 @@
 import { application } from '@application'
-import { isLinux, isMac, isWin } from '@main/constant'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isLinux, isMac, isWin } from '@main/core/platform'
 import { getI18n } from '@main/utils/language'
 import type { MenuItemConstructorOptions } from 'electron'
 import { Menu, nativeImage, nativeTheme, Tray } from 'electron'

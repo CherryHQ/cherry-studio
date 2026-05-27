@@ -23,7 +23,7 @@
 
 import type { FileEntryService } from '@data/services/FileEntryService'
 import type { FileRefService } from '@data/services/FileRefService'
-import type { OrphanCheckerRegistry } from '@data/services/orphan/FileRefCheckerRegistry'
+import type { OrphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry'
 
 import type { DanglingCache } from '../danglingCache'
 import type { VersionCache } from '../versionCache'

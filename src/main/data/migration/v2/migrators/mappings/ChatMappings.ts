@@ -762,7 +762,7 @@ function transformSingleBlock(oldBlock: OldBlock): {
         block: {
           type: 'image' as BlockType.IMAGE,
           url: block.url,
-          fileId: block.file?.id, // file.id → fileId
+          fileId: block.file?.id,
           ...baseFields
         } as ImageBlock,
         citations: null,
@@ -775,7 +775,7 @@ function transformSingleBlock(oldBlock: OldBlock): {
       return {
         block: {
           type: 'file' as BlockType.FILE,
-          fileId: block.file.id, // file.id → fileId
+          fileId: block.file.id,
           ...baseFields
         } as FileBlock,
         citations: null,

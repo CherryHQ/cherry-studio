@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { isMac, isWin } from '@main/core/platform'
 import { toAsarUnpackedPath } from '@main/utils'
 import {
   checkName,
@@ -35,12 +36,12 @@ const logger = loggerService.withContext('FileStorage')
 const getRipgrepBinaryPath = (): string | null => {
   try {
     const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
-    const platform = process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux'
+    const platform = isMac ? 'darwin' : isWin ? 'win32' : 'linux'
     let ripgrepBinaryPath = path.join(
       __dirname,
       '../../node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep',
       `${arch}-${platform}`,
-      process.platform === 'win32' ? 'rg.exe' : 'rg'
+      isWin ? 'rg.exe' : 'rg'
     )
 
     ripgrepBinaryPath = toAsarUnpackedPath(ripgrepBinaryPath)
@@ -1402,13 +1403,12 @@ class FileStorage {
       }
 
       // Prevent selecting system root directories
-      const isSystemRoot =
-        process.platform === 'win32'
-          ? /^[a-zA-Z]:[\\/]?$/.test(normalizedPath)
-          : normalizedPath === '/' ||
-            normalizedPath === '/usr' ||
-            normalizedPath === '/etc' ||
-            normalizedPath === '/System'
+      const isSystemRoot = isWin
+        ? /^[a-zA-Z]:[\\/]?$/.test(normalizedPath)
+        : normalizedPath === '/' ||
+          normalizedPath === '/usr' ||
+          normalizedPath === '/etc' ||
+          normalizedPath === '/System'
 
       if (isSystemRoot) {
         logger.warn(`Invalid directory selection: ${normalizedPath} (system root directory)`)

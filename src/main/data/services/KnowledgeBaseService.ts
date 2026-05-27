@@ -128,7 +128,8 @@ export class KnowledgeBaseService {
       hybridAlpha: createConfig.hybridAlpha ?? null
     }
 
-    const row = await this.db.transaction(async (tx) => {
+    const dbService = application.get('DbService')
+    const row = await dbService.withWriteTx(async (tx) => {
       const [inserted] = await tx.insert(knowledgeBaseTable).values(createValues).returning()
       return inserted
     })
@@ -201,7 +202,8 @@ export class KnowledgeBaseService {
       return existing
     }
 
-    const row = await this.db.transaction(async (tx) => {
+    const dbService = application.get('DbService')
+    const row = await dbService.withWriteTx(async (tx) => {
       const [updated] = await tx
         .update(knowledgeBaseTable)
         .set(updates)
@@ -218,7 +220,8 @@ export class KnowledgeBaseService {
     // Verify knowledge base exists
     await this.getById(id)
 
-    await this.db.transaction(async (tx) => {
+    const dbService = application.get('DbService')
+    await dbService.withWriteTx(async (tx) => {
       await tx.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id))
     })
 

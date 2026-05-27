@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
-import { isLinux } from '@main/constant'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isLinux } from '@main/core/platform'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { OcrHandler, OcrProvider, OcrResult, SupportedOcrFile } from '@types'
 import { BuiltinOcrProviderIds } from '@types'

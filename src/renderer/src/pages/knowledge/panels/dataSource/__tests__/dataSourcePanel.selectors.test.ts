@@ -31,13 +31,13 @@ describe('dataSourcePanel.selectors', () => {
       textClassName: 'text-red-500/60',
       icon: 'alert'
     })
-    expect(getItemStatus(createFileItem({ id: 'file-3', status: 'processing', phase: 'embedding' }))).toEqual({
+    expect(getItemStatus(createFileItem({ id: 'file-3', status: 'embedding' }))).toEqual({
       kind: 'processing',
       labelKey: 'knowledge.data_source.status.embedding',
       textClassName: 'text-amber-500/70',
       icon: 'loader'
     })
-    expect(getItemStatus(createFileItem({ id: 'file-4', status: 'processing', phase: 'reading' }))).toEqual({
+    expect(getItemStatus(createFileItem({ id: 'file-4', status: 'reading' }))).toEqual({
       kind: 'processing',
       labelKey: 'knowledge.rag.file_processing',
       textClassName: 'text-blue-500/70',
@@ -61,20 +61,18 @@ describe('dataSourcePanel.selectors', () => {
       textClassName: 'text-yellow-500/70',
       icon: 'loader'
     })
-    expect(getItemStatus(createFileItem({ id: 'file-6', status: 'processing', phase: 'embedding' }))).toEqual({
+    expect(getItemStatus(createFileItem({ id: 'file-6', status: 'embedding' }))).toEqual({
       kind: 'processing',
       labelKey: 'knowledge.data_source.status.embedding',
       textClassName: 'text-amber-500/70',
       icon: 'loader'
     })
-    expect(getItemStatus(createDirectoryItem({ id: 'directory-2', status: 'processing', phase: 'preparing' }))).toEqual(
-      {
-        kind: 'processing',
-        labelKey: 'knowledge.data_source.status.pending',
-        textClassName: 'text-zinc-500/70',
-        icon: 'loader'
-      }
-    )
+    expect(getItemStatus(createDirectoryItem({ id: 'directory-2', status: 'preparing' }))).toEqual({
+      kind: 'processing',
+      labelKey: 'knowledge.data_source.status.pending',
+      textClassName: 'text-zinc-500/70',
+      icon: 'loader'
+    })
   })
 
   it('filters items by the active filter without changing the all filter behavior', () => {
@@ -93,7 +91,7 @@ describe('dataSourcePanel.selectors', () => {
     expect(
       getReadyCount([
         createFileItem({ id: 'file-1', status: 'completed' }),
-        createFileItem({ id: 'file-2', status: 'processing', phase: 'embedding' }),
+        createFileItem({ id: 'file-2', status: 'embedding' }),
         createFileItem({ id: 'file-3', status: 'failed' }),
         createNoteItem({ id: 'note-1', content: '会议纪要', status: 'completed' })
       ])

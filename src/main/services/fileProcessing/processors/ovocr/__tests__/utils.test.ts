@@ -52,7 +52,7 @@ vi.mock('node:os', async () => {
   }
 })
 
-vi.mock('@main/constant', () => ({
+vi.mock('@main/core/platform', () => ({
   isWin: true
 }))
 

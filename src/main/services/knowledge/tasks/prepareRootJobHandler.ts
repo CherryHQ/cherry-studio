@@ -152,9 +152,8 @@ export const prepareRootJobHandler: JobHandler<KnowledgePrepareRootPayload> = {
   },
 
   // Flip the container's status to 'failed' once retries exhaust or the job is
-  // cancelled. Without this the container stays 'processing' (its phase is
-  // 'preparing'); reconcileContainers' phase-non-null branch would also keep
-  // every ancestor stuck.
+  // cancelled. Without this the container can stay in 'preparing' and keep
+  // every ancestor active.
   async onSettled(event) {
     if (event.status === 'completed') return
 

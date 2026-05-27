@@ -5,6 +5,9 @@ import { describe, expect, it } from 'vitest'
 import { legacyModelToUniqueId } from '../../transformers/ModelTransformers'
 import { inferKnowledgeItemStatus, transformKnowledgeBase, transformKnowledgeItem } from '../KnowledgeMappings'
 
+const UUIDV7_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const UUIDV4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
 const fileMetadata = {
   id: 'file-1',
   name: 'report.pdf',
@@ -23,9 +26,12 @@ describe('KnowledgeMappings', () => {
     expect(legacyModelToUniqueId({ id: 'silicon::BAAI/bge-m3', provider: 'silicon' })).toBe('silicon::BAAI/bge-m3')
   })
 
-  it('inferKnowledgeItemStatus only trusts uniqueId', () => {
+  it('inferKnowledgeItemStatus maps legacy transient states to failed', () => {
     expect(inferKnowledgeItemStatus({ uniqueId: 'loader-1' } as any)).toBe('completed')
     expect(inferKnowledgeItemStatus({ uniqueId: '   ' } as any)).toBe('idle')
+    expect(inferKnowledgeItemStatus({ processingStatus: 'pending' } as any)).toBe('failed')
+    expect(inferKnowledgeItemStatus({ processingStatus: 'processing' } as any)).toBe('failed')
+    expect(inferKnowledgeItemStatus({ processingStatus: 'failed', uniqueId: 'loader-1' } as any)).toBe('failed')
     expect(inferKnowledgeItemStatus({} as any)).toBe('idle')
   })
 
@@ -41,7 +47,7 @@ describe('KnowledgeMappings', () => {
     ).toStrictEqual({
       ok: true,
       value: expect.objectContaining({
-        id: 'kb-1',
+        id: expect.stringMatching(UUIDV4_PATTERN),
         embeddingModelId: null,
         status: 'failed',
         error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
@@ -104,7 +110,7 @@ describe('KnowledgeMappings', () => {
     ).toStrictEqual({
       ok: true,
       value: expect.objectContaining({
-        id: 'kb-soft-limit-config',
+        id: expect.stringMatching(UUIDV4_PATTERN),
         name: 'KB soft limit config',
         embeddingModelId: 'silicon::BAAI/bge-m3',
         chunkSize: 80,
@@ -131,7 +137,7 @@ describe('KnowledgeMappings', () => {
     ).toStrictEqual({
       ok: true,
       value: expect.objectContaining({
-        id: 'kb-invalid-config',
+        id: expect.stringMatching(UUIDV4_PATTERN),
         name: 'KB invalid config',
         embeddingModelId: 'silicon::BAAI/bge-m3',
         chunkSize: 200,
@@ -208,7 +214,7 @@ describe('KnowledgeMappings', () => {
     expect(result).toStrictEqual({
       ok: true,
       value: {
-        id: 'note-1',
+        id: expect.stringMatching(UUIDV7_PATTERN),
         baseId: 'kb-1',
         groupId: null,
         type: 'note',
@@ -218,7 +224,6 @@ describe('KnowledgeMappings', () => {
           sourceUrl: 'https://dexie.example.com'
         },
         status: 'idle',
-        phase: null,
         error: null,
         createdAt: expect.any(Number),
         updatedAt: expect.any(Number)
@@ -244,7 +249,7 @@ describe('KnowledgeMappings', () => {
     expect(result).toStrictEqual({
       ok: true,
       value: {
-        id: 'file-item-1',
+        id: expect.stringMatching(UUIDV7_PATTERN),
         baseId: 'kb-1',
         groupId: null,
         type: 'file',
@@ -253,7 +258,6 @@ describe('KnowledgeMappings', () => {
           file: fileMetadata
         },
         status: 'completed',
-        phase: null,
         error: null,
         createdAt: expect.any(Number),
         updatedAt: expect.any(Number)
@@ -294,7 +298,6 @@ describe('KnowledgeMappings', () => {
       ok: true,
       value: expect.objectContaining({
         status: 'idle',
-        phase: null,
         error: null
       })
     })
@@ -302,8 +305,78 @@ describe('KnowledgeMappings', () => {
       ok: true,
       value: expect.objectContaining({
         status: 'completed',
-        phase: null,
         error: null
+      })
+    })
+  })
+
+  it('transformKnowledgeItem backfills errors for legacy transient states without processing errors', () => {
+    const processingResult = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'processing-note',
+        type: 'note',
+        content: 'processing note',
+        processingStatus: 'processing',
+        processingError: '   '
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+    const pendingResult = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'pending-note',
+        type: 'note',
+        content: 'pending note',
+        processingStatus: 'pending',
+        processingError: ''
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(processingResult).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        status: 'failed',
+        error: 'Legacy knowledge item indexing was interrupted and needs to be retried.'
+      })
+    })
+    expect(pendingResult).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        status: 'failed',
+        error: 'Legacy knowledge item indexing was interrupted and needs to be retried.'
+      })
+    })
+  })
+
+  it('transformKnowledgeItem backfills errors for legacy failed states without processing errors', () => {
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'failed-note',
+        type: 'note',
+        content: 'failed note',
+        processingStatus: 'failed',
+        processingError: '   '
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        status: 'failed',
+        error: 'Legacy knowledge item failed without an error message.'
       })
     })
   })
@@ -345,7 +418,7 @@ describe('KnowledgeMappings', () => {
     expect(result).toStrictEqual({
       ok: true,
       value: {
-        id: 'dir-1',
+        id: expect.stringMatching(UUIDV7_PATTERN),
         baseId: 'kb-1',
         groupId: null,
         type: 'directory',
@@ -354,7 +427,6 @@ describe('KnowledgeMappings', () => {
           path: '/tmp/docs'
         },
         status: 'idle',
-        phase: null,
         error: null,
         createdAt: expect.any(Number),
         updatedAt: expect.any(Number)

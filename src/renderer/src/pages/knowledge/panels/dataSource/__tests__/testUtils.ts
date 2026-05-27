@@ -1,9 +1,7 @@
 import type { KnowledgeItemOf } from '@shared/data/types/knowledge'
 
-type LeafKnowledgeItemPhase = KnowledgeItemOf<'file'>['phase']
-type ContainerKnowledgeItemPhase = KnowledgeItemOf<'directory'>['phase']
-type KnowledgeItemLifecycle<TItem extends { error: unknown; phase: unknown; status: string }> = TItem extends unknown
-  ? Pick<TItem, 'error' | 'phase' | 'status'>
+type KnowledgeItemLifecycle<TItem extends { error: unknown; status: string }> = TItem extends unknown
+  ? Pick<TItem, 'error' | 'status'>
   : never
 type LeafKnowledgeItemLifecycle = KnowledgeItemLifecycle<KnowledgeItemOf<'file'>>
 type ContainerKnowledgeItemLifecycle = KnowledgeItemLifecycle<KnowledgeItemOf<'directory'>>
@@ -15,56 +13,30 @@ const baseFields = {
   updatedAt: '2026-04-21T10:00:00+08:00'
 } as const
 
-const createLeafLifecycle = (
-  status: KnowledgeItemOf<'file'>['status'],
-  phase: LeafKnowledgeItemPhase
-): LeafKnowledgeItemLifecycle => {
+const createLeafLifecycle = (status: KnowledgeItemOf<'file'>['status']): LeafKnowledgeItemLifecycle => {
   if (status === 'failed') {
     return {
       status,
-      phase: null,
       error: 'Indexing failed'
-    }
-  }
-
-  if (status === 'processing') {
-    return {
-      status,
-      phase,
-      error: null
     }
   }
 
   return {
     status,
-    phase: null,
     error: null
   }
 }
 
-const createContainerLifecycle = (
-  status: KnowledgeItemOf<'directory'>['status'],
-  phase: ContainerKnowledgeItemPhase
-): ContainerKnowledgeItemLifecycle => {
+const createContainerLifecycle = (status: KnowledgeItemOf<'directory'>['status']): ContainerKnowledgeItemLifecycle => {
   if (status === 'failed') {
     return {
       status,
-      phase: null,
       error: 'Indexing failed'
-    }
-  }
-
-  if (status === 'processing') {
-    return {
-      status,
-      phase,
-      error: null
     }
   }
 
   return {
     status,
-    phase: null,
     error: null
   }
 }
@@ -73,17 +45,15 @@ export const createNoteItem = ({
   id,
   content = '会议纪要',
   source = id,
-  status = 'completed',
-  phase = null
+  status = 'completed'
 }: {
   id: string
   content?: string
   source?: string
   status?: KnowledgeItemOf<'note'>['status']
-  phase?: LeafKnowledgeItemPhase
 }): KnowledgeItemOf<'note'> => ({
   ...baseFields,
-  ...createLeafLifecycle(status, phase),
+  ...createLeafLifecycle(status),
   id,
   type: 'note',
   data: {
@@ -97,7 +67,6 @@ export const createFileItem = ({
   originName = 'internal.pdf',
   source = `/tmp/${originName}`,
   status = 'completed',
-  phase = null,
   ext = 'PDF',
   size = 1024
 }: {
@@ -105,12 +74,11 @@ export const createFileItem = ({
   originName?: string
   source?: string
   status?: KnowledgeItemOf<'file'>['status']
-  phase?: LeafKnowledgeItemPhase
   ext?: string
   size?: number
 }): KnowledgeItemOf<'file'> => ({
   ...baseFields,
-  ...createLeafLifecycle(status, phase),
+  ...createLeafLifecycle(status),
   id,
   type: 'file',
   data: {
@@ -132,16 +100,14 @@ export const createFileItem = ({
 export const createUrlItem = ({
   id,
   source = `https://example.com/${id}`,
-  status = 'completed',
-  phase = null
+  status = 'completed'
 }: {
   id: string
   source?: string
   status?: KnowledgeItemOf<'url'>['status']
-  phase?: LeafKnowledgeItemPhase
 }): KnowledgeItemOf<'url'> => ({
   ...baseFields,
-  ...createLeafLifecycle(status, phase),
+  ...createLeafLifecycle(status),
   id,
   type: 'url',
   data: {
@@ -153,16 +119,14 @@ export const createUrlItem = ({
 export const createSitemapItem = ({
   id,
   source = `https://example.com/${id}.xml`,
-  status = 'completed',
-  phase = null
+  status = 'completed'
 }: {
   id: string
   source?: string
   status?: KnowledgeItemOf<'sitemap'>['status']
-  phase?: ContainerKnowledgeItemPhase
 }): KnowledgeItemOf<'sitemap'> => ({
   ...baseFields,
-  ...createContainerLifecycle(status, phase),
+  ...createContainerLifecycle(status),
   id,
   type: 'sitemap',
   data: {
@@ -174,16 +138,14 @@ export const createSitemapItem = ({
 export const createDirectoryItem = ({
   id,
   source = `/Users/eeee/${id}`,
-  status = 'completed',
-  phase = null
+  status = 'completed'
 }: {
   id: string
   source?: string
   status?: KnowledgeItemOf<'directory'>['status']
-  phase?: ContainerKnowledgeItemPhase
 }): KnowledgeItemOf<'directory'> => ({
   ...baseFields,
-  ...createContainerLifecycle(status, phase),
+  ...createContainerLifecycle(status),
   id,
   type: 'directory',
   data: {

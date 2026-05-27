@@ -24,7 +24,6 @@ function createItem(type: KnowledgeItem['type']): KnowledgeItem {
     baseId: 'kb-1',
     groupId: null,
     status: 'idle',
-    phase: null,
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'

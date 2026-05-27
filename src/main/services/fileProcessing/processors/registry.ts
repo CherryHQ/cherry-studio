@@ -1,4 +1,4 @@
-import { isMac, isWin } from '@main/constant'
+import { isMac, isWin } from '@main/core/platform'
 
 import { doc2xDocumentToMarkdownHandler } from './doc2x/document-to-markdown/handler'
 import { mineruDocumentToMarkdownHandler } from './mineru/document-to-markdown/handler'
