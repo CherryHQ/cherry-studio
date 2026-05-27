@@ -1,28 +1,3 @@
-/**
- * `useDirectoryTree` — renderer mirror of the main-side `DirectoryTreeBuilder`.
- *
- * On mount, requests a tree via the `Tree_Create` IPC, materializes the
- * `SerializedTreeNode` snapshot back into the local `TreeNode` class
- * hierarchy, and subscribes to push mutations on the `Tree_Mutation`
- * channel to keep that mirror coherent.
- *
- * ## Don't cache the handle in `CacheService`
- *
- * `CacheService` is for **regenerable data** (computed results, API
- * responses). The DirectoryTreeBuilder handle this hook owns is a
- * **resource** — it ties a treeId on the main side to a live `onMutation`
- * IPC subscription and a chokidar watcher. CacheService has no "entry
- * eviction callback" hook, so caching the live handle there would leak
- * subscriptions when entries are evicted.
- *
- * The right way to avoid rebuilding the tree across mount/unmount churn
- * (e.g. `ArtifactPane` bouncing between `Shell.Host` and
- * `Shell.MaximizedOverlay` when you maximize) is to **lift the hook call
- * up** to a parent component that survives that churn — the provider that
- * already owns `workspacePath`. The hook stays one-per-caller; the caller
- * lives somewhere stable.
- */
-
 import { loggerService } from '@logger'
 import {
   type CreateTreeIpcResult,
