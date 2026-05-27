@@ -97,60 +97,116 @@ describe('buildCompactReplay', () => {
     ])
   })
 
-  it('drops tool-input-start and tool-input-delta but keeps tool-input-available', () => {
+  it('keeps tool-input-start so the renderer can rebuild the tool part on attach', () => {
+    // Regression: when attach happens mid-tool-input (before tool-input-available is
+    // emitted), compact replay must preserve `tool-input-start` — otherwise the
+    // renderer's chat reducer never sees the toolCallId, drops subsequent live deltas,
+    // and the tool call only materializes when tool-input-available eventually arrives.
     const result = buildCompactReplay([
       {
         topicId: 'topic-1',
-        chunk: {
-          type: 'tool-input-start',
-          toolCallId: 'tool-1',
-          toolName: 'search'
-        } as UIMessageChunk
+        chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'searchWeb' } as UIMessageChunk
       },
       {
         topicId: 'topic-1',
-        chunk: {
-          type: 'tool-input-delta',
-          toolCallId: 'tool-1',
-          inputTextDelta: '{"q":"hel'
-        } as UIMessageChunk
+        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '{"q":"hel' } as UIMessageChunk
+      },
+      {
+        topicId: 'topic-1',
+        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'lo"}' } as UIMessageChunk
+      }
+    ])
+
+    expect(result).toEqual([
+      { topicId: 'topic-1', chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'searchWeb' } },
+      { topicId: 'topic-1', chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '{"q":"hello"}' } }
+    ])
+  })
+
+  it('merges consecutive tool-input-delta chunks with the same toolCallId', () => {
+    const result = buildCompactReplay([
+      {
+        topicId: 'topic-1',
+        chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' } as UIMessageChunk
+      },
+      {
+        topicId: 'topic-1',
+        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '{"q":' } as UIMessageChunk
+      },
+      {
+        topicId: 'topic-1',
+        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '"hello"}' } as UIMessageChunk
       },
       {
         topicId: 'topic-1',
         chunk: {
           type: 'tool-input-available',
-          toolCallId: 'tool-1',
+          toolCallId: 'tc1',
           toolName: 'search',
           input: { q: 'hello' }
         } as UIMessageChunk
       },
       {
         topicId: 'topic-1',
-        chunk: {
-          type: 'tool-output-available',
-          toolCallId: 'tool-1',
-          output: { ok: true }
-        } as UIMessageChunk
+        chunk: { type: 'tool-output-available', toolCallId: 'tc1', output: { ok: true } } as UIMessageChunk
+      }
+    ])
+
+    expect(result).toEqual([
+      { topicId: 'topic-1', chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' } },
+      { topicId: 'topic-1', chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: '{"q":"hello"}' } },
+      {
+        topicId: 'topic-1',
+        chunk: { type: 'tool-input-available', toolCallId: 'tc1', toolName: 'search', input: { q: 'hello' } }
+      },
+      { topicId: 'topic-1', chunk: { type: 'tool-output-available', toolCallId: 'tc1', output: { ok: true } } }
+    ])
+  })
+
+  it('does not merge tool-input-delta chunks across different executions', () => {
+    const result = buildCompactReplay([
+      {
+        topicId: 'topic-1',
+        executionId: 'provider-a::model-a',
+        chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' } as UIMessageChunk
+      },
+      {
+        topicId: 'topic-1',
+        executionId: 'provider-a::model-a',
+        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'A1' } as UIMessageChunk
+      },
+      {
+        topicId: 'topic-1',
+        executionId: 'provider-b::model-b',
+        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'B1' } as UIMessageChunk
+      },
+      {
+        topicId: 'topic-1',
+        executionId: 'provider-a::model-a',
+        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'A2' } as UIMessageChunk
       }
     ])
 
     expect(result).toEqual([
       {
         topicId: 'topic-1',
-        chunk: {
-          type: 'tool-input-available',
-          toolCallId: 'tool-1',
-          toolName: 'search',
-          input: { q: 'hello' }
-        }
+        executionId: 'provider-a::model-a',
+        chunk: { type: 'tool-input-start', toolCallId: 'tc1', toolName: 'search' }
       },
       {
         topicId: 'topic-1',
-        chunk: {
-          type: 'tool-output-available',
-          toolCallId: 'tool-1',
-          output: { ok: true }
-        }
+        executionId: 'provider-a::model-a',
+        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'A1' }
+      },
+      {
+        topicId: 'topic-1',
+        executionId: 'provider-b::model-b',
+        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'B1' }
+      },
+      {
+        topicId: 'topic-1',
+        executionId: 'provider-a::model-a',
+        chunk: { type: 'tool-input-delta', toolCallId: 'tc1', inputTextDelta: 'A2' }
       }
     ])
   })

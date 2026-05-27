@@ -919,6 +919,7 @@ describe('AiStreamManager', () => {
             value as {
               status: string
               activeExecutions: Array<{ executionId: string; anchorMessageId?: string }>
+              lastCompletedAt?: number
             } | null
         )
 
@@ -957,10 +958,75 @@ describe('AiStreamManager', () => {
 
       // Grace-period cleanup does not write again — the `done` value
       // lingers in SharedCache so renderers can observe the terminal
-      // transition; per-window "already animated" lives off-schema in
-      // casual memory cache (`topic.stream.seen.*`).
+      // transition; per-window "already animated" is tracked off-schema
+      // via `topic.stream.last_seen_completion.*`.
       vi.advanceTimersByTime(31_000)
       expect(statusSequence('t')).toEqual(['pending', 'streaming', 'done'])
+    })
+
+    it('sets lastCompletedAt only on done; carries forward through subsequent live; bumps on next done', async () => {
+      // First turn: lastCompletedAt unset while pending/streaming, populated on done.
+      const baseNow = 1_000_000
+      vi.setSystemTime(baseNow)
+
+      startSingle(mgr, {
+        topicId: 't',
+        modelId: 'p::m',
+        request: req('t'),
+        listeners: [new FakeListener('l:t')]
+      })
+      expect(statusWritesFor('t').at(-1)?.lastCompletedAt).toBeUndefined()
+
+      mgr.onChunk('t', 'p::m', chunk('hi'))
+      expect(statusWritesFor('t').at(-1)?.lastCompletedAt).toBeUndefined()
+
+      vi.setSystemTime(baseNow + 100)
+      await mgr.onExecutionDone('t', 'p::m')
+      const firstDone = statusWritesFor('t').at(-1)
+      expect(firstDone?.status).toBe('done')
+      expect(firstDone?.lastCompletedAt).toBe(baseNow + 100)
+      const firstCompletion = firstDone!.lastCompletedAt!
+
+      // Second turn launches before grace-period eviction — the cache entry
+      // is the prior 'done', so the new 'pending'/'streaming' broadcasts must
+      // carry-forward the prior `lastCompletedAt` (otherwise renderer would
+      // think the previous completion was rescinded).
+      vi.setSystemTime(baseNow + 200)
+      startSingle(mgr, {
+        topicId: 't',
+        modelId: 'p::m',
+        request: req('t'),
+        listeners: [new FakeListener('l:t2')]
+      })
+      expect(statusWritesFor('t').at(-1)?.status).toBe('pending')
+      expect(statusWritesFor('t').at(-1)?.lastCompletedAt).toBe(firstCompletion)
+
+      mgr.onChunk('t', 'p::m', chunk('hello again'))
+      expect(statusWritesFor('t').at(-1)?.status).toBe('streaming')
+      expect(statusWritesFor('t').at(-1)?.lastCompletedAt).toBe(firstCompletion)
+
+      // Second done bumps to a strictly greater timestamp.
+      vi.setSystemTime(baseNow + 300)
+      await mgr.onExecutionDone('t', 'p::m')
+      const secondDone = statusWritesFor('t').at(-1)
+      expect(secondDone?.status).toBe('done')
+      expect(secondDone?.lastCompletedAt).toBe(baseNow + 300)
+      expect(secondDone!.lastCompletedAt!).toBeGreaterThan(firstCompletion)
+    })
+
+    it('does not set lastCompletedAt for non-done terminals (aborted, error)', async () => {
+      startSingle(mgr, {
+        topicId: 't',
+        modelId: 'p::m',
+        request: req('t'),
+        listeners: [new FakeListener('l:t')]
+      })
+      mgr.abort('t', 'user-stop')
+      await vi.runAllTimersAsync()
+
+      const abortedEntry = statusWritesFor('t').at(-1)
+      expect(abortedEntry?.status).toBe('aborted')
+      expect(abortedEntry?.lastCompletedAt).toBeUndefined()
     })
 
     it('records aborted when the user stops the stream', async () => {

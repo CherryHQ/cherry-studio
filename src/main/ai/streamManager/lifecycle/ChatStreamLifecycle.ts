@@ -20,10 +20,14 @@ export function createChatStreamLifecycle(gracePeriodMs: number): StreamLifecycl
       if (exec.awaitingApproval) awaitingApprovalAnchors.push(entry)
     }
     const cacheService = application.get('CacheService')
-    cacheService.setShared(`topic.stream.statuses.${stream.topicId}` as const, {
+    const key = `topic.stream.statuses.${stream.topicId}` as const
+    const prev = cacheService.getShared(key)
+    const lastCompletedAt = status === 'done' ? Date.now() : prev?.lastCompletedAt
+    cacheService.setShared(key, {
       status,
       activeExecutions,
-      awaitingApprovalAnchors
+      awaitingApprovalAnchors,
+      lastCompletedAt
     })
   }
 
