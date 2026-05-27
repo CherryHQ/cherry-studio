@@ -13,11 +13,9 @@
  * `sourceId` is strict (`z.uuidv7()`) — `knowledge_item.id` is v2-native, so
  * there is no legacy format risk.
  *
- * `BusinessRefShape` requires `role` to be a `z.ZodEnum`, so this variant
- * ships with a single-element enum `['attachment']` as a placeholder until
- * KnowledgeService finalises its full vocabulary. Extending the enum later
- * is additive: rows whose role falls outside the new set surface as
- * `ZodError`, which is the desired clean-up signal.
+ * `source` marks the indexed source document for the `knowledge_item` row.
+ * `attachment` is retained as an accepted legacy/general-purpose role so
+ * existing refs do not become invalid when the source role is introduced.
  */
 
 import * as z from 'zod'
@@ -26,7 +24,7 @@ import { createRefSchema } from './essential'
 
 export const knowledgeItemSourceType = 'knowledge_item' as const
 
-export const knowledgeItemRoles = ['attachment'] as const
+export const knowledgeItemRoles = ['attachment', 'source'] as const
 export const knowledgeItemRoleSchema = z.enum(knowledgeItemRoles)
 
 export const knowledgeItemRefFields = {

@@ -16,7 +16,8 @@
  * input shape is no longer reachable.
  */
 import type OpenAI from '@cherrystudio/openai'
-import type { FileType } from '@shared/file/types'
+import { type FileType, FileTypeSchema } from '@shared/file/types'
+import * as z from 'zod'
 
 export interface FileMetadata {
   id: string
@@ -31,3 +32,17 @@ export interface FileMetadata {
   tokens?: number
   purpose?: OpenAI.FilePurpose
 }
+
+export const FileMetadataSchema: z.ZodType<FileMetadata> = z.object({
+  id: z.string(),
+  name: z.string(),
+  origin_name: z.string(),
+  path: z.string(),
+  size: z.number(),
+  ext: z.string(),
+  type: FileTypeSchema,
+  created_at: z.string(),
+  count: z.number(),
+  tokens: z.number().optional(),
+  purpose: z.custom<FileMetadata['purpose']>((value) => value === undefined || typeof value === 'string').optional()
+})

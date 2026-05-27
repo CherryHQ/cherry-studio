@@ -183,8 +183,8 @@ export class KnowledgeMigrator extends BaseMigrator {
     const legacyFileIds = new Set<string>()
     for (const item of this.preparedItems) {
       if (item.type !== 'file') continue
-      const fileData = item.data as { file?: { id?: string } } | undefined
-      const id = fileData?.file?.id
+      const fileData = item.data as { fileEntryId?: string } | undefined
+      const id = fileData?.fileEntryId
       if (id) legacyFileIds.add(id)
     }
 
@@ -662,12 +662,12 @@ export class KnowledgeMigrator extends BaseMigrator {
         const fileRefRows: Array<typeof fileRefTable.$inferInsert> = []
         for (const item of baseItems) {
           if (item.type !== 'file') continue
-          const fileData = item.data as { file?: { id?: string } } | undefined
-          const legacyFileId = fileData?.file?.id
+          const fileData = item.data as { fileEntryId?: string } | undefined
+          const legacyFileId = fileData?.fileEntryId
           if (!legacyFileId) {
             this.recordSkippedWarning(
               'knowledge_item_missing_file_id',
-              `Knowledge item id=${item.id} (type=file) has no data.file.id; file_ref row will not be created`
+              `Knowledge item id=${item.id} (type=file) has no data.fileEntryId; file_ref row will not be created`
             )
             continue
           }

@@ -7,10 +7,13 @@
 import { application } from '@application'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
+import { fileEntryService } from '@data/services/FileEntryService'
+import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import type { OffsetPaginationResponse } from '@shared/data/api'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { ListKnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
+import { knowledgeItemSourceType } from '@shared/data/types/file/ref'
 import {
   type CreateKnowledgeItemDto,
   type KnowledgeItem,
@@ -110,6 +113,9 @@ export class KnowledgeItemService {
 
   async create(baseId: string, item: CreateKnowledgeItemDto): Promise<KnowledgeItem> {
     await this.validateGroupOwner(baseId, item.groupId)
+    if (item.type === 'file') {
+      await fileEntryService.getById(item.data.fileEntryId)
+    }
 
     const dbService = application.get('DbService')
     const [row] = await dbService.withWriteTx(async (tx) =>
@@ -147,6 +153,17 @@ export class KnowledgeItemService {
 
     if (!row) {
       throw DataApiErrorFactory.dataInconsistent('KnowledgeItem', 'Knowledge item create result missing')
+    }
+
+    if (item.type === 'file') {
+      await fileRefService.createMany([
+        {
+          fileEntryId: item.data.fileEntryId,
+          sourceType: knowledgeItemSourceType,
+          sourceId: row.id,
+          role: 'source'
+        }
+      ])
     }
 
     logger.info('Created knowledge item', { baseId, id: row.id, type: row.type })
@@ -345,6 +362,7 @@ export class KnowledgeItemService {
     }
 
     const dbService = application.get('DbService')
+    const deletedSourceIds = await this.getDescendantIds(baseId, uniqueRootIds)
     await dbService.withWriteTx(async (tx) => {
       await tx.run(sql`
         WITH RECURSIVE subtree AS (
@@ -372,6 +390,7 @@ export class KnowledgeItemService {
           )})
       `)
     })
+    await fileRefService.cleanupBySourceBatch(knowledgeItemSourceType, deletedSourceIds)
   }
 
   private async getLeafDescendantIds(baseId: string, rootIds: string[]): Promise<string[]> {
@@ -523,6 +542,8 @@ export class KnowledgeItemService {
 
   async delete(id: string): Promise<void> {
     const dbService = application.get('DbService')
+    const existing = await this.getById(id)
+    const deletedSourceIds = await this.getDescendantAndSelfIds(existing.baseId, [id])
     const deleted = await dbService.withWriteTx(async (tx) => {
       const [existingRow] = await tx.select().from(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).limit(1)
 
@@ -541,6 +562,7 @@ export class KnowledgeItemService {
       return { baseId: existingRow.baseId, groupId: existingRow.groupId }
     })
 
+    await fileRefService.cleanupBySourceBatch(knowledgeItemSourceType, deletedSourceIds)
     await this.reconcileContainers(deleted.baseId, [deleted.groupId])
     logger.info('Deleted knowledge item', { id })
   }

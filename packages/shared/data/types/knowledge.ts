@@ -1,7 +1,6 @@
 import * as z from 'zod'
 
-import { FileTypeSchema } from './file'
-import { type FileMetadata } from './file/legacyFileMetadata'
+import { FileEntryIdSchema } from './file'
 import { GroupIdSchema } from './group'
 
 /**
@@ -185,28 +184,10 @@ const KnowledgeItemSharedSchema = z.strictObject({
 })
 
 /**
- * Temporary schema mirroring the current FileMetadata shape.
- * TODO: Move to `types/file.ts` once the dedicated file domain schema is ready.
- */
-export const FileMetadataSchema: z.ZodType<FileMetadata> = z.object({
-  id: z.string(),
-  name: z.string(),
-  origin_name: z.string(),
-  path: z.string(),
-  size: z.number(),
-  ext: z.string(),
-  type: FileTypeSchema,
-  created_at: z.string(),
-  count: z.number(),
-  tokens: z.number().optional(),
-  purpose: z.custom<FileMetadata['purpose']>((value) => value === undefined || typeof value === 'string').optional()
-})
-
-/**
  * File item data.
  */
 export const FileItemDataSchema = KnowledgeItemSharedSchema.extend({
-  file: FileMetadataSchema.describe('Legacy file metadata snapshot used to locate and display the source file.')
+  fileEntryId: FileEntryIdSchema.describe('FileEntry identifier for the source file.')
 })
 
 /**

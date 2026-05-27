@@ -92,20 +92,9 @@ describe('KnowledgeItemService', () => {
   }
 
   function createFileItemData(id: string) {
-    const slug = id.slice(0, 8)
     return {
-      source: `/docs/${slug}.md`,
-      file: {
-        id: `${slug}-meta`,
-        name: `${slug}.md`,
-        origin_name: `${slug}.md`,
-        path: `/docs/${slug}.md`,
-        created_at: '2026-04-08T00:00:00.000Z',
-        size: 10,
-        ext: '.md',
-        type: 'text' as const,
-        count: 1
-      }
+      source: `/docs/${id}.md`,
+      fileEntryId: id
     }
   }
 
