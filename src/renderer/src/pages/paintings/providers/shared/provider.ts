@@ -60,17 +60,6 @@ export interface PaintingProvider<T extends PaintingData = PaintingData> {
   prompt?: ProviderPrompt<T>
   image?: ProviderImage<T>
   generate: ProviderGenerate<T>
-  /**
-   * Opt into the registry-derived field set: when true, the painting page
-   * reads `ImageGenerationSupport` for the current `(providerId, modelId)` via
-   * `useImageGenerationSupport` and renders the derived `BaseConfigItem[]`
-   * instead of `fields.byTab[tab]`. Providers must align their canonical
-   * field-key contract — or supply `registryKeyMap` to alias canonical keys to
-   * legacy persisted names (e.g. silicon: `{ size: 'imageSize' }`).
-   */
-  useRegistryForm?: boolean
-  /** Per-provider canonical→legacy key aliases for the derived form. */
-  registryKeyMap?: Record<string, string>
 }
 
 interface SingleModeProviderConfig<T extends PaintingData = PaintingData> {
@@ -83,8 +72,6 @@ interface SingleModeProviderConfig<T extends PaintingData = PaintingData> {
   prompt?: ProviderPrompt<T>
   image?: ProviderImage<T>
   generate: ProviderGenerate<T>
-  useRegistryForm?: boolean
-  registryKeyMap?: Record<string, string>
 }
 
 export function createSingleModeProvider<T extends PaintingData = PaintingData>(
@@ -107,9 +94,7 @@ export function createSingleModeProvider<T extends PaintingData = PaintingData>(
     },
     prompt: config.prompt,
     image: config.image,
-    generate: config.generate,
-    useRegistryForm: config.useRegistryForm,
-    registryKeyMap: config.registryKeyMap
+    generate: config.generate
   }
 }
 
