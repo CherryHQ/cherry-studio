@@ -20,6 +20,7 @@ import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
+import { usePaintingImageNavigation } from './hooks/usePaintingImageNavigation'
 import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
 import { DEFAULT_TOKENFLUX_PAINTING, type TokenFluxModel } from './providers/tokenflux/config'
 import TokenFluxService from './providers/tokenflux/service'
@@ -31,7 +32,6 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [models, setModels] = useState<TokenFluxModel[]>([])
   const [selectedModel, setSelectedModel] = useState<TokenFluxModel | null>(null)
   const [formData, setFormData] = useState<Record<string, any>>({})
-  const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
   const { t, i18n } = useTranslation()
   const providers = useAllProviders()
@@ -40,6 +40,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [painting, setPainting] = useState<TokenFluxPainting>(
     tokenFluxPaintings[0] || { ...DEFAULT_TOKENFLUX_PAINTING, id: uuid() }
   )
+  const { currentImageIndex, nextImage, prevImage, resetImageIndex } = usePaintingImageNavigation(painting.files.length)
 
   const navigate = useNavigate()
   const location = useLocation()
@@ -167,14 +168,6 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
     cancelGeneration({ finishImmediately: true })
   }
 
-  const nextImage = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % painting.files.length)
-  }
-
-  const prevImage = () => {
-    setCurrentImageIndex((prev) => (prev - 1 + painting.files.length) % painting.files.length)
-  }
-
   const handleAddPainting = () => {
     const newPainting = addPainting('tokenflux_paintings', getNewPainting())
     updatePainting('tokenflux_paintings', newPainting)
@@ -212,7 +205,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const onSelectPainting = (newPainting: TokenFluxPainting) => {
     if (generating) return
     setPainting(newPainting)
-    setCurrentImageIndex(0)
+    resetImageIndex()
 
     // Set form data from painting's input params
     if (newPainting.inputParams) {

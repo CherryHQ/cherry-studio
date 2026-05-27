@@ -22,6 +22,7 @@ import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
+import { usePaintingImageNavigation } from './hooks/usePaintingImageNavigation'
 import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
 import {
   DEFAULT_PAINTING,
@@ -45,7 +46,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   const providers = useAllProviders()
 
   const siliconFlowProvider = providers.find((p) => p.id === 'silicon')!
-  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const { currentImageIndex, nextImage, prevImage, resetImageIndex } = usePaintingImageNavigation(painting.files.length)
 
   const [fileMap, setFileMap] = useState<{ imageFiles: FileMetadata[]; paths: string[] }>({
     imageFiles: [],
@@ -223,14 +224,6 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
     })
   }
 
-  const nextImage = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % painting.files.length)
-  }
-
-  const prevImage = () => {
-    setCurrentImageIndex((prev) => (prev - 1 + painting.files.length) % painting.files.length)
-  }
-
   const onDeletePainting = (paintingToDelete: Painting) => {
     if (paintingToDelete.id === painting.id) {
       const currentIndex = siliconflow_paintings.findIndex((p) => p.id === paintingToDelete.id)
@@ -254,7 +247,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   const onSelectPainting = (newPainting: Painting) => {
     if (generating) return
     setPainting(newPainting)
-    setCurrentImageIndex(0)
+    resetImageIndex()
   }
 
   const { isTranslating, handleKeyDown } = usePaintingPromptTranslation({
@@ -286,13 +279,13 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
       navbarRightClassName="justify-end"
       settings={
         <>
-          <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
+          <SettingTitle className="mb-1.25">{t('common.provider')}</SettingTitle>
           <ProviderSelect provider={siliconFlowProvider} options={Options} onChange={handleProviderChange} />
           <SettingTitle className="mt-4 mb-1">{t('common.model')}</SettingTitle>
           <Select value={painting.model} options={modelOptions} onChange={onSelectModel} />
           {modelParams.maxInputImages > 0 && (
             <>
-              <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.remix.image_file')}</SettingTitle>
+              <SettingTitle className="mt-3.75 mb-1.25">{t('paintings.remix.image_file')}</SettingTitle>
               <ImageUploader
                 fileMap={fileMap}
                 maxImages={modelParams.maxInputImages}
@@ -305,11 +298,11 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
           )}
           {modelParams.supportsImageSize && (
             <>
-              <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.image.size')}</SettingTitle>
+              <SettingTitle className="mt-3.75 mb-1.25">{t('paintings.image.size')}</SettingTitle>
               <Radio.Group
                 value={painting.imageSize}
                 onChange={(e) => onSelectImageSize(e.target.value)}
-                style={{ display: 'flex' }}>
+                className="flex!">
                 {imageSizes.map((size) => (
                   <Radio.Button
                     value={size.value}
@@ -327,7 +320,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           {modelParams.supportsBatchSize && (
             <>
-              <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+              <SettingTitle className="mt-3.75 mb-1.25">
                 {t('paintings.number_images')}
                 <InfoTooltip content={t('paintings.number_images_tip')} />
               </SettingTitle>
@@ -340,7 +333,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
             </>
           )}
 
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+          <SettingTitle className="mt-3.75 mb-1.25">
             {t('paintings.seed')}
             <InfoTooltip content={t('paintings.seed_tip')} />
           </SettingTitle>
@@ -350,14 +343,14 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
             suffix={
               <RedoOutlined
                 onClick={() => updatePaintingState({ seed: Math.floor(Math.random() * 1000000).toString() })}
-                style={{ cursor: 'pointer', color: 'var(--color-foreground-secondary)' }}
+                className="cursor-pointer text-foreground-secondary"
               />
             }
           />
 
           {modelParams.supportsSteps && (
             <>
-              <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+              <SettingTitle className="mt-3.75 mb-1.25">
                 {t('paintings.inference_steps')}
                 <InfoTooltip content={t('paintings.inference_steps_tip')} />
               </SettingTitle>
@@ -376,7 +369,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           {modelParams.supportsGuidanceScale && (
             <>
-              <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+              <SettingTitle className="mt-3.75 mb-1.25">
                 {t('paintings.guidance_scale')}
                 <InfoTooltip content={t('paintings.guidance_scale_tip')} />
               </SettingTitle>
@@ -399,7 +392,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
               </div>
             </>
           )}
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+          <SettingTitle className="mt-3.75 mb-1.25">
             {t('paintings.negative_prompt')}
             <InfoTooltip content={t('paintings.negative_prompt_tip')} />
           </SettingTitle>

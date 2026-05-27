@@ -18,6 +18,7 @@ import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
+import { usePaintingImageNavigation } from './hooks/usePaintingImageNavigation'
 import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
 import {
   COURSE_URL,
@@ -51,7 +52,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const zhipuProvider = providers.find((p) => p.id === 'zhipu')!
 
-  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const { currentImageIndex, nextImage, prevImage, resetImageIndex } = usePaintingImageNavigation(painting.files.length)
   const navigate = useNavigate()
   const location = useLocation()
   const textareaRef = useRef<any>(null)
@@ -175,14 +176,6 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
     cancelGeneration()
   }
 
-  const nextImage = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % painting.files.length)
-  }
-
-  const prevImage = () => {
-    setCurrentImageIndex((prev) => (prev - 1 + painting.files.length) % painting.files.length)
-  }
-
   const onDeletePainting = async (paintingToDelete: any) => {
     if (paintingToDelete.id === painting.id) {
       if (isLoading) return
@@ -208,7 +201,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   const onSelectPainting = (newPainting: any) => {
     if (generating) return
     setPainting(newPainting)
-    setCurrentImageIndex(0)
+    resetImageIndex()
   }
 
   const handleProviderChange = (providerId: string) => {
@@ -294,7 +287,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
       settings={
         <>
           <div className="mb-2.5 flex items-center justify-between">
-            <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
+            <SettingTitle className="mb-1.25">{t('common.provider')}</SettingTitle>
             <div className="flex flex-row items-center gap-2">
               <SettingHelpLink target="_blank" href={TOP_UP_URL}>
                 {t('paintings.top_up')}
@@ -310,11 +303,11 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
           </div>
           <ProviderSelect provider={zhipuProvider} options={Options} onChange={handleProviderChange} className="mb-4" />
 
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('common.model')}</SettingTitle>
+          <SettingTitle className="mt-3.75 mb-1.25">{t('common.model')}</SettingTitle>
           <Select
             value={painting.model}
             onChange={onSelectModel}
-            style={{ width: '100%' }}
+            className="w-full"
             options={ZHIPU_PAINTING_MODELS.map((model) => ({
               label: model.name,
               value: model.id
@@ -323,7 +316,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           {painting.model === 'cogview-4-250304' && (
             <>
-              <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.quality')}</SettingTitle>
+              <SettingTitle className="mt-3.75 mb-1.25">{t('paintings.quality')}</SettingTitle>
               <Radio.Group value={painting.quality} onChange={(e) => onSelectQuality(e.target.value)}>
                 {QUALITY_OPTIONS.map((option) => (
                   <Radio key={option.value} value={option.value}>
@@ -334,11 +327,8 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
             </>
           )}
 
-          <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>{t('paintings.image.size')}</SettingTitle>
-          <Select
-            value={isCustomSize ? 'custom' : painting.imageSize}
-            onChange={onSelectImageSize}
-            style={{ width: '100%' }}>
+          <SettingTitle className="mt-3.75 mb-1.25">{t('paintings.image.size')}</SettingTitle>
+          <Select value={isCustomSize ? 'custom' : painting.imageSize} onChange={onSelectImageSize} className="w-full">
             {IMAGE_SIZES.map((size) => (
               <Select.Option key={size.value} value={size.value}>
                 {t(size.label)}
@@ -351,7 +341,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
 
           {/* 自定义尺寸输入框 */}
           {isCustomSize && (
-            <div style={{ marginTop: 10 }}>
+            <div className="mt-2.5">
               <RowFlex className="items-center gap-2">
                 <InputNumber
                   placeholder="W"
@@ -360,9 +350,9 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
                   onChange={(value) => onCustomSizeChange(value || undefined, 'width')}
                   min={512}
                   max={2048}
-                  style={{ width: 80, flex: 1 }}
+                  className="w-20 flex-1"
                 />
-                <span style={{ color: 'var(--color-foreground-secondary)', fontSize: '12px' }}>x</span>
+                <span className="text-foreground-secondary text-xs">x</span>
                 <InputNumber
                   placeholder="H"
                   value={customHeight}
@@ -370,13 +360,11 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
                   onChange={(value) => onCustomSizeChange(value || undefined, 'height')}
                   min={512}
                   max={2048}
-                  style={{ width: 80, flex: 1 }}
+                  className="w-20 flex-1"
                 />
-                <span style={{ color: 'var(--color-foreground-secondary)', fontSize: '12px' }}>px</span>
+                <span className="text-foreground-secondary text-xs">px</span>
               </RowFlex>
-              <div style={{ marginTop: 5, fontSize: '12px', color: 'var(--color-foreground-muted)' }}>
-                {t('paintings.zhipu.custom_size_hint')}
-              </div>
+              <div className="mt-1.25 text-foreground-muted text-xs">{t('paintings.zhipu.custom_size_hint')}</div>
             </div>
           )}
         </>

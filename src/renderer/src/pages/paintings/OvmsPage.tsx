@@ -22,6 +22,7 @@ import PaintingPageShell from './components/PaintingPageShell'
 import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
+import { usePaintingImageNavigation } from './hooks/usePaintingImageNavigation'
 import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
 import {
   type ConfigItem,
@@ -40,7 +41,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { addPainting, removePainting, updatePainting, ovms_paintings } = usePaintings()
   const ovmsPaintings = useMemo(() => ovms_paintings || [], [ovms_paintings])
   const [painting, setPainting] = useState<OvmsPainting>(ovmsPaintings[0] || DEFAULT_OVMS_PAINTING)
-  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const { currentImageIndex, nextImage, prevImage, resetImageIndex } = usePaintingImageNavigation(painting.files.length)
   const [availableModels, setAvailableModels] = useState<Array<{ label: string; value: string }>>([])
   const [ovmsConfig, setOvmsConfig] = useState<ConfigItem[]>([])
 
@@ -184,14 +185,6 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
     cancelGeneration()
   }
 
-  const nextImage = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % painting.files.length)
-  }
-
-  const prevImage = () => {
-    setCurrentImageIndex((prev) => (prev - 1 + painting.files.length) % painting.files.length)
-  }
-
   const handleAddPainting = () => {
     const newPainting = addPainting('ovms_paintings', getNewPainting())
     updatePainting('ovms_paintings', newPainting)
@@ -251,7 +244,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
 
         return (
           <Select
-            style={{ width: '100%' }}
+            className="w-full"
             listHeight={500}
             disabled={isDisabled}
             value={painting[item.key!] || item.initialValue}
@@ -288,10 +281,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
             onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}
             suffix={
               item.key === 'rng_seed' ? (
-                <RedoOutlined
-                  onClick={handleRandomSeed}
-                  style={{ cursor: 'pointer', color: 'var(--color-foreground-secondary)' }}
-                />
+                <RedoOutlined onClick={handleRandomSeed} className="cursor-pointer text-foreground-secondary" />
               ) : (
                 item.suffix
               )
@@ -303,7 +293,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
           <InputNumber
             min={item.min}
             max={item.max}
-            style={{ width: '100%' }}
+            className="w-full"
             value={(painting[item.key!] || item.initialValue) as number}
             onChange={(v) => updatePaintingState({ [item.key!]: v })}
           />
@@ -335,7 +325,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
   const renderConfigItem = (item: ConfigItem, index: number) => {
     return (
       <div key={index}>
-        <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+        <SettingTitle className="mt-3.75 mb-1.25">
           {t(item.title!)}
           {item.tooltip && (
             <Tooltip title={t(item.tooltip)}>
@@ -351,7 +341,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
   const onSelectPainting = (newPainting: OvmsPainting) => {
     if (generating) return
     setPainting(newPainting)
-    setCurrentImageIndex(0)
+    resetImageIndex()
   }
 
   useEffect(() => {
@@ -372,7 +362,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
       settings={
         <div className="p-5">
           <div className="mb-1.25 flex items-center justify-between">
-            <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
+            <SettingTitle className="mb-1.25">{t('common.provider')}</SettingTitle>
             <SettingHelpLink
               target="_blank"
               href="https://docs.openvino.ai/2025/model-server/ovms_demos_image_generation.html">
@@ -387,7 +377,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
           <Select
             value={providerOptions.find((p) => p.value === 'ovms')?.value || 'ovms'}
             onChange={handleProviderChange}
-            style={{ width: '100%', marginBottom: 15 }}>
+            className="mb-3.75 w-full">
             {providerOptions.map((provider) => (
               <Select.Option value={provider.value} key={provider.value}>
                 <div className="flex items-center gap-2">

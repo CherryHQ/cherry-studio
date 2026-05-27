@@ -23,6 +23,7 @@ import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
+import { usePaintingImageNavigation } from './hooks/usePaintingImageNavigation'
 import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
 import {
   createModeConfigs,
@@ -66,11 +67,12 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
   }, [])
 
   const [painting, setPainting] = useState<PpioPainting>(filteredPaintings[0] || getDefaultPainting(mode))
+  const { currentImageIndex, nextImage, prevImage, resetImageIndex } = usePaintingImageNavigation(
+    painting.files?.length ?? 0
+  )
 
   const providers = useAllProviders()
   const ppioProvider = providers.find((p) => p.id === 'ppio')
-
-  const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
   const navigate = useNavigate()
   const textareaRef = useRef<any>(null)
@@ -118,7 +120,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const onSelectPainting = (selectedPainting: PpioPainting) => {
     setPainting(selectedPainting)
-    setCurrentImageIndex(0)
+    resetImageIndex()
   }
 
   const onDeletePainting = async (paintingToDelete: PpioPainting) => {
@@ -139,18 +141,6 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
     const newPainting = addPainting(mode, getNewPainting())
     setPainting(newPainting)
     return newPainting
-  }
-
-  const prevImage = () => {
-    if (currentImageIndex > 0) {
-      setCurrentImageIndex(currentImageIndex - 1)
-    }
-  }
-
-  const nextImage = () => {
-    if (painting.files && currentImageIndex < painting.files.length - 1) {
-      setCurrentImageIndex(currentImageIndex + 1)
-    }
   }
 
   const handleError = useCallback(
@@ -295,7 +285,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
           ppioStatus: 'succeeded'
         })
 
-        setCurrentImageIndex(0)
+        resetImageIndex()
       }
     })
   }
@@ -332,7 +322,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
             value={painting[item.key!] || item.initialValue}
             options={item.options}
             onChange={(v) => updatePaintingState({ [item.key!]: v })}
-            style={{ width: '100%' }}
+            className="w-full"
           />
         )
       case 'input':
@@ -348,7 +338,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
               suffix={
                 <RedoOutlined
                   onClick={() => updatePaintingState({ ppioSeed: Math.floor(Math.random() * 2147483647) })}
-                  style={{ cursor: 'pointer', color: 'var(--color-foreground-secondary)' }}
+                  className="cursor-pointer text-foreground-secondary"
                 />
               }
             />
@@ -401,7 +391,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
             onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}
             placeholder={item.required ? t('paintings.prompt_placeholder') : ''}
             rows={3}
-            style={{ resize: 'none' }}
+            className="resize-none!"
           />
         )
       default:
@@ -423,7 +413,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     return (
       <div key={index}>
-        <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+        <SettingTitle className="mt-3.75 mb-1.25">
           {t(item.title!)}
           {item.tooltip && (
             <Tooltip title={t(item.tooltip)}>
@@ -453,11 +443,11 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
       navbarRightClassName="justify-end"
       settings={
         <>
-          <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
+          <SettingTitle className="mb-1.25">{t('common.provider')}</SettingTitle>
           {ppioProvider && <ProviderSelect provider={ppioProvider} options={Options} onChange={handleProviderChange} />}
 
           <SettingTitle className="mt-4 mb-1">{t('common.model')}</SettingTitle>
-          <Select value={painting.model} options={modelOptions} onChange={onSelectModel} style={{ width: '100%' }} />
+          <Select value={painting.model} options={modelOptions} onChange={onSelectModel} className="w-full" />
 
           {/* 渲染其他配置项 */}
           {modeConfigs[mode].map(renderConfigItem)}

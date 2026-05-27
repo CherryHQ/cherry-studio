@@ -23,6 +23,7 @@ import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
+import { usePaintingImageNavigation } from './hooks/usePaintingImageNavigation'
 import {
   COURSE_URL,
   DEFAULT_PAINTING,
@@ -40,6 +41,7 @@ const generateRandomSeed = () => Math.floor(Math.random() * 1000000).toString()
 const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { dmxapi_paintings, addPainting, removePainting, updatePainting } = usePaintings()
   const [painting, setPainting] = useState<DmxapiPainting>(dmxapi_paintings?.[0] || DEFAULT_PAINTING)
+  const { currentImageIndex, nextImage, prevImage, resetImageIndex } = usePaintingImageNavigation(painting.files.length)
   const { t } = useTranslation()
   const providers = useAllProviders()
 
@@ -50,7 +52,6 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [allModels, setAllModels] = useState<any[]>([])
   const [isLoadingModels, setIsLoadingModels] = useState(true)
 
-  const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -438,14 +439,6 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }
 
-  const nextImage = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % painting.files.length)
-  }
-
-  const prevImage = () => {
-    setCurrentImageIndex((prev) => (prev - 1 + painting.files.length) % painting.files.length)
-  }
-
   const onDeletePainting = async (paintingToDelete: DmxapiPainting) => {
     if (paintingToDelete.id === painting.id) {
       if (isLoading) {
@@ -477,7 +470,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     if (generating) return
     clearImages()
     setPainting(newPainting)
-    setCurrentImageIndex(0)
+    resetImageIndex()
   }
 
   const handleProviderChange = (providerId: string) => {
@@ -724,9 +717,9 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
                   onChange={(value) => onCustomSizeChange(value, 'width')}
                   min={parseInt(allModels.find((m) => m.id === painting.model)?.min_image_size || '512')}
                   max={parseInt(allModels.find((m) => m.id === painting.model)?.max_image_size || '2048')}
-                  style={{ width: 80, flex: 1 }}
+                  className="w-20 flex-1"
                 />
-                <span style={{ color: 'var(--color-foreground-secondary)', fontSize: '12px' }}>x</span>
+                <span className="text-foreground-secondary text-xs">x</span>
                 <InputNumber
                   placeholder="H"
                   value={customHeight}
@@ -734,9 +727,9 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
                   onChange={(value) => onCustomSizeChange(value, 'height')}
                   min={parseInt(allModels.find((m) => m.id === painting.model)?.min_image_size || 512)}
                   max={parseInt(allModels.find((m) => m.id === painting.model)?.max_image_size || 2048)}
-                  style={{ width: 80, flex: 1 }}
+                  className="w-20 flex-1"
                 />
-                <span style={{ color: 'var(--color-foreground-muted)', fontSize: '11px' }}>px</span>
+                <span className="text-[11px] text-foreground-muted">px</span>
               </RowFlex>
             </div>
           )}
@@ -754,7 +747,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
                 suffix={
                   <RedoOutlined
                     onClick={() => updatePaintingState({ seed: Math.floor(Math.random() * 1000000).toString() })}
-                    style={{ cursor: 'pointer', color: 'var(--color-foreground-secondary)' }}
+                    className="cursor-pointer text-foreground-secondary"
                   />
                 }
               />

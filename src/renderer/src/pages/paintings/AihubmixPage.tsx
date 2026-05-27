@@ -24,6 +24,7 @@ import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
 import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
+import { usePaintingImageNavigation } from './hooks/usePaintingImageNavigation'
 import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
 import { type AihubmixMode, type ConfigItem, createModeConfigs, DEFAULT_PAINTING } from './providers/aihubmix/config'
 import { generateAihubmixImages } from './providers/aihubmix/provider'
@@ -58,7 +59,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const filteredPaintings = useMemo(() => paintings[mode] || [], [paintings, mode])
   const [painting, setPainting] = useState<PaintingAction>(filteredPaintings[0] || DEFAULT_PAINTING)
-  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const { currentImageIndex, nextImage, prevImage, resetImageIndex } = usePaintingImageNavigation(painting.files.length)
   const [fileMap, setFileMap] = useState<{ [key: string]: FileMetadata }>({})
 
   const { t } = useTranslation()
@@ -195,14 +196,6 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     cancelGeneration()
   }
 
-  const nextImage = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % painting.files.length)
-  }
-
-  const prevImage = () => {
-    setCurrentImageIndex((prev) => (prev - 1 + painting.files.length) % painting.files.length)
-  }
-
   const handleAddPainting = () => {
     const newPainting = addPainting(mode, getNewPainting())
     updatePainting(mode, newPainting)
@@ -275,7 +268,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
 
         return (
           <Select
-            style={{ width: '100%' }}
+            className="w-full"
             listHeight={500}
             disabled={isDisabled}
             value={painting[item.key!] || item.initialValue}
@@ -337,10 +330,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             onChange={(e) => updatePaintingState({ [item.key!]: e.target.value })}
             suffix={
               item.key === 'seed' ? (
-                <RedoOutlined
-                  onClick={handleRandomSeed}
-                  style={{ cursor: 'pointer', color: 'var(--color-foreground-secondary)' }}
-                />
+                <RedoOutlined onClick={handleRandomSeed} className="cursor-pointer text-foreground-secondary" />
               ) : (
                 item.suffix
               )
@@ -352,7 +342,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           <InputNumber
             min={item.min}
             max={item.max}
-            style={{ width: '100%' }}
+            className="w-full"
             value={(painting[item.key!] || item.initialValue) as number}
             onChange={(v) => updatePaintingState({ [item.key!]: v })}
           />
@@ -390,8 +380,11 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
               return false // 阻止默认上传行为
             }}>
             {painting[item.key!] ? (
-              <div className="relative h-full w-full overflow-hidden rounded-md hover:after:absolute hover:after:inset-0 hover:after:flex hover:after:cursor-pointer hover:after:items-center hover:after:justify-center hover:after:bg-black/50 hover:after:text-white hover:after:content-['点击替换']">
-                <img src={painting[item.key!]} alt="预览图" className="h-full w-full object-cover" />
+              <div className="group relative h-full w-full overflow-hidden rounded-md">
+                <img src={painting[item.key!]} alt={t('common.image_preview')} className="h-full w-full object-cover" />
+                <div className="pointer-events-none absolute inset-0 flex cursor-pointer items-center justify-center bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100">
+                  {t('common.click_to_replace')}
+                </div>
               </div>
             ) : (
               <img src={IcImageUp} alt="" className={theme === 'dark' ? 'mt-2 invert' : 'mt-2'} />
@@ -408,7 +401,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const renderConfigItem = (item: ConfigItem, index: number) => {
     return (
       <div key={index}>
-        <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
+        <SettingTitle className="mt-3.75 mb-1.25">
           {t(item.title!)}
           {item.tooltip && <InfoTooltip content={t(item.tooltip)} />}
         </SettingTitle>
@@ -420,7 +413,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const onSelectPainting = (newPainting: PaintingAction) => {
     if (generating) return
     setPainting(newPainting)
-    setCurrentImageIndex(0)
+    resetImageIndex()
   }
 
   useEffect(() => {
@@ -440,7 +433,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       settings={
         <>
           <div className="mb-1.25 flex items-center justify-between">
-            <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
+            <SettingTitle className="mb-1.25">{t('common.provider')}</SettingTitle>
             <SettingHelpLink target="_blank" href={aihubmixProvider.apiHost}>
               {t('paintings.learn_more')}
               {(() => {

@@ -2,6 +2,7 @@ import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import ImageStorage from '@renderer/services/ImageStorage'
 import { getProviderNameById } from '@renderer/services/ProviderService'
+import { cn } from '@renderer/utils'
 import type { Provider } from '@types'
 import { Select } from 'antd'
 import type { FC } from 'react'
@@ -56,8 +57,8 @@ const ProviderSelect: FC<ProviderSelectProps> = ({ provider, options, onChange, 
     <Select
       value={provider.id}
       onChange={onChange}
-      style={{ width: '100%', ...style }}
-      className={className}
+      style={style}
+      className={cn('w-full', className)}
       options={providerOptions}
       labelRender={(props) => {
         const providerId = props.value as string

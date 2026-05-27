@@ -33,6 +33,7 @@ import PaintingPageShell from './components/PaintingPageShell'
 import PaintingPromptBar from './components/PaintingPromptBar'
 import ProviderSelect from './components/ProviderSelect'
 import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
+import { usePaintingImageNavigation } from './hooks/usePaintingImageNavigation'
 import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
 import { generateNewApiImages, type NewApiImageMode } from './providers/newapi/provider'
 import { checkProviderEnabled, findPaintingByFiles } from './utils'
@@ -51,8 +52,6 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }, [openai_image_generate, openai_image_edit])
 
-  // moved below after newApiProvider is defined
-  const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [editImageFiles, setEditImageFiles] = useState<File[]>([])
 
   const { t } = useTranslation()
@@ -70,6 +69,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     [newApiPaintings, mode, newApiProvider.id]
   )
   const [painting, setPainting] = useState<PaintingAction>({ ...DEFAULT_PAINTING, providerId: newApiProvider.id })
+  const { currentImageIndex, nextImage, prevImage, resetImageIndex } = usePaintingImageNavigation(painting.files.length)
 
   const modeOptions = [
     { label: t('paintings.mode.generate'), value: 'openai_image_generate' },
@@ -309,14 +309,6 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     cancelGeneration()
   }
 
-  const nextImage = () => {
-    setCurrentImageIndex((prev) => (prev + 1) % painting.files.length)
-  }
-
-  const prevImage = () => {
-    setCurrentImageIndex((prev) => (prev - 1 + painting.files.length) % painting.files.length)
-  }
-
   const handleAddPainting = () => {
     const newPainting = addPainting(mode, getNewPainting())
     updatePainting(mode, newPainting)
@@ -388,7 +380,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const onSelectPainting = (newPainting: PaintingAction) => {
     if (generating) return
     setPainting(newPainting)
-    setCurrentImageIndex(0)
+    resetImageIndex()
   }
 
   const handleImageUpload = (file: File) => {
@@ -433,7 +425,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       settings={
         <>
           <div className="mb-1.25 flex items-center justify-between">
-            <SettingTitle style={{ marginBottom: 5 }}>{t('common.provider')}</SettingTitle>
+            <SettingTitle className="mb-1.25">{t('common.provider')}</SettingTitle>
             <SettingHelpLink
               target="_blank"
               href={PROVIDER_URLS[newApiProvider.id]?.websites?.docs || 'https://docs.newapi.pro/apps/cherry-studio/'}>
@@ -450,7 +442,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
           {/* 当没有可用的 Image Generation 模型时，提示用户先去新增 */}
           {modelOptions.length === 0 && (
             <Empty
-              style={{ marginTop: 24 }}
+              className="mt-6"
               description={t('paintings.no_image_generation_model', {
                 endpoint_type: t('endpoint_type.image-generation')
               })}>
@@ -464,7 +456,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
             <>
               {mode === 'openai_image_edit' && (
                 <>
-                  <SettingTitle style={{ marginTop: 20 }}>{t('paintings.input_image')}</SettingTitle>
+                  <SettingTitle className="mt-5">{t('paintings.input_image')}</SettingTitle>
                   <Upload
                     className="[&_.ant-upload.ant-upload-select]:border! [&_.ant-upload.ant-upload-select]:h-15! [&_.ant-upload.ant-upload-select]:w-full! [&_.ant-upload.ant-upload-select]:border-border! [&_.ant-upload.ant-upload-select]:border-dashed!"
                     accept="image/png, image/jpeg, image/gif"
@@ -504,8 +496,8 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
               )}
 
               {/* Model Selector */}
-              <SettingTitle style={{ marginTop: 20 }}>{t('paintings.model')}</SettingTitle>
-              <Select value={painting.model} onChange={handleModelChange} style={{ width: '100%', marginBottom: 15 }}>
+              <SettingTitle className="mt-5">{t('paintings.model')}</SettingTitle>
+              <Select value={painting.model} onChange={handleModelChange} className="mb-3.75 w-full">
                 {Object.entries(groupedModelOptions).map(([groupName, options]) => (
                   <Select.OptGroup label={groupName} key={groupName}>
                     {options.map((m) => (
@@ -521,7 +513,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
               {selectedModelConfig?.imageSizes && selectedModelConfig.imageSizes.length > 0 && (
                 <>
                   <SettingTitle>{t('paintings.image.size')}</SettingTitle>
-                  <Select value={painting.size} onChange={handleSizeChange} style={{ width: '100%', marginBottom: 15 }}>
+                  <Select value={painting.size} onChange={handleSizeChange} className="mb-3.75 w-full">
                     {selectedModelConfig.imageSizes.map((s) => (
                       <Select.Option value={s.value} key={s.value}>
                         {getPaintingsImageSizeOptionsLabel(s.value) ?? s.value}
@@ -535,10 +527,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
               {selectedModelConfig?.quality && selectedModelConfig.quality.length > 0 && (
                 <>
                   <SettingTitle>{t('paintings.quality')}</SettingTitle>
-                  <Select
-                    value={painting.quality}
-                    onChange={handleQualityChange}
-                    style={{ width: '100%', marginBottom: 15 }}>
+                  <Select value={painting.quality} onChange={handleQualityChange} className="mb-3.75 w-full">
                     {selectedModelConfig.quality.map((q) => (
                       <Select.Option value={q.value} key={q.value}>
                         {getPaintingsQualityOptionsLabel(q.value) ?? q.value}
@@ -554,10 +543,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
                 selectedModelConfig.moderation.length > 0 && (
                   <>
                     <SettingTitle>{t('paintings.moderation')}</SettingTitle>
-                    <Select
-                      value={painting.moderation}
-                      onChange={handleModerationChange}
-                      style={{ width: '100%', marginBottom: 15 }}>
+                    <Select value={painting.moderation} onChange={handleModerationChange} className="mb-3.75 w-full">
                       {selectedModelConfig.moderation.map((m) => (
                         <Select.Option value={m.value} key={m.value}>
                           {getPaintingsModerationOptionsLabel(m.value) ?? m.value}
@@ -576,7 +562,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
                     <Select
                       value={painting.background}
                       onChange={(value) => updatePaintingState({ background: value })}
-                      style={{ width: '100%', marginBottom: 15 }}>
+                      className="mb-3.75 w-full">
                       {selectedModelConfig.background.map((b) => (
                         <Select.Option value={b.value} key={b.value}>
                           {getPaintingsBackgroundOptionsLabel(b.value) ?? b.value}
@@ -595,7 +581,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
                     max={selectedModelConfig.max_images}
                     value={painting.n || 1}
                     onChange={handleNChange}
-                    style={{ width: '100%', marginBottom: 15 }}
+                    className="mb-3.75 w-full"
                   />
                 </>
               )}

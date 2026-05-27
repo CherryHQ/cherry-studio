@@ -71,12 +71,15 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
                   beforeUpload={(file) => {
                     handleBeforeUpload(file, index)
                   }}>
-                  <div className="relative h-full w-full overflow-hidden rounded-md hover:after:absolute hover:after:inset-0 hover:after:flex hover:after:cursor-pointer hover:after:items-center hover:after:justify-center hover:after:bg-black/50 hover:after:text-white hover:after:content-['点击替换']">
+                  <div className="group relative h-full w-full overflow-hidden rounded-md">
                     <img
                       src={src}
                       alt={`${t('common.image_preview')} ${index + 1}`}
                       className="h-full w-full object-cover"
                     />
+                    <div className="pointer-events-none absolute inset-0 flex cursor-pointer items-center justify-center bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100">
+                      {t('common.click_to_replace')}
+                    </div>
                   </div>
                 </Upload>
                 <Popconfirm
