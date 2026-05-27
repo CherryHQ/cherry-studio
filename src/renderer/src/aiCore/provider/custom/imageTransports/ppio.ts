@@ -98,12 +98,14 @@ export interface PpioSyncResult {
 /**
  * PPIO model descriptor needed by the transport: which endpoint to POST to
  * and whether the model responds synchronously with finished images.
+ * `mode` is the canonical PaintingMode ('draw' / 'edit' / 'generate' …);
+ * `buildSeedreamParams` branches on `mode === 'edit'`.
  */
 export interface PpioModelDescriptor {
   id: string
   endpoint: string
   isSync?: boolean
-  mode?: 'ppio_draw' | 'ppio_edit'
+  mode?: string
 }
 
 /**
@@ -266,7 +268,7 @@ class PpioTransport implements ImageGenerationTransport {
       case 'seedream-5.0-lite':
       case 'seedream-4.5':
       case 'seedream-4.0':
-        return descriptor.mode === 'ppio_edit'
+        return descriptor.mode === 'edit'
           ? this.buildSeedreamEditParams(input, painting, modelId)
           : this.buildSeedreamDrawParams(input, painting)
       case 'seedream-4.5-draw':

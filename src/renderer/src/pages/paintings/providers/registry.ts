@@ -1,11 +1,17 @@
+import { prefetch } from '@data/hooks/useDataApi'
+import { loggerService } from '@logger'
+import type { FileMetadata } from '@renderer/types'
 import { uuid } from '@renderer/utils'
 import type { PaintingMode } from '@shared/data/types/painting'
 
 import { canonicalGenerate } from '../model/canonicalGenerate'
 import type { PaintingData } from '../model/types/paintingData'
 import { loadPaintingModelOptions } from '../model/utils/paintingModelOptions'
-import { createSingleModeProvider, type PaintingProviderDefinition } from './shared/provider'
+import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
+import { createSingleModeProvider, type GenerateInput, type PaintingProviderDefinition } from './shared/provider'
 import { tokenFluxProvider } from './tokenflux'
+
+const logger = loggerService.withContext('paintings/registry')
 
 function emptyPainting(providerId: string, mode: PaintingMode = 'generate'): PaintingData {
   return { id: uuid(), providerId, mode, prompt: '', files: [], params: {} }
@@ -61,6 +67,41 @@ const dmxapiProvider: PaintingProviderDefinition = createSingleModeProvider({
   generate: (input) => canonicalGenerate(input)
 })
 
+/**
+ * PPIO's image transport (`aiCore/provider/custom/imageTransports/ppio.ts`)
+ * dispatches by `providerOptions.ppio.modelDescriptor.{endpoint,isSync}`.
+ * Registry's per-mode `vendorTransport: { endpoint, isSync }` is the source
+ * of truth (21 PPIO image-gen models populated in models.json). Inject the
+ * descriptor into `painting.params.modelDescriptor` before canonicalGenerate
+ * so it flows to the bag via the generic partition.
+ */
+async function ppioGenerate(input: GenerateInput): Promise<FileMetadata[]> {
+  const modelId = input.painting.model
+  const canonicalMode = tabToImageGenerationMode(input.painting.mode)
+  if (modelId && canonicalMode) {
+    try {
+      const support = await prefetch('/providers/:providerId/models/:modelId*/image-generation-support', {
+        params: { providerId: 'ppio', modelId }
+      })
+      const transport = support?.modes?.[canonicalMode]?.vendorTransport
+      if (transport?.endpoint) {
+        input.painting.params = {
+          ...input.painting.params,
+          modelDescriptor: {
+            id: modelId,
+            endpoint: transport.endpoint,
+            isSync: transport.isSync,
+            mode: input.painting.mode
+          }
+        }
+      }
+    } catch (error) {
+      logger.warn('Failed to prefetch PPIO vendorTransport', { modelId, mode: canonicalMode, error })
+    }
+  }
+  return canonicalGenerate(input)
+}
+
 const ppioProvider: PaintingProviderDefinition = createSingleModeProvider({
   id: 'ppio',
   dbMode: 'generate',
@@ -68,7 +109,7 @@ const ppioProvider: PaintingProviderDefinition = createSingleModeProvider({
   createPaintingData: () => emptyPainting('ppio'),
   fields: [],
   onModelChange: ({ modelId }) => ({ model: modelId }),
-  generate: (input) => canonicalGenerate(input)
+  generate: ppioGenerate
 })
 
 /**
