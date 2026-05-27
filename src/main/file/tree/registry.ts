@@ -27,11 +27,34 @@ import { randomUUID } from 'node:crypto'
 
 import { loggerService } from '@logger'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { AbsolutePathSchema } from '@shared/data/types/file'
 import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/file/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { WebContents } from 'electron'
+import * as z from 'zod'
 
 import { createDirectoryTree, type DirectoryTreeBuilder } from './builder'
+
+// Zod mirror of `DirectoryTreeOptions` for IPC validation. Kept structural —
+// the renderer is trusted enough to pass arbitrary booleans/numbers, but the
+// shape must match so a malformed payload fails fast at the boundary instead
+// of corrupting the builder's resolved options downstream.
+const DirectoryTreeOptionsSchema = z
+  .strictObject({
+    extensions: z.array(z.string()).optional(),
+    respectGitignore: z.boolean().optional(),
+    includeHidden: z.boolean().optional(),
+    withStats: z.boolean().optional(),
+    maxDepth: z.int().nonnegative().optional()
+  })
+  .optional()
+
+const TreeCreateParamsSchema = z.strictObject({
+  rootPath: AbsolutePathSchema,
+  options: DirectoryTreeOptionsSchema
+})
+
+const TreeDisposeParamsSchema = z.strictObject({ treeId: z.string().min(1) })
 
 const logger = loggerService.withContext('file/tree/registry')
 
@@ -95,13 +118,18 @@ export class TreeRegistry extends BaseService {
     // IPC handlers go here (auto-cleaned on stop) rather than in
     // FileManager, so the registry owns its complete contract: state,
     // teardown, and the channels that feed it.
-    this.ipcHandle(
-      IpcChannel.Tree_Create,
-      async (event, params: { rootPath: string; options?: DirectoryTreeOptions }) =>
-        this.create(event.sender, params.rootPath, params.options)
-    )
-    this.ipcHandle(IpcChannel.Tree_Dispose, (_event, params: { treeId: string }) => {
-      this.dispose(params.treeId)
+    //
+    // Each handler validates its payload through Zod before reaching
+    // application code — matches the pattern used by every other IPC
+    // surface in `FileManager`, so a malformed renderer call rejects
+    // at the boundary instead of silently mis-typing downstream state.
+    this.ipcHandle(IpcChannel.Tree_Create, async (event, params: unknown) => {
+      const { rootPath, options } = TreeCreateParamsSchema.parse(params)
+      return this.create(event.sender, rootPath, options as DirectoryTreeOptions | undefined)
+    })
+    this.ipcHandle(IpcChannel.Tree_Dispose, (_event, params: unknown) => {
+      const { treeId } = TreeDisposeParamsSchema.parse(params)
+      this.dispose(treeId)
     })
   }
 
