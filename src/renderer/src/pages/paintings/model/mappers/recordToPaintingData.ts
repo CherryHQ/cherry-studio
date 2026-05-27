@@ -34,6 +34,11 @@ function normalizeStoredPaintingModel(value: unknown): string | undefined {
  * default now for painting outputs. Missing ids (404 / migrator drop / user
  * deletion) are filtered out so the painting still hydrates with whatever
  * files do resolve.
+ *
+ * TODO(#15353): Drop the adapt-to-FileMetadata step once paintings consume
+ * `FileEntry` directly and the Artboard uses the `cherrystudio://file/...`
+ * custom protocol. `resolveFiles` would then be a thin DataApi pass-through
+ * returning `FileEntry[]`.
  */
 async function resolveFiles(ids: string[]): Promise<FileMetadata[]> {
   if (ids.length === 0) return []

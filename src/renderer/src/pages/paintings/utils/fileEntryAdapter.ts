@@ -11,8 +11,11 @@ import type { FileEntry } from '@shared/data/types/file/fileEntry'
  *   - `downloadImages` (url branch)
  *   - `recordToPaintingData` (history hydration)
  *
- * After the broader renderer v1→v2 file cutover this adapter goes away —
- * paintings should consume `FileEntry` directly.
+ * TODO(#15353): Delete this whole module once the `cherrystudio://file/internal/{uuid}`
+ * custom protocol scheme lands. Paintings should consume `FileEntry` directly
+ * and the Artboard should set `<img src={`cherrystudio://file/internal/${id}.${ext}`}>`
+ * — no more v1 `FileMetadata` shape, no `getPhysicalPath` round-trip, no
+ * `name = ${id}${ext}` filename quirk to encode the disk path through.
  */
 export async function fileEntryToMetadata(entry: FileEntry): Promise<FileMetadata> {
   const path = await window.api.file.getPhysicalPath({ id: entry.id })
