@@ -249,7 +249,11 @@ describe('KnowledgeOrchestrationService', () => {
 
   it('uses WhenReady phase and depends on same-phase runtime services', () => {
     expect(getPhase(KnowledgeOrchestrationService)).toBe(Phase.WhenReady)
-    expect(getDependencies(KnowledgeOrchestrationService)).toEqual(['KnowledgeVectorStoreService', 'FileManager'])
+    expect(getDependencies(KnowledgeOrchestrationService)).toEqual([
+      'KnowledgeVectorStoreService',
+      'FileManager',
+      'JobManager'
+    ])
   })
 
   it('registers formal knowledge job handlers and caller-facing IPC handlers', () => {

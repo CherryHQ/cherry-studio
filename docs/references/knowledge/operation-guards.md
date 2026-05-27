@@ -113,6 +113,19 @@ onAllReady
 
 Only one deleting recovery run is active at a time. If another delete enqueue fails while recovery is already active, the service records a pending recovery and runs another scan after the active pass completes. This makes delete cleanup durable across enqueue failure, process crash, and restart.
 
+### Why Delete Cleanup Failure Does Not Mark Items `failed`
+
+`knowledge.delete-subtree` is responsible for removing vector artifacts, detaching file references, and hard-deleting the `knowledge_item` rows. If that job fails or is cancelled after rows were already marked `deleting`, the rows must stay `deleting`.
+
+Do not convert these rows to ordinary `failed` items as a terminal fallback:
+
+- `deleting` is the state that hides requested-deletion content from default list, search, and RAG reads;
+- `failed` means an indexing or preparation workflow failed, so list and search paths may treat the item as visible user data;
+- if vector cleanup failed before all chunks were removed, `deleting -> failed` can make stale chunks searchable again;
+- delete-base may cancel delete-subtree jobs because base deletion has taken ownership of cleanup, so cancellation is not always an item-level failure.
+
+The recovery path for failed delete cleanup is to keep `deleting`, then let in-session or startup recovery enqueue another `knowledge.delete-subtree` job. If the product needs a user-visible terminal delete failure later, add an explicit delete-failure state or job-level UI, and keep that state excluded from default list, search, and RAG reads.
+
 ## `reindexItems`
 
 `reindexItems` operates on existing item ids but does not change item state in the caller-facing entrypoint.

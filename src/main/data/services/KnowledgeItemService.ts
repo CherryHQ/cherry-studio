@@ -287,15 +287,24 @@ export class KnowledgeItemService {
     }
 
     const dbService = application.get('DbService')
-    const rowsAffected = await dbService.withWriteTx(async (tx) => {
+    const deleted = await dbService.withWriteTx(async (tx) => {
+      const targetRows = await tx
+        .select({ groupId: knowledgeItemTable.groupId })
+        .from(knowledgeItemTable)
+        .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, uniqueItemIds)))
       const result = await tx
         .delete(knowledgeItemTable)
         .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, uniqueItemIds)))
-      return result.rowsAffected
+      return {
+        rowsAffected: result.rowsAffected,
+        groupIds: targetRows.map((row) => row.groupId)
+      }
     })
 
-    logger.info('Hard deleted knowledge items', { baseId, count: rowsAffected })
-    return rowsAffected
+    await this.reconcileContainers(baseId, deleted.groupIds)
+
+    logger.info('Hard deleted knowledge items', { baseId, count: deleted.rowsAffected })
+    return deleted.rowsAffected
   }
 
   async getSubtreeItems(

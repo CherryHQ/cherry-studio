@@ -66,7 +66,7 @@ const KNOWLEDGE_JOB_TYPES = new Set([
 
 @Injectable('KnowledgeOrchestrationService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['KnowledgeVectorStoreService', 'FileManager'])
+@DependsOn(['KnowledgeVectorStoreService', 'FileManager', 'JobManager'])
 export class KnowledgeOrchestrationService extends BaseService {
   private readonly mutationCoordinator = new KnowledgeMutationCoordinator()
   private readonly workflowCoordinator = new KnowledgeWorkflowCoordinator(this.mutationCoordinator)

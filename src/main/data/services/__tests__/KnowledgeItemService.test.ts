@@ -1042,6 +1042,27 @@ describe('KnowledgeItemService', () => {
       await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({ status: 'completed', error: null })
     })
 
+    it('reconciles surviving parent containers after hard deleting their last active child', async () => {
+      await seedItem({
+        id: DIR_ROOT_ID,
+        type: 'directory',
+        data: { source: '/docs', path: '/docs' },
+        status: 'processing'
+      })
+      await seedItem({
+        id: NOTE_1_ID,
+        groupId: DIR_ROOT_ID,
+        type: 'note',
+        data: { source: 'note', content: 'note' },
+        status: 'processing'
+      })
+
+      await service.hardDeleteItems(KNOWLEDGE_BASE_ID, [NOTE_1_ID])
+
+      await expect(getItemRow(NOTE_1_ID)).resolves.toBeUndefined()
+      await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({ status: 'completed', error: null })
+    })
+
     it('reconciles containers bottom-up after active leaves are deleted', async () => {
       await seedItem({
         id: DIR_A_ID,
