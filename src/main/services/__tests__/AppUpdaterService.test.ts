@@ -43,7 +43,7 @@ vi.mock('@main/core/lifecycle', () => {
   }
 })
 
-vi.mock('@main/constant', () => ({
+vi.mock('@main/core/platform', () => ({
   isWin: false
 }))
 

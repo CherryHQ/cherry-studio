@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { isLinux, isWin } from '@main/constant'
+import { isLinux, isWin } from '@main/core/platform'
 import { OcrAccuracy, recognize } from '@napi-rs/system-ocr'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type { FileMetadata } from '@types'

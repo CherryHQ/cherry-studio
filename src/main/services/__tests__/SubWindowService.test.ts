@@ -25,7 +25,7 @@ const { platformState, nativeThemeState, applicationMock, windowManagerMock } = 
   return { platformState, nativeThemeState, applicationMock, windowManagerMock }
 })
 
-vi.mock('@main/constant', () => ({
+vi.mock('@main/core/platform', () => ({
   get isMac() {
     return platformState.isMac
   },

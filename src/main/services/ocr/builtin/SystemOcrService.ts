@@ -1,4 +1,4 @@
-import { isLinux, isWin } from '@main/constant'
+import { isLinux, isWin } from '@main/core/platform'
 import { loadOcrImage } from '@main/utils/ocr'
 import { OcrAccuracy, recognize } from '@napi-rs/system-ocr'
 import type { ImageFileMetadata, OcrResult, OcrSystemConfig, SupportedOcrFile } from '@types'

@@ -8,6 +8,7 @@ import { access, constants } from 'node:fs/promises'
 import path from 'node:path'
 
 import { application } from '@application'
+import { isMac, isWin } from '@main/core/platform'
 import type { FilePath } from '@shared/file/types'
 
 const notImplemented = (op: string): never => {
@@ -42,7 +43,7 @@ export function resolvePath(_base: string, _relative: string): string {
 export function isPathInside(child: string, parent: string): boolean {
   const childResolved = path.resolve(child)
   const parentResolved = path.resolve(parent)
-  const caseInsensitive = process.platform === 'darwin' || process.platform === 'win32'
+  const caseInsensitive = isMac || isWin
   const a = caseInsensitive ? childResolved.toLowerCase() : childResolved
   const b = caseInsensitive ? parentResolved.toLowerCase() : parentResolved
   if (a === b) return false
