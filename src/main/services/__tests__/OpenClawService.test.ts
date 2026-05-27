@@ -49,7 +49,7 @@ vi.mock('@main/utils/ipService', () => ({
   isUserInChina: vi.fn(() => Promise.resolve(false))
 }))
 
-vi.mock('@main/constant', () => ({
+vi.mock('@main/core/platform', () => ({
   isWin: false
 }))
 

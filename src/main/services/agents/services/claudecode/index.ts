@@ -25,7 +25,7 @@ import { agentSessionService as sessionService } from '@data/services/AgentSessi
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { validateModelId } from '@main/apiServer/utils'
-import { isWin } from '@main/constant'
+import { isWin } from '@main/core/platform'
 import AssistantServer from '@main/mcpServers/assistant'
 import ClawServer from '@main/mcpServers/claw'
 import SkillsServer from '@main/mcpServers/skills'

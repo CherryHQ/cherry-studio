@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  *   - The global `electron` mock from tests/main.setup.ts lacks
  *     `crashReporter` and `app.on`. We shadow it per test with a richer
  *     mock backed by shared vi.fn() instances at module scope.
- *   - `@main/constant` is shadowed per test so we can flip `isDev`.
+ *   - `@main/core/platform` is shadowed per test so we can flip `isDev`.
  *   - `process.on` is a Node global. We temporarily swap it with a
  *     vi.fn() during each test and restore it in afterEach. This avoids
  *     vi.spyOn's overloaded-signature type inference problems while
@@ -34,7 +34,7 @@ function stubElectron() {
 }
 
 function stubConstants(opts: { isDev: boolean }) {
-  vi.doMock('@main/constant', () => ({
+  vi.doMock('@main/core/platform', () => ({
     isDev: opts.isDev,
     isLinux: false,
     isWin: false,

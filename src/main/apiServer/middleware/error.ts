@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { isDev } from '@main/core/platform'
 import type { NextFunction, Request, Response } from 'express'
 
 const logger = loggerService.withContext('ApiServerErrorHandler')
@@ -8,8 +9,6 @@ export const errorHandler = (err: Error, _req: Request, res: Response, _next: Ne
   logger.error('API server error', { error: err })
 
   // Don't expose internal errors in production
-  const isDev = process.env.NODE_ENV === 'development'
-
   res.status(500).json({
     error: {
       message: isDev ? err.message : 'Internal server error',

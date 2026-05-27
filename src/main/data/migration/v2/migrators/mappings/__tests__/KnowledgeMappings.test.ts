@@ -311,13 +311,59 @@ describe('KnowledgeMappings', () => {
   })
 
   it('transformKnowledgeItem backfills errors for legacy transient states without processing errors', () => {
-    const result = transformKnowledgeItem(
+    const processingResult = transformKnowledgeItem(
       'kb-1',
       {
         id: 'processing-note',
         type: 'note',
         content: 'processing note',
         processingStatus: 'processing',
+        processingError: '   '
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+    const pendingResult = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'pending-note',
+        type: 'note',
+        content: 'pending note',
+        processingStatus: 'pending',
+        processingError: ''
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(processingResult).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        status: 'failed',
+        error: 'Legacy knowledge item indexing was interrupted and needs to be retried.'
+      })
+    })
+    expect(pendingResult).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        status: 'failed',
+        error: 'Legacy knowledge item indexing was interrupted and needs to be retried.'
+      })
+    })
+  })
+
+  it('transformKnowledgeItem backfills errors for legacy failed states without processing errors', () => {
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'failed-note',
+        type: 'note',
+        content: 'failed note',
+        processingStatus: 'failed',
         processingError: '   '
       },
       {
