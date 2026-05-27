@@ -29,7 +29,7 @@ import {
 } from '@main/core/window/types'
 import { getWindowTypeMetadata, mergeWindowOptions, WINDOW_TYPE_REGISTRY } from '@main/core/window/windowRegistry'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, screen, shell, type TitleBarOverlayOptions } from 'electron'
+import { app, BrowserWindow, screen, shell } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('WindowManager')
@@ -670,25 +670,6 @@ export class WindowManager extends BaseService {
   // see behavior.ts for the full API surface. Kept off the flat WindowManager
   // namespace so the declarative three-layer split (windowOptions / behavior
   // / quirks) is visible at the call site.
-
-  // ─── Public API: Title bar overlay ────────────────────────────
-
-  /**
-   * Update title bar overlay colors on all windows that have overlay configured.
-   * Only affects window types whose windowOptions includes titleBarOverlay.
-   */
-  public setTitleBarOverlay(options: TitleBarOverlayOptions): void {
-    for (const [type, windowIds] of this.windowsByType) {
-      const metadata = getWindowTypeMetadata(type)
-      if (!metadata.windowOptions.titleBarOverlay) continue
-      for (const id of windowIds) {
-        const managed = this.windows.get(id)
-        if (managed && !managed.window.isDestroyed()) {
-          managed.window.setTitleBarOverlay(options)
-        }
-      }
-    }
-  }
 
   // ─── Public API: Broadcast (Cherry Studio extension) ──────────
 

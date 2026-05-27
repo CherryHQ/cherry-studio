@@ -107,7 +107,7 @@ export class LifecycleManager extends EventEmitter {
 
     const serviceCount = layers.flat().length
     const orderStr = layers.map((layer) => `[${layer.join(', ')}]`).join(' -> ')
-    logger.info(`─── ${phase} start (${serviceCount} services) ─── ${orderStr}`)
+    logger.info(`--- ${phase} start (${serviceCount} services) --- ${orderStr}`)
 
     const phaseStart = performance.now()
 
@@ -133,7 +133,7 @@ export class LifecycleManager extends EventEmitter {
 
     const phaseDuration = performance.now() - phaseStart
     this.phaseTiming.set(phase, { duration: phaseDuration, serviceCount })
-    logger.info(`─── ${phase} complete (${phaseDuration.toFixed(3)}ms) ───`)
+    logger.info(`--- ${phase} complete (${phaseDuration.toFixed(3)}ms) ---`)
 
     // Mark as initialized when WhenReady phase completes
     if (phase === Phase.WhenReady) {
@@ -311,16 +311,29 @@ export class LifecycleManager extends EventEmitter {
    */
   public getBootstrapSummary(totalDuration: number, excludedCount: number): string {
     const totalServices = this.initializationOrder.length
-    const W = 54
     const lines: string[] = []
 
     const fmt = (ms: number) => ms.toFixed(3) + 'ms'
-    const row = (content: string) => `│${content.padEnd(W)}│`
-    const sep = (l: string, r: string) => `${l}${'─'.repeat(W)}${r}`
 
-    lines.push(sep('┌', '┐'))
+    const excludedByPhase = this.container.getExcludedByPhase()
+
+    // Name column auto-sizes to the longest service name (min 32) so the timing
+    // column stays aligned even for long names (e.g. FileProcessingOrchestrationService).
+    let nameCol = 32
+    for (const [name] of this.serviceTiming) nameCol = Math.max(nameCol, name.length)
+    for (const names of excludedByPhase.values()) {
+      for (const name of names) nameCol = Math.max(nameCol, name.length)
+    }
+    const W = nameCol + 22
+
+    // ASCII-only borders: Unicode box-drawing characters render as mojibake when
+    // the main-process stdout is piped through a non-UTF-8 Windows console (CP936/GBK).
+    const row = (content: string) => `|${content.padEnd(W)}|`
+    const sep = () => `+${'-'.repeat(W)}+`
+
+    lines.push(sep())
     lines.push(row('                  Bootstrap Summary'.padEnd(W)))
-    lines.push(sep('├', '┤'))
+    lines.push(sep())
     lines.push(row(`  Total: ${totalServices} services in ${fmt(totalDuration)}`))
 
     // Service list grouped by phase, sorted by duration within each group
@@ -337,8 +350,6 @@ export class LifecycleManager extends EventEmitter {
       list.push([name, ms])
     }
 
-    const excludedByPhase = this.container.getExcludedByPhase()
-
     for (const phase of phaseOrder) {
       const timing = this.phaseTiming.get(phase)
       const services = servicesByPhase.get(phase)
@@ -350,10 +361,10 @@ export class LifecycleManager extends EventEmitter {
       if (timing && services && services.length > 0) {
         services.sort((a, b) => b[1] - a[1])
         const title = `[${phase}] ${timing.serviceCount} services`
-        lines.push(row(`  ${title.padEnd(36)} ${fmt(timing.duration).padStart(12)}`))
+        lines.push(row(`  ${title.padEnd(nameCol + 4)} ${fmt(timing.duration).padStart(12)}`))
         for (const [name, ms] of services) {
           const tags = this.getServiceTags(name)
-          lines.push(row(`    ${name.padEnd(32)} ${tags}  ${fmt(ms).padStart(10)}`))
+          lines.push(row(`    ${name.padEnd(nameCol)} ${tags}  ${fmt(ms).padStart(10)}`))
         }
       } else {
         lines.push(row(`  [${phase}]`))
@@ -361,7 +372,7 @@ export class LifecycleManager extends EventEmitter {
 
       if (excludedServices && excludedServices.length > 0) {
         for (const name of excludedServices) {
-          lines.push(row(`    ${name.padEnd(32)} C   ${'Excluded'.padStart(10)}`))
+          lines.push(row(`    ${name.padEnd(nameCol)} C   ${'Excluded'.padStart(10)}`))
         }
       }
     }
@@ -375,10 +386,10 @@ export class LifecycleManager extends EventEmitter {
       if (tags[1] === 'A') activatableCount++
     }
 
-    lines.push(sep('├', '┤'))
+    lines.push(sep())
     lines.push(row(`  (C)onditional: ${conditionalCount}  |  (A)ctivatable: ${activatableCount}`))
     lines.push(row(`  Adjustments: ${this.phaseAdjustments.length}  |  Excluded: ${excludedCount}`))
-    lines.push(sep('└', '┘'))
+    lines.push(sep())
     return lines.join('\n')
   }
 
