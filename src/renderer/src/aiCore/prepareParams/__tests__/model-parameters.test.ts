@@ -203,6 +203,27 @@ describe('modelParameters', () => {
 
       expect(getTemperature(assistant, model)).toBeUndefined()
     })
+
+    it('returns undefined for Gemini 3.x models', () => {
+      const assistant = createAssistant({ enableTemperature: true, temperature: 0.5 })
+      const model = createModel({ id: 'gemini-3.5-flash', provider: 'gemini', group: 'Google' })
+
+      expect(getTemperature(assistant, model)).toBeUndefined()
+    })
+
+    it('returns undefined for Gemini 3.x aliases', () => {
+      const assistant = createAssistant({ enableTemperature: true, temperature: 0.5 })
+      const model = createModel({ id: 'gemini-flash-latest', provider: 'gemini', group: 'Google' })
+
+      expect(getTemperature(assistant, model)).toBeUndefined()
+    })
+
+    it('returns undefined for Gemini 3.x model ids on non-Gemini providers', () => {
+      const assistant = createAssistant({ enableTemperature: true, temperature: 0.5 })
+      const model = createModel({ id: 'gemini-3.5-flash', provider: 'openai', group: 'Google' })
+
+      expect(getTemperature(assistant, model)).toBeUndefined()
+    })
   })
 
   describe('getTopP', () => {
@@ -285,6 +306,13 @@ describe('modelParameters', () => {
 
       expect(getTopP(assistant, model)).toBe(0.97)
     })
+
+    it('returns undefined for Gemini 3.x models', () => {
+      const assistant = createAssistant({ enableTopP: true, topP: 0.95 })
+      const model = createModel({ id: 'gemini-pro-latest', provider: 'gemini', group: 'Google' })
+
+      expect(getTopP(assistant, model)).toBeUndefined()
+    })
   })
 
   describe('filterStandardParams', () => {
@@ -318,6 +346,18 @@ describe('modelParameters', () => {
     it('returns the same object when standardParams is empty', () => {
       const input = {}
       expect(filterStandardParams(input, opus47)).toBe(input)
+    })
+
+    it('drops topK for Gemini 3.x models', () => {
+      const gemini35 = createModel({ id: 'gemini-3.5-flash', provider: 'gemini', group: 'Google' })
+
+      expect(filterStandardParams({ topK: 40, frequencyPenalty: 0.1 }, gemini35)).toEqual({ frequencyPenalty: 0.1 })
+    })
+
+    it('drops topK for Gemini 3.x model ids on non-Gemini providers', () => {
+      const proxyGemini = createModel({ id: 'gemini-3.5-flash', provider: 'openai', group: 'Google' })
+
+      expect(filterStandardParams({ topK: 40, frequencyPenalty: 0.1 }, proxyGemini)).toEqual({ frequencyPenalty: 0.1 })
     })
   })
 

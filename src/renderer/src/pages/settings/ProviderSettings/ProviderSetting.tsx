@@ -87,6 +87,7 @@ const ANTHROPIC_COMPATIBLE_PROVIDER_IDS = [
   SystemProviderIds.qiniu,
   SystemProviderIds.dmxapi,
   SystemProviderIds.mimo,
+  SystemProviderIds.stepfun,
   SystemProviderIds.openrouter,
   SystemProviderIds.tokenflux,
   SystemProviderIds.ollama
