@@ -35,7 +35,7 @@ import {
 } from './providers/ppio/config'
 import PpioProvider from './providers/ppio/provider'
 import { checkProviderEnabled } from './utils'
-import { saveGeneratedPaintingFiles } from './utils/imageFiles'
+import { savePaintingGenerationResult } from './utils/imageFiles'
 
 const logger = loggerService.withContext('PpioPage')
 
@@ -263,15 +263,25 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
 
       // 下载图片
       if (imageUrls.length > 0) {
-        const validFiles = await saveGeneratedPaintingFiles({
-          urls: imageUrls,
-          t,
-          emptyUrlLogMessage: t('message.empty_url'),
-          errorLogMessage: 'Failed to download image:'
-        })
+        const savedResult = await savePaintingGenerationResult(
+          {
+            urls: imageUrls,
+            base64s: []
+          },
+          {
+            t,
+            emptyUrlLogMessage: t('message.empty_url'),
+            errorLogMessage: 'Failed to download image:'
+          }
+        )
+
+        if (!savedResult) {
+          return
+        }
+
         updatePaintingState({
-          files: validFiles,
-          urls: imageUrls,
+          files: savedResult.files,
+          urls: savedResult.urls,
           ppioStatus: 'succeeded'
         })
 

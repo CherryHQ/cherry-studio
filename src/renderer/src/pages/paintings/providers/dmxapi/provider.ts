@@ -2,6 +2,8 @@ import type { DmxapiPainting, FileMetadata, Provider } from '@renderer/types'
 import { generationModeType } from '@renderer/types'
 import { convertToBase64 } from '@renderer/utils'
 
+import type { PaintingGenerationResult } from '../types'
+
 type DmxapiFileMap = {
   imageFiles?: FileMetadata[]
 }
@@ -140,18 +142,21 @@ async function buildDmxapiRequestConfig(
   return buildDmxapiV1GenerateRequest(options)
 }
 
-function parseDmxapiImageUrls(data: DmxapiImageResponse) {
-  return (data.data || []).map((item) => {
-    if (item.b64_json) {
-      return 'data:image/png;base64,' + item.b64_json
-    }
+function parseDmxapiImageResult(data: DmxapiImageResponse): PaintingGenerationResult {
+  return {
+    urls: (data.data || []).map((item) => {
+      if (item.b64_json) {
+        return 'data:image/png;base64,' + item.b64_json
+      }
 
-    if (item.url) {
-      return item.url
-    }
+      if (item.url) {
+        return item.url
+      }
 
-    return ''
-  })
+      return ''
+    }),
+    base64s: []
+  }
 }
 
 async function callDmxapiImageApi(provider: Provider, requestConfig: DmxapiRequestConfig, signal: AbortSignal) {
@@ -181,10 +186,10 @@ async function callDmxapiImageApi(provider: Provider, requestConfig: DmxapiReque
     throw new Error('paintings.operation_failed')
   }
 
-  return parseDmxapiImageUrls((await response.json()) as DmxapiImageResponse)
+  return parseDmxapiImageResult((await response.json()) as DmxapiImageResponse)
 }
 
-export async function generateDmxapiImages(options: GenerateDmxapiImagesOptions) {
+export async function generateDmxapiImages(options: GenerateDmxapiImagesOptions): Promise<PaintingGenerationResult> {
   const requestConfig = await buildDmxapiRequestConfig(options)
   return callDmxapiImageApi(options.provider, requestConfig, options.signal)
 }

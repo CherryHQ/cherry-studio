@@ -33,7 +33,7 @@ import {
 } from './providers/silicon/config'
 import { generateSiliconImages, getSiliconInputImages } from './providers/silicon/provider'
 import { checkProviderEnabled } from './utils'
-import { saveGeneratedPaintingFiles } from './utils/imageFiles'
+import { savePaintingGenerationResult } from './utils/imageFiles'
 
 const logger = loggerService.withContext('SiliconPage')
 
@@ -147,7 +147,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
 
     try {
       const inputImages = await getSiliconInputImages(fileMap.imageFiles.slice(0, modelParams.maxInputImages))
-      const urls = await generateSiliconImages({
+      const result = await generateSiliconImages({
         provider,
         painting,
         prompt,
@@ -162,14 +162,17 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
         }
       })
 
-      if (urls.length > 0) {
-        const validFiles = await saveGeneratedPaintingFiles({
-          urls,
-          t,
-          emptyUrlLogMessage: '图像URL为空，可能是提示词违禁',
-          errorLogMessage: 'Failed to download image:'
+      const savedResult = await savePaintingGenerationResult(result, {
+        t,
+        emptyUrlLogMessage: '图像URL为空，可能是提示词违禁',
+        errorLogMessage: 'Failed to download image:'
+      })
+
+      if (savedResult) {
+        updatePaintingState({
+          files: savedResult.files,
+          urls: savedResult.urls
         })
-        updatePaintingState({ files: validFiles, urls })
       }
     } catch (error: unknown) {
       if (error instanceof Error && error.name !== 'AbortError') {

@@ -1,6 +1,8 @@
 import type { PaintingAction } from '@renderer/types'
 import type { Provider } from '@renderer/types/provider'
 
+import type { PaintingGenerationResult } from '../types'
+
 export type NewApiImageMode = 'openai_image_generate' | 'openai_image_edit'
 
 type NewApiImageResponse = {
@@ -98,7 +100,7 @@ function buildNewApiImageRequest({
   }
 }
 
-function parseNewApiImageResponse(data: NewApiImageResponse) {
+function parseNewApiImageResponse(data: NewApiImageResponse): PaintingGenerationResult {
   const images = data.data || []
 
   return {
@@ -107,7 +109,7 @@ function parseNewApiImageResponse(data: NewApiImageResponse) {
   }
 }
 
-export async function generateNewApiImages(options: GenerateNewApiImagesOptions) {
+export async function generateNewApiImages(options: GenerateNewApiImagesOptions): Promise<PaintingGenerationResult> {
   const { url, headers, body } = buildNewApiImageRequest(options)
   const response = await fetch(url, { method: 'POST', headers, body, signal: options.signal })
   const data = (await response.json()) as NewApiImageResponse

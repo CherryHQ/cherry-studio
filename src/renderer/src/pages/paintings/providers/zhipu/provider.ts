@@ -1,6 +1,8 @@
 import { AiProvider } from '@renderer/aiCore'
 import type { Painting, Provider } from '@renderer/types'
 
+import type { PaintingGenerationResult } from '../types'
+
 type ZhipuPainting = Painting & {
   model: string
   prompt: string
@@ -27,7 +29,14 @@ function buildZhipuImageRequest({ painting, imageSize, signal }: Omit<GenerateZh
   }
 }
 
-export async function generateZhipuImages({ provider, painting, imageSize, signal }: GenerateZhipuImagesOptions) {
+export async function generateZhipuImages({
+  provider,
+  painting,
+  imageSize,
+  signal
+}: GenerateZhipuImagesOptions): Promise<PaintingGenerationResult> {
   const aiProvider = new AiProvider(provider)
-  return aiProvider.generateImage(buildZhipuImageRequest({ painting, imageSize, signal }))
+  const base64s = await aiProvider.generateImage(buildZhipuImageRequest({ painting, imageSize, signal }))
+
+  return { urls: [], base64s }
 }

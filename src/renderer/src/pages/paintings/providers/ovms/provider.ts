@@ -2,6 +2,8 @@ import { loggerService } from '@logger'
 import type { OvmsPainting } from '@renderer/types'
 import type { Provider } from '@renderer/types/provider'
 
+import type { PaintingGenerationResult } from '../types'
+
 const logger = loggerService.withContext('OvmsProvider')
 
 type GenerateOvmsImagesOptions = {
@@ -25,7 +27,7 @@ function buildOvmsImageRequestBody(painting: OvmsPainting) {
   }
 }
 
-function parseOvmsImageResponse(data: OvmsImageResponse) {
+function parseOvmsImageResponse(data: OvmsImageResponse): PaintingGenerationResult {
   const images = data.data || []
 
   return {
@@ -34,7 +36,11 @@ function parseOvmsImageResponse(data: OvmsImageResponse) {
   }
 }
 
-export async function generateOvmsImages({ provider, painting, signal }: GenerateOvmsImagesOptions) {
+export async function generateOvmsImages({
+  provider,
+  painting,
+  signal
+}: GenerateOvmsImagesOptions): Promise<PaintingGenerationResult> {
   const requestBody = buildOvmsImageRequestBody(painting)
 
   logger.info('OVMS API request:', requestBody)

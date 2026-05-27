@@ -1,6 +1,8 @@
 import type { FileMetadata, Painting, Provider } from '@renderer/types'
 import { convertToBase64 } from '@renderer/utils'
 
+import type { PaintingGenerationResult } from '../types'
+
 type SiliconImageResponse = {
   data?: Array<{ url?: string; b64_json?: string }>
   images?: Array<{ url?: string; b64_json?: string }>
@@ -35,11 +37,15 @@ function getSiliconImageEndpoint(provider: Pick<Provider, 'apiHost'>) {
   return `${apiHost}/v1/images/generations`
 }
 
-function parseSiliconImageUrls(data: SiliconImageResponse) {
+function parseSiliconImageResult(data: SiliconImageResponse): PaintingGenerationResult {
   const images = data.data || data.images || []
-  return images
-    .map((image) => image.url || (image.b64_json ? `data:image/png;base64,${image.b64_json}` : undefined))
-    .filter((url): url is string => Boolean(url))
+
+  return {
+    urls: images
+      .map((image) => image.url || (image.b64_json ? `data:image/png;base64,${image.b64_json}` : undefined))
+      .filter((url): url is string => Boolean(url)),
+    base64s: []
+  }
 }
 
 function buildSiliconImageRequestBody({
@@ -78,7 +84,7 @@ export async function generateSiliconImages({
   signal,
   inputImages,
   modelParams
-}: GenerateSiliconImagesOptions) {
+}: GenerateSiliconImagesOptions): Promise<PaintingGenerationResult> {
   const response = await fetch(getSiliconImageEndpoint(provider), {
     method: 'POST',
     headers: {
@@ -95,5 +101,5 @@ export async function generateSiliconImages({
     throw new Error(data.error?.message || response.statusText)
   }
 
-  return parseSiliconImageUrls(data)
+  return parseSiliconImageResult(data)
 }

@@ -392,7 +392,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       setAbortController(controller)
       setGenerating(true)
 
-      const urls = await generateDmxapiImages({
+      const result = await generateDmxapiImages({
         provider: dmxapiProvider,
         painting,
         prompt,
@@ -402,6 +402,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       })
 
       // 下载图像
+      const { urls } = result
       if (urls.length > 0) {
         const validFiles = await downloadPaintingUrls(urls, {
           t,

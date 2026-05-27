@@ -30,7 +30,7 @@ import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslati
 import { type AihubmixMode, type ConfigItem, createModeConfigs, DEFAULT_PAINTING } from './providers/aihubmix/config'
 import { generateAihubmixImages } from './providers/aihubmix/provider'
 import { checkProviderEnabled } from './utils'
-import { saveGeneratedPaintingFiles } from './utils/imageFiles'
+import { saveGeneratedPaintingFiles, savePaintingGenerationResult } from './utils/imageFiles'
 
 const logger = loggerService.withContext('AihubmixPage')
 
@@ -155,7 +155,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         }
       }
 
-      const { urls, base64s } = await generateAihubmixImages({
+      const result = await generateAihubmixImages({
         provider: aihubmixProvider,
         mode: mode as AihubmixMode,
         painting,
@@ -166,19 +166,17 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         signal: controller.signal
       })
 
-      if (urls && urls.length > 0) {
-        const validFiles = await saveGeneratedPaintingFiles({
-          urls,
-          t,
-          emptyUrlLogMessage: '图像URL为空，可能是提示词违禁',
-          errorLogMessage: '下载图像失败:'
-        })
-        updatePaintingState({ files: validFiles, urls })
-      }
+      const savedResult = await savePaintingGenerationResult(result, {
+        t,
+        emptyUrlLogMessage: '图像URL为空，可能是提示词违禁',
+        errorLogMessage: '下载图像失败:'
+      })
 
-      if (base64s && base64s.length > 0) {
-        const validFiles = await saveGeneratedPaintingFiles({ base64s })
-        updatePaintingState({ files: validFiles, urls: [] })
+      if (savedResult) {
+        updatePaintingState({
+          files: savedResult.files,
+          urls: savedResult.urls
+        })
       }
     } catch (error: unknown) {
       handleError(error)

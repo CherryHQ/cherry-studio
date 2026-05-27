@@ -34,7 +34,7 @@ import {
   OVMS_MODELS
 } from './providers/ovms/config'
 import { generateOvmsImages } from './providers/ovms/provider'
-import { saveGeneratedPaintingFiles } from './utils/imageFiles'
+import { saveGeneratedPaintingFiles, savePaintingGenerationResult } from './utils/imageFiles'
 
 const logger = loggerService.withContext('OvmsPage')
 
@@ -149,25 +149,24 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
     setGenerating(true)
 
     try {
-      const { urls, base64s } = await generateOvmsImages({
+      const result = await generateOvmsImages({
         provider: ovmsProvider,
         painting,
         signal: controller.signal
       })
 
-      if (base64s.length > 0) {
-        const validFiles = await saveGeneratedPaintingFiles({ base64s })
-        updatePaintingState({ files: validFiles, urls: [] })
-      }
+      const savedResult = await savePaintingGenerationResult(result, {
+        t,
+        emptyUrlLogMessage: 'Image URL is empty, possibly due to prohibited prompt',
+        errorLogMessage: 'Failed to download image',
+        preferredResult: 'urls'
+      })
 
-      if (urls.length > 0) {
-        const validFiles = await saveGeneratedPaintingFiles({
-          urls,
-          t,
-          emptyUrlLogMessage: 'Image URL is empty, possibly due to prohibited prompt',
-          errorLogMessage: 'Failed to download image'
+      if (savedResult) {
+        updatePaintingState({
+          files: savedResult.files,
+          urls: savedResult.urls
         })
-        updatePaintingState({ files: validFiles, urls })
       }
     } catch (error: unknown) {
       handleError(error)

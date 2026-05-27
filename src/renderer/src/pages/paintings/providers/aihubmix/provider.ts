@@ -3,6 +3,7 @@ import { AiProvider } from '@renderer/aiCore'
 import type { FileMetadata, PaintingAction } from '@renderer/types'
 import type { Provider } from '@renderer/types/provider'
 
+import type { PaintingGenerationResult } from '../types'
 import type { AihubmixMode } from './config'
 
 const logger = loggerService.withContext('AihubmixProvider')
@@ -20,11 +21,6 @@ type GenerateAihubmixImagesOptions = {
   generateFailedMessage: string
   imageMixFailedMessage: string
   signal: AbortSignal
-}
-
-type AihubmixImageResult = {
-  urls?: string[]
-  base64s?: string[]
 }
 
 type AihubmixFetchConfig = {
@@ -109,12 +105,13 @@ function parseGeminiBase64s(data: GeminiResponse | GeminiResponse[]) {
   return base64s
 }
 
-function parseAihubmixImageResponse(data: AihubmixImageResponse): AihubmixImageResult {
+function parseAihubmixImageResponse(data: AihubmixImageResponse): PaintingGenerationResult {
   if (data.output) {
     return {
-      base64s: data.output.b64_json
-        ?.map((item) => item.bytesBase64)
-        .filter((base64): base64 is string => Boolean(base64))
+      urls: [],
+      base64s:
+        data.output.b64_json?.map((item) => item.bytesBase64).filter((base64): base64 is string => Boolean(base64)) ??
+        []
     }
   }
 
@@ -143,7 +140,7 @@ async function generateImagenImages(
     signal
   })
 
-  return { base64s }
+  return { urls: [], base64s }
 }
 
 async function generateGeminiImages(
@@ -198,6 +195,7 @@ async function generateGeminiImages(
   logger.silly(`Gemini API Response: ${JSON.stringify(data)}`)
 
   return {
+    urls: [],
     base64s: parseGeminiBase64s(data as GeminiResponse | GeminiResponse[])
   }
 }
@@ -239,7 +237,8 @@ async function callAihubmixV3Generate(
   logger.silly(`V3 API响应: ${data}`)
 
   return {
-    urls: data.data?.map((item) => item.url).filter((url): url is string => Boolean(url))
+    urls: data.data?.map((item) => item.url).filter((url): url is string => Boolean(url)) ?? [],
+    base64s: []
   }
 }
 
@@ -276,7 +275,8 @@ async function callAihubmixV3Remix(
   logger.silly(`V3 Remix API响应: ${data}`)
 
   return {
-    urls: data.data?.map((item) => item.url).filter((url): url is string => Boolean(url))
+    urls: data.data?.map((item) => item.url).filter((url): url is string => Boolean(url)) ?? [],
+    base64s: []
   }
 }
 
@@ -438,7 +438,9 @@ async function callAihubmixCommonApi(
   return parseAihubmixImageResponse(data)
 }
 
-export async function generateAihubmixImages(options: GenerateAihubmixImagesOptions): Promise<AihubmixImageResult> {
+export async function generateAihubmixImages(
+  options: GenerateAihubmixImagesOptions
+): Promise<PaintingGenerationResult> {
   const { provider, mode, painting, prompt, fileMap, generateFailedMessage, imageMixFailedMessage, signal } = options
 
   if (mode === 'aihubmix_image_generate') {

@@ -3,6 +3,8 @@ import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata } from '@renderer/types'
 import type { TFunction } from 'i18next'
 
+import type { PaintingGenerationResult } from '../providers/types'
+
 const logger = loggerService.withContext('PaintingImageFiles')
 
 type DownloadPaintingUrlsOptions = {
@@ -17,6 +19,10 @@ type DownloadPaintingUrlsOptions = {
 type SaveGeneratedPaintingFilesOptions = DownloadPaintingUrlsOptions & {
   urls?: string[]
   base64s?: string[]
+}
+
+type SavePaintingGenerationResultOptions = DownloadPaintingUrlsOptions & {
+  preferredResult?: 'base64s' | 'urls'
 }
 
 const getEmptyUrlMessage = (options: DownloadPaintingUrlsOptions) =>
@@ -92,4 +98,44 @@ export async function saveGeneratedPaintingFiles(options: SaveGeneratedPaintingF
   }
 
   return files
+}
+
+export async function savePaintingGenerationResult(
+  result: PaintingGenerationResult,
+  options: SavePaintingGenerationResultOptions = {}
+): Promise<{ files: FileMetadata[]; urls: string[] } | null> {
+  let urlFiles: FileMetadata[] = []
+  let base64Files: FileMetadata[] = []
+
+  if (options.preferredResult === 'urls') {
+    if (result.base64s.length > 0) {
+      base64Files = await saveGeneratedPaintingFiles({ base64s: result.base64s })
+    }
+
+    if (result.urls.length > 0) {
+      urlFiles = await saveGeneratedPaintingFiles({ urls: result.urls, ...options })
+      return { files: urlFiles, urls: result.urls }
+    }
+
+    if (result.base64s.length > 0) {
+      return { files: base64Files, urls: [] }
+    }
+
+    return null
+  }
+
+  if (result.urls.length > 0) {
+    urlFiles = await saveGeneratedPaintingFiles({ urls: result.urls, ...options })
+  }
+
+  if (result.base64s.length > 0) {
+    base64Files = await saveGeneratedPaintingFiles({ base64s: result.base64s })
+    return { files: base64Files, urls: [] }
+  }
+
+  if (urlFiles.length > 0 || result.urls.length > 0) {
+    return { files: urlFiles, urls: result.urls }
+  }
+
+  return null
 }

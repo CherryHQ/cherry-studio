@@ -33,7 +33,7 @@ import {
 } from './providers/zhipu/config'
 import { generateZhipuImages } from './providers/zhipu/provider'
 import { checkProviderEnabled } from './utils'
-import { saveGeneratedPaintingFiles } from './utils/imageFiles'
+import { savePaintingGenerationResult } from './utils/imageFiles'
 
 const logger = loggerService.withContext('ZhipuPage')
 
@@ -153,24 +153,19 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
 
       // NOTE: ai sdk内部已经处理成了base64
-      const images = await generateZhipuImages({
+      const result = await generateZhipuImages({
         provider: zhipuProvider,
         painting,
         imageSize: actualImageSize,
         signal: controller.signal
       })
 
-      // 下载图片到本地文件
-      if (images.length > 0) {
-        const validFiles = await saveGeneratedPaintingFiles({ base64s: images })
-
-        // 处理响应结果
-        const newPainting = {
-          ...painting,
-          files: validFiles
-        }
-
-        updatePaintingState(newPainting)
+      const savedResult = await savePaintingGenerationResult(result)
+      if (savedResult) {
+        updatePaintingState({
+          files: savedResult.files,
+          urls: savedResult.urls
+        })
       }
     } catch (error) {
       if (error instanceof Error && error.name !== 'AbortError') {
