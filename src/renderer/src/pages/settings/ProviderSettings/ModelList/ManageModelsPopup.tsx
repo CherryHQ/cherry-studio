@@ -156,16 +156,18 @@ const PopupContainer: React.FC<Props> = ({ providerId, resolve }) => {
       title: t('settings.models.manage.add_listed.label'),
       content: t('settings.models.manage.add_listed.confirm'),
       centered: true,
-      onOk: async () => {
-        const wouldAddModel = list.filter((model) => !isModelInProvider(provider, model.id))
-        if (wouldAddModel.length === 0) {
-          window.toast.info(t('settings.models.manage.no_models_to_add'))
-          return
-        }
-        const success = await addModelsWithValidation(provider, wouldAddModel, onAddModel, t)
-        if (success) {
-          window.toast.success(t('settings.models.manage.add_success', { count: wouldAddModel.length }))
-        }
+      onOk: () => {
+        void (async () => {
+          const wouldAddModel = list.filter((model) => !isModelInProvider(provider, model.id))
+          if (wouldAddModel.length === 0) {
+            window.toast.info(t('settings.models.manage.no_models_to_add'))
+            return
+          }
+          const success = await addModelsWithValidation(provider, wouldAddModel, onAddModel, t)
+          if (success) {
+            window.toast.success(t('settings.models.manage.add_success', { count: wouldAddModel.length }))
+          }
+        })()
       }
     })
   }, [list, onAddModel, provider, t])
