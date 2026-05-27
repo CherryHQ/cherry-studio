@@ -857,8 +857,18 @@ export class CdpBrowserController {
   }
 
   /**
-   * Takes a screenshot of the current page using CDP Page.captureScreenshot.
-   * @param options - Screenshot options
+   * Takes a screenshot of the current page using Electron's native capturePage API.
+   *
+   * NOTE: Uses `webContents.capturePage()` instead of CDP `Page.captureScreenshot`
+   * to avoid hanging issues on certain platforms (e.g., MSYS2/MinGW where the CDP
+   * screenshot command can hang indefinitely). `capturePage()` also sidesteps
+   * GPU/rendering-layer incompatibilities that affect the CDP path.
+   *
+   * Known limitation: `capturePage()` only captures the visible viewport; the
+   * `fullPage` option is not yet supported via this path. A follow-up can implement
+   * full-page capture by resizing the view or stitching multiple captures.
+   *
+   * @param options - Screenshot options (fullPage is currently ignored)
    * @param privateMode - If true, targets private window (default: false)
    * @param tabId - Optional specific tab ID to target
    * @returns Base64-encoded image data
@@ -869,23 +879,17 @@ export class CdpBrowserController {
     tabId?: string
   ): Promise<string> {
     const { tabId: actualTabId, tab } = await this.getTab(privateMode, tabId)
-    const windowKey = this.getWindowKey(privateMode)
-    this.touchTab(windowKey, actualTabId)
-    const dbg = tab.view.webContents.debugger
-
-    await this.ensureDebuggerAttached(dbg, windowKey)
+    this.touchTab(this.getWindowKey(privateMode), actualTabId)
+    const { webContents } = tab.view
 
     const format = options.format ?? 'png'
-    const params: Record<string, unknown> = {
-      format,
-      captureBeyondViewport: options.fullPage ?? false
-    }
-    if (format === 'jpeg' && options.quality !== undefined) {
-      params.quality = options.quality
-    }
 
-    const result = (await dbg.sendCommand('Page.captureScreenshot', params)) as { data: string }
-    return result.data
+    const image = await webContents.capturePage()
+
+    const buffer =
+      format === 'jpeg' ? image.toJPEG(options.quality ?? 80) : image.toPNG()
+
+    return buffer.toString('base64')
   }
 
   /**
