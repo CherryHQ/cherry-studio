@@ -1,295 +1,132 @@
-import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/types/model'
+import type { ImageGenerationMode, ImageGenerationSupport, SupportSpec } from '@shared/data/types/model'
 
 import type { BaseConfigItem, OptionItem } from '../providers/shared/providerFieldSchema'
 
 /**
- * Merge top-level `ImageGenerationSupport` with the per-mode override
- * declared under `modeSchemas[mode]`. Per-mode values win on conflict.
- * `supports` is merged at the field level (per-mode `imageWeight` does
- * not erase top-level `aspectRatio`, etc.).
+ * Canonical key → i18n labels. Adding a new canonical control is a one-row
+ * addition here + a registry data entry on the relevant models — no schema
+ * change, no per-key handler.
  */
-function effectiveSupport(
-  support: ImageGenerationSupport,
-  mode: ImageGenerationMode | undefined
-): ImageGenerationSupport {
-  const override = mode ? support.modeSchemas?.[mode] : undefined
-  if (!override) return support
-  const merged: ImageGenerationSupport = { ...support, ...override }
-  if (support.supports || override.supports) {
-    merged.supports = { ...support.supports, ...override.supports }
+const KEY_LABELS: Record<string, { title: string; tooltip?: string }> = {
+  size: { title: 'paintings.image.size' },
+  numImages: { title: 'paintings.number_images', tooltip: 'paintings.number_images_tip' },
+  aspectRatio: { title: 'paintings.aspect_ratio' },
+  imageResolution: { title: 'paintings.image.size' },
+  customSize: { title: 'paintings.custom_size' },
+  negativePrompt: { title: 'paintings.negative_prompt', tooltip: 'paintings.negative_prompt_tip' },
+  seed: { title: 'paintings.seed', tooltip: 'paintings.seed_tip' },
+  promptEnhancement: { title: 'paintings.prompt_enhancement', tooltip: 'paintings.prompt_enhancement_tip' },
+  magicPromptOption: { title: 'paintings.magic_prompt' },
+  addWatermark: { title: 'paintings.watermark' },
+  outputFormat: { title: 'paintings.ppio.output_format' },
+  quality: { title: 'paintings.quality' },
+  moderation: { title: 'paintings.moderation' },
+  background: { title: 'paintings.background' },
+  styleType: { title: 'paintings.style_type' },
+  renderingSpeed: { title: 'paintings.rendering_speed' },
+  personGeneration: { title: 'paintings.person_generation' },
+  numInferenceSteps: { title: 'paintings.inference_steps', tooltip: 'paintings.inference_steps_tip' },
+  guidanceScale: { title: 'paintings.guidance_scale', tooltip: 'paintings.guidance_scale_tip' },
+  safetyTolerance: { title: 'paintings.safety_tolerance' },
+  imageWeight: { title: 'paintings.image_weight' },
+  resemblance: { title: 'paintings.resemblance' },
+  detail: { title: 'paintings.detail' }
+}
+
+function toOptions(values: readonly string[]): OptionItem[] {
+  return values.map((v) => ({ label: v, value: v }))
+}
+
+function specToField(
+  key: string,
+  spec: SupportSpec,
+  allSupports: Record<string, SupportSpec>
+): BaseConfigItem | null {
+  const labels = KEY_LABELS[key] ?? { title: key }
+  switch (spec.type) {
+    case 'switch':
+      return { type: 'switch', key, ...labels, initialValue: spec.default ?? false }
+    case 'text':
+      return spec.multiline ? { type: 'textarea', key, ...labels } : { type: 'input', key, ...labels }
+    case 'range': {
+      const item: BaseConfigItem = {
+        type: 'slider',
+        key,
+        ...labels,
+        min: spec.min,
+        max: spec.max,
+        initialValue: spec.default ?? spec.min
+      }
+      if (spec.step !== undefined) (item as { step?: number }).step = spec.step
+      return item
+    }
+    case 'enum': {
+      const renderAsChips = spec.render === 'chips'
+      // Mode allows arbitrary width × height via a sibling `size` spec —
+      // append the `'custom'` chip so the customSize widget can gate on it.
+      const pairedSize = key === 'size' && allSupports.customSize?.type === 'size'
+      const options: OptionItem[] = toOptions(spec.options)
+      if (pairedSize) options.push({ label: 'paintings.custom_size', value: 'custom' })
+      if (renderAsChips) {
+        return {
+          type: 'sizeChips',
+          key,
+          ...labels,
+          options,
+          initialValue: spec.default,
+          columns: spec.columns ?? 3
+        }
+      }
+      return { type: 'select', key, ...labels, options, initialValue: spec.default }
+    }
+    case 'size': {
+      const pairedKey = spec.pairedEnumKey
+      return {
+        type: 'customSize',
+        key,
+        widthKey: `${key}_width`,
+        heightKey: `${key}_height`,
+        sizeKey: pairedKey ?? 'size',
+        validation: {
+          minWidth: spec.minSide,
+          maxWidth: spec.maxSide,
+          minHeight: spec.minSide,
+          maxHeight: spec.maxSide
+        },
+        condition: pairedKey
+          ? (painting: Record<string, unknown>) => painting[pairedKey] === 'custom'
+          : undefined
+      } as unknown as BaseConfigItem
+    }
+    default: {
+      const _exhaustive: never = spec
+      return _exhaustive
+    }
   }
-  return merged
 }
 
 /**
- * Map an `ImageGenerationSupport` descriptor (from the provider registry, per
- * model) to the existing `BaseConfigItem[]` shape that
- * `PaintingFieldRenderer` already knows how to render. Keeps the renderer
- * pipeline unchanged — only the field-list source switches from a hand-rolled
- * per-provider `fields.ts` to this derivation.
+ * Generic registry → form-fields dispatcher. Iterates the
+ * `modes[mode].supports` map and turns each entry into the matching
+ * `BaseConfigItem`. No per-vendor knowledge; no per-key handlers; no
+ * hardcoded canonical-key list. Adding a new param: declare it on the
+ * model in registry data with the right `SupportSpec`, optionally add an
+ * i18n label entry to `KEY_LABELS` above.
  *
- * Field keys are canonical (`size`, `numImages`, `negativePrompt`, `seed`,
- * `numInferenceSteps`, `guidanceScale`, `safetyTolerance`, `quality`,
- * `moderation`, `background`, `aspectRatio`, `styleType`, `renderingSpeed`,
- * `personGeneration`, `promptEnhancement`, `magicPromptOption`, `imageWeight`,
- * `resemblance`, `detail`). Providers whose persisted `PaintingData` uses
- * different field names can pass `opts.keyMap` to alias a canonical key to a
- * legacy name without renaming stored data.
- *
- * `opts.mode` selects which mode-specific schema to merge in (registry's
- * `modeSchemas[mode]` overrides top-level). Omit for single-mode models.
+ * `mode` defaults to `'generate'` when the support carries that mode
+ * (which it always does for image-gen-capable models in v2 data).
  */
 export function imageGenerationToFields(
-  raw: ImageGenerationSupport | undefined,
-  opts?: { keyMap?: Record<string, string>; mode?: ImageGenerationMode }
+  support: ImageGenerationSupport | undefined,
+  opts?: { mode?: ImageGenerationMode }
 ): BaseConfigItem[] {
-  if (!raw) return []
-  const support = effectiveSupport(raw, opts?.mode)
+  const mode = opts?.mode ?? 'generate'
+  const supports = support?.modes?.[mode]?.supports
+  if (!supports) return []
   const items: BaseConfigItem[] = []
-  // Per-model `support.keyMap` from registry wins on collision so a model
-  // whose stored field name diverges from the canonical key (gpt-image
-  // batch → `n`, imagen batch → `numberOfImages`) overrides the provider's
-  // default mapping for that field while leaving the rest intact.
-  const mergedKeyMap = { ...opts?.keyMap, ...support.keyMap }
-  const remap = (key: string) => mergedKeyMap[key] ?? key
-
-  // size
-  if (support.sizes && support.sizes.length > 0) {
-    const options: OptionItem[] = support.sizes.map((v) => ({ label: v, value: v }))
-    // Models that accept arbitrary width × height (`customSize`) get a
-    // `'custom'` chip appended — the customSize widget below renders when
-    // the user picks it.
-    if (support.customSize) {
-      options.push({ label: 'paintings.custom_size', value: 'custom' })
-    }
-    if (support.sizeMode === 'pixel') {
-      items.push({
-        type: 'sizeChips',
-        key: remap('size'),
-        title: 'paintings.image.size',
-        options,
-        initialValue: support.defaultSize,
-        columns: 3
-      })
-    } else {
-      items.push({
-        type: 'select',
-        key: remap('size'),
-        title: 'paintings.image.size',
-        options,
-        initialValue: support.defaultSize
-      })
-    }
+  for (const [key, spec] of Object.entries(supports)) {
+    const item = specToField(key, spec, supports)
+    if (item) items.push(item)
   }
-
-  // Custom-size widget (paired with the 'custom' chip option above). Renders
-  // width / height number inputs validated against the model's accepted range.
-  if (support.customSize) {
-    items.push({
-      type: 'customSize',
-      key: remap('customSize'),
-      widthKey: remap('customWidth'),
-      heightKey: remap('customHeight'),
-      sizeKey: remap('size'),
-      validation: {
-        minWidth: support.customSize.min,
-        maxWidth: support.customSize.max,
-        minHeight: support.customSize.min,
-        maxHeight: support.customSize.max
-      },
-      condition: (painting: Record<string, unknown>) => painting[remap('size')] === 'custom'
-    } as unknown as BaseConfigItem)
-  }
-
-  // batch (numImages)
-  if (support.batch && (support.batch.min !== undefined || support.batch.max !== undefined)) {
-    items.push({
-      type: 'slider',
-      key: remap('numImages'),
-      title: 'paintings.number_images',
-      tooltip: 'paintings.number_images_tip',
-      min: support.batch.min ?? 1,
-      max: support.batch.max ?? 1,
-      initialValue: support.batch.default ?? support.batch.min ?? 1
-    })
-  }
-
-  const s = support.supports
-  if (!s) return items
-
-  if (s.negativePrompt) {
-    items.push({
-      type: 'textarea',
-      key: remap('negativePrompt'),
-      title: 'paintings.negative_prompt',
-      tooltip: 'paintings.negative_prompt_tip'
-    })
-  }
-  if (s.seed) {
-    items.push({ type: 'input', key: remap('seed'), title: 'paintings.seed', tooltip: 'paintings.seed_tip' })
-  }
-  if (s.promptEnhancement) {
-    items.push({
-      type: 'switch',
-      key: remap('promptEnhancement'),
-      title: 'paintings.prompt_enhancement',
-      tooltip: 'paintings.prompt_enhancement_tip',
-      initialValue: false
-    })
-  }
-  if (s.magicPromptOption) {
-    items.push({
-      type: 'switch',
-      key: remap('magicPromptOption'),
-      title: 'paintings.magic_prompt',
-      initialValue: false
-    })
-  }
-  if (s.addWatermark) {
-    items.push({
-      type: 'switch',
-      key: remap('addWatermark'),
-      title: 'paintings.watermark',
-      initialValue: false
-    })
-  }
-  if (s.outputFormat) {
-    items.push({
-      type: 'select',
-      key: remap('outputFormat'),
-      title: 'paintings.ppio.output_format',
-      options: s.outputFormat.map((v) => ({ label: v, value: v }))
-    })
-  }
-  if (s.numInferenceSteps) {
-    items.push({
-      type: 'slider',
-      key: remap('numInferenceSteps'),
-      title: 'paintings.inference_steps',
-      tooltip: 'paintings.inference_steps_tip',
-      min: s.numInferenceSteps.min ?? 1,
-      max: s.numInferenceSteps.max ?? 50,
-      initialValue: s.numInferenceSteps.default ?? 25
-    })
-  }
-  if (s.guidanceScale) {
-    items.push({
-      type: 'slider',
-      key: remap('guidanceScale'),
-      title: 'paintings.guidance_scale',
-      tooltip: 'paintings.guidance_scale_tip',
-      min: s.guidanceScale.min ?? 0,
-      max: s.guidanceScale.max ?? 20,
-      step: 0.1,
-      initialValue: s.guidanceScale.default ?? 4.5
-    })
-  }
-  if (s.safetyTolerance) {
-    items.push({
-      type: 'slider',
-      key: remap('safetyTolerance'),
-      title: 'paintings.safety_tolerance',
-      min: s.safetyTolerance.min ?? 0,
-      max: s.safetyTolerance.max ?? 6,
-      initialValue: s.safetyTolerance.default ?? s.safetyTolerance.max ?? 6
-    })
-  }
-  if (s.quality) {
-    items.push({
-      type: 'select',
-      key: remap('quality'),
-      title: 'paintings.quality',
-      options: s.quality.map((v) => ({ label: v, value: v }))
-    })
-  }
-  if (s.moderation) {
-    items.push({
-      type: 'select',
-      key: remap('moderation'),
-      title: 'paintings.moderation',
-      options: s.moderation.map((v) => ({ label: v, value: v }))
-    })
-  }
-  if (s.background) {
-    items.push({
-      type: 'select',
-      key: remap('background'),
-      title: 'paintings.background',
-      options: s.background.map((v) => ({ label: v, value: v }))
-    })
-  }
-  if (s.aspectRatio) {
-    items.push({
-      type: 'sizeChips',
-      key: remap('aspectRatio'),
-      title: 'paintings.aspect_ratio',
-      options: s.aspectRatio.map((v) => ({ label: v, value: v })),
-      columns: 3
-    })
-  }
-  if (s.imageResolution) {
-    items.push({
-      type: 'sizeChips',
-      key: remap('imageResolution'),
-      title: 'paintings.image.size',
-      options: s.imageResolution.map((v) => ({ label: v, value: v })),
-      columns: 3
-    })
-  }
-  if (s.styleType) {
-    items.push({
-      type: 'select',
-      key: remap('styleType'),
-      title: 'paintings.style_type',
-      options: s.styleType.map((v) => ({ label: v, value: v }))
-    })
-  }
-  if (s.renderingSpeed) {
-    items.push({
-      type: 'select',
-      key: remap('renderingSpeed'),
-      title: 'paintings.rendering_speed',
-      options: s.renderingSpeed.map((v) => ({ label: v, value: v }))
-    })
-  }
-  if (s.personGeneration) {
-    items.push({
-      type: 'select',
-      key: remap('personGeneration'),
-      title: 'paintings.person_generation',
-      options: s.personGeneration.map((v) => ({ label: v, value: v }))
-    })
-  }
-  if (s.imageWeight) {
-    items.push({
-      type: 'slider',
-      key: remap('imageWeight'),
-      title: 'paintings.image_weight',
-      min: s.imageWeight.min ?? 1,
-      max: s.imageWeight.max ?? 100,
-      initialValue: s.imageWeight.default ?? s.imageWeight.min ?? 50
-    })
-  }
-  if (s.resemblance) {
-    items.push({
-      type: 'slider',
-      key: remap('resemblance'),
-      title: 'paintings.resemblance',
-      min: s.resemblance.min ?? 1,
-      max: s.resemblance.max ?? 100,
-      initialValue: s.resemblance.default ?? s.resemblance.min ?? 50
-    })
-  }
-  if (s.detail) {
-    items.push({
-      type: 'slider',
-      key: remap('detail'),
-      title: 'paintings.detail',
-      min: s.detail.min ?? 1,
-      max: s.detail.max ?? 100,
-      initialValue: s.detail.default ?? s.detail.min ?? 50
-    })
-  }
-
   return items
 }

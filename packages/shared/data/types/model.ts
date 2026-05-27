@@ -15,9 +15,11 @@ import type {
   EndpointType,
   ImageGenerationMode,
   ImageGenerationSupport,
+  ImageModeDef,
   Modality,
   ModelCapability,
-  ReasoningEffort
+  ReasoningEffort,
+  SupportSpec
 } from '@cherrystudio/provider-registry'
 import {
   CURRENCY,
@@ -39,9 +41,11 @@ export type {
   EndpointType,
   ImageGenerationMode,
   ImageGenerationSupport,
+  ImageModeDef,
   Modality,
   ModelCapability,
-  ReasoningEffort
+  ReasoningEffort,
+  SupportSpec
 }
 
 /** Price per token schema */
