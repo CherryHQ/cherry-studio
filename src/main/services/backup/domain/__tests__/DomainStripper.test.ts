@@ -3,7 +3,7 @@ import { BackupDomain } from '@shared/backup'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { CancellationToken } from '../../CancellationToken'
-import { CROSS_DOMAIN_FK_RULES } from '../DomainStripper'
+import { CROSS_DOMAIN_FK_RULES, getSelectiveBackupImpact } from '../DomainStripper'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -95,5 +95,35 @@ describe('CROSS_DOMAIN_FK_RULES', () => {
     )
     expect(byTable('assistant_mcp_server')[0].referencedDomain).toBe(BackupDomain.MCP_SERVERS)
     expect(byTable('assistant_knowledge_base')[0].referencedDomain).toBe(BackupDomain.KNOWLEDGE)
+  })
+})
+
+describe('getSelectiveBackupImpact', () => {
+  it('reports FK degradation for missing referenced domains', () => {
+    const impact = getSelectiveBackupImpact([BackupDomain.TOPICS])
+    const affected = impact.map((w) => `${w.table}.${w.column}`)
+    expect(affected).toContain('topic.assistant_id')
+    expect(affected).toContain('topic.group_id')
+    expect(affected).toContain('message.model_id')
+  })
+
+  it('returns empty when all referenced domains are included', () => {
+    const impact = getSelectiveBackupImpact([
+      BackupDomain.TOPICS,
+      BackupDomain.TAGS_GROUPS,
+      BackupDomain.ASSISTANTS,
+      BackupDomain.PROVIDERS,
+      BackupDomain.MCP_SERVERS,
+      BackupDomain.KNOWLEDGE
+    ])
+    expect(impact).toEqual([])
+  })
+
+  it('reports DELETE_ROW action for junction table rules', () => {
+    const impact = getSelectiveBackupImpact([BackupDomain.ASSISTANTS])
+    const deleteWarnings = impact.filter((w) => w.action === 'DELETE_ROW')
+    const affected = deleteWarnings.map((w) => `${w.table}.${w.column}`)
+    expect(affected).toContain('assistant_mcp_server.mcp_server_id')
+    expect(affected).toContain('assistant_knowledge_base.knowledge_base_id')
   })
 })

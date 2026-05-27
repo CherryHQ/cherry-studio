@@ -1,6 +1,7 @@
+import { BlockType } from '@shared/data/types/message'
 import { describe, expect, it } from 'vitest'
 
-import { extractFileId } from '../FileCollector'
+import { extractFileId, FILE_ID_BLOCK_TYPES } from '../FileCollector'
 
 describe('FileCollector', () => {
   describe('extractFileId', () => {
@@ -34,6 +35,18 @@ describe('FileCollector', () => {
 
     it('handles file blocks without fileId', () => {
       expect(extractFileId({ type: 'file' })).toBeNull()
+    })
+  })
+
+  describe('FILE_ID_BLOCK_TYPES guard', () => {
+    it('covers all known file-bearing block types', () => {
+      expect(FILE_ID_BLOCK_TYPES).toEqual([BlockType.FILE, BlockType.IMAGE])
+    })
+
+    it('is used by extractFileId for all declared types', () => {
+      for (const blockType of FILE_ID_BLOCK_TYPES) {
+        expect(extractFileId({ type: blockType, fileId: 'test-id' })).toBe('test-id')
+      }
     })
   })
 })

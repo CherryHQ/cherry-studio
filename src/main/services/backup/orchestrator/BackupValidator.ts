@@ -49,6 +49,22 @@ export function validateBackupManifest(
       message: 'Backup manifest has no domains listed'
     })
   }
+
+  if (manifest.selectiveBackupWarnings?.length) {
+    for (const warning of manifest.selectiveBackupWarnings) {
+      warnings.push({
+        code: ValidationErrorCode.DATA_VALUE_INVALID,
+        message: `Selective backup may degrade ${warning.table}.${warning.column} because domain ${warning.referencedDomain} is absent (${warning.action})`
+      })
+    }
+  }
+
+  if (manifest.sensitiveData?.included) {
+    warnings.push({
+      code: ValidationErrorCode.DATA_VALUE_INVALID,
+      message: 'Backup archive includes sensitive data and will restore it as-is.'
+    })
+  }
 }
 
 export class BackupValidatorImpl {

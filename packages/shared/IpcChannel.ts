@@ -269,25 +269,44 @@ export enum IpcChannel {
 
   Export_Word = 'export:word',
 
-  // backup
+  // backup — legacy v1, use BackupV2_* instead
+  /** @deprecated Use BackupV2_* channels instead. */
   Backup_Backup = 'backup:backup',
+  /** @deprecated Use BackupV2_* channels instead. */
   Backup_Restore = 'backup:restore',
+  /** @deprecated Use BackupV2_* channels instead. */
   Backup_BackupToWebdav = 'backup:backupToWebdav',
+  /** @deprecated Use BackupV2_* channels instead. */
   Backup_RestoreFromWebdav = 'backup:restoreFromWebdav',
+  /** @deprecated Use BackupV2_* channels instead. */
   Backup_ListWebdavFiles = 'backup:listWebdavFiles',
+  /** @deprecated Use BackupV2_* channels instead. */
   Backup_CheckConnection = 'backup:checkConnection',
+  /** @deprecated Use BackupV2_* channels instead. */
   Backup_CreateDirectory = 'backup:createDirectory',
+  /** @deprecated Use BackupV2_* channels instead. */
   Backup_DeleteWebdavFile = 'backup:deleteWebdavFile',
+  /** @deprecated Use BackupV2_* channels instead. */
   Backup_BackupToLocalDir = 'backup:backupToLocalDir',
+  /** @deprecated Use BackupV2_* channels instead. */
   Backup_RestoreFromLocalBackup = 'backup:restoreFromLocalBackup',
+  /** @deprecated Use BackupV2_* channels instead. */
   Backup_ListLocalBackupFiles = 'backup:listLocalBackupFiles',
+  /** @deprecated Use BackupV2_* channels instead. */
   Backup_DeleteLocalBackupFile = 'backup:deleteLocalBackupFile',
+  /** @deprecated Use BackupV2_* channels instead. */
   Backup_BackupToS3 = 'backup:backupToS3',
+  /** @deprecated Use BackupV2_* channels instead. */
   Backup_RestoreFromS3 = 'backup:restoreFromS3',
+  /** @deprecated Use BackupV2_* channels instead. */
   Backup_ListS3Files = 'backup:listS3Files',
+  /** @deprecated Use BackupV2_* channels instead. */
   Backup_DeleteS3File = 'backup:deleteS3File',
+  /** @deprecated Use BackupV2_* channels instead. */
   Backup_CheckS3Connection = 'backup:checkS3Connection',
+  /** @deprecated Use BackupV2_* channels instead. */
   Backup_CreateLanTransferBackup = 'backup:createLanTransferBackup',
+  /** @deprecated Use BackupV2_* channels instead. */
   Backup_DeleteLanTransferBackup = 'backup:deleteLanTransferBackup',
 
   // data migration
@@ -321,9 +340,11 @@ export enum IpcChannel {
   System_ToggleDevTools = 'system:toggleDevTools',
 
   // events
+  /** @deprecated Use BackupV2_Progress instead. */
   BackupProgress = 'backup-progress',
   DataMigrateProgress = 'data-migrate-progress',
   NativeThemeUpdated = 'native-theme:updated',
+  /** @deprecated Use BackupV2_Progress instead. */
   RestoreProgress = 'restore-progress',
   UpdateError = 'update-error',
   UpdateAvailable = 'update-available',

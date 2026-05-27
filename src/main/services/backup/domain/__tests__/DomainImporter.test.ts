@@ -8,7 +8,8 @@ vi.mock('@logger', () => ({
     withContext: () => ({
       info: vi.fn(),
       warn: vi.fn(),
-      error: vi.fn()
+      error: vi.fn(),
+      debug: vi.fn()
     })
   }
 }))
@@ -496,5 +497,82 @@ describe('DomainImporter', () => {
     const result = await importer.importDomain(BackupDomain.MCP_SERVERS, ConflictStrategy.SKIP)
     expect(result.skipped).toBe(1)
     expect(result.imported).toBe(0)
+  })
+
+  it('remaps fileId in message.data blocks during RENAME', async () => {
+    const oldFileId = 'old-file-id'
+    const newFileId = 'new-file-id'
+    const dataJson = JSON.stringify({ blocks: [{ type: 'file', fileId: oldFileId }] })
+    const rows = [{ id: 'msg-1', topic_id: 't1', data: dataJson }]
+    const backupClient = createMockBackupClient({ message: rows })
+    const liveDb = createMockLiveDb()
+    const remapper = createMockRemapper()
+    remapper.remap.mockImplementation((id: string) => (id === oldFileId ? newFileId : id))
+
+    const importer = new DomainImporter(
+      backupClient as never,
+      liveDb as never,
+      remapper as never,
+      createMockTracker() as never,
+      createMockToken() as never
+    )
+
+    await importer.importDomain(BackupDomain.TOPICS, ConflictStrategy.RENAME)
+
+    expect(remapper.remap).toHaveBeenCalledWith(oldFileId)
+    const insertCall = liveDb._tx.run.mock.calls[0][0]
+    const sqlStr = flattenSqlChunks(insertCall)
+    expect(sqlStr).toContain(newFileId)
+  })
+
+  it('preserves malformed message.data during RENAME', async () => {
+    const badJson = 'not-valid-json'
+    const rows = [{ id: 'msg-1', topic_id: 't1', data: badJson }]
+    const backupClient = createMockBackupClient({ message: rows })
+    const liveDb = createMockLiveDb()
+    const remapper = createMockRemapper()
+
+    const importer = new DomainImporter(
+      backupClient as never,
+      liveDb as never,
+      remapper as never,
+      createMockTracker() as never,
+      createMockToken() as never
+    )
+
+    // Should not throw despite malformed JSON
+    await importer.importDomain(BackupDomain.TOPICS, ConflictStrategy.RENAME)
+    expect(liveDb._tx.run).toHaveBeenCalled()
+  })
+
+  it('preserves unrelated block data in message.data during RENAME', async () => {
+    const dataJson = JSON.stringify({
+      blocks: [
+        { type: 'main_text', content: 'hello' },
+        { type: 'file', fileId: 'fid-remapped' },
+        { type: 'thinking', content: 'reasoning' }
+      ]
+    })
+    const rows = [{ id: 'msg-1', topic_id: 't1', data: dataJson }]
+    const backupClient = createMockBackupClient({ message: rows })
+    const liveDb = createMockLiveDb()
+    const remapper = createMockRemapper()
+    remapper.remap.mockImplementation((id: string) => (id === 'fid-remapped' ? 'fid-new' : id))
+
+    const importer = new DomainImporter(
+      backupClient as never,
+      liveDb as never,
+      remapper as never,
+      createMockTracker() as never,
+      createMockToken() as never
+    )
+
+    await importer.importDomain(BackupDomain.TOPICS, ConflictStrategy.RENAME)
+
+    const insertCall = liveDb._tx.run.mock.calls[0][0]
+    const sqlStr = flattenSqlChunks(insertCall)
+    expect(sqlStr).toContain('fid-new')
+    expect(sqlStr).toContain('main_text')
+    expect(sqlStr).toContain('thinking')
   })
 })

@@ -57,89 +57,121 @@ export class ImportOrchestrator {
         }
       }
 
-      const backupDbPath = path.join(tempDir, 'backup.sqlite')
-      const backupUrl = pathToFileURL(backupDbPath).href
-      const backupClient = createClient({ url: backupUrl })
-
-      const liveDb = application.get('DbService').getDb()
-      const strategy = options.conflictStrategy ?? ConflictStrategy.RENAME
-      const selectedDomains = this.resolveImportDomains(manifest, options)
-
-      this.progressTracker.setPhase(RestorePhase.IMPORTING)
-
-      const domainTotals = new Map<BackupDomain, number>()
-      let totalImportItems = 0
-      for (const domain of selectedDomains) {
-        const tables = DOMAIN_TABLE_MAP[domain]
-        let domainTotal = 0
-        for (const t of tables) {
-          const r = await backupClient.execute(`SELECT COUNT(*) as cnt FROM "${t}"`)
-          domainTotal += Number(r.rows[0].cnt)
-        }
-        domainTotals.set(domain, domainTotal)
-        totalImportItems += domainTotal
-      }
-      this.progressTracker.setTotals(totalImportItems, 0n)
-
-      const remapper = new IdRemapper()
-      const domainCounts: Record<string, number> = {}
-      let totalSkipped = 0
-      let totalErrors = 0
-
+      let snapshotPath = ''
       try {
-        if (strategy === ConflictStrategy.RENAME) {
-          await remapper.buildMap(backupClient, liveDb, selectedDomains)
+        // Pre-restore snapshot for manual recovery on failure
+        snapshotPath = await this.createSnapshot()
+
+        const backupDbPath = path.join(tempDir, 'backup.sqlite')
+        const backupUrl = pathToFileURL(backupDbPath).href
+        const backupClient = createClient({ url: backupUrl })
+
+        const liveDb = application.get('DbService').getDb()
+        const strategy = options.conflictStrategy ?? ConflictStrategy.RENAME
+        const selectedDomains = this.resolveImportDomains(manifest, options)
+
+        this.progressTracker.setPhase(RestorePhase.IMPORTING)
+
+        const domainTotals = new Map<BackupDomain, number>()
+        let totalImportItems = 0
+        for (const domain of selectedDomains) {
+          const tables = DOMAIN_TABLE_MAP[domain]
+          let domainTotal = 0
+          for (const t of tables) {
+            const r = await backupClient.execute(`SELECT COUNT(*) as cnt FROM "${t}"`)
+            domainTotal += Number(r.rows[0].cnt)
+          }
+          domainTotals.set(domain, domainTotal)
+          totalImportItems += domainTotal
+        }
+        this.progressTracker.setTotals(totalImportItems, 0n)
+
+        const remapper = new IdRemapper()
+        const domainCounts: Record<string, number> = {}
+        let totalSkipped = 0
+        let totalErrors = 0
+
+        try {
+          if (strategy === ConflictStrategy.RENAME) {
+            await remapper.buildMap(backupClient, liveDb, selectedDomains)
+          }
+
+          const importer = new DomainImporter(backupClient, liveDb, remapper, this.progressTracker, this.token)
+
+          for (const domain of IMPORT_ORDER) {
+            if (!selectedDomains.includes(domain)) continue
+            this.token.throwIfCancelled()
+            this.progressTracker.setDomain(domain, domainTotals.get(domain) ?? 0)
+
+            const result = await importer.importDomain(domain, strategy)
+            domainCounts[domain] = result.imported
+            totalSkipped += result.skipped
+            totalErrors += result.errors
+          }
+        } finally {
+          backupClient.close()
         }
 
-        const importer = new DomainImporter(backupClient, liveDb, remapper, this.progressTracker, this.token)
-
-        for (const domain of IMPORT_ORDER) {
-          if (!selectedDomains.includes(domain)) continue
-          this.token.throwIfCancelled()
-          this.progressTracker.setDomain(domain, domainTotals.get(domain) ?? 0)
-
-          const result = await importer.importDomain(domain, strategy)
-          domainCounts[domain] = result.imported
-          totalSkipped += result.skipped
-          totalErrors += result.errors
+        if (selectedDomains.includes(BackupDomain.TOPICS)) {
+          this.progressTracker.setPhase(RestorePhase.FTS_REBUILD)
+          await this.rebuildFts(liveDb)
         }
-      } finally {
-        backupClient.close()
-      }
 
-      if (selectedDomains.includes(BackupDomain.TOPICS)) {
-        this.progressTracker.setPhase(RestorePhase.FTS_REBUILD)
-        await this.rebuildFts(liveDb)
-      }
+        const fileRestorer = new FileRestorer(tempDir, this.progressTracker, this.token, remapper)
+        let fileCount = 0
+        if (options.restoreFiles !== false) {
+          const hasFilesDomain =
+            selectedDomains.includes(BackupDomain.FILE_STORAGE) || selectedDomains.includes(BackupDomain.TOPICS)
+          const hasKnowledgeDomain = selectedDomains.includes(BackupDomain.KNOWLEDGE)
 
-      const fileRestorer = new FileRestorer(tempDir, this.progressTracker, this.token, remapper)
-      let fileCount = 0
-      if (options.restoreFiles !== false) {
-        const hasFilesDomain =
-          selectedDomains.includes(BackupDomain.FILE_STORAGE) || selectedDomains.includes(BackupDomain.TOPICS)
-        const hasKnowledgeDomain = selectedDomains.includes(BackupDomain.KNOWLEDGE)
-
-        if (hasFilesDomain) {
-          fileCount += (await fileRestorer.restoreFiles(strategy)).restored
+          if (hasFilesDomain) {
+            fileCount += (await fileRestorer.restoreFiles(strategy)).restored
+          }
+          if (hasKnowledgeDomain) {
+            fileCount += (await fileRestorer.restoreKnowledgeBases(strategy)).restored
+          }
         }
-        if (hasKnowledgeDomain) {
-          fileCount += (await fileRestorer.restoreKnowledgeBases(strategy)).restored
+
+        this.progressTracker.setPhase(RestorePhase.COMPLETE)
+
+        return {
+          duration: Date.now() - startTime,
+          domainCounts,
+          conflictCount: remapper.getMap().size,
+          resolvedCount: remapper.getMap().size,
+          skippedCount: totalSkipped,
+          fileCount,
+          errorCount: totalErrors
         }
-      }
-
-      this.progressTracker.setPhase(RestorePhase.COMPLETE)
-
-      return {
-        duration: Date.now() - startTime,
-        domainCounts,
-        conflictCount: remapper.getMap().size,
-        resolvedCount: remapper.getMap().size,
-        skippedCount: totalSkipped,
-        fileCount,
-        errorCount: totalErrors
+      } catch (error) {
+        if (snapshotPath) {
+          throw new Error(`${(error as Error).message} Recovery snapshot: ${snapshotPath}`)
+        }
+        throw error
       }
     } finally {
       await fsp.rm(tempDir, { recursive: true, force: true }).catch(() => {})
+    }
+  }
+
+  private async createSnapshot(): Promise<string> {
+    try {
+      const dbPath = application.getPath('app.database.file')
+      const snapshotDir = application.getPath('feature.backup.temp')
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+      const snapshotPath = path.join(snapshotDir, `pre-restore-snapshot-${timestamp}.sqlite`)
+      const client = createClient({ url: pathToFileURL(dbPath).href })
+      try {
+        const escaped = snapshotPath.replaceAll("'", "''")
+        await client.execute(`VACUUM INTO '${escaped}'`)
+      } finally {
+        client.close()
+      }
+      logger.info('Pre-restore snapshot created', { path: snapshotPath })
+      return snapshotPath
+    } catch (err) {
+      logger.warn('Pre-restore snapshot failed — restore will proceed without recovery point', err as Error)
+      return ''
     }
   }
 

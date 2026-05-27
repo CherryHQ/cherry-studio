@@ -4,7 +4,7 @@ import { shouldExclude } from '../PreferenceFilter'
 
 describe('PreferenceFilter', () => {
   describe('shouldExclude', () => {
-    it('excludes keys matching sensitive patterns', () => {
+    it('excludes keys matching sensitive patterns by default', () => {
       expect(shouldExclude('provider.api_key', null)).toBe(true)
       expect(shouldExclude('user.password', null)).toBe(true)
       expect(shouldExclude('oauth.token', null)).toBe(true)
@@ -13,25 +13,31 @@ describe('PreferenceFilter', () => {
       expect(shouldExclude('some.auth_config', null)).toBe(true)
     })
 
-    it('excludes values matching sensitive patterns', () => {
+    it('excludes values matching sensitive patterns by default', () => {
       expect(shouldExclude('normal.key', 'contains-api-key-value')).toBe(true)
       expect(shouldExclude('normal.key', 'has-secret-in-it')).toBe(true)
     })
 
-    it('excludes machine state keys', () => {
-      expect(shouldExclude('app.zoom_factor', '1.5')).toBe(true)
-      expect(shouldExclude('app.window_state', '{"x":0}')).toBe(true)
-      expect(shouldExclude('app.sidebar_width', '300')).toBe(true)
-      expect(shouldExclude('app.last_active_topic', 'uuid-123')).toBe(true)
+    it('excludes machine state keys even with includeSensitiveData', () => {
+      expect(shouldExclude('app.zoom_factor', '1.5', true)).toBe(true)
+      expect(shouldExclude('app.window_state', '{"x":0}', true)).toBe(true)
+      expect(shouldExclude('app.sidebar_width', '300', true)).toBe(true)
+      expect(shouldExclude('app.last_active_topic', 'uuid-123', true)).toBe(true)
     })
 
-    it('excludes absolute paths', () => {
-      expect(shouldExclude('data.path', '/Users/me/data')).toBe(true)
-      expect(shouldExclude('data.path', 'C:\\Users\\me\\data')).toBe(true)
+    it('excludes absolute paths even with includeSensitiveData', () => {
+      expect(shouldExclude('data.path', '/Users/me/data', true)).toBe(true)
+      expect(shouldExclude('data.path', 'C:\\Users\\me\\data', true)).toBe(true)
     })
 
-    it('excludes platform-specific shortcuts', () => {
-      expect(shouldExclude('shortcut.toggle', 'CommandOrControl+Shift+P')).toBe(true)
+    it('excludes platform-specific shortcuts even with includeSensitiveData', () => {
+      expect(shouldExclude('shortcut.toggle', 'CommandOrControl+Shift+P', true)).toBe(true)
+    })
+
+    it('keeps sensitive keys when includeSensitiveData is true', () => {
+      expect(shouldExclude('provider.api_key', 'sk-xxx', true)).toBe(false)
+      expect(shouldExclude('user.password', 'secret123', true)).toBe(false)
+      expect(shouldExclude('oauth.token', 'tok-abc', true)).toBe(false)
     })
 
     it('keeps normal preferences', () => {

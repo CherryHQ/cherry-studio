@@ -143,6 +143,11 @@ export class DomainImporter {
 
         let remapped = this.remapRow(tableName, row as Record<string, unknown>)
 
+        // Remap soft fileId references in message.data JSON blob during RENAME
+        if (tableName === 'message' && strategy === ConflictStrategy.RENAME && remapped.data) {
+          remapped = { ...remapped, data: this.remapMessageData(remapped.data as string) }
+        }
+
         if (tableName === 'user_provider' && strategy === ConflictStrategy.OVERWRITE) {
           remapped = await this.preserveProviderCredentials(tx, remapped)
         }
@@ -233,5 +238,27 @@ export class DomainImporter {
       // No existing record, proceed with backup values
     }
     return row
+  }
+
+  /** Remap fileId references in message.data JSON blob through the IdRemapper. */
+  private remapMessageData(dataJson: string): string {
+    try {
+      const data = JSON.parse(dataJson) as { blocks?: Record<string, unknown>[] }
+      if (!data.blocks || !Array.isArray(data.blocks)) return dataJson
+      let changed = false
+      for (const block of data.blocks) {
+        if (block.fileId && typeof block.fileId === 'string') {
+          const remapped = this.remapper.remap(block.fileId)
+          if (remapped !== block.fileId) {
+            block.fileId = remapped
+            changed = true
+          }
+        }
+      }
+      return changed ? JSON.stringify(data) : dataJson
+    } catch {
+      logger.debug('Malformed message.data JSON preserved during import')
+      return dataJson
+    }
   }
 }

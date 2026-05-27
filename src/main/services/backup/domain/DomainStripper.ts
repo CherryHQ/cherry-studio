@@ -1,7 +1,6 @@
-import type { Client } from '@libsql/client'
-import { createClient } from '@libsql/client'
+import { type Client, createClient } from '@libsql/client'
 import { loggerService } from '@logger'
-import { BackupDomain } from '@shared/backup'
+import { BackupDomain, type SelectiveBackupWarning } from '@shared/backup'
 import { pathToFileURL } from 'url'
 
 import type { CancellationToken } from '../CancellationToken'
@@ -43,10 +42,22 @@ export const CROSS_DOMAIN_FK_RULES: readonly CrossDomainFkRule[] = [
   { table: 'knowledge_base', column: 'group_id', referencedDomain: BackupDomain.TAGS_GROUPS, action: 'SET_NULL' }
 ]
 
+/** Reports FK degradation consequences for a selective backup. */
+export function getSelectiveBackupImpact(selectedDomains: BackupDomain[]): SelectiveBackupWarning[] {
+  const selectedSet = new Set(selectedDomains)
+  return CROSS_DOMAIN_FK_RULES.filter((rule) => !selectedSet.has(rule.referencedDomain)).map((rule) => ({
+    table: rule.table,
+    column: rule.column,
+    referencedDomain: rule.referencedDomain,
+    action: rule.action
+  }))
+}
+
 export async function stripUnselectedDomains(
   backupDbPath: string,
   selectedDomains: BackupDomain[],
-  token: CancellationToken
+  token: CancellationToken,
+  options?: { includeSensitiveData?: boolean }
 ): Promise<void> {
   const url = pathToFileURL(backupDbPath).href
   const client = createClient({ url })
@@ -71,7 +82,7 @@ export async function stripUnselectedDomains(
       await client.execute(`DROP TRIGGER IF EXISTS "${row.name as string}"`)
     }
 
-    if (selectedDomains.includes(BackupDomain.PROVIDERS)) {
+    if (selectedDomains.includes(BackupDomain.PROVIDERS) && !options?.includeSensitiveData) {
       await client.execute(`UPDATE user_provider SET api_keys = '[]', auth_config = NULL`)
       logger.info('Provider credentials sanitized')
     }

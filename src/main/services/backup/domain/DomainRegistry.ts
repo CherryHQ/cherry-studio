@@ -8,7 +8,7 @@ export const DOMAIN_TABLE_MAP: Record<BackupDomain, readonly string[]> = {
   [BackupDomain.TAGS_GROUPS]: ['tag', 'entity_tag', 'group'],
   [BackupDomain.TRANSLATE_HISTORY]: ['translate_language', 'translate_history'],
   [BackupDomain.PROMPTS]: ['prompt'],
-  [BackupDomain.FILE_STORAGE]: [],
+  [BackupDomain.FILE_STORAGE]: ['file_entry'],
   [BackupDomain.PROVIDERS]: ['user_provider', 'user_model'],
   [BackupDomain.MINIAPPS]: ['mini_app'],
   [BackupDomain.ASSISTANTS]: ['assistant', 'assistant_mcp_server', 'assistant_knowledge_base'],
@@ -30,7 +30,7 @@ export const DOMAIN_TABLE_MAP: Record<BackupDomain, readonly string[]> = {
  * Not in any domain and not in INFRASTRUCTURE_TABLES — dropped automatically
  * by the inverse keep-set approach. Exported for documentation and testing.
  */
-export const ALWAYS_STRIP_TABLES = ['app_state', 'message_fts'] as const
+export const ALWAYS_STRIP_TABLES = ['app_state', 'message_fts', 'file_ref', 'job', 'job_schedule'] as const
 
 export const INFRASTRUCTURE_TABLES = ['__drizzle_migrations'] as const
 

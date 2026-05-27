@@ -19,7 +19,7 @@ import type { Client, InValue } from '@libsql/client'
 import { createClient } from '@libsql/client'
 import { loggerService } from '@logger'
 import { CUSTOM_SQL_STATEMENTS } from '@main/data/db/customSqls'
-import type { BackupDomain } from '@shared/backup'
+import { BackupDomain } from '@shared/backup'
 import { drizzle } from 'drizzle-orm/libsql'
 import { migrate } from 'drizzle-orm/libsql/migrator'
 import { pathToFileURL } from 'url'
@@ -48,7 +48,8 @@ const FALLBACK_BATCH_SIZE = 500
 export async function createSelectiveBackupDb(
   backupDbPath: string,
   selectedDomains: BackupDomain[],
-  token: CancellationToken
+  token: CancellationToken,
+  options?: { includeSensitiveData?: boolean }
 ): Promise<void> {
   const selectedSet = new Set(selectedDomains)
 
@@ -63,7 +64,13 @@ export async function createSelectiveBackupDb(
     token.throwIfCancelled()
     await applyCrossDomainFkRules(backupClient, selectedSet, token)
 
-    // Step 4: VACUUM to compact the file
+    // Step 4: Sanitize provider credentials unless opted in
+    if (selectedDomains.includes(BackupDomain.PROVIDERS) && !options?.includeSensitiveData) {
+      await backupClient.execute(`UPDATE user_provider SET api_keys = '[]', auth_config = NULL`)
+      logger.info('Provider credentials sanitized (selective)')
+    }
+
+    // Step 5: VACUUM to compact the file
     token.throwIfCancelled()
     await backupClient.execute('VACUUM')
 

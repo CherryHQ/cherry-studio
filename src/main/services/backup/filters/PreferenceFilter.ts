@@ -1,5 +1,6 @@
 import type { Client } from '@libsql/client'
 import { loggerService } from '@logger'
+import type { BackupOptions } from '@shared/backup'
 
 import type { CancellationToken } from '../CancellationToken'
 
@@ -14,14 +15,18 @@ const MACHINE_STATE_KEYS = new Set([
   'app.last_active_topic'
 ])
 
-export async function filterPreferences(client: Client, token: CancellationToken): Promise<{ filtered: number }> {
+export async function filterPreferences(
+  client: Client,
+  token: CancellationToken,
+  options?: BackupOptions
+): Promise<{ filtered: number }> {
   token.throwIfCancelled()
   const result = await client.execute('SELECT scope, key, value FROM preference')
   const toDelete: Array<{ scope: string; key: string }> = []
   for (const row of result.rows) {
     const key = row.key as string
     const value = row.value as string | null
-    if (shouldExclude(key, value)) {
+    if (shouldExclude(key, value, options?.includeSensitiveData)) {
       toDelete.push({ scope: row.scope as string, key })
     }
   }
@@ -33,11 +38,15 @@ export async function filterPreferences(client: Client, token: CancellationToken
   return { filtered: toDelete.length }
 }
 
-export function shouldExclude(key: string, value: string | null): boolean {
-  if (SENSITIVE_PATTERN.test(key)) return true
-  if (value && SENSITIVE_PATTERN.test(value)) return true
+export function shouldExclude(key: string, value: string | null, includeSensitiveData?: boolean): boolean {
+  // Always excluded regardless of opt-in
   if (MACHINE_STATE_KEYS.has(key)) return true
   if (value && ABSOLUTE_PATH_PATTERN.test(value)) return true
   if (key.startsWith('shortcut.') && value?.includes('CommandOrControl')) return true
+  // Opt-in sensitive data
+  if (!includeSensitiveData) {
+    if (SENSITIVE_PATTERN.test(key)) return true
+    if (value && SENSITIVE_PATTERN.test(value)) return true
+  }
   return false
 }

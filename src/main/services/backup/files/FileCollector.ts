@@ -6,6 +6,9 @@ import type { CancellationToken } from '../CancellationToken'
 const logger = loggerService.withContext('FileCollector')
 const BATCH_SIZE = 1000
 
+/** Message block types that carry a top-level fileId reference. */
+export const FILE_ID_BLOCK_TYPES = ['file', 'image'] as const
+
 export async function collectReferencedFiles(client: Client, token: CancellationToken): Promise<Set<string>> {
   const fileIds = new Set<string>()
   let offset = 0
@@ -34,10 +37,7 @@ export async function collectReferencedFiles(client: Client, token: Cancellation
 }
 
 export function extractFileId(block: Record<string, unknown>): string | null {
-  if (block.type === 'file') {
-    return (block.fileId as string) ?? null
-  }
-  if (block.type === 'image') {
+  if ((FILE_ID_BLOCK_TYPES as readonly string[]).includes(block.type as string)) {
     return (block.fileId as string) ?? null
   }
   return null

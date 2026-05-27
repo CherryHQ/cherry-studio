@@ -16,6 +16,7 @@ import { pathToFileURL } from 'url'
 import type { CancellationToken } from '../CancellationToken'
 import { DOMAIN_TABLE_MAP } from '../domain/DomainRegistry'
 import { stripUnselectedDomains } from '../domain/DomainStripper'
+import { getSelectiveBackupImpact } from '../domain/DomainStripper'
 import { collectReferencedFiles } from '../files/FileCollector'
 import { filterPreferences } from '../filters/PreferenceFilter'
 import { BackupPhase, type BackupProgressTracker } from '../progress/BackupProgressTracker'
@@ -40,11 +41,15 @@ export class ExportOrchestrator {
       const backupDbPath = path.join(tempDir, 'backup.sqlite')
 
       if (mode === 'selective') {
-        await createSelectiveBackupDb(backupDbPath, options.domains, this.token)
+        await createSelectiveBackupDb(backupDbPath, options.domains, this.token, {
+          includeSensitiveData: options.includeSensitiveData
+        })
       } else {
         await this.vacuumInto(backupDbPath)
         this.token.throwIfCancelled()
-        await stripUnselectedDomains(backupDbPath, options.domains, this.token)
+        await stripUnselectedDomains(backupDbPath, options.domains, this.token, {
+          includeSensitiveData: options.includeSensitiveData
+        })
       }
 
       const backupUrl = pathToFileURL(backupDbPath).href
@@ -52,7 +57,7 @@ export class ExportOrchestrator {
       let domainStats: Record<string, DomainStats>
       try {
         if (options.domains.includes(BackupDomain.PREFERENCES)) {
-          await filterPreferences(backupClient, this.token)
+          await filterPreferences(backupClient, this.token, options)
         }
 
         domainStats = await this.collectDomainStats(backupClient, options.domains)
@@ -70,7 +75,19 @@ export class ExportOrchestrator {
       const checksums = await this.computeChecksums(tempDir)
       const schemaHash = await this.getSchemaHash(backupDbPath)
 
-      const manifest = this.buildManifest(mode, options.domains, domainStats, checksums, schemaHash)
+      const allDomains = Object.values(BackupDomain) as BackupDomain[]
+      const selectiveBackupWarnings =
+        options.domains.length < allDomains.length ? getSelectiveBackupImpact(options.domains) : undefined
+      const sensitiveData = options.includeSensitiveData ? { included: true } : undefined
+      const manifest = this.buildManifest(
+        mode,
+        options.domains,
+        domainStats,
+        checksums,
+        schemaHash,
+        selectiveBackupWarnings,
+        sensitiveData
+      )
       await fsp.writeFile(path.join(tempDir, 'manifest.json'), JSON.stringify(manifest, null, 2))
       await fsp.writeFile(path.join(tempDir, 'checksums.json'), JSON.stringify(checksums, null, 2))
 
@@ -234,7 +251,9 @@ export class ExportOrchestrator {
     domains: BackupDomain[],
     domainStats: Record<string, DomainStats>,
     checksums: Record<string, string>,
-    schemaVersion: { hash: string; createdAt: number }
+    schemaVersion: { hash: string; createdAt: number },
+    selectiveBackupWarnings?: BackupManifest['selectiveBackupWarnings'],
+    sensitiveData?: BackupManifest['sensitiveData']
   ): BackupManifest {
     return {
       version: BACKUP_MANIFEST_VERSION,
@@ -250,7 +269,9 @@ export class ExportOrchestrator {
       sourceDevice: {
         hostname: os.hostname(),
         os: `${process.platform} ${os.release()}`
-      }
+      },
+      ...(selectiveBackupWarnings?.length ? { selectiveBackupWarnings } : {}),
+      ...(sensitiveData ? { sensitiveData } : {})
     }
   }
 

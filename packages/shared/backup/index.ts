@@ -1,8 +1,3 @@
-/**
- * Backup Module — Unified Export
- * V2 architecture: VACUUM INTO + selective restore
- */
-
 export type {
   BackupOptions,
   BackupProgress,
@@ -12,9 +7,35 @@ export type {
   RestoreStatistics,
   ValidationOptions
 } from './options.js'
-export { CompressionLevel, ConflictStrategy } from './options.js'
-export type { BackupFileEntry, BackupManifest, BackupMode, DomainStats } from './types.js'
-export { BACKUP_MANIFEST_VERSION, BackupDomain } from './types.js'
+export {
+  BackupOptionsSchema,
+  CompressionLevel,
+  CompressionLevelSchema,
+  ConflictStrategy,
+  ConflictStrategySchema,
+  RestoreOptionsSchema,
+  ValidationOptionsSchema
+} from './options.js'
+export type {
+  BackupFileEntry,
+  BackupManifest,
+  BackupManifestParsed,
+  BackupMode,
+  DomainStats,
+  SelectiveBackupWarning,
+  SensitiveDataInfo
+} from './types.js'
+export {
+  BACKUP_MANIFEST_VERSION,
+  BackupDomain,
+  BackupDomainSchema,
+  BackupFileEntrySchema,
+  BackupManifestSchema,
+  BackupModeSchema,
+  DomainStatsSchema,
+  SelectiveBackupWarningSchema,
+  SensitiveDataInfoSchema
+} from './types.js'
 export type {
   BackupValidator,
   ValidationContext,
@@ -22,4 +43,9 @@ export type {
   ValidationResult,
   ValidationSummary
 } from './validation.js'
-export { ValidationErrorCode } from './validation.js'
+export {
+  ValidationErrorCode,
+  ValidationErrorCodeSchema,
+  ValidationErrorSchema,
+  ValidationResultSchema
+} from './validation.js'
