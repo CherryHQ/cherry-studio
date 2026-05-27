@@ -58,107 +58,114 @@ export const ReasoningSupportSchema = z.object({
 })
 
 /**
- * Image-generation parameter support — describes which painting-page inputs
- * a model accepts so a generic painting UI can render the right controls
- * without per-vendor branching. Mirrors the `ParameterSupportSchema` idiom
- * (boolean for simple toggles; `{ range, default }` for numerics; bare
- * string array for enums). All fields are optional — a missing field means
- * "the model doesn't support this control; the UI hides it".
+ * Image-generation support describes what controls a model accepts, in a
+ * shape uniform across all models so the painting page can render the
+ * right controls without per-vendor branching.
+ *
+ * `supports` is a flat map of canonical param keys to widget specs — the
+ * renderer dispatches by `spec.type`. `size` / `numImages` / `customSize`
+ * are no longer top-level fields; they're entries inside `supports` like
+ * everything else. `modes` is `Record<Mode, ModeDef>` (always an object,
+ * never an array) so single-mode models declare `{ generate: { ... } }`
+ * uniformly; multi-mode models with different params per mode (Ideogram
+ * V_*) declare each mode's complete `ModeDef` explicitly.
+ *
+ * Vendor wire transforms (snake_case keys, `'ASPECT_X_Y' → 'X:Y'` strings,
+ * `Uint8Array → base64`) live in the AI SDK image-model adapters under
+ * `aiCore/provider/custom/`; this schema carries canonical names only.
+ * Per-mode transport routing (PPIO endpoint URL + sync/async flag) lives
+ * on `ModeDef.vendorTransport` so it travels with the registry data.
  */
 export const ImageGenerationModeSchema = z.enum(['generate', 'edit', 'remix', 'upscale', 'merge'])
 
-/** Pixel sizes (`'1024x1024'`), aspect ratios (`'1:1'`), or both. */
-export const ImageSizeModeSchema = z.enum(['pixel', 'aspect', 'either'])
-
-const NumericRangeWithDefaultSchema = z
-  .object({
-    min: z.number().optional(),
-    max: z.number().optional(),
-    default: z.number().optional()
-  })
-  .refine((r) => r.min == null || r.max == null || r.min <= r.max, {
-    message: 'min must be less than or equal to max'
-  })
-
-/**
- * Image-generation params a model accepts, in registry shape. Used by the
- * top-level `ImageGenerationSupportSchema` AND as the value of the per-mode
- * `modeSchemas` map below — kept as a separate const because the latter
- * references it (partial) and zod doesn't recurse cleanly.
- */
-const ImageGenerationParamsShape = z.object({
-  sizes: z.array(z.string()).optional(),
-  sizeMode: ImageSizeModeSchema.optional(),
-  defaultSize: z.string().optional(),
-  allowAutoSize: z.boolean().optional(),
-  batch: NumericRangeWithDefaultSchema.optional(),
-  supports: z
-    .object({
-      negativePrompt: z.boolean().optional(),
-      seed: z.boolean().optional(),
-      promptEnhancement: z.boolean().optional(),
-      magicPromptOption: z.boolean().optional(),
-      /** Vendor-side auto-watermark toggle (jimeng/hunyuan/seedream/qwen-image). */
-      addWatermark: z.boolean().optional(),
-      /** Output encoding selector (e.g. ['jpeg','png','webp']). Rendered as a select. */
-      outputFormat: z.array(z.string()).optional(),
-      numInferenceSteps: NumericRangeWithDefaultSchema.optional(),
-      guidanceScale: NumericRangeWithDefaultSchema.optional(),
-      safetyTolerance: NumericRangeWithDefaultSchema.optional(),
-      quality: z.array(z.string()).optional(),
-      moderation: z.array(z.string()).optional(),
-      background: z.array(z.string()).optional(),
-      aspectRatio: z.array(z.string()).optional(),
-      /**
-       * Image-resolution tier as a sibling control to size/aspectRatio
-       * (gemini-3-pro-image-preview accepts `1K`/`2K`/`4K` independently
-       * from its aspect ratio). Rendered as `sizeChips` under the
-       * canonical key `imageResolution`; vendors persisting it under a
-       * different field name use per-model `keyMap` to alias.
-       */
-      imageResolution: z.array(z.string()).optional(),
-      styleType: z.array(z.string()).optional(),
-      renderingSpeed: z.array(z.string()).optional(),
-      personGeneration: z.array(z.string()).optional(),
-      imageWeight: NumericRangeWithDefaultSchema.optional(),
-      resemblance: NumericRangeWithDefaultSchema.optional(),
-      detail: NumericRangeWithDefaultSchema.optional()
-    })
-    .optional(),
-  customSize: z
-    .object({
-      min: z.number(),
-      max: z.number()
-    })
-    .optional(),
-  vendorParams: z.record(z.string(), z.unknown()).optional(),
-  inputSchema: z.record(z.string(), z.unknown()).optional(),
-  /**
-   * Per-model alias map from canonical field key (used by the painting form
-   * renderer and by `imageGenerationToFields`) to the persisted `PaintingData`
-   * field name. Layers on top of `PaintingProvider.registryKeyMap` —
-   * per-model entries win on collision. Use this when models within the
-   * same provider persist the same logical control under different field
-   * names (aihubmix stores batch as `n` for gpt-image, `numberOfImages` for
-   * imagen, and `numImages` for ideogram).
-   */
-  keyMap: z.record(z.string(), z.string()).optional()
+const SwitchSpecSchema = z.object({
+  type: z.literal('switch'),
+  default: z.boolean().optional()
 })
 
-export const ImageGenerationSupportSchema = ImageGenerationParamsShape.extend({
-  /** Modes available; `['generate']` assumed when absent. */
-  modes: z.array(ImageGenerationModeSchema).optional(),
+const EnumSpecSchema = z.object({
+  type: z.literal('enum'),
+  options: z.array(z.string()).min(1),
+  default: z.string().optional(),
+  /** `'chips'` for compact button rows (size / aspectRatio / imageResolution);
+   *  defaults to `'select'` (dropdown) when omitted. */
+  render: z.enum(['select', 'chips']).optional(),
+  columns: z.number().int().positive().optional()
+})
+
+const RangeSpecSchema = z
+  .object({
+    type: z.literal('range'),
+    min: z.number(),
+    max: z.number(),
+    default: z.number().optional(),
+    step: z.number().optional()
+  })
+  .refine((r) => r.min <= r.max, { message: 'min must be ≤ max' })
+
+const SizeSpecSchema = z.object({
+  type: z.literal('size'),
+  /** Both width and height share this bound. */
+  minSide: z.number(),
+  maxSide: z.number(),
+  /** When set, the size widget only renders when the named enum is at
+   *  `'custom'` (CogView pattern: pick the `'custom'` chip on the size
+   *  enum to reveal width/height inputs). */
+  pairedEnumKey: z.string().optional()
+})
+
+const TextSpecSchema = z.object({
+  type: z.literal('text'),
+  multiline: z.boolean().optional()
+})
+
+export const SupportSpecSchema = z.discriminatedUnion('type', [
+  SwitchSpecSchema,
+  EnumSpecSchema,
+  RangeSpecSchema,
+  SizeSpecSchema,
+  TextSpecSchema
+])
+
+/**
+ * Per-mode model capability declaration. The renderer iterates `supports`
+ * and dispatches `specToField` by `spec.type`; no per-vendor logic. Adding
+ * a new canonical param across the codebase requires three steps: (1) pick
+ * the canonical key (e.g. `'styleType'`), (2) add a label entry to
+ * `KEY_LABELS` in `imageGenerationToFields`, (3) declare it on models'
+ * `supports`. The schema itself does not enumerate canonical keys.
+ *
+ * `vendorTransport` carries PPIO-style per-model endpoint routing — the
+ * AI SDK adapter for that vendor reads endpoint + isSync off the registry
+ * instead of a hand-maintained routing table.
+ */
+const ImageModeDefSchema = z.object({
+  supports: z.record(z.string(), SupportSpecSchema),
+  vendorTransport: z
+    .object({
+      endpoint: z.string(),
+      isSync: z.boolean().optional()
+    })
+    .optional()
+})
+
+export const ImageGenerationSupportSchema = z.object({
+  // `z.partialRecord` because not every mode is declared — single-mode
+  // models only carry `generate`; Ideogram V_* carry generate/remix/upscale
+  // but no edit/merge. Zod's plain `z.record(enum, …)` is exhaustive.
+  modes: z.partialRecord(ImageGenerationModeSchema, ImageModeDefSchema),
   /**
-   * Per-mode overrides. When a model accepts different params in
-   * `edit` / `remix` / `upscale` than in `generate` (Ideogram V_3 remix
-   * accepts `imageWeight`, upscale accepts `resemblance`/`detail`),
-   * declare those mode-specific shapes here. The painting page derives
-   * fields by merging top-level params with `modeSchemas[currentMode]`.
-   *
-   * Optional — simple single-mode models leave this absent and just use
-   * the top-level shape.
+   * Free-form vendor extras passed through to the AI SDK adapter via
+   * `providerOptions`. The generic renderer does NOT render these; only
+   * vendors with custom UI (tokenflux) consume them.
    */
-  modeSchemas: z.partialRecord(ImageGenerationModeSchema, ImageGenerationParamsShape.partial()).optional()
+  vendorParams: z.record(z.string(), z.unknown()).optional(),
+  /**
+   * JSON-schema-driven dynamic form spec (tokenflux pattern). When
+   * present, a generic schema-form is rendered alongside the
+   * `supports`-driven controls.
+   */
+  inputSchema: z.record(z.string(), z.unknown()).optional()
 })
 
 // Parameter support configuration
@@ -296,7 +303,8 @@ export type ThinkingTokenLimits = z.infer<typeof ThinkingTokenLimitsSchema>
 export type ReasoningSupport = z.infer<typeof ReasoningSupportSchema>
 export type ParameterSupport = z.infer<typeof ParameterSupportSchema>
 export type ImageGenerationMode = z.infer<typeof ImageGenerationModeSchema>
-export type ImageSizeMode = z.infer<typeof ImageSizeModeSchema>
+export type SupportSpec = z.infer<typeof SupportSpecSchema>
+export type ImageModeDef = z.infer<typeof ImageModeDefSchema>
 export type ImageGenerationSupport = z.infer<typeof ImageGenerationSupportSchema>
 export type ModelPricing = z.infer<typeof ModelPricingSchema>
 export type ModelConfig = z.infer<typeof ModelConfigSchema>

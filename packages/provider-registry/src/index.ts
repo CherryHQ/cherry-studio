@@ -35,13 +35,14 @@ export type {
 export type {
   ImageGenerationMode,
   ImageGenerationSupport,
-  ImageSizeMode,
+  ImageModeDef,
   ModelConfig,
   ModelPricing,
   ModelConfig as ProtoModelConfig,
   ModelPricing as ProtoModelPricing,
   ReasoningSupport as ProtoReasoningSupport,
-  ReasoningSupport
+  ReasoningSupport,
+  SupportSpec
 } from './schemas/model'
 export type {
   ProviderConfig as ProtoProviderConfig,
