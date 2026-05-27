@@ -36,6 +36,10 @@ Used by subtree operations.
 - Removes selected descendants when their selected ancestor is already present.
 - Prevents the same subtree from being deleted or reindexed more than once in a single request.
 
+### Subtree Status Reconciliation
+
+Any non-delete subtree status update must reconcile parent containers outside the updated subtree. For example, if a child subtree is marked `failed` after a scheduling failure, the parent directory must also be recalculated so it does not remain `processing` without active work.
+
 ## `addItems`
 
 `addItems` accepts new item payloads and creates persisted `knowledge_item` rows before scheduling the first workflow jobs.
@@ -179,6 +183,7 @@ knowledge.prepare-root(baseId, itemId)
        detach file refs for removable descendants
        hard-delete removable descendants
   -> under same-base mutation lock:
+       re-read root and skip if it is now missing or deleting
        expand source into new child rows
        set root status processing
   -> schedule each recreated leaf
@@ -189,6 +194,8 @@ knowledge.prepare-root(baseId, itemId)
 ```
 
 The stale expansion cleanup clears vectors and file refs before hard-deleting rows so a retry does not leave orphan artifacts from a previous partial expansion.
+
+The second root read closes the race where `prepare-root` loads an active root, then a delete request marks that root `deleting` before expansion starts. Once a root is deleting, no new children may be created under it.
 
 The child scheduling compensation mirrors `addItems`: once a child job was accepted, the row is left alone; the failing child and later children are marked `failed` so no `processing` leaf remains without a job.
 

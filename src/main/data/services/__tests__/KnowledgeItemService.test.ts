@@ -354,6 +354,30 @@ describe('KnowledgeItemService', () => {
       })
     })
 
+    it('rejects deleting group owners', async () => {
+      await seedItem({
+        id: DIR_A_ID,
+        type: 'directory',
+        data: { source: '/a', path: '/a' },
+        status: 'deleting'
+      })
+
+      await expect(
+        service.create(KNOWLEDGE_BASE_ID, {
+          groupId: DIR_A_ID,
+          type: 'note',
+          data: { source: 'child note', content: 'child note' }
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        details: {
+          fieldErrors: {
+            groupId: [`Knowledge item group owner is being deleted: ${DIR_A_ID}`]
+          }
+        }
+      })
+    })
+
     it('rejects leaf items as group owners', async () => {
       await seedItem({ id: NOTE_OWNER_ID, type: 'note', data: { source: 'owner', content: 'owner' } })
 
@@ -676,6 +700,31 @@ describe('KnowledgeItemService', () => {
       await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({ status: 'completed', error: null })
       await expect(getItemRow(COMPLETED_CHILD_ID)).resolves.toMatchObject({ status: 'completed', error: null })
       await expect(getItemRow(DELETING_CHILD_ID)).resolves.toMatchObject({ status: 'deleting', error: null })
+    })
+
+    it('reconciles outer parent containers after failing a child subtree', async () => {
+      await seedItem({
+        id: DIR_ROOT_ID,
+        type: 'directory',
+        data: { source: '/docs', path: '/docs' },
+        status: 'processing'
+      })
+      await seedItem({
+        id: NOTE_1_ID,
+        groupId: DIR_ROOT_ID,
+        type: 'note',
+        data: { source: 'note', content: 'note' },
+        status: 'processing'
+      })
+
+      await expect(
+        service.setSubtreeStatus(KNOWLEDGE_BASE_ID, [NOTE_1_ID], 'failed', { error: 'enqueue failed' })
+      ).resolves.toEqual([NOTE_1_ID])
+      await expect(getItemRow(NOTE_1_ID)).resolves.toMatchObject({ status: 'failed', error: 'enqueue failed' })
+      await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({
+        status: 'failed',
+        error: 'One or more child items failed'
+      })
     })
   })
 

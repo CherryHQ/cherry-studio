@@ -298,6 +298,21 @@ describe('knowledge job handlers', () => {
     expect(hardDeleteItemsMock).not.toHaveBeenCalledWith('kb-1', expect.arrayContaining(['deleting-note']))
   })
 
+  it('prepare-root skips expansion when the root becomes deleting inside the mutation lock', async () => {
+    const handler = createPrepareRootJobHandler(mutationCoordinator as never, workflowCoordinator as never)
+    knowledgeItemGetByIdMock
+      .mockResolvedValueOnce(createDirectoryItem())
+      .mockResolvedValueOnce(createDirectoryItem('dir-1', 'deleting'))
+
+    const ctx = createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job')
+    await handler.execute(ctx)
+
+    expect(prepareKnowledgeItemMock).not.toHaveBeenCalled()
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith('dir-1', 'processing')
+    expect(scheduleItemMock).not.toHaveBeenCalled()
+    expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'deleting' })
+  })
+
   it('prepare-root marks unscheduled child leaves failed when enqueueing a child fails', async () => {
     const handler = createPrepareRootJobHandler(mutationCoordinator as never, workflowCoordinator as never)
     const leaves = [

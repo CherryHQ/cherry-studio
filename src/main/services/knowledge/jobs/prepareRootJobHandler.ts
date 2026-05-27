@@ -52,7 +52,7 @@ export function createPrepareRootJobHandler(
       ctx.reportProgress(0, { stage: 'scanning' })
 
       // Source expansion creates child items, so it runs under the base mutation lock.
-      const leafItems = await scanRootItem(ctx, item, mutationCoordinator)
+      const leafItems = await scanRootItem(ctx, mutationCoordinator)
       // Child indexing is scheduled after expansion succeeds so partial scans do not enqueue stale leaves.
       await enqueueLeafItems(ctx, leafItems, workflowCoordinator)
     },
@@ -127,15 +127,32 @@ async function deletePreviousLeafExpansion(
 
 async function scanRootItem(
   ctx: JobContext<KnowledgePrepareRootPayload>,
-  item: KnowledgeItem,
   mutationCoordinator: KnowledgeMutationCoordinator
 ): Promise<KnowledgeItem[]> {
   const { baseId, itemId } = ctx.input
 
   return await mutationCoordinator.withBaseMutationLock(baseId, async () => {
+    let currentItem: KnowledgeItem
+    try {
+      currentItem = await knowledgeItemService.getById(itemId)
+    } catch (error) {
+      if (isDataApiError(error) && error.code === ErrorCode.NOT_FOUND) {
+        logger.info('Skipping prepare-root for missing item before expansion', { baseId, itemId, jobId: ctx.jobId })
+        ctx.reportProgress(100, { stage: 'item-gone' })
+        return []
+      }
+      throw error
+    }
+
+    if (currentItem.status === 'deleting') {
+      logger.info('Skipping prepare-root for deleting item before expansion', { baseId, itemId, jobId: ctx.jobId })
+      ctx.reportProgress(100, { stage: 'deleting' })
+      return []
+    }
+
     const leaves = await prepareKnowledgeItem({
       baseId,
-      item,
+      item: currentItem,
       onCreatedItem: () => {},
       runMutation: async (task) => await task(),
       signal: ctx.signal

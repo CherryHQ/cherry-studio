@@ -7,6 +7,7 @@
 import { application } from '@application'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
+import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import type { OffsetPaginationResponse } from '@shared/data/api'
 import { DataApiErrorFactory } from '@shared/data/api'
@@ -145,13 +146,13 @@ export class KnowledgeItemService {
   }
 
   async create(baseId: string, item: CreateKnowledgeItemDto): Promise<KnowledgeItem> {
-    await this.validateGroupOwner(baseId, item.groupId)
-
     const dbService = application.get('DbService')
     const [row] = await dbService.withWriteTx(async (tx) =>
       withSqliteErrors(
-        () =>
-          tx
+        async () => {
+          await this.validateGroupOwnerTx(tx, baseId, item.groupId)
+
+          return await tx
             .insert(knowledgeItemTable)
             .values({
               baseId,
@@ -161,7 +162,8 @@ export class KnowledgeItemService {
               status: 'idle',
               error: null
             })
-            .returning(),
+            .returning()
+        },
         {
           foreignKey: () =>
             item.groupId
@@ -189,7 +191,11 @@ export class KnowledgeItemService {
     return rowToKnowledgeItem(row)
   }
 
-  private async validateGroupOwner(baseId: string, groupId: string | null | undefined): Promise<void> {
+  private async validateGroupOwnerTx(
+    db: Pick<DbType, 'select'>,
+    baseId: string,
+    groupId: string | null | undefined
+  ): Promise<void> {
     if (groupId == null) {
       return
     }
@@ -200,9 +206,10 @@ export class KnowledgeItemService {
       })
     }
 
-    const [owner] = await this.db
+    const [owner] = await db
       .select({
-        type: knowledgeItemTable.type
+        type: knowledgeItemTable.type,
+        status: knowledgeItemTable.status
       })
       .from(knowledgeItemTable)
       .where(and(eq(knowledgeItemTable.baseId, baseId), eq(knowledgeItemTable.id, groupId)))
@@ -217,6 +224,12 @@ export class KnowledgeItemService {
     if (owner.type !== 'directory' && owner.type !== 'sitemap') {
       throw DataApiErrorFactory.validation({
         groupId: [`Knowledge item group owner must be a directory or sitemap: ${groupId}`]
+      })
+    }
+
+    if (owner.status === 'deleting') {
+      throw DataApiErrorFactory.validation({
+        groupId: [`Knowledge item group owner is being deleted: ${groupId}`]
       })
     }
   }
@@ -263,18 +276,31 @@ export class KnowledgeItemService {
     }
 
     const dbService = application.get('DbService')
-    await dbService.withWriteTx(async (tx) => {
+    const updatedRows = await dbService.withWriteTx(async (tx) => {
       const conditions = [eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, subtreeIds)]
       if (status !== 'deleting') {
         conditions.push(ne(knowledgeItemTable.status, 'deleting'))
       }
-      await tx
+
+      return await tx
         .update(knowledgeItemTable)
         .set({ status, error })
         .where(and(...conditions))
+        .returning({
+          id: knowledgeItemTable.id,
+          groupId: knowledgeItemTable.groupId
+        })
     })
 
     const updatedIds = status === 'deleting' ? subtreeIds : await this.getNonDeletingItemIds(baseId, subtreeIds)
+
+    if (status !== 'deleting') {
+      const updatedIdSet = new Set(updatedRows.map((row) => row.id))
+      await this.reconcileContainers(
+        baseId,
+        updatedRows.map((row) => row.groupId).filter((groupId) => !updatedIdSet.has(groupId ?? ''))
+      )
+    }
 
     logger.info('Updated knowledge item subtree status', { baseId, rootIds, status, count: updatedIds.length })
     return updatedIds
