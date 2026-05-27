@@ -83,7 +83,10 @@ describe('paintingMappers', () => {
       mode: 'generate',
       model: 'model-1',
       prompt: 'draw a cat',
-      files: [{ ...file, name: 'file-1.png', path: '/tmp/file-1.png' }],
+      // `name` is the on-disk filename (`${id}${ext}`) — Artboard's
+      // FileManager.getFileUrl appends it to `Data/Files/` to build the
+      // <img src>. `origin_name` carries the user-facing display name.
+      files: [{ ...file, name: 'file-1.png', origin_name: 'file-1.png', path: '/tmp/file-1.png' }],
       inputFiles: [
         {
           ...file,

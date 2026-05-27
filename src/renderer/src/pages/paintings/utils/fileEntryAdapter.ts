@@ -17,7 +17,14 @@ import type { FileEntry } from '@shared/data/types/file/fileEntry'
 export async function fileEntryToMetadata(entry: FileEntry): Promise<FileMetadata> {
   const path = await window.api.file.getPhysicalPath({ id: entry.id })
   const dottedExt = entry.ext ? `.${entry.ext}` : ''
-  const fullName = `${entry.name}${dottedExt}`
+  // `FileMetadata.name` is the *on-disk filename* — `FileManager.getFileUrl`
+  // builds `file://${filesPath}/${file.name}` from it. For v2 internal
+  // entries the file lives at `{id}.{ext}` under `Data/Files/`, so name must
+  // mirror that convention. `entry.name` (the user-facing display name like
+  // "Pasted 2026-05-27") goes into `origin_name`, which is where the UI
+  // looks for the human label.
+  const onDiskName = `${entry.id}${dottedExt}`
+  const displayName = `${entry.name}${dottedExt}`
   // `size` only exists on the internal variant; external entries never carry
   // size in v2 (live values come from `getMetadata` on demand). Paintings
   // always create internal entries via `source: 'base64' | 'url'`, but
@@ -26,8 +33,8 @@ export async function fileEntryToMetadata(entry: FileEntry): Promise<FileMetadat
   const size = entry.origin === 'internal' ? entry.size : 0
   return {
     id: entry.id,
-    name: fullName,
-    origin_name: fullName,
+    name: onDiskName,
+    origin_name: displayName,
     path,
     size,
     ext: dottedExt,
