@@ -1,5 +1,5 @@
-import type { GenerateImagesConfig } from '@google/genai'
 import type { FileMetadata } from '@renderer/types'
+import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import type { PaintingMode } from '@shared/data/types/painting'
 
 export type PaintingGenerationStatus = 'running' | 'failed' | 'canceled'
@@ -7,153 +7,46 @@ export type PaintingGenerationStatus = 'running' | 'failed' | 'canceled'
 /**
  * Renderer-side painting draft / display state.
  *
- * Note: `mode` is a live form/draft concern only — the persisted painting
- * record (Painting in @shared/data/types/painting) does NOT carry mode.
+ * Unified shape: every model's tunable params live in `params` keyed by the
+ * canonical name declared on the registry's
+ * `imageGeneration.modes[mode].supports.{key}`. The 8 vendor-specific
+ * variants that used to enumerate ad-hoc fields (`SiliconPaintingData`,
+ * `OvmsPaintingData`, `AihubmixPaintingData`, etc.) are gone — vendor
+ * differences flow through the registry's `supports` map and (where they
+ * carry wire-format quirks) the AI SDK adapter in
+ * `aiCore/provider/custom/`.
+ *
+ * `mode` is a live form/draft concern only — the persisted painting record
+ * (`Painting` in `@shared/data/types/painting`) does NOT carry mode.
  * `mediaType` is similarly not persisted; image vs video is derived from
  * `files` at display time when needed.
+ *
+ * `inputFiles` is v2-native `FileEntry[]` (the prompt-box attachment
+ * surface registers each File via `window.api.file.createInternalEntry`
+ * and pushes the returned `FileEntry`). `files` (output) still uses v1
+ * `FileMetadata` until the `cherrystudio://file/internal/{uuid}.{ext}`
+ * custom protocol cleanup tracked at TODO #15353 lands.
  */
-export interface PaintingDataBase {
+export interface PaintingData {
   id: string
   providerId: string
   mode: PaintingMode
   model?: string
   prompt: string
   files: FileMetadata[]
-  inputFiles?: FileMetadata[]
+  inputFiles?: FileEntry[]
   persistedAt?: string
   generationStatus?: PaintingGenerationStatus | null
   generationTaskId?: string | null
   generationError?: string | null
   generationProgress?: number | null
+  /**
+   * Free-form bag of canonical param values. Keys correspond to registry
+   * `imageGeneration.modes[currentMode].supports.{key}`. The form writes
+   * each control's value here; `canonicalGenerate` partitions entries into
+   * `aiSdkParams` (AI SDK native fields) and `providerOptions[providerId]`
+   * (vendor-specific) at request time. Empty / undefined entries are
+   * omitted from the wire — server applies its default.
+   */
+  params?: Record<string, unknown>
 }
-
-export interface SiliconPaintingData extends PaintingDataBase {
-  providerId: 'silicon'
-  negativePrompt?: string
-  imageSize?: string
-  numImages?: number
-  seed?: string
-  steps?: number
-  guidanceScale?: number
-  promptEnhancement?: boolean
-}
-
-export interface OvmsPaintingData extends PaintingDataBase {
-  providerId: 'ovms'
-  size?: string
-  num_inference_steps?: number
-  rng_seed?: number
-  safety_check?: boolean
-  response_format?: 'url' | 'b64_json'
-}
-
-export enum generationModeType {
-  GENERATION = 'generation',
-  EDIT = 'edit',
-  MERGE = 'merge'
-}
-
-export interface DmxapiPaintingData extends PaintingDataBase {
-  providerId: 'dmxapi'
-  n?: number
-  aspect_ratio?: string
-  image_size?: string
-  seed?: string
-  autoCreate?: boolean
-  generationMode?: generationModeType
-  priceModel?: string
-  extend_params?: Record<string, unknown>
-}
-
-export interface TokenFluxPaintingData extends PaintingDataBase {
-  providerId: 'tokenflux'
-  inputParams?: Record<string, unknown>
-}
-
-export interface PpioPaintingData extends PaintingDataBase {
-  providerId: 'ppio'
-  size?: string
-  width?: number
-  height?: number
-  ppioSeed?: number
-  usePreLlm?: boolean
-  addWatermark?: boolean
-  imageFile?: string
-  ppioMask?: string
-  resolution?: string
-  outputFormat?: string
-}
-
-export interface ZhipuPaintingData extends PaintingDataBase {
-  providerId: 'zhipu'
-  negativePrompt?: string
-  imageSize?: string
-  numImages?: number
-  seed?: string
-  quality?: string
-  customWidth?: number
-  customHeight?: number
-}
-
-export interface GeneratePaintingFields {
-  aspectRatio?: string
-  numImages?: number
-  styleType?: string
-  seed?: string
-  negativePrompt?: string
-  magicPromptOption?: boolean
-  renderingSpeed?: string
-  quality?: string
-  moderation?: string
-  n?: number
-  size?: string
-  background?: string
-  personGeneration?: GenerateImagesConfig['personGeneration']
-  numberOfImages?: number
-  safetyTolerance?: number
-  width?: number
-  height?: number
-  imageSize?: string
-  imageFile?: string
-  mask?: FileMetadata
-  imageWeight?: number
-  resemblance?: number
-  detail?: number
-}
-
-export interface AihubmixPaintingData extends PaintingDataBase, GeneratePaintingFields {
-  providerId: 'aihubmix'
-}
-
-/**
- * Catch-all variant for OpenAI-compatible providers (new-api, cherryin, aionly,
- * any provider with `presetProviderId === 'new-api'`, plus arbitrary user-added
- * providers). This set is open-ended and not enumerable, so `providerId` is
- * intentionally the wide `string` type rather than a literal.
- *
- * Consequence: `PaintingData` is intentionally NOT a closed discriminated union.
- * The wide `string` member overlaps every literal member, so a `switch
- * (data.providerId)` cannot exhaustively narrow it. Discriminate via the
- * dedicated user-defined type guards in `PaintingProviderViews.tsx`
- * (`isTokenFluxPainting`, `isOpenApiCompatiblePainting`, ...), which test
- * concrete provider ids and treat this variant as the typed fallback. Do NOT
- * add an exhaustive `switch`/`assertNever` over `PaintingData.providerId`.
- */
-export interface OpenApiCompatiblePaintingData extends PaintingDataBase, GeneratePaintingFields {
-  providerId: string
-}
-
-/**
- * Intentionally non-exhaustive: `OpenApiCompatiblePaintingData` is the open-set
- * fallback (see its docs). Narrow with the type guards in
- * `PaintingProviderViews.tsx`, never with an exhaustive `switch` on `providerId`.
- */
-export type PaintingData =
-  | SiliconPaintingData
-  | OvmsPaintingData
-  | DmxapiPaintingData
-  | TokenFluxPaintingData
-  | PpioPaintingData
-  | ZhipuPaintingData
-  | AihubmixPaintingData
-  | OpenApiCompatiblePaintingData
