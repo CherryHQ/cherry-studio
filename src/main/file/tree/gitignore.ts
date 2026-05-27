@@ -15,7 +15,7 @@
  * objects subdir on every commit).
  */
 
-import { readFileSync } from 'node:fs'
+import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
@@ -32,12 +32,16 @@ export interface GitignorePredicate {
  * Build a predicate from `${rootPath}/.gitignore`. Returns `null` when
  * the file is unreadable / missing — callers should treat that as "no
  * gitignore-driven exclusion" and fall back to their existing behavior.
+ *
+ * Async by design: `.gitignore` may live on a slow filesystem (network
+ * share, fuse, …), so callers must await this off the main-process event
+ * loop rather than block startup with a sync read.
  */
-export function loadGitignorePredicate(rootPath: string): GitignorePredicate | null {
+export async function loadGitignorePredicate(rootPath: string): Promise<GitignorePredicate | null> {
   const normalizedRoot = rootPath.replace(/\\/g, '/').replace(/\/+$/, '')
   let raw: string | null = null
   try {
-    raw = readFileSync(path.join(normalizedRoot, '.gitignore'), 'utf8')
+    raw = await readFile(path.join(normalizedRoot, '.gitignore'), 'utf8')
   } catch {
     // No `.gitignore` (or unreadable): caller still wants the `.git`
     // exclusion even without user rules — return a thin predicate that

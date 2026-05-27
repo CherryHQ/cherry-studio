@@ -113,10 +113,12 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
   private watcherSubscription: Disposable | null = null
   private readonly options: ResolvedTreeOptions
   private readonly rootPath: string
-  // Loaded once at construction; what the user's `.gitignore` (plus the
+  // Loaded once during `init()`; what the user's `.gitignore` (plus the
   // always-on `.git` exclusion) says to skip. `null` when the caller
   // opted out via `respectGitignore: false` or the file isn't readable.
-  private readonly ignorePredicate: GitignorePredicate | null
+  // Defaults to a permissive predicate (matches nothing) so any code path
+  // that consults it before `init()` resolves is safe.
+  private ignorePredicate: GitignorePredicate | null = null
   private disposed = false
   private initialScanPromise: Promise<void> | null = null
 
@@ -125,10 +127,15 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     this.options = options
     this.root = new TreeDirRoot(this.rootPath)
     this.map.set(this.rootPath, this.root)
-    this.ignorePredicate = options.respectGitignore ? loadGitignorePredicate(this.rootPath) : null
   }
 
   async init(): Promise<void> {
+    // Load `.gitignore` off the event loop before the scan starts — slow
+    // FS reads (network shares, fuse) must not block other main-process
+    // work during construction.
+    if (this.options.respectGitignore) {
+      this.ignorePredicate = await loadGitignorePredicate(this.rootPath)
+    }
     // Start the watcher *before* the initial scan completes so we don't
     // miss events for paths created during the scan window. The events are
     // queued behind the scan promise and applied after it resolves.
