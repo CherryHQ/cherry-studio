@@ -7,101 +7,34 @@ import type { DownloadImagesOptions } from '../utils/downloadImages'
 import { generatePainting } from './generatePainting'
 import type { PaintingData } from './types/paintingData'
 
-/**
- * AI-SDK canonical aiSdkParams field set used by `generatePainting`.
- * Tied to `GenerateImageParams` (`src/renderer/src/types/index.ts:582`) minus
- * the orchestration fields the skeleton fills in (`model` / `prompt` /
- * `signal` / `providerOptions`).
- */
-type AiSdkParamKey =
-  | 'negativePrompt'
-  | 'imageSize'
-  | 'aspectRatio'
-  | 'batchSize'
-  | 'allowAutoSize'
-  | 'seed'
-  | 'numInferenceSteps'
-  | 'guidanceScale'
-  | 'promptEnhancement'
-  | 'personGeneration'
-  | 'quality'
-  | 'background'
-  | 'moderation'
-
 type AiSdkParams = Omit<GenerateImageParams, 'model' | 'prompt' | 'signal' | 'providerOptions'>
 
-export interface CanonicalGenerateOptions<T extends PaintingData> {
-  /**
-   * AI-SDK field name → PaintingData field name. Omitted keys default to
-   * identity (e.g. silicon's `negativePrompt` lives on both sides as
-   * `negativePrompt` — no entry needed). Used to bridge legacy persistence
-   * field names (silicon: `imageSize`/`steps`, ovms: `num_inference_steps`,
-   * etc.) without renaming the DB schema.
-   */
-  fieldMap?: Partial<Record<AiSdkParamKey, keyof T & string>>
-  /**
-   * Per-field default applied when the PaintingData value is falsy
-   * (undefined / null / empty string). Lets a vendor preserve its bespoke
-   * fallback (`steps ?? 25`, `guidanceScale ?? 4.5`) without writing a full
-   * generate.ts. Omitted fields are skipped — the server picks its own
-   * default — which is the right behavior for fields whose default truly
-   * depends on the upstream model.
-   */
-  defaults?: Partial<AiSdkParams>
-  /**
-   * Constants always written into aiSdkParams regardless of painting state
-   * (e.g. newapi's `allowAutoSize: true`). Overrides any field-map lookup
-   * for the same key.
-   */
-  constants?: Partial<AiSdkParams>
-  /**
-   * Per-field resolver. Wins over fieldMap/defaults/constants for the
-   * declared keys. Returning `undefined` omits the field. Use this for
-   * vendor-specific transforms (zhipu's `resolveZhipuImageSize` enforcing
-   * CogView's range/divisible-by-16/pixel-budget rules).
-   */
-  resolvers?: Partial<{ [K in AiSdkParamKey]: (painting: T) => AiSdkParams[K] | undefined }>
-  /**
-   * Hook to throw a vendor-specific validation error before the generate
-   * call fires. Use for cross-field rules that can't fit a single resolver
-   * (`createPaintingGenerateError('CUSTOM_SIZE_PIXELS')` etc.).
-   */
-  preValidate?: (painting: T) => void
-  /**
-   * Build the `providerBag` (forwarded as `providerOptions[<provider.id>]`).
-   * For vendor extras that don't fit the canonical AI-SDK fields (ovms's
-   * `num_inference_steps`/`rng_seed` snake-case mirror, ppio's per-model
-   * extras, etc.). Return `undefined` to omit.
-   */
-  providerBag?: (painting: T) => Record<string, unknown> | undefined
-  /**
-   * Stamped on the `{ urls }` download branch — proxy warning toggle,
-   * mixed-url+data acceptance, etc. Matches `generatePainting`'s
-   * `downloadOptions` field.
-   */
-  downloadOptions?: DownloadImagesOptions
-  /**
-   * Skip `checkProviderEnabled` and pass an empty `apiKey`. For vendors
-   * that run without auth (OVMS, local OpenVINO Model Server). The
-   * `isEnabled` and `getApiKey()` modal flow is bypassed.
-   */
-  noAuth?: boolean
-  /**
-   * Whether `painting.prompt` must be non-empty. Default `true` (matches
-   * the standard `PROMPT_REQUIRED` throw). Pass `false` (or a callback
-   * returning `false`) for providers whose specific models accept empty
-   * prompts (ppio image-upscaler / image-remove-background / image-eraser).
-   * When the predicate skips the standard check, `preValidate` is expected
-   * to enforce any per-model rule.
-   */
-  requirePrompt?: boolean | ((painting: T) => boolean)
+/**
+ * Painting-state keys (registry-canonical) that map to a different AI SDK
+ * canonical param name. The only divergence today: `size → imageSize` (UI
+ * canonical vs AI SDK canonical) and `numImages → batchSize`. Everything
+ * else matches name-for-name.
+ */
+const POSITIONAL_RENAME: Record<string, string> = {
+  size: 'imageSize',
+  numImages: 'batchSize'
 }
 
-const AI_SDK_PARAM_KEYS: readonly AiSdkParamKey[] = [
-  'negativePrompt',
+/**
+ * AI SDK canonical fields recognized by `generatePainting` / the AI SDK
+ * image-model. Anything outside this set, after `POSITIONAL_RENAME`, flows
+ * through `providerOptions[providerId]` (the vendor bag) — the AI SDK
+ * image-model adapter for that vendor reads it.
+ *
+ * Adding a new AI SDK canonical field: append it here. Renderer / registry
+ * agree on the canonical name; the vendor adapter takes care of any
+ * wire-format quirks (snake_case rename, enum string format, etc.).
+ */
+const AI_SDK_NATIVE_KEYS = new Set([
   'imageSize',
-  'aspectRatio',
   'batchSize',
+  'negativePrompt',
+  'aspectRatio',
   'allowAutoSize',
   'seed',
   'numInferenceSteps',
@@ -110,26 +43,60 @@ const AI_SDK_PARAM_KEYS: readonly AiSdkParamKey[] = [
   'personGeneration',
   'quality',
   'background',
-  'moderation'
-] as const
+  'moderation',
+  'inputImages'
+])
 
-function isEmptyValue(value: unknown): boolean {
-  return value === undefined || value === null || value === ''
+export interface CanonicalGenerateOptions<T extends PaintingData> {
+  /**
+   * Throw a vendor-specific validation error before the generate call
+   * fires. Use for cross-field rules that can't fit a single resolver.
+   */
+  preValidate?: (painting: T) => void
+  /**
+   * Per-canonical-key resolver that wins over the raw `painting.params`
+   * read. Returning `undefined` skips the key. Use for vendor-specific
+   * transforms — currently only zhipu's CogView size rule
+   * (`resolveCogviewSize`) needs one.
+   */
+  resolvers?: Record<string, (painting: T) => unknown>
+  /**
+   * Constants always written into `aiSdkParams`, overriding any resolver
+   * or `painting.params` read for the same key. Use for vendor-wide flags
+   * (newapi's `allowAutoSize: true`).
+   */
+  constants?: Partial<AiSdkParams>
+  /**
+   * Whether `painting.prompt` must be non-empty. Default `true`. Pass
+   * `false` (or a predicate returning `false`) for models that accept
+   * empty prompts (ppio image-upscaler / image-eraser /
+   * image-remove-background). `preValidate` is responsible for any
+   * per-model rule when the standard check is skipped.
+   */
+  requirePrompt?: boolean | ((painting: T) => boolean)
+  /**
+   * Stamped on the `{ urls }` download branch — proxy warning toggle,
+   * mixed-url+data acceptance, etc.
+   */
+  downloadOptions?: DownloadImagesOptions
 }
 
 /**
- * Generic painting generate path: maps a vendor's `PaintingData` (whatever
- * field names it persists) into the canonical AI-SDK `aiSdkParams` shape via
- * an optional `fieldMap` + `defaults` + `resolvers` declaration, then defers
- * the actual call to the shared `generatePainting` skeleton.
+ * Generic painting generate path. Reads `painting.params` (keyed by
+ * canonical names from the registry's `imageGeneration.modes[mode]
+ * .supports`), partitions each entry into `aiSdkParams` vs
+ * `providerOptions[providerId]` via `AI_SDK_NATIVE_KEYS` + `POSITIONAL_
+ * RENAME`, and hands the result to the shared `generatePainting`
+ * skeleton.
  *
- * Replaces the 25-line "map painting.X → aiSdkParams.Y, fall back to default"
- * boilerplate that every vendor used to ship as its own `generate.ts`. The
- * vendor folder collapses to a single table entry (`generate: (input) =>
- * canonicalGenerate(input, { fieldMap, defaults, ... })`) plus, where they
- * exist, named modules for the bits that don't fit the canonical shape
- * (resolvers for vendor-specific size rules, providerBag for vendor extras,
- * preValidate for cross-field rules).
+ * Vendor wire transforms (snake_case, `ASPECT_X_Y → X:Y`, base64
+ * encoding, etc.) live in `aiCore/provider/custom/{aihubmix-image-model,
+ * imageTransports/ppio,dmxapi}.ts`. This function ships canonical names
+ * only. The pre-`AI_SDK_PARAM_KEYS` constant + per-vendor `fieldMap` /
+ * `keyMap` aliases are gone — `params` keys ARE canonical.
+ *
+ * Empty / undefined / empty-string `params` entries are omitted from the
+ * wire; the server applies its own default. No client-side defaults.
  */
 export async function canonicalGenerate<T extends PaintingData>(
   input: GenerateInput<T>,
@@ -137,49 +104,60 @@ export async function canonicalGenerate<T extends PaintingData>(
 ): Promise<FileMetadata[]> {
   const { painting, provider, abortController } = input
 
-  // preValidate runs FIRST so vendor-specific error codes take precedence
-  // over the generic `MISSING_REQUIRED_FIELDS`/`PROMPT_REQUIRED` messages
-  // (e.g. dmxapi's `TEXT_DESC_REQUIRED` / `IMAGE_HANDLE_REQUIRED`).
+  // Vendor-specific cross-field errors first so they take precedence over
+  // the generic MISSING_REQUIRED_FIELDS / PROMPT_REQUIRED throws below.
   options.preValidate?.(painting)
 
-  const apiKey = options.noAuth ? '' : await checkProviderEnabled(provider)
+  const apiKey = await checkProviderEnabled(provider)
   const modelId = painting.model
   if (!modelId) throw createPaintingGenerateError('MISSING_REQUIRED_FIELDS')
+
   const prompt = (painting.prompt ?? '').trim()
   const promptRequired =
     typeof options.requirePrompt === 'function' ? options.requirePrompt(painting) : (options.requirePrompt ?? true)
   if (promptRequired && !prompt) throw createPaintingGenerateError('PROMPT_REQUIRED')
 
+  const params = painting.params ?? {}
   const aiSdkParams: Record<string, unknown> = {}
+  const providerBag: Record<string, unknown> = {}
 
-  for (const aiKey of AI_SDK_PARAM_KEYS) {
-    const resolver = options.resolvers?.[aiKey] as ((painting: T) => unknown) | undefined
-    if (resolver) {
-      const resolved = resolver(painting)
-      if (resolved !== undefined) {
-        aiSdkParams[aiKey] = resolved
-      }
-      continue
-    }
-
-    const paintingKey = (options.fieldMap?.[aiKey] ?? aiKey) as keyof T
-    const raw = (painting as unknown as Record<string, unknown>)[paintingKey as string]
-    if (!isEmptyValue(raw)) {
-      aiSdkParams[aiKey] = raw
-      continue
-    }
-
-    const fallback = (options.defaults as Record<string, unknown> | undefined)?.[aiKey]
-    if (fallback !== undefined) {
-      aiSdkParams[aiKey] = fallback
+  function place(paramKey: string, value: unknown): void {
+    if (value === undefined || value === '' || value === null) return
+    const aiKey = POSITIONAL_RENAME[paramKey] ?? paramKey
+    if (AI_SDK_NATIVE_KEYS.has(aiKey)) {
+      aiSdkParams[aiKey] = value
+    } else {
+      providerBag[paramKey] = value
     }
   }
 
-  // Constants override any field-map / default already written above. This
-  // matches the spirit of "vendor always wants X" (newapi's allowAutoSize).
+  // 1. Raw painting state — every params entry partitions into one slot.
+  for (const [paramKey, value] of Object.entries(params)) place(paramKey, value)
+
+  // 2. Resolvers win for declared keys.
+  if (options.resolvers) {
+    for (const [paramKey, resolver] of Object.entries(options.resolvers)) {
+      place(paramKey, resolver(painting))
+    }
+  }
+
+  // 3. Constants are always-on aiSdkParams overrides.
   Object.assign(aiSdkParams, options.constants ?? {})
 
-  const providerBag = options.providerBag?.(painting)
+  // 4. Pre-fetch attached image bytes when the user attached files via the
+  // prompt-box surface. The AI SDK image-model adapter for the vendor
+  // picks the right endpoint (gpt-image-1's `/v1/images/edits`, Ideogram
+  // V_3's FormData branch, etc.) when `inputImages` is non-empty.
+  const inputFiles = painting.inputFiles ?? []
+  if (inputFiles.length > 0) {
+    aiSdkParams.inputImages = await Promise.all(
+      inputFiles.map(async (entry) => {
+        const onDiskName = `${entry.id}${entry.ext ? `.${entry.ext}` : ''}`
+        const result = await window.api.file.binaryImage(onDiskName)
+        return new Uint8Array(result.data)
+      })
+    )
+  }
 
   return generatePainting({
     provider,
@@ -188,7 +166,7 @@ export async function canonicalGenerate<T extends PaintingData>(
     modelId,
     prompt,
     aiSdkParams: aiSdkParams as AiSdkParams,
-    ...(providerBag !== undefined && { providerBag }),
+    ...(Object.keys(providerBag).length > 0 && { providerBag }),
     ...(options.downloadOptions !== undefined && { downloadOptions: options.downloadOptions })
   })
 }
