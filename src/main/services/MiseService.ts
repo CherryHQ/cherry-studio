@@ -91,20 +91,17 @@ export class MiseService extends BaseService {
     this.isolatedEnv = this.buildIsolatedEnv()
 
     const prefService = application.get('PreferenceService')
-    let tools = prefService.get('feature.mise.tools')
-    if (tools.length === 0) {
-      const coreTools: MiseTool[] = PREDEFINED_MISE_TOOLS.filter((t) => t.coreDep).map((t) => ({
-        name: t.name,
-        tool: t.tool
-      }))
-      if (coreTools.length > 0) {
-        void prefService.set('feature.mise.tools', coreTools)
-        tools = coreTools
-        logger.info('Auto-seeded core dependency tools', { tools: coreTools.map((t) => t.name) })
-      }
+    const predefinedNames = new Set(PREDEFINED_MISE_TOOLS.map((t) => t.name))
+    const tools = prefService.get('feature.mise.tools')
+    const cleaned = tools.filter((t) => !predefinedNames.has(t.name))
+    if (cleaned.length < tools.length) {
+      void prefService.set('feature.mise.tools', cleaned)
+      logger.info('Cleaned predefined tools from custom tools preference', {
+        removed: tools.filter((t) => predefinedNames.has(t.name)).map((t) => t.name)
+      })
     }
-    if (tools.length > 0) {
-      this.reconcile(tools).catch((err) => logger.error('Initial reconcile failed', err))
+    if (cleaned.length > 0) {
+      this.reconcile(cleaned).catch((err) => logger.error('Initial reconcile failed', err))
     }
   }
 

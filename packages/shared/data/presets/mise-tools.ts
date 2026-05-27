@@ -6,7 +6,6 @@ export interface MiseToolPreset extends MiseTool {
   description: string
   repoUrl: string
   homepage?: string
-  coreDep?: boolean
 }
 
 export const PREDEFINED_MISE_TOOLS: MiseToolPreset[] = [
@@ -17,8 +16,7 @@ export const PREDEFINED_MISE_TOOLS: MiseToolPreset[] = [
     icon: 'simple-icons:uv',
     description: 'Python package manager for MCP services and dependency installation.',
     repoUrl: 'https://github.com/astral-sh/uv',
-    homepage: 'https://docs.astral.sh/uv/',
-    coreDep: true
+    homepage: 'https://docs.astral.sh/uv/'
   },
   {
     name: 'bun',
@@ -27,8 +25,7 @@ export const PREDEFINED_MISE_TOOLS: MiseToolPreset[] = [
     icon: 'simple-icons:bun',
     description: 'JavaScript runtime used by MCP services and related toolchains.',
     repoUrl: 'https://github.com/oven-sh/bun',
-    homepage: 'https://bun.sh',
-    coreDep: true
+    homepage: 'https://bun.sh'
   },
   {
     name: 'fd',
@@ -134,5 +131,3 @@ export const PREDEFINED_MISE_TOOLS: MiseToolPreset[] = [
     homepage: 'https://docs.openclaw.ai'
   }
 ]
-
-export const CORE_DEP_NAMES = new Set(PREDEFINED_MISE_TOOLS.filter((t) => t.coreDep).map((t) => t.name))
