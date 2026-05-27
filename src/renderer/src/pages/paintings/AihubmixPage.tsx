@@ -1,7 +1,6 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
@@ -26,6 +25,7 @@ import Artboard from './components/Artboard'
 import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
+import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
 import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
 import { type AihubmixMode, type ConfigItem, createModeConfigs, DEFAULT_PAINTING } from './providers/aihubmix/config'
 import { generateAihubmixImages } from './providers/aihubmix/provider'
@@ -61,14 +61,11 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   const filteredPaintings = useMemo(() => paintings[mode] || [], [paintings, mode])
   const [painting, setPainting] = useState<PaintingAction>(filteredPaintings[0] || DEFAULT_PAINTING)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
-  const [isLoading, setIsLoading] = useState(false)
-  const [abortController, setAbortController] = useState<AbortController | null>(null)
   const [fileMap, setFileMap] = useState<{ [key: string]: FileMetadata }>({})
 
   const { t } = useTranslation()
   const { theme } = useTheme()
   const providers = useAllProviders()
-  const [generating, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const location = useLocation()
   const aihubmixProvider = providers.find((p) => p.id === 'aihubmix')!
@@ -103,6 +100,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       })
     }
   }
+  const { isLoading, setIsLoading, generating, runGeneration, cancelGeneration } = usePaintingGenerationTask({
+    onError: handleError
+  })
 
   const onGenerate = async () => {
     await checkProviderEnabled(aihubmixProvider, t)
@@ -132,12 +132,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
       return
     }
 
-    const controller = new AbortController()
-    setAbortController(controller)
-    setIsLoading(true)
-    setGenerating(true)
-
-    try {
+    await runGeneration(async (signal) => {
       if (mode === 'aihubmix_image_remix' || mode === 'aihubmix_image_upscale') {
         if (!painting.imageFile) {
           window.modal.error({
@@ -163,7 +158,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         fileMap,
         generateFailedMessage: t('paintings.generate_failed'),
         imageMixFailedMessage: t('paintings.image_mix_failed'),
-        signal: controller.signal
+        signal
       })
 
       const savedResult = await savePaintingGenerationResult(result, {
@@ -178,13 +173,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
           urls: savedResult.urls
         })
       }
-    } catch (error: unknown) {
-      handleError(error)
-    } finally {
-      setIsLoading(false)
-      setGenerating(false)
-      setAbortController(null)
-    }
+    })
   }
 
   const handleRetry = async (painting: PaintingAction) => {
@@ -205,7 +194,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onCancel = () => {
-    abortController?.abort()
+    cancelGeneration()
   }
 
   const nextImage = () => {

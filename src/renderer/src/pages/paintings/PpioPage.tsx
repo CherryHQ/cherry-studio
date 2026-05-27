@@ -1,6 +1,5 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { Switch } from '@cherrystudio/ui'
-import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
@@ -25,6 +24,7 @@ import Artboard from './components/Artboard'
 import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
+import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
 import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
 import {
   createModeConfigs,
@@ -73,10 +73,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
   const ppioProvider = providers.find((p) => p.id === 'ppio')
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
-  const [isLoading, setIsLoading] = useState(false)
-  const [abortController, setAbortController] = useState<AbortController | null>(null)
 
-  const [, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const textareaRef = useRef<any>(null)
 
@@ -152,13 +149,28 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }
 
+  const handleError = useCallback(
+    (error: unknown) => {
+      logger.error('Image generation failed', error as Error)
+
+      if ((error as Error).message !== 'Task polling aborted') {
+        window.modal.error({
+          content: getErrorMessage(error),
+          centered: true
+        })
+      }
+
+      updatePaintingState({ ppioStatus: 'failed' })
+    },
+    [updatePaintingState]
+  )
+
+  const { isLoading, runGeneration, cancelGeneration } = usePaintingGenerationTask({
+    onError: handleError
+  })
+
   const onCancel = () => {
-    if (abortController) {
-      abortController.abort()
-      setAbortController(null)
-    }
-    setIsLoading(false)
-    setGenerating(false)
+    cancelGeneration({ finishImmediately: true })
   }
 
   const handleProviderChange = (providerId: string) => {
@@ -224,13 +236,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (!confirmed) return
     }
 
-    setIsLoading(true)
-    setGenerating(true)
-
-    const controller = new AbortController()
-    setAbortController(controller)
-
-    try {
+    await runGeneration(async (signal) => {
       const provider = new PpioProvider(ppioProvider.apiKey)
 
       logger.info('Starting image generation', { model: painting.model, mode })
@@ -248,7 +254,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
         updatePaintingState({ taskId: result.taskId, ppioStatus: 'processing' })
 
         const taskResult = await provider.pollTaskResult(result.taskId, {
-          signal: controller.signal,
+          signal,
           onProgress: (progress) => {
             logger.debug('Task progress', { progress })
           }
@@ -287,22 +293,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
 
         setCurrentImageIndex(0)
       }
-    } catch (error) {
-      logger.error('Image generation failed', error as Error)
-
-      if ((error as Error).message !== 'Task polling aborted') {
-        window.modal.error({
-          content: getErrorMessage(error),
-          centered: true
-        })
-      }
-
-      updatePaintingState({ ppioStatus: 'failed' })
-    } finally {
-      setIsLoading(false)
-      setGenerating(false)
-      setAbortController(null)
-    }
+    })
   }
 
   const { isTranslating, handleKeyDown } = usePaintingPromptTranslation({

@@ -1,7 +1,6 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { Button, RowFlex, Switch, Tooltip } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -24,6 +23,7 @@ import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
+import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
 import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
 import {
   type ConfigItem,
@@ -43,8 +43,6 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
   const ovmsPaintings = useMemo(() => ovms_paintings || [], [ovms_paintings])
   const [painting, setPainting] = useState<OvmsPainting>(ovmsPaintings[0] || DEFAULT_OVMS_PAINTING)
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
-  const [isLoading, setIsLoading] = useState(false)
-  const [abortController, setAbortController] = useState<AbortController | null>(null)
   const [availableModels, setAvailableModels] = useState<Array<{ label: string; value: string }>>([])
   const [ovmsConfig, setOvmsConfig] = useState<ConfigItem[]>([])
 
@@ -64,8 +62,6 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
     }
   })
-  const [generating, setGenerating] = useCache('chat.generating')
-
   const navigate = useNavigate()
   const location = useLocation()
   const ovmsProvider = providers.find((p) => p.id === 'ovms')!
@@ -124,6 +120,9 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
       })
     }
   }
+  const { isLoading, setIsLoading, generating, runGeneration, cancelGeneration } = usePaintingGenerationTask({
+    onError: handleError
+  })
 
   const onGenerate = async () => {
     if (painting.files.length > 0) {
@@ -143,16 +142,11 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
       return
     }
 
-    const controller = new AbortController()
-    setAbortController(controller)
-    setIsLoading(true)
-    setGenerating(true)
-
-    try {
+    await runGeneration(async (signal) => {
       const result = await generateOvmsImages({
         provider: ovmsProvider,
         painting,
-        signal: controller.signal
+        signal
       })
 
       const savedResult = await savePaintingGenerationResult(result, {
@@ -168,13 +162,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
           urls: savedResult.urls
         })
       }
-    } catch (error: unknown) {
-      handleError(error)
-    } finally {
-      setIsLoading(false)
-      setGenerating(false)
-      setAbortController(null)
-    }
+    })
   }
 
   const handleRetry = async (painting: OvmsPainting) => {
@@ -195,7 +183,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onCancel = () => {
-    abortController?.abort()
+    cancelGeneration()
   }
 
   const nextImage = () => {

@@ -1,7 +1,6 @@
 import { PlusOutlined } from '@ant-design/icons'
 import { Button } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { AiProvider } from '@renderer/aiCore'
 import IcImageUp from '@renderer/assets/images/paintings/ic_ImageUp.svg'
@@ -36,6 +35,7 @@ import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import PaintingPromptBar from './components/PaintingPromptBar'
 import ProviderSelect from './components/ProviderSelect'
+import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
 import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
 import { generateNewApiImages, type NewApiImageMode } from './providers/newapi/provider'
 import { checkProviderEnabled, findPaintingByFiles } from './utils'
@@ -56,8 +56,6 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   // moved below after newApiProvider is defined
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
-  const [isLoading, setIsLoading] = useState(false)
-  const [abortController, setAbortController] = useState<AbortController | null>(null)
   const [editImageFiles, setEditImageFiles] = useState<File[]>([])
 
   const { t } = useTranslation()
@@ -67,7 +65,6 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const routeName = location.pathname.split('/').pop() || 'new-api'
   const newApiProviders = providers.filter((p) => isNewApiProvider(p))
 
-  const [generating, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const newApiProvider = newApiProviders.find((p) => p.id === routeName) || newApiProviders[0]
 
@@ -226,6 +223,9 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       })
     }
   }
+  const { isLoading, setIsLoading, generating, runGeneration, cancelGeneration } = usePaintingGenerationTask({
+    onError: handleError
+  })
 
   const onGenerate = async () => {
     await checkProviderEnabled(newApiProvider, t)
@@ -257,12 +257,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       return
     }
 
-    const controller = new AbortController()
-    setAbortController(controller)
-    setIsLoading(true)
-    setGenerating(true)
-
-    try {
+    await runGeneration(async (signal) => {
       if (mode === 'openai_image_edit') {
         if (editImages.length === 0) {
           window.toast.warning(t('paintings.image_file_required'))
@@ -278,7 +273,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
         prompt,
         editImages,
         fallbackErrorMessage: t('paintings.generate_failed'),
-        signal: controller.signal
+        signal
       })
 
       const savedResult = await savePaintingGenerationResult(result, {
@@ -293,13 +288,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
           urls: savedResult.urls
         })
       }
-    } catch (error: unknown) {
-      handleError(error)
-    } finally {
-      setIsLoading(false)
-      setGenerating(false)
-      setAbortController(null)
-    }
+    })
   }
 
   const handleRetry = async (painting: PaintingAction) => {
@@ -320,7 +309,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onCancel = () => {
-    abortController?.abort()
+    cancelGeneration()
   }
 
   const nextImage = () => {

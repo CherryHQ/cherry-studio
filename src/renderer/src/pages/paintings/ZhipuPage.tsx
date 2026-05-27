@@ -2,7 +2,6 @@ import { PlusOutlined } from '@ant-design/icons'
 import { RowFlex } from '@cherrystudio/ui'
 import { Button } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -22,6 +21,7 @@ import Artboard from './components/Artboard'
 import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
+import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
 import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
 import {
   COURSE_URL,
@@ -56,9 +56,6 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   const zhipuProvider = providers.find((p) => p.id === 'zhipu')!
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
-  const [isLoading, setIsLoading] = useState(false)
-  const [abortController, setAbortController] = useState<AbortController | null>(null)
-  const [generating, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const location = useLocation()
   const textareaRef = useRef<any>(null)
@@ -81,6 +78,19 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
       ...params
     }
   }
+
+  const handleError = (error: unknown) => {
+    if (error instanceof Error && error.name !== 'AbortError') {
+      window.modal.error({
+        content: getErrorMessage(error),
+        centered: true
+      })
+    }
+  }
+
+  const { isLoading, generating, runGeneration, cancelGeneration } = usePaintingGenerationTask({
+    onError: handleError
+  })
 
   const onGenerate = async () => {
     await checkProviderEnabled(zhipuProvider, t)
@@ -105,12 +115,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
       await FileManager.deleteFiles(painting.files)
     }
 
-    setIsLoading(true)
-    setGenerating(true)
-    const controller = new AbortController()
-    setAbortController(controller)
-
-    try {
+    await runGeneration(async (signal) => {
       let actualImageSize = painting.imageSize
 
       // 如果是自定义尺寸，使用实际的宽高值
@@ -157,7 +162,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
         provider: zhipuProvider,
         painting,
         imageSize: actualImageSize,
-        signal: controller.signal
+        signal
       })
 
       const savedResult = await savePaintingGenerationResult(result)
@@ -167,24 +172,11 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
           urls: savedResult.urls
         })
       }
-    } catch (error) {
-      if (error instanceof Error && error.name !== 'AbortError') {
-        window.modal.error({
-          content: getErrorMessage(error),
-          centered: true
-        })
-      }
-    } finally {
-      setIsLoading(false)
-      setGenerating(false)
-      setAbortController(null)
-    }
+    })
   }
 
   const onCancel = () => {
-    if (abortController) {
-      abortController.abort()
-    }
+    cancelGeneration()
   }
 
   const nextImage = () => {

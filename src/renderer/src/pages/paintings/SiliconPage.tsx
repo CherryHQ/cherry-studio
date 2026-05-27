@@ -1,6 +1,5 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { Button, ColFlex, InfoTooltip } from '@cherrystudio/ui'
-import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -24,6 +23,7 @@ import ImageUploader from './components/ImageUploader'
 import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
+import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
 import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
 import {
   DEFAULT_PAINTING,
@@ -49,9 +49,6 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   const siliconFlowProvider = providers.find((p) => p.id === 'silicon')!
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
 
-  const [isLoading, setIsLoading] = useState(false)
-  const [abortController, setAbortController] = useState<AbortController | null>(null)
-  const [generating, setGenerating] = useCache('chat.generating')
   const [fileMap, setFileMap] = useState<{ imageFiles: FileMetadata[]; paths: string[] }>({
     imageFiles: [],
     paths: []
@@ -98,6 +95,19 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }
 
+  const handleError = (error: unknown) => {
+    if (error instanceof Error && error.name !== 'AbortError') {
+      window.modal.error({
+        content: getErrorMessage(error),
+        centered: true
+      })
+    }
+  }
+
+  const { isLoading, generating, runGeneration, cancelGeneration } = usePaintingGenerationTask({
+    onError: handleError
+  })
+
   const onGenerate = async () => {
     await checkProviderEnabled(siliconFlowProvider, t)
 
@@ -137,21 +147,17 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
       return
     }
 
-    const controller = new AbortController()
-    setAbortController(controller)
-    setIsLoading(true)
-    setGenerating(true)
     if (!painting.model) {
       return
     }
 
-    try {
+    await runGeneration(async (signal) => {
       const inputImages = await getSiliconInputImages(fileMap.imageFiles.slice(0, modelParams.maxInputImages))
       const result = await generateSiliconImages({
         provider,
         painting,
         prompt,
-        signal: controller.signal,
+        signal,
         inputImages,
         modelParams: {
           supportsImageSize: modelParams.supportsImageSize,
@@ -174,22 +180,11 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
           urls: savedResult.urls
         })
       }
-    } catch (error: unknown) {
-      if (error instanceof Error && error.name !== 'AbortError') {
-        window.modal.error({
-          content: getErrorMessage(error),
-          centered: true
-        })
-      }
-    } finally {
-      setIsLoading(false)
-      setGenerating(false)
-      setAbortController(null)
-    }
+    })
   }
 
   const onCancel = () => {
-    abortController?.abort()
+    cancelGeneration()
   }
 
   const onSelectImageSize = (v: string) => {

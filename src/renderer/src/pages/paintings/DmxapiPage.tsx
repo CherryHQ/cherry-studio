@@ -1,7 +1,6 @@
 import { PlusOutlined, RedoOutlined } from '@ant-design/icons'
 import { Button, InfoTooltip, RowFlex, Switch } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import { useCache } from '@data/hooks/useCache'
 import DMXAPIToImg from '@renderer/assets/images/providers/DMXAPI-to-img.webp'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -25,6 +24,7 @@ import ImageUploader from './components/ImageUploader'
 import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
+import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
 import {
   COURSE_URL,
   DEFAULT_PAINTING,
@@ -53,9 +53,6 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [isLoadingModels, setIsLoadingModels] = useState(true)
 
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
-  const [isLoading, setIsLoading] = useState(false)
-  const [abortController, setAbortController] = useState<AbortController | null>(null)
-  const [generating, setGenerating] = useCache('chat.generating')
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -200,8 +197,24 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }
 
+  const handleError = (error: unknown) => {
+    if (error instanceof Error && error.name !== 'AbortError') {
+      window.modal.error({
+        content:
+          error.message.startsWith('paintings.') || error.message.startsWith('error.')
+            ? t(error.message)
+            : t('paintings.req_error_text'),
+        centered: true
+      })
+    }
+  }
+
+  const { isLoading, generating, runGeneration, cancelGeneration } = usePaintingGenerationTask({
+    onError: handleError
+  })
+
   const onCancel = () => {
-    abortController?.abort()
+    cancelGeneration()
   }
 
   const onSelectImageSize = (v: string) => {
@@ -385,64 +398,45 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
         if (!confirmed) return
       }
 
-      setIsLoading(true)
-
-      // 设置请求状态
-      const controller = new AbortController()
-      setAbortController(controller)
-      setGenerating(true)
-
-      const result = await generateDmxapiImages({
-        provider: dmxapiProvider,
-        painting,
-        prompt,
-        fileMap,
-        stylePromptPrefix: t('paintings.dmxapi.style'),
-        signal: controller.signal
-      })
-
-      // 下载图像
-      const { urls } = result
-      if (urls.length > 0) {
-        const validFiles = await downloadPaintingUrls(urls, {
-          t,
-          forceDownload: true,
-          saveDataImage: true
+      await runGeneration(async (signal) => {
+        const result = await generateDmxapiImages({
+          provider: dmxapiProvider,
+          painting,
+          prompt,
+          fileMap,
+          stylePromptPrefix: t('paintings.dmxapi.style'),
+          signal
         })
 
-        if (validFiles?.length > 0) {
-          if (painting.autoCreate && painting.files.length > 0) {
-            // 保存文件并更新状态
-            await FileManager.addFiles(validFiles)
-            getNewPaintingPanel({ files: validFiles, urls })
+        // 下载图像
+        const { urls } = result
+        if (urls.length > 0) {
+          const validFiles = await downloadPaintingUrls(urls, {
+            t,
+            forceDownload: true,
+            saveDataImage: true
+          })
+
+          if (validFiles?.length > 0) {
+            if (painting.autoCreate && painting.files.length > 0) {
+              // 保存文件并更新状态
+              await FileManager.addFiles(validFiles)
+              getNewPaintingPanel({ files: validFiles, urls })
+            } else {
+              // 删除之前的图片
+              await FileManager.deleteFiles(painting.files)
+
+              // 保存文件并更新状态
+              await FileManager.addFiles(validFiles)
+              updatePaintingState({ files: validFiles, urls })
+            }
           } else {
-            // 删除之前的图片
-            await FileManager.deleteFiles(painting.files)
-
-            // 保存文件并更新状态
-            await FileManager.addFiles(validFiles)
-            updatePaintingState({ files: validFiles, urls })
+            window.toast.warning(t('paintings.req_error_text'))
           }
-        } else {
-          window.toast.warning(t('paintings.req_error_text'))
         }
-      }
+      })
     } catch (error) {
-      // 错误处理
-      if (error instanceof Error && error.name !== 'AbortError') {
-        window.modal.error({
-          content:
-            error.message.startsWith('paintings.') || error.message.startsWith('error.')
-              ? t(error.message)
-              : t('paintings.req_error_text'),
-          centered: true
-        })
-      }
-    } finally {
-      // 清理状态
-      setIsLoading(false)
-      setGenerating(false)
-      setAbortController(null)
+      handleError(error)
     }
   }
 

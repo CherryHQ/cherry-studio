@@ -1,7 +1,6 @@
 import { PlusOutlined } from '@ant-design/icons'
 import { Button, InfoTooltip, Tooltip } from '@cherrystudio/ui'
 import { resolveProviderIcon } from '@cherrystudio/ui/icons'
-import { useCache } from '@data/hooks/useCache'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter, NavbarRight } from '@renderer/components/app/Navbar'
 import Scrollbar from '@renderer/components/Scrollbar'
@@ -23,6 +22,7 @@ import { DynamicFormRender } from './components/DynamicFormRender'
 import PaintingPromptBar from './components/PaintingPromptBar'
 import PaintingsList from './components/PaintingsList'
 import ProviderSelect from './components/ProviderSelect'
+import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
 import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
 import { DEFAULT_TOKENFLUX_PAINTING, type TokenFluxModel } from './providers/tokenflux/config'
 import TokenFluxService from './providers/tokenflux/service'
@@ -31,13 +31,10 @@ import { checkProviderEnabled } from './utils'
 const logger = loggerService.withContext('TokenFluxPage')
 
 const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
-  const [generating, setGenerating] = useCache('chat.generating')
   const [models, setModels] = useState<TokenFluxModel[]>([])
   const [selectedModel, setSelectedModel] = useState<TokenFluxModel | null>(null)
   const [formData, setFormData] = useState<Record<string, any>>({})
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
-  const [isLoading, setIsLoading] = useState(false)
-  const [abortController, setAbortController] = useState<AbortController | null>(null)
 
   const { t, i18n } = useTranslation()
   const providers = useAllProviders()
@@ -94,6 +91,9 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       })
     }
   }
+  const { isLoading, generating, runGeneration, cancelGeneration } = usePaintingGenerationTask({
+    onError: handleError
+  })
 
   const handleModelChange = (modelId: string) => {
     const model = models.find((m) => m.id === modelId)
@@ -133,12 +133,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       return
     }
 
-    const controller = new AbortController()
-    setAbortController(controller)
-    setIsLoading(true)
-    setGenerating(true)
-
-    try {
+    await runGeneration(async (signal) => {
       const requestBody = {
         model: selectedModel.id,
         input: {
@@ -156,7 +151,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       })
 
       const result = await tokenFluxService.generateAndWait(requestBody, {
-        signal: controller.signal,
+        signal,
         onStatusUpdate: (updates) => {
           updatePaintingState(updates)
         }
@@ -168,23 +163,11 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
         await FileManager.addFiles(validFiles)
         updatePaintingState({ files: validFiles, urls, status: 'succeeded' })
       }
-
-      setIsLoading(false)
-      setGenerating(false)
-      setAbortController(null)
-    } catch (error: unknown) {
-      handleError(error)
-      setIsLoading(false)
-      setGenerating(false)
-      setAbortController(null)
-    }
+    })
   }
 
   const onCancel = () => {
-    abortController?.abort()
-    setIsLoading(false)
-    setGenerating(false)
-    setAbortController(null)
+    cancelGeneration({ finishImmediately: true })
   }
 
   const nextImage = () => {
