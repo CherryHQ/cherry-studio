@@ -23,7 +23,7 @@ import { isMac, isWin } from '@main/constant'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { removeEnvProxy } from '@main/utils'
 import { isUserInChina } from '@main/utils/ipService'
-import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
+import { findCommandInShellEnv, getBinaryPath, isBinaryExists } from '@main/utils/process'
 import getShellEnv from '@main/utils/shell-env'
 import type { TerminalConfig, TerminalConfigWithCommand } from '@shared/config/constant'
 import {
@@ -126,10 +126,7 @@ export class CodeCliService extends BaseService {
   }
 
   public async getBunPath() {
-    const dir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
-    const bunName = await getBinaryName('bun')
-    const bunPath = path.join(dir, bunName)
-    return bunPath
+    return getBinaryPath('bun')
   }
 
   public async getPackageName(cliTool: string) {

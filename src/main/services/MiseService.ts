@@ -282,7 +282,6 @@ export class MiseService extends BaseService {
   private async isMiseToolReady(toolName: string): Promise<boolean> {
     try {
       await this.runMise(['which', toolName], os.tmpdir())
-      await this.runMise(['reshim'], os.tmpdir())
       return true
     } catch {
       return false

@@ -57,9 +57,19 @@ export async function getBinaryPath(name?: string): Promise<string> {
   }
 
   const binaryName = await getBinaryName(name)
+
+  const miseShimsDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'mise', 'shims')
+  const miseShimPath = path.join(miseShimsDir, binaryName)
+  if (fs.existsSync(miseShimPath)) {
+    return miseShimPath
+  }
+
   const binariesDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
-  const binariesDirExists = fs.existsSync(binariesDir)
-  return binariesDirExists ? path.join(binariesDir, binaryName) : binaryName
+  if (fs.existsSync(path.join(binariesDir, binaryName))) {
+    return path.join(binariesDir, binaryName)
+  }
+
+  return binaryName
 }
 
 export async function isBinaryExists(name: string): Promise<boolean> {
