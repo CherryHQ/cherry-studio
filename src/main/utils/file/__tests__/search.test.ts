@@ -1,11 +1,44 @@
+import type * as NodeFs from 'node:fs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import type { FilePath } from '@shared/file/types'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { listDirectory } from '../search'
+// Hoisted mocks for the two `node:fs` surfaces `search.ts` consults:
+//   - `existsSync` drives ripgrep binary discovery
+//   - `promises.stat` drives the EACCES root-path branch
+// Every other export passes through to the real implementation via the
+// `vi.mock` factory below, so the happy-path tests below keep exercising
+// real fs / real ripgrep without per-test setup.
+const mockExistsSync = vi.hoisted(() => vi.fn())
+const mockPromisesStat = vi.hoisted(() => vi.fn())
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof NodeFs>()
+  return {
+    ...actual,
+    existsSync: mockExistsSync,
+    promises: {
+      ...actual.promises,
+      stat: mockPromisesStat
+    }
+  }
+})
+
+const { listDirectory } = await import('../search')
+
+beforeEach(async () => {
+  // Default both spies to real-fs passthrough so the existing happy-path
+  // suites below keep operating on actual tmp directories + the vendored
+  // ripgrep binary. Individual error-path tests override per-call.
+  const actual = await vi.importActual<typeof NodeFs>('node:fs')
+  mockExistsSync.mockReset()
+  mockPromisesStat.mockReset()
+  mockExistsSync.mockImplementation((p: NodeFs.PathLike) => actual.existsSync(p))
+  mockPromisesStat.mockImplementation((p: string) => actual.promises.stat(p))
+})
 
 const writeMany = async (root: string, count: number, prefix = 'file', ext = '.txt'): Promise<string[]> => {
   const created: string[] = []
@@ -107,5 +140,38 @@ describe('listDirectory (search mode, fuzzy + maxEntries)', () => {
 
     expect(results[0]).toMatch(/updater\.ts$/)
     expect(results.some((p) => p.endsWith('unrelated.ts'))).toBe(false)
+  })
+})
+
+describe('listDirectory (error paths)', () => {
+  let tmp: string
+  beforeEach(async () => {
+    tmp = await mkdtemp(path.join(tmpdir(), 'cherry-search-errors-'))
+  })
+  afterEach(async () => {
+    await rm(tmp, { recursive: true, force: true })
+  })
+
+  it('throws "Ripgrep binary not available" when the vendored binary cannot be located', async () => {
+    // Force the parent-walk in getRipgrepBinaryPath() to exhaust without
+    // ever finding the binary or its asar-unpacked sibling. `stat` keeps
+    // its passthrough so the directory check still succeeds — the throw
+    // must come from the binary-availability branch (search.ts:541-543),
+    // not from a stat failure masquerading as a missing binary.
+    mockExistsSync.mockReturnValue(false)
+
+    await expect(listDirectory(tmp as FilePath)).rejects.toThrow(/Ripgrep binary not available/)
+  })
+
+  it('throws when the root path is not readable (EACCES from fs.promises.stat)', async () => {
+    // The stat call (search.ts:532) catch-logs + rethrows the original
+    // error verbatim, so callers see the underlying EACCES — not a
+    // synthesized "Path is not a directory" or "Ripgrep binary" message.
+    const eaccesErr = Object.assign(new Error('permission denied'), {
+      code: 'EACCES'
+    }) as NodeJS.ErrnoException
+    mockPromisesStat.mockRejectedValueOnce(eaccesErr)
+
+    await expect(listDirectory('/some/locked/path' as FilePath)).rejects.toBe(eaccesErr)
   })
 })
