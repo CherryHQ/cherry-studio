@@ -110,26 +110,33 @@ export class TreeRegistry extends BaseService {
   private disposed = false
 
   protected override async onInit(): Promise<void> {
-    // IPC handlers go here (auto-cleaned on stop) rather than in
-    // FileManager, so the registry owns its complete contract: state,
-    // teardown, and the channels that feed it.
-    //
-    // Each handler validates its payload through Zod before reaching
-    // application code — matches the pattern used by every other IPC
-    // surface in `FileManager`, so a malformed renderer call rejects
-    // at the boundary instead of silently mis-typing downstream state.
-    this.ipcHandle(IpcChannel.Tree_Create, async (event, params: unknown) => {
-      const { rootPath, options } = TreeCreateParamsSchema.parse(params)
-      return this.create(event.sender, rootPath, options)
-    })
-    this.ipcHandle(IpcChannel.Tree_Dispose, (_event, params: unknown) => {
-      const { treeId } = TreeDisposeParamsSchema.parse(params)
-      this.dispose(treeId)
-    })
+    this.registerIpcHandlers()
   }
 
   protected override async onStop(): Promise<void> {
     this.disposeAll()
+  }
+
+  /**
+   * Registers the `Tree_*` IPC contract. Kept as a dedicated helper so
+   * `onInit` stays a one-liner and the channel surface lives in one
+   * named place — same shape as `FileManager.registerIpcHandlers` and
+   * `WindowManager.registerIpcHandlers`.
+   *
+   * Each handler validates its payload through Zod at the boundary; a
+   * malformed renderer call rejects there instead of silently mis-typing
+   * downstream state. Async wrappers ensure a synchronous `parse` throw
+   * surfaces as a Promise rejection (matching `ipcMain.handle`'s contract).
+   */
+  private registerIpcHandlers(): void {
+    this.ipcHandle(IpcChannel.Tree_Create, async (event, params: unknown) => {
+      const { rootPath, options } = TreeCreateParamsSchema.parse(params)
+      return this.create(event.sender, rootPath, options)
+    })
+    this.ipcHandle(IpcChannel.Tree_Dispose, async (_event, params: unknown) => {
+      const { treeId } = TreeDisposeParamsSchema.parse(params)
+      this.dispose(treeId)
+    })
   }
 
   /**
