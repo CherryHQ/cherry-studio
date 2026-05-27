@@ -303,6 +303,16 @@ const NotesPage: FC = () => {
     }
   }, [notesTree, activeFilePath, activeNode, setActiveFilePath])
 
+  // Clear create/rename suppression once the new node appears in the tree.
+  // Replaces a 500ms timer that could race chokidar on slow filesystems
+  // (iCloud Drive, NFS, virtualized FS) and silently deselect a fresh note.
+  useEffect(() => {
+    if (activeNode) {
+      isCreatingNoteRef.current = false
+      isRenamingRef.current = false
+    }
+  }, [activeNode])
+
   // Active-file content invalidation when the watcher reports a `change`
   // on the file the user is currently viewing — pipes through
   // `useDirectoryTree`'s mutation stream is overkill (it would re-project
@@ -542,14 +552,14 @@ const NotesPage: FC = () => {
         setSelectedFolderId(null)
 
         await refreshTree()
+        // Success: flag stays true until the watcher reports the new node
+        // and the [activeNode] effect above clears it.
       } catch (error) {
+        // Write failed → file will never appear → clear the flag now so
+        // shouldClearPath isn't permanently suppressed.
+        isCreatingNoteRef.current = false
         logger.error('Failed to create note:', error as Error)
         window.toast.error(t('notes.create_note_failed'))
-      } finally {
-        // 延迟重置标志，给数据库同步一些时间
-        setTimeout(() => {
-          isCreatingNoteRef.current = false
-        }, 500)
       }
     },
     [getTargetFolderPath, refreshTree, setActiveFilePath, setFolderExpandedByPath, t]
@@ -691,17 +701,18 @@ const NotesPage: FC = () => {
         }
 
         await refreshTree()
+        // Success: flag stays true until the watcher reports the renamed
+        // node and the [activeNode] effect above clears it.
       } catch (error) {
+        // Rename failed → clear the flag now so subsequent tree updates
+        // aren't suppressed.
+        isRenamingRef.current = false
         logger.error('Failed to rename node:', error as Error)
         window.toast.error(
           error instanceof Error && error.message.startsWith('Target name already exists')
             ? t('notes.target_name_exists')
             : t('notes.rename_failed')
         )
-      } finally {
-        setTimeout(() => {
-          isRenamingRef.current = false
-        }, 500)
       }
     },
     [
