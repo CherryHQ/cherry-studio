@@ -62,8 +62,17 @@ interface Consumer {
   readonly sharedBuilder: SharedBuilder
 }
 
+// Delimiter that cannot appear unescaped in any JSON.stringify output —
+// the NUL control character is always emitted as an escape sequence by
+// JSON, keeping the (path, options) boundary in builderKey unambiguous.
+const BUILDER_KEY_DELIMITER = String.fromCharCode(0)
+
 function builderKey(rootPath: string, options: DirectoryTreeOptions | undefined): string {
-  return `${rootPath}${JSON.stringify(options ?? {})}`
+  // Match the normalization the builder applies to rootPath (backslash to
+  // forward slash) so identical Windows paths spelled with different
+  // separators dedupe to the same shared builder.
+  const normalized = rootPath.replace(/\\/g, '/')
+  return `${normalized}${BUILDER_KEY_DELIMITER}${JSON.stringify(options ?? {})}`
 }
 
 @Injectable('TreeRegistry')
