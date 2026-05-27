@@ -4,11 +4,11 @@
  * Combines all currently-registered business-domain ref variants into a
  * single discriminated union.
  *
- * ## Adding a new variant (e.g. `chat_message`)
+ * ## Adding a new variant (e.g. `painting`)
  *
- * 1. Create `./chatMessage.ts` following `./tempSession.ts` as a template —
- *    declare `chatMessageSourceType`, `chatMessageRoles`, `chatMessageRefFields`,
- *    and export `chatMessageFileRefSchema = createRefSchema(chatMessageRefFields)`
+ * 1. Create `./painting.ts` following `./tempSession.ts` as a template —
+ *    declare `paintingSourceType`, `paintingRoles`, `paintingRefFields`,
+ *    and export `paintingFileRefSchema = createRefSchema(paintingRefFields)`
  * 2. In this file: import the three symbols (source type literal, roles tuple,
  *    schema) and add the source type literal to `allSourceTypes`, then add the
  *    schema to the `FileRefSchema` discriminated union
@@ -30,6 +30,13 @@
 
 import * as z from 'zod'
 
+import {
+  chatMessageFileRefSchema,
+  chatMessageRefFields,
+  chatMessageRoles,
+  chatMessageRoleSchema,
+  chatMessageSourceType
+} from './chatMessage'
 import {
   knowledgeItemFileRefSchema,
   knowledgeItemRefFields,
@@ -58,15 +65,21 @@ import { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempS
  *   extend it once the role vocabulary settles. No production code currently
  *   writes `knowledge_item` refs, so the choice of placeholder value
  *   (`'attachment'`) is inconsequential.
+ * - `chat_message` — refs from message rows (`./chatMessage.ts`).
+ *   `sourceId` accepts both UUIDv4 (legacy) and UUIDv7 (v2-native) because
+ *   v1 message IDs are preserved verbatim during migration.
  *
- * Other business domains (chat_message / painting / note) deliberately do
- * NOT appear here. They will be added when their owning DB tables migrate
- * to v2 — at which point each variant gains its tuple entry, its
- * `createRefSchema` variant, AND its `SourceTypeChecker` in one PR. Keeping
- * those three surfaces in lockstep prevents the "type declared but schema
- * unaware" gap.
+ * Other business domains (painting / note) deliberately do NOT appear here.
+ * They will be added when their owning DB tables migrate to v2 — at which
+ * point each variant gains its tuple entry, its `createRefSchema` variant,
+ * AND its `SourceTypeChecker` in one PR. Keeping those three surfaces in
+ * lockstep prevents the "type declared but schema unaware" gap.
  */
-export const allSourceTypes = [tempSessionSourceType, knowledgeItemSourceType] as const satisfies readonly string[]
+export const allSourceTypes = [
+  tempSessionSourceType,
+  knowledgeItemSourceType,
+  chatMessageSourceType
+] as const satisfies readonly string[]
 export type FileRefSourceType = (typeof allSourceTypes)[number]
 
 /**
@@ -85,12 +98,21 @@ export const FileRefSourceTypeSchema = z.enum(allSourceTypes)
  * a row with an unregistered sourceType implies either a stale artefact or
  * a bug that bypassed the variant-registration discipline.
  */
-export const FileRefSchema = z.discriminatedUnion('sourceType', [tempSessionFileRefSchema, knowledgeItemFileRefSchema])
+export const FileRefSchema = z.discriminatedUnion('sourceType', [
+  tempSessionFileRefSchema,
+  knowledgeItemFileRefSchema,
+  chatMessageFileRefSchema
+])
 export type FileRef = z.infer<typeof FileRefSchema>
 
 // ─── Re-exports ───
 
 export {
+  chatMessageFileRefSchema,
+  chatMessageRefFields,
+  chatMessageRoles,
+  chatMessageRoleSchema,
+  chatMessageSourceType,
   knowledgeItemFileRefSchema,
   knowledgeItemRefFields,
   knowledgeItemRoles,

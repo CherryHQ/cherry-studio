@@ -45,6 +45,11 @@ vi.mock('@logger', () => ({
 
 const { KnowledgeOrchestrationService } = await import('../KnowledgeOrchestrationService')
 
+const SOURCE_BASE_ID = '11111111-1111-4111-8111-111111111111'
+const SOURCE_GROUP_ID = '22222222-2222-4222-8222-222222222222'
+const SOURCE_ROOT_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
+const SOURCE_CHILD_ITEM_ID = '0198f3f2-7d1b-7abc-8def-123456789abc'
+
 describe('KnowledgeOrchestrationService integration', () => {
   const dbh = setupTestDatabase()
   const embeddingModelId = createUniqueModelId('openai', 'text-embedding-3-small')
@@ -76,15 +81,15 @@ describe('KnowledgeOrchestrationService integration', () => {
       orderKey: embeddingModelOrderKey
     })
     await dbh.db.insert(groupTable).values({
-      id: 'group-1',
+      id: SOURCE_GROUP_ID,
       entityType: 'knowledge',
       name: 'Legacy group',
       orderKey: 'a0'
     })
     await dbh.db.insert(knowledgeBaseTable).values({
-      id: 'source-kb',
+      id: SOURCE_BASE_ID,
       name: 'Legacy KB',
-      groupId: 'group-1',
+      groupId: SOURCE_GROUP_ID,
       emoji: DEFAULT_KNOWLEDGE_BASE_EMOJI,
       dimensions: null,
       embeddingModelId: null,
@@ -101,23 +106,21 @@ describe('KnowledgeOrchestrationService integration', () => {
     })
     await dbh.db.insert(knowledgeItemTable).values([
       {
-        id: 'source-root',
-        baseId: 'source-kb',
+        id: SOURCE_ROOT_ITEM_ID,
+        baseId: SOURCE_BASE_ID,
         groupId: null,
         type: 'note',
         data: { source: 'source-root', content: 'root content' },
         status: 'idle',
-        phase: null,
         error: null
       },
       {
-        id: 'source-child',
-        baseId: 'source-kb',
-        groupId: 'source-root',
+        id: SOURCE_CHILD_ITEM_ID,
+        baseId: SOURCE_BASE_ID,
+        groupId: SOURCE_ROOT_ITEM_ID,
         type: 'note',
         data: { source: 'source-child', content: 'child content' },
         status: 'idle',
-        phase: null,
         error: null
       }
     ])
@@ -127,7 +130,7 @@ describe('KnowledgeOrchestrationService integration', () => {
     const service = new KnowledgeOrchestrationService()
 
     const restoredBase = await service.restoreBase({
-      sourceBaseId: 'source-kb',
+      sourceBaseId: SOURCE_BASE_ID,
       name: 'Legacy KB_bak',
       embeddingModelId,
       dimensions: 1536
@@ -135,22 +138,22 @@ describe('KnowledgeOrchestrationService integration', () => {
 
     expect(restoredBase).toMatchObject({
       name: 'Legacy KB_bak',
-      groupId: 'group-1',
+      groupId: SOURCE_GROUP_ID,
       dimensions: 1536,
       embeddingModelId,
       status: 'completed',
       error: null
     })
-    expect(restoredBase.id).not.toBe('source-kb')
+    expect(restoredBase.id).not.toBe(SOURCE_BASE_ID)
     expect(runtimeCreateBaseMock).toHaveBeenCalledWith(restoredBase.id)
     expect(runtimeAddItemsMock).toHaveBeenCalledWith(restoredBase.id, [
       { type: 'note', data: { source: 'source-root', content: 'root content' } }
     ])
 
-    const [sourceBase] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, 'source-kb'))
+    const [sourceBase] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, SOURCE_BASE_ID))
     expect(sourceBase).toMatchObject({
-      id: 'source-kb',
-      groupId: 'group-1',
+      id: SOURCE_BASE_ID,
+      groupId: SOURCE_GROUP_ID,
       dimensions: null,
       embeddingModelId: null,
       status: 'failed',
@@ -172,7 +175,7 @@ describe('KnowledgeOrchestrationService integration', () => {
     const sourceChildRows = await dbh.db
       .select()
       .from(knowledgeItemTable)
-      .where(eq(knowledgeItemTable.id, 'source-child'))
+      .where(eq(knowledgeItemTable.id, SOURCE_CHILD_ITEM_ID))
     expect(sourceChildRows).toHaveLength(1)
 
     const restoredRootItems = await dbh.db
@@ -195,7 +198,7 @@ describe('KnowledgeOrchestrationService integration', () => {
         })
       ])
     )
-    expect(runtimeReindexItemsMock).not.toHaveBeenCalledWith('source-kb', expect.anything())
+    expect(runtimeReindexItemsMock).not.toHaveBeenCalledWith(SOURCE_BASE_ID, expect.anything())
 
     const ungroupedRestoredItems = await dbh.db
       .select()

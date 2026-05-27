@@ -10,9 +10,9 @@ vi.mock('uuid', () => ({
   v4: () => `test-uuid-${++uuidCounter}`
 }))
 
-// ─── Mock: @main/constant ──────────────────────────────────
+// ─── Mock: @main/core/platform ──────────────────────────────────
 
-vi.mock('@main/constant', () => ({
+vi.mock('@main/core/platform', () => ({
   isMac: false,
   isWin: false,
   isLinux: false,

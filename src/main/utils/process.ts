@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { isWin } from '@main/core/platform'
 import type { GitBashPathInfo, GitBashPathSource } from '@shared/config/constant'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import chardet from 'chardet'
@@ -9,7 +10,6 @@ import iconv from 'iconv-lite'
 import os from 'os'
 import path from 'path'
 
-import { isWin } from '../constant'
 import { ConfigKeys, configManager } from '../services/ConfigManager'
 import getShellEnv, { refreshShellEnv } from './shell-env'
 

@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
  * Tests for src/main/core/preboot/userDataLocation.ts
  *
  * Mocking strategy:
- *   - `@main/constant` exposes module-level booleans (isLinux/isWin/isPortable)
+ *   - `@main/core/platform` exposes module-level booleans (isLinux/isWin/isPortable)
  *     computed at evaluation time. We use `vi.doMock` + `vi.resetModules()` and
  *     dynamically import the module-under-test in each test, so we can swap
  *     platform values per scenario.
@@ -73,7 +73,7 @@ function stubElectron(opts: ElectronStubOptions = {}) {
 }
 
 function stubConstants(flags: PlatformFlags) {
-  vi.doMock('@main/constant', () => ({
+  vi.doMock('@main/core/platform', () => ({
     isLinux: flags.isLinux,
     isWin: flags.isWin,
     isPortable: flags.isPortable,

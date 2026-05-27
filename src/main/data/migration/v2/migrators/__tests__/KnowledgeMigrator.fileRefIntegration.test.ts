@@ -1,23 +1,25 @@
-// Integration test for the `KnowledgeMigrator` dangling `file_ref` guard.
+// Integration tests for `KnowledgeMigrator` reference-integrity guards.
 //
 // Runs FileMigrator → KnowledgeMigrator against a real SQLite DB and then
 // invokes the production `PRAGMA foreign_key_check` (the same check
 // `MigrationEngine.verifyForeignKeys()` runs after all migrators complete).
 //
-// The protection under test: `KnowledgeMigrator.execute()` must filter out
-// every `file_ref` whose `fileEntryId` is not actually present in the v2
-// `file_entry` table, *before* the engine's post-migration foreign-key
-// verification runs (the engine sets `PRAGMA foreign_keys = OFF` during
-// migration, so dangling inserts succeed locally and only blow up at the
-// final integrity check, aborting the entire user's migration).
+// The protections under test: `KnowledgeMigrator.execute()` must remap
+// assistant knowledge-base refs from legacy IDs to migrated IDs, drop
+// orphaned assistant refs, and filter dangling `file_ref` rows before the
+// engine's final integrity check aborts the whole user migration.
+import { assistantTable } from '@data/db/schemas/assistant'
+import { assistantKnowledgeBaseTable } from '@data/db/schemas/assistantRelations'
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
+import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it, vi } from 'vitest'
 
 import { FileMigrator } from '../FileMigrator'
-import { KnowledgeMigrator } from '../KnowledgeMigrator'
+import { KNOWLEDGE_ITEM_ID_REMAP_SHARED_DATA_KEY, KnowledgeMigrator } from '../KnowledgeMigrator'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -31,6 +33,7 @@ vi.mock('@logger', () => ({
 }))
 
 const MOCK_USER_DATA = '/mock/userData'
+const ASSISTANT_ID = '11111111-1111-4111-8111-111111111111'
 
 function dexieFileRow(overrides: Partial<FileMetadata> & Pick<FileMetadata, 'id'>): FileMetadata {
   return {
@@ -77,8 +80,99 @@ function makeCtx(dbh: ReturnType<typeof setupTestDatabase>, dexieFiles: FileMeta
   } as never
 }
 
-describe('KnowledgeMigrator dangling file_ref guard (integration)', () => {
+async function seedAssistantKnowledgeBaseRefs(dbh: ReturnType<typeof setupTestDatabase>, knowledgeBaseIds: string[]) {
+  await dbh.db.insert(assistantTable).values({
+    id: ASSISTANT_ID,
+    name: 'Assistant',
+    emoji: '*',
+    settings: DEFAULT_ASSISTANT_SETTINGS
+  })
+
+  await dbh.client.execute('PRAGMA foreign_keys = OFF')
+  try {
+    const now = Date.now()
+    for (const knowledgeBaseId of knowledgeBaseIds) {
+      await dbh.client.execute({
+        sql: `
+          INSERT INTO assistant_knowledge_base (assistant_id, knowledge_base_id, created_at, updated_at)
+          VALUES (?, ?, ?, ?)
+        `,
+        args: [ASSISTANT_ID, knowledgeBaseId, now, now]
+      })
+    }
+  } finally {
+    await dbh.client.execute('PRAGMA foreign_keys = ON')
+  }
+}
+
+describe('KnowledgeMigrator reference integrity guards (integration)', () => {
   const dbh = setupTestDatabase()
+
+  it('remaps assistant knowledge base refs from legacy id to migrated id and drops orphaned refs', async () => {
+    const legacyBaseId = 'legacy-kb-1'
+    const orphanBaseId = 'legacy-orphan-kb'
+    const migratedBaseId = '22222222-2222-4222-8222-222222222222'
+    await seedAssistantKnowledgeBaseRefs(dbh, [legacyBaseId, orphanBaseId])
+
+    const migrator = new KnowledgeMigrator() as any
+    migrator.preparedBases = [
+      {
+        id: migratedBaseId,
+        name: 'KB 1',
+        groupId: null,
+        emoji: '*',
+        dimensions: 768,
+        embeddingModelId: null,
+        status: 'failed',
+        error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
+        rerankModelId: null,
+        fileProcessorId: null,
+        chunkSize: 1024,
+        chunkOverlap: 200,
+        threshold: null,
+        documentCount: null,
+        searchMode: 'hybrid',
+        hybridAlpha: null,
+        createdAt: 1775114958369,
+        updatedAt: 1775114958369
+      }
+    ]
+    migrator.preparedItems = []
+    migrator.legacyBaseIdRemap = new Map([[legacyBaseId, migratedBaseId]])
+
+    const result = await migrator.execute({
+      db: dbh.db,
+      sharedData: new Map()
+    } as any)
+
+    expect(result.success).toBe(true)
+    const rows = await dbh.db
+      .select({
+        assistantId: assistantKnowledgeBaseTable.assistantId,
+        knowledgeBaseId: assistantKnowledgeBaseTable.knowledgeBaseId
+      })
+      .from(assistantKnowledgeBaseTable)
+
+    expect(rows).toEqual([{ assistantId: ASSISTANT_ID, knowledgeBaseId: migratedBaseId }])
+    const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
+    expect(fkCheck.rows).toHaveLength(0)
+  })
+
+  it('drops dangling assistant knowledge base refs when no knowledge data is prepared', async () => {
+    await seedAssistantKnowledgeBaseRefs(dbh, ['legacy-orphan-kb'])
+
+    const migrator = new KnowledgeMigrator()
+    const result = await migrator.execute({
+      db: dbh.db
+    } as any)
+
+    expect(result).toEqual({
+      success: true,
+      processedCount: 0
+    })
+    const rows = await dbh.db.select().from(assistantKnowledgeBaseTable)
+    expect(rows).toHaveLength(0)
+  })
 
   it('drops file_refs for legacyFileIds absent from v2 file_entry so PRAGMA foreign_key_check passes', async () => {
     // Fixture: two v1 file rows, one valid and one that FileMigrator drops.
@@ -130,8 +224,11 @@ describe('KnowledgeMigrator dangling file_ref guard (integration)', () => {
     const fileRefRows = await dbh.db
       .select({ fileEntryId: fileRefTable.fileEntryId, sourceId: fileRefTable.sourceId })
       .from(fileRefTable)
+    const itemIdRemap = (ctx as unknown as { sharedData: Map<string, unknown> }).sharedData.get(
+      KNOWLEDGE_ITEM_ID_REMAP_SHARED_DATA_KEY
+    ) as Map<string, string>
     expect(fileRefRows).toHaveLength(1)
-    expect(fileRefRows[0]).toMatchObject({ fileEntryId: 'abc-survivor', sourceId: 'item-survivor' })
+    expect(fileRefRows[0]).toMatchObject({ fileEntryId: 'abc-survivor', sourceId: itemIdRemap.get('item-survivor') })
 
     // Also exercise the post-migration check that the engine runs.
     const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
@@ -216,8 +313,8 @@ describe('KnowledgeMigrator dangling file_ref guard (integration)', () => {
     const flushed = allWarnings.find((w) => w.includes('knowledge_item_dangling_file_entry'))
     expect(flushed).toBeDefined()
     expect(flushed).toContain('count=2')
-    expect(flushed).toContain('item-dangling-a')
-    expect(flushed).toContain('item-dangling-b')
+    expect(flushed).toContain('abc-skipped-a')
+    expect(flushed).toContain('abc-skipped-b')
 
     // KB + items committed normally despite the dropped refs.
     const baseRows = await dbh.db.select().from(knowledgeBaseTable)

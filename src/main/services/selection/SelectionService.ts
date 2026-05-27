@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'

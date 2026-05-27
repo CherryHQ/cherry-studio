@@ -30,6 +30,9 @@ vi.mock('@libsql/client', () => ({
   createClient: vi.fn()
 }))
 
+const UUIDV7_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const UUIDV4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
 describe('KnowledgeMigrator dimensions resolution', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -338,7 +341,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(result.success).toBe(true)
     expect(migrator.preparedBases).toHaveLength(1)
     expect(migrator.preparedBases[0]).toMatchObject({
-      id: 'kb-dangling-model',
+      id: expect.stringMatching(UUIDV4_PATTERN),
       dimensions: 768,
       embeddingModelId: null,
       status: 'failed',
@@ -349,6 +352,8 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(migrator.skippedCount).toBe(0)
     expect(migrator.sourceCount).toBe(2)
     expect(resolveDimensionsForBase).not.toHaveBeenCalled()
+    expect(migrator.preparedItems[0].baseId).toBe(migrator.preparedBases[0].id)
+    expect(migrator.legacyBaseIdRemap.get('kb-dangling-model')).toBe(migrator.preparedBases[0].id)
     expect(result.warnings?.some((warning: string) => warning.includes('dangling embedding model reference'))).toBe(
       true
     )
@@ -402,17 +407,19 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(migrator.preparedBases).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: 'kb-missing-chunk',
           chunkSize: 1024,
           chunkOverlap: 200
         }),
         expect.objectContaining({
-          id: 'kb-small-chunk',
           chunkSize: 128,
           chunkOverlap: 127
         })
       ])
     )
+    expect(migrator.preparedBases.every((base: any) => UUIDV4_PATTERN.test(base.id))).toBe(true)
+    expect(migrator.legacyBaseIdRemap.size).toBe(2)
+    expect(migrator.legacyBaseIdRemap.get('kb-missing-chunk')).toMatch(UUIDV4_PATTERN)
+    expect(migrator.legacyBaseIdRemap.get('kb-small-chunk')).toMatch(UUIDV4_PATTERN)
   })
 
   it('prepare skips base and items when legacy knowledge store path is a directory', async () => {
@@ -589,8 +596,10 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(createStreamReader).toHaveBeenCalledWith('knowledge_notes')
     expect(createStreamReader).toHaveBeenCalledWith('files')
 
-    const noteItem = migrator.preparedItems.find((item: any) => item.id === 'note-1')
-    const fileItem = migrator.preparedItems.find((item: any) => item.id === 'file-item-1')
+    const noteItem = migrator.preparedItems.find((item: any) => item.id === migrator.legacyItemIdRemap.get('note-1'))
+    const fileItem = migrator.preparedItems.find(
+      (item: any) => item.id === migrator.legacyItemIdRemap.get('file-item-1')
+    )
 
     expect(noteItem?.data).toEqual({
       source: 'https://streamed.example.com',
@@ -688,7 +697,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(result.success).toBe(true)
     expect(migrator.preparedBases).toHaveLength(1)
     expect(migrator.preparedBases[0]).toMatchObject({
-      id: 'kb-dangling-rerank',
+      id: expect.stringMatching(UUIDV4_PATTERN),
       embeddingModelId: 'silicon::BAAI/bge-m3',
       status: 'completed',
       error: null,
@@ -741,14 +750,19 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     } as any
 
     const result = await migrator.prepare(ctx)
-    const statusById = new Map(migrator.preparedItems.map((item: any) => [item.id, item.status]))
+    const statusByLegacyId = new Map(
+      [...migrator.legacyItemIdRemap.entries()].map(([legacyItemId, migratedItemId]) => [
+        legacyItemId,
+        migrator.preparedItems.find((item: any) => item.id === migratedItemId)?.status
+      ])
+    )
 
     expect(result.success).toBe(true)
-    expect(statusById.get('i-no-unique-id')).toBe('idle')
-    expect(statusById.get('i-with-unique-id')).toBe('completed')
-    expect(statusById.get('i-with-empty-unique-id')).toBe('idle')
-    expect(statusById.get('i-processing-but-no-unique-id')).toBe('idle')
-    expect(statusById.get('i-failed-with-unique-id')).toBe('completed')
+    expect(statusByLegacyId.get('i-no-unique-id')).toBe('idle')
+    expect(statusByLegacyId.get('i-with-unique-id')).toBe('completed')
+    expect(statusByLegacyId.get('i-with-empty-unique-id')).toBe('idle')
+    expect(statusByLegacyId.get('i-processing-but-no-unique-id')).toBe('failed')
+    expect(statusByLegacyId.get('i-failed-with-unique-id')).toBe('failed')
   })
 
   it('prepare preserves failed missing-model bases with null dimensions when legacy dimensions are missing', async () => {
@@ -786,7 +800,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(result.success).toBe(true)
     expect(migrator.preparedBases).toHaveLength(1)
     expect(migrator.preparedBases[0]).toMatchObject({
-      id: 'kb-no-model',
+      id: expect.stringMatching(UUIDV4_PATTERN),
       dimensions: null,
       embeddingModelId: null,
       status: 'failed',
@@ -830,7 +844,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
 
     expect(result.success).toBe(true)
     expect(migrator.preparedBases[0]).toMatchObject({
-      id: 'kb-no-model',
+      id: expect.stringMatching(UUIDV4_PATTERN),
       dimensions: 768,
       embeddingModelId: null,
       status: 'failed',
@@ -892,8 +906,13 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     expect(resolveDimensionsForBase).toHaveBeenCalledTimes(2)
     expect(migrator.sourceCount).toBe(8)
     expect(migrator.skippedCount).toBe(3)
-    expect(migrator.preparedBases.map((base: any) => base.id)).toEqual(['kb-1', 'kb-2'])
-    expect(migrator.preparedItems.map((item: any) => item.id)).toEqual(['item-1', 'item-dup', 'item-2'])
+    expect(migrator.preparedBases.map((base: any) => base.id)).toHaveLength(2)
+    expect(migrator.preparedBases.every((base: any) => UUIDV4_PATTERN.test(base.id))).toBe(true)
+    expect([...migrator.legacyBaseIdRemap.keys()]).toEqual(['kb-1', 'kb-2'])
+    expect([...migrator.legacyItemIdRemap.keys()]).toEqual(['item-1', 'item-dup', 'item-2'])
+    expect(migrator.preparedItems.map((item: any) => item.id)).toHaveLength(3)
+    expect(migrator.preparedItems.every((item: any) => UUIDV7_PATTERN.test(item.id))).toBe(true)
+    expect(migrator.preparedItems.every((item: any) => UUIDV4_PATTERN.test(item.baseId))).toBe(true)
     expect(
       result.warnings?.some(
         (warning: string) =>
@@ -943,10 +962,12 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     } as any
 
     const result = await migrator.prepare(ctx)
-    const child = migrator.preparedItems.find((item: any) => item.id === 'child-note')
+    const child = migrator.preparedItems.find((item: any) => item.id === migrator.legacyItemIdRemap.get('child-note'))
 
     expect(result.success).toBe(true)
     expect(migrator.preparedItems).toHaveLength(2)
+    expect(migrator.legacyItemIdRemap.get('parent-url')).toMatch(UUIDV7_PATTERN)
+    expect(migrator.legacyItemIdRemap.get('child-note')).toMatch(UUIDV7_PATTERN)
     expect(child?.groupId).toBeNull()
   })
 
@@ -1013,15 +1034,33 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     vi.clearAllMocks()
   })
 
+  function createDeleteMock() {
+    const where = vi.fn().mockResolvedValue(undefined)
+    const deleteMock = vi.fn().mockReturnValue({ where })
+    return Object.assign(deleteMock, { where })
+  }
+
+  function createUpdateMock() {
+    const where = vi.fn().mockResolvedValue(undefined)
+    const set = vi.fn().mockReturnValue({ where })
+    const update = vi.fn().mockReturnValue({ set })
+    return Object.assign(update, { set, where })
+  }
+
   it('execute returns success immediately when nothing prepared', async () => {
     const migrator = new KnowledgeMigrator()
+    const deleteMock = createDeleteMock()
 
-    const result = await migrator.execute({} as any)
+    const result = await migrator.execute({
+      db: { delete: deleteMock }
+    } as any)
 
     expect(result).toEqual({
       success: true,
       processedCount: 0
     })
+    expect(deleteMock).toHaveBeenCalledTimes(1)
+    expect(deleteMock.where).toHaveBeenCalledTimes(1)
   })
 
   it('execute returns failed result when insert throws', async () => {
@@ -1039,11 +1078,12 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     const values = vi.fn().mockRejectedValue(new Error('insert failed'))
     const insert = vi.fn().mockReturnValue({ values })
     const transaction = vi.fn(async (callback: (tx: any) => Promise<void>) => {
-      await callback({ insert })
+      await callback({ insert, update: createUpdateMock() })
     })
 
     const result = await migrator.execute({
-      db: { transaction }
+      db: { transaction, delete: createDeleteMock() },
+      sharedData: new Map()
     } as any)
 
     expect(result.success).toBe(false)
@@ -1088,17 +1128,96 @@ describe('KnowledgeMigrator execute/validate paths', () => {
 
     const values = vi.fn().mockResolvedValue(undefined)
     const insert = vi.fn().mockReturnValue({ values })
+    const update = createUpdateMock()
     const transaction = vi.fn(async (callback: (tx: any) => Promise<void>) => {
-      await callback({ insert })
+      await callback({ insert, update })
     })
 
     const result = await migrator.execute({
-      db: { transaction }
+      db: { transaction, delete: createDeleteMock() },
+      sharedData: new Map()
     } as any)
 
     expect(result.success).toBe(true)
     expect(result.processedCount).toBe(4)
     expect(transaction).toHaveBeenCalledTimes(2)
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('execute exposes legacy to migrated base and item id remaps for vector migration', async () => {
+    const migrator = new KnowledgeMigrator() as any
+    const migratedBaseId = '11111111-1111-4111-8111-111111111111'
+    const migratedItemId = '0198f3f2-7d1a-7abc-8def-123456789abc'
+    migrator.preparedBases = [
+      {
+        id: migratedBaseId,
+        name: 'KB 1',
+        dimensions: 1024,
+        embeddingModelId: 'silicon::BAAI/bge-m3'
+      }
+    ]
+    migrator.preparedItems = [
+      {
+        id: migratedItemId,
+        baseId: migratedBaseId,
+        groupId: null,
+        type: 'note',
+        data: { source: 'n1', content: 'n1' },
+        status: 'idle',
+        error: null
+      }
+    ]
+    migrator.legacyBaseIdRemap = new Map([['legacy-kb-1', migratedBaseId]])
+    migrator.legacyItemIdRemap = new Map([['legacy-note-1', migratedItemId]])
+
+    const values = vi.fn().mockResolvedValue(undefined)
+    const insert = vi.fn().mockReturnValue({ values })
+    const update = createUpdateMock()
+    const transaction = vi.fn(async (callback: (tx: any) => Promise<void>) => {
+      await callback({ insert, update })
+    })
+    const sharedData = new Map<string, unknown>()
+
+    const result = await migrator.execute({
+      db: { transaction, delete: createDeleteMock() },
+      sharedData
+    } as any)
+
+    expect(result.success).toBe(true)
+    expect(sharedData.get('knowledgeBaseIdRemap')).toEqual(new Map([['legacy-kb-1', migratedBaseId]]))
+    expect(sharedData.get('knowledgeItemIdRemap')).toEqual(new Map([['legacy-note-1', migratedItemId]]))
+    expect(update).toHaveBeenCalledTimes(1)
+    expect(update.set).toHaveBeenCalledWith({ knowledgeBaseId: migratedBaseId })
+    expect(update.where).toHaveBeenCalledTimes(1)
+  })
+
+  it('execute drops dangling assistant knowledge base refs after migrating prepared data', async () => {
+    const migrator = new KnowledgeMigrator() as any
+    migrator.preparedBases = [
+      {
+        id: 'kb-1',
+        name: 'KB 1',
+        dimensions: 1024,
+        embeddingModelId: 'silicon::BAAI/bge-m3'
+      }
+    ]
+    migrator.preparedItems = []
+
+    const values = vi.fn().mockResolvedValue(undefined)
+    const insert = vi.fn().mockReturnValue({ values })
+    const transaction = vi.fn(async (callback: (tx: any) => Promise<void>) => {
+      await callback({ insert, update: createUpdateMock() })
+    })
+    const deleteMock = createDeleteMock()
+
+    const result = await migrator.execute({
+      db: { transaction, delete: deleteMock },
+      sharedData: new Map()
+    } as any)
+
+    expect(result.success).toBe(true)
+    expect(deleteMock).toHaveBeenCalledTimes(1)
+    expect(deleteMock.where).toHaveBeenCalledTimes(1)
   })
 
   it('execute writes recoverable failed bases and their items', async () => {
@@ -1133,7 +1252,6 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         type: 'note',
         data: { source: 'note', content: 'note' },
         status: 'idle',
-        phase: null,
         error: null,
         createdAt: 1775114958369,
         updatedAt: 1775114958369
@@ -1146,11 +1264,12 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     })
     const insert = vi.fn().mockReturnValue({ values })
     const transaction = vi.fn(async (callback: (tx: any) => Promise<void>) => {
-      await callback({ insert })
+      await callback({ insert, update: createUpdateMock() })
     })
 
     const result = await migrator.execute({
-      db: { transaction }
+      db: { transaction, delete: createDeleteMock() },
+      sharedData: new Map()
     } as any)
 
     expect(result.success).toBe(true)
@@ -1214,11 +1333,11 @@ describe('KnowledgeMigrator execute/validate paths', () => {
       .mockRejectedValueOnce(new Error('second base failed'))
     const insert = vi.fn().mockReturnValue({ values })
     const transaction = vi.fn(async (callback: (tx: any) => Promise<void>) => {
-      await callback({ insert })
+      await callback({ insert, update: createUpdateMock() })
     })
 
     const result = await migrator.execute({
-      db: { transaction }
+      db: { transaction, delete: createDeleteMock() }
     } as any)
 
     expect(result.success).toBe(false)
@@ -1334,16 +1453,20 @@ describe('KnowledgeMigrator file_ref creation', () => {
 
     const outerInsert = makeInsertFn(insertedOutsideTx)
     const txInsert = makeInsertFn(insertedInsideTx)
+    const update = vi.fn().mockReturnValue({
+      set: vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
+    })
+    const deleteMock = vi.fn().mockReturnValue({ where: vi.fn().mockResolvedValue(undefined) })
 
     const transaction = vi.fn(async (callback: (tx: any) => Promise<void>) => {
-      await callback({ insert: txInsert })
+      await callback({ insert: txInsert, update })
     })
 
     const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }
 
     return {
       sharedData,
-      db: { transaction, insert: outerInsert },
+      db: { transaction, insert: outerInsert, delete: deleteMock },
       logger,
       insertedInsideTx,
       insertedOutsideTx,

@@ -88,7 +88,6 @@ function createLeafItem(id = 'note-1', status: KnowledgeItem['status'] = 'proces
     type: 'note',
     data: { source: id, content: `body of ${id}` },
     status,
-    phase: status === 'processing' ? 'reading' : null,
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'

@@ -2,7 +2,7 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { isMac, isWin } from '@main/constant'
+import { isMac, isWin } from '@main/core/platform'
 import { execFileSync, spawn } from 'child_process'
 
 const logger = loggerService.withContext('ShellEnv')

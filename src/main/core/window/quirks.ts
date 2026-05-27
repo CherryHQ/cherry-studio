@@ -1,4 +1,4 @@
-import { isMac } from '@main/constant'
+import { isMac } from '@main/core/platform'
 import type { WindowBehavior, WindowQuirks } from '@main/core/window/types'
 import { BrowserWindow } from 'electron'
 
