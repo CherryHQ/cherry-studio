@@ -3,8 +3,8 @@ import {
   createPaintingGenerateError,
   normalizePaintingGenerateError
 } from '@renderer/aiCore/errors/paintingGenerateError'
-import FileManager from '@renderer/services/FileManager'
 import type { FileMetadata } from '@renderer/types'
+import type { FileEntry } from '@shared/data/types/file/fileEntry'
 
 import { downloadImages } from '../utils/downloadImages'
 
@@ -15,13 +15,43 @@ export type GenerationResult =
   | { base64s: string[] }
   | { files: FileMetadata[] }
 
+async function fileEntryToMetadata(entry: FileEntry): Promise<FileMetadata> {
+  const path = await window.api.file.getPhysicalPath({ id: entry.id })
+  const dottedExt = entry.ext ? `.${entry.ext}` : ''
+  const fullName = `${entry.name}${dottedExt}`
+  // `entry.size` only exists on the internal variant of FileEntry; painting
+  // outputs always create internal entries via `source: 'base64' | 'url'`,
+  // so the external branch is unreachable here but TS can't narrow without
+  // an explicit check.
+  const size = entry.origin === 'internal' ? entry.size : 0
+  return {
+    id: entry.id,
+    name: fullName,
+    origin_name: fullName,
+    path,
+    size,
+    ext: dottedExt,
+    type: 'image',
+    created_at: new Date(entry.createdAt).toISOString(),
+    count: 1
+  }
+}
+
 export async function resolvePaintingFiles(result: GenerationResult): Promise<FileMetadata[]> {
   let files: FileMetadata[] = []
 
   if ('files' in result) {
     files = result.files
   } else if ('base64s' in result) {
-    files = await Promise.all(result.base64s.map((b64) => window.api.file.saveBase64Image(b64)))
+    const entries = await Promise.all(
+      result.base64s.map((b64) =>
+        window.api.file.createInternalEntry({
+          source: 'base64',
+          data: `data:image/png;base64,${b64}`
+        })
+      )
+    )
+    files = await Promise.all(entries.map(fileEntryToMetadata))
   } else if ('urls' in result && result.urls.length > 0) {
     files = await downloadImages(result.urls, result.downloadOptions)
   }
@@ -30,7 +60,6 @@ export async function resolvePaintingFiles(result: GenerationResult): Promise<Fi
     throw createPaintingGenerateError('GENERATE_FAILED')
   }
 
-  await FileManager.addFiles(files)
   return files
 }
 
@@ -46,7 +75,6 @@ export async function runPainting(
       if (result.length === 0) {
         throw createPaintingGenerateError('GENERATE_FAILED')
       }
-      await FileManager.addFiles(result)
       return result
     }
     return resolvePaintingFiles(result)
