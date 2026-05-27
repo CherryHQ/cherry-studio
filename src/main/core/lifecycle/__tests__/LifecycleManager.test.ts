@@ -832,6 +832,62 @@ describe('LifecycleManager', () => {
     })
   })
 
+  // ── getBootstrapSummary ──
+
+  describe('getBootstrapSummary', () => {
+    it('should render the summary with ASCII-only borders (no Unicode box-drawing)', async () => {
+      @Injectable('SummaryService')
+      class SummaryService extends BaseService {}
+
+      const manager = LifecycleManager.getInstance()
+      const container = manager['container']
+      container.register(SummaryService)
+
+      await initializeServices(manager)
+
+      const summary = manager.getBootstrapSummary(12.345, 0)
+
+      // Box-drawing characters (U+2500–U+257F) mojibake on non-UTF-8 Windows consoles.
+      expect(summary).not.toMatch(/[─-╿]/)
+      expect(summary).toContain('Bootstrap Summary')
+      expect(summary).toContain('SummaryService')
+      expect(summary).toContain('+--')
+      expect(summary).toContain('|')
+    })
+
+    it('should keep the timing column aligned when a service name overflows the default width', async () => {
+      @Injectable('AlignmentLongServiceNameExceedingThirtyTwoChars')
+      class LongNameService extends BaseService {}
+
+      @Injectable('ShortSvc')
+      class ShortNameService extends BaseService {}
+
+      const manager = LifecycleManager.getInstance()
+      const container = manager['container']
+      container.register(LongNameService)
+      container.register(ShortNameService)
+
+      await initializeServices(manager)
+
+      const summary = manager.getBootstrapSummary(1, 0)
+      const lines = summary.split('\n')
+
+      // Every row shares the same width — outer borders line up.
+      expect(new Set(lines.map((line) => line.length)).size).toBe(1)
+
+      // Timing values on service rows right-align to the same column,
+      // regardless of how long the service name is.
+      const timingEnds = lines
+        .filter((line) => /^\|\s{4}/.test(line) && /\d+\.\d{3}ms/.test(line))
+        .map((line) => {
+          const match = line.match(/\d+\.\d{3}ms/)!
+          return match.index! + match[0].length
+        })
+      expect(timingEnds.length).toBeGreaterThanOrEqual(2)
+      expect(new Set(timingEnds).size).toBe(1)
+    })
+  })
+
   // ── allReady ──
 
   describe('allReady', () => {

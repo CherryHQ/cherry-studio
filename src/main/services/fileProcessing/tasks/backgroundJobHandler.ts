@@ -45,7 +45,7 @@ export const backgroundJobHandler: JobHandler<FileProcessingJobPayload> = {
     const file = await resolveFileProcessingFileInfo(fileEntryId)
     assertFileTypeSupported(file, feature, config)
 
-    const prepared = await handler.prepare(file, config, ctx.signal)
+    const prepared = await handler.prepare(file, config, ctx.signal, { fileEntryId })
     assertModeMatches(prepared, 'background')
     const background = prepared as PreparedBackgroundTask
 

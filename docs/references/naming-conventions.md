@@ -231,6 +231,17 @@ Names inside source code — separate axis from filenames.
 
 Pluralizing collection variables is the strongest signal of "this is iterable" — code that breaks this rule (`const user = fetchAllUsers()`) is consistently flagged in review, so the rule pays for itself.
 
+### 5.2 `Service` vs `Manager` Suffix
+
+Both name a domain class; they differ by **role**, not by mechanism.
+
+| Suffix | Use when the class… | Examples |
+|---|---|---|
+| `Service` | Provides a cohesive **domain capability / API surface**. The **default**. | `FileService`, `CacheService`, `DbService`, `AiService` |
+| `Manager` | Owns and coordinates a **pool / registry of many homogeneous instances**, and that coordination is its defining job. | `WindowManager` (window pool), `JobManager` (jobs), `PluginManager` (plugins) |
+
+**Decision rule:** ask "is this class's primary job to own and coordinate a *set of many like instances*?" — yes → `Manager`; otherwise → `Service` (also the default when unsure). 
+
 ---
 
 ## 6. Edge Cases

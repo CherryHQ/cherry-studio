@@ -5568,9 +5568,6 @@
       }
     },
     "integrations": {
-      "groups": {
-        "notes": "Note"
-      },
       "title": "Integrări"
     },
     "launch": {
@@ -5618,6 +5615,7 @@
       },
       "addSuccess": "Server adăugat cu succes",
       "advancedSettings": "Setări avansate",
+      "allServers": "[to be translated]:MCP Servers",
       "args": "Argumente",
       "argsTooltip": "Fiecare argument pe o linie nouă",
       "baseUrlTooltip": "URL de bază server la distanță",
@@ -5767,6 +5765,7 @@
       "serverPlural": "servere",
       "serverSingular": "server",
       "servers": "Servere MCP",
+      "shortTitle": "[to be translated]:MCP",
       "sse": "Evenimente trimise de server (sse)",
       "startError": "Pornire eșuată",
       "stdio": "Intrare/Ieșire standard (stdio)",
@@ -6482,7 +6481,8 @@
         "agent": "Asistat de agent",
         "all": "Toți furnizorii",
         "disabled": "[to be translated]:Disabled Only",
-        "enabled": "[to be translated]:Enabled Only"
+        "enabled": "[to be translated]:Enabled Only",
+        "label": "[to be translated]:Filter providers"
       },
       "filter_agent": "Furnizori acceptați de agentul de filtrare",
       "get_api_key": "Obține cheie API",

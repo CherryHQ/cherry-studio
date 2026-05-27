@@ -243,10 +243,6 @@ export class KnowledgeItemService {
       return insertedRow
     })
 
-    if (!row) {
-      throw DataApiErrorFactory.dataInconsistent('KnowledgeItem', 'Knowledge item create result missing')
-    }
-
     logger.info('Created knowledge item', { baseId, id: row.id, type: row.type })
     return rowToKnowledgeItem(row)
   }

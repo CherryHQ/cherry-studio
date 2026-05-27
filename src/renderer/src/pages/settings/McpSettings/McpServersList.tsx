@@ -142,7 +142,7 @@ const McpServersList: FC = () => {
       <div className="flex w-full flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <SettingTitle>{t('settings.mcp.newServer')}</SettingTitle>
+            <SettingTitle>{t('settings.mcp.allServers')}</SettingTitle>
             <span className="shrink-0 text-muted-foreground text-sm">
               {activeServerCount}/{mcpServers.length}
             </span>

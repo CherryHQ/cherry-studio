@@ -198,7 +198,8 @@ describe('paddle utils', () => {
         model: 'PaddleOCR-VL-1.5',
         file: {
           path: '/tmp/file.pdf',
-          name: 'file'
+          name: 'file',
+          ext: 'pdf'
         }
       } as never)
     ).resolves.toEqual({
@@ -223,7 +224,7 @@ describe('paddle utils', () => {
       'file',
       expect.any(Buffer),
       expect.objectContaining({
-        filename: 'file'
+        filename: 'file.pdf'
       })
     )
   })

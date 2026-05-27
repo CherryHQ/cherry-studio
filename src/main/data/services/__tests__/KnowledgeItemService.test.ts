@@ -538,6 +538,7 @@ describe('KnowledgeItemService', () => {
 
       const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, result.id))
       expect(refs).toHaveLength(1)
+      expect(refs[0].id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)
       expect(refs[0]).toMatchObject({
         fileEntryId: FILE_ENTRY_A_ID,
         sourceType: 'knowledge_item',

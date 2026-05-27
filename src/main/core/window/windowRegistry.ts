@@ -113,7 +113,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       width: 960,
       height: 680,
       minWidth: 760,
-      minHeight: 520,
+      minHeight: 560,
       autoHideMenuBar: true,
       transparent: false,
       vibrancy: 'sidebar',

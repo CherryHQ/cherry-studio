@@ -45,16 +45,14 @@ describe('knowledgeItemFileRefSchema', () => {
   })
 
   it('accepts every knowledge_item role', () => {
-    // Pin the current vocabulary so future role additions are explicit
-    // `knowledgeItemRoles` edits, not accidental widening.
-    for (const role of ['attachment', 'source']) {
+    for (const role of ['source']) {
       const parsed = knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef({ role }))
       expect(parsed.role).toBe(role)
     }
   })
 
   it('rejects role values outside the knowledge_item enum', () => {
-    for (const role of ['preview', 'thumbnail', '']) {
+    for (const role of ['attachment', 'preview', 'thumbnail', '']) {
       expect(() => knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef({ role }))).toThrow()
     }
   })

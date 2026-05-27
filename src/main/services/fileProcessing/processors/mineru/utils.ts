@@ -35,8 +35,8 @@ export async function createUploadTask(context: PreparedMineruStartContext): Pro
     body: JSON.stringify({
       files: [
         {
-          name: context.file.name,
-          data_id: context.file.name
+          name: context.file.ext ? `${context.file.name}.${context.file.ext}` : context.file.name,
+          data_id: context.fileEntryId
         }
       ],
       model_version: context.modelVersion

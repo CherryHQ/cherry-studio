@@ -22,7 +22,7 @@ export default function ProviderListSearchField({
   return (
     <div className={providerListClasses.searchRow}>
       <div className={`${providerListClasses.searchWrap} min-w-0 flex-1`}>
-        <Search size={9} className={providerListClasses.searchIcon} />
+        <Search className={providerListClasses.searchIcon} />
         <input
           value={value}
           placeholder={t('settings.provider.search')}
@@ -36,8 +36,8 @@ export default function ProviderListSearchField({
           disabled={disabled}
           className={providerListClasses.searchInput}
         />
+        {trailing}
       </div>
-      {trailing}
     </div>
   )
 }

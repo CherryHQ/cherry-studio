@@ -68,7 +68,7 @@ describe('mistralDocumentToMarkdownHandler', () => {
     expect(uploadMock).toHaveBeenCalledWith(
       {
         file: {
-          fileName: 'input',
+          fileName: 'input.pdf',
           content: new Uint8Array(Buffer.from('pdf-data'))
         },
         purpose: 'ocr'

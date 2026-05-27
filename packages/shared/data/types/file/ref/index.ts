@@ -60,9 +60,9 @@ import { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempS
  * ## Currently registered variants
  *
  * - `temp_session` — transient paste/draft refs (`./tempSession.ts`).
+ * - `chat_message` — refs from migrated chat message attachments (`./chatMessage.ts`).
  * - `knowledge_item` — refs from `knowledge_item` rows (`./knowledgeItem.ts`).
- *   `role='source'` marks the indexed source file; `attachment` remains
- *   accepted for existing/general-purpose refs.
+ *   `role='source'` marks the indexed source file.
  *
  * Other business domains (painting / note) deliberately do NOT appear here.
  * They will be added when their owning DB tables migrate to v2 — at which

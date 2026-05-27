@@ -7,7 +7,7 @@ import { XMLParser } from 'fast-xml-parser'
 import { isNil, partial } from 'lodash'
 import { type FileStat } from 'webdav'
 
-import { createOAuthUrl, decryptSecret } from '../integration/nutstore/sso/lib/index.mjs'
+import { createOAuthUrl, decryptSecret } from './sso/lib/index.mjs'
 
 const logger = loggerService.withContext('NutstoreService')
 
