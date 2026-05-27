@@ -3,93 +3,150 @@ import { describe, expect, it } from 'vitest'
 import { ImageGenerationSupportSchema, ModelConfigSchema } from '../schemas/model'
 
 /**
- * Locks the intended shape of `ImageGenerationSupportSchema` against real-
- * world models (gpt-image-1, imagen-4.0-ultra, FLUX.1-Kontext-pro, Ideogram
- * V_3). The schema is the contract the future generic painting UI reads to
- * render its controls without per-vendor branching.
+ * Locks the unified `ImageGenerationSupportSchema` shape: `modes` is a
+ * `Record<Mode, ModeDef>` (no separate `modes:string[]` + `modeSchemas` split),
+ * `supports` is a `Record<string, SupportSpec>` with a 5-arm discriminated
+ * union (switch / enum / range / size / text) driving widget choice.
  */
 describe('ImageGenerationSupportSchema', () => {
   it('accepts an empty descriptor (every field optional)', () => {
     expect(ImageGenerationSupportSchema.parse({})).toEqual({})
   })
 
-  it('accepts a gpt-image-1-shaped descriptor (pixel sizes + quality/moderation/background)', () => {
+  it('gpt-image-1: pixel size enum + numImages range + quality/moderation/background enums', () => {
     const parsed = ImageGenerationSupportSchema.parse({
-      modes: ['generate', 'edit'],
-      sizes: ['auto', '1024x1024', '1536x1024', '1024x1536'],
-      sizeMode: 'pixel',
-      defaultSize: 'auto',
-      allowAutoSize: true,
-      batch: { min: 1, max: 10, default: 1 },
-      supports: {
-        quality: ['low', 'medium', 'high', 'auto'],
-        moderation: ['low', 'auto'],
-        background: ['transparent', 'opaque', 'auto']
+      modes: {
+        generate: {
+          supports: {
+            size: {
+              type: 'enum',
+              options: ['auto', '1024x1024', '1536x1024', '1024x1536'],
+              default: 'auto',
+              render: 'chips'
+            },
+            numImages: { type: 'range', min: 1, max: 10, default: 1 },
+            quality: { type: 'enum', options: ['low', 'medium', 'high', 'auto'] },
+            moderation: { type: 'enum', options: ['low', 'auto'] },
+            background: { type: 'enum', options: ['transparent', 'opaque', 'auto'] }
+          }
+        },
+        edit: {
+          supports: {
+            size: { type: 'enum', options: ['auto', '1024x1024'], render: 'chips' }
+          }
+        }
       }
     })
-    expect(parsed.modes).toEqual(['generate', 'edit'])
-    expect(parsed.batch?.max).toBe(10)
-    expect(parsed.supports?.quality).toContain('high')
+    expect(Object.keys(parsed.modes ?? {})).toEqual(expect.arrayContaining(['generate', 'edit']))
+    const generateSpec = parsed.modes?.generate?.supports.numImages
+    expect(generateSpec?.type).toBe('range')
   })
 
-  it('accepts an imagen-4.0-ultra-shaped descriptor (aspect-ratio sizes + personGeneration + batch 1)', () => {
+  it('imagen-4.0-ultra: aspectRatio enum + numImages capped at 1 + personGeneration enum', () => {
     const parsed = ImageGenerationSupportSchema.parse({
-      modes: ['generate'],
-      sizes: ['1:1', '16:9', '9:16', '4:3', '3:4'],
-      sizeMode: 'aspect',
-      defaultSize: '1:1',
-      batch: { min: 1, max: 1, default: 1 },
-      supports: {
-        seed: true,
-        personGeneration: ['ALLOW_ADULT', 'ALLOW_ALL', 'DONT_ALLOW']
+      modes: {
+        generate: {
+          supports: {
+            aspectRatio: {
+              type: 'enum',
+              options: ['1:1', '16:9', '9:16', '4:3', '3:4'],
+              default: '1:1'
+            },
+            numImages: { type: 'range', min: 1, max: 1, default: 1 },
+            seed: { type: 'text' },
+            personGeneration: { type: 'enum', options: ['ALLOW_ADULT', 'ALLOW_ALL', 'DONT_ALLOW'] }
+          }
+        }
       }
     })
-    expect(parsed.sizeMode).toBe('aspect')
-    expect(parsed.batch?.max).toBe(1)
+    expect(parsed.modes?.generate?.supports.numImages).toEqual({ type: 'range', min: 1, max: 1, default: 1 })
   })
 
-  it('accepts a FLUX.1-Kontext-pro-shaped descriptor (safetyTolerance default 6)', () => {
+  it('FLUX.1-Kontext-pro: safetyTolerance range with default 6', () => {
     const parsed = ImageGenerationSupportSchema.parse({
-      modes: ['generate'],
-      sizes: ['1024x1024', '1024x768', '768x1024'],
-      sizeMode: 'pixel',
-      defaultSize: '1024x1024',
-      batch: { min: 1, max: 4, default: 1 },
-      supports: { safetyTolerance: { min: 0, max: 6, default: 6 } }
-    })
-    expect(parsed.supports?.safetyTolerance).toEqual({ min: 0, max: 6, default: 6 })
-  })
-
-  it('accepts an Ideogram-V_3-shaped descriptor (styleType + renderingSpeed + magicPromptOption)', () => {
-    const parsed = ImageGenerationSupportSchema.parse({
-      modes: ['generate', 'remix', 'upscale'],
-      sizes: ['ASPECT_1_1', 'ASPECT_16_9', 'ASPECT_9_16'],
-      sizeMode: 'aspect',
-      batch: { min: 1, max: 8, default: 1 },
-      supports: {
-        negativePrompt: true,
-        seed: true,
-        magicPromptOption: true,
-        styleType: ['AUTO', 'GENERAL', 'REALISTIC', 'DESIGN', 'RENDER_3D', 'ANIME'],
-        renderingSpeed: ['TURBO', 'DEFAULT', 'QUALITY']
+      modes: {
+        generate: {
+          supports: {
+            size: { type: 'enum', options: ['1024x1024', '1024x768', '768x1024'], render: 'chips' },
+            numImages: { type: 'range', min: 1, max: 4, default: 1 },
+            safetyTolerance: { type: 'range', min: 0, max: 6, default: 6 }
+          }
+        }
       }
     })
-    expect(parsed.modes).toContain('upscale')
-    expect(parsed.supports?.styleType).toContain('REALISTIC')
+    expect(parsed.modes?.generate?.supports.safetyTolerance).toEqual({
+      type: 'range',
+      min: 0,
+      max: 6,
+      default: 6
+    })
   })
 
-  it('rejects an unknown mode', () => {
-    expect(() => ImageGenerationSupportSchema.parse({ modes: ['hallucinate'] })).toThrow()
+  it('Ideogram V_3: per-mode supports — remix gains imageWeight; upscale gains resemblance + detail', () => {
+    const parsed = ImageGenerationSupportSchema.parse({
+      modes: {
+        generate: {
+          supports: {
+            negativePrompt: { type: 'text', multiline: true },
+            seed: { type: 'text' },
+            magicPromptOption: { type: 'switch' },
+            styleType: { type: 'enum', options: ['AUTO', 'GENERAL', 'REALISTIC', 'DESIGN'] },
+            renderingSpeed: { type: 'enum', options: ['TURBO', 'DEFAULT', 'QUALITY'] }
+          }
+        },
+        remix: {
+          supports: {
+            imageWeight: { type: 'range', min: 1, max: 100, default: 50 }
+          }
+        },
+        upscale: {
+          supports: {
+            resemblance: { type: 'range', min: 1, max: 100, default: 50 },
+            detail: { type: 'range', min: 1, max: 100 }
+          }
+        }
+      }
+    })
+    expect(Object.keys(parsed.modes ?? {})).toContain('upscale')
+    expect(parsed.modes?.upscale?.supports.detail?.type).toBe('range')
   })
 
-  it('rejects a batch range with min > max', () => {
-    expect(() => ImageGenerationSupportSchema.parse({ batch: { min: 5, max: 2 } })).toThrow(
-      /min must be less than or equal to max/
-    )
+  it('accepts vendorTransport per mode for PPIO-style endpoint routing', () => {
+    const parsed = ImageGenerationSupportSchema.parse({
+      modes: {
+        edit: {
+          supports: { imageResolution: { type: 'enum', options: ['2k', '4k', '8k'] } },
+          vendorTransport: { endpoint: '/v3/image-upscaler', isSync: true }
+        }
+      }
+    })
+    expect(parsed.modes?.edit?.vendorTransport).toEqual({ endpoint: '/v3/image-upscaler', isSync: true })
   })
 
-  it('rejects an unknown sizeMode', () => {
-    expect(() => ImageGenerationSupportSchema.parse({ sizeMode: 'volume' })).toThrow()
+  it('rejects an unknown mode key', () => {
+    expect(() =>
+      ImageGenerationSupportSchema.parse({
+        modes: { hallucinate: { supports: {} } }
+      })
+    ).toThrow()
+  })
+
+  it('rejects a range spec with min > max', () => {
+    expect(() =>
+      ImageGenerationSupportSchema.parse({
+        modes: {
+          generate: { supports: { numImages: { type: 'range', min: 5, max: 2 } } }
+        }
+      })
+    ).toThrow()
+  })
+
+  it('rejects an unknown support spec type', () => {
+    expect(() =>
+      ImageGenerationSupportSchema.parse({
+        modes: { generate: { supports: { foo: { type: 'volume' } } } }
+      })
+    ).toThrow()
   })
 })
 
@@ -100,17 +157,25 @@ describe('ModelConfigSchema with imageGeneration', () => {
       name: 'gpt-image-1',
       capabilities: ['image-generation'],
       imageGeneration: {
-        modes: ['generate', 'edit'],
-        sizes: ['auto', '1024x1024'],
-        sizeMode: 'pixel',
-        allowAutoSize: true,
-        batch: { min: 1, max: 10, default: 1 }
+        modes: {
+          generate: {
+            supports: {
+              size: { type: 'enum', options: ['auto', '1024x1024'], render: 'chips' },
+              numImages: { type: 'range', min: 1, max: 10, default: 1 }
+            }
+          },
+          edit: {
+            supports: {
+              size: { type: 'enum', options: ['auto', '1024x1024'], render: 'chips' }
+            }
+          }
+        }
       }
     })
-    expect(parsed.imageGeneration?.modes).toEqual(['generate', 'edit'])
+    expect(Object.keys(parsed.imageGeneration?.modes ?? {})).toEqual(expect.arrayContaining(['generate', 'edit']))
   })
 
-  it('omits `imageGeneration` entirely for non-image models (backward compatible)', () => {
+  it('omits `imageGeneration` entirely for non-image models', () => {
     const parsed = ModelConfigSchema.parse({ id: 'gpt-4', name: 'GPT-4' })
     expect(parsed.imageGeneration).toBeUndefined()
   })

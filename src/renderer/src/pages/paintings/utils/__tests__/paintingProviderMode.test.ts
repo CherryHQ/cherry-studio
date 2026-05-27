@@ -1,21 +1,18 @@
 import { describe, expect, it } from 'vitest'
 
-import { ppioProvider } from '../../providers/ppio'
-import { zhipuProvider } from '../../providers/zhipu'
+import { providerRegistry } from '../../providers/registry'
 import { resolvePaintingTabForMode } from '../paintingProviderMode'
 
 describe('resolvePaintingTabForMode', () => {
-  it('returns the matching tab when a provider supports the requested db mode', () => {
-    expect(resolvePaintingTabForMode(ppioProvider, 'edit')).toBe('ppio_edit')
-    expect(resolvePaintingTabForMode(ppioProvider, 'draw')).toBe('ppio_draw')
+  it("aliases 'draw' to the single 'default' tab on a generate-only provider", () => {
+    // Every provider in the unified registry is single-tab now (intent is
+    // encoded by the model id, not by UI tabs). 'draw' aliases to 'generate'
+    // via MODE_ALIASES, so the resolver lands on the generate tab.
+    expect(resolvePaintingTabForMode(providerRegistry.zhipu, 'draw')).toBe('default')
+    expect(resolvePaintingTabForMode(providerRegistry.zhipu, 'generate')).toBe('default')
   })
 
-  it('treats generate and draw as compatible generation modes', () => {
-    expect(resolvePaintingTabForMode(ppioProvider, 'generate')).toBe('ppio_draw')
-    expect(resolvePaintingTabForMode(zhipuProvider, 'draw')).toBe('default')
-  })
-
-  it('returns undefined when the provider does not support that db mode', () => {
-    expect(resolvePaintingTabForMode(zhipuProvider, 'edit')).toBeUndefined()
+  it('returns undefined when the requested mode has no compatible tab', () => {
+    expect(resolvePaintingTabForMode(providerRegistry.zhipu, 'edit')).toBeUndefined()
   })
 })
