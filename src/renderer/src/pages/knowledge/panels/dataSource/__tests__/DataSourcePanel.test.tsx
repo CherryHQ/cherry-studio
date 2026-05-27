@@ -159,8 +159,7 @@ describe('DataSourcePanel', () => {
           createSitemapItem({
             id: 'sitemap-1',
             source: 'https://example.com/sitemap.xml',
-            status: 'processing',
-            phase: 'preparing'
+            status: 'preparing'
           }),
           createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/本地资料夹' })
         ]}

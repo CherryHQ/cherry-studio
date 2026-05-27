@@ -10,6 +10,7 @@ import {
   type KnowledgeItemData,
   type KnowledgeItemStatus
 } from '@shared/data/types/knowledge'
+import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
 import { legacyModelToUniqueId } from '../transformers/ModelTransformers'
 
@@ -116,11 +117,23 @@ export const toTimestamp = (value: number | undefined): number => {
   return Date.now()
 }
 
-export const inferKnowledgeItemStatus = (item: Pick<LegacyKnowledgeItem, 'uniqueId'>): KnowledgeItemStatus =>
-  typeof item.uniqueId === 'string' && item.uniqueId.trim() !== '' ? 'completed' : 'idle'
+export const inferKnowledgeItemStatus = (
+  item: Pick<LegacyKnowledgeItem, 'processingStatus' | 'uniqueId'>
+): KnowledgeItemStatus => {
+  if (
+    item.processingStatus === 'failed' ||
+    item.processingStatus === 'processing' ||
+    item.processingStatus === 'pending'
+  ) {
+    return 'failed'
+  }
+
+  return typeof item.uniqueId === 'string' && item.uniqueId.trim() !== '' ? 'completed' : 'idle'
+}
 
 const normalizeKnowledgeItemError = (
   status: KnowledgeItemStatus,
+  processingStatus: LegacyProcessingStatus | undefined,
   processingError: string | undefined
 ): string | null => {
   if (status !== 'failed') {
@@ -128,7 +141,15 @@ const normalizeKnowledgeItemError = (
   }
 
   const normalizedError = processingError?.trim()
-  return normalizedError ? normalizedError : 'Legacy knowledge item failed without an error message.'
+  if (normalizedError) {
+    return normalizedError
+  }
+
+  if (processingStatus === 'pending' || processingStatus === 'processing') {
+    return 'Legacy knowledge item indexing was interrupted and needs to be retried.'
+  }
+
+  return 'Legacy knowledge item failed without an error message.'
 }
 
 const getDefaultChunkOverlap = (chunkSize: number): number => {
@@ -209,7 +230,7 @@ export const transformKnowledgeBase = (
   const rerankModelId = legacyModelToUniqueId(base.rerankModel ?? null)
 
   const transformedBase: NewKnowledgeBase = {
-    id: base.id,
+    id: uuidv4(),
     name: base.name,
     groupId: null,
     emoji: DEFAULT_KNOWLEDGE_BASE_EMOJI,
@@ -324,9 +345,7 @@ export const transformKnowledgeItem = (
   return {
     ok: true,
     value: {
-      // Preserve legacy item IDs during migration for identity stability.
-      // UUID v7 ordering benefits apply only to knowledge items created after migration.
-      id: item.id,
+      id: uuidv7(),
       baseId,
       // Official v1 exports are flat, so migrated items do not carry grouping
       // metadata by default.
@@ -334,8 +353,7 @@ export const transformKnowledgeItem = (
       type,
       data,
       status,
-      phase: null,
-      error: normalizeKnowledgeItemError(status, item.processingError),
+      error: normalizeKnowledgeItemError(status, item.processingStatus, item.processingError),
       createdAt: toTimestamp(item.created_at),
       updatedAt: toTimestamp(item.updated_at)
     }

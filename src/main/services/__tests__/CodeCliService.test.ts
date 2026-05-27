@@ -11,7 +11,7 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@main/constant', () => ({
+vi.mock('@main/core/platform', () => ({
   isMac: true,
   isWin: false
 }))

@@ -2,7 +2,6 @@ import { join } from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { isDev, isMac } from '@main/constant'
 import {
   BaseService,
   type Disposable,
@@ -13,6 +12,7 @@ import {
   Priority,
   ServicePhase
 } from '@main/core/lifecycle'
+import { isDev, isMac } from '@main/core/platform'
 import { applyWindowBehavior, BehaviorController } from '@main/core/window/behavior'
 import { applyWindowQuirks } from '@main/core/window/quirks'
 import type { WindowType } from '@main/core/window/types'

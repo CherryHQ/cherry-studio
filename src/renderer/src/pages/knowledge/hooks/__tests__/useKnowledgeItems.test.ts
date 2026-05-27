@@ -36,7 +36,6 @@ describe('useKnowledgeItems', () => {
           path: '/tmp/example-directory'
         },
         status: 'completed',
-        phase: null,
         error: null,
         createdAt: '2026-04-21T10:00:00+08:00',
         updatedAt: '2026-04-21T10:00:00+08:00'
@@ -51,7 +50,6 @@ describe('useKnowledgeItems', () => {
           path: '/tmp/example-directory/nested'
         },
         status: 'completed',
-        phase: null,
         error: null,
         createdAt: '2026-04-21T10:00:00+08:00',
         updatedAt: '2026-04-21T10:00:00+08:00'
@@ -76,7 +74,6 @@ describe('useKnowledgeItems', () => {
           }
         },
         status: 'completed',
-        phase: null,
         error: null,
         createdAt: '2026-04-21T10:00:00+08:00',
         updatedAt: '2026-04-21T10:00:00+08:00'
@@ -91,7 +88,6 @@ describe('useKnowledgeItems', () => {
           content: 'Grouped note'
         },
         status: 'completed',
-        phase: null,
         error: null,
         createdAt: '2026-04-21T10:00:00+08:00',
         updatedAt: '2026-04-21T10:00:00+08:00'
@@ -106,7 +102,6 @@ describe('useKnowledgeItems', () => {
           content: 'Example note'
         },
         status: 'completed',
-        phase: null,
         error: null,
         createdAt: '2026-04-21T10:00:00+08:00',
         updatedAt: '2026-04-21T10:00:00+08:00'
@@ -181,7 +176,6 @@ describe('useKnowledgeItems', () => {
             type: 'directory',
             data: { source: '/docs', path: '/docs' },
             status: 'completed',
-            phase: null,
             error: null,
             createdAt: '2026-04-21T10:00:00+08:00',
             updatedAt: '2026-04-21T10:00:00+08:00'
@@ -205,8 +199,7 @@ describe('useKnowledgeItems', () => {
                 count: 1
               }
             },
-            status: 'processing',
-            phase: 'embedding',
+            status: 'embedding',
             error: null,
             createdAt: '2026-04-21T10:00:00+08:00',
             updatedAt: '2026-04-21T10:00:00+08:00'
@@ -218,7 +211,6 @@ describe('useKnowledgeItems', () => {
             type: 'note',
             data: { source: 'item-processing', content: 'processing' },
             status: 'processing',
-            phase: null,
             error: null,
             createdAt: '2026-04-21T10:00:00+08:00',
             updatedAt: '2026-04-21T10:00:00+08:00'
@@ -236,7 +228,6 @@ describe('useKnowledgeItems', () => {
             type: 'note',
             data: { source: 'item-completed', content: 'completed' },
             status: 'completed',
-            phase: null,
             error: null,
             createdAt: '2026-04-21T10:00:00+08:00',
             updatedAt: '2026-04-21T10:00:00+08:00'
@@ -248,7 +239,6 @@ describe('useKnowledgeItems', () => {
             type: 'note',
             data: { source: 'item-failed', content: 'failed' },
             status: 'failed',
-            phase: null,
             error: 'failed',
             createdAt: '2026-04-21T10:00:00+08:00',
             updatedAt: '2026-04-21T10:00:00+08:00'

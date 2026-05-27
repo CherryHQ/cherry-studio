@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { isMac } from '@main/constant'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isMac } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { handleZoomFactor } from '@main/utils/zoom'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'

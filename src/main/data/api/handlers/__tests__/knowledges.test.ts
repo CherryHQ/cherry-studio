@@ -43,6 +43,9 @@ import {
 
 import { knowledgeHandlers } from '../knowledges'
 
+const GROUP_ID = '11111111-1111-4111-8111-111111111111'
+const ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
+
 describe('knowledgeHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -165,20 +168,20 @@ describe('knowledgeHandlers', () => {
     })
 
     it('should trim groupId and keep emoji unchanged in PATCH bodies before calling the service', async () => {
-      updateKnowledgeBaseMock.mockResolvedValueOnce({ id: 'kb-1', groupId: 'group-1', emoji: '📚' })
+      updateKnowledgeBaseMock.mockResolvedValueOnce({ id: 'kb-1', groupId: GROUP_ID, emoji: '📚' })
 
       await expect(
         knowledgeHandlers['/knowledge-bases/:id'].PATCH({
           params: { id: 'kb-1' },
           body: {
-            groupId: '  group-1  ',
+            groupId: `  ${GROUP_ID}  `,
             emoji: '📚'
           }
         })
       ).resolves.toMatchObject({ id: 'kb-1' })
 
       expect(updateKnowledgeBaseMock).toHaveBeenCalledWith('kb-1', {
-        groupId: 'group-1',
+        groupId: GROUP_ID,
         emoji: '📚'
       })
     })
@@ -309,7 +312,7 @@ describe('knowledgeHandlers', () => {
           page: 2,
           limit: 10,
           type: 'directory',
-          groupId: 'group-1'
+          groupId: ITEM_ID
         } as never
       } as never)
 
@@ -317,7 +320,7 @@ describe('knowledgeHandlers', () => {
         page: 2,
         limit: 10,
         type: 'directory',
-        groupId: 'group-1'
+        groupId: ITEM_ID
       })
     })
 

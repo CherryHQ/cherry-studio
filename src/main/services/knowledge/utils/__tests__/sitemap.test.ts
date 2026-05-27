@@ -36,7 +36,6 @@ function createSitemapOwner(id = 'sitemap-owner-1', url = 'https://example.com/s
       url
     },
     status: 'idle' as const,
-    phase: null,
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'

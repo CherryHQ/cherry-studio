@@ -6,6 +6,7 @@ import { promisify } from 'node:util'
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isLinux } from '@main/core/platform'
 import { app } from 'electron'
 
 import { handleMcpProtocolUrl } from './handlers/mcpInstall'
@@ -150,7 +151,7 @@ export class ProtocolService extends BaseService {
    */
   private async setupAppImageDeepLink(): Promise<void> {
     // Only run on Linux and when packaged as an AppImage
-    if (process.platform !== 'linux' || !process.env.APPIMAGE) {
+    if (!isLinux || !process.env.APPIMAGE) {
       return
     }
 

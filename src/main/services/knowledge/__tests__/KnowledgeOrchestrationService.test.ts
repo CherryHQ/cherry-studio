@@ -2,7 +2,11 @@ import type * as LifecycleModule from '@main/core/lifecycle'
 import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
 import { ErrorCode, isDataApiError } from '@shared/data/api'
-import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL, type KnowledgeItem } from '@shared/data/types/knowledge'
+import {
+  KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
+  type KnowledgeItem,
+  type KnowledgeItemOf
+} from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -175,13 +179,11 @@ function expectRestorePartialError(
 
 function createNoteItem(
   id = 'note-1',
-  status: KnowledgeItem['status'] = 'idle',
+  status: KnowledgeItemOf<'note'>['status'] = 'idle',
   groupId: string | null = null
 ): KnowledgeItem {
   const lifecycle =
-    status === 'failed'
-      ? ({ status, phase: null, error: `failed ${id}` } as const)
-      : ({ status, phase: null, error: null } as const)
+    status === 'failed' ? ({ status, error: `failed ${id}` } as const) : ({ status, error: null } as const)
 
   return {
     id,
@@ -197,13 +199,11 @@ function createNoteItem(
 
 function createDirectoryItem(
   id = 'dir-1',
-  status: KnowledgeItem['status'] = 'idle',
+  status: KnowledgeItemOf<'directory'>['status'] = 'idle',
   groupId: string | null = null
 ): KnowledgeItem {
   const lifecycle =
-    status === 'failed'
-      ? ({ status, phase: null, error: `failed ${id}` } as const)
-      : ({ status, phase: null, error: null } as const)
+    status === 'failed' ? ({ status, error: `failed ${id}` } as const) : ({ status, error: null } as const)
 
   return {
     id,

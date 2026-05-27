@@ -79,7 +79,6 @@ describe('orphanCheckerRegistry', () => {
         type: 'note',
         data: { source: 's', content: 'c' },
         status: 'idle',
-        phase: null,
         error: null
       })
     }
@@ -119,7 +118,6 @@ describe('orphanCheckerRegistry', () => {
             type: 'note' as const,
             data: { source: 's', content: 'c' },
             status: 'idle' as const,
-            phase: null,
             error: null
           }))
         )
@@ -164,7 +162,6 @@ describe('orphanCheckerRegistry', () => {
         type: 'note',
         data: { source: 's', content: 'c' },
         status: 'idle',
-        phase: null,
         error: null
       })
     }

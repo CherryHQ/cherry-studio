@@ -129,7 +129,7 @@ This document records the current V2 knowledge target schema, migration constrai
 
 ## Runtime Status Boundary
 
-- `knowledge_item.status`, `knowledge_item.phase`, and `knowledge_item.error` remain part of the official V2 business schema.
+- `knowledge_item.status` and `knowledge_item.error` remain part of the official V2 business schema.
 - The runtime queue implementation is not part of the schema contract:
   - no separate task table
   - no persisted queue record
@@ -137,26 +137,25 @@ This document records the current V2 knowledge target schema, migration constrai
 - Runtime currently uses an in-memory `p-queue` based pipeline in `KnowledgeRuntimeService`.
 - The schema-level `status` set is:
   - `idle`
-  - `processing`
-  - `completed`
-  - `failed`
-- The schema-level `phase` set is:
-  - `null`
   - `preparing`
+  - `processing`
   - `reading`
   - `embedding`
+  - `completed`
+  - `failed`
+  - `deleting`
 - Current runtime writes:
-  - `processing, phase = preparing` while a `directory` / `sitemap` root or nested directory is being expanded
-  - `processing, phase = reading` while a leaf item is reading source documents
-  - `processing, phase = embedding` while a leaf item is embedding / writing vectors
-  - `completed, phase = null` after successful leaf indexing, or when a container has no active children
-  - `failed, phase = null` on runtime failure, interrupt cleanup failure, or shutdown interruption
+  - `preparing` while a `directory` / `sitemap` root or nested directory is being expanded
+  - `reading` while a leaf item is reading source documents
+  - `embedding` while a leaf item is embedding / writing vectors
+  - `processing` while a container has active descendants but is not itself expanding
+  - `completed` after successful leaf indexing, or when a container has no active children
+  - `failed` on runtime failure, interrupt cleanup failure, or shutdown interruption
 - `fileProcessorId` is persisted in base config, but it does not participate in runtime execution yet.
 - In other words:
   - queue structure is implementation detail
-  - `status` is aggregate business state
-  - `phase` is runtime progress
-  - container status is reconciled from its own phase and child item statuses
+  - `status` is business lifecycle and coarse runtime progress
+  - container status is reconciled from its own status and child item statuses
   - these concerns must not be conflated
 
 ## Current Runtime Consumption Notes
