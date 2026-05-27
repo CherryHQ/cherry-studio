@@ -4,8 +4,6 @@ import { ThemeMode } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import { BrowserWindow, nativeTheme } from 'electron'
 
-import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
-
 @Injectable('ThemeService')
 @ServicePhase(Phase.WhenReady)
 export class ThemeService extends BaseService {
@@ -36,14 +34,6 @@ export class ThemeService extends BaseService {
 
   private themeUpdatedHandler() {
     BrowserWindow.getAllWindows().forEach((win) => {
-      if (win && !win.isDestroyed() && win.setTitleBarOverlay) {
-        try {
-          win.setTitleBarOverlay(nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight)
-        } catch (error) {
-          // don't throw error if setTitleBarOverlay failed
-          // Because it may be called with some windows have some title bar
-        }
-      }
       win.webContents.send(
         IpcChannel.NativeThemeUpdated,
         nativeTheme.shouldUseDarkColors ? ThemeMode.dark : ThemeMode.light

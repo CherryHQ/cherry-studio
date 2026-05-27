@@ -13,9 +13,9 @@
  * `sourceId` is strict (`z.uuidv7()`) — `knowledge_item.id` is v2-native, so
  * there is no legacy format risk.
  *
- * `source` tracks files used as the primary source for a knowledge item.
- * `attachment` is reserved for future processed or auxiliary artifacts owned
- * by the item.
+ * `source` marks the indexed source document for the `knowledge_item` row.
+ * `attachment` is retained as an accepted legacy/general-purpose role so
+ * existing refs do not become invalid when the source role is introduced.
  */
 
 import * as z from 'zod'

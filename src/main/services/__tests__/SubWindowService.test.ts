@@ -45,11 +45,6 @@ vi.mock('@logger', () => ({
 
 vi.mock('@application', () => ({ application: applicationMock }))
 
-vi.mock('@main/config', () => ({
-  titleBarOverlayDark: { symbolColor: '#ffffff', color: '#181818', height: 40 },
-  titleBarOverlayLight: { symbolColor: '#000000', color: '#FFFFFF', height: 40 }
-}))
-
 vi.mock('electron', () => ({
   BrowserWindow: { fromWebContents: vi.fn() },
   get nativeTheme() {
@@ -144,7 +139,7 @@ describe('SubWindowService', () => {
   })
 
   describe('createWindow - options injection', () => {
-    it('on macOS injects titleBarOverlay and omits backgroundColor (preserves vibrancy)', () => {
+    it('on macOS omits titleBarOverlay (now static in registry) and backgroundColor (preserves vibrancy)', () => {
       platformState.isMac = true
       nativeThemeState.shouldUseDarkColors = true
       const win = createMockWindow()
@@ -157,9 +152,9 @@ describe('SubWindowService', () => {
       expect(type).toBe('subWindow')
       expect(args.options).toMatchObject({
         title: 'Chat',
-        darkTheme: true,
-        titleBarOverlay: expect.objectContaining({ color: '#181818' })
+        darkTheme: true
       })
+      expect(args.options).not.toHaveProperty('titleBarOverlay')
       expect(args.options).not.toHaveProperty('backgroundColor')
     })
 

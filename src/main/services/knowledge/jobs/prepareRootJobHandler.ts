@@ -11,7 +11,7 @@ import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import type { KnowledgeMutationCoordinator } from '../KnowledgeMutationCoordinator'
 import type { KnowledgeWorkflowCoordinator } from '../KnowledgeWorkflowCoordinator'
 import { knowledgeQueueName } from '../types'
-import { detachKnowledgeItemFileRefs } from '../utils/cleanup/artifactCleanup'
+import { cleanupUnreferencedInternalEntries } from '../utils/cleanup/artifactCleanup'
 import { deleteKnowledgeItemVectors } from '../utils/cleanup/vectorCleanup'
 import { isIndexableKnowledgeItem } from '../utils/items'
 import { prepareKnowledgeItem } from '../utils/sources/prepare'
@@ -120,8 +120,8 @@ async function deletePreviousLeafExpansion(
     const removableLeafIds = removableDescendants.filter(isIndexableKnowledgeItem).map((item) => item.id)
 
     await deleteKnowledgeItemVectors(base, removableLeafIds)
-    await detachKnowledgeItemFileRefs(removableDescendantIds)
-    await knowledgeItemService.hardDeleteItems(baseId, removableDescendantIds)
+    const { detachedFileEntryIds } = await knowledgeItemService.hardDeleteItems(baseId, removableDescendantIds)
+    await cleanupUnreferencedInternalEntries(detachedFileEntryIds)
   })
 }
 

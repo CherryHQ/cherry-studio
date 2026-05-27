@@ -8,8 +8,10 @@ import { inferKnowledgeItemStatus, transformKnowledgeBase, transformKnowledgeIte
 const UUIDV7_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const UUIDV4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
+const LEGACY_FILE_ID = '019606a0-0000-7000-8000-000000000101'
+
 const fileMetadata = {
-  id: 'file-1',
+  id: LEGACY_FILE_ID,
   name: 'report.pdf',
   origin_name: 'report.pdf',
   path: '/tmp/report.pdf',
@@ -237,12 +239,12 @@ describe('KnowledgeMappings', () => {
       {
         id: 'file-item-1',
         type: 'file',
-        content: 'file-1',
+        content: LEGACY_FILE_ID,
         uniqueId: 'loader-1'
       },
       {
         noteById: new Map(),
-        filesById: new Map([['file-1', fileMetadata]])
+        filesById: new Map([[LEGACY_FILE_ID, fileMetadata]])
       }
     )
 
@@ -255,7 +257,7 @@ describe('KnowledgeMappings', () => {
         type: 'file',
         data: {
           source: '/tmp/report.pdf',
-          file: fileMetadata
+          fileEntryId: LEGACY_FILE_ID
         },
         status: 'completed',
         error: null,
@@ -284,13 +286,13 @@ describe('KnowledgeMappings', () => {
       {
         id: 'completed-file',
         type: 'file',
-        content: 'file-1',
+        content: LEGACY_FILE_ID,
         uniqueId: 'loader-1',
         processingError: '   '
       },
       {
         noteById: new Map(),
-        filesById: new Map([['file-1', fileMetadata]])
+        filesById: new Map([[LEGACY_FILE_ID, fileMetadata]])
       }
     )
 

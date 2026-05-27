@@ -27,6 +27,7 @@ import type {
   UnifiedPreferenceType,
   UpgradeChannel
 } from '@shared/data/preference/preferenceTypes'
+import type { FileEntryId } from '@shared/data/types/file'
 import type {
   FileProcessingTaskStartResult,
   ListAvailableFileProcessorsResult
@@ -852,7 +853,7 @@ const api = {
   fileProcessing: {
     startTask: (payload: {
       feature: FileProcessorFeature
-      file: FileMetadata
+      fileEntryId: FileEntryId
       processorId?: FileProcessorId
     }): Promise<FileProcessingTaskStartResult> => ipcRenderer.invoke(IpcChannel.FileProcessing_StartTask, payload),
     listAvailableProcessors: (): Promise<ListAvailableFileProcessorsResult> =>

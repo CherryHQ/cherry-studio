@@ -97,10 +97,6 @@ vi.mock('@renderer/pages/knowledge/utils', () => ({
   normalizeKnowledgeError: (error: unknown) => (error instanceof Error ? error : new Error(String(error)))
 }))
 
-vi.mock('@renderer/utils', () => ({
-  formatFileSize: () => '2.4 MB'
-}))
-
 vi.mock('react-i18next', () => ({
   initReactI18next: {
     type: '3rdParty',
@@ -142,10 +138,20 @@ describe('KnowledgeItemChunkDetailPanel', () => {
     vi.clearAllMocks()
     listItemChunksMock.mockResolvedValue(chunks)
     deleteItemChunkMock.mockResolvedValue(undefined)
-    mockUseQuery.mockReturnValue({
-      data: createFileItem({ id: 'file-1', originName: 'RAG 技术指南.pdf' }),
-      isLoading: false,
-      error: undefined
+    mockUseQuery.mockImplementation((path: string) => {
+      if (path === '/knowledge-items/:id') {
+        return {
+          data: createFileItem({ id: 'file-1', originName: 'RAG 技术指南.pdf' }),
+          isLoading: false,
+          error: undefined
+        }
+      }
+
+      return {
+        data: undefined,
+        isLoading: false,
+        error: undefined
+      }
     })
     Object.defineProperty(window, 'api', {
       configurable: true,
@@ -168,17 +174,34 @@ describe('KnowledgeItemChunkDetailPanel', () => {
     render(<KnowledgeItemChunkDetailPanel baseId="base-1" itemId="file-1" onBack={() => undefined} />)
 
   it('renders item metadata and real chunks', async () => {
-    mockUseQuery.mockReturnValueOnce({
-      data: createFileItem({ id: 'file-1', originName: 'RAG 技术指南.pdf', ext: 'PDF', size: 2516582 }),
-      isLoading: false,
-      error: undefined
+    mockUseQuery.mockImplementation((path: string) => {
+      if (path === '/knowledge-items/:id') {
+        return {
+          data: createFileItem({ id: 'file-1', originName: 'fallback.md' }),
+          isLoading: false,
+          error: undefined
+        }
+      }
+
+      return {
+        data: {
+          id: '019606a0-0000-7000-8000-000000000001',
+          name: 'RAG 技术指南',
+          ext: 'pdf',
+          origin: 'external',
+          externalPath: '/tmp/RAG 技术指南.pdf',
+          createdAt: 1776948000000,
+          updatedAt: 1776948000000
+        },
+        isLoading: false,
+        error: undefined
+      }
     })
 
     renderPanel()
 
     expect(screen.getByText('RAG 技术指南.pdf')).toBeInTheDocument()
     expect(screen.getByText('pdf')).toBeInTheDocument()
-    expect(screen.getByText('2.4 MB')).toBeInTheDocument()
     expect(screen.getByText('0 chunks')).toBeInTheDocument()
     expect(screen.getByText('加载中')).toBeInTheDocument()
 
@@ -187,6 +210,10 @@ describe('KnowledgeItemChunkDetailPanel', () => {
     })
     expect(mockUseQuery).toHaveBeenCalledWith('/knowledge-items/:id', {
       params: { id: 'file-1' },
+      enabled: true
+    })
+    expect(mockUseQuery).toHaveBeenCalledWith('/files/entries/:id', {
+      params: { id: '019606a0-0000-7000-8000-000000000001' },
       enabled: true
     })
     expect(listItemChunksMock).toHaveBeenCalledWith('base-1', 'file-1')

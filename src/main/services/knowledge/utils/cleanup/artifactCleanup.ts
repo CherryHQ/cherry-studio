@@ -22,7 +22,7 @@ export async function detachKnowledgeItemFileRefs(itemIds: string[]): Promise<nu
   return detachedCount
 }
 
-async function cleanupUnreferencedInternalEntries(entryIds: FileEntryId[]): Promise<void> {
+export async function cleanupUnreferencedInternalEntries(entryIds: FileEntryId[]): Promise<void> {
   if (entryIds.length === 0) {
     return
   }

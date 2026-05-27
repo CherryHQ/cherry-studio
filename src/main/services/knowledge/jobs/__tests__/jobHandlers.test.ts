@@ -5,11 +5,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   cancelMock,
   createStoreMock,
+  detachFileRefsMock,
   enqueueMock,
   fileEntryFindByIdMock,
-  fileRefCleanupBySourceBatchMock,
   fileRefCountByEntryIdsMock,
-  fileRefFindBySourceMock,
   fileManagerPermanentDeleteMock,
   getJobMock,
   getStoreIfExistsMock,
@@ -27,11 +26,10 @@ const {
 } = vi.hoisted(() => ({
   cancelMock: vi.fn(),
   createStoreMock: vi.fn(),
+  detachFileRefsMock: vi.fn(),
   enqueueMock: vi.fn(),
   fileEntryFindByIdMock: vi.fn(),
-  fileRefCleanupBySourceBatchMock: vi.fn(),
   fileRefCountByEntryIdsMock: vi.fn(),
-  fileRefFindBySourceMock: vi.fn(),
   fileManagerPermanentDeleteMock: vi.fn(),
   getJobMock: vi.fn(),
   getStoreIfExistsMock: vi.fn(),
@@ -85,6 +83,7 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
 
 vi.mock('@data/services/KnowledgeItemService', () => ({
   knowledgeItemService: {
+    detachFileRefs: detachFileRefsMock,
     getById: knowledgeItemGetByIdMock,
     getSubtreeItems: knowledgeItemGetSubtreeItemsMock,
     hardDeleteItems: hardDeleteItemsMock,
@@ -101,9 +100,7 @@ vi.mock('@data/services/FileEntryService', () => ({
 
 vi.mock('@data/services/FileRefService', () => ({
   fileRefService: {
-    cleanupBySourceBatch: fileRefCleanupBySourceBatchMock,
-    countByEntryIds: fileRefCountByEntryIdsMock,
-    findBySource: fileRefFindBySourceMock
+    countByEntryIds: fileRefCountByEntryIdsMock
   }
 }))
 
@@ -237,11 +234,11 @@ describe('knowledge job handlers', () => {
     listMock.mockResolvedValue([])
     getJobMock.mockResolvedValue(null)
     enqueueMock.mockResolvedValue({ id: 'job-index', snapshot: {}, finished: Promise.resolve({}) })
+    detachFileRefsMock.mockResolvedValue([])
     fileEntryFindByIdMock.mockResolvedValue(null)
-    fileRefCleanupBySourceBatchMock.mockResolvedValue(0)
     fileRefCountByEntryIdsMock.mockResolvedValue(new Map())
-    fileRefFindBySourceMock.mockResolvedValue([])
     fileManagerPermanentDeleteMock.mockResolvedValue(undefined)
+    hardDeleteItemsMock.mockResolvedValue({ deletedCount: 0, detachedFileEntryIds: [] })
     cancelMock.mockResolvedValue(undefined)
     scheduleItemMock.mockResolvedValue({ id: 'scheduled-job' })
   })
@@ -264,16 +261,17 @@ describe('knowledge job handlers', () => {
     const activeChild = createNoteItem('active-note', 'dir-1')
     knowledgeItemGetByIdMock.mockResolvedValue(createDirectoryItem())
     knowledgeItemGetSubtreeItemsMock.mockResolvedValue([activeChild])
+    hardDeleteItemsMock.mockResolvedValue({
+      deletedCount: 1,
+      detachedFileEntryIds: ['019606a0-0000-7000-8000-000000000001']
+    })
 
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
 
     expect(replaceByExternalIdMock).toHaveBeenCalledWith('active-note', [])
-    expect(fileRefCleanupBySourceBatchMock).toHaveBeenCalledWith('knowledge_item', ['active-note'])
     expect(hardDeleteItemsMock).toHaveBeenCalledWith('kb-1', ['active-note'])
+    expect(fileRefCountByEntryIdsMock).toHaveBeenCalledWith(['019606a0-0000-7000-8000-000000000001'])
     expect(replaceByExternalIdMock.mock.invocationCallOrder[0]).toBeLessThan(
-      hardDeleteItemsMock.mock.invocationCallOrder[0]
-    )
-    expect(fileRefCleanupBySourceBatchMock.mock.invocationCallOrder[0]).toBeLessThan(
       hardDeleteItemsMock.mock.invocationCallOrder[0]
     )
   })
@@ -288,13 +286,8 @@ describe('knowledge job handlers', () => {
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: 'dir-1' }, 'prepare-job'))
 
     expect(replaceByExternalIdMock).toHaveBeenCalledWith('active-note', [])
-    expect(fileRefCleanupBySourceBatchMock).toHaveBeenCalledWith('knowledge_item', ['active-note'])
     expect(hardDeleteItemsMock).toHaveBeenCalledWith('kb-1', ['active-note'])
     expect(replaceByExternalIdMock).not.toHaveBeenCalledWith('deleting-note', [])
-    expect(fileRefCleanupBySourceBatchMock).not.toHaveBeenCalledWith(
-      'knowledge_item',
-      expect.arrayContaining(['deleting-note'])
-    )
     expect(hardDeleteItemsMock).not.toHaveBeenCalledWith('kb-1', expect.arrayContaining(['deleting-note']))
   })
 
@@ -431,21 +424,10 @@ describe('knowledge job handlers', () => {
       createNoteItem('note-1', 'dir-1', 'deleting')
     ]
     knowledgeItemGetSubtreeItemsMock.mockResolvedValue(subtreeItems)
-    fileRefFindBySourceMock.mockImplementation(async ({ sourceId }: { sourceId: string }) =>
-      sourceId === 'note-1'
-        ? [
-            {
-              id: 'ref-1',
-              fileEntryId: '019606a0-0000-7000-8000-000000000001',
-              sourceType: 'knowledge_item',
-              sourceId,
-              role: 'attachment',
-              createdAt: 1,
-              updatedAt: 1
-            }
-          ]
-        : []
-    )
+    hardDeleteItemsMock.mockResolvedValue({
+      deletedCount: 2,
+      detachedFileEntryIds: ['019606a0-0000-7000-8000-000000000001']
+    })
     fileEntryFindByIdMock.mockResolvedValue({
       id: '019606a0-0000-7000-8000-000000000001',
       origin: 'internal',
@@ -458,7 +440,7 @@ describe('knowledge job handlers', () => {
 
     await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'delete-job'))
 
-    expect(fileRefCleanupBySourceBatchMock).toHaveBeenCalledWith('knowledge_item', ['dir-1', 'note-1'])
+    expect(hardDeleteItemsMock).toHaveBeenCalledWith('kb-1', ['dir-1', 'note-1'])
     expect(fileRefCountByEntryIdsMock).toHaveBeenCalledWith(['019606a0-0000-7000-8000-000000000001'])
     expect(fileManagerPermanentDeleteMock).toHaveBeenCalledWith('019606a0-0000-7000-8000-000000000001')
   })
@@ -470,30 +452,10 @@ describe('knowledge job handlers', () => {
       createNoteItem('note-1', 'dir-1', 'deleting')
     ]
     knowledgeItemGetSubtreeItemsMock.mockResolvedValue(subtreeItems)
-    fileRefFindBySourceMock.mockImplementation(async ({ sourceId }: { sourceId: string }) =>
-      sourceId === 'note-1'
-        ? [
-            {
-              id: 'ref-1',
-              fileEntryId: '019606a0-0000-7000-8000-000000000001',
-              sourceType: 'knowledge_item',
-              sourceId,
-              role: 'attachment',
-              createdAt: 1,
-              updatedAt: 1
-            },
-            {
-              id: 'ref-2',
-              fileEntryId: '019606a0-0000-7000-8000-000000000002',
-              sourceType: 'knowledge_item',
-              sourceId,
-              role: 'attachment',
-              createdAt: 1,
-              updatedAt: 1
-            }
-          ]
-        : []
-    )
+    hardDeleteItemsMock.mockResolvedValue({
+      deletedCount: 2,
+      detachedFileEntryIds: ['019606a0-0000-7000-8000-000000000001', '019606a0-0000-7000-8000-000000000002']
+    })
     fileRefCountByEntryIdsMock.mockResolvedValue(new Map([['019606a0-0000-7000-8000-000000000001', 1]]))
     fileEntryFindByIdMock.mockResolvedValue({
       id: '019606a0-0000-7000-8000-000000000002',
@@ -525,7 +487,6 @@ describe('knowledge job handlers', () => {
     )
 
     expect(replaceByExternalIdMock).not.toHaveBeenCalled()
-    expect(fileRefCleanupBySourceBatchMock).not.toHaveBeenCalled()
     expect(hardDeleteItemsMock).not.toHaveBeenCalled()
   })
 
@@ -550,7 +511,6 @@ describe('knowledge job handlers', () => {
     )
 
     expect(replaceByExternalIdMock).not.toHaveBeenCalled()
-    expect(fileRefCleanupBySourceBatchMock).not.toHaveBeenCalled()
     expect(hardDeleteItemsMock).not.toHaveBeenCalled()
   })
 
@@ -563,7 +523,6 @@ describe('knowledge job handlers', () => {
     expect(listMock).not.toHaveBeenCalled()
     expect(knowledgeBaseGetByIdMock).not.toHaveBeenCalled()
     expect(replaceByExternalIdMock).not.toHaveBeenCalled()
-    expect(fileRefCleanupBySourceBatchMock).not.toHaveBeenCalled()
     expect(hardDeleteItemsMock).not.toHaveBeenCalled()
   })
 
@@ -577,7 +536,6 @@ describe('knowledge job handlers', () => {
     expect(listMock).not.toHaveBeenCalled()
     expect(knowledgeBaseGetByIdMock).not.toHaveBeenCalled()
     expect(replaceByExternalIdMock).not.toHaveBeenCalled()
-    expect(fileRefCleanupBySourceBatchMock).not.toHaveBeenCalled()
     expect(hardDeleteItemsMock).not.toHaveBeenCalled()
   })
 
@@ -614,7 +572,6 @@ describe('knowledge job handlers', () => {
     expect(listMock).not.toHaveBeenCalled()
     expect(cancelMock).not.toHaveBeenCalled()
     expect(replaceByExternalIdMock).not.toHaveBeenCalled()
-    expect(fileRefCleanupBySourceBatchMock).not.toHaveBeenCalled()
     expect(hardDeleteItemsMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
     expect(scheduleItemMock).not.toHaveBeenCalled()
@@ -635,7 +592,6 @@ describe('knowledge job handlers', () => {
 
     expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'deleting', totalFiles: 0 })
     expect(replaceByExternalIdMock).not.toHaveBeenCalled()
-    expect(fileRefCleanupBySourceBatchMock).not.toHaveBeenCalled()
     expect(hardDeleteItemsMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
     expect(scheduleItemMock).not.toHaveBeenCalled()
@@ -677,7 +633,7 @@ describe('knowledge job handlers', () => {
 
     await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['note-1'] }, 'reindex-job'))
 
-    expect(fileRefCleanupBySourceBatchMock).toHaveBeenCalledWith('knowledge_item', ['note-1'])
+    expect(detachFileRefsMock).toHaveBeenCalledWith(['note-1'])
     expect(hardDeleteItemsMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('note-1', 'processing')
     expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'note-1', 'reindex-job')
@@ -719,7 +675,6 @@ describe('knowledge job handlers', () => {
     )
 
     expect(replaceByExternalIdMock).not.toHaveBeenCalled()
-    expect(fileRefCleanupBySourceBatchMock).not.toHaveBeenCalled()
     expect(hardDeleteItemsMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
     expect(scheduleItemMock).not.toHaveBeenCalled()
@@ -744,7 +699,6 @@ describe('knowledge job handlers', () => {
     )
 
     expect(replaceByExternalIdMock).not.toHaveBeenCalled()
-    expect(fileRefCleanupBySourceBatchMock).not.toHaveBeenCalled()
     expect(hardDeleteItemsMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
     expect(scheduleItemMock).not.toHaveBeenCalled()

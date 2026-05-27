@@ -5,6 +5,7 @@
  */
 
 import { application } from '@application'
+import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
@@ -12,6 +13,8 @@ import { loggerService } from '@logger'
 import type { OffsetPaginationResponse } from '@shared/data/api'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { ListKnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
+import type { FileEntryId } from '@shared/data/types/file'
+import { knowledgeItemSourceType } from '@shared/data/types/file/ref'
 import {
   type CreateKnowledgeItemDto,
   type KnowledgeItem,
@@ -19,6 +22,7 @@ import {
   type KnowledgeItemStatus
 } from '@shared/data/types/knowledge'
 import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
 import { timestampToISO } from './utils/rowMappers'
@@ -44,6 +48,11 @@ type GetSubtreeItemsOptions = {
 export type DeletingKnowledgeItemRootGroup = {
   baseId: string
   rootItemIds: string[]
+}
+
+export type HardDeleteKnowledgeItemsResult = {
+  deletedCount: number
+  detachedFileEntryIds: FileEntryId[]
 }
 
 function rowToKnowledgeItem(row: KnowledgeItemRow): KnowledgeItem {
@@ -147,12 +156,24 @@ export class KnowledgeItemService {
 
   async create(baseId: string, item: CreateKnowledgeItemDto): Promise<KnowledgeItem> {
     const dbService = application.get('DbService')
-    const [row] = await dbService.withWriteTx(async (tx) =>
-      withSqliteErrors(
-        async () => {
-          await this.validateGroupOwnerTx(tx, baseId, item.groupId)
+    const row = await dbService.withWriteTx(async (tx) => {
+      await this.validateGroupOwnerTx(tx, baseId, item.groupId)
 
-          return await tx
+      if (item.type === 'file') {
+        const [fileEntry] = await tx
+          .select({ id: fileEntryTable.id })
+          .from(fileEntryTable)
+          .where(eq(fileEntryTable.id, item.data.fileEntryId))
+          .limit(1)
+
+        if (!fileEntry) {
+          throw DataApiErrorFactory.notFound('FileEntry', item.data.fileEntryId)
+        }
+      }
+
+      const [insertedRow] = await withSqliteErrors(
+        async () =>
+          await tx
             .insert(knowledgeItemTable)
             .values({
               baseId,
@@ -162,8 +183,7 @@ export class KnowledgeItemService {
               status: 'idle',
               error: null
             })
-            .returning()
-        },
+            .returning(),
         {
           foreignKey: () =>
             item.groupId
@@ -181,7 +201,26 @@ export class KnowledgeItemService {
             })
         } satisfies SqliteErrorHandlers
       )
-    )
+
+      if (!insertedRow) {
+        throw DataApiErrorFactory.dataInconsistent('KnowledgeItem', 'Knowledge item create result missing')
+      }
+
+      if (item.type === 'file') {
+        const now = Date.now()
+        await tx.insert(fileRefTable).values({
+          id: uuidv4(),
+          fileEntryId: item.data.fileEntryId,
+          sourceType: knowledgeItemSourceType,
+          sourceId: insertedRow.id,
+          role: 'source',
+          createdAt: now,
+          updatedAt: now
+        })
+      }
+
+      return insertedRow
+    })
 
     if (!row) {
       throw DataApiErrorFactory.dataInconsistent('KnowledgeItem', 'Knowledge item create result missing')
@@ -306,10 +345,10 @@ export class KnowledgeItemService {
     return updatedIds
   }
 
-  async hardDeleteItems(baseId: string, itemIds: string[]): Promise<number> {
+  async hardDeleteItems(baseId: string, itemIds: string[]): Promise<HardDeleteKnowledgeItemsResult> {
     const uniqueItemIds = [...new Set(itemIds)]
     if (uniqueItemIds.length === 0) {
-      return 0
+      return { deletedCount: 0, detachedFileEntryIds: [] }
     }
 
     const dbService = application.get('DbService')
@@ -318,19 +357,49 @@ export class KnowledgeItemService {
         .select({ groupId: knowledgeItemTable.groupId })
         .from(knowledgeItemTable)
         .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, uniqueItemIds)))
-      const result = await tx
+      const detachedRefs = await tx
+        .delete(fileRefTable)
+        .where(and(eq(fileRefTable.sourceType, knowledgeItemSourceType), inArray(fileRefTable.sourceId, uniqueItemIds)))
+        .returning({ fileEntryId: fileRefTable.fileEntryId })
+      await tx
         .delete(knowledgeItemTable)
         .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, uniqueItemIds)))
       return {
-        rowsAffected: result.rowsAffected,
-        groupIds: targetRows.map((row) => row.groupId)
+        rowsAffected: targetRows.length,
+        groupIds: targetRows.map((row) => row.groupId),
+        detachedFileEntryIds: [...new Set(detachedRefs.map((row) => row.fileEntryId))]
       }
     })
 
     await this.reconcileContainers(baseId, deleted.groupIds)
 
     logger.info('Hard deleted knowledge items', { baseId, count: deleted.rowsAffected })
-    return deleted.rowsAffected
+    return {
+      deletedCount: deleted.rowsAffected,
+      detachedFileEntryIds: deleted.detachedFileEntryIds
+    }
+  }
+
+  async detachFileRefs(itemIds: string[]): Promise<FileEntryId[]> {
+    const uniqueItemIds = [...new Set(itemIds)]
+    if (uniqueItemIds.length === 0) {
+      return []
+    }
+
+    const dbService = application.get('DbService')
+    const detachedRefs = await dbService.withWriteTx(
+      async (tx) =>
+        await tx
+          .delete(fileRefTable)
+          .where(
+            and(eq(fileRefTable.sourceType, knowledgeItemSourceType), inArray(fileRefTable.sourceId, uniqueItemIds))
+          )
+          .returning({ fileEntryId: fileRefTable.fileEntryId })
+    )
+
+    const detachedFileEntryIds = [...new Set(detachedRefs.map((row) => row.fileEntryId))]
+    logger.info('Detached knowledge item file refs', { count: detachedRefs.length, itemCount: uniqueItemIds.length })
+    return detachedFileEntryIds
   }
 
   async getSubtreeItems(
@@ -561,6 +630,25 @@ export class KnowledgeItemService {
       if (!existingRow) {
         throw DataApiErrorFactory.notFound('KnowledgeItem', id)
       }
+
+      await tx.run(sql`
+        WITH RECURSIVE subtree AS (
+          SELECT id
+          FROM knowledge_item
+          WHERE base_id = ${existingRow.baseId}
+            AND id = ${id}
+
+          UNION ALL
+
+          SELECT child.id
+          FROM knowledge_item child
+          INNER JOIN subtree parent ON child.group_id = parent.id
+          WHERE child.base_id = ${existingRow.baseId}
+        )
+        DELETE FROM file_ref
+        WHERE source_type = ${knowledgeItemSourceType}
+          AND source_id IN (SELECT DISTINCT id FROM subtree)
+      `)
 
       const [row] = await tx.delete(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).returning({
         id: knowledgeItemTable.id

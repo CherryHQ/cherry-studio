@@ -1,22 +1,7 @@
-import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { describe, expect, it } from 'vitest'
 
 import { filterIndexableKnowledgeItems, isIndexableKnowledgeItem } from '../items'
-
-function createFileMetadata(): FileMetadata {
-  return {
-    id: 'file-1',
-    name: 'guide.md',
-    origin_name: 'guide.md',
-    path: '/docs/guide.md',
-    created_at: '2026-04-08T00:00:00.000Z',
-    size: 12,
-    ext: '.md',
-    type: 'text',
-    count: 1
-  }
-}
 
 function createItem(type: KnowledgeItem['type']): KnowledgeItem {
   const base = {
@@ -31,7 +16,11 @@ function createItem(type: KnowledgeItem['type']): KnowledgeItem {
 
   switch (type) {
     case 'file':
-      return { ...base, type, data: { source: '/docs/file.md', file: createFileMetadata() } }
+      return {
+        ...base,
+        type,
+        data: { source: '/docs/file.md', fileEntryId: '019606a0-0000-7000-8000-000000000001' }
+      }
     case 'url':
       return { ...base, type, data: { source: 'https://example.com', url: 'https://example.com' } }
     case 'note':

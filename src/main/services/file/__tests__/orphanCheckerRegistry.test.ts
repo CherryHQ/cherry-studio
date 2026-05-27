@@ -1,4 +1,6 @@
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
+import { messageTable } from '@data/db/schemas/message'
+import { topicTable } from '@data/db/schemas/topic'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
@@ -15,8 +17,13 @@ vi.mock('@application', async () => {
 // of which `withContext(name)` produced the logger.
 const mockLoggerWarn = mockMainLoggerService.warn
 
-const { createDefaultOrphanCheckerRegistry, knowledgeItemChecker, orphanCheckerRegistry, tempSessionChecker } =
-  await import('../orphanCheckerRegistry')
+const {
+  chatMessageChecker,
+  createDefaultOrphanCheckerRegistry,
+  knowledgeItemChecker,
+  orphanCheckerRegistry,
+  tempSessionChecker
+} = await import('../orphanCheckerRegistry')
 
 import type { OrphanCheckerRegistry } from '../orphanCheckerRegistry'
 
@@ -244,6 +251,101 @@ describe('orphanCheckerRegistry', () => {
     })
   })
 
+  describe('chat_message checker', () => {
+    async function seedTopic(id: string) {
+      await dbh.db.insert(topicTable).values({
+        id,
+        name: 'Test',
+        isNameManuallyEdited: false,
+        assistantId: null,
+        activeNodeId: null,
+        groupId: null,
+        orderKey: 'a0',
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      })
+    }
+
+    async function seedMessage(id: string, topicId: string) {
+      await dbh.db.insert(messageTable).values({
+        id,
+        parentId: null,
+        topicId,
+        role: 'user',
+        data: { blocks: [] },
+        searchableText: '',
+        status: 'success',
+        siblingsGroupId: 0,
+        modelId: null,
+        modelSnapshot: null,
+        traceId: null,
+        stats: null,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      })
+    }
+
+    it('returns the subset of message ids that exist', async () => {
+      await seedTopic('t-checker')
+      await seedMessage('m-alive-1', 't-checker')
+      await seedMessage('m-alive-2', 't-checker')
+
+      const alive = await chatMessageChecker.checkExists(['m-alive-1', 'm-alive-2', 'm-gone'])
+      expect(alive).toEqual(new Set(['m-alive-1', 'm-alive-2']))
+    })
+
+    it('returns empty set for an empty input', async () => {
+      const alive = await chatMessageChecker.checkExists([])
+      expect(alive.size).toBe(0)
+    })
+
+    it('declares its sourceType', () => {
+      expect(chatMessageChecker.sourceType).toBe('chat_message')
+    })
+
+    it('chunks queries past the SQLite IN-list cap', async () => {
+      await seedTopic('t-bulk')
+      const aliveIds = Array.from({ length: 1200 }, (_, i) => `m-bulk-${String(i).padStart(4, '0')}`)
+      const SEED_CHUNK = 200
+      for (let i = 0; i < aliveIds.length; i += SEED_CHUNK) {
+        const slice = aliveIds.slice(i, i + SEED_CHUNK)
+        await dbh.db.insert(messageTable).values(
+          slice.map((id) => ({
+            id,
+            parentId: null,
+            topicId: 't-bulk',
+            role: 'user' as const,
+            data: { blocks: [] },
+            searchableText: '',
+            status: 'success' as const,
+            siblingsGroupId: 0,
+            modelId: null,
+            modelSnapshot: null,
+            traceId: null,
+            stats: null,
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          }))
+        )
+      }
+
+      const alive = await chatMessageChecker.checkExists([...aliveIds, 'm-not-real'])
+      expect(alive.size).toBe(1200)
+      expect(alive.has('m-bulk-0000')).toBe(true)
+      expect(alive.has('m-bulk-0500')).toBe(true)
+      expect(alive.has('m-bulk-1199')).toBe(true)
+      expect(alive.has('m-not-real')).toBe(false)
+    })
+  })
+
+  describe('registry exhaustiveness', () => {
+    it('createDefaultOrphanCheckerRegistry includes chat_message', () => {
+      const registry = createDefaultOrphanCheckerRegistry()
+      expect(registry).toHaveProperty('chat_message')
+      expect(registry.chat_message.sourceType).toBe('chat_message')
+    })
+  })
+
   describe('createDefaultOrphanCheckerRegistry / orphanCheckerRegistry', () => {
     it('exposes a checker for every FileRefSourceType', () => {
       const registry = createDefaultOrphanCheckerRegistry()
@@ -272,10 +374,11 @@ describe('orphanCheckerRegistry', () => {
    */
   describe('type-level exhaustiveness (file-manager-architecture §7 compile-time invariant)', () => {
     it('rejects a registry literal missing any FileRefSourceType key', () => {
-      // @ts-expect-error — `knowledge_item` is missing → TS2741
+      // @ts-expect-error — `knowledge_item` and `chat_message` are missing → TS2741
       const incomplete: OrphanCheckerRegistry = {
         temp_session: tempSessionChecker
         // knowledge_item: knowledgeItemChecker  ← intentionally omitted
+        // chat_message: chatMessageChecker  ← intentionally omitted
       }
       expect(incomplete).toBeDefined()
     })
@@ -285,7 +388,8 @@ describe('orphanCheckerRegistry', () => {
         // @ts-expect-error — knowledgeItemChecker is SourceTypeChecker<'knowledge_item'>,
         // not assignable to slot keyed 'temp_session'
         temp_session: knowledgeItemChecker,
-        knowledge_item: knowledgeItemChecker
+        knowledge_item: knowledgeItemChecker,
+        chat_message: chatMessageChecker
       }
       expect(wrongBrand).toBeDefined()
     })

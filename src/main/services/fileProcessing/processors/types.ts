@@ -1,6 +1,6 @@
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
-import type { FileMetadata } from '@types'
+import type { FileInfo } from '@shared/file/types'
 
 export type ImageToTextHandlerOutput = {
   kind: 'text'
@@ -137,7 +137,7 @@ export interface FileProcessingCapabilityHandler<
    */
   readonly mode: 'background' | 'remote-poll'
   prepare(
-    file: FileMetadata,
+    file: FileInfo,
     config: FileProcessorMerged,
     signal?: AbortSignal
   ): Promise<PreparedFileProcessingTask<Feature, RemoteContext>> | PreparedFileProcessingTask<Feature, RemoteContext>

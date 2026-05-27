@@ -10,7 +10,7 @@ import type { JobHandler } from '@main/core/job/types'
 import type { KnowledgeMutationCoordinator } from '../KnowledgeMutationCoordinator'
 import type { KnowledgeWorkflowCoordinator } from '../KnowledgeWorkflowCoordinator'
 import { KNOWLEDGE_ACTIVE_JOB_LIMIT, KNOWLEDGE_ACTIVE_JOB_STATUSES, knowledgeQueueName } from '../types'
-import { detachKnowledgeItemFileRefs } from '../utils/cleanup/artifactCleanup'
+import { cleanupUnreferencedInternalEntries } from '../utils/cleanup/artifactCleanup'
 import { deleteKnowledgeItemVectors } from '../utils/cleanup/vectorCleanup'
 import type { KnowledgeReindexSubtreePayload } from './jobTypes'
 
@@ -66,20 +66,23 @@ export function createReindexSubtreeJobHandler(
         const leafRootIds = selectedRoots
           .filter((item) => item.type === 'file' || item.type === 'url' || item.type === 'note')
           .map((item) => item.id)
-        await detachKnowledgeItemFileRefs(leafRootIds)
+        const detachedRootFileEntryIds =
+          leafRootIds.length > 0 ? await knowledgeItemService.detachFileRefs(leafRootIds) : []
 
         const containerRootIds = selectedRoots
           .filter((item) => item.type === 'directory' || item.type === 'sitemap')
           .map((item) => item.id)
+        let detachedDescendantFileEntryIds: typeof detachedRootFileEntryIds = []
         if (containerRootIds.length > 0) {
           // Container roots are rescanned from source, so their previous expansion must be removed.
           const descendantItems = await knowledgeItemService.getSubtreeItems(baseId, containerRootIds)
-          await detachKnowledgeItemFileRefs(descendantItems.map((item) => item.id))
-          await knowledgeItemService.hardDeleteItems(
+          const deleted = await knowledgeItemService.hardDeleteItems(
             baseId,
             descendantItems.map((item) => item.id)
           )
+          detachedDescendantFileEntryIds = deleted.detachedFileEntryIds
         }
+        await cleanupUnreferencedInternalEntries([...detachedRootFileEntryIds, ...detachedDescendantFileEntryIds])
 
         for (const item of selectedRoots) {
           await knowledgeItemService.updateStatus(

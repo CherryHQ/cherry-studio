@@ -1,7 +1,7 @@
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
-import type { FileMetadata } from '@types'
+import type { FileInfo } from '@shared/file/types'
 
-import { assertHasFilePath, getApiKey, getRequiredApiHost, getRequiredCapability } from '../../../utils/provider'
+import { getApiKey, getRequiredApiHost, getRequiredCapability } from '../../../utils/provider'
 import type { FileProcessingCapabilityHandler } from '../../types'
 import type { PreparedOpenMineruContext } from '../types'
 import { executeTask } from '../utils'
@@ -31,15 +31,10 @@ export const openMineruDocumentToMarkdownHandler: FileProcessingCapabilityHandle
   }
 }
 
-function prepareContext(
-  file: FileMetadata,
-  config: FileProcessorMerged,
-  signal?: AbortSignal
-): PreparedOpenMineruContext {
+function prepareContext(file: FileInfo, config: FileProcessorMerged, signal?: AbortSignal): PreparedOpenMineruContext {
   signal?.throwIfAborted()
 
   const capability = getRequiredCapability(config, 'document_to_markdown', 'open-mineru')
-  assertHasFilePath(file)
 
   return {
     apiHost: getRequiredApiHost(capability),

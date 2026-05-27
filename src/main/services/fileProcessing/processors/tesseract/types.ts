@@ -1,4 +1,4 @@
-import type { ImageFileMetadata } from '@types'
+import type { FileInfo } from '@shared/file/types'
 import type { LanguageCode } from 'tesseract.js'
 import * as z from 'zod'
 
@@ -7,7 +7,7 @@ export const TesseractProcessorOptionsSchema = z.looseObject({
 })
 
 export type PreparedTesseractContext = {
-  file: ImageFileMetadata
+  file: FileInfo
   signal?: AbortSignal
   langs: LanguageCode[]
 }

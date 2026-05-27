@@ -123,6 +123,7 @@ export class KnowledgeMigrator extends BaseMigrator {
   private skippedCount = 0
   private preparedBases: NewKnowledgeBase[] = []
   private preparedItems: NewKnowledgeItem[] = []
+  private skippedPreparedItemIds = new Set<string>()
   private warnings: string[] = []
   private skippedWarnings = new Map<string, { count: number; samples: string[] }>()
   private seenLegacyBaseIds = new Set<string>()
@@ -135,6 +136,7 @@ export class KnowledgeMigrator extends BaseMigrator {
     this.skippedCount = 0
     this.preparedBases = []
     this.preparedItems = []
+    this.skippedPreparedItemIds = new Set<string>()
     this.warnings = []
     this.skippedWarnings = new Map<string, { count: number; samples: string[] }>()
     this.seenLegacyBaseIds = new Set<string>()
@@ -166,6 +168,19 @@ export class KnowledgeMigrator extends BaseMigrator {
     this.skippedWarnings.clear()
   }
 
+  private removeLegacyItemRemapByMigratedId(migratedItemId: string): void {
+    for (const [legacyItemId, mappedItemId] of this.legacyItemIdRemap) {
+      if (mappedItemId === migratedItemId) {
+        this.legacyItemIdRemap.delete(legacyItemId)
+        return
+      }
+    }
+  }
+
+  private getEffectiveSkippedCount(): number {
+    return this.skippedCount + this.skippedPreparedItemIds.size
+  }
+
   private static readonly INARRAY_CHUNK = 500
 
   private async dropDanglingAssistantKnowledgeBaseRefs(ctx: MigrationContext): Promise<void> {
@@ -183,8 +198,8 @@ export class KnowledgeMigrator extends BaseMigrator {
     const legacyFileIds = new Set<string>()
     for (const item of this.preparedItems) {
       if (item.type !== 'file') continue
-      const fileData = item.data as { file?: { id?: string } } | undefined
-      const id = fileData?.file?.id
+      const fileData = item.data as { fileEntryId?: string } | undefined
+      const id = fileData?.fileEntryId
       if (id) legacyFileIds.add(id)
     }
 
@@ -592,6 +607,8 @@ export class KnowledgeMigrator extends BaseMigrator {
   }
 
   async execute(ctx: MigrationContext): Promise<ExecuteResult> {
+    this.skippedPreparedItemIds = new Set<string>()
+
     if (this.preparedBases.length === 0 && this.preparedItems.length === 0) {
       await this.dropDanglingAssistantKnowledgeBaseRefs(ctx)
       logger.info('No knowledge data to migrate')
@@ -663,21 +680,32 @@ export class KnowledgeMigrator extends BaseMigrator {
         let transactionProcessed = 0
 
         const fileRefRows: Array<typeof fileRefTable.$inferInsert> = []
+        const invalidFileItemIds = new Set<string>()
         for (const item of baseItems) {
           if (item.type !== 'file') continue
-          const fileData = item.data as { file?: { id?: string } } | undefined
-          const legacyFileId = fileData?.file?.id
+          const fileData = item.data as { fileEntryId?: string } | undefined
+          const legacyFileId = fileData?.fileEntryId
           if (!legacyFileId) {
+            if (item.id) {
+              invalidFileItemIds.add(item.id)
+              this.skippedPreparedItemIds.add(item.id)
+              this.removeLegacyItemRemapByMigratedId(item.id)
+            }
             this.recordSkippedWarning(
               'knowledge_item_missing_file_id',
-              `Knowledge item id=${item.id} (type=file) has no data.file.id; file_ref row will not be created`
+              `Knowledge item id=${item.id} (type=file) has no data.fileEntryId; item will not be created`
             )
             continue
           }
           if (!migratedFileEntryIds.has(legacyFileId)) {
+            if (item.id) {
+              invalidFileItemIds.add(item.id)
+              this.skippedPreparedItemIds.add(item.id)
+              this.removeLegacyItemRemapByMigratedId(item.id)
+            }
             this.recordSkippedWarning(
               'knowledge_item_dangling_file_entry',
-              `Knowledge item id=${item.id} references file_entry id=${legacyFileId} which is absent from v2 file_entry (FileMigrator dropped the v1 row); file_ref row will not be created`
+              `Knowledge item id=${item.id} references file_entry id=${legacyFileId} which is absent from v2 file_entry (FileMigrator dropped the v1 row); item will not be created`
             )
             continue
           }
@@ -691,6 +719,10 @@ export class KnowledgeMigrator extends BaseMigrator {
             updatedAt: now
           })
         }
+        const validBaseItems =
+          invalidFileItemIds.size > 0
+            ? baseItems.filter((item) => !item.id || !invalidFileItemIds.has(item.id))
+            : baseItems
 
         const legacyKnowledgeBaseId = legacyBaseIdByMigratedId.get(base.id)
 
@@ -698,8 +730,8 @@ export class KnowledgeMigrator extends BaseMigrator {
           await tx.insert(knowledgeBaseTable).values(base)
           transactionProcessed += 1
 
-          for (let i = 0; i < baseItems.length; i += ITEM_INSERT_BATCH_SIZE) {
-            const batch = baseItems.slice(i, i + ITEM_INSERT_BATCH_SIZE)
+          for (let i = 0; i < validBaseItems.length; i += ITEM_INSERT_BATCH_SIZE) {
+            const batch = validBaseItems.slice(i, i + ITEM_INSERT_BATCH_SIZE)
             await tx.insert(knowledgeItemTable).values(batch)
             transactionProcessed += batch.length
           }
@@ -760,7 +792,7 @@ export class KnowledgeMigrator extends BaseMigrator {
       const targetItemCount = itemResult?.count ?? 0
       const targetCount = targetBaseCount + targetItemCount
       const expectedBaseCount = this.preparedBases.length
-      const expectedItemCount = this.preparedItems.length
+      const expectedItemCount = this.preparedItems.length - this.skippedPreparedItemIds.size
 
       if (targetBaseCount < expectedBaseCount) {
         errors.push({
@@ -800,7 +832,7 @@ export class KnowledgeMigrator extends BaseMigrator {
         targetBaseCount,
         targetItemCount,
         targetCount,
-        skippedCount: this.skippedCount,
+        skippedCount: this.getEffectiveSkippedCount(),
         errors: errors.length
       })
 
@@ -810,7 +842,7 @@ export class KnowledgeMigrator extends BaseMigrator {
         stats: {
           sourceCount: this.sourceCount,
           targetCount,
-          skippedCount: this.skippedCount
+          skippedCount: this.getEffectiveSkippedCount()
         }
       }
     } catch (error) {
@@ -826,7 +858,7 @@ export class KnowledgeMigrator extends BaseMigrator {
         stats: {
           sourceCount: this.sourceCount,
           targetCount: 0,
-          skippedCount: this.skippedCount
+          skippedCount: this.getEffectiveSkippedCount()
         }
       }
     }

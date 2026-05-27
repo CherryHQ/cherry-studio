@@ -3,12 +3,6 @@ import type { FileProcessorFeatureCapability, FileProcessorMerged } from '@share
 
 const lastUsedKeyByProcessor = new Map<FileProcessorId, string>()
 
-export function assertHasFilePath<T extends { path?: string | null }>(file: T): asserts file is T & { path: string } {
-  if (!file.path) {
-    throw new Error('File path is required')
-  }
-}
-
 export function getRequiredCapability(
   config: FileProcessorMerged,
   feature: FileProcessorFeature,
