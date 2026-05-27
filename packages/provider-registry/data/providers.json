@@ -77,14 +77,30 @@
         }
       },
       "paintingDefaults": {
-        "modes": ["generate"],
-        "sizes": ["512x512", "768x768", "1024x1024"],
-        "sizeMode": "pixel",
-        "defaultSize": "512x512",
-        "keyMap": { "numInferenceSteps": "num_inference_steps", "seed": "rng_seed" },
-        "supports": {
-          "numInferenceSteps": { "min": 1, "max": 100, "default": 4 },
-          "seed": true
+        "modes": {
+          "generate": {
+            "supports": {
+              "size": {
+                "type": "enum",
+                "options": [
+                  "512x512",
+                  "768x768",
+                  "1024x1024"
+                ],
+                "render": "chips",
+                "default": "512x512"
+              },
+              "numInferenceSteps": {
+                "type": "range",
+                "min": 1,
+                "max": 100,
+                "default": 4
+              },
+              "seed": {
+                "type": "text"
+              }
+            }
+          }
         }
       },
       "metadata": {
