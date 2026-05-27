@@ -6,11 +6,25 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import AttachmentButton from '../AttachmentButton'
 
+const { mockLoggerError } = vi.hoisted(() => ({
+  mockLoggerError: vi.fn()
+}))
+
 const mockUseQuickPanel = vi.fn()
 const mockUseKnowledgeBases = vi.fn()
 const mockUseKnowledgeItems = vi.fn()
 const mockFileGet = vi.fn()
+const mockGetPhysicalPath = vi.fn()
 const mockToastWarning = vi.fn()
+const mockUpdateItemSelection = vi.fn()
+
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: vi.fn(() => ({
+      error: mockLoggerError
+    }))
+  }
+}))
 
 vi.mock('@renderer/components/Buttons', () => ({
   ActionIconButton: (props: React.ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean; icon: ReactNode }) => {
@@ -158,6 +172,7 @@ describe('AttachmentButton', () => {
       value: {
         file: {
           get: mockFileGet,
+          getPhysicalPath: mockGetPhysicalPath,
           select: vi.fn()
         }
       }
@@ -170,9 +185,10 @@ describe('AttachmentButton', () => {
     })
   })
 
-  it('adds a knowledge file attachment from the item source path', async () => {
+  it('adds a knowledge file attachment from the item file entry id', async () => {
     const setFiles = vi.fn()
-    const fileMetadata = createFileMetadata('/Users/me/docs/report.pdf')
+    const fileMetadata = createFileMetadata('/resolved/docs/report.pdf')
+    mockGetPhysicalPath.mockResolvedValueOnce('/resolved/docs/report.pdf')
     mockFileGet.mockResolvedValueOnce(fileMetadata)
 
     const { quickPanel } = renderAttachmentButton(setFiles)
@@ -185,12 +201,18 @@ describe('AttachmentButton', () => {
     })
 
     await act(async () => {
-      await updatedList[0].action({ item: updatedList[0] })
+      await updatedList[0].action({ context: { updateItemSelection: mockUpdateItemSelection }, item: updatedList[0] })
     })
 
-    expect(mockFileGet).toHaveBeenCalledWith('/Users/me/docs/report.pdf')
+    expect(mockGetPhysicalPath).toHaveBeenCalledWith({ id: '019606a0-0000-7000-8000-000000000001' })
+    expect(mockFileGet).toHaveBeenCalledWith('/resolved/docs/report.pdf')
     expect(setFiles).toHaveBeenCalledWith(expect.any(Function))
-    expect(setFiles.mock.calls[0][0]([])).toEqual([fileMetadata])
+    expect(setFiles.mock.calls[0][0]([])).toEqual([
+      {
+        ...fileMetadata,
+        id: '019606a0-0000-7000-8000-000000000001'
+      }
+    ])
   })
 
   it('opens the knowledge base file list from the attachment quick panel', () => {
@@ -226,17 +248,36 @@ describe('AttachmentButton', () => {
   })
 
   it('warns when a knowledge file source cannot be resolved to file metadata', async () => {
+    mockGetPhysicalPath.mockResolvedValueOnce('/resolved/docs/report.pdf')
     mockFileGet.mockResolvedValueOnce(null)
 
     const { quickPanel } = renderAttachmentButton()
 
     const updatedList = await openKnowledgeFileList(quickPanel)
     await act(async () => {
-      await updatedList[0].action({ item: updatedList[0] })
+      await updatedList[0].action({ context: { updateItemSelection: mockUpdateItemSelection }, item: updatedList[0] })
     })
 
     await waitFor(() => {
+      expect(mockUpdateItemSelection).toHaveBeenCalledWith(updatedList[0], false)
       expect(mockToastWarning).toHaveBeenCalledWith('File not found: /Users/me/docs/report.pdf')
     })
+  })
+
+  it('warns and rolls back selection when physical path resolution fails', async () => {
+    mockGetPhysicalPath.mockRejectedValueOnce(new Error('missing entry'))
+
+    const { quickPanel } = renderAttachmentButton()
+
+    const updatedList = await openKnowledgeFileList(quickPanel)
+    await act(async () => {
+      await updatedList[0].action({ context: { updateItemSelection: mockUpdateItemSelection }, item: updatedList[0] })
+    })
+
+    await waitFor(() => {
+      expect(mockUpdateItemSelection).toHaveBeenCalledWith(updatedList[0], false)
+      expect(mockToastWarning).toHaveBeenCalledWith('File not found: /Users/me/docs/report.pdf')
+    })
+    expect(mockFileGet).not.toHaveBeenCalled()
   })
 })

@@ -1,4 +1,5 @@
 import { Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
@@ -12,6 +13,8 @@ import { FileSearch, FileText, Paperclip, Upload } from 'lucide-react'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('AttachmentButton')
 
 interface Props {
   quickPanel: ToolQuickPanelApi
@@ -79,40 +82,55 @@ const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions
   const createKnowledgeFileItems = useCallback(
     (items: KnowledgeItemOf<'file'>[]) =>
       items.map<QuickPanelListItem>((item) => {
-        const filePath = item.data.source
+        const source = item.data.source
+        const fileEntryId = item.data.fileEntryId
         const fileName =
-          filePath
+          source
             .replace(/[/\\]+$/, '')
             .split(/[/\\]/)
-            .pop() || filePath
+            .pop() || source
 
         return {
           label: fileName,
-          description: filePath,
+          description: source,
           icon: <FileText />,
-          isSelected: files.some((f) => f.path === filePath),
-          action: async ({ item }) => {
-            item.isSelected = !item.isSelected
+          isSelected: files.some((file) => file.id === fileEntryId),
+          action: async ({ context, item }) => {
+            const fileExists = files.some((file) => file.id === fileEntryId)
 
-            const fileExists = files.some((f) => f.path === filePath)
             if (fileExists) {
-              setFiles((prevFiles) => prevFiles.filter((f) => f.path !== filePath))
+              setFiles((prevFiles) => prevFiles.filter((file) => file.id !== fileEntryId))
               return
             }
 
-            const fileContent = await window.api.file.get(filePath)
-            if (!fileContent) {
-              window.toast.warning(t('chat.input.tools.file_not_found', { path: filePath }))
-              return
-            }
+            let filePath = source
 
-            setFiles((prevFiles) => {
-              if (prevFiles.some((file) => file.path === filePath)) {
-                return prevFiles.filter((file) => file.path !== filePath)
+            try {
+              filePath = await window.api.file.getPhysicalPath({ id: fileEntryId })
+              const fileContent = await window.api.file.get(filePath)
+              if (!fileContent) {
+                context.updateItemSelection(item, false)
+                window.toast.warning(t('chat.input.tools.file_not_found', { path: source }))
+                return
               }
 
-              return [...prevFiles, fileContent]
-            })
+              setFiles((prevFiles) => {
+                if (prevFiles.some((file) => file.id === fileEntryId)) {
+                  return prevFiles.filter((file) => file.id !== fileEntryId)
+                }
+
+                return [...prevFiles, { ...fileContent, id: fileEntryId }]
+              })
+            } catch (error) {
+              logger.error('Failed to resolve knowledge file attachment', error as Error, {
+                fileEntryId,
+                source,
+                filePath
+              })
+              context.updateItemSelection(item, false)
+              window.toast.warning(t('chat.input.tools.file_not_found', { path: source }))
+              return
+            }
           }
         }
       }),

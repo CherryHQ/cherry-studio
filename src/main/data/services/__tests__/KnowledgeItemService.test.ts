@@ -1,9 +1,11 @@
+import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { KnowledgeItemService } from '@data/services/KnowledgeItemService'
 import { generateOrderKeyBetween } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api'
+import type { FileEntryId } from '@shared/data/types/file'
 import type { CreateKnowledgeItemDto } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -41,6 +43,7 @@ const COMPLETED_CHILD_ID = itemId('7d52')
 const DELETING_CHILD_ID = itemId('7d53')
 const FILE_A_ID = itemId('7d60')
 const FILE_B_ID = itemId('7d61')
+const FILE_ENTRY_A_ID = '019606a0-0000-7000-8000-000000000a01' as FileEntryId
 
 describe('KnowledgeItemService', () => {
   const dbh = setupTestDatabase()
@@ -97,6 +100,27 @@ describe('KnowledgeItemService', () => {
       source: `/docs/${slug}.md`,
       fileEntryId: id
     }
+  }
+
+  async function seedFileEntry(id: FileEntryId = FILE_ENTRY_A_ID) {
+    await dbh.db.insert(fileEntryTable).values({
+      id,
+      origin: 'internal',
+      name: `file-${id.slice(-4)}`,
+      ext: 'md',
+      size: 1,
+      externalPath: null
+    })
+  }
+
+  async function seedKnowledgeFileRef(sourceId: string, fileEntryId: FileEntryId = FILE_ENTRY_A_ID) {
+    await dbh.db.insert(fileRefTable).values({
+      id: `11111111-1111-4111-8111-${sourceId.slice(-12)}`,
+      fileEntryId,
+      sourceType: 'knowledge_item',
+      sourceId,
+      role: 'source'
+    })
   }
 
   describe('list', () => {
@@ -391,6 +415,27 @@ describe('KnowledgeItemService', () => {
           error: null
         })
       ).rejects.toThrow()
+    })
+
+    it('creates a source file_ref with the file knowledge item', async () => {
+      await seedFileEntry(FILE_ENTRY_A_ID)
+
+      const result = await service.create(KNOWLEDGE_BASE_ID, {
+        type: 'file',
+        data: {
+          source: '/docs/a.md',
+          fileEntryId: FILE_ENTRY_A_ID
+        }
+      })
+
+      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, result.id))
+      expect(refs).toHaveLength(1)
+      expect(refs[0]).toMatchObject({
+        fileEntryId: FILE_ENTRY_A_ID,
+        sourceType: 'knowledge_item',
+        sourceId: result.id,
+        role: 'source'
+      })
     })
   })
 
@@ -693,6 +738,21 @@ describe('KnowledgeItemService', () => {
       expect(rows).toHaveLength(0)
     })
 
+    it('deletes knowledge item file_refs in the same delete flow', async () => {
+      await seedFileEntry(FILE_ENTRY_A_ID)
+      await seedItem({
+        id: FILE_A_ID,
+        type: 'file',
+        data: createFileItemData(FILE_ENTRY_A_ID)
+      })
+      await seedKnowledgeFileRef(FILE_A_ID, FILE_ENTRY_A_ID)
+
+      await service.delete(FILE_A_ID)
+
+      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, FILE_A_ID))
+      expect(refs).toHaveLength(0)
+    })
+
     it('deletes the owner item and all group members through DB cascade', async () => {
       await seedItem({
         id: DIR_OWNER_ID,
@@ -724,6 +784,7 @@ describe('KnowledgeItemService', () => {
     })
 
     it('deletes descendants while keeping the requested root items', async () => {
+      await seedFileEntry(FILE_ENTRY_A_ID)
       await seedItem({
         id: DIR_ROOT_ID,
         type: 'directory',
@@ -739,8 +800,9 @@ describe('KnowledgeItemService', () => {
         id: FILE_GRANDCHILD_ID,
         groupId: DIR_CHILD_ID,
         type: 'file',
-        data: createFileItemData(FILE_GRANDCHILD_ID)
+        data: createFileItemData(FILE_ENTRY_A_ID)
       })
+      await seedKnowledgeFileRef(FILE_GRANDCHILD_ID, FILE_ENTRY_A_ID)
       await seedItem({
         id: OTHER_ITEM_ID,
         type: 'note',
@@ -751,6 +813,8 @@ describe('KnowledgeItemService', () => {
 
       const remaining = await dbh.db.select().from(knowledgeItemTable).orderBy(knowledgeItemTable.id)
       expect(remaining.map((r) => r.id)).toEqual([DIR_ROOT_ID, OTHER_ITEM_ID])
+      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, FILE_GRANDCHILD_ID))
+      expect(refs).toHaveLength(0)
     })
 
     it('throws NotFound when deleting a missing knowledge item', async () => {

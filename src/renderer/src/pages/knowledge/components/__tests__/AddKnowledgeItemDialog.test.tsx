@@ -390,6 +390,37 @@ describe('AddKnowledgeItemDialog', () => {
     expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
+  it('disables submit while file entry resolution is pending', async () => {
+    let resolveEntry: (value: ReturnType<typeof createExternalFileEntry>) => void = () => undefined
+    const fileEntryPromise = new Promise<ReturnType<typeof createExternalFileEntry>>((resolve) => {
+      resolveEntry = resolve
+    })
+    const fileEntry = createExternalFileEntry({
+      id: '019606a0-0000-7000-8000-000000000001',
+      name: 'alpha.pdf',
+      path: '/external/alpha.pdf'
+    })
+    mockEnsureExternalEntry.mockReturnValueOnce(fileEntryPromise)
+    mockSubmitKnowledgeItems.mockResolvedValueOnce(undefined)
+    renderControlledDialog()
+
+    setMockAcceptedFiles([createMockFile('alpha.pdf', 1024)])
+    fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
+
+    const addButton = screen.getByRole('button', { name: '添加' })
+    fireEvent.click(addButton)
+    fireEvent.click(addButton)
+
+    expect(addButton).toBeDisabled()
+    expect(mockEnsureExternalEntry).toHaveBeenCalledTimes(1)
+
+    resolveEntry(fileEntry)
+
+    await waitFor(() => {
+      expect(mockSubmitKnowledgeItems).toHaveBeenCalledTimes(1)
+    })
+  })
+
   it('submits directory, url, and sitemap source bodies through generic hook', async () => {
     mockSubmitKnowledgeItems.mockResolvedValue(undefined)
     render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)

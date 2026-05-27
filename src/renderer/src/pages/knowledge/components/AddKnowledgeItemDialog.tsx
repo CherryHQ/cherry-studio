@@ -53,6 +53,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
   const [urlValue, setUrlValue] = useState('')
   const [sitemapValue, setSitemapValue] = useState('')
   const [submitErrorMessage, setSubmitErrorMessage] = useState('')
+  const [isResolvingSubmit, setIsResolvingSubmit] = useState(false)
   const { submit: submitKnowledgeItems, isSubmitting: isSubmittingItems } = useAddKnowledgeItems(selectedBaseId)
 
   const resetDialogState = useCallback(() => {
@@ -62,6 +63,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     setUrlValue('')
     setSitemapValue('')
     setSubmitErrorMessage('')
+    setIsResolvingSubmit(false)
   }, [])
 
   const handleFileDrop = useCallback<DropzoneOnDrop>((acceptedFiles) => {
@@ -141,11 +143,12 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
   }, [activeSource, selectedBaseId, selectedDirectories.length, selectedFiles.length, sitemapValue, urlValue])
 
   const handleSubmit = useCallback(() => {
-    if (!canSubmit) {
+    if (!canSubmit || isResolvingSubmit) {
       return
     }
 
     setSubmitErrorMessage('')
+    setIsResolvingSubmit(true)
 
     const submitPromise = (() => {
       if (activeSource === 'file') {
@@ -207,10 +210,14 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
       .catch((error) => {
         setSubmitErrorMessage(formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error')))
       })
+      .finally(() => {
+        setIsResolvingSubmit(false)
+      })
   }, [
     activeSource,
     canSubmit,
     handleOpenChange,
+    isResolvingSubmit,
     selectedDirectories,
     selectedFiles,
     sitemapValue,
@@ -219,7 +226,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     urlValue
   ])
 
-  const isSubmitting = isSubmittingItems
+  const isSubmitting = isResolvingSubmit || isSubmittingItems
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
