@@ -87,6 +87,9 @@ export class TreeRegistry extends BaseService {
   private readonly inflight = new Map<string, Promise<SharedBuilder>>()
   /** webContentsId → set of treeIds, so we can drop them on contents-destroyed. */
   private readonly byWebContents = new Map<number, Set<string>>()
+  /** Set by `disposeAll()` / `onStop()` to short-circuit any builder that
+   *  finishes its asynchronous `createDirectoryTree` call after teardown. */
+  private disposed = false
 
   protected override async onInit(): Promise<void> {
     // IPC handlers go here (auto-cleaned on stop) rather than in
@@ -184,6 +187,7 @@ export class TreeRegistry extends BaseService {
 
   /** Test seam — drop every shared builder and consumer immediately. */
   disposeAll(): void {
+    this.disposed = true
     for (const treeId of Array.from(this.consumers.keys())) {
       this.dispose(treeId)
     }
@@ -197,6 +201,11 @@ export class TreeRegistry extends BaseService {
       shared.builder.dispose()
       this.sharedBuilders.delete(shared.key)
     }
+    // Drop pending creates too — any builder that resolves after this
+    // point will see `this.disposed` and tear itself down in
+    // `acquireBuilder`. Clearing here keeps the map from holding the
+    // dangling promises.
+    this.inflight.clear()
   }
 
   // ─── Internals ────────────────────────────────────────────────────────
@@ -214,6 +223,15 @@ export class TreeRegistry extends BaseService {
     const promise = (async () => {
       try {
         const builder = await createDirectoryTree(rootPath, options)
+        // If the registry was torn down while we were awaiting the build,
+        // dispose the freshly-created builder so its watcher / FDs don't
+        // outlive `onStop` and surface as an orphan.
+        if (this.disposed) {
+          await Promise.resolve(builder.dispose()).catch((err) =>
+            logger.warn('builder.dispose after onStop failed', err as Error)
+          )
+          throw new Error('TreeRegistry stopped during in-flight builder creation')
+        }
         // Window during which a concurrent `create` could have inserted
         // ahead of us — fold into theirs and discard the duplicate
         // builder so we don't leak a watcher.
