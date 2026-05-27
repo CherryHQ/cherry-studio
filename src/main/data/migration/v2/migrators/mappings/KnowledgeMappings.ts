@@ -222,6 +222,13 @@ export const resolveLegacyFileMetadata = (
   return null
 }
 
+export const resolveLegacyFileEntryId = (
+  content: LegacyKnowledgeItem['content'],
+  filesById: Map<string, FileMetadata>
+): string | null => {
+  return resolveLegacyFileMetadata(content, filesById)?.id ?? null
+}
+
 export const transformKnowledgeBase = (
   base: LegacyKnowledgeBaseWithIdentity,
   dimensions: number | null
@@ -274,8 +281,9 @@ export const transformKnowledgeItem = (
   let data: KnowledgeItemData
 
   if (item.type === 'file') {
+    const fileEntryId = resolveLegacyFileEntryId(item.content, deps.filesById)
     const file = resolveLegacyFileMetadata(item.content, deps.filesById)
-    if (!file) {
+    if (!fileEntryId || !file) {
       return {
         ok: false,
         reason: 'invalid_file'
@@ -283,7 +291,7 @@ export const transformKnowledgeItem = (
     }
 
     type = 'file'
-    data = { source: file.path, file }
+    data = { source: file.path, fileEntryId }
   } else if (item.type === 'url') {
     if (typeof item.content !== 'string' || item.content.trim() === '') {
       return {

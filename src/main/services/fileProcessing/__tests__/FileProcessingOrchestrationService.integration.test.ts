@@ -16,6 +16,9 @@ const {
   appGetMock,
   enqueueMock,
   registerHandlerMock,
+  fileManagerGetByIdMock,
+  fileManagerGetMetadataMock,
+  toFileInfoMock,
   processorRegistryMock,
   resolveProcessorConfigByFeatureMock,
   isAvailableTesseractMock,
@@ -25,6 +28,9 @@ const {
   appGetMock: vi.fn(),
   enqueueMock: vi.fn(),
   registerHandlerMock: vi.fn(),
+  fileManagerGetByIdMock: vi.fn(),
+  fileManagerGetMetadataMock: vi.fn(),
+  toFileInfoMock: vi.fn(),
   processorRegistryMock: {} as Record<string, unknown>,
   resolveProcessorConfigByFeatureMock: vi.fn(),
   isAvailableTesseractMock: vi.fn(() => true),
@@ -38,6 +44,10 @@ vi.mock('@application', () => ({
 
 vi.mock('@logger', () => ({
   loggerService: { withContext: () => ({ info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() }) }
+}))
+
+vi.mock('@main/services/file/toFileInfo', () => ({
+  toFileInfo: toFileInfoMock
 }))
 
 vi.mock('@main/core/lifecycle', async (importOriginal) => {
@@ -79,28 +89,69 @@ processorRegistryMock.system = {
 
 const { FileProcessingOrchestrationService } = await import('../FileProcessingOrchestrationService')
 
-const FAKE_IMAGE = {
-  id: 'img-1',
-  name: 'p.png',
-  origin_name: 'p.png',
-  path: '/tmp/p.png',
-  size: 1024,
-  ext: '.png',
-  type: 'image',
-  created_at: '2026-05-01T00:00:00Z',
-  count: 1
+const IMAGE_ENTRY_ID = '019606a0-0000-7000-8000-000000000101'
+const PDF_ENTRY_ID = '019606a0-0000-7000-8000-000000000102'
+
+const FAKE_IMAGE_ENTRY = {
+  id: IMAGE_ENTRY_ID,
+  origin: 'external',
+  name: 'p',
+  ext: 'png',
+  externalPath: '/tmp/p.png',
+  createdAt: 1,
+  updatedAt: 1
+}
+const FAKE_PDF_ENTRY = {
+  id: PDF_ENTRY_ID,
+  origin: 'external',
+  name: 'doc',
+  ext: 'pdf',
+  externalPath: '/tmp/doc.pdf',
+  createdAt: 1,
+  updatedAt: 1
 }
 
-const FAKE_PDF = {
-  id: 'pdf-1',
-  name: 'doc.pdf',
-  origin_name: 'doc.pdf',
+const FAKE_IMAGE_INFO = {
+  path: '/tmp/p.png',
+  name: 'p',
+  ext: 'png',
+  size: 1024,
+  mime: 'image/png',
+  type: 'image',
+  createdAt: 1,
+  modifiedAt: 1
+}
+
+const FAKE_PDF_INFO = {
   path: '/tmp/doc.pdf',
+  name: 'doc',
+  ext: 'pdf',
   size: 9999,
-  ext: '.pdf',
+  mime: 'application/pdf',
   type: 'document',
-  created_at: '2026-05-01T00:00:00Z',
-  count: 1
+  createdAt: 1,
+  modifiedAt: 1
+}
+
+function setupFileInfo() {
+  fileManagerGetMetadataMock.mockResolvedValue({
+    kind: 'file',
+    type: 'other',
+    size: 1024,
+    mime: 'application/octet-stream',
+    createdAt: 1,
+    modifiedAt: 1
+  })
+  fileManagerGetByIdMock.mockImplementation(async (id: string) => {
+    if (id === IMAGE_ENTRY_ID) return FAKE_IMAGE_ENTRY
+    if (id === PDF_ENTRY_ID) return FAKE_PDF_ENTRY
+    throw new Error(`Unexpected FileManager.getById(${id})`)
+  })
+  toFileInfoMock.mockImplementation(async (entry: { id: string }) => {
+    if (entry.id === IMAGE_ENTRY_ID) return FAKE_IMAGE_INFO
+    if (entry.id === PDF_ENTRY_ID) return FAKE_PDF_INFO
+    throw new Error(`Unexpected toFileInfo(${entry.id})`)
+  })
 }
 
 beforeEach(() => {
@@ -109,8 +160,15 @@ beforeEach(() => {
     if (name === 'JobManager') {
       return { enqueue: enqueueMock, registerHandler: registerHandlerMock }
     }
+    if (name === 'FileManager') {
+      return {
+        getById: fileManagerGetByIdMock,
+        getMetadata: fileManagerGetMetadataMock
+      }
+    }
     throw new Error(`Unexpected application.get(${name})`)
   })
+  setupFileInfo()
   isAvailableTesseractMock.mockReturnValue(true)
   isAvailableDoc2xMock.mockReturnValue(true)
   isAvailableSystemMock.mockReturnValue(false)
@@ -164,14 +222,14 @@ describe('FileProcessingOrchestrationService.startTask — routing', () => {
 
     const result = await svc.startTask({
       feature: 'image_to_text',
-      file: FAKE_IMAGE as never,
+      fileEntryId: IMAGE_ENTRY_ID,
       processorId: 'tesseract'
     })
 
     expect(enqueueMock).toHaveBeenCalledWith(
       'file-processing.background',
-      { feature: 'image_to_text', file: FAKE_IMAGE, processorId: 'tesseract' },
-      { idempotencyKey: 'fp:img-1:tesseract:image_to_text' }
+      { feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' },
+      { idempotencyKey: `fp:${IMAGE_ENTRY_ID}:tesseract:image_to_text` }
     )
     expect(result).toEqual({
       taskId: 'job-test-1',
@@ -191,30 +249,30 @@ describe('FileProcessingOrchestrationService.startTask — routing', () => {
 
     await svc.startTask({
       feature: 'document_to_markdown',
-      file: FAKE_PDF as never,
+      fileEntryId: PDF_ENTRY_ID,
       processorId: 'doc2x'
     })
 
     expect(enqueueMock).toHaveBeenCalledWith(
       'file-processing.remote-poll',
-      { feature: 'document_to_markdown', file: FAKE_PDF, processorId: 'doc2x' },
-      { idempotencyKey: 'fp:pdf-1:doc2x:document_to_markdown' }
+      { feature: 'document_to_markdown', fileEntryId: PDF_ENTRY_ID, processorId: 'doc2x' },
+      { idempotencyKey: `fp:${PDF_ENTRY_ID}:doc2x:document_to_markdown` }
     )
   })
 
-  it('builds idempotencyKey deterministically from file.id + processorId + feature', async () => {
+  it('builds idempotencyKey deterministically from fileEntryId + processorId + feature', async () => {
     resolveProcessorConfigByFeatureMock.mockReturnValue({
       id: 'tesseract',
       capabilities: [{ feature: 'image_to_text', inputs: ['image'] }]
     })
     const svc = makeSvc()
 
-    await svc.startTask({ feature: 'image_to_text', file: FAKE_IMAGE as never, processorId: 'tesseract' })
-    await svc.startTask({ feature: 'image_to_text', file: FAKE_IMAGE as never, processorId: 'tesseract' })
+    await svc.startTask({ feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' })
+    await svc.startTask({ feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' })
 
     const keys = enqueueMock.mock.calls.map((c) => c[2]?.idempotencyKey)
     expect(keys[0]).toBe(keys[1])
-    expect(keys[0]).toBe('fp:img-1:tesseract:image_to_text')
+    expect(keys[0]).toBe(`fp:${IMAGE_ENTRY_ID}:tesseract:image_to_text`)
   })
 
   it('rejects when file type is not in the processor capability inputs', async () => {
@@ -225,9 +283,30 @@ describe('FileProcessingOrchestrationService.startTask — routing', () => {
     const svc = makeSvc()
 
     await expect(
-      svc.startTask({ feature: 'document_to_markdown', file: FAKE_IMAGE as never, processorId: 'doc2x' })
+      svc.startTask({ feature: 'document_to_markdown', fileEntryId: IMAGE_ENTRY_ID, processorId: 'doc2x' })
     ).rejects.toThrow(/does not support .* files/)
     expect(enqueueMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects directory entries before enqueueing a processor job', async () => {
+    resolveProcessorConfigByFeatureMock.mockReturnValue({
+      id: 'tesseract',
+      capabilities: [{ feature: 'image_to_text', inputs: ['image'] }]
+    })
+    fileManagerGetMetadataMock.mockResolvedValueOnce({
+      kind: 'directory',
+      size: 0,
+      createdAt: 1,
+      modifiedAt: 1
+    })
+    const svc = makeSvc()
+
+    await expect(
+      svc.startTask({ feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' })
+    ).rejects.toThrow('File processing does not support directories')
+    expect(enqueueMock).not.toHaveBeenCalled()
+    expect(fileManagerGetByIdMock).not.toHaveBeenCalled()
+    expect(toFileInfoMock).not.toHaveBeenCalled()
   })
 
   it('rejects when processor does not declare the requested feature', async () => {
@@ -238,7 +317,7 @@ describe('FileProcessingOrchestrationService.startTask — routing', () => {
     const svc = makeSvc()
 
     await expect(
-      svc.startTask({ feature: 'document_to_markdown', file: FAKE_PDF as never, processorId: 'tesseract' })
+      svc.startTask({ feature: 'document_to_markdown', fileEntryId: PDF_ENTRY_ID, processorId: 'tesseract' })
     ).rejects.toThrow(/does not support document_to_markdown/)
     expect(enqueueMock).not.toHaveBeenCalled()
   })

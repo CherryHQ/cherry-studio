@@ -32,6 +32,12 @@ vi.mock('@libsql/client', () => ({
 
 const UUIDV7_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const UUIDV4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const STREAMED_FILE_ID = '019606a0-0000-7000-8000-000000000201'
+const LEGACY_FILE_A_ID = '019606a0-0000-7000-8000-000000000301'
+const LEGACY_FILE_B_ID = '019606a0-0000-7000-8000-000000000302'
+const LEGACY_FILE_SURVIVOR_ID = '019606a0-0000-7000-8000-000000000303'
+const LEGACY_FILE_SKIPPED_ID = '019606a0-0000-7000-8000-000000000304'
+const LEGACY_FILE_GHOST_ID = '019606a0-0000-7000-8000-000000000305'
 
 describe('KnowledgeMigrator dimensions resolution', () => {
   beforeEach(() => {
@@ -526,7 +532,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
         await onBatch(
           [
             {
-              id: 'file-1',
+              id: STREAMED_FILE_ID,
               name: 'report.pdf',
               origin_name: 'report.pdf',
               path: '/tmp/report.pdf',
@@ -537,7 +543,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
               count: 1
             },
             {
-              id: 'file-unused',
+              id: '019606a0-0000-7000-8000-000000000202',
               name: 'unused.pdf',
               origin_name: 'unused.pdf',
               path: '/tmp/unused.pdf',
@@ -575,7 +581,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
                 model: { id: 'm1', name: 'model-1', provider: 'openai' },
                 items: [
                   { id: 'note-1', type: 'note', content: 'redux fallback' },
-                  { id: 'file-item-1', type: 'file', content: 'file-1' }
+                  { id: 'file-item-1', type: 'file', content: STREAMED_FILE_ID }
                 ]
               }
             ]
@@ -608,10 +614,7 @@ describe('KnowledgeMigrator dimensions resolution', () => {
     })
     expect(fileItem?.data).toEqual({
       source: '/tmp/report.pdf',
-      file: expect.objectContaining({
-        id: 'file-1',
-        name: 'report.pdf'
-      })
+      fileEntryId: STREAMED_FILE_ID
     })
     expect(noteReader.readInBatches).toHaveBeenCalledTimes(1)
     expect(fileReader.readInBatches).toHaveBeenCalledTimes(1)
@@ -1480,7 +1483,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
   }
 
   it('creates one file_ref row for a knowledge item with a fileId (id preserved verbatim)', async () => {
-    const legacyFileId = 'legacy-file-001'
+    const legacyFileId = LEGACY_FILE_SURVIVOR_ID
     const ctx = makeExecCtx()
 
     const migrator = new KnowledgeMigrator() as any
@@ -1491,7 +1494,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
         baseId: 'kb-1',
         groupId: null,
         type: 'file',
-        data: { source: '/tmp/foo.pdf', file: { id: legacyFileId, name: 'foo.pdf' } },
+        data: { source: '/tmp/foo.pdf', fileEntryId: legacyFileId },
         status: 'idle'
       }
     ]
@@ -1530,7 +1533,11 @@ describe('KnowledgeMigrator file_ref creation', () => {
     const result = await migrator.execute({ db: ctx.db, sharedData: ctx.sharedData, logger: ctx.logger } as any)
 
     expect(result.success).toBe(true)
+    expect(result.processedCount).toBe(1)
     expect(ctx.fileRefInserts).toHaveLength(0)
+    expect(ctx.insertedInsideTx).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: 'item-file-missing' })])
+    )
     const summaryCall = loggerWarnMock.mock.calls.find(
       ([msg]) => typeof msg === 'string' && msg.includes('knowledge_item_missing_file_id')
     )
@@ -1550,7 +1557,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
         baseId: 'kb-1',
         groupId: null,
         type: 'file',
-        data: { source: '/tmp/a.pdf', file: { id: 'legacy-a', name: 'a.pdf' } },
+        data: { source: '/tmp/a.pdf', fileEntryId: LEGACY_FILE_A_ID },
         status: 'idle'
       },
       {
@@ -1558,7 +1565,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
         baseId: 'kb-1',
         groupId: null,
         type: 'file',
-        data: { source: '/tmp/b.pdf', file: { id: 'legacy-b', name: 'b.pdf' } },
+        data: { source: '/tmp/b.pdf', fileEntryId: LEGACY_FILE_B_ID },
         status: 'idle'
       },
       {
@@ -1570,7 +1577,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
         status: 'idle'
       }
     ]
-    vi.spyOn(migrator, 'loadMigratedFileEntryIds').mockResolvedValue(new Set(['legacy-a', 'legacy-b']))
+    vi.spyOn(migrator, 'loadMigratedFileEntryIds').mockResolvedValue(new Set([LEGACY_FILE_A_ID, LEGACY_FILE_B_ID]))
 
     const result = await migrator.execute({ db: ctx.db, sharedData: ctx.sharedData, logger: ctx.logger } as any)
 
@@ -1579,7 +1586,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
     const refSourceIds = ctx.fileRefInserts.map((r) => r.sourceId).sort()
     expect(refSourceIds).toEqual(['item-a', 'item-b'])
     const refFileEntryIds = ctx.fileRefInserts.map((r) => r.fileEntryId).sort()
-    expect(refFileEntryIds).toEqual(['legacy-a', 'legacy-b'])
+    expect(refFileEntryIds).toEqual([LEGACY_FILE_A_ID, LEGACY_FILE_B_ID])
   })
 
   it('inserts file_ref rows inside the per-base transaction (atomic with base + items)', async () => {
@@ -1593,11 +1600,11 @@ describe('KnowledgeMigrator file_ref creation', () => {
         baseId: 'kb-1',
         groupId: null,
         type: 'file',
-        data: { source: '/tmp/a.pdf', file: { id: 'legacy-a', name: 'a.pdf' } },
+        data: { source: '/tmp/a.pdf', fileEntryId: LEGACY_FILE_A_ID },
         status: 'idle'
       }
     ]
-    vi.spyOn(migrator, 'loadMigratedFileEntryIds').mockResolvedValue(new Set(['legacy-a']))
+    vi.spyOn(migrator, 'loadMigratedFileEntryIds').mockResolvedValue(new Set([LEGACY_FILE_A_ID]))
 
     await migrator.execute({ db: ctx.db, sharedData: ctx.sharedData, logger: ctx.logger } as any)
 
@@ -1620,7 +1627,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
         baseId: 'kb-1',
         groupId: null,
         type: 'file',
-        data: { source: '/tmp/ok.pdf', file: { id: 'legacy-survivor', name: 'ok.pdf' } },
+        data: { source: '/tmp/ok.pdf', fileEntryId: LEGACY_FILE_SURVIVOR_ID },
         status: 'idle'
       },
       {
@@ -1628,7 +1635,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
         baseId: 'kb-1',
         groupId: null,
         type: 'file',
-        data: { source: '/tmp/bad.xyz', file: { id: 'legacy-skipped', name: 'bad.xyz' } },
+        data: { source: '/tmp/bad.xyz', fileEntryId: LEGACY_FILE_SKIPPED_ID },
         status: 'idle'
       },
       {
@@ -1636,20 +1643,33 @@ describe('KnowledgeMigrator file_ref creation', () => {
         baseId: 'kb-1',
         groupId: null,
         type: 'file',
-        data: { source: '/tmp/ghost.pdf', file: { id: 'legacy-ghost', name: 'ghost.pdf' } },
+        data: { source: '/tmp/ghost.pdf', fileEntryId: LEGACY_FILE_GHOST_ID },
         status: 'idle'
       }
     ]
-    // Only legacy-survivor exists in v2 file_entry; the other two are dangling
-    // (legacy-skipped was dropped by FileMigrator; legacy-ghost never existed).
-    vi.spyOn(migrator, 'loadMigratedFileEntryIds').mockResolvedValue(new Set(['legacy-survivor']))
+    // Only the survivor exists in v2 file_entry; the other two are dangling
+    // (one was dropped by FileMigrator; the other never existed).
+    migrator.legacyItemIdRemap = new Map([
+      ['legacy-item-survivor', 'item-survivor'],
+      ['legacy-item-skipped', 'item-skipped-by-filemigrator'],
+      ['legacy-item-ghost', 'item-orphan-ref']
+    ])
+    vi.spyOn(migrator, 'loadMigratedFileEntryIds').mockResolvedValue(new Set([LEGACY_FILE_SURVIVOR_ID]))
 
     const result = await migrator.execute({ db: ctx.db, sharedData: ctx.sharedData, logger: ctx.logger } as any)
 
     expect(result.success).toBe(true)
+    expect(result.processedCount).toBe(2)
     expect(ctx.fileRefInserts).toHaveLength(1)
+    expect(ctx.insertedInsideTx).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'item-skipped-by-filemigrator' }),
+        expect.objectContaining({ id: 'item-orphan-ref' })
+      ])
+    )
+    expect(ctx.sharedData.get('knowledgeItemIdRemap')).toEqual(new Map([['legacy-item-survivor', 'item-survivor']]))
     expect(ctx.fileRefInserts[0]).toMatchObject({
-      fileEntryId: 'legacy-survivor',
+      fileEntryId: LEGACY_FILE_SURVIVOR_ID,
       sourceId: 'item-survivor'
     })
     const summaryCall = loggerWarnMock.mock.calls.find(

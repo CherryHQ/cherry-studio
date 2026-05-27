@@ -5,12 +5,15 @@
  */
 
 import { application } from '@application'
+import { fileRefTable } from '@data/db/schemas/file'
 import { knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
+import { fileEntryService } from '@data/services/FileEntryService'
 import { loggerService } from '@logger'
 import type { OffsetPaginationResponse } from '@shared/data/api'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { ListKnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
+import { knowledgeItemRoles, knowledgeItemSourceType } from '@shared/data/types/file/ref'
 import {
   type CreateKnowledgeItemDto,
   type KnowledgeItem,
@@ -18,6 +21,7 @@ import {
   type KnowledgeItemStatus
 } from '@shared/data/types/knowledge'
 import { and, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 
 import { knowledgeBaseService } from './KnowledgeBaseService'
 import { timestampToISO } from './utils/rowMappers'
@@ -110,10 +114,13 @@ export class KnowledgeItemService {
 
   async create(baseId: string, item: CreateKnowledgeItemDto): Promise<KnowledgeItem> {
     await this.validateGroupOwner(baseId, item.groupId)
+    if (item.type === 'file') {
+      await fileEntryService.getById(item.data.fileEntryId)
+    }
 
     const dbService = application.get('DbService')
-    const [row] = await dbService.withWriteTx(async (tx) =>
-      withSqliteErrors(
+    const row = await dbService.withWriteTx(async (tx) => {
+      const [insertedRow] = await withSqliteErrors(
         () =>
           tx
             .insert(knowledgeItemTable)
@@ -143,11 +150,28 @@ export class KnowledgeItemService {
             })
         } satisfies SqliteErrorHandlers
       )
-    )
 
-    if (!row) {
-      throw DataApiErrorFactory.dataInconsistent('KnowledgeItem', 'Knowledge item create result missing')
-    }
+      if (!insertedRow) {
+        throw DataApiErrorFactory.dataInconsistent('KnowledgeItem', 'Knowledge item create result missing')
+      }
+
+      if (item.type === 'file') {
+        const now = Date.now()
+        // Keep this ref row in sync with item.data.fileEntryId; together they
+        // model the same knowledge-item source file relationship.
+        await tx.insert(fileRefTable).values({
+          id: uuidv4(),
+          fileEntryId: item.data.fileEntryId,
+          sourceType: knowledgeItemSourceType,
+          sourceId: insertedRow.id,
+          role: knowledgeItemRoles[0],
+          createdAt: now,
+          updatedAt: now
+        })
+      }
+
+      return insertedRow
+    })
 
     logger.info('Created knowledge item', { baseId, id: row.id, type: row.type })
     return rowToKnowledgeItem(row)
@@ -363,6 +387,35 @@ export class KnowledgeItemService {
           INNER JOIN subtree parent ON child.group_id = parent.id
           WHERE child.base_id = ${baseId}
         )
+        DELETE FROM file_ref
+        WHERE source_type = ${knowledgeItemSourceType}
+          AND source_id IN (
+            SELECT DISTINCT id
+            FROM subtree
+            WHERE id NOT IN (${sql.join(
+              uniqueRootIds.map((id) => sql`${id}`),
+              sql`, `
+            )})
+          )
+      `)
+
+      await tx.run(sql`
+        WITH RECURSIVE subtree AS (
+          SELECT id
+          FROM knowledge_item
+          WHERE base_id = ${baseId}
+            AND id IN (${sql.join(
+              uniqueRootIds.map((id) => sql`${id}`),
+              sql`, `
+            )})
+
+          UNION ALL
+
+          SELECT child.id
+          FROM knowledge_item child
+          INNER JOIN subtree parent ON child.group_id = parent.id
+          WHERE child.base_id = ${baseId}
+        )
         DELETE FROM knowledge_item
         WHERE base_id = ${baseId}
           AND id IN (SELECT id FROM subtree)
@@ -529,6 +582,25 @@ export class KnowledgeItemService {
       if (!existingRow) {
         throw DataApiErrorFactory.notFound('KnowledgeItem', id)
       }
+
+      await tx.run(sql`
+        WITH RECURSIVE subtree AS (
+          SELECT id
+          FROM knowledge_item
+          WHERE base_id = ${existingRow.baseId}
+            AND id = ${id}
+
+          UNION ALL
+
+          SELECT child.id
+          FROM knowledge_item child
+          INNER JOIN subtree parent ON child.group_id = parent.id
+          WHERE child.base_id = ${existingRow.baseId}
+        )
+        DELETE FROM file_ref
+        WHERE source_type = ${knowledgeItemSourceType}
+          AND source_id IN (SELECT DISTINCT id FROM subtree)
+      `)
 
       const [row] = await tx.delete(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).returning({
         id: knowledgeItemTable.id

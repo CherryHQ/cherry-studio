@@ -27,7 +27,7 @@ vi.mock('node:fs', async () => {
 })
 
 import { buildPollResult } from '../document-to-markdown/handler'
-import { uploadFile } from '../utils'
+import { createUploadTask, uploadFile } from '../utils'
 
 describe('mineru utils', () => {
   beforeEach(() => {
@@ -84,6 +84,59 @@ describe('mineru utils', () => {
       })
     )
     expect(destroyMock).toHaveBeenCalled()
+  })
+
+  it('creates upload tasks with the full filename and file entry id', async () => {
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          code: 0,
+          data: {
+            batch_id: 'batch-1',
+            file_urls: ['https://upload.example.com/file.pdf'],
+            headers: [{ Authorization: 'Bearer upload' }]
+          }
+        }),
+        {
+          status: 200,
+          statusText: 'OK'
+        }
+      )
+    )
+
+    await expect(
+      createUploadTask({
+        apiHost: 'https://mineru.net',
+        apiKey: 'secret',
+        fileEntryId: '019606a0-0000-7000-8000-000000000001',
+        file: {
+          path: '/tmp/file.pdf',
+          name: 'file',
+          ext: 'pdf'
+        },
+        modelVersion: 'pipeline'
+      } as never)
+    ).resolves.toEqual({
+      batchId: 'batch-1',
+      uploadUrl: 'https://upload.example.com/file.pdf',
+      uploadHeaders: { Authorization: 'Bearer upload' }
+    })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://mineru.net/api/v4/file-urls/batch',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({
+          files: [
+            {
+              name: 'file.pdf',
+              data_id: '019606a0-0000-7000-8000-000000000001'
+            }
+          ],
+          model_version: 'pipeline'
+        })
+      })
+    )
   })
 
   it('rejects unsafe upload urls before dispatching the request', async () => {
