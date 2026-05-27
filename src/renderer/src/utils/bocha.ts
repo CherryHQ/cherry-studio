@@ -149,7 +149,12 @@ const BochaSearchResponseDataSchema = z.object({
         hostPageDisplayUrl: z.string().nullable(),
         width: z.number(),
         height: z.number(),
-        thumbnail: z.string().nullable()
+        thumbnail: z
+          .object({
+            height: z.number(),
+            width: z.number()
+          })
+          .nullable()
       })
     )
   }),
