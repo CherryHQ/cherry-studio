@@ -649,6 +649,9 @@ export class KnowledgeMigrator extends BaseMigrator {
       // path, so they never reach this loop.)
       // Cross-run idempotency lives at the engine level (verifyAndClearNewTables) — no onConflict guard needed here.
       const migratedFileEntryIds = await this.loadMigratedFileEntryIds(ctx)
+      const legacyBaseIdByMigratedId = new Map(
+        [...this.legacyBaseIdRemap.entries()].map(([legacyBaseId, migratedBaseId]) => [migratedBaseId, legacyBaseId])
+      )
       const now = Date.now()
 
       for (const base of this.preparedBases) {
@@ -689,12 +692,7 @@ export class KnowledgeMigrator extends BaseMigrator {
           })
         }
 
-        const assistantKnowledgeBaseRows = [...this.legacyBaseIdRemap.entries()]
-          .filter(([, migratedKnowledgeBaseId]) => migratedKnowledgeBaseId === base.id)
-          .map(([legacyKnowledgeBaseId, migratedKnowledgeBaseId]) => ({
-            legacyKnowledgeBaseId,
-            migratedKnowledgeBaseId
-          }))
+        const legacyKnowledgeBaseId = legacyBaseIdByMigratedId.get(base.id)
 
         await ctx.db.transaction(async (tx) => {
           await tx.insert(knowledgeBaseTable).values(base)
@@ -710,10 +708,10 @@ export class KnowledgeMigrator extends BaseMigrator {
             await tx.insert(fileRefTable).values(fileRefRows)
           }
 
-          for (const { legacyKnowledgeBaseId, migratedKnowledgeBaseId } of assistantKnowledgeBaseRows) {
+          if (legacyKnowledgeBaseId !== undefined) {
             await tx
               .update(assistantKnowledgeBaseTable)
-              .set({ knowledgeBaseId: migratedKnowledgeBaseId })
+              .set({ knowledgeBaseId: base.id })
               .where(sql`${assistantKnowledgeBaseTable.knowledgeBaseId} = ${legacyKnowledgeBaseId}`)
           }
         })

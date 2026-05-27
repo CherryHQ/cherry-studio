@@ -351,6 +351,88 @@ describe('KnowledgeVectorMigrator', () => {
     ).toBe(true)
   })
 
+  it('prepare skips only the missing loaders when the item id remap is partial', async () => {
+    const migratedSecondItemId = '0198f3f2-7d1d-7abc-8def-123456789abc'
+
+    await createLegacyVectorDb(path.join(knowledgeBaseDir, LEGACY_KNOWLEDGE_BASE_ID), [
+      {
+        id: 'legacy-file-0',
+        pageContent: 'first file chunk',
+        uniqueLoaderId: 'loader-file-a',
+        source: '/tmp/file-a.md',
+        vector: [1, 2]
+      },
+      {
+        id: 'legacy-file-1',
+        pageContent: 'second file chunk',
+        uniqueLoaderId: 'loader-file-b',
+        source: '/tmp/file-b.md',
+        vector: [3, 4]
+      },
+      {
+        id: 'legacy-file-2',
+        pageContent: 'skipped file chunk',
+        uniqueLoaderId: 'loader-file-c',
+        source: '/tmp/file-c.md',
+        vector: [5, 6]
+      }
+    ])
+
+    const migrationCtx = createMigrationCtx({
+      migratedBases: [createMigratedBase()],
+      migratedItems: [createMigratedItem(MIGRATED_FILE_ITEM_ID), createMigratedItem(migratedSecondItemId)],
+      knowledgeItemIdRemap: new Map([
+        ['item-file-a', MIGRATED_FILE_ITEM_ID],
+        ['item-file-b', migratedSecondItemId]
+      ]),
+      reduxData: {
+        knowledge: {
+          bases: [
+            {
+              id: LEGACY_KNOWLEDGE_BASE_ID,
+              name: 'Base 1',
+              items: [
+                {
+                  id: 'item-file-a',
+                  type: 'file',
+                  uniqueId: 'loader-file-a'
+                },
+                {
+                  id: 'item-file-b',
+                  type: 'file',
+                  uniqueId: 'loader-file-b'
+                },
+                {
+                  id: 'item-file-c',
+                  type: 'file',
+                  uniqueId: 'loader-file-c'
+                }
+              ]
+            }
+          ]
+        }
+      }
+    })
+
+    const migrator = new KnowledgeVectorMigrator() as any
+    const result = await migrator.prepare(migrationCtx as any)
+
+    expect(result.success).toBe(true)
+    expect(migrator.preparedBasePlans).toHaveLength(1)
+    expect(migrator.preparedBasePlans[0].rows.map((row: any) => row.externalId)).toEqual([
+      MIGRATED_FILE_ITEM_ID,
+      migratedSecondItemId
+    ])
+    expect(migrator.skippedCount).toBe(1)
+    expect(
+      result.warnings?.some(
+        (warning) =>
+          warning.includes('Skipped knowledge vector records (unmapped_loader): count=1') &&
+          warning.includes('loader-file-c')
+      )
+    ).toBe(true)
+  })
+
   it('prepare skips migrated bases that cannot be mapped back to legacy base ids', async () => {
     const loadBase = vi.fn()
     const migrationCtx = createMissingBaseRemapMigrationCtx({
