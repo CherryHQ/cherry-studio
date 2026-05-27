@@ -9,13 +9,13 @@ describe('KnowledgeSearchResultSchema', () => {
     scoreKind: 'relevance',
     rank: 1,
     metadata: {
-      itemId: 'item-1',
+      itemId: '0198f3f2-7d1a-7abc-8def-123456789abc',
       itemType: 'note',
       source: 'note-1',
       chunkIndex: 0,
       tokenCount: 1
     },
-    itemId: 'item-1',
+    itemId: '0198f3f2-7d1a-7abc-8def-123456789abc',
     chunkId: 'chunk-1'
   }
 
@@ -27,7 +27,7 @@ describe('KnowledgeSearchResultSchema', () => {
     const invalidResult = {
       ...result,
       metadata: {
-        itemId: 'item-1',
+        itemId: '0198f3f2-7d1a-7abc-8def-123456789abc',
         itemType: 'note',
         source: 'note-1',
         chunkIndex: 0

@@ -1,6 +1,6 @@
 # FileManager Architecture
 
-> **SoT scope** — **this document** owns: FileEntry / FileRef data models, physical storage layout, version detection & concurrency control (OCC), atomic writes, recycle bin, reference cleanup, DirectoryWatcher internals, startup orphan sweep, DanglingCache state machine, and AI SDK integration design. **Module-level** concerns (type system, IPC / DataApi contracts, layered architecture, business-service integration, lifecycle assignment) live in [`architecture.md`](./architecture.md). In case of conflict, the layer ownership above decides: positioning / contract → the module-level doc, implementation → this document.
+> **SoT scope** — **this document** owns: FileEntry / FileRef data models, physical storage layout, version detection & concurrency control (OCC), atomic writes, recycle bin, reference cleanup, DirectoryWatcher internals, on-demand orphan sweep, DanglingCache state machine, and AI SDK integration design. **Module-level** concerns (type system, IPC / DataApi contracts, layered architecture, business-service integration, lifecycle assignment) live in [`architecture.md`](./architecture.md). In case of conflict, the layer ownership above decides: positioning / contract → the module-level doc, implementation → this document.
 >
 > When a section describes a behavior (dispatch, OCC, atomic writes, orphan sweep, etc.), read it as the **specification the implementation must satisfy**. Sections explicitly tagged "(deferred)" describe planned architecture that is not yet implemented.
 
@@ -27,7 +27,7 @@ Each FileEntry corresponds to a file the user uploaded/saved. FileEntry is a **f
 
 ```
 FileEntry
-├── id: UUID v7
+├── id: UUID (v7 for v2-native entries; v4 preserved from v1 Dexie migration)
 ├── origin: 'internal' | 'external'
 ├── name: filename (without extension)
 ├── ext: extension (without leading dot), nullable
@@ -205,7 +205,7 @@ A method-by-method audit of FileManager's public API for "does it depend on clas
 | `fileEntryService` / `fileRefService` | All DB operations | container singleton (`application.get(...)`) |
 | `danglingCache` | External-related methods | file-module singleton (module import) |
 | `@main/utils/file/*` | All FS operations | pure functions, stateless |
-| IPC handler registration handles, orphan sweep handle | lifecycle | managed by `onInit` / `onStop` |
+| IPC handler registration handles | lifecycle | managed by `onInit` / `onStop` |
 
 Only **versionCache** and **lifecycle artifacts** are truly bound to the FileManager instance; business methods themselves are stateless.
 
@@ -230,7 +230,7 @@ src/main/services/file/
 │     ├── system/
 │     │    ├── shell.ts        — open / showInFolder
 │     │    └── tempCopy.ts     — withTempCopy
-│     └── orphanSweep.ts       — startup orphan-ref scan + FS-level orphan sweep
+│     └── orphanSweep.ts       — on-demand orphan-ref scan + FS-level orphan sweep
 └── versionCache.ts       ← LRU type definition
 ```
 
@@ -303,7 +303,7 @@ export class FileManager extends BaseService implements IFileManager {
   protected async onInit() {
     await this.deps.danglingCache.initFromDb()
     this.registerIpcHandlers()
-    void this.runStartupSweeps() // fire-and-forget
+    // No auto-sweep at startup; the cleanup UI triggers `runSweep` via IPC.
   }
 }
 ```
@@ -487,7 +487,7 @@ function resolvePhysicalPath(entry: FileEntry): string {
 ├── {uuid-1}.pdf
 ├── {uuid-2}.png
 ├── ...
-└── {uuid-n}.tmp-{uuid}      ← Temporary files for atomic writes (abnormal residues cleaned by startup sweep)
+└── {uuid-n}.tmp-{uuid}      ← Temporary files for atomic writes (abnormal residues cleaned by `runSweep`)
 ```
 
 Cherry creates no subdirectories under `{userData}/Data/Files/`. All internal files are stored flat.
@@ -662,7 +662,7 @@ All soft deletes are implemented via the `deletedAt` timestamp, without physical
 
 **trash / restore are internal-only.** External entries cannot be trashed by definition (`fe_external_no_delete` CHECK enforces this); the trash semantics make sense only for files Cherry owns.
 
-**permanentDelete on internal**: DB row is removed first, then the physical file at `{userData}/Data/Files/{id}.{ext}` is best-effort unlinked. Unlink failures (ENOENT, insufficient permissions, etc.) are logged but do not block — the DB-row-gone outcome is what callers observe; any orphaned blob is later cleaned by the startup file sweep (§10).
+**permanentDelete on internal**: DB row is removed first, then the physical file at `{userData}/Data/Files/{id}.{ext}` is best-effort unlinked. Unlink failures (ENOENT, insufficient permissions, etc.) are logged but do not block — the DB-row-gone outcome is what callers observe; any orphaned blob is later cleaned by the next user-triggered orphan sweep (§10).
 
 **permanentDelete on external**: DB row is removed; the user's file at `externalPath` is **never** modified — Cherry only owns the reference, not the content. This is the only safe contract: silently deleting user files from inside the app would violate the "best-effort external reference" semantics (§1.0.2 in `architecture.md`). Users who actually want the underlying file gone do so through their OS file manager.
 
@@ -671,8 +671,8 @@ All soft deletes are implemented via the `deletedAt` timestamp, without physical
 > **Status**: design only. Phase 1 ships no expiry timer service, no
 > Preferences key, and no `WHERE deletedAt < now() - retentionMs` query.
 > Trashed entries persist until the user runs an explicit
-> `permanentDelete` (or the startup orphan sweep collects an
-> already-deleted entry's residual blob). The 30-day window below is
+> `permanentDelete` (or the next user-triggered orphan sweep collects
+> an already-deleted entry's residual blob). The 30-day window below is
 > the **proposed** retention; the actual default and configurability
 > land with the timer service.
 
@@ -684,7 +684,7 @@ Query: `WHERE deletedAt < now() - retentionMs` → batch permanentDelete.
 
 | Scenario | Handling |
 |---|---|
-| unlink fails on permanentDelete internal (file already missing, permission issue) | Log warn; the DB row is already gone, so the failure surfaces only as an orphan blob that the startup file sweep will reclaim |
+| unlink fails on permanentDelete internal (file already missing, permission issue) | Log warn; the DB row is already gone, so the failure surfaces only as an orphan blob that the next user-triggered orphan sweep will reclaim |
 | permanentDelete on external | DB-only by design; the user's file at `externalPath` is never touched — Cherry owns only the reference |
 | `ensureExternalEntry(path)` when an entry for the same path already exists | Entry point first calls `canonicalizeExternalPath(raw)`; upsert returns the existing row. External entries cannot be trashed, so there is no "restore" branch. |
 | **Two entries for the same file due to case / NFC differences** (macOS APFS, Windows NTFS, or NFD ↔ NFC input) | NFC closed by `canonicalizeExternalPath`; case-collision rejected at INSERT by the DB functional unique index plus the `fs.realpath`-based reuse-or-throw decision in `ensureExternalEntry` (see §1.2 "Duplicate-entry detection on insert"). |
@@ -952,56 +952,40 @@ interface IFileUploadService {
 
 ---
 
-## 10. Startup Orphan Sweep (FileManager Background Task)
+## 10. On-Demand Orphan Sweep (User-Triggered)
 
 ### 10.1 Positioning
 
-Startup orphan sweep is triggered by FileManager in `onInit()` as **fire-and-forget**. The real `onInit` shape — kept narrow per `BaseService` discipline — is:
+Orphan sweep is **user-triggered via the `File_RunSweep` IPC channel** — there is no startup auto-run. The cleanup UI is the only consumer; FileManager exposes a single `runSweep()` method that runs both the FS-level pass (§10) and the DB-level pass (§7 Layer 3) concurrently and returns a single `OrphanReport` once both settle.
 
 ```typescript
 protected override async onInit(): Promise<void> {
   // DanglingCache reverse index built from DB before any IPC accepts
   // a dangling query, so a renderer cannot race the first call.
   await this.deps.danglingCache.initFromDb()
-
-  // IPC handlers extracted into a private helper — onInit stays a narrow
-  // three-step sequence (init → register → sweep). Phase 2 channels land
-  // next to these two without bloating the lifecycle method.
+  // IPC handlers, including `File_RunSweep`, are registered here.
   this.registerIpcHandlers()
-
-  // 🔑 not awaited → ready signal is not blocked.
-  // Inner branches each catch and log; the outer call cannot throw.
-  void this.runStartupSweeps()
 }
 
-private registerIpcHandlers(): void {
-  // Phase 1 wires only the two Dangling read channels.
-  // Other File_* channels land in Phase 2 next to their FileManager method.
-  this.ipcHandle(IpcChannel.File_GetDanglingState, (_e, params) => this.getDanglingState(params))
-  this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, (_e, params) => this.batchGetDanglingStates(params))
-}
-
-async runStartupSweeps(): Promise<void> {
+async runSweep(): Promise<OrphanReport> {
   // Two concurrent passes:
   //   1. FS-level file sweep (§10): scan {userData}/Data/Files/* for
   //      orphans not present in the file_entry snapshot.
   //   2. DB-level orphan-ref / entry sweep (§7 Layer 3): scan file_ref
   //      against business sourceType checkers and report unreferenced
   //      entries.
-  // Each branch settles independently with its own error capture; this
-  // method is exposed (not private) so tests / explicit callers can
-  // `await` deterministically. Runtime invocation from `onInit` above
-  // is fire-and-forget.
+  // Each branch settles independently with its own error capture. The
+  // FS sweep's outcome is logged but does not bleed into the returned
+  // report — DB-only state is what the cleanup UI consumes.
 }
 ```
 
-**Rationale**:
-- Orphan sweep typically completes <500ms; fire-and-forget doesn't consume startup time
-- Runs in parallel with other services' `onInit()`; business services can depend on FileManager immediately
-- Failure doesn't affect service availability (just residual orphans; rescanned on next startup)
-- `danglingCache.initFromDb()` is awaited because subsequent IPC handlers must see the reverse index populated; the FS-level sweep and the DB-level sweep are not on that hot path and are deferred to the unawaited `runStartupSweeps()` call.
+**Rationale for user-triggered (vs. startup auto-run)**:
+- Cleanup is a user-domain concern. The user opening the cleanup UI is the trigger; running it implicitly at boot consumes resources for an action the user did not request.
+- The earlier startup variant existed in part to suppress noise during the v1→v2 transition window (when consumer migrators Batches A-E had not yet wired their `file_ref` rows). That noise was scaffolding for a one-time event — once Batch A-E land the noise self-resolves, and outside the transition window the sweep's findings are exactly the signal the cleanup UI wants to surface.
+- No persistent state machine. Each invocation runs end-to-end and returns its own report; FileManager no longer holds `lastDbSweepReport` / `lastDbSweepRanAt`. UIs that want "last scan" timing should hold the previously-returned `OrphanReport.lastRunAt` themselves.
 
-**A note on `initVersionCache`**: an earlier draft of this section bundled a synchronous `initVersionCache()` call into `onInit`. It didn't survive implementation — version cache is per-FileManager-instance and constructs at field-init time (no boot step), so there is no separate init call to make. `registerIpcHandlers()` *did* survive (see snippet above) and is the convention used across lifecycle services for the same reason it surfaces in [lifecycle-migration-guide.md](../lifecycle/lifecycle-migration-guide.md): keeps `onInit` a narrow init→register→sweep sequence and gives a single spot for Phase 2 channels to land.
+**A note on `initVersionCache`**: an earlier draft of this section bundled a synchronous `initVersionCache()` call into `onInit`. It didn't survive implementation — version cache is per-FileManager-instance and constructs at field-init time (no boot step), so there is no separate init call to make. `registerIpcHandlers()` *did* survive and is the convention used across lifecycle services for the same reason it surfaces in [lifecycle-migration-guide.md](../lifecycle/lifecycle-migration-guide.md): keeps `onInit` a narrow init→register sequence and gives a single spot for Phase 2 channels to land.
 
 ### 10.2 Scan Strategy
 
@@ -1031,10 +1015,10 @@ The `mtime > 5min` filter is an **engineering heuristic**, not a formal guarante
 
 | Scenario | Consequence |
 |---|---|
-| Very slow write (huge file + slow disk/fsync) exceeds 5min between FS write and DB insert | Newly-written internal file may be unlinked on next startup |
-| Process frozen / suspended > 5min mid-write; then restart triggers sweep | Same as above |
+| Very slow write (huge file + slow disk/fsync) exceeds 5min between FS write and DB insert | Newly-written internal file may be unlinked on the next user-triggered sweep |
+| Process frozen / suspended > 5min mid-write; then a subsequent sweep runs | Same as above |
 | System clock jumps forward > 5min after file creation | Recent residue gets mis-aged; usually harmless — those files were orphans anyway |
-| System clock jumps backward | Filter becomes permissive (`now < mtime` disqualifies the file); cleanup delayed to next startup (safe) |
+| System clock jumps backward | Filter becomes permissive (`now < mtime` disqualifies the file); cleanup delayed to the next sweep run (safe) |
 | `userData` on FAT32 / exFAT / SMB / NFS (second-precision or offset-prone mtime) | Filter still works at coarse granularity; extreme clock skew between client and server can mis-age files |
 | `userData` on tmpfs / CoW FS with unusual mtime semantics | Out of contract; user responsibility |
 
@@ -1063,7 +1047,7 @@ function shouldAbort(
 
   // Otherwise check proportion. If the sweep would erase a large fraction of
   // the on-disk UUID population, something upstream is wrong — refuse and
-  // warn; the next startup re-evaluates after the bug is fixed.
+  // warn; the next sweep run re-evaluates after the bug is fixed.
   const countFraction = toDelete      / Math.max(1, totalFilesOnDisk)
   const byteFraction  = toDeleteBytes / Math.max(1, totalBytesOnDisk)
   return countFraction > 0.5 || byteFraction > 0.5
@@ -1074,7 +1058,7 @@ function shouldAbort(
 - On abort, no files are unlinked.
 - Emits a `warn`-level structured log (see §10.5) so developers / on-call can diagnose.
 - The service remains available — abort is a controlled outcome, not a failure; no `Error` is thrown into the `.catch()` handler.
-- The next startup re-evaluates the plan after the upstream issue is resolved.
+- The next sweep run re-evaluates the plan after the upstream issue is resolved.
 
 **Scope note**: the threshold defends against internal bugs, not user-side manipulation of `{userData}/Data/Files/`. Users are not expected or encouraged to edit the storage directory (all file operations should go through the in-app entry system). The threshold's job is to ensure "nothing Cherry itself does, internally, silently deletes the bulk of a user's library".
 
@@ -1106,7 +1090,7 @@ Every sweep run emits one structured log record through `loggerService` — `inf
 
 The DB-side sweep emits a parallel record under `event: 'orphan-sweep'` — same outcome union (minus `'aborted'`, which only applies to the FS sweep's safety threshold) and `errorsByType: Partial<Record<FileRefSourceType, string>>` on the `'partial'` branch (per-sourceType isolation, so one checker throwing does not abort the whole run).
 
-These two records are the single source of truth for post-hoc diagnosis. No separate metrics pipeline is needed — at most two records per app startup is a trivial volume for log aggregation.
+These two records are the single source of truth for post-hoc diagnosis. No separate metrics pipeline is needed — at most two records per user-triggered sweep run is a trivial volume for log aggregation.
 
 ### 10.6 DanglingCache Initialization
 
@@ -1134,7 +1118,7 @@ The old version batch-stat'd all external entries at startup to build the dangli
 | createInternalEntry creates a new internal file during sweep | The `mtime > 5min` filter (§10.3) prevents the new file from being mistakenly deleted; the snapshot strategy (§10.2) makes this reliance explicit |
 | FileManager.read/write on existing entries during sweep | No mutual exclusion; read/write follow different code paths and are unaffected |
 | Upstream bug causes bulk deletion plan | Safety threshold (§10.4) aborts the sweep without unlinking |
-| app exits during sweep | No persistent side effect; rerun on next startup |
+| app exits during sweep | No persistent side effect; user can rerun via the cleanup UI on next launch |
 
 ### 10.9 Crash Consistency
 

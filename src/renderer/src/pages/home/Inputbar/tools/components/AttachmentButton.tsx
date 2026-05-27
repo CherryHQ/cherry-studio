@@ -1,4 +1,5 @@
 import { Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, useQuickPanel } from '@renderer/components/QuickPanel'
@@ -6,13 +7,14 @@ import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBases'
 import { useKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import type { FileMetadata } from '@renderer/types'
-import { filterSupportedFiles, formatFileSize } from '@renderer/utils/file'
+import { filterSupportedFiles } from '@renderer/utils/file'
 import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
-import dayjs from 'dayjs'
 import { FileSearch, FileText, Paperclip, Upload } from 'lucide-react'
 import type { Dispatch, FC, SetStateAction } from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+const logger = loggerService.withContext('AttachmentButton')
 
 interface Props {
   quickPanel: ToolQuickPanelApi
@@ -80,29 +82,59 @@ const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions
   const createKnowledgeFileItems = useCallback(
     (items: KnowledgeItemOf<'file'>[]) =>
       items.map<QuickPanelListItem>((item) => {
-        const fileContent = item.data.file
+        const source = item.data.source
+        const fileEntryId = item.data.fileEntryId
+        const fileName =
+          source
+            .replace(/[/\\]+$/, '')
+            .split(/[/\\]/)
+            .pop() || source
+
         return {
-          label: fileContent.origin_name || fileContent.name,
-          description:
-            formatFileSize(fileContent.size) + ' · ' + dayjs(fileContent.created_at).format('YYYY-MM-DD HH:mm'),
+          label: fileName,
+          description: source,
           icon: <FileText />,
-          isSelected: files.some((f) => f.path === fileContent.path),
-          action: async ({ item }) => {
-            item.isSelected = !item.isSelected
-            if (fileContent.path) {
+          isSelected: files.some((file) => file.id === fileEntryId),
+          action: async ({ context, item }) => {
+            const fileExists = files.some((file) => file.id === fileEntryId)
+
+            if (fileExists) {
+              setFiles((prevFiles) => prevFiles.filter((file) => file.id !== fileEntryId))
+              return
+            }
+
+            let filePath = source
+
+            try {
+              filePath = await window.api.file.getPhysicalPath({ id: fileEntryId })
+              const fileContent = await window.api.file.get(filePath)
+              if (!fileContent) {
+                context.updateItemSelection(item, false)
+                window.toast.warning(t('chat.input.tools.file_not_found', { path: source }))
+                return
+              }
+
               setFiles((prevFiles) => {
-                const fileExists = prevFiles.some((f) => f.path === fileContent.path)
-                if (fileExists) {
-                  return prevFiles.filter((f) => f.path !== fileContent.path)
-                } else {
-                  return [...prevFiles, fileContent]
+                if (prevFiles.some((file) => file.id === fileEntryId)) {
+                  return prevFiles.filter((file) => file.id !== fileEntryId)
                 }
+
+                return [...prevFiles, { ...fileContent, id: fileEntryId }]
               })
+            } catch (error) {
+              logger.error('Failed to resolve knowledge file attachment', error as Error, {
+                fileEntryId,
+                source,
+                filePath
+              })
+              context.updateItemSelection(item, false)
+              window.toast.warning(t('chat.input.tools.file_not_found', { path: source }))
+              return
             }
           }
         }
       }),
-    [files, setFiles]
+    [files, setFiles, t]
   )
 
   const openKnowledgeFileList = useCallback(

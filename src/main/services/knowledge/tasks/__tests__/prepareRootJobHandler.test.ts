@@ -76,8 +76,7 @@ function createDirectoryItem(id = 'dir-1'): KnowledgeItemOf<'directory'> {
     groupId: null,
     type: 'directory',
     data: { source: id, path: `/docs/${id}` },
-    status: 'processing',
-    phase: 'preparing',
+    status: 'preparing',
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'
@@ -92,7 +91,6 @@ function createLeafItem(id: string): KnowledgeItem {
     type: 'note',
     data: { source: id, content: `body of ${id}` },
     status: 'processing',
-    phase: null,
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
     updatedAt: '2026-04-08T00:00:00.000Z'

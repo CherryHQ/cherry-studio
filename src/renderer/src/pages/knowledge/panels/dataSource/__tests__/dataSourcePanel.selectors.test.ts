@@ -1,3 +1,4 @@
+import { FileEntrySchema } from '@shared/data/types/file'
 import { describe, expect, it } from 'vitest'
 
 import { getItemStatus, getItemTitle, getReadyCount, getVisibleItems } from '../utils/selectors'
@@ -5,7 +6,21 @@ import { createDirectoryItem, createFileItem, createNoteItem, createSitemapItem,
 
 describe('dataSourcePanel.selectors', () => {
   it('gets titles from the correct source field for each item type', () => {
-    expect(getItemTitle(createFileItem({ id: 'file-1', originName: '季度报告.pdf' }))).toBe('季度报告.pdf')
+    expect(getItemTitle(createFileItem({ id: 'file-1', source: '/tmp/季度报告.pdf' }))).toBe('季度报告.pdf')
+    expect(
+      getItemTitle(
+        createFileItem({ id: 'file-2', source: '/tmp/fallback.md' }),
+        FileEntrySchema.parse({
+          id: '019606a0-0000-7000-8000-000000000001',
+          name: '标准文件名',
+          ext: 'txt',
+          origin: 'external',
+          externalPath: '/tmp/fallback.md',
+          createdAt: 1776948000000,
+          updatedAt: 1776948000000
+        })
+      )
+    ).toBe('标准文件名.txt')
     expect(getItemTitle(createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' }))).toBe(
       'https://example.com/product-docs'
     )
@@ -31,13 +46,13 @@ describe('dataSourcePanel.selectors', () => {
       textClassName: 'text-red-500/60',
       icon: 'alert'
     })
-    expect(getItemStatus(createFileItem({ id: 'file-3', status: 'processing', phase: 'embedding' }))).toEqual({
+    expect(getItemStatus(createFileItem({ id: 'file-3', status: 'embedding' }))).toEqual({
       kind: 'processing',
       labelKey: 'knowledge.data_source.status.embedding',
       textClassName: 'text-amber-500/70',
       icon: 'loader'
     })
-    expect(getItemStatus(createFileItem({ id: 'file-4', status: 'processing', phase: 'reading' }))).toEqual({
+    expect(getItemStatus(createFileItem({ id: 'file-4', status: 'reading' }))).toEqual({
       kind: 'processing',
       labelKey: 'knowledge.rag.file_processing',
       textClassName: 'text-blue-500/70',
@@ -61,20 +76,18 @@ describe('dataSourcePanel.selectors', () => {
       textClassName: 'text-yellow-500/70',
       icon: 'loader'
     })
-    expect(getItemStatus(createFileItem({ id: 'file-6', status: 'processing', phase: 'embedding' }))).toEqual({
+    expect(getItemStatus(createFileItem({ id: 'file-6', status: 'embedding' }))).toEqual({
       kind: 'processing',
       labelKey: 'knowledge.data_source.status.embedding',
       textClassName: 'text-amber-500/70',
       icon: 'loader'
     })
-    expect(getItemStatus(createDirectoryItem({ id: 'directory-2', status: 'processing', phase: 'preparing' }))).toEqual(
-      {
-        kind: 'processing',
-        labelKey: 'knowledge.data_source.status.pending',
-        textClassName: 'text-zinc-500/70',
-        icon: 'loader'
-      }
-    )
+    expect(getItemStatus(createDirectoryItem({ id: 'directory-2', status: 'preparing' }))).toEqual({
+      kind: 'processing',
+      labelKey: 'knowledge.data_source.status.pending',
+      textClassName: 'text-zinc-500/70',
+      icon: 'loader'
+    })
   })
 
   it('filters items by the active filter without changing the all filter behavior', () => {
@@ -93,7 +106,7 @@ describe('dataSourcePanel.selectors', () => {
     expect(
       getReadyCount([
         createFileItem({ id: 'file-1', status: 'completed' }),
-        createFileItem({ id: 'file-2', status: 'processing', phase: 'embedding' }),
+        createFileItem({ id: 'file-2', status: 'embedding' }),
         createFileItem({ id: 'file-3', status: 'failed' }),
         createNoteItem({ id: 'note-1', content: '会议纪要', status: 'completed' })
       ])

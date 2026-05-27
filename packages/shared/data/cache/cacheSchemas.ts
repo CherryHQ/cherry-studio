@@ -127,6 +127,9 @@ export type UseCacheSchema = {
   // Knowledge recall test query history (session-only)
   'knowledge.recall.search_queries': Record<string, string[]>
 
+  // Notes page state
+  'notes.active_file_path': string | undefined
+
   // MiniApp management
   'mini_app.opened_keep_alive': CacheValueTypes.CacheMiniAppType[]
   'mini_app.current_id': string
@@ -198,6 +201,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'chat.generating': false,
   'chat.web_search.searching': false,
   'knowledge.recall.search_queries': {},
+  'notes.active_file_path': undefined,
 
   // MiniApp management
   'mini_app.opened_keep_alive': [],

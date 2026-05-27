@@ -1,6 +1,7 @@
+import { application } from '@application'
 import { getFileExt } from '@main/utils/file'
-import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import type { KnowledgeItemOf, KnowledgeSourceMetadata } from '@shared/data/types/knowledge'
+import type { FilePath } from '@shared/file/types'
 import { Document, type FileReader as VectorStoreFileReader } from '@vectorstores/core'
 import { CSVReader } from '@vectorstores/readers/csv'
 import { DocxReader } from '@vectorstores/readers/docx'
@@ -12,8 +13,8 @@ import { TextFileReader } from '@vectorstores/readers/text'
 import { DraftsExportReader } from './files/DraftsExportReader'
 import { EpubReader } from './files/EpubReader'
 
-export function createSupportedFileReader(file: FileMetadata): VectorStoreFileReader<Document> {
-  const extension = getFileExt(file.path).toLowerCase()
+export function createSupportedFileReader(filePath: FilePath): VectorStoreFileReader<Document> {
+  const extension = getFileExt(filePath).toLowerCase()
 
   switch (extension) {
     case '.pdf':
@@ -36,13 +37,11 @@ export function createSupportedFileReader(file: FileMetadata): VectorStoreFileRe
 }
 
 export async function loadFileDocuments(item: KnowledgeItemOf<'file'>): Promise<Document[]> {
-  const file = item.data.file
-  if (!file.path) {
-    throw new Error(`Knowledge file ${file.id} is missing file.path`)
-  }
+  const fileManager = application.get('FileManager')
+  const filePath = await fileManager.getPhysicalPath(item.data.fileEntryId)
 
-  const reader = createSupportedFileReader(file)
-  const documents = await reader.loadData(file.path)
+  const reader = createSupportedFileReader(filePath)
+  const documents = await reader.loadData(filePath)
   const sourceMetadata: KnowledgeSourceMetadata = {
     source: item.data.source
   }

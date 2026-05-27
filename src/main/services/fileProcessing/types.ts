@@ -1,14 +1,14 @@
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
+import type { FileEntryId } from '@shared/data/types/file'
 export type {
   FileProcessingArtifact,
   FileProcessingTaskResult,
   FileProcessingTaskStartResult,
   ListAvailableFileProcessorsResult
 } from '@shared/data/types/fileProcessing'
-import type { FileMetadata } from '@types'
 
 export interface StartFileProcessingTaskInput {
   feature: FileProcessorFeature
-  file: FileMetadata
+  fileEntryId: FileEntryId
   processorId?: FileProcessorId
 }

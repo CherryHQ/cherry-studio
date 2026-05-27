@@ -132,15 +132,12 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@renderer/services/TokenService', () => ({
-  estimateTextTokens: (text: string) => text.length
-}))
-
 vi.mock('@renderer/services/TranslateService', () => ({
   translateText: translateCoreMock.translateText
 }))
 
 vi.mock('@renderer/utils', () => ({
+  cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' '),
   getFileExtension: () => 'txt',
   isTextFile: fileMock.isTextFile,
   uuid: () => 'abort-key'
@@ -181,7 +178,7 @@ vi.mock('../components/IconButton', () => ({
 }))
 
 vi.mock('../components/TranslateHistory', () => ({
-  default: () => null
+  default: ({ isOpen }: { isOpen: boolean }) => (isOpen ? <div data-testid="translate-history-open" /> : null)
 }))
 
 vi.mock('../components/TranslateInputPane', () => ({
@@ -190,15 +187,13 @@ vi.mock('../components/TranslateInputPane', () => ({
     onTextChange,
     onKeyDown,
     onSelectFile,
-    onDrop,
-    tokenCount
+    onDrop
   }: {
     text: string
     onTextChange: (value: string) => void
     onKeyDown: (event: React.KeyboardEvent<HTMLTextAreaElement>) => void
     onSelectFile: () => void
     onDrop: (event: React.DragEvent<HTMLDivElement>) => void
-    tokenCount: number
   }) => (
     <div data-testid="translate-input-pane" onDrop={onDrop}>
       <textarea
@@ -207,8 +202,7 @@ vi.mock('../components/TranslateInputPane', () => ({
         onChange={(event) => onTextChange(event.target.value)}
         onKeyDown={onKeyDown}
       />
-      <button type="button" aria-label="common.upload_files" onClick={onSelectFile} />
-      <span data-testid="token-count">{tokenCount}</span>
+      <button type="button" aria-label="translate.files.upload" onClick={onSelectFile} />
     </div>
   )
 }))
@@ -218,28 +212,11 @@ vi.mock('../components/TranslateLanguageBar', () => ({
 }))
 
 vi.mock('../components/TranslateOutputPane', () => ({
-  default: ({
-    translating,
-    onTranslate,
-    onAbort
-  }: {
-    translating: boolean
-    onTranslate: () => Promise<void> | void
-    onAbort: () => void
-  }) =>
-    translating ? (
-      <button type="button" aria-label="common.stop" onClick={onAbort}>
-        common.stop
-      </button>
-    ) : (
-      <button type="button" onClick={() => void onTranslate()}>
-        translate.button.translate
-      </button>
-    )
+  default: () => <div data-testid="translate-output-pane" />
 }))
 
 vi.mock('../TranslateSettings', () => ({
-  default: () => null
+  default: ({ visible }: { visible: boolean }) => (visible ? <div data-testid="translate-settings-open" /> : null)
 }))
 
 import TranslatePage from '../TranslatePage'
@@ -325,7 +302,7 @@ describe('TranslatePage', () => {
 
     const { rerender } = render(<TranslatePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'common.upload_files' }))
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
     await waitFor(() => expect(fileMock.readText).toHaveBeenCalledWith('/tmp/input.txt'))
 
     fireEvent.change(screen.getByLabelText('translate.input.placeholder'), {
@@ -353,21 +330,6 @@ describe('TranslatePage', () => {
 
     await waitFor(() => expect(dropMock.getTextFromDropEvent).toHaveBeenCalled())
     expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('')
-  })
-
-  it('shows token count as 0 when input is empty and non-zero after typing', async () => {
-    const { rerender } = render(<TranslatePage />)
-
-    expect(screen.getByTestId('token-count')).toHaveTextContent('0')
-
-    fireEvent.change(screen.getByLabelText('translate.input.placeholder'), {
-      target: { value: 'abc' }
-    })
-    rerender(<TranslatePage />)
-
-    fireEvent.click(screen.getByRole('button', { name: 'translate.button.translate' }))
-
-    await waitFor(() => expect(screen.getByTestId('token-count')).toHaveTextContent('3'))
   })
 
   it('keeps translating enabled for plain-text paste without entering file-processing state', async () => {
@@ -556,5 +518,36 @@ describe('TranslatePage', () => {
     })
 
     expect(clipboardWriteTextMock).toHaveBeenCalledWith('translated text')
+  })
+
+  it('keeps history and settings drawers mutually exclusive and exposes open state through aria-pressed', () => {
+    render(<TranslatePage />)
+    const historyButton = screen.getByRole('button', { name: 'translate.history.title' })
+    const settingsButton = screen.getByRole('button', { name: 'translate.settings.title' })
+
+    expect(historyButton).toHaveAttribute('aria-pressed', 'false')
+    expect(settingsButton).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByTestId('translate-history-open')).toBeNull()
+    expect(screen.queryByTestId('translate-settings-open')).toBeNull()
+
+    fireEvent.click(historyButton)
+    expect(historyButton).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByTestId('translate-history-open')).toBeInTheDocument()
+
+    fireEvent.click(settingsButton)
+    expect(settingsButton).toHaveAttribute('aria-pressed', 'true')
+    expect(historyButton).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByTestId('translate-history-open')).toBeNull()
+    expect(screen.getByTestId('translate-settings-open')).toBeInTheDocument()
+
+    fireEvent.click(historyButton)
+    expect(historyButton).toHaveAttribute('aria-pressed', 'true')
+    expect(settingsButton).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByTestId('translate-history-open')).toBeInTheDocument()
+    expect(screen.queryByTestId('translate-settings-open')).toBeNull()
+
+    fireEvent.click(historyButton)
+    expect(historyButton).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByTestId('translate-history-open')).toBeNull()
   })
 })

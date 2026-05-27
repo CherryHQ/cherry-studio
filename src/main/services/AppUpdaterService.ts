@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { isWin } from '@main/constant'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { getIpCountry } from '@main/utils/ipService'
 import { generateUserAgent, getClientId } from '@main/utils/systemInfo'

@@ -1,5 +1,3 @@
-import { useAppSelector } from '@renderer/store'
-import { selectActiveFilePath } from '@renderer/store/note'
 import type { NotesTreeNode } from '@renderer/types/note'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useMemo } from 'react'
@@ -19,11 +17,9 @@ export const findNodeByPath = (tree: NotesTreeNode[], targetPath: string): Notes
 }
 
 /**
- * 获取当前活动节点（基于useLiveQuery的树数据）
+ * 获取当前活动节点（基于当前笔记树和活动文件路径）
  */
-export function useActiveNode(notesTree: NotesTreeNode[]) {
-  const activeFilePath = useAppSelector(selectActiveFilePath)
-
+export function useActiveNode(notesTree: NotesTreeNode[], activeFilePath?: string) {
   const activeNode = useMemo(() => {
     if (!notesTree || !activeFilePath) return null
     return findNodeByPath(notesTree, activeFilePath)

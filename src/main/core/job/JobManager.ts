@@ -109,6 +109,14 @@ export class JobManager extends BaseService {
   private readonly scheduleDisposables = new Map<string, Disposable>()
   private readonly globalMaxConcurrency = DEFAULT_GLOBAL_MAX_CONCURRENCY
   /**
+   * Set when a dispatch is blocked solely by the global concurrency cap. On the
+   * next job completion (which frees a global slot) `resolveAndDispatch` fans
+   * out to every queue instead of only the finished job's queue, so a queue
+   * starved purely by the global cap — with its own per-queue slots free — wakes
+   * immediately rather than waiting for the next delayed-promotion tick.
+   */
+  private globalCapReached = false
+  /**
    * Flipped to `true` in `onStop` so the deferred startup recovery — whether still
    * pending inside the startup-delay timer or already mid-flight inside
    * `runStartupRecoveryFlow` — short-circuits before touching a tearing-down
@@ -542,14 +550,19 @@ export class JobManager extends BaseService {
   }
 
   /**
-   * Cancel all non-terminal jobs matching the filter. Aborts in-flight
-   * AbortControllers in this process and transitions pending / delayed rows
-   * directly to `cancelled`. Used by knowledge-base reset and file-processing
-   * batch cancellation.
+   * Fire-and-forget batch cancel for all non-terminal jobs matching the filter.
+   * Pending / delayed rows are transitioned directly to `cancelled`; running
+   * jobs only get their in-process `AbortController` aborted and settle
+   * asynchronously through the normal handler-execute flow (handler observes
+   * `signal.aborted`) — they are NOT counted as `transitioned`, only as
+   * `aborted`.
    *
-   * Running jobs settle asynchronously through the normal handler-execute
-   * flow (handler observes `signal.aborted`) and are NOT counted as
-   * `transitioned` — only the in-process abort is counted via `aborted`.
+   * Does NOT wait for running handlers to actually stop. If you must confirm a
+   * running job has stopped before destructive cleanup (e.g. deleting a vector
+   * store), loop `cancel(id)` per job instead — `cancel` awaits each handler's
+   * settlement and force-finalizes on timeout. `cancelMany` is for
+   * shutdown-style mass abort where stragglers are acceptable and recovered on
+   * next startup.
    *
    * @param filter - Must specify at least `queue` or `type` (empty filter rejected)
    * @param reason - Optional human-readable reason
@@ -935,10 +948,13 @@ export class JobManager extends BaseService {
     try {
       const dbService = application.get('DbService')
       claimed = await dbService.withWriteTx(async (tx) => {
-        const queueActive = await jobService.countActiveByQueueTx(tx, queueName)
-        if (queueActive >= queue.concurrency) return null
-        const globalActive = await jobService.countActiveGlobalTx(tx)
-        if (globalActive >= this.globalMaxConcurrency) return null
+        const queueRunning = await jobService.countRunningByQueueTx(tx, queueName)
+        if (queueRunning >= queue.concurrency) return null
+        const globalRunning = await jobService.countRunningGlobalTx(tx)
+        if (globalRunning >= this.globalMaxConcurrency) {
+          this.globalCapReached = true
+          return null
+        }
         return jobService.claimNextPendingTx(tx, queueName)
       })
     } catch (err) {
@@ -1187,7 +1203,17 @@ export class JobManager extends BaseService {
       resolver.resolve(snapshot)
       this.finishedResolvers.delete(jobId)
     }
-    void this.dispatch(snapshot.queue)
+    // A completed job frees a global slot. If a dispatch was previously blocked
+    // solely by the global cap, re-kick every queue so a queue starved by the
+    // cap (with its own slots free) wakes now instead of waiting for the next
+    // promotion tick. The flag self-corrects: if the cap is still binding, the
+    // follow-up dispatches re-set it. Otherwise just refill this job's queue.
+    if (this.globalCapReached) {
+      this.globalCapReached = false
+      this.dispatchAll()
+    } else {
+      void this.dispatch(snapshot.queue)
+    }
   }
 
   /**

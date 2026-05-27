@@ -3,7 +3,7 @@
  */
 
 import { loggerService } from '@logger'
-import { isDev } from '@main/constant'
+import { isDev } from '@main/core/platform'
 import { app, BrowserWindow, dialog } from 'electron'
 import { join } from 'path'
 

@@ -2,7 +2,7 @@ import { createReadStream } from 'node:fs'
 import fs from 'node:fs/promises'
 
 import { MB } from '@shared/config/constant'
-import type { FileMetadata } from '@types'
+import type { FileInfo } from '@shared/file/types'
 import { net } from 'electron'
 
 import { sanitizeFileProcessingRemoteUrl } from '../../utils/url'
@@ -35,8 +35,8 @@ export async function createUploadTask(context: PreparedMineruStartContext): Pro
     body: JSON.stringify({
       files: [
         {
-          name: context.file.origin_name,
-          data_id: context.file.id
+          name: context.file.ext ? `${context.file.name}.${context.file.ext}` : context.file.name,
+          data_id: context.fileEntryId
         }
       ],
       model_version: context.modelVersion
@@ -63,7 +63,7 @@ export async function createUploadTask(context: PreparedMineruStartContext): Pro
 }
 
 export async function uploadFile(
-  file: FileMetadata,
+  file: FileInfo,
   uploadUrl: string,
   configuredApiHost: string,
   uploadHeaders?: Record<string, string>,

@@ -16,8 +16,8 @@ type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
 
 const SIZE_CLASS: Record<IconButtonSize, string> = {
   xs: 'h-4 w-4 rounded-md',
-  sm: 'h-5 w-5 rounded-md',
-  md: 'h-6 w-6 rounded-md'
+  sm: 'h-6 w-6 rounded-md',
+  md: 'h-7 w-7 rounded-md'
 }
 
 const toneClass = (tone: IconButtonTone, active: boolean): string => {

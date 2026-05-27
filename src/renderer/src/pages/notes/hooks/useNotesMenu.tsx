@@ -6,17 +6,16 @@ import {
   ContextMenuSubContent,
   ContextMenuSubTrigger
 } from '@cherrystudio/ui'
+import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { DeleteIcon } from '@renderer/components/Icons'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBases'
-import type { RootState } from '@renderer/store'
 import type { NotesTreeNode } from '@renderer/types/note'
 import { exportNote } from '@renderer/utils/export'
 import { Edit3, FilePlus, FileSearch, Folder, FolderOpen, Sparkles, Star, StarOff, UploadIcon } from 'lucide-react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 
 const logger = loggerService.withContext('UseNotesMenu')
 
@@ -46,7 +45,16 @@ export const useNotesMenu = ({
 }: UseNotesMenuProps) => {
   const { t } = useTranslation()
   const { bases } = useKnowledgeBases()
-  const exportMenuOptions = useSelector((state: RootState) => state.settings.exportMenuOptions)
+  const [exportMenuOptions] = useMultiplePreferences({
+    docx: 'data.export.menus.docx',
+    image: 'data.export.menus.image',
+    joplin: 'data.export.menus.joplin',
+    markdown: 'data.export.menus.markdown',
+    notion: 'data.export.menus.notion',
+    obsidian: 'data.export.menus.obsidian',
+    siyuan: 'data.export.menus.siyuan',
+    yuque: 'data.export.menus.yuque'
+  })
 
   const handleExportKnowledge = useCallback(
     async (note: NotesTreeNode) => {

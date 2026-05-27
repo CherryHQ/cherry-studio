@@ -19,16 +19,15 @@
   --font-size: 16px;
   --background: var(--cs-background);
   --drawer-background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --foreground: var(--cs-foreground);
   --card: var(--cs-card);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: var(--cs-foreground);
   --popover: var(--cs-popover);
-  --popover-foreground: oklch(0.145 0 0);
+  --popover-foreground: var(--cs-foreground);
   --primary: #00b96b;
   --primary-foreground: #ffffff;
   --secondary: oklch(0.95 0.0058 264.53);
   --secondary-foreground: #030213;
-  --muted: #ececf0;
   --muted-foreground: #717182;
   --accent: #e9ebef;
   --accent-foreground: #030213;
@@ -154,7 +153,6 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
@@ -172,14 +170,13 @@
 .dark .provider-settings-default-scope {
   --background: var(--cs-background);
   --drawer-background: oklch(0 0 0);
-  --foreground: oklch(0.985 0 0);
+  --foreground: var(--cs-foreground);
   --card: var(--cs-card);
-  --card-foreground: oklch(0.985 0 0);
+  --card-foreground: var(--cs-foreground);
   --popover: var(--cs-popover);
-  --popover-foreground: oklch(0.985 0 0);
+  --popover-foreground: var(--cs-foreground);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
   --muted-foreground: oklch(0.708 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);

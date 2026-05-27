@@ -2,7 +2,11 @@ import type * as LifecycleModule from '@main/core/lifecycle'
 import { getDependencies, getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
 import { ErrorCode, isDataApiError } from '@shared/data/api'
-import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL, type KnowledgeItem } from '@shared/data/types/knowledge'
+import {
+  KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
+  type KnowledgeItem,
+  type KnowledgeItemOf
+} from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -175,13 +179,11 @@ function expectRestorePartialError(
 
 function createNoteItem(
   id = 'note-1',
-  status: KnowledgeItem['status'] = 'idle',
+  status: KnowledgeItemOf<'note'>['status'] = 'idle',
   groupId: string | null = null
 ): KnowledgeItem {
   const lifecycle =
-    status === 'failed'
-      ? ({ status, phase: null, error: `failed ${id}` } as const)
-      : ({ status, phase: null, error: null } as const)
+    status === 'failed' ? ({ status, error: `failed ${id}` } as const) : ({ status, error: null } as const)
 
   return {
     id,
@@ -197,13 +199,11 @@ function createNoteItem(
 
 function createDirectoryItem(
   id = 'dir-1',
-  status: KnowledgeItem['status'] = 'idle',
+  status: KnowledgeItemOf<'directory'>['status'] = 'idle',
   groupId: string | null = null
 ): KnowledgeItem {
   const lifecycle =
-    status === 'failed'
-      ? ({ status, phase: null, error: `failed ${id}` } as const)
-      : ({ status, phase: null, error: null } as const)
+    status === 'failed' ? ({ status, error: `failed ${id}` } as const) : ({ status, error: null } as const)
 
   return {
     id,
@@ -698,17 +698,6 @@ describe('KnowledgeOrchestrationService', () => {
 
   it('passes all add item variants through to runtime without normalizing in orchestration', async () => {
     const service = new KnowledgeOrchestrationService()
-    const file = {
-      id: 'file-meta-1',
-      name: 'guide.md',
-      origin_name: 'guide.md',
-      path: '/docs/guide.md',
-      created_at: '2026-04-08T00:00:00.000Z',
-      size: 12,
-      ext: '.md',
-      type: 'text' as const,
-      count: 1
-    }
     const inputs = [
       {
         type: 'url' as const,
@@ -719,7 +708,13 @@ describe('KnowledgeOrchestrationService', () => {
         data: { source: 'https://example.com/sitemap.xml', url: 'https://example.com/sitemap.xml' }
       },
       { type: 'directory' as const, data: { source: '/docs/reference/', path: '/docs/reference/' } },
-      { type: 'file' as const, data: { source: file.path, file } }
+      {
+        type: 'file' as const,
+        data: {
+          source: '/docs/guide.md',
+          fileEntryId: '019606a0-0000-7000-8000-000000000001'
+        }
+      }
     ]
 
     await expect(service.addItems('kb-1', inputs)).resolves.toBeUndefined()

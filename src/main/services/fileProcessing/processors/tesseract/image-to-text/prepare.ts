@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
-import type { FileMetadata } from '@types'
-import { isImageFileMetadata } from '@types'
+import { FILE_TYPE, type FileInfo } from '@shared/file/types'
 import type { LanguageCode } from 'tesseract.js'
 
 import { type PreparedTesseractContext, TesseractProcessorOptionsSchema } from '../types'
@@ -10,13 +9,13 @@ const DEFAULT_LANGS = ['chi_sim', 'chi_tra', 'eng'] satisfies LanguageCode[]
 const logger = loggerService.withContext('FileProcessing:TesseractPrepare')
 
 export function prepareContext(
-  file: FileMetadata,
+  file: FileInfo,
   config: FileProcessorMerged,
   signal?: AbortSignal
 ): PreparedTesseractContext {
   signal?.throwIfAborted()
 
-  if (!isImageFileMetadata(file)) {
+  if (file.type !== FILE_TYPE.IMAGE) {
     throw new Error('Tesseract OCR only supports image files')
   }
 

@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { isMac, isWin } from '@main/core/platform'
 import { toAsarUnpackedPath } from '@main/utils'
 import {
   checkName,
@@ -35,12 +36,12 @@ const logger = loggerService.withContext('FileStorage')
 const getRipgrepBinaryPath = (): string | null => {
   try {
     const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
-    const platform = process.platform === 'darwin' ? 'darwin' : process.platform === 'win32' ? 'win32' : 'linux'
+    const platform = isMac ? 'darwin' : isWin ? 'win32' : 'linux'
     let ripgrepBinaryPath = path.join(
       __dirname,
       '../../node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep',
       `${arch}-${platform}`,
-      process.platform === 'win32' ? 'rg.exe' : 'rg'
+      isWin ? 'rg.exe' : 'rg'
     )
 
     ripgrepBinaryPath = toAsarUnpackedPath(ripgrepBinaryPath)
@@ -387,8 +388,8 @@ class FileStorage {
         return
       }
 
-      await fs.promises.rm(filePath, { force: true })
-      logger.debug(`External file deleted successfully: ${filePath}`)
+      await shell.trashItem(filePath)
+      logger.debug(`External file moved to trash successfully: ${filePath}`)
     } catch (error) {
       logger.error('Failed to delete external file:', error as Error)
       throw error
@@ -401,8 +402,8 @@ class FileStorage {
         return
       }
 
-      await fs.promises.rm(dirPath, { recursive: true, force: true })
-      logger.debug(`External directory deleted successfully: ${dirPath}`)
+      await shell.trashItem(dirPath)
+      logger.debug(`External directory moved to trash successfully: ${dirPath}`)
     } catch (error) {
       logger.error('Failed to delete external directory:', error as Error)
       throw error
@@ -1402,13 +1403,12 @@ class FileStorage {
       }
 
       // Prevent selecting system root directories
-      const isSystemRoot =
-        process.platform === 'win32'
-          ? /^[a-zA-Z]:[\\/]?$/.test(normalizedPath)
-          : normalizedPath === '/' ||
-            normalizedPath === '/usr' ||
-            normalizedPath === '/etc' ||
-            normalizedPath === '/System'
+      const isSystemRoot = isWin
+        ? /^[a-zA-Z]:[\\/]?$/.test(normalizedPath)
+        : normalizedPath === '/' ||
+          normalizedPath === '/usr' ||
+          normalizedPath === '/etc' ||
+          normalizedPath === '/System'
 
       if (isSystemRoot) {
         logger.warn(`Invalid directory selection: ${normalizedPath} (system root directory)`)
@@ -1893,6 +1893,7 @@ class FileStorage {
     fileCount: number
     folderCount: number
     skippedFiles: number
+    failedFiles: number
   }> => {
     try {
       logger.info('Starting batch upload', { fileCount: filePaths.length, targetPath })
@@ -1909,12 +1910,13 @@ class FileStorage {
       const skippedFiles = filePaths.length - markdownFiles.length
 
       if (markdownFiles.length === 0) {
-        return { fileCount: 0, folderCount: 0, skippedFiles }
+        return { fileCount: 0, folderCount: 0, skippedFiles, failedFiles: 0 }
       }
 
       // Collect unique folders needed
       const foldersSet = new Set<string>()
       const fileOperations: Array<{ sourcePath: string; targetPath: string }> = []
+      let failedFiles = 0
 
       for (const filePath of markdownFiles) {
         try {
@@ -1953,6 +1955,7 @@ class FileStorage {
 
           fileOperations.push({ sourcePath: filePath, targetPath: finalPath })
         } catch (error) {
+          failedFiles += 1
           logger.error('Failed to prepare file operation:', error as Error, { filePath })
         }
       }
@@ -1989,6 +1992,7 @@ class FileStorage {
           if (result.status === 'fulfilled') {
             successCount++
           } else {
+            failedFiles += 1
             logger.error('Failed to upload file:', result.reason, {
               file: batch[index].sourcePath
             })
@@ -1999,13 +2003,15 @@ class FileStorage {
       logger.info('Batch upload completed', {
         successCount,
         folderCount: foldersSet.size,
-        skippedFiles
+        skippedFiles,
+        failedFiles
       })
 
       return {
         fileCount: successCount,
         folderCount: foldersSet.size,
-        skippedFiles
+        skippedFiles,
+        failedFiles
       }
     } catch (error) {
       logger.error('Batch upload failed:', error as Error)

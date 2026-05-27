@@ -76,25 +76,19 @@ export const actionClasses = {
     'border-[color:var(--color-border-default-soft)] bg-transparent text-[color:var(--color-fg-subtle)] hover:bg-[var(--accent)] hover:text-[color:var(--foreground)]'
 } as const
 
-/** Provider list rows + detached menus; popover content must re-enter `.provider-settings-default-scope`. */
+/** Provider list rows + detached menus. */
 export const providerListClasses = {
-  shell:
-    'flex h-full w-[clamp(220px,20vw,250px)] shrink-0 basis-[clamp(220px,20vw,250px)] flex-col border-r border-[color:var(--section-border)]',
-  header: 'mb-2 flex shrink-0 items-center justify-between gap-2 px-3 pb-0 pt-3.5',
-  headerTitle:
-    'min-w-0 flex-1 truncate text-sm leading-[1.3] font-[weight:var(--font-weight-semibold)] text-foreground',
-  filterTrigger:
-    'flex size-5 items-center justify-center rounded-md text-foreground/40 transition-colors hover:bg-[var(--color-surface-hover-soft)] hover:text-foreground/70 disabled:pointer-events-none disabled:opacity-30',
-  searchRowFilterTrigger:
-    'flex size-7 shrink-0 items-center justify-center rounded-lg border border-[color:var(--section-border)] bg-transparent text-foreground/45 transition-colors hover:bg-[var(--color-surface-hover-soft)] hover:text-foreground/75 disabled:pointer-events-none disabled:opacity-30',
-  addIconButton:
+  shell: 'flex h-full w-[200px] shrink-0 basis-[200px] flex-col border-r border-[color:var(--section-border)]',
+  headerIconButton:
     'flex size-6 shrink-0 items-center justify-center rounded-md text-foreground/45 transition-colors hover:bg-[var(--color-surface-hover-soft)] hover:text-foreground/75 disabled:pointer-events-none disabled:opacity-30',
-  searchRow: 'flex items-center gap-1.5 px-3 pb-1.5',
+  searchInlineAddButton:
+    'flex size-6 shrink-0 items-center justify-center rounded-[8px] bg-muted text-foreground transition-colors hover:bg-[var(--color-surface-hover-soft)] disabled:pointer-events-none disabled:opacity-30',
+  searchRow: 'flex items-center gap-1.5 px-3 pb-2.5',
   searchWrap:
-    'flex items-center gap-1.5 rounded-lg border border-[color:var(--section-border)] bg-muted/50 px-2 py-[4px]',
-  searchIcon: 'size-[9px] shrink-0 text-muted-foreground/60',
+    'flex h-8 items-center gap-1 rounded-xl border border-[color:var(--section-border)] bg-background py-1 pl-2.5 pr-1',
+  searchIcon: 'size-4 shrink-0 text-muted-foreground/60',
   searchInput:
-    'min-w-0 flex-1 bg-transparent text-sm leading-[1.25] text-foreground/80 outline-none placeholder:text-muted-foreground/60',
+    'min-w-0 flex-1 bg-transparent text-sm leading-none text-foreground/80 outline-none placeholder:text-muted-foreground/60',
   scroller: 'min-h-0 flex-1 px-2.5 pb-2',
   sectionStack: 'space-y-3',
   section: 'space-y-2',
@@ -106,14 +100,13 @@ export const providerListClasses = {
   addWrap: 'shrink-0 border-t border-[color:var(--section-border)] px-2.5 py-2',
   addButton:
     'flex w-full items-center justify-center gap-1.5 rounded-lg border border-[color:var(--section-border)] border-dashed bg-transparent py-[5px] text-xs text-muted-foreground shadow-none transition-colors hover:border-[color:var(--color-border)] hover:bg-accent/50 hover:text-foreground disabled:pointer-events-none disabled:opacity-40',
-  item: 'relative flex w-full items-center justify-between rounded-xl border border-transparent px-2 py-2 text-left shadow-none outline-none transition-colors focus-visible:ring-0',
-  itemSelected: 'bg-muted/55 dark:bg-muted/40',
-  itemIdle: 'hover:bg-accent/50',
-  itemAvatar: 'shrink-0 rounded-lg',
+  item: 'relative flex h-8 w-full items-center justify-between rounded-[10px] border border-transparent px-2.5 text-left shadow-none outline-none transition-colors focus-visible:ring-0',
+  itemSelected: 'bg-muted',
+  itemIdle: 'hover:bg-muted',
+  itemAvatar: 'shrink-0 rounded-lg border border-border/30',
   itemLabel: 'truncate text-sm leading-[1.35]',
-  itemMenuContent:
-    'provider-settings-default-scope rounded-2xl border-[color:var(--color-border-fg-muted)] bg-popover p-1.5 shadow-2xl',
-  itemMenuEntry: 'rounded-xl px-3 py-[6px] text-sm hover:bg-[var(--color-surface-hover-soft)]',
+  itemMenuContent: 'w-fit min-w-32 rounded-xl p-1.5',
+  itemMenuEntry: 'h-8 rounded-lg px-2.5 text-sm',
   groupHeader:
     'relative flex w-full items-center justify-between rounded-xl border border-transparent pl-2 pr-1.5 py-2 text-left shadow-none outline-none transition-colors hover:bg-accent/50 focus-visible:ring-0',
   groupHeaderHasSelected: 'bg-muted/30 dark:bg-muted/25',

@@ -57,6 +57,7 @@
       "!*.cjs",
       "!*.md",
       "!src/main/integration/**",
+      "!src/main/services/nutstore/sso/lib/**",
       "!**/tailwind.css",
       "!**/package.json",
       "!src/renderer/src/routeTree.gen.ts",
