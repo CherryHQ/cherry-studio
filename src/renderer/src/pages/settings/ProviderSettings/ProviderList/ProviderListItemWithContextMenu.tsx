@@ -40,33 +40,37 @@ export default function ProviderListItemWithContextMenu({
 }: ProviderListItemWithContextMenuProps) {
   const { t } = useTranslation()
 
+  const handleMenuAction = (action: () => void) => () => {
+    action()
+    onContextOpenChange(false)
+  }
+
   return (
     <Popover open={contextOpen} onOpenChange={onContextOpenChange}>
-      <PopoverAnchor asChild>
-        <div
-          className="w-full"
-          ref={(element) => onSetListItemRef(provider.id, element)}
-          onContextMenu={(event) => {
-            event.preventDefault()
-            onContextOpenChange(true)
-          }}>
-          <ProviderListItem
-            provider={{ ...provider, name: getFancyProviderName(provider) }}
-            selected={selected}
-            dragging={listState.dragging}
-            onClick={onSelect}
-            onOpenMenu={() => onContextOpenChange(true)}
-          />
-        </div>
-      </PopoverAnchor>
-      <PopoverContent align="start" className={cn(providerListClasses.itemMenuContent, 'w-44')}>
-        <MenuList>
+      <div
+        className="w-full"
+        ref={(element) => onSetListItemRef(provider.id, element)}
+        onContextMenu={(event) => {
+          event.preventDefault()
+          onContextOpenChange(true)
+        }}>
+        <ProviderListItem
+          provider={{ ...provider, name: getFancyProviderName(provider) }}
+          selected={selected}
+          dragging={listState.dragging}
+          onClick={onSelect}
+          onOpenMenu={() => onContextOpenChange(true)}
+          renderMenuButton={(button) => <PopoverAnchor asChild>{button}</PopoverAnchor>}
+        />
+      </div>
+      <PopoverContent align="end" className={providerListClasses.itemMenuContent}>
+        <MenuList className="gap-1">
           {showManagementActions && (
             <MenuItem
               label={t('common.edit')}
               className={providerListClasses.itemMenuEntry}
               icon={<Edit size={14} />}
-              onClick={onEdit}
+              onClick={handleMenuAction(onEdit)}
             />
           )}
           {onDuplicate && (
@@ -74,20 +78,20 @@ export default function ProviderListItemWithContextMenu({
               label={t('settings.provider.duplicate.menu_label')}
               className={providerListClasses.itemMenuEntry}
               icon={<CopyPlus size={14} />}
-              onClick={onDuplicate}
+              onClick={handleMenuAction(onDuplicate)}
             />
           )}
           <MenuItem
             label={t('settings.provider.notes.title')}
             className={providerListClasses.itemMenuEntry}
             icon={<UserPen size={14} />}
-            onClick={() => ModelNotesPopup.show({ providerId: provider.id })}
+            onClick={handleMenuAction(() => ModelNotesPopup.show({ providerId: provider.id }))}
           />
           {showManagementActions && (
             <MenuItem
               label={t('common.delete')}
               icon={<Trash2 size={14} />}
-              onClick={onDelete}
+              onClick={handleMenuAction(onDelete)}
               className={cn(providerListClasses.itemMenuEntry, 'text-(--color-destructive)')}
             />
           )}

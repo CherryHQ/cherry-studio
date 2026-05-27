@@ -5568,9 +5568,6 @@
       }
     },
     "integrations": {
-      "groups": {
-        "notes": "Notes"
-      },
       "title": "Intégrations"
     },
     "launch": {
@@ -5618,6 +5615,7 @@
       },
       "addSuccess": "Serveur ajouté avec succès",
       "advancedSettings": "Расширенные настройки",
+      "allServers": "[to be translated]:MCP Servers",
       "args": "Arguments",
       "argsTooltip": "Chaque argument sur une ligne",
       "baseUrlTooltip": "Adresse URL distante",
@@ -5767,6 +5765,7 @@
       "serverPlural": "Serveurs",
       "serverSingular": "Serveur",
       "servers": "Serveurs MCP",
+      "shortTitle": "[to be translated]:MCP",
       "sse": "Серверные отправляемые события (sse)",
       "startError": "Ошибка запуска",
       "stdio": "Стандартный ввод/вывод (stdio)",
@@ -6482,7 +6481,8 @@
         "agent": "Prise en charge par un agent",
         "all": "Tous les fournisseurs",
         "disabled": "[to be translated]:Disabled Only",
-        "enabled": "[to be translated]:Enabled Only"
+        "enabled": "[to be translated]:Enabled Only",
+        "label": "[to be translated]:Filter providers"
       },
       "filter_agent": "Fournisseurs pris en charge par l'agent de filtrage",
       "get_api_key": "Cliquez ici pour obtenir une clé",

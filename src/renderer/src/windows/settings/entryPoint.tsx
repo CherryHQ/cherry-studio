@@ -112,7 +112,7 @@ function SettingsWindowRouter({ initialPath }: { initialPath: string }) {
 }
 
 function SettingsWindowApp({ initialPath }: { initialPath: string }): React.ReactElement {
-  const shellStyle = { '--navbar-height': '0px' } as CSSProperties
+  const shellStyle = { '--navbar-height': '0px', '--settings-width': '200px' } as CSSProperties
   const isMacTransparentWindow = useMacTransparentWindow()
 
   return (

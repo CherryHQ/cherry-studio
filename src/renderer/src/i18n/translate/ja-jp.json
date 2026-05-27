@@ -5568,9 +5568,6 @@
       }
     },
     "integrations": {
-      "groups": {
-        "notes": "ノート"
-      },
       "title": "連携"
     },
     "launch": {
@@ -5618,6 +5615,7 @@
       },
       "addSuccess": "サーバーが正常に追加されました",
       "advancedSettings": "詳細設定",
+      "allServers": "[to be translated]:MCP Servers",
       "args": "引数",
       "argsTooltip": "1行に1つの引数を入力してください",
       "baseUrlTooltip": "リモートURLアドレス",
@@ -5767,6 +5765,7 @@
       "serverPlural": "サーバー",
       "serverSingular": "サーバー",
       "servers": "MCPサーバー",
+      "shortTitle": "[to be translated]:MCP",
       "sse": "サーバー送信イベント (sse)",
       "startError": "起動に失敗しました",
       "stdio": "標準入力/出力 (stdio)",
@@ -6482,7 +6481,8 @@
         "agent": "エージェントサポート",
         "all": "すべてのプロバイダー",
         "disabled": "[to be translated]:Disabled Only",
-        "enabled": "[to be translated]:Enabled Only"
+        "enabled": "[to be translated]:Enabled Only",
+        "label": "[to be translated]:Filter providers"
       },
       "filter_agent": "フィルターエージェント対応プロバイダー",
       "get_api_key": "APIキーを取得",

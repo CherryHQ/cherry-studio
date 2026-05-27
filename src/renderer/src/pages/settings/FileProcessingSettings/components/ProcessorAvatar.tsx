@@ -3,20 +3,22 @@ import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 
 import { getProcessorLogo } from '../utils/fileProcessingMeta'
 
-type ProcessorAvatarProps = {
-  processorId: FileProcessorId
-  size?: 'sm' | 'lg'
+type ProcessorAvatarSize = 'sm' | 'md' | 'lg'
+
+const SIZE_TO_PX: Record<ProcessorAvatarSize, number> = {
+  sm: 16,
+  md: 22,
+  lg: 36
 }
 
-export function ProcessorAvatar({ processorId, size = 'sm' }: ProcessorAvatarProps) {
-  const Logo = getProcessorLogo(processorId)
-  const isLarge = size === 'lg'
+type ProcessorAvatarProps = {
+  processorId: FileProcessorId
+  size?: ProcessorAvatarSize
+  className?: string
+}
 
-  return (
-    <Logo.Avatar
-      size={isLarge ? 36 : 16}
-      shape="rounded"
-      className={cn(isLarge ? 'h-9 w-9 rounded-xl' : 'h-4 w-4 rounded')}
-    />
-  )
+export function ProcessorAvatar({ processorId, size = 'sm', className }: ProcessorAvatarProps) {
+  const Logo = getProcessorLogo(processorId)
+
+  return <Logo.Avatar size={SIZE_TO_PX[size]} shape="rounded" className={cn('rounded', className)} />
 }
