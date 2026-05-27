@@ -124,12 +124,28 @@ const DEEPSEEK_V4_PLUS_REGEX = /(\w+-)?deepseek-v([4-9]|\d{2,})([.-]\w+)*$/i
 // official Claude Code docs document the same `[1m]` suffix convention.
 // https://platform.xiaomimimo.com/docs/zh-CN/integration/claudecode
 const MIMO_V25_PLUS_REGEX = /(\w+-)?mimo-v(2\.[5-9]|2\.\d{2,}|[3-9]|\d{2,})([.-]\w+)*$/i
+const CHERRYIN_OFFICIAL_HOSTNAMES = new Set([
+  'open.cherryin.ai',
+  'open.cherryin.cc',
+  'open.cherryin.dev',
+  'open.cherryin.net'
+])
 
 export function isDeepSeekOfficialHost(host: string | undefined): boolean {
   const trimmed = host?.trim()
   if (!trimmed) return false
   try {
     return new URL(trimmed).hostname.endsWith('api.deepseek.com')
+  } catch {
+    return false
+  }
+}
+
+export function isCherryInOfficialHost(host: string | undefined): boolean {
+  const trimmed = host?.trim()
+  if (!trimmed) return false
+  try {
+    return CHERRYIN_OFFICIAL_HOSTNAMES.has(new URL(trimmed).hostname)
   } catch {
     return false
   }
@@ -154,7 +170,7 @@ export function with1mContextSuffix(modelId: string | undefined, anthropicHost: 
   if (!modelId) return ''
   if (/\[1m\]$/i.test(modelId)) return modelId
 
-  if (isDeepSeekOfficialHost(anthropicHost)) {
+  if (isDeepSeekOfficialHost(anthropicHost) || isCherryInOfficialHost(anthropicHost)) {
     if (!DEEPSEEK_V4_PLUS_REGEX.test(modelId)) return modelId
     return `${modelId}[1m]`
   }
