@@ -31,6 +31,10 @@ import { canonicalizeExternalPath } from '../../utils/pathResolver'
 import type { FileManagerDeps } from '../deps'
 
 const logger = loggerService.withContext('internal/entry/create')
+const URL_FETCH_MAX_ATTEMPTS = 3
+const URL_FETCH_RETRY_DELAY_MS = 300
+
+class NonRetryableDownloadError extends Error {}
 
 /**
  * Mirror of `fs.ts:bestEffortUnlinkTmp` for createInternal's two cleanup
@@ -100,10 +104,7 @@ async function normaliseSource(params: CreateInternalEntryParams): Promise<Norma
   }
   // url
   const url = params.url
-  const response = await fetch(url)
-  if (!response.ok) {
-    throw new Error(`download(${url}): HTTP ${response.status} ${response.statusText}`)
-  }
+  const response = await fetchUrlWithRetry(url)
   if (!response.body) {
     throw new Error(`download(${url}): response has no body`)
   }
@@ -113,6 +114,35 @@ async function normaliseSource(params: CreateInternalEntryParams): Promise<Norma
     ext: extWithoutDot(contentDispositionName ?? '') ?? urlExtWithoutDot(url) ?? extFromContentType(response.headers),
     writeTo: (target) => writeResponseBodyToFile(response, target)
   }
+}
+
+async function fetchUrlWithRetry(url: string): Promise<Response> {
+  let lastError: unknown
+
+  for (let attempt = 1; attempt <= URL_FETCH_MAX_ATTEMPTS; attempt++) {
+    try {
+      const response = await fetch(url)
+      if (response.ok) return response
+      if (response.status < 500 || attempt === URL_FETCH_MAX_ATTEMPTS) {
+        throw new NonRetryableDownloadError(`download(${url}): HTTP ${response.status} ${response.statusText}`)
+      }
+      await response.body?.cancel().catch(() => undefined)
+      lastError = new Error(`download(${url}): HTTP ${response.status} ${response.statusText}`)
+    } catch (error) {
+      if (error instanceof NonRetryableDownloadError) throw error
+      lastError = error
+      if (attempt === URL_FETCH_MAX_ATTEMPTS) break
+    }
+
+    logger.warn('createInternal(url): fetch failed, retrying', { url, attempt, err: lastError })
+    await wait(URL_FETCH_RETRY_DELAY_MS * attempt)
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError))
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 function basenameWithoutExt(p: string): string {

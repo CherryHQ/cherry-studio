@@ -113,11 +113,26 @@ describe('internal/entry/create.createInternal', () => {
     let server: Server
     let baseUrl: string
     let routes: Map<string, { status: number; body: Buffer; type?: string; disposition?: string }>
+    let flakyAttempts = 0
 
     beforeEach(async () => {
       routes = new Map()
+      flakyAttempts = 0
       const http = await import('node:http')
       server = http.createServer((req, res) => {
+        if (req.url === '/flaky.png') {
+          flakyAttempts += 1
+          if (flakyAttempts === 1) {
+            res.statusCode = 503
+            res.end('try again')
+            return
+          }
+          res.statusCode = 200
+          res.setHeader('Content-Type', 'image/png')
+          res.end(Buffer.from([0x89, 0x50, 0x4e, 0x47]))
+          return
+        }
+
         const route = routes.get(req.url ?? '/')
         if (!route) {
           res.statusCode = 404
@@ -195,6 +210,13 @@ describe('internal/entry/create.createInternal', () => {
       })
       expect(entry.name).toBe('image')
       expect(entry.ext).toBe('webp')
+    })
+
+    it('retries transient URL fetch failures before creating the entry', async () => {
+      const entry = await createInternal(deps, { source: 'url', url: `${baseUrl}/flaky.png` as never })
+      expect(flakyAttempts).toBe(2)
+      expect(entry.name).toBe('flaky')
+      expect(entry.ext).toBe('png')
     })
 
     it('strips only the final dot segment when the path contains multiple dots', async () => {
