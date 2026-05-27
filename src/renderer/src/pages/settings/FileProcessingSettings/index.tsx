@@ -75,7 +75,7 @@ const FileProcessingSettings: FC = () => {
                   icon={
                     <ProcessorAvatar
                       processorId={entry.processor.id}
-                      size={22}
+                      size="md"
                       className="shrink-0 rounded-lg border border-border/30"
                     />
                   }

@@ -29,4 +29,11 @@ describe('MenuItem', () => {
     expect(item.className).toContain('group')
     expect(label).toHaveClass('group-data-[active=true]:font-medium')
   })
+
+  it('omits data-active when inactive so the group-data-[active=true] selector matches only when selected', () => {
+    render(<MenuItem label="Model Service" data-testid="menu-item" />)
+
+    const item = screen.getByTestId('menu-item')
+    expect(item).not.toHaveAttribute('data-active')
+  })
 })

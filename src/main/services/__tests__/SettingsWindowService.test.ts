@@ -22,6 +22,17 @@ const { applicationMock, windowManagerMock } = vi.hoisted(() => {
 
 vi.mock('@application', () => ({ application: applicationMock }))
 
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => ({
+      debug: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn(),
+      info: vi.fn()
+    })
+  }
+}))
+
 vi.mock('electron', () => ({
   nativeTheme: {
     shouldUseDarkColors: false
@@ -203,6 +214,7 @@ describe('SettingsWindowService', () => {
         })
       })
     )
+    expect(settingsWindow.setBounds).toHaveBeenCalledWith({ x: 70, y: 20, width: 760, height: 560 })
   })
 
   it('caps ultra-wide main-window cases to 1280px width and recenters', () => {
@@ -269,6 +281,58 @@ describe('SettingsWindowService', () => {
     webContents.emit('page-title-updated', { preventDefault: vi.fn() })
 
     expect(window.setTitle).toHaveBeenCalledOnce()
+  })
+
+  it('falls back to the default size when no main window is registered', () => {
+    const settingsWindow = createMockWindow()
+    windowManagerMock.getWindowsByType.mockReturnValue([])
+    windowManagerMock.getWindow.mockImplementation((id: string) =>
+      id === 'settings-window-id' ? settingsWindow : undefined
+    )
+
+    service.open('/settings/about')
+
+    const openCall = windowManagerMock.open.mock.calls.at(-1)
+    const passedOptions = (openCall![1] as { options: Record<string, unknown> }).options
+    expect(passedOptions).not.toHaveProperty('x')
+    expect(passedOptions).not.toHaveProperty('y')
+    expect(passedOptions).not.toHaveProperty('width')
+    expect(passedOptions).not.toHaveProperty('height')
+    expect(settingsWindow.setBounds).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the default size when the registered main window is destroyed', () => {
+    const mainWindow = createMockWindow()
+    const settingsWindow = createMockWindow()
+    mainWindow.isDestroyed.mockReturnValue(true)
+    mockManagedWindows({ mainWindow, settingsWindow })
+
+    service.open('/settings/about')
+
+    const openCall = windowManagerMock.open.mock.calls.at(-1)
+    const passedOptions = (openCall![1] as { options: Record<string, unknown> }).options
+    expect(passedOptions).not.toHaveProperty('x')
+    expect(passedOptions).not.toHaveProperty('y')
+    expect(passedOptions).not.toHaveProperty('width')
+    expect(passedOptions).not.toHaveProperty('height')
+    expect(settingsWindow.setBounds).not.toHaveBeenCalled()
+  })
+
+  it('falls back to the default size when the main window reports non-positive bounds', () => {
+    const mainWindow = createMockWindow()
+    const settingsWindow = createMockWindow()
+    mainWindow.getBounds.mockReturnValue({ x: 0, y: 0, width: 0, height: 0 })
+    mockManagedWindows({ mainWindow, settingsWindow })
+
+    service.open('/settings/about')
+
+    const openCall = windowManagerMock.open.mock.calls.at(-1)
+    const passedOptions = (openCall![1] as { options: Record<string, unknown> }).options
+    expect(passedOptions).not.toHaveProperty('x')
+    expect(passedOptions).not.toHaveProperty('y')
+    expect(passedOptions).not.toHaveProperty('width')
+    expect(passedOptions).not.toHaveProperty('height')
+    expect(settingsWindow.setBounds).not.toHaveBeenCalled()
   })
 
   it('uses platform-specific settings window options', () => {

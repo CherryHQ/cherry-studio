@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac } from '@main/core/platform'
 import { type WindowOptions, WindowType } from '@main/core/window/types'
@@ -8,8 +9,10 @@ import { IpcChannel } from '@shared/IpcChannel'
 import type { BrowserWindow } from 'electron'
 import { nativeTheme } from 'electron'
 
+const logger = loggerService.withContext('SettingsWindowService')
+
 // Settings window sizing — 80% of the main window with a hard floor for small
-// windows and a ceiling for ultra-wide displays. This keeps the three-column
+// windows and a ceiling for ultra-wide displays. This keeps the two-column
 // settings layout comfortable without stretching empty content space on 2K/4K.
 const SETTINGS_WINDOW_SIZE_RATIO = 0.8
 const SETTINGS_WINDOW_MIN_WIDTH = 760
@@ -96,7 +99,7 @@ export class SettingsWindowService extends BaseService {
   }
 
   // Settings window is sized to 80% of the main window and centered on it, with
-  // min/max width guards to keep the three-column settings layout usable across
+  // min/max width guards to keep the two-column settings layout usable across
   // small and ultra-wide main-window sizes.
   private getCenteredBoundsOptions(): Pick<WindowOptions, 'x' | 'y' | 'width' | 'height'> | undefined {
     const wm = application.get('WindowManager')
@@ -104,10 +107,21 @@ export class SettingsWindowService extends BaseService {
     if (!mainWindowInfo) return undefined
 
     const mainWindow = wm.getWindow(mainWindowInfo.id)
-    if (!mainWindow || mainWindow.isDestroyed()) return undefined
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      logger.warn('Main window registered but not retrievable; falling back to default settings window size', {
+        mainWindowId: mainWindowInfo.id
+      })
+      return undefined
+    }
 
     const { x, y, width: mainWidth, height: mainHeight } = mainWindow.getBounds()
-    if (mainWidth <= 0 || mainHeight <= 0) return undefined
+    if (mainWidth <= 0 || mainHeight <= 0) {
+      logger.warn('Main window reported non-positive bounds; falling back to default settings window size', {
+        mainWindowId: mainWindowInfo.id,
+        bounds: { x, y, width: mainWidth, height: mainHeight }
+      })
+      return undefined
+    }
 
     const width = Math.min(
       Math.max(Math.round(mainWidth * SETTINGS_WINDOW_SIZE_RATIO), SETTINGS_WINDOW_MIN_WIDTH),
