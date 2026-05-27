@@ -31,7 +31,11 @@ export default function ProviderListHeaderFilterMenu({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button type="button" disabled={disabled} className={providerListClasses.headerIconButton}>
+        <button
+          type="button"
+          aria-label={t('settings.provider.filter.label')}
+          disabled={disabled}
+          className={providerListClasses.headerIconButton}>
           <Filter size={14} />
         </button>
       </PopoverTrigger>

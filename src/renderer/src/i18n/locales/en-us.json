@@ -6482,7 +6482,8 @@
         "agent": "Agent Supported",
         "all": "All Providers",
         "disabled": "Disabled Only",
-        "enabled": "Enabled Only"
+        "enabled": "Enabled Only",
+        "label": "Filter providers"
       },
       "filter_agent": "Filter Agent Supported Providers",
       "get_api_key": "Get API Key",

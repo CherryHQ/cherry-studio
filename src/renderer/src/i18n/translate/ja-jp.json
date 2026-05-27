@@ -6481,7 +6481,8 @@
         "agent": "エージェントサポート",
         "all": "すべてのプロバイダー",
         "disabled": "[to be translated]:Disabled Only",
-        "enabled": "[to be translated]:Enabled Only"
+        "enabled": "[to be translated]:Enabled Only",
+        "label": "[to be translated]:Filter providers"
       },
       "filter_agent": "フィルターエージェント対応プロバイダー",
       "get_api_key": "APIキーを取得",

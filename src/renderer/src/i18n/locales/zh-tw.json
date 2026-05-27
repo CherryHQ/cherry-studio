@@ -6482,7 +6482,8 @@
         "agent": "支援 Agent",
         "all": "全部服務商",
         "disabled": "僅已停用",
-        "enabled": "僅已啟用"
+        "enabled": "僅已啟用",
+        "label": "篩選服務商"
       },
       "filter_agent": "篩選支援 Agent 的服務商",
       "get_api_key": "點選這裡取得金鑰",

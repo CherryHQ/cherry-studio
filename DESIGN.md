@@ -144,7 +144,7 @@ The full Tailwind text scale is also exposed: `--text-xs` through `--text-9xl` (
 
 ### Weight System
 
-Three weights are exposed as semantic tokens; the rest of the numeric Tailwind weight scale (`font-thin` → `font-black`) is available but not part of the design contract.
+Three weights are exposed as semantic tokens; the rest of the Tailwind weight utility scale (`font-thin` → `font-black`, including `font-semibold`) is available but not part of the token contract.
 
 | Weight | Token | Usage |
 |--------|-------|-------|
@@ -537,7 +537,7 @@ Source: `PageHeader` from `@cherrystudio/ui`. The single component for any page 
 - `action` (optional) — right-aligned slot for icon-buttons (filter, add, etc.).
 
 **Type:**
-- Title: `var(--font-size-body-sm)` (14px) · `var(--font-weight-semibold)` · `leading-4` · `text-foreground`
+- Title: `var(--font-size-body-sm)` (14px) · `var(--font-weight-medium)` · `leading-4` · `text-foreground`
 
 **Spacing & sizing (baked in — must not be overridden per-page):**
 
@@ -811,7 +811,7 @@ Use icon-library defaults unless a component has a documented reason to override
 
 ### Example Component Prompts
 - "Create a chat interface on `var(--color-background)`. Messages use `var(--font-size-body-md)` `var(--font-weight-regular)`, `var(--line-height-body-md)`, `var(--color-foreground)` text. User messages in cards with `var(--color-secondary)` background and `var(--radius-lg)` border-radius. Primary send button uses the Button `default` variant."
-- "Design a sidebar navigation: `var(--color-sidebar)` background, 1px right border `var(--color-sidebar-border)`. Nav items use `var(--font-size-body-sm)` `var(--font-weight-medium)`, `var(--color-sidebar-foreground)` text. Active item on `var(--color-sidebar-primary)` with `var(--color-sidebar-primary-foreground)` text. Hover state on `var(--color-sidebar-accent)`."
+- "Design a sidebar navigation: `var(--color-sidebar)` background, 1px right border `var(--color-sidebar-border)`. Nav items use `var(--font-size-body-sm)` `var(--font-weight-medium)`, `var(--color-sidebar-foreground)` text. Active and hover items use `var(--color-sidebar-accent)` with `var(--color-sidebar-accent-foreground)` text."
 - "Build a settings card: `var(--color-card)` background, 1px `var(--color-border)`, `var(--radius-lg)`. Title in `var(--font-size-heading-sm)` with the matching heading line-height. Description in `var(--font-size-body-sm)` `var(--font-weight-regular)`, `var(--color-foreground-secondary)`. Toggles and inputs at `var(--radius-md)`."
 - "Create a dark-mode conversation view: `var(--color-background)` page. Message cards on `var(--color-card)`. Assistant code blocks use the code-rendering component's mono font stack at `var(--font-size-body-sm)` on `var(--color-popover)` with `var(--radius-md)`. Borders at `var(--color-border)`."
 - "Design a destructive confirmation dialog with the shared Dialog shell: `bg-card`, `text-card-foreground`, `rounded-3xl`, `border-0`, `p-6`, `gap-4`, `shadow-xl`, default overlay. Footer uses outline cancel + destructive delete."

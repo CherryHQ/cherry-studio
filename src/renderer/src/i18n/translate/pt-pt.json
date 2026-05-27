@@ -6481,7 +6481,8 @@
         "agent": "Suportado por Agente",
         "all": "Todos os Provedores",
         "disabled": "[to be translated]:Disabled Only",
-        "enabled": "[to be translated]:Enabled Only"
+        "enabled": "[to be translated]:Enabled Only",
+        "label": "[to be translated]:Filter providers"
       },
       "filter_agent": "Agente de Filtro - Provedores Suportados",
       "get_api_key": "Clique aqui para obter a chave",

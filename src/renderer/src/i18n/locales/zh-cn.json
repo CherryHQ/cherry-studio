@@ -6482,7 +6482,8 @@
         "agent": "支持 Agent",
         "all": "全部服务商",
         "disabled": "仅已禁用",
-        "enabled": "仅已启用"
+        "enabled": "仅已启用",
+        "label": "筛选服务商"
       },
       "filter_agent": "筛选支持 Agent 的服务商",
       "get_api_key": "点击这里获取密钥",
