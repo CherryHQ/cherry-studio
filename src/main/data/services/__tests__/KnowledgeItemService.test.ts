@@ -734,7 +734,7 @@ describe('KnowledgeItemService', () => {
       return row
     }
 
-    it('does not overwrite deleting items when applying a non-delete subtree status', async () => {
+    it('does not overwrite deleting items when marking a subtree failed', async () => {
       await seedItem({
         id: DIR_ROOT_ID,
         type: 'directory',
@@ -754,12 +754,14 @@ describe('KnowledgeItemService', () => {
         status: 'deleting'
       })
 
-      await expect(service.setSubtreeStatus(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID], 'completed')).resolves.toEqual([
-        DIR_ROOT_ID,
-        COMPLETED_CHILD_ID
-      ])
-      await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({ status: 'completed', error: null })
-      await expect(getItemRow(COMPLETED_CHILD_ID)).resolves.toMatchObject({ status: 'completed', error: null })
+      await expect(
+        service.setSubtreeStatus(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID], 'failed', { error: 'enqueue failed' })
+      ).resolves.toEqual([DIR_ROOT_ID, COMPLETED_CHILD_ID])
+      await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({ status: 'failed', error: 'enqueue failed' })
+      await expect(getItemRow(COMPLETED_CHILD_ID)).resolves.toMatchObject({
+        status: 'failed',
+        error: 'enqueue failed'
+      })
       await expect(getItemRow(DELETING_CHILD_ID)).resolves.toMatchObject({ status: 'deleting', error: null })
     })
 

@@ -215,7 +215,7 @@ describe('knowledge job handlers', () => {
     listMock.mockResolvedValue([])
     getJobMock.mockResolvedValue(null)
     enqueueMock.mockResolvedValue({ id: 'job-index', snapshot: {}, finished: Promise.resolve({}) })
-    detachFileRefsMock.mockResolvedValue([])
+    detachFileRefsMock.mockResolvedValue(undefined)
     deleteItemsByIdsMock.mockResolvedValue(undefined)
     cancelMock.mockResolvedValue(undefined)
     scheduleItemMock.mockResolvedValue({ id: 'scheduled-job' })

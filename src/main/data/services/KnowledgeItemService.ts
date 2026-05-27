@@ -13,7 +13,6 @@ import { loggerService } from '@logger'
 import type { OffsetPaginationResponse } from '@shared/data/api'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { ListKnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
-import type { FileEntryId } from '@shared/data/types/file'
 import { knowledgeItemSourceType } from '@shared/data/types/file/ref'
 import {
   type CreateKnowledgeItemDto,
@@ -129,6 +128,7 @@ export class KnowledgeItemService {
 
   async getOutermostSelectedItemIds(baseId: string, itemIds: string[]): Promise<string[]> {
     const selectedIds = [...new Set(itemIds)]
+    const selectedIdSet = new Set(selectedIds)
     const selectedItems = await Promise.all(selectedIds.map((itemId) => this.getById(itemId)))
     const invalidItem = selectedItems.find((item) => item.baseId !== baseId)
 
@@ -140,7 +140,7 @@ export class KnowledgeItemService {
     for (const itemId of selectedIds) {
       const descendants = await this.getSubtreeItems(baseId, [itemId])
       for (const descendant of descendants) {
-        if (selectedIds.includes(descendant.id)) {
+        if (selectedIdSet.has(descendant.id)) {
           descendantSelectedIds.add(descendant.id)
         }
       }
@@ -300,12 +300,7 @@ export class KnowledgeItemService {
     return rowToKnowledgeItem(row)
   }
 
-  async setSubtreeStatus(
-    baseId: string,
-    rootIds: string[],
-    status: Exclude<KnowledgeItemStatus, 'failed'>,
-    update?: never
-  ): Promise<string[]>
+  async setSubtreeStatus(baseId: string, rootIds: string[], status: 'deleting', update?: never): Promise<string[]>
   async setSubtreeStatus(
     baseId: string,
     rootIds: string[],
@@ -315,7 +310,7 @@ export class KnowledgeItemService {
   async setSubtreeStatus(
     baseId: string,
     rootIds: string[],
-    status: KnowledgeItemStatus,
+    status: 'deleting' | 'failed',
     update: FailedKnowledgeItemStatusUpdate | undefined = undefined
   ): Promise<string[]> {
     const error = status === 'failed' ? update?.error.trim() : null
@@ -334,7 +329,7 @@ export class KnowledgeItemService {
     const dbService = application.get('DbService')
     const updatedRows = await dbService.withWriteTx(async (tx) => {
       const conditions = [eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, subtreeIds)]
-      if (status !== 'deleting') {
+      if (status === 'failed') {
         conditions.push(ne(knowledgeItemTable.status, 'deleting'))
       }
 
@@ -348,10 +343,10 @@ export class KnowledgeItemService {
         })
     })
 
-    const updatedIds = status === 'deleting' ? subtreeIds : await this.getNonDeletingItemIds(baseId, subtreeIds)
+    const updatedIdSet = new Set(updatedRows.map((row) => row.id))
+    const updatedIds = subtreeIds.filter((id) => updatedIdSet.has(id))
 
-    if (status !== 'deleting') {
-      const updatedIdSet = new Set(updatedRows.map((row) => row.id))
+    if (status === 'failed') {
       await this.reconcileContainers(
         baseId,
         updatedRows.map((row) => row.groupId).filter((groupId) => !updatedIdSet.has(groupId ?? ''))
@@ -391,10 +386,10 @@ export class KnowledgeItemService {
     logger.info('Deleted knowledge items by ids', { baseId, count: deleted.rowsAffected })
   }
 
-  async detachFileRefs(itemIds: string[]): Promise<FileEntryId[]> {
+  async detachFileRefs(itemIds: string[]): Promise<void> {
     const uniqueItemIds = [...new Set(itemIds)]
     if (uniqueItemIds.length === 0) {
-      return []
+      return
     }
 
     const dbService = application.get('DbService')
@@ -405,12 +400,10 @@ export class KnowledgeItemService {
           .where(
             and(eq(fileRefTable.sourceType, knowledgeItemSourceType), inArray(fileRefTable.sourceId, uniqueItemIds))
           )
-          .returning({ fileEntryId: fileRefTable.fileEntryId })
+          .returning({ id: fileRefTable.id })
     )
 
-    const detachedFileEntryIds = [...new Set(detachedRefs.map((row) => row.fileEntryId))]
     logger.info('Detached knowledge item file refs', { count: detachedRefs.length, itemCount: uniqueItemIds.length })
-    return detachedFileEntryIds
   }
 
   async getSubtreeItems(
@@ -542,25 +535,6 @@ export class KnowledgeItemService {
     await this.reconcileContainers(item.baseId, startContainerIds)
     logger.info('Updated knowledge item status', { id, status })
     return item
-  }
-
-  private async getNonDeletingItemIds(baseId: string, itemIds: string[]): Promise<string[]> {
-    if (itemIds.length === 0) {
-      return []
-    }
-
-    const rows = await this.db
-      .select({ id: knowledgeItemTable.id })
-      .from(knowledgeItemTable)
-      .where(
-        and(
-          eq(knowledgeItemTable.baseId, baseId),
-          inArray(knowledgeItemTable.id, itemIds),
-          ne(knowledgeItemTable.status, 'deleting')
-        )
-      )
-    const activeIds = new Set(rows.map((row) => row.id))
-    return itemIds.filter((id) => activeIds.has(id))
   }
 
   private async reconcileContainers(
