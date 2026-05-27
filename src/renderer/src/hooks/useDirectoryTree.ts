@@ -45,6 +45,12 @@ export interface UseDirectoryTreeResult {
   readonly error: Error | null
   /** Monotonic counter that ticks whenever the mirror mutates. */
   readonly version: number
+  /**
+   * Identifier of the live tree on the main side. Consumers that subscribe to
+   * the shared `Tree_Mutation` channel directly should filter incoming
+   * payloads by this id. `null` until the first `Tree_Create` resolves.
+   */
+  readonly treeId: string | null
   /** O(1) lookup keyed by absolute path. Stable across mutations. */
   getNode(absPath: string): TreeNode | null
 }
@@ -101,6 +107,7 @@ export function useDirectoryTree(rootPath: string | undefined, options?: Directo
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<Error | null>(null)
   const [version, setVersion] = useState(0)
+  const [treeId, setTreeId] = useState<string | null>(null)
   const mirrorRef = useRef<MirrorState | null>(null)
   const optionsRef = useRef<DirectoryTreeOptions | undefined>(options)
   optionsRef.current = options
@@ -110,6 +117,7 @@ export function useDirectoryTree(rootPath: string | undefined, options?: Directo
       setRoot(null)
       setError(null)
       setIsLoading(false)
+      setTreeId(null)
       mirrorRef.current = null
       return
     }
@@ -144,6 +152,7 @@ export function useDirectoryTree(rootPath: string | undefined, options?: Directo
         const nodes = indexTree(snapshotRoot)
         mirrorRef.current = { root: snapshotRoot, nodes }
         setRoot(snapshotRoot)
+        setTreeId(result.treeId)
         setIsLoading(false)
 
         unsubscribeMutations = window.api.tree.onMutation((payload: TreeMutationPushPayload) => {
@@ -167,6 +176,7 @@ export function useDirectoryTree(rootPath: string | undefined, options?: Directo
       unsubscribeMutations?.()
       if (createdTreeId) disposeTree(createdTreeId)
       mirrorRef.current = null
+      setTreeId(null)
     }
     // Re-create only on rootPath change. Options are sampled at mount time
     // via optionsRef; later option changes do NOT trigger a rebuild — pass a
@@ -177,5 +187,5 @@ export function useDirectoryTree(rootPath: string | undefined, options?: Directo
     return mirrorRef.current?.nodes.get(absPath) ?? null
   }, [])
 
-  return { root, isLoading, error, version, getNode }
+  return { root, isLoading, error, version, treeId, getNode }
 }

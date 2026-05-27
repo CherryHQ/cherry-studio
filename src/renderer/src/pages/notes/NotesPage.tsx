@@ -67,7 +67,7 @@ const NotesPage: FC = () => {
   // `Tree_Create` IPC. Whenever the watcher observes add / unlink / rename
   // events, `root` (mutated in place) + `version` (tick) drive the
   // projection effect below to refresh `notesTree`.
-  const { root: treeRoot, version: treeVersion } = useDirectoryTree(notesPath || undefined, NOTES_TREE_OPTIONS)
+  const { root: treeRoot, version: treeVersion, treeId } = useDirectoryTree(notesPath || undefined, NOTES_TREE_OPTIONS)
 
   // 混合策略：useLiveQuery用于笔记树，React Query用于文件内容
   const [notesTree, setNotesTree] = useState<NotesTreeNode[]>([])
@@ -313,8 +313,10 @@ const NotesPage: FC = () => {
   // The unlink → clear-active-file path is implicit: when the file leaves
   // the tree, the `shouldClearPath` guard above clears `activeFilePath`.
   useEffect(() => {
-    if (!notesPath) return
+    if (!notesPath || !treeId) return
     const unsubscribe = window.api.tree.onMutation((payload) => {
+      // Tree_Mutation is a shared channel — ignore payloads from other trees.
+      if (payload.treeId !== treeId) return
       // Best-effort: any `updated` event for the active file triggers a
       // content-cache invalidation so the renderer re-reads from disk.
       if (payload.event.type !== 'updated') return
@@ -328,7 +330,7 @@ const NotesPage: FC = () => {
     return () => {
       unsubscribe()
     }
-  }, [notesPath])
+  }, [notesPath, treeId])
 
   // Emergency-save the in-flight edit if the page unmounts while the
   // debounced writer hasn't flushed.
