@@ -196,8 +196,26 @@ function download(url, dest) {
 
 function extract(archivePath, archive, outputDir, pkg) {
   if (archive === 'zip') {
-    const globs = pkg.binaries.map((b) => `${pkg.strip}/${b}`)
-    execFileSync('unzip', ['-o', '-j', archivePath, ...globs, '-d', outputDir], { stdio: 'inherit' })
+    if (process.platform === 'win32') {
+      const tmpExtract = path.join(outputDir, '__extract_tmp')
+      fs.mkdirSync(tmpExtract, { recursive: true })
+      try {
+        execFileSync(
+          'powershell',
+          ['-NoProfile', '-Command', `Expand-Archive -Path '${archivePath}' -DestinationPath '${tmpExtract}' -Force`],
+          { stdio: 'inherit' }
+        )
+        for (const b of pkg.binaries) {
+          const src = pkg.strip ? path.join(tmpExtract, pkg.strip, b) : path.join(tmpExtract, b)
+          fs.copyFileSync(src, path.join(outputDir, b))
+        }
+      } finally {
+        fs.rmSync(tmpExtract, { recursive: true, force: true })
+      }
+    } else {
+      const globs = pkg.binaries.map((b) => `${pkg.strip}/${b}`)
+      execFileSync('unzip', ['-o', '-j', archivePath, ...globs, '-d', outputDir], { stdio: 'inherit' })
+    }
   } else if (archive === 'tar.gz') {
     execFileSync('tar', ['xzf', archivePath, '-C', outputDir, '--strip-components=1'], { stdio: 'inherit' })
   }
@@ -252,7 +270,14 @@ function main() {
   fs.mkdirSync(outputDir, { recursive: true })
 
   for (const tool of TOOLS) {
-    downloadTool(tool, platformKey, outputDir)
+    try {
+      downloadTool(tool, platformKey, outputDir)
+    } catch (error) {
+      if (tool.required) {
+        throw error
+      }
+      console.warn(`[${tool.name}] Download failed (non-fatal): ${error.message}`)
+    }
   }
 
   console.log(`All binaries downloaded to ${outputDir}`)

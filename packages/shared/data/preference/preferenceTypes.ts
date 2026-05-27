@@ -322,3 +322,15 @@ export type MiseTool = {
   tool: string
   version?: string
 }
+
+export interface ToolInstallState {
+  name: string
+  tool: string
+  version: string
+  installedAt: string
+}
+
+export interface MiseState {
+  updatedAt: string
+  tools: Record<string, ToolInstallState>
+}

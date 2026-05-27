@@ -15,7 +15,7 @@ import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
 import { cn } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
-import type { MiseTool } from '@shared/data/preference/preferenceTypes'
+import type { MiseState, MiseTool } from '@shared/data/preference/preferenceTypes'
 import { type MiseToolPreset, PREDEFINED_MISE_TOOLS } from '@shared/data/presets/mise-tools'
 import {
   Download,
@@ -31,11 +31,6 @@ import {
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-
-interface MiseState {
-  updatedAt: string
-  tools: Record<string, { name: string; tool: string; version: string; installedAt: string }>
-}
 
 const logger = loggerService.withContext('EnvironmentDependencies')
 

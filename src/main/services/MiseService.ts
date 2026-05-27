@@ -1,5 +1,6 @@
 import { execFile, execFileSync } from 'node:child_process'
 import fs from 'node:fs'
+import fsp from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
@@ -9,7 +10,7 @@ import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { getBinaryPath } from '@main/utils/process'
-import type { MiseTool } from '@shared/data/preference/preferenceTypes'
+import type { MiseState, MiseTool, ToolInstallState } from '@shared/data/preference/preferenceTypes'
 import { PREDEFINED_MISE_TOOLS } from '@shared/data/presets/mise-tools'
 import { IpcChannel } from '@shared/IpcChannel'
 import { BrowserWindow } from 'electron'
@@ -17,18 +18,6 @@ import { BrowserWindow } from 'electron'
 const logger = loggerService.withContext('MiseService')
 
 const execFileAsync = promisify(execFile)
-
-interface ToolInstallState {
-  name: string
-  tool: string
-  version: string
-  installedAt: string
-}
-
-interface MiseState {
-  updatedAt: string
-  tools: Record<string, ToolInstallState>
-}
 
 interface ReconcileResult {
   installed: string[]
@@ -92,7 +81,7 @@ export class MiseService extends BaseService {
 
   protected async onInit() {
     this.registerIpcHandlers()
-    this.extractBundledBinaries()
+    await this.extractBundledBinaries()
     this.miseBin = this.findMiseBin()
     if (!this.miseBin) {
       logger.warn('mise binary not found, tool management disabled')
@@ -142,20 +131,24 @@ export class MiseService extends BaseService {
     })
 
     this.ipcHandle(IpcChannel.Mise_SearchRegistry, async (_event, query: string) => {
+      if (typeof query !== 'string') return []
       return this.searchRegistry(query)
     })
 
     this.ipcHandle(IpcChannel.Mise_GetToolDir, async (_event, toolName: string) => {
+      if (!toolName || !TOOL_NAME_RE.test(toolName)) {
+        throw new Error(`Invalid tool name: ${toolName}`)
+      }
       const binPath = await getBinaryPath(toolName)
       return path.dirname(binPath)
     })
   }
 
-  private extractBundledBinaries(): void {
+  private async extractBundledBinaries(): Promise<void> {
     const platformKey = `${process.platform}-${process.arch}`
     const bundledDir = path.join(application.getPath('app.root.resources.binaries'), platformKey)
     const binDir = application.getPath('cherry.bin')
-    fs.mkdirSync(binDir, { recursive: true })
+    await fsp.mkdir(binDir, { recursive: true })
 
     const tools: Array<{ name: string; binaries: string[]; versionFile: string }> = [
       { name: 'mise', binaries: [isWin ? 'mise.exe' : 'mise'], versionFile: '.mise-version' },
@@ -178,10 +171,10 @@ export class MiseService extends BaseService {
         const src = path.join(bundledDir, bin)
         const dest = path.join(binDir, bin)
         if (!fs.existsSync(src)) continue
-        fs.copyFileSync(src, dest)
-        if (!isWin) fs.chmodSync(dest, 0o755)
+        await fsp.copyFile(src, dest)
+        if (!isWin) await fsp.chmod(dest, 0o755)
       }
-      fs.writeFileSync(path.join(binDir, tool.versionFile), bundledVersion)
+      await fsp.writeFile(path.join(binDir, tool.versionFile), bundledVersion)
       logger.info(`Extracted bundled ${tool.name}`, { binDir, version: bundledVersion })
     }
   }
@@ -283,7 +276,10 @@ export class MiseService extends BaseService {
   }
 
   private withStateLock<T>(fn: () => Promise<T>): Promise<T> {
-    const next = this.stateLock.then(fn, fn)
+    const next = this.stateLock.then(
+      () => fn(),
+      () => fn()
+    )
     this.stateLock = next.catch(() => {})
     return next
   }
@@ -307,8 +303,17 @@ export class MiseService extends BaseService {
     await this.runMise(args, os.tmpdir())
     await this.runMise(['reshim'], os.tmpdir())
 
-    const { stdout: versionOut } = await this.runMise(['which', tool.name, '--version'], os.tmpdir())
-    return versionOut.trim()
+    try {
+      const { stdout: lsOut } = await this.runMise(['ls', '--json', tool.tool], os.tmpdir())
+      const lsData = JSON.parse(lsOut) as Record<string, Array<{ version?: string }>>
+      const entries = Object.values(lsData).flat()
+      if (entries.length > 0 && entries[0].version) {
+        return entries[0].version
+      }
+    } catch {
+      logger.warn('Failed to query installed version via mise ls', { tool: tool.tool })
+    }
+    return version
   }
 
   private loadState(): MiseState {
@@ -319,7 +324,23 @@ export class MiseService extends BaseService {
       if (!parsed || typeof parsed !== 'object' || typeof parsed.tools !== 'object' || parsed.tools === null) {
         return { updatedAt: '', tools: {} }
       }
-      return { updatedAt: String(parsed.updatedAt ?? ''), tools: parsed.tools }
+      const validTools: Record<string, ToolInstallState> = {}
+      for (const [key, entry] of Object.entries(parsed.tools)) {
+        const e = entry as Record<string, unknown>
+        if (
+          e &&
+          typeof e === 'object' &&
+          typeof e.name === 'string' &&
+          typeof e.tool === 'string' &&
+          typeof e.version === 'string' &&
+          TOOL_KEY_RE.test(e.tool)
+        ) {
+          validTools[key] = e as unknown as ToolInstallState
+        } else {
+          logger.warn('Discarding malformed tool entry from state', { key })
+        }
+      }
+      return { updatedAt: String(parsed.updatedAt ?? ''), tools: validTools }
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
         return { updatedAt: '', tools: {} }
@@ -367,13 +388,11 @@ export class MiseService extends BaseService {
         }
 
         const existing = state.tools[tool.name]
-        if (existing && tool.version && existing.version === tool.version && (await this.isMiseToolReady(tool.name))) {
-          result.skipped.push(tool.name)
-          continue
-        }
-        if (existing && !tool.version && (await this.isMiseToolReady(tool.name))) {
-          result.skipped.push(tool.name)
-          continue
+        if (existing && existing.tool === tool.tool && (await this.isMiseToolReady(tool.name))) {
+          if (!tool.version || existing.version === tool.version) {
+            result.skipped.push(tool.name)
+            continue
+          }
         }
 
         try {
