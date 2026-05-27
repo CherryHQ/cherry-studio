@@ -501,6 +501,7 @@ export enum IpcChannel {
   Mise_RemoveTool = 'mise:remove-tool',
   Mise_GetState = 'mise:get-state',
   Mise_SearchRegistry = 'mise:search-registry',
+  Mise_GetToolDir = 'mise:get-tool-dir',
   Mise_StateChanged = 'mise:state-changed',
   Mise_ReconcileFailed = 'mise:reconcile-failed'
 

@@ -49,7 +49,6 @@ const ToolIcon: FC<{ icon?: string; className?: string }> = ({ icon, className }
 const EnvironmentDependencies: FC = () => {
   const [miseState, setMiseState] = useState<MiseState | null>(null)
   const [installingTools, setInstallingTools] = useState<Set<string>>(new Set())
-  const [binariesDir, setBinariesDir] = useState<string | null>(null)
   const [customTools, setCustomTools] = usePreference('feature.mise.tools')
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
@@ -65,10 +64,9 @@ const EnvironmentDependencies: FC = () => {
 
   const refreshState = useCallback(async () => {
     try {
-      const [state, { dir }] = await Promise.all([window.api.mise.getState(), window.api.mcp.getInstallInfo()])
+      const state = await window.api.mise.getState()
       if (!mountedRef.current) return
       setMiseState(state)
-      setBinariesDir(dir)
     } catch (error) {
       logger.error('Failed to refresh mise state', error as Error)
     }
@@ -123,10 +121,8 @@ const EnvironmentDependencies: FC = () => {
     setDeleteTarget(null)
   }
 
-  const openBinariesDir = () => {
-    if (binariesDir) {
-      void window.api.openPath(binariesDir)
-    }
+  const openToolDir = (toolName: string) => {
+    void window.api.mise.getToolDir(toolName).then((dir) => window.api.openPath(dir))
   }
 
   const totalCount = PREDEFINED_MISE_TOOLS.length + customTools.length
@@ -153,7 +149,7 @@ const EnvironmentDependencies: FC = () => {
               installing={installingTools.has(tool.name)}
               onInstall={() => installTool({ name: tool.name, tool: tool.tool, version: tool.version })}
               onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
-              onOpenPath={openBinariesDir}
+              onOpenPath={() => openToolDir(tool.name)}
             />
           )
         })}
@@ -182,7 +178,7 @@ const EnvironmentDependencies: FC = () => {
                 installing={installingTools.has(tool.name)}
                 onInstall={() => installTool(tool)}
                 onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
-                onOpenPath={openBinariesDir}
+                onOpenPath={() => openToolDir(tool.name)}
                 onRemove={() => setDeleteTarget(tool.name)}
               />
             )

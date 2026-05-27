@@ -8,6 +8,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/constant'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { getBinaryPath } from '@main/utils/process'
 import type { MiseTool } from '@shared/data/preference/preferenceTypes'
 import { PREDEFINED_MISE_TOOLS } from '@shared/data/presets/mise-tools'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -142,6 +143,11 @@ export class MiseService extends BaseService {
 
     this.ipcHandle(IpcChannel.Mise_SearchRegistry, async (_event, query: string) => {
       return this.searchRegistry(query)
+    })
+
+    this.ipcHandle(IpcChannel.Mise_GetToolDir, async (_event, toolName: string) => {
+      const binPath = await getBinaryPath(toolName)
+      return path.dirname(binPath)
     })
   }
 

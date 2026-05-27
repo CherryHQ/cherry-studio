@@ -556,6 +556,7 @@ const api = {
     getState: () => ipcRenderer.invoke(IpcChannel.Mise_GetState),
     searchRegistry: (query: string): Promise<Array<{ name: string; tool: string }>> =>
       ipcRenderer.invoke(IpcChannel.Mise_SearchRegistry, query),
+    getToolDir: (toolName: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Mise_GetToolDir, toolName),
     onStateChanged: (callback: (state: any) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, state: any) => callback(state)
       ipcRenderer.on(IpcChannel.Mise_StateChanged, listener)
