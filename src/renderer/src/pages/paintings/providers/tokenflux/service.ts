@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import type { FileMetadata, TokenFluxPainting } from '@renderer/types'
 
 import { downloadPaintingUrls } from '../../utils/imageFiles'
-import type { TokenFluxModel } from './config'
+import type { TokenFluxFormData, TokenFluxModel } from './config'
 
 const logger = loggerService.withContext('TokenFluxService')
 
@@ -14,8 +14,7 @@ export interface TokenFluxGenerationRequest {
   model: string
   input: {
     prompt: string
-    [key: string]: any
-  }
+  } & TokenFluxFormData
 }
 
 export interface TokenFluxGenerationResponse {

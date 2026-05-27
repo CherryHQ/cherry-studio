@@ -3,30 +3,29 @@ import { DraggableList } from '@renderer/components/DraggableList'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import FileManager from '@renderer/services/FileManager'
-import type { Painting, PaintingsState } from '@renderer/types'
+import type { PaintingAction, PaintingsState } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { Popconfirm } from 'antd'
-import type { FC } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-interface PaintingsListProps {
-  paintings: Painting[]
-  selectedPainting: Painting
-  onSelectPainting: (painting: Painting) => void
-  onDeletePainting: (painting: Painting) => void
+interface PaintingsListProps<T extends PaintingAction = PaintingAction> {
+  paintings: T[]
+  selectedPainting: T
+  onSelectPainting: (painting: T) => void
+  onDeletePainting: (painting: T) => void
   onNewPainting: () => void
   namespace: keyof PaintingsState
 }
 
-const PaintingsList: FC<PaintingsListProps> = ({
+const PaintingsList = <T extends PaintingAction>({
   paintings,
   selectedPainting,
   onSelectPainting,
   onDeletePainting,
   onNewPainting,
   namespace
-}) => {
+}: PaintingsListProps<T>) => {
   const { t } = useTranslation()
   const [dragging, setDragging] = useState(false)
   const { updatePaintings } = usePaintings()
@@ -47,7 +46,7 @@ const PaintingsList: FC<PaintingsListProps> = ({
         onUpdate={(value) => updatePaintings(namespace, value)}
         onDragStart={() => setDragging(true)}
         onDragEnd={() => setDragging(false)}>
-        {(item: Painting) => (
+        {(item: T) => (
           <div key={item.id} className="group relative">
             <div
               className={classNames(

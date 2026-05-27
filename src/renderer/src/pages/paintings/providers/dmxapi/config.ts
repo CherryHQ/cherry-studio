@@ -14,8 +14,9 @@ export type DMXApiModelData = {
     value: string
   }>
   is_custom_size: boolean
-  max_image_size?: number
-  min_image_size?: number
+  max_image_size?: string | number
+  min_image_size?: string | number
+  extend_params?: Record<string, unknown>
 }
 
 // 模型分组类型

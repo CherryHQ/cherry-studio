@@ -10,6 +10,7 @@ import { getErrorMessage, uuid } from '@renderer/utils'
 import { useNavigate } from '@tanstack/react-router'
 import type { UploadFile } from 'antd'
 import { Input, Segmented, Select, Tooltip, Upload } from 'antd'
+import type { TextAreaRef } from 'antd/es/input/TextArea'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
@@ -75,7 +76,7 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
   const ppioProvider = providers.find((p) => p.id === 'ppio')
 
   const navigate = useNavigate()
-  const textareaRef = useRef<any>(null)
+  const textareaRef = useRef<TextAreaRef>(null)
 
   // 模式选项
   const modeOptions = [

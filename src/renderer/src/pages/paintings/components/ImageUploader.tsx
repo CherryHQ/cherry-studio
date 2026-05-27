@@ -39,9 +39,7 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
 
   // 自定义上传请求，不执行任何网络请求
   const customRequest: UploadProps['customRequest'] = ({ onSuccess }) => {
-    if (onSuccess) {
-      onSuccess('ok' as any)
-    }
+    onSuccess?.('ok')
   }
 
   return (

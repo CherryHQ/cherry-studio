@@ -11,7 +11,9 @@ import type { FileMetadata } from '@renderer/types'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
+import type { SelectProps } from 'antd'
 import { Input, InputNumber, Radio, Segmented, Select, Slider, Upload } from 'antd'
+import type { TextAreaRef } from 'antd/es/input/TextArea'
 import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -83,7 +85,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }, [mode])
 
-  const textareaRef = useRef<any>(null)
+  const textareaRef = useRef<TextAreaRef>(null)
 
   const updatePaintingState = (updates: Partial<PaintingAction>) => {
     const updatedPainting = { ...painting, ...updates }
@@ -255,7 +257,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
         const isDisabled = typeof item.disabled === 'function' ? item.disabled(item, painting) : item.disabled
 
         // 处理函数类型的options属性
-        const selectOptions =
+        const selectOptions: SelectProps['options'] =
           typeof item.options === 'function'
             ? item.options(item, painting).map((option) => ({
                 ...option,
@@ -272,7 +274,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             listHeight={500}
             disabled={isDisabled}
             value={painting[item.key!] || item.initialValue}
-            options={selectOptions as any}
+            options={selectOptions}
             onChange={(v) => updatePaintingState({ [item.key!]: v })}
           />
         )

@@ -9,7 +9,9 @@ import FileManager from '@renderer/services/FileManager'
 import type { OvmsPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
+import type { SelectProps } from 'antd'
 import { Input, InputNumber, Select, Slider } from 'antd'
+import type { TextAreaRef } from 'antd/es/input/TextArea'
 import TextArea from 'antd/es/input/TextArea'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
@@ -75,7 +77,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }, [availableModels])
 
-  const textareaRef = useRef<any>(null)
+  const textareaRef = useRef<TextAreaRef>(null)
 
   // Load available models on component mount
   useEffect(() => {
@@ -231,7 +233,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
     switch (item.type) {
       case 'select': {
         const isDisabled = typeof item.disabled === 'function' ? item.disabled(item, painting) : item.disabled
-        const selectOptions =
+        const selectOptions: SelectProps['options'] =
           typeof item.options === 'function'
             ? item.options(item, painting).map((option) => ({
                 ...option,
@@ -248,7 +250,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
             listHeight={500}
             disabled={isDisabled}
             value={painting[item.key!] || item.initialValue}
-            options={selectOptions as any}
+            options={selectOptions}
             onChange={(v) => updatePaintingState({ [item.key!]: v })}
           />
         )

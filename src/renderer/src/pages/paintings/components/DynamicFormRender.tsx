@@ -8,11 +8,13 @@ import TextArea from 'antd/es/input/TextArea'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { DynamicFormSchemaProperty, DynamicFormValue } from '../providers/types'
+
 interface DynamicFormRenderProps {
-  schemaProperty: any
+  schemaProperty: DynamicFormSchemaProperty
   propertyName: string
-  value: any
-  onChange: (field: string, value: any) => void
+  value: DynamicFormValue
+  onChange: (field: string, value: DynamicFormValue) => void
 }
 
 const logger = loggerService.withContext('DynamicFormRender')
@@ -30,7 +32,7 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
     async (
       propertyName: string,
       fileOrUrl: File | string,
-      onChange: (field: string, value: any) => void
+      onChange: (field: string, value: DynamicFormValue) => void
     ): Promise<void> => {
       try {
         if (typeof fileOrUrl === 'string') {
@@ -57,12 +59,15 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
   )
 
   if (type === 'string' && propertyName.toLowerCase().includes('image') && format === 'uri') {
+    const imageValue = typeof value === 'string' ? value : ''
+    const inputValue = imageValue || (typeof defaultValue === 'string' ? defaultValue : '')
+
     return (
       <div className="flex flex-col gap-3">
         <div className="flex">
           <Input
             className="rounded-r-none! border-r-0!"
-            value={value || defaultValue || ''}
+            value={inputValue}
             onChange={(e) => onChange(propertyName, e.target.value)}
             placeholder={t('common.image_url_or_upload')}
             prefix={<LinkOutlined className="text-[#999]" />}
@@ -80,15 +85,15 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
           </Upload>
         </div>
 
-        {value && (
+        {imageValue && (
           <div className="flex items-center gap-2 rounded-[6px] border border-border bg-(--color-fill-quaternary) p-2">
             <img
-              src={value}
+              src={imageValue}
               alt={t('common.image_preview')}
               className="h-12 w-12 shrink-0 rounded border border-(--color-border-secondary) object-cover shadow-[0_1px_4px_rgba(0,0,0,0.1)]"
             />
             <div className="min-w-0 flex-1 overflow-hidden text-ellipsis text-foreground-secondary text-xs">
-              {value.startsWith('data:') ? t('common.uploaded_image') : t('common.image_url')}
+              {imageValue.startsWith('data:') ? t('common.uploaded_image') : t('common.image_url')}
             </div>
             <Button
               size="sm"
@@ -116,10 +121,12 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
   }
 
   if (type === 'string') {
+    const stringValue = typeof value === 'string' ? value : typeof defaultValue === 'string' ? defaultValue : ''
+
     if (propertyName.toLowerCase().includes('prompt') && propertyName !== 'prompt') {
       return (
         <TextArea
-          value={value || defaultValue || ''}
+          value={stringValue}
           onChange={(e) => onChange(propertyName, e.target.value)}
           rows={3}
           placeholder={description}
@@ -127,21 +134,19 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
       )
     }
     return (
-      <Input
-        value={value || defaultValue || ''}
-        onChange={(e) => onChange(propertyName, e.target.value)}
-        placeholder={description}
-      />
+      <Input value={stringValue} onChange={(e) => onChange(propertyName, e.target.value)} placeholder={description} />
     )
   }
 
   if (type === 'integer' && propertyName === 'seed') {
     const generateRandomSeed = () => Math.floor(Math.random() * 1000000)
+    const numericValue = typeof value === 'number' ? value : typeof defaultValue === 'number' ? defaultValue : undefined
+
     return (
       <div className="flex items-center gap-2">
         <InputNumber
           className="flex-1"
-          value={value || defaultValue}
+          value={numericValue}
           onChange={(v) => onChange(propertyName, v)}
           step={1}
           min={schemaProperty.minimum}
@@ -159,10 +164,12 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
 
   if (type === 'integer' || type === 'number') {
     const step = type === 'number' ? 0.1 : 1
+    const numericValue = typeof value === 'number' ? value : typeof defaultValue === 'number' ? defaultValue : undefined
+
     return (
       <InputNumber
         className="w-full"
-        value={value || defaultValue}
+        value={numericValue}
         onChange={(v) => onChange(propertyName, v)}
         step={step}
         min={schemaProperty.minimum}
@@ -172,13 +179,9 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
   }
 
   if (type === 'boolean') {
-    return (
-      <Switch
-        checked={value !== undefined ? value : defaultValue}
-        onCheckedChange={(checked) => onChange(propertyName, checked)}
-        className="w-0.5"
-      />
-    )
+    const checked = typeof value === 'boolean' ? value : typeof defaultValue === 'boolean' ? defaultValue : false
+
+    return <Switch checked={checked} onCheckedChange={(checked) => onChange(propertyName, checked)} className="w-0.5" />
   }
 
   return null

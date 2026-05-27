@@ -8,6 +8,7 @@ import type { TokenFluxPainting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { Select } from 'antd'
+import type { TextAreaRef } from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,7 +23,7 @@ import ProviderSelect from './components/ProviderSelect'
 import { usePaintingGenerationTask } from './hooks/usePaintingGenerationTask'
 import { usePaintingImageNavigation } from './hooks/usePaintingImageNavigation'
 import { usePaintingPromptTranslation } from './hooks/usePaintingPromptTranslation'
-import { DEFAULT_TOKENFLUX_PAINTING, type TokenFluxModel } from './providers/tokenflux/config'
+import { DEFAULT_TOKENFLUX_PAINTING, type TokenFluxFormData, type TokenFluxModel } from './providers/tokenflux/config'
 import TokenFluxService from './providers/tokenflux/service'
 import { checkProviderEnabled } from './utils'
 
@@ -31,7 +32,7 @@ const logger = loggerService.withContext('TokenFluxPage')
 const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [models, setModels] = useState<TokenFluxModel[]>([])
   const [selectedModel, setSelectedModel] = useState<TokenFluxModel | null>(null)
-  const [formData, setFormData] = useState<Record<string, any>>({})
+  const [formData, setFormData] = useState<TokenFluxFormData>({})
 
   const { t, i18n } = useTranslation()
   const providers = useAllProviders()
@@ -45,7 +46,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   const navigate = useNavigate()
   const location = useLocation()
   const tokenfluxProvider = providers.find((p) => p.id === 'tokenflux')!
-  const textareaRef = useRef<any>(null)
+  const textareaRef = useRef<TextAreaRef>(null)
   const tokenFluxService = useMemo(
     () => new TokenFluxService(tokenfluxProvider.apiHost, tokenfluxProvider.apiKey),
     [tokenfluxProvider]
@@ -102,7 +103,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }
 
-  const handleFormFieldChange = (field: string, value: any) => {
+  const handleFormFieldChange = (field: string, value: TokenFluxFormData[string]) => {
     const newFormData = { ...formData, [field]: value }
     setFormData(newFormData)
     updatePaintingState({ inputParams: newFormData })
@@ -228,10 +229,13 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }
 
-  const readI18nContext = (property: Record<string, any>, key: string): string => {
+  const readI18nContext = (property: TokenFluxModel['input_schema']['properties'][string], key: string): string => {
     const lang = i18n.language.split('-')[0] // Get the base language code (e.g., 'en' from 'en-US')
     logger.debug('readI18nContext', { property, key, lang })
-    return property[`${key}_${lang}`] || property[key]
+    const localizedValue = property[`${key}_${lang}`]
+    const fallbackValue = property[key]
+
+    return typeof localizedValue === 'string' ? localizedValue : typeof fallbackValue === 'string' ? fallbackValue : ''
   }
 
   useEffect(() => {
@@ -340,7 +344,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                 {t('paintings.input_parameters')}
               </div>
               <div className="flex flex-col gap-3">
-                {Object.entries(selectedModel.input_schema.properties).map(([key, property]: [string, any]) => {
+                {Object.entries(selectedModel.input_schema.properties).map(([key, property]) => {
                   if (key === 'prompt') return null // Skip prompt as it's handled separately
 
                   const isRequired = selectedModel.input_schema.required?.includes(key)
@@ -370,7 +374,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
       }
       artboard={
         <>
-          {/* Check if any form field contains an uploaded image */}
+          {/* Check whether a form field contains an uploaded image */}
           {Object.keys(formData).some((key) => key.toLowerCase().includes('image') && formData[key]) ? (
             <div className="flex h-full flex-1 flex-row gap-px">
               <div className="flex h-full flex-1 flex-col bg-background [border-right:0.5px_solid_var(--color-border)]">
@@ -379,7 +383,7 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
                 </div>
                 <div className="flex flex-1 items-center justify-center bg-background">
                   {Object.entries(formData).map(([key, value]) => {
-                    if (key.toLowerCase().includes('image') && value) {
+                    if (key.toLowerCase().includes('image') && typeof value === 'string' && value) {
                       return (
                         <div key={key} className="relative flex items-center justify-center">
                           <img
@@ -446,8 +450,8 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
           namespace="tokenflux_paintings"
           paintings={tokenFluxPaintings}
           selectedPainting={painting}
-          onSelectPainting={onSelectPainting as any}
-          onDeletePainting={onDeletePainting as any}
+          onSelectPainting={onSelectPainting}
+          onDeletePainting={onDeletePainting}
           onNewPainting={handleAddPainting}
         />
       }

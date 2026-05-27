@@ -4,9 +4,11 @@ import { loggerService } from '@logger'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import FileManager from '@renderer/services/FileManager'
+import type { Painting, PaintingAction } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { InputNumber, Radio, Select } from 'antd'
+import type { TextAreaRef } from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -34,9 +36,26 @@ import { savePaintingGenerationResult } from './utils/imageFiles'
 
 const logger = loggerService.withContext('ZhipuPage')
 
+type ZhipuPainting = Painting & {
+  model: string
+  prompt: string
+  imageSize: string
+  numImages: number
+  quality?: string
+  customWidth?: number
+  customHeight?: number
+}
+
+function toZhipuPainting(painting?: Partial<ZhipuPainting> | PaintingAction): ZhipuPainting {
+  return {
+    ...DEFAULT_PAINTING,
+    ...painting
+  }
+}
+
 const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { zhipu_paintings, addPainting, removePainting, updatePainting } = usePaintings()
-  const [painting, setPainting] = useState<any>(zhipu_paintings?.[0] || DEFAULT_PAINTING)
+  const [painting, setPainting] = useState<ZhipuPainting>(() => toZhipuPainting(zhipu_paintings?.[0]))
   const { t } = useTranslation()
   const providers = useAllProviders()
 
@@ -55,20 +74,20 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { currentImageIndex, nextImage, prevImage, resetImageIndex } = usePaintingImageNavigation(painting.files.length)
   const navigate = useNavigate()
   const location = useLocation()
-  const textareaRef = useRef<any>(null)
+  const textareaRef = useRef<TextAreaRef>(null)
 
   // 自定义尺寸相关状态
   const [isCustomSize, setIsCustomSize] = useState(false)
   const [customWidth, setCustomWidth] = useState<number | undefined>()
   const [customHeight, setCustomHeight] = useState<number | undefined>()
 
-  const updatePaintingState = (updates: Partial<any>) => {
+  const updatePaintingState = (updates: Partial<ZhipuPainting>) => {
     const updatedPainting = { ...painting, ...updates }
     setPainting(updatedPainting)
     updatePainting('zhipu_paintings', updatedPainting)
   }
 
-  const getNewPainting = (params?: Partial<any>) => {
+  const getNewPainting = (params?: Partial<ZhipuPainting>): ZhipuPainting => {
     return {
       ...DEFAULT_PAINTING,
       id: uuid(),
@@ -176,16 +195,16 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
     cancelGeneration()
   }
 
-  const onDeletePainting = async (paintingToDelete: any) => {
+  const onDeletePainting = async (paintingToDelete: Painting) => {
     if (paintingToDelete.id === painting.id) {
       if (isLoading) return
 
       const currentIndex = zhipu_paintings.findIndex((p) => p.id === paintingToDelete.id)
 
       if (currentIndex > 0) {
-        setPainting(zhipu_paintings[currentIndex - 1])
+        setPainting(toZhipuPainting(zhipu_paintings[currentIndex - 1]))
       } else if (zhipu_paintings.length > 1) {
-        setPainting(zhipu_paintings[1])
+        setPainting(toZhipuPainting(zhipu_paintings[1]))
       }
     }
 
@@ -194,13 +213,13 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
     if (!zhipu_paintings || zhipu_paintings.length === 1) {
       const newPainting = getNewPainting()
       const addedPainting = addPainting('zhipu_paintings', newPainting)
-      setPainting(addedPainting)
+      setPainting(toZhipuPainting(addedPainting))
     }
   }
 
-  const onSelectPainting = (newPainting: any) => {
+  const onSelectPainting = (newPainting: Painting) => {
     if (generating) return
-    setPainting(newPainting)
+    setPainting(toZhipuPainting(newPainting))
     resetImageIndex()
   }
 
@@ -243,7 +262,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
     if (generating) return
     const newPainting = getNewPainting()
     const addedPainting = addPainting('zhipu_paintings', newPainting)
-    setPainting(addedPainting)
+    setPainting(toZhipuPainting(addedPainting))
   }
 
   const { isTranslating, handleKeyDown } = usePaintingPromptTranslation({

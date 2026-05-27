@@ -9,6 +9,7 @@ import type { FileMetadata, Painting } from '@renderer/types'
 import { getErrorMessage, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { Input, InputNumber, Radio, Select, Slider } from 'antd'
+import type { TextAreaRef } from 'antd/es/input/TextArea'
 import TextArea from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import { useEffect, useRef, useState } from 'react'
@@ -70,7 +71,7 @@ const SiliconPage: FC<{ Options: string[] }> = ({ Options }) => {
   const modelParams = getSiliconModelParams(painting.model)
   const imageSizes = modelParams.imageSizes
 
-  const textareaRef = useRef<any>(null)
+  const textareaRef = useRef<TextAreaRef>(null)
   // _painting = painting
 
   const updatePaintingState = (updates: Partial<Painting>) => {

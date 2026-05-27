@@ -10,6 +10,7 @@ import { classNames, uuid } from '@renderer/utils'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import type { DmxapiPainting } from '@types'
 import { Input, InputNumber, Segmented, Select } from 'antd'
+import type { TextAreaRef } from 'antd/es/input/TextArea'
 import type { FC } from 'react'
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -27,6 +28,8 @@ import { usePaintingImageNavigation } from './hooks/usePaintingImageNavigation'
 import {
   COURSE_URL,
   DEFAULT_PAINTING,
+  type DMXApiModelData,
+  type DMXApiModelGroups,
   GetModelGroup,
   MODEOPTIONS,
   STYLE_TYPE_OPTIONS,
@@ -38,6 +41,11 @@ import { downloadPaintingUrls } from './utils/imageFiles'
 
 const generateRandomSeed = () => Math.floor(Math.random() * 1000000).toString()
 
+type DmxapiModelOptions = Record<string, DMXApiModelData[]>
+
+const parseImageSizeLimit = (value: DMXApiModelData['min_image_size'], fallback: number) =>
+  parseInt(String(value ?? fallback), 10)
+
 const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { dmxapi_paintings, addPainting, removePainting, updatePainting } = usePaintings()
   const [painting, setPainting] = useState<DmxapiPainting>(dmxapi_paintings?.[0] || DEFAULT_PAINTING)
@@ -48,8 +56,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const dmxapiProvider = providers.find((p) => p.id === 'dmxapi')!
 
   // 动态模型数据状态
-  const [dynamicModelGroups, setDynamicModelGroups] = useState<any>(null)
-  const [allModels, setAllModels] = useState<any[]>([])
+  const [dynamicModelGroups, setDynamicModelGroups] = useState<DMXApiModelGroups | null>(null)
+  const [allModels, setAllModels] = useState<DMXApiModelData[]>([])
   const [isLoadingModels, setIsLoadingModels] = useState(true)
 
   const navigate = useNavigate()
@@ -77,7 +85,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   })
 
-  const getModelOptions = (mode: generationModeType) => {
+  const getModelOptions = (mode: generationModeType): DmxapiModelOptions => {
     if (!dynamicModelGroups) {
       return {}
     }
@@ -100,7 +108,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     return getModelOptions(currentMode)
   })
 
-  const textareaRef = useRef<any>(null)
+  const textareaRef = useRef<TextAreaRef>(null)
 
   // 加载模型数据
   const loadModelData = async () => {
@@ -109,7 +117,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       const modelData = await GetModelGroup()
       setDynamicModelGroups(modelData)
 
-      const allModelsList = Object.values(modelData).flatMap((group) => Object.values(group).flat())
+      const allModelsList = Object.values(modelData).flatMap((group) => Object.values(group ?? {}).flat())
 
       setAllModels(allModelsList)
     } catch (error) {
@@ -132,14 +140,15 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     let model = ''
     let priceModel = ''
     let image_size = ''
-    let extend_params = {}
+    let extend_params: Record<string, unknown> = {}
 
     for (const provider of Object.keys(modelGroups)) {
       if (modelGroups[provider] && modelGroups[provider].length > 0) {
-        model = modelGroups[provider][0].id
-        priceModel = modelGroups[provider][0].price
-        image_size = modelGroups[provider][0].image_sizes[0].value
-        extend_params = modelGroups[provider][0].extend_params
+        const firstModel = modelGroups[provider][0]
+        model = firstModel.id
+        priceModel = firstModel.price
+        image_size = firstModel.image_sizes[0].value
+        extend_params = firstModel.extend_params ?? {}
         break
       }
     }
@@ -271,7 +280,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
   }
 
-  const onbeforeunload = (file, index?: number) => {
+  const onbeforeunload = (file: File, index?: number) => {
     const path = URL.createObjectURL(file)
 
     // 更新 fileMap
@@ -285,13 +294,13 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       if (index !== undefined) {
         // 替换指定索引的图片
         newFiles = [...currentFiles]
-        newFiles[index] = file as FileMetadata
+        newFiles[index] = file as unknown as FileMetadata
 
         newPaths = [...currentPaths]
         newPaths[index] = path
       } else {
         // 添加新图片到最后
-        newFiles = [...currentFiles, file as FileMetadata]
+        newFiles = [...currentFiles, file as unknown as FileMetadata]
         newPaths = [...currentPaths, path]
       }
 
@@ -663,10 +672,10 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
             loading={isLoadingModels}
             placeholder={isLoadingModels ? t('common.loading') : t('paintings.select_model')}>
             {Object.entries(modelOptions).map(([provider, models]) => {
-              if ((models as any[]).length === 0) return null
+              if (models.length === 0) return null
               return (
                 <Select.OptGroup label={provider} key={provider}>
-                  {(models as any[]).map((model) => (
+                  {models.map((model) => (
                     <Select.Option key={model.id} value={model.id}>
                       {model.name}
                     </Select.Option>
@@ -715,8 +724,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
                   value={customWidth}
                   controls={false}
                   onChange={(value) => onCustomSizeChange(value, 'width')}
-                  min={parseInt(allModels.find((m) => m.id === painting.model)?.min_image_size || '512')}
-                  max={parseInt(allModels.find((m) => m.id === painting.model)?.max_image_size || '2048')}
+                  min={parseImageSizeLimit(allModels.find((m) => m.id === painting.model)?.min_image_size, 512)}
+                  max={parseImageSizeLimit(allModels.find((m) => m.id === painting.model)?.max_image_size, 2048)}
                   className="w-20 flex-1"
                 />
                 <span className="text-foreground-secondary text-xs">x</span>
@@ -725,8 +734,8 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
                   value={customHeight}
                   controls={false}
                   onChange={(value) => onCustomSizeChange(value, 'height')}
-                  min={parseInt(allModels.find((m) => m.id === painting.model)?.min_image_size || 512)}
-                  max={parseInt(allModels.find((m) => m.id === painting.model)?.max_image_size || 2048)}
+                  min={parseImageSizeLimit(allModels.find((m) => m.id === painting.model)?.min_image_size, 512)}
+                  max={parseImageSizeLimit(allModels.find((m) => m.id === painting.model)?.max_image_size, 2048)}
                   className="w-20 flex-1"
                 />
                 <span className="text-[11px] text-foreground-muted">px</span>

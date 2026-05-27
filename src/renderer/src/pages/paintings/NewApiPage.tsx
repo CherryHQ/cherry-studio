@@ -21,6 +21,7 @@ import { getErrorMessage, uuid } from '@renderer/utils'
 import { isNewApiProvider } from '@renderer/utils/provider'
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { Empty, InputNumber, Segmented, Select, Upload } from 'antd'
+import type { TextAreaRef } from 'antd/es/input/TextArea'
 import type { RcFile } from 'antd/es/upload'
 import type { UploadFile } from 'antd/es/upload/interface'
 import type { FC } from 'react'
@@ -76,7 +77,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     { label: t('paintings.mode.edit'), value: 'openai_image_edit' }
   ]
 
-  const textareaRef = useRef<any>(null)
+  const textareaRef = useRef<TextAreaRef>(null)
 
   // 获取编辑模式的图片文件
   const editImages = editImageFiles
@@ -464,7 +465,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
                     showUploadList={true}
                     listType="picture"
                     beforeUpload={handleImageUpload}
-                    fileList={editImageFiles.map((file, idx): UploadFile<any> => {
+                    fileList={editImageFiles.map((file, idx): UploadFile<unknown> => {
                       const rcFile: RcFile = {
                         ...file,
                         uid: String(idx),
