@@ -168,8 +168,9 @@ export function useDirectoryTree(rootPath: string | undefined, options?: Directo
       if (createdTreeId) disposeTree(createdTreeId)
       mirrorRef.current = null
     }
-    // Options change → re-create. Pass a stable object (memoized at the
-    // call site) to avoid spurious rebuilds.
+    // Re-create only on rootPath change. Options are sampled at mount time
+    // via optionsRef; later option changes do NOT trigger a rebuild — pass a
+    // new rootPath if you need different scan options.
   }, [rootPath])
 
   const getNode = useCallback((absPath: string): TreeNode | null => {
