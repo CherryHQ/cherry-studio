@@ -6,7 +6,6 @@ import {
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
-import { OpenAIUrlImageModel } from '@cherrystudio/ai-sdk-provider'
 
 export const SILICON_PROVIDER_NAME = 'silicon' as const
 
@@ -25,11 +24,6 @@ export interface SiliconProvider extends ProviderV3 {
   embeddingModel(modelId: string): EmbeddingModelV3
   textEmbeddingModel(modelId: string): EmbeddingModelV3
   imageModel(modelId: string): ImageModelV3
-}
-
-function isQwenImageModel(modelId: string): boolean {
-  const normalized = modelId.toLowerCase()
-  return normalized.includes('qwen') && normalized.includes('image')
 }
 
 export function createSiliconProvider(settings: SiliconProviderSettings = {}): SiliconProvider {
@@ -67,17 +61,13 @@ export function createSiliconProvider(settings: SiliconProviderSettings = {}): S
   provider.chatModel = createChatModel
   provider.embeddingModel = createEmbeddingModel
   provider.textEmbeddingModel = createEmbeddingModel
-  provider.imageModel = (modelId: string) => {
-    const config = {
+  provider.imageModel = (modelId: string) =>
+    new OpenAICompatibleImageModel(modelId, {
       provider: `${SILICON_PROVIDER_NAME}.image`,
       url,
       headers,
       fetch: customFetch
-    }
-    return isQwenImageModel(modelId)
-      ? new OpenAIUrlImageModel(modelId, config)
-      : new OpenAICompatibleImageModel(modelId, config)
-  }
+    })
 
   return provider as SiliconProvider
 }

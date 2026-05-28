@@ -10,7 +10,7 @@ import {
   OpenAISpeechModel,
   OpenAITranscriptionModel
 } from '@ai-sdk/openai/internal'
-import { OpenAICompatibleChatLanguageModel } from '@ai-sdk/openai-compatible'
+import { OpenAICompatibleChatLanguageModel, OpenAICompatibleImageModel } from '@ai-sdk/openai-compatible'
 import {
   type EmbeddingModelV3,
   type ImageModelV3,
@@ -22,8 +22,6 @@ import {
 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
-
-import { OpenAIUrlImageModel } from './openai-url-image-model'
 
 export const CHERRYIN_PROVIDER_NAME = 'cherryin' as const
 export const DEFAULT_CHERRYIN_BASE_URL = 'https://open.cherryin.net/v1'
@@ -393,7 +391,9 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
       }),
       fetch
     }
-    return isQwenImageModel(modelId) ? new OpenAIUrlImageModel(modelId, config) : new OpenAIImageModel(modelId, config)
+    return isQwenImageModel(modelId)
+      ? new OpenAICompatibleImageModel(modelId, config)
+      : new OpenAIImageModel(modelId, config)
   }
 
   const createTranscriptionModel = (modelId: string) =>

@@ -1,8 +1,11 @@
-import { OpenAICompatibleChatLanguageModel, OpenAICompatibleEmbeddingModel } from '@ai-sdk/openai-compatible'
+import {
+  OpenAICompatibleChatLanguageModel,
+  OpenAICompatibleEmbeddingModel,
+  OpenAICompatibleImageModel
+} from '@ai-sdk/openai-compatible'
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
-import { OpenAIUrlImageModel } from '@cherrystudio/ai-sdk-provider'
 
 export const ZHIPU_PROVIDER_NAME = 'zhipu' as const
 
@@ -59,7 +62,7 @@ export function createZhipuProvider(settings: ZhipuProviderSettings = {}): Zhipu
   provider.embeddingModel = createEmbeddingModel
   provider.textEmbeddingModel = createEmbeddingModel
   provider.imageModel = (modelId: string) =>
-    new OpenAIUrlImageModel(modelId, {
+    new OpenAICompatibleImageModel(modelId, {
       provider: `${ZHIPU_PROVIDER_NAME}.image`,
       url,
       headers,

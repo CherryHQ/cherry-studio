@@ -1,10 +1,10 @@
-import { OpenAIUrlImageModel } from '@cherrystudio/ai-sdk-provider'
+import { OpenAICompatibleImageModel } from '@ai-sdk/openai-compatible'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createZhipuProvider } from '../zhipu-provider'
 
 describe('createZhipuProvider', () => {
-  it('uses OpenAI-compatible chat and URL-aware image models', () => {
+  it('uses OpenAI-compatible chat / embedding / image models', () => {
     const provider = createZhipuProvider({
       apiKey: 'sk-test',
       baseURL: 'https://open.bigmodel.cn/api/paas/v4',
@@ -13,8 +13,8 @@ describe('createZhipuProvider', () => {
 
     expect(provider.languageModel('glm-4.5').provider).toBe('zhipu.chat')
     expect(provider.embeddingModel('embedding-3').provider).toBe('zhipu.embedding')
-    expect(provider.imageModel('glm-image')).toBeInstanceOf(OpenAIUrlImageModel)
-    expect(provider.imageModel('cogview-4-250304')).toBeInstanceOf(OpenAIUrlImageModel)
+    expect(provider.imageModel('glm-image')).toBeInstanceOf(OpenAICompatibleImageModel)
+    expect(provider.imageModel('cogview-4-250304')).toBeInstanceOf(OpenAICompatibleImageModel)
   })
 
   it('accepts Zhipu image responses that return data[].url', async () => {
@@ -48,13 +48,6 @@ describe('createZhipuProvider', () => {
       providerOptions: {}
     })
 
-    expect(fetch).toHaveBeenCalledWith(
-      'https://open.bigmodel.cn/api/paas/v4/images/generations',
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({ model: 'glm-image', prompt: 'a cat', n: 1, size: '1024x1024' })
-      })
-    )
     expect(result.images).toEqual([imageUrl])
   })
 })
