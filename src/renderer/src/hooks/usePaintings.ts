@@ -5,7 +5,7 @@ import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { addPainting, removePainting, updatePainting, updatePaintings } from '@renderer/store/paintings'
 import type { PaintingAction, PaintingsState } from '@renderer/types'
 import type { Painting, PaintingMode } from '@shared/data/types/painting'
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { useProviders } from './useProviders'
 
@@ -14,6 +14,16 @@ const logger = loggerService.withContext('usePaintings')
 const PAINTINGS_QUERY = { page: 1, limit: 5000 } as const
 
 type PaintingNamespace = keyof PaintingsState
+
+interface PendingPaintingUpdate {
+  namespace: PaintingNamespace
+  painting: PaintingAction
+}
+
+interface PaintingUpdateQueueState {
+  running: boolean
+  latest?: PendingPaintingUpdate
+}
 
 interface NamespaceConfig {
   provider: string
@@ -201,6 +211,7 @@ export function usePaintings() {
   const ppio_edit = useAppSelector((state) => state.paintings.ppio_edit)
   const dispatch = useAppDispatch()
   const { providers } = useProviders()
+  const updateQueuesRef = useRef(new Map<string, PaintingUpdateQueueState>())
 
   const newApiProviderIds = useMemo(
     () =>
@@ -234,14 +245,52 @@ export function usePaintings() {
     [refetch]
   )
 
-  const persistUpdate = useCallback(
-    (namespace: PaintingNamespace, painting: PaintingAction) => {
-      void dataApiService
-        .patch(`/paintings/${painting.id}`, { body: toDataApiBody(namespace, painting, { includeId: false }) })
-        .then(() => refetch())
-        .catch((error) => logDataApiError('update', error))
+  const flushPaintingUpdate = useCallback(
+    async function flushPaintingUpdate(paintingId: string) {
+      const state = updateQueuesRef.current.get(paintingId)
+      if (!state || state.running) return
+
+      state.running = true
+      let lastAttemptSucceeded = false
+
+      try {
+        while (state.latest) {
+          const next = state.latest
+          state.latest = undefined
+
+          try {
+            await dataApiService.patch(`/paintings/${paintingId}`, {
+              body: toDataApiBody(next.namespace, next.painting, { includeId: false })
+            })
+            lastAttemptSucceeded = true
+          } catch (error) {
+            lastAttemptSucceeded = false
+            logDataApiError('update', error)
+          }
+        }
+      } finally {
+        state.running = false
+        if (state.latest) {
+          void flushPaintingUpdate(paintingId)
+        } else {
+          updateQueuesRef.current.delete(paintingId)
+          if (lastAttemptSucceeded) {
+            void refetch()
+          }
+        }
+      }
     },
     [refetch]
+  )
+
+  const persistUpdate = useCallback(
+    (namespace: PaintingNamespace, painting: PaintingAction) => {
+      const state = updateQueuesRef.current.get(painting.id) ?? { running: false }
+      state.latest = { namespace, painting }
+      updateQueuesRef.current.set(painting.id, state)
+      void flushPaintingUpdate(painting.id)
+    },
+    [flushPaintingUpdate]
   )
 
   const persistDelete = useCallback(
