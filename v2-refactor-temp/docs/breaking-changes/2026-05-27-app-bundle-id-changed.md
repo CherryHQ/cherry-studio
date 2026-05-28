@@ -8,7 +8,7 @@ date: 2026-05-27
 
 ## What changed
 
-The application's macOS bundle identifier was renamed from `com.kangfenmao.CherryStudio` to `com.cherryai.CherryStudio` as part of the v2 identity rebrand. The user-visible `productName` (`Cherry Studio`) is unchanged on every platform, and so is the `cherrystudio://` URL scheme name itself.
+The application's macOS bundle identifier was renamed from `com.kangfenmao.CherryStudio` to `com.cherryai.cherrystudio` as part of the v2 identity rebrand. The user-visible `productName` (`Cherry Studio`) is unchanged on every platform, and so is the `cherrystudio://` URL scheme name itself.
 
 User data is preserved automatically. Electron's `userData` directory is keyed by `productName` (`~/Library/Application Support/Cherry Studio`), not by bundle id, so v1's SQLite database, preferences, and cache files are picked up by v2 on first launch without any migration step.
 
