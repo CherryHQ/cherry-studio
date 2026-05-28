@@ -344,7 +344,11 @@ describe('ProviderRegistryService', () => {
     })
 
     it('getImageGenerationSupport returns the model block when present', async () => {
-      const block = { modes: ['generate'], sizes: ['1024x1024'], sizeMode: 'pixel' as const }
+      const block = {
+        modes: {
+          generate: { supports: { size: { type: 'enum' as const, options: ['1024x1024'], render: 'chips' as const } } }
+        }
+      }
       mockReadModels.mockReturnValue({
         version: '1.0',
         models: [{ id: 'sd-1-5', name: 'SD 1.5', imageGeneration: block }]
@@ -360,7 +364,9 @@ describe('ProviderRegistryService', () => {
             name: 'OVMS',
             defaultChatEndpoint: null,
             metadata: { website: { official: 'https://openvino.ai' } },
-            paintingDefaults: { modes: ['generate'], sizes: ['512x512'], sizeMode: 'pixel' as const }
+            paintingDefaults: {
+              modes: { generate: { supports: { size: { type: 'enum', options: ['512x512'], render: 'chips' } } } }
+            }
           }
         ]
       } as ReturnType<typeof readProviderRegistry>)
@@ -370,14 +376,19 @@ describe('ProviderRegistryService', () => {
 
     it('getImageGenerationSupport falls back to provider.paintingDefaults when model is unknown', async () => {
       const defaults = {
-        modes: ['generate'],
-        sizes: ['512x512', '768x768', '1024x1024'],
-        sizeMode: 'pixel' as const,
-        defaultSize: '512x512',
-        keyMap: { numInferenceSteps: 'num_inference_steps', seed: 'rng_seed' },
-        supports: {
-          seed: true,
-          numInferenceSteps: { min: 1, max: 100, default: 4 }
+        modes: {
+          generate: {
+            supports: {
+              size: {
+                type: 'enum' as const,
+                options: ['512x512', '768x768', '1024x1024'],
+                default: '512x512',
+                render: 'chips' as const
+              },
+              seed: { type: 'text' as const },
+              numInferenceSteps: { type: 'range' as const, min: 1, max: 100, default: 4 }
+            }
+          }
         }
       }
       mockReadModels.mockReturnValue({ version: '1.0', models: [] } as ReturnType<typeof readModelRegistry>)

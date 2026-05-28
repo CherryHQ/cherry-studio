@@ -4511,11 +4511,61 @@
     },
     {
       "providerId": "modelscope",
-      "modelId": "Tongyi-MAI/Z-Image"
+      "modelId": "Tongyi-MAI/Z-Image",
+      "name": "Z-Image",
+      "description": "Tongyi-MAI Z-Image — text-to-image base model. Higher fidelity than Z-Image-Turbo; recommended num_inference_steps≈30, guidance_scale≈4.",
+      "family": "Z-Image",
+      "ownedBy": "Tongyi-MAI",
+      "capabilities": { "force": ["image-generation"] },
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "size": {
+                "type": "enum",
+                "options": ["1024x1024", "768x1024", "1024x768", "768x1344", "1344x768"],
+                "render": "chips",
+                "default": "1024x1024"
+              },
+              "numInferenceSteps": { "type": "range", "min": 1, "max": 50, "default": 30 },
+              "guidanceScale": { "type": "range", "min": 0, "max": 10, "default": 4, "step": 0.5 },
+              "negativePrompt": { "type": "text", "multiline": true },
+              "seed": { "type": "text" }
+            }
+          }
+        }
+      }
     },
     {
       "providerId": "modelscope",
-      "modelId": "Tongyi-MAI/Z-Image-Turbo"
+      "modelId": "Tongyi-MAI/Z-Image-Turbo",
+      "name": "Z-Image-Turbo",
+      "description": "Tongyi-MAI Z-Image-Turbo — sub-second text-to-image on ModelScope's free API Inference tier. Apache-2.0 weights; recommended num_inference_steps=9, guidance_scale=0.",
+      "family": "Z-Image",
+      "ownedBy": "Tongyi-MAI",
+      "capabilities": { "force": ["image-generation"] },
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "size": {
+                "type": "enum",
+                "options": ["1024x1024", "768x1024", "1024x768", "768x1344", "1344x768"],
+                "render": "chips",
+                "default": "1024x1024"
+              },
+              "numInferenceSteps": { "type": "range", "min": 1, "max": 30, "default": 9 },
+              "guidanceScale": { "type": "range", "min": 0, "max": 10, "default": 0, "step": 0.5 },
+              "negativePrompt": { "type": "text", "multiline": true },
+              "seed": { "type": "text" }
+            }
+          }
+        }
+      }
     },
     {
       "providerId": "modelscope",
@@ -4523,7 +4573,26 @@
     },
     {
       "providerId": "modelscope",
-      "modelId": "Qwen/Qwen-Image-Edit-2511"
+      "modelId": "Qwen/Qwen-Image-Edit-2511",
+      "name": "Qwen-Image-Edit-2511",
+      "description": "Qwen-Image-Edit, dated 2025-11 release on ModelScope. Image-editing variant of Qwen-Image — extends text rendering capabilities to edit tasks with semantic + appearance control via Qwen2.5-VL.",
+      "family": "Qwen",
+      "ownedBy": "Alibaba",
+      "capabilities": { "force": ["image-generation"] },
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["image"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "negativePrompt": { "type": "text", "multiline": true },
+              "seed": { "type": "text" },
+              "numInferenceSteps": { "type": "range", "min": 1, "max": 50, "default": 30 },
+              "guidanceScale": { "type": "range", "min": 1, "max": 20, "default": 4 }
+            }
+          }
+        }
+      }
     },
     {
       "providerId": "modelscope",

@@ -348,8 +348,15 @@ class ModelService {
         const presetId = model.presetModelId ?? model.apiModelId
         if (!presetId) return model
         try {
-          const { presetModel } = await providerRegistryService.lookupModel(model.providerId, presetId)
-          return presetModel?.imageGeneration ? { ...model, imageGeneration: presetModel.imageGeneration } : model
+          const { presetModel, registryOverride } = await providerRegistryService.lookupModel(
+            model.providerId,
+            presetId
+          )
+          // Override wins so vendor-exclusive entries (modelscope's Tongyi-MAI/*,
+          // ppio bespoke models, …) can declare their imageGeneration block
+          // inline in provider-models.json without a global models.json entry.
+          const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
+          return imageGeneration ? { ...model, imageGeneration } : model
         } catch {
           return model
         }

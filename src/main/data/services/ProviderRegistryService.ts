@@ -134,6 +134,33 @@ export function createCustomModel(providerId: string, modelId: string): Model {
 }
 
 /**
+ * Synthesize a minimal `ProtoModelConfig` from a provider-models override when
+ * no `models.json` entry exists for that model id. Lets `provider-models.json`
+ * carry vendor-exclusive models (ModelScope's `Tongyi-MAI/Z-Image-Turbo`, PPIO
+ * bespoke endpoints, …) entirely on its own — no entry needed in the global
+ * model catalog.
+ *
+ * Capability resolution favors `force` (the new-row case) over `add`. The
+ * synthesized preset feeds straight into `applyPresetAndOverride`, where the
+ * override's modality / capability / pricing arrays already merge correctly.
+ */
+export function synthesizePresetFromOverride(override: ProtoProviderModelOverride): ProtoModelConfig {
+  const capabilities = override.capabilities?.force ?? override.capabilities?.add ?? []
+  return {
+    id: override.modelId,
+    name: override.name ?? override.modelId,
+    description: override.description,
+    family: override.family,
+    ownedBy: override.ownedBy,
+    capabilities,
+    inputModalities: override.inputModalities,
+    outputModalities: override.outputModalities,
+    pricing: override.pricing as ProtoModelConfig['pricing'],
+    imageGeneration: override.imageGeneration
+  }
+}
+
+/**
  * Two-layer merge: preset → override. No user data involved.
  *
  * Used by `resolveModels` and (via composition with `applyUserOverlay` in ModelService)
@@ -566,8 +593,12 @@ class ProviderRegistryService {
     for (const override of overrides) {
       if ((override.disabled ?? false) !== includeDisabled) continue
 
-      const presetModel = loader.findModel(override.modelId)
-      if (!presetModel) continue
+      // Synthesize a preset when models.json has no entry — vendor-exclusive
+      // models (modelscope's Tongyi-MAI/*, ppio bespoke endpoints, …) live
+      // entirely inside provider-models.json with their imageGeneration
+      // block declared inline. Reduces models.json clutter from
+      // single-provider entries.
+      const presetModel = loader.findModel(override.modelId) ?? synthesizePresetFromOverride(override)
 
       let reasoningConfig = reasoningConfigByProvider.get(override.providerId)
       if (!reasoningConfig) {
@@ -598,7 +629,9 @@ class ProviderRegistryService {
   async isActiveProviderRegistryModel(providerId: string, modelId: string): Promise<boolean> {
     const loader = this.getLoader()
     const override = loader.findOverride(providerId, modelId)
-    return override !== null && !(override.disabled ?? false) && loader.findModel(override.modelId) !== null
+    // Vendor-exclusive override-only models (no models.json entry) are also
+    // active — the override carries the full model definition itself.
+    return override !== null && !(override.disabled ?? false)
   }
 
   /**
@@ -618,7 +651,10 @@ class ProviderRegistryService {
    * (greedy `:modelId` capture for HuggingFace-style ids containing `/`).
    */
   async getImageGenerationSupport(providerId: string, modelId: string): Promise<ImageGenerationSupport | null> {
-    const { presetModel } = await this.lookupModel(providerId, modelId)
+    const { presetModel, registryOverride } = await this.lookupModel(providerId, modelId)
+    // Override wins — lets vendor-exclusive overrides declare their own
+    // imageGeneration block without polluting the global models.json.
+    if (registryOverride?.imageGeneration) return registryOverride.imageGeneration as ImageGenerationSupport
     if (presetModel?.imageGeneration) return presetModel.imageGeneration
     const registryProvider = this.findRegistryProvider(providerId)
     return registryProvider?.paintingDefaults ?? null
