@@ -46,7 +46,9 @@ const TaskListItem: FC<TaskListItemProps> = ({ task, onEdit, onToggleStatus, onD
   const locale = i18n.language
 
   const formatScheduleValue = () => {
-    if (task.schedule_type === 'cron') return task.schedule_value
+    if (task.schedule_type === 'cron') {
+      return task.timezone ? `${task.schedule_value} (${task.timezone})` : task.schedule_value
+    }
     if (task.schedule_type === 'interval') return `${task.schedule_value} min`
     if (task.schedule_type === 'once' && task.schedule_value) {
       return new Date(task.schedule_value).toLocaleString(locale)
