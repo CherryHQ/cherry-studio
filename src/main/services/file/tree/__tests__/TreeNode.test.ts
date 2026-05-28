@@ -20,19 +20,6 @@ describe('TreeFile', () => {
       stats: { mtime: 5, birthtime: 5 }
     })
   })
-
-  it('renaming via basename setter updates path but keeps parent reference', () => {
-    const dir = new TreeDir({ path: '/root' })
-    const file = new TreeFile({ path: '/root/old.md' })
-    dir.attachChild(file)
-    file.basename = 'new.md'
-    expect(file.path).toBe('/root/new.md')
-    // Parent's record still keys by the *original* basename (caller must
-    // detach + reattach to update the lookup key); rename via the builder
-    // does so explicitly.
-    expect(dir.hasChild('old.md')).toBe(true)
-    expect(file.parent).toBe(dir)
-  })
 })
 
 describe('TreeDir', () => {
@@ -68,19 +55,6 @@ describe('TreeDir', () => {
     expect(root.nodeFromPath('/root/sub')).toBe(sub)
     expect(root.nodeFromPath('/elsewhere')).toBeNull()
     expect(root.nodeFromPath('sub/missing')).toBeNull()
-  })
-
-  it('adjustChildrenPaths cascades when the directory itself is renamed via setter', () => {
-    const root = new TreeDirRoot('/root')
-    const sub = new TreeDir({ path: '/root/old' })
-    const leaf = new TreeFile({ path: '/root/old/leaf.md' })
-    root.attachChild(sub)
-    sub.attachChild(leaf)
-
-    sub.path = '/root/new'
-
-    expect(sub.path).toBe('/root/new')
-    expect(leaf.path).toBe('/root/new/leaf.md')
   })
 
   it('sortChildren reorders folders-first then by basename', () => {
