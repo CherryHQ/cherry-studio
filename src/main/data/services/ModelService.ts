@@ -34,6 +34,35 @@ import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 const logger = loggerService.withContext('DataApi:ModelService')
 
 /**
+ * Resolve the effective capability set for a Model row at query-time.
+ *
+ * Mirrors `applyPresetAndOverride`'s capability semantics (force replaces
+ * entirely; add unions in; remove subtracts) so the read-time enrichment
+ * stays consistent with the at-rest user_model row written at add-time.
+ *
+ * Anchors the union on existing user-row capabilities so a model the user
+ * explicitly tagged stays tagged, even when the registry preset doesn't
+ * carry that capability.
+ */
+function resolveCapabilities(
+  presetCapabilities: readonly ModelCapability[] | undefined,
+  overrideCapabilities: { force?: ModelCapability[]; add?: ModelCapability[]; remove?: ModelCapability[] } | undefined,
+  userCapabilities: readonly ModelCapability[]
+): ModelCapability[] {
+  if (overrideCapabilities?.force) {
+    return [...overrideCapabilities.force]
+  }
+  const set = new Set<ModelCapability>([...userCapabilities, ...(presetCapabilities ?? [])])
+  if (overrideCapabilities?.add) {
+    for (const c of overrideCapabilities.add) set.add(c)
+  }
+  if (overrideCapabilities?.remove) {
+    for (const c of overrideCapabilities.remove) set.delete(c)
+  }
+  return [...set]
+}
+
+/**
  * Registry data for model creation.
  * Must stay in sync with the return type of {@link ProviderRegistryService.lookupModel}.
  * Defined explicitly (not via ReturnType) to avoid a circular import.
@@ -337,12 +366,14 @@ class ModelService {
 
     let models = rows.map(rowToRuntimeModel)
 
-    // Enrich with `imageGeneration` from the registry preset. Not stored on
-    // `user_model` because it's preset metadata, not user-mutable; sourcing
-    // it at read time keeps the painting page in sync with registry edits
-    // without a DB migration. Lookup is O(1) per model via RegistryLoader's
-    // id index. Failures (missing preset) silently leave imageGeneration
-    // undefined — same as today's behavior for non-image models.
+    // Enrich with `imageGeneration` AND `capabilities` from the registry preset.
+    // imageGeneration is preset-only metadata (not stored on user_model).
+    // capabilities are unioned in: if registry says a model is `image-generation`
+    // but the provider's /models endpoint didn't tag it (cherryin returning
+    // `qwen/qwen-image-edit-2509(free)` with no capability field), the painting
+    // filter still picks it up. `override.capabilities.force` replaces; `add`
+    // adds; `remove` subtracts — matches `applyPresetAndOverride` semantics at
+    // add-time, so re-fetching models stays idempotent with the at-rest row.
     models = await Promise.all(
       models.map(async (model) => {
         const presetId = model.presetModelId ?? model.apiModelId
@@ -353,7 +384,18 @@ class ModelService {
             presetId
           )
           const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
-          return imageGeneration ? { ...model, imageGeneration } : model
+          const capabilities = resolveCapabilities(
+            presetModel?.capabilities,
+            registryOverride?.capabilities,
+            model.capabilities
+          )
+          const updates: Partial<Model> = {}
+          if (imageGeneration) updates.imageGeneration = imageGeneration
+          const changed =
+            capabilities.length !== model.capabilities.length ||
+            capabilities.some((c: ModelCapability, i: number) => c !== model.capabilities[i])
+          if (changed) updates.capabilities = capabilities
+          return Object.keys(updates).length > 0 ? { ...model, ...updates } : model
         } catch {
           return model
         }
