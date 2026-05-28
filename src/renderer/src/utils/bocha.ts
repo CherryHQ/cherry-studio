@@ -100,12 +100,11 @@ const BochaSearchParamsSchema = z.object({
       message:
         'Invalid exclude format. Please provide valid domain names separated by | or ,. Maximum 20 domains allowed.'
     }),
-  page: z.number().optional().default(1),
   count: z.number().optional().default(10)
 })
 
 const BochaSearchResponseDataSchema = z.object({
-  type: z.string(),
+  _type: z.string(),
   queryContext: z.object({
     originalQuery: z.string()
   }),
@@ -114,7 +113,7 @@ const BochaSearchResponseDataSchema = z.object({
     totalEstimatedMatches: z.number(),
     value: z.array(
       z.object({
-        id: z.string(),
+        id: z.string().nullable(),
         name: z.string(),
         url: z.string(),
         displayUrl: z.string(),
@@ -122,84 +121,93 @@ const BochaSearchResponseDataSchema = z.object({
         summary: z.string().optional(),
         siteName: z.string(),
         siteIcon: z.string(),
-        datePublished: z.string(),
+        datePublished: z.string().optional(),
         dateLastCrawled: z.string(),
-        cachedPageUrl: z.string(),
-        language: z.string(),
-        isFamilyFriendly: z.boolean(),
-        isNavigational: z.boolean()
+        cachedPageUrl: z.string().nullable(),
+        language: z.string().nullable(),
+        isFamilyFriendly: z.boolean().nullable(),
+        isNavigational: z.boolean().nullable()
       })
     ),
-    someResultsRemoved: z.boolean()
+    someResultsRemoved: z.boolean().optional()
   }),
   images: z.object({
-    id: z.string(),
-    readLink: z.string(),
-    webSearchUrl: z.string(),
-    name: z.string(),
+    id: z.string().nullable(),
+    readLink: z.string().nullable().optional(),
+    webSearchUrl: z.string().nullable(),
+    isFamilyFriendly: z.boolean().nullable().optional(),
     value: z.array(
       z.object({
-        webSearchUrl: z.string(),
-        name: z.string(),
+        webSearchUrl: z.string().nullable(),
+        name: z.string().nullable(),
         thumbnailUrl: z.string(),
-        datePublished: z.string(),
+        datePublished: z.string().nullable(),
         contentUrl: z.string(),
         hostPageUrl: z.string(),
-        contentSize: z.string(),
-        encodingFormat: z.string(),
-        hostPageDisplayUrl: z.string(),
+        contentSize: z.string().nullable(),
+        encodingFormat: z.string().nullable(),
+        hostPageDisplayUrl: z.string().nullable(),
         width: z.number(),
         height: z.number(),
-        thumbnail: z.object({
-          width: z.number(),
-          height: z.number()
-        })
+        thumbnail: z
+          .object({
+            height: z.number(),
+            width: z.number()
+          })
+          .nullable()
       })
     )
   }),
-  videos: z.object({
-    id: z.string(),
-    readLink: z.string(),
-    webSearchUrl: z.string(),
-    isFamilyFriendly: z.boolean(),
-    scenario: z.string(),
-    name: z.string(),
-    value: z.array(
-      z.object({
-        webSearchUrl: z.string(),
-        name: z.string(),
-        description: z.string(),
-        thumbnailUrl: z.string(),
-        publisher: z.string(),
-        creator: z.string(),
-        contentUrl: z.string(),
-        hostPageUrl: z.string(),
-        encodingFormat: z.string(),
-        hostPageDisplayUrl: z.string(),
-        width: z.number(),
-        height: z.number(),
-        duration: z.number(),
-        motionThumbnailUrl: z.string(),
-        embedHtml: z.string(),
-        allowHttpsEmbed: z.boolean(),
-        viewCount: z.number(),
-        thumbnail: z.object({
+  videos: z
+    .object({
+      id: z.string().nullable(),
+      readLink: z.string().nullable(),
+      webSearchUrl: z.string().nullable(),
+      isFamilyFriendly: z.boolean(),
+      scenario: z.string(),
+      value: z.array(
+        z.object({
+          webSearchUrl: z.string(),
+          name: z.string(),
+          description: z.string(),
+          thumbnailUrl: z.string(),
+          publisher: z.array(
+            z.object({
+              name: z.string()
+            })
+          ),
+          creator: z.object({
+            name: z.string()
+          }),
+          contentUrl: z.string(),
+          hostPageUrl: z.string(),
+          encodingFormat: z.string(),
+          hostPageDisplayUrl: z.string(),
           width: z.number(),
-          height: z.number()
-        }),
-        allowMobileEmbed: z.boolean(),
-        isSuperfresh: z.boolean(),
-        datePublished: z.string()
-      })
-    )
-  })
+          height: z.number(),
+          duration: z.string(),
+          motionThumbnailUrl: z.string(),
+          embedHtml: z.string(),
+          allowHttpsEmbed: z.boolean(),
+          viewCount: z.number(),
+          thumbnail: z.object({
+            width: z.number(),
+            height: z.number()
+          }),
+          allowMobileEmbed: z.boolean(),
+          isSuperfresh: z.boolean(),
+          datePublished: z.string()
+        })
+      )
+    })
+    .nullable()
 })
 
 const BochaSearchResponseSchema = z.object({
   code: z.number(),
-  logId: z.string(),
+  log_id: z.string(),
   data: BochaSearchResponseDataSchema,
-  msg: z.string().optional()
+  msg: z.string().nullable().optional()
 })
 
 export type BochaSearchParams = z.infer<typeof BochaSearchParamsSchema>

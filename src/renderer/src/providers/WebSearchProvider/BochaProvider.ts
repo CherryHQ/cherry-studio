@@ -34,8 +34,7 @@ export default class BochaProvider extends BaseWebSearchProvider {
         count: websearch.maxResults,
         exclude: websearch.excludeDomains.join(','),
         freshness: websearch.searchWithTime ? 'oneDay' : 'noLimit',
-        summary: true,
-        page: 1
+        summary: true
       }
 
       const response = await fetch(`${this.apiHost}/v1/web-search`, {
