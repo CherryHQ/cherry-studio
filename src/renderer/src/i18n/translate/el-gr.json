@@ -1380,6 +1380,7 @@
           "no_knowledge_base": "Δεν υπάρχει διαθέσιμη βάση γνώσεων προς το παρόν. Δημιουργήστε πρώτα μια βάση γνώσεων"
         },
         "error": {
+          "file_partial_failed": "[to be translated]:{{count}} file(s) could not be saved",
           "invalid_base": "Η επιλεγμένη βάση γνώσεων δεν έχει ρυθμιστεί σωστά",
           "no_content_selected": "Παρακαλώ επιλέξτε τουλάχιστον ένα περιεχόμενο",
           "save_failed": "Η αποθήκευση απέτυχε. Ελέγξτε τη ρύθμιση της βάσης γνώσεων"
@@ -1798,6 +1799,7 @@
     "reset": "Επαναφορά",
     "retry": "Επανάληψη",
     "save": "Αποθήκευση",
+    "save_failed": "[to be translated]:Save failed",
     "saved": "Αποθηκεύτηκε",
     "search": "Αναζήτηση",
     "select": "Επιλογή",
@@ -3500,6 +3502,7 @@
     "starred_notes": "Σημειώσεις συλλογής",
     "target_name_exists": "[to be translated]:A note or folder with this name already exists",
     "title": "σημειώσεις",
+    "tree_load_failed": "[to be translated]:Failed to load notes directory",
     "unsaved_changes": "Έχετε μη αποθηκευμένο περιεχόμενο, είστε βέβαιοι ότι θέλετε να φύγετε;",
     "unstar": "Αποσπάστε το αγαπημένο",
     "untitled_folder": "Νέος φάκελος",
@@ -7077,7 +7080,8 @@
         "too_large": "Το αρχείο είναι πολύ μεγάλο",
         "unknown": "Αποτυχία ανάγνωσης του περιεχομένου του αρχείου"
       },
-      "reading": "Διαβάζοντας το περιεχόμενο του αρχείου..."
+      "reading": "Διαβάζοντας το περιεχόμενο του αρχείου...",
+      "upload": "[to be translated]:Drop or click to upload image/document"
     },
     "history": {
       "back": "[to be translated]:Back to list",

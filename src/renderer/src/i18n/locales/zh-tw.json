@@ -3502,6 +3502,7 @@
     "starred_notes": "收藏的筆記",
     "target_name_exists": "已存在同名筆記或資料夾",
     "title": "筆記",
+    "tree_load_failed": "載入筆記目錄失敗",
     "unsaved_changes": "尚有未儲存的內容，確定要離開嗎？",
     "unstar": "取消收藏",
     "untitled_folder": "新資料夾",

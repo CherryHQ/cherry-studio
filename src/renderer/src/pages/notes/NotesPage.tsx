@@ -67,7 +67,21 @@ const NotesPage: FC = () => {
   // `File_TreeCreate` IPC. Whenever the watcher observes add / unlink / rename
   // events, `root` (mutated in place) + `version` (tick) drive the
   // projection effect below to refresh `notesTree`.
-  const { root: treeRoot, version: treeVersion, treeId } = useDirectoryTree(notesPath || undefined, NOTES_TREE_OPTIONS)
+  const {
+    root: treeRoot,
+    version: treeVersion,
+    treeId,
+    error: treeError
+  } = useDirectoryTree(notesPath || undefined, NOTES_TREE_OPTIONS)
+
+  // Surface tree-create failures (missing ripgrep, EACCES on the notes
+  // folder, deleted root). Without this, the user sees a silently-empty
+  // tree with no toast and no log a non-developer would notice.
+  useEffect(() => {
+    if (!treeError) return
+    logger.error('Failed to load notes directory tree', treeError, { notesPath, treeId })
+    window.toast.error(t('notes.tree_load_failed'))
+  }, [treeError, notesPath, treeId, t])
 
   // 混合策略：useLiveQuery用于笔记树，React Query用于文件内容
   const [notesTree, setNotesTree] = useState<NotesTreeNode[]>([])

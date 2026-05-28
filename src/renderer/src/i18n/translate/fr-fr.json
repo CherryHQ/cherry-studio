@@ -1380,6 +1380,7 @@
           "no_knowledge_base": "Aucune base de connaissances disponible pour le moment. Veuillez d'abord créer une base de connaissances"
         },
         "error": {
+          "file_partial_failed": "[to be translated]:{{count}} file(s) could not be saved",
           "invalid_base": "La base de connaissances sélectionnée n'est pas correctement configurée",
           "no_content_selected": "Veuillez sélectionner au moins un type de contenu",
           "save_failed": "Échec de l'enregistrement. Veuillez vérifier la configuration de la base de connaissances"
@@ -1798,6 +1799,7 @@
     "reset": "Réinitialiser",
     "retry": "Réessayer",
     "save": "Enregistrer",
+    "save_failed": "[to be translated]:Save failed",
     "saved": "enregistré",
     "search": "Rechercher",
     "select": "Sélectionner",
@@ -3500,6 +3502,7 @@
     "starred_notes": "notes de collection",
     "target_name_exists": "[to be translated]:A note or folder with this name already exists",
     "title": "notes",
+    "tree_load_failed": "[to be translated]:Failed to load notes directory",
     "unsaved_changes": "Vous avez des modifications non enregistrées, êtes-vous sûr de vouloir quitter ?",
     "unstar": "annuler la mise en favori",
     "untitled_folder": "nouveau dossier",
@@ -7077,7 +7080,8 @@
         "too_large": "Fichier trop volumineux",
         "unknown": "Échec de la lecture du contenu du fichier"
       },
-      "reading": "Lecture du contenu du fichier en cours..."
+      "reading": "Lecture du contenu du fichier en cours...",
+      "upload": "[to be translated]:Drop or click to upload image/document"
     },
     "history": {
       "back": "[to be translated]:Back to list",

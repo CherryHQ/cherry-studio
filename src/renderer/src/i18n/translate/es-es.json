@@ -1380,6 +1380,7 @@
           "no_knowledge_base": "Actualmente no hay ninguna base de conocimientos disponible, por favor créela primero"
         },
         "error": {
+          "file_partial_failed": "[to be translated]:{{count}} file(s) could not be saved",
           "invalid_base": "La base de conocimientos seleccionada no está configurada correctamente",
           "no_content_selected": "Por favor seleccione al menos un tipo de contenido",
           "save_failed": "Error al guardar, por favor verifique la configuración de la base de conocimientos"
@@ -1798,6 +1799,7 @@
     "reset": "Restablecer",
     "retry": "Reintentar",
     "save": "Guardar",
+    "save_failed": "[to be translated]:Save failed",
     "saved": "Guardado",
     "search": "Buscar",
     "select": "Seleccionar",
@@ -3500,6 +3502,7 @@
     "starred_notes": "notas guardadas",
     "target_name_exists": "[to be translated]:A note or folder with this name already exists",
     "title": "notas",
+    "tree_load_failed": "[to be translated]:Failed to load notes directory",
     "unsaved_changes": "Tienes contenido no guardado, ¿estás seguro de que quieres salir?",
     "unstar": "Quitar de favoritos",
     "untitled_folder": "Nueva carpeta",
@@ -7077,7 +7080,8 @@
         "too_large": "El archivo es demasiado grande",
         "unknown": "Error al leer el contenido del archivo"
       },
-      "reading": "Leyendo el contenido del archivo..."
+      "reading": "Leyendo el contenido del archivo...",
+      "upload": "[to be translated]:Drop or click to upload image/document"
     },
     "history": {
       "back": "[to be translated]:Back to list",

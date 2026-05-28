@@ -149,20 +149,18 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
   }
 
   private async runInitialScan(): Promise<void> {
-    let paths: string[]
-    try {
-      paths = await searchListDirectory(this.rootPath as FilePath, {
-        recursive: true,
-        maxDepth: this.options.maxDepth,
-        includeHidden: this.options.includeHidden,
-        includeFiles: true,
-        includeDirectories: true,
-        maxEntries: Number.MAX_SAFE_INTEGER
-      })
-    } catch (err) {
-      logger.error(`Initial scan failed for ${this.rootPath}`, err as Error)
-      paths = []
-    }
+    // Let scan failures propagate. Swallowing them resolves File_TreeCreate
+    // with an empty tree — indistinguishable from "the directory is genuinely
+    // empty" to the renderer, which produces a silent regression (the user
+    // sees zero notes when ripgrep is missing or the root is unreadable).
+    const paths = await searchListDirectory(this.rootPath as FilePath, {
+      recursive: true,
+      maxDepth: this.options.maxDepth,
+      includeHidden: this.options.includeHidden,
+      includeFiles: true,
+      includeDirectories: true,
+      maxEntries: Number.MAX_SAFE_INTEGER
+    })
 
     // Sort by depth ascending so parents always exist before children are
     // attached. Within a depth, sort alphabetically for stable display.
@@ -207,36 +205,37 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
   }
 
   private attachWatcher(): void {
-    try {
-      // Pass the gitignore predicate to chokidar. Without it, chokidar
-      // installs an FSEvents (macOS) or inotify (linux) handle per
-      // directory and hits `ulimit -n` (EMFILE) the moment the workspace
-      // is a real code repo with a `node_modules` blob. The predicate
-      // fires before chokidar recurses into the dir, so the cost stays
-      // at "one Ignore.ignores() call per entry".
-      const predicate = this.ignorePredicate
-      const watcherIgnore = predicate
-        ? (((p: FilePath) => predicate(normalizePath(p))) as (path: FilePath) => boolean)
-        : undefined
+    // Let attach failures propagate too. A silently-failed watcher install
+    // produces a zombie builder: the initial snapshot looks fine but no
+    // mutation will ever fire — worse than failing init() outright because
+    // the renderer has no signal to retry.
+    //
+    // Pass the gitignore predicate to chokidar. Without it, chokidar
+    // installs an FSEvents (macOS) or inotify (linux) handle per
+    // directory and hits `ulimit -n` (EMFILE) the moment the workspace
+    // is a real code repo with a `node_modules` blob. The predicate
+    // fires before chokidar recurses into the dir, so the cost stays
+    // at "one Ignore.ignores() call per entry".
+    const predicate = this.ignorePredicate
+    const watcherIgnore = predicate
+      ? (((p: FilePath) => predicate(normalizePath(p))) as (path: FilePath) => boolean)
+      : undefined
 
-      this.watcher = createDirectoryWatcher(this.rootPath as FilePath, {
-        recursive: true,
-        stabilityThresholdMs: 200,
-        ignore: watcherIgnore
+    this.watcher = createDirectoryWatcher(this.rootPath as FilePath, {
+      recursive: true,
+      stabilityThresholdMs: 200,
+      ignore: watcherIgnore
+    })
+    this.watcherSubscription = {
+      dispose: this.watcher.onEvent((ev) => {
+        // Defer watcher events until the initial scan completes so we
+        // don't apply a mutation for a path the scan is about to insert.
+        if (this.initialScanPromise) {
+          void this.initialScanPromise.then(() => this.handleWatcherEvent(ev))
+        } else {
+          void this.handleWatcherEvent(ev)
+        }
       })
-      this.watcherSubscription = {
-        dispose: this.watcher.onEvent((ev) => {
-          // Defer watcher events until the initial scan completes so we
-          // don't apply a mutation for a path the scan is about to insert.
-          if (this.initialScanPromise) {
-            void this.initialScanPromise.then(() => this.handleWatcherEvent(ev))
-          } else {
-            void this.handleWatcherEvent(ev)
-          }
-        })
-      }
-    } catch (err) {
-      logger.error(`Failed to attach watcher for ${this.rootPath}`, err as Error)
     }
   }
 
@@ -244,7 +243,14 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     if (this.disposed) return
     if (ev.kind === 'ready') return
     if (ev.kind === 'error') {
-      logger.warn(`Watcher reported error on ${this.rootPath}`, ev.error)
+      // Watcher-fatal: chokidar surfaces EMFILE / ENOSPC / remote-share
+      // disconnect here. The mirror after this point is stale by
+      // definition — drop the watcher so we stop pretending mutations are
+      // still tracked. The renderer keeps its last-known snapshot until it
+      // remounts; a future change can synthesise a terminal mutation event
+      // so consumers surface a stale-data banner.
+      logger.error(`Watcher reported fatal error on ${this.rootPath} — disposing builder`, ev.error)
+      this.dispose()
       return
     }
 

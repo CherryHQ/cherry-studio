@@ -3502,6 +3502,7 @@
     "starred_notes": "收藏的笔记",
     "target_name_exists": "已存在同名笔记或文件夹",
     "title": "笔记",
+    "tree_load_failed": "加载笔记目录失败",
     "unsaved_changes": "你有未保存的内容，确定要离开吗？",
     "unstar": "取消收藏",
     "untitled_folder": "新文件夹",

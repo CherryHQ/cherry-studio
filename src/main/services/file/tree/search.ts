@@ -146,7 +146,16 @@ function executeRipgrep(args: string[]): Promise<{ exitCode: number; output: str
       errorOutput += data.toString()
     })
 
-    child.on('close', (code: number | null) => {
+    child.on('close', (code: number | null, signal: NodeJS.Signals | null) => {
+      // `code === null` happens when the process was killed by a signal
+      // (SIGKILL / SIGTERM on OOM, parent crash, etc.). Coercing it to 0
+      // would surface as "ripgrep exited successfully with no matches" =
+      // an empty directory listing, which is indistinguishable from a real
+      // empty result. Reject explicitly so callers can decide.
+      if (code === null && signal !== null) {
+        reject(new Error(`Ripgrep terminated by signal ${signal}: ${errorOutput || output}`))
+        return
+      }
       resolve({
         exitCode: code ?? 0,
         output: output || errorOutput

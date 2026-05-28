@@ -1380,6 +1380,7 @@
           "no_knowledge_base": "利用可能なナレッジベースがありません。まず作成してください"
         },
         "error": {
+          "file_partial_failed": "[to be translated]:{{count}} file(s) could not be saved",
           "invalid_base": "選択されたナレッジベースが正しく設定されていません",
           "no_content_selected": "少なくとも1つのコンテンツタイプを選択してください",
           "save_failed": "保存に失敗しました。ナレッジベースの設定を確認してください"
@@ -1798,6 +1799,7 @@
     "reset": "リセット",
     "retry": "リトライ",
     "save": "保存",
+    "save_failed": "[to be translated]:Save failed",
     "saved": "保存されました",
     "search": "検索",
     "select": "選択",
@@ -3500,6 +3502,7 @@
     "starred_notes": "収集したノート",
     "target_name_exists": "[to be translated]:A note or folder with this name already exists",
     "title": "ノート",
+    "tree_load_failed": "[to be translated]:Failed to load notes directory",
     "unsaved_changes": "保存されていないコンテンツがあります。本当に離れますか？",
     "unstar": "お気に入りを解除する",
     "untitled_folder": "新ファイル夹",
@@ -7077,7 +7080,8 @@
         "too_large": "ファイルが大きすぎます",
         "unknown": "ファイルの内容を読み取るのに失敗しました"
       },
-      "reading": "ファイルの内容を読み込んでいます..."
+      "reading": "ファイルの内容を読み込んでいます...",
+      "upload": "[to be translated]:Drop or click to upload image/document"
     },
     "history": {
       "back": "[to be translated]:Back to list",
