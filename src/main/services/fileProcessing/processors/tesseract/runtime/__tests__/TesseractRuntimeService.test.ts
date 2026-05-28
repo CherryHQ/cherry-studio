@@ -4,7 +4,7 @@ import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
 import { getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
-import { type FileInfo, FileInfoSchema } from '@shared/file/types'
+import { type FileInfo, FileInfoSchema, type FilePath } from '@shared/file/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PreparedTesseractContext } from '../../types'
@@ -506,7 +506,7 @@ describe('TesseractRuntimeService', () => {
     await expect(
       service.extract({
         file: createFileInfo({
-          path: '/tmp/large.png',
+          path: '/tmp/large.png' as FilePath,
           name: 'large',
           size: 51 * 1024 * 1024
         }),
