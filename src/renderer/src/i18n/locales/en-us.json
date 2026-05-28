@@ -3769,8 +3769,26 @@
       }
     },
     "custom_size": "Custom Size",
+    "dashscope": {
+      "bottom_scale": "Expand Bottom",
+      "enable_interleave": "Text+Image Mixed Mode",
+      "enable_interleave_tip": "When on, generates text-and-image mixed output without requiring an input image. Turn off to use edit mode (requires 1–4 input images).",
+      "function": "Edit Function",
+      "is_sketch": "Sketch Input",
+      "left_scale": "Expand Left",
+      "ref_mode": "Reference Mode",
+      "ref_strength": "Reference Strength",
+      "right_scale": "Expand Right",
+      "source_lang": "Source Language",
+      "strength": "Strength",
+      "target_lang": "Target Language",
+      "top_scale": "Expand Top",
+      "upscale_factor": "Upscale Factor"
+    },
     "dmxapi": {
-      "generating_tip": "Generating with the official model, estimated wait time is 2-5 minutes for best results. Please check DMXAPI backend logs for the cost of this operation."
+      "generating_tip": "Generating with the official model, estimated wait time is 2-5 minutes for best results. Please check DMXAPI backend logs for the cost of this operation.",
+      "max_images": "Max Images",
+      "sequential_image_generation": "Sequential Image Generation"
     },
     "edit": {
       "image_file": "Input Image",

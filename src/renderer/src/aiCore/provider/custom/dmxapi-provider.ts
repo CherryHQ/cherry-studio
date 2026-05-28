@@ -1,4 +1,8 @@
-import { OpenAICompatibleChatLanguageModel, OpenAICompatibleEmbeddingModel } from '@ai-sdk/openai-compatible'
+import {
+  OpenAICompatibleChatLanguageModel,
+  OpenAICompatibleEmbeddingModel,
+  OpenAICompatibleImageModel
+} from '@ai-sdk/openai-compatible'
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
@@ -7,6 +11,21 @@ import { createImageGenerationModel } from './imageGenerationModel'
 import { createDmxapiTransport, DEFAULT_DMXAPI_BASE_URL } from './imageTransports/dmxapi'
 
 export const DMXAPI_PROVIDER_NAME = 'dmxapi' as const
+
+/**
+ * Models whose body / endpoint / response shape diverge from OpenAI's standard
+ * `/v1/images/{generations,edits}` contract — they need the bespoke
+ * `DmxapiTransport` (Responses API, Gemini generateContent, async-wrapped
+ * qwen-image). Every other DMXAPI image model is OpenAI-flat and goes through
+ * AI SDK's `OpenAICompatibleImageModel` which already covers JSON generate +
+ * multipart edit natively, so we don't reimplement multipart / edit dispatch.
+ */
+const DMXAPI_CUSTOM_BACKEND_MODELS = new Set([
+  'doubao-seedream-5.0-lite',
+  'wan2.6-t2i',
+  'gemini-3.1-flash-image-preview',
+  'qwen-image'
+])
 
 export interface DmxapiProviderSettings {
   apiKey?: string
@@ -77,8 +96,17 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
       headers: authHeaders,
       fetch: customFetch
     })
-  provider.imageModel = (modelId: string) =>
-    createImageGenerationModel(modelId, { provider: DMXAPI_PROVIDER_NAME, transport })
+  provider.imageModel = (modelId: string): ImageModelV3 => {
+    if (DMXAPI_CUSTOM_BACKEND_MODELS.has(modelId)) {
+      return createImageGenerationModel(modelId, { provider: DMXAPI_PROVIDER_NAME, transport })
+    }
+    return new OpenAICompatibleImageModel(modelId, {
+      provider: `${DMXAPI_PROVIDER_NAME}.image`,
+      url,
+      headers: authHeaders,
+      fetch: customFetch
+    })
+  }
 
   return provider as DmxapiProvider
 }

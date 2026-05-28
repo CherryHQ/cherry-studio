@@ -146,7 +146,15 @@ const ImageModeDefSchema = z.object({
       endpoint: z.string(),
       isSync: z.boolean().optional()
     })
-    .optional()
+    .optional(),
+  /**
+   * When `false`, the generic painting pipeline does NOT enforce a non-empty
+   * `painting.prompt` before submitting. Set on models like DashScope's
+   * `qwen-mt-image` (image-text translation: no prompt, just source/target
+   * languages) or PPIO's image-upscaler / image-eraser / image-remove-bg
+   * variants. Default is `true` (prompt required).
+   */
+  requirePrompt: z.boolean().optional()
 })
 
 export const ImageGenerationSupportSchema = z.object({

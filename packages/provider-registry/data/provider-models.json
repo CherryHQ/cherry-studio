@@ -26765,6 +26765,937 @@
       },
       "modelId": "glm-image",
       "providerId": "zhipu"
+    },
+    {
+      "apiModelId": "qwen-image",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "1328x1328",
+                "options": ["1664x928", "1472x1140", "1328x1328", "1140x1472", "928x1664"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/text2image/image-synthesis"
+            }
+          }
+        }
+      },
+      "modelId": "qwen-image",
+      "providerId": "dashscope"
+    },
+    {
+      "apiModelId": "z-image-turbo",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "promptExtend": {
+                "default": false,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "1024x1536",
+                "options": ["1024x1024", "1024x1536", "1536x1024", "1280x720", "720x1280"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          }
+        }
+      },
+      "modelId": "z-image-turbo",
+      "providerId": "dashscope"
+    },
+    {
+      "apiModelId": "qwen-image-edit",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "seed": {
+                "type": "text"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          }
+        }
+      },
+      "modelId": "qwen-image-edit",
+      "providerId": "dashscope"
+    },
+    {
+      "apiModelId": "qwen-image-edit-plus",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "seed": {
+                "type": "text"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/multimodal-generation/generation",
+              "isSync": true
+            }
+          }
+        }
+      },
+      "modelId": "qwen-image-edit-plus",
+      "providerId": "dashscope"
+    },
+    {
+      "apiModelId": "wan2.6-image",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "enableInterleave": {
+                "default": true,
+                "type": "switch"
+              },
+              "imageResolution": {
+                "default": "1K",
+                "options": ["1K", "2K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/image-generation/generation"
+            }
+          }
+        }
+      },
+      "modelId": "wan2-6-image",
+      "providerId": "dashscope"
+    },
+    {
+      "apiModelId": "wan2.7-image",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "imageResolution": {
+                "default": "2K",
+                "options": ["1K", "2K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "thinkingMode": {
+                "default": true,
+                "type": "switch"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/image-generation/generation"
+            }
+          }
+        }
+      },
+      "modelId": "wan2-7-image",
+      "providerId": "dashscope"
+    },
+    {
+      "apiModelId": "wan2.7-image-pro",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "imageResolution": {
+                "default": "2K",
+                "options": ["1K", "2K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "thinkingMode": {
+                "default": true,
+                "type": "switch"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/image-generation/generation"
+            }
+          }
+        }
+      },
+      "modelId": "wan2-7-image-pro",
+      "providerId": "dashscope"
+    },
+    {
+      "apiModelId": "qwen-image-plus",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "1328x1328",
+                "options": ["1664x928", "1472x1140", "1328x1328", "1140x1472", "928x1664"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/text2image/image-synthesis"
+            }
+          }
+        }
+      },
+      "modelId": "qwen-image-plus",
+      "providerId": "dashscope"
+    },
+    {
+      "apiModelId": "wanx2.1-t2i-turbo",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["1024x1024", "1280x720", "720x1280", "1440x720", "720x1440"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/text2image/image-synthesis"
+            }
+          }
+        }
+      },
+      "capabilities": {
+        "force": ["image-generation"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "wanx2-1-t2i-turbo",
+      "name": "Wanx 2.1 T2I Turbo",
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba",
+      "providerId": "dashscope"
+    },
+    {
+      "apiModelId": "wanx2.1-t2i-plus",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["1024x1024", "1280x720", "720x1280", "1440x720", "720x1440"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/text2image/image-synthesis"
+            }
+          }
+        }
+      },
+      "capabilities": {
+        "force": ["image-generation"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "wanx2-1-t2i-plus",
+      "name": "Wanx 2.1 T2I Plus",
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba",
+      "providerId": "dashscope"
+    },
+    {
+      "apiModelId": "wanx2.0-t2i-turbo",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["1024x1024", "1280x720", "720x1280", "1440x720", "720x1440"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/text2image/image-synthesis"
+            }
+          }
+        }
+      },
+      "capabilities": {
+        "force": ["image-generation"]
+      },
+      "inputModalities": ["text"],
+      "modelId": "wanx2-0-t2i-turbo",
+      "name": "Wanx 2.0 T2I Turbo",
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba",
+      "providerId": "dashscope"
+    },
+    {
+      "apiModelId": "wanx-v1",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "refMode": {
+                "default": "repaint",
+                "options": ["repaint", "refonly"],
+                "type": "enum"
+              },
+              "refStrength": {
+                "default": 0.5,
+                "max": 1,
+                "min": 0,
+                "step": 0.05,
+                "type": "range"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["1024x1024", "720x1280", "1280x720", "768x1152"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "style": {
+                "default": "<auto>",
+                "options": [
+                  "<auto>",
+                  "<photography>",
+                  "<portrait>",
+                  "<3d cartoon>",
+                  "<anime>",
+                  "<oil painting>",
+                  "<watercolor>",
+                  "<sketch>",
+                  "<chinese painting>",
+                  "<flat illustration>"
+                ],
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/text2image/image-synthesis"
+            }
+          }
+        }
+      },
+      "capabilities": {
+        "force": ["image-generation"]
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "wanx-v1",
+      "name": "Wanx v1",
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba",
+      "providerId": "dashscope"
+    },
+    {
+      "apiModelId": "wan2.5-i2i-preview",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "1280x1280",
+                "options": ["1280x1280", "1024x1024", "1664x928", "928x1664"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/image2image/image-synthesis"
+            }
+          }
+        }
+      },
+      "capabilities": {
+        "force": ["image-generation"]
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "wan2-5-i2i-preview",
+      "name": "Wan 2.5 i2i Preview",
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba",
+      "providerId": "dashscope"
+    },
+    {
+      "apiModelId": "qwen-mt-image",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "requirePrompt": false,
+            "supports": {
+              "sourceLang": {
+                "default": "auto",
+                "options": ["auto", "zh", "en", "ja", "ko", "fr", "es", "ru", "de"],
+                "type": "enum"
+              },
+              "targetLang": {
+                "default": "en",
+                "options": ["en", "zh", "ja", "ko", "fr", "es", "ru", "de"],
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/image2image/image-synthesis"
+            }
+          }
+        }
+      },
+      "capabilities": {
+        "force": ["image-generation"]
+      },
+      "inputModalities": ["image"],
+      "modelId": "qwen-mt-image",
+      "name": "Qwen MT Image",
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba",
+      "providerId": "dashscope"
+    },
+    {
+      "apiModelId": "wanx2.1-imageedit",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "bottomScale": {
+                "default": 1,
+                "max": 2,
+                "min": 1,
+                "step": 0.05,
+                "type": "range"
+              },
+              "function": {
+                "default": "stylization_all",
+                "options": [
+                  "stylization_all",
+                  "stylization_local",
+                  "description_edit",
+                  "description_edit_with_mask",
+                  "remove_watermark",
+                  "expand",
+                  "super_resolution",
+                  "colorization",
+                  "doodle",
+                  "control_cartoon_feature"
+                ],
+                "type": "enum"
+              },
+              "isSketch": {
+                "default": false,
+                "type": "switch"
+              },
+              "leftScale": {
+                "default": 1,
+                "max": 2,
+                "min": 1,
+                "step": 0.05,
+                "type": "range"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "rightScale": {
+                "default": 1,
+                "max": 2,
+                "min": 1,
+                "step": 0.05,
+                "type": "range"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "strength": {
+                "default": 0.5,
+                "max": 1,
+                "min": 0,
+                "step": 0.05,
+                "type": "range"
+              },
+              "topScale": {
+                "default": 1,
+                "max": 2,
+                "min": 1,
+                "step": 0.05,
+                "type": "range"
+              },
+              "upscaleFactor": {
+                "default": 2,
+                "max": 4,
+                "min": 1,
+                "step": 1,
+                "type": "range"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/api/v1/services/aigc/image2image/image-synthesis"
+            }
+          }
+        }
+      },
+      "capabilities": {
+        "force": ["image-generation"]
+      },
+      "inputModalities": ["text", "image"],
+      "modelId": "wanx2-1-imageedit",
+      "name": "Wanx 2.1 Image Edit",
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba",
+      "providerId": "dashscope"
+    },
+    {
+      "apiModelId": "gpt-image-1.5",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "background": {
+                "options": ["auto", "transparent", "opaque"],
+                "type": "enum"
+              },
+              "moderation": {
+                "options": ["auto", "low"],
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 10,
+                "min": 1,
+                "type": "range"
+              },
+              "outputFormat": {
+                "options": ["png", "jpeg", "webp"],
+                "type": "enum"
+              },
+              "quality": {
+                "options": ["auto", "low", "medium", "high"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "modelId": "gpt-image-1-5",
+      "providerId": "dmxapi"
+    },
+    {
+      "apiModelId": "dall-e-3",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "numImages": {
+                "default": 1,
+                "max": 1,
+                "min": 1,
+                "type": "range"
+              },
+              "quality": {
+                "options": ["standard", "hd"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "1024x1024",
+                "options": ["1024x1024", "1792x1024", "1024x1792"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "style": {
+                "options": ["vivid", "natural"],
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
+      "modelId": "dall-e-3",
+      "providerId": "dmxapi"
+    },
+    {
+      "apiModelId": "doubao-seedream-5.0-lite",
+      "capabilities": {
+        "force": ["image-generation"]
+      },
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": true,
+                "type": "switch"
+              },
+              "maxImages": {
+                "default": 1,
+                "max": 15,
+                "min": 1,
+                "type": "range"
+              },
+              "outputFormat": {
+                "options": ["png", "jpeg"],
+                "type": "enum"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "sequentialImageGeneration": {
+                "default": "disabled",
+                "options": ["auto", "disabled"],
+                "type": "enum"
+              },
+              "size": {
+                "default": "2K",
+                "options": ["2K", "3K", "2048x2048"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v1/responses",
+              "isSync": true
+            }
+          }
+        }
+      },
+      "inputModalities": ["text"],
+      "modelId": "doubao-seedream-5-0-lite",
+      "name": "Doubao Seedream 5.0 Lite",
+      "outputModalities": ["image"],
+      "ownedBy": "bytedance",
+      "providerId": "dmxapi"
+    },
+    {
+      "apiModelId": "gemini-3.1-flash-image-preview",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "default": "1:1",
+                "options": ["1:1", "9:16", "16:9", "3:4", "4:3", "2:3", "3:2"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "imageResolution": {
+                "default": "1K",
+                "options": ["1K", "2K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v1beta/models",
+              "isSync": true
+            }
+          }
+        }
+      },
+      "modelId": "gemini-3-1-flash-image-preview",
+      "providerId": "dmxapi"
+    },
+    {
+      "apiModelId": "wan2.6-t2i",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "addWatermark": {
+                "default": false,
+                "type": "switch"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "promptExtend": {
+                "default": true,
+                "type": "switch"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "1280x1280",
+                "options": ["1280x1280", "1664x928", "928x1664", "1472x1140", "1140x1472"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v1/responses",
+              "isSync": true
+            }
+          }
+        }
+      },
+      "modelId": "wan2-6-t2i",
+      "providerId": "dmxapi"
+    },
+    {
+      "apiModelId": "qwen-image",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "numImages": {
+                "default": 1,
+                "max": 4,
+                "min": 1,
+                "type": "range"
+              },
+              "size": {
+                "default": "1328x1328",
+                "options": ["1664x928", "1472x1140", "1328x1328", "1140x1472", "928x1664"],
+                "render": "chips",
+                "type": "enum"
+              }
+            },
+            "vendorTransport": {
+              "endpoint": "/v1/images/generations",
+              "isSync": true
+            }
+          }
+        }
+      },
+      "modelId": "qwen-image",
+      "providerId": "dmxapi"
     }
   ],
   "version": "2026.05.28"

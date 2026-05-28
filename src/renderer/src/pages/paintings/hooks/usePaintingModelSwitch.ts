@@ -38,7 +38,7 @@ export function usePaintingModelSwitch({
           currentValues: painting.params ?? {}
         })
         onPaintingChange({
-          params: { ...(painting.params ?? {}), ...resetPatch },
+          params: { ...painting.params, ...resetPatch },
           model: modelId
         } as Partial<PaintingData>)
         return

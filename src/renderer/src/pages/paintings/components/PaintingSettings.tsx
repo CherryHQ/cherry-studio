@@ -36,7 +36,7 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange,
   // The form's reads/writes target `painting.params` — the canonical-name bag
   // that `canonicalGenerate` partitions into AI SDK args vs provider bag at
   // request time. Top-level PaintingData fields are not visible to the wire.
-  const paintingParams = (painting.params ?? {}) as Record<string, unknown>
+  const paintingParams = painting.params ?? {}
   const registrySupport = useImageGenerationSupport(painting.providerId, painting.model)
   const configItems = useMemo(
     () =>

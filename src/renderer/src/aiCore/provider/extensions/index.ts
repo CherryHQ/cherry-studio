@@ -26,6 +26,7 @@ import { createOllama } from 'ollama-ai-provider-v2'
 import { createVoyage, type VoyageProviderSettings } from 'voyage-ai-provider'
 
 import { type AihubmixProviderSettings, createAihubmix } from '../custom/aihubmixProvider'
+import { createDashScopeProvider, type DashScopeProviderSettings } from '../custom/dashscope-provider'
 import { createDmxapiProvider, type DmxapiProviderSettings } from '../custom/dmxapi-provider'
 import { createModelscopeProvider, type ModelscopeProviderSettings } from '../custom/modelscope-provider'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapiProvider'
@@ -275,6 +276,20 @@ export const ModelscopeExtension = ProviderExtension.create({
 } as const satisfies ProviderExtensionConfig<ModelscopeProviderSettings, ProviderV3, 'modelscope'>)
 
 /**
+ * DashScope (Bailian) Extension - OpenAI-compatible chat + embedding,
+ * native DashScope async submit/poll image generation against
+ * `/api/v1/services/aigc/*`. Image baseURL is derived per-call from the
+ * user's chat baseURL by `buildDashScopeConfig`, so cn/intl/proxy hosts
+ * track the user's provider config without hardcoded region URLs.
+ */
+export const DashScopeExtension = ProviderExtension.create({
+  name: 'dashscope',
+  aliases: ['bailian'] as const,
+  supportsImageGeneration: true,
+  create: createDashScopeProvider
+} as const satisfies ProviderExtensionConfig<DashScopeProviderSettings, ProviderV3, 'dashscope'>)
+
+/**
  * Voyage AI Extension - embeddings and reranking
  */
 export const VoyageExtension = ProviderExtension.create({
@@ -307,6 +322,7 @@ export const extensions = [
   ZhipuExtension,
   OvmsExtension,
   ModelscopeExtension,
+  DashScopeExtension,
   VoyageExtension,
   TogetherAIExtension,
   GroqExtension

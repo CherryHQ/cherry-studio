@@ -109,6 +109,16 @@ export function buildImageProviderOptions(
       return Object.keys(mapped).length ? { openai: mapped, [rawProviderId]: mapped } : {}
     }
 
+    // DashScope (Bailian) native image API — every family puts `seed` and
+    // `negative_prompt` under `parameters.*`, plus `style` for wanx-v1. The
+    // adapter (`imageTransports/dashscope.ts`) reads these off
+    // `providerParams.* ` since AI SDK image models don't forward
+    // negativePrompt / style to the transport's `input.* `.
+    case 'dashscope': {
+      const mapped = define({ negative_prompt: negativePrompt, seed: seedNumber, style })
+      return Object.keys(mapped).length ? { dashscope: mapped } : {}
+    }
+
     // Google native image — `@ai-sdk/google.image()` dispatches by model id:
     //   Imagen path  → top-level `aspectRatio` is read directly from the SDK
     //                  call options (AiProvider passes it normalized).

@@ -654,10 +654,9 @@ class ProviderRegistryService {
     const { presetModel, registryOverride } = await this.lookupModel(providerId, modelId)
     // Override wins — lets vendor-exclusive overrides declare their own
     // imageGeneration block without polluting the global models.json.
-    if (registryOverride?.imageGeneration) return registryOverride.imageGeneration as ImageGenerationSupport
+    if (registryOverride?.imageGeneration) return registryOverride.imageGeneration
     if (presetModel?.imageGeneration) return presetModel.imageGeneration
-    const registryProvider = this.findRegistryProvider(providerId)
-    return registryProvider?.paintingDefaults ?? null
+    return null
   }
 }
 

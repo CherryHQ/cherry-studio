@@ -3769,8 +3769,26 @@
       }
     },
     "custom_size": "Dimensions personnalisées",
+    "dashscope": {
+      "bottom_scale": "[to be translated]:Expand Bottom",
+      "enable_interleave": "[to be translated]:Text+Image Mixed Mode",
+      "enable_interleave_tip": "[to be translated]:When on, generates text-and-image mixed output without requiring an input image. Turn off to use edit mode (requires 1–4 input images).",
+      "function": "[to be translated]:Edit Function",
+      "is_sketch": "[to be translated]:Sketch Input",
+      "left_scale": "[to be translated]:Expand Left",
+      "ref_mode": "[to be translated]:Reference Mode",
+      "ref_strength": "[to be translated]:Reference Strength",
+      "right_scale": "[to be translated]:Expand Right",
+      "source_lang": "[to be translated]:Source Language",
+      "strength": "[to be translated]:Strength",
+      "target_lang": "[to be translated]:Target Language",
+      "top_scale": "[to be translated]:Expand Top",
+      "upscale_factor": "[to be translated]:Upscale Factor"
+    },
     "dmxapi": {
-      "generating_tip": "Génération avec le modèle officiel, le temps d'attente estimé est de 2 à 5 minutes pour les meilleurs résultats. Veuillez consulter les journaux du backend DMXAPI pour le coût de cette opération."
+      "generating_tip": "Génération avec le modèle officiel, le temps d'attente estimé est de 2 à 5 minutes pour les meilleurs résultats. Veuillez consulter les journaux du backend DMXAPI pour le coût de cette opération.",
+      "max_images": "[to be translated]:Max Images",
+      "sequential_image_generation": "[to be translated]:Sequential Image Generation"
     },
     "edit": {
       "image_file": "Image éditée",

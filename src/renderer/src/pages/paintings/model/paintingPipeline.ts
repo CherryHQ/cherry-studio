@@ -40,6 +40,7 @@ export function createDefaultPainting(providerId: string): PaintingData {
 export async function paintingGenerate(input: GenerateInput): Promise<FileMetadata[]> {
   const modelId = input.painting.model
   const canonicalMode = tabToImageGenerationMode(input.painting.mode)
+  let requirePrompt: boolean | undefined
 
   if (modelId) {
     try {
@@ -53,7 +54,9 @@ export async function paintingGenerate(input: GenerateInput): Promise<FileMetada
           : modes
             ? (Object.keys(modes)[0] as ImageGenerationMode)
             : undefined
-      const transport = effectiveMode && modes ? modes[effectiveMode]?.vendorTransport : undefined
+      const modeDef = effectiveMode && modes ? modes[effectiveMode] : undefined
+      const transport = modeDef?.vendorTransport
+      requirePrompt = modeDef?.requirePrompt
       if (transport?.endpoint) {
         input.painting.params = {
           ...input.painting.params,
@@ -76,5 +79,9 @@ export async function paintingGenerate(input: GenerateInput): Promise<FileMetada
   }
 
   const downloadOptions = input.provider.id === 'aihubmix' ? { showProxyWarning: true } : undefined
-  return canonicalGenerate(input, downloadOptions ? { downloadOptions } : undefined)
+  const options = {
+    ...(downloadOptions && { downloadOptions }),
+    ...(requirePrompt !== undefined && { requirePrompt })
+  }
+  return canonicalGenerate(input, Object.keys(options).length > 0 ? options : undefined)
 }

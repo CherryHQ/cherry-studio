@@ -1,7 +1,11 @@
-import { useProvider } from '@renderer/hooks/useProviders'
+import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProviders'
 import { useMemo } from 'react'
 
-import { createPaintingProviderRuntime, type PaintingProviderRuntime } from '../model/types/paintingProviderRuntime'
+import {
+  createPaintingProviderRuntime,
+  type PaintingProviderRuntime,
+  pickFirstEnabledApiKey
+} from '../model/types/paintingProviderRuntime'
 
 export function usePaintingProviderRuntime(providerId: string): {
   provider: PaintingProviderRuntime
@@ -9,8 +13,14 @@ export function usePaintingProviderRuntime(providerId: string): {
   error?: unknown
 } {
   const { provider, isLoading, error } = useProvider(providerId)
+  const { data: apiKeysData } = useProviderApiKeys(providerId)
 
-  const runtimeProvider = useMemo(() => createPaintingProviderRuntime(provider, providerId), [provider, providerId])
+  const apiKey = useMemo(() => pickFirstEnabledApiKey(apiKeysData?.keys), [apiKeysData])
+
+  const runtimeProvider = useMemo(
+    () => createPaintingProviderRuntime(provider, providerId, apiKey),
+    [provider, providerId, apiKey]
+  )
 
   return {
     provider: runtimeProvider,

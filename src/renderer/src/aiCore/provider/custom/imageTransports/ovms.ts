@@ -52,7 +52,7 @@ class OvmsTransport implements ImageGenerationTransport {
   }
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
-    const bag = (input.providerParams ?? {}) as Record<string, unknown>
+    const bag = input.providerParams ?? {}
 
     const requestBody = {
       model: input.modelId,

@@ -205,7 +205,7 @@ class PaintingService {
       providerId: row.providerId
     })
 
-    return rowToPainting(row as PaintingRow, dto.files)
+    return rowToPainting(row, dto.files)
   }
 
   async update(id: string, dto: UpdatePaintingDto): Promise<Painting> {
@@ -254,7 +254,7 @@ class PaintingService {
             // per-id diffing that would also need to honor the UNIQUE
             // (fileEntryId, sourceType, sourceId, role) constraint.
             await fileRefService.cleanupBySourceTx(tx, { sourceType: paintingSourceType, sourceId: id })
-            const refRows = await buildPaintingRefRowsFiltered(tx, id, dto.files!, Date.now())
+            const refRows = await buildPaintingRefRowsFiltered(tx, id, dto.files, Date.now())
             if (refRows.length > 0) {
               await tx.insert(fileRefTable).values(refRows).onConflictDoNothing()
             }

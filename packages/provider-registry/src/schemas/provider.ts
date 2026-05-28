@@ -7,7 +7,7 @@ import * as z from 'zod'
 
 import { MetadataSchema, ProviderIdSchema, VersionSchema } from './common'
 import { ENDPOINT_TYPE, type EndpointType, GEMINI_THINKING_LEVEL, objectValues, REASONING_EFFORT } from './enums'
-import { CommonReasoningFieldsSchema, ImageGenerationSupportSchema } from './model'
+import { CommonReasoningFieldsSchema } from './model'
 
 export const EndpointTypeSchema = z.enum(objectValues(ENDPOINT_TYPE))
 const endpointTypeValues: readonly string[] = objectValues(ENDPOINT_TYPE)
@@ -222,16 +222,6 @@ export const ProviderConfigSchema = z
     defaultChatEndpoint: EndpointTypeSchema.nullable().default(null),
     /** API feature flags controlling request construction */
     apiFeatures: ApiFeaturesSchema.optional(),
-    /**
-     * Default painting-form metadata, applied to every model under this
-     * provider when the registry has no per-model `imageGeneration`
-     * block. Designed for providers like OVMS where the user registers
-     * their own local model ids — the catalog can't be enumerated, but
-     * the API contract (size / num_inference_steps / seed) is fixed
-     * provider-wide regardless of which checkpoint they serve.
-     * Model-level entries still win when present.
-     */
-    paintingDefaults: ImageGenerationSupportSchema.optional(),
     /** Additional metadata including website URLs */
     metadata: MetadataSchema.and(ProviderWebsiteSchema)
   })

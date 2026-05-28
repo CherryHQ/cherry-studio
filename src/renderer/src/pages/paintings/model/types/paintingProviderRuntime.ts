@@ -1,8 +1,6 @@
-import { getRotatedApiKey } from '@renderer/services/ApiService'
-import { getProviderById } from '@renderer/services/ProviderService'
 import { withoutTrailingSlash } from '@renderer/utils/api'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
-import type { Provider } from '@shared/data/types/provider'
+import type { ApiKeyEntry, Provider } from '@shared/data/types/provider'
 
 export interface PaintingProviderRuntime {
   id: string
@@ -76,14 +74,23 @@ export function resolvePaintingApiHost(provider?: Provider): string {
   return fallback ? withoutTrailingSlash(fallback) : ''
 }
 
-export async function getPaintingProviderApiKey(providerId: string): Promise<string> {
-  const provider = getProviderById(providerId)
-  return provider ? getRotatedApiKey(provider) : ''
+/** First enabled, trimmed, non-empty key — rotation is intentionally out of scope here. */
+export function pickFirstEnabledApiKey(apiKeys: ApiKeyEntry[] | undefined): string {
+  if (!apiKeys) {
+    return ''
+  }
+  for (const entry of apiKeys) {
+    if (!entry.isEnabled) continue
+    const trimmed = entry.key.trim()
+    if (trimmed) return trimmed
+  }
+  return ''
 }
 
 export function createPaintingProviderRuntime(
   provider: Provider | undefined,
-  providerId: string
+  providerId: string,
+  apiKey: string
 ): PaintingProviderRuntime {
   return {
     id: provider?.id || providerId,
@@ -91,6 +98,6 @@ export function createPaintingProviderRuntime(
     presetProviderId: provider?.presetProviderId,
     isEnabled: provider?.isEnabled ?? false,
     apiHost: resolvePaintingApiHost(provider),
-    getApiKey: () => getPaintingProviderApiKey(provider?.id || providerId)
+    getApiKey: async () => apiKey
   }
 }

@@ -34,7 +34,25 @@ const KEY_LABELS: Record<string, { title: string; tooltip?: string }> = {
   safetyTolerance: { title: 'paintings.safety_tolerance', tooltip: 'paintings.safety_tolerance_tip' },
   imageWeight: { title: 'paintings.image_weight' },
   resemblance: { title: 'paintings.resemblance' },
-  detail: { title: 'paintings.detail' }
+  detail: { title: 'paintings.detail' },
+  refStrength: { title: 'paintings.dashscope.ref_strength' },
+  refMode: { title: 'paintings.dashscope.ref_mode' },
+  enableInterleave: {
+    title: 'paintings.dashscope.enable_interleave',
+    tooltip: 'paintings.dashscope.enable_interleave_tip'
+  },
+  sourceLang: { title: 'paintings.dashscope.source_lang' },
+  targetLang: { title: 'paintings.dashscope.target_lang' },
+  function: { title: 'paintings.dashscope.function' },
+  strength: { title: 'paintings.dashscope.strength' },
+  upscaleFactor: { title: 'paintings.dashscope.upscale_factor' },
+  topScale: { title: 'paintings.dashscope.top_scale' },
+  bottomScale: { title: 'paintings.dashscope.bottom_scale' },
+  leftScale: { title: 'paintings.dashscope.left_scale' },
+  rightScale: { title: 'paintings.dashscope.right_scale' },
+  isSketch: { title: 'paintings.dashscope.is_sketch' },
+  sequentialImageGeneration: { title: 'paintings.dmxapi.sequential_image_generation' },
+  maxImages: { title: 'paintings.dmxapi.max_images' }
 }
 
 function toOptions(values: readonly string[]): OptionItem[] {

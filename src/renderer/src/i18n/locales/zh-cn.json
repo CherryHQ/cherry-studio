@@ -3769,8 +3769,26 @@
       }
     },
     "custom_size": "自定义尺寸",
+    "dashscope": {
+      "bottom_scale": "向下扩展",
+      "enable_interleave": "图文混排模式",
+      "enable_interleave_tip": "开启后生成图文混排内容，无需输入图像。关闭后切换到编辑模式（需要 1–4 张输入图像）。",
+      "function": "编辑功能",
+      "is_sketch": "草图输入",
+      "left_scale": "向左扩展",
+      "ref_mode": "参考模式",
+      "ref_strength": "参考强度",
+      "right_scale": "向右扩展",
+      "source_lang": "源语言",
+      "strength": "强度",
+      "target_lang": "目标语言",
+      "top_scale": "向上扩展",
+      "upscale_factor": "放大倍数"
+    },
     "dmxapi": {
-      "generating_tip": "正在使用官方的模型生成，预计等待2~5分钟效果最好，本次消耗金额请到DMXAPI后台日志查看"
+      "generating_tip": "正在使用官方的模型生成，预计等待2~5分钟效果最好，本次消耗金额请到DMXAPI后台日志查看",
+      "max_images": "最大图像数",
+      "sequential_image_generation": "组图生成"
     },
     "edit": {
       "image_file": "输入图片",

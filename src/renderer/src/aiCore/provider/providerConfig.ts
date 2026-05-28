@@ -34,6 +34,7 @@ import { cloneDeep, isEmpty } from 'lodash'
 
 import type { ProviderConfig } from '../types'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
+import { DEFAULT_DASHSCOPE_IMAGE_BASE_URL } from './custom/imageTransports/dashscope'
 import { DEFAULT_DMXAPI_BASE_URL } from './custom/imageTransports/dmxapi'
 import { DEFAULT_OVMS_BASE_URL } from './custom/imageTransports/ovms'
 import { DEFAULT_PPIO_BASE_URL } from './custom/imageTransports/ppio'
@@ -45,6 +46,26 @@ import { getAiSdkProviderId } from './factory'
 interface BaseConfig {
   baseURL: string
   apiKey: string
+}
+
+/**
+ * Derive the native image-API origin from a user-configured chat baseURL by
+ * stripping the trailing OpenAI-compat path segment. Providers that serve BOTH
+ * OpenAI-compat chat (under `/v1/`, `/compatible-mode/v1/`, `/openai/v1/`) and
+ * a native image API at the host root call this so the user only configures
+ * one baseURL (the chat one) and the painting transport reaches the right host
+ * without duplicating the path segment.
+ *
+ * Examples:
+ *   - DMXAPI:    `https://www.dmxapi.cn/v1/`               → `https://www.dmxapi.cn`
+ *   - DashScope: `https://dashscope.aliyuncs.com/compatible-mode/v1/` → `https://dashscope.aliyuncs.com`
+ *   - Proxy:     `https://proxy.example.com/dashscope/compatible-mode/v1` → `https://proxy.example.com/dashscope`
+ *   - Already root: `https://www.dmxapi.cn` → unchanged
+ */
+function deriveImageBaseURL(chatBaseURL: string, fallback: string): string {
+  if (!chatBaseURL) return fallback
+  const stripped = chatBaseURL.replace(/\/(?:compatible-mode\/v1|openai\/v1|v1)\/?$/, '')
+  return stripped || fallback
 }
 
 interface BuilderContext {
@@ -139,6 +160,7 @@ export function providerToAiSdkConfig(
     { match: (_, id) => id === 'tokenflux', build: buildTokenFluxConfig },
     { match: (_, id) => id === 'silicon', build: buildSiliconConfig },
     { match: (_, id) => id === 'zhipu', build: buildZhipuConfig },
+    { match: (_, id) => id === 'dashscope', build: buildDashScopeConfig },
     { match: (p) => p.id === 'dmxapi', build: buildDmxapiConfig },
     { match: (p) => p.id === 'ovms', build: buildOvmsConfig }
   ]
@@ -409,6 +431,27 @@ function buildZhipuConfig(ctx: BuilderContext): ProviderConfig<'zhipu'> {
 }
 
 /**
+ * DashScope (Bailian) serves chat (OpenAI-compatible at `/compatible-mode/v1/`)
+ * and image (native DashScope at `/api/v1/services/aigc/*`) off ONE provider.
+ * Chat keeps the user-configured baseURL verbatim; image strips the
+ * `/compatible-mode/v1/?` suffix so the native endpoints resolve correctly
+ * whether the user pointed at cn / intl / Frankfurt / a proxy. No region URL
+ * is hardcoded — whatever the user typed wins.
+ */
+function buildDashScopeConfig(ctx: BuilderContext): ProviderConfig<'dashscope'> {
+  const imageBaseURL = deriveImageBaseURL(ctx.baseConfig.baseURL, DEFAULT_DASHSCOPE_IMAGE_BASE_URL)
+  return {
+    providerId: 'dashscope',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      imageBaseURL,
+      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
+    }
+  }
+}
+
+/**
  * PPIO/TokenFlux providers serve BOTH chat and image off one ProviderV3, but
  * the two endpoints live on different hosts/paths:
  *   PPIO chat = `api.ppinfra.com/v3/openai`    image = `api.ppio.com`
@@ -459,7 +502,7 @@ function buildDmxapiConfig(ctx: BuilderContext): ProviderConfig<'dmxapi'> {
     providerSettings: {
       ...ctx.baseConfig,
       baseURL: ctx.baseConfig.baseURL || DEFAULT_DMXAPI_BASE_URL,
-      imageBaseURL: ctx.baseConfig.baseURL || DEFAULT_DMXAPI_BASE_URL,
+      imageBaseURL: deriveImageBaseURL(ctx.baseConfig.baseURL, DEFAULT_DMXAPI_BASE_URL),
       headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
     }
   }

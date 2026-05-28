@@ -3769,8 +3769,26 @@
       }
     },
     "custom_size": "自訂尺寸",
+    "dashscope": {
+      "bottom_scale": "向下擴展",
+      "enable_interleave": "圖文混排模式",
+      "enable_interleave_tip": "啟用後生成圖文混排內容，無需輸入圖像。關閉後切換到編輯模式（需要 1–4 張輸入圖像）。",
+      "function": "編輯功能",
+      "is_sketch": "草圖輸入",
+      "left_scale": "向左擴展",
+      "ref_mode": "參考模式",
+      "ref_strength": "參考強度",
+      "right_scale": "向右擴展",
+      "source_lang": "來源語言",
+      "strength": "強度",
+      "target_lang": "目標語言",
+      "top_scale": "向上擴展",
+      "upscale_factor": "放大倍數"
+    },
     "dmxapi": {
-      "generating_tip": "使用官方模型生成，預計等待時間為 2–5 分鐘以獲得最佳結果。請查看 DMXAPI 後端日誌以了解此操作的成本。"
+      "generating_tip": "使用官方模型生成，預計等待時間為 2–5 分鐘以獲得最佳結果。請查看 DMXAPI 後端日誌以了解此操作的成本。",
+      "max_images": "最大圖像數",
+      "sequential_image_generation": "組圖生成"
     },
     "edit": {
       "image_file": "編輯影像",
