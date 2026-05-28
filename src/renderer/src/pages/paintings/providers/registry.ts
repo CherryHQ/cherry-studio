@@ -126,6 +126,16 @@ const ppioProvider: PaintingProviderDefinition = createSingleModeProvider({
   generate: ppioGenerate
 })
 
+const modelscopeProvider: PaintingProviderDefinition = createSingleModeProvider({
+  id: 'modelscope',
+  dbMode: 'generate',
+  models: { type: 'async', loader: () => loadPaintingModelOptions('modelscope') },
+  createPaintingData: () => emptyPainting('modelscope'),
+  fields: [],
+  onModelChange: ({ modelId }) => ({ model: modelId }),
+  generate: (input) => canonicalGenerate(input)
+})
+
 /**
  * OpenAI-compatible image generation providers (new-api / cherryin / aionly +
  * any user-added new-api preset). Built inline rather than via factory: shape
@@ -153,6 +163,7 @@ export const providerRegistry: Record<string, PaintingProviderDefinition> = {
   aihubmix: aihubmixProvider,
   dmxapi: dmxapiProvider,
   ppio: ppioProvider,
+  modelscope: modelscopeProvider,
   tokenflux: tokenFluxProvider,
   ...Object.fromEntries(NEWAPI_COMPAT_IDS.map((id) => [id, buildOpenAiCompatibleProvider(id)]))
 }

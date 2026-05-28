@@ -4511,6 +4511,14 @@
     },
     {
       "providerId": "modelscope",
+      "modelId": "Tongyi-MAI/Z-Image-Turbo"
+    },
+    {
+      "providerId": "modelscope",
+      "modelId": "Qwen/Qwen-Image"
+    },
+    {
+      "providerId": "modelscope",
       "modelId": "c4ai-command-r-plus-08-2024",
       "apiModelId": "LLM-Research/c4ai-command-r-plus-08-2024"
     },

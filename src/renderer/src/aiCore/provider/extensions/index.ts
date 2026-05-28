@@ -27,6 +27,7 @@ import { createVoyage, type VoyageProviderSettings } from 'voyage-ai-provider'
 
 import { type AihubmixProviderSettings, createAihubmix } from '../custom/aihubmixProvider'
 import { createDmxapiProvider, type DmxapiProviderSettings } from '../custom/dmxapi-provider'
+import { createModelscopeProvider, type ModelscopeProviderSettings } from '../custom/modelscope-provider'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapiProvider'
 import { createOvmsProvider, type OvmsProviderSettings } from '../custom/ovms-provider'
 import { createPpioProvider, type PpioProviderSettings } from '../custom/ppio-provider'
@@ -264,6 +265,16 @@ export const OvmsExtension = ProviderExtension.create({
 } as const satisfies ProviderExtensionConfig<OvmsProviderSettings, ProviderV3, 'ovms'>)
 
 /**
+ * ModelScope Extension - OpenAI-compatible chat + embedding, async submit/poll image
+ * generation via `X-ModelScope-Async-Mode`.
+ */
+export const ModelscopeExtension = ProviderExtension.create({
+  name: 'modelscope',
+  supportsImageGeneration: true,
+  create: createModelscopeProvider
+} as const satisfies ProviderExtensionConfig<ModelscopeProviderSettings, ProviderV3, 'modelscope'>)
+
+/**
  * Voyage AI Extension - embeddings and reranking
  */
 export const VoyageExtension = ProviderExtension.create({
@@ -295,6 +306,7 @@ export const extensions = [
   SiliconExtension,
   ZhipuExtension,
   OvmsExtension,
+  ModelscopeExtension,
   VoyageExtension,
   TogetherAIExtension,
   GroqExtension
