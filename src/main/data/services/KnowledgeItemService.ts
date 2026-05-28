@@ -17,6 +17,7 @@ import { knowledgeItemSourceType } from '@shared/data/types/file/ref'
 import {
   type CreateKnowledgeItemDto,
   type KnowledgeItem,
+  type KnowledgeItemData,
   KnowledgeItemSchema,
   type KnowledgeItemStatus
 } from '@shared/data/types/knowledge'
@@ -30,6 +31,9 @@ const logger = loggerService.withContext('DataApi:KnowledgeItemService')
 const CONTAINER_CHILD_FAILURE_ERROR = 'One or more child items failed'
 
 type KnowledgeItemRow = typeof knowledgeItemTable.$inferSelect
+type KnowledgeItemRowLike = Omit<KnowledgeItemRow, 'data'> & {
+  data: KnowledgeItemData | string
+}
 
 type FailedKnowledgeItemStatusUpdate = {
   error: string
@@ -49,13 +53,15 @@ export type DeletingKnowledgeItemRootGroup = {
   rootItemIds: string[]
 }
 
-function rowToKnowledgeItem(row: KnowledgeItemRow): KnowledgeItem {
+function rowToKnowledgeItem(row: KnowledgeItemRowLike): KnowledgeItem {
+  const data = typeof row.data === 'string' ? (JSON.parse(row.data) as KnowledgeItemData) : row.data
+
   return KnowledgeItemSchema.parse({
     id: row.id,
     baseId: row.baseId,
     groupId: row.groupId,
     type: row.type,
-    data: row.data,
+    data,
     status: row.status,
     error: row.error,
     createdAt: timestampToISO(row.createdAt),
@@ -502,48 +508,21 @@ export class KnowledgeItemService {
     rootIds: string[],
     options: GetSubtreeItemsOptions = {}
   ): Promise<KnowledgeItem[]> {
-    const subtreeIds = await this.getSubtreeItemIds(baseId, rootIds, options)
-    if (subtreeIds.length === 0) {
-      return []
-    }
-
-    const rows = await this.db
-      .select()
-      .from(knowledgeItemTable)
-      .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, subtreeIds)))
-    const rowsById = new Map(rows.map((row) => [row.id, row]))
-
-    return subtreeIds.map((id) => {
-      const row = rowsById.get(id)
-
-      if (!row) {
-        throw DataApiErrorFactory.dataInconsistent('KnowledgeItem', `Subtree row missing for id '${id}'`)
-      }
-
-      return rowToKnowledgeItem(row)
-    })
-  }
-
-  private async getSubtreeItemIds(
-    baseId: string,
-    rootIds: string[],
-    options: GetSubtreeItemsOptions = {}
-  ): Promise<string[]> {
     const uniqueRootIds = [...new Set(rootIds)]
     if (uniqueRootIds.length === 0) {
       return []
     }
 
-    const leafFilter = options.leafOnly ? sql`AND type IN ('file', 'url', 'note')` : sql``
+    const leafFilter = options.leafOnly ? sql`AND item.type IN ('file', 'url', 'note')` : sql``
     const rootFilter =
       options.includeRoots === true
         ? sql``
-        : sql`AND id NOT IN (${sql.join(
+        : sql`AND item.id NOT IN (${sql.join(
             uniqueRootIds.map((id) => sql`${id}`),
             sql`, `
           )})`
 
-    const rows = await this.db.all<{ id: string }>(sql`
+    const rows = await this.db.all<KnowledgeItemRowLike>(sql`
       WITH RECURSIVE subtree AS (
         SELECT id, type
         FROM knowledge_item
@@ -558,16 +537,28 @@ export class KnowledgeItemService {
         SELECT child.id, child.type
         FROM knowledge_item child
         INNER JOIN subtree parent ON child.group_id = parent.id
-        WHERE child.base_id = ${baseId}
+          WHERE child.base_id = ${baseId}
       )
-      SELECT DISTINCT id
+      SELECT DISTINCT
+        item.id AS id,
+        item.base_id AS "baseId",
+        item.group_id AS "groupId",
+        item.type AS type,
+        item.data AS data,
+        item.status AS status,
+        item.error AS error,
+        item.created_at AS "createdAt",
+        item.updated_at AS "updatedAt"
       FROM subtree
+      INNER JOIN knowledge_item item
+        ON item.id = subtree.id
+        AND item.base_id = ${baseId}
       WHERE 1 = 1
         ${rootFilter}
         ${leafFilter}
     `)
 
-    return rows.map((row) => row.id)
+    return rows.map((row) => rowToKnowledgeItem(row))
   }
 
   async updateStatus(id: string, status: Exclude<KnowledgeItemStatus, 'failed'>, update?: never): Promise<KnowledgeItem>
