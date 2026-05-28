@@ -26739,11 +26739,18 @@
         "modes": {
           "generate": {
             "supports": {
-              "size": {
-                "default": "1024x1024",
-                "options": ["1024x1024", "768x1344", "864x1152", "1344x768", "1152x864", "1440x720", "720x1440"],
-                "render": "chips",
-                "type": "enum"
+              "addWatermark": {
+                "type": "switch"
+              },
+              "customSize": {
+                "maxSide": 2048,
+                "minSide": 1024,
+                "pairedEnumKey": "size",
+                "type": "size"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
               },
               "numImages": {
                 "default": 1,
@@ -26755,15 +26762,14 @@
                 "options": ["standard", "hd"],
                 "type": "enum"
               },
-              "negativePrompt": {
-                "multiline": true,
-                "type": "text"
-              },
               "seed": {
                 "type": "text"
               },
-              "addWatermark": {
-                "type": "switch"
+              "size": {
+                "default": "1280x1280",
+                "options": ["1280x1280", "1568x1056", "1056x1568", "1472x1088", "1088x1472", "1728x960", "960x1728"],
+                "render": "chips",
+                "type": "enum"
               }
             }
           }
