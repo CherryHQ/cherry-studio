@@ -35,7 +35,7 @@ const MODEL_ICON_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   [/gemini|veo|imagen|nano-banana/i, 'gemini'],
   [/gemma/i, 'gemma'],
   // Chinese models
-  [/(qwen|qwq|qvq|wan-|z-image)/i, 'qwen'],
+  [/(qwen|qwq|qvq|wan|z-image)/i, 'qwen'],
   [/glm/i, 'glm'],
   [/doubao|seedream|seedance|seed-oss|ep-202/i, 'doubao'],
   [/hunyuan/i, 'hunyuan'],
