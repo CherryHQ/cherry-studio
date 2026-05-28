@@ -167,10 +167,19 @@ describe('DirectoryTreeManager', () => {
 
     await new Promise((resolve) => setTimeout(resolve, 100)) // let watcher settle
     await writeFile(path.join(tmp, 'fanout.md'), 'x')
-    // chokidar's `stabilityThresholdMs` is 200ms; give it generous extra
-    // headroom because this test sometimes races other watcher-heavy
-    // suites running in the same vitest worker.
-    await new Promise((resolve) => setTimeout(resolve, 1500))
+
+    // Poll for the mutation rather than sleeping a fixed window — the
+    // chokidar `stabilityThresholdMs` is 200ms but the actual delivery
+    // varies with FS load, so a hardcoded wait is either flaky (too
+    // short) or slow (always burns the worst case). Vitest's `waitFor`
+    // polls until both senders have received the `added` push.
+    await vi.waitFor(
+      () => {
+        expect(sender1.sentMutations.some((m) => m.event.type === 'added')).toBe(true)
+        expect(sender2.sentMutations.some((m) => m.event.type === 'added')).toBe(true)
+      },
+      { timeout: 4000, interval: 50 }
+    )
 
     // Each sender receives the same `added` event tagged with its own treeId.
     const added1 = sender1.sentMutations.find((m) => m.event.type === 'added')

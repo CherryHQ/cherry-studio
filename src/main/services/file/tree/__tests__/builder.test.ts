@@ -228,6 +228,33 @@ describe('createDirectoryTree — watcher mutations', () => {
     }
   })
 
+  it('emits "updated" with refreshed stats when a tracked file is modified', async () => {
+    await writeFile(path.join(tmp, 'note.md'), 'first')
+    const builder = await createDirectoryTree(tmp, { extensions: ['.md'], withStats: true })
+    try {
+      const before = builder.getNode(path.join(tmp, 'note.md'))
+      expect(before?.stats).toBeDefined()
+      const beforeMtime = before?.stats?.mtime
+
+      // Sleep ≥1s so mtime granularity (1s on HFS+/some FSes) actually moves.
+      await new Promise((resolve) => setTimeout(resolve, 1100))
+      const updatedPromise = waitForEvent(builder, (e) => e.type === 'updated' && e.path.endsWith('/note.md'))
+      await writeFile(path.join(tmp, 'note.md'), 'second')
+      const ev = await updatedPromise
+
+      // The mutation carries fresh stats AND the in-memory node is mutated
+      // in place — both because callers may consult either source.
+      expect(ev.type).toBe('updated')
+      if (ev.type === 'updated') {
+        expect(ev.stats.mtime).toBeGreaterThan(beforeMtime ?? 0)
+      }
+      const after = builder.getNode(path.join(tmp, 'note.md'))
+      expect(after?.stats?.mtime).toBeGreaterThan(beforeMtime ?? 0)
+    } finally {
+      builder.dispose()
+    }
+  })
+
   it('surfaces a removed-then-added pair when a file is renamed in place', async () => {
     await writeFile(path.join(tmp, 'old.md'), 'x')
     const builder = await createDirectoryTree(tmp, { extensions: ['.md'] })

@@ -57,6 +57,19 @@ const TreeRenameParamsSchema = z.strictObject({
   newPath: AbsolutePathSchema
 })
 
+/**
+ * Thrown by `acquireBuilder` when the manager has already torn down by the
+ * time an in-flight `createDirectoryTree` resolves. Electron preserves
+ * `error.name` across IPC, so the renderer hook can distinguish this from a
+ * real failure (which deserves a user-facing toast) by matching the name.
+ */
+export class DirectoryTreeStoppedError extends Error {
+  override readonly name = 'DirectoryTreeStoppedError' as const
+  constructor() {
+    super('DirectoryTreeManager stopped during in-flight builder creation')
+  }
+}
+
 const logger = loggerService.withContext('file/tree/registry')
 
 /**
@@ -268,7 +281,10 @@ export class DirectoryTreeManager extends BaseService {
       // clears it even if we never reach `tearDownIfIdle` naturally
       // (lifecycle-usage.md §"Resources & Cleanup"). clearTimeout is
       // idempotent so the disposable surviving past natural fire is fine.
+      // `.unref()` so a pending grace timer doesn't keep the process alive
+      // past app exit — the watcher cleanup is best-effort at shutdown.
       const handle = setTimeout(() => this.tearDownIfIdle(shared), DISPOSE_GRACE_MS)
+      handle.unref()
       shared.disposeTimer = handle
       this.registerDisposable(() => clearTimeout(handle))
     }
@@ -333,7 +349,7 @@ export class DirectoryTreeManager extends BaseService {
           await Promise.resolve(builder.dispose()).catch((err) =>
             logger.warn('builder.dispose after onStop failed', err as Error)
           )
-          throw new Error('DirectoryTreeManager stopped during in-flight builder creation')
+          throw new DirectoryTreeStoppedError()
         }
         // Window during which a concurrent `create` could have inserted
         // ahead of us — fold into theirs and discard the duplicate

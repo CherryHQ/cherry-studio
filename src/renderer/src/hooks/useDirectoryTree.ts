@@ -169,6 +169,16 @@ export function useDirectoryTree(rootPath: string | undefined, options?: Directo
       } catch (err) {
         if (cancelled) return
         const normalized = err instanceof Error ? err : new Error(String(err))
+        // Distinguish "the main-side manager stopped while our create was
+        // in flight" from a real failure. Electron preserves `error.name`
+        // across IPC, so the main side's `DirectoryTreeStoppedError`
+        // arrives here with `.name === 'DirectoryTreeStoppedError'`. That
+        // case fires during app shutdown or service restart — no consumer
+        // toast is useful, the UI is going away.
+        if (normalized.name === 'DirectoryTreeStoppedError') {
+          setIsLoading(false)
+          return
+        }
         logger.error(`Failed to create directory tree for ${rootPath}`, normalized)
         setError(normalized)
         setIsLoading(false)
