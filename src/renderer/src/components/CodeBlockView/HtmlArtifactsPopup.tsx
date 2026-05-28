@@ -12,6 +12,9 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+export const HTML_PREVIEW_SANDBOX = 'allow-scripts'
+export const canCaptureHtmlPreview = HTML_PREVIEW_SANDBOX.includes('allow-same-origin')
+
 interface CodePanelProps {
   codeEditorRef: React.RefObject<CodeEditorHandles | null>
   html: string
@@ -71,12 +74,7 @@ const PreviewPanel = memo<PreviewPanelProps>(({ previewFrameRef, html, previewTi
   return (
     <PreviewSection>
       {html.trim() ? (
-        <PreviewFrame
-          ref={previewFrameRef}
-          srcDoc={html}
-          title={previewTitle}
-          sandbox="allow-scripts allow-same-origin allow-forms"
-        />
+        <PreviewFrame ref={previewFrameRef} srcDoc={html} title={previewTitle} sandbox={HTML_PREVIEW_SANDBOX} />
       ) : (
         <EmptyPreview>
           <p>{emptyText}</p>
@@ -194,6 +192,7 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
 
       <HeaderRight onDoubleClick={(e) => e.stopPropagation()}>
         <Dropdown
+          disabled={!canCaptureHtmlPreview || !html.trim()}
           trigger={['click']}
           menu={{
             items: [
@@ -211,8 +210,16 @@ const HtmlArtifactsPopup: React.FC<HtmlArtifactsPopupProps> = ({ open, title, ht
               }
             ]
           }}>
-          <Tooltip title={t('html_artifacts.capture.label')} mouseLeaveDelay={0}>
-            <Button type="text" icon={<Camera size={16} />} className="nodrag" />
+          <Tooltip
+            title={canCaptureHtmlPreview ? t('html_artifacts.capture.label') : t('common.disabled')}
+            mouseLeaveDelay={0}>
+            <Button
+              type="text"
+              icon={<Camera size={16} />}
+              className="nodrag"
+              data-testid="html-artifacts-capture"
+              disabled={!canCaptureHtmlPreview || !html.trim()}
+            />
           </Tooltip>
         </Dropdown>
         <Button

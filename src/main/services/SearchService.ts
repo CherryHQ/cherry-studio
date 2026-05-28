@@ -4,6 +4,23 @@ import { BrowserWindow } from 'electron'
 
 const logger = loggerService.withContext('SearchService')
 
+export const SEARCH_WINDOW_WEB_PREFERENCES = {
+  contextIsolation: true,
+  nodeIntegration: false,
+  sandbox: true,
+  webSecurity: true,
+  devTools: is.dev
+} as const
+
+export const isSafeSearchUrl = (url: string): boolean => {
+  try {
+    const parsed = new URL(url)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 export class SearchService {
   private static instance: SearchService | null = null
   private searchWindows: Record<string, BrowserWindow> = {}
@@ -19,15 +36,17 @@ export class SearchService {
       width: 1280,
       height: 768,
       show,
-      webPreferences: {
-        nodeIntegration: true,
-        contextIsolation: false,
-        devTools: is.dev
-      }
+      webPreferences: SEARCH_WINDOW_WEB_PREFERENCES
     })
 
     this.searchWindows[uid] = newWindow
     newWindow.on('closed', () => delete this.searchWindows[uid])
+    newWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+    newWindow.webContents.on('will-navigate', (event, navigationUrl) => {
+      if (!isSafeSearchUrl(navigationUrl)) {
+        event.preventDefault()
+      }
+    })
 
     newWindow.webContents.userAgent =
       'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko)  Safari/537.36'
@@ -55,6 +74,11 @@ export class SearchService {
   }
 
   public async openUrlInSearchWindow(uid: string, url: string): Promise<any> {
+    if (!isSafeSearchUrl(url)) {
+      logger.warn(`Rejected unsafe search URL: ${url}`)
+      throw new Error('Invalid search URL')
+    }
+
     let window = this.searchWindows[uid]
     logger.debug(`Searching with URL: ${url}`)
     if (window) {

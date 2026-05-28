@@ -12,7 +12,7 @@ import {
 } from '@renderer/utils/keywordSearch'
 import { List, Segmented, Spin, Typography } from 'antd'
 import { useLiveQuery } from 'dexie-react-hooks'
-import type { FC } from 'react'
+import type { FC, ReactNode } from 'react'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useSelector } from 'react-redux'
@@ -267,17 +267,33 @@ const SearchResults: FC<Props> = ({ keywords, onMessageClick, onTopicClick, ...p
     return results
   }, [searchResults, sortOrder])
 
-  const highlightText = (text: string) => {
-    // Escape HTML entities to prevent XSS from LLM response content
-    const escapeHtml = (s: string) =>
-      s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-    const safeText = escapeHtml(text)
+  const highlightText = (text: string): ReactNode => {
     const highlightRegex = buildKeywordUnionRegex(searchTerms, { matchMode, flags: 'gi' })
     if (!highlightRegex) {
-      return <span dangerouslySetInnerHTML={{ __html: safeText }} />
+      return text
     }
-    const highlightedText = safeText.replace(highlightRegex, (match) => `<mark>${match}</mark>`)
-    return <span dangerouslySetInnerHTML={{ __html: highlightedText }} />
+
+    const nodes: ReactNode[] = []
+    const regex = new RegExp(highlightRegex.source, highlightRegex.flags)
+    let lastIndex = 0
+
+    for (const match of text.matchAll(regex)) {
+      const start = match.index ?? 0
+      const value = match[0]
+
+      if (start > lastIndex) {
+        nodes.push(text.slice(lastIndex, start))
+      }
+
+      nodes.push(<mark key={`${start}-${value}`}>{value}</mark>)
+      lastIndex = start + value.length
+    }
+
+    if (lastIndex < text.length) {
+      nodes.push(text.slice(lastIndex))
+    }
+
+    return nodes.length > 0 ? nodes : text
   }
 
   useEffect(() => {

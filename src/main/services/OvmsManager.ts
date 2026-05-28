@@ -1,4 +1,4 @@
-import { exec } from 'node:child_process'
+import { exec, execFile } from 'node:child_process'
 import { homedir } from 'node:os'
 import { promisify } from 'node:util'
 
@@ -12,6 +12,39 @@ import * as path from 'path'
 const logger = loggerService.withContext('OvmsManager')
 
 const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
+
+const ALLOWED_MODEL_SOURCES = new Set(['', 'https://hf-mirror.com', 'https://www.modelscope.cn/models'])
+const ALLOWED_MODEL_TASKS = new Set(['text_generation', 'embeddings', 'rerank', 'image_generation'])
+const MODEL_NAME_PATTERN = /^[A-Za-z0-9._-]+$/
+const MODEL_ID_PATTERN = /^OpenVINO\/[A-Za-z0-9._/-]+$/
+
+export const validateOvmsDownloadInput = (modelName: string, modelId: string, modelSource: string, task: string) => {
+  const normalized = {
+    modelName: modelName.trim(),
+    modelId: modelId.trim(),
+    modelSource: modelSource.trim(),
+    task: task.trim()
+  }
+
+  if (!MODEL_NAME_PATTERN.test(normalized.modelName)) {
+    throw new Error('Invalid model name')
+  }
+
+  if (!MODEL_ID_PATTERN.test(normalized.modelId) || normalized.modelId.includes('..')) {
+    throw new Error('Invalid model ID')
+  }
+
+  if (!ALLOWED_MODEL_SOURCES.has(normalized.modelSource)) {
+    throw new Error('Invalid model source')
+  }
+
+  if (!ALLOWED_MODEL_TASKS.has(normalized.task)) {
+    throw new Error('Invalid model task')
+  }
+
+  return normalized
+}
 
 export const isOvmsSupported = isWin && getCpuName().toLowerCase().includes('intel')
 
@@ -341,11 +374,27 @@ class OvmsManager {
     modelSource: string,
     task: string = 'text_generation'
   ): Promise<{ success: boolean; message?: string }> {
-    logger.info(`Adding model: ${modelName} with ID: ${modelId}, Source: ${modelSource}, Task: ${task}`)
+    let validatedInput: ReturnType<typeof validateOvmsDownloadInput>
+
+    try {
+      validatedInput = validateOvmsDownloadInput(modelName, modelId, modelSource, task)
+    } catch (error) {
+      logger.warn(`Rejected OVMS model download request: ${(error as Error).message}`)
+      return { success: false, message: (error as Error).message }
+    }
+
+    const {
+      modelName: safeModelName,
+      modelId: safeModelId,
+      modelSource: safeModelSource,
+      task: safeTask
+    } = validatedInput
+
+    logger.info(`Adding model: ${safeModelName} with ID: ${safeModelId}, Source: ${safeModelSource}, Task: ${safeTask}`)
 
     const homeDir = homedir()
     const ovdndDir = path.join(homeDir, HOME_CHERRY_DIR, 'ovms', 'ovms')
-    const pathModel = path.join(ovdndDir, 'models', modelId)
+    const pathModel = path.join(ovdndDir, 'models', safeModelId)
 
     try {
       // check the ovdnDir+'models'+modelId exist or not
@@ -362,14 +411,20 @@ class OvmsManager {
 
       // Use ovdnd.exe for downloading instead of ovms.exe
       const ovdndPath = path.join(ovdndDir, 'ovdnd.exe')
-      const command =
-        `"${ovdndPath}" --pull ` +
-        `--model_repository_path "${ovdndDir}/models" ` +
-        `--source_model "${modelId}" ` +
-        `--model_name "${modelName}" ` +
-        `--target_device GPU ` +
-        `--task ${task} ` +
-        `--overwrite_models`
+      const args = [
+        '--pull',
+        '--model_repository_path',
+        path.join(ovdndDir, 'models'),
+        '--source_model',
+        safeModelId,
+        '--model_name',
+        safeModelName,
+        '--target_device',
+        'GPU',
+        '--task',
+        safeTask,
+        '--overwrite_models'
+      ]
 
       const env: Record<string, string | undefined> = {
         ...process.env,
@@ -378,12 +433,12 @@ class OvmsManager {
         PATH: `${process.env.PATH};${ovdndDir};${path.join(ovdndDir, 'python')}`
       }
 
-      if (modelSource) {
-        env.HF_ENDPOINT = modelSource
+      if (safeModelSource) {
+        env.HF_ENDPOINT = safeModelSource
       }
 
-      logger.info(`Running command: ${command} from ${modelSource}`)
-      const { stdout } = await execAsync(command, { env: env, cwd: ovdndDir })
+      logger.info(`Running OVMS model download for ${safeModelId} from ${safeModelSource || 'https://huggingface.co'}`)
+      const { stdout } = await execFileAsync(ovdndPath, args, { env: env, cwd: ovdndDir, windowsHide: true })
 
       logger.info('Model download completed')
       logger.debug(`Command output: ${stdout}`)
@@ -396,12 +451,12 @@ class OvmsManager {
       logger.error(`Failed to add model: ${error}`)
       return {
         success: false,
-        message: `Download model ${modelId} failed, please check following items and try it again:<p>- the model id</p><p>- network connection and proxy</p>`
+        message: `Download model ${safeModelId} failed. Check:\n- model ID\n- network connection and proxy`
       }
     }
 
     // Update config file
-    if (!(await this.updateModelConfig(modelName, modelId))) {
+    if (!(await this.updateModelConfig(safeModelName, safeModelId))) {
       logger.error('Failed to update model config')
       return { success: false, message: 'Failed to update model config' }
     }
@@ -411,7 +466,7 @@ class OvmsManager {
       return { success: false, message: 'Failed to apply model patchs' }
     }
 
-    logger.info(`Model ${modelName} added successfully with ID ${modelId}`)
+    logger.info(`Model ${safeModelName} added successfully with ID ${safeModelId}`)
     return { success: true }
   }
 
