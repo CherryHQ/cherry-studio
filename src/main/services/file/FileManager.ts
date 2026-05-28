@@ -188,7 +188,7 @@ import {
 } from './internal/orphanSweep'
 import { open as internalShellOpen, showInFolder as internalShellShowInFolder } from './internal/system/shell'
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
-import { canonicalizeExternalPath, resolvePhysicalPath } from './utils/pathResolver'
+import { resolvePhysicalPath } from './utils/pathResolver'
 import { createVersionCacheImpl, type VersionCache } from './versionCache'
 
 const fileManagerLogger = loggerService.withContext('FileManager')
@@ -831,8 +831,8 @@ export class FileManager extends BaseService implements IFileManager {
     return this.deps.fileEntryService.findById(id)
   }
 
-  async findByExternalPath(rawPath: string): Promise<FileEntry | null> {
-    return this.deps.fileEntryService.findByExternalPath(canonicalizeExternalPath(rawPath))
+  async findByExternalPath(path: FilePath): Promise<FileEntry | null> {
+    return this.deps.fileEntryService.findByExternalPath(path)
   }
 
   async ensureExternalEntry(params: EnsureExternalEntryParams): Promise<FileEntry> {
@@ -921,9 +921,10 @@ export class FileManager extends BaseService implements IFileManager {
 
   async batchEnsureExternalEntries(items: EnsureExternalEntryParams[]): Promise<BatchCreateResult> {
     // Within-batch path duplicates resolve to the same entry per the public
-    // contract; the second occurrence reuses the just-inserted row. The
-    // canonical-path memoization here ensures both items end up in
-    // `succeeded` even though only one DB insert happens — and each carries
+    // contract; the second occurrence reuses the just-inserted row.
+    // `params.externalPath` is FilePath (FilePathSchema-branded) so identity
+    // memoization is canonical by construction — both items end up in
+    // `succeeded` even though only one DB insert happens, and each carries
     // its own `sourceRef`, so the caller can still correlate every input.
     const seen = new Map<string, FileEntry>()
     const succeeded: BatchCreateResult['succeeded'] = []
@@ -931,10 +932,9 @@ export class FileManager extends BaseService implements IFileManager {
     for (const params of items) {
       const sourceRef = params.externalPath
       try {
-        const canonical = canonicalizeExternalPath(params.externalPath)
-        const cached = seen.get(canonical)
+        const cached = seen.get(params.externalPath)
         const entry = cached ?? (await this.ensureExternalEntry(params))
-        if (!cached) seen.set(canonical, entry)
+        if (!cached) seen.set(params.externalPath, entry)
         succeeded.push({ id: entry.id, sourceRef })
       } catch (err) {
         // Wire format only carries `.message`; preserve the stack via the
