@@ -296,6 +296,7 @@ export enum IpcChannel {
   UpdateNotAvailable = 'update-not-available',
   DownloadProgress = 'download-progress',
   UpdateDownloaded = 'update-downloaded',
+  UpdateSymlinkWarning = 'update-symlink-warning',
   DownloadUpdate = 'download-update',
 
   DirectoryProcessingPercent = 'directory-processing-percent',

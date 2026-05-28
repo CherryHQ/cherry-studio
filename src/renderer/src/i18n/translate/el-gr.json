@@ -6027,6 +6027,8 @@
     "message": "Νέα έκδοση {{version}} είναι έτοιμη, θέλετε να την εγκαταστήσετε τώρα;",
     "noReleaseNotes": "Χωρίς σημειώσεις",
     "saveDataError": "Η αποθήκευση των δεδομένων απέτυχε, δοκιμάστε ξανά",
+    "symlinkWarningMessage": "The application is accessed via a symlink ({{symlinkPath}} -> {{realPath}}), which may cause the app to be deleted during the update. Please move CherryStudio.app directly to /Applications (not as a symlink) and try again.",
+    "symlinkWarningTitle": "Update Not Available",
     "title": "Ενημέρωση"
   },
   "warning": {

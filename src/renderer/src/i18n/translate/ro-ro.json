@@ -6027,6 +6027,8 @@
     "message": "Noua versiune {{version}} este gata, vrei să o instalezi acum?",
     "noReleaseNotes": "Nicio notă de lansare",
     "saveDataError": "Salvarea datelor a eșuat, te rugăm să încerci din nou.",
+    "symlinkWarningMessage": "The application is accessed via a symlink ({{symlinkPath}} -> {{realPath}}), which may cause the app to be deleted during the update. Please move CherryStudio.app directly to /Applications (not as a symlink) and try again.",
+    "symlinkWarningTitle": "Update Not Available",
     "title": "Actualizare"
   },
   "warning": {

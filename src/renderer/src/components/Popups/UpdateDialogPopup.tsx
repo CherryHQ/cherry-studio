@@ -35,7 +35,19 @@ const PopupContainer: React.FC<Props> = ({ releaseInfo, resolve }) => {
     setIsInstalling(true)
     try {
       await handleSaveData()
-      await window.api.quitAndInstall()
+      const result = await window.api.quitAndInstall()
+      if (result?.symlinkDetected) {
+        setIsInstalling(false)
+        window.modal.warning({
+          title: t('update.symlinkWarningTitle'),
+          content: t('update.symlinkWarningMessage', {
+            symlinkPath: result.symlinkPath,
+            realPath: result.realPath
+          }),
+          centered: true
+        })
+        return
+      }
       setOpen(false)
     } catch (error) {
       logger.error('Failed to save data before update', error as Error)

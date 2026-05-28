@@ -29,7 +29,8 @@ vi.mock('../WindowService', () => ({
 }))
 
 vi.mock('@main/constant', () => ({
-  isWin: false
+  isWin: false,
+  isMac: true
 }))
 
 vi.mock('@main/utils/ipService', () => ({
@@ -84,9 +85,21 @@ vi.mock('electron-updater', () => ({
   AppUpdater: vi.fn()
 }))
 
+vi.mock('fs', () => {
+  const mock = {
+    promises: {
+      lstat: vi.fn(),
+      realpath: vi.fn()
+    }
+  }
+  return { ...mock, default: mock }
+})
+
 // Import after mocks
 import { UpdateMirror } from '@shared/config/constant'
 import { app, net } from 'electron'
+import { autoUpdater } from 'electron-updater'
+import fs from 'fs'
 
 import AppUpdater from '../AppUpdater'
 import { configManager } from '../ConfigManager'
@@ -1006,6 +1019,66 @@ describe('AppUpdater', () => {
       // Should return 2.0.0, not 2.1.6, because 1.7.5 < 2.0.0 (minCompatibleVersion of 2.1.6)
       expect(result?.config.version).toBe('2.0.0')
       expect(result?.config.version).not.toBe('2.1.6')
+    })
+  })
+
+  describe('_checkMacSymlink', () => {
+    it('should return isSymlink: true when .app path is a symlink', async () => {
+      app.getPath = vi.fn().mockReturnValue('/Applications/CherryStudio.app/Contents/MacOS/CherryStudio')
+      vi.mocked(fs.promises.lstat).mockResolvedValue({ isSymbolicLink: () => true } as any)
+      vi.mocked(fs.promises.realpath).mockResolvedValue('/Volumes/External/CherryStudio.app')
+
+      const result = await (appUpdater as any)._checkMacSymlink()
+
+      expect(result.isSymlink).toBe(true)
+      expect(result.symlinkPath).toContain('CherryStudio.app')
+      expect(result.realPath).toBe('/Volumes/External/CherryStudio.app')
+    })
+
+    it('should return isSymlink: false when .app path is not a symlink', async () => {
+      app.getPath = vi.fn().mockReturnValue('/Applications/CherryStudio.app/Contents/MacOS/CherryStudio')
+      vi.mocked(fs.promises.lstat).mockResolvedValue({ isSymbolicLink: () => false } as any)
+
+      const result = await (appUpdater as any)._checkMacSymlink()
+
+      expect(result.isSymlink).toBe(false)
+      expect(result.symlinkPath).toBe('')
+      expect(result.realPath).toBe('')
+    })
+
+    it('should return isSymlink: false when lstat fails', async () => {
+      app.getPath = vi.fn().mockReturnValue('/Applications/CherryStudio.app/Contents/MacOS/CherryStudio')
+      vi.mocked(fs.promises.lstat).mockRejectedValue(new Error('ENOENT'))
+
+      const result = await (appUpdater as any)._checkMacSymlink()
+
+      expect(result.isSymlink).toBe(false)
+    })
+  })
+
+  describe('quitAndInstall', () => {
+    it('should block update and return symlink info when symlink detected on macOS', async () => {
+      app.getPath = vi.fn().mockReturnValue('/Applications/CherryStudio.app/Contents/MacOS/CherryStudio')
+      vi.mocked(fs.promises.lstat).mockResolvedValue({ isSymbolicLink: () => true } as any)
+      vi.mocked(fs.promises.realpath).mockResolvedValue('/Volumes/External/CherryStudio.app')
+
+      const result = await appUpdater.quitAndInstall()
+
+      expect(result.success).toBe(false)
+      expect(result.symlinkDetected).toBe(true)
+      expect(result.symlinkPath).toContain('CherryStudio.app')
+      expect(result.realPath).toBe('/Volumes/External/CherryStudio.app')
+      expect(autoUpdater.quitAndInstall).not.toHaveBeenCalled()
+    })
+
+    it('should proceed normally when no symlink detected on macOS', async () => {
+      app.getPath = vi.fn().mockReturnValue('/Applications/CherryStudio.app/Contents/MacOS/CherryStudio')
+      vi.mocked(fs.promises.lstat).mockResolvedValue({ isSymbolicLink: () => false } as any)
+
+      const result = await appUpdater.quitAndInstall()
+
+      expect(result.success).toBe(true)
+      expect(result.symlinkDetected).toBeUndefined()
     })
   })
 })
