@@ -37,6 +37,7 @@ import type {
   Model,
   OcrProvider,
   OcrResult,
+  PreprocessProvider,
   Provider,
   RestartApiServerStatusResult,
   S3Config,
@@ -219,6 +220,8 @@ const api = {
     renameDir: (dirPath: string, newName: string) => ipcRenderer.invoke(IpcChannel.File_RenameDir, dirPath, newName),
     read: (fileId: string, detectEncoding?: boolean) =>
       ipcRenderer.invoke(IpcChannel.File_Read, fileId, detectEncoding),
+    readForChat: (file: FileMetadata, preprocessProvider?: PreprocessProvider) =>
+      ipcRenderer.invoke(IpcChannel.File_ReadForChat, file, preprocessProvider),
     readExternal: (filePath: string, detectEncoding?: boolean) =>
       ipcRenderer.invoke(IpcChannel.File_ReadExternal, filePath, detectEncoding),
     clear: (spanContext?: SpanContext) => ipcRenderer.invoke(IpcChannel.File_Clear, spanContext),

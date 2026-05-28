@@ -14,6 +14,7 @@ import type { FilePart, TextPart } from 'ai'
 import i18n from 'i18next'
 
 import { getAiSdkProviderId } from '../provider/factory'
+import { attachChatFileMetadata, readDocumentTextForChat } from './chatDocumentReader'
 import { getFileSizeLimit, supportsImageInput, supportsLargeFileUpload } from './modelCapabilities'
 
 const logger = loggerService.withContext('fileProcessor')
@@ -68,7 +69,7 @@ export async function convertFileBlockToTextPart(fileBlock: FileMessageBlock): P
   // 处理文档文件（PDF、Word、Excel等）- 提取为文本内容
   if (file.type === FILE_TYPE.DOCUMENT) {
     try {
-      const fileContent = await window.api.file.read(file.id + file.ext, true) // true表示强制文本提取
+      const fileContent = await readDocumentTextForChat(file)
       return {
         type: 'text',
         text: `${file.origin_name}\n${fileContent.trim()}`
@@ -232,12 +233,15 @@ export async function convertFileBlockToFilePart(fileBlock: FileMessageBlock, mo
 
       const base64Data = await window.api.file.base64File(file.id + file.ext)
 
-      return {
-        type: 'file',
-        data: base64Data.data,
-        mediaType: base64Data.mime,
-        filename: file.origin_name
-      }
+      return attachChatFileMetadata(
+        {
+          type: 'file' as const,
+          data: base64Data.data,
+          mediaType: base64Data.mime,
+          filename: file.origin_name
+        },
+        file
+      )
     }
 
     // 处理图片文件

@@ -2,7 +2,7 @@
  * PDF Compatibility Plugin
  *
  * Converts PDF FileParts to TextParts for providers that don't support native PDF input.
- * Extracts text directly from the FilePart's base64 data using pdf-parse.
+ * Reuses the chat document reader so stored PDFs can go through configured preprocess providers.
  */
 import type { LanguageModelV3FilePart, LanguageModelV3Message } from '@ai-sdk/provider'
 import { definePlugin } from '@cherrystudio/ai-core/core/plugins'
@@ -11,9 +11,10 @@ import { isAnthropicModel, isGeminiModel } from '@renderer/config/models'
 import { isOpenAILLMModel } from '@renderer/config/models/openai'
 import type { Model, Provider, ProviderType } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
-import { extractPdfText } from '@shared/utils/pdf'
 import type { LanguageModelMiddleware } from 'ai'
 import i18n from 'i18next'
+
+import { readPdfFilePartTextForChat } from '../prepareParams/chatDocumentReader'
 
 const logger = loggerService.withContext('pdfCompatibilityPlugin')
 
@@ -102,8 +103,7 @@ function pdfCompatibilityMiddleware(provider: Provider, model: Model): LanguageM
           const fileName = part.filename || 'PDF'
 
           try {
-            const textContent =
-              part.data instanceof URL ? await extractPdfText(part.data) : await window.api.pdf.extractText(part.data)
+            const textContent = await readPdfFilePartTextForChat(part)
             logger.debug(`Converting PDF FilePart to TextPart for provider ${provider.id} (type: ${provider.type})`)
             newContent.push({ type: 'text', text: `${fileName}\n${textContent.trim()}` })
           } catch (error) {
