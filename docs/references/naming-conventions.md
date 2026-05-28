@@ -4,7 +4,7 @@
 > Last Updated: 2026-05
 > **This document is the authoritative source. `CLAUDE.md` only links here.**
 
-This document defines naming rules for files, directories, and identifiers across the Cherry Studio monorepo. It encodes both industry consensus (React/TypeScript, Node.js, shadcn/Next.js) and project-specific conventions that have stabilized over time.
+This document defines naming rules for files, directories, and identifiers across the Cherry Studio monorepo. It encodes both industry consensus (React/TypeScript, Node.js, shadcn/Next.js) and project-specific conventions.
 
 ---
 
@@ -43,6 +43,8 @@ The 90% case. See later sections for full rules and edge cases.
 | Business / domain module directory | `camelCase` | `apiServer/`, `fileProcessing/` |
 | `packages/ui/` directory | `kebab-case` | `primitives/`, `button-group/` |
 | TanStack route file under `src/renderer/src/routes/` | `kebab-case.tsx` | `api-server.tsx`, `quick-assistant.tsx` |
+
+> Stateful classes use only `Service` (default) or `Manager` (instance pool) — see §5.2. Files placed inside any `utils/` directory drop the `Utils` suffix — the directory already declares the role; see §3.2.
 
 ---
 
@@ -84,11 +86,25 @@ Choose based on **what the file's default / primary export is**:
 |---|---|---|
 | Hook function (`useXxx`) | `camelCase.ts`, must start with `use` | `useShortcuts.ts` |
 | Plain function or function group | `camelCase.ts` | `markdownConverter.ts`, `fileOperations.ts` |
-| Class (especially services) | `PascalCase.ts` (matches class name) | `KnowledgeService.ts`, `IpcChannel.ts`, `IdleTimeoutController.ts` |
+| Class (especially services) | `PascalCase.ts` (matches class name) | `KnowledgeService.ts`, `IpcChannel.ts`, `WindowManager.ts` |
 | Constants / enums only | `camelCase.ts` | `errorCodes.ts` |
 | Re-export barrel | `index.ts` | — |
 
-**Note:** Files under `packages/ui/` use `kebab-case.ts` regardless of export type (e.g. `use-dnd-reorder.ts`, `reorder-visible-subset.ts`), per §4.5 — that scope-specific rule overrides this section. The exported identifier (e.g. `useDndReorder`) remains `camelCase`.
+**Note:** Files under `packages/ui/` use `kebab-case.ts` regardless of export type (e.g. `use-dnd-reorder.ts`, `reorder-visible-subset.ts`), per §4.6 — that scope-specific rule overrides this section. The exported identifier (e.g. `useDndReorder`) remains `camelCase`.
+
+**Inside any `utils/` directory** — the directory declares the role, so the filename does not repeat it:
+
+```
+utils/assistant.ts   ✅
+utils/model.ts       ✅
+utils/notesTree.ts   ✅
+```
+
+A `*Utils` suffix is used only when the file lives outside any `utils/` directory.
+
+**Hooks (`useXxx.ts`)** — live in `src/renderer/src/hooks/` (default, may group into sub-folders by feature) or co-located with the consuming feature.
+
+**Renderer wrappers around `window.api.*`** — the renderer does not use `*Api`, `*Client`, or any other IPC-wrapper suffix. Categorize wrappers by module shape per §5.2.
 
 ### 3.3 Test Files
 
@@ -123,7 +139,7 @@ Choose based on **what the file's default / primary export is**:
 
 ## 4. Directory Naming
 
-Directories fall into six distinct categories. Each has its own rule. §4.7 then layers singular-vs-plural choice on top of all of them.
+Directory naming splits into category rules (§4.1–§4.3, §4.5–§4.7) and cross-cutting rules: §4.4 (file vs subdirectory), §4.8 (top-level closed), §4.9 (singular vs plural).
 
 ### 4.1 npm Package Directories — `kebab-case`
 
@@ -136,8 +152,6 @@ packages/extension-table-plus/ ✅
 packages/somePkg/              ❌ (camelCase not allowed)
 packages/SomePkg/              ❌ (PascalCase not allowed)
 ```
-
-**Rationale**: npm package names allow only lowercase letters, digits, hyphens, and underscores. Directory ≠ package name causes confusion in imports and publishing.
 
 ### 4.2 Business React Component Directories — `PascalCase`
 
@@ -157,9 +171,20 @@ src/renderer/src/components/MarkdownEditor/  ✅
 services/   utils/   hooks/   components/   pages/   types/
 ```
 
-Bucket names are **plural** (see §4.7 for singular-vs-plural rules across all directory kinds). Do **not** invent variants like `Services/` or `helpers-and-utils/`.
+Bucket names are **plural** (see §4.9 for singular-vs-plural rules across all directory kinds). Do **not** invent variants like `Services/` or `helpers-and-utils/`.
 
-### 4.4 Business / Domain Module Directories — `camelCase`
+### 4.4 File-Level vs Subdirectory Organization Inside a Bucket
+
+Inside any bucket or domain directory, a **single file is the default**. Promote to a subdirectory only when the topic requires multiple files.
+
+| Situation | Layout | Examples |
+|---|---|---|
+| One file can express the entire capability / topic | One `.ts` file | `services/CacheService.ts`, `utils/copy.ts`, `hooks/useChatContext.ts` |
+| Implementation is too large for one file, **or** the topic owns several closely related artifacts (helpers, types, sub-files) that belong together | A subdirectory grouping the files | `services/messageStreaming/`, `services/ocr/`, `utils/markdown/`, `hooks/translate/` |
+
+Do not pre-create a subdirectory for anticipated growth — promote only when the second file actually arrives.
+
+### 4.5 Business / Domain Module Directories — `camelCase`
 
 When a directory represents a **named domain** (a coherent business module with its own internal structure), use `camelCase`.
 
@@ -168,7 +193,7 @@ src/main/ai/streamManager           ✅
 src/main/services/fileProcessing/   ✅
 ```
 
-### 4.5 shadcn / `packages/ui` Directories — `kebab-case`
+### 4.6 shadcn / `packages/ui` Directories — `kebab-case`
 
 Everything inside `packages/ui/` (both files and directories) follows shadcn conventions:
 
@@ -177,7 +202,7 @@ packages/ui/src/components/primitives/        ✅
 packages/ui/src/components/primitives/button-group/  ✅
 ```
 
-### 4.6 Convention-Mandated Directories
+### 4.7 Convention-Mandated Directories
 
 These have fixed names dictated by tools or community convention:
 
@@ -188,7 +213,25 @@ These have fixed names dictated by tools or community convention:
 | `node_modules/` | Dependencies (npm) |
 | `dist/`, `build/`, `out/` | Build output |
 
-### 4.7 Singular vs Plural
+### 4.8 Top-Level Directories — Closed by Default
+
+The set of top-level directories under each of:
+
+- repository root `/`
+- `/src/`
+- `/src/main/`, `/src/renderer/`, `/src/preload/`
+- `/packages/shared/`
+
+is **closed by default**. Adding one is a structural commitment.
+
+**A new top-level directory MAY be added only when the PR description establishes both:**
+
+1. **Necessity** — no existing top-level bucket can host the new files without semantic loss.
+2. **Completeness** — the new directory has a clear scope, follows §4.3 (plural bucket) or §4.5 (singular domain module) form, and does not overlap with any existing bucket.
+
+If either is in doubt, place the files inside an existing bucket. Subdirectories under existing buckets are unrestricted.
+
+### 4.9 Singular vs Plural
 
 Choose number based on what the directory **conceptually contains**, not on which sounds nicer.
 
@@ -197,7 +240,7 @@ Choose number based on what the directory **conceptually contains**, not on whic
 | **Collection bucket** — holds many items of the same kind | **plural** | `services/`, `utils/`, `hooks/`, `components/`, `pages/`, `types/`, `models/`, `shortcuts/`, `agents/` |
 | **Namespace / theme** — represents one subject area, not a collection | **singular** | `config/`, `data/`, `auth/`, `api/`, `ipc/`, `file/` |
 | **Business / domain module** — named action or concept | **singular** (default) | `apiServer/`, `fileProcessing/`, `webSearch/`, `bootConfig/` |
-| **Component directory** (dir = component) | follows the **component name** | `Avatar/`, `CodeEditor/` (singular component); `SearchResults/`, `Buttons/` (component that represents a group) |
+| **Component directory** (dir = component) | follows the **component name** | `Avatar/`, `CodeEditor/` (singular component); `SearchResults/` (component representing a group) |
 
 Decision rule: ask "does this directory hold **many of X**?" — yes → plural; no → singular. When two readings both make sense, pick the one that matches the directory's **default import name** (e.g. `import { ... } from './config'` reads naturally with `config/` singular).
 
@@ -229,18 +272,40 @@ Names inside source code — separate axis from filenames.
 | Function that mutates a collection | verb + plural object | `addUsers(...)`, `removeTags(...)` |
 | Event / handler name | follows the event subject | `onMessageReceived` (one), `onItemsLoaded` (many) |
 
-Pluralizing collection variables is the strongest signal of "this is iterable" — code that breaks this rule (`const user = fetchAllUsers()`) is consistently flagged in review, so the rule pays for itself.
+### 5.2 Suffix for Stateful Classes — `Service` (default) / `Manager` (instance pool)
 
-### 5.2 `Service` vs `Manager` Suffix
-
-Both name a domain class; they differ by **role**, not by mechanism.
+A class that owns state, resources, or a lifecycle MUST use one of exactly two suffixes:
 
 | Suffix | Use when the class… | Examples |
 |---|---|---|
-| `Service` | Provides a cohesive **domain capability / API surface**. The **default**. | `FileService`, `CacheService`, `DbService`, `AiService` |
-| `Manager` | Owns and coordinates a **pool / registry of many homogeneous instances**, and that coordination is its defining job. | `WindowManager` (window pool), `JobManager` (jobs), `PluginManager` (plugins) |
+| `Service` | Provides a cohesive **domain capability / API surface**. The **default** for any stateful class. | `CacheService`, `DataApiService`, `FileService`, `ExportService` |
+| `Manager` | Owns and coordinates a **pool / registry of many homogeneous instances**, and that coordination is its defining job. | `WindowManager` (window pool), `TabLruManager` |
 
-**Decision rule:** ask "is this class's primary job to own and coordinate a *set of many like instances*?" — yes → `Manager`; otherwise → `Service` (also the default when unsure). 
+**Decision rule:** ask "is this class's primary job to own and coordinate a *set of many like instances*?" — yes → `Manager`; otherwise → `Service` (default when unsure).
+
+A `Service` / `Manager` class lives where its domain ownership lies (e.g. `src/main/data/CacheService.ts`, `src/main/core/window/WindowManager.ts`); placement under `services/` is not required.
+
+**Stateless modules are NOT classes for this rule** — pure function collections, queries, conversions, and SDK wrappers without retained state do not receive a `Service` / `Manager` suffix.
+
+**If a module looks like it wants to be a `Service` but is not actually a stateful class, it belongs elsewhere. Route by shape:**
+
+| Actual shape of the module | Right home | Naming |
+|---|---|---|
+| Pure-function collection (queries, conversions, predicates, formatters) | `utils/` (or feature-local `utils/` subdirectory) | `<topic>.ts` (camelCase; no `Utils` suffix — see §3.2) |
+| Depends on React lifecycle / state / context | `hooks/` (or co-located with the consuming feature) | `useXxx.ts` (the `use` prefix is the role marker — see §3.2) |
+| Renders JSX / owns view markup | `components/` (shared) or `pages/` (route-bound) | `Xxx.tsx` (PascalCase — see §3.1) |
+| Single-call pass-through to `window.api.*` | inlined at the call site | (no file) |
+
+#### Two valid forms of a `Service`
+
+The `Service` suffix names a **role** (a stateful domain capability), not a **mechanism**. A class earning the suffix may be implemented as either:
+
+| Form | Pattern | Used when |
+|---|---|---|
+| Lifecycle service | `@Injectable('XxxService')` + `extends BaseService`, accessed via `application.get('XxxService')` | The service owns long-lived resources OR registers persistent side effects |
+| Direct-import singleton service | `export const xxxService = new XxxService()` | No long-lived resources, no persistent side effects, but still has class-level state (e.g. cached SDK instances) |
+
+The criteria for choosing between them are defined in [`docs/references/lifecycle/lifecycle-decision-guide.md`](../lifecycle/lifecycle-decision-guide.md). 
 
 ---
 
@@ -253,6 +318,7 @@ When an acronym (API, URL, ID, HTTP, MCP, AI) appears inside `PascalCase` or `ca
 - **First letter uppercase, rest lowercase** — `HttpClient`, `UserId`, `ApiServer`, `McpService`.
 - **Never all-caps** — `HTTPClient`, `UserID`, `APIServer` are forbidden.
 - **At the start of `camelCase`** — entirely lowercase: `httpClient`, `userId`, `apiServer`.
+- **Same form applies to filenames** — `McpService.ts`, not `MCPService.ts`.
 
 ### 6.2 Case-Only Renames
 
@@ -279,7 +345,7 @@ In `packages/*`, the directory name and `package.json#name` (after stripping sco
 
 ### 6.6 TanStack Router File-Based Routes
 
-Files under `src/renderer/src/routes/` are **kebab-case** — TanStack Router maps filename directly to URL (per §2.3).
+Files under `src/renderer/src/routes/` are **kebab-case** — TanStack Router maps filename directly to URL.
 
 Reserved tokens (TanStack-defined):
 
@@ -289,6 +355,17 @@ Reserved tokens (TanStack-defined):
 | `index.tsx` | Index route |
 | `$<param>.tsx` | Dynamic segment (e.g. `$appId.tsx`) |
 | `$.tsx` | Catch-all |
+
+### 6.7 Bucket Anti-Patterns
+
+A bucket directory drifts toward unhealth when **any** of these accumulate:
+
+1. **Singular name on a directory that holds many like items** — should be a §4.3 bucket but was misclassified as a §4.9 namespace.
+2. **Impure contents** — files inside the bucket that do not match the bucket's declared kind (e.g. a directory named after one React pattern that also holds wrapper components which do not use that pattern).
+3. **Thin bucket** — a top-level bucket holding 0–2 files for an extended period is usually an over-eager extraction; reconsider whether it should be a subdirectory inside an existing bucket (see §4.8).
+4. **Overlapping scope** — two top-level buckets whose names could each plausibly host the same file. One of them is redundant or the boundary is ill-defined.
+
+Any of these signals warrants a consolidation review.
 
 ---
 
@@ -316,7 +393,7 @@ Naming a new DIRECTORY
 ├─ Is itself a React component?   → PascalCase      (CodeEditor)
 ├─ Bucket / categorical container? → lowercase plural noun  (services, utils)
 ├─ Business domain module?        → camelCase       (apiServer, fileProcessing)
-└─ Unsure singular vs plural?     → see §4.7
+└─ Unsure singular vs plural?     → see §4.9
 ```
 
 ---
