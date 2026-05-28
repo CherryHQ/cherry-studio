@@ -378,15 +378,20 @@ export class TaskService extends BaseService {
   }
 
   /**
-   * Get the session_id from the most recent successful run of a task.
+   * Get the session_id from the most recent run of a task (any status).
    * Used by SchedulerService to reuse an existing session for context continuity.
+   *
+   * Previously this only matched 'success' runs, which meant failed runs
+   * (timeout, error) caused the next invocation to create a brand-new session,
+   * losing conversation context. Now we match the most recent run regardless
+   * of outcome so the session is reused even after failures.
    */
   async getLastRunSessionId(taskId: string): Promise<string | null> {
     const database = await this.getDatabase()
     const result = await database
       .select({ session_id: taskRunLogsTable.session_id })
       .from(taskRunLogsTable)
-      .where(and(eq(taskRunLogsTable.task_id, taskId), eq(taskRunLogsTable.status, 'success')))
+      .where(and(eq(taskRunLogsTable.task_id, taskId), ne(taskRunLogsTable.status, 'running')))
       .orderBy(desc(taskRunLogsTable.run_at))
       .limit(1)
 

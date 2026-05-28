@@ -282,22 +282,21 @@ export class SessionMessageService extends BaseService {
                 if (options?.persist) {
                   const resolvedSessionId = claudeStream.sdkSessionId || agentSessionId
                   const partialText = accumulator.getText()
-                  if (partialText) {
-                    this.persistHeadlessExchange(
-                      session,
-                      options?.displayContent ?? req.content,
-                      partialText,
-                      resolvedSessionId,
-                      options?.images
-                    )
-                      .then(resolveCompletion)
-                      .catch((err) => {
-                        logger.error('Failed to persist cancelled exchange', err as Error)
-                        resolveCompletion({})
-                      })
-                  } else {
-                    resolveCompletion({})
-                  }
+                  // Always persist on cancellation so agent_session_id is saved.
+                  // Without this, timeouts before text production lose the session
+                  // linkage, causing the next run to create a brand-new session.
+                  this.persistHeadlessExchange(
+                    session,
+                    options?.displayContent ?? req.content,
+                    partialText || '[cancelled - no response generated]',
+                    resolvedSessionId,
+                    options?.images
+                  )
+                    .then(resolveCompletion)
+                    .catch((err) => {
+                      logger.error('Failed to persist cancelled exchange', err as Error)
+                      resolveCompletion({})
+                    })
                 } else {
                   resolveCompletion({})
                 }
