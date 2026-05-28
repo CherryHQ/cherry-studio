@@ -701,9 +701,11 @@ class OpenClawService {
     }
     let url = `http://127.0.0.1:${this.gatewayPort}`
     if (this.gatewayAuthToken) {
-      // Use query string (not URL fragment) so dashboard app state can persist correctly.
-      // Fragment (#...) is often used by SPAs for transient client-side state.
-      url += `#token=${encodeURIComponent(this.gatewayAuthToken)}`
+      // Use query string (not URL fragment): in Electron <webview>, changing only the
+      // fragment of an already-loaded URL is treated as an in-page anchor jump and does
+      // not re-run page scripts, so the dashboard's URL-to-token handler never fires on
+      // re-opens. A query-string change forces a full reload, which is what we need.
+      url += `?token=${encodeURIComponent(this.gatewayAuthToken)}`
     }
     return url
   }
