@@ -1380,6 +1380,7 @@
           "no_knowledge_base": "Nenhuma base de conhecimento disponível no momento, crie uma base de conhecimento primeiro"
         },
         "error": {
+          "file_partial_failed": "[to be translated]:{{count}} file(s) could not be saved",
           "invalid_base": "A base de conhecimento selecionada não está configurada corretamente",
           "no_content_selected": "Selecione pelo menos um tipo de conteúdo",
           "save_failed": "Falha ao salvar, verifique a configuração da base de conhecimento"
@@ -1798,6 +1799,7 @@
     "reset": "Redefinir",
     "retry": "Tentar novamente",
     "save": "Salvar",
+    "save_failed": "[to be translated]:Save failed",
     "saved": "Guardado",
     "search": "Pesquisar",
     "select": "Selecionar",
@@ -4069,6 +4071,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "[to be translated]:CherryAI",
     "cherryin": "CherryIN",
+    "commonstack": "[to be translated]:Commonstack",
     "copilot": "GitHub Copiloto",
     "dashscope": "Área de Atuação AliCloud",
     "deepseek": "Busca Profunda",
@@ -7077,7 +7080,8 @@
         "too_large": "Arquivo muito grande",
         "unknown": "Falha ao ler o conteúdo do arquivo"
       },
-      "reading": "Lendo o conteúdo do arquivo..."
+      "reading": "Lendo o conteúdo do arquivo...",
+      "upload": "[to be translated]:Drop or click to upload image/document"
     },
     "history": {
       "back": "[to be translated]:Back to list",

@@ -60,7 +60,8 @@ export const CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS = [
   SystemProviderIds.qiniu,
   SystemProviderIds.silicon,
   SystemProviderIds.mimo,
-  SystemProviderIds.openrouter
+  SystemProviderIds.openrouter,
+  SystemProviderIds.commonstack
 ]
 export const CLAUDE_SUPPORTED_PROVIDERS = [
   'aihubmix',

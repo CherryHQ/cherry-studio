@@ -1380,6 +1380,7 @@
           "no_knowledge_base": "Không có cơ sở tri thức nào khả dụng, vui lòng tạo một cơ sở trước"
         },
         "error": {
+          "file_partial_failed": "[to be translated]:{{count}} file(s) could not be saved",
           "invalid_base": "Cơ sở kiến thức được chọn không được cấu hình đúng cách",
           "no_content_selected": "Vui lòng chọn ít nhất một loại nội dung",
           "save_failed": "Lưu thất bại, vui lòng kiểm tra cấu hình cơ sở tri thức"
@@ -1798,6 +1799,7 @@
     "reset": "Đặt lại",
     "retry": "Thử lại",
     "save": "Lưu",
+    "save_failed": "[to be translated]:Save failed",
     "saved": "Đã lưu",
     "search": "Tìm kiếm",
     "select": "Chọn",
@@ -4069,6 +4071,7 @@
     "cerebras": "Cerebras AI",
     "cherryai": "[to be translated]:CherryAI",
     "cherryin": "CherryIN",
+    "commonstack": "[to be translated]:Commonstack",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
@@ -7077,7 +7080,8 @@
         "too_large": "Tập tin quá lớn",
         "unknown": "Không đọc được nội dung tệp"
       },
-      "reading": "Đang đọc nội dung tệp..."
+      "reading": "Đang đọc nội dung tệp...",
+      "upload": "[to be translated]:Drop or click to upload image/document"
     },
     "history": {
       "back": "[to be translated]:Back to list",

@@ -1452,6 +1452,32 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       group: 'mistralai'
     }
   ],
+  commonstack: [
+    {
+      id: 'openai/gpt-5.5',
+      provider: 'commonstack',
+      name: 'OpenAI: GPT-5.5',
+      group: 'openai'
+    },
+    {
+      id: 'openai/gpt-5.4',
+      provider: 'commonstack',
+      name: 'OpenAI: GPT-5.4',
+      group: 'openai'
+    },
+    {
+      id: 'anthropic/claude-opus-4-7',
+      provider: 'commonstack',
+      name: 'Anthropic: Claude Opus 4.7',
+      group: 'anthropic'
+    },
+    {
+      id: 'deepseek/deepseek-v4-pro',
+      provider: 'commonstack',
+      name: 'DeepSeek: V4 Pro',
+      group: 'deepseek'
+    }
+  ],
   groq: [
     {
       id: 'llama3-8b-8192',
