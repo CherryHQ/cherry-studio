@@ -1,3 +1,7 @@
+// TODO: remove this module — painting cancellation should move to the backend
+// (the main-process generation service should own the AbortController per
+// painting id and expose IPC to cancel). Renderer-side bookkeeping makes
+// in-flight work die on window reload and can't survive process restart.
 const abortControllers = new Map<string, AbortController>()
 
 export function registerPaintingAbortController(paintingId: string, controller: AbortController): void {
