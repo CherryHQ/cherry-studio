@@ -11,12 +11,20 @@ const logger = loggerService.withContext('Utils:Rtk')
 
 const RTK_MIN_VERSION = '0.23.0'
 const REWRITE_TIMEOUT_MS = 3000
+// Re-probe rtk availability periodically so that installing or uninstalling rtk
+// via BinaryManager takes effect without restarting the app. The probe itself
+// is cheap (one execFile + version parse) and only runs at most once per minute.
+const RTK_PROBE_TTL_MS = 60_000
 
 let rtkPath: string | null = null
 let rtkAvailable: boolean | null = null
+let rtkProbedAt = 0
 
 async function checkRtkAvailable(): Promise<boolean> {
-  if (rtkAvailable !== null) return rtkAvailable
+  if (rtkAvailable !== null && Date.now() - rtkProbedAt < RTK_PROBE_TTL_MS) {
+    return rtkAvailable
+  }
+  rtkProbedAt = Date.now()
 
   const resolved = await getBinaryPath('rtk')
   if (!fs.existsSync(resolved)) {

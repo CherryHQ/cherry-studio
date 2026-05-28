@@ -412,19 +412,36 @@ describe('BinaryManager', () => {
       }
     })
 
-    it('passes through whitelisted variables but not auth tokens', async () => {
+    it('passes through whitelisted variables but not the ambient auth token', async () => {
       const original = { ...process.env }
       try {
         process.env['GITHUB_TOKEN'] = 'ghp_test'
         process.env['HTTPS_PROXY'] = 'http://proxy:8080'
+        delete process.env['CHERRY_GITHUB_TOKEN']
 
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
         const env = await (service as any).buildIsolatedEnv()
 
         expect(env['HTTPS_PROXY']).toBe('http://proxy:8080')
-        // Auth tokens are intentionally not forwarded — public-registry installs only.
+        // Ambient GITHUB_TOKEN is intentionally not forwarded.
         expect(env['GITHUB_TOKEN']).toBeUndefined()
+      } finally {
+        process.env = original
+      }
+    })
+
+    it('forwards CHERRY_GITHUB_TOKEN as GITHUB_TOKEN to raise the GitHub API rate limit', async () => {
+      const original = { ...process.env }
+      try {
+        process.env['CHERRY_GITHUB_TOKEN'] = 'ghp_opt_in'
+        process.env['GITHUB_TOKEN'] = 'ghp_ambient_should_be_ignored'
+
+        const service = new BinaryManager()
+        ;(service as any).miseBin = '/mock/mise'
+        const env = await (service as any).buildIsolatedEnv()
+
+        expect(env['GITHUB_TOKEN']).toBe('ghp_opt_in')
       } finally {
         process.env = original
       }

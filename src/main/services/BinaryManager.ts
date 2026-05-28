@@ -59,6 +59,22 @@ const MISE_PASSTHROUGH_ENV = [
 const TOOL_NAME_RE = /^[a-zA-Z][a-zA-Z0-9_-]*$/
 const TOOL_KEY_RE = /^(?!.*\.\.)(?!.*\/\/)[a-zA-Z0-9@:/_.-]+$/
 
+// Matches a resolved semver version (1.2.3, 1.2.3-rc.1, 1.2.3+build). Used to
+// distinguish "concrete version we can persist and compare for equality" from
+// floating pins like "latest" / "stable" / "lts" / "1" / "1.2" that mise
+// accepts but would always mismatch the resolved version in state.
+const SEMVER_RE = /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.+-]*)?$/
+
+function isSemverVersion(v: string): boolean {
+  return SEMVER_RE.test(v)
+}
+
+// True for any pin that does not pick a single concrete version. Used in
+// reconcile to skip the equality check when the user requested a floating pin.
+function isFloatingVersion(v?: string): boolean {
+  return !v || !isSemverVersion(v)
+}
+
 const RUNTIME_DEPS: Record<string, string> = { npm: 'node@22', pipx: 'python@3.12' }
 
 const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000
@@ -141,7 +157,16 @@ export class BinaryManager extends BaseService {
       if (!toolName || !TOOL_NAME_RE.test(toolName)) {
         throw new Error(`Invalid tool name: ${toolName}`)
       }
+      // getBinaryPath() falls back to returning the bare binary name when the
+      // tool isn't installed anywhere on disk. `path.dirname('claude')` is
+      // `'.'`, which the renderer would then pass to openPath() and end up
+      // opening the main-process CWD (root on packaged macOS, dev cwd in
+      // dev). Resolve to cherry.bin in that case so the user lands on the
+      // managed-binary root instead of somewhere arbitrary.
       const binPath = await getBinaryPath(toolName)
+      if (!path.isAbsolute(binPath) || !fs.existsSync(binPath)) {
+        return application.getPath('cherry.bin')
+      }
       return path.dirname(binPath)
     })
 
@@ -271,6 +296,16 @@ export class BinaryManager extends BaseService {
       }
     }
 
+    // Opt-in GitHub token: users who hit the 60 req/hr unauthenticated API
+    // limit (shared NATs, CI, Codespaces) can set CHERRY_GITHUB_TOKEN to
+    // raise it to 5000 req/hr. We deliberately do NOT pick up the ambient
+    // GITHUB_TOKEN / GH_TOKEN to avoid forwarding the user's general shell
+    // token into mise without consent.
+    const cherryGhToken = process.env['CHERRY_GITHUB_TOKEN']
+    if (cherryGhToken) {
+      env['GITHUB_TOKEN'] = cherryGhToken
+    }
+
     const inChina = await isUserInChina().catch(() => false)
     if (inChina) {
       if (!env['NPM_CONFIG_REGISTRY']) {
@@ -383,11 +418,13 @@ export class BinaryManager extends BaseService {
     } catch {
       logger.warn('Failed to query installed version via mise ls', { tool: tool.tool })
     }
-    // Never persist the literal sentinel "latest" as a resolved version — it
-    // would break equality checks in reconcile() and surface as `vlatest` in
-    // the UI. Empty string means "unpinned / unknown"; reconcile treats it as
-    // unpinned-equivalent.
-    return tool.version && tool.version !== 'latest' ? tool.version : ''
+    // Never persist a floating sentinel (latest, stable, lts, prefix queries
+    // like "1" or "1.2", etc.) as a resolved version — it would break the
+    // equality check in reconcile() (existing.version === tool.version) and
+    // surface as `vlatest` / `vlts` in the UI. Only real semver versions
+    // round-trip; anything else falls back to "unknown" (empty string),
+    // which reconcile treats as unpinned via isFloatingVersion().
+    return tool.version && isSemverVersion(tool.version) ? tool.version : ''
   }
 
   private loadState(): BinaryState {
@@ -463,12 +500,11 @@ export class BinaryManager extends BaseService {
 
         const existing = state.tools[tool.name]
         if (existing && existing.tool === tool.tool && (await this.isManagedBinaryReady(tool.name))) {
-          // Treat empty / "latest" as unpinned — equivalent to no version
-          // pin — so an installed tool isn't reinstalled on every boot just
-          // because the pref says "latest" and state stores the resolved
-          // version (or vice versa).
-          const isUnpinned = (v?: string) => !v || v === 'latest'
-          if (isUnpinned(tool.version) || existing.version === tool.version) {
+          // Skip when the pin is floating (latest, stable, lts, prefix queries
+          // like "1" or "1.2") — comparing those literally against the stored
+          // resolved version would always mismatch and trigger reinstall every
+          // boot. For concrete semvers we still require exact equality.
+          if (isFloatingVersion(tool.version) || existing.version === tool.version) {
             result.skipped.push(tool.name)
             continue
           }

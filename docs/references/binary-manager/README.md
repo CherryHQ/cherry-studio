@@ -69,6 +69,16 @@ The bundled set is currently `bun`, `uv`, `rg`. mise itself is also bundled but 
 
 **Precedence when both sources are present.** `getBinarySearchDirs()` lists the mise shims directory before `cherry.bin`, so if a user clicks *Install via mise* on a bundled tool (e.g. `uv`), the mise-managed version wins at `getBinaryPath('uv')` and consumers immediately use the newer copy. The bundled copy stays on disk as a fallback when the mise shim is absent or broken; the UI re-probes after install and updates the "managed / bundled" label accordingly.
 
+## GitHub rate-limit opt-in
+
+mise's `github:` backend (used by `github:larksuite/cli`, `github:sharkdp/fd`, etc.) hits the GitHub releases API to resolve versions. The unauthenticated limit is 60 req/hour per IP — easily exhausted behind shared NAT (offices, mainland-China ISPs, Codespaces, CI).
+
+`BinaryManager.buildIsolatedEnv()` does **not** forward the ambient `GITHUB_TOKEN` / `GH_TOKEN` from the user's shell, to avoid leaking a general-purpose dev token into mise's process env without consent. Users who hit the rate limit can opt in by setting `CHERRY_GITHUB_TOKEN` in their shell before launching Cherry; it is forwarded to mise as `GITHUB_TOKEN`, raising the limit to 5000 req/hour.
+
+```bash
+export CHERRY_GITHUB_TOKEN=ghp_xxx   # optional, only needed if installs fail with HTTP 403
+```
+
 ## China mirror behavior
 
 `BinaryManager.buildIsolatedEnv()` calls `isUserInChina()` and, when true, injects mirror URLs into the mise subprocess env:
