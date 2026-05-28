@@ -12,12 +12,16 @@ import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../im
  * then read `output_images[]` (raw URL strings). Free-tier limits apply per
  * ModelScope's fair-use quotas.
  *
- * Wire-format notes:
- *   - Size is split: AI SDK `size: '1024x1024'` → body `width: 1024, height: 1024`.
- *   - Snake_case body fields (`num_inference_steps` / `guidance_scale` /
- *     `negative_prompt` / `seed`) come from `buildImageProviderOptions`'s
- *     default branch via `providerOptions.modelscope`; the transport also
- *     accepts camelCase fallbacks for forward compatibility.
+ * Wire-format notes (per api-inference docs):
+ *   - `size` is the WxH string itself (e.g. `'1024x1024'`), NOT a width /
+ *     height split.
+ *   - Sampling fields are `steps` and `guidance` (NOT `num_inference_steps`
+ *     / `guidance_scale`). `buildImageProviderOptions`'s default branch
+ *     snake-cases the painting form's `numInferenceSteps` / `guidanceScale`
+ *     into `num_inference_steps` / `guidance_scale`, which this transport
+ *     accepts and renames to ModelScope's spelling.
+ *   - `negative_prompt` and `seed` are forwarded as-is.
+ *   - `image_url` carries the edit-mode input image (Qwen-Image-Edit-*).
  */
 
 export const DEFAULT_MODELSCOPE_BASE_URL = 'https://api-inference.modelscope.cn'
@@ -134,14 +138,9 @@ class ModelscopeTransport implements ImageGenerationTransport {
       prompt: input.prompt ?? ''
     }
 
-    // AI SDK `size: 'WxH'` → ModelScope's separate `width` + `height` body fields.
-    if (input.size) {
-      const [w, h] = input.size.split('x').map(Number)
-      if (Number.isFinite(w) && Number.isFinite(h)) {
-        body.width = w
-        body.height = h
-      }
-    }
+    // ModelScope's `size` is the WxH string itself — NOT split into
+    // width / height (api-inference docs).
+    if (input.size) body.size = input.size
 
     // Image-edit models (Qwen-Image-Edit-*) require `image_url`. AI SDK
     // normalizes attached input images into `input.files` (post `prompt: { text,
@@ -158,11 +157,14 @@ class ModelscopeTransport implements ImageGenerationTransport {
       }
     }
 
-    const numInferenceSteps = readNumber(bag, 'numInferenceSteps', 'num_inference_steps')
-    if (numInferenceSteps !== undefined) body.num_inference_steps = numInferenceSteps
+    // ModelScope uses `steps` / `guidance`, not `num_inference_steps` /
+    // `guidance_scale`. The bag arrives snake-cased from
+    // `buildImageProviderOptions`'s default branch; accept both forms.
+    const steps = readNumber(bag, 'numInferenceSteps', 'num_inference_steps', 'steps')
+    if (steps !== undefined) body.steps = steps
 
-    const guidanceScale = readNumber(bag, 'guidanceScale', 'guidance_scale')
-    if (guidanceScale !== undefined) body.guidance_scale = guidanceScale
+    const guidance = readNumber(bag, 'guidanceScale', 'guidance_scale', 'guidance')
+    if (guidance !== undefined) body.guidance = guidance
 
     const negativePrompt = readString(bag, 'negativePrompt', 'negative_prompt')
     if (negativePrompt) body.negative_prompt = negativePrompt
