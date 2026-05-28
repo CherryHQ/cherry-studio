@@ -7,8 +7,7 @@ import { promisify } from 'node:util'
 import { application } from '@application'
 import { isWin } from '@main/core/platform'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
-import type { FileMetadata } from '@types'
-import { isImageFileMetadata } from '@types'
+import { FILE_TYPE, type FileInfo } from '@shared/file/types'
 
 import type { ImageToTextHandlerOutput } from '../types'
 import type { PreparedOvOcrContext } from './types'
@@ -16,13 +15,13 @@ import type { PreparedOvOcrContext } from './types'
 const execAsync = promisify(exec)
 
 export function prepareContext(
-  file: FileMetadata,
+  file: FileInfo,
   _config: FileProcessorMerged,
   signal?: AbortSignal
 ): PreparedOvOcrContext {
   signal?.throwIfAborted()
 
-  if (!isImageFileMetadata(file)) {
+  if (file.type !== FILE_TYPE.IMAGE) {
     throw new Error('OV OCR only supports image files')
   }
 

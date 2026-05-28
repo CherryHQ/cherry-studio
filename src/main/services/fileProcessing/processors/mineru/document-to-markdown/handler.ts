@@ -1,12 +1,8 @@
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
-import type { FileMetadata } from '@types'
+import type { FileEntryId } from '@shared/data/types/file'
+import type { FileInfo } from '@shared/file/types'
 
-import {
-  assertHasFilePath,
-  getRequiredApiHost,
-  getRequiredApiKey,
-  getRequiredCapability
-} from '../../../utils/provider'
+import { getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '../../../utils/provider'
 import type { FileProcessingCapabilityHandler, FileProcessingRemotePollResult } from '../../types'
 import type { MineruExtractFileResult, PreparedMineruQueryContext, PreparedMineruStartContext } from '../types'
 import { createUploadTask, getBatchResult, mapProgress, uploadFile } from '../utils'
@@ -18,9 +14,9 @@ export const mineruDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
   MineruQueryContext
 > = {
   mode: 'remote-poll',
-  prepare(file, config, signal) {
+  prepare(file, config, signal, context) {
     signal?.throwIfAborted()
-    const startContext = prepareStartContext(file, config, signal)
+    const startContext = prepareStartContext(file, config, context?.fileEntryId, signal)
 
     return {
       mode: 'remote-poll',
@@ -84,18 +80,22 @@ export const mineruDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
 }
 
 function prepareStartContext(
-  file: FileMetadata,
+  file: FileInfo,
   config: FileProcessorMerged,
+  fileEntryId: FileEntryId | undefined,
   signal?: AbortSignal
 ): PreparedMineruStartContext {
   signal?.throwIfAborted()
+  if (!fileEntryId) {
+    throw new Error('mineru prepare: missing fileEntryId')
+  }
 
   const capability = getRequiredCapability(config, 'document_to_markdown', 'mineru')
-  assertHasFilePath(file)
 
   return {
     apiHost: getRequiredApiHost(capability),
     apiKey: getRequiredApiKey(config, 'mineru'),
+    fileEntryId,
     file,
     modelVersion: capability.modelId
   }

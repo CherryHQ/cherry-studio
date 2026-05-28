@@ -5,6 +5,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import KnowledgeItemRow from '../KnowledgeItemRow'
 import { createFileItem, createUrlItem } from './testUtils'
 
+const mockUseQuery = vi.fn()
+
+vi.mock('@data/hooks/useDataApi', () => ({
+  useQuery: (...args: unknown[]) => mockUseQuery(...args)
+}))
+
 vi.mock('@renderer/pages/knowledge/utils', () => ({
   formatRelativeTime: () => '刚刚'
 }))
@@ -128,6 +134,11 @@ const defaultHandlers = {
 describe('KnowledgeItemRow', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockUseQuery.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: undefined
+    })
     Object.assign(window, {
       toast: {
         error: vi.fn()
@@ -135,18 +146,39 @@ describe('KnowledgeItemRow', () => {
     })
   })
 
-  it('renders the file suffix and meta parts from the row view model', () => {
-    render(
-      <KnowledgeItemRow
-        item={createFileItem({ id: 'file-1', originName: '季度报告.pdf', ext: 'PDF' })}
-        {...defaultHandlers}
-      />
-    )
+  it('renders the file suffix and meta parts from the file entry row view model', () => {
+    mockUseQuery.mockReturnValueOnce({
+      data: {
+        id: '019606a0-0000-7000-8000-000000000001',
+        name: '季度报告',
+        ext: 'pdf',
+        origin: 'external',
+        externalPath: '/tmp/季度报告.pdf',
+        createdAt: 1776948000000,
+        updatedAt: 1776948000000
+      },
+      isLoading: false,
+      error: undefined
+    })
+
+    render(<KnowledgeItemRow item={createFileItem({ id: 'file-1', originName: 'old-name.md' })} {...defaultHandlers} />)
 
     expect(screen.getByText('季度报告.pdf')).toBeInTheDocument()
     expect(screen.getByText('pdf')).toBeInTheDocument()
-    expect(screen.getByText('1 KB')).toBeInTheDocument()
     expect(screen.getByText('刚刚')).toBeInTheDocument()
+    expect(mockUseQuery).toHaveBeenCalledWith('/files/entries/:id', {
+      params: { id: '019606a0-0000-7000-8000-000000000001' },
+      enabled: true
+    })
+  })
+
+  it('falls back to the file source when the file entry is not loaded', () => {
+    render(
+      <KnowledgeItemRow item={createFileItem({ id: 'file-1', source: '/tmp/fallback.md' })} {...defaultHandlers} />
+    )
+
+    expect(screen.getByText('fallback.md')).toBeInTheDocument()
+    expect(screen.getByText('md')).toBeInTheDocument()
   })
 
   it('renders the completed status label for ready items', () => {

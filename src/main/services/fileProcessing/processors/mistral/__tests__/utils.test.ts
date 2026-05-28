@@ -23,7 +23,8 @@ describe('mistral utils', () => {
       uploadDocument({
         file: {
           path: '/tmp/input.pdf',
-          origin_name: 'input.pdf'
+          name: 'input',
+          ext: 'pdf'
         },
         client: {
           files: {

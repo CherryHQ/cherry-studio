@@ -1,4 +1,4 @@
-import type { FileMetadata } from '@types'
+import type { FileInfo } from '@shared/file/types'
 import * as z from 'zod'
 
 export const PaddleApiResponseSchema = <T extends z.ZodTypeAny>(data: T) =>
@@ -71,7 +71,7 @@ export type PreparedPaddleContext = {
 
 export type PreparedPaddleStartContext = PreparedPaddleContext & {
   feature: 'document_to_markdown' | 'image_to_text'
-  file: FileMetadata
+  file: FileInfo
   model?: string
 }
 

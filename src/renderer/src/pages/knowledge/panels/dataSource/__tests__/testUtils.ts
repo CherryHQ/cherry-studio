@@ -64,18 +64,16 @@ export const createNoteItem = ({
 
 export const createFileItem = ({
   id,
+  fileEntryId = '019606a0-0000-7000-8000-000000000001',
   originName = 'internal.pdf',
   source = `/tmp/${originName}`,
-  status = 'completed',
-  ext = 'PDF',
-  size = 1024
+  status = 'completed'
 }: {
   id: string
+  fileEntryId?: string
   originName?: string
   source?: string
   status?: KnowledgeItemOf<'file'>['status']
-  ext?: string
-  size?: number
 }): KnowledgeItemOf<'file'> => ({
   ...baseFields,
   ...createLeafLifecycle(status),
@@ -83,17 +81,7 @@ export const createFileItem = ({
   type: 'file',
   data: {
     source,
-    file: {
-      id: `file-${id}`,
-      name: `internal-${id}.pdf`,
-      origin_name: originName,
-      path: source,
-      size,
-      ext,
-      type: 'document',
-      created_at: '2026-04-21T10:00:00+08:00',
-      count: 1
-    }
+    fileEntryId
   }
 })
 

@@ -1380,6 +1380,7 @@
           "no_knowledge_base": "暫無可用知識庫，請先建立知識庫"
         },
         "error": {
+          "file_partial_failed": "{{count}} 個檔案儲存失敗",
           "invalid_base": "所選知識庫未正確設定",
           "no_content_selected": "請至少選擇一種內容類型",
           "save_failed": "儲存失敗，請檢查知識庫設定"

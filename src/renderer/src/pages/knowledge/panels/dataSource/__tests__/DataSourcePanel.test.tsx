@@ -5,6 +5,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import DataSourcePanel from '../DataSourcePanel'
 import { createDirectoryItem, createFileItem, createNoteItem, createSitemapItem, createUrlItem } from './testUtils'
 
+const mockUseQuery = vi.fn()
+
+vi.mock('@data/hooks/useDataApi', () => ({
+  useQuery: (...args: unknown[]) => mockUseQuery(...args)
+}))
+
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>
 
@@ -113,6 +119,11 @@ vi.mock('react-i18next', () => ({
 describe('DataSourcePanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockUseQuery.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      error: undefined
+    })
     Object.assign(window, {
       toast: {
         error: vi.fn()

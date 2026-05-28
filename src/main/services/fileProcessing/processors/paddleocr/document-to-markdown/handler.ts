@@ -1,12 +1,7 @@
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
-import type { FileMetadata } from '@types'
+import type { FileInfo } from '@shared/file/types'
 
-import {
-  assertHasFilePath,
-  getRequiredApiHost,
-  getRequiredApiKey,
-  getRequiredCapability
-} from '../../../utils/provider'
+import { getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '../../../utils/provider'
 import type { FileProcessingCapabilityHandler, FileProcessingRemotePollResult } from '../../types'
 import type { PaddleJobResultData, PreparedPaddleQueryContext, PreparedPaddleStartContext } from '../types'
 import { createJob, getJobResult, mapProgress, resolveJsonlResult } from '../utils'
@@ -73,14 +68,13 @@ export const paddleDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
 }
 
 function prepareStartContext(
-  file: FileMetadata,
+  file: FileInfo,
   config: FileProcessorMerged,
   signal?: AbortSignal
 ): PreparedPaddleStartContext {
   signal?.throwIfAborted()
 
   const capability = getRequiredCapability(config, 'document_to_markdown', 'paddleocr')
-  assertHasFilePath(file)
 
   const model = capability.modelId?.trim() || undefined
 
