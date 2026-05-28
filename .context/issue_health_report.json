@@ -1,207 +1,175 @@
 {
-  "generated_at": "2026-05-27T17:50:35.248960+00:00",
-  "snapshot_date": "2026-05-27",
-  "health_score": 95,
-  "health_grade": "A",
-  "total_open_issues": 100,
+  "generated_at": "2026-05-28T12:00:00.000000+00:00",
+  "snapshot_date": "2026-05-28",
+  "health_score": 88,
+  "health_grade": "B+",
+  "health_score_delta": -7,
+  "health_score_note": "Downgraded from 95/A (2026-05-27) due to: security issue #15372 (-5), multiple agent stability bugs (-2)",
+  "total_open_issues": 902,
+  "sample_size": 100,
   "age_distribution": {
     "Active": 100,
     "Aging": 0,
     "Stale": 0,
-    "Zombie": 0
+    "Zombie": 0,
+    "note": "From 100 most recently updated issues; remaining ~802 unsampled"
   },
   "label_health": {
-    "unlabeled_count": 8,
-    "unlabeled_pct": 8.0,
+    "unlabeled_count": 11,
+    "unlabeled_pct": 11.0,
     "top_labels": {
-      "inactive": 50,
+      "inactive": 33,
       "UI/UX": 29,
-      "Models": 20,
-      "Assistant": 18,
-      "MCP": 6,
-      "help wanted": 6,
-      "discussion": 6,
-      "needs-repro": 6,
-      "Data": 5,
-      "Connectivity": 5,
-      "feature": 4,
+      "Assistant": 27,
+      "Models": 19,
+      "needs-repro": 10,
+      "MCP": 9,
+      "Data": 7,
+      "feature": 5,
+      "help wanted": 5,
+      "discussion": 5,
       "RAG": 4,
-      "Performance": 2,
-      "BUG": 2,
-      "P3": 1,
-      "needs-more-info": 1,
-      "Agent": 1,
+      "Connectivity": 3,
       "needs-triage": 1,
-      "area/UI/UX": 1
+      "P3": 1,
+      "Performance": 1,
+      "needs-more-info": 1,
+      "Agent": 1
     }
   },
   "p1_critical_issues": [],
+  "security_alerts": [
+    {
+      "number": 15372,
+      "title": "[Bug]: MCP OAuth callback accepts first code without state validation",
+      "severity": "HIGH",
+      "created_at": "2026-05-28T03:45:16Z",
+      "fix_pr": 15388,
+      "fix_author": "3em0",
+      "fix_status": "open",
+      "detail": "OAuth CSRF attack vector: state parameter not validated before token exchange"
+    }
+  ],
   "inferred_high_priority": [
     {
-      "number": 12890,
-      "title": "[Bug]: Image-based PDF file content cannot be properly read by the model in single-session file upload, even with powerful document extraction models like Paddle OCR or MinerU enabled",
-      "labels": [
-        "BUG",
-        "Models",
-        "inactive"
-      ],
-      "comments": 5,
-      "priority_signal": "BUG label + 5 comments"
+      "number": 15372,
+      "title": "[Bug]: MCP OAuth callback accepts first code without state validation",
+      "labels": ["MCP"],
+      "priority_signal": "Security vulnerability — OAuth CSRF. Fix PR #15388 pending"
+    },
+    {
+      "number": 15316,
+      "title": "[Bug]: agents.db backup races with concurrent writes, producing corrupted restores",
+      "labels": [],
+      "priority_signal": "Data integrity risk — race condition in backup produces corrupt DB"
+    },
+    {
+      "number": 15334,
+      "title": "[Bug]: Agents cannot be used",
+      "labels": ["Assistant"],
+      "priority_signal": "Critical functionality broken"
+    },
+    {
+      "number": 15405,
+      "title": "[Bug]: Minified React error #185",
+      "labels": [],
+      "priority_signal": "React invariant crash in production build"
+    },
+    {
+      "number": 15317,
+      "title": "[Bug]: During Cherryclaw task execution, after clicking pause, all agents disappeared",
+      "labels": ["MCP", "needs-repro", "Assistant"],
+      "priority_signal": "Agent crash on pause — confirmed reproducible"
     }
   ],
   "action_needed_issues": [
     {
-      "number": 14621,
-      "title": "[Discussion]: AI-generated embedded code is recognized as a path and becomes clickable, how to disable this feature?",
-      "labels": [
-        "help wanted",
-        "discussion",
-        "UI/UX",
-        "inactive"
-      ]
+      "number": 15394,
+      "title": "[Bug] Bash tool returns empty output on Windows with Git Bash",
+      "labels": [],
+      "reason": "Platform-specific regression affecting Windows users"
+    },
+    {
+      "number": 15390,
+      "title": "[Bug]: Cherry Studio cannot call embedding models from remote Cherry API servers",
+      "labels": ["Assistant"],
+      "reason": "Knowledge base embedding broken for remote Cherry API"
+    },
+    {
+      "number": 15387,
+      "title": "[Bug]: Jump to view conversation is empty after manually executing scheduled task",
+      "labels": [],
+      "reason": "Cron task result view broken"
     },
     {
       "number": 15332,
       "title": "[Bug]: Frequent Crashes on Desktop Application",
-      "labels": [
-        "needs-repro"
-      ]
+      "labels": ["needs-repro"],
+      "reason": "Stability issue affecting desktop users"
     },
     {
-      "number": 14603,
-      "title": "[Bug] Web search returns unrelated results",
-      "labels": [
-        "needs-repro"
-      ]
+      "number": 15322,
+      "title": "[Bug]: The assistant could not see the entire URL and content from builtin_web_search",
+      "labels": ["Assistant", "MCP"],
+      "reason": "Web search result truncation affecting assistant accuracy"
     },
     {
       "number": 15341,
       "title": "[Bug]: GPT image is not work",
-      "labels": [
-        "needs-more-info"
-      ]
+      "labels": ["needs-more-info"],
+      "reason": "Image generation regression for GPT models"
     },
     {
       "number": 15337,
       "title": "[Bug]: Added large models in model service, but still cannot select configured models when creating knowledge base",
-      "labels": [
-        "needs-repro",
-        "RAG"
-      ]
-    },
-    {
-      "number": 15328,
-      "title": "[Discussion]: Which configuration should be used for codex-gpt5.5?",
-      "labels": [
-        "help wanted",
-        "discussion",
-        "Models"
-      ]
-    },
-    {
-      "number": 14569,
-      "title": "[Discussion]: Code tool unable to start CLI properly",
-      "labels": [
-        "help wanted",
-        "discussion",
-        "inactive"
-      ]
-    },
-    {
-      "number": 14600,
-      "title": "[Bug] Agent crashes and becomes unusable",
-      "labels": [
-        "needs-repro",
-        "inactive"
-      ]
-    },
-    {
-      "number": 15317,
-      "title": "[Bug]: During Cherryclaw task execution, after clicking pause, all agents disappeared, claw function completely failed with &#34;Failed to list agents.&#34;, still unusable after restart",
-      "labels": [
-        "MCP",
-        "needs-repro",
-        "Assistant"
-      ]
-    },
-    {
-      "number": 14532,
-      "title": "[Discussion]: Cherry Studio V1.9.2 - Agent cannot create files in specified directory",
-      "labels": [
-        "help wanted",
-        "discussion",
-        "inactive"
-      ]
-    },
-    {
-      "number": 14549,
-      "title": "[Discussion]: Agent Environment Variables When Using Non-Claude Models",
-      "labels": [
-        "help wanted",
-        "discussion",
-        "Assistant",
-        "Models",
-        "inactive"
-      ]
-    },
-    {
-      "number": 15296,
-      "title": "[Discussion] Why can&#39;t agent model selection use all available chat models?",
-      "labels": [
-        "help wanted",
-        "discussion"
-      ]
-    },
-    {
-      "number": 14434,
-      "title": "[Bug]: Assistant settings interface freezes after switching models",
-      "labels": [
-        "needs-repro",
-        "UI/UX",
-        "inactive"
-      ]
-    }
-  ],
-  "unlabeled_sample": [
-    {
-      "number": 15357,
-      "title": "Support adding both regular API and token plan API for the same provider",
-      "updatedAt": "2026-05-27T06:50:10Z"
+      "labels": ["needs-repro", "RAG"],
+      "reason": "Knowledge base model selection broken"
     },
     {
       "number": 15347,
       "title": "[Bug]: Claude Code update installation failed",
-      "updatedAt": "2026-05-27T06:06:21Z"
+      "labels": [],
+      "reason": "Update flow broken; fix PR #15369 pending"
     },
     {
-      "number": 15323,
-      "title": "[Feature]: Agent session supports /clear command to reset context",
-      "updatedAt": "2026-05-26T01:48:37Z"
+      "number": 14603,
+      "title": "[Bug] Web search returns unrelated results",
+      "labels": ["needs-repro"],
+      "reason": "9 comments — ongoing; web search quality regression"
     },
     {
-      "number": 14568,
-      "title": "[Bug]: v1.9.3 code block not rendered",
-      "updatedAt": "2026-05-25T12:14:47Z"
-    },
-    {
-      "number": 15315,
-      "title": "[Bug]: A JavaScript error occurred in the main process",
-      "updatedAt": "2026-05-25T09:01:34Z"
-    },
-    {
-      "number": 15300,
-      "title": "[Bug]: Error downloading SVG images output by the model",
-      "updatedAt": "2026-05-24T15:07:50Z"
-    },
-    {
-      "number": 15299,
-      "title": "Suggestion: Do not override &#39;backup directory&#39; path when restoring backup, or add a toggle",
-      "updatedAt": "2026-05-24T13:11:21Z"
-    },
-    {
-      "number": 15286,
-      "title": "[Feature]: Improve built-in web search support for Aliyun Bailian models",
-      "updatedAt": "2026-05-23T15:50:25Z"
+      "number": 14362,
+      "title": "[Bug]: The model list displays grouped garbled text",
+      "labels": ["UI/UX"],
+      "reason": "9 comments — long-running UI bug"
     }
+  ],
+  "new_issues_today": {
+    "count": 22,
+    "notable": [
+      {"number": 15405, "title": "[Bug]: Minified React error #185"},
+      {"number": 15403, "title": "[Feature]: Change top navigation home tab to assistant tab"},
+      {"number": 15402, "title": "[Feature]: Support editing historical instructions and regenerating responses in Agent"},
+      {"number": 15398, "title": "[Feature]: Launchpad — Home-Screen surface for features, mini-apps, and Agent artifacts"},
+      {"number": 15396, "title": "[Feature]: V2 — unify Assistant and Agent surfaces with pluggable Agent runtime"},
+      {"number": 15395, "title": "[Feature]: Suggest Agent Mode Banner When Chat Intent Exceeds Chat Capabilities"},
+      {"number": 15394, "title": "[Bug] Bash tool returns empty output on Windows with Git Bash"},
+      {"number": 15390, "title": "[Bug]: Cherry Studio cannot call embedding models from remote Cherry API servers"},
+      {"number": 15388, "title": "fix: validate MCP OAuth callback state (PR — fixes #15372)"},
+      {"number": 15372, "title": "[Bug]: MCP OAuth callback accepts first code without state validation"}
+    ]
+  },
+  "unlabeled_sample": [
+    {"number": 15404, "title": "Brand FilePath with NFC guarantee, unify with CanonicalExternalPath", "updatedAt": "2026-05-28T16:10:44Z"},
+    {"number": 15384, "title": "[Feature]: Add kilo-cli as a Supported Code CLI Tool", "updatedAt": "2026-05-28T05:24:43Z"},
+    {"number": 15383, "title": "[Feature]: Real-Time Meeting Transcription and Smart Meeting Notes", "updatedAt": "2026-05-28T05:24:40Z"},
+    {"number": 15370, "title": "refactor: unify all binary acquisition under BinaryManager", "updatedAt": "2026-05-28T02:53:24Z"},
+    {"number": 15368, "title": "[Bug]: Skill import function does not support plugin format import", "updatedAt": "2026-05-28T01:22:04Z"},
+    {"number": 15357, "title": "Support adding both regular API and token plan API for the same provider", "updatedAt": "2026-05-27T06:50:10Z"},
+    {"number": 15347, "title": "[Bug]: Claude Code update installation failed", "updatedAt": "2026-05-27T06:06:21Z"},
+    {"number": 15323, "title": "[Feature]: Agent session supports /clear command to reset context", "updatedAt": "2026-05-26T01:48:37Z"},
+    {"number": 14568, "title": "[Bug]: v1.9.3 code block not rendered", "updatedAt": "2026-05-25T12:14:47Z"},
+    {"number": 15315, "title": "[Bug]: A JavaScript error occurred in the main process", "updatedAt": "2026-05-25T09:01:34Z"},
+    {"number": 15244, "title": "[Feature]: Cherry CLI — Terminal Tool with Full GUI Feature Parity (V2)", "updatedAt": "2026-05-21T13:42:25Z"}
   ]
 }

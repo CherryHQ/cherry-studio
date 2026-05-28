@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-05-27T17:50:35.277995+00:00",
-  "snapshot_date": "2026-05-27",
+  "generated_at": "2026-05-28T12:00:00.000000+00:00",
+  "snapshot_date": "2026-05-28",
   "fetch_status": "missing",
-  "fetch_note": "Source file /tmp/gh_discussions.json not found. Run gh api graphql fetch."
+  "fetch_note": "GitHub Discussions require GraphQL API access. Run: gh api graphql -f query='...' to populate this file. MCP API does not expose Discussions endpoint."
 }

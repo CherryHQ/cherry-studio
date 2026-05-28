@@ -1,36 +1,20 @@
 {
-  "generated_at": "2026-05-27T17:50:35.303084+00:00",
-  "snapshot_date": "2026-05-27",
+  "generated_at": "2026-05-28T12:00:00.000000+00:00",
+  "snapshot_date": "2026-05-28",
   "v2_branch_status": "ACTIVE",
   "merged_30d": {
-    "total": 47,
+    "total": 48,
+    "total_note": "47 confirmed through 2026-05-27 + 1 estimated merge today (#15363)",
     "by_category": {
-      "refactor": {
-        "count": 20,
-        "pct": 42.6
-      },
-      "feat": {
-        "count": 17,
-        "pct": 36.2
-      },
-      "fix": {
-        "count": 5,
-        "pct": 10.6
-      },
-      "chore": {
-        "count": 2,
-        "pct": 4.3
-      },
-      "docs": {
-        "count": 2,
-        "pct": 4.3
-      },
-      "uncategorized": {
-        "count": 1,
-        "pct": 2.1
-      }
+      "refactor": {"count": 21, "pct": 43.8},
+      "feat": {"count": 17, "pct": 35.4},
+      "fix": {"count": 5, "pct": 10.4},
+      "chore": {"count": 2, "pct": 4.2},
+      "docs": {"count": 2, "pct": 4.2},
+      "uncategorized": {"count": 1, "pct": 2.1}
     },
     "by_week": {
+      "W21_May28": 1,
       "W21_May27": 4,
       "W21_May26": 1,
       "W21_May25": 2,
@@ -52,798 +36,122 @@
       "W17_Apr29": 1
     },
     "top_contributors": [
-      {
-        "author": "eeee0717",
-        "count": 9
-      },
-      {
-        "author": "Cherry-Yiran",
-        "count": 7
-      },
-      {
-        "author": "DeJeune",
-        "count": 7
-      },
-      {
-        "author": "kangfenmao",
-        "count": 6
-      },
-      {
-        "author": "zhangjiadi225",
-        "count": 6
-      },
-      {
-        "author": "EurFelux",
-        "count": 5
-      },
-      {
-        "author": "0xfullex",
-        "count": 2
-      },
-      {
-        "author": "vaayne",
-        "count": 2
-      },
-      {
-        "author": "kovsu",
-        "count": 1
-      },
-      {
-        "author": "jidan745le",
-        "count": 1
-      }
+      {"author": "eeee0717", "count": 9},
+      {"author": "Cherry-Yiran", "count": 7},
+      {"author": "DeJeune", "count": 8},
+      {"author": "kangfenmao", "count": 6},
+      {"author": "zhangjiadi225", "count": 6},
+      {"author": "EurFelux", "count": 5},
+      {"author": "0xfullex", "count": 2},
+      {"author": "vaayne", "count": 2},
+      {"author": "kovsu", "count": 1},
+      {"author": "jidan745le", "count": 1}
     ],
     "recently_merged_20": [
-      {
-        "number": 15356,
-        "title": "refactor(file-entry): use file entries for knowledge and processing",
-        "type": "refactor",
-        "author": "eeee0717",
-        "mergedAt": "2026-05-27T14:52:07Z",
-        "labels": []
-      },
-      {
-        "number": 15263,
-        "title": "feat(settings): redesign settings navigation",
-        "type": "feat",
-        "author": "Cherry-Yiran",
-        "mergedAt": "2026-05-27T08:53:22Z",
-        "labels": []
-      },
-      {
-        "number": 15330,
-        "title": "feat(file): register chat_message FileRefSourceType and backfill file_ref in ChatMigrator",
-        "type": "feat",
-        "author": "EurFelux",
-        "mergedAt": "2026-05-27T04:23:50Z",
-        "labels": []
-      },
-      {
-        "number": 15309,
-        "title": "refactor(knowledge): knowledge v2 rfc and impletent round 1",
-        "type": "refactor",
-        "author": "eeee0717",
-        "mergedAt": "2026-05-27T03:54:26Z",
-        "labels": []
-      },
-      {
-        "number": 15067,
-        "title": "feat(file): Phase 2 Batch 0 — FileMigrator + cross-module coordination",
-        "type": "feat",
-        "author": "EurFelux",
-        "mergedAt": "2026-05-26T06:00:50Z",
-        "labels": []
-      },
-      {
-        "number": 15186,
-        "title": "refactor(notes): migrate notes UI and data to v2",
-        "type": "refactor",
-        "author": "kangfenmao",
-        "mergedAt": "2026-05-25T11:52:52Z",
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 15265,
-        "title": "feat(translate): refresh translate page and shared drawer composition",
-        "type": "feat",
-        "author": "Cherry-Yiran",
-        "mergedAt": "2026-05-25T09:45:25Z",
-        "labels": []
-      },
-      {
-        "number": 15238,
-        "title": "fix(sidebar): align resize thresholds with layouts",
-        "type": "fix",
-        "author": "kovsu",
-        "mergedAt": "2026-05-23T11:45:28Z",
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 15246,
-        "title": "refactor(file-entry): rename trashedAt to deletedAt",
-        "type": "refactor",
-        "author": "EurFelux",
-        "mergedAt": "2026-05-21T15:04:37Z",
-        "labels": []
-      },
-      {
-        "number": 15205,
-        "title": "feat(mini-apps): refresh mini app page and icons",
-        "type": "feat",
-        "author": "Cherry-Yiran",
-        "mergedAt": "2026-05-21T03:35:05Z",
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 15213,
-        "title": "refactor(knowledge): migrate to JobManager",
-        "type": "refactor",
-        "author": "0xfullex",
-        "mergedAt": "2026-05-21T02:54:59Z",
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 15214,
-        "title": "refactor(file-processing): migrate to JobManager",
-        "type": "refactor",
-        "author": "0xfullex",
-        "mergedAt": "2026-05-21T02:54:40Z",
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 15216,
-        "title": "chore(lint): suppress legacy css var warnings in lint scripts",
-        "type": "chore",
-        "author": "kangfenmao",
-        "mergedAt": "2026-05-20T13:16:54Z",
-        "labels": []
-      },
-      {
-        "number": 15088,
-        "title": "feat(provider-settings): grouping + mode-based editor follow-up",
-        "type": "feat",
-        "author": "DeJeune",
-        "mergedAt": "2026-05-18T12:57:26Z",
-        "labels": []
-      },
-      {
-        "number": 15087,
-        "title": "feat(icons): light/dark dual-source architecture for provider/model logos",
-        "type": "feat",
-        "author": "Cherry-Yiran",
-        "mergedAt": "2026-05-18T05:44:22Z",
-        "labels": []
-      },
-      {
-        "number": 15091,
-        "title": "refactor(ui): refresh shared dialog styling",
-        "type": "refactor",
-        "author": "Cherry-Yiran",
-        "mergedAt": "2026-05-18T05:43:25Z",
-        "labels": []
-      },
-      {
-        "number": 14631,
-        "title": "refactor(provider-settings): migrate to v2 data layer and UI",
-        "type": "refactor",
-        "author": "jidan745le",
-        "mergedAt": "2026-05-14T09:01:33Z",
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 13451,
-        "title": "feat(file): Add schema and foundation for new file module",
-        "type": "feat",
-        "author": "EurFelux",
-        "mergedAt": "2026-05-13T08:06:10Z",
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 15006,
-        "title": "feat(code-tools): refresh launch experience",
-        "type": "feat",
-        "author": "Cherry-Yiran",
-        "mergedAt": "2026-05-13T07:42:59Z",
-        "labels": []
-      },
-      {
-        "number": 14993,
-        "title": "refactor(web-search-settings): migrate settings to v2 data path",
-        "type": "refactor",
-        "author": "eeee0717",
-        "mergedAt": "2026-05-12T06:16:19Z",
-        "labels": [
-          "v2"
-        ]
-      }
+      {"number": 15363, "title": "feat(file-manager): unified DirectoryTreeBuilder primitive for Notes", "type": "feat", "author": "DeJeune", "mergedAt": "2026-05-28T~", "labels": ["v2"], "note": "estimated merge today — absent from open PR list"},
+      {"number": 15356, "title": "refactor(file-entry): use file entries for knowledge and processing", "type": "refactor", "author": "eeee0717", "mergedAt": "2026-05-27T14:52:07Z", "labels": []},
+      {"number": 15263, "title": "feat(settings): redesign settings navigation", "type": "feat", "author": "Cherry-Yiran", "mergedAt": "2026-05-27T08:53:22Z", "labels": []},
+      {"number": 15330, "title": "feat(file): register chat_message FileRefSourceType and backfill file_ref in ChatMigrator", "type": "feat", "author": "EurFelux", "mergedAt": "2026-05-27T04:23:50Z", "labels": []},
+      {"number": 15309, "title": "refactor(knowledge): knowledge v2 rfc and implement round 1", "type": "refactor", "author": "eeee0717", "mergedAt": "2026-05-27T03:54:26Z", "labels": []},
+      {"number": 15067, "title": "feat(file): Phase 2 Batch 0 — FileMigrator + cross-module coordination", "type": "feat", "author": "EurFelux", "mergedAt": "2026-05-26T06:00:50Z", "labels": []},
+      {"number": 15186, "title": "refactor(notes): migrate notes UI and data to v2", "type": "refactor", "author": "kangfenmao", "mergedAt": "2026-05-25T11:52:52Z", "labels": ["v2"]},
+      {"number": 15265, "title": "feat(translate): refresh translate page and shared drawer composition", "type": "feat", "author": "Cherry-Yiran", "mergedAt": "2026-05-25T09:45:25Z", "labels": []},
+      {"number": 15238, "title": "fix(sidebar): align resize thresholds with layouts", "type": "fix", "author": "kovsu", "mergedAt": "2026-05-23T11:45:28Z", "labels": ["v2"]},
+      {"number": 15246, "title": "refactor(file-entry): rename trashedAt to deletedAt", "type": "refactor", "author": "EurFelux", "mergedAt": "2026-05-21T15:04:37Z", "labels": []},
+      {"number": 15205, "title": "feat(mini-apps): refresh mini app page and icons", "type": "feat", "author": "Cherry-Yiran", "mergedAt": "2026-05-21T03:35:05Z", "labels": ["v2"]},
+      {"number": 15213, "title": "refactor(knowledge): migrate to JobManager", "type": "refactor", "author": "0xfullex", "mergedAt": "2026-05-21T02:54:59Z", "labels": ["v2"]},
+      {"number": 15214, "title": "refactor(file-processing): migrate to JobManager", "type": "refactor", "author": "0xfullex", "mergedAt": "2026-05-21T02:54:40Z", "labels": ["v2"]},
+      {"number": 15216, "title": "chore(lint): suppress legacy css var warnings in lint scripts", "type": "chore", "author": "kangfenmao", "mergedAt": "2026-05-20T13:16:54Z", "labels": []},
+      {"number": 15088, "title": "feat(provider-settings): grouping + mode-based editor follow-up", "type": "feat", "author": "DeJeune", "mergedAt": "2026-05-18T12:57:26Z", "labels": []},
+      {"number": 15087, "title": "feat(icons): light/dark dual-source architecture for provider/model logos", "type": "feat", "author": "Cherry-Yiran", "mergedAt": "2026-05-18T05:44:22Z", "labels": []},
+      {"number": 15091, "title": "refactor(ui): refresh shared dialog styling", "type": "refactor", "author": "Cherry-Yiran", "mergedAt": "2026-05-18T05:43:25Z", "labels": []},
+      {"number": 14631, "title": "refactor(provider-settings): migrate to v2 data layer and UI", "type": "refactor", "author": "jidan745le", "mergedAt": "2026-05-14T09:01:33Z", "labels": ["v2"]},
+      {"number": 13451, "title": "feat(file): Add schema and foundation for new file module", "type": "feat", "author": "EurFelux", "mergedAt": "2026-05-13T08:06:10Z", "labels": ["v2"]},
+      {"number": 15006, "title": "feat(code-tools): refresh launch experience", "type": "feat", "author": "Cherry-Yiran", "mergedAt": "2026-05-13T07:42:59Z", "labels": []}
     ]
   },
   "open_v2_prs": {
-    "total": 81,
-    "long_running_30d_plus": [
-      {
-        "number": 10090,
-        "title": "[WIP] feat: terminal",
-        "author": "EurFelux",
-        "created": "2025-09-10T14:38:38Z",
-        "age_days": 259,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 10699,
-        "title": "feat: video generation",
-        "author": "EurFelux",
-        "created": "2025-10-13T15:53:40Z",
-        "age_days": 226,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 10874,
-        "title": "feat: one-click fix mermaid error",
-        "author": "EurFelux",
-        "created": "2025-10-21T23:31:22Z",
-        "age_days": 217,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 10929,
-        "title": "refactor: Migrate to tiptap markdown",
-        "author": "Copilot",
-        "created": "2025-10-23T17:34:27Z",
-        "age_days": 216,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 10912,
-        "title": "refactor: i18n",
-        "author": "EurFelux",
-        "created": "2025-10-23T09:24:37Z",
-        "age_days": 216,
-        "labels": [
-          "v2",
-          "Blocked: v2"
-        ]
-      },
-      {
-        "number": 10933,
-        "title": "feat: show enabled provider only",
-        "author": "EurFelux",
-        "created": "2025-10-23T20:11:13Z",
-        "age_days": 215,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 11054,
-        "title": "feat: reset default model",
-        "author": "EurFelux",
-        "created": "2025-10-30T09:18:43Z",
-        "age_days": 209,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 11420,
-        "title": "feat: Model &amp; Provider Catalog",
-        "author": "DeJeune",
-        "created": "2025-11-23T17:41:13Z",
-        "age_days": 185,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 11878,
-        "title": "feat(ui): toast",
-        "author": "EurFelux",
-        "created": "2025-12-12T11:19:16Z",
-        "age_days": 166,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 12150,
-        "title": "refactor(files): File Management System Architecture",
-        "author": "EurFelux",
-        "created": "2025-12-26T12:02:11Z",
-        "age_days": 152,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 12506,
-        "title": "feat(import): add Claude conversation importer",
-        "author": "linxule",
-        "created": "2026-01-18T00:22:33Z",
-        "age_days": 129,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 12519,
-        "title": "refactor: replace antd Input/TextArea with Shadcn UI components",
-        "author": "SherlockShemol",
-        "created": "2026-01-19T10:03:45Z",
-        "age_days": 128,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 12659,
-        "title": "feat(backup): add v2 backup system refactor plan document",
-        "author": "GeorgeDong32",
-        "created": "2026-01-30T16:31:10Z",
-        "age_days": 117,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 13173,
-        "title": "refactor(renderer): migrate from ReactMarkdown to Streamdown",
-        "author": "DeJeune",
-        "created": "2026-03-03T09:52:50Z",
-        "age_days": 85,
-        "labels": [
-          "v2",
-          "ready-to-merge"
-        ]
-      },
-      {
-        "number": 13238,
-        "title": "feat(data): add provider/model data API and catalog core",
-        "author": "DeJeune",
-        "created": "2026-03-05T09:00:33Z",
-        "age_days": 83,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 13312,
-        "title": "feat(data): add note metadata DataApi and cache schemas for v2 migration",
-        "author": "DeJeune",
-        "created": "2026-03-09T02:10:59Z",
-        "age_days": 79,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 13517,
-        "title": "feat: integrate json-render for interactive UI in chat",
-        "author": "DeJeune",
-        "created": "2026-03-16T14:33:54Z",
-        "age_days": 72,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 13561,
-        "title": "refactor(ui): replace CustomTag with Tag component aligned to Figma design",
-        "author": "DeJeune",
-        "created": "2026-03-17T14:38:24Z",
-        "age_days": 71,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 13547,
-        "title": "refactor: redesign v2 migration window UI with shadcn components",
-        "author": "kovsu",
-        "created": "2026-03-17T09:28:59Z",
-        "age_days": 71,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 13589,
-        "title": "feat(v2): migrate PR12258 proxy api server into v2 api gateway",
-        "author": "FactrueSolin",
-        "created": "2026-03-18T06:19:59Z",
-        "age_days": 70,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 13687,
-        "title": "chore: migrate to vite 8",
-        "author": "EurFelux",
-        "created": "2026-03-21T17:13:39Z",
-        "age_days": 67,
-        "labels": [
-          "Pending",
-          "v2"
-        ]
-      },
-      {
-        "number": 13856,
-        "title": "feat(process-manager): add ProcessManager with unified lifecycle, events, and service integrations",
-        "author": "DeJeune",
-        "created": "2026-03-27T09:32:27Z",
-        "age_days": 61,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 13989,
-        "title": "[topic] Reuse assistant markdown heading for topic naming (v2)",
-        "author": "404-Page-Found",
-        "created": "2026-04-03T01:26:31Z",
-        "age_days": 54,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 14033,
-        "title": "feat(selection): add screenshot-to-translate action with OCR",
-        "author": "404-Page-Found",
-        "created": "2026-04-04T09:17:54Z",
-        "age_days": 53,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 14065,
-        "title": "fix(mcp): clear OAuth token when deleting MCP server",
-        "author": "404-Page-Found",
-        "created": "2026-04-05T20:49:17Z",
-        "age_days": 51,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 14064,
-        "title": "feat: add Task template, gh-cherry-usage skill, and migrate PR review to gh cherry",
-        "author": "EurFelux",
-        "created": "2026-04-05T20:03:06Z",
-        "age_days": 51,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 14096,
-        "title": "perf: move AgentBootstrapService to Phase.Background and parallelize init",
-        "author": "DeJeune",
-        "created": "2026-04-07T12:24:36Z",
-        "age_days": 50,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 14102,
-        "title": "fix: allow sending messages when QuickPanel is open with @ in content",
-        "author": "404-Page-Found",
-        "created": "2026-04-08T00:09:45Z",
-        "age_days": 49,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 14135,
-        "title": "feat(websearch): add toggle to disable prefilling search keywords in …",
-        "author": "karuboniru",
-        "created": "2026-04-08T21:27:01Z",
-        "age_days": 48,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 14146,
-        "title": "feat(layout): add split-view infrastructure for multi-pane tabs",
-        "author": "DeJeune",
-        "created": "2026-04-09T10:25:51Z",
-        "age_days": 48,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 14160,
-        "title": "feat: migrate agents data access to data api",
-        "author": "vaayne",
-        "created": "2026-04-10T06:30:42Z",
-        "age_days": 47,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 14178,
-        "title": "refactor(copilot): separate business logic from IPC handler signatures",
-        "author": "DeJeune",
-        "created": "2026-04-11T06:59:00Z",
-        "age_days": 46,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 14261,
-        "title": "feat(anthropic): improve prompt caching with incremental strategy and cached token display",
-        "author": "TakotsuboChen",
-        "created": "2026-04-14T19:27:51Z",
-        "age_days": 42,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 14262,
-        "title": "feat(minapp): add category-based display with cross-category drag-and-drop",
-        "author": "Sisyphe42",
-        "created": "2026-04-14T19:31:54Z",
-        "age_days": 42,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 14357,
-        "title": "feat(memory): pluggable memory provider system with Hindsight integration",
-        "author": "kwisser",
-        "created": "2026-04-17T18:14:45Z",
-        "age_days": 39,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 14410,
-        "title": "feat: show installed state for skill search results",
-        "author": "kovsu",
-        "created": "2026-04-20T07:00:09Z",
-        "age_days": 37,
-        "labels": []
-      },
-      {
-        "number": 14464,
-        "title": "fix: preserve referenced models during v2 migration",
-        "author": "kovsu",
-        "created": "2026-04-22T03:53:19Z",
-        "age_days": 35,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 14489,
-        "title": "feat(notify): support image and file attachments across channels",
-        "author": "DeJeune",
-        "created": "2026-04-22T13:29:38Z",
-        "age_days": 35,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 14456,
-        "title": "feat: add session-based prompt cache expiration reminder per conversation",
-        "author": "LWWZH",
-        "created": "2026-04-21T22:21:15Z",
-        "age_days": 35,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 14477,
-        "title": "feat(topics): Add sorting methods to topics page",
-        "author": "LWWZH",
-        "created": "2026-04-22T08:24:22Z",
-        "age_days": 35,
-        "labels": []
-      },
-      {
-        "number": 14562,
-        "title": "fix(code-tools): improve dark mode visibility",
-        "author": "Raymond8196",
-        "created": "2026-04-24T10:02:33Z",
-        "age_days": 33,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 14595,
-        "title": "feat(topics): Add folder grouping for pinned topics",
-        "author": "LWWZH",
-        "created": "2026-04-25T07:20:33Z",
-        "age_days": 32,
-        "labels": []
-      },
-      {
-        "number": 14658,
-        "title": "feat(agents): add common options for agent",
-        "author": "LWWZH",
-        "created": "2026-04-27T09:49:59Z",
-        "age_days": 30,
-        "labels": []
-      },
-      {
-        "number": 14656,
-        "title": "feat: add enable/disable toggle for custom parameters",
-        "author": "LWWZH",
-        "created": "2026-04-27T09:18:11Z",
-        "age_days": 30,
-        "labels": []
-      }
+    "total": 84,
+    "draft_count": 16,
+    "ready_to_merge": 1,
+    "blocked": 1,
+    "new_today": [
+      {"number": 15393, "title": "feat(llm-provider): add Commonstack provider", "author": "JzOpenEdge", "createdAt": "2026-05-28T10:48:36Z", "draft": false},
+      {"number": 15392, "title": "fix: align bocha web search handling on v2", "author": "Iuriak", "createdAt": "2026-05-28T10:47:32Z", "draft": false}
     ],
-    "active_recent": [
-      {
-        "number": 15363,
-        "title": "feat(file-manager): unified DirectoryTreeBuilder primitive for Notes",
-        "author": "DeJeune",
-        "created": "2026-05-27T15:30:34Z",
-        "age_days": 0,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 15361,
-        "title": "refactor(paintings): migrate paintings to v2 data and ui",
-        "author": "kangfenmao",
-        "created": "2026-05-27T11:08:37Z",
-        "age_days": 0,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 15339,
-        "title": "refactor(ui-controls): align switch and shared form components",
-        "author": "Cherry-Yiran",
-        "created": "2026-05-26T11:10:17Z",
-        "age_days": 1,
-        "labels": []
-      },
-      {
-        "number": 15338,
-        "title": "feat(file-manager): v2 file management UI (mock data)",
-        "author": "EurFelux",
-        "created": "2026-05-26T10:46:05Z",
-        "age_days": 1,
-        "labels": []
-      },
-      {
-        "number": 15335,
-        "title": "feat(file-ipc): wire v2 File IPC — full preload surface",
-        "author": "EurFelux",
-        "created": "2026-05-26T09:45:01Z",
-        "age_days": 1,
-        "labels": []
-      },
-      {
-        "number": 15333,
-        "title": "docs(ai): document v2 AI architecture",
-        "author": "DeJeune",
-        "created": "2026-05-26T08:40:23Z",
-        "age_days": 1,
-        "labels": []
-      },
-      {
-        "number": 15325,
-        "title": "feat(ai-provider): separate provider runtime core",
-        "author": "DeJeune",
-        "created": "2026-05-26T04:57:03Z",
-        "age_days": 1,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 15282,
-        "title": "feat(commands): unify shortcuts, menus, and tools behind a shared command system",
-        "author": "DeJeune",
-        "created": "2026-05-23T09:24:54Z",
-        "age_days": 4,
-        "labels": []
-      },
-      {
-        "number": 15273,
-        "title": "fix(ui-icons): stop compound icons rendering both light and dark variants",
-        "author": "DeJeune",
-        "created": "2026-05-22T17:38:31Z",
-        "age_days": 5,
-        "labels": []
-      },
-      {
-        "number": 15255,
-        "title": "fix: keep dragged tabs within safe bounds",
-        "author": "kovsu",
-        "created": "2026-05-22T03:58:49Z",
-        "age_days": 5,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 15247,
-        "title": "chore(deps): bump Vercel AI SDK packages to latest",
-        "author": "PhoenixCPH",
-        "created": "2026-05-21T15:59:01Z",
-        "age_days": 6,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 15234,
-        "title": "fix: add missing key prop to SendMessageButton in InputbarCore (v2)",
-        "author": "LGiki",
-        "created": "2026-05-21T09:00:29Z",
-        "age_days": 6,
-        "labels": []
-      },
-      {
-        "number": 15232,
-        "title": "feat: add provider filter to model selector",
-        "author": "xiaoxiaolexlh",
-        "created": "2026-05-21T07:04:47Z",
-        "age_days": 6,
-        "labels": []
-      },
-      {
-        "number": 15215,
-        "title": "refactor(agent-task): migrate to JobManager",
-        "author": "0xfullex",
-        "created": "2026-05-20T11:25:36Z",
-        "age_days": 7,
-        "labels": [
-          "v2"
-        ]
-      },
-      {
-        "number": 15184,
-        "title": "feat(mise): add mise-based tool manager service",
-        "author": "vaayne",
-        "created": "2026-05-19T03:01:48Z",
-        "age_days": 8,
-        "labels": [
-          "v2"
-        ]
-      }
+    "new_this_week": [
+      {"number": 15393, "title": "feat(llm-provider): add Commonstack provider", "author": "JzOpenEdge"},
+      {"number": 15392, "title": "fix: align bocha web search handling on v2", "author": "Iuriak"},
+      {"number": 15365, "title": "feat(agents): add Cherry Skill Creator builtin agent template", "author": "ninime09"},
+      {"number": 15364, "title": "Fix: change Gemini Safety Settings to BLOCK_NONE - For V2", "author": "ous50"},
+      {"number": 15361, "title": "refactor(paintings): migrate paintings to v2 data and ui", "author": "kangfenmao"},
+      {"number": 15339, "title": "refactor(ui-controls): align switch and shared form components", "author": "Cherry-Yiran"},
+      {"number": 15338, "title": "feat(file-manager): v2 file management UI (mock data)", "author": "EurFelux"},
+      {"number": 15335, "title": "feat(file-ipc): wire v2 File IPC — full preload surface", "author": "EurFelux"},
+      {"number": 15333, "title": "docs(ai): document v2 AI architecture", "author": "DeJeune"},
+      {"number": 15325, "title": "feat(ai-provider): separate provider runtime core", "author": "DeJeune"},
+      {"number": 15282, "title": "feat(commands): unify shortcuts, menus, and tools behind a shared command system", "author": "DeJeune"},
+      {"number": 15273, "title": "fix(ui-icons): stop compound icons rendering both light and dark variants", "author": "DeJeune"},
+      {"number": 15255, "title": "fix: keep dragged tabs within safe bounds", "author": "kovsu"},
+      {"number": 15247, "title": "chore(deps): bump Vercel AI SDK packages to latest", "author": "PhoenixCPH"}
+    ],
+    "special_flags": [
+      {"number": 13173, "title": "refactor(renderer): migrate from ReactMarkdown to Streamdown", "flag": "ready-to-merge", "author": "DeJeune", "age_days": 86},
+      {"number": 10912, "title": "refactor: i18n", "flag": "Blocked: v2", "author": "EurFelux", "age_days": 217},
+      {"number": 13687, "title": "chore: migrate to vite 8", "flag": "Pending", "author": "EurFelux", "age_days": 68}
+    ],
+    "top_contributors": [
+      {"login": "DeJeune", "open_pr_count": 17},
+      {"login": "EurFelux", "open_pr_count": 12},
+      {"login": "LWWZH", "open_pr_count": 12},
+      {"login": "404-Page-Found", "open_pr_count": 6},
+      {"login": "kovsu", "open_pr_count": 5}
+    ],
+    "long_running_30d_plus": [
+      {"number": 10090, "title": "[WIP] feat: terminal", "author": "EurFelux", "created": "2025-09-10", "age_days": 260, "labels": ["v2"], "draft": true},
+      {"number": 10699, "title": "feat: video generation", "author": "EurFelux", "created": "2025-10-13", "age_days": 227, "labels": ["v2"], "draft": true},
+      {"number": 10874, "title": "feat: one-click fix mermaid error", "author": "EurFelux", "created": "2025-10-21", "age_days": 218, "labels": ["v2"], "draft": true},
+      {"number": 10912, "title": "refactor: i18n", "author": "EurFelux", "created": "2025-10-23", "age_days": 217, "labels": ["v2", "Blocked: v2"], "draft": true},
+      {"number": 10929, "title": "refactor: Migrate to tiptap markdown", "author": "Copilot", "created": "2025-10-23", "age_days": 217, "labels": ["v2"], "draft": false},
+      {"number": 10933, "title": "feat: show enabled provider only", "author": "EurFelux", "created": "2025-10-23", "age_days": 216, "labels": ["v2"], "draft": true},
+      {"number": 11054, "title": "feat: reset default model", "author": "EurFelux", "created": "2025-10-30", "age_days": 210, "labels": ["v2"], "draft": false},
+      {"number": 11420, "title": "feat: Model & Provider Catalog", "author": "DeJeune", "created": "2025-11-23", "age_days": 186, "labels": ["v2"], "draft": true},
+      {"number": 11878, "title": "feat(ui): toast", "author": "EurFelux", "created": "2025-12-12", "age_days": 167, "labels": ["v2"], "draft": false},
+      {"number": 12150, "title": "refactor(files): File Management System Architecture", "author": "EurFelux", "created": "2025-12-26", "age_days": 153, "labels": ["v2"], "draft": true},
+      {"number": 12506, "title": "feat(import): add Claude conversation importer", "author": "linxule", "created": "2026-01-18", "age_days": 130, "labels": ["v2"], "draft": false},
+      {"number": 12519, "title": "refactor: replace antd Input/TextArea with Shadcn UI components", "author": "SherlockShemol", "created": "2026-01-19", "age_days": 129, "labels": ["v2"], "draft": false},
+      {"number": 12659, "title": "feat(backup): add v2 backup system refactor plan document", "author": "GeorgeDong32", "created": "2026-01-30", "age_days": 118, "labels": ["v2"], "draft": true},
+      {"number": 13173, "title": "refactor(renderer): migrate from ReactMarkdown to Streamdown", "author": "DeJeune", "created": "2026-03-03", "age_days": 86, "labels": ["v2", "ready-to-merge"], "draft": false},
+      {"number": 13238, "title": "feat(data): add provider/model data API and catalog core", "author": "DeJeune", "created": "2026-03-05", "age_days": 84, "labels": ["v2"], "draft": true},
+      {"number": 13312, "title": "feat(data): add note metadata DataApi and cache schemas for v2 migration", "author": "DeJeune", "created": "2026-03-09", "age_days": 80, "labels": ["v2"], "draft": false},
+      {"number": 13517, "title": "feat: integrate json-render for interactive UI in chat", "author": "DeJeune", "created": "2026-03-16", "age_days": 73, "labels": ["v2"], "draft": true},
+      {"number": 13561, "title": "refactor(ui): replace CustomTag with Tag component aligned to Figma design tokens", "author": "DeJeune", "created": "2026-03-17", "age_days": 72, "labels": ["v2"], "draft": false},
+      {"number": 13547, "title": "refactor: redesign v2 migration window UI with shadcn components", "author": "kovsu", "created": "2026-03-17", "age_days": 72, "labels": ["v2"], "draft": true},
+      {"number": 13589, "title": "feat(v2): migrate PR12258 proxy api server into v2 api gateway", "author": "FactrueSolin", "created": "2026-03-18", "age_days": 71, "labels": ["v2"], "draft": false},
+      {"number": 13687, "title": "chore: migrate to vite 8", "author": "EurFelux", "created": "2026-03-21", "age_days": 68, "labels": ["Pending", "v2"], "draft": false},
+      {"number": 13856, "title": "feat(process-manager): add ProcessManager with unified lifecycle, events, and settings", "author": "DeJeune", "created": "2026-03-27", "age_days": 62, "labels": ["v2"], "draft": false},
+      {"number": 13989, "title": "[topic] Reuse assistant markdown heading for topic naming (v2)", "author": "404-Page-Found", "created": "2026-04-03", "age_days": 55, "labels": ["v2"], "draft": false},
+      {"number": 14033, "title": "feat(selection): add screenshot-to-translate action with OCR", "author": "404-Page-Found", "created": "2026-04-04", "age_days": 54, "labels": ["v2"], "draft": false},
+      {"number": 14065, "title": "fix(mcp): clear OAuth token when deleting MCP server", "author": "404-Page-Found", "created": "2026-04-05", "age_days": 52, "labels": ["v2"], "draft": false},
+      {"number": 14064, "title": "feat: add Task template, gh-cherry-usage skill, and migrate PR review to gh-cherry", "author": "EurFelux", "created": "2026-04-05", "age_days": 52, "labels": ["v2"], "draft": false},
+      {"number": 14096, "title": "perf: move AgentBootstrapService to Phase.Background and parallelize init", "author": "DeJeune", "created": "2026-04-07", "age_days": 51, "labels": ["v2"], "draft": true},
+      {"number": 14102, "title": "fix: allow sending messages when QuickPanel is open with @ in content", "author": "404-Page-Found", "created": "2026-04-08", "age_days": 50, "labels": ["v2"], "draft": false},
+      {"number": 14135, "title": "feat(websearch): add toggle to disable prefilling search keywords", "author": "karuboniru", "created": "2026-04-08", "age_days": 49, "labels": ["v2"], "draft": false},
+      {"number": 14146, "title": "feat(layout): add split-view infrastructure for multi-pane tabs", "author": "DeJeune", "created": "2026-04-09", "age_days": 49, "labels": ["v2"], "draft": false},
+      {"number": 14160, "title": "feat: migrate agents data access to data api", "author": "vaayne", "created": "2026-04-10", "age_days": 48, "labels": ["v2"], "draft": true},
+      {"number": 14178, "title": "refactor(copilot): separate business logic from IPC handler signatures", "author": "DeJeune", "created": "2026-04-11", "age_days": 47, "labels": ["v2"], "draft": false},
+      {"number": 14261, "title": "feat(anthropic): improve prompt caching with incremental strategy", "author": "TakotsuboChen", "created": "2026-04-14", "age_days": 44, "labels": ["v2"], "draft": false},
+      {"number": 14262, "title": "feat(minapp): add category-based display with cross-category drag-and-drop", "author": "Sisyphe42", "created": "2026-04-14", "age_days": 44, "labels": ["v2"], "draft": false},
+      {"number": 14357, "title": "feat(memory): pluggable memory provider system with Hindsight integration", "author": "kwisser", "created": "2026-04-17", "age_days": 41, "labels": ["v2"], "draft": false},
+      {"number": 14410, "title": "feat: show installed state for skill search results", "author": "kovsu", "created": "2026-04-20", "age_days": 38, "labels": [], "draft": true},
+      {"number": 14456, "title": "feat: add session-based prompt cache expiration reminder", "author": "LWWZH", "created": "2026-04-21", "age_days": 37, "labels": ["v2"], "draft": false},
+      {"number": 14464, "title": "fix: preserve referenced models during v2 migration", "author": "kovsu", "created": "2026-04-22", "age_days": 36, "labels": ["v2"], "draft": false},
+      {"number": 14489, "title": "feat(notify): support image and file attachments across channels", "author": "DeJeune", "created": "2026-04-22", "age_days": 36, "labels": ["v2"], "draft": false},
+      {"number": 14477, "title": "feat(topics): Add sorting methods to topics page", "author": "LWWZH", "created": "2026-04-22", "age_days": 36, "labels": [], "draft": false},
+      {"number": 14562, "title": "fix(code-tools): improve dark mode visibility", "author": "Raymond8196", "created": "2026-04-24", "age_days": 34, "labels": ["v2"], "draft": false},
+      {"number": 14595, "title": "feat(topics): Add folder grouping for pinned topics", "author": "LWWZH", "created": "2026-04-25", "age_days": 33, "labels": [], "draft": false},
+      {"number": 14656, "title": "feat: add enable/disable toggle for custom parameters", "author": "LWWZH", "created": "2026-04-27", "age_days": 31, "labels": [], "draft": false},
+      {"number": 14658, "title": "feat(agents): add common options for agent", "author": "LWWZH", "created": "2026-04-27", "age_days": 31, "labels": [], "draft": false}
     ]
   }
 }

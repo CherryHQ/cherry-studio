@@ -1,73 +1,104 @@
 {
-  "generated_at": "2026-05-27T17:50:35.217588+00:00",
-  "snapshot_date": "2026-05-27",
-  "data_source": "gh CLI export (CherryHQ/cherry-studio)",
+  "generated_at": "2026-05-28T12:00:00.000000+00:00",
+  "snapshot_date": "2026-05-28",
+  "data_source": "GitHub MCP API (CherryHQ/cherry-studio)",
   "open_issues": {
-    "total": 100,
+    "total": 902,
+    "sample_size": 100,
+    "sample_note": "Statistics from 100 most-recently-updated issues; API reports 902 total open issues",
     "by_label": {
-      "inactive": 50,
+      "inactive": 33,
       "UI/UX": 29,
-      "Models": 20,
-      "Assistant": 18,
-      "MCP": 6,
-      "help wanted": 6,
-      "discussion": 6,
-      "needs-repro": 6,
-      "Data": 5,
-      "Connectivity": 5,
-      "feature": 4,
+      "Assistant": 27,
+      "Models": 19,
+      "needs-repro": 10,
+      "MCP": 9,
+      "Data": 7,
+      "feature": 5,
+      "help wanted": 5,
+      "discussion": 5,
       "RAG": 4,
-      "Performance": 2,
-      "BUG": 2,
-      "P3": 1,
-      "needs-more-info": 1,
-      "Agent": 1,
+      "Connectivity": 3,
       "needs-triage": 1,
-      "area/UI/UX": 1
+      "P3": 1,
+      "Performance": 1,
+      "needs-more-info": 1,
+      "Agent": 1
     },
     "unlabeled": {
-      "count": 8,
-      "percentage": 8.0
+      "count": 11,
+      "percentage": 11.0,
+      "issue_numbers": [15404, 15384, 15383, 15244, 15370, 15368, 15357, 15347, 15323, 14568, 15315]
     },
     "age_distribution": {
       "Active": 100,
       "Aging": 0,
       "Stale": 0,
-      "Zombie": 0
+      "Zombie": 0,
+      "note": "Computed from 100 most-recently-updated issues; remaining ~802 unsampled"
     },
-    "p1_critical_issues": []
+    "new_last_7d": 59,
+    "p1_critical_issues": [],
+    "security_issues": [
+      {
+        "number": 15372,
+        "title": "[Bug]: MCP OAuth callback accepts first code without state validation",
+        "severity": "HIGH",
+        "fix_pr": 15388,
+        "fix_status": "open",
+        "note": "State parameter not validated; CSRF attack possible against OAuth flow"
+      }
+    ],
+    "top_10_most_commented": [
+      {"number": 14362, "title": "[Bug]: The model list displays grouped garbled text.", "comments": 9},
+      {"number": 14603, "title": "[Bug] Web search returns unrelated results", "comments": 9},
+      {"number": 14615, "title": "[Bug]: Text Selection Assistant Returns Rendering Failure", "comments": 6},
+      {"number": 14585, "title": "[Bug]: Fatal bug: Ongoing response/thinking is reset to zero when switching topics", "comments": 4},
+      {"number": 14569, "title": "[Discussion]: Code tool unable to start CLI properly", "comments": 4},
+      {"number": 14552, "title": "[Feature]: Automatically compact context for agent when reached limitation", "comments": 4},
+      {"number": 14568, "title": "[Bug]: v1.9.3 code block not rendered", "comments": 4},
+      {"number": 14373, "title": "[Bug]: Cannot start a new conversation after linking cherry claw to WeChat", "comments": 3},
+      {"number": 14529, "title": "[Bug]: Cherry Claw cannot access working directory", "comments": 3},
+      {"number": 14622, "title": "Create agent & choose provider, no option for Local Custom Provider", "comments": 3}
+    ]
   },
   "closed_issues_30d": {
-    "total": 100,
-    "average_close_time_days": 43.8,
+    "total": 333,
+    "sample_size": 100,
+    "average_close_time_days": 42.87,
+    "resolution_breakdown": {
+      "not_planned_pct": 75,
+      "completed_pct": 25
+    },
     "closed_per_week": {
-      "W21_May27": 17,
-      "W21_May26": 11,
-      "W21_May25": 12,
-      "W20_May24": 7,
-      "W20_May23": 6,
-      "W20_May22": 10,
-      "W20_May21": 4,
-      "W20_May18": 9,
-      "W20_May20": 12,
-      "W20_May19": 11,
-      "W18_May07": 1
-    }
+      "2026-04-28_to_2026-05-04": 0,
+      "2026-05-05_to_2026-05-11": 1,
+      "2026-05-12_to_2026-05-18": 4,
+      "2026-05-19_to_2026-05-25": 62,
+      "2026-05-26_to_2026-05-28": 33
+    },
+    "closed_last_7d": 72,
+    "bulk_sweep_note": "Large spike in 2026-05-19 week (~62) was an automated inactive-issues sweep"
   },
   "open_prs": {
-    "total": 100,
+    "total_observed": 155,
     "by_base_branch": {
-      "v2": 29,
       "main": 67,
-      "DeJeune/ai-service": 2,
-      "stack/ai-service/01-provider-core": 1,
-      "stack/ai-service/02-main-ai-backend": 1
+      "v2": 84,
+      "other": 4
     },
-    "age_distribution": {
-      "Active": 58,
-      "Aging": 42,
-      "Stale": 0,
-      "Zombie": 0
+    "main": {
+      "count": 67,
+      "stale_count": 11,
+      "draft_count": 8,
+      "new_last_7d": 34,
+      "note": "Count from first API page (most recently updated); total may be higher"
+    },
+    "v2": {
+      "count": 84,
+      "draft_count": 16,
+      "new_last_7d": 14,
+      "long_running_30d_plus": 44
     }
   }
 }
