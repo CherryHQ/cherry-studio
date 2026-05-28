@@ -1,7 +1,13 @@
 {
-  "generated_at": "2026-05-28T12:00:00.000000+00:00",
+  "generated_at": "2026-05-28T16:00:00.000000+00:00",
   "snapshot_date": "2026-05-28",
   "data_source": "GitHub MCP API (CherryHQ/cherry-studio)",
+  "release": {
+    "latest": "v1.9.7",
+    "released_at": "2026-05-27T14:03:56Z",
+    "pr": 15362,
+    "note": "Released 2026-05-27; chore commit by kangfenmao"
+  },
   "open_issues": {
     "total": 902,
     "sample_size": 100,
@@ -46,7 +52,7 @@
         "severity": "HIGH",
         "fix_pr": 15388,
         "fix_status": "open",
-        "note": "State parameter not validated; CSRF attack possible against OAuth flow"
+        "note": "OAuth CSRF attack vector; state param not validated before token exchange"
       }
     ],
     "top_10_most_commented": [
@@ -78,7 +84,36 @@
       "2026-05-26_to_2026-05-28": 33
     },
     "closed_last_7d": 72,
-    "bulk_sweep_note": "Large spike in 2026-05-19 week (~62) was an automated inactive-issues sweep"
+    "bulk_sweep_note": "Large spike 2026-05-19 week (~62 closures) was an automated inactive-issues sweep"
+  },
+  "merged_prs_30d": {
+    "total_all_branches": 137,
+    "total_v2_branch": 49,
+    "merged_last_7d_all": 32,
+    "merged_last_7d_v2": 14,
+    "by_week_all_branches": {
+      "2026-05-05_to_2026-05-11": 22,
+      "2026-05-12_to_2026-05-18": 40,
+      "2026-05-19_to_2026-05-25": 22,
+      "2026-05-26_to_2026-05-28": 16
+    },
+    "top_contributors_30d": [
+      {"author": "kangfenmao", "count": 12},
+      {"author": "zhangjiadi225", "count": 11},
+      {"author": "DeJeune", "count": 10},
+      {"author": "eeee0717", "count": 9},
+      {"author": "Cherry-Yiran", "count": 7},
+      {"author": "EurFelux", "count": 6},
+      {"author": "kovsu", "count": 5}
+    ],
+    "type_breakdown_all": {
+      "fix": 36,
+      "feat": 25,
+      "refactor": 19,
+      "hotfix": 10,
+      "chore": 6,
+      "docs": 2
+    }
   },
   "open_prs": {
     "total_observed": 155,
@@ -92,7 +127,7 @@
       "stale_count": 11,
       "draft_count": 8,
       "new_last_7d": 34,
-      "note": "Count from first API page (most recently updated); total may be higher"
+      "note": "Count from first API page; actual total may be higher"
     },
     "v2": {
       "count": 84,
