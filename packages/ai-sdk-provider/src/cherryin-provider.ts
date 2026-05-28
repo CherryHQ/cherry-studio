@@ -191,7 +191,9 @@ const withGoogleImageOptions = (model: ImageModelV3, providerKey: string, isGemi
       normalizeAspectRatio(options.size) ??
       normalizeAspectRatio(source.aspectRatio ?? source.aspect_ratio)
     const personGeneration = normalizePersonGeneration(source.personGeneration ?? source.person_generation)
-    const imageSize = normalizeImageSize(source.imageSize ?? source.image_size ?? source.resolution)
+    const imageSize = normalizeImageSize(
+      source.imageResolution ?? source.imageSize ?? source.image_size ?? source.resolution
+    )
 
     const googleOptions: Record<string, unknown> = {
       ...(aspectRatio ? { aspectRatio } : {}),

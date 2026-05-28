@@ -181,7 +181,10 @@ function withAihubmixGoogleImageOptions(model: ImageModelV3, isGeminiImage: bool
         aihubmixOptions.personGeneration ?? aihubmixOptions.person_generation ?? openaiOptions.personGeneration
       )
       const imageSize = normalizeImageSize(
-        aihubmixOptions.imageSize ?? aihubmixOptions.image_size ?? aihubmixOptions.resolution
+        aihubmixOptions.imageResolution ??
+          aihubmixOptions.imageSize ??
+          aihubmixOptions.image_size ??
+          aihubmixOptions.resolution
       )
 
       const googleOptions: Record<string, unknown> = {
