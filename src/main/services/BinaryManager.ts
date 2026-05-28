@@ -9,6 +9,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
+import { isUserInChina } from '@main/utils/ipService'
 import { getBinaryPath } from '@main/utils/process'
 import type { BinaryState, ManagedBinary, ToolInstallState } from '@shared/data/preference/preferenceTypes'
 import { PREDEFINED_BINARY_TOOLS } from '@shared/data/presets/binary-tools'
@@ -48,7 +49,9 @@ const MISE_PASSTHROUGH_ENV = [
   'all_proxy',
   'no_proxy',
   'GITHUB_TOKEN',
-  'GH_TOKEN'
+  'GH_TOKEN',
+  'NPM_CONFIG_REGISTRY',
+  'PIP_INDEX_URL'
 ]
 
 const TOOL_NAME_RE = /^[a-zA-Z][a-zA-Z0-9_-]*$/
@@ -88,7 +91,7 @@ export class BinaryManager extends BaseService {
       return
     }
     logger.info('mise binary found', { path: this.miseBin })
-    this.isolatedEnv = this.buildIsolatedEnv()
+    this.isolatedEnv = await this.buildIsolatedEnv()
 
     const prefService = application.get('PreferenceService')
     const predefinedNames = new Set(PREDEFINED_BINARY_TOOLS.map((t) => t.name))
@@ -210,7 +213,9 @@ export class BinaryManager extends BaseService {
   // Intentionally isolates HOME/XDG to prevent mise from reading user-level
   // configs (.npmrc, .netrc, etc.). Only public registry installs are supported;
   // private registry auth tokens are not passed through.
-  private buildIsolatedEnv(): Record<string, string> {
+  // NPM_CONFIG_REGISTRY and PIP_INDEX_URL are passed through and overridden
+  // with mirror URLs for China users so that npm/pipx backends work reliably.
+  private async buildIsolatedEnv(): Promise<Record<string, string>> {
     const dataDir = application.getPath('feature.binary.data')
     const env: Record<string, string> = {}
 
@@ -218,6 +223,16 @@ export class BinaryManager extends BaseService {
       const val = process.env[key]
       if (val !== undefined) {
         env[key] = val
+      }
+    }
+
+    const inChina = await isUserInChina().catch(() => false)
+    if (inChina) {
+      if (!env['NPM_CONFIG_REGISTRY']) {
+        env['NPM_CONFIG_REGISTRY'] = 'https://registry.npmmirror.com'
+      }
+      if (!env['PIP_INDEX_URL']) {
+        env['PIP_INDEX_URL'] = 'https://pypi.tuna.tsinghua.edu.cn/simple'
       }
     }
 

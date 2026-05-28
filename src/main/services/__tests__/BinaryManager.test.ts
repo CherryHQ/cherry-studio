@@ -67,6 +67,10 @@ vi.mock('electron', () => ({
   BrowserWindow: { getAllWindows: vi.fn(() => []) }
 }))
 
+vi.mock('@main/utils/ipService', () => ({
+  isUserInChina: vi.fn().mockResolvedValue(false)
+}))
+
 vi.mock('node:util', async (importOriginal) => {
   const actual = await importOriginal()
   return { ...(actual as object), promisify: () => mockExecFileAsync }
@@ -386,7 +390,7 @@ describe('BinaryManager', () => {
   })
 
   describe('buildIsolatedEnv', () => {
-    it('filters out non-whitelisted environment variables', () => {
+    it('filters out non-whitelisted environment variables', async () => {
       const original = { ...process.env }
       try {
         process.env['AWS_ACCESS_KEY_ID'] = 'test-key'
@@ -395,7 +399,7 @@ describe('BinaryManager', () => {
 
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
-        const env = (service as any).buildIsolatedEnv()
+        const env = await (service as any).buildIsolatedEnv()
 
         expect(env['AWS_ACCESS_KEY_ID']).toBeUndefined()
         expect(env['OPENAI_API_KEY']).toBeUndefined()
@@ -406,7 +410,7 @@ describe('BinaryManager', () => {
       }
     })
 
-    it('passes through whitelisted variables', () => {
+    it('passes through whitelisted variables', async () => {
       const original = { ...process.env }
       try {
         process.env['GITHUB_TOKEN'] = 'ghp_test'
@@ -414,7 +418,7 @@ describe('BinaryManager', () => {
 
         const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
-        const env = (service as any).buildIsolatedEnv()
+        const env = await (service as any).buildIsolatedEnv()
 
         expect(env['GITHUB_TOKEN']).toBe('ghp_test')
         expect(env['HTTPS_PROXY']).toBe('http://proxy:8080')
