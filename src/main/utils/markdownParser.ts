@@ -36,7 +36,7 @@ export async function findSkillMdPath(dirPath: string): Promise<string | null> {
  * Check if a directory entry is a directory or a symlink pointing to a directory
  * Follows symlinks to determine if they point to valid directories
  */
-async function isDirectoryOrSymlinkToDirectory(entry: fs.Dirent, parentDir: string): Promise<boolean> {
+export async function isDirectoryOrSymlinkToDirectory(entry: fs.Dirent, parentDir: string): Promise<boolean> {
   if (entry.isDirectory()) {
     return true
   }

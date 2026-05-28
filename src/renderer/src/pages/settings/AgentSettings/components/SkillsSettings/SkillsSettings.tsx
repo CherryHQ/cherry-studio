@@ -129,10 +129,12 @@ export const InstalledSkillsSettings: FC<AgentOrSessionSettingsProps> = ({ agent
   }, [skills, filter])
 
   const filteredLocal = useMemo(() => {
-    if (!filter.trim()) return localPlugins
+    const dbFolderNames = new Set(skills.map((s) => s.folderName))
+    const deduped = localPlugins.filter((p) => !dbFolderNames.has(p.filename))
+    if (!filter.trim()) return deduped
     const q = filter.toLowerCase()
-    return localPlugins.filter((p) => p.name.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q))
-  }, [localPlugins, filter])
+    return deduped.filter((p) => p.name.toLowerCase().includes(q) || p.description?.toLowerCase().includes(q))
+  }, [localPlugins, skills, filter])
 
   const handleToggle = useCallback(
     async (skill: InstalledSkill, checked: boolean) => {

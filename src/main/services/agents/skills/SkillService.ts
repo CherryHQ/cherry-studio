@@ -6,7 +6,12 @@ import { loggerService } from '@logger'
 import { getDataPath } from '@main/utils'
 import { directoryExists } from '@main/utils/file'
 import { deleteDirectoryRecursive } from '@main/utils/fileOperations'
-import { findAllSkillDirectories, findSkillMdPath, parseSkillMetadata } from '@main/utils/markdownParser'
+import {
+  findAllSkillDirectories,
+  findSkillMdPath,
+  isDirectoryOrSymlinkToDirectory,
+  parseSkillMetadata
+} from '@main/utils/markdownParser'
 import { executeCommand, findExecutableInEnv } from '@main/utils/process'
 import type {
   InstalledSkill,
@@ -370,13 +375,18 @@ export class SkillService {
   async listLocal(workdir: string): Promise<Array<{ name: string; description?: string; filename: string }>> {
     const results: Array<{ name: string; description?: string; filename: string }> = []
     const skillsDir = path.join(workdir, '.claude', 'skills')
+    const globalSkillsRoot = path.resolve(getDataPath('Skills'))
 
     try {
       const entries = await fs.promises.readdir(skillsDir, { withFileTypes: true })
       for (const entry of entries) {
-        if (!entry.isDirectory()) continue
+        if (!(await isDirectoryOrSymlinkToDirectory(entry, skillsDir))) continue
+
+        const skillPath = path.join(skillsDir, entry.name)
+
+        if (await this.isLinkIntoGlobalStorage(skillPath, globalSkillsRoot)) continue
+
         try {
-          const skillPath = path.join(skillsDir, entry.name)
           const metadata = await parseSkillMetadata(skillPath, entry.name, 'skills')
           results.push({ name: metadata.name, description: metadata.description, filename: entry.name })
         } catch {
@@ -388,6 +398,15 @@ export class SkillService {
     }
 
     return results
+  }
+
+  private async isLinkIntoGlobalStorage(entryPath: string, globalSkillsRoot: string): Promise<boolean> {
+    try {
+      const real = await fs.promises.realpath(entryPath)
+      return real === globalSkillsRoot || real.startsWith(globalSkillsRoot + path.sep)
+    } catch {
+      return false
+    }
   }
 
   // ===========================================================================
