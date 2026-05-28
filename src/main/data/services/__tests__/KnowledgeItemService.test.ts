@@ -10,7 +10,7 @@ import type { CreateKnowledgeItemDto } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
 const itemId = (sequence: string) => `0198f3f2-${sequence}-7abc-8def-123456789abc`
@@ -722,6 +722,30 @@ describe('KnowledgeItemService', () => {
       })
 
       expect(result.map((item) => item.id).sort()).toEqual([DIR_CHILD_ID, DIR_ROOT_ID, FILE_CHILD_ID])
+    })
+
+    it('reads subtree rows with a single raw query instead of a follow-up ORM select', async () => {
+      await seedItem({ id: DIR_ROOT_ID, type: 'directory', data: { source: '/root', path: '/root' } })
+      await seedItem({
+        id: FILE_CHILD_ID,
+        groupId: DIR_ROOT_ID,
+        type: 'file',
+        data: createFileItemData(FILE_CHILD_ID)
+      })
+
+      const allSpy = vi.spyOn(dbh.db, 'all')
+      const selectSpy = vi.spyOn(dbh.db, 'select')
+
+      try {
+        const result = await service.getSubtreeItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID], { includeRoots: true })
+
+        expect(result.map((item) => item.id).sort()).toEqual([DIR_ROOT_ID, FILE_CHILD_ID])
+        expect(allSpy).toHaveBeenCalledTimes(1)
+        expect(selectSpy).not.toHaveBeenCalled()
+      } finally {
+        allSpy.mockRestore()
+        selectSpy.mockRestore()
+      }
     })
 
     it('returns an empty list when no roots are provided', async () => {
