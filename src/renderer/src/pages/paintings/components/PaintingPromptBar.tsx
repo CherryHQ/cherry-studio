@@ -11,6 +11,7 @@ import type { ChangeEvent, ClipboardEvent, DragEvent, FC, KeyboardEventHandler, 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
 import type { PaintingData } from '../model/types/paintingData'
 
 const logger = loggerService.withContext('PaintingPromptBar')
@@ -99,6 +100,16 @@ const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const inputFiles = useMemo(() => painting.inputFiles ?? [], [painting.inputFiles])
 
+  // Image input is gated by the current model's registry support, not a new
+  // capability flag: any declared mode other than `generate` (`edit` /
+  // `remix` / `merge` / `upscale`) accepts files by definition. Text-only
+  // models declare only `modes.generate` and stay without the upload UI.
+  const support = useImageGenerationSupport(painting.providerId, painting.model)
+  const acceptsImageInput = useMemo(
+    () => Object.keys(support?.modes ?? {}).some((mode) => mode !== 'generate'),
+    [support]
+  )
+
   const appendFiles = useCallback(
     async (files: Iterable<File>) => {
       const entries = await filesToImageEntries(files)
@@ -117,17 +128,17 @@ const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
 
   const handleDrop = useCallback(
     async (e: DragEvent<HTMLDivElement>) => {
-      if (generating) return
+      if (generating || !acceptsImageInput) return
       if (e.dataTransfer.files.length > 0) await appendFiles(e.dataTransfer.files)
     },
-    [appendFiles, generating]
+    [acceptsImageInput, appendFiles, generating]
   )
 
   const { isDragging, handleDragEnter, handleDragLeave, handleDragOver, handleDrop: onDrop } = useDrag(handleDrop)
 
   const handlePaste = useCallback(
     async (e: ClipboardEvent<HTMLTextAreaElement>) => {
-      if (generating) return
+      if (generating || !acceptsImageInput) return
       const files = e.clipboardData?.files
       if (!files || files.length === 0) return
       const hasImage = [...files].some((f) => f.type.startsWith(IMAGE_MIME_PREFIX))
@@ -135,7 +146,7 @@ const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
       e.preventDefault()
       await appendFiles(files)
     },
-    [appendFiles, generating]
+    [acceptsImageInput, appendFiles, generating]
   )
 
   const handlePickClick = useCallback(() => {
@@ -162,7 +173,7 @@ const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={onDrop}>
-        {inputFiles.length > 0 && (
+        {acceptsImageInput && inputFiles.length > 0 && (
           <div className="flex flex-wrap gap-2 px-3.5 pt-3">
             {inputFiles.map((entry) => (
               <InputFileThumbnail
@@ -189,17 +200,21 @@ const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
         />
         <div className="flex min-h-11 flex-wrap items-center justify-between gap-2 px-3.5 pt-2 pb-3">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-            <input ref={fileInputRef} type="file" accept="image/*" multiple hidden onChange={handlePickChange} />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="size-7 rounded-full text-muted-foreground hover:text-foreground"
-              disabled={generating}
-              onClick={handlePickClick}
-              aria-label={t('paintings.button.select.image')}>
-              <Plus className="size-4" />
-            </Button>
+            {acceptsImageInput && (
+              <>
+                <input ref={fileInputRef} type="file" accept="image/*" multiple hidden onChange={handlePickChange} />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="size-7 rounded-full text-muted-foreground hover:text-foreground"
+                  disabled={generating}
+                  onClick={handlePickClick}
+                  aria-label={t('paintings.button.select.image')}>
+                  <Plus className="size-4" />
+                </Button>
+              </>
+            )}
             {leadingActions}
           </div>
           <div className="flex min-w-0 shrink-0 items-center gap-2">
