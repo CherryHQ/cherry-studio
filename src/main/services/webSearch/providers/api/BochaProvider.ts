@@ -8,9 +8,15 @@ import type { ApiKeyRequestSearchContext } from '../base/context'
 
 const BochaSearchParamsSchema = z.object({
   query: z.string(),
-  count: z.number().int().positive(),
+  count: z.number().int().min(1).max(50),
   exclude: z.string(),
   summary: z.boolean()
+})
+
+const BochaHttpErrorSchema = z.object({
+  code: z.string(),
+  message: z.string(),
+  log_id: z.string().optional()
 })
 
 const BochaThumbnailSchema = z.object({
@@ -164,7 +170,7 @@ export class BochaProvider extends BaseWebSearchProvider {
     })
 
     if (!response.ok) {
-      await this.throwHttpError('Bocha search failed', response)
+      await this.throwBochaHttpError(response)
     }
 
     return this.parseJsonResponse(response, BochaSearchResponseSchema, {
@@ -173,12 +179,39 @@ export class BochaProvider extends BaseWebSearchProvider {
     })
   }
 
+  private async throwBochaHttpError(response: Response): Promise<never> {
+    const errorText = (await response.text()).trim()
+
+    if (!errorText) {
+      throw new Error(`Bocha search failed: HTTP ${response.status}`)
+    }
+
+    let parsedPayload: unknown
+
+    try {
+      parsedPayload = JSON.parse(errorText)
+    } catch {
+      // Fall back to the shared raw-body error formatter below.
+      return this.throwHttpError('Bocha search failed', new Response(errorText, { status: response.status }))
+    }
+
+    const parsedError = BochaHttpErrorSchema.safeParse(parsedPayload)
+
+    if (parsedError.success) {
+      const { code, message, log_id } = parsedError.data
+      const logIdPart = log_id ? `, log_id: ${log_id}` : ''
+      throw new Error(`Bocha search failed: HTTP ${response.status} (code: ${code}${logIdPart}): ${message}`)
+    }
+
+    return this.throwHttpError('Bocha search failed', new Response(errorText, { status: response.status }))
+  }
+
   private buildFinalResponse(
     context: BochaSearchContext,
     searchPayload: z.infer<typeof BochaSearchResponseSchema>
   ): WebSearchResponse {
     if (searchPayload.code !== 200) {
-      throw new Error(`Bocha search failed: ${searchPayload.msg ?? 'unknown error'}`)
+      throw new Error(`Bocha search failed (code: ${searchPayload.code}): ${searchPayload.msg ?? 'unknown error'}`)
     }
 
     return {

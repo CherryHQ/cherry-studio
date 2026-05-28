@@ -814,6 +814,93 @@ describe('main web search API providers', () => {
     })
   })
 
+  it('allows the maximum supported Bocha count and preserves an empty exclude string', async () => {
+    fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('bocha-response.json')))
+
+    const provider = createProviderDriver(
+      BochaProvider,
+      createProvider({
+        id: 'bocha',
+        name: 'Bocha',
+        apiKeys: ['bocha-key'],
+        apiHost: 'https://api.bochaai.com'
+      })
+    )
+
+    await provider.searchKeywords('hello', {
+      ...runtimeConfig,
+      maxResults: 50,
+      excludeDomains: []
+    })
+
+    expect(toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined]).body).toEqual({
+      query: 'hello',
+      count: 50,
+      exclude: '',
+      summary: true
+    })
+  })
+
+  it('includes the upstream code when Bocha returns a non-200 payload', async () => {
+    fetchMock.mockResolvedValue(
+      createJsonResponse({
+        code: 429,
+        log_id: 'rate-limited-log-id',
+        msg: null,
+        data: {
+          _type: 'SearchResponse',
+          queryContext: {
+            originalQuery: 'hello'
+          },
+          webPages: {
+            value: []
+          }
+        }
+      })
+    )
+
+    const provider = createProviderDriver(
+      BochaProvider,
+      createProvider({
+        id: 'bocha',
+        name: 'Bocha',
+        apiKeys: ['bocha-key'],
+        apiHost: 'https://api.bochaai.com'
+      })
+    )
+
+    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow(
+      'Bocha search failed (code: 429): unknown error'
+    )
+  })
+
+  it('formats Bocha HTTP JSON errors with code and log id', async () => {
+    fetchMock.mockResolvedValue(
+      createJsonResponse(
+        {
+          code: '403',
+          message: 'You do not have enough money',
+          log_id: 'c66aac17eab1bb7e'
+        },
+        403
+      )
+    )
+
+    const provider = createProviderDriver(
+      BochaProvider,
+      createProvider({
+        id: 'bocha',
+        name: 'Bocha',
+        apiKeys: ['bocha-key'],
+        apiHost: 'https://api.bochaai.com'
+      })
+    )
+
+    await expect(provider.searchKeywords('hello', runtimeConfig)).rejects.toThrow(
+      'Bocha search failed: HTTP 403 (code: 403, log_id: c66aac17eab1bb7e): You do not have enough money'
+    )
+  })
+
   it('matches Querit request and normalized response snapshots from fixtures', async () => {
     fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('querit-response.json')))
 
