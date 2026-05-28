@@ -33,7 +33,7 @@ export async function rename(deps: FileManagerDeps, id: FileEntryId, newName: st
     return deps.fileEntryService.update(id, { name: newName })
   }
   // entry.origin === 'external' from here on; the schema discriminator
-  // guarantees externalPath is present as `AbsolutePathSchema` (no `null`
+  // guarantees externalPath is present as `FilePathSchema` (no `null`
   // branch exists on ExternalEntrySchema), so the prior defensive
   // `if (!entry.externalPath)` throw was unreachable and has been removed.
   const dir = path.dirname(entry.externalPath)

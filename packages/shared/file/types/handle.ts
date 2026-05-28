@@ -30,10 +30,10 @@
  */
 
 import type { FileEntryId } from '@shared/data/types/file'
-import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
+import { FileEntryIdSchema } from '@shared/data/types/file'
 import * as z from 'zod'
 
-import type { FilePath } from './common'
+import { type FilePath, FilePathSchema } from './common'
 
 export type FileEntryHandle = {
   readonly kind: 'entry'
@@ -60,7 +60,7 @@ export const FileEntryHandleSchema = z.strictObject({
 
 export const FilePathHandleSchema = z.strictObject({
   kind: z.literal('path'),
-  path: AbsolutePathSchema
+  path: FilePathSchema
 })
 
 export const FileHandleSchema = z.discriminatedUnion('kind', [FileEntryHandleSchema, FilePathHandleSchema])

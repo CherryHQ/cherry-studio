@@ -175,9 +175,9 @@ export async function ensureExternal(deps: FileManagerDeps, params: EnsureExtern
   // a later strict-equality check like `path.basename(canonical) === entry.name`
   // would silently diverge. Same risk for trailing-separator / `..`
   // noise in the raw input.
-  // `canonical` is `CanonicalExternalPath`; the schema-side S5 refine now
-  // makes the BO's `externalPath` `FilePath & CanonicalExternalPath`, but
-  // here we only hold the factory-side `CanonicalExternalPath`. The cast
+  // `canonical` is `FilePath`; the schema-side S5 refine now
+  // makes the BO's `externalPath` `FilePath & FilePath`, but
+  // here we only hold the factory-side `FilePath`. The cast
   // to `FilePath` is the sanctioned service-boundary upcast — the
   // canonicalize pipeline already enforces the absolute-shape gate that
   // `FilePath` represents at the type level.

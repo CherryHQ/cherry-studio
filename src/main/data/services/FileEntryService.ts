@@ -21,8 +21,9 @@
 import { application } from '@application'
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { DataApiErrorFactory } from '@shared/data/api'
-import type { CanonicalExternalPath, FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
-import { AbsolutePathSchema, FileEntrySchema, SafeNameSchema } from '@shared/data/types/file'
+import type { FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
+import { FileEntrySchema, SafeNameSchema } from '@shared/data/types/file'
+import { type FilePath, FilePathSchema } from '@shared/file/types'
 import { and, asc, count, desc, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 
@@ -86,12 +87,12 @@ export interface FileEntryService {
 
   /**
    * Look up an external entry by canonical `externalPath`. Returns `null` when
-   * no row matches. The `CanonicalExternalPath` brand forces callers through
+   * no row matches. The `FilePath` brand forces callers through
    * `canonicalizeExternalPath()` at compile time — raw `string` values are
    * not assignable here, which prevents the "caller forgot to canonicalize"
    * class of bug that would silently miss all matches.
    */
-  findByExternalPath(canonicalPath: CanonicalExternalPath): Promise<FileEntry | null>
+  findByExternalPath(canonicalPath: FilePath): Promise<FileEntry | null>
 
   /**
    * Return external entries whose `externalPath` matches `canonicalPath`
@@ -117,7 +118,7 @@ export interface FileEntryService {
    * case-different paths are the same FS entity); see
    * `file-manager-architecture.md §1.2 Duplicate-entry detection on insert`.
    */
-  findCaseInsensitivePeers(canonicalPath: CanonicalExternalPath): Promise<FileEntry[]>
+  findCaseInsensitivePeers(canonicalPath: FilePath): Promise<FileEntry[]>
 
   /** Flat listing. Trashed filter defaults to "active only" when `inTrash` is omitted. */
   findMany(query?: FindEntriesQuery): Promise<FileEntry[]>
@@ -163,7 +164,7 @@ export interface FileEntryService {
    * doing it as a single statement keeps the (path, name) pair consistent under
    * partial-failure scenarios (transient lock, schema constraint).
    */
-  setExternalPathAndName(id: FileEntryId, externalPath: CanonicalExternalPath, name: string): Promise<FileEntry>
+  setExternalPathAndName(id: FileEntryId, externalPath: FilePath, name: string): Promise<FileEntry>
 
   /** Remove the row (CASCADE drops dependent `file_ref`s). No-op if already gone. */
   delete(id: FileEntryId): Promise<void>
@@ -238,7 +239,7 @@ class FileEntryServiceImpl implements FileEntryService {
     return entry
   }
 
-  async findByExternalPath(canonicalPath: CanonicalExternalPath): Promise<FileEntry | null> {
+  async findByExternalPath(canonicalPath: FilePath): Promise<FileEntry | null> {
     const rows = await this.getDb()
       .select()
       .from(fileEntryTable)
@@ -247,7 +248,7 @@ class FileEntryServiceImpl implements FileEntryService {
     return rows.length === 0 ? null : rowToFileEntry(rows[0])
   }
 
-  async findCaseInsensitivePeers(canonicalPath: CanonicalExternalPath): Promise<FileEntry[]> {
+  async findCaseInsensitivePeers(canonicalPath: FilePath): Promise<FileEntry[]> {
     const rows = await this.getDb()
       .select()
       .from(fileEntryTable)
@@ -405,15 +406,15 @@ class FileEntryServiceImpl implements FileEntryService {
    * the only sanctioned mutation site for `externalPath`. Used by the rename
    * flow so the (path, name) pair stays consistent under failure.
    */
-  async setExternalPathAndName(id: FileEntryId, externalPath: CanonicalExternalPath, name: string): Promise<FileEntry> {
+  async setExternalPathAndName(id: FileEntryId, externalPath: FilePath, name: string): Promise<FileEntry> {
     // Same pre-SQL validation rationale as `update` above; an unsafe value
     // for either column would corrupt the row past `rowToFileEntry` parse.
-    // The `CanonicalExternalPath` brand is TS-only — defense-in-depth at the
+    // The `FilePath` brand is TS-only — defense-in-depth at the
     // runtime layer rejects path strings the brand failed to flag (e.g. a
     // caller that `as`-cast a raw user string instead of going through
     // `canonicalizeExternalPath`).
     SafeNameSchema.parse(name)
-    AbsolutePathSchema.parse(externalPath)
+    FilePathSchema.parse(externalPath)
     const rows = await this.getDb()
       .update(fileEntryTable)
       .set({ externalPath, name, updatedAt: Date.now() })

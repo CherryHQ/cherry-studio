@@ -3,7 +3,7 @@
  *
  * Lives in shared (no `node:*` imports) so the FileEntry schema can `refine`
  * its `externalPath` field against the same canonicalization rule the main
- * process uses on write. That refine is what gives the `CanonicalFilePath`
+ * process uses on write. That refine is what gives the `FilePath`
  * brand on the BO real runtime backing — any value that survives parsing IS
  * canonical, not just typed as if it were.
  *

@@ -10,7 +10,7 @@ vi.mock('@application', async () => {
 
 import path from 'node:path'
 
-import type { CanonicalExternalPath } from '@shared/data/types/file'
+import type { FilePath } from '@shared/file/types'
 
 import type { PathResolvableEntry } from '../pathResolver'
 import { canonicalizeExternalPath, getExtSuffix, resolvePhysicalPath } from '../pathResolver'
@@ -125,8 +125,8 @@ describe('canonicalizeExternalPath', () => {
     expect(() => canonicalizeExternalPath('/foo/bar\0/baz')).toThrow(/null byte/i)
   })
 
-  it('returns a CanonicalExternalPath brand (compile-time check)', () => {
-    const canonical: CanonicalExternalPath = canonicalizeExternalPath('/foo')
+  it('returns a FilePath brand (compile-time check)', () => {
+    const canonical: FilePath = canonicalizeExternalPath('/foo')
     expect(typeof canonical).toBe('string')
   })
 })

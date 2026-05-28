@@ -2,7 +2,6 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { CanonicalExternalPath } from '@shared/data/types/file'
 import { canonicalizeAbsolutePath } from '@shared/file/canonicalize'
 import type { FilePath } from '@shared/file/types'
 
@@ -70,7 +69,7 @@ export function resolvePhysicalPath(entry: PathResolvableEntry): FilePath {
  * before any DB write or query, and `fileEntryService.findByExternalPath`
  * does the same at read boundaries.
  *
- * The return type is branded as `CanonicalExternalPath` so that downstream
+ * The return type is branded as `FilePath` so that downstream
  * surfaces filtering by `externalPath` (today: `findByExternalPath`; in future:
  * any new DataApi / service query on this column) cannot accept a raw user
  * path by mistake. New call sites gain compile-time guarding for free.
@@ -148,10 +147,10 @@ export function resolvePhysicalPath(entry: PathResolvableEntry): FilePath {
  * @returns canonical form stored in `file_entry.externalPath`
  * @throws if `raw` contains null bytes
  */
-export function canonicalizeExternalPath(raw: string): CanonicalExternalPath {
+export function canonicalizeExternalPath(raw: string): FilePath {
   // Delegate to the shared pure-JS implementation so the FileEntry schema
   // can `refine` against the exact same rule on parse (S5). The brand cast
   // here is the sanctioned production-side factory site documented in the
-  // `CanonicalExternalPath` JSDoc.
-  return canonicalizeAbsolutePath(raw) as CanonicalExternalPath
+  // `FilePath` JSDoc.
+  return canonicalizeAbsolutePath(raw) as FilePath
 }

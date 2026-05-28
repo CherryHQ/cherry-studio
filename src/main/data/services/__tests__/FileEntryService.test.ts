@@ -1,6 +1,7 @@
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { DataApiError, ErrorCode } from '@shared/data/api'
-import type { CanonicalExternalPath, FileEntryId } from '@shared/data/types/file'
+import type { FileEntryId } from '@shared/data/types/file'
+import type { FilePath } from '@shared/file/types'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
@@ -104,13 +105,13 @@ describe('FileEntryService', () => {
         updatedAt: now
       })
 
-      const entry = await fileEntryService.findByExternalPath('/Users/me/doc.pdf' as CanonicalExternalPath)
+      const entry = await fileEntryService.findByExternalPath('/Users/me/doc.pdf' as FilePath)
       expect(entry?.id).toBe(id)
       expect(entry?.origin).toBe('external')
     })
 
     it('returns null when no row matches', async () => {
-      const result = await fileEntryService.findByExternalPath('/Users/me/nonexistent.pdf' as CanonicalExternalPath)
+      const result = await fileEntryService.findByExternalPath('/Users/me/nonexistent.pdf' as FilePath)
       expect(result).toBeNull()
     })
 
@@ -129,7 +130,7 @@ describe('FileEntryService', () => {
         updatedAt: now
       })
 
-      const result = await fileEntryService.findByExternalPath('/Users/me/A.TXT' as CanonicalExternalPath)
+      const result = await fileEntryService.findByExternalPath('/Users/me/A.TXT' as FilePath)
       expect(result).toBeNull()
     })
   })
@@ -154,13 +155,13 @@ describe('FileEntryService', () => {
         updatedAt: now
       })
 
-      const peers = await fileEntryService.findCaseInsensitivePeers('/Users/me/a.txt' as CanonicalExternalPath)
+      const peers = await fileEntryService.findCaseInsensitivePeers('/Users/me/a.txt' as FilePath)
       expect(peers).toHaveLength(1)
       expect(peers[0]?.id).toBe('019606a0-0000-7000-8000-000000000020')
     })
 
     it('returns empty array when no rows match', async () => {
-      const peers = await fileEntryService.findCaseInsensitivePeers('/zzz/none.txt' as CanonicalExternalPath)
+      const peers = await fileEntryService.findCaseInsensitivePeers('/zzz/none.txt' as FilePath)
       expect(peers).toEqual([])
     })
 
@@ -729,11 +730,7 @@ describe('FileEntryService', () => {
       const original = await fileEntryService.getById(id)
       await new Promise((r) => setTimeout(r, 5))
 
-      const updated = await fileEntryService.setExternalPathAndName(
-        id,
-        '/Users/me/new-doc.pdf' as CanonicalExternalPath,
-        'new-doc'
-      )
+      const updated = await fileEntryService.setExternalPathAndName(id, '/Users/me/new-doc.pdf' as FilePath, 'new-doc')
 
       expect(updated.id).toBe(id)
       if (updated.origin !== 'external') throw new Error('expected external entry')
@@ -750,11 +747,7 @@ describe('FileEntryService', () => {
     it('throws a typed DataApiError(NOT_FOUND) when the entry does not exist', async () => {
       // Mirror of the getById typed-contract pin (line 51).
       const missing = '019606a0-0000-7000-8000-000000000dff' as FileEntryId
-      const promise = fileEntryService.setExternalPathAndName(
-        missing,
-        '/Users/me/ghost.pdf' as CanonicalExternalPath,
-        'ghost'
-      )
+      const promise = fileEntryService.setExternalPathAndName(missing, '/Users/me/ghost.pdf' as FilePath, 'ghost')
       await expect(promise).rejects.toBeInstanceOf(DataApiError)
       await expect(promise).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND,
@@ -777,7 +770,7 @@ describe('FileEntryService', () => {
       })
 
       await expect(
-        fileEntryService.setExternalPathAndName(id, '/Users/me/legit.txt' as CanonicalExternalPath, '../evil')
+        fileEntryService.setExternalPathAndName(id, '/Users/me/legit.txt' as FilePath, '../evil')
       ).rejects.toThrow()
 
       const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, id))
@@ -786,8 +779,8 @@ describe('FileEntryService', () => {
     })
 
     it('rejects unsafe externalPath BEFORE the SQL UPDATE commits', async () => {
-      // The `CanonicalExternalPath` brand is TS-only and offers no runtime
-      // guarantee. The service-side `AbsolutePathSchema.parse(externalPath)`
+      // The `FilePath` brand is TS-only and offers no runtime
+      // guarantee. The service-side `FilePathSchema.parse(externalPath)`
       // catches null bytes / non-absolute paths regardless of whether the
       // caller went through `canonicalizeExternalPath` or `as`-cast.
       const id = '019606a0-0000-7000-8000-000000000d21' as FileEntryId
@@ -801,7 +794,7 @@ describe('FileEntryService', () => {
       })
 
       await expect(
-        fileEntryService.setExternalPathAndName(id, '/Users/me/null\0byte.txt' as CanonicalExternalPath, 'fine')
+        fileEntryService.setExternalPathAndName(id, '/Users/me/null\0byte.txt' as FilePath, 'fine')
       ).rejects.toThrow()
 
       const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, id))
@@ -838,12 +831,10 @@ describe('FileEntryService', () => {
       // is the negative one: this is NOT a "not found"-shaped error, so callers
       // catching only that branch will correctly surface this case as
       // unexpected and bubble it up.
-      const err = await fileEntryService
-        .setExternalPathAndName(b, '/Users/me/a.txt' as CanonicalExternalPath, 'a')
-        .then(
-          () => null,
-          (e: Error) => e
-        )
+      const err = await fileEntryService.setExternalPathAndName(b, '/Users/me/a.txt' as FilePath, 'a').then(
+        () => null,
+        (e: Error) => e
+      )
       expect(err).toBeInstanceOf(Error)
       expect(err?.message).not.toMatch(/not found/i)
       // The conflicting entry is unchanged after the failed mutation
@@ -925,7 +916,7 @@ describe('FileEntryService', () => {
         name: 'e',
         ext: 'txt',
         size: null,
-        externalPath: '/abs/orphan.txt' as CanonicalExternalPath
+        externalPath: '/abs/orphan.txt' as FilePath
       })
 
       const externalsOnly = await fileEntryService.findUnreferenced({ origin: 'external' })

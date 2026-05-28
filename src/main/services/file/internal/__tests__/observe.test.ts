@@ -17,7 +17,7 @@ import type { FileManagerDeps } from '../deps'
 import { observeExternalAccess } from '../observe'
 
 // `as unknown as FileEntry` because `externalPath` is now branded as
-// `CanonicalFilePath` (FilePath & CanonicalExternalPath) — a string literal
+// `FilePath` (FilePath & FilePath) — a string literal
 // can't satisfy the brand directly. The actual canonicalization invariant
 // is irrelevant for these tests (we never feed the entry back into the
 // schema); they only need the discriminator + a stable physical path.

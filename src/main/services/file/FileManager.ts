@@ -136,7 +136,7 @@ import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecyc
 import { orphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry'
 import { remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
-import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
+import { FileEntryIdSchema } from '@shared/data/types/file'
 import { SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
 import type {
   BatchCreateResult,
@@ -147,6 +147,7 @@ import type {
   FileURLString,
   PhysicalFileMetadata
 } from '@shared/file/types'
+import { FilePathSchema } from '@shared/file/types'
 import type { FileHandle } from '@shared/file/types/handle'
 import { FileHandleSchema } from '@shared/file/types/handle'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -243,7 +244,7 @@ export const BatchGetDanglingStatesIpcSchema = z.strictObject({
 const SafeExtNullableSchema = SafeExtSchema.nullable()
 
 export const CreateInternalEntryIpcSchema = z.discriminatedUnion('source', [
-  z.strictObject({ source: z.literal('path'), path: AbsolutePathSchema }),
+  z.strictObject({ source: z.literal('path'), path: FilePathSchema }),
   z.strictObject({ source: z.literal('url'), url: z.url() }),
   z.strictObject({ source: z.literal('base64'), data: z.string().min(1), name: SafeNameSchema.optional() }),
   z.strictObject({
@@ -254,7 +255,7 @@ export const CreateInternalEntryIpcSchema = z.discriminatedUnion('source', [
   })
 ])
 
-export const EnsureExternalEntryIpcSchema = z.strictObject({ externalPath: AbsolutePathSchema })
+export const EnsureExternalEntryIpcSchema = z.strictObject({ externalPath: FilePathSchema })
 
 export const GetPhysicalPathIpcSchema = z.strictObject({ id: FileEntryIdSchema })
 

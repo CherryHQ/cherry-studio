@@ -115,7 +115,7 @@ export type CreateInternalEntryIpcParams =
  * ## Canonicalization stays on the main side (by design)
  *
  * `externalPath` is intentionally typed as raw `FilePath` rather than
- * `CanonicalExternalPath`. The asymmetry is deliberate:
+ * `FilePath`. The asymmetry is deliberate:
  *
  * - **Renderer has no canonicalize use case.** It never compares paths
  *   for dedup (the DB-level `UNIQUE(externalPath)` index does that
@@ -130,7 +130,7 @@ export type CreateInternalEntryIpcParams =
  *   require an extra IPC hop per call — no upside for either choice.
  * - **The brand is already protected by a project rule, not by JSDoc.**
  *   `fileEntry.ts` makes the construction discipline explicit: only the
- *   `canonicalizeExternalPath` factory may produce `CanonicalExternalPath`;
+ *   `canonicalizeExternalPath` factory may produce `FilePath`;
  *   production code MUST NEVER `as`-cast into the brand. Code that
  *   bypasses the gate violates the rule, not just an inline comment —
  *   PR review catches it the same way it catches any other rule break.
