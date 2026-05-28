@@ -1,0 +1,80 @@
+import { prefetch } from '@data/hooks/useDataApi'
+import { loggerService } from '@logger'
+import type { FileMetadata } from '@renderer/types'
+import { uuid } from '@renderer/utils'
+import type { ImageGenerationMode } from '@shared/data/types/model'
+
+import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
+import { canonicalGenerate } from './canonicalGenerate'
+import type { GenerateInput } from './types/generateInput'
+import type { PaintingData } from './types/paintingData'
+
+const logger = loggerService.withContext('paintings/paintingPipeline')
+
+/**
+ * Build an initial `PaintingData` row for a new painting under the given
+ * provider. Single empty shape — every per-model knob lives in
+ * `params: Record<string, unknown>` and gets populated by the form when the
+ * user picks a model + edits controls.
+ */
+export function createDefaultPainting(providerId: string): PaintingData {
+  return { id: uuid(), providerId, mode: 'generate', prompt: '', files: [], params: {} }
+}
+
+/**
+ * Generic painting generate dispatch — the same flow for every provider:
+ *
+ *   1. Look up the model's `imageGeneration` block via DataApi.
+ *   2. If the model declares per-mode `vendorTransport` (PPIO async
+ *      endpoints, future custom-transport vendors), inject the descriptor
+ *      into `painting.params.modelDescriptor` so the AI SDK image-model
+ *      can read it from `providerOptions[providerId]`.
+ *   3. Hand off to `canonicalGenerate` with provider-derived download
+ *      options (aihubmix wants the proxy-warning hint stamped on URL
+ *      downloads).
+ *
+ * Vendor wire-format quirks live in the aiCore image-model adapters
+ * (`aihubmix-image-model.ts`, `imageTransports/{ppio,dmxapi,ovms,modelscope}.ts`),
+ * not here. This function only does the registry → bag injection.
+ */
+export async function paintingGenerate(input: GenerateInput): Promise<FileMetadata[]> {
+  const modelId = input.painting.model
+  const canonicalMode = tabToImageGenerationMode(input.painting.mode)
+
+  if (modelId) {
+    try {
+      const support = await prefetch('/providers/:providerId/models/:modelId*/image-generation-support', {
+        params: { providerId: input.provider.id, modelId }
+      })
+      const modes = support?.modes
+      const effectiveMode: ImageGenerationMode | undefined =
+        canonicalMode && modes?.[canonicalMode]
+          ? canonicalMode
+          : modes
+            ? (Object.keys(modes)[0] as ImageGenerationMode)
+            : undefined
+      const transport = effectiveMode && modes ? modes[effectiveMode]?.vendorTransport : undefined
+      if (transport?.endpoint) {
+        input.painting.params = {
+          ...input.painting.params,
+          modelDescriptor: {
+            id: modelId,
+            endpoint: transport.endpoint,
+            isSync: transport.isSync,
+            mode: effectiveMode
+          }
+        }
+      }
+    } catch (error) {
+      logger.warn('Failed to prefetch vendorTransport', {
+        providerId: input.provider.id,
+        modelId,
+        mode: canonicalMode,
+        error
+      })
+    }
+  }
+
+  const downloadOptions = input.provider.id === 'aihubmix' ? { showProxyWarning: true } : undefined
+  return canonicalGenerate(input, downloadOptions ? { downloadOptions } : undefined)
+}

@@ -7,14 +7,14 @@ import { useCallback, useRef } from 'react'
 import { paintingDataToCreateDto } from '../model/mappers/paintingDataToCreateDto'
 import { paintingDataToUpdateDto } from '../model/mappers/paintingDataToUpdateDto'
 import { recordToPaintingData } from '../model/mappers/recordToPaintingData'
+import { createDefaultPainting } from '../model/paintingPipeline'
 import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'
-import type { PaintingProviderDefinition } from '../providers/types'
 
 interface UsePaintingListInput {
   painting: PaintingData
   setCurrentPainting: (painting: PaintingData) => void
-  currentProviderDefinition: PaintingProviderDefinition
+  currentProviderId: string
   modelOptions: ModelOption[]
   historyItems: PaintingData[]
   cancelGeneration: (paintingId: string) => void
@@ -35,7 +35,7 @@ interface UsePaintingListInput {
 export function usePaintingList({
   painting,
   setCurrentPainting,
-  currentProviderDefinition,
+  currentProviderId,
   modelOptions,
   historyItems,
   cancelGeneration
@@ -74,9 +74,7 @@ export function usePaintingList({
   )
 
   const add = useCallback(async () => {
-    const nextPainting = currentProviderDefinition.createPaintingData({
-      modelOptions: modelOptionsRef.current.length > 0 ? modelOptionsRef.current : undefined
-    })
+    const nextPainting = createDefaultPainting(currentProviderId)
     setCurrentPainting(nextPainting)
 
     try {
@@ -87,7 +85,7 @@ export function usePaintingList({
     } catch (error) {
       presentPaintingGenerateError(error)
     }
-  }, [createPainting, currentProviderDefinition, setCurrentPainting])
+  }, [createPainting, currentProviderId, setCurrentPainting])
 
   const selectNextAfterDelete = useCallback(
     async (deletedId: string) => {

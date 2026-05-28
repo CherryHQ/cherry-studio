@@ -1,9 +1,10 @@
 import { useCallback } from 'react'
 
+import { createDefaultPainting } from '../model/paintingPipeline'
 import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'
 import { computeModelFieldReset } from '../utils/computeModelFieldReset'
-import { resolvePaintingProviderDefinition, tabToImageGenerationMode } from '../utils/paintingProviderMode'
+import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
 
 interface UsePaintingModelSwitchInput {
   painting: PaintingData
@@ -40,12 +41,8 @@ export function usePaintingModelSwitch({
         return
       }
 
-      const targetDefinition = resolvePaintingProviderDefinition(providerId)
-      const targetModelOptions = await ensureProviderCatalog(providerId)
-      const targetPainting =
-        providerId === painting.providerId
-          ? painting
-          : targetDefinition.createPaintingData({ modelOptions: targetModelOptions })
+      await ensureProviderCatalog(providerId)
+      const targetPainting = providerId === painting.providerId ? painting : createDefaultPainting(providerId)
 
       onPaintingChange({
         ...targetPainting,

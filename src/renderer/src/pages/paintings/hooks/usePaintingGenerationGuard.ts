@@ -2,14 +2,12 @@ import { useCallback } from 'react'
 
 import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'
-import { resolvePaintingProviderDefinition, resolvePaintingTabForMode } from '../utils/paintingProviderMode'
 import type { PaintingModelCatalogData } from './usePaintingModelCatalog'
 import { usePaintingProviderRuntime } from './usePaintingProviderRuntime'
 
 export type PaintingGenerationGuardReason =
   | 'provider_disabled'
   | 'no_api_key'
-  | 'mode_unsupported'
   | 'model_missing'
   | 'model_unavailable'
   | 'catalog_error'
@@ -26,7 +24,6 @@ interface UsePaintingGenerationGuardInput {
 
 export function usePaintingGenerationGuard({ painting, ensureCurrentCatalog }: UsePaintingGenerationGuardInput) {
   const providerId = painting.providerId
-  const mode = painting.mode
   const modelId = painting.model
   const { provider } = usePaintingProviderRuntime(providerId)
 
@@ -39,11 +36,6 @@ export function usePaintingGenerationGuard({ painting, ensureCurrentCatalog }: U
     const apiKey = await provider.getApiKey()
     if (!apiKey.trim()) {
       return { ok: false, reason: 'no_api_key' }
-    }
-
-    const definition = resolvePaintingProviderDefinition(providerId)
-    if (!resolvePaintingTabForMode(definition, mode)) {
-      return { ok: false, reason: 'mode_unsupported' }
     }
 
     if (!modelId) {
@@ -67,7 +59,7 @@ export function usePaintingGenerationGuard({ painting, ensureCurrentCatalog }: U
     }
 
     return { ok: true }
-  }, [ensureCurrentCatalog, mode, modelId, provider, providerId])
+  }, [ensureCurrentCatalog, modelId, provider])
 
   return { validateBeforeGenerate }
 }

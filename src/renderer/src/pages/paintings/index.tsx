@@ -1,7 +1,7 @@
 import './painting-theme.css'
 
 import Scrollbar from '@renderer/components/Scrollbar'
-import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type FC, useCallback, useEffect, useRef, useState } from 'react'
 
 import Artboard from './components/Artboard'
 import PaintingModelSelector from './components/PaintingModelSelector'
@@ -16,17 +16,15 @@ import { usePaintingList } from './hooks/usePaintingList'
 import { usePaintingModelCatalog } from './hooks/usePaintingModelCatalog'
 import { usePaintingModelSwitch } from './hooks/usePaintingModelSwitch'
 import { usePaintingProviderOptions } from './hooks/usePaintingProviderOptions'
+import { createDefaultPainting } from './model/paintingPipeline'
 import type { PaintingData } from './model/types/paintingData'
 import { paintingClasses } from './PaintingPrimitives'
-import { resolvePaintingProviderDefinition } from './utils/paintingProviderMode'
 
 const PaintingPage: FC = () => {
   const providerOptions = usePaintingProviderOptions()
-  const { initialProviderId, initialProviderDefinition } = usePaintingInitialProvider(providerOptions)
+  const { initialProviderId } = usePaintingInitialProvider(providerOptions)
 
-  const [currentPainting, setCurrentPainting] = useState<PaintingData>(() =>
-    initialProviderDefinition.createPaintingData({})
-  )
+  const [currentPainting, setCurrentPainting] = useState<PaintingData>(() => createDefaultPainting(initialProviderId))
 
   const patchPainting = useCallback((updates: Partial<PaintingData>) => {
     setCurrentPainting((current) => ({ ...current, ...updates }) as PaintingData)
@@ -37,10 +35,6 @@ const PaintingPage: FC = () => {
   usePaintingInitialSelection({ currentPainting, historyItems: history.items, setCurrentPainting })
 
   const currentProviderId = currentPainting.providerId || initialProviderId
-  const currentProviderDefinition = useMemo(
-    () => resolvePaintingProviderDefinition(currentProviderId),
-    [currentProviderId]
-  )
 
   const modelCatalog = usePaintingModelCatalog({
     providerOptions,
@@ -67,7 +61,7 @@ const PaintingPage: FC = () => {
   const list = usePaintingList({
     painting: currentPainting,
     setCurrentPainting,
-    currentProviderDefinition,
+    currentProviderId,
     modelOptions: modelCatalog.currentModelOptions,
     historyItems: history.items,
     cancelGeneration

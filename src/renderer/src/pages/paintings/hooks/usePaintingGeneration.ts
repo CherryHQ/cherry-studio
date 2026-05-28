@@ -2,7 +2,7 @@ import { presentPaintingGenerateError } from '@renderer/aiCore/errors/paintingGe
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { uuid } from '@renderer/utils'
 import type { PaintingMode } from '@shared/data/types/painting'
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 import { paintingDataToCreateDto } from '../model/mappers/paintingDataToCreateDto'
 import { paintingDataToUpdateDto } from '../model/mappers/paintingDataToUpdateDto'
@@ -12,9 +12,9 @@ import {
   clearPaintingAbortController,
   registerPaintingAbortController
 } from '../model/paintingAbortControllerStore'
+import { paintingGenerate } from '../model/paintingPipeline'
 import type { PaintingData } from '../model/types/paintingData'
 import type { PaintingGenerationState } from '../model/utils/paintingGenerationParams'
-import { resolvePaintingProviderDefinition } from '../utils/paintingProviderMode'
 import { usePaintingProviderRuntime } from './usePaintingProviderRuntime'
 
 function hasOutput(painting: PaintingData) {
@@ -30,7 +30,6 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
   const { createPainting, updatePainting, refresh } = usePaintings()
   const currentProviderId = painting.providerId
   const { provider } = usePaintingProviderRuntime(currentProviderId)
-  const definition = useMemo(() => resolvePaintingProviderDefinition(currentProviderId), [currentProviderId])
   const visibleIdRef = useRef(painting.id)
   const inFlightIdRef = useRef<string | null>(null)
 
@@ -107,7 +106,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
     pushGenerationState(generationState)
 
     try {
-      const files = await definition.generate({
+      const files = await paintingGenerate({
         painting: targetPainting,
         provider,
         tab: 'default',
@@ -139,7 +138,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
         inFlightIdRef.current = null
       }
     }
-  }, [applyIfVisible, createPainting, definition, painting, provider, refresh, onPaintingChange, updatePainting])
+  }, [applyIfVisible, createPainting, painting, provider, refresh, onPaintingChange, updatePainting])
 
   const cancel = useCallback((paintingId: string) => {
     abortPaintingGeneration(paintingId)
