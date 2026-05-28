@@ -434,6 +434,7 @@ describe('ThinkingButton', () => {
       expect(mockUpdateSettings).toHaveBeenCalledWith({
         reasoning_effort: 'none',
         reasoning_effort_cache: 'none',
+        reasoning_effort_by_model: { 'doubao-seed-1-6': 'none' },
         qwenThinkMode: false
       })
     })

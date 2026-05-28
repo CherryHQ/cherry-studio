@@ -82,7 +82,7 @@ const ThinkingButton: FC<Props> = ({
           reasoning_effort: option,
           reasoning_effort_cache: option,
           reasoning_effort_by_model: {
-            ...(assistant.settings?.reasoning_effort_by_model || {}),
+            ...assistant.settings?.reasoning_effort_by_model,
             [model.id]: option
           },
           qwenThinkMode: false
@@ -102,7 +102,7 @@ const ThinkingButton: FC<Props> = ({
         reasoning_effort: option,
         reasoning_effort_cache: option,
         reasoning_effort_by_model: {
-          ...(assistant.settings?.reasoning_effort_by_model || {}),
+          ...assistant.settings?.reasoning_effort_by_model,
           [model.id]: option
         },
         qwenThinkMode: true
