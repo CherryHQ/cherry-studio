@@ -4732,9 +4732,10 @@
           "generate": {
             "supports": {
               "guidanceScale": {
-                "default": 4.5,
+                "default": 3.5,
                 "max": 20,
-                "min": 1,
+                "min": 1.5,
+                "step": 0.1,
                 "type": "range"
               },
               "negativePrompt": {
@@ -4748,8 +4749,8 @@
                 "type": "range"
               },
               "numInferenceSteps": {
-                "default": 25,
-                "max": 50,
+                "default": 30,
+                "max": 100,
                 "min": 1,
                 "type": "range"
               },
@@ -4760,8 +4761,8 @@
                 "type": "text"
               },
               "size": {
-                "default": "1024x1024",
-                "options": ["1024x1024", "1280x960", "960x1280", "768x1024", "1024x768"],
+                "default": "1328x1328",
+                "options": ["1024x1024", "1328x1328", "1664x928", "928x1664", "1472x1140", "1140x1472", "1664x1664"],
                 "render": "chips",
                 "type": "enum"
               }
@@ -4778,9 +4779,10 @@
           "edit": {
             "supports": {
               "guidanceScale": {
-                "default": 4,
+                "default": 3.5,
                 "max": 20,
-                "min": 1,
+                "min": 1.5,
+                "step": 0.1,
                 "type": "range"
               },
               "negativePrompt": {
@@ -4789,7 +4791,7 @@
               },
               "numInferenceSteps": {
                 "default": 30,
-                "max": 50,
+                "max": 100,
                 "min": 1,
                 "type": "range"
               },
