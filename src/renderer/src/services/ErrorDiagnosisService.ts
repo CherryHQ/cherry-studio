@@ -92,8 +92,10 @@ function buildContextHint(errorInfo: Record<string, unknown>, context?: Diagnosi
     return `## Context\nThe user is calling ${provider} API and got an authentication error. Cherry Studio lets users configure API keys per provider in provider settings.\n`
   }
 
-  // Quota / balance exhausted — check first so a 429 with "insufficient" routes here, not to rate_limit
+  // Quota / balance exhausted — check first so a 429 with "insufficient" routes here, not to rate_limit.
+  // HTTP 402 Payment Required is the canonical billing-failure status.
   if (
+    status === 402 ||
     msg.includes('quota') ||
     msg.includes('insufficient') ||
     msg.includes('billing') ||

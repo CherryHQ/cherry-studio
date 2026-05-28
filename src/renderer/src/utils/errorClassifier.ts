@@ -76,8 +76,10 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
     return { category: 'model', i18nKey: 'error.diagnosis.model', navTarget: `/settings/provider${providerSuffix}` }
   }
 
-  // Quota / balance exhausted — check first so "429 + insufficient_balance" routes here, not to rate_limit
+  // Quota / balance exhausted — check first so "429 + insufficient_balance" routes here, not to rate_limit.
+  // HTTP 402 Payment Required is the canonical billing-failure status (used by several providers and gateways).
   if (
+    numStatus === 402 ||
     msg.includes('quota') ||
     msg.includes('insufficient_balance') ||
     msg.includes('insufficient_quota') ||

@@ -231,6 +231,21 @@ describe('ErrorDiagnosisService', () => {
       expect(callArgs.content).toContain('Key revoked')
     })
 
+    it('routes HTTP 402 Payment Required to quota context in the AI prompt', async () => {
+      mockFetchGenerate.mockResolvedValue(
+        JSON.stringify({ summary: 'x', category: 'quota', explanation: 'x', steps: [] })
+      )
+
+      await diagnoseError(makeError({ statusCode: 402, message: 'Payment Required' }), 'en')
+
+      const callArgs = mockFetchGenerate.mock.calls[0][0]
+      // The 402 path must use the quota context (billing/balance language) and
+      // must not pick the rate-limit context (which would tell the user to
+      // "wait and retry" — wrong advice for a billing failure).
+      expect(callArgs.prompt).toContain('quota or account balance is exhausted')
+      expect(callArgs.prompt).not.toContain('hitting a rate limit')
+    })
+
     it('falls back to provider/modelId on the error when context is missing', async () => {
       mockFetchGenerate.mockResolvedValue(
         JSON.stringify({ summary: 'x', category: 'auth', explanation: 'x', steps: [] })

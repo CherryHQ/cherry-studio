@@ -1780,8 +1780,8 @@
       "payload": "Contenido de la solicitud demasiado grande, por favor reduce el tamaño del archivo o del texto",
       "proxy": "Error de proxy o de certificado SSL, verifique la configuración del proxy y de la red",
       "quota": "Cuota de la cuenta agotada, recarga o cambia de proveedor",
-      "rate_limit": "[to be translated]:Too many requests in a short time. Wait a moment and retry, or switch to a model with a higher rate limit",
-      "region": "[to be translated]:Service unavailable in your region. Configure a proxy or switch to a provider available in your area",
+      "rate_limit": "Demasiadas solicitudes en poco tiempo. Espere un momento y vuelva a intentarlo, o cambie a un modelo con un límite de velocidad mayor",
+      "region": "Servicio no disponible en su región. Configure un proxy o cambie a un proveedor disponible en su zona",
       "server": "Error del servidor, intenta de nuevo más tarde",
       "stream": "Respuesta interrumpida, verifica la estabilidad de la red o intenta nuevamente",
       "unknown": "Se ha producido un error",
@@ -1793,6 +1793,7 @@
     "http": {
       "400": "Error en la solicitud, revise si los parámetros de la solicitud son correctos. Si modificó la configuración del modelo, restablezca a la configuración predeterminada",
       "401": "Fallo en la autenticación, revise si la clave API es correcta",
+      "402": "Se requiere pago. El saldo o la cuota de su cuenta se ha agotado — recargue en el sitio web del proveedor o cambie a otro proveedor",
       "403": "Acceso prohibido, traduzca el mensaje de error específico para ver la causa o póngase en contacto con el proveedor de servicios para preguntar sobre la razón de la prohibición",
       "404": "El modelo no existe o la ruta de la solicitud está incorrecta",
       "429": "La tasa de solicitudes excede el límite, inténtelo de nuevo más tarde",

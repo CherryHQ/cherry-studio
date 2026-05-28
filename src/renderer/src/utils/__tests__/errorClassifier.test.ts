@@ -107,6 +107,17 @@ describe('classifyError', () => {
     expect(result.category).toBe('quota')
   })
 
+  it('classifies HTTP 402 Payment Required as quota', () => {
+    const result = classifyError(makeError({ statusCode: 402, message: 'Payment Required' }))
+    expect(result.category).toBe('quota')
+    expect(result.navTarget).toBe('/settings/provider')
+  })
+
+  it('classifies HTTP 402 as quota even with a generic message', () => {
+    const result = classifyError(makeError({ statusCode: 402, message: 'something went wrong' }))
+    expect(result.category).toBe('quota')
+  })
+
   // Network
   it('classifies econnrefused as network', () => {
     const result = classifyError(makeError({ message: 'connect ECONNREFUSED 127.0.0.1:443' }))

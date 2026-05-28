@@ -1780,8 +1780,8 @@
       "payload": "Contenu de la requête trop volumineux, veuillez réduire la taille du fichier ou du texte",
       "proxy": "Erreur de proxy ou de certificat SSL, vérifiez les paramètres proxy et réseau",
       "quota": "Quota du compte épuisé, veuillez recharger ou changer de fournisseur",
-      "rate_limit": "[to be translated]:Too many requests in a short time. Wait a moment and retry, or switch to a model with a higher rate limit",
-      "region": "[to be translated]:Service unavailable in your region. Configure a proxy or switch to a provider available in your area",
+      "rate_limit": "Trop de requêtes en peu de temps. Patientez un instant et réessayez, ou passez à un modèle avec une limite de débit plus élevée",
+      "region": "Service indisponible dans votre région. Configurez un proxy ou passez à un fournisseur disponible dans votre zone",
       "server": "Erreur serveur, veuillez réessayer plus tard",
       "stream": "Réponse interrompue, vérifiez la stabilité du réseau ou réessayez",
       "unknown": "Une erreur est survenue",
@@ -1793,6 +1793,7 @@
     "http": {
       "400": "Erreur de requête, veuillez vérifier si les paramètres de la requête sont corrects. Si vous avez modifié les paramètres du modèle, réinitialisez-les aux paramètres par défaut.",
       "401": "Échec de l'authentification, veuillez vérifier que votre clé API est correcte.",
+      "402": "Paiement requis. Le solde ou le quota de votre compte est épuisé — rechargez sur le site du fournisseur ou changez de fournisseur.",
       "403": "Accès interdit, veuillez traduire le message d'erreur spécifique pour connaître la raison ou contacter le fournisseur de services pour demander la raison de l'interdiction.",
       "404": "Le modèle n'existe pas ou la requête de chemin est incorrecte.",
       "429": "Le taux de requêtes dépasse la limite, veuillez réessayer plus tard.",
