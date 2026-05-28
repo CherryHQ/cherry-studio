@@ -27,6 +27,7 @@ const KEY_LABELS: Record<string, { title: string; tooltip?: string }> = {
   personGeneration: { title: 'paintings.person_generation' },
   numInferenceSteps: { title: 'paintings.inference_steps', tooltip: 'paintings.inference_steps_tip' },
   guidanceScale: { title: 'paintings.guidance_scale', tooltip: 'paintings.guidance_scale_tip' },
+  cfg: { title: 'paintings.guidance_scale', tooltip: 'paintings.guidance_scale_tip' },
   safetyTolerance: { title: 'paintings.safety_tolerance' },
   imageWeight: { title: 'paintings.image_weight' },
   resemblance: { title: 'paintings.resemblance' },

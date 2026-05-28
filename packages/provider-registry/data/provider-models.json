@@ -1325,6 +1325,38 @@
     {
       "apiModelId": "openai/gpt-image-1.5",
       "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "background": { "options": ["auto", "transparent", "opaque"], "type": "enum" },
+              "moderation": { "options": ["auto", "low"], "type": "enum" },
+              "numImages": { "default": 1, "max": 10, "min": 1, "type": "range" },
+              "quality": { "options": ["auto", "low", "medium", "high"], "type": "enum" },
+              "size": {
+                "default": "1024x1024",
+                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "background": { "options": ["auto", "transparent", "opaque"], "type": "enum" },
+              "moderation": { "options": ["auto", "low"], "type": "enum" },
+              "numImages": { "default": 1, "max": 10, "min": 1, "type": "range" },
+              "quality": { "options": ["auto", "low", "medium", "high"], "type": "enum" },
+              "size": {
+                "default": "1024x1024",
+                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
       "modelId": "gpt-image-1-5",
       "pricing": {
         "input": {
@@ -1341,6 +1373,38 @@
     {
       "apiModelId": "openai/gpt-image-1-mini",
       "endpointTypes": ["openai-image-generation"],
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "background": { "options": ["auto", "transparent", "opaque"], "type": "enum" },
+              "moderation": { "options": ["auto", "low"], "type": "enum" },
+              "numImages": { "default": 1, "max": 10, "min": 1, "type": "range" },
+              "quality": { "options": ["auto", "low", "medium", "high"], "type": "enum" },
+              "size": {
+                "default": "1024x1024",
+                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "background": { "options": ["auto", "transparent", "opaque"], "type": "enum" },
+              "moderation": { "options": ["auto", "low"], "type": "enum" },
+              "numImages": { "default": 1, "max": 10, "min": 1, "type": "range" },
+              "quality": { "options": ["auto", "low", "medium", "high"], "type": "enum" },
+              "size": {
+                "default": "1024x1024",
+                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
       "modelId": "gpt-image-1-mini",
       "pricing": {
         "input": {
@@ -15209,11 +15273,73 @@
     },
     {
       "apiModelId": "Qwen/Qwen-Image",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "cfg": {
+                "default": 4,
+                "max": 20,
+                "min": 0.1,
+                "step": 0.1,
+                "type": "range"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numInferenceSteps": {
+                "default": 50,
+                "max": 100,
+                "min": 1,
+                "type": "range"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "size": {
+                "default": "1328x1328",
+                "options": ["1024x1024", "1328x1328", "1664x928", "928x1664", "1472x1140", "1140x1472"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
       "modelId": "qwen-image",
       "providerId": "silicon"
     },
     {
       "apiModelId": "Qwen/Qwen-Image-Edit",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "cfg": {
+                "default": 4,
+                "max": 20,
+                "min": 0.1,
+                "step": 0.1,
+                "type": "range"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "numInferenceSteps": {
+                "default": 50,
+                "max": 100,
+                "min": 1,
+                "type": "range"
+              },
+              "seed": {
+                "type": "text"
+              }
+            }
+          }
+        }
+      },
       "modelId": "qwen-image-edit",
       "providerId": "silicon"
     },
@@ -26609,6 +26735,40 @@
       "providerId": "zhipu"
     },
     {
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "size": {
+                "default": "1024x1024",
+                "options": ["1024x1024", "768x1344", "864x1152", "1344x768", "1152x864", "1440x720", "720x1440"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "numImages": {
+                "default": 1,
+                "max": 1,
+                "min": 1,
+                "type": "range"
+              },
+              "quality": {
+                "options": ["standard", "hd"],
+                "type": "enum"
+              },
+              "negativePrompt": {
+                "multiline": true,
+                "type": "text"
+              },
+              "seed": {
+                "type": "text"
+              },
+              "addWatermark": {
+                "type": "switch"
+              }
+            }
+          }
+        }
+      },
       "modelId": "glm-image",
       "providerId": "zhipu"
     }

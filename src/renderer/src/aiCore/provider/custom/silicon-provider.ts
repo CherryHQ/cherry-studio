@@ -1,11 +1,9 @@
-import {
-  OpenAICompatibleChatLanguageModel,
-  OpenAICompatibleEmbeddingModel,
-  OpenAICompatibleImageModel
-} from '@ai-sdk/openai-compatible'
+import { OpenAICompatibleChatLanguageModel, OpenAICompatibleEmbeddingModel } from '@ai-sdk/openai-compatible'
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
+
+import { SiliconImageModel } from './silicon-image-model'
 
 export const SILICON_PROVIDER_NAME = 'silicon' as const
 
@@ -62,7 +60,7 @@ export function createSiliconProvider(settings: SiliconProviderSettings = {}): S
   provider.embeddingModel = createEmbeddingModel
   provider.textEmbeddingModel = createEmbeddingModel
   provider.imageModel = (modelId: string) =>
-    new OpenAICompatibleImageModel(modelId, {
+    new SiliconImageModel(modelId, {
       provider: `${SILICON_PROVIDER_NAME}.image`,
       url,
       headers,
