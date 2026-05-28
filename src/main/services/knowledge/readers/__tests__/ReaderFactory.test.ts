@@ -224,8 +224,8 @@ describe('loadKnowledgeItemDocuments', () => {
     })
   })
 
-  it('resolves file documents from an override file entry id when provided', async () => {
-    const item = createFileItem('.pdf')
+  it('can read a processed artifact file entry while preserving source metadata', async () => {
+    const item = createFileItem('.pdf', '/tmp/source.pdf')
     getPhysicalPathMock.mockResolvedValueOnce('/resolved/processed.md')
 
     const docs = await loadKnowledgeItemDocuments(item, undefined, { fileEntryId: PROCESSED_FILE_ENTRY_ID })
@@ -234,7 +234,7 @@ describe('loadKnowledgeItemDocuments', () => {
     expect(readerSpies.markdown).toHaveBeenCalledWith('/resolved/processed.md')
     expect(docs[0]).toMatchObject({
       metadata: {
-        source: '/tmp/sample.pdf'
+        source: '/tmp/source.pdf'
       }
     })
   })

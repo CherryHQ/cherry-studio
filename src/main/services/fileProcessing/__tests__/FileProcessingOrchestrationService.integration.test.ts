@@ -295,6 +295,27 @@ describe('FileProcessingOrchestrationService.startTask — routing', () => {
     expect(enqueueMock).not.toHaveBeenCalled()
   })
 
+  it('rejects directory entries before enqueueing a processor job', async () => {
+    resolveProcessorConfigByFeatureMock.mockReturnValue({
+      id: 'tesseract',
+      capabilities: [{ feature: 'image_to_text', inputs: ['image'] }]
+    })
+    fileManagerGetMetadataMock.mockResolvedValueOnce({
+      kind: 'directory',
+      size: 0,
+      createdAt: 1,
+      modifiedAt: 1
+    })
+    const svc = makeSvc()
+
+    await expect(
+      svc.startTask({ feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' })
+    ).rejects.toThrow('File processing does not support directories')
+    expect(enqueueMock).not.toHaveBeenCalled()
+    expect(fileManagerGetByIdMock).not.toHaveBeenCalled()
+    expect(toFileInfoMock).not.toHaveBeenCalled()
+  })
+
   it('rejects when processor does not declare the requested feature', async () => {
     resolveProcessorConfigByFeatureMock.mockReturnValue({
       id: 'tesseract',

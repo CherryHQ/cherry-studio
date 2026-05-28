@@ -237,7 +237,9 @@ const KnowledgeItemRowMoreMenu = ({
   const handlePreviewSource = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
     setIsOpen(false)
-    void onPreviewSource()
+    void Promise.resolve(onPreviewSource()).catch((error) => {
+      window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.preview.failed')))
+    })
   }
 
   const handleViewChunks = (event: MouseEvent<HTMLButtonElement>) => {
@@ -249,17 +251,17 @@ const KnowledgeItemRowMoreMenu = ({
   const handleReindex = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
     setIsOpen(false)
-    void Promise.resolve()
-      .then(onReindex)
-      .catch((error) => {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.reindex_failed')))
-      })
+    void Promise.resolve(onReindex()).catch((error) => {
+      window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.reindex_failed')))
+    })
   }
 
   const handleDelete = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
     setIsOpen(false)
-    void onDelete()
+    void Promise.resolve(onDelete()).catch((error) => {
+      window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.delete_failed')))
+    })
   }
 
   return (

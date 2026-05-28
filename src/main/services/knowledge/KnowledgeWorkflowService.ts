@@ -8,20 +8,30 @@ import { FileProcessorIdSchema } from '@shared/data/presets/file-processing'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { KnowledgeItem, KnowledgeRuntimeAddItemInput } from '@shared/data/types/knowledge'
 
-import type { KnowledgeMutationCoordinator } from './KnowledgeMutationCoordinator'
+import type { KnowledgeLockManager } from './KnowledgeLockManager'
 import {
+  type KnowledgeBaseId,
   knowledgeDeleteSubtreeIdempotencyKey,
   knowledgeFileProcessingCheckIdempotencyKey,
-  knowledgeQueueName
+  knowledgeFileProcessingStartIdempotencyKey,
+  knowledgeIndexIdempotencyKey,
+  type KnowledgeItemId,
+  knowledgePrepareIdempotencyKey,
+  knowledgeQueueName,
+  knowledgeReindexSubtreeIdempotencyKey,
+  toKnowledgeBaseId,
+  toKnowledgeItemId,
+  toKnowledgeItemIds
 } from './types'
+import { markUnscheduledKnowledgeItemsFailed } from './utils/cleanup/statusCleanup'
 import { isContainerKnowledgeItem } from './utils/items'
 import { planKnowledgeItemSource } from './utils/sources/sourcePlanning'
 
-const logger = loggerService.withContext('Knowledge:WorkflowCoordinator')
+const logger = loggerService.withContext('Knowledge:WorkflowService')
 const FILE_PROCESSING_CHECK_DELAY_MS = 1000
 
-export class KnowledgeWorkflowCoordinator {
-  constructor(private readonly mutationCoordinator: KnowledgeMutationCoordinator) {}
+export class KnowledgeWorkflowService {
+  constructor(private readonly knowledgeLockManager: KnowledgeLockManager) {}
 
   async addItems(baseId: string, inputs: KnowledgeRuntimeAddItemInput[]): Promise<void> {
     if (inputs.length === 0) {
@@ -31,15 +41,16 @@ export class KnowledgeWorkflowCoordinator {
     const base = await knowledgeBaseService.getById(baseId)
     const acceptedItems: KnowledgeItem[] = []
 
-    await this.mutationCoordinator.withBaseMutationLock(base.id, async () => {
+    await this.knowledgeLockManager.withBaseMutationLock(base.id, async () => {
       try {
         for (const input of inputs) {
           const createdItem = await knowledgeItemService.create(base.id, input)
+          acceptedItems.push(createdItem)
           const activeItem = await knowledgeItemService.updateStatus(
             createdItem.id,
             isContainerKnowledgeItem(createdItem) ? 'preparing' : 'processing'
           )
-          acceptedItems.push(activeItem)
+          acceptedItems[acceptedItems.length - 1] = activeItem
         }
       } catch (error) {
         await this.rollbackAcceptedItems(base.id, acceptedItems, error)
@@ -50,7 +61,7 @@ export class KnowledgeWorkflowCoordinator {
     const completedSchedulingItemIds = new Set<string>()
     try {
       for (const item of acceptedItems) {
-        await this.scheduleItem(item.baseId, item.id)
+        await this.scheduleItem(toKnowledgeBaseId(item.baseId), toKnowledgeItemId(item.id))
         completedSchedulingItemIds.add(item.id)
       }
     } catch (error) {
@@ -62,7 +73,9 @@ export class KnowledgeWorkflowCoordinator {
   async deleteItems(baseId: string, itemIds: string[]): Promise<void> {
     await knowledgeBaseService.getById(baseId)
     const rootItemIds = [...new Set(itemIds)]
-    const markedIds = await this.mutationCoordinator.withBaseMutationLock(baseId, () =>
+    const knowledgeBaseId = toKnowledgeBaseId(baseId)
+    const knowledgeRootItemIds = toKnowledgeItemIds(rootItemIds)
+    const markedIds = await this.knowledgeLockManager.withBaseMutationLock(baseId, () =>
       knowledgeItemService.setSubtreeStatus(baseId, rootItemIds, 'deleting')
     )
     try {
@@ -71,8 +84,8 @@ export class KnowledgeWorkflowCoordinator {
         'knowledge.delete-subtree',
         { baseId, rootItemIds },
         {
-          idempotencyKey: knowledgeDeleteSubtreeIdempotencyKey(baseId, rootItemIds),
-          queue: knowledgeQueueName(baseId)
+          idempotencyKey: knowledgeDeleteSubtreeIdempotencyKey(knowledgeBaseId, knowledgeRootItemIds),
+          queue: knowledgeQueueName(knowledgeBaseId)
         }
       )
     } catch (error) {
@@ -88,19 +101,24 @@ export class KnowledgeWorkflowCoordinator {
   async reindexItems(baseId: string, itemIds: string[]): Promise<void> {
     await knowledgeBaseService.getById(baseId)
     const rootItemIds = [...new Set(itemIds)]
+    const knowledgeBaseId = toKnowledgeBaseId(baseId)
+    const knowledgeRootItemIds = toKnowledgeItemIds(rootItemIds)
     const jobManager = application.get('JobManager')
-    const rootKey = [...rootItemIds].sort().join(',')
     await jobManager.enqueue(
       'knowledge.reindex-subtree',
       { baseId, rootItemIds },
       {
-        idempotencyKey: `knowledge:${baseId}:${rootKey}:reindex`,
-        queue: knowledgeQueueName(baseId)
+        idempotencyKey: knowledgeReindexSubtreeIdempotencyKey(knowledgeBaseId, knowledgeRootItemIds),
+        queue: knowledgeQueueName(knowledgeBaseId)
       }
     )
   }
 
-  async scheduleItem(baseId: string, itemId: string, parentJobId: string | null = null): Promise<void> {
+  async scheduleItem(
+    baseId: KnowledgeBaseId,
+    itemId: KnowledgeItemId,
+    parentJobId: string | null = null
+  ): Promise<void> {
     const base = await knowledgeBaseService.getById(baseId)
     const item = await knowledgeItemService.getById(itemId)
     if (item.baseId !== baseId) {
@@ -122,7 +140,7 @@ export class KnowledgeWorkflowCoordinator {
         'knowledge.prepare-root',
         { baseId, itemId },
         {
-          idempotencyKey: `knowledge:${baseId}:${itemId}:prepare`,
+          idempotencyKey: knowledgePrepareIdempotencyKey(baseId, itemId),
           queue: knowledgeQueueName(baseId),
           parentId: parentJobId ?? undefined
         }
@@ -143,7 +161,7 @@ export class KnowledgeWorkflowCoordinator {
           processorId
         },
         {
-          idempotencyKey: `knowledge:${baseId}:${itemId}:fp-start`,
+          idempotencyKey: knowledgeFileProcessingStartIdempotencyKey(baseId, itemId),
           parentId: parentJobId ?? undefined
         }
       )
@@ -159,7 +177,7 @@ export class KnowledgeWorkflowCoordinator {
       'knowledge.index-documents',
       { baseId, itemId, parentJobId },
       {
-        idempotencyKey: `knowledge:${baseId}:${itemId}:index`,
+        idempotencyKey: knowledgeIndexIdempotencyKey(baseId, itemId),
         queue: knowledgeQueueName(baseId),
         parentId: parentJobId ?? undefined
       }
@@ -167,8 +185,8 @@ export class KnowledgeWorkflowCoordinator {
   }
 
   async scheduleFileProcessingCheck(
-    baseId: string,
-    itemId: string,
+    baseId: KnowledgeBaseId,
+    itemId: KnowledgeItemId,
     fileProcessingJobId: string,
     sourceFileEntryId: FileEntryId,
     options: { checkCount?: number; firstScheduledAt?: number; parentJobId?: string | null } = {}
@@ -189,8 +207,8 @@ export class KnowledgeWorkflowCoordinator {
   }
 
   async scheduleIndexing(
-    baseId: string,
-    itemId: string,
+    baseId: KnowledgeBaseId,
+    itemId: KnowledgeItemId,
     processedFileEntryId: FileEntryId,
     parentJobId: string | null = null
   ): Promise<void> {
@@ -199,7 +217,7 @@ export class KnowledgeWorkflowCoordinator {
       'knowledge.index-documents',
       { baseId, itemId, parentJobId, processedFileEntryId },
       {
-        idempotencyKey: `knowledge:${baseId}:${itemId}:index`,
+        idempotencyKey: knowledgeIndexIdempotencyKey(baseId, itemId),
         queue: knowledgeQueueName(baseId),
         parentId: parentJobId ?? undefined
       }
@@ -231,26 +249,15 @@ export class KnowledgeWorkflowCoordinator {
     originalError: unknown
   ): Promise<void> {
     const message = originalError instanceof Error ? originalError.message : String(originalError)
-    for (const item of items) {
-      if (completedSchedulingItemIds.has(item.id)) {
-        continue
-      }
-
-      try {
-        await knowledgeItemService.updateStatus(item.id, 'failed', {
-          error: `Failed to schedule knowledge item job: ${message}`
-        })
-      } catch (cleanupError) {
-        logger.error(
-          'Failed to mark unscheduled knowledge item after addItems scheduling failure',
-          cleanupError instanceof Error ? cleanupError : new Error(String(cleanupError)),
-          {
-            baseId,
-            itemId: item.id,
-            scheduleError: message
-          }
-        )
-      }
-    }
+    await markUnscheduledKnowledgeItemsFailed({
+      baseId,
+      items,
+      completedItemIds: completedSchedulingItemIds,
+      errorMessage: message,
+      failedStatusError: `Failed to schedule knowledge item job: ${message}`,
+      logger,
+      logMessage: 'Failed to mark unscheduled knowledge item after addItems scheduling failure',
+      logContextKey: 'scheduleError'
+    })
   }
 }

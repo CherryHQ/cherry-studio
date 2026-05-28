@@ -1,6 +1,6 @@
 import { Mutex } from 'async-mutex'
 
-export class KnowledgeMutationCoordinator {
+export class KnowledgeLockManager {
   private readonly baseMutexes = new Map<string, Mutex>()
 
   async withBaseMutationLock<T>(baseId: string, task: () => Promise<T>): Promise<T> {
@@ -25,6 +25,8 @@ export class KnowledgeMutationCoordinator {
   }
 
   private deleteIdleBaseMutex(baseId: string, mutex: Mutex): void {
+    // Only delete the exact mutex we released; a queued waiter may have already
+    // created a replacement for the same base after this task released.
     if (!mutex.isLocked() && this.baseMutexes.get(baseId) === mutex) {
       this.baseMutexes.delete(baseId)
     }

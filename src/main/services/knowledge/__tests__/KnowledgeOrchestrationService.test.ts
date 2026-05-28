@@ -13,7 +13,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   cancelManyMock,
   cancelMock,
-  createInternalEntryMock,
   createStoreMock,
   deleteStoreMock,
   enqueueMock,
@@ -32,6 +31,7 @@ const {
   knowledgeItemGetSubtreeItemsMock,
   knowledgeItemSetSubtreeStatusMock,
   knowledgeItemUpdateStatusMock,
+  listMock,
   registerHandlerMock,
   vectorDeleteByIdAndExternalIdMock,
   vectorListByExternalIdMock,
@@ -39,7 +39,6 @@ const {
 } = vi.hoisted(() => ({
   cancelManyMock: vi.fn(),
   cancelMock: vi.fn(),
-  createInternalEntryMock: vi.fn(),
   createStoreMock: vi.fn(),
   deleteStoreMock: vi.fn(),
   enqueueMock: vi.fn(),
@@ -58,6 +57,7 @@ const {
   knowledgeItemGetSubtreeItemsMock: vi.fn(),
   knowledgeItemSetSubtreeStatusMock: vi.fn(),
   knowledgeItemUpdateStatusMock: vi.fn(),
+  listMock: vi.fn(),
   registerHandlerMock: vi.fn(),
   vectorDeleteByIdAndExternalIdMock: vi.fn(),
   vectorListByExternalIdMock: vi.fn(),
@@ -67,9 +67,6 @@ const {
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    FileManager: {
-      createInternalEntry: createInternalEntryMock
-    },
     FileProcessingOrchestrationService: {
       startTask: fileProcessingStartTaskMock
     },
@@ -77,7 +74,7 @@ vi.mock('@application', async () => {
       cancel: cancelMock,
       cancelMany: cancelManyMock,
       enqueue: enqueueMock,
-      list: vi.fn().mockResolvedValue([]),
+      list: listMock,
       registerHandler: registerHandlerMock
     },
     KnowledgeVectorStoreService: {
@@ -155,7 +152,6 @@ const NOTE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
 const DELETING_NOTE_ITEM_ID = '0198f3f2-7d1b-7abc-8def-123456789abc'
 const MISSING_NOTE_ITEM_ID = '0198f3f2-7d1c-7abc-8def-123456789abc'
 const FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000501'
-const PROCESSED_FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000502'
 
 function createBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
   return {
@@ -202,6 +198,26 @@ function createNoteItem(
   }
 }
 
+function createDirectoryItem(
+  id = 'dir-1',
+  groupId: string | null = null,
+  status: KnowledgeItemOf<'directory'>['status'] = 'idle'
+): KnowledgeItemOf<'directory'> {
+  const lifecycle =
+    status === 'failed' ? ({ status, error: `failed ${id}` } as const) : ({ status, error: null } as const)
+
+  return {
+    id,
+    baseId: 'kb-1',
+    groupId,
+    type: 'directory',
+    data: { source: id, path: `/docs/${id}` },
+    ...lifecycle,
+    createdAt: '2026-04-08T00:00:00.000Z',
+    updatedAt: '2026-04-08T00:00:00.000Z'
+  }
+}
+
 function createFileItem(
   id = 'file-1',
   baseId = 'kb-1',
@@ -223,32 +239,26 @@ function createFileItem(
   }
 }
 
-function createDirectoryItem(
-  id = 'dir-1',
-  groupId: string | null = null,
-  status: KnowledgeItemOf<'directory'>['status'] = 'idle'
-): KnowledgeItemOf<'directory'> {
-  const lifecycle =
-    status === 'failed' ? ({ status, error: `failed ${id}` } as const) : ({ status, error: null } as const)
-
-  return {
-    id,
-    baseId: 'kb-1',
-    groupId,
-    type: 'directory',
-    data: { source: id, path: `/docs/${id}` },
-    ...lifecycle,
-    createdAt: '2026-04-08T00:00:00.000Z',
-    updatedAt: '2026-04-08T00:00:00.000Z'
-  }
-}
-
 function expectFailedBaseGuard(error: unknown, operation: string) {
   expect(isDataApiError(error)).toBe(true)
   expect(error).toMatchObject({
     code: ErrorCode.VALIDATION_ERROR,
     message: `Cannot ${operation} failed knowledge base`
   })
+}
+
+function createDeferred<T = void>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  let reject!: (reason?: unknown) => void
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve
+    reject = promiseReject
+  })
+  return { promise, resolve, reject }
+}
+
+function flushMicrotasks(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
 const createdItemBaseIds = new Map<string, string>()
@@ -291,11 +301,8 @@ describe('KnowledgeOrchestrationService', () => {
       return createNoteItem(id, createdItemBaseIds.get(id) ?? 'kb-1', null, status)
     })
     enqueueMock.mockResolvedValue({ id: 'job-1', snapshot: {}, finished: Promise.resolve({}) })
-    fileProcessingStartTaskMock.mockResolvedValue({
-      id: 'fp-job-1',
-      status: 'pending'
-    })
-    createInternalEntryMock.mockResolvedValue({ id: PROCESSED_FILE_ENTRY_ID })
+    fileProcessingStartTaskMock.mockResolvedValue({ id: 'fp-job-1', snapshot: {}, finished: Promise.resolve({}) })
+    listMock.mockResolvedValue([])
     createStoreMock.mockResolvedValue({
       deleteByIdAndExternalId: vectorDeleteByIdAndExternalIdMock,
       listByExternalId: vectorListByExternalIdMock,
@@ -452,13 +459,64 @@ describe('KnowledgeOrchestrationService', () => {
     expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
   })
 
-  it('deletes base jobs, vector artifacts, and SQLite base under the mutation lock', async () => {
+  it('deletes base jobs before vector artifacts and SQLite base', async () => {
     const service = new KnowledgeOrchestrationService()
 
     await service.deleteBase('kb-1')
 
+    expect(listMock).toHaveBeenCalledWith({
+      queue: 'base.kb-1',
+      status: ['pending', 'delayed', 'running'],
+      limit: 5000
+    })
     expect(deleteStoreMock).toHaveBeenCalledWith('kb-1')
     expect(knowledgeBaseDeleteMock).toHaveBeenCalledWith('kb-1')
+    expect(listMock.mock.invocationCallOrder[0]).toBeLessThan(deleteStoreMock.mock.invocationCallOrder[0])
+    expect(deleteStoreMock.mock.invocationCallOrder[0]).toBeLessThan(
+      knowledgeBaseDeleteMock.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('serializes concurrent deleteBase cleanup for the same base', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const firstDeleteStoreEntered = createDeferred()
+    const releaseFirstDeleteStore = createDeferred()
+    const cleanupEvents: string[] = []
+    let deleteStoreCallCount = 0
+    deleteStoreMock.mockImplementation(async (baseId: string) => {
+      deleteStoreCallCount += 1
+      const callNumber = deleteStoreCallCount
+      cleanupEvents.push(`delete-store-${callNumber}-start:${baseId}`)
+      if (callNumber === 1) {
+        firstDeleteStoreEntered.resolve()
+        await releaseFirstDeleteStore.promise
+      }
+      cleanupEvents.push(`delete-store-${callNumber}-end:${baseId}`)
+    })
+    knowledgeBaseDeleteMock.mockImplementation(async (baseId: string) => {
+      cleanupEvents.push(`sqlite-${cleanupEvents.filter((event) => event.startsWith('sqlite-')).length + 1}:${baseId}`)
+    })
+
+    const firstDelete = service.deleteBase('kb-1')
+    await firstDeleteStoreEntered.promise
+    const secondDelete = service.deleteBase('kb-1')
+    await flushMicrotasks()
+
+    expect(deleteStoreMock).toHaveBeenCalledTimes(1)
+    expect(knowledgeBaseDeleteMock).not.toHaveBeenCalled()
+    expect(cleanupEvents).toEqual(['delete-store-1-start:kb-1'])
+
+    releaseFirstDeleteStore.resolve()
+    await Promise.all([firstDelete, secondDelete])
+
+    expect(cleanupEvents).toEqual([
+      'delete-store-1-start:kb-1',
+      'delete-store-1-end:kb-1',
+      'sqlite-1:kb-1',
+      'delete-store-2-start:kb-1',
+      'delete-store-2-end:kb-1',
+      'sqlite-2:kb-1'
+    ])
   })
 
   it('restores a failed base by creating a new base and enqueueing restored root items', async () => {
@@ -510,6 +568,28 @@ describe('KnowledgeOrchestrationService', () => {
         embeddingModelId: 'provider::embed',
         dimensions: 3
       })
+    )
+  })
+
+  it('surfaces restored base id when restore item failure cleanup also fails', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const sourceBase = createBase({ id: 'source-kb', embeddingModelId: 'provider::embed', dimensions: 3 })
+    const restoredBase = createBase({ id: 'restored-kb', embeddingModelId: 'provider::embed', dimensions: 3 })
+    knowledgeBaseGetByIdMock.mockResolvedValueOnce(sourceBase)
+    knowledgeBaseCreateMock.mockResolvedValueOnce(restoredBase)
+    knowledgeItemGetRootItemsByBaseIdMock.mockResolvedValueOnce([createNoteItem('source-note', 'source-kb')])
+    enqueueMock.mockRejectedValueOnce(new Error('enqueue failed'))
+    deleteStoreMock.mockRejectedValueOnce(new Error('delete store failed'))
+
+    await expect(
+      service.restoreBase({
+        sourceBaseId: 'source-kb',
+        name: 'Restored KB',
+        embeddingModelId: 'provider::embed',
+        dimensions: 3
+      })
+    ).rejects.toThrow(
+      "Restored knowledge base 'restored-kb' could not be cleaned up automatically: delete store failed"
     )
   })
 
@@ -636,6 +716,24 @@ describe('KnowledgeOrchestrationService', () => {
       error: 'Failed to schedule knowledge item job: enqueue failed'
     })
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith('note-1', 'failed', expect.anything())
+  })
+
+  it('rolls back every created addItems row when a status update fails', async () => {
+    const service = new KnowledgeOrchestrationService()
+    knowledgeItemUpdateStatusMock
+      .mockResolvedValueOnce(createNoteItem('note-1', 'kb-1', null, 'processing'))
+      .mockRejectedValueOnce(new Error('status failed'))
+
+    await expect(
+      service.addItems('kb-1', [
+        { type: 'note', data: { source: 'note-1', content: 'hello 1' } },
+        { type: 'note', data: { source: 'note-2', content: 'hello 2' } }
+      ])
+    ).rejects.toThrow('status failed')
+
+    expect(knowledgeItemDeleteMock).toHaveBeenCalledWith('note-1')
+    expect(knowledgeItemDeleteMock).toHaveBeenCalledWith('note-2')
+    expect(enqueueMock).not.toHaveBeenCalled()
   })
 
   it('keeps items deleting when delete cleanup enqueue fails', async () => {

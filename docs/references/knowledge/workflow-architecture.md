@@ -8,18 +8,18 @@ Knowledge operations are modelled as a lightweight workflow rather than a single
 
 ```text
 API / user action
-  -> KnowledgeWorkflowCoordinator
+  -> KnowledgeWorkflowService
      -> JobManager
         -> Knowledge job handlers
-           -> KnowledgeMutationCoordinator
+           -> KnowledgeLockManager
               -> SQLite / vector store / FileManager
 ```
 
 The design keeps three owners:
 
-- `KnowledgeWorkflowCoordinator` decides the next workflow step.
-- `KnowledgeMutationCoordinator` serializes same-base mutations and cleanup.
-- Knowledge job handlers execute one durable stage and call the coordinator for the next step.
+- `KnowledgeWorkflowService` decides the next workflow step.
+- `KnowledgeLockManager` serializes same-base mutations and cleanup.
+- Knowledge job handlers execute one durable stage and call the workflow service for the next step.
 
 Helpers may own source planning, lifecycle writes, artifact refs, and FileProcessing adaptation. They should stay as modules until they need lifecycle-managed resources, IPC, timers, or long-lived state.
 
@@ -35,7 +35,7 @@ Default item list, search, and RAG hydration exclude `deleting` items. `deleting
 
 ## Scheduling Model
 
-The coordinator owns all branching:
+The workflow service owns all branching:
 
 ```text
 scheduleItem(baseId, itemId)
@@ -46,7 +46,7 @@ scheduleItem(baseId, itemId)
        needs processing -> Round 2 FileProcessing path
 ```
 
-Job handlers do not decide whether an item is a root, nested container, direct leaf, or FileProcessing candidate. They perform their current stage and re-enter the coordinator.
+Job handlers do not decide whether an item is a root, nested container, direct leaf, or FileProcessing candidate. They perform their current stage and re-enter the workflow service.
 
 ## Recursive Container Expansion
 
@@ -56,10 +56,14 @@ Job handlers do not decide whether an item is a root, nested container, direct l
 prepare-root(container)
   -> create/replace child rows
   -> for each child:
-       coordinator.scheduleItem(baseId, childId)
+       workflowService.scheduleItem(baseId, childId)
 ```
 
-If a child is another `directory` or `sitemap`, `scheduleItem` queues another `knowledge.prepare-root`. If a child is `file`, `note`, or `url`, `scheduleItem` routes it to source planning and indexing. Recursive processing therefore lives in the coordinator loop, not inside a reader-specific branch.
+If a child is another `directory` or `sitemap`, `scheduleItem` queues another `knowledge.prepare-root`. If a child is `file`, `note`, or `url`, `scheduleItem` routes it to source planning and indexing. Recursive processing therefore lives in the workflow service loop, not inside a reader-specific branch.
+
+## Future Rename
+
+After the legacy v1 `src/main/services/KnowledgeService.ts` is removed, rename `KnowledgeOrchestrationService` to `KnowledgeService`. Update the `@Injectable('KnowledgeOrchestrationService')` key, service registry entry, and downstream callers in the same change.
 
 ## Job Types
 
@@ -68,17 +72,15 @@ Round 1 job types:
 - `knowledge.prepare-root`: expand a container and schedule each child.
 - `knowledge.index-documents`: read/chunk/embed/write vectors for a concrete document source. Empty reader results or zero chunks still write an empty vector set and complete the item.
 - `knowledge.delete-subtree`: cancel active subtree jobs, delete vectors, detach Knowledge file refs, then delete resolved item ids with `deleteItemsByIds`. Detached `FileEntry` rows are preserved by the file module's no-reference policy.
-- `knowledge.reindex-subtree`: for terminal subtrees only, delete vectors, detach file refs, reset subtree item state, then call `scheduleItem`.
-
-Round 2 adds FileProcessing:
+- `knowledge.reindex-subtree`: for terminal subtrees only, delete vectors, remove stale container descendants, reset selected root state, then call `scheduleItem`. Selected leaf root source refs remain attached and are repaired by `index-documents` from `knowledge_item.data`.
 
 - `knowledge.check-file-processing-result`: poll or inspect the FileProcessing job, attach the markdown artifact on success, then schedule indexing.
 
-`knowledge_base.fileProcessorId` is persisted today but indexing does not consume it in Round 1. Round 2 wires source planning to FileProcessing.
+`knowledge_base.fileProcessorId` controls source planning for supported file items. When a source needs conversion, the workflow starts FileProcessing, schedules `knowledge.check-file-processing-result`, attaches the converted markdown as a `processed_artifact` ref, then indexes that artifact.
 
 ## Mutation And Crash Semantics
 
-Same-base Knowledge mutations must go through `KnowledgeMutationCoordinator`. Main SQLite writes must still go through `DbService.withWriteTx`; the mutation coordinator is not a replacement for the process-wide SQLite write mutex.
+Same-base Knowledge mutations must go through `KnowledgeLockManager`. Main SQLite writes must still go through `DbService.withWriteTx`; the lock manager is not a replacement for the process-wide SQLite write mutex.
 
 Crash safety comes from durable jobs, durable item states, JobManager recovery, and idempotent cleanup. The in-memory mutation lock only serializes concurrent work in the current process.
 

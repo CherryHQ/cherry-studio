@@ -14,19 +14,19 @@ import {
   getFileProcessingFailureMessage,
   getFileProcessingMarkdownArtifactPath
 } from '../../fileProcessing/persistence/artifacts'
-import type { KnowledgeWorkflowCoordinator } from '../KnowledgeWorkflowCoordinator'
-import { knowledgeQueueName } from '../types'
+import type { KnowledgeWorkflowService } from '../KnowledgeWorkflowService'
+import { knowledgeQueueName, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
 import type { KnowledgeCheckFileProcessingResultPayload } from './jobTypes'
 import { isDataApiNotFoundError } from './utils/settled'
 
 const logger = loggerService.withContext('Knowledge:CheckFileProcessingResultJobHandler')
 
 export function createCheckFileProcessingResultJobHandler(
-  workflowCoordinator: KnowledgeWorkflowCoordinator
+  workflowService: KnowledgeWorkflowService
 ): JobHandler<KnowledgeCheckFileProcessingResultPayload> {
   return {
     recovery: 'retry',
-    defaultQueue: (input) => knowledgeQueueName(input.baseId),
+    defaultQueue: (input) => knowledgeQueueName(toKnowledgeBaseId(input.baseId)),
     defaultConcurrency: 5,
     defaultRetryPolicy: {
       maxAttempts: 3,
@@ -56,11 +56,17 @@ export function createCheckFileProcessingResultJobHandler(
 
       if (!isTerminalStatus(snapshot.status)) {
         const nextCheckCount = (ctx.input.checkCount ?? 0) + 1
-        await workflowCoordinator.scheduleFileProcessingCheck(baseId, itemId, fileProcessingJobId, sourceFileEntryId, {
-          checkCount: nextCheckCount,
-          firstScheduledAt: ctx.input.firstScheduledAt,
-          parentJobId: ctx.jobId
-        })
+        await workflowService.scheduleFileProcessingCheck(
+          toKnowledgeBaseId(baseId),
+          toKnowledgeItemId(itemId),
+          fileProcessingJobId,
+          sourceFileEntryId,
+          {
+            checkCount: nextCheckCount,
+            firstScheduledAt: ctx.input.firstScheduledAt,
+            parentJobId: ctx.jobId
+          }
+        )
         reportWaitingProgress(ctx, fileProcessingJobId, nextCheckCount)
         return
       }
@@ -83,7 +89,12 @@ export function createCheckFileProcessingResultJobHandler(
 
       const processedFileEntryId = await createProcessedArtifactFileEntryId(artifactPath)
       await knowledgeItemService.attachFileRef(itemId, processedFileEntryId, 'processed_artifact')
-      await workflowCoordinator.scheduleIndexing(baseId, itemId, processedFileEntryId, ctx.jobId)
+      await workflowService.scheduleIndexing(
+        toKnowledgeBaseId(baseId),
+        toKnowledgeItemId(itemId),
+        processedFileEntryId,
+        ctx.jobId
+      )
       ctx.reportProgress(100, { stage: 'done' })
     }
   }

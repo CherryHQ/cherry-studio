@@ -522,7 +522,6 @@
     },
     "onlyBuiltDependencies": [
       "@j178/prek",
-      "@kangfenmao/keyv-storage",
       "@paymoapp/electron-shutdown-handler",
       "@scarf/scarf",
       "@swc/core",

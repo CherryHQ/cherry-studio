@@ -15,7 +15,7 @@ declare module '@main/core/job/jobRegistry' {
     'knowledge.index-documents': {
       baseId: string
       itemId: string
-      parentJobId: string | null
+      parentJobId?: string | null
       processedFileEntryId?: string
     }
     'knowledge.check-file-processing-result': {

@@ -1,3 +1,3 @@
-export { KnowledgeMutationCoordinator } from './KnowledgeMutationCoordinator'
+export { KnowledgeLockManager } from './KnowledgeLockManager'
 export { KnowledgeOrchestrationService } from './KnowledgeOrchestrationService'
-export { KnowledgeWorkflowCoordinator } from './KnowledgeWorkflowCoordinator'
+export { KnowledgeWorkflowService } from './KnowledgeWorkflowService'

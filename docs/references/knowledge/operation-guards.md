@@ -18,27 +18,39 @@ Used by operations that create or rebuild runtime work on an existing base.
 - `reindexItems`: rejects `failed` bases.
 - `deleteItems`: does not use this guard. Deleting a failed base's items must remain possible so callers can clean up recoverable or partially migrated data.
 
-### `getRootItemsInBase`
+### `KnowledgeItemService.getOutermostSelectedItemIds`
 
-Used by id-based operations.
+Used by subtree id-based operations: `deleteItems` and `reindexItems`.
+
+- De-duplicates input item ids.
+- Loads each selected item.
+- Rejects items that do not belong to the requested `baseId`.
+- Removes selected descendants when their selected ancestor is already present.
+- Prevents the same subtree from being deleted or reindexed more than once in a single request.
+
+This helper is not used by `addItems` because `addItems` receives new item payloads, not persisted item ids.
+
+### `KnowledgeOrchestrationService.getRootItemsInBase`
+
+Private helper used only by single-item chunk operations.
 
 - De-duplicates input item ids.
 - Loads each selected item.
 - Rejects items that do not belong to the requested `baseId`.
 
-This guard is not used by `addItems` because `addItems` receives new item payloads, not persisted item ids.
-
-### `getTopLevelItemsInBase`
-
-Used by subtree operations.
-
-- Starts from `getRootItemsInBase`.
-- Removes selected descendants when their selected ancestor is already present.
-- Prevents the same subtree from being deleted or reindexed more than once in a single request.
+Subtree operations do not use this helper; they use `KnowledgeItemService.getOutermostSelectedItemIds` instead.
 
 ### Subtree Status Reconciliation
 
 Any non-delete subtree status update must reconcile parent containers outside the updated subtree. For example, if a child subtree is marked `failed` after a scheduling failure, the parent directory must also be recalculated so it does not remain `processing` without active work.
+
+Subtree membership must be resolved in the same serialized write transaction as the status write. Do not precompute subtree ids before entering `DbService.withWriteTx`; a concurrent create/delete between the read and update can leave descendants visible or reconcile containers against stale membership.
+
+### Hard Delete FileRef Cleanup
+
+Final hard deletes must clear Knowledge `file_ref` rows for the full deletion subtree in the same `DbService.withWriteTx` before deleting `knowledge_item` rows. `file_ref.sourceId` is polymorphic and has no FK to `knowledge_item`; deleting a container cascades child `knowledge_item` rows through `knowledge_item.groupId`, but the database cannot cascade their file refs.
+
+`deleteItemsByIds` must therefore expand explicit ids to the full subtree with a recursive CTE for ref cleanup. Row deletion may still target the explicit ids and rely on the `groupId` cascade, but ref cleanup must use the complete subtree id set.
 
 ### `assertSubtreesCanReindex`
 
@@ -111,7 +123,7 @@ deleteItems(baseId, itemIds)
   -> under same-base mutation lock:
        mark selected root subtrees deleting
   -> enqueue knowledge.delete-subtree
-       idempotency key = sorted root ids
+       idempotency key = knowledge:${baseId}:${sorted root ids}:delete
   -> if enqueue throws:
        keep rows deleting
        log and rethrow
@@ -163,7 +175,7 @@ reindexItems(baseId, itemIds)
   -> no-op if no roots remain
   -> reject unless every selected root subtree is completed or failed
   -> enqueue knowledge.reindex-subtree
-       idempotency key = sorted root ids
+       idempotency key = knowledge:${baseId}:${sorted root ids}:reindex
 ```
 
 ### Why Reindex Requires Terminal Subtrees
@@ -185,7 +197,9 @@ The reindex entrypoint only accepts the durable job. It does not set roots to `p
 
 The reindex job owns the destructive and stateful work:
 
-- run the shared cleanup prefix;
+- clear vectors for resolved leaf items;
+- delete previous container descendants when selected roots are containers;
+- keep selected leaf root file refs because those root items still own their source files;
 - skip if the target subtree became `deleting` after the entrypoint guard;
 - reset subtree item state;
 - call `scheduleItem` for each selected root.
@@ -209,6 +223,14 @@ These two `deleting` checks are intentional, even though the entrypoint already 
 After the reset mutation, selected roots are deliberately visible as `preparing` or `processing` before their follow-up jobs are scheduled. This keeps the UI honest: a user-triggered reindex immediately appears as active work.
 
 Because those active statuses are written before `scheduleItem`, the handler must compensate if scheduling fails. The failing roots are marked `failed` so the UI does not show stuck active work without a durable job. Do not remove this compensation unless reindex introduces a separate non-active pending state, such as a dedicated `reindexing` or `pending_reindex` lifecycle state.
+
+### Reindex FileRef Ownership
+
+Knowledge source `file_ref` rows are business ownership refs, not vector artifacts. Reindex must not detach refs for selected leaf roots because the root `knowledge_item` rows remain alive and still read `data.fileEntryId`.
+
+Leaf indexing repairs this relationship instead: `knowledge.index-documents` rebuilds Knowledge source refs from the current `knowledge_item.data` before reading the source. For file items, that creates the canonical `knowledge_item` / `source` ref to `data.fileEntryId`; for note and URL items, it clears stale Knowledge file refs.
+
+File ref detach during reindex is valid only when rows are actually being removed, such as stale descendants from a container expansion. Those descendants are deleted through `deleteItemsByIds`, which performs full subtree ref cleanup in the delete transaction.
 
 ## `prepare-root`
 

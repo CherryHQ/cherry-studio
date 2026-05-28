@@ -10,7 +10,7 @@ import type { CreateKnowledgeItemDto } from '@shared/data/types/knowledge'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const KNOWLEDGE_BASE_ID = '11111111-1111-4111-8111-111111111111'
 const itemId = (sequence: string) => `0198f3f2-${sequence}-7abc-8def-123456789abc`
@@ -114,13 +114,13 @@ describe('KnowledgeItemService', () => {
     })
   }
 
-  async function seedKnowledgeFileRef(sourceId: string, fileEntryId: FileEntryId = FILE_ENTRY_A_ID) {
+  async function seedKnowledgeFileRef(sourceId: string, fileEntryId: FileEntryId = FILE_ENTRY_A_ID, role = 'source') {
     await dbh.db.insert(fileRefTable).values({
-      id: `11111111-1111-4111-8111-${sourceId.slice(-12)}`,
+      id: `${role === 'source' ? '11111111' : '22222222'}-1111-4111-8111-${sourceId.slice(-12)}`,
       fileEntryId,
       sourceType: 'knowledge_item',
       sourceId,
-      role: 'source'
+      role
     })
   }
 
@@ -740,6 +740,30 @@ describe('KnowledgeItemService', () => {
       expect(result.map((item) => item.id).sort()).toEqual([DIR_CHILD_ID, DIR_ROOT_ID, FILE_CHILD_ID])
     })
 
+    it('reads subtree rows with a single raw query instead of a follow-up ORM select', async () => {
+      await seedItem({ id: DIR_ROOT_ID, type: 'directory', data: { source: '/root', path: '/root' } })
+      await seedItem({
+        id: FILE_CHILD_ID,
+        groupId: DIR_ROOT_ID,
+        type: 'file',
+        data: createFileItemData(FILE_CHILD_ID)
+      })
+
+      const allSpy = vi.spyOn(dbh.db, 'all')
+      const selectSpy = vi.spyOn(dbh.db, 'select')
+
+      try {
+        const result = await service.getSubtreeItems(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID], { includeRoots: true })
+
+        expect(result.map((item) => item.id).sort()).toEqual([DIR_ROOT_ID, FILE_CHILD_ID])
+        expect(allSpy).toHaveBeenCalledTimes(1)
+        expect(selectSpy).not.toHaveBeenCalled()
+      } finally {
+        allSpy.mockRestore()
+        selectSpy.mockRestore()
+      }
+    })
+
     it('returns an empty list when no roots are provided', async () => {
       await expect(service.getSubtreeItems(KNOWLEDGE_BASE_ID, [])).resolves.toEqual([])
     })
@@ -751,7 +775,7 @@ describe('KnowledgeItemService', () => {
       return row
     }
 
-    it('does not overwrite deleting items when applying a non-delete subtree status', async () => {
+    it('does not overwrite deleting items when marking a subtree failed', async () => {
       await seedItem({
         id: DIR_ROOT_ID,
         type: 'directory',
@@ -771,12 +795,14 @@ describe('KnowledgeItemService', () => {
         status: 'deleting'
       })
 
-      await expect(service.setSubtreeStatus(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID], 'completed')).resolves.toEqual([
-        DIR_ROOT_ID,
-        COMPLETED_CHILD_ID
-      ])
-      await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({ status: 'completed', error: null })
-      await expect(getItemRow(COMPLETED_CHILD_ID)).resolves.toMatchObject({ status: 'completed', error: null })
+      await expect(
+        service.setSubtreeStatus(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID], 'failed', { error: 'enqueue failed' })
+      ).resolves.toEqual([DIR_ROOT_ID, COMPLETED_CHILD_ID])
+      await expect(getItemRow(DIR_ROOT_ID)).resolves.toMatchObject({ status: 'failed', error: 'enqueue failed' })
+      await expect(getItemRow(COMPLETED_CHILD_ID)).resolves.toMatchObject({
+        status: 'failed',
+        error: 'enqueue failed'
+      })
       await expect(getItemRow(DELETING_CHILD_ID)).resolves.toMatchObject({ status: 'deleting', error: null })
     })
 
@@ -987,6 +1013,7 @@ describe('KnowledgeItemService', () => {
     })
 
     it('deletes the owner item and all group members through DB cascade', async () => {
+      await seedFileEntry(FILE_ENTRY_A_ID)
       await seedItem({
         id: DIR_OWNER_ID,
         type: 'directory',
@@ -1001,9 +1028,10 @@ describe('KnowledgeItemService', () => {
       await seedItem({
         id: CHILD_B_ID,
         groupId: DIR_OWNER_ID,
-        type: 'url',
-        data: { source: 'https://example.com', url: 'https://example.com' }
+        type: 'file',
+        data: createFileItemData(FILE_ENTRY_A_ID)
       })
+      await seedKnowledgeFileRef(CHILD_B_ID, FILE_ENTRY_A_ID)
       await seedItem({
         id: OTHER_ITEM_ID,
         type: 'note',
@@ -1014,6 +1042,8 @@ describe('KnowledgeItemService', () => {
 
       const remaining = await dbh.db.select().from(knowledgeItemTable).orderBy(knowledgeItemTable.id)
       expect(remaining.map((r) => r.id)).toEqual([OTHER_ITEM_ID])
+      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, CHILD_B_ID))
+      expect(refs).toHaveLength(0)
     })
 
     it('deletes descendants while keeping the requested root items', async () => {
@@ -1054,11 +1084,148 @@ describe('KnowledgeItemService', () => {
       expect(refs).toHaveLength(0)
     })
 
+    it('cleans descendant file refs when deleting a directory by id', async () => {
+      await seedFileEntry(FILE_ENTRY_A_ID)
+      await seedItem({
+        id: DIR_ROOT_ID,
+        type: 'directory',
+        data: { source: '/docs', path: '/docs' }
+      })
+      await seedItem({
+        id: DIR_CHILD_ID,
+        groupId: DIR_ROOT_ID,
+        type: 'directory',
+        data: { source: '/docs/child', path: '/docs/child' }
+      })
+      await seedItem({
+        id: FILE_GRANDCHILD_ID,
+        groupId: DIR_CHILD_ID,
+        type: 'file',
+        data: createFileItemData(FILE_ENTRY_A_ID)
+      })
+      await seedKnowledgeFileRef(FILE_GRANDCHILD_ID, FILE_ENTRY_A_ID)
+      await seedItem({
+        id: OTHER_ITEM_ID,
+        type: 'note',
+        data: { source: 'keep me', content: 'keep me' }
+      })
+
+      await service.deleteItemsByIds(KNOWLEDGE_BASE_ID, [DIR_ROOT_ID])
+
+      const remaining = await dbh.db.select().from(knowledgeItemTable).orderBy(knowledgeItemTable.id)
+      expect(remaining.map((r) => r.id)).toEqual([OTHER_ITEM_ID])
+      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, FILE_GRANDCHILD_ID))
+      expect(refs).toHaveLength(0)
+    })
+
     it('throws NotFound when deleting a missing knowledge item', async () => {
       await expect(service.delete('missing')).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND,
         status: 404
       })
+    })
+  })
+
+  describe('rebuildFileRefsForItems', () => {
+    it('recreates the source file ref for a file item from item data', async () => {
+      await seedFileEntry(FILE_ENTRY_A_ID)
+      await seedItem({
+        id: FILE_A_ID,
+        type: 'file',
+        data: createFileItemData(FILE_ENTRY_A_ID)
+      })
+
+      await service.rebuildFileRefsForItems([FILE_A_ID])
+
+      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, FILE_A_ID))
+      expect(refs).toHaveLength(1)
+      expect(refs[0]).toMatchObject({
+        fileEntryId: FILE_ENTRY_A_ID,
+        sourceType: 'knowledge_item',
+        sourceId: FILE_A_ID,
+        role: 'source'
+      })
+    })
+
+    it('replaces stale file refs with the file entry id stored on the item', async () => {
+      await seedFileEntry(FILE_ENTRY_A_ID)
+      await seedFileEntry(FILE_ENTRY_B_ID)
+      await seedItem({
+        id: FILE_A_ID,
+        type: 'file',
+        data: createFileItemData(FILE_ENTRY_B_ID)
+      })
+      await seedKnowledgeFileRef(FILE_A_ID, FILE_ENTRY_A_ID)
+
+      await service.rebuildFileRefsForItems([FILE_A_ID])
+
+      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, FILE_A_ID))
+      expect(refs).toHaveLength(1)
+      expect(refs[0].fileEntryId).toBe(FILE_ENTRY_B_ID)
+    })
+
+    it('preserves processed artifact refs while rebuilding source refs', async () => {
+      await seedFileEntry(FILE_ENTRY_A_ID)
+      await seedFileEntry(FILE_ENTRY_B_ID)
+      await seedItem({
+        id: FILE_A_ID,
+        type: 'file',
+        data: createFileItemData(FILE_ENTRY_A_ID)
+      })
+      await seedKnowledgeFileRef(FILE_A_ID, FILE_ENTRY_B_ID, 'processed_artifact')
+
+      await service.rebuildFileRefsForItems([FILE_A_ID])
+
+      const refs = await dbh.db
+        .select()
+        .from(fileRefTable)
+        .where(eq(fileRefTable.sourceId, FILE_A_ID))
+        .orderBy(fileRefTable.role)
+      expect(refs).toHaveLength(2)
+      expect(refs.map((ref) => ({ fileEntryId: ref.fileEntryId, role: ref.role }))).toEqual([
+        { fileEntryId: FILE_ENTRY_B_ID, role: 'processed_artifact' },
+        { fileEntryId: FILE_ENTRY_A_ID, role: 'source' }
+      ])
+    })
+
+    it('does not duplicate refs when rebuilding repeatedly', async () => {
+      await seedFileEntry(FILE_ENTRY_A_ID)
+      await seedItem({
+        id: FILE_A_ID,
+        type: 'file',
+        data: createFileItemData(FILE_ENTRY_A_ID)
+      })
+
+      await service.rebuildFileRefsForItems([FILE_A_ID])
+      await service.rebuildFileRefsForItems([FILE_A_ID])
+
+      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, FILE_A_ID))
+      expect(refs).toHaveLength(1)
+    })
+
+    it('clears stale knowledge item file refs from non-file items', async () => {
+      await seedFileEntry(FILE_ENTRY_A_ID)
+      await seedItem({
+        id: NOTE_A_ID,
+        type: 'note',
+        data: { source: 'note', content: 'note' }
+      })
+      await seedKnowledgeFileRef(NOTE_A_ID, FILE_ENTRY_A_ID)
+
+      await service.rebuildFileRefsForItems([NOTE_A_ID])
+
+      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, NOTE_A_ID))
+      expect(refs).toHaveLength(0)
+    })
+
+    it('fails when the file item points to a missing file entry', async () => {
+      await seedItem({
+        id: FILE_A_ID,
+        type: 'file',
+        data: createFileItemData(FILE_ENTRY_A_ID)
+      })
+
+      await expect(service.rebuildFileRefsForItems([FILE_A_ID])).rejects.toThrow()
     })
   })
 
