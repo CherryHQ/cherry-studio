@@ -155,6 +155,60 @@ describe('classifyError', () => {
     expect(result.category).not.toBe('mcp')
   })
 
+  // Proxy — narrowed keywords
+  it('classifies proxy error as proxy', () => {
+    const result = classifyError(makeError({ message: 'proxy error: connection refused' }))
+    expect(result.category).toBe('proxy')
+    expect(result.navTarget).toBe('/settings/general')
+  })
+
+  it('classifies proxy connection as proxy', () => {
+    const result = classifyError(makeError({ message: 'proxy connection failed' }))
+    expect(result.category).toBe('proxy')
+  })
+
+  it('classifies proxy refused as proxy', () => {
+    const result = classifyError(makeError({ message: 'proxy refused connection' }))
+    expect(result.category).toBe('proxy')
+  })
+
+  it('does not match plain "proxy" without qualifier', () => {
+    const result = classifyError(makeError({ message: 'something proxy related' }))
+    expect(result.category).not.toBe('proxy')
+  })
+
+  // Stream — narrowed keywords
+  it('classifies stream error as stream', () => {
+    const result = classifyError(makeError({ message: 'stream error occurred' }))
+    expect(result.category).toBe('stream')
+  })
+
+  it('classifies stream interrupted as stream', () => {
+    const result = classifyError(makeError({ message: 'stream interrupted by server' }))
+    expect(result.category).toBe('stream')
+  })
+
+  it('classifies stream closed as stream', () => {
+    const result = classifyError(makeError({ message: 'stream closed unexpectedly' }))
+    expect(result.category).toBe('stream')
+  })
+
+  it('does not match plain "stream" without qualifier', () => {
+    const result = classifyError(makeError({ message: 'something stream related' }))
+    expect(result.category).not.toBe('stream')
+  })
+
+  // Parse — narrowed keywords (no bare "json" match)
+  it('classifies unexpected token as parse', () => {
+    const result = classifyError(makeError({ message: 'unexpected token < in JSON' }))
+    expect(result.category).toBe('parse')
+  })
+
+  it('does not match bare "json" as parse', () => {
+    const result = classifyError(makeError({ message: 'json response received' }))
+    expect(result.category).not.toBe('parse')
+  })
+
   // Status as string
   it('handles status as string', () => {
     const result = classifyError(makeError({ status: '401' }))
