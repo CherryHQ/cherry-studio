@@ -25,11 +25,11 @@ export function usePaintingModelSwitch({
     async ({ providerId, modelId }: PaintingModelSelection) => {
       if (providerId === currentProviderId) {
         // Reset stale fields the old model wrote but the new one doesn't
-        // accept — the flat `PaintingData.params` carries them through to
-        // canonicalGenerate's wire bag otherwise. The form already hides
-        // those (driven by registry's per-model `imageGeneration` block);
-        // this brings state into sync. Returns `{}` when either model is
-        // unknown to the registry, so custom-id paintings stay untouched.
+        // accept — the form writes into `painting.params`, so the reset
+        // patch lives there too. Form-hiding is driven by the new model's
+        // registry block; this brings the underlying values in sync.
+        // Returns `{}` when either model is unknown to the registry, so
+        // custom-id paintings stay untouched.
         const resetPatch = await computeModelFieldReset({
           providerId: currentProviderId,
           oldModelId: painting.model,
@@ -37,7 +37,10 @@ export function usePaintingModelSwitch({
           mode: tabToImageGenerationMode(painting.mode),
           currentValues: painting.params ?? {}
         })
-        onPaintingChange({ ...resetPatch, model: modelId } as Partial<PaintingData>)
+        onPaintingChange({
+          params: { ...(painting.params ?? {}), ...resetPatch },
+          model: modelId
+        } as Partial<PaintingData>)
         return
       }
 

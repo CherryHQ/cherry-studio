@@ -33,7 +33,10 @@ export interface PaintingSettingsProps {
 
 const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange, onGenerateRandomSeed }) => {
   const { t } = useTranslation()
-  const paintingRecord = painting as unknown as Record<string, unknown>
+  // The form's reads/writes target `painting.params` — the canonical-name bag
+  // that `canonicalGenerate` partitions into AI SDK args vs provider bag at
+  // request time. Top-level PaintingData fields are not visible to the wire.
+  const paintingParams = (painting.params ?? {}) as Record<string, unknown>
   const registrySupport = useImageGenerationSupport(painting.providerId, painting.model)
   const configItems = useMemo(
     () =>
@@ -46,7 +49,7 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange,
   return (
     <>
       {configItems
-        .filter((item) => shouldRenderConfigItem(item, paintingRecord))
+        .filter((item) => shouldRenderConfigItem(item, paintingParams))
         .map((item) => (
           <div key={item.key ?? `${item.type}-${item.title ?? ''}`}>
             {item.title && (
@@ -57,8 +60,10 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange,
             )}
             <PaintingFieldRenderer
               item={item}
-              painting={paintingRecord}
-              onChange={(updates) => onConfigChange(updates as Partial<PaintingData>)}
+              painting={paintingParams}
+              onChange={(updates) =>
+                onConfigChange({ params: { ...paintingParams, ...updates } } as Partial<PaintingData>)
+              }
               onGenerateRandomSeed={onGenerateRandomSeed}
             />
           </div>
