@@ -6,8 +6,8 @@ import { application } from '@application'
 import { agentSessionMessageService as sessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
-import { listDirectory as searchListDirectory } from '@main/file/utils/search'
 import { generateSignature } from '@main/integration/cherryai'
+import { listDirectory as searchListDirectory } from '@main/services/file/tree/search'
 import { getIpCountry } from '@main/utils/ipService'
 import {
   autoDiscoverGitBash,

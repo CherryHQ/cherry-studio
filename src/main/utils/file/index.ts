@@ -15,8 +15,8 @@
  *   (notably `getFileType`, which has different signatures in the two
  *   modules: legacy takes an extension, primitive takes a path).
  * - Directory-listing (`listDirectory`) and `.gitignore` parsing live next
- *   to the consumer that owns them: `@main/file/utils/{search,gitignore}`.
- *   See `src/main/file/utils/` for that surface.
+ *   to the consumer that owns them: `@main/services/file/tree/{search,gitignore}`.
+ *   See `src/main/services/file/tree/` for that surface.
  *
  * These modules will consolidate over time — `legacyFile.ts` and the sibling
  * `../fileOperations.ts` are expected to be split into the primitive modules

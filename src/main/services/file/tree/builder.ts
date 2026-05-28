@@ -25,8 +25,6 @@ import path from 'node:path'
 
 import { loggerService } from '@logger'
 import { type Disposable, Emitter } from '@main/core/lifecycle'
-import { type GitignorePredicate, loadGitignorePredicate } from '@main/file/utils/gitignore'
-import { listDirectory as searchListDirectory } from '@main/file/utils/search'
 import { createDirectoryWatcher, type DirectoryWatcher, type WatcherEvent } from '@main/services/file/watcher'
 import {
   type DirectoryTreeOptions,
@@ -39,6 +37,9 @@ import {
   type TreeNode,
   type TreeNodeStats
 } from '@shared/file/types'
+
+import { type GitignorePredicate, loadGitignorePredicate } from './gitignore'
+import { listDirectory as searchListDirectory } from './search'
 
 const logger = loggerService.withContext('file/tree/builder')
 

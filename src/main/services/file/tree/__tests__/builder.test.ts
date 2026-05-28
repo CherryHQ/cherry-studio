@@ -271,7 +271,7 @@ describe('createDirectoryTree — DB isolation', () => {
     const builderSource = await readFile(new URL('../builder.ts', import.meta.url), 'utf8')
     const registrySource = await readFile(new URL('../registry.ts', import.meta.url), 'utf8')
     const sharedTreeSource = await readFile(
-      new URL('../../../../../packages/shared/file/types/tree.ts', import.meta.url),
+      new URL('../../../../../../packages/shared/file/types/tree.ts', import.meta.url),
       'utf8'
     )
     for (const src of [builderSource, registrySource, sharedTreeSource]) {
