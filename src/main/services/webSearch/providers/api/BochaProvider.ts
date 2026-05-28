@@ -13,23 +13,107 @@ const BochaSearchParamsSchema = z.object({
   summary: z.boolean()
 })
 
+const BochaThumbnailSchema = z.object({
+  height: z.number(),
+  width: z.number()
+})
+
+const BochaWebPageSchema = z.object({
+  id: z.string().nullable().optional(),
+  name: z.string(),
+  url: z.string(),
+  displayUrl: z.string().optional(),
+  snippet: z.string().nullable().optional(),
+  summary: z.string().nullable().optional(),
+  siteName: z.string().nullable().optional(),
+  siteIcon: z.string().nullable().optional(),
+  datePublished: z.string().nullable().optional(),
+  dateLastCrawled: z.string().nullable().optional(),
+  cachedPageUrl: z.string().nullable().optional(),
+  language: z.string().nullable().optional(),
+  isFamilyFriendly: z.boolean().nullable().optional(),
+  isNavigational: z.boolean().nullable().optional()
+})
+
+const BochaImagesSchema = z.object({
+  id: z.string().nullable().optional(),
+  readLink: z.string().nullable().optional(),
+  webSearchUrl: z.string().nullable().optional(),
+  isFamilyFriendly: z.boolean().nullable().optional(),
+  value: z.array(
+    z.object({
+      webSearchUrl: z.string().nullable().optional(),
+      name: z.string().nullable().optional(),
+      thumbnailUrl: z.string(),
+      datePublished: z.string().nullable().optional(),
+      contentUrl: z.string(),
+      hostPageUrl: z.string(),
+      contentSize: z.string().nullable().optional(),
+      encodingFormat: z.string().nullable().optional(),
+      hostPageDisplayUrl: z.string().nullable().optional(),
+      width: z.number(),
+      height: z.number(),
+      thumbnail: BochaThumbnailSchema.nullable().optional()
+    })
+  )
+})
+
+const BochaVideosSchema = z.object({
+  id: z.string().nullable().optional(),
+  readLink: z.string().nullable().optional(),
+  webSearchUrl: z.string().nullable().optional(),
+  isFamilyFriendly: z.boolean().nullable().optional(),
+  scenario: z.string().optional(),
+  value: z.array(
+    z.object({
+      webSearchUrl: z.string(),
+      name: z.string(),
+      description: z.string(),
+      thumbnailUrl: z.string(),
+      publisher: z.array(
+        z.object({
+          name: z.string()
+        })
+      ),
+      creator: z.object({
+        name: z.string()
+      }),
+      contentUrl: z.string(),
+      hostPageUrl: z.string(),
+      encodingFormat: z.string(),
+      hostPageDisplayUrl: z.string(),
+      width: z.number(),
+      height: z.number(),
+      duration: z.string(),
+      motionThumbnailUrl: z.string(),
+      embedHtml: z.string(),
+      allowHttpsEmbed: z.boolean(),
+      viewCount: z.number(),
+      thumbnail: BochaThumbnailSchema,
+      allowMobileEmbed: z.boolean(),
+      isSuperfresh: z.boolean(),
+      datePublished: z.string()
+    })
+  )
+})
+
 const BochaSearchResponseSchema = z.object({
   code: z.number(),
-  msg: z.string(),
+  log_id: z.string().optional(),
+  msg: z.string().nullable().optional(),
   data: z.object({
+    _type: z.string().optional(),
     queryContext: z.object({
       originalQuery: z.string()
     }),
     webPages: z.object({
-      value: z.array(
-        z.object({
-          name: z.string(),
-          summary: z.string().optional(),
-          snippet: z.string().optional(),
-          url: z.string()
-        })
-      )
-    })
+      webSearchUrl: z.string().optional(),
+      totalEstimatedMatches: z.number().optional(),
+      value: z.array(BochaWebPageSchema),
+      someResultsRemoved: z.boolean().optional()
+    }),
+    images: BochaImagesSchema.optional(),
+    videos: BochaVideosSchema.nullable().optional()
   })
 })
 
@@ -94,7 +178,7 @@ export class BochaProvider extends BaseWebSearchProvider {
     searchPayload: z.infer<typeof BochaSearchResponseSchema>
   ): WebSearchResponse {
     if (searchPayload.code !== 200) {
-      throw new Error(`Bocha search failed: ${searchPayload.msg}`)
+      throw new Error(`Bocha search failed: ${searchPayload.msg ?? 'unknown error'}`)
     }
 
     return {

@@ -717,6 +717,103 @@ describe('main web search API providers', () => {
     `)
   })
 
+  it('accepts latest Bocha response fields and falls back to snippet when summary is missing', async () => {
+    fetchMock.mockResolvedValue(
+      createJsonResponse({
+        code: 200,
+        log_id: 'latest-bocha-log-id',
+        msg: null,
+        data: {
+          _type: 'SearchResponse',
+          queryContext: {
+            originalQuery: 'hello'
+          },
+          webPages: {
+            webSearchUrl: 'https://bochaai.com/search?q=hello',
+            totalEstimatedMatches: 42,
+            value: [
+              {
+                id: null,
+                name: 'Bocha Latest Title',
+                url: 'https://bocha.example/latest',
+                displayUrl: 'https://bocha.example/latest',
+                snippet: 'Snippet fallback content',
+                siteName: 'bocha.example',
+                siteIcon: 'https://bocha.example/favicon.ico',
+                datePublished: null,
+                dateLastCrawled: '2025-02-23T08:18:30Z',
+                cachedPageUrl: null,
+                language: null,
+                isFamilyFriendly: null,
+                isNavigational: null
+              }
+            ],
+            someResultsRemoved: true
+          },
+          images: {
+            id: null,
+            readLink: null,
+            webSearchUrl: null,
+            isFamilyFriendly: null,
+            value: [
+              {
+                webSearchUrl: null,
+                name: null,
+                thumbnailUrl: 'http://example.com/thumb.jpg',
+                datePublished: null,
+                contentUrl: 'http://example.com/content.jpg',
+                hostPageUrl: 'https://example.com/page',
+                contentSize: null,
+                encodingFormat: null,
+                hostPageDisplayUrl: null,
+                width: 553,
+                height: 311,
+                thumbnail: {
+                  height: 80,
+                  width: 120
+                }
+              }
+            ]
+          },
+          videos: null
+        }
+      })
+    )
+
+    const provider = createProviderDriver(
+      BochaProvider,
+      createProvider({
+        id: 'bocha',
+        name: 'Bocha',
+        apiKeys: ['bocha-key'],
+        apiHost: 'https://api.bochaai.com'
+      })
+    )
+
+    const result = await provider.searchKeywords('hello', runtimeConfig)
+
+    expect(toRequestSnapshot(fetchMock.mock.lastCall as [string, RequestInit | undefined]).body).toEqual({
+      query: 'hello',
+      count: 4,
+      exclude: 'example.com',
+      summary: true
+    })
+    expect(result).toEqual({
+      query: 'hello',
+      providerId: 'bocha',
+      capability: 'searchKeywords',
+      inputs: ['hello'],
+      results: [
+        {
+          title: 'Bocha Latest Title',
+          content: 'Snippet fallback content',
+          url: 'https://bocha.example/latest',
+          sourceInput: 'hello'
+        }
+      ]
+    })
+  })
+
   it('matches Querit request and normalized response snapshots from fixtures', async () => {
     fetchMock.mockResolvedValue(createJsonResponse(loadFixtureJson('querit-response.json')))
 

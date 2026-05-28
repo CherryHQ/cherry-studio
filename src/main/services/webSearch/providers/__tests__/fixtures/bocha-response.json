@@ -1,18 +1,60 @@
 {
   "code": 200,
-  "msg": "ok",
+  "log_id": "d71841ad20095f61",
+  "msg": null,
   "data": {
+    "_type": "SearchResponse",
     "queryContext": {
       "originalQuery": "hello"
     },
     "webPages": {
+      "webSearchUrl": "https://bochaai.com/search?q=hello",
+      "totalEstimatedMatches": 1618000,
       "value": [
         {
+          "id": null,
           "name": "Bocha Title",
+          "url": "https://bocha.example/result",
+          "displayUrl": "https://bocha.example/result",
+          "snippet": "Bocha Snippet",
           "summary": "Bocha Content",
-          "url": "https://bocha.example/result"
+          "siteName": "bocha.example",
+          "siteIcon": "https://bocha.example/favicon.ico",
+          "datePublished": "2025-02-23T08:18:30+08:00",
+          "dateLastCrawled": "2025-02-23T08:18:30Z",
+          "cachedPageUrl": null,
+          "language": null,
+          "isFamilyFriendly": null,
+          "isNavigational": null
+        }
+      ],
+      "someResultsRemoved": true
+    },
+    "images": {
+      "id": null,
+      "readLink": null,
+      "webSearchUrl": null,
+      "isFamilyFriendly": null,
+      "value": [
+        {
+          "webSearchUrl": null,
+          "name": null,
+          "thumbnailUrl": "http://example.com/thumb.jpg",
+          "datePublished": null,
+          "contentUrl": "http://example.com/content.jpg",
+          "hostPageUrl": "https://example.com/page",
+          "contentSize": null,
+          "encodingFormat": null,
+          "hostPageDisplayUrl": null,
+          "width": 553,
+          "height": 311,
+          "thumbnail": {
+            "height": 80,
+            "width": 120
+          }
         }
       ]
-    }
+    },
+    "videos": null
   }
 }
