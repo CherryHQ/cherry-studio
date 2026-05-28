@@ -4,7 +4,6 @@ import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/c
 import { IpcChannel } from '@shared/IpcChannel'
 import * as z from 'zod'
 
-import { extractRtkBinaries } from '../utils/rtk'
 import { listMcpTools } from './agents/agentUtils'
 import { channelManager } from './agents/services/channels'
 import { registerSessionStreamIpc } from './agents/services/channels/sessionStreamIpc'
@@ -64,8 +63,6 @@ export function validateListToolsArgs(args: unknown) {
 @DependsOn(['ApiServerService'])
 export class AgentBootstrapService extends BaseService {
   protected async onReady(): Promise<void> {
-    await this.extractRtkBinaries()
-
     await schedulerService.restoreSchedulers()
     logger.info('Schedulers restored')
 
@@ -97,15 +94,5 @@ export class AgentBootstrapService extends BaseService {
 
     await channelManager.stop()
     logger.info('Channel manager stopped')
-  }
-
-  private async extractRtkBinaries(): Promise<void> {
-    try {
-      await extractRtkBinaries()
-    } catch (error) {
-      logger.warn('Failed to extract rtk binaries (non-fatal)', {
-        error: error instanceof Error ? error.message : String(error)
-      })
-    }
   }
 }

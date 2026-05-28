@@ -150,7 +150,8 @@ export class BinaryManager extends BaseService {
     const tools: Array<{ name: string; binaries: string[]; versionFile: string }> = [
       { name: 'mise', binaries: [isWin ? 'mise.exe' : 'mise'], versionFile: '.mise-version' },
       { name: 'bun', binaries: [isWin ? 'bun.exe' : 'bun'], versionFile: '.bun-version' },
-      { name: 'uv', binaries: isWin ? ['uv.exe', 'uvx.exe'] : ['uv', 'uvx'], versionFile: '.uv-version' }
+      { name: 'uv', binaries: isWin ? ['uv.exe', 'uvx.exe'] : ['uv', 'uvx'], versionFile: '.uv-version' },
+      { name: 'rg', binaries: [isWin ? 'rg.exe' : 'rg'], versionFile: '.rg-version' }
     ]
 
     for (const tool of tools) {

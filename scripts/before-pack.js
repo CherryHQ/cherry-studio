@@ -120,16 +120,6 @@ exports.default = async function (context) {
     .filter((p) => !x64KeepPackages.includes(p))
     .map((p) => '!node_modules/' + p + '/**')
 
-  const excludeRipgrepFilters = ['arm64-darwin', 'arm64-linux', 'x64-darwin', 'x64-linux', 'x64-win32']
-    .filter((f) => {
-      // On Windows ARM64, also keep x64-win32 for emulation compatibility
-      if (platform === 'win32' && context.arch === Arch.arm64 && f === 'x64-win32') {
-        return false
-      }
-      return f !== `${arch}-${platform}`
-    })
-    .map((f) => '!node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep/' + f + '/**')
-
   // Exclude binaries for other platform-arch combinations (mise, etc.)
   const currentPlatformKey = `${platform}-${arch}`
   const allBinaryPlatforms = ['darwin-arm64', 'darwin-x64', 'linux-x64', 'linux-arm64', 'win32-x64', 'win32-arm64']
@@ -138,8 +128,8 @@ exports.default = async function (context) {
     .map((p) => '!resources/binaries/' + p + '/**')
 
   if (context.arch === Arch.arm64) {
-    await excludePackages([...arm64ExcludePackages, ...excludeRipgrepFilters, ...excludeBinaryFilters])
+    await excludePackages([...arm64ExcludePackages, ...excludeBinaryFilters])
   } else {
-    await excludePackages([...x64ExcludePackages, ...excludeRipgrepFilters, ...excludeBinaryFilters])
+    await excludePackages([...x64ExcludePackages, ...excludeBinaryFilters])
   }
 }
