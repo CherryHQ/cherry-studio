@@ -7,7 +7,6 @@ import { useCallback, useEffect, useRef } from 'react'
 
 import { paintingDataToCreateDto } from '../model/mappers/paintingDataToCreateDto'
 import { paintingDataToUpdateDto } from '../model/mappers/paintingDataToUpdateDto'
-import { recordToPaintingData } from '../model/mappers/recordToPaintingData'
 import {
   abortPaintingGeneration,
   clearPaintingAbortController,
@@ -56,39 +55,28 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
   )
 
   const generate = useCallback(async () => {
+    // The in-memory draft is the source of truth for this whole flow.
+    // DB writes are bookkeeping for the frozen receipt (prompt + file ids);
+    // they're not consulted again to rebuild the live painting. That keeps
+    // form-only fields — `mode`, `params`, `inputFiles` — intact end to end
+    // without re-stitching them after each persist call.
     const shouldCreate = hasOutput(painting) || !painting.persistedAt
-    const targetPaintingInput = shouldCreate
-      ? ({
-          ...painting,
-          id: uuid(),
-          files: hasOutput(painting) ? [] : painting.files
-        } as PaintingData)
-      : painting
-    let targetRecord: Awaited<ReturnType<typeof createPainting>>
+    const targetPainting: PaintingData = shouldCreate
+      ? { ...painting, id: uuid(), files: hasOutput(painting) ? [] : painting.files }
+      : { ...painting }
 
     try {
-      targetRecord = shouldCreate
+      const persisted = shouldCreate
         ? await createPainting(
-            paintingDataToCreateDto(targetPaintingInput as PaintingData & { providerId: string; mode: PaintingMode })
+            paintingDataToCreateDto(targetPainting as PaintingData & { providerId: string; mode: PaintingMode })
           )
-        : await updatePainting(targetPaintingInput.id, paintingDataToUpdateDto(targetPaintingInput))
+        : await updatePainting(targetPainting.id, paintingDataToUpdateDto(targetPainting))
+      targetPainting.persistedAt = persisted.createdAt
     } catch (error) {
       presentPaintingGenerateError(error)
       return
     }
 
-    // `recordToPaintingData` is the DB→draft hydrator — the DB row stores
-    // only the frozen receipt (prompt + files), not the live form draft
-    // (mode / params). Round-tripping through it would silently drop every
-    // sidebar value the user picked. Restore the form-only fields from the
-    // pre-persist input so canonicalGenerate sees the params bag.
-    const persistedPainting = await recordToPaintingData(targetRecord)
-    const targetPainting: PaintingData = {
-      ...persistedPainting,
-      mode: targetPaintingInput.mode,
-      params: targetPaintingInput.params,
-      inputFiles: targetPaintingInput.inputFiles ?? persistedPainting.inputFiles
-    }
     const generationState: PaintingGenerationState = {
       generationStatus: 'running',
       generationTaskId: null,
@@ -101,8 +89,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
     // Generation state (running/failed/canceled, taskId, progress) is the
     // page's in-memory state plus a Memory-cache mirror keyed by paintingId.
     // The cache mirror outlives this component's unmount, so navigating away
-    // and back rehydrates the running spinner. The painting DB row stays a
-    // frozen receipt — only final files persist there.
+    // and back rehydrates the running spinner.
     const pushGenerationState = (updates: Partial<PaintingGenerationState>) => {
       Object.assign(generationState, updates, { generationStatus: 'running' as const })
       cacheService.set(cacheKey, paintingGenerationStateToCache(generationState))
@@ -115,21 +102,23 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
     pushGenerationState(generationState)
 
     try {
-      const files = await paintingGenerate({
+      const generatedFiles = await paintingGenerate({
         painting: targetPainting,
         provider,
         tab: 'default',
         abortController: controller,
         onGenerationStateChange: pushGenerationState
       })
-      const updatedRecord = await updatePainting(targetPainting.id, {
+      await updatePainting(targetPainting.id, {
         files: {
-          output: files.map((file) => file.id),
-          input: paintingDataToCreateDto(targetPainting).files?.input ?? []
+          output: generatedFiles.map((file) => file.id),
+          input: targetPainting.inputFiles?.map((entry) => entry.id) ?? []
         }
       })
       cacheService.set(cacheKey, null)
-      applyIfVisible(await recordToPaintingData(updatedRecord))
+      // Merge the freshly-generated output into the in-memory draft; do not
+      // re-read from the DB record (which would drop params / mode again).
+      applyIfVisible({ ...targetPainting, files: generatedFiles } as PaintingData)
       await refresh()
     } catch (error) {
       const isCanceled = controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')
