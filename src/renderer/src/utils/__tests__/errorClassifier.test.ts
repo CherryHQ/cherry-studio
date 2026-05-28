@@ -54,6 +54,13 @@ describe('classifyError', () => {
     expect(result.category).toBe('region')
   })
 
+  it('does NOT classify "not available in your account/plan" as region', () => {
+    const result = classifyError(
+      makeError({ message: 'This model is not available in your account, please upgrade your plan' })
+    )
+    expect(result.category).not.toBe('region')
+  })
+
   it('classifies invalid_api_key message as auth', () => {
     const result = classifyError(makeError({ message: 'invalid_api_key: key is expired' }))
     expect(result.category).toBe('auth')
@@ -104,6 +111,28 @@ describe('classifyError', () => {
 
   it('prefers quota over rate_limit when both keywords appear', () => {
     const result = classifyError(makeError({ statusCode: 429, message: 'rate limit: insufficient_balance' }))
+    expect(result.category).toBe('quota')
+  })
+
+  it('routes 429 with insufficient_quota in responseBody to quota, not rate_limit', () => {
+    const result = classifyError(
+      makeError({
+        statusCode: 429,
+        message: 'Rate limit exceeded',
+        responseBody: '{"error":{"type":"insufficient_quota","code":"billing_hard_limit_reached"}}'
+      })
+    )
+    expect(result.category).toBe('quota')
+  })
+
+  it('reads structured signals from the data field', () => {
+    const result = classifyError(
+      makeError({
+        statusCode: 429,
+        message: 'Rate limit exceeded',
+        data: { error: { code: 'billing_hard_limit_reached' } } as any
+      })
+    )
     expect(result.category).toBe('quota')
   })
 

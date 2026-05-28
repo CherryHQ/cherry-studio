@@ -323,6 +323,7 @@ export const getMiniappsStatusLabel = (key: string): string => {
 const httpMessageKeyMap = {
   '400': 'error.http.400',
   '401': 'error.http.401',
+  '402': 'error.http.402',
   '403': 'error.http.403',
   '404': 'error.http.404',
   '429': 'error.http.429',

@@ -32,9 +32,24 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
   const errorBag = error as Record<string, unknown>
   const status = errorBag.statusCode ?? errorBag.status
   const numStatus = typeof status === 'number' ? status : typeof status === 'string' ? parseInt(status, 10) : undefined
-  const msg = ((error.message as string) || '').toLowerCase()
   const finishReason = String(errorBag.finishReason ?? '').toLowerCase()
   const providerSuffix = providerId ? `?id=${providerId}` : ''
+
+  // SDK wrapper messages often hide the real error code; merge in responseBody and data
+  // so structured signals like "insufficient_quota" inside responseBody can win over a generic
+  // message like "Rate limit exceeded". Without this, the rule layer and the AI (which gets
+  // these fields separately) would disagree on the category.
+  const messageText = ((error.message as string) || '').toLowerCase()
+  const responseBodyText = typeof errorBag.responseBody === 'string' ? errorBag.responseBody.toLowerCase() : ''
+  let dataText = ''
+  if (errorBag.data !== undefined && errorBag.data !== null) {
+    try {
+      dataText = (typeof errorBag.data === 'string' ? errorBag.data : JSON.stringify(errorBag.data)).toLowerCase()
+    } catch {
+      // ignore non-serializable data
+    }
+  }
+  const msg = [messageText, responseBodyText, dataText].filter(Boolean).join('\n')
 
   // Structured safety signal — finishReason from NoObjectGeneratedError is the most reliable indicator
   if (finishReason === 'safety' || finishReason === 'recitation' || finishReason === 'content_filter') {
@@ -43,12 +58,18 @@ export function classifyError(error?: SerializedError, providerId?: string): Err
 
   // Geo / region block — must run BEFORE auth, since OpenAI returns 403 with
   // "unsupported_country_region_territory" and Anthropic blocks regions with 403.
+  // Keywords are scoped to geographic phrases to avoid catching model-permission errors
+  // like "model is not available in your account/plan".
   if (
     msg.includes('unsupported_country') ||
     msg.includes('country, region') ||
     msg.includes('country/region') ||
     msg.includes('region not supported') ||
-    msg.includes('not available in your') ||
+    msg.includes('not available in your region') ||
+    msg.includes('not available in your country') ||
+    msg.includes('not available in your location') ||
+    msg.includes('not available in your area') ||
+    msg.includes('not available in your territory') ||
     (msg.includes('territory') && (numStatus === 403 || msg.includes('unsupported')))
   ) {
     return { category: 'region', i18nKey: 'error.diagnosis.region', navTarget: '/settings/general' }

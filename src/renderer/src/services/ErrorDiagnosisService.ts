@@ -54,7 +54,13 @@ async function buildModelsToTry(context?: DiagnosisContext): Promise<Model[]> {
 }
 
 function buildContextHint(errorInfo: Record<string, unknown>, context?: DiagnosisContext): string {
-  const msg = String(errorInfo.message || '').toLowerCase()
+  // Merge message + responseBody + data so the rule layer here matches what the AI receives.
+  // Without this, an SDK wrapper saying "Rate limit exceeded" with responseBody.insufficient_quota
+  // would steer the AI hint toward rate_limit while the actual cause is billing.
+  const messageText = String(errorInfo.message || '').toLowerCase()
+  const responseBodyText = typeof errorInfo.responseBody === 'string' ? errorInfo.responseBody.toLowerCase() : ''
+  const dataText = typeof errorInfo.data === 'string' ? errorInfo.data.toLowerCase() : ''
+  const msg = [messageText, responseBodyText, dataText].filter(Boolean).join('\n')
   const status = Number(errorInfo.status) || 0
   const finishReason = String(errorInfo.finishReason ?? '').toLowerCase()
   const source = context?.errorSource || String(errorInfo.source || '')
@@ -64,16 +70,19 @@ function buildContextHint(errorInfo: Record<string, unknown>, context?: Diagnosi
     return `## Context\nThe provider's safety system blocked this response (finishReason=${finishReason}). Suggest rephrasing the prompt or removing sensitive content. DO NOT suggest checking the API key or billing.\n`
   }
 
-  // Region / geo-block — check BEFORE auth, since 403 with region keywords is not an API-key issue
+  // Region / geo-block — check BEFORE auth, since 403 with region keywords is not an API-key issue.
+  // Keywords scoped to geographic phrases to avoid matching model-permission errors like
+  // "model is not available in your account/plan".
   if (
     msg.includes('unsupported_country') ||
     msg.includes('country, region') ||
     msg.includes('country/region') ||
     msg.includes('region not supported') ||
-    msg.includes('not available in your') ||
-    msg.includes('geographic') ||
-    msg.includes('geo-block') ||
-    msg.includes('geo block') ||
+    msg.includes('not available in your region') ||
+    msg.includes('not available in your country') ||
+    msg.includes('not available in your location') ||
+    msg.includes('not available in your area') ||
+    msg.includes('not available in your territory') ||
     (msg.includes('territory') && (status === 403 || msg.includes('unsupported')))
   ) {
     const provider = errorInfo.provider || context?.providerName || 'the provider'
