@@ -352,9 +352,6 @@ class ModelService {
             model.providerId,
             presetId
           )
-          // Override wins so vendor-exclusive entries (modelscope's Tongyi-MAI/*,
-          // ppio bespoke models, …) can declare their imageGeneration block
-          // inline in provider-models.json without a global models.json entry.
           const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
           return imageGeneration ? { ...model, imageGeneration } : model
         } catch {
