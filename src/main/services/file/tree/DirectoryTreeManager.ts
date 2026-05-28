@@ -111,8 +111,16 @@ export class DirectoryTreeManager extends BaseService {
   private readonly inflight = new Map<string, Promise<SharedBuilder>>()
   /** webContentsId → set of treeIds, so we can drop them on contents-destroyed. */
   private readonly byWebContents = new Map<number, Set<string>>()
-  /** Set by `disposeAll()` / `onStop()` to short-circuit any builder that
-   *  finishes its asynchronous `createDirectoryTree` call after teardown. */
+  /**
+   * Set by `onStop()` (and the `disposeAll()` test seam) to short-circuit
+   * any builder that finishes its asynchronous `createDirectoryTree` call
+   * after teardown.
+   *
+   * We keep this hand-rolled bit rather than gating on `this.state` because
+   * tests instantiate the manager directly without going through the
+   * lifecycle (`state` stays at `Created`), so an `isReady`-based check
+   * would treat the service as "shut down" before its first use.
+   */
   private disposed = false
 
   protected override async onInit(): Promise<void> {
@@ -205,7 +213,16 @@ export class DirectoryTreeManager extends BaseService {
     if (!bucket) {
       bucket = new Set()
       this.byWebContents.set(sender.id, bucket)
-      sender.once('destroyed', () => this.disposeAllForWebContents(sender.id))
+      // Track the listener so onStop's _cleanupDisposables can `.off` it
+      // even when the renderer never gets destroyed. Without this the
+      // closure holds `this` alive through the EventEmitter slot for the
+      // lifetime of the webContents, which can outlast the manager.
+      const handler = (): void => this.disposeAllForWebContents(sender.id)
+      sender.once('destroyed', handler)
+      this.registerDisposable(() => {
+        if (sender.isDestroyed()) return
+        sender.off('destroyed', handler)
+      })
     }
     bucket.add(treeId)
 
@@ -225,7 +242,13 @@ export class DirectoryTreeManager extends BaseService {
     if (bucket && bucket.size === 0) this.byWebContents.delete(consumer.webContentsId)
 
     if (shared.consumers.size === 0 && !shared.disposeTimer) {
-      shared.disposeTimer = setTimeout(() => this.tearDownIfIdle(shared), DISPOSE_GRACE_MS)
+      // Hand the timer to BaseService so onStop's _cleanupDisposables
+      // clears it even if we never reach `tearDownIfIdle` naturally
+      // (lifecycle-usage.md §"Resources & Cleanup"). clearTimeout is
+      // idempotent so the disposable surviving past natural fire is fine.
+      const handle = setTimeout(() => this.tearDownIfIdle(shared), DISPOSE_GRACE_MS)
+      shared.disposeTimer = handle
+      this.registerDisposable(() => clearTimeout(handle))
     }
     return true
   }
