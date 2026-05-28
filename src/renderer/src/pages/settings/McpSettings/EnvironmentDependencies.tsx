@@ -41,8 +41,11 @@ const ToolIcon: FC<{ icon?: string; className?: string }> = ({ icon, className }
   return <Terminal className={cn('size-5', className)} />
 }
 
+type ToolSource = 'mise' | 'bundled' | 'none'
+
 const EnvironmentDependencies: FC = () => {
   const [miseState, setMiseState] = useState<BinaryState | null>(null)
+  const [bundled, setBundled] = useState<Record<string, string | null>>({})
   const [installingTools, setInstallingTools] = useState<Set<string>>(new Set())
   const [customTools, setCustomTools] = usePreference('feature.binaries.tools')
   const [showAddDialog, setShowAddDialog] = useState(false)
@@ -59,9 +62,13 @@ const EnvironmentDependencies: FC = () => {
 
   const refreshState = useCallback(async () => {
     try {
-      const state = await window.api.binaryManager.getState()
+      const [state, bundledMap] = await Promise.all([
+        window.api.binaryManager.getState(),
+        window.api.binaryManager.probeBundled()
+      ])
       if (!mountedRef.current) return
       setMiseState(state)
+      setBundled(bundledMap)
     } catch (error) {
       logger.error('Failed to refresh mise state', error as Error)
     }
@@ -69,7 +76,13 @@ const EnvironmentDependencies: FC = () => {
 
   useEffect(() => {
     void refreshState()
-    const unsub1 = window.api.binaryManager.onStateChanged((state) => setMiseState(state))
+    const unsub1 = window.api.binaryManager.onStateChanged((state) => {
+      setMiseState(state)
+      // mise install may shadow a bundled binary; re-probe so the source label stays accurate.
+      void window.api.binaryManager.probeBundled().then((b) => {
+        if (mountedRef.current) setBundled(b)
+      })
+    })
     const unsub2 = window.api.binaryManager.onReconcileFailed((names) => {
       window.toast.error(`${t('settings.plugins.installError')}: ${names}`)
     })
@@ -135,12 +148,14 @@ const EnvironmentDependencies: FC = () => {
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {PREDEFINED_BINARY_TOOLS.map((tool) => {
           const installed = miseState?.tools[tool.name]
+          const bundledVersion = bundled[tool.name]
+          const source: ToolSource = installed ? 'mise' : tool.name in bundled ? 'bundled' : 'none'
           return (
             <BinaryToolPresetCard
               key={tool.name}
               tool={tool}
-              installed={!!installed}
-              installedVersion={installed?.version}
+              source={source}
+              installedVersion={installed?.version ?? bundledVersion ?? undefined}
               installing={installingTools.has(tool.name)}
               onInstall={() => installTool({ name: tool.name, tool: tool.tool, version: tool.version })}
               onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
@@ -199,15 +214,17 @@ const EnvironmentDependencies: FC = () => {
 
 const BinaryToolPresetCard: FC<{
   tool: BinaryToolPreset
-  installed: boolean
+  source: ToolSource
   installedVersion?: string
   installing: boolean
   onInstall: () => void
   onUpdate: () => void
   onOpenPath: () => void
-}> = ({ tool, installed, installedVersion, installing, onInstall, onUpdate, onOpenPath }) => {
+}> = ({ tool, source, installedVersion, installing, onInstall, onUpdate, onOpenPath }) => {
   const { t } = useTranslation()
   const description = t(`settings.plugins.tools.${tool.name}`, { defaultValue: tool.description })
+  const present = source !== 'none'
+  const isBundled = source === 'bundled'
 
   return (
     <div className="flex flex-col rounded-xl border border-border bg-card p-4 transition-colors duration-200 ease-in-out hover:border-border-hover">
@@ -216,7 +233,7 @@ const BinaryToolPresetCard: FC<{
           <div
             className={cn(
               'flex size-10 shrink-0 items-center justify-center rounded-xl',
-              installed ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+              present ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
             )}>
             <ToolIcon icon={tool.icon} />
           </div>
@@ -227,15 +244,24 @@ const BinaryToolPresetCard: FC<{
                 <span className="text-muted-foreground/60 text-xs">({tool.name})</span>
               )}
             </div>
-            {installed && installedVersion && (
-              <Badge variant="secondary" className="mt-0.5 gap-1 px-1.5 py-0 text-[11px] leading-4">
-                v{installedVersion}
-              </Badge>
+            {present && (
+              <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                {installedVersion && (
+                  <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[11px] leading-4">
+                    v{installedVersion}
+                  </Badge>
+                )}
+                {isBundled && (
+                  <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[11px] leading-4">
+                    {t('settings.plugins.source.bundled')}
+                  </Badge>
+                )}
+              </div>
             )}
           </div>
         </div>
 
-        {installed && (
+        {source === 'mise' && (
           <div className="flex shrink-0 items-center gap-1">
             <Button
               variant="ghost"
@@ -279,7 +305,7 @@ const BinaryToolPresetCard: FC<{
             {tool.homepage.replace(/^https?:\/\//, '')}
           </a>
         )}
-        {installed && (
+        {present && (
           <button
             type="button"
             onClick={onOpenPath}
@@ -291,7 +317,7 @@ const BinaryToolPresetCard: FC<{
         )}
       </div>
 
-      {!installed && (
+      {source !== 'mise' && (
         <div className="mt-3 border-border border-t pt-3">
           <Button
             variant="outline"
@@ -301,7 +327,11 @@ const BinaryToolPresetCard: FC<{
             disabled={installing}
             loading={installing}>
             {!installing && <Download className="size-3.5" />}
-            {installing ? t('settings.plugins.installing') : t('settings.mcp.install')}
+            {installing
+              ? t('settings.plugins.installing')
+              : isBundled
+                ? t('settings.plugins.installViaMise')
+                : t('settings.mcp.install')}
           </Button>
         </div>
       )}

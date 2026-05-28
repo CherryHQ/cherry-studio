@@ -502,6 +502,7 @@ export enum IpcChannel {
   Binary_GetState = 'binary:get-state',
   Binary_SearchRegistry = 'binary:search-registry',
   Binary_GetToolDir = 'binary:get-tool-dir',
+  Binary_ProbeBundled = 'binary:probe-bundled',
   Binary_StateChanged = 'binary:state-changed',
   Binary_ReconcileFailed = 'binary:reconcile-failed'
 

@@ -558,6 +558,7 @@ const api = {
     searchRegistry: (query: string): Promise<Array<{ name: string; tool: string }>> =>
       ipcRenderer.invoke(IpcChannel.Binary_SearchRegistry, query),
     getToolDir: (toolName: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Binary_GetToolDir, toolName),
+    probeBundled: (): Promise<Record<string, string | null>> => ipcRenderer.invoke(IpcChannel.Binary_ProbeBundled),
     onStateChanged: (callback: (state: any) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, state: any) => callback(state)
       ipcRenderer.on(IpcChannel.Binary_StateChanged, listener)

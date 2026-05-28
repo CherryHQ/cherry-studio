@@ -142,6 +142,35 @@ export class BinaryManager extends BaseService {
       const binPath = await getBinaryPath(toolName)
       return path.dirname(binPath)
     })
+
+    this.ipcHandle(IpcChannel.Binary_ProbeBundled, async () => this.probeBundled())
+  }
+
+  /**
+   * Probe which user-facing predefined tools have a bundled copy in cherry.bin.
+   *
+   * Bundled tools (bun, uv, rg) ship inside the app and are extracted at boot.
+   * The UI uses this to distinguish "available (bundled)" from "managed (mise)"
+   * vs "not installed" — see docs/references/binary-manager/README.md.
+   *
+   * Returns a map of tool name → version string (from .{name}-version marker)
+   * or null when the marker is missing. Absent keys mean the binary is not
+   * bundled or hasn't been extracted yet.
+   */
+  public probeBundled(): Record<string, string | null> {
+    const binDir = application.getPath('cherry.bin')
+    // Mirror extractBundledBinaries() but skip mise (internal infrastructure).
+    const probeList: Array<{ name: string; firstBinary: string; versionFile: string }> = [
+      { name: 'bun', firstBinary: isWin ? 'bun.exe' : 'bun', versionFile: '.bun-version' },
+      { name: 'uv', firstBinary: isWin ? 'uv.exe' : 'uv', versionFile: '.uv-version' },
+      { name: 'rg', firstBinary: isWin ? 'rg.exe' : 'rg', versionFile: '.rg-version' }
+    ]
+    const result: Record<string, string | null> = {}
+    for (const tool of probeList) {
+      if (!fs.existsSync(path.join(binDir, tool.firstBinary))) continue
+      result[tool.name] = this.readVersionMarker(path.join(binDir, tool.versionFile))
+    }
+    return result
   }
 
   private async extractBundledBinaries(): Promise<void> {
