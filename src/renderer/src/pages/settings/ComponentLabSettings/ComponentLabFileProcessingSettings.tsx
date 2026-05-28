@@ -327,7 +327,7 @@ const ComponentLabFileProcessingSettings: FC = () => {
       const results = await Promise.allSettled(
         processorsForFeature.map(async (processor) => {
           const entry = await fileEntry
-          const job = await window.api.fileProcessing.startTask({
+          const job = await window.api.fileProcessing.startJob({
             feature: section.feature,
             fileEntryId: entry.id,
             processorId: processor.id

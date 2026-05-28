@@ -14,14 +14,14 @@ import { processorRegistry } from './processors/registry'
 import { backgroundJobHandler } from './tasks/backgroundJobHandler'
 import { assertFileTypeSupported, getCapabilityHandler, resolveFileProcessingFileInfo } from './tasks/jobExecution'
 import { remotePollJobHandler } from './tasks/remotePollJobHandler'
-import type { ListAvailableFileProcessorsResult, StartFileProcessingTaskInput } from './types'
+import type { ListAvailableFileProcessorsResult, StartFileProcessingJobInput } from './types'
 
 const logger = loggerService.withContext('FileProcessingOrchestrationService')
 
 const FileProcessorFeatureSchema = z.enum(FILE_PROCESSOR_FEATURES)
 const FileProcessorIdSchema = z.enum(FILE_PROCESSOR_IDS)
 
-const StartTaskPayloadSchema = z
+const StartJobPayloadSchema = z
   .object({
     feature: FileProcessorFeatureSchema,
     fileEntryId: FileEntryIdSchema,
@@ -29,7 +29,7 @@ const StartTaskPayloadSchema = z
   })
   .strict()
 
-interface StartTaskOptions {
+interface StartJobOptions {
   idempotencyKey?: string
   parentId?: string
 }
@@ -58,7 +58,7 @@ export class FileProcessingOrchestrationService extends BaseService {
    * type to enqueue under (background vs remote-poll). This is a synchronous
    * lookup — no `await prepare()` is needed at enqueue time.
    */
-  async startTask(input: StartFileProcessingTaskInput, options: StartTaskOptions = {}): Promise<JobSnapshot> {
+  async startJob(input: StartFileProcessingJobInput, options: StartJobOptions = {}): Promise<JobSnapshot> {
     const { feature, fileEntryId, processorId } = input
     const config = resolveProcessorConfigByFeature(feature, processorId)
     const handler = getCapabilityHandler(config.id, feature)
@@ -97,8 +97,8 @@ export class FileProcessingOrchestrationService extends BaseService {
   }
 
   private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.FileProcessing_StartTask, async (_, payload: unknown) => {
-      return await this.startTask(StartTaskPayloadSchema.parse(payload))
+    this.ipcHandle(IpcChannel.FileProcessing_StartJob, async (_, payload: unknown) => {
+      return await this.startJob(StartJobPayloadSchema.parse(payload))
     })
     this.ipcHandle(IpcChannel.FileProcessing_ListAvailableProcessors, () => {
       return this.listAvailableProcessors()

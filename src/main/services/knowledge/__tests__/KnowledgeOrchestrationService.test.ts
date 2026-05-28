@@ -16,7 +16,7 @@ const {
   createStoreMock,
   deleteStoreMock,
   enqueueMock,
-  fileProcessingStartTaskMock,
+  fileProcessingStartJobMock,
   getStoreIfExistsMock,
   knowledgeBaseCreateMock,
   knowledgeBaseDeleteMock,
@@ -42,7 +42,7 @@ const {
   createStoreMock: vi.fn(),
   deleteStoreMock: vi.fn(),
   enqueueMock: vi.fn(),
-  fileProcessingStartTaskMock: vi.fn(),
+  fileProcessingStartJobMock: vi.fn(),
   getStoreIfExistsMock: vi.fn(),
   knowledgeBaseCreateMock: vi.fn(),
   knowledgeBaseDeleteMock: vi.fn(),
@@ -68,7 +68,7 @@ vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
     FileProcessingOrchestrationService: {
-      startTask: fileProcessingStartTaskMock
+      startJob: fileProcessingStartJobMock
     },
     JobManager: {
       cancel: cancelMock,
@@ -301,7 +301,7 @@ describe('KnowledgeOrchestrationService', () => {
       return createNoteItem(id, createdItemBaseIds.get(id) ?? 'kb-1', null, status)
     })
     enqueueMock.mockResolvedValue({ id: 'job-1', snapshot: {}, finished: Promise.resolve({}) })
-    fileProcessingStartTaskMock.mockResolvedValue({ id: 'fp-job-1', snapshot: {}, finished: Promise.resolve({}) })
+    fileProcessingStartJobMock.mockResolvedValue({ id: 'fp-job-1', snapshot: {}, finished: Promise.resolve({}) })
     listMock.mockResolvedValue([])
     createStoreMock.mockResolvedValue({
       deleteByIdAndExternalId: vectorDeleteByIdAndExternalIdMock,
@@ -620,7 +620,7 @@ describe('KnowledgeOrchestrationService', () => {
 
     await service.addItems('kb-1', [{ type: 'file', data: { source: '/docs/source.pdf', fileEntryId: FILE_ENTRY_ID } }])
 
-    expect(fileProcessingStartTaskMock).toHaveBeenCalledWith(
+    expect(fileProcessingStartJobMock).toHaveBeenCalledWith(
       {
         feature: 'document_to_markdown',
         fileEntryId: FILE_ENTRY_ID,
@@ -662,7 +662,7 @@ describe('KnowledgeOrchestrationService', () => {
 
     await service.addItems('kb-1', [{ type: 'file', data: { source: '/docs/source.md', fileEntryId: FILE_ENTRY_ID } }])
 
-    expect(fileProcessingStartTaskMock).not.toHaveBeenCalled()
+    expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
     expect(enqueueMock).toHaveBeenCalledWith(
       'knowledge.index-documents',
       { baseId: 'kb-1', itemId: 'file-1', parentJobId: null },
@@ -685,7 +685,7 @@ describe('KnowledgeOrchestrationService', () => {
 
     await service.addItems('kb-1', [{ type: 'file', data: { source: '/docs/source.pdf', fileEntryId: FILE_ENTRY_ID } }])
 
-    expect(fileProcessingStartTaskMock).not.toHaveBeenCalled()
+    expect(fileProcessingStartJobMock).not.toHaveBeenCalled()
     expect(enqueueMock).toHaveBeenCalledWith(
       'knowledge.index-documents',
       { baseId: 'kb-1', itemId: 'file-1', parentJobId: null },

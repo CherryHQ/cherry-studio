@@ -12,8 +12,8 @@ import type {
   FileProcessingCapabilityHandler,
   FileProcessingProcessorCapabilities,
   FileProcessingRemoteContext,
-  PreparedBackgroundTask,
-  PreparedRemoteTask
+  PreparedBackgroundJob,
+  PreparedRemoteJob
 } from '../processors/types'
 import type { FileProcessingJobPayload } from './shared'
 
@@ -27,11 +27,11 @@ interface PreparedFileProcessingJobBase {
 }
 
 export interface PreparedBackgroundFileProcessingJob extends PreparedFileProcessingJobBase {
-  prepared: PreparedBackgroundTask
+  prepared: PreparedBackgroundJob
 }
 
 export interface PreparedRemotePollFileProcessingJob extends PreparedFileProcessingJobBase {
-  prepared: PreparedRemoteTask<FileProcessorFeature, FileProcessingRemoteContext>
+  prepared: PreparedRemoteJob<FileProcessorFeature, FileProcessingRemoteContext>
 }
 
 export async function prepareFileProcessingJob(

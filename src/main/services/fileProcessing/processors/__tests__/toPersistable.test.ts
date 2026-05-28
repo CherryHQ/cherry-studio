@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest'
 import { doc2xDocumentToMarkdownHandler } from '../doc2x/document-to-markdown/handler'
 import { mineruDocumentToMarkdownHandler } from '../mineru/document-to-markdown/handler'
 import { paddleDocumentToMarkdownHandler } from '../paddleocr/document-to-markdown/handler'
-import type { PreparedRemoteTask } from '../types'
+import type { PreparedRemoteJob } from '../types'
 
 const createFileInfo = (input: Parameters<typeof FileInfoSchema.parse>[0]): FileInfo =>
   FileInfoSchema.parse(input) as FileInfo
@@ -51,12 +51,12 @@ async function prepareRemote(
     | typeof mineruDocumentToMarkdownHandler
     | typeof paddleDocumentToMarkdownHandler,
   config: FileProcessorMerged
-): Promise<PreparedRemoteTask<'document_to_markdown'>> {
+): Promise<PreparedRemoteJob<'document_to_markdown'>> {
   const prepared = await handler.prepare(FAKE_PDF, config, undefined, { fileEntryId: FAKE_FILE_ENTRY_ID })
   if (prepared.mode !== 'remote-poll') {
-    throw new Error('Expected remote-poll prepared task')
+    throw new Error('Expected remote-poll prepared job')
   }
-  return prepared as PreparedRemoteTask<'document_to_markdown'>
+  return prepared as PreparedRemoteJob<'document_to_markdown'>
 }
 
 describe('A1 whitelist invariant: real toPersistable() never emits apiKey', () => {

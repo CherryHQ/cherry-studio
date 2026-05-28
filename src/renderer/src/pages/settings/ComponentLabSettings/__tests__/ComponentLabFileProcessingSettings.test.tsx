@@ -11,7 +11,7 @@ import ComponentLabFileProcessingSettings from '../ComponentLabFileProcessingSet
 
 const selectFileMock = vi.hoisted(() => vi.fn())
 const ensureExternalEntryMock = vi.hoisted(() => vi.fn())
-const startTaskMock = vi.hoisted(() => vi.fn())
+const startJobMock = vi.hoisted(() => vi.fn())
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -89,7 +89,7 @@ describe('ComponentLabFileProcessingSettings', () => {
     vi.clearAllMocks()
     selectFileMock.mockResolvedValue([selectedImage])
     ensureExternalEntryMock.mockResolvedValue(fileEntry)
-    startTaskMock.mockResolvedValue({
+    startJobMock.mockResolvedValue({
       id: 'job-1',
       type: 'file-processing.background',
       status: 'pending'
@@ -102,7 +102,7 @@ describe('ComponentLabFileProcessingSettings', () => {
           ensureExternalEntry: ensureExternalEntryMock
         },
         fileProcessing: {
-          startTask: startTaskMock
+          startJob: startJobMock
         }
       }
     })
@@ -120,13 +120,13 @@ describe('ComponentLabFileProcessingSettings', () => {
     fireEvent.click(screen.getByRole('button', { name: /settings\.componentLab\.fileProcessing\.ocr\.start/ }))
 
     await waitFor(() => {
-      expect(startTaskMock).toHaveBeenCalledWith({
+      expect(startJobMock).toHaveBeenCalledWith({
         feature: 'image_to_text',
         fileEntryId: fileEntry.id,
         processorId: 'tesseract'
       })
     })
     expect(ensureExternalEntryMock).toHaveBeenCalledWith({ externalPath: '/tmp/scan.png' })
-    expect(startTaskMock.mock.calls[0][0]).not.toHaveProperty('file')
+    expect(startJobMock.mock.calls[0][0]).not.toHaveProperty('file')
   })
 })

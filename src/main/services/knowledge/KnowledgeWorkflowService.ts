@@ -154,7 +154,7 @@ export class KnowledgeWorkflowService {
       }
       const processorId = FileProcessorIdSchema.parse(base.fileProcessorId)
       const fileProcessing = application.get('FileProcessingOrchestrationService')
-      const fileProcessingJob = await fileProcessing.startTask(
+      const fileProcessingJob = await fileProcessing.startJob(
         {
           feature: 'document_to_markdown',
           fileEntryId: item.data.fileEntryId,

@@ -179,7 +179,7 @@ describe('FileProcessingJobOutputSchema', () => {
     })
   })
 
-  it('rejects task result fields', () => {
+  it('rejects legacy task result fields', () => {
     const result = FileProcessingJobOutputSchema.safeParse({
       taskId: 'task-1',
       status: 'completed',

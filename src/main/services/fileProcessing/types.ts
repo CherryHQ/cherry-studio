@@ -6,7 +6,7 @@ export type {
   ListAvailableFileProcessorsResult
 } from '@shared/data/types/fileProcessing'
 
-export interface StartFileProcessingTaskInput {
+export interface StartFileProcessingJobInput {
   feature: FileProcessorFeature
   fileEntryId: FileEntryId
   processorId?: FileProcessorId

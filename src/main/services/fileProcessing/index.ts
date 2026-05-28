@@ -3,5 +3,5 @@ export { TesseractRuntimeService } from './processors/tesseract/runtime/Tesserac
 export type {
   FileProcessingArtifact,
   FileProcessingJobOutput,
-  StartFileProcessingTaskInput
+  StartFileProcessingJobInput
 } from './types'
