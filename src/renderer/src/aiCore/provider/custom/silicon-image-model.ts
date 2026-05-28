@@ -1,17 +1,7 @@
-import {
-  APICallError,
-  type ImageModelV3,
-  type ImageModelV3CallOptions,
-  type ImageModelV3File,
-  type SharedV3Warning
-} from '@ai-sdk/provider'
-import {
-  combineHeaders,
-  convertBase64ToUint8Array,
-  type FetchFunction,
-  removeUndefinedEntries
-} from '@ai-sdk/provider-utils'
-import { parseDataUrl } from '@shared/utils'
+import { APICallError, type ImageModelV3, type ImageModelV3CallOptions, type SharedV3Warning } from '@ai-sdk/provider'
+import { combineHeaders, type FetchFunction, removeUndefinedEntries } from '@ai-sdk/provider-utils'
+
+import { fileToDataUrl } from './imageTransports/transportUtils'
 
 /**
  * SiliconFlow Image Generation model — one class for every SiliconFlow
@@ -37,25 +27,6 @@ type ImageItem = { url?: string; b64_json?: string }
 type ImageResponseBody = {
   images?: ImageItem[]
   data?: ImageItem[]
-}
-
-function uint8ToBase64(bytes: Uint8Array): string {
-  let binary = ''
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i])
-  }
-  return btoa(binary)
-}
-
-function fileToDataUrl(file: ImageModelV3File): string {
-  if (file.type === 'url') return file.url
-  if (typeof file.data === 'string') {
-    const parsed = parseDataUrl(file.data)
-    if (parsed) return file.data
-    return `data:${file.mediaType || 'image/png'};base64,${file.data}`
-  }
-  const bytes = file.data instanceof Uint8Array ? file.data : convertBase64ToUint8Array(String(file.data))
-  return `data:${file.mediaType || 'image/png'};base64,${uint8ToBase64(bytes)}`
 }
 
 export class SiliconImageModel implements ImageModelV3 {

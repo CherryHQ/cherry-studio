@@ -8591,18 +8591,42 @@
       "id": "flux-kontext-pro",
       "name": "FLUX.1 Kontext Pro",
       "capabilities": ["image-generation"],
-      "inputModalities": ["text"],
+      "inputModalities": ["text", "image"],
       "outputModalities": ["image"],
       "contextWindow": 512,
       "family": "flux",
       "ownedBy": "bfl",
-      "openWeights": false
+      "openWeights": false,
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "aspectRatio": {
+                "type": "enum",
+                "options": [
+                  "ASPECT_1_1",
+                  "ASPECT_4_3",
+                  "ASPECT_3_4",
+                  "ASPECT_16_9",
+                  "ASPECT_9_16",
+                  "ASPECT_21_9",
+                  "ASPECT_9_21"
+                ],
+                "render": "chips",
+                "default": "ASPECT_1_1"
+              },
+              "safetyTolerance": { "type": "range", "min": 0, "max": 6, "default": 2 },
+              "seed": { "type": "text" }
+            }
+          }
+        }
+      }
     },
     {
       "id": "flux-kontext-max",
       "name": "FLUX.1 Kontext Max",
       "capabilities": ["image-generation"],
-      "inputModalities": ["text"],
+      "inputModalities": ["text", "image"],
       "outputModalities": ["image"],
       "contextWindow": 512,
       "pricing": {
@@ -8617,7 +8641,31 @@
       },
       "family": "flux",
       "ownedBy": "bfl",
-      "openWeights": false
+      "openWeights": false,
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "aspectRatio": {
+                "type": "enum",
+                "options": [
+                  "ASPECT_1_1",
+                  "ASPECT_4_3",
+                  "ASPECT_3_4",
+                  "ASPECT_16_9",
+                  "ASPECT_9_16",
+                  "ASPECT_21_9",
+                  "ASPECT_9_21"
+                ],
+                "render": "chips",
+                "default": "ASPECT_1_1"
+              },
+              "safetyTolerance": { "type": "range", "min": 0, "max": 6, "default": 2 },
+              "seed": { "type": "text" }
+            }
+          }
+        }
+      }
     },
     {
       "id": "flux-pro-1-1",
@@ -21874,7 +21922,31 @@
         }
       },
       "ownedBy": "bfl",
-      "name": "Flux 2 Flex"
+      "name": "Flux 2 Flex",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "type": "enum",
+                "options": [
+                  "ASPECT_1_1",
+                  "ASPECT_4_3",
+                  "ASPECT_3_4",
+                  "ASPECT_16_9",
+                  "ASPECT_9_16",
+                  "ASPECT_21_9",
+                  "ASPECT_9_21"
+                ],
+                "render": "chips",
+                "default": "ASPECT_1_1"
+              },
+              "safetyTolerance": { "type": "range", "min": 0, "max": 6, "default": 2 },
+              "seed": { "type": "text" }
+            }
+          }
+        }
+      }
     },
     {
       "id": "flux-2-pro",
@@ -21893,7 +21965,31 @@
         }
       },
       "ownedBy": "bfl",
-      "name": "Flux 2 Pro"
+      "name": "Flux 2 Pro",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "type": "enum",
+                "options": [
+                  "ASPECT_1_1",
+                  "ASPECT_4_3",
+                  "ASPECT_3_4",
+                  "ASPECT_16_9",
+                  "ASPECT_9_16",
+                  "ASPECT_21_9",
+                  "ASPECT_9_21"
+                ],
+                "render": "chips",
+                "default": "ASPECT_1_1"
+              },
+              "safetyTolerance": { "type": "range", "min": 0, "max": 6, "default": 2 },
+              "seed": { "type": "text" }
+            }
+          }
+        }
+      }
     },
     {
       "id": "jimeng-3-0-1080p",

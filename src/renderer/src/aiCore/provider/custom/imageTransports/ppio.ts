@@ -1,6 +1,7 @@
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
+import { createAbortError, waitWithSignal } from './transportUtils'
 
 /**
  * PPIO submit/poll transport.
@@ -13,33 +14,6 @@ import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../im
  */
 
 export const DEFAULT_PPIO_BASE_URL = 'https://api.ppio.com'
-
-function createAbortError(message: string): Error {
-  const error = new Error(message)
-  error.name = 'AbortError'
-  return error
-}
-
-function waitWithSignal(delayMs: number, signal?: AbortSignal): Promise<void> {
-  if (signal?.aborted) {
-    return Promise.reject(createAbortError('Task polling aborted'))
-  }
-
-  return new Promise((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      signal?.removeEventListener('abort', onAbort)
-      resolve()
-    }, delayMs)
-
-    const onAbort = () => {
-      clearTimeout(timeoutId)
-      signal?.removeEventListener('abort', onAbort)
-      reject(createAbortError('Task polling aborted'))
-    }
-
-    signal?.addEventListener('abort', onAbort, { once: true })
-  })
-}
 
 export class PpioApiError extends Error {
   constructor(

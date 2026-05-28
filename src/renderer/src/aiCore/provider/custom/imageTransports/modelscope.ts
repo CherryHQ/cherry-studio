@@ -2,6 +2,7 @@ import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import { parseDataUrl } from '@shared/utils'
 
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
+import { createAbortError, uint8ToBase64, waitWithSignal } from './transportUtils'
 
 /**
  * ModelScope (魔搭) API Inference transport for AIGC image generation.
@@ -25,30 +26,6 @@ import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../im
  */
 
 export const DEFAULT_MODELSCOPE_BASE_URL = 'https://api-inference.modelscope.cn'
-
-function createAbortError(message: string): Error {
-  const error = new Error(message)
-  error.name = 'AbortError'
-  return error
-}
-
-function waitWithSignal(delayMs: number, signal?: AbortSignal): Promise<void> {
-  if (signal?.aborted) {
-    return Promise.reject(createAbortError('Task polling aborted'))
-  }
-  return new Promise((resolve, reject) => {
-    const timeoutId = setTimeout(() => {
-      signal?.removeEventListener('abort', onAbort)
-      resolve()
-    }, delayMs)
-    const onAbort = () => {
-      clearTimeout(timeoutId)
-      signal?.removeEventListener('abort', onAbort)
-      reject(createAbortError('Task polling aborted'))
-    }
-    signal?.addEventListener('abort', onAbort, { once: true })
-  })
-}
 
 export class ModelscopeApiError extends Error {
   constructor(
@@ -94,14 +71,6 @@ export interface ModelscopeProviderParams {
 export interface ModelscopeTransportSettings {
   apiKey: string
   baseURL?: string
-}
-
-function uint8ToBase64(bytes: Uint8Array): string {
-  let binary = ''
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i])
-  }
-  return btoa(binary)
 }
 
 function readNumber(bag: Record<string, unknown>, ...keys: string[]): number | undefined {

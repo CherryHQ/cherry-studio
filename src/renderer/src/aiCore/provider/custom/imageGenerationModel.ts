@@ -1,5 +1,7 @@
 import type { ImageModelV3, ImageModelV3CallOptions } from '@ai-sdk/provider'
 
+import { createAbortError } from './imageTransports/transportUtils'
+
 export interface ImageGenerationTransport {
   submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }>
   poll?(taskId: string, options: { signal?: AbortSignal; onProgress?: (progress: number) => void }): Promise<string[]>
@@ -34,12 +36,6 @@ export interface ImageGenerationSubmitInput {
 export interface CreateImageGenerationModelOptions {
   provider: string
   transport: ImageGenerationTransport
-}
-
-function createAbortError(message: string): Error {
-  const error = new Error(message)
-  error.name = 'AbortError'
-  return error
 }
 
 /**

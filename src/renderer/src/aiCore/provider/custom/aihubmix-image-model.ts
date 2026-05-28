@@ -26,6 +26,8 @@ import { loggerService } from '@logger'
 import { createPaintingGenerateError } from '@renderer/aiCore/errors/paintingGenerateError'
 import { readErrorMessage } from '@renderer/aiCore/errors/readErrorMessage'
 
+import { createAihubmixFluxTransport } from './imageTransports/aihubmix-flux'
+
 const logger = loggerService.withContext('AihubmixImageModel')
 
 const AIHUBMIX_IMAGE_PROVIDER = 'aihubmix.image' as const
@@ -223,6 +225,14 @@ function withAihubmixGoogleImageOptions(model: ImageModelV3, isGeminiImage: bool
   }
 }
 
+/**
+ * BFL async FLUX models on aihubmix — delegated to `imageTransports/aihubmix-flux.ts`.
+ *
+ * Three vendor ids submit a task and poll for the final URL (the rest of
+ * the FLUX family stays on the sync OpenAI-compat default branch).
+ */
+const ASYNC_FLUX_MODELS = new Set(['flux-2-flex', 'flux-2-pro', 'flux-kontext-max'])
+
 export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixImageModelOptions): ImageModelV3 {
   const { baseURL, resolveApiKey, headers, fetch: customFetch } = opts
 
@@ -272,6 +282,32 @@ export function createAihubmixImageModel(modelId: string, opts: CreateAihubmixIm
     // / etc.) flow through `bag`.
     const aspectRatio = options.aspectRatio ?? (typeof bag.aspectRatio === 'string' ? bag.aspectRatio : undefined)
     const numImages = options.n ?? bag.numImages ?? 1
+
+    // ---- BFL async FLUX branch (flux-2-flex / flux-2-pro / flux-kontext-max) ----
+    // Submit task + poll. The transport pre-normalizes aspect_ratio / seed /
+    // safety_tolerance / input_image; this branch only forwards the AI SDK
+    // call options.
+    if (ASYNC_FLUX_MODELS.has(modelId)) {
+      const transport = createAihubmixFluxTransport({ apiRoot, apiKey: resolveApiKey(), fetch: fetchImpl })
+      // The transport reads `aspect_ratio` from the bag; AI SDK has already
+      // normalized `ASPECT_X_Y` → `X:Y` on `options.aspectRatio`, so stamp it
+      // in alongside the user's other params.
+      const transportBag: Record<string, unknown> = { ...(bag as Record<string, unknown>) }
+      if (typeof aspectRatio === 'string') transportBag.aspect_ratio = aspectRatio
+      const { taskId } = await transport.submit({
+        modelId,
+        prompt,
+        n: numImages,
+        size: options.size,
+        seed: typeof options.seed === 'number' ? options.seed : undefined,
+        files: options.files,
+        mask: options.mask,
+        providerParams: transportBag,
+        signal: abortSignal
+      })
+      const urls = await transport.poll(taskId, { signal: abortSignal })
+      return wrap(urls)
+    }
 
     // ---- Ideogram V_3 FormData branch ----
     if (modelId === 'V_3') {
