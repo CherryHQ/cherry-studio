@@ -3840,11 +3840,13 @@
     "parameters": "參數設定",
     "per_image": "每張圖片",
     "per_images": "每張圖片",
+    "person_generation": "[to be translated]:Generate people",
     "person_generation_options": {
       "allow_adult": "允許成人",
       "allow_all": "允許所有",
       "allow_none": "不允許"
     },
+    "person_generation_tip": "[to be translated]:Allow the model to generate images of people",
     "ppio": {
       "edit_prompt_tip": "用於指定要從圖像中移除的對象或區域，例如：'dog' 或 'hat'",
       "mask_image": "遮罩圖像",

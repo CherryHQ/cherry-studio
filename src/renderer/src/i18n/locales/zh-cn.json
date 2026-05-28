@@ -3840,11 +3840,13 @@
     "parameters": "参数设置",
     "per_image": "每张图片",
     "per_images": "每张图片",
+    "person_generation": "生成人物",
     "person_generation_options": {
       "allow_adult": "允许成人",
       "allow_all": "允许所有",
       "allow_none": "不允许"
     },
+    "person_generation_tip": "允许模型生成人物图像",
     "ppio": {
       "edit_prompt_tip": "用于指定要从图像中移除的对象或区域，例如：'dog' 或 'hat'",
       "mask_image": "遮罩图像",

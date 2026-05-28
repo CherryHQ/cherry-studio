@@ -3840,11 +3840,13 @@
     "parameters": "パラメータ",
     "per_image": "1枚あたり",
     "per_images": "複数枚あたり",
+    "person_generation": "[to be translated]:Generate people",
     "person_generation_options": {
       "allow_adult": "許可する",
       "allow_all": "許可する",
       "allow_none": "許可しない"
     },
+    "person_generation_tip": "[to be translated]:Allow the model to generate images of people",
     "ppio": {
       "edit_prompt_tip": "画像から削除するオブジェクトまたは領域を指定します。例：'犬' または '帽子'",
       "mask_image": "マスク画像",

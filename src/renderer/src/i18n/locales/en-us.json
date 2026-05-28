@@ -3840,11 +3840,13 @@
     "parameters": "Parameters",
     "per_image": "per image",
     "per_images": "per images",
+    "person_generation": "Generate people",
     "person_generation_options": {
       "allow_adult": "Allow adult",
       "allow_all": "Allow all",
       "allow_none": "Not allowed"
     },
+    "person_generation_tip": "Allow the model to generate images of people",
     "ppio": {
       "edit_prompt_tip": "Used to specify the object or area to remove from the image, e.g., 'dog' or 'hat'",
       "mask_image": "Mask Image",

@@ -25,7 +25,7 @@ const KEY_LABELS: Record<string, { title: string; tooltip?: string }> = {
   styleType: { title: 'paintings.style_type', tooltip: 'paintings.style_type_tip' },
   style: { title: 'paintings.style_type', tooltip: 'paintings.style_type_tip' },
   renderingSpeed: { title: 'paintings.rendering_speed' },
-  personGeneration: { title: 'paintings.person_generation' },
+  personGeneration: { title: 'paintings.person_generation', tooltip: 'paintings.person_generation_tip' },
   numInferenceSteps: { title: 'paintings.inference_steps', tooltip: 'paintings.inference_steps_tip' },
   guidanceScale: { title: 'paintings.guidance_scale', tooltip: 'paintings.guidance_scale_tip' },
   cfg: { title: 'paintings.guidance_scale', tooltip: 'paintings.guidance_scale_tip' },
