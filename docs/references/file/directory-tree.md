@@ -214,6 +214,15 @@ The tree is the source of identity for two operations the renderer cares about:
 
 A plain DTO approach would force rebuilding the subtree on every rename, which destroys identity-based caches (React keys, hashmap lookups), and would force consumers to revalidate every reference after every mutation.
 
+### 5.1.1 Why `TreeDirRoot` Is a Separate Class
+
+`TreeDirRoot extends TreeDir` has no extra fields and no overridden behaviour today — only the constructor signature differs (`TreeDirRoot(rootPath)` vs. `new TreeDir({ path, stats? })`). It exists as a **type brand**:
+
+- `useDirectoryTree` returns `TreeDirRoot | null`, so the type system tells the caller "this is a tree root, not an interior directory". Callers can't accidentally pass a leaf directory where a root is expected.
+- It is the documented extension point for root-only state — a future `rootPath` history, watcher status, or `withStats`-summary field belongs on `TreeDirRoot`, not `TreeDir`, and the type brand keeps the migration mechanical.
+
+If neither concern materialises, this class can be deleted and `useDirectoryTree` can return `TreeDir | null` — semantics are unchanged. Keep it until the call sites prove the brand is wasted.
+
 ### 5.2 Wire Shape: `SerializedTreeNode`
 
 For IPC transit, the class hierarchy serializes to a plain object via `toJSON()`. The `parent` pointer is omitted (JSON has no cycles). The renderer reconstructs the class hierarchy via `rootFromSerialized(snapshot)`; parent pointers are re-established by walking the tree and using a `WeakMap` to track parents during reconstruction.
