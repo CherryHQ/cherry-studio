@@ -50,8 +50,7 @@ const NAVIGATE_TOOL: Tool = {
 
 const DIAGNOSE_TOOL: Tool = {
   name: 'diagnose',
-  description:
-    'Read Cherry Studio runtime state for troubleshooting. Use this to inspect app info, provider config, connectivity, logs, and MCP server status.',
+  description: 'Read Cherry Studio runtime state for troubleshooting (app, providers, logs, MCP, source).',
   inputSchema: {
     type: 'object',
     properties: {
@@ -59,19 +58,13 @@ const DIAGNOSE_TOOL: Tool = {
         type: 'string',
         enum: ['info', 'providers', 'health', 'logs', 'errors', 'mcp_status', 'read_source', 'config', 'check_update'],
         description:
-          'info: app version/paths/system. providers: list configured providers. health: test provider connectivity (cached 30s). logs: read recent log entries. errors: extract only ERROR/WARN entries from logs. mcp_status: check MCP server states. read_source: read a source file (read-only). config: read user settings (theme, language, proxy, default model, etc). check_update: compare current version with latest GitHub release.'
+          'info=app/system; providers=list; health=ping provider (30s cache, needs provider_id); logs=tail log; errors=ERROR/WARN only; mcp_status=MCP states; read_source=read app source (needs file_path); config=user settings; check_update=GitHub latest vs current'
       },
-      provider_id: {
-        type: 'string',
-        description: 'Provider ID for the health action'
-      },
-      lines: {
-        type: 'number',
-        description: 'Number of log lines to return (default 50, max 500)'
-      },
+      provider_id: { type: 'string', description: 'For health action' },
+      lines: { type: 'number', description: 'Log lines (default 50, max 500)' },
       file_path: {
         type: 'string',
-        description: 'Relative file path for read_source action, e.g. src/main/services/MCPService.ts'
+        description: 'For read_source, relative to app root, e.g. src/main/services/MCPService.ts'
       }
     },
     required: ['action']
