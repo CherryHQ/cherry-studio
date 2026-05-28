@@ -33,7 +33,31 @@ async function handleCallToolRequest(request: any, extra: any): Promise<any> {
     throw new Error(`Server not found: ${serverId}`)
   }
   const client = await mcpService.initClient(serverConfig)
-  return client.callTool(request.params)
+
+  if (!serverConfig.longRunning) {
+    return client.callTool(request.params, undefined, {
+      timeout: serverConfig.timeout ? serverConfig.timeout * 1000 : 60000
+    })
+  }
+
+  const upstreamProgressToken = request.params._meta?.progressToken
+  return client.callTool(request.params, undefined, {
+    onprogress: async (progress) => {
+      if (upstreamProgressToken === undefined) {
+        return
+      }
+      await extra.sendNotification({
+        method: 'notifications/progress',
+        params: {
+          ...progress,
+          progressToken: upstreamProgressToken
+        }
+      })
+    },
+    timeout: serverConfig.timeout ? serverConfig.timeout * 1000 : 60000,
+    resetTimeoutOnProgress: true,
+    maxTotalTimeout: 10 * 60 * 1000 // 10 minutes
+  })
 }
 
 async function getMcpServerConfigById(id: string): Promise<MCPServer | undefined> {
