@@ -120,8 +120,6 @@ export interface PpioProviderParams {
   usePreLlm?: boolean
   addWatermark?: boolean
   imageFile?: string
-  ppioMask?: string
-  resolution?: string
   outputFormat?: string
   onProgress?: (progress: number) => void
   /** Painting telemetry: called once with the PPIO async task id (parity with
@@ -282,18 +280,6 @@ class PpioTransport implements ImageGenerationTransport {
         return descriptor.mode === 'edit'
           ? this.buildSeedreamEditParams(input, painting, modelId)
           : this.buildSeedreamDrawParams(input, painting)
-      case 'seedream-4.5-draw':
-      case 'seedream-4.0-draw':
-        return this.buildSeedreamDrawParams(input, painting)
-      case 'seedream-4.5-edit':
-      case 'seedream-4.0-edit':
-        return this.buildSeedreamEditParams(input, painting, modelId)
-      case 'image-upscaler':
-        return this.buildUpscalerParams(painting)
-      case 'image-remove-background':
-        return this.buildRemoveBackgroundParams(painting)
-      case 'image-eraser':
-        return this.buildEraserParams(input, painting)
       default:
         return params
     }
@@ -420,31 +406,6 @@ class PpioTransport implements ImageGenerationTransport {
       size: painting.size || '2048x2048',
       watermark: painting.addWatermark ?? true,
       sequential_image_generation: 'disabled'
-    }
-  }
-
-  private buildUpscalerParams(painting: PpioProviderParams): Record<string, unknown> {
-    return {
-      image: painting.imageFile,
-      resolution: painting.resolution || '4k',
-      output_format: painting.outputFormat || 'jpeg'
-    }
-  }
-
-  private buildRemoveBackgroundParams(painting: PpioProviderParams): Record<string, unknown> {
-    return {
-      image: painting.imageFile
-    }
-  }
-
-  private buildEraserParams(input: ImageGenerationSubmitInput, painting: PpioProviderParams): Record<string, unknown> {
-    // Bespoke omitted `prompt` entirely when unset; preserve that (eraser is
-    // one of the no-prompt models, so an empty string would change the body).
-    return {
-      image: painting.imageFile,
-      mask: painting.ppioMask,
-      ...(input.prompt ? { prompt: input.prompt } : {}),
-      output_format: painting.outputFormat || 'jpeg'
     }
   }
 
