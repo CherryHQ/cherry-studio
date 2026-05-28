@@ -15,7 +15,8 @@ const { mockExecFileAsync, mockFs, mockPreferenceService } = vi.hoisted(() => ({
     chmodSync: vi.fn(),
     unlinkSync: vi.fn(),
     rmSync: vi.fn(),
-    renameSync: vi.fn()
+    renameSync: vi.fn(),
+    constants: { F_OK: 0, X_OK: 1 }
   },
   mockPreferenceService: { get: vi.fn(() => []) }
 }))
