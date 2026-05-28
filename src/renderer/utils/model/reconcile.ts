@@ -43,13 +43,25 @@ export function canModelUseAssistantWebSearch(model: Model): boolean {
 export function reconcileReasoningEffortForModel(
   nextModel: Model,
   currentEffort: string | undefined,
-  assistantId: string
+  assistantId: string,
+  reasoningEffortByModel?: Record<string, string>
 ): ReasoningEffortPatch | null {
   const cacheKey = `assistant.reasoning_effort_cache.${assistantId}` as const
 
   if (isSupportedThinkingTokenModel(nextModel) || isSupportedReasoningEffortModel(nextModel)) {
     const modelType = getThinkModelType(nextModel)
     const supportedOptions = MODEL_SUPPORTED_OPTIONS[modelType]
+
+    // Check per-model preference first
+    const modelPreference = reasoningEffortByModel?.[nextModel.id]
+    if (modelPreference && supportedOptions.includes(modelPreference as ThinkingOption)) {
+      const normalizedValue = modelPreference === 'none' ? undefined : modelPreference
+      if (currentEffort !== normalizedValue) {
+        return { reasoning_effort: normalizedValue }
+      }
+      return null // already correct
+    }
+
     if (supportedOptions.includes(currentEffort as ThinkingOption)) {
       return null // current value already supported — no PATCH needed
     }
