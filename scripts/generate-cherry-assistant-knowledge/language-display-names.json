@@ -1,0 +1,18 @@
+{
+  "comment": "Maps locale codes (filenames under src/renderer/src/i18n/) to display names used in the Cherry Assistant knowledge base. New locales discovered on disk but missing from this map fall through with the raw locale code as their display name. `order` controls the presentation order in SKILL.md.",
+  "displayNames": {
+    "en-us": { "zh-CN": "英", "en-US": "English" },
+    "zh-cn": { "zh-CN": "简中", "en-US": "Simplified Chinese" },
+    "zh-tw": { "zh-CN": "繁中", "en-US": "Traditional Chinese" },
+    "ja-jp": { "zh-CN": "日", "en-US": "Japanese" },
+    "fr-fr": { "zh-CN": "法", "en-US": "French" },
+    "de-de": { "zh-CN": "德", "en-US": "German" },
+    "es-es": { "zh-CN": "西", "en-US": "Spanish" },
+    "pt-pt": { "zh-CN": "葡", "en-US": "Portuguese" },
+    "ru-ru": { "zh-CN": "俄", "en-US": "Russian" },
+    "ro-ro": { "zh-CN": "罗马尼亚", "en-US": "Romanian" },
+    "el-gr": { "zh-CN": "希腊", "en-US": "Greek" },
+    "vi-vn": { "zh-CN": "越南", "en-US": "Vietnamese" }
+  },
+  "order": ["en-us", "zh-cn", "zh-tw", "ja-jp", "fr-fr", "de-de", "es-es", "pt-pt", "ru-ru", "ro-ro", "el-gr", "vi-vn"]
+}

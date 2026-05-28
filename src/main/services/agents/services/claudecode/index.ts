@@ -62,6 +62,7 @@ import { buildNamespacedToolCallId } from './claude-stream-state'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
 import { with1mContextSuffix } from './utils'
+import { applyWorkspaceRoot } from './workspace'
 
 const require_ = createRequire(import.meta.url)
 const logger = loggerService.withContext('ClaudeCodeService')
@@ -266,6 +267,8 @@ class ClaudeCodeService implements AgentServiceInterface {
         }
       }
     }
+
+    applyWorkspaceRoot(env, cwd)
 
     const errorChunks: string[] = []
 
@@ -622,6 +625,9 @@ class ClaudeCodeService implements AgentServiceInterface {
     }
 
     if (soulEnabled) {
+      // ClawServer brings cron + channel tools (CherryClaw autonomous runtime).
+      // Cherry Assistant runs as a general assistant with Soul memory AND those
+      // tools available, so it can drive scheduled tasks and IM channels too.
       // Find the channel that owns this session (if any) for context-aware cron defaults
       const sourceChannelId = await this.resolveSourceChannel(session.agent_id, session.id)
       const clawServer = new ClawServer(session.agent_id, sourceChannelId)
@@ -655,6 +661,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       // above for the SDK-glob vs canUseTool-exact-match rationale).
       autoAllowTools.add('mcp__assistant__navigate')
       autoAllowTools.add('mcp__assistant__diagnose')
+      autoAllowTools.add('mcp__assistant__apply_setting')
+      autoAllowTools.add('mcp__assistant__create_agent')
       if (Array.isArray(options.allowedTools) && options.allowedTools.length > 0) {
         if (!options.allowedTools.includes('mcp__assistant__*')) {
           options.allowedTools = [...options.allowedTools, 'mcp__assistant__*']

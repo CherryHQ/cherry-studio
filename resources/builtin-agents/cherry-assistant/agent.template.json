@@ -1,4 +1,5 @@
 {
+  "_generated_note": "This file is the SOURCE OF TRUTH for agent.json. agent.json is regenerated from it by scripts/generate-cherry-assistant-knowledge — do not edit agent.json directly. Placeholders ({{providers_count}}, etc.) are filled at build time. Edit the template, then run `pnpm build:builtin-knowledge`.",
   "name": {
     "en-US": "Cherry Assistant",
     "zh-CN": "Cherry 小助手"

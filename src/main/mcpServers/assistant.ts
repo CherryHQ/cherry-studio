@@ -3,9 +3,13 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import { agentService } from '@main/services/agents/services/AgentService'
+import appService from '@main/services/AppService'
+import { themeService } from '@main/services/ThemeService'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
+import { ThemeMode } from '@types'
 import { app } from 'electron'
 
 const logger = loggerService.withContext('MCPServer:Assistant')
@@ -78,6 +82,109 @@ const DIAGNOSE_TOOL: Tool = {
   }
 }
 
+// Whitelist of settings Cherry Assistant can write directly. Each entry binds
+// a `setting` key to a value validator and an `apply` function that performs
+// the write. Settings not in this map are rejected — adding a new one
+// requires explicit code change so a destructive or sensitive setting can
+// never be flipped via prompt injection.
+//
+// All booleans are passed as the string 'true' / 'false' (MCP tool inputs
+// are JSON Schema strings); the handler parses them. Returns the message
+// shown back to the agent (and through it, the user).
+interface ApplySettingEntry {
+  allowed: readonly string[]
+  apply: (value: string) => Promise<string> | string
+  /** Human-readable hint shown in the tool description. */
+  hint: string
+}
+
+const BOOL_VALUES: readonly string[] = ['true', 'false']
+const parseBool = (v: string) => v === 'true'
+
+// Only settings whose change is observable to the user without an app restart
+// are listed here. Restart-required or background-only persisted toggles were
+// audited and deliberately excluded — see Cherry Assistant PR for the matrix.
+const APPLY_SETTING_REGISTRY: Record<string, ApplySettingEntry> = {
+  theme: {
+    allowed: [ThemeMode.light, ThemeMode.dark, ThemeMode.system],
+    hint: 'theme: light | dark | system',
+    apply: (value) => {
+      themeService.setTheme(value as ThemeMode)
+      return `Theme switched to ${value}.`
+    }
+  },
+  launch_on_boot: {
+    allowed: BOOL_VALUES,
+    hint: 'launch_on_boot: true | false (register/unregister Cherry Studio as an OS login item — effect on next OS boot)',
+    apply: async (value) => {
+      await appService.setAppLaunchOnBoot(parseBool(value))
+      return `Launch-on-boot ${parseBool(value) ? 'enabled' : 'disabled'}. Registered with the OS — takes effect at next system boot.`
+    }
+  }
+}
+
+const CREATE_AGENT_TOOL: Tool = {
+  name: 'create_agent',
+  description: `Create a new Cherry Studio Agent on behalf of the user. Use this when the user explicitly asks to create / build / make a new agent (e.g. "帮我建一个专门做 Python 代码 review 的 Agent"). MUST collect requirements via conversation first, then SHOW the proposed config to the user for confirmation, and only call this tool after explicit user agreement.
+
+Safety rules:
+- type is fixed to 'claude-code' (lightweight; CherryClaw / channels are out of scope here)
+- accessible_paths is left empty so the new agent gets the standard isolated workspace
+- permission_mode defaults to 'default' (read-mostly); user can change later in the UI
+
+The tool returns the new agent id. After creation, you should call mcp__assistant__navigate to /agents to show the user the new agent.`,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      name: {
+        type: 'string',
+        description: 'Short human-readable name (e.g. "Python Reviewer", "周报助手"). Required.'
+      },
+      description: {
+        type: 'string',
+        description: 'One-line description shown in the agent list. Optional but recommended.'
+      },
+      instructions: {
+        type: 'string',
+        description:
+          "The agent's system prompt — role, behavior, output format. Required. Write it in the user's preferred language. Keep concise (under ~300 lines)."
+      },
+      model: {
+        type: 'string',
+        description:
+          'Model id in the form "providerId:modelName" (e.g. "cherryin:agent/glm-5.1", "anthropic:claude-3-5-sonnet-20241022"). Default to the same model Cherry Assistant itself is currently using unless the user specifies otherwise.'
+      }
+    },
+    required: ['name', 'instructions', 'model']
+  }
+}
+
+const APPLY_SETTING_TOOL: Tool = {
+  name: 'apply_setting',
+  description: `Apply a low-risk Cherry Studio setting change directly — takes effect immediately, no further user click. Only the whitelist below is supported; destructive operations (clearing data, deleting providers, resetting config) are NEVER exposed here and must still be done by the user in the UI.
+
+Supported settings:
+${Object.values(APPLY_SETTING_REGISTRY)
+  .map((e) => `- ${e.hint}`)
+  .join('\n')}`,
+  inputSchema: {
+    type: 'object',
+    properties: {
+      setting: {
+        type: 'string',
+        enum: Object.keys(APPLY_SETTING_REGISTRY),
+        description: 'Which setting to change.'
+      },
+      value: {
+        type: 'string',
+        description:
+          'New value. For booleans use the literal strings "true" or "false". See tool description for allowed values per setting.'
+      }
+    },
+    required: ['setting', 'value']
+  }
+}
+
 // Health check cache: { providerId -> { result, timestamp } }
 const healthCache = new Map<string, { result: unknown; timestamp: number }>()
 const HEALTH_CACHE_TTL = 30_000 // 30 seconds
@@ -102,7 +209,7 @@ class AssistantServer {
 
   private setupHandlers() {
     this.mcpServer.server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [NAVIGATE_TOOL, DIAGNOSE_TOOL]
+      tools: [NAVIGATE_TOOL, DIAGNOSE_TOOL, APPLY_SETTING_TOOL, CREATE_AGENT_TOOL]
     }))
 
     this.mcpServer.server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -115,6 +222,10 @@ class AssistantServer {
             return await this.navigate(args as Record<string, string | Record<string, string> | undefined>)
           case 'diagnose':
             return await this.diagnose(args)
+          case 'apply_setting':
+            return await this.applySetting(args as Record<string, string | undefined>)
+          case 'create_agent':
+            return await this.createAgent(args as Record<string, string | undefined>)
           default:
             throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${toolName}`)
         }
@@ -160,6 +271,82 @@ class AssistantServer {
     logger.info('Navigate tool called (deferred to user click)', { path: fullPath })
     return {
       content: [{ type: 'text' as const, text: `Navigate link created: ${fullPath}` }]
+    }
+  }
+
+  private async applySetting(args: Record<string, string | undefined>) {
+    const setting = args.setting
+    const value = args.value
+    if (!setting) throw new McpError(ErrorCode.InvalidParams, "'setting' is required for apply_setting")
+    if (!value) throw new McpError(ErrorCode.InvalidParams, "'value' is required for apply_setting")
+
+    const entry = APPLY_SETTING_REGISTRY[setting]
+    if (!entry) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        `Setting '${setting}' is not on the apply_setting whitelist. Allowed: ${Object.keys(APPLY_SETTING_REGISTRY).join(', ')}`
+      )
+    }
+    if (!entry.allowed.includes(value)) {
+      throw new McpError(
+        ErrorCode.InvalidParams,
+        `Value '${value}' is not valid for setting '${setting}'. Allowed: ${entry.allowed.join(', ')}`
+      )
+    }
+
+    const message = await entry.apply(value)
+    logger.info('apply_setting succeeded', { setting, value })
+    return {
+      content: [{ type: 'text' as const, text: message }]
+    }
+  }
+
+  private async createAgent(args: Record<string, string | undefined>) {
+    const name = args.name?.trim()
+    const instructions = args.instructions?.trim()
+    const model = args.model?.trim()
+    const description = args.description?.trim() || undefined
+
+    if (!name) throw new McpError(ErrorCode.InvalidParams, "'name' is required for create_agent")
+    if (!instructions) throw new McpError(ErrorCode.InvalidParams, "'instructions' is required for create_agent")
+    if (!model) throw new McpError(ErrorCode.InvalidParams, "'model' is required for create_agent")
+
+    // model id is conventionally "providerId:modelName"; reject obviously
+    // malformed values so we surface useful errors before AgentService tries
+    // to validate against the model registry.
+    if (!model.includes(':')) {
+      throw new McpError(ErrorCode.InvalidParams, `'model' must be in the form "providerId:modelName" (got "${model}")`)
+    }
+
+    try {
+      const result = await agentService.createAgent({
+        type: 'claude-code',
+        name,
+        description,
+        instructions,
+        model,
+        // Empty paths → AgentService.resolveAccessiblePaths assigns the
+        // standard per-agent workspace under userData/Data/Agents/{id}/.
+        accessible_paths: [],
+        configuration: {
+          permission_mode: 'default',
+          max_turns: 100,
+          env_vars: {}
+        }
+      })
+      logger.info('create_agent succeeded', { agentId: result.id, name })
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Agent created. id=${result.id}, name=${result.name}, model=${result.model}. Use navigate to /agents to open it.`
+          }
+        ]
+      }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      logger.error('create_agent failed', { error: msg, name })
+      throw new McpError(ErrorCode.InternalError, `Failed to create agent: ${msg}`)
     }
   }
 
