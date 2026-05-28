@@ -1,6 +1,6 @@
-import type { MiseTool } from '../preference/preferenceTypes'
+import type { ManagedBinary } from '../preference/preferenceTypes'
 
-export interface MiseToolPreset extends MiseTool {
+export interface BinaryToolPreset extends ManagedBinary {
   displayName: string
   icon?: string
   description: string
@@ -8,7 +8,7 @@ export interface MiseToolPreset extends MiseTool {
   homepage?: string
 }
 
-export const PREDEFINED_MISE_TOOLS: MiseToolPreset[] = [
+export const PREDEFINED_BINARY_TOOLS: BinaryToolPreset[] = [
   {
     name: 'uv',
     displayName: 'uv',

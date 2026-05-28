@@ -55,8 +55,8 @@ describe('pathRegistry.shouldAutoEnsure', () => {
       expect(shouldAutoEnsure('feature.mcp')).toBe(true)
     })
 
-    it('returns true for feature.mise.data', () => {
-      expect(shouldAutoEnsure('feature.mise.data')).toBe(true)
+    it('returns true for feature.binaries.data', () => {
+      expect(shouldAutoEnsure('feature.binaries.data')).toBe(true)
     })
 
     it('returns true for the new feature.agents.workspaces key', () => {
@@ -89,8 +89,8 @@ describe('pathRegistry.shouldAutoEnsure', () => {
       expect(shouldAutoEnsure('app.database.file')).toBe(true)
     })
 
-    it('returns true for feature.mise.state_file', () => {
-      expect(shouldAutoEnsure('feature.mise.state_file')).toBe(true)
+    it('returns true for feature.binaries.state_file', () => {
+      expect(shouldAutoEnsure('feature.binaries.state_file')).toBe(true)
     })
 
     it('returns true for the new feature.copilot.token_file key', () => {

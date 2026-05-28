@@ -10,6 +10,18 @@ vi.mock('@main/core/platform', () => ({
   isPortable: false
 }))
 
+vi.mock('@application', () => ({
+  application: {
+    getPath: (key: string) => {
+      const base = 'C:\\Users\\test\\.cherrystudio'
+      if (key === 'cherry.bin') return `${base}\\bin`
+      if (key === 'feature.binaries.data') return `${base}\\mise`
+      if (key === 'sys.home') return 'C:\\Users\\test'
+      return `/mock/${key}`
+    }
+  }
+}))
+
 vi.mock('child_process')
 
 // Import AFTER mocks are registered so the module binds to mocked values.

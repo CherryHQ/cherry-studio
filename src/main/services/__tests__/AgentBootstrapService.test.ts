@@ -38,7 +38,6 @@ vi.mock('@main/services/agents/services/channels/sessionStreamIpc', () => ({
 vi.mock('@main/services/agents/services/builtin/BuiltinAgentBootstrap', () => ({
   bootstrapBuiltinAgents: vi.fn()
 }))
-vi.mock('../utils/rtk', () => ({ extractRtkBinaries: vi.fn() }))
 
 import { validateGetModelsFilter, validateListToolsArgs, validateRunTaskArgs } from '../AgentBootstrapService'
 

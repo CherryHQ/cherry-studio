@@ -10,6 +10,7 @@ import { AnalyticsService } from '@main/services/AnalyticsService'
 import { ApiServerService } from '@main/services/ApiServerService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
+import { BinaryManager } from '@main/services/BinaryManager'
 import { CherryInOauthService } from '@main/services/CherryInOauthService'
 import { CodeCliService } from '@main/services/CodeCliService'
 import { FileManager } from '@main/services/file/FileManager'
@@ -19,7 +20,6 @@ import { KnowledgeVectorStoreService } from '@main/services/knowledge/vectorstor
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MainWindowService } from '@main/services/MainWindowService'
 import { McpService } from '@main/services/mcp/McpService'
-import { MiseService } from '@main/services/MiseService'
 import { NodeTraceService } from '@main/services/NodeTraceService'
 import { OcrService } from '@main/services/ocr/OcrService'
 import { OpenClawService } from '@main/services/OpenClawService'
@@ -98,7 +98,7 @@ export const services = {
   MainWindowService,
   QuickAssistantService,
   McpService,
-  MiseService,
+  BinaryManager,
   OpenClawService,
   SearchService,
   KnowledgeOrchestrationService,

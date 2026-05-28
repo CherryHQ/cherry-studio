@@ -25,6 +25,7 @@ const { execFileSync } = require('child_process')
 const MISE_VERSION = '2026.5.11'
 const BUN_VERSION = '1.3.14'
 const UV_VERSION = '0.11.16'
+const RG_VERSION = '14.1.1'
 
 function miseUrl(file) {
   return `https://github.com/jdx/mise/releases/download/v${MISE_VERSION}/${file}`
@@ -34,6 +35,9 @@ function bunUrl(asset) {
 }
 function uvUrl(asset, ext) {
   return `https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/${asset}.${ext}`
+}
+function rgUrl(asset, ext) {
+  return `https://github.com/BurntSushi/ripgrep/releases/download/${RG_VERSION}/ripgrep-${RG_VERSION}-${asset}.${ext}`
 }
 
 const TOOLS = [
@@ -165,6 +169,44 @@ const TOOLS = [
         binaries: ['uv.exe', 'uvx.exe'],
         strip: 'uv-aarch64-pc-windows-msvc',
         sha256: 'e4f8e70eb21f0f4efd2eeb159ab289f9a16057d59881a4475758be4ce39bc8c5'
+      }
+    }
+  },
+  {
+    name: 'rg',
+    version: RG_VERSION,
+    versionFile: '.rg-version',
+    packages: {
+      'darwin-arm64': {
+        url: rgUrl('aarch64-apple-darwin', 'tar.gz'),
+        archive: 'tar.gz',
+        binaries: ['rg'],
+        sha256: '24ad76777745fbff131c8fbc466742b011f925bfa4fffa2ded6def23b5b937be'
+      },
+      'darwin-x64': {
+        url: rgUrl('x86_64-apple-darwin', 'tar.gz'),
+        archive: 'tar.gz',
+        binaries: ['rg'],
+        sha256: 'fc87e78f7cb3fea12d69072e7ef3b21509754717b746368fd40d88963630e2b3'
+      },
+      'linux-arm64': {
+        url: rgUrl('aarch64-unknown-linux-gnu', 'tar.gz'),
+        archive: 'tar.gz',
+        binaries: ['rg'],
+        sha256: 'c827481c4ff4ea10c9dc7a4022c8de5db34a5737cb74484d62eb94a95841ab2f'
+      },
+      'linux-x64': {
+        url: rgUrl('x86_64-unknown-linux-musl', 'tar.gz'),
+        archive: 'tar.gz',
+        binaries: ['rg'],
+        sha256: '4cf9f2741e6c465ffdb7c26f38056a59e2a2544b51f7cc128ef28337eeae4d8e'
+      },
+      'win32-x64': {
+        url: rgUrl('x86_64-pc-windows-msvc', 'zip'),
+        archive: 'zip',
+        binaries: ['rg.exe'],
+        strip: `ripgrep-${RG_VERSION}-x86_64-pc-windows-msvc`,
+        sha256: 'd0f534024c42afd6cb4d38907c25cd2b249b79bbe6cc1dbee8e3e37c2b6e25a1'
       }
     }
   }

@@ -1380,6 +1380,7 @@
           "no_knowledge_base": "Nicio bază de cunoștințe disponibilă, te rugăm să creezi una mai întâi"
         },
         "error": {
+          "file_partial_failed": "[to be translated]:{{count}} file(s) could not be saved",
           "invalid_base": "Baza de cunoștințe selectată nu este configurată corect",
           "no_content_selected": "Te rugăm să selectezi cel puțin un tip de conținut",
           "save_failed": "Salvarea a eșuat, te rugăm să verifici configurația bazei de cunoștințe"
@@ -1798,6 +1799,7 @@
     "reset": "Resetează",
     "retry": "Reîncercare",
     "save": "Salvează",
+    "save_failed": "[to be translated]:Save failed",
     "saved": "Salvat",
     "search": "Caută",
     "select": "Selectează",
@@ -6248,13 +6250,19 @@
       "description": "Gestionați instrumentele binare și dependențele de runtime necesare aplicației.",
       "duplicateName": "[to be translated]:A tool with the same name already exists",
       "fieldVersion": "[to be translated]:Version (optional, defaults to latest)",
+      "installError": "[to be translated]:Failed to install tool",
+      "installViaMise": "[to be translated]:Install via mise",
       "installing": "Se instalează...",
       "notInstalled": "Neinstalat",
       "openBinariesDir": "[to be translated]:Open binaries directory",
       "remove": "[to be translated]:Remove tool",
       "removeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
       "removeConfirmTitle": "[to be translated]:Remove Tool",
+      "searchFailed": "[to be translated]:Search failed, check logs",
       "searchRegistry": "[to be translated]:Search mise registry...",
+      "source": {
+        "bundled": "[to be translated]:bundled"
+      },
       "title": "Dependențe de mediu",
       "tools": {
         "bun": "[to be translated]:JavaScript runtime used by MCP services and related toolchains.",
@@ -7103,7 +7111,8 @@
         "too_large": "Fișier prea mare",
         "unknown": "Citirea conținutului fișierului a eșuat"
       },
-      "reading": "Se citește conținutul fișierului..."
+      "reading": "Se citește conținutul fișierului...",
+      "upload": "[to be translated]:Drop or click to upload image/document"
     },
     "history": {
       "back": "[to be translated]:Back to list",

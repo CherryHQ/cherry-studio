@@ -15,8 +15,8 @@ import { Icon } from '@iconify/react'
 import { loggerService } from '@logger'
 import { cn } from '@renderer/utils'
 import { formatErrorMessage } from '@renderer/utils/error'
-import type { MiseState, MiseTool } from '@shared/data/preference/preferenceTypes'
-import { type MiseToolPreset, PREDEFINED_MISE_TOOLS } from '@shared/data/presets/mise-tools'
+import type { BinaryState, ManagedBinary } from '@shared/data/preference/preferenceTypes'
+import { type BinaryToolPreset, PREDEFINED_BINARY_TOOLS } from '@shared/data/presets/binary-tools'
 import {
   Download,
   ExternalLink,
@@ -41,10 +41,13 @@ const ToolIcon: FC<{ icon?: string; className?: string }> = ({ icon, className }
   return <Terminal className={cn('size-5', className)} />
 }
 
+type ToolSource = 'mise' | 'bundled' | 'none'
+
 const EnvironmentDependencies: FC = () => {
-  const [miseState, setMiseState] = useState<MiseState | null>(null)
+  const [miseState, setMiseState] = useState<BinaryState | null>(null)
+  const [bundled, setBundled] = useState<Record<string, string | null>>({})
   const [installingTools, setInstallingTools] = useState<Set<string>>(new Set())
-  const [customTools, setCustomTools] = usePreference('feature.mise.tools')
+  const [customTools, setCustomTools] = usePreference('feature.binaries.tools')
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const { t } = useTranslation()
@@ -59,9 +62,13 @@ const EnvironmentDependencies: FC = () => {
 
   const refreshState = useCallback(async () => {
     try {
-      const state = await window.api.mise.getState()
+      const [state, bundledMap] = await Promise.all([
+        window.api.binaryManager.getState(),
+        window.api.binaryManager.probeBundled()
+      ])
       if (!mountedRef.current) return
       setMiseState(state)
+      setBundled(bundledMap)
     } catch (error) {
       logger.error('Failed to refresh mise state', error as Error)
     }
@@ -69,8 +76,14 @@ const EnvironmentDependencies: FC = () => {
 
   useEffect(() => {
     void refreshState()
-    const unsub1 = window.api.mise.onStateChanged((state) => setMiseState(state))
-    const unsub2 = window.api.mise.onReconcileFailed((names) => {
+    const unsub1 = window.api.binaryManager.onStateChanged((state) => {
+      setMiseState(state)
+      // mise install may shadow a bundled binary; re-probe so the source label stays accurate.
+      void window.api.binaryManager.probeBundled().then((b) => {
+        if (mountedRef.current) setBundled(b)
+      })
+    })
+    const unsub2 = window.api.binaryManager.onReconcileFailed((names) => {
       window.toast.error(`${t('settings.plugins.installError')}: ${names}`)
     })
     return () => {
@@ -79,10 +92,10 @@ const EnvironmentDependencies: FC = () => {
     }
   }, [refreshState, t])
 
-  const installTool = async (tool: MiseTool) => {
+  const installTool = async (tool: ManagedBinary) => {
     setInstallingTools((prev) => new Set(prev).add(tool.name))
     try {
-      await window.api.mise.installTool(tool)
+      await window.api.binaryManager.installTool(tool)
     } catch (error) {
       logger.error('Failed to install tool', error as Error)
       window.toast.error(`${t('settings.plugins.installError')}: ${formatErrorMessage(error)}`)
@@ -96,8 +109,8 @@ const EnvironmentDependencies: FC = () => {
     }
   }
 
-  const handleAddCustomTool = async (tool: MiseTool) => {
-    const allNames = [...PREDEFINED_MISE_TOOLS.map((p) => p.name), ...customTools.map((c) => c.name)]
+  const handleAddCustomTool = async (tool: ManagedBinary) => {
+    const allNames = [...PREDEFINED_BINARY_TOOLS.map((p) => p.name), ...customTools.map((c) => c.name)]
     if (allNames.includes(tool.name)) {
       window.toast.error(t('settings.plugins.duplicateName'))
       throw new Error('duplicate')
@@ -109,7 +122,7 @@ const EnvironmentDependencies: FC = () => {
   }
 
   const handleRemoveCustomTool = async (toolName: string) => {
-    await window.api.mise.removeTool(toolName)
+    await window.api.binaryManager.removeTool(toolName)
     const updated = customTools.filter((t) => t.name !== toolName)
     await setCustomTools(updated)
     await refreshState()
@@ -117,10 +130,10 @@ const EnvironmentDependencies: FC = () => {
   }
 
   const openToolDir = (toolName: string) => {
-    void window.api.mise.getToolDir(toolName).then((dir) => window.api.openPath(dir))
+    void window.api.binaryManager.getToolDir(toolName).then((dir) => window.api.openPath(dir))
   }
 
-  const totalCount = PREDEFINED_MISE_TOOLS.length + customTools.length
+  const totalCount = PREDEFINED_BINARY_TOOLS.length + customTools.length
 
   return (
     <div className="flex flex-col gap-5">
@@ -133,14 +146,16 @@ const EnvironmentDependencies: FC = () => {
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {PREDEFINED_MISE_TOOLS.map((tool) => {
+        {PREDEFINED_BINARY_TOOLS.map((tool) => {
           const installed = miseState?.tools[tool.name]
+          const bundledVersion = bundled[tool.name]
+          const source: ToolSource = installed ? 'mise' : tool.name in bundled ? 'bundled' : 'none'
           return (
-            <MiseToolPresetCard
+            <BinaryToolPresetCard
               key={tool.name}
               tool={tool}
-              installed={!!installed}
-              installedVersion={installed?.version}
+              source={source}
+              installedVersion={installed?.version ?? bundledVersion ?? undefined}
               installing={installingTools.has(tool.name)}
               onInstall={() => installTool({ name: tool.name, tool: tool.tool, version: tool.version })}
               onUpdate={() => installTool({ name: tool.name, tool: tool.tool })}
@@ -197,17 +212,19 @@ const EnvironmentDependencies: FC = () => {
   )
 }
 
-const MiseToolPresetCard: FC<{
-  tool: MiseToolPreset
-  installed: boolean
+const BinaryToolPresetCard: FC<{
+  tool: BinaryToolPreset
+  source: ToolSource
   installedVersion?: string
   installing: boolean
   onInstall: () => void
   onUpdate: () => void
   onOpenPath: () => void
-}> = ({ tool, installed, installedVersion, installing, onInstall, onUpdate, onOpenPath }) => {
+}> = ({ tool, source, installedVersion, installing, onInstall, onUpdate, onOpenPath }) => {
   const { t } = useTranslation()
   const description = t(`settings.plugins.tools.${tool.name}`, { defaultValue: tool.description })
+  const present = source !== 'none'
+  const isBundled = source === 'bundled'
 
   return (
     <div className="flex flex-col rounded-xl border border-border bg-card p-4 transition-colors duration-200 ease-in-out hover:border-border-hover">
@@ -216,7 +233,7 @@ const MiseToolPresetCard: FC<{
           <div
             className={cn(
               'flex size-10 shrink-0 items-center justify-center rounded-xl',
-              installed ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+              present ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
             )}>
             <ToolIcon icon={tool.icon} />
           </div>
@@ -227,15 +244,24 @@ const MiseToolPresetCard: FC<{
                 <span className="text-muted-foreground/60 text-xs">({tool.name})</span>
               )}
             </div>
-            {installed && installedVersion && (
-              <Badge variant="secondary" className="mt-0.5 gap-1 px-1.5 py-0 text-[11px] leading-4">
-                v{installedVersion}
-              </Badge>
+            {present && (
+              <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                {installedVersion && (
+                  <Badge variant="secondary" className="gap-1 px-1.5 py-0 text-[11px] leading-4">
+                    v{installedVersion}
+                  </Badge>
+                )}
+                {isBundled && (
+                  <Badge variant="outline" className="gap-1 px-1.5 py-0 text-[11px] leading-4">
+                    {t('settings.plugins.source.bundled')}
+                  </Badge>
+                )}
+              </div>
             )}
           </div>
         </div>
 
-        {installed && (
+        {source === 'mise' && (
           <div className="flex shrink-0 items-center gap-1">
             <Button
               variant="ghost"
@@ -279,7 +305,7 @@ const MiseToolPresetCard: FC<{
             {tool.homepage.replace(/^https?:\/\//, '')}
           </a>
         )}
-        {installed && (
+        {present && (
           <button
             type="button"
             onClick={onOpenPath}
@@ -291,7 +317,7 @@ const MiseToolPresetCard: FC<{
         )}
       </div>
 
-      {!installed && (
+      {source !== 'mise' && (
         <div className="mt-3 border-border border-t pt-3">
           <Button
             variant="outline"
@@ -301,7 +327,11 @@ const MiseToolPresetCard: FC<{
             disabled={installing}
             loading={installing}>
             {!installing && <Download className="size-3.5" />}
-            {installing ? t('settings.plugins.installing') : t('settings.mcp.install')}
+            {installing
+              ? t('settings.plugins.installing')
+              : isBundled
+                ? t('settings.plugins.installViaMise')
+                : t('settings.mcp.install')}
           </Button>
         </div>
       )}
@@ -310,7 +340,7 @@ const MiseToolPresetCard: FC<{
 }
 
 const CustomToolCard: FC<{
-  tool: MiseTool
+  tool: ManagedBinary
   installed: boolean
   installedVersion?: string
   installing: boolean
@@ -403,7 +433,7 @@ function AddToolDialog({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  onAdd: (tool: MiseTool) => Promise<void>
+  onAdd: (tool: ManagedBinary) => Promise<void>
 }) {
   const { t } = useTranslation()
   const [query, setQuery] = useState('')
@@ -438,7 +468,7 @@ function AddToolDialog({
       setSearching(true)
       setSearchError(false)
       try {
-        const res = await window.api.mise.searchRegistry(query.trim())
+        const res = await window.api.binaryManager.searchRegistry(query.trim())
         if (id === searchIdRef.current) setResults(res)
       } catch {
         if (id === searchIdRef.current) {

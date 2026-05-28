@@ -1380,6 +1380,7 @@
           "no_knowledge_base": "Keine Wissensdatenbank verfügbar, bitte erstellen Sie zuerst eine"
         },
         "error": {
+          "file_partial_failed": "[to be translated]:{{count}} file(s) could not be saved",
           "invalid_base": "Die ausgewählte Wissensdatenbank ist nicht korrekt konfiguriert",
           "no_content_selected": "Bitte wählen Sie mindestens einen Inhaltstyp aus",
           "save_failed": "Speichern fehlgeschlagen, bitte überprüfen Sie die Wissensdatenbank-Konfiguration"
@@ -1798,6 +1799,7 @@
     "reset": "Zurücksetzen",
     "retry": "Wiederholen",
     "save": "Speichern",
+    "save_failed": "[to be translated]:Save failed",
     "saved": "Gespeichert",
     "search": "Suchen",
     "select": "Auswählen",
@@ -6248,13 +6250,19 @@
       "description": "Verwalten Sie binäre Tools und Laufzeitabhängigkeiten, die von der App benötigt werden.",
       "duplicateName": "[to be translated]:A tool with the same name already exists",
       "fieldVersion": "[to be translated]:Version (optional, defaults to latest)",
+      "installError": "[to be translated]:Failed to install tool",
+      "installViaMise": "[to be translated]:Install via mise",
       "installing": "Installiere...",
       "notInstalled": "Nicht installiert",
       "openBinariesDir": "[to be translated]:Open binaries directory",
       "remove": "[to be translated]:Remove tool",
       "removeConfirmMessage": "[to be translated]:Are you sure you want to remove \"{{name}}\"? The binary will be deleted.",
       "removeConfirmTitle": "[to be translated]:Remove Tool",
+      "searchFailed": "[to be translated]:Search failed, check logs",
       "searchRegistry": "[to be translated]:Search mise registry...",
+      "source": {
+        "bundled": "[to be translated]:bundled"
+      },
       "title": "Umgebungsabhängigkeiten",
       "tools": {
         "bun": "[to be translated]:JavaScript runtime used by MCP services and related toolchains.",
@@ -7103,7 +7111,8 @@
         "too_large": "Datei zu groß",
         "unknown": "Dateiinhalt lesen fehlgeschlagen"
       },
-      "reading": "Dateiinhalt wird gelesen..."
+      "reading": "Dateiinhalt wird gelesen...",
+      "upload": "[to be translated]:Drop or click to upload image/document"
     },
     "history": {
       "back": "[to be translated]:Back to list",

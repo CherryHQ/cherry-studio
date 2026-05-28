@@ -187,7 +187,7 @@ beforeEach(() => {
   Object.assign(window, {
     api: {
       isBinaryExist: vi.fn().mockResolvedValue(true),
-      mise: {
+      binaryManager: {
         getState: vi
           .fn()
           .mockImplementation(() =>
@@ -212,7 +212,7 @@ beforeEach(() => {
 
 async function openCodeToolDialog() {
   render(<CodeCliPage />)
-  await waitFor(() => expect(window.api.mise.getState).toHaveBeenCalled())
+  await waitFor(() => expect(window.api.binaryManager.getState).toHaveBeenCalled())
   fireEvent.click(screen.getByRole('button', { name: 'open tool' }))
   await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
 }

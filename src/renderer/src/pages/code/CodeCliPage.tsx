@@ -225,7 +225,7 @@ const CodeCliPage: FC = () => {
 
   const checkBunInstallation = useCallback(async () => {
     try {
-      const state = await window.api.mise.getState()
+      const state = await window.api.binaryManager.getState()
       setIsBunInstalled(!!state?.tools?.bun)
     } catch (error) {
       logger.error('Failed to check bun installation status:', error as Error)
@@ -251,7 +251,7 @@ const CodeCliPage: FC = () => {
   const handleInstallBun = async () => {
     try {
       setIsInstallingBun(true)
-      await window.api.mise.installTool({ name: 'bun', tool: 'bun' })
+      await window.api.binaryManager.installTool({ name: 'bun', tool: 'bun' })
       window.toast.success(t('settings.mcp.installSuccess'))
     } catch (error) {
       logger.error('Failed to install bun:', error as Error)

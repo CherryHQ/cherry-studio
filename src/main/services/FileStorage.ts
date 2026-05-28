@@ -1,7 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { isMac, isWin } from '@main/core/platform'
-import { toAsarUnpackedPath } from '@main/utils'
+import { isWin } from '@main/core/platform'
 import {
   checkName,
   getFileType as getFileTypeByExt,
@@ -10,6 +9,7 @@ import {
   scanDir
 } from '@main/utils/file'
 import { t } from '@main/utils/language'
+import { getBinaryPath } from '@main/utils/process'
 import { documentExts, imageExts, KB, MB } from '@shared/config/constant'
 import { parseDataUrl } from '@shared/utils'
 import type { FileMetadata, FileType, NotesTreeNode } from '@types'
@@ -32,42 +32,17 @@ import WordExtractor from 'word-extractor'
 
 const logger = loggerService.withContext('FileStorage')
 
-// Get ripgrep binary path
-const getRipgrepBinaryPath = (): string | null => {
-  try {
-    const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
-    const platform = isMac ? 'darwin' : isWin ? 'win32' : 'linux'
-    let ripgrepBinaryPath = path.join(
-      __dirname,
-      '../../node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep',
-      `${arch}-${platform}`,
-      isWin ? 'rg.exe' : 'rg'
-    )
-
-    ripgrepBinaryPath = toAsarUnpackedPath(ripgrepBinaryPath)
-
-    if (fs.existsSync(ripgrepBinaryPath)) {
-      return ripgrepBinaryPath
-    }
-    return null
-  } catch (error) {
-    logger.error('Failed to locate ripgrep binary:', error as Error)
-    return null
-  }
-}
-
 /**
  * Execute ripgrep with captured output
  */
-function executeRipgrep(args: string[]): Promise<{ exitCode: number; output: string }> {
+async function executeRipgrep(args: string[]): Promise<{ exitCode: number; output: string }> {
+  const ripgrepBinaryPath = await getBinaryPath('rg')
+
+  if (!fs.existsSync(ripgrepBinaryPath)) {
+    throw new Error('Ripgrep binary not available')
+  }
+
   return new Promise((resolve, reject) => {
-    const ripgrepBinaryPath = getRipgrepBinaryPath()
-
-    if (!ripgrepBinaryPath) {
-      reject(new Error('Ripgrep binary not available'))
-      return
-    }
-
     const { spawn } = require('child_process')
     const child = spawn(ripgrepBinaryPath, ['--no-config', '--ignore-case', ...args], {
       stdio: ['pipe', 'pipe', 'pipe']
@@ -900,11 +875,6 @@ class FileStorage {
 
     if (!stat.isDirectory()) {
       throw new Error(`Path is not a directory: ${resolvedPath}`)
-    }
-
-    // Use ripgrep for file listing with relevance-based sorting
-    if (!getRipgrepBinaryPath()) {
-      throw new Error('Ripgrep binary not available')
     }
 
     return await this.listDirectoryWithRipgrep(resolvedPath, mergedOptions)

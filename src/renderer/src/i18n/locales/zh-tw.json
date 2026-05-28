@@ -6251,6 +6251,7 @@
       "duplicateName": "已存在相同名稱的工具",
       "fieldVersion": "版本（選填，預設為最新）",
       "installError": "工具安裝失敗",
+      "installViaMise": "透過 mise 安裝",
       "installing": "安裝中...",
       "notInstalled": "未安裝",
       "openBinariesDir": "開啟二進位檔案目錄",
@@ -6259,6 +6260,9 @@
       "removeConfirmTitle": "移除工具",
       "searchFailed": "搜尋失敗，請查看日誌",
       "searchRegistry": "搜尋 mise 工具倉庫...",
+      "source": {
+        "bundled": "內建"
+      },
       "title": "環境依賴",
       "tools": {
         "bun": "MCP 服務及相關工具鏈使用的 JavaScript 執行環境。",

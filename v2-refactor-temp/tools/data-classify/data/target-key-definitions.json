@@ -195,11 +195,11 @@
       "description": "Translate page target language (from complex migration)"
     },
     {
-      "targetKey": "feature.mise.tools",
-      "type": "PreferenceTypes.MiseTool[]",
-      "defaultValue": "VALUE: [] as PreferenceTypes.MiseTool[]",
+      "targetKey": "feature.binaries.tools",
+      "type": "PreferenceTypes.ManagedBinary[]",
+      "defaultValue": "VALUE: [] as PreferenceTypes.ManagedBinary[]",
       "status": "classified",
-      "description": "List of tools to install via mise"
+      "description": "List of tools to install via BinaryManager"
     }
   ]
 }

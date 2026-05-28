@@ -6251,6 +6251,7 @@
       "duplicateName": "A tool with the same name already exists",
       "fieldVersion": "Version (optional, defaults to latest)",
       "installError": "Failed to install tool",
+      "installViaMise": "Install via mise",
       "installing": "Installing...",
       "notInstalled": "Not installed",
       "openBinariesDir": "Open binaries directory",
@@ -6259,6 +6260,9 @@
       "removeConfirmTitle": "Remove Tool",
       "searchFailed": "Search failed, check logs",
       "searchRegistry": "Search mise registry...",
+      "source": {
+        "bundled": "bundled"
+      },
       "title": "Dependencies",
       "tools": {
         "bun": "JavaScript runtime used by MCP services and related toolchains.",

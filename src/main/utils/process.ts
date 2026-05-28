@@ -2,12 +2,10 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import type { GitBashPathInfo, GitBashPathSource } from '@shared/config/constant'
-import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import chardet from 'chardet'
 import { type ChildProcess, execFileSync, spawn, type SpawnOptions } from 'child_process'
 import fs from 'fs'
 import iconv from 'iconv-lite'
-import os from 'os'
 import path from 'path'
 
 import { ConfigKeys, configManager } from '../services/ConfigManager'
@@ -51,24 +49,32 @@ export async function getBinaryName(name: string): Promise<string> {
   return name
 }
 
+/**
+ * Directories that hold Cherry-managed binaries, in resolution order:
+ * mise shims first (user-installed wins), then `cherry.bin` (bundled fallback).
+ *
+ * Single source of truth for the binary path layout — both `getBinaryPath()`
+ * and the PATH-appending logic in `shell-env.ts` consume this. Do not hand-join
+ * `cherry.bin` / `feature.binaries.data` elsewhere.
+ */
+export function getBinarySearchDirs(): string[] {
+  return [path.join(application.getPath('feature.binaries.data'), 'shims'), application.getPath('cherry.bin')]
+}
+
 export async function getBinaryPath(name?: string): Promise<string> {
+  const searchDirs = getBinarySearchDirs()
   if (!name) {
-    return path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
+    // Legacy: no-arg returns the cherry.bin directory (extract target).
+    return application.getPath('cherry.bin')
   }
 
   const binaryName = await getBinaryName(name)
-
-  const miseShimsDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'mise', 'shims')
-  const miseShimPath = path.join(miseShimsDir, binaryName)
-  if (fs.existsSync(miseShimPath)) {
-    return miseShimPath
+  for (const dir of searchDirs) {
+    const candidate = path.join(dir, binaryName)
+    if (fs.existsSync(candidate)) {
+      return candidate
+    }
   }
-
-  const binariesDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
-  if (fs.existsSync(path.join(binariesDir, binaryName))) {
-    return path.join(binariesDir, binaryName)
-  }
-
   return binaryName
 }
 
