@@ -22,6 +22,12 @@ describe('FilePathSchema', () => {
     })
   })
 
+  describe('refine: min length', () => {
+    it('rejects the empty string', () => {
+      expect(FilePathSchema.safeParse('').success).toBe(false)
+    })
+  })
+
   describe('refine: absolute', () => {
     it('rejects relative POSIX path', () => {
       expect(FilePathSchema.safeParse('foo/bar').success).toBe(false)
@@ -33,6 +39,10 @@ describe('FilePathSchema', () => {
 
     it('rejects file:// URLs', () => {
       expect(FilePathSchema.safeParse('file:///foo/bar').success).toBe(false)
+    })
+
+    it('rejects drive-relative Windows path (no separator after drive)', () => {
+      expect(FilePathSchema.safeParse('C:foo').success).toBe(false)
     })
 
     it('accepts POSIX absolute /foo/bar', () => {

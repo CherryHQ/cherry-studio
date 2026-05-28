@@ -1,6 +1,6 @@
 import type { FileMetadata } from '@renderer/types'
 import { type FileEntryId } from '@shared/data/types/file'
-import { type FilePath, FilePathSchema } from '@shared/file/types'
+import { FilePathSchema } from '@shared/file/types'
 
 export interface KnowledgeFileItemData {
   source: string
@@ -17,14 +17,18 @@ export const resolveKnowledgeFileEntryData = async (
     throw new Error(`Failed to resolve a local path for "${displayName}"`)
   }
 
-  if (!FilePathSchema.safeParse(source).success) {
+  const parsed = FilePathSchema.safeParse(source)
+  if (!parsed.success) {
     throw new Error(`Failed to resolve an absolute local path for "${displayName}"`)
   }
 
-  const entry = await window.api.file.ensureExternalEntry({ externalPath: source as FilePath })
+  // Use the canonical (NFC + resolved + trailing-stripped) value, not the raw
+  // input: the persisted `source` must match the canonical `entry.externalPath`
+  // so later equality/dedup checks don't diverge on NFD macOS paths.
+  const entry = await window.api.file.ensureExternalEntry({ externalPath: parsed.data })
 
   return {
-    source,
+    source: parsed.data,
     fileEntryId: entry.id
   }
 }

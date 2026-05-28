@@ -40,6 +40,18 @@ describe('knowledgeFileEntry', () => {
     expect(mockEnsureExternalEntry).toHaveBeenCalledWith({ externalPath: '/tmp/report.pdf' })
   })
 
+  it('canonicalizes the path before persisting source and calling ensureExternalEntry', async () => {
+    const entry = createExternalEntry('/tmp/report.pdf')
+    mockEnsureExternalEntry.mockResolvedValueOnce(entry)
+
+    // Non-canonical input: trailing separator + unresolved `.`/`..` segments.
+    await expect(resolveKnowledgeFileEntryData('/tmp/sub/.././report.pdf/')).resolves.toEqual({
+      source: '/tmp/report.pdf',
+      fileEntryId: entry.id
+    })
+    expect(mockEnsureExternalEntry).toHaveBeenCalledWith({ externalPath: '/tmp/report.pdf' })
+  })
+
   it('uses the FileMetadata path when resolving legacy selected file metadata', async () => {
     const entry = createExternalEntry('/external/from-metadata.pdf')
     mockEnsureExternalEntry.mockResolvedValueOnce(entry)
