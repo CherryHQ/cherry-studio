@@ -8,8 +8,8 @@ import type { JobHandler, JobSettledEvent } from '@main/core/job/types'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { KnowledgeItemStatus } from '@shared/data/types/knowledge'
 
-import type { KnowledgeMutationCoordinator } from '../KnowledgeMutationCoordinator'
-import type { KnowledgeWorkflowCoordinator } from '../KnowledgeWorkflowCoordinator'
+import type { KnowledgeLockManager } from '../KnowledgeLockManager'
+import type { KnowledgeWorkflowService } from '../KnowledgeWorkflowService'
 import {
   KNOWLEDGE_ACTIVE_JOB_LIMIT,
   KNOWLEDGE_ACTIVE_JOB_STATUSES,
@@ -27,8 +27,8 @@ const logger = loggerService.withContext('Knowledge:ReindexSubtreeJobHandler')
 const REINDEX_RECOVERY_ACTIVE_STATUSES = new Set<KnowledgeItemStatus>(['preparing', 'processing'])
 
 export function createReindexSubtreeJobHandler(
-  mutationCoordinator: KnowledgeMutationCoordinator,
-  workflowCoordinator: KnowledgeWorkflowCoordinator
+  knowledgeLockManager: KnowledgeLockManager,
+  workflowService: KnowledgeWorkflowService
 ): JobHandler<KnowledgeReindexSubtreePayload> {
   return {
     recovery: 'retry',
@@ -55,7 +55,7 @@ export function createReindexSubtreeJobHandler(
       }
 
       // Reset vectors, expanded children, and root statuses as one base-level mutation.
-      const resetResult = await mutationCoordinator.withBaseMutationLock(baseId, async () => {
+      const resetResult = await knowledgeLockManager.withBaseMutationLock(baseId, async () => {
         const base = await knowledgeBaseService.getById(baseId)
         const rootItems = await knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true })
         // Re-check under the mutation lock so reindex cannot turn a just-deleted
@@ -103,7 +103,7 @@ export function createReindexSubtreeJobHandler(
       try {
         for (const item of resetResult.roots) {
           ctx.signal.throwIfAborted()
-          await workflowCoordinator.scheduleItem(toKnowledgeBaseId(baseId), toKnowledgeItemId(item.id), ctx.jobId)
+          await workflowService.scheduleItem(toKnowledgeBaseId(baseId), toKnowledgeItemId(item.id), ctx.jobId)
           completedSchedulingRootIds.add(item.id)
         }
       } catch (error) {

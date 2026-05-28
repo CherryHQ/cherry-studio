@@ -12,14 +12,14 @@ import {
   getJobMock,
   knowledgeBaseGetByIdMock,
   knowledgeItemGetSubtreeItemsMock,
+  knowledgeLockManager,
   listMock,
-  mutationCoordinator,
   replaceByExternalIdMock
 } from './jobHandlerTestUtils'
 
 describe('delete-subtree job handler', () => {
   it('cancels active subtree jobs, clears vectors, detaches refs, and hard deletes rows', async () => {
-    const handler = createDeleteSubtreeJobHandler(mutationCoordinator as never)
+    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never)
     const subtreeItems: KnowledgeItem[] = [
       createDirectoryItem('dir-1', 'deleting'),
       createNoteItem('note-1', 'dir-1', 'deleting')
@@ -52,7 +52,7 @@ describe('delete-subtree job handler', () => {
   })
 
   it('deletes deleting rows by id', async () => {
-    const handler = createDeleteSubtreeJobHandler(mutationCoordinator as never)
+    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never)
     const subtreeItems: KnowledgeItem[] = [
       createDirectoryItem('dir-1', 'deleting'),
       createNoteItem('note-1', 'dir-1', 'deleting')
@@ -65,7 +65,7 @@ describe('delete-subtree job handler', () => {
   })
 
   it('stops before cleanup when subtree job cancellation fails', async () => {
-    const handler = createDeleteSubtreeJobHandler(mutationCoordinator as never)
+    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never)
     const subtreeItems: KnowledgeItem[] = [
       createDirectoryItem('dir-1', 'deleting'),
       createNoteItem('note-1', 'dir-1', 'deleting')
@@ -89,7 +89,7 @@ describe('delete-subtree job handler', () => {
   })
 
   it('stops before cleanup when subtree job cancellation times out', async () => {
-    const handler = createDeleteSubtreeJobHandler(mutationCoordinator as never)
+    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never)
     const subtreeItems: KnowledgeItem[] = [
       createDirectoryItem('dir-1', 'deleting'),
       createNoteItem('note-1', 'dir-1', 'deleting')
@@ -125,7 +125,7 @@ describe('delete-subtree job handler', () => {
   })
 
   it('completes when the subtree is already gone', async () => {
-    const handler = createDeleteSubtreeJobHandler(mutationCoordinator as never)
+    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never)
     knowledgeItemGetSubtreeItemsMock.mockResolvedValue([])
 
     await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['missing-root'] }, 'delete-job'))
@@ -137,7 +137,7 @@ describe('delete-subtree job handler', () => {
   })
 
   it('no-ops when a stale job targets visible rows', async () => {
-    const handler = createDeleteSubtreeJobHandler(mutationCoordinator as never)
+    const handler = createDeleteSubtreeJobHandler(knowledgeLockManager as never)
     const subtreeItems: KnowledgeItem[] = [createDirectoryItem('dir-1'), createNoteItem('note-1', 'dir-1')]
     knowledgeItemGetSubtreeItemsMock.mockResolvedValue(subtreeItems)
 

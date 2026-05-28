@@ -6,8 +6,8 @@ import { loggerService } from '@logger'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
-import type { KnowledgeMutationCoordinator } from '../KnowledgeMutationCoordinator'
-import type { KnowledgeWorkflowCoordinator } from '../KnowledgeWorkflowCoordinator'
+import type { KnowledgeLockManager } from '../KnowledgeLockManager'
+import type { KnowledgeWorkflowService } from '../KnowledgeWorkflowService'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
 import { markUnscheduledKnowledgeItemsFailed } from '../utils/cleanup/statusCleanup'
 import { deleteKnowledgeItemVectors } from '../utils/cleanup/vectorCleanup'
@@ -19,8 +19,8 @@ import { isDataApiNotFoundError, markKnowledgeItemFailedOnSettled } from './util
 const logger = loggerService.withContext('Knowledge:PrepareRootJobHandler')
 
 export function createPrepareRootJobHandler(
-  mutationCoordinator: KnowledgeMutationCoordinator,
-  workflowCoordinator: KnowledgeWorkflowCoordinator
+  knowledgeLockManager: KnowledgeLockManager,
+  workflowService: KnowledgeWorkflowService
 ): JobHandler<KnowledgePrepareRootPayload> {
   return {
     recovery: 'retry',
@@ -45,15 +45,15 @@ export function createPrepareRootJobHandler(
       }
 
       // Drop stale expanded leaves before scanning so first attempts and retries stay idempotent.
-      await deletePreviousLeafExpansion(baseId, itemId, mutationCoordinator)
+      await deletePreviousLeafExpansion(baseId, itemId, knowledgeLockManager)
 
       ctx.signal.throwIfAborted()
       reportKnowledgeProgress(ctx, 0, { stage: 'scanning' })
 
       // Source expansion creates child items, so it runs under the base mutation lock.
-      const leafItems = await scanRootItem(ctx, mutationCoordinator)
+      const leafItems = await scanRootItem(ctx, knowledgeLockManager)
       // Child indexing is scheduled after expansion succeeds so partial scans do not enqueue stale leaves.
-      await enqueueLeafItems(ctx, leafItems, workflowCoordinator)
+      await enqueueLeafItems(ctx, leafItems, workflowService)
     },
 
     async onSettled(event) {
@@ -89,9 +89,9 @@ async function loadPrepareRootItemOrSkip(ctx: JobContext<KnowledgePrepareRootPay
 async function deletePreviousLeafExpansion(
   baseId: string,
   itemId: string,
-  mutationCoordinator: KnowledgeMutationCoordinator
+  knowledgeLockManager: KnowledgeLockManager
 ): Promise<void> {
-  await mutationCoordinator.withBaseMutationLock(baseId, async () => {
+  await knowledgeLockManager.withBaseMutationLock(baseId, async () => {
     const base = await knowledgeBaseService.getById(baseId)
     const descendants = await knowledgeItemService.getSubtreeItems(baseId, [itemId])
     const removableDescendants = descendants.filter((item) => item.status !== 'deleting')
@@ -105,11 +105,11 @@ async function deletePreviousLeafExpansion(
 
 async function scanRootItem(
   ctx: JobContext<KnowledgePrepareRootPayload>,
-  mutationCoordinator: KnowledgeMutationCoordinator
+  knowledgeLockManager: KnowledgeLockManager
 ): Promise<KnowledgeItem[]> {
   const { baseId, itemId } = ctx.input
 
-  return await mutationCoordinator.withBaseMutationLock(baseId, async () => {
+  return await knowledgeLockManager.withBaseMutationLock(baseId, async () => {
     let currentItem: KnowledgeItem
     try {
       currentItem = await knowledgeItemService.getById(itemId)
@@ -145,7 +145,7 @@ async function scanRootItem(
 async function enqueueLeafItems(
   ctx: JobContext<KnowledgePrepareRootPayload>,
   leafItems: KnowledgeItem[],
-  workflowCoordinator: KnowledgeWorkflowCoordinator
+  workflowService: KnowledgeWorkflowService
 ): Promise<void> {
   const { baseId } = ctx.input
 
@@ -155,7 +155,7 @@ async function enqueueLeafItems(
   for (const [index, leaf] of leafItems.entries()) {
     ctx.signal.throwIfAborted()
     try {
-      await workflowCoordinator.scheduleItem(baseIdInput, toKnowledgeItemId(leaf.id), ctx.jobId)
+      await workflowService.scheduleItem(baseIdInput, toKnowledgeItemId(leaf.id), ctx.jobId)
       completedSchedulingLeafIds.add(leaf.id)
     } catch (error) {
       await markUnscheduledLeafItemsFailed(baseId, leafItems, completedSchedulingLeafIds, error)

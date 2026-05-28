@@ -7,7 +7,7 @@ import { loggerService } from '@logger'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
-import type { KnowledgeMutationCoordinator } from '../KnowledgeMutationCoordinator'
+import type { KnowledgeLockManager } from '../KnowledgeLockManager'
 import { loadKnowledgeItemDocuments } from '../readers/KnowledgeReader'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId } from '../types'
 import type { IndexableKnowledgeItem } from '../types/items'
@@ -29,7 +29,7 @@ type ChunkedDocuments = ReturnType<typeof chunkDocuments>
 type EmbeddedNodes = Awaited<ReturnType<typeof embedDocuments>>
 
 export function createIndexDocumentsJobHandler(
-  mutationCoordinator: KnowledgeMutationCoordinator
+  knowledgeLockManager: KnowledgeLockManager
 ): JobHandler<KnowledgeIndexDocumentsPayload> {
   return {
     recovery: 'retry',
@@ -54,7 +54,7 @@ export function createIndexDocumentsJobHandler(
 
       // Mark reading before file/network IO so the UI reflects the current long-running phase.
       reportKnowledgeProgress(ctx, 0, { stage: 'reading', currentFile: 0, totalFiles: 1 })
-      await mutationCoordinator.withBaseMutationLock(ctx.input.baseId, async () => {
+      await knowledgeLockManager.withBaseMutationLock(ctx.input.baseId, async () => {
         await knowledgeItemService.rebuildFileRefsForItems([ctx.input.itemId])
         await knowledgeItemService.updateStatus(ctx.input.itemId, 'reading')
       })
@@ -65,7 +65,7 @@ export function createIndexDocumentsJobHandler(
 
       // Mark embedding separately so the UI reflects the current long-running phase.
       reportKnowledgeProgress(ctx, 40, { stage: 'embedding', currentFile: 0, totalFiles: 1 })
-      await mutationCoordinator.withBaseMutationLock(ctx.input.baseId, () =>
+      await knowledgeLockManager.withBaseMutationLock(ctx.input.baseId, () =>
         knowledgeItemService.updateStatus(ctx.input.itemId, 'embedding')
       )
 
@@ -73,7 +73,7 @@ export function createIndexDocumentsJobHandler(
 
       // Vector replacement and final status flip must stay atomic at the base mutation level.
       reportKnowledgeProgress(ctx, 80, { stage: 'writing', currentFile: 0, totalFiles: 1 })
-      await writeItemVectors(ctx, base, nodes, mutationCoordinator)
+      await writeItemVectors(ctx, base, nodes, knowledgeLockManager)
 
       reportKnowledgeProgress(ctx, 100, { stage: 'done', currentFile: 1, totalFiles: 1 })
     },
@@ -148,11 +148,11 @@ async function writeItemVectors(
   ctx: JobContext<KnowledgeIndexDocumentsPayload>,
   base: KnowledgeBase,
   nodes: EmbeddedNodes,
-  mutationCoordinator: KnowledgeMutationCoordinator
+  knowledgeLockManager: KnowledgeLockManager
 ): Promise<void> {
   const { baseId, itemId } = ctx.input
 
-  await mutationCoordinator.withBaseMutationLock(baseId, async () => {
+  await knowledgeLockManager.withBaseMutationLock(baseId, async () => {
     ctx.signal.throwIfAborted()
     const latestItem = await knowledgeItemService.getById(itemId)
     if (latestItem.status === 'deleting') {

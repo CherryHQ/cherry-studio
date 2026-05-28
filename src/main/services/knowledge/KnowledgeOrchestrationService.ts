@@ -24,8 +24,8 @@ import { createDeleteSubtreeJobHandler } from './jobs/deleteSubtreeJobHandler'
 import { createIndexDocumentsJobHandler } from './jobs/indexDocumentsJobHandler'
 import { createPrepareRootJobHandler } from './jobs/prepareRootJobHandler'
 import { createReindexSubtreeJobHandler } from './jobs/reindexSubtreeJobHandler'
-import { KnowledgeMutationCoordinator } from './KnowledgeMutationCoordinator'
-import { KnowledgeWorkflowCoordinator } from './KnowledgeWorkflowCoordinator'
+import { KnowledgeLockManager } from './KnowledgeLockManager'
+import { KnowledgeWorkflowService } from './KnowledgeWorkflowService'
 import { rerankKnowledgeSearchResults } from './rerank/rerank'
 import {
   KNOWLEDGE_ACTIVE_JOB_LIMIT,
@@ -61,20 +61,20 @@ const KNOWLEDGE_JOB_TYPE_SET = new Set<string>(KNOWLEDGE_JOB_TYPES)
 @ServicePhase(Phase.WhenReady)
 @DependsOn(['KnowledgeVectorStoreService', 'FileManager', 'JobManager'])
 export class KnowledgeOrchestrationService extends BaseService {
-  private readonly mutationCoordinator = new KnowledgeMutationCoordinator()
-  private readonly workflowCoordinator = new KnowledgeWorkflowCoordinator(this.mutationCoordinator)
+  private readonly knowledgeLockManager = new KnowledgeLockManager()
+  private readonly workflowService = new KnowledgeWorkflowService(this.knowledgeLockManager)
 
   protected onInit(): void {
     const jobManager = application.get('JobManager')
     jobManager.registerHandler(
       'knowledge.prepare-root',
-      createPrepareRootJobHandler(this.mutationCoordinator, this.workflowCoordinator)
+      createPrepareRootJobHandler(this.knowledgeLockManager, this.workflowService)
     )
-    jobManager.registerHandler('knowledge.index-documents', createIndexDocumentsJobHandler(this.mutationCoordinator))
-    jobManager.registerHandler('knowledge.delete-subtree', createDeleteSubtreeJobHandler(this.mutationCoordinator))
+    jobManager.registerHandler('knowledge.index-documents', createIndexDocumentsJobHandler(this.knowledgeLockManager))
+    jobManager.registerHandler('knowledge.delete-subtree', createDeleteSubtreeJobHandler(this.knowledgeLockManager))
     jobManager.registerHandler(
       'knowledge.reindex-subtree',
-      createReindexSubtreeJobHandler(this.mutationCoordinator, this.workflowCoordinator)
+      createReindexSubtreeJobHandler(this.knowledgeLockManager, this.workflowService)
     )
     this.registerIpcHandlers()
   }
@@ -100,7 +100,7 @@ export class KnowledgeOrchestrationService extends BaseService {
   async deleteBase(baseId: string): Promise<void> {
     await this.cancelAllJobsForBase(baseId)
 
-    await this.mutationCoordinator.withBaseMutationLock(baseId, async () => {
+    await this.knowledgeLockManager.withBaseMutationLock(baseId, async () => {
       try {
         const vectorStoreService = application.get('KnowledgeVectorStoreService')
         await vectorStoreService.deleteStore(baseId)
@@ -195,7 +195,7 @@ export class KnowledgeOrchestrationService extends BaseService {
 
   async addItems(baseId: string, items: KnowledgeRuntimeAddItemInput[]): Promise<void> {
     await this.assertBaseCanRunRuntimeOperation(baseId, 'addItems')
-    await this.workflowCoordinator.addItems(baseId, items)
+    await this.workflowService.addItems(baseId, items)
   }
 
   async deleteItems(baseId: string, itemIds: string[]): Promise<void> {
@@ -204,7 +204,7 @@ export class KnowledgeOrchestrationService extends BaseService {
       return
     }
 
-    await this.workflowCoordinator.deleteItems(baseId, rootItemIds)
+    await this.workflowService.deleteItems(baseId, rootItemIds)
   }
 
   async reindexItems(baseId: string, itemIds: string[]): Promise<void> {
@@ -216,7 +216,7 @@ export class KnowledgeOrchestrationService extends BaseService {
 
     await this.assertSubtreesCanReindex(baseId, rootItemIds)
 
-    await this.workflowCoordinator.reindexItems(baseId, rootItemIds)
+    await this.workflowService.reindexItems(baseId, rootItemIds)
   }
 
   async search(baseId: string, query: string): Promise<KnowledgeSearchResult[]> {
@@ -300,7 +300,7 @@ export class KnowledgeOrchestrationService extends BaseService {
     const knowledgeItemId = toKnowledgeItemId(itemId)
     await this.assertBaseCanRunRuntimeOperation(knowledgeBaseId, 'deleteItemChunk')
 
-    await this.mutationCoordinator.withBaseMutationLock(knowledgeBaseId, async () => {
+    await this.knowledgeLockManager.withBaseMutationLock(knowledgeBaseId, async () => {
       await this.assertItemCanRunChunkOperation(knowledgeBaseId, knowledgeItemId, 'delete chunk')
 
       const base = await knowledgeBaseService.getById(knowledgeBaseId)

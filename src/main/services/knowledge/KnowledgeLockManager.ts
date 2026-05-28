@@ -1,6 +1,6 @@
 import { Mutex } from 'async-mutex'
 
-export class KnowledgeMutationCoordinator {
+export class KnowledgeLockManager {
   private readonly baseMutexes = new Map<string, Mutex>()
 
   async withBaseMutationLock<T>(baseId: string, task: () => Promise<T>): Promise<T> {

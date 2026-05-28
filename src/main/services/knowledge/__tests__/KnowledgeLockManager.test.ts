@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { KnowledgeMutationCoordinator } from '../KnowledgeMutationCoordinator'
+import { KnowledgeLockManager } from '../KnowledgeLockManager'
 
 function createDeferred<T = void>() {
   let resolve!: (value: T | PromiseLike<T>) => void
@@ -16,26 +16,26 @@ function flushMicrotasks(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
-function getBaseMutexCount(coordinator: KnowledgeMutationCoordinator): number {
+function getBaseMutexCount(lockManager: KnowledgeLockManager): number {
   return (
-    coordinator as unknown as {
+    lockManager as unknown as {
       baseMutexes: Map<string, unknown>
     }
   ).baseMutexes.size
 }
 
-describe('KnowledgeMutationCoordinator', () => {
+describe('KnowledgeLockManager', () => {
   it('serializes overlapping tasks for the same base', async () => {
-    const coordinator = new KnowledgeMutationCoordinator()
+    const lockManager = new KnowledgeLockManager()
     const releaseFirst = createDeferred()
     const order: string[] = []
 
-    const firstTask = coordinator.withBaseMutationLock('kb-1', async () => {
+    const firstTask = lockManager.withBaseMutationLock('kb-1', async () => {
       order.push('first-start')
       await releaseFirst.promise
       order.push('first-end')
     })
-    const secondTask = coordinator.withBaseMutationLock('kb-1', async () => {
+    const secondTask = lockManager.withBaseMutationLock('kb-1', async () => {
       order.push('second-start')
     })
 
@@ -49,16 +49,16 @@ describe('KnowledgeMutationCoordinator', () => {
   })
 
   it('runs tasks for different bases concurrently', async () => {
-    const coordinator = new KnowledgeMutationCoordinator()
+    const lockManager = new KnowledgeLockManager()
     const releaseFirst = createDeferred()
     const order: string[] = []
 
-    const firstTask = coordinator.withBaseMutationLock('kb-1', async () => {
+    const firstTask = lockManager.withBaseMutationLock('kb-1', async () => {
       order.push('first-start')
       await releaseFirst.promise
       order.push('first-end')
     })
-    const secondTask = coordinator.withBaseMutationLock('kb-2', async () => {
+    const secondTask = lockManager.withBaseMutationLock('kb-2', async () => {
       order.push('second-start')
     })
 
@@ -71,17 +71,17 @@ describe('KnowledgeMutationCoordinator', () => {
   })
 
   it('releases a base lock when the task throws', async () => {
-    const coordinator = new KnowledgeMutationCoordinator()
+    const lockManager = new KnowledgeLockManager()
     const order: string[] = []
 
     await expect(
-      coordinator.withBaseMutationLock('kb-1', async () => {
+      lockManager.withBaseMutationLock('kb-1', async () => {
         order.push('throwing')
         throw new Error('boom')
       })
     ).rejects.toThrow('boom')
 
-    await coordinator.withBaseMutationLock('kb-1', async () => {
+    await lockManager.withBaseMutationLock('kb-1', async () => {
       order.push('after-throw')
     })
 
@@ -89,12 +89,12 @@ describe('KnowledgeMutationCoordinator', () => {
   })
 
   it('removes idle base mutex entries after tasks complete', async () => {
-    const coordinator = new KnowledgeMutationCoordinator()
+    const lockManager = new KnowledgeLockManager()
 
-    await coordinator.withBaseMutationLock('kb-1', async () => {
-      expect(getBaseMutexCount(coordinator)).toBe(1)
+    await lockManager.withBaseMutationLock('kb-1', async () => {
+      expect(getBaseMutexCount(lockManager)).toBe(1)
     })
 
-    expect(getBaseMutexCount(coordinator)).toBe(0)
+    expect(getBaseMutexCount(lockManager)).toBe(0)
   })
 })

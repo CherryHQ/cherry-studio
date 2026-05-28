@@ -10,8 +10,8 @@ import {
   knowledgeBaseGetByIdMock,
   knowledgeItemGetByIdMock,
   knowledgeItemUpdateStatusMock,
+  knowledgeLockManager,
   loadKnowledgeItemDocumentsMock,
-  mutationCoordinator,
   NOTE_ITEM_ID,
   rebuildFileRefsForItemsMock,
   replaceByExternalIdMock
@@ -19,7 +19,7 @@ import {
 
 describe('index-documents job handler', () => {
   it('updates statuses, writes vectors, and completes the item', async () => {
-    const handler = createIndexDocumentsJobHandler(mutationCoordinator as never)
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
     knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
     knowledgeItemUpdateStatusMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
 
@@ -34,7 +34,7 @@ describe('index-documents job handler', () => {
   })
 
   it('completes with empty vectors when the reader returns no documents', async () => {
-    const handler = createIndexDocumentsJobHandler(mutationCoordinator as never)
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
     knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
     knowledgeItemUpdateStatusMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
     loadKnowledgeItemDocumentsMock.mockResolvedValueOnce([])
@@ -49,7 +49,7 @@ describe('index-documents job handler', () => {
   })
 
   it('skips vector write when the item becomes deleting inside the mutation lock', async () => {
-    const handler = createIndexDocumentsJobHandler(mutationCoordinator as never)
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
     knowledgeItemGetByIdMock
       .mockResolvedValueOnce(createNoteItem(NOTE_ITEM_ID))
       .mockResolvedValueOnce(createNoteItem(NOTE_ITEM_ID, null, 'deleting'))
@@ -61,7 +61,7 @@ describe('index-documents job handler', () => {
   })
 
   it('does not mark completed when vector replacement fails', async () => {
-    const handler = createIndexDocumentsJobHandler(mutationCoordinator as never)
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
     knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
     replaceByExternalIdMock.mockRejectedValueOnce(new Error('vector write failed'))
 
@@ -73,7 +73,7 @@ describe('index-documents job handler', () => {
   })
 
   it('stops before side effects when aborted before execution', async () => {
-    const handler = createIndexDocumentsJobHandler(mutationCoordinator as never)
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
 
     await expect(handler.execute(createAbortedCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))).rejects.toThrow()
 
@@ -83,7 +83,7 @@ describe('index-documents job handler', () => {
   })
 
   it('onSettled skips failed status when the item is deleting', async () => {
-    const handler = createIndexDocumentsJobHandler(mutationCoordinator as never)
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
     getJobMock.mockResolvedValue(
       createJobSnapshot({
         id: 'index-job',

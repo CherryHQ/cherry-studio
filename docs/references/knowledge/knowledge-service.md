@@ -24,12 +24,12 @@ The current implementation is split into four responsibility areas:
    - Owns caller-facing runtime IPC workflow.
    - Creates/deletes/restores bases through data services and vector store services.
    - Registers Knowledge JobManager handlers.
-   - Holds the `KnowledgeWorkflowCoordinator` and `KnowledgeMutationCoordinator`.
+   - Holds the `KnowledgeWorkflowService` and `KnowledgeLockManager`.
    - Collapses delete/reindex item inputs to top-level roots and enforces runtime guards.
 4. Knowledge job handlers
    - Execute durable workflow stages through JobManager.
-   - Use `KnowledgeWorkflowCoordinator` for next-step scheduling.
-   - Use `KnowledgeMutationCoordinator` for same-base mutations and vector cleanup.
+   - Use `KnowledgeWorkflowService` for next-step scheduling.
+   - Use `KnowledgeLockManager` for same-base mutations and vector cleanup.
 
 ```text
 caller
@@ -39,11 +39,11 @@ caller
 caller
   -> preload knowledgeRuntime IPC
      -> KnowledgeOrchestrationService
-        -> KnowledgeWorkflowCoordinator
+        -> KnowledgeWorkflowService
         -> JobManager
            -> knowledge.prepare-root / knowledge.index-documents
            -> knowledge.delete-subtree / knowledge.reindex-subtree
-              -> KnowledgeMutationCoordinator
+              -> KnowledgeLockManager
                  -> KnowledgeBaseService / KnowledgeItemService
                  -> KnowledgeVectorStoreService / FileManager
 ```
@@ -88,7 +88,7 @@ caller
     -> enqueue knowledge.prepare-root
     -> prepare-root expands owner
     -> prepare-root creates child items
-    -> coordinator schedules each child
+    -> workflow service schedules each child
 ```
 
 Callers should not create item records through Data API and then call runtime IPC with item ids. `add-items` accepts `KnowledgeRuntimeAddItemInput[]` and returns after root items are accepted and first jobs are queued, not after indexing completes.
@@ -100,7 +100,7 @@ delete-items(baseId, itemIds)
 reindex-items(baseId, itemIds)
 ```
 
-`KnowledgeOrchestrationService` collapses nested selected ids to top-level roots before calling the workflow coordinator.
+`KnowledgeOrchestrationService` collapses nested selected ids to top-level roots before calling the workflow service.
 
 ## IPC Surface
 
@@ -133,7 +133,7 @@ Knowledge runtime work is persisted in JobManager. `KnowledgeOrchestrationServic
 - `knowledge.delete-subtree`
 - `knowledge.reindex-subtree`
 
-Each base uses queue `base.${baseId}`. JobManager owns queue persistence, dispatch, retry, cancellation, timeout, and startup recovery. Knowledge code uses `KnowledgeMutationCoordinator` to serialize same-base vector and item mutations inside the current process.
+Each base uses queue `base.${baseId}`. JobManager owns queue persistence, dispatch, retry, cancellation, timeout, and startup recovery. Knowledge code uses `KnowledgeLockManager` to serialize same-base vector and item mutations inside the current process.
 
 Current item statuses are:
 
@@ -173,8 +173,8 @@ Current persisted `knowledge_base` columns include:
 `delete-items` currently runs:
 
 1. Orchestration loads requested items and collapses descendants to top-level roots.
-2. Workflow coordinator marks selected root subtrees `deleting` under the base mutation lock.
-3. Workflow coordinator enqueues `knowledge.delete-subtree`.
+2. Workflow service marks selected root subtrees `deleting` under the base mutation lock.
+3. Workflow service enqueues `knowledge.delete-subtree`.
 4. The delete job cancels active jobs touching the subtree.
 5. Under the base mutation lock, the delete job deletes leaf vectors, clears Knowledge file refs, and hard-deletes item rows.
 
@@ -186,9 +186,9 @@ If enqueueing `knowledge.delete-subtree` fails after rows are marked `deleting`,
 
 1. Orchestration loads requested items and collapses descendants to top-level roots.
 2. Orchestration rejects the request unless every selected subtree item is terminal: `completed` or `failed`.
-3. Workflow coordinator enqueues `knowledge.reindex-subtree`.
+3. Workflow service enqueues `knowledge.reindex-subtree`.
 4. The reindex job skips if delete won the race and any subtree item is now `deleting`.
-5. Under the base mutation lock, the reindex job deletes old vectors, removes expanded descendants for selected container roots, resets selected roots to `preparing` or `processing`, and schedules each selected root through the workflow coordinator.
+5. Under the base mutation lock, the reindex job deletes old vectors, removes expanded descendants for selected container roots, resets selected roots to `preparing` or `processing`, and schedules each selected root through the workflow service.
 
 Reindex is not a cancellation primitive. Delete is the operation that can preempt active work.
 

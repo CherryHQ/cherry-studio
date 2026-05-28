@@ -15,13 +15,13 @@
 ```text
 UI / preload IPC / main-side workflow
   -> KnowledgeOrchestrationService
-     -> KnowledgeWorkflowCoordinator
+     -> KnowledgeWorkflowService
         -> JobManager
            -> knowledge.prepare-root
            -> knowledge.index-documents
            -> knowledge.delete-subtree
            -> knowledge.reindex-subtree
-              -> KnowledgeMutationCoordinator
+              -> KnowledgeLockManager
                  -> KnowledgeBaseService / KnowledgeItemService
                  -> KnowledgeVectorStoreService / FileManager
 
@@ -52,11 +52,11 @@ Data API knowledge handlers：
 1. 负责 caller-facing `knowledge-runtime:*` IPC。
 2. 负责 create/delete/restore base workflow。
 3. 注册 Knowledge JobManager handlers。
-4. 持有 `KnowledgeWorkflowCoordinator` 和 `KnowledgeMutationCoordinator`。
+4. 持有 `KnowledgeWorkflowService` 和 `KnowledgeLockManager`。
 5. 对 delete / reindex / chunk 操作做入口 guard。
 6. 不直接执行 reader / chunk / embed / vector write。
 
-`KnowledgeWorkflowCoordinator`：
+`KnowledgeWorkflowService`：
 
 1. 负责 `addItems` / `deleteItems` / `reindexItems` 的 workflow 分支。
 2. 负责 `scheduleItem(baseId, itemId)`。
@@ -64,7 +64,7 @@ Data API knowledge handlers：
 4. 将 `file` / `note` / `url` 分派为 `knowledge.index-documents`。
 5. 负责 add/reindex 调度失败后的状态补偿。
 
-`KnowledgeMutationCoordinator`：
+`KnowledgeLockManager`：
 
 1. 负责同一 base 下的进程内 mutation 串行化。
 2. 保护 vector replace/delete、FileRef cleanup、item status writes 和 destructive cleanup/reset。
@@ -116,10 +116,10 @@ add-items(directory/sitemap payloads)
  -> enqueue knowledge.prepare-root
  -> prepare-root expands owner
  -> prepare-root creates child rows
- -> coordinator.scheduleItem(child)
+ -> workflowService.scheduleItem(child)
 ```
 
-`prepare-root` 创建出的 child 可以继续是 `directory` / `sitemap`，由 coordinator 再次分派为 `knowledge.prepare-root`。递归展开不由 reader 或 leaf indexing 分支处理。
+`prepare-root` 创建出的 child 可以继续是 `directory` / `sitemap`，由 workflow service 再次分派为 `knowledge.prepare-root`。递归展开不由 reader 或 leaf indexing 分支处理。
 
 ## 4. JobManager 模型
 
@@ -216,7 +216,7 @@ reindex-items(baseId, itemIds)
       delete old vectors
       delete expanded descendants for selected container roots
       reset selected roots to preparing / processing
- -> coordinator.scheduleItem(root)
+ -> workflowService.scheduleItem(root)
 ```
 
 Reindex 不是 cancellation primitive。Active subtree 只能 delete，不能 reindex。

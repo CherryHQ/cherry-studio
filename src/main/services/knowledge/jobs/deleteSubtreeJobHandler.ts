@@ -7,7 +7,7 @@ import { loggerService } from '@logger'
 import { JOB_ERROR_CODES } from '@main/core/job/errorCodes'
 import type { JobHandler } from '@main/core/job/types'
 
-import type { KnowledgeMutationCoordinator } from '../KnowledgeMutationCoordinator'
+import type { KnowledgeLockManager } from '../KnowledgeLockManager'
 import {
   KNOWLEDGE_ACTIVE_JOB_LIMIT,
   KNOWLEDGE_ACTIVE_JOB_STATUSES,
@@ -23,7 +23,7 @@ import { narrowKnowledgeJobInput } from './utils/jobInput'
 const logger = loggerService.withContext('Knowledge:DeleteSubtreeJobHandler')
 
 export function createDeleteSubtreeJobHandler(
-  mutationCoordinator: KnowledgeMutationCoordinator
+  knowledgeLockManager: KnowledgeLockManager
 ): JobHandler<KnowledgeDeleteSubtreePayload> {
   return {
     recovery: 'retry',
@@ -55,7 +55,7 @@ export function createDeleteSubtreeJobHandler(
       await cancelActiveSubtreeJobs(baseId, deletingSubtreeItemIds, 'knowledge-delete-subtree', ctx.jobId)
 
       // Cleanup is locked so no indexer can write vectors for rows being removed.
-      await mutationCoordinator.withBaseMutationLock(baseId, async () => {
+      await knowledgeLockManager.withBaseMutationLock(baseId, async () => {
         const base = await knowledgeBaseService.getById(baseId)
         const subtreeItems = (
           await knowledgeItemService.getSubtreeItems(baseId, rootItemIds, { includeRoots: true })

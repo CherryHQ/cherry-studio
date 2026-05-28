@@ -6,7 +6,7 @@ import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { KnowledgeItem, KnowledgeRuntimeAddItemInput } from '@shared/data/types/knowledge'
 
-import type { KnowledgeMutationCoordinator } from './KnowledgeMutationCoordinator'
+import type { KnowledgeLockManager } from './KnowledgeLockManager'
 import {
   type KnowledgeBaseId,
   knowledgeDeleteSubtreeIdempotencyKey,
@@ -23,10 +23,10 @@ import { markUnscheduledKnowledgeItemsFailed } from './utils/cleanup/statusClean
 import { isContainerKnowledgeItem } from './utils/items'
 import { planKnowledgeItemSource } from './utils/sources/sourcePlanning'
 
-const logger = loggerService.withContext('Knowledge:WorkflowCoordinator')
+const logger = loggerService.withContext('Knowledge:WorkflowService')
 
-export class KnowledgeWorkflowCoordinator {
-  constructor(private readonly mutationCoordinator: KnowledgeMutationCoordinator) {}
+export class KnowledgeWorkflowService {
+  constructor(private readonly knowledgeLockManager: KnowledgeLockManager) {}
 
   async addItems(baseId: string, inputs: KnowledgeRuntimeAddItemInput[]): Promise<void> {
     if (inputs.length === 0) {
@@ -36,7 +36,7 @@ export class KnowledgeWorkflowCoordinator {
     const base = await knowledgeBaseService.getById(baseId)
     const acceptedItems: KnowledgeItem[] = []
 
-    await this.mutationCoordinator.withBaseMutationLock(base.id, async () => {
+    await this.knowledgeLockManager.withBaseMutationLock(base.id, async () => {
       try {
         for (const input of inputs) {
           const createdItem = await knowledgeItemService.create(base.id, input)
@@ -70,7 +70,7 @@ export class KnowledgeWorkflowCoordinator {
     const rootItemIds = [...new Set(itemIds)]
     const knowledgeBaseId = toKnowledgeBaseId(baseId)
     const knowledgeRootItemIds = toKnowledgeItemIds(rootItemIds)
-    const markedIds = await this.mutationCoordinator.withBaseMutationLock(baseId, () =>
+    const markedIds = await this.knowledgeLockManager.withBaseMutationLock(baseId, () =>
       knowledgeItemService.setSubtreeStatus(baseId, rootItemIds, 'deleting')
     )
     try {

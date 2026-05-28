@@ -225,17 +225,17 @@ export function createJobSnapshot(overrides: KnowledgeJobSnapshotInput): JobSnap
   }
 }
 
-export const mutationCoordinator = {
+export const knowledgeLockManager = {
   withBaseMutationLock: vi.fn(async (_baseId: string, task: () => Promise<unknown>) => await task())
 }
 
-export const workflowCoordinator = {
+export const workflowService = {
   scheduleItem: scheduleItemMock
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mutationCoordinator.withBaseMutationLock.mockImplementation(
+  knowledgeLockManager.withBaseMutationLock.mockImplementation(
     async (_baseId: string, task: () => Promise<unknown>) => await task()
   )
   knowledgeBaseGetByIdMock.mockResolvedValue(createBase())
