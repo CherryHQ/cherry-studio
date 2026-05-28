@@ -2,10 +2,10 @@ import { Button, Input, RadioGroup, RadioGroupItem, Slider, Switch, Textarea } f
 import { RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import type { BaseConfigItem, OptionItem } from '../providers/shared/providerFieldSchema'
+import type { BaseConfigItem, OptionItem } from '../form/baseConfigItem'
 import { fieldRegistry } from './fieldRegistry'
 
-export type { BaseConfigItem, OptionItem } from '../providers/shared/providerFieldSchema'
+export type { BaseConfigItem, OptionItem } from '../form/baseConfigItem'
 
 export interface PaintingFieldRendererProps {
   item: BaseConfigItem

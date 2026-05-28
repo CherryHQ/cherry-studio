@@ -3,6 +3,7 @@ import type { FC } from 'react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { BaseConfigItem } from '../form/baseConfigItem'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
 import { PaintingFieldRenderer } from '../form/PaintingFieldRenderer'
 import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
@@ -10,7 +11,6 @@ import { usePaintingModelCatalog } from '../hooks/usePaintingModelCatalog'
 import { usePaintingProviderOptions } from '../hooks/usePaintingProviderOptions'
 import { usePaintingProviderRuntime } from '../hooks/usePaintingProviderRuntime'
 import type { PaintingData } from '../model/types/paintingData'
-import type { BaseConfigItem } from '../providers/shared/providerFieldSchema'
 import {
   resolvePaintingProviderDefinition,
   resolvePaintingTabForMode,

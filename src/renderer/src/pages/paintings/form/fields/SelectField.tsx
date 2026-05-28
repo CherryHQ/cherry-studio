@@ -8,7 +8,7 @@ import {
   SelectValue
 } from '@cherrystudio/ui'
 
-import type { OptionItem } from '../../providers/shared/providerFieldSchema'
+import type { OptionItem } from '../../form/baseConfigItem'
 import type { PaintingFieldComponentProps } from '../fieldRegistry'
 
 function mapOptions(

@@ -10,7 +10,6 @@ import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'
 import { createPaintingProviderRuntime } from '../model/types/paintingProviderRuntime'
 import { getPaintingModelOptions } from '../model/utils/paintingModelOptions'
-import { providerRegistry } from '../providers/registry'
 import { resolvePaintingProviderDefinition, resolvePaintingTabForMode } from '../utils/paintingProviderMode'
 
 const logger = loggerService.withContext('usePaintingModelCatalog')
@@ -61,8 +60,12 @@ function createSelectorProvider(providerId: string, provider: Provider | undefin
   }
 }
 
-function shouldUseDataModelCatalog(providerId: string): boolean {
-  return providerId === 'ovms' || !providerRegistry[providerId]
+// All providers source their image-gen catalog from DataApi /models (via
+// `useModels()`), filtered by `supportsImageGenerationEndpoint`. The
+// definition's async loader is the same DataApi call wrapped — kept as a
+// fallback for the open-on-demand `ensureProviderCatalog` path only.
+function shouldUseDataModelCatalog(_providerId: string): boolean {
+  return true
 }
 
 function getAsyncCatalogKey(providerId: string, targetTab: string, provider: Provider | undefined): string {

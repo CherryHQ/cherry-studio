@@ -9,7 +9,7 @@ import { paintingDataToUpdateDto } from '../model/mappers/paintingDataToUpdateDt
 import { recordToPaintingData } from '../model/mappers/recordToPaintingData'
 import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'
-import type { PaintingProviderDefinition } from '../providers/shared/provider'
+import type { PaintingProviderDefinition } from '../providers/types'
 import { resolvePaintingTabForMode } from '../utils/paintingProviderMode'
 
 interface UsePaintingListInput {

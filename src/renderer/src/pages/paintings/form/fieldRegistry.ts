@@ -1,6 +1,6 @@
 import type { ComponentType, ReactNode } from 'react'
 
-import type { BaseConfigItem } from '../providers/shared/providerFieldSchema'
+import type { BaseConfigItem } from '../form/baseConfigItem'
 import ImageField from './fields/ImageField'
 import NumberField from './fields/NumberField'
 import SchemaField from './fields/SchemaField'

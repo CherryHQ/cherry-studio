@@ -1,3 +1,11 @@
+/**
+ * Form field descriptor types produced by `imageGenerationToFields` and
+ * consumed by `PaintingFieldRenderer`. The dispatcher in
+ * `imageGenerationToFields` maps each registry `SupportSpec` arm onto a
+ * `BaseConfigItem` whose `type` field selects a renderer in
+ * `fieldRegistry`.
+ */
+
 type PrimitiveValue = string | number | boolean | undefined
 
 export type OptionItem = {

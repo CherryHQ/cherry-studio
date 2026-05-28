@@ -1,16 +1,31 @@
 import type { ImageGenerationMode } from '@shared/data/types/model'
 import type { PaintingMode } from '@shared/data/types/painting'
 
-import { buildOpenAiCompatibleProvider, providerRegistry } from '../providers/registry'
-import type { PaintingProviderDefinition } from '../providers/shared/provider'
+import { buildPaintingProvider } from '../providers/buildPaintingProvider'
+import type { PaintingProviderDefinition } from '../providers/types'
 
 const MODE_ALIASES: Record<string, string[]> = {
   generate: ['draw'],
   draw: ['generate']
 }
 
+const providerCache = new Map<string, PaintingProviderDefinition>()
+
+/**
+ * Resolve a `PaintingProviderDefinition` for any provider id. Definitions
+ * are generic — no per-provider hardcoded behavior — so any
+ * `enabled provider × image-generation-capable model` combination works
+ * without registry table maintenance.
+ *
+ * Caches per provider id so consumer `useMemo` deps see stable references
+ * across renders.
+ */
 export function resolvePaintingProviderDefinition(providerId: string): PaintingProviderDefinition {
-  return providerRegistry[providerId] ?? buildOpenAiCompatibleProvider(providerId)
+  const cached = providerCache.get(providerId)
+  if (cached) return cached
+  const built = buildPaintingProvider(providerId)
+  providerCache.set(providerId, built)
+  return built
 }
 
 export function resolvePaintingTabForMode(

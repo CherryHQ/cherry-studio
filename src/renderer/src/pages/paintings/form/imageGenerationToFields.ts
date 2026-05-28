@@ -1,6 +1,6 @@
 import type { ImageGenerationMode, ImageGenerationSupport, SupportSpec } from '@shared/data/types/model'
 
-import type { BaseConfigItem, OptionItem } from '../providers/shared/providerFieldSchema'
+import type { BaseConfigItem, OptionItem } from '../form/baseConfigItem'
 
 /**
  * Canonical key → i18n labels. Adding a new canonical control is a one-row

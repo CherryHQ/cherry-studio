@@ -2,8 +2,8 @@ import { prefetch } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import type { ImageGenerationMode, ImageGenerationSupport } from '@shared/data/types/model'
 
+import type { BaseConfigItem } from '../form/baseConfigItem'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
-import type { BaseConfigItem } from '../providers/shared/providerFieldSchema'
 
 const logger = loggerService.withContext('paintings/modelFieldReset')
 

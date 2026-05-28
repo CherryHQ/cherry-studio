@@ -1,28 +1,15 @@
-import type { Model } from '@shared/data/types/model'
-
 import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'
 import type { PaintingProviderRuntime } from '../model/types/paintingProviderRuntime'
-import { TokenFluxCenterContent, TokenFluxSetting } from '../providers/tokenflux'
-import type { TokenFluxPainting } from '../providers/tokenflux/config'
 import Artboard from './Artboard'
 
-function isTokenFluxPainting(painting: PaintingData): painting is TokenFluxPainting {
-  return painting.providerId === 'tokenflux'
-}
-
-function isRegistryModel(value: unknown): value is Model {
-  return Boolean(
-    value && typeof value === 'object' && 'id' in value && 'providerId' in value && 'capabilities' in value
-  )
-}
-
-export function PaintingSettingsExtras({
-  provider,
-  painting,
-  selectedModelOption,
-  patchPainting
-}: {
+/**
+ * Placeholder for provider-specific painting UI. After the unified-schema
+ * cleanup every provider renders via the generic form pipeline — no vendor-
+ * specific settings panels remain. Kept as a stub so the caller's API
+ * doesn't churn; future per-provider extras (if any) wire in here.
+ */
+export function PaintingSettingsExtras(_props: {
   provider: PaintingProviderRuntime
   painting: PaintingData
   modelOptions: ModelOption[]
@@ -31,16 +18,6 @@ export function PaintingSettingsExtras({
   patchPainting: (updates: Partial<PaintingData>) => void
   tab: string
 }) {
-  if (provider.id === 'tokenflux' && isTokenFluxPainting(painting)) {
-    return (
-      <TokenFluxSetting
-        painting={painting}
-        patchPainting={(updates) => patchPainting(updates as Partial<PaintingData>)}
-        selectedModel={isRegistryModel(selectedModelOption?.raw) ? selectedModelOption.raw : undefined}
-      />
-    )
-  }
-
   return null
 }
 
@@ -53,9 +30,5 @@ export function PaintingArtboard({
   isLoading: boolean
   onCancel: () => void
 }) {
-  if (isTokenFluxPainting(painting)) {
-    return <TokenFluxCenterContent painting={painting} isLoading={isLoading} onCancel={onCancel} />
-  }
-
   return <Artboard painting={painting} isLoading={isLoading} onCancel={onCancel} />
 }

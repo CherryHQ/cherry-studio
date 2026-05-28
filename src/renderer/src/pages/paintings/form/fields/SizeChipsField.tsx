@@ -1,6 +1,6 @@
 import { cn } from '@cherrystudio/ui/lib/utils'
 
-import type { OptionItem } from '../../providers/shared/providerFieldSchema'
+import type { OptionItem } from '../../form/baseConfigItem'
 import type { PaintingFieldComponentProps } from '../fieldRegistry'
 
 const MAX_THUMB = 14
