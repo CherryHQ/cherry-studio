@@ -195,7 +195,7 @@
       "description": "Translate page target language (from complex migration)"
     },
     {
-      "targetKey": "feature.binary.tools",
+      "targetKey": "feature.binaries.tools",
       "type": "PreferenceTypes.ManagedBinary[]",
       "defaultValue": "VALUE: [] as PreferenceTypes.ManagedBinary[]",
       "status": "classified",

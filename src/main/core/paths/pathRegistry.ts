@@ -87,8 +87,8 @@ export function buildPathRegistry() {
       : path.join(__dirname, '../../packages/provider-registry/data'),
 
     // BinaryManager (tool manager)
-    'feature.binary.data': path.join(CHERRY_HOME, 'mise'),
-    'feature.binary.state_file': path.join(CHERRY_HOME, 'mise', 'state.json'),
+    'feature.binaries.data': path.join(CHERRY_HOME, 'mise'),
+    'feature.binaries.state_file': path.join(CHERRY_HOME, 'mise', 'state.json'),
 
     // MCP
     'feature.mcp': path.join(CHERRY_HOME, 'mcp'),

@@ -44,7 +44,7 @@ const ToolIcon: FC<{ icon?: string; className?: string }> = ({ icon, className }
 const EnvironmentDependencies: FC = () => {
   const [miseState, setMiseState] = useState<BinaryState | null>(null)
   const [installingTools, setInstallingTools] = useState<Set<string>>(new Set())
-  const [customTools, setCustomTools] = usePreference('feature.binary.tools')
+  const [customTools, setCustomTools] = usePreference('feature.binaries.tools')
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const { t } = useTranslation()

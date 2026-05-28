@@ -95,10 +95,10 @@ export class BinaryManager extends BaseService {
 
     const prefService = application.get('PreferenceService')
     const predefinedNames = new Set(PREDEFINED_BINARY_TOOLS.map((t) => t.name))
-    const tools = prefService.get('feature.binary.tools')
+    const tools = prefService.get('feature.binaries.tools')
     const cleaned = tools.filter((t) => !predefinedNames.has(t.name))
     if (cleaned.length < tools.length) {
-      void prefService.set('feature.binary.tools', cleaned)
+      void prefService.set('feature.binaries.tools', cleaned)
       logger.info('Cleaned predefined tools from custom tools preference', {
         removed: tools.filter((t) => predefinedNames.has(t.name)).map((t) => t.name)
       })
@@ -110,7 +110,7 @@ export class BinaryManager extends BaseService {
 
   private registerIpcHandlers() {
     this.ipcHandle(IpcChannel.Binary_Reconcile, async () => {
-      const tools = application.get('PreferenceService').get('feature.binary.tools')
+      const tools = application.get('PreferenceService').get('feature.binaries.tools')
       return this.reconcile(tools)
     })
 
@@ -216,7 +216,7 @@ export class BinaryManager extends BaseService {
   // NPM_CONFIG_REGISTRY and PIP_INDEX_URL are passed through and overridden
   // with mirror URLs for China users so that npm/pipx backends work reliably.
   private async buildIsolatedEnv(): Promise<Record<string, string>> {
-    const dataDir = application.getPath('feature.binary.data')
+    const dataDir = application.getPath('feature.binaries.data')
     const env: Record<string, string> = {}
 
     for (const key of MISE_PASSTHROUGH_ENV) {
@@ -330,7 +330,7 @@ export class BinaryManager extends BaseService {
   }
 
   private loadState(): BinaryState {
-    const statePath = application.getPath('feature.binary.state_file')
+    const statePath = application.getPath('feature.binaries.state_file')
     try {
       const data = fs.readFileSync(statePath, 'utf-8')
       const parsed = JSON.parse(data)
@@ -364,7 +364,7 @@ export class BinaryManager extends BaseService {
   }
 
   private saveState(state: BinaryState) {
-    const statePath = application.getPath('feature.binary.state_file')
+    const statePath = application.getPath('feature.binaries.state_file')
     const dir = path.dirname(statePath)
     fs.mkdirSync(dir, { recursive: true })
     const tmp = statePath + '.tmp'
