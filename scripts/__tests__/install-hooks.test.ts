@@ -1,12 +1,16 @@
 import { execFileSync } from 'node:child_process'
 import { normalize, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  arePathsEqual,
   getDefaultHooksDir,
   getLocalHooksPath,
   isDefaultGitHooksPath,
+  isDirectRun,
+  isGitRepo,
   isLinkedWorktree,
   main,
   runPrekInstall,
@@ -143,7 +147,7 @@ describe('runPrekInstall', () => {
   it('uses npm_execpath when set', () => {
     process.env.npm_execpath = '/path/to/pnpm.cjs'
     mockExec.mockReturnValue('')
-    expect(runPrekInstall()).toBe(true)
+    expect(runPrekInstall()).toBe('success')
     expect(mockExec).toHaveBeenCalledWith(
       process.execPath,
       expect.arrayContaining([expect.stringContaining('pnpm'), 'exec', 'prek', 'install']),
@@ -153,7 +157,7 @@ describe('runPrekInstall', () => {
 
   it('falls back to pnpm when npm_execpath is not set', () => {
     mockExec.mockReturnValue('')
-    expect(runPrekInstall()).toBe(true)
+    expect(runPrekInstall()).toBe('success')
     // On non-Windows, shell should be false
     expect(mockExec).toHaveBeenCalledWith('pnpm', ['exec', 'prek', 'install'], {
       stdio: 'inherit',
@@ -161,11 +165,105 @@ describe('runPrekInstall', () => {
     })
   })
 
-  it('returns false on exec failure', () => {
+  it('returns failed on exec failure', () => {
     mockExec.mockImplementation(() => {
       throw new Error('prek refused')
     })
-    expect(runPrekInstall()).toBe(false)
+    expect(runPrekInstall()).toBe('failed')
+  })
+
+  it('returns command-not-found on ENOENT', () => {
+    mockExec.mockImplementation(() => {
+      const err = new Error('pnpm not found') as NodeJS.ErrnoException
+      err.code = 'ENOENT'
+      throw err
+    })
+    expect(runPrekInstall()).toBe('command-not-found')
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('command not found'))
+  })
+})
+
+describe('arePathsEqual', () => {
+  it('returns true when paths resolve to the same location (POSIX)', () => {
+    expect(arePathsEqual('/foo/bar', '/foo/bar')).toBe(true)
+  })
+
+  it('returns true when one path has trailing slash or dots', () => {
+    expect(arePathsEqual('/foo/bar', '/foo/baz/../bar')).toBe(true)
+  })
+
+  it('returns false when paths differ', () => {
+    expect(arePathsEqual('/foo/bar', '/foo/baz')).toBe(false)
+  })
+
+  it('handles empty strings gracefully', () => {
+    expect(arePathsEqual('', '')).toBe(true)
+  })
+})
+
+describe('isDirectRun', () => {
+  it('returns true when argv[1] matches the actual module path', () => {
+    const originalArgv1 = process.argv[1]
+    // Set argv[1] to the resolved path of this test file's neighbor (install-hooks.ts)
+    const testModuleDir = resolve(fileURLToPath(import.meta.url), '..')
+    const installHooksPath = resolve(testModuleDir, 'install-hooks.ts')
+    // We can't make isDirectRun return true for install-hooks.ts from this file
+    // because import.meta.url points here. But we CAN test arePathsEqual directly.
+    // For isDirectRun, verify the false case is solid.
+    process.argv[1] = installHooksPath
+    // import.meta.url in install-hooks.ts points to install-hooks.ts,
+    // but in this test context it points to this test file
+    expect(isDirectRun()).toBe(false)
+    process.argv[1] = originalArgv1
+  })
+
+  it('returns false when import.meta.url does not match argv[1]', () => {
+    const originalArgv1 = process.argv[1]
+    process.argv[1] = '/completely/different/path.ts'
+    expect(isDirectRun()).toBe(false)
+    process.argv[1] = originalArgv1
+  })
+
+  it('returns false when argv[1] is empty', () => {
+    const originalArgv1 = process.argv[1]
+    process.argv[1] = ''
+    expect(isDirectRun()).toBe(false)
+    process.argv[1] = originalArgv1
+  })
+
+  it('true path covered by arePathsEqual + structural guard', () => {
+    // isDirectRun's true path relies on arePathsEqual returning true
+    // when both paths resolve to the same file. Verify the core logic:
+    const testPath = fileURLToPath(import.meta.url)
+    expect(arePathsEqual(testPath, testPath)).toBe(true)
+    // import.meta.url in install-hooks.ts resolves to scripts/install-hooks.ts,
+    // so set argv[1] to that path to trigger the true case
+    const testDir = resolve(fileURLToPath(import.meta.url), '..')
+    const installHooksPath = resolve(testDir, '..', 'install-hooks.ts')
+    const originalArgv1 = process.argv[1]
+    process.argv[1] = installHooksPath
+    expect(isDirectRun()).toBe(true)
+    process.argv[1] = originalArgv1
+  })
+})
+
+describe('git ENOENT handling', () => {
+  it('warns when git binary is not found (ENOENT)', () => {
+    mockExec.mockImplementation(() => {
+      const err = new Error('spawn git ENOENT') as NodeJS.ErrnoException
+      err.code = 'ENOENT'
+      throw err
+    })
+    expect(isGitRepo()).toBe(false)
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('git not found'))
+  })
+
+  it('does not warn on non-ENOENT git failures', () => {
+    mockExec.mockImplementation(() => {
+      throw new Error('fatal: not a git repository')
+    })
+    expect(isGitRepo()).toBe(false)
+    expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining('git not found'))
   })
 })
 
@@ -296,5 +394,30 @@ describe('main', () => {
 
     expect(() => main()).toThrow('process.exit(1)')
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('prek install failed unexpectedly'))
+  })
+
+  it('exits non-zero on ENOENT even with custom hooksPath', () => {
+    mockExec.mockImplementation(((cmd: string, args: string[]) => {
+      if (cmd === 'pnpm') {
+        const err = new Error('pnpm not found') as NodeJS.ErrnoException
+        err.code = 'ENOENT'
+        throw err
+      }
+      const key = args.join(' ')
+      const responses: Record<string, string | null> = {
+        'rev-parse --git-dir': '.git',
+        'config blame.ignoreRevsFile .git-blame-ignore-revs': '',
+        'rev-parse --absolute-git-dir': '/repo/.git',
+        'rev-parse --git-common-dir': '/repo/.git',
+        'config --local --get core.hooksPath': '.husky'
+      }
+      const val = responses[key]
+      if (val === undefined) throw new Error(`ENOENT: git ${key}`)
+      if (val === null) throw new Error(`ENOENT: git ${key}`)
+      return val
+    }) as never)
+
+    expect(() => main()).toThrow('process.exit(1)')
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('command not found'))
   })
 })

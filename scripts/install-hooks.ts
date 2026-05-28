@@ -1,19 +1,42 @@
 import { execFileSync } from 'node:child_process'
 import { normalize, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-// Whether the current platform treats file paths as case-insensitive
+// Windows path comparison requires case-insensitive matching
 const isWindows: boolean = process.platform === 'win32'
 
-// Run a git command and return trimmed stdout, or null on failure
+function arePathsEqual(a: string, b: string): boolean {
+  const na = normalize(resolve(a))
+  const nb = normalize(resolve(b))
+  return isWindows ? na.toLowerCase() === nb.toLowerCase() : na === nb
+}
+
+/**
+ * Cross-platform check for whether this module was invoked directly
+ * (not imported by a test file). Compares normalized absolute paths
+ * from `import.meta.url` and `process.argv[1]`.
+ */
+function isDirectRun(): boolean {
+  try {
+    const modulePath = fileURLToPath(import.meta.url)
+    const scriptPath = process.argv[1] ?? ''
+    return arePathsEqual(modulePath, scriptPath)
+  } catch {
+    return false
+  }
+}
+
 function git(...args: string[]): string | null {
   try {
     return execFileSync('git', args, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] }).trim()
-  } catch {
+  } catch (error: unknown) {
+    if (error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code === 'ENOENT') {
+      console.warn('install-hooks: git not found on PATH — hook setup will be skipped')
+    }
     return null
   }
 }
 
-// Check if current directory is inside a git repository
 function isGitRepo(): boolean {
   return git('rev-parse', '--git-dir') !== null
 }
@@ -71,11 +94,14 @@ function unsetHooksPath(): boolean {
   return result !== null
 }
 
+type PrekResult = 'success' | 'command-not-found' | 'failed'
+
 /**
  * Execute prek install via the current package manager.
- * Returns true on success, false on failure or when prek refused.
+ * Returns 'success' on success, 'command-not-found' when the binary
+ * is missing, or 'failed' for any other error (including prek refusal).
  */
-function runPrekInstall(): boolean {
+function runPrekInstall(): PrekResult {
   const execPath = process.env.npm_execpath
   const args = ['exec', 'prek', 'install']
 
@@ -87,14 +113,14 @@ function runPrekInstall(): boolean {
     } else {
       execFileSync('pnpm', args, { stdio: 'inherit', shell: isWindows })
     }
-    return true
+    return 'success'
   } catch (err: unknown) {
-    // Surface ENOENT so users know which command is missing
     if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
       const cmd = execPath ? process.execPath : 'pnpm'
       console.error(`install-hooks: command not found: ${cmd}`)
+      return 'command-not-found'
     }
-    return false
+    return 'failed'
   }
 }
 
@@ -133,7 +159,12 @@ function main(): void {
 
   // Install hooks
   const hooksPathBeforeInstall = getLocalHooksPath()
-  if (!runPrekInstall()) {
+  const result = runPrekInstall()
+  if (result === 'command-not-found') {
+    console.error('install-hooks: aborting — package manager not found')
+    process.exit(1)
+  }
+  if (result === 'failed') {
     // prek may refuse when custom hooksPath is set (e.g. .husky) — acceptable
     if (hooksPathBeforeInstall) {
       console.info(`install-hooks: prek skipped (core.hooksPath is set to "${hooksPathBeforeInstall}")`)
@@ -144,19 +175,19 @@ function main(): void {
   }
 }
 
-// Run main() only when executed directly, not when imported by tests
-const isDirectRun = process.argv[1]?.endsWith('scripts/install-hooks.ts') ?? false
-if (isDirectRun) {
+if (isDirectRun()) {
   main()
 }
 
 // Export for testing
 export {
+  arePathsEqual,
   configureBlameIgnoreRevs,
   getDefaultHooksDir,
   getLocalHooksPath,
   git,
   isDefaultGitHooksPath,
+  isDirectRun,
   isGitRepo,
   isLinkedWorktree,
   isWindows,
