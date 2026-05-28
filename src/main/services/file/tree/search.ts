@@ -102,7 +102,7 @@ function getRipgrepBinaryPath(): string | null {
 
     // Walk up parents until we find a `node_modules/@anthropic-ai/claude-agent-sdk`
     // checkout. This is robust to: production bundle (`out/main/…`), source
-    // layout (`src/main/utils/file/…` under vitest), and any future
+    // layout (`src/main/services/file/tree/…` under vitest), and any future
     // re-layering. Also checks the asar-unpacked sibling at each step so
     // packaged builds find the binary.
     let dir = __dirname

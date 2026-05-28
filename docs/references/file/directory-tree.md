@@ -62,9 +62,10 @@ src/main/services/file/tree/   ← parallel to internal/ and watcher/
 ├── search.ts             ← listDirectory: ripgrep + optional fuzzy match
 │                           consumed only by builder.ts and ipc.ts
 │
-├── gitignore.ts          ← loadGitignorePredicate: parses .gitignore
-│                           returns a function used by both ripgrep
-│                           (--ignore-file) and chokidar (ignored)
+├── gitignore.ts          ← loadGitignorePredicate: parses .gitignore into
+│                           a predicate fed to chokidar (ignored option) +
+│                           an in-builder post-scan filter. Ripgrep honors
+│                           .gitignore on its own via its default behavior.
 │
 ├── index.ts              ← barrel: exports createDirectoryTree +
 │                           DirectoryTreeBuilder type only
@@ -90,13 +91,13 @@ src/renderer/src/hooks/useDirectoryTree.ts   ← renderer hook
 
 ### 2.1 Why `search.ts` and `gitignore.ts` Live Here
 
-Both files have exactly two callers each — `builder.ts` and `ipc.ts` (for the legacy `App_ListDirectory` channel that survives outside the tree primitive). They are tree implementation details: `.gitignore` parsing **must** match between the ripgrep argument and the chokidar predicate, or the tree will see directories chokidar already skipped (or vice versa). Living next to `builder.ts` makes that invariant inspectable.
+Both files have exactly two callers each — `builder.ts` and `ipc.ts` (for the legacy `File_ListDirectory` channel that survives outside the tree primitive). They are tree implementation details: the chokidar `ignored` predicate and the in-builder post-scan filter both consult `loadGitignorePredicate`'s output, so the rules the watcher applies and the rules the tree post-scan applies cannot drift. Ripgrep honors `.gitignore` on its own; the explicit `--ignore-file` argument is **not** wired today (it could be a future optimisation). Living next to `builder.ts` keeps the predicate's surface area inspectable.
 
 If a future caller needs `listDirectory` outside the tree primitive (and outside the existing IPC), it can be promoted to the file-module common layer at that point. Until then, an extra `utils/` directory between `services/file/tree/` and these files would only be a naming smell — there's already a `src/main/utils/file/` directory that owns FS primitives, and a second "utils" inside the tree module makes the distinction unreadable.
 
 ### 2.2 No `@main/data` Imports
 
-`src/main/services/file/tree/**` does not import from `@main/data/**` and never will. The tree is a runtime concern; persistence is orthogonal (`noteTable` is a sparse state overlay on top of FS paths, not a tree mirror). Enforced by ESLint config + a test in `builder.test.ts` that greps the source files for forbidden imports.
+`src/main/services/file/tree/**` does not import from `@main/data/**` and never will. The tree is a runtime concern; persistence is orthogonal (`noteTable` is a sparse state overlay on top of FS paths, not a tree mirror). Enforcement is the import-graph regex test in `builder.test.ts` ("the tree primitive does not import @main/data") — that test is the contract. (An `eslint no-restricted-imports` rule could be added later for a faster signal, but the test is what actually fails CI today.)
 
 ---
 
@@ -141,6 +142,14 @@ Without this, the freshly-built builder would resolve after `disposeAll()` clear
 ### 3.4 webContents-Destroyed Cascade
 
 The registry tracks `webContentsId → Set<treeId>`. When `sender.once('destroyed')` fires (e.g. a window closes), all trees owned by that sender are disposed in one pass. Renderer-side cleanup via `File_TreeDispose` is preferred (it triggers the grace window), but this cascade is the safety net for crashed windows.
+
+Note: the cascade routes each disposal through the regular `dispose(treeId)` path, which **still arms the 500 ms grace window** for each shared builder whose refcount drops to zero. The renderer is gone so no remount is coming, but waiting an extra 500 ms before tearing the watcher down has no observable cost. Test fixtures that need synchronous teardown call `disposeAll()` instead.
+
+### 3.5 Children Ordering
+
+Children inside a `TreeDir` are sorted **once, at the end of the initial scan**: folders-first, then `basename.localeCompare`. Watcher-driven `added` events `attachChild` to the end of the parent's `_children` record, so children added after the initial scan accumulate in arrival order rather than alphabetical order.
+
+This is intentional — the alternative is re-sorting on every mutation, which on a large workspace under `git checkout` storms turns into hundreds of sorts. Consumers that care about ordering for display should re-sort at the UI layer keyed on the `version` counter exposed by `useDirectoryTree` (UI-layer `useMemo` over `Object.values(parent.children)` is the expected pattern).
 
 ---
 
@@ -234,14 +243,28 @@ Renames observed by the watcher alone surface as `removed` + `added` (chokidar's
 
 ## 6. `.gitignore` Coordination
 
-A single parsed `Ignore` predicate (`ignore@7`) drives both:
+A single parsed `Ignore` predicate (`ignore@7`) is consulted by:
 
-- **`ripgrep --ignore-file`** during the initial scan, so ignored files never enter the tree.
 - **`chokidar.FSWatcher.ignored`**, so ignored directories never have a watch handle attached (the cure for the original `EMFILE` on `node_modules`-heavy repos).
+- The **builder's post-scan filter**, applied to every path returned by the initial scan before it is inserted into the tree, plus the same predicate is re-checked on every watcher event as a belt-and-suspenders guard against `chokidar` race orderings.
+
+Ripgrep itself **also** honors `.gitignore` (its default behavior), so the initial scan is double-filtered: ripgrep skips ignored files at the OS-walk level and our predicate strips anything that slips through. We do **not** wire `--ignore-file` explicitly today — a future optimisation when ripgrep's defaults aren't enough.
 
 The predicate is loaded asynchronously inside `builder.init()` (not in the constructor — `readFileSync` on a slow filesystem would block the main event loop). `.git` is always excluded even when `.gitignore` doesn't list it.
 
-A missing `.gitignore` is not an error — `loadGitignorePredicate` returns `null` and the builder skips the predicate entirely (everything is scanned and watched, modulo `includeHidden` and `extensions`).
+A missing `.gitignore` is **not** the same as "no exclusion at all" — `loadGitignorePredicate` still returns a `.git`-only predicate so the watcher / scan don't recurse into the git internals. The function returns `null` **only** when the `ignore` library itself fails to construct (effectively never in practice); callers must keep `.git` excluded by some other means in that case (see `gitignore.ts` JSDoc).
+
+### 6.1 Extension Filter Lives in the Builder, Not Ripgrep
+
+The `extensions` option (e.g. `['.md']` for Notes) is applied **inside the builder**: `passesExtensionFilter` strips non-matching paths after `search.listDirectory` returns, and the watcher's `add` handler re-checks before insertion. Ripgrep is **not** given an `--iglob` argument, so on a workspace with 100k files the IPC payload returned by `listDirectory` is the full file list before the filter shrinks it.
+
+This is fine today (Notes' workspaces are typically a few hundred markdown files); the cost shows up only when a single tree's root contains both a huge unrelated subtree and an explicit `extensions: ['.md']` option. If that combination ever matters, push the filter down to ripgrep via `--iglob` — `search.listDirectory` already accepts the necessary arguments.
+
+### 6.2 Mutation Events Are Not Server-Side Batched
+
+Each watcher event becomes one `File_TreeMutation` IPC push. `chokidar` debounces within a single file (200ms `stabilityThreshold`) but does **not** batch across files, so a bursty FS operation — `git checkout` switching to a branch with hundreds of touched files — emits a corresponding burst of pushes. Each renderer hook runs `applyMutation` per push and ticks `version`, so a `useMemo(() => sort(tree), [version])` consumer will recompute repeatedly through the burst.
+
+Consumers should debounce their downstream work (`useDeferredValue` / `useTransition` / a `version`-keyed `useMemo` whose body is fast enough to absorb the storm). A microtask-batched `TreeMutationBatchEvent` would solve this at the wire layer if usage justifies it; not implemented today.
 
 ---
 
@@ -294,7 +317,7 @@ The hook handles four overlapping concerns:
 | `FileEntry` rows + atomic writes | FileManager | [`file-manager-architecture.md`](./file-manager-architecture.md) |
 | `noteTable` sparse-state metadata | Notes domain (renderer + DataApi) | not part of tree concerns |
 | `.gitignore` parsing | `gitignore.ts` (this module) | private to the tree primitive |
-| Directory listing for non-tree callers | `search.listDirectory` (same module) | one IPC channel survives (`App_ListDirectory`) |
+| Directory listing for non-tree callers | `search.listDirectory` (same module) | one IPC channel survives (`File_ListDirectory`) |
 
 The tree primitive does not:
 
@@ -310,7 +333,7 @@ The tree primitive does not:
 Three suites under `src/main/services/file/tree/__tests__/`:
 
 - **`builder.test.ts`** — initial scan, `.gitignore` honoring, chokidar fan-out, dispose cleanup, JSON round-trip (no parent cycles), `@main/data` import isolation (greps the source for forbidden imports).
-- **`registry.test.ts`** — builder dedupe, grace-window reuse, multi-consumer mutation fan-out, `webContents`-destroyed cascade cleanup, in-flight cancellation under `onStop`.
+- **`DirectoryTreeManager.test.ts`** — builder dedupe (including order-insensitive option keys), grace-window reuse, multi-consumer mutation fan-out, explicit-rename dispatch by treeId, `webContents`-destroyed cascade cleanup, in-flight cancellation under `onStop`.
 - **`TreeNode.test.ts`** — class invariants: rename cascade, identity preservation, JSON serialization shape.
 - **`search.test.ts`** — `listDirectory` happy path + error branches (ripgrep unavailable, EACCES on root).
 
@@ -321,5 +344,5 @@ Renderer-side: `src/renderer/src/hooks/__tests__/useDirectoryTree.test.tsx` cove
 ## 11. Related Documents
 
 - [`architecture.md`](./architecture.md) — module-level positioning (where this primitive sits relative to FileManager).
-- [`file-manager-architecture.md`](./file-manager-architecture.md) — sister primitive; defines the FileEntry / FileRef contract and DirectoryWatcher internals.
+- [`file-manager-architecture.md`](./file-manager-architecture.md) — sister FileEntry / FileRef primitive. Specifically: §8 ("DirectoryWatcher") for the watcher contract this primitive consumes, including the `WatcherEvent` shape (`ready` / `add` / `addDir` / `unlink` / `unlinkDir` / `change` / `error`).
 - `packages/shared/file/types/tree.ts` — the wire types and class hierarchy this primitive emits.

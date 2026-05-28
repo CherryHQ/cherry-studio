@@ -50,7 +50,8 @@ const logger = loggerService.withContext('file/watcher')
  * §8.3 "Rename Detection Semantics" in file-manager-architecture.md).
  *
  * Directory variants `addDir` / `unlinkDir` were added when the
- * `DirectoryTreeBuilder` primitive (RFC §12) landed — without them, folder
+ * `DirectoryTreeBuilder` primitive landed (see
+ * `docs/references/file/directory-tree.md`) — without them, folder
  * creation / deletion would never reach a subscribed tree builder because
  * chokidar reports those on dedicated channels.
  */

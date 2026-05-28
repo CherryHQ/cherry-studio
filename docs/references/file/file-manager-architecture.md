@@ -818,7 +818,9 @@ to the same change that lands the first `onRename` consumer (see §8.3).
 ```typescript
 export type WatcherEvent =
   | { readonly kind: 'add'; readonly path: FilePath }
+  | { readonly kind: 'addDir'; readonly path: FilePath }
   | { readonly kind: 'unlink'; readonly path: FilePath }
+  | { readonly kind: 'unlinkDir'; readonly path: FilePath }
   | { readonly kind: 'change'; readonly path: FilePath }
   | { readonly kind: 'ready' }
   | { readonly kind: 'error'; readonly error: Error }

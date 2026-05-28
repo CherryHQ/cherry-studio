@@ -1,20 +1,22 @@
 /**
- * Directory-tree primitive (RFC §12).
+ * Directory-tree primitive — wire types + shared class hierarchy.
+ *
+ * SoT: `docs/references/file/directory-tree.md`.
  *
  * Lives in shared because both the main-process `DirectoryTreeBuilder`
- * (`src/main/services/file/tree/`) and the renderer-side `useDirectoryTree` hook
- * (`src/renderer/src/hooks/useDirectoryTree.ts`) work against the **same
- * tree shape**. Splitting the classes into per-side mirrors made us write
- * the algorithms twice — there is no reason: every helper here is pure
- * string manipulation, no Node FS or Electron globals.
+ * (`src/main/services/file/tree/`) and the renderer-side `useDirectoryTree`
+ * hook (`src/renderer/src/hooks/useDirectoryTree.ts`) work against the
+ * **same tree shape**. Splitting the classes into per-side mirrors made
+ * us write the algorithms twice — there is no reason: every helper here
+ * is pure string manipulation, no Node FS or Electron globals.
  *
  * Wire DTOs (`SerializedTreeNode`, `TreeMutationEvent`, …) and the class
- * hierarchy (`TreeNode` / `TreeFile` / `TreeDir` / `TreeDirRoot`) ship from
- * the same module so they can never drift.
+ * hierarchy (`TreeNode` / `TreeFile` / `TreeDir` / `TreeDirRoot`) ship
+ * from the same module so they can never drift.
  *
  * The tree is a **runtime / render-layer** concern — not coupled to
  * `file_entry` / `file_ref`. Notes joins its sparse-state `noteTable`
- * renderer-side after the tree mirror has been built (see RFC §12.6).
+ * renderer-side after the tree mirror has been built — see directory-tree.md §9.
  */
 
 import * as z from 'zod'

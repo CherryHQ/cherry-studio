@@ -1,5 +1,6 @@
 /**
- * DirectoryTreeBuilder — RFC §12 lean implementation.
+ * DirectoryTreeBuilder — implementation. SoT:
+ * `docs/references/file/directory-tree.md`.
  *
  * Owns:
  *   - one `TreeDirRoot` mirror of the filesystem subtree rooted at `rootPath`
@@ -8,16 +9,16 @@
  *   - a `DirectoryWatcher` subscription that translates raw FS events into
  *     `TreeMutationEvent`s and keeps the tree coherent
  *
- * Strict scope (RFC §12.6):
+ * Strict scope (directory-tree.md §2.2):
  *   - No `@main/data/**` imports — the tree is a runtime / render-layer
- *     primitive, not a persistence concern. ESLint enforces this in
- *     `eslint.config.js`.
+ *     primitive, not a persistence concern. Enforcement is the import-graph
+ *     regex test in `__tests__/builder.test.ts`.
  *   - No `noteTable` / `fileEntry` knowledge — Notes joins this primitive
  *     to its sparse state table renderer-side.
  *
- * Backpressure: a `tail`-style mutex (`scanning`) serializes the initial
- * scan against early watcher events so the cache doesn't observe events for
- * a path before the corresponding node is wired up.
+ * Backpressure: `initialScanPromise` serializes early watcher events behind
+ * the initial scan so a watcher event for a path the scan is about to
+ * insert never lands first.
  */
 
 import { stat as nodeStat } from 'node:fs/promises'
