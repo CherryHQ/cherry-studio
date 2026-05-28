@@ -3,7 +3,7 @@ import { BackupDomain } from '@shared/backup'
 export const DOMAIN_TABLE_MAP: Record<BackupDomain, readonly string[]> = {
   [BackupDomain.TOPICS]: ['topic', 'message', 'pin'],
   [BackupDomain.KNOWLEDGE]: ['knowledge_base', 'knowledge_item'],
-  [BackupDomain.PREFERENCES]: ['preference'],
+  [BackupDomain.PREFERENCES]: ['preference', 'note'],
   [BackupDomain.MCP_SERVERS]: ['mcp_server'],
   [BackupDomain.TAGS_GROUPS]: ['tag', 'entity_tag', 'group'],
   [BackupDomain.TRANSLATE_HISTORY]: ['translate_language', 'translate_history'],

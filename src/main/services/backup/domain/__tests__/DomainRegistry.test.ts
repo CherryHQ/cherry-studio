@@ -68,7 +68,7 @@ describe('DomainRegistry', () => {
     })
 
     it('returns tables for single domain', () => {
-      expect(getTablesForDomains([BackupDomain.PREFERENCES])).toEqual(['preference'])
+      expect(getTablesForDomains([BackupDomain.PREFERENCES])).toEqual(['preference', 'note'])
     })
 
     it('returns combined tables for multiple domains', () => {
