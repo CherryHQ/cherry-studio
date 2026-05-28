@@ -103,7 +103,7 @@ export async function provisionBuiltinAgent(
     if (fs.existsSync(agentJsonPath)) {
       const agentConfig = JSON.parse(fs.readFileSync(agentJsonPath, 'utf-8'))
       return {
-        name: agentConfig.name,
+        name: resolveLocalizedField(agentConfig.name),
         description: resolveLocalizedField(agentConfig.description),
         instructions: resolveLocalizedField(agentConfig.instructions),
         configuration: agentConfig.configuration
