@@ -26748,10 +26748,6 @@
                 "pairedEnumKey": "size",
                 "type": "size"
               },
-              "negativePrompt": {
-                "multiline": true,
-                "type": "text"
-              },
               "numImages": {
                 "default": 1,
                 "max": 1,
@@ -26761,9 +26757,6 @@
               "quality": {
                 "options": ["standard", "hd"],
                 "type": "enum"
-              },
-              "seed": {
-                "type": "text"
               },
               "size": {
                 "default": "1280x1280",
