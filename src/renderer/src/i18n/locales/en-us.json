@@ -5147,16 +5147,23 @@
       "default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
       "empty": "No models found",
       "manage": {
+        "add_error": "Failed to add models",
         "add_listed": {
           "confirm": "Are you sure you want to add all models to the list?",
           "label": "Add models to the list"
         },
+        "add_success": "Successfully added {{count}} models",
         "add_whole_group": "Add the whole group",
+        "batch_add_selected": "Add selected models",
         "fetch_list": "Fetch model list",
+        "no_models_to_add": "No models to add",
         "refetch_list": "Refetch model list",
         "remove_listed": "Remove models from the list",
         "remove_model": "Remove model",
-        "remove_whole_group": "Remove the whole group"
+        "remove_whole_group": "Remove the whole group",
+        "select_all": "Select all",
+        "select_all_group": "Select all models in group {{groupName}}",
+        "select_model": "Select model {{modelName}}"
       },
       "provider_id": "Provider ID",
       "provider_key_add_confirm": "Do you want to add the API key for {{provider}}?",

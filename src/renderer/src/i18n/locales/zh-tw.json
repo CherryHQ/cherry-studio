@@ -5147,16 +5147,23 @@
       "default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
       "empty": "找不到模型",
       "manage": {
+        "add_error": "新增模型失敗",
         "add_listed": {
           "confirm": "確定要新增所有模型到列表嗎？",
           "label": "新增列表中的模型"
         },
+        "add_success": "成功新增 {{count}} 個模型",
         "add_whole_group": "新增整個分組",
+        "batch_add_selected": "新增選中的模型",
         "fetch_list": "取得模型列表",
+        "no_models_to_add": "沒有需要新增的模型",
         "refetch_list": "重新取得模型列表",
         "remove_listed": "移除列表中的模型",
         "remove_model": "移除模型",
-        "remove_whole_group": "移除整個分組"
+        "remove_whole_group": "移除整個分組",
+        "select_all": "全選",
+        "select_all_group": "全選分組 {{groupName}} 中的模型",
+        "select_model": "選擇模型 {{modelName}}"
       },
       "provider_id": "提供者 ID",
       "provider_key_add_confirm": "是否要為 {{provider}} 新增 API 金鑰？",

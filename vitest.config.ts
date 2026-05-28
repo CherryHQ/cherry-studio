@@ -3,6 +3,8 @@ import { defineConfig } from 'vitest/config'
 
 import electronViteConfig from './electron.vite.config'
 
+const isWindows = process.platform === 'win32'
+
 const mainConfig = (electronViteConfig as any).main
 const rendererConfig = (electronViteConfig as any).renderer
 
@@ -118,11 +120,21 @@ export default defineConfig({
       ]
     },
     testTimeout: 20000,
-    pool: 'threads',
-    poolOptions: {
-      threads: {
-        singleThread: false
-      }
-    }
+    // Windows 平台使用 forks 替代 threads 避免内存访问冲突，提升稳定性
+    // 非 Windows 平台显式使用 threads（Vitest 默认值）以保持行为一致
+    pool: isWindows ? ('forks' as const) : ('threads' as const),
+    poolOptions: isWindows
+      ? {
+          forks: {
+            singleFork: false
+          }
+        }
+      : {
+          threads: {
+            singleThread: false
+          }
+        },
+    // 增加清理超时时间，给原生模块更多清理时间
+    teardownTimeout: 10000
   }
 })
