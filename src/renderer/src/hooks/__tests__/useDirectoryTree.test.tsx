@@ -103,6 +103,47 @@ describe('useDirectoryTree', () => {
     expect(result.current.root?.hasChild('existing.md')).toBe(false)
   })
 
+  it('applies a renamed mutation by mutating the existing node identity', async () => {
+    const snapshot = makeSnapshot('/notes', ['old.md'])
+    mocks.create.mockResolvedValue({ treeId: 't-rename', snapshot })
+    let pushListener: ((payload: TreeMutationPushPayload) => void) | null = null
+    mocks.onMutation.mockImplementation((cb) => {
+      pushListener = cb
+      return () => {
+        pushListener = null
+      }
+    })
+
+    const { result } = renderHook(() => useDirectoryTree('/notes'))
+    await waitFor(() => {
+      expect(result.current.root).not.toBeNull()
+    })
+
+    const beforeNode = result.current.getNode('/notes/old.md')
+    expect(beforeNode).not.toBeNull()
+    expect(beforeNode?.basename).toBe('old.md')
+
+    const renamedEvent: TreeMutationEvent = {
+      type: 'renamed',
+      oldPath: '/notes/old.md',
+      newPath: '/notes/renamed.md',
+      basename: 'renamed.md'
+    }
+    act(() => {
+      pushListener?.({ treeId: 't-rename', event: renamedEvent })
+    })
+
+    // Identity preserved through the rename.
+    const afterNode = result.current.getNode('/notes/renamed.md')
+    expect(afterNode).toBe(beforeNode)
+    expect(afterNode?.path).toBe('/notes/renamed.md')
+    expect(afterNode?.basename).toBe('renamed.md')
+    // Old key gone from index + parent's _children.
+    expect(result.current.getNode('/notes/old.md')).toBeNull()
+    expect(result.current.root?.hasChild('old.md')).toBe(false)
+    expect(result.current.root?.hasChild('renamed.md')).toBe(true)
+  })
+
   it('disposes the tree on unmount', async () => {
     mocks.create.mockResolvedValue({ treeId: 't-3', snapshot: makeSnapshot('/notes', []) })
     const unsub = vi.fn()

@@ -70,6 +70,30 @@ function applyMutation(state: MirrorState, event: TreeMutationEvent): boolean {
     node.remove()
     return true
   }
+  if (event.type === 'renamed') {
+    // Identity-preserving: the same `TreeNode` instance gets its path
+    // mutated via the setter, which cascades through `adjustChildrenPaths`
+    // and repoints the parent's `_children` map. The reverse-lookup index
+    // (state.nodes) is rekeyed for the node and every descendant whose
+    // path also changed.
+    const node = state.nodes.get(event.oldPath)
+    if (!node) return false
+    const oldPaths: string[] = [node.path]
+    if (node instanceof TreeDir) {
+      node.walk((n) => {
+        if (n !== node) oldPaths.push(n.path)
+      })
+    }
+    node.path = event.newPath
+    for (const p of oldPaths) state.nodes.delete(p)
+    state.nodes.set(node.path, node)
+    if (node instanceof TreeDir) {
+      node.walk((n) => {
+        if (n !== node) state.nodes.set(n.path, n)
+      })
+    }
+    return true
+  }
   // updated
   const node = state.nodes.get(event.path)
   if (!node) return false

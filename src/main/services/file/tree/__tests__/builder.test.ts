@@ -222,7 +222,7 @@ describe('createDirectoryTree — watcher mutations', () => {
       await writeFile(path.join(tmp, 'wanted.md'), 'y')
       await expected
       sub.dispose()
-      expect(allEvents.some((e) => e.path.endsWith('/unwanted.txt'))).toBe(false)
+      expect(allEvents.some((e) => 'path' in e && e.path.endsWith('/unwanted.txt'))).toBe(false)
     } finally {
       builder.dispose()
     }
@@ -239,6 +239,82 @@ describe('createDirectoryTree — watcher mutations', () => {
       await addedPromise
       expect(builder.getNode(path.join(tmp, 'old.md'))).toBeNull()
       expect(builder.getNode(path.join(tmp, 'new.md'))).not.toBeNull()
+    } finally {
+      builder.dispose()
+    }
+  })
+
+  it('rename() mutates the existing node, emits renamed, and suppresses the chokidar pair', async () => {
+    await writeFile(path.join(tmp, 'old.md'), 'x')
+    const builder = await createDirectoryTree(tmp, { extensions: ['.md'] })
+    try {
+      const beforeNode = builder.getNode(path.join(tmp, 'old.md'))
+      expect(beforeNode).not.toBeNull()
+
+      const allEvents: TreeMutationEvent[] = []
+      const sub = builder.onMutation((e) => allEvents.push(e))
+
+      const renamedPromise = waitForEvent(builder, (e) => e.type === 'renamed')
+      const applied = builder.rename(path.join(tmp, 'old.md'), path.join(tmp, 'new.md'))
+      expect(applied).toBe(true)
+      const renamedEvent = await renamedPromise
+      expect(renamedEvent).toMatchObject({
+        type: 'renamed',
+        basename: 'new.md'
+      })
+
+      // Identity preserved: lookup by the new path returns the same instance.
+      const afterNode = builder.getNode(path.join(tmp, 'new.md'))
+      expect(afterNode).toBe(beforeNode)
+      expect(builder.getNode(path.join(tmp, 'old.md'))).toBeNull()
+
+      // Do the actual FS rename and wait long enough for chokidar to have
+      // had a chance to fire. Then assert no removed / added events for
+      // these paths landed (dedup window swallowed them).
+      await rename(path.join(tmp, 'old.md'), path.join(tmp, 'new.md'))
+      await new Promise((resolve) => setTimeout(resolve, 350))
+
+      const suppressed = allEvents.filter(
+        (e) =>
+          (e.type === 'removed' && e.path.endsWith('/old.md')) ||
+          (e.type === 'added' && 'path' in e && e.path.endsWith('/new.md'))
+      )
+      expect(suppressed).toEqual([])
+
+      sub.dispose()
+    } finally {
+      builder.dispose()
+    }
+  })
+
+  it('rename() of a directory cascades descendants in the lookup map', async () => {
+    await mkdir(path.join(tmp, 'old'))
+    await writeFile(path.join(tmp, 'old', 'leaf.md'), 'x')
+    const builder = await createDirectoryTree(tmp, { extensions: ['.md'] })
+    try {
+      const dirNode = builder.getNode(path.join(tmp, 'old'))
+      const leafNode = builder.getNode(path.join(tmp, 'old', 'leaf.md'))
+      expect(dirNode).not.toBeNull()
+      expect(leafNode).not.toBeNull()
+
+      const applied = builder.rename(path.join(tmp, 'old'), path.join(tmp, 'new'))
+      expect(applied).toBe(true)
+
+      // Identity preserved for both the renamed dir and its descendant.
+      expect(builder.getNode(path.join(tmp, 'new'))).toBe(dirNode)
+      expect(builder.getNode(path.join(tmp, 'new', 'leaf.md'))).toBe(leafNode)
+      expect(builder.getNode(path.join(tmp, 'old'))).toBeNull()
+      expect(builder.getNode(path.join(tmp, 'old', 'leaf.md'))).toBeNull()
+    } finally {
+      builder.dispose()
+    }
+  })
+
+  it('rename() returns false when the source node is missing', async () => {
+    const builder = await createDirectoryTree(tmp, { extensions: ['.md'] })
+    try {
+      const applied = builder.rename(path.join(tmp, 'missing.md'), path.join(tmp, 'whatever.md'))
+      expect(applied).toBe(false)
     } finally {
       builder.dispose()
     }

@@ -51,6 +51,12 @@ const TreeCreateParamsSchema = z.strictObject({
 
 const TreeDisposeParamsSchema = z.strictObject({ treeId: z.string().min(1) })
 
+const TreeRenameParamsSchema = z.strictObject({
+  treeId: z.string().min(1),
+  oldPath: AbsolutePathSchema,
+  newPath: AbsolutePathSchema
+})
+
 const logger = loggerService.withContext('file/tree/registry')
 
 /**
@@ -137,6 +143,28 @@ export class DirectoryTreeManager extends BaseService {
       const { treeId } = TreeDisposeParamsSchema.parse(params)
       this.dispose(treeId)
     })
+    this.ipcHandle(IpcChannel.File_TreeRename, async (_event, params: unknown) => {
+      const { treeId, oldPath, newPath } = TreeRenameParamsSchema.parse(params)
+      return this.rename(treeId, oldPath, newPath)
+    })
+  }
+
+  /**
+   * Apply an explicit rename to the shared builder backing `treeId`. The
+   * caller is expected to have already performed the FS-level rename — this
+   * call only updates the in-memory tree and synthesises the `renamed`
+   * mutation that consumers receive. See `directory-tree.md §4.4`.
+   *
+   * Returns `false` when:
+   *   - the treeId is unknown (already disposed, or never existed); or
+   *   - the node at `oldPath` is missing in the shared builder (chokidar's
+   *     `unlink` already removed it — identity is lost but state is
+   *     consistent).
+   */
+  rename(treeId: string, oldPath: string, newPath: string): boolean {
+    const consumer = this.consumers.get(treeId)
+    if (!consumer) return false
+    return consumer.sharedBuilder.builder.rename(oldPath, newPath)
   }
 
   /**

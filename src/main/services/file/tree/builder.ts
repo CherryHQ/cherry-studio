@@ -101,6 +101,19 @@ export interface DirectoryTreeBuilder extends Disposable {
   getNode(absPath: string): TreeNode | null
   /** Snapshot the entire tree as a serializable DTO. */
   snapshot(): SerializedTreeNode
+  /**
+   * Apply a rename explicitly (caller already performed the FS rename).
+   * Mutates the existing node in place via the `TreeNode.path` setter so
+   * identity-based consumer caches (React keys, lookup maps) survive the
+   * rename, then emits a `renamed` mutation. The chokidar `unlink` + `add`
+   * events that arrive shortly after are suppressed by a short dedup window.
+   *
+   * Returns `false` when the node at `oldPath` is missing — typically a race
+   * where chokidar's `unlink` fired before the explicit rename arrived. In
+   * that case the renderer already saw `removed` + `added`; identity is lost
+   * but state stays consistent.
+   */
+  rename(oldPath: string, newPath: string): boolean
   dispose(): void
 }
 
@@ -121,6 +134,13 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
   private ignorePredicate: GitignorePredicate | null = null
   private disposed = false
   private initialScanPromise: Promise<void> | null = null
+  // Paths recently affected by an explicit `rename()` — used to suppress the
+  // chokidar `unlink(oldPath)` + `add(newPath)` events that follow shortly
+  // after, so the renderer doesn't apply `removed` + `added` on top of the
+  // identity-preserving `renamed` it already received. Map value is the
+  // expiry timestamp (ms epoch); entries are purged lazily on lookup.
+  private readonly recentlyRenamed = new Map<string, number>()
+  private static readonly RENAME_DEDUP_MS = 1000
 
   constructor(rootPath: string, options: ResolvedTreeOptions) {
     this.rootPath = normalizePath(rootPath)
@@ -260,6 +280,12 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     // before chokidar processes the ignore for it), drop it here too.
     if (this.ignorePredicate && this.ignorePredicate(evPath)) return
 
+    // Suppress the chokidar `unlink(oldPath)` + `add(newPath)` pair that
+    // follows an explicit `rename()`. Without this the renderer would see
+    // `renamed` → `removed` → `added` and lose the identity preservation
+    // the explicit call existed to provide.
+    if (this.isRenameSuppressed(evPath)) return
+
     if (ev.kind === 'add' || ev.kind === 'addDir') {
       const isDir = ev.kind === 'addDir'
       if (!isDir && !passesExtensionFilter(evPath, this.options)) return
@@ -388,6 +414,73 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
 
   getNode(absPath: string): TreeNode | null {
     return this.map.get(normalizePath(absPath)) ?? null
+  }
+
+  rename(oldPath: string, newPath: string): boolean {
+    if (this.disposed) return false
+    const oldNorm = normalizePath(oldPath)
+    const newNorm = normalizePath(newPath)
+    if (oldNorm === newNorm) return false
+    const node = this.map.get(oldNorm)
+    if (!node) {
+      // Race: chokidar's unlink already fired and removed the node. The
+      // renderer has applied `removed`; the matching `added` for newNorm is
+      // either pending or already applied. Identity is lost but we keep
+      // the dedup window armed so the still-pending events don't
+      // double-apply over what the renderer is about to receive.
+      this.markRenamed(oldNorm, newNorm)
+      return false
+    }
+
+    // Capture descendant paths before mutation so we can re-key the map.
+    const oldPaths: string[] = [node.path]
+    if (node.isTreeDir()) {
+      node.walk((n) => {
+        if (n !== node) oldPaths.push(n.path)
+      })
+    }
+
+    // Mutate via the setter — adjustChildrenPaths cascades to descendants
+    // and the parent's _children map gets repointed to the new basename.
+    node.path = newNorm
+
+    // Re-key the lookup map: drop every old descendant path, re-insert with
+    // the cascaded new paths.
+    for (const p of oldPaths) this.map.delete(p)
+    this.map.set(node.path, node)
+    if (node.isTreeDir()) {
+      node.walk((n) => {
+        if (n !== node) this.map.set(n.path, n)
+      })
+    }
+
+    this.markRenamed(oldNorm, newNorm)
+    this.emitter.fire({
+      type: 'renamed',
+      oldPath: oldNorm,
+      newPath: newNorm,
+      basename: node.basename
+    })
+    return true
+  }
+
+  /** Mark `(oldPath, newPath)` so the immediately-following chokidar
+   *  `unlink(oldPath)` / `add(newPath)` events get dropped. */
+  private markRenamed(oldPath: string, newPath: string): void {
+    const expireAt = Date.now() + DirectoryTreeBuilderImpl.RENAME_DEDUP_MS
+    this.recentlyRenamed.set(oldPath, expireAt)
+    this.recentlyRenamed.set(newPath, expireAt)
+  }
+
+  /** True if `path` is inside the rename dedup window. Purges stale entries. */
+  private isRenameSuppressed(path: string): boolean {
+    const expireAt = this.recentlyRenamed.get(path)
+    if (expireAt === undefined) return false
+    if (Date.now() >= expireAt) {
+      this.recentlyRenamed.delete(path)
+      return false
+    }
+    return true
   }
 
   snapshot(): SerializedTreeNode {

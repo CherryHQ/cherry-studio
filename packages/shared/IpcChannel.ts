@@ -262,6 +262,7 @@ export enum IpcChannel {
   // to the FileEntry channels above. See docs/references/file/directory-tree.md.
   File_TreeCreate = 'file:tree:create',
   File_TreeDispose = 'file:tree:dispose',
+  File_TreeRename = 'file:tree:rename',
   File_TreeMutation = 'file:tree:mutation',
 
   // PDF

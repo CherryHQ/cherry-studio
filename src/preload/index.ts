@@ -311,6 +311,8 @@ const api = {
     create: (rootPath: string, options?: DirectoryTreeOptions): Promise<CreateTreeIpcResult> =>
       ipcRenderer.invoke(IpcChannel.File_TreeCreate, { rootPath, options }),
     dispose: (treeId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.File_TreeDispose, { treeId }),
+    rename: (treeId: string, oldPath: string, newPath: string): Promise<boolean> =>
+      ipcRenderer.invoke(IpcChannel.File_TreeRename, { treeId, oldPath, newPath }),
     onMutation: (callback: (payload: TreeMutationPushPayload) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, payload: TreeMutationPushPayload) => {
         if (payload && typeof payload === 'object') callback(payload)

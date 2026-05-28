@@ -178,6 +178,31 @@ describe('DirectoryTreeManager', () => {
     vi.useRealTimers()
   })
 
+  it('rename(treeId, …) dispatches to the shared builder and emits to all consumers', async () => {
+    await writeFile(path.join(tmp, 'old.md'), 'x')
+    const sender1 = makeSender(1)
+    const sender2 = makeSender(2)
+
+    const created1 = await registry.create(sender1, tmp, undefined)
+    const created2 = await registry.create(sender2, tmp, undefined)
+
+    const applied = registry.rename(created1.treeId, path.join(tmp, 'old.md'), path.join(tmp, 'new.md'))
+    expect(applied).toBe(true)
+
+    // Both consumers see the renamed mutation (shared builder fan-out).
+    const renamed1 = sender1.sentMutations.find((p) => p.event.type === 'renamed')
+    const renamed2 = sender2.sentMutations.find((p) => p.event.type === 'renamed')
+    expect(renamed1).toBeDefined()
+    expect(renamed2).toBeDefined()
+    expect(renamed1?.treeId).toBe(created1.treeId)
+    expect(renamed2?.treeId).toBe(created2.treeId)
+  })
+
+  it('rename(treeId, …) returns false when the treeId is unknown', () => {
+    const applied = registry.rename('does-not-exist', '/a/old', '/a/new')
+    expect(applied).toBe(false)
+  })
+
   it('drops all trees and their builders when the owning webContents is destroyed', async () => {
     const sender = makeSender(1)
     await registry.create(sender, tmp, undefined)

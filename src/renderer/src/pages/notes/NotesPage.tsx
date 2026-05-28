@@ -690,6 +690,19 @@ const NotesPage: FC = () => {
 
         const oldPath = node.externalPath
         const renamed = await renameEntry(node, newName)
+
+        // Tell the tree primitive about the rename so it mutates the
+        // existing TreeNode in place (identity preserved for downstream
+        // consumers / React keys) and dedups the chokidar unlink+add that
+        // follow. Best-effort: if treeId is null (hook still initializing)
+        // or the IPC fails, the watcher will catch up via removed+added —
+        // just without identity preservation.
+        if (treeId) {
+          await window.api.tree
+            .rename(treeId, oldPath, renamed.path)
+            .catch((err) => logger.warn('Failed to notify tree of rename', err as Error))
+        }
+
         let nextActivePath: string | undefined
 
         if (node.type === 'file' && activeFilePath === oldPath) {
@@ -737,7 +750,8 @@ const NotesPage: FC = () => {
       rollbackFileMove,
       setActiveFilePath,
       syncMetadataAfterFileOperation,
-      t
+      t,
+      treeId
     ]
   )
 

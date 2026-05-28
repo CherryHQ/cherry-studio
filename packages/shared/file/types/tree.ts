@@ -77,8 +77,15 @@ export type DirectoryTreeOptions = z.infer<typeof DirectoryTreeOptionsSchema>
 
 /**
  * Tree mutation pushed from main → renderer as the watcher observes changes.
- * Renames surface as `removed` + `added` (the watcher does not yet
- * synthesize a paired `renamed` event — see watcher §8.3).
+ *
+ * The watcher cannot synthesize `renamed` on its own (chokidar surfaces
+ * renames as `unlink` + `add`), so that variant is only emitted via the
+ * explicit `File_TreeRename` IPC — used by callers that already know they
+ * just performed a rename (e.g. Notes after `file.rename`). When emitted,
+ * the renderer applies it via the `TreeNode.path` setter, preserving node
+ * identity through the rename. The chokidar `unlink`/`add` events that
+ * arrive shortly after are suppressed by a per-builder dedup window so they
+ * don't double-apply.
  */
 export type TreeMutationEvent =
   | {
@@ -97,6 +104,12 @@ export type TreeMutationEvent =
       readonly type: 'updated'
       readonly path: string
       readonly stats: TreeNodeStats
+    }
+  | {
+      readonly type: 'renamed'
+      readonly oldPath: string
+      readonly newPath: string
+      readonly basename: string
     }
 
 /** Handle returned by the `File_TreeCreate` IPC. */

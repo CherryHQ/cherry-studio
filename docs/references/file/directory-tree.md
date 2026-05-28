@@ -150,8 +150,9 @@ The registry tracks `webContentsId → Set<treeId>`. When `sender.once('destroye
 
 | Channel | Value | Direction | Payload | Returns |
 |---|---|---|---|---|
-| `File_TreeCreate` | `file:tree:create` | renderer → main | `{ rootPath, options? }` | `{ treeId, snapshot }` |
+| `File_TreeCreate` | `file:tree:create` | renderer → main | `{ rootPath, options? }` | `{ treeId, snapshot: SerializedTreeNode }` |
 | `File_TreeDispose` | `file:tree:dispose` | renderer → main | `{ treeId }` | `void` |
+| `File_TreeRename` | `file:tree:rename` | renderer → main | `{ treeId, oldPath, newPath }` | `boolean` (true if applied) |
 | `File_TreeMutation` | `file:tree:mutation` | main → renderer (push) | `{ treeId, event: TreeMutationEvent }` | — |
 
 The `file:tree:*` prefix places these alongside `File_Open` / `File_Read` / etc. — the tree primitive is part of the file module, so its IPC namespace is too.
@@ -167,12 +168,29 @@ A malformed payload rejects with a `ZodError` Promise rejection at the IPC bound
 The preload bridge exposes the channels behind `window.api.tree`:
 
 ```ts
-window.api.tree.create(rootPath, options?) → Promise<CreateTreeIpcResult>
-window.api.tree.dispose(treeId)            → Promise<void>
-window.api.tree.onMutation(callback)       → () => void  // unsubscribe
+window.api.tree.create(rootPath, options?)        → Promise<CreateTreeIpcResult>
+window.api.tree.dispose(treeId)                   → Promise<void>
+window.api.tree.rename(treeId, oldPath, newPath)  → Promise<boolean>
+window.api.tree.onMutation(callback)              → () => void  // unsubscribe
 ```
 
-The `onMutation` subscription is shared (one `ipcRenderer.on` per call). Consumers that observe the channel directly **must** filter by `payload.treeId` — the `useDirectoryTree` hook does this internally and exposes its `treeId` for downstream side-subscribers to do the same.
+Each `onMutation` call registers its own `ipcRenderer.on` listener. All listeners receive every `File_TreeMutation` push regardless of which tree it belongs to; consumers **must** filter by `payload.treeId`. The `useDirectoryTree` hook does this internally and exposes its `treeId` so downstream side-subscribers can do the same.
+
+### 4.4 Explicit Rename
+
+`File_TreeRename` is invoked by callers that just performed a file-system rename (e.g. Notes after `window.api.file.rename`). The flow:
+
+1. Renderer performs the FS rename (already happens today).
+2. Renderer calls `window.api.tree.rename(treeId, oldPath, newPath)`.
+3. Main side `DirectoryTreeBuilder.rename(oldPath, newPath)`:
+   - Mutates the existing `TreeNode` instance via the `path` setter, which cascades through `adjustChildrenPaths` and repoints the parent's `_children` map.
+   - Re-keys the internal `Map<path, TreeNode>` so descendants are reachable under their new paths.
+   - Marks `(oldPath, newPath)` in a per-builder dedup window (1 second).
+   - Emits a `renamed` mutation event to every consumer of this builder.
+4. Chokidar's subsequent `unlink(oldPath)` + `add(newPath)` events arrive within ~200 ms and are suppressed by the dedup window.
+5. Renderer hook `applyMutation` handles `renamed` by re-running step 3's path mutation in the renderer's mirror — identity preserved across the rename.
+
+Returns `false` when the node at `oldPath` is missing (race: chokidar's `unlink` already fired before the explicit call arrived). In that case the renderer already saw `removed` + `added`; identity is lost but state stays consistent.
 
 ---
 
@@ -203,13 +221,14 @@ SerializedTreeNode = {
 
 ### 5.3 Mutation Events
 
-Three event types, applied to the renderer mirror in `applyMutation`:
+Four event types, applied to the renderer mirror in `applyMutation`:
 
 - `added` — `{ path, kind, basename, parentPath, stats? }`. Creates a new `TreeFile` or `TreeDir`, attaches under `parentPath`.
 - `removed` — `{ path }`. Removes the node and (if directory) all descendants from the index.
 - `updated` — `{ path, stats }`. Updates `node.stats` in place; only fires when the tree was built with `withStats: true`.
+- `renamed` — `{ oldPath, newPath, basename }`. Mutates the existing `TreeNode` instance via the `path` setter (identity preserved); cascades to descendants when a directory is renamed. **Only** emitted via the explicit `File_TreeRename` IPC — chokidar cannot synthesize this on its own. See §4.4.
 
-Renames are surfaced as a `removed` + `added` pair at the wire level; the renderer can pair them via `useDirectoryTree`'s mutation stream if it cares about rename identity.
+Renames observed by the watcher alone surface as `removed` + `added` (chokidar's native shape). When a caller wants identity preservation, it must invoke `File_TreeRename` after the FS-level rename — see §4.4.
 
 ---
 
