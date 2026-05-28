@@ -1,7 +1,6 @@
-import type { ComponentType, ReactNode } from 'react'
+import type { ComponentType } from 'react'
 
 import type { BaseConfigItem } from '../form/baseConfigItem'
-import ImageField from './fields/ImageField'
 import NumberField from './fields/NumberField'
 import SchemaField from './fields/SchemaField'
 import SelectField from './fields/SelectField'
@@ -15,9 +14,6 @@ export interface PaintingFieldComponentProps {
   translate: (key: string) => string
   onChange: (updates: Record<string, unknown>) => void
   onGenerateRandomSeed?: (key: string) => void
-  onImageUpload?: (key: string, file: File) => void
-  imagePreviewSrc?: string
-  imagePlaceholder?: ReactNode
   currentValue: unknown
   disabled?: boolean
 }
@@ -28,7 +24,6 @@ export const fieldRegistry: Partial<Record<BaseConfigItem['type'], PaintingField
   select: SelectField,
   sizeChips: SizeChipsField,
   inputNumber: NumberField,
-  image: ImageField,
   customSize: SizeField,
   dynamicSchema: SchemaField
 }

@@ -12,9 +12,6 @@ export interface PaintingFieldRendererProps {
   painting: Record<string, unknown>
   onChange: (updates: Record<string, unknown>) => void
   onGenerateRandomSeed?: (key: string) => void
-  onImageUpload?: (key: string, file: File) => void
-  imagePreviewSrc?: string
-  imagePlaceholder?: React.ReactNode
 }
 
 function mapOptions(
@@ -30,15 +27,7 @@ function mapOptions(
   }))
 }
 
-export function PaintingFieldRenderer({
-  item,
-  painting,
-  onChange,
-  onGenerateRandomSeed,
-  onImageUpload,
-  imagePreviewSrc,
-  imagePlaceholder
-}: PaintingFieldRendererProps) {
+export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRandomSeed }: PaintingFieldRendererProps) {
   const { t } = useTranslation()
   const fieldKey = item.key
   if (!fieldKey) {
@@ -58,9 +47,6 @@ export function PaintingFieldRenderer({
         translate={t}
         onChange={onChange}
         onGenerateRandomSeed={onGenerateRandomSeed}
-        onImageUpload={onImageUpload}
-        imagePreviewSrc={imagePreviewSrc}
-        imagePlaceholder={imagePlaceholder}
         currentValue={currentValue}
         disabled={disabled}
       />
@@ -169,7 +155,7 @@ export function PaintingFieldRenderer({
               htmlFor={`${fieldKey}-${option.value}`}
               className={`flex cursor-pointer flex-col items-center justify-center gap-1 rounded-[var(--painting-radius-control)] px-2 py-1.5 text-[11px] transition-all ${
                 value === String(option.value)
-                  ? 'bg-[var(--painting-choice-active-bg)] text-[var(--painting-choice-active-fg)] ring-1 ring-[var(--painting-choice-active-ring)]'
+                  ? 'bg-(--painting-choice-active-bg) text-[var(--painting-choice-active-fg)] ring-1 ring-[var(--painting-choice-active-ring)]'
                   : 'bg-[var(--painting-choice-bg)] text-muted-foreground/60 hover:bg-[var(--painting-choice-bg-hover)] hover:text-foreground'
               }`}>
               <RadioGroupItem value={String(option.value)} id={`${fieldKey}-${option.value}`} className="sr-only" />

@@ -1,22 +1,14 @@
 import { InfoTooltip } from '@cherrystudio/ui'
 import type { FC } from 'react'
-import { useCallback, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { BaseConfigItem } from '../form/baseConfigItem'
 import { imageGenerationToFields } from '../form/imageGenerationToFields'
 import { PaintingFieldRenderer } from '../form/PaintingFieldRenderer'
 import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
-import { usePaintingModelCatalog } from '../hooks/usePaintingModelCatalog'
-import { usePaintingProviderOptions } from '../hooks/usePaintingProviderOptions'
-import { usePaintingProviderRuntime } from '../hooks/usePaintingProviderRuntime'
 import type { PaintingData } from '../model/types/paintingData'
-import {
-  resolvePaintingProviderDefinition,
-  resolvePaintingTabForMode,
-  tabToImageGenerationMode
-} from '../utils/paintingProviderMode'
-import { PaintingSettingsExtras } from './PaintingProviderViews'
+import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
 import PaintingSectionTitle from './PaintingSectionTitle'
 
 function resolveItemOptions(item: BaseConfigItem, painting: Record<string, unknown>) {
@@ -27,11 +19,9 @@ function shouldRenderConfigItem(item: BaseConfigItem, painting: Record<string, u
   if (item.condition && !item.condition(painting)) {
     return false
   }
-
   if (item.type === 'sizeChips' && resolveItemOptions(item, painting).length === 0) {
     return false
   }
-
   return true
 }
 
@@ -44,57 +34,14 @@ export interface PaintingSettingsProps {
 const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange, onGenerateRandomSeed }) => {
   const { t } = useTranslation()
   const paintingRecord = painting as unknown as Record<string, unknown>
-
-  const providerOptions = usePaintingProviderOptions()
-  const { provider } = usePaintingProviderRuntime(painting.providerId)
-  const providerDefinition = useMemo(
-    () => resolvePaintingProviderDefinition(painting.providerId),
-    [painting.providerId]
-  )
-  const tab = useMemo(
-    () => resolvePaintingTabForMode(providerDefinition, painting.mode) ?? providerDefinition.mode.defaultTab,
-    [painting.mode, providerDefinition]
-  )
-  const isLoading = painting.generationStatus === 'running'
-  const { currentModelOptions, selectedModelOption } = usePaintingModelCatalog({
-    providerOptions,
-    painting,
-    shouldPrefetch: false
-  })
   const registrySupport = useImageGenerationSupport(painting.providerId, painting.model)
-  const configItems = useMemo(() => {
-    const ownFields = providerDefinition.fields.byTab[tab] || []
-    const derived = imageGenerationToFields(registrySupport, {
-      mode: tabToImageGenerationMode(providerDefinition.mode.tabToDbMode(tab))
-    })
-    if (derived.length === 0) return ownFields
-    return [...derived, ...ownFields]
-  }, [providerDefinition.fields.byTab, providerDefinition.mode, registrySupport, tab])
-
-  const handleImageUpload = useCallback(
-    (key: string, file: File) => {
-      providerDefinition.image?.onUpload?.({
-        key,
-        file,
-        patchPainting: onConfigChange as (updates: Partial<PaintingData>) => void,
-        painting
-      })
-    },
-    [onConfigChange, painting, providerDefinition.image]
+  const configItems = useMemo(
+    () =>
+      imageGenerationToFields(registrySupport, {
+        mode: tabToImageGenerationMode(painting.mode)
+      }),
+    [registrySupport, painting.mode]
   )
-
-  const getImagePreviewSrc = useCallback(
-    (key: string) => {
-      return providerDefinition.image?.getPreviewSrc?.({
-        key,
-        painting
-      })
-    },
-    [painting, providerDefinition.image]
-  )
-
-  const onImageUpload = providerDefinition.image?.onUpload ? handleImageUpload : undefined
-  const imagePreviewResolver = providerDefinition.image?.getPreviewSrc ? getImagePreviewSrc : undefined
 
   return (
     <>
@@ -113,22 +60,9 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange,
               painting={paintingRecord}
               onChange={(updates) => onConfigChange(updates as Partial<PaintingData>)}
               onGenerateRandomSeed={onGenerateRandomSeed}
-              onImageUpload={onImageUpload ? (key, file) => onImageUpload(key, file) : undefined}
-              imagePreviewSrc={imagePreviewResolver ? imagePreviewResolver(item.key || '') : undefined}
-              imagePlaceholder={providerDefinition.image?.placeholder}
             />
           </div>
         ))}
-
-      <PaintingSettingsExtras
-        provider={provider}
-        painting={painting}
-        modelOptions={currentModelOptions}
-        selectedModelOption={selectedModelOption}
-        isLoading={isLoading}
-        patchPainting={onConfigChange}
-        tab={tab}
-      />
     </>
   )
 }

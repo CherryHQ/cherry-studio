@@ -3,10 +3,9 @@ import './painting-theme.css'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
+import Artboard from './components/Artboard'
 import PaintingModelSelector from './components/PaintingModelSelector'
-import { PaintingModeTabs } from './components/PaintingModeTabs'
 import PaintingPromptBar from './components/PaintingPromptBar'
-import { PaintingArtboard } from './components/PaintingProviderViews'
 import PaintingSettings from './components/PaintingSettings'
 import PaintingStrip from './components/PaintingStrip'
 import { usePaintingGenerationSubmit } from './hooks/usePaintingGenerationSubmit'
@@ -63,7 +62,6 @@ const PaintingPage: FC = () => {
   const switchModel = usePaintingModelSwitch({
     painting: currentPainting,
     onPaintingChange: patchPainting,
-    currentModelOptions: modelCatalog.currentModelOptions,
     ensureProviderCatalog: modelCatalog.ensureProviderCatalog
   })
 
@@ -108,11 +106,8 @@ const PaintingPage: FC = () => {
               </div>
 
               <div className={paintingClasses.centerPane}>
-                <div className={paintingClasses.tabsWrap}>
-                  <PaintingModeTabs painting={currentPainting} onPaintingChange={patchPainting} />
-                </div>
                 <div className={paintingClasses.centerStage}>
-                  <PaintingArtboard painting={currentPainting} isLoading={generating} onCancel={onCancel} />
+                  <Artboard painting={currentPainting} isLoading={generating} onCancel={onCancel} />
                 </div>
                 <div className={paintingClasses.promptDock}>
                   <PaintingPromptBar

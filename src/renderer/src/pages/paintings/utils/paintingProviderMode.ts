@@ -4,11 +4,6 @@ import type { PaintingMode } from '@shared/data/types/painting'
 import { buildPaintingProvider } from '../providers/buildPaintingProvider'
 import type { PaintingProviderDefinition } from '../providers/types'
 
-const MODE_ALIASES: Record<string, string[]> = {
-  generate: ['draw'],
-  draw: ['generate']
-}
-
 const providerCache = new Map<string, PaintingProviderDefinition>()
 
 /**
@@ -28,23 +23,24 @@ export function resolvePaintingProviderDefinition(providerId: string): PaintingP
   return built
 }
 
+/**
+ * Painting modes that resolve to the single 'default' tab every painting
+ * provider exposes. The painting page is single-tab post-unification —
+ * 'draw' is a legacy alias for 'generate' (PPIO's old tab dbMode).
+ */
+const SUPPORTED_DB_MODES = new Set<PaintingMode>(['generate', 'draw', 'edit', 'remix', 'upscale', 'merge'])
+
 export function resolvePaintingTabForMode(
-  definition: PaintingProviderDefinition,
+  _definition: PaintingProviderDefinition,
   mode: PaintingMode
 ): string | undefined {
-  const exactTab = definition.mode.tabs.find((item) => definition.mode.tabToDbMode(item.value) === mode)
-  if (exactTab) {
-    return exactTab.value
-  }
-
-  const aliases = MODE_ALIASES[mode] ?? []
-  return definition.mode.tabs.find((item) => aliases.includes(definition.mode.tabToDbMode(item.value)))?.value
+  return SUPPORTED_DB_MODES.has(mode) ? 'default' : undefined
 }
 
 /**
- * Bridge a vendor's `PaintingMode` to the canonical registry mode enum used
- * by `imageGenerationToFields(..., { mode })` for per-mode `modeSchemas`
- * resolution. `'draw'` aliases to `'generate'` (ppio's tab dbMode).
+ * Bridge `PaintingMode` (the dbMode stored on PaintingData) to the canonical
+ * registry mode used by `imageGenerationToFields(..., { mode })`. 'draw'
+ * aliases to 'generate' for legacy PPIO paintings.
  */
 export function tabToImageGenerationMode(dbMode: PaintingMode): ImageGenerationMode | undefined {
   if (dbMode === 'generate' || dbMode === 'draw') return 'generate'

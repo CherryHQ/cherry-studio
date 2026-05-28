@@ -12,7 +12,6 @@ import {
 interface UsePaintingModelSwitchInput {
   painting: PaintingData
   onPaintingChange: (updates: Partial<PaintingData>) => void
-  currentModelOptions: ModelOption[]
   ensureProviderCatalog: (providerId: string) => Promise<ModelOption[]>
 }
 
@@ -21,7 +20,6 @@ export type PaintingModelSelection = { providerId: string; modelId: string }
 export function usePaintingModelSwitch({
   painting,
   onPaintingChange,
-  currentModelOptions,
   ensureProviderCatalog
 }: UsePaintingModelSwitchInput) {
   const currentProviderId = painting.providerId
@@ -29,29 +27,20 @@ export function usePaintingModelSwitch({
   return useCallback(
     async ({ providerId, modelId }: PaintingModelSelection) => {
       if (providerId === currentProviderId) {
-        const currentDefinition = resolvePaintingProviderDefinition(currentProviderId)
-        const modelUpdates = currentDefinition.fields.onModelChange?.({
-          modelId,
-          painting,
-          modelOptions: currentModelOptions
-        })
         // Reset stale fields the old model wrote but the new one doesn't
-        // accept — otherwise the flat `PaintingData` carries them through
-        // to the vendor's `generateUnified.ts` and they land in the wire
-        // body. The form already hides those fields (driven by the
-        // registry's per-model `imageGeneration` block); this brings the
-        // state into sync. Returns `{}` when either model is unknown to
-        // the registry, so custom-id paintings stay untouched.
-        const currentTab =
-          resolvePaintingTabForMode(currentDefinition, painting.mode) ?? currentDefinition.mode.defaultTab
+        // accept — the flat `PaintingData.params` carries them through to
+        // canonicalGenerate's wire bag otherwise. The form already hides
+        // those (driven by registry's per-model `imageGeneration` block);
+        // this brings state into sync. Returns `{}` when either model is
+        // unknown to the registry, so custom-id paintings stay untouched.
         const resetPatch = await computeModelFieldReset({
           providerId: currentProviderId,
           oldModelId: painting.model,
           newModelId: modelId,
-          mode: tabToImageGenerationMode(currentDefinition.mode.tabToDbMode(currentTab)),
+          mode: tabToImageGenerationMode(painting.mode),
           currentValues: (painting.params ?? {}) as Record<string, unknown>
         })
-        onPaintingChange({ ...resetPatch, model: modelId, ...modelUpdates } as Partial<PaintingData>)
+        onPaintingChange({ ...resetPatch, model: modelId } as Partial<PaintingData>)
         return
       }
 
@@ -65,11 +54,6 @@ export function usePaintingModelSwitch({
         providerId === painting.providerId
           ? painting
           : targetDefinition.mode.createPaintingData({ tab: targetTab, modelOptions: targetModelOptions })
-      const modelUpdates = targetDefinition.fields.onModelChange?.({
-        modelId,
-        painting: targetPainting,
-        modelOptions: targetModelOptions
-      })
 
       onPaintingChange({
         ...targetPainting,
@@ -78,10 +62,9 @@ export function usePaintingModelSwitch({
         prompt: painting.prompt,
         providerId,
         mode: targetDbMode,
-        model: modelId,
-        ...modelUpdates
+        model: modelId
       } as Partial<PaintingData>)
     },
-    [currentModelOptions, currentProviderId, ensureProviderCatalog, onPaintingChange, painting]
+    [currentProviderId, ensureProviderCatalog, onPaintingChange, painting]
   )
 }

@@ -95,8 +95,6 @@ export function buildPaintingProvider(providerId: string): PaintingProviderDefin
     dbMode: 'generate',
     models: { type: 'async', loader: () => loadPaintingModelOptions(providerId) },
     createPaintingData: () => emptyPainting(providerId),
-    fields: [],
-    onModelChange: ({ modelId }) => ({ model: modelId }),
     generate: genericPaintingGenerate
   })
 }
