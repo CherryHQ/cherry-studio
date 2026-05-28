@@ -1161,6 +1161,9 @@
       "topics": " Topics ",
       "translate": "Translate to {{target_language}}",
       "translating": "Translating...",
+      "voice_not_supported": "Voice input is not supported in this environment",
+      "voice_start": "Voice input",
+      "voice_stop": "Click to stop",
       "upload": {
         "attachment": "Upload attachment",
         "document": "Upload document file (model does not support images)",

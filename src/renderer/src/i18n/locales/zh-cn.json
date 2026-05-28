@@ -1161,6 +1161,9 @@
       "topics": "话题",
       "translate": "翻译成 {{target_language}}",
       "translating": "翻译中...",
+      "voice_not_supported": "当前环境不支持语音输入",
+      "voice_start": "语音输入",
+      "voice_stop": "点击停止",
       "upload": {
         "attachment": "上传附件",
         "document": "上传文档（模型不支持图片）",
