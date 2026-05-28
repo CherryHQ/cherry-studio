@@ -44,19 +44,27 @@ export class CallBackServer {
   private events: EventEmitter
 
   constructor(options: OAuthCallbackServerOptions) {
-    const { port, path, events } = options
+    const { port, path, expectedState, events } = options
     this.events = events
-    this.server = this.initialize(port, path)
+    this.server = this.initialize(port, path, expectedState)
   }
 
-  initialize(port: number, path: string): Promise<http.Server> {
+  initialize(port: number, path: string, expectedState: string): Promise<http.Server> {
     const server = http.createServer((req, res) => {
-      // Only handle requests to the callback path
-      if (req.url?.startsWith(path)) {
-        try {
-          // Parse the URL to extract the authorization code
-          const url = new URL(req.url, `http://127.0.0.1:${port}`)
+      try {
+        const url = req.url ? new URL(req.url, `http://127.0.0.1:${port}`) : undefined
+
+        // Only handle requests to the exact callback path
+        if (url?.pathname === path) {
           const code = url.searchParams.get('code')
+          const state = url.searchParams.get('state')
+
+          if (state !== expectedState) {
+            res.writeHead(400, { 'Content-Type': 'text/plain' })
+            res.end('Invalid OAuth state')
+            return
+          }
+
           if (code) {
             // Emit the code event
             this.events.emit('auth-code-received', code)
@@ -110,15 +118,16 @@ export class CallBackServer {
             res.writeHead(400, { 'Content-Type': 'text/plain' })
             res.end('Missing authorization code')
           }
-        } catch (error) {
-          logger.error('Error processing OAuth callback:', error as Error)
-          res.writeHead(500, { 'Content-Type': 'text/plain' })
-          res.end('Internal Server Error')
+          return
         }
-      } else {
+
         // Not a callback request
         res.writeHead(404, { 'Content-Type': 'text/plain' })
         res.end('Not Found')
+      } catch (error) {
+        logger.error('Error processing OAuth callback:', error as Error)
+        res.writeHead(500, { 'Content-Type': 'text/plain' })
+        res.end('Internal Server Error')
       }
     })
 

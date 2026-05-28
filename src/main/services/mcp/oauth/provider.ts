@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
@@ -18,6 +19,7 @@ const logger = loggerService.withContext('MCP:OAuthClientProvider')
 
 export class McpOAuthClientProvider implements OAuthClientProvider {
   private storage: JsonFileStorage
+  private pendingState?: string
   public readonly config: Required<OAuthProviderOptions>
 
   constructor(options: OAuthProviderOptions) {
@@ -46,6 +48,22 @@ export class McpOAuthClientProvider implements OAuthClientProvider {
       client_name: this.config.clientName,
       client_uri: this.config.clientUri
     }
+  }
+
+  state(): string {
+    this.pendingState = randomBytes(32).toString('base64url')
+    return this.pendingState
+  }
+
+  getExpectedState(): string {
+    if (!this.pendingState) {
+      throw new Error('No OAuth state saved for session')
+    }
+    return this.pendingState
+  }
+
+  clearExpectedState(): void {
+    this.pendingState = undefined
   }
 
   async clientInformation(): Promise<OAuthClientInformation | undefined> {

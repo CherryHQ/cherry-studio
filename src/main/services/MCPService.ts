@@ -564,6 +564,7 @@ class McpService {
           const callbackServer = new CallBackServer({
             port: authProvider.config.callbackPort,
             path: authProvider.config.callbackPath || '/oauth/callback',
+            expectedState: authProvider.getExpectedState(),
             events
           })
 
@@ -596,6 +597,7 @@ class McpService {
           } finally {
             // Clear the timeout and close the callback server
             clearTimeout(timeoutId)
+            authProvider.clearExpectedState()
             void callbackServer.close()
           }
         }
