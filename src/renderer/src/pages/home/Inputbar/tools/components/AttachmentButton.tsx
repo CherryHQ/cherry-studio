@@ -107,7 +107,7 @@ const AttachmentButton: FC<Props> = ({ quickPanel, couldAddImageFile, extensions
 
             try {
               filePath = await window.api.file.getPhysicalPath({ id: fileEntryId })
-              const fileContent = await window.api.file.get(filePath)
+              const fileContent = await window.api.legacyFile.get(filePath)
               if (!fileContent) {
                 context.updateItemSelection(item, false)
                 window.toast.warning(t('chat.input.tools.file_not_found', { path: source }))
