@@ -107,6 +107,7 @@ const PaintingPage: FC = () => {
                     painting={currentPainting}
                     generating={generating}
                     onPromptChange={(prompt) => patchPainting({ prompt } as Partial<PaintingData>)}
+                    onInputFilesChange={(inputFiles) => patchPainting({ inputFiles } as Partial<PaintingData>)}
                     onGenerate={submit}
                   />
                 </div>
