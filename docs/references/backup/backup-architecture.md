@@ -114,7 +114,7 @@ V1 备份系统存在以下致命缺陷：
 
 ### 3.1 备份域与数据库表映射
 
-系统将 27 张 SQLite 表组织为 12 个独立备份域 + 2 个基础设施表：
+系统将 28 张 SQLite 表组织为 12 个独立备份域 + 2 个基础设施表：
 
 | 域 | 数据库表 | 文件资产 | 阶段 |
 |----|----------|----------|------|
@@ -125,7 +125,7 @@ V1 备份系统存在以下致命缺陷：
 | `KNOWLEDGE` | `knowledge_base`, `knowledge_item` | 向量 DB 目录 | P1 |
 | `TOPICS` | `topic`, `message`, `pin` | 消息引用的文件 | P1 |
 | `TRANSLATE_HISTORY` | `translate_language`, `translate_history` | — | P1 |
-| `FILE_STORAGE` | — (仅文件) | `Data/Files/` 全部 | P1 |
+| `FILE_STORAGE` | `file_entry`, `file_ref` | `Data/Files/` 全部 | P1 |
 | `PROVIDERS` | `user_provider`, `user_model` | — | P2 |
 | `ASSISTANTS` | `assistant`, `assistant_mcp_server`, `assistant_knowledge_base` | — | P2 |
 | `AGENTS` | `agent` + 8 张关联表 | — | P2 |
@@ -134,6 +134,7 @@ V1 备份系统存在以下致命缺陷：
 **明确排除**（运行时状态，不备份）：
 - `app_state` — 通用键值存储，运行时状态
 - `message_fts` — FTS5 虚拟表，恢复后重建
+- `job`、`job_schedule` — 后台任务队列，运行时状态
 
 ### 3.2 导入顺序 (IMPORT_ORDER)
 
@@ -157,7 +158,7 @@ TRANSLATE_HISTORY → FILE_STORAGE → PROVIDERS → ASSISTANTS → AGENTS → M
    **选择性模式**：`SelectiveExport` 创建空 DB → 运行 Drizzle 迁移 → `ATTACH` 或双客户端批量复制选中域数据
 3. 应用 `CROSS_DOMAIN_FK_RULES`（置空或删除跨域 FK 引用）
 4. `PreferenceFilter` 过滤敏感偏好（凭证、平台路径、快捷键等）
-5. `DomainStripper` 清空 `user_provider.api_keys` 和 `auth_config`
+5. `DomainStripper`/`SelectiveExport` 清空 `user_provider.api_keys` 和 `auth_config`（除非 `includeSensitiveData` 开启）
 6. `FileCollector` 扫描消息文件引用 → 复制文件
 7. 复制知识库向量 DB 目录
 8. SHA-256 计算所有文件校验和
@@ -357,3 +358,60 @@ INSERT INTO main.topic SELECT * FROM live.topic;
 - V1 `BackupManager.ts` **保留不修改**，V2 完全替代前仍需支持 V1 格式
 - V2 是独立管道，不依赖 V1 任何代码
 - V1 格式导入由 `MigrationEngine` 处理，不在 V2 备份系统范围内
+
+---
+
+## 12. 已知架构缺口与演进方向
+
+### 12.1 模块私有文件资源未覆盖
+
+当前文件收集只处理 `Data/Files/` 目录下由 `FileCollector`（基于消息块 `fileId`）和全量 FILE_STORAGE 域复制覆盖的文件。
+
+以下模块私有文件资源**未纳入备份**，恢复后丢失不影响核心数据完整性，但用户需重新下载/生成：
+
+| 资源 | 位置 | 影响 |
+|------|------|------|
+| Agent 会话附件（非消息流） | 模块私有目录 | 需重新上传 |
+| MCP 服务端缓存 | 模块私有目录 | 需重新生成 |
+
+**演进方向**：将文件资源发现从硬编码的 `FileCollector` 迁移到声明式注册机制，让各模块自行声明其文件资源。参见 §12.2 的 `BackupContributor` 方向。
+
+### 12.2 域知识所有权中心化与演进
+
+当前所有域→表映射、跨域 FK 规则、FTS 重建逻辑、偏好过滤规则集中在备份模块内部：
+
+- `DomainRegistry.ts` — 域→表映射
+- `DomainStripper.ts` — 跨域 FK 规则
+- `DomainImporter.ts` — FTS 重建（硬编码表名）
+- `PreferenceFilter.ts` — 偏好过滤规则
+
+这些规则与业务模块（agents、assistants、knowledge 等）强耦合，但业务模块无法声明自己的备份行为。新增业务表需要手动更新备份模块的多处文件。
+
+**演进方向**：引入 `BackupContributor` 接口，让各业务模块声明式注册：
+
+```typescript
+interface BackupContributor {
+  domain: BackupDomain
+  tables: string[]
+  crossDomainFkRules?: CrossDomainFkRule[]
+  fileResources?: (db: Client) => Promise<Set<string>>
+  restoreInvariants?: (tx: Transaction) => Promise<void>
+  // ... 其他扩展点
+}
+```
+
+此方向为架构演进目标，不在当前 PR 范围内实施。当前方案通过 `DomainRegistry.coverage.test.ts` 覆盖守卫确保新增表不会被遗漏。
+
+### 12.3 FILE_STORAGE 域的 RENAME 策略限制
+
+`file_entry` 和 `file_ref` 使用 UUID v7 主键。`IdRemapper` 和 `FK_REMAP_RULES` 当前未覆盖 FILE_STORAGE 域的表，因此在 RENAME 冲突策略下：
+
+- `file_entry` ID 与本地冲突时 → `ON CONFLICT DO NOTHING`，跳过该行
+- `file_ref` 的 `file_entry_id` 和 `source_id` 不会重映射
+- `FileRestorer` 在 RENAME 模式下遇到同名文件直接跳过
+
+实际风险较低（跨设备 UUID v7 碰撞概率极小），但不是零。完整修复需要：
+1. 将 `file_entry` 加入 `IdRemapper` 的 V7_TABLES
+2. 为 `file_ref` 添加 `FK_REMAP_RULES` 条目（`id`, `file_entry_id`）
+3. 处理 `file_ref.source_id` 的多态重映射（按 `sourceType` 分发到对应域的 ID 映射）
+4. `FileRestorer` 支持 RENAME 模式下复制文件到新 ID 路径

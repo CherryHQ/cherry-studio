@@ -31,8 +31,8 @@ describe('DomainRegistry', () => {
       expect(DOMAIN_TABLE_MAP[BackupDomain.PROMPTS]).toEqual(['prompt'])
     })
 
-    it('maps FILE_STORAGE to file_entry table', () => {
-      expect(DOMAIN_TABLE_MAP[BackupDomain.FILE_STORAGE]).toEqual(['file_entry'])
+    it('maps FILE_STORAGE to file tables', () => {
+      expect(DOMAIN_TABLE_MAP[BackupDomain.FILE_STORAGE]).toEqual(['file_entry', 'file_ref'])
     })
 
     it('maps AGENTS to all agent sub-tables', () => {
