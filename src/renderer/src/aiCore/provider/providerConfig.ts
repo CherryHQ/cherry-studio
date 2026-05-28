@@ -35,6 +35,7 @@ import { cloneDeep, isEmpty } from 'lodash'
 import type { ProviderConfig } from '../types'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
 import { getAiSdkProviderId } from './factory'
+import { createFetchPreservingHeadersOnRedirect } from './preserveHeadersOnRedirectFetch'
 
 // === Types ===
 
@@ -163,6 +164,8 @@ export function isModernSdkSupported(provider: Provider): boolean {
 
 function buildCommonOptions(ctx: BuilderContext) {
   const options: Record<string, any> = {
+    // Preserve auth/sensitive headers on safe redirects (e.g. provider http->https).
+    fetch: createFetchPreservingHeadersOnRedirect(fetch),
     headers: {
       ...defaultAppHeaders(),
       ...ctx.actualProvider.extra_headers
