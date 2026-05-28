@@ -2,12 +2,10 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { isWin } from '@main/core/platform'
 import type { GitBashPathInfo, GitBashPathSource } from '@shared/config/constant'
-import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import chardet from 'chardet'
 import { type ChildProcess, execFileSync, spawn, type SpawnOptions } from 'child_process'
 import fs from 'fs'
 import iconv from 'iconv-lite'
-import os from 'os'
 import path from 'path'
 
 import { ConfigKeys, configManager } from '../services/ConfigManager'
@@ -52,21 +50,21 @@ export async function getBinaryName(name: string): Promise<string> {
 }
 
 export async function getBinaryPath(name?: string): Promise<string> {
+  const binariesDir = application.getPath('cherry.bin')
   if (!name) {
-    return path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
+    return binariesDir
   }
 
   const binaryName = await getBinaryName(name)
 
-  const miseShimsDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'mise', 'shims')
-  const miseShimPath = path.join(miseShimsDir, binaryName)
+  const miseShimPath = path.join(application.getPath('feature.binaries.data'), 'shims', binaryName)
   if (fs.existsSync(miseShimPath)) {
     return miseShimPath
   }
 
-  const binariesDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
-  if (fs.existsSync(path.join(binariesDir, binaryName))) {
-    return path.join(binariesDir, binaryName)
+  const cherryBinPath = path.join(binariesDir, binaryName)
+  if (fs.existsSync(cherryBinPath)) {
+    return cherryBinPath
   }
 
   return binaryName

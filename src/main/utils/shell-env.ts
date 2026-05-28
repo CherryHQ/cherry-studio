@@ -1,6 +1,6 @@
-import os from 'node:os'
 import path from 'node:path'
 
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
 import { execFileSync, spawn } from 'child_process'
@@ -16,10 +16,8 @@ const SHELL_ENV_TIMEOUT_MS = 15_000
  */
 const appendCherryToolDirsToPath = (env: Record<string, string>) => {
   const pathSeparator = isWin ? ';' : ':'
-  const homeDirFromEnv = env.HOME || env.Home || env.USERPROFILE || env.UserProfile || os.homedir()
-  const cherryHome = path.join(homeDirFromEnv, '.cherrystudio')
-  const miseShimsPath = path.join(cherryHome, 'mise', 'shims')
-  const cherryBinPath = path.join(cherryHome, 'bin')
+  const miseShimsPath = path.join(application.getPath('feature.binaries.data'), 'shims')
+  const cherryBinPath = application.getPath('cherry.bin')
   const pathKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
   const canonicalPathKey = pathKeys[0] || (isWin ? 'Path' : 'PATH')
   const existingPathValue = env[canonicalPathKey] || env.PATH || ''
@@ -164,7 +162,11 @@ function getLoginShellEnvironment(): Promise<Record<string, string>> {
 
   return new Promise((resolve, reject) => {
     const homeDirectory =
-      process.env.HOME || process.env.Home || process.env.USERPROFILE || process.env.UserProfile || os.homedir()
+      process.env.HOME ||
+      process.env.Home ||
+      process.env.USERPROFILE ||
+      process.env.UserProfile ||
+      application.getPath('sys.home')
     if (!homeDirectory) {
       return reject(new Error("Could not determine user's home directory."))
     }
