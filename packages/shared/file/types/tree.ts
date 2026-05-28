@@ -166,9 +166,19 @@ export abstract class TreeNode {
   }
   set path(value: string) {
     const normalized = value.replace(/\\/g, '/')
+    if (normalized === this._path) return
+    const newBasename = basenameOf(normalized)
+    const oldBasename = this._basename
     this._path = normalized
-    this._basename = basenameOf(normalized)
+    this._basename = newBasename
     this._dirname = dirnameOf(normalized)
+    // If the basename changed, repoint our entry in the parent's
+    // _children map: the old key still points at us, the new key is
+    // absent. Skipping this leaves parent.hasChild() / nodeFromPath()
+    // silently desynced from the actual path graph.
+    if (newBasename !== oldBasename) {
+      TreeNode.parentMap.get(this)?.repointChild(oldBasename, this)
+    }
     this.adjustChildrenPaths()
   }
 
@@ -176,8 +186,11 @@ export abstract class TreeNode {
     return this._basename
   }
   set basename(value: string) {
+    if (value === this._basename) return
+    const oldBasename = this._basename
     this._basename = value
     this._path = joinTreePath(this._dirname, value)
+    TreeNode.parentMap.get(this)?.repointChild(oldBasename, this)
     this.adjustChildrenPaths()
   }
 
@@ -278,6 +291,19 @@ export class TreeDir extends TreeNode {
     this._children[child.basename] = child
     TreeNode.setParent(child, this)
     return child
+  }
+
+  /**
+   * Move an existing child's record from `oldBasename` to its current
+   * basename. Used by `TreeNode.set path` / `set basename` so a rename
+   * keeps `_children` keyed by the live basename. No-op when the child
+   * at `oldBasename` is not the given node (defensive — protects against
+   * races where a sibling has already been swapped in).
+   */
+  repointChild(oldBasename: string, child: TreeNode): void {
+    if (this._children[oldBasename] !== child) return
+    delete this._children[oldBasename]
+    this._children[child.basename] = child
   }
 
   /** Remove a child by basename. */

@@ -21,16 +21,29 @@ describe('TreeFile', () => {
     })
   })
 
-  it('renaming via basename setter updates path but keeps parent reference', () => {
+  it('renaming via basename setter repoints parent _children to the new key', () => {
     const dir = new TreeDir({ path: '/root' })
     const file = new TreeFile({ path: '/root/old.md' })
     dir.attachChild(file)
     file.basename = 'new.md'
     expect(file.path).toBe('/root/new.md')
-    // Parent's record still keys by the *original* basename (caller must
-    // detach + reattach to update the lookup key); rename via the builder
-    // does so explicitly.
-    expect(dir.hasChild('old.md')).toBe(true)
+    expect(file.basename).toBe('new.md')
+    expect(file.parent).toBe(dir)
+    // Parent's map is now keyed by the new name, not the old.
+    expect(dir.hasChild('new.md')).toBe(true)
+    expect(dir.hasChild('old.md')).toBe(false)
+    expect(dir.children['new.md']).toBe(file)
+    expect(dir.nodeFromPath('/root/new.md')).toBe(file)
+  })
+
+  it('renaming via path setter (same parent, new basename) also repoints _children', () => {
+    const dir = new TreeDir({ path: '/root' })
+    const file = new TreeFile({ path: '/root/old.md' })
+    dir.attachChild(file)
+    file.path = '/root/renamed.md'
+    expect(file.basename).toBe('renamed.md')
+    expect(dir.hasChild('renamed.md')).toBe(true)
+    expect(dir.hasChild('old.md')).toBe(false)
     expect(file.parent).toBe(dir)
   })
 })
@@ -70,7 +83,7 @@ describe('TreeDir', () => {
     expect(root.nodeFromPath('sub/missing')).toBeNull()
   })
 
-  it('adjustChildrenPaths cascades when the directory itself is renamed via setter', () => {
+  it('renaming a directory cascades to descendants and repoints both _children maps', () => {
     const root = new TreeDirRoot('/root')
     const sub = new TreeDir({ path: '/root/old' })
     const leaf = new TreeFile({ path: '/root/old/leaf.md' })
@@ -79,8 +92,17 @@ describe('TreeDir', () => {
 
     sub.path = '/root/new'
 
+    // Subtree-root path + parent map both repointed.
     expect(sub.path).toBe('/root/new')
+    expect(root.hasChild('new')).toBe(true)
+    expect(root.hasChild('old')).toBe(false)
+
+    // Leaf path cascades; leaf basename does NOT change, so sub's _children
+    // map key stays the same (correctly).
     expect(leaf.path).toBe('/root/new/leaf.md')
+    expect(sub.hasChild('leaf.md')).toBe(true)
+    expect(sub.nodeFromPath('/root/new/leaf.md')).toBe(leaf)
+    expect(root.nodeFromPath('/root/new/leaf.md')).toBe(leaf)
   })
 
   it('sortChildren reorders folders-first then by basename', () => {
