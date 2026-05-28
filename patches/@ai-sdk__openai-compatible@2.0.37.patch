@@ -67,29 +67,11 @@ diff --git a/dist/index.js b/dist/index.js
            })
          ).nullish()
        }).nullish(),
-@@ -1529,6 +1567,16 @@
- // src/image/openai-compatible-image-model.ts
- var import_provider_utils5 = require("@ai-sdk/provider-utils");
- var import_v48 = require("zod/v4");
-+var defaultResponseFormatPrefixes = [
-+  "chatgpt-image-",
-+  "gpt-image-1-mini",
-+  "gpt-image-1.5",
-+  "gpt-image-1",
-+  "gpt-image-2"
-+];
-+function hasDefaultResponseFormat(modelId) {
-+  return defaultResponseFormatPrefixes.some((prefix) => modelId.startsWith(prefix));
-+}
- var OpenAICompatibleImageModel = class {
-   constructor(modelId, config) {
-     this.modelId = modelId;
-@@ -1625,7 +1673,7 @@
+@@ -1625,7 +1673,6 @@
          n,
          size,
          ...args,
 -        response_format: "b64_json"
-+        ...(!hasDefaultResponseFormat(this.modelId) ? { response_format: "b64_json" } : {})
        },
        failedResponseHandler: (0, import_provider_utils5.createJsonErrorResponseHandler)(
          (_e = this.config.errorStructure) != null ? _e : defaultOpenAICompatibleErrorStructure
@@ -162,29 +144,11 @@ diff --git a/dist/index.mjs b/dist/index.mjs
            })
          ).nullish()
        }).nullish(),
-@@ -1543,6 +1581,16 @@
-   postJsonToApi as postJsonToApi4
- } from "@ai-sdk/provider-utils";
- import { z as z8 } from "zod/v4";
-+var defaultResponseFormatPrefixes = [
-+  "chatgpt-image-",
-+  "gpt-image-1-mini",
-+  "gpt-image-1.5",
-+  "gpt-image-1",
-+  "gpt-image-2"
-+];
-+function hasDefaultResponseFormat(modelId) {
-+  return defaultResponseFormatPrefixes.some((prefix) => modelId.startsWith(prefix));
-+}
- var OpenAICompatibleImageModel = class {
-   constructor(modelId, config) {
-     this.modelId = modelId;
-@@ -1639,7 +1687,7 @@
+@@ -1639,7 +1687,6 @@
          n,
          size,
          ...args,
 -        response_format: "b64_json"
-+        ...(!hasDefaultResponseFormat(this.modelId) ? { response_format: "b64_json" } : {})
        },
        failedResponseHandler: createJsonErrorResponseHandler4(
          (_e = this.config.errorStructure) != null ? _e : defaultOpenAICompatibleErrorStructure
