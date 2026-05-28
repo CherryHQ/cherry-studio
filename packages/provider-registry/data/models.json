@@ -20719,7 +20719,31 @@
       "contextWindow": 480,
       "family": "imagen",
       "ownedBy": "google",
-      "openWeights": false
+      "openWeights": false,
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "type": "enum",
+                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
+                "render": "chips",
+                "default": "ASPECT_1_1"
+              },
+              "numImages": {
+                "type": "range",
+                "min": 1,
+                "max": 4,
+                "default": 1
+              },
+              "personGeneration": {
+                "type": "enum",
+                "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"]
+              }
+            }
+          }
+        }
+      }
     },
     {
       "id": "imagen-3",
@@ -20730,7 +20754,35 @@
       "contextWindow": 480,
       "family": "imagen",
       "ownedBy": "google",
-      "openWeights": false
+      "openWeights": false,
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "type": "enum",
+                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
+                "render": "chips",
+                "default": "ASPECT_1_1"
+              },
+              "numImages": {
+                "type": "range",
+                "min": 1,
+                "max": 4,
+                "default": 1
+              },
+              "negativePrompt": {
+                "type": "text",
+                "multiline": true
+              },
+              "personGeneration": {
+                "type": "enum",
+                "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"]
+              }
+            }
+          }
+        }
+      }
     },
     {
       "id": "imagen-4-ultra",
@@ -20741,7 +20793,31 @@
       "contextWindow": 480,
       "family": "imagen",
       "ownedBy": "google",
-      "openWeights": false
+      "openWeights": false,
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "type": "enum",
+                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
+                "render": "chips",
+                "default": "ASPECT_1_1"
+              },
+              "numImages": {
+                "type": "range",
+                "min": 1,
+                "max": 4,
+                "default": 1
+              },
+              "personGeneration": {
+                "type": "enum",
+                "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"]
+              }
+            }
+          }
+        }
+      }
     },
     {
       "id": "veo-3-1",
@@ -20763,7 +20839,35 @@
       "contextWindow": 480,
       "family": "imagen",
       "ownedBy": "google",
-      "openWeights": false
+      "openWeights": false,
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "type": "enum",
+                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
+                "render": "chips",
+                "default": "ASPECT_1_1"
+              },
+              "numImages": {
+                "type": "range",
+                "min": 1,
+                "max": 4,
+                "default": 1
+              },
+              "negativePrompt": {
+                "type": "text",
+                "multiline": true
+              },
+              "personGeneration": {
+                "type": "enum",
+                "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"]
+              }
+            }
+          }
+        }
+      }
     },
     {
       "id": "lyria",
@@ -20817,7 +20921,31 @@
       "contextWindow": 480,
       "family": "imagen",
       "ownedBy": "google",
-      "openWeights": false
+      "openWeights": false,
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "type": "enum",
+                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
+                "render": "chips",
+                "default": "ASPECT_1_1"
+              },
+              "numImages": {
+                "type": "range",
+                "min": 1,
+                "max": 4,
+                "default": 1
+              },
+              "personGeneration": {
+                "type": "enum",
+                "options": ["DONT_ALLOW", "ALLOW_ADULT", "ALLOW_ALL"]
+              }
+            }
+          }
+        }
+      }
     },
     {
       "id": "veo-2",
