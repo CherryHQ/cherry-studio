@@ -192,6 +192,11 @@ export type AssistantSettings = {
    * FIXME: It should be managed by external cache service instead of being stored in the assistant
    */
   reasoning_effort_cache?: ReasoningEffortOption
+  /**
+   * Per-model reasoning effort preferences.
+   * Key is the model id, value is the user's selected reasoning effort for that model.
+   */
+  reasoning_effort_by_model?: Record<string, ReasoningEffortOption>
   qwenThinkMode?: boolean
   toolUseMode: 'function' | 'prompt'
   maxToolCalls?: number
