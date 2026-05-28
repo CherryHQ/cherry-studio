@@ -28,6 +28,7 @@ import { NoteLoader } from '@main/knowledge/embedjs/loader/noteLoader'
 import PreprocessProvider from '@main/knowledge/preprocess/PreprocessProvider'
 import Reranker from '@main/knowledge/reranker/Reranker'
 import { fileStorage } from '@main/services/FileStorage'
+import { getKnowledgeBaseEmbedCacheSignature } from '@main/services/knowledgeBaseEmbedSignature'
 import { windowService } from '@main/services/WindowService'
 import { getDataPath } from '@main/utils'
 import { getAllFiles, sanitizeFilename } from '@main/utils/file'
@@ -104,6 +105,8 @@ class KnowledgeService {
   private knowledgeItemProcessingQueueMappingPromise: Map<LoaderTaskOfSet, () => void> = new Map()
   private ragApplications: Map<string, RAGApplication> = new Map()
   private dbInstances: Map<string, LibSqlDb> = new Map()
+  /** Last embed client signature per KB id; used to invalidate cache when API key or embed settings change */
+  private ragEmbedCacheSignatures: Map<string, string> = new Map()
   private static MAXIMUM_WORKLOAD = 80 * MB
   private static MAXIMUM_PROCESSING_ITEM_COUNT = 30
   private static ERROR_LOADER_RETURN: LoaderReturn = {
@@ -143,6 +146,8 @@ class KnowledgeService {
         this.dbInstances.delete(id)
         logger.debug(`Removed database instance reference for id: ${id}`)
       }
+
+      this.ragEmbedCacheSignatures.delete(id)
     } catch (error) {
       logger.warn(`Failed to cleanup resources for id: ${id}`, error as Error)
     }
@@ -234,14 +239,43 @@ class KnowledgeService {
     logger.info(`Startup cleanup completed: ${deletedCount}/${pendingDeleteIds.length} knowledge bases deleted`)
   }
 
-  private getRagApplication = async ({
-    id,
-    embedApiClient,
-    dimensions,
-    documentCount
-  }: KnowledgeBaseParams): Promise<RAGApplication> => {
+  /**
+   * Drop in-memory RAG + DB handles without calling reset() on disk data.
+   * Used when embed API client changes (e.g. key rotation) so vectors are preserved.
+   */
+  private disposeCachedRagApplicationFromMemory = async (id: string): Promise<void> => {
+    this.ragEmbedCacheSignatures.delete(id)
+
+    const db = this.dbInstances.get(id)
+    if (db) {
+      try {
+        // LibSqlDb's client is private; match closeAll() until upstream exposes close().
+        const client = (db as any).client
+        if (client && typeof client.close === 'function') {
+          client.close()
+          logger.debug(`Closed database client for evicted cache id: ${id}`)
+        }
+      } catch (error) {
+        logger.warn(`Failed to close database instance for evicted id: ${id}`, error as Error)
+      }
+      this.dbInstances.delete(id)
+    }
+
     if (this.ragApplications.has(id)) {
-      return this.ragApplications.get(id)!
+      this.ragApplications.delete(id)
+      logger.debug(`Evicted RAG application from cache for id: ${id}`)
+    }
+  }
+
+  private getRagApplication = async (base: KnowledgeBaseParams): Promise<RAGApplication> => {
+    const { id, embedApiClient, dimensions, documentCount } = base
+    const signature = getKnowledgeBaseEmbedCacheSignature(base)
+
+    if (this.ragApplications.has(id)) {
+      if (this.ragEmbedCacheSignatures.get(id) === signature) {
+        return this.ragApplications.get(id)!
+      }
+      await this.disposeCachedRagApplicationFromMemory(id)
     }
 
     let ragApplication: RAGApplication
@@ -262,8 +296,10 @@ class KnowledgeService {
         .setSearchResultCount(documentCount || 30)
         .build()
       this.ragApplications.set(id, ragApplication)
+      this.ragEmbedCacheSignatures.set(id, signature)
     } catch (e) {
       logger.error('Failed to create RAGApplication:', e as Error)
+      this.ragEmbedCacheSignatures.delete(id)
       throw new Error(`Failed to create RAGApplication: ${e}`)
     }
 
@@ -709,6 +745,7 @@ class KnowledgeService {
 
     this.dbInstances.clear()
     this.ragApplications.clear()
+    this.ragEmbedCacheSignatures.clear()
 
     if (failed.length > 0) {
       throw new Error(`Failed to close KnowledgeBase connections: ${failed.join(', ')}`)
