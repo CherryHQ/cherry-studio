@@ -582,6 +582,13 @@ export type ApiClient = {
 export type GenerateImageParams = {
   model: string
   prompt: string
+  /**
+   * Input images for image-to-image / edit / remix / upscale flows. When
+   * non-empty, painting callers ({@link AiProvider.generatePaintingImage})
+   * forward these to AI SDK as `prompt: { text, images }` so the vendor
+   * image-model picks the right edit endpoint.
+   */
+  inputImages?: (Buffer | Uint8Array | string)[]
   negativePrompt?: string
   imageSize?: string
   aspectRatio?: string

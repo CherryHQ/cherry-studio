@@ -1,4 +1,5 @@
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
+import { parseDataUrl } from '@shared/utils'
 
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
 
@@ -8,8 +9,8 @@ import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../im
  * Submit POST `/v1/images/generations` with `X-ModelScope-Async-Mode: true` →
  * returns `{ task_id }`. Poll `GET /v1/tasks/{task_id}` with
  * `X-ModelScope-Task-Type: image_generation` until `task_status === 'SUCCEED'`,
- * then read `output_images[].url`. Free-tier limits apply per ModelScope's
- * fair-use quotas.
+ * then read `output_images[]` (raw URL strings). Free-tier limits apply per
+ * ModelScope's fair-use quotas.
  *
  * Wire-format notes:
  *   - Size is split: AI SDK `size: '1024x1024'` → body `width: 1024, height: 1024`.
@@ -67,7 +68,7 @@ export type ModelscopeTaskStatus = 'PENDING' | 'RUNNING' | 'SUCCEED' | 'FAILED'
 export interface ModelscopeTaskResult {
   task_id?: string
   task_status: ModelscopeTaskStatus
-  output_images?: Array<{ url: string }>
+  output_images?: string[]
   message?: string
 }
 
@@ -89,6 +90,14 @@ export interface ModelscopeProviderParams {
 export interface ModelscopeTransportSettings {
   apiKey: string
   baseURL?: string
+}
+
+function uint8ToBase64(bytes: Uint8Array): string {
+  let binary = ''
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i])
+  }
+  return btoa(binary)
 }
 
 function readNumber(bag: Record<string, unknown>, ...keys: string[]): number | undefined {
@@ -134,6 +143,21 @@ class ModelscopeTransport implements ImageGenerationTransport {
       }
     }
 
+    // Image-edit models (Qwen-Image-Edit-*) require `image_url`. AI SDK
+    // normalizes attached input images into `input.files` (post `prompt: { text,
+    // images }`). Pass the first one — ModelScope accepts http(s) or data URLs.
+    const firstFile = input.files?.[0]
+    if (firstFile) {
+      if (firstFile.type === 'url') {
+        body.image_url = firstFile.url
+      } else if (typeof firstFile.data === 'string') {
+        const parsed = parseDataUrl(firstFile.data)
+        body.image_url = parsed ? firstFile.data : `data:${firstFile.mediaType || 'image/png'};base64,${firstFile.data}`
+      } else {
+        body.image_url = `data:${firstFile.mediaType || 'image/png'};base64,${uint8ToBase64(firstFile.data)}`
+      }
+    }
+
     const numInferenceSteps = readNumber(bag, 'numInferenceSteps', 'num_inference_steps')
     if (numInferenceSteps !== undefined) body.num_inference_steps = numInferenceSteps
 
@@ -160,7 +184,7 @@ class ModelscopeTransport implements ImageGenerationTransport {
     options: { signal?: AbortSignal; onProgress?: (progress: number) => void }
   ): Promise<string[]> {
     const result = await this.pollTaskResult(taskId, options)
-    return (result.output_images ?? []).map((img) => img.url)
+    return result.output_images ?? []
   }
 
   private async pollTaskResult(
