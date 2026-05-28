@@ -167,7 +167,7 @@ describe('paddle utils', () => {
         feature: 'image_to_text',
         file: {
           path: '/tmp/large.pdf',
-          origin_name: 'large.pdf'
+          name: 'large'
         }
       } as never)
     ).rejects.toThrow('PaddleOCR file is too large (must be smaller than 50MB)')
@@ -197,9 +197,9 @@ describe('paddle utils', () => {
         feature: 'image_to_text',
         model: 'PaddleOCR-VL-1.5',
         file: {
-          id: 'file-1',
           path: '/tmp/file.pdf',
-          origin_name: 'file.pdf'
+          name: 'file',
+          ext: 'pdf'
         }
       } as never)
     ).resolves.toEqual({

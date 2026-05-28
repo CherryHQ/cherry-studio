@@ -1,3 +1,4 @@
+import type { FileEntry } from '@shared/data/types/file'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
 import { type DataSourceFilter, dataSourceTypeDisplayConfig, type KnowledgeItemRowViewModel } from './models'
@@ -17,18 +18,18 @@ export const getItemStatus = (item: KnowledgeItem) => {
   }
 }
 
-export const getItemTitle = (item: KnowledgeItem): string => {
+export const getItemTitle = (item: KnowledgeItem, fileEntry?: FileEntry): string => {
   switch (item.type) {
     case 'file':
-      return dataSourceTypeDisplayConfig.file.getTitle(item)
+      return dataSourceTypeDisplayConfig.file.getTitle(item, { fileEntry, language: '' })
     case 'note':
-      return dataSourceTypeDisplayConfig.note.getTitle(item)
+      return dataSourceTypeDisplayConfig.note.getTitle(item, { language: '' })
     case 'directory':
-      return dataSourceTypeDisplayConfig.directory.getTitle(item)
+      return dataSourceTypeDisplayConfig.directory.getTitle(item, { language: '' })
     case 'url':
-      return dataSourceTypeDisplayConfig.url.getTitle(item)
+      return dataSourceTypeDisplayConfig.url.getTitle(item, { language: '' })
     case 'sitemap':
-      return dataSourceTypeDisplayConfig.sitemap.getTitle(item)
+      return dataSourceTypeDisplayConfig.sitemap.getTitle(item, { language: '' })
   }
 }
 
@@ -43,15 +44,20 @@ export const getVisibleItems = (items: KnowledgeItem[], activeFilter: DataSource
 export const getReadyCount = (items: KnowledgeItem[]) =>
   items.reduce((readyCount, item) => readyCount + (item.status === 'completed' ? 1 : 0), 0)
 
-export const toKnowledgeItemRowViewModel = (item: KnowledgeItem, language: string): KnowledgeItemRowViewModel => {
+export const toKnowledgeItemRowViewModel = (
+  item: KnowledgeItem,
+  language: string,
+  fileEntry?: FileEntry
+): KnowledgeItemRowViewModel => {
   switch (item.type) {
     case 'file': {
       const config = dataSourceTypeDisplayConfig.file
+      const context = { fileEntry, language }
 
       return {
-        title: config.getTitle(item),
-        suffix: config.getSuffix(item),
-        metaParts: config.getMetaParts(item, { language }),
+        title: config.getTitle(item, context),
+        suffix: config.getSuffix(item, context),
+        metaParts: config.getMetaParts(item, context),
         icon: config.icon,
         status: config.getStatus(item.status)
       }
@@ -60,8 +66,8 @@ export const toKnowledgeItemRowViewModel = (item: KnowledgeItem, language: strin
       const config = dataSourceTypeDisplayConfig.note
 
       return {
-        title: config.getTitle(item),
-        suffix: config.getSuffix(),
+        title: config.getTitle(item, { language }),
+        suffix: config.getSuffix(item, { language }),
         metaParts: config.getMetaParts(item, { language }),
         icon: config.icon,
         status: config.getStatus(item.status)
@@ -71,8 +77,8 @@ export const toKnowledgeItemRowViewModel = (item: KnowledgeItem, language: strin
       const config = dataSourceTypeDisplayConfig.directory
 
       return {
-        title: config.getTitle(item),
-        suffix: config.getSuffix(),
+        title: config.getTitle(item, { language }),
+        suffix: config.getSuffix(item, { language }),
         metaParts: config.getMetaParts(item, { language }),
         icon: config.icon,
         status: config.getStatus(item.status)
@@ -82,8 +88,8 @@ export const toKnowledgeItemRowViewModel = (item: KnowledgeItem, language: strin
       const config = dataSourceTypeDisplayConfig.url
 
       return {
-        title: config.getTitle(item),
-        suffix: config.getSuffix(),
+        title: config.getTitle(item, { language }),
+        suffix: config.getSuffix(item, { language }),
         metaParts: config.getMetaParts(item, { language }),
         icon: config.icon,
         status: config.getStatus(item.status)
@@ -93,8 +99,8 @@ export const toKnowledgeItemRowViewModel = (item: KnowledgeItem, language: strin
       const config = dataSourceTypeDisplayConfig.sitemap
 
       return {
-        title: config.getTitle(item),
-        suffix: config.getSuffix(),
+        title: config.getTitle(item, { language }),
+        suffix: config.getSuffix(item, { language }),
         metaParts: config.getMetaParts(item, { language }),
         icon: config.icon,
         status: config.getStatus(item.status)

@@ -34,6 +34,14 @@ vi.mock('@logger', () => ({
 
 const MOCK_USER_DATA = '/mock/userData'
 const ASSISTANT_ID = '11111111-1111-4111-8111-111111111111'
+const FILE_SURVIVOR_ID = '019606a0-0000-7000-8000-000000000401'
+const FILE_SKIPPED_ID = '019606a0-0000-7000-8000-000000000402'
+const FILE_SKIPPED_A_ID = '019606a0-0000-7000-8000-000000000403'
+const FILE_SKIPPED_B_ID = '019606a0-0000-7000-8000-000000000404'
+
+function fileEntryIdAt(index: number): string {
+  return `019606a0-0000-7000-8000-${String(index).padStart(12, '0')}`
+}
 
 function dexieFileRow(overrides: Partial<FileMetadata> & Pick<FileMetadata, 'id'>): FileMetadata {
   return {
@@ -180,8 +188,8 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
     // ids (it reads from the same `files` export), so without the dangling
     // guard a `file_ref` row would be staged for the dropped file.
     const dexieFiles: FileMetadata[] = [
-      dexieFileRow({ id: 'abc-survivor' }),
-      dexieFileRow({ id: 'abc-skipped', size: -1 }) // FileMigrator skips: invalid size
+      dexieFileRow({ id: FILE_SURVIVOR_ID }),
+      dexieFileRow({ id: FILE_SKIPPED_ID, size: -1 }) // FileMigrator skips: invalid size
     ]
     const reduxKnowledge = {
       bases: [
@@ -191,8 +199,8 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
           dimensions: 1024,
           model: { id: 'emb', name: 'emb', provider: 'openai' },
           items: [
-            { id: 'item-survivor', type: 'file', content: 'abc-survivor' },
-            { id: 'item-dangling', type: 'file', content: 'abc-skipped' }
+            { id: 'item-survivor', type: 'file', content: FILE_SURVIVOR_ID },
+            { id: 'item-dangling', type: 'file', content: FILE_SKIPPED_ID }
           ]
         }
       ]
@@ -217,9 +225,20 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
     expect(knowledgePrepare.success).toBe(true)
     const knowledgeExecute = await knowledgeMigrator.execute(ctx)
     expect(knowledgeExecute.success).toBe(true)
+    expect(knowledgeExecute.processedCount).toBe(2)
+    const knowledgeValidate = await knowledgeMigrator.validate(ctx)
+    expect(knowledgeValidate.success).toBe(true)
+    expect(knowledgeValidate.stats).toMatchObject({
+      sourceCount: 3,
+      targetCount: 2,
+      skippedCount: 1
+    })
+    expect(knowledgeValidate.stats.targetCount).toBe(
+      knowledgeValidate.stats.sourceCount - knowledgeValidate.stats.skippedCount
+    )
 
     const fileEntryRows = await dbh.db.select({ id: fileEntryTable.id }).from(fileEntryTable)
-    expect(fileEntryRows.map((r) => r.id).sort()).toEqual(['abc-survivor'])
+    expect(fileEntryRows.map((r) => r.id).sort()).toEqual([FILE_SURVIVOR_ID])
 
     const fileRefRows = await dbh.db
       .select({ fileEntryId: fileRefTable.fileEntryId, sourceId: fileRefTable.sourceId })
@@ -228,7 +247,10 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
       KNOWLEDGE_ITEM_ID_REMAP_SHARED_DATA_KEY
     ) as Map<string, string>
     expect(fileRefRows).toHaveLength(1)
-    expect(fileRefRows[0]).toMatchObject({ fileEntryId: 'abc-survivor', sourceId: itemIdRemap.get('item-survivor') })
+    expect(fileRefRows[0]).toMatchObject({ fileEntryId: FILE_SURVIVOR_ID, sourceId: itemIdRemap.get('item-survivor') })
+    expect(itemIdRemap.has('item-dangling')).toBe(false)
+    const knowledgeItemRows = await dbh.db.select({ id: knowledgeItemTable.id }).from(knowledgeItemTable)
+    expect(knowledgeItemRows).toHaveLength(1)
 
     // Also exercise the post-migration check that the engine runs.
     const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
@@ -238,7 +260,7 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
   it('chunks IN query for >999 legacy file IDs without hitting SQLite parameter limit', async () => {
     const FILE_COUNT = 1200
     const dexieFiles: FileMetadata[] = Array.from({ length: FILE_COUNT }, (_, i) =>
-      dexieFileRow({ id: `file-${String(i).padStart(4, '0')}` })
+      dexieFileRow({ id: fileEntryIdAt(i + 1000) })
     )
     const items = dexieFiles.map((f) => ({
       id: `item-${f.id}`,
@@ -277,9 +299,9 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
 
   it('records a bucketed dangling-file-entry warning that names the offending item ids', async () => {
     const dexieFiles: FileMetadata[] = [
-      dexieFileRow({ id: 'abc-survivor' }),
-      dexieFileRow({ id: 'abc-skipped-a', size: -1 }),
-      dexieFileRow({ id: 'abc-skipped-b', size: -1 })
+      dexieFileRow({ id: FILE_SURVIVOR_ID }),
+      dexieFileRow({ id: FILE_SKIPPED_A_ID, size: -1 }),
+      dexieFileRow({ id: FILE_SKIPPED_B_ID, size: -1 })
     ]
     const reduxKnowledge = {
       bases: [
@@ -289,9 +311,9 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
           dimensions: 1024,
           model: { id: 'emb', name: 'emb', provider: 'openai' },
           items: [
-            { id: 'item-survivor', type: 'file', content: 'abc-survivor' },
-            { id: 'item-dangling-a', type: 'file', content: 'abc-skipped-a' },
-            { id: 'item-dangling-b', type: 'file', content: 'abc-skipped-b' }
+            { id: 'item-survivor', type: 'file', content: FILE_SURVIVOR_ID },
+            { id: 'item-dangling-a', type: 'file', content: FILE_SKIPPED_A_ID },
+            { id: 'item-dangling-b', type: 'file', content: FILE_SKIPPED_B_ID }
           ]
         }
       ]
@@ -313,14 +335,14 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
     const flushed = allWarnings.find((w) => w.includes('knowledge_item_dangling_file_entry'))
     expect(flushed).toBeDefined()
     expect(flushed).toContain('count=2')
-    expect(flushed).toContain('abc-skipped-a')
-    expect(flushed).toContain('abc-skipped-b')
+    expect(flushed).toContain(FILE_SKIPPED_A_ID)
+    expect(flushed).toContain(FILE_SKIPPED_B_ID)
 
-    // KB + items committed normally despite the dropped refs.
+    // KB + valid items committed normally despite the dropped refs.
     const baseRows = await dbh.db.select().from(knowledgeBaseTable)
     expect(baseRows).toHaveLength(1)
     const itemRows = await dbh.db.select().from(knowledgeItemTable)
-    expect(itemRows).toHaveLength(3)
+    expect(itemRows).toHaveLength(1)
 
     const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
     expect(fkCheck.rows).toHaveLength(0)

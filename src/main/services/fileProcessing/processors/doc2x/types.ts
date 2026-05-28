@@ -1,4 +1,4 @@
-import type { FileMetadata } from '@types'
+import type { FileInfo } from '@shared/file/types'
 import * as z from 'zod'
 
 export const Doc2xApiResponseSchema = <T extends z.ZodTypeAny>(data: T) =>
@@ -67,7 +67,7 @@ export type PreparedDoc2xContext = {
 }
 
 export type PreparedDoc2xStartContext = PreparedDoc2xContext & {
-  file: FileMetadata
+  file: FileInfo
   modelVersion?: string
 }
 

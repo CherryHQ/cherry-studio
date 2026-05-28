@@ -42,7 +42,7 @@ export async function createJob(context: PreparedPaddleStartContext): Promise<{
     formData.append('model', context.model)
   }
   formData.append('file', fileBuffer, {
-    filename: context.file.origin_name
+    filename: context.file.ext ? `${context.file.name}.${context.file.ext}` : context.file.name
   })
   const requestBody = formData.getBuffer()
   const requestHeaders = {
@@ -63,8 +63,7 @@ export async function createJob(context: PreparedPaddleStartContext): Promise<{
     logger.warn('PaddleOCR job creation fetch threw before receiving a response', error as Error, {
       processorId: 'paddleocr',
       feature: context.feature,
-      fileId: context.file.id,
-      fileName: context.file.origin_name,
+      fileName: context.file.name,
       apiHost: context.apiHost,
       model: context.model
     })
@@ -76,8 +75,7 @@ export async function createJob(context: PreparedPaddleStartContext): Promise<{
     logger.warn('PaddleOCR job creation request failed', {
       processorId: 'paddleocr',
       feature: context.feature,
-      fileId: context.file.id,
-      fileName: context.file.origin_name,
+      fileName: context.file.name,
       apiHost: context.apiHost,
       model: context.model,
       status: response.status,
@@ -93,8 +91,7 @@ export async function createJob(context: PreparedPaddleStartContext): Promise<{
     logger.warn('PaddleOCR job creation returned business error', {
       processorId: 'paddleocr',
       feature: context.feature,
-      fileId: context.file.id,
-      fileName: context.file.origin_name,
+      fileName: context.file.name,
       apiHost: context.apiHost,
       model: context.model,
       code: payload.code,

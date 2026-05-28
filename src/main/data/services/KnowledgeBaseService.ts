@@ -5,11 +5,13 @@
  */
 
 import { application } from '@application'
-import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
+import { fileRefTable } from '@data/db/schemas/file'
+import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OffsetPaginationResponse } from '@shared/data/api/apiTypes'
 import type { ListKnowledgeBasesQuery, UpdateKnowledgeBaseDto } from '@shared/data/api/schemas/knowledges'
+import { knowledgeItemSourceType } from '@shared/data/types/file/ref'
 import {
   type CreateKnowledgeBaseDto,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
@@ -222,6 +224,15 @@ export class KnowledgeBaseService {
 
     const dbService = application.get('DbService')
     await dbService.withWriteTx(async (tx) => {
+      await tx.run(sql`
+        DELETE FROM ${fileRefTable}
+        WHERE ${fileRefTable.sourceType} = ${knowledgeItemSourceType}
+          AND ${fileRefTable.sourceId} IN (
+            SELECT ${knowledgeItemTable.id}
+            FROM ${knowledgeItemTable}
+            WHERE ${knowledgeItemTable.baseId} = ${id}
+          )
+      `)
       await tx.delete(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, id))
     })
 

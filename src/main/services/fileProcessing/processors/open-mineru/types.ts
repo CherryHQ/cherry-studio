@@ -1,9 +1,9 @@
-import type { FileMetadata } from '@types'
+import type { FileInfo } from '@shared/file/types'
 
 export type PreparedOpenMineruContext = {
   apiHost: string
   apiKey?: string
-  file: FileMetadata
+  file: FileInfo
   signal?: AbortSignal
 }
 

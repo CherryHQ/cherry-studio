@@ -1,4 +1,5 @@
-import type { FileMetadata } from '@types'
+import type { FileEntryId } from '@shared/data/types/file'
+import type { FileInfo } from '@shared/file/types'
 import * as z from 'zod'
 
 export const MineruApiResponseSchema = <T extends z.ZodTypeAny>(data: T) =>
@@ -44,7 +45,8 @@ export type PreparedMineruContext = {
 }
 
 export type PreparedMineruStartContext = PreparedMineruContext & {
-  file: FileMetadata
+  fileEntryId: FileEntryId
+  file: FileInfo
   modelVersion?: string
 }
 

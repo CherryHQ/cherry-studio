@@ -1,7 +1,7 @@
 import { Dialog, DialogContent } from '@cherrystudio/ui'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
-import type { FileMetadata } from '@renderer/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
+import { resolveKnowledgeFileEntryData } from '@renderer/utils/knowledgeFileEntry'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -34,20 +34,14 @@ const resolveFilePath = (file: File): string | Error => {
   return filePath
 }
 
-const resolveFileMetadata = async (file: File): Promise<FileMetadata> => {
+const resolveSelectedFileEntryData = async (file: File) => {
   const filePath = resolveFilePath(file)
 
   if (filePath instanceof Error) {
     return Promise.reject(filePath)
   }
 
-  const metadata = await window.api.file.get(filePath)
-
-  if (!metadata) {
-    return Promise.reject(new Error(`Failed to read file metadata for "${file.name}"`))
-  }
-
-  return metadata
+  return resolveKnowledgeFileEntryData(filePath, file.name)
 }
 
 const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogProps) => {
@@ -59,6 +53,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
   const [urlValue, setUrlValue] = useState('')
   const [sitemapValue, setSitemapValue] = useState('')
   const [submitErrorMessage, setSubmitErrorMessage] = useState('')
+  const [isResolvingSubmit, setIsResolvingSubmit] = useState(false)
   const { submit: submitKnowledgeItems, isSubmitting: isSubmittingItems } = useAddKnowledgeItems(selectedBaseId)
 
   const resetDialogState = useCallback(() => {
@@ -68,6 +63,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     setUrlValue('')
     setSitemapValue('')
     setSubmitErrorMessage('')
+    setIsResolvingSubmit(false)
   }, [])
 
   const handleFileDrop = useCallback<DropzoneOnDrop>((acceptedFiles) => {
@@ -147,22 +143,20 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
   }, [activeSource, selectedBaseId, selectedDirectories.length, selectedFiles.length, sitemapValue, urlValue])
 
   const handleSubmit = useCallback(() => {
-    if (!canSubmit) {
+    if (!canSubmit || isResolvingSubmit) {
       return
     }
 
     setSubmitErrorMessage('')
+    setIsResolvingSubmit(true)
 
     const submitPromise = (() => {
       if (activeSource === 'file') {
-        return Promise.all(selectedFiles.map(resolveFileMetadata)).then((files) =>
+        return Promise.all(selectedFiles.map(resolveSelectedFileEntryData)).then((fileData) =>
           submitKnowledgeItems(
-            files.map((file) => ({
+            fileData.map((data) => ({
               type: 'file' as const,
-              data: {
-                source: file.path || file.origin_name || file.name,
-                file
-              }
+              data
             }))
           )
         )
@@ -216,10 +210,14 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
       .catch((error) => {
         setSubmitErrorMessage(formatErrorMessageWithPrefix(error, t('knowledge.data_source.add_dialog.submit.error')))
       })
+      .finally(() => {
+        setIsResolvingSubmit(false)
+      })
   }, [
     activeSource,
     canSubmit,
     handleOpenChange,
+    isResolvingSubmit,
     selectedDirectories,
     selectedFiles,
     sitemapValue,
@@ -228,7 +226,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     urlValue
   ])
 
-  const isSubmitting = isSubmittingItems
+  const isSubmitting = isResolvingSubmit || isSubmittingItems
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
