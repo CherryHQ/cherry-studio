@@ -182,7 +182,7 @@ export class DirectoryTreeManager extends BaseService {
   }
 
   protected override async onStop(): Promise<void> {
-    this.disposeAll()
+    await this.disposeAll()
   }
 
   /**
@@ -315,19 +315,24 @@ export class DirectoryTreeManager extends BaseService {
     }
   }
 
-  /** Test seam — drop every shared builder and consumer immediately. */
-  disposeAll(): void {
+  /**
+   * Test seam + `onStop()` body. Drops every shared builder and consumer,
+   * awaiting each watcher's `close()` so the caller can be sure no FDs are
+   * left hanging — important on `onStop` paths that race process exit.
+   */
+  async disposeAll(): Promise<void> {
     this.disposed = true
     for (const treeId of Array.from(this.consumers.keys())) {
       this.dispose(treeId)
     }
     // After all consumers are gone, also force-tear shared builders so
     // tests don't wait for the grace timer.
+    const drains: Array<Promise<void>> = []
     for (const shared of Array.from(this.sharedBuilders.values())) {
       if (shared.state === 'draining') {
         clearTimeout(shared.disposeTimer)
       }
-      shared.builder.dispose()
+      drains.push(shared.builder.disposeAsync())
       this.sharedBuilders.delete(shared.key)
     }
     // Drop pending creates too — any builder that resolves after this
@@ -335,6 +340,7 @@ export class DirectoryTreeManager extends BaseService {
     // `acquireBuilder`. Clearing here keeps the map from holding the
     // dangling promises.
     this.inflight.clear()
+    await Promise.all(drains)
   }
 
   // ─── Internals ────────────────────────────────────────────────────────

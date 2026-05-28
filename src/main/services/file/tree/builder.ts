@@ -115,7 +115,21 @@ export interface DirectoryTreeBuilder extends Disposable {
    * but state stays consistent.
    */
   rename(oldPath: string, newPath: string): boolean
+  /**
+   * Synchronous dispose — fires the watcher's `close()` as a dangling
+   * promise. Suitable for grace-timer fires and other paths where the
+   * caller doesn't need to wait for OS-level FD release. The watcher's
+   * `close()` rejection is logged but otherwise swallowed.
+   */
   dispose(): void
+  /**
+   * Async dispose — same teardown sequence as `dispose()` but awaits
+   * `watcher.close()` so the caller can be sure FDs are released before
+   * proceeding. Use this from `onStop()` and other shutdown paths that
+   * may race with process exit; sync `dispose()`'s dangling promise can
+   * lose its error log if the process exits first.
+   */
+  disposeAsync(): Promise<void>
 }
 
 class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
@@ -497,6 +511,28 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     this.watcher = null
     this.emitter.dispose()
     this.map.clear()
+  }
+
+  async disposeAsync(): Promise<void> {
+    if (this.disposed) return
+    this.disposed = true
+    this.watcherSubscription?.dispose()
+    this.watcherSubscription = null
+    // Capture the watcher before nulling so we can await its close. The
+    // close() promise may take real time on slow / unmounted FS — that's
+    // exactly the case sync `dispose()` punts on by leaving a dangling
+    // promise. onStop / disposeAll callers prefer to wait.
+    const watcher = this.watcher
+    this.watcher = null
+    this.emitter.dispose()
+    this.map.clear()
+    if (watcher) {
+      try {
+        await watcher.close()
+      } catch (err) {
+        logger.error('Watcher close failed', err as Error)
+      }
+    }
   }
 }
 

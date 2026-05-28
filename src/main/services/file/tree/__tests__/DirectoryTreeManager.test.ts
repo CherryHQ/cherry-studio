@@ -93,7 +93,7 @@ describe('DirectoryTreeManager', () => {
   })
 
   afterEach(async () => {
-    registry.disposeAll()
+    await registry.disposeAll()
     await rm(tmp, { recursive: true, force: true })
     vi.restoreAllMocks()
   })
