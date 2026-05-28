@@ -4,7 +4,7 @@ import type { JobSettledEvent } from '@main/core/job/types'
 import type { LoggerService } from '@main/core/logger/LoggerService'
 import { ErrorCode, isDataApiError } from '@shared/data/api'
 
-type JobInputWithItem = { itemId?: string } | undefined
+import { narrowKnowledgeJobInput } from './jobInput'
 
 export function isDataApiNotFoundError(error: unknown): boolean {
   return isDataApiError(error) && error.code === ErrorCode.NOT_FOUND
@@ -19,8 +19,9 @@ export async function markKnowledgeItemFailedOnSettled(
 
   const jobManager = application.get('JobManager')
   const snapshot = await jobManager.get(event.jobId)
-  const input = snapshot?.input as JobInputWithItem
-  if (!input?.itemId) return
+  const narrowed = snapshot ? narrowKnowledgeJobInput(snapshot) : null
+  if (!narrowed || !('itemId' in narrowed.input)) return
+  const { input } = narrowed
 
   const reason = event.error?.message?.trim() || `Job ${event.status}`
   try {

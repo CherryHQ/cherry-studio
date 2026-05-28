@@ -9,7 +9,7 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import type { KnowledgeMutationCoordinator } from '../KnowledgeMutationCoordinator'
 import { loadKnowledgeItemDocuments } from '../readers/KnowledgeReader'
-import { knowledgeQueueName } from '../types'
+import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId } from '../types'
 import type { IndexableKnowledgeItem } from '../types/items'
 import { chunkDocuments } from '../utils/indexing/chunk'
 import { embedDocuments } from '../utils/indexing/embed'
@@ -33,7 +33,7 @@ export function createIndexDocumentsJobHandler(
 ): JobHandler<KnowledgeIndexDocumentsPayload> {
   return {
     recovery: 'retry',
-    defaultQueue: (input) => knowledgeQueueName(input.baseId),
+    defaultQueue: (input) => knowledgeQueueName(toKnowledgeBaseId(input.baseId)),
     defaultConcurrency: 5,
     defaultRetryPolicy: {
       maxAttempts: 3,
@@ -53,7 +53,7 @@ export function createIndexDocumentsJobHandler(
       const { base, item } = input
 
       // Mark reading before file/network IO so the UI reflects the current long-running phase.
-      ctx.reportProgress(0, { stage: 'reading', currentFile: 0, totalFiles: 1 })
+      reportKnowledgeProgress(ctx, 0, { stage: 'reading', currentFile: 0, totalFiles: 1 })
       await mutationCoordinator.withBaseMutationLock(ctx.input.baseId, async () => {
         await knowledgeItemService.rebuildFileRefsForItems([ctx.input.itemId])
         await knowledgeItemService.updateStatus(ctx.input.itemId, 'reading')
@@ -63,8 +63,8 @@ export function createIndexDocumentsJobHandler(
       const documents = await readItemDocuments(ctx, item)
       const chunks = chunkItemDocuments(base, item, documents)
 
-      // Mark embedding separately so a retry can report where the previous attempt stopped.
-      ctx.reportProgress(40, { stage: 'embedding', currentFile: 0, totalFiles: 1 })
+      // Mark embedding separately so the UI reflects the current long-running phase.
+      reportKnowledgeProgress(ctx, 40, { stage: 'embedding', currentFile: 0, totalFiles: 1 })
       await mutationCoordinator.withBaseMutationLock(ctx.input.baseId, () =>
         knowledgeItemService.updateStatus(ctx.input.itemId, 'embedding')
       )
@@ -72,10 +72,10 @@ export function createIndexDocumentsJobHandler(
       const nodes = await embedItemChunks(ctx, base, chunks)
 
       // Vector replacement and final status flip must stay atomic at the base mutation level.
-      ctx.reportProgress(80, { stage: 'writing', currentFile: 0, totalFiles: 1 })
+      reportKnowledgeProgress(ctx, 80, { stage: 'writing', currentFile: 0, totalFiles: 1 })
       await writeItemVectors(ctx, base, nodes, mutationCoordinator)
 
-      ctx.reportProgress(100, { stage: 'done', currentFile: 1, totalFiles: 1 })
+      reportKnowledgeProgress(ctx, 100, { stage: 'done', currentFile: 1, totalFiles: 1 })
     },
 
     async onSettled(event) {
@@ -95,7 +95,7 @@ async function loadIndexDocumentsInputOrSkip(
 
     if (item.status === 'deleting') {
       logger.info('Skipping index-documents for deleting item', { baseId, itemId, jobId: ctx.jobId })
-      ctx.reportProgress(100, { stage: 'deleting', currentFile: 1, totalFiles: 1 })
+      reportKnowledgeProgress(ctx, 100, { stage: 'deleting', currentFile: 1, totalFiles: 1 })
       return null
     }
 
@@ -104,7 +104,7 @@ async function loadIndexDocumentsInputOrSkip(
     }
 
     if (item.status === 'completed') {
-      ctx.reportProgress(100, { stage: 'already-completed', currentFile: 1, totalFiles: 1 })
+      reportKnowledgeProgress(ctx, 100, { stage: 'already-completed', currentFile: 1, totalFiles: 1 })
       return null
     }
 
@@ -112,7 +112,7 @@ async function loadIndexDocumentsInputOrSkip(
   } catch (error) {
     if (isDataApiNotFoundError(error)) {
       logger.info('Skipping index-documents for missing base or item', { baseId, itemId, jobId: ctx.jobId })
-      ctx.reportProgress(100, { stage: 'item-gone', currentFile: 1, totalFiles: 1 })
+      reportKnowledgeProgress(ctx, 100, { stage: 'item-gone', currentFile: 1, totalFiles: 1 })
       return null
     }
     throw error

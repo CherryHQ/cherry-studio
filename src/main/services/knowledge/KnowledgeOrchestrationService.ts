@@ -30,8 +30,12 @@ import { rerankKnowledgeSearchResults } from './rerank/rerank'
 import {
   KNOWLEDGE_ACTIVE_JOB_LIMIT,
   KNOWLEDGE_ACTIVE_JOB_STATUSES,
+  KNOWLEDGE_JOB_TYPES,
   knowledgeDeleteSubtreeIdempotencyKey,
-  knowledgeQueueName
+  knowledgeQueueName,
+  toKnowledgeBaseId,
+  toKnowledgeItemId,
+  toKnowledgeItemIds
 } from './types'
 import {
   KnowledgeRuntimeAddItemsPayloadSchema,
@@ -51,12 +55,7 @@ const logger = loggerService.withContext('KnowledgeOrchestrationService')
 const SEARCH_TOKEN_PATTERN = /[\p{L}\p{N}_]+/u
 const DELETE_RECOVERY_ROOT_CHUNK_SIZE = 500
 const REINDEX_ALLOWED_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
-const KNOWLEDGE_JOB_TYPES = new Set([
-  'knowledge.prepare-root',
-  'knowledge.index-documents',
-  'knowledge.delete-subtree',
-  'knowledge.reindex-subtree'
-])
+const KNOWLEDGE_JOB_TYPE_SET = new Set<string>(KNOWLEDGE_JOB_TYPES)
 
 @Injectable('KnowledgeOrchestrationService')
 @ServicePhase(Phase.WhenReady)
@@ -169,13 +168,20 @@ export class KnowledgeOrchestrationService extends BaseService {
       try {
         await this.deleteBase(restoredBase.id)
       } catch (cleanupError) {
+        const cleanupMessage = cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
         logger.error(
           'Failed to delete restored knowledge base after item restoration failed',
-          cleanupError instanceof Error ? cleanupError : new Error(String(cleanupError)),
+          cleanupError instanceof Error ? cleanupError : new Error(cleanupMessage),
           {
             sourceBaseId: sourceBase.id,
             restoredBaseId: restoredBase.id
           }
+        )
+        throw DataApiErrorFactory.invalidOperation(
+          'restoreBase',
+          `Failed to restore knowledge items: ${
+            error instanceof Error ? error.message : String(error)
+          }. Restored knowledge base '${restoredBase.id}' could not be cleaned up automatically: ${cleanupMessage}. Please delete it manually.`
         )
       }
       throw DataApiErrorFactory.invalidOperation(
@@ -267,12 +273,14 @@ export class KnowledgeOrchestrationService extends BaseService {
   }
 
   async listItemChunks(baseId: string, itemId: string): Promise<KnowledgeItemChunk[]> {
-    await this.assertBaseCanRunRuntimeOperation(baseId, 'listItemChunks')
-    const item = await this.assertItemCanRunChunkOperation(baseId, itemId, 'list chunks')
-    await this.assertCompletedContainerHasNoDeletingChildren(baseId, item)
+    const knowledgeBaseId = toKnowledgeBaseId(baseId)
+    const knowledgeItemId = toKnowledgeItemId(itemId)
+    await this.assertBaseCanRunRuntimeOperation(knowledgeBaseId, 'listItemChunks')
+    const item = await this.assertItemCanRunChunkOperation(knowledgeBaseId, knowledgeItemId, 'list chunks')
+    await this.assertCompletedContainerHasNoDeletingChildren(knowledgeBaseId, item)
 
-    const base = await knowledgeBaseService.getById(baseId)
-    const leafItems = await knowledgeItemService.getSubtreeItems(baseId, [itemId], {
+    const base = await knowledgeBaseService.getById(knowledgeBaseId)
+    const leafItems = await knowledgeItemService.getSubtreeItems(knowledgeBaseId, [knowledgeItemId], {
       includeRoots: true,
       leafOnly: true
     })
@@ -288,16 +296,18 @@ export class KnowledgeOrchestrationService extends BaseService {
   }
 
   async deleteItemChunk(baseId: string, itemId: string, chunkId: string): Promise<void> {
-    await this.assertBaseCanRunRuntimeOperation(baseId, 'deleteItemChunk')
+    const knowledgeBaseId = toKnowledgeBaseId(baseId)
+    const knowledgeItemId = toKnowledgeItemId(itemId)
+    await this.assertBaseCanRunRuntimeOperation(knowledgeBaseId, 'deleteItemChunk')
 
-    await this.mutationCoordinator.withBaseMutationLock(baseId, async () => {
-      await this.assertItemCanRunChunkOperation(baseId, itemId, 'delete chunk')
+    await this.mutationCoordinator.withBaseMutationLock(knowledgeBaseId, async () => {
+      await this.assertItemCanRunChunkOperation(knowledgeBaseId, knowledgeItemId, 'delete chunk')
 
-      const base = await knowledgeBaseService.getById(baseId)
+      const base = await knowledgeBaseService.getById(knowledgeBaseId)
       const vectorStoreService = application.get('KnowledgeVectorStoreService')
       const vectorStore = await vectorStoreService.createStore(base)
 
-      await vectorStore.deleteByIdAndExternalId(chunkId, itemId)
+      await vectorStore.deleteByIdAndExternalId(chunkId, knowledgeItemId)
     })
   }
 
@@ -330,11 +340,11 @@ export class KnowledgeOrchestrationService extends BaseService {
   private async cancelAllJobsForBase(baseId: string): Promise<void> {
     const jobManager = application.get('JobManager')
     const activeJobs = await jobManager.list({
-      queue: knowledgeQueueName(baseId),
+      queue: knowledgeQueueName(toKnowledgeBaseId(baseId)),
       status: [...KNOWLEDGE_ACTIVE_JOB_STATUSES],
       limit: KNOWLEDGE_ACTIVE_JOB_LIMIT
     })
-    const jobsToCancel = activeJobs.filter((job) => KNOWLEDGE_JOB_TYPES.has(job.type))
+    const jobsToCancel = activeJobs.filter((job) => KNOWLEDGE_JOB_TYPE_SET.has(job.type))
 
     await Promise.all(jobsToCancel.map((job) => jobManager.cancel(job.id, 'delete-base')))
   }
@@ -361,8 +371,11 @@ export class KnowledgeOrchestrationService extends BaseService {
             'knowledge.delete-subtree',
             { baseId, rootItemIds: rootItemIdChunk },
             {
-              idempotencyKey: knowledgeDeleteSubtreeIdempotencyKey(baseId, rootItemIdChunk),
-              queue: knowledgeQueueName(baseId)
+              idempotencyKey: knowledgeDeleteSubtreeIdempotencyKey(
+                toKnowledgeBaseId(baseId),
+                toKnowledgeItemIds(rootItemIdChunk)
+              ),
+              queue: knowledgeQueueName(toKnowledgeBaseId(baseId))
             }
           )
         } catch (error) {

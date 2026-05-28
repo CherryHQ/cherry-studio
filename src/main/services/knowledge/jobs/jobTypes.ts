@@ -15,7 +15,6 @@ declare module '@main/core/job/jobRegistry' {
     'knowledge.index-documents': {
       baseId: string
       itemId: string
-      parentJobId: string | null
     }
     'knowledge.delete-subtree': {
       baseId: string

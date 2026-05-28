@@ -178,7 +178,7 @@ describe('KnowledgeOrchestrationService integration', () => {
 
     expect(enqueueMock).toHaveBeenCalledWith(
       'knowledge.index-documents',
-      { baseId: restoredBase.id, itemId: restoredItems[0].id, parentJobId: null },
+      { baseId: restoredBase.id, itemId: restoredItems[0].id },
       {
         idempotencyKey: `knowledge:${restoredBase.id}:${restoredItems[0].id}:index`,
         queue: `base.${restoredBase.id}`,

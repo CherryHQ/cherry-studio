@@ -18,23 +18,27 @@ Used by operations that create or rebuild runtime work on an existing base.
 - `reindexItems`: rejects `failed` bases.
 - `deleteItems`: does not use this guard. Deleting a failed base's items must remain possible so callers can clean up recoverable or partially migrated data.
 
-### `getRootItemsInBase`
+### `KnowledgeItemService.getOutermostSelectedItemIds`
 
-Used by id-based operations.
+Used by subtree id-based operations: `deleteItems` and `reindexItems`.
+
+- De-duplicates input item ids.
+- Loads each selected item.
+- Rejects items that do not belong to the requested `baseId`.
+- Removes selected descendants when their selected ancestor is already present.
+- Prevents the same subtree from being deleted or reindexed more than once in a single request.
+
+This helper is not used by `addItems` because `addItems` receives new item payloads, not persisted item ids.
+
+### `KnowledgeOrchestrationService.getRootItemsInBase`
+
+Private helper used only by single-item chunk operations.
 
 - De-duplicates input item ids.
 - Loads each selected item.
 - Rejects items that do not belong to the requested `baseId`.
 
-This guard is not used by `addItems` because `addItems` receives new item payloads, not persisted item ids.
-
-### `getTopLevelItemsInBase`
-
-Used by subtree operations.
-
-- Starts from `getRootItemsInBase`.
-- Removes selected descendants when their selected ancestor is already present.
-- Prevents the same subtree from being deleted or reindexed more than once in a single request.
+Subtree operations do not use this helper; they use `KnowledgeItemService.getOutermostSelectedItemIds` instead.
 
 ### Subtree Status Reconciliation
 
@@ -119,7 +123,7 @@ deleteItems(baseId, itemIds)
   -> under same-base mutation lock:
        mark selected root subtrees deleting
   -> enqueue knowledge.delete-subtree
-       idempotency key = sorted root ids
+       idempotency key = knowledge:${baseId}:${sorted root ids}:delete
   -> if enqueue throws:
        keep rows deleting
        log and rethrow
@@ -171,7 +175,7 @@ reindexItems(baseId, itemIds)
   -> no-op if no roots remain
   -> reject unless every selected root subtree is completed or failed
   -> enqueue knowledge.reindex-subtree
-       idempotency key = sorted root ids
+       idempotency key = knowledge:${baseId}:${sorted root ids}:reindex
 ```
 
 ### Why Reindex Requires Terminal Subtrees

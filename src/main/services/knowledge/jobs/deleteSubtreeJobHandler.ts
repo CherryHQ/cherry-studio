@@ -8,21 +8,26 @@ import { JOB_ERROR_CODES } from '@main/core/job/errorCodes'
 import type { JobHandler } from '@main/core/job/types'
 
 import type { KnowledgeMutationCoordinator } from '../KnowledgeMutationCoordinator'
-import { KNOWLEDGE_ACTIVE_JOB_LIMIT, KNOWLEDGE_ACTIVE_JOB_STATUSES, knowledgeQueueName } from '../types'
+import {
+  KNOWLEDGE_ACTIVE_JOB_LIMIT,
+  KNOWLEDGE_ACTIVE_JOB_STATUSES,
+  knowledgeQueueName,
+  reportKnowledgeProgress,
+  toKnowledgeBaseId
+} from '../types'
 import { deleteKnowledgeItemVectors } from '../utils/cleanup/vectorCleanup'
 import { isIndexableKnowledgeItem } from '../utils/items'
 import type { KnowledgeDeleteSubtreePayload } from './jobTypes'
+import { narrowKnowledgeJobInput } from './utils/jobInput'
 
 const logger = loggerService.withContext('Knowledge:DeleteSubtreeJobHandler')
-
-type JobInputWithItem = { itemId?: string; rootItemIds?: string[] } | null
 
 export function createDeleteSubtreeJobHandler(
   mutationCoordinator: KnowledgeMutationCoordinator
 ): JobHandler<KnowledgeDeleteSubtreePayload> {
   return {
     recovery: 'retry',
-    defaultQueue: (input) => knowledgeQueueName(input.baseId),
+    defaultQueue: (input) => knowledgeQueueName(toKnowledgeBaseId(input.baseId)),
     defaultConcurrency: 5,
     defaultRetryPolicy: {
       maxAttempts: 3,
@@ -42,7 +47,7 @@ export function createDeleteSubtreeJobHandler(
       ).filter((item) => item.status === 'deleting')
       const deletingSubtreeItemIds = deletingSubtreeItems.map((item) => item.id)
       if (deletingSubtreeItemIds.length === 0) {
-        ctx.reportProgress(100, { stage: 'done' })
+        reportKnowledgeProgress(ctx, 100, { stage: 'done' })
         return
       }
 
@@ -64,7 +69,7 @@ export function createDeleteSubtreeJobHandler(
         await knowledgeItemService.deleteItemsByIds(baseId, subtreeItemIds)
       })
 
-      ctx.reportProgress(100, { stage: 'done' })
+      reportKnowledgeProgress(ctx, 100, { stage: 'done' })
     }
   }
 }
@@ -83,12 +88,12 @@ async function cancelActiveSubtreeJobs(
 
   const jobManager = application.get('JobManager')
   const activeJobs = await jobManager.list({
-    queue: knowledgeQueueName(baseId),
+    queue: knowledgeQueueName(toKnowledgeBaseId(baseId)),
     status: [...KNOWLEDGE_ACTIVE_JOB_STATUSES],
     limit: KNOWLEDGE_ACTIVE_JOB_LIMIT
   })
   const jobIds = activeJobs
-    .filter((job) => job.id !== currentJobId && jobTouchesSubtree(job.input as JobInputWithItem, subtreeIds))
+    .filter((job) => job.id !== currentJobId && jobTouchesSubtree(job, subtreeIds))
     .map((job) => job.id)
 
   await Promise.all(jobIds.map((jobId) => cancelKnowledgeSubtreeJobOrThrow(jobId, reason)))
@@ -107,12 +112,13 @@ async function cancelKnowledgeSubtreeJobOrThrow(jobId: string, reason: string): 
   }
 }
 
-function jobTouchesSubtree(input: JobInputWithItem, subtreeIds: Set<string>): boolean {
-  if (!input) {
+function jobTouchesSubtree(job: { type: string; input: unknown }, subtreeIds: Set<string>): boolean {
+  const narrowed = narrowKnowledgeJobInput(job)
+  if (!narrowed) {
     return false
   }
-  if (input.itemId && subtreeIds.has(input.itemId)) {
+  if ('itemId' in narrowed.input && subtreeIds.has(narrowed.input.itemId)) {
     return true
   }
-  return input.rootItemIds?.some((itemId) => subtreeIds.has(itemId)) ?? false
+  return 'rootItemIds' in narrowed.input && narrowed.input.rootItemIds.some((itemId) => subtreeIds.has(itemId))
 }

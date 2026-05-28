@@ -13,7 +13,9 @@ export async function deleteKnowledgeItemVectors(base: KnowledgeBase, itemIds: s
     return
   }
 
-  for (const itemId of uniqueItemIds) {
-    await vectorStore.replaceByExternalId(itemId, [])
+  const results = await Promise.allSettled(uniqueItemIds.map((itemId) => vectorStore.replaceByExternalId(itemId, [])))
+  const failedItemIds = uniqueItemIds.filter((_, index) => results[index]?.status === 'rejected')
+  if (failedItemIds.length > 0) {
+    throw new Error(`Failed to delete knowledge item vectors for item ids: ${failedItemIds.join(', ')}`)
   }
 }
