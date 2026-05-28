@@ -90,7 +90,10 @@ export const AssistantSettingsSchema = z.object({
    *  `null` = inherit the global `chat.context_settings.*` preferences. `null`
    *  is the wire form for "clear the override" — JSON drops `undefined` keys,
    *  and the resolver's `??` chain treats null/undefined alike. */
-  contextSettings: ContextSettingsOverrideSchema.nullable().optional()
+  contextSettings: ContextSettingsOverrideSchema.nullable().optional(),
+  /** Per-model reasoning effort preferences.
+   *  Key is the model id (UniqueModelId format), value is the reasoning effort option. */
+  reasoning_effort_by_model: z.record(z.string(), z.string()).default({})
 })
 export type AssistantSettings = z.infer<typeof AssistantSettingsSchema>
 
@@ -109,7 +112,8 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   enableMaxToolCalls: true,
   enableWebSearch: false,
   enableGenerateImage: false,
-  customParameters: []
+  customParameters: [],
+  reasoning_effort_by_model: {}
 }
 
 // ============================================================================
