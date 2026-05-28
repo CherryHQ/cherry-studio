@@ -225,7 +225,9 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   })
 
   const onGenerate = async () => {
-    await checkProviderEnabled(newApiProvider, t)
+    await checkProviderEnabled(newApiProvider, t, (providerId) =>
+      navigate({ to: '/settings/provider', search: { id: providerId } })
+    )
 
     if (painting.files.length > 0) {
       const confirmed = await window.modal.confirm({

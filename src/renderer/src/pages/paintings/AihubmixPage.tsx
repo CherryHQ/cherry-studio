@@ -102,7 +102,9 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
   })
 
   const onGenerate = async () => {
-    await checkProviderEnabled(aihubmixProvider, t)
+    await checkProviderEnabled(aihubmixProvider, t, (providerId) =>
+      navigate({ to: '/settings/provider', search: { id: providerId } })
+    )
 
     if (painting.files.length > 0) {
       const confirmed = await window.modal.confirm({

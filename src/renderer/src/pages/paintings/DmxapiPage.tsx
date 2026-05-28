@@ -385,7 +385,9 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }
 
     if (!dmxapiProvider.enabled) {
-      void checkProviderEnabled(dmxapiProvider, t)
+      void checkProviderEnabled(dmxapiProvider, t, (providerId) =>
+        navigate({ to: '/settings/provider', search: { id: providerId } })
+      )
       return
     }
 

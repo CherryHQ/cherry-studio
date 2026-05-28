@@ -107,7 +107,9 @@ const TokenFluxPage: FC<{ Options: string[] }> = ({ Options }) => {
   }
 
   const onGenerate = async () => {
-    await checkProviderEnabled(tokenfluxProvider, t)
+    await checkProviderEnabled(tokenfluxProvider, t, (providerId) =>
+      navigate({ to: '/settings/provider', search: { id: providerId } })
+    )
 
     if (painting.files.length > 0) {
       const confirmed = await window.modal.confirm({

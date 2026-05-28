@@ -60,25 +60,16 @@ const PaintingsList = <T extends PaintingAction>({
   namespace
 }: PaintingsListProps<T>) => {
   const { t } = useTranslation()
-  const [dragging, setDragging] = useState(false)
   const { updatePaintings } = usePaintings()
 
   return (
-    <Scrollbar
-      className="flex h-[calc(100vh-var(--navbar-height))] max-w-25 flex-1 flex-col items-center gap-2.5 overflow-x-hidden bg-background p-2.5 [border-left:0.5px_solid_var(--color-border)]"
-      style={{ paddingBottom: dragging ? 80 : 10 }}>
-      {!dragging && (
-        <div
-          className="flex h-20 min-h-20 w-20 cursor-pointer items-center justify-center border border-border border-dashed bg-background-subtle text-foreground-secondary transition-colors duration-200 hover:border-primary hover:bg-muted hover:text-primary"
-          onClick={onNewPainting}>
-          <Plus className="size-4" />
-        </div>
-      )}
-      <DraggableList
-        list={paintings}
-        onUpdate={(value) => updatePaintings(namespace, value)}
-        onDragStart={() => setDragging(true)}
-        onDragEnd={() => setDragging(false)}>
+    <Scrollbar className="flex h-[calc(100vh-var(--navbar-height))] max-w-25 flex-1 flex-col items-center gap-2.5 overflow-x-hidden bg-background p-2.5 [border-left:0.5px_solid_var(--color-border)]">
+      <div
+        className="flex h-20 min-h-20 w-20 cursor-pointer items-center justify-center border border-border border-dashed bg-background-subtle text-foreground-secondary transition-colors duration-200 hover:border-primary hover:bg-muted hover:text-primary"
+        onClick={onNewPainting}>
+        <Plus className="size-4" />
+      </div>
+      <DraggableList list={paintings} onUpdate={(value) => updatePaintings(namespace, value)}>
         {(item: T) => (
           <div key={item.id} className="group relative">
             <div

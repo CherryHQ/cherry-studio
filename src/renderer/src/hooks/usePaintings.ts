@@ -172,6 +172,14 @@ function groupRows(rows: Painting[], newApiProviderIds: Set<string>): PaintingsS
     pushPainting(grouped, namespace, toLegacyPainting(row, namespace))
   }
 
+  const orderKeys = new Map(rows.map((row) => [row.id, row.orderKey]))
+  for (const [namespace, paintings] of Object.entries(grouped) as Array<[PaintingNamespace, PaintingAction[]]>) {
+    paintings.sort((left, right) => {
+      return (orderKeys.get(left.id) || '').localeCompare(orderKeys.get(right.id) || '')
+    })
+    grouped[namespace] = paintings
+  }
+
   return grouped
 }
 

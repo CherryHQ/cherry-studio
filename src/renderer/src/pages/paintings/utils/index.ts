@@ -3,7 +3,13 @@ import type { FileEntry } from '@shared/data/types/file'
 import type { TFunction } from 'i18next'
 import { isEmpty } from 'lodash'
 
-export function checkProviderEnabled(provider: Provider, t: TFunction): Promise<boolean> {
+type NavigateToProviderSettings = (providerId: string) => void | Promise<void>
+
+export function checkProviderEnabled(
+  provider: Provider,
+  t: TFunction,
+  navigateToProviderSettings?: NavigateToProviderSettings
+): Promise<boolean> {
   return new Promise((resolve, reject) => {
     if (provider.enabled && !isEmpty(provider.apiKey)) {
       resolve(true)
@@ -16,7 +22,11 @@ export function checkProviderEnabled(provider: Provider, t: TFunction): Promise<
       closable: true,
       okText: t('common.go_to_settings'),
       onOk: () => {
-        void window.navigate?.({ to: `/settings/provider`, search: { id: provider.id } })
+        if (navigateToProviderSettings) {
+          void navigateToProviderSettings(provider.id)
+        } else {
+          void window.navigate?.({ to: '/settings/provider', search: { id: provider.id } })
+        }
         reject('Provider disabled')
       },
       onCancel: () => reject('Provider disabled')

@@ -108,7 +108,9 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   })
 
   const onGenerate = async () => {
-    await checkProviderEnabled(zhipuProvider, t)
+    await checkProviderEnabled(zhipuProvider, t, (providerId) =>
+      navigate({ to: '/settings/provider', search: { id: providerId } })
+    )
 
     if (isLoading) return
 

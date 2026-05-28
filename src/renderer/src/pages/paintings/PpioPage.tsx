@@ -234,7 +234,9 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
       return
     }
 
-    await checkProviderEnabled(ppioProvider, t)
+    await checkProviderEnabled(ppioProvider, t, (providerId) =>
+      navigate({ to: '/settings/provider', search: { id: providerId } })
+    )
 
     if (isLoading) return
 
