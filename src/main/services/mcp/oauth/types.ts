@@ -38,6 +38,8 @@ export interface OAuthCallbackServerOptions {
   port: number
   /** Path for the callback endpoint */
   path: string
+  /** OAuth state value expected from the pending authorization flow */
+  expectedState: string
   /** Event emitter to signal when auth code is received */
   events: EventEmitter
 }
