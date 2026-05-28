@@ -72,9 +72,9 @@ vi.mock('node:util', async (importOriginal) => {
   return { ...(actual as object), promisify: () => mockExecFileAsync }
 })
 
-const { MiseService, validateMiseTool } = await import('../MiseService')
+const { BinaryManager, validateManagedBinary } = await import('../BinaryManager')
 
-describe('MiseService', () => {
+describe('BinaryManager', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockExecFileAsync.mockReset()
@@ -84,13 +84,13 @@ describe('MiseService', () => {
 
   describe('decorators', () => {
     it('is registered as Background phase', () => {
-      expect(getPhase(MiseService)).toBe(Phase.Background)
+      expect(getPhase(BinaryManager)).toBe(Phase.Background)
     })
   })
 
   describe('reconcile', () => {
     it('returns error when mise binary is not available', async () => {
-      const service = new MiseService()
+      const service = new BinaryManager()
 
       const result = await service.reconcile([{ name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' }])
 
@@ -100,7 +100,7 @@ describe('MiseService', () => {
     })
 
     it('skips tools that are already at the target version', async () => {
-      const service = new MiseService()
+      const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
 
@@ -125,7 +125,7 @@ describe('MiseService', () => {
     })
 
     it('skips unpinned tools that are already installed', async () => {
-      const service = new MiseService()
+      const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
 
@@ -149,7 +149,7 @@ describe('MiseService', () => {
     })
 
     it('reinstalls when tool spec changes', async () => {
-      const service = new MiseService()
+      const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
 
@@ -162,7 +162,7 @@ describe('MiseService', () => {
         })
       )
 
-      // spec mismatch short-circuits before isMiseToolReady, so no `which` call
+      // spec mismatch short-circuits before isManagedBinaryReady, so no `which` call
       mockExecFileAsync
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // use
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
@@ -178,7 +178,7 @@ describe('MiseService', () => {
     })
 
     it('handles install failure gracefully', async () => {
-      const service = new MiseService()
+      const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
 
@@ -197,7 +197,7 @@ describe('MiseService', () => {
     })
 
     it('installs multiple tools and records state', async () => {
-      const service = new MiseService()
+      const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
 
@@ -234,7 +234,7 @@ describe('MiseService', () => {
 
   describe('removeTool', () => {
     it('removes tool from state', async () => {
-      const service = new MiseService()
+      const service = new BinaryManager()
 
       mockFs.existsSync.mockReturnValue(true)
       mockFs.readFileSync.mockReturnValue(
@@ -256,7 +256,7 @@ describe('MiseService', () => {
     })
 
     it('succeeds even if binary does not exist on disk', async () => {
-      const service = new MiseService()
+      const service = new BinaryManager()
 
       mockFs.existsSync.mockReturnValue(false)
       mockFs.readFileSync.mockImplementation(() => {
@@ -272,7 +272,7 @@ describe('MiseService', () => {
 
   describe('installTool', () => {
     it('throws when mise binary is not available', async () => {
-      const service = new MiseService()
+      const service = new BinaryManager()
 
       await expect(service.installTool({ name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' })).rejects.toThrow(
         'mise binary not available'
@@ -280,7 +280,7 @@ describe('MiseService', () => {
     })
 
     it('installs and returns version', async () => {
-      const service = new MiseService()
+      const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
 
@@ -303,13 +303,13 @@ describe('MiseService', () => {
 
   describe('searchRegistry', () => {
     it('returns empty array when mise binary is not available', async () => {
-      const service = new MiseService()
+      const service = new BinaryManager()
       const result = await service.searchRegistry('fd')
       expect(result).toEqual([])
     })
 
     it('caches registry output across calls', async () => {
-      const service = new MiseService()
+      const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
 
@@ -327,30 +327,30 @@ describe('MiseService', () => {
 
   describe('IPC input validation', () => {
     it('registers IPC handlers on init', async () => {
-      const service = new MiseService()
+      const service = new BinaryManager()
       await (service as any).onInit()
 
       const channels = (service as any).ipcHandle.mock.calls.map((c: any[]) => c[0])
-      expect(channels).toContain('mise:install-tool')
-      expect(channels).toContain('mise:remove-tool')
-      expect(channels).toContain('mise:get-state')
-      expect(channels).toContain('mise:reconcile')
-      expect(channels).toContain('mise:search-registry')
-      expect(channels).toContain('mise:get-tool-dir')
+      expect(channels).toContain('binary:install-tool')
+      expect(channels).toContain('binary:remove-tool')
+      expect(channels).toContain('binary:get-state')
+      expect(channels).toContain('binary:reconcile')
+      expect(channels).toContain('binary:search-registry')
+      expect(channels).toContain('binary:get-tool-dir')
     })
 
     it('get-tool-dir handler rejects invalid tool names', async () => {
-      const service = new MiseService()
+      const service = new BinaryManager()
       await (service as any).onInit()
 
-      const handler = (service as any).ipcHandle.mock.calls.find((c: any[]) => c[0] === 'mise:get-tool-dir')?.[1]
+      const handler = (service as any).ipcHandle.mock.calls.find((c: any[]) => c[0] === 'binary:get-tool-dir')?.[1]
 
       await expect(handler({}, '../../etc/passwd')).rejects.toThrow('Invalid tool name')
       await expect(handler({}, '')).rejects.toThrow('Invalid tool name')
     })
   })
 
-  describe('validateMiseTool', () => {
+  describe('validateManagedBinary', () => {
     it.each([
       ['../etc', 'fd', undefined],
       ['', 'fd', undefined],
@@ -358,7 +358,7 @@ describe('MiseService', () => {
       ['fd\x00', 'fd', undefined],
       ['123fd', 'fd', undefined]
     ])('rejects invalid tool name=%j', (name, tool, version) => {
-      expect(() => validateMiseTool({ name, tool, version })).toThrow('Invalid tool name')
+      expect(() => validateManagedBinary({ name, tool, version })).toThrow('Invalid tool name')
     })
 
     it.each([
@@ -368,20 +368,20 @@ describe('MiseService', () => {
       ['fd', '../../../etc/passwd', undefined],
       ['fd', 'github://evil', undefined]
     ])('rejects invalid tool key=%j tool=%j', (name, tool, version) => {
-      expect(() => validateMiseTool({ name, tool, version })).toThrow('Invalid tool key')
+      expect(() => validateManagedBinary({ name, tool, version })).toThrow('Invalid tool key')
     })
 
     it.each([
       ['fd', 'fd', 'version; echo'],
       ['fd', 'fd', 'ver sion']
     ])('rejects invalid version=%j', (name, tool, version) => {
-      expect(() => validateMiseTool({ name, tool, version })).toThrow('Invalid tool version')
+      expect(() => validateManagedBinary({ name, tool, version })).toThrow('Invalid tool version')
     })
 
     it('accepts valid tool definitions', () => {
-      expect(() => validateMiseTool({ name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' })).not.toThrow()
-      expect(() => validateMiseTool({ name: 'ntn', tool: 'npm:ntn' })).not.toThrow()
-      expect(() => validateMiseTool({ name: 'hermes', tool: 'pipx:hermes-agent' })).not.toThrow()
+      expect(() => validateManagedBinary({ name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' })).not.toThrow()
+      expect(() => validateManagedBinary({ name: 'ntn', tool: 'npm:ntn' })).not.toThrow()
+      expect(() => validateManagedBinary({ name: 'hermes', tool: 'pipx:hermes-agent' })).not.toThrow()
     })
   })
 
@@ -393,7 +393,7 @@ describe('MiseService', () => {
         process.env['OPENAI_API_KEY'] = 'sk-test'
         process.env['SECRET_TOKEN'] = 'secret'
 
-        const service = new MiseService()
+        const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
         const env = (service as any).buildIsolatedEnv()
 
@@ -412,7 +412,7 @@ describe('MiseService', () => {
         process.env['GITHUB_TOKEN'] = 'ghp_test'
         process.env['HTTPS_PROXY'] = 'http://proxy:8080'
 
-        const service = new MiseService()
+        const service = new BinaryManager()
         ;(service as any).miseBin = '/mock/mise'
         const env = (service as any).buildIsolatedEnv()
 
@@ -426,7 +426,7 @@ describe('MiseService', () => {
 
   describe('installWithMise', () => {
     it('uses mise global config and reshim for npm: backend tools', async () => {
-      const service = new MiseService()
+      const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
 
@@ -458,7 +458,7 @@ describe('MiseService', () => {
 
   describe('withStateLock concurrency', () => {
     it('serializes concurrent installTool calls', async () => {
-      const service = new MiseService()
+      const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
 
@@ -494,21 +494,23 @@ describe('MiseService', () => {
     })
   })
 
-  describe('IPC handler validateMiseTool integration', () => {
+  describe('IPC handler validateManagedBinary integration', () => {
     it('install handler rejects invalid tool names before calling installWithMise', async () => {
-      const service = new MiseService()
+      const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
       await (service as any).onInit()
 
-      const installHandler = (service as any).ipcHandle.mock.calls.find((c: any[]) => c[0] === 'mise:install-tool')?.[1]
+      const installHandler = (service as any).ipcHandle.mock.calls.find(
+        (c: any[]) => c[0] === 'binary:install-tool'
+      )?.[1]
 
       await expect(installHandler({}, { name: '../etc', tool: 'fd' })).rejects.toThrow('Invalid tool name')
       expect(mockExecFileAsync).not.toHaveBeenCalled()
     })
 
     it('install handler accepts valid tools and calls installWithMise', async () => {
-      const service = new MiseService()
+      const service = new BinaryManager()
       await (service as any).onInit()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
@@ -522,7 +524,9 @@ describe('MiseService', () => {
         .mockResolvedValueOnce({ stdout: '', stderr: '' }) // reshim
         .mockResolvedValueOnce({ stdout: JSON.stringify({ 'github:sharkdp/fd': [{ version: '10.0.0' }] }), stderr: '' }) // ls --json
 
-      const installHandler = (service as any).ipcHandle.mock.calls.find((c: any[]) => c[0] === 'mise:install-tool')?.[1]
+      const installHandler = (service as any).ipcHandle.mock.calls.find(
+        (c: any[]) => c[0] === 'binary:install-tool'
+      )?.[1]
 
       const result = await installHandler({}, { name: 'fd', tool: 'github:sharkdp/fd', version: '10.0.0' })
       expect(result.version).toBe('10.0.0')
@@ -531,7 +535,7 @@ describe('MiseService', () => {
 
   describe('runMise env/cwd contract', () => {
     it('passes isolated env and cwd to execFileAsync, not process.env', async () => {
-      const service = new MiseService()
+      const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       const isolatedEnv = { MISE_DATA_DIR: '/isolated', PATH: '/isolated/shims' }
       ;(service as any).isolatedEnv = isolatedEnv
@@ -548,7 +552,7 @@ describe('MiseService', () => {
     })
 
     it('throws when mise binary is null', async () => {
-      const service = new MiseService()
+      const service = new BinaryManager()
 
       await expect((service as any).runMise(['which', 'fd'], '/tmp')).rejects.toThrow('mise binary not available')
     })
@@ -563,7 +567,7 @@ describe('MiseService', () => {
     })
 
     it('skips extraction when bundled version matches installed version', async () => {
-      const service = new MiseService()
+      const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
 
       mockFs.existsSync.mockReturnValue(true)
@@ -578,7 +582,7 @@ describe('MiseService', () => {
     })
 
     it('copies binary when bundled version is newer than installed', async () => {
-      const service = new MiseService()
+      const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
 
       mockFs.existsSync.mockReturnValue(true)
@@ -595,7 +599,7 @@ describe('MiseService', () => {
     })
 
     it('copies binary when no installed version exists', async () => {
-      const service = new MiseService()
+      const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
 
       mockFs.readFileSync.mockImplementation((p: string) => {
@@ -616,7 +620,7 @@ describe('MiseService', () => {
 
   describe('loadState validation', () => {
     it('discards malformed tool entries from state file', async () => {
-      const service = new MiseService()
+      const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
 
@@ -645,7 +649,7 @@ describe('MiseService', () => {
 
   describe('reconcile stateSaveError', () => {
     it('populates stateSaveError when saveState throws', async () => {
-      const service = new MiseService()
+      const service = new BinaryManager()
       ;(service as any).miseBin = '/mock/mise'
       ;(service as any).isolatedEnv = {}
 

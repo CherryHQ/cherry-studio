@@ -495,15 +495,15 @@ export enum IpcChannel {
   Agent_GetModels = 'agent:get-models',
   Agent_ListTools = 'agent:list-tools',
 
-  // Mise (tool manager)
-  Mise_Reconcile = 'mise:reconcile',
-  Mise_InstallTool = 'mise:install-tool',
-  Mise_RemoveTool = 'mise:remove-tool',
-  Mise_GetState = 'mise:get-state',
-  Mise_SearchRegistry = 'mise:search-registry',
-  Mise_GetToolDir = 'mise:get-tool-dir',
-  Mise_StateChanged = 'mise:state-changed',
-  Mise_ReconcileFailed = 'mise:reconcile-failed'
+  // BinaryManager (tool manager)
+  Binary_Reconcile = 'binary:reconcile',
+  Binary_InstallTool = 'binary:install-tool',
+  Binary_RemoveTool = 'binary:remove-tool',
+  Binary_GetState = 'binary:get-state',
+  Binary_SearchRegistry = 'binary:search-registry',
+  Binary_GetToolDir = 'binary:get-tool-dir',
+  Binary_StateChanged = 'binary:state-changed',
+  Binary_ReconcileFailed = 'binary:reconcile-failed'
 
   // ──────────────────────────────────────────────────────────────
   // TODO(v2): the following IPC channels are still referenced via

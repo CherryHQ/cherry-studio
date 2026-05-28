@@ -21,7 +21,7 @@ import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes
 import type {
   FileProcessorFeature,
   FileProcessorId,
-  MiseTool,
+  ManagedBinary,
   SelectionActionItem,
   UnifiedPreferenceKeyType,
   UnifiedPreferenceMultipleResultType,
@@ -549,27 +549,27 @@ const api = {
   isBinaryExist: (name: string) => ipcRenderer.invoke(IpcChannel.App_IsBinaryExist, name),
   getBinaryPath: (name: string) => ipcRenderer.invoke(IpcChannel.App_GetBinaryPath, name),
   installOvmsBinary: () => ipcRenderer.invoke(IpcChannel.App_InstallOvmsBinary),
-  // Mise tool manager
-  mise: {
-    reconcile: () => ipcRenderer.invoke(IpcChannel.Mise_Reconcile),
-    installTool: (tool: MiseTool) => ipcRenderer.invoke(IpcChannel.Mise_InstallTool, tool),
-    removeTool: (toolName: string) => ipcRenderer.invoke(IpcChannel.Mise_RemoveTool, toolName),
-    getState: () => ipcRenderer.invoke(IpcChannel.Mise_GetState),
+  // BinaryManager tool manager
+  binaryManager: {
+    reconcile: () => ipcRenderer.invoke(IpcChannel.Binary_Reconcile),
+    installTool: (tool: ManagedBinary) => ipcRenderer.invoke(IpcChannel.Binary_InstallTool, tool),
+    removeTool: (toolName: string) => ipcRenderer.invoke(IpcChannel.Binary_RemoveTool, toolName),
+    getState: () => ipcRenderer.invoke(IpcChannel.Binary_GetState),
     searchRegistry: (query: string): Promise<Array<{ name: string; tool: string }>> =>
-      ipcRenderer.invoke(IpcChannel.Mise_SearchRegistry, query),
-    getToolDir: (toolName: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Mise_GetToolDir, toolName),
+      ipcRenderer.invoke(IpcChannel.Binary_SearchRegistry, query),
+    getToolDir: (toolName: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Binary_GetToolDir, toolName),
     onStateChanged: (callback: (state: any) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, state: any) => callback(state)
-      ipcRenderer.on(IpcChannel.Mise_StateChanged, listener)
+      ipcRenderer.on(IpcChannel.Binary_StateChanged, listener)
       return () => {
-        ipcRenderer.off(IpcChannel.Mise_StateChanged, listener)
+        ipcRenderer.off(IpcChannel.Binary_StateChanged, listener)
       }
     },
     onReconcileFailed: (callback: (failedNames: string) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, names: string) => callback(names)
-      ipcRenderer.on(IpcChannel.Mise_ReconcileFailed, listener)
+      ipcRenderer.on(IpcChannel.Binary_ReconcileFailed, listener)
       return () => {
-        ipcRenderer.off(IpcChannel.Mise_ReconcileFailed, listener)
+        ipcRenderer.off(IpcChannel.Binary_ReconcileFailed, listener)
       }
     }
   },

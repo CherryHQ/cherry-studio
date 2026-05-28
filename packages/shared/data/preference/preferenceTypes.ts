@@ -317,7 +317,7 @@ export type MiniAppRegion = 'CN' | 'Global'
 
 export type MiniAppRegionFilter = 'auto' | MiniAppRegion
 
-export type MiseTool = {
+export type ManagedBinary = {
   name: string
   tool: string
   version?: string
@@ -330,7 +330,7 @@ export interface ToolInstallState {
   installedAt: string
 }
 
-export interface MiseState {
+export interface BinaryState {
   updatedAt: string
   tools: Record<string, ToolInstallState>
 }

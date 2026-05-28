@@ -10,12 +10,12 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isWin } from '@main/core/platform'
 import { getBinaryPath } from '@main/utils/process'
-import type { MiseState, MiseTool, ToolInstallState } from '@shared/data/preference/preferenceTypes'
-import { PREDEFINED_MISE_TOOLS } from '@shared/data/presets/mise-tools'
+import type { BinaryState, ManagedBinary, ToolInstallState } from '@shared/data/preference/preferenceTypes'
+import { PREDEFINED_BINARY_TOOLS } from '@shared/data/presets/binary-tools'
 import { IpcChannel } from '@shared/IpcChannel'
 import { BrowserWindow } from 'electron'
 
-const logger = loggerService.withContext('MiseService')
+const logger = loggerService.withContext('BinaryManager')
 
 const execFileAsync = promisify(execFile)
 
@@ -58,7 +58,7 @@ const RUNTIME_DEPS: Record<string, string> = { npm: 'node@22', pipx: 'python@3.1
 
 const REGISTRY_CACHE_TTL_MS = 10 * 60 * 1000
 
-export function validateMiseTool(tool: MiseTool): void {
+export function validateManagedBinary(tool: ManagedBinary): void {
   if (!tool.name || !TOOL_NAME_RE.test(tool.name)) {
     throw new Error(`Invalid tool name: ${tool.name}`)
   }
@@ -70,9 +70,9 @@ export function validateMiseTool(tool: MiseTool): void {
   }
 }
 
-@Injectable('MiseService')
+@Injectable('BinaryManager')
 @ServicePhase(Phase.Background)
-export class MiseService extends BaseService {
+export class BinaryManager extends BaseService {
   private miseBin: string | null = null
   private isolatedEnv: Record<string, string> | null = null
   private registryCache: Array<{ name: string; tool: string }> | null = null
@@ -91,11 +91,11 @@ export class MiseService extends BaseService {
     this.isolatedEnv = this.buildIsolatedEnv()
 
     const prefService = application.get('PreferenceService')
-    const predefinedNames = new Set(PREDEFINED_MISE_TOOLS.map((t) => t.name))
-    const tools = prefService.get('feature.mise.tools')
+    const predefinedNames = new Set(PREDEFINED_BINARY_TOOLS.map((t) => t.name))
+    const tools = prefService.get('feature.binary.tools')
     const cleaned = tools.filter((t) => !predefinedNames.has(t.name))
     if (cleaned.length < tools.length) {
-      void prefService.set('feature.mise.tools', cleaned)
+      void prefService.set('feature.binary.tools', cleaned)
       logger.info('Cleaned predefined tools from custom tools preference', {
         removed: tools.filter((t) => predefinedNames.has(t.name)).map((t) => t.name)
       })
@@ -106,33 +106,33 @@ export class MiseService extends BaseService {
   }
 
   private registerIpcHandlers() {
-    this.ipcHandle(IpcChannel.Mise_Reconcile, async () => {
-      const tools = application.get('PreferenceService').get('feature.mise.tools')
+    this.ipcHandle(IpcChannel.Binary_Reconcile, async () => {
+      const tools = application.get('PreferenceService').get('feature.binary.tools')
       return this.reconcile(tools)
     })
 
-    this.ipcHandle(IpcChannel.Mise_InstallTool, async (_event, tool: MiseTool) => {
-      validateMiseTool(tool)
+    this.ipcHandle(IpcChannel.Binary_InstallTool, async (_event, tool: ManagedBinary) => {
+      validateManagedBinary(tool)
       return this.installTool(tool)
     })
 
-    this.ipcHandle(IpcChannel.Mise_RemoveTool, async (_event, toolName: string) => {
+    this.ipcHandle(IpcChannel.Binary_RemoveTool, async (_event, toolName: string) => {
       if (!toolName || !TOOL_NAME_RE.test(toolName)) {
         throw new Error(`Invalid tool name: ${toolName}`)
       }
       return this.removeTool(toolName)
     })
 
-    this.ipcHandle(IpcChannel.Mise_GetState, async () => {
+    this.ipcHandle(IpcChannel.Binary_GetState, async () => {
       return this.loadState()
     })
 
-    this.ipcHandle(IpcChannel.Mise_SearchRegistry, async (_event, query: string) => {
+    this.ipcHandle(IpcChannel.Binary_SearchRegistry, async (_event, query: string) => {
       if (typeof query !== 'string') return []
       return this.searchRegistry(query)
     })
 
-    this.ipcHandle(IpcChannel.Mise_GetToolDir, async (_event, toolName: string) => {
+    this.ipcHandle(IpcChannel.Binary_GetToolDir, async (_event, toolName: string) => {
       if (!toolName || !TOOL_NAME_RE.test(toolName)) {
         throw new Error(`Invalid tool name: ${toolName}`)
       }
@@ -210,7 +210,7 @@ export class MiseService extends BaseService {
   // configs (.npmrc, .netrc, etc.). Only public registry installs are supported;
   // private registry auth tokens are not passed through.
   private buildIsolatedEnv(): Record<string, string> {
-    const dataDir = application.getPath('feature.mise.data')
+    const dataDir = application.getPath('feature.binary.data')
     const env: Record<string, string> = {}
 
     for (const key of MISE_PASSTHROUGH_ENV) {
@@ -281,7 +281,7 @@ export class MiseService extends BaseService {
     return next
   }
 
-  private async isMiseToolReady(toolName: string): Promise<boolean> {
+  private async isManagedBinaryReady(toolName: string): Promise<boolean> {
     try {
       await this.runMise(['which', toolName], os.tmpdir())
       return true
@@ -290,7 +290,7 @@ export class MiseService extends BaseService {
     }
   }
 
-  private async installWithMise(tool: MiseTool): Promise<string> {
+  private async installWithMise(tool: ManagedBinary): Promise<string> {
     const version = tool.version || 'latest'
     const backend = tool.tool.split(':')[0]
     const runtime = RUNTIME_DEPS[backend]
@@ -313,8 +313,8 @@ export class MiseService extends BaseService {
     return version
   }
 
-  private loadState(): MiseState {
-    const statePath = application.getPath('feature.mise.state_file')
+  private loadState(): BinaryState {
+    const statePath = application.getPath('feature.binary.state_file')
     try {
       const data = fs.readFileSync(statePath, 'utf-8')
       const parsed = JSON.parse(data)
@@ -347,8 +347,8 @@ export class MiseService extends BaseService {
     }
   }
 
-  private saveState(state: MiseState) {
-    const statePath = application.getPath('feature.mise.state_file')
+  private saveState(state: BinaryState) {
+    const statePath = application.getPath('feature.binary.state_file')
     const dir = path.dirname(statePath)
     fs.mkdirSync(dir, { recursive: true })
     const tmp = statePath + '.tmp'
@@ -357,15 +357,15 @@ export class MiseService extends BaseService {
     this.broadcastState(state)
   }
 
-  private broadcastState(state: MiseState) {
+  private broadcastState(state: BinaryState) {
     for (const win of BrowserWindow.getAllWindows()) {
       if (!win.isDestroyed()) {
-        win.webContents.send(IpcChannel.Mise_StateChanged, state)
+        win.webContents.send(IpcChannel.Binary_StateChanged, state)
       }
     }
   }
 
-  async reconcile(tools: MiseTool[]): Promise<ReconcileResult> {
+  async reconcile(tools: ManagedBinary[]): Promise<ReconcileResult> {
     if (!this.miseBin) {
       return { installed: [], failed: [{ name: '*', error: 'mise binary not available' }], skipped: [] }
     }
@@ -376,7 +376,7 @@ export class MiseService extends BaseService {
 
       for (const tool of tools) {
         try {
-          validateMiseTool(tool)
+          validateManagedBinary(tool)
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err)
           logger.warn('Skipping invalid tool from preferences', { name: tool.name, error: msg })
@@ -385,7 +385,7 @@ export class MiseService extends BaseService {
         }
 
         const existing = state.tools[tool.name]
-        if (existing && existing.tool === tool.tool && (await this.isMiseToolReady(tool.name))) {
+        if (existing && existing.tool === tool.tool && (await this.isManagedBinaryReady(tool.name))) {
           if (!tool.version || existing.version === tool.version) {
             result.skipped.push(tool.name)
             continue
@@ -423,7 +423,7 @@ export class MiseService extends BaseService {
     })
   }
 
-  async installTool(tool: MiseTool): Promise<{ version: string }> {
+  async installTool(tool: ManagedBinary): Promise<{ version: string }> {
     if (!this.miseBin) {
       throw new Error('mise binary not available')
     }
@@ -481,7 +481,7 @@ export class MiseService extends BaseService {
     const names = failed.map((f) => f.name).join(', ')
     for (const win of BrowserWindow.getAllWindows()) {
       if (!win.isDestroyed()) {
-        win.webContents.send(IpcChannel.Mise_ReconcileFailed, names)
+        win.webContents.send(IpcChannel.Binary_ReconcileFailed, names)
       }
     }
   }
