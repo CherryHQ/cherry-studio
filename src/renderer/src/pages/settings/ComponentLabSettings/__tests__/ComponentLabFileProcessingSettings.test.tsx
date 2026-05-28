@@ -100,8 +100,10 @@ describe('ComponentLabFileProcessingSettings', () => {
       configurable: true,
       value: {
         file: {
-          select: selectFileMock,
           ensureExternalEntry: ensureExternalEntryMock
+        },
+        legacyFile: {
+          select: selectFileMock
         },
         fileProcessing: {
           startTask: startTaskMock
