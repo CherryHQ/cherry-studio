@@ -15,6 +15,20 @@
         "size": 1632,
         "contentHash": "7aa285f334acf318b23ef0f1d3126cd5d55c2a47ad0daa360ddd7321dfc6e5c6"
       }
+    },
+    {
+      "filename": "faq-collector",
+      "type": "skill",
+      "metadata": {
+        "sourcePath": "skills/faq-collector",
+        "filename": "faq-collector",
+        "name": "faq-collector",
+        "description": "将 skill 创建过程中常见问题与解法收录到本地 FAQ 知识库。问题解决后自动判断是否收录。也可以在用户说\"收录到 FAQ\"、\"记录这个问题\"、\"add to FAQ\"时手动触发。",
+        "category": "skills",
+        "type": "skill",
+        "size": 1054,
+        "contentHash": "44f7caf4146c5e2d1dcf393059a0a5e49b3adfbffeeee127a910c2fdf3a4dea3"
+      }
     }
   ]
 }

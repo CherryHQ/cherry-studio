@@ -27,6 +27,7 @@
     "env_vars": {}
   },
   "skills": [
-    "skills-manager"
+    "skills-manager",
+    "faq-collector"
   ]
 }
