@@ -8,11 +8,11 @@ import {
 } from '@shared/data/types/knowledge'
 
 import type { IndexableKnowledgeItem } from '../../types/items'
-import { expandDirectoryOwnerToTree, type ExpandedDirectoryNode } from '../../utils/directory'
-import { isContainerKnowledgeItem, isIndexableKnowledgeItem } from '../../utils/items'
-import { expandSitemapOwnerToCreateItems } from '../../utils/sitemap'
+import { isContainerKnowledgeItem, isIndexableKnowledgeItem } from '../items'
+import { expandDirectoryOwnerToTree, type ExpandedDirectoryNode } from './directory'
+import { expandSitemapOwnerToCreateItems } from './sitemap'
 
-const logger = loggerService.withContext('KnowledgeRuntimePrepare')
+const logger = loggerService.withContext('KnowledgePrepare')
 const EMPTY_DIRECTORY_ERROR = 'Directory contains no indexable files'
 const EMPTY_SITEMAP_ERROR = 'Sitemap contains no indexable URLs'
 

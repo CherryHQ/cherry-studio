@@ -22,7 +22,7 @@ const createResult = (
   chunkId
 })
 
-describe('knowledge runtime search utils', () => {
+describe('knowledge search utils', () => {
   it('uses relevance score kind only for vector search', () => {
     expect(getInitialSearchScoreKind({ searchMode: 'default' })).toBe('relevance')
     expect(getInitialSearchScoreKind({ searchMode: 'bm25' })).toBe('ranking')

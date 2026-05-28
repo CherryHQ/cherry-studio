@@ -2,7 +2,6 @@ import { groupTable } from '@data/db/schemas/group'
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
-import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
@@ -16,19 +15,28 @@ import { setupTestDatabase } from '@test-helpers/db'
 import { eq, isNull } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { runtimeAddItemsMock, runtimeCreateBaseMock, runtimeReindexItemsMock } = vi.hoisted(() => ({
-  runtimeAddItemsMock: vi.fn(),
-  runtimeCreateBaseMock: vi.fn(),
-  runtimeReindexItemsMock: vi.fn()
+const { createStoreMock, deleteStoreMock, enqueueMock, listMock, registerHandlerMock } = vi.hoisted(() => ({
+  createStoreMock: vi.fn(),
+  deleteStoreMock: vi.fn(),
+  enqueueMock: vi.fn(),
+  listMock: vi.fn(),
+  registerHandlerMock: vi.fn()
 }))
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
   return mockApplicationFactory({
-    KnowledgeRuntimeService: {
-      addItems: runtimeAddItemsMock,
-      createBase: runtimeCreateBaseMock,
-      reindexItems: runtimeReindexItemsMock
+    JobManager: {
+      cancel: vi.fn(),
+      cancelMany: vi.fn(),
+      enqueue: enqueueMock,
+      list: listMock,
+      registerHandler: registerHandlerMock
+    },
+    KnowledgeVectorStoreService: {
+      createStore: createStoreMock,
+      deleteStore: deleteStoreMock,
+      getStoreIfExists: vi.fn()
     }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
@@ -56,13 +64,10 @@ describe('KnowledgeOrchestrationService integration', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
-    runtimeCreateBaseMock.mockResolvedValue(undefined)
-    runtimeReindexItemsMock.mockResolvedValue(undefined)
-    runtimeAddItemsMock.mockImplementation(async (baseId, inputs) => {
-      for (const input of inputs) {
-        await knowledgeItemService.create(baseId, input)
-      }
-    })
+    createStoreMock.mockResolvedValue({})
+    deleteStoreMock.mockResolvedValue(undefined)
+    enqueueMock.mockResolvedValue({ id: 'job-1', snapshot: {}, finished: Promise.resolve({}) })
+    listMock.mockResolvedValue([])
 
     const [providerOrderKey, embeddingModelOrderKey] = generateOrderKeySequence(2)
     await dbh.db.insert(userProviderTable).values({
@@ -126,7 +131,7 @@ describe('KnowledgeOrchestrationService integration', () => {
     ])
   })
 
-  it('restores a failed base into a new completed base and reindexes the restored root', async () => {
+  it('restores a failed base into a new base and enqueues indexing for restored roots', async () => {
     const service = new KnowledgeOrchestrationService()
 
     const restoredBase = await service.restoreBase({
@@ -145,10 +150,7 @@ describe('KnowledgeOrchestrationService integration', () => {
       error: null
     })
     expect(restoredBase.id).not.toBe(SOURCE_BASE_ID)
-    expect(runtimeCreateBaseMock).toHaveBeenCalledWith(restoredBase.id)
-    expect(runtimeAddItemsMock).toHaveBeenCalledWith(restoredBase.id, [
-      { type: 'note', data: { source: 'source-root', content: 'root content' } }
-    ])
+    expect(createStoreMock).toHaveBeenCalledWith(expect.objectContaining({ id: restoredBase.id }))
 
     const [sourceBase] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, SOURCE_BASE_ID))
     expect(sourceBase).toMatchObject({
@@ -169,8 +171,20 @@ describe('KnowledgeOrchestrationService integration', () => {
       baseId: restoredBase.id,
       groupId: null,
       type: 'note',
-      data: { source: 'source-root', content: 'root content' }
+      data: { source: 'source-root', content: 'root content' },
+      status: 'processing',
+      error: null
     })
+
+    expect(enqueueMock).toHaveBeenCalledWith(
+      'knowledge.index-documents',
+      { baseId: restoredBase.id, itemId: restoredItems[0].id },
+      {
+        idempotencyKey: `knowledge:${restoredBase.id}:${restoredItems[0].id}:index`,
+        queue: `base.${restoredBase.id}`,
+        parentId: undefined
+      }
+    )
 
     const sourceChildRows = await dbh.db
       .select()
@@ -178,27 +192,10 @@ describe('KnowledgeOrchestrationService integration', () => {
       .where(eq(knowledgeItemTable.id, SOURCE_CHILD_ITEM_ID))
     expect(sourceChildRows).toHaveLength(1)
 
-    const restoredRootItems = await dbh.db
-      .select()
-      .from(knowledgeItemTable)
-      .where(eq(knowledgeItemTable.baseId, restoredBase.id))
-    const restoredRoot = restoredRootItems.find((item) => item.groupId === null)
-    expect(restoredRoot).toBeDefined()
-
-    await service.reindexItems(restoredBase.id, [restoredRoot!.id])
-
-    expect(runtimeReindexItemsMock).toHaveBeenCalledWith(
-      restoredBase.id,
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: restoredRoot!.id,
-          baseId: restoredBase.id,
-          groupId: null,
-          data: { source: 'source-root', content: 'root content' }
-        })
-      ])
-    )
-    expect(runtimeReindexItemsMock).not.toHaveBeenCalledWith(SOURCE_BASE_ID, expect.anything())
+    await expect(service.reindexItems(restoredBase.id, [restoredItems[0].id])).rejects.toMatchObject({
+      message: 'Cannot reindex knowledge item until the entire subtree is completed or failed'
+    })
+    expect(enqueueMock).toHaveBeenCalledTimes(1)
 
     const ungroupedRestoredItems = await dbh.db
       .select()

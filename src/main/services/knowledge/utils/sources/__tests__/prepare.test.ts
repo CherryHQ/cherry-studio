@@ -5,14 +5,14 @@ const {
   expandDirectoryOwnerToTreeMock,
   expandSitemapOwnerToCreateItemsMock,
   knowledgeItemCreateMock,
-  loggerWarnMock,
-  knowledgeItemUpdateStatusMock
+  knowledgeItemUpdateStatusMock,
+  loggerWarnMock
 } = vi.hoisted(() => ({
   expandDirectoryOwnerToTreeMock: vi.fn(),
   expandSitemapOwnerToCreateItemsMock: vi.fn(),
   knowledgeItemCreateMock: vi.fn(),
-  loggerWarnMock: vi.fn(),
-  knowledgeItemUpdateStatusMock: vi.fn()
+  knowledgeItemUpdateStatusMock: vi.fn(),
+  loggerWarnMock: vi.fn()
 }))
 
 vi.mock('@data/services/KnowledgeItemService', () => ({
@@ -30,11 +30,11 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('../../../utils/directory', () => ({
+vi.mock('../directory', () => ({
   expandDirectoryOwnerToTree: expandDirectoryOwnerToTreeMock
 }))
 
-vi.mock('../../../utils/sitemap', () => ({
+vi.mock('../sitemap', () => ({
   expandSitemapOwnerToCreateItems: expandSitemapOwnerToCreateItemsMock
 }))
 
@@ -46,12 +46,11 @@ const baseId = 'kb-1'
 
 function createPrepareOptions(item: KnowledgeItem, onCreatedItem = vi.fn()): PrepareKnowledgeItemOptions {
   const signal = new AbortController().signal
-  const runMutation: PrepareKnowledgeItemOptions['runMutation'] = async (task) => await task()
   return {
     baseId,
     item,
     onCreatedItem,
-    runMutation,
+    runMutation: async (task) => await task(),
     signal
   }
 }

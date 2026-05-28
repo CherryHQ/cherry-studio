@@ -170,11 +170,15 @@ const KnowledgeItemDeleteMenuItem = ({
 }
 
 const KnowledgeItemRowMenuItems = ({
+  canReindex,
+  canViewChunks,
   onDelete,
   onPreviewSource,
   onReindex,
   onViewChunks
 }: {
+  canReindex: boolean
+  canViewChunks: boolean
   onDelete: (event: MouseEvent<HTMLButtonElement>) => void
   onPreviewSource: (event: MouseEvent<HTMLButtonElement>) => void
   onReindex: (event: MouseEvent<HTMLButtonElement>) => void
@@ -189,16 +193,20 @@ const KnowledgeItemRowMenuItems = ({
         label={t('knowledge.data_source.actions.preview_source')}
         onClick={onPreviewSource}
       />
-      <KnowledgeItemActionMenuItem
-        icon={<Eye />}
-        label={t('knowledge.data_source.actions.view_chunks')}
-        onClick={onViewChunks}
-      />
-      <KnowledgeItemActionMenuItem
-        icon={<RefreshCw />}
-        label={t('knowledge.data_source.actions.reindex')}
-        onClick={onReindex}
-      />
+      {canViewChunks ? (
+        <KnowledgeItemActionMenuItem
+          icon={<Eye />}
+          label={t('knowledge.data_source.actions.view_chunks')}
+          onClick={onViewChunks}
+        />
+      ) : null}
+      {canReindex ? (
+        <KnowledgeItemActionMenuItem
+          icon={<RefreshCw />}
+          label={t('knowledge.data_source.actions.reindex')}
+          onClick={onReindex}
+        />
+      ) : null}
       <KnowledgeItemDeleteMenuItem
         icon={<Trash2 />}
         label={t('knowledge.data_source.actions.delete')}
@@ -209,11 +217,15 @@ const KnowledgeItemRowMenuItems = ({
 }
 
 const KnowledgeItemRowMoreMenu = ({
+  canReindex,
+  canViewChunks,
   onDelete,
   onPreviewSource,
   onReindex,
   onViewChunks
 }: {
+  canReindex: boolean
+  canViewChunks: boolean
   onDelete: () => void | Promise<unknown>
   onPreviewSource: () => void | Promise<unknown>
   onReindex: () => void | Promise<unknown>
@@ -225,7 +237,9 @@ const KnowledgeItemRowMoreMenu = ({
   const handlePreviewSource = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
     setIsOpen(false)
-    void onPreviewSource()
+    void Promise.resolve(onPreviewSource()).catch((error) => {
+      window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.preview.failed')))
+    })
   }
 
   const handleViewChunks = (event: MouseEvent<HTMLButtonElement>) => {
@@ -237,17 +251,17 @@ const KnowledgeItemRowMoreMenu = ({
   const handleReindex = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
     setIsOpen(false)
-    void Promise.resolve()
-      .then(onReindex)
-      .catch((error) => {
-        window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.reindex_failed')))
-      })
+    void Promise.resolve(onReindex()).catch((error) => {
+      window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.reindex_failed')))
+    })
   }
 
   const handleDelete = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
     setIsOpen(false)
-    void onDelete()
+    void Promise.resolve(onDelete()).catch((error) => {
+      window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.delete_failed')))
+    })
   }
 
   return (
@@ -265,6 +279,8 @@ const KnowledgeItemRowMoreMenu = ({
         onOpenAutoFocus={(event) => event.preventDefault()}
         onCloseAutoFocus={(event) => event.preventDefault()}>
         <KnowledgeItemRowMenuItems
+          canReindex={canReindex}
+          canViewChunks={canViewChunks}
           onDelete={handleDelete}
           onPreviewSource={handlePreviewSource}
           onReindex={handleReindex}
@@ -292,15 +308,22 @@ const KnowledgeItemRow = ({
   })
   const { icon, metaParts, status, suffix, title } = toKnowledgeItemRowViewModel(item, language, fileEntry)
   const failureReason = item.status === 'failed' ? item.error : null
+  const canReindex = item.status === 'completed' || item.status === 'failed'
+  const canViewChunks = item.status === 'completed'
 
   return (
     <div
-      className="group/row relative flex h-11 cursor-pointer items-center gap-2.5 px-2.5 py-1.5 transition-colors hover:bg-accent/25"
-      onClick={onClick}>
+      className={cn(
+        'group/row relative flex h-11 items-center gap-2.5 px-2.5 py-1.5 transition-colors',
+        canViewChunks ? 'cursor-pointer hover:bg-accent/25' : ''
+      )}
+      onClick={canViewChunks ? onClick : undefined}>
       <KnowledgeItemRowIcon {...icon} />
       <KnowledgeItemRowContent id={item.id} title={title} suffix={suffix} metaParts={metaParts} />
       <KnowledgeItemRowStatus status={status} failureReason={failureReason} />
       <KnowledgeItemRowMoreMenu
+        canReindex={canReindex}
+        canViewChunks={canViewChunks}
         onDelete={onDelete}
         onPreviewSource={onPreviewSource}
         onReindex={onReindex}
