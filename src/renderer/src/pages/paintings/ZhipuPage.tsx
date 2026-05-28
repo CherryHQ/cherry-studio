@@ -27,7 +27,8 @@ import {
   IMAGE_SIZES,
   QUALITY_OPTIONS,
   TOP_UP_URL,
-  ZHIPU_PAINTING_MODELS
+  ZHIPU_PAINTING_MODELS,
+  ZHIPU_QUALITY_MODELS
 } from './providers/zhipu/config'
 import { generateZhipuImages } from './providers/zhipu/provider'
 import { checkProviderEnabled } from './utils'
@@ -57,9 +58,9 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [painting, setPainting] = useState<ZhipuPainting>(() => toZhipuPainting(zhipu_paintings?.[0]))
   const { t } = useTranslation()
 
-  // 确保painting使用智谱的cogview系列模型
+  // 确保 painting 使用智谱绘图支持的模型
   useEffect(() => {
-    if (painting && !painting.model?.startsWith('cogview')) {
+    if (painting && !ZHIPU_PAINTING_MODELS.some((model) => model.id === painting.model)) {
       const updatedPainting = { ...painting, model: 'cogview-3-flash' }
       setPainting(updatedPainting)
       updatePainting('zhipu_paintings', updatedPainting)
@@ -330,7 +331,7 @@ const ZhipuPage: FC<{ Options: string[] }> = ({ Options }) => {
             }))}
           />
 
-          {painting.model === 'cogview-4-250304' && (
+          {ZHIPU_QUALITY_MODELS.includes(painting.model) && (
             <>
               <SettingTitle className="mt-3.75 mb-1.25">{t('paintings.quality')}</SettingTitle>
               <RadioGroup value={painting.quality} onValueChange={onSelectQuality} className="flex gap-3">

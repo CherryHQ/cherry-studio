@@ -86,6 +86,14 @@ export const PPIO_MODELS: PpioModel[] = [
     description: '支持自定义 LoRA 权重的高速图像生成'
   },
   {
+    id: 'glm-image',
+    name: 'GLM Image',
+    endpoint: '/v3/async/glm-image',
+    group: '智谱 GLM',
+    mode: 'ppio_draw',
+    description: 'GLM 图像生成模型'
+  },
+  {
     id: 'seedream-4.5-draw',
     name: 'Seedream 4.5',
     endpoint: '/v3/seedream-4.5',
@@ -103,6 +111,15 @@ export const PPIO_MODELS: PpioModel[] = [
     isSync: true,
     description: '支持4K分辨率的图像生成'
   },
+  {
+    id: 'seedream-5.0-lite-draw',
+    name: 'Seedream 5.0 Lite',
+    endpoint: '/v3/seedream-5.0-lite',
+    group: 'Seedream',
+    mode: 'ppio_draw',
+    isSync: true,
+    description: '轻量级图像生成模型'
+  },
 
   // ===== Edit 模式 (图像编辑) =====
   {
@@ -118,6 +135,15 @@ export const PPIO_MODELS: PpioModel[] = [
     id: 'seedream-4.0-edit',
     name: 'Seedream 4.0 图生图',
     endpoint: '/v3/seedream-4.0',
+    group: 'Seedream',
+    mode: 'ppio_edit',
+    isSync: true,
+    description: '基于参考图生成新图像'
+  },
+  {
+    id: 'seedream-5.0-lite-edit',
+    name: 'Seedream 5.0 Lite 图生图',
+    endpoint: '/v3/seedream-5.0-lite',
     group: 'Seedream',
     mode: 'ppio_edit',
     isSync: true,
@@ -187,12 +213,23 @@ export const COMMON_SIZE_OPTIONS = [
   { label: '1024×768', value: '1024x768' }
 ]
 
+// GLM Image 推荐尺寸选项
+export const GLM_IMAGE_SIZE_OPTIONS = [
+  { label: '1280×1280', value: '1280x1280' },
+  { label: '1568×1056', value: '1568x1056' },
+  { label: '1056×1568', value: '1056x1568' },
+  { label: '1472×1088', value: '1472x1088' },
+  { label: '1088×1472', value: '1088x1472' },
+  { label: '1728×960', value: '1728x960' },
+  { label: '960×1728', value: '960x1728' }
+]
+
 // Seedream 尺寸选项
 export const SEEDREAM_SIZE_OPTIONS = [
-  { label: '1K', value: '1K' },
-  { label: '2K', value: '2K' },
-  { label: '4K', value: '4K' },
   { label: '2048×2048', value: '2048x2048' },
+  { label: '2K', value: '2k' },
+  { label: '3K', value: '3k' },
+  { label: '4K', value: '4k' },
   { label: '2304×1728 (4:3)', value: '2304x1728' },
   { label: '1728×2304 (3:4)', value: '1728x2304' },
   { label: '2560×1440 (16:9)', value: '2560x1440' },
@@ -228,8 +265,10 @@ const MODELS_WITH_WATERMARK = [
   'jimeng-txt2img-v3.0',
   'hunyuan-image-3',
   'qwen-image-txt2img',
+  'glm-image',
   'seedream-4.5-draw',
-  'seedream-4.0-draw'
+  'seedream-4.0-draw',
+  'seedream-5.0-lite-draw'
 ]
 
 // Draw 模式的配置
@@ -260,6 +299,15 @@ export const createDrawModeConfig = (): PpioConfigItem[] => [
     options: COMMON_SIZE_OPTIONS,
     condition: (painting) =>
       ['hunyuan-image-3', 'qwen-image-txt2img', 'z-image-turbo', 'z-image-turbo-lora'].includes(painting.model || '')
+  },
+  // GLM Image 推荐尺寸选项
+  {
+    type: 'select',
+    key: 'size',
+    title: 'paintings.image.size',
+    options: GLM_IMAGE_SIZE_OPTIONS,
+    initialValue: '1280x1280',
+    condition: (painting) => painting.model === 'glm-image'
   },
   // Seedream 尺寸选项
   {
@@ -367,7 +415,9 @@ export const createEditModeConfig = (): PpioConfigItem[] => [
     tooltip: 'paintings.ppio.watermark_tip',
     initialValue: false,
     condition: (painting) =>
-      ['seedream-4.5-edit', 'seedream-4.0-edit', 'qwen-image-edit'].includes(painting.model || '')
+      ['seedream-4.5-edit', 'seedream-4.0-edit', 'seedream-5.0-lite-edit', 'qwen-image-edit'].includes(
+        painting.model || ''
+      )
   }
 ]
 

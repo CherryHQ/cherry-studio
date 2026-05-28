@@ -55,14 +55,50 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   const filteredPaintings = useMemo(() => paintings[mode] || [], [paintings, mode])
 
-  const getDefaultPainting = useCallback((currentMode: PpioMode): PpioPainting => {
-    const models = getModelsByMode(currentMode)
+  const getSizeOptions = useCallback((currentMode: PpioMode, modelId: string) => {
+    const sizeConfig = modeConfigs[currentMode].find(
+      (item) => item.key === 'size' && (!item.condition || item.condition({ ...DEFAULT_PPIO_PAINTING, model: modelId }))
+    )
+
     return {
-      ...DEFAULT_PPIO_PAINTING,
-      model: models[0]?.id || DEFAULT_PPIO_PAINTING.model,
-      id: uuid()
+      defaultSize: (sizeConfig?.initialValue ?? sizeConfig?.options?.[0]?.value) as string | undefined,
+      values: sizeConfig?.options?.map((option) => option.value)
     }
   }, [])
+
+  const getDefaultSize = useCallback(
+    (currentMode: PpioMode, modelId: string) => {
+      return getSizeOptions(currentMode, modelId).defaultSize
+    },
+    [getSizeOptions]
+  )
+
+  const isValidSize = useCallback(
+    (currentMode: PpioMode, modelId: string | undefined, size: string | undefined) => {
+      if (!modelId || !size) {
+        return true
+      }
+
+      const sizeValues = getSizeOptions(currentMode, modelId).values
+      return !sizeValues || sizeValues.includes(size)
+    },
+    [getSizeOptions]
+  )
+
+  const getDefaultPainting = useCallback(
+    (currentMode: PpioMode): PpioPainting => {
+      const models = getModelsByMode(currentMode)
+      const model = models[0]?.id || DEFAULT_PPIO_PAINTING.model || ''
+
+      return {
+        ...DEFAULT_PPIO_PAINTING,
+        model,
+        size: getDefaultSize(currentMode, model) || DEFAULT_PPIO_PAINTING.size,
+        id: uuid()
+      }
+    },
+    [getDefaultSize]
+  )
 
   const [painting, setPainting] = useState<PpioPainting>(filteredPaintings[0] || getDefaultPainting(mode))
   const { currentImageIndex, nextImage, prevImage, resetImageIndex } = usePaintingImageNavigation(
@@ -111,8 +147,19 @@ const PpioPage: FC<{ Options: string[] }> = ({ Options }) => {
     [painting, updatePainting, mode]
   )
 
+  useEffect(() => {
+    if (!isValidSize(mode, painting.model, painting.size)) {
+      const size = getDefaultSize(mode, painting.model || '')
+      if (size) {
+        updatePaintingState({ size })
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, painting.model, painting.size, getDefaultSize, isValidSize])
+
   const onSelectModel = (modelId: string) => {
-    updatePaintingState({ model: modelId })
+    const size = getDefaultSize(mode, modelId)
+    updatePaintingState(size ? { model: modelId, size } : { model: modelId })
   }
 
   const onSelectPainting = (selectedPainting: PpioPainting) => {

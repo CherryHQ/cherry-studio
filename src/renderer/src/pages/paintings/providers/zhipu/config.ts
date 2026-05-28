@@ -6,9 +6,21 @@ export const TOP_UP_URL = 'https://zhipuaishengchan.datasink.sensorsdata.cn/t/iv
 
 export const ZHIPU_PAINTING_MODELS: Model[] = [
   {
+    id: 'glm-image',
+    provider: 'zhipu',
+    name: 'GLM Image',
+    group: 'GLM'
+  },
+  {
     id: 'cogview-3-flash',
     provider: 'zhipu',
     name: 'CogView-3-Flash',
+    group: 'CogView'
+  },
+  {
+    id: 'cogview-4',
+    provider: 'zhipu',
+    name: 'CogView-4',
     group: 'CogView'
   },
   {
@@ -18,6 +30,8 @@ export const ZHIPU_PAINTING_MODELS: Model[] = [
     group: 'CogView'
   }
 ]
+
+export const ZHIPU_QUALITY_MODELS = ['cogview-4', 'cogview-4-250304']
 
 export const DEFAULT_PAINTING = {
   id: uuid(),

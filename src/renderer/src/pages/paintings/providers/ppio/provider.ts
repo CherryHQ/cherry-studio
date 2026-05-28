@@ -163,12 +163,17 @@ class PpioProvider {
       case 'z-image-turbo-lora':
         return this.buildZImageLoraParams(painting)
 
+      case 'glm-image':
+        return this.buildGlmImageParams(painting)
+
       case 'seedream-4.5-draw':
       case 'seedream-4.0-draw':
+      case 'seedream-5.0-lite-draw':
         return this.buildSeedreamDrawParams(painting)
 
       case 'seedream-4.5-edit':
       case 'seedream-4.0-edit':
+      case 'seedream-5.0-lite-edit':
         return this.buildSeedreamEditParams(painting)
 
       case 'image-upscaler':
@@ -255,10 +260,41 @@ class PpioProvider {
     }
   }
 
+  private buildGlmImageParams(painting: PpioPainting): Record<string, unknown> {
+    return {
+      prompt: painting.prompt,
+      size: this.resolveGlmImageSize(painting.size),
+      watermark_enabled: painting.addWatermark ?? true
+    }
+  }
+
+  private resolveGlmImageSize(size?: string): string {
+    const fallbackSize = '1280x1280'
+    if (!size) {
+      return fallbackSize
+    }
+
+    const [width, height] = size.split('x').map(Number)
+    if (!width || !height) {
+      return fallbackSize
+    }
+
+    const isValid =
+      width >= 1024 &&
+      width <= 2048 &&
+      height >= 1024 &&
+      height <= 2048 &&
+      width % 32 === 0 &&
+      height % 32 === 0 &&
+      width * height <= 4194304
+
+    return isValid ? size : fallbackSize
+  }
+
   private buildSeedreamDrawParams(painting: PpioPainting): Record<string, unknown> {
     return {
       prompt: painting.prompt,
-      size: painting.size || '2048x2048',
+      size: this.resolveSeedreamSize(painting.size),
       watermark: painting.addWatermark ?? true,
       sequential_image_generation: 'disabled'
     }
@@ -268,10 +304,22 @@ class PpioProvider {
     return {
       prompt: painting.prompt,
       image: painting.imageFile ? [painting.imageFile] : [],
-      size: painting.size || '2048x2048',
+      size: this.resolveSeedreamSize(painting.size),
       watermark: painting.addWatermark ?? true,
       sequential_image_generation: 'disabled'
     }
+  }
+
+  private resolveSeedreamSize(size?: string): string {
+    if (size === '1K') {
+      return '2048x2048'
+    }
+
+    if (size === '2K' || size === '3K' || size === '4K') {
+      return size.toLowerCase()
+    }
+
+    return size || '2048x2048'
   }
 
   private buildUpscalerParams(painting: PpioPainting): Record<string, unknown> {

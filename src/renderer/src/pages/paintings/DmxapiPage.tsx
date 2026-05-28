@@ -45,6 +45,8 @@ type DmxapiModelOptions = Record<string, DMXApiModelData[]>
 const parseImageSizeLimit = (value: DMXApiModelData['min_image_size'], fallback: number) =>
   parseInt(String(value ?? fallback), 10)
 
+const getDefaultImageSize = (model?: DMXApiModelData) => model?.image_sizes?.[0]?.value || ''
+
 const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const { dmxapi_paintings, addPainting, removePainting, updatePainting } = usePaintings()
   const [painting, setPainting] = useState<DmxapiPainting>(dmxapi_paintings?.[0] || DEFAULT_PAINTING)
@@ -145,7 +147,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
         const firstModel = modelGroups[provider][0]
         model = firstModel.id
         priceModel = firstModel.price
-        image_size = firstModel.image_sizes[0].value
+        image_size = getDefaultImageSize(firstModel)
         extend_params = firstModel.extend_params ?? {}
         break
       }
@@ -197,7 +199,7 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       updatePaintingState({
         model: modelId,
         priceModel: model.price,
-        image_size: model.image_sizes[0].value,
+        image_size: getDefaultImageSize(model),
         extend_params: model.extend_params
       })
     }
@@ -586,25 +588,38 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
       let priceModel = ''
       for (const provider of Object.keys(modelGroups)) {
         if (modelGroups[provider] && modelGroups[provider].length > 0) {
-          firstModel = modelGroups[provider][0].id
-          priceModel = modelGroups[provider][0].price
+          const model = modelGroups[provider][0]
+          firstModel = model.id
+          priceModel = model.price
           break
         }
       }
       if (firstModel) {
-        updatePaintingState({ model: firstModel, priceModel: priceModel })
+        const model = allModels.find((m) => m.id === firstModel)
+        updatePaintingState({ model: firstModel, priceModel: priceModel, image_size: getDefaultImageSize(model) })
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoadingModels, dynamicModelGroups]) // 依赖模型加载状态
 
-  // 当模型切换时，检查是否支持自定义尺寸
+  // 当模型切换时，检查是否支持自定义尺寸，并保证尺寸值属于当前模型
   useEffect(() => {
     const currentModel = allModels.find((m) => m.id === painting.model)
     if (currentModel && !currentModel.is_custom_size && isCustomSize) {
       setIsCustomSize(false)
     }
-  }, [painting.model, allModels, isCustomSize])
+
+    if (!currentModel || isCustomSize) {
+      return
+    }
+
+    const hasCurrentSize = currentModel.image_sizes?.some((size) => size.value === painting.image_size)
+    const defaultImageSize = getDefaultImageSize(currentModel)
+    if (defaultImageSize && !hasCurrentSize) {
+      updatePaintingState({ image_size: defaultImageSize, aspect_ratio: currentModel.image_sizes[0]?.label })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [painting.model, painting.image_size, allModels, isCustomSize])
 
   return (
     <PaintingPageShell
