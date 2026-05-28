@@ -77,7 +77,18 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
       return
     }
 
-    const targetPainting = await recordToPaintingData(targetRecord)
+    // `recordToPaintingData` is the DB→draft hydrator — the DB row stores
+    // only the frozen receipt (prompt + files), not the live form draft
+    // (mode / params). Round-tripping through it would silently drop every
+    // sidebar value the user picked. Restore the form-only fields from the
+    // pre-persist input so canonicalGenerate sees the params bag.
+    const persistedPainting = await recordToPaintingData(targetRecord)
+    const targetPainting: PaintingData = {
+      ...persistedPainting,
+      mode: targetPaintingInput.mode,
+      params: targetPaintingInput.params,
+      inputFiles: targetPaintingInput.inputFiles ?? persistedPainting.inputFiles
+    }
     const generationState: PaintingGenerationState = {
       generationStatus: 'running',
       generationTaskId: null,
