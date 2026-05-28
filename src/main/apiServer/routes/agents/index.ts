@@ -272,6 +272,18 @@ const agentsRouter = express.Router()
  *           type: string
  *           minLength: 1
  *           description: Message content
+ *         images:
+ *           type: array
+ *           items:
+ *             type: object
+ *             properties:
+ *               data:
+ *                 type: string
+ *                 description: Base64 encoded image data
+ *               media_type:
+ *                 type: string
+ *                 description: Image MIME type (e.g., image/png, image/jpeg)
+ *           description: Optional array of images to include with the message
  *       required:
  *         - content
  *

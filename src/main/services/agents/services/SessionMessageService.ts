@@ -193,7 +193,7 @@ export class SessionMessageService extends BaseService {
         effort: req.effort,
         thinking: req.thinking
       },
-      undefined
+      req.images
     )
     const accumulator = new TextStreamAccumulator()
 
