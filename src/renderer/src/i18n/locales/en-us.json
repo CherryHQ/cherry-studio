@@ -3900,6 +3900,8 @@
     "seed_random": "Random",
     "seed_tip": "The same seed and prompt can produce similar images",
     "select_model": "Select Model",
+    "style_type": "Style",
+    "style_type_tip": "Image generation style",
     "text_desc_required": "Please enter image description first",
     "title": "Images",
     "top_up": "Top up ",

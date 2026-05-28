@@ -1799,6 +1799,7 @@
     "reset": "Zurücksetzen",
     "retry": "Wiederholen",
     "save": "Speichern",
+    "save_failed": "[to be translated]:Save failed",
     "saved": "Gespeichert",
     "search": "Suchen",
     "select": "Auswählen",
@@ -3762,6 +3763,9 @@
       },
       "new": {
         "image": "Neues Bild"
+      },
+      "select": {
+        "image": "[to be translated]:Select Image"
       }
     },
     "custom_size": "Benutzerdefinierte Größe",
@@ -3896,6 +3900,8 @@
     "seed_random": "Zufällig",
     "seed_tip": "Gleicher Seed und Prompt können ähnliche Bilder generieren",
     "select_model": "Modell auswählen",
+    "style_type": "[to be translated]:Style",
+    "style_type_tip": "[to be translated]:Image generation style",
     "text_desc_required": "Bitte geben Sie zuerst eine Bildbeschreibung ein",
     "title": "Bilder",
     "top_up": "Aufladen",
@@ -7041,7 +7047,8 @@
         "too_large": "Datei zu groß",
         "unknown": "Dateiinhalt lesen fehlgeschlagen"
       },
-      "reading": "Dateiinhalt wird gelesen..."
+      "reading": "Dateiinhalt wird gelesen...",
+      "upload": "[to be translated]:Drop or click to upload image/document"
     },
     "history": {
       "back": "[to be translated]:Back to list",

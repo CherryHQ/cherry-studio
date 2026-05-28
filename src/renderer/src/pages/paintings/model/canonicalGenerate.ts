@@ -44,6 +44,7 @@ const AI_SDK_NATIVE_KEYS = new Set([
   'quality',
   'background',
   'moderation',
+  'style',
   'inputImages'
 ])
 

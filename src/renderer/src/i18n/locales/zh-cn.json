@@ -3900,6 +3900,8 @@
     "seed_random": "随机",
     "seed_tip": "相同的种子和提示词可以生成相似的图片",
     "select_model": "选择模型",
+    "style_type": "风格",
+    "style_type_tip": "图像生成风格",
     "text_desc_required": "请先输入图片描述",
     "title": "图片",
     "top_up": "充值",

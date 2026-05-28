@@ -612,6 +612,8 @@ export type GenerateImageParams = {
   background?: string
   /** OpenAI image-body field (e.g. 'low'/'auto') */
   moderation?: string
+  /** OpenAI image-body field — DALL-E 3 only ('vivid' / 'natural') */
+  style?: string
   /**
    * Extra AI SDK `providerOptions` merged into the built map, keyed by the
    * resolved provider id. Carries provider-specific params (and non-JSON

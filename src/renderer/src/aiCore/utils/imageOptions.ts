@@ -20,7 +20,7 @@ export type ImageOptionParams = Partial<
     | 'aspectRatio'
     | 'imageSize'
   >
-> & { background?: string; moderation?: string }
+> & { background?: string; moderation?: string; style?: string }
 
 /**
  * Normalize the painting form's `ASPECT_X_Y` enum (or already-normalized
@@ -65,6 +65,7 @@ export function buildImageProviderOptions(
     quality,
     background,
     moderation,
+    style,
     aspectRatio,
     imageSize
   } = params
@@ -96,7 +97,7 @@ export function buildImageProviderOptions(
     case 'cherryin':
     case 'newapi':
     case 'aihubmix': {
-      const mapped = define({ quality, background, moderation })
+      const mapped = define({ quality, background, moderation, style })
       return Object.keys(mapped).length ? { openai: mapped, [rawProviderId]: mapped } : {}
     }
 
