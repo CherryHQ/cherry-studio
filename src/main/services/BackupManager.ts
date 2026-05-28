@@ -249,7 +249,7 @@ class BackupManager {
       const archive = archiver('zip', {
         zlib: { level: 1 }, // Use lowest compression level for speed (same as legacy backup)
         zip64: true
-      })
+      } as NonNullable<Parameters<typeof archiver>[1]>)
 
       await new Promise<void>((resolve, reject) => {
         output.on('close', () => resolve())
@@ -261,7 +261,7 @@ class BackupManager {
         })
         archive.pipe(output)
         archive.directory(this.tempDir, false)
-        archive.finalize()
+        void archive.finalize()
       })
 
       // Clean up temp directory
@@ -347,7 +347,7 @@ class BackupManager {
       const archive = archiver('zip', {
         zlib: { level: 1 }, // Use lowest compression level for speed
         zip64: true // Enable ZIP64 support for large files
-      })
+      } as NonNullable<Parameters<typeof archiver>[1]>)
 
       let lastProgress = 50
       let totalEntries = 0
@@ -421,7 +421,7 @@ class BackupManager {
         archive.directory(this.tempDir, false)
 
         // Finalize compression
-        archive.finalize()
+        void archive.finalize()
       })
 
       // Clean up temp directory

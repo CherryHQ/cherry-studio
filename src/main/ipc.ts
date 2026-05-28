@@ -391,7 +391,7 @@ export async function registerIpc() {
     win && win.webContents.toggleDevTools()
   })
 
-  // backup
+  // Legacy v1 backup IPC — do not add new handlers here; use BackupService (BackupV2_*) instead.
   ipcMain.handle(IpcChannel.Backup_Backup, backupManager.backup.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_Restore, backupManager.restore.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_BackupToWebdav, backupManager.backupToWebdav.bind(backupManager))
