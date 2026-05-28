@@ -123,8 +123,27 @@ export default class SearxngProvider extends BaseWebSearchProvider {
 
       // Fetch content for each URL concurrently
       const fetchPromises = validItems.map(async (item) => {
-        // Logger.log(`Fetching content for ${item.url}...`)
-        return await fetchWebContent(item.url, 'markdown', this.provider.usingBrowser)
+        // Create timeout for each URL fetch
+        const timeoutMs = this.provider.timeout || 10000 // Default 10 seconds
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
+
+        try {
+          // Logger.log(`Fetching content for ${item.url}...`)
+          const result = await fetchWebContent(item.url, 'markdown', this.provider.usingBrowser, {
+            signal: controller.signal
+          })
+          clearTimeout(timeoutId)
+          return result
+        } catch (error) {
+          clearTimeout(timeoutId)
+          logger.warn(`Failed to fetch ${item.url} after ${timeoutMs}ms`, error as Error)
+          return {
+            title: item.title || 'Error',
+            content: noContent,
+            url: item.url
+          }
+        }
       })
 
       // Wait for all fetches to complete
@@ -135,7 +154,8 @@ export default class SearxngProvider extends BaseWebSearchProvider {
         results: results.filter((result) => result.content != noContent)
       }
     } catch (error) {
-      logger.error('Searxng search failed:', error as Error)
+      const logError = error instanceof Error ? error : { error }
+      logger.error('Searxng search failed:', logError)
       throw new Error(`Search failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
