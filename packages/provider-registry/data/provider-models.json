@@ -4511,11 +4511,19 @@
     },
     {
       "providerId": "modelscope",
+      "modelId": "Tongyi-MAI/Z-Image"
+    },
+    {
+      "providerId": "modelscope",
       "modelId": "Tongyi-MAI/Z-Image-Turbo"
     },
     {
       "providerId": "modelscope",
       "modelId": "Qwen/Qwen-Image"
+    },
+    {
+      "providerId": "modelscope",
+      "modelId": "Qwen/Qwen-Image-Edit-2511"
     },
     {
       "providerId": "modelscope",
