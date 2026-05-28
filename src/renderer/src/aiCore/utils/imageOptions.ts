@@ -95,9 +95,17 @@ export function buildImageProviderOptions(
     case 'azure-responses':
     case 'huggingface':
     case 'cherryin':
-    case 'newapi':
-    case 'aihubmix': {
+    case 'newapi': {
       const mapped = define({ quality, background, moderation, style })
+      return Object.keys(mapped).length ? { openai: mapped, [rawProviderId]: mapped } : {}
+    }
+
+    // aihubmix aggregates many backends (Doubao Seedream / Qwen-Image / FLUX /
+    // iRAG / Ideogram) — most of these accept `seed` in the body. OpenAI's
+    // image model would warn-and-drop seed if we left it on the positional
+    // AI SDK field, so route it through the provider bag too.
+    case 'aihubmix': {
+      const mapped = define({ quality, background, moderation, style, seed: seedNumber })
       return Object.keys(mapped).length ? { openai: mapped, [rawProviderId]: mapped } : {}
     }
 

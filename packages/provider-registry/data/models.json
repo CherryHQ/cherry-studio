@@ -21755,7 +21755,23 @@
         }
       },
       "ownedBy": "bytedance",
-      "name": "Doubao Seedream 4 5"
+      "name": "Doubao Seedream 4 5",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "imageResolution": {
+                "type": "enum",
+                "options": ["1K", "2K", "4K"],
+                "render": "chips",
+                "default": "2K"
+              },
+              "addWatermark": { "type": "switch" },
+              "seed": { "type": "text" }
+            }
+          }
+        }
+      }
     },
     {
       "id": "wan2-6-i2v",
@@ -22523,7 +22539,23 @@
         }
       },
       "ownedBy": "bytedance",
-      "name": "Doubao Seedream 4 0"
+      "name": "Doubao Seedream 4 0",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "imageResolution": {
+                "type": "enum",
+                "options": ["1K", "2K", "4K"],
+                "render": "chips",
+                "default": "2K"
+              },
+              "addWatermark": { "type": "switch" },
+              "seed": { "type": "text" }
+            }
+          }
+        }
+      }
     },
     {
       "id": "embedding-v1",

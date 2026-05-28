@@ -138,7 +138,17 @@ const AIHUBMIX_SNAKE_CASE_KEYS: Record<string, string> = {
   negativePrompt: 'negative_prompt',
   magicPromptOption: 'magic_prompt_option',
   styleType: 'style_type',
-  renderingSpeed: 'rendering_speed'
+  renderingSpeed: 'rendering_speed',
+  // Doubao Seedream / Wan / Qwen-Image / iRAG canonical → wire renames.
+  // The registry uses Cherry-canonical camelCase keys (`imageResolution`,
+  // `addWatermark`, …); aihubmix's body fields use the snake-case or short
+  // form documented in https://docs.aihubmix.com/cn/api/Image-Gen.
+  imageResolution: 'size',
+  addWatermark: 'watermark',
+  promptExtend: 'prompt_extend',
+  thinkingMode: 'thinking_mode',
+  colorPalette: 'color_palette',
+  referImage: 'refer_image'
 }
 
 function snakeCaseAihubmixBag(
