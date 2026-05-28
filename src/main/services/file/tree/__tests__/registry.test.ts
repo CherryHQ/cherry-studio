@@ -43,7 +43,7 @@ function makeSender(id: number) {
     id,
     isDestroyed: () => destroyed,
     send: (channel: string, payload: TreeMutationPushPayload) => {
-      if (channel === IpcChannel.Tree_Mutation) sentMutations.push(payload)
+      if (channel === IpcChannel.File_TreeMutation) sentMutations.push(payload)
     },
     once: (event: string, listener: () => void) => {
       if (event === 'destroyed') destroyedListeners.push(listener)

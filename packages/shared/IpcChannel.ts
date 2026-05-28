@@ -258,10 +258,11 @@ export enum IpcChannel {
   File_GetPhysicalPath = 'file:getPhysicalPath',
   File_PermanentDelete = 'file:permanentDelete',
   File_RunSweep = 'file:runSweep',
-  // DirectoryTreeBuilder primitive (RFC §12)
-  Tree_Create = 'tree:create',
-  Tree_Dispose = 'tree:dispose',
-  Tree_Mutation = 'tree:mutation',
+  // DirectoryTreeBuilder primitive — top-level file-module surface, parallel
+  // to the FileEntry channels above. See docs/references/file/directory-tree.md.
+  File_TreeCreate = 'file:tree:create',
+  File_TreeDispose = 'file:tree:dispose',
+  File_TreeMutation = 'file:tree:mutation',
 
   // PDF
   Pdf_ExtractText = 'pdf:extractText',

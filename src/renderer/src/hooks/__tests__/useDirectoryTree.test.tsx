@@ -49,7 +49,7 @@ function makeSnapshot(rootPath: string, files: string[]): SerializedTreeNode {
 }
 
 describe('useDirectoryTree', () => {
-  it('returns the initial snapshot once Tree_Create resolves', async () => {
+  it('returns the initial snapshot once File_TreeCreate resolves', async () => {
     const snapshot = makeSnapshot('/notes', ['a.md', 'b.md'])
     mocks.create.mockResolvedValue({ treeId: 't-1', snapshot })
     mocks.onMutation.mockReturnValue(() => {})
@@ -125,7 +125,7 @@ describe('useDirectoryTree', () => {
     expect(mocks.create).not.toHaveBeenCalled()
   })
 
-  it('disposes the in-flight builder when rootPath changes before Tree_Create resolves', async () => {
+  it('disposes the in-flight builder when rootPath changes before File_TreeCreate resolves', async () => {
     let resolveFirst: ((value: CreateTreeIpcResult) => void) | null = null
     mocks.create.mockImplementationOnce(
       () =>
@@ -140,7 +140,7 @@ describe('useDirectoryTree', () => {
       initialProps: { root: '/notes' as string | undefined }
     })
 
-    // Swap rootPath while the first Tree_Create is still pending. The hook's
+    // Swap rootPath while the first File_TreeCreate is still pending. The hook's
     // cleanup sets `cancelled=true`; once the first promise finally resolves it
     // must dispose the orphaned builder rather than swap it in.
     rerender({ root: '/notes2' as string | undefined })
@@ -156,7 +156,7 @@ describe('useDirectoryTree', () => {
     expect(mocks.dispose).toHaveBeenCalledWith('t-first')
   })
 
-  it('does not call setError when Tree_Create rejects after unmount', async () => {
+  it('does not call setError when File_TreeCreate rejects after unmount', async () => {
     let rejectCreate: ((err: Error) => void) | null = null
     mocks.create.mockImplementationOnce(
       () =>
@@ -200,7 +200,7 @@ describe('useDirectoryTree', () => {
     expect(mocks.dispose).toHaveBeenCalledWith('t-strict-1')
   })
 
-  it('ignores Tree_Mutation payloads whose treeId does not match', async () => {
+  it('ignores File_TreeMutation payloads whose treeId does not match', async () => {
     mocks.create.mockResolvedValue({ treeId: 'live-tree', snapshot: makeSnapshot('/notes', ['a.md']) })
     let pushListener: ((payload: TreeMutationPushPayload) => void) | null = null
     mocks.onMutation.mockImplementation((cb) => {

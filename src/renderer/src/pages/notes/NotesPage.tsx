@@ -64,7 +64,7 @@ const NotesPage: FC = () => {
   const { noteByPath, patchNode, removePath, rewritePath } = useNote(notesPath)
 
   // `useDirectoryTree` owns the FS scan + chokidar watcher behind a single
-  // `Tree_Create` IPC. Whenever the watcher observes add / unlink / rename
+  // `File_TreeCreate` IPC. Whenever the watcher observes add / unlink / rename
   // events, `root` (mutated in place) + `version` (tick) drive the
   // projection effect below to refresh `notesTree`.
   const { root: treeRoot, version: treeVersion, treeId } = useDirectoryTree(notesPath || undefined, NOTES_TREE_OPTIONS)
@@ -317,13 +317,13 @@ const NotesPage: FC = () => {
   // on the file the user is currently viewing — pipes through
   // `useDirectoryTree`'s mutation stream is overkill (it would re-project
   // the entire tree on every keystroke save), so we listen to the same
-  // chokidar events via a tiny `Tree_Mutation` side-subscriber instead.
+  // chokidar events via a tiny `File_TreeMutation` side-subscriber instead.
   // The unlink → clear-active-file path is implicit: when the file leaves
   // the tree, the `shouldClearPath` guard above clears `activeFilePath`.
   useEffect(() => {
     if (!notesPath || !treeId) return
     const unsubscribe = window.api.tree.onMutation((payload) => {
-      // Tree_Mutation is a shared channel — ignore payloads from other trees.
+      // File_TreeMutation is a shared channel — ignore payloads from other trees.
       if (payload.treeId !== treeId) return
       // Best-effort: any `updated` event for the active file triggers a
       // content-cache invalidation so the renderer re-reads from disk.

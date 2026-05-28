@@ -2,7 +2,7 @@
  * `TreeRegistry` — main-process bookkeeping for active `DirectoryTreeBuilder`
  * instances behind the `Tree_*` IPC bridge.
  *
- * Every `Tree_Create` IPC call gets a unique `treeId` (the renderer needs
+ * Every `File_TreeCreate` IPC call gets a unique `treeId` (the renderer needs
  * one to route mutation pushes), but identical `(rootPath, options)` pairs
  * **share one underlying `DirectoryTreeBuilder`** — one ripgrep scan, one
  * chokidar watcher, one set of FDs. This is the right place to dedupe
@@ -14,13 +14,13 @@
  * order "deletions before insertions" within a single commit — when
  * `ArtifactPane` swaps between `Shell.Host` and `Shell.MaximizedOverlay`
  * (or a tab unmounts and immediately remounts) the unmount fires
- * `Tree_Dispose` for the old id and the mount fires `Tree_Create` for the
+ * `File_TreeDispose` for the old id and the mount fires `File_TreeCreate` for the
  * new id back-to-back. The grace window lets the new call grab the still-
  * warm builder instead of waiting on a fresh scan + watcher install.
  *
  * Renderer→main IPC sequence on a tab/maximize remount:
- *   T0     unmount   Tree_Dispose(old)  → refcount=0, grace timer queued
- *   T0+ε   mount     Tree_Create(...)   → cancels timer, attaches as new consumer
+ *   T0     unmount   File_TreeDispose(old)  → refcount=0, grace timer queued
+ *   T0+ε   mount     File_TreeCreate(...)   → cancels timer, attaches as new consumer
  */
 
 import { randomUUID } from 'node:crypto'
@@ -96,12 +96,12 @@ function builderKey(rootPath: string, options: DirectoryTreeOptions | undefined)
 @Injectable('TreeRegistry')
 @ServicePhase(Phase.WhenReady)
 export class TreeRegistry extends BaseService {
-  /** treeId → consumer. One row per `Tree_Create` call still alive. */
+  /** treeId → consumer. One row per `File_TreeCreate` call still alive. */
   private readonly consumers = new Map<string, Consumer>()
   /** Shared builder by `builderKey`. One row per *underlying* watcher. */
   private readonly sharedBuilders = new Map<string, SharedBuilder>()
   /** `(rootPath, options)` → in-flight create promise, so concurrent
-   *  `Tree_Create` calls dedupe at builder-creation time. */
+   *  `File_TreeCreate` calls dedupe at builder-creation time. */
   private readonly inflight = new Map<string, Promise<SharedBuilder>>()
   /** webContentsId → set of treeIds, so we can drop them on contents-destroyed. */
   private readonly byWebContents = new Map<number, Set<string>>()
@@ -118,7 +118,7 @@ export class TreeRegistry extends BaseService {
   }
 
   /**
-   * Registers the `Tree_*` IPC contract. Kept as a dedicated helper so
+   * Registers the `File_Tree*` IPC contract. Kept as a dedicated helper so
    * `onInit` stays a one-liner and the channel surface lives in one
    * named place — same shape as `FileManager.registerIpcHandlers` and
    * `WindowManager.registerIpcHandlers`.
@@ -129,11 +129,11 @@ export class TreeRegistry extends BaseService {
    * surfaces as a Promise rejection (matching `ipcMain.handle`'s contract).
    */
   private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.Tree_Create, async (event, params: unknown) => {
+    this.ipcHandle(IpcChannel.File_TreeCreate, async (event, params: unknown) => {
       const { rootPath, options } = TreeCreateParamsSchema.parse(params)
       return this.create(event.sender, rootPath, options)
     })
-    this.ipcHandle(IpcChannel.Tree_Dispose, async (_event, params: unknown) => {
+    this.ipcHandle(IpcChannel.File_TreeDispose, async (_event, params: unknown) => {
       const { treeId } = TreeDisposeParamsSchema.parse(params)
       this.dispose(treeId)
     })
@@ -160,7 +160,7 @@ export class TreeRegistry extends BaseService {
     const forwardSubscription = shared.builder.onMutation((event) => {
       if (sender.isDestroyed()) return
       const payload: TreeMutationPushPayload = { treeId, event }
-      sender.send(IpcChannel.Tree_Mutation, payload)
+      sender.send(IpcChannel.File_TreeMutation, payload)
     })
 
     const consumer: Consumer = {

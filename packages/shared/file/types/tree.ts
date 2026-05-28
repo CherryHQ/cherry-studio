@@ -44,7 +44,7 @@ export interface SerializedTreeNode {
 
 /**
  * Schema is source-of-truth: the inferred type below stays in lockstep with
- * the runtime validation used at the `Tree_Create` IPC boundary. Both sides
+ * the runtime validation used at the `File_TreeCreate` IPC boundary. Both sides
  * (main parser + renderer producer) import this schema; drift is structurally
  * impossible.
  */
@@ -99,13 +99,13 @@ export type TreeMutationEvent =
       readonly stats: TreeNodeStats
     }
 
-/** Handle returned by the `Tree_Create` IPC. */
+/** Handle returned by the `File_TreeCreate` IPC. */
 export interface CreateTreeIpcResult {
   readonly treeId: string
   readonly snapshot: SerializedTreeNode
 }
 
-/** Wire shape for the main→renderer `Tree_Mutation` push channel. */
+/** Wire shape for the main→renderer `File_TreeMutation` push channel. */
 export interface TreeMutationPushPayload {
   readonly treeId: string
   readonly event: TreeMutationEvent

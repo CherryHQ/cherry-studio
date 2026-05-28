@@ -309,14 +309,14 @@ const api = {
   },
   tree: {
     create: (rootPath: string, options?: DirectoryTreeOptions): Promise<CreateTreeIpcResult> =>
-      ipcRenderer.invoke(IpcChannel.Tree_Create, { rootPath, options }),
-    dispose: (treeId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.Tree_Dispose, { treeId }),
+      ipcRenderer.invoke(IpcChannel.File_TreeCreate, { rootPath, options }),
+    dispose: (treeId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.File_TreeDispose, { treeId }),
     onMutation: (callback: (payload: TreeMutationPushPayload) => void) => {
       const listener = (_event: Electron.IpcRendererEvent, payload: TreeMutationPushPayload) => {
         if (payload && typeof payload === 'object') callback(payload)
       }
-      ipcRenderer.on(IpcChannel.Tree_Mutation, listener)
-      return () => ipcRenderer.off(IpcChannel.Tree_Mutation, listener)
+      ipcRenderer.on(IpcChannel.File_TreeMutation, listener)
+      return () => ipcRenderer.off(IpcChannel.File_TreeMutation, listener)
     }
   },
   pdf: {

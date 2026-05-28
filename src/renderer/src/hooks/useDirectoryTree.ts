@@ -22,8 +22,8 @@ export interface UseDirectoryTreeResult {
   readonly version: number
   /**
    * Identifier of the live tree on the main side. Consumers that subscribe to
-   * the shared `Tree_Mutation` channel directly should filter incoming
-   * payloads by this id. `null` until the first `Tree_Create` resolves.
+   * the shared `File_TreeMutation` channel directly should filter incoming
+   * payloads by this id. `null` until the first `File_TreeCreate` resolves.
    */
   readonly treeId: string | null
   /** O(1) lookup keyed by absolute path. Stable across mutations. */
