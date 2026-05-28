@@ -16,6 +16,8 @@ const KEY_LABELS: Record<string, { title: string; tooltip?: string }> = {
   negativePrompt: { title: 'paintings.negative_prompt', tooltip: 'paintings.negative_prompt_tip' },
   seed: { title: 'paintings.seed', tooltip: 'paintings.seed_tip' },
   promptEnhancement: { title: 'paintings.prompt_enhancement', tooltip: 'paintings.prompt_enhancement_tip' },
+  promptExtend: { title: 'paintings.prompt_enhancement', tooltip: 'paintings.prompt_enhancement_tip' },
+  thinkingMode: { title: 'paintings.thinking_mode', tooltip: 'paintings.thinking_mode_tip' },
   magicPromptOption: { title: 'paintings.magic_prompt' },
   addWatermark: { title: 'paintings.watermark' },
   outputFormat: { title: 'paintings.ppio.output_format' },

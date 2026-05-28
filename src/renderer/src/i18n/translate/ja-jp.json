@@ -3907,6 +3907,8 @@
     "style_type": "[to be translated]:Style",
     "style_type_tip": "[to be translated]:Image generation style",
     "text_desc_required": "画像の説明を先に入力してください",
+    "thinking_mode": "[to be translated]:Thinking Mode",
+    "thinking_mode_tip": "[to be translated]:When on, generation quality is higher but adds about 10–30 seconds.",
     "title": "画像",
     "top_up": "チャージする",
     "translating": "翻訳中...",

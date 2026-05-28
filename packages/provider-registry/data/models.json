@@ -30487,7 +30487,77 @@
       "id": "wan2-6-image",
       "name": "wan2-6-image",
       "capabilities": ["image-generation", "video-generation"],
-      "ownedBy": "alibaba"
+      "ownedBy": "alibaba",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "imageResolution": {
+                "type": "enum",
+                "options": ["1K", "2K"],
+                "render": "chips",
+                "default": "1K"
+              },
+              "negativePrompt": { "type": "text", "multiline": true },
+              "promptExtend": { "type": "switch", "default": true },
+              "addWatermark": { "type": "switch" },
+              "seed": { "type": "text" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "wan2-7-image",
+      "name": "wan2.7-image",
+      "description": "Alibaba Wan 2.7 text-to-image. Higher-fidelity successor to Wan 2.6 with thinking mode support; reference: docs.aihubmix.com/cn/api/Image-Gen.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "imageResolution": {
+                "type": "enum",
+                "options": ["1K", "2K"],
+                "render": "chips",
+                "default": "1K"
+              },
+              "thinkingMode": { "type": "switch", "default": true },
+              "addWatermark": { "type": "switch" },
+              "seed": { "type": "text" }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "wan2-7-image-pro",
+      "name": "wan2.7-image-pro",
+      "description": "Alibaba Wan 2.7 Pro — higher resolution ceiling (up to 4K) and supports the 768–4096 custom range; thinking mode honored. Reference: docs.aihubmix.com/cn/api/Image-Gen.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "imageResolution": {
+                "type": "enum",
+                "options": ["1K", "2K", "4K"],
+                "render": "chips",
+                "default": "2K"
+              },
+              "thinkingMode": { "type": "switch", "default": true },
+              "addWatermark": { "type": "switch" },
+              "seed": { "type": "text" }
+            }
+          }
+        }
+      }
     },
     {
       "id": "clh45think-20251001",
@@ -31714,8 +31784,28 @@
     {
       "id": "wan2-6-t2i",
       "name": "wan2-6-t2i",
-      "capabilities": ["video-generation"],
-      "ownedBy": "alibaba"
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "imageResolution": {
+                "type": "enum",
+                "options": ["1K", "2K"],
+                "render": "chips",
+                "default": "1K"
+              },
+              "negativePrompt": { "type": "text", "multiline": true },
+              "promptExtend": { "type": "switch", "default": true },
+              "addWatermark": { "type": "switch" },
+              "seed": { "type": "text" }
+            }
+          }
+        }
+      }
     },
     {
       "id": "clo45thinking-20251101",
@@ -32149,8 +32239,28 @@
     {
       "id": "wan2-6-t2i-vip",
       "name": "wan2-6-t2i-vip",
-      "capabilities": ["video-generation"],
-      "ownedBy": "alibaba"
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "ownedBy": "alibaba",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "imageResolution": {
+                "type": "enum",
+                "options": ["1K", "2K"],
+                "render": "chips",
+                "default": "1K"
+              },
+              "negativePrompt": { "type": "text", "multiline": true },
+              "promptExtend": { "type": "switch", "default": true },
+              "addWatermark": { "type": "switch" },
+              "seed": { "type": "text" }
+            }
+          }
+        }
+      }
     },
     {
       "id": "qwen3-max-vip",

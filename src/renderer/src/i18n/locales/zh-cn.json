@@ -3907,6 +3907,8 @@
     "style_type": "风格",
     "style_type_tip": "图像生成风格",
     "text_desc_required": "请先输入图片描述",
+    "thinking_mode": "思考模式",
+    "thinking_mode_tip": "开启后生成质量更高，但耗时增加约 10-30 秒",
     "title": "图片",
     "top_up": "充值",
     "translating": "翻译中...",
