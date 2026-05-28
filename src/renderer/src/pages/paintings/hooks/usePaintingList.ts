@@ -10,7 +10,6 @@ import { recordToPaintingData } from '../model/mappers/recordToPaintingData'
 import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'
 import type { PaintingProviderDefinition } from '../providers/types'
-import { resolvePaintingTabForMode } from '../utils/paintingProviderMode'
 
 interface UsePaintingListInput {
   painting: PaintingData
@@ -75,11 +74,7 @@ export function usePaintingList({
   )
 
   const add = useCallback(async () => {
-    const current = paintingRef.current
-    const nextTab =
-      resolvePaintingTabForMode(currentProviderDefinition, current.mode) ?? currentProviderDefinition.mode.defaultTab
-    const nextPainting = currentProviderDefinition.mode.createPaintingData({
-      tab: nextTab,
+    const nextPainting = currentProviderDefinition.createPaintingData({
       modelOptions: modelOptionsRef.current.length > 0 ? modelOptionsRef.current : undefined
     })
     setCurrentPainting(nextPainting)

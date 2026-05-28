@@ -1,26 +1,13 @@
-import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModels'
 import { useProviders } from '@renderer/hooks/useProviders'
 import { getProviderNameById } from '@renderer/services/ProviderService'
 import { createUniqueModelId, type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import { DEFAULT_API_FEATURES, type Provider } from '@shared/data/types/provider'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 
 import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'
-import { createPaintingProviderRuntime } from '../model/types/paintingProviderRuntime'
-import { getPaintingModelOptions } from '../model/utils/paintingModelOptions'
-import { resolvePaintingProviderDefinition, resolvePaintingTabForMode } from '../utils/paintingProviderMode'
-
-const logger = loggerService.withContext('usePaintingModelCatalog')
-
-type AsyncCatalogEntry =
-  | { status: 'idle'; options: ModelOption[]; error?: undefined; promise?: undefined }
-  | { status: 'loading'; options: ModelOption[]; error?: undefined; promise: Promise<ModelOption[]> }
-  | { status: 'ready'; options: ModelOption[]; error?: undefined; promise?: undefined }
-  | { status: 'error'; options: ModelOption[]; error: Error; promise?: undefined }
-
-const asyncCatalogCache = new Map<string, AsyncCatalogEntry>()
+import { getPaintingModelOptions, loadPaintingModelOptions } from '../model/utils/paintingModelOptions'
 
 export interface PaintingModelCatalogData {
   providers: Provider[]
@@ -32,8 +19,7 @@ export interface PaintingModelCatalogData {
 
 export interface UsePaintingModelCatalogInput {
   providerOptions: string[]
-  painting: Pick<PaintingData, 'providerId' | 'mode' | 'model'>
-  shouldPrefetch: boolean
+  painting: Pick<PaintingData, 'providerId' | 'model'>
 }
 
 export interface UsePaintingModelCatalogResult {
@@ -41,7 +27,6 @@ export interface UsePaintingModelCatalogResult {
   currentModelOptions: ModelOption[]
   selectedModelOption?: ModelOption
   isLoading: boolean
-  currentCatalogError?: Error
   getModelOption: (providerId: string, modelId: string) => ModelOption | undefined
   ensureProviderCatalog: (providerId: string) => Promise<ModelOption[]>
   ensureCurrentCatalog: () => Promise<ModelOption[]>
@@ -60,231 +45,60 @@ function createSelectorProvider(providerId: string, provider: Provider | undefin
   }
 }
 
-// All providers source their image-gen catalog from DataApi /models (via
-// `useModels()`), filtered by `supportsImageGenerationEndpoint`. The
-// definition's async loader is the same DataApi call wrapped — kept as a
-// fallback for the open-on-demand `ensureProviderCatalog` path only.
-function shouldUseDataModelCatalog(_providerId: string): boolean {
-  return true
-}
-
-function getAsyncCatalogKey(providerId: string, targetTab: string, provider: Provider | undefined): string {
-  if (providerId === 'tokenflux') {
-    const keyIds = provider?.apiKeys.map((key) => key.id).join(',') ?? ''
-    return `${providerId}:${JSON.stringify(provider?.endpointConfigs ?? {})}:${keyIds}`
-  }
-
-  return `${providerId}:${targetTab}`
-}
-
-function toError(error: unknown): Error {
-  return error instanceof Error ? error : new Error('Failed to load painting models')
-}
-
-function resolveRuntimeProvider(
-  providerId: string,
-  providerMap: Map<string, Provider>,
-  runtimeProviderMap: Map<string, ReturnType<typeof createPaintingProviderRuntime>>
-) {
-  return runtimeProviderMap.get(providerId) ?? createPaintingProviderRuntime(providerMap.get(providerId), providerId)
-}
-
+/**
+ * Build the model selector's `{ providers, models }` view + current-provider
+ * lookups. All data comes from `useModels()` (already populated by SWR);
+ * `ensureProviderCatalog` falls back to a direct DataApi call only when the
+ * SWR cache is empty for the requested provider (e.g. the user just switched
+ * to a provider whose models haven't loaded yet).
+ *
+ * The async-loader / `definition.mode.getModels()` indirection that lived
+ * here is gone — every painting provider sources its catalog from the same
+ * `/models?providerId=X` endpoint, so a single useModels() + filter covers
+ * everyone.
+ */
 export function usePaintingModelCatalog({
   providerOptions,
-  painting,
-  shouldPrefetch
+  painting
 }: UsePaintingModelCatalogInput): UsePaintingModelCatalogResult {
   const currentProviderId = painting.providerId
-  const currentMode = painting.mode
   const normalizedApiModelId = painting.model?.trim() ?? ''
   const { providers: dataProviders } = useProviders()
-  const shouldLoadModels = shouldPrefetch || shouldUseDataModelCatalog(currentProviderId)
-  const { models: dataModels, isLoading: isModelsLoading } = useModels(undefined, { fetchEnabled: shouldLoadModels })
-  const [catalogVersion, setCatalogVersion] = useState(0)
-  const openedOnceRef = useRef(false)
+  const { models: dataModels, isLoading } = useModels()
 
   const providerMap = useMemo(() => new Map(dataProviders.map((provider) => [provider.id, provider])), [dataProviders])
 
-  const runtimeProviderMap = useMemo(
-    () => new Map(dataProviders.map((provider) => [provider.id, createPaintingProviderRuntime(provider, provider.id)])),
-    [dataProviders]
-  )
-
-  const getTargetTab = useCallback(
-    (providerId: string) => {
-      const definition = resolvePaintingProviderDefinition(providerId)
-      return resolvePaintingTabForMode(definition, currentMode)
-    },
-    [currentMode]
-  )
-
-  const getSyncOptions = useCallback(
-    (providerId: string): ModelOption[] => {
-      const targetTab = getTargetTab(providerId)
-
-      if (!targetTab) {
-        return []
-      }
-
-      const dataModelOptions = shouldUseDataModelCatalog(providerId)
-        ? getPaintingModelOptions(providerId, dataModels)
-        : []
-      if (dataModelOptions.length > 0) {
-        return dataModelOptions
-      }
-
-      const definition = resolvePaintingProviderDefinition(providerId)
-      const modelConfig = definition.mode.getModels(targetTab)
-      const provider = resolveRuntimeProvider(providerId, providerMap, runtimeProviderMap)
-
-      if (modelConfig.type === 'static') {
-        return modelConfig.options
-      }
-
-      if (modelConfig.type === 'dynamic') {
-        return modelConfig.resolver(provider)
-      }
-
-      const key = getAsyncCatalogKey(providerId, targetTab, providerMap.get(providerId))
-      return asyncCatalogCache.get(key)?.options ?? []
-    },
-    [dataModels, getTargetTab, providerMap, runtimeProviderMap]
-  )
-
-  const loadAsyncOptions = useCallback(
-    async (providerId: string): Promise<ModelOption[]> => {
-      const targetTab = getTargetTab(providerId)
-
-      if (!targetTab) {
-        return []
-      }
-
-      const definition = resolvePaintingProviderDefinition(providerId)
-      const modelConfig = definition.mode.getModels(targetTab)
-
-      if (modelConfig.type !== 'async') {
-        return getSyncOptions(providerId)
-      }
-
-      const provider = resolveRuntimeProvider(providerId, providerMap, runtimeProviderMap)
-      const key = getAsyncCatalogKey(providerId, targetTab, providerMap.get(providerId))
-      const cached = asyncCatalogCache.get(key)
-
-      if (cached?.status === 'ready' && cached.options.length > 0) {
-        return cached.options
-      }
-
-      if (cached?.status === 'loading') {
-        return cached.promise
-      }
-
-      const promise = modelConfig.loader(provider)
-      asyncCatalogCache.set(key, { status: 'loading', options: cached?.options ?? [], promise })
-      setCatalogVersion((version) => version + 1)
-
-      try {
-        const options = await promise
-        asyncCatalogCache.set(key, { status: 'ready', options })
-        setCatalogVersion((version) => version + 1)
-        return options
-      } catch (error) {
-        const nextError = toError(error)
-        logger.error('Failed to load painting model catalog', nextError, { providerId })
-        // Do not persist error entries — drop so the next call retries the loader.
-        asyncCatalogCache.delete(key)
-        setCatalogVersion((version) => version + 1)
-        throw nextError
-      }
-    },
-    [getSyncOptions, getTargetTab, providerMap, runtimeProviderMap]
-  )
-
-  useEffect(() => {
-    if (!shouldPrefetch || openedOnceRef.current) {
-      return
-    }
-
-    openedOnceRef.current = true
-
+  // Per-provider option list, computed once from the full models array.
+  const optionsByProvider = useMemo(() => {
+    const map = new Map<string, ModelOption[]>()
     for (const providerId of providerOptions) {
-      if (providerId === currentProviderId || !getTargetTab(providerId)) {
-        continue
-      }
-
-      const modelConfig = resolvePaintingProviderDefinition(providerId).mode.getModels(getTargetTab(providerId)!)
-      if (modelConfig.type === 'async') {
-        void loadAsyncOptions(providerId).catch(() => undefined)
-      }
+      map.set(providerId, getPaintingModelOptions(providerId, dataModels))
     }
-  }, [currentProviderId, getTargetTab, loadAsyncOptions, providerOptions, shouldPrefetch])
+    return map
+  }, [dataModels, providerOptions])
 
-  useEffect(() => {
-    const targetTab = getTargetTab(currentProviderId)
-    if (!targetTab) {
-      return
-    }
-
-    const modelConfig = resolvePaintingProviderDefinition(currentProviderId).mode.getModels(targetTab)
-    if (modelConfig.type !== 'async') {
-      return
-    }
-
-    void loadAsyncOptions(currentProviderId).catch(() => undefined)
-  }, [currentProviderId, getTargetTab, loadAsyncOptions])
-
-  const { selectorData, modelOptionMap, isAsyncLoading, currentCatalogError } = useMemo(() => {
-    void catalogVersion
-
+  const { selectorData, modelOptionMap } = useMemo(() => {
     const providers: Provider[] = []
     const models: Model[] = []
     const seenProviderIds = new Set<string>()
     const seenModelIds = new Set<UniqueModelId>()
     const optionMap = new Map<UniqueModelId, ModelOption>()
-    let asyncLoading = false
-    let currentError: Error | undefined
 
     for (const providerId of providerOptions) {
-      const targetTab = getTargetTab(providerId)
-      if (!targetTab) {
-        continue
-      }
+      const providerModelOptions = optionsByProvider.get(providerId) ?? []
+      if (providerModelOptions.length === 0) continue
 
       const provider = providerMap.get(providerId)
-      const definition = resolvePaintingProviderDefinition(providerId)
-      const modelConfig = definition.mode.getModels(targetTab)
-      const asyncKey = modelConfig.type === 'async' ? getAsyncCatalogKey(providerId, targetTab, provider) : undefined
-      const asyncEntry = asyncKey ? asyncCatalogCache.get(asyncKey) : undefined
-
-      if (modelConfig.type === 'async' && asyncEntry?.status === 'loading') {
-        asyncLoading = true
-      }
-
-      if (providerId === currentProviderId && asyncEntry?.status === 'error') {
-        currentError = asyncEntry.error
-      }
-
-      const providerModelOptions = getSyncOptions(providerId)
-
-      if (providerModelOptions.length === 0) {
-        continue
-      }
-
       if (!seenProviderIds.has(providerId)) {
         seenProviderIds.add(providerId)
         providers.push(createSelectorProvider(providerId, provider))
       }
 
-      providerModelOptions.forEach((modelOption) => {
+      for (const modelOption of providerModelOptions) {
         const modelId = String(modelOption.value || '').trim()
-        if (!modelId) {
-          return
-        }
-
+        if (!modelId) continue
         const uniqueModelId = createUniqueModelId(providerId, modelId)
-        if (seenModelIds.has(uniqueModelId)) {
-          return
-        }
-
+        if (seenModelIds.has(uniqueModelId)) continue
         seenModelIds.add(uniqueModelId)
         optionMap.set(uniqueModelId, modelOption)
         models.push({
@@ -298,7 +112,7 @@ export function usePaintingModelCatalog({
           isEnabled: modelOption.isEnabled ?? true,
           isHidden: false
         })
-      })
+      }
     }
 
     let selectedModelId: UniqueModelId | undefined
@@ -308,11 +122,9 @@ export function usePaintingModelCatalog({
 
       if (!seenModelIds.has(uniqueModelId)) {
         const currentProvider = providerMap.get(currentProviderId)
-
         if (!seenProviderIds.has(currentProviderId)) {
           providers.unshift(createSelectorProvider(currentProviderId, currentProvider))
         }
-
         models.unshift({
           id: uniqueModelId,
           providerId: currentProviderId,
@@ -330,7 +142,6 @@ export function usePaintingModelCatalog({
     const selectedProvider = selectedModel
       ? providers.find((provider) => provider.id === selectedModel.providerId)
       : undefined
-
     const fallbackLabel =
       normalizedApiModelId.length > 0
         ? (optionMap.get(createUniqueModelId(currentProviderId, normalizedApiModelId))?.label ?? normalizedApiModelId)
@@ -344,37 +155,22 @@ export function usePaintingModelCatalog({
         selectedModelName: selectedModel?.name ?? fallbackLabel,
         selectedProviderName: selectedProvider?.name
       },
-      modelOptionMap: optionMap,
-      isAsyncLoading: asyncLoading,
-      currentCatalogError: currentError
+      modelOptionMap: optionMap
     }
-  }, [
-    catalogVersion,
-    normalizedApiModelId,
-    currentProviderId,
-    getSyncOptions,
-    getTargetTab,
-    providerMap,
-    providerOptions
-  ])
+  }, [optionsByProvider, providerOptions, providerMap, currentProviderId, normalizedApiModelId])
 
   const getModelOption = useCallback(
-    (providerId: string, modelId: string) => {
-      return modelOptionMap.get(createUniqueModelId(providerId, modelId))
-    },
+    (providerId: string, modelId: string) => modelOptionMap.get(createUniqueModelId(providerId, modelId)),
     [modelOptionMap]
   )
 
   const ensureProviderCatalog = useCallback(
-    async (providerId: string) => {
-      const options = getSyncOptions(providerId)
-      if (options.length > 0) {
-        return options
-      }
-
-      return loadAsyncOptions(providerId)
+    async (providerId: string): Promise<ModelOption[]> => {
+      const cached = optionsByProvider.get(providerId)
+      if (cached && cached.length > 0) return cached
+      return loadPaintingModelOptions(providerId)
     },
-    [getSyncOptions, loadAsyncOptions]
+    [optionsByProvider]
   )
 
   const ensureCurrentCatalog = useCallback(
@@ -382,21 +178,20 @@ export function usePaintingModelCatalog({
     [currentProviderId, ensureProviderCatalog]
   )
 
-  const currentModelOptions = useMemo(() => getSyncOptions(currentProviderId), [currentProviderId, getSyncOptions])
-  const selectedModelOption = useMemo(() => {
-    if (!normalizedApiModelId.length) {
-      return undefined
-    }
-
-    return getModelOption(currentProviderId, normalizedApiModelId)
-  }, [normalizedApiModelId, currentProviderId, getModelOption])
+  const currentModelOptions = useMemo(
+    () => optionsByProvider.get(currentProviderId) ?? [],
+    [optionsByProvider, currentProviderId]
+  )
+  const selectedModelOption = useMemo(
+    () => (normalizedApiModelId.length ? getModelOption(currentProviderId, normalizedApiModelId) : undefined),
+    [normalizedApiModelId, currentProviderId, getModelOption]
+  )
 
   return {
     selectorData,
     currentModelOptions,
     selectedModelOption,
-    isLoading: isModelsLoading || isAsyncLoading,
-    currentCatalogError,
+    isLoading,
     getModelOption,
     ensureProviderCatalog,
     ensureCurrentCatalog

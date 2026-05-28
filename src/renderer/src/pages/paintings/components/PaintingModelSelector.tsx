@@ -30,8 +30,7 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
   const providerOptions = usePaintingProviderOptions()
   const { selectorData, isLoading } = usePaintingModelCatalog({
     providerOptions,
-    painting,
-    shouldPrefetch: open
+    painting
   })
   const currentProviderId = painting.providerId
 

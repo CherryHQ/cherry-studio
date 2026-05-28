@@ -14,7 +14,7 @@ import {
 } from '../model/paintingAbortControllerStore'
 import type { PaintingData } from '../model/types/paintingData'
 import type { PaintingGenerationState } from '../model/utils/paintingGenerationParams'
-import { resolvePaintingProviderDefinition, resolvePaintingTabForMode } from '../utils/paintingProviderMode'
+import { resolvePaintingProviderDefinition } from '../utils/paintingProviderMode'
 import { usePaintingProviderRuntime } from './usePaintingProviderRuntime'
 
 function hasOutput(painting: PaintingData) {
@@ -31,10 +31,6 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
   const currentProviderId = painting.providerId
   const { provider } = usePaintingProviderRuntime(currentProviderId)
   const definition = useMemo(() => resolvePaintingProviderDefinition(currentProviderId), [currentProviderId])
-  const tab = useMemo(
-    () => resolvePaintingTabForMode(definition, painting.mode) ?? definition.mode.defaultTab,
-    [definition, painting.mode]
-  )
   const visibleIdRef = useRef(painting.id)
   const inFlightIdRef = useRef<string | null>(null)
 
@@ -114,7 +110,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
       const files = await definition.generate({
         painting: targetPainting,
         provider,
-        tab,
+        tab: 'default',
         abortController: controller,
         onGenerationStateChange: pushGenerationState
       })
@@ -143,7 +139,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
         inFlightIdRef.current = null
       }
     }
-  }, [applyIfVisible, createPainting, definition, painting, provider, refresh, onPaintingChange, tab, updatePainting])
+  }, [applyIfVisible, createPainting, definition, painting, provider, refresh, onPaintingChange, updatePainting])
 
   const cancel = useCallback((paintingId: string) => {
     abortPaintingGeneration(paintingId)

@@ -7,7 +7,6 @@ import type { PaintingMode } from '@shared/data/types/painting'
 
 import { canonicalGenerate } from '../model/canonicalGenerate'
 import type { PaintingData } from '../model/types/paintingData'
-import { loadPaintingModelOptions } from '../model/utils/paintingModelOptions'
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
 import { createSingleModeProvider, type GenerateInput, type PaintingProviderDefinition } from './types'
 
@@ -92,8 +91,6 @@ async function genericPaintingGenerate(input: GenerateInput): Promise<FileMetada
 export function buildPaintingProvider(providerId: string): PaintingProviderDefinition {
   return createSingleModeProvider({
     id: providerId,
-    dbMode: 'generate',
-    models: { type: 'async', loader: () => loadPaintingModelOptions(providerId) },
     createPaintingData: () => emptyPainting(providerId),
     generate: genericPaintingGenerate
   })

@@ -25,7 +25,7 @@ const PaintingPage: FC = () => {
   const { initialProviderId, initialProviderDefinition } = usePaintingInitialProvider(providerOptions)
 
   const [currentPainting, setCurrentPainting] = useState<PaintingData>(() =>
-    initialProviderDefinition.mode.createPaintingData({ tab: initialProviderDefinition.mode.defaultTab })
+    initialProviderDefinition.createPaintingData({})
   )
 
   const patchPainting = useCallback((updates: Partial<PaintingData>) => {
@@ -44,8 +44,7 @@ const PaintingPage: FC = () => {
 
   const modelCatalog = usePaintingModelCatalog({
     providerOptions,
-    painting: currentPainting,
-    shouldPrefetch: false
+    painting: currentPainting
   })
 
   const {

@@ -3,11 +3,7 @@ import { useCallback } from 'react'
 import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'
 import { computeModelFieldReset } from '../utils/computeModelFieldReset'
-import {
-  resolvePaintingProviderDefinition,
-  resolvePaintingTabForMode,
-  tabToImageGenerationMode
-} from '../utils/paintingProviderMode'
+import { resolvePaintingProviderDefinition, tabToImageGenerationMode } from '../utils/paintingProviderMode'
 
 interface UsePaintingModelSwitchInput {
   painting: PaintingData
@@ -38,22 +34,18 @@ export function usePaintingModelSwitch({
           oldModelId: painting.model,
           newModelId: modelId,
           mode: tabToImageGenerationMode(painting.mode),
-          currentValues: (painting.params ?? {}) as Record<string, unknown>
+          currentValues: painting.params ?? {}
         })
         onPaintingChange({ ...resetPatch, model: modelId } as Partial<PaintingData>)
         return
       }
 
       const targetDefinition = resolvePaintingProviderDefinition(providerId)
-      const targetTab = resolvePaintingTabForMode(targetDefinition, painting.mode)
-      if (!targetTab) return
-
-      const targetDbMode = targetDefinition.mode.tabToDbMode(targetTab)
       const targetModelOptions = await ensureProviderCatalog(providerId)
       const targetPainting =
         providerId === painting.providerId
           ? painting
-          : targetDefinition.mode.createPaintingData({ tab: targetTab, modelOptions: targetModelOptions })
+          : targetDefinition.createPaintingData({ modelOptions: targetModelOptions })
 
       onPaintingChange({
         ...targetPainting,
@@ -61,7 +53,7 @@ export function usePaintingModelSwitch({
         files: painting.files,
         prompt: painting.prompt,
         providerId,
-        mode: targetDbMode,
+        mode: 'generate',
         model: modelId
       } as Partial<PaintingData>)
     },
