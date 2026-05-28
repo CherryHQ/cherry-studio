@@ -39175,6 +39175,896 @@
           }
         }
       }
+    },
+    {
+      "id": "gemini-3-pro-image",
+      "name": "Nano Banana Pro (Gemini 3 Pro Image)",
+      "capabilities": ["image-generation", "function-call", "image-recognition", "web-search"],
+      "inputModalities": ["text"],
+      "outputModalities": ["text", "image"],
+      "family": "gemini-pro",
+      "ownedBy": "google"
+    },
+    {
+      "id": "gpt-image-1",
+      "name": "GPT-Image-1",
+      "description": "Azure OpenAI’s gpt-image-1 image generation API offers both text-to-image generation and image-to-image editing with text guidance capabilities.\nBefore using this API, please ensure you have the latest OpenAI package installed by running pip install -U openai.",
+      "capabilities": ["function-call", "file-input", "image-recognition", "image-generation"],
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["image"],
+      "family": "gpt",
+      "ownedBy": "openai"
+    },
+    {
+      "id": "Tongyi-MAI/Z-Image",
+      "name": "Z-Image",
+      "description": "Tongyi-MAI Z-Image — text-to-image base model. Higher fidelity than Z-Image-Turbo; recommended num_inference_steps≈30, guidance_scale≈4.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "Z-Image",
+      "ownedBy": "Tongyi-MAI"
+    },
+    {
+      "id": "Tongyi-MAI/Z-Image-Turbo",
+      "name": "Z-Image-Turbo",
+      "description": "Tongyi-MAI Z-Image-Turbo — sub-second text-to-image on ModelScope's free API Inference tier. Apache-2.0 weights; recommended num_inference_steps=9, guidance_scale=0.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "Z-Image",
+      "ownedBy": "Tongyi-MAI"
+    },
+    {
+      "id": "Qwen/Qwen-Image",
+      "name": "Qwen-Image",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "Qwen",
+      "ownedBy": "Alibaba"
+    },
+    {
+      "id": "Qwen/Qwen-Image-Edit-2511",
+      "name": "Qwen-Image-Edit-2511",
+      "description": "Qwen-Image-Edit, dated 2025-11 release on ModelScope. Image-editing variant of Qwen-Image — extends text rendering capabilities to edit tasks with semantic + appearance control via Qwen2.5-VL.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["image"],
+      "family": "Qwen",
+      "ownedBy": "Alibaba"
+    },
+    {
+      "id": "jimeng-txt2img-v3.1",
+      "name": "即梦文生图 3.1",
+      "description": "画面效果升级，美感塑造、风格精准多样及画面细节丰富。",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"]
+    },
+    {
+      "id": "jimeng-txt2img-v3.0",
+      "name": "即梦文生图 3.0",
+      "description": "文字响应准确度、图文排版、层次美感和语义理解能力显著提升。",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"]
+    },
+    {
+      "id": "hunyuan-image-3",
+      "name": "Hunyuan Image 3",
+      "description": "高质量、富有情感和故事性的图片生成。",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"]
+    },
+    {
+      "id": "qwen-image-txt2img",
+      "name": "Qwen-Image 文生图",
+      "description": "擅长创建带有本地文本的图形海报。",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"]
+    },
+    {
+      "id": "qwen-image-edit-2509",
+      "name": "qwen-image-edit-2509",
+      "capabilities": ["function-call", "image-generation"],
+      "ownedBy": "alibaba"
+    },
+    {
+      "id": "z-image-turbo",
+      "name": "z-image-turbo",
+      "capabilities": ["image-generation"],
+      "ownedBy": "dashscope"
+    },
+    {
+      "id": "z-image-turbo-lora",
+      "name": "Z Image Turbo LoRA",
+      "description": "支持自定义 LoRA 权重的高速图像生成。",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"]
+    },
+    {
+      "id": "seedream-5.0-lite",
+      "name": "Seedream 5.0 Lite",
+      "description": "支持文生图、单图生图、多图生图，以及组图生成功能。",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["image"]
+    },
+    {
+      "id": "seedream-4.5",
+      "name": "Seedream 4.5",
+      "description": "支持文生图、单图生图、多图生图，以及组图生成功能。",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["image"]
+    },
+    {
+      "id": "seedream-4.0",
+      "name": "Seedream 4.0",
+      "description": "支持4K分辨率的图像生成。",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["image"]
+    },
+    {
+      "id": "doubao-seedream-4-0-250828",
+      "name": "doubao-seedream-4-0-250828",
+      "capabilities": ["function-call"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "id": "doubao-seedream-4-5-251128",
+      "name": "doubao-seedream-4-5-251128",
+      "capabilities": ["function-call"],
+      "ownedBy": "bytedance"
+    },
+    {
+      "id": "gemini-2.5-flash-image",
+      "name": "gemini-2.5-flash-image（¥0.25）",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "Google",
+      "ownedBy": "Google"
+    },
+    {
+      "id": "musesteamer-air-image",
+      "name": "musesteamer-air-image",
+      "capabilities": ["image-generation"],
+      "ownedBy": "dmxapi"
+    },
+    {
+      "id": "nano-banana",
+      "name": "Nano-Banana",
+      "capabilities": ["function-call", "file-input", "image-recognition", "image-generation"],
+      "inputModalities": ["text", "image"],
+      "outputModalities": ["text", "image"],
+      "family": "nano-banana",
+      "ownedBy": "google"
+    },
+    {
+      "id": "nano-banana-2",
+      "name": "nano-banana-2",
+      "ownedBy": "google"
+    },
+    {
+      "id": "black-forest-labs/flux-1.1-pro-ultra",
+      "name": "flux-1.1-pro-ultra",
+      "description": "FLUX1.1 [pro] in ultra and raw modes. Images are up to 4 megapixels. Use raw mode for realism.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "black-forest-labs",
+      "ownedBy": "black-forest-labs"
+    },
+    {
+      "id": "black-forest-labs/flux-2-flex",
+      "name": "flux-2-flex",
+      "description": "Max-quality image generation and editing with support for ten reference images",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "black-forest-labs",
+      "ownedBy": "black-forest-labs"
+    },
+    {
+      "id": "black-forest-labs/flux-2-klein-4b",
+      "name": "flux-2-klein-4b",
+      "description": "Very fast image generation and editing model. 4 steps distilled, sub-second inference for production and near real-time applications.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "black-forest-labs",
+      "ownedBy": "black-forest-labs"
+    },
+    {
+      "id": "black-forest-labs/flux-2-max",
+      "name": "flux-2-max",
+      "description": "The highest fidelity image model from Black Forest Labs",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "black-forest-labs",
+      "ownedBy": "black-forest-labs"
+    },
+    {
+      "id": "black-forest-labs/flux-2-pro",
+      "name": "flux-2-pro",
+      "description": "High-quality image generation and editing with support for eight reference images",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "black-forest-labs",
+      "ownedBy": "black-forest-labs"
+    },
+    {
+      "id": "black-forest-labs/flux-dev",
+      "name": "flux-dev",
+      "description": "A 12 billion parameter rectified flow transformer capable of generating images from text descriptions",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "black-forest-labs",
+      "ownedBy": "black-forest-labs"
+    },
+    {
+      "id": "black-forest-labs/flux-dev-lora",
+      "name": "flux-dev-lora",
+      "description": "A version of flux-dev, a text to image model, that supports fast fine-tuned lora inference",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "black-forest-labs",
+      "ownedBy": "black-forest-labs"
+    },
+    {
+      "id": "black-forest-labs/flux-fill-pro",
+      "name": "flux-fill-pro",
+      "description": "Professional inpainting and outpainting model with state-of-the-art performance. Edit or extend images with natural, seamless results.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "black-forest-labs",
+      "ownedBy": "black-forest-labs"
+    },
+    {
+      "id": "black-forest-labs/flux-kontext-dev",
+      "name": "flux-kontext-dev",
+      "description": "Open-weight version of FLUX.1 Kontext",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "black-forest-labs",
+      "ownedBy": "black-forest-labs"
+    },
+    {
+      "id": "black-forest-labs/flux-kontext-max",
+      "name": "flux-kontext-max",
+      "description": "A premium text-based image editing model that delivers maximum performance and improved typography generation for transforming images through natural language prompts",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "black-forest-labs",
+      "ownedBy": "black-forest-labs"
+    },
+    {
+      "id": "black-forest-labs/flux-kontext-pro",
+      "name": "flux-kontext-pro",
+      "description": "A state-of-the-art text-based image editing model that delivers high-quality outputs with excellent prompt following and consistent results for transforming images through natural language",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "black-forest-labs",
+      "ownedBy": "black-forest-labs"
+    },
+    {
+      "id": "black-forest-labs/flux-pro",
+      "name": "flux-pro",
+      "description": "State-of-the-art image generation with top of the line prompt following, visual quality, image detail and output diversity.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "black-forest-labs",
+      "ownedBy": "black-forest-labs"
+    },
+    {
+      "id": "black-forest-labs/flux-schnell",
+      "name": "flux-schnell",
+      "description": "The fastest image generation model tailored for local development and personal use",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "black-forest-labs",
+      "ownedBy": "black-forest-labs"
+    },
+    {
+      "id": "bria/eraser",
+      "name": "eraser",
+      "description": "SOTA Object removal, enables precise removal of unwanted objects from images while maintaining high-quality outputs. Trained exclusively on licensed data for safe and risk-free commercial use",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "bria",
+      "ownedBy": "bria"
+    },
+    {
+      "id": "bria/expand-image",
+      "name": "expand-image",
+      "description": "Bria Expand expands images beyond their borders in high quality. Resizing the image by generating new pixels to expand to the desired aspect ratio. Trained exclusively on licensed data for safe and risk-free commercial use",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "bria",
+      "ownedBy": "bria"
+    },
+    {
+      "id": "bria/fibo",
+      "name": "fibo",
+      "description": "SOTA Open source model trained on licensed data, transforming intent into structured control for precise, high-quality AI image generation in enterprise and agentic workflows.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "bria",
+      "ownedBy": "bria"
+    },
+    {
+      "id": "bria/fibo-edit",
+      "name": "fibo-edit",
+      "description": "FIBO-Edit brings the power of structured prompt generation to image editing",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "bria",
+      "ownedBy": "bria"
+    },
+    {
+      "id": "bria/generate-background",
+      "name": "generate-background",
+      "description": "Bria Background Generation allows for efficient swapping of backgrounds in images via text prompts or reference image, delivering realistic and polished results. Trained exclusively on licensed data for safe and risk-free commercial use",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "bria",
+      "ownedBy": "bria"
+    },
+    {
+      "id": "bria/genfill",
+      "name": "genfill",
+      "description": "Bria GenFill enables high-quality object addition or visual transformation. Trained exclusively on licensed data for safe and risk-free commercial use.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "bria",
+      "ownedBy": "bria"
+    },
+    {
+      "id": "bria/image-3.2",
+      "name": "image-3.2",
+      "description": "Commercial-ready, trained entirely on licensed data, text-to-image model. With only 4B parameters provides exceptional aesthetics and text rendering. Evaluated to be on par to other leading models in the market",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "bria",
+      "ownedBy": "bria"
+    },
+    {
+      "id": "bytedance/seedream-3",
+      "name": "seedream-3",
+      "description": "A text-to-image model with support for native high-resolution (2K) image generation",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "bytedance",
+      "ownedBy": "bytedance"
+    },
+    {
+      "id": "bytedance/seedream-4",
+      "name": "seedream-4",
+      "description": "Unified text-to-image generation and precise single-sentence editing at up to 4K resolution",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "bytedance",
+      "ownedBy": "bytedance"
+    },
+    {
+      "id": "bytedance/seedream-4.5",
+      "name": "seedream-4.5",
+      "description": "Seedream 4.5: Upgraded Bytedance image model with stronger spatial understanding and world knowledge",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "bytedance",
+      "ownedBy": "bytedance"
+    },
+    {
+      "id": "flux-kontext-apps/multi-image-kontext-max",
+      "name": "multi-image-kontext-max",
+      "description": "An experimental FLUX Kontext model that can combine two input images",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "flux-kontext-apps",
+      "ownedBy": "flux-kontext-apps"
+    },
+    {
+      "id": "flux-kontext-apps/multi-image-kontext-pro",
+      "name": "multi-image-kontext-pro",
+      "description": "An experimental model with FLUX Kontext Pro that can combine two input images",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "flux-kontext-apps",
+      "ownedBy": "flux-kontext-apps"
+    },
+    {
+      "id": "flux-kontext-apps/multi-image-list",
+      "name": "multi-image-list",
+      "description": "FLUX Kontext max with list input for multiple images",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "flux-kontext-apps",
+      "ownedBy": "flux-kontext-apps"
+    },
+    {
+      "id": "flux-kontext-apps/restore-image",
+      "name": "restore-image",
+      "description": "Use FLUX Kontext to restore, fix scratches and damage, and colorize old photos",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "flux-kontext-apps",
+      "ownedBy": "flux-kontext-apps"
+    },
+    {
+      "id": "fofr/color-matcher",
+      "name": "color-matcher",
+      "description": "Color match and white balance fixes for images",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "fofr",
+      "ownedBy": "fofr"
+    },
+    {
+      "id": "google/imagen-3",
+      "name": "imagen-3",
+      "description": "Google's highest quality text-to-image model, capable of generating images with detail, rich lighting and beauty",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "google",
+      "ownedBy": "google"
+    },
+    {
+      "id": "google/imagen-3-fast",
+      "name": "imagen-3-fast",
+      "description": "A faster and cheaper Imagen 3 model, for when price or speed are more important than final image quality",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "google",
+      "ownedBy": "google"
+    },
+    {
+      "id": "google/imagen-4",
+      "name": "imagen-4",
+      "description": "Google's Imagen 4 flagship model",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "google",
+      "ownedBy": "google"
+    },
+    {
+      "id": "google/imagen-4-fast",
+      "name": "imagen-4-fast",
+      "description": "Use this fast version of Imagen 4 when speed and cost are more important than quality",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "google",
+      "ownedBy": "google"
+    },
+    {
+      "id": "google/imagen-4-ultra",
+      "name": "imagen-4-ultra",
+      "description": "Use this ultra version of Imagen 4 when quality matters more than speed and cost",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "google",
+      "ownedBy": "google"
+    },
+    {
+      "id": "google/nano-banana",
+      "name": "nano-banana",
+      "description": "Google's latest image editing model in Gemini 2.5",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "google",
+      "ownedBy": "google"
+    },
+    {
+      "id": "google/nano-banana-pro",
+      "name": "nano-banana-pro",
+      "description": "Google's state of the art image generation and editing model 🍌🍌",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "google",
+      "ownedBy": "google"
+    },
+    {
+      "id": "ideogram-ai/ideogram-v2",
+      "name": "ideogram-v2",
+      "description": "An excellent image model with state of the art inpainting, prompt comprehension and text rendering",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "ideogram-ai",
+      "ownedBy": "ideogram-ai"
+    },
+    {
+      "id": "ideogram-ai/ideogram-v2-turbo",
+      "name": "ideogram-v2-turbo",
+      "description": "A fast image model with state of the art inpainting, prompt comprehension and text rendering.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "ideogram-ai",
+      "ownedBy": "ideogram-ai"
+    },
+    {
+      "id": "ideogram-ai/ideogram-v2a",
+      "name": "ideogram-v2a",
+      "description": "Like Ideogram v2, but faster and cheaper",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "ideogram-ai",
+      "ownedBy": "ideogram-ai"
+    },
+    {
+      "id": "ideogram-ai/ideogram-v2a-turbo",
+      "name": "ideogram-v2a-turbo",
+      "description": "Like Ideogram v2 turbo, but now faster and cheaper",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "ideogram-ai",
+      "ownedBy": "ideogram-ai"
+    },
+    {
+      "id": "ideogram-ai/ideogram-v3-balanced",
+      "name": "ideogram-v3-balanced",
+      "description": "Balance speed, quality and cost. Ideogram v3 creates images with stunning realism, creative designs, and consistent styles",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "ideogram-ai",
+      "ownedBy": "ideogram-ai"
+    },
+    {
+      "id": "ideogram-ai/ideogram-v3-quality",
+      "name": "ideogram-v3-quality",
+      "description": "The highest quality Ideogram v3 model. v3 creates images with stunning realism, creative designs, and consistent styles",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "ideogram-ai",
+      "ownedBy": "ideogram-ai"
+    },
+    {
+      "id": "ideogram-ai/ideogram-v3-turbo",
+      "name": "ideogram-v3-turbo",
+      "description": "Turbo is the fastest and cheapest Ideogram v3. v3 creates images with stunning realism, creative designs, and consistent styles",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "ideogram-ai",
+      "ownedBy": "ideogram-ai"
+    },
+    {
+      "id": "leonardoai/lucid-origin",
+      "name": "lucid-origin",
+      "description": "Artistic and high-quality visuals with improved prompt adherence, diversity, and definition",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "leonardoai",
+      "ownedBy": "leonardoai"
+    },
+    {
+      "id": "luma/photon",
+      "name": "photon",
+      "description": "High-quality image generation model optimized for creative professional workflows and ultra-high fidelity outputs",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "luma",
+      "ownedBy": "luma"
+    },
+    {
+      "id": "luma/photon-flash",
+      "name": "photon-flash",
+      "description": "Accelerated variant of Photon prioritizing speed while maintaining quality",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "luma",
+      "ownedBy": "luma"
+    },
+    {
+      "id": "minimax/image-01",
+      "name": "image-01",
+      "description": "Minimax's first image model, with character reference support",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "minimax",
+      "ownedBy": "minimax"
+    },
+    {
+      "id": "openai/gpt-image-1",
+      "name": "gpt-image-1",
+      "description": "A multimodal image generation model that creates high-quality images. You need to bring your own verified OpenAI key to use this model. Your OpenAI account will be charged for usage.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "openai",
+      "ownedBy": "openai"
+    },
+    {
+      "id": "openai/gpt-image-1.5",
+      "name": "gpt-image-1.5",
+      "description": "OpenAI's latest image generation model with better instruction following and adherence to prompts",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "openai",
+      "ownedBy": "openai"
+    },
+    {
+      "id": "prunaai/flux-fast",
+      "name": "flux-fast",
+      "description": "This is the fastest Flux endpoint in the world.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "prunaai",
+      "ownedBy": "prunaai"
+    },
+    {
+      "id": "prunaai/flux-kontext-fast",
+      "name": "flux-kontext-fast",
+      "description": "Ultra fast flux kontext endpoint",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "prunaai",
+      "ownedBy": "prunaai"
+    },
+    {
+      "id": "prunaai/hidream-l1-fast",
+      "name": "hidream-l1-fast",
+      "description": "This is an optimised version of the hidream-l1 model using the pruna ai optimisation toolkit!",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "prunaai",
+      "ownedBy": "prunaai"
+    },
+    {
+      "id": "prunaai/p-image",
+      "name": "p-image",
+      "description": "A sub 1 second text-to-image model built for production use cases.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "prunaai",
+      "ownedBy": "prunaai"
+    },
+    {
+      "id": "prunaai/p-image-edit",
+      "name": "p-image-edit",
+      "description": "A sub 1 second 0.01$ multi-image editing model built for production use cases. For image generation, check out p-image here: https://replicate.com/prunaai/p-image",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "prunaai",
+      "ownedBy": "prunaai"
+    },
+    {
+      "id": "prunaai/p-image-lora",
+      "name": "p-image-lora",
+      "description": "Use trained LoRAs from the https://replicate.com/prunaai/p-image-trainer. Find or contribute LoRAs here https://huggingface.co/collections/PrunaAI/p-image-loras",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "prunaai",
+      "ownedBy": "prunaai"
+    },
+    {
+      "id": "prunaai/wan-2.2-image",
+      "name": "wan-2.2-image",
+      "description": "This model generates beautiful cinematic 2 megapixel images in 3-4 seconds and is derived from the Wan 2.2 model through optimisation techniques from the pruna package",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "prunaai",
+      "ownedBy": "prunaai"
+    },
+    {
+      "id": "prunaai/z-image-turbo",
+      "name": "z-image-turbo",
+      "description": "Z-Image Turbo is a super fast text-to-image model of 6B parameters developed by Tongyi-MAI.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "prunaai",
+      "ownedBy": "prunaai"
+    },
+    {
+      "id": "qwen/qwen-image",
+      "name": "qwen-image",
+      "description": "An image generation foundation model in the Qwen series that achieves significant advances in complex text rendering.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "qwen",
+      "ownedBy": "qwen"
+    },
+    {
+      "id": "qwen/qwen-image-edit",
+      "name": "qwen-image-edit",
+      "description": "Edit images using a prompt. This model extends Qwen-Image’s unique text rendering capabilities to image editing tasks, enabling precise text editing",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "qwen",
+      "ownedBy": "qwen"
+    },
+    {
+      "id": "qwen/qwen-image-edit-plus",
+      "name": "qwen-image-edit-plus",
+      "description": "The latest Qwen-Image’s iteration with improved multi-image editing, single-image consistency, and native support for ControlNet",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "qwen",
+      "ownedBy": "qwen"
+    },
+    {
+      "id": "recraft-ai/recraft-v3",
+      "name": "recraft-v3",
+      "description": "Recraft V3 (code-named red_panda) is a text-to-image model with the ability to generate long texts, and images in a wide list of styles. As of today, it is SOTA in image generation, proven by the Text-to-Image Benchmark by Artificial Analysis",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "recraft-ai",
+      "ownedBy": "recraft-ai"
+    },
+    {
+      "id": "recraft-ai/recraft-v3-svg",
+      "name": "recraft-v3-svg",
+      "description": "Recraft V3 SVG (code-named red_panda) is a text-to-image model with the ability to generate high quality SVG images including logotypes, and icons. The model supports a wide list of styles.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "recraft-ai",
+      "ownedBy": "recraft-ai"
+    },
+    {
+      "id": "recraft-ai/recraft-v4",
+      "name": "recraft-v4",
+      "description": "Recraft's latest image generation model, built around design taste. Strong prompt accuracy, art-directed composition, and integrated text rendering. Fast and cost-efficient at standard resolution.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "recraft-ai",
+      "ownedBy": "recraft-ai"
+    },
+    {
+      "id": "recraft-ai/recraft-v4-pro",
+      "name": "recraft-v4-pro",
+      "description": "Recraft's latest image generation model at ~2048px resolution. Same design taste and prompt accuracy as V4, with higher resolution for print-ready and large-scale work.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "recraft-ai",
+      "ownedBy": "recraft-ai"
+    },
+    {
+      "id": "recraft-ai/recraft-v4-pro-svg",
+      "name": "recraft-v4-pro-svg",
+      "description": "Generate detailed SVG vector graphics from text prompts. Recraft V4 Pro's design taste with more geometric detail and finer paths — clean layers, editable output, and scalable to any size.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "recraft-ai",
+      "ownedBy": "recraft-ai"
+    },
+    {
+      "id": "recraft-ai/recraft-v4-svg",
+      "name": "recraft-v4-svg",
+      "description": "Generate production-ready SVG vector images from text prompts. Recraft V4's design taste applied to vector output — clean geometry, structured layers, and editable paths.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "recraft-ai",
+      "ownedBy": "recraft-ai"
+    },
+    {
+      "id": "stability-ai/stable-diffusion-3.5-large",
+      "name": "stable-diffusion-3.5-large",
+      "description": "A text-to-image model that generates high-resolution images with fine details. It supports various artistic styles and produces diverse outputs from the same prompt, thanks to Query-Key Normalization.",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "stability-ai",
+      "ownedBy": "stability-ai"
+    },
+    {
+      "id": "stability-ai/stable-diffusion-3.5-large-turbo",
+      "name": "stable-diffusion-3.5-large-turbo",
+      "description": "A text-to-image model that generates high-resolution images with fine details. It supports various artistic styles and produces diverse outputs from the same prompt, with a focus on fewer inference steps",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "stability-ai",
+      "ownedBy": "stability-ai"
+    },
+    {
+      "id": "stability-ai/stable-diffusion-3.5-medium",
+      "name": "stable-diffusion-3.5-medium",
+      "description": "2.5 billion parameter image model with improved MMDiT-X architecture",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "stability-ai",
+      "ownedBy": "stability-ai"
+    },
+    {
+      "id": "tencent/hunyuan-image-3",
+      "name": "hunyuan-image-3",
+      "description": "A powerful native multimodal model for image generation (PrunaAI squeezed)",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "tencent",
+      "ownedBy": "tencent"
+    },
+    {
+      "id": "xai/grok-imagine-image",
+      "name": "grok-imagine-image",
+      "description": "SOTA image model from xAI",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "xai",
+      "ownedBy": "xai"
+    },
+    {
+      "id": "cogview-3-flash",
+      "name": "CogView-3-Flash",
+      "capabilities": ["image-generation"],
+      "inputModalities": ["text"],
+      "outputModalities": ["image"],
+      "family": "CogView",
+      "ownedBy": "zhipu"
+    },
+    {
+      "id": "cogview-4-250304",
+      "name": "cogview-4-250304",
+      "capabilities": ["image-generation"],
+      "ownedBy": "zhipu"
     }
   ]
 }

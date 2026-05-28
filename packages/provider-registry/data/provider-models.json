@@ -666,11 +666,6 @@
           "perMillionTokens": 12
         }
       },
-      "name": "Nano Banana Pro (Gemini 3 Pro Image)",
-      "family": "gemini-pro",
-      "ownedBy": "google",
-      "inputModalities": ["text"],
-      "outputModalities": ["text", "image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -688,9 +683,6 @@
             }
           }
         }
-      },
-      "capabilities": {
-        "force": ["image-generation", "function-call", "image-recognition", "web-search"]
       }
     },
     {
@@ -1270,12 +1262,6 @@
         }
       },
       "endpointTypes": ["openai-image-generation"],
-      "name": "GPT-Image-1",
-      "description": "Azure OpenAI’s gpt-image-1 image generation API offers both text-to-image generation and image-to-image editing with text guidance capabilities.\nBefore using this API, please ensure you have the latest OpenAI package installed by running pip install -U openai.",
-      "family": "gpt",
-      "ownedBy": "openai",
-      "inputModalities": ["text", "image"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -1335,9 +1321,6 @@
             }
           }
         }
-      },
-      "capabilities": {
-        "force": ["function-call", "file-input", "image-recognition", "image-generation"]
       }
     },
     {
@@ -4607,15 +4590,6 @@
     {
       "providerId": "modelscope",
       "modelId": "Tongyi-MAI/Z-Image",
-      "name": "Z-Image",
-      "description": "Tongyi-MAI Z-Image — text-to-image base model. Higher fidelity than Z-Image-Turbo; recommended num_inference_steps≈30, guidance_scale≈4.",
-      "family": "Z-Image",
-      "ownedBy": "Tongyi-MAI",
-      "capabilities": {
-        "force": ["image-generation"]
-      },
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -4654,15 +4628,6 @@
     {
       "providerId": "modelscope",
       "modelId": "Tongyi-MAI/Z-Image-Turbo",
-      "name": "Z-Image-Turbo",
-      "description": "Tongyi-MAI Z-Image-Turbo — sub-second text-to-image on ModelScope's free API Inference tier. Apache-2.0 weights; recommended num_inference_steps=9, guidance_scale=0.",
-      "family": "Z-Image",
-      "ownedBy": "Tongyi-MAI",
-      "capabilities": {
-        "force": ["image-generation"]
-      },
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -4701,11 +4666,6 @@
     {
       "providerId": "modelscope",
       "modelId": "Qwen/Qwen-Image",
-      "name": "Qwen-Image",
-      "family": "Qwen",
-      "ownedBy": "Alibaba",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -4747,23 +4707,11 @@
             }
           }
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "modelscope",
       "modelId": "Qwen/Qwen-Image-Edit-2511",
-      "name": "Qwen-Image-Edit-2511",
-      "description": "Qwen-Image-Edit, dated 2025-11 release on ModelScope. Image-editing variant of Qwen-Image — extends text rendering capabilities to edit tasks with semantic + appearance control via Qwen2.5-VL.",
-      "family": "Qwen",
-      "ownedBy": "Alibaba",
-      "capabilities": {
-        "force": ["image-generation"]
-      },
-      "inputModalities": ["text", "image"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -14682,10 +14630,6 @@
     {
       "providerId": "ppio",
       "modelId": "jimeng-txt2img-v3.1",
-      "name": "即梦文生图 3.1",
-      "description": "画面效果升级，美感塑造、风格精准多样及画面细节丰富。",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -14711,18 +14655,11 @@
             }
           }
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "ppio",
       "modelId": "jimeng-txt2img-v3.0",
-      "name": "即梦文生图 3.0",
-      "description": "文字响应准确度、图文排版、层次美感和语义理解能力显著提升。",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -14748,18 +14685,11 @@
             }
           }
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "ppio",
       "modelId": "hunyuan-image-3",
-      "name": "Hunyuan Image 3",
-      "description": "高质量、富有情感和故事性的图片生成。",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -14781,18 +14711,11 @@
             }
           }
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "ppio",
       "modelId": "qwen-image-txt2img",
-      "name": "Qwen-Image 文生图",
-      "description": "擅长创建带有本地文本的图形海报。",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -14811,9 +14734,6 @@
             }
           }
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
@@ -14823,7 +14743,6 @@
     {
       "providerId": "ppio",
       "modelId": "qwen-image-edit-2509",
-      "ownedBy": "alibaba",
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -14844,9 +14763,6 @@
             }
           }
         }
-      },
-      "capabilities": {
-        "force": ["function-call", "image-generation"]
       }
     },
     {
@@ -14856,7 +14772,6 @@
     {
       "providerId": "ppio",
       "modelId": "z-image-turbo",
-      "ownedBy": "dashscope",
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -14875,18 +14790,11 @@
             }
           }
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "ppio",
       "modelId": "z-image-turbo-lora",
-      "name": "Z Image Turbo LoRA",
-      "description": "支持自定义 LoRA 权重的高速图像生成。",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -14905,18 +14813,11 @@
             }
           }
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "ppio",
       "modelId": "seedream-5.0-lite",
-      "name": "Seedream 5.0 Lite",
-      "description": "支持文生图、单图生图、多图生图，以及组图生成功能。",
-      "inputModalities": ["text", "image"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -14954,18 +14855,11 @@
             }
           }
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "ppio",
       "modelId": "seedream-4.5",
-      "name": "Seedream 4.5",
-      "description": "支持文生图、单图生图、多图生图，以及组图生成功能。",
-      "inputModalities": ["text", "image"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -15003,18 +14897,11 @@
             }
           }
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "ppio",
       "modelId": "seedream-4.0",
-      "name": "Seedream 4.0",
-      "description": "支持4K分辨率的图像生成。",
-      "inputModalities": ["text", "image"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -15052,9 +14939,6 @@
             }
           }
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
@@ -17914,7 +17798,6 @@
     {
       "providerId": "dmxapi",
       "modelId": "doubao-seedream-4-0-250828",
-      "ownedBy": "bytedance",
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -17996,15 +17879,11 @@
         "vendorParams": {
           "response_format": "b64_json"
         }
-      },
-      "capabilities": {
-        "force": ["function-call"]
       }
     },
     {
       "providerId": "dmxapi",
       "modelId": "doubao-seedream-4-5-251128",
-      "ownedBy": "bytedance",
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -18086,19 +17965,11 @@
         "vendorParams": {
           "response_format": "b64_json"
         }
-      },
-      "capabilities": {
-        "force": ["function-call"]
       }
     },
     {
       "providerId": "dmxapi",
       "modelId": "gemini-2.5-flash-image",
-      "name": "gemini-2.5-flash-image（¥0.25）",
-      "family": "Google",
-      "ownedBy": "Google",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -18150,15 +18021,11 @@
             }
           }
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "dmxapi",
       "modelId": "musesteamer-air-image",
-      "ownedBy": "dmxapi",
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -18178,19 +18045,11 @@
             }
           }
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "dmxapi",
       "modelId": "nano-banana",
-      "name": "Nano-Banana",
-      "family": "nano-banana",
-      "ownedBy": "google",
-      "inputModalities": ["text", "image"],
-      "outputModalities": ["text", "image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -18242,15 +18101,11 @@
             }
           }
         }
-      },
-      "capabilities": {
-        "force": ["function-call", "file-input", "image-recognition", "image-generation"]
       }
     },
     {
       "providerId": "dmxapi",
       "modelId": "nano-banana-2",
-      "ownedBy": "google",
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -18295,12 +18150,6 @@
     {
       "providerId": "tokenflux",
       "modelId": "black-forest-labs/flux-1.1-pro-ultra",
-      "name": "flux-1.1-pro-ultra",
-      "description": "FLUX1.1 [pro] in ultra and raw modes. Images are up to 4 megapixels. Use raw mode for realism.",
-      "family": "black-forest-labs",
-      "ownedBy": "black-forest-labs",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -18391,20 +18240,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "black-forest-labs/flux-2-flex",
-      "name": "flux-2-flex",
-      "description": "Max-quality image generation and editing with support for ten reference images",
-      "family": "black-forest-labs",
-      "ownedBy": "black-forest-labs",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -18559,20 +18399,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "black-forest-labs/flux-2-klein-4b",
-      "name": "flux-2-klein-4b",
-      "description": "Very fast image generation and editing model. 4 steps distilled, sub-second inference for production and near real-time applications.",
-      "family": "black-forest-labs",
-      "ownedBy": "black-forest-labs",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -18695,20 +18526,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "black-forest-labs/flux-2-max",
-      "name": "flux-2-max",
-      "description": "The highest fidelity image model from Black Forest Labs",
-      "family": "black-forest-labs",
-      "ownedBy": "black-forest-labs",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -18842,20 +18664,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "black-forest-labs/flux-2-pro",
-      "name": "flux-2-pro",
-      "description": "High-quality image generation and editing with support for eight reference images",
-      "family": "black-forest-labs",
-      "ownedBy": "black-forest-labs",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -18989,20 +18802,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "black-forest-labs/flux-dev",
-      "name": "flux-dev",
-      "description": "A 12 billion parameter rectified flow transformer capable of generating images from text descriptions",
-      "family": "black-forest-labs",
-      "ownedBy": "black-forest-labs",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -19151,20 +18955,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "black-forest-labs/flux-dev-lora",
-      "name": "flux-dev-lora",
-      "description": "A version of flux-dev, a text to image model, that supports fast fine-tuned lora inference",
-      "family": "black-forest-labs",
-      "ownedBy": "black-forest-labs",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -19373,20 +19168,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "black-forest-labs/flux-fill-pro",
-      "name": "flux-fill-pro",
-      "description": "Professional inpainting and outpainting model with state-of-the-art performance. Edit or extend images with natural, seamless results.",
-      "family": "black-forest-labs",
-      "ownedBy": "black-forest-labs",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -19504,20 +19290,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "black-forest-labs/flux-kontext-dev",
-      "name": "flux-kontext-dev",
-      "description": "Open-weight version of FLUX.1 Kontext",
-      "family": "black-forest-labs",
-      "ownedBy": "black-forest-labs",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -19638,20 +19415,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "black-forest-labs/flux-kontext-max",
-      "name": "flux-kontext-max",
-      "description": "A premium text-based image editing model that delivers maximum performance and improved typography generation for transforming images through natural language prompts",
-      "family": "black-forest-labs",
-      "ownedBy": "black-forest-labs",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -19759,20 +19527,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "black-forest-labs/flux-kontext-pro",
-      "name": "flux-kontext-pro",
-      "description": "A state-of-the-art text-based image editing model that delivers high-quality outputs with excellent prompt following and consistent results for transforming images through natural language",
-      "family": "black-forest-labs",
-      "ownedBy": "black-forest-labs",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -19880,20 +19639,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "black-forest-labs/flux-pro",
-      "name": "flux-pro",
-      "description": "State-of-the-art image generation with top of the line prompt following, visual quality, image detail and output diversity.",
-      "family": "black-forest-labs",
-      "ownedBy": "black-forest-labs",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -20034,20 +19784,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "black-forest-labs/flux-schnell",
-      "name": "flux-schnell",
-      "description": "The fastest image generation model tailored for local development and personal use",
-      "family": "black-forest-labs",
-      "ownedBy": "black-forest-labs",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -20165,20 +19906,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "bria/eraser",
-      "name": "eraser",
-      "description": "SOTA Object removal, enables precise removal of unwanted objects from images while maintaining high-quality outputs. Trained exclusively on licensed data for safe and risk-free commercial use",
-      "family": "bria",
-      "ownedBy": "bria",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -20273,20 +20005,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "bria/expand-image",
-      "name": "expand-image",
-      "description": "Bria Expand expands images beyond their borders in high quality. Resizing the image by generating new pixels to expand to the desired aspect ratio. Trained exclusively on licensed data for safe and risk-free commercial use",
-      "family": "bria",
-      "ownedBy": "bria",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -20425,20 +20148,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "bria/fibo",
-      "name": "fibo",
-      "description": "SOTA Open source model trained on licensed data, transforming intent into structured control for precise, high-quality AI image generation in enterprise and agentic workflows.",
-      "family": "bria",
-      "ownedBy": "bria",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -20536,20 +20250,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "bria/fibo-edit",
-      "name": "fibo-edit",
-      "description": "FIBO-Edit brings the power of structured prompt generation to image editing",
-      "family": "bria",
-      "ownedBy": "bria",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -20637,20 +20342,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "bria/generate-background",
-      "name": "generate-background",
-      "description": "Bria Background Generation allows for efficient swapping of backgrounds in images via text prompts or reference image, delivering realistic and polished results. Trained exclusively on licensed data for safe and risk-free commercial use",
-      "family": "bria",
-      "ownedBy": "bria",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -20798,20 +20494,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "bria/genfill",
-      "name": "genfill",
-      "description": "Bria GenFill enables high-quality object addition or visual transformation. Trained exclusively on licensed data for safe and risk-free commercial use.",
-      "family": "bria",
-      "ownedBy": "bria",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -20911,20 +20598,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "bria/image-3.2",
-      "name": "image-3.2",
-      "description": "Commercial-ready, trained entirely on licensed data, text-to-image model. With only 4B parameters provides exceptional aesthetics and text rendering. Evaluated to be on par to other leading models in the market",
-      "family": "bria",
-      "ownedBy": "bria",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -21012,20 +20690,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "bytedance/seedream-3",
-      "name": "seedream-3",
-      "description": "A text-to-image model with support for native high-resolution (2K) image generation",
-      "family": "bytedance",
-      "ownedBy": "bytedance",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -21111,20 +20780,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "bytedance/seedream-4",
-      "name": "seedream-4",
-      "description": "Unified text-to-image generation and precise single-sentence editing at up to 4K resolution",
-      "family": "bytedance",
-      "ownedBy": "bytedance",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -21248,20 +20908,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "bytedance/seedream-4.5",
-      "name": "seedream-4.5",
-      "description": "Seedream 4.5: Upgraded Bytedance image model with stronger spatial understanding and world knowledge",
-      "family": "bytedance",
-      "ownedBy": "bytedance",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -21376,20 +21027,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "flux-kontext-apps/multi-image-kontext-max",
-      "name": "multi-image-kontext-max",
-      "description": "An experimental FLUX Kontext model that can combine two input images",
-      "family": "flux-kontext-apps",
-      "ownedBy": "flux-kontext-apps",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -21486,20 +21128,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "flux-kontext-apps/multi-image-kontext-pro",
-      "name": "multi-image-kontext-pro",
-      "description": "An experimental model with FLUX Kontext Pro that can combine two input images",
-      "family": "flux-kontext-apps",
-      "ownedBy": "flux-kontext-apps",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -21596,20 +21229,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "flux-kontext-apps/multi-image-list",
-      "name": "multi-image-list",
-      "description": "FLUX Kontext max with list input for multiple images",
-      "family": "flux-kontext-apps",
-      "ownedBy": "flux-kontext-apps",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -21701,20 +21325,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "flux-kontext-apps/restore-image",
-      "name": "restore-image",
-      "description": "Use FLUX Kontext to restore, fix scratches and damage, and colorize old photos",
-      "family": "flux-kontext-apps",
-      "ownedBy": "flux-kontext-apps",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -21770,20 +21385,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "fofr/color-matcher",
-      "name": "color-matcher",
-      "description": "Color match and white balance fixes for images",
-      "family": "fofr",
-      "ownedBy": "fofr",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -21863,20 +21469,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "google/imagen-3",
-      "name": "imagen-3",
-      "description": "Google's highest quality text-to-image model, capable of generating images with detail, rich lighting and beauty",
-      "family": "google",
-      "ownedBy": "google",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -21935,20 +21532,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "google/imagen-3-fast",
-      "name": "imagen-3-fast",
-      "description": "A faster and cheaper Imagen 3 model, for when price or speed are more important than final image quality",
-      "family": "google",
-      "ownedBy": "google",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -22007,20 +21595,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "google/imagen-4",
-      "name": "imagen-4",
-      "description": "Google's Imagen 4 flagship model",
-      "family": "google",
-      "ownedBy": "google",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -22089,20 +21668,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "google/imagen-4-fast",
-      "name": "imagen-4-fast",
-      "description": "Use this fast version of Imagen 4 when speed and cost are more important than quality",
-      "family": "google",
-      "ownedBy": "google",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -22161,20 +21731,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "google/imagen-4-ultra",
-      "name": "imagen-4-ultra",
-      "description": "Use this ultra version of Imagen 4 when quality matters more than speed and cost",
-      "family": "google",
-      "ownedBy": "google",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -22253,20 +21814,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "google/nano-banana",
-      "name": "nano-banana",
-      "description": "Google's latest image editing model in Gemini 2.5",
-      "family": "google",
-      "ownedBy": "google",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -22338,20 +21890,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "google/nano-banana-pro",
-      "name": "nano-banana-pro",
-      "description": "Google's state of the art image generation and editing model 🍌🍌",
-      "family": "google",
-      "ownedBy": "google",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -22452,20 +21995,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "ideogram-ai/ideogram-v2",
-      "name": "ideogram-v2",
-      "description": "An excellent image model with state of the art inpainting, prompt comprehension and text rendering",
-      "family": "ideogram-ai",
-      "ownedBy": "ideogram-ai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -22644,20 +22178,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "ideogram-ai/ideogram-v2-turbo",
-      "name": "ideogram-v2-turbo",
-      "description": "A fast image model with state of the art inpainting, prompt comprehension and text rendering.",
-      "family": "ideogram-ai",
-      "ownedBy": "ideogram-ai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -22836,20 +22361,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "ideogram-ai/ideogram-v2a",
-      "name": "ideogram-v2a",
-      "description": "Like Ideogram v2, but faster and cheaper",
-      "family": "ideogram-ai",
-      "ownedBy": "ideogram-ai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -22996,20 +22512,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "ideogram-ai/ideogram-v2a-turbo",
-      "name": "ideogram-v2a-turbo",
-      "description": "Like Ideogram v2 turbo, but now faster and cheaper",
-      "family": "ideogram-ai",
-      "ownedBy": "ideogram-ai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -23156,20 +22663,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "ideogram-ai/ideogram-v3-balanced",
-      "name": "ideogram-v3-balanced",
-      "description": "Balance speed, quality and cost. Ideogram v3 creates images with stunning realism, creative designs, and consistent styles",
-      "family": "ideogram-ai",
-      "ownedBy": "ideogram-ai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -23438,20 +22936,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "ideogram-ai/ideogram-v3-quality",
-      "name": "ideogram-v3-quality",
-      "description": "The highest quality Ideogram v3 model. v3 creates images with stunning realism, creative designs, and consistent styles",
-      "family": "ideogram-ai",
-      "ownedBy": "ideogram-ai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -23730,20 +23219,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "ideogram-ai/ideogram-v3-turbo",
-      "name": "ideogram-v3-turbo",
-      "description": "Turbo is the fastest and cheapest Ideogram v3. v3 creates images with stunning realism, creative designs, and consistent styles",
-      "family": "ideogram-ai",
-      "ownedBy": "ideogram-ai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -24012,20 +23492,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "leonardoai/lucid-origin",
-      "name": "lucid-origin",
-      "description": "Artistic and high-quality visuals with improved prompt adherence, diversity, and definition",
-      "family": "leonardoai",
-      "ownedBy": "leonardoai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -24133,20 +23604,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "luma/photon",
-      "name": "photon",
-      "description": "High-quality image generation model optimized for creative professional workflows and ultra-high fidelity outputs",
-      "family": "luma",
-      "ownedBy": "luma",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -24239,20 +23701,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "luma/photon-flash",
-      "name": "photon-flash",
-      "description": "Accelerated variant of Photon prioritizing speed while maintaining quality",
-      "family": "luma",
-      "ownedBy": "luma",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -24365,20 +23818,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "minimax/image-01",
-      "name": "image-01",
-      "description": "Minimax's first image model, with character reference support",
-      "family": "minimax",
-      "ownedBy": "minimax",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -24442,20 +23886,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "openai/gpt-image-1",
-      "name": "gpt-image-1",
-      "description": "A multimodal image generation model that creates high-quality images. You need to bring your own verified OpenAI key to use this model. Your OpenAI account will be charged for usage.",
-      "family": "openai",
-      "ownedBy": "openai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -24600,20 +24035,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "openai/gpt-image-1.5",
-      "name": "gpt-image-1.5",
-      "description": "OpenAI's latest image generation model with better instruction following and adherence to prompts",
-      "family": "openai",
-      "ownedBy": "openai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -24768,20 +24194,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "prunaai/flux-fast",
-      "name": "flux-fast",
-      "description": "This is the fastest Flux endpoint in the world.",
-      "family": "prunaai",
-      "ownedBy": "prunaai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -24886,20 +24303,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "prunaai/flux-kontext-fast",
-      "name": "flux-kontext-fast",
-      "description": "Ultra fast flux kontext endpoint",
-      "family": "prunaai",
-      "ownedBy": "prunaai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -25026,20 +24434,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "prunaai/hidream-l1-fast",
-      "name": "hidream-l1-fast",
-      "description": "This is an optimised version of the hidream-l1 model using the pruna ai optimisation toolkit!",
-      "family": "prunaai",
-      "ownedBy": "prunaai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -25150,20 +24549,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "prunaai/p-image",
-      "name": "p-image",
-      "description": "A sub 1 second text-to-image model built for production use cases.",
-      "family": "prunaai",
-      "ownedBy": "prunaai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -25281,20 +24671,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "prunaai/p-image-edit",
-      "name": "p-image-edit",
-      "description": "A sub 1 second 0.01$ multi-image editing model built for production use cases. For image generation, check out p-image here: https://replicate.com/prunaai/p-image",
-      "family": "prunaai",
-      "ownedBy": "prunaai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -25404,20 +24785,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "prunaai/p-image-lora",
-      "name": "p-image-lora",
-      "description": "Use trained LoRAs from the https://replicate.com/prunaai/p-image-trainer. Find or contribute LoRAs here https://huggingface.co/collections/PrunaAI/p-image-loras",
-      "family": "prunaai",
-      "ownedBy": "prunaai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -25537,20 +24909,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "prunaai/wan-2.2-image",
-      "name": "wan-2.2-image",
-      "description": "This model generates beautiful cinematic 2 megapixel images in 3-4 seconds and is derived from the Wan 2.2 model through optimisation techniques from the pruna package",
-      "family": "prunaai",
-      "ownedBy": "prunaai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -25637,20 +25000,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "prunaai/z-image-turbo",
-      "name": "z-image-turbo",
-      "description": "Z-Image Turbo is a super fast text-to-image model of 6B parameters developed by Tongyi-MAI.",
-      "family": "prunaai",
-      "ownedBy": "prunaai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -25762,20 +25116,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "qwen/qwen-image",
-      "name": "qwen-image",
-      "description": "An image generation foundation model in the Qwen series that achieves significant advances in complex text rendering.",
-      "family": "qwen",
-      "ownedBy": "qwen",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -25983,20 +25328,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "qwen/qwen-image-edit",
-      "name": "qwen-image-edit",
-      "description": "Edit images using a prompt. This model extends Qwen-Image’s unique text rendering capabilities to image editing tasks, enabling precise text editing",
-      "family": "qwen",
-      "ownedBy": "qwen",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -26082,20 +25418,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "qwen/qwen-image-edit-plus",
-      "name": "qwen-image-edit-plus",
-      "description": "The latest Qwen-Image’s iteration with improved multi-image editing, single-image consistency, and native support for ControlNet",
-      "family": "qwen",
-      "ownedBy": "qwen",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -26194,20 +25521,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "recraft-ai/recraft-v3",
-      "name": "recraft-v3",
-      "description": "Recraft V3 (code-named red_panda) is a text-to-image model with the ability to generate long texts, and images in a wide list of styles. As of today, it is SOTA in image generation, proven by the Text-to-Image Benchmark by Artificial Analysis",
-      "family": "recraft-ai",
-      "ownedBy": "recraft-ai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -26318,20 +25636,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "recraft-ai/recraft-v3-svg",
-      "name": "recraft-v3-svg",
-      "description": "Recraft V3 SVG (code-named red_panda) is a text-to-image model with the ability to generate high quality SVG images including logotypes, and icons. The model supports a wide list of styles.",
-      "family": "recraft-ai",
-      "ownedBy": "recraft-ai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -26422,20 +25731,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "recraft-ai/recraft-v4",
-      "name": "recraft-v4",
-      "description": "Recraft's latest image generation model, built around design taste. Strong prompt accuracy, art-directed composition, and integrated text rendering. Fast and cost-efficient at standard resolution.",
-      "family": "recraft-ai",
-      "ownedBy": "recraft-ai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -26515,20 +25815,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "recraft-ai/recraft-v4-pro",
-      "name": "recraft-v4-pro",
-      "description": "Recraft's latest image generation model at ~2048px resolution. Same design taste and prompt accuracy as V4, with higher resolution for print-ready and large-scale work.",
-      "family": "recraft-ai",
-      "ownedBy": "recraft-ai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -26608,20 +25899,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "recraft-ai/recraft-v4-pro-svg",
-      "name": "recraft-v4-pro-svg",
-      "description": "Generate detailed SVG vector graphics from text prompts. Recraft V4 Pro's design taste with more geometric detail and finer paths — clean layers, editable output, and scalable to any size.",
-      "family": "recraft-ai",
-      "ownedBy": "recraft-ai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -26701,20 +25983,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "recraft-ai/recraft-v4-svg",
-      "name": "recraft-v4-svg",
-      "description": "Generate production-ready SVG vector images from text prompts. Recraft V4's design taste applied to vector output — clean geometry, structured layers, and editable paths.",
-      "family": "recraft-ai",
-      "ownedBy": "recraft-ai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -26794,20 +26067,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "stability-ai/stable-diffusion-3.5-large",
-      "name": "stable-diffusion-3.5-large",
-      "description": "A text-to-image model that generates high-resolution images with fine details. It supports various artistic styles and produces diverse outputs from the same prompt, thanks to Query-Key Normalization.",
-      "family": "stability-ai",
-      "ownedBy": "stability-ai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -26900,20 +26164,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "stability-ai/stable-diffusion-3.5-large-turbo",
-      "name": "stable-diffusion-3.5-large-turbo",
-      "description": "A text-to-image model that generates high-resolution images with fine details. It supports various artistic styles and produces diverse outputs from the same prompt, with a focus on fewer inference steps",
-      "family": "stability-ai",
-      "ownedBy": "stability-ai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -27006,20 +26261,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "stability-ai/stable-diffusion-3.5-medium",
-      "name": "stable-diffusion-3.5-medium",
-      "description": "2.5 billion parameter image model with improved MMDiT-X architecture",
-      "family": "stability-ai",
-      "ownedBy": "stability-ai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -27112,20 +26358,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "tencent/hunyuan-image-3",
-      "name": "hunyuan-image-3",
-      "description": "A powerful native multimodal model for image generation (PrunaAI squeezed)",
-      "family": "tencent",
-      "ownedBy": "tencent",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -27212,20 +26449,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "tokenflux",
       "modelId": "xai/grok-imagine-image",
-      "name": "grok-imagine-image",
-      "description": "SOTA image model from xAI",
-      "family": "xai",
-      "ownedBy": "xai",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "edit": {
@@ -27298,19 +26526,11 @@
           "title": "Input",
           "type": "object"
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "zhipu",
       "modelId": "cogview-3-flash",
-      "name": "CogView-3-Flash",
-      "family": "CogView",
-      "ownedBy": "zhipu",
-      "inputModalities": ["text"],
-      "outputModalities": ["image"],
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -27343,15 +26563,11 @@
             }
           }
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
       "providerId": "zhipu",
       "modelId": "cogview-4-250304",
-      "ownedBy": "zhipu",
       "imageGeneration": {
         "modes": {
           "generate": {
@@ -27388,9 +26604,6 @@
             }
           }
         }
-      },
-      "capabilities": {
-        "force": ["image-generation"]
       }
     },
     {
