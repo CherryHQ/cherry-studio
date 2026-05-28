@@ -180,12 +180,12 @@ The `onMutation` subscription is shared (one `ipcRenderer.on` per call). Consume
 
 ### 5.1 Why Classes, Not Plain DTOs
 
-The tree is small and read-mostly, so the choice between classes and a discriminated-union DTO is not a performance question. The class hierarchy earns its keep on **two ergonomics concerns** that plain DTOs would force callers to reimplement:
+The tree is the source of identity for two operations the renderer cares about:
 
-- **Navigation methods that take a `TreeDir` and stay typed** — `dir.nodeFromPath(...)`, `dir.walk(...)`, `dir.hasChild(...)`, `dir.attachChild(...)`, `dir.detach(...)`, `node.remove()`. With a DTO, these would all be free functions taking a tagged-union argument, and every call site that already narrowed via `node.kind === 'directory'` would still need to re-pass that narrowed value into the helper.
-- **Parent pointer without serialization cycles** — `WeakMap`-backed `node.parent` lets `applyMutation` reach the parent during `remove()` without storing the pointer on the object (so `JSON.stringify` doesn't cycle, and the wire shape stays a plain tree). A DTO would either embed the parent (cycle) or push that lookup onto every caller.
+- **Rename** — `treeNode.path` is mutated once at the subtree root, then `adjustChildrenPaths` recurses. Consumers holding a reference to the same `TreeNode` instance still have a valid handle.
+- **Reverse lookup** — `O(1)` `Map<absPath, TreeNode>` index. The renderer hook keeps this in sync with mutations.
 
-Mutations on the wire are `added` / `removed` / `updated` — there is no `renamed` event and consumers do not mutate the tree in place. Identity preservation across renames is **not** a property of this primitive; a rename is observed as `removed` + `added`, and the renderer's `applyMutation` discards the old subtree's identity. Callers that need stable identity across renames must either pair the events at the consumer or wait for a future watcher-level rename detection — neither is part of the contract today.
+A plain DTO approach would force rebuilding the subtree on every rename, which destroys identity-based caches (React keys, hashmap lookups), and would force consumers to revalidate every reference after every mutation.
 
 ### 5.2 Wire Shape: `SerializedTreeNode`
 

@@ -19,6 +19,8 @@
 
 import * as z from 'zod'
 
+import type { FilePath } from './common'
+
 // ─── Wire DTOs ──────────────────────────────────────────────────────────────
 
 /** Stat fields carried inline when the tree was built with `withStats: true`. */
@@ -109,7 +111,15 @@ export interface TreeMutationPushPayload {
   readonly event: TreeMutationEvent
 }
 
+export type TreeRootPath = FilePath | string
+
 // ─── Class hierarchy (shared between main and renderer) ─────────────────────
+
+function joinTreePath(parent: string, basename: string): string {
+  if (!parent) return basename
+  if (parent === '/') return `/${basename}`
+  return `${parent}/${basename}`
+}
 
 function basenameOf(p: string): string {
   const i = p.lastIndexOf('/')
@@ -154,9 +164,21 @@ export abstract class TreeNode {
   get path(): string {
     return this._path
   }
+  set path(value: string) {
+    const normalized = value.replace(/\\/g, '/')
+    this._path = normalized
+    this._basename = basenameOf(normalized)
+    this._dirname = dirnameOf(normalized)
+    this.adjustChildrenPaths()
+  }
 
   get basename(): string {
     return this._basename
+  }
+  set basename(value: string) {
+    this._basename = value
+    this._path = joinTreePath(this._dirname, value)
+    this.adjustChildrenPaths()
   }
 
   get dirname(): string {
@@ -196,6 +218,10 @@ export abstract class TreeNode {
   }
 
   protected abstract serialize(): SerializedTreeNode
+
+  protected adjustChildrenPaths(): void {
+    /* default no-op — only TreeDir overrides */
+  }
 
   /** Used by builders / parents to wire parent without going through public API. */
   static setParent(child: TreeNode, parent: TreeDir | null): void {
@@ -313,6 +339,12 @@ export class TreeDir extends TreeNode {
     })
     for (const key of Object.keys(this._children)) delete this._children[key]
     for (const [key, node] of entries) this._children[key] = node
+  }
+
+  protected override adjustChildrenPaths(): void {
+    for (const child of Object.values(this._children)) {
+      child.path = joinTreePath(this._path, child.basename)
+    }
   }
 
   protected serialize(): SerializedTreeNode {
