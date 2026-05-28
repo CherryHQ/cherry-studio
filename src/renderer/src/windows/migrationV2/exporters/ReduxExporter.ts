@@ -13,7 +13,6 @@ const SLICES_TO_EXPORT = [
   'llm', // LLM provider and model configurations
   'mcp', // MCP server configurations
   'minapps', // Mini app configurations (enabled/disabled/pinned)
-  'paintings', // Painting history
   'note', // Note-related settings
   'selectionStore', // Selection assistant settings
   'preprocess', // File preprocess provider configurations
