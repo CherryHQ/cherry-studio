@@ -168,7 +168,7 @@ The `file:tree:*` prefix places these alongside `File_Open` / `File_Read` / etc.
 
 ### 4.2 Validation
 
-Both `File_TreeCreate` and `File_TreeDispose` validate their payloads through Zod at the handler boundary. `rootPath` must satisfy `AbsolutePathSchema` (non-empty, no null bytes, starts with `/` or `[A-Z]:\`). `options` is validated against `DirectoryTreeOptionsSchema` — the same schema whose `z.infer` produces the `DirectoryTreeOptions` TypeScript type, so wire shape and static type cannot drift.
+Both `File_TreeCreate` and `File_TreeDispose` validate their payloads through Zod at the handler boundary. `rootPath` must satisfy `FilePathSchema` (non-empty, no null bytes, absolute path starting with `/` or `[A-Z]:\`, NFC-normalized + segment-resolved + trailing-stripped via the schema's transform). `options` is validated against `DirectoryTreeOptionsSchema` — the same schema whose `z.infer` produces the `DirectoryTreeOptions` TypeScript type, so wire shape and static type cannot drift.
 
 A malformed payload rejects with a `ZodError` Promise rejection at the IPC boundary; the renderer's `invoke()` rejects with the same error. There is no silent narrowing — handlers never see an unvalidated object.
 

@@ -782,7 +782,7 @@ describe('FileEntryService', () => {
       // The `FilePath` brand is TS-only and offers no runtime
       // guarantee. The service-side `FilePathSchema.parse(externalPath)`
       // catches null bytes / non-absolute paths regardless of whether the
-      // caller went through `canonicalizeExternalPath` or `as`-cast.
+      // caller went through `FilePathSchema.parse` or `as`-cast.
       const id = '019606a0-0000-7000-8000-000000000d21' as FileEntryId
       await fileEntryService.create({
         id,

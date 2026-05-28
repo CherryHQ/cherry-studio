@@ -166,10 +166,11 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
 export async function ensureExternal(deps: FileManagerDeps, params: EnsureExternalEntryParams): Promise<FileEntry> {
   const existing = await deps.fileEntryService.findByExternalPath(params.externalPath)
   if (existing) return existing
-  // params.externalPath is FilePath (branded by EnsureExternalEntryIpcSchema's
-  // FilePathSchema). Every downstream derivation consumes it directly — name /
-  // ext stay consistent with the persisted externalPath because both originate
-  // from the same canonical value.
+  // params.externalPath is FilePath — branded by EnsureExternalEntryIpcSchema's
+  // FilePathSchema at the IPC boundary. The schema transform produced a
+  // canonical value (NFC + resolved + trailing-stripped), so every downstream
+  // derivation (name / ext / fsStat) operates on the same canonical form
+  // persisted to file_entry.externalPath.
   await fsStat(params.externalPath)
   // Case-insensitive peer lookup is index-backed via the
   // `fe_external_path_lower_unique_idx` functional UNIQUE on `lower(externalPath)`.

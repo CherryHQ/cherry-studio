@@ -132,8 +132,9 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
    * cache doesn't track.
    *
    * The cache feed is keyed by canonical (NFC) path because `DanglingCache`'s
-   * reverse index is populated by `ensureExternalEntry` → `canonicalizeExternalPath`
-   * (NFC). chokidar emits whatever the OS hands it; on macOS APFS that is NFD
+   * reverse index is populated by `ensureExternalEntry`; the input is already
+   * FilePath (branded by FilePathSchema at the IPC boundary, NFC-normalized
+   * by the schema's transform). chokidar emits whatever the OS hands it; on macOS APFS that is NFD
    * for CJK / accented filenames migrated from HFS+ (or written by tools like
    * `rsync -E` that preserve the source encoding). Without normalizing here
    * the `path → entryIds` lookup misses and the cache stays stale. The

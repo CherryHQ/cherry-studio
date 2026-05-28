@@ -88,7 +88,7 @@ export interface FileEntryService {
   /**
    * Look up an external entry by canonical `externalPath`. Returns `null` when
    * no row matches. The `FilePath` brand forces callers through
-   * `canonicalizeExternalPath()` at compile time — raw `string` values are
+   * `FilePathSchema.parse()` at compile time — raw `string` values are
    * not assignable here, which prevents the "caller forgot to canonicalize"
    * class of bug that would silently miss all matches.
    */
@@ -412,7 +412,7 @@ class FileEntryServiceImpl implements FileEntryService {
     // The `FilePath` brand is TS-only — defense-in-depth at the
     // runtime layer rejects path strings the brand failed to flag (e.g. a
     // caller that `as`-cast a raw user string instead of going through
-    // `canonicalizeExternalPath`).
+    // `FilePathSchema.parse`).
     SafeNameSchema.parse(name)
     FilePathSchema.parse(externalPath)
     const rows = await this.getDb()

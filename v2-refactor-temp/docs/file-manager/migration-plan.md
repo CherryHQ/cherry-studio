@@ -1539,7 +1539,7 @@ async function migrateFileEntry(oldFile: DexieFileRow): Promise<FileEntryRow> {
     size: oldFile.size,
     externalPath:
       oldFile.origin === "external"
-        ? canonicalizeExternalPath(oldFile.path)
+        ? FilePathSchema.parse(oldFile.path)
         : null,
     deletedAt: null, // Dexie 没软删除字段；external 也不允许 trashed（fe_external_no_delete）
     createdAt: toMs(oldFile.created_at), // ISO → ms
@@ -1550,7 +1550,7 @@ async function migrateFileEntry(oldFile: DexieFileRow): Promise<FileEntryRow> {
 
 **External path 去重（强制）**：新 schema 的 `UNIQUE(externalPath)` 禁止同路径两条行。如果 Dexie 里存在多条指向同一 canonical path 的 external FileMetadata（由 case / NFD / 拼写差异合并后），FileMigrator 必须：
 
-1. 按 `canonicalizeExternalPath(path)` 分组
+1. 按 `FilePathSchema.parse(path)` 分组
 2. 每组保留一条（建议取 `createdAt` 最早的）作为 surviving row
 3. 把组内其他 id 收集到 id-remap 表，在迁移 `file_ref`（以及其他引用 FileMetadata.id 的业务表）时将旧 id 重路由到 surviving id
 4. 被合并掉的 FileMetadata.id 不产生 `file_entry` 行
@@ -1651,7 +1651,7 @@ ctx.sharedData.set('fileMigrator.idRemap', /* ReadonlyMap<oldId, FileEntryId> */
 ctx.sharedData.set('fileMigrator.knownIds', /* ReadonlySet<FileEntryId> */)
 ```
 
-- **`idRemap`** 服务 external 去重——`canonicalizeExternalPath` 合并掉的 loser id 在表里映射到 surviving id。internal 文件**不在表里**（一对一保留）。
+- **`idRemap`** 服务 external 去重——`FilePathSchema` 合并掉的 loser id 在表里映射到 surviving id。internal 文件**不在表里**（一对一保留）。
 - **`knownIds`** 是所有成功写入 `file_entry` 的 id 全集，供业务 migrator 校验 "这个 fileId 是否真的迁过去了"。
 
 业务 migrator 通过这两份产物访问 file 子系统，**不直接查 DB**（保持迁移期单向数据流；同时避免对 fileEntryService 启动顺序产生隐式依赖）。
@@ -1698,7 +1698,7 @@ async function migrateOneMessageBlock(block) {
 | ------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
 | `dexieExport.tableExists('files')` 返回 false                             | `recordWarning` 后跳过；FileMigrator 不产生任何 file_entry。业务 migrator 后续遇到 file id 查 `knownIds` miss → warn-skip ref（链式安全） |
 | 单条 file 字段缺失（`origin_name` undefined 等）                          | `recordWarning` + skip 该行；不中止迁移                                                                                 |
-| `canonicalizeExternalPath` 抛出（含 null byte）                           | **严重错误**：抛 `MigrationFatalError` 中止——v1 数据已被注入恶意路径，需人工调查                                       |
+| `FilePathSchema.parse` 抛出（含 null byte / 非绝对路径）                  | **严重错误**：抛 `MigrationFatalError` 中止——v1 数据已被注入恶意路径，需人工调查                                       |
 | External 去重时 surviving 选择失败                                        | 抛 `MigrationFatalError` 中止                                                                                           |
 | `file_entry` INSERT 违反 schema CHECK（origin/size/externalPath 三元约束）| 抛 `MigrationFatalError` 中止——mapping 逻辑有 bug                                                                      |
 | §2.10.2 物理抽样失败率 > 50%                                              | 抛 `MigrationFatalError` 中止（前条文已规约）                                                                           |

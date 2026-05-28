@@ -25,18 +25,22 @@ export function getExtSuffix(ext: string | null): string {
  * Resolve the physical filesystem path for a FileEntry.
  *
  * - `origin='internal'` → `{userData}/Data/Files/{id}{.ext}` (flat UUID-based storage)
- * - `origin='external'` → `externalPath` directly (user-provided absolute path)
+ * - `origin='external'` → `entry.externalPath` directly (already `FilePath` after
+ *   `FileEntrySchema.parse`)
  *
  * Returns a branded `FilePath` so callers can pass the result straight to
  * `@main/utils/file/fs` without a manual `as FilePath` cast — the brand
- * is sanctioned here because the function ran the null-byte + absolute-path
- * guards that make a string safe to treat as a `FilePath`.
+ * is sanctioned here because:
+ * - Internal branch: `application.getPath` returns canonical paths by
+ *   construction (the path namespace registry guarantees absolute, no `\0`,
+ *   no trailing separator).
+ * - External branch: `entry.externalPath` is already `FilePath`, branded by
+ *   `FilePathSchema` at the BO parse boundary.
  *
  * @throws If null bytes are detected (potential path-truncation attack) in
- *   entry id / ext / externalPath. Security-sensitive rejections are logged
- *   at `error` level — these inputs should never reach the resolver if
- *   upstream Zod validation runs; arriving here indicates either a
- *   parse-bypass or a data integrity problem worth investigating.
+ *   entry id / ext. Security-sensitive rejections are logged at `error` level;
+ *   these inputs should never reach the resolver if upstream Zod validation
+ *   runs.
  */
 export function resolvePhysicalPath(entry: PathResolvableEntry): FilePath {
   // Reject null bytes in any user-controlled path segments (path-truncation guard).
