@@ -1,8 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { titleBarOverlayDark, titleBarOverlayLight } from '@main/config'
-import { isLinux, isMac, isWin } from '@main/constant'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isLinux, isMac, isWin } from '@main/core/platform'
 import type { WindowOptions } from '@main/core/window/types'
 import { WindowType } from '@main/core/window/types'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -243,7 +242,6 @@ export class SubWindowService extends BaseService {
     const options: Partial<WindowOptions> = {
       title: title || 'Cherry Studio Tab',
       darkTheme: dark,
-      ...(isMac && { titleBarOverlay: dark ? titleBarOverlayDark : titleBarOverlayLight }),
       ...(!isMac && { backgroundColor: dark ? '#181818' : '#FFFFFF' }),
       ...(isLinux && { icon: linuxIcon }),
       ...(hasPosition && { x, y })

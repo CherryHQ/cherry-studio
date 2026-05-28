@@ -27,6 +27,7 @@ import {
   processMessageContent,
   processTopicContent
 } from '@renderer/utils/knowledge'
+import { resolveKnowledgeFileMetadataEntryData } from '@renderer/utils/knowledgeFileEntry'
 import type { KnowledgeRuntimeAddItemInput } from '@shared/data/types/knowledge'
 import { Check } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -353,16 +354,37 @@ const PopupContainer: React.FC<Props> = ({ source, title, resolve }) => {
         }
 
         if (result.files.length > 0 && selectedTypes.includes(CONTENT_TYPES.FILE)) {
+          const fileResults = await Promise.allSettled(result.files.map(resolveKnowledgeFileMetadataEntryData))
+          const fileData = fileResults.flatMap((item) => (item.status === 'fulfilled' ? [item.value] : []))
+          const failedFiles = fileResults.flatMap((item, index) =>
+            item.status === 'rejected'
+              ? [
+                  {
+                    index,
+                    source: result.files[index]?.origin_name || result.files[index]?.name,
+                    reason: item.reason instanceof Error ? item.reason.message : String(item.reason)
+                  }
+                ]
+              : []
+          )
+          const failedCount = failedFiles.length
+
+          if (failedCount > 0) {
+            logger.warn('Failed to resolve some knowledge file entries', {
+              failedCount,
+              totalCount: fileResults.length,
+              failedFiles
+            })
+            window.toast.warning(t('chat.save.knowledge.error.file_partial_failed', { count: failedCount }))
+          }
+
           items.push(
-            ...result.files.map((file) => ({
+            ...fileData.map((data) => ({
               type: 'file' as const,
-              data: {
-                source: file.path || file.origin_name || file.name,
-                file
-              }
+              data
             }))
           )
-          savedCount += result.files.length
+          savedCount += fileData.length
         }
       }
 

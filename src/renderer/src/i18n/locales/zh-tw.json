@@ -1380,6 +1380,7 @@
           "no_knowledge_base": "暫無可用知識庫，請先建立知識庫"
         },
         "error": {
+          "file_partial_failed": "{{count}} 個檔案儲存失敗",
           "invalid_base": "所選知識庫未正確設定",
           "no_content_selected": "請至少選擇一種內容類型",
           "save_failed": "儲存失敗，請檢查知識庫設定"
@@ -5569,9 +5570,6 @@
       }
     },
     "integrations": {
-      "groups": {
-        "notes": "筆記"
-      },
       "title": "集成"
     },
     "launch": {
@@ -5619,6 +5617,7 @@
       },
       "addSuccess": "伺服器新增成功",
       "advancedSettings": "進階設定",
+      "allServers": "MCP 伺服器",
       "args": "參數",
       "argsTooltip": "每個參數佔一行",
       "baseUrlTooltip": "遠端 URL 位址",
@@ -5768,6 +5767,7 @@
       "serverPlural": "伺服器",
       "serverSingular": "伺服器",
       "servers": "MCP 伺服器",
+      "shortTitle": "MCP",
       "sse": "伺服器傳送事件 (sse)",
       "startError": "啟動失敗",
       "stdio": "標準輸入 / 輸出 (stdio)",
@@ -6483,7 +6483,8 @@
         "agent": "支援 Agent",
         "all": "全部服務商",
         "disabled": "僅已停用",
-        "enabled": "僅已啟用"
+        "enabled": "僅已啟用",
+        "label": "篩選服務商"
       },
       "filter_agent": "篩選支援 Agent 的服務商",
       "get_api_key": "點選這裡取得金鑰",

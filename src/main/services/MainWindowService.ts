@@ -1,8 +1,8 @@
 import { application } from '@application'
 import { optimizer } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
-import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
@@ -14,7 +14,6 @@ import windowStateKeeper from 'electron-window-state'
 import path, { join } from 'path'
 
 import iconPath from '../../../build/icon.png?asset'
-import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
 import { contextMenu } from './ContextMenu'
 
@@ -214,9 +213,6 @@ export class MainWindowService extends BaseService {
         width: this.stateKeeper.width,
         height: this.stateKeeper.height,
         darkTheme: nativeTheme.shouldUseDarkColors,
-        ...(isMac && {
-          titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight
-        }),
         ...(isLinux && {
           frame: preferenceService.get('app.use_system_title_bar'),
           icon: linuxIcon

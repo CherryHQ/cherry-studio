@@ -1,14 +1,9 @@
 import { loggerService } from '@logger'
 import { Mistral } from '@mistralai/mistralai'
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
-import type { FileMetadata } from '@types'
+import type { FileInfo } from '@shared/file/types'
 
-import {
-  assertHasFilePath,
-  getRequiredApiHost,
-  getRequiredApiKey,
-  getRequiredCapability
-} from '../../../utils/provider'
+import { getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '../../../utils/provider'
 import type { FileProcessingCapabilityHandler } from '../../types'
 import type { MistralDocumentUrlDocument, PreparedMistralContext } from '../types'
 import {
@@ -78,11 +73,10 @@ export const mistralDocumentToMarkdownHandler: FileProcessingCapabilityHandler<'
   }
 }
 
-function prepareContext(file: FileMetadata, config: FileProcessorMerged, signal?: AbortSignal): PreparedMistralContext {
+function prepareContext(file: FileInfo, config: FileProcessorMerged, signal?: AbortSignal): PreparedMistralContext {
   signal?.throwIfAborted()
 
   const capability = getRequiredCapability(config, 'document_to_markdown', 'mistral')
-  assertHasFilePath(file)
 
   return {
     file,

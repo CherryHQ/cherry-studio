@@ -316,6 +316,19 @@
   --color-ghost-active: var(--cs-ghost-active);
   --color-sidebar: var(--cs-sidebar);
   --color-sidebar-accent: var(--cs-sidebar-accent);
+  --color-card-foreground: var(--cs-card-foreground);
+  --color-popover-foreground: var(--cs-popover-foreground);
+  --color-secondary-foreground: var(--cs-secondary-foreground);
+  --color-accent-foreground: var(--cs-accent-foreground);
+  --color-primary-foreground: var(--cs-primary-foreground);
+  --color-destructive-foreground: var(--cs-destructive-foreground);
+  --color-input: var(--cs-input);
+  --color-sidebar-foreground: var(--cs-sidebar-foreground);
+  --color-sidebar-primary: var(--cs-sidebar-primary);
+  --color-sidebar-primary-foreground: var(--cs-sidebar-primary-foreground);
+  --color-sidebar-accent-foreground: var(--cs-sidebar-accent-foreground);
+  --color-sidebar-border: var(--cs-sidebar-border);
+  --color-sidebar-ring: var(--cs-sidebar-ring);
 
   /* ==================== */
   /* Status Colors */

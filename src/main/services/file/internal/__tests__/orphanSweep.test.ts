@@ -268,7 +268,8 @@ describe('runDbSweep (umbrella + observability)', () => {
       fileRefService,
       registry: {
         knowledge_item: { sourceType: 'knowledge_item', checkExists: async (ids) => new Set(ids) },
-        temp_session: { sourceType: 'temp_session', checkExists: async () => new Set() }
+        temp_session: { sourceType: 'temp_session', checkExists: async () => new Set() },
+        chat_message: { sourceType: 'chat_message', checkExists: async () => new Set() }
       } as never
     })
 
@@ -303,13 +304,14 @@ describe('runDbSweep (umbrella + observability)', () => {
       fileRefService: failingFileRefService,
       registry: {
         knowledge_item: { sourceType: 'knowledge_item', checkExists: async (ids) => new Set(ids) },
-        temp_session: { sourceType: 'temp_session', checkExists: async () => new Set() }
+        temp_session: { sourceType: 'temp_session', checkExists: async () => new Set() },
+        chat_message: { sourceType: 'chat_message', checkExists: async () => new Set() }
       } as never
     })
     expect(report.outcome).toBe('partial')
     if (report.outcome === 'partial') {
       // Every registered sourceType's listDistinctSourceIds throws → all errored.
-      expect(Object.keys(report.errorsByType)).toHaveLength(2)
+      expect(Object.keys(report.errorsByType)).toHaveLength(3)
       expect(report.errorsByType.temp_session).toMatch(/boom/)
     }
     expect(warnSpy).toHaveBeenCalledWith(
@@ -365,7 +367,8 @@ describe('runDbSweep (umbrella + observability)', () => {
         knowledge_item: { sourceType: 'knowledge_item', checkExists: async (ids) => new Set(ids) },
         // temp_session checker treats every sourceId as deleted, so the
         // planted ref above is classified orphan and counted.
-        temp_session: { sourceType: 'temp_session', checkExists: async () => new Set() }
+        temp_session: { sourceType: 'temp_session', checkExists: async () => new Set() },
+        chat_message: { sourceType: 'chat_message', checkExists: async () => new Set() }
       } as never
     })
 
@@ -396,7 +399,8 @@ describe('runDbSweep (umbrella + observability)', () => {
       fileRefService,
       registry: {
         knowledge_item: { sourceType: 'knowledge_item', checkExists: async (ids) => new Set(ids) },
-        temp_session: { sourceType: 'temp_session', checkExists: async () => new Set() }
+        temp_session: { sourceType: 'temp_session', checkExists: async () => new Set() },
+        chat_message: { sourceType: 'chat_message', checkExists: async () => new Set() }
       } as never
     })
     expect(report.outcome).toBe('failed')

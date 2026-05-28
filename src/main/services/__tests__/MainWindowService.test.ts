@@ -49,7 +49,7 @@ const { platformState, prefValues, applicationMock, windowManagerMock, loggerMoc
   return { platformState, prefValues, applicationMock, windowManagerMock, loggerMock }
 })
 
-vi.mock('@main/constant', () => ({
+vi.mock('@main/core/platform', () => ({
   get isMac() {
     return platformState.isMac
   },

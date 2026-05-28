@@ -5568,9 +5568,6 @@
       }
     },
     "integrations": {
-      "groups": {
-        "notes": "Ghi chú"
-      },
       "title": "Tích hợp"
     },
     "launch": {
@@ -5618,6 +5615,7 @@
       },
       "addSuccess": "Servidor añadido con éxito",
       "advancedSettings": "Cài đặt nâng cao",
+      "allServers": "[to be translated]:MCP Servers",
       "args": "Lập luận",
       "argsTooltip": "Mỗi lập luận trên một dòng mới",
       "baseUrlTooltip": "URL cơ sở máy chủ từ xa",
@@ -5767,6 +5765,7 @@
       "serverPlural": "máy chủ",
       "serverSingular": "máy chủ",
       "servers": "Máy chủ MCP",
+      "shortTitle": "[to be translated]:MCP",
       "sse": "Sự kiện gửi từ máy chủ (SSE)",
       "startError": "Khởi động thất bại",
       "stdio": "Đầu vào/Đầu ra chuẩn (stdio)",
@@ -6482,7 +6481,8 @@
         "agent": "Được hỗ trợ bởi đại lý",
         "all": "Tất cả nhà cung cấp",
         "disabled": "[to be translated]:Disabled Only",
-        "enabled": "[to be translated]:Enabled Only"
+        "enabled": "[to be translated]:Enabled Only",
+        "label": "[to be translated]:Filter providers"
       },
       "filter_agent": "Các nhà cung cấp được Hỗ trợ bởi Agent Lọc",
       "get_api_key": "Lấy Khóa API",

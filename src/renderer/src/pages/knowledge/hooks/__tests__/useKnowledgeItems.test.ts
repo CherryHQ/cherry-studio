@@ -36,7 +36,6 @@ describe('useKnowledgeItems', () => {
           path: '/tmp/example-directory'
         },
         status: 'completed',
-        phase: null,
         error: null,
         createdAt: '2026-04-21T10:00:00+08:00',
         updatedAt: '2026-04-21T10:00:00+08:00'
@@ -51,7 +50,6 @@ describe('useKnowledgeItems', () => {
           path: '/tmp/example-directory/nested'
         },
         status: 'completed',
-        phase: null,
         error: null,
         createdAt: '2026-04-21T10:00:00+08:00',
         updatedAt: '2026-04-21T10:00:00+08:00'
@@ -63,20 +61,9 @@ describe('useKnowledgeItems', () => {
         type: 'file',
         data: {
           source: '/tmp/report.pdf',
-          file: {
-            id: 'file-1',
-            name: 'report.pdf',
-            origin_name: 'report.pdf',
-            path: '/tmp/report.pdf',
-            size: 1024,
-            ext: 'pdf',
-            type: 'document',
-            created_at: '2026-04-21T10:00:00+08:00',
-            count: 1
-          }
+          fileEntryId: '019606a0-0000-7000-8000-000000000001'
         },
         status: 'completed',
-        phase: null,
         error: null,
         createdAt: '2026-04-21T10:00:00+08:00',
         updatedAt: '2026-04-21T10:00:00+08:00'
@@ -91,7 +78,6 @@ describe('useKnowledgeItems', () => {
           content: 'Grouped note'
         },
         status: 'completed',
-        phase: null,
         error: null,
         createdAt: '2026-04-21T10:00:00+08:00',
         updatedAt: '2026-04-21T10:00:00+08:00'
@@ -106,7 +92,6 @@ describe('useKnowledgeItems', () => {
           content: 'Example note'
         },
         status: 'completed',
-        phase: null,
         error: null,
         createdAt: '2026-04-21T10:00:00+08:00',
         updatedAt: '2026-04-21T10:00:00+08:00'
@@ -181,7 +166,6 @@ describe('useKnowledgeItems', () => {
             type: 'directory',
             data: { source: '/docs', path: '/docs' },
             status: 'completed',
-            phase: null,
             error: null,
             createdAt: '2026-04-21T10:00:00+08:00',
             updatedAt: '2026-04-21T10:00:00+08:00'
@@ -193,20 +177,9 @@ describe('useKnowledgeItems', () => {
             type: 'file',
             data: {
               source: '/docs/grouped.md',
-              file: {
-                id: 'grouped-file-meta',
-                name: 'grouped.md',
-                origin_name: 'grouped.md',
-                path: '/docs/grouped.md',
-                size: 10,
-                ext: '.md',
-                type: 'text',
-                created_at: '2026-04-21T10:00:00+08:00',
-                count: 1
-              }
+              fileEntryId: '019606a0-0000-7000-8000-000000000002'
             },
-            status: 'processing',
-            phase: 'embedding',
+            status: 'embedding',
             error: null,
             createdAt: '2026-04-21T10:00:00+08:00',
             updatedAt: '2026-04-21T10:00:00+08:00'
@@ -218,7 +191,6 @@ describe('useKnowledgeItems', () => {
             type: 'note',
             data: { source: 'item-processing', content: 'processing' },
             status: 'processing',
-            phase: null,
             error: null,
             createdAt: '2026-04-21T10:00:00+08:00',
             updatedAt: '2026-04-21T10:00:00+08:00'
@@ -236,7 +208,6 @@ describe('useKnowledgeItems', () => {
             type: 'note',
             data: { source: 'item-completed', content: 'completed' },
             status: 'completed',
-            phase: null,
             error: null,
             createdAt: '2026-04-21T10:00:00+08:00',
             updatedAt: '2026-04-21T10:00:00+08:00'
@@ -248,7 +219,6 @@ describe('useKnowledgeItems', () => {
             type: 'note',
             data: { source: 'item-failed', content: 'failed' },
             status: 'failed',
-            phase: null,
             error: 'failed',
             createdAt: '2026-04-21T10:00:00+08:00',
             updatedAt: '2026-04-21T10:00:00+08:00'

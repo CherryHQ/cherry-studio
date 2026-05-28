@@ -17,7 +17,7 @@ const platform = vi.hoisted(() => ({
   isLinux: false,
   isDev: false
 }))
-vi.mock('@main/constant', () => platform)
+vi.mock('@main/core/platform', () => platform)
 
 // ─── Mock BrowserWindow with quirks-related methods ────────────────
 

@@ -81,9 +81,7 @@ export const indexLeafJobHandler: JobHandler<KnowledgeIndexLeafPayload> = {
     }
 
     ctx.reportProgress(0, { stage: 'reading', currentFile: 0, totalFiles: 1 })
-    await runtime.runWithBaseWriteLockForBase(baseId, () =>
-      knowledgeItemService.updateStatus(itemId, 'processing', { phase: 'reading' })
-    )
+    await runtime.runWithBaseWriteLockForBase(baseId, () => knowledgeItemService.updateStatus(itemId, 'reading'))
 
     ctx.signal.throwIfAborted()
     const documents = await loadKnowledgeItemDocuments(item, ctx.signal)
@@ -94,9 +92,7 @@ export const indexLeafJobHandler: JobHandler<KnowledgeIndexLeafPayload> = {
     assertHasIndexableContent(chunks)
 
     ctx.reportProgress(40, { stage: 'embedding', currentFile: 0, totalFiles: 1 })
-    await runtime.runWithBaseWriteLockForBase(baseId, () =>
-      knowledgeItemService.updateStatus(itemId, 'processing', { phase: 'embedding' })
-    )
+    await runtime.runWithBaseWriteLockForBase(baseId, () => knowledgeItemService.updateStatus(itemId, 'embedding'))
 
     ctx.signal.throwIfAborted()
     const embedModel = getEmbedModel(base)

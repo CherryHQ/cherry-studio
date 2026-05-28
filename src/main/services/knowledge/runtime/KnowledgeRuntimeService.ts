@@ -101,7 +101,7 @@ export class KnowledgeRuntimeService extends BaseService {
           const createdItem = await knowledgeItemService.create(base.id, input)
           acceptedItems.push(createdItem)
           acceptedItems[acceptedItems.length - 1] = isContainerKnowledgeItem(createdItem)
-            ? await knowledgeItemService.updateStatus(createdItem.id, 'processing', { phase: 'preparing' })
+            ? await knowledgeItemService.updateStatus(createdItem.id, 'preparing')
             : await knowledgeItemService.updateStatus(createdItem.id, 'processing')
         }
         for (const item of acceptedItems) {
@@ -183,11 +183,7 @@ export class KnowledgeRuntimeService extends BaseService {
       }
 
       for (const item of rootItems) {
-        await knowledgeItemService.updateStatus(
-          item.id,
-          'processing',
-          isContainerKnowledgeItem(item) ? { phase: 'preparing' } : undefined
-        )
+        await knowledgeItemService.updateStatus(item.id, isContainerKnowledgeItem(item) ? 'preparing' : 'processing')
         await this.enqueueRootItem(item)
       }
     })

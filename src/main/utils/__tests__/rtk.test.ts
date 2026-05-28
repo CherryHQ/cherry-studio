@@ -44,7 +44,7 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('../../constant', () => ({
+vi.mock('@main/core/platform', () => ({
   isWin: false
 }))
 

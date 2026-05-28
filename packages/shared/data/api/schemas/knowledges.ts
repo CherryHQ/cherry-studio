@@ -9,6 +9,7 @@ import type { OffsetPaginationResponse } from '@shared/data/api'
 import {
   type KnowledgeBase,
   KnowledgeBaseEntitySchema,
+  KnowledgeBaseGroupIdInputSchema,
   type KnowledgeItem,
   KnowledgeItemTypeSchema
 } from '@shared/data/types/knowledge'
@@ -33,6 +34,7 @@ const KNOWLEDGE_BASE_MUTABLE_FIELDS = {
 export const UpdateKnowledgeBaseSchema = KnowledgeBaseEntitySchema.pick(KNOWLEDGE_BASE_MUTABLE_FIELDS)
   .partial()
   .extend({
+    groupId: KnowledgeBaseGroupIdInputSchema.nullable().optional(),
     rerankModelId: KnowledgeBaseEntitySchema.shape.rerankModelId,
     fileProcessorId: KnowledgeBaseEntitySchema.shape.fileProcessorId,
     threshold: KnowledgeBaseEntitySchema.shape.threshold,

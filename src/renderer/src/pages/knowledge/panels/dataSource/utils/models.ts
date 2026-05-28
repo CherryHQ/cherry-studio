@@ -1,6 +1,6 @@
 import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
-import { formatFileSize } from '@renderer/utils'
-import type { KnowledgeItem, KnowledgeItemOf, KnowledgeItemType } from '@shared/data/types/knowledge'
+import type { FileEntry } from '@shared/data/types/file'
+import type { KnowledgeItemOf, KnowledgeItemStatus, KnowledgeItemType } from '@shared/data/types/knowledge'
 import type { LucideIcon } from 'lucide-react'
 import { FileText, Folder, Globe, Link2, StickyNote } from 'lucide-react'
 
@@ -9,6 +9,7 @@ export type DataSourceStatus = 'completed' | 'processing' | 'failed'
 export type DataSourceStatusIcon = 'check' | 'loader' | 'alert'
 
 export interface DataSourceDisplayContext {
+  fileEntry?: FileEntry
   language: string
 }
 
@@ -40,10 +41,10 @@ export interface KnowledgeItemRowViewModel {
 export interface DataSourceTypeDisplayConfig<T extends KnowledgeItemType> {
   filterLabelKey: string
   icon: DataSourceIconMeta
-  getTitle: (item: KnowledgeItemOf<T>) => string
-  getSuffix: (item: KnowledgeItemOf<T>) => string
+  getTitle: (item: KnowledgeItemOf<T>, context: DataSourceDisplayContext) => string
+  getSuffix: (item: KnowledgeItemOf<T>, context: DataSourceDisplayContext) => string
   getMetaParts: (item: KnowledgeItemOf<T>, context: DataSourceDisplayContext) => string[]
-  getStatus: (item: KnowledgeItemOf<T>) => DataSourceStatusViewModel
+  getStatus: (status: KnowledgeItemStatus) => DataSourceStatusViewModel
 }
 
 type DataSourceTypeDisplayConfigMap = {
@@ -62,10 +63,31 @@ const getNoteTitle = (content: string) => {
   return firstLine || ''
 }
 
-export const resolveDataSourceStatusViewModel = (
-  item: Pick<KnowledgeItem, 'phase' | 'status'>
-): DataSourceStatusViewModel => {
-  if (item.status === 'completed') {
+const getPathName = (source: string) => {
+  const normalizedSource = source.replace(/[/\\]+$/, '')
+  const name = normalizedSource.split(/[/\\]/).pop()?.trim()
+
+  return name || normalizedSource || source
+}
+
+const getFileTitle = (item: KnowledgeItemOf<'file'>, fileEntry?: FileEntry) => {
+  if (!fileEntry) {
+    return getPathName(item.data.source)
+  }
+
+  return fileEntry.ext ? `${fileEntry.name}.${fileEntry.ext}` : fileEntry.name
+}
+
+const getFileSuffix = (item: KnowledgeItemOf<'file'>, fileEntry?: FileEntry) => {
+  const fallbackName = getPathName(item.data.source)
+  const fallbackExt = fallbackName.includes('.') ? fallbackName.split('.').pop() : undefined
+  const ext = fileEntry?.ext ?? fallbackExt
+
+  return (ext || 'FILE').toLowerCase()
+}
+
+export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): DataSourceStatusViewModel => {
+  if (status === 'completed') {
     return {
       kind: 'completed',
       labelKey: 'knowledge.data_source.status.ready',
@@ -74,7 +96,7 @@ export const resolveDataSourceStatusViewModel = (
     }
   }
 
-  if (item.status === 'failed') {
+  if (status === 'failed') {
     return {
       kind: 'failed',
       labelKey: 'knowledge.data_source.status.error',
@@ -83,7 +105,7 @@ export const resolveDataSourceStatusViewModel = (
     }
   }
 
-  if (item.status === 'processing' && item.phase === 'embedding') {
+  if (status === 'embedding') {
     return {
       kind: 'processing',
       labelKey: 'knowledge.data_source.status.embedding',
@@ -92,7 +114,7 @@ export const resolveDataSourceStatusViewModel = (
     }
   }
 
-  if (item.status === 'processing' && item.phase === 'reading') {
+  if (status === 'reading') {
     return {
       kind: 'processing',
       labelKey: 'knowledge.rag.file_processing',
@@ -101,7 +123,7 @@ export const resolveDataSourceStatusViewModel = (
     }
   }
 
-  if (item.status === 'processing' && item.phase === null) {
+  if (status === 'processing') {
     return {
       kind: 'processing',
       labelKey: 'knowledge.status.processing',
@@ -110,7 +132,7 @@ export const resolveDataSourceStatusViewModel = (
     }
   }
 
-  if (item.status === 'idle' || item.phase === 'preparing') {
+  if (status === 'idle' || status === 'preparing') {
     return {
       kind: 'processing',
       labelKey: 'knowledge.data_source.status.pending',
@@ -127,17 +149,16 @@ export const resolveDataSourceStatusViewModel = (
   }
 }
 
-export const dataSourceTypeDisplayConfig = {
+export const dataSourceTypeDisplayConfig: DataSourceTypeDisplayConfigMap = {
   file: {
     filterLabelKey: 'knowledge.data_source.filters.file',
     icon: {
       icon: FileText,
       iconClassName: 'text-blue-500'
     },
-    getTitle: (item) => item.data.file.origin_name || item.data.file.name,
-    getSuffix: (item) => (item.data.file.ext || 'FILE').toLowerCase(),
-    getMetaParts: (item, { language }) =>
-      getRelativeMetaParts(item.updatedAt, language, [formatFileSize(item.data.file.size)]),
+    getTitle: (item, { fileEntry }) => getFileTitle(item, fileEntry),
+    getSuffix: (item, { fileEntry }) => getFileSuffix(item, fileEntry),
+    getMetaParts: (item, { language }) => getRelativeMetaParts(item.updatedAt, language),
     getStatus: resolveDataSourceStatusViewModel
   },
   note: {
@@ -184,7 +205,7 @@ export const dataSourceTypeDisplayConfig = {
     getMetaParts: (item, { language }) => getRelativeMetaParts(item.updatedAt, language),
     getStatus: resolveDataSourceStatusViewModel
   }
-} satisfies DataSourceTypeDisplayConfigMap
+}
 
 const dataSourceTypeDisplayEntries = Object.entries(dataSourceTypeDisplayConfig) as Array<
   [KnowledgeItemType, DataSourceTypeDisplayConfigMap[KnowledgeItemType]]

@@ -1,13 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
-import { assertHasFilePath, getApiKey, getRequiredApiHost, getRequiredApiKey } from '../provider'
+import { getApiKey, getRequiredApiHost, getRequiredApiKey } from '../provider'
 
 describe('file processing provider utils', () => {
-  it('rejects files without a path', () => {
-    expect(() => assertHasFilePath({ path: '' })).toThrowError('File path is required')
-    expect(() => assertHasFilePath({ path: undefined })).toThrowError('File path is required')
-  })
-
   it('returns a trimmed api host and strips trailing slashes', () => {
     expect(
       getRequiredApiHost({

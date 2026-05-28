@@ -4,6 +4,7 @@ import { application } from '@application'
 import { BaseService } from '@main/core/lifecycle'
 import { getPhase } from '@main/core/lifecycle/decorators'
 import { Phase } from '@main/core/lifecycle/types'
+import { type FileInfo, FileInfoSchema } from '@shared/file/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { PreparedTesseractContext } from '../../types'
@@ -22,7 +23,7 @@ vi.mock('@main/utils/ipService', () => ({
   getIpCountry: getIpCountryMock
 }))
 
-vi.mock('@main/utils/ocr', () => ({
+vi.mock('@main/services/fileProcessing/utils/ocr', () => ({
   loadOcrImage: loadOcrImageMock
 }))
 
@@ -45,6 +46,20 @@ const getRuntimeState = (value: TesseractRuntimeService): RuntimeStateProbe => v
 async function flushPromises(): Promise<void> {
   await Promise.resolve()
   await Promise.resolve()
+}
+
+function createFileInfo(overrides: Partial<FileInfo> = {}): FileInfo {
+  return FileInfoSchema.parse({
+    path: '/tmp/scan.png',
+    name: 'scan',
+    ext: 'png',
+    size: 1024,
+    mime: 'image/png',
+    type: 'image',
+    createdAt: 1,
+    modifiedAt: 1,
+    ...overrides
+  }) as FileInfo
 }
 
 const cleanupCases = [
@@ -138,17 +153,7 @@ describe('TesseractRuntimeService', () => {
     await service._doInit()
 
     await service.extract({
-      file: {
-        id: 'file-1',
-        name: 'scan.png',
-        origin_name: 'scan.png',
-        path: '/tmp/scan.png',
-        size: 1024,
-        ext: '.png',
-        type: 'image',
-        created_at: '2026-03-31T00:00:00.000Z',
-        count: 1
-      },
+      file: createFileInfo(),
       langs: ['eng']
     })
 
@@ -177,17 +182,7 @@ describe('TesseractRuntimeService', () => {
     await service._doInit()
 
     const extractPromise = service.extract({
-      file: {
-        id: 'file-1',
-        name: 'scan.png',
-        origin_name: 'scan.png',
-        path: '/tmp/scan.png',
-        size: 1024,
-        ext: '.png',
-        type: 'image',
-        created_at: '2026-03-31T00:00:00.000Z',
-        count: 1
-      },
+      file: createFileInfo(),
       langs: ['eng']
     })
 
@@ -216,17 +211,7 @@ describe('TesseractRuntimeService', () => {
 
     await expect(
       service.extract({
-        file: {
-          id: 'file-1',
-          name: 'scan.png',
-          origin_name: 'scan.png',
-          path: '/tmp/scan.png',
-          size: 1024,
-          ext: '.png',
-          type: 'image',
-          created_at: '2026-03-31T00:00:00.000Z',
-          count: 1
-        },
+        file: createFileInfo(),
         langs: ['eng']
       })
     ).rejects.toThrow('TesseractRuntimeService is not initialized')
@@ -251,17 +236,7 @@ describe('TesseractRuntimeService', () => {
     await service._doInit()
 
     const extractPromise = service.extract({
-      file: {
-        id: 'file-1',
-        name: 'scan.png',
-        origin_name: 'scan.png',
-        path: '/tmp/scan.png',
-        size: 1024,
-        ext: '.png',
-        type: 'image',
-        created_at: '2026-03-31T00:00:00.000Z',
-        count: 1
-      },
+      file: createFileInfo(),
       langs: ['eng']
     })
 
@@ -315,17 +290,7 @@ describe('TesseractRuntimeService', () => {
 
     const controller = new AbortController()
     const request: PreparedTesseractContext = {
-      file: {
-        id: 'file-1',
-        name: 'scan.png',
-        origin_name: 'scan.png',
-        path: '/tmp/scan.png',
-        size: 1024,
-        ext: '.png',
-        type: 'image',
-        created_at: '2026-03-31T00:00:00.000Z',
-        count: 1
-      },
+      file: createFileInfo(),
       langs: ['eng']
     }
     const extractPromise = service.extract({
@@ -368,17 +333,7 @@ describe('TesseractRuntimeService', () => {
     await service._doInit()
 
     await service.extract({
-      file: {
-        id: 'file-1',
-        name: 'scan.png',
-        origin_name: 'scan.png',
-        path: '/tmp/scan.png',
-        size: 1024,
-        ext: '.png',
-        type: 'image',
-        created_at: '2026-03-31T00:00:00.000Z',
-        count: 1
-      },
+      file: createFileInfo(),
       langs: ['eng']
     })
 
@@ -488,17 +443,7 @@ describe('TesseractRuntimeService', () => {
     await service._doInit()
 
     await service.extract({
-      file: {
-        id: 'file-1',
-        name: 'scan.png',
-        origin_name: 'scan.png',
-        path: '/tmp/scan.png',
-        size: 1024,
-        ext: '.png',
-        type: 'image',
-        created_at: '2026-03-31T00:00:00.000Z',
-        count: 1
-      },
+      file: createFileInfo(),
       langs: ['eng']
     })
 
@@ -527,17 +472,7 @@ describe('TesseractRuntimeService', () => {
     await service._doInit()
 
     const request: PreparedTesseractContext = {
-      file: {
-        id: 'file-1',
-        name: 'scan.png',
-        origin_name: 'scan.png',
-        path: '/tmp/scan.png',
-        size: 1024,
-        ext: '.png',
-        type: 'image',
-        created_at: '2026-03-31T00:00:00.000Z',
-        count: 1
-      },
+      file: createFileInfo(),
       langs: ['eng']
     }
 
@@ -570,17 +505,11 @@ describe('TesseractRuntimeService', () => {
 
     await expect(
       service.extract({
-        file: {
-          id: 'file-1',
-          name: 'large.png',
-          origin_name: 'large.png',
+        file: createFileInfo({
           path: '/tmp/large.png',
-          size: 51 * 1024 * 1024,
-          ext: '.png',
-          type: 'image',
-          created_at: '2026-03-31T00:00:00.000Z',
-          count: 1
-        },
+          name: 'large',
+          size: 51 * 1024 * 1024
+        }),
         langs: ['eng']
       })
     ).rejects.toThrow('This image is too large (max 50MB)')
@@ -611,17 +540,7 @@ describe('TesseractRuntimeService', () => {
     service = new TesseractRuntimeService()
     await service._doInit()
 
-    const file = {
-      id: 'file-1',
-      name: 'scan.png',
-      origin_name: 'scan.png',
-      path: '/tmp/scan.png',
-      size: 1024,
-      ext: '.png',
-      type: 'image',
-      created_at: '2026-03-31T00:00:00.000Z',
-      count: 1
-    } as const
+    const file = createFileInfo()
 
     await service.extract({
       file,
@@ -675,17 +594,7 @@ describe('TesseractRuntimeService', () => {
     service = new TesseractRuntimeService()
     await service._doInit()
 
-    const file = {
-      id: 'file-1',
-      name: 'scan.png',
-      origin_name: 'scan.png',
-      path: '/tmp/scan.png',
-      size: 1024,
-      ext: '.png',
-      type: 'image',
-      created_at: '2026-03-31T00:00:00.000Z',
-      count: 1
-    } as const
+    const file = createFileInfo()
     const first = service.extract({
       file,
       langs: ['eng']

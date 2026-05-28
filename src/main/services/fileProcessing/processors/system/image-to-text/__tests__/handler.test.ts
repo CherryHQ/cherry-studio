@@ -1,10 +1,10 @@
 import { FILE_TYPE } from '@shared/data/types/file'
-import type { FileMetadata } from '@types'
+import { type FileInfo, FileInfoSchema } from '@shared/file/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../../../tests/__mocks__/MainLoggerService'
 
-vi.mock('@main/constant', () => ({
+vi.mock('@main/core/platform', () => ({
   isLinux: false,
   isWin: true
 }))
@@ -18,17 +18,16 @@ vi.mock('@napi-rs/system-ocr', () => ({
 
 import { systemImageToTextHandler } from '../handler'
 
-const imageFile: FileMetadata = {
-  id: 'file-1',
-  name: 'scan.png',
-  origin_name: 'scan.png',
+const imageFile = FileInfoSchema.parse({
   path: '/tmp/scan.png',
+  name: 'scan',
   size: 1024,
-  ext: '.png',
+  ext: 'png',
+  mime: 'image/png',
   type: FILE_TYPE.IMAGE,
-  created_at: '2026-03-31T00:00:00.000Z',
-  count: 1
-}
+  createdAt: 1,
+  modifiedAt: 1
+}) as FileInfo
 
 describe('systemImageToTextHandler', () => {
   beforeEach(() => {

@@ -1,9 +1,10 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { getFileType } from '@main/utils/file'
-import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
+import { application } from '@application'
+import type { FileEntryId } from '@shared/data/types/file'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
+import type { FilePath } from '@shared/file/types'
 import type { NotesTreeNode } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -20,7 +21,7 @@ export type ExpandedDirectoryNode =
       type: 'file'
       data: {
         source: string
-        file: FileMetadata
+        fileEntryId: FileEntryId
       }
     }
 
@@ -77,32 +78,17 @@ async function readDirectoryTree(
   return nodes
 }
 
-async function createExternalFileMetadata(filePath: string, signal: AbortSignal): Promise<FileMetadata> {
-  const stats = await fs.stat(filePath)
-  signal.throwIfAborted()
-  const originName = path.basename(filePath)
-  const ext = path.extname(originName)
-
-  return {
-    id: uuidv4(),
-    origin_name: originName,
-    name: originName,
-    path: filePath,
-    created_at: stats.birthtime.toISOString(),
-    size: stats.size,
-    ext,
-    type: getFileType(ext),
-    count: 1
-  }
-}
-
 async function expandDirectoryNode(node: NotesTreeNode, signal: AbortSignal): Promise<ExpandedDirectoryNode | null> {
   if (node.type === 'file') {
+    const fileManager = application.get('FileManager')
+    const entry = await fileManager.ensureExternalEntry({ externalPath: node.externalPath as FilePath })
+    signal.throwIfAborted()
+
     return {
       type: 'file',
       data: {
         source: node.externalPath,
-        file: await createExternalFileMetadata(node.externalPath, signal)
+        fileEntryId: entry.id
       }
     }
   }

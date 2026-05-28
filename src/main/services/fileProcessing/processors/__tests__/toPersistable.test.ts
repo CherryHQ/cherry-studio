@@ -6,7 +6,7 @@
  * remote-context fields) ever reaches `jobTable.metadata`.
  */
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
-import type { FileMetadata } from '@types'
+import { type FileInfo, FileInfoSchema } from '@shared/file/types'
 import { describe, expect, it } from 'vitest'
 
 import { doc2xDocumentToMarkdownHandler } from '../doc2x/document-to-markdown/handler'
@@ -14,17 +14,20 @@ import { mineruDocumentToMarkdownHandler } from '../mineru/document-to-markdown/
 import { paddleDocumentToMarkdownHandler } from '../paddleocr/document-to-markdown/handler'
 import type { PreparedRemoteTask } from '../types'
 
-const FAKE_PDF: FileMetadata = {
-  id: 'file-1',
-  name: 'paper.pdf',
-  origin_name: 'paper.pdf',
+const createFileInfo = (input: Parameters<typeof FileInfoSchema.parse>[0]): FileInfo =>
+  FileInfoSchema.parse(input) as FileInfo
+
+const FAKE_PDF = createFileInfo({
   path: '/tmp/paper.pdf',
+  name: 'paper',
   size: 99_000,
-  ext: '.pdf',
+  ext: 'pdf',
+  mime: 'application/pdf',
   type: 'document',
-  created_at: '2026-05-01T00:00:00.000Z',
-  count: 1
-}
+  createdAt: 1,
+  modifiedAt: 1
+})
+const FAKE_FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000001'
 
 function buildConfig(id: 'doc2x' | 'mineru' | 'paddleocr', apiHost: string): FileProcessorMerged {
   return {
@@ -49,7 +52,7 @@ async function prepareRemote(
     | typeof paddleDocumentToMarkdownHandler,
   config: FileProcessorMerged
 ): Promise<PreparedRemoteTask<'document_to_markdown'>> {
-  const prepared = await handler.prepare(FAKE_PDF, config)
+  const prepared = await handler.prepare(FAKE_PDF, config, undefined, { fileEntryId: FAKE_FILE_ENTRY_ID })
   if (prepared.mode !== 'remote-poll') {
     throw new Error('Expected remote-poll prepared task')
   }

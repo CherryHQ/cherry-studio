@@ -105,6 +105,18 @@ export const CustomDescriptionStyle: Story = {
   }
 }
 
+// `labelClassName` lets consumers style the label text directly — for example
+// boosting font-weight on the active row. Use `group-data-[active=true]:` (the
+// root carries `group` + `data-active`) instead of relying on CSS inheritance.
+export const CustomLabelStyle: Story = {
+  args: {
+    icon: <Cloud size={16} />,
+    label: 'Model Provider',
+    labelClassName: 'group-data-[active=true]:font-medium',
+    active: true
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Settings Menu — default variant with border active
 // ---------------------------------------------------------------------------
@@ -249,4 +261,74 @@ function SmallMenuWithGroupsExample() {
 
 export const SmallMenuWithGroups: StoryObj = {
   render: () => <SmallMenuWithGroupsExample />
+}
+
+// ---------------------------------------------------------------------------
+// Settings submenu pattern — project-level className tokens + labelClassName
+// ---------------------------------------------------------------------------
+
+function SettingsSubmenuActiveBoldExample() {
+  const [active, setActive] = useState('provider')
+
+  // Mirrors `settings/index.tsx` tokens. Keeps the project-level override
+  // (h-8 + rounded-[10px] + hover/active surface) on `className`, and isolates
+  // the state-driven label weight onto `labelClassName`.
+  const itemClassName =
+    'h-8 rounded-[10px] border-transparent px-2.5 font-normal text-foreground/85 text-sm hover:!bg-muted data-[active=true]:!border-transparent data-[active=true]:!bg-muted data-[active=true]:!text-foreground [&_svg]:size-4 [&_svg]:text-foreground/70'
+  const itemLabelClassName = 'group-data-[active=true]:font-medium'
+  const sectionTitleClassName = 'px-2.5 pt-1.5 pb-1 font-normal text-foreground-muted text-xs first:pt-0'
+  const dividerClassName = 'my-1 bg-transparent'
+
+  const groups = [
+    {
+      label: 'Integration',
+      items: [
+        { id: 'provider', icon: Cloud, label: 'Model Provider' },
+        { id: 'model', icon: Package, label: 'Default Model' }
+      ]
+    },
+    {
+      label: 'App Settings',
+      items: [
+        { id: 'general', icon: Settings2, label: 'General' },
+        { id: 'data', icon: HardDrive, label: 'Data' }
+      ]
+    }
+  ] as const
+
+  return (
+    <div className="w-[200px] rounded-xl border border-border bg-background py-2.5">
+      <MenuList className="flex flex-col gap-1 px-2.5">
+        {groups.map((group, gi) => (
+          <div key={group.label}>
+            {gi > 0 && <MenuDivider className={dividerClassName} />}
+            <div className={sectionTitleClassName}>{group.label}</div>
+            {group.items.map((item) => (
+              <MenuItem
+                key={item.id}
+                className={itemClassName}
+                labelClassName={itemLabelClassName}
+                icon={<item.icon />}
+                label={item.label}
+                active={active === item.id}
+                onClick={() => setActive(item.id)}
+              />
+            ))}
+          </div>
+        ))}
+      </MenuList>
+    </div>
+  )
+}
+
+export const SettingsSubmenuActiveBold: StoryObj = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Real settings page pattern — combine a project-level `className` token (height / hover / active surface) with `labelClassName="group-data-[active=true]:font-medium"` to bold the active row label. Prefer this over `[font-weight:inherit]` style hacks so the rule is visible in the inspector and the rendered DOM matches the source.'
+      }
+    }
+  },
+  render: () => <SettingsSubmenuActiveBoldExample />
 }
