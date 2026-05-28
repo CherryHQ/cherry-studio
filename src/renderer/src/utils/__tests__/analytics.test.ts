@@ -8,6 +8,10 @@ vi.mock('@renderer/services/ProviderService', () => ({
   getProviderById: vi.fn()
 }))
 
+vi.mock('@renderer/store', () => ({
+  default: { getState: vi.fn() }
+}))
+
 vi.mock('@renderer/types', async (importOriginal) => {
   const actual = await importOriginal()
   return {
@@ -17,21 +21,24 @@ vi.mock('@renderer/types', async (importOriginal) => {
 })
 
 import { getProviderById } from '@renderer/services/ProviderService'
+import store from '@renderer/store'
 import { isSystemProvider } from '@renderer/types'
 
 describe('trackTokenUsage', () => {
   const mockTrackTokenUsage = vi.fn()
   const mockGetProviderById = vi.mocked(getProviderById)
   const mockIsSystemProvider = vi.mocked(isSystemProvider)
+  const mockGetState = vi.mocked(store.getState)
 
   beforeEach(() => {
     vi.clearAllMocks()
     vi.stubGlobal('window', {
       api: { analytics: { trackTokenUsage: mockTrackTokenUsage } }
     })
-    // Default: system provider
+    // Default: system provider, data collection enabled
     mockGetProviderById.mockReturnValue({ id: 'openai', isSystem: true } as Provider)
     mockIsSystemProvider.mockReturnValue(true)
+    mockGetState.mockReturnValue({ settings: { enableDataCollection: true } } as any)
   })
 
   const createModel = (provider: string, id: string): Model => ({ provider, id }) as Model
@@ -73,6 +80,14 @@ describe('trackTokenUsage', () => {
       output_tokens: 100,
       source: 'chat'
     })
+  })
+
+  it('should not track when data collection is disabled', () => {
+    mockGetState.mockReturnValue({ settings: { enableDataCollection: false } } as any)
+
+    trackTokenUsage({ usage: createUsage(100, 50), model: createModel('openai', 'gpt-4') })
+
+    expect(mockTrackTokenUsage).not.toHaveBeenCalled()
   })
 
   it('should not track when usage or model is invalid', () => {
