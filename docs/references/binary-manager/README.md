@@ -67,6 +67,8 @@ Three sources for a tool to be available, in order of precedence:
 
 The bundled set is currently `bun`, `uv`, `rg`. mise itself is also bundled but is internal infrastructure, not user-visible.
 
+**Precedence when both sources are present.** `getBinarySearchDirs()` lists the mise shims directory before `cherry.bin`, so if a user clicks *Install via mise* on a bundled tool (e.g. `uv`), the mise-managed version wins at `getBinaryPath('uv')` and consumers immediately use the newer copy. The bundled copy stays on disk as a fallback when the mise shim is absent or broken; the UI re-probes after install and updates the "managed / bundled" label accordingly.
+
 ## China mirror behavior
 
 `BinaryManager.buildIsolatedEnv()` calls `isUserInChina()` and, when true, injects mirror URLs into the mise subprocess env:

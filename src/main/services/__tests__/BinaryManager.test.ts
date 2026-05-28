@@ -48,7 +48,9 @@ vi.mock('node:fs/promises', () => ({
     mkdir: vi.fn(async () => {}),
     copyFile: vi.fn(async () => {}),
     chmod: vi.fn(async () => {}),
-    writeFile: vi.fn(async () => {})
+    writeFile: vi.fn(async () => {}),
+    rename: vi.fn(async () => {}),
+    access: vi.fn(async () => {})
   }
 }))
 
@@ -410,7 +412,7 @@ describe('BinaryManager', () => {
       }
     })
 
-    it('passes through whitelisted variables', async () => {
+    it('passes through whitelisted variables but not auth tokens', async () => {
       const original = { ...process.env }
       try {
         process.env['GITHUB_TOKEN'] = 'ghp_test'
@@ -420,8 +422,9 @@ describe('BinaryManager', () => {
         ;(service as any).miseBin = '/mock/mise'
         const env = await (service as any).buildIsolatedEnv()
 
-        expect(env['GITHUB_TOKEN']).toBe('ghp_test')
         expect(env['HTTPS_PROXY']).toBe('http://proxy:8080')
+        // Auth tokens are intentionally not forwarded — public-registry installs only.
+        expect(env['GITHUB_TOKEN']).toBeUndefined()
       } finally {
         process.env = original
       }

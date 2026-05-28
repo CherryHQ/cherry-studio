@@ -27,6 +27,10 @@ interface ReconcileResult {
   stateSaveError?: string
 }
 
+// Env vars forwarded from the user shell into the mise subprocess. Deliberately
+// excludes auth-token vars (GITHUB_TOKEN, GH_TOKEN, NPM_TOKEN, …) — the README
+// commits us to public-registry installs only, and forwarding tokens would
+// leak them into mise's error output and disk logs on install failures.
 const MISE_PASSTHROUGH_ENV = [
   'PATH',
   'SystemRoot',
@@ -48,8 +52,6 @@ const MISE_PASSTHROUGH_ENV = [
   'https_proxy',
   'all_proxy',
   'no_proxy',
-  'GITHUB_TOKEN',
-  'GH_TOKEN',
   'NPM_CONFIG_REGISTRY',
   'PIP_INDEX_URL'
 ]
@@ -187,25 +189,39 @@ export class BinaryManager extends BaseService {
     ]
 
     for (const tool of tools) {
-      const bundledVersion = this.readVersionMarker(path.join(bundledDir, tool.versionFile))
-      if (!bundledVersion) continue
+      try {
+        const bundledVersion = this.readVersionMarker(path.join(bundledDir, tool.versionFile))
+        if (!bundledVersion) continue
 
-      const firstBundled = path.join(bundledDir, tool.binaries[0])
-      if (!fs.existsSync(firstBundled)) continue
+        const firstBundled = path.join(bundledDir, tool.binaries[0])
+        if (!fs.existsSync(firstBundled)) continue
 
-      const installedVersion = this.readVersionMarker(path.join(binDir, tool.versionFile))
-      const firstDest = path.join(binDir, tool.binaries[0])
-      if (fs.existsSync(firstDest) && bundledVersion === installedVersion) continue
+        // Re-extract when any expected destination binary is missing, even if
+        // the first one is present and the version marker matches — guards
+        // against partial deletions / AV quarantine of secondary binaries
+        // (e.g. uvx alongside uv).
+        const installedVersion = this.readVersionMarker(path.join(binDir, tool.versionFile))
+        const allDestsPresent = tool.binaries.every((b) => fs.existsSync(path.join(binDir, b)))
+        if (allDestsPresent && bundledVersion === installedVersion) continue
 
-      for (const bin of tool.binaries) {
-        const src = path.join(bundledDir, bin)
-        const dest = path.join(binDir, bin)
-        if (!fs.existsSync(src)) continue
-        await fsp.copyFile(src, dest)
-        if (!isWin) await fsp.chmod(dest, 0o755)
+        // Copy each binary via dest.tmp + rename so an EBUSY on Windows
+        // (binary in use) doesn't leave a half-written file at `dest`.
+        for (const bin of tool.binaries) {
+          const src = path.join(bundledDir, bin)
+          const dest = path.join(binDir, bin)
+          if (!fs.existsSync(src)) continue
+          const tmp = `${dest}.tmp-${process.pid}`
+          await fsp.copyFile(src, tmp)
+          if (!isWin) await fsp.chmod(tmp, 0o755)
+          await fsp.rename(tmp, dest)
+        }
+        await fsp.writeFile(path.join(binDir, tool.versionFile), bundledVersion)
+        logger.info(`Extracted bundled ${tool.name}`, { binDir, version: bundledVersion })
+      } catch (err) {
+        // Single-tool failure must not abort init — without this, an EBUSY
+        // on (e.g.) bun would prevent mise/uv/rg from being extracted at all.
+        logger.error(`Failed to extract bundled ${tool.name}`, err as Error)
       }
-      await fsp.writeFile(path.join(binDir, tool.versionFile), bundledVersion)
-      logger.info(`Extracted bundled ${tool.name}`, { binDir, version: bundledVersion })
     }
   }
 
@@ -228,7 +244,7 @@ export class BinaryManager extends BaseService {
     try {
       const cmd = isWin ? 'where' : 'which'
       const result = execFileSync(cmd, [binaryName], { encoding: 'utf-8', timeout: 5000 })
-      const systemPath = result.trim().split('\n')[0]
+      const systemPath = result.trim().split(/\r?\n/)[0]
       if (systemPath && fs.existsSync(systemPath)) {
         return systemPath
       }
@@ -311,10 +327,14 @@ export class BinaryManager extends BaseService {
   }
 
   private async runMise(args: string[], cwd: string): Promise<{ stdout: string; stderr: string }> {
-    if (!this.miseBin) {
+    if (!this.miseBin || !this.isolatedEnv) {
+      // Both must be set before mise can run. The non-null assertion previously
+      // here would have silently fallen back to `process.env`, leaking the
+      // user's real shell environment (API keys, HOME, the real mise config)
+      // into the mise subprocess — defeating the isolation in buildIsolatedEnv.
       throw new Error('mise binary not available')
     }
-    return execFileAsync(this.miseBin, args, { cwd, env: this.isolatedEnv!, timeout: 120_000 })
+    return execFileAsync(this.miseBin, args, { cwd, env: this.isolatedEnv, timeout: 120_000 })
   }
 
   private withStateLock<T>(fn: () => Promise<T>): Promise<T> {
@@ -328,7 +348,15 @@ export class BinaryManager extends BaseService {
 
   private async isManagedBinaryReady(toolName: string): Promise<boolean> {
     try {
-      await this.runMise(['which', toolName], os.tmpdir())
+      // `mise which` exits 0 if mise *thinks* the tool is installed; it does
+      // not stat the resolved file. If the install dir was manually deleted
+      // or AV stripped the exec bit, the file would be missing/unusable
+      // while mise still claims success. Verify the resolved path exists
+      // (and is executable, on POSIX) before declaring ready.
+      const { stdout } = await this.runMise(['which', toolName], os.tmpdir())
+      const resolved = stdout.trim().split(/\r?\n/)[0]
+      if (!resolved) return false
+      await fsp.access(resolved, isWin ? fs.constants.F_OK : fs.constants.X_OK)
       return true
     } catch {
       return false
@@ -336,10 +364,10 @@ export class BinaryManager extends BaseService {
   }
 
   private async installWithMise(tool: ManagedBinary): Promise<string> {
-    const version = tool.version || 'latest'
+    const requested = tool.version || 'latest'
     const backend = tool.tool.split(':')[0]
     const runtime = RUNTIME_DEPS[backend]
-    const toolSpec = `${tool.tool}@${version}`
+    const toolSpec = `${tool.tool}@${requested}`
     const args = ['use', '-g', ...(runtime ? [runtime] : []), toolSpec]
 
     await this.runMise(args, os.tmpdir())
@@ -355,7 +383,11 @@ export class BinaryManager extends BaseService {
     } catch {
       logger.warn('Failed to query installed version via mise ls', { tool: tool.tool })
     }
-    return version
+    // Never persist the literal sentinel "latest" as a resolved version — it
+    // would break equality checks in reconcile() and surface as `vlatest` in
+    // the UI. Empty string means "unpinned / unknown"; reconcile treats it as
+    // unpinned-equivalent.
+    return tool.version && tool.version !== 'latest' ? tool.version : ''
   }
 
   private loadState(): BinaryState {
@@ -431,7 +463,12 @@ export class BinaryManager extends BaseService {
 
         const existing = state.tools[tool.name]
         if (existing && existing.tool === tool.tool && (await this.isManagedBinaryReady(tool.name))) {
-          if (!tool.version || existing.version === tool.version) {
+          // Treat empty / "latest" as unpinned — equivalent to no version
+          // pin — so an installed tool isn't reinstalled on every boot just
+          // because the pref says "latest" and state stores the resolved
+          // version (or vice versa).
+          const isUnpinned = (v?: string) => !v || v === 'latest'
+          if (isUnpinned(tool.version) || existing.version === tool.version) {
             result.skipped.push(tool.name)
             continue
           }

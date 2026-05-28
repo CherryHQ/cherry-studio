@@ -259,7 +259,19 @@ function extract(archivePath, archive, outputDir, pkg) {
       execFileSync('unzip', ['-o', '-j', archivePath, ...globs, '-d', outputDir], { stdio: 'inherit' })
     }
   } else if (archive === 'tar.gz') {
-    execFileSync('tar', ['xzf', archivePath, '-C', outputDir, '--strip-components=1'], { stdio: 'inherit' })
+    // Extract to a tmp dir and copy only the listed binaries — tarballs often
+    // ship LICENSE/README/man/completions that would otherwise bloat the bundle
+    // and collide across tools when two of them share `outputDir`.
+    const tmpExtract = path.join(outputDir, '__extract_tmp')
+    fs.mkdirSync(tmpExtract, { recursive: true })
+    try {
+      execFileSync('tar', ['xzf', archivePath, '-C', tmpExtract, '--strip-components=1'], { stdio: 'inherit' })
+      for (const b of pkg.binaries) {
+        fs.copyFileSync(path.join(tmpExtract, b), path.join(outputDir, b))
+      }
+    } finally {
+      fs.rmSync(tmpExtract, { recursive: true, force: true })
+    }
   }
 }
 
