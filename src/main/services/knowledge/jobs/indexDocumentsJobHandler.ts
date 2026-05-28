@@ -54,9 +54,10 @@ export function createIndexDocumentsJobHandler(
 
       // Mark reading before file/network IO so the UI reflects the current long-running phase.
       ctx.reportProgress(0, { stage: 'reading', currentFile: 0, totalFiles: 1 })
-      await mutationCoordinator.withBaseMutationLock(ctx.input.baseId, () =>
-        knowledgeItemService.updateStatus(ctx.input.itemId, 'reading')
-      )
+      await mutationCoordinator.withBaseMutationLock(ctx.input.baseId, async () => {
+        await knowledgeItemService.rebuildFileRefsForItems([ctx.input.itemId])
+        await knowledgeItemService.updateStatus(ctx.input.itemId, 'reading')
+      })
 
       // Read and chunk outside the base lock; these phases can be slow and do not mutate shared state.
       const documents = await readItemDocuments(ctx, item)

@@ -15,6 +15,7 @@ const {
   knowledgeItemGetSubtreeItemsMock,
   knowledgeItemSetSubtreeStatusMock,
   knowledgeItemUpdateStatusMock,
+  rebuildFileRefsForItemsMock,
   listMock,
   loadKnowledgeItemDocumentsMock,
   prepareKnowledgeItemMock,
@@ -33,6 +34,7 @@ const {
   knowledgeItemGetSubtreeItemsMock: vi.fn(),
   knowledgeItemSetSubtreeStatusMock: vi.fn(),
   knowledgeItemUpdateStatusMock: vi.fn(),
+  rebuildFileRefsForItemsMock: vi.fn(),
   listMock: vi.fn(),
   loadKnowledgeItemDocumentsMock: vi.fn(),
   prepareKnowledgeItemMock: vi.fn(),
@@ -78,6 +80,7 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
     getById: knowledgeItemGetByIdMock,
     getSubtreeItems: knowledgeItemGetSubtreeItemsMock,
     deleteItemsByIds: deleteItemsByIdsMock,
+    rebuildFileRefsForItems: rebuildFileRefsForItemsMock,
     setSubtreeStatus: knowledgeItemSetSubtreeStatusMock,
     updateStatus: knowledgeItemUpdateStatusMock
   }
@@ -217,6 +220,7 @@ describe('knowledge job handlers', () => {
     enqueueMock.mockResolvedValue({ id: 'job-index', snapshot: {}, finished: Promise.resolve({}) })
     detachFileRefsMock.mockResolvedValue(undefined)
     deleteItemsByIdsMock.mockResolvedValue(undefined)
+    rebuildFileRefsForItemsMock.mockResolvedValue(undefined)
     cancelMock.mockResolvedValue(undefined)
     scheduleItemMock.mockResolvedValue({ id: 'scheduled-job' })
   })
@@ -324,6 +328,7 @@ describe('knowledge job handlers', () => {
 
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
 
+    expect(rebuildFileRefsForItemsMock).toHaveBeenCalledWith([NOTE_ITEM_ID])
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'reading')
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'embedding')
     expect(replaceByExternalIdMock).toHaveBeenCalledWith(NOTE_ITEM_ID, expect.any(Array))
@@ -339,6 +344,7 @@ describe('knowledge job handlers', () => {
 
     await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
 
+    expect(rebuildFileRefsForItemsMock).toHaveBeenCalledWith([NOTE_ITEM_ID])
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'reading')
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'embedding')
     expect(replaceByExternalIdMock).toHaveBeenCalledWith(NOTE_ITEM_ID, [])
@@ -552,7 +558,7 @@ describe('knowledge job handlers', () => {
 
     await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['note-1'] }, 'reindex-job'))
 
-    expect(detachFileRefsMock).toHaveBeenCalledWith(['note-1'])
+    expect(detachFileRefsMock).not.toHaveBeenCalled()
     expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('note-1', 'processing')
     expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'note-1', 'reindex-job')

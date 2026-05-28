@@ -263,8 +263,8 @@ cancel/drain active subtree jobs
 - 重跑时只处理仍存在且 `status = deleting` 的 subtree rows；subtree 已不存在时视为 cleanup 已完成。
 - vector delete 必须按 external item id 删除；目标 vectors 已不存在时视为成功。
 - processed artifact ref detach 必须允许重复执行；目标 refs 已不存在时视为成功。
-- delete/reindex 只 detach Knowledge FileRef，不主动 permanent-delete `FileEntry`；无引用 `FileEntry` 按 FileManager 默认策略保留，由文件管理界面或后续孤儿文件能力处理。
-- `deleteItemsByIds` 必须放在最后；它只删除调用方已解析出的 item ids，找不到 rows 时视为已完成，不能用 missing-row error 让 job 永久失败。
+- delete 和 container reindex 删除旧 descendants 时只 detach Knowledge FileRef，不主动 permanent-delete `FileEntry`；无引用 `FileEntry` 按 FileManager 默认策略保留，由文件管理界面或后续孤儿文件能力处理。
+- `deleteItemsByIds` 必须放在最后；它先按调用方传入的 ids 展开完整 subtree 并清理 Knowledge FileRef，再删除传入 ids 对应 rows，descendants 由 `knowledge_item.groupId` cascade 删除；找不到 rows 时视为已完成，不能用 missing-row error 让 job 永久失败。
 
 完成后流程结束。
 
@@ -281,7 +281,7 @@ itemId
 
 ```text
 delete vectors
--> detach processed_artifact refs
+-> delete stale container descendants when selected roots are containers
 -> reset knowledge_item subtree rows
 -> coordinator.scheduleItem(baseId, itemId)
 ```
@@ -293,6 +293,7 @@ delete vectors
 - 如果入口 guard 之后 delete 先赢，handler 在 entry 和 mutation lock 内再次看到 `deleting` 后跳过。
 - 这两个 `deleting` guard 是必要防御，不是重复校验；它们覆盖 enqueue 到 job reset 之间的竞态，并维持 delete 随时可用。
 - reset 后 root 会先进入 `preparing` / `processing` 再调度后续 job；如果调度失败，必须补偿为 `failed`，避免没有 durable job 的 active 状态卡住。
+- selected leaf root 的 source FileRef 不是 vector artifact，reindex reset 阶段不能 detach；后续 `index-documents` 会按 `knowledge_item.data` 对账并重建 Knowledge source FileRef。
 - reindex 不复用旧 processed artifact。
 - Round 2：需要转换的 source 会重新启动 FileProcessing。
 - handler 不判断 root/leaf/direct/FileProcessing 分支，分支由 coordinator 决定。
@@ -384,7 +385,7 @@ reindex 与 delete 共享物理清理步骤，但不共享 active job cancellati
 
 ```text
 delete vectors
--> detach refs
+-> delete stale container descendants and their refs
 ```
 
 区别只在最后：

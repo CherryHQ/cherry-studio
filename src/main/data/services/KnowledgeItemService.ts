@@ -321,30 +321,42 @@ export class KnowledgeItemService {
       })
     }
 
-    const subtreeIds = await this.getSubtreeItemIds(baseId, rootIds, { includeRoots: true })
-    if (subtreeIds.length === 0) {
+    const uniqueRootIds = [...new Set(rootIds)]
+    if (uniqueRootIds.length === 0) {
       return []
     }
 
     const dbService = application.get('DbService')
-    const updatedRows = await dbService.withWriteTx(async (tx) => {
-      const conditions = [eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, subtreeIds)]
-      if (status === 'failed') {
-        conditions.push(ne(knowledgeItemTable.status, 'deleting'))
-      }
+    const updatedRows = await dbService.withWriteTx(async (db) => {
+      return await db.all<{ id: string; groupId: string | null }>(sql`
+        WITH RECURSIVE subtree AS (
+          SELECT id
+          FROM knowledge_item
+          WHERE base_id = ${baseId}
+            AND id IN (${sql.join(
+              uniqueRootIds.map((id) => sql`${id}`),
+              sql`, `
+            )})
 
-      return await tx
-        .update(knowledgeItemTable)
-        .set({ status, error })
-        .where(and(...conditions))
-        .returning({
-          id: knowledgeItemTable.id,
-          groupId: knowledgeItemTable.groupId
-        })
+          UNION ALL
+
+          SELECT child.id
+          FROM knowledge_item child
+          INNER JOIN subtree parent ON child.group_id = parent.id
+          WHERE child.base_id = ${baseId}
+        )
+        UPDATE knowledge_item
+        SET status = ${status},
+            error = ${error}
+        WHERE base_id = ${baseId}
+          AND id IN (SELECT DISTINCT id FROM subtree)
+          ${status === 'failed' ? sql`AND status != 'deleting'` : sql``}
+        RETURNING id, group_id AS "groupId"
+      `)
     })
 
     const updatedIdSet = new Set(updatedRows.map((row) => row.id))
-    const updatedIds = subtreeIds.filter((id) => updatedIdSet.has(id))
+    const updatedIds = updatedRows.map((row) => row.id)
 
     if (status === 'failed') {
       await this.reconcileContainers(
@@ -369,9 +381,7 @@ export class KnowledgeItemService {
         .select({ groupId: knowledgeItemTable.groupId })
         .from(knowledgeItemTable)
         .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, uniqueItemIds)))
-      await tx
-        .delete(fileRefTable)
-        .where(and(eq(fileRefTable.sourceType, knowledgeItemSourceType), inArray(fileRefTable.sourceId, uniqueItemIds)))
+      await this.deleteFileRefsForSubtreeTx(tx, baseId, uniqueItemIds)
       await tx
         .delete(knowledgeItemTable)
         .where(and(eq(knowledgeItemTable.baseId, baseId), inArray(knowledgeItemTable.id, uniqueItemIds)))
@@ -384,6 +394,35 @@ export class KnowledgeItemService {
     await this.reconcileContainers(baseId, deleted.groupIds)
 
     logger.info('Deleted knowledge items by ids', { baseId, count: deleted.rowsAffected })
+  }
+
+  private async deleteFileRefsForSubtreeTx(tx: Pick<DbType, 'run'>, baseId: string, rootIds: string[]): Promise<void> {
+    const uniqueRootIds = [...new Set(rootIds)]
+    if (uniqueRootIds.length === 0) {
+      return
+    }
+
+    await tx.run(sql`
+      WITH RECURSIVE subtree AS (
+        SELECT id
+        FROM knowledge_item
+        WHERE base_id = ${baseId}
+          AND id IN (${sql.join(
+            uniqueRootIds.map((id) => sql`${id}`),
+            sql`, `
+          )})
+
+        UNION ALL
+
+        SELECT child.id
+        FROM knowledge_item child
+        INNER JOIN subtree parent ON child.group_id = parent.id
+        WHERE child.base_id = ${baseId}
+      )
+      DELETE FROM file_ref
+      WHERE source_type = ${knowledgeItemSourceType}
+        AND source_id IN (SELECT DISTINCT id FROM subtree)
+    `)
   }
 
   async detachFileRefs(itemIds: string[]): Promise<void> {
@@ -404,6 +443,58 @@ export class KnowledgeItemService {
     )
 
     logger.info('Detached knowledge item file refs', { count: detachedRefs.length, itemCount: uniqueItemIds.length })
+  }
+
+  async rebuildFileRefsForItems(itemIds: string[]): Promise<void> {
+    const uniqueItemIds = [...new Set(itemIds)]
+    if (uniqueItemIds.length === 0) {
+      return
+    }
+
+    const dbService = application.get('DbService')
+    const result = await dbService.withWriteTx(async (tx) => {
+      const targetRows = await tx.select().from(knowledgeItemTable).where(inArray(knowledgeItemTable.id, uniqueItemIds))
+      const targetItems = targetRows.map((row) => rowToKnowledgeItem(row))
+
+      await tx
+        .delete(fileRefTable)
+        .where(and(eq(fileRefTable.sourceType, knowledgeItemSourceType), inArray(fileRefTable.sourceId, uniqueItemIds)))
+
+      const fileItems = targetItems.filter((item) => item.type === 'file')
+      if (fileItems.length === 0) {
+        return {
+          itemCount: targetItems.length,
+          refCount: 0
+        }
+      }
+
+      const now = Date.now()
+      const refs = await tx
+        .insert(fileRefTable)
+        .values(
+          fileItems.map((item) => ({
+            id: uuidv4(),
+            fileEntryId: item.data.fileEntryId,
+            sourceType: knowledgeItemSourceType,
+            sourceId: item.id,
+            role: 'source',
+            createdAt: now,
+            updatedAt: now
+          }))
+        )
+        .onConflictDoNothing()
+        .returning({ id: fileRefTable.id })
+
+      return {
+        itemCount: targetItems.length,
+        refCount: refs.length
+      }
+    })
+
+    logger.info('Rebuilt knowledge item file refs', {
+      itemCount: result.itemCount,
+      refCount: result.refCount
+    })
   }
 
   async getSubtreeItems(
@@ -616,24 +707,7 @@ export class KnowledgeItemService {
         throw DataApiErrorFactory.notFound('KnowledgeItem', id)
       }
 
-      await tx.run(sql`
-        WITH RECURSIVE subtree AS (
-          SELECT id
-          FROM knowledge_item
-          WHERE base_id = ${existingRow.baseId}
-            AND id = ${id}
-
-          UNION ALL
-
-          SELECT child.id
-          FROM knowledge_item child
-          INNER JOIN subtree parent ON child.group_id = parent.id
-          WHERE child.base_id = ${existingRow.baseId}
-        )
-        DELETE FROM file_ref
-        WHERE source_type = ${knowledgeItemSourceType}
-          AND source_id IN (SELECT DISTINCT id FROM subtree)
-      `)
+      await this.deleteFileRefsForSubtreeTx(tx, existingRow.baseId, [id])
 
       const [row] = await tx.delete(knowledgeItemTable).where(eq(knowledgeItemTable.id, id)).returning({
         id: knowledgeItemTable.id

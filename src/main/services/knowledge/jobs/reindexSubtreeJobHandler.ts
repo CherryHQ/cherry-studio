@@ -9,7 +9,7 @@ import type { KnowledgeMutationCoordinator } from '../KnowledgeMutationCoordinat
 import type { KnowledgeWorkflowCoordinator } from '../KnowledgeWorkflowCoordinator'
 import { knowledgeQueueName } from '../types'
 import { deleteKnowledgeItemVectors } from '../utils/cleanup/vectorCleanup'
-import { isContainerKnowledgeItem, isIndexableKnowledgeItem } from '../utils/items'
+import { isContainerKnowledgeItem } from '../utils/items'
 import type { KnowledgeReindexSubtreePayload } from './jobTypes'
 
 const logger = loggerService.withContext('Knowledge:ReindexSubtreeJobHandler')
@@ -59,11 +59,6 @@ export function createReindexSubtreeJobHandler(
         ).map((item) => item.id)
 
         await deleteKnowledgeItemVectors(base, leafItemIds)
-
-        const leafRootIds = selectedRoots.filter((item) => isIndexableKnowledgeItem(item)).map((item) => item.id)
-        if (leafRootIds.length > 0) {
-          await knowledgeItemService.detachFileRefs(leafRootIds)
-        }
 
         const containerRootIds = selectedRoots.filter((item) => isContainerKnowledgeItem(item)).map((item) => item.id)
         if (containerRootIds.length > 0) {
