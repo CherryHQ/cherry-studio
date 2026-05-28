@@ -429,6 +429,32 @@ export class SessionMessageService extends BaseService {
     return result
   }
 
+  /**
+   * Clear the stale agent_session_id for a session so the next SDK call starts fresh.
+   * Called when the SDK reports "No conversation found with session ID" — the stored
+   * ID references a conversation that no longer exists in the SDK's internal state.
+   */
+  async clearStaleAgentSessionId(sessionId: string): Promise<void> {
+    try {
+      const database = await this.getDatabase()
+      await database
+        .update(sessionMessagesTable)
+        .set({ agent_session_id: '' })
+        .where(
+          and(
+            eq(sessionMessagesTable.session_id, sessionId),
+            not(eq(sessionMessagesTable.agent_session_id, ''))
+          )
+        )
+      logger.info('Cleared stale agent_session_id for session', { sessionId })
+    } catch (error) {
+      logger.warn('Failed to clear stale agent_session_id', {
+        sessionId,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
+  }
+
   private async getLastAgentSessionId(sessionId: string): Promise<string> {
     try {
       const database = await this.getDatabase()
