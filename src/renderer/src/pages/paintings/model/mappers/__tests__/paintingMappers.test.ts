@@ -87,13 +87,18 @@ describe('paintingMappers', () => {
       // FileManager.getFileUrl appends it to `Data/Files/` to build the
       // <img src>. `origin_name` carries the user-facing display name.
       files: [{ ...file, name: 'file-1.png', origin_name: 'file-1.png', path: '/tmp/file-1.png' }],
+      // `inputFiles` are raw v2 `FileEntry[]` — the painting form passes them
+      // through to canonicalGenerate which pre-fetches bytes via
+      // `window.api.file.binaryImage`. No FileMetadata adaption.
       inputFiles: [
         {
-          ...file,
           id: 'input-file-1',
-          name: 'input-file-1.png',
-          origin_name: 'input-file-1.png',
-          path: '/tmp/input-file-1.png'
+          origin: 'internal',
+          name: 'input-file-1',
+          ext: 'png',
+          size: 10,
+          createdAt: Date.parse('2026-01-01T00:00:00.000Z'),
+          updatedAt: Date.parse('2026-01-01T00:00:00.000Z')
         }
       ],
       persistedAt: '2026-01-01T00:00:00.000Z'
