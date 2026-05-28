@@ -68,13 +68,8 @@ const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
         placeholder={placeholder}
         onKeyDown={handleKeyDown}
       />
-      <div className={cn('flex h-10 shrink-0 flex-row items-center justify-end px-2 pb-1', footerClassName)}>
-        <div
-          className={cn(
-            'flex h-8 flex-row items-center [&_.icon-ic_send]:mt-0! [&_.icon-ic_send]:mr-0! [&_.icon-ic_send]:flex [&_.icon-ic_send]:size-8 [&_.icon-ic_send]:items-center [&_.icon-ic_send]:justify-center [&_.icon-ic_send]:leading-none!',
-            translate ? 'gap-1.5' : 'gap-2',
-            actionsClassName
-          )}>
+      <div className={cn('-mt-2 flex shrink-0 flex-row items-center justify-end px-2', footerClassName)}>
+        <div className={cn('flex flex-row items-center', translate ? 'gap-1.5' : 'gap-2', actionsClassName)}>
           {translate && (
             <TranslateButton
               text={textareaRef?.current?.value}

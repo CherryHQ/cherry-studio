@@ -1,7 +1,8 @@
-import { Button, Spinner } from '@cherrystudio/ui'
+import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import ImageViewer from '@renderer/components/ImageViewer'
 import type { Painting } from '@renderer/types'
+import { Loader2 } from 'lucide-react'
 import type { FC } from 'react'
 import React, { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -125,7 +126,7 @@ const Artboard: FC<ArtboardProps> = ({
         )}
         {isLoading && (
           <div className="-translate-x-1/2 -translate-y-1/2 absolute top-1/2 left-1/2 flex flex-col items-center gap-5">
-            <Spinner text="" className="size-8 justify-center" />
+            <Loader2 className="size-8 animate-spin text-primary" />
             {loadText ? loadText : ''}
             <Button onClick={onCancel} className="z-1001 mt-2.5">
               {t('common.cancel')}

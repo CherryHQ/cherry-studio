@@ -170,7 +170,7 @@ function PaintingSelect<TValue extends SelectValueType = string>({
       defaultValue={defaultValue === undefined ? undefined : String(defaultValue)}
       disabled={disabled || loading}
       onValueChange={(nextValue) => onChange?.(findOriginalValue(groups, nextValue) as TValue)}>
-      <SelectTrigger className={cn('w-full', className)} style={style}>
+      <SelectTrigger className={cn('h-9 min-h-9 w-full shrink-0', className)} style={style}>
         <SelectValue placeholder={placeholder}>{selectedLabel}</SelectValue>
       </SelectTrigger>
       <SelectContent className={contentClassName}>

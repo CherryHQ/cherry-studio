@@ -50,9 +50,9 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
         {fileMap.paths && fileMap.paths.length > 0 ? (
           <>
             {fileMap.paths.map((src, index) => (
-              <div key={index} className="relative mr-1.25 mb-1.25 h-[45%] w-[45%]">
+              <div key={index} className="relative mr-1.25 mb-1.25 aspect-square w-[45%]">
                 <FilePicker
-                  className="mb-1.25 block aspect-square h-full w-full"
+                  className="mb-1.25 block h-full w-full"
                   accept="image/png, image/jpeg"
                   multiple={false}
                   onFiles={(files) => {
@@ -92,9 +92,9 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({
         )}
 
         {remainingImages > 0 ? (
-          <div className="relative mr-1.25 mb-1.25 h-[45%] w-[45%]">
+          <div className="relative mr-1.25 mb-1.25 aspect-square w-[45%]">
             <FilePicker
-              className="mb-1.25 flex aspect-square h-full w-full items-center justify-center rounded-md border border-border border-dashed bg-background-subtle hover:bg-muted"
+              className="mb-1.25 flex h-full w-full items-center justify-center rounded-md border border-border border-dashed bg-background-subtle hover:bg-muted"
               multiple={remainingImages > 1}
               accept="image/png, image/jpeg"
               onFiles={(files) => {
