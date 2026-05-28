@@ -266,16 +266,19 @@ Reconsider if external editor integration with the Notes workspace becomes a rea
 
 ## 6. `.gitignore` Coordination
 
-A single parsed `Ignore` predicate (`ignore@7`) is consulted by:
+**Single source of truth, three consumers.** A constant `DEFAULT_IGNORE_PATTERNS` in `gitignore.ts` (gitignore-syntax: `.DS_Store`, `Thumbs.db`, `desktop.ini`, `node_modules/`, `dist/`, `build/`, `.next/`, `.nuxt/`, `coverage/`, `.cache/`, `.vscode/`, `.idea/`) seeds three places:
 
-- **`chokidar.FSWatcher.ignored`**, so ignored directories never have a watch handle attached (the cure for the original `EMFILE` on `node_modules`-heavy repos).
-- The **builder's post-scan filter**, applied to every path returned by the initial scan before it is inserted into the tree, plus the same predicate is re-checked on every watcher event as a belt-and-suspenders guard against `chokidar` race orderings.
+- **`chokidar.FSWatcher.ignored`** — `loadGitignorePredicate` builds an `ignore@7` predicate from the defaults + the user's `.gitignore`. chokidar consults the predicate so ignored directories never get a watch handle (the cure for the original `EMFILE` on `node_modules`-heavy repos).
+- The **builder's post-scan filter** — the same predicate is re-checked inside the builder after `search.listDirectory` returns, plus once more on every watcher event as a belt-and-suspenders guard against chokidar race orderings.
+- **ripgrep's `-g !pattern` arguments** — `defaultRipgrepGlobArgs()` converts the same `DEFAULT_IGNORE_PATTERNS` constant into ripgrep CLI flags. ripgrep also honors `.gitignore` natively for the rest.
 
-Ripgrep itself **also** honors `.gitignore` (its default behavior), so the initial scan is double-filtered: ripgrep skips ignored files at the OS-walk level and our predicate strips anything that slips through. We do **not** wire `--ignore-file` explicitly today — a future optimisation when ripgrep's defaults aren't enough.
+These three layers used to drift: the ripgrep glob list was an independent `RIPGREP_EXCLUDE_GLOBS` constant in `search.ts`. A `.DS_Store` written **after** mount slipped past chokidar even though the initial scan filtered it. The shared `DEFAULT_IGNORE_PATTERNS` closes that gap.
 
-The predicate is loaded asynchronously inside `builder.init()` (not in the constructor — `readFileSync` on a slow filesystem would block the main event loop). `.git` is always excluded even when `.gitignore` doesn't list it.
+User-side `.gitignore` rules apply **after** the defaults, so a deliberate `!node_modules` etc. can still un-ignore them. `.git/` is force-added **last** so a user `!.git` cannot un-ignore it (watching git internals is pointless and expensive).
 
-A missing `.gitignore` is **not** the same as "no exclusion at all" — `loadGitignorePredicate` still returns a `.git`-only predicate so the watcher / scan don't recurse into the git internals. The function returns `null` **only** when the `ignore` library itself fails to construct (effectively never in practice); callers must keep `.git` excluded by some other means in that case (see `gitignore.ts` JSDoc).
+The predicate is loaded asynchronously inside `builder.init()` (not in the constructor — `readFileSync` on a slow filesystem would block the main event loop).
+
+A missing `.gitignore` is **not** the same as "no exclusion at all" — `loadGitignorePredicate` still returns a predicate with the defaults + `.git`, so the watcher / scan don't recurse into OS noise / build caches / git internals. The function returns `null` **only** when the `ignore` library itself fails to construct (effectively never in practice).
 
 ### 6.1 Extension Filter Lives in the Builder, Not Ripgrep
 

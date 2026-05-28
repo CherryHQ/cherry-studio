@@ -22,6 +22,8 @@ import { isMac, isWin } from '@main/core/platform'
 import { toAsarUnpackedPath } from '@main/utils'
 import type { DirectoryListOptions, FilePath } from '@shared/file/types'
 
+import { defaultRipgrepGlobArgs } from './gitignore'
+
 const logger = loggerService.withContext('Utils:File:Search')
 
 // `fuzzy` is an internal-only knob today (no shared-type field, no real
@@ -70,19 +72,10 @@ const EXCLUDED_DIRS = new Set([
   '.cache'
 ])
 
-const RIPGREP_EXCLUDE_GLOBS: ReadonlyArray<readonly [string, string]> = [
-  ['-g', '!**/node_modules/**'],
-  ['-g', '!**/.git/**'],
-  ['-g', '!**/.idea/**'],
-  ['-g', '!**/.vscode/**'],
-  ['-g', '!**/.DS_Store'],
-  ['-g', '!**/dist/**'],
-  ['-g', '!**/build/**'],
-  ['-g', '!**/.next/**'],
-  ['-g', '!**/.nuxt/**'],
-  ['-g', '!**/coverage/**'],
-  ['-g', '!**/.cache/**']
-]
+// `defaultRipgrepGlobArgs()` is the single source of these patterns; both
+// chokidar's `ignored` predicate and the post-scan filter consume the same
+// defaults via `loadGitignorePredicate`. See `gitignore.ts` for the
+// "single source of truth, three consumers" rationale.
 
 // ─── Ripgrep binary + execution ────────────────────────────────────────────
 
@@ -178,9 +171,7 @@ function buildRipgrepBaseArgs(options: ResolvedOptions, resolvedPath: string): s
     args.push('--glob', '!.*')
   }
 
-  for (const [flag, pattern] of RIPGREP_EXCLUDE_GLOBS) {
-    args.push(flag, pattern)
-  }
+  args.push(...defaultRipgrepGlobArgs())
 
   if (!options.recursive) {
     args.push('--max-depth', '1')
@@ -251,9 +242,7 @@ async function searchByFilename(resolvedPath: string, options: ResolvedOptions):
       args.push('--iglob', `*${options.searchPattern}*`)
     }
 
-    for (const [flag, pattern] of RIPGREP_EXCLUDE_GLOBS) {
-      args.push(flag, pattern)
-    }
+    args.push(...defaultRipgrepGlobArgs())
 
     if (!options.recursive) {
       args.push('--max-depth', '1')

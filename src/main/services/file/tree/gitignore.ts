@@ -1,18 +1,24 @@
 /**
  * `.gitignore`-based ignore predicate for `DirectoryTreeBuilder`.
  *
- * Replaces a hardcoded `node_modules` / `.git` / `dist` / `.next` /
- * `coverage` list. The rationale is small: every Cherry workspace that
- * ever exhausts the chokidar FD limit already declares those names in its
- * `.gitignore`, and the few workspaces that don't (Notes data dir, fresh
- * empty workspace) carry no large `node_modules` to blow the limit
- * either. Reading the user's own ignore file keeps the policy
- * predictable — what git skips, the watcher skips.
+ * **Single source of truth, three consumers.** The predicate built here is
+ * consulted by:
+ *   - chokidar's `ignored` option (watcher path)
+ *   - the builder's post-scan filter (belt-and-suspenders for chokidar
+ *     races on `node_modules`-heavy repos)
+ *   - ripgrep's `-g !pattern` arguments at initial-scan time, derived from
+ *     the same `DEFAULT_IGNORE_PATTERNS` via `defaultRipgrepGlobArgs()`
  *
- * The `.git` directory is always added because git itself doesn't list
- * its own internal dir in `.gitignore`, but watching it is both pointless
- * and expensive (chokidar would open one FD per packed-ref / hooks /
- * objects subdir on every commit).
+ * Three layers, one constant. Previously the ripgrep `-g` list lived
+ * separately in `search.ts` and drifted from the chokidar predicate —
+ * `.DS_Store` / `node_modules` created **after** mount slipped past
+ * chokidar even though ripgrep filtered them at scan time.
+ *
+ * The `.git` directory is always force-added because git itself doesn't
+ * list its own internal dir in `.gitignore`, but watching it is both
+ * pointless and expensive (chokidar would open one FD per packed-ref /
+ * hooks / objects subdir on every commit). The force-add happens last so
+ * a user-side `!.git` cannot un-ignore it.
  */
 
 import { readFile } from 'node:fs/promises'
@@ -22,6 +28,51 @@ import { loggerService } from '@logger'
 import ignore, { type Ignore } from 'ignore'
 
 const logger = loggerService.withContext('file/tree/gitignore')
+
+/**
+ * Default exclusions applied to every workspace — VCS / build artifacts /
+ * OS metadata files. Patterns follow gitignore syntax (trailing `/`
+ * means "directory only"). User `.gitignore` rules are applied **after**
+ * these so a deliberate `!node_modules` etc. still wins.
+ */
+const DEFAULT_IGNORE_PATTERNS: readonly string[] = [
+  // macOS / Windows OS noise
+  '.DS_Store',
+  'Thumbs.db',
+  'desktop.ini',
+  // Common build / dependency caches
+  'node_modules/',
+  'dist/',
+  'build/',
+  '.next/',
+  '.nuxt/',
+  'coverage/',
+  '.cache/',
+  // Editor metadata
+  '.vscode/',
+  '.idea/'
+]
+
+/**
+ * Convert `DEFAULT_IGNORE_PATTERNS` into ripgrep `-g !pattern` arguments.
+ * Directory patterns (trailing `/`) produce `!**\/dir/**`, file patterns
+ * produce `!**\/name`. `.git` is always force-excluded last.
+ *
+ * Single bridge from gitignore-syntax defaults to ripgrep CLI; callers in
+ * `search.ts` use this instead of maintaining a parallel exclude list.
+ */
+export function defaultRipgrepGlobArgs(): string[] {
+  const args: string[] = []
+  for (const pattern of DEFAULT_IGNORE_PATTERNS) {
+    if (pattern.endsWith('/')) {
+      args.push('-g', `!**/${pattern.slice(0, -1)}/**`)
+    } else {
+      args.push('-g', `!**/${pattern}`)
+    }
+  }
+  args.push('-g', '!**/.git/**')
+  return args
+}
 
 export interface GitignorePredicate {
   /** True if the absolute path should be excluded from scan/watch. */
@@ -64,8 +115,10 @@ export async function loadGitignorePredicate(rootPath: string): Promise<Gitignor
   let ig: Ignore
   try {
     ig = ignore()
+    // Defaults first so the user's `.gitignore` can override (`!pattern`).
+    ig.add(DEFAULT_IGNORE_PATTERNS.join('\n'))
     if (raw) ig.add(raw)
-    // `.git` is never listed in user .gitignore but we always skip it.
+    // `.git` is force-ignored last — user cannot un-ignore it.
     ig.add('.git')
   } catch (err) {
     logger.warn(`Failed to parse .gitignore under ${normalizedRoot}`, err as Error)

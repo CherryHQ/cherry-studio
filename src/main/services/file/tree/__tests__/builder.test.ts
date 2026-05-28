@@ -228,6 +228,42 @@ describe('createDirectoryTree — watcher mutations', () => {
     }
   })
 
+  it('drops chokidar add events for OS-noise files (.DS_Store, Thumbs.db) — defaults match initial scan', async () => {
+    // Prior to wiring chokidar's predicate to the same DEFAULT_IGNORE_PATTERNS,
+    // a `.DS_Store` written *after* mount would slip into the tree even
+    // though the initial ripgrep scan filtered it. No `extensions` filter
+    // here so the only thing keeping these files out is the ignore predicate.
+    // `includeHidden: true` removes the dotfile pre-filter as well so the
+    // ignore-predicate is the *only* remaining gate.
+    const builder = await createDirectoryTree(tmp, { includeHidden: true })
+    try {
+      const events: TreeMutationEvent[] = []
+      const sub = builder.onMutation((e) => events.push(e))
+
+      // Race-free: create a regular .txt alongside the OS-noise files, wait
+      // for the legit event, then assert the OS-noise files were suppressed.
+      const sentinelPromise = waitForEvent(
+        builder,
+        (e) => e.type === 'added' && 'path' in e && e.path.endsWith('/sentinel.txt')
+      )
+      await writeFile(path.join(tmp, '.DS_Store'), 'noise')
+      await writeFile(path.join(tmp, 'Thumbs.db'), 'noise')
+      await writeFile(path.join(tmp, 'sentinel.txt'), 'ok')
+      await sentinelPromise
+
+      const noiseEvents = events.filter(
+        (e) => 'path' in e && (e.path.endsWith('/.DS_Store') || e.path.endsWith('/Thumbs.db'))
+      )
+      expect(noiseEvents).toEqual([])
+      expect(builder.getNode(path.join(tmp, '.DS_Store'))).toBeNull()
+      expect(builder.getNode(path.join(tmp, 'Thumbs.db'))).toBeNull()
+
+      sub.dispose()
+    } finally {
+      builder.dispose()
+    }
+  })
+
   it('emits "updated" with refreshed stats when a tracked file is modified', async () => {
     await writeFile(path.join(tmp, 'note.md'), 'first')
     const builder = await createDirectoryTree(tmp, { extensions: ['.md'], withStats: true })
