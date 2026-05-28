@@ -111,6 +111,23 @@ function RatioThumb({ value, selected }: { value: string; selected: boolean }) {
   )
 }
 
+/**
+ * Pick a column count that keeps every chip readable. The sidebar's fixed
+ * width can't accommodate three 9-char labels (`1280×1280`) — minmax(0, 1fr)
+ * columns shrink and the chip text overflows / truncates. Drop to 2 cols
+ * when any derived label is at least 8 chars. Aspect-ratio chips (`1:1`)
+ * stay at 3 cols since their labels are short.
+ */
+function autoColumns(options: OptionItem[], explicit: number | undefined): number {
+  if (explicit) return explicit
+  let longest = 0
+  for (const option of options) {
+    const label = deriveChipLabel(String(option.label ?? option.value), String(option.value))
+    if (label.length > longest) longest = label.length
+  }
+  return longest >= 8 ? 2 : DEFAULT_COLUMNS
+}
+
 export default function SizeChipsField({
   item,
   fieldKey,
@@ -122,7 +139,7 @@ export default function SizeChipsField({
 }: PaintingFieldComponentProps) {
   const options = mapOptions(item.options, item, painting, translate)
   const value = currentValue == null ? '' : String(currentValue)
-  const columns = item.columns || DEFAULT_COLUMNS
+  const columns = autoColumns(options, item.columns)
 
   return (
     <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>

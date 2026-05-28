@@ -79,12 +79,21 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
 
     case 'slider': {
       const numericValue = Number(currentValue ?? item.min ?? 0)
+      const min = item.min ?? 0
+      const max = item.max ?? 100
+      // Degenerate single-value range (e.g. numImages 1..1): the slider has
+      // nowhere to move and Radix renders its thumb flush to the rail edge,
+      // which the parent's `overflow-hidden` clips. Skip the slider and show
+      // a read-only number input instead.
+      if (min === max) {
+        return <Input className="w-20" type="number" value={String(numericValue)} readOnly disabled />
+      }
       return (
         <div className="flex items-center gap-3">
           <Slider
             className="flex-1"
-            min={item.min ?? 0}
-            max={item.max ?? 100}
+            min={min}
+            max={max}
             step={item.step ?? 1}
             value={[numericValue]}
             onValueChange={(values) => onChange({ [fieldKey]: values[0] })}
@@ -92,8 +101,8 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
           <Input
             className="w-20"
             type="number"
-            min={item.min}
-            max={item.max}
+            min={min}
+            max={max}
             step={item.step}
             value={String(numericValue)}
             onChange={(event) => onChange({ [fieldKey]: Number(event.target.value) })}
