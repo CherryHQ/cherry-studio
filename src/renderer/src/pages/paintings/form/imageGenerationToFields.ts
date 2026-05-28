@@ -62,7 +62,7 @@ function specToField(key: string, spec: SupportSpec, allSupports: Record<string,
       // append the `'custom'` chip so the customSize widget can gate on it.
       const pairedSize = key === 'size' && allSupports.customSize?.type === 'size'
       const options: OptionItem[] = toOptions(spec.options)
-      if (pairedSize) options.push({ label: 'paintings.custom_size', value: 'custom' })
+      if (pairedSize) options.push({ labelKey: 'paintings.custom_size', value: 'custom' })
       if (renderAsChips) {
         return {
           type: 'sizeChips',

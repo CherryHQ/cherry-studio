@@ -8,7 +8,7 @@ const MIN_THUMB = 6
 const DEFAULT_COLUMNS = 3
 
 const chipClass = {
-  base: 'flex min-h-10 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[var(--painting-radius-control)] px-2 py-1 text-[11px] leading-tight transition-all',
+  base: 'flex min-h-10 min-w-0 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[var(--painting-radius-control)] px-2 py-1 text-[11px] leading-tight transition-all',
   active:
     'bg-[var(--painting-choice-active-bg)] text-[var(--painting-choice-active-fg)] ring-1 ring-[var(--painting-choice-active-ring)]',
   inactive:
@@ -125,7 +125,7 @@ export default function SizeChipsField({
   const columns = item.columns || DEFAULT_COLUMNS
 
   return (
-    <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${columns}, minmax(min-content, 1fr))` }}>
+    <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
       {options.map((option) => {
         const optionValue = String(option.value)
         const label = option.label || optionValue
@@ -145,7 +145,7 @@ export default function SizeChipsField({
             )}
             onClick={() => onChange({ [fieldKey]: optionValue })}>
             <RatioThumb value={optionValue} selected={isSelected} />
-            <span className="whitespace-nowrap font-medium tracking-tight">{chipLabel}</span>
+            <span className="block max-w-full truncate font-medium tracking-tight">{chipLabel}</span>
           </button>
         )
       })}
