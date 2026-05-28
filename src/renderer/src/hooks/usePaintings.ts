@@ -15,14 +15,17 @@ const PAINTINGS_QUERY = { page: 1, limit: 5000 } as const
 
 type PaintingNamespace = keyof PaintingsState
 
-interface PendingPaintingUpdate {
+interface PendingPaintingPersistence {
   namespace: PaintingNamespace
   painting: PaintingAction
+  needsCreate: boolean
+  needsUpdate: boolean
 }
 
-interface PaintingUpdateQueueState {
+interface PaintingPersistenceQueueState {
   running: boolean
-  latest?: PendingPaintingUpdate
+  created: boolean
+  pending?: PendingPaintingPersistence
 }
 
 interface NamespaceConfig {
@@ -219,7 +222,8 @@ export function usePaintings() {
   const ppio_edit = useAppSelector((state) => state.paintings.ppio_edit)
   const dispatch = useAppDispatch()
   const { providers } = useProviders()
-  const updateQueuesRef = useRef(new Map<string, PaintingUpdateQueueState>())
+  const knownPaintingIdsRef = useRef(new Set<string>())
+  const persistenceQueuesRef = useRef(new Map<string, PaintingPersistenceQueueState>())
 
   const newApiProviderIds = useMemo(
     () =>
@@ -237,68 +241,112 @@ export function usePaintings() {
   useEffect(() => {
     if (!data) return
 
+    knownPaintingIdsRef.current = new Set(data.items.map((item) => item.id))
+
     const grouped = groupRows(data.items, newApiProviderIds)
     for (const [namespace, paintings] of Object.entries(grouped) as Array<[PaintingNamespace, PaintingAction[]]>) {
       dispatch(updatePaintings({ namespace, paintings }))
     }
   }, [data, dispatch, newApiProviderIds])
 
-  const persistCreate = useCallback(
-    (namespace: PaintingNamespace, painting: PaintingAction) => {
-      void dataApiService
-        .post('/paintings', { body: toDataApiBody(namespace, painting, { includeId: true }) })
-        .then(() => refetch())
-        .catch((error) => logDataApiError('create', error))
-    },
-    [refetch]
-  )
-
-  const flushPaintingUpdate = useCallback(
-    async function flushPaintingUpdate(paintingId: string) {
-      const state = updateQueuesRef.current.get(paintingId)
+  const flushPaintingPersistence = useCallback(
+    async function flushPaintingPersistence(paintingId: string) {
+      const state = persistenceQueuesRef.current.get(paintingId)
       if (!state || state.running) return
 
       state.running = true
       let lastAttemptSucceeded = false
 
       try {
-        while (state.latest) {
-          const next = state.latest
-          state.latest = undefined
+        while (state.pending) {
+          const next = state.pending
+          state.pending = undefined
 
-          try {
-            await dataApiService.patch(`/paintings/${paintingId}`, {
-              body: toDataApiBody(next.namespace, next.painting, { includeId: false })
-            })
-            lastAttemptSucceeded = true
-          } catch (error) {
-            lastAttemptSucceeded = false
-            logDataApiError('update', error)
+          const shouldCreate = next.needsCreate && !state.created
+
+          if (shouldCreate) {
+            try {
+              await dataApiService.post('/paintings', {
+                body: toDataApiBody(next.namespace, next.painting, { includeId: true })
+              })
+              state.created = true
+              knownPaintingIdsRef.current.add(paintingId)
+              lastAttemptSucceeded = true
+            } catch (error) {
+              lastAttemptSucceeded = false
+              logDataApiError('create', error)
+              continue
+            }
+          }
+
+          if (next.needsUpdate && !shouldCreate) {
+            try {
+              await dataApiService.patch(`/paintings/${paintingId}`, {
+                body: toDataApiBody(next.namespace, next.painting, { includeId: false })
+              })
+              lastAttemptSucceeded = true
+            } catch (error) {
+              lastAttemptSucceeded = false
+              logDataApiError('update', error)
+            }
           }
         }
       } finally {
         state.running = false
-        if (state.latest) {
-          void flushPaintingUpdate(paintingId)
-        } else {
-          updateQueuesRef.current.delete(paintingId)
+        if (state.pending) {
+          void flushPaintingPersistence(paintingId)
+        } else if (state.created) {
+          persistenceQueuesRef.current.delete(paintingId)
           if (lastAttemptSucceeded) {
             void refetch()
           }
+        } else {
+          persistenceQueuesRef.current.set(paintingId, state)
         }
       }
     },
     [refetch]
   )
 
+  const enqueuePaintingPersistence = useCallback(
+    (
+      namespace: PaintingNamespace,
+      painting: PaintingAction,
+      change: Pick<PendingPaintingPersistence, 'needsCreate' | 'needsUpdate'>
+    ) => {
+      const existingState = persistenceQueuesRef.current.get(painting.id)
+      const state = existingState ?? {
+        running: false,
+        created: knownPaintingIdsRef.current.has(painting.id)
+      }
+      const pending = state.pending
+
+      state.pending = {
+        namespace,
+        painting,
+        needsCreate: Boolean(
+          pending?.needsCreate || change.needsCreate || (change.needsUpdate && existingState && !state.created)
+        ),
+        needsUpdate: Boolean(pending?.needsUpdate || change.needsUpdate)
+      }
+      persistenceQueuesRef.current.set(painting.id, state)
+      void flushPaintingPersistence(painting.id)
+    },
+    [flushPaintingPersistence]
+  )
+
+  const persistCreate = useCallback(
+    (namespace: PaintingNamespace, painting: PaintingAction) => {
+      enqueuePaintingPersistence(namespace, painting, { needsCreate: true, needsUpdate: false })
+    },
+    [enqueuePaintingPersistence]
+  )
+
   const persistUpdate = useCallback(
     (namespace: PaintingNamespace, painting: PaintingAction) => {
-      const state = updateQueuesRef.current.get(painting.id) ?? { running: false }
-      state.latest = { namespace, painting }
-      updateQueuesRef.current.set(painting.id, state)
-      void flushPaintingUpdate(painting.id)
+      enqueuePaintingPersistence(namespace, painting, { needsCreate: false, needsUpdate: true })
     },
-    [flushPaintingUpdate]
+    [enqueuePaintingPersistence]
   )
 
   const persistDelete = useCallback(
