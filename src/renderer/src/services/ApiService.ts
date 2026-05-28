@@ -5,7 +5,7 @@ import { loggerService } from '@logger'
 import { buildStreamTextParams } from '@renderer/aiCore/prepareParams'
 import type { AiSdkMiddlewareConfig } from '@renderer/aiCore/types/middlewareConfig'
 import { buildProviderOptions } from '@renderer/aiCore/utils/options'
-import { isDedicatedImageGenerationModel, isEmbeddingModel, isFunctionCallingModel } from '@renderer/config/models'
+import { isEmbeddingModel, isFunctionCallingModel, isImageGenerationEndpoint } from '@renderer/config/models'
 import { getStoreSetting } from '@renderer/hooks/useSettings'
 import i18n from '@renderer/i18n'
 import store from '@renderer/store'
@@ -164,9 +164,9 @@ export async function transformMessagesAndFetch(
     // replace prompt variables
     assistant.prompt = await replacePromptVariables(assistant.prompt, assistant.model?.name)
 
-    // 专用图像生成模型直接走 fetchImageGeneration
+    // 专用图像生成模型 or 用户显式标记为图像生成端点的模型，直接走 fetchImageGeneration
     const model = assistant.model || getDefaultModel()
-    if (isDedicatedImageGenerationModel(model)) {
+    if (isImageGenerationEndpoint(model)) {
       await fetchImageGeneration({
         messages: uiMessages,
         assistant,
@@ -850,6 +850,21 @@ export async function checkApi(provider: Provider, model: Model, timeout = 15000
     logger.info('checkApi: embedding model detected, calling getEmbeddingDimensions', { modelId: model.id })
     const timerPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout))
     await Promise.race([ai.getEmbeddingDimensions(model), timerPromise])
+  } else if (isImageGenerationEndpoint(model)) {
+    logger.info('checkApi: image generation endpoint detected, calling generateImage', { modelId: model.id })
+    const abortId = uuid()
+    const signal = readyToAbort(abortId)
+    const timerPromise = new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Timeout')), timeout))
+    await Promise.race([
+      ai.generateImage({
+        model: model.id,
+        prompt: 'hi',
+        imageSize: '1024x1024',
+        batchSize: 1,
+        signal
+      }),
+      timerPromise
+    ])
   } else {
     const abortId = uuid()
     const signal = readyToAbort(abortId)
