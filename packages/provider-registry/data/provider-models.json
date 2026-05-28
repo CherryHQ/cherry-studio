@@ -14418,6 +14418,10 @@
     },
     {
       "providerId": "ppio",
+      "modelId": "qwen-image-edit-2509"
+    },
+    {
+      "providerId": "ppio",
       "modelId": "glm-image"
     },
     {
@@ -17608,7 +17612,15 @@
     },
     {
       "providerId": "zhipu",
+      "modelId": "cogview-4"
+    },
+    {
+      "providerId": "zhipu",
       "modelId": "cogview-4-250304"
+    },
+    {
+      "providerId": "zhipu",
+      "modelId": "glm-image"
     }
   ]
 }

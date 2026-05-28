@@ -151,13 +151,19 @@ describe('imageGenerationToFields', () => {
     expect(byKey.promptEnhancement?.type).toBe('switch')
   })
 
-  it('returns empty for a mode the model does not declare', () => {
+  it('falls back to the first declared mode when the requested mode is absent', () => {
+    // Edit-only models (PPIO qwen-image-edit, image-upscaler, …) declare only
+    // `modes.edit`. The PPIO painting provider is single-tab with
+    // `painting.mode === 'generate'`, so the lookup must fall back to the
+    // model's actual mode (edit) instead of rendering nothing.
     const support: ImageGenerationSupport = {
       modes: {
-        generate: { supports: { seed: { type: 'text' } } }
+        edit: { supports: { seed: { type: 'text' }, addWatermark: { type: 'switch' } } }
       }
     }
-    expect(imageGenerationToFields(support, { mode: 'remix' })).toEqual([])
+    const items = imageGenerationToFields(support, { mode: 'generate' })
+    const keys = items.map((i) => i.key)
+    expect(keys).toEqual(['seed', 'addWatermark'])
   })
 
   it('size + paired customSize: enum gains custom chip; customSize widget gates on size === custom', () => {

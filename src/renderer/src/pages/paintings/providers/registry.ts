@@ -78,12 +78,26 @@ const dmxapiProvider: PaintingProviderDefinition = createSingleModeProvider({
 async function ppioGenerate(input: GenerateInput): Promise<FileMetadata[]> {
   const modelId = input.painting.model
   const canonicalMode = tabToImageGenerationMode(input.painting.mode)
-  if (modelId && canonicalMode) {
+  if (modelId) {
     try {
       const support = await prefetch('/providers/:providerId/models/:modelId*/image-generation-support', {
         params: { providerId: 'ppio', modelId }
       })
-      const transport = support?.modes?.[canonicalMode]?.vendorTransport
+      const modes = support?.modes
+      // Edit-only models (qwen-image-edit, image-upscaler, image-eraser,
+      // seedream-4.0-edit, …) declare only `modes.edit`; their vendorTransport
+      // lives there, not on `modes.generate`. Pick the effective mode: prefer
+      // what painting.mode resolves to; otherwise fall back to the model's
+      // first declared mode. The fallback mode is also stamped on the
+      // descriptor so PpioTransport's `buildSeedreamParams` branches by edit
+      // vs draw correctly.
+      const effectiveMode =
+        canonicalMode && modes?.[canonicalMode]
+          ? canonicalMode
+          : modes
+            ? (Object.keys(modes)[0] as keyof typeof modes)
+            : undefined
+      const transport = effectiveMode && modes ? modes[effectiveMode]?.vendorTransport : undefined
       if (transport?.endpoint) {
         input.painting.params = {
           ...input.painting.params,
@@ -91,7 +105,7 @@ async function ppioGenerate(input: GenerateInput): Promise<FileMetadata[]> {
             id: modelId,
             endpoint: transport.endpoint,
             isSync: transport.isSync,
-            mode: input.painting.mode
+            mode: effectiveMode
           }
         }
       }

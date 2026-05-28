@@ -37,11 +37,7 @@ function toOptions(values: readonly string[]): OptionItem[] {
   return values.map((v) => ({ label: v, value: v }))
 }
 
-function specToField(
-  key: string,
-  spec: SupportSpec,
-  allSupports: Record<string, SupportSpec>
-): BaseConfigItem | null {
+function specToField(key: string, spec: SupportSpec, allSupports: Record<string, SupportSpec>): BaseConfigItem | null {
   const labels = KEY_LABELS[key] ?? { title: key }
   switch (spec.type) {
     case 'switch':
@@ -93,9 +89,7 @@ function specToField(
           minHeight: spec.minSide,
           maxHeight: spec.maxSide
         },
-        condition: pairedKey
-          ? (painting: Record<string, unknown>) => painting[pairedKey] === 'custom'
-          : undefined
+        condition: pairedKey ? (painting: Record<string, unknown>) => painting[pairedKey] === 'custom' : undefined
       } as unknown as BaseConfigItem
     }
     default: {
@@ -120,8 +114,17 @@ export function imageGenerationToFields(
   support: ImageGenerationSupport | undefined,
   opts?: { mode?: ImageGenerationMode }
 ): BaseConfigItem[] {
-  const mode = opts?.mode ?? 'generate'
-  const supports = support?.modes?.[mode]?.supports
+  const allModes = support?.modes
+  if (!allModes) return []
+  const requested = opts?.mode ?? 'generate'
+  // Edit-only / upscale-only / remix-only models declare a single non-generate
+  // mode (e.g. PPIO `qwen-image-edit` → only `modes.edit`). When the requested
+  // mode is absent from the model's declared modes, render whatever the model
+  // does declare — every painting provider has at most one UI tab now, so
+  // falling back to the model's first declared mode is what the user expects
+  // to see.
+  const fallbackKey = Object.keys(allModes)[0] as ImageGenerationMode | undefined
+  const supports = allModes[requested]?.supports ?? (fallbackKey ? allModes[fallbackKey]?.supports : undefined)
   if (!supports) return []
   const items: BaseConfigItem[] = []
   for (const [key, spec] of Object.entries(supports)) {
