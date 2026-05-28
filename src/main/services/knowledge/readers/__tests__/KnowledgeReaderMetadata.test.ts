@@ -58,7 +58,7 @@ describe('knowledge reader metadata', () => {
     const fileEntryId = '019606a0-0000-7000-8000-000000000502'
     getPhysicalPathMock.mockResolvedValueOnce('/resolved/original.txt')
 
-    const documents = await loadFileDocuments({
+    const item = {
       id: 'file-item-1',
       baseId: 'kb-1',
       groupId: null,
@@ -71,7 +71,9 @@ describe('knowledge reader metadata', () => {
       error: null,
       createdAt: '2026-04-08T00:00:00.000Z',
       updatedAt: '2026-04-08T00:00:00.000Z'
-    })
+    } as const
+
+    const documents = await loadFileDocuments(item, fileEntryId)
 
     expect(getPhysicalPathMock).toHaveBeenCalledWith(fileEntryId)
     expect(loadDataMock).toHaveBeenCalledWith('/resolved/original.txt')

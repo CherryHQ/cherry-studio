@@ -2,7 +2,6 @@ export { FileProcessingOrchestrationService } from './FileProcessingOrchestratio
 export { TesseractRuntimeService } from './processors/tesseract/runtime/TesseractRuntimeService'
 export type {
   FileProcessingArtifact,
-  FileProcessingTaskResult,
-  FileProcessingTaskStartResult,
+  FileProcessingJobOutput,
   StartFileProcessingTaskInput
 } from './types'

@@ -90,11 +90,9 @@ describe('ComponentLabFileProcessingSettings', () => {
     selectFileMock.mockResolvedValue([selectedImage])
     ensureExternalEntryMock.mockResolvedValue(fileEntry)
     startTaskMock.mockResolvedValue({
-      taskId: 'job-1',
-      feature: 'image_to_text',
-      processorId: 'tesseract',
-      status: 'pending',
-      progress: 0
+      id: 'job-1',
+      type: 'file-processing.background',
+      status: 'pending'
     })
     Object.defineProperty(window, 'api', {
       configurable: true,

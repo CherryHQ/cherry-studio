@@ -94,6 +94,7 @@ vi.mock('../files/EpubReader', () => ({
 const { loadKnowledgeItemDocuments } = await import('../KnowledgeReader')
 
 const FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000501'
+const PROCESSED_FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000502'
 
 function createFileItem(ext: string, sourcePath?: string): KnowledgeItemOf<'file'> {
   return {
@@ -219,6 +220,21 @@ describe('loadKnowledgeItemDocuments', () => {
     expect(docs[0]).toMatchObject({
       metadata: {
         source: '/tmp/sample.log'
+      }
+    })
+  })
+
+  it('resolves file documents from an override file entry id when provided', async () => {
+    const item = createFileItem('.pdf')
+    getPhysicalPathMock.mockResolvedValueOnce('/resolved/processed.md')
+
+    const docs = await loadKnowledgeItemDocuments(item, undefined, { fileEntryId: PROCESSED_FILE_ENTRY_ID })
+
+    expect(getPhysicalPathMock).toHaveBeenCalledWith(PROCESSED_FILE_ENTRY_ID)
+    expect(readerSpies.markdown).toHaveBeenCalledWith('/resolved/processed.md')
+    expect(docs[0]).toMatchObject({
+      metadata: {
+        source: '/tmp/sample.pdf'
       }
     })
   })

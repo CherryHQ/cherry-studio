@@ -4,14 +4,21 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
+import { FileProcessorIdSchema } from '@shared/data/presets/file-processing'
+import type { FileEntryId } from '@shared/data/types/file'
 import type { KnowledgeItem, KnowledgeRuntimeAddItemInput } from '@shared/data/types/knowledge'
 
 import type { KnowledgeMutationCoordinator } from './KnowledgeMutationCoordinator'
-import { knowledgeDeleteSubtreeIdempotencyKey, knowledgeQueueName } from './types'
+import {
+  knowledgeDeleteSubtreeIdempotencyKey,
+  knowledgeFileProcessingCheckIdempotencyKey,
+  knowledgeQueueName
+} from './types'
 import { isContainerKnowledgeItem } from './utils/items'
 import { planKnowledgeItemSource } from './utils/sources/sourcePlanning'
 
 const logger = loggerService.withContext('Knowledge:WorkflowCoordinator')
+const FILE_PROCESSING_CHECK_DELAY_MS = 1000
 
 export class KnowledgeWorkflowCoordinator {
   constructor(private readonly mutationCoordinator: KnowledgeMutationCoordinator) {}
@@ -94,6 +101,7 @@ export class KnowledgeWorkflowCoordinator {
   }
 
   async scheduleItem(baseId: string, itemId: string, parentJobId: string | null = null): Promise<void> {
+    const base = await knowledgeBaseService.getById(baseId)
     const item = await knowledgeItemService.getById(itemId)
     if (item.baseId !== baseId) {
       throw new Error(`Knowledge item '${itemId}' does not belong to base '${baseId}'`)
@@ -102,7 +110,7 @@ export class KnowledgeWorkflowCoordinator {
       return
     }
 
-    const plan = planKnowledgeItemSource(item)
+    const plan = planKnowledgeItemSource(base, item)
     if (plan.kind === 'invalid') {
       await knowledgeItemService.updateStatus(itemId, 'failed', { error: plan.reason })
       return
@@ -122,9 +130,74 @@ export class KnowledgeWorkflowCoordinator {
       return
     }
 
+    if (plan.kind === 'needsFileProcessing') {
+      if (item.type !== 'file') {
+        throw new Error(`File processing source plan produced for non-file item: ${item.id}`)
+      }
+      const processorId = FileProcessorIdSchema.parse(base.fileProcessorId)
+      const fileProcessing = application.get('FileProcessingOrchestrationService')
+      const fileProcessingJob = await fileProcessing.startTask(
+        {
+          feature: 'document_to_markdown',
+          fileEntryId: item.data.fileEntryId,
+          processorId
+        },
+        {
+          idempotencyKey: `knowledge:${baseId}:${itemId}:fp-start`,
+          parentId: parentJobId ?? undefined
+        }
+      )
+      await this.scheduleFileProcessingCheck(baseId, itemId, fileProcessingJob.id, item.data.fileEntryId, {
+        checkCount: 0,
+        firstScheduledAt: Date.now(),
+        parentJobId: parentJobId ?? fileProcessingJob.id
+      })
+      return
+    }
+
     await jobManager.enqueue(
       'knowledge.index-documents',
       { baseId, itemId, parentJobId },
+      {
+        idempotencyKey: `knowledge:${baseId}:${itemId}:index`,
+        queue: knowledgeQueueName(baseId),
+        parentId: parentJobId ?? undefined
+      }
+    )
+  }
+
+  async scheduleFileProcessingCheck(
+    baseId: string,
+    itemId: string,
+    fileProcessingJobId: string,
+    sourceFileEntryId: FileEntryId,
+    options: { checkCount?: number; firstScheduledAt?: number; parentJobId?: string | null } = {}
+  ): Promise<void> {
+    const checkCount = options.checkCount ?? 0
+    const firstScheduledAt = options.firstScheduledAt ?? Date.now()
+    const jobManager = application.get('JobManager')
+    await jobManager.enqueue(
+      'knowledge.check-file-processing-result',
+      { baseId, itemId, fileProcessingJobId, sourceFileEntryId, checkCount, firstScheduledAt },
+      {
+        idempotencyKey: knowledgeFileProcessingCheckIdempotencyKey(baseId, itemId, fileProcessingJobId, checkCount),
+        queue: knowledgeQueueName(baseId),
+        parentId: options.parentJobId ?? undefined,
+        scheduledAt: Date.now() + (checkCount === 0 ? 0 : FILE_PROCESSING_CHECK_DELAY_MS)
+      }
+    )
+  }
+
+  async scheduleIndexing(
+    baseId: string,
+    itemId: string,
+    processedFileEntryId: FileEntryId,
+    parentJobId: string | null = null
+  ): Promise<void> {
+    const jobManager = application.get('JobManager')
+    await jobManager.enqueue(
+      'knowledge.index-documents',
+      { baseId, itemId, parentJobId, processedFileEntryId },
       {
         idempotencyKey: `knowledge:${baseId}:${itemId}:index`,
         queue: knowledgeQueueName(baseId),

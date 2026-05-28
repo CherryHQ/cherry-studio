@@ -36,9 +36,12 @@ export function createSupportedFileReader(filePath: FilePath): VectorStoreFileRe
   }
 }
 
-export async function loadFileDocuments(item: KnowledgeItemOf<'file'>): Promise<Document[]> {
+export async function loadFileDocuments(
+  item: KnowledgeItemOf<'file'>,
+  fileEntryId: KnowledgeItemOf<'file'>['data']['fileEntryId']
+): Promise<Document[]> {
   const fileManager = application.get('FileManager')
-  const filePath = await fileManager.getPhysicalPath(item.data.fileEntryId)
+  const filePath = await fileManager.getPhysicalPath(fileEntryId)
 
   const reader = createSupportedFileReader(filePath)
   const documents = await reader.loadData(filePath)

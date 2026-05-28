@@ -84,7 +84,7 @@ describe('fileProcessing result persistence utils', () => {
     expect(renameSpy).toHaveBeenCalledWith('/tmp/file-processing/task-2.tmp-abc', '/tmp/file-processing/task-2')
   })
 
-  it('rejects zip entries that escape the task directory', async () => {
+  it('rejects zip entries that escape the result directory', async () => {
     vi.spyOn(fs, 'mkdir').mockResolvedValue(undefined)
     const rmSpy = vi.spyOn(fs, 'rm').mockResolvedValue(undefined)
     entriesMock.mockResolvedValueOnce({

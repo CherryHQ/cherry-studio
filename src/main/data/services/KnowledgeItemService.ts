@@ -14,6 +14,7 @@ import type { OffsetPaginationResponse } from '@shared/data/api'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { ListKnowledgeItemsQuery } from '@shared/data/api/schemas/knowledges'
 import type { FileEntryId } from '@shared/data/types/file'
+import type { KnowledgeItemFileRefRole } from '@shared/data/types/file/ref'
 import { knowledgeItemSourceType } from '@shared/data/types/file/ref'
 import {
   type CreateKnowledgeItemDto,
@@ -411,6 +412,44 @@ export class KnowledgeItemService {
     const detachedFileEntryIds = [...new Set(detachedRefs.map((row) => row.fileEntryId))]
     logger.info('Detached knowledge item file refs', { count: detachedRefs.length, itemCount: uniqueItemIds.length })
     return detachedFileEntryIds
+  }
+
+  async attachFileRef(itemId: string, fileEntryId: FileEntryId, role: KnowledgeItemFileRefRole): Promise<void> {
+    const dbService = application.get('DbService')
+    await dbService.withWriteTx(async (tx) => {
+      const [item] = await tx
+        .select({ id: knowledgeItemTable.id })
+        .from(knowledgeItemTable)
+        .where(eq(knowledgeItemTable.id, itemId))
+        .limit(1)
+      if (!item) {
+        throw DataApiErrorFactory.notFound('KnowledgeItem', itemId)
+      }
+
+      const [fileEntry] = await tx
+        .select({ id: fileEntryTable.id })
+        .from(fileEntryTable)
+        .where(eq(fileEntryTable.id, fileEntryId))
+        .limit(1)
+      if (!fileEntry) {
+        throw DataApiErrorFactory.notFound('FileEntry', fileEntryId)
+      }
+
+      const now = Date.now()
+      await tx
+        .insert(fileRefTable)
+        .values({
+          id: uuidv4(),
+          fileEntryId,
+          sourceType: knowledgeItemSourceType,
+          sourceId: itemId,
+          role,
+          createdAt: now,
+          updatedAt: now
+        })
+        .onConflictDoNothing()
+    })
+    logger.info('Attached knowledge item file ref', { itemId, fileEntryId, role })
   }
 
   async getSubtreeItems(

@@ -17,6 +17,7 @@ import type {
   OperationResult,
   WebviewKeyEvent
 } from '@shared/config/types'
+import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
 import type {
   FileProcessorFeature,
@@ -28,10 +29,7 @@ import type {
   UpgradeChannel
 } from '@shared/data/preference/preferenceTypes'
 import type { FileEntryId } from '@shared/data/types/file'
-import type {
-  FileProcessingTaskStartResult,
-  ListAvailableFileProcessorsResult
-} from '@shared/data/types/fileProcessing'
+import type { ListAvailableFileProcessorsResult } from '@shared/data/types/fileProcessing'
 import type {
   CreateKnowledgeBaseDto,
   KnowledgeBase,
@@ -855,7 +853,7 @@ const api = {
       feature: FileProcessorFeature
       fileEntryId: FileEntryId
       processorId?: FileProcessorId
-    }): Promise<FileProcessingTaskStartResult> => ipcRenderer.invoke(IpcChannel.FileProcessing_StartTask, payload),
+    }): Promise<JobSnapshot> => ipcRenderer.invoke(IpcChannel.FileProcessing_StartTask, payload),
     listAvailableProcessors: (): Promise<ListAvailableFileProcessorsResult> =>
       ipcRenderer.invoke(IpcChannel.FileProcessing_ListAvailableProcessors)
   },

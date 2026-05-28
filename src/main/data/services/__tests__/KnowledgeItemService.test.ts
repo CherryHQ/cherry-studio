@@ -44,6 +44,7 @@ const FILE_A_ID = itemId('7d60')
 const FILE_B_ID = itemId('7d61')
 const FILE_GRANDCHILD_ID = itemId('7d62')
 const FILE_ENTRY_A_ID = '019606a0-0000-7000-8000-000000000a01' as FileEntryId
+const FILE_ENTRY_B_ID = '019606a0-0000-7000-8000-000000000a02' as FileEntryId
 
 describe('KnowledgeItemService', () => {
   const dbh = setupTestDatabase()
@@ -544,6 +545,22 @@ describe('KnowledgeItemService', () => {
         sourceType: 'knowledge_item',
         sourceId: result.id,
         role: 'source'
+      })
+    })
+
+    it('attaches processed artifact file refs to existing knowledge items', async () => {
+      const item = await seedItem()
+      await seedFileEntry(FILE_ENTRY_B_ID)
+
+      await service.attachFileRef(item.id, FILE_ENTRY_B_ID, 'processed_artifact')
+
+      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, item.id))
+      expect(refs).toHaveLength(1)
+      expect(refs[0]).toMatchObject({
+        fileEntryId: FILE_ENTRY_B_ID,
+        sourceType: 'knowledge_item',
+        sourceId: item.id,
+        role: 'processed_artifact'
       })
     })
   })

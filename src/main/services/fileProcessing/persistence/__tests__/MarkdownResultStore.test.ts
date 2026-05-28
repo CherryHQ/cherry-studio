@@ -39,37 +39,37 @@ describe('MarkdownResultStore', () => {
     pathExistsMock.mockResolvedValue(false)
   })
 
-  it('derives file-processing result directories from the main-generated task id', () => {
-    expect(getFileProcessingResultsDir('task-1')).toBe('/mock/feature.file_processing.results/task-1')
+  it('derives file-processing result directories from the main-generated job id', () => {
+    expect(getFileProcessingResultsDir('job-1')).toBe('/mock/feature.file_processing.results/job-1')
   })
 
-  it('rejects unsafe task ids before deriving a result directory', () => {
-    expect(() => getFileProcessingResultsDir('')).toThrow('Invalid file processing task id')
-    expect(() => getFileProcessingResultsDir('../escape')).toThrow('Invalid file processing task id: ../escape')
-    expect(() => getFileProcessingResultsDir('nested/task')).toThrow('Invalid file processing task id: nested/task')
+  it('rejects unsafe job ids before deriving a result directory', () => {
+    expect(() => getFileProcessingResultsDir('')).toThrow('Invalid file processing job id')
+    expect(() => getFileProcessingResultsDir('../escape')).toThrow('Invalid file processing job id: ../escape')
+    expect(() => getFileProcessingResultsDir('nested/job')).toThrow('Invalid file processing job id: nested/job')
   })
 
   it('cleans result directories only when they exist', async () => {
     const rmSpy = vi.spyOn(fs, 'rm').mockResolvedValue(undefined)
 
     pathExistsMock.mockResolvedValueOnce(false)
-    await expect(cleanupFileProcessingResultsDir('task-1')).resolves.toBe(false)
+    await expect(cleanupFileProcessingResultsDir('job-1')).resolves.toBe(false)
     expect(rmSpy).not.toHaveBeenCalled()
 
     pathExistsMock.mockResolvedValueOnce(true)
-    await expect(cleanupFileProcessingResultsDir('task-1')).resolves.toBe(true)
-    expect(rmSpy).toHaveBeenCalledWith('/mock/feature.file_processing.results/task-1', {
+    await expect(cleanupFileProcessingResultsDir('job-1')).resolves.toBe(true)
+    expect(rmSpy).toHaveBeenCalledWith('/mock/feature.file_processing.results/job-1', {
       recursive: true,
       force: true
     })
   })
 
-  it('persists inline markdown content to output.md under the task directory', async () => {
+  it('persists inline markdown content to output.md under the job directory', async () => {
     persistMarkdownResultMock.mockResolvedValueOnce('/mock/result/output.md')
 
     await expect(
       markdownResultStore.persistResult({
-        taskId: 'task-1',
+        jobId: 'job-1',
         result: {
           kind: 'markdown',
           markdownContent: '# hello'
@@ -78,7 +78,7 @@ describe('MarkdownResultStore', () => {
     ).resolves.toBe('/mock/result/output.md')
 
     expect(persistMarkdownResultMock).toHaveBeenCalledWith({
-      resultsDir: '/mock/feature.file_processing.results/task-1',
+      resultsDir: '/mock/feature.file_processing.results/job-1',
       markdownContent: '# hello'
     })
   })
@@ -96,7 +96,7 @@ describe('MarkdownResultStore', () => {
 
     await expect(
       markdownResultStore.persistResult({
-        taskId: 'task-1',
+        jobId: 'job-1',
         result: {
           kind: 'remote-zip-url',
           downloadUrl:
@@ -109,7 +109,7 @@ describe('MarkdownResultStore', () => {
     expect(persistResponseZipResultMock).not.toHaveBeenCalled()
   })
 
-  it('logs remote zip persistence failures with task context and redacted download urls', async () => {
+  it('logs remote zip persistence failures with job context and redacted download urls', async () => {
     const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
 
     fetchMock.mockResolvedValueOnce(
@@ -124,7 +124,7 @@ describe('MarkdownResultStore', () => {
 
     await expect(
       markdownResultStore.persistResult({
-        taskId: 'task-1',
+        jobId: 'job-1',
         result: {
           kind: 'remote-zip-url',
           downloadUrl: 'https://cdn.example.com/results/task-1.zip?Signature=secret&Expires=1',
@@ -139,9 +139,9 @@ describe('MarkdownResultStore', () => {
         message: 'Markdown result download failed'
       }),
       {
-        taskId: 'task-1',
+        jobId: 'job-1',
         resultKind: 'remote-zip-url',
-        resultsDir: '/mock/feature.file_processing.results/task-1',
+        resultsDir: '/mock/feature.file_processing.results/job-1',
         downloadUrl: 'https://cdn.example.com/results/task-1.zip',
         configuredApiHost: 'https://api.example.com'
       }
@@ -164,7 +164,7 @@ describe('MarkdownResultStore', () => {
 
     await expect(
       markdownResultStore.persistResult({
-        taskId: 'task-1',
+        jobId: 'job-1',
         result: {
           kind: 'remote-zip-url',
           downloadUrl: 'https://cdn-mineru.openxlab.org.cn/pdf/task-1.zip',
@@ -195,7 +195,7 @@ describe('MarkdownResultStore', () => {
 
     await expect(
       markdownResultStore.persistResult({
-        taskId: 'task-1',
+        jobId: 'job-1',
         result: {
           kind: 'remote-zip-url',
           downloadUrl: 'http://localhost:8000/result.zip',

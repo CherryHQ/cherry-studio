@@ -20,6 +20,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { MetadataMode } from '@vectorstores/core'
 import { embedMany } from 'ai'
 
+import { createCheckFileProcessingResultJobHandler } from './jobs/checkFileProcessingResultJobHandler'
 import { createDeleteSubtreeJobHandler } from './jobs/deleteSubtreeJobHandler'
 import { createIndexDocumentsJobHandler } from './jobs/indexDocumentsJobHandler'
 import { createPrepareRootJobHandler } from './jobs/prepareRootJobHandler'
@@ -54,13 +55,14 @@ const REINDEX_ALLOWED_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'fai
 const KNOWLEDGE_JOB_TYPES = new Set([
   'knowledge.prepare-root',
   'knowledge.index-documents',
+  'knowledge.check-file-processing-result',
   'knowledge.delete-subtree',
   'knowledge.reindex-subtree'
 ])
 
 @Injectable('KnowledgeOrchestrationService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['KnowledgeVectorStoreService', 'FileManager', 'JobManager'])
+@DependsOn(['KnowledgeVectorStoreService', 'FileManager', 'JobManager', 'FileProcessingOrchestrationService'])
 export class KnowledgeOrchestrationService extends BaseService {
   private readonly mutationCoordinator = new KnowledgeMutationCoordinator()
   private readonly workflowCoordinator = new KnowledgeWorkflowCoordinator(this.mutationCoordinator)
@@ -72,6 +74,10 @@ export class KnowledgeOrchestrationService extends BaseService {
       createPrepareRootJobHandler(this.mutationCoordinator, this.workflowCoordinator)
     )
     jobManager.registerHandler('knowledge.index-documents', createIndexDocumentsJobHandler(this.mutationCoordinator))
+    jobManager.registerHandler(
+      'knowledge.check-file-processing-result',
+      createCheckFileProcessingResultJobHandler(this.workflowCoordinator)
+    )
     jobManager.registerHandler('knowledge.delete-subtree', createDeleteSubtreeJobHandler(this.mutationCoordinator))
     jobManager.registerHandler(
       'knowledge.reindex-subtree',

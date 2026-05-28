@@ -2,8 +2,7 @@ import type { FileProcessorFeature, FileProcessorId } from '@shared/data/prefere
 import type { FileEntryId } from '@shared/data/types/file'
 export type {
   FileProcessingArtifact,
-  FileProcessingTaskResult,
-  FileProcessingTaskStartResult,
+  FileProcessingJobOutput,
   ListAvailableFileProcessorsResult
 } from '@shared/data/types/fileProcessing'
 

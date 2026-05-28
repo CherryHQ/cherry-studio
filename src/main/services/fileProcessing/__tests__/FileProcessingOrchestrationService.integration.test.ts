@@ -209,7 +209,15 @@ describe('FileProcessingOrchestrationService.startTask — routing', () => {
   function makeSvc() {
     const svc = new FileProcessingOrchestrationService()
     ;(svc as unknown as { onInit(): void }).onInit()
-    enqueueMock.mockResolvedValue({ id: 'job-test-1', snapshot: { status: 'pending' } })
+    enqueueMock.mockResolvedValue({
+      id: 'job-test-1',
+      snapshot: {
+        id: 'job-test-1',
+        type: 'file-processing.background',
+        status: 'pending',
+        input: { feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' }
+      }
+    })
     return svc
   }
 
@@ -232,11 +240,10 @@ describe('FileProcessingOrchestrationService.startTask — routing', () => {
       { idempotencyKey: `fp:${IMAGE_ENTRY_ID}:tesseract:image_to_text` }
     )
     expect(result).toEqual({
-      taskId: 'job-test-1',
-      feature: 'image_to_text',
-      processorId: 'tesseract',
+      id: 'job-test-1',
+      type: 'file-processing.background',
       status: 'pending',
-      progress: 0
+      input: { feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' }
     })
   })
 

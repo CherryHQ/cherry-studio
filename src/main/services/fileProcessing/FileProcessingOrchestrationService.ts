@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { FILE_PROCESSOR_FEATURES, FILE_PROCESSOR_IDS } from '@shared/data/preference/preferenceTypes'
 import { FileEntryIdSchema } from '@shared/data/types/file'
@@ -11,13 +12,9 @@ import * as z from 'zod'
 import { resolveProcessorConfigByFeature } from './config/resolveProcessorConfig'
 import { processorRegistry } from './processors/registry'
 import { backgroundJobHandler } from './tasks/backgroundJobHandler'
+import { assertFileTypeSupported, getCapabilityHandler, resolveFileProcessingFileInfo } from './tasks/jobExecution'
 import { remotePollJobHandler } from './tasks/remotePollJobHandler'
-import { assertFileTypeSupported, getCapabilityHandler, resolveFileProcessingFileInfo } from './tasks/shared'
-import type {
-  FileProcessingTaskStartResult,
-  ListAvailableFileProcessorsResult,
-  StartFileProcessingTaskInput
-} from './types'
+import type { ListAvailableFileProcessorsResult, StartFileProcessingTaskInput } from './types'
 
 const logger = loggerService.withContext('FileProcessingOrchestrationService')
 
@@ -31,6 +28,11 @@ const StartTaskPayloadSchema = z
     processorId: FileProcessorIdSchema.optional()
   })
   .strict()
+
+interface StartTaskOptions {
+  idempotencyKey?: string
+  parentId?: string
+}
 
 @Injectable('FileProcessingOrchestrationService')
 @ServicePhase(Phase.WhenReady)
@@ -56,7 +58,7 @@ export class FileProcessingOrchestrationService extends BaseService {
    * type to enqueue under (background vs remote-poll). This is a synchronous
    * lookup — no `await prepare()` is needed at enqueue time.
    */
-  async startTask(input: StartFileProcessingTaskInput): Promise<FileProcessingTaskStartResult> {
+  async startTask(input: StartFileProcessingTaskInput, options: StartTaskOptions = {}): Promise<JobSnapshot> {
     const { feature, fileEntryId, processorId } = input
     const config = resolveProcessorConfigByFeature(feature, processorId)
     const handler = getCapabilityHandler(config.id, feature)
@@ -65,11 +67,15 @@ export class FileProcessingOrchestrationService extends BaseService {
 
     const type = handler.mode === 'background' ? 'file-processing.background' : 'file-processing.remote-poll'
     const jobManager = application.get('JobManager')
-    const { id, snapshot } = await jobManager.enqueue(
+    const handle = await jobManager.enqueue(
       type,
       { feature, fileEntryId, processorId: config.id },
-      { idempotencyKey: `fp:${fileEntryId}:${config.id}:${feature}` }
+      {
+        idempotencyKey: options.idempotencyKey ?? `fp:${fileEntryId}:${config.id}:${feature}`,
+        ...(options.parentId ? { parentId: options.parentId } : {})
+      }
     )
+    const { id, snapshot } = handle
 
     logger.debug('Enqueued file processing job', {
       jobId: id,
@@ -80,13 +86,7 @@ export class FileProcessingOrchestrationService extends BaseService {
       reusedExisting: snapshot.status !== 'pending'
     })
 
-    return {
-      taskId: id,
-      feature,
-      processorId: config.id,
-      status: 'pending',
-      progress: 0
-    }
+    return handle.snapshot
   }
 
   listAvailableProcessors(): ListAvailableFileProcessorsResult {

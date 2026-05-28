@@ -16,6 +16,15 @@ declare module '@main/core/job/jobRegistry' {
       baseId: string
       itemId: string
       parentJobId: string | null
+      processedFileEntryId?: string
+    }
+    'knowledge.check-file-processing-result': {
+      baseId: string
+      itemId: string
+      fileProcessingJobId: string
+      sourceFileEntryId: string
+      checkCount?: number
+      firstScheduledAt?: number
     }
     'knowledge.delete-subtree': {
       baseId: string
@@ -30,5 +39,6 @@ declare module '@main/core/job/jobRegistry' {
 
 export type KnowledgePrepareRootPayload = JobPayloadOf<'knowledge.prepare-root'>
 export type KnowledgeIndexDocumentsPayload = JobPayloadOf<'knowledge.index-documents'>
+export type KnowledgeCheckFileProcessingResultPayload = JobPayloadOf<'knowledge.check-file-processing-result'>
 export type KnowledgeDeleteSubtreePayload = JobPayloadOf<'knowledge.delete-subtree'>
 export type KnowledgeReindexSubtreePayload = JobPayloadOf<'knowledge.reindex-subtree'>

@@ -26,26 +26,26 @@ export type MarkdownPersistencePayload =
       response: Response
     }
 
-export function getFileProcessingResultsDir(taskId: string): string {
+export function getFileProcessingResultsDir(jobId: string): string {
   if (
-    taskId.length === 0 ||
-    path.isAbsolute(taskId) ||
-    taskId === '.' ||
-    taskId === '..' ||
-    taskId.includes('/') ||
-    taskId.includes('\\')
+    jobId.length === 0 ||
+    path.isAbsolute(jobId) ||
+    jobId === '.' ||
+    jobId === '..' ||
+    jobId.includes('/') ||
+    jobId.includes('\\')
   ) {
-    throw new Error(`Invalid file processing task id: ${taskId}`)
+    throw new Error(`Invalid file processing job id: ${jobId}`)
   }
 
   // TODO(file-processing): Keep artifacts in the shared results root until the
   // file storage layout is finalized; move to the final per-file directory in
   // one filesystem pass instead of changing this path piecemeal.
-  return path.join(application.getPath('feature.file_processing.results'), taskId)
+  return path.join(application.getPath('feature.file_processing.results'), jobId)
 }
 
-export async function cleanupFileProcessingResultsDir(taskId: string): Promise<boolean> {
-  const resultsDir = getFileProcessingResultsDir(taskId)
+export async function cleanupFileProcessingResultsDir(jobId: string): Promise<boolean> {
+  const resultsDir = getFileProcessingResultsDir(jobId)
 
   try {
     if (!(await pathExists(resultsDir))) {
@@ -56,7 +56,7 @@ export async function cleanupFileProcessingResultsDir(taskId: string): Promise<b
     return true
   } catch (error) {
     logger.warn('Failed to cleanup file processing result directory', error as Error, {
-      taskId,
+      jobId,
       resultsDir
     })
     return false
@@ -65,11 +65,11 @@ export async function cleanupFileProcessingResultsDir(taskId: string): Promise<b
 
 class MarkdownResultStore {
   async persistResult(options: {
-    taskId: string
+    jobId: string
     result: MarkdownPersistencePayload
     signal?: AbortSignal
   }): Promise<string> {
-    const resultsDir = getFileProcessingResultsDir(options.taskId)
+    const resultsDir = getFileProcessingResultsDir(options.jobId)
 
     try {
       switch (options.result.kind) {
@@ -129,13 +129,13 @@ export const markdownResultStore = new MarkdownResultStore()
 
 function getMarkdownPersistenceLogContext(
   options: {
-    taskId: string
+    jobId: string
     result: MarkdownPersistencePayload
   },
   resultsDir: string
 ): Record<string, unknown> {
   const context: Record<string, unknown> = {
-    taskId: options.taskId,
+    jobId: options.jobId,
     resultKind: options.result.kind,
     resultsDir
   }

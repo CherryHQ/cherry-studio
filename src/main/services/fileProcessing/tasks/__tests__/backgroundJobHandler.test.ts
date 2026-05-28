@@ -159,7 +159,7 @@ describe('backgroundJobHandler.execute', () => {
     const result = (await backgroundJobHandler.execute(createCtx())) as { artifacts: unknown[] }
 
     expect(persistResultMock).toHaveBeenCalledWith({
-      taskId: 'job-1',
+      jobId: 'job-1',
       result: { kind: 'markdown', markdownContent: '# hello' },
       signal: expect.any(AbortSignal)
     })

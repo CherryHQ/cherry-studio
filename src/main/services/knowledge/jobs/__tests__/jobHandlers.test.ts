@@ -1,9 +1,11 @@
 import type { JobContext } from '@main/core/job/types'
 import type { KnowledgeBase, KnowledgeItem, KnowledgeItemOf } from '@shared/data/types/knowledge'
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   cancelMock,
+  createInternalEntryMock,
   createStoreMock,
   detachFileRefsMock,
   enqueueMock,
@@ -13,15 +15,19 @@ const {
   knowledgeBaseGetByIdMock,
   knowledgeItemGetByIdMock,
   knowledgeItemGetSubtreeItemsMock,
+  knowledgeItemAttachFileRefMock,
   knowledgeItemSetSubtreeStatusMock,
   knowledgeItemUpdateStatusMock,
   listMock,
   loadKnowledgeItemDocumentsMock,
   prepareKnowledgeItemMock,
   replaceByExternalIdMock,
+  scheduleFileProcessingCheckMock,
+  scheduleIndexingMock,
   scheduleItemMock
 } = vi.hoisted(() => ({
   cancelMock: vi.fn(),
+  createInternalEntryMock: vi.fn(),
   createStoreMock: vi.fn(),
   detachFileRefsMock: vi.fn(),
   enqueueMock: vi.fn(),
@@ -31,12 +37,15 @@ const {
   knowledgeBaseGetByIdMock: vi.fn(),
   knowledgeItemGetByIdMock: vi.fn(),
   knowledgeItemGetSubtreeItemsMock: vi.fn(),
+  knowledgeItemAttachFileRefMock: vi.fn(),
   knowledgeItemSetSubtreeStatusMock: vi.fn(),
   knowledgeItemUpdateStatusMock: vi.fn(),
   listMock: vi.fn(),
   loadKnowledgeItemDocumentsMock: vi.fn(),
   prepareKnowledgeItemMock: vi.fn(),
   replaceByExternalIdMock: vi.fn(),
+  scheduleFileProcessingCheckMock: vi.fn(),
+  scheduleIndexingMock: vi.fn(),
   scheduleItemMock: vi.fn()
 }))
 
@@ -48,6 +57,9 @@ vi.mock('@application', async () => {
       enqueue: enqueueMock,
       get: getJobMock,
       list: listMock
+    },
+    FileManager: {
+      createInternalEntry: createInternalEntryMock
     },
     KnowledgeVectorStoreService: {
       createStore: createStoreMock,
@@ -74,6 +86,7 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
 
 vi.mock('@data/services/KnowledgeItemService', () => ({
   knowledgeItemService: {
+    attachFileRef: knowledgeItemAttachFileRefMock,
     detachFileRefs: detachFileRefsMock,
     getById: knowledgeItemGetByIdMock,
     getSubtreeItems: knowledgeItemGetSubtreeItemsMock,
@@ -102,11 +115,14 @@ vi.mock('../../utils/model/embedding', () => ({
 }))
 
 const { createDeleteSubtreeJobHandler } = await import('../deleteSubtreeJobHandler')
+const { createCheckFileProcessingResultJobHandler } = await import('../checkFileProcessingResultJobHandler')
 const { createIndexDocumentsJobHandler } = await import('../indexDocumentsJobHandler')
 const { createPrepareRootJobHandler } = await import('../prepareRootJobHandler')
 const { createReindexSubtreeJobHandler } = await import('../reindexSubtreeJobHandler')
 
 const NOTE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
+const FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000501'
+const PROCESSED_FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000502'
 
 function createBase(): KnowledgeBase {
   return {
@@ -142,6 +158,23 @@ function createNoteItem(
     groupId,
     type: 'note',
     data: { source: id, content: `hello ${id}` },
+    status,
+    error: null,
+    createdAt: '2026-04-08T00:00:00.000Z',
+    updatedAt: '2026-04-08T00:00:00.000Z'
+  }
+}
+
+function createFileItem(
+  id = 'file-1',
+  status: Exclude<KnowledgeItemOf<'file'>['status'], 'failed'> = 'processing'
+): KnowledgeItemOf<'file'> {
+  return {
+    id,
+    baseId: 'kb-1',
+    groupId: null,
+    type: 'file',
+    data: { source: '/docs/source.pdf', fileEntryId: FILE_ENTRY_ID },
     status,
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
@@ -189,12 +222,15 @@ const mutationCoordinator = {
 }
 
 const workflowCoordinator = {
+  scheduleFileProcessingCheck: scheduleFileProcessingCheckMock,
+  scheduleIndexing: scheduleIndexingMock,
   scheduleItem: scheduleItemMock
 }
 
 describe('knowledge job handlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    MockMainCacheServiceUtils.resetMocks()
     mutationCoordinator.withBaseMutationLock.mockImplementation(
       async (_baseId: string, task: () => Promise<unknown>) => await task()
     )
@@ -216,8 +252,12 @@ describe('knowledge job handlers', () => {
     getJobMock.mockResolvedValue(null)
     enqueueMock.mockResolvedValue({ id: 'job-index', snapshot: {}, finished: Promise.resolve({}) })
     detachFileRefsMock.mockResolvedValue([])
+    createInternalEntryMock.mockResolvedValue({ id: PROCESSED_FILE_ENTRY_ID })
+    knowledgeItemAttachFileRefMock.mockResolvedValue(undefined)
     deleteItemsByIdsMock.mockResolvedValue(undefined)
     cancelMock.mockResolvedValue(undefined)
+    scheduleFileProcessingCheckMock.mockResolvedValue(undefined)
+    scheduleIndexingMock.mockResolvedValue(undefined)
     scheduleItemMock.mockResolvedValue({ id: 'scheduled-job' })
   })
 
@@ -315,6 +355,165 @@ describe('knowledge job handlers', () => {
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('leaf-3', 'failed', {
       error: 'Failed to schedule knowledge child item job: enqueue failed'
     })
+  })
+
+  it('check-file-processing-result reschedules delayed polling while file processing is active', async () => {
+    const handler = createCheckFileProcessingResultJobHandler(workflowCoordinator as never)
+    knowledgeItemGetByIdMock.mockResolvedValue(createFileItem())
+    getJobMock.mockResolvedValue({
+      id: 'fp-job-1',
+      status: 'running'
+    })
+
+    const ctx = createCtx({
+      baseId: 'kb-1',
+      itemId: 'file-1',
+      fileProcessingJobId: 'fp-job-1',
+      sourceFileEntryId: FILE_ENTRY_ID,
+      checkCount: 2,
+      firstScheduledAt: 1779811200000
+    })
+    await handler.execute(ctx)
+
+    expect(scheduleFileProcessingCheckMock).toHaveBeenCalledWith('kb-1', 'file-1', 'fp-job-1', FILE_ENTRY_ID, {
+      checkCount: 3,
+      firstScheduledAt: 1779811200000,
+      parentJobId: 'job-1'
+    })
+    expect(createInternalEntryMock).not.toHaveBeenCalled()
+    expect(scheduleIndexingMock).not.toHaveBeenCalled()
+    expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'waiting', checkCount: 3 })
+  })
+
+  it('check-file-processing-result mirrors file-processing progress while polling', async () => {
+    const handler = createCheckFileProcessingResultJobHandler(workflowCoordinator as never)
+    knowledgeItemGetByIdMock.mockResolvedValue(createFileItem())
+    getJobMock.mockResolvedValue({
+      id: 'fp-job-1',
+      status: 'running'
+    })
+    MockMainCacheServiceUtils.setSharedCacheValue('jobs.progress.fp-job-1', {
+      progress: 42,
+      detail: { stage: 'polling' }
+    })
+
+    const ctx = createCtx({
+      baseId: 'kb-1',
+      itemId: 'file-1',
+      fileProcessingJobId: 'fp-job-1',
+      sourceFileEntryId: FILE_ENTRY_ID,
+      checkCount: 2,
+      firstScheduledAt: 1779811200000
+    })
+    await handler.execute(ctx)
+
+    expect(ctx.reportProgress).toHaveBeenCalledWith(42, {
+      stage: 'waiting',
+      checkCount: 3,
+      fileProcessingJobId: 'fp-job-1',
+      fileProcessing: {
+        progress: 42,
+        detail: { stage: 'polling' }
+      }
+    })
+  })
+
+  it('check-file-processing-result creates a processed artifact ref and schedules indexing on completion', async () => {
+    const handler = createCheckFileProcessingResultJobHandler(workflowCoordinator as never)
+    knowledgeItemGetByIdMock.mockResolvedValue(createFileItem())
+    getJobMock.mockResolvedValue({
+      id: 'fp-job-1',
+      status: 'completed',
+      output: {
+        artifacts: [{ kind: 'file', format: 'markdown', path: '/tmp/fp-result/result.md' }]
+      }
+    })
+
+    const ctx = createCtx({
+      baseId: 'kb-1',
+      itemId: 'file-1',
+      fileProcessingJobId: 'fp-job-1',
+      sourceFileEntryId: FILE_ENTRY_ID
+    })
+    await handler.execute(ctx)
+
+    expect(createInternalEntryMock).toHaveBeenCalledWith({
+      source: 'path',
+      path: '/tmp/fp-result/result.md'
+    })
+    expect(knowledgeItemAttachFileRefMock).toHaveBeenCalledWith('file-1', PROCESSED_FILE_ENTRY_ID, 'processed_artifact')
+    expect(scheduleIndexingMock).toHaveBeenCalledWith('kb-1', 'file-1', PROCESSED_FILE_ENTRY_ID, 'job-1')
+    expect(scheduleFileProcessingCheckMock).not.toHaveBeenCalled()
+    expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'done' })
+  })
+
+  it('check-file-processing-result marks the item failed when file processing fails', async () => {
+    const handler = createCheckFileProcessingResultJobHandler(workflowCoordinator as never)
+    knowledgeItemGetByIdMock.mockResolvedValue(createFileItem())
+    getJobMock.mockResolvedValue({
+      id: 'fp-job-1',
+      status: 'failed',
+      error: { code: 'FAILED', message: 'processor failed', retryable: false }
+    })
+
+    const ctx = createCtx({
+      baseId: 'kb-1',
+      itemId: 'file-1',
+      fileProcessingJobId: 'fp-job-1',
+      sourceFileEntryId: FILE_ENTRY_ID
+    })
+    await handler.execute(ctx)
+
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('file-1', 'failed', {
+      error: 'File processing job fp-job-1 failed: processor failed'
+    })
+    expect(createInternalEntryMock).not.toHaveBeenCalled()
+    expect(scheduleIndexingMock).not.toHaveBeenCalled()
+    expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'failed' })
+  })
+
+  it('check-file-processing-result marks the item failed when the completed output has no markdown artifact', async () => {
+    const handler = createCheckFileProcessingResultJobHandler(workflowCoordinator as never)
+    knowledgeItemGetByIdMock.mockResolvedValue(createFileItem())
+    getJobMock.mockResolvedValue({
+      id: 'fp-job-1',
+      status: 'completed',
+      output: {
+        artifacts: [{ kind: 'text', format: 'plain', text: 'hello' }]
+      }
+    })
+
+    const ctx = createCtx({
+      baseId: 'kb-1',
+      itemId: 'file-1',
+      fileProcessingJobId: 'fp-job-1',
+      sourceFileEntryId: FILE_ENTRY_ID
+    })
+    await handler.execute(ctx)
+
+    expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('file-1', 'failed', {
+      error: 'Invalid file processing result for job fp-job-1'
+    })
+    expect(createInternalEntryMock).not.toHaveBeenCalled()
+    expect(scheduleIndexingMock).not.toHaveBeenCalled()
+  })
+
+  it('check-file-processing-result skips missing or deleting items', async () => {
+    const handler = createCheckFileProcessingResultJobHandler(workflowCoordinator as never)
+    knowledgeItemGetByIdMock.mockResolvedValue(createFileItem('file-1', 'deleting'))
+
+    await handler.execute(
+      createCtx({
+        baseId: 'kb-1',
+        itemId: 'file-1',
+        fileProcessingJobId: 'fp-job-1',
+        sourceFileEntryId: FILE_ENTRY_ID
+      })
+    )
+
+    expect(getJobMock).not.toHaveBeenCalled()
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
+    expect(scheduleIndexingMock).not.toHaveBeenCalled()
   })
 
   it('index-documents updates statuses, writes vectors, and completes the item', async () => {
