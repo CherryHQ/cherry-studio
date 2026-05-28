@@ -110,6 +110,21 @@ describe('MermaidPreview', () => {
       expect(screen.getByTestId('image-preview-layout')).toBeInTheDocument()
       expect(mocks.useDebouncedRender).toHaveBeenCalledWith('', expect.any(Function), expect.any(Object))
     })
+
+    it('should handle CJK characters in node definitions', () => {
+      const cjkCode = 'graph TD\nA[HR 组织架构变更 (PA0001)]\nB[项目管理系统]\nA-->B'
+      render(<MermaidPreview>{cjkCode}</MermaidPreview>)
+
+      expect(screen.getByTestId('image-preview-layout')).toBeInTheDocument()
+      expect(mocks.useDebouncedRender).toHaveBeenCalledWith(
+        cjkCode,
+        expect.any(Function),
+        expect.objectContaining({
+          debounceDelay: 300,
+          shouldRender: expect.any(Function)
+        })
+      )
+    })
   })
 
   describe('loading state', () => {
