@@ -1,6 +1,6 @@
 # Directory Tree Architecture
 
-> **SoT scope** — **this document** owns: the `DirectoryTreeBuilder` primitive, the `TreeRegistry` lifecycle service that owns its IPC surface, the renderer-side `useDirectoryTree` hook, the `TreeNode` shape shipped to both processes, and the `.gitignore`-driven scan/watch coordination. The boundary between this primitive and FileManager is stated in [`architecture.md §1.2`](./architecture.md#12-filemanagers-position-within-the-module) — in case of conflict, that document decides positioning, this document decides implementation.
+> **SoT scope** — **this document** owns: the `DirectoryTreeBuilder` primitive, the `DirectoryTreeManager` lifecycle service that owns its IPC surface, the renderer-side `useDirectoryTree` hook, the `TreeNode` shape shipped to both processes, and the `.gitignore`-driven scan/watch coordination. The boundary between this primitive and FileManager is stated in [`architecture.md §1.2`](./architecture.md#12-filemanagers-position-within-the-module) — in case of conflict, that document decides positioning, this document decides implementation.
 >
 > **Contract stability**: the IPC contract, the `TreeNode` wire shape, and the resource model (one builder per `(rootPath, options)` pair, refcounted across `treeId`s with a dispose grace window) are binding commitments. When implementation reveals a contract that cannot be honored, revise this document first, then implement.
 
@@ -51,7 +51,7 @@ src/main/services/file/tree/   ← parallel to internal/ and watcher/
 │     ├── watcher event → tree mutation translation
 │     └── dispose() — drop watcher subscription, idempotent
 │
-├── registry.ts           ← TreeRegistry: @Injectable, @ServicePhase(WhenReady)
+├── DirectoryTreeManager.ts  ← @Injectable, @ServicePhase(WhenReady)
 │     ├── builderKey(rootPath, options) — dedupe key (normalized)
 │     ├── create(sender, rootPath, options) — attach or share a builder
 │     ├── dispose(treeId) — drop a consumer; tear down builder if last
@@ -132,7 +132,7 @@ Tear down t-2 → refcount = 0, grace timer queued
 const builder = await createDirectoryTree(rootPath, options)
 if (this.disposed) {
   await builder.dispose()
-  throw new Error('TreeRegistry stopped during in-flight builder creation')
+  throw new Error('DirectoryTreeManager stopped during in-flight builder creation')
 }
 ```
 
@@ -228,7 +228,7 @@ A missing `.gitignore` is not an error — `loadGitignorePredicate` returns `nul
 
 ## 7. Lifecycle
 
-`TreeRegistry` is registered in `serviceRegistry.ts` with `@ServicePhase(Phase.WhenReady)`. The lifecycle container instantiates it after `DbService` / `CacheService` / `PreferenceService` complete (no `@DependsOn` declaration needed — cross-phase ordering is automatic).
+`DirectoryTreeManager` is registered in `serviceRegistry.ts` with `@ServicePhase(Phase.WhenReady)`. The lifecycle container instantiates it after `DbService` / `CacheService` / `PreferenceService` complete (no `@DependsOn` declaration needed — cross-phase ordering is automatic).
 
 | Phase | Action |
 |---|---|

@@ -3,10 +3,10 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-// `TreeRegistry` extends `BaseService`, which forbids more than one
+// `DirectoryTreeManager` extends `BaseService`, which forbids more than one
 // instance per constructor. Tests new it up per `beforeEach` — reset the
 // guard between tests so each one starts clean. (Real production code
-// goes through `application.get('TreeRegistry')` so it only constructs
+// goes through `application.get('DirectoryTreeManager')` so it only constructs
 // once anyway.)
 import type * as lifecycleModule from '@main/core/lifecycle'
 import type { TreeMutationPushPayload } from '@shared/file/types'
@@ -26,7 +26,7 @@ vi.mock('@main/core/lifecycle', async (importOriginal) => {
 import { BaseService } from '@main/core/lifecycle'
 
 import * as builderModule from '../builder'
-import { TreeRegistry } from '../registry'
+import { DirectoryTreeManager } from '../DirectoryTreeManager'
 
 /**
  * Minimal `WebContents`-shaped double. We only touch:
@@ -58,14 +58,14 @@ function makeSender(id: number) {
   return sender as typeof sender & WebContents
 }
 
-describe('TreeRegistry', () => {
+describe('DirectoryTreeManager', () => {
   let tmp: string
-  let registry: TreeRegistry
+  let registry: DirectoryTreeManager
 
   beforeEach(async () => {
     tmp = await mkdtemp(path.join(tmpdir(), 'cherry-tree-registry-'))
     BaseService.resetInstances()
-    registry = new TreeRegistry()
+    registry = new DirectoryTreeManager()
   })
 
   afterEach(async () => {

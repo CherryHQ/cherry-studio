@@ -1,5 +1,5 @@
 /**
- * `TreeRegistry` — main-process bookkeeping for active `DirectoryTreeBuilder`
+ * `DirectoryTreeManager` — main-process bookkeeping for active `DirectoryTreeBuilder`
  * instances behind the `Tree_*` IPC bridge.
  *
  * Every `File_TreeCreate` IPC call gets a unique `treeId` (the renderer needs
@@ -93,9 +93,9 @@ function builderKey(rootPath: string, options: DirectoryTreeOptions | undefined)
   return `${normalized}${BUILDER_KEY_DELIMITER}${JSON.stringify(options ?? {})}`
 }
 
-@Injectable('TreeRegistry')
+@Injectable('DirectoryTreeManager')
 @ServicePhase(Phase.WhenReady)
-export class TreeRegistry extends BaseService {
+export class DirectoryTreeManager extends BaseService {
   /** treeId → consumer. One row per `File_TreeCreate` call still alive. */
   private readonly consumers = new Map<string, Consumer>()
   /** Shared builder by `builderKey`. One row per *underlying* watcher. */
@@ -260,7 +260,7 @@ export class TreeRegistry extends BaseService {
           await Promise.resolve(builder.dispose()).catch((err) =>
             logger.warn('builder.dispose after onStop failed', err as Error)
           )
-          throw new Error('TreeRegistry stopped during in-flight builder creation')
+          throw new Error('DirectoryTreeManager stopped during in-flight builder creation')
         }
         // Window during which a concurrent `create` could have inserted
         // ahead of us — fold into theirs and discard the duplicate
