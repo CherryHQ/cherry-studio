@@ -3897,6 +3897,8 @@
     "req_error_text": "El servidor está ocupado o la indicación contiene palabras con derechos de autor o palabras sensibles. Por favor, inténtelo de nuevo.",
     "req_error_token": "Por favor, verifique la validez del token",
     "required_field": "Campo obligatorio",
+    "safety_tolerance": "[to be translated]:Safety Tolerance",
+    "safety_tolerance_tip": "[to be translated]:Higher = more permissive filter; 0 is strictest, 6 is most permissive",
     "seed": "Semilla aleatoria",
     "seed_desc_tip": "Las mismas semilla y descripción generan imágenes similares. Establezca -1 para que cada generación sea diferente",
     "seed_random": "Aleatorio",

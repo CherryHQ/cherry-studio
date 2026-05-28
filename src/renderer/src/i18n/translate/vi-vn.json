@@ -3897,6 +3897,8 @@
     "req_error_text": "Máy chủ đang bận hoặc lời nhắc chứa các từ \"bản quyền\" hoặc \"nhạy cảm\". Vui lòng thử lại.",
     "req_error_token": "Vui lòng kiểm tra tính hợp lệ của mã thông báo",
     "required_field": "Trường bắt buộc",
+    "safety_tolerance": "[to be translated]:Safety Tolerance",
+    "safety_tolerance_tip": "[to be translated]:Higher = more permissive filter; 0 is strictest, 6 is most permissive",
     "seed": "Hạt giống",
     "seed_desc_tip": "Cùng một seed và prompt có thể tạo ra những hình ảnh tương tự, đặt -1 sẽ tạo ra kết quả khác nhau mỗi lần",
     "seed_random": "Ngẫu nhiên",

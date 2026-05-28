@@ -3897,6 +3897,8 @@
     "req_error_text": "サーバーが混雑しているか、プロンプトに「著作権用語」または「敏感な用語」が含まれています。もう一度お試しください。",
     "req_error_token": "トークンの有効性を確認してください",
     "required_field": "必須項目",
+    "safety_tolerance": "[to be translated]:Safety Tolerance",
+    "safety_tolerance_tip": "[to be translated]:Higher = more permissive filter; 0 is strictest, 6 is most permissive",
     "seed": "シード",
     "seed_desc_tip": "同じシードとプロンプトで類似した画像を生成できますが、-1 に設定すると毎回異なる結果が生成されます",
     "seed_random": "ランダム",

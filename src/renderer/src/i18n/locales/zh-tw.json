@@ -3897,6 +3897,8 @@
     "req_error_text": "伺服器繁忙或提示詞中出現「版權詞」或「敏感詞」，請重試。",
     "req_error_token": "請檢查權杖的有效性",
     "required_field": "必填欄位",
+    "safety_tolerance": "[to be translated]:Safety Tolerance",
+    "safety_tolerance_tip": "[to be translated]:Higher = more permissive filter; 0 is strictest, 6 is most permissive",
     "seed": "隨機種子",
     "seed_desc_tip": "相同的種子和提示詞可以產生相似的圖片，設定為 -1 時，每次結果都會不同",
     "seed_random": "隨機",

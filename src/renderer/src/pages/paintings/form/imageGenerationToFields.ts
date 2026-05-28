@@ -29,7 +29,7 @@ const KEY_LABELS: Record<string, { title: string; tooltip?: string }> = {
   numInferenceSteps: { title: 'paintings.inference_steps', tooltip: 'paintings.inference_steps_tip' },
   guidanceScale: { title: 'paintings.guidance_scale', tooltip: 'paintings.guidance_scale_tip' },
   cfg: { title: 'paintings.guidance_scale', tooltip: 'paintings.guidance_scale_tip' },
-  safetyTolerance: { title: 'paintings.safety_tolerance' },
+  safetyTolerance: { title: 'paintings.safety_tolerance', tooltip: 'paintings.safety_tolerance_tip' },
   imageWeight: { title: 'paintings.image_weight' },
   resemblance: { title: 'paintings.resemblance' },
   detail: { title: 'paintings.detail' }

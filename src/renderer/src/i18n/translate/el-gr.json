@@ -3897,6 +3897,8 @@
     "req_error_text": "Ο διακομιστής είναι απασχολημένος ή η εντολή περιέχει «λέξεις πνευματικής ιδιοκτησίας» ή «ευαίσθητες λέξεις». Παρακαλούμε δοκιμάστε ξανά.",
     "req_error_token": "Ελέγξτε την εγκυρότητα του token",
     "required_field": "Υποχρεωτικό πεδίο",
+    "safety_tolerance": "[to be translated]:Safety Tolerance",
+    "safety_tolerance_tip": "[to be translated]:Higher = more permissive filter; 0 is strictest, 6 is most permissive",
     "seed": "Τυχαίος παράγοντας",
     "seed_desc_tip": "Οι ίδιοι σπόρος και εντολή μπορούν να δημιουργήσουν παρόμοιες εικόνες. Ορίστε -1 για διαφορετική εικόνα κάθε φορά",
     "seed_random": "Τυχαίο",

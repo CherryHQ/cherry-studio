@@ -3897,6 +3897,8 @@
     "req_error_text": "The server is busy or the prompt contains \"copyrighted\" or \"sensitive\" terms. Please try again.",
     "req_error_token": "Please check the validity of the token",
     "required_field": "Required field",
+    "safety_tolerance": "Safety Tolerance",
+    "safety_tolerance_tip": "Higher = more permissive filter; 0 is strictest, 6 is most permissive",
     "seed": "Seed",
     "seed_desc_tip": "The same seed and prompt can generate similar images, setting -1 will generate different results each time",
     "seed_random": "Random",

@@ -3897,6 +3897,8 @@
     "req_error_text": "Сервер перегружен или в запросе обнаружены «авторские» либо «чувствительные» слова. Пожалуйста, повторите попытку.",
     "req_error_token": "Пожалуйста, проверьте действительность токена",
     "required_field": "Обязательное поле",
+    "safety_tolerance": "[to be translated]:Safety Tolerance",
+    "safety_tolerance_tip": "[to be translated]:Higher = more permissive filter; 0 is strictest, 6 is most permissive",
     "seed": "Ключ генерации",
     "seed_desc_tip": "Одинаковые сиды и промпты могут генерировать похожие изображения, установка -1 будет создавать разные результаты каждый раз",
     "seed_random": "Случайно",

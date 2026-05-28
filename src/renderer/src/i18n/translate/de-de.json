@@ -3897,6 +3897,8 @@
     "req_error_text": "Server ausgelastet oder Prompt enthält \"urheberrechtlich geschützte\" oder \"sensible Wörter\". Bitte erneut versuchen.",
     "req_error_token": "Bitte Token-Gültigkeit überprüfen",
     "required_field": "Pflichtfeld",
+    "safety_tolerance": "[to be translated]:Safety Tolerance",
+    "safety_tolerance_tip": "[to be translated]:Higher = more permissive filter; 0 is strictest, 6 is most permissive",
     "seed": "Seed",
     "seed_desc_tip": "Gleicher Seed und Prompt können ähnliche Bilder generieren, -1 für unterschiedliche Ergebnisse bei jeder Generierung",
     "seed_random": "Zufällig",

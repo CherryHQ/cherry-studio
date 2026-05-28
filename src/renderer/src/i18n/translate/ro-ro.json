@@ -3897,6 +3897,8 @@
     "req_error_text": "Serverul este ocupat sau promptul conține termeni \"protejați prin drepturi de autor\" sau \"sensibili\". Te rugăm să încerci din nou.",
     "req_error_token": "Te rugăm să verifici validitatea tokenului",
     "required_field": "Câmp obligatoriu",
+    "safety_tolerance": "[to be translated]:Safety Tolerance",
+    "safety_tolerance_tip": "[to be translated]:Higher = more permissive filter; 0 is strictest, 6 is most permissive",
     "seed": "Seed",
     "seed_desc_tip": "Același seed și prompt pot genera imagini similare; setarea -1 va genera rezultate diferite de fiecare dată",
     "seed_random": "Aleatoriu",

@@ -3897,6 +3897,8 @@
     "req_error_text": "O servidor está ocupado ou o prompt contém palavras com \"direitos autorais\" ou \"palavras sensíveis\". Por favor, tente novamente.",
     "req_error_token": "Verifique a validade do token",
     "required_field": "Campo obrigatório",
+    "safety_tolerance": "[to be translated]:Safety Tolerance",
+    "safety_tolerance_tip": "[to be translated]:Higher = more permissive filter; 0 is strictest, 6 is most permissive",
     "seed": "Semente Aleatória",
     "seed_desc_tip": "A mesma semente e prompt geram imagens semelhantes. Defina como -1 para gerar imagens diferentes a cada vez",
     "seed_random": "Aleatório",
