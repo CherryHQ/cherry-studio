@@ -170,7 +170,7 @@ const HeaderContainer = styled.div`
 `
 
 const InfoIcon = styled(InfoCircleOutlined)`
-  margin-left: 6px;
+  margin-inline-start: 6px;
   font-size: 14px;
   color: var(--color-text-2);
   cursor: help;

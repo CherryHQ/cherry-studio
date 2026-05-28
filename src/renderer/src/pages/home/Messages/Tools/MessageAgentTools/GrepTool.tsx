@@ -29,7 +29,7 @@ export function GrepTool({
         params={
           <>
             {input?.pattern}
-            {input?.output_mode && <span className="ml-1">({input.output_mode})</span>}
+            {input?.output_mode && <span className="ms-1">({input.output_mode})</span>}
           </>
         }
         stats={output ? t('message.tools.units.line', { count: resultLines }) : undefined}

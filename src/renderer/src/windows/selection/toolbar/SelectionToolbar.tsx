@@ -443,12 +443,12 @@ const ActionIcon = styled.div`
   .btn-icon {
     position: absolute;
     top: 0;
-    left: 0;
+    inset-inline-start: 0;
   }
 
   .btn-icon:nth-child(2) {
     top: 0px;
-    left: 0px;
+    inset-inline-start: 0px;
   }
 
   .icon-fail {

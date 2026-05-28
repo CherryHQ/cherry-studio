@@ -170,7 +170,7 @@ const ActionButton = styled.div`
 
 const SearchInput = styled(Input)`
   flex: 1;
-  margin-left: 8px;
+  margin-inline-start: 8px;
   max-width: 180px;
 
   .ant-input {

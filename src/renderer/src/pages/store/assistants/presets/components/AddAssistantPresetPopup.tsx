@@ -252,7 +252,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 const TokenCount = styled.div`
   position: absolute;
   bottom: 8px;
-  right: 8px;
+  inset-inline-end: 8px;
   background-color: var(--color-background-soft);
   padding: 2px 8px;
   border-radius: 4px;

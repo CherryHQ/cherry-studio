@@ -11,6 +11,7 @@ import {
   ReloadOutlined
 } from '@ant-design/icons'
 import { loggerService } from '@logger'
+import { Icon } from '@renderer/components/Icons/rtl'
 import WindowControls from '@renderer/components/WindowControls'
 import { isDev, isLinux, isMac, isWin } from '@renderer/config/constant'
 import { allMinApps } from '@renderer/config/minapps'
@@ -432,7 +433,9 @@ const MinappPopupContainer: React.FC = () => {
           isTopNavbar={isTopNavbar}>
           <Tooltip title={t('minapp.popup.goBack')} mouseEnterDelay={0.8} placement="bottom">
             <TitleButton onClick={() => handleGoBack(appInfo.id)}>
-              <ArrowLeftOutlined />
+              <Icon directional>
+                <ArrowLeftOutlined />
+              </Icon>
             </TitleButton>
           </Tooltip>
           <Tooltip title={t('minapp.popup.goForward')} mouseEnterDelay={0.8} placement="bottom">
@@ -567,18 +570,18 @@ const TitleContainer = styled.div`
   display: flex;
   flex-direction: row;
   align-items: center;
-  padding-right: 10px;
+  padding-inline-end: 10px;
   position: absolute;
   top: 0;
-  left: 0;
+  inset-inline-start: 0;
   right: 0;
   bottom: 0;
   background-color: transparent;
   [navbar-position='left'] & {
-    padding-left: ${isMac ? '40px' : '10px'};
+    padding-inline-start: ${isMac ? '40px' : '10px'};
   }
   [navbar-position='top'] & {
-    padding-left: ${isMac ? '80px' : '10px'};
+    padding-inline-start: ${isMac ? '80px' : '10px'};
     border-bottom: 0.5px solid var(--color-border);
   }
 `
@@ -588,7 +591,7 @@ const TitleText = styled.div`
   font-size: 14px;
   color: var(--color-text-1);
   -webkit-app-region: no-drag;
-  margin-right: 5px;
+  margin-inline-end: 5px;
 `
 
 const TitleTextTooltip = styled.span`
@@ -596,7 +599,7 @@ const TitleTextTooltip = styled.span`
 
   .icon-copy {
     font-size: 0.7rem;
-    padding-right: 5px;
+    padding-inline-end: 5px;
   }
 `
 

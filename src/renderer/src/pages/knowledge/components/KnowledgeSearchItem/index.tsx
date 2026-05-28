@@ -32,7 +32,7 @@ export default React.memo(SearchItemRenderer)
 export const TagContainer = styled.div`
   position: absolute;
   top: 58px;
-  right: 16px;
+  inset-inline-end: 16px;
   display: flex;
   align-items: center;
   gap: 8px;

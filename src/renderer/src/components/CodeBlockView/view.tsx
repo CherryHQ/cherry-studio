@@ -412,7 +412,7 @@ const SplitViewWrapper = styled.div<{ $isSpecialView: boolean; $isSplitView: boo
         position: absolute;
         top: 0;
         bottom: 0;
-        left: 50%;
+        inset-inline-start: 50%;
         width: 1px;
         background-color: var(--color-background-mute);
         transform: translateX(-50%);

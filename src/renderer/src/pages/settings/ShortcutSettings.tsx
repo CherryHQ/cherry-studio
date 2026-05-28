@@ -424,7 +424,8 @@ const Table = styled(AntTable)`
   }
 
   .ant-table-cell {
-    padding: 14px 0 !important;
+    padding-block: 14px !important;
+    padding-inline: 0 !important;
     background: transparent !important;
   }
 
@@ -434,13 +435,14 @@ const Table = styled(AntTable)`
 `
 
 const ShortcutInput = styled(Input)`
-  width: 120px;
+  inline-size: 120px;
   text-align: center;
 `
 
 const ShortcutText = styled.span<{ isEditable: boolean }>`
   cursor: ${({ isEditable }) => (isEditable ? 'pointer' : 'not-allowed')};
-  padding: 4px 11px;
+  padding-block: 4px;
+  padding-inline: 11px;
   opacity: ${({ isEditable }) => (isEditable ? 1 : 0.5)};
 `
 

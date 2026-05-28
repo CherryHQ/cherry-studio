@@ -170,7 +170,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
 
 const LeftMenu = styled.div`
   height: calc(80vh - 20px);
-  border-right: 0.5px solid var(--color-border);
+  border-inline-end: 0.5px solid var(--color-border);
 `
 
 const Settings = styled.div`
@@ -186,7 +186,7 @@ const StyledModal = styled(Modal)`
   }
   .ant-modal-close {
     top: 4px;
-    right: 4px;
+    inset-inline-end: 4px;
   }
   .ant-menu-item {
     height: 36px;

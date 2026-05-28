@@ -88,7 +88,7 @@ const Container = styled.div`
   padding: 5px;
 `
 const Label = styled.p`
-  margin-right: 5px;
+  margin-inline-end: 5px;
   font-weight: 500;
 `
 

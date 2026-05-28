@@ -22,3 +22,9 @@ body[os='windows'] {
     var(--user-code-font-family), 'Cascadia Code', 'Fira Code', 'Consolas', 'Sarasa Mono SC', 'Microsoft YaHei UI',
     Courier, monospace;
 }
+
+/* Arabic-specific font override */
+:lang(ar) {
+  --font-family:
+    var(--user-font-family), 'Tajawal', 'Noto Kufi Arabic', 'Noto Naskh Arabic', 'Amiri', system-ui, sans-serif;
+}

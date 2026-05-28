@@ -42,19 +42,19 @@ const PopupContainer: React.FC<Props> = ({
       placement="left"
       open={open}
       onClose={onClose}
-      style={{ width: 'var(--assistants-width)' }}
+      style={{ inlineSize: 'var(--assistants-width)' }}
       styles={{
         header: { display: 'none' },
         body: {
           display: 'flex',
           padding: 0,
-          paddingTop: isMac ? 'var(--navbar-height)' : 0,
-          height: 'calc(100vh - var(--navbar-height))',
+          paddingBlockStart: isMac ? 'var(--navbar-height)' : 0,
+          blockSize: 'calc(100vh - var(--navbar-height))',
           overflow: 'hidden',
           backgroundColor: 'var(--color-background-opacity)'
         },
         wrapper: {
-          width: 'var(--assistants-width)'
+          inlineSize: 'var(--assistants-width)'
         }
       }}>
       <HomeTabs

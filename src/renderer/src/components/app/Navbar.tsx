@@ -65,8 +65,8 @@ const NavbarContainer = styled.div<{ $isFullScreen: boolean }>`
   flex-direction: row;
   min-height: ${({ $isFullScreen }) => (!$isFullScreen && isMac ? 'env(titlebar-area-height)' : 'var(--navbar-height)')};
   max-height: var(--navbar-height);
-  margin-left: ${isMac ? 'calc(var(--sidebar-width) * -1 + 2px)' : 0};
-  padding-left: ${({ $isFullScreen }) =>
+  margin-inline-start: ${isMac ? 'calc(var(--sidebar-width) * -1 + 2px)' : 0};
+  padding-inline-start: ${({ $isFullScreen }) =>
     isMac ? ($isFullScreen ? 'var(--sidebar-width)' : 'env(titlebar-area-x)') : 0};
   -webkit-app-region: drag;
 `
@@ -86,7 +86,7 @@ const NavbarCenterContainer = styled.div`
   display: flex;
   align-items: center;
   padding: 0 ${isMac ? '20px' : 0};
-  padding-left: 10px;
+  padding-inline-start: 10px;
   font-weight: bold;
   color: var(--color-text-1);
   position: relative;
@@ -107,11 +107,11 @@ const NavbarMainContainer = styled.div<{ $isFullscreen: boolean }>`
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  padding-right: ${isMac ? '20px' : 0};
-  padding-left: 10px;
+  padding-inline-end: ${isMac ? '20px' : 0};
+  padding-inline-start: 10px;
   font-weight: bold;
   color: var(--color-text-1);
-  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWin ? '140px' : isLinux ? '120px' : '12px')};
+  padding-inline-end: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : isWin ? '140px' : isLinux ? '120px' : '12px')};
 `
 
 const NavbarHeaderContent = styled.div`

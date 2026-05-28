@@ -284,8 +284,8 @@ export const TreeNodeContainer = styled.div<{
       content: '';
       position: absolute;
       top: -2px;
-      left: 0;
-      right: 0;
+      inset-inline-start: 0;
+      inset-inline-end: 0;
       height: 2px;
       background-color: var(--color-primary);
       border-radius: 1px;
@@ -299,8 +299,8 @@ export const TreeNodeContainer = styled.div<{
       content: '';
       position: absolute;
       bottom: -2px;
-      left: 0;
-      right: 0;
+      inset-inline-start: 0;
+      inset-inline-end: 0;
       height: 2px;
       background-color: var(--color-primary);
       border-radius: 1px;
@@ -327,7 +327,7 @@ export const ExpandIcon = styled.div`
   align-items: center;
   justify-content: center;
   color: var(--color-text-2);
-  margin-right: 4px;
+  margin-inline-end: 4px;
 
   &:hover {
     color: var(--color-text);
@@ -338,7 +338,7 @@ export const NodeIcon = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 8px;
+  margin-inline-end: 8px;
   color: var(--color-text-2);
   flex-shrink: 0;
 `
@@ -355,13 +355,13 @@ export const NodeName = styled.div`
 `
 
 export const SearchMatchesContainer = styled.div<{ depth: number }>`
-  margin-left: ${(props) => props.depth * 16 + 40}px;
+  margin-inline-start: ${(props) => props.depth * 16 + 40}px;
   margin-top: 4px;
   margin-bottom: 8px;
   padding: 6px 8px;
   background-color: var(--color-background-mute);
   border-radius: 4px;
-  border-left: 2px solid var(--color-primary-soft);
+  border-inline-start: 2px solid var(--color-primary-soft);
 `
 
 export const NodeNameContainer = styled.div`
@@ -393,8 +393,8 @@ export const MatchItem = styled.div`
   margin-bottom: 4px;
   font-size: 12px;
   padding: 4px 6px;
-  margin-left: -6px;
-  margin-right: -6px;
+  margin-inline-start: -6px;
+  margin-inline-end: -6px;
   border-radius: 3px;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -432,8 +432,8 @@ export const MatchContext = styled.div`
 export const MoreMatches = styled.div<{ depth: number }>`
   margin-top: 4px;
   padding: 4px 6px;
-  margin-left: -6px;
-  margin-right: -6px;
+  margin-inline-start: -6px;
+  margin-inline-end: -6px;
   font-size: 11px;
   color: var(--color-text-3);
   border-radius: 3px;

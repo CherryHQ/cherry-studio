@@ -55,7 +55,7 @@ const GroupHeader = styled.div`
 
 const GroupTitle = styled.div`
   font-weight: 500;
-  margin-left: 4px;
+  margin-inline-start: 4px;
   font-size: 14px;
 `
 

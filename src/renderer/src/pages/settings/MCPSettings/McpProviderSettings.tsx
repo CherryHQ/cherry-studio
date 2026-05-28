@@ -225,7 +225,7 @@ const ProviderHeader = styled.div`
 const ProviderName = styled.span`
   font-size: 14px;
   font-weight: 500;
-  margin-right: -2px;
+  margin-inline-end: -2px;
 `
 
 const ServerList = styled.div`

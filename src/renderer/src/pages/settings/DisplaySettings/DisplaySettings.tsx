@@ -41,7 +41,7 @@ const ColorCircleWrapper = styled.div`
 const ColorCircle = styled.div<{ color: string; isActive?: boolean }>`
   position: absolute;
   top: 50%;
-  left: 50%;
+  inset-inline-start: 50%;
   width: 20px;
   height: 20px;
   border-radius: 50%;

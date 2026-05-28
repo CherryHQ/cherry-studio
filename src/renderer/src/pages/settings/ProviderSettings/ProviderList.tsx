@@ -462,7 +462,7 @@ const ProviderListContainer = styled.div`
   flex-direction: column;
   min-width: calc(var(--settings-width) + 10px);
   padding-bottom: 5px;
-  border-right: 0.5px solid var(--color-border);
+  border-inline-end: 0.5px solid var(--color-border);
 `
 
 const ProviderListItem = styled.div`
@@ -491,7 +491,7 @@ const DragHandle = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-left: -8px;
+  margin-inline-start: -8px;
   width: 12px;
   color: var(--color-text-3);
   opacity: 0;
@@ -508,7 +508,7 @@ const DragHandle = styled.div`
 `
 
 const ProviderItemName = styled.div`
-  margin-left: 10px;
+  margin-inline-start: 10px;
   font-weight: 500;
 `
 

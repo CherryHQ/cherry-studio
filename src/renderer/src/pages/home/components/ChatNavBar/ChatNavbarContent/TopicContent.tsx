@@ -1,5 +1,6 @@
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
+import { Icon } from '@renderer/components/Icons/rtl'
 import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
 import type { Assistant } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
@@ -20,7 +21,7 @@ const TopicContent = ({ assistant }: TopicContentProps) => {
 
   return (
     <>
-      <HorizontalScrollContainer className="ml-2 flex-initial">
+      <HorizontalScrollContainer className="ms-2 flex-initial">
         <div className="flex flex-nowrap items-center gap-2">
           {/* Assistant Label */}
           <div
@@ -31,7 +32,9 @@ const TopicContent = ({ assistant }: TopicContentProps) => {
           </div>
 
           {/* Separator */}
-          <ChevronRight className="h-4 w-4 text-gray-400" />
+          <Icon directional>
+            <ChevronRight className="h-4 w-4 text-gray-400" />
+          </Icon>
 
           {/* Model Button */}
           <SelectModelButton assistant={assistant} />

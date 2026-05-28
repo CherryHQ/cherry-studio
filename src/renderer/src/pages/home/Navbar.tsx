@@ -61,7 +61,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
             exit={{ width: 0, opacity: 0 }}
             transition={{ duration: 0.3, ease: 'easeInOut' }}
             style={{ overflow: 'hidden', display: 'flex', flexDirection: 'row' }}>
-            <NavbarLeft style={{ justifyContent: 'space-between', borderRight: 'none', padding: 0 }}>
+            <NavbarLeft style={{ justifyContent: 'space-between', borderInlineEnd: 'none', padding: 0 }}>
               <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={0.8}>
                 <NavbarIcon onClick={toggleShowAssistants}>
                   <PanelLeftClose size={18} />
@@ -71,13 +71,14 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
           </motion.div>
         )}
       </AnimatePresence>
+
       {!showAssistants && (
         <NavbarLeft
           style={{
             justifyContent: 'flex-start',
-            borderRight: 'none',
-            paddingLeft: 0,
-            paddingRight: 0,
+            borderInlineEnd: 'none',
+            paddingInlineStart: 0,
+            paddingInlineEnd: 0,
             minWidth: 'auto'
           }}>
           <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={0.8} placement="right">
@@ -85,6 +86,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
               <PanelRightClose size={18} />
             </NavbarIcon>
           </Tooltip>
+
           <AnimatePresence initial={false}>
             <motion.div
               initial={{ width: 0, opacity: 0 }}
@@ -92,34 +94,39 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}
               style={{ overflow: 'hidden' }}>
-              <NavbarIcon onClick={onShowAssistantsDrawer} style={{ marginLeft: 8 }}>
+              <NavbarIcon onClick={onShowAssistantsDrawer} style={{ marginInlineStart: 8 }}>
                 <Menu size={18} />
               </NavbarIcon>
             </motion.div>
           </AnimatePresence>
         </NavbarLeft>
       )}
+
       <NavbarCenter></NavbarCenter>
+
       <NavbarRight
         style={{
           justifyContent: 'flex-end',
           flex: 1,
           position: 'relative',
-          paddingRight: '15px'
+          paddingInlineEnd: '15px'
         }}
         className="home-navbar-right">
         <HStack alignItems="center" gap={6}>
           <UpdateAppButton />
+
           <Tooltip title={t('chat.assistant.search.placeholder')} mouseEnterDelay={0.8}>
             <NarrowIcon onClick={() => SearchPopup.show()}>
               <Search size={18} />
             </NarrowIcon>
           </Tooltip>
+
           <Tooltip title={t('navbar.expand')} mouseEnterDelay={0.8}>
             <NarrowIcon onClick={handleNarrowModeToggle}>
               <i className="iconfont icon-icon-adaptive-width"></i>
             </NarrowIcon>
           </Tooltip>
+
           {topicPosition === 'right' && !showTopics && (
             <Tooltip title={t('navbar.show_sidebar')} mouseEnterDelay={2}>
               <NavbarIcon onClick={toggleShowTopics}>
@@ -127,6 +134,7 @@ const HeaderNavbar: FC<Props> = ({ activeAssistant, setActiveAssistant, activeTo
               </NavbarIcon>
             </Tooltip>
           )}
+
           {topicPosition === 'right' && showTopics && (
             <Tooltip title={t('navbar.hide_sidebar')} mouseEnterDelay={2}>
               <NavbarIcon onClick={toggleShowTopics}>

@@ -151,7 +151,7 @@ const ImageContainer = styled.div`
   .ant-spin-spinning {
     position: absolute;
     top: 50%;
-    left: 50%;
+    inset-inline-start: 50%;
     transform: translate(-50%, -50%);
     z-index: 3;
   }
@@ -171,7 +171,7 @@ const NavigationButton = styled(Button)`
 const ImageCounter = styled.div`
   position: absolute;
   bottom: 10px;
-  left: 50%;
+  inset-inline-start: 50%;
   transform: translateX(-50%);
   background-color: rgba(0, 0, 0, 0.5);
   color: white;
@@ -194,7 +194,7 @@ const LoadingContainer = styled.div<{ spinning: boolean }>`
 const LoadingOverlay = styled.div`
   position: absolute;
   top: 50%;
-  left: 50%;
+  inset-inline-start: 50%;
   transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;

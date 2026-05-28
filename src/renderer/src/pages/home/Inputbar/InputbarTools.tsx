@@ -440,14 +440,14 @@ const HiddenTools = styled.div`
 
 const ToolWrapper = styled.div`
   width: 30px;
-  margin-right: 6px;
+  margin-inline-end: 6px;
   transition:
     width 0.2s,
     margin-right 0.2s,
     opacity 0.2s;
   &.is-collapsed {
     width: 0px;
-    margin-right: 0px;
+    margin-inline-end: 0px;
     overflow: hidden;
     opacity: 0;
   }

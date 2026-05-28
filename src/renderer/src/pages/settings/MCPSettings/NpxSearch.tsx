@@ -220,7 +220,7 @@ const ResultList = styled.div`
   grid-template-columns: repeat(2, 1fr);
   gap: 16px;
   width: 100%;
-  padding-right: 4px;
+  padding-inline-end: 4px;
   overflow-y: auto;
   max-width: 1200px;
   margin: 0 auto;

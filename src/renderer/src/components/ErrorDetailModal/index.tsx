@@ -76,7 +76,7 @@ const truncateLargeData = (
 
 const ErrorDetailContainer = styled(Scrollbar)`
   max-height: 60vh;
-  padding-right: 5px;
+  padding-inline-end: 5px;
 `
 
 const ErrorDetailList = styled.div`
@@ -126,7 +126,7 @@ const StackTrace = styled.div`
 `
 
 const TruncatedBadge = styled.span`
-  margin-left: 8px;
+  margin-inline-start: 8px;
   padding: 2px 6px;
   font-size: 10px;
   font-weight: normal;

@@ -109,7 +109,7 @@ const PopupContainer: React.FC<Props> = ({ base, resolve }) => {
           allowClear
           autoFocus
           spellCheck={false}
-          style={{ paddingLeft: 0 }}
+          className="ps-0"
           variant="borderless"
           size="middle"
           onChange={(e) => setSearchKeyword(e.target.value)}
@@ -160,7 +160,7 @@ const SearchIcon = styled.div`
   justify-content: center;
   align-items: center;
   background-color: var(--color-background-soft);
-  margin-right: 2px;
+  margin-inline-end: 2px;
   &.back-icon {
     cursor: pointer;
     transition: background-color 0.2s;

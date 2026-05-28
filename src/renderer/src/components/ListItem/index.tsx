@@ -63,7 +63,7 @@ const IconWrapper = styled.span`
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-right: 8px;
+  margin-inline-end: 8px;
 `
 
 const TextContainer = styled.div`
@@ -85,7 +85,7 @@ const SubtitleText = styled.div`
 `
 
 const RightContentWrapper = styled.div`
-  margin-left: auto;
+  margin-inline-start: auto;
 `
 
 export default ListItem

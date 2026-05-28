@@ -265,7 +265,7 @@ const MessageItemContainer = styled.div`
   flex-direction: column;
   align-items: flex-end;
   justify-content: space-between;
-  text-align: right;
+  text-align: end;
   gap: 3px;
   opacity: 0;
   transform-origin: right center;
@@ -285,7 +285,7 @@ const MessageLineContainer = styled.div<{ $height: number | null }>`
   width: 14px;
   position: fixed;
   top: calc(50% - var(--status-bar-height) - 10px);
-  right: 13px;
+  inset-inline-end: 13px;
   max-height: ${(props) =>
     props.$height ? `${props.$height - 20}px` : 'calc(100% - var(--status-bar-height) * 2 - 20px)'};
   transform: translateY(-50%);

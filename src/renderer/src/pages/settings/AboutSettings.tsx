@@ -385,13 +385,13 @@ const CheckUpdateButton = styled(Button)``
 const AvatarWrapper = styled.div`
   position: relative;
   cursor: pointer;
-  margin-right: 15px;
+  margin-inline-end: 15px;
 `
 
 const ProgressCircle = styled(Progress)`
   position: absolute;
   top: -2px;
-  left: -2px;
+  inset-inline-start: -2px;
 `
 
 export const SettingRowTitle = styled.div`

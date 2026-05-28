@@ -185,7 +185,7 @@ const MenuList = styled(Scrollbar)`
   width: var(--settings-width);
   padding: 12px;
   padding-bottom: 48px;
-  border-right: 0.5px solid var(--color-border);
+  border-inline-end: 0.5px solid var(--color-border);
   height: calc(100vh - var(--navbar-height));
 `
 

@@ -439,7 +439,7 @@ const MenuButton = ({
   <div
     {...props}
     className={cn(
-      'absolute top-1.5 right-2.25 flex h-5.5 min-h-5.5 min-w-5.5 flex-row items-center justify-center rounded-[11px] border-(--color-border) border-[0.5px] bg-(--color-background) px-1.25',
+      'absolute top-1.5 end-2.25 flex h-5.5 min-h-5.5 min-w-5.5 flex-row items-center justify-center rounded-[11px] border-(--color-border) border-[0.5px] bg-(--color-background) px-1.25',
       className
     )}>
     {children}

@@ -201,7 +201,7 @@ const WindowFooter: FC<FooterProps> = ({
 const Container = styled.div<{ $isHovered: boolean; $showInitially: boolean }>`
   position: absolute;
   bottom: 0;
-  left: 50%;
+  inset-inline-start: 50%;
   transform: translateX(-50%);
   max-width: 480px;
   min-width: min-content;

@@ -3,7 +3,7 @@
 }
 
 [navbar-position='left'] #content-container {
-  border-top: 0.5px solid var(--color-border);
-  border-top-left-radius: 10px;
-  border-left: 0.5px solid var(--color-border);
+  border-block-start: 0.5px solid var(--color-border);
+  border-start-start-radius: 10px;
+  border-inline-start: 0.5px solid var(--color-border);
 }

@@ -99,15 +99,15 @@ export const Box = styled.div<BoxProps>`
   margin-top: ${(props) => (props.mt || props.marginTop ? getElementValue(props.mt || props.marginTop) : 'default')};
   margin-bottom: ${(props) =>
     props.mb || props.marginBottom ? getElementValue(props.mb ?? props.marginBottom) : 'default'};
-  margin-left: ${(props) => (props.ml || props.marginLeft ? getElementValue(props.ml ?? props.marginLeft) : 'default')};
-  margin-right: ${(props) =>
+  margin-inline-start: ${(props) => (props.ml || props.marginLeft ? getElementValue(props.ml ?? props.marginLeft) : 'default')};
+  margin-inline-end: ${(props) =>
     props.mr || props.marginRight ? getElementValue(props.mr ?? props.marginRight) : 'default'};
   padding: ${(props) => (props.p || props.padding ? (props.p ?? props.padding) : 'none')};
   padding-top: ${(props) => (props.pt || props.paddingTop ? getElementValue(props.pt ?? props.paddingTop) : 'auto')};
   padding-bottom: ${(props) =>
     props.pb || props.paddingBottom ? getElementValue(props.pb ?? props.paddingBottom) : 'auto'};
-  padding-left: ${(props) => (props.pl || props.paddingLeft ? getElementValue(props.pl ?? props.paddingLeft) : 'auto')};
-  padding-right: ${(props) =>
+  padding-inline-start: ${(props) => (props.pl || props.paddingLeft ? getElementValue(props.pl ?? props.paddingLeft) : 'auto')};
+  padding-inline-end: ${(props) =>
     props.pr || props.paddingRight ? getElementValue(props.pr ?? props.paddingRight) : 'auto'};
 `
 

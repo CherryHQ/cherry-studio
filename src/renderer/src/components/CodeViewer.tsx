@@ -572,9 +572,9 @@ const ScrollContainer = styled.div<{
 
     .line-number {
       width: var(--gutter-width, 1.2ch);
-      text-align: right;
+      text-align: end;
       opacity: 0.35;
-      margin-right: 1rem;
+      margin-inline-end: 1rem;
       user-select: none;
       flex-shrink: 0;
       overflow: hidden;
@@ -584,7 +584,7 @@ const ScrollContainer = styled.div<{
 
     .line-content {
       flex: 1;
-      padding-right: 1em;
+      padding-inline-end: 1em;
       white-space: pre;
       * {
         white-space: ${(props) => (props.$wrap ? 'pre-wrap' : 'pre')};

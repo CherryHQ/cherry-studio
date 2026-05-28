@@ -124,7 +124,7 @@ const ServerNameText = styled.span`
 `
 
 const StatusIndicator = styled.div`
-  margin-left: 8px;
+  margin-inline-start: 8px;
   display: flex;
   align-items: center;
   gap: 8px;

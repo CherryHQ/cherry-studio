@@ -79,7 +79,7 @@ const Tag = styled.div<{ $color: string; $size: number; $closable: boolean; $cli
   align-items: center;
   gap: 4px;
   padding: ${({ $size }) => $size / 3}px ${({ $size }) => $size * 0.8}px;
-  padding-right: ${({ $closable, $size }) => ($closable ? $size * 1.8 : $size * 0.8)}px;
+  padding-inline-end: ${({ $closable, $size }) => ($closable ? $size * 1.8 : $size * 0.8)}px;
   border-radius: 99px;
   color: ${({ $color }) => $color};
   background-color: ${({ $color }) => $color + '20'};

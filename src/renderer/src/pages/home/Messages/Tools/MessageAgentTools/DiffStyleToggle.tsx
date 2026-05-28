@@ -28,7 +28,7 @@ export const DiffStyleToggle = memo(function DiffStyleToggle({
 
 const ToggleButton = styled.button`
   position: absolute;
-  right: 0.5rem;
+  inset-inline-end: 0.5rem;
   top: 0.5rem;
   z-index: 10;
   display: flex;

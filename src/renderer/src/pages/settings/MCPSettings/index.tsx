@@ -7,6 +7,7 @@ import ModelScopeProviderLogo from '@renderer/assets/images/providers/modelscope
 import TokenFluxProviderLogo from '@renderer/assets/images/providers/tokenflux.png'
 import DividerWithText from '@renderer/components/DividerWithText'
 import { McpLogo } from '@renderer/components/Icons'
+import { Icon } from '@renderer/components/Icons/rtl'
 import ListItem from '@renderer/components/ListItem'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -121,7 +122,9 @@ const MCPSettings: FC = () => {
             <BackButtonContainer>
               <Link to="/settings/mcp/servers">
                 <Button type="default" shape="circle" size="small">
-                  <ArrowLeftOutlined />
+                  <Icon directional>
+                    <ArrowLeftOutlined />
+                  </Icon>
                 </Button>
               </Link>
             </BackButtonContainer>
@@ -196,7 +199,7 @@ const MenuList = styled(Scrollbar)`
   width: var(--settings-width);
   padding: 12px;
   padding-bottom: 48px;
-  border-right: 0.5px solid var(--color-border);
+  border-inline-end: 0.5px solid var(--color-border);
   height: calc(100vh - var(--navbar-height));
 `
 
@@ -226,8 +229,8 @@ const BackButtonContainer = styled.div`
   background-color: transparent;
   position: absolute;
   top: 0;
-  left: 0;
-  right: 0;
+  inset-inline-start: 0;
+  inset-inline-end: 0;
   z-index: 1000;
 `
 

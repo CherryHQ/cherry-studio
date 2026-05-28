@@ -1,3 +1,4 @@
+import { Icon } from '@renderer/components/Icons/rtl'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { cn } from '@renderer/utils'
 import { ChevronRight } from 'lucide-react'
@@ -41,7 +42,16 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
   const [isScrolledToEnd, setIsScrolledToEnd] = useState(false)
 
   const handleScrollRight = (event: React.MouseEvent) => {
-    scrollRef.current?.scrollBy({ left: scrollDistance, behavior: 'smooth' })
+    const el = scrollRef.current
+    if (!el) return
+
+    const isRTL = getComputedStyle(el).direction === 'rtl'
+
+    el.scrollBy({
+      left: isRTL ? -scrollDistance : scrollDistance,
+      behavior: 'smooth'
+    })
+
     event.stopPropagation()
   }
 
@@ -67,7 +77,17 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
 
       // 检查是否滚动到最右侧
       if (canScrollValue) {
-        const isAtEnd = Math.abs(scrollElement.scrollLeft + scrollElement.clientWidth - scrollElement.scrollWidth) <= 1
+        const isRTL = getComputedStyle(scrollElement).direction === 'rtl'
+
+        let scrollLeft = scrollElement.scrollLeft
+
+        // Normalize RTL scrollLeft (browser differences)
+        if (isRTL) {
+          scrollLeft = Math.abs(scrollLeft)
+        }
+
+        const isAtEnd = Math.abs(scrollLeft + scrollElement.clientWidth - scrollElement.scrollWidth) <= 1
+
         setIsScrolledToEnd(isAtEnd)
       } else {
         setIsScrolledToEnd(false)
@@ -115,7 +135,9 @@ const HorizontalScrollContainer: React.FC<HorizontalScrollContainerProps> = ({
       </ScrollContent>
       {canScroll && !isExpanded && !isScrolledToEnd && (
         <ScrollButton onClick={handleScrollRight} className="scroll-right-button">
-          <ChevronRight size={14} />
+          <Icon directional>
+            <ChevronRight size={14} />
+          </Icon>
         </ScrollButton>
       )}
     </Container>

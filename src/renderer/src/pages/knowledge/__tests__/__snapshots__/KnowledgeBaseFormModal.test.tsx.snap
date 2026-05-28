@@ -8,7 +8,7 @@ exports[`KnowledgeBaseFormModal > basic rendering > should match snapshot 1`] = 
 
 .c0 .ant-modal-close {
   top: 8px;
-  right: 8px;
+  inset-inline-end: 8px;
 }
 
 .c1 {

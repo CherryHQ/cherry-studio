@@ -252,7 +252,7 @@ const AgentSettingsTab = () => {
           {codeExecution.enabled && (
             <>
               <SettingDivider />
-              <SettingRow style={{ paddingLeft: 8 }}>
+              <SettingRow className="ps-8">
                 <SettingRowTitleSmall>
                   {t('chat.settings.code_execution.timeout_minutes.label')}
                   <HelpTooltip title={t('chat.settings.code_execution.timeout_minutes.tip')} />
@@ -281,7 +281,7 @@ const AgentSettingsTab = () => {
           {codeEditor.enabled && (
             <>
               <SettingDivider />
-              <SettingRow style={{ paddingLeft: 8 }}>
+              <SettingRow className="ps-8">
                 <SettingRowTitleSmall>{t('chat.settings.code_editor.highlight_active_line')}</SettingRowTitleSmall>
                 <Switch
                   size="small"
@@ -290,7 +290,7 @@ const AgentSettingsTab = () => {
                 />
               </SettingRow>
               <SettingDivider />
-              <SettingRow style={{ paddingLeft: 8 }}>
+              <SettingRow className="ps-8">
                 <SettingRowTitleSmall>{t('chat.settings.code_editor.fold_gutter')}</SettingRowTitleSmall>
                 <Switch
                   size="small"
@@ -299,7 +299,7 @@ const AgentSettingsTab = () => {
                 />
               </SettingRow>
               <SettingDivider />
-              <SettingRow style={{ paddingLeft: 8 }}>
+              <SettingRow className="ps-8">
                 <SettingRowTitleSmall>{t('chat.settings.code_editor.autocompletion')}</SettingRowTitleSmall>
                 <Switch
                   size="small"
@@ -308,7 +308,7 @@ const AgentSettingsTab = () => {
                 />
               </SettingRow>
               <SettingDivider />
-              <SettingRow style={{ paddingLeft: 8 }}>
+              <SettingRow className="ps-8">
                 <SettingRowTitleSmall>{t('chat.settings.code_editor.keymap')}</SettingRowTitleSmall>
                 <Switch
                   size="small"
@@ -479,7 +479,7 @@ const Container = styled(Scrollbar)`
   flex: 1;
   flex-direction: column;
   padding: 0 8px;
-  padding-right: 0;
+  padding-inline-end: 0;
   padding-top: 2px;
   padding-bottom: 10px;
   margin-top: 3px;

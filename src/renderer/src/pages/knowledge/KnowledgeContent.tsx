@@ -207,7 +207,7 @@ const StyledTabs = styled(Tabs)`
 
   .ant-tabs-tab {
     padding: 12px 12px;
-    margin-right: 0;
+    margin-inline-end: 0;
     font-size: 13px;
 
     &:hover {
@@ -296,7 +296,7 @@ export const ItemHeader = styled.div`
   align-items: center;
   justify-content: space-between;
   position: absolute;
-  right: 16px;
+  inset-inline-end: 16px;
   z-index: 1000;
   top: calc(var(--navbar-height) + 12px);
   [navbar-position='top'] & {

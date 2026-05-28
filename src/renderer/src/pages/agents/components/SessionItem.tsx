@@ -326,7 +326,7 @@ const PendingIndicator = styled.div.attrs({
   width: 5px;
   height: 5px;
   position: absolute;
-  left: 3px;
+  inset-inline-start: 3px;
   top: 15px;
   border-radius: 50%;
   background-color: var(--color-status-warning);
@@ -339,7 +339,7 @@ const FulfilledIndicator = styled.div.attrs({
   width: 5px;
   height: 5px;
   position: absolute;
-  left: 3px;
+  inset-inline-start: 3px;
   top: 15px;
   border-radius: 50%;
   background-color: var(--color-status-success);

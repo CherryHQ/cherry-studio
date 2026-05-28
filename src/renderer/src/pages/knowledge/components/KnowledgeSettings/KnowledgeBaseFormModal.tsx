@@ -106,7 +106,7 @@ const StyledModal = styled(Modal)`
   }
   .ant-modal-close {
     top: 8px;
-    right: 8px;
+    inset-inline-end: 8px;
   }
 `
 

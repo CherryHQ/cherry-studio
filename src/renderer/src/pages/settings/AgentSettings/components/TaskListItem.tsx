@@ -79,11 +79,11 @@ const TaskListItem: FC<TaskListItemProps> = ({ task, onEdit, onToggleStatus, onD
           <span className="truncate font-medium text-sm">{task.name}</span>
         </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
-          <Tag color={typeConfig.color} className="!mr-0">
+          <Tag color={typeConfig.color} className="!me-0">
             {typeConfig.label}
           </Tag>
           <span className="text-foreground-400">
-            <Clock size={11} className="mr-0.5 inline" />
+            <Clock size={11} className="me-0.5 inline" />
             {formatScheduleValue()}
           </span>
           {task.next_run && <span className="text-foreground-400">→ Next: {formatTime(task.next_run)}</span>}
@@ -95,7 +95,7 @@ const TaskListItem: FC<TaskListItemProps> = ({ task, onEdit, onToggleStatus, onD
           </Tooltip>
         )}
       </div>
-      <div className="ml-3 flex shrink-0 items-center gap-0.5">
+      <div className="ms-3 flex shrink-0 items-center gap-0.5">
         {!isCompleted && (
           <IconButton icon={<Play size={14} />} tooltip={t('agent.cherryClaw.tasks.run')} onClick={() => onRun(task)} />
         )}

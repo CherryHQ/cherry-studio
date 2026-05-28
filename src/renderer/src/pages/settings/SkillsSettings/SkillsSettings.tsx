@@ -844,7 +844,7 @@ const MenuList = styled(Scrollbar)`
   gap: 5px;
   width: var(--settings-width);
   padding: 12px;
-  border-right: 0.5px solid var(--color-border);
+  border-inline-end: 0.5px solid var(--color-border);
   height: calc(100vh - var(--navbar-height));
 `
 
@@ -917,7 +917,7 @@ const SearchInputWrapper = styled.div`
 const SearchDropdown = styled.div`
   position: absolute;
   top: 100%;
-  right: 0;
+  inset-inline-end: 0;
   width: 100%;
   max-height: 400px;
   display: flex;
@@ -1140,7 +1140,7 @@ const FileTreeItem = styled.div<{ $depth: number; $active: boolean }>`
   align-items: center;
   gap: 6px;
   padding: 4px 8px;
-  padding-left: ${(p) => 8 + p.$depth * 16}px;
+  padding-inline-start: ${(p) => 8 + p.$depth * 16}px;
   border-radius: 6px;
   font-size: 12px;
   cursor: pointer;

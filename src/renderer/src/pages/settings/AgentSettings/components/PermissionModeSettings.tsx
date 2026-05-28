@@ -79,7 +79,7 @@ export const PermissionModeSettings: FC<AgentOrSessionSettingsProps> = ({ agentB
               </p>
               <div className="rounded-medium border border-default-200 bg-default-50 px-3 py-2 text-sm">
                 <span className="font-medium text-foreground">{t('common.removed', 'Removed')}:</span>
-                <ul className="mt-1 list-disc pl-4">
+                <ul className="mt-1 list-disc ps-4">
                   {removedDefaults.map((id) => {
                     const tool = availableTools.find((item) => item.id === id)
                     return (

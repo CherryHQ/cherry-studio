@@ -190,7 +190,7 @@ const Icon = styled.div<{ theme: string }>`
     width: 100%;
     height: 100%;
     top: 0;
-    left: 0;
+    inset-inline-start: 0;
     border-radius: inherit;
     opacity: 0.3;
     border: 0.5px solid var(--color-primary);

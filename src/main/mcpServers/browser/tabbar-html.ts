@@ -60,8 +60,8 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
       display: flex;
       align-items: flex-end;
       padding: 8px 8px 0 8px;
-      padding-left: calc(8px + var(--traffic-light-width, 0px));
-      padding-right: calc(8px + var(--window-controls-width, 0px));
+      padding-inline-start: calc(8px + var(--traffic-light-width, 0px));
+      padding-inline-end: calc(8px + var(--window-controls-width, 0px));
       height: 42px;
       flex-shrink: 0;
       -webkit-app-region: drag;
@@ -88,7 +88,7 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
       justify-content: center;
       border-radius: 50%;
       cursor: pointer;
-      margin-left: 4px;
+      margin-inline-start: 4px;
       margin-bottom: 3px;
       -webkit-app-region: no-drag;
       flex-shrink: 0;
@@ -115,8 +115,8 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
     /* When tab is narrow, hide title, show favicon by default, show close on hover */
     .tab.narrow .tab-title { display: none; }
     .tab.narrow { justify-content: center; padding: 0; }
-    .tab.narrow .tab-favicon { margin-right: 0; }
-    .tab.narrow .tab-close { position: absolute; margin-left: 0; }
+    .tab.narrow .tab-favicon { margin-inline-end: 0; }
+    .tab.narrow .tab-close { position: absolute; margin-inline-start: 0; }
     /* On narrow tab hover, hide favicon and show close button */
     .tab.narrow:hover .tab-favicon { display: none; }
     .tab.narrow:hover .tab-close { opacity: 1; }
@@ -152,7 +152,7 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
     .tab-favicon {
       width: 16px;
       height: 16px;
-      margin-right: 8px;
+      margin-inline-end: 8px;
       border-radius: 2px;
       background: var(--bg-favicon);
       flex-shrink: 0;
@@ -182,7 +182,7 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-left: 4px;
+      margin-inline-start: 4px;
       opacity: 0;
       transition: opacity 0.1s, background 0.1s;
       flex-shrink: 0;
@@ -250,8 +250,8 @@ export const TAB_BAR_HTML = `<!DOCTYPE html>
     #window-controls {
       display: none;
       height: 42px;
-      margin-left: auto;
-      margin-right: calc(-8px - var(--window-controls-width, 0px));
+      margin-inline-start: auto;
+      margin-inline-end: calc(-8px - var(--window-controls-width, 0px));
       margin-top: -8px;
       -webkit-app-region: no-drag;
     }

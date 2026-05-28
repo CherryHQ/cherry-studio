@@ -129,7 +129,7 @@ const MenuList = styled.div`
   width: var(--settings-width);
   padding: 12px;
   padding-bottom: 48px;
-  border-right: 0.5px solid var(--color-border);
+  border-inline-end: 0.5px solid var(--color-border);
   height: 100vh;
   overflow: auto;
   box-sizing: border-box;

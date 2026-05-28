@@ -133,7 +133,7 @@ const TopicName = styled.div`
 const TopicDate = styled.div`
   font-size: 14px;
   color: var(--color-text-3);
-  margin-left: 10px;
+  margin-inline-start: 10px;
 `
 
 export default TopicsHistory

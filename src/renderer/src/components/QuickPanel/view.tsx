@@ -819,7 +819,7 @@ const QuickPanelContainer = styled.div<{
   max-height: 0;
   position: absolute;
   top: 1px;
-  left: 0;
+  inset-inline-start: 0;
   right: 0;
   width: 100%;
   padding: 0 35px 0 35px;

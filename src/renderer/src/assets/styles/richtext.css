@@ -13,7 +13,7 @@
 }
 
 .tiptap :first-child {
-  margin-top: 0;
+  margin-block-start: 0;
 }
 
 .tiptap h1:first-child,
@@ -22,7 +22,7 @@
 .tiptap h4:first-child,
 .tiptap h5:first-child,
 .tiptap h6:first-child {
-  margin-top: 0;
+  margin-block-start: 0;
 }
 
 .tiptap h1,
@@ -48,7 +48,7 @@
 }
 
 .tiptap h1 {
-  margin-top: 0;
+  margin-block-start: 0;
   font-size: 2rem;
 }
 
@@ -77,7 +77,7 @@
 }
 
 .tiptap p:has(+ ul) {
-  margin-bottom: 0;
+  margin-block-end: 0;
 }
 
 .tiptap a {
@@ -91,9 +91,9 @@
 }
 
 .tiptap blockquote {
-  border-left: 4px solid var(--color-primary);
+  border-inline-start: 4px solid var(--color-primary);
   margin: 1.5rem 0;
-  padding-left: 1rem;
+  padding-inline-start: 1rem;
 }
 
 .tiptap code {
@@ -125,7 +125,7 @@
 
 .tiptap hr {
   border: none;
-  border-top: 1px solid var(--color-gray-2);
+  border-block-start: 1px solid var(--color-gray-2);
   margin: 2rem 0;
 }
 
@@ -153,7 +153,7 @@
   opacity: 0.6;
   pointer-events: none;
   font-style: italic;
-  left: 0;
+  inset-inline-start: 0;
   right: 0;
 }
 
@@ -169,9 +169,9 @@
 }
 
 .tiptap img {
-  max-width: 800px;
-  width: 100%;
-  height: auto;
+  max-inline-size: 800px;
+  inline-size: 100%;
+  block-size: auto;
 }
 
 .tiptap table {
@@ -180,7 +180,7 @@
   /* Allow action endpoints (rendered as decorations) to slightly overflow table edges */
   overflow: visible;
   table-layout: fixed;
-  width: 100%;
+  inline-size: 100%;
 }
 
 .tiptap td,
@@ -188,7 +188,7 @@
   border: 1px solid var(--color-border-soft);
   box-sizing: border-box;
   display: table-cell;
-  min-width: 120px;
+  min-inline-size: 120px;
   padding: 6px 8px;
   position: relative;
   vertical-align: top;
@@ -199,7 +199,7 @@
 
 .tiptap td > *,
 .tiptap th > * {
-  margin-bottom: 0;
+  margin-block-end: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -209,7 +209,7 @@
 .tiptap th * {
   background-color: var(--color-gray-3);
   font-weight: bold;
-  text-align: left;
+  text-align: start;
 }
 
 .tiptap .selectedCell {
@@ -226,29 +226,29 @@
 }
 
 .tiptap .selectedCell.selection-top::after {
-  border-top-width: 2px;
+  border-block-start-width: 2px;
 }
 
 .tiptap .selectedCell.selection-bottom::after {
-  border-bottom-width: 2px;
+  border-block-end-width: 2px;
 }
 
 .tiptap .selectedCell.selection-left::after {
-  border-left-width: 2px;
+  border-inline-start-width: 2px;
 }
 
 .tiptap .selectedCell.selection-right::after {
-  border-right-width: 2px;
+  border-inline-end-width: 2px;
 }
 
 .tiptap .column-resize-handle {
   background-color: var(--color-primary);
-  bottom: -2px;
+  block-end: -2px;
   pointer-events: none;
   position: absolute;
   right: -2px;
-  top: 0;
-  width: 4px;
+  block-start: 0;
+  inline-size: 4px;
 }
 
 .tiptap table:has(.selectedCell) {
@@ -311,8 +311,8 @@
 }
 
 .tiptap .tableWrapper .table-container table {
-  width: max-content;
-  min-width: 100%;
+  inline-size: max-content;
+  min-inline-size: 100%;
 }
 
 .tiptap .tableWrapper .add-row-button,
@@ -386,7 +386,7 @@
 .tiptap .tableWrapper .row-action-trigger,
 .tiptap .tableWrapper .column-action-trigger {
   position: absolute;
-  height: 20px;
+  block-size: 20px;
   border-radius: 8px;
   background: var(--color-primary);
   color: #fff;
@@ -418,8 +418,8 @@
 
 .tiptap ul li p,
 .tiptap ol li p {
-  margin-top: 0.25em;
-  margin-bottom: 0.25em;
+  margin-block-start: 0.25em;
+  margin-block-end: 0.25em;
 }
 
 /* Reduce spacing for nested lists */
@@ -440,7 +440,7 @@
 
 .tiptap ul[data-type='taskList'] {
   list-style: none;
-  margin-left: 0;
+  margin-inline-start: 0;
   padding: 0;
 }
 
@@ -451,7 +451,7 @@
 
 .tiptap ul[data-type='taskList'] li > label {
   flex: 0 0 auto;
-  margin-right: 0.5rem;
+  margin-inline-end: 0.5rem;
   user-select: none;
   display: flex;
   align-items: center;
@@ -498,7 +498,7 @@
 .tiptap::after {
   content: '';
   display: block;
-  height: 50px;
+  block-size: 50px;
   pointer-events: none;
 }
 
@@ -512,7 +512,7 @@
   align-items: center;
   gap: 6px;
   position: absolute;
-  top: 4px;
+  block-start: 4px;
   right: 6px;
   opacity: 0;
   transition: opacity 0.2s;

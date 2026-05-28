@@ -9,6 +9,7 @@ import {
   ReloadOutlined
 } from '@ant-design/icons'
 import { loggerService } from '@logger'
+import { Icon } from '@renderer/components/Icons/rtl'
 import { isDev } from '@renderer/config/constant'
 import { allMinApps } from '@renderer/config/minapps'
 import { useMinapps } from '@renderer/hooks/useMinapps'
@@ -243,7 +244,9 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
               $disabled={!canGoBack}
               aria-label={t('minapp.popup.goBack')}
               aria-disabled={!canGoBack}>
-              <ArrowLeftOutlined />
+              <Icon directional>
+                <ArrowLeftOutlined />
+              </Icon>
             </ToolbarButton>
           </Tooltip>
 
@@ -253,7 +256,9 @@ const MinimalToolbar: FC<Props> = ({ app, webviewRef, currentUrl, onReload, onOp
               $disabled={!canGoForward}
               aria-label={t('minapp.popup.goForward')}
               aria-disabled={!canGoForward}>
-              <ArrowRightOutlined />
+              <Icon directional>
+                <ArrowRightOutlined />
+              </Icon>
             </ToolbarButton>
           </Tooltip>
 

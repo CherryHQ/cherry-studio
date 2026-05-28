@@ -584,7 +584,7 @@ const Container = styled.div`
 `
 
 const Label = styled.p`
-  margin-right: 5px;
+  margin-inline-end: 5px;
   font-weight: 500;
   display: flex;
   align-items: center;

@@ -97,7 +97,7 @@ const IndicatorWrapper = styled.div<{ $type: string; $clickable?: boolean }>`
 `
 
 const LatencyText = styled(Typography.Text)`
-  margin-left: 10px;
+  margin-inline-start: 10px;
   color: var(--color-text-secondary);
   font-size: 12px;
 `

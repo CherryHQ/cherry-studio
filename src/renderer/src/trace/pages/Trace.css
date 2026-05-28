@@ -26,7 +26,7 @@
   -webkit-app-region: drag;
   position: fixed;
   top: 0;
-  left: 0;
+  inset-inline-start: 0;
   width: 100%;
   z-index: 10;
 }
@@ -36,7 +36,7 @@
   align-items: center;
   width: content;
   height: content;
-  margin-left: 12px;
+  margin-inline-start: 12px;
 }
 
 .headerTitle {
@@ -45,14 +45,14 @@
   font-size: 16px;
   color: var(--trace-text);
   pointer-events: none;
-  margin-left: 5px;
+  margin-inline-start: 5px;
   -webkit-app-region: drag;
 }
 
 .traceItem {
   height: 32px;
-  padding-right: 5px;
-  padding-left: 5px;
+  padding-inline-end: 5px;
+  padding-inline-start: 5px;
 }
 
 .traceItem:hover {
@@ -93,7 +93,7 @@
 .floating {
   position: fixed;
   top: 40px;
-  left: 0px;
+  inset-inline-start: 0px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
   transition: all 0.3s ease;
   opacity: 0.9;
@@ -147,8 +147,14 @@
   -webkit-app-region: no-drag;
   float: right;
   position: fixed;
-  right: 10px;
+  inset-inline-end: 10px;
   top: 15px;
+}
+
+html[dir='rtl'] .closeButton {
+  inset-inline-start: 10px;
+  inset-inline-end: unset;
+  float: left;
 }
 
 .scroll-container {

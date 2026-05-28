@@ -324,8 +324,8 @@ const TabsBar = styled.div<{ $isFullscreen: boolean }>`
   flex-direction: row;
   align-items: center;
   gap: 5px;
-  padding-left: ${({ $isFullscreen }) => (!$isFullscreen && isMac ? 'calc(env(titlebar-area-x) + 4px)' : '15px')};
-  padding-right: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : '0')};
+  padding-inline-start: ${({ $isFullscreen }) => (!$isFullscreen && isMac ? 'calc(env(titlebar-area-x) + 4px)' : '15px')};
+  padding-inline-end: ${({ $isFullscreen }) => ($isFullscreen ? '12px' : '0')};
   height: var(--navbar-height);
   min-height: ${({ $isFullscreen }) => (!$isFullscreen && isMac ? 'env(titlebar-area-height)' : '')};
   position: relative;
@@ -352,7 +352,7 @@ const Tab = styled.div<{ active?: boolean }>`
   align-items: center;
   justify-content: space-between;
   padding: 4px 10px;
-  padding-right: 8px;
+  padding-inline-end: 8px;
   background: ${(props) => (props.active ? 'var(--color-list-item)' : 'transparent')};
   transition: background 0.2s;
   border-radius: var(--list-item-border-radius);
@@ -393,7 +393,7 @@ const TabTitle = styled.span`
   font-size: 13px;
   display: flex;
   align-items: center;
-  margin-right: 4px;
+  margin-inline-end: 4px;
   overflow: hidden;
   white-space: nowrap;
 `
@@ -428,8 +428,8 @@ const RightButtonsContainer = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-left: auto;
-  padding-right: ${isMac ? '12px' : '0'};
+  margin-inline-start: auto;
+  padding-inline-end: ${isMac ? '12px' : '0'};
   flex-shrink: 0;
 `
 

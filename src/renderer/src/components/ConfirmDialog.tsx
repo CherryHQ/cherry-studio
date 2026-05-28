@@ -26,7 +26,7 @@ const ConfirmDialog: FC<Props> = ({ x, y, message, onConfirm, onCancel }) => {
           top: `${y}px`
         }}>
         <div className="flex min-w-[160px] items-center rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] p-3 shadow-[0_4px_12px_rgba(0,0,0,0.15)]">
-          <div className="mr-2 text-sm leading-[1.4]">{message}</div>
+          <div className="me-2 text-sm leading-[1.4]">{message}</div>
           <div className="flex justify-center gap-2">
             <Button
               onClick={onCancel}

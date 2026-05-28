@@ -386,7 +386,7 @@ const SearchToolbar = styled.div`
 
 const SearchResultTime = styled.div`
   margin-top: 10px;
-  text-align: right;
+  text-align: end;
 `
 
 export default memo(SearchResults)

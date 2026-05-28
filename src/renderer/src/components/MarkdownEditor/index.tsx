@@ -71,7 +71,7 @@ const InputArea = styled.textarea`
   line-height: 1.5;
   color: var(--color-text);
   background-color: var(--color-bg-1);
-  border-right: 1px solid var(--color-border);
+  border-inline-end: 1px solid var(--color-border);
   outline: none;
 
   &:focus {

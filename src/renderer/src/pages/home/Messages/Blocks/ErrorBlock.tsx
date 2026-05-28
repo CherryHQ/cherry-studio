@@ -153,7 +153,7 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
       {/* Close button */}
       <button
         type="button"
-        className="absolute top-2 right-2 flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded border-none bg-transparent opacity-0 transition-all duration-150 hover:bg-[color-mix(in_srgb,var(--color-error)_12%,transparent)] hover:text-(--color-error) group-hover:opacity-100"
+        className="absolute top-2 end-2 flex h-5.5 w-5.5 cursor-pointer items-center justify-center rounded border-none bg-transparent opacity-0 transition-all duration-150 hover:bg-[color-mix(in_srgb,var(--color-error)_12%,transparent)] hover:text-(--color-error) group-hover:opacity-100"
         onClick={onRemoveBlock}
         aria-label="close"
         title={t('common.close')}>
@@ -165,20 +165,20 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
         <div className="flex shrink-0 items-center justify-center" style={{ color: 'var(--color-error)' }}>
           <AlertTriangle size={15} />
         </div>
-        <div className="pr-5 font-semibold text-[13px] leading-[1.4]" style={{ color: 'var(--color-error)' }}>
+        <div className="pe-5 font-semibold text-[13px] leading-[1.4]" style={{ color: 'var(--color-error)' }}>
           {aiSummary || t(classification.i18nKey)}
         </div>
       </div>
 
       {/* Description */}
       <div
-        className="wrap-break-word ml-5.75 line-clamp-3 text-xs leading-normal [&_a]:text-(--color-link)"
+        className="wrap-break-word ms-5.75 line-clamp-3 text-xs leading-normal [&_a]:text-(--color-link)"
         style={{ color: 'var(--color-text-2)' }}>
         {block.error?.message || <ErrorMessage block={block} />}
       </div>
 
       {/* Footer */}
-      <div className="mt-2.5 ml-5.75 flex items-center gap-2">
+      <div className="mt-2.5 ms-5.75 flex items-center gap-2">
         {classification.navTarget && (
           <Button
             size="small"
@@ -190,7 +190,7 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
           </Button>
         )}
         <div
-          className="ml-auto inline-flex items-center gap-0.5 text-xs transition-colors duration-150 group-hover:text-(--color-error)"
+          className="ms-auto inline-flex items-center gap-0.5 text-xs transition-colors duration-150 group-hover:text-(--color-error)"
           style={{ color: 'var(--color-text-3)' }}>
           {t('common.detail')}
           <ChevronRight size={14} />

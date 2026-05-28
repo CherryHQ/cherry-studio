@@ -370,7 +370,7 @@ const ModelHeaderTitle = styled.div`
   color: var(--color-text);
   font-size: 18px;
   font-weight: 600;
-  margin-right: 10px;
+  margin-inline-end: 10px;
 `
 
 const TopViewKey = 'ManageModelsPopup'

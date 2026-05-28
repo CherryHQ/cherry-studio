@@ -134,7 +134,7 @@ const MarketLogo = styled.img`
   height: 24px;
   border-radius: 4px;
   object-fit: cover;
-  margin-right: 8px;
+  margin-inline-end: 8px;
 `
 
 const MarketName = styled.span`

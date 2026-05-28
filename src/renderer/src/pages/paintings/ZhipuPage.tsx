@@ -482,7 +482,7 @@ const LeftContainer = styled(Scrollbar)`
   padding: 20px;
   background-color: var(--color-background);
   max-width: var(--assistants-width);
-  border-right: 0.5px solid var(--color-border);
+  border-inline-end: 0.5px solid var(--color-border);
 `
 const MainContainer = styled.div`
   display: flex;

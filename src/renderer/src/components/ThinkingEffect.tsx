@@ -113,7 +113,7 @@ const LoadingContainer = styled.div`
   height: 100%;
   flex-shrink: 0;
   position: relative;
-  padding-left: 5px;
+  padding-inline-start: 5px;
   transition: width 150ms;
   > div {
     display: flex;

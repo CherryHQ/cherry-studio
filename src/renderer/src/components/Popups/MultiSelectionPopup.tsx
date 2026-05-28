@@ -105,7 +105,7 @@ const ActionButtons = styled.div`
 const SelectionCount = styled.div`
   color: var(--color-text-2);
   font-size: 14px;
-  padding-left: 8px;
+  padding-inline-start: 8px;
   flex-shrink: 0;
 `
 

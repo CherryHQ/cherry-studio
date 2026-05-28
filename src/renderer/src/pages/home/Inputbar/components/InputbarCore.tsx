@@ -697,7 +697,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
 const DragHandle = styled.div`
   position: absolute;
   top: -3px;
-  left: 0;
+  inset-inline-start: 0;
   right: 0;
   height: 6px;
   display: flex;
@@ -745,7 +745,7 @@ const InputBarContainer = styled.div`
       content: '';
       position: absolute;
       top: 0;
-      left: 0;
+      inset-inline-start: 0;
       right: 0;
       bottom: 0;
       background-color: rgba(46, 204, 113, 0.03);
