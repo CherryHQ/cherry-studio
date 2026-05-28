@@ -5,6 +5,8 @@ import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
 import { execFileSync, spawn } from 'child_process'
 
+import { getBinarySearchDirs } from './process'
+
 const logger = loggerService.withContext('ShellEnv')
 
 // Give shells enough time to source profile files, but fail fast when they hang.
@@ -16,8 +18,7 @@ const SHELL_ENV_TIMEOUT_MS = 15_000
  */
 const appendCherryToolDirsToPath = (env: Record<string, string>) => {
   const pathSeparator = isWin ? ';' : ':'
-  const miseShimsPath = path.join(application.getPath('feature.binaries.data'), 'shims')
-  const cherryBinPath = application.getPath('cherry.bin')
+  const cherryToolDirs = getBinarySearchDirs()
   const pathKeys = Object.keys(env).filter((key) => key.toLowerCase() === 'path')
   const canonicalPathKey = pathKeys[0] || (isWin ? 'Path' : 'PATH')
   const existingPathValue = env[canonicalPathKey] || env.PATH || ''
@@ -45,8 +46,7 @@ const appendCherryToolDirsToPath = (env: Record<string, string>) => {
     .map((segment) => segment.trim())
     .forEach(pushIfUnique)
 
-  pushIfUnique(miseShimsPath)
-  pushIfUnique(cherryBinPath)
+  cherryToolDirs.forEach(pushIfUnique)
 
   const updatedPath = uniqueSegments.join(pathSeparator)
 

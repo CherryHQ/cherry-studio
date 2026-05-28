@@ -49,24 +49,32 @@ export async function getBinaryName(name: string): Promise<string> {
   return name
 }
 
+/**
+ * Directories that hold Cherry-managed binaries, in resolution order:
+ * mise shims first (user-installed wins), then `cherry.bin` (bundled fallback).
+ *
+ * Single source of truth for the binary path layout — both `getBinaryPath()`
+ * and the PATH-appending logic in `shell-env.ts` consume this. Do not hand-join
+ * `cherry.bin` / `feature.binaries.data` elsewhere.
+ */
+export function getBinarySearchDirs(): string[] {
+  return [path.join(application.getPath('feature.binaries.data'), 'shims'), application.getPath('cherry.bin')]
+}
+
 export async function getBinaryPath(name?: string): Promise<string> {
-  const binariesDir = application.getPath('cherry.bin')
+  const searchDirs = getBinarySearchDirs()
   if (!name) {
-    return binariesDir
+    // Legacy: no-arg returns the cherry.bin directory (extract target).
+    return application.getPath('cherry.bin')
   }
 
   const binaryName = await getBinaryName(name)
-
-  const miseShimPath = path.join(application.getPath('feature.binaries.data'), 'shims', binaryName)
-  if (fs.existsSync(miseShimPath)) {
-    return miseShimPath
+  for (const dir of searchDirs) {
+    const candidate = path.join(dir, binaryName)
+    if (fs.existsSync(candidate)) {
+      return candidate
+    }
   }
-
-  const cherryBinPath = path.join(binariesDir, binaryName)
-  if (fs.existsSync(cherryBinPath)) {
-    return cherryBinPath
-  }
-
   return binaryName
 }
 
