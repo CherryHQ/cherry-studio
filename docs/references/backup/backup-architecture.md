@@ -141,9 +141,11 @@ V1 备份系统存在以下致命缺陷：
 按外键依赖关系排序，确保被引用的表先导入：
 
 ```
-PREFERENCES → PROMPTS → MCP_SERVERS → TAGS_GROUPS → KNOWLEDGE → TOPICS →
-TRANSLATE_HISTORY → FILE_STORAGE → PROVIDERS → ASSISTANTS → AGENTS → MINIAPPS → SKILLS
+PREFERENCES → PROMPTS → MCP_SERVERS → TAGS_GROUPS → PROVIDERS → KNOWLEDGE → TOPICS →
+TRANSLATE_HISTORY → FILE_STORAGE → ASSISTANTS → AGENTS → MINIAPPS → SKILLS
 ```
+
+PROVIDERS 排在 KNOWLEDGE/TOPICS/ASSISTANTS 之前，因为 `knowledge_base`、`message`、`assistant` 的 `model_id` 列引用 `user_model`。
 
 跨域 FK 引用（如 `topic.assistant_id → assistant.id`）在导出时通过 `DomainStripper` 的 `CROSS_DOMAIN_FK_RULES` 置空处理，不依赖导入顺序。
 
@@ -178,7 +180,7 @@ TRANSLATE_HISTORY → FILE_STORAGE → PROVIDERS → ASSISTANTS → AGENTS → M
    - 批量 500 行读取备份 DB，写入活跃 DB
    - 应用冲突策略（见 §4.3）
 4. `FileRestorer` 恢复文件（大小相同则跳过）
-5. 重建 `message_fts`（DROP → CREATE → FTS5 `rebuild`）
+5. 重建 `message_fts`（由 `ImportOrchestrator` 执行 DROP → CREATE → FTS5 `rebuild`）
 6. 清理临时目录
 
 ### 4.3 冲突策略
