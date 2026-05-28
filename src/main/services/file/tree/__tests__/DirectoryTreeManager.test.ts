@@ -28,6 +28,30 @@ import { BaseService } from '@main/core/lifecycle'
 import * as builderModule from '../builder'
 import { DirectoryTreeManager } from '../DirectoryTreeManager'
 
+// Capture handlers registered via `ipcMain.handle` so the Zod validation
+// tests below can drive each channel without an actual Electron runtime.
+// Other electron surfaces (`app.isPackaged`, etc.) are stubbed minimally
+// because the import graph (logger, @main/utils' toAsarUnpackedPath) pulls
+// them in transitively.
+const registeredHandlers = new Map<string, (event: unknown, params: unknown) => unknown>()
+vi.mock('electron', () => ({
+  app: {
+    isPackaged: false,
+    getPath: () => '/tmp',
+    getAppPath: () => '/tmp'
+  },
+  ipcMain: {
+    handle: (channel: string, listener: (event: unknown, params: unknown) => unknown) => {
+      registeredHandlers.set(channel, listener)
+    },
+    removeHandler: (channel: string) => {
+      registeredHandlers.delete(channel)
+    },
+    on: () => {},
+    removeListener: () => {}
+  }
+}))
+
 /**
  * Minimal `WebContents`-shaped double. We only touch:
  *   - `id` (registry buckets by it)
@@ -97,6 +121,25 @@ describe('DirectoryTreeManager', () => {
     await registry.create(sender2, tmp, undefined)
 
     expect(spy).toHaveBeenCalledTimes(1)
+  })
+
+  it('dedupes truly concurrent creates via the inflight map (not just sequential reuse)', async () => {
+    // Sequential await skips the `inflight` map (the second call always
+    // finds an entry in `sharedBuilders` because the first finished). Two
+    // truly-parallel creates must hit the `pending` branch — otherwise a
+    // race could spawn two ripgrep scans + two chokidar watchers per root.
+    const spy = vi.spyOn(builderModule, 'createDirectoryTree')
+
+    const sender1 = makeSender(1)
+    const sender2 = makeSender(2)
+
+    const [created1, created2] = await Promise.all([
+      registry.create(sender1, tmp, undefined),
+      registry.create(sender2, tmp, undefined)
+    ])
+
+    expect(spy).toHaveBeenCalledTimes(1)
+    expect(created1.treeId).not.toBe(created2.treeId)
   })
 
   it('treats option objects with different key order or array order as the same key', async () => {
@@ -217,6 +260,39 @@ describe('DirectoryTreeManager', () => {
   it('rename(treeId, …) returns false when the treeId is unknown', () => {
     const applied = registry.rename('does-not-exist', '/a/old', '/a/new')
     expect(applied).toBe(false)
+  })
+
+  describe('IPC handler Zod validation', () => {
+    beforeEach(async () => {
+      registeredHandlers.clear()
+      await (registry as unknown as { _doInit: () => Promise<void> })._doInit()
+    })
+
+    it('File_TreeCreate rejects missing rootPath', async () => {
+      const handler = registeredHandlers.get('file:tree:create')!
+      await expect(handler({}, { options: { withStats: true } } as unknown)).rejects.toThrow()
+    })
+
+    it('File_TreeCreate rejects a relative rootPath', async () => {
+      const handler = registeredHandlers.get('file:tree:create')!
+      await expect(handler({}, { rootPath: 'relative/path' } as unknown)).rejects.toThrow()
+    })
+
+    it('File_TreeCreate rejects negative maxDepth', async () => {
+      const handler = registeredHandlers.get('file:tree:create')!
+      await expect(handler({}, { rootPath: tmp, options: { maxDepth: -1 } } as unknown)).rejects.toThrow()
+    })
+
+    it('File_TreeDispose rejects missing treeId', async () => {
+      const handler = registeredHandlers.get('file:tree:dispose')!
+      await expect(handler({}, {} as unknown)).rejects.toThrow()
+    })
+
+    it('File_TreeRename rejects relative oldPath / newPath', async () => {
+      const handler = registeredHandlers.get('file:tree:rename')!
+      await expect(handler({}, { treeId: 't-1', oldPath: 'a.md', newPath: '/abs/b.md' } as unknown)).rejects.toThrow()
+      await expect(handler({}, { treeId: 't-1', oldPath: '/abs/a.md', newPath: 'b.md' } as unknown)).rejects.toThrow()
+    })
   })
 
   it('drops all trees and their builders when the owning webContents is destroyed', async () => {

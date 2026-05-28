@@ -108,6 +108,11 @@ export function useDirectoryTree(rootPath: string | undefined, options?: Directo
   const [version, setVersion] = useState(0)
   const [treeId, setTreeId] = useState<string | null>(null)
   const mirrorRef = useRef<MirrorState | null>(null)
+  // Hold options in a ref. The ref is refreshed every render so that the
+  // *next* mount (i.e. after a rootPath change) uses the caller's latest
+  // option object — but it is read **only once** per mount, inside the
+  // effect's IIFE below. Stale options between rootPath-equal renders are
+  // therefore intentional, not a bug.
   const optionsRef = useRef<DirectoryTreeOptions | undefined>(options)
   optionsRef.current = options
 
@@ -177,9 +182,10 @@ export function useDirectoryTree(rootPath: string | undefined, options?: Directo
       mirrorRef.current = null
       setTreeId(null)
     }
-    // Re-create only on rootPath change. Options are sampled at mount time
-    // via optionsRef; later option changes do NOT trigger a rebuild — pass a
-    // new rootPath if you need different scan options.
+    // Re-create only on rootPath change. The `options` argument is sampled
+    // exactly once per mount (via `optionsRef.current` inside the IIFE
+    // above); subsequent renders update `optionsRef` but do NOT trigger a
+    // rebuild. Pass a new `rootPath` if you need a different scan.
   }, [rootPath])
 
   const getNode = useCallback((absPath: string): TreeNode | null => {

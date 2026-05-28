@@ -320,6 +320,30 @@ describe('createDirectoryTree — watcher mutations', () => {
     }
   })
 
+  it('dispose() stops the chokidar watcher so post-dispose FS changes emit nothing', async () => {
+    await writeFile(path.join(tmp, 'before.md'), 'x')
+    const builder = await createDirectoryTree(tmp, { extensions: ['.md'] })
+
+    const events: TreeMutationEvent[] = []
+    const sub = builder.onMutation((e) => events.push(e))
+
+    // Quick proof the watcher is alive: a write before dispose lands.
+    await writeFile(path.join(tmp, 'live.md'), 'y')
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(events.some((e) => e.type === 'added' && 'path' in e && e.path.endsWith('/live.md'))).toBe(true)
+
+    sub.dispose()
+    builder.dispose()
+    const eventsAtDispose = events.length
+
+    // After dispose, further FS mutations must not surface.
+    await writeFile(path.join(tmp, 'after.md'), 'z')
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    expect(events.length).toBe(eventsAtDispose)
+    // And the internal lookup map is cleared.
+    expect(builder.getNode(path.join(tmp, 'live.md'))).toBeNull()
+  })
+
   it('snapshot() returns a JSON tree without parent cycles', async () => {
     await writeFile(path.join(tmp, 'a.md'), '1')
     await mkdir(path.join(tmp, 's'))

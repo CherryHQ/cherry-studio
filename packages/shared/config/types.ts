@@ -26,14 +26,6 @@ export type LoaderReturn = {
   messageSource?: 'preprocess' | 'embedding' | 'validation'
 }
 
-export type FileChangeEventType = 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir' | 'refresh'
-
-export type FileChangeEvent = {
-  eventType: FileChangeEventType
-  filePath: string
-  watchPath: string
-}
-
 export type MCPProgressEvent = {
   callId: string
   progress: number // 0-1 range
