@@ -99,6 +99,22 @@ describe('DirectoryTreeManager', () => {
     expect(spy).toHaveBeenCalledTimes(1)
   })
 
+  it('treats option objects with different key order or array order as the same key', async () => {
+    const spy = vi.spyOn(builderModule, 'createDirectoryTree')
+
+    const sender1 = makeSender(1)
+    const sender2 = makeSender(2)
+    const sender3 = makeSender(3)
+
+    // Same options, three different literal shapes. Without canonical key
+    // serialization the JSON.stringify outputs differ and dedupe fails.
+    await registry.create(sender1, tmp, { extensions: ['md', 'txt'], withStats: true })
+    await registry.create(sender2, tmp, { withStats: true, extensions: ['md', 'txt'] })
+    await registry.create(sender3, tmp, { extensions: ['txt', 'md'], withStats: true })
+
+    expect(spy).toHaveBeenCalledTimes(1)
+  })
+
   it('fans watcher mutations out to every attached sender', async () => {
     const sender1 = makeSender(1)
     const sender2 = makeSender(2)

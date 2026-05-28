@@ -96,7 +96,29 @@ function builderKey(rootPath: string, options: DirectoryTreeOptions | undefined)
   // forward slash) so identical Windows paths spelled with different
   // separators dedupe to the same shared builder.
   const normalized = rootPath.replace(/\\/g, '/')
-  return `${normalized}${BUILDER_KEY_DELIMITER}${JSON.stringify(options ?? {})}`
+  return `${normalized}${BUILDER_KEY_DELIMITER}${canonicalizeOptions(options)}`
+}
+
+/**
+ * Stable serialization of `DirectoryTreeOptions` for use as a dedupe key.
+ * `JSON.stringify` is sensitive to key insertion order, so two callers that
+ * pass `{ withStats: true, includeHidden: true }` vs.
+ * `{ includeHidden: true, withStats: true }` would otherwise produce
+ * different keys and spawn redundant builders. Schema-derived field order
+ * gives us a deterministic shape regardless of the caller's literal.
+ */
+function canonicalizeOptions(options: DirectoryTreeOptions | undefined): string {
+  if (!options) return '{}'
+  const keys = Object.keys(DirectoryTreeOptionsSchema.shape).sort()
+  const ordered: Record<string, unknown> = {}
+  for (const k of keys) {
+    const v = (options as Record<string, unknown>)[k]
+    if (v === undefined) continue
+    // For array-valued options (`extensions`), normalize order too so
+    // `['md', 'txt']` and `['txt', 'md']` dedupe.
+    ordered[k] = Array.isArray(v) ? [...v].sort() : v
+  }
+  return JSON.stringify(ordered)
 }
 
 @Injectable('DirectoryTreeManager')
