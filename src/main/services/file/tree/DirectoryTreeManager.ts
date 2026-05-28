@@ -81,14 +81,30 @@ const logger = loggerService.withContext('file/tree/registry')
  */
 const DISPOSE_GRACE_MS = 500
 
-interface SharedBuilder {
+/**
+ * Per-builder bookkeeping, modeled as a discriminated union on `state`:
+ *
+ *  - `active`:   at least one consumer is attached; no grace timer armed.
+ *  - `draining`: the last consumer detached, the dispose timer is counting
+ *                down. A new `create` for the same key transitions back to
+ *                active and clears the timer; the timer firing transitions
+ *                to disposed (the entry is removed from `sharedBuilders`).
+ *
+ * State transitions allocate a new record and `Map.set` it under the same
+ * key — fields outside the union (`key`, `builder`, `consumers`) are
+ * preserved by reference so consumer references to the consumers Map stay
+ * live across transitions.
+ */
+type SharedBuilderBase = {
   readonly key: string
   readonly builder: DirectoryTreeBuilder
   /** treeId → consumer entry. `size` is the effective refcount. */
   readonly consumers: Map<string, Consumer>
-  /** Set when `consumers.size` is 0; cleared when a new consumer attaches. */
-  disposeTimer: ReturnType<typeof setTimeout> | null
 }
+
+type SharedBuilder =
+  | (SharedBuilderBase & { readonly state: 'active' })
+  | (SharedBuilderBase & { readonly state: 'draining'; readonly disposeTimer: ReturnType<typeof setTimeout> })
 
 interface Consumer {
   readonly treeId: string
@@ -96,7 +112,10 @@ interface Consumer {
   readonly sender: WebContents
   /** Subscription returned by `builder.onMutation()` — disposed when this consumer leaves. */
   readonly forwardSubscription: Disposable
-  readonly sharedBuilder: SharedBuilder
+  /** Stable builder reference for forwarding pushes / rename. */
+  readonly builder: DirectoryTreeBuilder
+  /** Key into `sharedBuilders`; survives state transitions on that record. */
+  readonly sharedBuilderKey: string
 }
 
 // Delimiter that cannot appear unescaped in any JSON.stringify output —
@@ -207,7 +226,7 @@ export class DirectoryTreeManager extends BaseService {
   rename(treeId: string, oldPath: string, newPath: string): boolean {
     const consumer = this.consumers.get(treeId)
     if (!consumer) return false
-    return consumer.sharedBuilder.builder.rename(oldPath, newPath)
+    return consumer.builder.rename(oldPath, newPath)
   }
 
   /**
@@ -221,10 +240,9 @@ export class DirectoryTreeManager extends BaseService {
     options: DirectoryTreeOptions | undefined
   ): Promise<CreateTreeIpcResult> {
     const key = builderKey(rootPath, options)
-    const shared = await this.acquireBuilder(key, rootPath, options)
-    if (shared.disposeTimer) {
-      clearTimeout(shared.disposeTimer)
-      shared.disposeTimer = null
+    let shared = await this.acquireBuilder(key, rootPath, options)
+    if (shared.state === 'draining') {
+      shared = this.transitionToActive(shared)
     }
 
     const treeId = randomUUID()
@@ -239,7 +257,8 @@ export class DirectoryTreeManager extends BaseService {
       webContentsId: sender.id,
       sender,
       forwardSubscription,
-      sharedBuilder: shared
+      builder: shared.builder,
+      sharedBuilderKey: shared.key
     }
     shared.consumers.set(treeId, consumer)
     this.consumers.set(treeId, consumer)
@@ -269,24 +288,16 @@ export class DirectoryTreeManager extends BaseService {
     if (!consumer) return false
     consumer.forwardSubscription.dispose()
     this.consumers.delete(treeId)
-    const shared = consumer.sharedBuilder
+    const shared = this.sharedBuilders.get(consumer.sharedBuilderKey)
+    if (!shared) return true
     shared.consumers.delete(treeId)
 
     const bucket = this.byWebContents.get(consumer.webContentsId)
     bucket?.delete(treeId)
     if (bucket && bucket.size === 0) this.byWebContents.delete(consumer.webContentsId)
 
-    if (shared.consumers.size === 0 && !shared.disposeTimer) {
-      // Hand the timer to BaseService so onStop's _cleanupDisposables
-      // clears it even if we never reach `tearDownIfIdle` naturally
-      // (lifecycle-usage.md §"Resources & Cleanup"). clearTimeout is
-      // idempotent so the disposable surviving past natural fire is fine.
-      // `.unref()` so a pending grace timer doesn't keep the process alive
-      // past app exit — the watcher cleanup is best-effort at shutdown.
-      const handle = setTimeout(() => this.tearDownIfIdle(shared), DISPOSE_GRACE_MS)
-      handle.unref()
-      shared.disposeTimer = handle
-      this.registerDisposable(() => clearTimeout(handle))
+    if (shared.consumers.size === 0 && shared.state === 'active') {
+      this.transitionToDraining(shared)
     }
     return true
   }
@@ -313,9 +324,8 @@ export class DirectoryTreeManager extends BaseService {
     // After all consumers are gone, also force-tear shared builders so
     // tests don't wait for the grace timer.
     for (const shared of Array.from(this.sharedBuilders.values())) {
-      if (shared.disposeTimer) {
+      if (shared.state === 'draining') {
         clearTimeout(shared.disposeTimer)
-        shared.disposeTimer = null
       }
       shared.builder.dispose()
       this.sharedBuilders.delete(shared.key)
@@ -363,7 +373,7 @@ export class DirectoryTreeManager extends BaseService {
           key,
           builder,
           consumers: new Map(),
-          disposeTimer: null
+          state: 'active'
         }
         this.sharedBuilders.set(key, shared)
         return shared
@@ -376,10 +386,52 @@ export class DirectoryTreeManager extends BaseService {
     return promise
   }
 
-  private tearDownIfIdle(shared: SharedBuilder): void {
-    shared.disposeTimer = null
+  /**
+   * Arm the grace-window timer and transition `shared` from `active` to
+   * `draining`. Replaces the map record so the union type narrows correctly
+   * at every other call site.
+   */
+  private transitionToDraining(shared: SharedBuilder & { state: 'active' }): void {
+    // Hand the timer to BaseService so onStop's _cleanupDisposables clears
+    // it even if we never reach `tearDownIfIdle` naturally. clearTimeout is
+    // idempotent so the disposable surviving past natural fire is fine.
+    // `.unref()` so a pending grace timer doesn't keep the process alive
+    // past app exit — the watcher cleanup is best-effort at shutdown.
+    const handle = setTimeout(() => this.tearDownIfIdle(shared.key), DISPOSE_GRACE_MS)
+    handle.unref()
+    this.registerDisposable(() => clearTimeout(handle))
+    const next: SharedBuilder = {
+      key: shared.key,
+      builder: shared.builder,
+      consumers: shared.consumers,
+      state: 'draining',
+      disposeTimer: handle
+    }
+    this.sharedBuilders.set(shared.key, next)
+  }
+
+  /**
+   * Cancel the grace-window timer and transition back to `active`. Called
+   * when a new consumer attaches to a builder that was already draining
+   * (the React-commit-ordering case described in directory-tree.md §3.2).
+   */
+  private transitionToActive(shared: SharedBuilder & { state: 'draining' }): SharedBuilder & { state: 'active' } {
+    clearTimeout(shared.disposeTimer)
+    const next: SharedBuilder & { state: 'active' } = {
+      key: shared.key,
+      builder: shared.builder,
+      consumers: shared.consumers,
+      state: 'active'
+    }
+    this.sharedBuilders.set(shared.key, next)
+    return next
+  }
+
+  private tearDownIfIdle(key: string): void {
+    const shared = this.sharedBuilders.get(key)
+    if (!shared || shared.state !== 'draining') return
     if (shared.consumers.size > 0) return
     shared.builder.dispose()
-    this.sharedBuilders.delete(shared.key)
+    this.sharedBuilders.delete(key)
   }
 }

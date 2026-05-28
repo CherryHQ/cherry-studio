@@ -230,12 +230,13 @@ describe('DirectoryTreeManager', () => {
 
     const disposedSpy = vi.fn()
     const consumer = (
-      registry as unknown as { consumers: Map<string, { sharedBuilder: { builder: { dispose: typeof disposedSpy } } }> }
+      registry as unknown as { consumers: Map<string, { builder: { dispose: typeof disposedSpy } }> }
     ).consumers.get(created.treeId)
-    const realDispose = consumer!.sharedBuilder.builder.dispose
-    consumer!.sharedBuilder.builder.dispose = ((): void => {
+    const builder = consumer!.builder
+    const realDispose = builder.dispose
+    builder.dispose = ((): void => {
       disposedSpy()
-      realDispose.call(consumer!.sharedBuilder.builder)
+      realDispose.call(builder)
     }) as typeof realDispose
 
     registry.dispose(created.treeId)
