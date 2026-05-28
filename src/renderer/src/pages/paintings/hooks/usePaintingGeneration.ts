@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import { presentPaintingGenerateError } from '@renderer/aiCore/errors/paintingGenerateError'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { uuid } from '@renderer/utils'
@@ -14,7 +15,7 @@ import {
 } from '../model/paintingAbortControllerStore'
 import { paintingGenerate } from '../model/paintingPipeline'
 import type { PaintingData } from '../model/types/paintingData'
-import type { PaintingGenerationState } from '../model/utils/paintingGenerationParams'
+import { type PaintingGenerationState, paintingGenerationStateToCache } from '../model/utils/paintingGenerationParams'
 import { usePaintingProviderRuntime } from './usePaintingProviderRuntime'
 
 function hasOutput(painting: PaintingData) {
@@ -31,20 +32,15 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
   const currentProviderId = painting.providerId
   const { provider } = usePaintingProviderRuntime(currentProviderId)
   const visibleIdRef = useRef(painting.id)
-  const inFlightIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     visibleIdRef.current = painting.id
   }, [painting.id])
 
-  useEffect(
-    () => () => {
-      if (inFlightIdRef.current) {
-        abortPaintingGeneration(inFlightIdRef.current)
-      }
-    },
-    []
-  )
+  // No unmount-abort: the page-level cache mirror in
+  // `painting.generation.${id}` lets a navigated-away generation finish,
+  // and the spinner rehydrates when the user returns. Explicit cancel still
+  // flows through `cancelGeneration → abortPaintingGeneration`.
 
   const isGenerating = useCallback((p: Pick<PaintingData, 'generationStatus'>) => {
     return p.generationStatus === 'running'
@@ -89,20 +85,22 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
       generationProgress: 0
     }
     const controller = new AbortController()
+    const cacheKey = `painting.generation.${targetPainting.id}` as const
 
-    // Generation state (running/failed/canceled, taskId, progress) is
-    // in-memory only — the painting row is a frozen receipt of completed
-    // work, not a state container. On reload, in-flight generations from a
-    // previous session are simply gone; on success we persist final files.
+    // Generation state (running/failed/canceled, taskId, progress) is the
+    // page's in-memory state plus a Memory-cache mirror keyed by paintingId.
+    // The cache mirror outlives this component's unmount, so navigating away
+    // and back rehydrates the running spinner. The painting DB row stays a
+    // frozen receipt — only final files persist there.
     const pushGenerationState = (updates: Partial<PaintingGenerationState>) => {
       Object.assign(generationState, updates, { generationStatus: 'running' as const })
+      cacheService.set(cacheKey, paintingGenerationStateToCache(generationState))
       applyIfVisible({ ...targetPainting, ...generationState } as PaintingData)
     }
 
     visibleIdRef.current = targetPainting.id
     onPaintingChange({ ...targetPainting, ...generationState } as PaintingData)
     registerPaintingAbortController(targetPainting.id, controller)
-    inFlightIdRef.current = targetPainting.id
     pushGenerationState(generationState)
 
     try {
@@ -119,6 +117,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
           input: paintingDataToCreateDto(targetPainting).files?.input ?? []
         }
       })
+      cacheService.set(cacheKey, null)
       applyIfVisible(await recordToPaintingData(updatedRecord))
       await refresh()
     } catch (error) {
@@ -128,15 +127,13 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
         generationStatus: isCanceled ? 'canceled' : 'failed',
         generationError: isCanceled ? null : error instanceof Error ? error.message : String(error)
       }
+      cacheService.set(cacheKey, paintingGenerationStateToCache(failedState))
       applyIfVisible({ ...targetPainting, ...failedState } as PaintingData)
       if (!isCanceled) {
         presentPaintingGenerateError(error)
       }
     } finally {
       clearPaintingAbortController(targetPainting.id, controller)
-      if (inFlightIdRef.current === targetPainting.id) {
-        inFlightIdRef.current = null
-      }
     }
   }, [applyIfVisible, createPainting, painting, provider, refresh, onPaintingChange, updatePainting])
 

@@ -1,7 +1,8 @@
 import './painting-theme.css'
 
+import { useCache } from '@data/hooks/useCache'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { type FC, useCallback, useEffect, useRef, useState } from 'react'
+import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import Artboard from './components/Artboard'
 import PaintingModelSelector from './components/PaintingModelSelector'
@@ -18,6 +19,7 @@ import { usePaintingModelSwitch } from './hooks/usePaintingModelSwitch'
 import { usePaintingProviderOptions } from './hooks/usePaintingProviderOptions'
 import { createDefaultPainting } from './model/paintingPipeline'
 import type { PaintingData } from './model/types/paintingData'
+import { cacheToPaintingGenerationState } from './model/utils/paintingGenerationParams'
 import { paintingClasses } from './PaintingPrimitives'
 
 const PaintingPage: FC = () => {
@@ -34,6 +36,11 @@ const PaintingPage: FC = () => {
 
   usePaintingInitialSelection({ currentPainting, historyItems: history.items, setCurrentPainting })
 
+  // Rehydrate the running spinner after a page switch: the cache mirror of
+  // generation state survives unmount, so re-mounting picks it back up.
+  const [cachedGeneration] = useCache(`painting.generation.${currentPainting.id}`)
+  const liveGenerationState = useMemo(() => cacheToPaintingGenerationState(cachedGeneration), [cachedGeneration])
+
   const currentProviderId = currentPainting.providerId || initialProviderId
 
   const modelCatalog = usePaintingModelCatalog({
@@ -42,7 +49,7 @@ const PaintingPage: FC = () => {
   })
 
   const {
-    generating,
+    generating: liveGenerating,
     submit,
     cancel: cancelGeneration
   } = usePaintingGenerationSubmit({
@@ -51,6 +58,12 @@ const PaintingPage: FC = () => {
     selectorData: modelCatalog.selectorData,
     ensureCurrentCatalog: modelCatalog.ensureCurrentCatalog
   })
+
+  // After a page switch the local `liveGenerating` boots false because
+  // `usePaintingGeneration` reads from `painting.generationStatus` — the
+  // painting record is a frozen receipt with no status. The cache fills the
+  // gap: if its `status === 'running'` for this painting, keep the spinner.
+  const generating = liveGenerating || liveGenerationState.generationStatus === 'running'
 
   const switchModel = usePaintingModelSwitch({
     painting: currentPainting,
