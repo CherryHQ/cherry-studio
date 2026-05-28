@@ -81,6 +81,7 @@ describe('PpioTransport', () => {
       .mockResolvedValue(new Response(JSON.stringify({ task_id: 't-1' }), { status: 200 }))
 
     await transport.submit({
+      modelId: 'jimeng-txt2img-v3.1',
       prompt: 'a fox',
       n: 1,
       size: undefined,
@@ -113,6 +114,7 @@ describe('PpioTransport', () => {
     )
 
     const result = await transport.submit({
+      modelId: 'seedream-4.5-draw',
       prompt: 'a fox',
       n: 1,
       size: undefined,
@@ -144,6 +146,7 @@ describe('PpioTransport', () => {
 
     const promise = transport
       .submit({
+        modelId: 'seedream-4.5-draw',
         prompt: 'a fox',
         n: 1,
         size: undefined,
@@ -173,6 +176,7 @@ describe('PpioTransport', () => {
     )
 
     const result = await transport.submit({
+      modelId: 'seedream-5.0-lite',
       prompt: 'a fox',
       n: 1,
       size: undefined,
@@ -210,6 +214,7 @@ describe('PpioTransport', () => {
       .mockResolvedValue(new Response(JSON.stringify({ images: ['https://img/a.png'] }), { status: 200 }))
 
     await transport.submit({
+      modelId: 'seedream-4.0',
       prompt: 'edit it',
       n: 1,
       size: undefined,
@@ -241,6 +246,7 @@ describe('PpioTransport', () => {
       .mockResolvedValue(new Response(JSON.stringify({ task_id: 't-glm' }), { status: 200 }))
 
     const result = await transport.submit({
+      modelId: 'glm-image',
       prompt: 'a fox',
       n: 1,
       size: undefined,

@@ -118,10 +118,10 @@ class ModelscopeTransport implements ImageGenerationTransport {
   }
 
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
-    const bag = (input.providerParams ?? {}) as Record<string, unknown>
+    const bag = input.providerParams ?? {}
 
     const body: Record<string, unknown> = {
-      model: readString(bag, 'model'),
+      model: input.modelId,
       prompt: input.prompt ?? ''
     }
 

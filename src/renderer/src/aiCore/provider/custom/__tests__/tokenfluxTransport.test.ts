@@ -53,6 +53,7 @@ describe('TokenFluxTransport', () => {
       .mockResolvedValue(new Response(JSON.stringify({ success: true, data: { id: 'gen-9' } }), { status: 200 }))
 
     const result = await transport.submit({
+      modelId: 'flux-pro',
       prompt: 'a dog',
       n: 1,
       size: undefined,
@@ -82,6 +83,7 @@ describe('TokenFluxTransport', () => {
     })
 
     const promise = transport.submit({
+      modelId: 'flux-pro',
       prompt: 'a dog',
       n: 1,
       size: undefined,

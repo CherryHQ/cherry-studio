@@ -14,6 +14,7 @@ export interface ImageGenerationTransport {
  * `onProgress` callback nested in it survives to the transport.
  */
 export interface ImageGenerationSubmitInput {
+  modelId: string
   prompt: string | undefined
   n: number
   size: `${number}x${number}` | undefined
@@ -75,6 +76,7 @@ export function createImageGenerationModel(
           : undefined
 
       const submitResult = await transport.submit({
+        modelId,
         prompt: options.prompt,
         n: options.n,
         size: options.size,

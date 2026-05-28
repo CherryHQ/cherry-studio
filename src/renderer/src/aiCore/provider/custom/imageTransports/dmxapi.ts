@@ -23,6 +23,7 @@ export const DEFAULT_DMXAPI_BASE_URL = 'https://www.dmxapi.com'
 const EDIT_OR_MERGE_MODES = new Set(['edit', 'merge'])
 
 interface NormalizedInput {
+  modelId: string
   prompt: string
   n: number
   size: string | undefined
@@ -80,7 +81,7 @@ class DmxapiTransport implements ImageGenerationTransport {
   private prepareV1Request(input: NormalizedInput, params: DmxapiProviderParams) {
     const body: Record<string, any> = {
       prompt: input.prompt,
-      model: params.model,
+      model: input.modelId,
       n: input.n,
       ...params.extendParams
     }
@@ -107,7 +108,7 @@ class DmxapiTransport implements ImageGenerationTransport {
     const body: Record<string, any> = {
       prompt: input.prompt,
       n: input.n,
-      model: params.model,
+      model: input.modelId,
       ...params.extendParams
     }
 
@@ -134,7 +135,7 @@ class DmxapiTransport implements ImageGenerationTransport {
   private prepareRequestConfig(input: NormalizedInput, params: DmxapiProviderParams) {
     const isEditOrMerge = EDIT_OR_MERGE_MODES.has(params.mode ?? '')
 
-    if (isEditOrMerge && params.model !== 'seededit-3.0') {
+    if (isEditOrMerge && input.modelId !== 'seededit-3.0') {
       return this.prepareV2Request(input, params)
     }
     return this.prepareV1Request(input, params)
@@ -143,6 +144,7 @@ class DmxapiTransport implements ImageGenerationTransport {
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const params = input.providerParams as DmxapiProviderParams
     const normalized: NormalizedInput = {
+      modelId: input.modelId,
       prompt: input.prompt ?? '',
       n: input.n,
       size: input.size,

@@ -21,6 +21,7 @@ describe('DmxapiTransport', () => {
   })
 
   const baseInput = {
+    modelId: 'm',
     n: 1,
     size: undefined,
     seed: undefined,
@@ -36,6 +37,7 @@ describe('DmxapiTransport', () => {
 
     const result = await transport.submit({
       ...baseInput,
+      modelId: 'flux-1',
       prompt: 'a fox',
       providerParams: {
         model: 'flux-1',
@@ -72,6 +74,7 @@ describe('DmxapiTransport', () => {
 
     await transport.submit({
       ...baseInput,
+      modelId: 'm',
       prompt: 'p',
       providerParams: { model: 'm', n: 1, seed: '42', mode: 'generation' }
     })
@@ -140,6 +143,7 @@ describe('DmxapiTransport', () => {
 
     await transport.submit({
       ...baseInput,
+      modelId: 'seededit-3.0',
       prompt: 'p',
       providerParams: { model: 'seededit-3.0', n: 1, mode: 'edit' }
     })
@@ -155,6 +159,7 @@ describe('DmxapiTransport', () => {
 
     const result = await transport.submit({
       ...baseInput,
+      modelId: 'm',
       prompt: 'p',
       providerParams: { model: 'm', n: 1, mode: 'generation' }
     })
@@ -166,12 +171,22 @@ describe('DmxapiTransport', () => {
     const transport = createDmxapiTransport({ apiKey: 'bad' })
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response('', { status: 401 }))
     await expect(
-      transport.submit({ ...baseInput, prompt: 'p', providerParams: { model: 'm', n: 1, mode: 'generation' } })
+      transport.submit({
+        ...baseInput,
+        modelId: 'm',
+        prompt: 'p',
+        providerParams: { model: 'm', n: 1, mode: 'generation' }
+      })
     ).rejects.toMatchObject({ name: 'PaintingGenerateError', code: 'REQ_ERROR_TOKEN' })
 
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response('', { status: 403 }))
     await expect(
-      transport.submit({ ...baseInput, prompt: 'p', providerParams: { model: 'm', n: 1, mode: 'generation' } })
+      transport.submit({
+        ...baseInput,
+        modelId: 'm',
+        prompt: 'p',
+        providerParams: { model: 'm', n: 1, mode: 'generation' }
+      })
     ).rejects.toMatchObject({ name: 'PaintingGenerateError', code: 'REQ_ERROR_NO_BALANCE' })
   })
 
@@ -181,7 +196,12 @@ describe('DmxapiTransport', () => {
       new Response(JSON.stringify({ error: { message: 'rate limited' } }), { status: 429 })
     )
     await expect(
-      transport.submit({ ...baseInput, prompt: 'p', providerParams: { model: 'm', n: 1, mode: 'generation' } })
+      transport.submit({
+        ...baseInput,
+        modelId: 'm',
+        prompt: 'p',
+        providerParams: { model: 'm', n: 1, mode: 'generation' }
+      })
     ).rejects.toMatchObject({ name: 'PaintingGenerateError', code: 'REMOTE_ERROR', message: 'rate limited' })
   })
 
@@ -200,6 +220,7 @@ describe('DmxapiTransport', () => {
 
     const promise = transport.submit({
       ...baseInput,
+      modelId: 'm',
       prompt: 'p',
       providerParams: { model: 'm', n: 1, mode: 'generation' },
       signal: controller.signal

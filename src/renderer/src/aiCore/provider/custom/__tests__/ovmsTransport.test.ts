@@ -13,6 +13,7 @@ describe('OvmsTransport', () => {
   })
 
   const baseInput = {
+    modelId: 'test-model',
     n: 1,
     size: undefined,
     seed: undefined,
@@ -28,6 +29,7 @@ describe('OvmsTransport', () => {
 
     const result = await transport.submit({
       ...baseInput,
+      modelId: 'sd',
       prompt: 'a cat',
       providerParams: { model: 'sd', size: '768x768', numInferenceSteps: 8, rngSeed: 7 }
     })
@@ -53,7 +55,7 @@ describe('OvmsTransport', () => {
       .spyOn(globalThis, 'fetch')
       .mockResolvedValue(new Response(JSON.stringify({ data: [] }), { status: 200 }))
 
-    await transport.submit({ ...baseInput, prompt: 'p', providerParams: { model: 'sd' } })
+    await transport.submit({ ...baseInput, modelId: 'sd', prompt: 'p', providerParams: { model: 'sd' } })
 
     expect(JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)).toMatchObject({
       size: '512x512',
@@ -68,7 +70,7 @@ describe('OvmsTransport', () => {
       new Response(JSON.stringify({ data: [{ b64_json: 'QUJD' }, { url: 'http://local/x.png' }] }), { status: 200 })
     )
 
-    const result = await transport.submit({ ...baseInput, prompt: 'p', providerParams: { model: 'sd' } })
+    const result = await transport.submit({ ...baseInput, modelId: 'sd', prompt: 'p', providerParams: { model: 'sd' } })
     expect(result).toEqual({ imageUrls: ['data:image/png;base64,QUJD'] })
   })
 
@@ -78,7 +80,7 @@ describe('OvmsTransport', () => {
       new Response(JSON.stringify({ data: [{ url: 'http://local/y.png' }] }), { status: 200 })
     )
 
-    const result = await transport.submit({ ...baseInput, prompt: 'p', providerParams: { model: 'sd' } })
+    const result = await transport.submit({ ...baseInput, modelId: 'sd', prompt: 'p', providerParams: { model: 'sd' } })
     expect(result).toEqual({ imageUrls: ['http://local/y.png'] })
   })
 
@@ -88,9 +90,9 @@ describe('OvmsTransport', () => {
       new Response(JSON.stringify({ error: { message: 'bad model' } }), { status: 500 })
     )
 
-    await expect(transport.submit({ ...baseInput, prompt: 'p', providerParams: { model: 'sd' } })).rejects.toThrow(
-      'bad model'
-    )
+    await expect(
+      transport.submit({ ...baseInput, modelId: 'sd', prompt: 'p', providerParams: { model: 'sd' } })
+    ).rejects.toThrow('bad model')
   })
 
   it('forwards the abort signal to fetch', async () => {
@@ -108,6 +110,7 @@ describe('OvmsTransport', () => {
 
     const promise = transport.submit({
       ...baseInput,
+      modelId: 'sd',
       prompt: 'p',
       providerParams: { model: 'sd' },
       signal: controller.signal

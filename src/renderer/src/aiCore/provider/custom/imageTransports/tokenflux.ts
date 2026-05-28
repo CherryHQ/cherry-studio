@@ -76,7 +76,7 @@ class TokenFluxTransport implements ImageGenerationTransport {
   async submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }> {
     const params = input.providerParams as TokenFluxProviderParams
     const request: TokenFluxGenerationRequest = {
-      model: params.model ?? '',
+      model: input.modelId,
       input: {
         prompt: input.prompt ?? '',
         ...params.inputParams

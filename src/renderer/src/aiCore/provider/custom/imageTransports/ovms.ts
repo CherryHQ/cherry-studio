@@ -55,7 +55,7 @@ class OvmsTransport implements ImageGenerationTransport {
     const bag = (input.providerParams ?? {}) as Record<string, unknown>
 
     const requestBody = {
-      model: readString(bag, 'model'),
+      model: input.modelId,
       prompt: input.prompt ?? '',
       size: input.size ?? readString(bag, 'size') ?? '512x512',
       num_inference_steps: readNumber(bag, 'numInferenceSteps', 'num_inference_steps') ?? 4,
