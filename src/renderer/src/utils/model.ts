@@ -6,6 +6,7 @@ import {
   isVisionModel,
   isWebSearchModel
 } from '@renderer/config/models'
+import { getModel } from '@renderer/hooks/useModel'
 import type { AdaptedApiModel, ApiModel, Model, ModelTag } from '@renderer/types'
 import { objectKeys } from '@renderer/types'
 
@@ -91,11 +92,16 @@ export const getDuplicateModelNames = <T extends Pick<Model, 'name'>>(models: T[
 }
 
 export const apiModelAdapter = (model: ApiModel): AdaptedApiModel => {
+  // Look up the model in the Redux store to get user-defined capabilities
+  const storedModel = getModel(model.provider_model_id ?? model.id, model.provider)
+
   return {
     id: model.provider_model_id ?? model.id,
     provider: model.provider ?? '',
     name: model.name,
     group: '',
+    // Preserve user-defined capabilities from Redux store
+    capabilities: storedModel?.capabilities,
     origin: model
   }
 }

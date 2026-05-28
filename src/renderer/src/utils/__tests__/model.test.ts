@@ -4,14 +4,18 @@ import { describe, expect, it, vi } from 'vitest'
 import { getDuplicateModelNames, getModelTags, isFreeModel } from '../model'
 
 // Mock the model checking functions from @renderer/config/models
-vi.mock('@renderer/config/models', () => ({
-  isVisionModel: vi.fn().mockImplementation((m: Model) => m.id === 'vision'),
-  isEmbeddingModel: vi.fn().mockImplementation((m: Model) => m.id === 'embedding'),
-  isReasoningModel: vi.fn().mockImplementation((m: Model) => m.id === 'reasoning'),
-  isFunctionCallingModel: vi.fn().mockImplementation((m: Model) => m.id === 'tool'),
-  isWebSearchModel: vi.fn().mockImplementation((m: Model) => m.id === 'search'),
-  isRerankModel: vi.fn().mockImplementation((m: Model) => m.id === 'rerank')
-}))
+vi.mock(import('@renderer/config/models'), async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    isVisionModel: vi.fn().mockImplementation((m: Model) => m.id === 'vision'),
+    isEmbeddingModel: vi.fn().mockImplementation((m: Model) => m.id === 'embedding'),
+    isReasoningModel: vi.fn().mockImplementation((m: Model) => m.id === 'reasoning'),
+    isFunctionCallingModel: vi.fn().mockImplementation((m: Model) => m.id === 'tool'),
+    isWebSearchModel: vi.fn().mockImplementation((m: Model) => m.id === 'search'),
+    isRerankModel: vi.fn().mockImplementation((m: Model) => m.id === 'rerank')
+  }
+})
 
 describe('model', () => {
   describe('isFreeModel', () => {
