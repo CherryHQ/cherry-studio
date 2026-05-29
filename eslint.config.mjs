@@ -151,6 +151,62 @@ export default defineConfig([
       ]
     }
   },
+  // FilePath brand integrity — `as FilePath` forges the brand, skipping
+  // FilePathSchema's canonicalization (NFC normalize + segment resolution).
+  // Production code must build a FilePath via FilePathSchema.parse(value).
+  // Exemptions: the brand's own home (src/shared/file/**); test fixtures (which
+  // use `'lit' as FilePath` for brevity); and two deliberate raw-OS-path
+  // regimes — the directory watcher emits the raw path by design, and the tree
+  // builder compares rootPath against raw absPaths — where canonicalizing would
+  // reintroduce the NFC divergence this brand exists to prevent.
+  {
+    files: ['src/**/*.{ts,tsx}'],
+    ignores: [
+      'src/shared/file/**',
+      'src/main/services/file/watcher/**',
+      'src/main/services/file/tree/**',
+      'src/**/__tests__/**',
+      'src/**/__mocks__/**',
+      'src/**/*.test.*'
+    ],
+    plugins: {
+      'filepath-brand': {
+        rules: {
+          'no-as-filepath': {
+            meta: {
+              type: 'problem',
+              docs: {
+                description:
+                  'Disallow `as FilePath` casts. FilePath is a Zod brand asserting a canonicalized path; forging it bypasses the canonicalization guarantee. Construct via FilePathSchema.parse().',
+                recommended: true
+              },
+              messages: {
+                noAsFilePath:
+                  '`as FilePath` forges the brand and skips canonicalization. Build it with FilePathSchema.parse(value) instead. If this is a deliberate raw-path regime, move it under an exempted path or justify with an eslint-disable + reason.'
+              }
+            },
+            create(context) {
+              return {
+                TSAsExpression(node) {
+                  const ann = node.typeAnnotation
+                  if (
+                    ann?.type === 'TSTypeReference' &&
+                    ann.typeName?.type === 'Identifier' &&
+                    ann.typeName.name === 'FilePath'
+                  ) {
+                    context.report({ node, messageId: 'noAsFilePath' })
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    rules: {
+      'filepath-brand/no-as-filepath': process.env.CI ? 'error' : 'warn'
+    }
+  },
   // Application lifecycle - all quit-related APIs and events are managed by Application.ts
   {
     files: ['src/main/**/*.{ts,tsx,js,jsx}'],

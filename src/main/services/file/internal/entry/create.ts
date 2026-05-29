@@ -16,7 +16,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { atomicWriteFile, copy as fsCopy, download, remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
 import type { FileEntry } from '@shared/data/types/file'
-import type { FilePath } from '@shared/file/types'
+import { type FilePath, FilePathSchema } from '@shared/file/types'
 import mime from 'mime'
 import { v7 as uuidv7 } from 'uuid'
 
@@ -133,7 +133,7 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
   const source = normaliseSource(params)
   const id = uuidv7()
   const filename = `${id}${source.ext ? `.${source.ext}` : ''}`
-  const physical = application.getPath('feature.files.data', filename) as FilePath
+  const physical = FilePathSchema.parse(application.getPath('feature.files.data', filename))
   await source.writeTo(physical)
   let stats
   try {

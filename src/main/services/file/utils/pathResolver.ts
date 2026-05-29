@@ -1,6 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { FilePath } from '@shared/file/types'
+import { type FilePath, FilePathSchema } from '@shared/file/types'
 
 const logger = loggerService.withContext('pathResolver')
 
@@ -50,7 +50,7 @@ export function resolvePhysicalPath(entry: PathResolvableEntry): FilePath {
   }
 
   if (entry.origin === 'internal') {
-    return application.getPath('feature.files.data', `${entry.id}${getExtSuffix(entry.ext)}`) as FilePath
+    return FilePathSchema.parse(application.getPath('feature.files.data', `${entry.id}${getExtSuffix(entry.ext)}`))
   }
 
   // entry.origin === 'external' — schema discriminator guarantees externalPath

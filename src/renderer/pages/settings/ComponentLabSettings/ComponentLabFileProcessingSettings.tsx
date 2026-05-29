@@ -6,7 +6,7 @@ import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
 import type { FileProcessingArtifact } from '@shared/data/types/fileProcessing'
-import type { FilePath } from '@shared/file/types'
+import { FilePathSchema } from '@shared/file/types'
 import type { FileMetadata } from '@types'
 import { CheckCircle2, CircleAlert, FileText, Image, Loader2, Play, Upload } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
@@ -327,7 +327,7 @@ const ComponentLabFileProcessingSettings: FC = () => {
       setRuns((current) => ({ ...current, [section.feature]: {} }))
 
       const startedAt = Date.now()
-      const fileEntry = window.api.file.ensureExternalEntry({ externalPath: file.path as FilePath })
+      const fileEntry = window.api.file.ensureExternalEntry({ externalPath: FilePathSchema.parse(file.path) })
       const results = await Promise.allSettled(
         processorsForFeature.map(async (processor) => {
           const entry = await fileEntry

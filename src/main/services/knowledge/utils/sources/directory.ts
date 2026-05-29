@@ -81,6 +81,7 @@ async function readDirectoryTree(
 async function expandDirectoryNode(node: NotesTreeNode, signal: AbortSignal): Promise<ExpandedDirectoryNode | null> {
   if (node.type === 'file') {
     const fileManager = application.get('FileManager')
+    // eslint-disable-next-line filepath-brand/no-as-filepath -- KNOWN-DEFERRED: node.externalPath is raw (possibly NFD on macOS) because NotesTreeNode.externalPath is untyped string. The real fix is FilePath-branding that field, deferred as a separate follow-up (PR #15406 review B1) — not a downstream parse here. Until then this in-process call can persist a non-canonical externalPath.
     const entry = await fileManager.ensureExternalEntry({ externalPath: node.externalPath as FilePath })
     signal.throwIfAborted()
 
