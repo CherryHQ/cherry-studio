@@ -65,6 +65,38 @@ export async function captureImageRequest(
 }
 
 /**
+ * Inbound boundary: run a `submit`-based transport against a canned vendor
+ * response (global `fetch` mocked) and return the parsed `{ imageUrls | taskId }`.
+ */
+export async function submitWithResponse(
+  transport: ImageGenerationTransport,
+  input: ImageGenerationSubmitInput,
+  responseBody: unknown
+): Promise<{ taskId?: string; imageUrls?: string[] }> {
+  const spy = vi
+    .spyOn(globalThis, 'fetch')
+    .mockResolvedValue(new Response(JSON.stringify(responseBody), { status: 200 }))
+  try {
+    return await transport.submit(input)
+  } finally {
+    spy.mockRestore()
+  }
+}
+
+/**
+ * Inbound boundary for units with an injectable `fetch` (image models): the
+ * caller wires the provided fetch — which returns `responseBody` — and runs.
+ */
+export function runWithResponse<T>(
+  responseBody: unknown,
+  run: (fetch: typeof globalThis.fetch) => PromiseLike<T>
+): Promise<T> {
+  const fetch = (() =>
+    Promise.resolve(new Response(JSON.stringify(responseBody), { status: 200 }))) as typeof globalThis.fetch
+  return Promise.resolve(run(fetch))
+}
+
+/**
  * Capture the outbound request when the unit accepts an *injectable* `fetch`
  * (e.g. image models that bind `config.fetch` at construction, before any
  * global mock would apply). The caller wires the provided fetch in and runs.
