@@ -1,25 +1,28 @@
-import { useTranslation } from 'react-i18next'
-import useSWR from 'swr'
+import { useQuery } from '@renderer/data/hooks/useDataApi'
+import type { GetAgentSessionResponse } from '@renderer/types'
+import { useMemo } from 'react'
 
-import { useAgentClient } from './useAgentClient'
 import { useUpdateSession } from './useUpdateSession'
+import { parseAgentConfiguration } from './utils'
 
 export const useSession = (agentId: string | null, sessionId: string | null) => {
-  const { t } = useTranslation()
-  const client = useAgentClient()
-  const key = agentId && sessionId ? client.getSessionPaths(agentId).withId(sessionId) : null
+  const { data, error, isLoading, mutate } = useQuery('/agents/:agentId/sessions/:sessionId', {
+    params: { agentId: agentId!, sessionId: sessionId! },
+    enabled: !!(agentId && sessionId),
+    swrOptions: { keepPreviousData: false }
+  })
   const { updateSession } = useUpdateSession(agentId)
 
-  const fetcher = async () => {
-    if (!agentId) throw new Error(t('agent.get.error.null_id'))
-    if (!sessionId) throw new Error(t('agent.session.get.error.null_id'))
-    const data = await client.getSession(agentId, sessionId)
-    return data
-  }
-  const { data, error, isLoading, mutate } = useSWR(key, fetcher)
+  const session = useMemo((): GetAgentSessionResponse | undefined => {
+    if (!data) return undefined
+    return {
+      ...(data as unknown as GetAgentSessionResponse),
+      configuration: parseAgentConfiguration(data.configuration, { entityId: data.id, entityType: 'session' })
+    }
+  }, [data])
 
   return {
-    session: data,
+    session,
     error,
     isLoading,
     updateSession,

@@ -207,11 +207,11 @@ export enum UpdateConfigUrl {
   GITCODE = 'https://raw.gitcode.com/CherryHQ/cherry-studio/raw/x-files%2Fapp-upgrade-config/app-upgrade-config.json'
 }
 
-export enum UpgradeChannel {
-  LATEST = 'latest', // 最新稳定版本
-  RC = 'rc', // 公测版本
-  BETA = 'beta' // 预览版本
-}
+// export enum UpgradeChannel {
+//   LATEST = 'latest', // 最新稳定版本
+//   RC = 'rc', // 公测版本
+//   BETA = 'beta' // 预览版本
+// }
 
 export enum UpdateMirror {
   GITHUB = 'github',
@@ -220,6 +220,24 @@ export enum UpdateMirror {
 
 export const DEFAULT_TIMEOUT = 30 * 1000 * 60
 
+/**
+ * @deprecated v1 leftover. v2's preboot relocation copies the entire
+ * Electron userData directory tree at startup (in
+ * `src/main/core/preboot/userDataLocation.ts`), after the previous process
+ * has fully exited and no file is locked. The distinction between
+ * "occupied" and "non-occupied" directories has no meaning in v2 — the
+ * entire tree is opaque and copied as one unit.
+ *
+ * The constant is only kept on disk because two v1-era call sites still
+ * reference it:
+ *   - `src/main/bootstrap.ts` (deprecated; no longer imported anywhere)
+ *   - `src/renderer/src/pages/settings/DataSettings/BasicDataSettings.tsx`
+ *     (v1 in-process migration flow, to be rewritten to the new BootConfig
+ *     `temp.user_data_relocation` protocol)
+ *
+ * Both will be migrated in a follow-up cleanup PR; this constant should
+ * be removed at the same time.
+ */
 export const occupiedDirs = ['logs', 'Network', 'Partitions/webview/Network']
 
 export const MIN_WINDOW_WIDTH = 960
@@ -227,7 +245,7 @@ export const SECOND_MIN_WINDOW_WIDTH = 520
 export const MIN_WINDOW_HEIGHT = 600
 export const defaultByPassRules = 'localhost,127.0.0.1,::1'
 
-export enum codeTools {
+export enum codeCLI {
   qwenCode = 'qwen-code',
   claudeCode = 'claude-code',
   geminiCli = 'gemini-cli',

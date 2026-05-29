@@ -3,23 +3,22 @@ import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputb
 
 const quickPhrasesTool = defineTool({
   key: 'quick_phrases',
-  label: (t) => t('settings.quickPhrase.title'),
+  label: (t) => t('settings.prompts.title'),
 
-  visibleInScopes: [TopicType.Chat, TopicType.Session, 'mini-window'],
+  visibleInScopes: [TopicType.Chat, TopicType.Session, 'quick-assistant'],
 
   dependencies: {
     actions: ['onTextChange', 'resizeTextArea'] as const
   },
 
   render: (context) => {
-    const { assistant, actions, quickPanel } = context
+    const { actions, quickPanel } = context
 
     return (
       <QuickPhrasesButton
         quickPanel={quickPanel}
         setInputValue={actions.onTextChange}
         resizeTextArea={actions.resizeTextArea}
-        assistantId={assistant.id}
       />
     )
   }

@@ -1,18 +1,18 @@
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useMessageOperations } from '@renderer/hooks/useMessageOperations'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { MultiModelMessageStyle } from '@renderer/store/settings'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import { classNames } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
+import type { MultiModelMessageStyle } from '@shared/data/preference/preferenceTypes'
 import { Popover } from 'antd'
-import type { ComponentProps } from 'react'
+import type { ComponentProps, WheelEvent as ReactWheelEvent } from 'react'
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import styled from 'styled-components'
 
@@ -31,7 +31,9 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
 
   // Hooks
   const { editMessage } = useMessageOperations(topic)
-  const { multiModelMessageStyle: multiModelMessageStyleSetting, gridColumns, gridPopoverTrigger } = useSettings()
+  const [multiModelMessageStyleSetting] = usePreference('chat.message.multi_model.style')
+  const [gridColumns] = usePreference('chat.message.multi_model.grid_columns')
+  const [gridPopoverTrigger] = usePreference('chat.message.multi_model.grid_popover_trigger')
   const { isMultiSelectMode } = useChatContext(topic)
   const { setTimeoutTimer } = useTimer()
 
@@ -194,11 +196,39 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
     }
   }, [messages])
 
+  const handleHorizontalGroupWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement | null
+    if (target?.closest('.message-content-container')) {
+      return
+    }
+
+    const groupContainer = event.currentTarget
+    const contentContainers = Array.from(groupContainer.querySelectorAll<HTMLElement>('.message-content-container'))
+    const hasInnerVerticalScroll = contentContainers.some(
+      (contentContainer) => contentContainer.scrollHeight > contentContainer.clientHeight + 1
+    )
+    const hasHorizontalScroll = groupContainer.scrollWidth > groupContainer.clientWidth + 1
+    const horizontalDelta = Math.abs(event.deltaX) > 0 ? event.deltaX : event.shiftKey ? event.deltaY : 0
+
+    if (horizontalDelta !== 0 && hasHorizontalScroll) {
+      event.preventDefault()
+      event.stopPropagation()
+      groupContainer.scrollLeft += horizontalDelta
+      return
+    }
+
+    if (hasInnerVerticalScroll) {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+  }, [])
+
   const renderMessage = useCallback(
     (message: Message & { index: number }) => {
       const isGridGroupMessage = isGrid && message.role === 'assistant' && isGrouped
       const messageProps = {
         isGrouped,
+        isHorizontalMultiModelLayout: multiModelMessageStyle === 'horizontal',
         message,
         topic,
         index: message.index
@@ -272,7 +302,8 @@ const MessageGroup = ({ messages, topic, registerMessageElement }: Props) => {
         <GridContainer
           $count={messageLength}
           $gridColumns={gridColumns}
-          className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
+          className={classNames([multiModelMessageStyle, { 'multi-select-mode': isMultiSelectMode }])}
+          onWheelCapture={multiModelMessageStyle === 'horizontal' ? handleHorizontalGroupWheel : undefined}>
           {messages.map(renderMessage)}
         </GridContainer>
         {isGrouped && (
@@ -319,6 +350,7 @@ const GridContainer = styled(Scrollbar)<{ $count: number; $gridColumns: number }
     padding-bottom: 4px;
     grid-template-columns: repeat(${({ $count }) => $count}, minmax(420px, 1fr));
     overflow-x: auto;
+    overflow-y: hidden;
   }
   &.fold,
   &.vertical {

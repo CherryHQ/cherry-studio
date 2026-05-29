@@ -1,22 +1,13 @@
 import { createExecutor } from '@cherrystudio/ai-core'
 import type { generateImageResult } from '@cherrystudio/ai-core/core/runtime/types'
+import { cacheService } from '@data/CacheService'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
-import { normalizeGatewayModels } from '@renderer/services/models/ModelAdapter'
 import { addSpan, endSpan } from '@renderer/services/SpanManagerService'
 import type { StartSpanParams } from '@renderer/trace/types/ModelSpanEntity'
-import {
-  type Assistant,
-  type EditImageParams,
-  type GenerateImageParams,
-  type Model,
-  type Provider,
-  SystemProviderIds
-} from '@renderer/types'
+import type { Assistant, EditImageParams, GenerateImageParams, Model, Provider } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { getLowerBaseModelName } from '@renderer/utils'
-import { buildClaudeCodeSystemModelMessage } from '@shared/anthropic'
-import { createGateway } from 'ai'
 
 import AiSdkToChunkAdapter from './chunk/AiSdkToChunkAdapter'
 import { buildPlugins } from './plugins/PluginBuilder'
@@ -118,23 +109,7 @@ export default class AiProvider {
 
     // 注意：模型对象将由 createExecutor 内部处理，不再需要预先创建
 
-    if (this.actualProvider.id === 'anthropic' && this.actualProvider.authType === 'oauth') {
-      // 类型守卫：确保 system 是 string、Array 或 undefined
-      const system = params.system
-      let systemParam: string | Array<any> | undefined
-      if (typeof system === 'string' || Array.isArray(system) || system === undefined) {
-        systemParam = system
-      } else {
-        // SystemModelMessage 类型，转换为 string
-        systemParam = undefined
-      }
-
-      const claudeCodeSystemMessage = buildClaudeCodeSystemModelMessage(systemParam)
-      params.system = undefined // 清除原有system，避免重复
-      params.messages = [...claudeCodeSystemMessage, ...(params.messages || [])]
-    }
-
-    if (middlewareConfig.topicId && getEnableDeveloperMode()) {
+    if (middlewareConfig.topicId && (await preferenceService.get('app.developer_mode.enabled'))) {
       // TypeScript类型窄化：确保topicId是string类型
       const traceConfig = {
         ...middlewareConfig,
@@ -173,7 +148,7 @@ export default class AiProvider {
       toolNames: params.tools ? Object.keys(params.tools) : []
     })
 
-    const span = addSpan(traceParams)
+    const span = await addSpan(traceParams)
     if (!span) {
       logger.warn('Failed to create span, falling back to regular completions', {
         topicId: middlewareConfig.topicId,
@@ -243,7 +218,7 @@ export default class AiProvider {
     middlewareConfig: AiProviderConfig,
     providerConfig: ProviderConfig
   ): Promise<CompletionsResult> {
-    const plugins = buildPlugins({
+    const plugins = await buildPlugins({
       provider: this.actualProvider,
       model: this.model!,
       config: middlewareConfig
@@ -266,7 +241,8 @@ export default class AiProvider {
         middlewareConfig.enableWebSearch,
         undefined,
         undefined,
-        providerConfig.providerId
+        providerConfig.providerId,
+        middlewareConfig.idleTimeout
       )
 
       const streamResult = await executor.streamText({
@@ -328,22 +304,15 @@ export default class AiProvider {
    * 获取模型列表
    * 使用 ModelListService 统一处理各 Provider 的模型列表获取
    */
-  public async models(): Promise<Model[]> {
-    // Gateway provider 使用 AI SDK 的 gateway API
-    if (this.actualProvider.id === SystemProviderIds.gateway) {
-      const gatewayModels = (await createGateway({ apiKey: this.actualProvider.apiKey }).getAvailableModels()).models
-      return normalizeGatewayModels(this.actualProvider, gatewayModels)
-    }
-
-    // 使用新的 ModelListService
-    return await listModels(this.actualProvider)
+  public async models(options?: { throwOnError?: boolean }): Promise<Model[]> {
+    return await listModels(this.actualProvider, undefined, options)
   }
 
   /**
    * 获取嵌入模型的维度
    * 使用 AI SDK embedMany 测试获取维度
    */
-  public async getEmbeddingDimensions(model: Model): Promise<number> {
+  public async getEmbeddingDimensions(model: Model, signal?: AbortSignal): Promise<number> {
     // 确保 config 已定义
     if (!this.config) {
       this.config = await Promise.resolve(providerToAiSdkConfig(this.actualProvider, model))
@@ -358,7 +327,8 @@ export default class AiProvider {
     // 使用 AI SDK embedMany 测试获取维度
     const result = await executor.embedMany({
       model: model.id,
-      values: ['test']
+      values: ['test'],
+      abortSignal: signal
     })
 
     return result.embeddings[0].length
@@ -497,17 +467,17 @@ export default class AiProvider {
 
     // Multi-key rotation
     const keyName = `provider:${this.actualProvider.id}:last_used_key`
-    const lastUsedKey = window.keyv.get(keyName)
+    const lastUsedKey = cacheService.getCasual<string>(keyName)
 
     if (!lastUsedKey) {
-      window.keyv.set(keyName, keys[0])
+      cacheService.setCasual(keyName, keys[0])
       return keys[0]
     }
 
     const currentIndex = keys.indexOf(lastUsedKey)
     const nextIndex = (currentIndex + 1) % keys.length
     const nextKey = keys[nextIndex]
-    window.keyv.set(keyName, nextKey)
+    cacheService.setCasual(keyName, nextKey)
 
     return nextKey
   }

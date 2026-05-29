@@ -1,4 +1,4 @@
-import { ToolOutlined } from '@ant-design/icons'
+import { Wrench } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import type { CustomTagProps } from '../CustomTag'
@@ -10,13 +10,13 @@ type Props = {
   showLabel?: boolean
 } & Omit<CustomTagProps, 'size' | 'tooltip' | 'icon' | 'color' | 'children'>
 
-export const ToolsCallingTag = ({ size, showTooltip, showLabel, ...restProps }: Props) => {
+export const ToolsCallingTag = ({ size = 12, showTooltip, showLabel, ...restProps }: Props) => {
   const { t } = useTranslation()
   return (
     <CustomTag
       size={size}
       color="#f18737"
-      icon={<ToolOutlined style={{ fontSize: size }} />}
+      icon={<Wrench size={size} color="currentColor" className="text-current" />}
       tooltip={showTooltip ? t('models.type.function_calling') : undefined}
       {...restProps}>
       {showLabel ? t('models.type.function_calling') : ''}

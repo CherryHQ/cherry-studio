@@ -1,9 +1,21 @@
+import {
+  Alert,
+  Button,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Spinner
+} from '@cherrystudio/ui'
+import { loggerService } from '@logger'
 import { importChatGPTConversations } from '@renderer/services/import'
-import { Alert, Modal, Progress, Space, Spin } from 'antd'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TopView } from '../TopView'
+
+const logger = loggerService.withContext('ImportPopup')
 
 interface PopupResult {
   success?: boolean
@@ -17,7 +29,15 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
   const [selecting, setSelecting] = useState(false)
   const [importing, setImporting] = useState(false)
+  const resolvedRef = useRef(false)
   const { t } = useTranslation()
+
+  useEffect(() => {
+    if (open || resolvedRef.current) return
+
+    resolvedRef.current = true
+    resolve({})
+  }, [open, resolve])
 
   const onOk = async () => {
     setSelecting(true)
@@ -53,6 +73,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
         window.toast.error(result.error || t('import.chatgpt.error.unknown'))
       }
     } catch (error) {
+      logger.error('ChatGPT import failed:', error as Error)
       window.toast.error(t('import.chatgpt.error.unknown'))
       setOpen(false)
     } finally {
@@ -65,56 +86,51 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     setOpen(false)
   }
 
-  const onClose = () => {
-    resolve({})
-  }
-
   ImportPopup.hide = onCancel
 
   return (
-    <Modal
-      title={t('import.chatgpt.title')}
-      open={open}
-      onOk={onOk}
-      onCancel={onCancel}
-      afterClose={onClose}
-      okText={t('import.chatgpt.button')}
-      okButtonProps={{ disabled: selecting || importing, loading: selecting }}
-      cancelButtonProps={{ disabled: selecting || importing }}
-      maskClosable={false}
-      transitionName="animation-move-down"
-      centered>
-      {!selecting && !importing && (
-        <Space direction="vertical" style={{ width: '100%' }}>
-          <div>{t('import.chatgpt.description')}</div>
-          <Alert
-            message={t('import.chatgpt.help.title')}
-            description={
-              <div>
-                <p>{t('import.chatgpt.help.step1')}</p>
-                <p>{t('import.chatgpt.help.step2')}</p>
-                <p>{t('import.chatgpt.help.step3')}</p>
-              </div>
-            }
-            type="info"
-            showIcon
-            style={{ marginTop: 12 }}
-          />
-        </Space>
-      )}
-      {selecting && (
-        <div style={{ textAlign: 'center', padding: '40px 0' }}>
-          <Spin size="large" />
-          <div style={{ marginTop: 16 }}>{t('import.chatgpt.selecting')}</div>
-        </div>
-      )}
-      {importing && (
-        <div style={{ textAlign: 'center', padding: '20px 0' }}>
-          <Progress percent={100} status="active" strokeColor="var(--color-primary)" showInfo={false} />
-          <div style={{ marginTop: 16 }}>{t('import.chatgpt.importing')}</div>
-        </div>
-      )}
-    </Modal>
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
+      <DialogContent className="sm:max-w-[520px]" onPointerDownOutside={(event) => event.preventDefault()}>
+        <DialogHeader>
+          <DialogTitle>{t('import.chatgpt.title')}</DialogTitle>
+        </DialogHeader>
+        {!selecting && !importing && (
+          <div className="flex w-full flex-col gap-3">
+            <div>{t('import.chatgpt.description')}</div>
+            <Alert
+              message={t('import.chatgpt.help.title')}
+              description={
+                <div>
+                  <p>{t('import.chatgpt.help.step1')}</p>
+                  <p>{t('import.chatgpt.help.step2')}</p>
+                  <p>{t('import.chatgpt.help.step3')}</p>
+                </div>
+              }
+              type="info"
+              showIcon
+            />
+          </div>
+        )}
+        {selecting && (
+          <div className="flex justify-center py-10">
+            <Spinner text={t('import.chatgpt.selecting')} />
+          </div>
+        )}
+        {importing && (
+          <div className="flex justify-center py-5">
+            <Spinner text={t('import.chatgpt.importing')} />
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" disabled={selecting || importing} onClick={onCancel}>
+            {t('common.cancel')}
+          </Button>
+          <Button loading={selecting} disabled={importing} onClick={onOk}>
+            {t('import.chatgpt.button')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 

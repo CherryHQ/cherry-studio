@@ -1,125 +1,106 @@
-import CustomCollapse from '@renderer/components/CustomCollapse'
-import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
-import type { Model } from '@renderer/types'
-import type { ModelWithStatus } from '@renderer/types/healthCheck'
-import { Button, Flex, Tooltip } from 'antd'
-import { Minus } from 'lucide-react'
-import React, { memo, useCallback, useRef } from 'react'
+import { cn } from '@renderer/utils'
+import type { Model } from '@shared/data/types/model'
+import { useVirtualizer } from '@tanstack/react-virtual'
+import { ChevronRight } from 'lucide-react'
+import React, { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
+import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
+import { getModelGroupLabel } from './grouping'
 import ModelListItem from './ModelListItem'
-
-const MAX_SCROLLER_HEIGHT = 390
+import type { ModelListGroupItem } from './useProviderModelList'
 
 interface ModelListGroupProps {
   groupName: string
-  models: Model[]
-  duplicateModelNames: Set<string>
-  /** 使用 Map 实现 O(1) 查找，替代原来的数组线性搜索 */
-  modelStatusMap: Map<string, ModelWithStatus>
+  items: ModelListGroupItem[]
   defaultOpen: boolean
   disabled?: boolean
+  pendingModelIds: Set<string>
   onEditModel: (model: Model) => void
-  onRemoveModel: (model: Model) => void
-  onRemoveGroup: () => void
+  onToggleModel: (model: Model, enabled: boolean) => Promise<void>
 }
 
 const ModelListGroup: React.FC<ModelListGroupProps> = ({
   groupName,
-  models,
-  duplicateModelNames,
-  modelStatusMap,
+  items,
   defaultOpen,
   disabled,
+  pendingModelIds,
   onEditModel,
-  onRemoveModel,
-  onRemoveGroup
+  onToggleModel
 }) => {
   const { t } = useTranslation()
-  const listRef = useRef<DynamicVirtualListRef>(null)
+  const [open, setOpen] = useState(defaultOpen)
+  const scrollerRef = useRef<HTMLDivElement>(null)
+  const groupLabel = getModelGroupLabel(groupName, t)
+  const shouldVirtualize = items.length > 80
+  const previewItems = useMemo(() => items.slice(0, 80), [items])
+  const virtualizer = useVirtualizer({
+    count: items.length,
+    getScrollElement: () => scrollerRef.current,
+    estimateSize: () => 48,
+    overscan: 12,
+    enabled: open && shouldVirtualize
+  })
 
-  const handleCollapseChange = useCallback((activeKeys: string[] | string) => {
-    const isNowExpanded = Array.isArray(activeKeys) ? activeKeys.length > 0 : !!activeKeys
-    if (isNowExpanded) {
-      // 延迟到 DOM 可见后测量
-      requestAnimationFrame(() => listRef.current?.measure())
-    }
+  const toggleOpen = useCallback(() => {
+    setOpen((prev) => !prev)
   }, [])
 
   return (
-    <CustomCollapseWrapper>
-      <CustomCollapse
-        defaultActiveKey={defaultOpen ? ['1'] : []}
-        onChange={handleCollapseChange}
-        label={
-          <Flex align="center" gap={10}>
-            <span style={{ fontWeight: 'bold' }}>{groupName}</span>
-          </Flex>
-        }
-        extra={
-          <Tooltip title={t('settings.models.manage.remove_whole_group')} mouseLeaveDelay={0}>
-            <Button
-              type="text"
-              className="toolbar-item"
-              icon={<Minus size={14} />}
-              onClick={(e) => {
-                e.stopPropagation()
-                onRemoveGroup()
-              }}
-              disabled={disabled}
-            />
-          </Tooltip>
-        }
-        styles={{
-          header: {
-            padding: '3px calc(6px + var(--scrollbar-width)) 3px 16px'
-          }
-        }}>
-        <DynamicVirtualList
-          ref={listRef}
-          list={models}
-          estimateSize={useCallback(() => 52, [])} // 44px item + 8px padding
-          overscan={5}
-          scrollerStyle={{
-            maxHeight: `${MAX_SCROLLER_HEIGHT}px`,
-            padding: '4px 6px 4px 12px',
-            scrollbarGutter: 'stable'
-          }}
-          itemContainerStyle={{
-            padding: '4px 0'
-          }}>
-          {(model) => (
-            <ModelListItem
-              model={model}
-              modelStatus={modelStatusMap.get(model.id)}
-              showIdentifier={duplicateModelNames.has(model.name)}
-              onEdit={onEditModel}
-              onRemove={onRemoveModel}
-              disabled={disabled}
-            />
+    <div className={modelListClasses.groupCard}>
+      <button type="button" className={modelListClasses.groupHeader} aria-expanded={open} onClick={toggleOpen}>
+        <span className={modelListClasses.groupTitle}>{groupLabel}</span>
+        <ChevronRight className={cn(modelListClasses.groupChevron, open && modelListClasses.groupChevronOpen)} />
+      </button>
+      {open && (
+        <div className={modelListClasses.groupBody}>
+          {shouldVirtualize ? (
+            <div ref={scrollerRef} className="overflow-y-auto" style={{ maxHeight: 520 }}>
+              <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
+                {virtualizer.getVirtualItems().map((virtualItem) => {
+                  const entry = items[virtualItem.index]
+                  if (!entry) {
+                    return null
+                  }
+
+                  const { model } = entry
+                  return (
+                    <div
+                      key={model.id}
+                      ref={(element) => {
+                        if (element) {
+                          virtualizer.measureElement(element)
+                        }
+                      }}
+                      className="absolute top-0 left-0 w-full"
+                      style={{ transform: `translateY(${virtualItem.start}px)` }}>
+                      <ModelListItem
+                        model={model}
+                        onEdit={onEditModel}
+                        onToggleEnabled={onToggleModel}
+                        disabled={disabled || pendingModelIds.has(model.id)}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ) : (
+            previewItems.map(({ model }) => (
+              <ModelListItem
+                key={model.id}
+                model={model}
+                onEdit={onEditModel}
+                onToggleEnabled={onToggleModel}
+                disabled={disabled || pendingModelIds.has(model.id)}
+              />
+            ))
           )}
-        </DynamicVirtualList>
-      </CustomCollapse>
-    </CustomCollapseWrapper>
+        </div>
+      )}
+    </div>
   )
 }
-
-const CustomCollapseWrapper = styled.div`
-  .toolbar-item {
-    transform: translateZ(0);
-    will-change: opacity;
-    opacity: 0;
-    transition: opacity 0.2s;
-  }
-  &:hover .toolbar-item {
-    opacity: 1;
-  }
-
-  /* 移除 collapse 的 padding，转而在 scroller 内部调整 */
-  .ant-collapse-content-box {
-    padding: 0 !important;
-  }
-`
 
 export default memo(ModelListGroup)

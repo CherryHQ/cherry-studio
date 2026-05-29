@@ -4,23 +4,31 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import CodeToolButton from '../button'
 
-// Mock Antd components
 const mocks = vi.hoisted(() => ({
-  Tooltip: vi.fn(({ children, title }) => (
-    <div data-testid="tooltip" data-title={title}>
+  Tooltip: vi.fn(({ children, title, content }) => (
+    <div data-testid="tooltip" data-title={content || title}>
       {children}
     </div>
   )),
-  Dropdown: vi.fn(({ children, menu }) => (
-    <div data-testid="dropdown" data-menu={JSON.stringify(menu)}>
-      {children}
-    </div>
+  Popover: vi.fn(({ children }) => <div data-testid="popover">{children}</div>),
+  PopoverTrigger: vi.fn(({ children }) => <div data-testid="popover-trigger">{children}</div>),
+  PopoverContent: vi.fn(({ children }) => <div data-testid="popover-content">{children}</div>),
+  MenuList: vi.fn(({ children }) => <div data-testid="menu-list">{children}</div>),
+  MenuItem: vi.fn(({ icon, label, onClick }) => (
+    <button type="button" data-testid="menu-item" onClick={onClick}>
+      {icon}
+      {label}
+    </button>
   ))
 }))
 
-vi.mock('antd', () => ({
-  Tooltip: mocks.Tooltip,
-  Dropdown: mocks.Dropdown
+vi.mock('@cherrystudio/ui', () => ({
+  MenuItem: mocks.MenuItem,
+  MenuList: mocks.MenuList,
+  Popover: mocks.Popover,
+  PopoverContent: mocks.PopoverContent,
+  PopoverTrigger: mocks.PopoverTrigger,
+  Tooltip: mocks.Tooltip
 }))
 
 // Mock ToolWrapper
@@ -67,25 +75,25 @@ describe('CodeToolButton', () => {
       expect(screen.getByTestId('tool-wrapper')).toBeInTheDocument()
       expect(screen.getByTestId('test-icon')).toBeInTheDocument()
 
-      // Should not render dropdown
-      expect(screen.queryByTestId('dropdown')).not.toBeInTheDocument()
+      // Should not render popover menu
+      expect(screen.queryByTestId('popover')).not.toBeInTheDocument()
     })
 
     it('should render as simple button when children array is empty', () => {
       const tool = createMockTool({ children: [] })
       render(<CodeToolButton tool={tool} />)
 
-      expect(screen.queryByTestId('dropdown')).not.toBeInTheDocument()
+      expect(screen.queryByTestId('popover')).not.toBeInTheDocument()
       expect(screen.getByTestId('tooltip')).toBeInTheDocument()
     })
 
-    it('should render as dropdown when has children', () => {
+    it('should render as popover menu when has children', () => {
       const children = [createMockChildTool('child1', 'Child 1')]
       const tool = createMockTool({ children })
       render(<CodeToolButton tool={tool} />)
 
-      // Should render dropdown containing the main button
-      expect(screen.getByTestId('dropdown')).toBeInTheDocument()
+      // Should render popover containing the main button
+      expect(screen.getByTestId('popover')).toBeInTheDocument()
       expect(screen.getByTestId('tooltip')).toBeInTheDocument()
       expect(screen.getByTestId('tool-wrapper')).toBeInTheDocument()
     })
@@ -112,8 +120,8 @@ describe('CodeToolButton', () => {
     })
   })
 
-  describe('dropdown functionality', () => {
-    it('should configure dropdown with correct menu structure', () => {
+  describe('popover menu functionality', () => {
+    it('should render menu items and trigger child action', () => {
       const mockOnClick1 = vi.fn()
       const mockOnClick2 = vi.fn()
       const children = [createMockChildTool('child1', 'Child 1'), createMockChildTool('child2', 'Child 2')]
@@ -123,15 +131,13 @@ describe('CodeToolButton', () => {
       const tool = createMockTool({ children })
       render(<CodeToolButton tool={tool} />)
 
-      // Verify dropdown was called with correct menu structure
-      expect(mocks.Dropdown).toHaveBeenCalled()
-      const dropdownProps = mocks.Dropdown.mock.calls[0][0]
+      expect(screen.getAllByTestId('menu-item')).toHaveLength(2)
+      expect(screen.getByText('Child 1')).toBeInTheDocument()
+      expect(screen.getByText('Child 2')).toBeInTheDocument()
 
-      expect(dropdownProps.menu.items).toHaveLength(2)
-      expect(dropdownProps.menu.items[0].key).toBe('child1')
-      expect(dropdownProps.menu.items[0].label).toBe('Child 1')
-      expect(dropdownProps.menu.items[0].onClick).toBe(mockOnClick1)
-      expect(dropdownProps.trigger).toEqual(['click'])
+      fireEvent.click(screen.getByText('Child 1'))
+      expect(mockOnClick1).toHaveBeenCalledTimes(1)
+      expect(mockOnClick2).not.toHaveBeenCalled()
     })
   })
 

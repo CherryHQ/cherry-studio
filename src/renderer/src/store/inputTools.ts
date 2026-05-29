@@ -43,13 +43,22 @@ export const DEFAULT_TOOL_ORDER: ToolOrder = {
 // Default tool order per scope
 // Note: New tools not listed here will auto-show at the end.
 // Tools are filtered by visibleInScopes first, so this only controls order/visibility of available tools.
-export const DEFAULT_TOOL_ORDER_BY_SCOPE: Record<InputbarScope, ToolOrder> = {
+//
+// The 'mini-window' key is legacy — InputbarScope has been renamed to 'quick-assistant' upstream.
+// It is retained here so Redux-persisted state carrying the old key still typechecks.
+// Both entries will be collapsed to 'quick-assistant' alone when Redux is removed and the
+// corresponding persisted data is migrated out.
+export const DEFAULT_TOOL_ORDER_BY_SCOPE: Record<InputbarScope | 'mini-window', ToolOrder> = {
   [TopicType.Chat]: DEFAULT_TOOL_ORDER,
   [TopicType.Session]: {
     visible: ['create_session', 'permission_mode', 'slash_commands', 'attachment'],
     hidden: []
   },
   'mini-window': {
+    visible: ['attachment', 'mention_models', 'quick_phrases'],
+    hidden: []
+  },
+  'quick-assistant': {
     visible: ['attachment', 'mention_models', 'quick_phrases'],
     hidden: []
   }

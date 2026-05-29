@@ -1,16 +1,9 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
 exports[`Spinner > should match snapshot 1`] = `
-.c0 {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0px;
-}
-
 <div
   animate="defaultColor,dimmed"
-  class="c0"
+  class="flex items-center gap-1 p-0"
   initial="defaultColor"
   transition="[object Object]"
   variants="[object Object]"

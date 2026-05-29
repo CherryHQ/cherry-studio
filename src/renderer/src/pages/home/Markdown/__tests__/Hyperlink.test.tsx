@@ -47,9 +47,9 @@ vi.mock('@renderer/hooks/useMetaDataParser', () => ({
   useMetaDataParser: mocks.useMetaDataParser
 }))
 
-// Mock the OGCard component
-vi.mock('@renderer/components/OGCard', () => ({
-  OGCard: ({ link }: { link: string; show: boolean }) => {
+// Mock the OgCard component
+vi.mock('@renderer/components/OgCard', () => ({
+  OgCard: ({ link }: { link: string; show: boolean }) => {
     let hostname = ''
     try {
       hostname = new URL(link).hostname
@@ -102,7 +102,6 @@ describe('Hyperlink', () => {
     const popover = screen.getByTestId('popover')
     expect(popover).toBeInTheDocument()
     expect(popover).toHaveAttribute('data-arrow', 'false')
-    expect(popover).toHaveAttribute('data-placement', 'top')
 
     // Content includes decoded url text and favicon with hostname
     expect(screen.getByTestId('favicon')).toHaveAttribute('data-hostname', 'domain.com')

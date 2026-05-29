@@ -67,6 +67,25 @@ export const GeminiModelsResponseSchema = z.object({
   nextPageToken: z.string().optional()
 })
 
+// === Vertex AI Model Garden ===
+
+export const VertexPublisherModelsResponseSchema = z.object({
+  publisherModels: z
+    .array(
+      z.looseObject({
+        name: z.string(),
+        displayName: z.string().optional(),
+        description: z.string().optional(),
+        versionId: z.string().optional(),
+        launchStage: z.string().optional(),
+        versionState: z.string().optional()
+      })
+    )
+    .optional()
+    .default([]),
+  nextPageToken: z.string().optional()
+})
+
 // === GitHub Models ===
 
 export const GitHubModelsResponseSchema = z.array(
@@ -137,6 +156,27 @@ export const OVMSConfigResponseSchema = z.record(
       .optional()
   })
 )
+
+// === Vercel AI Gateway (/v3/ai/config) ===
+
+export const VercelGatewayModelsResponseSchema = z.object({
+  models: z.array(
+    z.looseObject({
+      id: z.string(),
+      name: z.string().optional(),
+      description: z.string().optional(),
+      modelType: z.string().optional(),
+      specification: z
+        .looseObject({
+          specificationVersion: z.string().optional(),
+          provider: z.string().optional(),
+          modelId: z.string().optional(),
+          type: z.string().optional()
+        })
+        .optional()
+    })
+  )
+})
 
 // === AIHubMix ===
 

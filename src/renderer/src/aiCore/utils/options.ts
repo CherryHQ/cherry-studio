@@ -2,7 +2,7 @@ import type { BedrockProviderOptions } from '@ai-sdk/amazon-bedrock'
 import { type AnthropicProviderOptions } from '@ai-sdk/anthropic'
 import type { GoogleGenerativeAIProviderOptions } from '@ai-sdk/google'
 import type { OpenAIResponsesProviderOptions } from '@ai-sdk/openai'
-import type { XaiProviderOptions } from '@ai-sdk/xai'
+import type { XaiResponsesProviderOptions } from '@ai-sdk/xai'
 import { loggerService } from '@logger'
 import {
   getModelSupportedVerbosity,
@@ -101,7 +101,8 @@ function getServiceTier<T extends Provider>(model: Model, provider: T): OpenAISe
 }
 
 function getVerbosity(model: Model): OpenAIVerbosity {
-  if (!isSupportVerbosityModel(model) || !isSupportVerbosityProvider(getProviderById(model.provider)!)) {
+  const provider = getProviderById(model.provider)
+  if (!provider || !isSupportVerbosityModel(model) || !isSupportVerbosityProvider(provider)) {
     return undefined
   }
   const openAI = getStoreSetting('openAI')
@@ -338,11 +339,7 @@ function buildOpenAIProviderOptions(
   }
   const provider = getProviderById(model.provider)
 
-  if (!provider) {
-    throw new Error(`Provider ${model.provider} not found`)
-  }
-
-  if (isSupportVerbosityModel(model) && isSupportVerbosityProvider(provider)) {
+  if (provider && isSupportVerbosityModel(model) && isSupportVerbosityProvider(provider)) {
     const openAI = getStoreSetting<'openAI'>('openAI')
     const userVerbosity = openAI?.verbosity
 
@@ -407,7 +404,30 @@ function buildGeminiProviderOptions(
   capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
 ): Record<string, GoogleGenerativeAIProviderOptions> {
   const { enableReasoning, enableGenerateImage } = capabilities
-  let providerOptions: GoogleGenerativeAIProviderOptions = {}
+  let providerOptions: GoogleGenerativeAIProviderOptions = {
+    safetySettings: [
+      {
+        category: 'HARM_CATEGORY_HATE_SPEECH',
+        threshold: 'BLOCK_NONE'
+      },
+      {
+        category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+        threshold: 'BLOCK_NONE'
+      },
+      {
+        category: 'HARM_CATEGORY_HARASSMENT',
+        threshold: 'BLOCK_NONE'
+      },
+      {
+        category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+        threshold: 'BLOCK_NONE'
+      },
+      {
+        category: 'HARM_CATEGORY_CIVIC_INTEGRITY',
+        threshold: 'BLOCK_NONE'
+      }
+    ]
+  }
 
   // Gemini 推理参数
   if (enableReasoning) {
@@ -436,7 +456,7 @@ function buildXAIProviderOptions(
   assistant: Assistant,
   model: Model,
   capabilities: Pick<ProviderCapabilities, 'enableReasoning' | 'enableWebSearch' | 'enableGenerateImage'>
-): Record<string, XaiProviderOptions> {
+): Record<string, XaiResponsesProviderOptions> {
   const { enableReasoning } = capabilities
   let providerOptions: Record<string, any> = {}
 
@@ -565,7 +585,7 @@ function buildAIGatewayOptions(
   // Keys here must stay aligned with the language-model class each SDK layer builds, otherwise
   // AI SDK drops the custom provider options. See:
   //   - packages/ai-sdk-provider/src/cherryin-provider.ts (createChatModel)
-  //   - src/renderer/src/aiCore/provider/custom/newapi-provider.ts (createChatModel)
+  //   - src/renderer/src/aiCore/provider/custom/newapiProvider.ts (createChatModel)
   //
   //   endpoint_type      | SDK language-model class           | AI SDK providerOptions key
   //   -------------------+------------------------------------+---------------------------

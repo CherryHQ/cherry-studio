@@ -2,22 +2,24 @@
 
 exports[`InputEmbeddingDimension > basic rendering > should match snapshot with all props 1`] = `
 <div
-  data-testid="space-compact"
+  class="flex w-full"
   style="width: 100%;"
 >
   <input
-    data-testid="input-number"
+    class="min-w-0 flex-1 rounded-r-none"
+    data-testid="input"
+    min="1"
     placeholder="请输入维度大小"
-    style="flex: 1 1 0%;"
     type="number"
     value="1536"
   />
   <div
     data-testid="tooltip"
-    data-title="自动设置维度"
   >
     <button
       aria-label="Get Embedding Dimension"
+      class="-ml-px rounded-l-none"
+      data-testid="button"
       role="button"
       type="button"
     >
@@ -37,22 +39,23 @@ exports[`InputEmbeddingDimension > basic rendering > should match snapshot with 
 
 exports[`InputEmbeddingDimension > basic rendering > should match snapshot with loading state 1`] = `
 <div
-  data-testid="space-compact"
-  style="width: 100%;"
+  class="flex w-full"
 >
   <input
-    data-testid="input-number"
+    class="min-w-0 flex-1 rounded-r-none"
+    data-testid="input"
+    min="1"
     placeholder="请输入维度大小"
-    style="flex: 1 1 0%;"
     type="number"
     value=""
   />
   <div
     data-testid="tooltip"
-    data-title="自动设置维度"
   >
     <button
       aria-label="Get Embedding Dimension"
+      class="-ml-px rounded-l-none opacity-80"
+      data-testid="button"
       disabled=""
       role="button"
       type="button"

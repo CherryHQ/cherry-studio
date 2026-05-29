@@ -1,0 +1,97 @@
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { loggerService } from '@logger'
+import type { AgentBaseWithId, UpdateAgentBaseForm, UpdateAgentFunctionUnion } from '@renderer/types'
+import { Plus } from 'lucide-react'
+import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { SettingsItem, SettingsTitle } from '../shared'
+
+export interface AccessibleDirsSettingProps {
+  base: AgentBaseWithId | undefined | null
+  update: UpdateAgentFunctionUnion
+}
+
+const logger = loggerService.withContext('AccessibleDirsSetting')
+
+export const AccessibleDirsSetting = ({ base, update }: AccessibleDirsSettingProps) => {
+  const { t } = useTranslation()
+
+  const updateAccessiblePaths = useCallback(
+    (accessiblePaths: UpdateAgentBaseForm['accessiblePaths']) => {
+      if (!base) return
+      void update({ id: base.id, accessiblePaths })
+    },
+    [base, update]
+  )
+
+  const addAccessiblePath = useCallback(async () => {
+    if (!base) return
+
+    try {
+      const selected = await window.api.file.selectFolder()
+      if (!selected) {
+        return
+      }
+
+      if (base.accessiblePaths.includes(selected)) {
+        window.toast.warning(t('agent.session.accessible_paths.duplicate'))
+        return
+      }
+
+      updateAccessiblePaths([...base.accessiblePaths, selected])
+    } catch (error) {
+      logger.error('Failed to select accessible path:', error as Error)
+      window.toast.error(t('agent.session.accessible_paths.select_failed'))
+    }
+  }, [base, t, updateAccessiblePaths])
+
+  const removeAccessiblePath = useCallback(
+    (path: string) => {
+      if (!base) return
+      const newPaths = base.accessiblePaths.filter((p) => p !== path)
+      updateAccessiblePaths(newPaths)
+    },
+    [base, updateAccessiblePaths]
+  )
+
+  if (!base) return null
+
+  return (
+    <SettingsItem>
+      <SettingsTitle
+        contentAfter={
+          <Tooltip title={t('agent.session.accessible_paths.add')}>
+            <Button variant="ghost" size="icon-sm" className="rounded-full" onClick={addAccessiblePath}>
+              <Plus size={16} />
+            </Button>
+          </Tooltip>
+        }>
+        {t('agent.session.accessible_paths.label')}
+      </SettingsTitle>
+      <ul className="flex flex-col">
+        {base.accessiblePaths.map((path) => (
+          <li key={path} className="flex items-center justify-between gap-2 py-1">
+            <span
+              className="w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[var(--color-foreground-secondary)] text-sm"
+              title={path}>
+              {path}
+            </span>
+            <Tooltip
+              title={
+                base.accessiblePaths.length <= 1 ? t('agent.session.accessible_paths.error.at_least_one') : undefined
+              }>
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={base.accessiblePaths.length <= 1}
+                onClick={() => removeAccessiblePath(path)}>
+                {t('common.delete')}
+              </Button>
+            </Tooltip>
+          </li>
+        ))}
+      </ul>
+    </SettingsItem>
+  )
+}

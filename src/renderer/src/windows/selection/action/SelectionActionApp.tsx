@@ -1,11 +1,11 @@
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { isMac } from '@renderer/config/constant'
-import { useSelectionAssistant } from '@renderer/hooks/useSelectionAssistant'
-import { useSettings } from '@renderer/hooks/useSettings'
+import { useWindowInitData } from '@renderer/core/hooks/useWindowInitData'
 import i18n from '@renderer/i18n'
-import type { ActionItem } from '@renderer/types/selectionTypes'
 import { defaultLanguage } from '@shared/config/constant'
-import { IpcChannel } from '@shared/IpcChannel'
-import { Button, Slider, Tooltip } from 'antd'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import { Slider } from 'antd'
 import { Droplet, Minus, Pin, X } from 'lucide-react'
 import { DynamicIcon } from 'lucide-react/dynamic'
 import type { FC } from 'react'
@@ -16,15 +16,37 @@ import styled from 'styled-components'
 import ActionGeneral from './components/ActionGeneral'
 import ActionTranslate from './components/ActionTranslate'
 
+/**
+ * Outer shell. Pulls the current action payload via `useWindowInitData`, which
+ * transparently handles both cold-start (pooled warmup / first mount) and
+ * reuse (`WindowManager_Reused` payload on pool recycle). No `key={resetKey}`
+ * remount — `SelectionActionContent` stays mounted across recycles and
+ * receives `action` as a prop. Per-action state is reset in a single
+ * `useEffect([action])` inside the content component.
+ */
 const SelectionActionApp: FC = () => {
-  const { language, customCss } = useSettings()
+  const action = useWindowInitData<SelectionActionItem>()
+  if (!action) return null
+  return <SelectionActionContent action={action} />
+}
 
+/**
+ * Controlled content component. All selection-action UI state lives here;
+ * `action` is supplied by the parent and updated on every pool recycle /
+ * singleton re-use without unmounting. A consolidated `useEffect([action])`
+ * (keyed on the reference, not `.id`) resets per-session state (pin, opacity,
+ * slider, scroll) so old state doesn't bleed into the new session, even when
+ * the next action happens to be the same type as the previous one.
+ */
+const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action }) => {
+  const [language] = usePreference('app.language')
+  const [customCss] = usePreference('ui.custom_css')
   const { t } = useTranslation()
 
-  const [action, setAction] = useState<ActionItem | null>(null)
-  const isActionLoaded = useRef(false)
+  const [isAutoClose] = usePreference('feature.selection.auto_close')
+  const [isAutoPin] = usePreference('feature.selection.auto_pin')
+  const [actionWindowOpacity] = usePreference('feature.selection.action_window_opacity')
 
-  const { isAutoClose, isAutoPin, actionWindowOpacity } = useSelectionAssistant()
   const [isPinned, setIsPinned] = useState(isAutoPin)
   const [isWindowFocus, setIsWindowFocus] = useState(true)
 
@@ -37,19 +59,10 @@ const SelectionActionApp: FC = () => {
   const lastScrollHeight = useRef(0)
 
   useEffect(() => {
-    const actionListenRemover = window.electron?.ipcRenderer.on(
-      IpcChannel.Selection_UpdateActionData,
-      (_, actionItem: ActionItem) => {
-        setAction(actionItem)
-        isActionLoaded.current = true
-      }
-    )
-
     window.addEventListener('focus', handleWindowFocus)
     window.addEventListener('blur', handleWindowBlur)
 
     return () => {
-      actionListenRemover()
       window.removeEventListener('focus', handleWindowFocus)
       window.removeEventListener('blur', handleWindowBlur)
     }
@@ -57,11 +70,30 @@ const SelectionActionApp: FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Per-session reset: must fire on EVERY reuse, even when the next action
+  // has the same id as the previous one (e.g. two consecutive `translate`
+  // invocations). The right signal is the `action` reference itself — main
+  // sends a fresh IPC-deserialized object on every Reused push, so
+  // `Object.is`-based effect deps change each time. Using `[action.id]` here
+  // would leak stale pin/opacity/slider/scroll state across same-type reuses.
+  useEffect(() => {
+    setIsPinned(isAutoPin)
+    void window.api.selection.pinActionWindow(isAutoPin)
+    setOpacity(actionWindowOpacity)
+    setShowOpacitySlider(false)
+    isAutoScrollEnabled.current = true
+    contentElementRef.current?.scrollTo({ top: 0 })
+    lastScrollHeight.current = contentElementRef.current?.scrollHeight ?? 0
+    // Only re-run on action change; `isAutoPin` / `actionWindowOpacity` are
+    // handled separately by their own effects when the preference itself moves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [action])
+
   useEffect(() => {
     if (isAutoPin) {
       void window.api.selection.pinActionWindow(true)
       setIsPinned(true)
-    } else if (!isActionLoaded.current) {
+    } else {
       void window.api.selection.pinActionWindow(false)
       setIsPinned(false)
     }
@@ -90,10 +122,14 @@ const SelectionActionApp: FC = () => {
   }, [customCss])
 
   useEffect(() => {
+    // Register the scroll listener exactly once on mount. The content DOM node
+    // does not change across pool reuses (we never unmount), and
+    // `handleUserScroll` only reads from refs, so a single subscription is
+    // sufficient; per-session scrollTop / lastScrollHeight reset lives in the
+    // `[action]` reset effect above.
     const contentEl = contentElementRef.current
     if (contentEl) {
       contentEl.addEventListener('scroll', handleUserScroll)
-      // Initialize the scroll height
       lastScrollHeight.current = contentEl.scrollHeight
     }
     return () => {
@@ -101,29 +137,22 @@ const SelectionActionApp: FC = () => {
         contentEl.removeEventListener('scroll', handleUserScroll)
       }
     }
-    //we should rely on action to trigger this effect,
-    // because the contentRef is not available when action is initially null
-  }, [action])
+  }, [])
 
   useEffect(() => {
-    if (action) {
-      document.title = `${action.isBuiltIn ? t(action.name) : action.name} - ${t('selection.name')}`
-    }
-  }, [action, t])
+    document.title = `${action.isBuiltIn ? t(action.name) : action.name} - ${t('selection.name')}`
+  }, [action.id, action.isBuiltIn, action.name, t])
 
   useEffect(() => {
-    //if the action is loaded, we should not set the opacity update from settings
-    if (!isActionLoaded.current) {
-      setOpacity(actionWindowOpacity)
-    }
+    setOpacity(actionWindowOpacity)
   }, [actionWindowOpacity])
 
   const handleMinimize = () => {
-    void window.api.selection.minimizeActionWindow()
+    void window.api.windowManager.minimize()
   }
 
   const handleClose = () => {
-    void window.api.selection.closeActionWindow()
+    void window.api.windowManager.close()
   }
 
   /**
@@ -185,9 +214,6 @@ const SelectionActionApp: FC = () => {
     }
   }
 
-  //we don't need to render the component if action is not set
-  if (!action) return null
-
   return (
     <WindowFrame $opacity={opacity / 100}>
       <TitleBar $isWindowFocus={isWindowFocus} style={isMac ? { paddingLeft: '70px' } : {}}>
@@ -204,26 +230,23 @@ const SelectionActionApp: FC = () => {
         <TitleBarCaption>{action.isBuiltIn ? t(action.name) : action.name}</TitleBarCaption>
         <TitleBarButtons>
           <Tooltip
-            title={isPinned ? t('selection.action.window.pinned') : t('selection.action.window.pin')}
+            content={isPinned ? t('selection.action.window.pinned') : t('selection.action.window.pin')}
             placement="bottom">
-            <WinButton
-              type="text"
-              icon={<Pin size={14} className={isPinned ? 'pinned' : ''} />}
-              onClick={togglePin}
-              className={isPinned ? 'pinned' : ''}
-            />
+            <WinButton variant="ghost" onClick={togglePin} className={isPinned ? 'pinned' : ''}>
+              <Pin size={14} className={isPinned ? 'pinned' : ''} />
+            </WinButton>
           </Tooltip>
           <Tooltip
-            title={t('selection.action.window.opacity')}
+            content={t('selection.action.window.opacity')}
             placement="bottom"
-            {...(showOpacitySlider ? { open: false } : {})}>
+            isOpen={showOpacitySlider ? false : undefined}>
             <WinButton
-              type="text"
-              icon={<Droplet size={14} />}
+              variant="ghost"
               onClick={() => setShowOpacitySlider(!showOpacitySlider)}
               className={showOpacitySlider ? 'active' : ''}
-              style={{ paddingBottom: '2px' }}
-            />
+              style={{ paddingBottom: '2px' }}>
+              <Droplet size={14} />
+            </WinButton>
           </Tooltip>
           {showOpacitySlider && (
             <OpacitySlider>
@@ -240,8 +263,12 @@ const SelectionActionApp: FC = () => {
           )}
           {!isMac && (
             <>
-              <WinButton type="text" icon={<Minus size={16} />} onClick={handleMinimize} />
-              <WinButton type="text" icon={<X size={16} />} onClick={handleClose} className="close" />
+              <WinButton variant="ghost" onClick={handleMinimize}>
+                <Minus size={16} />
+              </WinButton>
+              <WinButton variant="ghost" onClick={handleClose} className="close">
+                <X size={16} />
+              </WinButton>
             </>
           )}
         </TitleBarButtons>

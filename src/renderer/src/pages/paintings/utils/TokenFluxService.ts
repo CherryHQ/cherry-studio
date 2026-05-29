@@ -1,5 +1,5 @@
+import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
-import { CacheService } from '@renderer/services/CacheService'
 import type { FileMetadata, TokenFluxPainting } from '@renderer/types'
 
 import type { TokenFluxModel } from '../config/tokenFluxConfig'
@@ -64,7 +64,7 @@ export class TokenFluxService {
     const cacheKey = `tokenflux_models_${this.apiHost}`
 
     // Check cache first
-    const cachedModels = CacheService.get<TokenFluxModel[]>(cacheKey)
+    const cachedModels = cacheService.getCasual<TokenFluxModel[]>(cacheKey)
     if (cachedModels) {
       return cachedModels
     }
@@ -82,7 +82,7 @@ export class TokenFluxService {
     }
 
     // Cache for 60 minutes (3,600,000 milliseconds)
-    CacheService.set(cacheKey, data.data, 60 * 60 * 1000)
+    cacheService.setCasual(cacheKey, data.data, 60 * 60 * 1000)
 
     return data.data
   }

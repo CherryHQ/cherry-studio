@@ -15,7 +15,6 @@
  * --------------------------------------------------------------------------
  */
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit'
-import { factExtractionPrompt, updateMemorySystemPrompt } from '@renderer/utils/memory-prompts'
 import type { MemoryConfig } from '@types'
 
 /**
@@ -35,8 +34,8 @@ export interface MemoryState {
 const defaultMemoryConfig: MemoryConfig = {
   embeddingDimensions: undefined,
   isAutoDimensions: true,
-  customFactExtractionPrompt: factExtractionPrompt,
-  customUpdateMemoryPrompt: updateMemorySystemPrompt
+  customFactExtractionPrompt: '',
+  customUpdateMemoryPrompt: ''
 }
 
 /**

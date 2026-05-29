@@ -1,8 +1,11 @@
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
 import HistoryPage from '@renderer/pages/history/HistoryPage'
-import { Modal } from 'antd'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { TopView } from '../TopView'
+
+const CLOSE_ANIMATION_MS = 200
 
 interface Props {
   resolve: (data: any) => void
@@ -10,48 +13,41 @@ interface Props {
 
 const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
+  const resolvedRef = useRef(false)
+  const { t } = useTranslation()
 
-  const onOk = () => {
+  const resolveAfterClose = () => {
+    if (resolvedRef.current) return
+    resolvedRef.current = true
+    window.setTimeout(() => {
+      resolve({})
+    }, CLOSE_ANIMATION_MS)
+  }
+
+  const closePopup = () => {
     setOpen(false)
+    resolveAfterClose()
   }
 
-  const onCancel = () => {
-    setOpen(false)
+  const onOpenChange = (next: boolean) => {
+    if (!next) {
+      closePopup()
+    }
   }
 
-  const onClose = () => {
-    resolve({})
-  }
-
-  SearchPopup.hide = onCancel
+  SearchPopup.hide = closePopup
 
   return (
-    <Modal
-      open={open}
-      onOk={onOk}
-      onCancel={onCancel}
-      afterClose={onClose}
-      title={null}
-      width={700}
-      transitionName="animation-move-down"
-      styles={{
-        content: {
-          borderRadius: 20,
-          padding: 0,
-          overflow: 'hidden',
-          paddingBottom: 16
-        },
-        body: {
-          height: '80vh',
-          maxHeight: 'inherit',
-          padding: 0
-        }
-      }}
-      centered
-      closable={false}
-      footer={null}>
-      <HistoryPage />
-    </Modal>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        showCloseButton={false}
+        className="h-[80vh] max-h-[80vh] max-w-[700px] overflow-hidden rounded-[20px] p-0 pb-4">
+        <DialogHeader className="sr-only">
+          <DialogTitle>{t('common.search')}</DialogTitle>
+        </DialogHeader>
+        <HistoryPage />
+      </DialogContent>
+    </Dialog>
   )
 }
 

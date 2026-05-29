@@ -1,16 +1,23 @@
+import { cn } from '@cherrystudio/ui/lib/utils'
 import { throttle } from 'lodash'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import styled from 'styled-components'
 
 export interface ScrollbarProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'onScroll'> {
   ref?: React.Ref<HTMLDivElement | null>
   onScroll?: () => void // Custom onScroll prop for useScrollPosition's handleScroll
 }
 
-const Scrollbar: FC<ScrollbarProps> = ({ ref: passedRef, children, onScroll: externalOnScroll, ...htmlProps }) => {
+const Scrollbar: FC<ScrollbarProps> = ({
+  ref: passedRef,
+  children,
+  className,
+  onScroll: externalOnScroll,
+  style,
+  ...htmlProps
+}) => {
   const [isScrolling, setIsScrolling] = useState(false)
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const clearScrollingTimeout = useCallback(() => {
     if (timeoutRef.current) {
@@ -49,27 +56,26 @@ const Scrollbar: FC<ScrollbarProps> = ({ ref: passedRef, children, onScroll: ext
   }, [throttledInternalScrollHandler, clearScrollingTimeout])
 
   return (
-    <ScrollBarContainer
+    <div
       {...htmlProps} // Pass other HTML attributes
-      $isScrolling={isScrolling}
+      className={cn(
+        'overflow-y-auto [scrollbar-gutter:stable] [&::-webkit-scrollbar-thumb:hover]:bg-[var(--color-scrollbar-thumb-hover)] [&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-[2000ms]',
+        isScrolling
+          ? '[&::-webkit-scrollbar-thumb]:bg-[var(--color-scrollbar-thumb)]'
+          : '[&::-webkit-scrollbar-thumb]:bg-transparent',
+        className
+      )}
+      data-scrolling={isScrolling ? 'true' : 'false'}
       onScroll={combinedOnScroll} // Use the combined handler
-      ref={passedRef}>
+      ref={passedRef}
+      style={{
+        ...style,
+        scrollbarColor: isScrolling ? 'var(--color-scrollbar-thumb) transparent' : 'transparent transparent'
+      }}>
       {children}
-    </ScrollBarContainer>
+    </div>
   )
 }
-
-const ScrollBarContainer = styled.div<{ $isScrolling: boolean }>`
-  overflow-y: auto;
-  scrollbar-gutter: stable;
-  &::-webkit-scrollbar-thumb {
-    transition: background 2s ease;
-    background: ${(props) => (props.$isScrolling ? 'var(--color-scrollbar-thumb)' : 'transparent')};
-    &:hover {
-      background: var(--color-scrollbar-thumb-hover);
-    }
-  }
-`
 
 Scrollbar.displayName = 'Scrollbar'
 

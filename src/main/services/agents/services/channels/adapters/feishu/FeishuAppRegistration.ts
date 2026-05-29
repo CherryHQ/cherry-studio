@@ -9,7 +9,7 @@
 import { loggerService } from '@logger'
 import { net } from 'electron'
 
-import type { FeishuDomain } from '../../../../database/schema'
+import type { FeishuDomain } from '../../channelConfig'
 
 const logger = loggerService.withContext('FeishuAppRegistration')
 

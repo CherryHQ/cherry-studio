@@ -2,7 +2,7 @@ import fs from 'node:fs'
 
 import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
-import { MistralClientManager } from '@main/services/MistralClientManager'
+import { mistralClientManager } from '@main/services/MistralClientManager'
 import { MistralService } from '@main/services/remotefile/MistralService'
 import type { Mistral } from '@mistralai/mistralai'
 import type { DocumentURLChunk } from '@mistralai/mistralai/models/components/documenturlchunk'
@@ -24,7 +24,7 @@ export default class MistralPreprocessProvider extends BasePreprocessProvider {
 
   constructor(provider: PreprocessProvider) {
     super(provider)
-    const clientManager = MistralClientManager.getInstance()
+    const clientManager = mistralClientManager
     const aiProvider: Provider = {
       id: provider.id,
       type: 'mistral',

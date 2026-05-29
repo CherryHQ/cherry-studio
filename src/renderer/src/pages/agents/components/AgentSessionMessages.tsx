@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
-import ContextMenu from '@renderer/components/ContextMenu'
 import { LoadingIcon } from '@renderer/components/Icons'
+import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useSession } from '@renderer/hooks/agents/useSession'
 import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
@@ -13,7 +13,7 @@ import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
 import { MessagesContainer, ScrollContainer } from '@renderer/pages/home/Messages/shared'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { getGroupedMessages } from '@renderer/services/MessagesService'
-import store, { useAppDispatch } from '@renderer/store'
+import { useAppDispatch } from '@renderer/store'
 import {
   addChannelUserMessage,
   type ChannelStreamController,
@@ -77,7 +77,6 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
       if (!streamCtrlRef.current) {
         streamCtrlRef.current = setupChannelStream(
           dispatch,
-          store.getState,
           sessionTopicId,
           agentId,
           sessionRef.current?.model ?? agentModelRef.current
@@ -198,10 +197,10 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
     )
   }, [displayMessages.length, hasMore, isLoadingMore, messages, setTimeoutTimer])
 
-  const sessionAssistantId = session?.agent_id ?? agentId
+  const sessionAssistantId = session?.agentId ?? agentId
   const sessionName = session?.name ?? sessionId
-  const sessionCreatedAt = session?.created_at ?? session?.updated_at ?? FALLBACK_TIMESTAMP
-  const sessionUpdatedAt = session?.updated_at ?? session?.created_at ?? FALLBACK_TIMESTAMP
+  const sessionCreatedAt = session?.createdAt ?? session?.updatedAt ?? FALLBACK_TIMESTAMP
+  const sessionUpdatedAt = session?.updatedAt ?? session?.createdAt ?? FALLBACK_TIMESTAMP
 
   const derivedTopic = useMemo<Topic>(
     () => ({
@@ -253,7 +252,7 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
           scrollableTarget="messages"
           inverse
           style={{ overflow: 'visible' }}>
-          <ContextMenu>
+          <SelectionContextMenu>
             <ScrollContainer>
               {groupedMessages.length > 0 ? (
                 groupedMessages.map(([key, groupMessages]) => (
@@ -270,7 +269,7 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
                 </LoaderContainer>
               )}
             </ScrollContainer>
-          </ContextMenu>
+          </SelectionContextMenu>
         </InfiniteScroll>
       </NarrowLayout>
       {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}

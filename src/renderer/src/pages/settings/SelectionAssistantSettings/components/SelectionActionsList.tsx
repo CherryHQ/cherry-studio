@@ -1,11 +1,9 @@
 import { DragDropContext } from '@hello-pangea/dnd'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { defaultActionItems } from '@renderer/store/selectionStore'
-import type { ActionItem } from '@renderer/types/selectionTypes'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
-import { Row } from 'antd'
+import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
-import styled from 'styled-components'
 
 import { SettingDivider, SettingGroup } from '../..'
 import { useActionItems } from '../hooks/useSettingsActionsList'
@@ -20,8 +18,8 @@ import SettingsActionsListHeader from './SettingsActionsListHeader'
 
 // Props for the main component
 interface SelectionActionsListProps {
-  actionItems: ActionItem[] | undefined // List of all available actions
-  setActionItems: (items: ActionItem[]) => void // Function to update action items
+  actionItems: SelectionActionItem[] | undefined // List of all available actions
+  setActionItems: (items: SelectionActionItem[]) => void // Function to update action items
 }
 
 const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setActionItems }) => {
@@ -49,7 +47,7 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
   const { theme } = useTheme()
 
   if (!actionItems || actionItems.length === 0) {
-    setActionItems(defaultActionItems)
+    setActionItems(DefaultPreferences.default['feature.selection.action_items'])
   }
 
   return (
@@ -63,13 +61,13 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
 
       <SettingDivider />
 
-      <DemoSection>
+      <div className="my-6 flex items-center justify-center">
         <SelectionToolbar demo />
-      </DemoSection>
+      </div>
 
       <DragDropContext onDragEnd={onDragEnd}>
-        <ActionsListSection>
-          <ActionColumn>
+        <div className="flex flex-col gap-4">
+          <div className="w-full">
             <ActionsList
               droppableId="enabled"
               items={enabledItems}
@@ -89,8 +87,8 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
               onDelete={handleDeleteActionItem}
               getSearchEngineInfo={getSearchEngineInfo}
             />
-          </ActionColumn>
-        </ActionsListSection>
+          </div>
+        </div>
       </DragDropContext>
 
       <SelectionActionUserModal
@@ -109,21 +107,5 @@ const SelectionActionsList: FC<SelectionActionsListProps> = ({ actionItems, setA
     </SettingGroup>
   )
 }
-
-const ActionsListSection = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-`
-
-const ActionColumn = styled.div`
-  width: 100%;
-`
-
-const DemoSection = styled(Row)`
-  align-items: center;
-  justify-content: center;
-  margin: 24px 0;
-`
 
 export default SelectionActionsList

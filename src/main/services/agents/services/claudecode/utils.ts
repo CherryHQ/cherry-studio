@@ -1,7 +1,10 @@
 // ported from https://github.com/ben-vargas/ai-sdk-provider-claude-code/blob/main/src/map-claude-code-finish-reason.ts#L22
 import type { JSONObject } from '@ai-sdk/provider'
-import type { BetaStopReason } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs'
 import type { FinishReason, LanguageModelUsage } from 'ai'
+
+// Aligned with @anthropic-ai/sdk BetaStopReason; declared locally to avoid coupling to a
+// specific @anthropic-ai/sdk version (claude-agent-sdk bundles its own, at a different rev).
+type BetaStopReason = 'end_turn' | 'max_tokens' | 'stop_sequence' | 'tool_use' | 'pause_turn' | 'refusal' | 'compaction'
 
 /**
  * Maps Claude Code SDK result subtypes to AI SDK finish reasons.
@@ -41,7 +44,8 @@ const finishReasonMapping: Record<BetaStopReason, FinishReason> = {
   stop_sequence: 'stop',
   tool_use: 'tool-calls',
   pause_turn: 'other',
-  refusal: 'content-filter'
+  refusal: 'content-filter',
+  compaction: 'other'
 }
 
 /**
@@ -56,11 +60,11 @@ const finishReasonMapping: Record<BetaStopReason, FinishReason> = {
  * // Returns: 'length'
  * ```
  **/
-export function mapClaudeCodeStopReason(claudeStopReason: BetaStopReason | null): FinishReason {
+export function mapClaudeCodeStopReason(claudeStopReason: string | null): FinishReason {
   if (claudeStopReason === null) {
     return 'stop'
   }
-  return finishReasonMapping[claudeStopReason] || 'other'
+  return finishReasonMapping[claudeStopReason as BetaStopReason] || 'other'
 }
 
 type ClaudeCodeUsage = {
@@ -104,4 +108,78 @@ export function convertClaudeCodeUsage(usage: ClaudeCodeUsage): LanguageModelUsa
     },
     raw: usage as JSONObject
   }
+}
+
+// Several providers expose a 1M context window, but the Claude Code CLI only
+// budgets for it when the model id carries the `[1m]` suffix (parsed locally
+// to switch /context budgeting to 1e6 tokens, then stripped before the API
+// call). We append it for the providers/models we know serve 1M, gated on the
+// official host so third-party redeployments (OpenRouter / Fireworks / etc.)
+// don't claim a capacity their backend may not actually serve.
+//
+// DeepSeek: V4+ Pro and Flash both ship a 1M window.
+// https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/claude_code
+const DEEPSEEK_V4_PLUS_REGEX = /(\w+-)?deepseek-v([4-9]|\d{2,})([.-]\w+)*$/i
+// MiMo: V2.5+ Pro/base support 1M; flash variants cap at 256K. MiMo's
+// official Claude Code docs document the same `[1m]` suffix convention.
+// https://platform.xiaomimimo.com/docs/zh-CN/integration/claudecode
+const MIMO_V25_PLUS_REGEX = /(\w+-)?mimo-v(2\.[5-9]|2\.\d{2,}|[3-9]|\d{2,})([.-]\w+)*$/i
+const CHERRYIN_OFFICIAL_HOSTNAMES = new Set([
+  'open.cherryin.ai',
+  'open.cherryin.cc',
+  'open.cherryin.dev',
+  'open.cherryin.net'
+])
+
+export function isDeepSeekOfficialHost(host: string | undefined): boolean {
+  const trimmed = host?.trim()
+  if (!trimmed) return false
+  try {
+    return new URL(trimmed).hostname.endsWith('api.deepseek.com')
+  } catch {
+    return false
+  }
+}
+
+export function isCherryInOfficialHost(host: string | undefined): boolean {
+  const trimmed = host?.trim()
+  if (!trimmed) return false
+  try {
+    return CHERRYIN_OFFICIAL_HOSTNAMES.has(new URL(trimmed).hostname)
+  } catch {
+    return false
+  }
+}
+
+export function isMiMoOfficialHost(host: string | undefined): boolean {
+  const trimmed = host?.trim()
+  if (!trimmed) return false
+  try {
+    // Covers the standard endpoint (api.xiaomimimo.com) and Token Plan
+    // regional endpoints (token-plan-cn / token-plan-sg / ... .xiaomimimo.com).
+    // The leading-dot boundary keeps lookalikes (notxiaomimimo.com,
+    // xiaomimimo.com.evil.com) from matching.
+    const { hostname } = new URL(trimmed)
+    return hostname === 'xiaomimimo.com' || hostname.endsWith('.xiaomimimo.com')
+  } catch {
+    return false
+  }
+}
+
+export function with1mContextSuffix(modelId: string | undefined, anthropicHost: string | undefined): string {
+  if (!modelId) return ''
+  if (/\[1m\]$/i.test(modelId)) return modelId
+
+  if (isDeepSeekOfficialHost(anthropicHost) || isCherryInOfficialHost(anthropicHost)) {
+    if (!DEEPSEEK_V4_PLUS_REGEX.test(modelId)) return modelId
+    return `${modelId}[1m]`
+  }
+
+  if (isMiMoOfficialHost(anthropicHost)) {
+    if (/flash/i.test(modelId)) return modelId
+    if (!MIMO_V25_PLUS_REGEX.test(modelId)) return modelId
+    return `${modelId}[1m]`
+  }
+
+  return modelId
 }

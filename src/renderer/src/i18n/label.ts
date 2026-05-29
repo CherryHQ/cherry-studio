@@ -7,6 +7,7 @@
 import { loggerService } from '@logger'
 import type { AgentType, BuiltinMCPServerName, BuiltinOcrProviderId } from '@renderer/types'
 import { BuiltinMCPServerNames } from '@renderer/types'
+import { SHORTCUT_DEFINITIONS, type ShortcutLabelKey } from '@shared/shortcuts/definitions'
 
 import i18n from './index'
 
@@ -35,6 +36,7 @@ const providerKeyMap = {
   'baidu-cloud': 'provider.baidu-cloud',
   burncloud: 'provider.burncloud',
   cephalon: 'provider.cephalon',
+  cherryai: 'provider.cherryai',
   cherryin: 'provider.cherryin',
   copilot: 'provider.copilot',
   dashscope: 'provider.dashscope',
@@ -107,6 +109,21 @@ export const getProviderLabel = (id: string): string => {
   return getLabel(providerKeyMap, id)
 }
 
+const fileProcessorKeyMap = {
+  doc2x: 'provider.doc2x',
+  mineru: 'provider.mineru',
+  ovocr: 'provider.ovocr',
+  paddleocr: 'provider.paddleocr',
+  system: 'provider.system',
+  tesseract: 'provider.tesseract',
+  mistral: 'provider.mistral',
+  'open-mineru': 'provider.open-mineru'
+} as const
+
+export const getFileProcessorLabel = (id: string): string => {
+  return getLabel(fileProcessorKeyMap, id)
+}
+
 const backupProgressKeyMap = {
   completed: 'backup.progress.completed',
   compressing: 'backup.progress.compressing',
@@ -148,8 +165,8 @@ const titleKeyMap = {
   home: 'title.home',
   knowledge: 'title.knowledge',
   launchpad: 'title.launchpad',
+  library: 'library.title',
   'mcp-servers': 'title.mcp-servers',
-  memories: 'title.memories',
   notes: 'title.notes',
   paintings: 'title.paintings',
   settings: 'title.settings',
@@ -172,25 +189,13 @@ export const getThemeModeLabel = (key: string): string => {
   return getLabel(themeModeKeyMap, key)
 }
 
-// const sidebarIconKeyMap = {
-//   assistants: t('assistants.title'),
-//   store: t('assistants.presets.title'),
-//   paintings: t('paintings.title'),
-//   translate: t('translate.title'),
-//   minapp: t('minapp.title'),
-//   knowledge: t('knowledge.title'),
-//   files: t('files.title'),
-//   code_tools: t('code.title'),
-//   notes: t('notes.title')
-// } as const
-
 const sidebarIconKeyMap = {
   assistants: 'assistants.title',
   agents: 'agent.sidebar_title',
   store: 'assistants.presets.title',
   paintings: 'paintings.title',
   translate: 'translate.title',
-  minapp: 'minapp.title',
+  mini_app: 'miniApp.title',
   knowledge: 'knowledge.title',
   files: 'files.title',
   code_tools: 'code.title',
@@ -202,41 +207,12 @@ export const getSidebarIconLabel = (key: string): string => {
   return getLabel(sidebarIconKeyMap, key)
 }
 
-const shortcutKeyMap = {
-  action: 'settings.shortcuts.action',
-  actions: 'settings.shortcuts.actions',
-  clear_shortcut: 'settings.shortcuts.clear_shortcut',
-  clear_topic: 'settings.shortcuts.clear_topic',
-  rename_topic: 'settings.shortcuts.rename_topic',
-  copy_last_message: 'settings.shortcuts.copy_last_message',
-  edit_last_user_message: 'settings.shortcuts.edit_last_user_message',
-  enabled: 'settings.shortcuts.enabled',
-  exit_fullscreen: 'settings.shortcuts.exit_fullscreen',
-  label: 'settings.shortcuts.label',
-  mini_window: 'settings.shortcuts.mini_window',
-  new_topic: 'settings.shortcuts.new_topic',
-  press_shortcut: 'settings.shortcuts.press_shortcut',
-  reset_defaults: 'settings.shortcuts.reset_defaults',
-  reset_defaults_confirm: 'settings.shortcuts.reset_defaults_confirm',
-  reset_to_default: 'settings.shortcuts.reset_to_default',
-  search_message: 'settings.shortcuts.search_message',
-  search_message_in_chat: 'settings.shortcuts.search_message_in_chat',
-  select_model: 'settings.shortcuts.select_model',
-  selection_assistant_select_text: 'settings.shortcuts.selection_assistant_select_text',
-  selection_assistant_toggle: 'settings.shortcuts.selection_assistant_toggle',
-  show_app: 'settings.shortcuts.show_app',
-  show_settings: 'settings.shortcuts.show_settings',
-  title: 'settings.shortcuts.title',
-  toggle_new_context: 'settings.shortcuts.toggle_new_context',
-  toggle_show_assistants: 'settings.shortcuts.toggle_show_assistants',
-  toggle_show_topics: 'settings.shortcuts.toggle_show_topics',
-  zoom_in: 'settings.shortcuts.zoom_in',
-  zoom_out: 'settings.shortcuts.zoom_out',
-  zoom_reset: 'settings.shortcuts.zoom_reset'
-} as const
+const shortcutLabelKeyMap = Object.fromEntries(
+  SHORTCUT_DEFINITIONS.map((definition) => [definition.labelKey, `settings.shortcuts.${definition.labelKey}`])
+) as Record<ShortcutLabelKey, string>
 
-export const getShortcutLabel = (key: string): string => {
-  return getLabel(shortcutKeyMap, key)
+export const getShortcutLabel = (key: ShortcutLabelKey): string => {
+  return getLabel(shortcutLabelKeyMap, key)
 }
 
 const selectionDescriptionKeyMap = {
@@ -311,13 +287,13 @@ export const getMcpProviderDescriptionLabel = (key: string): string => {
   return getLabel(mcpProviderDescriptionKeyMap, key)
 }
 
-const miniappsStatusKeyMap = {
-  visible: 'settings.miniapps.visible',
-  disabled: 'settings.miniapps.disabled'
+const miniAppsStatusKeyMap = {
+  visible: 'settings.miniApps.visible',
+  disabled: 'settings.miniApps.disabled'
 } as const
 
-export const getMiniappsStatusLabel = (key: string): string => {
-  return getLabel(miniappsStatusKeyMap, key)
+export const getMiniAppsStatusLabel = (key: string): string => {
+  return getLabel(miniAppsStatusKeyMap, key)
 }
 
 const httpMessageKeyMap = {

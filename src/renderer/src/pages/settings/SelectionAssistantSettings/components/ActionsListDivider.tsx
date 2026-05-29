@@ -1,6 +1,5 @@
 import { memo } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface DividerProps {
   enabledCount: number
@@ -11,31 +10,14 @@ const ActionsListDivider = memo(({ enabledCount, maxEnabled }: DividerProps) => 
   const { t } = useTranslation()
 
   return (
-    <DividerContainer>
-      <DividerLine />
-      <DividerText>{t('selection.settings.actions.drag_hint', { enabled: enabledCount, max: maxEnabled })}</DividerText>
-      <DividerLine />
-    </DividerContainer>
+    <div className="my-4 flex items-center justify-center text-foreground-muted text-xs">
+      <div className="h-0.5 flex-1 bg-border" />
+      <span className="mx-4">
+        {t('selection.settings.actions.drag_hint', { enabled: enabledCount, max: maxEnabled })}
+      </span>
+      <div className="h-0.5 flex-1 bg-border" />
+    </div>
   )
 })
-
-const DividerContainer = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  color: var(--color-text-3);
-  margin: 16px 12px;
-`
-
-const DividerLine = styled.div`
-  flex: 1;
-  height: 2px;
-  background: var(--color-border);
-`
-
-const DividerText = styled.span`
-  margin: 0 16px;
-`
 
 export default ActionsListDivider

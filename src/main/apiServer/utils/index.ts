@@ -1,6 +1,6 @@
+import { application } from '@application'
+import { loggerService } from '@logger'
 import { formatProviderApiHost } from '@main/aiCore/provider/providerConfig'
-import { CacheService } from '@main/services/CacheService'
-import { loggerService } from '@main/services/LoggerService'
 import { reduxService } from '@main/services/ReduxService'
 import { isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
 import type { ApiModel, Model, Provider, ProviderType } from '@types'
@@ -13,8 +13,10 @@ const PROVIDERS_CACHE_TTL = 10 * 1000 // 10 seconds
 
 export async function getAvailableProviders(): Promise<Provider[]> {
   try {
+    const cacheService = application.get('CacheService')
+
     // Try to get from cache first (faster)
-    const cachedSupportedProviders = CacheService.get<Provider[]>(PROVIDERS_CACHE_KEY)
+    const cachedSupportedProviders = cacheService.get<Provider[]>(PROVIDERS_CACHE_KEY)
     if (cachedSupportedProviders && cachedSupportedProviders.length > 0) {
       logger.debug('Providers resolved from cache', {
         count: cachedSupportedProviders.length
@@ -49,7 +51,7 @@ export async function getAvailableProviders(): Promise<Provider[]> {
     }
 
     // Cache the formatted results
-    CacheService.set(PROVIDERS_CACHE_KEY, formattedProviders, PROVIDERS_CACHE_TTL)
+    cacheService.set(PROVIDERS_CACHE_KEY, formattedProviders, PROVIDERS_CACHE_TTL)
 
     logger.info('Providers filtered and formatted', {
       supported: formattedProviders.length,
@@ -296,11 +298,17 @@ export function validateProvider(provider: Provider): boolean {
   }
 }
 
+const supportsAnthropicEndpoint = (m: Model): boolean =>
+  m.endpoint_type === 'anthropic' || m.supported_endpoint_types?.includes('anthropic') === true
+
 export const getProviderAnthropicModelChecker = (providerId: string): ((m: Model) => boolean) => {
   switch (providerId) {
     case 'cherryin':
     case 'new-api':
-      return (m: Model) => m.endpoint_type === 'anthropic'
+      // Both are OpenAI-compatible aggregators that may expose Anthropic-protocol models.
+      // Auto-fetched models declare `supported_endpoint_types`; manually added or older
+      // entries fall back to the legacy `endpoint_type === 'anthropic'` flag.
+      return supportsAnthropicEndpoint
     case 'silicon':
       return (m: Model) => isSiliconAnthropicCompatibleModel(m.id)
     default:

@@ -1,5 +1,5 @@
+import { Button, Flex, Textarea } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { Button, Flex, Input } from 'antd'
 import React, { useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -134,23 +134,22 @@ const MathInputDialog: React.FC<MathInputDialogProps> = ({
 
   return (
     <div style={styles} ref={containerRef}>
-      <Input.TextArea
+      <Textarea.Input
         value={value}
         rows={4}
         placeholder={t('richEditor.math.placeholder')}
-        onChange={(e) => {
-          const newValue = e.target.value
+        onValueChange={(newValue) => {
           setValue(newValue)
           onFormulaChange?.(newValue)
         }}
         onKeyDown={handleKeyDown}
-        style={{ marginBottom: 12, fontFamily: 'monospace' }}
+        className="mb-3 font-mono text-sm"
       />
-      <Flex justify="flex-end" gap={8}>
-        <Button size="small" onClick={onCancel}>
+      <Flex className="justify-end gap-2">
+        <Button size="sm" onClick={onCancel}>
           {t('common.cancel')}
         </Button>
-        <Button type="primary" size="small" onClick={handleSubmit}>
+        <Button color="primary" size="sm" onClick={handleSubmit}>
           {t('common.confirm')}
         </Button>
       </Flex>

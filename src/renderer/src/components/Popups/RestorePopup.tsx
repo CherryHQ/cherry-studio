@@ -1,11 +1,20 @@
+import {
+  Button,
+  CircularProgress,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@cherrystudio/ui'
 import { getRestoreProgressLabel } from '@renderer/i18n/label'
 import { restore } from '@renderer/services/BackupService'
 import { IpcChannel } from '@shared/IpcChannel'
-import { Modal, Progress } from 'antd'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { TopView } from '../TopView'
+import { useTopViewClose } from './useTopViewClose'
 
 interface Props {
   resolve: (data: any) => void
@@ -21,6 +30,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const [open, setOpen] = useState(true)
   const [progressData, setProgressData] = useState<ProgressData>()
   const { t } = useTranslation()
+  const close = useTopViewClose({ resolve, setOpen, topViewKey: TopViewKey })
 
   useEffect(() => {
     const removeListener = window.electron.ipcRenderer.on(IpcChannel.RestoreProgress, (_, data: ProgressData) => {
@@ -34,15 +44,11 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
 
   const onOk = async () => {
     await restore()
-    setOpen(false)
+    close({})
   }
 
   const onCancel = () => {
-    setOpen(false)
-  }
-
-  const onClose = () => {
-    resolve({})
+    close({})
   }
 
   const getProgressText = () => {
@@ -61,26 +67,34 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const isDisabled = progressData ? progressData.stage !== 'completed' : false
 
   return (
-    <Modal
-      title={t('restore.title')}
-      open={open}
-      onOk={onOk}
-      onCancel={onCancel}
-      afterClose={onClose}
-      okText={t('restore.confirm.button')}
-      okButtonProps={{ disabled: isDisabled }}
-      cancelButtonProps={{ disabled: isDisabled }}
-      maskClosable={false}
-      transitionName="animation-move-down"
-      centered>
-      {!progressData && <div>{t('restore.content')}</div>}
-      {progressData && (
-        <div style={{ textAlign: 'center', padding: '20px 0' }}>
-          <Progress percent={Math.floor(progressData.progress)} strokeColor="var(--color-primary)" />
-          <div style={{ marginTop: 16 }}>{getProgressText()}</div>
-        </div>
-      )}
-    </Modal>
+    <Dialog open={open} onOpenChange={(nextOpen) => !nextOpen && onCancel()}>
+      <DialogContent className="sm:max-w-[520px]" onPointerDownOutside={(event) => event.preventDefault()}>
+        <DialogHeader>
+          <DialogTitle>{t('restore.title')}</DialogTitle>
+        </DialogHeader>
+        {!progressData && <div>{t('restore.content')}</div>}
+        {progressData && (
+          <div className="flex flex-col items-center gap-4 py-5 text-center">
+            <CircularProgress
+              value={Math.floor(progressData.progress)}
+              size={72}
+              strokeWidth={6}
+              showLabel
+              renderLabel={(progress) => `${progress}%`}
+            />
+            <div>{getProgressText()}</div>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" disabled={isDisabled} onClick={onCancel}>
+            {t('common.cancel')}
+          </Button>
+          <Button disabled={isDisabled} onClick={onOk}>
+            {t('restore.confirm.button')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
 
@@ -93,15 +107,7 @@ export default class RestorePopup {
   }
   static show() {
     return new Promise<any>((resolve) => {
-      TopView.show(
-        <PopupContainer
-          resolve={(v) => {
-            resolve(v)
-            TopView.hide(TopViewKey)
-          }}
-        />,
-        TopViewKey
-      )
+      TopView.show(<PopupContainer resolve={resolve} />, TopViewKey)
     })
   }
 }

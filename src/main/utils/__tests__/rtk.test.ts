@@ -44,12 +44,20 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('../../constant', () => ({
+vi.mock('@main/core/platform', () => ({
   isWin: false
 }))
 
+vi.mock('@application', () => ({
+  application: {
+    getPath: (key: string) => {
+      if (key === 'app.root.resources.binaries') return '/app/resources/binaries'
+      return '/app/resources'
+    }
+  }
+}))
+
 vi.mock('..', () => ({
-  getResourcePath: () => '/app/resources',
   toAsarUnpackedPath: (filePath: string) => filePath
 }))
 

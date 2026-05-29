@@ -818,6 +818,6 @@ registerAdapterFactory('discord', (channel, agentId) => {
     channelId: channel.id,
     channelType: channel.type,
     agentId,
-    channelConfig: channel.config as Record<string, unknown>
+    channelConfig: channel.config
   })
 })

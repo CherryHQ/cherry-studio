@@ -1,4 +1,4 @@
-import type { WebSearchToolInput, WebSearchToolOutput } from '@renderer/aiCore/tools/WebSearchTool'
+import type { FetchUrlsToolInput, FetchUrlsToolOutput, WebSearchToolInput } from '@renderer/aiCore/tools/WebSearchTool'
 import Spinner from '@renderer/components/Spinner'
 import type { NormalToolResponse } from '@renderer/types'
 import { Typography } from 'antd'
@@ -10,15 +10,16 @@ const { Text } = Typography
 
 export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: NormalToolResponse }) => {
   const { t } = useTranslation()
-  const toolInput = toolResponse.arguments as WebSearchToolInput
-  const toolOutput = toolResponse.response as WebSearchToolOutput
+  const toolInput = toolResponse.arguments as FetchUrlsToolInput | WebSearchToolInput
+  const toolOutput = toolResponse.response as FetchUrlsToolOutput
+  const inputs = 'urls' in toolInput ? toolInput.urls : toolInput.queries || [toolInput.additionalContext]
 
   return toolResponse.status !== 'done' ? (
     <Spinner
       text={
         <PrepareToolWrapper>
           {t('message.searching')}
-          <span>{toolInput?.additionalContext ?? ''}</span>
+          <span>{inputs?.join(', ') ?? ''}</span>
         </PrepareToolWrapper>
       }
     />
@@ -31,22 +32,6 @@ export const MessageWebSearchToolTitle = ({ toolResponse }: { toolResponse: Norm
     </MessageWebSearchToolTitleTextWrapper>
   )
 }
-
-// export const MessageWebSearchToolBody = ({ toolResponse }: { toolResponse: MCPToolResponse }) => {
-//   const toolOutput = toolResponse.response as WebSearchToolOutput
-
-//   return toolResponse.status === 'done'
-//     ? toolOutput?.results?.map((result, index) => (
-//         <MessageWebSearchToolBodyUlWrapper key={result?.query ?? '' + index}>
-//           {result.results.map((item, index) => (
-//             <li key={item.url + index}>
-//               <Link href={item.url}>{item.title}</Link>
-//             </li>
-//           ))}
-//         </MessageWebSearchToolBodyUlWrapper>
-//       ))
-//     : null
-// }
 
 const PrepareToolWrapper = styled.span`
   display: flex;
@@ -63,10 +48,3 @@ const MessageWebSearchToolTitleTextWrapper = styled(Text)`
   gap: 4px;
   padding: 5px;
 `
-
-// const MessageWebSearchToolBodyUlWrapper = styled.ul`
-//   display: flex;
-//   flex-direction: column;
-//   gap: 4px;
-//   padding: 0;
-// `

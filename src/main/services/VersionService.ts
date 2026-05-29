@@ -1,7 +1,7 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { app } from 'electron'
 import fs from 'fs'
-import path from 'path'
 
 const logger = loggerService.withContext('VersionService')
 
@@ -27,12 +27,7 @@ interface VersionRecord {
  * Stores version information in userData/version.log for data migration and diagnostics
  */
 class VersionService {
-  private readonly VERSION_LOG_FILE = 'version.log'
   private versionLogPath: string | null = null
-
-  constructor() {
-    // Lazy initialization of path since app.getPath may not be available during construction
-  }
 
   /**
    * Gets the full path to version.log file
@@ -40,7 +35,7 @@ class VersionService {
    */
   private getVersionLogPath(): string {
     if (!this.versionLogPath) {
-      this.versionLogPath = path.join(app.getPath('userData'), this.VERSION_LOG_FILE)
+      this.versionLogPath = application.getPath('feature.version_log.file')
     }
     return this.versionLogPath
   }

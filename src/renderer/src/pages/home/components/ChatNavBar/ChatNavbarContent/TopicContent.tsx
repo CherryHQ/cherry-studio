@@ -1,6 +1,6 @@
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
-import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
+import AssistantSettingsPopup from '@renderer/pages/home/AssistantSettings'
 import type { Assistant } from '@renderer/types'
 import { getLeadingEmoji } from '@renderer/utils'
 import { ChevronRight } from 'lucide-react'

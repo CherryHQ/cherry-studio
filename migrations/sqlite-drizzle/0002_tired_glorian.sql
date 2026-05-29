@@ -1,0 +1,36 @@
+CREATE TABLE `mcp_server` (
+	`id` text PRIMARY KEY NOT NULL,
+	`name` text NOT NULL,
+	`type` text,
+	`description` text,
+	`base_url` text,
+	`command` text,
+	`registry_url` text,
+	`args` text,
+	`env` text,
+	`headers` text,
+	`provider` text,
+	`provider_url` text,
+	`logo_url` text,
+	`tags` text,
+	`long_running` integer,
+	`timeout` integer,
+	`dxt_version` text,
+	`dxt_path` text,
+	`reference` text,
+	`search_key` text,
+	`config_sample` text,
+	`disabled_tools` text,
+	`disabled_auto_approve_tools` text,
+	`should_config` integer,
+	`is_active` integer DEFAULT false NOT NULL,
+	`install_source` text,
+	`is_trusted` integer,
+	`trusted_at` integer,
+	`installed_at` integer,
+	`created_at` integer,
+	`updated_at` integer
+);
+--> statement-breakpoint
+CREATE INDEX `mcp_server_name_idx` ON `mcp_server` (`name`);--> statement-breakpoint
+CREATE INDEX `mcp_server_is_active_idx` ON `mcp_server` (`is_active`);

@@ -1,10 +1,10 @@
+import { agentChannelService as channelService } from '@data/services/AgentChannelService'
+import { agentService } from '@data/services/AgentService'
+import { agentSessionService as sessionService } from '@data/services/AgentSessionService'
+import { sessionMessageOrchestrator } from '@main/services/agents/services/SessionMessageOrchestrator'
 import { EventEmitter } from 'events'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { agentService } from '../../AgentService'
-import { channelService } from '../../ChannelService'
-import { sessionMessageService } from '../../SessionMessageService'
-import { sessionService } from '../../SessionService'
 import { channelMessageHandler } from '../ChannelMessageHandler'
 
 vi.mock('@logger', () => ({
@@ -18,28 +18,28 @@ vi.mock('../../security', () => ({
   sanitizeChannelOutput: vi.fn((text: string) => ({ text, redacted: false }))
 }))
 
-vi.mock('../../AgentService', () => ({
+vi.mock('@data/services/AgentService', () => ({
   agentService: {
     getAgent: vi.fn().mockResolvedValue({ configuration: {} })
   }
 }))
 
-vi.mock('../../SessionService', () => ({
-  sessionService: {
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: {
     listSessions: vi.fn().mockResolvedValue({ sessions: [], total: 0 }),
     getSession: vi.fn(),
     createSession: vi.fn()
   }
 }))
 
-vi.mock('../../SessionMessageService', () => ({
-  sessionMessageService: {
+vi.mock('@main/services/agents/services/SessionMessageOrchestrator', () => ({
+  sessionMessageOrchestrator: {
     createSessionMessage: vi.fn()
   }
 }))
 
-vi.mock('../../ChannelService', () => ({
-  channelService: {
+vi.mock('@data/services/AgentChannelService', () => ({
+  agentChannelService: {
     getChannel: vi.fn().mockResolvedValue({ id: 'channel-1', sessionId: null, permissionMode: null }),
     updateChannel: vi.fn().mockResolvedValue(null),
     findBySessionId: vi.fn().mockResolvedValue(null)
@@ -116,14 +116,14 @@ describe('ChannelMessageHandler', () => {
     const adapter = createMockAdapter()
     const session = {
       id: 'session-1',
-      agent_id: 'agent-1',
-      agent_type: 'claude-code',
-      accessible_paths: ['/tmp/test-workspace'],
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      accessiblePaths: ['/tmp/test-workspace'],
       configuration: {}
     }
 
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
-    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
+    vi.mocked(sessionMessageOrchestrator.createSessionMessage).mockResolvedValueOnce(
       createMockStream([
         // Turn 1: cumulative text-delta within block
         { type: 'text-delta', text: 'Hello ' },
@@ -149,15 +149,15 @@ describe('ChannelMessageHandler', () => {
     const adapter = createMockAdapter()
     const session = {
       id: 'session-1',
-      agent_id: 'agent-1',
-      agent_type: 'claude-code',
-      accessible_paths: ['/tmp/test-workspace'],
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      accessiblePaths: ['/tmp/test-workspace'],
       configuration: {}
     }
 
     adapter.onStreamComplete.mockResolvedValueOnce(true)
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
-    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
+    vi.mocked(sessionMessageOrchestrator.createSessionMessage).mockResolvedValueOnce(
       createMockStream([{ type: 'text-delta', text: 'Hello world!' }]) as any
     )
 
@@ -176,16 +176,16 @@ describe('ChannelMessageHandler', () => {
     const adapter = createMockAdapter()
     const session = {
       id: 'session-1',
-      agent_id: 'agent-1',
-      agent_type: 'claude-code',
-      accessible_paths: ['/tmp/test-workspace'],
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      accessiblePaths: ['/tmp/test-workspace'],
       configuration: {}
     }
 
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
 
     const longText = 'A'.repeat(5000)
-    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
+    vi.mocked(sessionMessageOrchestrator.createSessionMessage).mockResolvedValueOnce(
       createMockStream([{ type: 'text-delta', text: longText }]) as any
     )
 
@@ -220,14 +220,14 @@ describe('ChannelMessageHandler', () => {
     const adapter = createMockAdapter()
     const session = {
       id: 'session-1',
-      agent_id: 'agent-1',
-      agent_type: 'claude-code',
-      accessible_paths: ['/tmp/test-workspace'],
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      accessiblePaths: ['/tmp/test-workspace'],
       configuration: {}
     }
 
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
-    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
+    vi.mocked(sessionMessageOrchestrator.createSessionMessage).mockResolvedValueOnce(
       createMockStream([{ type: 'text-delta', text: 'Compacted.' }]) as any
     )
 
@@ -238,7 +238,7 @@ describe('ChannelMessageHandler', () => {
       command: 'compact'
     })
 
-    expect(sessionMessageService.createSessionMessage).toHaveBeenCalledWith(
+    expect(sessionMessageOrchestrator.createSessionMessage).toHaveBeenCalledWith(
       session,
       { content: '/compact' },
       expect.any(AbortController),
@@ -291,9 +291,9 @@ describe('ChannelMessageHandler', () => {
     const adapter = createMockAdapter()
     const newSession = {
       id: 'new-session',
-      agent_id: 'agent-1',
-      agent_type: 'claude-code',
-      accessible_paths: ['/tmp/test-workspace'],
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      accessiblePaths: ['/tmp/test-workspace'],
       configuration: {}
     }
 
@@ -308,7 +308,7 @@ describe('ChannelMessageHandler', () => {
 
     // Now send a message — should use the tracked session
     vi.mocked(sessionService.getSession).mockResolvedValueOnce(newSession as any)
-    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
+    vi.mocked(sessionMessageOrchestrator.createSessionMessage).mockResolvedValueOnce(
       createMockStream([{ type: 'text-delta', text: 'OK' }]) as any
     )
 
@@ -326,15 +326,15 @@ describe('ChannelMessageHandler', () => {
     const adapter = createMockAdapter()
     const session1 = {
       id: 'session-1',
-      agent_id: 'agent-1',
-      agent_type: 'claude-code',
-      accessible_paths: ['/tmp/test-workspace'],
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      accessiblePaths: ['/tmp/test-workspace'],
       configuration: {}
     }
 
     // First interaction creates a session
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session1 as any)
-    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
+    vi.mocked(sessionMessageOrchestrator.createSessionMessage).mockResolvedValueOnce(
       createMockStream([{ type: 'text-delta', text: 'R1' }]) as any
     )
 
@@ -355,7 +355,7 @@ describe('ChannelMessageHandler', () => {
       permissionMode: null
     } as any)
     vi.mocked(sessionService.getSession).mockResolvedValueOnce(session1 as any)
-    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce(
+    vi.mocked(sessionMessageOrchestrator.createSessionMessage).mockResolvedValueOnce(
       createMockStream([{ type: 'text-delta', text: 'R2' }]) as any
     )
 

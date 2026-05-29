@@ -1,14 +1,26 @@
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuItemContent,
+  ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger
+} from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import AssistantAvatar from '@renderer/components/Avatar/AssistantAvatar'
 import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
-import { useSettings } from '@renderer/hooks/useSettings'
-import { useTags } from '@renderer/hooks/useTags'
-import AssistantSettingsPopup from '@renderer/pages/settings/AssistantSettings'
+import { useTags } from '@renderer/hooks/useTagsLegacy'
+import AssistantSettingsPopup from '@renderer/pages/home/AssistantSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Assistant, AssistantsSortType } from '@renderer/types'
+import type { Assistant } from '@renderer/types'
 import { cn, uuid } from '@renderer/utils'
 import { hasTopicPendingRequests } from '@renderer/utils/queue'
+import type { AssistantTabSortType } from '@shared/data/preference/preferenceTypes'
 import type { MenuProps } from 'antd'
 import { Dropdown } from 'antd'
 import { omit } from 'lodash'
@@ -36,14 +48,14 @@ import AssistantTagsPopup from './AssistantTagsPopup'
 interface AssistantItemProps {
   assistant: Assistant
   isActive: boolean
-  sortBy: AssistantsSortType
+  sortBy: AssistantTabSortType
   onSwitch: (assistant: Assistant) => void
   onDelete: (assistant: Assistant) => void
   onCreateDefaultAssistant: () => void
   addPreset: (agent: any) => void
   copyAssistant: (assistant: Assistant) => void
   onTagClick?: (tag: string) => void
-  handleSortByChange?: (sortType: AssistantsSortType) => void
+  handleSortByChange?: (sortType: AssistantTabSortType) => void
   sortByPinyinAsc?: () => void
   sortByPinyinDesc?: () => void
 }
@@ -60,10 +72,13 @@ const AssistantItem: FC<AssistantItemProps> = ({
   sortByPinyinAsc: externalSortByPinyinAsc,
   sortByPinyinDesc: externalSortByPinyinDesc
 }) => {
+  const [, setAssistantIconType] = usePreference('assistant.icon_type')
+  const [clickAssistantToShowTopic] = usePreference('assistant.click_to_show_topic')
+  const [topicPosition] = usePreference('topic.position')
+
   const { t } = useTranslation()
   const { allTags } = useTags()
   const { removeAllTopics } = useAssistant(assistant.id)
-  const { clickAssistantToShowTopic, topicPosition, setAssistantIconType } = useSettings()
   const { assistants, updateAssistants } = useAssistants()
 
   const [isPending, setIsPending] = useState(false)
@@ -149,36 +164,166 @@ const AssistantItem: FC<AssistantItemProps> = ({
     e.stopPropagation()
   }, [])
 
+  const handleEdit = useCallback(() => AssistantSettingsPopup.show({ assistant }), [assistant])
+
+  const handleDuplicate = useCallback(async () => {
+    const _assistant = copyAssistant(assistant) as Assistant | undefined
+    if (_assistant) onSwitch(_assistant)
+  }, [assistant, copyAssistant, onSwitch])
+
+  const handleClear = useCallback(() => {
+    window.modal.confirm({
+      title: t('assistants.clear.title'),
+      content: t('assistants.clear.content'),
+      centered: true,
+      okButtonProps: { danger: true },
+      onOk: removeAllTopics
+    })
+  }, [t, removeAllTopics])
+
+  const handleSaveToAgent = useCallback(() => {
+    const preset = omit(assistant, ['model'])
+    preset.id = uuid()
+    preset.type = 'agent'
+    addPreset(preset)
+    window.toast.success(t('assistants.save.success'))
+  }, [assistant, addPreset, t])
+
+  const handleSwitchView = useCallback(() => {
+    handleSortByChange?.(sortBy === 'list' ? 'tags' : 'list')
+  }, [sortBy, handleSortByChange])
+
+  const handleDelete = useCallback(() => {
+    window.modal.confirm({
+      title: t('assistants.delete.title'),
+      content: t('assistants.delete.content'),
+      centered: true,
+      okButtonProps: { danger: true },
+      onOk: () => onDelete(assistant)
+    })
+  }, [t, onDelete, assistant])
+
+  const handleAddTag = useCallback(async () => {
+    const tagName = await PromptPopup.show({ title: t('assistants.tags.add'), message: '' })
+    if (tagName && tagName.trim()) {
+      updateAssistants(assistants.map((a) => (a.id === assistant.id ? { ...a, tags: [tagName.trim()] } : a)))
+    }
+  }, [t, assistants, assistant.id, updateAssistants])
+
+  const handleManageTags = useCallback(() => {
+    void AssistantTagsPopup.show({ title: t('assistants.tags.manage') })
+  }, [t])
+
   return (
-    <Dropdown
-      menu={{ items: menuItems }}
-      trigger={['contextMenu']}
-      popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
-      <Container
-        onClick={handleSwitch}
-        isActive={isActive}
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}>
-        <AssistantNameRow className="name" title={fullAssistantName}>
-          <AssistantAvatar
-            assistant={assistant}
-            size={24}
-            className={isPending && !isActive ? 'animation-pulse' : ''}
-          />
-          <AssistantName className="text-nowrap">{assistantName}</AssistantName>
-        </AssistantNameRow>
-        {(isActive || isHovered) && (
-          <Dropdown
-            menu={{ items: menuItems }}
-            trigger={['click']}
-            popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
-            <MenuButton onClick={handleMenuButtonClick}>
-              <MoreVertical size={14} className="text-(--color-text-secondary)" />
-            </MenuButton>
-          </Dropdown>
-        )}
-      </Container>
-    </Dropdown>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <Container
+          onClick={handleSwitch}
+          isActive={isActive}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}>
+          <AssistantNameRow className="name" title={fullAssistantName}>
+            <AssistantAvatar
+              assistant={assistant}
+              size={24}
+              className={isPending && !isActive ? 'animation-pulse' : ''}
+            />
+            <AssistantName className="text-nowrap">{assistantName}</AssistantName>
+          </AssistantNameRow>
+          {(isActive || isHovered) && (
+            <Dropdown
+              menu={{ items: menuItems }}
+              trigger={['click']}
+              popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
+              <MenuButton onClick={handleMenuButtonClick}>
+                <MoreVertical size={14} className="text-foreground-secondary" />
+              </MenuButton>
+            </Dropdown>
+          )}
+        </Container>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={handleEdit}>
+          <ContextMenuItemContent icon={<EditIcon size={14} />}>{t('assistants.edit.title')}</ContextMenuItemContent>
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={handleDuplicate}>
+          <ContextMenuItemContent icon={<CopyIcon size={14} />}>{t('assistants.copy.title')}</ContextMenuItemContent>
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={handleClear}>
+          <ContextMenuItemContent icon={<BrushCleaning size={14} />}>
+            {t('assistants.clear.title')}
+          </ContextMenuItemContent>
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={handleSaveToAgent}>
+          <ContextMenuItemContent icon={<Save size={14} />}>{t('assistants.save.title')}</ContextMenuItemContent>
+        </ContextMenuItem>
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>
+            <Smile size={14} />
+            {t('assistants.icon.type')}
+          </ContextMenuSubTrigger>
+          <ContextMenuSubContent>
+            <ContextMenuItem onSelect={() => setAssistantIconType('model')}>
+              {t('settings.assistant.icon.type.model')}
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => setAssistantIconType('emoji')}>
+              {t('settings.assistant.icon.type.emoji')}
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => setAssistantIconType('none')}>
+              {t('settings.assistant.icon.type.none')}
+            </ContextMenuItem>
+          </ContextMenuSubContent>
+        </ContextMenuSub>
+        <ContextMenuSeparator />
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>
+            <Plus size={14} />
+            {t('assistants.tags.manage')}
+          </ContextMenuSubTrigger>
+          <ContextMenuSubContent>
+            {allTags.map((tag) => (
+              <ContextMenuItem
+                key={`all-tag-${tag}`}
+                onSelect={() => handleTagOperation(tag, assistant, assistants, updateAssistants)}>
+                <ContextMenuItemContent icon={assistant.tags?.includes(tag) ? <Check size={14} /> : <Tag size={14} />}>
+                  {tag}
+                </ContextMenuItemContent>
+              </ContextMenuItem>
+            ))}
+            {allTags.length > 0 && <ContextMenuSeparator />}
+            <ContextMenuItem onSelect={handleAddTag}>
+              <ContextMenuItemContent icon={<Plus size={14} />}>{t('assistants.tags.add')}</ContextMenuItemContent>
+            </ContextMenuItem>
+            {allTags.length > 0 && (
+              <ContextMenuItem onSelect={handleManageTags}>
+                <ContextMenuItemContent icon={<Settings2 size={14} />}>
+                  {t('assistants.tags.manage')}
+                </ContextMenuItemContent>
+              </ContextMenuItem>
+            )}
+          </ContextMenuSubContent>
+        </ContextMenuSub>
+        <ContextMenuItem onSelect={handleSwitchView}>
+          <ContextMenuItemContent icon={sortBy === 'list' ? <Tags size={14} /> : <AlignJustify size={14} />}>
+            {sortBy === 'list' ? t('assistants.list.showByTags') : t('assistants.list.showByList')}
+          </ContextMenuItemContent>
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={sortByPinyinAsc}>
+          <ContextMenuItemContent icon={<ArrowDownAZ size={14} />}>
+            {t('common.sort.pinyin.asc')}
+          </ContextMenuItemContent>
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={sortByPinyinDesc}>
+          <ContextMenuItemContent icon={<ArrowUpAZ size={14} />}>{t('common.sort.pinyin.desc')}</ContextMenuItemContent>
+        </ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem variant="destructive" onSelect={handleDelete}>
+          <ContextMenuItemContent icon={<DeleteIcon size={14} className="lucide-custom" />}>
+            {t('common.delete')}
+          </ContextMenuItemContent>
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   )
 }
 

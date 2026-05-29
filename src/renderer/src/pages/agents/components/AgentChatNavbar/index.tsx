@@ -12,7 +12,7 @@ interface Props {
 }
 
 const AgentChatNavbar = ({ activeAgent, className }: Props) => {
-  useShortcut('search_message', () => {
+  useShortcut('general.search', () => {
     void SearchPopup.show()
   })
 

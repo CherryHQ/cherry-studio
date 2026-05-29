@@ -11,7 +11,6 @@ import type { Model } from '@renderer/types'
 import { isFreeModel } from '@renderer/utils/model'
 import type { FC } from 'react'
 import { memo, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import styled from 'styled-components'
 
 import {
   EmbeddingTag,
@@ -75,7 +74,10 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
   }, [maxWidth, showLabel])
 
   return (
-    <Container ref={containerRef} style={style}>
+    <div
+      ref={containerRef}
+      className="flex flex-row flex-nowrap items-center gap-1 overflow-x-scroll [&::-webkit-scrollbar]:hidden"
+      style={style}>
       {isVisionModel(model) && <VisionTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />}
       {isWebSearchModel(model) && <WebSearchTag size={size} showTooltip={showTooltip} showLabel={shouldShowLabel} />}
       {showReasoning && isReasoningModel(model) && (
@@ -87,20 +89,8 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
       {isEmbeddingModel(model) && <EmbeddingTag size={size} />}
       {showFree && isFreeModel(model) && <FreeTag size={size} />}
       {isRerankModel(model) && <RerankerTag size={size} />}
-    </Container>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 4px;
-  flex-wrap: nowrap;
-  overflow-x: scroll;
-  &::-webkit-scrollbar {
-    display: none;
-  }
-`
 
 export default memo(ModelTagsWithLabel)

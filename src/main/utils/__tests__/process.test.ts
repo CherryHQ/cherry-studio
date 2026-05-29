@@ -17,7 +17,8 @@ import {
 // Mock configManager
 vi.mock('@main/services/ConfigManager', () => ({
   ConfigKeys: {
-    GitBashPath: 'gitBashPath'
+    GitBashPath: 'gitBashPath',
+    GitBashPathSource: 'gitBashPathSource'
   },
   configManager: {
     get: vi.fn(),

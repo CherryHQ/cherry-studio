@@ -1,9 +1,11 @@
-import { Modal } from 'antd'
-import { useState } from 'react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { NutstorePathSelector } from '../NutstorePathSelector'
 import { TopView } from '../TopView'
+
+const CLOSE_ANIMATION_MS = 200
 
 interface Props {
   fs: Nutstore.Fs
@@ -12,27 +14,37 @@ interface Props {
 
 const PopupContainer: React.FC<Props> = ({ resolve, fs }) => {
   const [open, setOpen] = useState(true)
+  const resolvedRef = useRef(false)
   const { t } = useTranslation()
+
+  const resolveAfterClose = () => {
+    if (resolvedRef.current) return
+    resolvedRef.current = true
+    window.setTimeout(() => {
+      resolve(null)
+    }, CLOSE_ANIMATION_MS)
+  }
 
   const onCancel = () => {
     setOpen(false)
+    resolveAfterClose()
   }
 
-  const onClose = () => {
-    resolve(null)
+  const onOpenChange = (next: boolean) => {
+    if (!next) {
+      onCancel()
+    }
   }
 
   return (
-    <Modal
-      open={open}
-      title={t('settings.data.nutstore.pathSelector.title')}
-      transitionName="animation-move-down"
-      afterClose={onClose}
-      onCancel={onClose}
-      footer={null}
-      centered>
-      <NutstorePathSelector fs={fs} onConfirm={resolve} onCancel={onCancel} />
-    </Modal>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{t('settings.data.nutstore.pathSelector.title')}</DialogTitle>
+        </DialogHeader>
+        <NutstorePathSelector fs={fs} onConfirm={resolve} onCancel={onCancel} />
+      </DialogContent>
+    </Dialog>
   )
 }
 

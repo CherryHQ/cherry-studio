@@ -1,13 +1,8 @@
+import { MCPConfigSampleSchema } from '@shared/data/types/mcpServer'
 import * as z from 'zod'
 
 import { isBuiltinMCPServerName } from '.'
 
-export const MCPConfigSampleSchema = z.object({
-  command: z.string(),
-  args: z.array(z.string()),
-  env: z.record(z.string(), z.string()).optional()
-})
-export type MCPConfigSample = z.infer<typeof MCPConfigSampleSchema>
 /**
  * 定义 MCP 服务器的通信类型。
  * stdio: 通过标准输入/输出与子进程通信 (最常见)。

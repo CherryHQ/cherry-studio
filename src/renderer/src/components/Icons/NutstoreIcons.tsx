@@ -1,15 +1,6 @@
-import styled from 'styled-components'
-
-const IconSpan = styled.span`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
-`
-
 export function NutstoreIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
-    <IconSpan>
+    <span className="flex h-full items-center justify-center">
       <svg
         {...props}
         width="16px"
@@ -27,13 +18,13 @@ export function NutstoreIcon(props: React.SVGProps<SVGSVGElement>) {
             fillRule="nonzero"></path>
         </g>
       </svg>
-    </IconSpan>
+    </span>
   )
 }
 
 export function FolderIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
-    <IconSpan>
+    <span className="flex h-full items-center justify-center">
       <svg width="16px" height="16px" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" {...props}>
         <title>folder</title>
         <path
@@ -45,6 +36,6 @@ export function FolderIcon(props: React.SVGProps<SVGSVGElement>) {
           style={{ fill: '#74c6ff' }}
         />
       </svg>
-    </IconSpan>
+    </span>
   )
 }

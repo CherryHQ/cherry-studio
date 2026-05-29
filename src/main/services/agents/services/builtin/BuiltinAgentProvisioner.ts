@@ -8,9 +8,8 @@
  * The Claude Agent SDK auto-discovers skills from .claude/skills/ and
  * plugins from .claude/plugins.json, so no programmatic injection is needed.
  */
+import { application } from '@application'
 import { loggerService } from '@logger'
-import { configManager } from '@main/services/ConfigManager'
-import { getResourcePath } from '@main/utils'
 import fs from 'fs'
 import path from 'path'
 
@@ -22,7 +21,7 @@ function resolveLocalizedField(value: unknown): string | undefined {
   if (typeof value !== 'object' || value === null) return undefined
 
   const map = value as Record<string, string>
-  const lang = configManager.getLanguage()
+  const lang = application.get('PreferenceService').get('app.language') ?? 'en-US'
   const prefix = lang.split('-')[0]
   const prefixKey = Object.keys(map).find((k) => k.startsWith(prefix))
 
@@ -77,7 +76,7 @@ export async function provisionBuiltinAgent(
     return undefined
   }
 
-  const resourceBase = path.join(getResourcePath(), 'builtin-agents')
+  const resourceBase = application.getPath('feature.agents.builtin')
   const templateDir = path.join(resourceBase, templateName)
 
   if (!fs.existsSync(templateDir)) {

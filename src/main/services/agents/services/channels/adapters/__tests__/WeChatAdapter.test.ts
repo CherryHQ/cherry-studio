@@ -16,7 +16,7 @@ vi.mock('electron', () => ({
   }
 }))
 
-vi.mock('../../../../../WindowService', () => ({
+vi.mock('../../../../../MainWindowService', () => ({
   windowService: {
     getMainWindow: () => null
   }

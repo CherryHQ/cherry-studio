@@ -1,9 +1,11 @@
-import { Modal } from 'antd'
-import { useState } from 'react'
-import styled from 'styled-components'
+import { CodeEditor, Dialog, DialogContent, DialogHeader, DialogTitle } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
+import { useRef, useState } from 'react'
 
-import CodeEditor from '../CodeEditor'
 import { TopView } from '../TopView'
+
+const CLOSE_ANIMATION_MS = 200
 
 interface Props {
   text: string
@@ -14,75 +16,55 @@ interface Props {
 
 const PopupContainer: React.FC<Props> = ({ text, title, extension, resolve }) => {
   const [open, setOpen] = useState(true)
+  const resolvedRef = useRef(false)
+  const [fontSize] = usePreference('chat.message.font_size')
+  const { activeCmTheme } = useCodeStyle()
 
-  const onOk = () => {
+  const closePopup = () => {
+    if (resolvedRef.current) return
+    resolvedRef.current = true
     setOpen(false)
+    window.setTimeout(() => resolve({}), CLOSE_ANIMATION_MS)
   }
 
-  const onCancel = () => {
-    setOpen(false)
+  const onOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      closePopup()
+    }
   }
 
-  const onClose = () => {
-    resolve({})
-  }
-
-  TextFilePreviewPopup.hide = onCancel
+  TextFilePreviewPopup.hide = closePopup
 
   return (
-    <Modal
-      open={open}
-      onOk={onOk}
-      onCancel={onCancel}
-      afterClose={onClose}
-      title={title}
-      width={700}
-      transitionName="animation-move-down"
-      styles={{
-        content: {
-          borderRadius: 20,
-          padding: 0,
-          overflow: 'hidden'
-        },
-        body: {
-          height: '80vh',
-          maxHeight: 'inherit',
-          padding: 0
-        }
-      }}
-      centered
-      closable={true}
-      footer={null}>
-      {extension !== undefined ? (
-        <Editor
-          readOnly={true}
-          expanded={false}
-          height="100%"
-          style={{ height: '100%' }}
-          value={text}
-          language={extension}
-          options={{
-            keymap: true
-          }}
-        />
-      ) : (
-        <Text>{text}</Text>
-      )}
-    </Modal>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="h-[80vh] max-h-[calc(100vh-2rem)] max-w-[700px] grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-[20px] p-0 sm:max-w-[700px]">
+        <DialogHeader className="px-6 pt-6">
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        <div className="min-h-0 overflow-hidden">
+          {extension !== undefined ? (
+            <CodeEditor
+              className="[&_.cm-line]:cursor-text"
+              theme={activeCmTheme}
+              fontSize={fontSize - 1}
+              readOnly={true}
+              expanded={false}
+              height="100%"
+              style={{ height: '100%' }}
+              value={text}
+              language={extension}
+              options={{
+                keymap: true
+              }}
+            />
+          ) : (
+            <div className="h-full cursor-text overflow-auto whitespace-pre p-4 text-foreground text-sm">{text}</div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
-
-const Text = styled.div`
-  padding: 16px;
-  white-space: pre;
-  cursor: text;
-`
-
-const Editor = styled(CodeEditor)`
-  .cm-line {
-    cursor: text;
-  }
-`
 
 export default class TextFilePreviewPopup {
   static topviewId = 0

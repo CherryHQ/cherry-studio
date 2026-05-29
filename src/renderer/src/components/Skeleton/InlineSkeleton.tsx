@@ -1,4 +1,4 @@
-import { Skeleton } from 'antd'
+import { Skeleton } from '@cherrystudio/ui'
 import type { FC } from 'react'
 
 export interface SkeletonSpanProps {
@@ -7,14 +7,11 @@ export interface SkeletonSpanProps {
 
 export const SkeletonSpan: FC<SkeletonSpanProps> = ({ width = '60px' }) => {
   return (
-    <Skeleton.Input
-      active
-      size="small"
+    <Skeleton
+      className="inline-block h-[1em] align-middle"
       style={{
         width,
-        minWidth: width,
-        height: '1em',
-        verticalAlign: 'middle'
+        minWidth: width
       }}
     />
   )

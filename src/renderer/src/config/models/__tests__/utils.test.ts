@@ -10,7 +10,10 @@ import {
   groupQwenModels,
   isAnthropicModel,
   isClaude46SeriesModel,
+  isClaude47SeriesModel,
+  isDeepSeekModel,
   isGemini3FlashModel,
+  isGemini3Model,
   isGemini3ProModel,
   isGemini31ProModel,
   isGeminiModel,
@@ -395,6 +398,24 @@ describe('model utils', () => {
       })
     })
 
+    describe('isGemini3Model', () => {
+      it('detects explicit Gemini 3.x models', () => {
+        expect(isGemini3Model(createModel({ id: 'gemini-3-flash' }))).toBe(true)
+        expect(isGemini3Model(createModel({ id: 'gemini-3.5-flash' }))).toBe(true)
+        expect(isGemini3Model(createModel({ id: 'gemini-3.1-pro-preview' }))).toBe(true)
+      })
+
+      it('detects Gemini 3.x latest aliases', () => {
+        expect(isGemini3Model(createModel({ id: 'gemini-flash-latest' }))).toBe(true)
+        expect(isGemini3Model(createModel({ id: 'gemini-pro-latest' }))).toBe(true)
+      })
+
+      it('returns false for non-Gemini 3 models', () => {
+        expect(isGemini3Model(createModel({ id: 'gemini-2.5-flash' }))).toBe(false)
+        expect(isGemini3Model(createModel({ id: 'gemini-flash-lite-latest' }))).toBe(false)
+      })
+    })
+
     describe('isGemini3FlashModel', () => {
       it('detects gemini-3-flash model', () => {
         expect(isGemini3FlashModel(createModel({ id: 'gemini-3-flash' }))).toBe(true)
@@ -548,6 +569,25 @@ describe('model utils', () => {
     describe('isAnthropicModel', () => {
       it('detects Anthropic models', () => {
         expect(isAnthropicModel(createModel({ id: 'claude-3.5' }))).toBe(true)
+      })
+    })
+
+    describe('isDeepSeekModel', () => {
+      it('detects DeepSeek models by id', () => {
+        expect(isDeepSeekModel(createModel({ id: 'deepseek-chat' }))).toBe(true)
+        expect(isDeepSeekModel(createModel({ id: 'DeepSeek-V3' }))).toBe(true)
+      })
+
+      it('detects DeepSeek models by name', () => {
+        expect(isDeepSeekModel(createModel({ id: 'custom-id', name: 'DeepSeek V3' }))).toBe(true)
+      })
+
+      it('returns false for non-DeepSeek models', () => {
+        expect(isDeepSeekModel(createModel({ id: 'gpt-4o' }))).toBe(false)
+      })
+
+      it('returns false for missing model', () => {
+        expect(isDeepSeekModel(undefined)).toBe(false)
       })
     })
 
@@ -745,6 +785,46 @@ describe('model utils', () => {
       it('returns false for undefined and null', () => {
         expect(isClaude46SeriesModel(undefined as unknown as Model)).toBe(false)
         expect(isClaude46SeriesModel(null as unknown as Model)).toBe(false)
+      })
+    })
+  })
+
+  describe('Claude 4.7 Models Detection', () => {
+    describe('isClaude47SeriesModel', () => {
+      it('detects Opus 4.7 in direct API format', () => {
+        expect(isClaude47SeriesModel(createModel({ id: 'claude-opus-4-7' }))).toBe(true)
+        expect(isClaude47SeriesModel(createModel({ id: 'claude-opus-4.7' }))).toBe(true)
+      })
+
+      it('detects Opus 4.7 with version suffixes', () => {
+        expect(isClaude47SeriesModel(createModel({ id: 'claude-opus-4-7-20260401' }))).toBe(true)
+        expect(isClaude47SeriesModel(createModel({ id: 'claude-opus-4-7-preview' }))).toBe(true)
+      })
+
+      it('detects Opus 4.7 in AWS Bedrock format', () => {
+        expect(isClaude47SeriesModel(createModel({ id: 'anthropic.claude-opus-4-7-v1' }))).toBe(true)
+        expect(isClaude47SeriesModel(createModel({ id: 'anthropic.claude-opus-4-7-v2:0' }))).toBe(true)
+      })
+
+      it('detects Opus 4.7 with provider prefix', () => {
+        expect(isClaude47SeriesModel(createModel({ id: 'anthropic/claude-opus-4-7' }))).toBe(true)
+      })
+
+      it('handles case insensitivity', () => {
+        expect(isClaude47SeriesModel(createModel({ id: 'CLAUDE-OPUS-4-7' }))).toBe(true)
+        expect(isClaude47SeriesModel(createModel({ id: 'Claude-Opus-4.7' }))).toBe(true)
+      })
+
+      it('returns false for other Claude models', () => {
+        expect(isClaude47SeriesModel(createModel({ id: 'claude-opus-4-6' }))).toBe(false)
+        expect(isClaude47SeriesModel(createModel({ id: 'claude-opus-4-5' }))).toBe(false)
+        expect(isClaude47SeriesModel(createModel({ id: 'claude-sonnet-4-7' }))).toBe(false)
+        expect(isClaude47SeriesModel(createModel({ id: 'claude-haiku-4-7' }))).toBe(false)
+      })
+
+      it('returns false for undefined and null', () => {
+        expect(isClaude47SeriesModel(undefined as unknown as Model)).toBe(false)
+        expect(isClaude47SeriesModel(null as unknown as Model)).toBe(false)
       })
     })
   })

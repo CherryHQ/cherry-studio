@@ -1,3 +1,3 @@
-export { SelectAgentModelPopup } from './agent-model-popup'
-export { SelectModelPopup } from './base-popup'
-export { SelectChatModelPopup } from './chat-model-popup'
+export { SelectAgentModelPopup } from './AgentModelPopup'
+export { SelectModelPopup } from './BasePopup'
+export { SelectChatModelPopup } from './ChatModelPopup'

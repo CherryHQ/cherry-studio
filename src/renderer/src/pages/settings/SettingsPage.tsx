@@ -1,265 +1,222 @@
-import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import { MenuDivider, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
-import ModelSettings from '@renderer/pages/settings/ModelSettings/ModelSettings'
-import { Divider as AntDivider } from 'antd'
+import { isDev } from '@renderer/config/constant'
+import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
+import { cn } from '@renderer/utils/style'
+import { Outlet, useLocation, useNavigate } from '@tanstack/react-router'
 import {
-  Brain,
+  Blocks,
   CalendarClock,
   Cloud,
   Command,
   FileCode,
+  FlaskConical,
   HardDrive,
   Info,
-  MonitorCog,
   Package,
+  PackageCheck,
   PictureInPicture2,
   Radio,
   Search,
   Server,
   Settings2,
-  Sparkles,
-  TextCursorInput,
-  Zap
+  TextCursorInput
 } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Link, Route, Routes, useLocation } from 'react-router-dom'
-import styled from 'styled-components'
 
-import AboutSettings from './AboutSettings'
-import ChannelsSettings from './ChannelsSettings'
-import DataSettings from './DataSettings/DataSettings'
-import DisplaySettings from './DisplaySettings/DisplaySettings'
-import DocProcessSettings from './DocProcessSettings'
-import GeneralSettings from './GeneralSettings'
-import MCPSettings from './MCPSettings'
-import MemorySettings from './MemorySettings'
-import { ProviderList } from './ProviderSettings'
-import QuickAssistantSettings from './QuickAssistantSettings'
-import QuickPhraseSettings from './QuickPhraseSettings'
-import SelectionAssistantSettings from './SelectionAssistantSettings/SelectionAssistantSettings'
-import ShortcutSettings from './ShortcutSettings'
-import SkillsSettings from './SkillsSettings'
-import TasksSettings from './TasksSettings'
-import { ApiServerSettings } from './ToolSettings/ApiServerSettings'
-import WebSearchSettings from './WebSearchSettings'
+import {
+  settingsSubmenuDividerClassName,
+  settingsSubmenuItemClassName,
+  settingsSubmenuItemLabelClassName,
+  settingsSubmenuListClassName,
+  settingsSubmenuSectionTitleClassName
+} from '.'
 
 const SettingsPage: FC = () => {
-  const { pathname } = useLocation()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const { pathname } = location
   const { t } = useTranslation()
+  const isMacTransparentWindow = useMacTransparentWindow()
 
-  const isRoute = (path: string): string => (pathname.startsWith(path) ? 'active' : '')
+  const isActive = (path: string) => pathname === path || pathname.startsWith(`${path}/`)
+  const go = (path: string) => navigate({ to: path })
 
   return (
-    <Container>
-      <Navbar>
-        <NavbarCenter style={{ borderRight: 'none' }}>{t('settings.title')}</NavbarCenter>
-      </Navbar>
-      <ContentContainer id="content-container">
-        <SettingMenus>
-          <MenuItemLink to="/settings/provider">
-            <MenuItem className={isRoute('/settings/provider')}>
-              <Cloud size={18} />
-              {t('settings.provider.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/model">
-            <MenuItem className={isRoute('/settings/model')}>
-              <Package size={18} />
-              {t('settings.model')}
-            </MenuItem>
-          </MenuItemLink>
-          <Divider />
-          <MenuItemLink to="/settings/general">
-            <MenuItem className={isRoute('/settings/general')}>
-              <Settings2 size={18} />
-              {t('settings.general.label')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/display">
-            <MenuItem className={isRoute('/settings/display')}>
-              <MonitorCog size={18} />
-              {t('settings.display.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/data">
-            <MenuItem className={isRoute('/settings/data')}>
-              <HardDrive size={18} />
-              {t('settings.data.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <Divider />
-          <MenuItemLink to="/settings/mcp">
-            <MenuItem className={isRoute('/settings/mcp')}>
-              <McpLogo width={18} height={18} style={{ opacity: 0.8 }} />
-              {t('settings.mcp.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/skills">
-            <MenuItem className={isRoute('/settings/skills')}>
-              <Sparkles size={18} />
-              {t('settings.skills.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/websearch">
-            <MenuItem className={isRoute('/settings/websearch')}>
-              <Search size={18} />
-              {t('settings.tool.websearch.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/memory">
-            <MenuItem className={isRoute('/settings/memory')}>
-              <Brain size={18} />
-              {t('memory.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/api-server">
-            <MenuItem className={isRoute('/settings/api-server')}>
-              <Server size={18} />
-              {t('apiServer.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/channels">
-            <MenuItem className={isRoute('/settings/channels')}>
-              <Radio size={18} />
-              {t('settings.channels.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/scheduled-tasks">
-            <MenuItem className={isRoute('/settings/scheduled-tasks')}>
-              <CalendarClock size={18} />
-              {t('settings.scheduledTasks.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/docprocess">
-            <MenuItem className={isRoute('/settings/docprocess')}>
-              <FileCode size={18} />
-              {t('settings.tool.preprocess.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/quickphrase">
-            <MenuItem className={isRoute('/settings/quickphrase')}>
-              <Zap size={18} />
-              {t('settings.quickPhrase.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/shortcut">
-            <MenuItem className={isRoute('/settings/shortcut')}>
-              <Command size={18} />
-              {t('settings.shortcuts.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <Divider />
-          <MenuItemLink to="/settings/quickAssistant">
-            <MenuItem className={isRoute('/settings/quickAssistant')}>
-              <PictureInPicture2 size={18} />
-              {t('settings.quickAssistant.title')}
-            </MenuItem>
-          </MenuItemLink>
-          <MenuItemLink to="/settings/selectionAssistant">
-            <MenuItem className={isRoute('/settings/selectionAssistant')}>
-              <TextCursorInput size={18} />
-              {t('selection.name')}
-            </MenuItem>
-          </MenuItemLink>
-          <Divider />
-          <MenuItemLink to="/settings/about">
-            <MenuItem className={isRoute('/settings/about')}>
-              <Info size={18} />
-              {t('settings.about.label')}
-            </MenuItem>
-          </MenuItemLink>
-        </SettingMenus>
-        <SettingContent>
-          <Routes>
-            <Route path="provider" element={<ProviderList />} />
-            <Route path="model" element={<ModelSettings />} />
-            <Route path="websearch/*" element={<WebSearchSettings />} />
-            <Route path="api-server" element={<ApiServerSettings />} />
-            <Route path="channels" element={<ChannelsSettings />} />
-            <Route path="scheduled-tasks" element={<TasksSettings />} />
-            <Route path="docprocess" element={<DocProcessSettings />} />
-            <Route path="quickphrase" element={<QuickPhraseSettings />} />
-            <Route path="mcp/*" element={<MCPSettings />} />
-            <Route path="skills" element={<SkillsSettings />} />
-            <Route path="memory" element={<MemorySettings />} />
-            <Route path="general/*" element={<GeneralSettings />} />
-            <Route path="display" element={<DisplaySettings />} />
-            <Route path="shortcut" element={<ShortcutSettings />} />
-            <Route path="quickAssistant" element={<QuickAssistantSettings />} />
-            <Route path="selectionAssistant" element={<SelectionAssistantSettings />} />
-            <Route path="data" element={<DataSettings />} />
-            <Route path="about" element={<AboutSettings />} />
-          </Routes>
-        </SettingContent>
-      </ContentContainer>
-    </Container>
+    <div
+      className={cn(
+        'flex min-h-0 flex-1 flex-col',
+        isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
+      )}>
+      <div className="flex min-h-0 flex-1 flex-row">
+        <div
+          className={cn(
+            'flex min-h-0 w-(--settings-width) min-w-(--settings-width) flex-col',
+            isMacTransparentWindow ? 'bg-transparent' : 'bg-white dark:bg-background'
+          )}>
+          <PageHeader title={t('settings.menuGroups.appSettings')} />
+          <Scrollbar className="min-h-0 flex-1 select-none">
+            <MenuList className={settingsSubmenuListClassName}>
+              <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.integrations')}</div>
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<Cloud />}
+                label={t('settings.provider.title')}
+                active={isActive('/settings/provider')}
+                onClick={() => go('/settings/provider')}
+              />
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<Package />}
+                label={t('settings.model')}
+                active={isActive('/settings/model')}
+                onClick={() => go('/settings/model')}
+              />
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<Server />}
+                label={t('apiServer.title')}
+                active={isActive('/settings/api-server')}
+                onClick={() => go('/settings/api-server')}
+              />
+              <MenuDivider className={settingsSubmenuDividerClassName} />
+              <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.services')}</div>
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<McpLogo width={16} height={16} className="text-foreground" />}
+                label={t('agent.settings.toolsMcp.mcp.tab')}
+                active={isActive('/settings/mcp')}
+                onClick={() => go('/settings/mcp')}
+              />
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<Search />}
+                label={t('settings.tool.websearch.title')}
+                active={isActive('/settings/websearch')}
+                onClick={() => go('/settings/websearch')}
+              />
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<FileCode />}
+                label={t('settings.tool.file_processing.title')}
+                active={isActive('/settings/file-processing')}
+                onClick={() => go('/settings/file-processing')}
+              />
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<Blocks />}
+                label={t('settings.integrations.title')}
+                active={isActive('/settings/integrations')}
+                onClick={() => go('/settings/integrations')}
+              />
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<PackageCheck />}
+                label={t('settings.plugins.title')}
+                active={isActive('/settings/plugins')}
+                onClick={() => go('/settings/plugins')}
+              />
+              <MenuDivider className={settingsSubmenuDividerClassName} />
+              <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.appSettings')}</div>
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<Settings2 />}
+                label={t('settings.general.common.title')}
+                active={isActive('/settings/general')}
+                onClick={() => go('/settings/general')}
+              />
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<HardDrive />}
+                label={t('settings.data.title')}
+                active={isActive('/settings/data')}
+                onClick={() => go('/settings/data')}
+              />
+              <MenuDivider className={settingsSubmenuDividerClassName} />
+              <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.productivity')}</div>
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<Radio />}
+                label={t('settings.channels.title')}
+                active={isActive('/settings/channels')}
+                onClick={() => go('/settings/channels')}
+              />
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<CalendarClock />}
+                label={t('settings.scheduledTasks.title')}
+                active={isActive('/settings/scheduled-tasks')}
+                onClick={() => go('/settings/scheduled-tasks')}
+              />
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<Command />}
+                label={t('settings.shortcuts.title')}
+                active={isActive('/settings/shortcut')}
+                onClick={() => go('/settings/shortcut')}
+              />
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<PictureInPicture2 />}
+                label={t('settings.quickAssistant.title')}
+                active={isActive('/settings/quick-assistant')}
+                onClick={() => go('/settings/quick-assistant')}
+              />
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<TextCursorInput />}
+                label={t('selection.name')}
+                active={isActive('/settings/selection-assistant')}
+                onClick={() => go('/settings/selection-assistant')}
+              />
+              <MenuDivider className={settingsSubmenuDividerClassName} />
+              <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.system')}</div>
+              <MenuItem
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+                icon={<Info />}
+                label={t('settings.about.label')}
+                active={isActive('/settings/about')}
+                onClick={() => go('/settings/about')}
+              />
+              {isDev && (
+                <MenuItem
+                  className={settingsSubmenuItemClassName}
+                  labelClassName={settingsSubmenuItemLabelClassName}
+                  icon={<FlaskConical />}
+                  label={t('settings.componentLab.label')}
+                  active={isActive('/settings/component-lab')}
+                  onClick={() => go('/settings/component-lab')}
+                />
+              )}
+            </MenuList>
+          </Scrollbar>
+        </div>
+        <div className="flex h-full min-h-0 flex-1">
+          <div className="flex min-h-0 flex-1 overflow-hidden border-border/40 border-l bg-white text-foreground dark:bg-background">
+            <Outlet />
+          </div>
+        </div>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-`
-
-const ContentContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  height: calc(100vh - var(--navbar-height));
-  padding: 1px 0;
-`
-
-const SettingMenus = styled(Scrollbar)`
-  display: flex;
-  flex-direction: column;
-  min-width: var(--settings-width);
-  border-right: 0.5px solid var(--color-border);
-  padding: 10px;
-  user-select: none;
-  gap: 5px;
-`
-
-const MenuItemLink = styled(Link)`
-  text-decoration: none;
-  color: var(--color-text-1);
-`
-
-const MenuItem = styled.li`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  width: 100%;
-  cursor: pointer;
-  border-radius: var(--list-item-border-radius);
-  font-weight: 500;
-  transition: all 0.2s ease-in-out;
-  border: 0.5px solid transparent;
-  .anticon {
-    font-size: 16px;
-    opacity: 0.8;
-  }
-  &:hover {
-    background: var(--color-background-soft);
-  }
-  &.active {
-    background: var(--color-background-soft);
-    border: 0.5px solid var(--color-border);
-  }
-`
-
-const SettingContent = styled.div`
-  display: flex;
-  height: 100%;
-  flex: 1;
-`
-
-const Divider = styled(AntDivider)`
-  margin: 3px 0;
-`
 
 export default SettingsPage

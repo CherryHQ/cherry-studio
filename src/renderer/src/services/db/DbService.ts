@@ -19,6 +19,7 @@ import store from '@renderer/store'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 
 import { AgentMessageDataSource } from './AgentMessageDataSource'
+import { fetchMessagesFromDataApi } from './DataApiMessageDataSource'
 import { DexieMessageDataSource } from './DexieMessageDataSource'
 import type { MessageDataSource } from './types'
 import { buildAgentSessionTopicId, isAgentSessionTopicId } from './types'
@@ -30,23 +31,12 @@ const logger = loggerService.withContext('DbService')
  * based on the topic ID type (regular chat or agent session)
  */
 class DbService implements MessageDataSource {
-  private static instance: DbService
   private dexieSource: DexieMessageDataSource
   private agentSource: AgentMessageDataSource
 
-  private constructor() {
+  constructor() {
     this.dexieSource = new DexieMessageDataSource()
     this.agentSource = new AgentMessageDataSource()
-  }
-
-  /**
-   * Get singleton instance
-   */
-  static getInstance(): DbService {
-    if (!DbService.instance) {
-      DbService.instance = new DbService()
-    }
-    return DbService.instance
   }
 
   /**
@@ -88,13 +78,18 @@ class DbService implements MessageDataSource {
 
   async fetchMessages(
     topicId: string,
-    forceReload?: boolean
+    // oxlint-disable-next-line no-unused-vars -- interface requires this parameter
+    _forceReload?: boolean
   ): Promise<{
     messages: Message[]
     blocks: MessageBlock[]
   }> {
-    const source = this.getDataSource(topicId)
-    return source.fetchMessages(topicId, forceReload)
+    if (isAgentSessionTopicId(topicId)) {
+      return this.agentSource.fetchMessages(topicId)
+    }
+
+    // Normal topics: read from Data API (SQLite)
+    return fetchMessagesFromDataApi(topicId)
   }
 
   // ============ Write Operations ============
@@ -245,7 +240,7 @@ class DbService implements MessageDataSource {
 }
 
 // Export singleton instance
-export const dbService = DbService.getInstance()
+export const dbService = new DbService()
 
 // Also export class for testing purposes
 export { DbService }

@@ -1,4 +1,4 @@
-appId: com.kangfenmao.CherryStudio
+appId: com.cherryai.cherrystudio
 productName: Cherry Studio
 electronLanguages:
   - zh-CN
@@ -74,9 +74,13 @@ asarUnpack:
   - resources/**
   - "**/*.{metal,exp,lib}"
   - "node_modules/@img/sharp-*/**"
-
+extraResources:
+  - from: "migrations/sqlite-drizzle"
+    to: "migrations/sqlite-drizzle"
+  - from: "packages/provider-registry/data"
+    to: "provider-registry"
 win:
-  executableName: Cherry Studio
+  executableName: CherryStudio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
   target:
     - target: nsis
@@ -142,38 +146,40 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.9.4 - Bug Fixes & Model Support
-
-    🐛 Bug Fixes
-    - [OpenCode] NEWAPI provider models now appear in the dropdown and route correctly
-    - [Image Generation] Fixed gpt-image-2/gpt-image-1.5 editing and generation across multiple providers
-    - [Models] Fixed Kimi K2.6 requests being rejected due to unsupported temperature settings
-    - [Gateway] Fixed Vercel AI Gateway model list fetch failing due to missing authentication
-    - [Copilot] Fixed GitHub Copilot model synchronization
+    Cherry Studio 1.9.7 - Model Support & Bug Fixes
 
     ✨ New Features
-    - [Models] Added MiMo V2.5 model support with reasoning and calling capabilities
-    - [Models] Added DeepSeek V4+ model support with reasoning effort control (high/max)
-    - [Models] Mistral Small 4 now supports vision and adjustable reasoning effort
+    - [Models] Added support for grok-build-0.1 capabilities (reasoning, tool use, vision)
+    - [Providers] StepFun now supports Claude Code / Anthropic-compatible mode with auto-filled endpoint
+    - [Agents] DeepSeek V4 Flash and MiMo V2.5+ now properly support 1M context window in Claude Code
 
-    💄 Improvements
-    - [Agents] Removed auto-injected @cherry/browser MCP (re-enable manually if needed)
+    🐛 Bug Fixes
+    - [Web Search] Fixed ExaMCP web search not returning result content correctly
+    - [Code Viewer] Fixed code syntax highlighting issues where tokens could disappear in light theme
+    - [OpenCode] Fixed launch failures after CLI updates by using package-local executable
+    - [Agents] Fixed Agent mode not forwarding custom provider headers to Claude Code
+    - [Models] Fixed Grok 4.3 reasoning effort support in xAI responses
+    - [OpenClaw] Improved migration message clarity when external PATH installation is detected
+    - [Models] Fixed Gemini 3.x models using wrong UI and sending deprecated sampling parameters
+    - [Models] Fixed Qwen max series models incorrectly showing vision capability
+    - [Providers] Fixed AIHubMix reasoning effort configuration not working properly
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.9.4 - 错误修复与模型支持
-
-    🐛 问题修复
-    - [OpenCode] NEWAPI 服务商模型现在显示在列表中并正确路由
-    - [图像生成] 修复多个服务商的 gpt-image-2/gpt-image-1.5 编辑和生成问题
-    - [模型] 修复 Kimi K2.6 因不支持的温度设置导致请求失败
-    - [网关] 修复 Vercel AI Gateway 模型列表获取因缺少认证而失败
-    - [Copilot] 修复 GitHub Copilot 模型同步问题
+    Cherry Studio 1.9.7 - 模型支持与错误修复
 
     ✨ 新功能
-    - [模型] 添加 MiMo V2.5 模型支持，包含推理和调用能力
-    - [模型] 添加 DeepSeek V4+ 模型支持，支持推理强度控制 (high/max)
-    - [模型] Mistral Small 4 现在支持视觉和可调节推理强度
+    - [模型] 支持 grok-build-0.1 模型能力（推理、工具调用、视觉）
+    - [提供商] StepFun 现在支持 Claude Code / Anthropic 兼容模式，并自动填充端点
+    - [智能体] DeepSeek V4 Flash 和 MiMo V2.5+ 现在在 Claude Code 中正确支持 1M 上下文窗口
 
-    💄 改进
-    - [智能体] 移除自动注入的 @cherry/browser MCP（如需要请手动重新启用）
+    🐛 问题修复
+    - [网络搜索] 修复 ExaMCP 网络搜索无法正确返回结果内容的问题
+    - [代码查看器] 修复浅色主题下代码语法高亮标记可能消失的问题
+    - [OpenCode] 修复 CLI 更新后启动失败的问题，现在使用包本地可执行文件
+    - [智能体] 修复智能体模式未将自定义提供商标头转发给 Claude Code 的问题
+    - [模型] 修复 xAI 响应中 Grok 4.3 推理强度支持问题
+    - [OpenClaw] 改进检测到外部 PATH 安装时的迁移消息清晰度
+    - [模型] 修复 Gemini 3.x 模型使用错误 UI 并发送已弃用采样参数的问题
+    - [模型] 修复 Qwen max 系列模型错误显示视觉能力的问题
+    - [提供商] 修复 AIHubMix 推理强度配置无法正常工作的问题
     <!--LANG:END-->

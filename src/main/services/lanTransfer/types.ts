@@ -1,7 +1,7 @@
 import type * as fs from 'node:fs'
 import type { Socket } from 'node:net'
 
-import type { LanClientEvent, LocalTransferPeer } from '@shared/config/types'
+import type { LanClientEvent, LanTransferPeer } from '@shared/config/types'
 
 /**
  * Pending response handler for awaiting control messages
@@ -41,7 +41,7 @@ export type ActiveFileTransfer = {
  */
 export type ConnectionContext = {
   socket: Socket | null
-  currentPeer?: LocalTransferPeer
+  currentPeer?: LanTransferPeer
   sendControlMessage: (message: Record<string, unknown>) => void
   broadcastClientEvent: (event: LanClientEvent) => void
 }

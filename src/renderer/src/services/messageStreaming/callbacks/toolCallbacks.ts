@@ -1,6 +1,20 @@
+/**
+ * @fileoverview Tool callbacks for handling MCP tool calls during streaming
+ *
+ * This module provides callbacks for processing tool calls:
+ * - Tool call pending: create tool block when tool is called
+ * - Tool call complete: update with result or error
+ *
+ * ARCHITECTURE NOTE:
+ * These callbacks now use StreamingService for state management instead of Redux dispatch.
+ * This is part of the v2 data refactoring to use CacheService + Data API.
+ *
+ * NOTE: toolPermissionsActions dispatch is still required for permission management
+ * as this is outside the scope of streaming state management.
+ */
+
 import { loggerService } from '@logger'
-import { BUILTIN_WEB_SEARCH_TOOL_NAME } from '@renderer/aiCore/tools/WebSearchTool'
-import type { AppDispatch } from '@renderer/store'
+import { BUILTIN_FETCH_URLS_TOOL_NAME, BUILTIN_WEB_SEARCH_TOOL_NAME } from '@renderer/aiCore/tools/WebSearchTool'
 import store from '@renderer/store'
 import { toolPermissionsActions } from '@renderer/store/toolPermissions'
 import type { MCPToolResponse, NormalToolResponse } from '@renderer/types'
@@ -16,14 +30,19 @@ const logger = loggerService.withContext('ToolCallbacks')
 
 type ToolResponse = MCPToolResponse | NormalToolResponse
 
+/**
+ * Dependencies required for tool callbacks
+ *
+ * NOTE: dispatch removed - toolPermissions uses store.dispatch directly
+ * since it's outside streaming state scope.
+ */
 interface ToolCallbacksDependencies {
   blockManager: BlockManager
   assistantMsgId: string
-  dispatch: AppDispatch
 }
 
 export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
-  const { blockManager, assistantMsgId, dispatch } = deps
+  const { blockManager, assistantMsgId } = deps
 
   // 内部维护的状态
   const toolCallIdToBlockIdMap = new Map<string, string>()
@@ -105,7 +124,8 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
       const resolvedInput = toolResponse?.id ? state.toolPermissions.resolvedInputs[toolResponse.id] : undefined
 
       if (toolResponse?.id) {
-        dispatch(toolPermissionsActions.removeByToolCallId({ toolCallId: toolResponse.id }))
+        // Use store.dispatch for permission cleanup (outside streaming state scope)
+        store.dispatch(toolPermissionsActions.removeByToolCallId({ toolCallId: toolResponse.id }))
       }
       const existingBlockId = toolCallIdToBlockIdMap.get(toolResponse.id)
       toolCallIdToBlockIdMap.delete(toolResponse.id)
@@ -157,7 +177,11 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
         }
         blockManager.smartBlockUpdate(existingBlockId, changes, MessageBlockType.TOOL, true)
         // Handle citation block creation for web search results
-        if (toolResponse.tool.name === BUILTIN_WEB_SEARCH_TOOL_NAME && toolResponse.response) {
+        if (
+          (toolResponse.tool.name === BUILTIN_WEB_SEARCH_TOOL_NAME ||
+            toolResponse.tool.name === BUILTIN_FETCH_URLS_TOOL_NAME) &&
+          toolResponse.response
+        ) {
           const citationBlock = createCitationBlock(
             assistantMsgId,
             {

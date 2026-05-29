@@ -9,6 +9,7 @@ export {
   formatApiKeys,
   hasAPIVersion,
   isWithTrailingSharp,
+  splitApiKeyString,
   withoutTrailingSharp,
   withoutTrailingSlash
 } from '@shared/utils/api'
@@ -125,18 +126,4 @@ export function maskApiKey(key: string): string {
   } else {
     return key
   }
-}
-
-/**
- * 将 API key 字符串转换为 key 数组。
- *
- * @param {string} keyStr - 包含 API key 的逗号分隔字符串。
- * @returns {string[]} 转换后的数组，每个元素为 API key。
- */
-export function splitApiKeyString(keyStr: string): string[] {
-  return keyStr
-    .split(/(?<!\\),/)
-    .map((k) => k.trim())
-    .map((k) => k.replace(/\\,/g, ','))
-    .filter((k) => k)
 }

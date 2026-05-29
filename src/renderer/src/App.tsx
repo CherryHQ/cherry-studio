@@ -1,20 +1,24 @@
 import '@renderer/databases'
 
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import store, { persistor } from '@renderer/store'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Provider } from 'react-redux'
 import { PersistGate } from 'redux-persist/integration/react'
 
+import { AppShell } from './components/layout/AppShell'
 import TopViewContainer from './components/TopView'
 import AntdProvider from './context/AntdProvider'
 import { CodeStyleProvider } from './context/CodeStyleProvider'
 import { NotificationProvider } from './context/NotificationProvider'
 import StyleSheetManager from './context/StyleSheetManager'
+import { TabsProvider } from './context/TabsContext'
 import { ThemeProvider } from './context/ThemeProvider'
-import Router from './Router'
 
 const logger = loggerService.withContext('App.tsx')
+
+void preferenceService.preloadAll()
 
 // 创建 React Query 客户端
 const queryClient = new QueryClient({
@@ -38,9 +42,11 @@ function App(): React.ReactElement {
               <NotificationProvider>
                 <CodeStyleProvider>
                   <PersistGate loading={null} persistor={persistor}>
-                    <TopViewContainer>
-                      <Router />
-                    </TopViewContainer>
+                    <TabsProvider>
+                      <TopViewContainer>
+                        <AppShell />
+                      </TopViewContainer>
+                    </TabsProvider>
                   </PersistGate>
                 </CodeStyleProvider>
               </NotificationProvider>

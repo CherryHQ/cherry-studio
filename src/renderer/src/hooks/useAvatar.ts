@@ -1,5 +1,7 @@
-import { useAppSelector } from '@renderer/store'
+import { useCache } from '@data/hooks/useCache'
+import { UserAvatar } from '@renderer/config/env'
 
 export default function useAvatar() {
-  return useAppSelector((state) => state.runtime.avatar)
+  const [avatar] = useCache('app.user.avatar', UserAvatar)
+  return avatar
 }

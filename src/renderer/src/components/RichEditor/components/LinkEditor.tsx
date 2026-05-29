@@ -1,5 +1,5 @@
+import { Button, Flex, Input } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { Button, Flex, Input } from 'antd'
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -38,7 +38,7 @@ const LinkEditor: React.FC<LinkEditorProps> = ({
   const [href, setHref] = useState<string>(link.href || '')
   const [text, setText] = useState<string>(link.text || '')
   const containerRef = useRef<HTMLDivElement>(null)
-  const hrefInputRef = useRef<any>(null)
+  const hrefInputRef = useRef<HTMLInputElement>(null)
 
   // Reset values when link changes
   useEffect(() => {
@@ -131,7 +131,7 @@ const LinkEditor: React.FC<LinkEditorProps> = ({
           value={text}
           placeholder={t('richEditor.link.textPlaceholder')}
           onChange={(e) => setText(e.target.value)}
-          size="small"
+          className="h-8 text-sm"
         />
       </div>
 
@@ -139,22 +139,27 @@ const LinkEditor: React.FC<LinkEditorProps> = ({
         <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>
           {t('richEditor.link.url')}
         </label>
-        <Input value={href} placeholder="https://example.com" onChange={(e) => setHref(e.target.value)} size="small" />
+        <Input
+          value={href}
+          placeholder="https://example.com"
+          onChange={(e) => setHref(e.target.value)}
+          className="h-8 text-sm"
+        />
       </div>
 
-      <Flex justify="space-between" align="center">
+      <Flex className="items-center justify-between">
         <div>
           {showRemove && (
-            <Button size="small" danger type="text" onClick={onRemove} style={{ padding: '0 8px' }}>
+            <Button size="sm" color="danger" variant="ghost" onClick={onRemove} className="px-2">
               {t('richEditor.link.remove')}
             </Button>
           )}
         </div>
-        <Flex gap={6}>
-          <Button size="small" onClick={onCancel}>
+        <Flex className="gap-1.5">
+          <Button size="sm" onClick={onCancel}>
             {t('common.cancel')}
           </Button>
-          <Button type="primary" size="small" onClick={handleSave} disabled={!href.trim() || !text.trim()}>
+          <Button color="primary" size="sm" onClick={handleSave} disabled={!href.trim() || !text.trim()}>
             {t('common.save')}
           </Button>
         </Flex>

@@ -4,7 +4,7 @@ import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
-import { computeModeDefaults, defaultConfiguration } from '@renderer/pages/settings/AgentSettings/shared'
+import { computeModeDefaults, defaultConfiguration } from '@renderer/pages/agents/AgentSettings/shared'
 import type { PermissionMode } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { uniq } from 'lodash'
@@ -55,7 +55,7 @@ const permissionModeTool = defineTool({
         const currentAutoToolIds = computeModeDefaults(currentMode, availableTools)
         const nextAutoToolIds = computeModeDefaults(nextMode, availableTools)
 
-        const currentAllowed = session.allowed_tools ?? []
+        const currentAllowed = session.allowedTools ?? []
         const userAddedIds = currentAllowed.filter((id) => !currentAutoToolIds.includes(id))
         const mergedAllowed = uniq([...nextAutoToolIds, ...userAddedIds])
 
@@ -78,7 +78,7 @@ const permissionModeTool = defineTool({
           {
             id: session.id,
             configuration: updatedConfiguration,
-            allowed_tools: mergedAllowed
+            allowedTools: mergedAllowed
           },
           { showSuccessToast: false }
         )
@@ -111,7 +111,7 @@ const permissionModeTool = defineTool({
 
     return (
       <Tooltip placement="top" title={tooltipTitle}>
-        <ActionIconButton onClick={handleClick}>{getPermissionModeIcon(currentMode)}</ActionIconButton>
+        <ActionIconButton onClick={handleClick} icon={getPermissionModeIcon(currentMode)} />
       </Tooltip>
     )
   }

@@ -52,7 +52,7 @@ export class RuntimeExecutor<
     })
   }
 
-  private createResolveModelPlugin() {
+  createResolveModelPlugin() {
     return definePlugin({
       name: '_internal_resolveModel',
       enforce: 'post',
@@ -75,7 +75,7 @@ export class RuntimeExecutor<
     })
   }
 
-  private createConfigureContextPlugin() {
+  createConfigureContextPlugin() {
     return definePlugin({
       name: '_internal_configureContext',
       configureContext: async () => {

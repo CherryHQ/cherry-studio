@@ -6,7 +6,9 @@
 import { loggerService } from '@logger'
 import {
   isClaude46SeriesModel,
+  isClaude47SeriesModel,
   isClaudeReasoningModel,
+  isGemini3Model,
   isMaxTemperatureOneModel,
   isSupportedFlexServiceTier,
   isSupportedThinkingTokenClaudeModel,
@@ -20,6 +22,7 @@ import {
   getProviderByModel
 } from '@renderer/services/AssistantService'
 import { type Assistant, type Model } from '@renderer/types'
+import type { AiSdkParam } from '@renderer/types/aiCoreTypes'
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 
 import { getThinkingBudget } from '../utils/reasoning'
@@ -28,15 +31,29 @@ const logger = loggerService.withContext('modelParameters')
 
 /**
  * Retrieves the temperature parameter, adapting it based on assistant.settings and model capabilities.
+ * - Disabled for Gemini 3.x models.
  * - Disabled when enableTemperature is off.
+ * - Disabled unconditionally for Claude Opus 4.7 (rejects sampling params with HTTP 400).
  * - Disabled for Claude reasoning models when reasoning effort is set (excluding 'default' and 'none').
  * - Disabled for models that do not support temperature.
  * - Clamped to 1 for models with max temperature of 1.
  * Otherwise, returns the temperature value.
  */
 export function getTemperature(assistant: Assistant, model: Model): number | undefined {
+  if (isGemini3Model(model)) {
+    logger.info(`Gemini 3.x model ${model.id} uses default sampling settings, disabling temperature`)
+    return undefined
+  }
+
   const enableTemperature = assistant.settings?.enableTemperature ?? DEFAULT_ASSISTANT_SETTINGS.enableTemperature
   if (!enableTemperature) {
+    return undefined
+  }
+
+  // Claude Opus 4.7 rejects sampling params (temperature/top_p/top_k) with HTTP 400
+  // regardless of reasoning settings. See Vercel AI SDK PR #14529.
+  if (isClaude47SeriesModel(model)) {
+    logger.info(`Model ${model.id} rejects sampling parameters, disabling temperature`)
     return undefined
   }
 
@@ -73,15 +90,28 @@ export function getTemperature(assistant: Assistant, model: Model): number | und
 
 /**
  * Retrieves the TopP parameter, adapting it based on assistant.settings and model capabilities.
+ * - Disabled for Gemini 3.x models.
  * - Disabled when enableTopP is off.
+ * - Disabled unconditionally for Claude Opus 4.7 (rejects sampling params with HTTP 400).
  * - Disabled for models that do not support TopP.
  * - Disabled for mutually exclusive models when temperature is enabled.
  * - Clamped to [0.95, 1] for Claude reasoning models with reasoning effort set (excluding 'default' and 'none').
  * Otherwise, returns the TopP value.
  */
 export function getTopP(assistant: Assistant, model: Model): number | undefined {
+  if (isGemini3Model(model)) {
+    logger.info(`Gemini 3.x model ${model.id} uses default sampling settings, disabling topP`)
+    return undefined
+  }
+
   const enableTopP = assistant.settings?.enableTopP ?? DEFAULT_ASSISTANT_SETTINGS.enableTopP
   if (!enableTopP) {
+    return undefined
+  }
+
+  // Claude Opus 4.7 rejects sampling params unconditionally (see getTemperature).
+  if (isClaude47SeriesModel(model)) {
+    logger.info(`Model ${model.id} rejects sampling parameters, disabling topP`)
     return undefined
   }
 
@@ -117,6 +147,29 @@ export function getTopP(assistant: Assistant, model: Model): number | undefined 
 }
 
 /**
+ * Filters AI SDK standard parameters extracted from custom parameters, removing any
+ * the model rejects. Currently strips `topK` for Gemini 3.x models and Claude Opus 4.7
+ * since both reject or discourage sampling params.
+ */
+export function filterStandardParams(
+  standardParams: Partial<Record<AiSdkParam, any>>,
+  model: Model
+): Partial<Record<AiSdkParam, any>> {
+  if (isGemini3Model(model) && 'topK' in standardParams) {
+    const { topK, ...rest } = standardParams
+    logger.info(`Gemini 3.x model ${model.id} uses default sampling settings, dropping topK=${topK} from custom params`)
+    return rest
+  }
+
+  if (isClaude47SeriesModel(model) && 'topK' in standardParams) {
+    const { topK, ...rest } = standardParams
+    logger.info(`Model ${model.id} rejects sampling parameters, dropping topK=${topK} from custom params`)
+    return rest
+  }
+  return standardParams
+}
+
+/**
  * 获取超时设置
  */
 export function getTimeout(model: Model): number {
@@ -139,11 +192,13 @@ export function getMaxTokens(assistant: Assistant, model: Model): number | undef
   }
 
   const provider = getProviderByModel(model)
-  // Claude 4.6 uses adaptive thinking (no budgetTokens), so the AI SDK does not add budget back
-  // to maxOutputTokens. Skip the subtraction to avoid incorrectly reducing max_tokens.
+  // Claude 4.6 / 4.7 use adaptive thinking and do not send budgetTokens, so the
+  // AI SDK does not add budget back to maxOutputTokens. Skip the subtraction to avoid
+  // incorrectly reducing max_tokens.
   if (
     isSupportedThinkingTokenClaudeModel(model) &&
     !isClaude46SeriesModel(model) &&
+    !isClaude47SeriesModel(model) &&
     ['anthropic', 'aws-bedrock'].includes(provider.type)
   ) {
     const { reasoning_effort: reasoningEffort } = assistantSettings

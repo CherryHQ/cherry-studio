@@ -1,19 +1,18 @@
 import { SettingOutlined } from '@ant-design/icons'
+import { Button } from '@cherrystudio/ui'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { getHttpMessageLabel, getProviderLabel } from '@renderer/i18n/label'
 import type { DiagnosisResult } from '@renderer/services/ErrorDiagnosisService'
 import { classifyErrorByAI } from '@renderer/services/ErrorDiagnosisService'
-import { getProviderById } from '@renderer/services/ProviderService'
 import { useAppDispatch } from '@renderer/store'
 import { removeBlocksThunk } from '@renderer/store/thunk/messageThunk'
 import type { ErrorMessageBlock, Message } from '@renderer/types/newMessage'
 import { classifyError } from '@renderer/utils/errorClassifier'
-import { Button } from 'antd'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { AlertTriangle, ChevronRight, X } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
-import { Link, useNavigate } from 'react-router-dom'
 
 const HTTP_ERROR_CODES = [400, 401, 403, 404, 429, 500, 502, 503, 504]
 
@@ -48,11 +47,7 @@ const ErrorMessage: React.FC<{ block: ErrorMessageBlock }> = ({ block }) => {
           values={{ provider: getProviderLabel(providerId) }}
           components={{
             provider: (
-              <Link
-                style={{ color: 'var(--color-link)' }}
-                to={`/settings/provider`}
-                state={{ provider: getProviderById(providerId) }}
-              />
+              <Link style={{ color: 'var(--color-link)' }} to="/settings/provider" search={{ id: providerId }} />
             )
           }}
         />
@@ -138,7 +133,7 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
   const onNavigate = (e: React.MouseEvent) => {
     e.stopPropagation()
     if (classification.navTarget) {
-      navigate(classification.navTarget)
+      void navigate({ to: classification.navTarget })
     }
   }
 
@@ -181,8 +176,8 @@ const MessageErrorInfo: React.FC<{ block: ErrorMessageBlock; message: Message }>
       <div className="mt-2.5 ml-5.75 flex items-center gap-2">
         {classification.navTarget && (
           <Button
-            size="small"
-            type="default"
+            size="sm"
+            type="button"
             className="inline-flex items-center gap-1 rounded-[5px] border-[color-mix(in_srgb,var(--color-error)_25%,transparent)] text-(--color-error) text-xs hover:border-(--color-error)"
             onClick={onNavigate}>
             <SettingOutlined style={{ fontSize: 12 }} />

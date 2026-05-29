@@ -1,12 +1,18 @@
-import { CheckOutlined } from '@ant-design/icons'
+import {
+  Input,
+  MenuDivider,
+  MenuItem,
+  MenuList,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  Tooltip
+} from '@cherrystudio/ui'
 import type { NotesSortType } from '@renderer/types/note'
-import type { MenuProps } from 'antd'
-import { Dropdown, Input, Tooltip } from 'antd'
-import { ArrowLeft, ArrowUpNarrowWide, FilePlus2, FolderPlus, Search, Star } from 'lucide-react'
+import { ArrowLeft, ArrowUpNarrowWide, Check, FilePlus2, FolderPlus, Search, Star, X } from 'lucide-react'
 import type { FC } from 'react'
-import { useCallback } from 'react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
 interface NotesSidebarHeaderProps {
   isShowStarred: boolean
@@ -34,149 +40,133 @@ const NotesSidebarHeader: FC<NotesSidebarHeaderProps> = ({
   onSelectSortType
 }) => {
   const { t } = useTranslation()
+  const [sortOpen, setSortOpen] = useState(false)
 
-  const handleSortMenuClick: MenuProps['onClick'] = useCallback(
-    (e) => {
-      onSelectSortType(e.key as NotesSortType)
-    },
-    [onSelectSortType]
-  )
-
-  const sortMenuItems: Required<MenuProps>['items'] = [
+  const sortMenuItems: Array<{ label: string; key: NotesSortType } | { type: 'divider'; key: string }> = [
     { label: t('notes.sort_a2z'), key: 'sort_a2z' },
     { label: t('notes.sort_z2a'), key: 'sort_z2a' },
-    { type: 'divider' },
+    { type: 'divider', key: 'divider-name' },
     { label: t('notes.sort_updated_desc'), key: 'sort_updated_desc' },
     { label: t('notes.sort_updated_asc'), key: 'sort_updated_asc' },
-    { type: 'divider' },
+    { type: 'divider', key: 'divider-updated' },
     { label: t('notes.sort_created_desc'), key: 'sort_created_desc' },
     { label: t('notes.sort_created_asc'), key: 'sort_created_asc' }
   ]
 
-  const sortMenuWithCheck = sortMenuItems
-    .map((item) => {
-      if (item) {
-        return {
-          ...item,
-          icon: sortType === item.key ? <CheckOutlined /> : undefined,
-          key: item.key
-        }
-      }
-      return null
-    })
-    .filter(Boolean) as MenuProps['items']
-
   return (
-    <SidebarHeader isStarView={isShowStarred} isSearchView={isShowSearch}>
-      <HeaderActions>
+    <div
+      className={`flex h-(--navbar-height) border-border border-b px-3 py-2 ${
+        isShowStarred || isShowSearch ? 'justify-start' : 'justify-center'
+      }`}>
+      <div className="flex items-center gap-1">
         {!isShowStarred && !isShowSearch && (
           <>
-            <Tooltip title={t('notes.new_note')} mouseEnterDelay={0.8}>
-              <ActionButton onClick={onCreateNote}>
+            <Tooltip content={t('notes.new_note')} delay={800}>
+              <div
+                className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                onClick={onCreateNote}>
                 <FilePlus2 size={18} />
-              </ActionButton>
+              </div>
             </Tooltip>
 
-            <Tooltip title={t('notes.new_folder')} mouseEnterDelay={0.8}>
-              <ActionButton onClick={onCreateFolder}>
+            <Tooltip content={t('notes.new_folder')} delay={800}>
+              <div
+                className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                onClick={onCreateFolder}>
                 <FolderPlus size={18} />
-              </ActionButton>
+              </div>
             </Tooltip>
 
-            <Dropdown
-              menu={{
-                items: sortMenuWithCheck,
-                onClick: handleSortMenuClick
-              }}
-              trigger={['click']}>
-              <Tooltip title={t('assistants.presets.sorting.title')} mouseEnterDelay={0.8}>
-                <ActionButton>
-                  <ArrowUpNarrowWide size={18} />
-                </ActionButton>
-              </Tooltip>
-            </Dropdown>
+            <Popover open={sortOpen} onOpenChange={setSortOpen}>
+              <PopoverTrigger asChild>
+                <div>
+                  <Tooltip content={t('assistants.presets.sorting.title')} delay={800}>
+                    <div className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground">
+                      <ArrowUpNarrowWide size={18} />
+                    </div>
+                  </Tooltip>
+                </div>
+              </PopoverTrigger>
+              <PopoverContent align="center" className="w-52 p-1.5">
+                <MenuList>
+                  {sortMenuItems.map((item) =>
+                    'type' in item ? (
+                      <MenuDivider key={item.key} />
+                    ) : (
+                      <MenuItem
+                        key={item.key}
+                        label={item.label}
+                        active={sortType === item.key}
+                        suffix={sortType === item.key ? <Check size={14} /> : undefined}
+                        onClick={() => {
+                          onSelectSortType(item.key)
+                          setSortOpen(false)
+                        }}
+                      />
+                    )
+                  )}
+                </MenuList>
+              </PopoverContent>
+            </Popover>
 
-            <Tooltip title={t('notes.show_starred')} mouseEnterDelay={0.8}>
-              <ActionButton onClick={onToggleStarredView}>
+            <Tooltip content={t('notes.show_starred')} delay={800}>
+              <div
+                className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                onClick={onToggleStarredView}>
                 <Star size={18} />
-              </ActionButton>
+              </div>
             </Tooltip>
 
-            <Tooltip title={t('common.search')} mouseEnterDelay={0.8}>
-              <ActionButton onClick={onToggleSearchView}>
+            <Tooltip content={t('common.search')} delay={800}>
+              <div
+                className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                onClick={onToggleSearchView}>
                 <Search size={18} />
-              </ActionButton>
+              </div>
             </Tooltip>
           </>
         )}
         {isShowStarred && (
-          <Tooltip title={t('common.back')} mouseEnterDelay={0.8}>
-            <ActionButton onClick={onToggleStarredView}>
+          <Tooltip content={t('common.back')} delay={800}>
+            <div
+              className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+              onClick={onToggleStarredView}>
               <ArrowLeft size={18} />
-            </ActionButton>
+            </div>
           </Tooltip>
         )}
         {isShowSearch && (
           <>
-            <Tooltip title={t('common.back')} mouseEnterDelay={0.8}>
-              <ActionButton onClick={onToggleSearchView}>
+            <Tooltip content={t('common.back')} delay={800}>
+              <div
+                className="flex size-6 cursor-pointer items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+                onClick={onToggleSearchView}>
                 <ArrowLeft size={18} />
-              </ActionButton>
+              </div>
             </Tooltip>
-            <SearchInput
-              placeholder={t('knowledge.search_placeholder')}
-              value={searchKeyword}
-              onChange={(e) => onSetSearchKeyword(e.target.value)}
-              allowClear
-              size="small"
-              autoFocus
-            />
+            <div className="relative ml-2 max-w-45 flex-1">
+              <Input
+                placeholder={t('knowledge.search_placeholder')}
+                value={searchKeyword}
+                onChange={(e) => onSetSearchKeyword(e.target.value)}
+                className="h-7 pr-7 text-sm"
+                autoFocus
+              />
+              {searchKeyword && (
+                <button
+                  type="button"
+                  className="-translate-y-1/2 absolute top-1/2 right-1 flex size-5 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+                  onClick={() => onSetSearchKeyword('')}
+                  aria-label={t('common.clear')}>
+                  <X size={13} />
+                </button>
+              )}
+            </div>
           </>
         )}
-      </HeaderActions>
-    </SidebarHeader>
+      </div>
+    </div>
   )
 }
-
-const SidebarHeader = styled.div<{ isStarView?: boolean; isSearchView?: boolean }>`
-  padding: 8px 12px;
-  border-bottom: 0.5px solid var(--color-border);
-  display: flex;
-  justify-content: ${(props) => (props.isStarView || props.isSearchView ? 'flex-start' : 'center')};
-  height: var(--navbar-height);
-`
-
-const HeaderActions = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-`
-
-const ActionButton = styled.div`
-  width: 24px;
-  height: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 3px;
-  color: var(--color-text-2);
-  cursor: pointer;
-
-  &:hover {
-    background-color: var(--color-background-soft);
-    color: var(--color-text);
-  }
-`
-
-const SearchInput = styled(Input)`
-  flex: 1;
-  margin-left: 8px;
-  max-width: 180px;
-
-  .ant-input {
-    font-size: 13px;
-    border-radius: 4px;
-  }
-`
 
 export default NotesSidebarHeader

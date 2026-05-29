@@ -1,10 +1,32 @@
+import {
+  Button,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  Input,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from '@cherrystudio/ui'
+import { zodResolver } from '@hookform/resolvers/zod'
 import { loggerService } from '@logger'
-import type { ActionItem } from '@renderer/types/selectionTypes'
-import { Button, Form, Input, Modal, Select } from 'antd'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
 import { Globe } from 'lucide-react'
 import type { FC } from 'react'
 import { useEffect } from 'react'
+import { useForm } from 'react-hook-form'
 import { useTranslation } from 'react-i18next'
+import * as z from 'zod'
 
 const logger = loggerService.withContext('SelectionActionSearchModal')
 
@@ -52,25 +74,25 @@ export const DEFAULT_SEARCH_ENGINES: SearchEngineOption[] = [
     label: 'Google',
     value: 'Google',
     searchEngine: 'Google|https://www.google.com/search?q={{queryString}}',
-    icon: <LogoGoogle style={{ fontSize: '14px', color: 'var(--color-text-2)' }} />
+    icon: <LogoGoogle style={{ fontSize: '14px', color: 'var(--color-foreground-secondary)' }} />
   },
   {
     label: 'Baidu',
     value: 'Baidu',
     searchEngine: 'Baidu|https://www.baidu.com/s?wd={{queryString}}',
-    icon: <LogoBaidu style={{ fontSize: '14px', color: 'var(--color-text-2)' }} />
+    icon: <LogoBaidu style={{ fontSize: '14px', color: 'var(--color-foreground-secondary)' }} />
   },
   {
     label: 'Bing',
     value: 'Bing',
     searchEngine: 'Bing|https://www.bing.com/search?q={{queryString}}',
-    icon: <LogoBing style={{ fontSize: '14px', color: 'var(--color-text-2)' }} />
+    icon: <LogoBing style={{ fontSize: '14px', color: 'var(--color-foreground-secondary)' }} />
   },
   {
     label: '',
     value: 'custom',
     searchEngine: '',
-    icon: <Globe size={14} color="var(--color-text-2)" />
+    icon: <Globe size={14} color="var(--color-foreground-secondary)" />
   }
 ]
 
@@ -80,7 +102,7 @@ interface SelectionActionSearchModalProps {
   isModalOpen: boolean
   onOk: (searchEngine: string) => void
   onCancel: () => void
-  currentAction?: ActionItem
+  currentAction?: SelectionActionItem
 }
 
 const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
@@ -90,146 +112,183 @@ const SelectionActionSearchModal: FC<SelectionActionSearchModalProps> = ({
   currentAction
 }) => {
   const { t } = useTranslation()
-  const [form] = Form.useForm()
 
-  useEffect(() => {
-    if (isModalOpen && currentAction?.searchEngine) {
-      form.resetFields()
-
-      const [engine, url] = currentAction.searchEngine.split('|')
-      const defaultEngine = DEFAULT_SEARCH_ENGINES.find((e) => e.value === engine)
-
-      if (defaultEngine) {
-        form.setFieldsValue({
-          engine: defaultEngine.value,
-          customName: '',
-          customUrl: ''
+  const schema = z
+    .object({
+      engine: z.string(),
+      customName: z.string().optional(),
+      customUrl: z.string().optional()
+    })
+    .superRefine((value, ctx) => {
+      if (value.engine !== 'custom') return
+      if (!value.customName || value.customName.trim().length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['customName'],
+          message: t('selection.settings.search_modal.custom.name.hint')
         })
-      } else {
-        // Handle custom search engine
-        form.setFieldsValue({
-          engine: 'custom',
-          customName: engine,
-          customUrl: url
+      } else if (value.customName.length > 16) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['customName'],
+          message: t('selection.settings.search_modal.custom.name.max_length')
         })
       }
+      const url = value.customUrl ?? ''
+      if (!url || url.trim().length === 0) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['customUrl'],
+          message: t('selection.settings.search_modal.custom.url.required')
+        })
+      } else if (!/^https?:\/\/.+$/.test(url)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['customUrl'],
+          message: t('selection.settings.search_modal.custom.url.invalid_format')
+        })
+      } else if (!url.includes('{{queryString}}')) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['customUrl'],
+          message: t('selection.settings.search_modal.custom.url.missing_placeholder')
+        })
+      }
+    })
+
+  type FieldType = z.infer<typeof schema>
+
+  const form = useForm<FieldType>({
+    resolver: zodResolver(schema),
+    defaultValues: { engine: 'Google', customName: '', customUrl: '' }
+  })
+
+  useEffect(() => {
+    if (!isModalOpen) return
+    if (currentAction?.searchEngine) {
+      const [engine, url] = currentAction.searchEngine.split('|')
+      const defaultEngine = DEFAULT_SEARCH_ENGINES.find((e) => e.value === engine)
+      if (defaultEngine) {
+        form.reset({ engine: defaultEngine.value, customName: '', customUrl: '' })
+      } else {
+        form.reset({ engine: 'custom', customName: engine, customUrl: url })
+      }
+    } else {
+      form.reset({ engine: 'Google', customName: '', customUrl: '' })
     }
   }, [isModalOpen, currentAction, form])
 
-  const handleOk = async () => {
-    try {
-      const values = await form.validateFields()
-      const selectedEngine = DEFAULT_SEARCH_ENGINES.find((e) => e.value === values.engine)
+  const engine = form.watch('engine')
 
+  const handleSubmit = (values: FieldType) => {
+    try {
+      const selectedEngine = DEFAULT_SEARCH_ENGINES.find((e) => e.value === values.engine)
       const searchEngine =
         selectedEngine?.value === 'custom'
           ? `${values.customName}|${values.customUrl}`
           : selectedEngine?.searchEngine || ''
-
       onOk(searchEngine)
     } catch (error) {
-      logger.debug('Validation failed:', error as Error)
+      logger.debug('Submit failed:', error as Error)
     }
   }
 
-  const handleCancel = () => {
-    onCancel()
-  }
-
   const handleTest = () => {
-    const values = form.getFieldsValue()
-    if (values.customUrl) {
-      const testUrl = values.customUrl.replace('{{queryString}}', 'cherry studio')
+    const customUrl = form.getValues('customUrl')
+    if (customUrl) {
+      const testUrl = customUrl.replace('{{queryString}}', 'cherry studio')
       void window.api.openWebsite(testUrl)
     }
   }
 
   return (
-    <Modal
-      title={t('selection.settings.search_modal.title')}
-      open={isModalOpen}
-      onOk={handleOk}
-      onCancel={handleCancel}
-      destroyOnHidden
-      centered>
-      <Form
-        form={form}
-        layout="vertical"
-        initialValues={{
-          engine: 'Google',
-          customName: '',
-          customUrl: ''
-        }}>
-        <Form.Item name="engine" label={t('selection.settings.search_modal.engine.label')}>
-          <Select
-            options={DEFAULT_SEARCH_ENGINES.map((engine) => ({
-              label: (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {engine.icon}
-                  <span>{engine.label || t('selection.settings.search_modal.engine.custom')}</span>
-                </div>
-              ),
-              value: engine.value
-            }))}
-            onChange={(value) => {
-              if (value === 'custom') {
-                form.setFieldsValue({
-                  customName: '',
-                  customUrl: EXAMPLE_URL
-                })
-              }
-            }}
-          />
-        </Form.Item>
-
-        <Form.Item noStyle shouldUpdate={(prevValues, currentValues) => prevValues.engine !== currentValues.engine}>
-          {({ getFieldValue }) =>
-            getFieldValue('engine') === 'custom' ? (
-              <>
-                <Form.Item
-                  name="customName"
-                  label={t('selection.settings.search_modal.custom.name.label')}
-                  rules={[
-                    { required: true, message: t('selection.settings.search_modal.custom.name.hint') },
-                    { max: 16, message: t('selection.settings.search_modal.custom.name.max_length') }
-                  ]}>
-                  <Input placeholder={t('selection.settings.search_modal.custom.name.hint')} />
-                </Form.Item>
-
-                <Form.Item
-                  name="customUrl"
-                  label={t('selection.settings.search_modal.custom.url.label')}
-                  tooltip={t('selection.settings.search_modal.custom.url.hint')}
-                  rules={[
-                    { required: true, message: t('selection.settings.search_modal.custom.url.required') },
-                    {
-                      pattern: /^https?:\/\/.+$/,
-                      message: t('selection.settings.search_modal.custom.url.invalid_format')
-                    },
-                    {
-                      validator: (_, value) => {
-                        if (value && !value.includes('{{queryString}}')) {
-                          return Promise.reject(t('selection.settings.search_modal.custom.url.missing_placeholder'))
+    <Dialog open={isModalOpen} onOpenChange={(next) => !next && onCancel()}>
+      <DialogContent className="sm:max-w-[480px]">
+        <DialogHeader>
+          <DialogTitle>{t('selection.settings.search_modal.title')}</DialogTitle>
+        </DialogHeader>
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="flex flex-col gap-4">
+            <FormField
+              control={form.control}
+              name="engine"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('selection.settings.search_modal.engine.label')}</FormLabel>
+                  <FormControl>
+                    <Select
+                      value={field.value}
+                      onValueChange={(value) => {
+                        field.onChange(value)
+                        if (value === 'custom') {
+                          form.setValue('customName', '')
+                          form.setValue('customUrl', EXAMPLE_URL)
                         }
-                        return Promise.resolve()
-                      }
-                    }
-                  ]}>
-                  <Input
-                    placeholder={EXAMPLE_URL}
-                    suffix={
-                      <Button type="link" size="small" onClick={handleTest} style={{ padding: 0, height: 'auto' }}>
-                        {t('selection.settings.search_modal.custom.test')}
-                      </Button>
-                    }
-                  />
-                </Form.Item>
+                      }}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {DEFAULT_SEARCH_ENGINES.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            <div className="flex items-center gap-2">
+                              {option.icon}
+                              <span>{option.label || t('selection.settings.search_modal.engine.custom')}</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {engine === 'custom' && (
+              <>
+                <FormField
+                  control={form.control}
+                  name="customName"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('selection.settings.search_modal.custom.name.label')}</FormLabel>
+                      <FormControl>
+                        <Input placeholder={t('selection.settings.search_modal.custom.name.hint')} {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="customUrl"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('selection.settings.search_modal.custom.url.label')}</FormLabel>
+                      <FormControl>
+                        <div className="flex gap-2">
+                          <Input placeholder={EXAMPLE_URL} {...field} />
+                          <Button type="button" variant="outline" size="sm" onClick={handleTest}>
+                            {t('selection.settings.search_modal.custom.test')}
+                          </Button>
+                        </div>
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
               </>
-            ) : null
-          }
-        </Form.Item>
-      </Form>
-    </Modal>
+            )}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={onCancel}>
+                {t('common.cancel')}
+              </Button>
+              <Button type="submit">{t('common.confirm')}</Button>
+            </DialogFooter>
+          </form>
+        </Form>
+      </DialogContent>
+    </Dialog>
   )
 }
 

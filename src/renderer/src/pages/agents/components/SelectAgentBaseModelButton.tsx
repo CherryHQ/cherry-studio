@@ -52,7 +52,7 @@ const SelectAgentBaseModelButton = ({
   const apiFilter = isAgentEntity(agent)
     ? getModelFilterByAgentType(agent.type)
     : isAgentSessionEntity(agent)
-      ? getModelFilterByAgentType(agent.agent_type)
+      ? getModelFilterByAgentType(agent.agentType)
       : undefined
 
   if (!agent) return null

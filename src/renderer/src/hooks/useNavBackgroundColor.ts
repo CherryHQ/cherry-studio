@@ -1,17 +1,16 @@
-import { isMac } from '@renderer/config/constant'
+import useMacTransparentWindow from './useMacTransparentWindow'
 
-import { useSettings } from './useSettings'
+const MAC_TRANSPARENT_NAV_BACKGROUND = 'color-mix(in srgb, var(--color-background) 55%, transparent)'
+const DEFAULT_NAV_BACKGROUND = 'var(--color-sidebar)'
 
 function useNavBackgroundColor() {
-  const { windowStyle } = useSettings()
-
-  const macTransparentWindow = isMac && windowStyle === 'transparent'
+  const macTransparentWindow = useMacTransparentWindow()
 
   if (macTransparentWindow) {
-    return 'transparent'
+    return MAC_TRANSPARENT_NAV_BACKGROUND
   }
 
-  return 'var(--navbar-background)'
+  return DEFAULT_NAV_BACKGROUND
 }
 
 export default useNavBackgroundColor

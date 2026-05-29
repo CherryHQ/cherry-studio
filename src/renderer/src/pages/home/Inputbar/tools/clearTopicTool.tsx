@@ -13,7 +13,7 @@ const clearTopicTool = defineTool({
   },
   render: function ClearTopicRender(context) {
     const { actions, t } = context
-    const clearTopicShortcut = useShortcutDisplay('clear_topic')
+    const clearTopicShortcut = useShortcutDisplay('chat.clear')
 
     return (
       <Tooltip
@@ -21,9 +21,7 @@ const clearTopicTool = defineTool({
         title={t('chat.input.clear.label', { Command: clearTopicShortcut })}
         mouseLeaveDelay={0}
         arrow>
-        <ActionIconButton onClick={actions.clearTopic}>
-          <PaintbrushVertical size={18} />
-        </ActionIconButton>
+        <ActionIconButton onClick={actions.clearTopic} icon={<PaintbrushVertical size={18} />}></ActionIconButton>
       </Tooltip>
     )
   }

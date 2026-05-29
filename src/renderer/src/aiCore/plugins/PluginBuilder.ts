@@ -1,8 +1,13 @@
 import type { AiPlugin } from '@cherrystudio/ai-core'
 import { createPromptToolUsePlugin, providerToolPlugin } from '@cherrystudio/ai-core/built-in/plugins'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import { isGemini3Model, isQwen35to39Model, isSupportedThinkingTokenQwenModel } from '@renderer/config/models'
-import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
+import {
+  isDeepSeekModel,
+  isGemini3Model,
+  isQwen35to39Model,
+  isSupportedThinkingTokenQwenModel
+} from '@renderer/config/models'
 import type { Assistant, Model, Provider } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
 import { isOllamaProvider, isSupportEnableThinkingProvider } from '@renderer/utils/provider'
@@ -10,6 +15,7 @@ import { isOllamaProvider, isSupportEnableThinkingProvider } from '@renderer/uti
 import type { AiSdkMiddlewareConfig } from '../types/middlewareConfig'
 import { getReasoningTagName } from '../utils/reasoning'
 import { createAnthropicCachePlugin } from './anthropicCachePlugin'
+import { createDeepseekDsmlParserPlugin } from './deepseekDsmlParserPlugin'
 import { createNoThinkPlugin } from './noThinkPlugin'
 import { createOpenrouterReasoningPlugin } from './openrouterReasoningPlugin'
 import { createPdfCompatibilityPlugin } from './pdfCompatibilityPlugin'
@@ -37,10 +43,10 @@ export interface BuildPluginsContext {
 /**
  * 根据条件构建插件数组
  */
-export function buildPlugins({ provider, model, config }: BuildPluginsContext): AiPlugin[] {
+export async function buildPlugins({ provider, model, config }: BuildPluginsContext): Promise<AiPlugin[]> {
   const plugins: AiPlugin<any, any>[] = []
 
-  if (config.topicId && getEnableDeveloperMode()) {
+  if (config.topicId && (await preferenceService.get('app.developer_mode.enabled'))) {
     // 0. 添加 telemetry 插件
     plugins.push(
       createTelemetryPlugin({
@@ -84,6 +90,11 @@ export function buildPlugins({ provider, model, config }: BuildPluginsContext): 
     plugins.push(createOpenrouterReasoningPlugin())
   }
 
+  // 0.3.1 DeepSeek DSML tool-call parser — converts leaked DSML tags into proper tool calls
+  if (isDeepSeekModel(model)) {
+    plugins.push(createDeepseekDsmlParserPlugin())
+  }
+
   // 0.4 OVMS no-think for MCP tools
   if (provider.id === 'ovms' && config.mcpTools && config.mcpTools.length > 0) {
     plugins.push(createNoThinkPlugin())
@@ -114,7 +125,11 @@ export function buildPlugins({ provider, model, config }: BuildPluginsContext): 
   }
   // 2. 支持工具调用时添加搜索插件
   if (config.isSupportedToolUse || config.isPromptToolUse) {
-    plugins.push(searchOrchestrationPlugin(config.assistant, config.topicId || ''))
+    plugins.push(
+      searchOrchestrationPlugin(config.assistant, config.topicId || '', {
+        enableWebSearchTools: config.enableWebSearchTools
+      })
+    )
   }
 
   // 3. 推理模型时添加推理插件

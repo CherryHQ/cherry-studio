@@ -1,37 +1,16 @@
-import { styled } from 'styled-components'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import type { ComponentPropsWithoutRef } from 'react'
 
-const NavbarIcon = styled.div`
-  -webkit-app-region: none;
-  border-radius: 8px;
-  height: 30px;
-  padding: 0 7px;
-  display: flex;
-  flex-direction: row;
-  justify-content: center;
-  align-items: center;
-  transition: all 0.2s ease-in-out;
-  cursor: pointer;
-  .iconfont {
-    font-size: 18px;
-    color: var(--color-icon);
-    &.icon-a-addchat {
-      font-size: 20px;
-    }
-    &.icon-a-darkmode {
-      font-size: 20px;
-    }
-    &.icon-appstore {
-      font-size: 20px;
-    }
-  }
-  .anticon {
-    color: var(--color-icon);
-    font-size: 16px;
-  }
-  &:hover {
-    background-color: var(--color-background-mute);
-    color: var(--color-icon-white);
-  }
-`
+const NavbarIcon = ({ className, ...props }: ComponentPropsWithoutRef<'div'>) => {
+  return (
+    <div
+      className={cn(
+        'flex h-[30px] cursor-pointer flex-row items-center justify-center rounded-[8px] px-[7px] transition-all duration-200 ease-in-out [-webkit-app-region:none] hover:bg-muted hover:text-white [&_.anticon]:text-[16px] [&_.anticon]:text-[var(--color-icon)] [&_.icon-a-addchat]:text-[20px] [&_.icon-a-darkmode]:text-[20px] [&_.icon-appstore]:text-[20px] [&_.iconfont]:text-[18px] [&_.iconfont]:text-[var(--color-icon)]',
+        className
+      )}
+      {...props}
+    />
+  )
+}
 
 export default NavbarIcon

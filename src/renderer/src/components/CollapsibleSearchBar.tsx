@@ -1,7 +1,6 @@
+import { Input, Tooltip } from '@cherrystudio/ui'
 import i18n from '@renderer/i18n'
-import type { InputRef } from 'antd'
-import { Input, Tooltip } from 'antd'
-import { Search } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import { motion } from 'motion/react'
 import React, { memo, useCallback, useEffect, useRef, useState } from 'react'
 
@@ -28,7 +27,8 @@ const CollapsibleSearchBar = ({
 }: CollapsibleSearchBarProps) => {
   const [searchVisible, setSearchVisible] = useState(false)
   const [searchText, setSearchText] = useState('')
-  const inputRef = useRef<InputRef>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const collapsedWidth = 32
 
   const handleTextChange = useCallback(
     (text: string) => {
@@ -51,53 +51,87 @@ const CollapsibleSearchBar = ({
   }, [searchVisible])
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', position: 'relative' }}>
+    <motion.div
+      initial={false}
+      animate={searchVisible ? 'expanded' : 'collapsed'}
+      variants={{
+        expanded: { width: maxWidth, transition: { duration: 0.3, ease: 'easeInOut' } },
+        collapsed: { width: collapsedWidth, transition: { duration: 0.3, ease: 'easeInOut' } }
+      }}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        position: 'relative',
+        height: collapsedWidth,
+        minWidth: 0,
+        overflow: 'hidden',
+        flexShrink: searchVisible ? 1 : 0
+      }}>
       <motion.div
-        initial="collapsed"
+        initial={false}
         animate={searchVisible ? 'expanded' : 'collapsed'}
         variants={{
-          expanded: { maxWidth: maxWidth, opacity: 1, transition: { duration: 0.3, ease: 'easeInOut' } },
-          collapsed: { maxWidth: 0, opacity: 0, transition: { duration: 0.3, ease: 'easeInOut' } }
+          expanded: { width: '100%', opacity: 1, transition: { duration: 0.3, ease: 'easeInOut' } },
+          collapsed: { width: 0, opacity: 0, transition: { duration: 0.3, ease: 'easeInOut' } }
         }}
-        style={{ overflow: 'hidden', flex: 1 }}>
-        <Input
-          ref={inputRef}
-          type="text"
-          placeholder={placeholder}
-          size="small"
-          suffix={icon}
-          value={searchText}
-          autoFocus
-          allowClear
-          onChange={(e) => handleTextChange(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') {
-              e.stopPropagation()
-              handleTextChange('')
+        style={{ overflow: 'hidden', flexShrink: 1 }}>
+        <div className="relative flex items-center">
+          <Input
+            ref={inputRef}
+            type="text"
+            placeholder={placeholder}
+            value={searchText}
+            autoFocus
+            className="h-8 pr-8 text-sm"
+            onChange={(e) => handleTextChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.stopPropagation()
+                handleTextChange('')
+                if (!searchText) setSearchVisible(false)
+              }
+            }}
+            onBlur={() => {
               if (!searchText) setSearchVisible(false)
-            }
-          }}
-          onBlur={() => {
-            if (!searchText) setSearchVisible(false)
-          }}
-          onClear={handleClear}
-          style={{ width: '100%', ...style }}
-        />
+            }}
+            style={{ width: '100%', height: collapsedWidth, ...style }}
+          />
+          <button
+            type="button"
+            aria-label={searchText ? i18n.t('common.clear') : tooltip}
+            className="absolute right-2 flex size-4 items-center justify-center text-muted-foreground hover:text-foreground"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={searchText ? handleClear : () => inputRef.current?.focus()}>
+            {searchText ? <X size={14} /> : icon}
+          </button>
+        </div>
       </motion.div>
       <motion.div
-        initial="visible"
+        initial={false}
         animate={searchVisible ? 'hidden' : 'visible'}
+        className="rounded-lg transition-colors hover:bg-accent"
         variants={{
           visible: { opacity: 1, transition: { duration: 0.1, delay: 0.3, ease: 'easeInOut' } },
           hidden: { opacity: 0, transition: { duration: 0.1, ease: 'easeInOut' } }
         }}
-        style={{ cursor: 'pointer', display: 'flex' }}
+        style={{
+          position: 'absolute',
+          right: 0,
+          width: collapsedWidth,
+          height: collapsedWidth,
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          pointerEvents: searchVisible ? 'none' : 'auto'
+        }}
         onClick={() => setSearchVisible(true)}>
-        <Tooltip title={tooltip} mouseEnterDelay={0.5} mouseLeaveDelay={0}>
+        <Tooltip content={tooltip} delay={500}>
           {icon}
         </Tooltip>
       </motion.div>
-    </div>
+    </motion.div>
   )
 }
 

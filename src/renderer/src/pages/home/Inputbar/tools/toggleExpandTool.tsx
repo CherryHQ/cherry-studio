@@ -21,9 +21,9 @@ const ToggleExpandTool: React.FC<{ context: ToggleExpandRenderContext }> = ({ co
       title={isExpanded ? t('chat.input.collapse') : t('chat.input.expand')}
       mouseLeaveDelay={0}
       arrow>
-      <ActionIconButton onClick={handleToggle}>
-        {isExpanded ? <Minimize size={18} /> : <Maximize size={18} />}
-      </ActionIconButton>
+      <ActionIconButton
+        onClick={handleToggle}
+        icon={isExpanded ? <Minimize size={18} /> : <Maximize size={18} />}></ActionIconButton>
     </Tooltip>
   )
 }

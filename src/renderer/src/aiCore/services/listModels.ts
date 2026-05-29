@@ -9,16 +9,24 @@ import {
   getFromApi as aiSdkGetFromApi,
   zodSchema
 } from '@ai-sdk/provider-utils'
+import { cacheService } from '@data/CacheService'
 import { loggerService } from '@logger'
 import { COPILOT_DEFAULT_HEADERS } from '@renderer/aiCore/provider/constants'
 import store from '@renderer/store'
 import type { EndpointType, Model, Provider } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
 import { formatApiHost, withoutTrailingSlash } from '@renderer/utils'
-import { isAIGatewayProvider, isGeminiProvider, isOllamaProvider } from '@renderer/utils/provider'
+import { isGeminiProvider, isOllamaProvider, isVertexProvider } from '@renderer/utils/provider'
 import { defaultAppHeaders } from '@shared/utils'
 import * as z from 'zod'
 
+import {
+  createVertexModelListRequest,
+  DEFAULT_VERTEX_MODEL_PUBLISHERS,
+  getVertexModelId,
+  getVertexModelPublisher,
+  isSupportedVertexPublisherModel
+} from './listModels/vertex'
 import {
   AIHubMixModelsResponseSchema,
   GeminiModelsResponseSchema,
@@ -27,7 +35,9 @@ import {
   OllamaTagsResponseSchema,
   OpenAIModelsResponseSchema,
   OVMSConfigResponseSchema,
-  TogetherModelsResponseSchema
+  TogetherModelsResponseSchema,
+  VercelGatewayModelsResponseSchema,
+  VertexPublisherModelsResponseSchema
 } from './schemas'
 
 const logger = loggerService.withContext('ModelListService')
@@ -36,7 +46,23 @@ const logger = loggerService.withContext('ModelListService')
 
 type ModelFetcher = {
   match: (provider: Provider) => boolean
-  fetch: (provider: Provider, signal?: AbortSignal) => Promise<Model[]>
+  fetch: (provider: Provider, signal?: AbortSignal, options?: { throwOnError?: boolean }) => Promise<Model[]>
+}
+
+function handleOptionalModelListFailure<T>(
+  error: unknown,
+  options: { throwOnError?: boolean } | undefined,
+  context: Record<string, string>
+): { data: T[] } {
+  if (options?.throwOnError) {
+    throw error
+  }
+
+  logger.warn('Optional model list endpoint failed; continuing with primary models', {
+    ...context,
+    error
+  })
+  return { data: [] }
 }
 
 // === API Layer ===
@@ -52,6 +78,7 @@ const ApiErrorSchema = z.object({
 })
 
 type ApiError = z.infer<typeof ApiErrorSchema>
+type OpenAIModelResponseItem = z.infer<typeof OpenAIModelsResponseSchema>['data'][number]
 
 async function getFromApi<T>({
   url,
@@ -88,16 +115,16 @@ function getApiKey(provider: Provider): string {
     return keys[0]
   }
 
-  const lastUsedKey = window.keyv.get(keyName)
+  const lastUsedKey = cacheService.getCasual<string>(keyName)
   if (!lastUsedKey) {
-    window.keyv.set(keyName, keys[0])
+    cacheService.setCasual(keyName, keys[0])
     return keys[0]
   }
 
   const currentIndex = keys.indexOf(lastUsedKey)
   const nextIndex = (currentIndex + 1) % keys.length
   const nextKey = keys[nextIndex]
-  window.keyv.set(keyName, nextKey)
+  cacheService.setCasual(keyName, nextKey)
 
   return nextKey
 }
@@ -184,9 +211,99 @@ const geminiFetcher: ModelFetcher = {
   }
 }
 
+const vertexFetcher: ModelFetcher = {
+  match: (p) => isVertexProvider(p),
+  fetch: async (provider, signal, options) => {
+    const request = await createVertexModelListRequest(provider, { throwOnError: options?.throwOnError })
+
+    if (!request) {
+      return []
+    }
+
+    type PublisherGroup = z.infer<typeof VertexPublisherModelsResponseSchema>['publisherModels'] | null
+    let firstPublisherError: unknown
+    const publisherModelGroups = await Promise.all(
+      DEFAULT_VERTEX_MODEL_PUBLISHERS.map(async (publisher): Promise<PublisherGroup> => {
+        try {
+          const publisherModels: z.infer<typeof VertexPublisherModelsResponseSchema>['publisherModels'] = []
+          let pageToken: string | undefined
+
+          do {
+            const searchParams = new URLSearchParams({
+              pageSize: '100',
+              listAllVersions: 'true'
+            })
+
+            if (pageToken) {
+              searchParams.set('pageToken', pageToken)
+            }
+
+            const response = await getFromApi({
+              url: `${request.baseUrl}/v1beta1/publishers/${publisher}/models?${searchParams.toString()}`,
+              headers: request.headers,
+              responseSchema: VertexPublisherModelsResponseSchema,
+              abortSignal: signal
+            })
+
+            publisherModels.push(...response.publisherModels)
+            pageToken = response.nextPageToken
+          } while (pageToken)
+
+          return publisherModels
+        } catch (error) {
+          if (firstPublisherError === undefined) {
+            firstPublisherError = error
+          }
+          logger.warn('Skipping Vertex publisher model listing after request failure', {
+            providerId: provider.id,
+            publisher,
+            error: error instanceof Error ? error.message : String(error)
+          })
+          return null
+        }
+      })
+    )
+
+    if (options?.throwOnError && publisherModelGroups.some((g) => g === null)) {
+      if (firstPublisherError instanceof Error) {
+        throw firstPublisherError
+      }
+      if (firstPublisherError !== undefined) {
+        throw new Error(String(firstPublisherError))
+      }
+      throw new Error('One or more Vertex AI publisher requests failed')
+    }
+
+    const publisherModels = publisherModelGroups.filter((g) => g !== null).flat()
+
+    const listedModels = dedup(publisherModels, (model) => model.name).map((model) => {
+      const id = getVertexModelId(model.name)
+      const ownedBy = getVertexModelPublisher(model.name)
+
+      return toModel(id, provider, {
+        name: pickPreferredString([model.displayName, id]) || id,
+        description: model.description,
+        owned_by: ownedBy
+      })
+    })
+
+    const filteredModels = listedModels.filter((model) => isSupportedVertexPublisherModel(model.id))
+
+    if (filteredModels.length !== listedModels.length) {
+      logger.info('Filtered unsupported Vertex publisher models from model list', {
+        providerId: provider.id,
+        filteredCount: listedModels.length - filteredModels.length,
+        returnedCount: filteredModels.length
+      })
+    }
+
+    return filteredModels
+  }
+}
+
 const githubFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.github,
-  fetch: async (provider, signal) => {
+  fetch: async (provider, signal, options) => {
     const [catalogResponse, v1Response] = await Promise.all([
       getFromApi({
         url: 'https://models.github.ai/catalog/models',
@@ -199,9 +316,14 @@ const githubFetcher: ModelFetcher = {
         headers: defaultHeaders(provider),
         responseSchema: OpenAIModelsResponseSchema,
         abortSignal: signal
-      }).catch(() => ({ data: [] as { id: string; owned_by?: string }[] }))
+      }).catch((error) =>
+        handleOptionalModelListFailure<{ id: string; owned_by?: string }>(error, options, {
+          providerId: provider.id,
+          endpoint: 'github-v1-models'
+        })
+      )
     ])
-    const catalogModels = catalogResponse.map((m) =>
+    const registryModels = catalogResponse.map((m) =>
       toModel(m.id, provider, {
         name: m.name || m.id,
         description: pickPreferredString([m.summary, m.description]),
@@ -209,7 +331,7 @@ const githubFetcher: ModelFetcher = {
       })
     )
     const v1Models = v1Response.data.map((m) => toModel(m.id, provider, { owned_by: m.owned_by }))
-    return dedup([...catalogModels, ...v1Models], (m) => m.id)
+    return dedup([...registryModels, ...v1Models], (m) => m.id)
   }
 }
 
@@ -304,7 +426,7 @@ const newApiFetcher: ModelFetcher = {
 
 const openRouterFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.openrouter,
-  fetch: async (provider, signal) => {
+  fetch: async (provider, signal, options) => {
     const [modelsResponse, embedModelsResponse] = await Promise.all([
       getFromApi({
         url: 'https://openrouter.ai/api/v1/models',
@@ -317,7 +439,12 @@ const openRouterFetcher: ModelFetcher = {
         headers: defaultHeaders(provider),
         responseSchema: OpenAIModelsResponseSchema,
         abortSignal: signal
-      }).catch(() => ({ data: [] }))
+      }).catch((error) =>
+        handleOptionalModelListFailure<OpenAIModelResponseItem>(error, options, {
+          providerId: provider.id,
+          endpoint: 'openrouter-embedding-models'
+        })
+      )
     ])
     const all = [...modelsResponse.data, ...embedModelsResponse.data]
     return dedup(all, (m) => m.id).map((m) => toModel(m.id, provider, { owned_by: m.owned_by }))
@@ -326,7 +453,7 @@ const openRouterFetcher: ModelFetcher = {
 
 const ppioFetcher: ModelFetcher = {
   match: (p) => p.id === SystemProviderIds.ppio,
-  fetch: async (provider, signal) => {
+  fetch: async (provider, signal, options) => {
     const baseUrl = formatApiHost(provider.apiHost)
     const [chat, embed, reranker] = await Promise.all([
       getFromApi({
@@ -340,13 +467,23 @@ const ppioFetcher: ModelFetcher = {
         headers: defaultHeaders(provider),
         responseSchema: OpenAIModelsResponseSchema,
         abortSignal: signal
-      }).catch(() => ({ data: [] })),
+      }).catch((error) =>
+        handleOptionalModelListFailure<OpenAIModelResponseItem>(error, options, {
+          providerId: provider.id,
+          endpoint: 'ppio-embedding-models'
+        })
+      ),
       getFromApi({
         url: `${baseUrl}/models?model_type=reranker`,
         headers: defaultHeaders(provider),
         responseSchema: OpenAIModelsResponseSchema,
         abortSignal: signal
-      }).catch(() => ({ data: [] }))
+      }).catch((error) =>
+        handleOptionalModelListFailure<OpenAIModelResponseItem>(error, options, {
+          providerId: provider.id,
+          endpoint: 'ppio-reranker-models'
+        })
+      )
     ])
     const all = [...chat.data, ...embed.data, ...reranker.data]
     return dedup(all, (m) => m.id).map((m) => toModel(m.id, provider, { owned_by: m.owned_by }))
@@ -366,6 +503,28 @@ const aiHubMixFetcher: ModelFetcher = {
       toModel(m.model_id, provider, {
         name: m.model_name || m.model_id,
         description: m.desc
+      })
+    )
+  }
+}
+
+const gatewayFetcher: ModelFetcher = {
+  match: (p) => p.id === SystemProviderIds.gateway,
+  fetch: async (provider, signal) => {
+    const response = await getFromApi({
+      url: `https://ai-gateway.vercel.sh/v3/ai/config`,
+      headers: {
+        ...defaultHeaders(provider),
+        'ai-gateway-protocol-version': '0.0.1'
+      },
+      responseSchema: VercelGatewayModelsResponseSchema,
+      abortSignal: signal
+    })
+    return dedup(response.models, (m) => m.id).map((m) =>
+      toModel(m.id, provider, {
+        name: m.name || m.id,
+        description: m.description,
+        owned_by: m.specification?.provider
       })
     )
   }
@@ -392,6 +551,7 @@ const fetchers: ModelFetcher[] = [
   aiHubMixFetcher,
   ollamaFetcher,
   geminiFetcher,
+  vertexFetcher,
   githubFetcher,
   copilotFetcher,
   ovmsFetcher,
@@ -399,6 +559,7 @@ const fetchers: ModelFetcher[] = [
   newApiFetcher,
   openRouterFetcher,
   ppioFetcher,
+  gatewayFetcher,
   openAICompatibleFetcher // always-match fallback, must be last
 ]
 
@@ -407,22 +568,32 @@ const fetchers: ModelFetcher[] = [
 const UNSUPPORTED_PROVIDERS = new Set<string>([SystemProviderIds['aws-bedrock'], SystemProviderIds.anthropic])
 
 function isUnsupported(provider: Provider): boolean {
-  return isAIGatewayProvider(provider) || UNSUPPORTED_PROVIDERS.has(provider.id) || provider.type === 'vertex-anthropic'
+  return UNSUPPORTED_PROVIDERS.has(provider.id) || provider.type === 'vertex-anthropic'
 }
 
 // === Public API ===
 
-export async function listModels(provider: Provider, abortSignal?: AbortSignal): Promise<Model[]> {
+export async function listModels(
+  provider: Provider,
+  abortSignal?: AbortSignal,
+  options?: { throwOnError?: boolean }
+): Promise<Model[]> {
   try {
     if (isUnsupported(provider)) {
       logger.warn('Provider does not support model listing via listModels', { providerId: provider.id })
+      if (options?.throwOnError) {
+        throw new Error(`Provider does not support model listing: ${provider.id}`)
+      }
       return []
     }
 
     const fetcher = fetchers.find((f) => f.match(provider))!
-    return await fetcher.fetch(provider, abortSignal)
+    return await fetcher.fetch(provider, abortSignal, options)
   } catch (error) {
     logger.error('Error listing models:', error as Error, { providerId: provider.id })
+    if (options?.throwOnError) {
+      throw error
+    }
     return []
   }
 }

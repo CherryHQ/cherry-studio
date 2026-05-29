@@ -1,12 +1,12 @@
 import { MessageStream } from '@anthropic-ai/sdk/resources/messages/messages'
 import { Stream } from '@cherrystudio/openai/streaming'
+import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
 import { cleanContext, endContext, getContext, startContext } from '@mcp-trace/trace-web'
 import type { Context, Span } from '@opentelemetry/api'
 import { context, SpanStatusCode, trace } from '@opentelemetry/api'
 import { db } from '@renderer/databases'
-import { getEnableDeveloperMode } from '@renderer/hooks/useSettings'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { handleResult } from '@renderer/trace/dataHandler/CommonResultHandler'
 import { handleMessageStream } from '@renderer/trace/dataHandler/MessageStreamHandler'
@@ -21,6 +21,10 @@ const logger = loggerService.withContext('SpanManagerService')
 
 class SpanManagerService {
   private spanMap: Map<string, ModelSpanEntity[]> = new Map()
+
+  async getEnableDeveloperMode() {
+    return await preferenceService.get('app.developer_mode.enabled')
+  }
 
   getModelSpanEntity(topicId: string, modelName?: string) {
     const entities = this.spanMap.get(topicId)
@@ -37,8 +41,8 @@ class SpanManagerService {
     return entity
   }
 
-  startTrace(params: StartSpanParams, models?: Model[]) {
-    if (!getEnableDeveloperMode()) {
+  async startTrace(params: StartSpanParams, models?: Model[]) {
+    if (!(await this.getEnableDeveloperMode())) {
       return
     }
 
@@ -63,7 +67,7 @@ class SpanManagerService {
   }
 
   async restartTrace(message: Message, text?: string) {
-    if (!getEnableDeveloperMode()) {
+    if (!(await this.getEnableDeveloperMode())) {
       return
     }
 
@@ -97,7 +101,7 @@ class SpanManagerService {
   }
 
   async appendMessageTrace(message: Message, model: Model) {
-    if (!getEnableDeveloperMode()) {
+    if (!(await this.getEnableDeveloperMode())) {
       return
     }
     if (!message.traceId) {
@@ -113,7 +117,7 @@ class SpanManagerService {
   }
 
   async appendTrace({ topicId, traceId, model }: { topicId: string; traceId: string; model: Model }) {
-    if (!getEnableDeveloperMode()) {
+    if (!(await this.getEnableDeveloperMode())) {
       return
     }
     if (!traceId) {
@@ -212,8 +216,8 @@ class SpanManagerService {
     void window.api.trace.saveData(params.topicId)
   }
 
-  addSpan(params: StartSpanParams) {
-    if (!getEnableDeveloperMode()) {
+  async addSpan(params: StartSpanParams) {
+    if (!(await this.getEnableDeveloperMode())) {
       return
     }
     const entity = this.getModelSpanEntity(params.topicId, params.modelName)
@@ -311,15 +315,15 @@ class SpanManagerService {
  * @param getTopicId Function to get topicId from arguments.
  * @returns The result of the executed function.
  */
-export function withSpanResult<F extends (...args: any) => any>(
+export async function withSpanResult<F extends (...args: any) => any>(
   fn: F,
   params: StartSpanParams,
   ...args: Parameters<F>
-): ReturnType<F> {
+): Promise<ReturnType<F>> {
   if (!params.topicId || params.topicId === '') {
     return fn(...args)
   }
-  const span = addSpan({
+  const span = await addSpan({
     topicId: params.topicId,
     name: params.name,
     tag: params.tag,

@@ -1,6 +1,6 @@
+import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
 import { useShortcut, useShortcutDisplay } from '@renderer/hooks/useShortcuts'
-import { Tooltip } from 'antd'
 import { Eraser } from 'lucide-react'
 import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -9,22 +9,18 @@ interface Props {
 }
 
 const NewContextButton: FC<Props> = ({ onNewContext }) => {
-  const newContextShortcut = useShortcutDisplay('toggle_new_context')
+  const newContextShortcut = useShortcutDisplay('chat.toggle_new_context')
   const { t } = useTranslation()
 
-  useShortcut('toggle_new_context', onNewContext)
+  useShortcut('chat.toggle_new_context', onNewContext)
 
   return (
-    <Tooltip
-      placement="top"
-      title={t('chat.input.new.context', { Command: newContextShortcut })}
-      mouseLeaveDelay={0}
-      arrow>
+    <Tooltip content={t('chat.input.new.context', { Command: newContextShortcut })}>
       <ActionIconButton
         onClick={onNewContext}
-        aria-label={t('chat.input.new.context', { Command: newContextShortcut })}>
-        <Eraser size={18} />
-      </ActionIconButton>
+        aria-label={t('chat.input.new.context', { Command: newContextShortcut })}
+        icon={<Eraser size={18} />}
+      />
     </Tooltip>
   )
 }

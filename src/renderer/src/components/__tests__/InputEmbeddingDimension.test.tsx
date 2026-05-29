@@ -65,19 +65,40 @@ vi.mock('antd', () => {
     </button>
   )
 
-  const MockTooltip: React.FC<React.PropsWithChildren<{ title: string }>> = ({ children, title }) => (
+  return {
+    Button: MockButton,
+    InputNumber: MockInputNumber,
+    Space: { Compact: MockSpaceCompact }
+  }
+})
+
+vi.mock('@cherrystudio/ui', () => ({
+  Button: ({ children, onPress, disabled, isDisabled, startContent, ...props }: any) => (
+    <button type="button" data-testid="button" onClick={onPress} disabled={disabled || isDisabled} {...props}>
+      {startContent}
+      {children}
+    </button>
+  ),
+  Input: ({ ref, value, onChange, placeholder, disabled, className, style, ...props }: any) => (
+    <input
+      ref={ref}
+      type="number"
+      data-testid="input"
+      placeholder={placeholder}
+      value={value ?? ''}
+      onChange={onChange}
+      disabled={disabled}
+      className={className}
+      style={style}
+      {...props}
+    />
+  ),
+  Tooltip: ({ children, title }: { children: React.ReactNode; title: React.ReactNode }) => (
     <div data-testid="tooltip" data-title={title}>
       {children}
     </div>
   )
-
-  return {
-    Button: MockButton,
-    InputNumber: MockInputNumber,
-    Space: { Compact: MockSpaceCompact },
-    Tooltip: MockTooltip
-  }
-})
+}))
 
 // Mock dependencies
 vi.mock('@renderer/aiCore', () => ({

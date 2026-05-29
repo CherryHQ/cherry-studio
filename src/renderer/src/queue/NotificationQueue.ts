@@ -4,19 +4,8 @@ import PQueue from 'p-queue'
 type NotificationListener = (notification: Notification) => Promise<void> | void
 
 export class NotificationQueue {
-  private static instance: NotificationQueue
   private queue = new PQueue({ concurrency: 1 })
   private listeners: NotificationListener[] = []
-
-  // oxlint-disable-next-line @typescript-eslint/no-empty-function
-  private constructor() {}
-
-  public static getInstance(): NotificationQueue {
-    if (!NotificationQueue.instance) {
-      NotificationQueue.instance = new NotificationQueue()
-    }
-    return NotificationQueue.instance
-  }
 
   public subscribe(listener: NotificationListener) {
     this.listeners.push(listener)
@@ -51,3 +40,5 @@ export class NotificationQueue {
     return this.queue.size
   }
 }
+
+export const notificationQueue = new NotificationQueue()

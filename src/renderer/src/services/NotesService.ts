@@ -1,8 +1,7 @@
 import { loggerService } from '@logger'
-import store from '@renderer/store'
-import { setNotesPath } from '@renderer/store/note'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import { getFileDirectory } from '@renderer/utils'
+import type { TreeDirRoot, TreeNode } from '@shared/file/types'
 
 const logger = loggerService.withContext('NotesService')
 
@@ -13,12 +12,61 @@ export interface UploadResult {
   uploadedNodes: NotesTreeNode[]
   totalFiles: number
   skippedFiles: number
+  failedFiles: number
   fileCount: number
   folderCount: number
 }
 
-export async function loadTree(rootPath: string): Promise<NotesTreeNode[]> {
-  return window.api.file.getDirectoryStructure(normalizePath(rootPath))
+/**
+ * Adapter — project the `DirectoryTreeBuilder` snapshot into the legacy
+ * `NotesTreeNode[]` shape that the Notes sidebar / drag-drop / merge logic
+ * still consumes.
+ *
+ * The transformation is purely structural; sorting and `isStarred` /
+ * `expanded` decoration happen elsewhere (`sortTree` + `mergeTreeState`
+ * inside `NotesPage`).
+ */
+export function projectNotesTree(root: TreeDirRoot, notesPath: string): NotesTreeNode[] {
+  const rootPath = normalizePath(notesPath)
+  return Object.values(root.children).map((child) => projectChild(child, rootPath))
+}
+
+function projectChild(node: TreeNode, rootPath: string): NotesTreeNode {
+  const isFile = node.kind === 'file'
+  const externalPath = node.path
+  const baseName = node.basename
+  const displayName =
+    isFile && baseName.toLowerCase().endsWith(MARKDOWN_EXT) ? baseName.slice(0, -MARKDOWN_EXT.length) : baseName
+
+  const relative = relativePath(externalPath, rootPath)
+  const treePath = isFile ? `/${stripMarkdownExt(relative)}` : `/${relative}`.replace(/\/+$/, '') || '/'
+
+  const stats = node.stats
+  const projected: NotesTreeNode = {
+    id: externalPath,
+    name: displayName,
+    type: isFile ? 'file' : 'folder',
+    treePath,
+    externalPath,
+    createdAt: stats?.birthtime ? new Date(stats.birthtime).toISOString() : '',
+    updatedAt: stats?.mtime ? new Date(stats.mtime).toISOString() : ''
+  }
+
+  if (!isFile && node.isTreeDir()) {
+    projected.children = Object.values(node.children).map((c) => projectChild(c, rootPath))
+  }
+
+  return projected
+}
+
+function relativePath(absolute: string, rootPath: string): string {
+  if (absolute === rootPath) return ''
+  if (absolute.startsWith(`${rootPath}/`)) return absolute.slice(rootPath.length + 1)
+  return absolute
+}
+
+function stripMarkdownExt(p: string): string {
+  return p.toLowerCase().endsWith(MARKDOWN_EXT) ? p.slice(0, -MARKDOWN_EXT.length) : p
 }
 
 export function sortTree(nodes: NotesTreeNode[], sortType: NotesSortType): NotesTreeNode[] {
@@ -42,9 +90,6 @@ export function sortTree(nodes: NotesTreeNode[], sortType: NotesSortType): Notes
 export async function addDir(name: string, parentPath: string): Promise<{ path: string; name: string }> {
   const resolved = await resolveNotesPath(parentPath)
   const basePath = resolved.path
-  if (resolved.isFallback) {
-    store.dispatch(setNotesPath(basePath))
-  }
   const { safeName } = await window.api.file.checkFileName(basePath, name, false)
   const fullPath = `${basePath}/${safeName}`
   await window.api.file.mkdir(fullPath)
@@ -58,9 +103,6 @@ export async function addNote(
 ): Promise<{ path: string; name: string }> {
   const resolved = await resolveNotesPath(parentPath)
   const basePath = resolved.path
-  if (resolved.isFallback) {
-    store.dispatch(setNotesPath(basePath))
-  }
   const { safeName } = await window.api.file.checkFileName(basePath, name, true)
   const notePath = `${basePath}/${safeName}${MARKDOWN_EXT}`
   await window.api.file.write(notePath, content)
@@ -175,6 +217,7 @@ export async function uploadNotes(files: File[], targetPath: string): Promise<Up
       uploadedNodes: [],
       totalFiles: 0,
       skippedFiles: 0,
+      failedFiles: 0,
       fileCount: 0,
       folderCount: 0
     }
@@ -199,28 +242,24 @@ export async function uploadNotes(files: File[], targetPath: string): Promise<Up
       }
     }
 
-    // Pause file watcher to prevent N refresh events
-    await window.api.file.pauseFileWatcher()
+    // Note: the legacy `pauseFileWatcher`/`resumeFileWatcher` IPCs used to
+    // wrap this call to coalesce N watcher pings into one refresh — they're
+    // gone with the FileStorage chokidar singleton. The new per-tree
+    // chokidar instance still fires N `add` events; the renderer's
+    // projection effect debounces them implicitly via React batching.
+    const result = await window.api.file.batchUploadMarkdown(filePaths, basePath)
 
-    try {
-      // Use the new optimized batch upload API that runs in Main process
-      const result = await window.api.file.batchUploadMarkdown(filePaths, basePath)
-
-      return {
-        uploadedNodes: [],
-        totalFiles,
-        skippedFiles: result.skippedFiles,
-        fileCount: result.fileCount,
-        folderCount: result.folderCount
-      }
-    } finally {
-      // Resume watcher and trigger single refresh
-      await window.api.file.resumeFileWatcher()
+    return {
+      uploadedNodes: [],
+      totalFiles,
+      skippedFiles: result.skippedFiles,
+      failedFiles: result.failedFiles,
+      fileCount: result.fileCount,
+      folderCount: result.folderCount
     }
   } catch (error) {
-    logger.error('Batch upload failed, falling back to legacy method:', error as Error)
-    // Fall back to old method if new method fails
-    return uploadNotesLegacy(files, targetPath)
+    logger.error('Batch upload failed:', error as Error)
+    throw error
   }
 }
 
@@ -238,6 +277,7 @@ async function uploadNotesLegacy(files: File[], targetPath: string): Promise<Upl
       uploadedNodes: [],
       totalFiles: files.length,
       skippedFiles,
+      failedFiles: 0,
       fileCount: 0,
       folderCount: 0
     }
@@ -247,6 +287,7 @@ async function uploadNotesLegacy(files: File[], targetPath: string): Promise<Upl
   await createFolders(folders)
 
   let fileCount = 0
+  let failedFiles = 0
   const BATCH_SIZE = 5 // Process 5 files concurrently to balance performance and responsiveness
 
   // Process files in batches to avoid blocking the UI thread
@@ -271,6 +312,7 @@ async function uploadNotesLegacy(files: File[], targetPath: string): Promise<Upl
       if (result.status === 'fulfilled') {
         fileCount += 1
       } else {
+        failedFiles += 1
         logger.error('Failed to write uploaded file:', result.reason)
       }
     })
@@ -285,6 +327,7 @@ async function uploadNotesLegacy(files: File[], targetPath: string): Promise<Upl
     uploadedNodes: [],
     totalFiles: files.length,
     skippedFiles,
+    failedFiles,
     fileCount,
     folderCount: folders.size
   }
@@ -350,10 +393,8 @@ async function createFolders(folders: Set<string>): Promise<void> {
     try {
       await window.api.file.mkdir(folder)
     } catch (error) {
-      logger.debug('Skip existing folder while uploading notes', {
-        folder,
-        error: (error as Error).message
-      })
+      logger.error('Failed to create folder while uploading notes', error as Error)
+      throw error
     }
   }
 }

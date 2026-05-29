@@ -1,4 +1,4 @@
-import type { NotesSettings } from '@renderer/store/note'
+import type { NotesSettings } from '@renderer/hooks/useNotesSettings'
 import { Copy, FileText, MonitorSpeaker, Settings, Type } from 'lucide-react'
 import type { ReactNode } from 'react'
 

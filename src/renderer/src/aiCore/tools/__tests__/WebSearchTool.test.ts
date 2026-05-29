@@ -1,104 +1,161 @@
-import WebSearchService from '@renderer/services/WebSearchService'
+import type { WebSearchResponse } from '@shared/data/types/webSearch'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { webSearchToolWithPreExtractedKeywords } from '../WebSearchTool'
+import { fetchUrlsTool, webSearchTool } from '../WebSearchTool'
 
-vi.mock('@renderer/services/WebSearchService', () => ({
-  default: {
-    getWebSearchProvider: vi.fn(),
-    processWebsearch: vi.fn()
-  }
+const mocks = vi.hoisted(() => ({
+  searchKeywords: vi.fn(),
+  fetchUrls: vi.fn()
 }))
 
-describe('webSearchToolWithPreExtractedKeywords', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    vi.mocked(WebSearchService.getWebSearchProvider).mockReturnValue({ id: 'tavily' } as any)
-    vi.mocked(WebSearchService.processWebsearch).mockResolvedValue({
-      query: 'first | second',
+beforeEach(() => {
+  mocks.searchKeywords.mockReset()
+  mocks.fetchUrls.mockReset()
+  vi.stubGlobal('window', {
+    api: {
+      webSearch: {
+        searchKeywords: mocks.searchKeywords,
+        fetchUrls: mocks.fetchUrls
+      }
+    }
+  })
+})
+
+describe('webSearchTool', () => {
+  it('deduplicates and limits queries before calling main web search IPC', async () => {
+    const response: WebSearchResponse = {
+      query: 'first | second | third',
+      providerId: 'tavily',
+      capability: 'searchKeywords',
+      inputs: ['first', 'second', 'third'],
       results: [
         {
           title: 'Result',
           content: 'Content',
-          url: 'https://example.com/path?utm_source=newsletter#details'
+          url: 'https://example.com/path?utm_source=newsletter#details',
+          sourceInput: 'first'
         }
       ]
-    })
-  })
+    }
+    mocks.searchKeywords.mockResolvedValue(response)
 
-  it('deduplicates queries, limits them, keeps full URLs in output, and shortens model URLs', async () => {
-    const searchTool = webSearchToolWithPreExtractedKeywords(
-      'tavily',
-      {
-        question: [' first ', 'FIRST', 'second', 'third', 'fourth']
-      },
-      'request-1'
-    ) as any
+    const searchTool = webSearchTool() as any
+    const result = await searchTool.execute({ queries: [' first ', 'FIRST', 'second', 'third', 'fourth'] })
 
-    const firstResult = await searchTool.execute({})
-    const secondResult = await searchTool.execute({ additionalContext: 'new context' })
+    expect(mocks.searchKeywords).toHaveBeenCalledWith({ keywords: ['first', 'second', 'third'] })
+    expect(result).toBe(response)
 
-    expect(WebSearchService.processWebsearch).toHaveBeenCalledTimes(1)
-    expect(WebSearchService.processWebsearch).toHaveBeenCalledWith(
-      { id: 'tavily' },
-      {
-        websearch: {
-          question: ['first', 'second', 'third'],
-          links: undefined
-        }
-      },
-      'request-1'
-    )
-    expect(firstResult.results[0].url).toBe('https://example.com/path?utm_source=newsletter#details')
-    expect(secondResult).toBe(firstResult)
-
-    const modelOutput = searchTool.toModelOutput({ output: firstResult })
+    const modelOutput = searchTool.toModelOutput({ output: result })
     const modelText = modelOutput.value.map((part: { text: string }) => part.text).join('\n')
 
     expect(modelText).toContain('"url": "https://example.com"')
     expect(modelText).not.toContain('utm_source')
   })
 
-  it('reuses the in-flight search request for concurrent executions', async () => {
-    const searchResponse = {
-      query: 'first',
+  it('accepts legacy additionalContext input as a single query', async () => {
+    const response: WebSearchResponse = {
+      query: 'latest cherry studio',
+      providerId: 'tavily',
+      capability: 'searchKeywords',
+      inputs: ['latest cherry studio'],
+      results: []
+    }
+    mocks.searchKeywords.mockResolvedValue(response)
+
+    const searchTool = webSearchTool() as any
+    await searchTool.execute({ additionalContext: ' latest cherry studio ' })
+
+    expect(mocks.searchKeywords).toHaveBeenCalledWith({ keywords: ['latest cherry studio'] })
+  })
+
+  it('rejects empty search inputs before calling main web search IPC', async () => {
+    const searchTool = webSearchTool() as any
+
+    await expect(searchTool.execute({ queries: [' ', ''] })).rejects.toThrow(
+      'Provide at least one search query in `queries` (string array).'
+    )
+
+    expect(mocks.searchKeywords).not.toHaveBeenCalled()
+  })
+})
+
+describe('fetchUrlsTool', () => {
+  it('deduplicates URLs before calling main fetch URLs IPC', async () => {
+    const response: WebSearchResponse = {
+      query: 'https://example.com',
+      providerId: 'fetch',
+      capability: 'fetchUrls',
+      inputs: ['https://example.com'],
       results: [
         {
-          title: 'Result',
-          content: 'Content',
-          url: 'https://example.com/path?utm_source=newsletter#details'
+          title: 'Example',
+          content: 'Fetched content',
+          url: 'https://example.com',
+          sourceInput: 'https://example.com'
         }
       ]
     }
-    vi.mocked(WebSearchService.processWebsearch).mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve(searchResponse), 0))
+    mocks.fetchUrls.mockResolvedValue(response)
+
+    const fetchTool = fetchUrlsTool() as any
+    const result = await fetchTool.execute({ urls: [' https://example.com ', 'https://example.com'] })
+
+    expect(mocks.fetchUrls).toHaveBeenCalledWith({ urls: ['https://example.com'] })
+    expect(result).toBe(response)
+
+    const modelOutput = fetchTool.toModelOutput({ output: result })
+    const modelText = modelOutput.value.map((part: { text: string }) => part.text).join('\n')
+
+    expect(modelText).toContain('fetches URL content')
+    expect(modelText).toContain('"title": "Example"')
+  })
+
+  it('preserves case-sensitive URL paths when deduplicating fetch URLs', async () => {
+    const response: WebSearchResponse = {
+      query: 'https://example.com/Repo | https://example.com/repo',
+      providerId: 'fetch',
+      capability: 'fetchUrls',
+      inputs: ['https://example.com/Repo', 'https://example.com/repo'],
+      results: []
+    }
+    mocks.fetchUrls.mockResolvedValue(response)
+
+    const fetchTool = fetchUrlsTool() as any
+    await fetchTool.execute({
+      urls: [' https://example.com/Repo ', 'https://example.com/repo', 'https://example.com/Repo']
+    })
+
+    expect(mocks.fetchUrls).toHaveBeenCalledWith({
+      urls: ['https://example.com/Repo', 'https://example.com/repo']
+    })
+  })
+
+  it('limits fetch URLs to 20 entries after trimming and exact deduplication', async () => {
+    const response: WebSearchResponse = {
+      query: 'many urls',
+      providerId: 'fetch',
+      capability: 'fetchUrls',
+      inputs: [],
+      results: []
+    }
+    mocks.fetchUrls.mockResolvedValue(response)
+
+    const urls = Array.from({ length: 25 }, (_, index) => ` https://example.com/${index} `)
+    const fetchTool = fetchUrlsTool() as any
+    await fetchTool.execute({ urls })
+
+    expect(mocks.fetchUrls).toHaveBeenCalledWith({
+      urls: Array.from({ length: 20 }, (_, index) => `https://example.com/${index}`)
+    })
+  })
+
+  it('rejects empty URL inputs before calling main fetch URLs IPC', async () => {
+    const fetchTool = fetchUrlsTool() as any
+
+    await expect(fetchTool.execute({ urls: [' ', ''] })).rejects.toThrow(
+      'Provide at least one URL in `urls` (string array).'
     )
 
-    const searchTool = webSearchToolWithPreExtractedKeywords(
-      'tavily',
-      {
-        question: ['first']
-      },
-      'request-1'
-    ) as any
-
-    const [firstResult, secondResult] = await Promise.all([
-      searchTool.execute({ additionalContext: 'first context' }),
-      searchTool.execute({ additionalContext: 'second context' })
-    ])
-
-    expect(WebSearchService.processWebsearch).toHaveBeenCalledTimes(1)
-    expect(WebSearchService.processWebsearch).toHaveBeenCalledWith(
-      { id: 'tavily' },
-      {
-        websearch: {
-          question: ['first context'],
-          links: undefined
-        }
-      },
-      'request-1'
-    )
-    expect(firstResult).toBe(searchResponse)
-    expect(secondResult).toBe(searchResponse)
+    expect(mocks.fetchUrls).not.toHaveBeenCalled()
   })
 })

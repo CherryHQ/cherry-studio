@@ -17,7 +17,7 @@ const insertSlashCommand = (
   replaceSlash: boolean = false
 ) => {
   onTextChange((prev: string) => {
-    const textArea = document.querySelector('.inputbar textarea') as HTMLTextAreaElement | null
+    const textArea = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
 
     if (!textArea) {
       logger.warn('TextArea not found')

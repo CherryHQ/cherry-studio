@@ -26,14 +26,6 @@ export type LoaderReturn = {
   messageSource?: 'preprocess' | 'embedding' | 'validation'
 }
 
-export type FileChangeEventType = 'add' | 'change' | 'unlink' | 'addDir' | 'unlinkDir' | 'refresh'
-
-export type FileChangeEvent = {
-  eventType: FileChangeEventType
-  filePath: string
-  watchPath: string
-}
-
 export type MCPProgressEvent = {
   callId: string
   progress: number // 0-1 range
@@ -85,7 +77,7 @@ export interface WebSocketCandidatesResponse {
   priority: number
 }
 
-export type LocalTransferPeer = {
+export type LanTransferPeer = {
   id: string
   name: string
   host?: string
@@ -98,8 +90,8 @@ export type LocalTransferPeer = {
   updatedAt: number
 }
 
-export type LocalTransferState = {
-  services: LocalTransferPeer[]
+export type LanTransferState = {
+  services: LanTransferPeer[]
   isScanning: boolean
   lastScanStartedAt?: number
   lastUpdatedAt: number
@@ -120,7 +112,7 @@ export type LanHandshakeAckMessage = {
   message?: string
 }
 
-export type LocalTransferConnectPayload = {
+export type LanTransferConnectPayload = {
   peerId: string
   metadata?: Record<string, string>
   timeoutMs?: number

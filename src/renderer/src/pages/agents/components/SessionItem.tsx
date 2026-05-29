@@ -1,29 +1,39 @@
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuItemContent,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuTrigger,
+  Tooltip
+} from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import { loggerService } from '@logger'
 import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import MarqueeText from '@renderer/components/MarqueeText'
 import { isMac } from '@renderer/config/constant'
+import { useCache } from '@renderer/data/hooks/useCache'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useInPlaceEdit } from '@renderer/hooks/useInPlaceEdit'
-import { useRuntime } from '@renderer/hooks/useRuntime'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { finishTopicRenaming, startTopicRenaming } from '@renderer/hooks/useTopic'
-import { SessionSettingsPopup } from '@renderer/pages/settings/AgentSettings'
-import { SessionLabel } from '@renderer/pages/settings/AgentSettings/shared'
-import store, { type RootState, useAppDispatch, useAppSelector } from '@renderer/store'
+import { SessionSettingsPopup } from '@renderer/pages/agents/AgentSettings'
+import { SessionLabel } from '@renderer/pages/agents/AgentSettings/shared'
+import { useAppDispatch, useAppSelector } from '@renderer/store'
 import { newMessagesActions } from '@renderer/store/newMessage'
 import { loadTopicMessagesThunk, renameAgentSessionIfNeeded } from '@renderer/store/thunk/messageThunk'
 import type { AgentSessionEntity } from '@renderer/types'
 import { classNames } from '@renderer/utils'
 import { getChannelTypeIcon } from '@renderer/utils/agentSession'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import type { MenuProps } from 'antd'
-import { Dropdown, Tooltip } from 'antd'
 import { MenuIcon, Sparkles, XIcon } from 'lucide-react'
-import React, { memo, startTransition, useDeferredValue, useEffect, useMemo, useState } from 'react'
+import React, { memo, startTransition, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-// const logger = loggerService.withContext('AgentItem')
+const logger = loggerService.withContext('SessionItem')
 
 interface SessionItemProps {
   session: AgentSessionEntity
@@ -36,13 +46,11 @@ interface SessionItemProps {
 
 const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: SessionItemProps) => {
   const { t } = useTranslation()
-  const { chat } = useRuntime()
+  const [activeSessionIdMap] = useCache('agent.session.active_id_map')
   const { updateSession } = useUpdateSession(agentId)
-  const activeSessionId = chat.activeSessionIdMap[agentId]
+  const activeSessionId = activeSessionIdMap[agentId]
   const [isConfirmingDeletion, setIsConfirmingDeletion] = useState(false)
   const { setTimeoutTimer } = useTimer()
-  const [_targetSession, setTargetSession] = useState<AgentSessionEntity>(session)
-  const targetSession = useDeferredValue(_targetSession)
   const dispatch = useAppDispatch()
 
   const { isEditing, isSaving, startEdit, inputProps } = useInPlaceEdit({
@@ -57,9 +65,8 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
     return (
       <Tooltip
         placement="bottom"
-        mouseEnterDelay={0.7}
-        mouseLeaveDelay={0}
-        title={
+        delay={700}
+        content={
           <div style={{ fontSize: '12px', opacity: 0.8, fontStyle: 'italic' }}>
             {t('chat.topics.delete.shortcut', { key: isMac ? '⌘' : 'Ctrl' })}
           </div>
@@ -99,8 +106,8 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
   const sessionTopicId = buildAgentSessionTopicId(session.id)
   const isPending = useMemo(() => topicLoadingQuery[sessionTopicId], [sessionTopicId, topicLoadingQuery])
   const isFulfilled = useMemo(() => topicFulfilledQuery[sessionTopicId], [sessionTopicId, topicFulfilledQuery])
-  const renamingTopics = useAppSelector((state: RootState) => state.runtime.chat.renamingTopics)
-  const newlyRenamedTopics = useAppSelector((state: RootState) => state.runtime.chat.newlyRenamedTopics)
+  const [renamingTopics] = useCache('topic.renaming')
+  const [newlyRenamedTopics] = useCache('topic.newly_renamed')
   const isRenaming = renamingTopics.includes(sessionTopicId)
   const isNewlyRenamed = newlyRenamedTopics.includes(sessionTopicId)
 
@@ -117,107 +124,86 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
 
   const channelIcon = getChannelTypeIcon(channelType)
 
-  const { topicPosition, setTopicPosition } = useSettings()
+  const [topicPosition, setTopicPosition] = usePreference('topic.position')
   const singlealone = topicPosition === 'right'
 
-  const menuItems: MenuProps['items'] = useMemo(
-    () => [
-      {
-        label: t('common.edit'),
-        key: 'edit',
-        icon: <EditIcon size={14} />,
-        onClick: () => {
-          void SessionSettingsPopup.show({
-            agentId,
-            sessionId: session.id
-          })
-        }
-      },
-      {
-        label: t('chat.topics.auto_rename'),
-        key: 'auto-rename',
-        icon: <Sparkles size={14} />,
-        onClick: async () => {
-          const agentSession = {
-            agentId: agentId,
-            sessionId: targetSession.id
-          }
-          void dispatch(loadTopicMessagesThunk(sessionTopicId))
-          try {
-            startTopicRenaming(sessionTopicId)
-            await renameAgentSessionIfNeeded(agentSession, sessionTopicId, store.getState)
-          } finally {
-            finishTopicRenaming(sessionTopicId)
-          }
-        }
-      },
-      {
-        label: t('settings.topic.position.label'),
-        key: 'topic-position',
-        icon: <MenuIcon size={14} />,
-        children: [
-          {
-            label: t('settings.topic.position.left'),
-            key: 'left',
-            onClick: () => setTopicPosition('left')
-          },
-          {
-            label: t('settings.topic.position.right'),
-            key: 'right',
-            onClick: () => setTopicPosition('right')
-          }
-        ]
-      },
-      {
-        label: t('common.delete'),
-        key: 'delete',
-        icon: <DeleteIcon size={14} className="lucide-custom" />,
-        danger: true,
-        onClick: () => {
-          onDelete()
-        }
-      }
-    ],
-    [agentId, dispatch, onDelete, session.id, sessionTopicId, setTopicPosition, t, targetSession.id]
-  )
+  const handleEdit = () => {
+    void SessionSettingsPopup.show({ agentId, sessionId: session.id })
+  }
+
+  const handleAutoRename = async () => {
+    const agentSession = { agentId, sessionId: session.id }
+    void dispatch(loadTopicMessagesThunk(sessionTopicId))
+    try {
+      startTopicRenaming(sessionTopicId)
+      await renameAgentSessionIfNeeded(agentSession, sessionTopicId)
+    } catch (error) {
+      logger.error('auto-rename failed', error as Error)
+      window.toast.error(`${t('message.error.fetchTopicName')}: ${(error as Error).message ?? ''}`)
+    } finally {
+      finishTopicRenaming(sessionTopicId)
+    }
+  }
 
   return (
-    <Dropdown
-      menu={{ items: menuItems }}
-      trigger={['contextMenu']}
-      popupRender={(menu) => <div onPointerDown={(e) => e.stopPropagation()}>{menu}</div>}>
-      <SessionListItem
-        className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
-        onClick={isEditing ? undefined : onPress}
-        onDoubleClick={() => startEdit(session.name ?? '')}
-        title={session.name ?? session.id}
-        onContextMenu={() => setTargetSession(session)}
-        style={{
-          borderRadius: 'var(--list-item-border-radius)',
-          cursor: isEditing ? 'default' : 'pointer'
-        }}>
-        {isPending && !isActive && <PendingIndicator />}
-        {isFulfilled && !isActive && <FulfilledIndicator />}
-        <SessionNameContainer>
-          {isEditing ? (
-            <SessionEditInput {...inputProps} style={{ opacity: isSaving ? 0.5 : 1 }} />
-          ) : (
-            <>
-              <SessionName>
-                {channelIcon && <ChannelIconImg src={channelIcon} />}
-                <MarqueeText className="flex min-w-0 flex-1">
-                  <SessionLabel
-                    session={session}
-                    className={isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''}
-                  />
-                </MarqueeText>
-              </SessionName>
-              <DeleteButton />
-            </>
-          )}
-        </SessionNameContainer>
-      </SessionListItem>
-    </Dropdown>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <SessionListItem
+          className={classNames(isActive ? 'active' : '', singlealone ? 'singlealone' : '')}
+          onClick={isEditing ? undefined : onPress}
+          onDoubleClick={() => startEdit(session.name ?? '')}
+          title={session.name ?? session.id}
+          style={{ cursor: isEditing ? 'default' : 'pointer' }}>
+          {isPending && !isActive && <PendingIndicator />}
+          {isFulfilled && !isActive && <FulfilledIndicator />}
+          <SessionNameContainer>
+            {isEditing ? (
+              <SessionEditInput {...inputProps} style={{ opacity: isSaving ? 0.5 : 1 }} />
+            ) : (
+              <>
+                <SessionName>
+                  {channelIcon && <ChannelIconImg src={channelIcon} />}
+                  <MarqueeText className="flex min-w-0 flex-1">
+                    <SessionLabel
+                      session={session}
+                      className={isRenaming ? 'animation-shimmer' : isNewlyRenamed ? 'animation-reveal' : ''}
+                    />
+                  </MarqueeText>
+                </SessionName>
+                <DeleteButton />
+              </>
+            )}
+          </SessionNameContainer>
+        </SessionListItem>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onSelect={handleEdit}>
+          <ContextMenuItemContent icon={<EditIcon size={14} />}>{t('common.edit')}</ContextMenuItemContent>
+        </ContextMenuItem>
+        <ContextMenuItem onSelect={handleAutoRename}>
+          <ContextMenuItemContent icon={<Sparkles size={14} />}>{t('chat.topics.auto_rename')}</ContextMenuItemContent>
+        </ContextMenuItem>
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>
+            <MenuIcon size={14} />
+            {t('settings.topic.position.label')}
+          </ContextMenuSubTrigger>
+          <ContextMenuSubContent>
+            <ContextMenuItem onSelect={() => setTopicPosition('left')}>
+              {t('settings.topic.position.left')}
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => setTopicPosition('right')}>
+              {t('settings.topic.position.right')}
+            </ContextMenuItem>
+          </ContextMenuSubContent>
+        </ContextMenuSub>
+        <ContextMenuItem variant="destructive" onSelect={() => onDelete()}>
+          <ContextMenuItemContent icon={<DeleteIcon size={14} className="lucide-custom" />}>
+            {t('common.delete')}
+          </ContextMenuItemContent>
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   )
 }
 

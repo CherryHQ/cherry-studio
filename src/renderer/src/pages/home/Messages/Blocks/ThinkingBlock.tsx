@@ -1,10 +1,11 @@
 import { CheckOutlined } from '@ant-design/icons'
+import { Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import ThinkingEffect from '@renderer/components/ThinkingEffect'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { MessageBlockStatus, type ThinkingMessageBlock } from '@renderer/types/newMessage'
-import { Collapse, Tooltip } from 'antd'
+import { Collapse } from 'antd'
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -19,7 +20,9 @@ interface Props {
 const ThinkingBlock: React.FC<Props> = ({ block }) => {
   const [copied, setCopied] = useTemporaryValue(false, 2000)
   const { t } = useTranslation()
-  const { messageFont, fontSize, thoughtAutoCollapse } = useSettings()
+  const [messageFont] = usePreference('chat.message.font')
+  const [fontSize] = usePreference('chat.message.font_size')
+  const [thoughtAutoCollapse] = usePreference('chat.message.thought.auto_collapse')
   const [activeKey, setActiveKey] = useState<'thought' | ''>(thoughtAutoCollapse ? '' : 'thought')
 
   const isThinking = useMemo(() => block.status === MessageBlockStatus.STREAMING, [block.status])
@@ -79,7 +82,7 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
                 fontSize
               }}>
               {!isThinking && (
-                <Tooltip title={t('common.copy')} mouseEnterDelay={0.8}>
+                <Tooltip content={t('common.copy')} delay={800}>
                   <ActionButton
                     className="message-action-button"
                     onClick={(e) => {

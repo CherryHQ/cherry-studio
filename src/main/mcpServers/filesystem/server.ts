@@ -1,6 +1,6 @@
+import { application } from '@application'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
-import { app } from 'electron'
 import fs from 'fs/promises'
 import path from 'path'
 
@@ -33,8 +33,7 @@ export class FileSystemServer {
       this.baseDir = normalizePath(path.resolve(expandedBaseDir))
       logger.info(`Using provided baseDir for filesystem MCP: ${this.baseDir}`)
     } else {
-      const userData = app.getPath('userData')
-      this.baseDir = path.join(userData, 'Data', 'Workspace')
+      this.baseDir = application.getPath('feature.mcp.workspace')
       logger.info(`Using default workspace for filesystem MCP baseDir: ${this.baseDir}`)
     }
 

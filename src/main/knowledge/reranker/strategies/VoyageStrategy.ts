@@ -1,5 +1,5 @@
 import type { MultiModalDocument, RerankStrategy } from './RerankStrategy'
-export class VoyageAIStrategy implements RerankStrategy {
+export class VoyageAiStrategy implements RerankStrategy {
   buildUrl(baseURL?: string): string {
     if (baseURL && baseURL.endsWith('/')) {
       return `${baseURL}rerank`
