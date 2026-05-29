@@ -31,7 +31,7 @@ import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/f
 import type { Base64String, DirectoryListOptions, FilePath, PhysicalFileMetadata, URLString } from './common'
 import type { FileEntryHandle, FileHandle, FilePathHandle } from './handle'
 import type { OrphanReport } from './sweep'
-import { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from './tree'
+import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from './tree'
 
 export type { DirectoryListOptions, FilePath } from './common'
 

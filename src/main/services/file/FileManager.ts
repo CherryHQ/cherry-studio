@@ -135,10 +135,10 @@ import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { orphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry'
+import { listDirectory } from '@main/services/file/tree/search'
 import { atomicWriteFile, move as fsMove, remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
 import { untildify } from '@main/utils/file/legacyFile'
 import { canWrite, isNotEmptyDir, isPathInside } from '@main/utils/file/path'
-import { listDirectory } from '@main/utils/file/search'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
 import { SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
@@ -1059,7 +1059,10 @@ export class FileManager extends BaseService implements IFileManager {
       'isPathInside'
     ] as const satisfies readonly (keyof FileIpcApi)[]
 
-    type _AssertComplete = keyof FileIpcApi extends (typeof _handledMethods)[number] ? true : never
+    // `tree.*` is a nested sub-contract owned by DirectoryTreeManager
+    // (`tree/DirectoryTreeManager.ts` registers the `File_Tree*` channels), not
+    // FileManager, so it is excluded from this completeness check.
+    type _AssertComplete = keyof Omit<FileIpcApi, 'tree'> extends (typeof _handledMethods)[number] ? true : never
     const _check: _AssertComplete = true
     void _handledMethods, _check
   }

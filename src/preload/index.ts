@@ -381,7 +381,7 @@ const api = {
     // / `pauseFileWatcher` / `resumeFileWatcher` / `onFileChange`) and
     // `getDirectoryStructure` were removed alongside the Notes migration
     // to `DirectoryTreeBuilder` (see docs/references/file/directory-tree.md).
-    // mutations via `window.api.tree.onMutation` instead.
+    // mutations via `window.api.file.tree.onMutation` instead.
     batchUploadMarkdown: (filePaths: string[], targetPath: string) =>
       ipcRenderer.invoke(IpcChannel.File_BatchUploadMarkdown, filePaths, targetPath),
     showInFolder: (path: string): Promise<void> => ipcRenderer.invoke(IpcChannel.File_LegacyShowInFolder, path),

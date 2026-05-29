@@ -247,7 +247,7 @@ export async function uploadNotes(files: File[], targetPath: string): Promise<Up
     // gone with the FileStorage chokidar singleton. The new per-tree
     // chokidar instance still fires N `add` events; the renderer's
     // projection effect debounces them implicitly via React batching.
-    const result = await window.api.file.batchUploadMarkdown(filePaths, basePath)
+    const result = await window.api.legacyFile.batchUploadMarkdown(filePaths, basePath)
 
     return {
       uploadedNodes: [],
