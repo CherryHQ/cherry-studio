@@ -1,6 +1,6 @@
 /**
  * Schema-layer tests for FilePathSchema. The orthogonal algorithm-layer tests
- * for canonicalizeAbsolutePath live in packages/shared/file/__tests__/canonicalize.test.ts.
+ * for canonicalizeAbsolutePath live in src/shared/file/__tests__/canonicalize.test.ts.
  *
  * This file verifies refine guards, transform composition, brand idempotency,
  * and type inference at the schema surface — without re-testing algorithm

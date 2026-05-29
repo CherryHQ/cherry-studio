@@ -78,7 +78,7 @@ describe('resolvePhysicalPath', () => {
 
     // Null-byte rejection for externalPath is enforced upstream at the
     // FilePathSchema layer (refine: no null bytes) — covered by the schema
-    // spec at packages/shared/file/types/__tests__/FilePathSchema.test.ts.
+    // spec at src/shared/file/types/__tests__/FilePathSchema.test.ts.
     // resolvePhysicalPath's external branch trusts the brand and returns
     // entry.externalPath directly with no further check.
   })

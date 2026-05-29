@@ -100,7 +100,7 @@ Pure FS primitives (src/main/utils/file/) — sole FS owner, open to the entire 
 │                   version: statVersion / contentHash (xxhash-h64)
 ├── shell.ts      — system ops: open / showInFolder
 ├── path.ts       — path utils: resolvePath / isPathInside / canWrite / isNotEmptyDir
-│                   (canonical-path branding lives in `packages/shared/file/canonicalize.ts` + `FilePathSchema` in `packages/shared/file/types/common.ts`)
+│                   (canonical-path branding lives in `src/shared/file/canonicalize.ts` + `FilePathSchema` in `src/shared/file/types/common.ts`)
 ├── metadata.ts   — type detection: getFileType / isTextFile / mimeToExt
 ├── search.ts     — directory search: listDirectory (ripgrep + fuzzy matching)
 ├── legacyFile.ts — shared legacy helpers (`getFileType(ext)` / `sanitizeFilename` / `getAllFiles` / `pathExists` / …); planned to be split into the modules above over time

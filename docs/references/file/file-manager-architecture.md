@@ -57,7 +57,7 @@ CREATE UNIQUE INDEX fe_external_path_lower_unique_idx
 
 **Canonical invariant of `externalPath`**: SQLite performs **byte-level** comparison on the raw `externalPath` column and cannot natively detect NFC ≡ NFD (Unicode). The functional index above handles case folding via `lower()` but does **not** apply Unicode normalization, so `externalPath` **must** be normalized via `FilePathSchema.parse(raw)` before persistence—this is an application-layer invariant, with `ensureExternalEntry` and `fileEntryService.findByExternalPath` as mandatory call sites.
 
-**Compile-time enforcement via `FilePath` brand**: `FilePathSchema.parse()` returns a branded `FilePath` (TS phantom type, zero runtime cost; see `packages/shared/file/types/common.ts`). Every DB read/write surface that filters by `externalPath` — today `findByExternalPath`, and any future DataApi endpoint or repository method — MUST accept this type, not a plain `string`. The type system then guarantees callers routed their input through the normalization function, eliminating the "forgot to canonicalize" class of bug that would silently miss all matches.
+**Compile-time enforcement via `FilePath` brand**: `FilePathSchema.parse()` returns a branded `FilePath` (TS phantom type, zero runtime cost; see `src/shared/file/types/common.ts`). Every DB read/write surface that filters by `externalPath` — today `findByExternalPath`, and any future DataApi endpoint or repository method — MUST accept this type, not a plain `string`. The type system then guarantees callers routed their input through the normalization function, eliminating the "forgot to canonicalize" class of bug that would silently miss all matches.
 
 | Source | Natively canonical | Relies on normalization to disambiguate |
 |---|---|---|
@@ -78,7 +78,7 @@ CREATE UNIQUE INDEX fe_external_path_lower_unique_idx
 - Symlink target merging at canonicalize time
 - Windows 8.3 short-name resolution
 
-See the JSDoc for `canonicalizeAbsolutePath` in `packages/shared/file/canonicalize.ts` for the detailed contract; `FilePathSchema` in `packages/shared/file/types/common.ts` wraps it as the branded entry point.
+See the JSDoc for `canonicalizeAbsolutePath` in `src/shared/file/canonicalize.ts` for the detailed contract; `FilePathSchema` in `src/shared/file/types/common.ts` wraps it as the branded entry point.
 
 #### Rule evolution discipline
 
@@ -1436,7 +1436,7 @@ This checklist is the canonical addition procedure. A PR introducing a new origi
 | Location | Change required |
 |---|---|
 | `src/main/services/file/utils/pathResolver.ts` → `resolvePhysicalPath` | Add the new `entry.origin` branch; decide storage layout |
-| `packages/shared/file/canonicalize.ts` → `canonicalizeAbsolutePath` (and `FilePathSchema` in `packages/shared/file/types/common.ts`) | If the new variant is path-based and distinct from `'external'`, decide whether it shares the canonical form or needs its own normalization + brand |
+| `src/shared/file/canonicalize.ts` → `canonicalizeAbsolutePath` (and `FilePathSchema` in `src/shared/file/types/common.ts`) | If the new variant is path-based and distinct from `'external'`, decide whether it shares the canonical form or needs its own normalization + brand |
 
 ### 13.4 Behavior Policy Matrix
 
