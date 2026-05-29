@@ -3818,17 +3818,6 @@
     },
     "generate": {
       "height": "高度",
-      "magic_prompt_option_tip": "智能优化提示词以提升生成效果",
-      "model_tip": "模型版本：V3 为最新版本，V2 为之前版本，V2A 为快速模型、V_1 为初代模型，_TURBO 为加速版本",
-      "negative_prompt_tip": "描述不想在图像中出现的元素，仅支持 V_1、V_1_TURBO、V_2 和 V_2_TURBO 版本",
-      "number_images_tip": "单次出图数量",
-      "person_generation": "生成人物",
-      "person_generation_tip": "允许模型生成人物图像",
-      "rendering_speed_tip": "控制渲染速度与质量的平衡，仅适用于 V_3 版本",
-      "safety_tolerance": "安全容忍度",
-      "safety_tolerance_tip": "控制图像生成的安全容忍度，仅适用于 FLUX.1-Kontext-pro 版本",
-      "seed_tip": "控制图像生成的随机性，用于复现相同的生成结果",
-      "style_type_tip": "图像生成风格，仅适用于 V_2 及以上版本",
       "width": "宽度"
     },
     "generate_failed": "生成图像失败",
@@ -3836,7 +3825,7 @@
     "generating": "生成中...",
     "go_to_settings": "去设置",
     "guidance_scale": "引导比例",
-    "guidance_scale_tip": "无分类器指导。控制模型在寻找相关图像时对提示词的遵循程度",
+    "guidance_scale_tip": "无分类器指导 ({{min}}-{{max}})。控制模型在寻找相关图像时对提示词的遵循程度",
     "image": {
       "size": "图片尺寸"
     },
@@ -3850,7 +3839,7 @@
       "auto": "自动"
     },
     "inference_steps": "推理步数",
-    "inference_steps_tip": "要执行的推理步数。步数越多，质量越高但耗时越长",
+    "inference_steps_tip": "要执行的推理步数 ({{min}}-{{max}})。步数越多，质量越高但耗时越长",
     "input_image": "输入图片",
     "input_parameters": "输入参数",
     "invalid_image_url": "无效的图片URL格式",
@@ -3915,18 +3904,6 @@
     },
     "regenerate": {
       "confirm": "这将覆盖已生成的图片，是否继续？"
-    },
-    "remix": {
-      "image_file": "参考图",
-      "image_weight": "参考图权重",
-      "image_weight_tip": "调整参考图像的影响程度",
-      "magic_prompt_option_tip": "智能优化重混提示词",
-      "model_tip": "选择重混使用的 AI 模型版本",
-      "negative_prompt_tip": "描述不想在重混结果中出现的元素",
-      "number_images_tip": "生成的重混结果数量",
-      "rendering_speed_tip": "控制渲染速度与质量之间的平衡，仅适用于 V_3 版本",
-      "seed_tip": "控制重混结果的随机性",
-      "style_type_tip": "重混后的图像风格，仅适用于 V_2 及以上版本"
     },
     "rendering_speed": "渲染速度",
     "rendering_speeds": {

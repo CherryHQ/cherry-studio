@@ -3818,17 +3818,6 @@
     },
     "generate": {
       "height": "高度",
-      "magic_prompt_option_tip": "開啟後會自動調整提示詞，以提升效果",
-      "model_tip": "模型版本：V2 是最新 API 模型，V2A 是高速模型，V_1 是初代模型，_TURBO 是高速處理版",
-      "negative_prompt_tip": "描述不想在影像中出現的內容",
-      "number_images_tip": "一次產生的圖片數量",
-      "person_generation": "產生人物",
-      "person_generation_tip": "允許模型產生人物影像",
-      "rendering_speed_tip": "控制渲染速度與品質之間的平衡，僅適用於 V_3 版本",
-      "safety_tolerance": "安全耐性",
-      "safety_tolerance_tip": "控制影像產生的安全耐性，僅適用於 FLUX.1-Kontext-pro 版本",
-      "seed_tip": "控制影像產生的隨機性，以重現相同結果",
-      "style_type_tip": "產生圖片的風格，僅適用於 V_2 及以上版本",
       "width": "寬度"
     },
     "generate_failed": "無法生成圖片",
@@ -3836,7 +3825,7 @@
     "generating": "生成中...",
     "go_to_settings": "前往設定",
     "guidance_scale": "引導比例",
-    "guidance_scale_tip": "無分類器指導。控制模型在尋找相關影像時對提示詞的遵循程度",
+    "guidance_scale_tip": "無分類器指導 ({{min}}-{{max}})。控制模型在尋找相關影像時對提示詞的遵循程度",
     "image": {
       "size": "影像尺寸"
     },
@@ -3850,7 +3839,7 @@
       "auto": "自動"
     },
     "inference_steps": "推理步數",
-    "inference_steps_tip": "要執行的推理步數。步數越多，品質越高但耗時越長",
+    "inference_steps_tip": "要執行的推理步數 ({{min}}-{{max}})。步數越多，品質越高但耗時越長",
     "input_image": "輸入圖片",
     "input_parameters": "輸入參數",
     "invalid_image_url": "圖片網址格式無效",
@@ -3915,18 +3904,6 @@
     },
     "regenerate": {
       "confirm": "這將覆蓋已產生的圖片，是否繼續？"
-    },
-    "remix": {
-      "image_file": "參考圖",
-      "image_weight": "參考圖權重",
-      "image_weight_tip": "調整參考影像的影響程度",
-      "magic_prompt_option_tip": "開啟後會自動調整重混提示詞，以提升效果",
-      "model_tip": "選擇重混使用的 AI 模型版本",
-      "negative_prompt_tip": "描述不想在重混結果中出現的元素",
-      "number_images_tip": "要產生的重混結果數量",
-      "rendering_speed_tip": "控制渲染速度與品質之間的平衡，僅適用於 V_3 版本",
-      "seed_tip": "控制重混結果的隨機性",
-      "style_type_tip": "重混後的影像風格，僅適用於 V_2 及以上版本"
     },
     "rendering_speed": "渲染速度",
     "rendering_speeds": {

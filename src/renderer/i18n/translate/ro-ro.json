@@ -3818,17 +3818,6 @@
     },
     "generate": {
       "height": "Înălțime",
-      "magic_prompt_option_tip": "Îmbunătățește inteligent prompturile pentru rezultate mai bune",
-      "model_tip": "Versiune model: V3 este cea mai recentă versiune, V2 este modelul anterior, V2A este modelul rapid, V_1 este modelul de prima generație, _TURBO este versiunea accelerată",
-      "negative_prompt_tip": "Descrie elementele nedorite, doar pentru V_1, V_1_TURBO, V_2 și V_2_TURBO",
-      "number_images_tip": "Numărul de imagini de generat",
-      "person_generation": "Generare persoană",
-      "person_generation_tip": "Permite modelului să genereze imagini cu persoane",
-      "rendering_speed_tip": "Controlează compromisul dintre viteza de randare și calitate, disponibil doar pentru V_3",
-      "safety_tolerance": "Toleranță de siguranță",
-      "safety_tolerance_tip": "Controlează toleranța de siguranță pentru generarea imaginilor, disponibil doar pentru FLUX.1-Kontext-pro",
-      "seed_tip": "Controlează aleatoriul generării imaginii pentru rezultate reproductibile",
-      "style_type_tip": "Stil generare imagine pentru V_2 și versiuni ulterioare",
       "width": "Lățime"
     },
     "generate_failed": "Nu s-a putut genera imaginea",
@@ -3915,18 +3904,6 @@
     },
     "regenerate": {
       "confirm": "Aceasta va înlocui imaginile generate existente. Vrei să continui?"
-    },
-    "remix": {
-      "image_file": "Imagine de referință",
-      "image_weight": "Pondere imagine de referință",
-      "image_weight_tip": "Ajustează influența imaginii de referință",
-      "magic_prompt_option_tip": "Îmbunătățește inteligent prompturile de remix",
-      "model_tip": "Selectează versiunea modelului AI pentru remixare",
-      "negative_prompt_tip": "Descrie elementele nedorite în rezultatele remix",
-      "number_images_tip": "Numărul de rezultate remix de generat",
-      "rendering_speed_tip": "Controlează compromisul dintre viteza de randare și calitate, disponibil doar pentru V_3",
-      "seed_tip": "Controlează aleatoriul rezultatului combinat",
-      "style_type_tip": "Stil pentru imaginea remixată, doar pentru V_2 și versiuni ulterioare"
     },
     "rendering_speed": "Viteză de randare",
     "rendering_speeds": {

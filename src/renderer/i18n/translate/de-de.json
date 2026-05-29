@@ -3818,17 +3818,6 @@
     },
     "generate": {
       "height": "Höhe",
-      "magic_prompt_option_tip": "Intelligente Prompt-Optimierung für bessere Generierung",
-      "model_tip": "Modellversion: V3 neueste, V2 vorherige, V2A schnell, V_1 erste Generation, _TURBO beschleunigte Version",
-      "negative_prompt_tip": "Beschreiben Sie Elemente, die nicht im Bild erscheinen sollen, nur für V_1, V_1_TURBO, V_2 und V_2_TURBO",
-      "number_images_tip": "Anzahl der Bilder pro Generierung",
-      "person_generation": "Personen generieren",
-      "person_generation_tip": "Modell erlauben, Personenbilder zu generieren",
-      "rendering_speed_tip": "Balance zwischen Rendering-Geschwindigkeit und Qualität, nur für V_3",
-      "safety_tolerance": "Sicherheitstoleranz",
-      "safety_tolerance_tip": "Sicherheitstoleranz der Bildgenerierung, nur für FLUX.1-Kontext-pro",
-      "seed_tip": "Kontrolle der Zufälligkeit der Bildgenerierung zur Reproduzierung gleicher Ergebnisse",
-      "style_type_tip": "Bildgenerierungsstil, nur für V_2 und höher",
       "width": "Breite"
     },
     "generate_failed": "Fehler beim Generieren des Bildes",
@@ -3915,18 +3904,6 @@
     },
     "regenerate": {
       "confirm": "Dies überschreibt das generierte Bild. Fortfahren?"
-    },
-    "remix": {
-      "image_file": "Referenzbild",
-      "image_weight": "Referenzbild-Gewichtung",
-      "image_weight_tip": "Einflussgrad des Referenzbildes anpassen",
-      "magic_prompt_option_tip": "Intelligente Optimierung des Remix-Prompts",
-      "model_tip": "AI-Modellversion für Remix auswählen",
-      "negative_prompt_tip": "Elemente beschreiben, die nicht im Remix-Ergebnis erscheinen sollen",
-      "number_images_tip": "Anzahl der generierten Remix-Ergebnisse",
-      "rendering_speed_tip": "Balance zwischen Rendering-Geschwindigkeit und Qualität, nur für V_3",
-      "seed_tip": "Kontrolle der Zufälligkeit des Remix-Ergebnisses",
-      "style_type_tip": "Stil des geremixt Bildes, nur für V_2 und höher"
     },
     "rendering_speed": "Rendering-Geschwindigkeit",
     "rendering_speeds": {

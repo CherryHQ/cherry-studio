@@ -3818,17 +3818,6 @@
     },
     "generate": {
       "height": "Hauteur",
-      "magic_prompt_option_tip": "Интеллектуальная оптимизация подсказок для улучшения результатов генерации",
-      "model_tip": "Версия модели: V2 — это последняя модель API, V2A — быстрая модель, V_1 — первое поколение модели, _TURBO — ускоренная версия",
-      "negative_prompt_tip": "Описывает элементы, которые вы не хотите видеть на изображении. Поддерживается только версиями V_1, V_1_TURBO, V_2 и V_2_TURBO",
-      "number_images_tip": "Количество изображений за один раз",
-      "person_generation": "Générer un personnage",
-      "person_generation_tip": "Autoriser le modèle à générer des images de personnages",
-      "rendering_speed_tip": "Contrôler l'équilibre entre la vitesse et la qualité du rendu, uniquement applicable à la version V_3",
-      "safety_tolerance": "Tolérance de sécurité",
-      "safety_tolerance_tip": "Contrôle la tolérance de sécurité dans la génération d'images, uniquement applicable à la version FLUX.1-Kontext-pro",
-      "seed_tip": "Контролирует случайность генерации изображения, используется для воспроизведения одинаковых результатов",
-      "style_type_tip": "Стиль генерации изображения, применим к версии V_2 и выше",
       "width": "Largeur"
     },
     "generate_failed": "Échec de la génération de l'image",
@@ -3915,18 +3904,6 @@
     },
     "regenerate": {
       "confirm": "Cela va remplacer les images générées, voulez-vous continuer?"
-    },
-    "remix": {
-      "image_file": "Image de référence",
-      "image_weight": "Poids de l'image de référence",
-      "image_weight_tip": "Ajustez l'influence de l'image de référence",
-      "magic_prompt_option_tip": "Optimisation intelligente des mots-clés du remix",
-      "model_tip": "Sélectionnez la version du modèle IA à utiliser pour le remix",
-      "negative_prompt_tip": "Décrivez les éléments que vous ne souhaitez pas voir apparaître dans le résultat du remix",
-      "number_images_tip": "Nombre de résultats de remix à générer",
-      "rendering_speed_tip": "Contrôle l'équilibre entre la vitesse et la qualité du rendu, applicable uniquement à la version V_3",
-      "seed_tip": "Contrôle l'aléatoire des résultats de remix",
-      "style_type_tip": "Style de l'image après le remix, uniquement applicable aux versions V_2 et supérieures"
     },
     "rendering_speed": "Vitesse de rendu",
     "rendering_speeds": {

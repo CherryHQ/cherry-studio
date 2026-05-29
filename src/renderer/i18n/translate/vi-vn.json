@@ -3818,17 +3818,6 @@
     },
     "generate": {
       "height": "Chiều cao",
-      "magic_prompt_option_tip": "Tăng cường thông minh các lời nhắc để có kết quả tốt hơn",
-      "model_tip": "Phiên bản mô hình: V3 là phiên bản mới nhất, V2 là mô hình trước đó, V2A là mô hình nhanh, V_1 là mô hình thế hệ đầu tiên, _TURBO là phiên bản tăng tốc",
-      "negative_prompt_tip": "Mô tả các yếu tố không mong muốn, chỉ dành cho V_1, V_1_TURBO, V_2 và V_2_TURBO",
-      "number_images_tip": "Số lượng hình ảnh cần tạo",
-      "person_generation": "Tạo người",
-      "person_generation_tip": "Cho phép mô hình tạo ra hình ảnh người",
-      "rendering_speed_tip": "Điều khiển sự đánh đổi giữa tốc độ kết xuất và chất lượng, chỉ khả dụng cho V_3",
-      "safety_tolerance": "Dung sai an toàn",
-      "safety_tolerance_tip": "Kiểm soát dung sai an toàn cho việc tạo hình ảnh, chỉ khả dụng cho FLUX.1-Kontext-pro",
-      "seed_tip": "Kiểm soát độ ngẫu nhiên trong việc tạo ảnh để đạt được kết quả có thể lặp lại",
-      "style_type_tip": "Phong cách tạo ảnh cho V_2 trở lên",
       "width": "Chiều rộng"
     },
     "generate_failed": "Không thể tạo hình ảnh",
@@ -3915,18 +3904,6 @@
     },
     "regenerate": {
       "confirm": "Thao tác này sẽ thay thế các hình ảnh đã tạo hiện có của bạn. Bạn có muốn tiếp tục không?"
-    },
-    "remix": {
-      "image_file": "Hình ảnh tham chiếu",
-      "image_weight": "Trọng số ảnh tham chiếu",
-      "image_weight_tip": "Điều chỉnh ảnh hưởng của hình ảnh tham chiếu",
-      "magic_prompt_option_tip": "Tăng cường thông minh các lời nhắc remix",
-      "model_tip": "Chọn phiên bản mô hình AI để phối lại",
-      "negative_prompt_tip": "Mô tả các yếu tố không mong muốn trong kết quả phối lại",
-      "number_images_tip": "Số lượng kết quả phối lại cần tạo",
-      "rendering_speed_tip": "Kiểm soát sự đánh đổi giữa tốc độ kết xuất và chất lượng, chỉ khả dụng cho V_3",
-      "seed_tip": "Kiểm soát độ ngẫu nhiên của kết quả trộn",
-      "style_type_tip": "Phong cách cho hình ảnh được pha trộn, chỉ dành cho V_2 trở lên"
     },
     "rendering_speed": "Tốc độ kết xuất",
     "rendering_speeds": {

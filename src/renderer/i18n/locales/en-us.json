@@ -3818,17 +3818,6 @@
     },
     "generate": {
       "height": "Height",
-      "magic_prompt_option_tip": "Intelligently enhances prompts for better results",
-      "model_tip": "Model version: V3 is the latest version, V2 is the previous model, V2A is the fast model, V_1 is the first-generation model, _TURBO is the acceleration version",
-      "negative_prompt_tip": "Describe unwanted elements, only for V_1, V_1_TURBO, V_2, and V_2_TURBO",
-      "number_images_tip": "Number of images to generate",
-      "person_generation": "Generate person",
-      "person_generation_tip": "Allow model to generate person images",
-      "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3",
-      "safety_tolerance": "Safety Tolerance",
-      "safety_tolerance_tip": "Controls safety tolerance for image generation, only available for FLUX.1-Kontext-pro",
-      "seed_tip": "Controls image generation randomness for reproducible results",
-      "style_type_tip": "Image generation style for V_2 and above",
       "width": "Width"
     },
     "generate_failed": "Failed to generate image",
@@ -3836,7 +3825,7 @@
     "generating": "Generating...",
     "go_to_settings": "Go to Settings",
     "guidance_scale": "Guidance Scale",
-    "guidance_scale_tip": "Classifier Free Guidance. How close you want the model to stick to your prompt when looking for a related image to show you",
+    "guidance_scale_tip": "Classifier Free Guidance ({{min}}-{{max}}). How close you want the model to stick to your prompt when looking for a related image to show you",
     "image": {
       "size": "Image Size"
     },
@@ -3850,7 +3839,7 @@
       "auto": "Auto"
     },
     "inference_steps": "Inference Steps",
-    "inference_steps_tip": "The number of inference steps to perform. More steps produce higher quality but take longer",
+    "inference_steps_tip": "The number of inference steps to perform ({{min}}-{{max}}). More steps produce higher quality but take longer",
     "input_image": "Input Image",
     "input_parameters": "Input Parameters",
     "invalid_image_url": "Invalid image URL format",
@@ -3915,18 +3904,6 @@
     },
     "regenerate": {
       "confirm": "This will replace your existing generated images. Do you want to continue?"
-    },
-    "remix": {
-      "image_file": "Reference Image",
-      "image_weight": "Reference Image Weight",
-      "image_weight_tip": "Adjust reference image influence",
-      "magic_prompt_option_tip": "Intelligently enhances remix prompts",
-      "model_tip": "Select AI model version for remixing",
-      "negative_prompt_tip": "Describe unwanted elements in remix results",
-      "number_images_tip": "Number of remix results to generate",
-      "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3",
-      "seed_tip": "Control the randomness of the mixed result",
-      "style_type_tip": "Style for remixed image, only for V_2 and above"
     },
     "rendering_speed": "Rendering Speed",
     "rendering_speeds": {

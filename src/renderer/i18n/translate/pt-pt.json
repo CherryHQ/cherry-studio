@@ -3818,17 +3818,6 @@
     },
     "generate": {
       "height": "Altura",
-      "magic_prompt_option_tip": "Otimização inteligente do prompt para melhorar os resultados da geração",
-      "model_tip": "Versão do modelo: V2 é o modelo mais recente da interface, V2A é o modelo rápido, V_1 é o modelo de primeira geração e _TURBO é a versão acelerada",
-      "negative_prompt_tip": "Descreve elementos que você não deseja ver nas imagens; suportado apenas nas versões V_1, V_1_TURBO, V_2 e V_2_TURBO",
-      "number_images_tip": "Número de imagens geradas por vez",
-      "person_generation": "Gerar Personagem",
-      "person_generation_tip": "Permite que o modelo gere imagens de personagens",
-      "rendering_speed_tip": "Controla o equilíbrio entre velocidade e qualidade de renderização, aplicável apenas à versão V_3",
-      "safety_tolerance": "Tolerância de segurança",
-      "safety_tolerance_tip": "Controle a tolerância de segurança para a geração de imagens, aplicável apenas à versão FLUX.1-Kontext-pro",
-      "seed_tip": "Controla a aleatoriedade na geração das imagens, usado para reproduzir resultados idênticos",
-      "style_type_tip": "Estilo de geração da imagem, aplicável apenas às versões V_2 e superiores",
       "width": "Largura"
     },
     "generate_failed": "Falha ao gerar imagem",
@@ -3915,18 +3904,6 @@
     },
     "regenerate": {
       "confirm": "Isso substituirá as imagens já geradas, deseja continuar?"
-    },
-    "remix": {
-      "image_file": "Imagem de referência",
-      "image_weight": "Peso da imagem de referência",
-      "image_weight_tip": "Ajuste o impacto da imagem de referência",
-      "magic_prompt_option_tip": "Otimização inteligente das palavras-chave do remix",
-      "model_tip": "Selecione a versão do modelo de IA para reutilização",
-      "negative_prompt_tip": "Descreva elementos que não devem aparecer nos resultados do remix",
-      "number_images_tip": "Número de resultados de remix gerados",
-      "rendering_speed_tip": "Controla o equilíbrio entre velocidade e qualidade de renderização, aplicável apenas à versão V_3",
-      "seed_tip": "Controla a aleatoriedade dos resultados do remix",
-      "style_type_tip": "Estilo da imagem após o remix, aplicável apenas às versões V_2 ou superiores"
     },
     "rendering_speed": "Velocidade de renderização",
     "rendering_speeds": {
