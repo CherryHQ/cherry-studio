@@ -8,6 +8,7 @@ import {
   isClaude46SeriesModel,
   isClaude47SeriesModel,
   isClaudeReasoningModel,
+  isGemini3Model,
   isMaxTemperatureOneModel,
   isSupportedFlexServiceTier,
   isSupportedThinkingTokenClaudeModel,
@@ -30,6 +31,7 @@ const logger = loggerService.withContext('modelParameters')
 
 /**
  * Retrieves the temperature parameter, adapting it based on assistant.settings and model capabilities.
+ * - Disabled for Gemini 3.x models.
  * - Disabled when enableTemperature is off.
  * - Disabled unconditionally for Claude Opus 4.7 (rejects sampling params with HTTP 400).
  * - Disabled for Claude reasoning models when reasoning effort is set (excluding 'default' and 'none').
@@ -38,6 +40,11 @@ const logger = loggerService.withContext('modelParameters')
  * Otherwise, returns the temperature value.
  */
 export function getTemperature(assistant: Assistant, model: Model): number | undefined {
+  if (isGemini3Model(model)) {
+    logger.info(`Gemini 3.x model ${model.id} uses default sampling settings, disabling temperature`)
+    return undefined
+  }
+
   const enableTemperature = assistant.settings?.enableTemperature ?? DEFAULT_ASSISTANT_SETTINGS.enableTemperature
   if (!enableTemperature) {
     return undefined
@@ -83,6 +90,7 @@ export function getTemperature(assistant: Assistant, model: Model): number | und
 
 /**
  * Retrieves the TopP parameter, adapting it based on assistant.settings and model capabilities.
+ * - Disabled for Gemini 3.x models.
  * - Disabled when enableTopP is off.
  * - Disabled unconditionally for Claude Opus 4.7 (rejects sampling params with HTTP 400).
  * - Disabled for models that do not support TopP.
@@ -91,6 +99,11 @@ export function getTemperature(assistant: Assistant, model: Model): number | und
  * Otherwise, returns the TopP value.
  */
 export function getTopP(assistant: Assistant, model: Model): number | undefined {
+  if (isGemini3Model(model)) {
+    logger.info(`Gemini 3.x model ${model.id} uses default sampling settings, disabling topP`)
+    return undefined
+  }
+
   const enableTopP = assistant.settings?.enableTopP ?? DEFAULT_ASSISTANT_SETTINGS.enableTopP
   if (!enableTopP) {
     return undefined
@@ -135,13 +148,19 @@ export function getTopP(assistant: Assistant, model: Model): number | undefined 
 
 /**
  * Filters AI SDK standard parameters extracted from custom parameters, removing any
- * the model rejects. Currently strips `topK` for Claude Opus 4.7 since it rejects
- * sampling params (temperature/top_p/top_k) with HTTP 400. See `getTemperature`.
+ * the model rejects. Currently strips `topK` for Gemini 3.x models and Claude Opus 4.7
+ * since both reject or discourage sampling params.
  */
 export function filterStandardParams(
   standardParams: Partial<Record<AiSdkParam, any>>,
   model: Model
 ): Partial<Record<AiSdkParam, any>> {
+  if (isGemini3Model(model) && 'topK' in standardParams) {
+    const { topK, ...rest } = standardParams
+    logger.info(`Gemini 3.x model ${model.id} uses default sampling settings, dropping topK=${topK} from custom params`)
+    return rest
+  }
+
   if (isClaude47SeriesModel(model) && 'topK' in standardParams) {
     const { topK, ...rest } = standardParams
     logger.info(`Model ${model.id} rejects sampling parameters, dropping topK=${topK} from custom params`)

@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 
 import { createClient } from '@libsql/client'
+import { FileRefSchema } from '@shared/data/types/file'
 import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -1483,6 +1484,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
   }
 
   it('creates one file_ref row for a knowledge item with a fileId (id preserved verbatim)', async () => {
+    const itemId = '019606a1-0000-7000-8000-000000000abc'
     const legacyFileId = LEGACY_FILE_SURVIVOR_ID
     const ctx = makeExecCtx()
 
@@ -1490,7 +1492,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
     migrator.preparedBases = [{ id: 'kb-1', name: 'KB 1', dimensions: 512, embeddingModelId: 'openai::emb' }]
     migrator.preparedItems = [
       {
-        id: 'item-file-1',
+        id: itemId,
         baseId: 'kb-1',
         groupId: null,
         type: 'file',
@@ -1507,7 +1509,13 @@ describe('KnowledgeMigrator file_ref creation', () => {
     expect(ctx.fileRefInserts[0]).toMatchObject({
       fileEntryId: legacyFileId,
       sourceType: 'knowledge_item',
-      sourceId: 'item-file-1',
+      sourceId: itemId,
+      role: 'source'
+    })
+    expect(FileRefSchema.parse(ctx.fileRefInserts[0])).toMatchObject({
+      fileEntryId: legacyFileId,
+      sourceType: 'knowledge_item',
+      sourceId: itemId,
       role: 'source'
     })
     expect(typeof ctx.fileRefInserts[0].id).toBe('string')

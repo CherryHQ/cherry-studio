@@ -40,7 +40,7 @@ vi.mock('@vectorstores/readers/pdf', () => ({ PDFReader: class MockPDFReader {} 
 vi.mock('../files/DraftsExportReader', () => ({ DraftsExportReader: class MockDraftsExportReader {} }))
 vi.mock('../files/EpubReader', () => ({ EpubReader: class MockEpubReader {} }))
 
-vi.mock('../../utils/url', () => ({
+vi.mock('../../utils/sources/url', () => ({
   fetchKnowledgeWebPage: vi.fn().mockResolvedValue('url content')
 }))
 

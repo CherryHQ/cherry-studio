@@ -3502,6 +3502,7 @@
     "starred_notes": "收藏的筆記",
     "target_name_exists": "已存在同名筆記或資料夾",
     "title": "筆記",
+    "tree_load_failed": "載入筆記目錄失敗",
     "unsaved_changes": "尚有未儲存的內容，確定要離開嗎？",
     "unstar": "取消收藏",
     "untitled_folder": "新資料夾",
@@ -3601,7 +3602,7 @@
     "install_progress": "安裝進度",
     "installed_at": "OpenClaw 安裝路徑",
     "migration": {
-      "description": "偵測到透過 npm 安裝的舊版本 OpenClaw，請重新安裝以取得最新官方版本。",
+      "description": "偵測到 PATH 中存在外部 OpenClaw 安裝，但 Cherry Studio 只使用受管理的 OpenClaw 二進位檔。請安裝受管理版本後繼續。",
       "install_button": "重新安裝 OpenClaw",
       "title": "OpenClaw 需要更新"
     },

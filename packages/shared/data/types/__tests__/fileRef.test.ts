@@ -91,6 +91,7 @@ describe('FileRefSchema discriminated union', () => {
       updatedAt: TS
     })
     expect(parsed.sourceType).toBe('knowledge_item')
+    expect(parsed.role).toBe('source')
   })
 
   it('rejects an unregistered sourceType (no longer in allSourceTypes)', () => {

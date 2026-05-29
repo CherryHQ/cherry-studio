@@ -31,6 +31,7 @@ import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/f
 import type { Base64String, DirectoryListOptions, FilePath, PhysicalFileMetadata, URLString } from './common'
 import type { FileEntryHandle, FileHandle, FilePathHandle } from './handle'
 import type { OrphanReport } from './sweep'
+import { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from './tree'
 
 export type { DirectoryListOptions, FilePath } from './common'
 
@@ -654,6 +655,13 @@ export interface FileIpcApi {
    * @phase 2 — wired
    */
   isPathInside(childPath: string, parentPath: string): Promise<boolean>
+
+  tree: {
+    create: (rootPath: string, options?: DirectoryTreeOptions) => Promise<CreateTreeIpcResult>
+    dispose: (treeId: string) => Promise<void>
+    rename: (treeId: string, oldPath: string, newPath: string) => Promise<boolean>
+    onMutation: (callback: (payload: TreeMutationPushPayload) => void) => () => void
+  }
 }
 
 /**

@@ -89,7 +89,7 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
 
   const createOpenAICompatibleChatModel = (modelId: string): LanguageModelV3 =>
     new OpenAICompatibleChatLanguageModel(modelId, {
-      provider: `${AIHUBMIX_PROVIDER_NAME}.openai-compatible-chat`,
+      provider: `openai-compatible.${AIHUBMIX_PROVIDER_NAME}`,
       url,
       headers: authHeaders,
       fetch: customFetch
@@ -97,7 +97,7 @@ export function createAihubmix(options: AihubmixProviderSettings = {}): Aihubmix
 
   const createOpenAIChatModel = (modelId: string): LanguageModelV3 =>
     new OpenAIChatLanguageModel(modelId, {
-      provider: `${AIHUBMIX_PROVIDER_NAME}.openai-compatible-chat`,
+      provider: `openai-compatible.${AIHUBMIX_PROVIDER_NAME}`,
       url,
       headers: authHeaders,
       fetch: customFetch

@@ -193,7 +193,7 @@ AI SDK `SharedV4ProviderReference` integration and the `file_upload` table are *
 
 ### 1.6 FileManager Implementation Layout (Facade + Private Internals)
 
-FileManager is the **sole public entry point** of the file module but is not a 30-method God class. The implementation uses a **facade + private pure-function modules** pattern.
+FileManager is the **sole public entry point of the FileEntry management system** but is not a 30-method God class. The implementation uses a **facade + private pure-function modules** pattern. (Note: "sole public entry" is scoped to FileEntry — the file module also hosts `DirectoryTreeBuilder` as a parallel top-level primitive for in-memory tree mirrors; see [architecture.md §1.2](./architecture.md#12-filemanagers-position-within-the-module) and [directory-tree.md](./directory-tree.md).)
 
 #### 1.6.1 Why It Can Be Split
 
@@ -818,7 +818,9 @@ to the same change that lands the first `onRename` consumer (see §8.3).
 ```typescript
 export type WatcherEvent =
   | { readonly kind: 'add'; readonly path: FilePath }
+  | { readonly kind: 'addDir'; readonly path: FilePath }
   | { readonly kind: 'unlink'; readonly path: FilePath }
+  | { readonly kind: 'unlinkDir'; readonly path: FilePath }
   | { readonly kind: 'change'; readonly path: FilePath }
   | { readonly kind: 'ready' }
   | { readonly kind: 'error'; readonly error: Error }

@@ -7,7 +7,6 @@ import type { GitBashPathInfo, TerminalConfig } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type {
   CodeToolsRunResult,
-  FileChangeEvent,
   LanClientEvent,
   LanFileCompleteMessage,
   LanHandshakeAckMessage,
@@ -48,6 +47,7 @@ import type {
 } from '@shared/data/types/webSearch'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import type { FilePreloadApi } from '@shared/file/types/ipc'
+import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/file/types/tree'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
 import type {
@@ -201,7 +201,23 @@ const fileV2: FilePreloadApi = {
     ipcRenderer.invoke(IpcChannel.File_IsPathInside, { childPath: child, parentPath: parent }),
 
   // L. Preload-only
-  getPathForFile: (file: File) => webUtils.getPathForFile(file)
+  getPathForFile: (file: File) => webUtils.getPathForFile(file),
+
+  // M. Tree related
+  tree: {
+    create: (rootPath: string, options?: DirectoryTreeOptions): Promise<CreateTreeIpcResult> =>
+      ipcRenderer.invoke(IpcChannel.File_TreeCreate, { rootPath, options }),
+    dispose: (treeId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.File_TreeDispose, { treeId }),
+    rename: (treeId: string, oldPath: string, newPath: string): Promise<boolean> =>
+      ipcRenderer.invoke(IpcChannel.File_TreeRename, { treeId, oldPath, newPath }),
+    onMutation: (callback: (payload: TreeMutationPushPayload) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: TreeMutationPushPayload) => {
+        if (payload && typeof payload === 'object') callback(payload)
+      }
+      ipcRenderer.on(IpcChannel.File_TreeMutation, listener)
+      return () => ipcRenderer.off(IpcChannel.File_TreeMutation, listener)
+    }
+  }
 }
 
 // Custom APIs for renderer
@@ -356,28 +372,18 @@ const api = {
     openFileWithRelativePath: (file: FileMetadata) => ipcRenderer.invoke(IpcChannel.File_OpenWithRelativePath, file),
     isTextFile: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsTextFile, filePath),
     isDirectory: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsDirectory, filePath),
-    getDirectoryStructure: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_GetDirectoryStructure, dirPath),
     listDirectory: (dirPath: string, options?: DirectoryListOptions) =>
       ipcRenderer.invoke(IpcChannel.File_LegacyListDirectory, dirPath, options),
     checkFileName: (dirPath: string, fileName: string, isFile: boolean) =>
       ipcRenderer.invoke(IpcChannel.File_CheckFileName, dirPath, fileName, isFile),
     validateNotesDirectory: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_ValidateNotesDirectory, dirPath),
-    startFileWatcher: (dirPath: string, config?: any) =>
-      ipcRenderer.invoke(IpcChannel.File_StartWatcher, dirPath, config),
-    stopFileWatcher: () => ipcRenderer.invoke(IpcChannel.File_StopWatcher),
-    pauseFileWatcher: () => ipcRenderer.invoke(IpcChannel.File_PauseWatcher),
-    resumeFileWatcher: () => ipcRenderer.invoke(IpcChannel.File_ResumeWatcher),
+    // Legacy file-watcher bindings (`startFileWatcher` / `stopFileWatcher`
+    // / `pauseFileWatcher` / `resumeFileWatcher` / `onFileChange`) and
+    // `getDirectoryStructure` were removed alongside the Notes migration
+    // to `DirectoryTreeBuilder` (see docs/references/file/directory-tree.md).
+    // mutations via `window.api.tree.onMutation` instead.
     batchUploadMarkdown: (filePaths: string[], targetPath: string) =>
       ipcRenderer.invoke(IpcChannel.File_BatchUploadMarkdown, filePaths, targetPath),
-    onFileChange: (callback: (data: FileChangeEvent) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, data: any) => {
-        if (data && typeof data === 'object') {
-          callback(data)
-        }
-      }
-      ipcRenderer.on('file-change', listener)
-      return () => ipcRenderer.off('file-change', listener)
-    },
     showInFolder: (path: string): Promise<void> => ipcRenderer.invoke(IpcChannel.File_LegacyShowInFolder, path),
     // Origin: v1 fs
     fsRead: (pathOrUrl: string, encoding?: BufferEncoding) =>

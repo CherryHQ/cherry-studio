@@ -1380,6 +1380,7 @@
           "no_knowledge_base": "Keine Wissensdatenbank verfügbar, bitte erstellen Sie zuerst eine"
         },
         "error": {
+          "file_partial_failed": "[to be translated]:{{count}} file(s) could not be saved",
           "invalid_base": "Die ausgewählte Wissensdatenbank ist nicht korrekt konfiguriert",
           "no_content_selected": "Bitte wählen Sie mindestens einen Inhaltstyp aus",
           "save_failed": "Speichern fehlgeschlagen, bitte überprüfen Sie die Wissensdatenbank-Konfiguration"
@@ -1798,6 +1799,7 @@
     "reset": "Zurücksetzen",
     "retry": "Wiederholen",
     "save": "Speichern",
+    "save_failed": "[to be translated]:Save failed",
     "saved": "Gespeichert",
     "search": "Suchen",
     "select": "Auswählen",
@@ -3500,6 +3502,7 @@
     "starred_notes": "Markierte Notizen",
     "target_name_exists": "[to be translated]:A note or folder with this name already exists",
     "title": "Notizen",
+    "tree_load_failed": "[to be translated]:Failed to load notes directory",
     "unsaved_changes": "Sie haben ungespeicherte Änderungen. Möchten Sie wirklich gehen?",
     "unstar": "Markierung aufheben",
     "untitled_folder": "Neuer Ordner",
@@ -7077,7 +7080,8 @@
         "too_large": "Datei zu groß",
         "unknown": "Dateiinhalt lesen fehlgeschlagen"
       },
-      "reading": "Dateiinhalt wird gelesen..."
+      "reading": "Dateiinhalt wird gelesen...",
+      "upload": "[to be translated]:Drop or click to upload image/document"
     },
     "history": {
       "back": "[to be translated]:Back to list",
