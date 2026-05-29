@@ -32,4 +32,4 @@ Each subdirectory is one renderer window: an HTML entry, a thin bootstrap, and a
 ## See also
 
 - [WindowManager reference](../../../docs/references/window-manager/README.md) — main-process lifecycle, pool mechanics, init-data delivery.
-- `../core/hooks/useWindowInitData.ts` — how a window reads its init data.
+- `../hooks/useWindowInitData.ts` — how a window reads its init data.

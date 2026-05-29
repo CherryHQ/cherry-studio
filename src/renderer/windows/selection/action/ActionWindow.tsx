@@ -1,7 +1,7 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { isMac } from '@renderer/config/constant'
-import { useWindowInitData } from '@renderer/core/hooks/useWindowInitData'
+import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import i18n from '@renderer/i18n'
 import { defaultLanguage } from '@shared/config/constant'
 import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'

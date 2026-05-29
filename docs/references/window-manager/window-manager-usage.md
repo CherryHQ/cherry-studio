@@ -226,10 +226,10 @@ openTopic(topicId: string): void {
 
 ## Renderer: `useWindowInitData` hook
 
-`src/renderer/core/hooks/useWindowInitData.ts` provides the canonical way for any managed window to consume its init data across both creation paths:
+`src/renderer/hooks/useWindowInitData.ts` provides the canonical way for any managed window to consume its init data across both creation paths:
 
 ```typescript
-import { useWindowInitData } from '@renderer/core/hooks/useWindowInitData'
+import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 
 const MyWindowApp: FC = () => {
   const data = useWindowInitData<MyInitData>()
