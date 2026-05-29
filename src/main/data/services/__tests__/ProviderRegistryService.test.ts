@@ -363,10 +363,7 @@ describe('ProviderRegistryService', () => {
             id: 'ovms',
             name: 'OVMS',
             defaultChatEndpoint: null,
-            metadata: { website: { official: 'https://openvino.ai' } },
-            paintingDefaults: {
-              modes: { generate: { supports: { size: { type: 'enum', options: ['512x512'], render: 'chips' } } } }
-            }
+            metadata: { website: { official: 'https://openvino.ai' } }
           }
         ]
       } as ReturnType<typeof readProviderRegistry>)
@@ -374,23 +371,7 @@ describe('ProviderRegistryService', () => {
       expect(result).toEqual(block)
     })
 
-    it('getImageGenerationSupport falls back to provider.paintingDefaults when model is unknown', async () => {
-      const defaults = {
-        modes: {
-          generate: {
-            supports: {
-              size: {
-                type: 'enum' as const,
-                options: ['512x512', '768x768', '1024x1024'],
-                default: '512x512',
-                render: 'chips' as const
-              },
-              seed: { type: 'text' as const },
-              numInferenceSteps: { type: 'range' as const, min: 1, max: 100, default: 4 }
-            }
-          }
-        }
-      }
+    it('getImageGenerationSupport returns null when the model is unknown', async () => {
       mockReadModels.mockReturnValue({ version: '1.0', models: [] } as ReturnType<typeof readModelRegistry>)
       mockReadProviderModels.mockReturnValue({ version: '1.0', overrides: [] } as ReturnType<
         typeof readProviderModelRegistry
@@ -402,13 +383,12 @@ describe('ProviderRegistryService', () => {
             id: 'ovms',
             name: 'OVMS',
             defaultChatEndpoint: null,
-            metadata: { website: { official: 'https://openvino.ai' } },
-            paintingDefaults: defaults
+            metadata: { website: { official: 'https://openvino.ai' } }
           }
         ]
       } as ReturnType<typeof readProviderRegistry>)
       const result = await providerRegistryService.getImageGenerationSupport('ovms', 'user-custom-sd')
-      expect(result).toEqual(defaults)
+      expect(result).toBeNull()
     })
 
     it('getImageGenerationSupport returns null when neither model nor provider has the block', async () => {

@@ -641,10 +641,9 @@ class ProviderRegistryService {
    * instead of a hand-rolled `fields.ts`.
    *
    * Resolution order:
-   *  1. Model-level `imageGeneration` from `models.json` (per-model UI).
-   *  2. Provider-level `paintingDefaults` from `providers.json` (fallback
-   *     for providers whose model catalog can't be enumerated in
-   *     advance — OVMS user-served checkpoints, etc.).
+   *  1. Per-(provider, model) `imageGeneration` override from the
+   *     provider-model registry (vendor-exclusive UI).
+   *  2. Model-level `imageGeneration` from `models.json` (per-model UI).
    *  3. `null` — renderer falls back to the provider's `fields.byTab`.
    *
    * Used by: GET /providers/:providerId/models/:modelId/image-generation-support

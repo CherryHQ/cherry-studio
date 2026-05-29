@@ -118,7 +118,7 @@ class DmxapiTransport implements ImageGenerationTransport {
       case 'openai-flat-async':
         return this.submitAsyncOpenAIFlat(input, normalized)
       default:
-        return this.submitOpenAIFlatFallback(input, normalized, params)
+        return this.submitOpenAIFlatFallback(input, normalized)
     }
   }
 
@@ -203,8 +203,7 @@ class DmxapiTransport implements ImageGenerationTransport {
    *  to. Response is parsed as the standard OpenAI `data[].url|b64_json`. */
   private async submitOpenAIFlatFallback(
     input: ImageGenerationSubmitInput,
-    normalized: NormalizedInput,
-    _params: DmxapiProviderParams
+    normalized: NormalizedInput
   ): Promise<{ imageUrls?: string[] }> {
     const body: Record<string, unknown> = {
       model: normalized.modelId,

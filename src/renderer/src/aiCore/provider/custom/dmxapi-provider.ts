@@ -11,7 +11,7 @@ import {
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
-import { formatApiHost } from '@shared/utils'
+import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils'
 
 import { createImageGenerationModel } from './imageGenerationModel'
 import { createDmxapiTransport, resolveDmxapiFamily } from './imageTransports/dmxapi'
@@ -136,7 +136,9 @@ export function createDmxapiProvider(settings: DmxapiProviderSettings = {}): Dmx
 
   const transport = createDmxapiTransport({
     apiKey: settings.apiKey ?? '',
-    baseURL: formatApiHost(baseURL)
+    // The transport POSTs to host-root paths (`/v1/images/...`), so strip the
+    // OpenAI-compat version suffix from the chat baseURL to avoid a double `/v1`.
+    baseURL: withoutTrailingApiVersion(baseURL)
   })
 
   const createChatModel = (modelId: string): LanguageModelV3 => {

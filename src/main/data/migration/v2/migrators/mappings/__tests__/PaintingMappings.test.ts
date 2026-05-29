@@ -45,9 +45,7 @@ describe('PaintingMappings', () => {
       ok: true,
       value: {
         providerId: 'my-custom-new-api',
-        modelId: 'my-custom-new-api::gpt-image-1',
-        mode: 'generate',
-        mediaType: 'image'
+        modelId: 'my-custom-new-api::gpt-image-1'
       }
     })
   })
@@ -79,14 +77,15 @@ describe('PaintingMappings', () => {
     expect(result).toMatchObject({
       ok: true,
       value: {
-        mediaType: 'image',
-        params: {}
+        id: 'painting-parentless',
+        providerId: 'silicon',
+        prompt: 'hello'
       }
     })
     expect(result.ok && legacyParentFieldKey in result.value).toBe(false)
   })
 
-  it('moves legacy async task ids into params.taskId', () => {
+  it('migrates async-task legacy records by prompt and drops the non-persisted task id', () => {
     const tokenFluxResult = transformLegacyPaintingRecord('tokenflux_paintings', {
       id: 'painting-1',
       generationId: 'task-1',
@@ -98,23 +97,18 @@ describe('PaintingMappings', () => {
       prompt: 'hello'
     })
 
+    // The frozen-receipt row no longer carries params/taskId — records with a
+    // prompt still migrate as slim rows; the legacy async task id is dropped.
     expect(tokenFluxResult).toMatchObject({
       ok: true,
-      value: {
-        params: {
-          taskId: 'task-1'
-        }
-      }
+      value: { id: 'painting-1', providerId: 'tokenflux', prompt: 'hello' }
     })
     expect(ppioResult).toMatchObject({
       ok: true,
-      value: {
-        params: {
-          taskId: 'task-2',
-          editVariant: 'img2img'
-        }
-      }
+      value: { id: 'painting-2', providerId: 'ppio', prompt: 'hello' }
     })
+    expect(tokenFluxResult.ok && 'params' in tokenFluxResult.value).toBe(false)
+    expect(ppioResult.ok && 'params' in ppioResult.value).toBe(false)
   })
 
   it('drops non-recoverable in-memory input image references with warnings', () => {
@@ -126,9 +120,7 @@ describe('PaintingMappings', () => {
 
     expect(result).toMatchObject({
       ok: true,
-      value: {
-        files: { input: [] }
-      }
+      files: { input: [] }
     })
     expect(result.warnings).toContain(
       'Dropped legacy input image reference because only an in-memory string/object URL was available'

@@ -21,13 +21,16 @@ vi.mock('@ai-sdk/openai-compatible', () => ({
   }
 }))
 
-vi.mock('../imageTransports/dmxapi', () => ({
-  createDmxapiTransport: (settings: { apiKey: string; baseURL?: string }) => {
-    TransportCtor(settings)
-    return { submit: vi.fn() }
-  },
-  DEFAULT_DMXAPI_BASE_URL: 'https://www.dmxapi.com'
-}))
+vi.mock('../imageTransports/dmxapi', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  return {
+    ...actual,
+    createDmxapiTransport: (settings: { apiKey: string; baseURL?: string }) => {
+      TransportCtor(settings)
+      return { submit: vi.fn() }
+    }
+  }
+})
 
 import { createDmxapiProvider } from '../dmxapi-provider'
 
@@ -40,10 +43,14 @@ describe('createDmxapiProvider', () => {
 
   it('languageModel uses "dmxapi.chat" with Bearer auth at chat baseURL', () => {
     const provider = createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
-    expect((provider.languageModel('gpt-4o') as unknown as { provider: string }).provider).toBe('dmxapi.chat')
+    // A generic (non-OpenAI/Anthropic/Gemini) chat id routes through the
+    // OpenAI-compat fallback family, which is the `dmxapi.chat` path.
+    expect((provider.languageModel('qwen-max') as unknown as { provider: string }).provider).toBe('dmxapi.chat')
 
     const [, config] = ChatCtor.mock.calls[0]
-    expect(config.url({ path: '/chat/completions', modelId: 'gpt-4o' })).toBe('https://www.dmxapi.cn/chat/completions')
+    expect(config.url({ path: '/chat/completions', modelId: 'qwen-max' })).toBe(
+      'https://www.dmxapi.cn/chat/completions'
+    )
     expect(config.headers()).toMatchObject({ Authorization: 'Bearer sk' })
   })
 
@@ -54,7 +61,9 @@ describe('createDmxapiProvider', () => {
 
   it('imageModel returns an ImageGenerationModel with provider="dmxapi"', () => {
     const provider = createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
-    expect(provider.imageModel('gpt-image-1').provider).toBe('dmxapi')
+    // A bespoke-family model (Doubao Seedream) routes through the custom
+    // transport-backed ImageGenerationModel, whose provider is plain "dmxapi".
+    expect(provider.imageModel('doubao-seedream-3-0').provider).toBe('dmxapi')
   })
 
   it('strips the OpenAI-compat suffix from baseURL to derive the transport host', () => {

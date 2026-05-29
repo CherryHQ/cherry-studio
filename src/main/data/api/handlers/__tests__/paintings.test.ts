@@ -118,10 +118,7 @@ describe('paintingHandlers', () => {
     await paintingHandlers['/paintings'].POST({
       body: {
         providerId: '  aihubmix  ',
-        mode: 'generate',
-        mediaType: 'video',
         prompt: 'hello',
-        params: {},
         files: { output: [], input: [] }
       }
     } as never)
@@ -142,10 +139,7 @@ describe('paintingHandlers', () => {
 
     expect(createPaintingMock).toHaveBeenCalledWith({
       providerId: 'aihubmix',
-      mode: 'generate',
-      mediaType: 'video',
       prompt: 'hello',
-      params: {},
       files: { output: [], input: [] }
     })
     expect(reorderPaintingMock).toHaveBeenCalledWith('painting-2', { after: 'painting-1' })
@@ -166,7 +160,7 @@ describe('paintingHandlers', () => {
     await expect(
       paintingHandlers['/paintings/:id'].PATCH({
         params: { id: 'painting-1' },
-        body: { mediaType: 'video', prompt: 'updated' }
+        body: { prompt: 'updated' }
       } as never)
     ).resolves.toEqual({
       id: 'painting-1',
@@ -179,7 +173,7 @@ describe('paintingHandlers', () => {
     ).resolves.toBeUndefined()
 
     expect(getPaintingByIdMock).toHaveBeenCalledWith('painting-1')
-    expect(updatePaintingMock).toHaveBeenCalledWith('painting-1', { mediaType: 'video', prompt: 'updated' })
+    expect(updatePaintingMock).toHaveBeenCalledWith('painting-1', { prompt: 'updated' })
     expect(deletePaintingMock).toHaveBeenCalledWith('painting-1')
   })
 })

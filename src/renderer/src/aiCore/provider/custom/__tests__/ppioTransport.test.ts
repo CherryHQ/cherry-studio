@@ -227,7 +227,7 @@ describe('PpioTransport', () => {
           id: 'seedream-4.0',
           endpoint: '/v3/seedream-4.0',
           isSync: true,
-          mode: 'ppio_edit'
+          mode: 'edit'
         },
         imageFile: 'data:image/png;base64,abc',
         size: '2048x2048'

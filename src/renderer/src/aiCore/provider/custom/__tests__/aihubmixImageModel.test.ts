@@ -131,12 +131,12 @@ describe('AihubmixImageModel', () => {
 
       const result = await make('V_3').doGenerate(
         callOptions({
+          n: 2,
           providerOptions: {
             aihubmix: {
               mode: 'generate',
               aspectRatio: 'ASPECT_16_9',
               renderingSpeed: 'TURBO',
-              numImages: 2,
               styleType: 'AUTO',
               seed: '42',
               negativePrompt: 'blur',
@@ -221,11 +221,11 @@ describe('AihubmixImageModel', () => {
 
       const result = await make('V_2').doGenerate(
         callOptions({
+          n: 3,
           providerOptions: {
             aihubmix: {
               mode: 'generate',
               aspectRatio: 'ASPECT_1_1',
-              numImages: 3,
               styleType: 'REALISTIC',
               seed: '7',
               negativePrompt: 'noise',
@@ -335,7 +335,7 @@ describe('AihubmixImageModel', () => {
 
   describe('default branch delegates byte-identically to the inner OpenAICompatibleImageModel', () => {
     for (const id of ['gpt-image-1', 'gpt-image-2', 'FLUX.1-Kontext-pro', 'some-unknown-model']) {
-      it(`delegates ${id} with the same options object and returns its result unchanged`, async () => {
+      it(`delegates ${id} forwarding the options to the inner model and returns its result unchanged`, async () => {
         const innerResult = { images: ['data:image/png;base64,DELEGATED'], warnings: [], response: {} }
         innerDoGenerate.mockResolvedValue(innerResult)
 
@@ -345,8 +345,10 @@ describe('AihubmixImageModel', () => {
         expect(InnerCtor).toHaveBeenCalledWith(id, expect.objectContaining({ provider: 'aihubmix.image', headers }))
         const ctorConfig = InnerCtor.mock.calls[0][1] as { url: (a: { path: string }) => string }
         expect(ctorConfig.url({ path: '/images/generations' })).toBe('https://aihubmix.com/v1/images/generations')
+        // The default branch snake-cases the aihubmix bag before delegating, so
+        // the inner model receives an equivalent (not reference-identical)
+        // options object; the bag here has no rename-able keys, so it deep-equals.
         expect(innerDoGenerate).toHaveBeenCalledWith(options)
-        expect(innerDoGenerate.mock.calls[0][0]).toBe(options)
         expect(result).toBe(innerResult)
       })
     }

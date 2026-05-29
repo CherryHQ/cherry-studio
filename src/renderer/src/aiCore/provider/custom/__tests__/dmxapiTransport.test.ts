@@ -11,9 +11,11 @@ vi.mock('i18next', () => ({
 vi.mock('@renderer/i18n', () => ({ default: { t: (k: string) => k } }))
 
 /**
- * Covers the relocated DMXAPI single-shot request building (V1 JSON
- * generations / V2 FormData edits + merge), response parsing, abort and the
- * sync-only transport shape. Mirrors the bespoke `providers/dmxapi/generate.ts`.
+ * Covers the family-based DMXAPI transport request building (openai-flat
+ * fallback, doubao-seedream `responses-string`, wan `responses-messages`,
+ * async qwen-image `openai-flat-async`), response parsing, abort and the
+ * sync-only transport shape. Native fields (n / size / seed) source from
+ * `input.*`; vendor extras flow through `providerParams`.
  */
 describe('DmxapiTransport', () => {
   afterEach(() => {
@@ -29,7 +31,7 @@ describe('DmxapiTransport', () => {
     mask: undefined
   } as const
 
-  it('builds a V1 JSON generations request with seed -1 sentinel and extend_params', async () => {
+  it('builds an OpenAI-flat /v1/images/generations request from native input fields', async () => {
     const transport = createDmxapiTransport({ apiKey: 'token', baseURL: 'https://www.dmxapi.com' })
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
@@ -39,14 +41,9 @@ describe('DmxapiTransport', () => {
       ...baseInput,
       modelId: 'flux-1',
       prompt: 'a fox',
-      providerParams: {
-        model: 'flux-1',
-        n: 2,
-        imageSize: '1328x1328',
-        seed: '-5',
-        mode: 'generation',
-        extendParams: { foo: 'bar' }
-      }
+      n: 2,
+      size: '1328x1328',
+      providerParams: {}
     })
 
     const call = fetchMock.mock.calls[0]
@@ -55,84 +52,91 @@ describe('DmxapiTransport', () => {
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer token')
     expect((init.headers as Record<string, string>)['User-Agent']).toBe('DMXAPI/1.0.0 (https://www.dmxapi.com)')
     const body = JSON.parse(init.body as string)
-    expect(body).toMatchObject({
-      prompt: 'a fox',
-      model: 'flux-1',
-      n: 2,
-      size: '1328x1328',
-      seed: -1,
-      foo: 'bar'
-    })
+    expect(body).toEqual({ model: 'flux-1', prompt: 'a fox', n: 2, response_format: 'url', size: '1328x1328' })
     expect(result).toEqual({ imageUrls: ['https://img/a.png'] })
   })
 
-  it('keeps a seed >= -1 verbatim in the V1 request', async () => {
+  it('builds a doubao-seedream /v1/responses request carrying size and seed', async () => {
     const transport = createDmxapiTransport({ apiKey: 'token' })
-    const fetchMock = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(JSON.stringify({ data: [] }), { status: 200 }))
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ output: [{ content: [{ text: '![](https://img/seed.png)' }] }] }), {
+        status: 200
+      })
+    )
 
-    await transport.submit({
+    const result = await transport.submit({
       ...baseInput,
-      modelId: 'm',
-      prompt: 'p',
-      providerParams: { model: 'm', n: 1, seed: '42', mode: 'generation' }
-    })
-
-    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
-    expect(body.seed).toBe(42)
-  })
-
-  it('inlines a single uploaded image as a base64 data URL in V1 generation mode', async () => {
-    const transport = createDmxapiTransport({ apiKey: 'token' })
-    const fetchMock = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(JSON.stringify({ data: [] }), { status: 200 }))
-
-    await transport.submit({
-      ...baseInput,
-      prompt: 'p',
-      providerParams: {
-        model: 'm',
-        n: 1,
-        mode: 'generation',
-        imageFiles: [{ mediaType: 'image/png', data: new Uint8Array([1, 2, 3]) }]
-      }
-    })
-
-    const body = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
-    expect(body.image).toBe(`data:image/png;base64,${btoa(String.fromCharCode(1, 2, 3))}`)
-  })
-
-  it('builds a V2 FormData edits request with all files appended (multi-image merge)', async () => {
-    const transport = createDmxapiTransport({ apiKey: 'token', baseURL: 'https://www.dmxapi.com' })
-    const fetchMock = vi
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(new Response(JSON.stringify({ data: [{ url: 'https://img/b.png' }] }), { status: 200 }))
-
-    await transport.submit({
-      ...baseInput,
-      prompt: 'merge these',
-      providerParams: {
-        model: 'flux-1',
-        n: 1,
-        imageSize: '1024x1024',
-        mode: 'merge',
-        imageFiles: [
-          { mediaType: 'image/png', data: new Uint8Array([1]), name: 'a.png' },
-          { mediaType: 'image/jpeg', data: new Uint8Array([2]), name: 'b.jpg' }
-        ]
-      }
+      modelId: 'doubao-seedream-3-0',
+      prompt: 'a fox',
+      size: '1024x1024',
+      seed: 42,
+      providerParams: {}
     })
 
     const call = fetchMock.mock.calls[0]
-    expect(call[0]).toBe('https://www.dmxapi.com/v1/images/edits')
-    const form = (call[1] as RequestInit).body as FormData
-    expect(form).toBeInstanceOf(FormData)
-    expect(form.get('prompt')).toBe('merge these')
-    expect(form.get('model')).toBe('flux-1')
-    expect(form.get('size')).toBe('1024x1024')
-    expect(form.getAll('image')).toHaveLength(2)
+    expect(call[0]).toBe('https://www.dmxapi.com/v1/responses')
+    const body = JSON.parse((call[1] as RequestInit).body as string)
+    expect(body).toMatchObject({
+      model: 'doubao-seedream-3-0',
+      input: 'a fox',
+      stream: false,
+      size: '1024x1024',
+      seed: 42
+    })
+    expect(result).toEqual({ imageUrls: ['https://img/seed.png'] })
+  })
+
+  it('inlines uploaded files as data URLs in the wan /v1/responses messages body', async () => {
+    const transport = createDmxapiTransport({ apiKey: 'token' })
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(
+        new Response(JSON.stringify({ output: [{ content: [{ image: 'https://img/w.png' }] }] }), { status: 200 })
+      )
+
+    const result = await transport.submit({
+      ...baseInput,
+      modelId: 'wan2.5',
+      prompt: 'a fox',
+      files: [{ mediaType: 'image/png', data: new Uint8Array([1, 2, 3]) }] as never,
+      providerParams: {}
+    })
+
+    const call = fetchMock.mock.calls[0]
+    expect(call[0]).toBe('https://www.dmxapi.com/v1/responses')
+    const body = JSON.parse((call[1] as RequestInit).body as string)
+    expect(body.model).toBe('wan2.5')
+    expect(body.input.messages[0].content).toEqual([
+      { text: 'a fox' },
+      { image: `data:image/png;base64,${btoa(String.fromCharCode(1, 2, 3))}` }
+    ])
+    expect(result).toEqual({ imageUrls: ['https://img/w.png'] })
+  })
+
+  it('parses the async qwen-image extra.output.results wrapper from /v1/images/generations', async () => {
+    const transport = createDmxapiTransport({ apiKey: 'token', baseURL: 'https://www.dmxapi.com' })
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          extra: { output: { results: [{ url: 'https://img/q1.png' }, { url: 'https://img/q2.png' }] } }
+        }),
+        { status: 200 }
+      )
+    )
+
+    const result = await transport.submit({
+      ...baseInput,
+      modelId: 'qwen-image',
+      prompt: 'a fox',
+      size: '1024x1024',
+      providerParams: {}
+    })
+
+    const call = fetchMock.mock.calls[0]
+    expect(call[0]).toBe('https://www.dmxapi.com/v1/images/generations')
+    const body = JSON.parse((call[1] as RequestInit).body as string)
+    expect(body).toEqual({ model: 'qwen-image', prompt: 'a fox', n: 1, size: '1024x1024' })
+    expect(result).toEqual({ imageUrls: ['https://img/q1.png', 'https://img/q2.png'] })
   })
 
   it('keeps the seededit-3.0 model on V1 even in edit mode', async () => {
