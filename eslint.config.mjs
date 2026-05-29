@@ -154,15 +154,14 @@ export default defineConfig([
   // FilePath brand integrity — `as FilePath` forges the brand, skipping
   // FilePathSchema's canonicalization (NFC normalize + segment resolution).
   // Production code must build a FilePath via FilePathSchema.parse(value).
-  // Exemptions: the brand's own home (src/shared/file/**); test fixtures (which
-  // use `'lit' as FilePath` for brevity); and two deliberate raw-OS-path
-  // regimes — the directory watcher emits the raw path by design, and the tree
-  // builder compares rootPath against raw absPaths — where canonicalizing would
-  // reintroduce the NFC divergence this brand exists to prevent.
+  // Exemptions: test fixtures (which use `'lit' as FilePath` for brevity); and
+  // two deliberate raw-OS-path regimes — the directory watcher emits the raw
+  // path by design, and the tree builder compares rootPath against raw absPaths
+  // — where canonicalizing would reintroduce the NFC divergence this brand
+  // exists to prevent. (The brand's home, src/shared/file, is NOT exempt.)
   {
     files: ['src/**/*.{ts,tsx}'],
     ignores: [
-      'src/shared/file/**',
       'src/main/services/file/watcher/**',
       'src/main/services/file/tree/**',
       'src/**/__tests__/**',

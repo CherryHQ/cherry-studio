@@ -43,7 +43,7 @@
  * access, or main-process singletons belongs in File IPC.
  */
 
-import type { FilePath, FileURLString } from './types/common'
+import { type FilePath, FilePathSchema, type FileURLString } from './types/common'
 
 // ─── Danger extension policy ───
 
@@ -113,17 +113,28 @@ export function isDangerExt(ext: string | null): boolean {
 // ─── Path formatting ───
 
 /**
- * Cross-platform dirname on a plain string — no `node:path` dependency, so it
- * works in renderer bundles. Treats both `/` and `\` as separators.
+ * Cross-platform dirname on an absolute `FilePath` — no `node:path` dependency,
+ * so it works in renderer bundles. Treats both `/` and `\` as separators and
+ * returns a canonical `FilePath` (the parent of a canonical path is canonical,
+ * so the `FilePathSchema.parse` re-assertions below never throw).
  *
- * `sepIdx === 0` is the POSIX-root case (`/payload.exe`): degrade to `'/'` so
- * the safety wrap in `toSafeFileUrl` still strips the filename. Returning the
- * original string here would defeat the entire danger-ext policy.
+ * Root edge cases degrade to the filesystem root WITH its separator, so the
+ * safety wrap in `toSafeFileUrl` still strips the filename:
+ *   - POSIX   `/payload.exe`   → `/`
+ *   - Windows `C:\payload.exe` → `C:\` (the drive ROOT — the separator is kept,
+ *     since a bare `slice` would yield the drive-RELATIVE `C:`, which is not an
+ *     absolute path)
+ * Returning the original string here would defeat the entire danger-ext policy.
  */
-function dirnameSimple(absolutePath: string): string {
+function dirnameSimple(absolutePath: FilePath): FilePath {
   const sepIdx = Math.max(absolutePath.lastIndexOf('/'), absolutePath.lastIndexOf('\\'))
-  if (sepIdx > 0) return absolutePath.slice(0, sepIdx)
-  if (sepIdx === 0) return '/'
+  if (sepIdx > 0) {
+    const dir = absolutePath.slice(0, sepIdx)
+    // `C:\file` slices to the drive-relative `C:`; keep the separator so the
+    // parent stays the drive root, mirroring the POSIX `/` case below.
+    return FilePathSchema.parse(/^[A-Za-z]:$/.test(dir) ? absolutePath.slice(0, sepIdx + 1) : dir)
+  }
+  if (sepIdx === 0) return FilePathSchema.parse('/')
   return absolutePath
 }
 
@@ -170,5 +181,5 @@ export function toFileUrl(absolutePath: FilePath): FileURLString {
  */
 export function toSafeFileUrl(absolutePath: FilePath, ext: string | null): FileURLString {
   const effectivePath = isDangerExt(ext) ? dirnameSimple(absolutePath) : absolutePath
-  return toFileUrl(effectivePath as FilePath)
+  return toFileUrl(effectivePath)
 }

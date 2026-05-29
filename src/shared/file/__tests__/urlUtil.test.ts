@@ -82,6 +82,8 @@ describe('toSafeFileUrl', () => {
     // renderer would end up with `file:///payload.exe`, which `<embed>` /
     // `<img src>` can hand to OS file associations.
     expect(toSafeFileUrl('/payload.exe' as FilePath, 'exe')).toBe('file:///')
-    expect(toSafeFileUrl('C:\\payload.exe' as FilePath, 'exe')).toBe('file:///C:')
+    // Windows drive root keeps its separator (`C:\`, not the drive-relative
+    // `C:`), so the URL is the drive-root directory rather than a bare drive ref.
+    expect(toSafeFileUrl('C:\\payload.exe' as FilePath, 'exe')).toBe('file:///C:/')
   })
 })
