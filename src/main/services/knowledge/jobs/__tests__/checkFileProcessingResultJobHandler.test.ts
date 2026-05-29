@@ -13,7 +13,7 @@ import {
   FILE_ITEM_ID,
   getJobMock,
   knowledgeItemGetByIdMock,
-  knowledgeItemReplaceProcessedArtifactFileRefMock,
+  knowledgeItemReplaceFileRefMock,
   knowledgeItemUpdateStatusMock,
   knowledgeLockManager,
   PROCESSED_FILE_ENTRY_ID,
@@ -202,7 +202,11 @@ describe('check-file-processing-result job handler', () => {
       source: 'path',
       path: '/tmp/fp-result/result.md'
     })
-    expect(knowledgeItemReplaceProcessedArtifactFileRefMock).toHaveBeenCalledWith(FILE_ITEM_ID, PROCESSED_FILE_ENTRY_ID)
+    expect(knowledgeItemReplaceFileRefMock).toHaveBeenCalledWith(
+      FILE_ITEM_ID,
+      PROCESSED_FILE_ENTRY_ID,
+      'processed_artifact'
+    )
     expect(workflowService.scheduleIndexing).toHaveBeenCalledWith(
       'kb-1',
       FILE_ITEM_ID,
@@ -295,7 +299,7 @@ describe('check-file-processing-result job handler', () => {
     await handler.execute(ctx)
 
     expect(createInternalEntryMock).not.toHaveBeenCalled()
-    expect(knowledgeItemReplaceProcessedArtifactFileRefMock).not.toHaveBeenCalled()
+    expect(knowledgeItemReplaceFileRefMock).not.toHaveBeenCalled()
     expect(workflowService.scheduleIndexing).not.toHaveBeenCalled()
     expect(ctx.reportProgress).not.toHaveBeenCalledWith(100, { stage: 'done' })
   })

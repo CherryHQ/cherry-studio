@@ -9,7 +9,6 @@ import {
   createNoteItem,
   createReindexSubtreeJobHandler,
   deleteItemsByIdsMock,
-  detachFileRefsMock,
   FILE_ENTRY_ID,
   FILE_ITEM_ID,
   getJobMock,
@@ -92,7 +91,6 @@ describe('reindex-subtree job handler', () => {
 
     await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['note-1'] }, 'reindex-job'))
 
-    expect(detachFileRefsMock).not.toHaveBeenCalled()
     expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('note-1', 'processing')
     expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'note-1', 'reindex-job')

@@ -433,26 +433,6 @@ export class KnowledgeItemService {
     `)
   }
 
-  async detachFileRefs(itemIds: string[]): Promise<void> {
-    const uniqueItemIds = [...new Set(itemIds)]
-    if (uniqueItemIds.length === 0) {
-      return
-    }
-
-    const dbService = application.get('DbService')
-    const detachedRefs = await dbService.withWriteTx(
-      async (tx) =>
-        await tx
-          .delete(fileRefTable)
-          .where(
-            and(eq(fileRefTable.sourceType, knowledgeItemSourceType), inArray(fileRefTable.sourceId, uniqueItemIds))
-          )
-          .returning({ id: fileRefTable.id })
-    )
-
-    logger.info('Detached knowledge item file refs', { count: detachedRefs.length, itemCount: uniqueItemIds.length })
-  }
-
   async attachFileRef(itemId: string, fileEntryId: FileEntryId, role: KnowledgeItemFileRefRole): Promise<void> {
     const dbService = application.get('DbService')
     await dbService.withWriteTx(async (tx) => {
@@ -492,7 +472,7 @@ export class KnowledgeItemService {
     logger.info('Attached knowledge item file ref', { itemId, fileEntryId, role })
   }
 
-  async replaceProcessedArtifactFileRef(itemId: string, fileEntryId: FileEntryId): Promise<void> {
+  async replaceFileRef(itemId: string, fileEntryId: FileEntryId, role: KnowledgeItemFileRefRole): Promise<void> {
     const dbService = application.get('DbService')
     await dbService.withWriteTx(async (tx) => {
       const [item] = await tx
@@ -519,7 +499,7 @@ export class KnowledgeItemService {
           and(
             eq(fileRefTable.sourceType, knowledgeItemSourceType),
             eq(fileRefTable.sourceId, itemId),
-            eq(fileRefTable.role, 'processed_artifact')
+            eq(fileRefTable.role, role)
           )
         )
 
@@ -529,13 +509,13 @@ export class KnowledgeItemService {
         fileEntryId,
         sourceType: knowledgeItemSourceType,
         sourceId: itemId,
-        role: 'processed_artifact',
+        role,
         createdAt: now,
         updatedAt: now
       })
     })
 
-    logger.info('Replaced knowledge item processed artifact file ref', { itemId, fileEntryId })
+    logger.info('Replaced knowledge item file ref', { itemId, fileEntryId, role })
   }
 
   async rebuildFileRefsForItems(itemIds: string[]): Promise<void> {

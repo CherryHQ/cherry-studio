@@ -9,7 +9,6 @@ const mocks = vi.hoisted(() => ({
   cancelMock: vi.fn(),
   createInternalEntryMock: vi.fn(),
   createStoreMock: vi.fn(),
-  detachFileRefsMock: vi.fn(),
   enqueueMock: vi.fn(),
   getJobMock: vi.fn(),
   getStoreIfExistsMock: vi.fn(),
@@ -20,7 +19,7 @@ const mocks = vi.hoisted(() => ({
   knowledgeItemAttachFileRefMock: vi.fn(),
   knowledgeItemSetSubtreeStatusMock: vi.fn(),
   knowledgeItemUpdateStatusMock: vi.fn(),
-  knowledgeItemReplaceProcessedArtifactFileRefMock: vi.fn(),
+  knowledgeItemReplaceFileRefMock: vi.fn(),
   rebuildFileRefsForItemsMock: vi.fn(),
   listMock: vi.fn(),
   loadKnowledgeItemDocumentsMock: vi.fn(),
@@ -33,7 +32,6 @@ export const {
   cancelMock,
   createInternalEntryMock,
   createStoreMock,
-  detachFileRefsMock,
   enqueueMock,
   getJobMock,
   getStoreIfExistsMock,
@@ -44,7 +42,7 @@ export const {
   knowledgeItemAttachFileRefMock,
   knowledgeItemSetSubtreeStatusMock,
   knowledgeItemUpdateStatusMock,
-  knowledgeItemReplaceProcessedArtifactFileRefMock,
+  knowledgeItemReplaceFileRefMock,
   rebuildFileRefsForItemsMock,
   listMock,
   loadKnowledgeItemDocumentsMock,
@@ -91,12 +89,11 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
 vi.mock('@data/services/KnowledgeItemService', () => ({
   knowledgeItemService: {
     attachFileRef: knowledgeItemAttachFileRefMock,
-    detachFileRefs: detachFileRefsMock,
     getById: knowledgeItemGetByIdMock,
     getSubtreeItems: knowledgeItemGetSubtreeItemsMock,
     deleteItemsByIds: deleteItemsByIdsMock,
     rebuildFileRefsForItems: rebuildFileRefsForItemsMock,
-    replaceProcessedArtifactFileRef: knowledgeItemReplaceProcessedArtifactFileRefMock,
+    replaceFileRef: knowledgeItemReplaceFileRefMock,
     setSubtreeStatus: knowledgeItemSetSubtreeStatusMock,
     updateStatus: knowledgeItemUpdateStatusMock
   }
@@ -293,9 +290,8 @@ beforeEach(() => {
   getJobMock.mockResolvedValue(null)
   enqueueMock.mockResolvedValue({ id: 'job-index', snapshot: {}, finished: Promise.resolve({}) })
   createInternalEntryMock.mockResolvedValue({ id: PROCESSED_FILE_ENTRY_ID })
-  detachFileRefsMock.mockResolvedValue(undefined)
   knowledgeItemAttachFileRefMock.mockResolvedValue(undefined)
-  knowledgeItemReplaceProcessedArtifactFileRefMock.mockResolvedValue(undefined)
+  knowledgeItemReplaceFileRefMock.mockResolvedValue(undefined)
   deleteItemsByIdsMock.mockResolvedValue(undefined)
   rebuildFileRefsForItemsMock.mockResolvedValue(undefined)
   cancelMock.mockResolvedValue(undefined)

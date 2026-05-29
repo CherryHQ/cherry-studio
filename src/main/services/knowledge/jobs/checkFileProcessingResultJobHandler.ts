@@ -110,7 +110,7 @@ export function createCheckFileProcessingResultJobHandler(
         }
 
         const processedFileEntryId = await createProcessedArtifactFileEntryId(artifactPath)
-        await knowledgeItemService.replaceProcessedArtifactFileRef(itemId, processedFileEntryId)
+        await knowledgeItemService.replaceFileRef(itemId, processedFileEntryId, 'processed_artifact')
         await workflowService.scheduleIndexing(
           toKnowledgeBaseId(baseId),
           toKnowledgeItemId(itemId),
