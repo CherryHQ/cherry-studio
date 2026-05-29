@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-05-28T16:00:00.000000+00:00",
-  "snapshot_date": "2026-05-28",
+  "generated_at": "2026-05-29T12:00:00.000000+00:00",
+  "snapshot_date": "2026-05-29",
   "data_source": "GitHub MCP API (CherryHQ/cherry-studio)",
   "release": {
     "latest": "v1.9.7",
@@ -9,42 +9,55 @@
     "note": "Released 2026-05-27; chore commit by kangfenmao"
   },
   "open_issues": {
-    "total": 902,
+    "total": 884,
+    "total_delta": -18,
     "sample_size": 100,
-    "sample_note": "Statistics from 100 most-recently-updated issues; API reports 902 total open issues",
+    "sample_note": "Statistics from 100 most-recently-updated issues; API reports 884 total open issues",
     "by_label": {
-      "inactive": 33,
-      "UI/UX": 29,
-      "Assistant": 27,
-      "Models": 19,
-      "needs-repro": 10,
+      "inactive": 39,
+      "UI/UX": 32,
+      "Models": 22,
+      "Assistant": 19,
       "MCP": 9,
-      "Data": 7,
-      "feature": 5,
-      "help wanted": 5,
-      "discussion": 5,
+      "Data": 6,
+      "needs-repro": 5,
       "RAG": 4,
-      "Connectivity": 3,
-      "needs-triage": 1,
-      "P3": 1,
-      "Performance": 1,
-      "needs-more-info": 1,
-      "Agent": 1
+      "Connectivity": 4,
+      "BUG": 3,
+      "help wanted": 3,
+      "discussion": 3,
+      "feature": 3,
+      "P2": 2,
+      "needs-triage": 2,
+      "Planned": 1,
+      "module:knowledge-rag": 1
     },
     "unlabeled": {
-      "count": 11,
-      "percentage": 11.0,
-      "issue_numbers": [15404, 15384, 15383, 15244, 15370, 15368, 15357, 15347, 15323, 14568, 15315]
+      "count": 68,
+      "percentage": 7.7,
+      "note": "Confirmed from GitHub search no:label query — 68 total unlabeled open issues"
     },
     "age_distribution": {
-      "Active": 100,
-      "Aging": 0,
-      "Stale": 0,
-      "Zombie": 0,
-      "note": "Computed from 100 most-recently-updated issues; remaining ~802 unsampled"
+      "Active": 48,
+      "Aging": 27,
+      "Stale": 24,
+      "Zombie": 1,
+      "note": "From 100 most-recently-updated issues sample; remaining ~784 unsampled"
     },
-    "new_last_7d": 59,
-    "p1_critical_issues": [],
+    "bug_label_issues": {
+      "total": 106,
+      "age_note": "94/100 sampled bug issues are >90d old (zombie) — long-standing unaddressed backlog"
+    },
+    "p1_critical_issues": [
+      {
+        "number": 15426,
+        "title": "[Bug] v1.9.7 Windows x64 portable ships ARM64 native module (registry.node), breaking OpenClaw entirely",
+        "labels": [],
+        "filed_today": true,
+        "severity": "CRITICAL",
+        "priority_signal": "Ships-broken: ARM64 native module in x64 portable → ERR_DLOPEN_FAILED → MemoryService crash → OpenClaw UI broken for all Windows x64 portable users on v1.9.7"
+      }
+    ],
     "security_issues": [
       {
         "number": 15372,
@@ -56,84 +69,115 @@
       }
     ],
     "top_10_most_commented": [
-      {"number": 14362, "title": "[Bug]: The model list displays grouped garbled text.", "comments": 9},
-      {"number": 14603, "title": "[Bug] Web search returns unrelated results", "comments": 9},
-      {"number": 14615, "title": "[Bug]: Text Selection Assistant Returns Rendering Failure", "comments": 6},
-      {"number": 14585, "title": "[Bug]: Fatal bug: Ongoing response/thinking is reset to zero when switching topics", "comments": 4},
-      {"number": 14569, "title": "[Discussion]: Code tool unable to start CLI properly", "comments": 4},
-      {"number": 14552, "title": "[Feature]: Automatically compact context for agent when reached limitation", "comments": 4},
-      {"number": 14568, "title": "[Bug]: v1.9.3 code block not rendered", "comments": 4},
-      {"number": 14373, "title": "[Bug]: Cannot start a new conversation after linking cherry claw to WeChat", "comments": 3},
-      {"number": 14529, "title": "[Bug]: Cherry Claw cannot access working directory", "comments": 3},
-      {"number": 14622, "title": "Create agent & choose provider, no option for Local Custom Provider", "comments": 3}
+      {"number": 12618, "title": "[Bug]: Unable to properly configure and use the Anthropic (Claude) API provided by Azure", "comments": 14},
+      {"number": 12612, "title": "[Bug]: Azure OpenAI gpt-5.2 models fail with 'Unsupported parameter: messages' error", "comments": 13},
+      {"number": 12268, "title": "[Bug]: Agent Error", "comments": 10},
+      {"number": 12230, "title": "[Bug]: Reasoning effort not set", "comments": 8},
+      {"number": 12689, "title": "[Bug]: Mac App Creates Default Assistant Using Unconfigured Model, Causing Unexpected Charges", "comments": 7},
+      {"number": 11333, "title": "[Bug]: When calling third-party image generation models, only thoughts and text are output, images are not generated", "comments": 7},
+      {"number": 12397, "title": "[Bug]: Expected 'function.name' to be a string.", "comments": 6},
+      {"number": 11765, "title": "[Bug]: Provider Support overwrite 'User-Agent' in Headers", "comments": 6},
+      {"number": 13082, "title": "[Bug]: Frequent lag during normal operations", "comments": 5},
+      {"number": 12996, "title": "[Bug]: Anthropic models returns Invalid signature in thinking block error when reasoning is set alongside file tool access", "comments": 5}
     ]
   },
   "closed_issues_30d": {
-    "total": 333,
+    "total": 352,
+    "total_delta": 19,
     "sample_size": 100,
-    "average_close_time_days": 42.87,
-    "resolution_breakdown": {
-      "not_planned_pct": 75,
-      "completed_pct": 25
-    },
+    "top_label_in_closed": "inactive (82/100 — automated stale-issue sweep)",
     "closed_per_week": {
-      "2026-04-28_to_2026-05-04": 0,
-      "2026-05-05_to_2026-05-11": 1,
-      "2026-05-12_to_2026-05-18": 4,
-      "2026-05-19_to_2026-05-25": 62,
-      "2026-05-26_to_2026-05-28": 33
+      "2026-04-29_to_2026-05-05": 0,
+      "2026-05-06_to_2026-05-12": 0,
+      "2026-05-13_to_2026-05-19": 1,
+      "2026-05-20_to_2026-05-26": 47,
+      "2026-05-27_to_2026-05-29": 52
     },
-    "closed_last_7d": 72,
-    "bulk_sweep_note": "Large spike 2026-05-19 week (~62 closures) was an automated inactive-issues sweep"
-  },
-  "merged_prs_30d": {
-    "total_all_branches": 137,
-    "total_v2_branch": 49,
-    "merged_last_7d_all": 32,
-    "merged_last_7d_v2": 14,
-    "by_week_all_branches": {
-      "2026-05-05_to_2026-05-11": 22,
-      "2026-05-12_to_2026-05-18": 40,
-      "2026-05-19_to_2026-05-25": 22,
-      "2026-05-26_to_2026-05-28": 16
-    },
-    "top_contributors_30d": [
-      {"author": "kangfenmao", "count": 12},
-      {"author": "zhangjiadi225", "count": 11},
-      {"author": "DeJeune", "count": 10},
-      {"author": "eeee0717", "count": 9},
-      {"author": "Cherry-Yiran", "count": 7},
-      {"author": "EurFelux", "count": 6},
-      {"author": "kovsu", "count": 5}
-    ],
-    "type_breakdown_all": {
-      "fix": 36,
-      "feat": 25,
-      "refactor": 19,
-      "hotfix": 10,
-      "chore": 6,
-      "docs": 2
-    }
+    "unique_authors": 89,
+    "most_discussed_closed": [
+      {"number": 14387, "title": "[Discussion]: Suspicious telemetry connection to cherry-ai.com persists after disabling auto-updates/anonymous analytics", "comments": 13},
+      {"number": 12739, "title": "[Feature]: Use the amount of context instead of messages to set the context limit", "comments": 7},
+      {"number": 14402, "title": "[Bug]: pdf输入无法识别", "comments": 6},
+      {"number": 13897, "title": "[Bug]: High frequency requests to analytics.cherry-ai.com", "comments": 6}
+    ]
   },
   "open_prs": {
-    "total_observed": 155,
-    "by_base_branch": {
-      "main": 67,
-      "v2": 84,
-      "other": 4
+    "total_page1": 100,
+    "pagination_note": "API returned 100 PRs sorted by updated desc; v2 long-running PRs appear on later pages. See v2_roadmap_detailed.json for v2 PR inventory.",
+    "by_base_branch_page1": {
+      "main": 93,
+      "v1": 3,
+      "DeJeune/ai-service": 2,
+      "stack/ai-service/02-main-ai-backend": 1,
+      "stack/ai-service/01-provider-core": 1
     },
-    "main": {
-      "count": 67,
-      "stale_count": 11,
-      "draft_count": 8,
-      "new_last_7d": 34,
-      "note": "Count from first API page; actual total may be higher"
+    "draft_vs_ready": {
+      "draft": 11,
+      "ready_for_review": 89
     },
-    "v2": {
-      "count": 84,
-      "draft_count": 16,
-      "new_last_7d": 14,
-      "long_running_30d_plus": 44
-    }
+    "age_buckets_page1": {
+      "active_lt7d": 33,
+      "aging_7_30d": 46,
+      "stale_30_90d": 17,
+      "zombie_gt90d": 4
+    },
+    "v2_open_prs": {
+      "total": 84,
+      "source": "snapshot 2026-05-28; not re-sampled today due to API pagination",
+      "draft_count": 16
+    },
+    "top_10_contributors": [
+      {"login": "DeJeune", "open_prs": 17},
+      {"login": "LWWZH", "open_prs": 8},
+      {"login": "GeorgeDong32", "open_prs": 7},
+      {"login": "EurFelux", "open_prs": 7},
+      {"login": "xxiaoxiong", "open_prs": 7},
+      {"login": "Raymond8196", "open_prs": 6},
+      {"login": "kangfenmao", "open_prs": 5},
+      {"login": "404-Page-Found", "open_prs": 5},
+      {"login": "mturac", "open_prs": 5},
+      {"login": "SiinXu", "open_prs": 4}
+    ],
+    "zombie_prs_gt90d": [
+      {"number": 12659, "title": "feat(backup): add v2 backup system refactor plan document", "author": "GeorgeDong32", "age_days": 119},
+      {"number": 12150, "title": "refactor(files): File Management System Architecture", "author": "EurFelux", "age_days": 154},
+      {"number": 11878, "title": "feat(ui): toast", "author": "EurFelux", "age_days": 168},
+      {"number": 11420, "title": "feat: Model & Provider Catalog", "author": "DeJeune", "age_days": 187}
+    ]
+  },
+  "merged_prs_30d": {
+    "total_v2_branch": 48,
+    "total_v2_branch_note": "48 PRs merged to v2 branch since 2026-04-29",
+    "v2_by_week": {
+      "2026-04-29_to_2026-05-05": 7,
+      "2026-05-06_to_2026-05-12": 20,
+      "2026-05-13_to_2026-05-19": 6,
+      "2026-05-20_to_2026-05-26": 9,
+      "2026-05-27_to_2026-05-29": 6
+    },
+    "v2_labels_distribution": {
+      "v2": 33,
+      "UI/UX": 2,
+      "no_label": 13
+    },
+    "v2_top_contributors_30d": [
+      {"author": "eeee0717", "area": "knowledge system refactor, web-search jobs"},
+      {"author": "EurFelux", "area": "file module (FileMigrator, FileRefSourceType)"},
+      {"author": "Cherry-Yiran", "area": "UI redesign (settings, translate, icons)"},
+      {"author": "kangfenmao", "area": "notes migration, style"},
+      {"author": "DeJeune", "area": "file-manager, agents, AI provider"}
+    ],
+    "v2_recently_merged_10": [
+      {"number": 15363, "title": "feat(file-manager): unified DirectoryTreeBuilder primitive for Notes", "author": "DeJeune", "mergedAt": "2026-05-28T15:33:49Z"},
+      {"number": 15371, "title": "refactor(knowledge): knowledge workflow jobs round2", "author": "eeee0717", "mergedAt": "2026-05-28T12:33:18Z"},
+      {"number": 15356, "title": "refactor(file-entry): use file entries for knowledge and projects", "author": "eeee0717", "mergedAt": "2026-05-27T14:52:07Z"},
+      {"number": 15263, "title": "feat(settings): redesign settings navigation", "author": "Cherry-Yiran", "mergedAt": "2026-05-27T08:53:22Z"},
+      {"number": 15330, "title": "feat(file): register chat_message FileRefSourceType and backend", "author": "EurFelux", "mergedAt": "2026-05-27T04:23:50Z"},
+      {"number": 15309, "title": "refactor(knowledge): knowledge v2 rfc and implement round 1", "author": "eeee0717", "mergedAt": "2026-05-27T03:54:26Z"},
+      {"number": 15067, "title": "feat(file): Phase 2 Batch 0 — FileMigrator + cross-module consolidation", "author": "EurFelux", "mergedAt": "2026-05-26T06:00:50Z"},
+      {"number": 15186, "title": "refactor(notes): migrate notes UI and data to v2", "author": "kangfenmao", "mergedAt": "2026-05-25T11:52:52Z"},
+      {"number": 15265, "title": "feat(translate): refresh translate page and shared drawer components", "author": "Cherry-Yiran", "mergedAt": "2026-05-25T09:45:25Z"},
+      {"number": 15238, "title": "fix(sidebar): align resize thresholds with layouts", "author": "kovsu", "mergedAt": "2026-05-23T11:45:28Z"}
+    ]
   }
 }

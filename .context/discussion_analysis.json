@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-05-28T12:00:00.000000+00:00",
-  "snapshot_date": "2026-05-28",
+  "generated_at": "2026-05-29T12:00:00.000000+00:00",
+  "snapshot_date": "2026-05-29",
   "fetch_status": "missing",
-  "fetch_note": "GitHub Discussions require GraphQL API access. Run: gh api graphql -f query='...' to populate this file. MCP API does not expose Discussions endpoint."
+  "fetch_note": "GitHub Discussions require GraphQL API access. MCP API does not expose a Discussions endpoint. Run locally: gh api graphql -f query='{ repository(owner: \"CherryHQ\", name: \"cherry-studio\") { discussions(first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes { number title category { name } author { login } createdAt updatedAt upvoteCount comments { totalCount } answer { author { login } createdAt } } } } }' to populate this file."
 }

@@ -1,43 +1,52 @@
 {
-  "generated_at": "2026-05-28T12:00:00.000000+00:00",
-  "snapshot_date": "2026-05-28",
-  "health_score": 88,
-  "health_grade": "B+",
-  "health_score_delta": -7,
-  "health_score_note": "Downgraded from 95/A (2026-05-27) due to: security issue #15372 (-5), multiple agent stability bugs (-2)",
-  "total_open_issues": 902,
+  "generated_at": "2026-05-29T12:00:00.000000+00:00",
+  "snapshot_date": "2026-05-29",
+  "health_score": 86,
+  "health_grade": "B",
+  "health_score_delta": -2,
+  "health_score_note": "Down 2 from 88/B+ (2026-05-28): new critical ship-bug #15426 ARM64 native module crash in v1.9.7 portable (-2). Security issue #15372 still open (no change).",
+  "total_open_issues": 884,
+  "total_open_issues_delta": -18,
   "sample_size": 100,
   "age_distribution": {
-    "Active": 100,
-    "Aging": 0,
-    "Stale": 0,
-    "Zombie": 0,
-    "note": "From 100 most recently updated issues; remaining ~802 unsampled"
+    "Active": 48,
+    "Aging": 27,
+    "Stale": 24,
+    "Zombie": 1,
+    "note": "From 100 most recently updated issues; remaining ~784 unsampled. Bug-labeled backlog is 94% zombie."
   },
   "label_health": {
-    "unlabeled_count": 11,
-    "unlabeled_pct": 11.0,
+    "unlabeled_count": 68,
+    "unlabeled_pct": 7.7,
+    "unlabeled_note": "Confirmed total from no:label search query (not just sample)",
     "top_labels": {
-      "inactive": 33,
-      "UI/UX": 29,
-      "Assistant": 27,
-      "Models": 19,
-      "needs-repro": 10,
+      "inactive": 39,
+      "UI/UX": 32,
+      "Models": 22,
+      "Assistant": 19,
       "MCP": 9,
-      "Data": 7,
-      "feature": 5,
-      "help wanted": 5,
-      "discussion": 5,
+      "Data": 6,
+      "needs-repro": 5,
       "RAG": 4,
-      "Connectivity": 3,
-      "needs-triage": 1,
-      "P3": 1,
-      "Performance": 1,
-      "needs-more-info": 1,
-      "Agent": 1
+      "Connectivity": 4,
+      "BUG": 3,
+      "help wanted": 3,
+      "discussion": 3,
+      "feature": 3,
+      "P2": 2,
+      "needs-triage": 2
     }
   },
-  "p1_critical_issues": [],
+  "p1_critical_issues": [
+    {
+      "number": 15426,
+      "title": "[Bug] v1.9.7 Windows x64 portable ships ARM64 native module (registry.node), breaking OpenClaw entirely",
+      "labels": [],
+      "filed_today": true,
+      "severity": "CRITICAL",
+      "detail": "ARM64 registry.node bundled in x64 portable → ERR_DLOPEN_FAILED → IPC broken → MemoryService crash → OpenClaw UI inaccessible. Affects all v1.9.7 Windows x64 portable users. Workaround: use installer (.exe) version."
+    }
+  ],
   "security_alerts": [
     {
       "number": 15372,
@@ -51,6 +60,12 @@
     }
   ],
   "inferred_high_priority": [
+    {
+      "number": 15426,
+      "title": "[Bug] v1.9.7 Windows x64 portable ships ARM64 native module (registry.node), breaking OpenClaw entirely",
+      "labels": [],
+      "priority_signal": "CRITICAL: ships-broken for all Windows x64 portable users on v1.9.7 — filed today"
+    },
     {
       "number": 15372,
       "title": "[Bug]: MCP OAuth callback accepts first code without state validation",
@@ -84,6 +99,18 @@
   ],
   "action_needed_issues": [
     {
+      "number": 15426,
+      "title": "[Bug] v1.9.7 Windows x64 portable ships ARM64 native module (registry.node), breaking OpenClaw entirely",
+      "labels": [],
+      "reason": "Ships-broken: ARM64 native module in x64 portable — requires hotfix release or advisory"
+    },
+    {
+      "number": 15388,
+      "title": "fix: validate MCP OAuth callback state (fixes #15372)",
+      "labels": [],
+      "reason": "Security fix PR pending merge — OAuth CSRF vulnerability"
+    },
+    {
       "number": 15394,
       "title": "[Bug] Bash tool returns empty output on Windows with Git Bash",
       "labels": [],
@@ -94,12 +121,6 @@
       "title": "[Bug]: Cherry Studio cannot call embedding models from remote Cherry API servers",
       "labels": ["Assistant"],
       "reason": "Knowledge base embedding broken for remote Cherry API"
-    },
-    {
-      "number": 15387,
-      "title": "[Bug]: Jump to view conversation is empty after manually executing scheduled task",
-      "labels": [],
-      "reason": "Cron task result view broken"
     },
     {
       "number": 15332,
@@ -114,22 +135,10 @@
       "reason": "Web search result truncation affecting assistant accuracy"
     },
     {
-      "number": 15341,
-      "title": "[Bug]: GPT image is not work",
-      "labels": ["needs-more-info"],
-      "reason": "Image generation regression for GPT models"
-    },
-    {
       "number": 15337,
       "title": "[Bug]: Added large models in model service, but still cannot select configured models when creating knowledge base",
       "labels": ["needs-repro", "RAG"],
       "reason": "Knowledge base model selection broken"
-    },
-    {
-      "number": 15347,
-      "title": "[Bug]: Claude Code update installation failed",
-      "labels": [],
-      "reason": "Update flow broken; fix PR #15369 pending"
     },
     {
       "number": 14603,
@@ -145,31 +154,25 @@
     }
   ],
   "new_issues_today": {
-    "count": 22,
+    "count_estimate": "~5-10",
     "notable": [
-      {"number": 15405, "title": "[Bug]: Minified React error #185"},
-      {"number": 15403, "title": "[Feature]: Change top navigation home tab to assistant tab"},
-      {"number": 15402, "title": "[Feature]: Support editing historical instructions and regenerating responses in Agent"},
-      {"number": 15398, "title": "[Feature]: Launchpad — Home-Screen surface for features, mini-apps, and Agent artifacts"},
-      {"number": 15396, "title": "[Feature]: V2 — unify Assistant and Agent surfaces with pluggable Agent runtime"},
-      {"number": 15395, "title": "[Feature]: Suggest Agent Mode Banner When Chat Intent Exceeds Chat Capabilities"},
-      {"number": 15394, "title": "[Bug] Bash tool returns empty output on Windows with Git Bash"},
-      {"number": 15390, "title": "[Bug]: Cherry Studio cannot call embedding models from remote Cherry API servers"},
-      {"number": 15388, "title": "fix: validate MCP OAuth callback state (PR — fixes #15372)"},
-      {"number": 15372, "title": "[Bug]: MCP OAuth callback accepts first code without state validation"}
+      {"number": 15426, "title": "[Bug] v1.9.7 Windows x64 portable ships ARM64 native module (registry.node), breaking OpenClaw entirely", "severity": "CRITICAL"},
+      {"number": 15415, "title": "[Feature]: Support Intel GPU Detection for OVMS"},
+      {"number": 15411, "title": "[Bug]: Memory deduplication ignores user and assistant scope"},
+      {"number": 15404, "title": "Brand FilePath with NFC guarantee, unify with CanonicalExternalPath / CanonicalFilePath"}
     ]
   },
   "unlabeled_sample": [
-    {"number": 15404, "title": "Brand FilePath with NFC guarantee, unify with CanonicalExternalPath", "updatedAt": "2026-05-28T16:10:44Z"},
-    {"number": 15384, "title": "[Feature]: Add kilo-cli as a Supported Code CLI Tool", "updatedAt": "2026-05-28T05:24:43Z"},
-    {"number": 15383, "title": "[Feature]: Real-Time Meeting Transcription and Smart Meeting Notes", "updatedAt": "2026-05-28T05:24:40Z"},
-    {"number": 15370, "title": "refactor: unify all binary acquisition under BinaryManager", "updatedAt": "2026-05-28T02:53:24Z"},
-    {"number": 15368, "title": "[Bug]: Skill import function does not support plugin format import", "updatedAt": "2026-05-28T01:22:04Z"},
-    {"number": 15357, "title": "Support adding both regular API and token plan API for the same provider", "updatedAt": "2026-05-27T06:50:10Z"},
-    {"number": 15347, "title": "[Bug]: Claude Code update installation failed", "updatedAt": "2026-05-27T06:06:21Z"},
-    {"number": 15323, "title": "[Feature]: Agent session supports /clear command to reset context", "updatedAt": "2026-05-26T01:48:37Z"},
-    {"number": 14568, "title": "[Bug]: v1.9.3 code block not rendered", "updatedAt": "2026-05-25T12:14:47Z"},
-    {"number": 15315, "title": "[Bug]: A JavaScript error occurred in the main process", "updatedAt": "2026-05-25T09:01:34Z"},
-    {"number": 15244, "title": "[Feature]: Cherry CLI — Terminal Tool with Full GUI Feature Parity (V2)", "updatedAt": "2026-05-21T13:42:25Z"}
+    {"number": 15426, "title": "[Bug] v1.9.7 Windows x64 portable ships ARM64 native module", "note": "CRITICAL — needs immediate triage label"},
+    {"number": 15415, "title": "[Feature]: Support Intel GPU Detection for OVMS"},
+    {"number": 15411, "title": "[Bug]: Memory deduplication ignores user and assistant scope"},
+    {"number": 15404, "title": "Brand FilePath with NFC guarantee, unify with CanonicalExternalPath"},
+    {"number": 15384, "title": "[Feature]: Add kilo-cli as a Supported Code CLI Tool"},
+    {"number": 15383, "title": "[Feature]: Real-Time Meeting Transcription and Smart Meeting Notes"},
+    {"number": 15370, "title": "refactor: unify all binary acquisition under BinaryManager"},
+    {"number": 15368, "title": "[Bug]: Skill import function does not support plugin format import"},
+    {"number": 15357, "title": "Support adding both regular API and token plan API for the same provider"},
+    {"number": 15347, "title": "[Bug]: Claude Code update installation failed"},
+    {"number": 15323, "title": "[Feature]: Agent session supports /clear command to reset context"}
   ]
 }
