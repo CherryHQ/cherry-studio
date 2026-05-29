@@ -144,5 +144,6 @@ Behavioral injection goes through **`onWindowCreated`** (or its type-filtered co
 
 ### Renderer Integration
 
-- `src/renderer/src/core/hooks/useWindowInitData.ts` — Canonical hook for init data consumption
-- `packages/shared/IpcChannel.ts` — `WindowManager_*` IPC channel constants
+- [`src/renderer/windows/README.md`](../../../src/renderer/windows/README.md) — Renderer window entry-point convention (`entryPoint.tsx` + `XxxApp.tsx` three-layer structure)
+- `src/renderer/hooks/useWindowInitData.ts` — Canonical hook for init data consumption
+- `src/shared/IpcChannel.ts` — `WindowManager_*` IPC channel constants

@@ -36,12 +36,12 @@
 - 接入 note 数据源。
   - 当前添加数据源里的 note 是占位状态，提交不可用。
   - 后续需要接入真实 note picker / note 数据源 API，并替换占位 UI。
-  - 参考：`src/renderer/src/pages/knowledge.v2/components/addKnowledgeItemDialog/sources/NoteSourceContent.tsx`
+  - 参考：`src/renderer/pages/knowledge.v2/components/addKnowledgeItemDialog/sources/NoteSourceContent.tsx`
 
 - 继续保持 `directory` / `sitemap` 展开由 main runtime 负责。
   - renderer 只提交 owner item 语义，不在页面里展开目录或 sitemap。
   - 如果未来允许 nested directory / sitemap，需要先重新设计 interrupt / reconcile 语义。
-  - 参考：`src/renderer/src/pages/knowledge.v2/plans/add-source-confirm-submit.md`
+  - 参考：`src/renderer/pages/knowledge.v2/plans/add-source-confirm-submit.md`
 
 ## 3. UI 交互补齐
 
@@ -49,17 +49,17 @@
   - 当前列表按 root items 查询，缺少完整分页、排序、子分组筛选和批量操作。
   - 非终态 item 目前靠轮询刷新。
   - 后续应根据数据规模和 UI 稿补分页 / 虚拟列表 / 排序 / 批量处理等能力。
-  - 参考：`src/renderer/src/hooks/useKnowledgeItems.ts`
+  - 参考：`src/renderer/hooks/useKnowledgeItems.ts`
 
 - 统一 sitemap 的用户可见文案。
   - 当前语义已经收敛到 `sitemap`，但部分中文文案仍可能显示为“网站”。
   - 后续需要按最终产品命名统一 i18n。
-  - 参考：`src/renderer/src/pages/knowledge.v2/plans/add-source-confirm-submit.md`
+  - 参考：`src/renderer/pages/knowledge.v2/plans/add-source-confirm-submit.md`
 
 - 补齐更多语言的 `knowledge_v2` 翻译。
   - 当前主要覆盖 `zh-cn` / `zh-tw` / `en-us`。
   - 后续需要确认其他 locale 的回退策略或补齐翻译。
-  - 参考：`src/renderer/src/i18n/locales/`
+  - 参考：`src/renderer/i18n/locales/`
 
 ## 4. Runtime 与任务队列
 
@@ -96,9 +96,9 @@
   - 参考：`v2-refactor-temp/docs/knowledge/knowledge-vector-migrator.md`
 
 - 拆分临时镜像的文件类型。
-  - `packages/shared/data/types/knowledge.ts` 中仍有知识域临时镜像的 `FileMetadata`。
+  - `src/shared/data/types/knowledge.ts` 中仍有知识域临时镜像的 `FileMetadata`。
   - 后续等独立 file domain schema 稳定后，应迁移到专属文件领域类型。
-  - 参考：`packages/shared/data/types/knowledge.ts`
+  - 参考：`src/shared/data/types/knowledge.ts`
 
 ## 6. 发布与文档收尾
 

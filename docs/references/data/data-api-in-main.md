@@ -250,7 +250,7 @@ Some `rowToEntity` functions do too much to benefit from spread. Keep them hand-
 - **Field renaming**: `row.parameters → domain parameterSupport` (ModelService)
 - **Computed / merged fields**: `authType` derivation, `apiFeatures` merging from defaults (ProviderService)
 - **Sensitive data sanitization**: `apiKeys` stripping — `...clean` would leak unsanitized values
-- **Discriminator-driven field stripping with brand validation**: branded discriminated union where each variant declares only its own fields — `nullsToUndefined + spread` would emit absent fields as `undefined` and break the BO shape. Dispatch on the discriminator and call `schema.parse` per variant. Example: `FileEntryService.rowToFileEntry` for `FileEntry` (variants on `origin`); see `packages/shared/data/types/file/fileEntry.ts` header (§"DB row vs Business Object") for the full DB-CHECK / BO-narrow rationale.
+- **Discriminator-driven field stripping with brand validation**: branded discriminated union where each variant declares only its own fields — `nullsToUndefined + spread` would emit absent fields as `undefined` and break the BO shape. Dispatch on the discriminator and call `schema.parse` per variant. Example: `FileEntryService.rowToFileEntry` for `FileEntry` (variants on `origin`); see `src/shared/data/types/file/fileEntry.ts` header (§"DB row vs Business Object") for the full DB-CHECK / BO-narrow rationale.
 
 **Anti-pattern — `??` fallbacks for fabricated defaults:**
 
@@ -414,7 +414,7 @@ throw DataApiErrorFactory.timeout('fetch topics', 3000)
 
 ### Step-by-Step
 
-1. **Define schema** in `packages/shared/data/api/schemas/`
+1. **Define schema** in `src/shared/data/api/schemas/`
 
 ```typescript
 // schemas/topic.ts

@@ -7,7 +7,6 @@ import type { GitBashPathInfo, TerminalConfig } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type {
   CodeToolsRunResult,
-  FileChangeEvent,
   LanClientEvent,
   LanFileCompleteMessage,
   LanHandshakeAckMessage,
@@ -51,6 +50,7 @@ import type {
   EnsureExternalEntryIpcParams,
   GetPhysicalPathIpcParams
 } from '@shared/file/types/ipc'
+import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/file/types/tree'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
 import type {
@@ -87,7 +87,7 @@ import type {
   SkillInstallOptions,
   SkillResult,
   SkillToggleOptions
-} from '../renderer/src/types/skill'
+} from '../renderer/types/skill'
 
 // OpenClaw types
 type OpenClawGatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
@@ -279,28 +279,18 @@ const api = {
     openFileWithRelativePath: (file: FileMetadata) => ipcRenderer.invoke(IpcChannel.File_OpenWithRelativePath, file),
     isTextFile: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsTextFile, filePath),
     isDirectory: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsDirectory, filePath),
-    getDirectoryStructure: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_GetDirectoryStructure, dirPath),
     listDirectory: (dirPath: string, options?: DirectoryListOptions) =>
       ipcRenderer.invoke(IpcChannel.File_ListDirectory, dirPath, options),
     checkFileName: (dirPath: string, fileName: string, isFile: boolean) =>
       ipcRenderer.invoke(IpcChannel.File_CheckFileName, dirPath, fileName, isFile),
     validateNotesDirectory: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_ValidateNotesDirectory, dirPath),
-    startFileWatcher: (dirPath: string, config?: any) =>
-      ipcRenderer.invoke(IpcChannel.File_StartWatcher, dirPath, config),
-    stopFileWatcher: () => ipcRenderer.invoke(IpcChannel.File_StopWatcher),
-    pauseFileWatcher: () => ipcRenderer.invoke(IpcChannel.File_PauseWatcher),
-    resumeFileWatcher: () => ipcRenderer.invoke(IpcChannel.File_ResumeWatcher),
+    // Legacy file-watcher bindings (`startFileWatcher` / `stopFileWatcher`
+    // / `pauseFileWatcher` / `resumeFileWatcher` / `onFileChange`) and
+    // `getDirectoryStructure` were removed alongside the Notes migration
+    // to `DirectoryTreeBuilder` (see docs/references/file/directory-tree.md).
+    // mutations via `window.api.tree.onMutation` instead.
     batchUploadMarkdown: (filePaths: string[], targetPath: string) =>
       ipcRenderer.invoke(IpcChannel.File_BatchUploadMarkdown, filePaths, targetPath),
-    onFileChange: (callback: (data: FileChangeEvent) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, data: any) => {
-        if (data && typeof data === 'object') {
-          callback(data)
-        }
-      }
-      ipcRenderer.on('file-change', listener)
-      return () => ipcRenderer.off('file-change', listener)
-    },
     showInFolder: (path: string): Promise<void> => ipcRenderer.invoke(IpcChannel.File_ShowInFolder, path),
     // FileManager v2 surface (Phase 2)
     createInternalEntry: (params: CreateInternalEntryIpcParams) =>
@@ -314,6 +304,20 @@ const api = {
   fs: {
     read: (pathOrUrl: string, encoding?: BufferEncoding) => ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding),
     readText: (pathOrUrl: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Fs_ReadText, pathOrUrl)
+  },
+  tree: {
+    create: (rootPath: string, options?: DirectoryTreeOptions): Promise<CreateTreeIpcResult> =>
+      ipcRenderer.invoke(IpcChannel.File_TreeCreate, { rootPath, options }),
+    dispose: (treeId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.File_TreeDispose, { treeId }),
+    rename: (treeId: string, oldPath: string, newPath: string): Promise<boolean> =>
+      ipcRenderer.invoke(IpcChannel.File_TreeRename, { treeId, oldPath, newPath }),
+    onMutation: (callback: (payload: TreeMutationPushPayload) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: TreeMutationPushPayload) => {
+        if (payload && typeof payload === 'object') callback(payload)
+      }
+      ipcRenderer.on(IpcChannel.File_TreeMutation, listener)
+      return () => ipcRenderer.off(IpcChannel.File_TreeMutation, listener)
+    }
   },
   pdf: {
     extractText: (data: Uint8Array | ArrayBuffer | string): Promise<string> =>
@@ -598,7 +602,7 @@ const api = {
     // wm.setInitData() or wm.open({ initData }). Returns null when no data was set or when
     // the sender window is not managed by WindowManager (e.g., detached devtools).
     // Renderers that also need to update on reuse should prefer the useWindowInitData
-    // hook (core/hooks/useWindowInitData), which also listens for WindowManager_Reused.
+    // hook (hooks/useWindowInitData), which also listens for WindowManager_Reused.
     getInitData: <T = unknown>(): Promise<T | null> => ipcRenderer.invoke(IpcChannel.WindowManager_GetInitData),
 
     minimize: (): Promise<void> => ipcRenderer.invoke(IpcChannel.WindowManager_Minimize),

@@ -249,7 +249,7 @@ renderer 与 main 共享的 v2 入口类型是 `FileEntry`（来自 `@shared/dat
 解法：**只给 `FileEntry` 加 brand**——让对象字面量无法满足类型：
 
 ```typescript
-// packages/shared/data/types/file/fileEntry.ts
+// src/shared/data/types/file/fileEntry.ts
 export const FileEntryIdSchema = z.uuid()  // 普通字符串，不 brand
 
 export const FileEntrySchema = z
@@ -364,12 +364,12 @@ export type CreateInternalEntryIpcParams =
 
 ### 落地范围
 
-- `packages/shared/file/types/ipc.ts` — `CreateInternalEntryIpcParams` 重写为 discriminator union，附完整决策注释
+- `src/shared/file/types/ipc.ts` — `CreateInternalEntryIpcParams` 重写为 discriminator union，附完整决策注释
 - `src/main/file/FileManager.ts` — 本地 `CreateInternalEntryParams` 删除，改为 alias 自 shared 类型
 - `v2-refactor-temp/docs/file-manager/rfc-file-manager.md §5.1 / §5.6 / §7.3` — 伪代码与 renderer 示例同步
 - `docs/zh/references/file/file-manager-architecture.md §1.6.3` — facade 伪代码签名注释
 
-**参考**：`packages/shared/file/types/ipc.ts` 头部 JSDoc、`rfc-file-manager.md §5.1`、`filemetadata-consumer-audit.md §4.1`（旧 API 到新 source 分支的对应）。
+**参考**：`src/shared/file/types/ipc.ts` 头部 JSDoc、`rfc-file-manager.md §5.1`、`filemetadata-consumer-audit.md §4.1`（旧 API 到新 source 分支的对应）。
 
 ---
 

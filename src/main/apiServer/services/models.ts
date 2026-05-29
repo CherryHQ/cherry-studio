@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { isEmpty } from 'lodash'
 
-import type { ApiModel, ApiModelsFilter, ApiModelsResponse } from '../../../renderer/src/types/apiModels'
+import type { ApiModel, ApiModelsFilter, ApiModelsResponse } from '../../../renderer/types/apiModels'
 import {
   getAvailableProviders,
   getProviderAnthropicModelChecker,

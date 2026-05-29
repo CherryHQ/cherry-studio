@@ -133,7 +133,7 @@ export const fileRefTable = sqliteTable(
       .references(() => fileEntryTable.id, { onDelete: 'cascade' }),
 
     // Business source type — registered variants live in
-    // `packages/shared/data/types/file/ref/index.ts#allSourceTypes`; today
+    // `src/shared/data/types/file/ref/index.ts#allSourceTypes`; today
     // 'temp_session' and 'knowledge_item'. Stored as free-form text at the DB
     // layer so adding a new variant doesn't require a schema migration.
     sourceType: text().notNull(),

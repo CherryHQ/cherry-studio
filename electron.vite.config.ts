@@ -35,9 +35,9 @@ export default defineConfig({
       alias: {
         '@main': resolve('src/main'),
         '@application': resolve('src/main/core/application'),
-        '@types': resolve('src/renderer/src/types'),
+        '@types': resolve('src/renderer/types'),
         '@data': resolve('src/main/data'),
-        '@shared': resolve('packages/shared'),
+        '@shared': resolve('src/shared'),
         '@logger': resolve('src/main/core/logger/LoggerService'),
         '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
         '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node'),
@@ -75,7 +75,7 @@ export default defineConfig({
     ],
     resolve: {
       alias: {
-        '@shared': resolve('packages/shared'),
+        '@shared': resolve('src/shared'),
         '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core')
       }
     },
@@ -101,8 +101,8 @@ export default defineConfig({
       tanstackRouter({
         target: 'react',
         autoCodeSplitting: true,
-        routesDirectory: resolve('src/renderer/src/routes'),
-        generatedRouteTree: resolve('src/renderer/src/routeTree.gen.ts')
+        routesDirectory: resolve('src/renderer/routes'),
+        generatedRouteTree: resolve('src/renderer/routeTree.gen.ts')
       }),
       (async () => (await import('@tailwindcss/vite')).default())(),
       react({
@@ -113,11 +113,11 @@ export default defineConfig({
     ],
     resolve: {
       alias: {
-        '@renderer': resolve('src/renderer/src'),
-        '@shared': resolve('packages/shared'),
-        '@types': resolve('src/renderer/src/types'),
-        '@logger': resolve('src/renderer/src/services/LoggerService'),
-        '@data': resolve('src/renderer/src/data'),
+        '@renderer': resolve('src/renderer'),
+        '@shared': resolve('src/shared'),
+        '@types': resolve('src/renderer/types'),
+        '@logger': resolve('src/renderer/services/LoggerService'),
+        '@data': resolve('src/renderer/data'),
         '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
         '@mcp-trace/trace-web': resolve('packages/mcp-trace/trace-web'),
         '@cherrystudio/ai-core/provider': resolve('packages/aiCore/src/core/providers'),
@@ -145,14 +145,14 @@ export default defineConfig({
       target: 'esnext', // for build
       rollupOptions: {
         input: {
-          index: resolve(__dirname, 'src/renderer/index.html'),
-          settings: resolve(__dirname, 'src/renderer/settings.html'),
-          quickAssistant: resolve(__dirname, 'src/renderer/quickAssistant.html'),
-          selectionToolbar: resolve(__dirname, 'src/renderer/selectionToolbar.html'),
-          selectionAction: resolve(__dirname, 'src/renderer/selectionAction.html'),
-          traceWindow: resolve(__dirname, 'src/renderer/traceWindow.html'),
-          migrationV2: resolve(__dirname, 'src/renderer/migrationV2.html'),
-          subWindow: resolve(__dirname, 'src/renderer/subWindow.html')
+          index: resolve(__dirname, 'src/renderer/windows/main/index.html'),
+          settings: resolve(__dirname, 'src/renderer/windows/settings/index.html'),
+          quickAssistant: resolve(__dirname, 'src/renderer/windows/quickAssistant/index.html'),
+          selectionToolbar: resolve(__dirname, 'src/renderer/windows/selection/toolbar/index.html'),
+          selectionAction: resolve(__dirname, 'src/renderer/windows/selection/action/index.html'),
+          traceWindow: resolve(__dirname, 'src/renderer/windows/trace/index.html'),
+          migrationV2: resolve(__dirname, 'src/renderer/windows/migrationV2/index.html'),
+          subWindow: resolve(__dirname, 'src/renderer/windows/subWindow/index.html')
         },
         onwarn(warning, warn) {
           if (warning.code === 'COMMONJS_VARIABLE_IN_ESM') return

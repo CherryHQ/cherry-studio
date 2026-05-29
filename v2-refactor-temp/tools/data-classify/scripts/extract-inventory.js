@@ -111,7 +111,7 @@ class DataExtractor {
     const reduxData = {}
 
     for (const [moduleName, moduleInfo] of Object.entries(REDUX_STORE_MODULES)) {
-      const filePath = path.join(this.rootDir, `src/renderer/src/store/${moduleInfo.file}`)
+      const filePath = path.join(this.rootDir, `src/renderer/store/${moduleInfo.file}`)
 
       if (!fs.existsSync(filePath)) {
         console.warn(`  Warning: ${moduleInfo.file} not found`)
@@ -124,7 +124,7 @@ class DataExtractor {
 
       reduxData[moduleName] = {
         _meta: {
-          file: `src/renderer/src/store/${moduleInfo.file}`,
+          file: `src/renderer/store/${moduleInfo.file}`,
           interface: moduleInfo.interface
         }
       }
@@ -136,7 +136,7 @@ class DataExtractor {
         if (fieldName === '_meta') continue
 
         reduxData[moduleName][fieldName] = {
-          file: `src/renderer/src/store/${moduleInfo.file}`,
+          file: `src/renderer/store/${moduleInfo.file}`,
           type: fieldInfo.type || inferTypeFromValue(initialState[fieldName]),
           defaultValue: initialState[fieldName] ?? fieldInfo.defaultValue ?? null
         }
@@ -271,7 +271,7 @@ class DataExtractor {
     console.log('Extracting Dexie data...')
     const dexieData = {}
 
-    const databasePath = path.join(this.rootDir, 'src/renderer/src/databases/index.ts')
+    const databasePath = path.join(this.rootDir, 'src/renderer/databases/index.ts')
     if (!fs.existsSync(databasePath)) {
       console.warn('  Warning: databases/index.ts not found')
       return dexieData
@@ -285,7 +285,7 @@ class DataExtractor {
 
     while ((match = tableRegex.exec(content)) !== null) {
       dexieData[match[1]] = {
-        file: 'src/renderer/src/databases/index.ts',
+        file: 'src/renderer/databases/index.ts',
         type: `EntityTable<${match[2]}>`,
         schema: null
       }

@@ -33,8 +33,8 @@
      - `groupId: text().references(() => groupTable.id, { onDelete: 'set null' })`
 
 2. Shared Data Types / API Schema
-   - `packages/shared/data/types/knowledge.*`
-   - `packages/shared/data/api/schemas/knowledges.ts`
+   - `src/shared/data/types/knowledge.*`
+   - `src/shared/data/api/schemas/knowledges.ts`
    - 需要让 `KnowledgeBase`、`CreateKnowledgeBaseDto`、`UpdateKnowledgeBaseDto` 支持 `groupId`
 
 3. Data Service / Handler 约束
@@ -94,8 +94,8 @@
      - `emoji: text()`
 
 2. Shared Data Types / API Schema
-   - `packages/shared/data/types/knowledge.ts`
-   - `packages/shared/data/api/schemas/knowledges.ts`
+   - `src/shared/data/types/knowledge.ts`
+   - `src/shared/data/api/schemas/knowledges.ts`
    - 需要让 `KnowledgeBase`、`CreateKnowledgeBaseDto`、`UpdateKnowledgeBaseDto` 支持 `emoji`
 
 3. Data Service / Handler 约束
