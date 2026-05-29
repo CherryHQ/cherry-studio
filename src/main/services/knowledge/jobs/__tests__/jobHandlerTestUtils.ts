@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   knowledgeItemAttachFileRefMock: vi.fn(),
   knowledgeItemSetSubtreeStatusMock: vi.fn(),
   knowledgeItemUpdateStatusMock: vi.fn(),
+  knowledgeItemReplaceProcessedArtifactFileRefMock: vi.fn(),
   rebuildFileRefsForItemsMock: vi.fn(),
   listMock: vi.fn(),
   loadKnowledgeItemDocumentsMock: vi.fn(),
@@ -43,6 +44,7 @@ export const {
   knowledgeItemAttachFileRefMock,
   knowledgeItemSetSubtreeStatusMock,
   knowledgeItemUpdateStatusMock,
+  knowledgeItemReplaceProcessedArtifactFileRefMock,
   rebuildFileRefsForItemsMock,
   listMock,
   loadKnowledgeItemDocumentsMock,
@@ -94,6 +96,7 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
     getSubtreeItems: knowledgeItemGetSubtreeItemsMock,
     deleteItemsByIds: deleteItemsByIdsMock,
     rebuildFileRefsForItems: rebuildFileRefsForItemsMock,
+    replaceProcessedArtifactFileRef: knowledgeItemReplaceProcessedArtifactFileRefMock,
     setSubtreeStatus: knowledgeItemSetSubtreeStatusMock,
     updateStatus: knowledgeItemUpdateStatusMock
   }
@@ -292,6 +295,7 @@ beforeEach(() => {
   createInternalEntryMock.mockResolvedValue({ id: PROCESSED_FILE_ENTRY_ID })
   detachFileRefsMock.mockResolvedValue(undefined)
   knowledgeItemAttachFileRefMock.mockResolvedValue(undefined)
+  knowledgeItemReplaceProcessedArtifactFileRefMock.mockResolvedValue(undefined)
   deleteItemsByIdsMock.mockResolvedValue(undefined)
   rebuildFileRefsForItemsMock.mockResolvedValue(undefined)
   cancelMock.mockResolvedValue(undefined)

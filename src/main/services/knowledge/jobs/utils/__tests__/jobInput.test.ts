@@ -15,6 +15,34 @@ describe('narrowKnowledgeJobInput', () => {
     })
   })
 
+  it('accepts file-processing check job snapshots', () => {
+    expect(
+      narrowKnowledgeJobInput({
+        type: 'knowledge.check-file-processing-result',
+        input: {
+          baseId: 'kb-1',
+          itemId: 'file-1',
+          fileProcessingJobId: 'fp-job-1',
+          sourceFileEntryId: '019606a0-0000-7000-8000-000000000001',
+          checkCount: 2,
+          firstScheduledAt: 1779811200000,
+          parentJobId: 'reindex-job'
+        }
+      })
+    ).toEqual({
+      type: 'knowledge.check-file-processing-result',
+      input: {
+        baseId: 'kb-1',
+        itemId: 'file-1',
+        fileProcessingJobId: 'fp-job-1',
+        sourceFileEntryId: '019606a0-0000-7000-8000-000000000001',
+        checkCount: 2,
+        firstScheduledAt: 1779811200000,
+        parentJobId: 'reindex-job'
+      }
+    })
+  })
+
   it('accepts subtree job snapshots', () => {
     expect(
       narrowKnowledgeJobInput({ type: 'knowledge.reindex-subtree', input: { baseId: 'kb-1', rootItemIds: ['dir-1'] } })
@@ -33,6 +61,16 @@ describe('narrowKnowledgeJobInput', () => {
     ).toBeNull()
     expect(
       narrowKnowledgeJobInput({ type: 'knowledge.delete-subtree', input: { baseId: 'kb-1', itemId: 'note-1' } })
+    ).toBeNull()
+    expect(
+      narrowKnowledgeJobInput({
+        type: 'knowledge.check-file-processing-result',
+        input: {
+          baseId: 'kb-1',
+          itemId: 'file-1',
+          sourceFileEntryId: '019606a0-0000-7000-8000-000000000001'
+        }
+      })
     ).toBeNull()
   })
 

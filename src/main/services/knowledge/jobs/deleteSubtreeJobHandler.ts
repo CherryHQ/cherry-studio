@@ -95,8 +95,12 @@ async function cancelActiveSubtreeJobs(
   const jobIds = activeJobs
     .filter((job) => job.id !== currentJobId && jobTouchesSubtree(job, subtreeIds))
     .map((job) => job.id)
+  const fileProcessingJobIds = activeJobs.flatMap((job) => getFileProcessingJobIdsForTouchedSubtree(job, subtreeIds))
 
-  await Promise.all(jobIds.map((jobId) => cancelKnowledgeSubtreeJobOrThrow(jobId, reason)))
+  await Promise.all([
+    ...jobIds.map((jobId) => cancelKnowledgeSubtreeJobOrThrow(jobId, reason)),
+    ...fileProcessingJobIds.map((jobId) => cancelKnowledgeSubtreeJobOrThrow(jobId, reason))
+  ])
 }
 
 async function cancelKnowledgeSubtreeJobOrThrow(jobId: string, reason: string): Promise<void> {
@@ -121,4 +125,19 @@ function jobTouchesSubtree(job: { type: string; input: unknown }, subtreeIds: Se
     return true
   }
   return 'rootItemIds' in narrowed.input && narrowed.input.rootItemIds.some((itemId) => subtreeIds.has(itemId))
+}
+
+function getFileProcessingJobIdsForTouchedSubtree(
+  job: { type: string; input: unknown },
+  subtreeIds: Set<string>
+): string[] {
+  const narrowed = narrowKnowledgeJobInput(job)
+  if (
+    narrowed?.type === 'knowledge.check-file-processing-result' &&
+    subtreeIds.has(narrowed.input.itemId) &&
+    narrowed.input.fileProcessingJobId
+  ) {
+    return [narrowed.input.fileProcessingJobId]
+  }
+  return []
 }

@@ -51,7 +51,7 @@ beforeEach(() => {
 })
 
 describe('createFileProcessingJobOutput', () => {
-  it('returns inline text artifacts without cleanup', async () => {
+  it('returns an inline text artifact without cleanup', async () => {
     const result = await createFileProcessingJobOutput(
       createCtx(),
       { kind: 'text', text: 'hello' },
@@ -62,12 +62,12 @@ describe('createFileProcessingJobOutput', () => {
       }
     )
 
-    expect(result).toEqual({ artifacts: [{ kind: 'text', format: 'plain', text: 'hello' }] })
+    expect(result).toEqual({ artifact: { kind: 'text', format: 'plain', text: 'hello' } })
     expect(persistResultMock).not.toHaveBeenCalled()
     expect(cleanupResultsDirMock).not.toHaveBeenCalled()
   })
 
-  it('persists markdown artifacts', async () => {
+  it('persists a markdown artifact', async () => {
     persistResultMock.mockResolvedValue('/tmp/results/job-artifacts-1/output.md')
 
     const result = await createFileProcessingJobOutput(
@@ -81,7 +81,7 @@ describe('createFileProcessingJobOutput', () => {
     )
 
     expect(result).toEqual({
-      artifacts: [{ kind: 'file', format: 'markdown', path: '/tmp/results/job-artifacts-1/output.md' }]
+      artifact: { kind: 'file', format: 'markdown', path: '/tmp/results/job-artifacts-1/output.md' }
     })
     expect(persistResultMock).toHaveBeenCalledWith({
       jobId: 'job-artifacts-1',
@@ -125,7 +125,7 @@ describe('getFileProcessingMarkdownArtifactPath', () => {
         status: 'completed',
         input: {},
         output: {
-          artifacts: [{ kind: 'file', format: 'markdown', path: '/tmp/fp-result/output.md' }]
+          artifact: { kind: 'file', format: 'markdown', path: '/tmp/fp-result/output.md' }
         }
       } as never)
     ).toBe('/tmp/fp-result/output.md')
@@ -139,7 +139,7 @@ describe('getFileProcessingMarkdownArtifactPath', () => {
         status: 'completed',
         input: {},
         output: {
-          artifacts: [{ kind: 'text', format: 'plain', text: 'hello' }]
+          artifact: { kind: 'text', format: 'plain', text: 'hello' }
         }
       } as never)
     ).toThrow(/without a markdown file artifact/i)
@@ -153,7 +153,7 @@ describe('getFileProcessingMarkdownArtifactPath', () => {
         status: 'completed',
         input: {},
         output: {
-          artifacts: [{ kind: 'file', format: 'markdown', path: 'relative/output.md' }]
+          artifact: { kind: 'file', format: 'markdown', path: 'relative/output.md' }
         }
       } as never)
     ).toThrow(/path must be an absolute filesystem path/i)

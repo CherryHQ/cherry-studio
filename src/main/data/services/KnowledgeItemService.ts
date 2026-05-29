@@ -492,6 +492,52 @@ export class KnowledgeItemService {
     logger.info('Attached knowledge item file ref', { itemId, fileEntryId, role })
   }
 
+  async replaceProcessedArtifactFileRef(itemId: string, fileEntryId: FileEntryId): Promise<void> {
+    const dbService = application.get('DbService')
+    await dbService.withWriteTx(async (tx) => {
+      const [item] = await tx
+        .select({ id: knowledgeItemTable.id })
+        .from(knowledgeItemTable)
+        .where(eq(knowledgeItemTable.id, itemId))
+        .limit(1)
+      if (!item) {
+        throw DataApiErrorFactory.notFound('KnowledgeItem', itemId)
+      }
+
+      const [fileEntry] = await tx
+        .select({ id: fileEntryTable.id })
+        .from(fileEntryTable)
+        .where(eq(fileEntryTable.id, fileEntryId))
+        .limit(1)
+      if (!fileEntry) {
+        throw DataApiErrorFactory.notFound('FileEntry', fileEntryId)
+      }
+
+      await tx
+        .delete(fileRefTable)
+        .where(
+          and(
+            eq(fileRefTable.sourceType, knowledgeItemSourceType),
+            eq(fileRefTable.sourceId, itemId),
+            eq(fileRefTable.role, 'processed_artifact')
+          )
+        )
+
+      const now = Date.now()
+      await tx.insert(fileRefTable).values({
+        id: uuidv4(),
+        fileEntryId,
+        sourceType: knowledgeItemSourceType,
+        sourceId: itemId,
+        role: 'processed_artifact',
+        createdAt: now,
+        updatedAt: now
+      })
+    })
+
+    logger.info('Replaced knowledge item processed artifact file ref', { itemId, fileEntryId })
+  }
+
   async rebuildFileRefsForItems(itemIds: string[]): Promise<void> {
     const uniqueItemIds = [...new Set(itemIds)]
     if (uniqueItemIds.length === 0) {

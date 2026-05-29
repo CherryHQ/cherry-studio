@@ -563,6 +563,25 @@ describe('KnowledgeItemService', () => {
         role: 'processed_artifact'
       })
     })
+
+    it('replaces existing processed artifact refs for an item', async () => {
+      const item = await seedItem()
+      await seedFileEntry(FILE_ENTRY_B_ID)
+      const replacementFileEntryId = '019606a0-0000-7000-8000-000000000003'
+      await seedFileEntry(replacementFileEntryId)
+      await service.attachFileRef(item.id, FILE_ENTRY_B_ID, 'processed_artifact')
+
+      await service.replaceProcessedArtifactFileRef(item.id, replacementFileEntryId)
+
+      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, item.id))
+      expect(refs).toHaveLength(1)
+      expect(refs[0]).toMatchObject({
+        fileEntryId: replacementFileEntryId,
+        sourceType: 'knowledge_item',
+        sourceId: item.id,
+        role: 'processed_artifact'
+      })
+    })
   })
 
   describe('getById', () => {

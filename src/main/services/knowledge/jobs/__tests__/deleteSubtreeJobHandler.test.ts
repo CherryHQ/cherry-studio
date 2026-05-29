@@ -37,6 +37,16 @@ describe('delete-subtree job handler', () => {
         input: { baseId: 'kb-1', itemId: 'note-1' }
       }),
       createJobSnapshot({
+        id: 'check-job',
+        type: 'knowledge.check-file-processing-result',
+        input: {
+          baseId: 'kb-1',
+          itemId: 'note-1',
+          fileProcessingJobId: 'fp-job-1',
+          sourceFileEntryId: '019606a0-0000-7000-8000-000000000001'
+        }
+      }),
+      createJobSnapshot({
         id: 'unrelated-job',
         type: 'knowledge.index-documents',
         input: { baseId: 'kb-1', itemId: 'other' }
@@ -46,6 +56,8 @@ describe('delete-subtree job handler', () => {
     await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'current-job'))
 
     expect(cancelMock).toHaveBeenCalledWith('index-job', 'knowledge-delete-subtree')
+    expect(cancelMock).toHaveBeenCalledWith('check-job', 'knowledge-delete-subtree')
+    expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-delete-subtree')
     expect(cancelMock).not.toHaveBeenCalledWith('unrelated-job', expect.anything())
     expect(replaceByExternalIdMock).toHaveBeenCalledWith('note-1', [])
     expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['dir-1', 'note-1'])

@@ -154,6 +154,25 @@ afterEach(() => {
 })
 
 describe('remotePollJobHandler.execute', () => {
+  it('declares the remote-poll job contract', () => {
+    expect(remotePollJobHandler.recovery).toBe('retry')
+    expect(
+      remotePollJobHandler.defaultQueue?.({
+        feature: 'document_to_markdown',
+        fileEntryId: FILE_ENTRY_ID,
+        processorId: 'doc2x'
+      })
+    ).toBe('file-processing.doc2x')
+    expect(remotePollJobHandler.defaultConcurrency).toBe(2)
+    expect(remotePollJobHandler.defaultRetryPolicy).toEqual({
+      maxAttempts: 1,
+      backoff: 'none',
+      baseDelayMs: 0,
+      maxDelayMs: 0
+    })
+    expect(remotePollJobHandler.defaultTimeoutMs).toBe(30 * 60_000)
+  })
+
   it('first launch: startRemote → patchMetadata(whitelist) → pollRemote → artifacts', async () => {
     setupCapability()
     const remoteCtx = { apiHost: 'https://doc2x.example.com', apiKey: 'SECRET_KEY', stage: 'parsing' }
@@ -175,9 +194,9 @@ describe('remotePollJobHandler.execute', () => {
     persistResultMock.mockResolvedValue('/tmp/results/job-2/output.md')
 
     const ctx = createCtx()
-    const result = (await remotePollJobHandler.execute(ctx)) as { artifacts: unknown[] }
+    const result = (await remotePollJobHandler.execute(ctx)) as { artifact: unknown }
 
-    expect(result.artifacts).toEqual([{ kind: 'file', format: 'markdown', path: '/tmp/results/job-2/output.md' }])
+    expect(result.artifact).toEqual({ kind: 'file', format: 'markdown', path: '/tmp/results/job-2/output.md' })
     expect(capabilityHandlerMock.prepare).toHaveBeenCalledWith(FAKE_FILE_INFO, expect.any(Object), ctx.signal, {
       fileEntryId: FILE_ENTRY_ID
     })

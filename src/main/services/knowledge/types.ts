@@ -79,12 +79,22 @@ export function knowledgePrepareIdempotencyKey(baseId: KnowledgeBaseId, itemId: 
   return `knowledge:${baseId}:${itemId}:prepare`
 }
 
-export function knowledgeIndexIdempotencyKey(baseId: KnowledgeBaseId, itemId: KnowledgeItemId): string {
-  return `knowledge:${baseId}:${itemId}:index`
+export function knowledgeIndexIdempotencyKey(
+  baseId: KnowledgeBaseId,
+  itemId: KnowledgeItemId,
+  parentJobId?: string | null
+): string {
+  const runKey = parentJobId ? `:${parentJobId}` : ''
+  return `knowledge:${baseId}:${itemId}:index${runKey}`
 }
 
-export function knowledgeFileProcessingStartIdempotencyKey(baseId: KnowledgeBaseId, itemId: KnowledgeItemId): string {
-  return `knowledge:${baseId}:${itemId}:fp-start`
+export function knowledgeFileProcessingStartIdempotencyKey(
+  baseId: KnowledgeBaseId,
+  itemId: KnowledgeItemId,
+  parentJobId?: string | null
+): string {
+  const runKey = parentJobId ? `:${parentJobId}` : ''
+  return `knowledge:${baseId}:${itemId}:fp-start${runKey}`
 }
 
 export function knowledgeFileProcessingCheckIdempotencyKey(

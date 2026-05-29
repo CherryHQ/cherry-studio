@@ -25,6 +25,7 @@ declare module '@main/core/job/jobRegistry' {
       sourceFileEntryId: string
       checkCount?: number
       firstScheduledAt?: number
+      parentJobId?: string | null
     }
     'knowledge.delete-subtree': {
       baseId: string

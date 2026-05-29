@@ -190,7 +190,6 @@ function getRootsWithFollowUpJobs(activeJobs: JobSnapshot[], reindexJobId: strin
   const rootsWithFollowUpJobs = new Set<string>()
   for (const job of activeJobs) {
     if (job.parentId !== reindexJobId) continue
-    if (job.type !== 'knowledge.prepare-root' && job.type !== 'knowledge.index-documents') continue
 
     const narrowed = narrowKnowledgeJobInput(job)
     if (narrowed && 'itemId' in narrowed.input && rootItemIdSet.has(narrowed.input.itemId)) {

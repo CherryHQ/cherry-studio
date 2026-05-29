@@ -36,7 +36,7 @@
 2. `KnowledgeService` 或其他上层 service 负责决定何时处理、如何展示进度、如何入库、如何切 chunk、如何做 embedding。
 3. 翻译页面或翻译业务负责把 OCR 文本插入输入框、发起翻译或展示错误。
 
-因此，底层接口不使用 `preprocessKnowledgeFile`、`translateOcr` 这类业务命名，而使用 `startJob`、`getJob`、`cancelJob` 这类能力命名。
+因此，底层接口不使用 `preprocessKnowledgeFile`、`translateOcr` 这类业务命名，而使用 `startJob` 与通用 Job 能力命名。
 
 ---
 
@@ -65,15 +65,14 @@
 
 统一对外能力面：
 
-1. `startJob({ feature, file, processorId? })`
-2. `getJob({ jobId })`
-3. `cancelJob({ jobId })`
+1. `startJob({ feature, fileEntryId, processorId? }): Promise<JobSnapshot>`
+2. job 查询 / 进度观察走统一 Job DataApi 与 `jobs.progress.${jobId}` cache。
+3. cancel 走统一 JobManager/job API；FileProcessing 不再单独包装 `getJob/cancelJob`。
 
 推荐 IPC channel：
 
 1. `file-processing:start-job`
-2. `file-processing:get-job`
-3. `file-processing:cancel-job`
+2. `file-processing:list-available-processors`
 
 旧 file-processing IPC 不保留兼容包装：
 
@@ -88,19 +87,13 @@
 `startJob` 接收：
 
 1. `feature`: `image_to_text` 或 `document_to_markdown`
-2. `file`: `FileMetadata`
+2. `fileEntryId`: 已登记的 FileManager entry id
 3. `processorId`: 可选；未传时按 feature 读取默认 processor preference
 
-`startJob` 返回 job 启动结果：
+`startJob` 返回统一 Job snapshot：
 
 ```ts
-type FileProcessingJobStartResult = {
-  jobId: string
-  feature: FileProcessorFeature
-  status: 'pending' | 'processing'
-  progress: number
-  processorId: FileProcessorId
-}
+type StartFileProcessingJobResult = JobSnapshot
 ```
 
 约束：
@@ -109,58 +102,21 @@ type FileProcessingJobStartResult = {
 2. 调用方不直接持有 provider task id。
 3. 如果没有显式 `processorId`，且对应 feature 没有配置默认 processor，直接 fail fast。
 4. 如果指定 processor 不支持该 feature，直接 fail fast。
-5. 如果 `file.type` 不符合 capability 的输入类型，直接 fail fast。
+5. 如果 FileManager metadata 推导出的 file type 不符合 capability 的输入类型，直接 fail fast。
 
-### 4.2 getJob
+### 4.2 Job observation and cancellation
 
-`getJob` 接收：
-
-```ts
-type GetFileProcessingJobInput = {
-  jobId: string
-}
-```
-
-`getJob` 返回当前 job 快照：
-
-```ts
-type FileProcessingJobResult =
-  | FileProcessingJobPendingResult
-  | FileProcessingJobProcessingResult
-  | FileProcessingJobCompletedResult
-  | FileProcessingJobFailedResult
-  | FileProcessingJobCancelledResult
-```
-
-`getJob` 是查询入口，同时允许 job service 在查询时推进 remote-poll provider 的状态。
+FileProcessing job 是统一 JobManager job。调用方通过通用 job snapshot / progress 观察状态，
+不通过 FileProcessing service 推进 provider polling。
 
 约束：
 
-1. 对 remote-poll provider，同一个 `jobId` 的并发查询应在 Main 内部 dedupe。
-2. 对 background provider，查询只返回内存中已知状态，不重复启动 job。
-3. completed / failed / cancelled 是终态，重复查询返回同一终态快照，直到 TTL 清理。
-4. app 重启后 job 上下文失效；调用方应重新发起 job。
-
-### 4.3 cancelJob
-
-`cancelJob` 接收：
-
-```ts
-type CancelFileProcessingJobInput = {
-  jobId: string
-}
-```
-
-`cancelJob` 返回取消后的 job 快照。
-
-取消语义：
-
-1. pending / processing job 进入 `cancelled`。
-2. 本地 background execution 必须 abort。
-3. remote-poll query 必须停止本地轮询。
-4. 第三方远程平台上的 provider task 只做 best effort，不承诺真正远程取消。
-5. completed / failed / cancelled job 再次 cancel 时保持原终态并返回当前快照。
-6. 不存在的 `jobId` 直接报错。
+1. JobManager dispatcher 推进 background / remote-poll handler。
+2. completed / failed / cancelled 是终态，重复查询返回同一终态快照，直到 TTL 清理。
+3. pending / delayed / running job cancel 后进入 `cancelled`。
+4. 本地 background execution 必须 abort。
+5. remote-poll handler 必须停止本地轮询。
+6. 第三方远程平台上的 provider task 只做 best effort，不承诺真正远程取消。
 
 ---
 
@@ -192,7 +148,7 @@ type FileProcessingJobBase = {
 type FileProcessingJobCompletedResult = FileProcessingJobBase & {
   status: 'completed'
   progress: 100
-  artifacts: FileProcessingArtifact[]
+  artifact: FileProcessingArtifact
 }
 
 type FileProcessingJobFailedResult = FileProcessingJobBase & {
@@ -209,7 +165,7 @@ type FileProcessingJobCancelledResult = FileProcessingJobBase & {
 实现要求：
 
 1. `progress` 统一 clamp 到 0-100 的整数。
-2. `completed` 必须有至少一个 artifact。
+2. `completed` 必须有 artifact。
 3. `failed` 必须有非空 error。
 4. `cancelled` 不应伪装成 failed。
 5. provider-specific status 必须映射到以上统一状态。
@@ -218,7 +174,7 @@ type FileProcessingJobCancelledResult = FileProcessingJobBase & {
 
 ## 6. Artifact Model
 
-job 结果统一通过 `artifacts` 表达，而不是为每个 feature 增加专用字段。
+job 结果统一通过 `artifact` 表达，而不是为每个 feature 增加专用字段。
 
 当前最小 artifact 类型：
 
@@ -394,7 +350,7 @@ handler 方法分层：
 1. `prepare` 不创建本地 job record；job record 仍由 `FileProcessingJobService` 创建。
 2. `prepare` 可以在 `startJob` 期间 fail fast，例如缺 path、缺 API key、processor option 无效、file type 不匹配。
 3. provider task id、query context、remote context 都只保存在 Main 进程内部 job record。
-4. handler 输出不直接作为 IPC result；job service 负责统一映射成 artifacts。
+4. handler 输出不直接作为 IPC result；job service 负责统一映射成 artifact。
 5. capability handler 不应持有跨 job 可变全局状态；需要生命周期状态时，交给 processor-owned runtime service。
 
 ---
@@ -424,7 +380,7 @@ Job service 内部允许两类执行模式：
 
 1. `startJob` 创建本地 job record 后立即返回。
 2. Job service 在后台执行 capability handler。
-3. handler 成功后由 job service 转成 artifacts。
+3. handler 成功后由 job service 转成 artifact。
 4. handler 抛错后 job 进入 `failed`。
 5. caller cancel 或 service stop 时 abort。
 
@@ -443,8 +399,8 @@ Job service 内部允许两类执行模式：
 1. `startJob` 创建本地 `jobId`。
 2. handler `startRemote` 返回内部 provider task id 和 query context。
 3. Job service 把 provider task id 绑定到本地 job record。
-4. 调用方后续只用本地 `jobId` 查询。
-5. `getJob` 可推进一次远程查询并更新 job store。
+4. 调用方后续只用本地 `jobId` 通过统一 Job API 查询。
+5. JobManager dispatcher 负责推进远程轮询并更新 job store。
 6. 如果远程处理已完成但 artifact 下载或落盘失败，job 进入 `failed`；调用方可重新发起 job。
 
 ### 8.3 OCR job 化
@@ -735,7 +691,7 @@ OCR text artifact 不落盘，直接以内联文本返回。
 
 后续 PR 应分别处理：
 
-1. Renderer / preload 对 `startJob/getJob/cancelJob` 的正式接入。
+1. Renderer / preload 对 `startJob` 与通用 Job 观察/取消入口的正式接入。
 2. 翻译 OCR 从旧 `window.api.ocr` 切到 file-processing job。
 3. KnowledgeService 消费 Markdown file artifact。
 4. 删除旧 OCR service 与旧 preprocess provider。
@@ -795,9 +751,9 @@ OCR text artifact 不落盘，直接以内联文本返回。
 共享类型 / schema 测试：
 
 1. `startJob` payload 校验
-2. `getJob` payload 校验
-3. `cancelJob` payload 校验
-4. `FileProcessingJobResult` discriminated union
+2. 通用 Job snapshot / progress 观察接入
+3. 通用 job cancel 接入
+4. `FileProcessingJobOutput` artifact schema
 5. `FileProcessingArtifact` discriminated union
 
 Job service 测试：

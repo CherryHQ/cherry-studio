@@ -136,14 +136,33 @@ beforeEach(() => {
 })
 
 describe('backgroundJobHandler.execute', () => {
+  it('declares the background job contract', () => {
+    expect(backgroundJobHandler.recovery).toBe('retry')
+    expect(
+      backgroundJobHandler.defaultQueue?.({
+        feature: 'image_to_text',
+        fileEntryId: FILE_ENTRY_ID,
+        processorId: 'tesseract'
+      })
+    ).toBe('file-processing.tesseract')
+    expect(backgroundJobHandler.defaultConcurrency).toBe(2)
+    expect(backgroundJobHandler.defaultRetryPolicy).toEqual({
+      maxAttempts: 1,
+      backoff: 'none',
+      baseDelayMs: 0,
+      maxDelayMs: 0
+    })
+    expect(backgroundJobHandler.defaultTimeoutMs).toBe(15 * 60_000)
+  })
+
   it('returns inline text artifact for image_to_text output', async () => {
     preparedExecuteMock.mockResolvedValue({ kind: 'text', text: 'recognized text' })
     setupCapability({ mode: 'background', execute: preparedExecuteMock })
 
     const ctx = createCtx()
-    const result = (await backgroundJobHandler.execute(ctx)) as { artifacts: unknown[] }
+    const result = (await backgroundJobHandler.execute(ctx)) as { artifact: unknown }
 
-    expect(result.artifacts).toEqual([{ kind: 'text', format: 'plain', text: 'recognized text' }])
+    expect(result.artifact).toEqual({ kind: 'text', format: 'plain', text: 'recognized text' })
     expect(capabilityHandlerMock.prepare).toHaveBeenCalledWith(FAKE_FILE_INFO, expect.any(Object), ctx.signal, {
       fileEntryId: FILE_ENTRY_ID
     })
@@ -156,14 +175,14 @@ describe('backgroundJobHandler.execute', () => {
     persistResultMock.mockResolvedValue('/tmp/results/job-1/output.md')
     setupCapability({ mode: 'background', execute: preparedExecuteMock })
 
-    const result = (await backgroundJobHandler.execute(createCtx())) as { artifacts: unknown[] }
+    const result = (await backgroundJobHandler.execute(createCtx())) as { artifact: unknown }
 
     expect(persistResultMock).toHaveBeenCalledWith({
       jobId: 'job-1',
       result: { kind: 'markdown', markdownContent: '# hello' },
       signal: expect.any(AbortSignal)
     })
-    expect(result.artifacts).toEqual([{ kind: 'file', format: 'markdown', path: '/tmp/results/job-1/output.md' }])
+    expect(result.artifact).toEqual({ kind: 'file', format: 'markdown', path: '/tmp/results/job-1/output.md' })
     expect(cleanupResultsDirMock).not.toHaveBeenCalled()
   })
 

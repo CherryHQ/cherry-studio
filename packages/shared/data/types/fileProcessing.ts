@@ -26,7 +26,7 @@ export type FileProcessingArtifact = z.infer<typeof FileProcessingArtifactSchema
 
 export const FileProcessingJobOutputSchema = z
   .object({
-    artifacts: z.array(FileProcessingArtifactSchema)
+    artifact: FileProcessingArtifactSchema
   })
   .strict()
 export type FileProcessingJobOutput = z.infer<typeof FileProcessingJobOutputSchema>

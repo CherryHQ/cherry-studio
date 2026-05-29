@@ -169,14 +169,22 @@ describe('FileProcessingArtifactSchema', () => {
 })
 
 describe('FileProcessingJobOutputSchema', () => {
-  it('accepts job output artifacts', () => {
+  it('accepts a job output artifact', () => {
     expect(
       FileProcessingJobOutputSchema.parse({
-        artifacts: [{ kind: 'file', format: 'markdown', path: '/tmp/output.md' }]
+        artifact: { kind: 'file', format: 'markdown', path: '/tmp/output.md' }
       })
     ).toEqual({
-      artifacts: [{ kind: 'file', format: 'markdown', path: '/tmp/output.md' }]
+      artifact: { kind: 'file', format: 'markdown', path: '/tmp/output.md' }
     })
+  })
+
+  it('rejects legacy artifact arrays', () => {
+    const result = FileProcessingJobOutputSchema.safeParse({
+      artifacts: []
+    })
+
+    expect(result.success).toBe(false)
   })
 
   it('rejects legacy task result fields', () => {
@@ -184,7 +192,7 @@ describe('FileProcessingJobOutputSchema', () => {
       taskId: 'task-1',
       status: 'completed',
       progress: 100,
-      artifacts: [{ kind: 'file', format: 'markdown', path: '/tmp/output.md' }]
+      artifact: { kind: 'file', format: 'markdown', path: '/tmp/output.md' }
     })
 
     expect(result.success).toBe(false)

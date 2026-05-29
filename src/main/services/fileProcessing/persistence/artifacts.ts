@@ -33,8 +33,8 @@ export async function createFileProcessingJobOutput(
   logContext: FileProcessingJobOutputLogContext
 ): Promise<FileProcessingJobOutput> {
   try {
-    const artifacts = await createFileProcessingArtifacts(ctx.jobId, output, ctx.signal)
-    return { artifacts }
+    const artifact = await createFileProcessingArtifact(ctx.jobId, output, ctx.signal)
+    return { artifact }
   } catch (error) {
     if (output.kind !== 'text') {
       const cleaned = await cleanupFileProcessingResultsDir(ctx.jobId)
@@ -51,11 +51,10 @@ export async function createFileProcessingJobOutput(
 
 export function getFileProcessingMarkdownArtifactPath(snapshot: JobSnapshot): FilePath {
   const output = FileProcessingJobOutputSchema.parse(snapshot.output)
-  const artifact = output.artifacts.find((item) => item.kind === 'file' && item.format === 'markdown')
-  if (!artifact) {
+  if (output.artifact.kind !== 'file' || output.artifact.format !== 'markdown') {
     throw new Error(`File processing job ${snapshot.id} completed without a markdown file artifact`)
   }
-  return FilePathSchema.parse(artifact.path)
+  return FilePathSchema.parse(output.artifact.path)
 }
 
 export function getFileProcessingFailureMessage(snapshot: JobSnapshot): string {
@@ -63,38 +62,34 @@ export function getFileProcessingFailureMessage(snapshot: JobSnapshot): string {
 }
 
 /**
- * Project a capability output into persistable artifacts. Text outputs become
+ * Project a capability output into a persistable artifact. Text outputs become
  * inline artifacts; markdown / zip outputs are written to disk by
  * MarkdownResultStore under a per-jobId directory.
  */
-async function createFileProcessingArtifacts(
+async function createFileProcessingArtifact(
   jobId: string,
   output: FileProcessingHandlerOutput,
   signal: AbortSignal
-): Promise<FileProcessingArtifact[]> {
+): Promise<FileProcessingArtifact> {
   switch (output.kind) {
     case 'text':
-      return [
-        {
-          kind: 'text',
-          format: 'plain',
-          text: output.text
-        }
-      ]
+      return {
+        kind: 'text',
+        format: 'plain',
+        text: output.text
+      }
 
     case 'markdown':
     case 'remote-zip-url':
     case 'response-zip':
-      return [
-        {
-          kind: 'file',
-          format: 'markdown',
-          path: await markdownResultStore.persistResult({
-            jobId,
-            result: output,
-            signal
-          })
-        }
-      ]
+      return {
+        kind: 'file',
+        format: 'markdown',
+        path: await markdownResultStore.persistResult({
+          jobId,
+          result: output,
+          signal
+        })
+      }
   }
 }

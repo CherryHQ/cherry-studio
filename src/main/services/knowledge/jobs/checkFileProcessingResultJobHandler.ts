@@ -14,14 +14,17 @@ import {
   getFileProcessingFailureMessage,
   getFileProcessingMarkdownArtifactPath
 } from '../../fileProcessing/persistence/artifacts'
+import type { KnowledgeLockManager } from '../KnowledgeLockManager'
 import type { KnowledgeWorkflowService } from '../KnowledgeWorkflowService'
 import { knowledgeQueueName, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
 import type { KnowledgeCheckFileProcessingResultPayload } from './jobTypes'
-import { isDataApiNotFoundError } from './utils/settled'
+import { isDataApiNotFoundError, markKnowledgeItemFailedOnSettled } from './utils/settled'
 
 const logger = loggerService.withContext('Knowledge:CheckFileProcessingResultJobHandler')
+const FILE_PROCESSING_MAX_WAIT_MS = 30 * 60 * 1000
 
 export function createCheckFileProcessingResultJobHandler(
+  knowledgeLockManager: KnowledgeLockManager,
   workflowService: KnowledgeWorkflowService
 ): JobHandler<KnowledgeCheckFileProcessingResultPayload> {
   return {
@@ -39,6 +42,7 @@ export function createCheckFileProcessingResultJobHandler(
     async execute(ctx) {
       const { baseId, itemId, fileProcessingJobId } = ctx.input
       const sourceFileEntryId = FileEntryIdSchema.parse(ctx.input.sourceFileEntryId)
+      const firstScheduledAt = ctx.input.firstScheduledAt ?? Date.now()
       ctx.signal.throwIfAborted()
 
       if (await shouldSkipMissingOrDeletingItem(baseId, itemId, ctx.jobId)) {
@@ -54,7 +58,20 @@ export function createCheckFileProcessingResultJobHandler(
         return
       }
 
+      if (!isExpectedFileProcessingJob(snapshot, sourceFileEntryId)) {
+        await markItemFailed(itemId, `Invalid file processing job for knowledge item: ${fileProcessingJobId}`)
+        ctx.reportProgress(100, { stage: 'failed' })
+        return
+      }
+
       if (!isTerminalStatus(snapshot.status)) {
+        if (Date.now() - firstScheduledAt >= FILE_PROCESSING_MAX_WAIT_MS) {
+          await cancelFileProcessingJob(fileProcessingJobId, 'knowledge-file-processing-timeout')
+          await markItemFailed(itemId, `File processing job ${fileProcessingJobId} did not finish within 30 minutes`)
+          ctx.reportProgress(100, { stage: 'failed' })
+          return
+        }
+
         const nextCheckCount = (ctx.input.checkCount ?? 0) + 1
         await workflowService.scheduleFileProcessingCheck(
           toKnowledgeBaseId(baseId),
@@ -63,8 +80,8 @@ export function createCheckFileProcessingResultJobHandler(
           sourceFileEntryId,
           {
             checkCount: nextCheckCount,
-            firstScheduledAt: ctx.input.firstScheduledAt,
-            parentJobId: ctx.jobId
+            firstScheduledAt,
+            parentJobId: ctx.input.parentJobId ?? ctx.jobId
           }
         )
         reportWaitingProgress(ctx, fileProcessingJobId, nextCheckCount)
@@ -87,15 +104,33 @@ export function createCheckFileProcessingResultJobHandler(
         return
       }
 
-      const processedFileEntryId = await createProcessedArtifactFileEntryId(artifactPath)
-      await knowledgeItemService.attachFileRef(itemId, processedFileEntryId, 'processed_artifact')
-      await workflowService.scheduleIndexing(
-        toKnowledgeBaseId(baseId),
-        toKnowledgeItemId(itemId),
-        processedFileEntryId,
-        ctx.jobId
-      )
+      const canContinue = await knowledgeLockManager.withBaseMutationLock(baseId, async () => {
+        if (await shouldSkipMissingOrDeletingItem(baseId, itemId, ctx.jobId)) {
+          return false
+        }
+
+        const processedFileEntryId = await createProcessedArtifactFileEntryId(artifactPath)
+        await knowledgeItemService.replaceProcessedArtifactFileRef(itemId, processedFileEntryId)
+        await workflowService.scheduleIndexing(
+          toKnowledgeBaseId(baseId),
+          toKnowledgeItemId(itemId),
+          processedFileEntryId,
+          ctx.input.parentJobId ?? ctx.jobId
+        )
+        return true
+      })
+      if (!canContinue) {
+        return
+      }
       ctx.reportProgress(100, { stage: 'done' })
+    },
+
+    async onSettled(event) {
+      await markKnowledgeItemFailedOnSettled(
+        event,
+        logger,
+        'Failed to flip knowledge file-processing check target to failed in onSettled'
+      )
     }
   }
 }
@@ -121,6 +156,33 @@ function reportWaitingProgress(
 
 function getFileProcessingJobProgress(fileProcessingJobId: string): JobProgress | undefined {
   return application.get('CacheService').getShared(`${JOB_PROGRESS_KEY_PREFIX}${fileProcessingJobId}`)
+}
+
+async function cancelFileProcessingJob(fileProcessingJobId: string, reason: string): Promise<void> {
+  try {
+    await application.get('JobManager').cancel(fileProcessingJobId, reason)
+  } catch (error) {
+    logger.warn('Failed to cancel file-processing job for knowledge item', {
+      fileProcessingJobId,
+      reason,
+      error: error instanceof Error ? error.message : String(error)
+    })
+  }
+}
+
+function isExpectedFileProcessingJob(snapshot: JobSnapshot, sourceFileEntryId: FileEntryId): boolean {
+  if (snapshot.type !== 'file-processing.background' && snapshot.type !== 'file-processing.remote-poll') {
+    return false
+  }
+  if (!snapshot.input || typeof snapshot.input !== 'object') {
+    return false
+  }
+  return (
+    'feature' in snapshot.input &&
+    snapshot.input.feature === 'document_to_markdown' &&
+    'fileEntryId' in snapshot.input &&
+    snapshot.input.fileEntryId === sourceFileEntryId
+  )
 }
 
 async function shouldSkipMissingOrDeletingItem(baseId: string, itemId: string, jobId: string): Promise<boolean> {

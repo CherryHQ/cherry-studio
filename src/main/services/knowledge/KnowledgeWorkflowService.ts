@@ -28,7 +28,7 @@ import { isContainerKnowledgeItem } from './utils/items'
 import { planKnowledgeItemSource } from './utils/sources/sourcePlanning'
 
 const logger = loggerService.withContext('Knowledge:WorkflowService')
-const FILE_PROCESSING_CHECK_DELAY_MS = 1000
+const FILE_PROCESSING_CHECK_DELAY_MS = 5_000
 
 export class KnowledgeWorkflowService {
   constructor(private readonly knowledgeLockManager: KnowledgeLockManager) {}
@@ -161,15 +161,20 @@ export class KnowledgeWorkflowService {
           processorId
         },
         {
-          idempotencyKey: knowledgeFileProcessingStartIdempotencyKey(baseId, itemId),
+          idempotencyKey: knowledgeFileProcessingStartIdempotencyKey(baseId, itemId, parentJobId),
           parentId: parentJobId ?? undefined
         }
       )
-      await this.scheduleFileProcessingCheck(baseId, itemId, fileProcessingJob.id, item.data.fileEntryId, {
-        checkCount: 0,
-        firstScheduledAt: Date.now(),
-        parentJobId: parentJobId ?? fileProcessingJob.id
-      })
+      try {
+        await this.scheduleFileProcessingCheck(baseId, itemId, fileProcessingJob.id, item.data.fileEntryId, {
+          checkCount: 0,
+          firstScheduledAt: Date.now(),
+          parentJobId: parentJobId ?? fileProcessingJob.id
+        })
+      } catch (error) {
+        await this.cancelFileProcessingJob(fileProcessingJob.id, 'knowledge-file-processing-check-enqueue-failed')
+        throw error
+      }
       return
     }
 
@@ -177,7 +182,7 @@ export class KnowledgeWorkflowService {
       'knowledge.index-documents',
       { baseId, itemId, parentJobId },
       {
-        idempotencyKey: knowledgeIndexIdempotencyKey(baseId, itemId),
+        idempotencyKey: knowledgeIndexIdempotencyKey(baseId, itemId, parentJobId),
         queue: knowledgeQueueName(baseId),
         parentId: parentJobId ?? undefined
       }
@@ -196,12 +201,20 @@ export class KnowledgeWorkflowService {
     const jobManager = application.get('JobManager')
     await jobManager.enqueue(
       'knowledge.check-file-processing-result',
-      { baseId, itemId, fileProcessingJobId, sourceFileEntryId, checkCount, firstScheduledAt },
+      {
+        baseId,
+        itemId,
+        fileProcessingJobId,
+        sourceFileEntryId,
+        checkCount,
+        firstScheduledAt,
+        parentJobId: options.parentJobId ?? null
+      },
       {
         idempotencyKey: knowledgeFileProcessingCheckIdempotencyKey(baseId, itemId, fileProcessingJobId, checkCount),
         queue: knowledgeQueueName(baseId),
         parentId: options.parentJobId ?? undefined,
-        scheduledAt: Date.now() + (checkCount === 0 ? 0 : FILE_PROCESSING_CHECK_DELAY_MS)
+        scheduledAt: Date.now() + FILE_PROCESSING_CHECK_DELAY_MS
       }
     )
   }
@@ -217,11 +230,23 @@ export class KnowledgeWorkflowService {
       'knowledge.index-documents',
       { baseId, itemId, parentJobId, processedFileEntryId },
       {
-        idempotencyKey: knowledgeIndexIdempotencyKey(baseId, itemId),
+        idempotencyKey: knowledgeIndexIdempotencyKey(baseId, itemId, parentJobId),
         queue: knowledgeQueueName(baseId),
         parentId: parentJobId ?? undefined
       }
     )
+  }
+
+  private async cancelFileProcessingJob(fileProcessingJobId: string, reason: string): Promise<void> {
+    try {
+      await application.get('JobManager').cancel(fileProcessingJobId, reason)
+    } catch (error) {
+      logger.warn('Failed to cancel file-processing job after knowledge scheduling failure', {
+        fileProcessingJobId,
+        reason,
+        error: error instanceof Error ? error.message : String(error)
+      })
+    }
   }
 
   private async rollbackAcceptedItems(baseId: string, items: KnowledgeItem[], originalError: unknown): Promise<void> {

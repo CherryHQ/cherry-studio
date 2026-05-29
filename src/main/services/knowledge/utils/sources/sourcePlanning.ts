@@ -1,10 +1,9 @@
 import { getFileExt } from '@main/utils/file'
+import { documentExts } from '@shared/config/constant'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
 import { isContainerKnowledgeItem, isIndexableKnowledgeItem } from '../items'
-
-const FILE_PROCESSING_DOCUMENT_EXTS = new Set(['pdf', 'doc', 'docx', 'xls', 'xlsx'])
 
 export type KnowledgeSourcePlan =
   | { kind: 'prepare-root' }
@@ -33,6 +32,6 @@ function needsFileProcessing(base: KnowledgeBase, item: KnowledgeItem): boolean 
     return false
   }
 
-  const ext = getFileExt(item.data.source).replace(/^\./, '').toLowerCase()
-  return FILE_PROCESSING_DOCUMENT_EXTS.has(ext)
+  const ext = getFileExt(item.data.source).toLowerCase()
+  return documentExts.includes(ext)
 }

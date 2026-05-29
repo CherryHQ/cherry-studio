@@ -171,9 +171,9 @@ function ProcessorJobView({
   const jobProgress = useJobProgress(jobId)
 
   const status: LabRunStatus = snapshot?.status ?? 'starting'
-  const artifacts = useMemo<FileProcessingArtifact[] | undefined>(() => {
+  const artifact = useMemo<FileProcessingArtifact | undefined>(() => {
     if (!isTerminal || snapshot?.status !== 'completed') return undefined
-    return (snapshot.output as FileProcessingJobOutput | undefined)?.artifacts
+    return (snapshot.output as FileProcessingJobOutput | undefined)?.artifact
   }, [isTerminal, snapshot?.output, snapshot?.status])
   const errorMessage = useMemo(() => {
     if (!isTerminal) return undefined
@@ -213,20 +213,18 @@ function ProcessorJobView({
         </pre>
       ) : null}
 
-      {artifacts?.length ? (
+      {artifact ? (
         <div className="mt-3 space-y-2">
-          {artifacts.map((artifact, index) => (
-            <div key={`${artifact.kind}-${index}`} className="rounded-lg border border-border/70 bg-muted/20 p-2">
-              <div className="mb-1 text-muted-foreground text-xs">
-                {artifact.kind === 'file'
-                  ? t('settings.componentLab.fileProcessing.artifact.file')
-                  : t('settings.componentLab.fileProcessing.artifact.text')}
-              </div>
-              <pre className="wrap-break-word max-h-40 overflow-auto whitespace-pre-wrap font-mono text-foreground text-xs leading-5">
-                {getArtifactPreview(artifact)}
-              </pre>
+          <div className="rounded-lg border border-border/70 bg-muted/20 p-2">
+            <div className="mb-1 text-muted-foreground text-xs">
+              {artifact.kind === 'file'
+                ? t('settings.componentLab.fileProcessing.artifact.file')
+                : t('settings.componentLab.fileProcessing.artifact.text')}
             </div>
-          ))}
+            <pre className="wrap-break-word max-h-40 overflow-auto whitespace-pre-wrap font-mono text-foreground text-xs leading-5">
+              {getArtifactPreview(artifact)}
+            </pre>
+          </div>
         </div>
       ) : null}
     </>
