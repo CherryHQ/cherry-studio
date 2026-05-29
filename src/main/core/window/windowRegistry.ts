@@ -389,7 +389,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
       // SelectionAction intentionally declares no hideOnBlur / alwaysOnTop.level /
       // visibleOnAllWorkspaces:
       //   - hideOnBlur is driven per-instance by the renderer's `isAutoClose && !isPinned`
-      //     logic (see SelectionActionApp.tsx) — too case-specific for a WM default.
+      //     logic (see ActionWindow.tsx) — too case-specific for a WM default.
       //   - alwaysOnTop is toggled at runtime by pinActionWindow via wm.setAlwaysOnTop;
       //     passing no level lets Electron use its default ('floating' on macOS).
       //   - setVisibleOnAllWorkspaces's true/false options differ per call in the
