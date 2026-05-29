@@ -2,11 +2,9 @@ import '@ant-design/v5-patch-for-react-19'
 
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
-import { ThemeProvider } from '@renderer/context/ThemeProvider'
-import type { FC } from 'react'
 import { createRoot } from 'react-dom/client'
 
-import SelectionToolbar from './SelectionToolbar'
+import SelectionToolbarApp from './SelectionToolbarApp'
 
 loggerService.initWindowSource('SelectionToolbar')
 await preferenceService.preload([
@@ -18,13 +16,5 @@ await preferenceService.preload([
   'feature.selection.action_items'
 ])
 
-const App: FC = () => {
-  return (
-    <ThemeProvider>
-      <SelectionToolbar />
-    </ThemeProvider>
-  )
-}
-
 const root = createRoot(document.getElementById('root') as HTMLElement)
-root.render(<App />)
+root.render(<SelectionToolbarApp />)

@@ -1,0 +1,461 @@
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import { isMac } from '@renderer/config/constant'
+import { useWindowInitData } from '@renderer/core/hooks/useWindowInitData'
+import i18n from '@renderer/i18n'
+import { defaultLanguage } from '@shared/config/constant'
+import type { SelectionActionItem } from '@shared/data/preference/preferenceTypes'
+import { Slider } from 'antd'
+import { Droplet, Minus, Pin, X } from 'lucide-react'
+import { DynamicIcon } from 'lucide-react/dynamic'
+import type { FC } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
+
+import ActionGeneral from './components/ActionGeneral'
+import ActionTranslate from './components/ActionTranslate'
+
+/**
+ * Outer shell. Pulls the current action payload via `useWindowInitData`, which
+ * transparently handles both cold-start (pooled warmup / first mount) and
+ * reuse (`WindowManager_Reused` payload on pool recycle). No `key={resetKey}`
+ * remount — `SelectionActionContent` stays mounted across recycles and
+ * receives `action` as a prop. Per-action state is reset in a single
+ * `useEffect([action])` inside the content component.
+ */
+const ActionWindow: FC = () => {
+  const action = useWindowInitData<SelectionActionItem>()
+  if (!action) return null
+  return <SelectionActionContent action={action} />
+}
+
+/**
+ * Controlled content component. All selection-action UI state lives here;
+ * `action` is supplied by the parent and updated on every pool recycle /
+ * singleton re-use without unmounting. A consolidated `useEffect([action])`
+ * (keyed on the reference, not `.id`) resets per-session state (pin, opacity,
+ * slider, scroll) so old state doesn't bleed into the new session, even when
+ * the next action happens to be the same type as the previous one.
+ */
+const SelectionActionContent: FC<{ action: SelectionActionItem }> = ({ action }) => {
+  const [language] = usePreference('app.language')
+  const [customCss] = usePreference('ui.custom_css')
+  const { t } = useTranslation()
+
+  const [isAutoClose] = usePreference('feature.selection.auto_close')
+  const [isAutoPin] = usePreference('feature.selection.auto_pin')
+  const [actionWindowOpacity] = usePreference('feature.selection.action_window_opacity')
+
+  const [isPinned, setIsPinned] = useState(isAutoPin)
+  const [isWindowFocus, setIsWindowFocus] = useState(true)
+
+  const [showOpacitySlider, setShowOpacitySlider] = useState(false)
+  const [opacity, setOpacity] = useState(actionWindowOpacity)
+
+  const shouldCloseWhenBlur = useRef(false)
+  const contentElementRef = useRef<HTMLDivElement>(null)
+  const isAutoScrollEnabled = useRef(true)
+  const lastScrollHeight = useRef(0)
+
+  useEffect(() => {
+    window.addEventListener('focus', handleWindowFocus)
+    window.addEventListener('blur', handleWindowBlur)
+
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus)
+      window.removeEventListener('blur', handleWindowBlur)
+    }
+    // don't need any dependencies
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Per-session reset: must fire on EVERY reuse, even when the next action
+  // has the same id as the previous one (e.g. two consecutive `translate`
+  // invocations). The right signal is the `action` reference itself — main
+  // sends a fresh IPC-deserialized object on every Reused push, so
+  // `Object.is`-based effect deps change each time. Using `[action.id]` here
+  // would leak stale pin/opacity/slider/scroll state across same-type reuses.
+  useEffect(() => {
+    setIsPinned(isAutoPin)
+    void window.api.selection.pinActionWindow(isAutoPin)
+    setOpacity(actionWindowOpacity)
+    setShowOpacitySlider(false)
+    isAutoScrollEnabled.current = true
+    contentElementRef.current?.scrollTo({ top: 0 })
+    lastScrollHeight.current = contentElementRef.current?.scrollHeight ?? 0
+    // Only re-run on action change; `isAutoPin` / `actionWindowOpacity` are
+    // handled separately by their own effects when the preference itself moves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [action])
+
+  useEffect(() => {
+    if (isAutoPin) {
+      void window.api.selection.pinActionWindow(true)
+      setIsPinned(true)
+    } else {
+      void window.api.selection.pinActionWindow(false)
+      setIsPinned(false)
+    }
+  }, [isAutoPin])
+
+  useEffect(() => {
+    shouldCloseWhenBlur.current = isAutoClose && !isPinned
+  }, [isAutoClose, isPinned])
+
+  useEffect(() => {
+    void i18n.changeLanguage(language || navigator.language || defaultLanguage)
+  }, [language])
+
+  useEffect(() => {
+    let customCssElement = document.getElementById('user-defined-custom-css') as HTMLStyleElement
+    if (customCssElement) {
+      customCssElement.remove()
+    }
+
+    if (customCss) {
+      customCssElement = document.createElement('style')
+      customCssElement.id = 'user-defined-custom-css'
+      customCssElement.textContent = customCss
+      document.head.appendChild(customCssElement)
+    }
+  }, [customCss])
+
+  useEffect(() => {
+    // Register the scroll listener exactly once on mount. The content DOM node
+    // does not change across pool reuses (we never unmount), and
+    // `handleUserScroll` only reads from refs, so a single subscription is
+    // sufficient; per-session scrollTop / lastScrollHeight reset lives in the
+    // `[action]` reset effect above.
+    const contentEl = contentElementRef.current
+    if (contentEl) {
+      contentEl.addEventListener('scroll', handleUserScroll)
+      lastScrollHeight.current = contentEl.scrollHeight
+    }
+    return () => {
+      if (contentEl) {
+        contentEl.removeEventListener('scroll', handleUserScroll)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    document.title = `${action.isBuiltIn ? t(action.name) : action.name} - ${t('selection.name')}`
+  }, [action.id, action.isBuiltIn, action.name, t])
+
+  useEffect(() => {
+    setOpacity(actionWindowOpacity)
+  }, [actionWindowOpacity])
+
+  const handleMinimize = () => {
+    void window.api.windowManager.minimize()
+  }
+
+  const handleClose = () => {
+    void window.api.windowManager.close()
+  }
+
+  /**
+   * @param pinned - if undefined, toggle the pinned state, otherwise force set the pinned state
+   */
+  const togglePin = () => {
+    setIsPinned(!isPinned)
+    void window.api.selection.pinActionWindow(!isPinned)
+  }
+
+  const handleWindowFocus = () => {
+    setIsWindowFocus(true)
+  }
+
+  const handleWindowBlur = () => {
+    if (shouldCloseWhenBlur.current) {
+      handleClose()
+      return
+    }
+
+    setIsWindowFocus(false)
+  }
+
+  const handleOpacityChange = (value: number) => {
+    setOpacity(value)
+  }
+
+  //must useCallback to avoid re-rendering the component
+  const handleScrollToBottom = useCallback(() => {
+    if (contentElementRef.current && isAutoScrollEnabled.current) {
+      contentElementRef.current.scrollTo({
+        top: contentElementRef.current.scrollHeight,
+        behavior: 'smooth'
+      })
+    }
+  }, [])
+
+  const handleUserScroll = () => {
+    if (!contentElementRef.current) return
+
+    const { scrollTop, scrollHeight, clientHeight } = contentElementRef.current
+
+    // Check if content height has increased (new content added)
+    const contentIncreased = scrollHeight > lastScrollHeight.current
+    lastScrollHeight.current = scrollHeight
+
+    // If content increased and we're in auto-scroll mode, don't change the auto-scroll state
+    if (contentIncreased && isAutoScrollEnabled.current) {
+      return
+    }
+
+    // Only check user position if content didn't increase
+    const isAtBottom = Math.abs(scrollHeight - scrollTop - clientHeight) < 32
+
+    if (isAtBottom) {
+      isAutoScrollEnabled.current = true
+    } else {
+      isAutoScrollEnabled.current = false
+    }
+  }
+
+  return (
+    <WindowFrame $opacity={opacity / 100}>
+      <TitleBar $isWindowFocus={isWindowFocus} style={isMac ? { paddingLeft: '70px' } : {}}>
+        {action.icon && (
+          <TitleBarIcon>
+            <DynamicIcon
+              name={action.icon as any}
+              size={16}
+              style={{ color: 'var(--color-text-1)' }}
+              fallback={() => {}}
+            />
+          </TitleBarIcon>
+        )}
+        <TitleBarCaption>{action.isBuiltIn ? t(action.name) : action.name}</TitleBarCaption>
+        <TitleBarButtons>
+          <Tooltip
+            content={isPinned ? t('selection.action.window.pinned') : t('selection.action.window.pin')}
+            placement="bottom">
+            <WinButton variant="ghost" onClick={togglePin} className={isPinned ? 'pinned' : ''}>
+              <Pin size={14} className={isPinned ? 'pinned' : ''} />
+            </WinButton>
+          </Tooltip>
+          <Tooltip
+            content={t('selection.action.window.opacity')}
+            placement="bottom"
+            isOpen={showOpacitySlider ? false : undefined}>
+            <WinButton
+              variant="ghost"
+              onClick={() => setShowOpacitySlider(!showOpacitySlider)}
+              className={showOpacitySlider ? 'active' : ''}
+              style={{ paddingBottom: '2px' }}>
+              <Droplet size={14} />
+            </WinButton>
+          </Tooltip>
+          {showOpacitySlider && (
+            <OpacitySlider>
+              <Slider
+                vertical
+                min={20}
+                max={100}
+                value={opacity}
+                onChange={handleOpacityChange}
+                onChangeComplete={() => setShowOpacitySlider(false)}
+                tooltip={{ formatter: (value) => `${value}%` }}
+              />
+            </OpacitySlider>
+          )}
+          {!isMac && (
+            <>
+              <WinButton variant="ghost" onClick={handleMinimize}>
+                <Minus size={16} />
+              </WinButton>
+              <WinButton variant="ghost" onClick={handleClose} className="close">
+                <X size={16} />
+              </WinButton>
+            </>
+          )}
+        </TitleBarButtons>
+      </TitleBar>
+      <MainContainer>
+        <Content ref={contentElementRef}>
+          {action.id == 'translate' && <ActionTranslate action={action} scrollToBottom={handleScrollToBottom} />}
+          {action.id != 'translate' && <ActionGeneral action={action} scrollToBottom={handleScrollToBottom} />}
+        </Content>
+      </MainContainer>
+    </WindowFrame>
+  )
+}
+
+const WindowFrame = styled.div<{ $opacity: number }>`
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: calc(100% - 6px);
+  height: calc(100% - 6px);
+  margin: 2px;
+  background-color: var(--color-background);
+  border: 1px solid var(--color-border);
+  box-shadow: 0px 0px 2px var(--color-text-3);
+  border-radius: 8px;
+  overflow: hidden;
+  box-sizing: border-box;
+  opacity: ${(props) => props.$opacity};
+`
+
+const TitleBar = styled.div<{ $isWindowFocus: boolean }>`
+  display: flex;
+  align-items: center;
+  flex-direction: row;
+  height: 32px;
+  padding: 0 8px;
+  background-color: ${(props) =>
+    props.$isWindowFocus ? 'var(--color-background-mute)' : 'var(--color-background-soft)'};
+  transition: background-color 0.3s ease;
+  -webkit-app-region: drag;
+`
+
+const TitleBarIcon = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 4px;
+`
+
+const TitleBarCaption = styled.div`
+  margin-left: 8px;
+  font-size: 14px;
+  font-weight: 400;
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-text-1);
+`
+
+const TitleBarButtons = styled.div`
+  display: flex;
+  gap: 8px;
+  -webkit-app-region: no-drag;
+  position: relative;
+
+  .lucide {
+    &.pinned {
+      color: var(--color-primary);
+    }
+  }
+`
+
+const WinButton = styled(Button)`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  transition: all 0.2s;
+  color: var(--color-icon);
+
+  .anticon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  svg {
+    stroke-width: 2;
+    transition: transform 0.2s ease;
+  }
+
+  &.pinned {
+    svg {
+      transform: rotate(45deg);
+    }
+
+    &:hover {
+      background-color: var(--color-primary-mute) !important;
+    }
+  }
+
+  &.close {
+    &:hover {
+      background-color: var(--color-error) !important;
+      color: var(--color-white) !important;
+    }
+  }
+
+  &.active {
+    background-color: var(--color-primary-mute) !important;
+    color: var(--color-primary) !important;
+  }
+
+  &:hover {
+    background-color: var(--color-hover) !important;
+    color: var(--color-icon-white) !important;
+  }
+`
+
+const MainContainer = styled.div`
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+`
+
+const Content = styled.div`
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  padding: 16px;
+  overflow: auto;
+  font-size: 14px;
+  -webkit-app-region: none;
+  user-select: text;
+  /* width: 100%; */
+  max-width: 1280px;
+`
+
+const OpacitySlider = styled.div`
+  position: absolute;
+  left: 42px;
+  top: 100%;
+  margin-top: 8px;
+  background-color: var(--color-background-mute);
+  padding: 16px 8px 12px 8px;
+  border-radius: 4px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
+  height: 120px;
+  /* display: flex; */
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  opacity: 1 !important;
+
+  .ant-slider {
+    height: 100%;
+    margin: 0;
+  }
+
+  .ant-slider-rail {
+    background-color: var(--color-border);
+  }
+
+  .ant-slider-track {
+    background-color: var(--color-primary);
+  }
+
+  .ant-slider-handle {
+    border-color: var(--color-primary);
+
+    &:hover {
+      border-color: var(--color-primary);
+    }
+
+    &.ant-slider-handle-active {
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 2px var(--color-primary-mute);
+    }
+  }
+`
+
+export default ActionWindow

@@ -1,11 +1,10 @@
 import i18n from '@renderer/i18n'
 import { useEffect, useState } from 'react'
-import { createRoot } from 'react-dom/client'
 
 import { TraceIcon } from './pages/Component'
 import { TracePage } from './pages/index'
 
-const App = () => {
+const TraceApp = () => {
   const [traceId, setTraceId] = useState('')
   const [topicId, setTopicId] = useState('')
   const [modelName, setModelName] = useState<string | undefined>(undefined)
@@ -62,5 +61,4 @@ const App = () => {
   )
 }
 
-const root = createRoot(document.getElementById('root')!)
-root.render(<App />)
+export default TraceApp
