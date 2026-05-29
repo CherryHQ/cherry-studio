@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import type { EnqueueOptions } from '@main/core/job/types'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { FileProcessorId } from '@shared/data/preference/preferenceTypes'
@@ -29,14 +30,9 @@ const StartJobPayloadSchema = z
   })
   .strict()
 
-interface StartJobOptions {
-  idempotencyKey?: string
-  parentId?: string
-}
-
 @Injectable('FileProcessingOrchestrationService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['JobManager'])
+@DependsOn(['FileManager', 'JobManager'])
 export class FileProcessingOrchestrationService extends BaseService {
   protected onInit(): void {
     // Register handlers in onInit (NOT onReady) so JobManager.onAllReady's
@@ -51,14 +47,18 @@ export class FileProcessingOrchestrationService extends BaseService {
   /**
    * Enqueue a file-processing job.
    *
-   * Idempotency invariant: `input.fileEntryId` identifies a FileEntry, so the
-   * same entry + processor + feature reuses the same pending job.
+   * Each call creates a fresh processing job. Do not use FileEntryId as an
+   * idempotency key: it is not a content-version identity. If we add reuse
+   * later, scope it to a contentHash plus processor/config/version.
    *
    * The handler.mode field on the capability handler determines the JobRegistry
    * type to enqueue under (background vs remote-poll). This is a synchronous
    * lookup — no `await prepare()` is needed at enqueue time.
    */
-  async startJob(input: StartFileProcessingJobInput, options: StartJobOptions = {}): Promise<JobSnapshot> {
+  async startJob(
+    input: StartFileProcessingJobInput,
+    options: Pick<EnqueueOptions, 'parentId'> = {}
+  ): Promise<JobSnapshot> {
     const { feature, fileEntryId, processorId } = input
     const config = resolveProcessorConfigByFeature(feature, processorId)
     const handler = getCapabilityHandler(config.id, feature)
@@ -70,20 +70,15 @@ export class FileProcessingOrchestrationService extends BaseService {
     const handle = await jobManager.enqueue(
       type,
       { feature, fileEntryId, processorId: config.id },
-      {
-        idempotencyKey: options.idempotencyKey ?? `fp:${fileEntryId}:${config.id}:${feature}`,
-        ...(options.parentId ? { parentId: options.parentId } : {})
-      }
+      options.parentId ? { parentId: options.parentId } : {}
     )
-    const { id, snapshot } = handle
 
     logger.debug('Enqueued file processing job', {
-      jobId: id,
+      jobId: handle.id,
       type,
       feature,
       processorId: config.id,
-      fileEntryId,
-      reusedExisting: snapshot.status !== 'pending'
+      fileEntryId
     })
 
     return handle.snapshot

@@ -2,9 +2,9 @@
  * Orchestration-layer tests for FileProcessingOrchestrationService.
  *
  * Verifies (1) handler registration on onInit, (2) mode → JobRegistry type
- * routing on startJob, (3) idempotencyKey shape, and (4) listAvailableProcessors
+ * routing on startJob, (3) fresh job creation, and (4) listAvailableProcessors
  * delegates to the processor registry. The JobManager itself is stubbed — its
- * idempotency dedup / cancellation behavior is covered by JobManager's own
+ * idempotency / cancellation behavior is covered by JobManager's own
  * test suite; this layer just verifies we hand it the right arguments.
  */
 import type * as LifecycleModule from '@main/core/lifecycle'
@@ -175,9 +175,9 @@ beforeEach(() => {
 })
 
 describe('FileProcessingOrchestrationService — lifecycle metadata', () => {
-  it('runs in WhenReady phase and depends on JobManager', () => {
+  it('runs in WhenReady phase and depends on FileManager and JobManager', () => {
     expect(getPhase(FileProcessingOrchestrationService)).toBe(Phase.WhenReady)
-    expect(getDependencies(FileProcessingOrchestrationService)).toEqual(['JobManager'])
+    expect(getDependencies(FileProcessingOrchestrationService)).toEqual(['FileManager', 'JobManager'])
   })
 })
 
@@ -237,7 +237,7 @@ describe('FileProcessingOrchestrationService.startJob — routing', () => {
     expect(enqueueMock).toHaveBeenCalledWith(
       'file-processing.background',
       { feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' },
-      { idempotencyKey: `fp:${IMAGE_ENTRY_ID}:tesseract:image_to_text` }
+      {}
     )
     expect(result).toEqual({
       id: 'job-test-1',
@@ -263,11 +263,11 @@ describe('FileProcessingOrchestrationService.startJob — routing', () => {
     expect(enqueueMock).toHaveBeenCalledWith(
       'file-processing.remote-poll',
       { feature: 'document_to_markdown', fileEntryId: PDF_ENTRY_ID, processorId: 'doc2x' },
-      { idempotencyKey: `fp:${PDF_ENTRY_ID}:doc2x:document_to_markdown` }
+      {}
     )
   })
 
-  it('builds idempotencyKey deterministically from fileEntryId + processorId + feature', async () => {
+  it('starts a fresh processing job for each call', async () => {
     resolveProcessorConfigByFeatureMock.mockReturnValue({
       id: 'tesseract',
       capabilities: [{ feature: 'image_to_text', inputs: ['image'] }]
@@ -277,9 +277,8 @@ describe('FileProcessingOrchestrationService.startJob — routing', () => {
     await svc.startJob({ feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' })
     await svc.startJob({ feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' })
 
-    const keys = enqueueMock.mock.calls.map((c) => c[2]?.idempotencyKey)
-    expect(keys[0]).toBe(keys[1])
-    expect(keys[0]).toBe(`fp:${IMAGE_ENTRY_ID}:tesseract:image_to_text`)
+    expect(enqueueMock).toHaveBeenCalledTimes(2)
+    expect(enqueueMock.mock.calls.map((call) => call[2])).toEqual([{}, {}])
   })
 
   it('rejects when file type is not in the processor capability inputs', async () => {

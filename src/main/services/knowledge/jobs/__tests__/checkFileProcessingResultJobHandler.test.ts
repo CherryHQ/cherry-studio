@@ -185,7 +185,7 @@ describe('check-file-processing-result job handler', () => {
       createFileProcessingJobSnapshot({
         status: 'completed',
         output: {
-          artifact: { kind: 'file', format: 'markdown', path: '/tmp/fp-result/result.md' }
+          artifact: { kind: 'file', format: 'markdown', fileEntryId: PROCESSED_FILE_ENTRY_ID }
         }
       })
     )
@@ -198,10 +198,6 @@ describe('check-file-processing-result job handler', () => {
     })
     await handler.execute(ctx)
 
-    expect(createInternalEntryMock).toHaveBeenCalledWith({
-      source: 'path',
-      path: '/tmp/fp-result/result.md'
-    })
     expect(knowledgeItemReplaceFileRefMock).toHaveBeenCalledWith(
       FILE_ITEM_ID,
       PROCESSED_FILE_ENTRY_ID,
@@ -224,7 +220,7 @@ describe('check-file-processing-result job handler', () => {
       createFileProcessingJobSnapshot({
         status: 'completed',
         output: {
-          artifact: { kind: 'file', format: 'markdown', path: '/tmp/fp-result/result.md' }
+          artifact: { kind: 'file', format: 'markdown', fileEntryId: PROCESSED_FILE_ENTRY_ID }
         }
       })
     )
@@ -285,7 +281,7 @@ describe('check-file-processing-result job handler', () => {
       createFileProcessingJobSnapshot({
         status: 'completed',
         output: {
-          artifact: { kind: 'file', format: 'markdown', path: '/tmp/fp-result/result.md' }
+          artifact: { kind: 'file', format: 'markdown', fileEntryId: PROCESSED_FILE_ENTRY_ID }
         }
       })
     )

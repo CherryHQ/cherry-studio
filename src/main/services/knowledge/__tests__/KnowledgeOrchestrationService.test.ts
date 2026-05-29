@@ -652,7 +652,6 @@ describe('KnowledgeOrchestrationService', () => {
         processorId: 'doc2x'
       },
       {
-        idempotencyKey: 'knowledge:kb-1:file-1:fp-start',
         parentId: undefined
       }
     )
@@ -677,7 +676,7 @@ describe('KnowledgeOrchestrationService', () => {
     expect(enqueueMock).not.toHaveBeenCalledWith('knowledge.index-documents', expect.anything(), expect.anything())
   })
 
-  it('uses the parent job as the file-processing start idempotency scope during reindex', async () => {
+  it('passes the parent job when starting file processing during reindex', async () => {
     const service = new KnowledgeOrchestrationService()
     const processingFile = createFileItem('file-1', 'kb-1', '/docs/source.pdf', 'processing')
     knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ fileProcessorId: 'doc2x' }))
@@ -699,7 +698,6 @@ describe('KnowledgeOrchestrationService', () => {
         processorId: 'doc2x'
       },
       {
-        idempotencyKey: 'knowledge:kb-1:file-1:fp-start:reindex-job',
         parentId: 'reindex-job'
       }
     )

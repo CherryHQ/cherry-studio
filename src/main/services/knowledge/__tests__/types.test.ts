@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   knowledgeDeleteSubtreeIdempotencyKey,
-  knowledgeFileProcessingStartIdempotencyKey,
   knowledgeIndexIdempotencyKey,
   knowledgePrepareIdempotencyKey,
   knowledgeReindexSubtreeIdempotencyKey,
@@ -28,12 +27,6 @@ describe('knowledge idempotency keys', () => {
     expect(knowledgeIndexIdempotencyKey(baseId, toKnowledgeItemId('note-1'))).toBe('knowledge:kb-1:note-1:index')
     expect(knowledgeIndexIdempotencyKey(baseId, toKnowledgeItemId('note-1'), 'reindex-job')).toBe(
       'knowledge:kb-1:note-1:index:reindex-job'
-    )
-    expect(knowledgeFileProcessingStartIdempotencyKey(baseId, toKnowledgeItemId('file-1'))).toBe(
-      'knowledge:kb-1:file-1:fp-start'
-    )
-    expect(knowledgeFileProcessingStartIdempotencyKey(baseId, toKnowledgeItemId('file-1'), 'reindex-job')).toBe(
-      'knowledge:kb-1:file-1:fp-start:reindex-job'
     )
   })
 

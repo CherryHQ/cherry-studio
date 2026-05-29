@@ -469,9 +469,9 @@ file-processing 相关数据按职责分层：
    - 包括 job record、provider task id、query context、abort controller、in-flight query、background execution
    - 不落 DataApi，不镜像到 Cache / SharedCache
 4. 最终 file artifact
-   - 当前落盘到 `application.getPath('feature.file_processing.results')/jobId`
-   - 更细的 per-file 目录归属等文件系统方案完成后再统一调整
-   - 由 completed job artifact 返回 path
+   - 只保留最终 markdown 文件
+   - 通过 `FileManager.createInternalEntry` 写入 internal FileEntry
+   - 由 completed job artifact 返回 `fileEntryId`
 
 DataApi 边界：
 
@@ -633,11 +633,11 @@ Markdown conversion 的文件 artifact 继续由 Main 进程稳定落盘。
 
 落盘规则：
 
-1. 路径使用 `application.getPath('feature.file_processing.results')` 派生。
-2. 结果目录当前按 `jobId` 分桶。
-3. Markdown 主文件归一为稳定文件名，例如 `output.md`。
-4. zip 结果必须做 entry path 规范化和安全校验，防止 zip slip。
-5. 写入结果目录时继续使用原子替换策略。
+1. 最终只保留 markdown 文件，不保留 zip 内图片/附件目录。
+2. markdown 内容通过 `FileManager.createInternalEntry({ source: 'bytes', ext: 'md' })` 写入 internal FileEntry。
+3. job output 只返回 processed artifact 的 `fileEntryId`。
+4. zip 结果只读取第一个 markdown entry，仍必须做 entry path 规范化和安全校验，防止 zip slip。
+5. 下载 zip 时只使用 `application.getPath('feature.file_processing.temp')` 作为临时目录。
 
 OCR text artifact 不落盘，直接以内联文本返回。
 
@@ -779,10 +779,10 @@ Registry 测试：
 
 Persistence 测试：
 
-1. markdown content 原子写入 `output.md`。
-2. zip result 安全解包并归一 markdown path。
+1. markdown content 写入 internal FileEntry 并返回 `fileEntryId` artifact。
+2. zip result 只读取第一个 markdown entry 并写入 internal FileEntry。
 3. unsafe zip entry 被拒绝。
-4. 不同 jobId 的结果目录互不覆盖。
+4. zip 下载临时目录完成后清理。
 
 Processor 测试：
 

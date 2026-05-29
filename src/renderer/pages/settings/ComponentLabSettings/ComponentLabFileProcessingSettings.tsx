@@ -96,7 +96,7 @@ function getDurationSeconds(durationMs: number | undefined): string {
 
 function getArtifactPreview(artifact: FileProcessingArtifact): string {
   if (artifact.kind === 'file') {
-    return artifact.path
+    return artifact.fileEntryId
   }
 
   return artifact.text.length > TEXT_PREVIEW_LIMIT ? `${artifact.text.slice(0, TEXT_PREVIEW_LIMIT)}...` : artifact.text

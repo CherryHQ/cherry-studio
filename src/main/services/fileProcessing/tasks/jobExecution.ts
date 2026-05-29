@@ -3,7 +3,7 @@ import type { JobContext } from '@main/core/job/types'
 import { toFileInfo } from '@main/services/file/toFileInfo'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileProcessorInput, FileProcessorMerged } from '@shared/data/presets/file-processing'
-import type { FileEntryId, FileType } from '@shared/data/types/file'
+import type { FileEntryId } from '@shared/data/types/file'
 import type { FileInfo } from '@shared/file/types'
 
 import { resolveProcessorConfigByFeature } from '../config/resolveProcessorConfig'
@@ -118,7 +118,8 @@ export function assertFileTypeSupported(
     throw new Error(`File processor ${config.id} does not support ${feature}`)
   }
 
-  if (!isSupportedFileType(file.type, presetCapability.inputs)) {
+  const inputs: readonly FileProcessorInput[] = presetCapability.inputs
+  if (!inputs.includes(file.type as FileProcessorInput)) {
     throw new Error(`File processor ${config.id} ${feature} does not support ${file.type} files`)
   }
 }
@@ -132,11 +133,4 @@ export async function resolveFileProcessingFileInfo(fileEntryId: FileEntryId): P
 
   const entry = await fileManager.getById(fileEntryId)
   return toFileInfo(entry)
-}
-
-function isSupportedFileType(
-  fileType: FileType,
-  inputs: readonly FileProcessorInput[]
-): fileType is FileProcessorInput {
-  return inputs.includes(fileType as FileProcessorInput)
 }

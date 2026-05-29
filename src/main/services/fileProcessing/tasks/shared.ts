@@ -21,5 +21,3 @@ export interface FileProcessingJobPayload {
   fileEntryId: FileEntryId
   processorId: FileProcessorId
 }
-
-export type { FileProcessingJobOutput } from '@shared/data/types/fileProcessing'

@@ -13,7 +13,6 @@ import {
   type KnowledgeBaseId,
   knowledgeDeleteSubtreeIdempotencyKey,
   knowledgeFileProcessingCheckIdempotencyKey,
-  knowledgeFileProcessingStartIdempotencyKey,
   knowledgeIndexIdempotencyKey,
   type KnowledgeItemId,
   knowledgePrepareIdempotencyKey,
@@ -161,7 +160,6 @@ export class KnowledgeWorkflowService {
           processorId
         },
         {
-          idempotencyKey: knowledgeFileProcessingStartIdempotencyKey(baseId, itemId, parentJobId),
           parentId: parentJobId ?? undefined
         }
       )

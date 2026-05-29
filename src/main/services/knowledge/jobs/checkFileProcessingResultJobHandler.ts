@@ -8,11 +8,10 @@ import { JOB_PROGRESS_KEY_PREFIX } from '@main/core/job/types'
 import { isTerminalStatus, type JobProgress, type JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { FileEntryId } from '@shared/data/types/file'
 import { FileEntryIdSchema } from '@shared/data/types/file'
-import type { FilePath } from '@shared/file/types'
 
 import {
   getFileProcessingFailureMessage,
-  getFileProcessingMarkdownArtifactPath
+  getFileProcessingMarkdownArtifactFileEntryId
 } from '../../fileProcessing/persistence/artifacts'
 import type { KnowledgeLockManager } from '../KnowledgeLockManager'
 import type { KnowledgeWorkflowService } from '../KnowledgeWorkflowService'
@@ -97,8 +96,8 @@ export function createCheckFileProcessingResultJobHandler(
         return
       }
 
-      const artifactPath = parseMarkdownArtifactPathOrNull(snapshot)
-      if (!artifactPath) {
+      const processedFileEntryId = parseMarkdownArtifactFileEntryIdOrNull(snapshot)
+      if (!processedFileEntryId) {
         await markItemFailed(itemId, `Invalid file processing result for job ${fileProcessingJobId}`)
         ctx.reportProgress(100, { stage: 'failed' })
         return
@@ -109,7 +108,6 @@ export function createCheckFileProcessingResultJobHandler(
           return false
         }
 
-        const processedFileEntryId = await createProcessedArtifactFileEntryId(artifactPath)
         await knowledgeItemService.replaceFileRef(itemId, processedFileEntryId, 'processed_artifact')
         await workflowService.scheduleIndexing(
           toKnowledgeBaseId(baseId),
@@ -220,9 +218,9 @@ async function markItemFailed(itemId: string, error: string): Promise<void> {
   }
 }
 
-function parseMarkdownArtifactPathOrNull(snapshot: JobSnapshot): FilePath | null {
+function parseMarkdownArtifactFileEntryIdOrNull(snapshot: JobSnapshot): FileEntryId | null {
   try {
-    return getFileProcessingMarkdownArtifactPath(snapshot)
+    return getFileProcessingMarkdownArtifactFileEntryId(snapshot)
   } catch (error) {
     logger.warn('Invalid file-processing result for knowledge item', {
       jobId: snapshot.id,
@@ -230,14 +228,4 @@ function parseMarkdownArtifactPathOrNull(snapshot: JobSnapshot): FilePath | null
     })
     return null
   }
-}
-
-async function createProcessedArtifactFileEntryId(artifactPath: FilePath): Promise<FileEntryId> {
-  const fileManager = application.get('FileManager')
-  const processedFile = await fileManager.createInternalEntry({
-    source: 'path',
-    path: artifactPath
-  })
-
-  return FileEntryIdSchema.parse(processedFile.id)
 }

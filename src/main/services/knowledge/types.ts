@@ -88,15 +88,6 @@ export function knowledgeIndexIdempotencyKey(
   return `knowledge:${baseId}:${itemId}:index${runKey}`
 }
 
-export function knowledgeFileProcessingStartIdempotencyKey(
-  baseId: KnowledgeBaseId,
-  itemId: KnowledgeItemId,
-  parentJobId?: string | null
-): string {
-  const runKey = parentJobId ? `:${parentJobId}` : ''
-  return `knowledge:${baseId}:${itemId}:fp-start${runKey}`
-}
-
 export function knowledgeFileProcessingCheckIdempotencyKey(
   baseId: KnowledgeBaseId,
   itemId: KnowledgeItemId,

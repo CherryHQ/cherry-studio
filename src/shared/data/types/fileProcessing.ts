@@ -1,6 +1,7 @@
 import * as z from 'zod'
 
 import { FILE_PROCESSOR_IDS } from '../preference/preferenceTypes'
+import { FileEntryIdSchema } from './file'
 
 export const FileProcessingTextArtifactSchema = z
   .object({
@@ -14,7 +15,7 @@ export const FileProcessingFileArtifactSchema = z
   .object({
     kind: z.literal('file'),
     format: z.literal('markdown'),
-    path: z.string().min(1)
+    fileEntryId: FileEntryIdSchema
   })
   .strict()
 

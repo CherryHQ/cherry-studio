@@ -3,10 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { FileProcessingJobPayload } from '../../tasks/shared'
 
-const { loggerWarnMock, persistResultMock, cleanupResultsDirMock } = vi.hoisted(() => ({
+const { loggerWarnMock, persistResultMock } = vi.hoisted(() => ({
   loggerWarnMock: vi.fn(),
-  persistResultMock: vi.fn(),
-  cleanupResultsDirMock: vi.fn()
+  persistResultMock: vi.fn()
 }))
 
 vi.mock('@logger', () => ({
@@ -18,11 +17,10 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('../MarkdownResultStore', () => ({
-  markdownResultStore: { persistResult: persistResultMock },
-  cleanupFileProcessingResultsDir: cleanupResultsDirMock
+  markdownResultStore: { persistResult: persistResultMock }
 }))
 
-const { createFileProcessingJobOutput, getFileProcessingFailureMessage, getFileProcessingMarkdownArtifactPath } =
+const { createFileProcessingJobOutput, getFileProcessingFailureMessage, getFileProcessingMarkdownArtifactFileEntryId } =
   await import('../artifacts')
 
 function createCtx(
@@ -64,11 +62,10 @@ describe('createFileProcessingJobOutput', () => {
 
     expect(result).toEqual({ artifact: { kind: 'text', format: 'plain', text: 'hello' } })
     expect(persistResultMock).not.toHaveBeenCalled()
-    expect(cleanupResultsDirMock).not.toHaveBeenCalled()
   })
 
   it('persists a markdown artifact', async () => {
-    persistResultMock.mockResolvedValue('/tmp/results/job-artifacts-1/output.md')
+    persistResultMock.mockResolvedValue('019606a0-0000-7000-8000-000000000401')
 
     const result = await createFileProcessingJobOutput(
       createCtx(),
@@ -81,7 +78,7 @@ describe('createFileProcessingJobOutput', () => {
     )
 
     expect(result).toEqual({
-      artifact: { kind: 'file', format: 'markdown', path: '/tmp/results/job-artifacts-1/output.md' }
+      artifact: { kind: 'file', format: 'markdown', fileEntryId: '019606a0-0000-7000-8000-000000000401' }
     })
     expect(persistResultMock).toHaveBeenCalledWith({
       jobId: 'job-artifacts-1',
@@ -90,9 +87,8 @@ describe('createFileProcessingJobOutput', () => {
     })
   })
 
-  it('cleans up markdown artifacts when persistence fails', async () => {
+  it('logs markdown artifact persistence failures', async () => {
     persistResultMock.mockRejectedValue(new Error('disk full'))
-    cleanupResultsDirMock.mockResolvedValue(true)
 
     await expect(
       createFileProcessingJobOutput(
@@ -106,34 +102,32 @@ describe('createFileProcessingJobOutput', () => {
       )
     ).rejects.toThrow('disk full')
 
-    expect(cleanupResultsDirMock).toHaveBeenCalledWith('job-artifacts-1')
-    expect(loggerWarnMock).toHaveBeenCalledWith('artifact failed', {
+    expect(loggerWarnMock).toHaveBeenCalledWith('artifact failed', expect.any(Error), {
       jobId: 'job-artifacts-1',
       processorId: 'tesseract',
-      feature: 'image_to_text',
-      cleaned: true
+      feature: 'image_to_text'
     })
   })
 })
 
-describe('getFileProcessingMarkdownArtifactPath', () => {
-  it('returns the validated markdown artifact path from a completed job snapshot', () => {
+describe('getFileProcessingMarkdownArtifactFileEntryId', () => {
+  it('returns the validated markdown artifact file entry id from a completed job snapshot', () => {
     expect(
-      getFileProcessingMarkdownArtifactPath({
+      getFileProcessingMarkdownArtifactFileEntryId({
         id: 'fp-job-1',
         type: 'file-processing.remote-poll',
         status: 'completed',
         input: {},
         output: {
-          artifact: { kind: 'file', format: 'markdown', path: '/tmp/fp-result/output.md' }
+          artifact: { kind: 'file', format: 'markdown', fileEntryId: '019606a0-0000-7000-8000-000000000401' }
         }
       } as never)
-    ).toBe('/tmp/fp-result/output.md')
+    ).toBe('019606a0-0000-7000-8000-000000000401')
   })
 
   it('rejects completed output without a markdown file artifact', () => {
     expect(() =>
-      getFileProcessingMarkdownArtifactPath({
+      getFileProcessingMarkdownArtifactFileEntryId({
         id: 'fp-job-1',
         type: 'file-processing.remote-poll',
         status: 'completed',
@@ -145,18 +139,18 @@ describe('getFileProcessingMarkdownArtifactPath', () => {
     ).toThrow(/without a markdown file artifact/i)
   })
 
-  it('rejects relative markdown artifact paths', () => {
+  it('rejects invalid markdown artifact file entry ids', () => {
     expect(() =>
-      getFileProcessingMarkdownArtifactPath({
+      getFileProcessingMarkdownArtifactFileEntryId({
         id: 'fp-job-1',
         type: 'file-processing.remote-poll',
         status: 'completed',
         input: {},
         output: {
-          artifact: { kind: 'file', format: 'markdown', path: 'relative/output.md' }
+          artifact: { kind: 'file', format: 'markdown', fileEntryId: 'not-a-file-entry-id' }
         }
       } as never)
-    ).toThrow(/path must be an absolute filesystem path/i)
+    ).toThrow()
   })
 })
 

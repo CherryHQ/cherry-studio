@@ -160,10 +160,16 @@ describe('FileProcessingArtifactSchema', () => {
       text: 'hello'
     })
 
-    expect(FileProcessingArtifactSchema.parse({ kind: 'file', format: 'markdown', path: '/tmp/output.md' })).toEqual({
+    expect(
+      FileProcessingArtifactSchema.parse({
+        kind: 'file',
+        format: 'markdown',
+        fileEntryId: '019606a0-0000-7000-8000-000000000601'
+      })
+    ).toEqual({
       kind: 'file',
       format: 'markdown',
-      path: '/tmp/output.md'
+      fileEntryId: '019606a0-0000-7000-8000-000000000601'
     })
   })
 })
@@ -172,10 +178,10 @@ describe('FileProcessingJobOutputSchema', () => {
   it('accepts a job output artifact', () => {
     expect(
       FileProcessingJobOutputSchema.parse({
-        artifact: { kind: 'file', format: 'markdown', path: '/tmp/output.md' }
+        artifact: { kind: 'file', format: 'markdown', fileEntryId: '019606a0-0000-7000-8000-000000000601' }
       })
     ).toEqual({
-      artifact: { kind: 'file', format: 'markdown', path: '/tmp/output.md' }
+      artifact: { kind: 'file', format: 'markdown', fileEntryId: '019606a0-0000-7000-8000-000000000601' }
     })
   })
 
@@ -192,7 +198,7 @@ describe('FileProcessingJobOutputSchema', () => {
       taskId: 'task-1',
       status: 'completed',
       progress: 100,
-      artifact: { kind: 'file', format: 'markdown', path: '/tmp/output.md' }
+      artifact: { kind: 'file', format: 'markdown', fileEntryId: '019606a0-0000-7000-8000-000000000601' }
     })
 
     expect(result.success).toBe(false)
