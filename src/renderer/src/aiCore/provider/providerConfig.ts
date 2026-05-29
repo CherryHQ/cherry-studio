@@ -502,7 +502,6 @@ function buildDmxapiConfig(ctx: BuilderContext): ProviderConfig<'dmxapi'> {
     providerSettings: {
       ...ctx.baseConfig,
       baseURL: ctx.baseConfig.baseURL || DEFAULT_DMXAPI_BASE_URL,
-      imageBaseURL: deriveImageBaseURL(ctx.baseConfig.baseURL, DEFAULT_DMXAPI_BASE_URL),
       headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
     }
   }

@@ -196,7 +196,7 @@ export const AiHubMixExtension = ProviderExtension.create({
  */
 export const NewApiExtension = ProviderExtension.create({
   name: 'newapi',
-  aliases: ['new-api'] as const,
+  aliases: ['new-api', 'o3'] as const,
   supportsImageGeneration: true,
   create: createNewApi
 } as const satisfies ProviderExtensionConfig<NewApiProviderSettings, ProviderV3, 'newapi'>)

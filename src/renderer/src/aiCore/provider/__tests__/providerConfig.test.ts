@@ -897,7 +897,7 @@ describe('providerToAiSdkConfig', () => {
   })
 
   describe('DMXAPI builder', () => {
-    it('mirrors user apiHost to both baseURL and imageBaseURL (user-overridable image host)', async () => {
+    it('forwards the user apiHost as `baseURL` (factory derives the native-API origin internally)', async () => {
       const provider = makeProvider({
         id: 'dmxapi',
         type: 'openai',
@@ -907,7 +907,6 @@ describe('providerToAiSdkConfig', () => {
       expect(config.providerId).toBe('dmxapi')
       const settings = config.providerSettings as DmxapiProviderSettings
       expect(settings.baseURL).toContain('www.dmxapi.cn')
-      expect(settings.imageBaseURL).toContain('www.dmxapi.cn')
     })
   })
 

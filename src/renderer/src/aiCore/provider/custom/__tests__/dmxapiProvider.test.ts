@@ -57,13 +57,13 @@ describe('createDmxapiProvider', () => {
     expect(provider.imageModel('gpt-image-1').provider).toBe('dmxapi')
   })
 
-  it('image transport uses imageBaseURL when provided', () => {
-    createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn', imageBaseURL: 'https://www.dmxapi.com' })
-    expect(TransportCtor).toHaveBeenCalledWith({ apiKey: 'sk', baseURL: 'https://www.dmxapi.com' })
+  it('strips the OpenAI-compat suffix from baseURL to derive the transport host', () => {
+    createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn/v1' })
+    expect(TransportCtor).toHaveBeenCalledWith({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
   })
 
-  it('image transport falls back to DEFAULT_DMXAPI_BASE_URL when imageBaseURL is omitted', () => {
+  it('keeps baseURL untouched when no OpenAI-compat suffix is present', () => {
     createDmxapiProvider({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
-    expect(TransportCtor).toHaveBeenCalledWith({ apiKey: 'sk', baseURL: 'https://www.dmxapi.com' })
+    expect(TransportCtor).toHaveBeenCalledWith({ apiKey: 'sk', baseURL: 'https://www.dmxapi.cn' })
   })
 })
