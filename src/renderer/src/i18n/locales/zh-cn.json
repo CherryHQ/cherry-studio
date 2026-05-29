@@ -1380,6 +1380,7 @@
           "no_knowledge_base": "暂无可用知识库，请先创建知识库"
         },
         "error": {
+          "file_partial_failed": "{{count}} 个文件保存失败",
           "invalid_base": "所选知识库未正确配置",
           "no_content_selected": "请至少选择一种内容",
           "save_failed": "保存失败，请检查知识库配置"
@@ -3502,6 +3503,7 @@
     "starred_notes": "收藏的笔记",
     "target_name_exists": "已存在同名笔记或文件夹",
     "title": "笔记",
+    "tree_load_failed": "加载笔记目录失败",
     "unsaved_changes": "你有未保存的内容，确定要离开吗？",
     "unstar": "取消收藏",
     "untitled_folder": "新文件夹",
@@ -3601,7 +3603,7 @@
     "install_progress": "安装进度",
     "installed_at": "OpenClaw 安装路径",
     "migration": {
-      "description": "检测到通过 npm 安装的旧版本 OpenClaw，请重新安装以获取最新官方版本。",
+      "description": "检测到 PATH 中存在外部 OpenClaw 安装，但 Cherry Studio 只使用托管的 OpenClaw 二进制文件。请安装托管版本后继续。",
       "install_button": "重新安装 OpenClaw",
       "title": "OpenClaw 需要更新"
     },
@@ -5562,9 +5564,6 @@
       }
     },
     "integrations": {
-      "groups": {
-        "notes": "笔记"
-      },
       "title": "集成"
     },
     "launch": {
@@ -5612,6 +5611,7 @@
       },
       "addSuccess": "服务器添加成功",
       "advancedSettings": "高级设置",
+      "allServers": "MCP 服务器",
       "args": "参数",
       "argsTooltip": "每个参数占一行",
       "baseUrlTooltip": "远程 URL 地址",
@@ -5761,6 +5761,7 @@
       "serverPlural": "服务器",
       "serverSingular": "服务器",
       "servers": "MCP 服务器",
+      "shortTitle": "MCP",
       "sse": "服务器发送事件 (sse)",
       "startError": "启动失败",
       "stdio": "标准输入 / 输出 (stdio)",
@@ -6476,7 +6477,8 @@
         "agent": "支持 Agent",
         "all": "全部服务商",
         "disabled": "仅已禁用",
-        "enabled": "仅已启用"
+        "enabled": "仅已启用",
+        "label": "筛选服务商"
       },
       "filter_agent": "筛选支持 Agent 的服务商",
       "get_api_key": "点击这里获取密钥",

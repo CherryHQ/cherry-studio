@@ -1380,6 +1380,7 @@
           "no_knowledge_base": "Aucune base de connaissances disponible pour le moment. Veuillez d'abord créer une base de connaissances"
         },
         "error": {
+          "file_partial_failed": "[to be translated]:{{count}} file(s) could not be saved",
           "invalid_base": "La base de connaissances sélectionnée n'est pas correctement configurée",
           "no_content_selected": "Veuillez sélectionner au moins un type de contenu",
           "save_failed": "Échec de l'enregistrement. Veuillez vérifier la configuration de la base de connaissances"
@@ -3502,6 +3503,7 @@
     "starred_notes": "notes de collection",
     "target_name_exists": "[to be translated]:A note or folder with this name already exists",
     "title": "notes",
+    "tree_load_failed": "[to be translated]:Failed to load notes directory",
     "unsaved_changes": "Vous avez des modifications non enregistrées, êtes-vous sûr de vouloir quitter ?",
     "unstar": "annuler la mise en favori",
     "untitled_folder": "nouveau dossier",
@@ -5562,9 +5564,6 @@
       }
     },
     "integrations": {
-      "groups": {
-        "notes": "Notes"
-      },
       "title": "Intégrations"
     },
     "launch": {
@@ -5612,6 +5611,7 @@
       },
       "addSuccess": "Serveur ajouté avec succès",
       "advancedSettings": "Расширенные настройки",
+      "allServers": "[to be translated]:MCP Servers",
       "args": "Arguments",
       "argsTooltip": "Chaque argument sur une ligne",
       "baseUrlTooltip": "Adresse URL distante",
@@ -5761,6 +5761,7 @@
       "serverPlural": "Serveurs",
       "serverSingular": "Serveur",
       "servers": "Serveurs MCP",
+      "shortTitle": "[to be translated]:MCP",
       "sse": "Серверные отправляемые события (sse)",
       "startError": "Ошибка запуска",
       "stdio": "Стандартный ввод/вывод (stdio)",
@@ -6476,7 +6477,8 @@
         "agent": "Prise en charge par un agent",
         "all": "Tous les fournisseurs",
         "disabled": "[to be translated]:Disabled Only",
-        "enabled": "[to be translated]:Enabled Only"
+        "enabled": "[to be translated]:Enabled Only",
+        "label": "[to be translated]:Filter providers"
       },
       "filter_agent": "Fournisseurs pris en charge par l'agent de filtrage",
       "get_api_key": "Cliquez ici pour obtenir une clé",

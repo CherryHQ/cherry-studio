@@ -83,8 +83,8 @@ resets the mocks.
   fallbacks). A real DB would not add coverage over what the mock
   already asserts.
 - Orchestration-layer service tests that mock their downstream data
-  service (`KnowledgeRuntimeService`, `KnowledgeOrchestrationService`,
-  `MCPService`) — they test coordination, not persistence.
+  service (`KnowledgeOrchestrationService`, `MCPService`) — they test
+  coordination, not persistence.
 
 ## Options
 

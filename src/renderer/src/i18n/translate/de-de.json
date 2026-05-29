@@ -1380,6 +1380,7 @@
           "no_knowledge_base": "Keine Wissensdatenbank verfügbar, bitte erstellen Sie zuerst eine"
         },
         "error": {
+          "file_partial_failed": "[to be translated]:{{count}} file(s) could not be saved",
           "invalid_base": "Die ausgewählte Wissensdatenbank ist nicht korrekt konfiguriert",
           "no_content_selected": "Bitte wählen Sie mindestens einen Inhaltstyp aus",
           "save_failed": "Speichern fehlgeschlagen, bitte überprüfen Sie die Wissensdatenbank-Konfiguration"
@@ -3502,6 +3503,7 @@
     "starred_notes": "Markierte Notizen",
     "target_name_exists": "[to be translated]:A note or folder with this name already exists",
     "title": "Notizen",
+    "tree_load_failed": "[to be translated]:Failed to load notes directory",
     "unsaved_changes": "Sie haben ungespeicherte Änderungen. Möchten Sie wirklich gehen?",
     "unstar": "Markierung aufheben",
     "untitled_folder": "Neuer Ordner",
@@ -5562,9 +5564,6 @@
       }
     },
     "integrations": {
-      "groups": {
-        "notes": "Notizen"
-      },
       "title": "Integrationen"
     },
     "launch": {
@@ -5612,6 +5611,7 @@
       },
       "addSuccess": "Server erfolgreich hinzugefügt",
       "advancedSettings": "Erweiterte Einstellungen",
+      "allServers": "[to be translated]:MCP Servers",
       "args": "Parameter",
       "argsTooltip": "Ein Parameter pro Zeile",
       "baseUrlTooltip": "Remote-URL-Adresse",
@@ -5761,6 +5761,7 @@
       "serverPlural": "Server",
       "serverSingular": "Server",
       "servers": "MCP-Server",
+      "shortTitle": "[to be translated]:MCP",
       "sse": "Server-Sende-Ereignisse (sse)",
       "startError": "Start fehlgeschlagen",
       "stdio": "Standard-Eingabe / -Ausgabe (stdio)",
@@ -6476,7 +6477,8 @@
         "agent": "Vom Agenten unterstützt",
         "all": "Alle Anbieter",
         "disabled": "[to be translated]:Disabled Only",
-        "enabled": "[to be translated]:Enabled Only"
+        "enabled": "[to be translated]:Enabled Only",
+        "label": "[to be translated]:Filter providers"
       },
       "filter_agent": "Von Filter-Agent unterstützte Anbieter",
       "get_api_key": "Hier klicken um Schlüssel zu erhalten",

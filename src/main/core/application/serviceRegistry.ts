@@ -13,8 +13,9 @@ import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { CherryInOauthService } from '@main/services/CherryInOauthService'
 import { CodeCliService } from '@main/services/CodeCliService'
 import { FileManager } from '@main/services/file/FileManager'
+import { DirectoryTreeManager } from '@main/services/file/tree/DirectoryTreeManager'
 import { FileProcessingOrchestrationService, TesseractRuntimeService } from '@main/services/fileProcessing'
-import { KnowledgeOrchestrationService, KnowledgeRuntimeService } from '@main/services/knowledge'
+import { KnowledgeOrchestrationService } from '@main/services/knowledge'
 import { KnowledgeVectorStoreService } from '@main/services/knowledge/vectorstore/KnowledgeVectorStoreService'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MainWindowService } from '@main/services/MainWindowService'
@@ -77,6 +78,7 @@ export const services = {
   CodeCliService,
   LanTransferService,
   FileManager,
+  DirectoryTreeManager,
   FileProcessingOrchestrationService,
   PowerMonitorService,
   SelectionService,
@@ -101,7 +103,6 @@ export const services = {
   SearchService,
   KnowledgeOrchestrationService,
   KnowledgeVectorStoreService,
-  KnowledgeRuntimeService,
   AgentBootstrapService,
   ApiServerService,
   AppUpdaterService,

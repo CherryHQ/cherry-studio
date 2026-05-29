@@ -3,6 +3,7 @@ import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/p
 import { cn } from '@renderer/utils'
 import type { Provider } from '@shared/data/types/provider'
 import { MoreVertical } from 'lucide-react'
+import type { ReactNode } from 'react'
 import type { MouseEvent } from 'react'
 
 interface ProviderListItemProps {
@@ -11,9 +12,17 @@ interface ProviderListItemProps {
   dragging: boolean
   onClick: () => void
   onOpenMenu?: () => void
+  renderMenuButton?: (button: ReactNode) => ReactNode
 }
 
-export default function ProviderListItem({ provider, selected, dragging, onClick, onOpenMenu }: ProviderListItemProps) {
+export default function ProviderListItem({
+  provider,
+  selected,
+  dragging,
+  onClick,
+  onOpenMenu,
+  renderMenuButton
+}: ProviderListItemProps) {
   const handleOpenMenu = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation()
     onOpenMenu?.()
@@ -44,22 +53,36 @@ export default function ProviderListItem({ provider, selected, dragging, onClick
         selected ? providerListClasses.itemSelected : providerListClasses.itemIdle,
         dragging && 'opacity-65'
       )}>
-      <div className="flex min-w-0 flex-1 items-center gap-2">
-        <ProviderAvatar provider={provider} size={18} className={providerListClasses.itemAvatar} />
+      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+        <ProviderAvatar provider={provider} size={22} className={providerListClasses.itemAvatar} />
         <span
-          className={cn(providerListClasses.itemLabel, selected ? 'font-medium text-foreground' : 'text-foreground')}>
+          className={cn(
+            providerListClasses.itemLabel,
+            selected ? 'font-medium text-foreground' : 'font-normal text-foreground'
+          )}>
           {provider.name}
         </span>
       </div>
-      {onOpenMenu && (
-        <button
-          type="button"
-          data-testid={`provider-list-menu-${provider.id}`}
-          onClick={handleOpenMenu}
-          className={providerListClasses.itemMoreActions}>
-          <MoreVertical size={14} />
-        </button>
-      )}
+      {onOpenMenu &&
+        (renderMenuButton ? (
+          renderMenuButton(
+            <button
+              type="button"
+              data-testid={`provider-list-menu-${provider.id}`}
+              onClick={handleOpenMenu}
+              className={providerListClasses.itemMoreActions}>
+              <MoreVertical size={14} />
+            </button>
+          )
+        ) : (
+          <button
+            type="button"
+            data-testid={`provider-list-menu-${provider.id}`}
+            onClick={handleOpenMenu}
+            className={providerListClasses.itemMoreActions}>
+            <MoreVertical size={14} />
+          </button>
+        ))}
     </div>
   )
 }

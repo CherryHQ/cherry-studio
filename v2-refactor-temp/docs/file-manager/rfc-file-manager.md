@@ -1205,7 +1205,16 @@ Vercel AI SDK Files API 稳定后：
 
 ## 十二、预留 Primitive：DirectoryTreeBuilder
 
-> **状态**：接口草案，不在当前 Phase 实现范围。首个实现者（Notes）落地时产出 lean 版本，第二个消费者到来时再抽公共。
+> **状态:已被取代(SUPERSEDED).** 本节是早期草案,落地实现已在 PR #15363 完成,并以 `docs/references/file/directory-tree.md` 作为唯一的架构权威源。下文保留为历史记录,**不再维护**。变更要点:
+>
+> - 物理路径:草案写的 `src/main/file/tree/` → 实际落到 `src/main/services/file/tree/`,作为 file module 内与 FileManager 并列的顶级 primitive。
+> - IPC 命名:草案 `Tree_*` → 实际 `File_Tree*`(`file:tree:create` / `file:tree:dispose` / `file:tree:mutation`),归入 `file:` scope。
+> - 类层级:`TreeNode` / `TreeFile` / `TreeDir` / `TreeDirRoot` 落在 `packages/shared/file/types/tree.ts`,主进程与渲染进程共享。
+> - 渲染端:配套 hook `useDirectoryTree(rootPath, options)`,首个消费者为 Notes(`NotesPage`)。
+>
+> `v2-refactor-temp/` 目录整体计划在 v2 发布前删除;本节的设计意图与最终实现的差异以上方 SoT 为准。
+
+> **历史草案**:接口草案,不在当前 Phase 实现范围。首个实现者(Notes)落地时产出 lean 版本,第二个消费者到来时再抽公共。
 
 ### 12.1 动机
 

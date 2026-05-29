@@ -1,5 +1,5 @@
 import { YuqueOutlined } from '@ant-design/icons'
-import { MenuItem, MenuList, RowFlex } from '@cherrystudio/ui'
+import { MenuItem, MenuList, PageHeader, RowFlex } from '@cherrystudio/ui'
 import { JoplinIcon, SiyuanIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -10,9 +10,9 @@ import { useTranslation } from 'react-i18next'
 import {
   SettingContainer,
   settingsSubmenuItemClassName,
+  settingsSubmenuItemLabelClassName,
   settingsSubmenuListClassName,
-  settingsSubmenuScrollClassName,
-  settingsSubmenuSectionTitleClassName
+  settingsSubmenuScrollClassName
 } from '..'
 import JoplinSettings from './JoplinSettings'
 import NotionSettings from './NotionSettings'
@@ -43,21 +43,24 @@ const IntegrationSettings: FC = () => {
 
   return (
     <RowFlex className="flex-1">
-      <Scrollbar className={`${settingsSubmenuScrollClassName} [&_.iconfont]:text-current [&_.iconfont]:leading-4`}>
-        <MenuList className={settingsSubmenuListClassName}>
-          <div className={settingsSubmenuSectionTitleClassName}>{t('settings.integrations.groups.notes')}</div>
-          {menuItems.map((item) => (
-            <MenuItem
-              key={item.key}
-              label={item.title}
-              active={menu === item.key}
-              onClick={() => setMenu(item.key)}
-              icon={item.icon}
-              className={settingsSubmenuItemClassName}
-            />
-          ))}
-        </MenuList>
-      </Scrollbar>
+      <div className={`flex flex-col ${settingsSubmenuScrollClassName}`}>
+        <PageHeader title={t('settings.integrations.title')} />
+        <Scrollbar className="min-h-0 flex-1 [&_.iconfont]:text-current [&_.iconfont]:leading-4">
+          <MenuList className={settingsSubmenuListClassName}>
+            {menuItems.map((item) => (
+              <MenuItem
+                key={item.key}
+                label={item.title}
+                active={menu === item.key}
+                onClick={() => setMenu(item.key)}
+                icon={item.icon}
+                className={settingsSubmenuItemClassName}
+                labelClassName={settingsSubmenuItemLabelClassName}
+              />
+            ))}
+          </MenuList>
+        </Scrollbar>
+      </div>
       <SettingContainer theme={theme} style={{ display: 'flex', flex: 1, height: '100%' }}>
         {menu === 'notion' && <NotionSettings />}
         {menu === 'yuque' && <YuqueSettings />}

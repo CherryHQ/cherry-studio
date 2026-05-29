@@ -1,8 +1,10 @@
+import { application } from '@application'
+import { toFileInfo } from '@main/services/file/toFileInfo'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileProcessorInput, FileProcessorMerged } from '@shared/data/presets/file-processing'
-import type { FileType } from '@shared/data/types/file'
+import type { FileEntryId, FileType } from '@shared/data/types/file'
 import type { FileProcessingArtifact } from '@shared/data/types/fileProcessing'
-import type { FileMetadata } from '@types'
+import type { FileInfo } from '@shared/file/types'
 
 import { cleanupFileProcessingResultsDir, markdownResultStore } from '../persistence/MarkdownResultStore'
 import { processorRegistry } from '../processors/registry'
@@ -29,7 +31,7 @@ declare module '@main/core/job/jobRegistry' {
 
 export interface FileProcessingJobPayload {
   feature: FileProcessorFeature
-  file: FileMetadata
+  fileEntryId: FileEntryId
   processorId: FileProcessorId
 }
 
@@ -112,7 +114,7 @@ export function assertModeMatches(
 }
 
 export function assertFileTypeSupported(
-  file: FileMetadata,
+  file: FileInfo,
   feature: FileProcessorFeature,
   config: FileProcessorMerged
 ): void {
@@ -125,6 +127,17 @@ export function assertFileTypeSupported(
   if (!isSupportedFileType(file.type, presetCapability.inputs)) {
     throw new Error(`File processor ${config.id} ${feature} does not support ${file.type} files`)
   }
+}
+
+export async function resolveFileProcessingFileInfo(fileEntryId: FileEntryId): Promise<FileInfo> {
+  const fileManager = application.get('FileManager')
+  const metadata = await fileManager.getMetadata(fileEntryId)
+  if (metadata.kind === 'directory') {
+    throw new Error('File processing does not support directories')
+  }
+
+  const entry = await fileManager.getById(fileEntryId)
+  return toFileInfo(entry)
 }
 
 function isSupportedFileType(

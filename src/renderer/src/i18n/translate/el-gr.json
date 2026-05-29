@@ -1380,6 +1380,7 @@
           "no_knowledge_base": "Δεν υπάρχει διαθέσιμη βάση γνώσεων προς το παρόν. Δημιουργήστε πρώτα μια βάση γνώσεων"
         },
         "error": {
+          "file_partial_failed": "[to be translated]:{{count}} file(s) could not be saved",
           "invalid_base": "Η επιλεγμένη βάση γνώσεων δεν έχει ρυθμιστεί σωστά",
           "no_content_selected": "Παρακαλώ επιλέξτε τουλάχιστον ένα περιεχόμενο",
           "save_failed": "Η αποθήκευση απέτυχε. Ελέγξτε τη ρύθμιση της βάσης γνώσεων"
@@ -3502,6 +3503,7 @@
     "starred_notes": "Σημειώσεις συλλογής",
     "target_name_exists": "[to be translated]:A note or folder with this name already exists",
     "title": "σημειώσεις",
+    "tree_load_failed": "[to be translated]:Failed to load notes directory",
     "unsaved_changes": "Έχετε μη αποθηκευμένο περιεχόμενο, είστε βέβαιοι ότι θέλετε να φύγετε;",
     "unstar": "Αποσπάστε το αγαπημένο",
     "untitled_folder": "Νέος φάκελος",
@@ -5562,9 +5564,6 @@
       }
     },
     "integrations": {
-      "groups": {
-        "notes": "Σημειώσεις"
-      },
       "title": "Ενσωματώσεις"
     },
     "launch": {
@@ -5612,6 +5611,7 @@
       },
       "addSuccess": "Ο διακομιστής προστέθηκε επιτυχώς",
       "advancedSettings": "Προχωρημένες Ρυθμίσεις",
+      "allServers": "[to be translated]:MCP Servers",
       "args": "Παράμετροι",
       "argsTooltip": "Κάθε παράμετρος σε μια γραμμή",
       "baseUrlTooltip": "Σύνδεσμος Απομακρυσμένης διεύθυνσης URL",
@@ -5761,6 +5761,7 @@
       "serverPlural": "Διακομιστές",
       "serverSingular": "Διακομιστής",
       "servers": "Διακομιστές MCP",
+      "shortTitle": "[to be translated]:MCP",
       "sse": "Συμβάντα Αποστολής από τον Διακομιστή (sse)",
       "startError": "Εκκίνηση Απέτυχε",
       "stdio": "Πρότυπη Είσοδος/Έξοδος (stdio)",
@@ -6476,7 +6477,8 @@
         "agent": "Υποστηριζόμενος από πράκτορα",
         "all": "Όλοι οι Πάροχοι",
         "disabled": "[to be translated]:Disabled Only",
-        "enabled": "[to be translated]:Enabled Only"
+        "enabled": "[to be translated]:Enabled Only",
+        "label": "[to be translated]:Filter providers"
       },
       "filter_agent": "Υποστηριζόμενοι Πάροχοι του Φίλτρου Πράκτορα",
       "get_api_key": "Κάντε κλικ εδώ για να πάρετε κλειδί",

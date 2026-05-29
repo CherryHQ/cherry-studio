@@ -19,10 +19,10 @@ const TS = 1700000000000
 
 describe('FileRefSourceType', () => {
   it('exposes exactly the currently-registered source types', () => {
-    // Defensive: this assertion locks the Phase 1b registered set.
+    // Defensive: this assertion locks the currently-registered set.
     // Adding a new variant must also extend (a) the discriminated union and
     // (b) the OrphanRefScanner registry — see ref/README.md.
-    expect([...allSourceTypes]).toEqual(['temp_session', 'knowledge_item', 'painting'])
+    expect([...allSourceTypes]).toEqual(['temp_session', 'knowledge_item', 'chat_message', 'painting'])
   })
 })
 
@@ -33,7 +33,7 @@ describe('knowledgeItemFileRefSchema', () => {
       fileEntryId: ENTRY_ID,
       sourceType: knowledgeItemSourceType,
       sourceId: KB_ITEM_ID,
-      role: 'attachment',
+      role: 'source',
       createdAt: TS,
       updatedAt: TS,
       ...overrides
@@ -44,25 +44,18 @@ describe('knowledgeItemFileRefSchema', () => {
     const parsed = knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef())
     expect(parsed.sourceType).toBe('knowledge_item')
     expect(parsed.sourceId).toBe(KB_ITEM_ID)
-    expect(parsed.role).toBe('attachment')
+    expect(parsed.role).toBe('source')
   })
 
-  it('accepts every role in the placeholder enum (Phase 1b: single value)', () => {
-    // Phase 2 will extend the enum with the rest of KnowledgeService's
-    // vocabulary; this test pins the current set so a future extension is
-    // an explicit `knowledgeItemRoles` edit, not an accidental widening.
-    for (const role of ['attachment']) {
+  it('accepts every knowledge_item role', () => {
+    for (const role of ['source']) {
       const parsed = knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef({ role }))
       expect(parsed.role).toBe(role)
     }
   })
 
-  it('rejects role values outside the placeholder enum', () => {
-    // These are the roles Phase 2 is most likely to add (`source`, `preview`).
-    // They must reject today — when Phase 2 lands, this test should be
-    // updated alongside the `knowledgeItemRoles` extension to assert the new
-    // vocabulary explicitly.
-    for (const role of ['source', 'preview', 'thumbnail', '']) {
+  it('rejects role values outside the knowledge_item enum', () => {
+    for (const role of ['attachment', 'preview', 'thumbnail', '']) {
       expect(() => knowledgeItemFileRefSchema.parse(makeKnowledgeItemRef({ role }))).toThrow()
     }
   })
@@ -139,11 +132,12 @@ describe('FileRefSchema discriminated union', () => {
       fileEntryId: ENTRY_ID,
       sourceType: knowledgeItemSourceType,
       sourceId: KB_ITEM_ID,
-      role: 'attachment',
+      role: 'source',
       createdAt: TS,
       updatedAt: TS
     })
     expect(parsed.sourceType).toBe('knowledge_item')
+    expect(parsed.role).toBe('source')
   })
 
   it('dispatches to the painting variant', () => {
@@ -160,10 +154,10 @@ describe('FileRefSchema discriminated union', () => {
   })
 
   it('rejects an unregistered sourceType (not in allSourceTypes)', () => {
-    // These remain unregistered; they must be rejected so DataApi round-trip
+    // `note` remains unregistered; it must be rejected so DataApi round-trip
     // stays consistent. When a new variant lands, update this list alongside
     // the union.
-    for (const sourceType of ['chat_message', 'note']) {
+    for (const sourceType of ['note']) {
       expect(() =>
         FileRefSchema.parse({
           id: REF_ID,

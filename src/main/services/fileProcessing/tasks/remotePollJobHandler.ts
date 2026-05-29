@@ -9,12 +9,14 @@ import type {
   PreparedRemoteTask
 } from '../processors/types'
 import {
+  assertFileTypeSupported,
   assertModeMatches,
   cleanupFileProcessingResultsDir,
   createArtifacts,
   type FileProcessingJobOutput,
   type FileProcessingJobPayload,
-  getCapabilityHandler
+  getCapabilityHandler,
+  resolveFileProcessingFileInfo
 } from './shared'
 
 const logger = loggerService.withContext('FileProcessing:RemotePollJobHandler')
@@ -45,12 +47,14 @@ export const remotePollJobHandler: JobHandler<FileProcessingJobPayload> = {
   defaultRetryPolicy: { maxAttempts: 1, backoff: 'none', baseDelayMs: 0, maxDelayMs: 0 },
   defaultTimeoutMs: 30 * 60_000,
   async execute(ctx) {
-    const { feature, file, processorId } = ctx.input
+    const { feature, fileEntryId, processorId } = ctx.input
     const config = resolveProcessorConfigByFeature(feature, processorId)
     const capability = getCapabilityHandler(config.id, feature)
     assertModeMatches(capability, 'remote-poll')
+    const file = await resolveFileProcessingFileInfo(fileEntryId)
+    assertFileTypeSupported(file, feature, config)
 
-    const prepared = await capability.prepare(file, config, ctx.signal)
+    const prepared = await capability.prepare(file, config, ctx.signal, { fileEntryId })
     assertModeMatches(prepared, 'remote-poll')
     const remote = prepared as PreparedRemoteTask<typeof feature, FileProcessingRemoteContext>
 

@@ -1,5 +1,5 @@
 import { CloudServerOutlined, CloudSyncOutlined } from '@ant-design/icons'
-import { MenuDivider, MenuItem, MenuList, RowFlex } from '@cherrystudio/ui'
+import { MenuDivider, MenuItem, MenuList, PageHeader, RowFlex } from '@cherrystudio/ui'
 import { NutstoreIcon } from '@renderer/components/Icons/NutstoreIcons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
@@ -13,6 +13,7 @@ import {
   SettingContainer,
   settingsSubmenuDividerClassName,
   settingsSubmenuItemClassName,
+  settingsSubmenuItemLabelClassName,
   settingsSubmenuListClassName,
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
@@ -31,7 +32,6 @@ const DataSettings: FC = () => {
   const [menu, setMenu] = useState<string>('data')
 
   const menuItems = [
-    { key: 'divider_0', isDivider: true, text: t('settings.data.divider.basic') },
     { key: 'data', title: t('settings.data.data.title'), icon: <FolderCog size={16} /> },
     { key: 'divider_1', isDivider: true, text: t('settings.data.divider.cloud_storage') },
     { key: 'local_backup', title: t('settings.data.local.title'), icon: <FolderCog size={16} /> },
@@ -59,34 +59,32 @@ const DataSettings: FC = () => {
 
   return (
     <RowFlex className="flex-1">
-      <Scrollbar className={`${settingsSubmenuScrollClassName} [&_.iconfont]:text-current [&_.iconfont]:leading-4`}>
-        <MenuList className={settingsSubmenuListClassName}>
-          {menuItems.map((item, index) =>
-            item.isDivider ? (
-              <div key={item.key}>
-                {index > 0 && <MenuDivider className={settingsSubmenuDividerClassName} />}
-                <div
-                  className={
-                    index === 0
-                      ? 'px-2.5 pt-1 pb-2 font-medium text-foreground-muted text-xs'
-                      : settingsSubmenuSectionTitleClassName
-                  }>
-                  {item.text || ''}
+      <div
+        className={`flex flex-col ${settingsSubmenuScrollClassName} [&_.iconfont]:text-current [&_.iconfont]:leading-4`}>
+        <PageHeader title={t('settings.data.title')} />
+        <Scrollbar className="min-h-0 flex-1">
+          <MenuList className={settingsSubmenuListClassName}>
+            {menuItems.map((item, index) =>
+              item.isDivider ? (
+                <div key={item.key}>
+                  {index > 0 && <MenuDivider className={settingsSubmenuDividerClassName} />}
+                  <div className={settingsSubmenuSectionTitleClassName}>{item.text || ''}</div>
                 </div>
-              </div>
-            ) : (
-              <MenuItem
-                key={item.key}
-                label={item.title || ''}
-                active={menu === item.key}
-                onClick={() => setMenu(item.key)}
-                icon={item.icon}
-                className={settingsSubmenuItemClassName}
-              />
-            )
-          )}
-        </MenuList>
-      </Scrollbar>
+              ) : (
+                <MenuItem
+                  key={item.key}
+                  label={item.title || ''}
+                  active={menu === item.key}
+                  onClick={() => setMenu(item.key)}
+                  icon={item.icon}
+                  className={settingsSubmenuItemClassName}
+                  labelClassName={settingsSubmenuItemLabelClassName}
+                />
+              )
+            )}
+          </MenuList>
+        </Scrollbar>
+      </div>
       <SettingContainer theme={theme} style={{ display: 'flex', flex: 1, height: '100%' }}>
         {menu === 'data' && <BasicDataSettings />}
         {menu === 'webdav' && <WebDavSettings />}

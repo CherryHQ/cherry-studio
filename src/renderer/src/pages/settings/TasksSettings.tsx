@@ -12,6 +12,7 @@ import {
   DialogTitle,
   EmptyState,
   Input as UIInput,
+  PageHeader,
   Select,
   SelectContent,
   SelectItem,
@@ -49,7 +50,15 @@ import {
 import { type FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
+import {
+  SettingContainer,
+  SettingDivider,
+  SettingGroup,
+  SettingRow,
+  SettingRowTitle,
+  settingsSubmenuScrollClassName,
+  SettingTitle
+} from '.'
 
 const logger = loggerService.withContext('TasksSettings')
 
@@ -1027,46 +1036,51 @@ const TasksSettings: FC = () => {
         className="flex w-full flex-1 flex-row overflow-hidden"
         style={{ height: 'calc(100vh - var(--navbar-height) - 6px)' }}>
         {/* Left panel: task list */}
-        <Scrollbar
-          className="flex flex-col gap-1.25 border-(--color-border) border-r-[0.5px] p-3 pb-12"
-          style={{ width: 'var(--settings-width)', height: 'calc(100vh - var(--navbar-height))' }}>
-          <div className="flex items-center justify-between">
-            <SettingTitle>{t('settings.scheduledTasks.title')}</SettingTitle>
-            <Button variant="ghost" size="icon-sm" disabled={agents.length === 0} onClick={handleStartCreate}>
-              <Plus size={14} />
-            </Button>
-          </div>
-          <div className="flex flex-col gap-1">
-            {tasks.length === 0 && !creating ? (
-              <EmptyState
-                compact
-                preset="no-agent"
-                description={
-                  agents.length === 0 ? t('settings.scheduledTasks.noAgents') : t('settings.scheduledTasks.noTasks')
-                }
-                className="mt-5 py-8"
-              />
-            ) : (
-              tasks.map((task) => (
-                <ListItem
-                  key={task.id}
-                  active={selectedTaskId === task.id && !creating}
-                  title={task.name}
-                  subtitle={`${getAgentName(task.agentId)} · ${scheduleTypeLabelsMap[task.scheduleType] ?? task.scheduleType}`}
-                  icon={
-                    <span
-                      className={`inline-block h-2 w-2 rounded-full ${statusDotColors[task.status] ?? 'bg-gray-400'}`}
-                    />
+        <div className={`flex flex-col ${settingsSubmenuScrollClassName}`}>
+          <PageHeader title={t('settings.scheduledTasks.title')} />
+          <Scrollbar className="min-h-0 flex-1 pb-12">
+            <div className="px-2.5 pb-2">
+              <Button
+                variant="secondary"
+                className="h-8 w-full justify-start rounded-lg px-2.5 text-xs shadow-none"
+                disabled={agents.length === 0}
+                onClick={handleStartCreate}>
+                <Plus size={15} />
+                {t('common.add')}
+              </Button>
+            </div>
+            <div className="flex flex-col gap-1 px-2.5 pb-2.5">
+              {tasks.length === 0 && !creating ? (
+                <EmptyState
+                  compact
+                  preset="no-agent"
+                  description={
+                    agents.length === 0 ? t('settings.scheduledTasks.noAgents') : t('settings.scheduledTasks.noTasks')
                   }
-                  onClick={() => {
-                    setCreating(false)
-                    setSelectedTaskId(task.id)
-                  }}
+                  className="mt-5 py-8"
                 />
-              ))
-            )}
-          </div>
-        </Scrollbar>
+              ) : (
+                tasks.map((task) => (
+                  <ListItem
+                    key={task.id}
+                    active={selectedTaskId === task.id && !creating}
+                    title={task.name}
+                    subtitle={`${getAgentName(task.agentId)} · ${scheduleTypeLabelsMap[task.scheduleType] ?? task.scheduleType}`}
+                    icon={
+                      <span
+                        className={`inline-block h-2 w-2 rounded-full ${statusDotColors[task.status] ?? 'bg-gray-400'}`}
+                      />
+                    }
+                    onClick={() => {
+                      setCreating(false)
+                      setSelectedTaskId(task.id)
+                    }}
+                  />
+                ))
+              )}
+            </div>
+          </Scrollbar>
+        </div>
 
         {/* Right panel */}
         <div className="relative flex flex-1">

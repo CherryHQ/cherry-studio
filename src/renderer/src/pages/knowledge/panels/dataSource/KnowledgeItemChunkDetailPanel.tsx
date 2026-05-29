@@ -2,7 +2,6 @@ import { Button, ConfirmDialog, Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
-import { formatFileSize } from '@renderer/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeItem, KnowledgeItemChunk } from '@shared/data/types/knowledge'
 import { ArrowLeft, Trash2 } from 'lucide-react'
@@ -21,14 +20,6 @@ interface KnowledgeItemChunkDetailPanelProps {
   itemId: string
   item?: KnowledgeItem
   onBack: () => void
-}
-
-const getKnowledgeItemSizeMeta = (item: KnowledgeItem) => {
-  if (item.type === 'file') {
-    return formatFileSize(item.data.file.size)
-  }
-
-  return undefined
 }
 
 const KnowledgeItemChunkActionButton = ({
@@ -133,12 +124,15 @@ const KnowledgeItemChunkDetailPanel = ({
   const [pendingDeleteChunk, setPendingDeleteChunk] = useState<KnowledgeItemChunk | null>(null)
   const keepDeleteDialogOpenRef = useRef(false)
   const item = fetchedItem ?? initialItem
-  const viewModel = item ? toKnowledgeItemRowViewModel(item, language) : null
+  const { data: fileEntry } = useQuery('/files/entries/:id', {
+    params: { id: item?.type === 'file' ? item.data.fileEntryId : '' },
+    enabled: item?.type === 'file'
+  })
+  const viewModel = item ? toKnowledgeItemRowViewModel(item, language, fileEntry) : null
   const Icon = viewModel?.icon.icon
-  const sizeMeta = item ? getKnowledgeItemSizeMeta(item) : undefined
   const typeMeta = item && viewModel ? viewModel.suffix || t(`knowledge.data_source.filters.${item.type}`) : ''
   const chunksCountMeta = t('knowledge.data_source.chunks_count', { count: chunks.length })
-  const metaParts = [typeMeta, sizeMeta, chunksCountMeta].filter((part): part is string => Boolean(part))
+  const metaParts = [typeMeta, chunksCountMeta].filter((part): part is string => Boolean(part))
 
   useEffect(() => {
     let isActive = true

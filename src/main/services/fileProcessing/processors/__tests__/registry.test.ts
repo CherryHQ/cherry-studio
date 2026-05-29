@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 async function importRegistryWithPlatform(platform: { isLinux: boolean; isMac: boolean; isWin: boolean }) {
   vi.resetModules()
-  vi.doMock('@main/constant', () => ({
+  vi.doMock('@main/core/platform', () => ({
     isLinux: platform.isLinux,
     isMac: platform.isMac,
     isWin: platform.isWin

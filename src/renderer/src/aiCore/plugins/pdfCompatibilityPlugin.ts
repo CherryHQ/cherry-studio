@@ -46,10 +46,20 @@ function supportsNativePdf(provider: Provider, model: Model): boolean {
     return false
   }
 
-  // OpenAI, Claude, and Gemini models always support native PDF regardless of provider
-  if (isOpenAILLMModel(model) || isAnthropicModel(model) || isGeminiModel(model)) {
+  // We assume here that the OpenAI model using the responses API,
+  // the Claude model using the messages API,
+  // and the Gemini model using the Gemini generateContent API natively support PDF input.
+  if (
+    (model.endpoint_type === 'openai-response' && isOpenAILLMModel(model)) ||
+    (model.endpoint_type === 'anthropic' && isAnthropicModel(model)) ||
+    (model.endpoint_type === 'gemini' && isGeminiModel(model))
+  ) {
     return true
   }
+  // Check provider type for other native providers (e.g., Vertex, Bedrock, Azure OpenAI).
+  // Native Anthropic and Gemini providers ('anthropic', 'gemini') are also covered here,
+  // so a Claude/Gemini model on its native provider still passes through even without an
+  // explicit endpoint_type annotation.
   if (PDF_NATIVE_PROVIDER_TYPES.has(provider.type)) {
     return true
   }

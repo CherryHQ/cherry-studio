@@ -3,7 +3,7 @@ import { DEFAULT_DOCUMENT_COUNT, DEFAULT_RELEVANT_SCORE } from '@main/utils/know
 import type { KnowledgeBase, KnowledgeSearchResult } from '@shared/data/types/knowledge'
 import { net } from 'electron'
 
-import { parseCompositeModelId } from '../utils/config'
+import { parseCompositeModelId } from '../utils/model/config'
 import { getRerankAdapter } from './adapters'
 import type { ResolvedRerankRuntime } from './types'
 

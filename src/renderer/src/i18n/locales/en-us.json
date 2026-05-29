@@ -1380,6 +1380,7 @@
           "no_knowledge_base": "No knowledge bases available, please create one first"
         },
         "error": {
+          "file_partial_failed": "{{count}} file(s) could not be saved",
           "invalid_base": "Selected knowledge base is not properly configured",
           "no_content_selected": "Please select at least one content type",
           "save_failed": "Save failed, please check knowledge base configuration"
@@ -3502,6 +3503,7 @@
     "starred_notes": "Collected notes",
     "target_name_exists": "A note or folder with this name already exists",
     "title": "Notes",
+    "tree_load_failed": "Failed to load notes directory",
     "unsaved_changes": "You have unsaved content, are you sure you want to leave?",
     "unstar": "Unfavorite",
     "untitled_folder": "New Folder",
@@ -3601,7 +3603,7 @@
     "install_progress": "Install Progress",
     "installed_at": "OpenClaw installed at",
     "migration": {
-      "description": "An outdated version of OpenClaw installed via npm has been detected. Please reinstall to get the latest official version.",
+      "description": "An external OpenClaw installation was detected in PATH, but Cherry Studio uses its managed OpenClaw binary. Install the managed version to continue.",
       "install_button": "Reinstall OpenClaw",
       "title": "OpenClaw Needs Update"
     },
@@ -5562,9 +5564,6 @@
       }
     },
     "integrations": {
-      "groups": {
-        "notes": "Notes"
-      },
       "title": "Integrations"
     },
     "launch": {
@@ -5612,6 +5611,7 @@
       },
       "addSuccess": "Server added successfully",
       "advancedSettings": "Advanced Settings",
+      "allServers": "MCP Servers",
       "args": "Arguments",
       "argsTooltip": "Each argument on a new line",
       "baseUrlTooltip": "Remote server base URL",
@@ -5761,6 +5761,7 @@
       "serverPlural": "servers",
       "serverSingular": "server",
       "servers": "MCP Servers",
+      "shortTitle": "MCP",
       "sse": "Server-Sent Events (sse)",
       "startError": "Start failed",
       "stdio": "Standard Input/Output (stdio)",
@@ -6476,7 +6477,8 @@
         "agent": "Agent Supported",
         "all": "All Providers",
         "disabled": "Disabled Only",
-        "enabled": "Enabled Only"
+        "enabled": "Enabled Only",
+        "label": "Filter providers"
       },
       "filter_agent": "Filter Agent Supported Providers",
       "get_api_key": "Get API Key",

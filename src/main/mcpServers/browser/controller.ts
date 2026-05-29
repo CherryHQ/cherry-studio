@@ -1,5 +1,4 @@
-import { titleBarOverlayDark, titleBarOverlayLight } from '@main/config'
-import { isMac } from '@main/constant'
+import { isMac, isWin } from '@main/core/platform'
 import { randomUUID } from 'crypto'
 import { app, BrowserView, BrowserWindow, nativeTheme } from 'electron'
 import TurndownService from 'turndown'
@@ -317,7 +316,7 @@ export class CdpBrowserController {
 
     tabBarView.webContents.on('did-finish-load', () => {
       // Initialize platform for proper styling
-      const platform = isMac ? 'mac' : process.platform === 'win32' ? 'win' : 'linux'
+      const platform = isMac ? 'mac' : isWin ? 'win' : 'linux'
       tabBarView.webContents.executeJavaScript(`window.initPlatform('${platform}')`).catch((error) => {
         logger.debug('Platform init failed', { error, windowKey: windowInfo.windowKey })
       })
@@ -349,7 +348,7 @@ export class CdpBrowserController {
       ...(isMac
         ? {
             titleBarStyle: 'hidden',
-            titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight,
+            titleBarOverlay: { height: 42 }, // WCO height (macOS)
             trafficLightPosition: { x: 13, y: 13 }
           }
         : {

@@ -185,6 +185,12 @@ describe('ProviderList', () => {
     expect(reorderSpy).toHaveBeenCalledWith([reorderableProviders[1], reorderableProviders[0]])
   })
 
+  it('labels the provider filter icon button for assistive technology', () => {
+    render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    expect(screen.getByRole('button', { name: '筛选服务商' })).toBeInTheDocument()
+  })
+
   it('surfaces reorder persistence errors', async () => {
     reorderSpy.mockRejectedValueOnce(new Error('persist failed'))
 

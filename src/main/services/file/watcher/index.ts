@@ -48,10 +48,18 @@ const logger = loggerService.withContext('file/watcher')
  * Normalized FS event. Rename is represented as `unlink` + `add` — consumers
  * that need "rename" semantics correlate the pair themselves (see
  * §8.3 "Rename Detection Semantics" in file-manager-architecture.md).
+ *
+ * Directory variants `addDir` / `unlinkDir` were added when the
+ * `DirectoryTreeBuilder` primitive landed (see
+ * `docs/references/file/directory-tree.md`) — without them, folder
+ * creation / deletion would never reach a subscribed tree builder because
+ * chokidar reports those on dedicated channels.
  */
 export type WatcherEvent =
   | { readonly kind: 'add'; readonly path: FilePath }
+  | { readonly kind: 'addDir'; readonly path: FilePath }
   | { readonly kind: 'unlink'; readonly path: FilePath }
+  | { readonly kind: 'unlinkDir'; readonly path: FilePath }
   | { readonly kind: 'change'; readonly path: FilePath }
   | { readonly kind: 'ready' }
   | { readonly kind: 'error'; readonly error: Error }
@@ -103,8 +111,10 @@ class DirectoryWatcherImpl implements DirectoryWatcher {
     })
 
     this.fsw.on('add', (p) => this.handle({ kind: 'add', path: p as FilePath }))
+    this.fsw.on('addDir', (p) => this.handle({ kind: 'addDir', path: p as FilePath }))
     this.fsw.on('change', (p) => this.handle({ kind: 'change', path: p as FilePath }))
     this.fsw.on('unlink', (p) => this.handle({ kind: 'unlink', path: p as FilePath }))
+    this.fsw.on('unlinkDir', (p) => this.handle({ kind: 'unlinkDir', path: p as FilePath }))
     this.fsw.on('ready', () => this.emitter.fire({ kind: 'ready' }))
     this.fsw.on('error', (err) => {
       // Log proactively: chokidar errors (EMFILE, lost permissions on a

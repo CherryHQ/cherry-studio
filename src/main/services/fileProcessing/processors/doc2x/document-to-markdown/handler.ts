@@ -1,12 +1,7 @@
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
-import type { FileMetadata } from '@types'
+import type { FileInfo } from '@shared/file/types'
 
-import {
-  assertHasFilePath,
-  getRequiredApiHost,
-  getRequiredApiKey,
-  getRequiredCapability
-} from '../../../utils/provider'
+import { getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '../../../utils/provider'
 import type { FileProcessingCapabilityHandler, FileProcessingRemotePollResult } from '../../types'
 import type { Doc2xTaskStage, PreparedDoc2xQueryContext, PreparedDoc2xStartContext } from '../types'
 import { createUploadTask, getExportResult, getParseStatus, triggerExportTask, uploadFile } from '../utils'
@@ -86,14 +81,13 @@ export const doc2xDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
 }
 
 function prepareStartContext(
-  file: FileMetadata,
+  file: FileInfo,
   config: FileProcessorMerged,
   signal?: AbortSignal
 ): PreparedDoc2xStartContext {
   signal?.throwIfAborted()
 
   const capability = getRequiredCapability(config, 'document_to_markdown', 'doc2x')
-  assertHasFilePath(file)
 
   return {
     apiHost: getRequiredApiHost(capability),

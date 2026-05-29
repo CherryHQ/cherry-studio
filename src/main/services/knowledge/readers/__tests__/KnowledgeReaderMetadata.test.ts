@@ -1,6 +1,16 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const loadDataMock = vi.hoisted(() => vi.fn())
+const getPhysicalPathMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    FileManager: {
+      getPhysicalPath: getPhysicalPathMock
+    }
+  } as Parameters<typeof mockApplicationFactory>[0])
+})
 
 vi.mock('@main/utils/file', () => ({
   getFileExt: (path: string) => path.slice(path.lastIndexOf('.'))
@@ -30,7 +40,7 @@ vi.mock('@vectorstores/readers/pdf', () => ({ PDFReader: class MockPDFReader {} 
 vi.mock('../files/DraftsExportReader', () => ({ DraftsExportReader: class MockDraftsExportReader {} }))
 vi.mock('../files/EpubReader', () => ({ EpubReader: class MockEpubReader {} }))
 
-vi.mock('../../utils/url', () => ({
+vi.mock('../../utils/sources/url', () => ({
   fetchKnowledgeWebPage: vi.fn().mockResolvedValue('url content')
 }))
 
@@ -39,7 +49,15 @@ const { loadNoteDocuments } = await import('../KnowledgeNoteReader')
 const { loadUrlDocuments } = await import('../KnowledgeUrlReader')
 
 describe('knowledge reader metadata', () => {
+  beforeEach(() => {
+    loadDataMock.mockClear()
+    getPhysicalPathMock.mockReset()
+  })
+
   it('normalizes file source metadata', async () => {
+    const fileEntryId = '019606a0-0000-7000-8000-000000000502'
+    getPhysicalPathMock.mockResolvedValueOnce('/resolved/original.txt')
+
     const documents = await loadFileDocuments({
       id: 'file-item-1',
       baseId: 'kb-1',
@@ -47,25 +65,16 @@ describe('knowledge reader metadata', () => {
       type: 'file',
       data: {
         source: '/tmp/original.txt',
-        file: {
-          id: 'file-1',
-          name: 'stored.txt',
-          origin_name: 'Original.txt',
-          path: '/tmp/original.txt',
-          size: 12,
-          ext: 'txt',
-          type: 'text',
-          created_at: '2026-04-08T00:00:00.000Z',
-          count: 1
-        }
+        fileEntryId
       },
       status: 'idle',
-      phase: null,
       error: null,
       createdAt: '2026-04-08T00:00:00.000Z',
       updatedAt: '2026-04-08T00:00:00.000Z'
     })
 
+    expect(getPhysicalPathMock).toHaveBeenCalledWith(fileEntryId)
+    expect(loadDataMock).toHaveBeenCalledWith('/resolved/original.txt')
     expect(documents[0]?.metadata).toEqual({
       source: '/tmp/original.txt'
     })
@@ -79,7 +88,6 @@ describe('knowledge reader metadata', () => {
       type: 'url',
       data: { source: 'https://example.com', url: 'https://example.com' },
       status: 'idle',
-      phase: null,
       error: null,
       createdAt: '2026-04-08T00:00:00.000Z',
       updatedAt: '2026-04-08T00:00:00.000Z'
@@ -102,7 +110,6 @@ describe('knowledge reader metadata', () => {
         sourceUrl: 'https://example.com/note'
       },
       status: 'idle',
-      phase: null,
       error: null,
       createdAt: '2026-04-08T00:00:00.000Z',
       updatedAt: '2026-04-08T00:00:00.000Z'
@@ -121,7 +128,6 @@ describe('knowledge reader metadata', () => {
       type: 'note',
       data: { source: 'note-item-1', content: '   ' },
       status: 'idle',
-      phase: null,
       error: null,
       createdAt: '2026-04-08T00:00:00.000Z',
       updatedAt: '2026-04-08T00:00:00.000Z'

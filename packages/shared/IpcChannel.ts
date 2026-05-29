@@ -245,13 +245,8 @@ export enum IpcChannel {
   File_IsTextFile = 'file:isTextFile',
   File_IsDirectory = 'file:isDirectory',
   File_ListDirectory = 'file:listDirectory',
-  File_GetDirectoryStructure = 'file:getDirectoryStructure',
   File_CheckFileName = 'file:checkFileName',
   File_ValidateNotesDirectory = 'file:validateNotesDirectory',
-  File_StartWatcher = 'file:startWatcher',
-  File_StopWatcher = 'file:stopWatcher',
-  File_PauseWatcher = 'file:pauseWatcher',
-  File_ResumeWatcher = 'file:resumeWatcher',
   File_BatchUploadMarkdown = 'file:batchUploadMarkdown',
   File_ShowInFolder = 'file:showInFolder',
   // FileManager v2 surface (Phase 1b.3)
@@ -263,6 +258,12 @@ export enum IpcChannel {
   File_GetPhysicalPath = 'file:getPhysicalPath',
   File_PermanentDelete = 'file:permanentDelete',
   File_RunSweep = 'file:runSweep',
+  // DirectoryTreeBuilder primitive — top-level file-module surface, parallel
+  // to the FileEntry channels above. See docs/references/file/directory-tree.md.
+  File_TreeCreate = 'file:tree:create',
+  File_TreeDispose = 'file:tree:dispose',
+  File_TreeRename = 'file:tree:rename',
+  File_TreeMutation = 'file:tree:mutation',
 
   // PDF
   Pdf_ExtractText = 'pdf:extractText',

@@ -362,6 +362,7 @@
     "htmlparser2": "^10.0.0",
     "i18next": "^23.11.5",
     "iconv-lite": "^0.6.3",
+    "ignore": "^7.0.5",
     "ipaddr.js": "^2.2.0",
     "isbinaryfile": "5.0.4",
     "jaison": "^2.0.2",
@@ -514,6 +515,7 @@
       "@opeoginni/github-copilot-openai-compatible@1.0.0": "patches/@opeoginni__github-copilot-openai-compatible@1.0.0.patch",
       "@ai-sdk/openai-compatible@2.0.37": "patches/@ai-sdk__openai-compatible@2.0.37.patch",
       "@ai-sdk/openai@3.0.53": "patches/@ai-sdk__openai@3.0.53.patch",
+      "@ai-sdk/xai@3.0.83": "patches/@ai-sdk__xai@3.0.83.patch",
       "@ai-sdk/google@3.0.64": "patches/@ai-sdk__google@3.0.64.patch",
       "@libsql/client@0.15.15": "patches/@libsql__client@0.15.15.patch",
       "@ai-sdk/anthropic": "patches/@ai-sdk__anthropic.patch",
@@ -523,7 +525,6 @@
     },
     "onlyBuiltDependencies": [
       "@j178/prek",
-      "@kangfenmao/keyv-storage",
       "@paymoapp/electron-shutdown-handler",
       "@scarf/scarf",
       "@swc/core",

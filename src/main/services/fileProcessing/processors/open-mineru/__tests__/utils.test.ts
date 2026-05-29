@@ -70,7 +70,8 @@ describe('open-mineru utils', () => {
         apiKey: 'secret',
         file: {
           path: '/tmp/file.pdf',
-          name: 'file.pdf'
+          name: 'file',
+          ext: 'pdf'
         }
       } as never)
     ).resolves.toBeInstanceOf(Response)

@@ -4,11 +4,11 @@
  * Combines all currently-registered business-domain ref variants into a
  * single discriminated union.
  *
- * ## Adding a new variant (e.g. `chat_message`)
+ * ## Adding a new variant (e.g. `painting`)
  *
- * 1. Create `./chatMessage.ts` following `./tempSession.ts` as a template —
- *    declare `chatMessageSourceType`, `chatMessageRoles`, `chatMessageRefFields`,
- *    and export `chatMessageFileRefSchema = createRefSchema(chatMessageRefFields)`
+ * 1. Create `./painting.ts` following `./tempSession.ts` as a template —
+ *    declare `paintingSourceType`, `paintingRoles`, `paintingRefFields`,
+ *    and export `paintingFileRefSchema = createRefSchema(paintingRefFields)`
  * 2. In this file: import the three symbols (source type literal, roles tuple,
  *    schema) and add the source type literal to `allSourceTypes`, then add the
  *    schema to the `FileRefSchema` discriminated union
@@ -30,6 +30,13 @@
 
 import * as z from 'zod'
 
+import {
+  chatMessageFileRefSchema,
+  chatMessageRefFields,
+  chatMessageRoles,
+  chatMessageRoleSchema,
+  chatMessageSourceType
+} from './chatMessage'
 import {
   knowledgeItemFileRefSchema,
   knowledgeItemRefFields,
@@ -60,25 +67,24 @@ import { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempS
  * ## Currently registered variants
  *
  * - `temp_session` — transient paste/draft refs (`./tempSession.ts`).
+ * - `chat_message` — refs from migrated chat message attachments (`./chatMessage.ts`).
  * - `knowledge_item` — refs from `knowledge_item` rows (`./knowledgeItem.ts`).
- *   `role` is a single-element placeholder enum; KnowledgeService wiring will
- *   extend it once the role vocabulary settles. No production code currently
- *   writes `knowledge_item` refs, so the choice of placeholder value
- *   (`'attachment'`) is inconsequential.
+ *   `role='source'` marks the indexed source file.
  * - `painting` — refs from `painting` rows (`./painting.ts`), roles
  *   `output`/`input`. `PaintingService` owns ref removal on delete; ref
  *   creation is done by the separate v1→v2 file-data-migration PR (paintings
  *   still create/resolve files via the v1 file system in the renderer).
  *
- * Other business domains (chat_message / note) deliberately do NOT appear
- * here. They will be added when their owning DB tables migrate to v2 — at
- * which point each variant gains its tuple entry, its `createRefSchema`
- * variant, AND its `SourceTypeChecker` in one PR. Keeping those three
- * surfaces in lockstep prevents the "type declared but schema unaware" gap.
+ * Other business domains (note) deliberately do NOT appear here. They will be
+ * added when their owning DB tables migrate to v2 — at which point each
+ * variant gains its tuple entry, its `createRefSchema` variant, AND its
+ * `SourceTypeChecker` in one PR. Keeping those three surfaces in lockstep
+ * prevents the "type declared but schema unaware" gap.
  */
 export const allSourceTypes = [
   tempSessionSourceType,
   knowledgeItemSourceType,
+  chatMessageSourceType,
   paintingSourceType
 ] as const satisfies readonly string[]
 export type FileRefSourceType = (typeof allSourceTypes)[number]
@@ -102,6 +108,7 @@ export const FileRefSourceTypeSchema = z.enum(allSourceTypes)
 export const FileRefSchema = z.discriminatedUnion('sourceType', [
   tempSessionFileRefSchema,
   knowledgeItemFileRefSchema,
+  chatMessageFileRefSchema,
   paintingFileRefSchema
 ])
 export type FileRef = z.infer<typeof FileRefSchema>
@@ -109,6 +116,11 @@ export type FileRef = z.infer<typeof FileRefSchema>
 // ─── Re-exports ───
 
 export {
+  chatMessageFileRefSchema,
+  chatMessageRefFields,
+  chatMessageRoles,
+  chatMessageRoleSchema,
+  chatMessageSourceType,
   knowledgeItemFileRefSchema,
   knowledgeItemRefFields,
   knowledgeItemRoles,

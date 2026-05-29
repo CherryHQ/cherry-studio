@@ -8,12 +8,15 @@
  * written to jobTable.metadata.
  */
 import type { JobContext } from '@main/core/job/types'
-import type { FileMetadata } from '@types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { FileProcessingJobPayload } from '../shared'
 
 const {
+  appGetMock,
+  fileManagerGetByIdMock,
+  fileManagerGetMetadataMock,
+  toFileInfoMock,
   resolveProcessorConfigByFeatureMock,
   processorRegistryMock,
   persistResultMock,
@@ -24,6 +27,10 @@ const {
   toPersistableMock,
   rehydrateMock
 } = vi.hoisted(() => ({
+  appGetMock: vi.fn(),
+  fileManagerGetByIdMock: vi.fn(),
+  fileManagerGetMetadataMock: vi.fn(),
+  toFileInfoMock: vi.fn(),
   resolveProcessorConfigByFeatureMock: vi.fn(),
   processorRegistryMock: {} as Record<string, unknown>,
   persistResultMock: vi.fn(),
@@ -36,6 +43,14 @@ const {
   pollRemoteMock: vi.fn(),
   toPersistableMock: vi.fn(),
   rehydrateMock: vi.fn()
+}))
+
+vi.mock('@application', () => ({
+  application: { get: appGetMock }
+}))
+
+vi.mock('@main/services/file/toFileInfo', () => ({
+  toFileInfo: toFileInfoMock
 }))
 
 vi.mock('../../config/resolveProcessorConfig', () => ({
@@ -53,16 +68,25 @@ vi.mock('../../persistence/MarkdownResultStore', () => ({
 
 const { remotePollJobHandler } = await import('../remotePollJobHandler')
 
-const FAKE_PDF: FileMetadata = {
-  id: 'file-2',
-  name: 'paper.pdf',
-  origin_name: 'paper.pdf',
+const FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000202'
+const FAKE_ENTRY = {
+  id: FILE_ENTRY_ID,
+  origin: 'external',
+  name: 'paper',
+  ext: 'pdf',
+  externalPath: '/tmp/paper.pdf',
+  createdAt: 1,
+  updatedAt: 1
+}
+const FAKE_FILE_INFO = {
   path: '/tmp/paper.pdf',
+  name: 'paper',
+  ext: 'pdf',
   size: 99_000,
-  ext: '.pdf',
+  mime: 'application/pdf',
   type: 'document',
-  created_at: '2026-05-01T00:00:00.000Z',
-  count: 1
+  createdAt: 1,
+  modifiedAt: 1
 }
 
 function setupCapability() {
@@ -90,7 +114,7 @@ function createCtx(
   const controller = new AbortController()
   return {
     jobId: 'job-2',
-    input: { feature: 'document_to_markdown', file: FAKE_PDF, processorId: 'doc2x' },
+    input: { feature: 'document_to_markdown', fileEntryId: FILE_ENTRY_ID, processorId: 'doc2x' },
     attempt: 0,
     signal: controller.signal,
     metadata: {},
@@ -103,6 +127,25 @@ function createCtx(
 
 beforeEach(() => {
   vi.clearAllMocks()
+  appGetMock.mockImplementation((name: string) => {
+    if (name === 'FileManager') {
+      return {
+        getById: fileManagerGetByIdMock,
+        getMetadata: fileManagerGetMetadataMock
+      }
+    }
+    throw new Error(`Unexpected application.get(${name})`)
+  })
+  fileManagerGetMetadataMock.mockResolvedValue({
+    kind: 'file',
+    type: 'other',
+    size: 99_000,
+    mime: 'application/octet-stream',
+    createdAt: 1,
+    modifiedAt: 1
+  })
+  fileManagerGetByIdMock.mockResolvedValue(FAKE_ENTRY)
+  toFileInfoMock.mockResolvedValue(FAKE_FILE_INFO)
   capabilityHandlerMock.mode = 'remote-poll'
 })
 
@@ -135,6 +178,9 @@ describe('remotePollJobHandler.execute', () => {
     const result = (await remotePollJobHandler.execute(ctx)) as { artifacts: unknown[] }
 
     expect(result.artifacts).toEqual([{ kind: 'file', format: 'markdown', path: '/tmp/results/job-2/output.md' }])
+    expect(capabilityHandlerMock.prepare).toHaveBeenCalledWith(FAKE_FILE_INFO, expect.any(Object), ctx.signal, {
+      fileEntryId: FILE_ENTRY_ID
+    })
     expect(toPersistableMock).toHaveBeenCalledWith(remoteCtx, 'provider-task-xyz')
 
     const patchCalls = (ctx.patchMetadata as ReturnType<typeof vi.fn>).mock.calls

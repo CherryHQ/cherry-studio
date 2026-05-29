@@ -1380,6 +1380,7 @@
           "no_knowledge_base": "Nicio bază de cunoștințe disponibilă, te rugăm să creezi una mai întâi"
         },
         "error": {
+          "file_partial_failed": "[to be translated]:{{count}} file(s) could not be saved",
           "invalid_base": "Baza de cunoștințe selectată nu este configurată corect",
           "no_content_selected": "Te rugăm să selectezi cel puțin un tip de conținut",
           "save_failed": "Salvarea a eșuat, te rugăm să verifici configurația bazei de cunoștințe"
@@ -3502,6 +3503,7 @@
     "starred_notes": "Notițe colectate",
     "target_name_exists": "[to be translated]:A note or folder with this name already exists",
     "title": "Notițe",
+    "tree_load_failed": "[to be translated]:Failed to load notes directory",
     "unsaved_changes": "Ai conținut nesalvat, ești sigur că vrei să pleci?",
     "unstar": "Elimină de la favorite",
     "untitled_folder": "Dosar nou",
@@ -5562,9 +5564,6 @@
       }
     },
     "integrations": {
-      "groups": {
-        "notes": "Note"
-      },
       "title": "Integrări"
     },
     "launch": {
@@ -5612,6 +5611,7 @@
       },
       "addSuccess": "Server adăugat cu succes",
       "advancedSettings": "Setări avansate",
+      "allServers": "[to be translated]:MCP Servers",
       "args": "Argumente",
       "argsTooltip": "Fiecare argument pe o linie nouă",
       "baseUrlTooltip": "URL de bază server la distanță",
@@ -5761,6 +5761,7 @@
       "serverPlural": "servere",
       "serverSingular": "server",
       "servers": "Servere MCP",
+      "shortTitle": "[to be translated]:MCP",
       "sse": "Evenimente trimise de server (sse)",
       "startError": "Pornire eșuată",
       "stdio": "Intrare/Ieșire standard (stdio)",
@@ -6476,7 +6477,8 @@
         "agent": "Asistat de agent",
         "all": "Toți furnizorii",
         "disabled": "[to be translated]:Disabled Only",
-        "enabled": "[to be translated]:Enabled Only"
+        "enabled": "[to be translated]:Enabled Only",
+        "label": "[to be translated]:Filter providers"
       },
       "filter_agent": "Furnizori acceptați de agentul de filtrare",
       "get_api_key": "Obține cheie API",

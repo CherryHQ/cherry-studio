@@ -1,4 +1,4 @@
-import { Badge, MenuDivider, MenuItem, MenuList } from '@cherrystudio/ui'
+import { Badge, MenuItem, MenuList, PageHeader } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import type { FC } from 'react'
@@ -8,11 +8,10 @@ import { useTranslation } from 'react-i18next'
 import {
   settingsContentBodyClassName,
   settingsContentScrollClassName,
-  settingsSubmenuDividerClassName,
   settingsSubmenuItemClassName,
+  settingsSubmenuItemLabelClassName,
   settingsSubmenuListClassName,
-  settingsSubmenuScrollClassName,
-  settingsSubmenuSectionTitleClassName
+  settingsSubmenuScrollClassName
 } from '..'
 import { ProcessorAvatar } from './components/ProcessorAvatar'
 import { ProcessorPanel } from './components/ProcessorPanel'
@@ -22,7 +21,6 @@ import {
   type FileProcessingMenuEntry,
   flattenFeatureSections,
   getFeatureSections,
-  getFileProcessingFeatureTitleKey,
   getProcessorNameKey
 } from './utils/fileProcessingMeta'
 
@@ -64,35 +62,37 @@ const FileProcessingSettings: FC = () => {
   return (
     <div className="flex flex-1" data-theme-mode={themeMode}>
       <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 flex-row overflow-hidden">
-        <Scrollbar className={settingsSubmenuScrollClassName}>
-          <MenuList className={settingsSubmenuListClassName}>
-            {featureSections.map((section, index) => (
-              <div key={section.feature}>
-                {index > 0 ? <MenuDivider className={settingsSubmenuDividerClassName} /> : null}
-                <div className={settingsSubmenuSectionTitleClassName}>
-                  {t(getFileProcessingFeatureTitleKey(section.feature))}
-                </div>
-                {section.entries.map((entry) => (
-                  <MenuItem
-                    key={entry.key}
-                    label={t(getProcessorNameKey(entry.processor.id))}
-                    active={activeKey === entry.key}
-                    onClick={() => setActiveKey(entry.key)}
-                    icon={<ProcessorAvatar processorId={entry.processor.id} />}
-                    className={settingsSubmenuItemClassName}
-                    suffix={
-                      isDefaultEntry(entry) ? (
-                        <Badge className="rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 font-medium text-green-600 text-xs dark:text-green-400">
-                          {t('common.default')}
-                        </Badge>
-                      ) : undefined
-                    }
-                  />
-                ))}
-              </div>
-            ))}
-          </MenuList>
-        </Scrollbar>
+        <div className={`flex flex-col ${settingsSubmenuScrollClassName}`}>
+          <PageHeader title={t('settings.tool.file_processing.title')} />
+          <Scrollbar className="min-h-0 flex-1">
+            <MenuList className={settingsSubmenuListClassName}>
+              {menuEntries.map((entry) => (
+                <MenuItem
+                  key={entry.key}
+                  label={t(getProcessorNameKey(entry.processor.id))}
+                  active={activeKey === entry.key}
+                  onClick={() => setActiveKey(entry.key)}
+                  icon={
+                    <ProcessorAvatar
+                      processorId={entry.processor.id}
+                      size="md"
+                      className="shrink-0 rounded-lg border border-border/30"
+                    />
+                  }
+                  className={settingsSubmenuItemClassName}
+                  labelClassName={settingsSubmenuItemLabelClassName}
+                  suffix={
+                    isDefaultEntry(entry) ? (
+                      <Badge className="rounded-full border border-green-500/30 bg-green-500/10 px-2 py-0.5 font-medium text-green-600 text-xs dark:text-green-400">
+                        {t('common.default')}
+                      </Badge>
+                    ) : undefined
+                  }
+                />
+              ))}
+            </MenuList>
+          </Scrollbar>
+        </div>
 
         <Scrollbar className={settingsContentScrollClassName}>
           <div className={settingsContentBodyClassName}>

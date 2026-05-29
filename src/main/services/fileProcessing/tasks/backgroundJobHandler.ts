@@ -10,7 +10,8 @@ import {
   createArtifacts,
   type FileProcessingJobOutput,
   type FileProcessingJobPayload,
-  getCapabilityHandler
+  getCapabilityHandler,
+  resolveFileProcessingFileInfo
 } from './shared'
 
 const logger = loggerService.withContext('FileProcessing:BackgroundJobHandler')
@@ -37,13 +38,14 @@ export const backgroundJobHandler: JobHandler<FileProcessingJobPayload> = {
   defaultRetryPolicy: { maxAttempts: 1, backoff: 'none', baseDelayMs: 0, maxDelayMs: 0 },
   defaultTimeoutMs: 15 * 60_000,
   async execute(ctx) {
-    const { feature, file, processorId } = ctx.input
+    const { feature, fileEntryId, processorId } = ctx.input
     const config = resolveProcessorConfigByFeature(feature, processorId)
     const handler = getCapabilityHandler(config.id, feature)
     assertModeMatches(handler, 'background')
+    const file = await resolveFileProcessingFileInfo(fileEntryId)
     assertFileTypeSupported(file, feature, config)
 
-    const prepared = await handler.prepare(file, config, ctx.signal)
+    const prepared = await handler.prepare(file, config, ctx.signal, { fileEntryId })
     assertModeMatches(prepared, 'background')
     const background = prepared as PreparedBackgroundTask
 
