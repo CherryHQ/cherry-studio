@@ -2,7 +2,6 @@ import { allMinApps } from '@renderer/config/minapps'
 import { useRuntime } from '@renderer/hooks/useRuntime'
 import { useSettings } from '@renderer/hooks/useSettings' // 使用设置中的值
 import NavigationService from '@renderer/services/NavigationService'
-import TabsService from '@renderer/services/TabsService'
 import { useAppDispatch } from '@renderer/store'
 import {
   setCurrentMinappId,
@@ -45,13 +44,6 @@ export const useMinappPopup = () => {
       disposeAfter: (_value, key) => {
         // Clean up WebView state when app is disposed from cache
         clearWebviewState(key)
-
-        // Close corresponding tab if it exists
-        const tabs = TabsService.getTabs()
-        const tabToClose = tabs.find((tab) => tab.path === `/apps/${key}`)
-        if (tabToClose) {
-          TabsService.closeTab(tabToClose.id)
-        }
 
         // Update Redux state
         dispatch(setOpenedKeepAliveMinapps(Array.from(minAppsCache.values())))
