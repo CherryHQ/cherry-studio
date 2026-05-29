@@ -3,7 +3,7 @@ import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
-import { SiliconImageModel } from './silicon-image-model'
+import { SiliconImageModel } from './SiliconImageModel'
 
 export const SILICON_PROVIDER_NAME = 'silicon' as const
 

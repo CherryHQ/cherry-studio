@@ -29,7 +29,7 @@ vi.mock('../imageTransports/ppio', () => ({
   DEFAULT_PPIO_BASE_URL: 'https://api.ppio.com'
 }))
 
-import { createPpioProvider } from '../ppio-provider'
+import { createPpioProvider } from '../ppioProvider'
 
 describe('createPpioProvider', () => {
   afterEach(() => {

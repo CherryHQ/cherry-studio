@@ -13,7 +13,7 @@ import { parseDataUrl } from '@shared/utils'
  *     URLs as their `image` body field call this on `options.files[0]`.
  *
  * These all started as per-file copies inside modelscope / ppio / silicon
- * / aihubmix-flux transports; consolidating here avoids three more
+ * / aihubmixFlux transports; consolidating here avoids three more
  * `function uint8ToBase64()` declarations when the next async vendor lands.
  */
 

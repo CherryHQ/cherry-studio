@@ -29,7 +29,7 @@ vi.mock('../imageTransports/ovms', () => ({
   DEFAULT_OVMS_BASE_URL: 'http://localhost:8000'
 }))
 
-import { createOvmsProvider } from '../ovms-provider'
+import { createOvmsProvider } from '../ovmsProvider'
 
 describe('createOvmsProvider', () => {
   afterEach(() => {

@@ -3,7 +3,7 @@ import { getProviderById } from '@renderer/services/ProviderService'
 import type { FileMetadata, GenerateImageParams, Model, Provider } from '@renderer/types'
 
 import type { DownloadImagesOptions } from '../utils/downloadImages'
-import { runPainting } from './paintingGenerationService'
+import { runPainting } from './runPainting'
 import type { PaintingProviderRuntime } from './types/paintingProviderRuntime'
 
 /**

@@ -26,15 +26,15 @@ import { createOllama } from 'ollama-ai-provider-v2'
 import { createVoyage, type VoyageProviderSettings } from 'voyage-ai-provider'
 
 import { type AihubmixProviderSettings, createAihubmix } from '../custom/aihubmixProvider'
-import { createDashScopeProvider, type DashScopeProviderSettings } from '../custom/dashscope-provider'
-import { createDmxapiProvider, type DmxapiProviderSettings } from '../custom/dmxapi-provider'
-import { createModelscopeProvider, type ModelscopeProviderSettings } from '../custom/modelscope-provider'
+import { createDashScopeProvider, type DashScopeProviderSettings } from '../custom/dashscopeProvider'
+import { createDmxapiProvider, type DmxapiProviderSettings } from '../custom/dmxapiProvider'
+import { createModelscopeProvider, type ModelscopeProviderSettings } from '../custom/modelscopeProvider'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapiProvider'
-import { createOvmsProvider, type OvmsProviderSettings } from '../custom/ovms-provider'
-import { createPpioProvider, type PpioProviderSettings } from '../custom/ppio-provider'
-import { createSiliconProvider, type SiliconProviderSettings } from '../custom/silicon-provider'
-import { createTokenFluxProvider, type TokenFluxProviderSettings } from '../custom/tokenflux-provider'
-import { createZhipuProvider, type ZhipuProviderSettings } from '../custom/zhipu-provider'
+import { createOvmsProvider, type OvmsProviderSettings } from '../custom/ovmsProvider'
+import { createPpioProvider, type PpioProviderSettings } from '../custom/ppioProvider'
+import { createSiliconProvider, type SiliconProviderSettings } from '../custom/siliconProvider'
+import { createTokenFluxProvider, type TokenFluxProviderSettings } from '../custom/tokenfluxProvider'
+import { createZhipuProvider, type ZhipuProviderSettings } from '../custom/zhipuProvider'
 
 /**
  * Google Vertex AI Extension

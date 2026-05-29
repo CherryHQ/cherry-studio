@@ -29,7 +29,7 @@ vi.mock('../imageTransports/tokenflux', () => ({
   DEFAULT_TOKENFLUX_BASE_URL: 'https://api.tokenflux.ai'
 }))
 
-import { createTokenFluxProvider } from '../tokenflux-provider'
+import { createTokenFluxProvider } from '../tokenfluxProvider'
 
 describe('createTokenFluxProvider', () => {
   afterEach(() => {

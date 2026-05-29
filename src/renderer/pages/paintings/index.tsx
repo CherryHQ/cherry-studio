@@ -20,7 +20,7 @@ import { usePaintingProviderOptions } from './hooks/usePaintingProviderOptions'
 import { createDefaultPainting } from './model/paintingPipeline'
 import type { PaintingData } from './model/types/paintingData'
 import { cacheToPaintingGenerationState } from './model/utils/paintingGenerationParams'
-import { paintingClasses } from './PaintingPrimitives'
+import { paintingClasses } from './paintingPrimitives'
 
 const PaintingPage: FC = () => {
   const providerOptions = usePaintingProviderOptions()

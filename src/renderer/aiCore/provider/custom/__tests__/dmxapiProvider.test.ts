@@ -32,7 +32,7 @@ vi.mock('../imageTransports/dmxapi', async (importOriginal) => {
   }
 })
 
-import { createDmxapiProvider } from '../dmxapi-provider'
+import { createDmxapiProvider } from '../dmxapiProvider'
 
 describe('createDmxapiProvider', () => {
   afterEach(() => {

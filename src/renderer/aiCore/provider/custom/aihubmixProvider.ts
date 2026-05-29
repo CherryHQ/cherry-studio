@@ -18,7 +18,7 @@ import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { isOpenAIChatCompletionOnlyModel, isOpenAILLMModel } from '@renderer/config/models/openai'
 import type { Model } from '@renderer/types'
 
-import { createAihubmixImageModel } from './aihubmix-image-model'
+import { createAihubmixImageModel } from './aihubmixImageModel'
 
 export const AIHUBMIX_PROVIDER_NAME = 'aihubmix' as const
 const APP_CODE_HEADER = { 'APP-Code': 'MLTG2087' }

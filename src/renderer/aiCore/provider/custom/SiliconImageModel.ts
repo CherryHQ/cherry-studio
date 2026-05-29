@@ -61,7 +61,7 @@ export class SiliconImageModel implements ImageModelV3 {
     }
 
     // `silicon` matches `providerOptionsKey` derived from
-    // `silicon-provider.ts` (`SILICON_PROVIDER_NAME = 'silicon'`).
+    // `siliconProvider.ts` (`SILICON_PROVIDER_NAME = 'silicon'`).
     const bag = (providerOptions?.silicon ?? providerOptions?.openai ?? {}) as Record<string, unknown>
     const body: Record<string, unknown> = {
       model: this.modelId,

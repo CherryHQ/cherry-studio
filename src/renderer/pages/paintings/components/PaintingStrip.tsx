@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next'
 
 import type { PaintingStripEntry } from '../hooks/usePaintingHistory'
 import type { PaintingData } from '../model/types/paintingData'
-import { paintingClasses } from '../PaintingPrimitives'
+import { paintingClasses } from '../paintingPrimitives'
 
 interface PaintingStripProps {
   selectedPaintingId?: string

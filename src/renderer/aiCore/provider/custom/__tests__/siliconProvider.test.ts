@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { SiliconImageModel } from '../silicon-image-model'
-import { createSiliconProvider } from '../silicon-provider'
+import { SiliconImageModel } from '../SiliconImageModel'
+import { createSiliconProvider } from '../siliconProvider'
 
 describe('createSiliconProvider', () => {
   it('uses OpenAI-compatible chat + embedding and bespoke SiliconImageModel for image', () => {

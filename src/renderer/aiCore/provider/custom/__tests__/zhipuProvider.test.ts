@@ -1,7 +1,7 @@
 import { OpenAICompatibleImageModel } from '@ai-sdk/openai-compatible'
 import { describe, expect, it, vi } from 'vitest'
 
-import { createZhipuProvider } from '../zhipu-provider'
+import { createZhipuProvider } from '../zhipuProvider'
 
 describe('createZhipuProvider', () => {
   it('uses OpenAI-compatible chat / embedding / image models', () => {

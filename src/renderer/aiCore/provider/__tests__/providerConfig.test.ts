@@ -72,11 +72,11 @@ import type { AwsBedrockAuthType, Model, Provider } from '@renderer/types'
 
 import { COPILOT_DEFAULT_HEADERS } from '../constants'
 import type { AihubmixProviderSettings } from '../custom/aihubmixProvider'
-import type { DmxapiProviderSettings } from '../custom/dmxapi-provider'
+import type { DmxapiProviderSettings } from '../custom/dmxapiProvider'
 import type { NewApiProviderSettings } from '../custom/newapiProvider'
-import type { OvmsProviderSettings } from '../custom/ovms-provider'
-import type { PpioProviderSettings } from '../custom/ppio-provider'
-import type { TokenFluxProviderSettings } from '../custom/tokenflux-provider'
+import type { OvmsProviderSettings } from '../custom/ovmsProvider'
+import type { PpioProviderSettings } from '../custom/ppioProvider'
+import type { TokenFluxProviderSettings } from '../custom/tokenfluxProvider'
 import { adaptProvider, formatProviderApiHost, getActualProvider, providerToAiSdkConfig } from '../providerConfig'
 
 const { __mockGetState: mockGetState } = vi.mocked(await import('@renderer/store')) as unknown as {
