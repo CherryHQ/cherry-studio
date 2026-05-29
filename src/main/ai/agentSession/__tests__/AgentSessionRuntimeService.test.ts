@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   saveMessage: vi.fn(),
+  getLastRuntimeResumeToken: vi.fn(),
   maybeRenameAgentSession: vi.fn(),
   applicationGet: vi.fn(),
   startRuntimeTurn: vi.fn(),
@@ -13,7 +14,10 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@data/services/AgentSessionMessageService', () => ({
-  agentSessionMessageService: { saveMessage: mocks.saveMessage }
+  agentSessionMessageService: {
+    saveMessage: mocks.saveMessage,
+    getLastRuntimeResumeToken: mocks.getLastRuntimeResumeToken
+  }
 }))
 
 vi.mock('@main/services/TopicNamingService', () => ({
@@ -97,6 +101,7 @@ describe('AgentSessionRuntimeService', () => {
       ...message,
       id: message.id ?? 'generated-message-id'
     }))
+    mocks.getLastRuntimeResumeToken.mockResolvedValue(null)
     mocks.applicationGet.mockImplementation((name: string) => {
       if (name === 'AiStreamManager') {
         return {
@@ -322,6 +327,48 @@ describe('AgentSessionRuntimeService', () => {
 
     expect(connection.close).toHaveBeenCalledOnce()
     expect(getEntry(service).connection).toBeUndefined()
+    await reader.cancel().catch(() => undefined)
+  })
+
+  it('hydrates the persisted resume token before connecting a cold historical session', async () => {
+    mocks.getLastRuntimeResumeToken.mockResolvedValue('resume-db')
+    const events = createAsyncQueue<any>()
+    const connection = {
+      events: events.iterable,
+      send: vi.fn(),
+      close: vi.fn()
+    }
+    const connect = vi.fn().mockResolvedValue(connection)
+    runtimeDriverRegistry.register({
+      type: 'test-runtime',
+      capabilities: ['agent-session'],
+      connect,
+      validateSession: vi.fn(),
+      listAvailableTools: vi.fn().mockResolvedValue([])
+    })
+    const service = new AgentSessionRuntimeService()
+    const handle = service.beginTurn({ ...baseTurnInput, userMessage: userMessage('user-1') })
+    const stream = service.openTurnStream({
+      sessionId: 'session-1',
+      turnId: handle.turnId,
+      signal: new AbortController().signal
+    })
+    const reader = stream.getReader()
+
+    await expect(reader.read()).resolves.toMatchObject({ value: { type: 'stream-start' }, done: false })
+    await vi.waitFor(() =>
+      expect(connect).toHaveBeenCalledWith({
+        sessionId: 'session-1',
+        agentId: 'agent-1',
+        modelId: 'claude-code::claude-sonnet-4-5',
+        resumeToken: 'resume-db',
+        trace: undefined
+      })
+    )
+
+    expect(mocks.getLastRuntimeResumeToken).toHaveBeenCalledWith('session-1')
+    expect(service.inspect('session-1')).toMatchObject({ resumeToken: 'resume-db' })
+    service.closeSession('session-1')
     await reader.cancel().catch(() => undefined)
   })
 
