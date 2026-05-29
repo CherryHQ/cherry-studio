@@ -105,7 +105,18 @@ const PaintingPage: FC = () => {
                 </div>
                 <div className={paintingClasses.panelBody}>
                   <Scrollbar className={paintingClasses.panelScroll}>
-                    <PaintingSettings painting={currentPainting} onConfigChange={patchPainting} />
+                    <PaintingSettings
+                      painting={currentPainting}
+                      onConfigChange={patchPainting}
+                      onGenerateRandomSeed={(key) =>
+                        patchPainting({
+                          params: {
+                            ...currentPainting.params,
+                            [key]: String(Math.floor(Math.random() * 1_000_000))
+                          }
+                        })
+                      }
+                    />
                   </Scrollbar>
                 </div>
               </div>
