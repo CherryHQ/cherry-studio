@@ -1,0 +1,12 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`TokenFlux request boundary > async /v1/images/generations spreads inputParams into input 1`] = `
+{
+  "input": {
+    "aspect_ratio": "1:1",
+    "num_outputs": 1,
+    "prompt": "a fox",
+  },
+  "model": "black-forest-labs/flux-1.1-pro",
+}
+`;

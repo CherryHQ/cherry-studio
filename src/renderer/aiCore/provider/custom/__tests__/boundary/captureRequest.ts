@@ -45,6 +45,11 @@ export async function captureImageRequest(
 
   try {
     await transport.submit(input)
+  } catch (err) {
+    // Some transports validate the response (e.g. require a task id) and throw
+    // on the canned `{}` — that's after the request is sent, which is all we
+    // capture. Only surface failures that happened *before* fetch was called.
+    if (!captured) throw err
   } finally {
     fetchMock.mockRestore()
   }
