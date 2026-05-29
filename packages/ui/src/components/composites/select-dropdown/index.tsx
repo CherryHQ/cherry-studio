@@ -24,7 +24,7 @@ export interface SelectDropdownProps<T extends { id: string }> {
   /**
    * Extra classes appended to the trigger button.
    * Use `data-[state=open]:*` selectors to override the open-state border/ring
-   * (defaults follow `--color-primary`, which tracks the user theme color).
+   * (defaults follow the neutral `--color-primary` action token).
    */
   triggerClassName?: string
 }

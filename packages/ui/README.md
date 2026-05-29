@@ -53,7 +53,7 @@ Use the full Cherry Studio design system so Tailwind theme tokens resolve to Che
 
 ```tsx
 <Button className="bg-primary text-red-500 p-md rounded-lg">
-  {/* bg-primary -> Cherry Studio brand color */}
+  {/* bg-primary -> Cherry Studio neutral primary action color */}
   {/* text-red-500 -> Cherry Studio red-500 */}
   {/* p-md -> semantic spacing token */}
   {/* rounded-lg -> semantic radius token */}
@@ -86,7 +86,7 @@ Import only the design tokens and decide which theme mappings your app wants to 
 
 /* Re-export only the parts you need */
 @theme {
-  --color-primary: var(--cs-primary); /* Use the Cherry Studio primary color */
+  --color-primary: var(--cs-primary); /* Use the Cherry Studio neutral primary color */
   --color-red-500: oklch(...); /* Keep your own red scale */
   --spacing-md: var(--cs-size-md); /* Reuse Cherry Studio spacing */
   --radius-lg: 1rem; /* Keep your own radius */
@@ -105,7 +105,7 @@ Import only the design tokens and decide which theme mappings your app wants to 
 ```tsx
 {/* Use Cherry Studio tokens directly via CSS variables */}
 <button style={{ backgroundColor: 'var(--cs-primary)' }}>
-  Use the Cherry Studio brand color
+  Use the Cherry Studio neutral primary color
 </button>
 
 {/* Keep your original Tailwind theme untouched */}
@@ -116,7 +116,8 @@ Import only the design tokens and decide which theme mappings your app wants to 
 {/* Available CSS variables */}
 <div
   style={{
-    color: 'var(--cs-primary)', // Brand color
+    color: 'var(--cs-primary)', // Neutral primary action color
+    accentColor: 'var(--color-theme-accent)', // User theme accent
     backgroundColor: 'var(--cs-red-500)', // Red-500
     padding: 'var(--cs-size-md)', // Spacing
     borderRadius: 'var(--cs-radius-lg)', // Radius

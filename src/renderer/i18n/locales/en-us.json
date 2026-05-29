@@ -3589,12 +3589,13 @@
       "connected": "Successfully connected to CherryIN"
     },
     "welcome": {
+      "data_collection_consent": "Share anonymous usage information to help us improve Cherry Studio",
       "login_cherryin": "Login with CherryIN",
       "or_continue_with": "OR CONTINUE WITH",
       "other_provider": "Choose Other Providers",
       "select_other_provider": "Select Other Provider",
       "setup_hint": "Please configure at least one provider for the best experience",
-      "subtitle": "Enjoy top-tier AI services with CherryIN",
+      "subtitle": "Use the CherryIN provider to enjoy top-tier AI services",
       "title": "Welcome to Cherry Studio"
     }
   },
@@ -4828,7 +4829,6 @@
         "closePreview": "Close preview",
         "description": "Opens the onboarding flow in preview mode. None of your choices will affect real settings.",
         "mockedLoginToast": "Preview mode: mocked login",
-        "modelSettingsPlaceholder": "Model settings area (hidden in preview to avoid changing real settings)",
         "openPreview": "Open preview",
         "title": "Onboarding flow"
       },

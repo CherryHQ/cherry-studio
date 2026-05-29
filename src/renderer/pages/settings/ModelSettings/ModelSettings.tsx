@@ -20,7 +20,7 @@ import {
 import type { Provider } from '@shared/data/types/provider'
 import { ChevronDown, Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingContainer, SettingDescription, SettingDivider, SettingGroup, SettingRow, SettingRowTitle } from '..'
@@ -31,6 +31,7 @@ interface ModelSettingsProps {
   showSettingsButton?: boolean
   showDescription?: boolean
   compact?: boolean
+  previewMode?: boolean
 }
 
 interface ModelSettingRowProps {
@@ -42,7 +43,7 @@ interface ModelSettingRowProps {
 }
 
 const ModelSettingRow: FC<ModelSettingRowProps> = ({ icon, title, description, compact, children }) => (
-  <SettingRow className={cn(compact ? 'flex-col items-stretch gap-3 py-1' : 'items-start gap-6 py-1.5')}>
+  <SettingRow className={cn(compact ? 'flex-col items-stretch gap-3' : 'items-start gap-6 py-1.5')}>
     <div className="min-w-0 flex-1">
       <SettingRowTitle className="gap-2 font-semibold">
         {icon}
@@ -141,11 +142,16 @@ const DefaultModelSelector: FC<DefaultModelSelectorProps> = ({
 const ModelSettings: FC<ModelSettingsProps> = ({
   showSettingsButton = true,
   showDescription = true,
-  compact = false
+  compact = false,
+  previewMode = false
 }) => {
-  const [defaultModelId, setDefaultModelId] = usePreference('chat.default_model_id')
-  const [quickModelId, setQuickModelId] = usePreference('feature.quick_assistant.model_id')
-  const [translateModelId, setTranslateModelId] = usePreference('feature.translate.model_id')
+  const [savedDefaultModelId, setSavedDefaultModelId] = usePreference('chat.default_model_id')
+  const [savedQuickModelId, setSavedQuickModelId] = usePreference('feature.quick_assistant.model_id')
+  const [savedTranslateModelId, setSavedTranslateModelId] = usePreference('feature.translate.model_id')
+  const [previewDefaultModelId, setPreviewDefaultModelId] = useState<string | null>(savedDefaultModelId)
+  const [previewQuickModelId, setPreviewQuickModelId] = useState<string | null>(savedQuickModelId)
+  const [previewTranslateModelId, setPreviewTranslateModelId] = useState<string | null>(savedTranslateModelId)
+  const [hasEditedPreviewModels, setHasEditedPreviewModels] = useState(false)
   const [activePanel, setActivePanel] = useState<ModelSettingsPanel>(null)
   const { models } = useModels({ enabled: true })
   const { providers } = useProviders({ enabled: true })
@@ -159,6 +165,20 @@ const ModelSettings: FC<ModelSettingsProps> = ({
     []
   )
 
+  useEffect(() => {
+    if (!previewMode || hasEditedPreviewModels) {
+      return
+    }
+
+    setPreviewDefaultModelId(savedDefaultModelId)
+    setPreviewQuickModelId(savedQuickModelId)
+    setPreviewTranslateModelId(savedTranslateModelId)
+  }, [hasEditedPreviewModels, previewMode, savedDefaultModelId, savedQuickModelId, savedTranslateModelId])
+
+  const defaultModelId = previewMode ? previewDefaultModelId : savedDefaultModelId
+  const quickModelId = previewMode ? previewQuickModelId : savedQuickModelId
+  const translateModelId = previewMode ? previewTranslateModelId : savedTranslateModelId
+
   const modelsById = useMemo(() => new Map(models.map((model) => [model.id, model])), [models])
 
   const defaultModelValue = toModelSelectorValue(defaultModelId)
@@ -171,23 +191,41 @@ const ModelSettings: FC<ModelSettingsProps> = ({
 
   const onSelectDefaultModel = useCallback(
     (modelId: UniqueModelId | undefined) => {
-      void setDefaultModelId(modelId ?? null)
+      if (previewMode) {
+        setHasEditedPreviewModels(true)
+        setPreviewDefaultModelId(modelId ?? null)
+        return
+      }
+
+      void setSavedDefaultModelId(modelId ?? null)
     },
-    [setDefaultModelId]
+    [previewMode, setSavedDefaultModelId]
   )
 
   const onSelectQuickModel = useCallback(
     (modelId: UniqueModelId | undefined) => {
-      void setQuickModelId(modelId ?? null)
+      if (previewMode) {
+        setHasEditedPreviewModels(true)
+        setPreviewQuickModelId(modelId ?? null)
+        return
+      }
+
+      void setSavedQuickModelId(modelId ?? null)
     },
-    [setQuickModelId]
+    [previewMode, setSavedQuickModelId]
   )
 
   const onSelectTranslateModel = useCallback(
     (modelId: UniqueModelId | undefined) => {
-      void setTranslateModelId(modelId ?? null)
+      if (previewMode) {
+        setHasEditedPreviewModels(true)
+        setPreviewTranslateModelId(modelId ?? null)
+        return
+      }
+
+      void setSavedTranslateModelId(modelId ?? null)
     },
-    [setTranslateModelId]
+    [previewMode, setSavedTranslateModelId]
   )
 
   const onResetTranslatePrompt = () => {
@@ -200,11 +238,12 @@ const ModelSettings: FC<ModelSettingsProps> = ({
 
   const containerStyle = compact ? { padding: 0, background: 'transparent' } : undefined
   const groupStyle = compact ? { padding: 0, border: 'none', background: 'transparent' } : undefined
+  const groupClassName = compact ? 'flex flex-col gap-6' : undefined
 
   return (
     <div className="relative flex min-h-0 flex-1">
       <SettingContainer theme={theme} style={containerStyle}>
-        <SettingGroup theme={theme} style={groupStyle}>
+        <SettingGroup theme={theme} className={groupClassName} style={groupStyle}>
           <ModelSettingRow
             compact={compact}
             icon={<MessageSquareMore size={16} className="lucide-custom shrink-0 text-(--color-foreground)" />}
@@ -230,7 +269,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
               </Button>
             )}
           </ModelSettingRow>
-          <SettingDivider />
+          {!compact && <SettingDivider />}
           <ModelSettingRow
             compact={compact}
             icon={<Rocket size={16} className="lucide-custom shrink-0 text-(--color-foreground)" />}
@@ -261,7 +300,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
               </Button>
             )}
           </ModelSettingRow>
-          <SettingDivider />
+          {!compact && <SettingDivider />}
           <ModelSettingRow
             compact={compact}
             icon={<Languages size={16} className="lucide-custom shrink-0 text-(--color-foreground)" />}

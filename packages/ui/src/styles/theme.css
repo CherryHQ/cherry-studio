@@ -271,8 +271,8 @@
   /* ==================== */
   /* Runtime Theme Inputs */
   /* ==================== */
-  --cs-theme-primary: var(--cs-primary);
-  --cs-theme-ring: color-mix(in srgb, var(--cs-theme-primary) 40%, transparent);
+  --cs-theme-accent: var(--cs-brand-500);
+  --cs-theme-accent-ring: color-mix(in srgb, var(--cs-theme-accent) 40%, transparent);
 
   /* ==================== */
   /* Compatibility Aliases */
@@ -283,11 +283,15 @@
   /* ==================== */
   /* Semantic Colors */
   /* ==================== */
-  --color-primary: var(--cs-theme-primary);
+  --color-primary: var(--cs-primary);
   --color-primary-hover: var(--cs-primary-hover);
-  --color-primary-soft: color-mix(in srgb, var(--color-primary) 60%, transparent);
-  --color-primary-mute: color-mix(in srgb, var(--color-primary) 30%, transparent);
-  --color-ring: var(--cs-theme-ring);
+  --color-primary-soft: color-mix(in srgb, var(--color-primary) 10%, transparent);
+  --color-primary-mute: color-mix(in srgb, var(--color-primary) 6%, transparent);
+  --color-theme-accent: var(--cs-theme-accent);
+  --color-theme-accent-soft: color-mix(in srgb, var(--color-theme-accent) 60%, transparent);
+  --color-theme-accent-mute: color-mix(in srgb, var(--color-theme-accent) 30%, transparent);
+  --color-theme-accent-ring: var(--cs-theme-accent-ring);
+  --color-ring: var(--cs-ring);
   --color-destructive: var(--cs-destructive);
   --color-destructive-hover: var(--cs-destructive-hover);
   --color-success: var(--cs-success);

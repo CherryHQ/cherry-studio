@@ -9,18 +9,22 @@ const STYLES_DIR = path.resolve(__dirname, '../src/styles')
 const THEME_OUTPUT_PATH = path.join(STYLES_DIR, 'theme.css')
 
 const RUNTIME_THEME_INPUT_LINES = [
-  '--cs-theme-primary: var(--cs-primary);',
-  '--cs-theme-ring: color-mix(in srgb, var(--cs-theme-primary) 40%, transparent);'
+  '--cs-theme-accent: var(--cs-brand-500);',
+  '--cs-theme-accent-ring: color-mix(in srgb, var(--cs-theme-accent) 40%, transparent);'
 ]
 
 const COMPATIBILITY_ALIAS_LINES = ['--primary: var(--color-primary);', '--ring: var(--color-ring);']
 
 const PRIMARY_SEMANTIC_LINES = [
-  '--color-primary: var(--cs-theme-primary);',
+  '--color-primary: var(--cs-primary);',
   '--color-primary-hover: var(--cs-primary-hover);',
-  '--color-primary-soft: color-mix(in srgb, var(--color-primary) 60%, transparent);',
-  '--color-primary-mute: color-mix(in srgb, var(--color-primary) 30%, transparent);',
-  '--color-ring: var(--cs-theme-ring);'
+  '--color-primary-soft: color-mix(in srgb, var(--color-primary) 10%, transparent);',
+  '--color-primary-mute: color-mix(in srgb, var(--color-primary) 6%, transparent);',
+  '--color-theme-accent: var(--cs-theme-accent);',
+  '--color-theme-accent-soft: color-mix(in srgb, var(--color-theme-accent) 60%, transparent);',
+  '--color-theme-accent-mute: color-mix(in srgb, var(--color-theme-accent) 30%, transparent);',
+  '--color-theme-accent-ring: var(--cs-theme-accent-ring);',
+  '--color-ring: var(--cs-ring);'
 ]
 
 const SPACING_COMMENT_LINES = [

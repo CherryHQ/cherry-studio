@@ -3589,12 +3589,13 @@
       "connected": "成功連接到 CherryIN"
     },
     "welcome": {
+      "data_collection_consent": "允許分享匿名使用資訊，協助我們最佳化 Cherry Studio",
       "login_cherryin": "使用 CherryIN 登入",
       "or_continue_with": "或繼續使用",
       "other_provider": "選擇其他供應商",
       "select_other_provider": "選擇其他供應商",
       "setup_hint": "請至少設定一個提供者以獲得最佳體驗",
-      "subtitle": "享受頂尖 AI 服務，盡在 CherryIN",
+      "subtitle": "使用 CherryIN 服務商即可暢享頂級 AI 服務",
       "title": "歡迎來到 Cherry Studio"
     }
   },
@@ -4828,7 +4829,6 @@
         "closePreview": "關閉預覽",
         "description": "打開後會以預覽模式渲染引導流程，所有選擇都不會影響真實設定。",
         "mockedLoginToast": "預覽模式：已模擬登入",
-        "modelSettingsPlaceholder": "模型設定區域（預覽中已隱藏，避免修改真實設定）",
         "openPreview": "打開引導預覽",
         "title": "引導流程"
       },

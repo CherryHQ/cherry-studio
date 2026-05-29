@@ -19,9 +19,10 @@ export default function useUserTheme() {
   }
 
   const initUserTheme = (theme: { colorPrimary: string } = { colorPrimary }) => {
-    const colorPrimary = Color(theme.colorPrimary)
+    const themeAccent = Color(theme.colorPrimary)
 
-    document.documentElement.style.setProperty('--cs-theme-primary', colorPrimary.toString())
+    document.documentElement.style.removeProperty('--cs-theme-primary')
+    document.documentElement.style.setProperty('--cs-theme-accent', themeAccent.toString())
     setOptionalCssVar('--cs-user-font-family', userFontFamily)
     setOptionalCssVar('--cs-user-code-font-family', userCodeFontFamily)
   }
