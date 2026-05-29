@@ -48,6 +48,31 @@ import { checkProviderEnabled, findPaintingByFiles } from './utils'
 
 const logger = loggerService.withContext('NewApiPage')
 
+const CHERRYIN_HOSTS = new Set(['open.cherryin.ai', 'open.cherryin.cc', 'open.cherryin.dev', 'open.cherryin.net'])
+
+const isCherryInProvider = (apiHost: string) => {
+  try {
+    return CHERRYIN_HOSTS.has(new URL(apiHost).hostname)
+  } catch {
+    return false
+  }
+}
+
+const readFileAsDataUrl = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader()
+
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        resolve(reader.result)
+      } else {
+        reject(new Error('Failed to read image file as data URL'))
+      }
+    }
+    reader.onerror = () => reject(reader.error ?? new Error('Failed to read image file as data URL'))
+    reader.readAsDataURL(file)
+  })
+
 const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
   const [mode, setMode] = useState<keyof PaintingsState>('openai_image_generate')
   const { addPainting, removePainting, updatePainting, openai_image_generate, openai_image_edit } = usePaintings()
@@ -310,12 +335,24 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       url = newApiProvider.apiHost.replace(/\/v1$/, '') + `/openai/v1/images/generations`
       editUrl = newApiProvider.apiHost.replace(/\/v1$/, '') + `/openai/v1/images/edits`
     }
+    const shouldUseGenerationForEdit =
+      isCherryInProvider(newApiProvider.apiHost) &&
+      mode === 'openai_image_edit' &&
+      painting.model.toLowerCase().includes('qwen')
+    const shouldUseGenerationEndpoint = mode === 'openai_image_generate' || shouldUseGenerationForEdit
 
     try {
-      if (mode === 'openai_image_generate') {
+      if (shouldUseGenerationEndpoint) {
+        if (shouldUseGenerationForEdit && editImages.length === 0) {
+          window.toast.warning(t('paintings.image_file_required'))
+          return
+        }
+
+        const imageDataUrls = shouldUseGenerationForEdit ? await Promise.all(editImages.map(readFileAsDataUrl)) : []
         const requestData = {
           prompt,
           model: painting.model,
+          image: imageDataUrls.length === 0 ? undefined : imageDataUrls.length === 1 ? imageDataUrls[0] : imageDataUrls,
           size: painting.size === 'auto' ? undefined : painting.size,
           background: painting.background === 'auto' ? undefined : painting.background,
           n: painting.n,
@@ -363,7 +400,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
         // For edit mode we do not set content-type; browser will set multipart boundary
       }
 
-      const requestUrl = mode === 'openai_image_edit' ? editUrl : url
+      const requestUrl = shouldUseGenerationEndpoint ? url : editUrl
       const response = await fetch(requestUrl, { method: 'POST', headers, body })
 
       if (!response.ok) {
