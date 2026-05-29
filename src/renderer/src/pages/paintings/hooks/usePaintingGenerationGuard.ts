@@ -2,7 +2,6 @@ import { useCallback } from 'react'
 
 import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'
-import type { PaintingModelCatalogData } from './usePaintingModelCatalog'
 import { usePaintingProviderRuntime } from './usePaintingProviderRuntime'
 
 export type PaintingGenerationGuardReason =
@@ -18,7 +17,6 @@ export type PaintingGenerationGuardResult =
 
 interface UsePaintingGenerationGuardInput {
   painting: Pick<PaintingData, 'providerId' | 'mode' | 'model'>
-  selectorData: PaintingModelCatalogData
   ensureCurrentCatalog: () => Promise<ModelOption[]>
 }
 

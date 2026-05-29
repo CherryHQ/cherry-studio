@@ -5,12 +5,10 @@ import type { ModelOption } from '../model/types/paintingModel'
 import { presentPaintingGenerationGuardFeedback } from '../utils/presentPaintingGenerationGuardFeedback'
 import { usePaintingGeneration } from './usePaintingGeneration'
 import { usePaintingGenerationGuard } from './usePaintingGenerationGuard'
-import type { PaintingModelCatalogData } from './usePaintingModelCatalog'
 
 interface UsePaintingGenerationSubmitInput {
   painting: PaintingData
   onPaintingChange: (painting: PaintingData) => void
-  selectorData: PaintingModelCatalogData
   ensureCurrentCatalog: () => Promise<ModelOption[]>
 }
 
@@ -24,12 +22,10 @@ interface UsePaintingGenerationSubmitInput {
 export function usePaintingGenerationSubmit({
   painting,
   onPaintingChange,
-  selectorData,
   ensureCurrentCatalog
 }: UsePaintingGenerationSubmitInput) {
   const { validateBeforeGenerate } = usePaintingGenerationGuard({
     painting,
-    selectorData,
     ensureCurrentCatalog
   })
   const { generate, cancel, generating } = usePaintingGeneration({

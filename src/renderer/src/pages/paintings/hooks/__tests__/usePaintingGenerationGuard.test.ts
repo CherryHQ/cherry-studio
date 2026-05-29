@@ -26,22 +26,6 @@ function renderGuard(overrides: Partial<Parameters<typeof usePaintingGenerationG
         mode: 'generate',
         model: 'cogview-4'
       },
-      selectorData: {
-        providers: [],
-        models: [
-          {
-            id: 'zhipu::cogview-4',
-            providerId: 'zhipu',
-            apiModelId: 'cogview-4',
-            name: 'CogView 4',
-            capabilities: ['image-generation'],
-            supportsStreaming: false,
-            isEnabled: true,
-            isHidden: false
-          }
-        ],
-        selectedModelId: 'zhipu::cogview-4'
-      },
       ensureCurrentCatalog: vi.fn(async () => [{ label: 'CogView 4', value: 'cogview-4' }]),
       ...overrides
     })
@@ -135,11 +119,6 @@ describe('usePaintingGenerationGuard', () => {
         providerId: 'zhipu',
         mode: 'generate',
         model: 'async-model'
-      },
-      selectorData: {
-        providers: [],
-        models: [],
-        selectedModelId: 'zhipu::async-model'
       },
       ensureCurrentCatalog: vi.fn(async () => [{ label: 'Async Model', value: 'async-model' }])
     })

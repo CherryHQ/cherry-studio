@@ -2,16 +2,17 @@ import { Button, Textarea } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { loggerService } from '@logger'
 import { useDrag } from '@renderer/hooks/useDrag'
+import { useModels } from '@renderer/hooks/useModels'
 import SendMessageButton from '@renderer/pages/home/Inputbar/SendMessageButton'
 import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import type { FilePath } from '@shared/file/types/common'
 import { toSafeFileUrl } from '@shared/file/urlUtil'
+import { isEditImageModel } from '@shared/utils/model'
 import { Plus, X } from 'lucide-react'
 import type { ChangeEvent, ClipboardEvent, DragEvent, FC, KeyboardEventHandler, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useImageGenerationSupport } from '../hooks/useImageGenerationSupport'
 import type { PaintingData } from '../model/types/paintingData'
 
 const logger = loggerService.withContext('PaintingPromptBar')
@@ -100,15 +101,12 @@ const PaintingPromptBar: FC<PaintingPromptBarProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const inputFiles = useMemo(() => painting.inputFiles ?? [], [painting.inputFiles])
 
-  // Image input is gated by the current model's registry support, not a new
-  // capability flag: any declared mode other than `generate` (`edit` /
-  // `remix` / `merge` / `upscale`) accepts files by definition. Text-only
-  // models declare only `modes.generate` and stay without the upload UI.
-  const support = useImageGenerationSupport(painting.providerId, painting.model)
-  const acceptsImageInput = useMemo(
-    () => Object.keys(support?.modes ?? {}).some((mode) => mode !== 'generate'),
-    [support]
-  )
+  const { models } = useModels(painting.providerId ? { providerId: painting.providerId } : undefined)
+  const acceptsImageInput = useMemo(() => {
+    if (!painting.model) return false
+    const current = models.find((model) => model.apiModelId === painting.model)
+    return current ? isEditImageModel(current) : false
+  }, [models, painting.model])
 
   const appendFiles = useCallback(
     async (files: Iterable<File>) => {

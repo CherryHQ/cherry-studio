@@ -55,7 +55,6 @@ const PaintingPage: FC = () => {
   } = usePaintingGenerationSubmit({
     painting: currentPainting,
     onPaintingChange: setCurrentPainting,
-    selectorData: modelCatalog.selectorData,
     ensureCurrentCatalog: modelCatalog.ensureCurrentCatalog
   })
 
