@@ -3502,6 +3502,7 @@
     "starred_notes": "notas guardadas",
     "target_name_exists": "[to be translated]:A note or folder with this name already exists",
     "title": "notas",
+    "tree_load_failed": "[to be translated]:Failed to load notes directory",
     "unsaved_changes": "Tienes contenido no guardado, ¿estás seguro de que quieres salir?",
     "unstar": "Quitar de favoritos",
     "untitled_folder": "Nueva carpeta",

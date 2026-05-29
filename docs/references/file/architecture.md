@@ -7,6 +7,7 @@
 > Related documents:
 >
 > - `docs/references/file/file-manager-architecture.md` — FileManager submodule design (FileEntry model, origin semantics, atomic writes, version detection, DirectoryWatcher, AI SDK integration)
+> - `docs/references/file/directory-tree.md` — DirectoryTreeBuilder primitive design (in-memory tree + chokidar watcher + .gitignore coordination, `DirectoryTreeManager` lifecycle service, `File_Tree*` IPC contract, renderer-side `useDirectoryTree` hook)
 
 ---
 
@@ -77,9 +78,21 @@ File Module (src/main/services/file/)
 │     ├── Reverse index Map<path, Set<entryId>> (populated from DB at file_module startup)
 │     └── Queried by DataApi handler; automatically wired by the watcher factory
 │
-└── watcher/
-      └── DirectoryWatcher (not a service, a generic FS monitoring primitive)
-          ↳ factory createDirectoryWatcher() auto-wires events into danglingCache
+├── watcher/
+│     └── DirectoryWatcher (not a service, a generic FS monitoring primitive)
+│         ↳ factory createDirectoryWatcher() auto-wires events into danglingCache
+│
+└── tree/                    ← second top-level primitive, parallel to FileManager
+      │                       SoT: docs/references/file/directory-tree.md
+      ├── builder.ts         ← DirectoryTreeBuilder: in-memory TreeDirRoot
+      │                        mirror + chokidar watcher + initial ripgrep scan
+      ├── DirectoryTreeManager.ts  ← @Injectable WhenReady service;
+      │                        owns the File_Tree* IPC contract; dedupes
+      │                        builders by (rootPath, options) across treeIds
+      ├── search.ts          ← listDirectory: ripgrep + optional fuzzy match
+      ├── gitignore.ts       ← .gitignore parsing shared by ripgrep --ignore-file
+      │                        and chokidar's ignored predicate
+      └── index.ts           ← barrel: createDirectoryTree + DirectoryTreeBuilder
 
 Pure FS primitives (src/main/utils/file/) — sole FS owner, open to the entire main process
 ├── fs.ts         — basic FS: read / write / stat / copy / move / remove
@@ -104,12 +117,13 @@ Data Module dependencies (src/main/data/)
 
 ### 1.2 FileManager's Position Within the Module
 
-FileManager is the core submodule of the file module, but is not equivalent to the file module as a whole.
+The file module has **two top-level primitives** — `FileManager` and `DirectoryTreeBuilder` — sitting alongside the shared infrastructure (DanglingCache, DirectoryWatcher, FS primitives). Neither subsumes the other; they manage **orthogonal resource concerns**:
 
-- **FileManager** is the **sole public entry point** for the entry management system—responsible for the full lifecycle and content operations of FileEntry. Its public API only accepts `FileEntryId` / `FileHandle`. At startup, it performs an orphan sweep in the background (cleaning up leftover internal UUID files), **without blocking the ready signal**.
+- **FileManager** is the **sole public entry point for the FileEntry management system** — responsible for the full lifecycle and content operations of `FileEntry` (DB row + content bytes). Its public API only accepts `FileEntryId` / `FileHandle`. At startup, it performs an orphan sweep in the background (cleaning up leftover internal UUID files), **without blocking the ready signal**. "Sole public entry" here is scoped to **FileEntry management**, not the file module as a whole — see DirectoryTreeBuilder below.
 - **FileManager is a facade, not a God class** — business methods are delegated to private pure-function modules. The class itself owns only lifecycle, IPC registration, and instance-scoped caches. Implementation mechanics (dispatch helpers, deps passing, module layout, extension rules) live in [FileManager Architecture §1.6](./file-manager-architecture.md) — this document stays at the positioning layer.
+- **DirectoryTreeBuilder** is the **second top-level primitive**, parallel to FileManager. It manages in-memory tree mirrors + chokidar watchers for arbitrary directories (Notes workspace, future ArtifactPane, …). It is **not** DB-backed — every tree is rebuilt from disk on `File_TreeCreate`. Its IPC surface (`File_TreeCreate` / `File_TreeDispose` / `File_TreeMutation`) is owned by the `DirectoryTreeManager` lifecycle service. SoT: [directory-tree.md](./directory-tree.md). The two primitives observe the same paths independently — a directory can be watched (tree) without its contents being entered (entries), and vice versa.
 - **DanglingCache** is a file_module singleton—maintains the `'present' | 'missing'` state of external entries, pushed by watcher events, with cold-path stat as a fallback, and served to the renderer via File IPC `getDanglingState` / `batchGetDanglingStates` (never DataApi).
-- **DirectoryWatcher** is a generic FS primitive, **not a lifecycle service**; business modules (such as a future NoteService) new/dispose instances themselves via the `createDirectoryWatcher()` factory; the factory internally wires events into DanglingCache.
+- **DirectoryWatcher** is a generic FS primitive, **not a lifecycle service**; business modules (such as a future NoteService) new/dispose instances themselves via the `createDirectoryWatcher()` factory; the factory internally wires events into DanglingCache. `DirectoryTreeBuilder` is one of its consumers.
 - **Pure FS / path primitives** live under `src/main/utils/file/` (imported as `@main/utils/file/fs`, `@main/utils/file/path`, etc.). They do not depend on the entry system and are open to the entire main process.
 
 #### Public / Private Boundaries
@@ -117,6 +131,7 @@ FileManager is the core submodule of the file module, but is not equivalent to t
 | Location | Visibility | Access |
 |---|---|---|
 | `FileManager` class + public types | **Entire main process** | Resolve the runtime instance via `application.get('FileManager')`; import public types from `@main/services/file` |
+| `DirectoryTreeManager` + `DirectoryTreeBuilder` factory | **Entire main process** (renderer via IPC) | Renderer: `window.api.tree.create/dispose/onMutation`. Main: `application.get('DirectoryTreeManager')` or `createDirectoryTree` from `@main/services/file/tree`. |
 | Pure FS primitives (`@main/utils/file/{fs,metadata,path,search,shell}`) | **Entire main process** | `import { atomicWriteFile } from '@main/utils/file/fs'` (BootConfig, MCP oauth, etc. can use directly). Shared legacy helpers (`getFileType(ext)`, `sanitizeFilename`, etc.) are barrel-exported from `@main/utils/file` itself. |
 | `watcher/` (`createDirectoryWatcher` factory) | **Entire main process** | Business services call this when they need to watch external directories |
 | `danglingCache` | **Internal to file-module** | External callers read it via File IPC `getDanglingState` / `batchGetDanglingStates`; never imported directly, never exposed via DataApi |
@@ -130,7 +145,7 @@ The following categories are **not** managed by the File Module (no FileEntry is
 
 | Category | Owner | Why it's not managed by FileManager |
 |---|---|---|
-| Notes file tree (files browsed/edited inside the Notes app) | Notes module (FS-first) | Notes has its own notes dir storage and external editor compatibility; the file tree is managed by the Notes domain and is **not mirrored wholesale into FileEntry**. |
+| Notes file tree (files browsed/edited inside the Notes app) | Notes module (FS-first) | Notes has its own notes dir storage and external editor compatibility; **not mirrored wholesale into FileEntry**. Tree state itself is provided by `DirectoryTreeBuilder` ([directory-tree.md](./directory-tree.md)) — a separate top-level primitive — not by FileManager. Notes joins the tree with sparse renderer-side state (`noteTable` overlays for starred / metadata). |
 | Knowledge base vector index | KnowledgeService | Auto-generated derived data, not a user file |
 | MCP server configuration | MCP module | System/user configuration, not user-uploaded files |
 | Preference / BootConfig | Config module | Application state |

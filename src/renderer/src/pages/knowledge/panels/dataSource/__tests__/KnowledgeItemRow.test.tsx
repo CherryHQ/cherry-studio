@@ -1,3 +1,5 @@
+import '@testing-library/jest-dom/vitest'
+
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -115,6 +117,8 @@ vi.mock('react-i18next', () => ({
           'knowledge.data_source.actions.view_chunks': '查看 Chunks',
           'knowledge.data_source.actions.reindex': '重新索引',
           'knowledge.data_source.actions.delete': '删除',
+          'knowledge.data_source.delete_failed': '删除数据源失败',
+          'knowledge.data_source.preview.failed': '预览原文失败',
           'knowledge.data_source.reindex_failed': '数据源重新索引失败',
           'common.more': '更多',
           'knowledge.rag.file_processing': '文件处理'
@@ -216,6 +220,22 @@ describe('KnowledgeItemRow', () => {
     expect(handleClick).toHaveBeenCalledTimes(1)
   })
 
+  it('does not call onClick for non-completed items', () => {
+    const handleClick = vi.fn()
+
+    render(
+      <KnowledgeItemRow
+        item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs', status: 'processing' })}
+        {...defaultHandlers}
+        onClick={handleClick}
+      />
+    )
+
+    fireEvent.click(screen.getByText('https://example.com/product-docs'))
+
+    expect(handleClick).not.toHaveBeenCalled()
+  })
+
   it('renders the more button', () => {
     render(
       <KnowledgeItemRow
@@ -276,7 +296,7 @@ describe('KnowledgeItemRow', () => {
     expect(handleClick).not.toHaveBeenCalled()
   })
 
-  it('calls onPreviewSource without calling onClick when the preview source action is clicked', () => {
+  it('calls onPreviewSource without calling onClick when the preview source action is clicked', async () => {
     const handleClick = vi.fn()
     const handlePreviewSource = vi.fn()
 
@@ -292,8 +312,29 @@ describe('KnowledgeItemRow', () => {
     fireEvent.click(screen.getByRole('button', { name: '更多' }))
     fireEvent.click(screen.getByRole('button', { name: '预览原文' }))
 
-    expect(handlePreviewSource).toHaveBeenCalledTimes(1)
+    await waitFor(() => {
+      expect(handlePreviewSource).toHaveBeenCalledTimes(1)
+    })
     expect(handleClick).not.toHaveBeenCalled()
+  })
+
+  it('shows a failure toast when preview source rejects', async () => {
+    const handlePreviewSource = vi.fn().mockRejectedValue(new Error('preview failed'))
+
+    render(
+      <KnowledgeItemRow
+        item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
+        {...defaultHandlers}
+        onPreviewSource={handlePreviewSource}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.click(screen.getByRole('button', { name: '预览原文' }))
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('预览原文失败: preview failed')
+    })
   })
 
   it('calls onViewChunks without calling onClick when the view chunks action is clicked', () => {
@@ -316,7 +357,19 @@ describe('KnowledgeItemRow', () => {
     expect(handleClick).not.toHaveBeenCalled()
   })
 
-  it('calls onDelete without calling onClick when the delete action is clicked', () => {
+  it.each(['idle', 'processing', 'reading', 'embedding', 'failed', 'deleting'] as const)(
+    'hides view chunks for %s leaf items',
+    (status) => {
+      render(<KnowledgeItemRow item={createUrlItem({ id: `url-${status}`, status })} {...defaultHandlers} />)
+
+      fireEvent.click(screen.getByRole('button', { name: '更多' }))
+
+      expect(screen.queryByRole('button', { name: '查看 Chunks' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument()
+    }
+  )
+
+  it('calls onDelete without calling onClick when the delete action is clicked', async () => {
     const handleClick = vi.fn()
     const handleDelete = vi.fn()
 
@@ -332,8 +385,29 @@ describe('KnowledgeItemRow', () => {
     fireEvent.click(screen.getByRole('button', { name: '更多' }))
     fireEvent.click(screen.getByRole('button', { name: '删除' }))
 
-    expect(handleDelete).toHaveBeenCalledTimes(1)
+    await waitFor(() => {
+      expect(handleDelete).toHaveBeenCalledTimes(1)
+    })
     expect(handleClick).not.toHaveBeenCalled()
+  })
+
+  it('shows a failure toast when delete rejects', async () => {
+    const handleDelete = vi.fn().mockRejectedValue(new Error('delete failed'))
+
+    render(
+      <KnowledgeItemRow
+        item={createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })}
+        {...defaultHandlers}
+        onDelete={handleDelete}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('删除数据源失败: delete failed')
+    })
   })
 
   it('calls onReindex without calling onClick when the reindex action is clicked', async () => {
@@ -376,4 +450,24 @@ describe('KnowledgeItemRow', () => {
       expect(window.toast.error).toHaveBeenCalledWith('数据源重新索引失败: reindex failed')
     })
   })
+
+  it.each(['completed', 'failed'] as const)('shows reindex for %s items', (status) => {
+    render(<KnowledgeItemRow item={createUrlItem({ id: `url-${status}`, status })} {...defaultHandlers} />)
+
+    fireEvent.click(screen.getByRole('button', { name: '更多' }))
+
+    expect(screen.getByRole('button', { name: '重新索引' })).toBeInTheDocument()
+  })
+
+  it.each(['idle', 'processing', 'reading', 'embedding', 'deleting'] as const)(
+    'hides reindex for %s leaf items',
+    (status) => {
+      render(<KnowledgeItemRow item={createUrlItem({ id: `url-${status}`, status })} {...defaultHandlers} />)
+
+      fireEvent.click(screen.getByRole('button', { name: '更多' }))
+
+      expect(screen.queryByRole('button', { name: '重新索引' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: '删除' })).toBeInTheDocument()
+    }
+  )
 })

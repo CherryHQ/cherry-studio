@@ -3502,6 +3502,7 @@
     "starred_notes": "収集したノート",
     "target_name_exists": "[to be translated]:A note or folder with this name already exists",
     "title": "ノート",
+    "tree_load_failed": "[to be translated]:Failed to load notes directory",
     "unsaved_changes": "保存されていないコンテンツがあります。本当に離れますか？",
     "unstar": "お気に入りを解除する",
     "untitled_folder": "新ファイル夹",

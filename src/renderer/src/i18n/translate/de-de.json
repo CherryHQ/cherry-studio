@@ -3502,6 +3502,7 @@
     "starred_notes": "Markierte Notizen",
     "target_name_exists": "[to be translated]:A note or folder with this name already exists",
     "title": "Notizen",
+    "tree_load_failed": "[to be translated]:Failed to load notes directory",
     "unsaved_changes": "Sie haben ungespeicherte Änderungen. Möchten Sie wirklich gehen?",
     "unstar": "Markierung aufheben",
     "untitled_folder": "Neuer Ordner",

@@ -3502,6 +3502,7 @@
     "starred_notes": "Σημειώσεις συλλογής",
     "target_name_exists": "[to be translated]:A note or folder with this name already exists",
     "title": "σημειώσεις",
+    "tree_load_failed": "[to be translated]:Failed to load notes directory",
     "unsaved_changes": "Έχετε μη αποθηκευμένο περιεχόμενο, είστε βέβαιοι ότι θέλετε να φύγετε;",
     "unstar": "Αποσπάστε το αγαπημένο",
     "untitled_folder": "Νέος φάκελος",

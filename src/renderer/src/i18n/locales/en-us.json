@@ -3502,6 +3502,7 @@
     "starred_notes": "Collected notes",
     "target_name_exists": "A note or folder with this name already exists",
     "title": "Notes",
+    "tree_load_failed": "Failed to load notes directory",
     "unsaved_changes": "You have unsaved content, are you sure you want to leave?",
     "unstar": "Unfavorite",
     "untitled_folder": "New Folder",
