@@ -2,9 +2,14 @@ import type { MinAppType } from '@renderer/types'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// Mock TabsService to track closeTab calls
-const mockCloseTab = vi.fn()
-const mockGetTabs = vi.fn(() => [{ id: 'apps:test-app', path: '/apps/test-app' }])
+// Hoist mock functions so vi.mock factories can safely reference them
+const { mockCloseTab, mockGetTabs, mockClearWebviewState, mockDispatch } = vi.hoisted(() => ({
+  mockCloseTab: vi.fn(),
+  mockGetTabs: vi.fn(() => [{ id: 'apps:test-app', path: '/apps/test-app' }]),
+  mockClearWebviewState: vi.fn(),
+  mockDispatch: vi.fn()
+}))
+
 vi.mock('@renderer/services/TabsService', () => ({
   default: {
     closeTab: (...args: any[]) => mockCloseTab(...args),
@@ -12,24 +17,18 @@ vi.mock('@renderer/services/TabsService', () => ({
   }
 }))
 
-// Mock webviewStateManager
-const mockClearWebviewState = vi.fn()
 vi.mock('@renderer/utils/webviewStateManager', () => ({
   clearWebviewState: (...args: any[]) => mockClearWebviewState(...args)
 }))
 
-// Mock NavigationService
 vi.mock('@renderer/services/NavigationService', () => ({
   default: { navigate: vi.fn() }
 }))
 
-// Mock config/minapps
 vi.mock('@renderer/config/minapps', () => ({
   allMinApps: []
 }))
 
-// Mock store hooks — provide a simple dispatch spy
-const mockDispatch = vi.fn()
 vi.mock('@renderer/store', () => ({
   default: {
     getState: () => ({
@@ -41,7 +40,6 @@ vi.mock('@renderer/store', () => ({
   useAppSelector: () => undefined
 }))
 
-// Mock useRuntime — return default empty state
 vi.mock('@renderer/hooks/useRuntime', () => ({
   useRuntime: () => ({
     openedKeepAliveMinapps: [],
@@ -51,7 +49,6 @@ vi.mock('@renderer/hooks/useRuntime', () => ({
   })
 }))
 
-// Mock useSettings — return default settings with isTopNavbar
 vi.mock('@renderer/hooks/useSettings', () => ({
   useSettings: () => ({ maxKeepAliveMinapps: 10 }),
   useNavbarPosition: () => ({ isTopNavbar: true })
