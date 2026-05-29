@@ -105,9 +105,9 @@ normalized id), so a wire id with dots (`wan2.5-i2i-preview`) and a sanitized id
 
 The renderer fetches the block over DataApi and turns it into widgets:
 
-1. **Fetch** — `useImageGenerationSupport(providerId, modelId)` ([`src/renderer/src/pages/paintings/hooks/useImageGenerationSupport.ts`](../../../src/renderer/src/pages/paintings/hooks/useImageGenerationSupport.ts)) queries `GET /providers/:providerId/models/:modelId*/image-generation-support` (SWR-cached; revalidates on registry mutations).
+1. **Fetch** — `useImageGenerationSupport(providerId, modelId)` ([`src/renderer/pages/paintings/hooks/useImageGenerationSupport.ts`](../../../src/renderer/pages/paintings/hooks/useImageGenerationSupport.ts)) queries `GET /providers/:providerId/models/:modelId*/image-generation-support` (SWR-cached; revalidates on registry mutations).
 
-2. **Map** — `imageGenerationToFields(support, { mode })` ([`src/renderer/src/pages/paintings/form/imageGenerationToFields.ts`](../../../src/renderer/src/pages/paintings/form/imageGenerationToFields.ts)) iterates `modes[mode].supports` and dispatches each entry through `specToField` by `spec.type`:
+2. **Map** — `imageGenerationToFields(support, { mode })` ([`src/renderer/pages/paintings/form/imageGenerationToFields.ts`](../../../src/renderer/pages/paintings/form/imageGenerationToFields.ts)) iterates `modes[mode].supports` and dispatches each entry through `specToField` by `spec.type`:
 
    | `SupportSpec.type` | widget (`BaseConfigItem`) |
    | --- | --- |
@@ -128,7 +128,7 @@ The renderer fetches the block over DataApi and turns it into widgets:
 
 Form edits write into **`painting.params`** — a flat `Record<string, unknown>`
 keyed by canonical name. Defaults are committed (not just displayed) when the
-model is selected, by `computeModelFieldReset` ([`src/renderer/src/pages/paintings/utils/computeModelFieldReset.ts`](../../../src/renderer/src/pages/paintings/utils/computeModelFieldReset.ts)) — it writes each new model's `spec.default`, clears params the new model doesn't accept, and resets enum carry-overs that are invalid for the new model.
+model is selected, by `computeModelFieldReset` ([`src/renderer/pages/paintings/utils/computeModelFieldReset.ts`](../../../src/renderer/pages/paintings/utils/computeModelFieldReset.ts)) — it writes each new model's `spec.default`, clears params the new model doesn't accept, and resets enum carry-overs that are invalid for the new model.
 
 ---
 
@@ -136,7 +136,7 @@ model is selected, by `computeModelFieldReset` ([`src/renderer/src/pages/paintin
 
 ### 1. Partition (`canonicalGenerate`)
 
-[`src/renderer/src/pages/paintings/model/canonicalGenerate.ts`](../../../src/renderer/src/pages/paintings/model/canonicalGenerate.ts) splits every `painting.params` entry into two buckets:
+[`src/renderer/pages/paintings/model/canonicalGenerate.ts`](../../../src/renderer/pages/paintings/model/canonicalGenerate.ts) splits every `painting.params` entry into two buckets:
 
 - **`AI_SDK_NATIVE_KEYS`** (after `POSITIONAL_RENAME`: `size→imageSize`, `numImages→batchSize`) → `aiSdkParams`, the positional AI SDK call options.
 - **everything else** → `providerBag` = `providerOptions[providerId]`, forwarded by reference (so non-JSON callbacks like `onProgress` survive the plugin chain).
@@ -146,14 +146,14 @@ default. No client-side defaults are invented here.
 
 ### 2. Transport routing hint (`paintingPipeline`)
 
-[`src/renderer/src/pages/paintings/model/paintingPipeline.ts`](../../../src/renderer/src/pages/paintings/model/paintingPipeline.ts) reads the resolved mode's `vendorTransport` and `requirePrompt`, then:
+[`src/renderer/pages/paintings/model/paintingPipeline.ts`](../../../src/renderer/pages/paintings/model/paintingPipeline.ts) reads the resolved mode's `vendorTransport` and `requirePrompt`, then:
 
 - injects `painting.params.modelDescriptor = { id, endpoint, isSync, mode }` so a custom transport can route by it (PPIO-style async endpoints), and
 - threads `requirePrompt` into `canonicalGenerate` so no-prompt models (qwen-mt-image, upscalers) skip the empty-prompt guard.
 
 ### 3. providerOptions emitters (`buildImageProviderOptions`)
 
-[`src/renderer/src/aiCore/utils/imageOptions.ts`](../../../src/renderer/src/aiCore/utils/imageOptions.ts) is a **table of per-provider emitters** that map canonical params to each vendor's real wire field names and bag key:
+[`src/renderer/aiCore/utils/imageOptions.ts`](../../../src/renderer/aiCore/utils/imageOptions.ts) is a **table of per-provider emitters** that map canonical params to each vendor's real wire field names and bag key:
 
 ```
 EMITTERS: Record<providerId, Emitter>   // unlisted ids → diffusion fallback
@@ -169,10 +169,10 @@ nesting, enum casing. Nowhere else.
 
 ### 4. The model itself
 
-[`AiProvider.modernGeneratePaintingImage`](../../../src/renderer/src/aiCore/AiProvider.ts) hands `aiSdkParams` + `providerOptions` to the resolved image model. The model is one of two kinds, decided by the provider factory:
+[`AiProvider.modernGeneratePaintingImage`](../../../src/renderer/aiCore/AiProvider.ts) hands `aiSdkParams` + `providerOptions` to the resolved image model. The model is one of two kinds, decided by the provider factory:
 
 - **Native AI SDK image model** — `OpenAIImageModel`, `@ai-sdk/google` `.image()`, `OpenAICompatibleImageModel`. Spreads `providerOptions[key]` into the request body.
-- **Custom `ImageGenerationTransport`** — for async submit→poll vendors or non-OpenAI wire shapes (DashScope, PPIO, DMXAPI's Doubao/Wan/async-Qwen families). See [`src/renderer/src/aiCore/provider/custom/imageGenerationModel.ts`](../../../src/renderer/src/aiCore/provider/custom/imageGenerationModel.ts) and the transports under [`imageTransports/`](../../../src/renderer/src/aiCore/provider/custom/imageTransports/). Multi-backend gateways (DMXAPI) dispatch by a `{match, family}` table on the model id — see [`dmxapi-provider.ts`](../../../src/renderer/src/aiCore/provider/custom/dmxapi-provider.ts).
+- **Custom `ImageGenerationTransport`** — for async submit→poll vendors or non-OpenAI wire shapes (DashScope, PPIO, DMXAPI's Doubao/Wan/async-Qwen families). See [`src/renderer/aiCore/provider/custom/imageGenerationModel.ts`](../../../src/renderer/aiCore/provider/custom/imageGenerationModel.ts); each vendor's transport lives beside its provider in a per-vendor folder (e.g. [`dmxapi/dmxapiTransport.ts`](../../../src/renderer/aiCore/provider/custom/dmxapi/dmxapiTransport.ts)), with shared helpers in [`transportUtils.ts`](../../../src/renderer/aiCore/provider/custom/transportUtils.ts). Multi-backend gateways (DMXAPI) dispatch by a `{match, family}` table on the model id — see [`dmxapi/dmxapiProvider.ts`](../../../src/renderer/aiCore/provider/custom/dmxapi/dmxapiProvider.ts).
 
 ---
 
@@ -207,12 +207,13 @@ nesting, enum casing. Nowhere else.
 | Base model data | `packages/provider-registry/data/models.json` |
 | Provider overrides | `packages/provider-registry/data/provider-models.json` |
 | Resolver (override ?? base) | `src/main/data/services/ProviderRegistryService.ts` |
-| Support fetch hook | `src/renderer/src/pages/paintings/hooks/useImageGenerationSupport.ts` |
-| Registry → form fields | `src/renderer/src/pages/paintings/form/imageGenerationToFields.ts` |
-| Default population on switch | `src/renderer/src/pages/paintings/utils/computeModelFieldReset.ts` |
-| Param partition | `src/renderer/src/pages/paintings/model/canonicalGenerate.ts` |
-| Transport hint + requirePrompt | `src/renderer/src/pages/paintings/model/paintingPipeline.ts` |
-| providerOptions emitters | `src/renderer/src/aiCore/utils/imageOptions.ts` |
-| Custom transport wrapper | `src/renderer/src/aiCore/provider/custom/imageGenerationModel.ts` |
-| Vendor transports | `src/renderer/src/aiCore/provider/custom/imageTransports/` |
+| Support fetch hook | `src/renderer/pages/paintings/hooks/useImageGenerationSupport.ts` |
+| Registry → form fields | `src/renderer/pages/paintings/form/imageGenerationToFields.ts` |
+| Default population on switch | `src/renderer/pages/paintings/utils/computeModelFieldReset.ts` |
+| Param partition | `src/renderer/pages/paintings/model/canonicalGenerate.ts` |
+| Transport hint + requirePrompt | `src/renderer/pages/paintings/model/paintingPipeline.ts` |
+| providerOptions emitters | `src/renderer/aiCore/utils/imageOptions.ts` |
+| Custom transport wrapper | `src/renderer/aiCore/provider/custom/imageGenerationModel.ts` |
+| Vendor provider + transport | `src/renderer/aiCore/provider/custom/<vendor>/{<vendor>Provider,<vendor>Transport}.ts` |
+| Shared transport helpers | `src/renderer/aiCore/provider/custom/transportUtils.ts` |
 ```
