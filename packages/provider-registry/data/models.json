@@ -9526,14 +9526,7 @@
       }
     },
     {
-      "capabilities": [
-        "reasoning",
-        "function-call",
-        "file-input",
-        "image-recognition",
-        "image-generation",
-        "web-search"
-      ],
+      "capabilities": ["reasoning", "function-call", "file-input", "image-recognition", "web-search"],
       "contextWindow": 128000,
       "family": "gpt",
       "id": "gpt-5-1-instant",
@@ -9541,7 +9534,7 @@
       "maxOutputTokens": 16384,
       "name": "GPT-5.1 Instant",
       "openWeights": false,
-      "outputModalities": ["text", "image"],
+      "outputModalities": ["text"],
       "ownedBy": "openai",
       "pricing": {
         "cacheRead": {
@@ -21192,7 +21185,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "file-input", "image-recognition", "image-generation"],
+      "capabilities": ["file-input", "image-recognition", "image-generation"],
       "contextWindow": 128000,
       "description": "GPT Image 1.5 is a new image generation model powered by OpenAI’s flagship visual capabilities, comprehensively upgraded for high-quality creative and production workflows. It delivers significant improvements in instruction understanding, fine-grained image editing, and detail preservation, while achieving up to 4× faster generation compared to previous versions — reducing latency without compromising quality.\n\nGPT Image 1.5 is well suited for image generation, precise visual editing, and professional content creation, balancing performance with efficiency.",
       "id": "gpt-image-1-5",
@@ -21217,10 +21210,42 @@
       }
     },
     {
-      "capabilities": ["function-call", "file-input", "image-recognition", "image-generation"],
+      "capabilities": ["image-recognition", "image-generation"],
       "description": "OpenAI image generation model gpt-image-1-mini\nBefore use, please run pip install -U openai to upgrade to the latest openai package.",
       "family": "gpt",
       "id": "gpt-image-1-mini",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "background": { "options": ["auto", "transparent", "opaque"], "type": "enum" },
+              "moderation": { "options": ["auto", "low"], "type": "enum" },
+              "numImages": { "default": 1, "max": 10, "min": 1, "type": "range" },
+              "quality": { "options": ["auto", "low", "medium", "high"], "type": "enum" },
+              "size": {
+                "default": "1024x1024",
+                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "background": { "options": ["auto", "transparent", "opaque"], "type": "enum" },
+              "moderation": { "options": ["auto", "low"], "type": "enum" },
+              "numImages": { "default": 1, "max": 10, "min": 1, "type": "range" },
+              "quality": { "options": ["auto", "low", "medium", "high"], "type": "enum" },
+              "size": {
+                "default": "1024x1024",
+                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
       "inputModalities": ["text", "image"],
       "name": "GPT-Image-1-Mini",
       "openWeights": false,
@@ -21290,7 +21315,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "file-input", "image-generation"],
+      "capabilities": ["image-generation"],
       "contextWindow": 800,
       "description": "dall-e-3 is an AI image generation model that converts natural language prompts into realistic visuals and artistic content. It delivers accurate semantic understanding, supports customizable output resolutions, and produces high-quality images across a wide range of styles, making it well-suited for concept design, creative prototyping, and professional content workflows.",
       "family": "dall-e",
@@ -21786,7 +21811,7 @@
       }
     },
     {
-      "capabilities": ["image-generation", "function-call"],
+      "capabilities": ["image-generation"],
       "description": "Seedream 4.5 is ByteDance's latest multimodal image model, integrating capabilities such as text-to-image, image-to-image, and multi-image output, along with incorporating common sense and reasoning abilities. Compared to the previous 4.0 model, it significantly improves generation quality, offering better editing consistency and multi-image fusion effects, with more precise control over image details. The generation of small text and small faces is more natural.",
       "id": "doubao-seedream-4-5",
       "imageGeneration": {
@@ -22618,7 +22643,7 @@
       }
     },
     {
-      "capabilities": ["image-generation", "function-call"],
+      "capabilities": ["image-generation"],
       "description": "Seedream 4.0 is a SOTA-level multimodal image creation model based on leading architecture. It breaks the creative boundaries of traditional text-to-image models by natively supporting text, single image, and multiple image inputs. Users can freely combine text and images to achieve various creative styles within the same model, such as multi-image fusion creation based on subject consistency, image editing, and set image generation, making image creation more flexible and controllable.\nSeedream 4.0 supports composite editing with up to 10 images in a single input. Through deep reasoning of prompt words, it automatically adapts the optimal image aspect ratio and generation quantity, enabling continuous output of up to 15 content-related images at one time. Additionally, the model significantly improves the accuracy and content diversity of Chinese generation, supports 4K ultra-high-definition output, and provides a one-stop solution from generation to editing for professional image creation.",
       "id": "doubao-seedream-4-0",
       "imageGeneration": {
@@ -22851,7 +22876,7 @@
       }
     },
     {
-      "capabilities": ["image-generation", "function-call"],
+      "capabilities": ["image-generation"],
       "description": "Qwen-Image is a foundational image generation model in the Qwen series, achieving significant progress in complex text rendering and precise image editing. Experiments show that the model has strong general capabilities in image generation and editing, especially excelling in Chinese text rendering.",
       "id": "qwen-image",
       "imageGeneration": {
@@ -22890,7 +22915,7 @@
       }
     },
     {
-      "capabilities": ["image-generation", "function-call"],
+      "capabilities": ["image-generation"],
       "description": "Qwen-Image-Edit is the image editing version of Qwen-Image. Based on the 20B Qwen-Image model, Qwen-Image-Edit successfully extends Qwen-Image's unique text rendering capabilities to image editing tasks, achieving precise text editing. Additionally, Qwen-Image-Edit can input the same image into Qwen2.5-VL (for visual semantic control) and the VAE encoder (for visual appearance control), enabling both semantic and appearance editing functionalities.",
       "id": "qwen-image-edit",
       "imageGeneration": {
@@ -22930,7 +22955,7 @@
       }
     },
     {
-      "capabilities": ["image-generation", "function-call"],
+      "capabilities": ["image-generation"],
       "description": "Qwen-Image is a foundational image generation model in the Qwen series, achieving significant progress in complex text rendering and precise image editing. Experiments show that the model has strong general capabilities in image generation and editing, especially excelling in Chinese text rendering.",
       "id": "qwen-image-plus",
       "inputModalities": ["text", "image"],
@@ -23379,7 +23404,7 @@
       }
     },
     {
-      "capabilities": ["image-generation", "function-call"],
+      "capabilities": ["image-generation"],
       "description": "First Taste of GPT-4o's Image Generation API: Perfectly mirrors the web version's raw image creation capabilities, supporting both text-to-image and image+text-to-image generation. Each creation costs as little as $0.009.",
       "id": "gpt-4o-image-vip",
       "inputModalities": ["text", "image"],
@@ -23398,7 +23423,7 @@
       }
     },
     {
-      "capabilities": ["image-generation", "function-call"],
+      "capabilities": ["image-generation"],
       "description": "First Taste of GPT-4o's Image Generation API: Perfectly mirrors the web version's raw image creation capabilities, supporting both text-to-image and image+text-to-image generation. Each creation costs as little as $0.005.",
       "id": "gpt-4o-image",
       "inputModalities": ["text", "image"],
@@ -31841,7 +31866,7 @@
       "ownedBy": "dmxapi"
     },
     {
-      "capabilities": ["function-call", "image-generation"],
+      "capabilities": ["image-generation"],
       "id": "qwen-image-edit-plus",
       "name": "qwen-image-edit-plus",
       "ownedBy": "alibaba"
@@ -32291,19 +32316,19 @@
       "ownedBy": "aionly"
     },
     {
-      "capabilities": ["function-call", "image-generation"],
+      "capabilities": ["image-generation"],
       "id": "qwen-image-max",
       "name": "qwen-image-max",
       "ownedBy": "alibaba"
     },
     {
-      "capabilities": ["function-call", "image-generation"],
+      "capabilities": ["image-generation"],
       "id": "qwen-image-plus-vip",
       "name": "qwen-image-plus-vip",
       "ownedBy": "alibaba"
     },
     {
-      "capabilities": ["function-call", "image-generation"],
+      "capabilities": ["image-generation"],
       "id": "qwen-image-edit-plus-vip",
       "name": "qwen-image-edit-plus-vip",
       "ownedBy": "alibaba"
@@ -32573,7 +32598,7 @@
       "ownedBy": "openai"
     },
     {
-      "capabilities": ["function-call", "image-recognition"],
+      "capabilities": ["image-recognition"],
       "id": "gpt-4-dalle",
       "name": "gpt-4-dalle",
       "ownedBy": "openai"
@@ -33712,7 +33737,7 @@
       "ownedBy": "302ai"
     },
     {
-      "capabilities": ["function-call", "image-generation"],
+      "capabilities": ["image-generation"],
       "contextWindow": 128000,
       "id": "gpt-4o-image-generation",
       "name": "gpt-4o-image-generation",
@@ -35651,19 +35676,19 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-generation"],
+      "capabilities": ["image-generation"],
       "id": "qwen-image-edit-max-2026-01-16",
       "name": "qwen-image-edit-max-2026-01-16",
       "ownedBy": "alibaba"
     },
     {
-      "capabilities": ["function-call", "image-generation"],
+      "capabilities": ["image-generation"],
       "id": "qwen-image-edit-max",
       "name": "qwen-image-edit-max",
       "ownedBy": "alibaba"
     },
     {
-      "capabilities": ["function-call", "image-generation"],
+      "capabilities": ["image-generation"],
       "id": "qwen-image-plus-2026-01-09",
       "name": "qwen-image-plus-2026-01-09",
       "ownedBy": "alibaba"
@@ -35682,7 +35707,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-generation"],
+      "capabilities": ["image-generation"],
       "id": "qwen-image-max-2025-12-30",
       "name": "qwen-image-max-2025-12-30",
       "ownedBy": "alibaba"
@@ -35714,7 +35739,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-generation"],
+      "capabilities": ["image-generation"],
       "id": "qwen-image-edit-plus-2025-12-15",
       "name": "qwen-image-edit-plus-2025-12-15",
       "ownedBy": "alibaba"
@@ -35824,7 +35849,7 @@
       }
     },
     {
-      "capabilities": ["function-call", "image-generation"],
+      "capabilities": ["image-generation"],
       "id": "qwen-image-edit-plus-2025-10-30",
       "name": "qwen-image-edit-plus-2025-10-30",
       "ownedBy": "alibaba"
@@ -37436,7 +37461,7 @@
       "ownedBy": "gitee-ai"
     },
     {
-      "capabilities": ["function-call", "image-generation"],
+      "capabilities": ["image-generation"],
       "id": "qwen-image-layered",
       "name": "qwen-image-layered",
       "ownedBy": "alibaba"
@@ -37465,7 +37490,7 @@
       "ownedBy": "gitee-ai"
     },
     {
-      "capabilities": ["function-call", "image-generation"],
+      "capabilities": ["image-generation"],
       "id": "qwen-image-2512",
       "name": "qwen-image-2512",
       "ownedBy": "alibaba"
@@ -37501,7 +37526,7 @@
       "ownedBy": "gitee-ai"
     },
     {
-      "capabilities": ["function-call", "image-generation"],
+      "capabilities": ["image-generation"],
       "id": "qwen-image-edit-2511",
       "name": "qwen-image-edit-2511",
       "ownedBy": "alibaba"
@@ -38493,7 +38518,7 @@
           }
         }
       },
-      "inputModalities": ["text"],
+      "inputModalities": ["text", "image"],
       "name": "GPT-Image-2",
       "outputModalities": ["image"]
     },
@@ -39521,16 +39546,66 @@
       "capabilities": ["image-generation", "function-call", "image-recognition", "web-search"],
       "family": "gemini-pro",
       "id": "gemini-3-pro-image",
+      "imageGeneration": {
+        "modes": {
+          "generate": {
+            "supports": {
+              "aspectRatio": {
+                "options": ["ASPECT_1_1", "ASPECT_3_4", "ASPECT_4_3", "ASPECT_9_16", "ASPECT_16_9"],
+                "render": "chips",
+                "type": "enum"
+              },
+              "imageResolution": {
+                "options": ["1K", "2K", "4K"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
       "inputModalities": ["text"],
       "name": "Nano Banana Pro (Gemini 3 Pro Image)",
       "outputModalities": ["text", "image"],
       "ownedBy": "google"
     },
     {
-      "capabilities": ["function-call", "file-input", "image-recognition", "image-generation"],
+      "capabilities": ["image-recognition", "image-generation"],
       "description": "Azure OpenAI’s gpt-image-1 image generation API offers both text-to-image generation and image-to-image editing with text guidance capabilities.\nBefore using this API, please ensure you have the latest OpenAI package installed by running pip install -U openai.",
       "family": "gpt",
       "id": "gpt-image-1",
+      "imageGeneration": {
+        "modes": {
+          "edit": {
+            "supports": {
+              "background": { "options": ["auto", "transparent", "opaque"], "type": "enum" },
+              "moderation": { "options": ["auto", "low"], "type": "enum" },
+              "numImages": { "default": 1, "max": 10, "min": 1, "type": "range" },
+              "quality": { "options": ["auto", "low", "medium", "high"], "type": "enum" },
+              "size": {
+                "default": "1024x1024",
+                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          },
+          "generate": {
+            "supports": {
+              "background": { "options": ["auto", "transparent", "opaque"], "type": "enum" },
+              "moderation": { "options": ["auto", "low"], "type": "enum" },
+              "numImages": { "default": 1, "max": 10, "min": 1, "type": "range" },
+              "quality": { "options": ["auto", "low", "medium", "high"], "type": "enum" },
+              "size": {
+                "default": "1024x1024",
+                "options": ["auto", "1024x1024", "1536x1024", "1024x1536"],
+                "render": "chips",
+                "type": "enum"
+              }
+            }
+          }
+        }
+      },
       "inputModalities": ["text", "image"],
       "name": "GPT-Image-1",
       "outputModalities": ["image"],
@@ -39608,7 +39683,7 @@
       "outputModalities": ["image"]
     },
     {
-      "capabilities": ["function-call", "image-generation"],
+      "capabilities": ["image-generation"],
       "id": "qwen-image-edit-2509",
       "name": "qwen-image-edit-2509",
       "ownedBy": "alibaba"
@@ -39652,45 +39727,20 @@
       "outputModalities": ["image"]
     },
     {
-      "capabilities": ["function-call"],
+      "capabilities": ["image-generation"],
       "id": "doubao-seedream-4-0-250828",
-      "name": "doubao-seedream-4-0-250828",
-      "ownedBy": "bytedance"
-    },
-    {
-      "capabilities": ["function-call"],
-      "id": "doubao-seedream-4-5-251128",
-      "name": "doubao-seedream-4-5-251128",
-      "ownedBy": "bytedance"
-    },
-    {
-      "capabilities": ["image-generation"],
-      "family": "Google",
-      "id": "gemini-2.5-flash-image",
-      "inputModalities": ["text"],
-      "name": "gemini-2.5-flash-image（¥0.25）",
-      "outputModalities": ["image"],
-      "ownedBy": "Google"
-    },
-    {
-      "capabilities": ["image-generation"],
-      "id": "musesteamer-air-image",
-      "name": "musesteamer-air-image",
-      "ownedBy": "dmxapi"
-    },
-    {
-      "capabilities": ["function-call", "file-input", "image-recognition", "image-generation"],
-      "family": "nano-banana",
-      "id": "nano-banana",
       "inputModalities": ["text", "image"],
-      "name": "Nano-Banana",
-      "outputModalities": ["text", "image"],
-      "ownedBy": "google"
+      "name": "doubao-seedream-4-0-250828",
+      "outputModalities": ["image"],
+      "ownedBy": "bytedance"
     },
     {
-      "id": "nano-banana-2",
-      "name": "nano-banana-2",
-      "ownedBy": "google"
+      "capabilities": ["image-generation"],
+      "id": "doubao-seedream-4-5-251128",
+      "inputModalities": ["text", "image"],
+      "name": "doubao-seedream-4-5-251128",
+      "outputModalities": ["image"],
+      "ownedBy": "bytedance"
     },
     {
       "capabilities": ["image-generation"],
