@@ -19,24 +19,172 @@ export type ImageOptionParams = Partial<
     | 'quality'
     | 'aspectRatio'
     | 'imageSize'
+    | 'providerOptions'
   >
 > & { background?: string; moderation?: string; style?: string }
+
+type ProviderOptions = Record<string, Record<string, JSONValue>>
 
 /**
  * Normalize the painting form's `ASPECT_X_Y` enum (or already-normalized
  * `X:Y`) into the `${number}:${number}` shape Google/Imagen/Gemini-image
- * accept. Returns `undefined` for non-strings or mismatched values so the
- * caller can omit the field entirely.
+ * accept. Returns `undefined` for blank or mismatched values so the caller
+ * can omit the field entirely.
  */
-function normalizeAspectRatio(value: unknown): string | undefined {
-  if (typeof value !== 'string' || value === '') return undefined
+function normalizeAspectRatio(value: string | undefined): string | undefined {
+  if (!value) return undefined
   const stripped = value.replace(/^ASPECT_/i, '').replace('_', ':')
   return /^\d+:\d+$/.test(stripped) ? stripped : undefined
 }
 
 /**
+ * Parse the painting form's seed string into a number, or `undefined` when
+ * blank / non-numeric (so it's omitted rather than sent as `NaN`).
+ */
+function parseSeed(seed: string | undefined): number | undefined {
+  return seed && /^-?\d+$/.test(seed.trim()) ? Number(seed.trim()) : undefined
+}
+
+/**
+ * Drop `undefined` / empty-string / `'auto'` entries. `'auto'` is the painting
+ * UI sentinel for "let the provider decide" — it must not reach the wire as a
+ * literal value (the bespoke newapi path omitted it).
+ */
+function compact(entries: Record<string, JSONValue | undefined>): Record<string, JSONValue> {
+  const out: Record<string, JSONValue> = {}
+  for (const [k, v] of Object.entries(entries)) {
+    if (v !== undefined && v !== '' && v !== 'auto') out[k] = v
+  }
+  return out
+}
+
+/** Wrap a field map under a single provider key, or `{}` when empty. */
+function under(key: string, fields: Record<string, JSONValue>): ProviderOptions {
+  return Object.keys(fields).length ? { [key]: fields } : {}
+}
+
+/**
+ * Dual-key the same field map under both `openai` and the resolved provider
+ * id. The OpenAI image model reads `providerOptions.openai`; the OpenAI-
+ * compatible model reads `providerOptions[<name>]`. Feeding both covers
+ * whichever the resolved model picks (cherryin → `openai`, newapi → `newapi`).
+ */
+function dualOpenAI(rawProviderId: string, fields: Record<string, JSONValue>): ProviderOptions {
+  return Object.keys(fields).length ? { openai: fields, [rawProviderId]: fields } : {}
+}
+
+// ── Field-group builders — canonical params → one vendor's wire field names ──
+
+/** OpenAI image-body fields (gpt-image / dall-e). `seed` is unsupported by
+ *  OpenAI's own model but accepted by aggregators, so it's opt-in. */
+function openaiImageBody(p: ImageOptionParams, opts?: { seed?: number }): Record<string, JSONValue> {
+  return compact({
+    quality: p.quality,
+    background: p.background,
+    moderation: p.moderation,
+    style: p.style,
+    ...(opts?.seed !== undefined && { seed: opts.seed })
+  })
+}
+
+/** OpenAI-compatible diffusion body (silicon / zhipu / deepseek / …): the
+ *  providers' real snake_case sampling field names. */
+function diffusionBody(p: ImageOptionParams, seed: number | undefined): Record<string, JSONValue> {
+  return compact({
+    negative_prompt: p.negativePrompt,
+    seed,
+    num_inference_steps: p.numInferenceSteps,
+    guidance_scale: p.guidanceScale,
+    prompt_enhancement: p.promptEnhancement,
+    quality: p.quality
+  })
+}
+
+/**
+ * Google `imageConfig` block (`@ai-sdk/google.image()`): `aspectRatio` +
+ * `imageSize`. Gemini-image reads `providerOptions.google.imageConfig`; Imagen
+ * reads the top-level `aspectRatio` directly (AiProvider passes it normalized),
+ * so emitting it here is a no-op for Imagen and required for Gemini-image.
+ */
+function googleImageConfig(aspectRatio: string | undefined, imageSize: string | undefined): Record<string, JSONValue> {
+  return compact({ aspectRatio: normalizeAspectRatio(aspectRatio), imageSize })
+}
+
+// ── Per-provider emitters ──────────────────────────────────────────────────
+
+type Emitter = (rawProviderId: string, p: ImageOptionParams, seed: number | undefined) => ProviderOptions
+
+const openaiFamily: Emitter = (id, p) => dualOpenAI(id, openaiImageBody(p))
+
+// aihubmix aggregates many backends (Doubao Seedream / Qwen-Image / FLUX /
+// iRAG / Ideogram) — most accept `seed` in the body; route it through too.
+const aihubmix: Emitter = (id, p, seed) => dualOpenAI(id, openaiImageBody(p, { seed }))
+
+// DashScope native image API — every family puts `seed`/`negative_prompt`
+// under `parameters.*`, plus `style` for wanx-v1. The transport reads these
+// off `providerParams.*` since AI SDK doesn't forward them to `input.*`.
+const dashscope: Emitter = (_id, p, seed) =>
+  under('dashscope', compact({ negative_prompt: p.negativePrompt, seed, style: p.style }))
+
+// Google native image — `imageConfig` (aspectRatio + imageSize) plus the
+// Imagen-only top-level `personGeneration`. The registry stores the option
+// values uppercase (matching `@google/genai`'s `PersonGeneration` enum:
+// `ALLOW_ALL`), but `@ai-sdk/google`'s provider-option schema validates the
+// lowercase form (`allow_all`) — so normalize at this boundary.
+const google: Emitter = (_id, p) => {
+  const imageConfig = googleImageConfig(p.aspectRatio, p.imageSize)
+  const personGeneration = typeof p.personGeneration === 'string' ? p.personGeneration.toLowerCase() : undefined
+  const googleOptions: Record<string, JSONValue> = { ...compact({ personGeneration }) }
+  if (Object.keys(imageConfig).length) googleOptions.imageConfig = imageConfig
+  return under('google', googleOptions)
+}
+
+// DMXAPI is a multi-backend gateway: the provider factory routes models to
+// native AI SDK adapters (gemini-image / imagen → google, gpt-image / dall-e →
+// openai, custom families → bespoke transport, else openai-compat). So we
+// dual-key: snake_case fields under `dmxapi` for the compat / custom paths,
+// and an `imageConfig` under `google` so gemini-image picks up the form's
+// `aspectRatio` + `imageResolution` (1K/2K/4K — no top-level AI SDK field).
+// `imageResolution` is a vendor-bag field (not in `ImageOptionParams`), so we
+// read it back from the already-built `providerOptions.dmxapi` bag.
+const dmxapi: Emitter = (_id, p, seed) => {
+  const imageResolution = p.providerOptions?.dmxapi?.imageResolution
+  const imageConfig = compact({
+    aspectRatio: normalizeAspectRatio(p.aspectRatio),
+    imageSize: typeof imageResolution === 'string' ? imageResolution : undefined
+  })
+  return {
+    ...under('dmxapi', compact({ negative_prompt: p.negativePrompt, seed, quality: p.quality })),
+    ...under('google', Object.keys(imageConfig).length ? { imageConfig } : {})
+  }
+}
+
+// OpenAI-compatible / diffusion fallback (silicon, zhipu, deepseek, openrouter,
+// and any unrecognized provider id).
+const diffusion: Emitter = (id, p, seed) => under(id, diffusionBody(p, seed))
+
+/**
+ * Provider id → emitter. Unlisted ids fall through to {@link diffusion}.
+ * Adding a provider with bespoke wire fields = one row + one emitter.
+ */
+const EMITTERS: Record<string, Emitter> = {
+  openai: openaiFamily,
+  'openai-chat': openaiFamily,
+  azure: openaiFamily,
+  'azure-responses': openaiFamily,
+  huggingface: openaiFamily,
+  cherryin: openaiFamily,
+  newapi: openaiFamily,
+  aihubmix,
+  dashscope,
+  dmxapi,
+  google,
+  'google-vertex': google
+}
+
+/**
  * Build AI SDK `providerOptions` for image generation, mirroring the chat-side
- * `buildProviderOptions` idiom (switch over the resolved AI SDK provider id).
+ * `buildProviderOptions` idiom (dispatch over the resolved AI SDK provider id).
  *
  * Why this exists: `AiProvider.modernGenerateImage` historically forwarded only
  * `prompt/size/n/abortSignal` and silently dropped `negativePrompt/seed/
@@ -44,125 +192,14 @@ function normalizeAspectRatio(value: unknown): string | undefined {
  * AI SDK image models spread `providerOptions[<providerOptionsKey>]` verbatim
  * into the request body (`@ai-sdk/openai-compatible` `OpenAICompatibleImageModel`
  * via `getArgs`; `@ai-sdk/openai` `OpenAIImageModel` via `providerOptions.openai`),
- * so this maps the painting params to each provider's real image-API field
- * names and returns them keyed by the resolved provider id.
+ * so each emitter maps the painting params to one vendor's real image-API field
+ * names and returns them keyed by the provider id the resolved model reads.
  *
  * `rawProviderId` is `providerConfig.providerId` (== `getAiSdkProviderId(...)`),
- * which is the provider name the executor registered — i.e. the key
+ * the provider name the executor registered — i.e. the key
  * `OpenAICompatibleImageModel.providerOptionsKey` reads.
  */
-export function buildImageProviderOptions(
-  rawProviderId: string,
-  params: ImageOptionParams
-): Record<string, Record<string, JSONValue>> {
-  const {
-    negativePrompt,
-    seed,
-    numInferenceSteps,
-    guidanceScale,
-    promptEnhancement,
-    personGeneration,
-    quality,
-    background,
-    moderation,
-    style,
-    aspectRatio,
-    imageSize
-  } = params
-
-  const seedNumber = seed && /^-?\d+$/.test(seed.trim()) ? Number(seed.trim()) : undefined
-
-  // `'auto'` is the painting UI sentinel for "let the provider decide" — it must
-  // not be forwarded as a literal body value (the bespoke newapi path omitted it).
-  const define = (entries: Record<string, JSONValue | undefined>): Record<string, JSONValue> => {
-    const out: Record<string, JSONValue> = {}
-    for (const [k, v] of Object.entries(entries)) {
-      if (v !== undefined && v !== '' && v !== 'auto') out[k] = v
-    }
-    return out
-  }
-
-  switch (rawProviderId) {
-    // OpenAI image family — `OpenAIImageModel` reads `providerOptions.openai`;
-    // `OpenAICompatibleImageModel` (newapi) reads `providerOptions[<name>]` (its
-    // provider name is `newapi`). `quality`/`background`/`moderation` are the real
-    // OpenAI image-body fields (`seed` is explicitly unsupported, warned by the
-    // model). The dual `{ openai, [rawProviderId] }` shape feeds whichever key the
-    // resolved model reads (cherryin → `openai`, newapi/aionly-via-newapi → `newapi`).
-    case 'openai':
-    case 'openai-chat':
-    case 'azure':
-    case 'azure-responses':
-    case 'huggingface':
-    case 'cherryin':
-    case 'newapi': {
-      const mapped = define({ quality, background, moderation, style })
-      return Object.keys(mapped).length ? { openai: mapped, [rawProviderId]: mapped } : {}
-    }
-
-    // aihubmix aggregates many backends (Doubao Seedream / Qwen-Image / FLUX /
-    // iRAG / Ideogram) — most of these accept `seed` in the body. OpenAI's
-    // image model would warn-and-drop seed if we left it on the positional
-    // AI SDK field, so route it through the provider bag too.
-    case 'aihubmix': {
-      const mapped = define({ quality, background, moderation, style, seed: seedNumber })
-      return Object.keys(mapped).length ? { openai: mapped, [rawProviderId]: mapped } : {}
-    }
-
-    // DashScope (Bailian) native image API — every family puts `seed` and
-    // `negative_prompt` under `parameters.*`, plus `style` for wanx-v1. The
-    // adapter (`imageTransports/dashscope.ts`) reads these off
-    // `providerParams.* ` since AI SDK image models don't forward
-    // negativePrompt / style to the transport's `input.* `.
-    case 'dashscope': {
-      const mapped = define({ negative_prompt: negativePrompt, seed: seedNumber, style })
-      return Object.keys(mapped).length ? { dashscope: mapped } : {}
-    }
-
-    // Google native image — `@ai-sdk/google.image()` dispatches by model id:
-    //   Imagen path  → top-level `aspectRatio` is read directly from the SDK
-    //                  call options (AiProvider passes it normalized).
-    //   Gemini image → reads `providerOptions.google.imageConfig.{aspectRatio,
-    //                  imageSize}` (its initial `imageConfig: { aspectRatio }`
-    //                  is overridden by the spread of providerOptions.google).
-    // We build the imageConfig here so Nano Banana / Nano Banana Pro pick up
-    // both aspectRatio and the `imageResolution` chip (mapped to imageSize
-    // via the registry keyMap). personGeneration is the Imagen-only
-    // top-level field; carry it as before.
-    case 'google':
-    case 'google-vertex': {
-      const normalizedAspect = normalizeAspectRatio(aspectRatio)
-      const imageConfig: Record<string, JSONValue> = {}
-      if (normalizedAspect) imageConfig.aspectRatio = normalizedAspect
-      if (typeof imageSize === 'string' && imageSize !== '' && imageSize !== 'auto') {
-        imageConfig.imageSize = imageSize
-      }
-      const googleOptions: Record<string, JSONValue> = {}
-      if (Object.keys(imageConfig).length > 0) googleOptions.imageConfig = imageConfig
-      const person = define({ personGeneration: personGeneration as JSONValue | undefined })
-      Object.assign(googleOptions, person)
-      return Object.keys(googleOptions).length ? { google: googleOptions } : {}
-    }
-
-    // OpenAI-compatible / diffusion (silicon, zhipu, deepseek, openrouter, …).
-    // `OpenAICompatibleImageModel.getArgs` spreads `providerOptions[providerName]`
-    // (and its camelCase form) verbatim into the `/images/generations` body, so
-    // these must be the providers' real snake_case field names: SiliconFlow
-    // (`negative_prompt`/`seed`/`num_inference_steps`/`guidance_scale`/
-    // `prompt_enhancement`) and Zhipu CogView (`quality`).
-    case 'openai-compatible':
-    case 'deepseek':
-    case 'openrouter':
-    default: {
-      const mapped = define({
-        negative_prompt: negativePrompt,
-        seed: seedNumber,
-        num_inference_steps: numInferenceSteps,
-        guidance_scale: guidanceScale,
-        prompt_enhancement: promptEnhancement,
-        quality
-      })
-      return Object.keys(mapped).length ? { [rawProviderId]: mapped } : {}
-    }
-  }
+export function buildImageProviderOptions(rawProviderId: string, params: ImageOptionParams): ProviderOptions {
+  const emitter = EMITTERS[rawProviderId] ?? diffusion
+  return emitter(rawProviderId, params, parseSeed(params.seed))
 }

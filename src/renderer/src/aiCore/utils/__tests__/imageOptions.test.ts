@@ -91,16 +91,52 @@ describe('buildImageProviderOptions', () => {
     expect(buildImageProviderOptions('openai', params({ numInferenceSteps: 20 }))).toEqual({})
   })
 
-  it('maps personGeneration under the google key for google providers', () => {
+  it('maps personGeneration + imageSize (as imageConfig.imageSize) under the google key', () => {
     const result = buildImageProviderOptions(
       'google',
       params({ personGeneration: 'allow_adult' as GenerateImageParams['personGeneration'] })
     )
-    expect(result).toEqual({ google: { personGeneration: 'allow_adult' } })
+    expect(result).toEqual({
+      google: { imageConfig: { imageSize: '1024x1024' }, personGeneration: 'allow_adult' }
+    })
+  })
+
+  it('maps a normalized aspectRatio + imageSize into google.imageConfig', () => {
+    const result = buildImageProviderOptions('google', params({ aspectRatio: 'ASPECT_16_9', imageSize: '2048x2048' }))
+    expect(result).toEqual({ google: { imageConfig: { aspectRatio: '16:9', imageSize: '2048x2048' } } })
+  })
+
+  it('lowercases the registry-uppercase personGeneration for the @ai-sdk/google schema', () => {
+    const result = buildImageProviderOptions(
+      'google',
+      params({ imageSize: undefined, personGeneration: 'ALLOW_ALL' as GenerateImageParams['personGeneration'] })
+    )
+    expect(result).toEqual({ google: { personGeneration: 'allow_all' } })
   })
 
   it('returns {} when nothing maps (safe — preserves prior behavior, no regression)', () => {
     expect(buildImageProviderOptions('openai-compatible', params())).toEqual({})
     expect(buildImageProviderOptions('some-unknown-provider', params())).toEqual({})
+  })
+
+  it('dmxapi dual-keys: snake_case under dmxapi + imageResolution/aspectRatio into google.imageConfig', () => {
+    const result = buildImageProviderOptions(
+      'dmxapi',
+      params({
+        negativePrompt: 'no blur',
+        seed: '7',
+        aspectRatio: 'ASPECT_1_1',
+        providerOptions: { dmxapi: { imageResolution: '4K' } }
+      })
+    )
+    expect(result).toEqual({
+      dmxapi: { negative_prompt: 'no blur', seed: 7 },
+      google: { imageConfig: { aspectRatio: '1:1', imageSize: '4K' } }
+    })
+  })
+
+  it('dmxapi omits the google bag when no aspectRatio / imageResolution is set', () => {
+    const result = buildImageProviderOptions('dmxapi', params({ negativePrompt: 'x' }))
+    expect(result).toEqual({ dmxapi: { negative_prompt: 'x' } })
   })
 })
