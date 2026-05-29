@@ -59,7 +59,7 @@ function createFileInfo(overrides: Partial<FileInfo> = {}): FileInfo {
     createdAt: 1,
     modifiedAt: 1,
     ...overrides
-  }) as FileInfo
+  })
 }
 
 const cleanupCases = [
