@@ -21,7 +21,7 @@ vi.mock('@ai-sdk/openai-compatible', () => ({
   }
 }))
 
-vi.mock('../imageTransports/tokenflux', () => ({
+vi.mock('../tokenflux/tokenfluxTransport', () => ({
   createTokenFluxTransport: (settings: { apiKey: string; baseURL?: string }) => {
     TransportCtor(settings)
     return { submit: vi.fn(), poll: vi.fn() }
@@ -29,7 +29,7 @@ vi.mock('../imageTransports/tokenflux', () => ({
   DEFAULT_TOKENFLUX_BASE_URL: 'https://api.tokenflux.ai'
 }))
 
-import { createTokenFluxProvider } from '../tokenfluxProvider'
+import { createTokenFluxProvider } from '../tokenflux/tokenfluxProvider'
 
 describe('createTokenFluxProvider', () => {
   afterEach(() => {

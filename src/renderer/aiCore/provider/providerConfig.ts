@@ -34,11 +34,11 @@ import { cloneDeep, isEmpty } from 'lodash'
 
 import type { ProviderConfig } from '../types'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
-import { DEFAULT_DASHSCOPE_IMAGE_BASE_URL } from './custom/imageTransports/dashscope'
-import { DEFAULT_DMXAPI_BASE_URL } from './custom/imageTransports/dmxapi'
-import { DEFAULT_OVMS_BASE_URL } from './custom/imageTransports/ovms'
-import { DEFAULT_PPIO_BASE_URL } from './custom/imageTransports/ppio'
-import { DEFAULT_TOKENFLUX_BASE_URL } from './custom/imageTransports/tokenflux'
+import { DEFAULT_DASHSCOPE_IMAGE_BASE_URL } from './custom/dashscope/dashscopeTransport'
+import { DEFAULT_DMXAPI_BASE_URL } from './custom/dmxapi/dmxapiTransport'
+import { DEFAULT_OVMS_BASE_URL } from './custom/ovms/ovmsTransport'
+import { DEFAULT_PPIO_BASE_URL } from './custom/ppio/ppioTransport'
+import { DEFAULT_TOKENFLUX_BASE_URL } from './custom/tokenflux/tokenfluxTransport'
 import { getAiSdkProviderId } from './factory'
 
 // === Types ===

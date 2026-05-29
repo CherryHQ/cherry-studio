@@ -3,8 +3,8 @@ import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
-import { createImageGenerationModel } from './imageGenerationModel'
-import { createModelscopeTransport, DEFAULT_MODELSCOPE_BASE_URL } from './imageTransports/modelscope'
+import { createImageGenerationModel } from '../imageGenerationModel'
+import { createModelscopeTransport, DEFAULT_MODELSCOPE_BASE_URL } from './modelscopeTransport'
 
 export const MODELSCOPE_PROVIDER_NAME = 'modelscope' as const
 

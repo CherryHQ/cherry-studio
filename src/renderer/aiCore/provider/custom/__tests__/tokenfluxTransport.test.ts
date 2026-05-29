@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createTokenFluxTransport } from '../imageTransports/tokenflux'
+import { createTokenFluxTransport } from '../tokenflux/tokenfluxTransport'
 
 /**
  * Ported from the legacy `providers/tokenflux/__tests__/TokenFluxService.test.ts`

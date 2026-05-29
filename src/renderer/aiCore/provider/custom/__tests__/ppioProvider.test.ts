@@ -21,7 +21,7 @@ vi.mock('@ai-sdk/openai-compatible', () => ({
   }
 }))
 
-vi.mock('../imageTransports/ppio', () => ({
+vi.mock('../ppio/ppioTransport', () => ({
   createPpioTransport: (settings: { apiKey: string; baseURL?: string }) => {
     TransportCtor(settings)
     return { submit: vi.fn(), poll: vi.fn() }
@@ -29,7 +29,7 @@ vi.mock('../imageTransports/ppio', () => ({
   DEFAULT_PPIO_BASE_URL: 'https://api.ppio.com'
 }))
 
-import { createPpioProvider } from '../ppioProvider'
+import { createPpioProvider } from '../ppio/ppioProvider'
 
 describe('createPpioProvider', () => {
   afterEach(() => {

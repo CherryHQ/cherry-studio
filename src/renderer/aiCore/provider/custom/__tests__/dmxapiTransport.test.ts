@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { createDmxapiTransport } from '../imageTransports/dmxapi'
+import { createDmxapiTransport } from '../dmxapi/dmxapiTransport'
 
 vi.mock('i18next', () => ({
   default: {

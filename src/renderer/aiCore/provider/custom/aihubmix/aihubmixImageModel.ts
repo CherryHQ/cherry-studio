@@ -26,7 +26,7 @@ import { loggerService } from '@logger'
 import { createPaintingGenerateError } from '@renderer/aiCore/errors/paintingGenerateError'
 import { readErrorMessage } from '@renderer/aiCore/errors/readErrorMessage'
 
-import { createAihubmixFluxTransport } from '../imageTransports/aihubmixFlux'
+import { createAihubmixFluxTransport } from './aihubmixFlux'
 
 const logger = loggerService.withContext('AihubmixImageModel')
 
@@ -226,7 +226,7 @@ function withAihubmixGoogleImageOptions(model: ImageModelV3, isGeminiImage: bool
 }
 
 /**
- * BFL async FLUX models on aihubmix — delegated to `imageTransports/aihubmixFlux.ts`.
+ * BFL async FLUX models on aihubmix — delegated to `./aihubmixFlux.ts`.
  *
  * Three vendor ids submit a task and poll for the final URL (the rest of
  * the FLUX family stays on the sync OpenAI-compat default branch).

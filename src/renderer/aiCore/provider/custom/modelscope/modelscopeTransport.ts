@@ -2,7 +2,7 @@ import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import { parseDataUrl } from '@shared/utils'
 
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
-import { createAbortError, uint8ToBase64, waitWithSignal } from './transportUtils'
+import { createAbortError, uint8ToBase64, waitWithSignal } from '../transportUtils'
 
 /**
  * ModelScope (魔搭) API Inference transport for AIGC image generation.

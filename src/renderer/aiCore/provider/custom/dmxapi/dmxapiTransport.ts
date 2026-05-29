@@ -2,7 +2,7 @@ import { createPaintingGenerateError } from '@renderer/aiCore/errors/paintingGen
 import { readErrorMessage } from '@renderer/aiCore/errors/readErrorMessage'
 
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
-import { fileToDataUrl } from './transportUtils'
+import { fileToDataUrl } from '../transportUtils'
 
 export const DEFAULT_DMXAPI_BASE_URL = 'https://www.dmxapi.com'
 

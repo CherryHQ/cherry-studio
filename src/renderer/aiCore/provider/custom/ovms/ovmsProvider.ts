@@ -3,8 +3,8 @@ import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
-import { createImageGenerationModel } from './imageGenerationModel'
-import { createOvmsTransport, DEFAULT_OVMS_BASE_URL } from './imageTransports/ovms'
+import { createImageGenerationModel } from '../imageGenerationModel'
+import { createOvmsTransport, DEFAULT_OVMS_BASE_URL } from './ovmsTransport'
 
 export const OVMS_PROVIDER_NAME = 'ovms' as const
 

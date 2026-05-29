@@ -34,7 +34,7 @@ export function createDefaultPainting(providerId: string): PaintingData {
  *      downloads).
  *
  * Vendor wire-format quirks live in the aiCore image-model adapters
- * (`aihubmixImageModel.ts`, `imageTransports/{ppio,dmxapi,ovms,modelscope}.ts`),
+ * (`aihubmix/aihubmixImageModel.ts`, `{ppio,dmxapi,ovms,modelscope}/<vendor>Transport.ts`),
  * not here. This function only does the registry → bag injection.
  */
 export async function paintingGenerate(input: GenerateInput): Promise<FileMetadata[]> {

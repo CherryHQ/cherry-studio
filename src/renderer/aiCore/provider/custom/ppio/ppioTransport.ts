@@ -1,7 +1,7 @@
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
-import { createAbortError, waitWithSignal } from './transportUtils'
+import { createAbortError, waitWithSignal } from '../transportUtils'
 
 /**
  * PPIO submit/poll transport.

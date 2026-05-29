@@ -1,7 +1,7 @@
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
-import { createAbortError, fileToDataUrl, waitWithSignal } from './transportUtils'
+import { createAbortError, fileToDataUrl, waitWithSignal } from '../transportUtils'
 
 /**
  * Aliyun DashScope (Bailian) async image-generation transport.

@@ -92,7 +92,7 @@ export interface CanonicalGenerateOptions<T extends PaintingData> {
  *
  * Vendor wire transforms (snake_case, `ASPECT_X_Y → X:Y`, base64
  * encoding, etc.) live in `aiCore/provider/custom/{aihubmixImageModel,
- * imageTransports/ppio,dmxapi}.ts`. This function ships canonical names
+ * {ppio,dmxapi}/<vendor>Transport.ts`. This function ships canonical names
  * only. The pre-`AI_SDK_PARAM_KEYS` constant + per-vendor `fieldMap` /
  * `keyMap` aliases are gone — `params` keys ARE canonical.
  *

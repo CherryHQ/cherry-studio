@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { createOvmsTransport } from '../imageTransports/ovms'
+import { createOvmsTransport } from '../ovms/ovmsTransport'
 
 /**
  * Covers the relocated OVMS single-shot request (no `/v1`, no auth header),

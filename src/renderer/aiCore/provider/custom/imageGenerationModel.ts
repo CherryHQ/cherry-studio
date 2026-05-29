@@ -1,6 +1,6 @@
 import type { ImageModelV3, ImageModelV3CallOptions } from '@ai-sdk/provider'
 
-import { createAbortError } from './imageTransports/transportUtils'
+import { createAbortError } from './transportUtils'
 
 export interface ImageGenerationTransport {
   submit(input: ImageGenerationSubmitInput): Promise<{ taskId?: string; imageUrls?: string[] }>

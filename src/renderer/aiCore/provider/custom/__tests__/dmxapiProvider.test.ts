@@ -21,7 +21,7 @@ vi.mock('@ai-sdk/openai-compatible', () => ({
   }
 }))
 
-vi.mock('../imageTransports/dmxapi', async (importOriginal) => {
+vi.mock('../dmxapi/dmxapiTransport', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>
   return {
     ...actual,
@@ -32,7 +32,7 @@ vi.mock('../imageTransports/dmxapi', async (importOriginal) => {
   }
 })
 
-import { createDmxapiProvider } from '../dmxapiProvider'
+import { createDmxapiProvider } from '../dmxapi/dmxapiProvider'
 
 describe('createDmxapiProvider', () => {
   afterEach(() => {

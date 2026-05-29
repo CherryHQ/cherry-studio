@@ -3,8 +3,8 @@ import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
-import { createImageGenerationModel } from './imageGenerationModel'
-import { createPpioTransport, DEFAULT_PPIO_BASE_URL } from './imageTransports/ppio'
+import { createImageGenerationModel } from '../imageGenerationModel'
+import { createPpioTransport, DEFAULT_PPIO_BASE_URL } from './ppioTransport'
 
 export const PPIO_PROVIDER_NAME = 'ppio' as const
 

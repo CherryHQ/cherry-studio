@@ -13,8 +13,8 @@ import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 import { formatApiHost, withoutTrailingApiVersion } from '@shared/utils'
 
-import { createImageGenerationModel } from './imageGenerationModel'
-import { createDmxapiTransport, resolveDmxapiFamily } from './imageTransports/dmxapi'
+import { createImageGenerationModel } from '../imageGenerationModel'
+import { createDmxapiTransport, resolveDmxapiFamily } from './dmxapiTransport'
 
 export const DMXAPI_PROVIDER_NAME = 'dmxapi' as const
 

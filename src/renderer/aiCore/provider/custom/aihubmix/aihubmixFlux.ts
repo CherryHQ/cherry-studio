@@ -3,7 +3,7 @@ import { createPaintingGenerateError } from '@renderer/aiCore/errors/paintingGen
 import { readErrorMessage } from '@renderer/aiCore/errors/readErrorMessage'
 
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
-import { createAbortError, fileToDataUrl, waitWithSignal } from './transportUtils'
+import { createAbortError, fileToDataUrl, waitWithSignal } from '../transportUtils'
 
 /**
  * AiHubMix BFL async FLUX transport.

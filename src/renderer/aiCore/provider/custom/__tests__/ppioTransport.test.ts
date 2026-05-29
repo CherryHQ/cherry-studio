@@ -1,7 +1,7 @@
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createPpioTransport, PpioTaskFailedError } from '../imageTransports/ppio'
+import { createPpioTransport, PpioTaskFailedError } from '../ppio/ppioTransport'
 
 /**
  * Ported from the legacy `providers/ppio/__tests__/PpioService.test.ts` plus

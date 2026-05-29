@@ -21,7 +21,7 @@ vi.mock('@ai-sdk/openai-compatible', () => ({
   }
 }))
 
-vi.mock('../imageTransports/ovms', () => ({
+vi.mock('../ovms/ovmsTransport', () => ({
   createOvmsTransport: (settings: { baseURL?: string }) => {
     TransportCtor(settings)
     return { submit: vi.fn() }
@@ -29,7 +29,7 @@ vi.mock('../imageTransports/ovms', () => ({
   DEFAULT_OVMS_BASE_URL: 'http://localhost:8000'
 }))
 
-import { createOvmsProvider } from '../ovmsProvider'
+import { createOvmsProvider } from '../ovms/ovmsProvider'
 
 describe('createOvmsProvider', () => {
   afterEach(() => {

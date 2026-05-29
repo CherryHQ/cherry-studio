@@ -3,8 +3,8 @@ import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3 } from
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
 
-import { createImageGenerationModel } from './imageGenerationModel'
-import { createTokenFluxTransport, DEFAULT_TOKENFLUX_BASE_URL } from './imageTransports/tokenflux'
+import { createImageGenerationModel } from '../imageGenerationModel'
+import { createTokenFluxTransport, DEFAULT_TOKENFLUX_BASE_URL } from './tokenfluxTransport'
 
 export const TOKENFLUX_PROVIDER_NAME = 'tokenflux' as const
 
