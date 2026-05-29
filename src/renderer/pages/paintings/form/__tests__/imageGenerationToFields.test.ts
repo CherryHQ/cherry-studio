@@ -58,6 +58,8 @@ describe('imageGenerationToFields', () => {
           supports: {
             quality: { type: 'enum', options: ['standard', 'hd'] },
             styleType: { type: 'enum', options: ['AUTO', 'REALISTIC'] },
+            style: { type: 'enum', options: ['natural', '<photography>'] },
+            function: { type: 'enum', options: ['expand', 'remove_watermark'] },
             aspectRatio: { type: 'enum', options: ['1:1', '16:9'] }
           }
         }
@@ -72,6 +74,16 @@ describe('imageGenerationToFields', () => {
     expect(byKey.styleType!.options).toEqual([
       { labelKey: 'paintings.style_type_options.auto', value: 'AUTO' },
       { labelKey: 'paintings.style_type_options.realistic', value: 'REALISTIC' }
+    ])
+    // style / function: label is localized, but the option value is preserved
+    // verbatim (incl. the `<...>` form) — that raw value is what reaches the request body.
+    expect(byKey.style!.options).toEqual([
+      { labelKey: 'paintings.style_options.natural', value: 'natural' },
+      { labelKey: 'paintings.style_options.photography', value: '<photography>' }
+    ])
+    expect(byKey.function!.options).toEqual([
+      { labelKey: 'paintings.dashscope.function_options.expand', value: 'expand' },
+      { labelKey: 'paintings.dashscope.function_options.remove_watermark', value: 'remove_watermark' }
     ])
     // Literal enum (ratios) → raw value as label, no labelKey (nothing to translate).
     expect(byKey.aspectRatio!.options).toEqual([

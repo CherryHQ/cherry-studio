@@ -105,6 +105,34 @@ const OPTION_LABELS: Record<string, Record<string, string>> = {
   refMode: {
     repaint: 'paintings.dashscope.ref_mode_options.repaint',
     refonly: 'paintings.dashscope.ref_mode_options.refonly'
+  },
+  // The option *value* (e.g. `'<photography>'`, `'natural'`) is preserved and
+  // sent to the request body verbatim — only the displayed label is localized.
+  style: {
+    vivid: 'paintings.style_options.vivid',
+    natural: 'paintings.style_options.natural',
+    '<auto>': 'paintings.style_options.auto',
+    '<photography>': 'paintings.style_options.photography',
+    '<portrait>': 'paintings.style_options.portrait',
+    '<3d cartoon>': 'paintings.style_options.cartoon_3d',
+    '<anime>': 'paintings.style_options.anime',
+    '<oil painting>': 'paintings.style_options.oil_painting',
+    '<watercolor>': 'paintings.style_options.watercolor',
+    '<sketch>': 'paintings.style_options.sketch',
+    '<chinese painting>': 'paintings.style_options.chinese_painting',
+    '<flat illustration>': 'paintings.style_options.flat_illustration'
+  },
+  function: {
+    stylization_all: 'paintings.dashscope.function_options.stylization_all',
+    stylization_local: 'paintings.dashscope.function_options.stylization_local',
+    description_edit: 'paintings.dashscope.function_options.description_edit',
+    description_edit_with_mask: 'paintings.dashscope.function_options.description_edit_with_mask',
+    remove_watermark: 'paintings.dashscope.function_options.remove_watermark',
+    expand: 'paintings.dashscope.function_options.expand',
+    super_resolution: 'paintings.dashscope.function_options.super_resolution',
+    colorization: 'paintings.dashscope.function_options.colorization',
+    doodle: 'paintings.dashscope.function_options.doodle',
+    control_cartoon_feature: 'paintings.dashscope.function_options.control_cartoon_feature'
   }
 }
 

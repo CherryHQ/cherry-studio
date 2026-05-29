@@ -55,7 +55,8 @@ const PaintingSettings: FC<PaintingSettingsProps> = ({ painting, onConfigChange,
             {item.title && (
               <PaintingSectionTitle>
                 {t(item.title)}
-                {item.tooltip && <InfoTooltip content={t(item.tooltip)} />}
+                {/* range fields (e.g. numImages) interpolate their actual {{min}}-{{max}} */}
+                {item.tooltip && <InfoTooltip content={t(item.tooltip, { min: item.min, max: item.max })} />}
               </PaintingSectionTitle>
             )}
             <PaintingFieldRenderer
