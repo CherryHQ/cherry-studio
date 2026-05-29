@@ -3779,6 +3779,10 @@
       "is_sketch": "Sketch Input",
       "left_scale": "Expand Left",
       "ref_mode": "Reference Mode",
+      "ref_mode_options": {
+        "refonly": "Reference only",
+        "repaint": "Repaint"
+      },
       "ref_strength": "Reference Strength",
       "right_scale": "Expand Right",
       "source_lang": "Source Language",
@@ -3790,7 +3794,11 @@
     "dmxapi": {
       "generating_tip": "Generating with the official model, estimated wait time is 2-5 minutes for best results. Please check DMXAPI backend logs for the cost of this operation.",
       "max_images": "Max Images",
-      "sequential_image_generation": "Sequential Image Generation"
+      "sequential_image_generation": "Sequential Image Generation",
+      "sequential_image_generation_options": {
+        "auto": "Auto",
+        "disabled": "Disabled"
+      }
     },
     "edit": {
       "image_file": "Input Image",
@@ -3887,9 +3895,11 @@
     "quality": "Quality",
     "quality_options": {
       "auto": "Auto",
+      "hd": "HD",
       "high": "High",
       "low": "Low",
-      "medium": "Medium"
+      "medium": "Medium",
+      "standard": "Standard"
     },
     "regenerate": {
       "confirm": "This will replace your existing generated images. Do you want to continue?"
@@ -3925,6 +3935,14 @@
     "seed_tip": "The same seed and prompt can produce similar images",
     "select_model": "Select Model",
     "style_type": "Style",
+    "style_type_options": {
+      "anime": "Anime",
+      "auto": "Auto",
+      "design": "Design",
+      "general": "General",
+      "realistic": "Realistic",
+      "render_3d": "3D Render"
+    },
     "style_type_tip": "Image generation style",
     "text_desc_required": "Please enter image description first",
     "thinking_mode": "Thinking Mode",

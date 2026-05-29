@@ -3779,6 +3779,10 @@
       "is_sketch": "[to be translated]:Sketch Input",
       "left_scale": "[to be translated]:Expand Left",
       "ref_mode": "[to be translated]:Reference Mode",
+      "ref_mode_options": {
+        "refonly": "[to be translated]:Reference only",
+        "repaint": "[to be translated]:Repaint"
+      },
       "ref_strength": "[to be translated]:Reference Strength",
       "right_scale": "[to be translated]:Expand Right",
       "source_lang": "[to be translated]:Source Language",
@@ -3790,7 +3794,11 @@
     "dmxapi": {
       "generating_tip": "Generando con el modelo oficial, el tiempo de espera estimado es de 2-5 minutos para obtener los mejores resultados. Por favor, verifica los registros del backend de DMXAPI para conocer el costo de esta operación.",
       "max_images": "[to be translated]:Max Images",
-      "sequential_image_generation": "[to be translated]:Sequential Image Generation"
+      "sequential_image_generation": "[to be translated]:Sequential Image Generation",
+      "sequential_image_generation_options": {
+        "auto": "[to be translated]:Auto",
+        "disabled": "[to be translated]:Disabled"
+      }
     },
     "edit": {
       "image_file": "Imagen editada",
@@ -3887,9 +3895,11 @@
     "quality": "Calidad",
     "quality_options": {
       "auto": "Automático",
+      "hd": "[to be translated]:HD",
       "high": "Alto",
       "low": "Bajo",
-      "medium": "Medio"
+      "medium": "Medio",
+      "standard": "[to be translated]:Standard"
     },
     "regenerate": {
       "confirm": "Esto sobrescribirá las imágenes generadas, ¿desea continuar?"
@@ -3925,6 +3935,14 @@
     "seed_tip": "La misma semilla y la misma sugerencia generarán imágenes similares",
     "select_model": "Seleccionar modelo",
     "style_type": "[to be translated]:Style",
+    "style_type_options": {
+      "anime": "[to be translated]:Anime",
+      "auto": "[to be translated]:Auto",
+      "design": "[to be translated]:Design",
+      "general": "[to be translated]:General",
+      "realistic": "[to be translated]:Realistic",
+      "render_3d": "[to be translated]:3D Render"
+    },
     "style_type_tip": "[to be translated]:Image generation style",
     "text_desc_required": "Por favor, introduzca primero la descripción de la imagen",
     "thinking_mode": "[to be translated]:Thinking Mode",

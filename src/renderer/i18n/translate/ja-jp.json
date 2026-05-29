@@ -3779,6 +3779,10 @@
       "is_sketch": "[to be translated]:Sketch Input",
       "left_scale": "[to be translated]:Expand Left",
       "ref_mode": "[to be translated]:Reference Mode",
+      "ref_mode_options": {
+        "refonly": "[to be translated]:Reference only",
+        "repaint": "[to be translated]:Repaint"
+      },
       "ref_strength": "[to be translated]:Reference Strength",
       "right_scale": "[to be translated]:Expand Right",
       "source_lang": "[to be translated]:Source Language",
@@ -3790,7 +3794,11 @@
     "dmxapi": {
       "generating_tip": "公式モデルで生成中です。最良の結果のため、推定待機時間は2〜5分です。この操作のコストについては、DMXAPIバックエンドログをご確認ください。",
       "max_images": "[to be translated]:Max Images",
-      "sequential_image_generation": "[to be translated]:Sequential Image Generation"
+      "sequential_image_generation": "[to be translated]:Sequential Image Generation",
+      "sequential_image_generation_options": {
+        "auto": "[to be translated]:Auto",
+        "disabled": "[to be translated]:Disabled"
+      }
     },
     "edit": {
       "image_file": "編集画像",
@@ -3887,9 +3895,11 @@
     "quality": "品質",
     "quality_options": {
       "auto": "自動",
+      "hd": "[to be translated]:HD",
       "high": "高",
       "low": "低",
-      "medium": "中"
+      "medium": "中",
+      "standard": "[to be translated]:Standard"
     },
     "regenerate": {
       "confirm": "これにより、既存の生成画像が置き換えられます。続行しますか？"
@@ -3925,6 +3935,14 @@
     "seed_tip": "同じシードとプロンプトで似た画像を生成できます",
     "select_model": "モデルを選択",
     "style_type": "[to be translated]:Style",
+    "style_type_options": {
+      "anime": "[to be translated]:Anime",
+      "auto": "[to be translated]:Auto",
+      "design": "[to be translated]:Design",
+      "general": "[to be translated]:General",
+      "realistic": "[to be translated]:Realistic",
+      "render_3d": "[to be translated]:3D Render"
+    },
     "style_type_tip": "[to be translated]:Image generation style",
     "text_desc_required": "画像の説明を先に入力してください",
     "thinking_mode": "[to be translated]:Thinking Mode",

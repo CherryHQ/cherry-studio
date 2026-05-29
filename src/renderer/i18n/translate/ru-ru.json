@@ -3779,6 +3779,10 @@
       "is_sketch": "[to be translated]:Sketch Input",
       "left_scale": "[to be translated]:Expand Left",
       "ref_mode": "[to be translated]:Reference Mode",
+      "ref_mode_options": {
+        "refonly": "[to be translated]:Reference only",
+        "repaint": "[to be translated]:Repaint"
+      },
       "ref_strength": "[to be translated]:Reference Strength",
       "right_scale": "[to be translated]:Expand Right",
       "source_lang": "[to be translated]:Source Language",
@@ -3790,7 +3794,11 @@
     "dmxapi": {
       "generating_tip": "Генерация с использованием официальной модели, ожидаемое время ожидания — 2–5 минут для достижения наилучших результатов. Пожалуйста, проверьте логи бэкенда DMXAPI для получения информации о стоимости этой операции.",
       "max_images": "[to be translated]:Max Images",
-      "sequential_image_generation": "[to be translated]:Sequential Image Generation"
+      "sequential_image_generation": "[to be translated]:Sequential Image Generation",
+      "sequential_image_generation_options": {
+        "auto": "[to be translated]:Auto",
+        "disabled": "[to be translated]:Disabled"
+      }
     },
     "edit": {
       "image_file": "Изображение для редактирования",
@@ -3887,9 +3895,11 @@
     "quality": "Качество",
     "quality_options": {
       "auto": "Авто",
+      "hd": "[to be translated]:HD",
       "high": "Высокое",
       "low": "Низкое",
-      "medium": "Среднее"
+      "medium": "Среднее",
+      "standard": "[to be translated]:Standard"
     },
     "regenerate": {
       "confirm": "Это заменит ваши существующие сгенерированные изображения. Хотите продолжить?"
@@ -3925,6 +3935,14 @@
     "seed_tip": "Одинаковый ключ генерации и промпт могут производить похожие изображения",
     "select_model": "Выбрать модель",
     "style_type": "[to be translated]:Style",
+    "style_type_options": {
+      "anime": "[to be translated]:Anime",
+      "auto": "[to be translated]:Auto",
+      "design": "[to be translated]:Design",
+      "general": "[to be translated]:General",
+      "realistic": "[to be translated]:Realistic",
+      "render_3d": "[to be translated]:3D Render"
+    },
     "style_type_tip": "[to be translated]:Image generation style",
     "text_desc_required": "Пожалуйста, сначала введите описание изображения",
     "thinking_mode": "[to be translated]:Thinking Mode",

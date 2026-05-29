@@ -3779,6 +3779,10 @@
       "is_sketch": "[to be translated]:Sketch Input",
       "left_scale": "[to be translated]:Expand Left",
       "ref_mode": "[to be translated]:Reference Mode",
+      "ref_mode_options": {
+        "refonly": "[to be translated]:Reference only",
+        "repaint": "[to be translated]:Repaint"
+      },
       "ref_strength": "[to be translated]:Reference Strength",
       "right_scale": "[to be translated]:Expand Right",
       "source_lang": "[to be translated]:Source Language",
@@ -3790,7 +3794,11 @@
     "dmxapi": {
       "generating_tip": "Η δημιουργία γίνεται με το επίσημο μοντέλο, ο εκτιμώμενος χρόνος αναμονής είναι 2-5 λεπτά για τα καλύτερα αποτελέσματα. Ελέγξτε τα αρχεία καταγραφής του διακομιστή DMXAPI για το κόστος αυτής της λειτουργίας.",
       "max_images": "[to be translated]:Max Images",
-      "sequential_image_generation": "[to be translated]:Sequential Image Generation"
+      "sequential_image_generation": "[to be translated]:Sequential Image Generation",
+      "sequential_image_generation_options": {
+        "auto": "[to be translated]:Auto",
+        "disabled": "[to be translated]:Disabled"
+      }
     },
     "edit": {
       "image_file": "Επεξεργασμένη εικόνα",
@@ -3887,9 +3895,11 @@
     "quality": "Ποιότητα",
     "quality_options": {
       "auto": "Αυτόματο",
+      "hd": "[to be translated]:HD",
       "high": "Υψηλό",
       "low": "Χαμηλό",
-      "medium": "Μεσαίο"
+      "medium": "Μεσαίο",
+      "standard": "[to be translated]:Standard"
     },
     "regenerate": {
       "confirm": "Αυτό θα επιβάλει τις δημιουργίες που έχετε κάνει, θέλετε να συνεχίσετε;"
@@ -3925,6 +3935,14 @@
     "seed_tip": "Η χρήση του ίδιου παραγόντα και του σχολίου μπορεί να δημιουργήσει παρόμοιες εικόνες",
     "select_model": "Επιλέξτε μοντέλο",
     "style_type": "[to be translated]:Style",
+    "style_type_options": {
+      "anime": "[to be translated]:Anime",
+      "auto": "[to be translated]:Auto",
+      "design": "[to be translated]:Design",
+      "general": "[to be translated]:General",
+      "realistic": "[to be translated]:Realistic",
+      "render_3d": "[to be translated]:3D Render"
+    },
     "style_type_tip": "[to be translated]:Image generation style",
     "text_desc_required": "Παρακαλούμε εισάγετε πρώτα την περιγραφή της εικόνας",
     "thinking_mode": "[to be translated]:Thinking Mode",

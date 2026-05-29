@@ -3779,6 +3779,10 @@
       "is_sketch": "草圖輸入",
       "left_scale": "向左擴展",
       "ref_mode": "參考模式",
+      "ref_mode_options": {
+        "refonly": "僅參考",
+        "repaint": "重繪"
+      },
       "ref_strength": "參考強度",
       "right_scale": "向右擴展",
       "source_lang": "來源語言",
@@ -3790,7 +3794,11 @@
     "dmxapi": {
       "generating_tip": "使用官方模型生成，預計等待時間為 2–5 分鐘以獲得最佳結果。請查看 DMXAPI 後端日誌以了解此操作的成本。",
       "max_images": "最大圖像數",
-      "sequential_image_generation": "組圖生成"
+      "sequential_image_generation": "組圖生成",
+      "sequential_image_generation_options": {
+        "auto": "自動",
+        "disabled": "停用"
+      }
     },
     "edit": {
       "image_file": "編輯影像",
@@ -3887,9 +3895,11 @@
     "quality": "品質",
     "quality_options": {
       "auto": "自動",
+      "hd": "高清",
       "high": "高",
       "low": "低",
-      "medium": "中"
+      "medium": "中",
+      "standard": "標準"
     },
     "regenerate": {
       "confirm": "這將覆蓋已產生的圖片，是否繼續？"
@@ -3925,6 +3935,14 @@
     "seed_tip": "相同的種子和提示詞可以產生相似的圖片",
     "select_model": "選擇模型",
     "style_type": "[to be translated]:Style",
+    "style_type_options": {
+      "anime": "動漫",
+      "auto": "自動",
+      "design": "設計",
+      "general": "通用",
+      "realistic": "寫實",
+      "render_3d": "3D 渲染"
+    },
     "style_type_tip": "[to be translated]:Image generation style",
     "text_desc_required": "請先輸入圖片描述",
     "thinking_mode": "[to be translated]:Thinking Mode",

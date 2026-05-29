@@ -3779,6 +3779,10 @@
       "is_sketch": "草图输入",
       "left_scale": "向左扩展",
       "ref_mode": "参考模式",
+      "ref_mode_options": {
+        "refonly": "仅参考",
+        "repaint": "重绘"
+      },
       "ref_strength": "参考强度",
       "right_scale": "向右扩展",
       "source_lang": "源语言",
@@ -3790,7 +3794,11 @@
     "dmxapi": {
       "generating_tip": "正在使用官方的模型生成，预计等待2~5分钟效果最好，本次消耗金额请到DMXAPI后台日志查看",
       "max_images": "最大图像数",
-      "sequential_image_generation": "组图生成"
+      "sequential_image_generation": "组图生成",
+      "sequential_image_generation_options": {
+        "auto": "自动",
+        "disabled": "禁用"
+      }
     },
     "edit": {
       "image_file": "输入图片",
@@ -3887,9 +3895,11 @@
     "quality": "质量",
     "quality_options": {
       "auto": "自动",
+      "hd": "高清",
       "high": "高",
       "low": "低",
-      "medium": "中"
+      "medium": "中",
+      "standard": "标准"
     },
     "regenerate": {
       "confirm": "这将覆盖已生成的图片，是否继续？"
@@ -3925,6 +3935,14 @@
     "seed_tip": "相同的种子和提示词可以生成相似的图片",
     "select_model": "选择模型",
     "style_type": "风格",
+    "style_type_options": {
+      "anime": "动漫",
+      "auto": "自动",
+      "design": "设计",
+      "general": "通用",
+      "realistic": "写实",
+      "render_3d": "3D 渲染"
+    },
     "style_type_tip": "图像生成风格",
     "text_desc_required": "请先输入图片描述",
     "thinking_mode": "思考模式",

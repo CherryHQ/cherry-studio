@@ -55,8 +55,65 @@ const KEY_LABELS: Record<string, { title: string; tooltip?: string }> = {
   maxImages: { title: 'paintings.dmxapi.max_images' }
 }
 
-function toOptions(values: readonly string[]): OptionItem[] {
-  return values.map((v) => ({ label: v, value: v }))
+/**
+ * Canonical key → per-option-value i18n label key. The parallel of
+ * `KEY_LABELS`, but for the *options* of enum/chip controls. Values not listed
+ * here fall back to the raw option value — correct for literal enums (`size`,
+ * `aspectRatio`, `imageResolution`, `outputFormat`, language codes) whose
+ * options are already human-readable.
+ */
+const OPTION_LABELS: Record<string, Record<string, string>> = {
+  quality: {
+    auto: 'paintings.quality_options.auto',
+    low: 'paintings.quality_options.low',
+    medium: 'paintings.quality_options.medium',
+    high: 'paintings.quality_options.high',
+    standard: 'paintings.quality_options.standard',
+    hd: 'paintings.quality_options.hd'
+  },
+  renderingSpeed: {
+    DEFAULT: 'paintings.rendering_speeds.default',
+    TURBO: 'paintings.rendering_speeds.turbo',
+    QUALITY: 'paintings.rendering_speeds.quality'
+  },
+  personGeneration: {
+    DONT_ALLOW: 'paintings.person_generation_options.allow_none',
+    ALLOW_ADULT: 'paintings.person_generation_options.allow_adult',
+    ALLOW_ALL: 'paintings.person_generation_options.allow_all'
+  },
+  background: {
+    auto: 'paintings.background_options.auto',
+    transparent: 'paintings.background_options.transparent',
+    opaque: 'paintings.background_options.opaque'
+  },
+  moderation: {
+    auto: 'paintings.moderation_options.auto',
+    low: 'paintings.moderation_options.low'
+  },
+  styleType: {
+    AUTO: 'paintings.style_type_options.auto',
+    GENERAL: 'paintings.style_type_options.general',
+    REALISTIC: 'paintings.style_type_options.realistic',
+    DESIGN: 'paintings.style_type_options.design',
+    RENDER_3D: 'paintings.style_type_options.render_3d',
+    ANIME: 'paintings.style_type_options.anime'
+  },
+  sequentialImageGeneration: {
+    auto: 'paintings.dmxapi.sequential_image_generation_options.auto',
+    disabled: 'paintings.dmxapi.sequential_image_generation_options.disabled'
+  },
+  refMode: {
+    repaint: 'paintings.dashscope.ref_mode_options.repaint',
+    refonly: 'paintings.dashscope.ref_mode_options.refonly'
+  }
+}
+
+function toOptions(key: string, values: readonly string[]): OptionItem[] {
+  const labelMap = OPTION_LABELS[key]
+  return values.map((v) => {
+    const labelKey = labelMap?.[v]
+    return labelKey ? { labelKey, value: v } : { label: v, value: v }
+  })
 }
 
 function specToField(key: string, spec: SupportSpec, allSupports: Record<string, SupportSpec>): BaseConfigItem | null {
@@ -83,7 +140,7 @@ function specToField(key: string, spec: SupportSpec, allSupports: Record<string,
       // Mode allows arbitrary width × height via a sibling `size` spec —
       // append the `'custom'` chip so the customSize widget can gate on it.
       const pairedSize = key === 'size' && allSupports.customSize?.type === 'size'
-      const options: OptionItem[] = toOptions(spec.options)
+      const options: OptionItem[] = toOptions(key, spec.options)
       if (pairedSize) options.push({ labelKey: 'paintings.custom_size', value: 'custom' })
       if (renderAsChips) {
         return {

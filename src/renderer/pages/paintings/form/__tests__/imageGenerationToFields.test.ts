@@ -51,6 +51,35 @@ describe('imageGenerationToFields', () => {
     expect(byKey.background?.type).toBe('select')
   })
 
+  it('i18n: semantic enum options carry a labelKey; literal enum options keep the raw value as label', () => {
+    const items = imageGenerationToFields({
+      modes: {
+        generate: {
+          supports: {
+            quality: { type: 'enum', options: ['standard', 'hd'] },
+            styleType: { type: 'enum', options: ['AUTO', 'REALISTIC'] },
+            aspectRatio: { type: 'enum', options: ['1:1', '16:9'] }
+          }
+        }
+      }
+    })
+    const byKey = Object.fromEntries(items.map((i) => [i.key, i]))
+    // Semantic enums → translatable i18n labelKey, no raw label.
+    expect(byKey.quality!.options).toEqual([
+      { labelKey: 'paintings.quality_options.standard', value: 'standard' },
+      { labelKey: 'paintings.quality_options.hd', value: 'hd' }
+    ])
+    expect(byKey.styleType!.options).toEqual([
+      { labelKey: 'paintings.style_type_options.auto', value: 'AUTO' },
+      { labelKey: 'paintings.style_type_options.realistic', value: 'REALISTIC' }
+    ])
+    // Literal enum (ratios) → raw value as label, no labelKey (nothing to translate).
+    expect(byKey.aspectRatio!.options).toEqual([
+      { label: '1:1', value: '1:1' },
+      { label: '16:9', value: '16:9' }
+    ])
+  })
+
   it('imagen-4-ultra: aspectRatio enum + numImages capped at 1 + personGeneration select', () => {
     const items = imageGenerationToFields({
       modes: {

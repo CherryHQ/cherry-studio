@@ -3779,6 +3779,10 @@
       "is_sketch": "[to be translated]:Sketch Input",
       "left_scale": "[to be translated]:Expand Left",
       "ref_mode": "[to be translated]:Reference Mode",
+      "ref_mode_options": {
+        "refonly": "[to be translated]:Reference only",
+        "repaint": "[to be translated]:Repaint"
+      },
       "ref_strength": "[to be translated]:Reference Strength",
       "right_scale": "[to be translated]:Expand Right",
       "source_lang": "[to be translated]:Source Language",
@@ -3790,7 +3794,11 @@
     "dmxapi": {
       "generating_tip": "Generarea cu modelul oficial, timpul estimat de așteptare este de 2-5 minute pentru cele mai bune rezultate. Te rugăm să verifici logurile backend DMXAPI pentru costul acestei operațiuni.",
       "max_images": "[to be translated]:Max Images",
-      "sequential_image_generation": "[to be translated]:Sequential Image Generation"
+      "sequential_image_generation": "[to be translated]:Sequential Image Generation",
+      "sequential_image_generation_options": {
+        "auto": "[to be translated]:Auto",
+        "disabled": "[to be translated]:Disabled"
+      }
     },
     "edit": {
       "image_file": "Imagine editată",
@@ -3887,9 +3895,11 @@
     "quality": "Calitate",
     "quality_options": {
       "auto": "Auto",
+      "hd": "[to be translated]:HD",
       "high": "Înaltă",
       "low": "Scăzută",
-      "medium": "Medie"
+      "medium": "Medie",
+      "standard": "[to be translated]:Standard"
     },
     "regenerate": {
       "confirm": "Aceasta va înlocui imaginile generate existente. Vrei să continui?"
@@ -3925,6 +3935,14 @@
     "seed_tip": "Același seed și prompt pot produce imagini similare",
     "select_model": "Selectează modelul",
     "style_type": "[to be translated]:Style",
+    "style_type_options": {
+      "anime": "[to be translated]:Anime",
+      "auto": "[to be translated]:Auto",
+      "design": "[to be translated]:Design",
+      "general": "[to be translated]:General",
+      "realistic": "[to be translated]:Realistic",
+      "render_3d": "[to be translated]:3D Render"
+    },
     "style_type_tip": "[to be translated]:Image generation style",
     "text_desc_required": "Te rugăm să introduci mai întâi descrierea imaginii",
     "thinking_mode": "[to be translated]:Thinking Mode",

@@ -3779,6 +3779,10 @@
       "is_sketch": "[to be translated]:Sketch Input",
       "left_scale": "[to be translated]:Expand Left",
       "ref_mode": "[to be translated]:Reference Mode",
+      "ref_mode_options": {
+        "refonly": "[to be translated]:Reference only",
+        "repaint": "[to be translated]:Repaint"
+      },
       "ref_strength": "[to be translated]:Reference Strength",
       "right_scale": "[to be translated]:Expand Right",
       "source_lang": "[to be translated]:Source Language",
@@ -3790,7 +3794,11 @@
     "dmxapi": {
       "generating_tip": "Đang tạo với mô hình chính thức, thời gian chờ ước tính là 2-5 phút để có kết quả tốt nhất. Vui lòng kiểm tra nhật ký backend DMXAPI để biết chi phí của thao tác này.",
       "max_images": "[to be translated]:Max Images",
-      "sequential_image_generation": "[to be translated]:Sequential Image Generation"
+      "sequential_image_generation": "[to be translated]:Sequential Image Generation",
+      "sequential_image_generation_options": {
+        "auto": "[to be translated]:Auto",
+        "disabled": "[to be translated]:Disabled"
+      }
     },
     "edit": {
       "image_file": "Hình ảnh đầu vào",
@@ -3887,9 +3895,11 @@
     "quality": "Chất lượng",
     "quality_options": {
       "auto": "Tự động",
+      "hd": "[to be translated]:HD",
       "high": "Cao",
       "low": "Thấp",
-      "medium": "Trung bình"
+      "medium": "Trung bình",
+      "standard": "[to be translated]:Standard"
     },
     "regenerate": {
       "confirm": "Thao tác này sẽ thay thế các hình ảnh đã tạo hiện có của bạn. Bạn có muốn tiếp tục không?"
@@ -3925,6 +3935,14 @@
     "seed_tip": "Cùng một hạt giống và lời nhắc có thể tạo ra những hình ảnh tương tự",
     "select_model": "Chọn Mô hình",
     "style_type": "[to be translated]:Style",
+    "style_type_options": {
+      "anime": "[to be translated]:Anime",
+      "auto": "[to be translated]:Auto",
+      "design": "[to be translated]:Design",
+      "general": "[to be translated]:General",
+      "realistic": "[to be translated]:Realistic",
+      "render_3d": "[to be translated]:3D Render"
+    },
     "style_type_tip": "[to be translated]:Image generation style",
     "text_desc_required": "Vui lòng nhập mô tả hình ảnh trước",
     "thinking_mode": "[to be translated]:Thinking Mode",
