@@ -417,6 +417,7 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     type: 'openai',
     apiKey: '',
     apiHost: 'https://api.stepfun.com',
+    anthropicApiHost: 'https://api.stepfun.com',
     models: SYSTEM_MODELS.stepfun,
     isSystem: true,
     enabled: false
@@ -971,8 +972,8 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
     websites: {
       official: 'https://platform.stepfun.com/',
       apiKey: 'https://platform.stepfun.com/interface-key',
-      docs: 'https://platform.stepfun.com/docs/overview/concept',
-      models: 'https://platform.stepfun.com/docs/llm/text'
+      docs: 'https://platform.stepfun.com/docs/api-reference/chat/chat-completion-create',
+      models: 'https://platform.stepfun.com/docs/guides/models/overview'
     }
   },
   doubao: {

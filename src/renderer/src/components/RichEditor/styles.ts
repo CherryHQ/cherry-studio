@@ -19,6 +19,7 @@ const STYLE_CONTENT = `
   border-radius: 6px;
   background: var(--color-background);
   overflow-y: hidden;
+  min-height: 0;
 }
 
 .RichEditorWrapper .ProseMirror table,
@@ -60,6 +61,9 @@ const STYLE_CONTENT = `
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) var(--color-background-subtle);
 }
+  position: sticky;
+  top: 0;
+  z-index: 10;
 
 .ToolbarWrapper::-webkit-scrollbar-track {
   background: var(--color-background-subtle);

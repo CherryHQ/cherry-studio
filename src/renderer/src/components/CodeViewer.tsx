@@ -468,6 +468,7 @@ const CodeViewer = ({
                   expanded={expanded}
                   wrapped={wrapped}
                   index={virtualItem.index}
+                  isDarkTheme={isShikiThemeDark}
                 />
               </div>
             ))}
@@ -494,13 +495,22 @@ interface VirtualizedRowData {
   showLineNumbers: boolean
   expanded: boolean
   wrapped: boolean
+  isDarkTheme: boolean
 }
 
 /**
  * 单行代码渲染
  */
 const VirtualizedRow = memo(
-  ({ rawLine, tokenLine, showLineNumbers, expanded, wrapped, index }: VirtualizedRowData & { index: number }) => {
+  ({
+    rawLine,
+    tokenLine,
+    showLineNumbers,
+    expanded,
+    wrapped,
+    index,
+    isDarkTheme
+  }: VirtualizedRowData & { index: number }) => {
     // 补全代码行 tokens，把原始内容拼接到高亮内容之后，确保渲染出整行来。
     const completeTokenLine = useMemo(() => {
       // 如果出现空行，补一个空元素保证行高
@@ -553,7 +563,7 @@ const VirtualizedRow = memo(
             wrapped ? '[&_*]:whitespace-pre-wrap [&_*]:break-words' : '[&_*]:whitespace-pre [&_*]:break-normal'
           )}>
           {completeTokenLine.map((token, tokenIndex) => (
-            <span key={tokenIndex} style={getReactStyleFromToken(token)}>
+            <span key={tokenIndex} style={getReactStyleFromToken(token, { isDarkTheme })}>
               {token.content}
             </span>
           ))}

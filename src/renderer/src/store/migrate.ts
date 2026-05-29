@@ -3413,6 +3413,21 @@ const migrateConfig = {
       logger.error('migrate 206 error', error as Error)
       return state
     }
+  },
+  '207': (state: RootState) => {
+    try {
+      state.llm.providers.forEach((provider) => {
+        if (provider.id === 'stepfun' && !provider.anthropicApiHost) {
+          provider.anthropicApiHost = 'https://api.stepfun.com'
+        }
+      })
+
+      logger.info('migrate 207 success')
+      return state
+    } catch (error) {
+      logger.error('migrate 207 error', error as Error)
+      return state
+    }
   }
 }
 
