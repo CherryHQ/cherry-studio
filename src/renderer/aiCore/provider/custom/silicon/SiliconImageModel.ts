@@ -1,7 +1,7 @@
 import { APICallError, type ImageModelV3, type ImageModelV3CallOptions, type SharedV3Warning } from '@ai-sdk/provider'
 import { combineHeaders, type FetchFunction, removeUndefinedEntries } from '@ai-sdk/provider-utils'
 
-import { fileToDataUrl } from './imageTransports/transportUtils'
+import { fileToDataUrl } from '../imageTransports/transportUtils'
 
 /**
  * SiliconFlow Image Generation model — one class for every SiliconFlow

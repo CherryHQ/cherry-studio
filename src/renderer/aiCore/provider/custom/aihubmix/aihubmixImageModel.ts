@@ -26,7 +26,7 @@ import { loggerService } from '@logger'
 import { createPaintingGenerateError } from '@renderer/aiCore/errors/paintingGenerateError'
 import { readErrorMessage } from '@renderer/aiCore/errors/readErrorMessage'
 
-import { createAihubmixFluxTransport } from './imageTransports/aihubmixFlux'
+import { createAihubmixFluxTransport } from '../imageTransports/aihubmixFlux'
 
 const logger = loggerService.withContext('AihubmixImageModel')
 

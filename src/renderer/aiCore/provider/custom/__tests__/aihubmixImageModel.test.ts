@@ -23,7 +23,7 @@ vi.mock('@renderer/i18n', () => ({
   default: { t: (key: string) => key }
 }))
 
-import { createAihubmixImageModel } from '../aihubmixImageModel'
+import { createAihubmixImageModel } from '../aihubmix/aihubmixImageModel'
 
 /**
  * Covers the relocated AiHubMix special branches (Google native image models,
