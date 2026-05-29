@@ -25,39 +25,58 @@ function normalizeBody(raw: BodyInit | null | undefined): unknown {
   return raw
 }
 
+function makeCapturingFetch() {
+  let captured: { url: string; init?: RequestInit } | undefined
+  // The canned `{}` 200 response is lenient enough that every caller's response
+  // parser yields nothing *without throwing* — we only care about what went out.
+  const fetch = ((url: RequestInfo | URL, init?: RequestInit) => {
+    captured = { url: String(url), init }
+    return Promise.resolve(new Response('{}', { status: 200 }))
+  }) as typeof globalThis.fetch
+
+  return {
+    fetch,
+    wasCaptured: () => captured !== undefined,
+    result(): CapturedRequest {
+      if (!captured) throw new Error('no fetch request was made')
+      return { url: captured.url, method: captured.init?.method ?? 'GET', body: normalizeBody(captured.init?.body) }
+    }
+  }
+}
+
 /**
- * Drive an `ImageGenerationTransport` at its outbound boundary: mock `fetch`,
- * run `submit`, and return the single captured request (url + normalized body).
- *
- * The canned `{}` 200 response is lenient enough that every transport's
- * response parser yields no urls *without throwing*, so `submit` always
- * completes regardless of family — we only care about what went out.
+ * Capture the outbound request of a `submit`-based transport. Transports call
+ * the global `fetch` directly, so the global is mocked for the call.
  */
 export async function captureImageRequest(
   transport: ImageGenerationTransport,
   input: ImageGenerationSubmitInput
 ): Promise<CapturedRequest> {
-  let captured: { url: string; init?: RequestInit } | undefined
-  const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(((url: RequestInfo | URL, init?: RequestInit) => {
-    captured = { url: String(url), init }
-    return Promise.resolve(new Response('{}', { status: 200 }))
-  }) as typeof fetch)
-
+  const cap = makeCapturingFetch()
+  const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(cap.fetch)
   try {
     await transport.submit(input)
   } catch (err) {
-    // Some transports validate the response (e.g. require a task id) and throw
-    // on the canned `{}` — that's after the request is sent, which is all we
-    // capture. Only surface failures that happened *before* fetch was called.
-    if (!captured) throw err
+    if (!cap.wasCaptured()) throw err
   } finally {
-    fetchMock.mockRestore()
+    spy.mockRestore()
   }
+  return cap.result()
+}
 
-  if (!captured) throw new Error('transport did not call fetch')
-  return {
-    url: captured.url,
-    method: captured.init?.method ?? 'GET',
-    body: normalizeBody(captured.init?.body)
+/**
+ * Capture the outbound request when the unit accepts an *injectable* `fetch`
+ * (e.g. image models that bind `config.fetch` at construction, before any
+ * global mock would apply). The caller wires the provided fetch in and runs.
+ */
+export async function captureWithFetch(
+  run: (fetch: typeof globalThis.fetch) => PromiseLike<unknown>
+): Promise<CapturedRequest> {
+  const cap = makeCapturingFetch()
+  try {
+    await run(cap.fetch)
+  } catch (err) {
+    if (!cap.wasCaptured()) throw err
   }
+  return cap.result()
 }
