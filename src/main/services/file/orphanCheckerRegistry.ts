@@ -4,7 +4,7 @@
  * Each `FileRefSourceType` variant must have a `SourceTypeChecker` registered
  * here; the `Record<FileRefSourceType, SourceTypeChecker<...>>` shape forces
  * exhaustive coverage at compile time. Adding a new variant to
- * `allSourceTypes` (in `packages/shared/data/types/file/ref/index.ts`) without
+ * `allSourceTypes` (in `src/shared/data/types/file/ref/index.ts`) without
  * adding a checker here = TypeScript build error.
  *
  * Phase status: typed surface + temp_session, knowledge_item, chat_message,

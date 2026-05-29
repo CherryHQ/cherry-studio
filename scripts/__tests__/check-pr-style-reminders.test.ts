@@ -9,10 +9,10 @@ import {
 describe('check-pr-style-reminders', () => {
   it('reports legacy vars only from added lines', () => {
     const diff = `
-diff --git a/src/renderer/src/example.tsx b/src/renderer/src/example.tsx
+diff --git a/src/renderer/example.tsx b/src/renderer/example.tsx
 index 1111111..2222222 100644
---- a/src/renderer/src/example.tsx
-+++ b/src/renderer/src/example.tsx
+--- a/src/renderer/example.tsx
++++ b/src/renderer/example.tsx
 @@ -10,0 +11,4 @@
 +const css = 'color: var(--color-text-1);'
 +// var(--color-text-2)
@@ -20,17 +20,17 @@ index 1111111..2222222 100644
 -const removed = 'color: var(--color-text-3);'
 `
 
-    const findings = parseAddedLegacyVarFindingsFromDiff(diff, 'src/renderer/src/example.tsx')
+    const findings = parseAddedLegacyVarFindingsFromDiff(diff, 'src/renderer/example.tsx')
 
     expect(findings).toEqual([
       {
-        file: 'src/renderer/src/example.tsx',
+        file: 'src/renderer/example.tsx',
         line: 11,
         variable: '--color-text-1',
         lineText: "const css = 'color: var(--color-text-1);'"
       },
       {
-        file: 'src/renderer/src/example.tsx',
+        file: 'src/renderer/example.tsx',
         line: 13,
         variable: '--color-background-soft',
         lineText: "const next = 'background: var(--color-background-soft);'"
@@ -40,10 +40,10 @@ index 1111111..2222222 100644
 
   it('tracks added line numbers from a unified diff', () => {
     const diff = `
-diff --git a/src/renderer/src/example.tsx b/src/renderer/src/example.tsx
+diff --git a/src/renderer/example.tsx b/src/renderer/example.tsx
 index 1111111..2222222 100644
---- a/src/renderer/src/example.tsx
-+++ b/src/renderer/src/example.tsx
+--- a/src/renderer/example.tsx
++++ b/src/renderer/example.tsx
 @@ -10,2 +10,4 @@
  const old = true
 +const added = 'w-[420px]'
@@ -59,7 +59,7 @@ index 1111111..2222222 100644
     const body = buildPullRequestStyleRemindersComment(
       [
         {
-          file: 'src/renderer/src/example.tsx',
+          file: 'src/renderer/example.tsx',
           line: 11,
           variable: '--color-text-1',
           lineText: "const css = 'color: var(--color-text-1);'"
@@ -67,7 +67,7 @@ index 1111111..2222222 100644
       ],
       [
         {
-          file: 'src/renderer/src/example.tsx',
+          file: 'src/renderer/example.tsx',
           line: 12,
           original: 'w-[420px]',
           canonical: 'w-105',

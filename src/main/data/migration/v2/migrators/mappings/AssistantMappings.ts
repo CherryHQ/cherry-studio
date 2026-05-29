@@ -31,7 +31,7 @@ import { legacyModelToUniqueId } from '../transformers/ModelTransformers'
 
 /**
  * Old Model type from Redux state
- * Source: src/renderer/src/types/index.ts
+ * Source: src/renderer/types/index.ts
  */
 /**
  * Legacy data may have incomplete model objects (e.g. missing provider or group).
@@ -46,7 +46,7 @@ export interface OldModel {
 
 /**
  * Old AssistantSettings from Redux state
- * Source: src/renderer/src/types/index.ts
+ * Source: src/renderer/types/index.ts
  */
 export interface OldAssistantSettings {
   maxTokens?: number
@@ -84,7 +84,7 @@ export interface OldMcpServer {
 
 /**
  * Old Assistant type from Redux state.
- * Source: src/renderer/src/types/index.ts
+ * Source: src/renderer/types/index.ts
  *
  * Fields use nullable unions (`| null`) because legacy Redux data
  * may store explicit nulls. All fields except `id` are optional

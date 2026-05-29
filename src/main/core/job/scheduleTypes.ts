@@ -5,7 +5,7 @@
  * and decides catch-up behavior. They never cross the IPC boundary: renderer
  * does not list, create, or update schedules through DataApi (job triggering
  * is owned by business services in main). Hence they live here rather than in
- * `packages/shared/`.
+ * `src/shared/`.
  *
  * Only `JobScheduleSnapshot` is conceptually a candidate for IPC exposure, but
  * the current `JobSchemas` route table exposes no schedule endpoints, so it

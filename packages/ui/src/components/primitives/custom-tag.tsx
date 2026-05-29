@@ -1,4 +1,4 @@
-// Original path: src/renderer/src/components/Tags/CustomTag.tsx
+// Original path: src/renderer/components/Tags/CustomTag.tsx
 import { X } from 'lucide-react'
 import type { CSSProperties, FC, MouseEventHandler } from 'react'
 import { memo, useMemo } from 'react'

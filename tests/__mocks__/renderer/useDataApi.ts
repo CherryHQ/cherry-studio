@@ -13,7 +13,7 @@ import { vi } from 'vitest'
 /**
  * Mock useDataApi hooks for testing
  * Provides comprehensive mocks for all data API hooks with realistic SWR-like behavior
- * Matches the actual interface from src/renderer/src/data/hooks/useDataApi.ts
+ * Matches the actual interface from src/renderer/data/hooks/useDataApi.ts
  */
 
 /** Mirror of ParamsOption from useDataApi so callers can pass `params` on template paths */

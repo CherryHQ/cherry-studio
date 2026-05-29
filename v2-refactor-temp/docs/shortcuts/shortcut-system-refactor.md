@@ -26,9 +26,9 @@ v2 的目标很明确：
 
 系统由 4 层组成：
 
-1. 定义层：`packages/shared/shortcuts/definitions.ts`
-2. 工具层：`packages/shared/shortcuts/utils.ts`
-3. 存储层：`packages/shared/data/preference/preferenceSchemas.ts`
+1. 定义层：`src/shared/shortcuts/definitions.ts`
+2. 工具层：`src/shared/shortcuts/utils.ts`
+3. 存储层：`src/shared/data/preference/preferenceSchemas.ts`
 4. 消费层：`ShortcutService` 与 `useShortcuts.ts`
 
 它们各自负责的事情很简单：

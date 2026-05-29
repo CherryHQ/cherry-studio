@@ -41,7 +41,7 @@ Boot config keys follow the same naming convention as preferences.
 
 ### Step 1: Add to Schema Interface
 
-**File:** `packages/shared/data/bootConfig/bootConfigSchemas.ts`
+**File:** `src/shared/data/bootConfig/bootConfigSchemas.ts`
 
 The schema interface and defaults live side by side. The current shape looks like this — follow the same pattern for any new key (matching naming convention, matching entry in `DefaultBootConfig`):
 
@@ -61,7 +61,7 @@ export const DefaultBootConfig: BootConfigSchema = {
 
 ### Step 2: Add Custom Types (if needed)
 
-**File:** `packages/shared/data/bootConfig/bootConfigTypes.ts`
+**File:** `src/shared/data/bootConfig/bootConfigTypes.ts`
 
 For simple types (boolean, string, number), no changes needed — the type is inferred from the schema. For custom types, define them alongside `BootConfigKey`:
 
@@ -115,7 +115,7 @@ The `v2-refactor-temp/tools/data-classify/` directory contains the code generati
 
 1. Each item in `classification.json` with `"category": "bootConfig"` maps a legacy key to a boot config key
 2. The generator reads these classifications and produces:
-   - `packages/shared/data/bootConfig/bootConfigSchemas.ts` — schema interface and defaults
+   - `src/shared/data/bootConfig/bootConfigSchemas.ts` — schema interface and defaults
    - `src/main/data/migration/v2/migrators/mappings/BootConfigMappings.ts` — legacy-to-new key mappings
 3. At migration time, `BootConfigMigrator` reads values from legacy sources (Redux, ElectronStore, Dexie settings, localStorage, and the legacy home config file) and writes them to `bootConfigService`
 
@@ -183,8 +183,8 @@ The v1 `~/.cherrystudio/config/config.json` stores `appDataPath` as an array of 
 
 | File | Purpose |
 |------|---------|
-| `packages/shared/data/bootConfig/bootConfigSchemas.ts` | Schema interface and default values |
-| `packages/shared/data/bootConfig/bootConfigTypes.ts` | `BootConfigKey` type, `BootConfigPreferenceKeys` mapped type |
+| `src/shared/data/bootConfig/bootConfigSchemas.ts` | Schema interface and default values |
+| `src/shared/data/bootConfig/bootConfigTypes.ts` | `BootConfigKey` type, `BootConfigPreferenceKeys` mapped type |
 | `src/main/data/bootConfig/BootConfigService.ts` | Service implementation |
 | `src/main/data/bootConfig/types.ts` | `BootConfigLoadError` type |
 | `v2-refactor-temp/tools/data-classify/data/classification.json` | Migration source of truth |

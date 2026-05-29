@@ -6,7 +6,7 @@ import { vi } from 'vitest'
 /**
  * Mock DataApiService for testing
  * Provides a comprehensive mock of the DataApiService with realistic behavior
- * Matches the actual DataApiService interface from src/renderer/src/data/DataApiService.ts
+ * Matches the actual DataApiService interface from src/renderer/data/DataApiService.ts
  */
 
 /**

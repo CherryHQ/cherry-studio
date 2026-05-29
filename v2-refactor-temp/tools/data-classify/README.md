@@ -144,10 +144,10 @@ npm run extract
 
 扫描源文件并提取以下数据源的信息：
 
-- **Redux Store**: `src/renderer/src/store/*.ts`
+- **Redux Store**: `src/renderer/store/*.ts`
 - **Electron Store**: `src/main/services/ConfigManager.ts`
 - **LocalStorage**: 所有使用 localStorage 的文件
-- **Dexie 数据库**: `src/renderer/src/databases/index.ts`
+- **Dexie 数据库**: `src/renderer/databases/index.ts`
 
 > **注意**: `dexieSettings` 数据源中的字符串字面量 key 会被自动提取，但动态 key（如模板字符串拼接的）需要手动维护。详见下方 [dexieSettings 数据源](#dexiesettings-数据源) 章节。
 
@@ -173,8 +173,8 @@ npm run generate
 
 生成以下 TypeScript 文件：
 
-- `packages/shared/data/preference/preferenceSchemas.ts` - 偏好配置类型定义与默认值
-- `packages/shared/data/bootConfig/bootConfigSchemas.ts` - 启动配置类型定义与默认值
+- `src/shared/data/preference/preferenceSchemas.ts` - 偏好配置类型定义与默认值
+- `src/shared/data/bootConfig/bootConfigSchemas.ts` - 启动配置类型定义与默认值
 - `src/main/data/migration/v2/migrators/mappings/PreferencesMappings.ts` - 偏好迁移映射
 - `src/main/data/migration/v2/migrators/mappings/BootConfigMappings.ts` - 启动配置迁移映射
 

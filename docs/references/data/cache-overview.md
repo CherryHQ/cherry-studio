@@ -30,7 +30,7 @@ Persist is renderer-only on disk — `src/main/data/CacheService.ts:477-479` res
 | Template | `'scroll.position.${topicId}': number` | `get('scroll.position.t42')`            | Memory / Shared  |
 | Casual   | (none — type argument only)          | `getCasual<T>('my.dynamic.key')`          | Memory only      |
 
-Template keys share one default value across all instances — all `web_search.provider.last_used_key.*` fall back to `''`. Casual keys are blocked at compile time from matching any schema pattern (`UseCacheCasualKey` in `packages/shared/data/cache/cacheSchemas.ts:393`).
+Template keys share one default value across all instances — all `web_search.provider.last_used_key.*` fall back to `''`. Casual keys are blocked at compile time from matching any schema pattern (`UseCacheCasualKey` in `src/shared/data/cache/cacheSchemas.ts:393`).
 
 ## Design Invariants
 
@@ -39,13 +39,13 @@ Non-obvious rules the code enforces; assume them when designing consumers.
 1. **Same-value write is a no-op.** Equality via `lodash.isEqual`. No broadcast, no subscriber fire, no hook re-render. (`src/main/data/CacheService.ts` `isEqual` guards before `broadcastSync` / notifier)
 2. **TTL-only refresh does not fire subscribers.** Updating `expireAt` on the same value is silent.
 3. **Subscribers fire only on explicit writes.** Lazy TTL cleanup, the 10-min GC sweep, and `onStop` do not fire.
-4. **Hooks + TTL is discouraged.** `useCache` / `useSharedCache` log a warn when the key has TTL (`src/renderer/src/data/hooks/useCache.ts:186-192,289-295`) — values can expire between renders.
+4. **Hooks + TTL is discouraged.** `useCache` / `useSharedCache` log a warn when the key has TTL (`src/renderer/data/hooks/useCache.ts:186-192,289-295`) — values can expire between renders.
 5. **Hooks pin cache entries.** `registerHook` / `unregisterHook` refcount keys; `delete` / `deleteShared` return `false` while any hook is active.
 6. **Persist has no delete.** Persist keys are fixed by schema; the API exposes only `getPersist` / `setPersist` / `hasPersist`.
 7. **TTL uses absolute `expireAt` (Unix ms).** Every process expires the same entry at the same instant, regardless of clock skew in IPC delivery.
 8. **Main-wins convergence.** All cross-window shared writes are serialized through Main; on window init, Main-priority override applies to conflicts with the renderer's pre-sync copy.
 9. **Re-entrant callbacks are safe.** Subscribers may write back into the same key; the `isEqual` short-circuit terminates loops once the value stabilizes. Callback errors are caught and logged without skipping other subscribers.
-10. **Template placeholders are runtime-anonymous.** `${providerId}` and `${foo}` match identical concrete keys. Dynamic segments match `[\w\-]+` only — dots, colons, and non-ASCII are rejected (`packages/shared/data/cache/templateKey.ts:35-46`).
+10. **Template placeholders are runtime-anonymous.** `${providerId}` and `${foo}` match identical concrete keys. Dynamic segments match `[\w\-]+` only — dots, colons, and non-ASCII are rejected (`src/shared/data/cache/templateKey.ts:35-46`).
 
 ## Architecture
 
@@ -107,4 +107,4 @@ Non-obvious rules the code enforces; assume them when designing consumers.
 
 - [Cache Usage](./cache-usage.md) — React hooks, direct API, patterns
 - [Cache Schema Guide](./cache-schema-guide.md) — Adding fixed and template keys
-- Source: `src/main/data/CacheService.ts`, `src/renderer/src/data/CacheService.ts`, `src/renderer/src/data/hooks/useCache.ts`, `packages/shared/data/cache/`
+- Source: `src/main/data/CacheService.ts`, `src/renderer/data/CacheService.ts`, `src/renderer/data/hooks/useCache.ts`, `src/shared/data/cache/`

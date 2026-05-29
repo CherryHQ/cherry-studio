@@ -17,9 +17,9 @@
 
 相关实现：
 
-- `src/renderer/src/pages/notes/NotesPage.tsx`
-- `src/renderer/src/services/NotesService.ts`
-- `src/renderer/src/services/NotesTreeService.ts`
+- `src/renderer/pages/notes/NotesPage.tsx`
+- `src/renderer/services/NotesService.ts`
+- `src/renderer/services/NotesTreeService.ts`
 
 ## 文件监听与同步
 

@@ -79,7 +79,7 @@ export default defineConfig({
         extends: true,
         resolve: {
           alias: {
-            '@shared': resolve('packages/shared'),
+            '@shared': resolve('src/shared'),
             '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
             '@cherrystudio/provider-registry': resolve('packages/provider-registry/src')
           }
@@ -87,12 +87,9 @@ export default defineConfig({
         test: {
           name: 'shared',
           environment: 'node',
-          include: [
-            'packages/shared/**/*.{test,spec}.{ts,tsx}',
-            'packages/shared/**/__tests__/**/*.{test,spec}.{ts,tsx}'
-          ],
+          include: ['src/shared/**/*.{test,spec}.{ts,tsx}', 'src/shared/**/__tests__/**/*.{test,spec}.{ts,tsx}'],
           benchmark: {
-            include: ['packages/shared/**/*.bench.{ts,tsx}', 'packages/shared/**/__tests__/**/*.bench.{ts,tsx}']
+            include: ['src/shared/**/*.bench.{ts,tsx}', 'src/shared/**/__tests__/**/*.bench.{ts,tsx}']
           }
         }
       },

@@ -141,7 +141,7 @@ Boot config keys are accessible through PreferenceService using the `BootConfig.
 - The `UnifiedPreferenceType` merges both preference and boot config type spaces, providing full type safety
 - Changes made through PreferenceService are broadcast to all windows
 
-Utility functions in `packages/shared/data/preference/preferenceUtils.ts`:
+Utility functions in `src/shared/data/preference/preferenceUtils.ts`:
 
 | Function               | Purpose                                                         |
 | ---------------------- | --------------------------------------------------------------- |
@@ -173,9 +173,9 @@ Utility functions in `packages/shared/data/preference/preferenceUtils.ts`:
 | ------------------------------------------------------ | -------------------------------------------------------------- |
 | `src/main/data/bootConfig/BootConfigService.ts`        | Core service — sync load, debounced save, change notifications |
 | `src/main/data/bootConfig/types.ts`                    | `BootConfigLoadError` type definition                          |
-| `packages/shared/data/bootConfig/bootConfigSchemas.ts` | `BootConfigSchema` interface and `DefaultBootConfig`           |
-| `packages/shared/data/bootConfig/bootConfigTypes.ts`   | `BootConfigKey`, `BootConfigPreferenceKeys` mapped type        |
-| `packages/shared/data/preference/preferenceUtils.ts`   | `BootConfig.*` prefix routing utilities                        |
+| `src/shared/data/bootConfig/bootConfigSchemas.ts` | `BootConfigSchema` interface and `DefaultBootConfig`           |
+| `src/shared/data/bootConfig/bootConfigTypes.ts`   | `BootConfigKey`, `BootConfigPreferenceKeys` mapped type        |
+| `src/shared/data/preference/preferenceUtils.ts`   | `BootConfig.*` prefix routing utilities                        |
 | `src/main/data/PreferenceService.ts`                   | Routes `BootConfig.*` keys to `bootConfigService`              |
 | `src/main/index.ts`                                    | Early boot usage (first import, hardware acceleration check)   |
 

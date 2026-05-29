@@ -102,7 +102,7 @@ All preferences MUST have default values in `DefaultPreferences`.
 
 If your preference uses a custom type (enum, union type, etc.), add it first.
 
-**File:** `packages/shared/data/preference/preferenceTypes.ts`
+**File:** `src/shared/data/preference/preferenceTypes.ts`
 
 ```typescript
 // Example: Adding a new enum type
@@ -115,7 +115,7 @@ export enum MyFeatureMode {
 
 ### Step 2: Add to Schema Interface
 
-**File:** `packages/shared/data/preference/preferenceSchemas.ts`
+**File:** `src/shared/data/preference/preferenceSchemas.ts`
 
 Add your key to the `PreferenceSchemas` interface:
 
@@ -156,8 +156,8 @@ const [mode, setMode] = usePreference('feature.my_feature.mode')
 
 | File                                                  | Purpose                                     |
 | ----------------------------------------------------- | ------------------------------------------- |
-| `packages/shared/data/preference/preferenceSchemas.ts`| Schema interface and default values         |
-| `packages/shared/data/preference/preferenceTypes.ts`  | Custom type definitions (enums, unions)     |
+| `src/shared/data/preference/preferenceSchemas.ts`| Schema interface and default values         |
+| `src/shared/data/preference/preferenceTypes.ts`  | Custom type definitions (enums, unions)     |
 
 ## Best Practices Summary
 

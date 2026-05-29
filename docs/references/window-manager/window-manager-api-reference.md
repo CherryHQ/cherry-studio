@@ -92,7 +92,7 @@ See [Suspend / Resume](./window-manager-warmup-mechanics.md#suspend--resume) for
 
 ## Renderer IPC Surface
 
-All methods above are main-process APIs. WindowManager also exposes an IPC surface so the renderer can drive window operations for itself. Channel constants live in `packages/shared/IpcChannel.ts`; handlers are registered in `WindowManager.registerIpcHandlers()`.
+All methods above are main-process APIs. WindowManager also exposes an IPC surface so the renderer can drive window operations for itself. Channel constants live in `src/shared/IpcChannel.ts`; handlers are registered in `WindowManager.registerIpcHandlers()`.
 
 Preload only wraps `getInitData` as `window.api.windowManager.getInitData()`. The other channels are invoked directly via `window.electron.ipcRenderer.invoke(IpcChannel.WindowManager_*, ...)`. `WindowManager_Reused` is a push-only channel (main → renderer) — see [Warmup Mechanics → `WindowManager_Reused` IPC](./window-manager-warmup-mechanics.md#windowmanager_reused-ipc).
 

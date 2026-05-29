@@ -1,4 +1,4 @@
-// Original path: src/renderer/src/components/ErrorBoundary.tsx
+// Original path: src/renderer/components/ErrorBoundary.tsx
 import { AlertTriangle } from 'lucide-react'
 import type { ComponentType, ReactNode } from 'react'
 import type { FallbackProps } from 'react-error-boundary'

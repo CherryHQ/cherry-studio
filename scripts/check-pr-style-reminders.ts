@@ -71,19 +71,19 @@ function parseArgs(): { baseRef: string; headRef: string; markdownOutput?: strin
 }
 
 function isTrackedRendererFile(filePath: string): boolean {
-  if (!filePath.startsWith('src/renderer/src/')) return false
+  if (!filePath.startsWith('src/renderer/')) return false
   if (!LEGACY_CHECK_EXTENSIONS.has(path.extname(filePath))) return false
   return !shouldIgnoreFile(path.join(REPO_ROOT, filePath))
 }
 
 function isCanonicalClassCheckFile(filePath: string): boolean {
-  if (!filePath.startsWith('src/renderer/src/')) return false
+  if (!filePath.startsWith('src/renderer/')) return false
   if (!CANONICAL_CLASS_CHECK_EXTENSIONS.has(path.extname(filePath))) return false
   return !shouldIgnoreFile(path.join(REPO_ROOT, filePath))
 }
 
 function getChangedRendererFiles(baseRef: string, headRef: string): string[] {
-  const output = runGit(['diff', '--name-only', '--diff-filter=ACMR', baseRef, headRef, '--', 'src/renderer/src'])
+  const output = runGit(['diff', '--name-only', '--diff-filter=ACMR', baseRef, headRef, '--', 'src/renderer'])
 
   return output
     .split(/\r?\n/)
@@ -93,7 +93,7 @@ function getChangedRendererFiles(baseRef: string, headRef: string): string[] {
 }
 
 function getChangedCanonicalClassFiles(baseRef: string, headRef: string): string[] {
-  const output = runGit(['diff', '--name-only', '--diff-filter=ACMR', baseRef, headRef, '--', 'src/renderer/src'])
+  const output = runGit(['diff', '--name-only', '--diff-filter=ACMR', baseRef, headRef, '--', 'src/renderer'])
 
   return output
     .split(/\r?\n/)

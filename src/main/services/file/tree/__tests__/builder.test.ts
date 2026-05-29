@@ -427,14 +427,14 @@ describe('createDirectoryTree — watcher mutations', () => {
 describe('createDirectoryTree — DB isolation', () => {
   it('the tree primitive does not import @main/data', async () => {
     // Import-graph proxy: a regex over the source files. The classes live
-    // in `packages/shared/file/types/tree.ts` and the main-side primitive
+    // in `src/shared/file/types/tree.ts` and the main-side primitive
     // is split across `builder.ts` / `DirectoryTreeManager.ts`. None of
     // them may pull anything from `@main/data`.
     const { readFile } = await import('node:fs/promises')
     const builderSource = await readFile(new URL('../builder.ts', import.meta.url), 'utf8')
     const managerSource = await readFile(new URL('../DirectoryTreeManager.ts', import.meta.url), 'utf8')
     const sharedTreeSource = await readFile(
-      new URL('../../../../../../packages/shared/file/types/tree.ts', import.meta.url),
+      new URL('../../../../../shared/file/types/tree.ts', import.meta.url),
       'utf8'
     )
     for (const src of [builderSource, managerSource, sharedTreeSource]) {
