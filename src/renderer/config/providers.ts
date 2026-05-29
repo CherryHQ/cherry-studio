@@ -283,6 +283,17 @@ export const SYSTEM_PROVIDERS_CONFIG: Record<SystemProviderId, SystemProvider> =
     isSystem: true,
     enabled: false
   },
+  commonstack: {
+    id: 'commonstack',
+    name: 'Commonstack',
+    type: 'openai',
+    apiKey: '',
+    apiHost: 'https://api.commonstack.ai/v1/',
+    anthropicApiHost: 'https://api.commonstack.ai',
+    models: SYSTEM_MODELS.commonstack,
+    isSystem: true,
+    enabled: false
+  },
   'new-api': {
     id: 'new-api',
     name: 'New API',
@@ -1029,6 +1040,17 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       apiKey: 'https://openrouter.ai/settings/keys',
       docs: 'https://openrouter.ai/docs/quick-start',
       models: 'https://openrouter.ai/models'
+    }
+  },
+  commonstack: {
+    api: {
+      url: 'https://api.commonstack.ai/v1/'
+    },
+    websites: {
+      official: 'https://commonstack.ai/',
+      apiKey: 'https://commonstack.ai/settings/api-keys',
+      docs: 'https://docs.commonstack.ai/overview/quickstart',
+      models: 'https://commonstack.ai/model-library'
     }
   },
   groq: {

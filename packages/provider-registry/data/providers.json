@@ -1,5 +1,5 @@
 {
-  "version": "2026.04.09",
+  "version": "2026.05.29",
   "providers": [
     {
       "id": "cherryin",
@@ -415,6 +415,28 @@
           "apiKey": "https://openrouter.ai/settings/keys",
           "docs": "https://openrouter.ai/docs/quick-start",
           "models": "https://openrouter.ai/models"
+        }
+      }
+    },
+    {
+      "id": "commonstack",
+      "name": "Commonstack",
+      "description": "Commonstack - AI model provider",
+      "defaultChatEndpoint": "openai-chat-completions",
+      "endpointConfigs": {
+        "openai-chat-completions": {
+          "baseUrl": "https://api.commonstack.ai/v1/"
+        },
+        "anthropic-messages": {
+          "baseUrl": "https://api.commonstack.ai"
+        }
+      },
+      "metadata": {
+        "website": {
+          "official": "https://commonstack.ai/",
+          "apiKey": "https://commonstack.ai/settings/api-keys",
+          "docs": "https://docs.commonstack.ai/overview/quickstart",
+          "models": "https://commonstack.ai/model-library"
         }
       }
     },
