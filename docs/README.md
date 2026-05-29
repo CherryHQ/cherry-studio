@@ -70,6 +70,7 @@
 | Document | Description |
 |----------|-------------|
 | [KnowledgeService](./references/knowledge/knowledge-service.md) | Concurrency control and workload management |
+| [Knowledge Operation Guards](./references/knowledge/operation-guards.md) | Guard, enqueue failure, and recovery semantics for add/delete/reindex |
 
 ### CherryClaw (Autonomous Agent)
 

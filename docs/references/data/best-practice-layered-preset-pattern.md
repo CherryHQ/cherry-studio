@@ -49,6 +49,37 @@ merged results. It does not access the database directly.
 
 **This document focuses on small-scale scenarios using Preference storage.**
 
+#### Where preset-only fields merge
+
+SQLite-backed entities have three field classes:
+
+| Class | Owns | Runtime location |
+|---|---|---|
+| User-editable | DB row | Written via `PATCH /:resource/:id` |
+| Runtime default | Code constants | Merged in `rowToEntity` |
+| **Preset-only static** | Registry package | **Merged in `rowToEntity`** |
+
+Preset-only static fields — `websites`, `description`, `iconUrl`, vendor
+links — have no DB column. The Registry Service looks them up by preset
+key during `rowToEntity` and folds them into the runtime entity. A single
+`GET /:resource/:id` returns the complete object.
+
+**Do not split preset-only fields into a parallel endpoint.** A separate
+`GET /:resource/:id/preset-metadata` forces every consumer to issue two
+requests for one logical entity, fragments the type (`Entity` +
+`EntityPresetMetadata`), and duplicates the merge contract. Merge at the
+`rowToEntity` seam — that is where the entity becomes runtime-shaped.
+
+**Acceptable exceptions:**
+
+1. Preset payload is not 1:1 with the entity (e.g. `GET /catalog` browsed
+   before creating a row — nothing to merge against).
+2. Field set is large and consumed by only one specialised surface — pay
+   the second request there, named as `GET /:resource/:id:full-metadata`
+   so the relationship to the parent stays explicit.
+
+When in doubt: merge.
+
 ## Preset File Standards
 
 ### Location
@@ -56,7 +87,7 @@ merged results. It does not access the database directly.
 All preset configurations should be placed in:
 
 ```
-packages/shared/data/presets/
+src/shared/data/presets/
 ```
 
 ### File Format
@@ -87,7 +118,7 @@ A preset file should contain both type definitions and preset data:
 > **Note:** The `Provider` example below is for illustration purposes only and does not represent the actual provider implementation in Cherry Studio. Your actual data structure will vary based on your specific requirements.
 
 ```typescript
-// packages/shared/data/presets/providers.ts
+// src/shared/data/presets/providers.ts
 
 // Type definitions
 export interface Provider {
@@ -122,7 +153,7 @@ export const PRESETS_PROVIDERS: Provider[] = [
 In your preset file, define the override type that represents user-customizable fields:
 
 ```typescript
-// packages/shared/data/presets/providers.ts
+// src/shared/data/presets/providers.ts
 
 // User-overridable fields (exclude id since it's the identifier)
 export type ProviderOverride = Partial<Omit<Provider, 'id'>>
@@ -136,7 +167,7 @@ export type ProviderOverrides = Record<string, ProviderOverride>
 Add a preference key to store user overrides:
 
 ```typescript
-// packages/shared/data/preference/preferenceSchemas.ts
+// src/shared/data/preference/preferenceSchemas.ts
 
 export const DefaultPreferences = {
   default: {
@@ -153,7 +184,7 @@ Create a custom hook that merges presets with user overrides:
 > **Note:** The hook below is a basic example. Your actual implementation should be tailored to your specific data structure and usage patterns. Consider factors like: which fields are user-editable, how merging should work for nested objects, whether you need filtering/sorting, etc.
 
 ```typescript
-// src/renderer/src/hooks/useProviders.ts
+// src/renderer/hooks/useProviders.ts
 
 import { useCallback, useMemo } from 'react'
 
@@ -230,7 +261,7 @@ function ProviderSettings() {
 For presets that don't require user customization, simply place them in the presets directory and import directly:
 
 ```typescript
-// packages/shared/data/presets/languages.ts
+// src/shared/data/presets/languages.ts
 
 export interface Language {
   code: string
@@ -286,7 +317,7 @@ The layered pattern ensures smooth updates:
 For presets with frequent configuration changes, consider adding a version field to facilitate migration management:
 
 ```typescript
-// packages/shared/data/presets/complex-config.ts
+// src/shared/data/presets/complex-config.ts
 
 export const PRESETS_COMPLEX_CONFIG_VERSION = 2
 

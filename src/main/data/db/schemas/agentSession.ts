@@ -1,30 +1,29 @@
 import type { AgentConfiguration, SlashCommand } from '@shared/data/api/schemas/agents'
+import { sql } from 'drizzle-orm'
 import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps } from './_columnHelpers'
+import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 import { agentTable } from './agent'
 
 export const agentSessionTable = sqliteTable(
   'agent_session',
   {
-    // IDs use the app-generated "session_<timestamp>_<random>" format, not UUIDs,
-    // so uuidPrimaryKey() is intentionally not used here. Callers must always supply an id.
-    id: text().primaryKey(),
+    id: uuidPrimaryKey(),
     agentType: text().notNull(),
     agentId: text()
       .notNull()
       .references(() => agentTable.id, { onDelete: 'cascade' }),
     name: text().notNull(),
-    description: text(),
-    accessiblePaths: text({ mode: 'json' }).$type<string[]>(),
-    instructions: text(),
+    description: text().notNull().default(''),
+    accessiblePaths: text({ mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
+    instructions: text().notNull(),
     model: text().notNull(),
     planModel: text(),
     smallModel: text(),
-    mcps: text({ mode: 'json' }).$type<string[]>(),
-    allowedTools: text({ mode: 'json' }).$type<string[]>(),
-    slashCommands: text({ mode: 'json' }).$type<SlashCommand[]>(),
-    configuration: text({ mode: 'json' }).$type<AgentConfiguration>(),
+    mcps: text({ mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
+    allowedTools: text({ mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
+    slashCommands: text({ mode: 'json' }).$type<SlashCommand[]>().notNull().default(sql`'[]'`),
+    configuration: text({ mode: 'json' }).$type<AgentConfiguration>().notNull().default(sql`'{}'`),
     sortOrder: integer().notNull().default(0),
     ...createUpdateTimestamps
   },

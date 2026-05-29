@@ -145,7 +145,7 @@ For example, if the chain is `[AuthMiddleware, CacheMiddleware, LoggingMiddlewar
 
 ### Registering Middleware
 
-Middleware is registered in `src/renderer/src/providers/middleware/register.ts` (or a similar configuration file).
+Middleware is registered in `src/renderer/providers/middleware/register.ts` (or a similar configuration file).
 
 ```typescript
 // register.ts

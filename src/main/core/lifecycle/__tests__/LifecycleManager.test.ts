@@ -832,6 +832,62 @@ describe('LifecycleManager', () => {
     })
   })
 
+  // ── getBootstrapSummary ──
+
+  describe('getBootstrapSummary', () => {
+    it('should render the summary with ASCII-only borders (no Unicode box-drawing)', async () => {
+      @Injectable('SummaryService')
+      class SummaryService extends BaseService {}
+
+      const manager = LifecycleManager.getInstance()
+      const container = manager['container']
+      container.register(SummaryService)
+
+      await initializeServices(manager)
+
+      const summary = manager.getBootstrapSummary(12.345, 0)
+
+      // Box-drawing characters (U+2500–U+257F) mojibake on non-UTF-8 Windows consoles.
+      expect(summary).not.toMatch(/[─-╿]/)
+      expect(summary).toContain('Bootstrap Summary')
+      expect(summary).toContain('SummaryService')
+      expect(summary).toContain('+--')
+      expect(summary).toContain('|')
+    })
+
+    it('should keep the timing column aligned when a service name overflows the default width', async () => {
+      @Injectable('AlignmentLongServiceNameExceedingThirtyTwoChars')
+      class LongNameService extends BaseService {}
+
+      @Injectable('ShortSvc')
+      class ShortNameService extends BaseService {}
+
+      const manager = LifecycleManager.getInstance()
+      const container = manager['container']
+      container.register(LongNameService)
+      container.register(ShortNameService)
+
+      await initializeServices(manager)
+
+      const summary = manager.getBootstrapSummary(1, 0)
+      const lines = summary.split('\n')
+
+      // Every row shares the same width — outer borders line up.
+      expect(new Set(lines.map((line) => line.length)).size).toBe(1)
+
+      // Timing values on service rows right-align to the same column,
+      // regardless of how long the service name is.
+      const timingEnds = lines
+        .filter((line) => /^\|\s{4}/.test(line) && /\d+\.\d{3}ms/.test(line))
+        .map((line) => {
+          const match = line.match(/\d+\.\d{3}ms/)!
+          return match.index! + match[0].length
+        })
+      expect(timingEnds.length).toBeGreaterThanOrEqual(2)
+      expect(new Set(timingEnds).size).toBe(1)
+    })
+  })
+
   // ── allReady ──
 
   describe('allReady', () => {
@@ -858,14 +914,14 @@ describe('LifecycleManager', () => {
       container.register(ServiceB)
 
       await initializeServices(manager)
-      await manager.allReady()
+      manager.allReady()
 
       expect(calls).toContain('A')
       expect(calls).toContain('B')
       expect(calls).toHaveLength(2)
     })
 
-    it('should emit ALL_SERVICES_READY event after all hooks complete', async () => {
+    it('should emit ALL_SERVICES_READY event after all hooks are invoked', async () => {
       @Injectable('SimpleService')
       class SimpleService extends BaseService {}
 
@@ -878,7 +934,7 @@ describe('LifecycleManager', () => {
       const listener = vi.fn()
       manager.on(LifecycleEvents.ALL_SERVICES_READY, listener)
 
-      await manager.allReady()
+      manager.allReady()
       expect(listener).toHaveBeenCalledOnce()
     })
 
@@ -906,10 +962,10 @@ describe('LifecycleManager', () => {
 
       await initializeServices(manager)
 
-      // Should not throw
-      await expect(manager.allReady()).resolves.toBeUndefined()
+      // Should not throw — allReady is fire-and-forget and never propagates hook errors
+      expect(() => manager.allReady()).not.toThrow()
 
-      // Healthy service hook should still have been called
+      // Healthy service hook should still have been called synchronously
       expect(healthyCalls).toEqual(['healthy'])
     })
 
@@ -932,7 +988,10 @@ describe('LifecycleManager', () => {
       const errorListener = vi.fn()
       manager.on(LifecycleEvents.SERVICE_ERROR, errorListener)
 
-      await manager.allReady()
+      manager.allReady()
+      // SERVICE_ERROR is emitted from an async .catch on the fire-and-forget hook
+      // promise — drain microtasks so the listener observes the event.
+      await Promise.resolve()
 
       expect(errorListener).toHaveBeenCalledOnce()
       expect(errorListener).toHaveBeenCalledWith(
@@ -961,7 +1020,7 @@ describe('LifecycleManager', () => {
       const listener = vi.fn()
       manager.on(LifecycleEvents.ALL_SERVICES_READY, listener)
 
-      await manager.allReady()
+      manager.allReady()
       expect(listener).toHaveBeenCalledOnce()
     })
 
@@ -971,8 +1030,46 @@ describe('LifecycleManager', () => {
       const listener = vi.fn()
       manager.on(LifecycleEvents.ALL_SERVICES_READY, listener)
 
-      await manager.allReady()
+      manager.allReady()
       expect(listener).toHaveBeenCalledOnce()
+    })
+
+    it('should not block on services whose onAllReady is long-running (fire-and-forget)', async () => {
+      let resolveOnAllReady: () => void = () => {}
+      let onAllReadyStarted = false
+
+      @Injectable('SlowService')
+      class SlowService extends BaseService {
+        protected override async onAllReady() {
+          onAllReadyStarted = true
+          await new Promise<void>((resolve) => {
+            resolveOnAllReady = resolve
+          })
+        }
+      }
+
+      const manager = LifecycleManager.getInstance()
+      const container = manager['container']
+      container.register(SlowService)
+
+      await initializeServices(manager)
+
+      const listener = vi.fn()
+      manager.on(LifecycleEvents.ALL_SERVICES_READY, listener)
+
+      // `allReady` must return synchronously even though the service's
+      // `onAllReady` is awaiting a promise that never resolves.
+      manager.allReady()
+
+      // `ALL_SERVICES_READY` fires immediately, before the hook completes.
+      expect(listener).toHaveBeenCalledOnce()
+
+      // Drain microtasks: the hook body has started by now.
+      await Promise.resolve()
+      expect(onAllReadyStarted).toBe(true)
+
+      // Cleanup: resolve the dangling promise so the suite does not leak it.
+      resolveOnAllReady()
     })
   })
 })

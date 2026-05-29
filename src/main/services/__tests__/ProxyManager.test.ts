@@ -18,6 +18,9 @@ vi.mock('@main/core/lifecycle', () => {
       this._disposables.push(disposable)
       return disposable
     }
+    registerInterval() {
+      return { dispose: () => {} }
+    }
   }
 
   return {

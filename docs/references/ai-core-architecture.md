@@ -39,7 +39,7 @@ Cherry Studio's AI calls follow a clear layered architecture:
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                   Service Layer                              │
-│  src/renderer/src/services/                                  │
+│  src/renderer/services/                                  │
 │  ┌────────────────────────────────────────────────────┐    │
 │  │ ApiService.ts                                       │    │
 │  │  - transformMessagesAndFetch()                      │    │
@@ -51,7 +51,7 @@ Cherry Studio's AI calls follow a clear layered architecture:
                          ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                 AI Provider Layer                            │
-│  src/renderer/src/aiCore/                                    │
+│  src/renderer/aiCore/                                    │
 │  ┌────────────────────────────────────────────────────┐    │
 │  │ AiProvider (AiProvider.ts)                     │    │
 │  │  - completions()                                    │    │
@@ -155,7 +155,7 @@ User Input (UI)
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ 2. ApiService.transformMessagesAndFetch()                    │
-│    Location: src/renderer/src/services/ApiService.ts:92      │
+│    Location: src/renderer/services/ApiService.ts:92      │
 │                                                               │
 │    Step 2.1: ConversationService.prepareMessagesForModel()   │
 │    ├─ Message format conversion (UI Message → Model Message) │
@@ -174,7 +174,7 @@ User Input (UI)
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ 3. ApiService.fetchChatCompletion()                          │
-│    Location: src/renderer/src/services/ApiService.ts:139     │
+│    Location: src/renderer/services/ApiService.ts:139     │
 │                                                               │
 │    Step 3.1: getProviderByModel() + API Key Rotation         │
 │    ├─ Get provider configuration                             │
@@ -199,17 +199,14 @@ User Input (UI)
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ 4. AiProvider.completions()                            │
-│    Location: src/renderer/src/aiCore/index_new.ts:116        │
+│    Location: src/renderer/aiCore/index_new.ts:116        │
 │                                                               │
 │    Step 4.1: providerToAiSdkConfig()                         │
 │    ├─ Convert Cherry Provider → AI SDK Config                │
 │    ├─ Set providerId ('openai', 'anthropic', etc.)           │
 │    └─ Set providerSettings (apiKey, baseURL, etc.)           │
 │                                                               │
-│    Step 4.2: Claude Code OAuth special handling              │
-│    └─ Inject Claude Code system message (if OAuth)           │
-│                                                               │
-│    Step 4.3: Routing selection                               │
+│    Step 4.2: Routing selection                               │
 │    ├─ If trace enabled → _completionsForTrace()              │
 │    └─ Otherwise → _completionsOrImageGeneration()            │
 └─────────────────────────┬───────────────────────────────────┘
@@ -217,7 +214,7 @@ User Input (UI)
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ 5. AiProvider._completionsOrImageGeneration()          │
-│    Location: src/renderer/src/aiCore/index_new.ts:167        │
+│    Location: src/renderer/aiCore/index_new.ts:167        │
 │                                                               │
 │    Decision:                                                  │
 │    ├─ Image generation endpoint → legacyProvider.completions()│
@@ -227,7 +224,7 @@ User Input (UI)
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ 6. AiProvider.modernCompletions()                      │
-│    Location: src/renderer/src/aiCore/index_new.ts:284        │
+│    Location: src/renderer/aiCore/index_new.ts:284        │
 │                                                               │
 │    Step 6.1: buildPlugins(config)                            │
 │    └─ Build plugin array (Reasoning, ToolUse, WebSearch, etc.)│
@@ -294,7 +291,7 @@ User Input (UI)
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
 │ 10. Stream Data Processing                                   │
-│     Location: src/renderer/src/aiCore/chunk/                 │
+│     Location: src/renderer/aiCore/chunk/                 │
 │                                                               │
 │     Step 10.1: AiSdkToChunkAdapter.processStream()           │
 │     ├─ Listen to AI SDK's textStream                         │
@@ -380,7 +377,7 @@ plugins = [ReasoningPlugin, ToolUsePlugin, WebSearchPlugin]
 
 #### File Location
 
-`src/renderer/src/services/ApiService.ts`
+`src/renderer/services/ApiService.ts`
 
 #### Core Responsibilities
 
@@ -559,7 +556,7 @@ function getRotatedApiKey(provider: Provider): string {
 
 #### File Location
 
-`src/renderer/src/aiCore/index_new.ts`
+`src/renderer/aiCore/index_new.ts`
 
 #### Core Responsibilities
 
@@ -612,17 +609,7 @@ public async completions(
     )
   }
 
-  // 2. Claude Code OAuth special handling
-  if (this.actualProvider.id === 'anthropic' &&
-      this.actualProvider.authType === 'oauth') {
-    const claudeCodeSystemMessage = buildClaudeCodeSystemModelMessage(
-      params.system
-    )
-    params.system = undefined
-    params.messages = [...claudeCodeSystemMessage, ...(params.messages || [])]
-  }
-
-  // 3. Routing selection
+  // 2. Routing selection
   if (providerConfig.topicId && getEnableDeveloperMode()) {
     return await this._completionsForTrace(modelId, params, {
       ...providerConfig,
@@ -695,7 +682,7 @@ private async modernCompletions(
 
 #### providerToAiSdkConfig() Details
 
-**File**: `src/renderer/src/aiCore/provider/providerConfig.ts`
+**File**: `src/renderer/aiCore/provider/providerConfig.ts`
 
 ```typescript
 export function providerToAiSdkConfig(
@@ -1145,7 +1132,7 @@ Other built-in plugins remain unchanged. See:
 
 ### 6.1 Message Conversion
 
-**File**: `src/renderer/src/services/ConversationService.ts`
+**File**: `src/renderer/services/ConversationService.ts`
 
 ```typescript
 export class ConversationService {
@@ -1203,7 +1190,7 @@ export class ConversationService {
 
 ### 6.2 Stream Data Adaptation
 
-**File**: `src/renderer/src/aiCore/chunk/AiSdkToChunkAdapter.ts`
+**File**: `src/renderer/aiCore/chunk/AiSdkToChunkAdapter.ts`
 
 ```typescript
 export default class AiSdkToChunkAdapter {
@@ -1424,7 +1411,7 @@ const executor = await createExecutor("custom-provider", {
 
 #### Span Creation
 
-**File**: `src/renderer/src/services/SpanManagerService.ts`
+**File**: `src/renderer/services/SpanManagerService.ts`
 
 ```typescript
 export function addSpan(params: StartSpanParams): Span | null {
@@ -1684,16 +1671,16 @@ Current test coverage:
 
 ### Service Layer
 
-- `src/renderer/src/services/ApiService.ts` - Main API service
-- `src/renderer/src/services/ConversationService.ts` - Message preparation
-- `src/renderer/src/services/SpanManagerService.ts` - Trace management
+- `src/renderer/services/ApiService.ts` - Main API service
+- `src/renderer/services/ConversationService.ts` - Message preparation
+- `src/renderer/services/SpanManagerService.ts` - Trace management
 
 ### AI Provider Layer
 
-- `src/renderer/src/aiCore/index_new.ts` - AiProvider
-- `src/renderer/src/aiCore/provider/providerConfig.ts` - Provider configuration
-- `src/renderer/src/aiCore/chunk/AiSdkToChunkAdapter.ts` - Stream adaptation
-- `src/renderer/src/aiCore/plugins/PluginBuilder.ts` - Plugin building
+- `src/renderer/aiCore/index_new.ts` - AiProvider
+- `src/renderer/aiCore/provider/providerConfig.ts` - Provider configuration
+- `src/renderer/aiCore/chunk/AiSdkToChunkAdapter.ts` - Stream adaptation
+- `src/renderer/aiCore/plugins/PluginBuilder.ts` - Plugin building
 
 ### Core Package
 
@@ -1706,8 +1693,8 @@ Current test coverage:
 
 ### App-Level Extensions
 
-- `src/renderer/src/aiCore/provider/extensions/index.ts` - App-level provider extensions
-- `src/renderer/src/aiCore/types/merged.ts` - Merged types (core + app extensions)
+- `src/renderer/aiCore/provider/extensions/index.ts` - App-level provider extensions
+- `src/renderer/aiCore/types/merged.ts` - Merged types (core + app extensions)
 
 ### Test Utilities
 

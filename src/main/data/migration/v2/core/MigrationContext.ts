@@ -100,7 +100,7 @@ export async function createMigrationContext(
       dexieExport: dexieFileReader,
       dexieSettings: new DexieSettingsReader(dexieSettingsRecords),
       localStorage: new LocalStorageReader(localStorageRecords),
-      knowledgeVectorSource: new KnowledgeVectorSourceReader(),
+      knowledgeVectorSource: new KnowledgeVectorSourceReader(paths.knowledgeBaseDir),
       legacyHomeConfig: new LegacyHomeConfigReader(paths.legacyConfigFile)
     },
     db,

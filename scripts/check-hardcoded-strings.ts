@@ -7,7 +7,7 @@ import * as path from 'path'
 import type { SourceFile } from 'ts-morph'
 import { Node, Project } from 'ts-morph'
 
-const RENDERER_DIR = path.join(__dirname, '../src/renderer/src')
+const RENDERER_DIR = path.join(__dirname, '../src/renderer')
 const MAIN_DIR = path.join(__dirname, '../src/main')
 const EXTENSIONS = ['.tsx', '.ts']
 const IGNORED_DIRS = ['__tests__', 'node_modules', 'i18n', 'locales', 'types', 'assets']

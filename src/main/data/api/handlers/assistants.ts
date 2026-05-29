@@ -37,7 +37,13 @@ export const assistantHandlers: HandlersFor<AssistantSchemas> = {
 
     PATCH: async ({ params, body }) => {
       const parsed = UpdateAssistantSchema.parse(body)
-      return await assistantDataService.update(params.id, parsed)
+      // Entity schema fields like `prompt` / `emoji` / `settings` carry `.default()`,
+      // and `.partial()` does not strip those — `.parse({ tagIds: [...] })` would inject
+      // defaults for every omitted field and the service would overwrite the row with them.
+      // Keep only keys actually present in the request body so PATCH stays partial.
+      const bodyKeys = body && typeof body === 'object' ? new Set(Object.keys(body)) : new Set<string>()
+      const patch = Object.fromEntries(Object.entries(parsed).filter(([key]) => bodyKeys.has(key)))
+      return await assistantDataService.update(params.id, patch)
     },
 
     DELETE: async ({ params }) => {

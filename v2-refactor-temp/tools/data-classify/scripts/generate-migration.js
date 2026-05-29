@@ -181,7 +181,7 @@ class SimpleMappingGenerator {
  * Generated at: ${new Date().toISOString()}
  *
  * This file contains pure mapping relationships without default values.
- * Default values are managed in packages/shared/data/preferences.ts
+ * Default values are managed in src/shared/data/preferences.ts
  *
  * === AUTO-GENERATED CONTENT START ===
  */
@@ -288,7 +288,7 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
  * Generated at: ${new Date().toISOString()}
  *
  * This file contains pure mapping relationships without default values.
- * Default values are managed in packages/shared/data/bootConfig/bootConfigSchemas.ts
+ * Default values are managed in src/shared/data/bootConfig/bootConfigSchemas.ts
  *
  * === AUTO-GENERATED CONTENT START ===
  */

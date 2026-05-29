@@ -2,9 +2,9 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { isDev, isLinux, isMac, isPortable, isWin } from '@main/constant'
 import type { PathKey, PathMap } from '@main/core/paths'
 import { buildPathRegistry, shouldAutoEnsure } from '@main/core/paths/pathRegistry'
+import { isDev, isLinux, isMac, isPortable, isWin } from '@main/core/platform'
 import { bootConfigService } from '@main/data/bootConfig'
 import { IpcChannel } from '@shared/IpcChannel'
 import { app, dialog, ipcMain } from 'electron'
@@ -29,7 +29,7 @@ interface QuitPreventionHold extends Disposable {
  * Manages services, windows, and Electron app events
  */
 export class Application {
-  private static readonly SHUTDOWN_TIMEOUT_MS = 5000
+  public static readonly SHUTDOWN_TIMEOUT_MS = 5000
 
   private static instance: Application | null = null
   private container: ServiceContainer
@@ -220,7 +220,7 @@ export class Application {
         }
         logger.error('Background phase failed:', err)
       })
-      await this.lifecycleManager.allReady()
+      this.lifecycleManager.allReady()
     } catch (error) {
       if (error instanceof ServiceInitError) {
         await this.handleFatalServiceError(error)

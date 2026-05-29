@@ -65,4 +65,22 @@ describe('PreferenceSeeder', () => {
     const after = (await dbh.db.select().from(preferenceTable)).length
     expect(after).toBe(before)
   })
+
+  it('should delete obsolete default preferences', async () => {
+    await dbh.db.insert(preferenceTable).values({
+      scope: 'default',
+      key: 'app.settings.open_target',
+      value: 'app'
+    })
+
+    const seed = new PreferenceSeeder()
+    await seed.run(dbh.db)
+
+    const rows = await dbh.db
+      .select()
+      .from(preferenceTable)
+      .where(and(eq(preferenceTable.scope, 'default'), eq(preferenceTable.key, 'app.settings.open_target')))
+
+    expect(rows).toHaveLength(0)
+  })
 })

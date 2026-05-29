@@ -18,7 +18,7 @@
  */
 
 import { loggerService } from '@logger'
-import { BaseService, Injectable, ServicePhase } from '@main/core/lifecycle'
+import { BaseService, type Disposable, Injectable, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
 import type { InferSharedCacheValue, ProcessKey, SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { CacheEntry, CacheSyncMessage } from '@shared/data/cache/cacheTypes'
@@ -144,7 +144,7 @@ export class CacheService extends BaseService {
   private sharedNotifier = new CacheNotifier()
 
   // GC timer reference and interval time (e.g., every 10 minutes)
-  private gcInterval: NodeJS.Timeout | null = null
+  private gcInterval: Disposable | null = null
   private readonly GC_INTERVAL_MS = 10 * 60 * 1000
 
   constructor() {
@@ -158,11 +158,8 @@ export class CacheService extends BaseService {
   }
 
   protected async onStop(): Promise<void> {
-    // Clear the garbage collection interval
-    if (this.gcInterval) {
-      clearInterval(this.gcInterval)
-      this.gcInterval = null
-    }
+    // GC timer is auto-disposed via registerInterval; just drop the reference.
+    this.gcInterval = null
 
     // Clear caches
     this.cache.clear()
@@ -183,7 +180,7 @@ export class CacheService extends BaseService {
   private startGarbageCollection() {
     if (this.gcInterval) return
 
-    this.gcInterval = setInterval(() => {
+    this.gcInterval = this.registerInterval(() => {
       const now = Date.now()
       let removedCount = 0
 
@@ -207,9 +204,6 @@ export class CacheService extends BaseService {
         logger.debug(`Garbage collection removed ${removedCount} expired items`)
       }
     }, this.GC_INTERVAL_MS)
-
-    // unref allows the process to exit if there are no other activities
-    this.gcInterval.unref()
   }
 
   /**

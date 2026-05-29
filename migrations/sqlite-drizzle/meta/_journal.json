@@ -105,6 +105,104 @@
       "when": 1776838196467,
       "tag": "0014_hot_ultron",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1777461460041,
+      "tag": "0015_groovy_tiger_shark",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "6",
+      "when": 1777474576049,
+      "tag": "0016_late_stryfe",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1777474700000,
+      "tag": "0017_giant_vermin",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "6",
+      "when": 1777555974425,
+      "tag": "0018_tearful_jamie_braddock",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "6",
+      "when": 1777636561235,
+      "tag": "0019_parallel_annihilus",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1778063182815,
+      "tag": "0020_known_captain_marvel",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1778156840137,
+      "tag": "0021_vengeful_green_goblin",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "6",
+      "when": 1778476119706,
+      "tag": "0022_hot_reptil",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1778600480389,
+      "tag": "0023_careless_fat_cobra",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1778738430302,
+      "tag": "0024_eager_patriot",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "6",
+      "when": 1779183817228,
+      "tag": "0025_left_black_tarantula",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1779373185863,
+      "tag": "0026_sturdy_aqueduct",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "6",
+      "when": 1779373185864,
+      "tag": "0027_magical_agent_zero",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "6",
+      "when": 1779714716441,
+      "tag": "0028_keen_preak",
+      "breakpoints": true
     }
   ],
   "version": "7"

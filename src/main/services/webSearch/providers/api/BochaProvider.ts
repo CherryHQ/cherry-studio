@@ -3,7 +3,6 @@ import { defaultAppHeaders } from '@shared/utils'
 import { net } from 'electron'
 import * as z from 'zod'
 
-import { resolveProviderApiKey } from '../../utils/provider'
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
 import type { ApiKeyRequestSearchContext } from '../base/context'
 
@@ -37,7 +36,11 @@ const BochaSearchResponseSchema = z.object({
 type BochaSearchContext = ApiKeyRequestSearchContext<z.infer<typeof BochaSearchParamsSchema>>
 
 export class BochaProvider extends BaseWebSearchProvider {
-  async search(query: string, config: WebSearchExecutionConfig, httpOptions?: RequestInit): Promise<WebSearchResponse> {
+  async searchKeywords(
+    query: string,
+    config: WebSearchExecutionConfig,
+    httpOptions?: RequestInit
+  ): Promise<WebSearchResponse> {
     const context = this.prepareSearchContext(query, config, httpOptions)
     const searchPayload = await this.executeSearch(context)
 
@@ -50,10 +53,10 @@ export class BochaProvider extends BaseWebSearchProvider {
     httpOptions?: RequestInit
   ): BochaSearchContext {
     return {
-      apiKey: resolveProviderApiKey(this.provider),
+      apiKey: this.resolveApiKey(),
       query,
       maxResults: config.maxResults,
-      requestUrl: this.resolveApiUrl('/v1/web-search'),
+      requestUrl: this.resolveApiUrl('searchKeywords', '/v1/web-search'),
       requestBody: BochaSearchParamsSchema.parse({
         query,
         count: config.maxResults,
@@ -87,7 +90,7 @@ export class BochaProvider extends BaseWebSearchProvider {
   }
 
   private buildFinalResponse(
-    _context: BochaSearchContext,
+    context: BochaSearchContext,
     searchPayload: z.infer<typeof BochaSearchResponseSchema>
   ): WebSearchResponse {
     if (searchPayload.code !== 200) {
@@ -95,11 +98,15 @@ export class BochaProvider extends BaseWebSearchProvider {
     }
 
     return {
-      query: searchPayload.data.queryContext.originalQuery,
+      query: context.query,
+      providerId: this.provider.id,
+      capability: 'searchKeywords',
+      inputs: [context.query],
       results: searchPayload.data.webPages.value.map((result) => ({
         title: result.name,
         content: result.summary || result.snippet || '',
-        url: result.url
+        url: result.url,
+        sourceInput: context.query
       }))
     }
   }

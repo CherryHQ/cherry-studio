@@ -60,7 +60,8 @@ describe('fetchWebSearchContent', () => {
     expect(result).toEqual({
       title: 'https://example.com/article',
       url: 'https://example.com/article',
-      content: ''
+      content: '',
+      sourceInput: 'https://example.com/article'
     })
   })
 

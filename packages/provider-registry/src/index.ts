@@ -55,3 +55,6 @@ export { normalizeModelId } from './utils/normalize'
 // Pure lookup and transformation utilities (no fs dependency)
 export type { ModelLookupResult, RuntimeEndpointConfig } from './registry-utils'
 export { buildRuntimeEndpointConfigs, lookupRegistryModel, lookupRegistryProvider } from './registry-utils'
+
+// Shared vendor identity regex, used by shared model helpers.
+export { VENDOR_PATTERNS } from './patterns/vendor-patterns'

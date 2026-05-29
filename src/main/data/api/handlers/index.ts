@@ -14,16 +14,20 @@
 
 import type { ApiImplementation } from '@shared/data/api/apiTypes'
 
+import { agentChannelHandlers } from './agentChannels'
 import { agentHandlers } from './agents'
 import { assistantHandlers } from './assistants'
-import { fileProcessingHandlers } from './fileProcessing'
+import { fileHandlers } from './files'
 import { groupHandlers } from './groups'
+import { jobHandlers } from './jobs'
 import { knowledgeHandlers } from './knowledges'
 import { mcpServerHandlers } from './mcpServers'
 import { messageHandlers } from './messages'
-import { miniappHandlers } from './miniapps'
+import { miniAppHandlers } from './miniApps'
 import { modelHandlers } from './models'
+import { noteHandlers } from './notes'
 import { pinHandlers } from './pins'
+import { promptHandlers } from './prompts'
 import { providerHandlers } from './providers'
 import { tagHandlers } from './tags'
 import { temporaryChatHandlers } from './temporaryChats'
@@ -40,17 +44,21 @@ import { translateHandlers } from './translate'
 export const apiHandlers: ApiImplementation = {
   ...agentHandlers,
   ...assistantHandlers,
-  ...fileProcessingHandlers,
+  ...agentChannelHandlers,
   ...topicHandlers,
   ...messageHandlers,
+  ...fileHandlers,
   ...temporaryChatHandlers,
   ...modelHandlers,
   ...providerHandlers,
   ...knowledgeHandlers,
   ...translateHandlers,
   ...mcpServerHandlers,
-  ...miniappHandlers,
+  ...miniAppHandlers,
+  ...noteHandlers,
   ...tagHandlers,
   ...groupHandlers,
-  ...pinHandlers
+  ...pinHandlers,
+  ...promptHandlers,
+  ...jobHandlers
 }

@@ -122,11 +122,11 @@ export default defineConfig([
       '.gitignore',
       '.conductor/**',
       'scripts/cloudflare-worker.js',
-      'src/main/integration/nutstore/sso/lib/**',
+      'src/main/services/nutstore/sso/lib/**',
       'src/main/integration/cherryai/index.js',
-      'src/main/integration/nutstore/sso/lib/**',
-      'src/renderer/src/ui/**',
-      'src/renderer/src/routeTree.gen.ts',
+      'src/main/services/nutstore/sso/lib/**',
+      'src/renderer/ui/**',
+      'src/renderer/routeTree.gen.ts',
       'packages/**/dist',
       'v2-refactor-temp/**'
     ]
@@ -316,11 +316,11 @@ export default defineConfig([
   },
   // renderer legacy css var migration warnings
   {
-    files: ['src/renderer/src/**/*.{ts,tsx,js,jsx}'],
+    files: ['src/renderer/**/*.{ts,tsx,js,jsx}'],
     ignores: [
-      'src/renderer/src/**/*.test.*',
-      'src/renderer/src/**/__tests__/**',
-      'src/renderer/src/**/__mocks__/**'
+      'src/renderer/**/*.test.*',
+      'src/renderer/**/__tests__/**',
+      'src/renderer/**/__mocks__/**'
     ],
     plugins: {
       'renderer-styles': {
@@ -370,7 +370,7 @@ export default defineConfig([
       }
     },
     rules: {
-      'renderer-styles/no-legacy-css-vars': 'warn'
+      'renderer-styles/no-legacy-css-vars': process.env.NO_LEGACY_CSS_WARN ? 'off' : 'warn'
     }
   },
   // Schema key naming convention (cache & preferences)
@@ -381,8 +381,8 @@ export default defineConfig([
   // When ${xxx} placeholders are treated as literal strings, the key must match: xxx.yyy.zzz_www
   {
     files: [
-      'packages/shared/data/cache/cacheSchemas.ts',
-      'packages/shared/data/preference/preferenceSchemas.ts',
+      'src/shared/data/cache/cacheSchemas.ts',
+      'src/shared/data/preference/preferenceSchemas.ts',
       'src/main/core/paths/pathRegistry.ts'
     ],
     plugins: {

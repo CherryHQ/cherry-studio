@@ -10,16 +10,26 @@ import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMapper
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import {
-  AGENT_MUTABLE_FIELDS,
   type AgentConfiguration,
   type AgentSessionEntity,
   type CreateSessionDto,
+  sanitizeAgentConfiguration,
+  SESSION_MUTABLE_FIELDS,
   type UpdateSessionDto
 } from '@shared/data/api/schemas/agents'
 import type { AgentType, ListOptions } from '@types'
 import { and, asc, count, desc, eq, isNull, type SQL, sql } from 'drizzle-orm'
+import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('SessionService')
+
+function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
+  const { data, invalidKeys } = sanitizeAgentConfiguration(raw)
+  if (invalidKeys.length > 0) {
+    logger.warn('Session configuration drift detected; dropping invalid keys', { invalidKeys })
+  }
+  return data
+}
 
 function agentRowToSessionDefaults(row: Record<string, unknown>): {
   type: AgentType
@@ -40,7 +50,8 @@ function agentRowToSessionDefaults(row: Record<string, unknown>): {
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
     name: (row.name as string) || '',
     model: row.model as string,
-    accessiblePaths: (row.accessiblePaths as string[] | null) ?? []
+    accessiblePaths: row.accessiblePaths as string[],
+    configuration: parseConfiguration(row.configuration)
   }
 }
 
@@ -49,10 +60,25 @@ function rowToSession(row: SessionRow): AgentSessionEntity {
   return {
     ...clean,
     agentType: (row.agentType === 'cherry-claw' ? 'claude-code' : row.agentType) as AgentType,
-    accessiblePaths: row.accessiblePaths ?? [],
+    accessiblePaths: row.accessiblePaths,
+    configuration: parseConfiguration(row.configuration),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
+}
+
+export function buildSessionUpdateData(updates: UpdateSessionDto, updatedAt = Date.now()): Partial<SessionRow> {
+  const updateData: Partial<SessionRow> = { updatedAt }
+  const replaceableEntityFields = Object.keys(SESSION_MUTABLE_FIELDS)
+
+  for (const field of replaceableEntityFields) {
+    if (Object.prototype.hasOwnProperty.call(updates, field)) {
+      const value = updates[field as keyof typeof updates]
+      ;(updateData as Record<string, unknown>)[field] = value ?? null
+    }
+  }
+
+  return updateData
 }
 
 export class AgentSessionService {
@@ -68,40 +94,47 @@ export class AgentSessionService {
     }
     const agent = agentRowToSessionDefaults(agents[0] as Record<string, unknown>)
 
-    const id = `session_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+    const id = uuidv4()
 
     const sessionData: CreateSessionDto = {
       ...agent,
       ...req
     }
 
-    const insertData: InsertSessionRow = {
+    // Omit undefined fields so DB DEFAULTs (e.g. '', '[]', '{}') apply.
+    // instructions has no DB DEFAULT — supply the same product-strategic default
+    // AgentService.createAgent uses, so a session created from an agent missing
+    // instructions still satisfies NOT NULL.
+    const insertData: Omit<InsertSessionRow, 'sortOrder'> = {
       id,
       agentId,
       agentType: agent.type,
       name: sessionData.name || agent.name || 'New Session',
-      description: sessionData.description ?? null,
-      accessiblePaths: sessionData.accessiblePaths ?? null,
-      instructions: sessionData.instructions ?? null,
+      description: sessionData.description,
+      accessiblePaths: sessionData.accessiblePaths,
+      instructions: sessionData.instructions || 'You are a helpful assistant.',
       model: sessionData.model || agent.model,
-      planModel: sessionData.planModel ?? null,
-      smallModel: sessionData.smallModel ?? null,
-      mcps: sessionData.mcps ?? null,
-      allowedTools: sessionData.allowedTools ?? null,
-      slashCommands: sessionData.slashCommands ?? null,
-      configuration: sessionData.configuration ?? null,
-      sortOrder: 0
+      planModel: sessionData.planModel,
+      smallModel: sessionData.smallModel,
+      mcps: sessionData.mcps,
+      allowedTools: sessionData.allowedTools,
+      slashCommands: sessionData.slashCommands,
+      configuration: sessionData.configuration
     }
 
     const db = application.get('DbService').getDb()
     await withSqliteErrors(
       () =>
         db.transaction(async (tx) => {
-          await tx
-            .update(sessionsTable)
-            .set({ sortOrder: sql`${sessionsTable.sortOrder} + 1` })
+          // Prepend: place new session ahead of existing rows for this agent.
+          // Avoids the prior O(N) `sort_order = sort_order + 1` rewrite while
+          // preserving the user-visible "newest at top" ordering.
+          const [minRow] = await tx
+            .select({ min: sql<number>`COALESCE(MIN(${sessionsTable.sortOrder}), 0)` })
+            .from(sessionsTable)
             .where(eq(sessionsTable.agentId, agentId))
-          await tx.insert(sessionsTable).values(insertData)
+          const sortOrder = (minRow?.min ?? 0) - 1
+          await tx.insert(sessionsTable).values({ ...insertData, sortOrder })
         }),
       {
         ...defaultHandlersFor('Session', id),
@@ -177,17 +210,7 @@ export class AgentSessionService {
       throw DataApiErrorFactory.validation({ accessiblePaths: ['must not be empty'] })
     }
 
-    const updateData: Partial<SessionRow> = {
-      updatedAt: Date.now()
-    }
-
-    const replaceableEntityFields = Object.keys(AGENT_MUTABLE_FIELDS)
-    for (const field of replaceableEntityFields) {
-      if (Object.prototype.hasOwnProperty.call(updates, field)) {
-        const value = updates[field as keyof typeof updates]
-        ;(updateData as Record<string, unknown>)[field] = value ?? null
-      }
-    }
+    const updateData = buildSessionUpdateData(updates)
 
     const database = application.get('DbService').getDb()
     await withSqliteErrors(

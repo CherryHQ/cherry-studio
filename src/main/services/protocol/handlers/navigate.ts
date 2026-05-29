@@ -1,12 +1,11 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { isMac } from '@main/constant'
+import { normalizeSettingsPath } from '@shared/data/types/settingsPath'
 
 const logger = loggerService.withContext('ProtocolService:navigate')
 
-// Allowed route prefixes to prevent arbitrary navigation
-const ALLOWED_ROUTES = [
-  '/settings/',
+const ALLOWED_ROUTE_PREFIXES = [
+  '/settings',
   '/agents',
   '/knowledge',
   '/openclaw',
@@ -17,9 +16,13 @@ const ALLOWED_ROUTES = [
   '/apps',
   '/code',
   '/store',
-  '/launchpad',
-  '/'
+  '/launchpad'
 ]
+
+const isAllowedRoute = (path: string): boolean =>
+  ALLOWED_ROUTE_PREFIXES.some((route) => path === route || path.startsWith(`${route}/`))
+
+const MAX_NAVIGATE_RETRY_ATTEMPTS = 30
 
 /**
  * Handle cherrystudio://navigate/<path> deep links.
@@ -29,11 +32,11 @@ const ALLOWED_ROUTES = [
  *   cherrystudio://navigate/agents
  *   cherrystudio://navigate/knowledge
  */
-export function handleNavigateProtocolUrl(url: URL) {
+export function handleNavigateProtocolUrl(url: URL, retryAttempt = 0) {
   const targetPath = url.pathname || '/'
   const normalizedPath = targetPath.startsWith('/') ? targetPath : `/${targetPath}`
 
-  if (!ALLOWED_ROUTES.some((route) => normalizedPath === route || normalizedPath.startsWith(route))) {
+  if (!isAllowedRoute(normalizedPath)) {
     logger.warn(`Blocked navigation to disallowed route: ${normalizedPath}`)
     return
   }
@@ -44,27 +47,48 @@ export function handleNavigateProtocolUrl(url: URL) {
 
   logger.debug('handleNavigateProtocolUrl', { path: fullPath })
 
-  const mainWindow = application.get('MainWindowService').getMainWindow()
-
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents
-      .executeJavaScript(`typeof window.navigate === 'function'`)
-      .then((hasNavigate) => {
-        if (hasNavigate) {
-          void mainWindow.webContents.executeJavaScript(`window.navigate('${fullPath}')`)
-          if (isMac) {
-            application.get('MainWindowService').showMainWindow()
-          }
-        } else {
-          logger.warn('window.navigate not available yet, retrying in 1s')
-          setTimeout(() => handleNavigateProtocolUrl(url), 1000)
-        }
-      })
-      .catch((error) => {
-        logger.error('Failed to navigate:', error as Error)
-      })
-  } else {
-    logger.warn('Main window not available, retrying in 1s')
-    setTimeout(() => handleNavigateProtocolUrl(url), 1000)
+  if (fullPath.startsWith('/settings/')) {
+    application.get('SettingsWindowService').open(normalizeSettingsPath(fullPath))
+    return
   }
+
+  const navigateMainWindow = async () => {
+    const mainWindow = application.get('MainWindowService').getMainWindow()
+
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      if (retryAttempt >= MAX_NAVIGATE_RETRY_ATTEMPTS) {
+        logger.warn('Main window not available, dropping navigation URL after retry limit', { path: fullPath })
+        return
+      }
+
+      logger.warn('Main window not available, retrying in 1s', { retryAttempt: retryAttempt + 1 })
+      setTimeout(() => handleNavigateProtocolUrl(url, retryAttempt + 1), 1000)
+      return
+    }
+
+    try {
+      const hasNavigate = await mainWindow.webContents.executeJavaScript(`typeof window.navigate === 'function'`)
+
+      if (!hasNavigate) {
+        if (retryAttempt >= MAX_NAVIGATE_RETRY_ATTEMPTS) {
+          logger.warn('window.navigate not available, dropping navigation URL after retry limit', { path: fullPath })
+          return
+        }
+
+        logger.warn('window.navigate not available yet, retrying in 1s', { retryAttempt: retryAttempt + 1 })
+        setTimeout(() => handleNavigateProtocolUrl(url, retryAttempt + 1), 1000)
+        return
+      }
+
+      await mainWindow.webContents.executeJavaScript(`window.navigate({ to: ${JSON.stringify(fullPath)} })`)
+      // Always raise Main: Win/Linux used to rely on MainWindowService's
+      // `second-instance` listener for this, but that listener now skips
+      // protocol URLs to avoid stealing focus from Settings/OAuth flows.
+      application.get('MainWindowService').showMainWindow()
+    } catch (error) {
+      logger.error('Failed to navigate:', error as Error)
+    }
+  }
+
+  void navigateMainWindow()
 }

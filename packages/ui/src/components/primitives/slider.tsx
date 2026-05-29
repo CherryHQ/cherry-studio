@@ -47,7 +47,7 @@ const sliderThumbVariants = cva(
   }
 )
 
-const sliderMarkLabelVariants = cva('absolute text-muted-foreground', {
+const sliderMarkLabelVariants = cva('absolute top-0 whitespace-nowrap text-muted-foreground leading-none', {
   variants: {
     size: {
       sm: 'text-[10px]',
@@ -161,11 +161,13 @@ function Slider({
       {sliderElement}
       <div
         data-slot="slider-marks"
-        className={cn('relative', isVertical ? 'ml-2 flex h-full flex-col justify-between' : 'mt-1.5 w-full')}>
+        className={cn('relative', isVertical ? 'ml-2 flex h-full flex-col justify-between' : 'mt-1.5 h-4 w-full')}>
         {marks.map((mark) => {
           const range = max - min
           if (range === 0) return null
           const percentage = ((mark.value - min) / range) * 100
+          const transform =
+            percentage <= 0 ? 'translateX(0)' : percentage >= 100 ? 'translateX(-100%)' : 'translateX(-50%)'
           return (
             <span
               key={mark.value}
@@ -174,7 +176,7 @@ function Slider({
               style={
                 isVertical
                   ? { top: `${100 - percentage}%`, transform: 'translateY(-50%)' }
-                  : { left: `${percentage}%`, transform: 'translateX(-50%)' }
+                  : { left: `${percentage}%`, transform }
               }>
               {mark.label}
             </span>

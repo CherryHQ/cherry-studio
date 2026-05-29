@@ -1,8 +1,8 @@
 import { application } from '@application'
 import { optimizer } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
-import { isDev, isLinux, isMac, isWin } from '@main/constant'
 import { BaseService, Emitter, type Event, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isDev, isLinux, isMac, isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { getWindowsBackgroundMaterial, replaceDevtoolsFont } from '@main/utils/windowUtil'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH } from '@shared/config/constant'
@@ -14,7 +14,6 @@ import windowStateKeeper from 'electron-window-state'
 import path, { join } from 'path'
 
 import iconPath from '../../../build/icon.png?asset'
-import { titleBarOverlayDark, titleBarOverlayLight } from '../config'
 import { isSafeExternalUrl } from '../utils/externalUrlSafety'
 import { contextMenu } from './ContextMenu'
 
@@ -41,7 +40,18 @@ export class MainWindowService extends BaseService {
   constructor() {
     super()
     this._onMainWindowCreated = this.registerDisposable(new Emitter<BrowserWindow>())
-    this.onMainWindowCreated = this._onMainWindowCreated.event
+    this.onMainWindowCreated = (listener) => {
+      const disposable = this._onMainWindowCreated.event(listener)
+      if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+        try {
+          listener(this.mainWindow)
+        } catch (error) {
+          // Keep replay semantics aligned with Emitter.fire(): one listener must not break service init.
+          logger.error('Failed to replay main window listener', error as Error)
+        }
+      }
+      return disposable
+    }
   }
 
   protected async onInit() {
@@ -203,9 +213,6 @@ export class MainWindowService extends BaseService {
         width: this.stateKeeper.width,
         height: this.stateKeeper.height,
         darkTheme: nativeTheme.shouldUseDarkColors,
-        ...(isMac && {
-          titleBarOverlay: nativeTheme.shouldUseDarkColors ? titleBarOverlayDark : titleBarOverlayLight
-        }),
         ...(isLinux && {
           frame: preferenceService.get('app.use_system_title_bar'),
           icon: linuxIcon
@@ -588,16 +595,12 @@ export class MainWindowService extends BaseService {
 
     if (mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible()) {
       if (mainWindow.isFocused()) {
-        // if tray is enabled, hide the main window, else do nothing
-        if (application.get('PreferenceService').get('app.tray.on_close')) {
-          // Same pattern as the close handler: tell WM to stop counting Main
-          // toward Dock visibility BEFORE hiding, so the Dock coordinates with
-          // whatever else is alive (e.g. a SubWindow) rather than blindly hiding.
-          if (isMac) {
-            application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
-          }
-          mainWindow.hide()
+        // Same pattern as the close handler when the user opted into tray-close:
+        // tell WM to stop counting Main toward Dock visibility BEFORE hiding.
+        if (isMac && application.get('PreferenceService').get('app.tray.on_close')) {
+          application.get('WindowManager').behavior.setMacShowInDockByType(WindowType.Main, false)
         }
+        mainWindow.hide()
       } else {
         mainWindow.focus()
       }

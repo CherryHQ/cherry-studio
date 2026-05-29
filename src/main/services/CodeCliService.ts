@@ -19,8 +19,8 @@ import os from 'node:os'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { isMac, isWin } from '@main/constant'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isMac, isWin } from '@main/core/platform'
 import { removeEnvProxy } from '@main/utils'
 import { isUserInChina } from '@main/utils/ipService'
 import { findCommandInShellEnv, getBinaryName, getBinaryPath, isBinaryExists } from '@main/utils/process'
@@ -210,6 +210,31 @@ export class CodeCliService extends BaseService {
   }
 
   /**
+   * Prefer OpenCode's package-local executable on Windows.
+   *
+   * Bun global bins can fail with "Bun failed to remap this bin" after updates,
+   * while opencode-ai's postinstall places the real executable under the package.
+   */
+  private async getOpenCodeCommand(): Promise<string> {
+    const globalInstallDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'install', 'global')
+    const openCodeExecutablePath = path.join(globalInstallDir, 'node_modules', 'opencode-ai', 'bin', 'opencode.exe')
+
+    if (fs.existsSync(openCodeExecutablePath)) {
+      logger.debug(`Using package-local executable for opencode: ${openCodeExecutablePath}`)
+      return `"${openCodeExecutablePath}"`
+    }
+
+    // Fallback: try to execute the Bun global bin directly.
+    const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
+    const executableName = await this.getCliExecutableName(codeCLI.openCode)
+    const executablePath = path.join(binDir, executableName + (isWin ? '.exe' : ''))
+    logger.warn(
+      `opencode package-local executable not found at ${openCodeExecutablePath}, falling back to direct execution: ${executablePath}`
+    )
+    return `"${executablePath}"`
+  }
+
+  /**
    * Generate opencode.json config file for OpenCode CLI
    * Merge approach:
    * 1. Parse existing config (if any) with JSONC support
@@ -224,15 +249,16 @@ export class CodeCliService extends BaseService {
     supportsReasoningEffort: boolean,
     budgetTokens: number | undefined,
     providerType: string,
-    providerName: string
+    providerName: string,
+    endpointType: string
   ): Promise<string> {
     const configPath = path.join(directory, 'opencode.json')
 
-    // Determine npm package based on provider type
+    // Determine npm package based on endpoint type (model-level) then provider type (fallback)
     let npmPackage = '@ai-sdk/openai-compatible'
-    if (providerType === 'anthropic') {
+    if (endpointType === 'anthropic' || (!endpointType && providerType === 'anthropic')) {
       npmPackage = '@ai-sdk/anthropic'
-    } else if (providerType === 'openai-response') {
+    } else if (endpointType === 'openai-response' || (!endpointType && providerType === 'openai-response')) {
       npmPackage = '@ai-sdk/openai'
     }
 
@@ -241,10 +267,10 @@ export class CodeCliService extends BaseService {
       name: model.name
     }
 
-    // Add reasoning config based on provider type
+    // Add reasoning config based on endpoint type and provider type
     if (isReasoning) {
       modelConfig.reasoning = true
-      if (providerType === 'anthropic') {
+      if (endpointType === 'anthropic' || (!endpointType && providerType === 'anthropic')) {
         // Anthropic style: thinking with budgetTokens
         modelConfig.options = {
           thinking: {
@@ -740,6 +766,8 @@ export class CodeCliService extends BaseService {
         if (cliTool === codeCLI.claudeCode) {
           const bunPath = await this.getBunPath()
           versionCommand = await this.getClaudeCodeCommand(bunPath)
+        } else if (cliTool === codeCLI.openCode) {
+          versionCommand = await this.getOpenCodeCommand()
         } else {
           const executableName = await this.getCliExecutableName(cliTool)
           const binDir = path.join(os.homedir(), HOME_CHERRY_DIR, 'bin')
@@ -1015,6 +1043,8 @@ export class CodeCliService extends BaseService {
     // Use cli-wrapper.cjs (via Bun) on all platforms for reliable execution.
     if (cliTool === codeCLI.claudeCode) {
       baseCommand = await this.getClaudeCodeCommand(bunPath)
+    } else if (cliTool === codeCLI.openCode) {
+      baseCommand = await this.getOpenCodeCommand()
     } else if (isWin) {
       baseCommand = `"${executablePath}"`
     } else {
@@ -1058,21 +1088,22 @@ export class CodeCliService extends BaseService {
     }
 
     // Add configuration parameters for OpenAI Codex using command line args
-    if (cliTool === codeCLI.openaiCodex && env.OPENAI_MODEL_PROVIDER) {
-      const providerId = env.OPENAI_MODEL_PROVIDER
-      const providerName = env.OPENAI_MODEL_PROVIDER_NAME || providerId
-      const normalizedBaseUrl = env.OPENAI_BASE_URL.replace(/\/$/, '')
+    if (cliTool === codeCLI.openaiCodex && env.CHERRY_CODEX_PROVIDER_ID) {
+      const providerId = env.CHERRY_CODEX_PROVIDER_ID
+      const providerName = env.CHERRY_CODEX_PROVIDER_NAME || providerId
+      const normalizedBaseUrl = env.CHERRY_CODEX_BASE_URL.replace(/\/$/, '')
       const model = _model
-
+      // All Codex providers use Cherry- prefix to avoid conflicts with built-in provider IDs
+      const cherryProviderKey = `Cherry-${providerName.replace(/\./g, '-')}`
       const configParams = [
-        `--config model_provider="${providerId}"`,
-        `--config model_providers.${providerId}.name="${providerName}"`,
-        `--config model_providers.${providerId}.base_url="${normalizedBaseUrl}"`,
-        `--config model_providers.${providerId}.env_key="OPENAI_API_KEY"`,
-        `--config model_providers.${providerId}.wire_api="responses"`,
+        `--config model_provider="${cherryProviderKey}"`,
+        `--config model_providers.${cherryProviderKey}.name="${providerName}"`,
+        `--config model_providers.${cherryProviderKey}.base_url="${normalizedBaseUrl}"`,
+        `--config model_providers.${cherryProviderKey}.env_key="CHERRY_CODEX_API_KEY"`,
+        `--config model_providers.${cherryProviderKey}.wire_api="responses"`,
         `--config model="${model}"`
-      ].join(' ')
-      baseCommand = `${baseCommand} ${configParams}`
+      ]
+      baseCommand = `${baseCommand} ${configParams.join(' ')}`
     }
 
     // Special handling for OpenCode: generate config file and add --model flag
@@ -1085,6 +1116,7 @@ export class CodeCliService extends BaseService {
       const budgetTokens = env.OPENCODE_MODEL_BUDGET_TOKENS ? Number(env.OPENCODE_MODEL_BUDGET_TOKENS) : undefined
       const providerType = env.OPENCODE_PROVIDER_TYPE || 'openai-compatible'
       const providerName = env.OPENCODE_PROVIDER_NAME || 'Studio'
+      const endpointType = env.OPENCODE_MODEL_ENDPOINT_TYPE || ''
 
       const configPath = await this.generateOpenCodeConfig(
         directory,
@@ -1094,7 +1126,8 @@ export class CodeCliService extends BaseService {
         supportsReasoningEffort,
         budgetTokens,
         providerType,
-        providerName
+        providerName,
+        endpointType
       )
       this.scheduleOpenCodeConfigCleanup(configPath)
 

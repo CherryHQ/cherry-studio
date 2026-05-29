@@ -18,7 +18,7 @@ navigate({ path: '/settings/provider', query: { id: 'anthropic' } })
 
 **顶级**: `/` 首页, `/store` 助手商店, `/paintings` 绘图, `/translate` 翻译, `/files` 文件, `/notes` 笔记, `/knowledge` 知识库, `/apps` 小程序, `/code` 代码工具, `/openclaw` OpenClaw, `/launchpad` 启动台, `/agents` Agent
 
-**设置** (`/settings/`): `provider` Provider配置, `model` 模型管理, `general` 通用(语言/主题/代理), `display` 显示(气泡/列表/字体), `data` 数据管理(备份/恢复), `mcp` MCP总览, `websearch` 网页搜索, `memory` 记忆, `api-server` API服务器, `docprocess` 文档处理, `quickphrase` 快捷短语, `shortcut` 快捷键, `quickAssistant` 快捷助手, `selectionAssistant` 划词助手, `about` 关于/版本/日志
+**设置** (`/settings/`): `provider` Provider配置, `model` 模型管理, `general` 通用(语言/主题/代理), `display` 显示(气泡/列表/字体), `data` 数据管理(备份/恢复), `mcp` MCP总览, `websearch` 网页搜索, `memory` 记忆, `api-server` API服务器, `file-processing` 文档处理, `quickphrase` 快捷短语, `shortcut` 快捷键, `quickAssistant` 快捷助手, `selectionAssistant` 划词助手, `about` 关于/版本/日志
 
 **MCP 子页** (`/settings/mcp/`): `servers` 服务列表, `builtin` 内置MCP, `marketplaces` MCP市场, `npx-search` NPX搜索, `mcp-install` 安装MCP, `settings/{serverId}` 配置详情
 

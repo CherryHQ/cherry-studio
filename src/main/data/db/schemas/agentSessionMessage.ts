@@ -1,13 +1,13 @@
 import type { AgentPersistedMessage } from '@types'
-import { index, integer, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import { index, sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
-import { createUpdateTimestamps } from './_columnHelpers'
+import { createUpdateTimestamps, uuidPrimaryKeyOrdered } from './_columnHelpers'
 import { agentSessionTable } from './agentSession'
 
 export const agentSessionMessageTable = sqliteTable(
   'agent_session_message',
   {
-    id: integer().primaryKey({ autoIncrement: true }),
+    id: uuidPrimaryKeyOrdered(),
     sessionId: text()
       .notNull()
       .references(() => agentSessionTable.id, { onDelete: 'cascade' }),

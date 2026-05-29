@@ -1,0 +1,116 @@
+import { useQuery } from '@data/hooks/useDataApi'
+import { MockUseDataApiUtils } from '@test-mocks/renderer/useDataApi'
+import { renderHook } from '@testing-library/react'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { useAgent } from '../useAgent'
+
+describe('useAgent', () => {
+  beforeEach(() => {
+    MockUseDataApiUtils.resetMocks()
+    vi.clearAllMocks()
+  })
+
+  it('does not fetch when id is null', () => {
+    const mockUseQuery = vi.mocked(useQuery)
+    MockUseDataApiUtils.mockQueryResult('/agents/:agentId', { data: undefined })
+
+    const { result } = renderHook(() => useAgent(null))
+
+    expect(result.current.agent).toBeUndefined()
+    expect(mockUseQuery).toHaveBeenCalledWith('/agents/:agentId', expect.objectContaining({ enabled: false }))
+  })
+
+  it('fetches agent when id is provided', () => {
+    const mockUseQuery = vi.mocked(useQuery)
+    const mockAgent = {
+      id: 'agent-1',
+      name: 'Test Agent',
+      model: 'claude-3',
+      type: 'claude-code',
+      accessiblePaths: [],
+      allowedTools: [],
+      configuration: { permission_mode: 'default', max_turns: 100, env_vars: {} },
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z'
+    }
+    MockUseDataApiUtils.mockQueryResult('/agents/:agentId', { data: mockAgent as any })
+
+    const { result } = renderHook(() => useAgent('agent-1'))
+
+    expect(result.current.agent).toBeDefined()
+    expect(result.current.agent?.id).toBe('agent-1')
+    expect(result.current.isLoading).toBe(false)
+    expect(mockUseQuery).toHaveBeenCalledWith(
+      '/agents/:agentId',
+      expect.objectContaining({
+        enabled: true,
+        swrOptions: expect.objectContaining({ keepPreviousData: false })
+      })
+    )
+  })
+
+  it('parses configuration through AgentConfigurationSchema preserving known and unknown fields', () => {
+    const mockAgent = {
+      id: 'agent-1',
+      name: 'Test Agent',
+      model: 'claude-3',
+      type: 'claude-code',
+      accessiblePaths: [],
+      allowedTools: [],
+      configuration: { avatar: '🤖' },
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z'
+    }
+    MockUseDataApiUtils.mockQueryResult('/agents/:agentId', { data: mockAgent as any })
+
+    const { result } = renderHook(() => useAgent('agent-1'))
+
+    // Known field preserved; optional fields not explicitly set remain undefined
+    expect(result.current.agent?.configuration?.avatar).toBe('🤖')
+    expect(result.current.agent?.configuration?.permission_mode).toBeUndefined()
+    expect(result.current.agent?.configuration?.max_turns).toBeUndefined()
+  })
+
+  it('drops type-mismatched keys but preserves valid sibling keys when persisted configuration is malformed', () => {
+    const mockAgent = {
+      id: 'agent-1',
+      name: 'Test Agent',
+      model: 'claude-3',
+      type: 'claude-code',
+      accessiblePaths: [],
+      allowedTools: [],
+      // permission_mode/'invalid' fails enum check; env_vars/null fails record check.
+      // max_turns/200 is well-typed and must survive.
+      configuration: { permission_mode: 'invalid', env_vars: null, max_turns: 200 },
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z'
+    }
+    MockUseDataApiUtils.mockQueryResult('/agents/:agentId', { data: mockAgent as any })
+
+    const { result } = renderHook(() => useAgent('agent-1'))
+
+    // Bad keys are stripped so callers' `?? DEFAULT` fallbacks fire normally;
+    // valid keys round-trip unchanged.
+    expect(result.current.agent?.configuration).toEqual({ max_turns: 200 })
+  })
+
+  it('returns loading state correctly', () => {
+    MockUseDataApiUtils.mockQueryLoading('/agents/:agentId')
+
+    const { result } = renderHook(() => useAgent('agent-1'))
+
+    expect(result.current.isLoading).toBe(true)
+    expect(result.current.agent).toBeUndefined()
+  })
+
+  it('exposes refetch as revalidate', () => {
+    const mockRefetch = vi.fn().mockResolvedValue(undefined)
+    MockUseDataApiUtils.mockQueryResult('/agents/:agentId', { data: undefined, refetch: mockRefetch })
+
+    const { result } = renderHook(() => useAgent('agent-1'))
+
+    void result.current.revalidate()
+    expect(mockRefetch).toHaveBeenCalled()
+  })
+})

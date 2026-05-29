@@ -7,9 +7,9 @@ low or high risk depending on scope and impact.
 
 | Risk | Rule | Examples |
 |------|------|----------|
-| Low | Only one reasonable fix exists | null check, fix incorrect comment, rename to match convention, remove redundant duplicate code, fix obvious off-by-one error, missing useEffect cleanup, missing i18n key |
-| Medium | Multiple fixes possible, but no design decision or external contract involved | extracting shared logic across functions, removing unused internal methods, simplifying cross-function control flow, adjusting internal module boundaries, refactoring Redux selector logic |
-| High | Involves design decisions or external contracts | public API change (signature, behavior, deprecation), IPC channel contract change, Redux state shape change (BLOCKED by v2), IndexedDB schema change (BLOCKED by v2), architecture restructuring, algorithm replacement with multiple viable approaches, introducing a new dependency, changing data persistence/serialization format, performance optimization involving space-time trade-offs, user-facing behavior change beyond the stated bug scope, build system configuration change |
+| Low | Only one reasonable fix exists | null check, fix incorrect comment, rename to match convention, remove redundant duplicate code, fix obvious off-by-one error, missing useEffect cleanup, missing i18n key, over-broad DataApi refresh with an obvious narrower key |
+| Medium | Multiple fixes possible, but no design decision or external contract involved | extracting shared logic across functions, removing unused internal methods, simplifying cross-function control flow, adjusting internal module boundaries, refactoring Redux selector logic, moving handler business logic into an existing service method, fixing unstable SWR keys or external-store snapshots |
+| High | Involves design decisions or external contracts | public API change (signature, behavior, deprecation), IPC channel contract change, Redux state shape change (BLOCKED by v2), IndexedDB schema change (BLOCKED by v2), architecture restructuring, algorithm replacement with multiple viable approaches, introducing a new dependency, changing data persistence/serialization format, performance optimization involving space-time trade-offs, user-facing behavior change beyond the stated bug scope, build system configuration change, new DataApi endpoint for non-SQLite side effects, new BootConfig key, cross-service transaction redesign, persistence migration |
 
 ## Handling by Risk Level
 
@@ -58,6 +58,17 @@ defines **whether to fix** a discovered issue.
   them for the user's awareness rather than auto-fixing.
 - `console.log` → `loggerService`: always worth fixing (project convention).
 - Hardcoded UI strings → i18n: always worth fixing (project convention).
+- DataApi misuse for pure side effects: always worth reporting; fixing is high
+  risk if it changes IPC/API contracts.
+- Handler-level business logic: worth fixing when the owning service and
+  smallest move are clear; otherwise report as a design confirmation.
+- Bypassing an owning service's business rules: worth reporting. Do not flag
+  read-only `left join` data matching unless it reimplements another domain's
+  validation, filtering, ordering, or row mapping.
+- Renderer data hook bugs that can leave stale UI, corrupt optimistic state, or
+  leak subscriptions are worth reporting.
+- New BootConfig keys require explicit pre-lifecycle justification and tech-lead
+  confirmation.
 
 ## Anti-patterns (Do NOT Fix)
 

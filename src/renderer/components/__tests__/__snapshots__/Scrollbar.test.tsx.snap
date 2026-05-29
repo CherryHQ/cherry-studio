@@ -1,0 +1,12 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`Scrollbar > rendering > should match default styled snapshot 1`] = `
+<div
+  class="overflow-y-auto [scrollbar-gutter:stable] [&::-webkit-scrollbar-thumb:hover]:bg-[var(--color-scrollbar-thumb-hover)] [&::-webkit-scrollbar-thumb]:transition-[background] [&::-webkit-scrollbar-thumb]:duration-[2000ms] [&::-webkit-scrollbar-thumb]:bg-transparent"
+  data-scrolling="false"
+  data-testid="scrollbar"
+  style="scrollbar-color: transparent transparent;"
+>
+  内容
+</div>
+`;

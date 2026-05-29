@@ -1,5 +1,5 @@
-import { createZodValidator } from '../../agents/validators/zodValidator'
 import { KnowledgeBaseIdParamSchema, KnowledgeSearchSchema, PaginationQuerySchema } from './zodSchemas'
+import { createZodValidator } from './zodValidator'
 
 /**
  * Validation middleware for knowledge base search

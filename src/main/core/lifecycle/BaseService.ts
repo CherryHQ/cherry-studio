@@ -129,6 +129,28 @@ export abstract class BaseService {
   }
 
   /**
+   * Register a recurring timer scoped to this service's lifecycle.
+   * Started immediately, unref'd (does not block process exit), and cleared
+   * automatically on stop/destroy via registerDisposable. Async rejections
+   * are caught and logged; they do not stop the loop.
+   *
+   * NOT suitable for Activatable services that need a timer tied to activation —
+   * manage those manually inside onActivate/onDeactivate.
+   */
+  protected registerInterval(callback: () => void | Promise<void>, intervalMs: number): Disposable {
+    const handle = setInterval(async () => {
+      try {
+        await callback()
+      } catch (err) {
+        const name = getServiceName(this.constructor as ServiceConstructor)
+        logger.error(`[${name}] registerInterval callback failed`, err as Error)
+      }
+    }, intervalMs)
+    handle.unref()
+    return this.registerDisposable(() => clearInterval(handle))
+  }
+
+  /**
    * Register a disposable for automatic cleanup on service stop/destroy.
    * Accepts either a Disposable object or a plain cleanup function.
    * Returns the registered disposable for optional inline assignment.

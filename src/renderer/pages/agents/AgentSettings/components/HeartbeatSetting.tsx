@@ -1,0 +1,80 @@
+import { EditableNumber, Switch } from '@cherrystudio/ui'
+import { Tooltip } from '@cherrystudio/ui'
+import type {
+  AgentBaseWithId,
+  AgentConfiguration,
+  UpdateAgentBaseForm,
+  UpdateAgentFunctionUnion
+} from '@renderer/types'
+import { Info } from 'lucide-react'
+import { useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
+
+import { SettingsItem, SettingsTitle } from '../shared'
+
+interface HeartbeatSettingProps {
+  base: AgentBaseWithId | undefined | null
+  update: UpdateAgentFunctionUnion
+}
+
+export const HeartbeatSetting = ({ base: agentBase, update }: HeartbeatSettingProps) => {
+  const { t } = useTranslation()
+
+  const config = useMemo(() => agentBase?.configuration ?? {}, [agentBase?.configuration])
+  const enabled = config.heartbeat_enabled ?? true
+  const interval = config.heartbeat_interval ?? 30
+
+  const updateConfig = useCallback(
+    (patch: Partial<AgentConfiguration>) => {
+      if (!agentBase) return
+      void update({
+        id: agentBase.id,
+        configuration: { ...config, ...patch }
+      } satisfies UpdateAgentBaseForm)
+    },
+    [agentBase, config, update]
+  )
+
+  if (!agentBase) return null
+
+  return (
+    <>
+      <SettingsItem inline>
+        <SettingsTitle
+          contentAfter={
+            <Tooltip title={t('agent.cherryClaw.heartbeat.enabledHelper')} placement="right">
+              <Info size={16} className="text-foreground-400" />
+            </Tooltip>
+          }>
+          {t('agent.cherryClaw.heartbeat.enabled')}
+        </SettingsTitle>
+        <Switch
+          checked={enabled}
+          size="sm"
+          onCheckedChange={(checked) => updateConfig({ heartbeat_enabled: checked })}
+        />
+      </SettingsItem>
+      {enabled && (
+        <SettingsItem inline>
+          <SettingsTitle
+            contentAfter={
+              <Tooltip title={t('agent.cherryClaw.heartbeat.intervalHelper')} placement="right">
+                <Info size={16} className="text-foreground-400" />
+              </Tooltip>
+            }>
+            {t('agent.cherryClaw.heartbeat.interval')}
+          </SettingsTitle>
+          <EditableNumber
+            size="small"
+            min={1}
+            max={1440}
+            value={interval}
+            onChange={(val) => val && updateConfig({ heartbeat_interval: val })}
+            className="w-[100px]"
+            suffix="min"
+          />
+        </SettingsItem>
+      )}
+    </>
+  )
+}

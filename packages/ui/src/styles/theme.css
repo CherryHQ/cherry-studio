@@ -272,13 +272,13 @@
   /* Runtime Theme Inputs */
   /* ==================== */
   --cs-theme-primary: var(--cs-primary);
-  --cs-user-font-family: initial;
-  --cs-user-code-font-family: initial;
+  --cs-theme-ring: color-mix(in srgb, var(--cs-theme-primary) 40%, transparent);
 
   /* ==================== */
   /* Compatibility Aliases */
   /* ==================== */
   --primary: var(--color-primary);
+  --ring: var(--color-ring);
 
   /* ==================== */
   /* Semantic Colors */
@@ -287,21 +287,26 @@
   --color-primary-hover: var(--cs-primary-hover);
   --color-primary-soft: color-mix(in srgb, var(--color-primary) 60%, transparent);
   --color-primary-mute: color-mix(in srgb, var(--color-primary) 30%, transparent);
+  --color-ring: var(--cs-theme-ring);
   --color-destructive: var(--cs-destructive);
   --color-destructive-hover: var(--cs-destructive-hover);
   --color-success: var(--cs-success);
   --color-warning: var(--cs-warning);
+  --color-info: var(--cs-info);
   --color-background: var(--cs-background);
   --color-background-subtle: var(--cs-background-subtle);
   --color-foreground: var(--cs-foreground);
   --color-foreground-secondary: var(--cs-foreground-secondary);
   --color-foreground-muted: var(--cs-foreground-muted);
+  --color-menu-item-hover: var(--cs-menu-item-hover);
   --color-card: var(--cs-card);
   --color-popover: var(--cs-popover);
   --color-border: var(--cs-border);
+  --color-border-muted: var(--cs-border-muted);
+  --color-border-subtle: var(--cs-border-subtle);
   --color-border-hover: var(--cs-border-hover);
   --color-border-active: var(--cs-border-active);
-  --color-ring: var(--cs-ring);
+  --color-frame-border: var(--cs-frame-border);
   --color-secondary: var(--cs-secondary);
   --color-secondary-hover: var(--cs-secondary-hover);
   --color-secondary-active: var(--cs-secondary-active);
@@ -311,6 +316,19 @@
   --color-ghost-active: var(--cs-ghost-active);
   --color-sidebar: var(--cs-sidebar);
   --color-sidebar-accent: var(--cs-sidebar-accent);
+  --color-card-foreground: var(--cs-card-foreground);
+  --color-popover-foreground: var(--cs-popover-foreground);
+  --color-secondary-foreground: var(--cs-secondary-foreground);
+  --color-accent-foreground: var(--cs-accent-foreground);
+  --color-primary-foreground: var(--cs-primary-foreground);
+  --color-destructive-foreground: var(--cs-destructive-foreground);
+  --color-input: var(--cs-input);
+  --color-sidebar-foreground: var(--cs-sidebar-foreground);
+  --color-sidebar-primary: var(--cs-sidebar-primary);
+  --color-sidebar-primary-foreground: var(--cs-sidebar-primary-foreground);
+  --color-sidebar-accent-foreground: var(--cs-sidebar-accent-foreground);
+  --color-sidebar-border: var(--cs-sidebar-border);
+  --color-sidebar-ring: var(--cs-sidebar-ring);
 
   /* ==================== */
   /* Status Colors */
@@ -332,6 +350,11 @@
   --color-warning-bg: var(--cs-warning-bg);
   --color-warning-bg-hover: var(--cs-warning-bg-hover);
   --color-warning-active: var(--cs-warning-active);
+  --color-info-base: var(--cs-info-base);
+  --color-info-text-hover: var(--cs-info-text-hover);
+  --color-info-bg: var(--cs-info-bg);
+  --color-info-bg-hover: var(--cs-info-bg-hover);
+  --color-info-active: var(--cs-info-active);
 
   /* ==================== */
   /* Spacing */

@@ -1,0 +1,75 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`InputEmbeddingDimension > basic rendering > should match snapshot with all props 1`] = `
+<div
+  class="flex w-full"
+  style="width: 100%;"
+>
+  <input
+    class="min-w-0 flex-1 rounded-r-none"
+    data-testid="input"
+    min="1"
+    placeholder="请输入维度大小"
+    type="number"
+    value="1536"
+  />
+  <div
+    data-testid="tooltip"
+  >
+    <button
+      aria-label="Get Embedding Dimension"
+      class="-ml-px rounded-l-none"
+      data-testid="button"
+      role="button"
+      type="button"
+    >
+      <svg
+        aria-label="refresh"
+        class=""
+        data-testid="refresh-icon"
+        role="img"
+        size="16"
+      >
+        RefreshIcon
+      </svg>
+    </button>
+  </div>
+</div>
+`;
+
+exports[`InputEmbeddingDimension > basic rendering > should match snapshot with loading state 1`] = `
+<div
+  class="flex w-full"
+>
+  <input
+    class="min-w-0 flex-1 rounded-r-none"
+    data-testid="input"
+    min="1"
+    placeholder="请输入维度大小"
+    type="number"
+    value=""
+  />
+  <div
+    data-testid="tooltip"
+  >
+    <button
+      aria-label="Get Embedding Dimension"
+      class="-ml-px rounded-l-none opacity-80"
+      data-testid="button"
+      disabled=""
+      role="button"
+      type="button"
+    >
+      <svg
+        aria-label="refresh"
+        class="animation-rotate"
+        data-testid="refresh-icon"
+        role="img"
+        size="16"
+      >
+        RefreshIcon
+      </svg>
+    </button>
+  </div>
+</div>
+`;

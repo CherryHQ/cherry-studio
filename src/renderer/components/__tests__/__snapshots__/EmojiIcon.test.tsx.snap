@@ -1,0 +1,15 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`EmojiIcon > should match snapshot 1`] = `
+<div
+  class="relative mr-[3px] flex shrink-0 items-center justify-center overflow-hidden rounded-full"
+  style="width: 26px; height: 26px; font-size: 15px;"
+>
+  <div
+    class="absolute inset-0 flex h-full w-full scale-150 items-center justify-center text-[200%] opacity-40 blur-[5px]"
+  >
+    🎉
+  </div>
+  🎉
+</div>
+`;

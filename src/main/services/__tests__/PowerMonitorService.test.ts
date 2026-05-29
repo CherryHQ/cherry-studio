@@ -25,7 +25,7 @@ const {
   mockReleaseShutdown: vi.fn()
 }))
 
-vi.mock('@main/constant', () => platformMock)
+vi.mock('@main/core/platform', () => platformMock)
 
 vi.mock('electron', () => ({
   app: { whenReady: mockWhenReady },

@@ -1,6 +1,5 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { isDev } from '@main/constant'
 import {
   type Activatable,
   BaseService,
@@ -10,6 +9,7 @@ import {
   Priority,
   ServicePhase
 } from '@main/core/lifecycle'
+import { isDev } from '@main/core/platform'
 // Heavy OTel modules (trace-core processors, trace-node, opentelemetry SDK) are loaded
 // via dynamic import() in initTracer() to avoid startup overhead when developer_mode is off.
 // Only type imports remain static as they are erased at compile time.
@@ -189,9 +189,9 @@ export class NodeTraceService extends BaseService implements Activatable {
     })
 
     if (isDev && process.env['ELECTRON_RENDERER_URL']) {
-      void this.traceWin.loadURL(process.env['ELECTRON_RENDERER_URL'] + `/traceWindow.html`)
+      void this.traceWin.loadURL(process.env['ELECTRON_RENDERER_URL'] + `/windows/trace/index.html`)
     } else {
-      void this.traceWin.loadFile(path.join(__dirname, '../renderer/traceWindow.html'))
+      void this.traceWin.loadFile(path.join(__dirname, '../renderer/windows/trace/index.html'))
     }
 
     this.traceWin.on('closed', () => {

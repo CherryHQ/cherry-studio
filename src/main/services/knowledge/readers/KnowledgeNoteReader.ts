@@ -6,9 +6,7 @@ export async function loadNoteDocuments(item: KnowledgeItemOf<'note'>): Promise<
     new Document({
       text: item.data.content,
       metadata: {
-        itemId: item.id,
-        itemType: item.type,
-        sourceUrl: item.data.sourceUrl
+        source: item.data.source
       }
     })
   ]

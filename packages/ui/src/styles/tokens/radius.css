@@ -4,15 +4,15 @@
  */
 
 :root {
-  --cs-radius-4xs: 0.25rem; /* 4px */
-  --cs-radius-3xs: 0.5rem; /* 8px */
-  --cs-radius-2xs: 0.75rem; /* 12px */
-  --cs-radius-xs: 1rem; /* 16px */
-  --cs-radius-sm: 1.5rem; /* 24px */
-  --cs-radius-md: 2rem; /* 32px */
-  --cs-radius-lg: 2.5rem; /* 40px */
-  --cs-radius-xl: 3rem; /* 48px */
-  --cs-radius-2xl: 3.5rem; /* 56px */
-  --cs-radius-3xl: 4rem; /* 64px */
-  --cs-radius-round: 999px; /* 完全圆角，保持 px */
+  --cs-radius-4xs: 0.03125rem; /* 0.5px */
+  --cs-radius-3xs: 0.0625rem; /* 1px */
+  --cs-radius-2xs: 0.09375rem; /* 1.5px */
+  --cs-radius-xs: 0.125rem; /* 2px */
+  --cs-radius-sm: 0.375rem; /* 6px */
+  --cs-radius-md: 0.5rem; /* 8px */
+  --cs-radius-lg: 0.625rem; /* 10px */
+  --cs-radius-xl: 0.875rem; /* 14px */
+  --cs-radius-2xl: 1.125rem; /* 18px */
+  --cs-radius-3xl: 1.375rem; /* 22px */
+  --cs-radius-round: 9999px; /* fully rounded, keep px */
 }

@@ -35,6 +35,36 @@ interface PreparedData {
   originalKey: string
 }
 
+/**
+ * Collect every target key produced by the simple-mapping path. Shortcut entries
+ * are excluded because they are owned by a complex mapping (`shortcut_preferences_migrate`)
+ * and routed through `COMPLEX_PREFERENCE_MAPPINGS` instead.
+ */
+export function getSimpleMappingTargetKeys(): string[] {
+  const keys: string[] = []
+
+  for (const mapping of ELECTRON_STORE_MAPPINGS) {
+    keys.push(mapping.targetKey)
+  }
+
+  for (const mappings of Object.values(REDUX_STORE_MAPPINGS)) {
+    for (const mapping of mappings) {
+      if (mapping.targetKey.startsWith('shortcut.')) continue
+      keys.push(mapping.targetKey)
+    }
+  }
+
+  for (const mapping of DEXIE_SETTINGS_MAPPINGS) {
+    keys.push(mapping.targetKey)
+  }
+
+  for (const mapping of LOCALSTORAGE_MAPPINGS) {
+    keys.push(mapping.targetKey)
+  }
+
+  return keys
+}
+
 export class PreferencesMigrator extends BaseMigrator {
   readonly id = 'preferences'
   readonly name = 'Preferences'
@@ -54,7 +84,7 @@ export class PreferencesMigrator extends BaseMigrator {
 
     try {
       // Step 1: Detect conflicts between simple and complex mappings (strict mode)
-      const simpleTargetKeys = this.getSimpleMappingTargetKeys()
+      const simpleTargetKeys = getSimpleMappingTargetKeys()
       const complexTargetKeys = getComplexMappingTargetKeys()
 
       const conflicts = simpleTargetKeys.filter((k) => complexTargetKeys.includes(k))
@@ -345,37 +375,5 @@ export class PreferencesMigrator extends BaseMigrator {
     }
 
     return items
-  }
-
-  /**
-   * Get all target keys from simple mappings (for conflict detection)
-   */
-  private getSimpleMappingTargetKeys(): string[] {
-    const keys: string[] = []
-
-    // Collect from ElectronStore mappings
-    for (const mapping of ELECTRON_STORE_MAPPINGS) {
-      keys.push(mapping.targetKey)
-    }
-
-    // Collect from Redux mappings (excluding shortcuts — handled by complex mapping)
-    for (const mappings of Object.values(REDUX_STORE_MAPPINGS)) {
-      for (const mapping of mappings) {
-        if (mapping.targetKey.startsWith('shortcut.')) continue
-        keys.push(mapping.targetKey)
-      }
-    }
-
-    // Collect from Dexie settings mappings
-    for (const mapping of DEXIE_SETTINGS_MAPPINGS) {
-      keys.push(mapping.targetKey)
-    }
-
-    // Collect from localStorage mappings
-    for (const mapping of LOCALSTORAGE_MAPPINGS) {
-      keys.push(mapping.targetKey)
-    }
-
-    return keys
   }
 }

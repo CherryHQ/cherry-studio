@@ -25,9 +25,8 @@ import { agentSessionService as sessionService } from '@data/services/AgentSessi
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { validateModelId } from '@main/apiServer/utils'
-import { isWin } from '@main/constant'
+import { isWin } from '@main/core/platform'
 import AssistantServer from '@main/mcpServers/assistant'
-import BrowserServer from '@main/mcpServers/browser/server'
 import ClawServer from '@main/mcpServers/claw'
 import SkillsServer from '@main/mcpServers/skills'
 import WorkspaceMemoryServer from '@main/mcpServers/workspaceMemory'
@@ -66,6 +65,7 @@ import { buildNamespacedToolCallId } from './claude-stream-state'
 import { createSdkMcpServerInstance } from './createSdkMcpServerInstance'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
+import { with1mContextSuffix } from './utils'
 
 const require_ = createRequire(import.meta.url)
 const logger = loggerService.withContext('ClaudeCodeService')
@@ -75,6 +75,11 @@ const IMAGE_MAX_DIMENSION = 2000
 const IMAGE_MAX_BYTES = 5 * 1024 * 1024 // 5MB API limit
 const shouldAutoApproveTools = process.env.CHERRY_AUTO_ALLOW_TOOLS === '1'
 const NO_RESUME_COMMANDS = ['/clear']
+
+const getAnthropicCustomHeaders = (headers?: Record<string, string>) => {
+  const lines = Object.entries(headers ?? {}).map(([name, value]) => `${name}: ${value}`)
+  return lines.length > 0 ? lines.join('\n') : undefined
+}
 
 const getLanguageInstruction = () => {
   const lang = getAppLanguage()
@@ -198,6 +203,8 @@ class ClaudeCodeService implements AgentServiceInterface {
       return withoutTrailingApiVersion(provider.anthropicApiHost?.trim() || provider.apiHost)
     }
     const anthropicBaseUrl = resolveAnthropicBaseUrl()
+    const sdkModelId = with1mContextSuffix(modelInfo.modelId, provider.anthropicApiHost)
+    const customHeaders = getAnthropicCustomHeaders(provider.extra_headers)
 
     const env = {
       ...loginShellEnv,
@@ -211,11 +218,12 @@ class ClaudeCodeService implements AgentServiceInterface {
       ANTHROPIC_API_KEY: provider.apiKey,
       ANTHROPIC_AUTH_TOKEN: provider.apiKey,
       ANTHROPIC_BASE_URL: anthropicBaseUrl,
-      ANTHROPIC_MODEL: modelInfo.modelId,
-      ANTHROPIC_DEFAULT_OPUS_MODEL: modelInfo.modelId,
-      ANTHROPIC_DEFAULT_SONNET_MODEL: modelInfo.modelId,
+      ANTHROPIC_CUSTOM_HEADERS: customHeaders,
+      ANTHROPIC_MODEL: sdkModelId,
+      ANTHROPIC_DEFAULT_OPUS_MODEL: sdkModelId,
+      ANTHROPIC_DEFAULT_SONNET_MODEL: sdkModelId,
       // TODO: support set small model in UI
-      ANTHROPIC_DEFAULT_HAIKU_MODEL: modelInfo.modelId,
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: sdkModelId,
       ELECTRON_RUN_AS_NODE: '1',
       ELECTRON_NO_ATTACH_CONSOLE: '1',
       // Set CLAUDE_CONFIG_DIR to app's userData directory to avoid path encoding issues
@@ -572,12 +580,10 @@ class ClaudeCodeService implements AgentServiceInterface {
       options.strictMcpConfig = true
     }
 
-    // Inject @cherry/browser MCP for all agents (replaces SDK built-in WebSearch/WebFetch)
     if (!options.mcpServers) options.mcpServers = {}
-    const browserServer = new BrowserServer()
-    options.mcpServers.browser = { type: 'sdk', name: '@cherry/browser', instance: browserServer.mcpServer }
 
-    // Inject Exa MCP for structured web search (free tier, no API key required)
+    // Inject Exa MCP for structured web search (free tier, no API key required).
+    // Replaces the SDK built-in WebSearch/WebFetch tools disabled via GLOBALLY_DISALLOWED_TOOLS.
     options.mcpServers.exa = {
       type: 'http',
       url: 'https://mcp.exa.ai/mcp'

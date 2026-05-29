@@ -2,6 +2,8 @@
 
 Guidelines for designing RESTful APIs in the Cherry Studio Data API system.
 
+> **File organization is separate from path design.** For which `schemas/*.ts` file a route belongs in, see [Schema File Organization](./api-types.md#schema-file-organization). This guide covers the *shape* of paths only.
+
 ## Path Naming
 
 | Rule | Example | Notes |
@@ -437,6 +439,7 @@ If any condition is not met, use an IPC handler in `src/main/ipc.ts` or a lifecy
 | `POST /backup/start` | Complex workflow orchestration, not CRUD | IPC: `IpcChannel.Backup_Backup` |
 | `POST /auth/login` | OAuth flow, external service integration | IPC: dedicated auth handler |
 | `GET /mcp/tools` | Runtime service query, not persisted data | IPC: `IpcChannel.Mcp_ListTools` |
+| `POST /jobs` (enqueue) / `DELETE /jobs/:id` (cancel) | Workflow command on `JobManager` infrastructure, not CRUD | Business service in main calls `application.get('JobManager').enqueue(...)` / `.cancel(...)`. For renderer-initiated triggering, use a dedicated IPC channel (e.g. `IpcChannel.Knowledge_IndexFile`). Job DataApi is GET-only. |
 
 ### Why Misuse is Harmful
 
@@ -449,7 +452,7 @@ Routing non-data operations through DataApi causes concrete problems:
 
 ## Zod Schema & DTO Conventions
 
-Four rules govern every schema file under `packages/shared/data/api/schemas/`. Follow them verbatim.
+Four rules govern every schema file under `src/shared/data/api/schemas/`. Follow them verbatim.
 
 ### A. Use `type` for `XxxSchemas` route tables
 
@@ -513,7 +516,10 @@ export type UpdateTagDto = z.infer<typeof UpdateTagSchema>
 
 - **Never `.omit(AutoFields)`** — adding an entity field would auto-expose it (overposting risk). Always whitelist via `.pick({...})`.
 - **Always `z.strictObject`** on entity schemas — second line of defense against overposting.
-- **Prefer `CreateSchema.partial()`** for Update — preserves `.default()`/`.catch()` in Zod v4.
+- **Update derivation depends on Create's defaults**:
+  - `UpdateSchema = CreateSchema.partial()` is safe **only when Create has no `.default()`**.
+  - When Create carries `.default()`, derive Update from the entity directly: `UpdateSchema = EntitySchema.pick(...).partial()` — Zod v4 retains defaults through `.partial()`, and they leak into PATCH bodies otherwise (Zod issues #4799, #5642).
+  - **Preferred**: keep Zod schemas free of `.default()` and own defaults at the DB or service layer. See [Default Values & Nullability](./best-practice-default-values-and-nullability.md).
 - **Zod v4 gotcha:** `.pick()`/`.omit()` strip `.refine()`/`.check()` validators (working as designed, Zod discussion #4706). If entity has cross-field checks, re-attach them after pick via `.refine()` or `.safeExtend()`.
 
 **When to write a DTO by hand instead of picking:**
@@ -537,7 +543,7 @@ Otherwise inline `.pick({...})`:
 
 ### D. Write every DataApi schema in Zod; no `drizzle-zod`, no pure TS `interface` DTO
 
-All entity schemas and DTOs in `packages/shared/data/api/schemas/` MUST be hand-written Zod schemas.
+All entity schemas and DTOs in `src/shared/data/api/schemas/` MUST be hand-written Zod schemas.
 
 - **No `interface XxxDto`** — violates Electron trust-boundary validation (renderer → main IPC requires runtime validation per Electron security checklist #17).
 - **No `drizzle-zod`** — the library is being deprecated in drizzle v1, and its generated schemas have TS type bugs on `.pick()`/`.omit()` that conflict with Rule C.
@@ -547,6 +553,20 @@ All entity schemas and DTOs in `packages/shared/data/api/schemas/` MUST be hand-
 **Response types stay as TS `interface`.** Rule D covers **entities and DTOs** — not response shapes. Responses flow `main → renderer`, the **opposite** direction of the IPC trust boundary: main constructs them from trusted state, renderer consumes them after type-checked IPC plumbing. Runtime validation on that edge is cost without security benefit. Examples that correctly stay as `interface`: `DeleteMessageResponse`, `ActiveNodeResponse`, `PersistTemporaryChatResponse`, `TreeResponse`, `BranchMessagesResponse`, `TreeNode`, `SiblingsGroup`, `BranchMessage`.
 
 **Exception:** when a type is **both** a response payload and an entity (e.g., `Topic` is returned from `GET /topics/:id` and also represents a row in the DB), Zod-ify it as an entity per Rule C — the entity role wins.
+
+### E. Default values do not live in Zod schemas
+
+Avoid `.default()` on entity, Create, and Update schemas. Defaults belong at the DB layer (stable values), via Drizzle `$defaultFn` (dynamic per-row values like UUIDs / timestamps), or in the owning service (tunable product values that may evolve). Putting defaults in Zod schemas creates three problems:
+
+| Problem | Why |
+|---|---|
+| Caller asymmetry | `.default()` runs at `.parse()`. Handler-driven inserts get them; seeders / internal callers don't, producing inconsistent rows. |
+| Type duality | `.default()` makes `z.input` and `z.output` diverge — bodies see optional fields, services see required ones. Pairs of `…Body` / `…Dto` types proliferate to hide the gap. |
+| PATCH leakage | Zod v4 retains defaults through `.partial()`, so any `UpdateSchema` derived from a `CreateSchema` with defaults materializes them on omitted PATCH fields, overwriting row state (Rule C). |
+
+If a default truly must live in Zod (e.g., a query-string baseline like `page = 1` on `ListXxxQuerySchema`), confine it to the **specific schema** it applies to — never on the entity, Create, or Update schemas.
+
+For the cross-layer placement decision tree, see [Default Values & Nullability](./best-practice-default-values-and-nullability.md).
 
 ## Template Path vs Hook Binding
 

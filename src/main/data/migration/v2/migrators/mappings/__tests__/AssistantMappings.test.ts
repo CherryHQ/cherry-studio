@@ -1,3 +1,4 @@
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { describe, expect, it } from 'vitest'
 
 import { transformAssistant } from '../AssistantMappings'
@@ -29,7 +30,9 @@ describe('AssistantMappings', () => {
         emoji: '🤖',
         description: 'A test assistant',
         modelId: 'openai::gpt-4',
-        settings: { temperature: 0.7, mcpMode: 'prompt', enableWebSearch: true }
+        // Migrator merges legacy fields onto DEFAULT_ASSISTANT_SETTINGS so the new
+        // NOT NULL settings column always sees a complete object.
+        settings: { ...DEFAULT_ASSISTANT_SETTINGS, temperature: 0.7, mcpMode: 'prompt', enableWebSearch: true }
       })
       expect(result.mcpServers).toStrictEqual([
         { assistantId: 'ast-1', mcpServerId: 'srv-1' },
@@ -41,14 +44,16 @@ describe('AssistantMappings', () => {
     it('should handle minimal assistant (only required fields)', () => {
       const result = transformAssistant({ id: 'ast-2', name: 'Minimal' })
 
+      // Migrator supplies the same defaults that AssistantService.create() would: empty strings
+      // for prompt/description (mirroring DB DEFAULT) and the product-chosen emoji + settings.
       expect(result.assistant).toStrictEqual({
         id: 'ast-2',
         name: 'Minimal',
-        prompt: null,
-        emoji: null,
-        description: null,
+        prompt: '',
+        emoji: '🌟',
+        description: '',
         modelId: null,
-        settings: null
+        settings: DEFAULT_ASSISTANT_SETTINGS
       })
       expect(result.mcpServers).toStrictEqual([])
       expect(result.knowledgeBases).toStrictEqual([])
@@ -130,11 +135,11 @@ describe('AssistantMappings', () => {
         enableWebSearch: undefined
       })
 
-      expect(result.assistant.prompt).toBeNull()
-      expect(result.assistant.emoji).toBeNull()
-      expect(result.assistant.description).toBeNull()
-      // mcpMode/enableWebSearch are merged into settings
-      expect(result.assistant.settings).toBeNull()
+      expect(result.assistant.prompt).toBe('')
+      expect(result.assistant.emoji).toBe('🌟')
+      expect(result.assistant.description).toBe('')
+      // mcpMode/enableWebSearch were null/undefined upstream, so settings stays at the default.
+      expect(result.assistant.settings).toStrictEqual(DEFAULT_ASSISTANT_SETTINGS)
       expect(result.tags).toStrictEqual([])
     })
 
@@ -162,7 +167,11 @@ describe('AssistantMappings', () => {
         mcpMode: 'auto',
         enableWebSearch: true
       })
-      expect(result.assistant.settings).toStrictEqual({ mcpMode: 'auto', enableWebSearch: true })
+      expect(result.assistant.settings).toStrictEqual({
+        ...DEFAULT_ASSISTANT_SETTINGS,
+        mcpMode: 'auto',
+        enableWebSearch: true
+      })
     })
   })
 })

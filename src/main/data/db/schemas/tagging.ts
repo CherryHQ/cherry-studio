@@ -5,7 +5,7 @@ import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 /**
  * Tag table - general-purpose tags for entities
  *
- * Tags can be applied to topics, sessions, and assistants
+ * Tags can be applied to assistants, topics, models, and knowledge resources
  * via the entity_tag join table.
  */
 export const tagTable = sqliteTable('tag', {
@@ -21,12 +21,12 @@ export const tagTable = sqliteTable('tag', {
  * Entity-Tag join table - associates tags with entities
  *
  * Supports many-to-many relationship between tags and
- * various entity types (topic, session, assistant).
+ * taggable entity types (assistant, topic, model, knowledge).
  */
 export const entityTagTable = sqliteTable(
   'entity_tag',
   {
-    // Entity type: topic, session, assistant
+    // Entity type: assistant, topic, model, knowledge
     entityType: text().notNull(),
     // FK to the entity
     entityId: text().notNull(),

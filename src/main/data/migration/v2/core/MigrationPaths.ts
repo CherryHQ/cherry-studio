@@ -51,6 +51,8 @@ export interface MigrationPaths {
   readonly versionLogFile: string
   /** {userData}/Data/agents.db — legacy standalone agents SQLite location. */
   readonly legacyAgentDbFile: string
+  /** {userData}/Data/Files/custom-minapps.json — v1 sidecar with full custom miniapp records (logos stripped from Redux). */
+  readonly customMiniAppsFile: string
 
   // ── Derived from cherryHome ──
 
@@ -163,6 +165,7 @@ export function resolveMigrationPaths(): MigrationPathsResult {
     knowledgeBaseDir: path.join(currentUserData, 'Data', 'KnowledgeBase'),
     versionLogFile: path.join(currentUserData, 'version.log'),
     legacyAgentDbFile: path.join(currentUserData, 'Data', 'agents.db'),
+    customMiniAppsFile: path.join(currentUserData, 'Data', 'Files', 'custom-minapps.json'),
     legacyConfigFile,
     migrationsFolder: app.isPackaged
       ? path.join(process.resourcesPath, MIGRATIONS_BASE_PATH)

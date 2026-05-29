@@ -3,7 +3,7 @@ import { defaultAppHeaders } from '@shared/utils'
 import { net } from 'electron'
 import * as z from 'zod'
 
-import { resolveProviderApiHost, resolveProviderApiKey } from '../../utils/provider'
+import { resolveProviderApiHost } from '../../utils/provider'
 import { BaseWebSearchProvider } from '../base/BaseWebSearchProvider'
 import type { ApiKeyRequestSearchContext } from '../base/context'
 
@@ -28,7 +28,11 @@ const ZhipuWebSearchResponseSchema = z.object({
 type ZhipuSearchContext = ApiKeyRequestSearchContext<z.infer<typeof ZhipuWebSearchRequestSchema>>
 
 export class ZhipuProvider extends BaseWebSearchProvider {
-  async search(query: string, config: WebSearchExecutionConfig, httpOptions?: RequestInit): Promise<WebSearchResponse> {
+  async searchKeywords(
+    query: string,
+    config: WebSearchExecutionConfig,
+    httpOptions?: RequestInit
+  ): Promise<WebSearchResponse> {
     const context = this.prepareSearchContext(query, config, httpOptions)
     const searchPayload = await this.executeSearch(context)
 
@@ -41,10 +45,10 @@ export class ZhipuProvider extends BaseWebSearchProvider {
     httpOptions?: RequestInit
   ): ZhipuSearchContext {
     return {
-      apiKey: resolveProviderApiKey(this.provider),
+      apiKey: this.resolveApiKey(),
       query,
       maxResults: config.maxResults,
-      requestUrl: resolveProviderApiHost(this.provider),
+      requestUrl: resolveProviderApiHost(this.provider, 'searchKeywords'),
       requestBody: ZhipuWebSearchRequestSchema.parse({
         search_query: query,
         search_engine: 'search_std',
@@ -82,10 +86,14 @@ export class ZhipuProvider extends BaseWebSearchProvider {
   ): WebSearchResponse {
     return {
       query: context.query,
+      providerId: this.provider.id,
+      capability: 'searchKeywords',
+      inputs: [context.query],
       results: searchPayload.search_result.slice(0, context.maxResults).map((result) => ({
         title: result.title?.trim() || '',
         content: result.content?.trim() || '',
-        url: result.link || ''
+        url: result.link || '',
+        sourceInput: context.query
       }))
     }
   }

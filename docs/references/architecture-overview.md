@@ -179,10 +179,10 @@ cherry-studio
 |-----------|----------|---------------|
 | Service Lifecycle | `src/main/core/lifecycle/` | [Lifecycle Reference](./lifecycle/README.md) |
 | Data Layer | `src/main/data/` | [Data Reference](./data/README.md) |
-| AI Core | `src/renderer/src/aiCore/` | [AI Core Architecture](./ai-core-architecture.md) |
+| AI Core | `src/renderer/aiCore/` | [AI Core Architecture](./ai-core-architecture.md) |
 | MCP (Tool Use) | `src/main/services/mcp/` | — |
 | Knowledge (RAG) | `src/main/knowledge/` | [KnowledgeService](./knowledge/knowledge-service.md) |
-| Message System | `src/renderer/src/store/` | [Message System](./messaging/message-system.md) |
+| Message System | `src/renderer/store/` | [Message System](./messaging/message-system.md) |
 | CherryClaw (Agent) | `src/main/services/agents/` | [CherryClaw Overview](./cherryclaw/overview.md) |
 | API Server | `src/main/apiServer/` | [App Upgrade Config](./app-upgrade.md) |
 

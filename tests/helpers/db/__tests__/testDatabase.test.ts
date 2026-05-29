@@ -47,7 +47,7 @@ describe('setupTestDatabase — data isolation between tests', () => {
   const dbh = setupTestDatabase()
 
   it('test A inserts one topic row', async () => {
-    await dbh.db.insert(topicTable).values({ id: 'topic-iso-a', createdAt: 1, updatedAt: 1 })
+    await dbh.db.insert(topicTable).values({ id: 'topic-iso-a', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
     const rows = await dbh.db.select().from(topicTable)
     expect(rows).toHaveLength(1)
   })
@@ -68,7 +68,7 @@ describe('setupTestDatabase — transaction + PRAGMA replay', () => {
 
   it('data inserted inside a transaction is visible after commit', async () => {
     await dbh.db.transaction(async (tx) => {
-      await tx.insert(topicTable).values({ id: 'topic-tx', createdAt: 1, updatedAt: 1 })
+      await tx.insert(topicTable).values({ id: 'topic-tx', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
     })
     const rows = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'topic-tx'))
     expect(rows).toHaveLength(1)
@@ -77,7 +77,7 @@ describe('setupTestDatabase — transaction + PRAGMA replay', () => {
   it('FK enforcement survives transaction-triggered connection reset', async () => {
     // Drive a transaction to force @libsql/client to recycle its connection.
     await dbh.db.transaction(async (tx) => {
-      await tx.insert(topicTable).values({ id: 'topic-fk', createdAt: 1, updatedAt: 1 })
+      await tx.insert(topicTable).values({ id: 'topic-fk', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
     })
     const result = await dbh.client.execute('PRAGMA foreign_keys')
     expect(Number(result.rows[0]?.[0])).toBe(1)
@@ -88,7 +88,7 @@ describe('setupTestDatabase — FTS5 triggers and truncate cascade', () => {
   const dbh = setupTestDatabase()
 
   async function seedTopic(id: string) {
-    await dbh.db.insert(topicTable).values({ id, createdAt: 1, updatedAt: 1 })
+    await dbh.db.insert(topicTable).values({ id, orderKey: 'a0', createdAt: 1, updatedAt: 1 })
   }
 
   it('INSERT INTO message populates message_fts via AFTER INSERT trigger', async () => {
@@ -130,9 +130,9 @@ describe('setupTestDatabase — FTS5 triggers and truncate cascade', () => {
     expect(Number(count.rows[0]?.[0])).toBe(0)
   })
 
-  it('truncateAll does not throw when message has no extractable text (NULL searchableText)', async () => {
+  it('truncateAll does not throw when message has no extractable text', async () => {
     await seedTopic('topic-null-fts')
-    // data.blocks contains no main_text — trigger will set searchableText to NULL
+    // data.blocks contains no main_text — trigger COALESCE the missing concat to ''.
     await dbh.db.insert(messageTable).values({
       id: 'msg-null-fts',
       parentId: null,
@@ -153,7 +153,7 @@ describe('setupTestDatabase — production code routing via MockMainDbService', 
 
   it('application.get("DbService").getDb() returns the same DB instance', async () => {
     const fromApp = application.get('DbService').getDb()
-    await dbh.db.insert(topicTable).values({ id: 'topic-routing', createdAt: 1, updatedAt: 1 })
+    await dbh.db.insert(topicTable).values({ id: 'topic-routing', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
 
     // Read using the DB instance obtained via the production access pattern.
     const rows = await fromApp.select().from(topicTable).where(eq(topicTable.id, 'topic-routing'))
@@ -176,7 +176,7 @@ describe('setupTestDatabase — replay array does not accumulate across truncate
     // After 100 cycles: measure latency of one more transaction.
     const start = performance.now()
     await dbh.db.transaction(async (tx) => {
-      await tx.insert(topicTable).values({ id: 'after-cycles', createdAt: 1, updatedAt: 1 })
+      await tx.insert(topicTable).values({ id: 'after-cycles', orderKey: 'a0', createdAt: 1, updatedAt: 1 })
     })
     const elapsed = performance.now() - start
 

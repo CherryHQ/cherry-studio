@@ -37,25 +37,30 @@ type SearxngSearchContext = UrlSearchContext
 
 const logger = loggerService.withContext('SearxngProvider')
 
+function trimStringList(values: readonly string[]): string[] {
+  return values.map((value) => value.trim()).filter(Boolean)
+}
+
 export class SearxngProvider extends BaseWebSearchProvider {
   private getBasicAuthHeaders(): Record<string, string> {
-    if (!this.provider.basicAuthUsername) {
+    const basicAuthUsername = this.provider.basicAuthUsername.trim()
+    if (!basicAuthUsername) {
       return {}
     }
+    const basicAuthPassword = this.provider.basicAuthPassword.trim()
 
     return {
-      Authorization: `Basic ${Buffer.from(
-        `${this.provider.basicAuthUsername}:${this.provider.basicAuthPassword}`
-      ).toString('base64')}`
+      Authorization: `Basic ${Buffer.from(`${basicAuthUsername}:${basicAuthPassword}`).toString('base64')}`
     }
   }
 
   private async resolveEngines(signal?: AbortSignal): Promise<string[]> {
-    if (this.provider.engines.length > 0) {
-      return this.provider.engines
+    const configuredEngines = trimStringList(this.provider.engines)
+    if (configuredEngines.length > 0) {
+      return configuredEngines
     }
 
-    const requestUrl = this.resolveApiUrl('/config')
+    const requestUrl = this.resolveApiUrl('searchKeywords', '/config')
     const response = await net.fetch(requestUrl, {
       method: 'GET',
       headers: {
@@ -85,12 +90,16 @@ export class SearxngProvider extends BaseWebSearchProvider {
     return engines
   }
 
-  async search(query: string, config: WebSearchExecutionConfig, httpOptions?: RequestInit): Promise<WebSearchResponse> {
+  async searchKeywords(
+    query: string,
+    config: WebSearchExecutionConfig,
+    httpOptions?: RequestInit
+  ): Promise<WebSearchResponse> {
     const context = await this.prepareSearchContext(query, config, httpOptions)
     const searchPayload = await this.executeSearch(context)
     const fetchedResults = await this.fetchResultContents(context, searchPayload)
 
-    return this.buildFinalResponse(context, searchPayload, fetchedResults)
+    return this.buildFinalResponse(context, fetchedResults)
   }
 
   private async prepareSearchContext(
@@ -110,7 +119,7 @@ export class SearxngProvider extends BaseWebSearchProvider {
     return {
       query,
       maxResults: config.maxResults,
-      searchUrl: `${this.resolveApiUrl('/search')}?${searchParams.toString()}`,
+      searchUrl: `${this.resolveApiUrl('searchKeywords', '/search')}?${searchParams.toString()}`,
       signal
     }
   }
@@ -140,6 +149,13 @@ export class SearxngProvider extends BaseWebSearchProvider {
     searchPayload: z.infer<typeof SearxngSearchResponseSchema>
   ) {
     const validItems = searchPayload.results.filter((item) => isValidUrl(item.url || '')).slice(0, context.maxResults)
+    if (validItems.length === 0 && searchPayload.results.length > 0) {
+      logger.warn('All Searxng search URLs failed validation', {
+        query: context.query,
+        total: searchPayload.results.length
+      })
+    }
+
     const settledResults = await Promise.allSettled(
       validItems.map((item) => fetchWebSearchContent(item.url || '', { signal: context.signal }))
     )
@@ -171,14 +187,16 @@ export class SearxngProvider extends BaseWebSearchProvider {
     return fulfilledResults.map((item) => item.value).filter((item) => item.content.trim().length > 0)
   }
 
-  private buildFinalResponse(
-    context: SearxngSearchContext,
-    searchPayload: z.infer<typeof SearxngSearchResponseSchema>,
-    fetchedResults: WebSearchResult[]
-  ): WebSearchResponse {
+  private buildFinalResponse(context: SearxngSearchContext, fetchedResults: WebSearchResult[]): WebSearchResponse {
     return {
-      query: searchPayload.query || context.query,
-      results: fetchedResults
+      query: context.query,
+      providerId: this.provider.id,
+      capability: 'searchKeywords',
+      inputs: [context.query],
+      results: fetchedResults.map((result) => ({
+        ...result,
+        sourceInput: context.query
+      }))
     }
   }
 }

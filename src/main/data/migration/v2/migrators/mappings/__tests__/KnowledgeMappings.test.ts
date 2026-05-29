@@ -1,11 +1,17 @@
 import { FILE_TYPE } from '@shared/data/types/file'
+import { KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL } from '@shared/data/types/knowledge'
 import { describe, expect, it } from 'vitest'
 
 import { legacyModelToUniqueId } from '../../transformers/ModelTransformers'
 import { inferKnowledgeItemStatus, transformKnowledgeBase, transformKnowledgeItem } from '../KnowledgeMappings'
 
+const UUIDV7_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const UUIDV4_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+const LEGACY_FILE_ID = '019606a0-0000-7000-8000-000000000101'
+
 const fileMetadata = {
-  id: 'file-1',
+  id: LEGACY_FILE_ID,
   name: 'report.pdf',
   origin_name: 'report.pdf',
   path: '/tmp/report.pdf',
@@ -22,13 +28,16 @@ describe('KnowledgeMappings', () => {
     expect(legacyModelToUniqueId({ id: 'silicon::BAAI/bge-m3', provider: 'silicon' })).toBe('silicon::BAAI/bge-m3')
   })
 
-  it('inferKnowledgeItemStatus only trusts uniqueId', () => {
+  it('inferKnowledgeItemStatus maps legacy transient states to failed', () => {
     expect(inferKnowledgeItemStatus({ uniqueId: 'loader-1' } as any)).toBe('completed')
     expect(inferKnowledgeItemStatus({ uniqueId: '   ' } as any)).toBe('idle')
+    expect(inferKnowledgeItemStatus({ processingStatus: 'pending' } as any)).toBe('failed')
+    expect(inferKnowledgeItemStatus({ processingStatus: 'processing' } as any)).toBe('failed')
+    expect(inferKnowledgeItemStatus({ processingStatus: 'failed', uniqueId: 'loader-1' } as any)).toBe('failed')
     expect(inferKnowledgeItemStatus({} as any)).toBe('idle')
   })
 
-  it('transformKnowledgeBase preserves the knowledge base when model is unavailable', () => {
+  it('transformKnowledgeBase marks knowledge bases without an embedding model as failed', () => {
     expect(
       transformKnowledgeBase(
         {
@@ -40,10 +49,49 @@ describe('KnowledgeMappings', () => {
     ).toStrictEqual({
       ok: true,
       value: expect.objectContaining({
-        id: 'kb-1',
-        name: 'KB 1',
+        id: expect.stringMatching(UUIDV4_PATTERN),
         embeddingModelId: null,
-        rerankModelId: null
+        status: 'failed',
+        error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL
+      })
+    })
+  })
+
+  it('transformKnowledgeBase fills default chunk config when legacy values are missing', () => {
+    expect(
+      transformKnowledgeBase(
+        {
+          id: 'kb-default-config',
+          name: 'KB default config',
+          model: { id: 'BAAI/bge-m3', name: 'bge', provider: 'silicon' }
+        },
+        1024
+      )
+    ).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        chunkSize: 1024,
+        chunkOverlap: 200
+      })
+    })
+  })
+
+  it('transformKnowledgeBase keeps default overlap below a preserved small chunk size', () => {
+    expect(
+      transformKnowledgeBase(
+        {
+          id: 'kb-small-chunk',
+          name: 'KB small chunk',
+          model: { id: 'BAAI/bge-m3', name: 'bge', provider: 'silicon' },
+          chunkSize: 128
+        },
+        1024
+      )
+    ).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        chunkSize: 128,
+        chunkOverlap: 127
       })
     })
   })
@@ -64,7 +112,7 @@ describe('KnowledgeMappings', () => {
     ).toStrictEqual({
       ok: true,
       value: expect.objectContaining({
-        id: 'kb-soft-limit-config',
+        id: expect.stringMatching(UUIDV4_PATTERN),
         name: 'KB soft limit config',
         embeddingModelId: 'silicon::BAAI/bge-m3',
         chunkSize: 80,
@@ -74,7 +122,7 @@ describe('KnowledgeMappings', () => {
     })
   })
 
-  it('transformKnowledgeBase clears invalid tuning config instead of skipping the base', () => {
+  it('transformKnowledgeBase normalizes invalid tuning config instead of skipping the base', () => {
     expect(
       transformKnowledgeBase(
         {
@@ -91,14 +139,14 @@ describe('KnowledgeMappings', () => {
     ).toStrictEqual({
       ok: true,
       value: expect.objectContaining({
-        id: 'kb-invalid-config',
+        id: expect.stringMatching(UUIDV4_PATTERN),
         name: 'KB invalid config',
         embeddingModelId: 'silicon::BAAI/bge-m3',
         chunkSize: 200,
-        chunkOverlap: undefined,
+        chunkOverlap: 199,
         threshold: undefined,
         documentCount: undefined,
-        searchMode: 'default'
+        searchMode: 'hybrid'
       })
     })
   })
@@ -168,11 +216,12 @@ describe('KnowledgeMappings', () => {
     expect(result).toStrictEqual({
       ok: true,
       value: {
-        id: 'note-1',
+        id: expect.stringMatching(UUIDV7_PATTERN),
         baseId: 'kb-1',
         groupId: null,
         type: 'note',
         data: {
+          source: 'https://dexie.example.com',
           content: 'dexie-content',
           sourceUrl: 'https://dexie.example.com'
         },
@@ -190,30 +239,147 @@ describe('KnowledgeMappings', () => {
       {
         id: 'file-item-1',
         type: 'file',
-        content: 'file-1',
+        content: LEGACY_FILE_ID,
         uniqueId: 'loader-1'
       },
       {
         noteById: new Map(),
-        filesById: new Map([['file-1', fileMetadata]])
+        filesById: new Map([[LEGACY_FILE_ID, fileMetadata]])
       }
     )
 
     expect(result).toStrictEqual({
       ok: true,
       value: {
-        id: 'file-item-1',
+        id: expect.stringMatching(UUIDV7_PATTERN),
         baseId: 'kb-1',
         groupId: null,
         type: 'file',
         data: {
-          file: fileMetadata
+          source: '/tmp/report.pdf',
+          fileEntryId: LEGACY_FILE_ID
         },
         status: 'completed',
         error: null,
         createdAt: expect.any(Number),
         updatedAt: expect.any(Number)
       }
+    })
+  })
+
+  it('transformKnowledgeItem clears blank legacy processing errors for idle and completed items', () => {
+    const idleResult = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'idle-note',
+        type: 'note',
+        content: 'idle note',
+        processingError: ''
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+    const completedResult = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'completed-file',
+        type: 'file',
+        content: LEGACY_FILE_ID,
+        uniqueId: 'loader-1',
+        processingError: '   '
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map([[LEGACY_FILE_ID, fileMetadata]])
+      }
+    )
+
+    expect(idleResult).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        status: 'idle',
+        error: null
+      })
+    })
+    expect(completedResult).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        status: 'completed',
+        error: null
+      })
+    })
+  })
+
+  it('transformKnowledgeItem backfills errors for legacy transient states without processing errors', () => {
+    const processingResult = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'processing-note',
+        type: 'note',
+        content: 'processing note',
+        processingStatus: 'processing',
+        processingError: '   '
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+    const pendingResult = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'pending-note',
+        type: 'note',
+        content: 'pending note',
+        processingStatus: 'pending',
+        processingError: ''
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(processingResult).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        status: 'failed',
+        error: 'Legacy knowledge item indexing was interrupted and needs to be retried.'
+      })
+    })
+    expect(pendingResult).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        status: 'failed',
+        error: 'Legacy knowledge item indexing was interrupted and needs to be retried.'
+      })
+    })
+  })
+
+  it('transformKnowledgeItem backfills errors for legacy failed states without processing errors', () => {
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'failed-note',
+        type: 'note',
+        content: 'failed note',
+        processingStatus: 'failed',
+        processingError: '   '
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        status: 'failed',
+        error: 'Legacy knowledge item failed without an error message.'
+      })
     })
   })
 
@@ -254,12 +420,12 @@ describe('KnowledgeMappings', () => {
     expect(result).toStrictEqual({
       ok: true,
       value: {
-        id: 'dir-1',
+        id: expect.stringMatching(UUIDV7_PATTERN),
         baseId: 'kb-1',
         groupId: null,
         type: 'directory',
         data: {
-          name: 'docs',
+          source: '/tmp/docs',
           path: '/tmp/docs'
         },
         status: 'idle',

@@ -1,4 +1,4 @@
-appId: com.kangfenmao.CherryStudio
+appId: com.cherryai.cherrystudio
 productName: Cherry Studio
 electronLanguages:
   - zh-CN
@@ -77,8 +77,10 @@ asarUnpack:
 extraResources:
   - from: "migrations/sqlite-drizzle"
     to: "migrations/sqlite-drizzle"
+  - from: "packages/provider-registry/data"
+    to: "provider-registry"
 win:
-  executableName: Cherry Studio
+  executableName: CherryStudio
   artifactName: ${productName}-${version}-${arch}-setup.${ext}
   target:
     - target: nsis
@@ -144,52 +146,40 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.9.2 - Skills Creation & Vietnamese Support
+    Cherry Studio 1.9.7 - Model Support & Bug Fixes
 
     ✨ New Features
-    - [Skills] Agents can now author and register new skills directly from chat using the skills tool
-    - [Skills] Add "Add More Skills" button to agent settings for quick navigation to Skills management
-    - [Skills] Skills and memory MCP tools now available to all agents (not just Soul Mode agents)
-    - [i18n] Add Vietnamese (Tiếng Việt) language support with complete UI translations
+    - [Models] Added support for grok-build-0.1 capabilities (reasoning, tool use, vision)
+    - [Providers] StepFun now supports Claude Code / Anthropic-compatible mode with auto-filled endpoint
+    - [Agents] DeepSeek V4 Flash and MiMo V2.5+ now properly support 1M context window in Claude Code
 
     🐛 Bug Fixes
-    - [Analytics] Fix telemetry being sent even when data collection is disabled
-    - [Agents] Agent settings changes (model, permissions, tools, etc.) now sync immediately to all active sessions
-    - [Agents] Built-in agent prompt updates now properly sync to existing sessions
-    - [Agents] Cherry Assistant now displays the 🍒 avatar instead of generic ⭐️
-    - [Search] Fix CJK (Chinese/Japanese/Korean) text search failing in whole-word mode
-    - [Search] Add phrase search support (e.g., "machine learning" with quotes)
-    - [Export] Fix Obsidian export silently failing due to blocked obsidian:// protocol
-    - [Knowledge] Fix knowledge base creation failing for Ollama embedding models
-    - [Models] Fix custom parameters not being passed to Gemini API when using NewAPI/AiHubMix providers
-    - [Knowledge] Fix Dify knowledge search compatibility with Dify 1.13.3
-    - [OpenClaw] Fix language selection not persisting in overview page
-
-    ⚡ Performance
-    - [Electron] Upgrade to Electron 41.2.1 with improved window resize handling on Windows
+    - [Web Search] Fixed ExaMCP web search not returning result content correctly
+    - [Code Viewer] Fixed code syntax highlighting issues where tokens could disappear in light theme
+    - [OpenCode] Fixed launch failures after CLI updates by using package-local executable
+    - [Agents] Fixed Agent mode not forwarding custom provider headers to Claude Code
+    - [Models] Fixed Grok 4.3 reasoning effort support in xAI responses
+    - [OpenClaw] Improved migration message clarity when external PATH installation is detected
+    - [Models] Fixed Gemini 3.x models using wrong UI and sending deprecated sampling parameters
+    - [Models] Fixed Qwen max series models incorrectly showing vision capability
+    - [Providers] Fixed AIHubMix reasoning effort configuration not working properly
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.9.2 - 技能创作与越南语支持
+    Cherry Studio 1.9.7 - 模型支持与错误修复
 
     ✨ 新功能
-    - [技能] 智能体现在可以直接在对话中通过 skills 工具编写和注册新技能
-    - [技能] 在智能体设置的技能页面添加"添加更多技能"按钮，快速跳转到技能管理页面
-    - [技能] skills 和 memory MCP 工具现对所有智能体可用（不仅限于灵魂模式）
-    - [i18n] 新增越南语（Tiếng Việt）支持，包含完整的 UI 翻译
+    - [模型] 支持 grok-build-0.1 模型能力（推理、工具调用、视觉）
+    - [提供商] StepFun 现在支持 Claude Code / Anthropic 兼容模式，并自动填充端点
+    - [智能体] DeepSeek V4 Flash 和 MiMo V2.5+ 现在在 Claude Code 中正确支持 1M 上下文窗口
 
     🐛 问题修复
-    - [数据统计] 修复即使禁用数据统计仍发送统计数据的问题
-    - [智能体] 智能体设置更改（模型、权限、工具等）现立即同步到所有活跃会话
-    - [智能体] 内置智能体提示词更新现正确同步到现有会话
-    - [智能体] Cherry Assistant 现显示 🍒 头像而非通用的 ⭐️
-    - [搜索] 修复中日韩（CJK）文本在全词模式下搜索失败的问题
-    - [搜索] 添加短语搜索支持（例如带引号的 "machine learning"）
-    - [导出] 修复因 obsidian:// 协议被阻止导致 Obsidian 导出静默失败的问题
-    - [知识库] 修复使用 Ollama 嵌入模型创建知识库失败的问题
-    - [模型] 修复使用 NewAPI/AiHubMix 服务商时自定义参数未传递给 Gemini API 的问题
-    - [知识库] 修复与 Dify 1.13.3 的知识搜索兼容性问题
-    - [OpenClaw] 修复概览页面语言选择无法持久化的问题
-
-    ⚡ 性能优化
-    - [Electron] 升级至 Electron 41.2.1，改进 Windows 平台的窗口调整大小体验
+    - [网络搜索] 修复 ExaMCP 网络搜索无法正确返回结果内容的问题
+    - [代码查看器] 修复浅色主题下代码语法高亮标记可能消失的问题
+    - [OpenCode] 修复 CLI 更新后启动失败的问题，现在使用包本地可执行文件
+    - [智能体] 修复智能体模式未将自定义提供商标头转发给 Claude Code 的问题
+    - [模型] 修复 xAI 响应中 Grok 4.3 推理强度支持问题
+    - [OpenClaw] 改进检测到外部 PATH 安装时的迁移消息清晰度
+    - [模型] 修复 Gemini 3.x 模型使用错误 UI 并发送已弃用采样参数的问题
+    - [模型] 修复 Qwen max 系列模型错误显示视觉能力的问题
+    - [提供商] 修复 AIHubMix 推理强度配置无法正常工作的问题
     <!--LANG:END-->

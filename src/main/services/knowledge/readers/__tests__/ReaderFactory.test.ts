@@ -3,9 +3,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const fetchMock = vi.hoisted(() => vi.fn())
 const loggerWarnMock = vi.hoisted(() => vi.fn())
+const getPhysicalPathMock = vi.hoisted(() => vi.fn())
 const customReaderSpies = vi.hoisted(() => ({
-  drafts: vi.fn(async (item: KnowledgeItemOf<'file'>) => [{ metadata: { reader: 'drafts', itemId: item.id } }]),
-  epub: vi.fn(async (item: KnowledgeItemOf<'file'>) => [{ metadata: { reader: 'epub', itemId: item.id } }])
+  drafts: vi.fn(async (filePath: string) => [{ metadata: { reader: 'drafts', filePath } }]),
+  epub: vi.fn(async (filePath: string) => [{ metadata: { reader: 'epub', filePath } }])
 }))
 const readerSpies = vi.hoisted(() => ({
   csv: vi.fn(async (filePath: string) => [{ metadata: { reader: 'csv', filePath } }]),
@@ -26,6 +27,15 @@ vi.mock('@logger', () => ({
     })
   }
 }))
+
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    FileManager: {
+      getPhysicalPath: getPhysicalPathMock
+    }
+  } as Parameters<typeof mockApplicationFactory>[0])
+})
 
 vi.mock('electron', () => ({
   net: {
@@ -71,65 +81,21 @@ vi.mock('@vectorstores/readers/text', () => ({
 
 vi.mock('../files/DraftsExportReader', () => ({
   DraftsExportReader: class {
-    loadData = (filePath: string) =>
-      customReaderSpies.drafts({
-        id: 'item-1',
-        baseId: 'base-1',
-        groupId: null,
-        type: 'file',
-        status: 'idle',
-        error: null,
-        createdAt: '2026-04-03T00:00:00.000Z',
-        updatedAt: '2026-04-03T00:00:00.000Z',
-        data: {
-          file: {
-            id: 'file-1',
-            name: filePath.split('/').pop() || filePath,
-            origin_name: filePath.split('/').pop() || filePath,
-            path: filePath,
-            size: 1,
-            ext: '.draftsexport',
-            type: 'document',
-            created_at: '2026-04-03T00:00:00.000Z',
-            count: 1
-          }
-        }
-      } as KnowledgeItemOf<'file'>)
+    loadData = customReaderSpies.drafts
   }
 }))
 
 vi.mock('../files/EpubReader', () => ({
   EpubReader: class {
-    loadData = (filePath: string) =>
-      customReaderSpies.epub({
-        id: 'item-1',
-        baseId: 'base-1',
-        groupId: null,
-        type: 'file',
-        status: 'idle',
-        error: null,
-        createdAt: '2026-04-03T00:00:00.000Z',
-        updatedAt: '2026-04-03T00:00:00.000Z',
-        data: {
-          file: {
-            id: 'file-1',
-            name: filePath.split('/').pop() || filePath,
-            origin_name: filePath.split('/').pop() || filePath,
-            path: filePath,
-            size: 1,
-            ext: '.epub',
-            type: 'document',
-            created_at: '2026-04-03T00:00:00.000Z',
-            count: 1
-          }
-        }
-      } as KnowledgeItemOf<'file'>)
+    loadData = customReaderSpies.epub
   }
 }))
 
 const { loadKnowledgeItemDocuments } = await import('../KnowledgeReader')
 
-function createFileItem(ext: string, filePath?: string): KnowledgeItemOf<'file'> {
+const FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000501'
+
+function createFileItem(ext: string, sourcePath?: string): KnowledgeItemOf<'file'> {
   return {
     id: 'item-1',
     baseId: 'base-1',
@@ -140,17 +106,8 @@ function createFileItem(ext: string, filePath?: string): KnowledgeItemOf<'file'>
     createdAt: '2026-04-03T00:00:00.000Z',
     updatedAt: '2026-04-03T00:00:00.000Z',
     data: {
-      file: {
-        id: 'file-1',
-        name: `sample${ext}`,
-        origin_name: `sample${ext}`,
-        path: filePath ?? `/tmp/sample${ext}`,
-        size: 1,
-        ext,
-        type: 'document',
-        created_at: '2026-04-03T00:00:00.000Z',
-        count: 1
-      }
+      source: sourcePath ?? `/tmp/sample${ext}`,
+      fileEntryId: FILE_ENTRY_ID
     }
   }
 }
@@ -166,6 +123,7 @@ function createNoteItem(content: string, sourceUrl?: string): KnowledgeItemOf<'n
     createdAt: '2026-04-03T00:00:00.000Z',
     updatedAt: '2026-04-03T00:00:00.000Z',
     data: {
+      source: sourceUrl ?? 'note-1',
       content,
       sourceUrl
     }
@@ -183,8 +141,8 @@ function createUrlItem(): KnowledgeItemOf<'url'> {
     createdAt: '2026-04-03T00:00:00.000Z',
     updatedAt: '2026-04-03T00:00:00.000Z',
     data: {
-      url: 'https://example.com',
-      name: 'Example'
+      source: 'https://example.com',
+      url: 'https://example.com'
     }
   }
 }
@@ -200,8 +158,8 @@ function createSitemapItem(): KnowledgeItemOf<'sitemap'> {
     createdAt: '2026-04-03T00:00:00.000Z',
     updatedAt: '2026-04-03T00:00:00.000Z',
     data: {
-      url: 'https://example.com/sitemap.xml',
-      name: 'Example Sitemap'
+      source: 'https://example.com/sitemap.xml',
+      url: 'https://example.com/sitemap.xml'
     }
   }
 }
@@ -217,7 +175,7 @@ function createDirectoryItem(): KnowledgeItemOf<'directory'> {
     createdAt: '2026-04-03T00:00:00.000Z',
     updatedAt: '2026-04-03T00:00:00.000Z',
     data: {
-      name: 'example-directory',
+      source: '/tmp/example-directory',
       path: '/tmp/example-directory'
     }
   }
@@ -227,6 +185,8 @@ describe('loadKnowledgeItemDocuments', () => {
   beforeEach(() => {
     fetchMock.mockReset()
     loggerWarnMock.mockReset()
+    getPhysicalPathMock.mockReset()
+    getPhysicalPathMock.mockImplementation(async () => '/tmp/sample.txt')
   })
 
   it.each([
@@ -237,60 +197,68 @@ describe('loadKnowledgeItemDocuments', () => {
     ['.md', 'markdown']
   ])('maps %s files to the %s reader', async (ext, expectedReader) => {
     const item = createFileItem(ext)
+    getPhysicalPathMock.mockResolvedValueOnce(`/resolved/sample${ext}`)
     const docs = await loadKnowledgeItemDocuments(item)
 
+    expect(getPhysicalPathMock).toHaveBeenCalledWith(FILE_ENTRY_ID)
+    expect(readerSpies[expectedReader as keyof typeof readerSpies]).toHaveBeenCalledWith(`/resolved/sample${ext}`)
     expect(docs[0]).toMatchObject({
       metadata: {
-        reader: expectedReader,
-        filePath: `/tmp/sample${ext}`
+        source: `/tmp/sample${ext}`
       }
     })
   })
 
   it('falls back to TextFileReader for unmatched file extensions', async () => {
     const item = createFileItem('.log')
+    getPhysicalPathMock.mockResolvedValueOnce('/resolved/sample.log')
     const docs = await loadKnowledgeItemDocuments(item)
 
+    expect(getPhysicalPathMock).toHaveBeenCalledWith(FILE_ENTRY_ID)
+    expect(readerSpies.text).toHaveBeenCalledWith('/resolved/sample.log')
     expect(docs[0]).toMatchObject({
       metadata: {
-        reader: 'text',
-        filePath: '/tmp/sample.log'
+        source: '/tmp/sample.log'
       }
     })
   })
 
   it('uses the drafts export reader for .draftsexport files', async () => {
     const item = createFileItem('.draftsexport')
+    getPhysicalPathMock.mockResolvedValueOnce('/resolved/sample.draftsexport')
 
     const docs = await loadKnowledgeItemDocuments(item)
 
-    expect(customReaderSpies.drafts).toHaveBeenCalled()
+    expect(getPhysicalPathMock).toHaveBeenCalledWith(FILE_ENTRY_ID)
+    expect(customReaderSpies.drafts).toHaveBeenCalledWith('/resolved/sample.draftsexport')
     expect(docs[0]).toMatchObject({
       metadata: {
-        reader: 'drafts',
-        itemId: 'item-1'
+        source: '/tmp/sample.draftsexport'
       }
     })
   })
 
   it('uses the epub reader for .epub files', async () => {
     const item = createFileItem('.epub')
+    getPhysicalPathMock.mockResolvedValueOnce('/resolved/sample.epub')
 
     const docs = await loadKnowledgeItemDocuments(item)
 
-    expect(customReaderSpies.epub).toHaveBeenCalled()
+    expect(getPhysicalPathMock).toHaveBeenCalledWith(FILE_ENTRY_ID)
+    expect(customReaderSpies.epub).toHaveBeenCalledWith('/resolved/sample.epub')
     expect(docs[0]).toMatchObject({
       metadata: {
-        reader: 'epub',
-        itemId: 'item-1'
+        source: '/tmp/sample.epub'
       }
     })
   })
 
-  it('throws when a file item is missing file.path at load time', async () => {
-    const item = createFileItem('.txt', '')
+  it('throws when a file item cannot resolve a physical path at load time', async () => {
+    const resolveError = new Error('File path is required')
+    getPhysicalPathMock.mockRejectedValueOnce(resolveError)
+    const item = createFileItem('.txt')
 
-    await expect(loadKnowledgeItemDocuments(item)).rejects.toThrow('Knowledge file file-1 is missing file.path')
+    await expect(loadKnowledgeItemDocuments(item)).rejects.toBe(resolveError)
   })
 
   it('creates a note reader that returns a single Document', async () => {
@@ -301,9 +269,7 @@ describe('loadKnowledgeItemDocuments', () => {
     expect(docs[0]).toMatchObject({
       text: 'hello world',
       metadata: {
-        itemId: 'note-1',
-        itemType: 'note',
-        sourceUrl: 'https://example.com/note'
+        source: 'https://example.com/note'
       }
     })
   })
@@ -328,10 +294,7 @@ describe('loadKnowledgeItemDocuments', () => {
     expect(docs[0]).toMatchObject({
       text: '# Example Page\n\nHello knowledge',
       metadata: {
-        itemId: 'url-1',
-        itemType: 'url',
-        sourceUrl: 'https://example.com',
-        name: 'Example'
+        source: 'https://example.com'
       }
     })
   })
@@ -346,8 +309,7 @@ describe('loadKnowledgeItemDocuments', () => {
     )
     expect(loggerWarnMock).toHaveBeenCalledWith('Knowledge URL reader received empty markdown', {
       itemId: 'url-1',
-      sourceUrl: 'https://example.com',
-      name: 'Example'
+      sourceUrl: 'https://example.com'
     })
   })
 

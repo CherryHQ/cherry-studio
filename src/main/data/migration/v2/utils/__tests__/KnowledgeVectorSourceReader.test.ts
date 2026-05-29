@@ -6,29 +6,6 @@ import { pathToFileURL } from 'node:url'
 import { createClient } from '@libsql/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { setKnowledgeBaseRoot, getPathMock } = vi.hoisted(() => {
-  let currentKnowledgeBaseRoot = ''
-
-  return {
-    setKnowledgeBaseRoot: (nextPath: string) => {
-      currentKnowledgeBaseRoot = nextPath
-    },
-    getPathMock: vi.fn((key: string, filename?: string) => {
-      if (key !== 'feature.knowledgebase.data') {
-        throw new Error(`Unexpected path key: ${key}`)
-      }
-
-      return filename ? path.join(currentKnowledgeBaseRoot, filename) : currentKnowledgeBaseRoot
-    })
-  }
-})
-
-vi.mock('@application', () => ({
-  application: {
-    getPath: getPathMock
-  }
-}))
-
 vi.mock('@main/utils/file', () => ({
   sanitizeFilename: (value: string) => value
 }))
@@ -79,13 +56,34 @@ async function createLegacyVectorDb(
   client.close()
 }
 
+async function createLegacyVectorDbWithRawVector(dbPath: string, vectorColumnType: string, vectorValue: unknown) {
+  const client = createClient({ url: pathToFileURL(dbPath).toString() })
+
+  await client.execute(`
+    CREATE TABLE vectors (
+      id TEXT PRIMARY KEY,
+      pageContent TEXT UNIQUE,
+      uniqueLoaderId TEXT NOT NULL,
+      source TEXT NOT NULL,
+      vector ${vectorColumnType},
+      metadata TEXT
+    )
+  `)
+  const encodedValue = vectorValue == null ? 'NULL' : `'${String(vectorValue).replaceAll("'", "''")}'`
+  await client.execute(`
+    INSERT INTO vectors (id, pageContent, uniqueLoaderId, source, vector, metadata)
+    VALUES ('legacy-row-1', 'hello vector', 'loader-1', '/tmp/file.md', ${encodedValue}, '{}')
+  `)
+
+  client.close()
+}
+
 describe('KnowledgeVectorSourceReader', () => {
   let tempRoot: string
 
   beforeEach(() => {
     tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'knowledge-vector-source-reader-'))
     fs.mkdirSync(path.join(tempRoot, 'KnowledgeBase'), { recursive: true })
-    setKnowledgeBaseRoot(path.join(tempRoot, 'KnowledgeBase'))
   })
 
   afterEach(() => {
@@ -93,7 +91,7 @@ describe('KnowledgeVectorSourceReader', () => {
   })
 
   it('loads legacy embedjs rows from the knowledge base path', async () => {
-    const reader = new KnowledgeVectorSourceReader()
+    const reader = new KnowledgeVectorSourceReader(path.join(tempRoot, 'KnowledgeBase'))
     const dbPath = path.join(tempRoot, 'KnowledgeBase', 'kb-1')
 
     await createLegacyVectorDb(dbPath, [
@@ -114,14 +112,54 @@ describe('KnowledgeVectorSourceReader', () => {
           pageContent: 'hello vector',
           uniqueLoaderId: 'loader-1',
           source: '/tmp/file.md',
-          vector: [1, 2]
+          vector: { status: 'decoded', value: [1, 2] }
+        }
+      ]
+    })
+  })
+
+  it('marks null legacy vector payloads as missing', async () => {
+    const reader = new KnowledgeVectorSourceReader(path.join(tempRoot, 'KnowledgeBase'))
+    const dbPath = path.join(tempRoot, 'KnowledgeBase', 'kb-1')
+
+    await createLegacyVectorDbWithRawVector(dbPath, 'BLOB', null)
+
+    await expect(reader.loadBase('kb-1')).resolves.toEqual({
+      status: 'ok',
+      dbPath,
+      rows: [
+        {
+          pageContent: 'hello vector',
+          uniqueLoaderId: 'loader-1',
+          source: '/tmp/file.md',
+          vector: { status: 'missing' }
+        }
+      ]
+    })
+  })
+
+  it('marks unknown legacy vector encodings as unsupported', async () => {
+    const reader = new KnowledgeVectorSourceReader(path.join(tempRoot, 'KnowledgeBase'))
+    const dbPath = path.join(tempRoot, 'KnowledgeBase', 'kb-1')
+
+    await createLegacyVectorDbWithRawVector(dbPath, 'TEXT', 'not-a-vector')
+
+    await expect(reader.loadBase('kb-1')).resolves.toEqual({
+      status: 'ok',
+      dbPath,
+      rows: [
+        {
+          pageContent: 'hello vector',
+          uniqueLoaderId: 'loader-1',
+          source: '/tmp/file.md',
+          vector: { status: 'unsupported_encoding', encoding: 'string' }
         }
       ]
     })
   })
 
   it('returns not_embedjs for non-embedjs sqlite files', async () => {
-    const reader = new KnowledgeVectorSourceReader()
+    const reader = new KnowledgeVectorSourceReader(path.join(tempRoot, 'KnowledgeBase'))
     const dbPath = path.join(tempRoot, 'KnowledgeBase', 'kb-1')
     const client = createClient({ url: pathToFileURL(dbPath).toString() })
 

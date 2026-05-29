@@ -80,7 +80,7 @@ const MANUAL_BOOT_CONFIG_ITEMS = [
 class BootConfigGenerator {
   constructor() {
     this.dataDir = path.resolve(__dirname, '../data')
-    this.targetFile = path.resolve(__dirname, '../../../../packages/shared/data/bootConfig/bootConfigSchemas.ts')
+    this.targetFile = path.resolve(__dirname, '../../../../src/shared/data/bootConfig/bootConfigSchemas.ts')
     this.classificationFile = path.join(this.dataDir, 'classification.json')
   }
 

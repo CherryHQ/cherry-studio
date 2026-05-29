@@ -12,7 +12,7 @@
 import os from 'node:os'
 import path from 'node:path'
 
-import { isMac, isWin } from '@main/constant'
+import { isMac, isWin } from '@main/core/platform'
 import { app } from 'electron'
 
 import { CHERRY_HOME, LOGS_DIR } from './constants'
@@ -83,7 +83,7 @@ export function buildPathRegistry() {
 
     // Provider registry data (models.json, providers.json, etc.)
     'feature.provider_registry.data': app.isPackaged
-      ? path.join(appExtraResources, 'packages/provider-registry/data')
+      ? path.join(appExtraResources, 'provider-registry')
       : path.join(__dirname, '../../packages/provider-registry/data'),
 
     // MCP
@@ -93,8 +93,7 @@ export function buildPathRegistry() {
     // MCP memory server's knowledge-graph JSON for the built-in MCP server
     'feature.mcp.memory_file': path.join(CHERRY_HOME, 'config', 'memory.json'),
 
-    // Anthropic OAuth / Copilot token
-    'feature.anthropic.oauth_file': path.join(CHERRY_HOME, 'config', 'oauth', 'anthropic.json'),
+    // Copilot token
     'feature.copilot.token_file': path.join(CHERRY_HOME, 'config', '.copilot_token'),
 
     // Trace
@@ -118,6 +117,7 @@ export function buildPathRegistry() {
 
     // Files / Notes / Knowledgebase
     'feature.files.data': path.join(appUserDataData, 'Files'),
+    'feature.file_processing.results': path.join(appUserDataData, 'Files', 'file-processing'),
     'feature.notes.data': path.join(appUserDataData, 'Notes'),
     'feature.knowledgebase.data': path.join(appUserDataData, 'KnowledgeBase'),
 
@@ -136,6 +136,9 @@ export function buildPathRegistry() {
     'feature.dxt.uploads.temp': path.join(appTemp, 'dxt_uploads'),
     'feature.preprocess.temp': path.join(appTemp, 'preprocess'),
     'feature.lan_transfer.temp': path.join(appTemp, 'lan-transfer'),
+    // FileManager's `withTempCopy` escape hatch parent dir; each call mkdtemps a
+    // unique sub-directory under here.
+    'feature.files.tempcopy.temp': path.join(appTemp, 'files-tempcopy'),
 
     // -- E. external.* — third-party tool paths (Cherry reads/writes, does NOT own) --
     'external.openclaw.config': path.join(os.homedir(), '.openclaw'),

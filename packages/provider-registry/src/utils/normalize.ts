@@ -56,7 +56,17 @@ export const PREFIX_EXPANSIONS: [string, string][] = [
   ['mm-', 'minimax-'] // MiniMax shorthand: mm-m2-1 → minimax-m2-1
 ]
 
-export const COLON_VARIANT_SUFFIXES = [':free', ':nitro', ':extended', ':beta', ':preview', ':thinking', ':exacto']
+export const COLON_VARIANT_SUFFIXES = [
+  ':free',
+  ':nitro',
+  ':extended',
+  ':beta',
+  ':preview',
+  ':thinking',
+  ':exacto',
+  ':latest',
+  ':cloud'
+]
 
 export const HYPHEN_VARIANT_SUFFIXES = [
   '-free',

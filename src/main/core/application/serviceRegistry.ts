@@ -2,14 +2,20 @@ import { CacheService } from '@data/CacheService'
 import { DataApiService } from '@data/DataApiService'
 import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
+import { JobManager } from '@main/core/job/JobManager'
+import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { WindowManager } from '@main/core/window/WindowManager'
 import { AgentBootstrapService } from '@main/services/AgentBootstrapService'
 import { AnalyticsService } from '@main/services/AnalyticsService'
 import { ApiServerService } from '@main/services/ApiServerService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
+import { CherryInOauthService } from '@main/services/CherryInOauthService'
 import { CodeCliService } from '@main/services/CodeCliService'
-import { KnowledgeOrchestrationService, KnowledgeRuntimeService } from '@main/services/knowledge'
+import { FileManager } from '@main/services/file/FileManager'
+import { DirectoryTreeManager } from '@main/services/file/tree/DirectoryTreeManager'
+import { FileProcessingOrchestrationService, TesseractRuntimeService } from '@main/services/fileProcessing'
+import { KnowledgeOrchestrationService } from '@main/services/knowledge'
 import { KnowledgeVectorStoreService } from '@main/services/knowledge/vectorstore/KnowledgeVectorStoreService'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MainWindowService } from '@main/services/MainWindowService'
@@ -25,11 +31,13 @@ import { PythonService } from '@main/services/PythonService'
 import { QuickAssistantService } from '@main/services/QuickAssistantService'
 import { SearchService } from '@main/services/SearchService'
 import { SelectionService } from '@main/services/selection/SelectionService'
+import { SettingsWindowService } from '@main/services/SettingsWindowService'
 import { ShortcutService } from '@main/services/ShortcutService'
 import { SpanCacheService } from '@main/services/SpanCacheService'
 import { SubWindowService } from '@main/services/SubWindowService'
 import { ThemeService } from '@main/services/ThemeService'
 import { TrayService } from '@main/services/TrayService'
+import { WebSearchService } from '@main/services/webSearch'
 import { WebviewService } from '@main/services/WebviewService'
 
 import type { ServiceConstructor } from '../lifecycle/types'
@@ -64,12 +72,17 @@ export const services = {
   DataApiService,
   SubWindowService,
   PreferenceService,
+  TesseractRuntimeService,
   AnalyticsService,
   AppMenuService,
   CodeCliService,
   LanTransferService,
+  FileManager,
+  DirectoryTreeManager,
+  FileProcessingOrchestrationService,
   PowerMonitorService,
   SelectionService,
+  SettingsWindowService,
   ShortcutService,
   ThemeService,
   SpanCacheService,
@@ -80,7 +93,9 @@ export const services = {
   ProxyManager,
   PythonService,
   TrayService,
+  WebSearchService,
   WebviewService,
+  CherryInOauthService,
   MainWindowService,
   QuickAssistantService,
   McpService,
@@ -88,10 +103,11 @@ export const services = {
   SearchService,
   KnowledgeOrchestrationService,
   KnowledgeVectorStoreService,
-  KnowledgeRuntimeService,
   AgentBootstrapService,
   ApiServerService,
-  AppUpdaterService
+  AppUpdaterService,
+  SchedulerService,
+  JobManager
 } as const
 
 /** Auto-derived service name to instance type mapping */

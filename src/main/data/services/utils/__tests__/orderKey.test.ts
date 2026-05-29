@@ -88,6 +88,37 @@ describe('orderKey', () => {
     it('returns [] for count = 0', () => {
       expect(generateOrderKeySequenceBetween(null, null, 0)).toEqual([])
     })
+
+    it('keeps repeated mid-insertion between two fixed anchors monotonic and bounded', () => {
+      // Force the worst-case pattern: always insert immediately before the
+      // right anchor. fractional-indexing must grow string length to keep
+      // strict ordering. We verify monotonicity at every step and bound the
+      // total growth at O(N) characters (in practice ~N/2 with the default
+      // alphabet) so a future bug that double-grows the key per insertion
+      // surfaces.
+      const N = 100
+      const lower = generateOrderKeyBetween(null, null)
+      const upper = generateOrderKeyBetween(lower, null)
+      let right = upper
+      const inserted: string[] = []
+
+      for (let i = 0; i < N; i++) {
+        const next = generateOrderKeyBetween(lower, right)
+        expect(next > lower).toBe(true)
+        expect(next < right).toBe(true)
+        inserted.push(next)
+        right = next
+      }
+
+      // Every insertion must be strictly decreasing (each `next < previous right`).
+      for (let i = 1; i < inserted.length; i++) {
+        expect(inserted[i] < inserted[i - 1]).toBe(true)
+      }
+      // Length must grow but not faster than linear with N.
+      const maxLen = Math.max(...inserted.map((key) => key.length))
+      expect(maxLen).toBeGreaterThan(upper.length)
+      expect(maxLen).toBeLessThanOrEqual(upper.length + N)
+    })
   })
 
   // --- insertWithOrderKey ---
@@ -237,31 +268,66 @@ describe('orderKey', () => {
       expect(after).toEqual(before)
     })
 
-    it('throws if the target id does not exist', async () => {
+    it('throws a NOT_FOUND DataApiError when the target id does not exist', async () => {
       await seedFx(['a'])
       await expect(
         dbh.db.transaction(async (tx) => {
           await applyMoves(tx, fxTable, [{ id: 'missing', anchor: { position: 'last' } }], { pkColumn: fxTable.id })
         })
-      ).rejects.toThrow(/not found/)
+      ).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        message: expect.stringMatching(/missing/),
+        details: { resource: 'fx_order_key_test', id: 'missing' }
+      })
     })
 
-    it('throws if the anchor id does not exist', async () => {
+    it('throws a NOT_FOUND DataApiError when the anchor id does not exist (before)', async () => {
       await seedFx(['a'])
       await expect(
         dbh.db.transaction(async (tx) => {
           await applyMoves(tx, fxTable, [{ id: 'a', anchor: { before: 'nope' } }], { pkColumn: fxTable.id })
         })
-      ).rejects.toThrow(/not found/)
+      ).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        message: expect.stringMatching(/nope/),
+        details: { resource: 'fx_order_key_test', id: 'nope' }
+      })
     })
 
-    it("throws if anchor id equals the move's own id", async () => {
+    it('throws a NOT_FOUND DataApiError when the anchor id does not exist (after)', async () => {
+      await seedFx(['a'])
+      await expect(
+        dbh.db.transaction(async (tx) => {
+          await applyMoves(tx, fxTable, [{ id: 'a', anchor: { after: 'nope' } }], { pkColumn: fxTable.id })
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        details: { id: 'nope' }
+      })
+    })
+
+    it("throws a VALIDATION_ERROR DataApiError when the 'before' anchor equals the move id", async () => {
       await seedFx(['a'])
       await expect(
         dbh.db.transaction(async (tx) => {
           await applyMoves(tx, fxTable, [{ id: 'a', anchor: { before: 'a' } }], { pkColumn: fxTable.id })
         })
-      ).rejects.toThrow(/cannot equal the move's own id/)
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: expect.stringMatching(/cannot equal the move's own id/)
+      })
+    })
+
+    it("throws a VALIDATION_ERROR DataApiError when the 'after' anchor equals the move id", async () => {
+      await seedFx(['a'])
+      await expect(
+        dbh.db.transaction(async (tx) => {
+          await applyMoves(tx, fxTable, [{ id: 'a', anchor: { after: 'a' } }], { pkColumn: fxTable.id })
+        })
+      ).rejects.toMatchObject({
+        code: ErrorCode.VALIDATION_ERROR,
+        message: expect.stringMatching(/cannot equal the move's own id/)
+      })
     })
 
     it('with scope: only touches rows in the scope bucket', async () => {
@@ -304,7 +370,7 @@ describe('orderKey', () => {
       expect(s2After).toEqual(s2Before)
     })
 
-    it('throws when anchor id is in a different scope than the target', async () => {
+    it('throws NOT_FOUND DataApiError when anchor id is in a different scope than the target', async () => {
       await insertWithOrderKey(
         dbh.db,
         fxTable,
@@ -324,7 +390,10 @@ describe('orderKey', () => {
             scope: eq(fxTable.scope, 's1')
           })
         })
-      ).rejects.toThrow(/not found/)
+      ).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND,
+        details: { resource: 'fx_order_key_test', id: 'x' }
+      })
     })
 
     it('supports a non-"id" primary-key column', async () => {

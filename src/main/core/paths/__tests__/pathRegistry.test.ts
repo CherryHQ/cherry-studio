@@ -47,6 +47,10 @@ describe('pathRegistry.shouldAutoEnsure', () => {
       expect(shouldAutoEnsure('feature.files.data')).toBe(true)
     })
 
+    it('returns true for feature.file_processing.results', () => {
+      expect(shouldAutoEnsure('feature.file_processing.results')).toBe(true)
+    })
+
     it('returns true for feature.mcp', () => {
       expect(shouldAutoEnsure('feature.mcp')).toBe(true)
     })
@@ -83,10 +87,6 @@ describe('pathRegistry.shouldAutoEnsure', () => {
 
     it('returns true for the new feature.copilot.token_file key', () => {
       expect(shouldAutoEnsure('feature.copilot.token_file')).toBe(true)
-    })
-
-    it('returns true for the new feature.anthropic.oauth_file key', () => {
-      expect(shouldAutoEnsure('feature.anthropic.oauth_file')).toBe(true)
     })
 
     it('returns true for the new feature.mcp.memory_file key', () => {

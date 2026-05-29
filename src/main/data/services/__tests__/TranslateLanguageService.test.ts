@@ -2,6 +2,7 @@ import { translateLanguageTable } from '@data/db/schemas/translateLanguage'
 import { translateLanguageService } from '@data/services/TranslateLanguageService'
 import { ErrorCode } from '@shared/data/api'
 import type { CreateTranslateLanguageDto } from '@shared/data/api/schemas/translate'
+import { parsePersistedLangCode } from '@shared/data/preference/preferenceTypes'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 
@@ -44,7 +45,7 @@ describe('TranslateLanguageService', () => {
   describe('create', () => {
     it('should create a language', async () => {
       const dto: CreateTranslateLanguageDto = {
-        langCode: 'ja-jp',
+        langCode: parsePersistedLangCode('ja-jp'),
         value: 'Japanese',
         emoji: '🇯🇵'
       }
@@ -60,7 +61,7 @@ describe('TranslateLanguageService', () => {
       await seedLanguage()
 
       const dto: CreateTranslateLanguageDto = {
-        langCode: 'ja-jp',
+        langCode: parsePersistedLangCode('ja-jp'),
         value: 'Japanese Duplicate',
         emoji: '🇯🇵'
       }

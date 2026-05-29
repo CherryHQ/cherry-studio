@@ -1,6 +1,6 @@
 {
   "name": "CherryStudio",
-  "version": "2.0.0-alpha",
+  "version": "2.0.0-dev",
   "private": true,
   "description": "A powerful AI assistant for producer.",
   "desktopName": "CherryStudio.desktop",
@@ -42,7 +42,8 @@
     "i18n:hardcoded:strict": "I18N_STRICT=true tsx scripts/check-hardcoded-strings.ts",
     "styles:legacy-vars": "tsx scripts/check-legacy-css-vars.ts",
     "styles:legacy-vars:strict": "LEGACY_CSS_VARS_STRICT=true tsx scripts/check-legacy-css-vars.ts",
-    "styles:legacy-vars:pr": "tsx scripts/check-pr-legacy-css-vars.ts",
+    "styles:reminders:pr": "tsx scripts/check-pr-style-reminders.ts",
+    "styles:canonical": "tsx scripts/fix-tailwind-canonical-classes.ts",
     "i18n:sync": "dotenv -e .env -- tsx scripts/sync-i18n.ts",
     "i18n:translate": "dotenv -e .env -- tsx scripts/auto-translate-i18n.ts",
     "i18n:all": "pnpm i18n:sync && pnpm i18n:translate",
@@ -62,9 +63,9 @@
     "test:ui": "vitest --ui",
     "test:watch": "vitest",
     "test:e2e": "pnpm playwright test",
-    "test:lint": "oxlint --deny-warnings && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --cache",
+    "test:lint": "oxlint --deny-warnings && NO_LEGACY_CSS_WARN=true eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --cache",
     "test:scripts": "vitest scripts",
-    "lint": "oxlint --fix && eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --cache && pnpm typecheck && pnpm i18n:check && pnpm format",
+    "lint": "oxlint --fix && NO_LEGACY_CSS_WARN=true eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --cache && pnpm typecheck && pnpm i18n:check && pnpm format",
     "format": "biome format --write && biome lint --write",
     "format:check": "biome format && biome lint",
     "bench": "vitest bench --run",
@@ -87,7 +88,7 @@
     "ci": "pnpm ci:basic-check && pnpm ci:test-check"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.2.81",
+    "@anthropic-ai/claude-agent-sdk": "0.2.112",
     "@expo/sudo-prompt": "^9.3.2",
     "@larksuiteoapi/node-sdk": "^1.59.0",
     "@libsql/client": "^0.15.15",
@@ -113,7 +114,8 @@
     "swagger-ui-express": "5.0.1",
     "tesseract.js": "6.0.1",
     "turndown": "7.2.0",
-    "ws": "^8.18.2"
+    "ws": "^8.18.2",
+    "xxhash-wasm": "^1.1.0"
   },
   "devDependencies": {
     "@agentic/exa": "^7.3.3",
@@ -185,6 +187,7 @@
     "@floating-ui/dom": "1.7.3",
     "@google/genai": "^1.46.0",
     "@hello-pangea/dnd": "^18.0.1",
+    "@hookform/resolvers": "^5.0.1",
     "@iconify-json/material-icon-theme": "^1.2.56",
     "@iconify/react": "^6.0.2",
     "@j178/prek": "^0.3.4",
@@ -312,6 +315,7 @@
     "commander": "^14.0.2",
     "concurrently": "^9.2.1",
     "cors": "2.8.5",
+    "croner": "^10.0.1",
     "country-flag-emoji-polyfill": "0.1.8",
     "dayjs": "^1.11.11",
     "dexie": "^4.0.8",
@@ -358,6 +362,7 @@
     "htmlparser2": "^10.0.0",
     "i18next": "^23.11.5",
     "iconv-lite": "^0.6.3",
+    "ignore": "^7.0.5",
     "ipaddr.js": "^2.2.0",
     "isbinaryfile": "5.0.4",
     "jaison": "^2.0.2",
@@ -399,6 +404,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-error-boundary": "^6.0.0",
+    "react-hook-form": "^7.55.0",
     "react-hotkeys-hook": "^4.6.1",
     "react-i18next": "^14.1.2",
     "react-infinite-scroll-component": "^6.1.0",
@@ -509,12 +515,15 @@
       "@opeoginni/github-copilot-openai-compatible@1.0.0": "patches/@opeoginni__github-copilot-openai-compatible@1.0.0.patch",
       "@ai-sdk/openai-compatible@2.0.37": "patches/@ai-sdk__openai-compatible@2.0.37.patch",
       "@ai-sdk/openai@3.0.53": "patches/@ai-sdk__openai@3.0.53.patch",
+      "@ai-sdk/xai@3.0.83": "patches/@ai-sdk__xai@3.0.83.patch",
       "@ai-sdk/google@3.0.64": "patches/@ai-sdk__google@3.0.64.patch",
-      "@libsql/client@0.15.15": "patches/@libsql__client@0.15.15.patch"
+      "@libsql/client@0.15.15": "patches/@libsql__client@0.15.15.patch",
+      "@ai-sdk/anthropic": "patches/@ai-sdk__anthropic.patch",
+      "@ai-sdk/deepseek@2.0.30": "patches/@ai-sdk__deepseek@2.0.30.patch",
+      "@cherrystudio/embedjs-loader-web@0.1.31": "patches/@cherrystudio__embedjs-loader-web@0.1.31.patch"
     },
     "onlyBuiltDependencies": [
       "@j178/prek",
-      "@kangfenmao/keyv-storage",
       "@paymoapp/electron-shutdown-handler",
       "@scarf/scarf",
       "@swc/core",

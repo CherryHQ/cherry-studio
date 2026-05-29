@@ -177,8 +177,12 @@ export async function insertManyWithOrderKey<TTable extends TableWithOrderKey, T
  *   are logged via `loggerService.warn`.
  * - A move whose computed key equals the current key is a no-op (no UPDATE
  *   issued).
- * - Throws if the target id or the anchor id does not exist within the
- *   scoped neighborhood, or if the anchor id equals the move's own id.
+ *
+ * Contract rejections (surfaced as `DataApiError` for direct propagation to
+ * the API layer):
+ * - Move target id not found in scope → `NOT_FOUND` (resource is the table name).
+ * - Anchor id (`before` / `after`) not found in scope → `NOT_FOUND`.
+ * - Anchor id equals the move's own id → `VALIDATION_ERROR`.
  *
  * Known boundary: when the target is already in the anchor's neighbour slot
  * (e.g. anchor `{ before: X }` while the target is already immediately before
@@ -209,7 +213,7 @@ export async function applyMoves(
 
     const currentRow = await selectRowByPk(tx, table, pkColumn, move.id, scope)
     if (!currentRow) {
-      throw new Error(`applyMoves: move target id "${move.id}" not found in scope`)
+      throw DataApiErrorFactory.notFound(getTableName(table), move.id)
     }
 
     const newKey = await computeNewOrderKey(tx, table, move.anchor, {
@@ -237,11 +241,11 @@ export async function applyMoves(
  *
  * Contract rejections (surfaced as `DataApiError` for direct propagation to
  * the API layer):
- * - Any requested id missing in the table → `NOT_FOUND`. Missing id check runs
- *   before the multi-scope check.
  * - The batch spans more than one distinct scope value → `VALIDATION_ERROR`.
  *   Scoped reorders must not cross scope boundaries; a single request is
  *   expected to stay within one scope bucket.
+ * - Missing target / anchor ids → `NOT_FOUND` (raised from `applyMoves`,
+ *   which performs the actual scoped lookup per move).
  *
  * Empty `moves` is a no-op (no DB access).
  */
@@ -255,22 +259,26 @@ export async function applyScopedMoves<T extends TableWithOrderKey>(
 
   const { pkColumn, scopeColumn } = options
   const ids = moves.map((m) => m.id)
-  const resourceName = getTableName(table)
 
   const rows = (await tx
     .select({ id: pkColumn, scope: scopeColumn })
     .from(table)
     .where(inArray(pkColumn, ids))) as Array<{ id: string; scope: unknown }>
 
-  if (rows.length !== ids.length) {
-    const foundIds = new Set(rows.map((r) => r.id))
-    const missingId = ids.find((id) => !foundIds.has(id)) ?? ids[0]
-    throw DataApiErrorFactory.notFound(resourceName, missingId)
+  // All requested ids are missing — drizzle would reject `eq(scopeColumn, undefined)`
+  // at the driver layer before applyMoves can issue its own NOT_FOUND. Surface
+  // the same DataApiError shape applyMoves would produce, so the contract is
+  // observable as a single uniform error regardless of which layer detected it.
+  if (rows.length === 0) {
+    throw DataApiErrorFactory.notFound(getTableName(table), ids[0])
   }
 
+  // Cross-scope batch check — applyMoves cannot do this because it doesn't know
+  // `scopeColumn`. Partial-miss cases (some ids found, some missing) are still
+  // delegated to applyMoves, which throws NOT_FOUND when it walks to the missing
+  // move within the derived scope.
   const scopes = new Set(rows.map((r) => r.scope))
   if (scopes.size > 1) {
-    // Invariant: batch must share scope — service contract forbids cross-scope moves.
     const scopeList = [...scopes].map((s) => String(s)).join(', ')
     const message = `applyScopedMoves: batch spans multiple scopes (${scopeList})`
     throw DataApiErrorFactory.validation({ _root: [message] }, message)
@@ -333,14 +341,14 @@ export async function computeNewOrderKey(
 
   if ('before' in request) {
     const anchorId = request.before
-    const anchorKey = await requireOrderKey(tx, table, pkColumn, anchorId, scope, 'before')
+    const anchorKey = await requireOrderKey(tx, table, pkColumn, anchorId, scope)
     const predecessor = await selectAdjacentKey(tx, table, 'predecessor', anchorKey, exclusion)
     return generateOrderKeyBetween(predecessor, anchorKey)
   }
 
   // 'after'
   const anchorId = request.after
-  const anchorKey = await requireOrderKey(tx, table, pkColumn, anchorId, scope, 'after')
+  const anchorKey = await requireOrderKey(tx, table, pkColumn, anchorId, scope)
   const successor = await selectAdjacentKey(tx, table, 'successor', anchorKey, exclusion)
   return generateOrderKeyBetween(anchorKey, successor)
 }
@@ -382,10 +390,12 @@ function buildExclusion(pkColumn: AnyColumn, excludePkValue: string, scope?: SQL
 
 function assertAnchorNotSelf(moveId: string, anchor: OrderRequest): void {
   if ('before' in anchor && anchor.before === moveId) {
-    throw new Error(`applyMoves: anchor "before" id cannot equal the move's own id ("${moveId}")`)
+    const message = `applyMoves: anchor "before" id "${moveId}" cannot equal the move's own id`
+    throw DataApiErrorFactory.validation({ anchor: ['anchor "before" id must not equal the move id'] }, message)
   }
   if ('after' in anchor && anchor.after === moveId) {
-    throw new Error(`applyMoves: anchor "after" id cannot equal the move's own id ("${moveId}")`)
+    const message = `applyMoves: anchor "after" id "${moveId}" cannot equal the move's own id`
+    throw DataApiErrorFactory.validation({ anchor: ['anchor "after" id must not equal the move id'] }, message)
   }
 }
 
@@ -444,12 +454,11 @@ async function requireOrderKey(
   table: TableWithOrderKey,
   pkColumn: AnyColumn,
   id: string,
-  scope: SQL | undefined,
-  anchorKind: 'before' | 'after'
+  scope: SQL | undefined
 ): Promise<string> {
   const row = await selectRowByPk(tx, table, pkColumn, id, scope)
   if (!row) {
-    throw new Error(`computeNewOrderKey: anchor id "${id}" for "${anchorKind}" not found in scope`)
+    throw DataApiErrorFactory.notFound(getTableName(table), id)
   }
   return row.orderKey
 }

@@ -2,7 +2,6 @@ import { join } from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { isDev, isMac } from '@main/constant'
 import {
   BaseService,
   type Disposable,
@@ -13,6 +12,7 @@ import {
   Priority,
   ServicePhase
 } from '@main/core/lifecycle'
+import { isDev, isMac } from '@main/core/platform'
 import { applyWindowBehavior, BehaviorController } from '@main/core/window/behavior'
 import { applyWindowQuirks } from '@main/core/window/quirks'
 import type { WindowType } from '@main/core/window/types'
@@ -29,7 +29,7 @@ import {
 } from '@main/core/window/types'
 import { getWindowTypeMetadata, mergeWindowOptions, WINDOW_TYPE_REGISTRY } from '@main/core/window/windowRegistry'
 import { IpcChannel } from '@shared/IpcChannel'
-import { app, BrowserWindow, screen, shell, type TitleBarOverlayOptions } from 'electron'
+import { app, BrowserWindow, screen, shell } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('WindowManager')
@@ -119,7 +119,7 @@ export class WindowManager extends BaseService {
   })
 
   /** Single GC timer shared across all warmup states (null when no idle windows exist) */
-  private warmupGcTimer: ReturnType<typeof setInterval> | null = null
+  private warmupGcTimer: Disposable | null = null
 
   /**
    * Window types whose `idle.length > 0`. Lets `warmupGcTick` iterate only over
@@ -254,10 +254,8 @@ export class WindowManager extends BaseService {
   protected override onDestroy(): void {
     logger.info('Destroying, closing all windows...')
 
-    if (this.warmupGcTimer) {
-      clearInterval(this.warmupGcTimer)
-      this.warmupGcTimer = null
-    }
+    // GC timer is auto-disposed via registerInterval; just drop the reference.
+    this.warmupGcTimer = null
     this.activeWarmupTypes.clear()
     // Signal any pending setImmediate standby replenish callbacks to bail out.
     // They check `state.suspended` at execution time.
@@ -672,25 +670,6 @@ export class WindowManager extends BaseService {
   // see behavior.ts for the full API surface. Kept off the flat WindowManager
   // namespace so the declarative three-layer split (windowOptions / behavior
   // / quirks) is visible at the call site.
-
-  // ─── Public API: Title bar overlay ────────────────────────────
-
-  /**
-   * Update title bar overlay colors on all windows that have overlay configured.
-   * Only affects window types whose windowOptions includes titleBarOverlay.
-   */
-  public setTitleBarOverlay(options: TitleBarOverlayOptions): void {
-    for (const [type, windowIds] of this.windowsByType) {
-      const metadata = getWindowTypeMetadata(type)
-      if (!metadata.windowOptions.titleBarOverlay) continue
-      for (const id of windowIds) {
-        const managed = this.windows.get(id)
-        if (managed && !managed.window.isDestroyed()) {
-          managed.window.setTitleBarOverlay(options)
-        }
-      }
-    }
-  }
 
   // ─── Public API: Broadcast (Cherry Studio extension) ──────────
 
@@ -1250,7 +1229,7 @@ export class WindowManager extends BaseService {
   /** Start the shared GC timer if not already running */
   private startWarmupGc(): void {
     if (this.warmupGcTimer) return
-    this.warmupGcTimer = setInterval(() => this.warmupGcTick(), WARMUP_GC_INTERVAL)
+    this.warmupGcTimer = this.registerInterval(() => this.warmupGcTick(), WARMUP_GC_INTERVAL)
     logger.debug('warmup gc-start', { intervalMs: WARMUP_GC_INTERVAL })
   }
 
@@ -1266,7 +1245,7 @@ export class WindowManager extends BaseService {
   private warmupGcTick(): void {
     if (this.activeWarmupTypes.size === 0) {
       if (this.warmupGcTimer) {
-        clearInterval(this.warmupGcTimer)
+        this.warmupGcTimer.dispose()
         this.warmupGcTimer = null
         logger.debug('warmup gc-stop', { reason: 'no active warmup states' })
       }

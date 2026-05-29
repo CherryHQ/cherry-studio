@@ -1,16 +1,15 @@
-import type { EndpointConfig, ReasoningFormatType } from '@shared/data/types/provider'
+import { applyUserOverlay, type UserModelOverlay } from '@data/services/ModelService'
 import {
   applyCapabilityOverride,
   createCustomModel,
   extractReasoningFormatTypes,
-  mergeModelWithUser,
-  mergePresetModel,
-  mergeProviderConfig
-} from '@shared/data/utils/modelMerger'
+  mergePresetModel
+} from '@data/services/ProviderRegistryService'
+import type { EndpointConfig, ReasoningFormatType } from '@shared/data/types/provider'
 import { describe, expect, it } from 'vitest'
 
 // Use string literals matching the actual enum values to avoid
-// importing @cherrystudio/provider-registry (not aliased in shared tests).
+// importing @cherrystudio/provider-registry just for the constants.
 const CAPABILITY = {
   FUNCTION_CALL: 'function-call',
   IMAGE_RECOGNITION: 'image-recognition',
@@ -152,9 +151,9 @@ describe('mergePresetModel', () => {
   })
 })
 
-// ---------- mergeModelWithUser ----------
+// ---------- mergePresetModel + applyUserOverlay (replaces mergeModelWithUser) ----------
 
-describe('mergeModelWithUser', () => {
+describe('mergePresetModel + applyUserOverlay', () => {
   const presetModel = {
     id: 'gpt-4o',
     name: 'GPT-4o',
@@ -166,14 +165,9 @@ describe('mergeModelWithUser', () => {
   } as any
 
   it('user values take highest priority', () => {
-    const userRow = {
-      providerId: 'openai',
-      modelId: 'gpt-4o',
-      presetModelId: 'gpt-4o',
-      name: 'My GPT-4o',
-      contextWindow: 64_000
-    }
-    const model = mergeModelWithUser(userRow, null, presetModel, 'openai')
+    const overlay: UserModelOverlay = { name: 'My GPT-4o', contextWindow: 64_000 }
+    const baseline = mergePresetModel(presetModel, null, 'openai')
+    const model = applyUserOverlay(baseline, overlay)
     expect(model.name).toBe('My GPT-4o')
     expect(model.contextWindow).toBe(64_000)
   })
@@ -185,15 +179,13 @@ describe('mergeModelWithUser', () => {
       capabilities: { add: [CAPABILITY.REASONING] },
       limits: { contextWindow: 200_000, maxOutputTokens: 16_384 }
     } as any
-    const userRow = {
-      providerId: 'openai',
-      modelId: 'gpt-4o',
-      presetModelId: 'gpt-4o',
+    const overlay: UserModelOverlay = {
       name: 'User Override',
       contextWindow: 50_000,
-      capabilities: [CAPABILITY.EMBEDDING]
+      capabilities: [CAPABILITY.EMBEDDING] as any
     }
-    const model = mergeModelWithUser(userRow, override, presetModel, 'openai')
+    const baseline = mergePresetModel(presetModel, override, 'openai')
+    const model = applyUserOverlay(baseline, overlay)
 
     expect(model.name).toBe('User Override')
     expect(model.contextWindow).toBe(50_000)
@@ -201,28 +193,14 @@ describe('mergeModelWithUser', () => {
     expect(model.maxOutputTokens).toBe(16_384)
   })
 
-  it('user isEnabled overrides catalogOverride disabled', () => {
-    const override = { providerId: 'openai', modelId: 'gpt-4o', disabled: true } as any
-    const userRow = {
-      providerId: 'openai',
-      modelId: 'gpt-4o',
-      presetModelId: 'gpt-4o',
-      isEnabled: true
-    }
-    const model = mergeModelWithUser(userRow, override, presetModel, 'openai')
-    expect(model.isEnabled).toBe(true)
-  })
-
   it('preset fields carry through when user provides null', () => {
-    const userRow = {
-      providerId: 'openai',
-      modelId: 'gpt-4o',
-      presetModelId: 'gpt-4o',
+    const overlay: UserModelOverlay = {
       name: null,
       contextWindow: null,
       capabilities: null
     }
-    const model = mergeModelWithUser(userRow, null, presetModel, 'openai')
+    const baseline = mergePresetModel(presetModel, null, 'openai')
+    const model = applyUserOverlay(baseline, overlay)
     expect(model.name).toBe('GPT-4o')
     expect(model.contextWindow).toBe(128_000)
     expect(model.capabilities).toContain(CAPABILITY.IMAGE_RECOGNITION)
@@ -300,9 +278,9 @@ describe('mergePresetModel — field completeness', () => {
   })
 })
 
-// ---------- mergeModelWithUser: field completeness ----------
+// ---------- mergePresetModel + applyUserOverlay: field completeness ----------
 
-describe('mergeModelWithUser — field completeness', () => {
+describe('mergePresetModel + applyUserOverlay — field completeness', () => {
   const fullPreset = {
     id: 'gpt-4o',
     name: 'GPT-4o',
@@ -316,10 +294,7 @@ describe('mergeModelWithUser — field completeness', () => {
   } as any
 
   it('null user fields do not clobber preset values', () => {
-    const userRow = {
-      providerId: 'openai',
-      modelId: 'gpt-4o',
-      presetModelId: 'gpt-4o',
+    const overlay: UserModelOverlay = {
       name: null,
       description: null,
       group: null,
@@ -329,11 +304,10 @@ describe('mergeModelWithUser — field completeness', () => {
       contextWindow: null,
       maxOutputTokens: null,
       supportsStreaming: null,
-      reasoning: null,
-      isEnabled: null,
-      isHidden: null
+      reasoning: null
     }
-    const model = mergeModelWithUser(userRow, null, fullPreset, 'openai')
+    const baseline = mergePresetModel(fullPreset, null, 'openai')
+    const model = applyUserOverlay(baseline, overlay)
 
     expect(model.name).toBe('GPT-4o')
     expect(model.description).toBe('A multimodal model')
@@ -350,15 +324,13 @@ describe('mergeModelWithUser — field completeness', () => {
       modelId: 'gpt-4o',
       limits: { contextWindow: 200_000 }
     } as any
-    const userRow = {
-      providerId: 'openai',
-      modelId: 'gpt-4o',
-      presetModelId: 'gpt-4o',
+    const overlay: UserModelOverlay = {
       name: 'My Model',
       contextWindow: 50_000,
-      capabilities: ['embedding']
+      capabilities: ['embedding'] as any
     }
-    const model = mergeModelWithUser(userRow, override, fullPreset, 'openai')
+    const baseline = mergePresetModel(fullPreset, override, 'openai')
+    const model = applyUserOverlay(baseline, overlay)
 
     expect(model.name).toBe('My Model')
     expect(model.contextWindow).toBe(50_000)
@@ -463,74 +435,5 @@ describe('mergePresetModel — edge cases', () => {
     const override = { providerId: 'openai', modelId: 'gpt-4', replaceWith: 'gpt-4o' } as any
     const model = mergePresetModel(preset, override, 'openai')
     expect(model.replaceWith).toContain('gpt-4o')
-  })
-})
-
-// ---------- mergeProviderConfig ----------
-
-describe('mergeProviderConfig', () => {
-  it('throws when both inputs are null', () => {
-    expect(() => mergeProviderConfig(null, null)).toThrow('At least one')
-  })
-
-  it('merges from user provider only', () => {
-    const userRow = { providerId: 'custom', name: 'Custom Provider' }
-    const provider = mergeProviderConfig(userRow, null)
-    expect(provider.id).toBe('custom')
-    expect(provider.name).toBe('Custom Provider')
-  })
-
-  it('user name takes precedence over preset name', () => {
-    const userRow = { providerId: 'openai', name: 'My OpenAI' }
-    const presetProvider = { id: 'openai', name: 'OpenAI' }
-    const provider = mergeProviderConfig(userRow, presetProvider as any)
-    expect(provider.name).toBe('My OpenAI')
-  })
-
-  it('merges from preset only (no user row)', () => {
-    const presetProvider = {
-      id: 'openai',
-      name: 'OpenAI',
-      defaultChatEndpoint: ENDPOINT.OPENAI_CHAT,
-      apiFeatures: { arrayContent: false }
-    }
-    const provider = mergeProviderConfig(null, presetProvider as any)
-    expect(provider.id).toBe('openai')
-    expect(provider.name).toBe('OpenAI')
-    expect(provider.defaultChatEndpoint).toBe(ENDPOINT.OPENAI_CHAT)
-    expect(provider.apiFeatures.arrayContent).toBe(false)
-  })
-
-  it('user apiFeatures override preset apiFeatures per field', () => {
-    const userRow = { providerId: 'openai', name: 'OpenAI', apiFeatures: { arrayContent: false } }
-    const presetProvider = { id: 'openai', name: 'OpenAI', apiFeatures: { arrayContent: true, developerRole: true } }
-    const provider = mergeProviderConfig(userRow, presetProvider as any)
-    expect(provider.apiFeatures.arrayContent).toBe(false)
-    expect(provider.apiFeatures.developerRole).toBe(true)
-  })
-
-  it('user defaultChatEndpoint overrides preset', () => {
-    const userRow = { providerId: 'openai', name: 'OpenAI', defaultChatEndpoint: ENDPOINT.ANTHROPIC }
-    const presetProvider = { id: 'openai', name: 'OpenAI', defaultChatEndpoint: ENDPOINT.OPENAI_CHAT }
-    const provider = mergeProviderConfig(userRow, presetProvider as any)
-    expect(provider.defaultChatEndpoint).toBe(ENDPOINT.ANTHROPIC)
-  })
-
-  it('deep-merges endpointConfigs: user field wins per-endpoint', () => {
-    const userRow = {
-      providerId: 'openai',
-      name: 'OpenAI',
-      endpointConfigs: { [ENDPOINT.OPENAI_CHAT]: { baseUrl: 'https://my-proxy.com/v1' } }
-    }
-    const presetProvider = {
-      id: 'openai',
-      name: 'OpenAI',
-      endpointConfigs: {
-        [ENDPOINT.OPENAI_CHAT]: { baseUrl: 'https://api.openai.com/v1', reasoningFormat: { type: 'openai-chat' } }
-      }
-    }
-    const provider = mergeProviderConfig(userRow, presetProvider as any)
-    const chatConfig = provider.endpointConfigs?.[ENDPOINT.OPENAI_CHAT as keyof typeof provider.endpointConfigs]
-    expect(chatConfig?.baseUrl).toBe('https://my-proxy.com/v1')
   })
 })

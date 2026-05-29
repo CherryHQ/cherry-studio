@@ -52,7 +52,8 @@ export async function fetchWebSearchContent(url: string, httpOptions: RequestIni
     return {
       title: article?.title || url,
       url,
-      content: markdown
+      content: markdown,
+      sourceInput: url
     }
   } catch (error) {
     if (isAbortError(error)) {

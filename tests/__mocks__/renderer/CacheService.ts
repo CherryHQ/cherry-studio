@@ -14,7 +14,7 @@ import { vi } from 'vitest'
 /**
  * Mock CacheService for testing
  * Provides a comprehensive mock of the three-layer cache system
- * Matches the actual CacheService interface from src/renderer/src/data/CacheService.ts
+ * Matches the actual CacheService interface from src/renderer/data/CacheService.ts
  */
 
 /**

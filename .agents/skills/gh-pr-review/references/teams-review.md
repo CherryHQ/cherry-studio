@@ -22,6 +22,7 @@ share conversation history.
 |------|---------|
 | `code-checklist.md` | Code review checklist |
 | `doc-checklist.md` | Document review checklist |
+| `cherry-review-guidance.md` | Cherry Studio project-specific review boundaries |
 | `judgment-matrix.md` | Risk levels, worth-fixing criteria, special rules |
 | `checklist-evolution.md` | Checklist update flow and rules |
 
@@ -90,11 +91,17 @@ group; group related small files together. Classify each module as `code`,
 `doc`, or `mixed`.
 
 Suggested module boundaries for this project:
-- `src/main/` — Main process services
+- `src/main/data/` — DataApi handlers, data services, migrations, schemas
+- `src/main/core/` — lifecycle, application, windows, paths, logger
+- `src/main/services/` — Main-process business services and side effects
+- `src/renderer/src/data/` — DataApi hooks, Cache, Preference, renderer stores
 - `src/renderer/src/` — React UI components, hooks, pages
 - `packages/aiCore/` — AI SDK middleware & providers
-- `packages/shared/` — Cross-process types and constants
+- `packages/shared/` — Cross-process types, DataApi schemas, constants
+- `packages/ui/` — Shared UI primitives
 - `src/preload/` — IPC bridge
+- `docs/references/data/` — Data architecture documentation
+- `.agents/skills/` — Agent skills and review instructions
 
 ### Issue tracking
 
@@ -138,6 +145,10 @@ Each reviewer receives:
   pass raw diff or file contents.
 - **Checklist**: `code-checklist.md` for code, `doc-checklist.md` for doc, both
   for mixed. Include the checklist content verbatim in the reviewer prompt.
+  Include `cherry-review-guidance.md` verbatim for code, mixed, architecture
+  documentation, and project-skill modules. For doc-only modules outside Cherry
+  architecture/policies, include it only when the document describes project
+  behavior, paths, tools, or review rules.
   For React/performance-heavy modules, also include relevant rules from
   `vercel-react-best-practices` skill as supplementary checks.
 - **Evidence requirement**: every issue must have a code citation (file:line +

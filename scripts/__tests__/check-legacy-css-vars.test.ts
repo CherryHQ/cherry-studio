@@ -19,7 +19,7 @@ describe('check-legacy-css-vars', () => {
       /* var(--color-text-2) */
     `
 
-    expect(findLegacyVarHitsInContent(content, 'src/renderer/src/example.css')).toEqual([])
+    expect(findLegacyVarHitsInContent(content, 'src/renderer/example.css')).toEqual([])
   })
 
   it('reports real legacy variable usages', () => {
@@ -31,7 +31,7 @@ describe('check-legacy-css-vars', () => {
       const node = '<div class="text-[var(--color-text-2)]" />';
     `
 
-    const findings = findLegacyVarHitsInContent(content, 'src/renderer/src/example.tsx')
+    const findings = findLegacyVarHitsInContent(content, 'src/renderer/example.tsx')
 
     expect(findings).toHaveLength(2)
     expect(findings.map((finding) => finding.variable)).toEqual(['--color-text-1', '--color-text-2'])

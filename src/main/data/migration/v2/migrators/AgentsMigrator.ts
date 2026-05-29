@@ -14,6 +14,7 @@ import {
   getTotalAgentsRowCount,
   quoteSqlitePath
 } from './mappings/AgentsDbMappings'
+import { remapAgentPrefixIds } from './remapAgentPrefixIds'
 
 const logger = loggerService.withContext('AgentsMigrator')
 
@@ -102,6 +103,7 @@ export class AgentsMigrator extends BaseMigrator {
     const importStatements = statements.slice(1, -1)
     let isAttached = false
     let committed = false
+    let pendingError: unknown = null
 
     try {
       await ctx.db.run(sql.raw(statements[0])) // ATTACH DATABASE …
@@ -117,31 +119,47 @@ export class AgentsMigrator extends BaseMigrator {
       await ctx.db.run(sql.raw('COMMIT'))
       committed = true
       logger.info('Agents migration transaction committed successfully')
+
+      // Remap old prefix IDs after the import transaction commits. Must run after COMMIT
+      // so the imported rows are visible; remapAgentPrefixIds is idempotent, so a retry
+      // after a previous partial failure is safe.
+      await remapAgentPrefixIds(ctx.db)
     } catch (error) {
       if (!committed) {
         try {
           await ctx.db.run(sql.raw('ROLLBACK'))
         } catch (rollbackError) {
-          logger.warn('ROLLBACK failed after migration error', rollbackError as Error)
+          logger.error(
+            'ROLLBACK failed after agents migration error — DB may be in an inconsistent state',
+            rollbackError as Error
+          )
         }
       }
       logger.error('Agents migration execute failed:', error as Error)
-      throw error
-    } finally {
+      pendingError = error
+    }
+
+    // FK re-enable must succeed: a silent failure leaves the rest of the migration
+    // pipeline (and the app) running with FK enforcement off, which masks
+    // referential corruption. Only overwrite pendingError if the main path succeeded —
+    // otherwise the original failure is more informative.
+    try {
+      await ctx.db.run(sql.raw('PRAGMA foreign_keys = ON'))
+    } catch (pragmaError) {
+      logger.error('Failed to re-enable foreign_keys after agents migration — aborting', pragmaError as Error)
+      if (!pendingError) pendingError = pragmaError
+    }
+
+    if (isAttached) {
       try {
-        await ctx.db.run(sql.raw('PRAGMA foreign_keys = ON'))
-      } catch (pragmaError) {
-        logger.warn('Failed to re-enable foreign_keys after agents migration', pragmaError as Error)
-      }
-      if (isAttached) {
-        try {
-          await ctx.db.run(sql.raw('DETACH DATABASE agents_legacy'))
-        } catch (detachError) {
-          // DETACH must not mask the original error; just log it so it surfaces in diagnostics.
-          logger.warn('Failed to DETACH agents_legacy database', detachError as Error)
-        }
+        await ctx.db.run(sql.raw('DETACH DATABASE agents_legacy'))
+      } catch (detachError) {
+        // DETACH must not mask the original error; log loudly so it surfaces in diagnostics.
+        logger.error('Failed to DETACH agents_legacy database', detachError as Error)
       }
     }
+
+    if (pendingError) throw pendingError
 
     return {
       success: true,
@@ -186,17 +204,25 @@ export class AgentsMigrator extends BaseMigrator {
 
     try {
       for (const spec of AGENTS_TABLE_MIGRATION_SPECS) {
-        const targetResult = await ctx.db.get<{ count: number }>(
+        // Mirror the execute-side guard in buildAgentsImportStatements: legacy DBs
+        // from older app versions may lack tables added later (e.g. agent_skills).
+        if (!this.sourceSchemaInfo[spec.sourceTable].exists) {
+          continue
+        }
+
+        // .get() with sql.raw() crashes on zero rows in drizzle-orm/libsql; use .all() instead.
+        const targetRows = await ctx.db.all<{ count: number }>(
           sql.raw(`SELECT COUNT(*) AS count FROM ${spec.targetTable}`)
         )
-        const tableTargetCount = Number(targetResult?.count ?? 0)
+        const tableTargetCount = Number(targetRows[0]?.count ?? 0)
         const tableSourceCount = this.sourceCounts[spec.sourceTable]
-        const expectedResult = await ctx.db.get<{ count: number }>(
+        const validateWhere = spec.validateWhereClause ?? spec.whereClause
+        const expectedRows = await ctx.db.all<{ count: number }>(
           sql.raw(
-            `SELECT COUNT(*) AS count FROM agents_legacy.${spec.sourceTable}${spec.whereClause ? ` WHERE ${spec.whereClause}` : ''}`
+            `SELECT COUNT(*) AS count FROM agents_legacy.${spec.sourceTable}${validateWhere ? ` WHERE ${validateWhere}` : ''}`
           )
         )
-        const tableExpectedCount = Number(expectedResult?.count ?? 0)
+        const tableExpectedCount = Number(expectedRows[0]?.count ?? 0)
         targetCount += tableTargetCount
 
         const hasWhereClause = !!spec.whereClause
@@ -227,7 +253,7 @@ export class AgentsMigrator extends BaseMigrator {
       try {
         await ctx.db.run(sql.raw('DETACH DATABASE agents_legacy'))
       } catch (detachError) {
-        logger.warn('Failed to DETACH agents_legacy database during validation', detachError as Error)
+        logger.error('Failed to DETACH agents_legacy database during validation', detachError as Error)
       }
     }
 

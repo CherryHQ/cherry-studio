@@ -1,6 +1,6 @@
-import { is } from '@electron-toolkit/utils'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isDev } from '@main/core/platform'
 import { IpcChannel } from '@shared/IpcChannel'
 import { BrowserWindow } from 'electron'
 
@@ -42,7 +42,7 @@ export class SearchService extends BaseService {
       webPreferences: {
         nodeIntegration: true,
         contextIsolation: false,
-        devTools: is.dev
+        devTools: isDev
       }
     })
 

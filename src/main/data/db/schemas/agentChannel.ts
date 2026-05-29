@@ -16,7 +16,7 @@ export const agentChannelTable = sqliteTable(
     sessionId: text().references(() => agentSessionTable.id, { onDelete: 'set null' }),
     config: text({ mode: 'json' }).$type<Record<string, unknown>>().notNull(),
     isActive: integer({ mode: 'boolean' }).notNull().default(true),
-    activeChatIds: text({ mode: 'json' }).$type<string[]>().default([]),
+    activeChatIds: text({ mode: 'json' }).$type<string[]>().notNull().default(sql`'[]'`),
     permissionMode: text(),
     ...createUpdateTimestamps
   },

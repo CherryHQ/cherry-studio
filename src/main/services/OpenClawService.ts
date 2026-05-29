@@ -7,8 +7,8 @@ import path from 'node:path'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { isWin } from '@main/constant'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { isWin } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
 import { isUserInChina } from '@main/utils/ipService'
 import { crossPlatformSpawn, findExecutableInEnv, getBinaryPath, runInstallScript } from '@main/utils/process'
@@ -18,7 +18,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { formatApiHost, hasAPIVersion, withoutTrailingSlash } from '@shared/utils'
 import type { Model, Provider, ProviderType, VertexProvider } from '@types'
 
-import { vertexAIService } from './VertexAIService'
+import { vertexAiService } from './VertexAiService'
 
 const logger = loggerService.withContext('OpenClawService')
 
@@ -740,8 +740,9 @@ export class OpenClawService extends BaseService {
   }
 
   /**
-   * Get OpenClaw Dashboard URL (for opening in minapp).
-   * The Control UI uses ?token= to auto-authenticate the WebSocket connection.
+   * Get OpenClaw Dashboard URL (for opening in miniapp).
+   * The Control UI uses #token= to bootstrap WebSocket authentication while
+   * keeping the token client-side instead of sending it in HTTP requests.
    */
   public getDashboardUrl(): string {
     // Ensure we have the token (may have been lost after app restart)
@@ -752,7 +753,7 @@ export class OpenClawService extends BaseService {
     if (this.gatewayAuthToken) {
       // Use query string (not URL fragment) so dashboard app state can persist correctly.
       // Fragment (#...) is often used by SPAs for transient client-side state.
-      url += `?token=${encodeURIComponent(this.gatewayAuthToken)}`
+      url += `#token=${encodeURIComponent(this.gatewayAuthToken)}`
     }
     return url
   }
@@ -771,8 +772,8 @@ export class OpenClawService extends BaseService {
           logger.info('Recovered auth token from config file')
         }
       }
-    } catch {
-      logger.debug('Failed to load auth token from config file')
+    } catch (error) {
+      logger.warn('Failed to load auth token from config file', error as Error)
     }
   }
 
@@ -822,13 +823,13 @@ export class OpenClawService extends BaseService {
       const apiType = this.determineApiType(provider, primaryModel)
       const baseUrl = this.getBaseUrlForApiType(provider, apiType)
 
-      // Get API key - for vertexai, get access token from VertexAIService
+      // Get API key - for vertexai, get access token from VertexAiService
       // If multiple API keys are configured (comma-separated), use the first one
       // Some providers like Ollama and LM Studio don't require API keys
       let apiKey = provider.apiKey ? provider.apiKey.split(',')[0].trim() : ''
       if (isVertexProvider(provider)) {
         try {
-          const vertexService = vertexAIService
+          const vertexService = vertexAiService
           apiKey = await vertexService.getAccessToken({
             projectId: provider.project,
             serviceAccount: {

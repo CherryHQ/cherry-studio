@@ -153,14 +153,21 @@
  * ```
  */
 
-import type { WebSearchProviderOverride, WebSearchProviderOverrides } from '@shared/data/preference/preferenceTypes'
+import { loggerService } from '@logger'
+import type {
+  WebSearchProviderId,
+  WebSearchProviderOverride,
+  WebSearchProviderOverrides
+} from '@shared/data/preference/preferenceTypes'
 import { PRESETS_WEB_SEARCH_PROVIDERS } from '@shared/data/presets/web-search-providers'
+import { DEFAULT_WEB_SEARCH_CUTOFF_LIMIT, normalizeWebSearchCutoffLimit } from '@shared/data/types/webSearch'
 
 import type { TransformResult } from '../mappings/ComplexPreferenceMappings'
-import { legacyModelToUniqueId } from './ModelTransformers'
 
 // Re-export TransformResult for convenience
 export type { TransformResult }
+
+const logger = loggerService.withContext('PreferenceTransformers')
 
 // ============================================================================
 // Utility Functions
@@ -199,9 +206,47 @@ export function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.length > 0
 }
 
+function getPresetCapability(
+  preset: (typeof PRESETS_WEB_SEARCH_PROVIDERS)[number],
+  feature: 'searchKeywords' | 'fetchUrls'
+) {
+  return preset.capabilities.find((capability) => capability.feature === feature)
+}
+
+const SUPPORTED_WEB_SEARCH_PROVIDER_IDS = new Set<WebSearchProviderId>(
+  PRESETS_WEB_SEARCH_PROVIDERS.map((preset) => preset.id)
+)
+
+function isSupportedWebSearchProviderId(value: string): value is WebSearchProviderId {
+  return SUPPORTED_WEB_SEARCH_PROVIDER_IDS.has(value as WebSearchProviderId)
+}
+
 // ============================================================================
 // WebSearch Transformers
 // ============================================================================
+
+/**
+ * Normalize the legacy default web search provider into the v2 keyword-search
+ * default provider key.
+ *
+ * Unsupported legacy ids, removed local providers, and empty strings are all
+ * treated as "no default provider selected" to keep the migrated Preference
+ * compatible with the curated preset list.
+ */
+export function normalizeWebSearchDefaultProvider(sources: { defaultProvider?: string | null }): TransformResult {
+  const defaultProvider = sources.defaultProvider?.trim()
+
+  if (defaultProvider && !isSupportedWebSearchProviderId(defaultProvider)) {
+    logger.warn('Unsupported legacy web-search default provider dropped during v2 migration', {
+      providerId: defaultProvider
+    })
+  }
+
+  return {
+    'chat.web_search.default_search_keywords_provider':
+      defaultProvider && isSupportedWebSearchProviderId(defaultProvider) ? defaultProvider : null
+  }
+}
 
 /**
  * WebSearch compression config source type
@@ -211,46 +256,39 @@ interface WebSearchCompressionConfigSource {
   method?: string
   cutoffLimit?: number | null
   cutoffUnit?: string
-  documentCount?: number
-  embeddingModel?: { id?: string; provider?: string } | null
-  embeddingDimensions?: number | null
-  rerankModel?: { id?: string; provider?: string } | null
 }
 
-const WEB_SEARCH_COMPRESSION_METHODS = ['none', 'cutoff', 'rag'] as const
-const WEB_SEARCH_CUTOFF_UNITS = ['char', 'token'] as const
+const WEB_SEARCH_COMPRESSION_METHODS = ['none', 'cutoff'] as const
 
 function isStringInList<const T extends readonly string[]>(value: unknown, list: T): value is T[number] {
   return typeof value === 'string' && (list as readonly string[]).includes(value)
 }
 
 function normalizeCompressionMethod(value: unknown): (typeof WEB_SEARCH_COMPRESSION_METHODS)[number] {
-  return isStringInList(value, WEB_SEARCH_COMPRESSION_METHODS) ? value : 'none'
-}
+  if (value === 'rag') {
+    logger.warn('Legacy web-search RAG compression downgraded to none during v2 migration')
+  } else if (typeof value === 'string' && !isStringInList(value, WEB_SEARCH_COMPRESSION_METHODS)) {
+    logger.warn('Unknown web-search compression method coerced to none during v2 migration', {
+      method: value
+    })
+  }
 
-function normalizeCutoffUnit(value: unknown): (typeof WEB_SEARCH_CUTOFF_UNITS)[number] {
-  return isStringInList(value, WEB_SEARCH_CUTOFF_UNITS) ? value : 'char'
+  return isStringInList(value, WEB_SEARCH_COMPRESSION_METHODS) ? value : 'none'
 }
 
 /**
  * Flatten websearch compressionConfig object into separate preference keys.
  *
- * Transforms model references into flat composite ids in the `provider::modelId` format.
- *
  * @example
  * Input: {
  *   compressionConfig: {
- *     method: 'rag',
- *     documentCount: 5,
- *     embeddingModel: { id: 'model-1', provider: 'openai' },
- *     rerankModel: { id: 'rerank-1', provider: 'cohere' }
+ *     method: 'cutoff',
+ *     cutoffLimit: 2000
  *   }
  * }
  * Output: {
- *   'chat.web_search.compression.method': 'rag',
- *   'chat.web_search.compression.rag_document_count': 5,
- *   'chat.web_search.compression.rag_embedding_model_id': 'openai::model-1',
- *   ...
+ *   'chat.web_search.compression.method': 'cutoff',
+ *   'chat.web_search.compression.cutoff_limit': 2000
  * }
  */
 export function flattenCompressionConfig(sources: {
@@ -262,26 +300,15 @@ export function flattenCompressionConfig(sources: {
   if (!config) {
     return {
       'chat.web_search.compression.method': 'none',
-      'chat.web_search.compression.cutoff_limit': null,
-      'chat.web_search.compression.cutoff_unit': 'char',
-      'chat.web_search.compression.rag_document_count': 5,
-      'chat.web_search.compression.rag_embedding_model_id': null,
-      'chat.web_search.compression.rag_embedding_dimensions': null,
-      'chat.web_search.compression.rag_rerank_model_id': null
+      'chat.web_search.compression.cutoff_limit': DEFAULT_WEB_SEARCH_CUTOFF_LIMIT
     }
   }
 
   const method = normalizeCompressionMethod(config.method)
-  const cutoffUnit = normalizeCutoffUnit(config.cutoffUnit)
 
   return {
     'chat.web_search.compression.method': method,
-    'chat.web_search.compression.cutoff_limit': config.cutoffLimit ?? null,
-    'chat.web_search.compression.cutoff_unit': cutoffUnit,
-    'chat.web_search.compression.rag_document_count': config.documentCount ?? 5,
-    'chat.web_search.compression.rag_embedding_model_id': legacyModelToUniqueId(config.embeddingModel),
-    'chat.web_search.compression.rag_embedding_dimensions': config.embeddingDimensions ?? null,
-    'chat.web_search.compression.rag_rerank_model_id': legacyModelToUniqueId(config.rerankModel)
+    'chat.web_search.compression.cutoff_limit': normalizeWebSearchCutoffLimit(config.cutoffLimit)
   }
 }
 
@@ -340,6 +367,9 @@ export function migrateWebSearchProviders(sources: { providers?: OldWebSearchPro
     const preset = presetById.get(provider.id)
 
     if (!preset) {
+      logger.warn('Unsupported legacy web-search provider dropped during v2 migration', {
+        providerId: provider.id
+      })
       return
     }
 
@@ -353,12 +383,18 @@ export function migrateWebSearchProviders(sources: { providers?: OldWebSearchPro
 
     const rawApiHost = provider.apiHost?.trim() ? provider.apiHost : provider.url
     const apiHost = rawApiHost?.trim()
-    if (apiHost && apiHost !== preset.defaultApiHost) {
-      override.apiHost = apiHost
+    const searchKeywordsCapability = getPresetCapability(preset, 'searchKeywords')
+    if (apiHost && searchKeywordsCapability && apiHost !== searchKeywordsCapability.apiHost) {
+      override.capabilities = {
+        searchKeywords: { apiHost }
+      }
     }
 
     if (provider.engines && provider.engines.length > 0) {
-      override.engines = provider.engines
+      const engines = provider.engines.map((engine) => engine.trim()).filter(Boolean)
+      if (engines.length > 0) {
+        override.engines = engines
+      }
     }
 
     const basicAuthUsername = provider.basicAuthUsername?.trim()
@@ -366,7 +402,7 @@ export function migrateWebSearchProviders(sources: { providers?: OldWebSearchPro
       override.basicAuthUsername = basicAuthUsername
     }
 
-    const basicAuthPassword = provider.basicAuthPassword?.trim()
+    const basicAuthPassword = basicAuthUsername ? provider.basicAuthPassword?.trim() : undefined
     if (basicAuthPassword) {
       override.basicAuthPassword = basicAuthPassword
     }

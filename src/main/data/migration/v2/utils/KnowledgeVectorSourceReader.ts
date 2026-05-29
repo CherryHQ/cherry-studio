@@ -1,26 +1,38 @@
 import fs from 'node:fs'
+import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { application } from '@application'
 import { type Client, createClient, type Value as LibsqlValue } from '@libsql/client'
 import { sanitizeFilename } from '@main/utils/file'
 
 const LEGACY_VECTOR_TABLE_NAME = 'vectors'
+const LEGACY_VECTOR_BACKUP_SUFFIX = '.embedjs.bak'
 
 export interface LegacyKnowledgeVectorRow {
   pageContent: string
   uniqueLoaderId: string
   source: string
-  vector: number[] | null
+  vector: LegacyKnowledgeVectorDecodeResult
 }
+
+export type LegacyKnowledgeVectorDecodeResult =
+  | { status: 'decoded'; value: number[] }
+  | { status: 'missing' }
+  | { status: 'unsupported_encoding'; encoding: string }
 
 export type LegacyKnowledgeVectorLoadResult =
   | { status: 'ok'; dbPath: string; rows: LegacyKnowledgeVectorRow[] }
   | { status: 'invalid_path' | 'missing' | 'directory' | 'not_embedjs'; dbPath?: string }
 
 export class KnowledgeVectorSourceReader {
+  constructor(private readonly knowledgeBaseDir: string) {}
+
   getLegacyDbPath(baseId: string): string | null {
-    return application.getPath('feature.knowledgebase.data', sanitizeFilename(baseId, '_'))
+    return path.join(this.knowledgeBaseDir, sanitizeFilename(baseId, '_'))
+  }
+
+  private getLegacyBackupPath(dbPath: string): string {
+    return `${dbPath}${LEGACY_VECTOR_BACKUP_SUFFIX}`
   }
 
   async loadBase(baseId: string): Promise<LegacyKnowledgeVectorLoadResult> {
@@ -29,7 +41,11 @@ export class KnowledgeVectorSourceReader {
       return { status: 'invalid_path' }
     }
 
+    const backupPath = this.getLegacyBackupPath(dbPath)
     if (!fs.existsSync(dbPath)) {
+      if (fs.existsSync(backupPath)) {
+        return this.loadLegacyDb(dbPath, backupPath)
+      }
       return { status: 'missing', dbPath }
     }
 
@@ -38,7 +54,16 @@ export class KnowledgeVectorSourceReader {
       return { status: 'directory', dbPath }
     }
 
-    const client = createClient({ url: pathToFileURL(dbPath).toString() })
+    const result = await this.loadLegacyDb(dbPath, dbPath)
+    if (result.status === 'not_embedjs' && fs.existsSync(backupPath)) {
+      return this.loadLegacyDb(dbPath, backupPath)
+    }
+
+    return result
+  }
+
+  private async loadLegacyDb(dbPath: string, sourcePath: string): Promise<LegacyKnowledgeVectorLoadResult> {
+    const client = createClient({ url: pathToFileURL(sourcePath).toString() })
     try {
       const isEmbedjs = await this.isEmbedjsDatabase(client)
       if (!isEmbedjs) {
@@ -82,30 +107,49 @@ export class KnowledgeVectorSourceReader {
   // client/runtime combinations. In local verification on macOS this returns
   // ArrayBuffer, but other environments may expose Float32Array or another
   // ArrayBufferView, so keep the decoder intentionally permissive.
-  private deserializeLegacyVector(raw: LibsqlValue): number[] | null {
+  private describeLegacyVectorEncoding(raw: LibsqlValue): string {
+    if (raw === null) {
+      return 'null'
+    }
+
+    if (raw === undefined) {
+      return 'undefined'
+    }
+
+    if (typeof raw !== 'object') {
+      return typeof raw
+    }
+
+    return raw.constructor?.name ?? 'Object'
+  }
+
+  private deserializeLegacyVector(raw: LibsqlValue): LegacyKnowledgeVectorDecodeResult {
     if (raw === null || raw === undefined) {
-      return null
+      return { status: 'missing' }
     }
 
     if (raw instanceof Float32Array) {
-      return Array.from(raw)
+      return { status: 'decoded', value: Array.from(raw) }
     }
 
     if (raw instanceof ArrayBuffer) {
-      return Array.from(new Float32Array(raw))
+      return { status: 'decoded', value: Array.from(new Float32Array(raw)) }
     }
 
     if (ArrayBuffer.isView(raw)) {
       const view = raw as ArrayBufferView
-      return Array.from(
-        new Float32Array(view.buffer, view.byteOffset, view.byteLength / Float32Array.BYTES_PER_ELEMENT)
-      )
+      return {
+        status: 'decoded',
+        value: Array.from(
+          new Float32Array(view.buffer, view.byteOffset, view.byteLength / Float32Array.BYTES_PER_ELEMENT)
+        )
+      }
     }
 
     if (Array.isArray(raw)) {
-      return raw.map((value) => Number(value))
+      return { status: 'decoded', value: raw.map((value) => Number(value)) }
     }
 
-    return null
+    return { status: 'unsupported_encoding', encoding: this.describeLegacyVectorEncoding(raw) }
   }
 }
