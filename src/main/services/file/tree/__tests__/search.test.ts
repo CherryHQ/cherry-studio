@@ -27,6 +27,17 @@ vi.mock('node:fs', async (importOriginal) => {
   }
 })
 
+// Production resolves ripgrep via BinaryManager (`getBinaryPath('rg')`), which
+// reads cherry.bin / mise shims — neither is populated under vitest. Point it
+// at the vendored binary so scans spawn a real ripgrep; `existsSync` (mocked
+// above) still governs the "binary not available" branch.
+vi.mock('@main/utils/process', async () => {
+  const { vendoredRipgrepPath } = await import('./ripgrepTestUtils')
+  return {
+    getBinaryPath: async (name?: string) => (name === 'rg' ? vendoredRipgrepPath() : (name ?? ''))
+  }
+})
+
 const { listDirectory } = await import('../search')
 
 beforeEach(async () => {
@@ -153,11 +164,11 @@ describe('listDirectory (error paths)', () => {
   })
 
   it('throws "Ripgrep binary not available" when the vendored binary cannot be located', async () => {
-    // Force the parent-walk in getRipgrepBinaryPath() to exhaust without
-    // ever finding the binary or its asar-unpacked sibling. `stat` keeps
-    // its passthrough so the directory check still succeeds — the throw
-    // must come from the binary-availability branch (search.ts:541-543),
-    // not from a stat failure masquerading as a missing binary.
+    // Force `resolveRipgrepBinary()` to treat the resolved path as missing:
+    // `existsSync` returns false, so the binary check fails. `stat` keeps its
+    // passthrough so the directory check still succeeds — the throw must come
+    // from the binary-availability branch, not a stat failure masquerading as
+    // a missing binary.
     mockExistsSync.mockReturnValue(false)
 
     await expect(listDirectory(tmp as FilePath)).rejects.toThrow(/Ripgrep binary not available/)
