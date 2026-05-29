@@ -499,7 +499,7 @@ public readonly onTaskChanged: Event<FileProcessingTaskResult> = this._onTaskCha
 file-processing 相关数据按职责分层：
 
 1. Processor preset
-   - 位于 `packages/shared/data/presets/file-processing.ts`
+   - 位于 `src/shared/data/presets/file-processing.ts`
    - 属于内建 shared metadata
    - 不属于 DataApi / Cache / Preference 记录
 2. 用户默认 processor 与 override
@@ -761,9 +761,9 @@ OCR text artifact 不落盘，直接以内联文本返回。
 
 实现时必须同步修改：
 
-1. `packages/shared/data/preference/preferenceTypes.ts`
+1. `src/shared/data/preference/preferenceTypes.ts`
    - `FILE_PROCESSOR_FEATURES` 改成 `['image_to_text', 'document_to_markdown']`。
-2. `packages/shared/data/presets/file-processing.ts`
+2. `src/shared/data/presets/file-processing.ts`
    - capability schema 从旧 literal 改成新 literal。
    - preset capability 的 `feature` 字段全部改名。
    - capability override schema key 从旧 feature key 改成新 feature key。

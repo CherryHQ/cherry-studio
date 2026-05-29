@@ -51,7 +51,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
   [WindowType.Main]: {
     type: WindowType.Main,
     lifecycle: 'singleton',
-    htmlPath: 'index.html',
+    htmlPath: 'windows/main/index.html',
     // preload omitted → defaults to 'index.js' (full API preload).
     showMode: 'manual',
     windowOptions: {
@@ -107,7 +107,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     singletonConfig: {
       retentionTime: 300
     },
-    htmlPath: 'settings.html',
+    htmlPath: 'windows/settings/index.html',
     windowOptions: {
       ...DEFAULT_WINDOW_CONFIG,
       width: 960,
@@ -148,7 +148,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
   [WindowType.SubWindow]: {
     type: WindowType.SubWindow,
     lifecycle: 'default',
-    htmlPath: 'subWindow.html',
+    htmlPath: 'windows/subWindow/index.html',
     // preload omitted → defaults to 'index.js' (full API preload).
     showMode: 'manual',
     windowOptions: {
@@ -203,7 +203,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
   [WindowType.QuickAssistant]: {
     type: WindowType.QuickAssistant,
     lifecycle: 'singleton',
-    htmlPath: 'quickAssistant.html',
+    htmlPath: 'windows/quickAssistant/index.html',
     // preload omitted → defaults to 'index.js' (full API preload).
     // QuickAssistantService.showQuickAssistant controls visibility; showMode: 'manual' also keeps
     // singleton reopen (wm.open) from accidentally re-showing the window before reposition runs.
@@ -269,7 +269,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
   [WindowType.SelectionToolbar]: {
     type: WindowType.SelectionToolbar,
     lifecycle: 'singleton',
-    htmlPath: 'selectionToolbar.html',
+    htmlPath: 'windows/selection/toolbar/index.html',
     // preload omitted → defaults to 'index.js'.
     // SelectionService controls visibility itself via showToolbarAtPosition/hideToolbar.
     // showMode: 'manual' also prevents wm.open() from re-showing an existing singleton unexpectedly.
@@ -358,7 +358,7 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
   [WindowType.SelectionAction]: {
     type: WindowType.SelectionAction,
     lifecycle: 'pooled',
-    htmlPath: 'selectionAction.html',
+    htmlPath: 'windows/selection/action/index.html',
     // preload omitted → defaults to 'index.js'.
     // SelectionService controls visibility itself via showActionWindow (computes bounds + fullscreen handling).
     showMode: 'manual',

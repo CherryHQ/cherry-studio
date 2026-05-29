@@ -73,7 +73,7 @@ src/main/services/file/tree/   ← parallel to internal/ and watcher/
 └── __tests__/            ← builder.test.ts / registry.test.ts /
                             TreeNode.test.ts / search.test.ts
 
-packages/shared/file/types/tree.ts   ← shared with renderer
+src/shared/file/types/tree.ts   ← shared with renderer
 ├── DirectoryTreeOptionsSchema (Zod) — IPC validation source of truth
 ├── DirectoryTreeOptions = z.infer<...> — derived type
 ├── SerializedTreeNode — wire DTO (parentless, plain object)
@@ -82,7 +82,7 @@ packages/shared/file/types/tree.ts   ← shared with renderer
 ├── CreateTreeIpcResult — { treeId, snapshot }
 └── TreeMutationPushPayload — { treeId, event }
 
-src/renderer/src/hooks/useDirectoryTree.ts   ← renderer hook
+src/renderer/hooks/useDirectoryTree.ts   ← renderer hook
 ├── On mount → File_TreeCreate → rehydrate TreeNode class hierarchy
 ├── On File_TreeMutation (filtered by treeId) → applyMutation in place
 ├── Returns { root, isLoading, error, version, treeId, getNode }
@@ -363,7 +363,7 @@ Three suites under `src/main/services/file/tree/__tests__/`:
 - **`TreeNode.test.ts`** — class invariants: rename cascade, identity preservation, JSON serialization shape.
 - **`search.test.ts`** — `listDirectory` happy path + error branches (ripgrep unavailable, EACCES on root).
 
-Renderer-side: `src/renderer/src/hooks/__tests__/useDirectoryTree.test.tsx` covers mount/unmount, mutation application, mid-flight cancel, StrictMode remount, post-unmount rejection, and treeId mismatch filtering.
+Renderer-side: `src/renderer/hooks/__tests__/useDirectoryTree.test.tsx` covers mount/unmount, mutation application, mid-flight cancel, StrictMode remount, post-unmount rejection, and treeId mismatch filtering.
 
 ---
 
@@ -371,4 +371,4 @@ Renderer-side: `src/renderer/src/hooks/__tests__/useDirectoryTree.test.tsx` cove
 
 - [`architecture.md`](./architecture.md) — module-level positioning (where this primitive sits relative to FileManager).
 - [`file-manager-architecture.md`](./file-manager-architecture.md) — sister FileEntry / FileRef primitive. Specifically: §8 ("DirectoryWatcher") for the watcher contract this primitive consumes, including the `WatcherEvent` shape (`ready` / `add` / `addDir` / `unlink` / `unlinkDir` / `change` / `error`).
-- `packages/shared/file/types/tree.ts` — the wire types and class hierarchy this primitive emits.
+- `src/shared/file/types/tree.ts` — the wire types and class hierarchy this primitive emits.

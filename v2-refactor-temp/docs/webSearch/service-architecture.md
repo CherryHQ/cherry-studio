@@ -200,7 +200,7 @@ Jina 官方 Reader 文档也把这两个能力分开描述：
 
 WebSearch preset 应参考 File Processing preset 的 layered preset pattern：
 
-1. preset 是只读模板，放在 `packages/shared/data/presets/`。
+1. preset 是只读模板，放在 `src/shared/data/presets/`。
 2. 用户配置只存 override delta。
 3. runtime config 由 preset 与 override merge 得到。
 4. capability 是 preset 内的一等元素，capability 自己携带可覆盖的 API 配置。

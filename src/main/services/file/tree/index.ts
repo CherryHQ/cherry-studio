@@ -20,5 +20,5 @@
 export { createDirectoryTree, type DirectoryTreeBuilder } from './builder'
 // The class hierarchy lives in shared so the renderer hook can build the
 // same node objects from the IPC snapshot without a separate mirror — see
-// `packages/shared/file/types/tree.ts`.
+// `src/shared/file/types/tree.ts`.
 export { rootFromSerialized, TreeDir, TreeDirRoot, TreeFile, TreeNode } from '@shared/file/types'

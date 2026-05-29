@@ -75,8 +75,8 @@
 
 1. `packages/ui/src/styles/tokens.css`
 2. `packages/ui/src/styles/theme.css`
-3. `src/renderer/src/assets/styles/tailwind.css`
-4. `src/renderer/src/hooks/useUserTheme.ts`
+3. `src/renderer/assets/styles/tailwind.css`
+4. `src/renderer/hooks/useUserTheme.ts`
 
 目前 renderer 直接导入：
 

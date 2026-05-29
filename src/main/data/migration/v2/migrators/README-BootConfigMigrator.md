@@ -66,7 +66,7 @@ Returns `null` (not `{}`) when no data is present (missing file / parse error / 
 - `BootConfigMigrator.ts` — `prepare/execute/validate` phases; `loadMigrationItems()` merges classification-derived mappings (from `BootConfigMappings.ts`) with the inline `configFileMappings` local const.
 - `../utils/LegacyHomeConfigReader.ts` — sync reader for v1 home config file; read-only; does not validate path accessibility of the returned `dataPath` values.
 - `mappings/BootConfigMappings.ts` — auto-generated mappings for the 4 classification-driven sources. The `targetKey: BootConfigKey` type annotation (emitted by `generate-migration.js`) provides the regen safety net: if a key is removed from the schema, mapping references fail to compile.
-- `../../../../../packages/shared/data/bootConfig/bootConfigSchemas.ts` — fully auto-generated schema (classification keys + `MANUAL_BOOT_CONFIG_ITEMS` from `generate-boot-config.js`). Single `BootConfigSchema` interface, single `DefaultBootConfig` const.
+- `../../../../../shared/data/bootConfig/bootConfigSchemas.ts` — fully auto-generated schema (classification keys + `MANUAL_BOOT_CONFIG_ITEMS` from `generate-boot-config.js`). Single `BootConfigSchema` interface, single `DefaultBootConfig` const.
 
 ## AppImage / Windows Portable Executable Path
 

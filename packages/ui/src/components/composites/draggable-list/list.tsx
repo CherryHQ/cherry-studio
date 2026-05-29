@@ -1,4 +1,4 @@
-// Original path: src/renderer/src/components/draggable-list/list.tsx
+// Original path: src/renderer/components/draggable-list/list.tsx
 import type {
   DroppableProps,
   DropResult,

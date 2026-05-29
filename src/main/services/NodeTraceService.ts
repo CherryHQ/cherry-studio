@@ -189,9 +189,9 @@ export class NodeTraceService extends BaseService implements Activatable {
     })
 
     if (isDev && process.env['ELECTRON_RENDERER_URL']) {
-      void this.traceWin.loadURL(process.env['ELECTRON_RENDERER_URL'] + `/traceWindow.html`)
+      void this.traceWin.loadURL(process.env['ELECTRON_RENDERER_URL'] + `/windows/trace/index.html`)
     } else {
-      void this.traceWin.loadFile(path.join(__dirname, '../renderer/traceWindow.html'))
+      void this.traceWin.loadFile(path.join(__dirname, '../renderer/windows/trace/index.html'))
     }
 
     this.traceWin.on('closed', () => {

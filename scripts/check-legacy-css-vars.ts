@@ -1,7 +1,7 @@
 import * as fs from 'fs'
 import * as path from 'path'
 
-const RENDERER_DIR = path.join(__dirname, '../src/renderer/src')
+const RENDERER_DIR = path.join(__dirname, '../src/renderer')
 const CHECK_EXTENSIONS = new Set(['.css', '.ts', '.tsx'])
 const IGNORED_DIR_NAMES = new Set(['node_modules', 'dist', 'out'])
 const IGNORED_FILE_PATTERNS = [/\.test\.(ts|tsx)$/, /\.spec\.(ts|tsx)$/, /\.snap$/]
