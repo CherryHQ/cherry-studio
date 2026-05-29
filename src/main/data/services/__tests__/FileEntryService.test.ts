@@ -778,30 +778,6 @@ describe('FileEntryService', () => {
       expect(raw?.externalPath).toBe('/Users/me/safe.txt')
     })
 
-    it('rejects unsafe externalPath BEFORE the SQL UPDATE commits', async () => {
-      // The `FilePath` brand is TS-only and offers no runtime
-      // guarantee. The service-side `FilePathSchema.parse(externalPath)`
-      // catches null bytes / non-absolute paths regardless of whether the
-      // caller went through `FilePathSchema.parse` or `as`-cast.
-      const id = '019606a0-0000-7000-8000-000000000d21' as FileEntryId
-      await fileEntryService.create({
-        id,
-        origin: 'external',
-        name: 'safe',
-        ext: 'txt',
-        size: null,
-        externalPath: '/Users/me/safe.txt'
-      })
-
-      await expect(
-        fileEntryService.setExternalPathAndName(id, '/Users/me/null\0byte.txt' as FilePath, 'fine')
-      ).rejects.toThrow()
-
-      const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, id))
-      expect(raw?.name).toBe('safe')
-      expect(raw?.externalPath).toBe('/Users/me/safe.txt')
-    })
-
     it('throws on fe_external_path_unique_idx conflict (race against a concurrent rename to the same path)', async () => {
       // Two external entries racing to claim the same canonical path: the
       // unique index rejects the second UPDATE with a SQLite constraint

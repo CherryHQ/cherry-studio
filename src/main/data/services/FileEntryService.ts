@@ -23,7 +23,7 @@ import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
 import { FileEntrySchema, SafeNameSchema } from '@shared/data/types/file'
-import { type FilePath, FilePathSchema } from '@shared/file/types'
+import type { FilePath } from '@shared/file/types'
 import { and, asc, count, desc, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 
@@ -407,14 +407,14 @@ class FileEntryServiceImpl implements FileEntryService {
    * flow so the (path, name) pair stays consistent under failure.
    */
   async setExternalPathAndName(id: FileEntryId, externalPath: FilePath, name: string): Promise<FileEntry> {
-    // Same pre-SQL validation rationale as `update` above; an unsafe value
-    // for either column would corrupt the row past `rowToFileEntry` parse.
-    // The `FilePath` brand is TS-only — defense-in-depth at the
-    // runtime layer rejects path strings the brand failed to flag (e.g. a
-    // caller that `as`-cast a raw user string instead of going through
-    // `FilePathSchema.parse`).
+    // `name` is a raw string (no brand) so it keeps its pre-SQL guard — an
+    // unsafe value would corrupt the row past `rowToFileEntry` parse.
+    // `externalPath` is already a `FilePath`: the brand IS the canonical
+    // guarantee (produced by `FilePathSchema.parse` at the entry boundary), so
+    // re-parsing it here would be redundant. We trust the brand — an `as`-cast
+    // that forges it is a call-site violation, caught at the call site and in
+    // review, not defended against in every sink.
     SafeNameSchema.parse(name)
-    FilePathSchema.parse(externalPath)
     const rows = await this.getDb()
       .update(fileEntryTable)
       .set({ externalPath, name, updatedAt: Date.now() })
