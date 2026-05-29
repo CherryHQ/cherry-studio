@@ -45,11 +45,18 @@ export const useMinappPopup = () => {
         // Clean up WebView state when app is disposed from cache
         clearWebviewState(key)
 
-        // Update Redux state
-        dispatch(setOpenedKeepAliveMinapps(Array.from(minAppsCache.values())))
+        // Defer Redux dispatch to avoid synchronous nested updates when
+        // disposeAfter fires inside TabsService.closeTab() — the cache
+        // delete triggers this callback between setActiveTab and removeTab,
+        // causing React maximum update depth exceeded if dispatched inline.
+        queueMicrotask(() => {
+          dispatch(setOpenedKeepAliveMinapps(Array.from(minAppsCache.values())))
+        })
       },
       onInsert: () => {
-        dispatch(setOpenedKeepAliveMinapps(Array.from(minAppsCache.values())))
+        queueMicrotask(() => {
+          dispatch(setOpenedKeepAliveMinapps(Array.from(minAppsCache.values())))
+        })
       },
       updateAgeOnGet: true,
       updateAgeOnHas: true

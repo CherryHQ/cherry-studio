@@ -85,12 +85,17 @@ describe('useMinappPopup - disposeAfter reentry regression (issue #15405)', () =
     expect(mockClearWebviewState).toHaveBeenCalledWith('test-app')
   })
 
-  it('disposeAfter still dispatches setOpenedKeepAliveMinapps', () => {
+  it('disposeAfter still dispatches setOpenedKeepAliveMinapps', async () => {
     const { result } = renderHook(() => useMinappPopup())
 
     act(() => {
       result.current.minAppsCache.set(testApp.id, testApp)
       result.current.minAppsCache.delete(testApp.id)
+    })
+
+    // Wait for queueMicrotask to flush
+    await act(async () => {
+      await new Promise<void>((resolve) => queueMicrotask(resolve))
     })
 
     // dispatch should have been called — both onInsert (from set) and disposeAfter (from delete)
