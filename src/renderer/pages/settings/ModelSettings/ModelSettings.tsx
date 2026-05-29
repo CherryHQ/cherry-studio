@@ -1,4 +1,3 @@
-import { RedoOutlined } from '@ant-design/icons'
 import { Avatar, AvatarFallback, Button, InfoTooltip, PageSidePanel, Tooltip } from '@cherrystudio/ui'
 import { resolveIcon } from '@cherrystudio/ui/icons'
 import { usePreference } from '@data/hooks/usePreference'
@@ -18,12 +17,20 @@ import {
   type UniqueModelId
 } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import { ChevronDown, Languages, MessageSquareMore, Rocket, Settings2 } from 'lucide-react'
+import { ChevronDown, Languages, MessageSquareMore, Rocket, RotateCcw, Settings2 } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingContainer, SettingDescription, SettingDivider, SettingGroup, SettingRow, SettingRowTitle } from '..'
+import {
+  SettingContainer,
+  SettingDescription,
+  SettingDivider,
+  SettingGroup,
+  SettingRow,
+  SettingRowTitle,
+  SettingsContentColumn
+} from '..'
 import { AssistantSettings } from './DefaultAssistantSettings'
 import { TopicNamingSettings } from './QuickModelPopup'
 
@@ -77,12 +84,13 @@ const excludedDefaultModelCapabilities = new Set<string>([
   MODEL_CAPABILITY.IMAGE_GENERATION
 ])
 
-const ASSISTANT_SETTINGS_DRAWER_WIDTH_CLASS = '!w-[min(500px,calc(100%-1rem))]'
-const MODEL_SETTINGS_DRAWER_WIDTH_CLASS = '!w-[min(500px,calc(100%-1rem))]'
-const TRANSLATE_DRAWER_WIDTH_CLASS = '!w-[min(500px,calc(100%-1rem))]'
+const ASSISTANT_SETTINGS_DRAWER_WIDTH_CLASS = '!w-[min(31.25rem,calc(100%-1rem))]'
+const MODEL_SETTINGS_DRAWER_WIDTH_CLASS = '!w-[min(31.25rem,calc(100%-1rem))]'
+const TRANSLATE_DRAWER_WIDTH_CLASS = '!w-[min(31.25rem,calc(100%-1rem))]'
 const SETTINGS_DRAWER_BODY_CLASS = 'space-y-0 px-6 py-5'
-const SETTINGS_DRAWER_HEADER_CLASS = 'h-14 px-6'
 const MODEL_SELECTOR_VISIBLE_COUNT = 8
+
+const drawerTitleClassName = 'truncate font-semibold text-foreground text-sm leading-4'
 
 const toModelSelectorValue = (modelId: string | null): UniqueModelId | undefined =>
   modelId && isUniqueModelId(modelId) ? modelId : undefined
@@ -198,12 +206,14 @@ const ModelSettings: FC<ModelSettingsProps> = ({
     setActivePanel(null)
   }, [])
 
-  const containerStyle = compact ? { padding: 0, background: 'transparent' } : undefined
   const groupStyle = compact ? { padding: 0, border: 'none', background: 'transparent' } : undefined
+
+  const ContainerComponent = compact ? SettingContainer : SettingsContentColumn
+  const containerProps = compact ? { style: { padding: 0, background: 'transparent' } } : {}
 
   return (
     <div className="relative flex min-h-0 flex-1">
-      <SettingContainer theme={theme} style={containerStyle}>
+      <ContainerComponent theme={theme} {...containerProps}>
         <SettingGroup theme={theme} style={groupStyle}>
           <ModelSettingRow
             compact={compact}
@@ -289,7 +299,7 @@ const ModelSettings: FC<ModelSettingsProps> = ({
                 {translateModelPrompt !== TRANSLATE_PROMPT && (
                   <Tooltip title={t('common.reset')}>
                     <Button className="shrink-0" onClick={onResetTranslatePrompt} size="icon-sm" variant="outline">
-                      <RedoOutlined size={16} />
+                      <RotateCcw size={16} />
                     </Button>
                   </Tooltip>
                 )}
@@ -297,16 +307,15 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             )}
           </ModelSettingRow>
         </SettingGroup>
-      </SettingContainer>
+      </ContainerComponent>
       {showSettingsButton && (
         <>
           <PageSidePanel
             open={activePanel === 'default-assistant'}
             onClose={closePanel}
             closeLabel={t('common.close')}
-            header={<span className="font-semibold text-sm">{t('settings.assistant.title')}</span>}
+            header={<h2 className={drawerTitleClassName}>{t('settings.assistant.title')}</h2>}
             contentClassName={ASSISTANT_SETTINGS_DRAWER_WIDTH_CLASS}
-            headerClassName={SETTINGS_DRAWER_HEADER_CLASS}
             bodyClassName={SETTINGS_DRAWER_BODY_CLASS}>
             <AssistantSettings />
           </PageSidePanel>
@@ -314,9 +323,8 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             open={activePanel === 'quick-model'}
             onClose={closePanel}
             closeLabel={t('common.close')}
-            header={<span className="font-semibold text-sm">{t('settings.models.quick_model.setting_title')}</span>}
+            header={<h2 className={drawerTitleClassName}>{t('settings.models.quick_model.setting_title')}</h2>}
             contentClassName={MODEL_SETTINGS_DRAWER_WIDTH_CLASS}
-            headerClassName={SETTINGS_DRAWER_HEADER_CLASS}
             bodyClassName={SETTINGS_DRAWER_BODY_CLASS}>
             <TopicNamingSettings />
           </PageSidePanel>
@@ -324,9 +332,8 @@ const ModelSettings: FC<ModelSettingsProps> = ({
             open={activePanel === 'translate'}
             onClose={closePanel}
             closeLabel={t('common.close')}
-            header={<span className="font-semibold text-sm">{t('settings.translate.title')}</span>}
+            header={<h2 className={drawerTitleClassName}>{t('settings.translate.title')}</h2>}
             contentClassName={TRANSLATE_DRAWER_WIDTH_CLASS}
-            headerClassName={SETTINGS_DRAWER_HEADER_CLASS}
             bodyClassName={SETTINGS_DRAWER_BODY_CLASS}>
             <TranslateSettingsPanelContent />
           </PageSidePanel>

@@ -48,6 +48,12 @@ vi.mock('@cherrystudio/ui', () => {
       </button>
     ),
     Input: (props: any) => <input {...props} />,
+    PageSidePanelItem: ({ title, action }: any) => (
+      <div>
+        {title}
+        {action}
+      </div>
+    ),
     Switch: ({ checked, onCheckedChange, ...props }: any) => (
       <input type="checkbox" checked={checked} onChange={(event) => onCheckedChange(event.target.checked)} {...props} />
     ),

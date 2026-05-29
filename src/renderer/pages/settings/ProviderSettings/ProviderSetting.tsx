@@ -1,6 +1,8 @@
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useProvider } from '@renderer/hooks/useProviders'
+import { cn } from '@renderer/utils'
+import { useCallback, useRef, useState } from 'react'
 
 import ProviderHeader from './components/ProviderHeader'
 import AuthenticationSection from './ConnectionSettings/AuthenticationSection'
@@ -18,6 +20,15 @@ interface ProviderSettingProps {
 export default function ProviderSetting({ providerId, isOnboarding = false }: ProviderSettingProps) {
   const { provider } = useProvider(providerId)
   const { theme } = useTheme()
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [isScrolled, setIsScrolled] = useState(false)
+
+  const handleScroll = useCallback(() => {
+    const el = scrollRef.current
+    if (el) {
+      setIsScrolled(el.scrollTop > 0)
+    }
+  }, [])
 
   useProviderAutoModelSync(providerId)
   useProviderOnboardingAutoEnable({
@@ -37,10 +48,17 @@ export default function ProviderSetting({ providerId, isOnboarding = false }: Pr
         <div
           data-testid="provider-detail-shell"
           className="provider-settings-default-scope flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className={providerDetailColumnClasses.headerPad}>
-            <ProviderHeader providerId={providerId} />
+          <div data-testid="provider-detail-header" className={providerDetailColumnClasses.headerPad}>
+            <div
+              className={cn(
+                providerDetailColumnClasses.headerContentMaxWidth,
+                'transition-colors',
+                isScrolled && 'border-transparent'
+              )}>
+              <ProviderHeader providerId={providerId} />
+            </div>
           </div>
-          <Scrollbar className={providerDetailColumnClasses.scrollStrip}>
+          <Scrollbar ref={scrollRef} onScroll={handleScroll} className={providerDetailColumnClasses.scrollStrip}>
             <div className={providerDetailColumnClasses.sectionStack}>
               <AuthenticationSection providerId={providerId} />
               <ModelList providerId={providerId} />

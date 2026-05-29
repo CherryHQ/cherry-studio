@@ -151,8 +151,12 @@ describe('CherryInOauth', () => {
 
     render(<CherryInOauth providerId="cherryin" />)
 
-    expect(screen.getByRole('button', { name: /OAuth/i })).toBeInTheDocument()
+    const loginButton = screen.getByRole('button', { name: /CherryIN|授权/i })
+    const tagline = screen.getByText(/登录后即可使用所有模型服务|all model services/i)
+
+    expect(loginButton).toBeInTheDocument()
     expect(screen.getByTestId('cherryin-avatar')).toBeInTheDocument()
+    expect(tagline.compareDocumentPosition(loginButton) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
   it('logs out and removes every OAuth-labelled key after confirmation', async () => {

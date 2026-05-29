@@ -1,5 +1,4 @@
 import { Button } from '@cherrystudio/ui'
-import { cn } from '@renderer/utils'
 import { Plus } from 'lucide-react'
 import type React from 'react'
 import { useTranslation } from 'react-i18next'
@@ -20,13 +19,12 @@ const ProviderModelDownload: React.FC<ProviderModelDownloadProps> = ({ providerI
     <Button
       type="button"
       variant="outline"
-      size="sm"
-      className={cn(modelListClasses.fetchOutline, 'gap-1 px-2 py-[3px] text-xs')}
+      size="icon-sm"
+      className={modelListClasses.addModelIconButton}
       disabled={disabled}
       aria-label={t('button.download')}
       onClick={openOvmsModelDownload}>
       <Plus className={modelListClasses.toolbarDesignIcon} />
-      <span>{t('button.download')}</span>
     </Button>
   )
 }

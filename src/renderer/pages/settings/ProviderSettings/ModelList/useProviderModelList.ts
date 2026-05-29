@@ -1,7 +1,7 @@
 import { useModelMutations, useModels } from '@renderer/hooks/useModels'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
-import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from '../hooks/providerSetting/constants'
 import {
@@ -111,9 +111,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
   const [pendingModelIdMap, setPendingModelIdMap] = useState<Record<string, true>>({})
 
   const setSelectedCapabilityFilter = useCallback((filter: ModelListCapabilityFilter) => {
-    startTransition(() => {
-      setSelectedCapabilityFilterState(filter)
-    })
+    setSelectedCapabilityFilterState(filter)
   }, [])
 
   const modelById = useMemo(() => new Map(models.map((model) => [model.id, model])), [models])

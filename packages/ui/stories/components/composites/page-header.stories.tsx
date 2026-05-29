@@ -99,6 +99,38 @@ export const SideBySide: Story = {
 }
 
 // ---------------------------------------------------------------------------
+// Bordered — right-pane detail header variant with a 1px border-b divider
+// ---------------------------------------------------------------------------
+
+export const Bordered: Story = {
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Right-pane detail PageHeaders use `bordered` to render a `border-b border-border` divider underneath, visually separating the title row from the page body. Left sidebar PageHeaders (which sit above a `MenuList`) must not pass `bordered`.'
+      }
+    }
+  },
+  render: () => (
+    <div className="w-[420px] rounded-xl border border-border bg-background">
+      <PageHeader
+        title="CherryIN"
+        bordered
+        action={
+          <button
+            type="button"
+            aria-label="Filter"
+            className="flex size-6 shrink-0 items-center justify-center rounded-md text-foreground/45 transition-colors hover:bg-accent hover:text-foreground/75">
+            <Filter size={14} />
+          </button>
+        }
+      />
+      <div className="px-5 py-4 text-foreground-muted text-sm">Detail body content sits below the divider.</div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // SectionTitleStyle — page-level label as a group name (e.g. "Models" sitting
 // next to in-list group labels). Use `titleClassName` to swap PageHeader's
 // default heading typography for section-title typography while keeping the

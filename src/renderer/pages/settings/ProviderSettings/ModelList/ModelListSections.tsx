@@ -20,6 +20,7 @@ interface ModelListSectionsProps {
   pendingModelIds: Set<string>
   onEditModel: (model: Model) => void
   onToggleModel: (model: Model, enabled: boolean) => Promise<void>
+  enabledSectionActions?: React.ReactNode
 }
 
 const ModelListSections: React.FC<ModelListSectionsProps> = ({
@@ -33,7 +34,8 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
   disabled,
   pendingModelIds,
   onEditModel,
-  onToggleModel
+  onToggleModel,
+  enabledSectionActions
 }) => {
   const { t } = useTranslation()
 
@@ -55,12 +57,17 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
 
   return (
     <div className={modelListClasses.listScroller}>
-      <div className="flex min-h-full w-full min-w-0 flex-col gap-3">
+      <div className="flex min-h-full w-full min-w-0 flex-col gap-5">
         {!isEmpty(enabledSections) && (
-          <div className="space-y-2.5">
+          <div className="space-y-5">
             <div className={modelListClasses.subsectionRow}>
-              <p className={modelListClasses.subsectionTitleEnabled}>{t('settings.models.check.enabled')}</p>
-              <span className={modelListClasses.subsectionCountEnabled}>{displayEnabledModelCount}</span>
+              <div className={modelListClasses.subsectionTitleWrap}>
+                <p className={modelListClasses.subsectionTitleEnabled}>{t('settings.models.check.enabled')}</p>
+                <span className={modelListClasses.subsectionCountEnabled}>{displayEnabledModelCount}</span>
+              </div>
+              {enabledSectionActions ? (
+                <div className={modelListClasses.subsectionActions}>{enabledSectionActions}</div>
+              ) : null}
             </div>
             <div className="flex flex-col gap-3">
               {enabledSections.map(({ groupName, items }, index) => (
@@ -79,10 +86,12 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
           </div>
         )}
         {!isEmpty(disabledSections) && (
-          <div className="space-y-2.5">
+          <div className="space-y-5">
             <div className={modelListClasses.subsectionRow}>
-              <p className={modelListClasses.subsectionTitleDisabled}>{t('settings.models.check.disabled')}</p>
-              <span className={modelListClasses.subsectionCountDisabled}>{displayDisabledModelCount}</span>
+              <div className={modelListClasses.subsectionTitleWrap}>
+                <p className={modelListClasses.subsectionTitleDisabled}>{t('settings.models.check.disabled')}</p>
+                <span className={modelListClasses.subsectionCountDisabled}>{displayDisabledModelCount}</span>
+              </div>
             </div>
             <div className="flex flex-col gap-3">
               {disabledSections.map(({ groupName, items }, index) => (

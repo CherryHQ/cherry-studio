@@ -19,11 +19,14 @@ vi.mock('@cherrystudio/ui', () => {
         <span>{content}</span>
       </div>
     ),
-    Button: ({ children, onClick, ...props }: any) => (
-      <button type="button" onClick={onClick} {...props}>
-        {children}
-      </button>
-    )
+    Button: ({ asChild, children, onClick, ...props }: any) =>
+      asChild ? (
+        children
+      ) : (
+        <button type="button" onClick={onClick} {...props}>
+          {children}
+        </button>
+      )
   }
 })
 
@@ -94,6 +97,20 @@ describe('ProviderHeader', () => {
 
     expect(screen.getByText('反反复')).toBeInTheDocument()
     expect(screen.queryByText('35836b32-9bc1-40ab-9195-8b0b4ea3f342')).not.toBeInTheDocument()
+  })
+
+  it('keeps the provider name as text and makes only the docs icon a link', () => {
+    useProviderMetaMock.mockReturnValue({
+      fancyProviderName: 'OpenAI',
+      docsWebsite: 'https://platform.openai.com/docs',
+      showApiOptionsButton: false
+    })
+
+    render(<ProviderHeader providerId="openai" />)
+
+    expect(screen.getByText('OpenAI').closest('a')).toBeNull()
+    const docsLink = screen.getByRole('link', { name: 'OpenAI · common.docs' })
+    expect(docsLink).toHaveAttribute('href', 'https://platform.openai.com/docs')
   })
 
   it('opens the api options drawer when the meta enables the entry', () => {

@@ -22,7 +22,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
-  settingsContentBodyClassName,
+  SettingsContentBody,
   settingsContentHeaderClassName,
   settingsContentHeaderTitleClassName,
   settingsContentScrollClassName,
@@ -474,7 +474,7 @@ const ShortcutSettings: FC = () => {
         </div>
 
         <Scrollbar className={settingsContentScrollClassName}>
-          <div className={settingsContentBodyClassName}>
+          <SettingsContentBody>
             <div className={cn(settingsContentHeaderClassName, 'mb-3 flex items-center justify-between gap-2')}>
               <h1 className={settingsContentHeaderTitleClassName}>
                 {categoryMeta.find((item) => item.key === activeCategory)?.label}
@@ -526,7 +526,7 @@ const ShortcutSettings: FC = () => {
             ) : (
               <div className="py-10 text-center text-muted-foreground text-sm">{t('settings.shortcuts.empty')}</div>
             )}
-          </div>
+          </SettingsContentBody>
         </Scrollbar>
       </div>
     </div>

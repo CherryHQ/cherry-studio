@@ -22,8 +22,8 @@ afterEach(() => {
 describe('PageSidePanel', () => {
   describe('open / close', () => {
     it('renders nothing when closed', () => {
-      const { container } = render(<PageSidePanel open={false} onClose={vi.fn()} />)
-      expect(container.querySelector('[data-slot="page-side-panel"]')).not.toBeInTheDocument()
+      render(<PageSidePanel open={false} onClose={vi.fn()} />)
+      expect(document.querySelector('[data-slot="page-side-panel"]')).not.toBeInTheDocument()
     })
 
     it('renders panel when open', () => {
@@ -33,15 +33,15 @@ describe('PageSidePanel', () => {
 
     it('calls onClose when backdrop is clicked', () => {
       const onClose = vi.fn()
-      const { container } = render(<PageSidePanel open={true} onClose={onClose} />)
-      const backdrop = container.querySelector('[data-slot="page-side-panel-backdrop"]')!
+      render(<PageSidePanel open={true} onClose={onClose} />)
+      const backdrop = document.querySelector('[data-slot="page-side-panel-backdrop"]')!
       fireEvent.click(backdrop)
       expect(onClose).toHaveBeenCalledTimes(1)
     })
 
     it('uses the same backdrop scrim as the dialog', () => {
-      const { container } = render(<PageSidePanel open={true} onClose={vi.fn()} />)
-      const backdrop = container.querySelector('[data-slot="page-side-panel-backdrop"]')!
+      render(<PageSidePanel open={true} onClose={vi.fn()} />)
+      const backdrop = document.querySelector('[data-slot="page-side-panel-backdrop"]')!
       expect(backdrop).toHaveClass('bg-black/50')
     })
 
@@ -153,16 +153,14 @@ describe('PageSidePanel', () => {
     })
 
     it('renders footer when provided', () => {
-      const { container } = render(
-        <PageSidePanel open={true} onClose={vi.fn()} footer={<button type="button">Save</button>} />
-      )
+      render(<PageSidePanel open={true} onClose={vi.fn()} footer={<button type="button">Save</button>} />)
       expect(screen.getByText('Save')).toBeInTheDocument()
-      expect(container.querySelector('[data-slot="page-side-panel-footer"]')).toBeInTheDocument()
+      expect(document.querySelector('[data-slot="page-side-panel-footer"]')).toBeInTheDocument()
     })
 
     it('does not render footer slot when not provided', () => {
-      const { container } = render(<PageSidePanel open={true} onClose={vi.fn()} />)
-      expect(container.querySelector('[data-slot="page-side-panel-footer"]')).not.toBeInTheDocument()
+      render(<PageSidePanel open={true} onClose={vi.fn()} />)
+      expect(document.querySelector('[data-slot="page-side-panel-footer"]')).not.toBeInTheDocument()
     })
 
     it('hides close button when showCloseButton=false and no header', () => {
@@ -178,7 +176,7 @@ describe('PageSidePanel', () => {
 
   describe('placement', () => {
     it('uses the design shell classes by default', () => {
-      const { container } = render(
+      render(
         <PageSidePanel open={true} onClose={vi.fn()} header={<span>Panel title</span>}>
           Body content
         </PageSidePanel>
@@ -190,14 +188,26 @@ describe('PageSidePanel', () => {
       expect(dialog.className).toContain('text-card-foreground')
       expect(dialog.className).toContain('shadow-xl')
 
-      const header = container.querySelector('[data-slot="page-side-panel-header"]')!
+      const header = document.querySelector('[data-slot="page-side-panel-header"]')!
       expect(header.className).toContain('px-6')
       expect(header.className).toContain('pt-6')
       expect(header.className).toContain('pb-3')
 
-      const body = container.querySelector('[data-slot="page-side-panel-body"]')!
+      const body = document.querySelector('[data-slot="page-side-panel-body"]')!
       expect(body.className).toContain('px-6')
       expect(body.className).toContain('py-4')
+    })
+
+    it('portals the backdrop and panel to document.body', () => {
+      const { container } = render(
+        <div data-testid="page-shell">
+          <PageSidePanel open={true} onClose={vi.fn()} />
+        </div>
+      )
+
+      expect(container.querySelector('[data-slot="page-side-panel"]')).not.toBeInTheDocument()
+      expect(document.body.querySelector('[data-slot="page-side-panel"]')).toBeInTheDocument()
+      expect(document.body.querySelector('[data-slot="page-side-panel-backdrop"]')).toBeInTheDocument()
     })
 
     it('applies design inset classes by default', () => {

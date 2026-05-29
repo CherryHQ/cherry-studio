@@ -73,6 +73,7 @@ export function ApiHostField({
   return (
     <ProviderField
       title={t('settings.provider.api_host')}
+      titleClassName="text-foreground"
       help={
         <div className="space-y-1 pt-1">
           {isVertexAI && (
@@ -86,7 +87,22 @@ export function ApiHostField({
         </div>
       }>
       {isCherryIN && isChineseUser ? (
-        <CherryInSettings providerId={providerIdForSettings} />
+        <div className={cn(fieldClasses.inputRow, 'group')}>
+          <div className="flex min-w-0 flex-1">
+            <CherryInSettings providerId={providerIdForSettings} />
+          </div>
+          <Tooltip content={t('settings.provider.request_configuration_tooltip')}>
+            <span className="inline-flex shrink-0">
+              <button
+                type="button"
+                className={fieldClasses.inputActionButton}
+                aria-label={t('settings.provider.request_configuration_tooltip')}
+                onClick={onOpenRequestConfig}>
+                <Settings size={14} aria-hidden />
+              </button>
+            </span>
+          </Tooltip>
+        </div>
       ) : (
         <div className={cn(fieldClasses.inputRow, 'group')}>
           <InputGroup className={`${fieldClasses.inputGroup} min-w-0 flex-1`}>
@@ -121,12 +137,12 @@ export function ApiHostField({
                 <span className="inline-flex shrink-0">
                   <button
                     type="button"
-                    className={fieldClasses.iconButton}
+                    className={fieldClasses.inputActionButton}
                     aria-label={t('settings.provider.api.url.reset')}
                     onClick={() => {
                       onResetApiHost()
                     }}>
-                    <RotateCcw size={12} />
+                    <RotateCcw size={14} />
                   </button>
                 </span>
               </Tooltip>
@@ -135,10 +151,10 @@ export function ApiHostField({
               <span className="inline-flex shrink-0">
                 <button
                   type="button"
-                  className={fieldClasses.iconButton}
+                  className={fieldClasses.inputActionButton}
                   aria-label={t('settings.provider.request_configuration_tooltip')}
                   onClick={onOpenRequestConfig}>
-                  <Settings size={12} aria-hidden />
+                  <Settings size={14} aria-hidden />
                 </button>
               </span>
             </Tooltip>
@@ -202,10 +218,10 @@ export function AnthropicApiHostField({
           <span className="inline-flex shrink-0">
             <button
               type="button"
-              className={fieldClasses.iconButton}
+              className={fieldClasses.inputActionButton}
               aria-label={t('settings.provider.request_configuration_tooltip')}
               onClick={onOpenRequestConfig}>
-              <Settings size={12} aria-hidden />
+              <Settings size={14} aria-hidden />
             </button>
           </span>
         </Tooltip>

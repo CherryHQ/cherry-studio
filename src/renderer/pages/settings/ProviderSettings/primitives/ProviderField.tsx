@@ -24,8 +24,7 @@ export default function ProviderField({
       <div className="flex items-center justify-between gap-3">
         <div
           className={cn(
-            // Draft: field labels use muted foreground (e.g. text-foreground/65), not /85 — plain string titles inherit this.
-            'font-medium text-[13px] text-foreground/65 leading-[1.35]',
+            'font-[weight:var(--font-weight-medium)] text-[length:var(--font-size-body-sm)] text-foreground-secondary leading-[var(--line-height-body-sm)]',
             titleClassName
           )}>
           {title}

@@ -1,20 +1,20 @@
-/**
- * An in-page side drawer: the panel is positioned absolutely within its nearest
- * positioned parent, while the backdrop covers the viewport so sibling menus
- * and navigation chrome are dimmed and click-blocked.
- *
- * For a full-screen modal dialog that covers the whole viewport with a
- * backdrop, use the shadcn `Drawer` primitive from '@cherrystudio/ui' instead.
- */
 import { Button } from '@cherrystudio/ui/components/primitives/button'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { AnimatePresence, motion } from 'framer-motion'
 import { XIcon } from 'lucide-react'
 import * as React from 'react'
 import { useCallback, useEffect, useId, useRef } from 'react'
+import { createPortal } from 'react-dom'
 
 import Scrollbar from '../scrollbar'
 
+/**
+ * A page-owned floating side panel. It portals to `document.body` so the fixed
+ * panel and viewport backdrop are not clipped or re-based by page layout,
+ * transformed ancestors, virtualized lists, or scroll containers.
+ *
+ * For edge-attached modal sheets, use the shadcn `Drawer` primitive instead.
+ */
 type PageSidePanelPlacement = 'left' | 'right'
 
 interface PageSidePanelProps {
@@ -59,6 +59,7 @@ function PageSidePanel({
   const panelRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLElement | null>(null)
   const closedByPointerDownRef = useRef(false)
+  const portalContainer = typeof document === 'undefined' ? null : document.body
 
   const handleClose = useCallback(
     (event?: React.MouseEvent | React.PointerEvent | React.KeyboardEvent) => {
@@ -82,7 +83,7 @@ function PageSidePanel({
     }
   }, [open])
 
-  return (
+  const panel = (
     <AnimatePresence>
       {open && (
         <>
@@ -112,7 +113,7 @@ function PageSidePanel({
             transition={{ type: 'spring', damping: 30, stiffness: 350 }}
             data-slot="page-side-panel"
             className={cn(
-              'absolute top-3 bottom-3 z-[70] flex w-100 flex-col overflow-hidden rounded-3xl bg-card text-card-foreground shadow-xl outline-none',
+              'fixed top-3 bottom-3 z-[70] flex w-100 flex-col overflow-hidden rounded-3xl bg-card text-card-foreground shadow-xl outline-none',
               side === 'right' ? 'right-3' : 'left-3',
               contentClassName
             )}>
@@ -153,7 +154,9 @@ function PageSidePanel({
               </div>
             )}
 
-            <Scrollbar data-slot="page-side-panel-body" className={cn('flex-1 space-y-4 px-6 py-4', bodyClassName)}>
+            <Scrollbar
+              data-slot="page-side-panel-body"
+              className={cn('min-h-0 flex-1 space-y-4 px-6 py-4', bodyClassName)}>
               {children}
             </Scrollbar>
 
@@ -169,6 +172,8 @@ function PageSidePanel({
       )}
     </AnimatePresence>
   )
+
+  return portalContainer ? createPortal(panel, portalContainer) : panel
 }
 
 interface PageSidePanelSectionProps extends Omit<React.HTMLAttributes<HTMLDivElement>, 'title'> {

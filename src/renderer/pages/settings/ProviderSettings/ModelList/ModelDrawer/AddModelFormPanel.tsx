@@ -242,7 +242,7 @@ export default function AddModelFormPanel({
 
       {showMoreSettings && (
         <ProviderSection className={drawerClasses.section}>
-          <div className={drawerClasses.fieldList}>
+          <div className={drawerClasses.sectionCard}>
             <ModelContextWindowFields
               contextWindow={formState.contextWindow}
               maxInputTokens={formState.maxInputTokens}
