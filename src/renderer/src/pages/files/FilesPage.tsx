@@ -1,319 +1,421 @@
-import { ExclamationCircleOutlined } from '@ant-design/icons'
-import { Flex } from '@cherrystudio/ui'
-import { Button } from '@cherrystudio/ui'
-import { loggerService } from '@logger'
-import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
-import { DeleteIcon, EditIcon } from '@renderer/components/Icons'
-import ListItem from '@renderer/components/ListItem'
-import db from '@renderer/databases'
-import { getFileFieldLabel } from '@renderer/i18n/label'
-import { handleDelete, handleRename, sortFiles, tempFilesSort } from '@renderer/services/FileAction'
-import FileManager from '@renderer/services/FileManager'
-import store from '@renderer/store'
-import type { FileMetadata, FileType } from '@renderer/types'
-import { FILE_TYPE } from '@renderer/types'
-import { formatFileSize } from '@renderer/utils'
-import { Checkbox, Dropdown, Empty, Popconfirm } from 'antd'
-import dayjs from 'dayjs'
-import { useLiveQuery } from 'dexie-react-hooks'
-import {
-  ArrowDownNarrowWide,
-  ArrowUpWideNarrow,
-  File as FileIcon,
-  FileImage,
-  FileText,
-  FileType as FileTypeIcon
-} from 'lucide-react'
-import type { FC } from 'react'
-import { useEffect, useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
+import { Button, EmptyState } from '@cherrystudio/ui'
+import { FolderClosed, Pencil, RotateCcw, Trash2, Upload, X } from 'lucide-react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import FileList from './FileList'
+import { FileGrid } from './FileGrid'
+import type { SortDir, SortKey } from './FileList'
+import { FileList } from './FileList'
+import type { SidebarFilter } from './FileSidebar'
+import { FileSidebar } from './FileSidebar'
+import type { FileItem } from './mockData'
+import { MOCK_FILES } from './mockData'
 
-type SortField = 'created_at' | 'size' | 'name'
-type SortOrder = 'asc' | 'desc'
+// ─── Popover (click-outside dismiss) ───
 
-const logger = loggerService.withContext('FilesPage')
-
-const FilesPage: FC = () => {
-  const { t } = useTranslation()
-  const [fileType, setFileType] = useState<FileType | 'all'>('document')
-  const [sortField, setSortField] = useState<SortField>('created_at')
-  const [sortOrder, setSortOrder] = useState<SortOrder>('desc')
-  const [selectedFileIds, setSelectedFileIds] = useState<string[]>([])
-
+function Popover({
+  x,
+  y,
+  children,
+  onClose,
+  width
+}: {
+  x: number
+  y: number
+  children: React.ReactNode
+  onClose: () => void
+  width?: number
+}) {
+  const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    setSelectedFileIds([])
-  }, [fileType])
-
-  const files = useLiveQuery<FileMetadata[]>(async () => {
-    if (fileType === 'all') {
-      return db.files.orderBy('count').toArray().then(tempFilesSort)
+    const h = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
     }
-    return db.files.where('type').equals(fileType).sortBy('count').then(tempFilesSort)
-  }, [fileType])
-
-  const sortedFiles = files ? sortFiles(files, sortField, sortOrder) : []
-
-  const handleBatchDelete = async () => {
-    const selectedFiles = await Promise.all(selectedFileIds.map((id) => FileManager.getFile(id)))
-    const validFiles = selectedFiles.filter((file) => file !== null && file !== undefined)
-
-    const paintings = store.getState().paintings
-    const paintingsFiles = Object.values(paintings)
-      .flat()
-      .filter((painting) => painting?.files?.length > 0)
-      .flatMap((painting) => painting.files)
-
-    const filesInPaintings = validFiles.filter((file) => paintingsFiles.some((p) => p.id === file.id))
-
-    if (filesInPaintings.length > 0) {
-      window.modal.warning({
-        content: t('files.delete.paintings.warning'),
-        centered: true
-      })
-      return
+    const k = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
     }
-
-    await Promise.all(selectedFileIds.map((fileId) => handleDelete(fileId, t)))
-
-    setSelectedFileIds([])
-  }
-
-  const handleSelectFile = (fileId: string, checked: boolean) => {
-    if (checked) {
-      setSelectedFileIds((prev) => [...prev, fileId])
-    } else {
-      setSelectedFileIds((prev) => prev.filter((id) => id !== fileId))
+    document.addEventListener('mousedown', h)
+    document.addEventListener('keydown', k)
+    return () => {
+      document.removeEventListener('mousedown', h)
+      document.removeEventListener('keydown', k)
     }
-  }
+  }, [onClose])
 
-  const handleSelectAll = (checked: boolean) => {
-    if (checked) {
-      setSelectedFileIds(sortedFiles.map((file) => file.id))
-    } else {
-      setSelectedFileIds([])
-    }
-  }
-
-  const dataSource = sortedFiles?.map((file) => {
-    logger.debug('FileItem', file)
-    return {
-      key: file.id,
-      file: (
-        <span onClick={() => window.api.file.openPath(FileManager.getFilePath(file))}>
-          {FileManager.formatFileName(file)}
-        </span>
-      ),
-      size: formatFileSize(file.size),
-      size_bytes: file.size,
-      count: file.count,
-      path: FileManager.getFilePath(file),
-      ext: file.ext,
-      created_at: dayjs(file.created_at).format('MM-DD HH:mm'),
-      created_at_unix: dayjs(file.created_at).unix(),
-      actions: (
-        <Flex className="items-center gap-0 opacity-70">
-          <Button variant="ghost" onClick={() => handleRename(file.id)}>
-            <EditIcon size={14} />
-          </Button>
-          <Popconfirm
-            title={t('files.delete.title')}
-            description={t('files.delete.content')}
-            okText={t('common.confirm')}
-            cancelText={t('common.cancel')}
-            onConfirm={() => handleDelete(file.id, t)}
-            placement="left"
-            icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
-            <Button variant="ghost">
-              <DeleteIcon size={14} className="lucide-custom" style={{ color: 'var(--color-error)' }} />
-            </Button>
-          </Popconfirm>
-          {fileType !== 'image' && (
-            <Checkbox
-              checked={selectedFileIds.includes(file.id)}
-              onChange={(e) => handleSelectFile(file.id, e.target.checked)}
-              style={{ margin: '0 8px' }}
-            />
-          )}
-        </Flex>
-      )
-    }
-  })
-
-  const menuItems = [
-    { key: FILE_TYPE.DOCUMENT, label: t('files.document'), icon: <FileIcon size={16} /> },
-    { key: FILE_TYPE.IMAGE, label: t('files.image'), icon: <FileImage size={16} /> },
-    { key: FILE_TYPE.TEXT, label: t('files.text'), icon: <FileTypeIcon size={16} /> },
-    { key: 'all', label: t('files.all'), icon: <FileText size={16} /> }
-  ] as const
+  const [pos, setPos] = useState({ left: x, top: y })
+  useEffect(() => {
+    if (!ref.current) return
+    const rect = ref.current.getBoundingClientRect()
+    const nl = rect.right > window.innerWidth ? x - rect.width : x
+    const nt = rect.bottom > window.innerHeight ? y - rect.height : y
+    setPos({ left: Math.max(4, nl), top: Math.max(4, nt) })
+  }, [x, y])
 
   return (
-    <Container>
-      <Navbar>
-        <NavbarCenter style={{ borderRight: 'none' }}>{t('files.title')}</NavbarCenter>
-      </Navbar>
-      <ContentContainer id="content-container">
-        <SideNav>
-          {menuItems.map((item) => (
-            <ListItem
-              key={item.key}
-              icon={item.icon}
-              title={item.label}
-              active={fileType === item.key}
-              onClick={() => setFileType(item.key)}
-            />
-          ))}
-        </SideNav>
-        <MainContent>
-          <SortContainer>
-            <Flex className="items-center gap-2">
-              {(['created_at', 'size', 'name'] as const).map((field) => (
-                <SortButton
-                  key={field}
-                  active={sortField === field}
-                  onClick={() => {
-                    if (sortField === field) {
-                      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
-                    } else {
-                      setSortField(field)
-                      setSortOrder('desc')
-                    }
-                  }}>
-                  {getFileFieldLabel(field)}
-                  {sortField === field &&
-                    (sortOrder === 'desc' ? <ArrowUpWideNarrow size={12} /> : <ArrowDownNarrowWide size={12} />)}
-                </SortButton>
-              ))}
-            </Flex>
-            {fileType !== 'image' && (
-              <Dropdown.Button
-                style={{ width: 'auto' }}
-                menu={{
-                  items: [
-                    {
-                      key: 'delete',
-                      disabled: selectedFileIds.length === 0,
-                      danger: true,
-                      label: (
-                        <Popconfirm
-                          disabled={selectedFileIds.length === 0}
-                          title={t('files.delete.title')}
-                          description={t('files.delete.content')}
-                          okText={t('common.confirm')}
-                          cancelText={t('common.cancel')}
-                          onConfirm={handleBatchDelete}
-                          icon={<ExclamationCircleOutlined style={{ color: 'red' }} />}>
-                          {t('files.batch_delete')} ({selectedFileIds.length})
-                        </Popconfirm>
-                      )
-                    }
-                  ]
-                }}
-                trigger={['click']}>
-                <Checkbox
-                  indeterminate={selectedFileIds.length > 0 && selectedFileIds.length < sortedFiles.length}
-                  checked={selectedFileIds.length === sortedFiles.length && sortedFiles.length > 0}
-                  onChange={(e) => handleSelectAll(e.target.checked)}>
-                  {t('files.batch_operation')}
-                </Checkbox>
-              </Dropdown.Button>
-            )}
-          </SortContainer>
-          {dataSource && dataSource?.length > 0 ? (
-            <FileList id={fileType} list={dataSource} files={sortedFiles} />
-          ) : (
-            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />
-          )}
-        </MainContent>
-      </ContentContainer>
-    </Container>
+    <div
+      ref={ref}
+      className="animate-in fade-in zoom-in-95 fixed z-50 rounded-lg border border-border bg-popover shadow-xl duration-100"
+      style={{ ...pos, width: width || undefined }}>
+      {children}
+    </div>
   )
 }
 
-const Container = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  height: calc(100vh - var(--navbar-height));
-`
+// ─── Context Menu Item ───
 
-const MainContent = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-`
+function CMenuItem({
+  icon: Icon,
+  label,
+  danger,
+  onClick,
+  disabled
+}: {
+  icon: React.ElementType
+  label: string
+  danger?: boolean
+  onClick: () => void
+  disabled?: boolean
+}) {
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      onClick={onClick}
+      disabled={disabled}
+      className={`flex w-full items-center justify-start gap-1.5 rounded-md px-2 py-[5px] text-left text-xs transition-colors ${
+        disabled
+          ? 'cursor-not-allowed text-muted-foreground/30'
+          : danger
+            ? 'text-destructive/70 hover:bg-destructive/[0.08]'
+            : 'text-popover-foreground/70 hover:bg-accent'
+      }`}>
+      <Icon size={11} className={disabled ? 'opacity-30' : ''} />
+      <span>{label}</span>
+    </Button>
+  )
+}
 
-const SortContainer = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 16px;
-  border-bottom: 0.5px solid var(--color-border);
-`
+// ─── Batch Action Bar ───
 
-const ContentContainer = styled.div`
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  min-height: 100%;
-`
+const BatchBar = memo(function BatchBar({
+  count,
+  onDelete,
+  onClear
+}: {
+  count: number
+  onDelete: () => void
+  onClear: () => void
+}) {
+  return (
+    <div className="flex items-center gap-2 border-b border-border/30 bg-accent/50 px-4 py-1.5">
+      <span className="text-xs font-medium text-muted-foreground">已选择 {count} 个文件</span>
+      <div className="flex-1" />
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={onDelete}
+        className="flex items-center gap-1 rounded-md px-2 py-[3px] text-xs text-destructive/60 transition-colors hover:bg-destructive/[0.08]">
+        <Trash2 size={10} />
+        <span>删除</span>
+      </Button>
+      <Button
+        variant="ghost"
+        onClick={onClear}
+        className="flex h-5 w-5 items-center justify-center rounded-md p-0 text-muted-foreground/40 transition-colors hover:bg-accent hover:text-foreground">
+        <X size={10} />
+      </Button>
+    </div>
+  )
+})
 
-const SideNav = styled.div`
-  display: flex;
-  flex-direction: column;
-  width: var(--settings-width);
-  border-right: 0.5px solid var(--color-border);
-  padding: 12px 10px;
-  user-select: none;
-  gap: 6px;
+// ─── Main FilePage ───
 
-  .ant-menu {
-    border-inline-end: none !important;
-    background: transparent;
-  }
+function FilesPage() {
+  const [files, setFiles] = useState<FileItem[]>(MOCK_FILES)
+  const [filter, setFilter] = useState<SidebarFilter>({ kind: 'library', value: 'all' })
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
-  .ant-menu-item {
-    height: 36px;
-    line-height: 36px;
-    margin: 4px 0;
-    width: 100%;
-    border-radius: var(--list-item-border-radius);
-    border: 0.5px solid transparent;
+  const [sortKey, setSortKey] = useState<SortKey>('updatedAt')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; fileId: string } | null>(null)
+  const [dragOver, setDragOver] = useState(false)
 
-    &:hover {
-      background-color: var(--color-background-soft) !important;
+  // TODO: wire to File IPC open
+  const handleOpen = useCallback((_file: FileItem) => {}, [])
+  const [renamingId, setRenamingId] = useState<string | null>(null)
+
+  const folderList = useMemo(() => {
+    const set = new Set<string>()
+    for (const f of files) {
+      if (!f.trashed && f.folder) set.add(f.folder)
+    }
+    return [...set].sort()
+  }, [files])
+
+  const filteredFiles = useMemo(() => {
+    let result = files
+
+    if (filter.kind === 'library') {
+      if (filter.value === 'trash') result = result.filter((f) => f.trashed)
+      else result = result.filter((f) => !f.trashed)
+    } else if (filter.kind === 'type') {
+      result = result.filter((f) => !f.trashed && f.type === filter.value)
+    } else if (filter.kind === 'folder') {
+      result = result.filter((f) => !f.trashed && f.folder === filter.value)
     }
 
-    &.ant-menu-item-selected {
-      background-color: var(--color-background-soft);
-      color: var(--color-primary);
-      border: 0.5px solid var(--color-border);
+    result = [...result].sort((a, b) => {
+      let cmp = 0
+      if (sortKey === 'name') cmp = a.name.localeCompare(b.name)
+      else if (sortKey === 'size') cmp = a.sizeBytes - b.sizeBytes
+      else if (sortKey === 'updatedAt') cmp = a.updatedAt.localeCompare(b.updatedAt)
+      else if (sortKey === 'type') cmp = a.type.localeCompare(b.type)
+      return sortDir === 'asc' ? cmp : -cmp
+    })
+
+    return result
+  }, [files, filter, sortKey, sortDir])
+
+  const fileCounts = useMemo(() => {
+    const active = files.filter((f) => !f.trashed)
+    const counts: Record<string, number> = {
+      all: active.length,
+      trash: files.filter((f) => f.trashed).length,
+      type_image: active.filter((f) => f.type === 'image').length,
+      type_video: active.filter((f) => f.type === 'video').length,
+      type_audio: active.filter((f) => f.type === 'audio').length,
+      type_text: active.filter((f) => f.type === 'text').length,
+      type_document: active.filter((f) => f.type === 'document').length,
+      type_other: active.filter((f) => f.type === 'other').length
     }
-  }
-`
+    for (const f of active) {
+      if (f.folder) {
+        const key = `folder:${f.folder}`
+        counts[key] = (counts[key] || 0) + 1
+      }
+    }
+    return counts
+  }, [files])
 
-const SortButton = styled(Button)<{ active?: boolean }>`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 4px 12px;
-  height: 30px;
-  border-radius: var(--list-item-border-radius);
-  border: 0.5px solid ${(props) => (props.active ? 'var(--color-border)' : 'transparent')};
-  background-color: ${(props) => (props.active ? 'var(--color-background-soft)' : 'transparent')};
-  color: ${(props) => (props.active ? 'var(--color-text)' : 'var(--color-text-secondary)')};
+  const handleSelect = useCallback((id: string, multi: boolean) => {
+    setSelectedIds((prev) => {
+      if (multi) {
+        const next = new Set(prev)
+        next.has(id) ? next.delete(id) : next.add(id)
+        return next
+      }
+      return prev.has(id) && prev.size === 1 ? new Set() : new Set([id])
+    })
+  }, [])
 
-  &:hover {
-    background-color: var(--color-background-soft);
-    color: var(--color-text);
-  }
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent, id: string) => {
+      e.preventDefault()
+      if (!selectedIds.has(id)) setSelectedIds(new Set([id]))
+      setContextMenu({ x: e.clientX, y: e.clientY, fileId: id })
+    },
+    [selectedIds]
+  )
 
-  .anticon {
-    font-size: 12px;
-  }
-`
+  const handleDelete = useCallback(
+    (ids?: Set<string>) => {
+      const targets = ids || selectedIds
+      if (filter.kind === 'library' && filter.value === 'trash') {
+        setFiles((prev) => prev.filter((f) => !targets.has(f.id)))
+      } else {
+        setFiles((prev) => prev.map((f) => (targets.has(f.id) ? { ...f, trashed: true } : f)))
+      }
+      setSelectedIds(new Set())
+    },
+    [selectedIds, filter]
+  )
+
+  const handleRestore = useCallback((ids: Set<string>) => {
+    setFiles((prev) => prev.map((f) => (ids.has(f.id) ? { ...f, trashed: false } : f)))
+    setSelectedIds(new Set())
+  }, [])
+
+  const handleRename = useCallback((id: string, newName: string) => {
+    setFiles((prev) => prev.map((f) => (f.id === id ? { ...f, name: newName } : f)))
+    setRenamingId(null)
+  }, [])
+
+  const handleSort = useCallback(
+    (key: SortKey) => {
+      if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
+      else {
+        setSortKey(key)
+        setSortDir('asc')
+      }
+    },
+    [sortKey]
+  )
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (renamingId) return
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedIds.size > 0) {
+        handleDelete()
+      }
+      if (e.key === 'F2' && selectedIds.size === 1) {
+        e.preventDefault()
+        setRenamingId([...selectedIds][0])
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [selectedIds, handleDelete, renamingId])
+
+  const isTrash = filter.kind === 'library' && filter.value === 'trash'
+  const contextFile = contextMenu ? files.find((f) => f.id === contextMenu.fileId) : null
+
+  return (
+    <div className="flex min-h-0 flex-1 overflow-hidden">
+      <FileSidebar
+        filter={filter}
+        onFilterChange={(f) => {
+          setFilter(f)
+          setSelectedIds(new Set())
+          setRenamingId(null)
+        }}
+        fileCounts={fileCounts}
+        folders={folderList}
+      />
+
+      <div
+        className={`relative flex min-w-0 flex-1 flex-col transition-colors ${dragOver ? 'bg-accent/25' : ''}`}
+        onDragOver={(e) => {
+          e.preventDefault()
+          setDragOver(true)
+        }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault()
+          setDragOver(false)
+        }}>
+        {selectedIds.size > 1 && (
+          <BatchBar
+            count={selectedIds.size}
+            onDelete={() => handleDelete()}
+            onClear={() => setSelectedIds(new Set())}
+          />
+        )}
+
+        {dragOver && (
+          <div className="pointer-events-none absolute inset-0 z-50 m-2 flex items-center justify-center rounded-lg border-2 border-dashed border-border/50 bg-accent/25">
+            <div className="text-center">
+              <Upload size={28} className="mx-auto mb-2 text-muted-foreground/40" />
+              <p className="text-xs text-muted-foreground/40">拖拽文件到此处上传</p>
+            </div>
+          </div>
+        )}
+
+        <div
+          className="relative flex-1 overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setSelectedIds(new Set())
+              setRenamingId(null)
+            }
+          }}>
+          {filteredFiles.length === 0 ? (
+            <div className="flex flex-1 flex-col items-center justify-center px-6 py-16">
+              {files.filter((f) => !f.trashed).length === 0 ? (
+                <EmptyState preset="no-file" />
+              ) : (
+                <EmptyState preset="no-result" title="没有找到匹配的文件" description="当前筛选条件下没有文件" />
+              )}
+            </div>
+          ) : filter.kind === 'type' && filter.value === 'image' ? (
+            <FileGrid
+              files={filteredFiles}
+              selectedIds={selectedIds}
+              onSelect={handleSelect}
+              onContextMenu={handleContextMenu}
+              onOpen={handleOpen}
+              onDelete={(id) => handleDelete(new Set([id]))}
+              renamingId={renamingId}
+              onRenameConfirm={handleRename}
+              onRenameCancel={() => setRenamingId(null)}
+            />
+          ) : (
+            <FileList
+              files={filteredFiles}
+              selectedIds={selectedIds}
+              onSelect={handleSelect}
+              onContextMenu={handleContextMenu}
+              onOpen={handleOpen}
+              sortKey={sortKey}
+              sortDir={sortDir}
+              onSort={handleSort}
+              renamingId={renamingId}
+              onRenameConfirm={handleRename}
+              onRenameCancel={() => setRenamingId(null)}
+            />
+          )}
+        </div>
+
+        <div className="flex items-center gap-3 border-t border-border/15 px-4 py-1">
+          <span className="text-xs text-muted-foreground/40">{filteredFiles.length} 个文件</span>
+          {selectedIds.size > 0 && <span className="text-xs text-muted-foreground/40">{selectedIds.size} 个已选</span>}
+          <div className="flex-1" />
+        </div>
+      </div>
+
+      {/* Context Menu */}
+      {contextMenu && contextFile && (
+        <Popover x={contextMenu.x} y={contextMenu.y} onClose={() => setContextMenu(null)}>
+          <div className="min-w-[130px] p-0.5">
+            {isTrash ? (
+              <div>
+                <CMenuItem
+                  icon={RotateCcw}
+                  label="恢复"
+                  onClick={() => {
+                    handleRestore(new Set([contextMenu.fileId]))
+                    setContextMenu(null)
+                  }}
+                />
+                <div className="mx-1.5 my-0.5 border-t border-border/30" />
+                <CMenuItem
+                  icon={Trash2}
+                  label="永久删除"
+                  danger
+                  onClick={() => {
+                    handleDelete(new Set([contextMenu.fileId]))
+                    setContextMenu(null)
+                  }}
+                />
+              </div>
+            ) : (
+              <div>
+                <CMenuItem
+                  icon={Pencil}
+                  label="重命名"
+                  onClick={() => {
+                    setRenamingId(contextMenu.fileId)
+                    setContextMenu(null)
+                  }}
+                />
+                {contextFile.folder && (
+                  <CMenuItem icon={FolderClosed} label="打开所在文件夹" onClick={() => setContextMenu(null)} />
+                )}
+                <div className="mx-1.5 my-0.5 border-t border-border/30" />
+                <CMenuItem
+                  icon={Trash2}
+                  label="删除"
+                  danger
+                  onClick={() => {
+                    handleDelete(new Set([contextMenu.fileId]))
+                    setContextMenu(null)
+                  }}
+                />
+              </div>
+            )}
+          </div>
+        </Popover>
+      )}
+    </div>
+  )
+}
 
 export default FilesPage
