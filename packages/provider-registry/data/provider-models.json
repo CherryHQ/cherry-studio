@@ -5393,18 +5393,6 @@
       "providerId": "nvidia"
     },
     {
-      "apiModelId": "openai/gpt-oss-120b",
-      "modelId": "gpt-oss",
-      "modelVariant": "120b",
-      "providerId": "nvidia"
-    },
-    {
-      "apiModelId": "openai/gpt-oss-20b",
-      "modelId": "gpt-oss",
-      "modelVariant": "20b",
-      "providerId": "nvidia"
-    },
-    {
       "apiModelId": "openai/gpt-oss-20b",
       "modelId": "gpt-oss",
       "modelVariant": "20b",
@@ -18268,10 +18256,6 @@
         }
       },
       "modelId": "nano-banana-2",
-      "providerId": "dmxapi"
-    },
-    {
-      "modelId": "qwen-image",
       "providerId": "dmxapi"
     },
     {
