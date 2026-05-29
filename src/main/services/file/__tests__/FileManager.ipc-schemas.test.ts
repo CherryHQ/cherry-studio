@@ -10,7 +10,12 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { BatchGetDanglingStatesIpcSchema, FILE_BATCH_DANGLING_MAX_IDS, GetDanglingStateIpcSchema } from '../FileManager'
+import {
+  BatchGetDanglingStatesIpcSchema,
+  EnsureExternalEntryIpcSchema,
+  FILE_BATCH_DANGLING_MAX_IDS,
+  GetDanglingStateIpcSchema
+} from '../FileManager'
 
 const VALID_UUID_V7 = '019606a0-0000-7000-8000-000000000001'
 
@@ -57,5 +62,31 @@ describe('BatchGetDanglingStatesIpcSchema', () => {
 
   it('rejects extra keys (strictObject)', () => {
     expect(() => BatchGetDanglingStatesIpcSchema.parse({ ids: [VALID_UUID_V7], extra: 1 })).toThrow()
+  })
+})
+
+describe('EnsureExternalEntryIpcSchema', () => {
+  // The keystone of "canonicalize once at the boundary, trust the brand
+  // downstream": `externalPath` wraps `FilePathSchema`, so the IPC param
+  // schema itself must transform a valid-but-non-canonical path to canonical
+  // — not merely shape-check it. FilePathSchema.test.ts covers the bare
+  // transform; these pin that the strictObject wrapper actually applies it.
+  it('canonicalizes a non-canonical externalPath (resolves ./ and ../)', () => {
+    expect(EnsureExternalEntryIpcSchema.parse({ externalPath: '/tmp/sub/.././x.pdf' }).externalPath).toBe('/tmp/x.pdf')
+  })
+
+  it('strips a trailing separator', () => {
+    expect(EnsureExternalEntryIpcSchema.parse({ externalPath: '/tmp/dir/' }).externalPath).toBe('/tmp/dir')
+  })
+
+  it('is idempotent — re-parsing the canonical form is a no-op', () => {
+    const once = EnsureExternalEntryIpcSchema.parse({ externalPath: '/tmp/sub/.././x.pdf' }).externalPath
+    const twice = EnsureExternalEntryIpcSchema.parse({ externalPath: once }).externalPath
+    expect(twice).toBe(once)
+    expect(twice).toBe('/tmp/x.pdf')
+  })
+
+  it('rejects extra keys (strictObject)', () => {
+    expect(() => EnsureExternalEntryIpcSchema.parse({ externalPath: '/tmp/x.pdf', extra: 1 })).toThrow()
   })
 })
