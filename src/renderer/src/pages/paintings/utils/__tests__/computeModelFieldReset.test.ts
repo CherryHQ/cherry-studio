@@ -24,15 +24,31 @@ describe('computeModelFieldReset', () => {
     prefetchMock.mockReset()
   })
 
-  it('returns {} when oldModelId is undefined (first model selection)', async () => {
+  it('populates the new model defaults on first model selection (oldModelId undefined)', async () => {
+    mockSupportPerModel({
+      'qwen-image': {
+        modes: {
+          generate: {
+            supports: {
+              size: { type: 'enum', options: ['1664x928', '1328x1328'], default: '1328x1328', render: 'chips' },
+              numImages: { type: 'range', min: 1, max: 4, default: 1 },
+              promptExtend: { type: 'switch', default: true }
+            }
+          }
+        }
+      }
+    })
     const patch = await computeModelFieldReset({
-      providerId: 'aihubmix',
+      providerId: 'dashscope',
       oldModelId: undefined,
-      newModelId: 'gpt-image-1',
+      newModelId: 'qwen-image',
       mode: 'generate'
     })
-    expect(patch).toEqual({})
-    expect(prefetchMock).not.toHaveBeenCalled()
+    expect(patch).toEqual({
+      size: '1328x1328',
+      numImages: 1,
+      promptExtend: true
+    })
   })
 
   it('returns {} when switching to the same model', async () => {
@@ -46,14 +62,14 @@ describe('computeModelFieldReset', () => {
     expect(prefetchMock).not.toHaveBeenCalled()
   })
 
-  it('returns {} when the OLD model is unknown to the registry (custom-id painting)', async () => {
+  it('populates new model defaults even when the OLD model is unknown (custom-id painting)', async () => {
     mockSupportPerModel({
       'gpt-image-1': {
         modes: {
           generate: {
             supports: {
-              size: { type: 'enum', options: ['1024x1024'], render: 'chips' },
-              numImages: { type: 'range', min: 1, max: 10 },
+              size: { type: 'enum', options: ['1024x1024'], default: '1024x1024', render: 'chips' },
+              numImages: { type: 'range', min: 1, max: 10, default: 1 },
               quality: { type: 'enum', options: ['auto'] }
             }
           }
@@ -66,10 +82,14 @@ describe('computeModelFieldReset', () => {
       newModelId: 'gpt-image-1',
       mode: 'generate'
     })
-    expect(patch).toEqual({})
+    // size + numImages have defaults; quality enum has no default → skipped
+    expect(patch).toEqual({
+      size: '1024x1024',
+      numImages: 1
+    })
   })
 
-  it('V_3 → gpt-image-1: clears V_*-only keys, keeps shared keys', async () => {
+  it('V_3 → gpt-image-1: clears V_*-only keys, populates new model defaults for missing', async () => {
     mockSupportPerModel({
       V_3: {
         modes: {
@@ -90,7 +110,7 @@ describe('computeModelFieldReset', () => {
         modes: {
           generate: {
             supports: {
-              size: { type: 'enum', options: ['1024x1024', '1536x1024'], render: 'chips' },
+              size: { type: 'enum', options: ['1024x1024', '1536x1024'], default: '1024x1024', render: 'chips' },
               numImages: { type: 'range', min: 1, max: 10 },
               quality: { type: 'enum', options: ['auto', 'high'] },
               background: { type: 'enum', options: ['auto', 'opaque'] }
@@ -107,20 +127,57 @@ describe('computeModelFieldReset', () => {
       mode: 'generate'
     })
 
-    // V_3 keys: aspectRatio, numImages, negativePrompt, seed, magicPromptOption, styleType, renderingSpeed
-    // gpt-image-1 keys: size, numImages, quality, background
-    // Diff (V_3 - gpt-image-1): aspectRatio, negativePrompt, seed, magicPromptOption, styleType, renderingSpeed
+    // Cleared (in V_3 but not in gpt-image-1):
+    //   aspectRatio, negativePrompt, seed, magicPromptOption, styleType, renderingSpeed
+    // Populated defaults (gpt-image-1 fields not provided in currentValues):
+    //   size → '1024x1024' (enum default)
+    //   numImages → 1 (range min)
+    //   quality, background → no default → skipped
     expect(patch).toEqual({
       aspectRatio: undefined,
       negativePrompt: undefined,
       seed: undefined,
       magicPromptOption: undefined,
       styleType: undefined,
-      renderingSpeed: undefined
+      renderingSpeed: undefined,
+      size: '1024x1024',
+      numImages: 1
     })
-    expect(patch).not.toHaveProperty('numImages')
-    expect(patch).not.toHaveProperty('size')
-    expect(patch).not.toHaveProperty('quality')
+  })
+
+  it('keeps a shared field with a valid current value (no default override)', async () => {
+    mockSupportPerModel({
+      'gpt-image-1': {
+        modes: {
+          generate: {
+            supports: {
+              size: { type: 'enum', options: ['1024x1024', '1536x1024'], default: '1024x1024', render: 'chips' },
+              numImages: { type: 'range', min: 1, max: 10 }
+            }
+          }
+        }
+      },
+      'dall-e-3': {
+        modes: {
+          generate: {
+            supports: {
+              size: { type: 'enum', options: ['1024x1024', '1792x1024'], default: '1024x1024', render: 'chips' },
+              numImages: { type: 'range', min: 1, max: 1 }
+            }
+          }
+        }
+      }
+    })
+
+    const patch = await computeModelFieldReset({
+      providerId: 'aihubmix',
+      oldModelId: 'gpt-image-1',
+      newModelId: 'dall-e-3',
+      mode: 'generate',
+      currentValues: { size: '1024x1024', numImages: 1 }
+    })
+    // Shared values are valid for the new model → no patch entries.
+    expect(patch).toEqual({})
   })
 
   it('resets a stale shared enum value to the new model default', async () => {

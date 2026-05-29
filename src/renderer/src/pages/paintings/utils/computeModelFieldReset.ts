@@ -8,26 +8,28 @@ import { imageGenerationToFields } from '../form/imageGenerationToFields'
 const logger = loggerService.withContext('paintings/modelFieldReset')
 
 /**
- * When the user switches to a different model under the SAME provider, the
- * flat `PaintingData` struct keeps every field the prior model wrote. The
- * form correctly hides irrelevant fields (driven by the new model's registry
- * `imageGeneration` block), but the values still sit in state — and each
- * vendor's `generateUnified.ts` would otherwise forward them to the wire,
- * landing stale `aspectRatio` / `styleType` / etc. on a gpt-image-style
- * endpoint that rejects them.
+ * Diff a painting's form-field state against the model it's about to use.
+ * Returns a patch to merge into `painting.params` that:
+ *   1. Nulls fields the old model wrote but the new model doesn't accept
+ *      (otherwise stale `aspectRatio` / `styleType` / etc. would leak to the
+ *      wire on a model that rejects them).
+ *   2. Populates the new model's registry-declared defaults (`spec.default`)
+ *      for any field the user hasn't set yet — without this, widgets display
+ *      a default visually via `item.initialValue` but never commit it to
+ *      state, so `canonicalGenerate` reads `undefined` and downstream code
+ *      falls back to its own default (e.g. `resolveImageSize('1024x1024')`).
+ *   3. Resets enum fields whose current value isn't in the new model's
+ *      `options` list (cross-model carry-over of a now-invalid pick).
  *
- * This helper diff'es the old model's form fields against the new model's
- * (via the same `imageGenerationToFields` the renderer uses) and returns a
- * patch that nulls every key that's no longer in scope. For shared option
- * fields like `size`, it also restores the new model's default when the old
- * value is not valid for the new model. Apply it alongside
- * `{ model: newModelId, ...onModelChange?.(...) }` so the painting state
- * post-switch contains exactly the fields the new model accepts.
+ * Apply alongside `{ model: newModelId }` in `usePaintingModelSwitch` so
+ * post-switch state contains exactly the fields the new model accepts AND
+ * the visible defaults match what the wire will actually receive.
  *
- * Returns `{}` when the old model has no registry block (custom or
- * user-named models) — that's the conservative choice: no info, no reset.
- * Cross-provider switches are already handled by the caller via
- * `createPaintingData`, which produces a fresh painting from defaults.
+ * Returns `{}` when the new model has no registry block (custom or
+ * user-named models without an `imageGeneration` entry) — no info, no
+ * patch. Cross-provider switches go through `createPaintingData`, which
+ * starts from a clean slate; this helper handles the same-provider case
+ * (including the first model selection, where `oldModelId` is undefined).
  */
 export async function computeModelFieldReset(input: {
   providerId: string
@@ -37,7 +39,7 @@ export async function computeModelFieldReset(input: {
   currentValues?: Record<string, unknown>
 }): Promise<Record<string, unknown>> {
   const { providerId, oldModelId, newModelId, mode, currentValues = {} } = input
-  if (!oldModelId || oldModelId === newModelId) return {}
+  if (oldModelId && oldModelId === newModelId) return {}
 
   const fetchSupport = async (modelId: string): Promise<ImageGenerationSupport | undefined> => {
     try {
@@ -51,11 +53,14 @@ export async function computeModelFieldReset(input: {
     }
   }
 
-  const [oldSupport, newSupport] = await Promise.all([fetchSupport(oldModelId), fetchSupport(newModelId)])
-  if (!oldSupport) return {}
+  const [oldSupport, newSupport] = await Promise.all([
+    oldModelId ? fetchSupport(oldModelId) : Promise.resolve(undefined),
+    fetchSupport(newModelId)
+  ])
 
-  const oldItems = imageGenerationToFields(oldSupport, { mode })
+  const oldItems = oldSupport ? imageGenerationToFields(oldSupport, { mode }) : []
   const newItems = newSupport ? imageGenerationToFields(newSupport, { mode }) : []
+  if (newItems.length === 0) return {}
 
   const collectKeys = (items: BaseConfigItem[]): Set<string> => {
     const keys = new Set<string>()
@@ -81,13 +86,18 @@ export async function computeModelFieldReset(input: {
   }
 
   for (const item of newItems) {
-    if (!item.key || item.initialValue === undefined || Object.prototype.hasOwnProperty.call(patch, item.key)) continue
-    const options = typeof item.options === 'function' ? item.options(item, currentValues) : (item.options ?? [])
-    if (options.length === 0) continue
+    if (!item.key || item.initialValue === undefined) continue
+    if (Object.prototype.hasOwnProperty.call(patch, item.key)) continue
 
     const currentValue = currentValues[item.key]
-    if (currentValue === undefined || currentValue === null || currentValue === '') continue
+    const isMissing = currentValue === undefined || currentValue === null || currentValue === ''
+    if (isMissing) {
+      patch[item.key] = item.initialValue
+      continue
+    }
 
+    const options = typeof item.options === 'function' ? item.options(item, currentValues) : (item.options ?? [])
+    if (options.length === 0) continue
     const allowedValues = new Set(options.map((option) => String(option.value)))
     if (!allowedValues.has(String(currentValue))) {
       patch[item.key] = item.initialValue
