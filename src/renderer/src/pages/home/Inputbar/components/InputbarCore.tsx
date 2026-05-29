@@ -18,7 +18,7 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { Tooltip } from 'antd'
 import TextArea from 'antd/es/input/TextArea'
 import type { TextAreaRef } from 'antd/lib/input/TextArea'
-import { CirclePause, Languages } from 'lucide-react'
+import { CirclePause, Languages, Mic } from 'lucide-react'
 import type { CSSProperties, FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -584,6 +584,42 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
     }
   }, [])
 
+  // Voice input
+  const [isListening, setIsListening] = useState(false)
+  const recognitionRef = useRef<any>(null)
+
+  const startListening = useCallback(() => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SpeechRecognition) {
+      window.toast.error(t('chat.input.voice_not_supported', 'Voice input is not supported in this environment'))
+      return
+    }
+
+    const recognition = new SpeechRecognition()
+    recognition.lang = 'zh-CN'
+    recognition.continuous = true
+    recognition.interimResults = true
+
+    recognition.onresult = (event: any) => {
+      const transcript = Array.from(event.results)
+        .map((result: any) => result[0].transcript)
+        .join('')
+      setText((prev) => prev + transcript)
+    }
+
+    recognition.onend = () => setIsListening(false)
+    recognition.onerror = () => setIsListening(false)
+
+    recognition.start()
+    recognitionRef.current = recognition
+    setIsListening(true)
+  }, [setText, t])
+
+  const stopListening = useCallback(() => {
+    recognitionRef.current?.stop()
+    setIsListening(false)
+  }, [])
+
   const rightSectionExtras = useMemo(() => {
     const extras: React.ReactNode[] = []
     extras.push(
@@ -594,6 +630,18 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
         onTranslated={onTranslated}
         isLoading={isTranslating}
       />
+    )
+    extras.push(
+      <Tooltip
+        key="voice"
+        placement="top"
+        title={isListening ? t('chat.input.voice_stop', 'Click to stop') : t('chat.input.voice_start', 'Voice input')}
+        mouseLeaveDelay={0}
+        arrow>
+        <ActionIconButton onClick={isListening ? stopListening : startListening}>
+          <Mic size={20} color={isListening ? 'var(--color-error)' : 'var(--color-icon)'} />
+        </ActionIconButton>
+      </Tooltip>
     )
     extras.push(<SendMessageButton key="send-message" sendMessage={handleSendMessage} disabled={isSendDisabled} />)
 
@@ -610,7 +658,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
     }
 
     return <>{extras}</>
-  }, [text, onTranslated, isTranslating, handleSendMessage, isSendDisabled, isLoading, t, onPause])
+  }, [text, onTranslated, isTranslating, handleSendMessage, isSendDisabled, isLoading, t, onPause, isListening, startListening, stopListening])
 
   const quickPanelElement = config.enableQuickPanel ? <QuickPanelView setInputText={setText} /> : null
 
