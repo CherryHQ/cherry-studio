@@ -110,15 +110,26 @@ export function convertClaudeCodeUsage(usage: ClaudeCodeUsage): LanguageModelUsa
   }
 }
 
-// DeepSeek V4+ "pro" models on api.deepseek.com support a 1M context window,
-// but Claude Code CLI only knows about it via the `[1m]` model-id suffix
-// (parsed locally to switch /context budgeting to 1e6 tokens, then stripped
-// before the API call). DeepSeek's official Claude Code integration docs
-// recommend appending it; gating on the official host keeps third-party
-// DeepSeek deployments (OpenRouter / Fireworks / etc.) from claiming a
-// capacity their backend may not actually serve.
+// Several providers expose a 1M context window, but the Claude Code CLI only
+// budgets for it when the model id carries the `[1m]` suffix (parsed locally
+// to switch /context budgeting to 1e6 tokens, then stripped before the API
+// call). We append it for the providers/models we know serve 1M, gated on the
+// official host so third-party redeployments (OpenRouter / Fireworks / etc.)
+// don't claim a capacity their backend may not actually serve.
+//
+// DeepSeek: V4+ Pro and Flash both ship a 1M window.
 // https://api-docs.deepseek.com/zh-cn/quick_start/agent_integrations/claude_code
-const DEEPSEEK_V4_PLUS_PRO_REGEX = /(\w+-)?deepseek-v([4-9]|\d{2,})([.-]\w+)*$/i
+const DEEPSEEK_V4_PLUS_REGEX = /(\w+-)?deepseek-v([4-9]|\d{2,})([.-]\w+)*$/i
+// MiMo: V2.5+ Pro/base support 1M; flash variants cap at 256K. MiMo's
+// official Claude Code docs document the same `[1m]` suffix convention.
+// https://platform.xiaomimimo.com/docs/zh-CN/integration/claudecode
+const MIMO_V25_PLUS_REGEX = /(\w+-)?mimo-v(2\.[5-9]|2\.\d{2,}|[3-9]|\d{2,})([.-]\w+)*$/i
+const CHERRYIN_OFFICIAL_HOSTNAMES = new Set([
+  'open.cherryin.ai',
+  'open.cherryin.cc',
+  'open.cherryin.dev',
+  'open.cherryin.net'
+])
 
 export function isDeepSeekOfficialHost(host: string | undefined): boolean {
   const trimmed = host?.trim()
@@ -130,11 +141,45 @@ export function isDeepSeekOfficialHost(host: string | undefined): boolean {
   }
 }
 
-export function withDeepSeek1mSuffix(modelId: string | undefined, anthropicHost: string | undefined): string {
+export function isCherryInOfficialHost(host: string | undefined): boolean {
+  const trimmed = host?.trim()
+  if (!trimmed) return false
+  try {
+    return CHERRYIN_OFFICIAL_HOSTNAMES.has(new URL(trimmed).hostname)
+  } catch {
+    return false
+  }
+}
+
+export function isMiMoOfficialHost(host: string | undefined): boolean {
+  const trimmed = host?.trim()
+  if (!trimmed) return false
+  try {
+    // Covers the standard endpoint (api.xiaomimimo.com) and Token Plan
+    // regional endpoints (token-plan-cn / token-plan-sg / ... .xiaomimimo.com).
+    // The leading-dot boundary keeps lookalikes (notxiaomimimo.com,
+    // xiaomimimo.com.evil.com) from matching.
+    const { hostname } = new URL(trimmed)
+    return hostname === 'xiaomimimo.com' || hostname.endsWith('.xiaomimimo.com')
+  } catch {
+    return false
+  }
+}
+
+export function with1mContextSuffix(modelId: string | undefined, anthropicHost: string | undefined): string {
   if (!modelId) return ''
-  if (!isDeepSeekOfficialHost(anthropicHost)) return modelId
   if (/\[1m\]$/i.test(modelId)) return modelId
-  if (/flash/i.test(modelId)) return modelId
-  if (!DEEPSEEK_V4_PLUS_PRO_REGEX.test(modelId)) return modelId
-  return `${modelId}[1m]`
+
+  if (isDeepSeekOfficialHost(anthropicHost) || isCherryInOfficialHost(anthropicHost)) {
+    if (!DEEPSEEK_V4_PLUS_REGEX.test(modelId)) return modelId
+    return `${modelId}[1m]`
+  }
+
+  if (isMiMoOfficialHost(anthropicHost)) {
+    if (/flash/i.test(modelId)) return modelId
+    if (!MIMO_V25_PLUS_REGEX.test(modelId)) return modelId
+    return `${modelId}[1m]`
+  }
+
+  return modelId
 }

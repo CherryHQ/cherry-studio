@@ -749,11 +749,13 @@ export class OpenClawService extends BaseService {
     if (!this.gatewayAuthToken) {
       this.loadAuthTokenFromConfig()
     }
-    if (!this.gatewayAuthToken) {
-      throw new Error('OpenClaw dashboard auth token is missing')
+    let url = `http://127.0.0.1:${this.gatewayPort}`
+    if (this.gatewayAuthToken) {
+      // Use query string (not URL fragment) so dashboard app state can persist correctly.
+      // Fragment (#...) is often used by SPAs for transient client-side state.
+      url += `#token=${encodeURIComponent(this.gatewayAuthToken)}`
     }
-    const url = `http://127.0.0.1:${this.gatewayPort}`
-    return `${url}#token=${encodeURIComponent(this.gatewayAuthToken)}`
+    return url
   }
 
   /**

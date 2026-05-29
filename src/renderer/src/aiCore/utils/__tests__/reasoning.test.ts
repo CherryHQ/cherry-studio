@@ -1820,6 +1820,44 @@ describe('reasoning utils', () => {
       expect(result).toHaveProperty('reasoningEffort')
       expect(result.reasoningEffort).toBe('high')
     })
+
+    it('should preserve none for Grok 4.3', () => {
+      const model: Model = {
+        id: 'grok-4.3',
+        name: 'Grok 4.3',
+        provider: SystemProviderIds.grok
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'none'
+        }
+      } as Assistant
+
+      const result = getXAIReasoningParams(assistant, model)
+      expect(result).toEqual({ reasoningEffort: 'none' })
+    })
+
+    it('should preserve medium for Grok 4.3', () => {
+      const model: Model = {
+        id: 'grok-4.3',
+        name: 'Grok 4.3',
+        provider: SystemProviderIds.grok
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'medium'
+        }
+      } as Assistant
+
+      const result = getXAIReasoningParams(assistant, model)
+      expect(result).toEqual({ reasoningEffort: 'medium' })
+    })
   })
 
   describe('getBedrockReasoningParams', () => {
