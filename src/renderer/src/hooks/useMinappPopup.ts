@@ -54,9 +54,7 @@ export const useMinappPopup = () => {
         })
       },
       onInsert: () => {
-        queueMicrotask(() => {
-          dispatch(setOpenedKeepAliveMinapps(Array.from(minAppsCache.values())))
-        })
+        dispatch(setOpenedKeepAliveMinapps(Array.from(minAppsCache.values())))
       },
       updateAgeOnGet: true,
       updateAgeOnHas: true
@@ -82,20 +80,29 @@ export const useMinappPopup = () => {
     // 2. 大于设置的缓存的话，就直到数量减少到设置的缓存数量
   }
 
+  /** Check whether a cached entry needs to be refreshed (url/name/logo changed) */
+  const shouldRefreshCache = (cached: MinAppType | undefined, app: MinAppType): boolean =>
+    !cached || cached.url !== app.url || cached.name !== app.name || cached.logo !== app.logo
+
   /** Open a minapp (popup shows and minapp loaded) */
   const openMinapp = useCallback(
     (app: MinAppType, keepAlive: boolean = false) => {
       if (keepAlive) {
-        // Always refresh the cached config. Some apps, such as OpenClaw, use
-        // short-lived URLs with auth tokens and must not reuse a stale entry.
-        minAppsCache.set(app.id, app)
+        const cached = minAppsCache.get(app.id) // updateAgeOnGet keeps LRU order
+        const wasOpened = Boolean(cached)
 
-        // 如果小程序已经打开，只切换显示
-        if (openedKeepAliveMinapps.some((item) => item.id === app.id)) {
+        if (shouldRefreshCache(cached, app)) {
+          // First open or config changed (e.g. dynamic URL token refresh)
+          minAppsCache.set(app.id, app)
+        }
+
+        if (wasOpened) {
+          // Already in cache — just switch focus, avoid redundant onInsert dispatch
           dispatch(setCurrentMinappId(app.id))
           dispatch(setMinappShow(true))
           return
         }
+
         dispatch(setOpenedOneOffMinapp(null))
         dispatch(setCurrentMinappId(app.id))
         dispatch(setMinappShow(true))
@@ -108,7 +115,7 @@ export const useMinappPopup = () => {
       dispatch(setMinappShow(true))
       return
     },
-    [dispatch, openedKeepAliveMinapps]
+    [dispatch]
   )
 
   /** a wrapper of openMinapp(app, true) */
@@ -172,9 +179,11 @@ export const useMinappPopup = () => {
   const openSmartMinapp = useCallback(
     (config: MinAppType, keepAlive: boolean = false) => {
       if (isTopNavbar) {
-        // Refresh temporary app config so dynamic URLs such as OpenClaw's
-        // dashboard token are propagated when the tab already exists.
-        minAppsCache.set(config.id, config)
+        // Only refresh cache entry if config actually changed (dynamic URL, etc.)
+        const cached = minAppsCache.get(config.id)
+        if (shouldRefreshCache(cached, config)) {
+          minAppsCache.set(config.id, config)
+        }
 
         // Set current minapp and show state
         dispatch(setCurrentMinappId(config.id))

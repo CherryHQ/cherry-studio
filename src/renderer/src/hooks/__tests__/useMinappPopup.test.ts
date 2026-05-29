@@ -85,11 +85,30 @@ describe('useMinappPopup - disposeAfter reentry regression (issue #15405)', () =
     expect(mockClearWebviewState).toHaveBeenCalledWith('test-app')
   })
 
-  it('disposeAfter still dispatches setOpenedKeepAliveMinapps', async () => {
+  it('onInsert dispatches setOpenedKeepAliveMinapps synchronously', () => {
     const { result } = renderHook(() => useMinappPopup())
 
     act(() => {
       result.current.minAppsCache.set(testApp.id, testApp)
+    })
+
+    // onInsert dispatches synchronously (no queueMicrotask)
+    const dispatchedActions = mockDispatch.mock.calls.map((call: any[]) => call[0])
+    const syncActions = dispatchedActions.filter((action: any) => action?.type === 'runtime/setOpenedKeepAliveMinapps')
+    expect(syncActions.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('disposeAfter dispatches setOpenedKeepAliveMinapps via microtask', async () => {
+    const { result } = renderHook(() => useMinappPopup())
+
+    act(() => {
+      result.current.minAppsCache.set(testApp.id, testApp)
+    })
+
+    // Reset to isolate disposeAfter dispatch
+    mockDispatch.mockClear()
+
+    act(() => {
       result.current.minAppsCache.delete(testApp.id)
     })
 
@@ -98,12 +117,82 @@ describe('useMinappPopup - disposeAfter reentry regression (issue #15405)', () =
       await new Promise<void>((resolve) => queueMicrotask(resolve))
     })
 
-    // dispatch should have been called — both onInsert (from set) and disposeAfter (from delete)
-    // dispatch setOpenedKeepAliveMinapps
-    expect(mockDispatch).toHaveBeenCalled()
     const dispatchedActions = mockDispatch.mock.calls.map((call: any[]) => call[0])
     const syncActions = dispatchedActions.filter((action: any) => action?.type === 'runtime/setOpenedKeepAliveMinapps')
-    // At least one setOpenedKeepAliveMinapps dispatch should exist
     expect(syncActions.length).toBeGreaterThanOrEqual(1)
+  })
+})
+
+describe('useMinappPopup - keep-alive idempotent cache writes (issue #15405)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('repeated openMinappKeepAlive does not re-dispatch setOpenedKeepAliveMinapps', () => {
+    const { result } = renderHook(() => useMinappPopup())
+
+    // First open — should dispatch setOpenedKeepAliveMinapps via onInsert
+    act(() => {
+      result.current.openMinappKeepAlive(testApp)
+    })
+
+    const firstListDispatches = mockDispatch.mock.calls
+      .map((call: any[]) => call[0])
+      .filter((action: any) => action?.type === 'runtime/setOpenedKeepAliveMinapps').length
+
+    expect(firstListDispatches).toBeGreaterThanOrEqual(1)
+
+    // Reset and open same app again
+    mockDispatch.mockClear()
+
+    act(() => {
+      result.current.openMinappKeepAlive(testApp)
+    })
+
+    // Should NOT dispatch setOpenedKeepAliveMinapps again (cache entry unchanged)
+    const listDispatches = mockDispatch.mock.calls
+      .map((call: any[]) => call[0])
+      .filter((action: any) => action?.type === 'runtime/setOpenedKeepAliveMinapps')
+    expect(listDispatches.length).toBe(0)
+
+    // But should still dispatch setCurrentMinappId and setMinappShow
+    const actionTypes = mockDispatch.mock.calls.map((call: any[]) => call[0]?.type)
+    expect(actionTypes).toContain('runtime/setCurrentMinappId')
+    expect(actionTypes).toContain('runtime/setMinappShow')
+  })
+
+  it('opens minapp with changed URL still refreshes cache and dispatches opened list', () => {
+    const { result } = renderHook(() => useMinappPopup())
+
+    // First open
+    act(() => {
+      result.current.openMinappKeepAlive(testApp)
+    })
+    mockDispatch.mockClear()
+
+    // Open same id but different URL — should refresh cache
+    const updatedApp: MinAppType = { ...testApp, url: 'https://example.com/new-token' }
+    act(() => {
+      result.current.openMinappKeepAlive(updatedApp)
+    })
+
+    const listDispatches = mockDispatch.mock.calls
+      .map((call: any[]) => call[0])
+      .filter((action: any) => action?.type === 'runtime/setOpenedKeepAliveMinapps')
+    // onInsert fires because cache entry was refreshed
+    expect(listDispatches.length).toBeGreaterThanOrEqual(1)
+
+    // Cache should have the new URL
+    const cached = result.current.minAppsCache.get(testApp.id)
+    expect(cached?.url).toBe('https://example.com/new-token')
+  })
+
+  it('openMinappKeepAlive callback stays stable across rerenders', () => {
+    const { result, rerender } = renderHook(() => useMinappPopup())
+    const firstRef = result.current.openMinappKeepAlive
+
+    // Rerender — dependency is only [dispatch] now, so callback should stay the same
+    rerender()
+    expect(result.current.openMinappKeepAlive).toBe(firstRef)
   })
 })
