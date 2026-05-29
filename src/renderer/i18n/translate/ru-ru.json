@@ -3390,6 +3390,7 @@
       "label": "Создать название заметки",
       "success": "Имя заметки успешно создано"
     },
+    "back_to_library": "[to be translated]:Back to all",
     "characters": "Символы",
     "collapse": "Свернуть",
     "content_placeholder": "Введите содержимое заметки...",
@@ -3410,12 +3411,14 @@
     "export_knowledge": "Экспортировать заметки в базу знаний",
     "export_success": "Успешно экспортировано в базу знаний",
     "export_to_word_failed": "Не удалось экспортировать в Word",
+    "favorites_empty_hint": "[to be translated]:No favorites yet. Right-click a note and star it to collect it here.",
     "folder": "папка",
     "load_failed": "[to be translated]:Failed to load note",
     "load_failed_description": "[to be translated]:The file could not be read. Editing is disabled to protect the note content.",
     "metadata_sync_failed": "[to be translated]:File updated, but note state sync failed. Please retry the operation.",
     "metadata_update_failed": "[to be translated]:Failed to update note state",
     "move_failed": "[to be translated]:Failed to move note",
+    "my_library": "[to be translated]:All",
     "new_folder": "Новая папка",
     "new_note": "Создать заметку",
     "no_content_to_copy": "Нет контента для копирования",
@@ -3489,7 +3492,6 @@
       "save_failed": "[to be translated]:Failed to save notes settings",
       "title": "Больше вариантов"
     },
-    "show_starred": "Показать сохраненные заметки",
     "sort_a2z": "Имя файла (A-Я)",
     "sort_created_asc": "Время создания (от старого к новому)",
     "sort_created_desc": "Время создания (от нового к старому)",
@@ -3513,7 +3515,8 @@
     "upload_folder": "Загрузить папку",
     "upload_partial_failed": "[to be translated]:Uploaded {{uploaded}} notes, {{failed}} failed",
     "upload_success": "Заметка успешно загружена",
-    "uploading_files": "Загрузка {{count}} файлов..."
+    "uploading_files": "Загрузка {{count}} файлов...",
+    "view_favorites": "[to be translated]:Favorites"
   },
   "notification": {
     "assistant": "Ответ ассистента",

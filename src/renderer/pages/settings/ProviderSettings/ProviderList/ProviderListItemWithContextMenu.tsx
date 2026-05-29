@@ -1,8 +1,6 @@
 import { MenuItem, MenuList, Popover, PopoverAnchor, PopoverContent } from '@cherrystudio/ui'
 import ModelNotesPopup from '@renderer/pages/settings/ProviderSettings/ModelNotesPopup'
-import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { getFancyProviderName } from '@renderer/pages/settings/ProviderSettings/utils/provider'
-import { cn } from '@renderer/utils'
 import type { Provider } from '@shared/data/types/provider'
 import { CopyPlus, Edit, Trash2, UserPen } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
@@ -63,27 +61,20 @@ export default function ProviderListItemWithContextMenu({
           renderMenuButton={(button) => <PopoverAnchor asChild>{button}</PopoverAnchor>}
         />
       </div>
-      <PopoverContent align="end" className={providerListClasses.itemMenuContent}>
+      <PopoverContent align="end" variant="menu" className="w-fit min-w-32">
         <MenuList className="gap-1">
           {showManagementActions && (
-            <MenuItem
-              label={t('common.edit')}
-              className={providerListClasses.itemMenuEntry}
-              icon={<Edit size={14} />}
-              onClick={handleMenuAction(onEdit)}
-            />
+            <MenuItem label={t('common.edit')} icon={<Edit size={14} />} onClick={handleMenuAction(onEdit)} />
           )}
           {onDuplicate && (
             <MenuItem
               label={t('settings.provider.duplicate.menu_label')}
-              className={providerListClasses.itemMenuEntry}
               icon={<CopyPlus size={14} />}
               onClick={handleMenuAction(onDuplicate)}
             />
           )}
           <MenuItem
             label={t('settings.provider.notes.title')}
-            className={providerListClasses.itemMenuEntry}
             icon={<UserPen size={14} />}
             onClick={handleMenuAction(() => ModelNotesPopup.show({ providerId: provider.id }))}
           />
@@ -92,7 +83,7 @@ export default function ProviderListItemWithContextMenu({
               label={t('common.delete')}
               icon={<Trash2 size={14} />}
               onClick={handleMenuAction(onDelete)}
-              className={cn(providerListClasses.itemMenuEntry, 'text-(--color-destructive)')}
+              className="text-(--color-destructive)"
             />
           )}
         </MenuList>

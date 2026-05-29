@@ -3390,6 +3390,7 @@
       "label": "產生筆記名稱",
       "success": "已成功產生筆記名稱"
     },
+    "back_to_library": "返回全部",
     "characters": "字元",
     "collapse": "收合",
     "content_placeholder": "請輸入筆記內容...",
@@ -3410,12 +3411,14 @@
     "export_knowledge": "匯出筆記至知識庫",
     "export_success": "成功匯出至知識庫",
     "export_to_word_failed": "匯出為 Word 失敗",
+    "favorites_empty_hint": "暫無收藏，對筆記按右鍵加星即可收藏到此處",
     "folder": "資料夾",
     "load_failed": "筆記載入失敗",
     "load_failed_description": "無法讀取該檔案。為保護筆記內容，已停用編輯。",
     "metadata_sync_failed": "檔案已更新，但筆記狀態同步失敗，請重試該操作。",
     "metadata_update_failed": "筆記狀態更新失敗",
     "move_failed": "移動筆記失敗",
+    "my_library": "全部",
     "new_folder": "新增資料夾",
     "new_note": "新增筆記",
     "no_content_to_copy": "沒有內容可複製",
@@ -3489,7 +3492,6 @@
       "save_failed": "儲存筆記設定失敗",
       "title": "更多選項"
     },
-    "show_starred": "顯示收藏的筆記",
     "sort_a2z": "檔名（A-Z）",
     "sort_created_asc": "建立時間（從舊到新）",
     "sort_created_desc": "建立時間（從新到舊）",
@@ -3513,7 +3515,8 @@
     "upload_folder": "上傳資料夾",
     "upload_partial_failed": "已上傳 {{uploaded}} 個筆記，{{failed}} 個失敗",
     "upload_success": "筆記上傳成功",
-    "uploading_files": "正在上傳 {{count}} 個檔案..."
+    "uploading_files": "正在上傳 {{count}} 個檔案...",
+    "view_favorites": "收藏夾"
   },
   "notification": {
     "assistant": "助手回應",

@@ -325,7 +325,7 @@ const ChannelInstanceRow: FC<{
   }
 
   return (
-    <div className="flex items-center gap-3 border-(--color-border) border-b-[0.5px] px-1 py-2.5 last:border-b-0">
+    <div className="flex items-center gap-3 border-border-muted border-b-[0.5px] px-1 py-2.5 last:border-b-0">
       <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${statusColor}`} />
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 font-medium text-sm">

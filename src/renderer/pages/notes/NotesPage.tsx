@@ -427,19 +427,20 @@ const NotesPage: FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeFilePath])
 
-  // 获取目标文件夹路径（选中文件夹或根目录）
+  // 获取目标文件夹路径：显式传 targetFolderId 则用它，否则一律返回根目录。
+  // 不再隐式 fallback 到 selectedFolderId —— 侧栏全局按钮（新建 / 上传）始终在根操作；
+  // 想在某个文件夹下创建，请走右键菜单显式传 node.id。
   const getTargetFolderPath = useCallback(
     (targetFolderId?: string) => {
-      const folderId = targetFolderId || selectedFolderId
-      if (folderId) {
-        const selectedNode = findNode(notesTree, folderId)
+      if (targetFolderId) {
+        const selectedNode = findNode(notesTree, targetFolderId)
         if (selectedNode && selectedNode.type === 'folder') {
           return selectedNode.externalPath
         }
       }
-      return notesPath // 默认返回根目录
+      return notesPath
     },
-    [selectedFolderId, notesTree, notesPath]
+    [notesTree, notesPath]
   )
 
   const persistMetadataPatch = useCallback(
@@ -1032,13 +1033,13 @@ const NotesPage: FC = () => {
   }, [activeNode?.id, activeFilePath, notesTree, invalidateFileContent, setActiveFilePath])
 
   return (
-    <div id="notes-page" className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
-      <div id="content-container" className="flex h-full min-h-0 flex-1 flex-row overflow-hidden">
+    <div id="notes-page" className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden bg-background">
+      <div id="content-container" className="flex h-full min-h-0 flex-1 flex-row overflow-hidden bg-background">
         <AnimatePresence initial={false}>
           {showWorkspace && (
             <motion.div
               initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 250, opacity: 1 }}
+              animate={{ width: 220, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.3, ease: 'easeInOut' }}
               style={{ height: '100%', overflow: 'hidden', flexShrink: 0 }}>
@@ -1061,7 +1062,7 @@ const NotesPage: FC = () => {
             </motion.div>
           )}
         </AnimatePresence>
-        <div className="relative flex min-h-0 min-w-0 max-w-full flex-1 flex-col justify-between overflow-hidden">
+        <div className="relative flex min-h-0 min-w-0 max-w-full flex-1 flex-col justify-between overflow-hidden bg-background">
           <HeaderNavbar
             notesTree={notesTree}
             activeFilePath={activeFilePath}

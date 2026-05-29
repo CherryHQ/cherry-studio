@@ -1,4 +1,12 @@
-import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from '@cherrystudio/ui'
+import {
+  Button,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuTrigger,
+  Item,
+  ItemContent,
+  ItemMedia
+} from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import HighlightText from '@renderer/components/HighlightText'
 import {
@@ -36,17 +44,12 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
   const [showAllMatches, setShowAllMatches] = useState(false)
   const { isEditing: isInputEditing, inputProps } = inPlaceEdit
 
-  // 检查是否是 hint 节点
   const isHintNode = node.type === 'hint'
-
-  // 检查是否是搜索结果
   const searchResult = 'matchType' in node ? node : null
   const hasMatches = searchResult && searchResult.matches && searchResult.matches.length > 0
 
-  // 处理匹配项点击
   const handleMatchClick = useCallback(
     (match: SearchMatch) => {
-      // 发送定位事件
       void EventEmitter.emit(EVENT_NAMES.LOCATE_NOTE_LINE, {
         noteId: node.id,
         lineNumber: match.lineNumber,
@@ -66,17 +69,6 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
   const isDragBefore = isDragOver && dragPosition === 'before'
   const isDragInside = isDragOver && dragPosition === 'inside'
   const isDragAfter = isDragOver && dragPosition === 'after'
-
-  const nodeContainerClassName = cn(
-    'relative mb-0.5 flex cursor-pointer items-center justify-between rounded-sm border px-1.5 py-1 transition-all duration-200',
-    isDragInside
-      ? 'border-primary bg-accent'
-      : isActive
-        ? 'border-border bg-muted'
-        : 'border-transparent bg-transparent',
-    isDragging && 'opacity-50',
-    'hover:bg-muted'
-  )
 
   const getNodeNameClassName = () => {
     if (isRenaming) return 'animation-shimmer'
@@ -115,20 +107,23 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
     return prefix + name.substring(contextStart, contextEnd) + suffix
   }, [node.name, searchKeyword])
 
-  // Special render for hint nodes
   if (isHintNode) {
     return (
       <div key={node.id}>
-        <div className="relative mb-0.5 flex cursor-pointer items-center justify-between rounded-sm border border-transparent bg-transparent px-1.5 py-1 transition-all duration-200 hover:bg-muted">
-          <div className="flex min-w-0 flex-1 items-center">
-            <div className="mr-2 flex shrink-0 items-center justify-center text-muted-foreground">
-              <FilePlus size={16} />
-            </div>
-            <div className="text-muted-foreground text-xs italic" onClick={onHintClick}>
-              {t('notes.drop_markdown_hint')}
-            </div>
-          </div>
-        </div>
+        <Item
+          role="button"
+          tabIndex={0}
+          size="sm"
+          onClick={onHintClick}
+          className="relative min-h-12 flex-nowrap justify-between gap-0 rounded-md border border-border-muted border-dashed px-3 py-2 text-foreground-muted transition-colors hover:border-border-hover hover:bg-muted/30 hover:text-foreground">
+          <div style={{ width: depth * 16 }} className="flex-shrink-0" />
+          <ItemMedia className="mr-3 text-current">
+            <FilePlus size={16} />
+          </ItemMedia>
+          <ItemContent className="min-w-0 flex-row items-center gap-0">
+            <span className="text-xs italic">{t('notes.drop_markdown_hint')}</span>
+          </ItemContent>
+        </Item>
       </div>
     )
   }
@@ -138,33 +133,57 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
       <ContextMenu>
         <ContextMenuTrigger asChild>
           <div onContextMenu={(e) => e.stopPropagation()}>
-            <div
-              className={nodeContainerClassName}
+            <Item
+              role="treeitem"
+              aria-selected={isActive || undefined}
+              variant={isDragInside || isActive ? 'muted' : 'default'}
+              size="sm"
+              className={cn(
+                'relative h-8 cursor-pointer flex-nowrap justify-between gap-0 rounded-[10px] border-[0.5px] px-3 py-0 hover:bg-sidebar-accent hover:text-sidebar-foreground',
+                node.type === 'folder' ? 'text-foreground' : 'text-sidebar-foreground/75',
+                isDragInside
+                  ? 'border-sidebar-ring bg-sidebar-accent text-sidebar-foreground'
+                  : isActive
+                    ? 'border-transparent bg-secondary text-foreground'
+                    : 'border-transparent',
+                isDragging && 'opacity-50',
+                isDragBefore &&
+                  'before:-top-0.5 before:absolute before:right-0 before:left-0 before:h-0.5 before:rounded-[1px] before:bg-sidebar-ring before:content-[""]',
+                isDragAfter &&
+                  'after:-bottom-0.5 after:absolute after:right-0 after:left-0 after:h-0.5 after:rounded-[1px] after:bg-sidebar-ring after:content-[""]'
+              )}
               draggable={!isEditing}
               data-node-id={node.id}
+              onClick={() => {
+                if (!isEditing) {
+                  onSelectNode(node as NotesTreeNode)
+                }
+              }}
               onDragStart={(e) => onDragStart(e, node as NotesTreeNode)}
               onDragOver={(e) => onDragOver(e, node as NotesTreeNode)}
               onDragLeave={onDragLeave}
               onDrop={(e) => onDrop(e, node as NotesTreeNode)}
               onDragEnd={onDragEnd}>
-              {isDragBefore && <div className="-top-0.5 absolute right-0 left-0 h-0.5 rounded bg-primary" />}
-              {isDragAfter && <div className="-bottom-0.5 absolute right-0 left-0 h-0.5 rounded bg-primary" />}
-              <div className="flex min-w-0 flex-1 items-center" onClick={() => onSelectNode(node as NotesTreeNode)}>
-                <div className="shrink-0" style={{ width: depth * 16 }} />
+              <div className="flex min-w-0 flex-1 items-center">
+                <div style={{ width: depth * 16 }} className="flex-shrink-0" />
 
                 {node.type === 'folder' && (
-                  <div
-                    className="mr-1 flex size-4 items-center justify-center text-muted-foreground hover:text-foreground"
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="mr-1 size-4 rounded-sm p-0 text-current shadow-none hover:bg-transparent hover:text-current"
                     onClick={(e) => {
                       e.stopPropagation()
                       onToggleExpanded(node.id)
                     }}
+                    aria-label={node.expanded ? t('notes.collapse') : t('notes.expand')}
                     title={node.expanded ? t('notes.collapse') : t('notes.expand')}>
                     {node.expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-                  </div>
+                  </Button>
                 )}
 
-                <div className="mr-2 flex shrink-0 items-center justify-center text-muted-foreground">
+                <ItemMedia className="mr-3 text-current">
                   {node.type === 'folder' ? (
                     node.expanded ? (
                       <FolderOpen size={16} />
@@ -174,15 +193,21 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
                   ) : (
                     <File size={16} />
                   )}
-                </div>
+                </ItemMedia>
 
                 {isEditing ? (
-                  <input className="flex-1 text-sm" {...inputProps} onClick={(e) => e.stopPropagation()} autoFocus />
+                  <input
+                    {...inputProps}
+                    onClick={(e) => e.stopPropagation()}
+                    autoFocus
+                    className="flex-1 bg-transparent text-foreground text-sm outline-none"
+                  />
                 ) : (
-                  <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                  <ItemContent className="min-w-0 flex-row items-center gap-1.5">
                     <div
                       className={cn(
-                        'relative flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-foreground text-sm will-change-[background-position,width]',
+                        'relative flex-1 truncate text-sm will-change-[background-position,width]',
+                        isActive && 'font-medium',
                         getNodeNameClassName()
                       )}>
                       {searchKeyword ? <HighlightText text={displayName} keyword={searchKeyword} /> : node.name}
@@ -190,18 +215,18 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
                     {searchResult && searchResult.matchType && searchResult.matchType !== 'filename' && (
                       <span
                         className={cn(
-                          'inline-flex h-4 shrink-0 items-center rounded-xs px-1 font-medium text-xs leading-none',
+                          'inline-flex h-4 flex-shrink-0 items-center rounded-sm px-1 font-medium text-[10px] leading-none',
                           searchResult.matchType === 'both'
-                            ? 'bg-secondary text-secondary-foreground'
-                            : 'bg-muted text-muted-foreground'
+                            ? 'bg-info-bg text-info-base'
+                            : 'bg-secondary text-foreground-muted'
                         )}>
                         {searchResult.matchType === 'both' ? t('notes.search.both') : t('notes.search.content')}
                       </span>
                     )}
-                  </div>
+                  </ItemContent>
                 )}
               </div>
-            </div>
+            </Item>
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent>{renderMenuItems(node as NotesTreeNode)}</ContextMenuContent>
@@ -209,26 +234,26 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
 
       {showMatches && hasMatches && (
         <div
-          className="mt-1 mb-2 rounded-sm border-info-base border-l-2 bg-info-bg px-2 py-1.5"
-          style={{ marginLeft: depth * 16 + 40 }}>
+          style={{ marginLeft: depth * 16 + 40 }}
+          className="mt-1 mb-2 rounded-sm border-info-base border-l-2 bg-info-bg px-2 py-1.5">
           {(showAllMatches ? searchResult.matches! : searchResult.matches!.slice(0, 3)).map((match, idx) => (
             <div
               key={idx}
-              className="-mx-1.5 mb-1 flex cursor-pointer gap-2 rounded-sm px-1.5 py-1 text-xs transition-all duration-150 last:mb-0 hover:translate-x-0.5 hover:bg-background active:bg-accent"
-              onClick={() => handleMatchClick(match)}>
-              <span className="w-7.5 shrink-0 font-mono text-muted-foreground">{match.lineNumber}</span>
-              <div className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap font-mono text-muted-foreground">
+              onClick={() => handleMatchClick(match)}
+              className="-mx-1.5 mb-1 flex cursor-pointer gap-2 rounded-sm px-1.5 py-1 font-mono text-xs transition-all duration-150 last:mb-0 hover:translate-x-0.5 hover:bg-background active:bg-accent">
+              <span className="w-7.5 flex-shrink-0 font-mono text-foreground-muted">{match.lineNumber}</span>
+              <div className="flex-1 truncate font-mono text-foreground-secondary">
                 <HighlightText text={match.context} keyword={searchKeyword} />
               </div>
             </div>
           ))}
           {searchResult.matches!.length > 3 && (
             <div
-              className="-mx-1.5 mt-1 flex cursor-pointer items-center rounded-sm px-1.5 py-1 text-muted-foreground text-xs transition-all duration-150 hover:bg-background hover:text-foreground"
               onClick={(e) => {
                 e.stopPropagation()
                 setShowAllMatches(!showAllMatches)
-              }}>
+              }}
+              className="-mx-1.5 mt-1 flex cursor-pointer items-center rounded-sm px-1.5 py-1 text-foreground-muted text-xs transition-all duration-150 hover:bg-background hover:text-foreground-secondary">
               {showAllMatches ? (
                 <>
                   <ChevronDown size={12} className="mr-1" />
@@ -255,5 +280,7 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
     </div>
   )
 })
+
+TreeNode.displayName = 'TreeNode'
 
 export default TreeNode

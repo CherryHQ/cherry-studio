@@ -9,7 +9,7 @@ const BaseNavigatorSearch = ({ value, onValueChange }: BaseNavigatorSearchProps)
 
   return (
     <div className="px-2 pb-1.5">
-      <div className="flex h-5.5 items-center gap-1.5 rounded-sm border border-transparent bg-muted/30 px-2 transition-colors focus-within:border-border/50">
+      <div className="flex h-5.5 items-center gap-1.5 rounded-sm border border-border/40 bg-transparent px-2 transition-colors focus-within:border-border/70">
         <Search className="size-3 shrink-0 text-muted-foreground/70" />
         <Input
           value={value}

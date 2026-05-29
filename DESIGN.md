@@ -17,7 +17,7 @@ What makes Cherry Studio distinctive is its commitment to a calm UI foundation. 
 - Full semantic color set: `var(--color-destructive)` (red), `var(--color-success)` (green), `var(--color-warning)` (amber), `var(--color-info)` (blue)
 - Status palette pairs (base / text / bg / border, with hover + active variants) defined in `tokens/colors/status.css`
 - Border-radius scale from `var(--radius-none)` (0) to `var(--radius-round)` (9999px), 10 steps
-- Subtle borders via `var(--color-border)` (semi-transparent neutral) for structure, not decoration
+- Subtle component borders via `var(--color-border)` and page-level hairline dividers via `var(--color-border-muted)`
 - Surfaces stack via color, not shadow: `var(--color-background)` → `var(--color-card)` → `var(--color-popover)`
 - 7-level shadow utility system (`--shadow-2xs` through `--shadow-2xl`)
 - Floating overlays use concrete Tailwind utilities from the shared primitive unless a token-backed alias exists; do not invent `--color-glass`, `--color-overlay`, or `--blur-*` variables in product code
@@ -64,12 +64,13 @@ When you reach for a value:
 - **Sidebar**: `var(--color-sidebar)` — sidebar surface
 - **Sidebar Foreground**: `var(--color-sidebar-foreground)` — text on sidebar
 - **Sidebar Accent / Sidebar Accent Foreground**: `var(--color-sidebar-accent)` / `var(--color-sidebar-accent-foreground)` — hover/active state in sidebar (same neutral tint as `--color-secondary`; either token works, but stay consistent within a page)
-- **Sidebar Border**: `var(--color-sidebar-border)` — sidebar dividers
+- **Sidebar Primary / Sidebar Primary Foreground**: `var(--color-sidebar-primary)` / `var(--color-sidebar-primary-foreground)` — active sidebar item
+- **Sidebar Border**: `var(--color-sidebar-border)` — borders inside sidebar-owned controls; page-level sidebar edges use `var(--color-border-muted)`
 - **Sidebar Ring**: `var(--color-sidebar-ring)` — focus ring inside sidebar
 
 ### Borders & Rings
-- **Border**: `var(--color-border)` — component borders, dividers
-- **Border Muted**: `var(--color-border-muted)` — low-emphasis dividers inside dense lists, tables, and grouped settings
+- **Border**: `var(--color-border)` — component-level borders (buttons, cards, inputs, focusable surfaces). Avoid for page-level dividers.
+- **Border Muted**: `var(--color-border-muted)` — page-level hairline dividers (navbar bottom edges, pane / panel boundaries, sidebar edges) and low-emphasis dividers inside dense lists, tables, and grouped settings
 - **Border Subtle**: `var(--color-border-subtle)` — very quiet outlines on cards, nested panels, and non-interactive containers
 - **Border Hover / Active**: `var(--color-border-hover)` / `var(--color-border-active)`
 - **Frame Border**: `var(--color-frame-border)` — page-level wrapping frames and stronger outer chrome
@@ -79,7 +80,7 @@ When you reach for a value:
 ### Border Token Rules
 - Use semantic border utilities (`border-border`, `border-border-muted`, `border-border-subtle`, `border-frame-border`, `border-input`, `border-sidebar-border`) instead of hard-coded colors.
 - Plain `border`, `border-t`, `border-r`, `border-b`, and `border-l` are acceptable only when the global theme base provides the color fallback; reusable components should still name a semantic border color when the role is known.
-- For 0.5px hairline dividers, use an explicit token-backed property such as `[border-bottom:0.5px_solid_var(--color-border)]` or `[border-right:0.5px_solid_var(--color-border-muted)]`.
+- For 0.5px hairline dividers (page-level structural separators), use an explicit token-backed property with `--color-border-muted` such as `[border-bottom:0.5px_solid_var(--color-border-muted)]` or `[border-right:0.5px_solid_var(--color-border-muted)]`. Reserve `--color-border` for component-level outlines.
 - Legacy opacity-modified border classes (`border-border/10` through `border-border/80`, plus hover/focus/active variants) are compatibility-mapped in `@cherrystudio/ui/styles/theme.css` so old surfaces do not fall back to `currentColor`.
 - Do not introduce new opacity-modified semantic border classes such as `border-border/60`, `border-border/40`, `border-border/30`, or `border-border/15`. Use the semantic border utilities above so the visual role is explicit.
 
@@ -229,6 +230,14 @@ Source: `Button` from `@cherrystudio/ui` (`packages/ui/src/components/primitives
 - Hover: fill `var(--color-accent)`, text `var(--color-accent-foreground)`
 - Active: `var(--color-ghost-active)`
 - Use: Toolbar actions, inline actions, icon buttons
+
+**Compact Icon Buttons**
+- Component: `Button` from `@cherrystudio/ui`
+- Variant / size: `variant="ghost"` + `size="icon-sm"`
+- Container: 28 × 28px
+- Icon: 14px
+- Radius: `var(--radius-md)` (8px)
+- Hover: same as Ghost; do not override radius per page
 
 **Destructive**
 - Background: `var(--color-destructive)`
@@ -498,7 +507,7 @@ The page owns the outer wrapper (width / Scrollbar / padding). Reusable sidebar 
 **Colors:**
 - Background: `var(--color-sidebar)`
 - Text: `var(--color-sidebar-foreground)` for body; `var(--color-foreground-muted)` for SectionTitle
-- Border-right (when divider needed): `0.5px solid var(--color-border)`
+- Border-right (when divider needed): `0.5px solid var(--color-border-muted)` for page-level sidebar edges; use `var(--color-sidebar-border)` for sidebar-owned internal dividers
 - Active item: `var(--color-sidebar-accent)` background, `var(--color-sidebar-accent-foreground)` text — **icon color stays `var(--color-sidebar-accent-foreground)` on active (no color change)**
 - Hover item: `var(--color-sidebar-accent)` background
 - Focus ring: `var(--color-sidebar-ring)`
@@ -798,8 +807,8 @@ Use icon-library defaults unless a component has a documented reason to override
 | Primary accent | `var(--color-primary)` | Page-level primary actions, selected states, links, component accents |
 | Destructive action | `var(--color-destructive)` | Hover: `var(--color-destructive-hover)`; Text: `var(--color-destructive-foreground)` |
 | Success / Warning / Info | `var(--color-success)` / `var(--color-warning)` / `var(--color-info)` | Single-token semantic accents |
-| Borders | `var(--color-border)` (hover/active variants available) | Neutral hairline |
-| Quiet borders | `var(--color-border-muted)` / `var(--color-border-subtle)` | Dense dividers, nested cards, non-interactive panels |
+| Borders | `var(--color-border)` (hover/active variants available) | Component-level outlines (buttons, cards, inputs) |
+| Quiet borders | `var(--color-border-muted)` / `var(--color-border-subtle)` | Page-level hairline dividers, nested cards, non-interactive panels, dense list separators |
 | Card surface | `var(--color-card)` (text: `--color-card-foreground`) | Layer above background |
 | Popover / floating | `var(--color-popover)` (text: `--color-popover-foreground`) | Layer above card |
 | Overlay / floating chrome | shared Dialog overlay, `bg-popover`, `border-border`, shadow utilities | Modal scrims, popovers, transient panels |
@@ -811,7 +820,7 @@ Use icon-library defaults unless a component has a documented reason to override
 
 ### Example Component Prompts
 - "Create a chat interface on `var(--color-background)`. Messages use `var(--font-size-body-md)` `var(--font-weight-regular)`, `var(--line-height-body-md)`, `var(--color-foreground)` text. User messages in cards with `var(--color-secondary)` background and `var(--radius-lg)` border-radius. Primary send button uses the Button `default` variant."
-- "Design a sidebar navigation: `var(--color-sidebar)` background, 1px right border `var(--color-sidebar-border)`. Nav items use `var(--font-size-body-sm)` `var(--font-weight-medium)`, `var(--color-sidebar-foreground)` text. Active and hover items use `var(--color-sidebar-accent)` with `var(--color-sidebar-accent-foreground)` text."
+- "Design a sidebar navigation: `var(--color-sidebar)` background, 0.5px right border `var(--color-border-muted)` for the page-level edge. Nav items use `var(--font-size-body-sm)` `var(--font-weight-medium)`, `var(--color-sidebar-foreground)` text. Active and hover items use `var(--color-sidebar-accent)` with `var(--color-sidebar-accent-foreground)` text."
 - "Build a settings card: `var(--color-card)` background, 1px `var(--color-border)`, `var(--radius-lg)`. Title in `var(--font-size-heading-sm)` with the matching heading line-height. Description in `var(--font-size-body-sm)` `var(--font-weight-regular)`, `var(--color-foreground-secondary)`. Toggles and inputs at `var(--radius-md)`."
 - "Create a dark-mode conversation view: `var(--color-background)` page. Message cards on `var(--color-card)`. Assistant code blocks use the code-rendering component's mono font stack at `var(--font-size-body-sm)` on `var(--color-popover)` with `var(--radius-md)`. Borders at `var(--color-border)`."
 - "Design a destructive confirmation dialog with the shared Dialog shell: `bg-card`, `text-card-foreground`, `rounded-3xl`, `border-0`, `p-6`, `gap-4`, `shadow-xl`, default overlay. Footer uses outline cancel + destructive delete."

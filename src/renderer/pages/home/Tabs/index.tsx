@@ -44,7 +44,7 @@ const HomeTabs: FC<Props> = ({
   const { t } = useTranslation()
 
   const [tab, setTab] = useState<Tab>(position === 'left' ? _tab || 'assistants' : 'topic')
-  const borderStyle = '0.5px solid var(--color-border)'
+  const borderStyle = '0.5px solid var(--color-border-muted)'
   const border =
     position === 'left'
       ? { borderRight: isLeftNavbar ? borderStyle : 'none' }

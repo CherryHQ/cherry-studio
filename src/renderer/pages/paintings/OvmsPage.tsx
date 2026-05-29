@@ -594,7 +594,7 @@ const LeftContainer = styled.div`
   height: 100%;
   background-color: var(--color-background);
   max-width: var(--assistants-width);
-  border-right: 0.5px solid var(--color-border);
+  border-right: 0.5px solid var(--color-border-muted);
   overflow: hidden;
 `
 

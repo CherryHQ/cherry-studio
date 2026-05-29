@@ -9,8 +9,7 @@ import * as React from 'react'
 /* ─── Style variants ──────────────────────────────────────────────────────── */
 
 const menuContentStyles = cn(
-  'bg-popover text-popover-foreground z-50 min-w-[8rem] overflow-hidden rounded-xs p-2',
-  'shadow-[0px_2px_5px_rgba(0,0,0,0.04),0px_10px_10px_rgba(0,0,0,0.04),0px_22px_13px_rgba(0,0,0,0.02),0px_39px_16px_rgba(0,0,0,0.01),inset_0px_-1px_1.3px_rgba(0,0,0,0.2)]',
+  'bg-popover text-popover-foreground z-50 min-w-48 overflow-hidden rounded-lg border border-border p-2 shadow-md',
   'data-[state=open]:animate-in data-[state=closed]:animate-out',
   'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
   'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95'
@@ -18,8 +17,8 @@ const menuContentStyles = cn(
 
 const menuItemVariants = cva(
   cn(
-    'relative flex cursor-default select-none items-center gap-2 rounded-2xs px-2 py-[9px] text-sm outline-hidden transition-colors',
-    'focus:bg-menu-item-hover',
+    'relative flex h-8 cursor-default select-none items-center gap-3 rounded-[10px] px-3 py-0 text-sm leading-5 outline-hidden transition-colors',
+    'focus:bg-accent data-[highlighted]:bg-accent',
     'data-[disabled]:pointer-events-none data-[disabled]:opacity-40',
     "[&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0"
   ),
@@ -27,10 +26,11 @@ const menuItemVariants = cva(
     variants: {
       variant: {
         default: '',
-        destructive: 'text-destructive focus:bg-destructive/10 focus:text-destructive'
+        destructive:
+          'text-destructive focus:bg-destructive/10 focus:text-destructive data-[highlighted]:bg-destructive/10'
       },
       inset: {
-        true: 'pl-8',
+        true: 'pl-9',
         false: ''
       }
     },
@@ -79,9 +79,9 @@ function ContextMenuSubTrigger({
   return (
     <ContextMenuPrimitive.SubTrigger
       data-slot="context-menu-sub-trigger"
-      className={cn(menuItemVariants({ inset }), 'justify-between data-[state=open]:bg-menu-item-hover', className)}
+      className={cn(menuItemVariants({ inset }), 'justify-between data-[state=open]:bg-accent', className)}
       {...props}>
-      <span className="flex items-center gap-2">{children}</span>
+      <span className="flex items-center gap-3">{children}</span>
       <ChevronRight className="size-4 text-foreground-secondary" />
     </ContextMenuPrimitive.SubTrigger>
   )
@@ -141,7 +141,7 @@ function ContextMenuCheckboxItem({
       className={cn(menuItemVariants({ inset: true }), 'pr-2', className)}
       checked={checked}
       {...props}>
-      <span className="pointer-events-none absolute left-2 flex size-4 items-center justify-center">
+      <span className="pointer-events-none absolute left-3 flex size-4 items-center justify-center">
         <ContextMenuPrimitive.ItemIndicator>
           <Check className="size-4" />
         </ContextMenuPrimitive.ItemIndicator>
@@ -161,7 +161,7 @@ function ContextMenuRadioItem({
       data-slot="context-menu-radio-item"
       className={cn(menuItemVariants({ inset: true }), 'pr-2', className)}
       {...props}>
-      <span className="pointer-events-none absolute left-2 flex size-4 items-center justify-center">
+      <span className="pointer-events-none absolute left-3 flex size-4 items-center justify-center">
         <ContextMenuPrimitive.ItemIndicator>
           <Check className="size-4" />
         </ContextMenuPrimitive.ItemIndicator>
@@ -183,7 +183,7 @@ function ContextMenuLabel({
   return (
     <ContextMenuPrimitive.Label
       data-slot="context-menu-label"
-      className={cn('px-2 py-[9px] text-sm text-foreground-secondary', inset && 'pl-8', className)}
+      className={cn('flex h-8 items-center px-3 text-xs text-foreground-muted', inset && 'pl-9', className)}
       {...props}
     />
   )
@@ -193,7 +193,7 @@ function ContextMenuSeparator({ className, ...props }: React.ComponentProps<type
   return (
     <ContextMenuPrimitive.Separator
       data-slot="context-menu-separator"
-      className={cn('-mx-2 my-0 border-b border-border', className)}
+      className={cn('my-1 h-px bg-border-muted', className)}
       {...props}
     />
   )
@@ -243,7 +243,7 @@ function ContextMenuItemContent(props: ContextMenuItemContentProps) {
   const hasSubmenu = 'hasSubmenu' in props ? props.hasSubmenu : false
   return (
     <>
-      <span className={cn('flex items-center gap-2', className)}>
+      <span className={cn('flex items-center gap-3', className)}>
         {icon && <span className="size-4 shrink-0">{icon}</span>}
         <span className="flex-1">{children}</span>
       </span>

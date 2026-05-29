@@ -251,7 +251,7 @@ const SortContainer = styled.div`
   justify-content: space-between;
   gap: 8px;
   padding: 8px 16px;
-  border-bottom: 0.5px solid var(--color-border);
+  border-bottom: 0.5px solid var(--color-border-muted);
 `
 
 const ContentContainer = styled.div`
@@ -265,7 +265,7 @@ const SideNav = styled.div`
   display: flex;
   flex-direction: column;
   width: var(--settings-width);
-  border-right: 0.5px solid var(--color-border);
+  border-right: 0.5px solid var(--color-border-muted);
   padding: 12px 10px;
   user-select: none;
   gap: 6px;

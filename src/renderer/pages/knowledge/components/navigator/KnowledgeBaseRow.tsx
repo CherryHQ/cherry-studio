@@ -65,14 +65,13 @@ const KnowledgeBaseRow = ({
           type="button"
           variant="ghost"
           size="sm"
+          aria-current={selected ? 'page' : undefined}
           onClick={() => onSelectBase(base.id)}
           className={cn(
             'h-auto min-h-8 w-full cursor-pointer items-center justify-start gap-2 rounded-lg px-1.5 py-1.25 text-left font-normal text-foreground shadow-none transition-all duration-150',
-            selected ? 'bg-accent hover:bg-accent hover:text-foreground' : 'hover:bg-accent/60 hover:text-foreground'
+            selected ? 'font-medium text-foreground hover:bg-accent/40' : 'hover:bg-accent/40 hover:text-foreground'
           )}>
-          <div
-            className="flex size-6 shrink-0 items-center justify-center rounded text-xs"
-            style={{ background: 'rgba(139, 92, 246, 0.125)' }}>
+          <div className="flex size-6 shrink-0 items-center justify-center text-xs">
             <span aria-hidden="true">{base.emoji}</span>
           </div>
 

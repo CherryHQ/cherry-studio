@@ -67,7 +67,7 @@ const BaseNavigator = ({
 
   return (
     <div style={{ width }} className="relative h-full min-h-0 shrink-0">
-      <aside className="flex size-full min-h-0 flex-col border-border/20 border-r bg-muted/[0.15]">
+      <aside className="flex size-full min-h-0 flex-col border-border/20 border-r bg-background">
         <div className="border-border/20 border-b">
           <BaseNavigatorHeader baseCount={bases.length} onCreateGroup={onCreateGroup} onCreateBase={onCreateBase} />
           <BaseNavigatorSearch value={searchValue} onValueChange={setSearchValue} />

@@ -862,7 +862,7 @@ const SkillsMenuList = ({ className, ...props }: React.ComponentProps<typeof Men
 const MenuScroll = ({ className, ...props }: React.ComponentProps<typeof Scrollbar>) => (
   <Scrollbar
     className={cn(
-      'h-[calc(100vh-var(--navbar-height))] w-(--settings-width) border-border border-r-[0.5px]',
+      'h-[calc(100vh-var(--navbar-height))] w-(--settings-width) [border-right:0.5px_solid_var(--color-border-muted)]',
       className
     )}
     {...props}
@@ -871,7 +871,9 @@ const MenuScroll = ({ className, ...props }: React.ComponentProps<typeof Scrollb
 const ListHeader = divWithClass('flex items-center gap-2 pt-1 pb-2')
 const FilterContainer = divWithClass('pb-2')
 const RightContainer = divWithClass('relative flex flex-1 flex-col')
-const TopBar = divWithClass('flex min-h-11 items-center gap-2 border-border border-b-[0.5px] px-4 py-2.5')
+const TopBar = divWithClass(
+  'flex min-h-11 items-center gap-2 px-4 py-2.5 [border-bottom:0.5px_solid_var(--color-border-muted)]'
+)
 const BackButton = divWithClass(
   'flex cursor-pointer items-center rounded p-1 text-foreground-secondary hover:bg-accent'
 )
@@ -882,7 +884,7 @@ const SearchInputWrapper = divWithClass('relative w-[280px]')
 const SearchDropdown = divWithClass(
   'absolute top-full right-0 z-100 mt-1 flex max-h-[400px] w-full flex-col rounded-lg border-border border-[0.5px] bg-background shadow-[0_4px_12px_rgba(0,0,0,0.1)]'
 )
-const SearchTabs = divWithClass('flex shrink-0 border-border border-b-[0.5px]')
+const SearchTabs = divWithClass('flex shrink-0 [border-bottom:0.5px_solid_var(--color-border-muted)]')
 const SearchTab = ({ className, $active, ...props }: DivProps & { $active: boolean }) => (
   <div
     className={cn(
@@ -900,7 +902,7 @@ const SearchResultsScroll = divWithClass('flex-1 overflow-y-auto')
 const DropdownLoading = divWithClass('flex justify-center p-4')
 const DropdownEmpty = divWithClass('p-4 text-center text-foreground-muted text-xs')
 const SearchResultItem = divWithClass(
-  'flex items-center justify-between gap-2 border-border border-t-[0.5px] px-3 py-2 first:border-t-0 hover:bg-accent'
+  'flex items-center justify-between gap-2 border-border-muted border-t-[0.5px] px-3 py-2 first:border-t-0 hover:bg-accent'
 )
 const ResultActions = divWithClass('flex shrink-0 items-center gap-1')
 const ExternalLinkButton = divWithClass(

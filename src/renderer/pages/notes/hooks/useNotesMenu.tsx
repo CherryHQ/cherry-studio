@@ -1,7 +1,6 @@
 import {
   ContextMenuItem,
   ContextMenuItemContent,
-  ContextMenuSeparator,
   ContextMenuSub,
   ContextMenuSubContent,
   ContextMenuSubTrigger
@@ -147,7 +146,6 @@ export const useNotesMenu = ({
               <ContextMenuItem onSelect={() => onCreateFolder(t('notes.untitled_folder'), node.id)}>
                 <ContextMenuItemContent icon={<Folder size={14} />}>{t('notes.new_folder')}</ContextMenuItemContent>
               </ContextMenuItem>
-              <ContextMenuSeparator />
             </>
           )}
 
@@ -226,7 +224,6 @@ export const useNotesMenu = ({
             </>
           )}
 
-          <ContextMenuSeparator />
           <ContextMenuItem variant="destructive" onSelect={() => handleDeleteNodeWrapper(node)}>
             <ContextMenuItemContent icon={<DeleteIcon size={14} className="lucide-custom" />}>
               {t('notes.delete')}

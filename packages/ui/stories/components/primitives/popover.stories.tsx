@@ -127,28 +127,12 @@ export const CompactMenu: Story = {
             Filter
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-fit min-w-32 rounded-xl p-1.5">
+        <PopoverContent align="start" variant="menu" className="w-fit min-w-32">
           <MenuList className="gap-1">
-            <MenuItem
-              label="Only enabled"
-              className="h-8 rounded-lg px-2.5 text-sm"
-              icon={<Check className="size-3.5" />}
-            />
-            <MenuItem
-              label="Only disabled"
-              className="h-8 rounded-lg px-2.5 text-sm"
-              icon={<Check className="size-3.5 opacity-0" />}
-            />
-            <MenuItem
-              label="All providers"
-              className="h-8 rounded-lg px-2.5 text-sm"
-              icon={<Check className="size-3.5 opacity-0" />}
-            />
-            <MenuItem
-              label="Agent-capable"
-              className="h-8 rounded-lg px-2.5 text-sm"
-              icon={<Check className="size-3.5 opacity-0" />}
-            />
+            <MenuItem label="Only enabled" icon={<Check className="size-3.5" />} />
+            <MenuItem label="Only disabled" icon={<Check className="size-3.5 opacity-0" />} />
+            <MenuItem label="All providers" icon={<Check className="size-3.5 opacity-0" />} />
+            <MenuItem label="Agent-capable" icon={<Check className="size-3.5 opacity-0" />} />
           </MenuList>
         </PopoverContent>
       </Popover>
@@ -159,16 +143,12 @@ export const CompactMenu: Story = {
             More actions
           </Button>
         </PopoverTrigger>
-        <PopoverContent align="start" className="w-fit min-w-32 rounded-xl p-1.5">
+        <PopoverContent align="start" variant="menu" className="w-fit min-w-32">
           <MenuList className="gap-1">
-            <MenuItem label="Edit" className="h-8 rounded-lg px-2.5 text-sm" icon={<Edit size={14} />} />
-            <MenuItem label="Duplicate" className="h-8 rounded-lg px-2.5 text-sm" icon={<CopyPlus size={14} />} />
-            <MenuItem label="Model notes" className="h-8 rounded-lg px-2.5 text-sm" icon={<UserPen size={14} />} />
-            <MenuItem
-              label="Delete"
-              className="h-8 rounded-lg px-2.5 text-sm text-(--color-destructive)"
-              icon={<Trash2 size={14} />}
-            />
+            <MenuItem label="Edit" icon={<Edit size={14} />} />
+            <MenuItem label="Duplicate" icon={<CopyPlus size={14} />} />
+            <MenuItem label="Model notes" icon={<UserPen size={14} />} />
+            <MenuItem label="Delete" className="text-(--color-destructive)" icon={<Trash2 size={14} />} />
           </MenuList>
         </PopoverContent>
       </Popover>

@@ -24,7 +24,7 @@ const KnowledgeItemRowIcon = ({ icon, iconClassName }: DataSourceIconMeta) => {
   const Icon = icon
 
   return (
-    <div className="flex size-6 shrink-0 items-center justify-center rounded bg-accent/40">
+    <div className="flex size-6 shrink-0 items-center justify-center">
       <Icon className={cn('size-3.5', iconClassName)} />
     </div>
   )

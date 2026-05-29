@@ -1,17 +1,7 @@
-import { Button, Input, Slider, Switch } from '@cherrystudio/ui'
+import { Button, Input, PageSidePanelItem, PageSidePanelSection, Slider, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Selector from '@renderer/components/Selector'
-import { useTheme } from '@renderer/context/ThemeProvider'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
-import {
-  SettingContainer,
-  SettingDivider,
-  SettingGroup,
-  SettingHelpText,
-  SettingRow,
-  SettingRowTitle,
-  SettingTitle
-} from '@renderer/pages/settings'
 import type { EditorView } from '@renderer/types'
 import { FolderOpen } from 'lucide-react'
 import type { FC } from 'react'
@@ -21,7 +11,6 @@ import { useTranslation } from 'react-i18next'
 const logger = loggerService.withContext('NotesSettings')
 
 const NotesSettings: FC = () => {
-  const { theme } = useTheme()
   const { t } = useTranslation()
   const { settings, updateSettings, notesPath, updateNotesPath } = useNotesSettings()
   const [tempPath, setTempPath] = useState<string>(notesPath || '')
@@ -90,107 +79,116 @@ const NotesSettings: FC = () => {
   const isPathChanged = tempPath !== notesPath
 
   return (
-    <SettingContainer theme={theme} style={{ background: 'transparent' }}>
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('notes.settings.data.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('notes.settings.data.current_work_directory')}</SettingRowTitle>
-        </SettingRow>
-        <div className="mt-2 flex flex-col gap-3">
-          <div className="flex w-full items-center">
-            <Input
-              value={tempPath}
-              onChange={(e) => setTempPath(e.target.value)}
-              placeholder={t('notes.settings.data.work_directory_placeholder')}
-              readOnly
-            />
-            <Button variant="default" onClick={handleSelectWorkDirectory} disabled={isSelecting} className="ml-2">
-              <FolderOpen size={16} />
-              {t('notes.settings.data.select')}
-            </Button>
-          </div>
-          <div className="flex items-center gap-2 self-start">
-            <Button onClick={handleApplyPath} disabled={!isPathChanged}>
-              {t('notes.settings.data.apply')}
-            </Button>
-            <Button onClick={handleResetToDefault}>{t('notes.settings.data.reset_to_default')}</Button>
-          </div>
+    <div className="flex flex-col gap-8">
+      <PageSidePanelSection title={t('notes.settings.data.title')}>
+        <div className="flex flex-col gap-5">
+          <PageSidePanelItem
+            title={t('notes.settings.data.current_work_directory')}
+            description={t('notes.settings.data.work_directory_description')}>
+            <div className="flex min-w-0 items-center gap-2">
+              <Input
+                value={tempPath}
+                onChange={(e) => setTempPath(e.target.value)}
+                placeholder={t('notes.settings.data.work_directory_placeholder')}
+                readOnly
+                className="min-w-0 flex-1"
+              />
+              <Tooltip content={t('notes.settings.data.select')} delay={800}>
+                <Button
+                  variant="secondary"
+                  size="icon"
+                  onClick={handleSelectWorkDirectory}
+                  disabled={isSelecting}
+                  className="shrink-0"
+                  aria-label={t('notes.settings.data.select')}>
+                  <FolderOpen size={16} />
+                </Button>
+              </Tooltip>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="emphasis" onClick={handleApplyPath} disabled={!isPathChanged}>
+                {t('notes.settings.data.apply')}
+              </Button>
+              <Button variant="outline" onClick={handleResetToDefault}>
+                {t('notes.settings.data.reset_to_default')}
+              </Button>
+            </div>
+          </PageSidePanelItem>
         </div>
-        <SettingRow>
-          <SettingHelpText>{t('notes.settings.data.work_directory_description')}</SettingHelpText>
-        </SettingRow>
-      </SettingGroup>
+      </PageSidePanelSection>
 
-      {/* Editor Settings */}
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('notes.settings.editor.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('notes.settings.editor.view_mode.title')}</SettingRowTitle>
-          <Selector
-            options={[
-              { label: t('notes.settings.editor.view_mode.edit_mode'), value: 'edit' },
-              { label: t('notes.settings.editor.view_mode.read_mode'), value: 'read' }
-            ]}
-            value={settings.defaultViewMode}
-            onChange={(value: 'edit' | 'read') => updateSettings({ defaultViewMode: value })}
+      <PageSidePanelSection title={t('notes.settings.editor.title')}>
+        <div className="flex flex-col gap-5">
+          <PageSidePanelItem
+            title={t('notes.settings.editor.view_mode.title')}
+            description={t('notes.settings.editor.view_mode.description')}
+            action={
+              <Selector
+                options={[
+                  { label: t('notes.settings.editor.view_mode.edit_mode'), value: 'edit' },
+                  { label: t('notes.settings.editor.view_mode.read_mode'), value: 'read' }
+                ]}
+                value={settings.defaultViewMode}
+                onChange={(value: 'edit' | 'read') => updateSettings({ defaultViewMode: value })}
+              />
+            }
           />
-        </SettingRow>
-        <SettingHelpText>{t('notes.settings.editor.view_mode.description')}</SettingHelpText>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('notes.settings.editor.edit_mode.title')}</SettingRowTitle>
-          <Selector
-            options={[
-              { label: t('notes.settings.editor.edit_mode.preview_mode'), value: 'preview' },
-              { label: t('notes.settings.editor.edit_mode.source_mode'), value: 'source' }
-            ]}
-            value={settings.defaultEditMode}
-            onChange={(value: Exclude<EditorView, 'read'>) => updateSettings({ defaultEditMode: value })}
+          <PageSidePanelItem
+            title={t('notes.settings.editor.edit_mode.title')}
+            description={t('notes.settings.editor.edit_mode.description')}
+            action={
+              <Selector
+                options={[
+                  { label: t('notes.settings.editor.edit_mode.preview_mode'), value: 'preview' },
+                  { label: t('notes.settings.editor.edit_mode.source_mode'), value: 'source' }
+                ]}
+                value={settings.defaultEditMode}
+                onChange={(value: Exclude<EditorView, 'read'>) => updateSettings({ defaultEditMode: value })}
+              />
+            }
           />
-        </SettingRow>
-        <SettingHelpText>{t('notes.settings.editor.edit_mode.description')}</SettingHelpText>
-      </SettingGroup>
+        </div>
+      </PageSidePanelSection>
 
-      {/* Display Settings */}
-      <SettingGroup theme={theme}>
-        <SettingTitle>{t('notes.settings.display.title')}</SettingTitle>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('notes.settings.display.compress_content')}</SettingRowTitle>
-          <Switch
-            checked={!settings.isFullWidth}
-            onCheckedChange={(checked) => updateSettings({ isFullWidth: !checked })}
+      <PageSidePanelSection title={t('notes.settings.display.title')}>
+        <div className="flex flex-col gap-5">
+          <PageSidePanelItem
+            title={t('notes.settings.display.compress_content')}
+            description={t('notes.settings.display.compress_content_description')}
+            action={
+              <Switch
+                checked={!settings.isFullWidth}
+                onCheckedChange={(checked) => updateSettings({ isFullWidth: !checked })}
+              />
+            }
           />
-        </SettingRow>
-        <SettingHelpText>{t('notes.settings.display.compress_content_description')}</SettingHelpText>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('notes.settings.display.font_size')}</SettingRowTitle>
-          <div className="flex items-center">
-            <Slider
-              min={10}
-              max={30}
-              value={[settings.fontSize]}
-              onValueChange={(value) => updateSettings({ fontSize: value[0] ?? settings.fontSize })}
-              className="mr-4 w-50"
-            />
-            <span className="min-w-10 text-muted-foreground text-sm">{settings.fontSize}px</span>
-          </div>
-        </SettingRow>
-        <SettingHelpText>{t('notes.settings.display.font_size_description')}</SettingHelpText>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>{t('notes.settings.display.show_table_of_contents')}</SettingRowTitle>
-          <Switch
-            checked={settings.showTableOfContents}
-            onCheckedChange={(checked) => updateSettings({ showTableOfContents: checked })}
+          <PageSidePanelItem
+            title={t('notes.settings.display.font_size')}
+            description={t('notes.settings.display.font_size_description')}>
+            <div className="flex items-center gap-3">
+              <Slider
+                min={10}
+                max={30}
+                value={[settings.fontSize]}
+                onValueChange={(value) => updateSettings({ fontSize: value[0] ?? settings.fontSize })}
+                className="flex-1"
+              />
+              <span className="w-10 text-right text-muted-foreground text-sm tabular-nums">{settings.fontSize}px</span>
+            </div>
+          </PageSidePanelItem>
+          <PageSidePanelItem
+            title={t('notes.settings.display.show_table_of_contents')}
+            description={t('notes.settings.display.show_table_of_contents_description')}
+            action={
+              <Switch
+                checked={settings.showTableOfContents}
+                onCheckedChange={(checked) => updateSettings({ showTableOfContents: checked })}
+              />
+            }
           />
-        </SettingRow>
-        <SettingHelpText>{t('notes.settings.display.show_table_of_contents_description')}</SettingHelpText>
-      </SettingGroup>
-    </SettingContainer>
+        </div>
+      </PageSidePanelSection>
+    </div>
   )
 }
 
