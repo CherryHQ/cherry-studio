@@ -14,7 +14,7 @@ import {
   getTotalAgentsRowCount,
   quoteSqlitePath
 } from './mappings/AgentsDbMappings'
-import { remapAgentPrefixIds } from './remapAgentPrefixIds'
+import { AGENT_TABLES, remapAgentPrefixIds } from './remapAgentPrefixIds'
 
 const logger = loggerService.withContext('AgentsMigrator')
 
@@ -108,7 +108,8 @@ export class AgentsMigrator extends BaseMigrator {
     try {
       await ctx.db.run(sql.raw(statements[0])) // ATTACH DATABASE …
       isAttached = true
-      await ctx.db.run(sql.raw('PRAGMA foreign_keys = OFF'))
+      // Foreign keys are already OFF for the whole migration (MigrationDbService registers
+      // it via setPragma), so no per-call toggle here.
       await ctx.db.run(sql.raw('BEGIN'))
 
       for (const statement of importStatements) {
@@ -124,6 +125,12 @@ export class AgentsMigrator extends BaseMigrator {
       // so the imported rows are visible; remapAgentPrefixIds is idempotent, so a retry
       // after a previous partial failure is safe.
       await remapAgentPrefixIds(ctx.db)
+
+      // Self-check agent-domain referential integrity after import + remap. FK is OFF for
+      // the whole migration, so violations only surface here (and at the engine's final
+      // verifyForeignKeys). foreign_key_check is read-only and stays on this connection, so
+      // it is safe inside the ATTACH window.
+      await this.assertOwnedForeignKeys(ctx.db, AGENT_TABLES)
     } catch (error) {
       if (!committed) {
         try {
@@ -137,17 +144,6 @@ export class AgentsMigrator extends BaseMigrator {
       }
       logger.error('Agents migration execute failed:', error as Error)
       pendingError = error
-    }
-
-    // FK re-enable must succeed: a silent failure leaves the rest of the migration
-    // pipeline (and the app) running with FK enforcement off, which masks
-    // referential corruption. Only overwrite pendingError if the main path succeeded —
-    // otherwise the original failure is more informative.
-    try {
-      await ctx.db.run(sql.raw('PRAGMA foreign_keys = ON'))
-    } catch (pragmaError) {
-      logger.error('Failed to re-enable foreign_keys after agents migration — aborting', pragmaError as Error)
-      if (!pendingError) pendingError = pragmaError
     }
 
     if (isAttached) {
