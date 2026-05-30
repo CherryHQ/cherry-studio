@@ -49,7 +49,7 @@ export function transformMiniApp(
 ): Omit<MiniAppInsert, 'orderKey'> {
   const appId = toRequired<string>(source.id, '')
   // v1 stamps `type: 'Custom'` on apps loaded from custom-minapps.json
-  // (see v1 src/renderer/src/config/minapps.ts:loadCustomMiniApp). Preset rows
+  // (see v1 src/renderer/config/minapps.ts:loadCustomMiniApp). Preset rows
   // in v1 leave `type` unset. Honor that explicit signal first so a user-created
   // app whose id collides with a v2-only preset isn't misclassified as preset.
   const isExplicitCustom = source.type === 'Custom'

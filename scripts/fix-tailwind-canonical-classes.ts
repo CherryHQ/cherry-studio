@@ -278,7 +278,7 @@ async function resolveStylesheet(id: string, base: string, cwd: string): Promise
 }
 
 export async function loadTailwindDesignSystem(cwd = process.cwd()): Promise<DesignSystem> {
-  const entryPath = path.join(cwd, 'src/renderer/src/assets/styles/tailwind.css')
+  const entryPath = path.join(cwd, 'src/renderer/assets/styles/tailwind.css')
   const css = await fs.readFile(entryPath, 'utf8')
 
   return __unstable__loadDesignSystem(css, {

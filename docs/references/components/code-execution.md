@@ -36,7 +36,7 @@ The user-facing code execution component is [CodeBlockView][codeblock-view-link]
 - **State Management and Output Display**: Uses `executionResult` to manage all execution output; whenever there's any result (text or image), the [StatusBar][statusbar-link] component is rendered for unified display.
 
 ```typescript
-// src/renderer/src/components/CodeBlockView/view.tsx
+// src/renderer/components/CodeBlockView/view.tsx
 const [executionResult, setExecutionResult] = useState<{ text: string; image?: string } | null>(null)
 
 const handleRunScript = useCallback(() => {
@@ -119,7 +119,7 @@ The core Python execution happens inside the Web Worker defined in [pyodide.work
 <!-- Link Definitions -->
 
 [pyodide-link]: https://pyodide.org/
-[codeblock-view-link]: /src/renderer/src/components/CodeBlockView/view.tsx
-[pyodide-service-link]: /src/renderer/src/services/PyodideService.ts
-[pyodide-worker-link]: /src/renderer/src/workers/pyodide.worker.ts
-[statusbar-link]: /src/renderer/src/components/CodeBlockView/StatusBar.tsx
+[codeblock-view-link]: /src/renderer/components/CodeBlockView/view.tsx
+[pyodide-service-link]: /src/renderer/services/PyodideService.ts
+[pyodide-worker-link]: /src/renderer/workers/pyodide.worker.ts
+[statusbar-link]: /src/renderer/components/CodeBlockView/StatusBar.tsx

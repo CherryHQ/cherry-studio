@@ -416,7 +416,7 @@ export async function registerIpc() {
   // (read/write/delete/move on <userData>/Data/Files/<v1uuid>.<ext>, plus
   // notes/watcher/directory utilities) backed by the FileStorage singleton.
   // The Dexie `db.files` metadata + refcount layer lives entirely in the
-  // renderer (`src/renderer/src/services/FileManager.ts`); main never
+  // renderer (`src/renderer/services/FileManager.ts`); main never
   // touches IndexedDB. Both sides stay live until Batch A-E migrates the
   // renderer callers to the v2 surface (createInternalEntry /
   // ensureExternalEntry / getPhysicalPath / permanentDelete / runSweep)

@@ -9,7 +9,7 @@
  *   OrphanRefScanner in Phase 1b.4 is a separate service that *uses* this one.
  * - **Polymorphic sourceType keying.** No FK constraint on `sourceId` (see
  *   file schema). Producers MUST pass a `FileRefSourceType` literal that
- *   appears in the central registry (`packages/shared/data/types/file/ref/index.ts`);
+ *   appears in the central registry (`src/shared/data/types/file/ref/index.ts`);
  *   schema variants for non-`temp_session` sourceTypes are registered
  *   incrementally in Phase 1b.2.
  *

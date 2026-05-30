@@ -1,4 +1,4 @@
-// Original path: src/renderer/src/components/draggable-list/useDraggableReorder.ts
+// Original path: src/renderer/components/draggable-list/useDraggableReorder.ts
 import type { DropResult } from '@hello-pangea/dnd'
 import type { Key } from 'react'
 import { useCallback, useMemo } from 'react'

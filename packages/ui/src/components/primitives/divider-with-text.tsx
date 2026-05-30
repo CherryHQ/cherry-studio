@@ -1,4 +1,4 @@
-// Original: src/renderer/src/components/DividerWithText.tsx
+// Original: src/renderer/components/DividerWithText.tsx
 import type { CSSProperties } from 'react'
 import React from 'react'
 

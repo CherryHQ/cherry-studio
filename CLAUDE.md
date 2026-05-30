@@ -99,7 +99,7 @@ Use the `gh-create-issue` skill. Fallback: read `.agents/skills/gh-create-issue/
 
 ### TypeScript
 
-- Place shared type definitions in `src/renderer/src/types/` or `packages/shared/`.
+- Place shared type definitions in `src/renderer/types/` or `src/shared/`.
 
 ### Naming Conventions
 
@@ -126,7 +126,7 @@ logger.error("message", error);
 
 - All user-visible strings must use `i18next` — never hardcode UI strings
 - Run `pnpm i18n:check` to validate; `pnpm i18n:sync` to add missing keys
-- Locale files in `src/renderer/src/i18n/`
+- Locale files in `src/renderer/i18n/`
 
 ### UI Design
 
@@ -217,8 +217,8 @@ The `v2-refactor-temp/tools/data-classify/` directory is the code generation pip
 
 The following four files are **auto-generated — NEVER edit them by hand**:
 
-- `packages/shared/data/preference/preferenceSchemas.ts`
-- `packages/shared/data/bootConfig/bootConfigSchemas.ts`
+- `src/shared/data/preference/preferenceSchemas.ts`
+- `src/shared/data/bootConfig/bootConfigSchemas.ts`
 - `src/main/data/migration/v2/migrators/mappings/PreferencesMappings.ts`
 - `src/main/data/migration/v2/migrators/mappings/BootConfigMappings.ts`
 

@@ -42,7 +42,7 @@ The 90% case. See later sections for full rules and edge cases.
 | Bucket directory (categorical container) | lowercase **plural** noun | `services/`, `utils/`, `hooks/` |
 | Business / domain module directory | `camelCase` | `apiServer/`, `fileProcessing/` |
 | `packages/ui/` directory | `kebab-case` | `primitives/`, `button-group/` |
-| TanStack route file under `src/renderer/src/routes/` | `kebab-case.tsx` | `api-server.tsx`, `quick-assistant.tsx` |
+| TanStack route file under `src/renderer/routes/` | `kebab-case.tsx` | `api-server.tsx`, `quick-assistant.tsx` |
 
 > Stateful classes use only `Service` (default) or `Manager` (instance pool) — see §5.2. Files placed inside any `utils/` directory drop the `Utils` suffix — the directory already declares the role; see §3.2.
 
@@ -64,8 +64,8 @@ Three rules trump any specific table below when in conflict:
 
 | Location | Convention | Rationale |
 |---|---|---|
-| `src/renderer/src/components/**` | `PascalCase.tsx` | Filename mirrors the exported component name. |
-| `src/renderer/src/pages/**` | `PascalCase.tsx` | Filename mirrors the exported component name. |
+| `src/renderer/components/**` | `PascalCase.tsx` | Filename mirrors the exported component name. |
+| `src/renderer/pages/**` | `PascalCase.tsx` | Filename mirrors the exported component name. |
 | `packages/ui/**` (shadcn-derived) | `kebab-case.tsx` | Required by shadcn CLI for cross-OS file resolution. |
 
 The component's **exported identifier** is always `PascalCase`, regardless of filename style:
@@ -74,7 +74,7 @@ The component's **exported identifier** is always `PascalCase`, regardless of fi
 // packages/ui/src/components/primitives/button.tsx
 export function Button() { /* ... */ }
 
-// src/renderer/src/components/Sidebar.tsx
+// src/renderer/components/Sidebar.tsx
 export function Sidebar() { /* ... */ }
 ```
 
@@ -102,7 +102,7 @@ utils/notesTree.ts   ✅
 
 A `*Utils` suffix is used only when the file lives outside any `utils/` directory.
 
-**Hooks (`useXxx.ts`)** — live in `src/renderer/src/hooks/` (default, may group into sub-folders by feature) or co-located with the consuming feature.
+**Hooks (`useXxx.ts`)** — live in `src/renderer/hooks/` (default, may group into sub-folders by feature) or co-located with the consuming feature.
 
 **Renderer wrappers around `window.api.*`** — the renderer does not use `*Api`, `*Client`, or any other IPC-wrapper suffix. Categorize wrappers by module shape per §5.2.
 
@@ -158,9 +158,9 @@ packages/SomePkg/              ❌ (PascalCase not allowed)
 When a directory **is** a component (i.e. contains `index.tsx` exporting the component, or groups files under one component name), use `PascalCase`.
 
 ```
-src/renderer/src/components/Sidebar/         ✅
-src/renderer/src/components/CodeEditor/      ✅
-src/renderer/src/components/MarkdownEditor/  ✅
+src/renderer/components/Sidebar/         ✅
+src/renderer/components/CodeEditor/      ✅
+src/renderer/components/MarkdownEditor/  ✅
 ```
 
 ### 4.3 Bucket Directories — `lowercase plural noun`
@@ -220,7 +220,7 @@ The set of top-level directories under each of:
 - repository root `/`
 - `/src/`
 - `/src/main/`, `/src/renderer/`, `/src/preload/`
-- `/packages/shared/`
+- `/src/shared/`
 
 is **closed by default**. Adding one is a structural commitment.
 
@@ -305,7 +305,7 @@ The `Service` suffix names a **role** (a stateful domain capability), not a **me
 | Lifecycle service | `@Injectable('XxxService')` + `extends BaseService`, accessed via `application.get('XxxService')` | The service owns long-lived resources OR registers persistent side effects |
 | Direct-import singleton service | `export const xxxService = new XxxService()` | No long-lived resources, no persistent side effects, but still has class-level state (e.g. cached SDK instances) |
 
-The criteria for choosing between them are defined in [`docs/references/lifecycle/lifecycle-decision-guide.md`](../lifecycle/lifecycle-decision-guide.md). 
+The criteria for choosing between them are defined in [`docs/references/lifecycle/lifecycle-decision-guide.md`](lifecycle/lifecycle-decision-guide.md).
 
 ---
 
@@ -345,7 +345,7 @@ In `packages/*`, the directory name and `package.json#name` (after stripping sco
 
 ### 6.6 TanStack Router File-Based Routes
 
-Files under `src/renderer/src/routes/` are **kebab-case** — TanStack Router maps filename directly to URL.
+Files under `src/renderer/routes/` are **kebab-case** — TanStack Router maps filename directly to URL.
 
 Reserved tokens (TanStack-defined):
 
@@ -374,9 +374,9 @@ Any of these signals warrants a consolidation review.
 ```
 Naming a new FILE
 ├─ React component (.tsx)?
-│  ├─ Under src/renderer/src/routes/?  → kebab-case.tsx  (api-server.tsx)
+│  ├─ Under src/renderer/routes/?  → kebab-case.tsx  (api-server.tsx)
 │  ├─ Under packages/ui/?              → kebab-case.tsx  (button.tsx)
-│  └─ Under src/renderer/src/?         → PascalCase.tsx  (Sidebar.tsx)
+│  └─ Under src/renderer/?         → PascalCase.tsx  (Sidebar.tsx)
 ├─ React hook?                    → useXxx.ts       (useShortcuts.ts)
 ├─ Primary export is a class?     → PascalCase.ts   (KnowledgeService.ts)
 ├─ Primary export is function(s)? → camelCase.ts    (markdownConverter.ts)

@@ -87,7 +87,7 @@ When in doubt: merge.
 All preset configurations should be placed in:
 
 ```
-packages/shared/data/presets/
+src/shared/data/presets/
 ```
 
 ### File Format
@@ -118,7 +118,7 @@ A preset file should contain both type definitions and preset data:
 > **Note:** The `Provider` example below is for illustration purposes only and does not represent the actual provider implementation in Cherry Studio. Your actual data structure will vary based on your specific requirements.
 
 ```typescript
-// packages/shared/data/presets/providers.ts
+// src/shared/data/presets/providers.ts
 
 // Type definitions
 export interface Provider {
@@ -153,7 +153,7 @@ export const PRESETS_PROVIDERS: Provider[] = [
 In your preset file, define the override type that represents user-customizable fields:
 
 ```typescript
-// packages/shared/data/presets/providers.ts
+// src/shared/data/presets/providers.ts
 
 // User-overridable fields (exclude id since it's the identifier)
 export type ProviderOverride = Partial<Omit<Provider, 'id'>>
@@ -167,7 +167,7 @@ export type ProviderOverrides = Record<string, ProviderOverride>
 Add a preference key to store user overrides:
 
 ```typescript
-// packages/shared/data/preference/preferenceSchemas.ts
+// src/shared/data/preference/preferenceSchemas.ts
 
 export const DefaultPreferences = {
   default: {
@@ -184,7 +184,7 @@ Create a custom hook that merges presets with user overrides:
 > **Note:** The hook below is a basic example. Your actual implementation should be tailored to your specific data structure and usage patterns. Consider factors like: which fields are user-editable, how merging should work for nested objects, whether you need filtering/sorting, etc.
 
 ```typescript
-// src/renderer/src/hooks/useProviders.ts
+// src/renderer/hooks/useProviders.ts
 
 import { useCallback, useMemo } from 'react'
 
@@ -261,7 +261,7 @@ function ProviderSettings() {
 For presets that don't require user customization, simply place them in the presets directory and import directly:
 
 ```typescript
-// packages/shared/data/presets/languages.ts
+// src/shared/data/presets/languages.ts
 
 export interface Language {
   code: string
@@ -317,7 +317,7 @@ The layered pattern ensures smooth updates:
 For presets with frequent configuration changes, consider adding a version field to facilitate migration management:
 
 ```typescript
-// packages/shared/data/presets/complex-config.ts
+// src/shared/data/presets/complex-config.ts
 
 export const PRESETS_COMPLEX_CONFIG_VERSION = 2
 

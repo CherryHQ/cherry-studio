@@ -6,11 +6,11 @@ How to add fixed and template keys. Aligned with [Preference Schema Guide](./pre
 
 | Schema                          | Tier    | File                                                | Default map                 |
 | ------------------------------- | ------- | --------------------------------------------------- | --------------------------- |
-| `UseCacheSchema`                | Memory  | `packages/shared/data/cache/cacheSchemas.ts`        | `DefaultUseCache`           |
-| `SharedCacheSchema`             | Shared  | `packages/shared/data/cache/cacheSchemas.ts`        | `DefaultSharedCache`        |
-| `RendererPersistCacheSchema`    | Persist | `packages/shared/data/cache/cacheSchemas.ts`        | `DefaultRendererPersistCache` |
+| `UseCacheSchema`                | Memory  | `src/shared/data/cache/cacheSchemas.ts`        | `DefaultUseCache`           |
+| `SharedCacheSchema`             | Shared  | `src/shared/data/cache/cacheSchemas.ts`        | `DefaultSharedCache`        |
+| `RendererPersistCacheSchema`    | Persist | `src/shared/data/cache/cacheSchemas.ts`        | `DefaultRendererPersistCache` |
 
-Complex value types go in `packages/shared/data/cache/cacheValueTypes.ts` and are imported via `CacheValueTypes.*`.
+Complex value types go in `src/shared/data/cache/cacheValueTypes.ts` and are imported via `CacheValueTypes.*`.
 
 ## Naming Convention
 
@@ -43,7 +43,7 @@ Prefer Fixed > Template > Casual. Cross-window dynamic keys must be Template —
 ### 1. Add the entry
 
 ```typescript
-// packages/shared/data/cache/cacheSchemas.ts
+// src/shared/data/cache/cacheSchemas.ts
 export type UseCacheSchema = {
   // ...existing entries
   'feature.my_feature.data': MyDataType
@@ -58,7 +58,7 @@ export const DefaultUseCache: UseCacheSchema = {
 ### 2. Define complex value type (if needed)
 
 ```typescript
-// packages/shared/data/cache/cacheValueTypes.ts
+// src/shared/data/cache/cacheValueTypes.ts
 export interface MyDataType {
   items: string[]
   lastUpdated: number
@@ -104,7 +104,7 @@ The placeholder name is documentation-only. `${topicId}` and `${id}` compile to 
 | Check                        | Command / location                                     |
 | ---------------------------- | ------------------------------------------------------ |
 | ESLint naming rule           | `pnpm lint` (rule: `data-schema-key/valid-key`)        |
-| Template matching unit tests | `packages/shared/data/cache/__tests__/templateKey.test.ts` |
+| Template matching unit tests | `src/shared/data/cache/__tests__/templateKey.test.ts` |
 | Schema exhaustiveness        | TypeScript compiler — default map must satisfy the schema type |
 
 ## See Also

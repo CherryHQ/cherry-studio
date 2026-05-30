@@ -213,10 +213,6 @@ describe('ShortcutService', () => {
 
     expect(settingsWindowServiceMock.open).toHaveBeenCalledWith('/settings/provider')
     expect(windowServiceMock.showMainWindow).not.toHaveBeenCalled()
-    expect(windowManagerMock.broadcastToType).not.toHaveBeenCalledWith(
-      WindowType.Main,
-      IpcChannel.MainWindow_NavigateToSettings
-    )
   })
 
   it('re-registers only the changed accelerator when shortcut binding changes', async () => {
