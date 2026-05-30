@@ -1,50 +1,80 @@
 {
-  "generated_at": "2026-05-29T12:00:00.000000+00:00",
-  "snapshot_date": "2026-05-29",
-  "health_score": 86,
+  "generated_at": "2026-05-30T08:00:00.000000+00:00",
+  "snapshot_date": "2026-05-30",
+  "health_score": 85,
   "health_grade": "B",
-  "health_score_delta": -2,
-  "health_score_note": "Down 2 from 88/B+ (2026-05-28): new critical ship-bug #15426 ARM64 native module crash in v1.9.7 portable (-2). Security issue #15372 still open (no change).",
-  "total_open_issues": 884,
-  "total_open_issues_delta": -18,
-  "sample_size": 100,
+  "health_score_delta": -1,
+  "health_score_note": "Down 1 from 86/B (2026-05-29): P1 issues #13193 and #13608 both stale 80+ days with no recent updates (-2); partial offset by #15437 and #15438 closing today (+1). ARM64 bug #15426 still open. Security issue #15372 fix PR still pending.",
+  "total_open_issues": 893,
+  "total_open_issues_delta": 9,
+  "sample_size": 200,
   "age_distribution": {
-    "Active": 48,
-    "Aging": 27,
-    "Stale": 24,
-    "Zombie": 1,
-    "note": "From 100 most recently updated issues; remaining ~784 unsampled. Bug-labeled backlog is 94% zombie."
+    "Active_lt30d": 105,
+    "Aging_30_90d": 92,
+    "Stale_gt90d_created": 3,
+    "Zombie_not_updated_90d": 5,
+    "note": "Creation-based age from 200-issue sample. 5 confirmed zombies from exhaustive search (not updated since before 2026-03-01)."
   },
   "label_health": {
-    "unlabeled_count": 68,
-    "unlabeled_pct": 7.7,
-    "unlabeled_note": "Confirmed total from no:label search query (not just sample)",
+    "unlabeled_estimate": 85,
+    "unlabeled_pct_estimate": 9.5,
+    "unlabeled_note": "~9.5% of 200-issue sample have no labels; estimated ~85 total unlabeled open issues (up from 68 confirmed yesterday)",
+    "inactive_pct_of_sample": 42,
+    "inactive_note": "42% of sampled issues carry 'inactive' — automated stale-issue bot is running aggressively",
     "top_labels": {
-      "inactive": 39,
-      "UI/UX": 32,
-      "Models": 22,
-      "Assistant": 19,
-      "MCP": 9,
-      "Data": 6,
-      "needs-repro": 5,
-      "RAG": 4,
-      "Connectivity": 4,
-      "BUG": 3,
-      "help wanted": 3,
-      "discussion": 3,
-      "feature": 3,
+      "inactive": 84,
+      "UI/UX": 66,
+      "Models": 41,
+      "Assistant": 35,
+      "needs-repro": 18,
+      "MCP": 16,
+      "Data": 10,
+      "RAG": 8,
+      "Connectivity": 8,
+      "help wanted": 9,
+      "discussion": 9,
+      "feature": 6,
+      "BUG": 4,
       "P2": 2,
+      "P3": 1,
       "needs-triage": 2
     }
   },
-  "p1_critical_issues": [
+  "p1_issues": [
     {
-      "number": 15426,
-      "title": "[Bug] v1.9.7 Windows x64 portable ships ARM64 native module (registry.node), breaking OpenClaw entirely",
-      "labels": [],
-      "filed_today": true,
-      "severity": "CRITICAL",
-      "detail": "ARM64 registry.node bundled in x64 portable → ERR_DLOPEN_FAILED → IPC broken → MemoryService crash → OpenClaw UI inaccessible. Affects all v1.9.7 Windows x64 portable users. Workaround: use installer (.exe) version."
+      "number": 14899,
+      "title": "[Feature]: Unified Notification Center",
+      "labels": ["Planned", "P1", "feature", "UI/UX"],
+      "milestone": "v2.4.0",
+      "author": "SiinXu",
+      "created_at": "2026-05-07",
+      "updated_at": "2026-05-07",
+      "severity": "HIGH",
+      "status": "PLANNED",
+      "detail": "Formal P1 planned feature — persistent notification center (system events, usage alerts, official announcements) with OS-level toast, unread badge, 30-day retention. Milestone v2.4.0."
+    },
+    {
+      "number": 13608,
+      "title": "[Bug]: xiaomi mimo response only displays the last line",
+      "labels": ["P1", "Models"],
+      "author": "lsy08",
+      "created_at": "2026-03-18",
+      "updated_at": "2026-03-19",
+      "severity": "HIGH",
+      "status": "STALE — 72 days without update",
+      "detail": "Streaming bug: mimo-v2-flash only shows last token in rotating display. 8 comments. Last updated 2026-03-19 — no assignee, no fix in progress."
+    },
+    {
+      "number": 13193,
+      "title": "[Bug]: Azure OpenAI defaults to responses API instead of chat/completions — Resource not found 404",
+      "labels": ["P1", "Models"],
+      "author": "simplezhao",
+      "created_at": "2026-03-04",
+      "updated_at": "2026-03-05",
+      "severity": "HIGH",
+      "status": "STALE — 86 days without update",
+      "detail": "Regression from v1.7.19→v1.7.22: Azure deployments hit /responses endpoint instead of /chat/completions. ERR 404 for all Azure gpt-5.2 users. Assigned to DeJeune but no fix merged. 4 reactions.",
+      "assignee": "DeJeune"
     }
   ],
   "security_alerts": [
@@ -52,11 +82,11 @@
       "number": 15372,
       "title": "[Bug]: MCP OAuth callback accepts first code without state validation",
       "severity": "HIGH",
-      "created_at": "2026-05-28T03:45:16Z",
+      "created_at": "2026-05-28",
       "fix_pr": 15388,
       "fix_author": "3em0",
       "fix_status": "open",
-      "detail": "OAuth CSRF attack vector: state parameter not validated before token exchange"
+      "detail": "OAuth CSRF attack vector: state parameter not validated before token exchange in MCP OAuth callback. Fix PR #15388 open — needs merge."
     }
   ],
   "inferred_high_priority": [
@@ -64,115 +94,83 @@
       "number": 15426,
       "title": "[Bug] v1.9.7 Windows x64 portable ships ARM64 native module (registry.node), breaking OpenClaw entirely",
       "labels": [],
-      "priority_signal": "CRITICAL: ships-broken for all Windows x64 portable users on v1.9.7 — filed today"
+      "priority_signal": "CRITICAL: ships-broken — ARM64 registry.node in x64 portable → ERR_DLOPEN_FAILED → IPC broken → MemoryService crash. Affects all Windows x64 portable users on v1.9.7."
     },
     {
-      "number": 15372,
-      "title": "[Bug]: MCP OAuth callback accepts first code without state validation",
-      "labels": ["MCP"],
-      "priority_signal": "Security vulnerability — OAuth CSRF. Fix PR #15388 pending"
-    },
-    {
-      "number": 15316,
-      "title": "[Bug]: agents.db backup races with concurrent writes, producing corrupted restores",
+      "number": 15416,
+      "title": "[Bug]: Taskbar icon becomes blank after merging",
       "labels": [],
-      "priority_signal": "Data integrity risk — race condition in backup produces corrupt DB"
+      "priority_signal": "4 comments — visual regression in merged state, potentially widespread"
     },
     {
-      "number": 15334,
-      "title": "[Bug]: Agents cannot be used",
-      "labels": ["Assistant"],
-      "priority_signal": "Critical functionality broken"
+      "number": 15293,
+      "title": "[Bug]: deepseek-v4-pro only displays the last token",
+      "labels": [],
+      "priority_signal": "4 comments — streaming display bug similar to P1 #13608; popular model affected"
     },
     {
       "number": 15405,
       "title": "[Bug]: Minified React error #185",
       "labels": [],
-      "priority_signal": "React invariant crash in production build"
+      "priority_signal": "6 comments — React invariant crash; related #15437 closed today"
     },
     {
-      "number": 15317,
-      "title": "[Bug]: During Cherryclaw task execution, after clicking pause, all agents disappeared",
-      "labels": ["MCP", "needs-repro", "Assistant"],
-      "priority_signal": "Agent crash on pause — confirmed reproducible"
+      "number": 13710,
+      "title": "[Bug]: The MCP server requires administrator privileges to start",
+      "labels": [],
+      "priority_signal": "4 comments — MCP blocked for non-admin users on Windows"
     }
+  ],
+  "zombie_issues": [
+    {"number": 5712,  "title": "【需求汇总】Agents with Workflows",                                     "last_updated": "2025-10-23", "days_stale": 219, "labels": ["invalid", "inactive"]},
+    {"number": 10844, "title": "[Feature]: Backup feature enhance",                                    "last_updated": "2025-11-01", "days_stale": 210, "labels": ["Dev Team", "Data"]},
+    {"number": 11578, "title": "Upgrade to the MCP protocol by November 25, 2025",                    "last_updated": "2025-11-30", "days_stale": 181, "labels": ["MCP"]},
+    {"number": 5640,  "title": "Cherry Studio as a Service (CSaaS)",                                  "last_updated": "2026-01-31", "days_stale": 119, "labels": ["Dev Team"]},
+    {"number": 12023, "title": "Migrate to AI sdk v6",                                                "last_updated": "2026-02-27", "days_stale": 92,  "labels": ["AI-SDK"]}
   ],
   "action_needed_issues": [
     {
-      "number": 15426,
-      "title": "[Bug] v1.9.7 Windows x64 portable ships ARM64 native module (registry.node), breaking OpenClaw entirely",
-      "labels": [],
-      "reason": "Ships-broken: ARM64 native module in x64 portable — requires hotfix release or advisory"
-    },
-    {
       "number": 15388,
       "title": "fix: validate MCP OAuth callback state (fixes #15372)",
-      "labels": [],
-      "reason": "Security fix PR pending merge — OAuth CSRF vulnerability"
+      "reason": "Security fix PR — OAuth CSRF vulnerability. Needs immediate merge review."
     },
     {
-      "number": 15394,
-      "title": "[Bug] Bash tool returns empty output on Windows with Git Bash",
-      "labels": [],
-      "reason": "Platform-specific regression affecting Windows users"
+      "number": 15426,
+      "title": "[Bug] v1.9.7 Windows x64 portable ships ARM64 native module",
+      "reason": "Ships-broken for all Windows x64 portable users on v1.9.7 — hotfix or advisory needed"
     },
     {
-      "number": 15390,
-      "title": "[Bug]: Cherry Studio cannot call embedding models from remote Cherry API servers",
-      "labels": ["Assistant"],
-      "reason": "Knowledge base embedding broken for remote Cherry API"
+      "number": 13193,
+      "title": "[Bug]: Azure OpenAI Resource not found — wrong API endpoint",
+      "reason": "P1 bug stale 86 days; assigned to DeJeune but no fix. Azure users fully blocked."
     },
     {
-      "number": 15332,
-      "title": "[Bug]: Frequent Crashes on Desktop Application",
-      "labels": ["needs-repro"],
-      "reason": "Stability issue affecting desktop users"
+      "number": 13608,
+      "title": "[Bug]: mimo response only displays the last line",
+      "reason": "P1 bug stale 72 days; no fix in sight despite being high-priority label"
     },
     {
-      "number": 15322,
-      "title": "[Bug]: The assistant could not see the entire URL and content from builtin_web_search",
-      "labels": ["Assistant", "MCP"],
-      "reason": "Web search result truncation affecting assistant accuracy"
-    },
-    {
-      "number": 15337,
-      "title": "[Bug]: Added large models in model service, but still cannot select configured models when creating knowledge base",
-      "labels": ["needs-repro", "RAG"],
-      "reason": "Knowledge base model selection broken"
-    },
-    {
-      "number": 14603,
-      "title": "[Bug] Web search returns unrelated results",
-      "labels": ["needs-repro"],
-      "reason": "9 comments — ongoing; web search quality regression"
-    },
-    {
-      "number": 14362,
-      "title": "[Bug]: The model list displays grouped garbled text",
-      "labels": ["UI/UX"],
-      "reason": "9 comments — long-running UI bug"
+      "number": 15405,
+      "title": "[Bug]: Minified React error #185",
+      "reason": "6 comments; React invariant crash in production build — related startup crash closed today but root may remain"
     }
   ],
   "new_issues_today": {
-    "count_estimate": "~5-10",
+    "count_estimate": "~9 (based on +9 total delta)",
     "notable": [
-      {"number": 15426, "title": "[Bug] v1.9.7 Windows x64 portable ships ARM64 native module (registry.node), breaking OpenClaw entirely", "severity": "CRITICAL"},
-      {"number": 15415, "title": "[Feature]: Support Intel GPU Detection for OVMS"},
-      {"number": 15411, "title": "[Bug]: Memory deduplication ignores user and assistant scope"},
-      {"number": 15404, "title": "Brand FilePath with NFC guarantee, unify with CanonicalExternalPath / CanonicalFilePath"}
+      {"number": 15443, "title": "[Bug]: Multiple window error",                                             "comments": 3},
+      {"number": 15444, "title": "[Bug]: deepseek-v4-pro only displays the last token (likely today)",      "note": "inferred from high-comment recent issue"},
+      {"number": 15415, "title": "[Feature]: Support Intel GPU Detection for OVMS",                         "labels": []},
+      {"number": 15411, "title": "[Bug]: Memory deduplication ignores user and assistant scope",             "labels": []}
     ]
   },
-  "unlabeled_sample": [
-    {"number": 15426, "title": "[Bug] v1.9.7 Windows x64 portable ships ARM64 native module", "note": "CRITICAL — needs immediate triage label"},
-    {"number": 15415, "title": "[Feature]: Support Intel GPU Detection for OVMS"},
-    {"number": 15411, "title": "[Bug]: Memory deduplication ignores user and assistant scope"},
-    {"number": 15404, "title": "Brand FilePath with NFC guarantee, unify with CanonicalExternalPath"},
-    {"number": 15384, "title": "[Feature]: Add kilo-cli as a Supported Code CLI Tool"},
-    {"number": 15383, "title": "[Feature]: Real-Time Meeting Transcription and Smart Meeting Notes"},
-    {"number": 15370, "title": "refactor: unify all binary acquisition under BinaryManager"},
-    {"number": 15368, "title": "[Bug]: Skill import function does not support plugin format import"},
-    {"number": 15357, "title": "Support adding both regular API and token plan API for the same provider"},
-    {"number": 15347, "title": "[Bug]: Claude Code update installation failed"},
-    {"number": 15323, "title": "[Feature]: Agent session supports /clear command to reset context"}
-  ]
+  "closed_today": [
+    {"number": 15438, "title": "[Bug]: pnpm db:migrations:generate blocked — duplicate snapshot id"},
+    {"number": 15437, "title": "[Bug]: After update, startup fails with React #185 error"}
+  ],
+  "trend": {
+    "issues_velocity_7d": "+9 net open (opened ~18, closed ~9 est.)",
+    "closure_rate_30d": "~385 closed vs 893 open = 43% closure rate over 30d window",
+    "inactive_label_pressure": "42% of open issues marked inactive — indicates backlog accumulation outpaces active triage"
+  }
 }
