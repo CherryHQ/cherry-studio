@@ -37,6 +37,7 @@ import {
   exportMessageAsMarkdown,
   exportMessageToNotes,
   exportMessageToNotion,
+  exportTopicAsHtml,
   messageToMarkdown
 } from '@renderer/utils/export'
 // import { withMessageThought } from '@renderer/utils/formats'
@@ -397,6 +398,11 @@ const MessageMenubar: FC<Props> = (props) => {
               void window.api.export.toWord(markdown, title)
             }
           },
+          (exportMenuOptions.html ?? true) && {
+            label: t('chat.topics.export.html'),
+            key: 'html',
+            onClick: () => exportTopicAsHtml(topic)
+          },
           exportMenuOptions.notion && {
             label: t('chat.topics.export.notion'),
             key: 'notion',
@@ -464,6 +470,7 @@ const MessageMenubar: FC<Props> = (props) => {
   }, [
     dropdownRootAllowKeys,
     exportMenuOptions.docx,
+    exportMenuOptions.html,
     exportMenuOptions.image,
     exportMenuOptions.joplin,
     exportMenuOptions.markdown,
