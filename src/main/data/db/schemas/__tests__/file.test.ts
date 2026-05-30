@@ -4,7 +4,7 @@
  * These exercise the SQLite CHECK constraints, global unique index on
  * `externalPath`, and CASCADE FK — all of which are runtime guards we rely on
  * beyond the Zod layer. Kept separate from Zod-level shape tests (see
- * `packages/shared/data/types/__tests__/fileEntry.test.ts`).
+ * `src/shared/data/types/__tests__/fileEntry.test.ts`).
  */
 
 import { randomUUID } from 'node:crypto'

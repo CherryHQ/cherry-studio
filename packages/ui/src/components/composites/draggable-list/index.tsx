@@ -1,4 +1,4 @@
-// Original path: src/renderer/src/components/draggable-list/index.tsx
+// Original path: src/renderer/components/draggable-list/index.tsx
 export { default as DraggableList } from './list'
 export { useDraggableReorder } from './use-draggable-reorder'
 export {

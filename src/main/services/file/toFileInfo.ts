@@ -20,7 +20,7 @@
  *   which wraps this function.
  * - Internal entry missing on disk → a bug. The error propagates for visibility.
  *
- * @see FileInfo (packages/shared/file/types/info.ts) for the data shape.
+ * @see FileInfo (src/shared/file/types/info.ts) for the data shape.
  * @see architecture.md §2 for the reference-vs-data-shape design.
  */
 

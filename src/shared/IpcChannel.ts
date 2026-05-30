@@ -1,0 +1,547 @@
+export enum IpcChannel {
+  App_GetCacheSize = 'app:get-cache-size',
+  App_ClearCache = 'app:clear-cache',
+  App_SetLaunchOnBoot = 'app:set-launch-on-boot',
+  App_SetEnableSpellCheck = 'app:set-enable-spell-check',
+  App_SetSpellCheckLanguages = 'app:set-spell-check-languages',
+  App_CheckForUpdate = 'app:check-for-update',
+  App_QuitAndInstall = 'app:quit-and-install',
+  Application_Quit = 'application:quit',
+  App_Info = 'app:info',
+  App_SetAutoUpdate = 'app:set-auto-update',
+  App_SetTestPlan = 'app:set-test-plan',
+  App_SetTestChannel = 'app:set-test-channel',
+  App_HandleZoomFactor = 'app:handle-zoom-factor',
+  App_Select = 'app:select',
+  App_HasWritePermission = 'app:has-write-permission',
+  App_ResolvePath = 'app:resolve-path',
+  App_IsPathInside = 'app:is-path-inside',
+  App_Copy = 'app:copy',
+  Application_PreventQuit = 'application:prevent-quit',
+  Application_AllowQuit = 'application:allow-quit',
+  App_SetAppDataPath = 'app:set-app-data-path',
+  App_GetDataPathFromArgs = 'app:get-data-path-from-args',
+  App_FlushAppData = 'app:flush-app-data',
+  App_IsNotEmptyDir = 'app:is-not-empty-dir',
+  Application_Relaunch = 'application:relaunch',
+  App_ResetData = 'app:reset-data',
+  App_IsBinaryExist = 'app:is-binary-exist',
+  App_GetBinaryPath = 'app:get-binary-path',
+  App_InstallUvBinary = 'app:install-uv-binary',
+  App_InstallBunBinary = 'app:install-bun-binary',
+  App_InstallOvmsBinary = 'app:install-ovms-binary',
+  App_LogToMain = 'app:log-to-main',
+  App_GetDiskInfo = 'app:get-disk-info',
+  App_GetSystemFonts = 'app:get-system-fonts',
+  App_GetIpCountry = 'app:get-ip-country',
+
+  App_MacIsProcessTrusted = 'app:mac-is-process-trusted',
+  App_MacRequestProcessTrust = 'app:mac-request-process-trust',
+
+  App_QuoteToMain = 'app:quote-to-main',
+
+  Notification_Send = 'notification:send',
+  Notification_OnClick = 'notification:on-click',
+
+  Webview_SetOpenLinkExternal = 'webview:set-open-link-external',
+  Webview_SetSpellCheckEnabled = 'webview:set-spell-check-enabled',
+  Webview_SearchHotkey = 'webview:search-hotkey',
+  Webview_PrintToPDF = 'webview:print-to-pdf',
+  Webview_SaveAsHTML = 'webview:save-as-html',
+
+  // Open
+  Open_Path = 'open:path',
+  Open_Website = 'open:website',
+
+  MiniApp = 'mini-app',
+
+  Config_Set = 'config:set',
+  Config_Get = 'config:get',
+
+  // Quick Assistant
+  QuickAssistant_Show = 'quick-assistant:show',
+  QuickAssistant_Hide = 'quick-assistant:hide',
+  QuickAssistant_Close = 'quick-assistant:close',
+  QuickAssistant_Toggle = 'quick-assistant:toggle',
+  QuickAssistant_SetPin = 'quick-assistant:set-pin',
+  QuickAssistant_Shown = 'quick-assistant:shown',
+
+  // Mcp
+  Mcp_AddServer = 'mcp:add-server',
+  Mcp_RemoveServer = 'mcp:remove-server',
+  Mcp_RestartServer = 'mcp:restart-server',
+  Mcp_StopServer = 'mcp:stop-server',
+  Mcp_ListTools = 'mcp:list-tools',
+  Mcp_CallTool = 'mcp:call-tool',
+  Mcp_ListPrompts = 'mcp:list-prompts',
+  Mcp_GetPrompt = 'mcp:get-prompt',
+  Mcp_ListResources = 'mcp:list-resources',
+  Mcp_GetResource = 'mcp:get-resource',
+  Mcp_GetInstallInfo = 'mcp:get-install-info',
+  Mcp_ServersChanged = 'mcp:servers-changed',
+  Mcp_ServersUpdated = 'mcp:servers-updated',
+  Mcp_CheckConnectivity = 'mcp:check-connectivity',
+  Mcp_UploadDxt = 'mcp:upload-dxt',
+  Mcp_AbortTool = 'mcp:abort-tool',
+  Mcp_ResolveHubTool = 'mcp:resolve-hub-tool',
+  Mcp_GetServerVersion = 'mcp:get-server-version',
+  Mcp_Progress = 'mcp:progress',
+  Mcp_GetServerLogs = 'mcp:get-server-logs',
+  Mcp_ServerLog = 'mcp:server-log',
+  // Python
+  Python_Execute = 'python:execute',
+  Python_ExecutionRequest = 'python:execution-request',
+  Python_ExecutionResponse = 'python:execution-response',
+
+  // agent messages
+  AgentMessage_PersistExchange = 'agent-message:persist-exchange',
+  AgentMessage_GetHistory = 'agent-message:get-history',
+
+  AgentToolPermission_Request = 'agent-tool-permission:request',
+  AgentToolPermission_Response = 'agent-tool-permission:response',
+  AgentToolPermission_Result = 'agent-tool-permission:result',
+
+  // Agent session stream (IM channel -> renderer real-time)
+  AgentSessionStream_Subscribe = 'agent-session-stream:subscribe',
+  AgentSessionStream_Unsubscribe = 'agent-session-stream:unsubscribe',
+  AgentSessionStream_Abort = 'agent-session-stream:abort',
+  AgentSessionStream_Chunk = 'agent-session-stream:chunk',
+  AgentSession_Changed = 'agent-session:changed',
+
+  // WeChat channel
+  WeChat_QrLogin = 'wechat:qr-login',
+  WeChat_HasCredentials = 'wechat:has-credentials',
+
+  // Feishu channel
+  Feishu_QrLogin = 'feishu:qr-login',
+
+  // Channel status & logs
+  Channel_StatusChange = 'channel:status-change',
+  Channel_Log = 'channel:log',
+  Channel_GetLogs = 'channel:get-logs',
+  Channel_GetStatuses = 'channel:get-statuses',
+
+  //copilot
+  Copilot_GetAuthMessage = 'copilot:get-auth-message',
+  Copilot_GetCopilotToken = 'copilot:get-copilot-token',
+  Copilot_SaveCopilotToken = 'copilot:save-copilot-token',
+  Copilot_GetToken = 'copilot:get-token',
+  Copilot_Logout = 'copilot:logout',
+  Copilot_GetUser = 'copilot:get-user',
+
+  // CherryIN OAuth
+  CherryIN_SaveToken = 'cherryin:save-token',
+  CherryIN_HasToken = 'cherryin:has-token',
+  CherryIN_GetBalance = 'cherryin:get-balance',
+  CherryIN_Logout = 'cherryin:logout',
+  CherryIN_StartOAuthFlow = 'cherryin:start-oauth-flow',
+  // Main → renderer push: OAuth callback result, addressed to the flow initiator
+  // captured at startOAuthFlow time. Replaces the renderer-pulled exchange-token IPC.
+  CherryIN_OAuthResult = 'cherryin:oauth-result',
+
+  // obsidian
+  Obsidian_GetVaults = 'obsidian:get-vaults',
+  Obsidian_GetFiles = 'obsidian:get-files',
+
+  // nutstore
+  Nutstore_GetSsoUrl = 'nutstore:get-sso-url',
+  Nutstore_DecryptToken = 'nutstore:decrypt-token',
+  Nutstore_GetDirectoryContents = 'nutstore:get-directory-contents',
+
+  //aes
+  Aes_Encrypt = 'aes:encrypt',
+  Aes_Decrypt = 'aes:decrypt',
+
+  Gemini_UploadFile = 'gemini:upload-file',
+  Gemini_Base64File = 'gemini:base64-file',
+  Gemini_RetrieveFile = 'gemini:retrieve-file',
+  Gemini_ListFiles = 'gemini:list-files',
+  Gemini_DeleteFile = 'gemini:delete-file',
+
+  // VertexAI
+  VertexAI_GetAuthHeaders = 'vertexai:get-auth-headers',
+  VertexAI_GetAccessToken = 'vertexai:get-access-token',
+  VertexAI_ClearAuthCache = 'vertexai:clear-auth-cache',
+
+  // MainWindow: handlers in MainWindowService, operate on main window only.
+  MainWindow_Reload = 'main-window:reload',
+  MainWindow_CrashRenderProcess = 'main-window:crash-render-process',
+  MainWindow_ResetMinimumSize = 'main-window:reset-minimum-size',
+  MainWindow_SetMinimumSize = 'main-window:set-minimum-size',
+
+  Shortcut_RegistrationConflict = 'shortcut:registration-conflict',
+
+  // Tab
+  Tab_Attach = 'tab:attach',
+  Tab_Detach = 'tab:detach',
+  Tab_MoveWindow = 'tab:move-window',
+  Tab_TryAttach = 'tab:try-attach',
+  Tab_DragEnd = 'tab:drag-end',
+
+  KnowledgeBase_Create = 'knowledge-base:create',
+  KnowledgeBase_Reset = 'knowledge-base:reset',
+  KnowledgeBase_Delete = 'knowledge-base:delete',
+  KnowledgeBase_Add = 'knowledge-base:add',
+  KnowledgeBase_Remove = 'knowledge-base:remove',
+  KnowledgeBase_Search = 'knowledge-base:search',
+  KnowledgeBase_Rerank = 'knowledge-base:rerank',
+  KnowledgeRuntime_CreateBase = 'knowledge-runtime:create-base',
+  KnowledgeRuntime_RestoreBase = 'knowledge-runtime:restore-base',
+  KnowledgeRuntime_DeleteBase = 'knowledge-runtime:delete-base',
+  KnowledgeRuntime_AddItems = 'knowledge-runtime:add-items',
+  KnowledgeRuntime_DeleteItems = 'knowledge-runtime:delete-items',
+  KnowledgeRuntime_ReindexItems = 'knowledge-runtime:reindex-items',
+  KnowledgeRuntime_Search = 'knowledge-runtime:search',
+  KnowledgeRuntime_ListItemChunks = 'knowledge-runtime:list-item-chunks',
+  KnowledgeRuntime_DeleteItemChunk = 'knowledge-runtime:delete-item-chunk',
+
+  FileProcessing_StartTask = 'file-processing:start-task',
+  FileProcessing_ListAvailableProcessors = 'file-processing:list-available-processors',
+
+  //file
+  File_LegacyOpen = 'file:legacy:open',
+  File_OpenPath = 'file:openPath',
+  File_Save = 'file:save',
+  File_Select = 'file:select',
+  File_Upload = 'file:upload',
+  File_Clear = 'file:clear',
+  File_LegacyRead = 'file:legacy:read',
+  File_ReadExternal = 'file:readExternal',
+  File_Delete = 'file:delete',
+  File_DeleteDir = 'file:deleteDir',
+  File_DeleteExternalFile = 'file:deleteExternalFile',
+  File_DeleteExternalDir = 'file:deleteExternalDir',
+  File_Move = 'file:move',
+  File_MoveDir = 'file:moveDir',
+  File_LegacyRename = 'file:legacy:rename',
+  File_RenameDir = 'file:renameDir',
+  File_Get = 'file:get',
+  File_SelectFolder = 'file:selectFolder',
+  File_CreateTempFile = 'file:createTempFile',
+  File_Mkdir = 'file:mkdir',
+  File_LegacyWrite = 'file:legacy:write',
+  File_WriteWithId = 'file:writeWithId',
+  File_SaveImage = 'file:saveImage',
+  File_Base64Image = 'file:base64Image',
+  File_SaveBase64Image = 'file:saveBase64Image',
+  File_SavePastedImage = 'file:savePastedImage',
+  File_Download = 'file:download',
+  File_LegacyCopy = 'file:legacy:copy',
+  File_BinaryImage = 'file:binaryImage',
+  File_Base64File = 'file:base64File',
+  File_GetPdfInfo = 'file:getPdfInfo',
+  Fs_Read = 'fs:read',
+  Fs_ReadText = 'fs:readText',
+  File_OpenWithRelativePath = 'file:openWithRelativePath',
+  File_IsTextFile = 'file:isTextFile',
+  File_IsDirectory = 'file:isDirectory',
+  File_LegacyListDirectory = 'file:legacy:listDirectory',
+  File_GetDirectoryStructure = 'file:getDirectoryStructure',
+  File_CheckFileName = 'file:checkFileName',
+  File_ValidateNotesDirectory = 'file:validateNotesDirectory',
+  File_BatchUploadMarkdown = 'file:batchUploadMarkdown',
+  File_LegacyShowInFolder = 'file:legacy:showInFolder',
+  // FileManager v2 surface (Phase 1b.3)
+  File_GetDanglingState = 'file:getDanglingState',
+  File_BatchGetDanglingStates = 'file:batchGetDanglingStates',
+  // FileManager v2 surface (Phase 2)
+  File_CreateInternalEntry = 'file:createInternalEntry',
+  File_EnsureExternalEntry = 'file:ensureExternalEntry',
+  File_GetPhysicalPath = 'file:getPhysicalPath',
+  File_PermanentDelete = 'file:permanentDelete',
+  File_RunSweep = 'file:runSweep',
+  // DirectoryTreeBuilder primitive — top-level file-module surface, parallel
+  // to the FileEntry channels above. See docs/references/file/directory-tree.md.
+  File_TreeCreate = 'file:tree:create',
+  File_TreeDispose = 'file:tree:dispose',
+  File_TreeRename = 'file:tree:rename',
+  File_TreeMutation = 'file:tree:mutation',
+
+  // ─── File v2: Read / Metadata ───
+  File_Read = 'file:read',
+  File_GetMetadata = 'file:getMetadata',
+  File_BatchGetMetadata = 'file:batchGetMetadata',
+  File_GetVersion = 'file:getVersion',
+  File_GetContentHash = 'file:getContentHash',
+
+  // ─── File v2: Write ───
+  File_Write = 'file:write',
+  File_WriteIfUnchanged = 'file:writeIfUnchanged',
+
+  // ─── File v2: Lifecycle ───
+  File_Trash = 'file:trash',
+  File_Restore = 'file:restore',
+  File_BatchTrash = 'file:batchTrash',
+  File_BatchRestore = 'file:batchRestore',
+  File_BatchPermanentDelete = 'file:batchPermanentDelete',
+
+  // ─── File v2: Mutation ───
+  File_Rename = 'file:rename',
+  File_Copy = 'file:copy',
+
+  // ─── File v2: System / Navigation ───
+  File_Open = 'file:open',
+  File_ShowInFolder = 'file:showInFolder',
+  File_OpenSelectDialog = 'file:openSelectDialog',
+  File_OpenSaveDialog = 'file:openSaveDialog',
+
+  // ─── File v2: Directory ───
+  File_ListDirectory = 'file:listDirectory',
+  File_IsNotEmptyDir = 'file:isNotEmptyDir',
+
+  // ─── File v2: Batch Entry Operations ───
+  File_BatchCreateInternalEntries = 'file:batchCreateInternalEntries',
+  File_BatchEnsureExternalEntries = 'file:batchEnsureExternalEntries',
+  File_BatchGetPhysicalPaths = 'file:batchGetPhysicalPaths',
+
+  // ─── File v2: Path Utilities ───
+  File_CanWrite = 'file:canWrite',
+  File_ToAbsolutePath = 'file:toAbsolutePath',
+  File_IsPathInside = 'file:isPathInside',
+
+  // PDF
+  Pdf_ExtractText = 'pdf:extractText',
+
+  // file service
+  FileService_Upload = 'file-service:upload',
+  FileService_List = 'file-service:list',
+  FileService_Delete = 'file-service:delete',
+  FileService_Retrieve = 'file-service:retrieve',
+
+  Export_Word = 'export:word',
+
+  // backup
+  Backup_Backup = 'backup:backup',
+  Backup_Restore = 'backup:restore',
+  Backup_BackupToWebdav = 'backup:backupToWebdav',
+  Backup_RestoreFromWebdav = 'backup:restoreFromWebdav',
+  Backup_ListWebdavFiles = 'backup:listWebdavFiles',
+  Backup_CheckConnection = 'backup:checkConnection',
+  Backup_CreateDirectory = 'backup:createDirectory',
+  Backup_DeleteWebdavFile = 'backup:deleteWebdavFile',
+  Backup_BackupToLocalDir = 'backup:backupToLocalDir',
+  Backup_RestoreFromLocalBackup = 'backup:restoreFromLocalBackup',
+  Backup_ListLocalBackupFiles = 'backup:listLocalBackupFiles',
+  Backup_DeleteLocalBackupFile = 'backup:deleteLocalBackupFile',
+  Backup_BackupToS3 = 'backup:backupToS3',
+  Backup_RestoreFromS3 = 'backup:restoreFromS3',
+  Backup_ListS3Files = 'backup:listS3Files',
+  Backup_DeleteS3File = 'backup:deleteS3File',
+  Backup_CheckS3Connection = 'backup:checkS3Connection',
+  Backup_CreateLanTransferBackup = 'backup:createLanTransferBackup',
+  Backup_DeleteLanTransferBackup = 'backup:deleteLanTransferBackup',
+
+  // data migration
+  DataMigrate_CheckNeeded = 'data-migrate:check-needed',
+  DataMigrate_GetProgress = 'data-migrate:get-progress',
+  DataMigrate_Cancel = 'data-migrate:cancel',
+  DataMigrate_RequireBackup = 'data-migrate:require-backup',
+  DataMigrate_BackupCompleted = 'data-migrate:backup-completed',
+  DataMigrate_ShowBackupDialog = 'data-migrate:show-backup-dialog',
+  DataMigrate_StartFlow = 'data-migrate:start-flow',
+  DataMigrate_ProceedToBackup = 'data-migrate:proceed-to-backup',
+  DataMigrate_StartMigration = 'data-migrate:start-migration',
+  DataMigrate_RetryMigration = 'data-migrate:retry-migration',
+  DataMigrate_RestartApp = 'data-migrate:restart-app',
+  DataMigrate_CloseWindow = 'data-migrate:close-window',
+
+  // zip
+  Zip_Compress = 'zip:compress',
+  Zip_Decompress = 'zip:decompress',
+
+  // system
+  System_GetDeviceType = 'system:getDeviceType',
+  System_GetHostname = 'system:getHostname',
+  System_GetCpuName = 'system:getCpuName',
+  System_CheckGitBash = 'system:checkGitBash',
+  System_GetGitBashPath = 'system:getGitBashPath',
+  System_GetGitBashPathInfo = 'system:getGitBashPathInfo',
+  System_SetGitBashPath = 'system:setGitBashPath',
+
+  // DevTools
+  System_ToggleDevTools = 'system:toggleDevTools',
+
+  // events
+  BackupProgress = 'backup-progress',
+  DataMigrateProgress = 'data-migrate-progress',
+  NativeThemeUpdated = 'native-theme:updated',
+  RestoreProgress = 'restore-progress',
+  UpdateError = 'update-error',
+  UpdateAvailable = 'update-available',
+  UpdateNotAvailable = 'update-not-available',
+  DownloadProgress = 'download-progress',
+  UpdateDownloaded = 'update-downloaded',
+  DownloadUpdate = 'download-update',
+
+  DirectoryProcessingPercent = 'directory-processing-percent',
+
+  // Search Window
+  SearchWindow_Open = 'search-window:open',
+  SearchWindow_Close = 'search-window:close',
+  SearchWindow_OpenUrl = 'search-window:open-url',
+
+  // Provider
+  Provider_AddKey = 'provider:add-key',
+
+  // Web Search
+  WebSearch_SearchKeywords = 'web-search:search-keywords',
+  WebSearch_FetchUrls = 'web-search:fetch-urls',
+
+  //Selection Assistant
+  Selection_TextSelected = 'selection:text-selected',
+  Selection_ToolbarHide = 'selection:toolbar-hide',
+  Selection_ToolbarVisibilityChange = 'selection:toolbar-visibility-change',
+  Selection_ToolbarDetermineSize = 'selection:toolbar-determine-size',
+  Selection_WriteToClipboard = 'selection:write-to-clipboard',
+  Selection_ActionWindowPin = 'selection:action-window-pin',
+  Selection_ProcessAction = 'selection:process-action',
+  Selection_GetLinuxEnvInfo = 'selection:get-linux-env-info',
+
+  // Data: Preference
+  Preference_Get = 'preference:get',
+  Preference_Set = 'preference:set',
+  Preference_GetMultipleRaw = 'preference:get-multiple-raw',
+  Preference_SetMultiple = 'preference:set-multiple',
+  Preference_GetAll = 'preference:get-all',
+  Preference_Subscribe = 'preference:subscribe',
+  Preference_Changed = 'preference:changed',
+
+  // Data: Cache
+  Cache_Sync = 'cache:sync',
+  Cache_SyncBatch = 'cache:sync-batch',
+  Cache_GetAllShared = 'cache:get-all-shared',
+
+  // Data: API Channels
+  DataApi_Request = 'data-api:request',
+  DataApi_Subscribe = 'data-api:subscribe',
+  DataApi_Unsubscribe = 'data-api:unsubscribe',
+  DataApi_Stream = 'data-api:stream',
+
+  // TRACE
+  TRACE_SAVE_DATA = 'trace:saveData',
+  TRACE_GET_DATA = 'trace:getData',
+  TRACE_SAVE_ENTITY = 'trace:saveEntity',
+  TRACE_GET_ENTITY = 'trace:getEntity',
+  TRACE_BIND_TOPIC = 'trace:bindTopic',
+  TRACE_CLEAN_TOPIC = 'trace:cleanTopic',
+  TRACE_TOKEN_USAGE = 'trace:tokenUsage',
+  TRACE_CLEAN_HISTORY = 'trace:cleanHistory',
+  TRACE_OPEN_WINDOW = 'trace:openWindow',
+  TRACE_SET_TITLE = 'trace:setTitle',
+  TRACE_ADD_END_MESSAGE = 'trace:addEndMessage',
+  TRACE_CLEAN_LOCAL_DATA = 'trace:cleanLocalData',
+  TRACE_ADD_STREAM_MESSAGE = 'trace:addStreamMessage',
+
+  // API Server
+  ApiServer_Start = 'api-server:start',
+  ApiServer_Stop = 'api-server:stop',
+  ApiServer_Restart = 'api-server:restart',
+  ApiServer_GetStatus = 'api-server:get-status',
+  ApiServer_Ready = 'api-server:ready',
+  // NOTE: This api is not be used.
+  ApiServer_GetConfig = 'api-server:get-config',
+
+  // ExternalApps
+  ExternalApps_DetectInstalled = 'external-apps:detect-installed',
+
+  // CodeCli
+  CodeCli_Run = 'code-cli:run',
+  CodeCli_GetAvailableTerminals = 'code-cli:get-available-terminals',
+  CodeCli_SetCustomTerminalPath = 'code-cli:set-custom-terminal-path',
+  CodeCli_GetCustomTerminalPath = 'code-cli:get-custom-terminal-path',
+  CodeCli_RemoveCustomTerminalPath = 'code-cli:remove-custom-terminal-path',
+
+  // OCR
+  OCR_ocr = 'ocr:ocr',
+  OCR_ListProviders = 'ocr:list-providers',
+
+  // OVMS
+  Ovms_IsSupported = 'ovms:is-supported',
+  Ovms_AddModel = 'ovms:add-model',
+  Ovms_StopAddModel = 'ovms:stop-addmodel',
+  Ovms_GetModels = 'ovms:get-models',
+  Ovms_IsRunning = 'ovms:is-running',
+  Ovms_GetStatus = 'ovms:get-status',
+  Ovms_RunOVMS = 'ovms:run-ovms',
+  Ovms_StopOVMS = 'ovms:stop-ovms',
+
+  // CherryAI
+  Cherryai_GetSignature = 'cherryai:get-signature',
+
+  // Global Skills
+  Skill_List = 'skill:list',
+  Skill_Install = 'skill:install',
+  Skill_Uninstall = 'skill:uninstall',
+  Skill_Toggle = 'skill:toggle',
+  Skill_InstallFromZip = 'skill:install-from-zip',
+  Skill_InstallFromDirectory = 'skill:install-from-directory',
+  Skill_ReadFile = 'skill:read-file',
+  Skill_ListFiles = 'skill:list-files',
+  Skill_ListLocal = 'skill:list-local',
+
+  // LAN Transfer
+  LanTransfer_ListServices = 'lan-transfer:list',
+  LanTransfer_StartScan = 'lan-transfer:start-scan',
+  LanTransfer_StopScan = 'lan-transfer:stop-scan',
+  LanTransfer_ServicesUpdated = 'lan-transfer:services-updated',
+  LanTransfer_Connect = 'lan-transfer:connect',
+  LanTransfer_Disconnect = 'lan-transfer:disconnect',
+  LanTransfer_ClientEvent = 'lan-transfer:client-event',
+  LanTransfer_SendFile = 'lan-transfer:send-file',
+  LanTransfer_CancelTransfer = 'lan-transfer:cancel-transfer',
+
+  // OpenClaw
+  OpenClaw_CheckInstalled = 'openclaw:check-installed',
+  OpenClaw_Install = 'openclaw:install',
+  OpenClaw_Uninstall = 'openclaw:uninstall',
+  OpenClaw_InstallProgress = 'openclaw:install-progress',
+  OpenClaw_StartGateway = 'openclaw:start-gateway',
+  OpenClaw_StopGateway = 'openclaw:stop-gateway',
+  OpenClaw_GetStatus = 'openclaw:get-status',
+  OpenClaw_CheckHealth = 'openclaw:check-health',
+  OpenClaw_GetDashboardUrl = 'openclaw:get-dashboard-url',
+  OpenClaw_SyncConfig = 'openclaw:sync-config',
+  OpenClaw_GetChannels = 'openclaw:get-channels',
+  OpenClaw_CheckUpdate = 'openclaw:check-update',
+  OpenClaw_PerformUpdate = 'openclaw:perform-update',
+
+  // Analytics
+  Analytics_TrackTokenUsage = 'analytics:track-token-usage',
+
+  // WindowManager
+  SettingsWindow_Open = 'settings-window:open',
+  WindowManager_Open = 'window-manager:open',
+  WindowManager_Close = 'window-manager:close',
+  WindowManager_Minimize = 'window-manager:minimize',
+  WindowManager_Maximize = 'window-manager:maximize',
+  WindowManager_Unmaximize = 'window-manager:unmaximize',
+  WindowManager_SetFullScreen = 'window-manager:set-full-screen',
+  WindowManager_IsMaximized = 'window-manager:is-maximized',
+  WindowManager_IsFullScreen = 'window-manager:is-full-screen',
+  WindowManager_GetInitData = 'window-manager:get-init-data',
+  // All three below are sent only to the originating window's webContents.
+  // macOS unreliable for maximize/unmaximize (electron#3325, #28699) — use FullscreenChanged on macOS.
+  WindowManager_MaximizedChanged = 'window-manager:maximized-changed',
+  // OS-level only; does NOT cover HTML5 element.requestFullscreen() or macOS setSimpleFullScreen.
+  WindowManager_FullscreenChanged = 'window-manager:fullscreen-changed',
+  // Payload = the initData passed to open(); omitted if none supplied, not fired on fresh creation.
+  WindowManager_Reused = 'window-manager:reused',
+
+  // Agent operations
+  Agent_RunTask = 'agent:run-task',
+  Agent_GetModels = 'agent:get-models',
+  Agent_ListTools = 'agent:list-tools'
+
+  // ──────────────────────────────────────────────────────────────
+  // TODO(v2): the following IPC channels are still referenced via
+  // bare string literals throughout the codebase and not declared
+  // as enum members. They should be collected here in a future
+  // cleanup pass so broadcastToType/invoke call sites get editor
+  // auto-complete and cross-reference support:
+  //
+  //   - 'notification-click'        (NotificationService + ipc.ts Notification_OnClick handler)
+  //   - 'protocol-data'             (ProtocolService + preload)
+  //   - 'file-preprocess-finished'  (PreprocessingService + KnowledgeService)
+  //   - 'file-preprocess-progress'  (BasePreprocessProvider)
+  // ──────────────────────────────────────────────────────────────
+}

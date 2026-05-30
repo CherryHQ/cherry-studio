@@ -25,7 +25,7 @@
 ## 3. 数据来源与字段边界约束
 
 - Knowledge V2 UI 的数据模型与字段边界以 `src/main/data/db/schemas/knowledge.ts` 为准。
-- Knowledge V2 UI 的 renderer 侧领域类型统一复用 `packages/shared/data/types/knowledge.ts`，不再在页面目录重复定义 knowledge base 主数据类型。
+- Knowledge V2 UI 的 renderer 侧领域类型统一复用 `src/shared/data/types/knowledge.ts`，不再在页面目录重复定义 knowledge base 主数据类型。
 - 知识库与知识项相关 UI，应围绕 `knowledge_base` 与 `knowledge_item` 的 SQLite 结构来设计和实现。
 - 不再使用原先 Redux knowledge 数据作为事实来源。
 - 任何旧实现中存在、但不在 `knowledge.ts` 中稳定定义的字段，不应继续作为 V2 UI 的设计前提。

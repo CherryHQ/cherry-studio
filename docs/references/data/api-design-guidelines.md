@@ -452,7 +452,7 @@ Routing non-data operations through DataApi causes concrete problems:
 
 ## Zod Schema & DTO Conventions
 
-Four rules govern every schema file under `packages/shared/data/api/schemas/`. Follow them verbatim.
+Four rules govern every schema file under `src/shared/data/api/schemas/`. Follow them verbatim.
 
 ### A. Use `type` for `XxxSchemas` route tables
 
@@ -543,7 +543,7 @@ Otherwise inline `.pick({...})`:
 
 ### D. Write every DataApi schema in Zod; no `drizzle-zod`, no pure TS `interface` DTO
 
-All entity schemas and DTOs in `packages/shared/data/api/schemas/` MUST be hand-written Zod schemas.
+All entity schemas and DTOs in `src/shared/data/api/schemas/` MUST be hand-written Zod schemas.
 
 - **No `interface XxxDto`** — violates Electron trust-boundary validation (renderer → main IPC requires runtime validation per Electron security checklist #17).
 - **No `drizzle-zod`** — the library is being deprecated in drizzle v1, and its generated schemas have TS type bugs on `.pick()`/`.omit()` that conflict with Rule C.

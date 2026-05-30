@@ -1,4 +1,4 @@
-// Original path: src/renderer/src/components/editable-number/index.tsx
+// Original path: src/renderer/components/editable-number/index.tsx
 import { cn } from '@cherrystudio/ui/lib/utils'
 import * as React from 'react'
 

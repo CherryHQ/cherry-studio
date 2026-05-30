@@ -69,7 +69,7 @@ import { legacyModelToUniqueId } from '../transformers/ModelTransformers'
 
 /**
  * Old Topic type from Redux assistants slice
- * Source: src/renderer/src/types/index.ts
+ * Source: src/renderer/types/index.ts
  */
 export interface OldTopic {
   id: string
@@ -125,7 +125,7 @@ export interface OldModel {
 
 /**
  * Old Message type from Dexie topics table
- * Source: src/renderer/src/types/newMessage.ts
+ * Source: src/renderer/types/newMessage.ts
  */
 export interface OldMessage {
   id: string

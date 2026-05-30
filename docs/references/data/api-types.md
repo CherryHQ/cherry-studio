@@ -5,7 +5,7 @@ This directory contains the type definitions and utilities for Cherry Studio's D
 ## Directory Structure
 
 ```
-packages/shared/data/api/
+src/shared/data/api/
 ├── index.ts           # Barrel export for infrastructure types
 ├── apiTypes.ts        # Core request/response types and API utilities
 ├── apiPaths.ts        # Path template literal type utilities

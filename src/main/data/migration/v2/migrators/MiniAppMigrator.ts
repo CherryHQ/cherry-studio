@@ -65,7 +65,7 @@ export class MiniAppMigrator extends BaseMigrator {
       this.originalSourceCount = groups.reduce((total, group) => total + group.data.length, 0)
 
       // v1 strips `logo` to undefined before persisting custom apps to Redux state
-      // (see v1 src/renderer/src/store/minapps.ts reducers). The full custom-app
+      // (see v1 src/renderer/store/minapps.ts reducers). The full custom-app
       // record — including logo — lives in `customMiniAppsFile` (resolved by
       // MigrationPaths from {userData}/Data/Files/custom-minapps.json) and is
       // reattached at runtime. Re-read it here so logos survive migration.

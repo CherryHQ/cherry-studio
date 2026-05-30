@@ -412,7 +412,7 @@ export const LAN_TRANSFER_ALLOWED_MIME_TYPES = ['application/zip', 'application/
 
 ## Appendix A: TypeScript Type Definitions
 
-Complete type definitions are located in `packages/shared/config/types.ts`. See the source code for the full interface definitions.
+Complete type definitions are located in `src/shared/config/types.ts`. See the source code for the full interface definitions.
 
 ## Appendix B: Version History
 

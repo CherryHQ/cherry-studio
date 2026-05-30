@@ -1,4 +1,4 @@
-// Original: src/renderer/src/components/Spinner.tsx
+// Original: src/renderer/components/Spinner.tsx
 import { motion } from 'framer-motion'
 import { Search } from 'lucide-react'
 

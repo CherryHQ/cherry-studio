@@ -84,7 +84,7 @@ import type {
   SkillInstallOptions,
   SkillResult,
   SkillToggleOptions
-} from '../renderer/src/types/skill'
+} from '../renderer/types/skill'
 
 // OpenClaw types
 type OpenClawGatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
@@ -675,7 +675,7 @@ const api = {
     // wm.setInitData() or wm.open({ initData }). Returns null when no data was set or when
     // the sender window is not managed by WindowManager (e.g., detached devtools).
     // Renderers that also need to update on reuse should prefer the useWindowInitData
-    // hook (core/hooks/useWindowInitData), which also listens for WindowManager_Reused.
+    // hook (hooks/useWindowInitData), which also listens for WindowManager_Reused.
     getInitData: <T = unknown>(): Promise<T | null> => ipcRenderer.invoke(IpcChannel.WindowManager_GetInitData),
 
     minimize: (): Promise<void> => ipcRenderer.invoke(IpcChannel.WindowManager_Minimize),

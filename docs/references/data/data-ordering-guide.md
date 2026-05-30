@@ -40,7 +40,7 @@ export const userModel = sqliteTable(
 
 ### 2. API schema — `OrderEndpoints<TRes>`
 
-File: `packages/shared/data/api/schemas/_endpointHelpers.ts`. Intersect the resource's schema type with `OrderEndpoints<'/res'>` to inject the two PATCH endpoints into `ApiSchemas`.
+File: `src/shared/data/api/schemas/_endpointHelpers.ts`. Intersect the resource's schema type with `OrderEndpoints<'/res'>` to inject the two PATCH endpoints into `ApiSchemas`.
 
 ```typescript
 import type { OrderEndpoints } from './_endpointHelpers'
@@ -75,7 +75,7 @@ Migrators (Redux/Dexie → SQLite) use the pure-function counterparts `assignOrd
 
 ### 4. Renderer — `useReorder` hook
 
-File: `src/renderer/src/data/hooks/useReorder.ts`. One hook on top of `useMutation`; drop its `applyReorderedList` straight into a drag-and-drop callback.
+File: `src/renderer/data/hooks/useReorder.ts`. One hook on top of `useMutation`; drop its `applyReorderedList` straight into a drag-and-drop callback.
 
 ```tsx
 import { useQuery } from '@data/hooks/useDataApi'
