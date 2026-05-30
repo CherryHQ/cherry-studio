@@ -65,7 +65,7 @@ import { buildNamespacedToolCallId } from './claude-stream-state'
 import { createSdkMcpServerInstance } from './createSdkMcpServerInstance'
 import { promptForToolApproval } from './tool-permissions'
 import { ClaudeStreamState, transformSDKMessageToStreamParts } from './transform'
-import { with1mContextSuffix } from './utils'
+import { encodeCwdForClaudeProjects, with1mContextSuffix } from './utils'
 
 const require_ = createRequire(import.meta.url)
 const logger = loggerService.withContext('ClaudeCodeService')
@@ -673,9 +673,34 @@ class ClaudeCodeService implements AgentServiceInterface {
     }
 
     if (lastAgentSessionId && !NO_RESUME_COMMANDS.some((cmd) => prompt.includes(cmd))) {
-      options.resume = lastAgentSessionId
-      // TODO: use fork session when we support branching sessions
-      // options.forkSession = true
+      // Verify the SDK still has the session jsonl on disk before requesting resume.
+      // If the file is missing (e.g. after backup/restore that didn't include
+      // CLAUDE_CONFIG_DIR, or after the cwd encoding changed), passing `resume`
+      // makes the SDK error out with "No conversation found with session ID: ..."
+      // which permanently breaks the chat. Falling back to a fresh SDK session
+      // loses model context for the next turn but keeps the UI usable; the
+      // visible message history (stored in Cherry Studio's DB) is preserved.
+      const claudeRoot = application.getPath('feature.agents.claude.root')
+      const projectDir = path.join(claudeRoot, 'projects', encodeCwdForClaudeProjects(cwd))
+      const sessionFile = path.join(projectDir, `${lastAgentSessionId}.jsonl`)
+      const resumable = await fs.promises
+        .access(sessionFile, fs.constants.R_OK)
+        .then(() => true)
+        .catch(() => false)
+      if (resumable) {
+        options.resume = lastAgentSessionId
+        // TODO: use fork session when we support branching sessions
+        // options.forkSession = true
+      } else {
+        logger.warn(
+          'Skipping resume — Claude Code session jsonl missing on disk (orphaned agent_session_id). Starting a fresh SDK session.',
+          {
+            sessionId: lastAgentSessionId,
+            cwd,
+            expectedFile: sessionFile
+          }
+        )
+      }
     }
 
     logger.info('Starting Claude Code SDK query', {

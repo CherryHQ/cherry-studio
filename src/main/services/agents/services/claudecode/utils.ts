@@ -183,3 +183,22 @@ export function with1mContextSuffix(modelId: string | undefined, anthropicHost: 
 
   return modelId
 }
+
+/**
+ * Encode a cwd path the way Claude Code SDK does when laying out
+ * `<CLAUDE_CONFIG_DIR>/projects/<encoded-cwd>/<session-id>.jsonl`.
+ *
+ * The SDK replaces every path-separator-ish character (`/`, `\`, `:`, `.`)
+ * with `-` to get a single flat directory name. Mirroring the rule here lets
+ * us probe the SDK's storage to verify a session jsonl exists before issuing
+ * `--resume` — passing a stale id otherwise crashes the stream with
+ * `No conversation found with session ID: <uuid>`.
+ *
+ * Note: the SDK has historically used this collapsing rule across versions;
+ * the heuristic is robust enough that a future encoding change would simply
+ * make us fall back to "fresh session" (which is the safe default), never the
+ * inverse.
+ */
+export function encodeCwdForClaudeProjects(cwd: string): string {
+  return cwd.replace(/[/\\:.]/g, '-')
+}

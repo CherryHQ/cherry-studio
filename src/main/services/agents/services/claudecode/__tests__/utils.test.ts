@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { isCherryInOfficialHost, isDeepSeekOfficialHost, isMiMoOfficialHost, with1mContextSuffix } from '../utils'
+import {
+  encodeCwdForClaudeProjects,
+  isCherryInOfficialHost,
+  isDeepSeekOfficialHost,
+  isMiMoOfficialHost,
+  with1mContextSuffix
+} from '../utils'
 
 describe('isDeepSeekOfficialHost', () => {
   it('matches the canonical DeepSeek Anthropic endpoint', () => {
@@ -150,5 +156,35 @@ describe('with1mContextSuffix', () => {
   it('returns empty string when modelId is missing', () => {
     expect(with1mContextSuffix(undefined, deepSeekHost)).toBe('')
     expect(with1mContextSuffix('', deepSeekHost)).toBe('')
+  })
+})
+
+describe('encodeCwdForClaudeProjects', () => {
+  it('matches Claude Code SDK project-dir naming for typical POSIX cwds', () => {
+    expect(encodeCwdForClaudeProjects('/home/alice/.config/CherryStudio/Data/Agents/t-default')).toBe(
+      '-home-alice--config-CherryStudio-Data-Agents-t-default'
+    )
+  })
+
+  it('matches the SDK convention for Windows-style cwds (drive letter + backslashes)', () => {
+    expect(encodeCwdForClaudeProjects('C:\\Users\\Administrator\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\t-default')).toBe(
+      'C--Users-Administrator-AppData-Roaming-CherryStudio-Data-Agents-t-default'
+    )
+  })
+
+  it('encodes nested Windows-in-POSIX residue (e.g. unzipped Windows backup under ~/Downloads)', () => {
+    // Real-world case: Cherry Studio backup zip from Windows extracted under
+    // /home/<user>/Downloads/ leaks the original drive-letter prefix into cwd.
+    // The encoded dir must still match what the SDK lays out, otherwise
+    // resume-validation false-positives a fresh session.
+    expect(
+      encodeCwdForClaudeProjects(
+        '/home/bubu/Downloads/C:/Users/Administrator/AppData/Roaming/CherryStudio/Data/Agents/t-default'
+      )
+    ).toBe('-home-bubu-Downloads-C--Users-Administrator-AppData-Roaming-CherryStudio-Data-Agents-t-default')
+  })
+
+  it('preserves alphanumerics, underscores, and existing dashes', () => {
+    expect(encodeCwdForClaudeProjects('plain_dir-name_42')).toBe('plain_dir-name_42')
   })
 })
