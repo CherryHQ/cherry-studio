@@ -1,21 +1,7 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
 import type { DailyUsage, TopicStats } from '@renderer/utils/topicStats'
 import { computeGlobalStatsFromDB } from '@renderer/utils/topicStats'
-import {
-  BarChart3,
-  Bot,
-  Clock,
-  Coins,
-  Cpu,
-  FileText,
-  Gauge,
-  Hash,
-  Loader,
-  MessageSquare,
-  Type,
-  User,
-  Zap
-} from 'lucide-react'
+import { BarChart3, Bot, Clock, Cpu, FileText, Gauge, Hash, Loader, MessageSquare, Type, Zap } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -29,12 +15,7 @@ function fmtTokens(n: number): string {
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
   return String(n)
 }
-function fmtCost(n: number): string {
-  if (n === 0) return '$0'
-  if (n < 0.01) return `$${n.toFixed(4)}`
-  if (n < 1) return `$${n.toFixed(3)}`
-  return `$${n.toFixed(2)}`
-}
+
 function fmtDuration(ms: number): string {
   if (ms <= 0) return '—'
   if (ms < 1000) return `${ms}ms`
@@ -51,14 +32,17 @@ function fmtDuration(ms: number): string {
   const y = Math.floor(mo / 12)
   return `${y}y ${mo % 12}mo`
 }
+
 function fmtLatency(ms: number): string {
   if (ms <= 0) return '—'
   if (ms < 1000) return `${Math.round(ms)}ms`
   return `${(ms / 1000).toFixed(1)}s`
 }
+
 function fmtSpeed(tps: number): string {
   return tps > 0 ? `${Math.round(tps)} tok/s` : '—'
 }
+
 function fmtProvider(p: string): string {
   const m: Record<string, string> = {
     openai: 'OpenAI',
@@ -73,7 +57,13 @@ function fmtProvider(p: string): string {
     lmstudio: 'LM Studio',
     siliconflow: 'SiliconFlow',
     oneapi: 'OneAPI',
-    gemini: 'Gemini'
+    gemini: 'Gemini',
+    moonshot: 'Moonshot',
+    zhipu: 'Zhipu',
+    baichuan: 'Baichuan',
+    qwen: 'Qwen',
+    deepseek_chat: 'DeepSeek',
+    deepseek_reasoner: 'DeepSeek'
   }
   return m[p] || p
 }
@@ -89,7 +79,7 @@ const MODEL_C = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#a855f7', '#06b6d4
 
 // ─── Overview Cards ─────────────────────────────────────────────────────────
 
-const OV = styled.div` display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 20px; `
+const OV = styled.div` display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; `
 const OCard = styled.div<{ $a: string }>`
   background: var(--color-background-soft); border: 0.5px solid var(--color-border);
   border-radius: 10px; padding: 14px 16px; position: relative; overflow: hidden;
@@ -124,42 +114,30 @@ const MBox = styled.div`
 `
 const MTop = styled.div` display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 6px; `
 const MName = styled.span` font-size: 13px; font-weight: 600; color: var(--color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; `
-const MBadge = styled.span` font-size: 10px; color: var(--color-text-secondary, #888); background: var(--color-background); padding: 2px 6px; border-radius: 4px; flex-shrink: 0; `
+const MBadge = styled.span` font-size: 10px; color: var(--color-text-secondary, #888); background: var(--color-background); padding: 2px 6px; border-radius: 4px; flex-shrink: 0; white-space: nowrap; `
 const MTrack = styled.div` height: 8px; border-radius: 4px; background: var(--color-background); overflow: hidden; margin-bottom: 6px; `
 const MFill = styled.div<{ $w: number; $c: string }>`
   height: 100%; width: ${(p) => p.$w}%; background: ${(p) => p.$c}; border-radius: 4px; transition: width 0.5s ease;
 `
 const MMeta = styled.div`
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 4px 12px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 4px 12px;
   font-size: 11px; color: var(--color-text-secondary, #888); font-variant-numeric: tabular-nums;
-`
-
-// ─── Compact Row (for message count — guarantees single line) ───────────────
-
-const CompactRow = styled.div`
-  display: flex; align-items: center; gap: 8px;
-  padding: 2px 0; min-height: 28px;
-`
-const CompactLabel = styled.span`
-  font-size: 13px; color: var(--color-text-1); flex-shrink: 0;
-  display: flex; align-items: center; gap: 4px;
-`
-const CompactVal = styled.span`
-  font-variant-numeric: tabular-nums; font-size: 13px; white-space: nowrap;
-  display: flex; align-items: center; gap: 4px;
-  margin-left: auto;
 `
 
 // ─── Daily Heatmap ──────────────────────────────────────────────────────────
 
-const HMWrap = styled.div` overflow-x: auto; padding-bottom: 4px; `
+const HMWrap = styled.div`
+  display: flex; flex-direction: column; align-items: center;
+`
 
-const HMGrid = styled.div` display: flex; gap: 3px; `
+const HMGrid = styled.div`
+  display: flex; gap: 3px; justify-content: center;
+`
 
 const HMCol = styled.div` display: flex; flex-direction: column; gap: 3px; `
 
 const HMCell = styled.div.attrs<{ $level: number; title: string }>((p) => ({ title: p.title }))<{ $level: number }>`
-  width: 11px; height: 11px; border-radius: 2px; flex-shrink: 0;
+  width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0;
   background: ${(p) => {
     const g = ['var(--color-background-soft)', '#0e4429', '#006d32', '#26a641', '#39d353']
     return g[p.$level] || g[0]
@@ -167,8 +145,14 @@ const HMCell = styled.div.attrs<{ $level: number; title: string }>((p) => ({ tit
 `
 
 const HMLegend = styled.div`
-  display: flex; align-items: center; gap: 4px; justify-content: flex-end;
+  display: flex; align-items: center; gap: 4px; justify-content: center;
   margin-top: 8px; font-size: 10px; color: var(--color-text-secondary, #888);
+`
+
+const HMMonths = styled.div`
+  display: flex; justify-content: space-between; width: 100%; max-width: 100%;
+  margin-bottom: 4px; font-size: 10px; color: var(--color-text-secondary, #888);
+  padding: 0 1px;
 `
 
 // ─── Heatmap Component ──────────────────────────────────────────────────────
@@ -180,9 +164,8 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
     return m
   }, [dailyUsage])
 
-  const { weeks, monthMarkers, maxCount } = useMemo(() => {
+  const { weeks, monthLabels, maxCount } = useMemo(() => {
     const today = new Date()
-    // Go back 364 days from today, then align to start of week (Sunday)
     const end = new Date(today)
     const start = new Date(end)
     start.setDate(start.getDate() - 364)
@@ -193,9 +176,11 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
     let cur: { dateStr: string; count: number; month: number; year: number }[] = []
     let max = 0
 
-    // Track month labels: for each month, record which week index it first appears in
-    const seenMonths = new Set<string>()
-    const markers: { label: string; weekIdx: number }[] = []
+    // Build month labels: map each week index to its month name
+    const mn = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    const labels: { label: string; weekIdx: number }[] = []
+    let lastMonth = -1
+    let lastYear = -1
     let wi = 0
 
     const d = new Date(start)
@@ -205,12 +190,13 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
       if (count > max) max = count
       cur.push({ dateStr: ds, count, month: d.getMonth(), year: d.getFullYear() })
 
-      // Track month first appearance
-      const mk = `${d.getFullYear()}-${d.getMonth()}`
-      if (!seenMonths.has(mk)) {
-        seenMonths.add(mk)
-        const mn = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-        markers.push({ label: mn[d.getMonth()], weekIdx: wi })
+      // Track first appearance of each month
+      if (d.getMonth() !== lastMonth || d.getFullYear() !== lastYear) {
+        if (lastMonth !== -1 || lastYear !== -1) {
+          labels.push({ label: mn[lastMonth] || '', weekIdx: wi })
+        }
+        lastMonth = d.getMonth()
+        lastYear = d.getFullYear()
       }
 
       d.setDate(d.getDate() + 1)
@@ -221,8 +207,12 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
       }
     }
     if (cur.length > 0) allWeeks.push(cur)
+    // Push the last month's label
+    if (lastMonth >= 0) {
+      labels.push({ label: mn[lastMonth] || '', weekIdx: wi })
+    }
 
-    return { weeks: allWeeks, monthMarkers: markers, maxCount: max || 1 }
+    return { weeks: allWeeks, monthLabels: labels, maxCount: max || 1 }
   }, [usageMap])
 
   const getLevel = (count: number): number => {
@@ -236,31 +226,28 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
 
   if (weeks.length === 0) return null
 
-  // Build month label row: place labels at their week index offset
-  // Each week column = 11px cell + 3px gap = 14px
-  const COL_W = 14
+  // Build flexible month label row
+  const totalWeeks = weeks.length
+  // First and last labels at edges, others distributed evenly
+  const firstLabel = monthLabels.length > 0 ? monthLabels[0] : null
+  const lastLabel = monthLabels.length > 1 ? monthLabels[monthLabels.length - 1] : null
+  const middleLabels = monthLabels.length > 2 ? monthLabels.slice(1, -1) : []
 
   return (
     <HMWrap>
-      {/* Month labels */}
-      <div style={{ display: 'flex', height: 16, marginBottom: 4, position: 'relative' }}>
-        {monthMarkers.map((m, i) => {
-          const left = m.weekIdx * COL_W
+      {/* Month labels — distribute across available width using flex */}
+      <HMMonths style={{ width: totalWeeks * 15 - 3 }}>
+        <span>{firstLabel?.label ?? ''}</span>
+        {middleLabels.map((m, i) => {
+          const pct = ((m.weekIdx - firstLabel!.weekIdx) / (totalWeeks - 1)) * 100
           return (
-            <span
-              key={i}
-              style={{
-                position: 'absolute',
-                left,
-                fontSize: 10,
-                color: 'var(--color-text-secondary, #888)',
-                whiteSpace: 'nowrap'
-              }}>
+            <span key={i} style={{ position: 'absolute', left: `${pct}%` }}>
               {m.label}
             </span>
           )
         })}
-      </div>
+        <span>{lastLabel?.label ?? ''}</span>
+      </HMMonths>
 
       <HMGrid>
         {weeks.map((week, wi) => (
@@ -275,7 +262,7 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
       <HMLegend>
         Less
         {[0, 1, 2, 3, 4].map((lvl) => (
-          <HMCell key={lvl} $level={lvl} title="" style={{ width: 11, height: 11, borderRadius: 2 }} />
+          <HMCell key={lvl} $level={lvl} title="" style={{ width: 12, height: 12, borderRadius: 2 }} />
         ))}
         More
       </HMLegend>
@@ -289,18 +276,17 @@ function StatsDisplay({ stats }: { stats: TopicStats }) {
   const { t } = useTranslation()
 
   const tokTotal = stats.totalTokens || 1
-  const costTotal = stats.totalCost || 1
   const maxModelT = stats.modelStats.length > 0 ? stats.modelStats[0].totalTokens : 1
 
   return (
     <>
-      {/* ── Overview Cards ── */}
+      {/* ── Overview Cards (3 cards, no cost) ── */}
       <OV>
         <OCard $a="#6366f1">
           <OIcon $c="#6366f1">
             <MessageSquare size={14} />
           </OIcon>
-          <OVal>{stats.totalMessages}</OVal>
+          <OVal>{stats.totalMessages.toLocaleString()}</OVal>
           <OLbl>{t('stats.messages')}</OLbl>
         </OCard>
         <OCard $a="#10b981">
@@ -312,13 +298,6 @@ function StatsDisplay({ stats }: { stats: TopicStats }) {
         </OCard>
         <OCard $a="#f59e0b">
           <OIcon $c="#f59e0b">
-            <Coins size={14} />
-          </OIcon>
-          <OVal>{fmtCost(stats.totalCost)}</OVal>
-          <OLbl>{t('stats.total_cost')}</OLbl>
-        </OCard>
-        <OCard $a="#ef4444">
-          <OIcon $c="#ef4444">
             <Zap size={14} />
           </OIcon>
           <OVal>{fmtLatency(stats.avgFirstTokenLatency)}</OVal>
@@ -336,50 +315,48 @@ function StatsDisplay({ stats }: { stats: TopicStats }) {
         </SettingTitle>
         <SettingDivider />
 
-        {/* Message count — compact non-wrapping row */}
-        <CompactRow>
-          <CompactLabel>
-            <MessageSquare size={13} />
+        <SettingRow>
+          <SettingRowTitle>
+            <MessageSquare size={13} style={{ marginRight: 6 }} />
             {t('stats.messages')}
-          </CompactLabel>
-          <CompactVal>
-            <strong>{stats.totalMessages}</strong>
-            <span style={{ color: 'var(--color-text-secondary, #888)' }}>
-              (<User size={10} style={{ verticalAlign: 'baseline' }} /> {stats.userMessages}{' '}
-              <Bot size={10} style={{ verticalAlign: 'baseline' }} /> {stats.assistantMessages})
+          </SettingRowTitle>
+          <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 13 }}>
+            <strong>{stats.totalMessages.toLocaleString()}</strong>
+            <span style={{ color: 'var(--color-text-secondary, #888)', marginLeft: 6 }}>
+              (用户 {stats.userMessages.toLocaleString()} / 助手 {stats.assistantMessages.toLocaleString()})
             </span>
-          </CompactVal>
-        </CompactRow>
+          </span>
+        </SettingRow>
         <SettingDivider />
-        <CompactRow>
-          <CompactLabel>
-            <Clock size={13} />
+        <SettingRow>
+          <SettingRowTitle>
+            <Clock size={13} style={{ marginRight: 6 }} />
             {t('stats.duration')}
-          </CompactLabel>
-          <CompactVal>
-            <strong>{fmtDuration(stats.durationMs)}</strong>
-          </CompactVal>
-        </CompactRow>
+          </SettingRowTitle>
+          <strong style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+            {fmtDuration(stats.durationMs)}
+          </strong>
+        </SettingRow>
         <SettingDivider />
-        <CompactRow>
-          <CompactLabel>
-            <Type size={13} />
+        <SettingRow>
+          <SettingRowTitle>
+            <Type size={13} style={{ marginRight: 6 }} />
             {t('stats.total_characters')}
-          </CompactLabel>
-          <CompactVal>
-            <strong>{stats.totalCharacters.toLocaleString()}</strong>
-          </CompactVal>
-        </CompactRow>
+          </SettingRowTitle>
+          <strong style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+            {stats.totalCharacters.toLocaleString()}
+          </strong>
+        </SettingRow>
         <SettingDivider />
-        <CompactRow>
-          <CompactLabel>
-            <FileText size={13} />
+        <SettingRow>
+          <SettingRowTitle>
+            <FileText size={13} style={{ marginRight: 6 }} />
             {t('stats.total_words')}
-          </CompactLabel>
-          <CompactVal>
-            <strong>{stats.totalWords.toLocaleString()}</strong>
-          </CompactVal>
-        </CompactRow>
+          </SettingRowTitle>
+          <strong style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+            {stats.totalWords.toLocaleString()}
+          </strong>
+        </SettingRow>
       </SettingGroup>
 
       {/* ── Token Breakdown ── */}
@@ -422,36 +399,7 @@ function StatsDisplay({ stats }: { stats: TopicStats }) {
         </SettingGroup>
       )}
 
-      {/* ── Cost Breakdown ── */}
-      {stats.totalCost > 0 && (
-        <SettingGroup>
-          <SettingTitle>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Coins size={15} />
-              {t('stats.cost_breakdown')}
-            </span>
-            <strong style={{ fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{fmtCost(stats.totalCost)}</strong>
-          </SettingTitle>
-          <SettingDivider />
-          <BTrack>
-            <BSeg $w={(stats.inputCost / costTotal) * 100} $c="#f59e0b" />
-            <BSeg $w={(stats.outputCost / costTotal) * 100} $c="#ef4444" />
-          </BTrack>
-          <BLegend>
-            <BLItem>
-              <BLDot $c="#f59e0b" />
-              {t('stats.input_cost')} <strong style={{ color: 'var(--color-text)' }}>{fmtCost(stats.inputCost)}</strong>
-            </BLItem>
-            <BLItem>
-              <BLDot $c="#ef4444" />
-              {t('stats.output_cost')}{' '}
-              <strong style={{ color: 'var(--color-text)' }}>{fmtCost(stats.outputCost)}</strong>
-            </BLItem>
-          </BLegend>
-        </SettingGroup>
-      )}
-
-      {/* ── Daily Usage Heatmap ── */}
+      {/* ── Daily Usage Heatmap (global only) ── */}
       {stats.dailyUsage.length > 0 && (
         <SettingGroup>
           <SettingTitle>
@@ -488,22 +436,24 @@ function StatsDisplay({ stats }: { stats: TopicStats }) {
                 <MTrack>
                   <MFill $w={maxModelT > 0 ? (m.totalTokens / maxModelT) * 100 : 0} $c={MODEL_C[i % MODEL_C.length]} />
                 </MTrack>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-                  <MMeta>
+                <MMeta>
+                  <span>
+                    {t('stats.messages')}: <strong style={{ color: 'var(--color-text)' }}>{m.messageCount}</strong>
+                  </span>
+                  <span>
+                    Tokens: <strong style={{ color: 'var(--color-text)' }}>{fmtTokens(m.totalTokens)}</strong>
+                  </span>
+                  {m.avgTokensPerSecond > 0 && (
                     <span>
-                      {t('stats.messages')}: <strong style={{ color: 'var(--color-text)' }}>{m.messageCount}</strong>
+                      ⚡ <strong style={{ color: 'var(--color-text)' }}>{fmtSpeed(m.avgTokensPerSecond)}</strong>
                     </span>
+                  )}
+                  {m.avgFirstTokenLatency > 0 && (
                     <span>
-                      Tokens: <strong style={{ color: 'var(--color-text)' }}>{fmtTokens(m.totalTokens)}</strong>
+                      ⏱ <strong style={{ color: 'var(--color-text)' }}>{fmtLatency(m.avgFirstTokenLatency)}</strong>
                     </span>
-                    {m.cost > 0 && (
-                      <span>
-                        {t('stats.total_cost')}:{' '}
-                        <strong style={{ color: 'var(--color-text)' }}>{fmtCost(m.cost)}</strong>
-                      </span>
-                    )}
-                  </MMeta>
-                </div>
+                  )}
+                </MMeta>
               </MBox>
             ))}
           </MBContainer>

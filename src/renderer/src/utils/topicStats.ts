@@ -1,5 +1,5 @@
 import db from '@renderer/databases'
-import type { MainTextMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
+import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
 
 export interface ModelStats {
@@ -111,10 +111,32 @@ function extractTextContent(message: Message, blocksMap: Map<string, MessageBloc
   for (const blockId of message.blocks) {
     const block = blocksMap.get(blockId)
     if (block && block.type === MessageBlockType.MAIN_TEXT) {
-      parts.push((block as MainTextMessageBlock).content || '')
+      parts.push(block.content || '')
     }
   }
   return parts.join('\n\n')
+}
+
+function resolveProvider(msg: Message): string {
+  // Try model.provider first
+  if (msg.model?.provider) return msg.model.provider
+  // Try to infer from model id (e.g. "openai/gpt-4o" → "openai")
+  const mid = msg.modelId || msg.model?.id
+  if (mid) {
+    const slashIdx = mid.indexOf('/')
+    if (slashIdx > 0) return mid.slice(0, slashIdx)
+    // Common prefixes
+    if (mid.startsWith('claude-')) return 'anthropic'
+    if (mid.startsWith('gemini-')) return 'google'
+  }
+  return 'unknown'
+}
+
+function resolveModelName(msg: Message): string {
+  if (msg.model?.name) return msg.model.name
+  if (msg.modelId) return msg.modelId
+  if (msg.model?.id) return msg.model.id
+  return 'Unknown Model'
 }
 
 function computeModelStats(messages: Message[]): ModelStats[] {
@@ -124,8 +146,8 @@ function computeModelStats(messages: Message[]): ModelStats[] {
     if (msg.role !== 'assistant' || !msg.usage) continue
 
     const modelId = msg.modelId || msg.model?.id || 'unknown'
-    const modelName = msg.model?.name || msg.modelId || 'Unknown Model'
-    const provider = msg.model?.provider || 'unknown'
+    const modelName = resolveModelName(msg)
+    const provider = resolveProvider(msg)
 
     let stats = modelMap.get(modelId)
     if (!stats) {
@@ -333,7 +355,7 @@ export function computeTopicStats(messages: Message[], blocksMap?: Map<string, M
 export async function computeTopicStatsFromDB(topicId: string): Promise<TopicStats> {
   try {
     const topic = await db.topics.get(topicId)
-    const messages = (topic?.messages || []) as Message[]
+    const messages = topic?.messages || []
 
     // Load all blocks for these messages from the message_blocks table
     const messageIds = messages.map((m) => m.id)
@@ -355,7 +377,7 @@ export async function computeTopicStatsFromDB(topicId: string): Promise<TopicSta
 export async function computeGlobalStatsFromDB(): Promise<TopicStats> {
   try {
     const allTopics = await db.topics.toArray()
-    const allMessages = allTopics.flatMap((t) => (t.messages || []) as Message[])
+    const allMessages = allTopics.flatMap((t) => t.messages || [])
 
     // Load ALL blocks from the message_blocks table
     const allBlocks = await db.message_blocks.toArray()
