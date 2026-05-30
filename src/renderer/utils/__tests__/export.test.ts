@@ -79,6 +79,13 @@ vi.mock('@renderer/utils/markdown', async (importOriginal) => {
   }
 })
 
+vi.mock('@renderer/utils/markdownConverter', () => ({
+  markdownToHtml: vi.fn((markdown: string | null | undefined): string => {
+    if (!markdown) return ''
+    return markdown
+  })
+}))
+
 // Import the functions to test AFTER setting up mocks
 import type { Topic } from '@renderer/types'
 import { TopicType } from '@renderer/types'
@@ -1040,9 +1047,13 @@ describe('Citation formatting in Markdown export', () => {
 // HTML Export Tests
 // ============================================================================
 
-describe('topicToHtml', () => {
-  let topicToHtml: (topic: Topic) => Promise<string>
+// markdownToHtml is mocked at the top of this file (pass-through: returns input as-is).
+// These tests verify the HTML document structure produced by buildHtmlDocument
+// and the integration with topicToHtml.
 
+import { topicToHtml } from '../export'
+
+describe('topicToHtml', () => {
   const baseTopic: Topic = {
     id: 'topic_html_test',
     name: 'Test Conversation',
@@ -1055,29 +1066,9 @@ describe('topicToHtml', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
-    vi.resetModules()
-
-    // Mock markdownToHtml — must use doMock to avoid Vite circular import issues
-    vi.doMock('@renderer/utils/markdownConverter', () => ({
-      markdownToHtml: vi.fn((markdown: string) => {
-        if (!markdown) return ''
-        return markdown
-          .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-          .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-          .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-          .replace(/\*(.+?)\*/g, '<em>$1</em>')
-          .replace(/^- (.+)$/gm, '<li>$1</li>')
-          .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>')
-          .replace(/`([^`]+)`/g, '<code>$1</code>')
-      })
-    }))
 
     const { TopicManager } = await import('@renderer/hooks/useTopic')
     ;(TopicManager.getTopicMessages as any).mockResolvedValue([])
-
-    const mod = await import('../export')
-    topicToHtml = mod.topicToHtml
   })
 
   it('should generate a complete HTML document with DOCTYPE', async () => {
@@ -1136,47 +1127,20 @@ describe('topicToHtml', () => {
     expect(html).toContain('A &amp; B Conversation')
   })
 
-  it('should render markdown content as HTML', async () => {
+  it('should include message content in the output', async () => {
     const { TopicManager } = await import('@renderer/hooks/useTopic')
     ;(TopicManager.getTopicMessages as any).mockResolvedValue([
-      createMessage({ role: 'user', id: 'html_md' }, [
+      createMessage({ role: 'user', id: 'html_content' }, [
         { type: MessageBlockType.MAIN_TEXT, content: '# Heading\n\n**bold** and *italic*\n\n- list item' }
       ])
     ])
 
     const html = await topicToHtml(baseTopic)
 
-    expect(html).toContain('<h1>Heading</h1>')
-    expect(html).toContain('<strong>bold</strong>')
-    expect(html).toContain('<em>italic</em>')
-    expect(html).toContain('<li>list item</li>')
-  })
-
-  it('should render code blocks with language class', async () => {
-    const { TopicManager } = await import('@renderer/hooks/useTopic')
-    ;(TopicManager.getTopicMessages as any).mockResolvedValue([
-      createMessage({ role: 'assistant', id: 'html_code' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: '```javascript\nconst x = 1;\n```' }
-      ])
-    ])
-
-    const html = await topicToHtml(baseTopic)
-
-    expect(html).toContain('<pre><code class="language-javascript">')
-    expect(html).toContain('const x = 1;')
-  })
-
-  it('should handle inline code', async () => {
-    const { TopicManager } = await import('@renderer/hooks/useTopic')
-    ;(TopicManager.getTopicMessages as any).mockResolvedValue([
-      createMessage({ role: 'user', id: 'html_inline_code' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'Use the `console.log()` function' }
-      ])
-    ])
-
-    const html = await topicToHtml(baseTopic)
-
-    expect(html).toContain('<code>console.log()</code>')
+    expect(html).toContain('# Heading')
+    expect(html).toContain('**bold**')
+    expect(html).toContain('*italic*')
+    expect(html).toContain('- list item')
   })
 
   it('should handle empty messages gracefully', async () => {
@@ -1238,9 +1202,7 @@ describe('topicToHtml', () => {
   it('should be valid HTML structure with correct nesting', async () => {
     const { TopicManager } = await import('@renderer/hooks/useTopic')
     ;(TopicManager.getTopicMessages as any).mockResolvedValue([
-      createMessage({ role: 'user', id: 'html_structure' }, [
-        { type: MessageBlockType.MAIN_TEXT, content: 'Hello\n\n## Section\n\nContent' }
-      ])
+      createMessage({ role: 'user', id: 'html_structure' }, [{ type: MessageBlockType.MAIN_TEXT, content: 'Hello' }])
     ])
 
     const html = await topicToHtml(baseTopic)
