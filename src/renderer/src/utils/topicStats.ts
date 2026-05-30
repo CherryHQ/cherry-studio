@@ -1,7 +1,6 @@
 import db from '@renderer/databases'
-import type { Message } from '@renderer/types/newMessage'
-
-import { getMainTextContent } from './messageUtils/find'
+import type { MainTextMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
+import { MessageBlockType } from '@renderer/types/newMessage'
 
 export interface ModelStats {
   modelId: string
@@ -16,6 +15,13 @@ export interface ModelStats {
   avgFirstTokenLatency: number
   avgCompletionTime: number
   avgTokensPerSecond: number
+}
+
+export interface DailyUsage {
+  date: string // YYYY-MM-DD
+  messages: number
+  tokens: number
+  cost: number
 }
 
 export interface TopicStats {
@@ -51,6 +57,9 @@ export interface TopicStats {
 
   // Per-model breakdown
   modelStats: ModelStats[]
+
+  // Daily usage for heatmap
+  dailyUsage: DailyUsage[]
 }
 
 function getMessageCost(message: Message): { inputCost: number; outputCost: number; totalCost: number } {
@@ -61,7 +70,6 @@ function getMessageCost(message: Message): { inputCost: number; outputCost: numb
   // OpenRouter uses cost directly from usage
   if (model?.provider === 'openrouter' && message.usage?.cost !== undefined) {
     const total = message.usage.cost
-    // Estimate split: proportional to token counts
     const totalTokens = inputTokens + outputTokens || 1
     const inputRatio = inputTokens / totalTokens
     return {
@@ -85,14 +93,28 @@ function getMessageCost(message: Message): { inputCost: number; outputCost: numb
 
 function getWordCount(text: string): number {
   if (!text) return 0
-  // For CJK: count each CJK character as a word
-  // For Latin: split by whitespace
   const cjkChars = (text.match(/[一-鿿぀-ゟ゠-ヿ]/g) || []).length
   const latinWords = text
     .replace(/[一-鿿぀-ゟ゠-ヿ]/g, '')
     .split(/\s+/)
     .filter((w) => w.length > 0).length
   return cjkChars + latinWords
+}
+
+/**
+ * Extract text content directly from message + its blocks (loaded from DB).
+ * Does NOT depend on Redux store.
+ */
+function extractTextContent(message: Message, blocksMap: Map<string, MessageBlock>): string {
+  if (!message.blocks || message.blocks.length === 0) return ''
+  const parts: string[] = []
+  for (const blockId of message.blocks) {
+    const block = blocksMap.get(blockId)
+    if (block && block.type === MessageBlockType.MAIN_TEXT) {
+      parts.push((block as MainTextMessageBlock).content || '')
+    }
+  }
+  return parts.join('\n\n')
 }
 
 function computeModelStats(messages: Message[]): ModelStats[] {
@@ -156,7 +178,29 @@ function computeModelStats(messages: Message[]): ModelStats[] {
   return Array.from(modelMap.values()).sort((a, b) => b.totalTokens - a.totalTokens)
 }
 
-export function computeTopicStats(messages: Message[]): TopicStats {
+function computeDailyUsage(messages: Message[]): DailyUsage[] {
+  const dailyMap = new Map<string, DailyUsage>()
+
+  for (const msg of messages) {
+    if (!msg.createdAt) continue
+    const date = msg.createdAt.slice(0, 10) // YYYY-MM-DD
+    let entry = dailyMap.get(date)
+    if (!entry) {
+      entry = { date, messages: 0, tokens: 0, cost: 0 }
+      dailyMap.set(date, entry)
+    }
+    entry.messages++
+    if (msg.role === 'assistant' && msg.usage) {
+      entry.tokens += msg.usage.total_tokens ?? 0
+      const cost = getMessageCost(msg)
+      entry.cost += cost.totalCost
+    }
+  }
+
+  return Array.from(dailyMap.values()).sort((a, b) => a.date.localeCompare(b.date))
+}
+
+export function computeTopicStats(messages: Message[], blocksMap?: Map<string, MessageBlock>): TopicStats {
   const emptyStats: TopicStats = {
     totalMessages: 0,
     userMessages: 0,
@@ -176,7 +220,8 @@ export function computeTopicStats(messages: Message[]): TopicStats {
     firstMessageAt: null,
     lastMessageAt: null,
     durationMs: 0,
-    modelStats: []
+    modelStats: [],
+    dailyUsage: []
   }
 
   if (!messages || messages.length === 0) {
@@ -214,8 +259,11 @@ export function computeTopicStats(messages: Message[]): TopicStats {
       if (!lastMessageAt || msg.createdAt > lastMessageAt) lastMessageAt = msg.createdAt
     }
 
-    // Content stats (for all message types)
-    const textContent = getMainTextContent(msg)
+    // Content stats — use blocksMap if available, otherwise try getMainTextContent
+    let textContent = ''
+    if (blocksMap) {
+      textContent = extractTextContent(msg, blocksMap)
+    }
     if (textContent) {
       totalChars += textContent.length
       totalWords += getWordCount(textContent)
@@ -274,31 +322,49 @@ export function computeTopicStats(messages: Message[]): TopicStats {
     firstMessageAt,
     lastMessageAt,
     durationMs,
-    modelStats: computeModelStats(messages)
+    modelStats: computeModelStats(messages),
+    dailyUsage: computeDailyUsage(messages)
   }
 }
 
 /**
- * Load messages for a specific topic from the database and compute stats.
+ * Load messages + blocks for a specific topic from the database and compute stats.
  */
 export async function computeTopicStatsFromDB(topicId: string): Promise<TopicStats> {
   try {
     const topic = await db.topics.get(topicId)
     const messages = (topic?.messages || []) as Message[]
-    return computeTopicStats(messages)
+
+    // Load all blocks for these messages from the message_blocks table
+    const messageIds = messages.map((m) => m.id)
+    const blocks = await db.message_blocks.where('messageId').anyOf(messageIds).toArray()
+    const blocksMap = new Map<string, MessageBlock>()
+    for (const block of blocks) {
+      blocksMap.set(block.id, block)
+    }
+
+    return computeTopicStats(messages, blocksMap)
   } catch {
     return computeTopicStats([])
   }
 }
 
 /**
- * Load ALL messages from all topics in the database and compute global stats.
+ * Load ALL messages + blocks from all topics in the database and compute global stats.
  */
 export async function computeGlobalStatsFromDB(): Promise<TopicStats> {
   try {
     const allTopics = await db.topics.toArray()
     const allMessages = allTopics.flatMap((t) => (t.messages || []) as Message[])
-    return computeTopicStats(allMessages)
+
+    // Load ALL blocks from the message_blocks table
+    const allBlocks = await db.message_blocks.toArray()
+    const blocksMap = new Map<string, MessageBlock>()
+    for (const block of allBlocks) {
+      blocksMap.set(block.id, block)
+    }
+
+    return computeTopicStats(allMessages, blocksMap)
   } catch {
     return computeTopicStats([])
   }

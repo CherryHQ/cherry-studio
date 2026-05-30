@@ -2,8 +2,8 @@ import { TopView } from '@renderer/components/TopView'
 import type { TopicStats } from '@renderer/utils/topicStats'
 import { computeTopicStatsFromDB } from '@renderer/utils/topicStats'
 import { Modal as AntdModal, Spin } from 'antd'
-import { BarChart3, Bot, Coins, Cpu, FileText, Gauge, MessageSquare, User, Zap } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { BarChart3, Bot, Coins, Cpu, Gauge, MessageSquare, User, Zap } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -38,11 +38,28 @@ function formatDuration(ms: number): string {
   const seconds = Math.floor(ms / 1000)
   if (seconds < 60) return `${seconds}s`
   const minutes = Math.floor(seconds / 60)
-  const remainingSeconds = seconds % 60
-  if (minutes < 60) return `${minutes}m ${remainingSeconds}s`
+  if (minutes < 60) {
+    const rem = seconds % 60
+    return rem > 0 ? `${minutes}m ${rem}s` : `${minutes}m`
+  }
   const hours = Math.floor(minutes / 60)
-  const remainingMinutes = minutes % 60
-  return `${hours}h ${remainingMinutes}m`
+  if (hours < 24) {
+    const rem = minutes % 60
+    return rem > 0 ? `${hours}h ${rem}m` : `${hours}h`
+  }
+  const days = Math.floor(hours / 24)
+  if (days < 30) {
+    const rem = hours % 24
+    return rem > 0 ? `${days}d ${rem}h` : `${days}d`
+  }
+  const months = Math.floor(days / 30)
+  if (months < 12) {
+    const rem = days % 30
+    return rem > 0 ? `${months}mo ${rem}d` : `${months}mo`
+  }
+  const years = Math.floor(months / 12)
+  const rem = months % 12
+  return rem > 0 ? `${years}y ${rem}mo` : `${years}y`
 }
 
 function formatLatency(ms: number): string {
@@ -55,9 +72,23 @@ function formatSpeed(tokensPerSec: number): string {
   return `${Math.round(tokensPerSec)} tok/s`
 }
 
-function formatDate(iso: string | null): string {
-  if (!iso) return '—'
-  return new Date(iso).toLocaleString()
+function formatProvider(provider: string): string {
+  const map: Record<string, string> = {
+    openai: 'OpenAI',
+    anthropic: 'Anthropic',
+    google: 'Google',
+    openrouter: 'OpenRouter',
+    azure: 'Azure',
+    deepseek: 'DeepSeek',
+    mistral: 'Mistral',
+    groq: 'Groq',
+    ollama: 'Ollama',
+    lmstudio: 'LM Studio',
+    siliconflow: 'SiliconFlow',
+    oneapi: 'OneAPI',
+    gemini: 'Gemini'
+  }
+  return map[provider] || provider
 }
 
 // ─── Styled Components ──────────────────────────────────────────────────────
@@ -134,6 +165,7 @@ const StatCardValue = styled.div`
   line-height: 1.2;
   margin-bottom: 2px;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 `
 
 const StatCardLabel = styled.div`
@@ -180,19 +212,30 @@ const LegendDot = styled.div<{ $color: string }>`
   background: ${(p) => p.$color};
 `
 
-const ModelRow = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--color-border);
+// ─── Model Bar Chart ────────────────────────────────────────────────────────
 
-  &:last-child {
-    border-bottom: none;
-  }
+const MODEL_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#a855f7', '#06b6d4', '#ec4899', '#84cc16']
+
+const ModelBarContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 `
 
-const ModelName = styled.div`
+const ModelBarRow = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`
+
+const ModelBarHeader = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+`
+
+const ModelBarName = styled.span`
   font-size: 13px;
   font-weight: 500;
   color: var(--color-text);
@@ -200,32 +243,41 @@ const ModelName = styled.div`
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
-  margin-right: 12px;
 `
 
-const ModelBar = styled.div`
-  height: 6px;
-  border-radius: 3px;
+const ModelBarProvider = styled.span`
+  font-size: 11px;
+  color: var(--color-text-secondary, #888);
+  background: var(--color-background-soft, rgba(255, 255, 255, 0.05));
+  padding: 1px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+`
+
+const ModelBarTrack = styled.div`
+  height: 8px;
+  border-radius: 4px;
   background: var(--color-background-soft, rgba(255, 255, 255, 0.03));
   overflow: hidden;
-  width: 80px;
-  margin-right: 12px;
 `
 
-const ModelBarFill = styled.div<{ $width: number }>`
+const ModelBarFill = styled.div<{ $width: number; $color: string }>`
   height: 100%;
   width: ${(p) => p.$width}%;
-  background: var(--color-primary);
-  border-radius: 3px;
+  background: ${(p) => p.$color};
+  border-radius: 4px;
 `
 
-const ModelMetric = styled.span`
+const ModelBarMetrics = styled.div`
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
   font-size: 12px;
   color: var(--color-text-secondary, #888);
   font-variant-numeric: tabular-nums;
-  min-width: 50px;
-  text-align: right;
 `
+
+// ─── Performance Grid ───────────────────────────────────────────────────────
 
 const PerfGrid = styled.div`
   display: grid;
@@ -247,12 +299,141 @@ const PerfValue = styled.div`
   color: var(--color-text);
   margin-bottom: 2px;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 `
 
 const PerfLabel = styled.div`
   font-size: 11px;
   color: var(--color-text-secondary, #888);
 `
+
+// ─── Daily Heatmap ──────────────────────────────────────────────────────────
+
+const HeatmapContainer = styled.div`
+  overflow-x: auto;
+  padding: 4px 0;
+`
+
+const HeatmapGrid = styled.div`
+  display: flex;
+  gap: 3px;
+`
+
+const HeatmapColumn = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+`
+
+const HeatmapCell = styled.div<{ $level: number }>`
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: ${(p) => {
+    const colors = ['var(--color-background-soft, rgba(255,255,255,0.03))', '#0e4429', '#006d32', '#26a641', '#39d353']
+    return colors[p.$level]
+  }};
+`
+
+function DailyHeatmap({ dailyUsage }: { dailyUsage: { date: string; messages: number }[] }) {
+  const usageMap = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const d of dailyUsage) {
+      map.set(d.date, d.messages)
+    }
+    return map
+  }, [dailyUsage])
+
+  const { weeks, monthLabels } = useMemo(() => {
+    const today = new Date()
+    const startDate = new Date(today)
+    startDate.setDate(startDate.getDate() - 364)
+    const dayOfWeek = startDate.getDay()
+    startDate.setDate(startDate.getDate() - dayOfWeek)
+
+    const weeksArr: { dateStr: string; count: number }[][] = []
+    let currentWeek: { dateStr: string; count: number }[] = []
+    const monthsSet = new Set<string>()
+    const mLabels: { label: string; weekIdx: number }[] = []
+    let weekIdx = 0
+
+    const d = new Date(startDate)
+    while (d <= today) {
+      const dateStr = d.toISOString().slice(0, 10)
+      const count = usageMap.get(dateStr) || 0
+      currentWeek.push({ dateStr, count })
+
+      const monthKey = `${d.getFullYear()}-${d.getMonth()}`
+      if (!monthsSet.has(monthKey)) {
+        monthsSet.add(monthKey)
+        const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+        mLabels.push({ label: names[d.getMonth()], weekIdx })
+      }
+
+      if (currentWeek.length === 7) {
+        weeksArr.push(currentWeek)
+        currentWeek = []
+        weekIdx++
+      }
+      d.setDate(d.getDate() + 1)
+    }
+    if (currentWeek.length > 0) weeksArr.push(currentWeek)
+
+    return { weeks: weeksArr, monthLabels: mLabels }
+  }, [usageMap])
+
+  const maxCount = useMemo(() => {
+    let max = 0
+    for (const week of weeks) {
+      for (const day of week) {
+        if (day.count > max) max = day.count
+      }
+    }
+    return max || 1
+  }, [weeks])
+
+  const getLevel = (count: number): number => {
+    if (count === 0) return 0
+    const ratio = count / maxCount
+    if (ratio <= 0.25) return 1
+    if (ratio <= 0.5) return 2
+    if (ratio <= 0.75) return 3
+    return 4
+  }
+
+  return (
+    <HeatmapContainer>
+      <div style={{ display: 'flex', marginBottom: 4 }}>
+        {monthLabels.map((m, i) => {
+          const gap = i === 0 ? m.weekIdx * 15 : (m.weekIdx - monthLabels[i - 1].weekIdx) * 15
+          return (
+            <div
+              key={i}
+              style={{
+                fontSize: 10,
+                color: 'var(--color-text-secondary, #888)',
+                marginLeft: gap,
+                whiteSpace: 'nowrap'
+              }}>
+              {m.label}
+            </div>
+          )
+        })}
+      </div>
+      <HeatmapGrid>
+        {weeks.map((week, wi) => (
+          <HeatmapColumn key={wi}>
+            {week.map((day, di) => (
+              <HeatmapCell key={di} $level={getLevel(day.count)} title={`${day.dateStr}: ${day.count} msgs`} />
+            ))}
+          </HeatmapColumn>
+        ))}
+      </HeatmapGrid>
+    </HeatmapContainer>
+  )
+}
+
+// ─── Info Grid ──────────────────────────────────────────────────────────────
 
 const InfoGrid = styled.div`
   display: grid;
@@ -272,6 +453,7 @@ const InfoValue = styled.div`
   font-size: 13px;
   font-weight: 500;
   color: var(--color-text);
+  white-space: nowrap;
 `
 
 const EmptyState = styled.div`
@@ -330,7 +512,7 @@ const TopicStatsPopupContainer: React.FC<Props> = ({ topicId, topicName, resolve
       onOk={() => setOpen(false)}
       afterClose={afterClose}
       footer={null}
-      width={600}
+      width={620}
       centered
       destroyOnClose
       transitionName="animation-move-down">
@@ -446,22 +628,45 @@ const TopicStatsPopupContainer: React.FC<Props> = ({ topicId, topicName, resolve
             </Section>
           )}
 
+          {/* Daily Usage */}
+          {stats.dailyUsage.length > 0 && (
+            <Section>
+              <SectionTitle>
+                <BarChart3 size={13} /> {t('stats.daily_usage')}
+              </SectionTitle>
+              <DailyHeatmap dailyUsage={stats.dailyUsage} />
+            </Section>
+          )}
+
           {/* Models */}
           {stats.modelStats.length > 0 && (
             <Section>
               <SectionTitle>
                 <Bot size={13} /> {t('stats.model_usage')}
               </SectionTitle>
-              {stats.modelStats.map((m) => (
-                <ModelRow key={m.modelId}>
-                  <ModelName title={m.modelName}>{m.modelName}</ModelName>
-                  <ModelBar>
-                    <ModelBarFill $width={(m.totalTokens / maxModelTokens) * 100} />
-                  </ModelBar>
-                  <ModelMetric>{m.messageCount} msgs</ModelMetric>
-                  <ModelMetric>{formatCost(m.cost)}</ModelMetric>
-                </ModelRow>
-              ))}
+              <ModelBarContainer>
+                {stats.modelStats.map((m, i) => (
+                  <ModelBarRow key={m.modelId}>
+                    <ModelBarHeader>
+                      <ModelBarName title={m.modelName}>{m.modelName}</ModelBarName>
+                      <ModelBarProvider>{formatProvider(m.provider)}</ModelBarProvider>
+                    </ModelBarHeader>
+                    <ModelBarTrack>
+                      <ModelBarFill
+                        $width={(m.totalTokens / maxModelTokens) * 100}
+                        $color={MODEL_COLORS[i % MODEL_COLORS.length]}
+                      />
+                    </ModelBarTrack>
+                    <ModelBarMetrics>
+                      <span>{m.messageCount} msgs</span>
+                      <span>{formatTokens(m.totalTokens)} tok</span>
+                      {m.cost > 0 && <span>{formatCost(m.cost)}</span>}
+                      {m.avgTokensPerSecond > 0 && <span>{formatSpeed(m.avgTokensPerSecond)}</span>}
+                      {m.avgFirstTokenLatency > 0 && <span>FT: {formatLatency(m.avgFirstTokenLatency)}</span>}
+                    </ModelBarMetrics>
+                  </ModelBarRow>
+                ))}
+              </ModelBarContainer>
             </Section>
           )}
 
@@ -491,12 +696,12 @@ const TopicStatsPopupContainer: React.FC<Props> = ({ topicId, topicName, resolve
           {/* Info */}
           <Section>
             <SectionTitle>
-              <FileText size={13} /> {t('stats.conversation_info')}
+              <MessageSquare size={13} /> {t('stats.conversation_info')}
             </SectionTitle>
             <InfoGrid>
               <InfoItem>
                 <InfoLabel>{t('stats.created_at')}</InfoLabel>
-                <InfoValue>{formatDate(stats.firstMessageAt)}</InfoValue>
+                <InfoValue>{stats.firstMessageAt ? new Date(stats.firstMessageAt).toLocaleString() : '—'}</InfoValue>
               </InfoItem>
               <InfoItem>
                 <InfoLabel>{t('stats.duration')}</InfoLabel>

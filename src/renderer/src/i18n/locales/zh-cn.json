@@ -5857,6 +5857,7 @@
     }
   },
   "stats": {
+    "active_days": "天活跃",
     "assistant_messages": "助手消息",
     "avg_completion": "平均完成时间",
     "avg_first_token": "平均首 Token",
@@ -5864,6 +5865,7 @@
     "conversation_info": "对话信息",
     "cost_breakdown": "费用分布",
     "created_at": "创建时间",
+    "daily_usage": "每日用量",
     "distribution": "占比",
     "duration": "持续时长",
     "input_cost": "输入费用",

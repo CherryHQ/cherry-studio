@@ -5857,6 +5857,7 @@
     }
   },
   "stats": {
+    "active_days": "days active",
     "assistant_messages": "Assistant Messages",
     "avg_completion": "Avg Completion",
     "avg_first_token": "Avg First Token",
@@ -5864,6 +5865,7 @@
     "conversation_info": "Conversation Info",
     "cost_breakdown": "Cost Breakdown",
     "created_at": "Created",
+    "daily_usage": "Daily Usage",
     "distribution": "Distribution",
     "duration": "Duration",
     "input_cost": "Input Cost",

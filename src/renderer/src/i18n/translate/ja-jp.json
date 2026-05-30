@@ -5857,6 +5857,7 @@
     }
   },
   "stats": {
+    "active_days": "[to be translated]:days active",
     "assistant_messages": "[to be translated]:Assistant Messages",
     "avg_completion": "[to be translated]:Avg Completion",
     "avg_first_token": "[to be translated]:Avg First Token",
@@ -5864,6 +5865,7 @@
     "conversation_info": "[to be translated]:Conversation Info",
     "cost_breakdown": "[to be translated]:Cost Breakdown",
     "created_at": "[to be translated]:Created",
+    "daily_usage": "[to be translated]:Daily Usage",
     "distribution": "[to be translated]:Distribution",
     "duration": "[to be translated]:Duration",
     "input_cost": "[to be translated]:Input Cost",
