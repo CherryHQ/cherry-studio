@@ -169,9 +169,8 @@ CREATE TABLE `__new_topic` (
 	`assistant_id` text,
 	`active_node_id` text,
 	`group_id` text,
-	`sort_order` integer DEFAULT 0 NOT NULL,
-	`is_pinned` integer DEFAULT false NOT NULL,
-	`pinned_order` integer DEFAULT 0 NOT NULL,
+	`order_key` text NOT NULL,
+	`enable_cache_reminder` integer DEFAULT false,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
 	`deleted_at` integer,
@@ -179,13 +178,10 @@ CREATE TABLE `__new_topic` (
 	FOREIGN KEY (`group_id`) REFERENCES `group`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
--- name: '' is the type-empty default; topics with NULL name are kept as untitled.
--- is_name_manually_edited / is_pinned / sort_order / pinned_order: existing DB DEFAULTs (false / 0) tighten to NOT NULL.
-INSERT INTO `__new_topic`("id", "name", "is_name_manually_edited", "assistant_id", "active_node_id", "group_id", "sort_order", "is_pinned", "pinned_order", "created_at", "updated_at", "deleted_at") SELECT "id", COALESCE("name", ''), COALESCE("is_name_manually_edited", false), "assistant_id", "active_node_id", "group_id", COALESCE("sort_order", 0), COALESCE("is_pinned", false), COALESCE("pinned_order", 0), "created_at", "updated_at", "deleted_at" FROM `topic`;--> statement-breakpoint
+INSERT INTO `__new_topic`("id", "name", "is_name_manually_edited", "assistant_id", "active_node_id", "group_id", "order_key", "enable_cache_reminder", "created_at", "updated_at", "deleted_at") SELECT "id", COALESCE("name", ''), COALESCE("is_name_manually_edited", 0), "assistant_id", "active_node_id", "group_id", COALESCE("order_key", ''), COALESCE("enable_cache_reminder", 0), "created_at", "updated_at", "deleted_at" FROM `topic`;--> statement-breakpoint
 DROP TABLE `topic`;--> statement-breakpoint
 ALTER TABLE `__new_topic` RENAME TO `topic`;--> statement-breakpoint
 CREATE INDEX `topic_group_updated_idx` ON `topic` (`group_id`,`updated_at`);--> statement-breakpoint
-CREATE INDEX `topic_group_sort_idx` ON `topic` (`group_id`,`sort_order`);--> statement-breakpoint
 CREATE INDEX `topic_updated_at_idx` ON `topic` (`updated_at`);--> statement-breakpoint
-CREATE INDEX `topic_is_pinned_idx` ON `topic` (`is_pinned`,`pinned_order`);--> statement-breakpoint
+CREATE INDEX `topic_group_id_order_key_idx` ON `topic` (`group_id`,`order_key`);--> statement-breakpoint
 CREATE INDEX `topic_assistant_id_idx` ON `topic` (`assistant_id`);

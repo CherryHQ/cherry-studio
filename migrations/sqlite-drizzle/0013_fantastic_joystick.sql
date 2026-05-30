@@ -430,9 +430,7 @@ CREATE TABLE `__new_topic` (
 	`assistant_id` text,
 	`active_node_id` text,
 	`group_id` text,
-	`sort_order` integer DEFAULT 0,
-	`is_pinned` integer DEFAULT false,
-	`pinned_order` integer DEFAULT 0,
+	`order_key` text NOT NULL,
 	`enable_cache_reminder` integer DEFAULT false,
 	`created_at` integer NOT NULL,
 	`updated_at` integer NOT NULL,
@@ -441,13 +439,12 @@ CREATE TABLE `__new_topic` (
 	FOREIGN KEY (`group_id`) REFERENCES `group`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
-INSERT INTO `__new_topic`("id", "name", "is_name_manually_edited", "assistant_id", "active_node_id", "group_id", "sort_order", "is_pinned", "pinned_order", "enable_cache_reminder", "created_at", "updated_at", "deleted_at") SELECT "id", "name", "is_name_manually_edited", "assistant_id", "active_node_id", "group_id", "sort_order", "is_pinned", "pinned_order", false, "created_at", "updated_at", "deleted_at" FROM `topic`;--> statement-breakpoint
+INSERT INTO `__new_topic`("id", "name", "is_name_manually_edited", "assistant_id", "active_node_id", "group_id", "order_key", "enable_cache_reminder", "created_at", "updated_at", "deleted_at") SELECT "id", "name", "is_name_manually_edited", "assistant_id", "active_node_id", "group_id", '', 0, "created_at", "updated_at", "deleted_at" FROM `topic`;--> statement-breakpoint
 DROP TABLE `topic`;--> statement-breakpoint
 ALTER TABLE `__new_topic` RENAME TO `topic`;--> statement-breakpoint
 CREATE INDEX `topic_group_updated_idx` ON `topic` (`group_id`,`updated_at`);--> statement-breakpoint
-CREATE INDEX `topic_group_sort_idx` ON `topic` (`group_id`,`sort_order`);--> statement-breakpoint
 CREATE INDEX `topic_updated_at_idx` ON `topic` (`updated_at`);--> statement-breakpoint
-CREATE INDEX `topic_is_pinned_idx` ON `topic` (`is_pinned`,`pinned_order`);--> statement-breakpoint
+CREATE INDEX `topic_group_id_order_key_idx` ON `topic` (`group_id`,`order_key`);--> statement-breakpoint
 CREATE INDEX `topic_assistant_id_idx` ON `topic` (`assistant_id`);--> statement-breakpoint
 CREATE TABLE `__new_translate_history` (
 	`id` text PRIMARY KEY NOT NULL,
