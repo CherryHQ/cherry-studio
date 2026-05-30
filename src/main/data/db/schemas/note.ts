@@ -12,6 +12,8 @@ export const noteTable = sqliteTable(
     path: text().notNull(),
     isStarred: integer('is_starred', { mode: 'boolean' }).notNull().default(false),
     isExpanded: integer('is_expanded', { mode: 'boolean' }).notNull().default(false),
+    // TEMP: intentional schema drift to verify the CI "DB Migrations Check" gate — revert before merge
+    ciDriftProbe: text('ci_drift_probe'),
     ...createUpdateTimestamps
   },
   (t) => [
