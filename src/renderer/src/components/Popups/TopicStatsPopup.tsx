@@ -1,21 +1,18 @@
 import { TopView } from '@renderer/components/TopView'
 import { useAppSelector } from '@renderer/store'
-import { selectAllMessages, selectMessagesForTopic } from '@renderer/store/newMessage'
-import type { TopicStats } from '@renderer/utils/topicStats'
+import { selectMessagesForTopic } from '@renderer/store/newMessage'
 import { computeTopicStats } from '@renderer/utils/topicStats'
-import { BarChart3, Bot, Coins, Cpu, FileText, Gauge, Globe, MessageSquare, User, Zap } from 'lucide-react'
+import { Modal as AntdModal } from 'antd'
+import { BarChart3, Bot, Coins, Cpu, FileText, Gauge, MessageSquare, User, Zap } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-type StatsMode = 'topic' | 'global'
-
 interface ShowParams {
-  topicId?: string
-  topicName?: string
-  mode?: StatsMode
+  topicId: string
+  topicName: string
 }
 
 interface Props extends ShowParams {
@@ -61,138 +58,50 @@ function formatSpeed(tokensPerSec: number): string {
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—'
-  const d = new Date(iso)
-  return d.toLocaleString()
+  return new Date(iso).toLocaleString()
 }
 
 // ─── Styled Components ──────────────────────────────────────────────────────
 
-const ModalOverlay = styled.div`
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(4px);
-  animation: fadeIn 0.2s ease;
-
-  [theme-mode='light'] & {
-    background: rgba(0, 0, 0, 0.3);
+const Modal = styled(AntdModal)`
+  .ant-modal-close {
+    top: 8px;
   }
-
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
+  .ant-modal-body {
+    padding: 20px 24px;
+    max-height: 70vh;
+    overflow-y: auto;
   }
 `
 
-const ModalContent = styled.div`
-  background: var(--modal-background, #1a1a2e);
-  border-radius: 16px;
-  width: 720px;
-  max-width: 90vw;
-  max-height: 85vh;
-  overflow-y: auto;
-  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.3);
-  animation: slideUp 0.25s ease;
-
-  @keyframes slideUp {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  &::-webkit-scrollbar {
-    width: 6px;
-  }
-  &::-webkit-scrollbar-thumb {
-    background: var(--color-border);
-    border-radius: 3px;
-  }
+const Section = styled.div`
+  margin-bottom: 20px;
 `
 
-const Header = styled.div`
+const SectionTitle = styled.h3`
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 20px 24px 16px;
-  border-bottom: 1px solid var(--color-border);
-`
-
-const Title = styled.h2`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0;
-  font-size: 18px;
+  gap: 8px;
+  margin: 0 0 10px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--color-text);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
 `
-
-const CloseButton = styled.button`
-  background: none;
-  border: none;
-  color: var(--color-text-secondary, #888);
-  cursor: pointer;
-  font-size: 20px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  transition: all 0.15s;
-
-  &:hover {
-    background: var(--color-hover);
-    color: var(--color-text);
-  }
-`
-
-const Body = styled.div`
-  padding: 20px 24px 24px;
-`
-
-const ModeToggle = styled.div`
-  display: flex;
-  gap: 4px;
-  background: var(--color-background-soft, rgba(255, 255, 255, 0.03));
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  padding: 3px;
-  margin-left: auto;
-`
-
-const ModeButton = styled.button<{ $active: boolean }>`
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 5px 12px;
-  border: none;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
-  background: ${(p) => (p.$active ? 'var(--color-primary)' : 'transparent')};
-  color: ${(p) => (p.$active ? '#fff' : 'var(--color-text-secondary, #888)')};
-
-  &:hover {
-    color: ${(p) => (p.$active ? '#fff' : 'var(--color-text)')};
-  }
-`
-
-// ─── Overview Cards ─────────────────────────────────────────────────────────
 
 const OverviewGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  margin-bottom: 24px;
+  gap: 10px;
+  margin-bottom: 20px;
 `
 
-const StatCard = styled.div<{ $accent?: string }>`
+const StatCard = styled.div<{ $accent: string }>`
   background: var(--color-background-soft, rgba(255, 255, 255, 0.03));
   border: 1px solid var(--color-border);
-  border-radius: 12px;
-  padding: 16px;
+  border-radius: 10px;
+  padding: 12px;
   position: relative;
   overflow: hidden;
 
@@ -203,128 +112,85 @@ const StatCard = styled.div<{ $accent?: string }>`
     left: 0;
     right: 0;
     height: 3px;
-    background: ${(p) => p.$accent || 'var(--color-primary)'};
-    border-radius: 12px 12px 0 0;
+    background: ${(p) => p.$accent};
   }
 `
 
-const StatCardIcon = styled.div<{ $color?: string }>`
+const StatCardIcon = styled.div<{ $color: string }>`
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  background: ${(p) => (p.$color ? `${p.$color}15` : 'var(--color-primary-alpha, rgba(99, 102, 241, 0.1))')};
-  color: ${(p) => p.$color || 'var(--color-primary)'};
-  margin-bottom: 10px;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: ${(p) => `${p.$color}15`};
+  color: ${(p) => p.$color};
+  margin-bottom: 8px;
 `
 
 const StatCardValue = styled.div`
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--color-text);
   line-height: 1.2;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   font-variant-numeric: tabular-nums;
 `
 
 const StatCardLabel = styled.div`
-  font-size: 12px;
+  font-size: 11px;
   color: var(--color-text-secondary, #888);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-`
-
-// ─── Section ────────────────────────────────────────────────────────────────
-
-const Section = styled.div`
-  margin-bottom: 24px;
-`
-
-const SectionTitle = styled.h3`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 0 0 12px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-text);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-`
-
-// ─── Stacked Bar ────────────────────────────────────────────────────────────
-
-const StackedBarContainer = styled.div`
-  margin-bottom: 16px;
+  letter-spacing: 0.3px;
 `
 
 const StackedBarTrack = styled.div`
-  height: 28px;
-  border-radius: 8px;
+  height: 20px;
+  border-radius: 6px;
   background: var(--color-background-soft, rgba(255, 255, 255, 0.03));
   overflow: hidden;
   display: flex;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 `
 
 const StackedBarSegment = styled.div<{ $width: number; $color: string }>`
   width: ${(p) => p.$width}%;
   background: ${(p) => p.$color};
-  transition: width 0.5s ease;
   min-width: ${(p) => (p.$width > 0 ? '2px' : '0')};
 `
 
 const BarLegend = styled.div`
   display: flex;
-  gap: 16px;
+  gap: 12px;
   flex-wrap: wrap;
+  margin-bottom: 12px;
 `
 
 const LegendItem = styled.div`
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
+  gap: 5px;
+  font-size: 12px;
   color: var(--color-text-secondary, #888);
 `
 
 const LegendDot = styled.div<{ $color: string }>`
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
   background: ${(p) => p.$color};
 `
 
-const LegendValue = styled.span`
-  color: var(--color-text);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-`
-
-// ─── Model Table ────────────────────────────────────────────────────────────
-
 const ModelRow = styled.div`
-  display: grid;
-  grid-template-columns: 1fr 100px 90px 80px;
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  padding: 10px 0;
+  padding: 8px 0;
   border-bottom: 1px solid var(--color-border);
 
   &:last-child {
     border-bottom: none;
   }
-`
-
-const ModelRowHeader = styled(ModelRow)`
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--color-text-secondary, #888);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  padding-bottom: 8px;
 `
 
 const ModelName = styled.div`
@@ -334,97 +200,89 @@ const ModelName = styled.div`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+  margin-right: 12px;
 `
 
 const ModelBar = styled.div`
-  height: 8px;
-  border-radius: 4px;
+  height: 6px;
+  border-radius: 3px;
   background: var(--color-background-soft, rgba(255, 255, 255, 0.03));
   overflow: hidden;
+  width: 80px;
+  margin-right: 12px;
 `
 
 const ModelBarFill = styled.div<{ $width: number }>`
   height: 100%;
   width: ${(p) => p.$width}%;
   background: var(--color-primary);
-  border-radius: 4px;
-  transition: width 0.5s ease;
+  border-radius: 3px;
 `
 
-const ModelMetric = styled.div`
-  font-size: 13px;
+const ModelMetric = styled.span`
+  font-size: 12px;
   color: var(--color-text-secondary, #888);
   font-variant-numeric: tabular-nums;
+  min-width: 50px;
+  text-align: right;
 `
-
-// ─── Performance Grid ───────────────────────────────────────────────────────
 
 const PerfGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  gap: 10px;
 `
 
 const PerfCard = styled.div`
   background: var(--color-background-soft, rgba(255, 255, 255, 0.03));
   border: 1px solid var(--color-border);
-  border-radius: 10px;
-  padding: 14px 16px;
+  border-radius: 8px;
+  padding: 12px;
   text-align: center;
 `
 
 const PerfValue = styled.div`
-  font-size: 20px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--color-text);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
   font-variant-numeric: tabular-nums;
 `
 
 const PerfLabel = styled.div`
-  font-size: 12px;
+  font-size: 11px;
   color: var(--color-text-secondary, #888);
 `
-
-// ─── Info Grid ──────────────────────────────────────────────────────────────
 
 const InfoGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
+  gap: 10px;
 `
 
-const InfoItem = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-`
+const InfoItem = styled.div``
 
 const InfoLabel = styled.div`
-  font-size: 12px;
+  font-size: 11px;
   color: var(--color-text-secondary, #888);
+  margin-bottom: 2px;
 `
 
 const InfoValue = styled.div`
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   color: var(--color-text);
 `
 
-// ─── Empty State ────────────────────────────────────────────────────────────
-
 const EmptyState = styled.div`
   text-align: center;
-  padding: 48px 24px;
+  padding: 32px 16px;
   color: var(--color-text-secondary, #888);
+  font-size: 14px;
 `
 
-// ─── Stats Display Component ────────────────────────────────────────────────
-
-interface StatsDisplayProps {
-  stats: TopicStats
-  t: (key: string, opts?: Record<string, unknown>) => string
-}
+// ─── Container Component ────────────────────────────────────────────────────
 
 const COLORS = {
   input: '#6366f1',
@@ -436,270 +294,228 @@ const COLORS = {
   card4: '#ef4444'
 }
 
-const StatsDisplay: React.FC<StatsDisplayProps> = ({ stats, t }) => {
-  if (stats.totalMessages === 0) {
-    return <EmptyState>{t('stats.no_data')}</EmptyState>
-  }
+const TopicStatsPopupContainer: React.FC<Props> = ({ topicId, topicName, resolve }) => {
+  const [open, setOpen] = useState(true)
+  const { t } = useTranslation()
 
-  const totalTokensForBar = stats.totalTokens || 1
-  const inputPct = (stats.totalInputTokens / totalTokensForBar) * 100
-  const outputPct = (stats.totalOutputTokens / totalTokensForBar) * 100
-  const thinkingPct = (stats.totalThinkingTokens / totalTokensForBar) * 100
-
-  const totalCostForBar = stats.totalCost || 1
-  const inputCostPct = stats.totalCost > 0 ? (stats.inputCost / totalCostForBar) * 100 : 50
-  const outputCostPct = stats.totalCost > 0 ? (stats.outputCost / totalCostForBar) * 100 : 50
+  const messages = useAppSelector((state) => selectMessagesForTopic(state, topicId))
+  const stats = useMemo(() => computeTopicStats(messages), [messages])
 
   const maxModelTokens = stats.modelStats.length > 0 ? stats.modelStats[0].totalTokens : 1
 
-  return (
-    <>
-      {/* ── Overview Cards ── */}
-      <OverviewGrid>
-        <StatCard $accent={COLORS.card1}>
-          <StatCardIcon $color={COLORS.card1}>
-            <MessageSquare size={16} />
-          </StatCardIcon>
-          <StatCardValue>{stats.totalMessages}</StatCardValue>
-          <StatCardLabel>{t('stats.messages')}</StatCardLabel>
-        </StatCard>
-        <StatCard $accent={COLORS.card2}>
-          <StatCardIcon $color={COLORS.card2}>
-            <Cpu size={16} />
-          </StatCardIcon>
-          <StatCardValue>{formatTokens(stats.totalTokens)}</StatCardValue>
-          <StatCardLabel>{t('stats.total_tokens')}</StatCardLabel>
-        </StatCard>
-        <StatCard $accent={COLORS.card3}>
-          <StatCardIcon $color={COLORS.card3}>
-            <Coins size={16} />
-          </StatCardIcon>
-          <StatCardValue>{formatCost(stats.totalCost)}</StatCardValue>
-          <StatCardLabel>{t('stats.total_cost')}</StatCardLabel>
-        </StatCard>
-        <StatCard $accent={COLORS.card4}>
-          <StatCardIcon $color={COLORS.card4}>
-            <Zap size={16} />
-          </StatCardIcon>
-          <StatCardValue>{formatLatency(stats.avgFirstTokenLatency)}</StatCardValue>
-          <StatCardLabel>{t('stats.avg_first_token')}</StatCardLabel>
-        </StatCard>
-      </OverviewGrid>
-
-      {/* ── Token Breakdown ── */}
-      {stats.totalTokens > 0 && (
-        <Section>
-          <SectionTitle>
-            <Cpu size={14} />
-            {t('stats.token_breakdown')}
-          </SectionTitle>
-          <StackedBarContainer>
-            <StackedBarTrack>
-              <StackedBarSegment $width={inputPct} $color={COLORS.input} />
-              <StackedBarSegment $width={outputPct} $color={COLORS.output} />
-              <StackedBarSegment $width={thinkingPct} $color={COLORS.thinking} />
-            </StackedBarTrack>
-            <BarLegend>
-              <LegendItem>
-                <LegendDot $color={COLORS.input} />
-                {t('stats.input_tokens')}{' '}
-                <LegendValue>
-                  {formatTokens(stats.totalInputTokens)} ({Math.round(inputPct)}%)
-                </LegendValue>
-              </LegendItem>
-              <LegendItem>
-                <LegendDot $color={COLORS.output} />
-                {t('stats.output_tokens')}{' '}
-                <LegendValue>
-                  {formatTokens(stats.totalOutputTokens)} ({Math.round(outputPct)}%)
-                </LegendValue>
-              </LegendItem>
-              {stats.totalThinkingTokens > 0 && (
-                <LegendItem>
-                  <LegendDot $color={COLORS.thinking} />
-                  {t('stats.thinking_tokens')}{' '}
-                  <LegendValue>
-                    {formatTokens(stats.totalThinkingTokens)} ({Math.round(thinkingPct)}%)
-                  </LegendValue>
-                </LegendItem>
-              )}
-            </BarLegend>
-          </StackedBarContainer>
-        </Section>
-      )}
-
-      {/* ── Cost Breakdown ── */}
-      {stats.totalCost > 0 && (
-        <Section>
-          <SectionTitle>
-            <Coins size={14} />
-            {t('stats.cost_breakdown')}
-          </SectionTitle>
-          <StackedBarContainer>
-            <StackedBarTrack>
-              <StackedBarSegment $width={inputCostPct} $color="#f59e0b" />
-              <StackedBarSegment $width={outputCostPct} $color="#ef4444" />
-            </StackedBarTrack>
-            <BarLegend>
-              <LegendItem>
-                <LegendDot $color="#f59e0b" />
-                {t('stats.input_cost')}{' '}
-                <LegendValue>
-                  {formatCost(stats.inputCost)} ({Math.round(inputCostPct)}%)
-                </LegendValue>
-              </LegendItem>
-              <LegendItem>
-                <LegendDot $color="#ef4444" />
-                {t('stats.output_cost')}{' '}
-                <LegendValue>
-                  {formatCost(stats.outputCost)} ({Math.round(outputCostPct)}%)
-                </LegendValue>
-              </LegendItem>
-            </BarLegend>
-          </StackedBarContainer>
-        </Section>
-      )}
-
-      {/* ── Model Usage ── */}
-      {stats.modelStats.length > 0 && (
-        <Section>
-          <SectionTitle>
-            <Bot size={14} />
-            {t('stats.model_usage')}
-          </SectionTitle>
-          <ModelRowHeader>
-            <div>{t('stats.model_name')}</div>
-            <div>{t('stats.distribution')}</div>
-            <div>{t('stats.messages')}</div>
-            <div>{t('stats.total_cost')}</div>
-          </ModelRowHeader>
-          {stats.modelStats.map((m) => (
-            <ModelRow key={m.modelId}>
-              <ModelName title={m.modelName}>{m.modelName}</ModelName>
-              <ModelBar>
-                <ModelBarFill $width={(m.totalTokens / maxModelTokens) * 100} />
-              </ModelBar>
-              <ModelMetric>{m.messageCount}</ModelMetric>
-              <ModelMetric>{formatCost(m.cost)}</ModelMetric>
-            </ModelRow>
-          ))}
-        </Section>
-      )}
-
-      {/* ── Performance ── */}
-      {stats.assistantMessages > 0 && (
-        <Section>
-          <SectionTitle>
-            <Gauge size={14} />
-            {t('stats.performance')}
-          </SectionTitle>
-          <PerfGrid>
-            <PerfCard>
-              <PerfValue>{formatLatency(stats.avgFirstTokenLatency)}</PerfValue>
-              <PerfLabel>{t('stats.avg_first_token')}</PerfLabel>
-            </PerfCard>
-            <PerfCard>
-              <PerfValue>{formatDuration(stats.avgCompletionTime)}</PerfValue>
-              <PerfLabel>{t('stats.avg_completion')}</PerfLabel>
-            </PerfCard>
-            <PerfCard>
-              <PerfValue>{formatSpeed(stats.avgTokensPerSecond)}</PerfValue>
-              <PerfLabel>{t('stats.avg_speed')}</PerfLabel>
-            </PerfCard>
-          </PerfGrid>
-        </Section>
-      )}
-
-      {/* ── Conversation Info ── */}
-      <Section>
-        <SectionTitle>
-          <FileText size={14} />
-          {t('stats.conversation_info')}
-        </SectionTitle>
-        <InfoGrid>
-          <InfoItem>
-            <InfoLabel>{t('stats.created_at')}</InfoLabel>
-            <InfoValue>{formatDate(stats.firstMessageAt)}</InfoValue>
-          </InfoItem>
-          <InfoItem>
-            <InfoLabel>{t('stats.duration')}</InfoLabel>
-            <InfoValue>{formatDuration(stats.durationMs)}</InfoValue>
-          </InfoItem>
-          <InfoItem>
-            <InfoLabel>{t('stats.total_characters')}</InfoLabel>
-            <InfoValue>{stats.totalCharacters.toLocaleString()}</InfoValue>
-          </InfoItem>
-          <InfoItem>
-            <InfoLabel>
-              <User size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> {t('stats.user_messages')}
-            </InfoLabel>
-            <InfoValue>{stats.userMessages}</InfoValue>
-          </InfoItem>
-          <InfoItem>
-            <InfoLabel>
-              <Bot size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> {t('stats.assistant_messages')}
-            </InfoLabel>
-            <InfoValue>{stats.assistantMessages}</InfoValue>
-          </InfoItem>
-          <InfoItem>
-            <InfoLabel>{t('stats.total_words')}</InfoLabel>
-            <InfoValue>{stats.totalWords.toLocaleString()}</InfoValue>
-          </InfoItem>
-        </InfoGrid>
-      </Section>
-    </>
-  )
-}
-
-// ─── Container Component ────────────────────────────────────────────────────
-
-const TopicStatsPopupContainer: React.FC<Props> = ({ topicId, topicName, mode: initialMode, resolve }) => {
-  const [mode, setMode] = useState<StatsMode>(initialMode || (topicId ? 'topic' : 'global'))
-  const { t } = useTranslation()
-
-  // Get messages based on mode
-  const topicMessages = useAppSelector((state) => (topicId ? selectMessagesForTopic(state, topicId) : []))
-  const allMessages = useAppSelector(selectAllMessages)
-
-  const messages = mode === 'topic' ? topicMessages : allMessages
-  const stats = useMemo(() => computeTopicStats(messages), [messages])
-
-  const title = mode === 'global' ? t('stats.title_global') : t('stats.title', { topic: topicName || '' })
-
-  const onCancel = () => {
+  const afterClose = () => {
     TopicStatsPopup.hide()
     resolve()
   }
 
-  TopicStatsPopup.hide = onCancel
+  TopicStatsPopup.hide = () => setOpen(false)
 
   return (
-    <ModalOverlay onClick={onCancel}>
-      <ModalContent onClick={(e) => e.stopPropagation()}>
-        <Header>
-          <Title>
-            <BarChart3 size={20} />
-            {title}
-          </Title>
-          <ModeToggle>
-            {topicId && (
-              <ModeButton $active={mode === 'topic'} onClick={() => setMode('topic')}>
-                <MessageSquare size={12} />
-                {t('stats.mode_topic')}
-              </ModeButton>
-            )}
-            <ModeButton $active={mode === 'global'} onClick={() => setMode('global')}>
-              <Globe size={12} />
-              {t('stats.mode_global')}
-            </ModeButton>
-          </ModeToggle>
-          <CloseButton onClick={onCancel}>✕</CloseButton>
-        </Header>
-        <Body>
-          <StatsDisplay stats={stats} t={t} />
-        </Body>
-      </ModalContent>
-    </ModalOverlay>
+    <Modal
+      open={open}
+      title={
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <BarChart3 size={18} />
+          {t('stats.title', { topic: topicName })}
+        </span>
+      }
+      onCancel={() => setOpen(false)}
+      onOk={() => setOpen(false)}
+      afterClose={afterClose}
+      footer={null}
+      width={600}
+      centered
+      destroyOnClose
+      transitionName="animation-move-down">
+      {stats.totalMessages === 0 ? (
+        <EmptyState>{t('stats.no_data')}</EmptyState>
+      ) : (
+        <>
+          {/* Overview */}
+          <OverviewGrid>
+            <StatCard $accent={COLORS.card1}>
+              <StatCardIcon $color={COLORS.card1}>
+                <MessageSquare size={14} />
+              </StatCardIcon>
+              <StatCardValue>{stats.totalMessages}</StatCardValue>
+              <StatCardLabel>{t('stats.messages')}</StatCardLabel>
+            </StatCard>
+            <StatCard $accent={COLORS.card2}>
+              <StatCardIcon $color={COLORS.card2}>
+                <Cpu size={14} />
+              </StatCardIcon>
+              <StatCardValue>{formatTokens(stats.totalTokens)}</StatCardValue>
+              <StatCardLabel>{t('stats.total_tokens')}</StatCardLabel>
+            </StatCard>
+            <StatCard $accent={COLORS.card3}>
+              <StatCardIcon $color={COLORS.card3}>
+                <Coins size={14} />
+              </StatCardIcon>
+              <StatCardValue>{formatCost(stats.totalCost)}</StatCardValue>
+              <StatCardLabel>{t('stats.total_cost')}</StatCardLabel>
+            </StatCard>
+            <StatCard $accent={COLORS.card4}>
+              <StatCardIcon $color={COLORS.card4}>
+                <Zap size={14} />
+              </StatCardIcon>
+              <StatCardValue>{formatLatency(stats.avgFirstTokenLatency)}</StatCardValue>
+              <StatCardLabel>{t('stats.avg_first_token')}</StatCardLabel>
+            </StatCard>
+          </OverviewGrid>
+
+          {/* Tokens */}
+          {stats.totalTokens > 0 && (
+            <Section>
+              <SectionTitle>
+                <Cpu size={13} /> {t('stats.token_breakdown')}
+              </SectionTitle>
+              <StackedBarTrack>
+                <StackedBarSegment $width={(stats.totalInputTokens / stats.totalTokens) * 100} $color={COLORS.input} />
+                <StackedBarSegment
+                  $width={(stats.totalOutputTokens / stats.totalTokens) * 100}
+                  $color={COLORS.output}
+                />
+                {stats.totalThinkingTokens > 0 && (
+                  <StackedBarSegment
+                    $width={(stats.totalThinkingTokens / stats.totalTokens) * 100}
+                    $color={COLORS.thinking}
+                  />
+                )}
+              </StackedBarTrack>
+              <BarLegend>
+                <LegendItem>
+                  <LegendDot $color={COLORS.input} />
+                  {t('stats.input_tokens')}{' '}
+                  <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>
+                    {formatTokens(stats.totalInputTokens)}
+                  </span>
+                </LegendItem>
+                <LegendItem>
+                  <LegendDot $color={COLORS.output} />
+                  {t('stats.output_tokens')}{' '}
+                  <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>
+                    {formatTokens(stats.totalOutputTokens)}
+                  </span>
+                </LegendItem>
+                {stats.totalThinkingTokens > 0 && (
+                  <LegendItem>
+                    <LegendDot $color={COLORS.thinking} />
+                    {t('stats.thinking_tokens')}{' '}
+                    <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>
+                      {formatTokens(stats.totalThinkingTokens)}
+                    </span>
+                  </LegendItem>
+                )}
+              </BarLegend>
+            </Section>
+          )}
+
+          {/* Cost */}
+          {stats.totalCost > 0 && (
+            <Section>
+              <SectionTitle>
+                <Coins size={13} /> {t('stats.cost_breakdown')}
+              </SectionTitle>
+              <StackedBarTrack>
+                <StackedBarSegment $width={(stats.inputCost / stats.totalCost) * 100} $color="#f59e0b" />
+                <StackedBarSegment $width={(stats.outputCost / stats.totalCost) * 100} $color="#ef4444" />
+              </StackedBarTrack>
+              <BarLegend>
+                <LegendItem>
+                  <LegendDot $color="#f59e0b" />
+                  {t('stats.input_cost')}{' '}
+                  <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>{formatCost(stats.inputCost)}</span>
+                </LegendItem>
+                <LegendItem>
+                  <LegendDot $color="#ef4444" />
+                  {t('stats.output_cost')}{' '}
+                  <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>{formatCost(stats.outputCost)}</span>
+                </LegendItem>
+              </BarLegend>
+            </Section>
+          )}
+
+          {/* Models */}
+          {stats.modelStats.length > 0 && (
+            <Section>
+              <SectionTitle>
+                <Bot size={13} /> {t('stats.model_usage')}
+              </SectionTitle>
+              {stats.modelStats.map((m) => (
+                <ModelRow key={m.modelId}>
+                  <ModelName title={m.modelName}>{m.modelName}</ModelName>
+                  <ModelBar>
+                    <ModelBarFill $width={(m.totalTokens / maxModelTokens) * 100} />
+                  </ModelBar>
+                  <ModelMetric>{m.messageCount} msgs</ModelMetric>
+                  <ModelMetric>{formatCost(m.cost)}</ModelMetric>
+                </ModelRow>
+              ))}
+            </Section>
+          )}
+
+          {/* Performance */}
+          {stats.assistantMessages > 0 && (
+            <Section>
+              <SectionTitle>
+                <Gauge size={13} /> {t('stats.performance')}
+              </SectionTitle>
+              <PerfGrid>
+                <PerfCard>
+                  <PerfValue>{formatLatency(stats.avgFirstTokenLatency)}</PerfValue>
+                  <PerfLabel>{t('stats.avg_first_token')}</PerfLabel>
+                </PerfCard>
+                <PerfCard>
+                  <PerfValue>{formatDuration(stats.avgCompletionTime)}</PerfValue>
+                  <PerfLabel>{t('stats.avg_completion')}</PerfLabel>
+                </PerfCard>
+                <PerfCard>
+                  <PerfValue>{formatSpeed(stats.avgTokensPerSecond)}</PerfValue>
+                  <PerfLabel>{t('stats.avg_speed')}</PerfLabel>
+                </PerfCard>
+              </PerfGrid>
+            </Section>
+          )}
+
+          {/* Info */}
+          <Section>
+            <SectionTitle>
+              <FileText size={13} /> {t('stats.conversation_info')}
+            </SectionTitle>
+            <InfoGrid>
+              <InfoItem>
+                <InfoLabel>{t('stats.created_at')}</InfoLabel>
+                <InfoValue>{formatDate(stats.firstMessageAt)}</InfoValue>
+              </InfoItem>
+              <InfoItem>
+                <InfoLabel>{t('stats.duration')}</InfoLabel>
+                <InfoValue>{formatDuration(stats.durationMs)}</InfoValue>
+              </InfoItem>
+              <InfoItem>
+                <InfoLabel>{t('stats.total_characters')}</InfoLabel>
+                <InfoValue>{stats.totalCharacters.toLocaleString()}</InfoValue>
+              </InfoItem>
+              <InfoItem>
+                <InfoLabel>
+                  <User size={11} style={{ verticalAlign: 'middle' }} /> {t('stats.user_messages')}
+                </InfoLabel>
+                <InfoValue>{stats.userMessages}</InfoValue>
+              </InfoItem>
+              <InfoItem>
+                <InfoLabel>
+                  <Bot size={11} style={{ verticalAlign: 'middle' }} /> {t('stats.assistant_messages')}
+                </InfoLabel>
+                <InfoValue>{stats.assistantMessages}</InfoValue>
+              </InfoItem>
+              <InfoItem>
+                <InfoLabel>{t('stats.total_words')}</InfoLabel>
+                <InfoValue>{stats.totalWords.toLocaleString()}</InfoValue>
+              </InfoItem>
+            </InfoGrid>
+          </Section>
+        </>
+      )}
+    </Modal>
   )
 }
 
