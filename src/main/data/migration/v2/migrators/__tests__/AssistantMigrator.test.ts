@@ -22,6 +22,7 @@ function createMockContext(reduxData: Record<string, unknown> = {}) {
       dexieSettings: { keys: vi.fn().mockReturnValue([]), get: vi.fn() }
     },
     db: {
+      run: vi.fn().mockResolvedValue(undefined),
       transaction: vi.fn(async (fn: (tx: any) => Promise<void>) => {
         const tx = {
           insert: vi.fn().mockReturnValue({
