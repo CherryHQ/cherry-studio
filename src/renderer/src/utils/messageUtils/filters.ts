@@ -6,6 +6,8 @@ import { MessageBlockType } from '@renderer/types/newMessage'
 // import type { MessageBlock, MainTextMessageBlock } from '@renderer/types/newMessageTypes';
 import { remove, takeRight } from 'lodash'
 import { isEmpty } from 'lodash'
+
+import { getMainTextContent } from './find'
 // Assuming getGroupedMessages is also moved here or imported
 // import { getGroupedMessages } from './path/to/getGroupedMessages';
 
@@ -132,9 +134,40 @@ export function filterUsefulMessages(messages: Message[]): Message[] {
   return _messages
 }
 
+const CONTINUE_GENERATION_MARKER = '[Continue generation]'
+const CONTINUE_GENERATION_MARKER_ZH = '[继续生成]'
+
+/**
+ * Checks if a user message is a "continue generation" message.
+ * These messages have a special prefix that signals the model should continue
+ * from the previous assistant response.
+ */
+export function isContinueMessage(message: Message): boolean {
+  if (message.role !== 'user') return false
+  const content = getMainTextContent(message)
+  return content.startsWith(CONTINUE_GENERATION_MARKER) || content.startsWith(CONTINUE_GENERATION_MARKER_ZH)
+}
+
 export function filterLastAssistantMessage(messages: Message[]): Message[] {
   const _messages = [...messages]
-  // Remove trailing assistant messages
+
+  // Find how many trailing assistant messages there are
+  let trailingAssistantCount = 0
+  for (let i = _messages.length - 1; i >= 0; i--) {
+    if (_messages[i].role === 'assistant') trailingAssistantCount++
+    else break
+  }
+
+  // If the message after the trailing assistants is a continuation user message,
+  // keep the assistant messages so the model has context to continue from
+  if (trailingAssistantCount > 0) {
+    const nextIndex = _messages.length - trailingAssistantCount
+    if (nextIndex >= 0 && nextIndex < _messages.length && isContinueMessage(_messages[nextIndex])) {
+      return _messages
+    }
+  }
+
+  // Otherwise remove trailing assistant messages as before
   while (_messages.length > 0 && _messages[_messages.length - 1].role === 'assistant') {
     _messages.pop()
   }

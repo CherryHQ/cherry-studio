@@ -285,6 +285,11 @@ export const createBaseCallbacks = (deps: BaseCallbacksDependencies) => {
     },
 
     onComplete: async (status: AssistantMessageStatus, response?: Response) => {
+      // Detect truncation: if finish_reason is 'length', the response was cut off by max_tokens
+      if (response?.finishReason === 'length') {
+        status = AssistantMessageStatus.TRUNCATED
+      }
+
       const finalStateOnComplete = getState()
       const finalAssistantMsg = finalStateOnComplete.messages.entities[assistantMsgId]
 

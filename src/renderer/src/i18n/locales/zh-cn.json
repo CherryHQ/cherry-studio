@@ -1199,6 +1199,10 @@
       }
     },
     "message": {
+      "continue_generation": {
+        "content": "[继续生成]\n\n请从上次中断的地方继续回答，不要重复已经说过的内容。",
+        "label": "继续生成"
+      },
       "new": {
         "branch": {
           "created": "新分支已创建",
@@ -1399,6 +1403,7 @@
         "title_tip": "提示: 双击话题名可以直接就地重命名"
       },
       "export": {
+        "html": "导出为 HTML",
         "image": "导出为图片",
         "image_saved": "图片保存成功",
         "joplin": "导出到 Joplin",

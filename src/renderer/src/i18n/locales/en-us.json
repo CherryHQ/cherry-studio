@@ -1199,6 +1199,10 @@
       }
     },
     "message": {
+      "continue_generation": {
+        "content": "[Continue generation]\n\nPlease continue your previous response from where you left off. Do not repeat what you have already said.",
+        "label": "Continue generation"
+      },
       "new": {
         "branch": {
           "created": "New Branch Created",
@@ -1399,6 +1403,7 @@
         "title_tip": "Tips: Double-click the topic name to rename it directly in place"
       },
       "export": {
+        "html": "Export as HTML",
         "image": "Export as image",
         "image_saved": "Image saved successfully",
         "joplin": "Export to Joplin",

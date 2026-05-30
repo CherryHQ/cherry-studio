@@ -35,6 +35,7 @@ export class AiSdkToChunkAdapter {
   private getSessionWasCleared?: () => boolean
   private providerId?: string
   private idleTimeout?: IdleTimeoutHandle
+  private lastFinishReason?: string
 
   constructor(
     private onChunk: (chunk: Chunk) => void,
@@ -64,6 +65,7 @@ export class AiSdkToChunkAdapter {
   private resetTimingState() {
     this.responseStartTimestamp = null
     this.firstTokenTimestamp = null
+    this.lastFinishReason = undefined
   }
 
   /**
@@ -308,6 +310,7 @@ export class AiSdkToChunkAdapter {
 
       case 'finish-step': {
         const { providerMetadata, finishReason } = chunk
+        this.lastFinishReason = finishReason
         // googel web search
         if (providerMetadata?.google?.groundingMetadata) {
           this.onChunk({
@@ -379,7 +382,8 @@ export class AiSdkToChunkAdapter {
         const metrics = this.buildMetrics(chunk.totalUsage)
         const baseResponse = {
           text: final.text || '',
-          reasoning_content: final.reasoningContent || ''
+          reasoning_content: final.reasoningContent || '',
+          finishReason: this.lastFinishReason
         }
 
         this.onChunk({

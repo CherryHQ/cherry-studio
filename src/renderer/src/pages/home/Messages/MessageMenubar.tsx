@@ -16,16 +16,16 @@ import { useEnableDeveloperMode, useMessageStyle, useSettings } from '@renderer/
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import useTranslate from '@renderer/hooks/useTranslate'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { getMessageTitle } from '@renderer/services/MessagesService'
+import { getMessageTitle, getUserMessage } from '@renderer/services/MessagesService'
 import { translateText } from '@renderer/services/TranslateService'
 import type { RootState } from '@renderer/store'
 import store, { useAppDispatch } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
 import { selectMessagesForTopic } from '@renderer/store/newMessage'
-import { removeBlocksThunk } from '@renderer/store/thunk/messageThunk'
+import { removeBlocksThunk, sendMessage as sendMessageThunk } from '@renderer/store/thunk/messageThunk'
 import { TraceIcon } from '@renderer/trace/pages/Component'
 import type { Assistant, Model, Topic, TranslateLanguage } from '@renderer/types'
-import { type Message, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import { AssistantMessageStatus, type Message, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { captureScrollableAsBlob, captureScrollableAsDataURL, classNames } from '@renderer/utils'
 import { abortCompletion } from '@renderer/utils/abortController'
 import { copyMessageAsPlainText } from '@renderer/utils/copy'
@@ -61,6 +61,7 @@ import {
   ListChecks,
   Menu,
   NotebookPen,
+  Play,
   Save,
   Split,
   ThumbsUp,
@@ -123,6 +124,7 @@ type MessageMenubarButtonContext = {
   onEdit: () => void | Promise<void>
   onMentionModel: (e: React.MouseEvent) => void | Promise<void>
   onRegenerate: (e?: React.MouseEvent) => void | Promise<void>
+  onContinue: () => void | Promise<void>
   onUseful: (e: React.MouseEvent) => void
   removeMessageBlock: MessageOperationsHandlers['removeMessageBlock']
   setShowDeleteTooltip: Dispatch<SetStateAction<boolean>>
@@ -495,6 +497,16 @@ const MessageMenubar: FC<Props> = (props) => {
     void regenerateAssistantMessage(message, assistant)
   }
 
+  const onContinue = useCallback(async () => {
+    const continueContent = t('chat.message.continue_generation.content')
+    const { message: userMessage, blocks } = getUserMessage({
+      assistant,
+      topic,
+      content: continueContent
+    })
+    void dispatch(sendMessageThunk(userMessage, blocks, assistant, topic.id))
+  }, [assistant, topic.id, dispatch, t])
+
   // 按条件筛选能够提及的模型，该函数仅在isAssistantMessage时会用到
   const mentionModelFilter = useMemo(() => {
     const defaultFilter = (model: Model) => !isEmbeddingModel(model) && !isRerankModel(model)
@@ -580,6 +592,7 @@ const MessageMenubar: FC<Props> = (props) => {
     onEdit,
     onMentionModel,
     onRegenerate,
+    onContinue,
     onUseful,
     removeMessageBlock,
     setShowDeleteTooltip,
@@ -752,6 +765,33 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
       <Tooltip title={t('common.regenerate')} mouseEnterDelay={0.8}>
         <ActionButton className="message-action-button" onClick={onRegenerate} $softHoverBg={softHoverBg}>
           <RefreshIcon size={15} />
+        </ActionButton>
+      </Tooltip>
+    )
+  },
+  'assistant-continue': ({ isAssistantMessage, isLastMessage, message, onContinue, softHoverBg, t }) => {
+    if (!isAssistantMessage || !isLastMessage) {
+      return null
+    }
+
+    // Show continue button for truncated messages (max_tokens) or stopped messages (user abort)
+    const isTruncated = message.status === AssistantMessageStatus.TRUNCATED
+    const isStopped = message.blocks?.some((blockId) => {
+      // Check if any block has PAUSED status (user clicked Stop)
+      const state = store.getState()
+      const block = state.messageBlocks.entities[blockId]
+      return block?.status === MessageBlockStatus.PAUSED
+    })
+    const hasContent = message.blocks && message.blocks.length > 0
+
+    if (!hasContent || (!isTruncated && !isStopped)) {
+      return null
+    }
+
+    return (
+      <Tooltip title={t('chat.message.continue_generation.label')} mouseEnterDelay={0.8}>
+        <ActionButton className="message-action-button" onClick={onContinue} $softHoverBg={softHoverBg}>
+          <Play size={15} />
         </ActionButton>
       </Tooltip>
     )

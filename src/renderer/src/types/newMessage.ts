@@ -178,7 +178,8 @@ export enum AssistantMessageStatus {
   SEARCHING = 'searching',
   SUCCESS = 'success',
   PAUSED = 'paused',
-  ERROR = 'error'
+  ERROR = 'error',
+  TRUNCATED = 'truncated'
 }
 // Message 核心类型 - 包含元数据和块集合
 export type Message = {
@@ -232,6 +233,7 @@ export interface Response {
   mcpToolResponse?: MCPToolResponse[]
   generateImage?: GenerateImageResponse
   error?: ResponseError
+  finishReason?: string
 }
 
 // FIXME: Weak type safety. It may be a specific class instance which inherits Error in runtime.

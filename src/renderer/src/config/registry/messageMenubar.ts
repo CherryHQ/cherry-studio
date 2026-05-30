@@ -7,6 +7,7 @@ export type MessageMenubarButtonId =
   | 'user-edit'
   | 'copy'
   | 'assistant-regenerate'
+  | 'assistant-continue'
   | 'assistant-mention-model'
   | 'translate'
   | 'useful'
@@ -29,6 +30,7 @@ export const DEFAULT_MESSAGE_MENUBAR_BUTTON_IDS: MessageMenubarButtonId[] = [
   'user-edit',
   'copy',
   'assistant-regenerate',
+  'assistant-continue',
   'assistant-mention-model',
   'translate',
   'useful',
