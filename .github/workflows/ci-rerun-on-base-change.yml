@@ -6,6 +6,7 @@ on:
       - main
       - develop
       - v2
+      - v1
     types: [edited]
 
 jobs:
