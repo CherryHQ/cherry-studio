@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { hashContent } from '@main/utils/file/contentHash'
 import type { FilePath } from '@shared/file/types'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
@@ -90,11 +91,14 @@ describe('internal/content/write', () => {
         name: 'a',
         ext: 'bin'
       })
-      const next = await write(deps, e.id, new Uint8Array([0x01, 0x02, 0x03]))
+      const newData = new Uint8Array([0x01, 0x02, 0x03])
+      const next = await write(deps, e.id, newData)
       expect(next.size).toBe(3)
       const refreshed = await fileEntryService.getById(e.id)
       if (refreshed.origin !== 'internal') throw new Error('expected internal entry')
       expect(refreshed.size).toBe(3)
+      // Maintained-on-write: contentHash reflects the NEW content.
+      expect(refreshed.contentHash).toBe(hashContent(newData))
       expect(cacheStore.get(e.id)).toEqual(next)
     })
 
@@ -110,6 +114,8 @@ describe('internal/content/write', () => {
       // from File IPC `getMetadata`). The DB row still stores `size: null`.
       expect(refreshed.origin).toBe('external')
       expect(refreshed).not.toHaveProperty('size')
+      // External rows never carry a contentHash (content lives outside Cherry).
+      expect(refreshed).not.toHaveProperty('contentHash')
     })
 
     it('logs WRITE_DB_DESYNC and rethrows when post-commit metadata sync fails', async () => {
@@ -222,8 +228,9 @@ describe('internal/content/write', () => {
       const physical = path.join(filesDir, `${e.id}.bin`) as FilePath
       await utimes(physical, 1700000000, 1700000000)
       const expected: FileVersion = { mtime: 1700000000_000, size: 4 }
-      // Wrong xxhash-h64 hex (16 chars). With ambiguous mtime + matching size,
-      // the implementation must fall back to hash comparison and reject.
+      // Deliberately wrong hash (won't match the real xxh3-64 digest). With
+      // ambiguous mtime + matching size, the implementation must fall back to
+      // hash comparison and reject.
       const wrongHash = 'deadbeefdeadbeef'
       await expect(
         writeIfUnchanged(deps, e.id, new Uint8Array([9, 8, 7, 6]), expected, wrongHash)
@@ -268,6 +275,8 @@ describe('internal/content/write', () => {
         const refreshed = await fileEntryService.getById(e.id)
         if (refreshed.origin !== 'internal') throw new Error('expected internal entry')
         expect(refreshed.size).toBe(payload.length)
+        // Streaming write maintains contentHash too (post-hoc hash of the file).
+        expect(refreshed.contentHash).toBe(hashContent(payload))
         expect(cacheStore.get(e.id)?.size).toBe(payload.length)
       })
     })

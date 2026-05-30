@@ -102,7 +102,7 @@ import { canonicalizeAbsolutePath } from '@shared/file/canonicalize'
 import type { FilePath } from '@shared/file/types/common'
 import * as z from 'zod'
 
-import { SafeExtSchema, SafeNameSchema, TimestampSchema } from './essential'
+import { ContentHashSchema, SafeExtSchema, SafeNameSchema, TimestampSchema } from './essential'
 
 // ─── Entry ID ───
 
@@ -225,7 +225,16 @@ export type CanonicalFilePath = FilePath & CanonicalExternalPath
 const CommonEntryFields = {
   /** Entry ID (UUID v7) */
   id: FileEntryIdSchema,
-  /** User-visible name (without extension) */
+  /**
+   * User-visible name (without extension).
+   *
+   * **NOT unique.** Multiple entries may share a name, and content-level dedup
+   * makes this routine (the same bytes reused under different names, or
+   * best-effort display disambiguation like `foo (1)` which is sugar, not
+   * identity). Downstream MUST NOT key off `name` — or `(name, ext)` — as if it
+   * identified an entry; the only identity is `id`. For content matching use
+   * `contentHash` (also non-unique — a detection substrate; see its field doc).
+   */
   name: SafeNameSchema,
   /**
    * File extension without leading dot (e.g. `'pdf'`, `'md'`). `null` for
@@ -261,6 +270,15 @@ export const InternalEntrySchema = z.strictObject({
    * this value is authoritative and kept in sync with the backing file on disk.
    */
   size: z.int().nonnegative(),
+  /**
+   * Content hash of the backing blob, format `{algo}:{hex}` (e.g.
+   * `xxh3-64:…`). Detection substrate for content-level dedup — NOT an
+   * identity, NOT a unique key (identity is `id`). `null` during the backfill
+   * window for rows created before this feature, so consumers MUST tolerate
+   * `null`. External entries don't carry this field at all (content lives
+   * outside Cherry; the DB row holds `null`, dropped at the BO boundary).
+   */
+  contentHash: ContentHashSchema.nullable(),
   /**
    * Trash timestamp (ms epoch). Optional — present and non-null when the
    * entry is in the trash, absent when it is live. Internal entries are the

@@ -57,6 +57,17 @@ const mockWindowManager = {
   onWindowDestroyedByType: vi.fn(() => ({ dispose: vi.fn() }))
 }
 
+/**
+ * Minimal JobManager stub. `registerHandler` (called in owning services' `onInit`)
+ * and `enqueue` (called when a service kicks a job, e.g. FileManager's startup
+ * content-hash backfill) are the only surface most services touch; override
+ * per-test if a richer JobManager is needed.
+ */
+const mockJobManager = {
+  registerHandler: vi.fn(),
+  enqueue: vi.fn(async () => ({ id: 'mock-job-id', snapshot: {} }))
+}
+
 /** Default service instances from existing mock files */
 export const defaultServiceInstances = {
   PreferenceService: MockMainPreferenceServiceExport.preferenceService,
@@ -64,7 +75,8 @@ export const defaultServiceInstances = {
   DataApiService: MockMainDataApiServiceExport.dataApiService,
   DbService: MockMainDbServiceExport.dbService,
   MainWindowService: mockMainWindowService,
-  WindowManager: mockWindowManager
+  WindowManager: mockWindowManager,
+  JobManager: mockJobManager
 } as const
 
 /** Type for per-service overrides */

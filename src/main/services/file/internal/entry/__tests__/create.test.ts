@@ -3,6 +3,7 @@ import type { Server } from 'node:http'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
+import { hashContent } from '@main/utils/file/contentHash'
 import type { FilePath } from '@shared/file/types'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
@@ -82,6 +83,34 @@ describe('internal/entry/create.createInternal', () => {
       expect(Buffer.from(onDisk).equals(Buffer.from(data))).toBe(true)
     })
 
+    it('computes and persists the content hash (xxh3-64 of the bytes)', async () => {
+      const data = new Uint8Array([0x01, 0x02, 0x03, 0x04])
+      const entry = await createInternal(deps, { source: 'bytes', data, name: 'doc', ext: 'bin' })
+      if (entry.origin !== 'internal') throw new Error('expected internal entry')
+      expect(entry.contentHash).toBe(hashContent(data))
+      expect(entry.contentHash).toMatch(/^xxh3-64:[0-9a-f]{16}$/)
+      // Round-trips through the DB read path (rowToFileEntry).
+      const found = await fileEntryService.getById(entry.id)
+      if (found.origin !== 'internal') throw new Error('expected internal entry')
+      expect(found.contentHash).toBe(entry.contentHash)
+    })
+
+    it('honors a caller-supplied contentHash without recomputing (detect-first)', async () => {
+      // A detect-first consumer pre-hashed the source and passes the result.
+      // The file module persists it verbatim and does NOT recompute — proven
+      // here by supplying a value that does not match the actual bytes.
+      const precomputed = 'xxh3-64:0123456789abcdef'
+      const entry = await createInternal(deps, {
+        source: 'bytes',
+        data: new Uint8Array([9, 9, 9]),
+        name: 'pre',
+        ext: 'bin',
+        contentHash: precomputed
+      })
+      if (entry.origin !== 'internal') throw new Error('expected internal entry')
+      expect(entry.contentHash).toBe(precomputed)
+    })
+
     it('writes a row that survives schema parse (brand contract)', async () => {
       const entry = await createInternal(deps, { source: 'bytes', data: new Uint8Array([0]), name: 'x', ext: null })
       const found = await fileEntryService.getById(entry.id)
@@ -148,6 +177,9 @@ describe('internal/entry/create.createInternal', () => {
       const physical = path.join(filesDir, `${entry.id}.png`)
       const buf = await readFile(physical)
       expect(Array.from(buf)).toEqual([0x89, 0x50, 0x4e, 0x47])
+      // Streaming source: contentHash is read back from the written file.
+      expect(entry.contentHash).toBe(hashContent(buf))
+      expect(entry.contentHash).toMatch(/^xxh3-64:[0-9a-f]{16}$/)
     })
 
     it('derives ext=null when the URL path has no recognisable extension', async () => {
@@ -195,6 +227,9 @@ describe('internal/entry/create.createInternal', () => {
       expect(entry.size).toBe(4)
       expect(entry.ext).toBe('png')
       expect(entry.name.length).toBeGreaterThan(0)
+      // In-memory source: contentHash is the one-shot hash of the decoded bytes.
+      if (entry.origin !== 'internal') throw new Error('expected internal entry')
+      expect(entry.contentHash).toBe(hashContent(bytes))
     })
   })
 

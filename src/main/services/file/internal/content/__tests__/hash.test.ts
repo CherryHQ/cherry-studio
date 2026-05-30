@@ -80,7 +80,7 @@ describe('internal/content/hash', () => {
     const h1 = await hash(deps, id)
     const h2 = await hash(deps, id)
     expect(h1).toBe(h2)
-    expect(h1).toMatch(/^[0-9a-f]+$/)
+    expect(h1).toMatch(/^xxh3-64:[0-9a-f]{16}$/)
   })
 
   it('returns different hashes for different content', async () => {
@@ -143,6 +143,6 @@ describe('internal/content/hash', () => {
     const file = path.join(tmp, 'direct.txt') as FilePath
     await writeFile(file, 'direct')
     const result = await hashByPath(deps, file)
-    expect(result).toMatch(/^[0-9a-f]+$/)
+    expect(result).toMatch(/^xxh3-64:[0-9a-f]{16}$/)
   })
 })

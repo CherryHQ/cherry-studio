@@ -49,3 +49,17 @@ export const SafeExtSchema = z
   .refine((s) => !/[/\\]/.test(s), 'Extension must not contain path separators')
   .refine((s) => !s.startsWith('.'), 'Extension must be bare (no leading dot), e.g. "pdf" not ".pdf"')
   .refine((s) => s.trim().length > 0, 'Extension must not be all whitespace')
+
+/**
+ * Content-hash schema for the dedup detection substrate.
+ *
+ * Stored / transported as `{algo}:{hex}` (e.g. `xxh3-64:24ccc9acaa9f65e4`) —
+ * the algorithm tag is part of the contract, so a future algorithm change can
+ * coexist with old values via incremental migration instead of a flag-day
+ * re-hash. This validates the *shape* only (lowercase `{algo}:{hex}`), never
+ * hash correctness: `contentHash` is a detection substrate, not an identity
+ * (see file-manager-architecture.md).
+ */
+export const ContentHashSchema = z
+  .string()
+  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*:[0-9a-f]+$/, 'contentHash must be `{algo}:{hex}` (e.g. "xxh3-64:…")')

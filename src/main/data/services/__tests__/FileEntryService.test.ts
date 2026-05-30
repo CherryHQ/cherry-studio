@@ -204,6 +204,125 @@ describe('FileEntryService', () => {
     })
   })
 
+  describe('findInternalByContentHash', () => {
+    const HASH = 'xxh3-64:1111222233334444'
+
+    it('returns active internal entries sharing the hash, oldest-first (non-unique)', async () => {
+      // Two internal entries with identical content (same hash, different names) —
+      // legitimate under a non-unique detection substrate.
+      await fileEntryService.create({
+        id: '019606a0-0000-7000-8000-0000000000c1' as FileEntryId,
+        origin: 'internal',
+        name: 'first',
+        ext: 'bin',
+        size: 3,
+        contentHash: HASH,
+        externalPath: null
+      })
+      await fileEntryService.create({
+        id: '019606a0-0000-7000-8000-0000000000c2' as FileEntryId,
+        origin: 'internal',
+        name: 'second',
+        ext: 'bin',
+        size: 3,
+        contentHash: HASH,
+        externalPath: null
+      })
+      const hits = await fileEntryService.findInternalByContentHash(HASH)
+      expect(hits.map((h) => h.id)).toEqual([
+        '019606a0-0000-7000-8000-0000000000c1',
+        '019606a0-0000-7000-8000-0000000000c2'
+      ])
+    })
+
+    it('returns empty array when no internal entry matches', async () => {
+      await fileEntryService.create({
+        id: '019606a0-0000-7000-8000-0000000000c3' as FileEntryId,
+        origin: 'internal',
+        name: 'other',
+        ext: null,
+        size: 1,
+        contentHash: 'xxh3-64:deadbeefdeadbeef',
+        externalPath: null
+      })
+      expect(await fileEntryService.findInternalByContentHash(HASH)).toEqual([])
+    })
+
+    it('excludes trashed internal entries (only active rows are reuse targets)', async () => {
+      const id = '019606a0-0000-7000-8000-0000000000c4' as FileEntryId
+      await fileEntryService.create({
+        id,
+        origin: 'internal',
+        name: 'trashed',
+        ext: 'bin',
+        size: 3,
+        contentHash: HASH,
+        externalPath: null
+      })
+      await fileEntryService.update(id, { deletedAt: Date.now() })
+      expect(await fileEntryService.findInternalByContentHash(HASH)).toEqual([])
+    })
+  })
+
+  describe('countInternalMissingContentHash / findInternalMissingContentHash', () => {
+    const PREFIX = '019606a0-0000-7000-8000-0000000000'
+
+    it('counts internal NULL-contentHash rows including trashed, excluding external and hashed', async () => {
+      // internal, NULL contentHash
+      await fileEntryService.create({
+        id: `${PREFIX}d1` as FileEntryId,
+        origin: 'internal',
+        name: 'a',
+        ext: 'bin',
+        size: 1,
+        externalPath: null
+      })
+      // internal, NULL, trashed → still counted (blob preserved, hashable)
+      await fileEntryService.create({
+        id: `${PREFIX}d2` as FileEntryId,
+        origin: 'internal',
+        name: 'b',
+        ext: 'bin',
+        size: 1,
+        externalPath: null
+      })
+      await fileEntryService.update(`${PREFIX}d2` as FileEntryId, { deletedAt: Date.now() })
+      // internal, already hashed → excluded
+      await fileEntryService.create({
+        id: `${PREFIX}d3` as FileEntryId,
+        origin: 'internal',
+        name: 'c',
+        ext: 'bin',
+        size: 1,
+        contentHash: 'xxh3-64:1111222233334444',
+        externalPath: null
+      })
+      // external → excluded (never carries a contentHash)
+      await fileEntryService.create({
+        id: `${PREFIX}d4` as FileEntryId,
+        origin: 'external',
+        name: 'd',
+        ext: 'txt',
+        size: null,
+        externalPath: '/tmp/d.txt'
+      })
+
+      expect(await fileEntryService.countInternalMissingContentHash()).toBe(2)
+    })
+
+    it('pages NULL-contentHash internal rows by id keyset', async () => {
+      const ids = [`${PREFIX}e1`, `${PREFIX}e2`, `${PREFIX}e3`] as FileEntryId[]
+      for (const id of ids) {
+        await fileEntryService.create({ id, origin: 'internal', name: 'x', ext: 'bin', size: 1, externalPath: null })
+      }
+      const page1 = await fileEntryService.findInternalMissingContentHash(null, 2)
+      expect(page1.map((e) => e.id)).toEqual([ids[0], ids[1]])
+      const page2 = await fileEntryService.findInternalMissingContentHash(page1[page1.length - 1].id, 2)
+      expect(page2.map((e) => e.id)).toEqual([ids[2]])
+      expect(await fileEntryService.findInternalMissingContentHash(ids[2], 2)).toEqual([])
+    })
+  })
+
   describe('findMany', () => {
     it('returns all active entries when no query is given', async () => {
       const now = Date.now()

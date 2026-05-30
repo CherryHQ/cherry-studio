@@ -13,11 +13,13 @@
  */
 
 import { loggerService } from '@logger'
+import { hashContent } from '@main/utils/file/contentHash'
 import type { AtomicWriteStream } from '@main/utils/file/fs'
 import {
   atomicWriteFile,
   atomicWriteIfUnchanged,
   createAtomicWriteStream,
+  hash,
   PathStaleVersionError,
   stat as fsStat
 } from '@main/utils/file/fs'
@@ -45,7 +47,9 @@ export async function write(deps: FileManagerDeps, id: FileEntryId, data: string
     const s = await fsStat(physical)
     const version: FileVersion = { mtime: s.modifiedAt, size: s.size }
     if (entry.origin === 'internal') {
-      await deps.fileEntryService.update(id, { size: version.size })
+      // Maintained-on-write: new content → recompute the detection hash. `data`
+      // is already in memory, so this is a one-shot hash with no extra IO.
+      await deps.fileEntryService.update(id, { size: version.size, contentHash: hashContent(data) })
     }
     deps.versionCache.set(id, version)
     return version
@@ -80,7 +84,8 @@ export async function writeIfUnchanged(
   // failed".
   try {
     if (entry.origin === 'internal') {
-      await deps.fileEntryService.update(id, { size: next.size })
+      // Maintained-on-write: `data` is in memory → one-shot hash, no extra IO.
+      await deps.fileEntryService.update(id, { size: next.size, contentHash: hashContent(data) })
     }
     deps.versionCache.set(id, next)
     return next
@@ -99,7 +104,10 @@ export async function createWriteStream(deps: FileManagerDeps, id: FileEntryId):
       const s = await fsStat(physical)
       const version: FileVersion = { mtime: s.modifiedAt, size: s.size }
       if (entry.origin === 'internal') {
-        await deps.fileEntryService.update(id, { size: version.size })
+        // Maintained-on-write. Streaming source (no in-memory bytes) → read the
+        // just-written file back for the hash (page-cache warm), mirroring the
+        // create.ts hybrid strategy.
+        await deps.fileEntryService.update(id, { size: version.size, contentHash: await hash(physical) })
       }
       deps.versionCache.set(id, version)
     } catch (err) {

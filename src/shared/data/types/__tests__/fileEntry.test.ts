@@ -18,6 +18,7 @@ function makeInternal(overrides: Record<string, unknown> = {}) {
     name: 'readme',
     ext: 'md',
     size: 1024,
+    contentHash: null,
     createdAt: TS,
     updatedAt: TS,
     ...overrides
@@ -270,6 +271,28 @@ describe('FileEntrySchema size/ext boundaries', () => {
     // test just confirms the schema itself allows bare multi-letter extensions.
     expect(FileEntrySchema.safeParse(makeInternal({ ext: 'gz' })).success).toBe(true)
     expect(FileEntrySchema.safeParse(makeInternal({ ext: '7z' })).success).toBe(true)
+  })
+})
+
+// ─── contentHash (dedup detection substrate) ───
+
+describe('FileEntrySchema contentHash', () => {
+  it('accepts internal with null contentHash (backfill window / not yet computed)', () => {
+    expect(FileEntrySchema.safeParse(makeInternal({ contentHash: null })).success).toBe(true)
+  })
+
+  it('accepts internal with a well-formed {algo}:{hex} contentHash', () => {
+    expect(FileEntrySchema.safeParse(makeInternal({ contentHash: 'xxh3-64:24ccc9acaa9f65e4' })).success).toBe(true)
+  })
+
+  it('rejects a malformed contentHash (missing algo tag / uppercase hex)', () => {
+    expect(FileEntrySchema.safeParse(makeInternal({ contentHash: 'deadbeef' })).success).toBe(false)
+    expect(FileEntrySchema.safeParse(makeInternal({ contentHash: 'xxh3-64:DEADBEEF' })).success).toBe(false)
+  })
+
+  it('rejects contentHash on an external entry (field is absent on that arm)', () => {
+    // External is a strictObject without `contentHash` — supplying it is an extra key.
+    expect(FileEntrySchema.safeParse(makeExternal({ contentHash: 'xxh3-64:24ccc9acaa9f65e4' })).success).toBe(false)
   })
 })
 

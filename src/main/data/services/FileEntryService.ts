@@ -23,7 +23,7 @@ import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CanonicalExternalPath, FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntrySchema, SafeNameSchema } from '@shared/data/types/file'
-import { and, asc, count, desc, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
+import { and, asc, count, desc, eq, gt, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
 
 /** Columns a caller may provide on insert (id defaults to a fresh UUID v7 when omitted). */
@@ -39,6 +39,13 @@ export interface CreateFileEntryRow {
    * live values come from File IPC `getMetadata`.
    */
   readonly size: number | null
+  /**
+   * Content hash (`{algo}:{hex}`) for the dedup detection substrate. Optional;
+   * defaults to `null` when omitted. Internal entries created via the write
+   * pipeline always supply it; v1-migrated rows omit it (backfilled later).
+   * Must stay `null` for external rows (enforced by `fe_contenthash_external_null`).
+   */
+  readonly contentHash?: string | null
   /** Non-null iff `origin === 'external'`; must be pre-canonicalized. */
   readonly externalPath: string | null
   readonly deletedAt?: number | null
@@ -46,10 +53,11 @@ export interface CreateFileEntryRow {
 
 /**
  * Columns that may be mutated post-insert. Origin / id / externalPath are
- * immutable. Note `size` is included because internal-file writes update the
- * byte count atomically; on external rows it must remain `null`.
+ * immutable. `size` and `contentHash` are included because internal-file writes
+ * update the byte count and recompute the detection hash atomically; on
+ * external rows both must remain `null`.
  */
-export type UpdateFileEntryRow = Partial<Pick<CreateFileEntryRow, 'name' | 'ext' | 'size'>> & {
+export type UpdateFileEntryRow = Partial<Pick<CreateFileEntryRow, 'name' | 'ext' | 'size' | 'contentHash'>> & {
   readonly deletedAt?: number | null
 }
 
@@ -118,6 +126,37 @@ export interface FileEntryService {
    * `file-manager-architecture.md §1.2 Duplicate-entry detection on insert`.
    */
   findCaseInsensitivePeers(canonicalPath: CanonicalExternalPath): Promise<FileEntry[]>
+
+  /**
+   * Active internal entries whose `contentHash` equals `contentHash` — the
+   * detection-query primitive behind content-level dedup.
+   *
+   * NON-unique by design: `contentHash` carries no unique constraint (it is a
+   * detection substrate, not a key), so this may return >1 row — identical
+   * content stored under different names, or a rare hash collision that the
+   * consumer's secondary check (e.g. `(contentHash, name, ext)`) or the user
+   * rejects. Ordered oldest-first (`createdAt`, then `id`) for a stable
+   * candidate list. External rows are excluded (they never carry a
+   * `contentHash`); trashed entries are excluded (only active entries are
+   * reuse targets). Returns `[]` on no match.
+   */
+  findInternalByContentHash(contentHash: string): Promise<FileEntry[]>
+
+  /**
+   * Count of internal entries still missing a `contentHash` — the backfill work
+   * set (v1-migrated / pre-feature rows). Includes trashed entries (their
+   * physical blob is preserved, so they are hashable and become reuse targets
+   * once restored). `> 0` is the startup trigger for the backfill coordinator.
+   */
+  countInternalMissingContentHash(): Promise<number>
+
+  /**
+   * Keyset page (ordered by `id`, `id > afterId`) of internal entries missing a
+   * `contentHash`, for the backfill coordinator. Keyset (not OFFSET) so entries
+   * that fail to hash stay NULL but behind the cursor and are not re-scanned in
+   * the same drain pass. Pass `afterId = null` for the first page.
+   */
+  findInternalMissingContentHash(afterId: string | null, limit: number): Promise<FileEntry[]>
 
   /** Flat listing. Trashed filter defaults to "active only" when `inTrash` is omitted. */
   findMany(query?: FindEntriesQuery): Promise<FileEntry[]>
@@ -200,6 +239,9 @@ function rowToFileEntry(row: FileEntryRow): FileEntry {
       name: row.name,
       ext: row.ext,
       size: row.size,
+      // Detection substrate for content dedup; `null` until backfilled. Carried
+      // straight through from the row (the column is internal-only and nullable).
+      contentHash: row.contentHash,
       // deletedAt is `optional` on the BO — present iff the DB column is
       // non-null. Bypass `nullsToUndefined` so we don't pull in a helper
       // whose project-wide meaning is "every null becomes undefined";
@@ -262,6 +304,43 @@ class FileEntryServiceImpl implements FileEntryService {
       // tests and for the surviving-row selection in any future FileMigrator
       // dedupe pass).
       .orderBy(asc(fileEntryTable.createdAt), asc(fileEntryTable.id))
+    return rows.map(rowToFileEntry)
+  }
+
+  async findInternalByContentHash(contentHash: string): Promise<FileEntry[]> {
+    const rows = await this.getDb()
+      .select()
+      .from(fileEntryTable)
+      .where(
+        and(
+          eq(fileEntryTable.origin, 'internal'),
+          isNull(fileEntryTable.deletedAt),
+          eq(fileEntryTable.contentHash, contentHash)
+        )
+      )
+      // Stable oldest-first ordering so a consumer that reuses "the first
+      // candidate" gets a deterministic pick across runs.
+      .orderBy(asc(fileEntryTable.createdAt), asc(fileEntryTable.id))
+    return rows.map(rowToFileEntry)
+  }
+
+  async countInternalMissingContentHash(): Promise<number> {
+    const rows = await this.getDb()
+      .select({ value: count() })
+      .from(fileEntryTable)
+      .where(and(eq(fileEntryTable.origin, 'internal'), isNull(fileEntryTable.contentHash)))
+    return rows[0]?.value ?? 0
+  }
+
+  async findInternalMissingContentHash(afterId: string | null, limit: number): Promise<FileEntry[]> {
+    const conditions: SQL[] = [eq(fileEntryTable.origin, 'internal'), isNull(fileEntryTable.contentHash)]
+    if (afterId !== null) conditions.push(gt(fileEntryTable.id, afterId))
+    const rows = await this.getDb()
+      .select()
+      .from(fileEntryTable)
+      .where(and(...conditions))
+      .orderBy(asc(fileEntryTable.id))
+      .limit(limit)
     return rows.map(rowToFileEntry)
   }
 
@@ -370,6 +449,7 @@ class FileEntryServiceImpl implements FileEntryService {
         name: values.name,
         ext: values.ext,
         size: values.size,
+        contentHash: values.contentHash ?? null,
         externalPath: values.externalPath,
         deletedAt: values.deletedAt ?? null,
         createdAt: now,
@@ -392,6 +472,7 @@ class FileEntryServiceImpl implements FileEntryService {
     if (values.name !== undefined) updates.name = values.name
     if (values.ext !== undefined) updates.ext = values.ext
     if (values.size !== undefined) updates.size = values.size
+    if (values.contentHash !== undefined) updates.contentHash = values.contentHash
     if (values.deletedAt !== undefined) updates.deletedAt = values.deletedAt
     const rows = await this.getDb().update(fileEntryTable).set(updates).where(eq(fileEntryTable.id, id)).returning()
     if (rows.length === 0) {

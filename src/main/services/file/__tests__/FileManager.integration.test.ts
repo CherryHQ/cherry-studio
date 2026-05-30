@@ -6,6 +6,7 @@ import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { BaseService } from '@main/core/lifecycle'
 import type { FileEntryId } from '@shared/data/types/file'
+import { ContentHashSchema } from '@shared/data/types/file/essential'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -109,7 +110,7 @@ describe('FileManager (integration)', () => {
 
     // Content hash works for external entries
     const hash = await fm.getContentHash(id)
-    expect(hash).toMatch(/^[0-9a-f]+$/)
+    expect(hash).toMatch(/^xxh3-64:[0-9a-f]{16}$/)
   })
 
   it('INT-3: missing-file ENOENT propagates from read', async () => {
@@ -499,5 +500,161 @@ describe('FileManager (integration)', () => {
     const out = await fm.batchGetDanglingStates({ ids: [known, ghost] })
     expect(out[known]).toBe('present')
     expect(out[ghost]).toBe('unknown')
+  })
+
+  // ─── onAllReady content-hash backfill trigger (Gap 1) ───
+  //
+  // `onAllReady` is `protected`; the lifecycle container reaches it through the
+  // public `_doAllReady()` wrapper (BaseService), which is also how INT-10/11
+  // drive `_doInit()`. The backfill is best-effort crash-recovery: it probes
+  // `countInternalMissingContentHash()` and only enqueues `file.contenthash-backfill`
+  // when that count is `> 0`. The JobManager is the unified application mock's
+  // stub (tests/__mocks__/main/application.ts) — its `enqueue` is a shared
+  // module-level `vi.fn`, so we reach it via `application.get('JobManager')` and
+  // clear it before each case to isolate call counts.
+  describe('onAllReady: contentHash backfill trigger', () => {
+    // The shared JobManager mock; `enqueue` / `registerHandler` are vi.fns.
+    // `application.get` is typed to the real JobManager, so route through
+    // `unknown` to view it as the mock surface the tests actually assert on.
+    const jobManager = application.get('JobManager') as unknown as {
+      enqueue: ReturnType<typeof vi.fn>
+      registerHandler: ReturnType<typeof vi.fn>
+    }
+
+    // Invoke the protected onAllReady via the public lifecycle wrapper.
+    const triggerAllReady = (instance: typeof fm) =>
+      (instance as unknown as { _doAllReady(): Promise<void> })._doAllReady()
+
+    beforeEach(() => {
+      // Isolate enqueue call counts per case — the spy is module-level shared.
+      jobManager.enqueue.mockClear()
+      // Restore the happy-path default in case a prior case swapped it for a
+      // rejecting impl via mockRejectedValueOnce (defensive; mockClear keeps
+      // the implementation, but a once-impl could leak if a case didn't consume it).
+      jobManager.enqueue.mockResolvedValue({ id: 'mock-job-id', snapshot: {} })
+    })
+
+    it('does NOT enqueue when no internal rows are missing contentHash (steady state)', async () => {
+      // Seed one fully-hashed internal row so the table is non-empty but the
+      // backfill work set (contentHash IS NULL) is exactly zero.
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values({
+        id: '019606a0-0000-7000-8000-00000000fb01' as FileEntryId,
+        origin: 'internal',
+        name: 'hashed',
+        ext: 'txt',
+        size: 1,
+        contentHash: 'xxh3-64:00000000aaaa0000',
+        externalPath: null,
+        deletedAt: null,
+        createdAt: now,
+        updatedAt: now
+      })
+
+      await triggerAllReady(fm)
+
+      expect(jobManager.enqueue).not.toHaveBeenCalled()
+    })
+
+    it('enqueues file.contenthash-backfill once when ≥1 internal row is missing contentHash', async () => {
+      // A v1-migrated / pre-feature row: internal, contentHash NULL → in the
+      // backfill work set, so onAllReady must kick exactly one backfill job.
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values({
+        id: '019606a0-0000-7000-8000-00000000fb02' as FileEntryId,
+        origin: 'internal',
+        name: 'legacy',
+        ext: 'txt',
+        size: 1,
+        contentHash: null,
+        externalPath: null,
+        deletedAt: null,
+        createdAt: now,
+        updatedAt: now
+      })
+
+      await triggerAllReady(fm)
+
+      expect(jobManager.enqueue).toHaveBeenCalledTimes(1)
+      expect(jobManager.enqueue).toHaveBeenCalledWith('file.contenthash-backfill', {})
+    })
+
+    it('resolves without throwing when enqueue rejects (best-effort: must not fail startup)', async () => {
+      // Pending work exists, so onAllReady reaches the enqueue call...
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values({
+        id: '019606a0-0000-7000-8000-00000000fb03' as FileEntryId,
+        origin: 'internal',
+        name: 'legacy',
+        ext: 'txt',
+        size: 1,
+        contentHash: null,
+        externalPath: null,
+        deletedAt: null,
+        createdAt: now,
+        updatedAt: now
+      })
+      // ...but JobManager.enqueue rejects this once. The try/catch in
+      // onAllReady warn-swallows it so app startup is never blocked.
+      jobManager.enqueue.mockRejectedValueOnce(new Error('job queue offline'))
+
+      await expect(triggerAllReady(fm)).resolves.toBeUndefined()
+      expect(jobManager.enqueue).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  // ─── findInternalByContentHash detection-query boundary (Gap 2) ───
+  describe('findInternalByContentHash: detection-query boundary', () => {
+    it('returns every active internal entry sharing the caller-supplied contentHash, oldest-first', async () => {
+      // Two distinct internal entries created under the SAME caller-supplied
+      // contentHash (the detect-first path persists it verbatim — see
+      // create.test.ts "honors a caller-supplied contentHash"). contentHash is
+      // a NON-unique detection substrate, so both rows are legitimate candidates.
+      const sharedHash = 'xxh3-64:1111222233334444'
+      const first = await fm.createInternalEntry({
+        source: 'bytes',
+        data: new Uint8Array([0x10]),
+        name: 'first',
+        ext: 'bin',
+        contentHash: sharedHash
+      })
+      const second = await fm.createInternalEntry({
+        source: 'bytes',
+        data: new Uint8Array([0x20]),
+        name: 'second',
+        ext: 'bin',
+        contentHash: sharedHash
+      })
+
+      const found = await fm.findInternalByContentHash(sharedHash)
+
+      expect(found.map((e) => e.id)).toEqual([first.id, second.id])
+    })
+
+    it('returns [] for a well-formed but absent contentHash', async () => {
+      // Seed an unrelated hashed row so the table is non-empty; the query for a
+      // hash that matches nothing must still come back empty (not null/throw).
+      await fm.createInternalEntry({
+        source: 'bytes',
+        data: new Uint8Array([0x30]),
+        name: 'other',
+        ext: 'bin',
+        contentHash: 'xxh3-64:9999888877776666'
+      })
+
+      const found = await fm.findInternalByContentHash('xxh3-64:0000000000000000')
+
+      expect(found).toEqual([])
+    })
+
+    it('rejects a malformed contentHash at the IPC validation boundary (ContentHashSchema.parse)', async () => {
+      // The File_FindInternalByContentHash handler Zod-parses params before
+      // delegating: `this.findInternalByContentHash(ContentHashSchema.parse(params))`.
+      // ContentHashSchema enforces the `{algo}:{hex}` shape, so a malformed
+      // string is rejected at the boundary rather than reaching the DB query.
+      expect(ContentHashSchema.safeParse('not-valid').success).toBe(false)
+      // Well-formed shapes pass the same gate (positive control).
+      expect(ContentHashSchema.safeParse('xxh3-64:1111222233334444').success).toBe(true)
+    })
   })
 })

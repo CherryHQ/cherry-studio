@@ -6,6 +6,7 @@ import path from 'node:path'
 import type { FilePath } from '@shared/file/types'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
+import { hashContent } from '../contentHash'
 import {
   atomicWriteFile,
   atomicWriteIfUnchanged,
@@ -250,26 +251,27 @@ describe('hash', () => {
     expect(await hash(f1 as FilePath)).not.toBe(await hash(f2 as FilePath))
   })
 
-  it('returns lowercase hex string', async () => {
+  it('returns an algorithm-tagged lowercase hex digest', async () => {
     const f = path.join(tmp, 'a.txt')
     await writeFile(f, 'sample')
     const h = await hash(f as FilePath)
-    expect(h).toMatch(/^[0-9a-f]+$/)
+    expect(h).toMatch(/^xxh3-64:[0-9a-f]{16}$/)
   })
 
-  it('returns 16-char xxhash-h64 hex (not 32-char md5)', async () => {
+  it('uses a 64-bit digest (16 hex chars after the algorithm tag)', async () => {
     const f = path.join(tmp, 'a.txt')
     await writeFile(f, 'sample')
     const h = await hash(f as FilePath)
-    expect(h).toHaveLength(16)
+    expect(h.split(':')[1]).toHaveLength(16)
   })
 
-  it('matches the known xxhash-h64 fixture for "hello"', async () => {
+  it('streams to the same digest as the one-shot content hash of the bytes', async () => {
     const f = path.join(tmp, 'a.txt')
     await writeFile(f, 'hello')
     const h = await hash(f as FilePath)
-    // xxhash-h64('hello') = 0x26c7827d889f6da3 (default seed = 0).
-    expect(h).toBe('26c7827d889f6da3')
+    // File-streamed hash ≡ one-shot hashContent over the same bytes; the
+    // canonical XXH3-64 value is pinned in contentHash.test.ts.
+    expect(h).toBe(hashContent(Buffer.from('hello')))
   })
 })
 

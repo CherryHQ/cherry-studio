@@ -95,6 +95,7 @@
     "@libsql/client": "^0.15.15",
     "@napi-rs/canvas": "0.1.80",
     "@napi-rs/system-ocr": "1.0.2",
+    "@node-rs/xxhash": "1.7.6",
     "@paymoapp/electron-shutdown-handler": "1.1.2",
     "@vectorstores/core": "^0.1.8",
     "@vectorstores/libsql": "workspace:*",
@@ -115,8 +116,7 @@
     "swagger-ui-express": "5.0.1",
     "tesseract.js": "6.0.1",
     "turndown": "7.2.0",
-    "ws": "^8.18.2",
-    "xxhash-wasm": "^1.1.0"
+    "ws": "^8.18.2"
   },
   "devDependencies": {
     "@agentic/exa": "^7.3.3",
@@ -575,6 +575,14 @@
     "@napi-rs/system-ocr-darwin-x64": "1.0.2",
     "@napi-rs/system-ocr-win32-arm64-msvc": "1.0.2",
     "@napi-rs/system-ocr-win32-x64-msvc": "1.0.2",
+    "@node-rs/xxhash-darwin-arm64": "1.7.6",
+    "@node-rs/xxhash-darwin-x64": "1.7.6",
+    "@node-rs/xxhash-linux-arm64-gnu": "1.7.6",
+    "@node-rs/xxhash-linux-arm64-musl": "1.7.6",
+    "@node-rs/xxhash-linux-x64-gnu": "1.7.6",
+    "@node-rs/xxhash-linux-x64-musl": "1.7.6",
+    "@node-rs/xxhash-win32-arm64-msvc": "1.7.6",
+    "@node-rs/xxhash-win32-x64-msvc": "1.7.6",
     "@strongtz/win32-arm64-msvc": "0.4.7"
   }
 }
