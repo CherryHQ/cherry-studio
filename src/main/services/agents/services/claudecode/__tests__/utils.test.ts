@@ -167,9 +167,9 @@ describe('encodeCwdForClaudeProjects', () => {
   })
 
   it('matches the SDK convention for Windows-style cwds (drive letter + backslashes)', () => {
-    expect(encodeCwdForClaudeProjects('C:\\Users\\Administrator\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\t-default')).toBe(
-      'C--Users-Administrator-AppData-Roaming-CherryStudio-Data-Agents-t-default'
-    )
+    expect(
+      encodeCwdForClaudeProjects('C:\\Users\\Administrator\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\t-default')
+    ).toBe('C--Users-Administrator-AppData-Roaming-CherryStudio-Data-Agents-t-default')
   })
 
   it('encodes nested Windows-in-POSIX residue (e.g. unzipped Windows backup under ~/Downloads)', () => {
