@@ -72,16 +72,42 @@ export async function remapAgentPrefixIds(db: MigrationContext['db']): Promise<v
     // rows we'd otherwise commit a corrupted state and re-enable FKs as if all
     // were well. PRAGMA foreign_key_check returns one row per violation; an empty
     // result means every (table, rowid, parent, fkid) tuple satisfies its FK.
-    const fkViolations = await db.all<{
+    //
+    // This migrator only touches agent-domain tables. Other migrators (e.g.,
+    // KnowledgeMigrator) run later and have their own FK-on-hold windows —
+    // violations in those tables are expected at this point. Filter them out to
+    // avoid false positives.
+    const AGENT_TABLE_NAMES = new Set([
+      'agent',
+      'agent_session',
+      'agent_skill',
+      'agent_task',
+      'agent_channel',
+      'agent_session_message',
+      'agent_task_run_log',
+      'agent_channel_task'
+    ])
+    const allFkViolations = await db.all<{
       table: string
       rowid: number | null
       parent: string
       fkid: number
     }>(sql.raw('PRAGMA foreign_key_check'))
-    if (fkViolations.length > 0) {
+    const ourViolations = allFkViolations.filter((v) => AGENT_TABLE_NAMES.has(v.table))
+    const otherViolations = allFkViolations.filter((v) => !AGENT_TABLE_NAMES.has(v.table))
+    if (otherViolations.length > 0) {
+      logger.info(
+        `remapAgentPrefixIds: ${otherViolations.length} FK violation(s) in other domains (expected — later migrators resolve these): ` +
+          otherViolations
+            .slice(0, 5)
+            .map((v) => `${v.table}->${v.parent} (rowid=${v.rowid})`)
+            .join(', ')
+      )
+    }
+    if (ourViolations.length > 0) {
       throw new Error(
-        `remapAgentPrefixIds left ${fkViolations.length} foreign-key violation(s): ` +
-          fkViolations
+        `remapAgentPrefixIds left ${ourViolations.length} foreign-key violation(s): ` +
+          ourViolations
             .slice(0, 5)
             .map((v) => `${v.table}->${v.parent} (rowid=${v.rowid})`)
             .join(', ')
