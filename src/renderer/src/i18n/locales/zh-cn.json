@@ -1445,6 +1445,7 @@
         "title_naming_success": "标题生成成功",
         "wait_for_title_naming": "正在生成标题...",
         "word": "导出为 Word",
+        "html": "导出为 HTML",
         "yuque": "导出到语雀"
       },
       "list": "话题列表",
@@ -1856,6 +1857,11 @@
     "conversation_details": "会话详情",
     "conversation_history": "会话历史",
     "created": "创建时间",
+    "html": {
+      "failed": "HTML 导出失败",
+      "generated_by": "由 Cherry Studio 生成 —",
+      "success": "HTML 导出成功"
+    },
     "last_updated": "最后更新",
     "messages": "消息数",
     "notion": {
@@ -4026,6 +4032,7 @@
       },
       "export_menu": {
         "docx": "导出为 Word",
+        "html": "导出为 HTML",
         "image": "导出为图片",
         "joplin": "导出到 Joplin",
         "markdown": "导出为 Markdown",

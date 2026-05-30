@@ -215,6 +215,7 @@ export interface SettingsState {
     docx: boolean
     plain_text: boolean
     notes: boolean
+    html: boolean
   }
   // OpenAI
   openAI: {
@@ -402,7 +403,8 @@ export const initialState: SettingsState = {
     siyuan: true,
     docx: true,
     plain_text: true,
-    notes: true
+    notes: true,
+    html: true
   },
   // OpenAI
   openAI: {

@@ -30,6 +30,7 @@ import {
   exportMarkdownToYuque,
   exportTopicAsMarkdown,
   exportTopicToNotes,
+  exportTopicAsHtml,
   exportTopicToNotion,
   topicToMarkdown
 } from '@renderer/utils/export'
@@ -426,6 +427,11 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
               void window.api.export.toWord(markdown, removeSpecialCharactersForFileName(topic.name))
             }
           },
+          exportMenuOptions.html && {
+            label: t('chat.topics.export.html'),
+            key: 'html',
+            onClick: () => exportTopicAsHtml(topic)
+          },
           exportMenuOptions.notion && {
             label: t('chat.topics.export.notion'),
             key: 'notion',
@@ -505,6 +511,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
     exportMenuOptions.markdown,
     exportMenuOptions.markdown_reason,
     exportMenuOptions.docx,
+    exportMenuOptions.html,
     exportMenuOptions.notion,
     exportMenuOptions.yuque,
     exportMenuOptions.obsidian,

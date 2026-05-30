@@ -15,6 +15,7 @@ import { getCitationContent, getMainTextContent, getThinkingContent } from '@ren
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
 import DOMPurify from 'dompurify'
+import MarkdownIt from 'markdown-it'
 import { appendBlocks } from 'notion-helper'
 
 const logger = loggerService.withContext('Utils:export')
@@ -1144,6 +1145,224 @@ const exportNoteAsImageFile = async (noteName: string): Promise<void> => {
 interface NoteExportOptions {
   node: { name: string; externalPath: string }
   platform: 'markdown' | 'docx' | 'notion' | 'yuque' | 'obsidian' | 'joplin' | 'siyuan' | 'copyImage' | 'exportImage'
+}
+
+// ============================================================================
+// HTML conversation export
+// ============================================================================
+
+/**
+ * Escape HTML entities for safe insertion into HTML content.
+ */
+function escapeHtml(text: string): string {
+  const map: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;'
+  }
+  return text.replace(/[&<>"']/g, (c) => map[c] || c)
+}
+
+/**
+ * Convert topic messages to a self-contained HTML string.
+ *
+ * Uses markdown-it for Markdown→HTML rendering, matching the same library
+ * Cherry Studio already depends on for its message display.
+ */
+export async function topicToHtml(topic: Topic): Promise<string> {
+  const messages = await fetchTopicMessages(topic.id)
+
+  const md = new MarkdownIt({
+    html: false,
+    linkify: true,
+    breaks: true,
+    typographer: true
+  })
+
+  const topicTitle = escapeHtml(topic.name)
+  const generatedAt = new Date().toISOString()
+
+  let messagesHtml = ''
+  for (const msg of messages) {
+    const roleLabel = msg.role === 'user' ? '🧑‍💻 User' : '🤖 Assistant'
+    const content = getMainTextContent(msg)
+    const renderedContent = md.render(content)
+    const thinkingContent = getThinkingContent(msg)
+    let thinkingHtml = ''
+    if (thinkingContent) {
+      const cleanThinking = thinkingContent.replace(/^<think>\n?/, '').replace(/<\/think>$/, '')
+      thinkingHtml = `
+          <details class="thinking-details">
+            <summary class="thinking-summary">🧠 ${i18n.t('common.reasoning_content')}</summary>
+            <div class="thinking-content">${escapeHtml(cleanThinking).replace(/\n/g, '<br>')}</div>
+          </details>`
+    }
+
+    messagesHtml += `
+        <div class="message message--${msg.role}">
+          <div class="message-header">
+            <span class="message-role">${roleLabel}</span>
+          </div>${thinkingHtml}
+          <div class="message-body">${renderedContent}</div>
+        </div>`
+  }
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="generator" content="Cherry Studio">
+<meta name="generated-at" content="${generatedAt}">
+<title>${topicTitle}</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --text: #1a1a2e;
+    --text-secondary: #6b7280;
+    --border: #e5e7eb;
+    --code-bg: #1e1e2e;
+    --code-text: #cdd6f4;
+    --user-bg: #f0f4ff;
+    --assistant-bg: #ffffff;
+    --thinking-bg: #f9fafb;
+    --thinking-border: #d1d5db;
+    --link: #2563eb;
+    --table-border: #d1d5db;
+    --table-head-bg: #f3f4f6;
+    --blockquote-border: #6366f1;
+    --blockquote-bg: #f8fafc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f0f1a;
+      --text: #e2e8f0;
+      --text-secondary: #94a3b8;
+      --border: #334155;
+      --code-bg: #11111b;
+      --code-text: #cdd6f4;
+      --user-bg: #1e1b4b;
+      --assistant-bg: #0f0f1a;
+      --thinking-bg: #1e293b;
+      --thinking-border: #475569;
+      --link: #60a5fa;
+      --table-border: #334155;
+      --table-head-bg: #1e293b;
+      --blockquote-border: #818cf8;
+      --blockquote-bg: #1e293b;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.75;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 24px 20px 60px;
+  }
+  .header { border-bottom: 1px solid var(--border); padding-bottom: 16px; margin-bottom: 24px; }
+  .header h1 { font-size: 1.6rem; font-weight: 700; }
+  .header .meta { font-size: 0.8rem; color: var(--text-secondary); margin-top: 6px; }
+  .message { margin-bottom: 24px; border-radius: 10px; padding: 18px 20px; border: 1px solid var(--border); }
+  .message--user { background: var(--user-bg); }
+  .message--assistant { background: var(--assistant-bg); }
+  .message-header { margin-bottom: 8px; }
+  .message-role { font-weight: 600; font-size: 0.9rem; color: var(--text-secondary); }
+  .thinking-details { margin: 10px 0; border: 1px solid var(--thinking-border); border-radius: 8px; background: var(--thinking-bg); }
+  .thinking-summary { padding: 8px 12px; cursor: pointer; font-weight: 500; font-size: 0.85rem; user-select: none; }
+  .thinking-content { padding: 10px 14px; font-size: 0.85rem; color: var(--text-secondary); white-space: pre-wrap; }
+  .message-body h1, .message-body h2, .message-body h3, .message-body h4 { margin-top: 1.2em; margin-bottom: 0.5em; }
+  .message-body h1 { font-size: 1.4rem; }
+  .message-body h2 { font-size: 1.2rem; }
+  .message-body h3 { font-size: 1.05rem; }
+  .message-body p { margin-bottom: 0.8em; }
+  .message-body a { color: var(--link); }
+  .message-body ul, .message-body ol { padding-left: 1.6em; margin-bottom: 0.8em; }
+  .message-body blockquote {
+    border-left: 3px solid var(--blockquote-border);
+    background: var(--blockquote-bg);
+    padding: 8px 14px;
+    margin: 12px 0;
+    border-radius: 0 6px 6px 0;
+  }
+  .message-body code {
+    font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+    font-size: 0.875em;
+    background: var(--code-bg);
+    color: var(--code-text);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .message-body pre {
+    background: var(--code-bg);
+    color: var(--code-text);
+    padding: 14px 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 10px 0;
+    font-size: 0.85rem;
+    line-height: 1.55;
+  }
+  .message-body pre code { background: none; padding: 0; font-size: inherit; }
+  .message-body table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 10px 0;
+    font-size: 0.9rem;
+  }
+  .message-body th, .message-body td {
+    border: 1px solid var(--table-border);
+    padding: 7px 12px;
+    text-align: left;
+  }
+  .message-body th { background: var(--table-head-bg); font-weight: 600; }
+  .message-body img { max-width: 100%; border-radius: 6px; margin: 6px 0; }
+  .message-body hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+  @media print {
+    body { max-width: none; padding: 0; }
+    .message { break-inside: avoid; border: none; padding: 12px 0; }
+    .message--user { background: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="header">
+    <h1>${topicTitle}</h1>
+    <div class="meta">${i18n.t('export.html.generated_by')} Cherry Studio &middot; ${generatedAt}</div>
+  </div>
+  ${messagesHtml}
+</body>
+</html>`
+}
+
+/**
+ * Export a topic as a self-contained HTML file via system save dialog.
+ */
+export async function exportTopicAsHtml(topic: Topic): Promise<void> {
+  if (getExportState()) {
+    window.toast.warning(i18n.t('message.warn.export.exporting'))
+    return
+  }
+
+  setExportingState(true)
+
+  try {
+    const fileName = removeSpecialCharactersForFileName(topic.name) + '.html'
+    const html = await topicToHtml(topic)
+    const result = await window.api.file.save(fileName, html)
+    if (result) {
+      window.toast.success(i18n.t('export.html.success'))
+    }
+  } catch (error: any) {
+    window.toast.error(i18n.t('export.html.failed'))
+    logger.error('Failed to export topic as HTML:', error)
+  } finally {
+    setExportingState(false)
+  }
 }
 
 export const exportNote = async ({ node, platform }: NoteExportOptions): Promise<void> => {
