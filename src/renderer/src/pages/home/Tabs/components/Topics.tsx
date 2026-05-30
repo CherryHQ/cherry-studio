@@ -28,9 +28,9 @@ import {
   exportMarkdownToJoplin,
   exportMarkdownToSiyuan,
   exportMarkdownToYuque,
+  exportTopicAsHtml,
   exportTopicAsMarkdown,
   exportTopicToNotes,
-  exportTopicAsHtml,
   exportTopicToNotion,
   topicToMarkdown
 } from '@renderer/utils/export'
@@ -427,7 +427,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
               void window.api.export.toWord(markdown, removeSpecialCharactersForFileName(topic.name))
             }
           },
-          exportMenuOptions.html && {
+          (exportMenuOptions.html ?? true) && {
             label: t('chat.topics.export.html'),
             key: 'html',
             onClick: () => exportTopicAsHtml(topic)

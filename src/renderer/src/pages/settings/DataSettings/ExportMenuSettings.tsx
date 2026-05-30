@@ -59,7 +59,7 @@ const ExportMenuOptions: FC = () => {
 
       <SettingRow>
         <SettingRowTitle>{t('settings.data.export_menu.html')}</SettingRowTitle>
-        <Switch checked={exportMenuOptions.html} onChange={(checked) => handleToggleOption('html', checked)} />
+        <Switch checked={exportMenuOptions.html ?? true} onChange={(checked) => handleToggleOption('html', checked)} />
       </SettingRow>
       <SettingDivider />
 
