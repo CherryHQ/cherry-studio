@@ -236,6 +236,15 @@ export class AssistantMigrator extends BaseMigrator {
         return { ...row, modelId: null }
       })
 
+      // @libsql/client creates new DB connections after each transaction()
+      // (this.#db = null). libsql is compiled with SQLITE_DEFAULT_FOREIGN_KEYS=1
+      // (see libsql-ffi/build.rs), so new connections have foreign_keys = ON.
+      // Must disable FK before each batch to prevent
+      // SQLITE_CONSTRAINT_FOREIGNKEY on assistant_mcp_server.mcpServerId and
+      // assistant_knowledge_base.knowledgeBaseId (migration-insert time gaps
+      // before McpServerMigrator/KnowledgeMigrator remap these IDs).
+      await ctx.db.run(sql`PRAGMA foreign_keys = OFF`)
+
       await ctx.db.transaction(async (tx) => {
         for (let i = 0; i < sanitizedAssistantRows.length; i += BATCH_SIZE) {
           const batch = sanitizedAssistantRows.slice(i, i + BATCH_SIZE)
