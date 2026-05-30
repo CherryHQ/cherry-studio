@@ -1,15 +1,21 @@
 import { TopView } from '@renderer/components/TopView'
 import { useAppSelector } from '@renderer/store'
-import { selectMessagesForTopic } from '@renderer/store/newMessage'
+import { selectAllMessages, selectMessagesForTopic } from '@renderer/store/newMessage'
+import type { TopicStats } from '@renderer/utils/topicStats'
 import { computeTopicStats } from '@renderer/utils/topicStats'
-import { BarChart3, Bot, Coins, Cpu, FileText, Gauge, MessageSquare, User, Zap } from 'lucide-react'
+import { BarChart3, Bot, Coins, Cpu, FileText, Gauge, Globe, MessageSquare, User, Zap } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
+// ─── Types ──────────────────────────────────────────────────────────────────
+
+type StatsMode = 'topic' | 'global'
+
 interface ShowParams {
-  topicId: string
-  topicName: string
+  topicId?: string
+  topicName?: string
+  mode?: StatsMode
 }
 
 interface Props extends ShowParams {
@@ -142,6 +148,35 @@ const CloseButton = styled.button`
 
 const Body = styled.div`
   padding: 20px 24px 24px;
+`
+
+const ModeToggle = styled.div`
+  display: flex;
+  gap: 4px;
+  background: var(--color-background-soft, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 3px;
+  margin-left: auto;
+`
+
+const ModeButton = styled.button<{ $active: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  background: ${(p) => (p.$active ? 'var(--color-primary)' : 'transparent')};
+  color: ${(p) => (p.$active ? '#fff' : 'var(--color-text-secondary, #888)')};
+
+  &:hover {
+    color: ${(p) => (p.$active ? '#fff' : 'var(--color-text)')};
+  }
 `
 
 // ─── Overview Cards ─────────────────────────────────────────────────────────
@@ -384,33 +419,26 @@ const EmptyState = styled.div`
   color: var(--color-text-secondary, #888);
 `
 
-// ─── Container Component ────────────────────────────────────────────────────
+// ─── Stats Display Component ────────────────────────────────────────────────
 
-const TopicStatsPopupContainer: React.FC<Props> = ({ topicId, topicName, resolve }) => {
-  const [open, setOpen] = useState(true)
-  const { t } = useTranslation()
+interface StatsDisplayProps {
+  stats: TopicStats
+  t: (key: string, opts?: Record<string, unknown>) => string
+}
 
-  const messages = useAppSelector((state) => selectMessagesForTopic(state, topicId))
-  const stats = useMemo(() => computeTopicStats(messages), [messages])
+const COLORS = {
+  input: '#6366f1',
+  output: '#10b981',
+  thinking: '#a855f7',
+  card1: '#6366f1',
+  card2: '#10b981',
+  card3: '#f59e0b',
+  card4: '#ef4444'
+}
 
-  const onClose = () => {
-    setOpen(false)
-    setTimeout(() => {
-      TopicStatsPopup.hide()
-      resolve()
-    }, 200)
-  }
-
-  // Colors
-  const COLORS = {
-    input: '#6366f1',
-    output: '#10b981',
-    thinking: '#a855f7',
-    primary: 'var(--color-primary)',
-    card1: '#6366f1',
-    card2: '#10b981',
-    card3: '#f59e0b',
-    card4: '#ef4444'
+const StatsDisplay: React.FC<StatsDisplayProps> = ({ stats, t }) => {
+  if (stats.totalMessages === 0) {
+    return <EmptyState>{t('stats.no_data')}</EmptyState>
   }
 
   const totalTokensForBar = stats.totalTokens || 1
@@ -424,222 +452,251 @@ const TopicStatsPopupContainer: React.FC<Props> = ({ topicId, topicName, resolve
 
   const maxModelTokens = stats.modelStats.length > 0 ? stats.modelStats[0].totalTokens : 1
 
-  TopicStatsPopup.hide = onClose
+  return (
+    <>
+      {/* ── Overview Cards ── */}
+      <OverviewGrid>
+        <StatCard $accent={COLORS.card1}>
+          <StatCardIcon $color={COLORS.card1}>
+            <MessageSquare size={16} />
+          </StatCardIcon>
+          <StatCardValue>{stats.totalMessages}</StatCardValue>
+          <StatCardLabel>{t('stats.messages')}</StatCardLabel>
+        </StatCard>
+        <StatCard $accent={COLORS.card2}>
+          <StatCardIcon $color={COLORS.card2}>
+            <Cpu size={16} />
+          </StatCardIcon>
+          <StatCardValue>{formatTokens(stats.totalTokens)}</StatCardValue>
+          <StatCardLabel>{t('stats.total_tokens')}</StatCardLabel>
+        </StatCard>
+        <StatCard $accent={COLORS.card3}>
+          <StatCardIcon $color={COLORS.card3}>
+            <Coins size={16} />
+          </StatCardIcon>
+          <StatCardValue>{formatCost(stats.totalCost)}</StatCardValue>
+          <StatCardLabel>{t('stats.total_cost')}</StatCardLabel>
+        </StatCard>
+        <StatCard $accent={COLORS.card4}>
+          <StatCardIcon $color={COLORS.card4}>
+            <Zap size={16} />
+          </StatCardIcon>
+          <StatCardValue>{formatLatency(stats.avgFirstTokenLatency)}</StatCardValue>
+          <StatCardLabel>{t('stats.avg_first_token')}</StatCardLabel>
+        </StatCard>
+      </OverviewGrid>
 
-  if (!open) return null
+      {/* ── Token Breakdown ── */}
+      {stats.totalTokens > 0 && (
+        <Section>
+          <SectionTitle>
+            <Cpu size={14} />
+            {t('stats.token_breakdown')}
+          </SectionTitle>
+          <StackedBarContainer>
+            <StackedBarTrack>
+              <StackedBarSegment $width={inputPct} $color={COLORS.input} />
+              <StackedBarSegment $width={outputPct} $color={COLORS.output} />
+              <StackedBarSegment $width={thinkingPct} $color={COLORS.thinking} />
+            </StackedBarTrack>
+            <BarLegend>
+              <LegendItem>
+                <LegendDot $color={COLORS.input} />
+                {t('stats.input_tokens')}{' '}
+                <LegendValue>
+                  {formatTokens(stats.totalInputTokens)} ({Math.round(inputPct)}%)
+                </LegendValue>
+              </LegendItem>
+              <LegendItem>
+                <LegendDot $color={COLORS.output} />
+                {t('stats.output_tokens')}{' '}
+                <LegendValue>
+                  {formatTokens(stats.totalOutputTokens)} ({Math.round(outputPct)}%)
+                </LegendValue>
+              </LegendItem>
+              {stats.totalThinkingTokens > 0 && (
+                <LegendItem>
+                  <LegendDot $color={COLORS.thinking} />
+                  {t('stats.thinking_tokens')}{' '}
+                  <LegendValue>
+                    {formatTokens(stats.totalThinkingTokens)} ({Math.round(thinkingPct)}%)
+                  </LegendValue>
+                </LegendItem>
+              )}
+            </BarLegend>
+          </StackedBarContainer>
+        </Section>
+      )}
+
+      {/* ── Cost Breakdown ── */}
+      {stats.totalCost > 0 && (
+        <Section>
+          <SectionTitle>
+            <Coins size={14} />
+            {t('stats.cost_breakdown')}
+          </SectionTitle>
+          <StackedBarContainer>
+            <StackedBarTrack>
+              <StackedBarSegment $width={inputCostPct} $color="#f59e0b" />
+              <StackedBarSegment $width={outputCostPct} $color="#ef4444" />
+            </StackedBarTrack>
+            <BarLegend>
+              <LegendItem>
+                <LegendDot $color="#f59e0b" />
+                {t('stats.input_cost')}{' '}
+                <LegendValue>
+                  {formatCost(stats.inputCost)} ({Math.round(inputCostPct)}%)
+                </LegendValue>
+              </LegendItem>
+              <LegendItem>
+                <LegendDot $color="#ef4444" />
+                {t('stats.output_cost')}{' '}
+                <LegendValue>
+                  {formatCost(stats.outputCost)} ({Math.round(outputCostPct)}%)
+                </LegendValue>
+              </LegendItem>
+            </BarLegend>
+          </StackedBarContainer>
+        </Section>
+      )}
+
+      {/* ── Model Usage ── */}
+      {stats.modelStats.length > 0 && (
+        <Section>
+          <SectionTitle>
+            <Bot size={14} />
+            {t('stats.model_usage')}
+          </SectionTitle>
+          <ModelRowHeader>
+            <div>{t('stats.model_name')}</div>
+            <div>{t('stats.distribution')}</div>
+            <div>{t('stats.messages')}</div>
+            <div>{t('stats.total_cost')}</div>
+          </ModelRowHeader>
+          {stats.modelStats.map((m) => (
+            <ModelRow key={m.modelId}>
+              <ModelName title={m.modelName}>{m.modelName}</ModelName>
+              <ModelBar>
+                <ModelBarFill $width={(m.totalTokens / maxModelTokens) * 100} />
+              </ModelBar>
+              <ModelMetric>{m.messageCount}</ModelMetric>
+              <ModelMetric>{formatCost(m.cost)}</ModelMetric>
+            </ModelRow>
+          ))}
+        </Section>
+      )}
+
+      {/* ── Performance ── */}
+      {stats.assistantMessages > 0 && (
+        <Section>
+          <SectionTitle>
+            <Gauge size={14} />
+            {t('stats.performance')}
+          </SectionTitle>
+          <PerfGrid>
+            <PerfCard>
+              <PerfValue>{formatLatency(stats.avgFirstTokenLatency)}</PerfValue>
+              <PerfLabel>{t('stats.avg_first_token')}</PerfLabel>
+            </PerfCard>
+            <PerfCard>
+              <PerfValue>{formatDuration(stats.avgCompletionTime)}</PerfValue>
+              <PerfLabel>{t('stats.avg_completion')}</PerfLabel>
+            </PerfCard>
+            <PerfCard>
+              <PerfValue>{formatSpeed(stats.avgTokensPerSecond)}</PerfValue>
+              <PerfLabel>{t('stats.avg_speed')}</PerfLabel>
+            </PerfCard>
+          </PerfGrid>
+        </Section>
+      )}
+
+      {/* ── Conversation Info ── */}
+      <Section>
+        <SectionTitle>
+          <FileText size={14} />
+          {t('stats.conversation_info')}
+        </SectionTitle>
+        <InfoGrid>
+          <InfoItem>
+            <InfoLabel>{t('stats.created_at')}</InfoLabel>
+            <InfoValue>{formatDate(stats.firstMessageAt)}</InfoValue>
+          </InfoItem>
+          <InfoItem>
+            <InfoLabel>{t('stats.duration')}</InfoLabel>
+            <InfoValue>{formatDuration(stats.durationMs)}</InfoValue>
+          </InfoItem>
+          <InfoItem>
+            <InfoLabel>{t('stats.total_characters')}</InfoLabel>
+            <InfoValue>{stats.totalCharacters.toLocaleString()}</InfoValue>
+          </InfoItem>
+          <InfoItem>
+            <InfoLabel>
+              <User size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> {t('stats.user_messages')}
+            </InfoLabel>
+            <InfoValue>{stats.userMessages}</InfoValue>
+          </InfoItem>
+          <InfoItem>
+            <InfoLabel>
+              <Bot size={12} style={{ display: 'inline', verticalAlign: 'middle' }} /> {t('stats.assistant_messages')}
+            </InfoLabel>
+            <InfoValue>{stats.assistantMessages}</InfoValue>
+          </InfoItem>
+          <InfoItem>
+            <InfoLabel>{t('stats.total_words')}</InfoLabel>
+            <InfoValue>{stats.totalWords.toLocaleString()}</InfoValue>
+          </InfoItem>
+        </InfoGrid>
+      </Section>
+    </>
+  )
+}
+
+// ─── Container Component ────────────────────────────────────────────────────
+
+const TopicStatsPopupContainer: React.FC<Props> = ({ topicId, topicName, mode: initialMode, resolve }) => {
+  const [mode, setMode] = useState<StatsMode>(initialMode || (topicId ? 'topic' : 'global'))
+  const { t } = useTranslation()
+
+  // Get messages based on mode
+  const topicMessages = useAppSelector((state) => (topicId ? selectMessagesForTopic(state, topicId) : []))
+  const allMessages = useAppSelector(selectAllMessages)
+
+  const messages = mode === 'topic' ? topicMessages : allMessages
+  const stats = useMemo(() => computeTopicStats(messages), [messages])
+
+  const title = mode === 'global' ? t('stats.title_global') : t('stats.title', { topic: topicName || '' })
+
+  const onCancel = () => {
+    TopicStatsPopup.hide()
+    resolve()
+  }
+
+  TopicStatsPopup.hide = onCancel
 
   return (
-    <ModalOverlay onClick={onClose}>
+    <ModalOverlay onClick={onCancel}>
       <ModalContent onClick={(e) => e.stopPropagation()}>
         <Header>
           <Title>
             <BarChart3 size={20} />
-            {t('stats.title', { topic: topicName })}
+            {title}
           </Title>
-          <CloseButton onClick={onClose}>✕</CloseButton>
+          <ModeToggle>
+            {topicId && (
+              <ModeButton $active={mode === 'topic'} onClick={() => setMode('topic')}>
+                <MessageSquare size={12} />
+                {t('stats.mode_topic')}
+              </ModeButton>
+            )}
+            <ModeButton $active={mode === 'global'} onClick={() => setMode('global')}>
+              <Globe size={12} />
+              {t('stats.mode_global')}
+            </ModeButton>
+          </ModeToggle>
+          <CloseButton onClick={onCancel}>✕</CloseButton>
         </Header>
         <Body>
-          {stats.totalMessages === 0 ? (
-            <EmptyState>{t('stats.no_data')}</EmptyState>
-          ) : (
-            <>
-              {/* ── Overview Cards ── */}
-              <OverviewGrid>
-                <StatCard $accent={COLORS.card1}>
-                  <StatCardIcon $color={COLORS.card1}>
-                    <MessageSquare size={16} />
-                  </StatCardIcon>
-                  <StatCardValue>{stats.totalMessages}</StatCardValue>
-                  <StatCardLabel>{t('stats.messages')}</StatCardLabel>
-                </StatCard>
-                <StatCard $accent={COLORS.card2}>
-                  <StatCardIcon $color={COLORS.card2}>
-                    <Cpu size={16} />
-                  </StatCardIcon>
-                  <StatCardValue>{formatTokens(stats.totalTokens)}</StatCardValue>
-                  <StatCardLabel>{t('stats.total_tokens')}</StatCardLabel>
-                </StatCard>
-                <StatCard $accent={COLORS.card3}>
-                  <StatCardIcon $color={COLORS.card3}>
-                    <Coins size={16} />
-                  </StatCardIcon>
-                  <StatCardValue>{formatCost(stats.totalCost)}</StatCardValue>
-                  <StatCardLabel>{t('stats.total_cost')}</StatCardLabel>
-                </StatCard>
-                <StatCard $accent={COLORS.card4}>
-                  <StatCardIcon $color={COLORS.card4}>
-                    <Zap size={16} />
-                  </StatCardIcon>
-                  <StatCardValue>{formatLatency(stats.avgFirstTokenLatency)}</StatCardValue>
-                  <StatCardLabel>{t('stats.avg_first_token')}</StatCardLabel>
-                </StatCard>
-              </OverviewGrid>
-
-              {/* ── Token Breakdown ── */}
-              {stats.totalTokens > 0 && (
-                <Section>
-                  <SectionTitle>
-                    <Cpu size={14} />
-                    {t('stats.token_breakdown')}
-                  </SectionTitle>
-                  <StackedBarContainer>
-                    <StackedBarTrack>
-                      <StackedBarSegment $width={inputPct} $color={COLORS.input} />
-                      <StackedBarSegment $width={outputPct} $color={COLORS.output} />
-                      <StackedBarSegment $width={thinkingPct} $color={COLORS.thinking} />
-                    </StackedBarTrack>
-                    <BarLegend>
-                      <LegendItem>
-                        <LegendDot $color={COLORS.input} />
-                        {t('stats.input_tokens')}{' '}
-                        <LegendValue>
-                          {formatTokens(stats.totalInputTokens)} ({Math.round(inputPct)}%)
-                        </LegendValue>
-                      </LegendItem>
-                      <LegendItem>
-                        <LegendDot $color={COLORS.output} />
-                        {t('stats.output_tokens')}{' '}
-                        <LegendValue>
-                          {formatTokens(stats.totalOutputTokens)} ({Math.round(outputPct)}%)
-                        </LegendValue>
-                      </LegendItem>
-                      {stats.totalThinkingTokens > 0 && (
-                        <LegendItem>
-                          <LegendDot $color={COLORS.thinking} />
-                          {t('stats.thinking_tokens')}{' '}
-                          <LegendValue>
-                            {formatTokens(stats.totalThinkingTokens)} ({Math.round(thinkingPct)}%)
-                          </LegendValue>
-                        </LegendItem>
-                      )}
-                    </BarLegend>
-                  </StackedBarContainer>
-                </Section>
-              )}
-
-              {/* ── Cost Breakdown ── */}
-              {stats.totalCost > 0 && (
-                <Section>
-                  <SectionTitle>
-                    <Coins size={14} />
-                    {t('stats.cost_breakdown')}
-                  </SectionTitle>
-                  <StackedBarContainer>
-                    <StackedBarTrack>
-                      <StackedBarSegment $width={inputCostPct} $color="#f59e0b" />
-                      <StackedBarSegment $width={outputCostPct} $color="#ef4444" />
-                    </StackedBarTrack>
-                    <BarLegend>
-                      <LegendItem>
-                        <LegendDot $color="#f59e0b" />
-                        {t('stats.input_cost')}{' '}
-                        <LegendValue>
-                          {formatCost(stats.inputCost)} ({Math.round(inputCostPct)}%)
-                        </LegendValue>
-                      </LegendItem>
-                      <LegendItem>
-                        <LegendDot $color="#ef4444" />
-                        {t('stats.output_cost')}{' '}
-                        <LegendValue>
-                          {formatCost(stats.outputCost)} ({Math.round(outputCostPct)}%)
-                        </LegendValue>
-                      </LegendItem>
-                    </BarLegend>
-                  </StackedBarContainer>
-                </Section>
-              )}
-
-              {/* ── Model Usage ── */}
-              {stats.modelStats.length > 0 && (
-                <Section>
-                  <SectionTitle>
-                    <Bot size={14} />
-                    {t('stats.model_usage')}
-                  </SectionTitle>
-                  <ModelRowHeader>
-                    <div>{t('stats.model_name')}</div>
-                    <div>{t('stats.distribution')}</div>
-                    <div>{t('stats.messages')}</div>
-                    <div>{t('stats.total_cost')}</div>
-                  </ModelRowHeader>
-                  {stats.modelStats.map((m) => (
-                    <ModelRow key={m.modelId}>
-                      <ModelName title={m.modelName}>{m.modelName}</ModelName>
-                      <ModelBar>
-                        <ModelBarFill $width={(m.totalTokens / maxModelTokens) * 100} />
-                      </ModelBar>
-                      <ModelMetric>{m.messageCount}</ModelMetric>
-                      <ModelMetric>{formatCost(m.cost)}</ModelMetric>
-                    </ModelRow>
-                  ))}
-                </Section>
-              )}
-
-              {/* ── Performance ── */}
-              {stats.assistantMessages > 0 && (
-                <Section>
-                  <SectionTitle>
-                    <Gauge size={14} />
-                    {t('stats.performance')}
-                  </SectionTitle>
-                  <PerfGrid>
-                    <PerfCard>
-                      <PerfValue>{formatLatency(stats.avgFirstTokenLatency)}</PerfValue>
-                      <PerfLabel>{t('stats.avg_first_token')}</PerfLabel>
-                    </PerfCard>
-                    <PerfCard>
-                      <PerfValue>{formatDuration(stats.avgCompletionTime)}</PerfValue>
-                      <PerfLabel>{t('stats.avg_completion')}</PerfLabel>
-                    </PerfCard>
-                    <PerfCard>
-                      <PerfValue>{formatSpeed(stats.avgTokensPerSecond)}</PerfValue>
-                      <PerfLabel>{t('stats.avg_speed')}</PerfLabel>
-                    </PerfCard>
-                  </PerfGrid>
-                </Section>
-              )}
-
-              {/* ── Conversation Info ── */}
-              <Section>
-                <SectionTitle>
-                  <FileText size={14} />
-                  {t('stats.conversation_info')}
-                </SectionTitle>
-                <InfoGrid>
-                  <InfoItem>
-                    <InfoLabel>{t('stats.created_at')}</InfoLabel>
-                    <InfoValue>{formatDate(stats.firstMessageAt)}</InfoValue>
-                  </InfoItem>
-                  <InfoItem>
-                    <InfoLabel>{t('stats.duration')}</InfoLabel>
-                    <InfoValue>{formatDuration(stats.durationMs)}</InfoValue>
-                  </InfoItem>
-                  <InfoItem>
-                    <InfoLabel>{t('stats.total_characters')}</InfoLabel>
-                    <InfoValue>{stats.totalCharacters.toLocaleString()}</InfoValue>
-                  </InfoItem>
-                  <InfoItem>
-                    <InfoLabel>
-                      <User size={12} style={{ display: 'inline', verticalAlign: 'middle' }} />{' '}
-                      {t('stats.user_messages')}
-                    </InfoLabel>
-                    <InfoValue>{stats.userMessages}</InfoValue>
-                  </InfoItem>
-                  <InfoItem>
-                    <InfoLabel>
-                      <Bot size={12} style={{ display: 'inline', verticalAlign: 'middle' }} />{' '}
-                      {t('stats.assistant_messages')}
-                    </InfoLabel>
-                    <InfoValue>{stats.assistantMessages}</InfoValue>
-                  </InfoItem>
-                  <InfoItem>
-                    <InfoLabel>{t('stats.total_words')}</InfoLabel>
-                    <InfoValue>{stats.totalWords.toLocaleString()}</InfoValue>
-                  </InfoItem>
-                </InfoGrid>
-              </Section>
-            </>
-          )}
+          <StatsDisplay stats={stats} t={t} />
         </Body>
       </ModalContent>
     </ModalOverlay>
