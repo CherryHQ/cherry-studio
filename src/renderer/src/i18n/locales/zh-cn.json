@@ -5868,6 +5868,7 @@
     "duration": "持续时长",
     "input_cost": "输入费用",
     "input_tokens": "输入 Token",
+    "loading": "加载统计数据中...",
     "messages": "消息数",
     "mode_global": "全局",
     "mode_topic": "当前话题",

@@ -5868,6 +5868,7 @@
     "duration": "[to be translated]:Duration",
     "input_cost": "[to be translated]:Input Cost",
     "input_tokens": "[to be translated]:Input Tokens",
+    "loading": "[to be translated]:Loading statistics...",
     "messages": "[to be translated]:Messages",
     "mode_global": "[to be translated]:Global",
     "mode_topic": "[to be translated]:Current Topic",

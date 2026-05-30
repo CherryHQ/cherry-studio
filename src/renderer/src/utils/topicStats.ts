@@ -1,3 +1,4 @@
+import db from '@renderer/databases'
 import type { Message } from '@renderer/types/newMessage'
 
 import { getMainTextContent } from './messageUtils/find'
@@ -274,5 +275,31 @@ export function computeTopicStats(messages: Message[]): TopicStats {
     lastMessageAt,
     durationMs,
     modelStats: computeModelStats(messages)
+  }
+}
+
+/**
+ * Load messages for a specific topic from the database and compute stats.
+ */
+export async function computeTopicStatsFromDB(topicId: string): Promise<TopicStats> {
+  try {
+    const topic = await db.topics.get(topicId)
+    const messages = (topic?.messages || []) as Message[]
+    return computeTopicStats(messages)
+  } catch {
+    return computeTopicStats([])
+  }
+}
+
+/**
+ * Load ALL messages from all topics in the database and compute global stats.
+ */
+export async function computeGlobalStatsFromDB(): Promise<TopicStats> {
+  try {
+    const allTopics = await db.topics.toArray()
+    const allMessages = allTopics.flatMap((t) => (t.messages || []) as Message[])
+    return computeTopicStats(allMessages)
+  } catch {
+    return computeTopicStats([])
   }
 }

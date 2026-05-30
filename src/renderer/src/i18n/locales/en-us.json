@@ -5868,6 +5868,7 @@
     "duration": "Duration",
     "input_cost": "Input Cost",
     "input_tokens": "Input Tokens",
+    "loading": "Loading statistics...",
     "messages": "Messages",
     "mode_global": "Global",
     "mode_topic": "Current Topic",

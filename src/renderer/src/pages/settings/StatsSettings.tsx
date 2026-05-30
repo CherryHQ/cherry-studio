@@ -1,11 +1,10 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useAppSelector } from '@renderer/store'
-import { selectAllMessages } from '@renderer/store/newMessage'
 import type { TopicStats } from '@renderer/utils/topicStats'
-import { computeTopicStats } from '@renderer/utils/topicStats'
-import { BarChart3, Bot, Coins, Cpu, Gauge, MessageSquare, User, Zap } from 'lucide-react'
-import { useMemo } from 'react'
+import { computeGlobalStatsFromDB } from '@renderer/utils/topicStats'
+import { BarChart3, Bot, Coins, Cpu, Gauge, Loader, MessageSquare, User, Zap } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
 
 import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from './'
 
@@ -140,9 +139,20 @@ const StatsDisplay: React.FC<StatsDisplayProps> = ({ stats, t }) => {
             <MessageSquare size={14} style={{ marginRight: 6, verticalAlign: 'middle' }} />
             {t('stats.messages')}
           </SettingRowTitle>
-          <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-            {stats.totalMessages}（<User size={12} style={{ verticalAlign: 'middle' }} /> {stats.userMessages} /{' '}
-            <Bot size={12} style={{ verticalAlign: 'middle' }} /> {stats.assistantMessages}）
+          <span
+            style={{
+              fontVariantNumeric: 'tabular-nums',
+              whiteSpace: 'nowrap',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6
+            }}>
+            <strong>{stats.totalMessages}</strong>
+            <span style={{ color: 'var(--color-text-secondary, #888)', fontSize: 12 }}>
+              (<User size={11} style={{ verticalAlign: 'middle' }} />
+              {stats.userMessages} / <Bot size={11} style={{ verticalAlign: 'middle' }} />
+              {stats.assistantMessages})
+            </span>
           </span>
         </SettingRow>
         <SettingDivider />
@@ -308,19 +318,54 @@ const StatsDisplay: React.FC<StatsDisplayProps> = ({ stats, t }) => {
   )
 }
 
+// ─── Loading State ──────────────────────────────────────────────────────────
+
+const LoadingState = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 48px 24px;
+  color: var(--color-text-secondary, #888);
+  font-size: 14px;
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  svg {
+    animation: spin 1s linear infinite;
+  }
+`
+
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 const StatsSettings: React.FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
+  const [stats, setStats] = useState<TopicStats | null>(null)
 
-  // Global: all messages currently loaded in Redux
-  const allMessages = useAppSelector(selectAllMessages)
-  const stats = useMemo(() => computeTopicStats(allMessages), [allMessages])
+  useEffect(() => {
+    let cancelled = false
+    computeGlobalStatsFromDB().then((result) => {
+      if (!cancelled) setStats(result)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <SettingContainer theme={theme}>
-      <StatsDisplay stats={stats} t={t} />
+      {stats === null ? (
+        <LoadingState>
+          <Loader size={16} />
+          {t('stats.loading')}
+        </LoadingState>
+      ) : (
+        <StatsDisplay stats={stats} t={t} />
+      )}
     </SettingContainer>
   )
 }

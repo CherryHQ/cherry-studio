@@ -1,10 +1,9 @@
 import { TopView } from '@renderer/components/TopView'
-import { useAppSelector } from '@renderer/store'
-import { selectMessagesForTopic } from '@renderer/store/newMessage'
-import { computeTopicStats } from '@renderer/utils/topicStats'
-import { Modal as AntdModal } from 'antd'
+import type { TopicStats } from '@renderer/utils/topicStats'
+import { computeTopicStatsFromDB } from '@renderer/utils/topicStats'
+import { Modal as AntdModal, Spin } from 'antd'
 import { BarChart3, Bot, Coins, Cpu, FileText, Gauge, MessageSquare, User, Zap } from 'lucide-react'
-import { useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -296,12 +295,20 @@ const COLORS = {
 
 const TopicStatsPopupContainer: React.FC<Props> = ({ topicId, topicName, resolve }) => {
   const [open, setOpen] = useState(true)
+  const [stats, setStats] = useState<TopicStats | null>(null)
   const { t } = useTranslation()
 
-  const messages = useAppSelector((state) => selectMessagesForTopic(state, topicId))
-  const stats = useMemo(() => computeTopicStats(messages), [messages])
+  useEffect(() => {
+    let cancelled = false
+    computeTopicStatsFromDB(topicId).then((result) => {
+      if (!cancelled) setStats(result)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [topicId])
 
-  const maxModelTokens = stats.modelStats.length > 0 ? stats.modelStats[0].totalTokens : 1
+  const maxModelTokens = stats && stats.modelStats.length > 0 ? stats.modelStats[0].totalTokens : 1
 
   const afterClose = () => {
     TopicStatsPopup.hide()
@@ -327,7 +334,11 @@ const TopicStatsPopupContainer: React.FC<Props> = ({ topicId, topicName, resolve
       centered
       destroyOnClose
       transitionName="animation-move-down">
-      {stats.totalMessages === 0 ? (
+      {stats === null ? (
+        <div style={{ textAlign: 'center', padding: 48 }}>
+          <Spin />
+        </div>
+      ) : stats.totalMessages === 0 ? (
         <EmptyState>{t('stats.no_data')}</EmptyState>
       ) : (
         <>
