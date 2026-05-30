@@ -211,6 +211,8 @@ Two things on this branch are throwaway — do not defend them.
 
 **Schemas and drizzle SQL are throwaway.** `src/main/data/db/schemas/` may change freely; `migrations/sqlite-drizzle/*.sql` are dev-only artifacts overwritten by `drizzle-kit generate` on every schema change. Mid-development DB drift is acceptable — do not author patch migrations to "fix" it. `migrations/sqlite-drizzle/` will be wiped and regenerated from the final schemas as a single clean initial migration before release; only that regenerated migration must be correct.
 
+**Resolving migration merge conflicts: regenerate, never rename.** When a merge/rebase brings in an upstream migration that conflicts with your local one, delete your local migration `.sql` + its `meta/*_snapshot.json` and re-run `pnpm db:migrations:generate`. Never just rename/renumber the `.sql` or hand-edit the snapshot to make room — renaming silently reuses the snapshot's random `id`, which forks the chain and makes `pnpm db:migrations:generate` abort for everyone (#15438), and leaves the schema source diverged from the migration SQL. Note `drizzle-kit generate` exits `0` even on a forked chain, so it will not warn you; only `pnpm db:migrations:check` (`drizzle-kit check`) does. CI enforces both — chain integrity via `db:migrations:check` and schema↔migration drift via a generate-and-diff step.
+
 ### Data Classification Toolchain
 
 The `v2-refactor-temp/tools/data-classify/` directory is the code generation pipeline for the v2 data layer. `classification.json` is the single source of truth.
