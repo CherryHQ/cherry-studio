@@ -1505,9 +1505,9 @@
       },
       "export": {
         "failed": "Export failed",
+        "html": "Export as HTML",
         "image": "Export as image",
         "image_saved": "Image saved successfully",
-        "html": "Export as HTML",
         "joplin": "Export to Joplin",
         "md": {
           "label": "Export as markdown",
@@ -2911,15 +2911,15 @@
       "excel": {
         "export": "Failed to export Excel"
       },
-      "html": {
-        "export": "Failed to export the HTML file"
-      },
       "fetchTopicName": "Failed to name the topic",
       "file": {
         "process_failed": "File {{name}} could not be processed",
         "text_extraction_failed": "Failed to extract text from {{name}}"
       },
       "get_embedding_dimensions": "Failed to get embedding dimensions",
+      "html": {
+        "export": "Failed to export the HTML file"
+      },
       "invalid": {
         "api": {
           "host": "Invalid API Host",

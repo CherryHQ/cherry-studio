@@ -1505,9 +1505,9 @@
       },
       "export": {
         "failed": "导出失败",
+        "html": "导出为 HTML",
         "image": "导出为图片",
         "image_saved": "图片保存成功",
-        "html": "导出为 HTML",
         "joplin": "导出到 Joplin",
         "md": {
           "label": "导出为 Markdown",
@@ -2911,15 +2911,15 @@
       "excel": {
         "export": "导出 Excel 失败"
       },
-      "html": {
-        "export": "导出 HTML 文件失败"
-      },
       "fetchTopicName": "话题命名失败",
       "file": {
         "process_failed": "文件 {{name}} 无法处理",
         "text_extraction_failed": "无法从 {{name}} 中提取文本"
       },
       "get_embedding_dimensions": "获取嵌入维度失败",
+      "html": {
+        "export": "导出 HTML 文件失败"
+      },
       "invalid": {
         "api": {
           "host": "无效的 API 地址",

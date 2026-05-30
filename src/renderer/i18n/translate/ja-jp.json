@@ -1505,6 +1505,7 @@
       },
       "export": {
         "failed": "[to be translated]:Export failed",
+        "html": "[to be translated]:Export as HTML",
         "image": "画像としてエクスポート",
         "image_saved": "画像が正常に保存されました",
         "joplin": "Joplin にエクスポート",
@@ -2916,6 +2917,9 @@
         "text_extraction_failed": "{{name}}からテキストの抽出に失敗しました"
       },
       "get_embedding_dimensions": "埋込み次元を取得できませんでした",
+      "html": {
+        "export": "[to be translated]:Failed to export the HTML file"
+      },
       "invalid": {
         "api": {
           "host": "無効なAPIアドレスです",
@@ -3045,6 +3049,9 @@
     "success": {
       "excel": {
         "export": "Excelのエクスポートが正常に完了しました"
+      },
+      "html": {
+        "export": "[to be translated]:Successfully exported the HTML file"
       },
       "joplin": {
         "export": "Joplin へのエクスポートに成功しました"
@@ -4862,6 +4869,7 @@
       },
       "export_menu": {
         "docx": "Wordとしてエクスポート",
+        "html": "[to be translated]:Export as HTML",
         "image": "画像としてエクスポート",
         "joplin": "Joplinにエクスポート",
         "markdown": "Markdownとしてエクスポート",

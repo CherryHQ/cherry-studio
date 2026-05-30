@@ -1505,6 +1505,7 @@
       },
       "export": {
         "failed": "匯出失敗",
+        "html": "[to be translated]:Export as HTML",
         "image": "匯出為圖片",
         "image_saved": "圖片儲存成功",
         "joplin": "匯出到 Joplin",
@@ -2916,6 +2917,9 @@
         "text_extraction_failed": "無法從 {{name}} 中擷取文字"
       },
       "get_embedding_dimensions": "取得嵌入維度失敗",
+      "html": {
+        "export": "[to be translated]:Failed to export the HTML file"
+      },
       "invalid": {
         "api": {
           "host": "無效的 API 位址",
@@ -3045,6 +3049,9 @@
     "success": {
       "excel": {
         "export": "Excel 匯出成功"
+      },
+      "html": {
+        "export": "[to be translated]:Successfully exported the HTML file"
       },
       "joplin": {
         "export": "成功匯出到 Joplin"
@@ -4862,6 +4869,7 @@
       },
       "export_menu": {
         "docx": "匯出為 Word",
+        "html": "[to be translated]:Export as HTML",
         "image": "匯出為圖片",
         "joplin": "匯出到 Joplin",
         "markdown": "匯出為 Markdown",

@@ -1040,22 +1040,6 @@ describe('Citation formatting in Markdown export', () => {
 // HTML Export Tests
 // ============================================================================
 
-// Mock markdownToHtml for HTML export tests
-vi.mock('@renderer/utils/markdownConverter', () => ({
-  markdownToHtml: vi.fn((markdown: string) => {
-    if (!markdown) return ''
-    return markdown
-      .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\*(.+?)\*/g, '<em>$1</em>')
-      .replace(/^- (.+)$/gm, '<li>$1</li>')
-      .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>')
-      .replace(/`([^`]+)`/g, '<code>$1</code>')
-  })
-}))
-
 describe('topicToHtml', () => {
   let topicToHtml: (topic: Topic) => Promise<string>
 
@@ -1071,6 +1055,23 @@ describe('topicToHtml', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
+    vi.resetModules()
+
+    // Mock markdownToHtml — must use doMock to avoid Vite circular import issues
+    vi.doMock('@renderer/utils/markdownConverter', () => ({
+      markdownToHtml: vi.fn((markdown: string) => {
+        if (!markdown) return ''
+        return markdown
+          .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+          .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+          .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+          .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+          .replace(/\*(.+?)\*/g, '<em>$1</em>')
+          .replace(/^- (.+)$/gm, '<li>$1</li>')
+          .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>')
+          .replace(/`([^`]+)`/g, '<code>$1</code>')
+      })
+    }))
 
     const { TopicManager } = await import('@renderer/hooks/useTopic')
     ;(TopicManager.getTopicMessages as any).mockResolvedValue([])
