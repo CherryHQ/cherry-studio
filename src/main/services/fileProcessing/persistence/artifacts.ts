@@ -1,20 +1,10 @@
-import { loggerService } from '@logger'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
-import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { FileProcessingArtifact, FileProcessingJobOutput } from '@shared/data/types/fileProcessing'
 import { FileProcessingJobOutputSchema } from '@shared/data/types/fileProcessing'
 
 import type { FileProcessingHandlerOutput } from '../processors/types'
 import { markdownResultStore } from './MarkdownResultStore'
-
-const logger = loggerService.withContext('FileProcessing:Artifacts')
-
-interface FileProcessingJobOutputLogContext {
-  feature: FileProcessorFeature
-  processorId: FileProcessorId
-  failureMessage: string
-}
 
 interface FileProcessingJobOutputContext {
   jobId: string
@@ -23,20 +13,10 @@ interface FileProcessingJobOutputContext {
 
 export async function createFileProcessingJobOutput(
   ctx: FileProcessingJobOutputContext,
-  output: FileProcessingHandlerOutput,
-  logContext: FileProcessingJobOutputLogContext
+  output: FileProcessingHandlerOutput
 ): Promise<FileProcessingJobOutput> {
-  try {
-    const artifact = await createFileProcessingArtifact(ctx.jobId, output, ctx.signal)
-    return { artifact }
-  } catch (error) {
-    logger.warn(logContext.failureMessage, error as Error, {
-      jobId: ctx.jobId,
-      processorId: logContext.processorId,
-      feature: logContext.feature
-    })
-    throw error
-  }
+  const artifact = await createFileProcessingArtifact(ctx.jobId, output, ctx.signal)
+  return { artifact }
 }
 
 export function getFileProcessingMarkdownArtifactFileEntryId(snapshot: JobSnapshot): FileEntryId {

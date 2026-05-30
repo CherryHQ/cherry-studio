@@ -58,11 +58,7 @@ class MarkdownResultStore {
         return new TextEncoder().encode(options.result.markdownContent)
 
       case 'response-zip':
-        return await readMarkdownFromResponseZip({
-          response: options.result.response,
-          tempDir: application.getPath('feature.file_processing.temp'),
-          signal: options.signal
-        })
+        return await this.readMarkdownFromZipResponse(options.result.response, options.signal)
 
       case 'remote-zip-url': {
         const safeDownloadUrl = sanitizeFileProcessingRemoteUrl(
@@ -84,13 +80,17 @@ class MarkdownResultStore {
           throw new Error(`Markdown result download returned unexpected content-type: ${contentType}`)
         }
 
-        return await readMarkdownFromResponseZip({
-          response,
-          tempDir: application.getPath('feature.file_processing.temp'),
-          signal: options.signal
-        })
+        return await this.readMarkdownFromZipResponse(response, options.signal)
       }
     }
+  }
+
+  private async readMarkdownFromZipResponse(response: Response, signal?: AbortSignal): Promise<Uint8Array> {
+    return await readMarkdownFromResponseZip({
+      response,
+      tempDir: application.getPath('feature.file_processing.temp'),
+      signal
+    })
   }
 }
 

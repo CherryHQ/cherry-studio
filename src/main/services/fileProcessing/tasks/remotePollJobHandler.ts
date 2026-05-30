@@ -38,7 +38,7 @@ export const remotePollJobHandler: JobHandler<FileProcessingJobPayload> = {
   defaultRetryPolicy: { maxAttempts: 1, backoff: 'none', baseDelayMs: 0, maxDelayMs: 0 },
   defaultTimeoutMs: 30 * 60_000,
   async execute(ctx) {
-    const { feature, processorId, config, prepared } = await prepareFileProcessingJob(ctx, 'remote-poll')
+    const { feature, config, prepared } = await prepareFileProcessingJob(ctx, 'remote-poll')
 
     let providerTaskId: string
     let remoteContext: FileProcessingRemoteContext
@@ -74,11 +74,7 @@ export const remotePollJobHandler: JobHandler<FileProcessingJobPayload> = {
       }
 
       if (result.status === 'completed') {
-        return await createFileProcessingJobOutput(ctx, result.output, {
-          feature,
-          processorId,
-          failureMessage: 'Remote-poll execution failed while creating artifacts'
-        })
+        return await createFileProcessingJobOutput(ctx, result.output)
       }
 
       ctx.reportProgress(result.progress, { stage: 'polling' })

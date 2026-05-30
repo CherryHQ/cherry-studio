@@ -26,7 +26,7 @@ export const backgroundJobHandler: JobHandler<FileProcessingJobPayload> = {
   defaultRetryPolicy: { maxAttempts: 1, backoff: 'none', baseDelayMs: 0, maxDelayMs: 0 },
   defaultTimeoutMs: 15 * 60_000,
   async execute(ctx) {
-    const { feature, processorId, prepared } = await prepareFileProcessingJob(ctx, 'background')
+    const { prepared } = await prepareFileProcessingJob(ctx, 'background')
     const output = await prepared.execute({
       signal: ctx.signal,
       reportProgress: (progress) => ctx.reportProgress(progress)
@@ -36,10 +36,6 @@ export const backgroundJobHandler: JobHandler<FileProcessingJobPayload> = {
       throw new DOMException('aborted', 'AbortError')
     }
 
-    return await createFileProcessingJobOutput(ctx, output, {
-      feature,
-      processorId,
-      failureMessage: 'Background execution failed while creating artifacts'
-    })
+    return await createFileProcessingJobOutput(ctx, output)
   }
 }

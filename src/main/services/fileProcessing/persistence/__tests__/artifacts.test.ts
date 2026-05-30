@@ -3,17 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { FileProcessingJobPayload } from '../../tasks/shared'
 
-const { loggerWarnMock, persistResultMock } = vi.hoisted(() => ({
-  loggerWarnMock: vi.fn(),
+const { persistResultMock } = vi.hoisted(() => ({
   persistResultMock: vi.fn()
-}))
-
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: vi.fn(() => ({
-      warn: loggerWarnMock
-    }))
-  }
 }))
 
 vi.mock('../MarkdownResultStore', () => ({
@@ -50,15 +41,7 @@ beforeEach(() => {
 
 describe('createFileProcessingJobOutput', () => {
   it('returns an inline text artifact without cleanup', async () => {
-    const result = await createFileProcessingJobOutput(
-      createCtx(),
-      { kind: 'text', text: 'hello' },
-      {
-        feature: 'image_to_text',
-        processorId: 'tesseract',
-        failureMessage: 'artifact failed'
-      }
-    )
+    const result = await createFileProcessingJobOutput(createCtx(), { kind: 'text', text: 'hello' })
 
     expect(result).toEqual({ artifact: { kind: 'text', format: 'plain', text: 'hello' } })
     expect(persistResultMock).not.toHaveBeenCalled()
@@ -67,15 +50,7 @@ describe('createFileProcessingJobOutput', () => {
   it('persists a markdown artifact', async () => {
     persistResultMock.mockResolvedValue('019606a0-0000-7000-8000-000000000401')
 
-    const result = await createFileProcessingJobOutput(
-      createCtx(),
-      { kind: 'markdown', markdownContent: '# hello' },
-      {
-        feature: 'image_to_text',
-        processorId: 'tesseract',
-        failureMessage: 'artifact failed'
-      }
-    )
+    const result = await createFileProcessingJobOutput(createCtx(), { kind: 'markdown', markdownContent: '# hello' })
 
     expect(result).toEqual({
       artifact: { kind: 'file', format: 'markdown', fileEntryId: '019606a0-0000-7000-8000-000000000401' }
@@ -87,26 +62,12 @@ describe('createFileProcessingJobOutput', () => {
     })
   })
 
-  it('logs markdown artifact persistence failures', async () => {
+  it('propagates markdown artifact persistence failures', async () => {
     persistResultMock.mockRejectedValue(new Error('disk full'))
 
     await expect(
-      createFileProcessingJobOutput(
-        createCtx(),
-        { kind: 'markdown', markdownContent: '# hello' },
-        {
-          feature: 'image_to_text',
-          processorId: 'tesseract',
-          failureMessage: 'artifact failed'
-        }
-      )
+      createFileProcessingJobOutput(createCtx(), { kind: 'markdown', markdownContent: '# hello' })
     ).rejects.toThrow('disk full')
-
-    expect(loggerWarnMock).toHaveBeenCalledWith('artifact failed', expect.any(Error), {
-      jobId: 'job-artifacts-1',
-      processorId: 'tesseract',
-      feature: 'image_to_text'
-    })
   })
 })
 
