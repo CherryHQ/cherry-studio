@@ -1487,6 +1487,7 @@
         "placeholder": "Search topics...",
         "title": "Search"
       },
+      "statistics": "Statistics",
       "title": "Topics",
       "unpin": "Unpin Topic"
     },
@@ -5851,6 +5852,34 @@
       "reset": "Reset",
       "title": "Page Zoom"
     }
+  },
+  "stats": {
+    "assistant_messages": "Assistant Messages",
+    "avg_completion": "Avg Completion",
+    "avg_first_token": "Avg First Token",
+    "avg_speed": "Avg Speed",
+    "conversation_info": "Conversation Info",
+    "cost_breakdown": "Cost Breakdown",
+    "created_at": "Created",
+    "distribution": "Distribution",
+    "duration": "Duration",
+    "input_cost": "Input Cost",
+    "input_tokens": "Input Tokens",
+    "messages": "Messages",
+    "model_name": "Model",
+    "model_usage": "Model Usage",
+    "no_data": "No statistics available for this conversation",
+    "output_cost": "Output Cost",
+    "output_tokens": "Output Tokens",
+    "performance": "Performance",
+    "thinking_tokens": "Thinking Tokens",
+    "title": "Statistics — {{topic}}",
+    "token_breakdown": "Token Breakdown",
+    "total_characters": "Total Characters",
+    "total_cost": "Total Cost",
+    "total_tokens": "Total Tokens",
+    "total_words": "Total Words",
+    "user_messages": "User Messages"
   },
   "title": {
     "apps": "Apps",

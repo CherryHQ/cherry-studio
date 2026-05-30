@@ -1487,6 +1487,7 @@
         "placeholder": "搜索话题...",
         "title": "搜索"
       },
+      "statistics": "用量统计",
       "title": "话题",
       "unpin": "取消固定"
     },
@@ -5851,6 +5852,34 @@
       "reset": "重置",
       "title": "缩放"
     }
+  },
+  "stats": {
+    "assistant_messages": "助手消息",
+    "avg_completion": "平均完成时间",
+    "avg_first_token": "平均首 Token",
+    "avg_speed": "平均速度",
+    "conversation_info": "对话信息",
+    "cost_breakdown": "费用分布",
+    "created_at": "创建时间",
+    "distribution": "占比",
+    "duration": "持续时长",
+    "input_cost": "输入费用",
+    "input_tokens": "输入 Token",
+    "messages": "消息数",
+    "model_name": "模型名称",
+    "model_usage": "模型用量",
+    "no_data": "该对话暂无统计数据",
+    "output_cost": "输出费用",
+    "output_tokens": "输出 Token",
+    "performance": "性能指标",
+    "thinking_tokens": "思考 Token",
+    "title": "用量统计 — {{topic}}",
+    "token_breakdown": "Token 分布",
+    "total_characters": "总字符数",
+    "total_cost": "总费用",
+    "total_tokens": "总 Token",
+    "total_words": "总词数",
+    "user_messages": "用户消息"
   },
   "title": {
     "apps": "小程序",

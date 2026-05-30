@@ -1487,6 +1487,7 @@
         "placeholder": "Искать темы...",
         "title": "Поиск"
       },
+      "statistics": "[to be translated]:Statistics",
       "title": "Топики",
       "unpin": "Открепленные темы"
     },
@@ -5851,6 +5852,34 @@
       "reset": "Сбросить",
       "title": "Масштаб страницы"
     }
+  },
+  "stats": {
+    "assistant_messages": "[to be translated]:Assistant Messages",
+    "avg_completion": "[to be translated]:Avg Completion",
+    "avg_first_token": "[to be translated]:Avg First Token",
+    "avg_speed": "[to be translated]:Avg Speed",
+    "conversation_info": "[to be translated]:Conversation Info",
+    "cost_breakdown": "[to be translated]:Cost Breakdown",
+    "created_at": "[to be translated]:Created",
+    "distribution": "[to be translated]:Distribution",
+    "duration": "[to be translated]:Duration",
+    "input_cost": "[to be translated]:Input Cost",
+    "input_tokens": "[to be translated]:Input Tokens",
+    "messages": "[to be translated]:Messages",
+    "model_name": "[to be translated]:Model",
+    "model_usage": "[to be translated]:Model Usage",
+    "no_data": "[to be translated]:No statistics available for this conversation",
+    "output_cost": "[to be translated]:Output Cost",
+    "output_tokens": "[to be translated]:Output Tokens",
+    "performance": "[to be translated]:Performance",
+    "thinking_tokens": "[to be translated]:Thinking Tokens",
+    "title": "[to be translated]:Statistics — {{topic}}",
+    "token_breakdown": "[to be translated]:Token Breakdown",
+    "total_characters": "[to be translated]:Total Characters",
+    "total_cost": "[to be translated]:Total Cost",
+    "total_tokens": "[to be translated]:Total Tokens",
+    "total_words": "[to be translated]:Total Words",
+    "user_messages": "[to be translated]:User Messages"
   },
   "title": {
     "apps": "Приложения",
