@@ -10,6 +10,7 @@ import type { Message } from '@renderer/types/newMessage'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { captureScrollableAsBlob, captureScrollableAsDataURL } from '@renderer/utils/image'
 import { convertMathFormula, markdownToPlainText } from '@renderer/utils/markdown'
+import { markdownToHtml } from '@renderer/utils/markdownConverter'
 import { getCitationContent, getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
@@ -1204,5 +1205,374 @@ export const exportNote = async ({ node, platform }: NoteExportOptions): Promise
   } catch (error) {
     logger.error(`Failed to export note to ${platform}:`, error as Error)
     throw error
+  }
+}
+
+// ============================================================================
+// HTML Export Functions
+// ============================================================================
+
+/**
+ * Escape HTML special characters to prevent XSS.
+ */
+const escapeHtml = (str: string): string => {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
+/**
+ * Build a self-contained HTML document around the rendered content.
+ *
+ * The HTML is fully self-contained with inline CSS — no external dependencies,
+ * no CDN links. It supports light/dark mode via prefers-color-scheme,
+ * responsive layout, and print styles.
+ */
+const buildHtmlDocument = (title: string, bodyHtml: string): string => {
+  const dateStr = dayjs().format('YYYY-MM-DD HH:mm:ss')
+  const escapedTitle = escapeHtml(title)
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${escapedTitle} - Cherry Studio Export</title>
+<style>
+  :root {
+    --color-bg: #ffffff;
+    --color-text: #1f2328;
+    --color-text-secondary: #656d76;
+    --color-border: #d0d7de;
+    --color-bg-muted: #f6f8fa;
+    --color-bg-soft: #f3f4f6;
+    --color-primary: #0969da;
+    --color-link: #0969da;
+    --color-code-bg: #f6f8fa;
+    --color-blockquote-border: #0969da;
+    --color-table-header-bg: #f6f8fa;
+    --code-font: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace;
+    --body-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --color-bg: #0d1117;
+      --color-text: #e6edf3;
+      --color-text-secondary: #8b949e;
+      --color-border: #30363d;
+      --color-bg-muted: #161b22;
+      --color-bg-soft: #21262d;
+      --color-primary: #58a6ff;
+      --color-link: #58a6ff;
+      --color-code-bg: #161b22;
+      --color-blockquote-border: #58a6ff;
+      --color-table-header-bg: #161b22;
+    }
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: var(--body-font);
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--color-text);
+    background: var(--color-bg);
+    padding: 20px;
+  }
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  header {
+    padding-bottom: 24px;
+    margin-bottom: 32px;
+    border-bottom: 2px solid var(--color-border);
+  }
+  .topic-title {
+    font-size: 2em;
+    font-weight: 700;
+    line-height: 1.3;
+    margin-bottom: 8px;
+    color: var(--color-text);
+  }
+  .export-meta {
+    font-size: 0.85em;
+    color: var(--color-text-secondary);
+  }
+
+  /* Markdown body styles */
+  .markdown-body { word-break: break-word; }
+  .markdown-body > *:first-child { margin-top: 0 !important; }
+  .markdown-body h1, .markdown-body h2, .markdown-body h3,
+  .markdown-body h4, .markdown-body h5, .markdown-body h6 {
+    margin: 1.5em 0 0.75em 0;
+    line-height: 1.3;
+    font-weight: 700;
+  }
+  .markdown-body h1 { font-size: 2em; border-bottom: 1px solid var(--color-border); padding-bottom: 0.3em; }
+  .markdown-body h2 { font-size: 1.5em; border-bottom: 1px solid var(--color-border); padding-bottom: 0.3em; }
+  .markdown-body h3 { font-size: 1.25em; }
+  .markdown-body h4 { font-size: 1em; }
+  .markdown-body h5 { font-size: 0.875em; }
+  .markdown-body h6 { font-size: 0.85em; }
+
+  .markdown-body p { margin: 1em 0; white-space: pre-wrap; }
+  .markdown-body p:last-child { margin-bottom: 0.5em; }
+  .markdown-body p:first-child { margin-top: 0; }
+
+  .markdown-body ul { list-style: disc; }
+  .markdown-body ol { list-style: decimal; }
+  .markdown-body ul, .markdown-body ol { padding-left: 2em; margin: 1em 0; }
+  .markdown-body li { margin-bottom: 0.35em; }
+  .markdown-body li > ul, .markdown-body li > ol { margin: 0.5em 0; }
+
+  .markdown-body hr {
+    border: none;
+    border-top: 1px solid var(--color-border);
+    margin: 24px 0;
+  }
+
+  .markdown-body p code,
+  .markdown-body li code {
+    background: var(--color-code-bg);
+    padding: 2px 6px;
+    margin: 0 2px;
+    border-radius: 4px;
+    font-family: var(--code-font);
+    font-size: 0.875em;
+  }
+
+  .markdown-body pre {
+    background: var(--color-code-bg);
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 1em 0;
+    padding: 16px;
+  }
+  .markdown-body pre code {
+    display: block;
+    font-family: var(--code-font);
+    font-size: 0.875em;
+    line-height: 1.5;
+    background: none;
+    padding: 0;
+    margin: 0;
+    border-radius: 0;
+  }
+
+  .markdown-body blockquote {
+    margin: 1em 0;
+    padding: 0.75em 1em;
+    background: var(--color-bg-soft);
+    border-left: 4px solid var(--color-blockquote-border);
+    border-radius: 0 6px 6px 0;
+    color: var(--color-text-secondary);
+  }
+  .markdown-body blockquote > :first-child { margin-top: 0; }
+  .markdown-body blockquote > :last-child { margin-bottom: 0; }
+
+  .markdown-body table {
+    margin: 1.5em 0;
+    font-size: 0.9em;
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid var(--color-border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .markdown-body th, .markdown-body td {
+    border-right: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--color-border);
+    padding: 8px 12px;
+    text-align: left;
+  }
+  .markdown-body th:last-child, .markdown-body td:last-child { border-right: none; }
+  .markdown-body tr:last-child td { border-bottom: none; }
+  .markdown-body th {
+    background: var(--color-table-header-bg);
+    font-weight: 600;
+  }
+  .markdown-body tr:nth-child(even) td { background: var(--color-bg-muted); }
+
+  .markdown-body img { max-width: 100%; height: auto; margin: 1em 0; border-radius: 6px; }
+  .markdown-body a { color: var(--color-link); text-decoration: none; }
+  .markdown-body a:hover { text-decoration: underline; }
+  .markdown-body strong { font-weight: 700; }
+  .markdown-body em { font-style: italic; }
+  .markdown-body del { text-decoration: line-through; }
+  .markdown-body sup { font-size: 0.75em; vertical-align: super; }
+  .markdown-body sub { font-size: 0.75em; vertical-align: sub; }
+
+  /* Task list */
+  .markdown-body ul[data-type="taskList"] { list-style: none; padding-left: 0.5em; }
+  .markdown-body li[data-type="taskItem"] { list-style: none; }
+  .markdown-body li[data-type="taskItem"] input[type="checkbox"] {
+    margin-right: 0.5em;
+    vertical-align: middle;
+  }
+  .markdown-body li[data-type="taskItem"] label { cursor: default; }
+
+  /* YAML front matter */
+  .markdown-body [data-type="yamlFrontMatter"] {
+    background: var(--color-bg-muted);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-bottom: 1em;
+    font-family: var(--code-font);
+    font-size: 0.85em;
+    white-space: pre-wrap;
+  }
+
+  /* Math blocks */
+  .markdown-body [data-type="block-math"],
+  .markdown-body .katex-block {
+    text-align: center;
+    margin: 1.5em 0;
+    padding: 8px;
+    overflow-x: auto;
+  }
+
+  /* Details/summary (reasoning blocks) */
+  .markdown-body details {
+    border: 2px solid var(--color-border);
+    border-radius: 10px;
+    padding: 8px 12px;
+    margin: 1em 0;
+  }
+  .markdown-body details summary {
+    cursor: pointer;
+    font-weight: 600;
+    padding: 4px 0;
+  }
+
+  /* Footnotes */
+  .markdown-body .footnotes {
+    margin-top: 2em;
+    padding-top: 1em;
+    border-top: 1px solid var(--color-border);
+  }
+  .markdown-body .footnotes ol { padding-left: 1.5em; }
+  .markdown-body .footnotes li { font-size: 0.9em; color: var(--color-text-secondary); }
+
+  @media print {
+    body { color: #000; background: #fff; }
+    .markdown-body pre { border: 1px solid #ccc; background: #f5f5f5; }
+    .markdown-body a { color: #000; }
+  }
+
+  @media (max-width: 768px) {
+    body { padding: 12px; font-size: 15px; }
+    .container { max-width: 100%; }
+    .topic-title { font-size: 1.5em; }
+    .markdown-body table { display: block; overflow-x: auto; }
+    .markdown-body pre { padding: 12px; }
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1 class="topic-title">${escapedTitle}</h1>
+      <div class="export-meta">Exported from Cherry Studio on ${dateStr}</div>
+    </header>
+    <main class="markdown-body">
+${bodyHtml}
+    </main>
+  </div>
+</body>
+</html>`
+}
+
+/**
+ * Convert a topic (conversation) to a self-contained HTML document.
+ *
+ * @param topic - The topic to convert
+ * @returns A complete HTML document string
+ */
+export const topicToHtml = async (topic: Topic): Promise<string> => {
+  const messages = await fetchTopicMessages(topic.id)
+
+  if (!messages || messages.length === 0) {
+    return buildHtmlDocument(topic.name, '<p>(No messages in this conversation)</p>')
+  }
+
+  const markdown = await messagesToMarkdown(messages)
+  const bodyHtml = markdownToHtml(markdown)
+  return buildHtmlDocument(topic.name, bodyHtml)
+}
+
+/**
+ * Convert a single message to a self-contained HTML document.
+ *
+ * @param message - The message to convert
+ * @returns A complete HTML document string
+ */
+export const messageToHtml = async (message: Message): Promise<string> => {
+  const title = await getMessageTitle(message)
+  const markdown = await messageToMarkdown(message)
+  const bodyHtml = markdownToHtml(markdown)
+  return buildHtmlDocument(title, bodyHtml)
+}
+
+/**
+ * Export a topic as a self-contained HTML file via native save dialog.
+ *
+ * @param topic - The topic to export
+ */
+export const exportTopicAsHtml = async (topic: Topic): Promise<void> => {
+  if (getExportState()) {
+    window.toast.warning(i18n.t('message.warn.export.exporting'))
+    return
+  }
+
+  setExportingState(true)
+
+  try {
+    const fileName = removeSpecialCharactersForFileName(topic.name) + '.html'
+    const html = await topicToHtml(topic)
+    const result = await window.api.file.save(fileName, html)
+    if (result) {
+      window.toast.success(i18n.t('message.success.html.export'))
+    }
+  } catch (error: any) {
+    window.toast.error(i18n.t('message.error.html.export'))
+    logger.error('Failed to export topic as HTML:', error)
+  } finally {
+    setExportingState(false)
+  }
+}
+
+/**
+ * Export a single message as a self-contained HTML file via native save dialog.
+ *
+ * @param message - The message to export
+ */
+export const exportMessageAsHtml = async (message: Message): Promise<void> => {
+  if (getExportState()) {
+    window.toast.warning(i18n.t('message.warn.export.exporting'))
+    return
+  }
+
+  setExportingState(true)
+
+  try {
+    const title = await getMessageTitle(message)
+    const fileName = removeSpecialCharactersForFileName(title) + '.html'
+    const html = await messageToHtml(message)
+    const result = await window.api.file.save(fileName, html)
+    if (result) {
+      window.toast.success(i18n.t('message.success.html.export'))
+    }
+  } catch (error: any) {
+    window.toast.error(i18n.t('message.error.html.export'))
+    logger.error('Failed to export message as HTML:', error)
+  } finally {
+    setExportingState(false)
   }
 }

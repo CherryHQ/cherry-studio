@@ -34,6 +34,7 @@ import {
   exportMarkdownToJoplin,
   exportMarkdownToSiyuan,
   exportMarkdownToYuque,
+  exportMessageAsHtml,
   exportMessageAsMarkdown,
   exportMessageToNotes,
   exportMessageToNotion,
@@ -189,7 +190,8 @@ const MessageMenubar: FC<Props> = (props) => {
     obsidian: 'data.export.menus.obsidian',
     siyuan: 'data.export.menus.siyuan',
     docx: 'data.export.menus.docx',
-    plain_text: 'data.export.menus.plain_text'
+    plain_text: 'data.export.menus.plain_text',
+    html: 'data.export.menus.html'
   })
 
   const dispatch = useAppDispatch()
@@ -397,6 +399,11 @@ const MessageMenubar: FC<Props> = (props) => {
               }
             }
           },
+          exportMenuOptions.html && {
+            label: t('chat.topics.export.html'),
+            key: 'html',
+            onClick: () => exportMessageAsHtml(message)
+          },
           exportMenuOptions.markdown && {
             label: t('chat.topics.export.md.label'),
             key: 'markdown',
@@ -483,6 +490,7 @@ const MessageMenubar: FC<Props> = (props) => {
   }, [
     dropdownRootAllowKeys,
     exportMenuOptions.docx,
+    exportMenuOptions.html,
     exportMenuOptions.image,
     exportMenuOptions.joplin,
     exportMenuOptions.markdown,

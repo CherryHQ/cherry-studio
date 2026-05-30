@@ -1507,6 +1507,7 @@
         "failed": "Export failed",
         "image": "Export as image",
         "image_saved": "Image saved successfully",
+        "html": "Export as HTML",
         "joplin": "Export to Joplin",
         "md": {
           "label": "Export as markdown",
@@ -2910,6 +2911,9 @@
       "excel": {
         "export": "Failed to export Excel"
       },
+      "html": {
+        "export": "Failed to export the HTML file"
+      },
       "fetchTopicName": "Failed to name the topic",
       "file": {
         "process_failed": "File {{name}} could not be processed",
@@ -3045,6 +3049,9 @@
     "success": {
       "excel": {
         "export": "Excel exported successfully"
+      },
+      "html": {
+        "export": "Successfully exported the HTML file"
       },
       "joplin": {
         "export": "Successfully exported to Joplin"
@@ -4862,6 +4869,7 @@
       },
       "export_menu": {
         "docx": "Export as Word",
+        "html": "Export as HTML",
         "image": "Export as Image",
         "joplin": "Export to Joplin",
         "markdown": "Export as Markdown",

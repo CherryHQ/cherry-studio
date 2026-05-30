@@ -19,7 +19,8 @@ const ExportMenuOptions: FC = () => {
     obsidian: 'data.export.menus.obsidian',
     siyuan: 'data.export.menus.siyuan',
     docx: 'data.export.menus.docx',
-    plain_text: 'data.export.menus.plain_text'
+    plain_text: 'data.export.menus.plain_text',
+    html: 'data.export.menus.html'
   })
 
   const handleToggleOption = (option: string, checked: boolean) => {
@@ -31,6 +32,12 @@ const ExportMenuOptions: FC = () => {
   return (
     <SettingGroup theme={theme}>
       <SettingTitle>{t('settings.data.export_menu.title')}</SettingTitle>
+      <SettingDivider />
+
+      <SettingRow>
+        <SettingRowTitle>{t('settings.data.export_menu.html')}</SettingRowTitle>
+        <Switch checked={exportMenuOptions.html} onCheckedChange={(checked) => handleToggleOption('html', checked)} />
+      </SettingRow>
       <SettingDivider />
 
       <SettingRow>

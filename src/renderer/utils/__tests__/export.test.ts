@@ -1035,3 +1035,249 @@ describe('Citation formatting in Markdown export', () => {
     expect(markdown).toContain('[^1]: [https://example1.com](Example Citation 1)')
   })
 })
+
+// ============================================================================
+// HTML Export Tests
+// ============================================================================
+
+// Mock markdownToHtml for HTML export tests
+vi.mock('@renderer/utils/markdownConverter', () => ({
+  markdownToHtml: vi.fn((markdown: string) => {
+    if (!markdown) return ''
+    return markdown
+      .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+      .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+      .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\*(.+?)\*/g, '<em>$1</em>')
+      .replace(/^- (.+)$/gm, '<li>$1</li>')
+      .replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code class="language-$1">$2</code></pre>')
+      .replace(/`([^`]+)`/g, '<code>$1</code>')
+  })
+}))
+
+describe('topicToHtml', () => {
+  let topicToHtml: (topic: Topic) => Promise<string>
+
+  const baseTopic: Topic = {
+    id: 'topic_html_test',
+    name: 'Test Conversation',
+    assistantId: 'asst_html_test',
+    messages: [] as any,
+    createdAt: '2024-01-01T00:00:00Z',
+    updatedAt: '2024-01-01T00:00:00Z',
+    type: TopicType.Chat
+  }
+
+  beforeEach(async () => {
+    vi.clearAllMocks()
+
+    const { TopicManager } = await import('@renderer/hooks/useTopic')
+    ;(TopicManager.getTopicMessages as any).mockResolvedValue([])
+
+    const mod = await import('../export')
+    topicToHtml = mod.topicToHtml
+  })
+
+  it('should generate a complete HTML document with DOCTYPE', async () => {
+    const { TopicManager } = await import('@renderer/hooks/useTopic')
+    ;(TopicManager.getTopicMessages as any).mockResolvedValue([
+      createMessage({ role: 'user', id: 'html_user_1' }, [{ type: MessageBlockType.MAIN_TEXT, content: 'Hello' }])
+    ])
+
+    const html = await topicToHtml(baseTopic)
+
+    expect(html).toContain('<!DOCTYPE html>')
+    expect(html).toContain('<html lang="en">')
+    expect(html).toContain('<head>')
+    expect(html).toContain('<meta charset="UTF-8">')
+    expect(html).toContain('<meta name="viewport"')
+    expect(html).toContain('<body>')
+    expect(html).toContain('</html>')
+  })
+
+  it('should include topic name in title and header', async () => {
+    const { TopicManager } = await import('@renderer/hooks/useTopic')
+    ;(TopicManager.getTopicMessages as any).mockResolvedValue([
+      createMessage({ role: 'user', id: 'html_title_test' }, [
+        { type: MessageBlockType.MAIN_TEXT, content: 'Test content' }
+      ])
+    ])
+
+    const html = await topicToHtml(baseTopic)
+
+    expect(html).toContain('<title>Test Conversation - Cherry Studio Export</title>')
+    expect(html).toContain('<h1 class="topic-title">Test Conversation</h1>')
+  })
+
+  it('should escape HTML entities in topic name', async () => {
+    const { TopicManager } = await import('@renderer/hooks/useTopic')
+    ;(TopicManager.getTopicMessages as any).mockResolvedValue([
+      createMessage({ role: 'user', id: 'html_xss' }, [{ type: MessageBlockType.MAIN_TEXT, content: 'Safe content' }])
+    ])
+
+    const topicWithXss: Topic = { ...baseTopic, name: 'Test <script>alert("xss")</script>' }
+    const html = await topicToHtml(topicWithXss)
+
+    expect(html).not.toContain('<script>alert')
+    expect(html).toContain('&lt;script&gt;')
+  })
+
+  it('should escape ampersands in topic name', async () => {
+    const { TopicManager } = await import('@renderer/hooks/useTopic')
+    ;(TopicManager.getTopicMessages as any).mockResolvedValue([
+      createMessage({ role: 'user', id: 'html_amp' }, [{ type: MessageBlockType.MAIN_TEXT, content: 'Hello' }])
+    ])
+
+    const topicWithAmp: Topic = { ...baseTopic, name: 'A & B Conversation' }
+    const html = await topicToHtml(topicWithAmp)
+
+    expect(html).toContain('A &amp; B Conversation')
+  })
+
+  it('should render markdown content as HTML', async () => {
+    const { TopicManager } = await import('@renderer/hooks/useTopic')
+    ;(TopicManager.getTopicMessages as any).mockResolvedValue([
+      createMessage({ role: 'user', id: 'html_md' }, [
+        { type: MessageBlockType.MAIN_TEXT, content: '# Heading\n\n**bold** and *italic*\n\n- list item' }
+      ])
+    ])
+
+    const html = await topicToHtml(baseTopic)
+
+    expect(html).toContain('<h1>Heading</h1>')
+    expect(html).toContain('<strong>bold</strong>')
+    expect(html).toContain('<em>italic</em>')
+    expect(html).toContain('<li>list item</li>')
+  })
+
+  it('should render code blocks with language class', async () => {
+    const { TopicManager } = await import('@renderer/hooks/useTopic')
+    ;(TopicManager.getTopicMessages as any).mockResolvedValue([
+      createMessage({ role: 'assistant', id: 'html_code' }, [
+        { type: MessageBlockType.MAIN_TEXT, content: '```javascript\nconst x = 1;\n```' }
+      ])
+    ])
+
+    const html = await topicToHtml(baseTopic)
+
+    expect(html).toContain('<pre><code class="language-javascript">')
+    expect(html).toContain('const x = 1;')
+  })
+
+  it('should handle inline code', async () => {
+    const { TopicManager } = await import('@renderer/hooks/useTopic')
+    ;(TopicManager.getTopicMessages as any).mockResolvedValue([
+      createMessage({ role: 'user', id: 'html_inline_code' }, [
+        { type: MessageBlockType.MAIN_TEXT, content: 'Use the `console.log()` function' }
+      ])
+    ])
+
+    const html = await topicToHtml(baseTopic)
+
+    expect(html).toContain('<code>console.log()</code>')
+  })
+
+  it('should handle empty messages gracefully', async () => {
+    const { TopicManager } = await import('@renderer/hooks/useTopic')
+    ;(TopicManager.getTopicMessages as any).mockResolvedValue([])
+
+    const html = await topicToHtml(baseTopic)
+
+    expect(html).toContain('<!DOCTYPE html>')
+    expect(html).toContain('No messages')
+  })
+
+  it('should handle null messages gracefully', async () => {
+    const { TopicManager } = await import('@renderer/hooks/useTopic')
+    ;(TopicManager.getTopicMessages as any).mockResolvedValue(null)
+
+    const html = await topicToHtml(baseTopic)
+
+    expect(html).toContain('<!DOCTYPE html>')
+    expect(html).toContain('No messages')
+  })
+
+  it('should include inline CSS with no external stylesheet links', async () => {
+    const { TopicManager } = await import('@renderer/hooks/useTopic')
+    ;(TopicManager.getTopicMessages as any).mockResolvedValue([
+      createMessage({ role: 'user', id: 'html_css' }, [{ type: MessageBlockType.MAIN_TEXT, content: 'Hi' }])
+    ])
+
+    const html = await topicToHtml(baseTopic)
+
+    expect(html).toContain('<style>')
+    expect(html).not.toContain('<link rel="stylesheet"')
+    expect(html).not.toContain('href="http')
+  })
+
+  it('should support light/dark mode via prefers-color-scheme', async () => {
+    const { TopicManager } = await import('@renderer/hooks/useTopic')
+    ;(TopicManager.getTopicMessages as any).mockResolvedValue([
+      createMessage({ role: 'user', id: 'html_dark' }, [{ type: MessageBlockType.MAIN_TEXT, content: 'Hi' }])
+    ])
+
+    const html = await topicToHtml(baseTopic)
+
+    expect(html).toContain('@media (prefers-color-scheme: dark)')
+  })
+
+  it('should include export date metadata', async () => {
+    const { TopicManager } = await import('@renderer/hooks/useTopic')
+    ;(TopicManager.getTopicMessages as any).mockResolvedValue([
+      createMessage({ role: 'user', id: 'html_date' }, [{ type: MessageBlockType.MAIN_TEXT, content: 'Hi' }])
+    ])
+
+    const html = await topicToHtml(baseTopic)
+
+    expect(html).toContain('Exported from Cherry Studio on')
+    expect(html).toContain('export-meta')
+  })
+
+  it('should be valid HTML structure with correct nesting', async () => {
+    const { TopicManager } = await import('@renderer/hooks/useTopic')
+    ;(TopicManager.getTopicMessages as any).mockResolvedValue([
+      createMessage({ role: 'user', id: 'html_structure' }, [
+        { type: MessageBlockType.MAIN_TEXT, content: 'Hello\n\n## Section\n\nContent' }
+      ])
+    ])
+
+    const html = await topicToHtml(baseTopic)
+
+    const doctypeIndex = html.indexOf('<!DOCTYPE html>')
+    const htmlOpenIndex = html.indexOf('<html lang="en">')
+    const headIndex = html.indexOf('<head>')
+    const headCloseIndex = html.indexOf('</head>')
+    const bodyIndex = html.indexOf('<body>')
+    const bodyCloseIndex = html.indexOf('</body>')
+    const htmlCloseIndex = html.indexOf('</html>')
+
+    expect(doctypeIndex).toBeLessThan(htmlOpenIndex)
+    expect(htmlOpenIndex).toBeLessThan(headIndex)
+    expect(headIndex).toBeLessThan(headCloseIndex)
+    expect(headCloseIndex).toBeLessThan(bodyIndex)
+    expect(bodyIndex).toBeLessThan(bodyCloseIndex)
+    expect(bodyCloseIndex).toBeLessThan(htmlCloseIndex)
+  })
+
+  it('should handle multiple messages correctly', async () => {
+    const { TopicManager } = await import('@renderer/hooks/useTopic')
+    ;(TopicManager.getTopicMessages as any).mockResolvedValue([
+      createMessage({ role: 'user', id: 'html_multi_1' }, [
+        { type: MessageBlockType.MAIN_TEXT, content: 'First question' }
+      ]),
+      createMessage({ role: 'assistant', id: 'html_multi_2' }, [
+        { type: MessageBlockType.MAIN_TEXT, content: 'First answer' }
+      ]),
+      createMessage({ role: 'user', id: 'html_multi_3' }, [
+        { type: MessageBlockType.MAIN_TEXT, content: 'Second question' }
+      ])
+    ])
+
+    const html = await topicToHtml(baseTopic)
+
+    expect(html).toContain('First question')
+    expect(html).toContain('First answer')
+    expect(html).toContain('Second question')
+  })
+})

@@ -1507,6 +1507,7 @@
         "failed": "导出失败",
         "image": "导出为图片",
         "image_saved": "图片保存成功",
+        "html": "导出为 HTML",
         "joplin": "导出到 Joplin",
         "md": {
           "label": "导出为 Markdown",
@@ -2910,6 +2911,9 @@
       "excel": {
         "export": "导出 Excel 失败"
       },
+      "html": {
+        "export": "导出 HTML 文件失败"
+      },
       "fetchTopicName": "话题命名失败",
       "file": {
         "process_failed": "文件 {{name}} 无法处理",
@@ -3045,6 +3049,9 @@
     "success": {
       "excel": {
         "export": "Excel 导出成功"
+      },
+      "html": {
+        "export": "成功导出 HTML 文件"
       },
       "joplin": {
         "export": "成功导出到 Joplin"
@@ -4862,6 +4869,7 @@
       },
       "export_menu": {
         "docx": "导出为 Word",
+        "html": "导出为 HTML",
         "image": "导出为图片",
         "joplin": "导出到 Joplin",
         "markdown": "导出为 Markdown",

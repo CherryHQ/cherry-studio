@@ -39,6 +39,7 @@ import {
   exportMarkdownToJoplin,
   exportMarkdownToSiyuan,
   exportMarkdownToYuque,
+  exportTopicAsHtml,
   exportTopicAsMarkdown,
   exportTopicToNotes,
   exportTopicToNotion,
@@ -257,6 +258,7 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
 
   const [exportMenuOptions] = useMultiplePreferences({
     docx: 'data.export.menus.docx',
+    html: 'data.export.menus.html',
     image: 'data.export.menus.image',
     joplin: 'data.export.menus.joplin',
     markdown: 'data.export.menus.markdown',
@@ -432,6 +434,11 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
             {t('chat.topics.export.title')}
           </ContextMenuSubTrigger>
           <ContextMenuSubContent>
+            {exportMenuOptions.html && (
+              <ContextMenuItem onSelect={() => void runExport(() => exportTopicAsHtml(topic))}>
+                {t('chat.topics.export.html')}
+              </ContextMenuItem>
+            )}
             {exportMenuOptions.image && (
               <ContextMenuItem onSelect={() => EventEmitter.emit(EVENT_NAMES.EXPORT_TOPIC_IMAGE, topic)}>
                 {t('chat.topics.export.image')}

@@ -270,6 +270,8 @@ export interface PreferenceSchemas {
     'data.export.markdown.use_topic_naming_for_message_title': boolean
     // redux/settings/exportMenuOptions.docx
     'data.export.menus.docx': boolean
+    // redux/settings/exportMenuOptions.html
+    'data.export.menus.html': boolean
     // redux/settings/exportMenuOptions.image
     'data.export.menus.image': boolean
     // redux/settings/exportMenuOptions.joplin
@@ -619,6 +621,7 @@ export const DefaultPreferences: PreferenceSchemas = {
     'data.export.markdown.standardize_citations': false,
     'data.export.markdown.use_topic_naming_for_message_title': false,
     'data.export.menus.docx': true,
+    'data.export.menus.html': true,
     'data.export.menus.image': true,
     'data.export.menus.joplin': true,
     'data.export.menus.markdown': true,
