@@ -228,6 +228,7 @@
           "completed": "Completed",
           "duration": "Duration",
           "empty": "No run history yet.",
+          "error": "Error",
           "failed": "Failed",
           "justNow": "just now",
           "label": "Run History",
@@ -237,6 +238,7 @@
           "running": "Running...",
           "search": "Search logs...",
           "status": "Status",
+          "success": "Success",
           "viewSession": "View session"
         },
         "name": {
@@ -1378,10 +1380,20 @@
       "placeholder": "Type your message here, press {{key}} to send, / to include tools",
       "placeholder_without_triggers": "Type your message here, press {{key}} to send",
       "resource_panel": {
+        "categories": {
+          "agents": "Agents",
+          "files": "Files",
+          "skills": "Skills"
+        },
+        "description": "Select from files, agents, or skills",
         "loading": "Loading...",
         "no_file_found": {
           "description": "No files available in accessible directories",
           "label": "No File Found"
+        },
+        "no_items_found": {
+          "description": "No files, agents, or skills available",
+          "label": "No Items Found"
         },
         "title": "Resources"
       },
@@ -1969,6 +1981,7 @@
     "open_in": "Open in {{name}}",
     "open_in_new_tab": "Open in new tab",
     "open_sidebar": "Open sidebar",
+    "parameter": "Parameter",
     "paste": "Paste",
     "placeholders": {
       "select": {
@@ -2778,6 +2791,7 @@
             "placeholder": "Give the agent a name"
           },
           "permission_mode": {
+            "help": "Switching to bypassPermissions is equivalent to enabling Soul mode",
             "label": "Permission mode",
             "option": {
               "acceptEdits": "Accept edits",
@@ -3132,9 +3146,13 @@
     },
     "skill_detail": {
       "created_at": "Created",
+      "delete_description": "Remove this skill and all of its configuration. This action cannot be undone.",
+      "delete_title": "Delete skill",
       "description": "Description",
+      "file_preview": "File preview",
       "installed": "Installed",
       "no_description": "No description",
+      "source_files": "Source files",
       "updated_at": "Recently updated"
     },
     "sort": {
@@ -3171,6 +3189,7 @@
       "prompt": "Prompt",
       "skill": "Skill"
     },
+    "uninstall_failed": "Failed to uninstall",
     "view": {
       "grid": "Grid view",
       "list": "List view"
@@ -4212,11 +4231,52 @@
       },
       "new": {
         "image": "New Image"
+      },
+      "select": {
+        "image": "Select Image"
       }
     },
     "custom_size": "Custom Size",
+    "dashscope": {
+      "bottom_scale": "Expand Bottom",
+      "enable_interleave": "Text+Image Mixed Mode",
+      "enable_interleave_tip": "When on, generates text-and-image mixed output without requiring an input image. Turn off to use edit mode (requires 1–4 input images).",
+      "function": "Edit Function",
+      "function_options": {
+        "colorization": "Colorization",
+        "control_cartoon_feature": "Cartoon Reference",
+        "description_edit": "Instruction Edit",
+        "description_edit_with_mask": "Masked Edit",
+        "doodle": "Doodle to Image",
+        "expand": "Expand",
+        "remove_watermark": "Remove Watermark",
+        "stylization_all": "Global Stylization",
+        "stylization_local": "Local Stylization",
+        "super_resolution": "Super Resolution"
+      },
+      "is_sketch": "Sketch Input",
+      "left_scale": "Expand Left",
+      "ref_mode": "Reference Mode",
+      "ref_mode_options": {
+        "refonly": "Reference only",
+        "repaint": "Repaint"
+      },
+      "ref_strength": "Reference Strength",
+      "right_scale": "Expand Right",
+      "source_lang": "Source Language",
+      "strength": "Strength",
+      "target_lang": "Target Language",
+      "top_scale": "Expand Top",
+      "upscale_factor": "Upscale Factor"
+    },
     "dmxapi": {
       "generating_tip": "Generating with the official model, estimated wait time is 2-5 minutes for best results. Please check DMXAPI backend logs for the cost of this operation.",
+      "max_images": "Max Images",
+      "sequential_image_generation": "Sequential Image Generation",
+      "sequential_image_generation_options": {
+        "auto": "Auto",
+        "disabled": "Disabled"
+      },
       "style": ", Style: ",
       "style_types": {
         "25d_animation": "2.5D Animation",
@@ -4269,6 +4329,7 @@
     },
     "generate_failed": "Failed to generate image",
     "generated_image": "Generated Image",
+    "generating": "Generating...",
     "go_to_settings": "Go to Settings",
     "guidance_scale": "Guidance Scale",
     "guidance_scale_tip": "Classifier Free Guidance. How close you want the model to stick to your prompt when looking for a related image to show you",
@@ -4312,13 +4373,16 @@
     "number_images_tip": "Number of images to generate (1-4)",
     "operation_failed": "Operation failed, please try again later",
     "paint_course": "tutorial",
+    "parameters": "Parameters",
     "per_image": "per image",
     "per_images": "per images",
+    "person_generation": "Generate people",
     "person_generation_options": {
       "allow_adult": "Allow adult",
       "allow_all": "Allow all",
       "allow_none": "Not allowed"
     },
+    "person_generation_tip": "Allow the model to generate images of people",
     "ppio": {
       "edit_prompt_tip": "Used to specify the object or area to remove from the image, e.g., 'dog' or 'hat'",
       "mask_image": "Mask Image",
@@ -4339,9 +4403,11 @@
     "quality": "Quality",
     "quality_options": {
       "auto": "Auto",
+      "hd": "HD",
       "high": "High",
       "low": "Low",
-      "medium": "Medium"
+      "medium": "Medium",
+      "standard": "Standard"
     },
     "regenerate": {
       "confirm": "This will replace your existing generated images. Do you want to continue?"
@@ -4369,12 +4435,37 @@
     "req_error_text": "The server is busy or the prompt contains \"copyrighted\" or \"sensitive\" terms. Please try again.",
     "req_error_token": "Please check the validity of the token",
     "required_field": "Required field",
+    "safety_tolerance": "Safety Tolerance",
+    "safety_tolerance_tip": "Higher = more permissive filter; 0 is strictest, 6 is most permissive",
     "seed": "Seed",
     "seed_desc_tip": "The same seed and prompt can generate similar images, setting -1 will generate different results each time",
     "seed_random": "Random",
     "seed_tip": "The same seed and prompt can produce similar images",
     "select_model": "Select Model",
+    "style_options": {
+      "anime": "Anime",
+      "auto": "Auto",
+      "cartoon_3d": "3D Cartoon",
+      "chinese_painting": "Chinese Painting",
+      "flat_illustration": "Flat Illustration",
+      "natural": "Natural",
+      "oil_painting": "Oil Painting",
+      "photography": "Photography",
+      "portrait": "Portrait",
+      "sketch": "Sketch",
+      "vivid": "Vivid",
+      "watercolor": "Watercolor"
+    },
     "style_type": "Style",
+    "style_type_options": {
+      "anime": "Anime",
+      "auto": "Auto",
+      "design": "Design",
+      "general": "General",
+      "realistic": "Realistic",
+      "render_3d": "3D Render"
+    },
+    "style_type_tip": "Image generation style",
     "style_types": {
       "3d": "3D",
       "anime": "Anime",
@@ -4384,6 +4475,8 @@
       "realistic": "Realistic"
     },
     "text_desc_required": "Please enter image description first",
+    "thinking_mode": "Thinking Mode",
+    "thinking_mode_tip": "When on, generation quality is higher but adds about 10–30 seconds.",
     "title": "Images",
     "top_up": "Top up ",
     "translating": "Translating...",
@@ -5136,6 +5229,7 @@
       }
     },
     "advanced": {
+      "auto_switch_to_topics": "Auto switch to topic",
       "title": "Advanced Settings"
     },
     "assistant": {
@@ -7386,6 +7480,17 @@
         "url_required": "Please enter a URL"
       }
     },
+    "topic": {
+      "pin_to_top": "Pin Topics to Top",
+      "position": {
+        "label": "Topic position",
+        "left": "Left",
+        "right": "Right"
+      },
+      "show": {
+        "time": "Show topic time"
+      }
+    },
     "translate": {
       "custom": {
         "delete": {
@@ -7484,7 +7589,8 @@
     "spendTime": "Spend Time",
     "startTime": "Start Time",
     "tag": "Tag",
-    "tokenUsage": "Token Usage"
+    "tokenUsage": "Token Usage",
+    "traceWindow": "Call Chain Window"
   },
   "translate": {
     "alter_language": "Alternative Language",

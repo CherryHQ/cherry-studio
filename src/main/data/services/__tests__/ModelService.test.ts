@@ -11,18 +11,24 @@ import type * as ProviderRegistryServiceModule from '@data/services/ProviderRegi
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api'
 import type { UpdateModelDto } from '@shared/data/api/schemas/models'
-import { createUniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq, or } from 'drizzle-orm'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
+
+const { isActiveProviderRegistryModelMock } = vi.hoisted(() => ({
+  isActiveProviderRegistryModelMock: vi.fn()
+}))
 
 vi.mock('@data/services/ProviderRegistryService', async (importOriginal) => {
   const actual = await importOriginal<typeof ProviderRegistryServiceModule>()
   return {
     ...actual,
-    providerRegistryService: {}
+    providerRegistryService: {
+      isActiveProviderRegistryModel: isActiveProviderRegistryModelMock
+    }
   }
 })
 
@@ -835,6 +841,11 @@ describe('ModelService.bulkUpdate', () => {
 describe('ModelService.reconcileForProvider', () => {
   const dbh = setupTestDatabase()
 
+  beforeEach(() => {
+    isActiveProviderRegistryModelMock.mockReset()
+    isActiveProviderRegistryModelMock.mockResolvedValue(false)
+  })
+
   it('removes only the target provider rows, purges their pins, and chunks large inserts', async () => {
     // T2: service-level coverage for the atomic reconcile path. The renderer
     // test (T6 in usePullReconcileSubmit.test.ts) covers the aggregation
@@ -920,6 +931,39 @@ describe('ModelService.reconcileForProvider', () => {
         actuallyDeleted: 1
       })
     )
+    warnSpy.mockRestore()
+  })
+
+  it('does not remove active registry presets during reconcile', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    const gpt4o = createUniqueModelId('openai', 'gpt-4o')
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai', 'gpt-4o', {
+        id: gpt4o,
+        presetModelId: 'gpt-4o',
+        name: 'GPT-4o',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+        isDeprecated: false
+      })
+    )
+    isActiveProviderRegistryModelMock.mockImplementation(async (providerId: string, modelId: string) => {
+      return providerId === 'openai' && modelId === 'gpt-4o'
+    })
+    const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
+
+    const result = await modelService.reconcileForProvider('openai', {
+      toAdd: [],
+      toRemove: [gpt4o]
+    })
+
+    expect(result.map((model) => model.id)).toEqual([gpt4o])
+    const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, gpt4o))
+    expect(rows).toHaveLength(1)
+    expect(warnSpy).toHaveBeenCalledWith('Skipped active registry model removal during reconcile', {
+      providerId: 'openai',
+      skippedCount: 1,
+      skippedIds: [gpt4o]
+    })
     warnSpy.mockRestore()
   })
 })

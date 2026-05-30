@@ -1,3 +1,4 @@
+import { dataApiService } from '@data/DataApiService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { fetchResolvedProviderModels } from '../modelSync'
@@ -22,6 +23,7 @@ beforeEach(() => {
     }
   }
   listModelsMock.mockResolvedValue([])
+  vi.mocked(dataApiService.get).mockResolvedValue([])
 })
 
 describe('fetchResolvedProviderModels', () => {
@@ -34,5 +36,52 @@ describe('fetchResolvedProviderModels', () => {
       providerId: 'openai',
       throwOnError: true
     })
+  })
+
+  it('includes registry provider models that upstream listing omits', async () => {
+    listModelsMock.mockResolvedValueOnce([
+      {
+        id: 'openai::gpt-4o',
+        providerId: 'openai',
+        apiModelId: 'gpt-4o',
+        name: 'GPT-4o',
+        capabilities: [],
+        isEnabled: true,
+        isHidden: false
+      }
+    ])
+    vi.mocked(dataApiService.get).mockImplementation(async (_path, options) => {
+      if ('ids' in ((options as { query?: object }).query ?? {})) {
+        return [
+          {
+            id: 'openai::gpt-4o',
+            providerId: 'openai',
+            apiModelId: 'gpt-4o',
+            name: 'GPT-4o',
+            capabilities: ['function-call'],
+            supportsStreaming: true,
+            isEnabled: true,
+            isHidden: false
+          }
+        ]
+      }
+
+      return [
+        {
+          id: 'openai::gpt-4.1',
+          providerId: 'openai',
+          apiModelId: 'gpt-4.1',
+          name: 'GPT-4.1',
+          capabilities: ['function-call'],
+          supportsStreaming: true,
+          isEnabled: true,
+          isHidden: false
+        }
+      ]
+    })
+
+    const result = await fetchResolvedProviderModels('openai')
+
+    expect(result.map((model) => model.id)).toEqual(['openai::gpt-4o', 'openai::gpt-4.1'])
   })
 })

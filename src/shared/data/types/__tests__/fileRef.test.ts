@@ -5,6 +5,8 @@ import {
   FileRefSchema,
   knowledgeItemFileRefSchema,
   knowledgeItemSourceType,
+  paintingFileRefSchema,
+  paintingSourceType,
   tempSessionFileRefSchema,
   tempSessionSourceType
 } from '../file/ref'
@@ -12,6 +14,7 @@ import {
 const REF_ID = '11111111-2222-4333-8444-000000000001' // UUIDv4
 const ENTRY_ID = '019606a0-0000-7000-8000-000000000001' // UUIDv7
 const KB_ITEM_ID = '019606a1-0000-7000-8000-000000000abc' // UUIDv7
+const PAINTING_ID = '33333333-4444-4555-8666-000000000003' // UUIDv4 (painting.id)
 const TS = 1700000000000
 
 describe('FileRefSourceType', () => {
@@ -19,7 +22,7 @@ describe('FileRefSourceType', () => {
     // Defensive: this assertion locks the currently-registered set.
     // Adding a new variant must also extend (a) the discriminated union and
     // (b) the OrphanRefScanner registry — see ref/README.md.
-    expect([...allSourceTypes]).toEqual(['temp_session', 'knowledge_item', 'chat_message'])
+    expect([...allSourceTypes]).toEqual(['temp_session', 'knowledge_item', 'chat_message', 'painting'])
   })
 })
 
@@ -66,6 +69,49 @@ describe('knowledgeItemFileRefSchema', () => {
   })
 })
 
+describe('paintingFileRefSchema', () => {
+  function makePaintingRef(overrides: Record<string, unknown> = {}) {
+    return {
+      id: REF_ID,
+      fileEntryId: ENTRY_ID,
+      sourceType: paintingSourceType,
+      sourceId: PAINTING_ID,
+      role: 'output',
+      createdAt: TS,
+      updatedAt: TS,
+      ...overrides
+    }
+  }
+
+  it('accepts a well-formed painting ref', () => {
+    const parsed = paintingFileRefSchema.parse(makePaintingRef())
+    expect(parsed.sourceType).toBe('painting')
+    expect(parsed.sourceId).toBe(PAINTING_ID)
+    expect(parsed.role).toBe('output')
+  })
+
+  it('accepts both painting roles (output/input — the two PaintingFiles buckets)', () => {
+    for (const role of ['output', 'input']) {
+      const parsed = paintingFileRefSchema.parse(makePaintingRef({ role }))
+      expect(parsed.role).toBe(role)
+    }
+  })
+
+  it('rejects role values outside the painting vocabulary', () => {
+    for (const role of ['attachment', 'mask', 'thumbnail', '']) {
+      expect(() => paintingFileRefSchema.parse(makePaintingRef({ role }))).toThrow()
+    }
+  })
+
+  it('rejects a non-UUIDv4 sourceId (painting.id is uuidPrimaryKey v4)', () => {
+    expect(() => paintingFileRefSchema.parse(makePaintingRef({ sourceId: 'not-a-uuid' }))).toThrow()
+  })
+
+  it('rejects sourceType other than the literal painting', () => {
+    expect(() => paintingFileRefSchema.parse(makePaintingRef({ sourceType: 'knowledge_item' }))).toThrow()
+  })
+})
+
 describe('FileRefSchema discriminated union', () => {
   it('dispatches to the temp_session variant', () => {
     const parsed = FileRefSchema.parse({
@@ -94,11 +140,24 @@ describe('FileRefSchema discriminated union', () => {
     expect(parsed.role).toBe('source')
   })
 
-  it('rejects an unregistered sourceType (no longer in allSourceTypes)', () => {
-    // Pre-cleanup the discriminated union still recognised these four; today
-    // they must be rejected so DataApi rounds-trip stays consistent. When a
-    // new variant lands, this test should be updated alongside the union.
-    for (const sourceType of ['painting', 'note']) {
+  it('dispatches to the painting variant', () => {
+    const parsed = FileRefSchema.parse({
+      id: REF_ID,
+      fileEntryId: ENTRY_ID,
+      sourceType: paintingSourceType,
+      sourceId: PAINTING_ID,
+      role: 'input',
+      createdAt: TS,
+      updatedAt: TS
+    })
+    expect(parsed.sourceType).toBe('painting')
+  })
+
+  it('rejects an unregistered sourceType (not in allSourceTypes)', () => {
+    // `note` remains unregistered; it must be rejected so DataApi round-trip
+    // stays consistent. When a new variant lands, update this list alongside
+    // the union.
+    for (const sourceType of ['note']) {
       expect(() =>
         FileRefSchema.parse({
           id: REF_ID,

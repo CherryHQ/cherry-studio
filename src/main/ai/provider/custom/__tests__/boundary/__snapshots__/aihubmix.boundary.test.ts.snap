@@ -1,0 +1,29 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`AiHubMix image-model boundary (Ideogram branches) > V_2 generate → { image_request } JSON to /ideogram/aihubmix_image_generate 1`] = `
+{
+  "image_request": {
+    "aspect_ratio": "ASPECT_1_1",
+    "magic_prompt_option": "OFF",
+    "model": "V_2",
+    "negative_prompt": "noise",
+    "num_images": 3,
+    "prompt": "a fox",
+    "seed": 7,
+    "style_type": "REALISTIC",
+  },
+}
+`;
+
+exports[`AiHubMix image-model boundary (Ideogram branches) > V_3 generate → FormData to /ideogram/v1/ideogram-v3/generate 1`] = `
+{
+  "aspect_ratio": "16x9",
+  "magic_prompt": "ON",
+  "negative_prompt": "blur",
+  "num_images": "2",
+  "prompt": "a fox",
+  "rendering_speed": "TURBO",
+  "seed": "42",
+  "style_type": "GENERAL",
+}
+`;

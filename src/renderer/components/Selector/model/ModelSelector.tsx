@@ -154,6 +154,7 @@ function ModelRow({
   onSelect,
   onNavigateBeforeTrial,
   showCheckbox,
+  showPinActions,
   isPinActionDisabled,
   isSelected,
   t
@@ -164,6 +165,7 @@ function ModelRow({
   onSelect: (item: ModelSelectorModelItem) => void
   onNavigateBeforeTrial: () => void
   showCheckbox: boolean
+  showPinActions: boolean
   isPinActionDisabled: boolean
   isSelected: boolean
   t: (key: string) => string
@@ -216,15 +218,17 @@ function ModelRow({
       leading={leading}
       trailing={trailing}
       actions={
-        <ModelSelectorRowActionButton
-          disabled={isPinActionDisabled}
-          aria-label={t(item.isPinned ? 'models.action.unpin' : 'models.action.pin')}
-          className="size-4 rounded-sm hover:bg-transparent"
-          pinned={item.isPinned}
-          selected={isSelected}
-          onClick={() => onPin(item.modelId)}>
-          <Pin className="size-3" />
-        </ModelSelectorRowActionButton>
+        showPinActions ? (
+          <ModelSelectorRowActionButton
+            disabled={isPinActionDisabled}
+            aria-label={t(item.isPinned ? 'models.action.unpin' : 'models.action.pin')}
+            className="size-4 rounded-sm hover:bg-transparent"
+            pinned={item.isPinned}
+            selected={isSelected}
+            onClick={() => onPin(item.modelId)}>
+            <Pin className="size-3" />
+          </ModelSelectorRowActionButton>
+        ) : null
       }
       onSelect={() => onSelect(item)}
       rootProps={{ className: 'pr-0.5' }}
@@ -248,9 +252,11 @@ export function ModelSelector(props: ModelSelectorProps) {
     trigger,
     open: openProp,
     onOpenChange,
+    dataOverride,
     filter,
     showTagFilter = true,
     showPinnedModels = true,
+    showPinActions = true,
     prioritizedProviderIds = DEFAULT_PRIORITIZED_PROVIDER_IDS,
     side = 'bottom',
     align = 'start',
@@ -378,6 +384,9 @@ export function ModelSelector(props: ModelSelectorProps) {
   } = useModelSelectorData({
     selectedModelIds: rawSelectedModelIds,
     maxSelectedCount: multiple && multiSelectMode ? undefined : 1,
+    providersOverride: dataOverride?.providers,
+    modelsOverride: dataOverride?.models,
+    isDataLoadingOverride: dataOverride?.isLoading,
     searchText: deferredSearchText,
     filter,
     prioritizedProviderIds,
@@ -645,6 +654,7 @@ export function ModelSelector(props: ModelSelectorProps) {
             onSelect={handleSelectItem}
             onNavigateBeforeTrial={handleClose}
             showCheckbox={multiple && multiSelectMode}
+            showPinActions={showPinActions}
             t={t}
           />
         </div>
@@ -660,6 +670,7 @@ export function ModelSelector(props: ModelSelectorProps) {
       multiple,
       multiSelectMode,
       setFocusedItemKey,
+      showPinActions,
       t,
       visibleSelectedModelIdSet
     ]

@@ -70,6 +70,14 @@ function createMockDataForPath(path: string): any {
     }
   }
 
+  if (path.includes('/paintings')) {
+    return {
+      items: [],
+      total: 0,
+      nextCursor: undefined
+    }
+  }
+
   return { id: 'mock_id', data: 'mock_data' }
 }
 

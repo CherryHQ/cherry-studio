@@ -21,22 +21,43 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-vi.mock('@cherrystudio/ui', () => ({
-  Badge: ({ children }: { children: ReactNode }) => <span>{children}</span>,
-  Button: ({ children, size, variant, ...props }: ComponentProps<'button'> & { size?: string; variant?: string }) => {
-    void size
-    void variant
-    return (
-      <button type="button" {...props}>
+vi.mock('@cherrystudio/ui', () => {
+  let onDialogOpenChange: ((open: boolean) => void) | undefined
+
+  return {
+    Badge: ({ children }: { children: ReactNode }) => <span>{children}</span>,
+    Button: ({ children, size, variant, ...props }: ComponentProps<'button'> & { size?: string; variant?: string }) => {
+      void size
+      void variant
+      return (
+        <button type="button" {...props}>
+          {children}
+        </button>
+      )
+    },
+    Dialog: ({
+      children,
+      open,
+      onOpenChange
+    }: {
+      children: ReactNode
+      open: boolean
+      onOpenChange?: (open: boolean) => void
+    }) => {
+      onDialogOpenChange = onOpenChange
+      return open ? <>{children}</> : null
+    },
+    DialogContent: ({ children }: { children: ReactNode }) => (
+      <div role="dialog">
+        <button type="button" aria-label="common.close" onClick={() => onDialogOpenChange?.(false)} />
         {children}
-      </button>
-    )
-  },
-  Dialog: ({ children, open }: { children: ReactNode; open: boolean }) => (open ? <>{children}</> : null),
-  DialogContent: ({ children }: { children: ReactNode }) => <div role="dialog">{children}</div>,
-  DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
-  Separator: () => <hr />
-}))
+      </div>
+    ),
+    DialogHeader: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+    DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
+    Separator: () => <hr />
+  }
+})
 
 function createSkill(overrides: Partial<InstalledSkill> = {}): InstalledSkill {
   return {

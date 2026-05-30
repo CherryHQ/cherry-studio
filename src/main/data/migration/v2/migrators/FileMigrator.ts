@@ -303,6 +303,7 @@ export class FileMigrator extends BaseMigrator {
         .filter((e): e is PreparedInternalEntry => e.origin === 'internal')
         .slice(0, VALIDATE_SAMPLE_LIMIT)
 
+      let missingPhysical = 0
       for (const entry of internalEntries) {
         const physicalPath = path.join(
           ctx.paths.userData,
@@ -311,6 +312,7 @@ export class FileMigrator extends BaseMigrator {
           entry.ext ? `${entry.id}.${entry.ext}` : entry.id
         )
         if (!fs.existsSync(physicalPath)) {
+          missingPhysical += 1
           this.recordWarning(`Physical file missing for entry id=${entry.id}: ${physicalPath}`)
         }
       }
@@ -319,6 +321,8 @@ export class FileMigrator extends BaseMigrator {
         sourceCount: this.sourceCount,
         targetCount,
         skippedCount: this.skippedCount,
+        missingPhysicalSampled: missingPhysical,
+        sampleSize: internalEntries.length,
         errors: errors.length
       })
 

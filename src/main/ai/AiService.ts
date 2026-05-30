@@ -23,6 +23,7 @@ import { isEmbeddingModel } from '@shared/utils/model'
 import {
   type EmbeddingModelUsage,
   isToolUIPart,
+  type JSONValue,
   type LanguageModelUsage,
   type ModelMessage,
   type UIMessageChunk
@@ -102,19 +103,24 @@ export interface AiGenerateResult {
 export interface AiImageRequest extends AiBaseRequest {
   prompt: string
   /** Input images for editing (base64 data URLs or URLs). If provided, uses edit mode. */
-  inputImages?: string[]
+  inputImages?: (string | Uint8Array)[]
   /** Mask for inpainting (only with inputImages). */
-  mask?: string
+  mask?: string | Uint8Array
   n?: number
   size?: string
+  aspectRatio?: string
+  allowAutoSize?: boolean
   negativePrompt?: string
   seed?: number
   quality?: string
+  background?: string
+  moderation?: string
+  style?: string
   numInferenceSteps?: number
   guidanceScale?: number
   promptEnhancement?: boolean
-  /** TODO(renderer/aiCore-cleanup): wire personGeneration through to the underlying image runtime once the main image contract formally supports it end-to-end. */
   personGeneration?: string
+  providerOptions?: Record<string, Record<string, JSONValue>>
 }
 
 export interface GeneratedImagePayload {
@@ -126,6 +132,12 @@ export interface GeneratedImagePayload {
 /** Image generation result. */
 export interface AiImageResult {
   images: GeneratedImagePayload[]
+}
+
+function normalizeAspectRatio(value: string | undefined): `${number}:${number}` | undefined {
+  if (!value) return undefined
+  const normalized = value.replace(/^ASPECT_/i, '').replace('_', ':')
+  return /^\d+:\d+$/.test(normalized) ? (normalized as `${number}:${number}`) : undefined
 }
 
 /** Embedding request. */
@@ -461,21 +473,28 @@ export class AiService extends BaseService {
 
     const { sdkConfig } = await this.buildAgentParamsFor(request, signal)
 
-    const promptParam = request.inputImages
+    const promptParam = request.inputImages?.length
       ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
       : request.prompt
 
+    const aspectRatio = normalizeAspectRatio(request.aspectRatio)
     const imageParams = {
       model: sdkConfig.modelId,
       prompt: promptParam,
       n: request.n ?? 1,
-      size: (request.size ?? '1024x1024') as `${number}x${number}`,
+      ...((request.size || !request.allowAutoSize) && { size: (request.size ?? '1024x1024') as `${number}x${number}` }),
+      ...(aspectRatio ? { aspectRatio } : {}),
       ...(request.negativePrompt ? { negativePrompt: request.negativePrompt } : {}),
       ...(request.seed !== undefined ? { seed: request.seed } : {}),
       ...(request.quality ? { quality: request.quality } : {}),
+      ...(request.background ? { background: request.background } : {}),
+      ...(request.moderation ? { moderation: request.moderation } : {}),
+      ...(request.style ? { style: request.style } : {}),
       ...(request.numInferenceSteps !== undefined ? { numInferenceSteps: request.numInferenceSteps } : {}),
       ...(request.guidanceScale !== undefined ? { guidanceScale: request.guidanceScale } : {}),
       ...(request.promptEnhancement !== undefined ? { promptEnhancement: request.promptEnhancement } : {}),
+      ...(request.personGeneration ? { personGeneration: request.personGeneration } : {}),
+      ...(request.providerOptions ? { providerOptions: request.providerOptions } : {}),
       ...(signal ? { abortSignal: signal } : {}),
       experimental_download: async (downloads) => {
         return Promise.all(

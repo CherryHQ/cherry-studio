@@ -84,7 +84,20 @@ diff --git a/dist/index.js b/dist/index.js
  var OpenAICompatibleImageModel = class {
    constructor(modelId, config) {
      this.modelId = modelId;
-@@ -1625,7 +1673,7 @@
+@@ -1604,7 +1652,11 @@
+         fetch: this.config.fetch
+       });
+       return {
+-        images: response2.data.map((item) => item.b64_json),
++        images: response2.data.flatMap((item) => {
++          if (typeof item.b64_json === 'string') return [item.b64_json];
++          if (typeof item.url === 'string') return [item.url];
++          return [];
++        }),
+         warnings,
+         response: {
+           timestamp: currentDate,
+@@ -1625,7 +1677,7 @@
          n,
          size,
          ...args,
@@ -93,6 +106,28 @@ diff --git a/dist/index.js b/dist/index.js
        },
        failedResponseHandler: (0, import_provider_utils5.createJsonErrorResponseHandler)(
          (_e = this.config.errorStructure) != null ? _e : defaultOpenAICompatibleErrorStructure
+@@ -1637,7 +1693,11 @@
+       fetch: this.config.fetch
+     });
+     return {
+-      images: response.data.map((item) => item.b64_json),
++      images: response.data.flatMap((item) => {
++        if (typeof item.b64_json === 'string') return [item.b64_json];
++        if (typeof item.url === 'string') return [item.url];
++        return [];
++      }),
+       warnings,
+       response: {
+         timestamp: currentDate,
+@@ -1648,7 +1708,7 @@
+   }
+ };
+ var openaiCompatibleImageResponseSchema = import_v48.z.object({
+-  data: import_v48.z.array(import_v48.z.object({ b64_json: import_v48.z.string() }))
++  data: import_v48.z.array(import_v48.z.object({ b64_json: import_v48.z.string().nullish(), url: import_v48.z.string().nullish() }))
+ });
+ async function fileToBlob(file) {
+   if (file.type === "url") {
 diff --git a/dist/index.mjs b/dist/index.mjs
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
@@ -179,7 +214,20 @@ diff --git a/dist/index.mjs b/dist/index.mjs
  var OpenAICompatibleImageModel = class {
    constructor(modelId, config) {
      this.modelId = modelId;
-@@ -1639,7 +1687,7 @@
+@@ -1618,7 +1666,11 @@
+         fetch: this.config.fetch
+       });
+       return {
+-        images: response2.data.map((item) => item.b64_json),
++        images: response2.data.flatMap((item) => {
++          if (typeof item.b64_json === 'string') return [item.b64_json];
++          if (typeof item.url === 'string') return [item.url];
++          return [];
++        }),
+         warnings,
+         response: {
+           timestamp: currentDate,
+@@ -1639,7 +1691,7 @@
          n,
          size,
          ...args,
@@ -188,3 +236,25 @@ diff --git a/dist/index.mjs b/dist/index.mjs
        },
        failedResponseHandler: createJsonErrorResponseHandler4(
          (_e = this.config.errorStructure) != null ? _e : defaultOpenAICompatibleErrorStructure
+@@ -1651,7 +1707,11 @@
+       fetch: this.config.fetch
+     });
+     return {
+-      images: response.data.map((item) => item.b64_json),
++      images: response.data.flatMap((item) => {
++        if (typeof item.b64_json === 'string') return [item.b64_json];
++        if (typeof item.url === 'string') return [item.url];
++        return [];
++      }),
+       warnings,
+       response: {
+         timestamp: currentDate,
+@@ -1662,7 +1722,7 @@
+   }
+ };
+ var openaiCompatibleImageResponseSchema = z8.object({
+-  data: z8.array(z8.object({ b64_json: z8.string() }))
++  data: z8.array(z8.object({ b64_json: z8.string().nullish(), url: z8.string().nullish() }))
+ });
+ async function fileToBlob(file) {
+   if (file.type === "url") {

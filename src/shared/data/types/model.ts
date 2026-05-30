@@ -13,13 +13,18 @@
 import type {
   Currency,
   EndpointType,
+  ImageGenerationMode,
+  ImageGenerationSupport,
+  ImageModeDef,
   Modality,
   ModelCapability,
-  ReasoningEffort
+  ReasoningEffort,
+  SupportSpec
 } from '@cherrystudio/provider-registry'
 import {
   CURRENCY,
   ENDPOINT_TYPE,
+  ImageGenerationSupportSchema,
   MODALITY,
   MODEL_CAPABILITY,
   objectValues,
@@ -31,7 +36,17 @@ import * as z from 'zod'
 export { CURRENCY, ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY, objectValues, REASONING_EFFORT }
 
 // Re-export types for consumers
-export type { Currency, EndpointType, Modality, ModelCapability, ReasoningEffort }
+export type {
+  Currency,
+  EndpointType,
+  ImageGenerationMode,
+  ImageGenerationSupport,
+  ImageModeDef,
+  Modality,
+  ModelCapability,
+  ReasoningEffort,
+  SupportSpec
+}
 
 /** Price per token schema */
 export const PricePerTokenSchema = z.object({
@@ -312,6 +327,17 @@ export const ModelSchema = z.object({
   parameterSupport: RuntimeParameterSupportSchema.optional(),
 
   pricing: RuntimeModelPricingSchema.optional(),
+
+  /**
+   * Painting-page metadata (sizes, batch, supports.*, vendorParams, inputSchema).
+   * Sourced from the registry preset at read time — not persisted in
+   * user_model. Lets the painting page render the model's form
+   * (per-vendor sizes, custom-size range, dynamic input fields) and pass
+   * vendor-specific request extras (e.g. dmxapi's `extend_params`,
+   * tokenflux's `input_schema` selections) without a side-channel
+   * catalog fetch.
+   */
+  imageGeneration: ImageGenerationSupportSchema.optional(),
 
   // Status
   /** Whether this model is available for use */

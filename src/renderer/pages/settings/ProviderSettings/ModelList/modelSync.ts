@@ -107,6 +107,31 @@ async function enrichFetchedModels(providerId: string, fetchedModels: Partial<Mo
   })
 }
 
+async function fetchProviderRegistryModels(providerId: string): Promise<Model[]> {
+  const resolveModelsPath: ProviderResolveModelsPath = `/providers/${providerId}/models:resolve`
+  return (await dataApiService.get(resolveModelsPath, { query: {} })) as Model[]
+}
+
+function modelApiId(model: Model): string {
+  return model.apiModelId ?? parseUniqueModelId(model.id).modelId
+}
+
+function mergeProviderModels(remoteModels: Model[], registryModels: Model[]): Model[] {
+  const result = [...remoteModels]
+  const seen = new Set(remoteModels.map(modelApiId))
+
+  for (const model of registryModels) {
+    const apiModelId = modelApiId(model)
+    if (seen.has(apiModelId)) {
+      continue
+    }
+    seen.add(apiModelId)
+    result.push(model)
+  }
+
+  return result
+}
+
 /**
  * Sync provider models: ask main to list upstream models (main reads keys
  * from DB), then enrich via the registry-resolve endpoint. `throwOnError`
@@ -118,7 +143,11 @@ export async function fetchResolvedProviderModels(providerId: string): Promise<M
     logger.info('Fetching provider models via IPC', { providerId })
     const fetched = await window.api.ai.listModels({ providerId, throwOnError: true })
     logger.info('Fetched provider models', { providerId, fetchedModelCount: fetched.length })
-    return await enrichFetchedModels(providerId, fetched)
+    const [remoteModels, registryModels] = await Promise.all([
+      enrichFetchedModels(providerId, fetched),
+      fetchProviderRegistryModels(providerId)
+    ])
+    return mergeProviderModels(remoteModels, registryModels)
   } catch (error) {
     logger.error('Failed to fetch and resolve provider models', { providerId, error })
     throw error

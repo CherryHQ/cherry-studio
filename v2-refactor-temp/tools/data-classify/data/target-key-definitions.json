@@ -181,6 +181,13 @@
       "description": "OpenClaw selected model UniqueModelId (provider::modelId, from complex mapping openclaw_preferences)"
     },
     {
+      "targetKey": "feature.paintings.default_provider",
+      "type": "string",
+      "defaultValue": "zhipu",
+      "status": "classified",
+      "description": "Default painting provider id"
+    },
+    {
       "targetKey": "feature.translate.action.preferred_lang",
       "type": "PreferenceTypes.TranslateLangCode",
       "defaultValue": "zh-cn",

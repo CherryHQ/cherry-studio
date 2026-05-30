@@ -228,6 +228,7 @@
           "completed": "[to be translated]:Completed",
           "duration": "Διάρκεια",
           "empty": "Δεν υπάρχει ακόμα ιστορικό εκτελέσεων.",
+          "error": "Σφάλμα",
           "failed": "[to be translated]:Failed",
           "justNow": "μόλις τώρα",
           "label": "Ιστορικό εκτελέσεων",
@@ -237,6 +238,7 @@
           "running": "Τρέχει...",
           "search": "Αναζήτηση αρχείων καταγραφής...",
           "status": "Κατάσταση",
+          "success": "Επιτυχία",
           "viewSession": "Δείτε τη συνεδρία"
         },
         "name": {
@@ -477,9 +479,11 @@
       },
       "group": {
         "collapse": "[to be translated]:Collapse sessions",
+        "collapse_all": "[to be translated]:Collapse all",
         "conversation": "[to be translated]:Chats",
         "drag_hint": "[to be translated]:Drag to reorder. Drag sessions to adjust display and hidden groups.",
         "earlier": "[to be translated]:Earlier",
+        "expand_all": "[to be translated]:Expand all",
         "no_workdir": "[to be translated]:No workspace",
         "show_more": "[to be translated]:Show more sessions",
         "this_week": "[to be translated]:This week",
@@ -1376,10 +1380,20 @@
       "placeholder": "Εισάγετε μήνυμα εδώ...",
       "placeholder_without_triggers": "Γράψτε το μήνυμά σας εδώ, πατήστε {{key}} για αποστολή",
       "resource_panel": {
+        "categories": {
+          "agents": "Πράκτορες",
+          "files": "Αρχεία",
+          "skills": "Δεξιότητες"
+        },
+        "description": "Επιλέξτε από αρχεία, πράκτορες ή δεξιότητες",
         "loading": "Φόρτωση...",
         "no_file_found": {
           "description": "Δεν υπάρχουν διαθέσιμα αρχεία στους προσβάσιμους καταλόγους",
           "label": "Δεν βρέθηκε αρχείο"
+        },
+        "no_items_found": {
+          "description": "Κανένα αρχείο, πράκτορας ή δεξιότητα δεν είναι διαθέσιμα",
+          "label": "Δεν βρέθηκαν στοιχεία"
         },
         "title": "Πόροι"
       },
@@ -1726,7 +1740,9 @@
       },
       "group": {
         "collapse": "[to be translated]:Collapse display",
+        "collapse_all": "[to be translated]:Collapse all",
         "earlier": "[to be translated]:Earlier",
+        "expand_all": "[to be translated]:Expand all",
         "show_more": "[to be translated]:Expand display",
         "this_week": "[to be translated]:This week",
         "today": "[to be translated]:Today",
@@ -1965,6 +1981,7 @@
     "open_in": "Άνοιγμα στο {{name}}",
     "open_in_new_tab": "[to be translated]:Open in new tab",
     "open_sidebar": "[to be translated]:Open sidebar",
+    "parameter": "Παράμετρος",
     "paste": "Επικόλληση",
     "placeholders": {
       "select": {
@@ -2310,6 +2327,26 @@
       "agentSubtitle": "[to be translated]:{{count}} sessions",
       "agentTitle": "[to be translated]:Agent History",
       "assistantSubtitle": "[to be translated]:{{count}} topics",
+      "bulkDelete": "[to be translated]:Batch Delete",
+      "bulkDeleteSessions": {
+        "description": "[to be translated]:Delete {{count}} selected session(s)?",
+        "title": "[to be translated]:Delete selected sessions"
+      },
+      "bulkDeleteTopics": {
+        "description": "[to be translated]:Delete {{count}} selected topic(s)?",
+        "title": "[to be translated]:Delete selected topics"
+      },
+      "bulkMove": "[to be translated]:Batch Move",
+      "bulkMoveTopics": {
+        "confirm": "[to be translated]:Move",
+        "description": "[to be translated]:Move {{count}} selected topic(s) to the target assistant.",
+        "empty": "[to be translated]:No assistants available",
+        "error": "[to be translated]:Failed to move topics",
+        "placeholder": "[to be translated]:Select assistant",
+        "success": "[to be translated]:Moved {{count}} topic(s)",
+        "target": "[to be translated]:Target assistant",
+        "title": "[to be translated]:Move selected topics"
+      },
       "empty": {
         "description": "[to be translated]:No topics for the current filters.",
         "sessionsDescription": "[to be translated]:No sessions for the current filters.",
@@ -2337,6 +2374,7 @@
         "running": "[to be translated]:Running"
       },
       "table": {
+        "actions": "[to be translated]:Actions",
         "emptyValue": "[to be translated]:—",
         "messages": "[to be translated]:Messages",
         "session": "[to be translated]:Session",
@@ -2753,6 +2791,7 @@
             "placeholder": "[to be translated]:Give the agent a name"
           },
           "permission_mode": {
+            "help": "[to be translated]:Switching to bypassPermissions is equivalent to enabling Soul mode",
             "label": "[to be translated]:Permission mode",
             "option": {
               "acceptEdits": "[to be translated]:Accept edits",
@@ -3107,9 +3146,13 @@
     },
     "skill_detail": {
       "created_at": "[to be translated]:Created",
+      "delete_description": "[to be translated]:Remove this skill and all of its configuration. This action cannot be undone.",
+      "delete_title": "[to be translated]:Delete skill",
       "description": "[to be translated]:Description",
+      "file_preview": "[to be translated]:File preview",
       "installed": "[to be translated]:Installed",
       "no_description": "[to be translated]:No description",
+      "source_files": "[to be translated]:Source files",
       "updated_at": "[to be translated]:Recently updated"
     },
     "sort": {
@@ -3146,6 +3189,7 @@
       "prompt": "[to be translated]:Prompt",
       "skill": "[to be translated]:Skill"
     },
+    "uninstall_failed": "[to be translated]:Failed to uninstall",
     "view": {
       "grid": "[to be translated]:Grid view",
       "list": "[to be translated]:List view"
@@ -4187,11 +4231,52 @@
       },
       "new": {
         "image": "Νέα εικόνα"
+      },
+      "select": {
+        "image": "[to be translated]:Select Image"
       }
     },
     "custom_size": "Προσαρμοσμένο μέγεθος",
+    "dashscope": {
+      "bottom_scale": "[to be translated]:Expand Bottom",
+      "enable_interleave": "[to be translated]:Text+Image Mixed Mode",
+      "enable_interleave_tip": "[to be translated]:When on, generates text-and-image mixed output without requiring an input image. Turn off to use edit mode (requires 1–4 input images).",
+      "function": "[to be translated]:Edit Function",
+      "function_options": {
+        "colorization": "[to be translated]:Colorization",
+        "control_cartoon_feature": "[to be translated]:Cartoon Reference",
+        "description_edit": "[to be translated]:Instruction Edit",
+        "description_edit_with_mask": "[to be translated]:Masked Edit",
+        "doodle": "[to be translated]:Doodle to Image",
+        "expand": "[to be translated]:Expand",
+        "remove_watermark": "[to be translated]:Remove Watermark",
+        "stylization_all": "[to be translated]:Global Stylization",
+        "stylization_local": "[to be translated]:Local Stylization",
+        "super_resolution": "[to be translated]:Super Resolution"
+      },
+      "is_sketch": "[to be translated]:Sketch Input",
+      "left_scale": "[to be translated]:Expand Left",
+      "ref_mode": "[to be translated]:Reference Mode",
+      "ref_mode_options": {
+        "refonly": "[to be translated]:Reference only",
+        "repaint": "[to be translated]:Repaint"
+      },
+      "ref_strength": "[to be translated]:Reference Strength",
+      "right_scale": "[to be translated]:Expand Right",
+      "source_lang": "[to be translated]:Source Language",
+      "strength": "[to be translated]:Strength",
+      "target_lang": "[to be translated]:Target Language",
+      "top_scale": "[to be translated]:Expand Top",
+      "upscale_factor": "[to be translated]:Upscale Factor"
+    },
     "dmxapi": {
       "generating_tip": "Η δημιουργία γίνεται με το επίσημο μοντέλο, ο εκτιμώμενος χρόνος αναμονής είναι 2-5 λεπτά για τα καλύτερα αποτελέσματα. Ελέγξτε τα αρχεία καταγραφής του διακομιστή DMXAPI για το κόστος αυτής της λειτουργίας.",
+      "max_images": "[to be translated]:Max Images",
+      "sequential_image_generation": "[to be translated]:Sequential Image Generation",
+      "sequential_image_generation_options": {
+        "auto": "[to be translated]:Auto",
+        "disabled": "[to be translated]:Disabled"
+      },
       "style": ", Στυλ:",
       "style_types": {
         "25d_animation": "Κινούμενα Σχέδια 2.5D",
@@ -4244,6 +4329,7 @@
     },
     "generate_failed": "Αποτυχία δημιουργίας εικόνας",
     "generated_image": "Δημιουργία εικόνας",
+    "generating": "Δημιουργία...",
     "go_to_settings": "Πηγαίνετε στις ρυθμίσεις",
     "guidance_scale": "Κλίμακα προσαρμογής",
     "guidance_scale_tip": "Χωρίς κλάσικο προσαρμογής. Ελέγχει την προσαρμογή του μοντέλου στην αναζήτηση παρόμοιων εικόνων για το σχόλιο.",
@@ -4287,13 +4373,16 @@
     "number_images_tip": "Ποσότητα εικόνων που θα δημιουργηθούν μια φορά (1-4)",
     "operation_failed": "Η λειτουργία απέτυχε, παρακαλώ δοκιμάστε ξανά αργότερα",
     "paint_course": "Εκπαίδευση",
+    "parameters": "Παράμετροι",
     "per_image": "Ανά εικόνα",
     "per_images": "Ανά εικόνα",
+    "person_generation": "[to be translated]:Generate people",
     "person_generation_options": {
       "allow_adult": "Να επιτρέπεται ενήλικας",
       "allow_all": "Να επιτρέπονται όλα",
       "allow_none": "Να μην επιτρέπεται τίποτα"
     },
+    "person_generation_tip": "[to be translated]:Allow the model to generate images of people",
     "ppio": {
       "edit_prompt_tip": "Καθορίζει το αντικείμενο ή την περιοχή προς αφαίρεση από την εικόνα, π.χ. 'σκύλος' ή 'καπέλο'",
       "mask_image": "Εικόνα μάσκας",
@@ -4314,9 +4403,11 @@
     "quality": "Ποιότητα",
     "quality_options": {
       "auto": "Αυτόματο",
+      "hd": "[to be translated]:HD",
       "high": "Υψηλό",
       "low": "Χαμηλό",
-      "medium": "Μεσαίο"
+      "medium": "Μεσαίο",
+      "standard": "[to be translated]:Standard"
     },
     "regenerate": {
       "confirm": "Αυτό θα επιβάλει τις δημιουργίες που έχετε κάνει, θέλετε να συνεχίσετε;"
@@ -4344,12 +4435,37 @@
     "req_error_text": "Ο διακομιστής είναι απασχολημένος ή η εντολή περιέχει «λέξεις πνευματικής ιδιοκτησίας» ή «ευαίσθητες λέξεις». Παρακαλούμε δοκιμάστε ξανά.",
     "req_error_token": "Ελέγξτε την εγκυρότητα του token",
     "required_field": "Υποχρεωτικό πεδίο",
+    "safety_tolerance": "[to be translated]:Safety Tolerance",
+    "safety_tolerance_tip": "[to be translated]:Higher = more permissive filter; 0 is strictest, 6 is most permissive",
     "seed": "Τυχαίος παράγοντας",
     "seed_desc_tip": "Οι ίδιοι σπόρος και εντολή μπορούν να δημιουργήσουν παρόμοιες εικόνες. Ορίστε -1 για διαφορετική εικόνα κάθε φορά",
     "seed_random": "Τυχαίο",
     "seed_tip": "Η χρήση του ίδιου παραγόντα και του σχολίου μπορεί να δημιουργήσει παρόμοιες εικόνες",
     "select_model": "Επιλέξτε μοντέλο",
+    "style_options": {
+      "anime": "[to be translated]:Anime",
+      "auto": "[to be translated]:Auto",
+      "cartoon_3d": "[to be translated]:3D Cartoon",
+      "chinese_painting": "[to be translated]:Chinese Painting",
+      "flat_illustration": "[to be translated]:Flat Illustration",
+      "natural": "[to be translated]:Natural",
+      "oil_painting": "[to be translated]:Oil Painting",
+      "photography": "[to be translated]:Photography",
+      "portrait": "[to be translated]:Portrait",
+      "sketch": "[to be translated]:Sketch",
+      "vivid": "[to be translated]:Vivid",
+      "watercolor": "[to be translated]:Watercolor"
+    },
     "style_type": "Στυλ",
+    "style_type_options": {
+      "anime": "[to be translated]:Anime",
+      "auto": "[to be translated]:Auto",
+      "design": "[to be translated]:Design",
+      "general": "[to be translated]:General",
+      "realistic": "[to be translated]:Realistic",
+      "render_3d": "[to be translated]:3D Render"
+    },
+    "style_type_tip": "[to be translated]:Image generation style",
     "style_types": {
       "3d": "3D",
       "anime": "Άνιμε",
@@ -4359,6 +4475,8 @@
       "realistic": "Ρεαλιστικό"
     },
     "text_desc_required": "Παρακαλούμε εισάγετε πρώτα την περιγραφή της εικόνας",
+    "thinking_mode": "[to be translated]:Thinking Mode",
+    "thinking_mode_tip": "[to be translated]:When on, generation quality is higher but adds about 10–30 seconds.",
     "title": "Εικόνα",
     "top_up": "Επαναφόρτωση",
     "translating": "Μετάφραση...",
@@ -5111,6 +5229,7 @@
       }
     },
     "advanced": {
+      "auto_switch_to_topics": "Αυτόματη μετάβαση σε θέματα",
       "title": "Ρυθμίσεις Ανώτερου Νiveau"
     },
     "assistant": {
@@ -7062,6 +7181,14 @@
       "close": "Κλείσιμο",
       "confirm": "Επιβεβαίωση",
       "forward": "Μπρος",
+      "mcp": {
+        "agentEmpty": "[to be translated]:No MCP servers configured for this agent",
+        "assistantEmpty": "[to be translated]:No MCP servers configured for this assistant",
+        "autoEmpty": "[to be translated]:No enabled MCP servers",
+        "description": "[to be translated]:View current MCP server status",
+        "disabled": "[to be translated]:MCP is disabled for this assistant",
+        "unknownServer": "[to be translated]:Unknown MCP server"
+      },
       "multiple": "Πολλαπλή επιλογή",
       "noResult": "Δεν βρέθηκαν αποτελέσματα",
       "page": "Σελίδα",
@@ -7353,6 +7480,17 @@
         "url_required": "Απαιτείται εισαγωγή URL"
       }
     },
+    "topic": {
+      "pin_to_top": "Καρφίτσωμα Θέματος στην Κορυφή",
+      "position": {
+        "label": "Θέση θεμάτων",
+        "left": "Αριστερά",
+        "right": "Δεξιά"
+      },
+      "show": {
+        "time": "Εμφάνιση ώρας θέματος"
+      }
+    },
     "translate": {
       "custom": {
         "delete": {
@@ -7451,7 +7589,8 @@
     "spendTime": "Χρόνος κατανάλωσης",
     "startTime": "Ώρα έναρξης",
     "tag": "Ετικέτα",
-    "tokenUsage": "Χρήση token"
+    "tokenUsage": "Χρήση token",
+    "traceWindow": "Παράθυρο αλυσίδας κλήσης"
   },
   "translate": {
     "alter_language": "Εναλλακτική γλώσσα",

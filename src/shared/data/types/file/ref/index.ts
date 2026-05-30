@@ -44,6 +44,13 @@ import {
   knowledgeItemRoleSchema,
   knowledgeItemSourceType
 } from './knowledgeItem'
+import {
+  paintingFileRefSchema,
+  paintingRefFields,
+  paintingRoles,
+  paintingRoleSchema,
+  paintingSourceType
+} from './painting'
 import { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempSessionSourceType } from './tempSession'
 
 // ─── SourceType type (load-bearing — keys the OrphanRefScanner registry) ───
@@ -63,17 +70,22 @@ import { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempS
  * - `chat_message` — refs from migrated chat message attachments (`./chatMessage.ts`).
  * - `knowledge_item` — refs from `knowledge_item` rows (`./knowledgeItem.ts`).
  *   `role='source'` marks the indexed source file.
+ * - `painting` — refs from `painting` rows (`./painting.ts`), roles
+ *   `output`/`input`. `PaintingService` owns ref removal on delete; ref
+ *   creation is done by the separate v1→v2 file-data-migration PR (paintings
+ *   still create/resolve files via the v1 file system in the renderer).
  *
- * Other business domains (painting / note) deliberately do NOT appear here.
- * They will be added when their owning DB tables migrate to v2 — at which
- * point each variant gains its tuple entry, its `createRefSchema` variant,
- * AND its `SourceTypeChecker` in one PR. Keeping those three surfaces in
- * lockstep prevents the "type declared but schema unaware" gap.
+ * Other business domains (note) deliberately do NOT appear here. They will be
+ * added when their owning DB tables migrate to v2 — at which point each
+ * variant gains its tuple entry, its `createRefSchema` variant, AND its
+ * `SourceTypeChecker` in one PR. Keeping those three surfaces in lockstep
+ * prevents the "type declared but schema unaware" gap.
  */
 export const allSourceTypes = [
   tempSessionSourceType,
   knowledgeItemSourceType,
-  chatMessageSourceType
+  chatMessageSourceType,
+  paintingSourceType
 ] as const satisfies readonly string[]
 export type FileRefSourceType = (typeof allSourceTypes)[number]
 
@@ -96,7 +108,8 @@ export const FileRefSourceTypeSchema = z.enum(allSourceTypes)
 export const FileRefSchema = z.discriminatedUnion('sourceType', [
   tempSessionFileRefSchema,
   knowledgeItemFileRefSchema,
-  chatMessageFileRefSchema
+  chatMessageFileRefSchema,
+  paintingFileRefSchema
 ])
 export type FileRef = z.infer<typeof FileRefSchema>
 
@@ -113,6 +126,11 @@ export {
   knowledgeItemRoles,
   knowledgeItemRoleSchema,
   knowledgeItemSourceType,
+  paintingFileRefSchema,
+  paintingRefFields,
+  paintingRoles,
+  paintingRoleSchema,
+  paintingSourceType,
   tempSessionFileRefSchema,
   tempSessionRefFields,
   tempSessionRoles,

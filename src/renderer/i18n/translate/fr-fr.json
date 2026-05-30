@@ -228,6 +228,7 @@
           "completed": "[to be translated]:Completed",
           "duration": "Durée",
           "empty": "Aucun historique d'exécution.",
+          "error": "Erreur",
           "failed": "[to be translated]:Failed",
           "justNow": "à l'instant",
           "label": "Historique d'exécution",
@@ -237,6 +238,7 @@
           "running": "En cours d'exécution...",
           "search": "Rechercher les journaux...",
           "status": "Statut",
+          "success": "Succès",
           "viewSession": "Voir la session"
         },
         "name": {
@@ -477,9 +479,11 @@
       },
       "group": {
         "collapse": "[to be translated]:Collapse sessions",
+        "collapse_all": "[to be translated]:Collapse all",
         "conversation": "[to be translated]:Chats",
         "drag_hint": "[to be translated]:Drag to reorder. Drag sessions to adjust display and hidden groups.",
         "earlier": "[to be translated]:Earlier",
+        "expand_all": "[to be translated]:Expand all",
         "no_workdir": "[to be translated]:No workspace",
         "show_more": "[to be translated]:Show more sessions",
         "this_week": "[to be translated]:This week",
@@ -1376,10 +1380,20 @@
       "placeholder": "Entrez votre message ici...",
       "placeholder_without_triggers": "Tapez votre message ici, appuyez sur {{key}} pour envoyer",
       "resource_panel": {
+        "categories": {
+          "agents": "Agents",
+          "files": "Fichiers",
+          "skills": "Compétences"
+        },
+        "description": "Sélectionner parmi les fichiers, les agents ou les compétences",
         "loading": "Chargement...",
         "no_file_found": {
           "description": "Aucun fichier disponible dans les répertoires accessibles",
           "label": "Aucun fichier trouvé"
+        },
+        "no_items_found": {
+          "description": "Aucun fichier, agent ou compétence disponible",
+          "label": "Aucun élément trouvé"
         },
         "title": "Ressources"
       },
@@ -1726,7 +1740,9 @@
       },
       "group": {
         "collapse": "[to be translated]:Collapse display",
+        "collapse_all": "[to be translated]:Collapse all",
         "earlier": "[to be translated]:Earlier",
+        "expand_all": "[to be translated]:Expand all",
         "show_more": "[to be translated]:Expand display",
         "this_week": "[to be translated]:This week",
         "today": "[to be translated]:Today",
@@ -1965,6 +1981,7 @@
     "open_in": "Ouvrir dans {{name}}",
     "open_in_new_tab": "[to be translated]:Open in new tab",
     "open_sidebar": "[to be translated]:Open sidebar",
+    "parameter": "Paramètre",
     "paste": "Coller",
     "placeholders": {
       "select": {
@@ -2310,6 +2327,26 @@
       "agentSubtitle": "[to be translated]:{{count}} sessions",
       "agentTitle": "[to be translated]:Agent History",
       "assistantSubtitle": "[to be translated]:{{count}} topics",
+      "bulkDelete": "[to be translated]:Batch Delete",
+      "bulkDeleteSessions": {
+        "description": "[to be translated]:Delete {{count}} selected session(s)?",
+        "title": "[to be translated]:Delete selected sessions"
+      },
+      "bulkDeleteTopics": {
+        "description": "[to be translated]:Delete {{count}} selected topic(s)?",
+        "title": "[to be translated]:Delete selected topics"
+      },
+      "bulkMove": "[to be translated]:Batch Move",
+      "bulkMoveTopics": {
+        "confirm": "[to be translated]:Move",
+        "description": "[to be translated]:Move {{count}} selected topic(s) to the target assistant.",
+        "empty": "[to be translated]:No assistants available",
+        "error": "[to be translated]:Failed to move topics",
+        "placeholder": "[to be translated]:Select assistant",
+        "success": "[to be translated]:Moved {{count}} topic(s)",
+        "target": "[to be translated]:Target assistant",
+        "title": "[to be translated]:Move selected topics"
+      },
       "empty": {
         "description": "[to be translated]:No topics for the current filters.",
         "sessionsDescription": "[to be translated]:No sessions for the current filters.",
@@ -2337,6 +2374,7 @@
         "running": "[to be translated]:Running"
       },
       "table": {
+        "actions": "[to be translated]:Actions",
         "emptyValue": "[to be translated]:—",
         "messages": "[to be translated]:Messages",
         "session": "[to be translated]:Session",
@@ -2753,6 +2791,7 @@
             "placeholder": "[to be translated]:Give the agent a name"
           },
           "permission_mode": {
+            "help": "[to be translated]:Switching to bypassPermissions is equivalent to enabling Soul mode",
             "label": "[to be translated]:Permission mode",
             "option": {
               "acceptEdits": "[to be translated]:Accept edits",
@@ -3107,9 +3146,13 @@
     },
     "skill_detail": {
       "created_at": "[to be translated]:Created",
+      "delete_description": "[to be translated]:Remove this skill and all of its configuration. This action cannot be undone.",
+      "delete_title": "[to be translated]:Delete skill",
       "description": "[to be translated]:Description",
+      "file_preview": "[to be translated]:File preview",
       "installed": "[to be translated]:Installed",
       "no_description": "[to be translated]:No description",
+      "source_files": "[to be translated]:Source files",
       "updated_at": "[to be translated]:Recently updated"
     },
     "sort": {
@@ -3146,6 +3189,7 @@
       "prompt": "[to be translated]:Prompt",
       "skill": "[to be translated]:Skill"
     },
+    "uninstall_failed": "[to be translated]:Failed to uninstall",
     "view": {
       "grid": "[to be translated]:Grid view",
       "list": "[to be translated]:List view"
@@ -4187,11 +4231,52 @@
       },
       "new": {
         "image": "Nouvelle image"
+      },
+      "select": {
+        "image": "[to be translated]:Select Image"
       }
     },
     "custom_size": "Dimensions personnalisées",
+    "dashscope": {
+      "bottom_scale": "[to be translated]:Expand Bottom",
+      "enable_interleave": "[to be translated]:Text+Image Mixed Mode",
+      "enable_interleave_tip": "[to be translated]:When on, generates text-and-image mixed output without requiring an input image. Turn off to use edit mode (requires 1–4 input images).",
+      "function": "[to be translated]:Edit Function",
+      "function_options": {
+        "colorization": "[to be translated]:Colorization",
+        "control_cartoon_feature": "[to be translated]:Cartoon Reference",
+        "description_edit": "[to be translated]:Instruction Edit",
+        "description_edit_with_mask": "[to be translated]:Masked Edit",
+        "doodle": "[to be translated]:Doodle to Image",
+        "expand": "[to be translated]:Expand",
+        "remove_watermark": "[to be translated]:Remove Watermark",
+        "stylization_all": "[to be translated]:Global Stylization",
+        "stylization_local": "[to be translated]:Local Stylization",
+        "super_resolution": "[to be translated]:Super Resolution"
+      },
+      "is_sketch": "[to be translated]:Sketch Input",
+      "left_scale": "[to be translated]:Expand Left",
+      "ref_mode": "[to be translated]:Reference Mode",
+      "ref_mode_options": {
+        "refonly": "[to be translated]:Reference only",
+        "repaint": "[to be translated]:Repaint"
+      },
+      "ref_strength": "[to be translated]:Reference Strength",
+      "right_scale": "[to be translated]:Expand Right",
+      "source_lang": "[to be translated]:Source Language",
+      "strength": "[to be translated]:Strength",
+      "target_lang": "[to be translated]:Target Language",
+      "top_scale": "[to be translated]:Expand Top",
+      "upscale_factor": "[to be translated]:Upscale Factor"
+    },
     "dmxapi": {
       "generating_tip": "Génération avec le modèle officiel, le temps d'attente estimé est de 2 à 5 minutes pour les meilleurs résultats. Veuillez consulter les journaux du backend DMXAPI pour le coût de cette opération.",
+      "max_images": "[to be translated]:Max Images",
+      "sequential_image_generation": "[to be translated]:Sequential Image Generation",
+      "sequential_image_generation_options": {
+        "auto": "[to be translated]:Auto",
+        "disabled": "[to be translated]:Disabled"
+      },
       "style": ", Style :",
       "style_types": {
         "25d_animation": "Animation 2.5D",
@@ -4244,6 +4329,7 @@
     },
     "generate_failed": "Échec de la génération de l'image",
     "generated_image": "Image générée",
+    "generating": "Génération...",
     "go_to_settings": "Aller aux paramètres",
     "guidance_scale": "Échelle de guidance",
     "guidance_scale_tip": "Aucune guidance du classificateur. Contrôle le niveau d'obéissance du modèle aux mots-clés lors de la recherche d'images pertinentes",
@@ -4287,13 +4373,16 @@
     "number_images_tip": "Le nombre d'images générées en une seule fois (1-4)",
     "operation_failed": "L'opération a échoué, veuillez réessayer plus tard",
     "paint_course": "Tutoriel",
+    "parameters": "Paramètres",
     "per_image": "Par image",
     "per_images": "Par image",
+    "person_generation": "[to be translated]:Generate people",
     "person_generation_options": {
       "allow_adult": "Autoriser les adultes",
       "allow_all": "Autoriser tous",
       "allow_none": "Ne pas autoriser"
     },
+    "person_generation_tip": "[to be translated]:Allow the model to generate images of people",
     "ppio": {
       "edit_prompt_tip": "Spécifie l'objet ou la zone à supprimer de l'image, ex: 'chien' ou 'chapeau'",
       "mask_image": "Image de masque",
@@ -4314,9 +4403,11 @@
     "quality": "Qualité",
     "quality_options": {
       "auto": "Automatique",
+      "hd": "[to be translated]:HD",
       "high": "Élevé",
       "low": "Bas",
-      "medium": "Moyen"
+      "medium": "Moyen",
+      "standard": "[to be translated]:Standard"
     },
     "regenerate": {
       "confirm": "Cela va remplacer les images générées, voulez-vous continuer?"
@@ -4344,12 +4435,37 @@
     "req_error_text": "Le serveur est occupé ou le prompt contient des mots « protégés par droit d'auteur » ou des mots « sensibles », veuillez réessayer.",
     "req_error_token": "Veuillez vérifier la validité du jeton",
     "required_field": "Champ obligatoire",
+    "safety_tolerance": "[to be translated]:Safety Tolerance",
+    "safety_tolerance_tip": "[to be translated]:Higher = more permissive filter; 0 is strictest, 6 is most permissive",
     "seed": "Graine aléatoire",
     "seed_desc_tip": "Un même grain et un même prompt permettent de générer des images similaires. Définissez -1 pour obtenir chaque fois une image différente",
     "seed_random": "Aléatoire",
     "seed_tip": "La même graine et le même prompt peuvent générer des images similaires",
     "select_model": "Sélectionner un modèle",
+    "style_options": {
+      "anime": "[to be translated]:Anime",
+      "auto": "[to be translated]:Auto",
+      "cartoon_3d": "[to be translated]:3D Cartoon",
+      "chinese_painting": "[to be translated]:Chinese Painting",
+      "flat_illustration": "[to be translated]:Flat Illustration",
+      "natural": "[to be translated]:Natural",
+      "oil_painting": "[to be translated]:Oil Painting",
+      "photography": "[to be translated]:Photography",
+      "portrait": "[to be translated]:Portrait",
+      "sketch": "[to be translated]:Sketch",
+      "vivid": "[to be translated]:Vivid",
+      "watercolor": "[to be translated]:Watercolor"
+    },
     "style_type": "Style",
+    "style_type_options": {
+      "anime": "[to be translated]:Anime",
+      "auto": "[to be translated]:Auto",
+      "design": "[to be translated]:Design",
+      "general": "[to be translated]:General",
+      "realistic": "[to be translated]:Realistic",
+      "render_3d": "[to be translated]:3D Render"
+    },
+    "style_type_tip": "[to be translated]:Image generation style",
     "style_types": {
       "3d": "3D",
       "anime": "Anime",
@@ -4359,6 +4475,8 @@
       "realistic": "Réaliste"
     },
     "text_desc_required": "Veuillez d'abord saisir la description de l'image",
+    "thinking_mode": "[to be translated]:Thinking Mode",
+    "thinking_mode_tip": "[to be translated]:When on, generation quality is higher but adds about 10–30 seconds.",
     "title": "Image",
     "top_up": "recharge",
     "translating": "Traduction en cours...",
@@ -5111,6 +5229,7 @@
       }
     },
     "advanced": {
+      "auto_switch_to_topics": "Basculer automatiquement vers les sujets",
       "title": "Paramètres avancés"
     },
     "assistant": {
@@ -7062,6 +7181,14 @@
       "close": "Закрыть",
       "confirm": "Подтвердить",
       "forward": "Вперед",
+      "mcp": {
+        "agentEmpty": "[to be translated]:No MCP servers configured for this agent",
+        "assistantEmpty": "[to be translated]:No MCP servers configured for this assistant",
+        "autoEmpty": "[to be translated]:No enabled MCP servers",
+        "description": "[to be translated]:View current MCP server status",
+        "disabled": "[to be translated]:MCP is disabled for this assistant",
+        "unknownServer": "[to be translated]:Unknown MCP server"
+      },
       "multiple": "Множественный выбор",
       "noResult": "Aucun résultat trouvé",
       "page": "Перелистнуть страницу",
@@ -7353,6 +7480,17 @@
         "url_required": "Veuillez entrer l'URL"
       }
     },
+    "topic": {
+      "pin_to_top": "Épingler la discussion en haut",
+      "position": {
+        "label": "Position du sujet",
+        "left": "Gauche",
+        "right": "Droite"
+      },
+      "show": {
+        "time": "Afficher l'heure du sujet"
+      }
+    },
     "translate": {
       "custom": {
         "delete": {
@@ -7451,7 +7589,8 @@
     "spendTime": "Temps consommé",
     "startTime": "Heure de début",
     "tag": "Étiquette",
-    "tokenUsage": "Utilisation des tokens"
+    "tokenUsage": "Utilisation des tokens",
+    "traceWindow": "Fenêtre de chaîne d'appel"
   },
   "translate": {
     "alter_language": "Langue de secours",

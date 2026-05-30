@@ -16,6 +16,9 @@ export {
   REASONING_EFFORT
 } from './schemas/enums'
 
+// Runtime schemas (zod) — needed by shared types that compose them
+export { ImageGenerationSupportSchema } from './schemas/model'
+
 // Enum types (PascalCase, derived from const objects)
 export type {
   AnthropicReasoningEffort,
@@ -30,12 +33,16 @@ export type {
 
 // Schema-inferred types (replaces proto types)
 export type {
+  ImageGenerationMode,
+  ImageGenerationSupport,
+  ImageModeDef,
   ModelConfig,
   ModelPricing,
   ModelConfig as ProtoModelConfig,
   ModelPricing as ProtoModelPricing,
   ReasoningSupport as ProtoReasoningSupport,
-  ReasoningSupport
+  ReasoningSupport,
+  SupportSpec
 } from './schemas/model'
 export type {
   ProviderConfig as ProtoProviderConfig,

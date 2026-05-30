@@ -97,6 +97,7 @@ import type {
   SupportedOcrFile,
   WebDavConfig
 } from '@types'
+import type { JSONValue } from 'ai'
 import type { OpenDialogOptions } from 'electron'
 import { contextBridge, ipcRenderer, shell, webUtils } from 'electron'
 import type { CreateDirectoryOptions } from 'webdav'
@@ -901,17 +902,23 @@ const api = {
       payload: {
         uniqueModelId?: string
         prompt: string
-        inputImages?: string[]
-        mask?: string
+        inputImages?: (string | Uint8Array)[]
+        mask?: string | Uint8Array
         n?: number
         size?: string
+        aspectRatio?: string
+        allowAutoSize?: boolean
         negativePrompt?: string
         seed?: number
         quality?: string
+        background?: string
+        moderation?: string
+        style?: string
         numInferenceSteps?: number
         guidanceScale?: number
         promptEnhancement?: boolean
         personGeneration?: string
+        providerOptions?: Record<string, Record<string, JSONValue>>
       },
       signal?: AbortSignal
     ): Promise<{
