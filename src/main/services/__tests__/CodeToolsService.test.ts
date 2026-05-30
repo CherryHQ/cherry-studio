@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { escapeBatchText } from '../CodeToolsService'
+import { escapeBatchText } from '../CodeCliService'
 
 describe('CodeToolsService - escapeBatchText', () => {
   it('preserves normal text without special characters', () => {

@@ -1,0 +1,136 @@
+/**
+ * @deprecated Scheduled for removal in v2.0.0
+ * --------------------------------------------------------------------------
+ * ⚠️ NOTICE: V2 DATA&UI REFACTORING (by 0xfullex)
+ * --------------------------------------------------------------------------
+ * STOP: Feature PRs affecting this file are currently BLOCKED.
+ * Only critical bug fixes are accepted during this migration phase.
+ *
+ * This file is being refactored to v2 standards.
+ * Any non-critical changes will conflict with the ongoing work.
+ *
+ * 🔗 Context & Status:
+ * - Contribution Hold: https://github.com/CherryHQ/cherry-studio/issues/10954
+ * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
+ * --------------------------------------------------------------------------
+ */
+import { usePreference } from '@data/hooks/usePreference'
+import { useAppSelector } from '@renderer/store'
+import store from '@renderer/store'
+import type { SettingsState } from '@renderer/store/settings'
+
+export function useSettings() {
+  const settings = useAppSelector((state) => state.settings)
+  // const dispatch = useAppDispatch()
+
+  return {
+    ...settings
+    // setSendMessageShortcut(shortcut: SendMessageShortcut) {
+    //   dispatch(_setSendMessageShortcut(shortcut))
+    // },
+
+    // setLaunch(isLaunchOnBoot: boolean | undefined, isLaunchToTray: boolean | undefined = undefined) {
+    //   if (isLaunchOnBoot !== undefined) {
+    //     dispatch(setLaunchOnBoot(isLaunchOnBoot))
+    //     void window.api.setLaunchOnBoot(isLaunchOnBoot)
+    //   }
+
+    //   if (isLaunchToTray !== undefined) {
+    //     dispatch(setLaunchToTray(isLaunchToTray))
+    //     void window.api.setLaunchToTray(isLaunchToTray)
+    //   }
+    // },
+
+    // setTray(isShowTray: boolean | undefined, isTrayOnClose: boolean | undefined = undefined) {
+    //   if (isShowTray !== undefined) {
+    //     dispatch(_setTray(isShowTray))
+    //     void window.api.setTray(isShowTray)
+    //   }
+    //   if (isTrayOnClose !== undefined) {
+    //     dispatch(setTrayOnClose(isTrayOnClose))
+    //     void window.api.setTrayOnClose(isTrayOnClose)
+    //   }
+    // },
+
+    // setAutoCheckUpdate(isAutoUpdate: boolean) {
+    //   dispatch(_setAutoCheckUpdate(isAutoUpdate))
+    //   void window.api.setAutoUpdate(isAutoUpdate)
+    // },
+
+    // setTestPlan(isTestPlan: boolean) {
+    //   dispatch(_setTestPlan(isTestPlan))
+    //   void window.api.setTestPlan(isTestPlan)
+    // },
+
+    // setTestChannel(channel: UpgradeChannel) {
+    //   dispatch(_setTestChannel(channel))
+    //   void window.api.setTestChannel(channel)
+    // },
+
+    // setTheme(theme: ThemeMode) {
+    //   dispatch(setTheme(theme))
+    // },
+    // setWindowStyle(windowStyle: 'transparent' | 'opaque') {
+    //   dispatch(setWindowStyle(windowStyle))
+    // },
+    // setTargetLanguage(targetLanguage: TranslateLanguageCode) {
+    //   dispatch(setTargetLanguage(targetLanguage))
+    // }
+    // setTopicPosition(topicPosition: 'left' | 'right') {
+    //   dispatch(setTopicPosition(topicPosition))
+    // },
+    // setPinTopicsToTop(pinTopicsToTop: boolean) {
+    //   dispatch(setPinTopicsToTop(pinTopicsToTop))
+    // }
+    // updateSidebarIcons(icons: { visible: SidebarIcon[]; disabled: SidebarIcon[] }) {
+    //   dispatch(setSidebarIcons(icons))
+    // },
+    // updateSidebarVisibleIcons(icons: SidebarIcon[]) {
+    //   dispatch(setSidebarIcons({ visible: icons }))
+    // },
+    // updateSidebarDisabledIcons(icons: SidebarIcon[]) {
+    //   dispatch(setSidebarIcons({ disabled: icons }))
+    // },
+    // setAssistantIconType(assistantIconType: AssistantIconType) {
+    //   dispatch(setAssistantIconType(assistantIconType))
+    // }
+    // setDisableHardwareAcceleration(disableHardwareAcceleration: boolean) {
+    //   dispatch(setDisableHardwareAcceleration(disableHardwareAcceleration))
+    //   void window.api.setDisableHardwareAcceleration(disableHardwareAcceleration)
+    // },
+    // setUseSystemTitleBar(useSystemTitleBar: boolean) {
+    //   dispatch(_setUseSystemTitleBar(useSystemTitleBar))
+    //   void window.api.setUseSystemTitleBar(useSystemTitleBar)
+    // }
+  }
+}
+
+export function useMessageStyle() {
+  const [messageStyle] = usePreference('chat.message.style')
+  const isBubbleStyle = messageStyle === 'bubble'
+
+  return {
+    isBubbleStyle
+  }
+}
+
+export const getStoreSetting = <K extends keyof SettingsState>(key: K): SettingsState[K] => {
+  return store.getState().settings[key]
+}
+
+// export const useEnableDeveloperMode = () => {
+//   const enableDeveloperMode = useAppSelector((state) => state.settings.enableDeveloperMode)
+//   const dispatch = useAppDispatch()
+
+//   return {
+//     enableDeveloperMode,
+//     setEnableDeveloperMode: (enableDeveloperMode: boolean) => {
+//       dispatch(setEnableDeveloperMode(enableDeveloperMode))
+//       void window.api.config.set('enableDeveloperMode', enableDeveloperMode)
+//     }
+//   }
+// }
+
+// export const getEnableDeveloperMode = () => {
+//   return store.getState().settings.enableDeveloperMode
+// }

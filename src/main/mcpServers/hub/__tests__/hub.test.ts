@@ -52,38 +52,57 @@ const mockTools: MCPTool[] = [
   }
 ]
 
-vi.mock('@main/services/MCPService', () => ({
-  default: {
-    listAllActiveServerTools: vi.fn(async () => mockTools),
-    callToolById: vi.fn(async (toolId: string, args: unknown) => {
-      if (toolId === 'github__search_repos') {
-        return {
-          content: [{ type: 'text', text: JSON.stringify({ repos: ['repo1', 'repo2'], query: args }) }]
-        }
+const mockMcpService = {
+  listAllActiveServerTools: vi.fn(async () => mockTools),
+  callToolById: vi.fn(async (toolId: string, args: unknown) => {
+    if (toolId === 'github__search_repos') {
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ repos: ['repo1', 'repo2'], query: args }) }]
       }
-      if (toolId === 'github__get_user') {
-        return {
-          content: [{ type: 'text', text: JSON.stringify({ username: (args as any).username, id: 123 }) }]
-        }
+    }
+    if (toolId === 'github__get_user') {
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ username: (args as any).username, id: 123 }) }]
       }
-      if (toolId === 'database__query') {
-        return {
-          content: [{ type: 'text', text: JSON.stringify({ rows: [{ id: 1 }, { id: 2 }] }) }]
-        }
+    }
+    if (toolId === 'database__query') {
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ rows: [{ id: 1 }, { id: 2 }] }) }]
       }
-      return { content: [{ type: 'text', text: '{}' }] }
-    }),
-    abortTool: vi.fn(async () => true)
+    }
+    return { content: [{ type: 'text', text: '{}' }] }
+  }),
+  abortTool: vi.fn(async () => true)
+}
+
+const cacheStore = new Map<string, unknown>()
+const mockCacheService = {
+  has: vi.fn((key: string) => cacheStore.has(key)),
+  get: vi.fn((key: string) => cacheStore.get(key)),
+  set: vi.fn((key: string, value: unknown) => cacheStore.set(key, value)),
+  delete: vi.fn((key: string) => cacheStore.delete(key))
+}
+
+vi.mock('@application', () => ({
+  application: {
+    get: vi.fn((name: string) => {
+      if (name === 'McpService') {
+        return mockMcpService
+      }
+      if (name === 'CacheService') {
+        return mockCacheService
+      }
+      throw new Error(`[MockApplication] Unknown service: ${name}`)
+    })
   }
 }))
-
-import mcpService from '@main/services/MCPService'
 
 describe('HubServer Integration', () => {
   let hubServer: HubServer
 
   beforeEach(() => {
     vi.clearAllMocks()
+    cacheStore.clear()
     hubServer = new HubServer()
   })
 
@@ -135,22 +154,22 @@ describe('HubServer Integration', () => {
   describe('tools caching', () => {
     it('uses cached tools within TTL', async () => {
       await (hubServer as any).handleList({ limit: 100, offset: 0 })
-      const firstCallCount = vi.mocked(mcpService.listAllActiveServerTools).mock.calls.length
+      const firstCallCount = mockMcpService.listAllActiveServerTools.mock.calls.length
 
       await (hubServer as any).handleList({ limit: 100, offset: 0 })
-      const secondCallCount = vi.mocked(mcpService.listAllActiveServerTools).mock.calls.length
+      const secondCallCount = mockMcpService.listAllActiveServerTools.mock.calls.length
 
       expect(secondCallCount).toBe(firstCallCount) // Should use cache
     })
 
     it('refreshes tools after cache invalidation', async () => {
       await (hubServer as any).handleList({ limit: 100, offset: 0 })
-      const firstCallCount = vi.mocked(mcpService.listAllActiveServerTools).mock.calls.length
+      const firstCallCount = mockMcpService.listAllActiveServerTools.mock.calls.length
 
       hubServer.invalidateCache()
 
       await (hubServer as any).handleList({ limit: 100, offset: 0 })
-      const secondCallCount = vi.mocked(mcpService.listAllActiveServerTools).mock.calls.length
+      const secondCallCount = mockMcpService.listAllActiveServerTools.mock.calls.length
 
       expect(secondCallCount).toBe(firstCallCount + 1)
     })
@@ -193,7 +212,7 @@ describe('HubServer Integration', () => {
         toolCallStarted = resolve
       })
 
-      vi.mocked(mcpService.callToolById).mockImplementationOnce(async () => {
+      mockMcpService.callToolById.mockImplementationOnce(async () => {
         toolCallStarted?.()
         return await new Promise(() => {})
       })
@@ -216,7 +235,7 @@ describe('HubServer Integration', () => {
       expect(execOutput.result).toBeUndefined()
       expect(execOutput.isError).toBe(true)
       expect(execOutput.logs).toContain('[log] starting')
-      expect(vi.mocked(mcpService.abortTool)).toHaveBeenCalled()
+      expect(mockMcpService.abortTool).toHaveBeenCalled()
     })
   })
 

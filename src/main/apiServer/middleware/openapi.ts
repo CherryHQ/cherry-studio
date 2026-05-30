@@ -1,7 +1,7 @@
+import { loggerService } from '@logger'
 import type { Express } from 'express'
 import swaggerUi from 'swagger-ui-express'
 
-import { loggerService } from '../../services/LoggerService'
 import openapiSpec from '../generated/openapi-spec.json'
 
 const logger = loggerService.withContext('OpenAPIMiddleware')

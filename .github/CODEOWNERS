@@ -1,6 +1,18 @@
-/src/renderer/src/store/ @0xfullex @DeJeune
-/src/renderer/src/databases/ @0xfullex @DeJeune
+/src/renderer/store/ @0xfullex @DeJeune
+/src/renderer/databases/ @0xfullex @DeJeune
 /src/main/services/ConfigManager.ts @0xfullex @DeJeune
-/packages/shared/IpcChannel.ts @0xfullex @DeJeune
+/src/shared/IpcChannel.ts @0xfullex @DeJeune
 /src/main/ipc.ts @0xfullex @DeJeune
+
+/migrations/ @0xfullex
+/src/main/core/ @0xfullex
+/src/shared/data/ @0xfullex
+/src/main/data/ @0xfullex
+/src/renderer/data/ @0xfullex
+/src/renderer/core/ @0xfullex
+/src/preload/ @0xfullex
+/v2-refactor-temp/ @0xfullex
+/docs/references/data/ @0xfullex
+/packages/ui/ @MyPrototypeWhat
+
 /app-upgrade-config.json @kangfenmao

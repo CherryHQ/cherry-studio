@@ -1,0 +1,24 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`PlantUmlPreview > basic rendering > should match snapshot 1`] = `
+<div>
+  <div
+    data-source="plantuml"
+    data-testid="image-preview-layout"
+  >
+    <div
+      data-testid="toolbar"
+    >
+      Toolbar
+    </div>
+    <div
+      data-testid="preview-content"
+    >
+      <div
+        class="plantuml-preview special-preview"
+        style="--shadow-host-background-color: white; --shadow-host-border: 0.5px solid var(--color-background-subtle); --shadow-host-border-radius: 8px;"
+      />
+    </div>
+  </div>
+</div>
+`;

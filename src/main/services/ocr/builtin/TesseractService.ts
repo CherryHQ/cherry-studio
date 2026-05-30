@@ -1,13 +1,12 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
 import { getIpCountry } from '@main/utils/ipService'
 import { loadOcrImage } from '@main/utils/ocr'
 import { MB } from '@shared/config/constant'
 import type { ImageFileMetadata, OcrResult, OcrTesseractConfig, SupportedOcrFile } from '@types'
 import { isImageFileMetadata } from '@types'
-import { app } from 'electron'
 import fs from 'fs'
 import { isEqual } from 'lodash'
-import path from 'path'
 import type { LanguageCode } from 'tesseract.js'
 import type Tesseract from 'tesseract.js'
 import { createWorker } from 'tesseract.js'
@@ -94,7 +93,7 @@ export class TesseractService extends OcrBaseService {
   }
 
   private async _getCacheDir(): Promise<string> {
-    const cacheDir = path.join(app.getPath('userData'), 'tesseract')
+    const cacheDir = application.getPath('feature.ocr.tesseract')
     // use access to check if the directory exists
     if (
       !(await fs.promises

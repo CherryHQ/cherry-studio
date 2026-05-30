@@ -1,7 +1,8 @@
+import { application } from '@application'
+import { WindowType } from '@main/core/window/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { ipcMain } from 'electron'
 
-import { windowService } from '../../../WindowService'
 import { channelMessageHandler } from './ChannelMessageHandler'
 import { sessionStreamBus, type SessionStreamChunk } from './SessionStreamBus'
 
@@ -12,10 +13,7 @@ export function registerSessionStreamIpc(): void {
     if (activeSubscriptions.has(sessionId)) return { success: true }
 
     const unsubscribe = sessionStreamBus.subscribe(sessionId, (chunk: SessionStreamChunk) => {
-      const mainWindow = windowService.getMainWindow()
-      if (mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send(IpcChannel.AgentSessionStream_Chunk, chunk)
-      }
+      application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.AgentSessionStream_Chunk, chunk)
     })
 
     activeSubscriptions.set(sessionId, unsubscribe)
@@ -38,8 +36,7 @@ export function registerSessionStreamIpc(): void {
 }
 
 export function broadcastSessionChanged(agentId: string, sessionId: string, headless?: boolean): void {
-  const mainWindow = windowService.getMainWindow()
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send(IpcChannel.AgentSession_Changed, { agentId, sessionId, headless: !!headless })
-  }
+  application
+    .get('WindowManager')
+    .broadcastToType(WindowType.Main, IpcChannel.AgentSession_Changed, { agentId, sessionId, headless: !!headless })
 }

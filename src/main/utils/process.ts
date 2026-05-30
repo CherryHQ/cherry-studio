@@ -1,4 +1,6 @@
+import { application } from '@application'
 import { loggerService } from '@logger'
+import { isWin } from '@main/core/platform'
 import type { GitBashPathInfo, GitBashPathSource } from '@shared/config/constant'
 import { HOME_CHERRY_DIR } from '@shared/config/constant'
 import chardet from 'chardet'
@@ -8,16 +10,14 @@ import iconv from 'iconv-lite'
 import os from 'os'
 import path from 'path'
 
-import { isWin } from '../constant'
 import { ConfigKeys, configManager } from '../services/ConfigManager'
-import { getResourcePath } from '.'
 import getShellEnv, { refreshShellEnv } from './shell-env'
 
 const logger = loggerService.withContext('Utils:Process')
 
 export function runInstallScript(scriptPath: string, extraEnv?: Record<string, string>): Promise<void> {
   return new Promise<void>((resolve, reject) => {
-    const installScriptPath = path.join(getResourcePath(), 'scripts', scriptPath)
+    const installScriptPath = path.join(application.getPath('app.root.resources.scripts'), scriptPath)
     logger.info(`Running script at: ${installScriptPath}`)
 
     const nodeProcess = spawn(process.execPath, [installScriptPath], {

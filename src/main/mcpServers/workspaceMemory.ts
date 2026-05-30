@@ -1,8 +1,8 @@
 import { appendFile, mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 
+import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
-import { agentService } from '@main/services/agents/services/AgentService'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
@@ -157,7 +157,7 @@ class WorkspaceMemoryServer {
   private async getWorkspacePath(): Promise<string> {
     const agent = await agentService.getAgent(this.agentId)
     if (!agent) throw new McpError(ErrorCode.InternalError, `Agent not found: ${this.agentId}`)
-    const workspace = agent.accessible_paths?.[0]
+    const workspace = agent.accessiblePaths?.[0]
     if (!workspace) throw new McpError(ErrorCode.InternalError, 'Agent has no workspace path configured')
     return workspace
   }

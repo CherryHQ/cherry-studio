@@ -19,7 +19,7 @@ vi.mock('node:fs/promises', () => ({
   stat: (...args: unknown[]) => mockStat(...args)
 }))
 
-vi.mock('@main/services/agents/services/AgentService', () => ({
+vi.mock('@data/services/AgentService', () => ({
   agentService: {
     getAgent: mockGetAgent
   }
@@ -51,7 +51,7 @@ async function listTools(server: WorkspaceMemoryServerInstance) {
 }
 
 describe('WorkspaceMemoryServer', () => {
-  const agentWithWorkspace = { accessible_paths: ['/workspace/test'] }
+  const agentWithWorkspace = { accessiblePaths: ['/workspace/test'] }
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -173,7 +173,7 @@ describe('WorkspaceMemoryServer', () => {
   })
 
   it('should error when agent has no workspace', async () => {
-    mockGetAgent.mockResolvedValue({ accessible_paths: [] })
+    mockGetAgent.mockResolvedValue({ accessiblePaths: [] })
 
     const server = createServer('agent_1')
     const result = await callTool(server, { action: 'update', content: 'test' })

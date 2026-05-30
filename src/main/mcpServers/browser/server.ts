@@ -1,7 +1,6 @@
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
-import { app } from 'electron'
 
 import { CdpBrowserController } from './controller'
 import { toolDefinitions, toolHandlers } from './tools'
@@ -44,9 +43,11 @@ export class BrowserServer {
       return handler(this.controller, args)
     })
 
-    app.on('before-quit', () => {
+    // Clean up browser controller when the MCP server connection closes
+    // (triggered by McpService.onStop() → client.close())
+    this.server.onclose = () => {
       void this.controller.reset()
-    })
+    }
   }
 }
 

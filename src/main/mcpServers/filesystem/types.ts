@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { isMac, isWin } from '@main/constant'
+import { isMac, isWin } from '@main/core/platform'
 import { spawn } from 'child_process'
 import fs from 'fs/promises'
 import os from 'os'

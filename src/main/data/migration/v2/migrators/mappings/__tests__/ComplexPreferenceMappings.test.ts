@@ -1,0 +1,408 @@
+import { describe, expect, it } from 'vitest'
+
+import {
+  COMPLEX_PREFERENCE_MAPPINGS,
+  type ComplexMapping,
+  getComplexMappingById,
+  getComplexMappingTargetKeys,
+  type SourceDefinition,
+  type TransformFunction,
+  type TransformResult
+} from '../ComplexPreferenceMappings'
+
+describe('ComplexPreferenceMappings', () => {
+  describe('type exports', () => {
+    it('should export SourceDefinition type', () => {
+      // Type check - this will fail to compile if types are not exported correctly
+      const sourceDef: SourceDefinition = {
+        source: 'electronStore',
+        key: 'testKey'
+      }
+      expect(sourceDef.source).toBe('electronStore')
+    })
+
+    it('should export SourceDefinition with redux category', () => {
+      const sourceDef: SourceDefinition = {
+        source: 'redux',
+        key: 'testKey',
+        category: 'settings'
+      }
+      expect(sourceDef.category).toBe('settings')
+    })
+
+    it('should export TransformResult type', () => {
+      const result: TransformResult = {
+        'test.key': 'value',
+        'another.key': 123
+      }
+      expect(result['test.key']).toBe('value')
+    })
+
+    it('should export TransformFunction type', () => {
+      const fn: TransformFunction = (sources) => {
+        return { 'output.key': sources.input }
+      }
+      expect(fn({ input: 'test' })).toEqual({ 'output.key': 'test' })
+    })
+
+    it('should export ComplexMapping type', () => {
+      const mapping: ComplexMapping = {
+        id: 'test_mapping',
+        description: 'Test mapping',
+        sources: {
+          testSource: { source: 'electronStore', key: 'test' }
+        },
+        targetKeys: ['target.key'],
+        transform: () => ({ 'target.key': 'value' })
+      }
+      expect(mapping.id).toBe('test_mapping')
+    })
+  })
+
+  describe('COMPLEX_PREFERENCE_MAPPINGS', () => {
+    it('should be an array', () => {
+      expect(Array.isArray(COMPLEX_PREFERENCE_MAPPINGS)).toBe(true)
+    })
+
+    it('should include file processing overrides merge mapping', () => {
+      const fileProcessingMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'file_processing_overrides_merge')
+
+      expect(fileProcessingMapping).toBeDefined()
+      expect(fileProcessingMapping).toMatchObject({
+        id: 'file_processing_overrides_merge',
+        targetKeys: ['feature.file_processing.overrides']
+      })
+    })
+    it('should contain websearch compression flatten mapping', () => {
+      const websearchMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'websearch_compression_flatten')
+      expect(websearchMapping).toBeDefined()
+      expect(websearchMapping?.targetKeys).toContain('chat.web_search.compression.method')
+      expect(websearchMapping?.targetKeys.length).toBe(2)
+    })
+
+    it('should contain websearch providers migrate mapping', () => {
+      const providersMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'websearch_providers_migrate')
+      expect(providersMapping).toBeDefined()
+      expect(providersMapping?.targetKeys).toContain('chat.web_search.provider_overrides')
+    })
+
+    it('should contain websearch default provider migrate mapping', () => {
+      const defaultProviderMapping = COMPLEX_PREFERENCE_MAPPINGS.find(
+        (m) => m.id === 'websearch_default_provider_migrate'
+      )
+      expect(defaultProviderMapping).toBeDefined()
+      expect(defaultProviderMapping?.targetKeys).toEqual(['chat.web_search.default_search_keywords_provider'])
+    })
+
+    it('should contain the code_cli_overrides mapping', () => {
+      const codeToolsMapping = COMPLEX_PREFERENCE_MAPPINGS.find((m) => m.id === 'code_cli_overrides')
+      expect(codeToolsMapping).toBeDefined()
+      expect(codeToolsMapping!.targetKeys).toEqual(['feature.code_cli.overrides'])
+    })
+  })
+
+  describe('getComplexMappingTargetKeys', () => {
+    it('should return target keys from configured mappings', () => {
+      const keys = getComplexMappingTargetKeys()
+      expect(keys).toContain('feature.file_processing.overrides')
+    })
+    it('should return target keys from all mappings', () => {
+      const keys = getComplexMappingTargetKeys()
+      expect(keys).toContain('chat.web_search.compression.method')
+      expect(keys).toContain('chat.web_search.provider_overrides')
+      expect(keys).toContain('chat.web_search.default_search_keywords_provider')
+      expect(keys).toContain('feature.code_cli.overrides')
+      expect(keys).toContain('feature.file_processing.overrides')
+      expect(keys).toContain('chat.default_model_id')
+      expect(keys).toContain('topic.naming.model_id')
+      expect(keys).toContain('feature.quick_assistant.model_id')
+      expect(keys).toContain('feature.translate.model_id')
+      expect(keys).toContain('feature.openclaw.gateway_port')
+      expect(keys).toContain('feature.openclaw.selected_model_id')
+      expect(keys).toContain('shortcut.general.zoom_in')
+      expect(keys).toContain('ui.sidebar.icons.visible')
+      expect(keys).toContain('ui.sidebar.icons.invisible')
+      expect(keys).toContain('feature.translate.action.preferred_lang')
+      expect(keys).toContain('feature.translate.action.alter_lang')
+      expect(keys).toContain('feature.translate.mini_window.target_lang')
+    })
+
+    it('should flatten target keys from all mappings', () => {
+      // Test the function behavior with mock data
+      // Note: This tests the logic, actual mappings are empty
+      const mockMappings: ComplexMapping[] = [
+        {
+          id: 'mapping1',
+          description: 'Test 1',
+          sources: {},
+          targetKeys: ['key.a', 'key.b'],
+          transform: () => ({})
+        },
+        {
+          id: 'mapping2',
+          description: 'Test 2',
+          sources: {},
+          targetKeys: ['key.c'],
+          transform: () => ({})
+        }
+      ]
+
+      // Simulate flatMap behavior
+      const expectedKeys = mockMappings.flatMap((m) => m.targetKeys)
+      expect(expectedKeys).toEqual(['key.a', 'key.b', 'key.c'])
+    })
+  })
+
+  describe('getComplexMappingById', () => {
+    it('should return the configured mapping by id', () => {
+      const mapping = getComplexMappingById('file_processing_overrides_merge')
+      expect(mapping).toBeDefined()
+      expect(mapping?.targetKeys).toEqual(['feature.file_processing.overrides'])
+    })
+    it('should return mapping by id', () => {
+      const mapping = getComplexMappingById('websearch_compression_flatten')
+      expect(mapping).toBeDefined()
+      expect(mapping?.id).toBe('websearch_compression_flatten')
+    })
+
+    it('should return undefined for non-existent id', () => {
+      const mapping = getComplexMappingById('does_not_exist')
+      expect(mapping).toBeUndefined()
+    })
+  })
+
+  describe('sidebar_icons_rename', () => {
+    it("should rewrite 'minapp' to 'mini_app' in both visible and disabled arrays", () => {
+      const mapping = getComplexMappingById('sidebar_icons_rename')
+      expect(mapping).toBeDefined()
+
+      const result = mapping!.transform({
+        visible: ['assistants', 'minapp', 'translate'],
+        disabled: ['minapp', 'files']
+      })
+
+      expect(result).toEqual({
+        'ui.sidebar.icons.visible': ['assistants', 'mini_app', 'translate'],
+        'ui.sidebar.icons.invisible': ['mini_app', 'files']
+      })
+    })
+
+    it('should pass through other literals unchanged', () => {
+      const mapping = getComplexMappingById('sidebar_icons_rename')!
+      const result = mapping.transform({
+        visible: ['assistants', 'translate', 'paintings'],
+        disabled: ['files', 'knowledge']
+      })
+
+      expect(result).toEqual({
+        'ui.sidebar.icons.visible': ['assistants', 'translate', 'paintings'],
+        'ui.sidebar.icons.invisible': ['files', 'knowledge']
+      })
+    })
+
+    it('should return non-array inputs as-is without crashing', () => {
+      const mapping = getComplexMappingById('sidebar_icons_rename')!
+
+      expect(mapping.transform({ visible: undefined, disabled: undefined })).toEqual({
+        'ui.sidebar.icons.visible': undefined,
+        'ui.sidebar.icons.invisible': undefined
+      })
+
+      expect(mapping.transform({ visible: null, disabled: null })).toEqual({
+        'ui.sidebar.icons.visible': null,
+        'ui.sidebar.icons.invisible': null
+      })
+
+      expect(mapping.transform({})).toEqual({
+        'ui.sidebar.icons.visible': undefined,
+        'ui.sidebar.icons.invisible': undefined
+      })
+    })
+  })
+
+  describe('openclaw_preferences', () => {
+    it('should map gateway port and convert selected model JSON', () => {
+      const mapping = getComplexMappingById('openclaw_preferences')!
+
+      expect(
+        mapping.transform({
+          gatewayPort: 18790,
+          selectedModelUniqId: '{"id":"gpt-4o","provider":"openai"}'
+        })
+      ).toEqual({
+        'feature.openclaw.gateway_port': 18790,
+        'feature.openclaw.selected_model_id': 'openai::gpt-4o'
+      })
+    })
+
+    it.each([
+      ['', null],
+      ['null', null],
+      ['"some-string"', null],
+      ['[{"id":"x","provider":"y"}]', null],
+      ['{"id":"openai::gpt-4","provider":"openai"}', 'openai::gpt-4'],
+      ['openai::gpt-4', null]
+    ])('should handle legacy selected model value %s', (selectedModelUniqId, expected) => {
+      const mapping = getComplexMappingById('openclaw_preferences')!
+
+      expect(
+        mapping.transform({
+          gatewayPort: 18790,
+          selectedModelUniqId
+        })['feature.openclaw.selected_model_id']
+      ).toBe(expected)
+    })
+
+    it('should skip invalid gateway ports so schema default applies', () => {
+      const mapping = getComplexMappingById('openclaw_preferences')!
+
+      expect(mapping.transform({ gatewayPort: undefined })['feature.openclaw.gateway_port']).toBeUndefined()
+      expect(mapping.transform({ gatewayPort: null })['feature.openclaw.gateway_port']).toBeUndefined()
+      expect(mapping.transform({ gatewayPort: '18790' })['feature.openclaw.gateway_port']).toBeUndefined()
+      expect(mapping.transform({ gatewayPort: Number.NaN })['feature.openclaw.gateway_port']).toBeUndefined()
+    })
+  })
+
+  describe('ComplexMapping structure validation', () => {
+    it('should validate mapping structure', () => {
+      // Create a valid mapping structure
+      const validMapping: ComplexMapping = {
+        id: 'window_bounds_split',
+        description: 'Split windowBounds object into separate position and size keys',
+        sources: {
+          windowBounds: { source: 'electronStore', key: 'windowBounds' }
+        },
+        targetKeys: [
+          'app.window.position.x',
+          'app.window.position.y',
+          'app.window.size.width',
+          'app.window.size.height'
+        ],
+        transform: (sources) => {
+          const bounds = sources.windowBounds as { x: number; y: number; width: number; height: number } | undefined
+          return {
+            'app.window.position.x': bounds?.x ?? 0,
+            'app.window.position.y': bounds?.y ?? 0,
+            'app.window.size.width': bounds?.width ?? 800,
+            'app.window.size.height': bounds?.height ?? 600
+          }
+        }
+      }
+
+      // Validate structure
+      expect(validMapping.id).toBeDefined()
+      expect(validMapping.description).toBeDefined()
+      expect(validMapping.sources).toBeDefined()
+      expect(validMapping.targetKeys).toBeDefined()
+      expect(validMapping.transform).toBeDefined()
+      expect(typeof validMapping.transform).toBe('function')
+    })
+
+    it('should execute transform function correctly', () => {
+      const transform: TransformFunction = (sources) => {
+        const bounds = sources.windowBounds as { x: number; y: number; width: number; height: number } | undefined
+        return {
+          'app.window.position.x': bounds?.x ?? 0,
+          'app.window.position.y': bounds?.y ?? 0,
+          'app.window.size.width': bounds?.width ?? 800,
+          'app.window.size.height': bounds?.height ?? 600
+        }
+      }
+
+      // Test with valid data
+      const result1 = transform({
+        windowBounds: { x: 100, y: 200, width: 1024, height: 768 }
+      })
+      expect(result1).toEqual({
+        'app.window.position.x': 100,
+        'app.window.position.y': 200,
+        'app.window.size.width': 1024,
+        'app.window.size.height': 768
+      })
+
+      // Test with missing data (should use defaults)
+      const result2 = transform({})
+      expect(result2).toEqual({
+        'app.window.position.x': 0,
+        'app.window.position.y': 0,
+        'app.window.size.width': 800,
+        'app.window.size.height': 600
+      })
+    })
+
+    it('should handle multi-source merging', () => {
+      const transform: TransformFunction = (sources) => {
+        if (!sources.proxyEnabled) return {}
+        return {
+          'network.proxy.enabled': sources.proxyEnabled,
+          'network.proxy.host': sources.proxyHost ?? '',
+          'network.proxy.port': sources.proxyPort ?? 0
+        }
+      }
+
+      // Test with proxy enabled
+      const result1 = transform({
+        proxyEnabled: true,
+        proxyHost: '127.0.0.1',
+        proxyPort: 8080
+      })
+      expect(result1).toEqual({
+        'network.proxy.enabled': true,
+        'network.proxy.host': '127.0.0.1',
+        'network.proxy.port': 8080
+      })
+
+      // Test with proxy disabled (should return empty)
+      const result2 = transform({
+        proxyEnabled: false,
+        proxyHost: '127.0.0.1',
+        proxyPort: 8080
+      })
+      expect(result2).toEqual({})
+    })
+
+    it('should handle conditional mapping', () => {
+      const transform: TransformFunction = (sources) => {
+        const result: TransformResult = {}
+
+        if (sources.backupType === 'webdav' && sources.webdavUrl) {
+          result['data.backup.webdav.enabled'] = true
+          result['data.backup.webdav.url'] = sources.webdavUrl
+        }
+
+        if (sources.backupType === 's3' && sources.s3Bucket) {
+          result['data.backup.s3.enabled'] = true
+          result['data.backup.s3.bucket'] = sources.s3Bucket
+        }
+
+        return result
+      }
+
+      // Test webdav backup
+      const result1 = transform({
+        backupType: 'webdav',
+        webdavUrl: 'https://dav.example.com'
+      })
+      expect(result1).toEqual({
+        'data.backup.webdav.enabled': true,
+        'data.backup.webdav.url': 'https://dav.example.com'
+      })
+
+      // Test s3 backup
+      const result2 = transform({
+        backupType: 's3',
+        s3Bucket: 'my-bucket'
+      })
+      expect(result2).toEqual({
+        'data.backup.s3.enabled': true,
+        'data.backup.s3.bucket': 'my-bucket'
+      })
+
+      // Test no backup configured
+      const result3 = transform({
+        backupType: 'none'
+      })
+      expect(result3).toEqual({})
+    })
+  })
+})

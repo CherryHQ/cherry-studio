@@ -1,0 +1,66 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`CodeToolbar > basic rendering > should match snapshot with mixed tools 1`] = `
+<div>
+  <div
+    class="sticky top-7 z-10"
+  >
+    <div
+      class="code-toolbar absolute right-2 bottom-[0.3rem] flex h-6 items-center gap-1"
+    >
+      <div
+        data-testid="tooltip"
+        data-title="code_block.more"
+      >
+        <div
+          aria-expanded="false"
+          aria-label="code_block.more"
+          class="flex size-6 cursor-pointer select-none items-center justify-center rounded-[4px] text-foreground-muted transition-all duration-200 ease-in-out hover:bg-accent [&:hover_.tool-icon]:text-foreground [&.active]:text-[var(--color-primary)] [&.active_.tool-icon]:text-[var(--color-primary)] [&_.tool-icon]:size-[14px] [&_.tool-icon]:text-foreground-muted"
+          role="button"
+          tabindex="0"
+        >
+          <div
+            class="tool-icon"
+            data-testid="ellipsis-icon"
+          />
+        </div>
+      </div>
+      <div
+        data-testid="tool-button-core1"
+        data-tool-id="core1"
+        data-tool-type="core"
+      >
+        <div
+          data-testid="test-icon"
+        >
+          Icon
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`CodeToolbar > basic rendering > should match snapshot with only core tools 1`] = `
+<div>
+  <div
+    class="sticky top-7 z-10"
+  >
+    <div
+      class="code-toolbar absolute right-2 bottom-[0.3rem] flex h-6 items-center gap-1"
+    >
+      <div
+        data-testid="tool-button-core1"
+        data-tool-id="core1"
+        data-tool-type="core"
+      >
+        <div
+          data-testid="test-icon"
+        >
+          Icon
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+`;

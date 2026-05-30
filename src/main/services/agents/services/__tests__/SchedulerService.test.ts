@@ -6,29 +6,29 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('../AgentService', () => ({
+vi.mock('@data/services/AgentService', () => ({
   agentService: {
     listAgents: vi.fn().mockResolvedValue({ agents: [], total: 0 }),
     getAgent: vi.fn()
   }
 }))
 
-vi.mock('../SessionService', () => ({
-  sessionService: {
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: {
     listSessions: vi.fn().mockResolvedValue({ sessions: [], total: 0 }),
     getSession: vi.fn(),
     createSession: vi.fn().mockResolvedValue({ id: 'session-1' })
   }
 }))
 
-vi.mock('../SessionMessageService', () => ({
-  sessionMessageService: {
+vi.mock('@main/services/agents/services/SessionMessageOrchestrator', () => ({
+  sessionMessageOrchestrator: {
     createSessionMessage: vi.fn()
   }
 }))
 
-vi.mock('../TaskService', () => ({
-  taskService: {
+vi.mock('@data/services/AgentTaskService', () => ({
+  agentTaskService: {
     getDueTasks: vi.fn().mockResolvedValue([]),
     hasActiveTasks: vi.fn().mockResolvedValue(false),
     updateTaskAfterRun: vi.fn(),
@@ -40,8 +40,8 @@ vi.mock('../TaskService', () => ({
   }
 }))
 
-vi.mock('../ChannelService', () => ({
-  channelService: {
+vi.mock('@data/services/AgentChannelService', () => ({
+  agentChannelService: {
     getSubscribedChannels: vi.fn().mockResolvedValue([]),
     updateChannel: vi.fn()
   }
@@ -100,7 +100,7 @@ describe('SchedulerService', () => {
   })
 
   it('restoreSchedulers skips poll loop when no active tasks', async () => {
-    const { taskService } = await import('../TaskService')
+    const { agentTaskService: taskService } = await import('@data/services/AgentTaskService')
     vi.mocked(taskService.hasActiveTasks).mockResolvedValueOnce(false)
     const service = SchedulerServiceModule.schedulerService
     await service.restoreSchedulers()
@@ -108,7 +108,7 @@ describe('SchedulerService', () => {
   })
 
   it('restoreSchedulers starts poll loop when active tasks exist', async () => {
-    const { taskService } = await import('../TaskService')
+    const { agentTaskService: taskService } = await import('@data/services/AgentTaskService')
     vi.mocked(taskService.hasActiveTasks).mockResolvedValueOnce(true)
     const service = SchedulerServiceModule.schedulerService
     await service.restoreSchedulers()
@@ -128,25 +128,25 @@ describe('SchedulerService', () => {
   })
 
   it('tick processes due tasks', async () => {
-    const { taskService } = await import('../TaskService')
-    const { agentService } = await import('../AgentService')
-    const { sessionService } = await import('../SessionService')
-    const { sessionMessageService } = await import('../SessionMessageService')
+    const { agentTaskService: taskService } = await import('@data/services/AgentTaskService')
+    const { agentService } = await import('@data/services/AgentService')
+    const { agentSessionService: sessionService } = await import('@data/services/AgentSessionService')
+    const { sessionMessageOrchestrator } = await import('@main/services/agents/services/SessionMessageOrchestrator')
 
     const mockTask = {
       id: 'task-1',
-      agent_id: 'agent-1',
+      agentId: 'agent-1',
       name: 'Test task',
       prompt: 'Do something',
-      schedule_type: 'once' as const,
-      schedule_value: new Date().toISOString(),
-      timeout_minutes: 2,
-      next_run: new Date(Date.now() - 1000).toISOString(),
-      last_run: null,
-      last_result: null,
+      scheduleType: 'once' as const,
+      scheduleValue: new Date().toISOString(),
+      timeoutMinutes: 2,
+      nextRun: new Date(Date.now() - 1000).toISOString(),
+      lastRun: null,
+      lastResult: null,
       status: 'active' as const,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     }
 
     vi.mocked(taskService.getDueTasks).mockResolvedValueOnce([mockTask])
@@ -155,10 +155,10 @@ describe('SchedulerService', () => {
       type: 'claude-code',
       name: 'Test',
       model: 'claude-3',
-      accessible_paths: ['/tmp/test'],
+      accessiblePaths: ['/tmp/test'],
       configuration: { heartbeat_enabled: true },
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     } as any)
     vi.mocked(sessionService.listSessions).mockResolvedValueOnce({
       sessions: [{ id: 'session-1' }] as any,
@@ -166,9 +166,9 @@ describe('SchedulerService', () => {
     })
     vi.mocked(sessionService.getSession).mockResolvedValueOnce({
       id: 'session-1',
-      agent_id: 'agent-1'
+      agentId: 'agent-1'
     } as any)
-    vi.mocked(sessionMessageService.createSessionMessage).mockResolvedValueOnce({
+    vi.mocked(sessionMessageOrchestrator.createSessionMessage).mockResolvedValueOnce({
       stream: new ReadableStream({ start: (c) => c.close() }),
       completion: Promise.resolve({})
     } as any)

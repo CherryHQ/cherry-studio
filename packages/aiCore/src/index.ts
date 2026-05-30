@@ -6,10 +6,10 @@
 // 导入内部使用的类和函数
 
 // ==================== 主要用户接口 ====================
-export { createExecutor, embedMany, generateImage, generateText, streamText } from './core/runtime'
+export { createAgent, createExecutor, embedMany, generateImage, generateText, streamText } from './core/runtime'
 
 // ==================== Embedding 类型 ====================
-export type { EmbedManyParams, EmbedManyResult } from './core/runtime'
+export type { CreateAgentOptions, EmbedManyParams, EmbedManyResult } from './core/runtime'
 
 // ==================== 高级API ====================
 export { isV2Model, isV3Model } from './core/models'

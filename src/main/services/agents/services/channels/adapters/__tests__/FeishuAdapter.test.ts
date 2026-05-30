@@ -16,7 +16,7 @@ vi.mock('electron', () => ({
   net: { fetch: vi.fn() }
 }))
 
-vi.mock('../../../../../WindowService', () => ({
+vi.mock('../../../../../MainWindowService', () => ({
   windowService: {
     getMainWindow: () => null
   }

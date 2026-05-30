@@ -52,9 +52,9 @@ pnpm agents:drop      # Reset database
 
 ## Workflow
 
-1. **Edit schema** in `/database/schema/`
-2. **Generate migration** with `pnpm agents:generate`
-3. **Test changes** with `pnpm agents:health`
+1. **Edit schema** in `src/main/data/db/schemas/`
+2. **Generate migration** with `pnpm db:migrations:generate`
+3. **Test changes** with `pnpm test`
 4. **Deploy** - migrations apply automatically
 
 ## Services
@@ -62,7 +62,6 @@ pnpm agents:drop      # Reset database
 - `AgentService` - Agent CRUD operations
 - `SessionService` - Session management
 - `SessionMessageService` - Message logging
-- `BaseService` - Database utilities
 - `schemaSyncer` - Migration handler
 
 ## Troubleshooting

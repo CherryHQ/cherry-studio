@@ -349,7 +349,7 @@ async function getCachedRelease(env) {
 async function checkNewRelease(env) {
   try {
     // 获取 GitHub 最新版本
-    const githubResponse = await fetch('https://api.github.com/repos/kangfenmao/cherry-studio/releases/latest', {
+    const githubResponse = await fetch('https://api.github.com/repos/CherryHQ/cherry-studio/releases/latest', {
       headers: { 'User-Agent': 'CloudflareWorker' }
     })
 

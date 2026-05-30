@@ -7,7 +7,7 @@ import * as path from 'path'
 import type { SourceFile } from 'ts-morph'
 import { Node, Project } from 'ts-morph'
 
-const RENDERER_DIR = path.join(__dirname, '../src/renderer/src')
+const RENDERER_DIR = path.join(__dirname, '../src/renderer')
 const MAIN_DIR = path.join(__dirname, '../src/main')
 const EXTENSIONS = ['.tsx', '.ts']
 const IGNORED_DIRS = ['__tests__', 'node_modules', 'i18n', 'locales', 'types', 'assets']
@@ -246,6 +246,22 @@ class HardcodedStringDetector {
             : parent.getTagNameNode().getText()
           if (['title', 'desc', 'text', 'tspan'].includes(tagName)) {
             return
+          }
+
+          // Skip native language names in language selectors (SelectItem, Option, etc.)
+          if (['SelectItem', 'Option', 'MenuItem'].includes(tagName)) {
+            const jsxElement = Node.isJsxElement(parent) ? parent.getOpeningElement() : parent
+            const valueAttr = jsxElement.getAttribute('value')
+            if (valueAttr && Node.isJsxAttribute(valueAttr)) {
+              const initializer = valueAttr.getInitializer()
+              if (initializer && Node.isStringLiteral(initializer)) {
+                const value = initializer.getLiteralValue()
+                // Language/locale codes like 'zh-CN', 'en-US', 'ja-JP', etc.
+                if (/^[a-z]{2}(-[A-Z]{2})?$/.test(value)) {
+                  return
+                }
+              }
+            }
           }
         }
         findings.push(createFinding(node, sourceFile, 'chinese', source, 'JsxText'))

@@ -1,0 +1,174 @@
+/**
+ * User Model table schema
+ *
+ * Stores all user models with fully resolved configurations.
+ * Capabilities and settings are resolved once at add-time (from registry),
+ * so no runtime merge is needed.
+ *
+ * - presetModelId: traceability marker (which preset this came from, if any)
+ * - Single PK: id = "providerId::modelId" (deterministic UniqueModelId)
+ * - providerId FK → user_provider (ON DELETE CASCADE)
+ *
+ * Type definitions are sourced from @shared/data/types/model
+ */
+import type {
+  EndpointType,
+  Modality,
+  ModelCapability,
+  ParameterSupport,
+  ReasoningConfig,
+  RuntimeModelPricing
+} from '@shared/data/types/model'
+import { index, integer, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
+
+import { createUpdateTimestamps, orderKeyColumns, scopedOrderKeyIndex } from './_columnHelpers'
+import { userProviderTable } from './userProvider'
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Registry Enrichable Fields
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Fields that can be auto-populated by registry enrichment.
+ * Used by `userOverrides` to track which fields the user has explicitly modified,
+ * so that registry updates don't overwrite user customizations.
+ *
+ * The `isRegistryEnrichableField` guard ensures runtime safety.
+ */
+export const REGISTRY_ENRICHABLE_FIELDS = [
+  'name',
+  'description',
+  'capabilities',
+  'inputModalities',
+  'outputModalities',
+  'endpointTypes',
+  'contextWindow',
+  'maxInputTokens',
+  'maxOutputTokens',
+  'supportsStreaming',
+  'reasoning',
+  'parameters',
+  'pricing'
+] as const
+
+export type RegistryEnrichableField = (typeof REGISTRY_ENRICHABLE_FIELDS)[number]
+
+const REGISTRY_ENRICHABLE_SET: ReadonlySet<string> = new Set(REGISTRY_ENRICHABLE_FIELDS)
+
+/** Check if a field name is a registry-enrichable field */
+export function isRegistryEnrichableField(field: string): field is RegistryEnrichableField {
+  return REGISTRY_ENRICHABLE_SET.has(field)
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Table Definition
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export const userModelTable = sqliteTable(
+  'user_model',
+  {
+    /** Deterministic PK: "providerId::modelId" (UniqueModelId) */
+    id: text().primaryKey(),
+
+    /** User Provider ID — FK to user_provider */
+    providerId: text()
+      .notNull()
+      .references(() => userProviderTable.providerId, { onDelete: 'cascade' }),
+
+    /** Model ID (raw, without provider prefix) */
+    modelId: text().notNull(),
+
+    /** Associated preset model ID (for traceability) */
+    presetModelId: text(),
+
+    /** Display name (override or complete) */
+    name: text().notNull(),
+
+    /** Description */
+    description: text(),
+
+    /** UI grouping */
+    group: text(),
+
+    /** Complete capability list (resolved at add time) */
+    capabilities: text({ mode: 'json' })
+      .$type<ModelCapability[]>()
+      .notNull()
+      .$defaultFn(() => []),
+
+    /** Supported input modalities (e.g., TEXT, VISION, AUDIO, VIDEO) */
+    inputModalities: text({ mode: 'json' }).$type<Modality[]>(),
+
+    /** Supported output modalities (e.g., TEXT, VISION, AUDIO, VIDEO, VECTOR) */
+    outputModalities: text({ mode: 'json' }).$type<Modality[]>(),
+
+    /** Endpoint types (optional, override Provider default) */
+    endpointTypes: text({ mode: 'json' }).$type<EndpointType[]>(),
+
+    /** Custom endpoint URL (optional, complete override) */
+    customEndpointUrl: text(),
+
+    /** Context window size */
+    contextWindow: integer(),
+
+    /** Maximum input tokens */
+    maxInputTokens: integer(),
+
+    /** Maximum output tokens */
+    maxOutputTokens: integer(),
+
+    /** Streaming support */
+    supportsStreaming: integer({ mode: 'boolean' }).notNull().default(true),
+
+    /** Reasoning configuration */
+    reasoning: text({ mode: 'json' }).$type<ReasoningConfig>(),
+
+    /** Parameter support */
+    parameters: text({ mode: 'json' }).$type<ParameterSupport>(),
+
+    /** Pricing configuration */
+    pricing: text({ mode: 'json' }).$type<RuntimeModelPricing>(),
+
+    /** Whether this model is enabled */
+    isEnabled: integer({ mode: 'boolean' }).notNull().default(true),
+
+    /** Whether this model is hidden from lists */
+    isHidden: integer({ mode: 'boolean' }).notNull().default(false),
+
+    /** Whether this model has been deprecated by the provider (no longer in API model list) */
+    isDeprecated: integer({ mode: 'boolean' }).notNull().default(false),
+
+    /** Fractional-indexing order key scoped within provider. */
+    ...orderKeyColumns,
+
+    /** User notes */
+    notes: text(),
+
+    /**
+     * List of field names the user has explicitly modified.
+     * Registry enrichment skips these fields to preserve user customizations.
+     */
+    userOverrides: text({ mode: 'json' }).$type<RegistryEnrichableField[]>(),
+
+    ...createUpdateTimestamps
+  },
+  (t) => [
+    unique('user_model_provider_model_unique').on(t.providerId, t.modelId),
+    index('user_model_preset_idx').on(t.presetModelId),
+    index('user_model_provider_enabled_idx').on(t.providerId, t.isEnabled),
+    scopedOrderKeyIndex('user_model', 'providerId')(t)
+  ]
+)
+
+// Export table type
+export type UserModel = typeof userModelTable.$inferSelect
+export type NewUserModel = typeof userModelTable.$inferInsert
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Utility Functions
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/** Check if this is a preset override or fully custom model */
+export function isPresetOverride(model: UserModel): boolean {
+  return model.presetModelId != null
+}

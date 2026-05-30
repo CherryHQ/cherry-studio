@@ -3,12 +3,9 @@ import { formatApiHost, withoutTrailingSlash } from '@shared/utils'
 import { trim } from 'lodash'
 
 // NOTE: Since #13194, it's re-written with reduxService
-// See: renderer/src/utils/api.ts: formatVertexApiHost
+// See: renderer/utils/api.ts: formatVertexApiHost
 export async function formatVertexApiHost(host: string): Promise<string> {
-  const { projectId: project, location } = (await reduxService.select('llm.settings.vertexai')) as {
-    projectId: string
-    location: string
-  }
+  const { projectId: project, location } = await reduxService.select('llm.settings.vertexai')
   const trimmedHost = withoutTrailingSlash(trim(host))
   if (!trimmedHost || trimmedHost.endsWith('aiplatform.googleapis.com')) {
     const fallbackHost =

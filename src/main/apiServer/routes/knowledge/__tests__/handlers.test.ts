@@ -2,7 +2,7 @@ import type { KnowledgeBase } from '@types'
 import type { Response } from 'express'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import type { ValidationRequest } from '../../agents/validators/zodValidator'
+import type { ValidationRequest } from '../validators/zodValidator'
 
 // Mock dependencies BEFORE importing handlers - no top-level variables
 vi.mock('@main/services/ReduxService', () => ({
@@ -51,7 +51,7 @@ function createMockKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): Knowle
 }
 
 describe('Knowledge Handlers', () => {
-  let req: Partial<ValidationRequest>
+  let req: ValidationRequest
   let res: Partial<Response>
   let jsonMock: ReturnType<typeof vi.fn>
   let statusMock: ReturnType<typeof vi.fn>
@@ -60,7 +60,7 @@ describe('Knowledge Handlers', () => {
     jsonMock = vi.fn()
     statusMock = vi.fn(() => ({ json: jsonMock }))
 
-    req = {}
+    req = {} as ValidationRequest
     res = {
       status: statusMock,
       json: jsonMock
@@ -82,7 +82,7 @@ describe('Knowledge Handlers', () => {
 
       req.validatedQuery = { limit: 2, offset: 0 }
 
-      await listKnowledgeBases(req as ValidationRequest, res as Response)
+      await listKnowledgeBases(req, res as Response)
 
       expect(jsonMock).toHaveBeenCalledWith({
         knowledge_bases: mockBases.slice(0, 2),
@@ -96,7 +96,7 @@ describe('Knowledge Handlers', () => {
 
       req.validatedQuery = { limit: 20, offset: 0 }
 
-      await listKnowledgeBases(req as ValidationRequest, res as Response)
+      await listKnowledgeBases(req, res as Response)
 
       expect(statusMock).toHaveBeenCalledWith(503)
       expect(jsonMock).toHaveBeenCalledWith({
@@ -117,7 +117,7 @@ describe('Knowledge Handlers', () => {
 
       req.validatedParams = { id: 'kb-1' }
 
-      await getKnowledgeBase(req as ValidationRequest, res as Response)
+      await getKnowledgeBase(req, res as Response)
 
       expect(jsonMock).toHaveBeenCalledWith(mockBase)
     })
@@ -128,7 +128,7 @@ describe('Knowledge Handlers', () => {
 
       req.validatedParams = { id: 'non-existent' }
 
-      await getKnowledgeBase(req as ValidationRequest, res as Response)
+      await getKnowledgeBase(req, res as Response)
 
       expect(statusMock).toHaveBeenCalledWith(404)
       expect(jsonMock).toHaveBeenCalledWith({
@@ -146,7 +146,7 @@ describe('Knowledge Handlers', () => {
 
       req.validatedParams = { id: 'kb-1' }
 
-      await getKnowledgeBase(req as ValidationRequest, res as Response)
+      await getKnowledgeBase(req, res as Response)
 
       expect(statusMock).toHaveBeenCalledWith(503)
     })
@@ -159,7 +159,7 @@ describe('Knowledge Handlers', () => {
 
       req.validatedBody = { query: 'test query', document_count: 5 }
 
-      await searchKnowledge(req as ValidationRequest, res as Response)
+      await searchKnowledge(req, res as Response)
 
       expect(jsonMock).toHaveBeenCalledWith({
         query: 'test query',
@@ -180,7 +180,7 @@ describe('Knowledge Handlers', () => {
         document_count: 5
       }
 
-      await searchKnowledge(req as ValidationRequest, res as Response)
+      await searchKnowledge(req, res as Response)
 
       expect(statusMock).toHaveBeenCalledWith(404)
       expect(jsonMock).toHaveBeenCalledWith({
@@ -198,7 +198,7 @@ describe('Knowledge Handlers', () => {
 
       req.validatedBody = { query: 'test query', document_count: 5 }
 
-      await searchKnowledge(req as ValidationRequest, res as Response)
+      await searchKnowledge(req, res as Response)
 
       expect(statusMock).toHaveBeenCalledWith(503)
     })
