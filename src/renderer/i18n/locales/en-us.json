@@ -4760,10 +4760,12 @@
         "status": {
           "cancelled": "Cancelled",
           "completed": "Completed",
+          "delayed": "Delayed",
           "failed": "Failed",
           "idle": "Idle",
           "pending": "Pending",
           "processing": "Processing",
+          "running": "Running",
           "starting": "Starting"
         },
         "title": "Document Parsing"

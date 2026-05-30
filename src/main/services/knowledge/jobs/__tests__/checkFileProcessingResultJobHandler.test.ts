@@ -1,4 +1,5 @@
 import { JOB_PROGRESS_KEY_PREFIX } from '@main/core/job/types'
+import { DataApiErrorFactory } from '@shared/data/api'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { describe, expect, it } from 'vitest'
 
@@ -353,7 +354,7 @@ describe('check-file-processing-result job handler', () => {
     expect(workflowService.scheduleIndexing).not.toHaveBeenCalled()
   })
 
-  it('skips missing or deleting items', async () => {
+  it('cancels linked file-processing work before skipping deleting items', async () => {
     const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
     knowledgeItemGetByIdMock.mockResolvedValue(createFileItem(FILE_ITEM_ID, 'deleting'))
 
@@ -366,6 +367,26 @@ describe('check-file-processing-result job handler', () => {
       })
     )
 
+    expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-file-processing-item-unavailable')
+    expect(getJobMock).not.toHaveBeenCalled()
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
+    expect(workflowService.scheduleIndexing).not.toHaveBeenCalled()
+  })
+
+  it('cancels linked file-processing work before skipping missing items', async () => {
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
+    knowledgeItemGetByIdMock.mockRejectedValue(DataApiErrorFactory.notFound('KnowledgeItem', FILE_ITEM_ID))
+
+    await handler.execute(
+      createCtx({
+        baseId: 'kb-1',
+        itemId: FILE_ITEM_ID,
+        fileProcessingJobId: 'fp-job-1',
+        sourceFileEntryId: FILE_ENTRY_ID
+      })
+    )
+
+    expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-file-processing-item-unavailable')
     expect(getJobMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
     expect(workflowService.scheduleIndexing).not.toHaveBeenCalled()

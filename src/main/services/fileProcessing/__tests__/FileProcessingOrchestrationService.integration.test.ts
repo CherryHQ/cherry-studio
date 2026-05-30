@@ -267,6 +267,29 @@ describe('FileProcessingOrchestrationService.startJob — routing', () => {
     )
   })
 
+  it('passes parent job linkage to JobManager enqueue options', async () => {
+    resolveProcessorConfigByFeatureMock.mockReturnValue({
+      id: 'tesseract',
+      capabilities: [{ feature: 'image_to_text', inputs: ['image'] }]
+    })
+    const svc = makeSvc()
+
+    await svc.startJob(
+      {
+        feature: 'image_to_text',
+        fileEntryId: IMAGE_ENTRY_ID,
+        processorId: 'tesseract'
+      },
+      { parentId: 'parent-job-1' }
+    )
+
+    expect(enqueueMock).toHaveBeenCalledWith(
+      'file-processing.background',
+      { feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' },
+      { parentId: 'parent-job-1' }
+    )
+  })
+
   it('starts a fresh processing job for each call', async () => {
     resolveProcessorConfigByFeatureMock.mockReturnValue({
       id: 'tesseract',

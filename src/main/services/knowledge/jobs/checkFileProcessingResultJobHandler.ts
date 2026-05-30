@@ -21,6 +21,7 @@ import { isDataApiNotFoundError, markKnowledgeItemFailedOnSettled } from './util
 
 const logger = loggerService.withContext('Knowledge:CheckFileProcessingResultJobHandler')
 const FILE_PROCESSING_MAX_WAIT_MS = 30 * 60 * 1000
+const FILE_PROCESSING_ITEM_UNAVAILABLE_CANCEL_REASON = 'knowledge-file-processing-item-unavailable'
 
 export function createCheckFileProcessingResultJobHandler(
   knowledgeLockManager: KnowledgeLockManager,
@@ -45,6 +46,7 @@ export function createCheckFileProcessingResultJobHandler(
       ctx.signal.throwIfAborted()
 
       if (await shouldSkipMissingOrDeletingItem(baseId, itemId, ctx.jobId)) {
+        await cancelFileProcessingJob(fileProcessingJobId, FILE_PROCESSING_ITEM_UNAVAILABLE_CANCEL_REASON)
         return
       }
 

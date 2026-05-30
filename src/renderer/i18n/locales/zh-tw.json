@@ -4760,10 +4760,12 @@
         "status": {
           "cancelled": "已取消",
           "completed": "已完成",
+          "delayed": "已延遲",
           "failed": "失敗",
           "idle": "閒置",
           "pending": "等待中",
           "processing": "處理中",
+          "running": "執行中",
           "starting": "啟動中"
         },
         "title": "文件解析"
