@@ -6,7 +6,6 @@ import { CopyIcon, DeleteIcon, EditIcon } from '@renderer/components/Icons'
 import ObsidianExportPopup from '@renderer/components/Popups/ObsidianExportPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import SaveToKnowledgePopup from '@renderer/components/Popups/SaveToKnowledgePopup'
-import TopicStatsPopup from '@renderer/components/Popups/TopicStatsPopup'
 import { isMac } from '@renderer/config/constant'
 import { db } from '@renderer/databases'
 import { useAssistant, useAssistants } from '@renderer/hooks/useAssistant'
@@ -40,7 +39,6 @@ import type { ItemType, MenuItemType } from 'antd/es/menu/interface'
 import dayjs from 'dayjs'
 import { findIndex } from 'lodash'
 import {
-  BarChart3,
   BrushCleaning,
   CheckSquare,
   FolderOpen,
@@ -486,13 +484,6 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
           }))
       })
     }
-
-    menus.push({
-      label: t('chat.topics.statistics'),
-      key: 'statistics',
-      icon: <BarChart3 size={14} />,
-      onClick: () => void TopicStatsPopup.show({ topicId: topic.id, topicName: topic.name })
-    })
 
     if (assistant.topics.length > 1 && !topic.pinned) {
       menus.push({ type: 'divider' })

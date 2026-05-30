@@ -5625,6 +5625,9 @@
       "viewSource": "View Source",
       "zip": "ZIP"
     },
+    "stats": {
+      "title": "Usage Statistics"
+    },
     "theme": {
       "color_primary": "Primary Color",
       "dark": "Dark",
@@ -5874,6 +5877,7 @@
     "output_cost": "Output Cost",
     "output_tokens": "Output Tokens",
     "performance": "Performance",
+    "select_topic": "Select Topic",
     "thinking_tokens": "Thinking Tokens",
     "title": "Statistics — {{topic}}",
     "title_global": "Global Statistics",

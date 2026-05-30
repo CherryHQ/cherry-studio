@@ -5625,6 +5625,9 @@
       "viewSource": "查看源码",
       "zip": "ZIP"
     },
+    "stats": {
+      "title": "用量统计"
+    },
     "theme": {
       "color_primary": "主题颜色",
       "dark": "深色",
@@ -5874,6 +5877,7 @@
     "output_cost": "输出费用",
     "output_tokens": "输出 Token",
     "performance": "性能指标",
+    "select_topic": "选择话题",
     "thinking_tokens": "思考 Token",
     "title": "用量统计 — {{topic}}",
     "title_global": "全局用量统计",

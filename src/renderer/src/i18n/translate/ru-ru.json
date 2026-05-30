@@ -5625,6 +5625,9 @@
       "viewSource": "Посмотреть исходный код",
       "zip": "ЗИП"
     },
+    "stats": {
+      "title": "[to be translated]:Usage Statistics"
+    },
     "theme": {
       "color_primary": "Цвет темы",
       "dark": "Темная",
@@ -5874,6 +5877,7 @@
     "output_cost": "[to be translated]:Output Cost",
     "output_tokens": "[to be translated]:Output Tokens",
     "performance": "[to be translated]:Performance",
+    "select_topic": "[to be translated]:Select Topic",
     "thinking_tokens": "[to be translated]:Thinking Tokens",
     "title": "[to be translated]:Statistics — {{topic}}",
     "title_global": "[to be translated]:Global Statistics",
