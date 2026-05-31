@@ -333,7 +333,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
         <StatusBar>
           {executionResult.text}
           {executionResult.image && (
-            <ImageViewer src={executionResult.image} alt="Matplotlib plot" style={{ cursor: 'pointer' }} />
+            <ImageViewer src={executionResult.image} alt={t('code_block.matplotlib_plot', 'Matplotlib plot')} style={{ cursor: 'pointer' }} />
           )}
         </StatusBar>
       )}

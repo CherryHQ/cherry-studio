@@ -1,6 +1,7 @@
 import type { TooltipProps } from 'antd'
 import { Tooltip } from 'antd'
 import { AlertTriangle } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 
 type InheritedTooltipProps = Omit<TooltipProps, 'children'>
 
@@ -16,9 +17,10 @@ const WarnTooltip = ({
   iconStyle,
   ...rest
 }: WarnTooltipProps) => {
+  const { t } = useTranslation()
   return (
     <Tooltip {...rest}>
-      <AlertTriangle size={iconSize} color={iconColor} style={{ ...iconStyle }} role="img" aria-label="Information" />
+      <AlertTriangle size={iconSize} color={iconColor} style={{ ...iconStyle }} role="img" aria-label={t('common.warning', 'Warning')} />
     </Tooltip>
   )
 }

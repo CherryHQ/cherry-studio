@@ -101,7 +101,7 @@ export const DynamicFormRender: React.FC<DynamicFormRenderProps> = ({
             }}>
             <img
               src={value}
-              alt="Image preview"
+              alt={t('paintings.image_preview', 'Image preview')}
               style={{
                 width: '48px',
                 height: '48px',
