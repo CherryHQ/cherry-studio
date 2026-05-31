@@ -139,6 +139,15 @@ class BackupManager {
         await fs.rename(dataRestore, dataDest)
       }
 
+      // Restore Claude Code SDK session data
+      const claudeProjRestore = path.join(userDataPath, '.claude', 'projects.restore')
+      const claudeProjDest = path.join(userDataPath, '.claude', 'projects')
+      if (await fs.pathExists(claudeProjRestore)) {
+        logger.info('[handleStartupRestore] Found .claude/projects.restore, completing restoration...')
+        await fs.remove(claudeProjDest).catch(() => {})
+        await fs.rename(claudeProjRestore, claudeProjDest)
+      }
+
       logger.info('[handleStartupRestore] Restoration completed successfully')
     } catch (error) {
       logger.error('[handleStartupRestore] Failed to complete restoration:', error as Error)
@@ -146,6 +155,8 @@ class BackupManager {
       await fs.remove(indexedDBRestore).catch(() => {})
       await fs.remove(localStorageRestore).catch(() => {})
       await fs.remove(dataRestore).catch(() => {})
+      const claudeProjRestore = path.join(userDataPath, '.claude', 'projects.restore')
+      await fs.remove(claudeProjRestore).catch(() => {})
     }
   }
 
@@ -241,6 +252,19 @@ class BackupManager {
         logger.debug('[backupDirect] Skip the backup of the file')
         await fs.promises.mkdir(path.join(this.tempDir, 'Data'))
       }
+
+      // Step 4b: Copy Claude Code SDK session data so agent sessions survive
+      // backup → restore round-trips. The SDK stores session jsonls in
+      // .claude/projects/ under userData; these must be included alongside
+      // agents.db for --resume to work after restore.
+      const claudeProjectsSource = path.join(userDataPath, '.claude', 'projects')
+      if (await fs.pathExists(claudeProjectsSource)) {
+        const claudeProjDir = path.join(this.tempDir, '.claude', 'projects')
+        await fs.ensureDir(path.dirname(claudeProjDir))
+        await fs.copy(claudeProjectsSource, claudeProjDir)
+        logger.debug('[backupDirect] Copied .claude/projects/ for SDK session preservation')
+      }
+
       onProgress({ stage: 'compressing', progress: 80, total: 100 })
 
       // Step 5: Create ZIP archive
@@ -588,6 +612,7 @@ class BackupManager {
     const indexedDBDest = path.join(userDataPath, 'IndexedDB.restore')
     const localStorageDest = path.join(userDataPath, 'Local Storage.restore')
     const dataDest = path.join(userDataPath, 'Data.restore')
+    const claudeProjDest = path.join(userDataPath, '.claude', 'projects.restore')
 
     try {
       // Read and validate metadata
@@ -650,6 +675,14 @@ class BackupManager {
         logger.debug('[restoreDirect] No Data directory to restore')
       }
 
+      // Restore Claude Code SDK session data
+      const claudeProjSource = path.join(this.tempDir, '.claude', 'projects')
+      if (await fs.pathExists(claudeProjSource)) {
+        await fs.remove(claudeProjDest).catch(() => {})
+        await fs.copy(claudeProjSource, claudeProjDest)
+        logger.debug('[restoreDirect] Staged .claude/projects.restore')
+      }
+
       // Clean up
       await fs.remove(this.tempDir)
       onProgress({ stage: 'completed', progress: 100, total: 100 })
@@ -663,7 +696,8 @@ class BackupManager {
         fs.remove(this.tempDir).catch(() => {}),
         fs.remove(indexedDBDest).catch(() => {}),
         fs.remove(localStorageDest).catch(() => {}),
-        fs.remove(dataDest).catch(() => {})
+        fs.remove(dataDest).catch(() => {}),
+        fs.remove(claudeProjDest).catch(() => {})
       ])
       throw error
     }
