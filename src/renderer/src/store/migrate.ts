@@ -26,16 +26,13 @@ import { allMinApps } from '@renderer/config/minapps'
 import { isFunctionCallingModel, isNotSupportTextDeltaModel, qwenModel, SYSTEM_MODELS } from '@renderer/config/models'
 import { BUILTIN_OCR_PROVIDERS, BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
 import { TRANSLATE_PROMPT } from '@renderer/config/prompts'
-import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
 import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import db from '@renderer/databases'
 import { getModel } from '@renderer/hooks/useModel'
 import i18n from '@renderer/i18n'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
-import { defaultPreprocessProviders } from '@renderer/store/preprocess'
 import type {
   Assistant,
-  BuiltinOcrProvider,
   Model,
   Provider,
   ProviderApiOptions,
@@ -59,177 +56,23 @@ import { DEFAULT_TOOL_ORDER, DEFAULT_TOOL_ORDER_BY_SCOPE } from './inputTools'
 import { initialState as llmInitialState, moveProvider } from './llm'
 import { mcpSlice } from './mcp'
 import { initialState as notesInitialState } from './note'
-import { defaultActionItems } from './selectionStore'
 import { initialState as settingsInitialState } from './settings'
-import { initialState as shortcutsInitialState } from './shortcuts'
-import { defaultWebSearchProviders } from './websearch'
+import {
+  addMiniApp,
+  addOcrProvider,
+  addPreprocessProviders,
+  addProvider,
+  addSelectionAction,
+  addShortcuts,
+  addWebSearchProvider,
+  fixMissingProvider,
+  removeMiniAppFromState,
+  removeMiniAppIconsFromState,
+  updateProvider,
+  updateWebSearchProvider
+} from './migrateHelpers'
 
 const logger = loggerService.withContext('Migrate')
-
-// remove logo base64 data to reduce the size of the state
-function removeMiniAppIconsFromState(state: RootState) {
-  if (state.minapps) {
-    state.minapps.enabled = state.minapps.enabled.map((app) => ({
-      ...app,
-      logo: undefined
-    }))
-    state.minapps.disabled = state.minapps.disabled.map((app) => ({
-      ...app,
-      logo: undefined
-    }))
-    state.minapps.pinned = state.minapps.pinned.map((app) => ({
-      ...app,
-      logo: undefined
-    }))
-  }
-}
-
-function removeMiniAppFromState(state: RootState, id: string) {
-  if (state.minapps) {
-    state.minapps.pinned = state.minapps.pinned.filter((app) => app.id !== id)
-    state.minapps.enabled = state.minapps.enabled.filter((app) => app.id !== id)
-    state.minapps.disabled = state.minapps.disabled.filter((app) => app.id !== id)
-  }
-}
-
-function addMiniApp(state: RootState, id: string) {
-  if (state.minapps) {
-    const app = allMinApps.find((app) => app.id === id)
-    if (app) {
-      if (!state.minapps.enabled.find((app) => app.id === id)) {
-        state.minapps.enabled.push(app)
-      }
-    }
-  }
-}
-
-// add provider to state
-function addProvider(state: RootState, id: string) {
-  if (!state.llm.providers.find((p) => p.id === id)) {
-    const _provider = SYSTEM_PROVIDERS.find((p) => p.id === id)
-    if (_provider) {
-      state.llm.providers.push(_provider)
-    }
-  }
-}
-
-// Fix missing provider
-function fixMissingProvider(state: RootState) {
-  SYSTEM_PROVIDERS.forEach((p) => {
-    if (!state.llm.providers.find((provider) => provider.id === p.id)) {
-      state.llm.providers.push(p)
-    }
-  })
-}
-
-// add ocr provider
-function addOcrProvider(state: RootState, provider: BuiltinOcrProvider) {
-  if (!state.ocr.providers.find((p) => p.id === provider.id)) {
-    state.ocr.providers.push(provider)
-  }
-}
-
-function updateProvider(state: RootState, id: string, provider: Partial<Provider>) {
-  if (state.llm.providers) {
-    const index = state.llm.providers.findIndex((p) => p.id === id)
-    if (index !== -1) {
-      state.llm.providers[index] = {
-        ...state.llm.providers[index],
-        ...provider
-      }
-    }
-  }
-}
-
-function addWebSearchProvider(state: RootState, id: string) {
-  if (state.websearch && state.websearch.providers) {
-    if (!state.websearch.providers.find((p) => p.id === id)) {
-      const provider = defaultWebSearchProviders.find((p) => p.id === id)
-      if (provider) {
-        // Prevent mutating read only property of object
-        // Otherwise, it will cause the error: Cannot assign to read only property 'apiKey' of object '#<Object>'
-        state.websearch.providers.push({ ...provider })
-      }
-    }
-  }
-}
-
-function updateWebSearchProvider(state: RootState, provider: Partial<WebSearchProvider>) {
-  if (state.websearch && state.websearch.providers) {
-    const index = state.websearch.providers.findIndex((p) => p.id === provider.id)
-    if (index !== -1) {
-      state.websearch.providers[index] = {
-        ...state.websearch.providers[index],
-        ...provider
-      }
-    }
-  }
-}
-
-function addSelectionAction(state: RootState, id: string) {
-  if (state.selectionStore && state.selectionStore.actionItems) {
-    if (!state.selectionStore.actionItems.some((item) => item.id === id)) {
-      const action = defaultActionItems.find((item) => item.id === id)
-      if (action) {
-        state.selectionStore.actionItems.push(action)
-      }
-    }
-  }
-}
-
-/**
- * Add shortcuts(ids from shortcutsInitialState) after the shortcut(afterId)
- * if afterId is 'first', add to the first
- * if afterId is 'last', add to the last
- */
-function addShortcuts(state: RootState, ids: string[], afterId: string) {
-  const defaultShortcuts = shortcutsInitialState.shortcuts
-
-  // 确保 state.shortcuts 存在
-  if (!state.shortcuts) {
-    return
-  }
-
-  // 从 defaultShortcuts 中找到要添加的快捷键
-  const shortcutsToAdd = defaultShortcuts.filter((shortcut) => ids.includes(shortcut.key))
-
-  // 过滤掉已经存在的快捷键
-  const existingKeys = state.shortcuts.shortcuts.map((s) => s.key)
-  const newShortcuts = shortcutsToAdd.filter((shortcut) => !existingKeys.includes(shortcut.key))
-
-  if (newShortcuts.length === 0) {
-    return
-  }
-
-  if (afterId === 'first') {
-    // 添加到最前面
-    state.shortcuts.shortcuts.unshift(...newShortcuts)
-  } else if (afterId === 'last') {
-    // 添加到最后面
-    state.shortcuts.shortcuts.push(...newShortcuts)
-  } else {
-    // 添加到指定快捷键后面
-    const afterIndex = state.shortcuts.shortcuts.findIndex((shortcut) => shortcut.key === afterId)
-    if (afterIndex !== -1) {
-      state.shortcuts.shortcuts.splice(afterIndex + 1, 0, ...newShortcuts)
-    } else {
-      // 如果找不到指定的快捷键，则添加到最后
-      state.shortcuts.shortcuts.push(...newShortcuts)
-    }
-  }
-}
-
-// add preprocess provider
-function addPreprocessProviders(state: RootState, id: string) {
-  if (state.preprocess && state.preprocess.providers) {
-    if (!state.preprocess.providers.find((p) => p.id === id)) {
-      const provider = defaultPreprocessProviders.find((p) => p.id === id)
-      if (provider) {
-        state.preprocess.providers.push({ ...provider })
-      }
-    }
-  }
-}
 
 const migrateConfig = {
   '2': (state: RootState) => {
