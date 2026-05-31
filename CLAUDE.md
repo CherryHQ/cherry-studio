@@ -58,7 +58,7 @@ Project-specific tools, paths, and conventions.
 - **Write conventional commits**: Commit small, focused changes using Conventional Commit messages (e.g., `feat(data-api):`, `fix(lifecycle):`, `refactor(quick-assistant):`, `docs(testing):`, `chore(deps):`, `test(window-manager):`). Scope must be a specific kebab-case module, never generic like `main` — when `git log` conflicts with this rule, this rule wins.
 - **Keep history linear**: On shared branches, never use plain `git pull` — it creates merge commits. Always `git pull --rebase` (or `git fetch && git rebase origin/<branch>`). Before `git push`, run `git fetch`; if `origin/<branch>` has advanced, rebase your local commits onto it first. If you notice a merge commit in local history that hasn't been pushed yet, rebase it away — cleaning one up after it's public requires a risky force-push on a shared branch.
 - **Sign commits**: Use `git commit --signoff` as required by contributor guidelines.
-- **Target the right branch**: `main` is the active v2 development line — submit features, refactors, and v2 work here. v1 maintenance fixes must branch from and target the `v1` branch (never `main`). See [v2 Refactoring](#v2-refactoring-in-progress).
+- **Target the right branch**: `main` is the default branch for active development — submit features, refactors, optimizations, and fixes for the current codebase here. v1 maintenance fixes (hotfixes and subsequent v1 releases) must branch from and target the `v1` branch (never `main`); a v1 fix does not auto-carry to `main`, so forward-port it with a separate PR if the bug also exists on `main`. See [v2 Refactoring](#v2-refactoring-in-progress).
 
 ## Development
 
@@ -194,7 +194,7 @@ Services without long-lived resources or persistent side effects: use **named ex
 
 ## v2 Refactoring (In Progress)
 
-> **Current state — read before contributing.** The former `v2` branch has been **merged into `main`**; `main` is now the active v2 development line, with v1 and v2 code **coexisting**. Expect large, frequent, breaking changes — code you touch today may be deleted or reshaped tomorrow. Before doing v2 work, read [docs/references/data](docs/references/data/README.md) to learn which subsystems are being replaced (and thus deleted), and heed `@deprecated` annotations in the code — they mark call sites slated for removal. v1 maintenance fixes go to the `v1` branch, not `main`.
+> **Current state — read before contributing.** The former `v2` branch has been **merged into `main`**; `main` is now the default branch for active development, with v1 and v2 code **coexisting**. Expect large, frequent, breaking changes — code you touch today may be deleted or reshaped tomorrow. Before touching subsystems being replaced, read [docs/references/data](docs/references/data/README.md) to learn which are being deleted, and heed `@deprecated` annotations in the code — they mark call sites slated for removal. v1 maintenance fixes (hotfixes and subsequent v1 releases) go to the `v1` branch, not `main`; forward-port to `main` with a separate PR if the bug also exists there.
 
 ### Data Layer
 
