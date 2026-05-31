@@ -6,17 +6,25 @@ import { updateTab } from '@renderer/store/tabs'
 import type { PaintingProvider, SystemProviderId } from '@renderer/types'
 import { isNewApiProvider } from '@renderer/utils/provider'
 import type { FC } from 'react'
-import { useEffect, useMemo, useState } from 'react'
+import React, { Suspense, useEffect, useMemo, useState } from 'react'
 import { Route, Routes, useParams } from 'react-router-dom'
 
-import AihubmixPage from './AihubmixPage'
-import DmxapiPage from './DmxapiPage'
-import NewApiPage from './NewApiPage'
-import OvmsPage from './OvmsPage'
-import PpioPage from './PpioPage'
-import SiliconPage from './SiliconPage'
-import TokenFluxPage from './TokenFluxPage'
-import ZhipuPage from './ZhipuPage'
+// Lazy load painting pages for code splitting
+const AihubmixPage = React.lazy(() => import('./AihubmixPage'))
+const DmxapiPage = React.lazy(() => import('./DmxapiPage'))
+const NewApiPage = React.lazy(() => import('./NewApiPage'))
+const OvmsPage = React.lazy(() => import('./OvmsPage'))
+const PpioPage = React.lazy(() => import('./PpioPage'))
+const SiliconPage = React.lazy(() => import('./SiliconPage'))
+const TokenFluxPage = React.lazy(() => import('./TokenFluxPage'))
+const ZhipuPage = React.lazy(() => import('./ZhipuPage'))
+
+// Loading fallback component
+const PaintingPageFallback = () => (
+  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+    Loading...
+  </div>
+)
 
 const logger = loggerService.withContext('PaintingsRoutePage')
 
@@ -51,21 +59,23 @@ const PaintingsRoutePage: FC = () => {
   }, [provider, dispatch, validOptions])
 
   return (
-    <Routes>
-      <Route path="*" element={<NewApiPage Options={validOptions} />} />
-      <Route path="/zhipu" element={<ZhipuPage Options={validOptions} />} />
-      <Route path="/aihubmix" element={<AihubmixPage Options={validOptions} />} />
-      <Route path="/silicon" element={<SiliconPage Options={validOptions} />} />
-      <Route path="/dmxapi" element={<DmxapiPage Options={validOptions} />} />
-      <Route path="/tokenflux" element={<TokenFluxPage Options={validOptions} />} />
-      <Route path="/ovms" element={<OvmsPage Options={validOptions} />} />
-      <Route path="/ppio" element={<PpioPage Options={validOptions} />} />
-      <Route path="/new-api" element={<NewApiPage Options={validOptions} />} />
-      {/* new-api family providers are mounted dynamically below */}
-      {newApiProviders.map((p) => (
-        <Route key={p.id} path={`/${p.id}`} element={<NewApiPage Options={validOptions} />} />
-      ))}
-    </Routes>
+    <Suspense fallback={<PaintingPageFallback />}>
+      <Routes>
+        <Route path="*" element={<NewApiPage Options={validOptions} />} />
+        <Route path="/zhipu" element={<ZhipuPage Options={validOptions} />} />
+        <Route path="/aihubmix" element={<AihubmixPage Options={validOptions} />} />
+        <Route path="/silicon" element={<SiliconPage Options={validOptions} />} />
+        <Route path="/dmxapi" element={<DmxapiPage Options={validOptions} />} />
+        <Route path="/tokenflux" element={<TokenFluxPage Options={validOptions} />} />
+        <Route path="/ovms" element={<OvmsPage Options={validOptions} />} />
+        <Route path="/ppio" element={<PpioPage Options={validOptions} />} />
+        <Route path="/new-api" element={<NewApiPage Options={validOptions} />} />
+        {/* new-api family providers are mounted dynamically below */}
+        {newApiProviders.map((p) => (
+          <Route key={p.id} path={`/${p.id}`} element={<NewApiPage Options={validOptions} />} />
+        ))}
+      </Routes>
+    </Suspense>
   )
 }
 
