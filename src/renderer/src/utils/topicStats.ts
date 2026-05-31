@@ -356,8 +356,8 @@ export function computeTopicStats(messages: Message[], blocksMap?: Map<string, M
     }
   }
 
-  const durationMs =
-    firstMessageAt && lastMessageAt ? new Date(lastMessageAt).getTime() - new Date(firstMessageAt).getTime() : 0
+  // Use live time for duration if there are messages (so it updates in real-time)
+  const durationMs = firstMessageAt ? Date.now() - new Date(firstMessageAt).getTime() : 0
 
   // Compute averages — only over messages that actually reported each metric
   const avgFtLatency = ftCount > 0 ? totalFtLatency / ftCount : 0
@@ -388,6 +388,11 @@ export function computeTopicStats(messages: Message[], blocksMap?: Map<string, M
   }
 }
 
+// ─── Cache ──────────────────────────────────────────────────────────────────
+
+let _globalCache: { stats: TopicStats; ts: number } | null = null
+const CACHE_TTL = 30_000 // 30s — short enough to feel fresh, long enough to avoid spinner
+
 /**
  * Load messages + blocks for a specific topic from the database and compute stats.
  */
@@ -412,11 +417,15 @@ export async function computeTopicStatsFromDB(topicId: string): Promise<TopicSta
 
 /**
  * Load ALL messages + blocks from all topics in the database and compute global stats.
+ * Results are cached for 30s to avoid loading spinner on every tab switch.
  */
 export async function computeGlobalStatsFromDB(): Promise<TopicStats> {
+  if (_globalCache && Date.now() - _globalCache.ts < CACHE_TTL) {
+    return _globalCache.stats
+  }
   try {
     const allTopics = await db.topics.toArray()
-    const allMessages = allTopics.flatMap((t) => t.messages || [])
+    const allMessages = allTopics.flatMap((t) => (t.messages || []) as Message[])
 
     // Load ALL blocks from the message_blocks table
     const allBlocks = await db.message_blocks.toArray()
@@ -425,8 +434,15 @@ export async function computeGlobalStatsFromDB(): Promise<TopicStats> {
       blocksMap.set(block.id, block)
     }
 
-    return computeTopicStats(allMessages, blocksMap)
+    const stats = computeTopicStats(allMessages, blocksMap)
+    _globalCache = { stats, ts: Date.now() }
+    return stats
   } catch {
     return computeTopicStats([])
   }
+}
+
+/** Invalidate the global stats cache so the next call re-loads from DB */
+export function invalidateGlobalStatsCache(): void {
+  _globalCache = null
 }
