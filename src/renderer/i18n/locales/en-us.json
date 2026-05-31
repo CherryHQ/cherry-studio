@@ -4738,6 +4738,7 @@
         },
         "description": "Run every configured file processor through the real file processing IPC and compare results.",
         "duration": "{{seconds}}s",
+        "jobId": "Job ID",
         "markdown": {
           "description": "Select a document and run all document-to-markdown processors.",
           "fileFilterName": "Documents",
@@ -4759,13 +4760,14 @@
         "status": {
           "cancelled": "Cancelled",
           "completed": "Completed",
+          "delayed": "Delayed",
           "failed": "Failed",
           "idle": "Idle",
           "pending": "Pending",
           "processing": "Processing",
+          "running": "Running",
           "starting": "Starting"
         },
-        "taskId": "Task ID",
         "title": "Document Parsing"
       },
       "label": "Component Lab",

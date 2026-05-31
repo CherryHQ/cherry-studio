@@ -19,6 +19,7 @@ import {
   type EnqueueOptions,
   JOB_PROGRESS_KEY_PREFIX,
   JOB_STATE_KEY_PREFIX,
+  type JobCancelResult,
   type JobContext,
   type JobHandle,
   type JobHandler,
@@ -499,9 +500,15 @@ export class JobManager extends BaseService {
    *
    * @param jobId - Target job row id
    * @param reason - Optional human-readable reason, surfaced in the error object
+   * @returns The cancel outcome: `'cancelled'` (settled within grace, or a
+   *   pending/delayed row finalized directly), `'timed-out'` (force-finalized
+   *   after the grace window — the handler may still be running in-memory), or
+   *   `'not-cancellable'` (nothing to cancel — already terminal / unknown row).
+   *   Callers needing to distinguish a timed-out cancel MUST switch on this
+   *   value rather than parsing `error.message`.
    * @throws Error with code `JOB_CANCEL_REASON_TOO_LONG` if `reason` exceeds 500 chars
    */
-  async cancel(jobId: string, reason?: string): Promise<void> {
+  async cancel(jobId: string, reason?: string): Promise<JobCancelResult> {
     if (reason !== undefined && reason.length > MAX_CANCEL_REASON_CHARS) {
       throw this.makeError(JOB_ERROR_CODES.CANCEL_REASON_TOO_LONG, 'Cancel reason exceeds 500 characters', {
         length: reason.length
@@ -530,23 +537,34 @@ export class JobManager extends BaseService {
             message: `Cancel timed out after ${graceMs}ms${reason ? ` (reason: ${reason})` : ''}`,
             retryable: false
           })
+          return { outcome: 'timed-out' }
         }
+        // winner === 'done' — handler observed the abort and reached a terminal
+        // state within the grace window.
+        return { outcome: 'cancelled' }
       }
-    } else {
-      // Not in-flight — pending / delayed → finalize directly as cancelled.
-      // (Once the pending/cancelRequested filter is in claimNextPendingTx,
-      // dispatch cannot promote a cancelRequested row to running between the
-      // tx above and this branch, so the snapshot here is guaranteed terminal-
-      // or-cancellable.)
-      const snapshot = await jobService.getById(jobId)
-      if (snapshot && (snapshot.status === 'pending' || snapshot.status === 'delayed')) {
-        await this.finalizeJob(jobId, 'cancelled', undefined, {
-          code: JOB_ERROR_CODES.CANCELLED,
-          message: reason ?? 'Cancelled by user',
-          retryable: false
-        })
-      }
+      // Controller registered but no executor signal: effectively unreachable —
+      // `spawnExecute` sets and deletes both maps in lockstep with no await
+      // between. The abort was still requested, so report a clean cancel.
+      return { outcome: 'cancelled' }
     }
+
+    // Not in-flight — pending / delayed → finalize directly as cancelled.
+    // (Once the pending/cancelRequested filter is in claimNextPendingTx,
+    // dispatch cannot promote a cancelRequested row to running between the
+    // tx above and this branch, so the snapshot here is guaranteed terminal-
+    // or-cancellable.)
+    const snapshot = await jobService.getById(jobId)
+    if (snapshot && (snapshot.status === 'pending' || snapshot.status === 'delayed')) {
+      await this.finalizeJob(jobId, 'cancelled', undefined, {
+        code: JOB_ERROR_CODES.CANCELLED,
+        message: reason ?? 'Cancelled by user',
+        retryable: false
+      })
+      return { outcome: 'cancelled' }
+    }
+    // already-terminal / unknown row → nothing cancelled.
+    return { outcome: 'not-cancellable' }
   }
 
   /**

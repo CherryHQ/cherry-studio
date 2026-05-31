@@ -41,7 +41,7 @@ SQLite / VectorStore / FileManager
    保证同一 base 下状态、向量库、artifact、破坏性清理安全串行。
 
 3. Knowledge job handlers
-   执行当前阶段的短任务。
+   执行当前阶段的短Job。
 ```
 
 其他能力先作为 helpers/modules，不作为独立 service：
@@ -81,7 +81,7 @@ class KnowledgeWorkflowService {
 
   scheduleItem(baseId, itemId): Promise<void>
   // Round 2
-  scheduleFileProcessingCheck(baseId, itemId, taskId, options): Promise<void>
+  scheduleFileProcessingCheck(baseId, itemId, fileProcessingJobId, sourceFileEntryId, options): Promise<void>
   scheduleIndexing(baseId, itemId, source): Promise<void>
 }
 ```
@@ -164,7 +164,7 @@ baseId
 itemId
 fileProcessingJobId
 sourceFileEntryId
-checkCount? / firstScheduledAt?
+pollRound / firstScheduledAt / parentJobId
 ```
 
 职责：
@@ -439,7 +439,7 @@ cancel/drain 和 cleanup job 幂等性保证收敛；reindex 通过入口 termin
 - 同一 base 的 Knowledge mutation 必须串行。
 - 不同 base 可以并行。
 - manual chunk list/delete 只允许目标 item 为 `completed`；目录 list 还要拒绝包含 `deleting` descendant 的 subtree。
-- 旧任务可能继续写入时，不能删除 vectors、SQLite rows 或 artifact refs。
+- 旧Job可能继续写入时，不能删除 vectors、SQLite rows 或 artifact refs。
 - `KnowledgeLockManager` 是进程内串行化机制，不是 crash-safety 机制；进程重启后的一致性依赖 durable item state、durable jobs、JobManager recovery 和 cleanup 幂等性。无引用 FileEntry 的资源回收不属于 Knowledge workflow 的 crash-safety 承诺。
 - `KnowledgeLockManager` 不能替代 `DbService.withWriteTx`；前者串行同 base 的 Knowledge mutation，后者串行主 SQLite 的所有写事务，避免 Knowledge 写与 JobService 写竞争。
 - `KnowledgeItemService` / `KnowledgeBaseService` 的写事务必须迁到 `DbService.withWriteTx`，不能继续使用 raw `db.transaction`。
@@ -510,12 +510,12 @@ detach current Knowledge refs
 隔离 Knowledge 与 FileProcessing API：
 
 ```text
-startTask() -> taskId
-getSnapshot(taskId) -> JobSnapshot
+startJob() -> JobSnapshot
+JobSnapshot.id -> fileProcessingJobId
 completed output -> markdown artifact FileEntry
 ```
 
-Knowledge 每次需要转换时都使用本次 taskId 绑定 continuation。
+Knowledge 每次需要转换时都使用本次 fileProcessingJobId 绑定 continuation。
 
 ---
 
@@ -562,7 +562,7 @@ correctness 前置。第一版不引入复杂 capacity budget 或 backlog schema
 - `handler.onSettled` 是 best-effort terminal hook，不承载必须成功的下一步调度。
 - handler 在 `execute` 内完成本阶段动作后调用 workflow service，由 workflow service enqueue 下一步。
 
-handler 内调度下一步时必须使用 deterministic `idempotencyKey`，避免 `execute` retry 重复创建子任务。
+handler 内调度下一步时必须使用 deterministic `idempotencyKey`，避免 `execute` retry 重复创建子Job。
 
 规则：
 
@@ -600,7 +600,7 @@ item.status 是否不是 deleting
 ```
 
 FileProcessing 接入后也沿用同一语义：每个 Knowledge workflow 消费本次 FileProcessing
-task 产出的 artifact；后续外部文件修改/删除不 invalidate 已启动的 workflow。只有当未来
+job 产出的 artifact；后续外部文件修改/删除不 invalidate 已启动的 workflow。只有当未来
 产品语义改为自动跟踪源文件最新内容时，才需要新增 source generation/version 校验。
 
 这些检查必须至少执行两次：
@@ -654,7 +654,7 @@ active indexing/expansion job 与 cleanup/reset 并发。processed artifact File
 1. 建立 `KnowledgeWorkflowService` 和 `KnowledgeLockManager` 边界。
 2. 扩展 `knowledge_item.status = deleting`，并让默认 item list、search、RAG hydration 排除 `deleting` items。
 3. 增加 helpers：source planning、item lifecycle、artifact、file-processing adapter。
-4. 将 source strategy 从 `index-leaf` 收口到 `scheduleItem`。
+4. 将 source strategy 收口到 `scheduleItem`。
 5. 引入 `check-file-processing-result` 和 FileProcessing adapter（Round 2）。
 6. 增加 `delete-subtree` / `reindex-subtree` handlers。
 7. 将 delete 的 cancel/drain/cleanup 和 reindex 的 terminal-subtree cleanup/reset 收口到 workflow + lock managers。
@@ -665,7 +665,7 @@ active indexing/expansion job 与 cleanup/reset 并发。processed artifact File
 - `knowledge_item.phase` 移除；`status` 扩展为 `idle` / `preparing` / `processing` / `reading` /
   `embedding` / `completed` / `failed` / `deleting`。
 - Round 1 中 `base.fileProcessorId` 对 indexing 仍是 inert；Round 2 后只影响未来索引。
-- Knowledge 每次转换只消费本次 FileProcessing task result。
+- Knowledge 每次转换只消费本次 FileProcessing job result。
 - processed artifact cleanup 只 detach Knowledge FileRef；本轮不引入 durable artifact cleanup queue。
 
 ---
@@ -689,7 +689,7 @@ active indexing/expansion job 与 cleanup/reset 并发。processed artifact File
   `index-documents`、`delete-subtree`、`reindex-subtree`。
 - job handler 只做当前阶段动作，下一步由 workflow service 决定。
 - `KnowledgeItemService` / `KnowledgeBaseService` 写路径使用 `DbService.withWriteTx`，不使用 raw `db.transaction`。
-- FileProcessing continuation 使用短任务 delayed check。
+- FileProcessing continuation 使用短Job delayed check。
 - indexing job 完整执行 reader -> chunk -> batched embed -> vector write。
 - `index-documents` 使用固定 32 chunk batch、30min timeout、串行 batch、batch 间 cancellation check，写入仍是最终一次 `replaceByExternalId`。
 - `index-documents` 的 final stale guard 与 vector write 必须在 `KnowledgeLockManager` lock 内同一临界区完成。

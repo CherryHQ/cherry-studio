@@ -2,7 +2,7 @@
 
 Cherry Studio implements a structured branching strategy to maintain code quality and streamline the development process.
 
-> **Current model (v2 development).** `main` is the active v2 development line — submit features, refactors, and optimizations here. The `v1` branch is the maintenance line for the shipped v1 release: critical user-facing bug fixes go there via `hotfix/*`, targeting `v1` (not `main`). The generic flow below predates the v2 phase; where it conflicts, this note wins.
+> **Current model.** `main` is the default branch for active development — submit features, refactors, optimizations, and fixes for the current codebase here. The `v1` branch is the maintenance line for the shipped v1 release: its hotfixes and subsequent v1 releases go there via `hotfix/*`, targeting `v1` (not `main`). A v1 fix does not auto-carry to `main`; if the same bug exists on `main`, open a separate forward-port PR targeting `main`. (v1 and v2 code currently coexist on `main` — expect large, breaking changes.) The generic flow below predates this phase; where it conflicts, this note wins.
 
 ## Main Branches
 
@@ -44,9 +44,9 @@ When contributing to Cherry Studio, please follow these guidelines:
 
 4. **Hotfix Branches:**
 
-   - Create from `main` branch
+   - Create from the `v1` branch
    - Naming format: `hotfix/issue-number-brief-description`
-   - Submit PR to both `main` and relevant `release` branches
+   - Submit PR to `v1`, not `main`. A v1 fix does not auto-carry to `main` — if the same bug exists on `main`, open a separate forward-port PR targeting `main`
 
 5. **Release Branches:**
    - Create from `main` branch
@@ -61,7 +61,7 @@ When contributing to Cherry Studio, please follow these guidelines:
 
 ## Pull Request Guidelines
 
-- v2 work (features, refactors, optimizations) goes to `main`; critical v1 production fixes go to the `v1` branch (see the note at the top)
+- Active development (features, refactors, optimizations, fixes for the current codebase) goes to `main`; v1 hotfixes and subsequent v1 releases go to the `v1` branch (see the note at the top). A v1 fix is not auto-carried to `main` — forward-port it with a separate PR if the bug also exists on `main`
 - Ensure your branch is up to date with the latest `main` changes before submitting
 - Include relevant issue numbers in your PR description
 - Make sure all tests pass and code meets our quality standards

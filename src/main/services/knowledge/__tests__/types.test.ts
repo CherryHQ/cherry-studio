@@ -25,6 +25,9 @@ describe('knowledge idempotency keys', () => {
 
     expect(knowledgePrepareIdempotencyKey(baseId, toKnowledgeItemId('dir-1'))).toBe('knowledge:kb-1:dir-1:prepare')
     expect(knowledgeIndexIdempotencyKey(baseId, toKnowledgeItemId('note-1'))).toBe('knowledge:kb-1:note-1:index')
+    expect(knowledgeIndexIdempotencyKey(baseId, toKnowledgeItemId('note-1'), 'reindex-job')).toBe(
+      'knowledge:kb-1:note-1:index:reindex-job'
+    )
   })
 
   it('reports typed knowledge progress details', () => {

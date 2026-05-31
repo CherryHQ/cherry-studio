@@ -3,8 +3,8 @@
  *
  * The capability handler + processor registry + result-persistence layer are
  * mocked at the module boundary; only the JobHandler's execute() orchestration
- * is exercised here (control flow, abort handling, artifact cleanup on
- * post-success failure).
+ * is exercised here (control flow, abort handling, artifact persistence on
+ * post-success output).
  */
 import type { JobContext } from '@main/core/job/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -19,7 +19,6 @@ const {
   resolveProcessorConfigByFeatureMock,
   processorRegistryMock,
   persistResultMock,
-  cleanupResultsDirMock,
   capabilityHandlerMock,
   preparedExecuteMock
 } = vi.hoisted(() => ({
@@ -30,7 +29,6 @@ const {
   resolveProcessorConfigByFeatureMock: vi.fn(),
   processorRegistryMock: {} as Record<string, unknown>,
   persistResultMock: vi.fn(),
-  cleanupResultsDirMock: vi.fn(),
   capabilityHandlerMock: {
     mode: 'background' as 'background' | 'remote-poll',
     prepare: vi.fn()
@@ -55,8 +53,7 @@ vi.mock('../../processors/registry', () => ({
 }))
 
 vi.mock('../../persistence/MarkdownResultStore', () => ({
-  markdownResultStore: { persistResult: persistResultMock },
-  cleanupFileProcessingResultsDir: cleanupResultsDirMock
+  markdownResultStore: { persistResult: persistResultMock }
 }))
 
 const { backgroundJobHandler } = await import('../backgroundJobHandler')
@@ -136,52 +133,71 @@ beforeEach(() => {
 })
 
 describe('backgroundJobHandler.execute', () => {
+  it('declares the background job contract', () => {
+    expect(backgroundJobHandler.recovery).toBe('retry')
+    expect(
+      backgroundJobHandler.defaultQueue?.({
+        feature: 'image_to_text',
+        fileEntryId: FILE_ENTRY_ID,
+        processorId: 'tesseract'
+      })
+    ).toBe('file-processing.tesseract')
+    expect(backgroundJobHandler.defaultConcurrency).toBe(2)
+    expect(backgroundJobHandler.defaultRetryPolicy).toEqual({
+      maxAttempts: 1,
+      backoff: 'none',
+      baseDelayMs: 0,
+      maxDelayMs: 0
+    })
+    expect(backgroundJobHandler.defaultTimeoutMs).toBe(15 * 60_000)
+  })
+
   it('returns inline text artifact for image_to_text output', async () => {
     preparedExecuteMock.mockResolvedValue({ kind: 'text', text: 'recognized text' })
     setupCapability({ mode: 'background', execute: preparedExecuteMock })
 
     const ctx = createCtx()
-    const result = (await backgroundJobHandler.execute(ctx)) as { artifacts: unknown[] }
+    const result = (await backgroundJobHandler.execute(ctx)) as { artifact: unknown }
 
-    expect(result.artifacts).toEqual([{ kind: 'text', format: 'plain', text: 'recognized text' }])
+    expect(result.artifact).toEqual({ kind: 'text', format: 'plain', text: 'recognized text' })
     expect(capabilityHandlerMock.prepare).toHaveBeenCalledWith(FAKE_FILE_INFO, expect.any(Object), ctx.signal, {
       fileEntryId: FILE_ENTRY_ID
     })
-    expect(cleanupResultsDirMock).not.toHaveBeenCalled()
     expect(persistResultMock).not.toHaveBeenCalled()
   })
 
-  it('persists markdown output to disk and returns file artifact', async () => {
+  it('persists markdown output to an internal file entry and returns file artifact', async () => {
     preparedExecuteMock.mockResolvedValue({ kind: 'markdown', markdownContent: '# hello' })
-    persistResultMock.mockResolvedValue('/tmp/results/job-1/output.md')
+    persistResultMock.mockResolvedValue('019606a0-0000-7000-8000-000000000301')
     setupCapability({ mode: 'background', execute: preparedExecuteMock })
 
-    const result = (await backgroundJobHandler.execute(createCtx())) as { artifacts: unknown[] }
+    const result = (await backgroundJobHandler.execute(createCtx())) as { artifact: unknown }
 
     expect(persistResultMock).toHaveBeenCalledWith({
-      taskId: 'job-1',
+      jobId: 'job-1',
       result: { kind: 'markdown', markdownContent: '# hello' },
       signal: expect.any(AbortSignal)
     })
-    expect(result.artifacts).toEqual([{ kind: 'file', format: 'markdown', path: '/tmp/results/job-1/output.md' }])
-    expect(cleanupResultsDirMock).not.toHaveBeenCalled()
+    expect(result.artifact).toEqual({
+      kind: 'file',
+      format: 'markdown',
+      fileEntryId: '019606a0-0000-7000-8000-000000000301'
+    })
   })
 
-  it('propagates execute() errors and does NOT cleanup (no partial artifacts yet)', async () => {
+  it('propagates execute() errors', async () => {
     preparedExecuteMock.mockRejectedValue(new Error('tesseract crashed'))
     setupCapability({ mode: 'background', execute: preparedExecuteMock })
 
     await expect(backgroundJobHandler.execute(createCtx())).rejects.toThrow('tesseract crashed')
-    expect(cleanupResultsDirMock).not.toHaveBeenCalled()
   })
 
-  it('cleans up partial artifacts when persistResult() throws after execute success', async () => {
+  it('propagates artifact persistence failures after execute success', async () => {
     preparedExecuteMock.mockResolvedValue({ kind: 'markdown', markdownContent: '# hello' })
     persistResultMock.mockRejectedValue(new Error('disk full'))
     setupCapability({ mode: 'background', execute: preparedExecuteMock })
 
     await expect(backgroundJobHandler.execute(createCtx())).rejects.toThrow('disk full')
-    expect(cleanupResultsDirMock).toHaveBeenCalledWith('job-1')
   })
 
   it('throws AbortError when ctx.signal is aborted between execute() and createArtifacts()', async () => {
@@ -194,7 +210,6 @@ describe('backgroundJobHandler.execute', () => {
 
     await expect(backgroundJobHandler.execute(createCtx({ signal: controller.signal }))).rejects.toThrow(/abort/i)
     expect(persistResultMock).not.toHaveBeenCalled()
-    expect(cleanupResultsDirMock).not.toHaveBeenCalled()
   })
 
   it('rejects when handler.mode does not match (drift guard)', async () => {
