@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import type { JobContext } from '@main/core/job/types'
+import { DataApiErrorFactory } from '@shared/data/api'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -135,13 +136,44 @@ describe('contentHashBackfillJobHandler', () => {
     expect(result).toEqual({ total: 1, hashed: 0, skippedOrphan: 0, failedIo: 1 })
     // Surfaced as an error (real IO failure), not a quiet orphan warn.
     expect(ctx.logger.error).toHaveBeenCalledWith(
-      expect.stringContaining('hash failed for a present-looking blob'),
+      expect.stringContaining('blob hash failed (IO/permission)'),
       expect.objectContaining({ id, code: 'EISDIR' })
     )
 
     const e = await fileEntryService.getById(id)
     if (e.origin !== 'internal') throw new Error('expected internal entry')
     expect(e.contentHash).toBeNull()
+  })
+
+  it('treats a concurrent-delete (NOT_FOUND on persist) as a benign skippedOrphan, never failedIo', async () => {
+    const id = '019606a0-0000-7000-8000-0000000000e6'
+    await seedInternal(id, 'bin', new Uint8Array([1, 1, 2]))
+    // Blob hashes fine, but the row is trashed/permanently-deleted between the
+    // keyset page and the update → update() throws NOT_FOUND. This must be a
+    // benign skip with a distinct warn, NOT an `error`-level failedIo.
+    vi.spyOn(fileEntryService, 'update').mockRejectedValueOnce(DataApiErrorFactory.notFound('FileEntry', id))
+
+    const ctx = makeCtx()
+    const result = await contentHashBackfillJobHandler.execute(ctx)
+    expect(result).toEqual({ total: 1, hashed: 0, skippedOrphan: 1, failedIo: 0 })
+    expect(ctx.logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('vanished before persist'),
+      expect.objectContaining({ id })
+    )
+    expect(ctx.logger.error).not.toHaveBeenCalled()
+  })
+
+  it('rethrows an unexpected persist error (SQLITE_BUSY) so the job fails instead of hiding it as failedIo', async () => {
+    const id = '019606a0-0000-7000-8000-0000000000e7'
+    await seedInternal(id, 'bin', new Uint8Array([3, 3, 3]))
+    // A non-DataApiError persist failure (DB contention, a bug) is unexpected:
+    // it must propagate out of execute() (failed job), not be swallowed.
+    const boom = Object.assign(new Error('database is locked'), { code: 'SQLITE_BUSY' })
+    vi.spyOn(fileEntryService, 'update').mockRejectedValueOnce(boom)
+
+    await expect(contentHashBackfillJobHandler.execute(makeCtx())).rejects.toThrow(/database is locked/)
+    // Row stays NULL — it'll be retried on the next backfill run.
+    expect(await fileEntryService.countInternalMissingContentHash()).toBe(1)
   })
 
   it('is a no-op when no internal entry is missing a contentHash', async () => {
