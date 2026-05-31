@@ -35,6 +35,7 @@ import {
 import { toAsarUnpackedPath } from '@main/utils'
 import { autoDiscoverGitBash, getBinaryPath } from '@main/utils/process'
 import { rtkRewrite } from '@main/utils/rtk'
+import { encodeCwdForClaudeProjects } from './utils'
 import getLoginShellEnvironment from '@main/utils/shell-env'
 import {
   CHANNEL_SECURITY_PROMPT,
@@ -671,9 +672,21 @@ class ClaudeCodeService implements AgentServiceInterface {
     }
 
     if (lastAgentSessionId && !NO_RESUME_COMMANDS.some((cmd) => prompt.includes(cmd))) {
-      options.resume = lastAgentSessionId
-      // TODO: use fork session when we support branching sessions
-      // options.forkSession = true
+      const claudeRoot = path.join(app.getPath('userData'), '.claude')
+      const projectDir = path.join(claudeRoot, 'projects', encodeCwdForClaudeProjects(cwd))
+      const sessionFile = path.join(projectDir, `${lastAgentSessionId}.jsonl`)
+      const resumable = await fs.promises
+        .access(sessionFile, fs.constants.R_OK)
+        .then(() => true)
+        .catch(() => false)
+      if (resumable) {
+        options.resume = lastAgentSessionId
+      } else {
+        logger.warn(
+          'Skipping resume — Claude Code session jsonl missing on disk (orphaned agent_session_id). Starting a fresh SDK session.',
+          { sessionId: lastAgentSessionId, cwd, expectedFile: sessionFile }
+        )
+      }
     }
 
     logger.info('Starting Claude Code SDK query', {

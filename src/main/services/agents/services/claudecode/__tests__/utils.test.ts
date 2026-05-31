@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { isCherryInOfficialHost, isDeepSeekOfficialHost, isMiMoOfficialHost, with1mContextSuffix } from '../utils'
+import {
+  encodeCwdForClaudeProjects,
+  isCherryInOfficialHost,
+  isDeepSeekOfficialHost,
+  isMiMoOfficialHost,
+  with1mContextSuffix
+} from '../utils'
 
 describe('isDeepSeekOfficialHost', () => {
   it('matches the canonical DeepSeek Anthropic endpoint', () => {
@@ -150,5 +156,34 @@ describe('with1mContextSuffix', () => {
   it('returns empty string when modelId is missing', () => {
     expect(with1mContextSuffix(undefined, deepSeekHost)).toBe('')
     expect(with1mContextSuffix('', deepSeekHost)).toBe('')
+  })
+})
+
+describe('encodeCwdForClaudeProjects', () => {
+  it('matches SDK project-dir naming for POSIX cwds', () => {
+    expect(encodeCwdForClaudeProjects('/home/alice/.config/CherryStudio/Data/Agents/t-default'))
+      .toBe('-home-alice--config-CherryStudio-Data-Agents-t-default')
+  })
+
+  it('matches SDK convention for Windows-style cwds', () => {
+    expect(
+      encodeCwdForClaudeProjects(
+        'C:\\Users\\Administrator\\AppData\\Roaming\\CherryStudio\\Data\\Agents\\t-default'
+      )
+    ).toBe('C--Users-Administrator-AppData-Roaming-CherryStudio-Data-Agents-t-default')
+  })
+
+  it('encodes nested Windows-in-POSIX residue', () => {
+    expect(
+      encodeCwdForClaudeProjects(
+        '/home/bubu/Downloads/C:/Users/Administrator/AppData/Roaming/CherryStudio/Data/Agents/t-default'
+      )
+    ).toBe(
+      '-home-bubu-Downloads-C--Users-Administrator-AppData-Roaming-CherryStudio-Data-Agents-t-default'
+    )
+  })
+
+  it('preserves alphanumerics, underscores, and existing dashes', () => {
+    expect(encodeCwdForClaudeProjects('plain_dir-name_42')).toBe('plain_dir-name_42')
   })
 })

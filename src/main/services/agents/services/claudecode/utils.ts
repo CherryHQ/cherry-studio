@@ -183,3 +183,12 @@ export function with1mContextSuffix(modelId: string | undefined, anthropicHost: 
 
   return modelId
 }
+
+/**
+ * Encode a cwd path the way Claude Code SDK does for project directories
+ * (`<CLAUDE_CONFIG_DIR>/projects/<encoded-cwd>/<session-id>.jsonl`).
+ * The SDK replaces `/`, `\`, `:`, `.` with `-`.
+ */
+export function encodeCwdForClaudeProjects(cwd: string): string {
+  return cwd.replace(/[/\\:.]/g, '-')
+}
