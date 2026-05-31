@@ -722,7 +722,7 @@ export function getAnthropicReasoningParams(
 
   // Claude reasoning parameters
   if (isSupportedThinkingTokenClaudeModel(model)) {
-    // Claude 4.7: adaptive thinking + native 'xhigh' effort.
+    // Claude 4.7+: adaptive thinking + native 'xhigh' effort.
     // Also requires thinking.display: 'summarized' — API defaults to 'omitted'
     // (no reasoning text in response), which would break Cherry's thinking UI.
     if (isClaude47SeriesModel(model)) {
@@ -1005,8 +1005,8 @@ export function getBedrockReasoningParams(
     return {}
   }
 
-  // Claude 4.6 / 4.7 use adaptive thinking + maxReasoningEffort.
-  // Bedrock's maxReasoningEffort enum doesn't yet include 'xhigh', so 4.7 xhigh
+  // Claude 4.6 / 4.7+ use adaptive thinking + maxReasoningEffort.
+  // Bedrock's maxReasoningEffort enum doesn't yet include 'xhigh', so 4.7+ xhigh
   // falls back to 'max' here (matches the 4.6 mapping).
   if (isClaude46SeriesModel(model) || isClaude47SeriesModel(model)) {
     const effortMap = {
