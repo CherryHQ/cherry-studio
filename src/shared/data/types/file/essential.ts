@@ -73,3 +73,23 @@ export const CONTENT_HASH_PATTERN = /^([a-z0-9]+(?:-[a-z0-9]+)*):([0-9a-f]+)$/
 export const ContentHashSchema = z
   .string()
   .regex(CONTENT_HASH_PATTERN, 'contentHash must be `{algo}:{hex}` (e.g. "xxh3-64:…")')
+  .brand<'ContentHash'>()
+
+/**
+ * A `{algo}:{hex}` content hash that reached this type through the sanctioned
+ * path — never an arbitrary `string`. It is minted only by:
+ *   - the main-process hasher (`format` / `hashContent` / `createContentHasher`
+ *     / `fs.hash` in `@main/utils/file/contentHash` + `@main/utils/file/fs`),
+ *     trusted at compile time as the single producer, and
+ *   - `ContentHashSchema.parse()` at a runtime boundary (e.g. a renderer-supplied
+ *     value validated in the File IPC handler).
+ *
+ * The brand makes "an untagged bare-hex digest / a non-canonical hash / an
+ * unrelated string" a compile error at every DB write + detection-query surface
+ * (`CreateFileEntryRow.contentHash`, `UpdateFileEntryRow.contentHash`,
+ * `FileEntryService.findInternalByContentHash`). It is a TypeScript-only phantom
+ * brand: zero runtime cost and zero wire cost — erased to a plain string in
+ * SQLite and over IPC. Tests/fixtures may cast a known-canonical literal with
+ * `'xxh3-64:…' as ContentHash`.
+ */
+export type ContentHash = z.infer<typeof ContentHashSchema>

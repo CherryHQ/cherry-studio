@@ -21,7 +21,13 @@
 import { application } from '@application'
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { DataApiErrorFactory } from '@shared/data/api'
-import type { CanonicalExternalPath, FileEntry, FileEntryId, FileEntryOrigin } from '@shared/data/types/file'
+import type {
+  CanonicalExternalPath,
+  ContentHash,
+  FileEntry,
+  FileEntryId,
+  FileEntryOrigin
+} from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntrySchema, SafeNameSchema } from '@shared/data/types/file'
 import { and, asc, count, desc, eq, gt, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
 import { v7 as uuidv7 } from 'uuid'
@@ -45,7 +51,7 @@ export interface CreateFileEntryRow {
    * pipeline always supply it; v1-migrated rows omit it (backfilled later).
    * Must stay `null` for external rows (enforced by `fe_contenthash_external_null`).
    */
-  readonly contentHash?: string | null
+  readonly contentHash?: ContentHash | null
   /** Non-null iff `origin === 'external'`; must be pre-canonicalized. */
   readonly externalPath: string | null
   readonly deletedAt?: number | null
@@ -140,7 +146,7 @@ export interface FileEntryService {
    * `contentHash`); trashed entries are excluded (only active entries are
    * reuse targets). Returns `[]` on no match.
    */
-  findInternalByContentHash(contentHash: string): Promise<FileEntry[]>
+  findInternalByContentHash(contentHash: ContentHash): Promise<FileEntry[]>
 
   /**
    * Count of internal entries still missing a `contentHash` — the backfill work
@@ -307,7 +313,7 @@ class FileEntryServiceImpl implements FileEntryService {
     return rows.map(rowToFileEntry)
   }
 
-  async findInternalByContentHash(contentHash: string): Promise<FileEntry[]> {
+  async findInternalByContentHash(contentHash: ContentHash): Promise<FileEntry[]> {
     const rows = await this.getDb()
       .select()
       .from(fileEntryTable)

@@ -138,7 +138,7 @@ import { orphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry
 import { remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
-import { ContentHashSchema, SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
+import { type ContentHash, ContentHashSchema, SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
 import type {
   BatchCreateResult,
   BatchMutationResult,
@@ -875,7 +875,7 @@ export class FileManager extends BaseService implements IFileManager {
    * `FileEntryService.findInternalByContentHash`). The reuse-vs-create decision
    * is the consumer's; this only surfaces candidates.
    */
-  async findInternalByContentHash(contentHash: string): Promise<FileEntry[]> {
+  async findInternalByContentHash(contentHash: ContentHash): Promise<FileEntry[]> {
     return this.deps.fileEntryService.findInternalByContentHash(contentHash)
   }
 

@@ -2,6 +2,7 @@ import { fileEntryService } from '@data/services/FileEntryService'
 import type { JobHandler } from '@main/core/job/types'
 import { hash as fsHash } from '@main/utils/file/fs'
 import { ErrorCode, isDataApiError } from '@shared/data/api'
+import type { ContentHash } from '@shared/data/types/file'
 
 import { resolvePhysicalPath } from '../utils/pathResolver'
 
@@ -88,7 +89,7 @@ export const contentHashBackfillJobHandler: JobHandler<Record<string, never>> = 
         // a non-FS error (e.g. from the persist below) can never be mislabeled as
         // a blob IO failure. ENOENT/ENOTDIR = expected orphan; any other errno =
         // real IO/permission failure. Either leaves the row NULL for a future run.
-        let contentHash: string
+        let contentHash: ContentHash
         try {
           // Same path resolution + streaming hash as the write path, producing
           // the canonical `{algo}:{hex}` value the column expects.

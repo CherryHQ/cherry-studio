@@ -23,7 +23,7 @@ import {
   remove as fsRemove,
   stat as fsStat
 } from '@main/utils/file/fs'
-import type { FileEntry } from '@shared/data/types/file'
+import { type ContentHash, ContentHashSchema, type FileEntry } from '@shared/data/types/file'
 import type { FilePath } from '@shared/file/types'
 import mime from 'mime'
 import { v7 as uuidv7 } from 'uuid'
@@ -156,14 +156,21 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
   const physical = application.getPath('feature.files.data', filename) as FilePath
   await source.writeTo(physical)
   let stats
-  let contentHash: string
+  let contentHash: ContentHash
   try {
     stats = await fsStat(physical)
     // Content-dedup detection substrate. Prefer a caller-supplied hash (a
-    // detect-first consumer already hashed the source); otherwise hash the
-    // in-memory bytes one-shot (zero extra IO) for resident sources, or read
-    // the just-written file back for streaming sources (page-cache warm).
-    contentHash = params.contentHash ?? (source.bytes !== null ? hashContent(source.bytes) : await hash(physical))
+    // detect-first consumer already hashed the source) — validate+brand it via
+    // ContentHashSchema, as it arrives as a plain string across the IPC boundary
+    // (and this doubles as the pre-persist guard). Otherwise hash the in-memory
+    // bytes one-shot (zero extra IO) for resident sources, or read the
+    // just-written file back for streaming sources (page-cache warm).
+    contentHash =
+      params.contentHash !== undefined
+        ? ContentHashSchema.parse(params.contentHash)
+        : source.bytes !== null
+          ? hashContent(source.bytes)
+          : await hash(physical)
   } catch (err) {
     await bestEffortCleanup(physical, 'createInternal:stat-or-hash-failed')
     throw err

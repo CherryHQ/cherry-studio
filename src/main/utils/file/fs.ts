@@ -42,6 +42,7 @@ import path from 'node:path'
 import { Writable } from 'node:stream'
 
 import { loggerService } from '@logger'
+import type { ContentHash } from '@shared/data/types/file'
 import type { FilePath } from '@shared/file/types'
 import mime from 'mime'
 
@@ -553,7 +554,7 @@ export async function download(url: string, dest: FilePath): Promise<void> {
  * Chunks are fed straight in: a `Buffer` is a `Uint8Array`, so the hasher
  * consumes it without the per-chunk copy the old WASM loop required.
  */
-export async function hash(path: FilePath): Promise<string> {
+export async function hash(path: FilePath): Promise<ContentHash> {
   const hasher = createContentHasher()
   const stream = createReadStream(path)
   for await (const chunk of stream) {

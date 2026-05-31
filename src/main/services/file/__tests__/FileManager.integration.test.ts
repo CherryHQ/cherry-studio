@@ -6,7 +6,7 @@ import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { BaseService } from '@main/core/lifecycle'
 import type { FileEntryId } from '@shared/data/types/file'
-import { ContentHashSchema } from '@shared/data/types/file/essential'
+import { type ContentHash, ContentHashSchema } from '@shared/data/types/file/essential'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -610,7 +610,7 @@ describe('FileManager (integration)', () => {
       // contentHash (the detect-first path persists it verbatim — see
       // create.test.ts "honors a caller-supplied contentHash"). contentHash is
       // a NON-unique detection substrate, so both rows are legitimate candidates.
-      const sharedHash = 'xxh3-64:1111222233334444'
+      const sharedHash = 'xxh3-64:1111222233334444' as ContentHash
       const first = await fm.createInternalEntry({
         source: 'bytes',
         data: new Uint8Array([0x10]),
@@ -642,7 +642,7 @@ describe('FileManager (integration)', () => {
         contentHash: 'xxh3-64:9999888877776666'
       })
 
-      const found = await fm.findInternalByContentHash('xxh3-64:0000000000000000')
+      const found = await fm.findInternalByContentHash('xxh3-64:0000000000000000' as ContentHash)
 
       expect(found).toEqual([])
     })

@@ -1,6 +1,6 @@
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { DataApiError, ErrorCode } from '@shared/data/api'
-import type { CanonicalExternalPath, FileEntryId } from '@shared/data/types/file'
+import type { CanonicalExternalPath, ContentHash, FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
@@ -205,7 +205,7 @@ describe('FileEntryService', () => {
   })
 
   describe('findInternalByContentHash', () => {
-    const HASH = 'xxh3-64:1111222233334444'
+    const HASH = 'xxh3-64:1111222233334444' as ContentHash
 
     it('returns active internal entries sharing the hash, oldest-first (non-unique)', async () => {
       // Two internal entries with identical content (same hash, different names) —
@@ -242,7 +242,7 @@ describe('FileEntryService', () => {
         name: 'other',
         ext: null,
         size: 1,
-        contentHash: 'xxh3-64:deadbeefdeadbeef',
+        contentHash: 'xxh3-64:deadbeefdeadbeef' as ContentHash,
         externalPath: null
       })
       expect(await fileEntryService.findInternalByContentHash(HASH)).toEqual([])
@@ -294,7 +294,7 @@ describe('FileEntryService', () => {
         name: 'c',
         ext: 'bin',
         size: 1,
-        contentHash: 'xxh3-64:1111222233334444',
+        contentHash: 'xxh3-64:1111222233334444' as ContentHash,
         externalPath: null
       })
       // external → excluded (never carries a contentHash)

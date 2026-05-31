@@ -17,7 +17,7 @@
  */
 
 import { xxh3 } from '@node-rs/xxhash'
-import { CONTENT_HASH_PATTERN } from '@shared/data/types/file/essential'
+import { CONTENT_HASH_PATTERN, type ContentHash } from '@shared/data/types/file/essential'
 
 /** Algorithm tag prefixing every stored content hash (`{CONTENT_HASH_ALGO}:{hex}`). */
 export const CONTENT_HASH_ALGO = 'xxh3-64'
@@ -26,15 +26,20 @@ export const CONTENT_HASH_ALGO = 'xxh3-64'
 export interface ContentHasher {
   /** Feed the next chunk. Buffers are accepted zero-copy (Buffer ⊂ Uint8Array). */
   update(chunk: Uint8Array | string): void
-  /** Finalize to the `{algo}:{hex}` contract string. */
-  digest(): string
+  /** Finalize to the branded `{algo}:{hex}` contract value. */
+  digest(): ContentHash
 }
 
 const SEED = 0n
 
-/** 64-bit digest → algorithm-tagged, fixed-width 16-char lowercase hex. */
-function format(digest: bigint): string {
-  return `${CONTENT_HASH_ALGO}:${digest.toString(16).padStart(16, '0')}`
+/**
+ * 64-bit digest → algorithm-tagged, fixed-width 16-char lowercase hex. The lone
+ * sanctioned mint site for the `ContentHash` brand (mirrors
+ * `canonicalizeExternalPath` for `CanonicalExternalPath`): the value is, by
+ * construction, the canonical `{algo}:{hex}` form, so the `as` cast is sound.
+ */
+function format(digest: bigint): ContentHash {
+  return `${CONTENT_HASH_ALGO}:${digest.toString(16).padStart(16, '0')}` as ContentHash
 }
 
 /**
@@ -45,7 +50,7 @@ function format(digest: bigint): string {
  * matching `Buffer.from(str)` — so identical content hashed as a string or as
  * bytes yields the same value.
  */
-export function hashContent(data: Uint8Array | string): string {
+export function hashContent(data: Uint8Array | string): ContentHash {
   return format(xxh3.xxh64(data, SEED))
 }
 
