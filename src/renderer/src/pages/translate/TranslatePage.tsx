@@ -1,6 +1,7 @@
 import { PlusOutlined, SendOutlined, SwapOutlined } from '@ant-design/icons'
 import { loggerService } from '@logger'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
+import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { CopyIcon } from '@renderer/components/Icons'
 import LanguageSelect from '@renderer/components/LanguageSelect'
 import ModelSelectButton from '@renderer/components/ModelSelectButton'
@@ -702,15 +703,16 @@ const TranslatePage: FC = () => {
     [getSingleFile, isProcessing, processFile, t]
   )
   return (
-    <Container
-      id="translate-page"
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}
-      onDrop={preventDrop}>
-      <Navbar>
-        <NavbarCenter style={{ borderRight: 'none', gap: 10 }}>{t('translate.title')}</NavbarCenter>
-      </Navbar>
+    <ErrorBoundary>
+      <Container
+        id="translate-page"
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={preventDrop}>
+        <Navbar>
+          <NavbarCenter style={{ borderRight: 'none', gap: 10 }}>{t('translate.title')}</NavbarCenter>
+        </Navbar>
       <ContentContainer id="content-container" ref={contentContainerRef} $historyDrawerVisible={historyDrawerVisible}>
         <TranslateHistoryList
           onHistoryItemClick={onHistoryItemClick}
@@ -856,7 +858,8 @@ const TranslatePage: FC = () => {
         autoDetectionMethod={autoDetectionMethod}
         setAutoDetectionMethod={updateAutoDetectionMethod}
       />
-    </Container>
+      </Container>
+    </ErrorBoundary>
   )
 }
 
