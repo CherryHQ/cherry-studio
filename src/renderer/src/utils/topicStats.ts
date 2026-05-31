@@ -1,7 +1,6 @@
 import db from '@renderer/databases'
 import store from '@renderer/store'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
-import { MessageBlockType } from '@renderer/types/newMessage'
 
 export interface ModelStats {
   modelId: string
@@ -111,8 +110,11 @@ function extractTextContent(message: Message, blocksMap: Map<string, MessageBloc
   const parts: string[] = []
   for (const blockId of message.blocks) {
     const block = blocksMap.get(blockId)
-    if (block && block.type === MessageBlockType.MAIN_TEXT) {
-      parts.push(block.content || '')
+    if (!block) continue
+    // Count MAIN_TEXT, THINKING, CODE, and any block type with content
+    const content = (block as any).content
+    if (content && typeof content === 'string') {
+      parts.push(content)
     }
   }
   return parts.join('\n\n')

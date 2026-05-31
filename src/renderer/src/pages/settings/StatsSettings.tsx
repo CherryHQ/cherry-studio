@@ -124,8 +124,16 @@ const MSearch = styled.input` background: var(--color-background-soft); border: 
 
 // ─── Heatmap ────────────────────────────────────────────────────────────────
 
-// Less→More: light→dark (GitHub-style green ramp)
-const HM_COLORS = ['var(--color-background-soft)', '#9be9a8', '#40c463', '#30a14e', '#216e39']
+// Continuous color: interpolate between light green (1 msg) and dark green (max msg)
+function heatColor(count: number, max: number): string {
+  if (count === 0) return 'var(--color-background-soft)'
+  const r = Math.max(0, Math.min(1, Math.log(count + 1) / Math.log(max + 1)))
+  // light green #9be9a8 → dark green #216e39
+  const R = Math.round(155 + (33 - 155) * r)
+  const G = Math.round(233 + (110 - 233) * r)
+  const B = Math.round(168 + (57 - 168) * r)
+  return `rgb(${R},${G},${B})`
+}
 
 function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
   const [tip, setTip] = useState<{ x: number; y: number; text: string } | null>(null)
@@ -168,7 +176,6 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
     if (lm >= 0) ms.push({ l: mn[lm], wi })
     return { weeks: aw, markers: ms, maxC: mx || 1 }
   }, [um])
-  const lvl = (c: number) => (c === 0 ? 0 : c <= maxC * 0.25 ? 1 : c <= maxC * 0.5 ? 2 : c <= maxC * 0.75 ? 3 : 4)
   if (weeks.length === 0) return null
   const wm = new Map<number, string>()
   for (const m of markers) wm.set(m.wi, m.l)
@@ -195,7 +202,6 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
         {weeks.map((wk, wi) => (
           <div key={wi} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
             {wk.map((dy, di) => {
-              const l = lvl(dy.c)
               return (
                 <div
                   key={di}
@@ -213,7 +219,7 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
                     borderRadius: 2,
                     flexShrink: 0,
                     cursor: dy.c > 0 ? 'pointer' : 'default',
-                    background: HM_COLORS[l]
+                    background: heatColor(dy.c, maxC)
                   }}
                 />
               )
@@ -253,7 +259,17 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
         }}>
         Less{' '}
         {[0, 1, 2, 3, 4].map((l) => (
-          <div key={l} style={{ width: 12, height: 12, borderRadius: 2, flexShrink: 0, background: HM_COLORS[l] }} />
+          <div
+            key={l}
+            style={{
+              width: 12,
+              height: 12,
+              borderRadius: 2,
+              flexShrink: 0,
+              background:
+                l === 0 ? 'var(--color-background-soft)' : heatColor(l === 4 ? maxC : Math.ceil((maxC * l) / 4), maxC)
+            }}
+          />
         ))}{' '}
         More
       </div>
@@ -268,6 +284,7 @@ function ModelUsageSection({ stats }: { stats: ModelStats[] }) {
   const [q, setQ] = useState('')
   const [sb, setSb] = useState<'tokens' | 'messages' | 'speed'>('tokens')
   const [pf, setPf] = useState('all')
+  const [lim, setLim] = useState(10)
   const provs = useMemo(() => {
     const s = new Set<string>()
     for (const m of stats) s.add(fmtProvider(m.provider))
@@ -287,8 +304,8 @@ function ModelUsageSection({ stats }: { stats: ModelStats[] }) {
           ? b.messageCount - a.messageCount
           : b.avgTokensPerSecond - a.avgTokensPerSecond
     )
-    return l
-  }, [stats, q, sb, pf])
+    return l.slice(0, lim)
+  }, [stats, q, sb, pf, lim])
   const maxT = list[0]?.totalTokens || 1
   return (
     <>
@@ -311,6 +328,17 @@ function ModelUsageSection({ stats }: { stats: ModelStats[] }) {
             { value: 'tokens', label: t('stats.model_sort_tokens') },
             { value: 'messages', label: t('stats.model_sort_messages') },
             { value: 'speed', label: t('stats.model_sort_speed') }
+          ]}
+        />
+        <Select
+          size="small"
+          value={lim}
+          onChange={setLim}
+          options={[
+            { value: 10, label: '10' },
+            { value: 20, label: '20' },
+            { value: 50, label: '50' },
+            { value: 100, label: '100' }
           ]}
         />
       </MFilter>
@@ -439,16 +467,6 @@ function StatsDisplay({ stats }: { stats: TopicStats }) {
               {t('stats.performance')}
             </span>
           </SettingTitle>
-          <SettingDivider />
-          <SettingRow>
-            <SettingRowTitle>
-              <Zap size={13} style={{ marginRight: 6 }} />
-              {t('stats.avg_first_token')}
-            </SettingRowTitle>
-            <strong style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-              {fmtLatency(stats.avgFirstTokenLatency)}
-            </strong>
-          </SettingRow>
           <SettingDivider />
           <SettingRow>
             <SettingRowTitle>

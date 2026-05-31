@@ -5878,7 +5878,7 @@
     "messages": "消息数",
     "mode_global": "全局",
     "mode_topic": "当前话题",
-    "model_filter_all": "全部模型",
+    "model_filter_all": "全部提供商",
     "model_name": "模型名称",
     "model_sort_messages": "按消息数",
     "model_sort_speed": "按速度",

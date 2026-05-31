@@ -2,7 +2,7 @@ import { TopView } from '@renderer/components/TopView'
 import type { TopicStats } from '@renderer/utils/topicStats'
 import { computeTopicStatsFromDB } from '@renderer/utils/topicStats'
 import { Modal as AntdModal, Spin } from 'antd'
-import { BarChart3, Bot, Clock, Cpu, FileText, Gauge, Hash, MessageSquare, Type, Zap } from 'lucide-react'
+import { BarChart3, Bot, Cpu, FileText, Gauge, Hash, MessageSquare, Type, Zap } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -54,28 +54,6 @@ function fmtProvider(p: string): string {
   }
   return m[p] || p
 }
-function fmtDurationCoarse(ms: number, t: (k: string) => string): string {
-  if (ms <= 0) return '—'
-  if (ms < 60_000) return `<1${t('stats.duration_m')}`
-  let r = Math.floor(ms / 1000)
-  const p: string[] = []
-  const d = Math.floor(r / 86400)
-  if (d > 0) {
-    p.push(`${d}${t('stats.duration_d')}`)
-    r %= 86400
-  }
-  const h = Math.floor(r / 3600)
-  if (h > 0) {
-    p.push(`${h}${t('stats.duration_h')}`)
-    r %= 3600
-  }
-  const m = Math.floor(r / 60)
-  if (m > 0) {
-    p.push(`${m}${t('stats.duration_m')}`)
-  }
-  return p.join(' ') || `<1${t('stats.duration_m')}`
-}
-
 // ─── Colors ─────────────────────────────────────────────────────────────────
 
 const CC = { input: '#6366f1', output: '#10b981', thinking: '#a855f7' }
@@ -185,13 +163,6 @@ const TopicStatsPanel: React.FC<Props> = ({ topicId, topicName, resolve }) => {
             {t('stats.avg_first_token')}
           </RL>
           <RV>{fmtLatency(stats.avgFirstTokenLatency)}</RV>
-        </Row>
-        <Row>
-          <RL>
-            <Clock size={12} />
-            {t('stats.duration')}
-          </RL>
-          <RV>{fmtDurationCoarse(stats.durationMs, t)}</RV>
         </Row>
         <Row>
           <RL>
