@@ -49,7 +49,7 @@ vi.mock('@renderer/hooks/useRuntime', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useSettings', () => ({
+vi.mock('../useSettings', () => ({
   useSettings: () => ({ maxKeepAliveMinapps: 10 }),
   useNavbarPosition: () => ({ isTopNavbar: true })
 }))
@@ -64,14 +64,19 @@ const testApp: MinAppType = {
 }
 
 describe('useMinappPopup - disposeAfter reentry regression (issue #15405)', () => {
+  let result: { current: ReturnType<typeof useMinappPopup> }
+
   beforeEach(() => {
+    // Clear module-level cache before mocks so disposeAfter side-effects
+    // (queueMicrotask dispatch) are consumed and then discarded.
+    const hook = renderHook(() => useMinappPopup())
+    hook.result.current.minAppsCache.clear()
     vi.clearAllMocks()
     mockGetTabs.mockReturnValue([{ id: 'apps:test-app', path: '/apps/test-app' }])
+    result = renderHook(() => useMinappPopup()).result
   })
 
   it('disposeAfter does NOT call TabsService.closeTab when cache entry is deleted', () => {
-    const { result } = renderHook(() => useMinappPopup())
-
     // Insert then delete to trigger disposeAfter
     act(() => {
       result.current.minAppsCache.set(testApp.id, testApp)
@@ -86,8 +91,6 @@ describe('useMinappPopup - disposeAfter reentry regression (issue #15405)', () =
   })
 
   it('onInsert dispatches setOpenedKeepAliveMinapps synchronously', () => {
-    const { result } = renderHook(() => useMinappPopup())
-
     act(() => {
       result.current.minAppsCache.set(testApp.id, testApp)
     })
@@ -99,8 +102,6 @@ describe('useMinappPopup - disposeAfter reentry regression (issue #15405)', () =
   })
 
   it('disposeAfter dispatches setOpenedKeepAliveMinapps via microtask', async () => {
-    const { result } = renderHook(() => useMinappPopup())
-
     act(() => {
       result.current.minAppsCache.set(testApp.id, testApp)
     })
@@ -112,25 +113,33 @@ describe('useMinappPopup - disposeAfter reentry regression (issue #15405)', () =
       result.current.minAppsCache.delete(testApp.id)
     })
 
+    // Assert: dispatch has NOT happened synchronously inside delete
+    const syncCalls = mockDispatch.mock.calls.map((call: any[]) => call[0])
+    const syncListActions = syncCalls.filter((action: any) => action?.type === 'runtime/setOpenedKeepAliveMinapps')
+    expect(syncListActions.length).toBe(0)
+
     // Wait for queueMicrotask to flush
     await act(async () => {
       await new Promise<void>((resolve) => queueMicrotask(resolve))
     })
 
     const dispatchedActions = mockDispatch.mock.calls.map((call: any[]) => call[0])
-    const syncActions = dispatchedActions.filter((action: any) => action?.type === 'runtime/setOpenedKeepAliveMinapps')
-    expect(syncActions.length).toBeGreaterThanOrEqual(1)
+    const asyncActions = dispatchedActions.filter((action: any) => action?.type === 'runtime/setOpenedKeepAliveMinapps')
+    expect(asyncActions.length).toBeGreaterThanOrEqual(1)
   })
 })
 
 describe('useMinappPopup - keep-alive idempotent cache writes (issue #15405)', () => {
+  let result: { current: ReturnType<typeof useMinappPopup> }
+
   beforeEach(() => {
+    const hook = renderHook(() => useMinappPopup())
+    hook.result.current.minAppsCache.clear()
     vi.clearAllMocks()
+    result = renderHook(() => useMinappPopup()).result
   })
 
   it('repeated openMinappKeepAlive does not re-dispatch setOpenedKeepAliveMinapps', () => {
-    const { result } = renderHook(() => useMinappPopup())
-
     // First open — should dispatch setOpenedKeepAliveMinapps via onInsert
     act(() => {
       result.current.openMinappKeepAlive(testApp)
@@ -162,8 +171,6 @@ describe('useMinappPopup - keep-alive idempotent cache writes (issue #15405)', (
   })
 
   it('opens minapp with changed URL still refreshes cache and dispatches opened list', () => {
-    const { result } = renderHook(() => useMinappPopup())
-
     // First open
     act(() => {
       result.current.openMinappKeepAlive(testApp)
@@ -189,6 +196,10 @@ describe('useMinappPopup - keep-alive idempotent cache writes (issue #15405)', (
 
   it('openMinappKeepAlive callback stays stable across rerenders', () => {
     const { result, rerender } = renderHook(() => useMinappPopup())
+    // Ensure clean cache for this isolated render
+    result.current.minAppsCache.clear()
+    vi.clearAllMocks()
+
     const firstRef = result.current.openMinappKeepAlive
 
     // Rerender — dependency is only [dispatch] now, so callback should stay the same
