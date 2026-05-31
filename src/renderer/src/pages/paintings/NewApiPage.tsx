@@ -48,16 +48,6 @@ import { checkProviderEnabled, findPaintingByFiles } from './utils'
 
 const logger = loggerService.withContext('NewApiPage')
 
-const CHERRYIN_HOSTS = new Set(['open.cherryin.ai', 'open.cherryin.cc', 'open.cherryin.dev', 'open.cherryin.net'])
-
-const isCherryInProvider = (apiHost: string) => {
-  try {
-    return CHERRYIN_HOSTS.has(new URL(apiHost).hostname)
-  } catch {
-    return false
-  }
-}
-
 const readFileAsDataUrl = (file: File): Promise<string> =>
   new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -336,7 +326,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       editUrl = newApiProvider.apiHost.replace(/\/v1$/, '') + `/openai/v1/images/edits`
     }
     const shouldUseGenerationForEdit =
-      isCherryInProvider(newApiProvider.apiHost) &&
+      newApiProvider.apiHost.toLowerCase().includes('cherryin') &&
       mode === 'openai_image_edit' &&
       painting.model.toLowerCase().includes('qwen')
     const shouldUseGenerationEndpoint = mode === 'openai_image_generate' || shouldUseGenerationForEdit
