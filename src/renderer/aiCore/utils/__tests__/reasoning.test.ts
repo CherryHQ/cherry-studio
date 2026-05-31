@@ -1014,6 +1014,31 @@ describe('reasoning utils', () => {
       })
     })
 
+    it('should use adaptive thinking with native effort for Claude Opus 4.8 (regression: #15412)', async () => {
+      const { isReasoningModel, isSupportedThinkingTokenClaudeModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'claude-opus-4-8',
+        name: 'Claude Opus 4.8',
+        provider: SystemProviderIds.anthropic
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: { reasoning_effort: 'low' }
+      } as Assistant
+
+      const result = getAnthropicReasoningParams(assistant, model)
+      expect(result).toEqual({
+        thinking: { type: 'adaptive', display: 'summarized' },
+        effort: 'low'
+      })
+    })
+
     it('should use fallback budgetTokens when findTokenLimit returns undefined for Claude model', async () => {
       const { isReasoningModel, isSupportedThinkingTokenClaudeModel, findTokenLimit } = await import(
         '@renderer/config/models'

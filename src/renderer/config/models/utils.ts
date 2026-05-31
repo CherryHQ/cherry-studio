@@ -432,14 +432,21 @@ export function isClaude46SeriesModel(model: Model | undefined | null): boolean 
 }
 
 /**
- * Check if the model is Claude Opus 4.7.
- * 4.7 rejects temperature/top_p/top_k and natively supports xhigh reasoning effort.
+ * Check if the model is Claude Opus 4.7 or later (4.7, 4.8, ...).
+ * Starting with Opus 4.7, Anthropic switched to adaptive thinking with an output
+ * effort config: these models reject temperature/top_p/top_k, natively support the
+ * 'xhigh' reasoning effort, and reject `thinking.type: 'enabled'` (must use
+ * `thinking.type: 'adaptive'` + effort). This is treated as a long-term Anthropic
+ * direction, so the matcher covers the whole 4.7+ minor-version range rather than a
+ * single hardcoded version.
  */
-export function isClaude47SeriesModel(model: Model | undefined | null): boolean {
+export function isClaudeOpus47PlusModel(model: Model | undefined | null): boolean {
   if (!model) {
     return false
   }
   const modelId = getLowerBaseModelName(model.id, '/')
-  const regex = /(?:anthropic\.)?claude-opus-4[.-]7(?:[@\-:][\w\-:]+)?$/i
+  // Matches Opus minor version >= 7: single digit 7-9, or any two-or-more digit
+  // minor (10, 11, ...). Excludes 4.6 and below.
+  const regex = /(?:anthropic\.)?claude-opus-4[.-](?:[7-9]|\d{2,})(?:[@\-:][\w\-:]+)?$/i
   return regex.test(modelId)
 }
