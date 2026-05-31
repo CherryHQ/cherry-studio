@@ -47,7 +47,7 @@ const initialState = messageBlocksAdapter.getInitialState({
 })
 
 // 3. 创建 Slice
-// @ts-ignore ignore
+// @ts-expect-error complex generic inference from createSlice
 export const messageBlocksSlice = createSlice({
   name: 'messageBlocks',
   initialState,
