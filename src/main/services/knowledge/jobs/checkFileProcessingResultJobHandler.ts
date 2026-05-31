@@ -17,9 +17,11 @@ import type { KnowledgeLockManager } from '../KnowledgeLockManager'
 import type { KnowledgeWorkflowService } from '../KnowledgeWorkflowService'
 import { knowledgeQueueName, toKnowledgeBaseId, toKnowledgeItemId } from '../types'
 import type { KnowledgeCheckFileProcessingResultPayload } from './jobTypes'
+import { cancelJobOrThrow } from './utils/cancel'
 import { isDataApiNotFoundError, markKnowledgeItemFailedOnSettled } from './utils/settled'
 
 const logger = loggerService.withContext('Knowledge:CheckFileProcessingResultJobHandler')
+// Remote document processors can be slow, but a stale paid job should not poll forever.
 const FILE_PROCESSING_MAX_WAIT_MS = 30 * 60 * 1000
 const FILE_PROCESSING_ITEM_UNAVAILABLE_CANCEL_REASON = 'knowledge-file-processing-item-unavailable'
 
@@ -43,6 +45,7 @@ export function createCheckFileProcessingResultJobHandler(
       const { baseId, itemId, fileProcessingJobId } = ctx.input
       const sourceFileEntryId = FileEntryIdSchema.parse(ctx.input.sourceFileEntryId)
       const firstScheduledAt = ctx.input.firstScheduledAt
+      const workflowParentJobId = ctx.input.parentJobId ?? ctx.jobId
       ctx.signal.throwIfAborted()
 
       if (await shouldSkipMissingOrDeletingItem(baseId, itemId, ctx.jobId)) {
@@ -82,7 +85,7 @@ export function createCheckFileProcessingResultJobHandler(
           {
             pollRound: nextPollRound,
             firstScheduledAt,
-            parentJobId: ctx.input.parentJobId ?? ctx.jobId
+            parentJobId: workflowParentJobId
           }
         )
         reportWaitingProgress(ctx, fileProcessingJobId, nextPollRound)
@@ -115,7 +118,7 @@ export function createCheckFileProcessingResultJobHandler(
           toKnowledgeBaseId(baseId),
           toKnowledgeItemId(itemId),
           processedFileEntryId,
-          ctx.input.parentJobId ?? ctx.jobId
+          workflowParentJobId
         )
         return true
       })
@@ -142,7 +145,7 @@ function reportWaitingProgress(
 ): void {
   const childProgress = application.get('CacheService').getShared(`${JOB_PROGRESS_KEY_PREFIX}${fileProcessingJobId}`)
   if (!childProgress) {
-    ctx.reportProgress(100, { stage: 'waiting', pollRound })
+    ctx.reportProgress(0, { stage: 'waiting', pollRound })
     return
   }
 
@@ -155,15 +158,7 @@ function reportWaitingProgress(
 }
 
 async function cancelFileProcessingJob(fileProcessingJobId: string, reason: string): Promise<void> {
-  try {
-    await application.get('JobManager').cancel(fileProcessingJobId, reason)
-  } catch (error) {
-    logger.warn('Failed to cancel file-processing job for knowledge item', {
-      fileProcessingJobId,
-      reason,
-      error: error instanceof Error ? error.message : String(error)
-    })
-  }
+  await cancelJobOrThrow(fileProcessingJobId, reason)
 }
 
 function isExpectedFileProcessingJob(snapshot: JobSnapshot, sourceFileEntryId: FileEntryId): boolean {
@@ -205,11 +200,13 @@ async function markItemFailed(itemId: string, error: string): Promise<void> {
   try {
     const item = await knowledgeItemService.getById(itemId)
     if (item.status === 'deleting') {
+      logger.info('Skipping mark failed for deleting item', { itemId, error })
       return
     }
     await knowledgeItemService.updateStatus(itemId, 'failed', { error })
   } catch (updateError) {
     if (isDataApiNotFoundError(updateError)) {
+      logger.info('Skipping mark failed for missing item', { itemId, error })
       return
     }
     throw updateError

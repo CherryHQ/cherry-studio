@@ -11,8 +11,12 @@ vi.mock('../MarkdownResultStore', () => ({
   markdownResultStore: { persistResult: persistResultMock }
 }))
 
-const { createFileProcessingJobOutput, getFileProcessingFailureMessage, getFileProcessingMarkdownArtifactFileEntryId } =
-  await import('../artifacts')
+const {
+  createFileProcessingJobOutput,
+  getFileProcessingFailureMessage,
+  getFileProcessingMarkdownArtifactFileEntryId,
+  isMarkdownFileArtifact
+} = await import('../artifacts')
 
 function createCtx(
   overrides: Partial<JobContext<FileProcessingJobPayload>> = {}
@@ -112,6 +116,19 @@ describe('getFileProcessingMarkdownArtifactFileEntryId', () => {
         }
       } as never)
     ).toThrow()
+  })
+})
+
+describe('isMarkdownFileArtifact', () => {
+  it('identifies markdown file artifacts', () => {
+    expect(
+      isMarkdownFileArtifact({
+        kind: 'file',
+        format: 'markdown',
+        fileEntryId: '019606a0-0000-7000-8000-000000000401'
+      })
+    ).toBe(true)
+    expect(isMarkdownFileArtifact({ kind: 'text', format: 'plain', text: 'hello' })).toBe(false)
   })
 })
 

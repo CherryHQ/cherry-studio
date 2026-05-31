@@ -34,7 +34,7 @@ describe('delete-subtree job handler', () => {
       createJobSnapshot({
         id: 'index-job',
         type: 'knowledge.index-documents',
-        input: { baseId: 'kb-1', itemId: 'note-1' }
+        input: { baseId: 'kb-1', itemId: 'note-1', parentJobId: null }
       }),
       createJobSnapshot({
         id: 'check-job',
@@ -52,7 +52,7 @@ describe('delete-subtree job handler', () => {
       createJobSnapshot({
         id: 'unrelated-job',
         type: 'knowledge.index-documents',
-        input: { baseId: 'kb-1', itemId: 'other' }
+        input: { baseId: 'kb-1', itemId: 'other', parentJobId: null }
       })
     ])
 
@@ -90,7 +90,7 @@ describe('delete-subtree job handler', () => {
       createJobSnapshot({
         id: 'index-job',
         type: 'knowledge.index-documents',
-        input: { baseId: 'kb-1', itemId: 'note-1' }
+        input: { baseId: 'kb-1', itemId: 'note-1', parentJobId: null }
       })
     ])
     cancelMock.mockRejectedValue(new Error('cancel failed'))
@@ -114,14 +114,14 @@ describe('delete-subtree job handler', () => {
       createJobSnapshot({
         id: 'index-job',
         type: 'knowledge.index-documents',
-        input: { baseId: 'kb-1', itemId: 'note-1' }
+        input: { baseId: 'kb-1', itemId: 'note-1', parentJobId: null }
       })
     ])
     getJobMock.mockResolvedValue(
       createJobSnapshot({
         id: 'index-job',
         type: 'knowledge.index-documents',
-        input: { baseId: 'kb-1', itemId: 'note-1' },
+        input: { baseId: 'kb-1', itemId: 'note-1', parentJobId: null },
         status: 'cancelled',
         error: {
           code: 'JOB_CANCELLED',
@@ -132,7 +132,7 @@ describe('delete-subtree job handler', () => {
     )
 
     await expect(handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'delete-job'))).rejects.toThrow(
-      'Knowledge subtree job cancel timed out: index-job'
+      'Job cancel timed out: index-job'
     )
 
     expect(replaceByExternalIdMock).not.toHaveBeenCalled()

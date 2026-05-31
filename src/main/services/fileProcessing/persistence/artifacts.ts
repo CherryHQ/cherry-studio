@@ -21,10 +21,16 @@ export async function createFileProcessingJobOutput(
 
 export function getFileProcessingMarkdownArtifactFileEntryId(snapshot: JobSnapshot): FileEntryId {
   const output = FileProcessingJobOutputSchema.parse(snapshot.output)
-  if (output.artifact.kind !== 'file' || output.artifact.format !== 'markdown') {
+  if (!isMarkdownFileArtifact(output.artifact)) {
     throw new Error(`File processing job ${snapshot.id} completed without a markdown file artifact`)
   }
   return output.artifact.fileEntryId
+}
+
+export function isMarkdownFileArtifact(
+  artifact: FileProcessingArtifact
+): artifact is Extract<FileProcessingArtifact, { kind: 'file'; format: 'markdown' }> {
+  return artifact.kind === 'file' && artifact.format === 'markdown'
 }
 
 export function getFileProcessingFailureMessage(snapshot: JobSnapshot): string {

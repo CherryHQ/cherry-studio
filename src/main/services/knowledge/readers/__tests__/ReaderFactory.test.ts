@@ -239,6 +239,16 @@ describe('loadKnowledgeItemDocuments', () => {
     })
   })
 
+  it('rejects fileEntryId overrides for non-file items', async () => {
+    const item = createNoteItem('hello world', 'https://example.com/note')
+
+    await expect(loadKnowledgeItemDocuments(item, undefined, { fileEntryId: PROCESSED_FILE_ENTRY_ID })).rejects.toThrow(
+      'fileEntryId override is only supported for file knowledge items: note'
+    )
+
+    expect(getPhysicalPathMock).not.toHaveBeenCalled()
+  })
+
   it('uses the drafts export reader for .draftsexport files', async () => {
     const item = createFileItem('.draftsexport')
     getPhysicalPathMock.mockResolvedValueOnce('/resolved/sample.draftsexport')

@@ -16,6 +16,10 @@ export async function loadKnowledgeItemDocuments(
   signal?: AbortSignal,
   options: LoadKnowledgeItemDocumentsOptions = {}
 ): Promise<Document[]> {
+  if (item.type !== 'file' && options.fileEntryId !== undefined) {
+    throw new Error(`fileEntryId override is only supported for file knowledge items: ${item.type}`)
+  }
+
   switch (item.type) {
     case 'file':
       return await loadFileDocuments(item, options.fileEntryId ?? item.data.fileEntryId)

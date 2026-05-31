@@ -35,9 +35,12 @@ type JobInputObject = Record<string, unknown>
 
 export function narrowKnowledgeJobInput(snapshot: JobSnapshotInput): NarrowedKnowledgeJobInput | null {
   switch (snapshot.type) {
-    case 'knowledge.prepare-root':
-    case 'knowledge.index-documents': {
+    case 'knowledge.prepare-root': {
       const payload = narrowItemJobPayload(snapshot.input)
+      return payload ? { type: snapshot.type, input: payload } : null
+    }
+    case 'knowledge.index-documents': {
+      const payload = narrowIndexDocumentsJobPayload(snapshot.input)
       return payload ? { type: snapshot.type, input: payload } : null
     }
     case 'knowledge.check-file-processing-result': {
@@ -82,7 +85,7 @@ function narrowFileProcessingCheckJobPayload(
 
 function narrowItemJobPayload(
   rawInput: JobSnapshot['input']
-): KnowledgePrepareRootPayload | KnowledgeIndexDocumentsPayload | null {
+): KnowledgePrepareRootPayload | Pick<KnowledgeIndexDocumentsPayload, 'baseId' | 'itemId'> | null {
   const input = narrowJobInputObject(rawInput)
   if (!input) return null
   if (typeof input.baseId !== 'string') return null
@@ -91,6 +94,26 @@ function narrowItemJobPayload(
   return {
     baseId: input.baseId,
     itemId: input.itemId
+  }
+}
+
+function narrowIndexDocumentsJobPayload(rawInput: JobSnapshot['input']): KnowledgeIndexDocumentsPayload | null {
+  const input = narrowJobInputObject(rawInput)
+  if (!input) return null
+  const basePayload = narrowItemJobPayload(rawInput)
+  if (!basePayload) return null
+  if ('processedFileEntryId' in input && typeof input.processedFileEntryId !== 'string') return null
+  if (!('parentJobId' in input)) return null
+  const parentJobId = input.parentJobId
+  if (parentJobId !== null && typeof parentJobId !== 'string') return null
+  const processedFileEntryId =
+    'processedFileEntryId' in input ? (input.processedFileEntryId as string | undefined) : undefined
+
+  return {
+    baseId: basePayload.baseId,
+    itemId: basePayload.itemId,
+    ...(processedFileEntryId !== undefined ? { processedFileEntryId } : {}),
+    parentJobId
   }
 }
 

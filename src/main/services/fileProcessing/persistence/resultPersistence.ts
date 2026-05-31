@@ -24,13 +24,11 @@ async function warnIfCleanupFails(action: () => Promise<void>, context: Persiste
 }
 
 function normalizeEntryPath(entryName: string): string {
-  const posixPath = entryName.replace(/\\/g, '/')
-
-  if (!posixPath || path.posix.isAbsolute(posixPath) || /^[a-zA-Z]:[\\/]/.test(entryName)) {
+  if (!entryName || path.posix.isAbsolute(entryName) || /^[a-zA-Z]:[\\/]/.test(entryName) || entryName.includes('\\')) {
     throw new Error(`Unsafe zip entry path: ${entryName}`)
   }
 
-  const normalizedPath = path.posix.normalize(posixPath).replace(/^(\.\/)+/, '')
+  const normalizedPath = path.posix.normalize(entryName).replace(/^(\.\/)+/, '')
 
   if (!normalizedPath || normalizedPath === '.' || normalizedPath === '..' || normalizedPath.startsWith('../')) {
     throw new Error(`Unsafe zip entry path: ${entryName}`)

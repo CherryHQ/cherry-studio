@@ -8,6 +8,7 @@ import { FileProcessorIdSchema } from '@shared/data/presets/file-processing'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { KnowledgeItem, KnowledgeRuntimeAddItemInput } from '@shared/data/types/knowledge'
 
+import { cancelJobOrThrow } from './jobs/utils/cancel'
 import type { KnowledgeLockManager } from './KnowledgeLockManager'
 import {
   type KnowledgeBaseId,
@@ -27,6 +28,7 @@ import { isContainerKnowledgeItem } from './utils/items'
 import { planKnowledgeItemSource } from './utils/sources/sourcePlanning'
 
 const logger = loggerService.withContext('Knowledge:WorkflowService')
+// Keep poll jobs delayed enough to avoid hot-looping while remote processors are still working.
 const FILE_PROCESSING_CHECK_DELAY_MS = 5_000
 
 export class KnowledgeWorkflowService {
@@ -167,6 +169,8 @@ export class KnowledgeWorkflowService {
         await this.scheduleFileProcessingCheck(baseId, itemId, fileProcessingJob.id, item.data.fileEntryId, {
           pollRound: 0,
           firstScheduledAt: Date.now(),
+          // Use the file-processing job as workflow parent when this is a direct add flow,
+          // so retries keep a stable index idempotency key across poll rounds.
           parentJobId: parentJobId ?? fileProcessingJob.id
         })
       } catch (error) {
@@ -235,15 +239,7 @@ export class KnowledgeWorkflowService {
   }
 
   private async cancelFileProcessingJob(fileProcessingJobId: string, reason: string): Promise<void> {
-    try {
-      await application.get('JobManager').cancel(fileProcessingJobId, reason)
-    } catch (error) {
-      logger.warn('Failed to cancel file-processing job after knowledge scheduling failure', {
-        fileProcessingJobId,
-        reason,
-        error: error instanceof Error ? error.message : String(error)
-      })
-    }
+    await cancelJobOrThrow(fileProcessingJobId, reason)
   }
 
   private async rollbackAcceptedItems(baseId: string, items: KnowledgeItem[], originalError: unknown): Promise<void> {

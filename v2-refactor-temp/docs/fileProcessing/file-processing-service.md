@@ -48,10 +48,10 @@
 | Processor | 一个可执行文件处理能力的处理器，例如 `tesseract`、`paddleocr`、`mineru`、`doc2x` |
 | Feature | Processor 暴露的能力类型，当前只有 `image_to_text` 和 `document_to_markdown` |
 | Capability | Processor 对某个 Feature 的支持声明，包括输入类型、输出类型和默认 API 配置 |
-| FileProcessingJob | 一次 processor execution，由 Main 进程生成统一 `jobId` 跟踪 |
+| FileProcessingJob | 一次 processor execution，由统一 `JobManager` 生成 `jobId` 跟踪 |
 | Artifact | job 完成后产出的结果项，例如内联 text 或落盘 markdown file |
 | Provider task | 第三方 provider 自己的任务句柄，例如远程 OCR / Markdown 服务返回的 job id；只属于 Main 内部实现细节 |
-| Runtime state | job 状态、abort controller、远程 query context、in-flight query 等 Main 进程内存态协调数据 |
+| Runtime state | handler 执行期的 abort controller、远程 query context、in-flight query 等 Main 进程内存态协调数据；持久 job 状态属于 `JobManager` |
 
 需要避免的命名：
 
@@ -188,7 +188,7 @@ type FileProcessingArtifact =
   | {
       kind: 'file'
       format: 'markdown'
-      path: string
+      fileEntryId: FileEntryId
     }
 ```
 
@@ -197,7 +197,7 @@ type FileProcessingArtifact =
 | Feature | Artifact |
 | --- | --- |
 | `image_to_text` | `{ kind: 'text', format: 'plain', text }` |
-| `document_to_markdown` | `{ kind: 'file', format: 'markdown', path }` |
+| `document_to_markdown` | `{ kind: 'file', format: 'markdown', fileEntryId }` |
 
 设计取向：
 
@@ -214,17 +214,16 @@ type FileProcessingArtifact =
 
 1. `FileProcessingOrchestrationService`
    - 生命周期 service
-   - 注册 IPC handler
+   - 注册 IPC handler 和 JobManager handler
    - 做 payload Zod 校验
-   - 调用 job service
-   - 不持有 job store
-2. `FileProcessingJobService`
-   - 生命周期 service
-   - 生成 `jobId`
-   - 持有 Main 进程内存 job store
-   - 管理 background execution、remote-poll query、dedupe、TTL、cancel
+   - 解析 processor config、校验输入 file metadata
+   - 通过 `JobManager.enqueue` 创建统一 job，不持有 job store
+2. JobManager file-processing handlers
+   - `tasks/backgroundJobHandler.ts` 执行本地 / 同步 capability
+   - `tasks/remotePollJobHandler.ts` 执行远程 start / poll capability
+   - handler 使用 `recovery: 'retry'`
+   - remote-poll handler 通过 job metadata 持久化可恢复的 provider task state
    - 产出统一 artifact
-   - 暴露内部 `onJobChanged` event
 3. Processor 层
    - 以 processor 为第一层组织单元
    - 按 capability feature 暴露 handler
@@ -235,7 +234,7 @@ type FileProcessingArtifact =
    - 承载 worker、队列、池、锁、idle release、stop / destroy cleanup 等 processor-owned runtime state
    - 当前只有 `tesseract` 需要 lifecycle runtime
 
-`FileProcessingJobService` 应是 job 状态的 source of truth。
+`JobManager` / SQLite job table 是 job 状态的 source of truth。
 
 `FileProcessingOrchestrationService` 只是对外入口，不应该重复维护 job 状态或实现 provider 细节。
 
@@ -289,7 +288,7 @@ src/main/services/fileProcessing/
     open-mineru/
       document-to-markdown/
         handler.ts
-  task/
+  tasks/
   utils/
 ```
 
@@ -320,7 +319,7 @@ processorRegistry[processorId].capabilities[feature]
 4. 测试必须校验 `PRESETS_FILE_PROCESSORS` 声明的 capability 与 registry handler 一致：
    - preset 有 capability，registry 必须有 handler
    - registry 不应声明 preset 不支持的 capability
-5. `FileProcessingJobService` 解析 processor config 后，通过 registry 找到目标 capability handler。
+5. `FileProcessingOrchestrationService` / job execution helper 解析 processor config 后，通过 registry 找到目标 capability handler。
 
 ### 7.3 Capability Handler Contract
 
@@ -347,7 +346,7 @@ handler 方法分层：
 
 设计约束：
 
-1. `prepare` 不创建本地 job record；job record 仍由 `FileProcessingJobService` 创建。
+1. `prepare` 不创建本地 job record；job record 由 `JobManager.enqueue` 创建。
 2. `prepare` 可以在 `startJob` 期间 fail fast，例如缺 path、缺 API key、processor option 无效、file type 不匹配。
 3. provider task id、query context、remote context 都只保存在 Main 进程内部 job record。
 4. handler 输出不直接作为 IPC result；job service 负责统一映射成 artifact。
@@ -378,9 +377,9 @@ Job service 内部允许两类执行模式：
 
 行为：
 
-1. `startJob` 创建本地 job record 后立即返回。
-2. Job service 在后台执行 capability handler。
-3. handler 成功后由 job service 转成 artifact。
+1. `startJob` 通过 `JobManager.enqueue` 创建本地 job record 后立即返回。
+2. JobManager dispatcher 在后台执行 capability handler。
+3. handler 成功后由 file-processing task helper 转成 artifact。
 4. handler 抛错后 job 进入 `failed`。
 5. caller cancel 或 service stop 时 abort。
 
@@ -398,9 +397,9 @@ Job service 内部允许两类执行模式：
 
 1. `startJob` 创建本地 `jobId`。
 2. handler `startRemote` 返回内部 provider task id 和 query context。
-3. Job service 把 provider task id 绑定到本地 job record。
+3. remote-poll handler 把 provider task id 的可恢复部分写入 job metadata。
 4. 调用方后续只用本地 `jobId` 通过统一 Job API 查询。
-5. JobManager dispatcher 负责推进远程轮询并更新 job store。
+5. JobManager dispatcher 负责推进远程轮询并更新 job record / progress。
 6. 如果远程处理已完成但 artifact 下载或落盘失败，job 进入 `failed`；调用方可重新发起 job。
 
 ### 8.3 OCR job 化
@@ -420,33 +419,18 @@ Job service 内部允许两类执行模式：
 
 ---
 
-## 9. Internal Events
+## 9. Progress Observation
 
-`FileProcessingJobService` 应使用 lifecycle 的 `Emitter<T>` / `Event<T>` 暴露 job 变化事件。
+File-processing 不维护自己的 job event bus。
 
-推荐形式：
+观察语义：
 
-```ts
-private readonly _onJobChanged = new Emitter<FileProcessingJobResult>()
-public readonly onJobChanged: Event<FileProcessingJobResult> = this._onJobChanged.event
-```
+1. job snapshot 由统一 Job API 查询。
+2. job progress 由 JobManager 写入 `jobs.progress.${jobId}` cache。
+3. `FileProcessingOrchestrationService` 不广播 Renderer IPC。
+4. 本轮不设计 Renderer 订阅协议、多窗口广播或 UI job center。
 
-事件语义：
-
-1. job 创建后 fire 一次 pending / processing 快照。
-2. progress 变化时 fire 当前快照。
-3. completed / failed / cancelled 时 fire 终态快照。
-4. listener 错误不影响 job service。
-5. event 只用于 Main 进程内 service 协调。
-
-重要边界：
-
-1. `Emitter/Event` 不直接等于 Renderer IPC 推送。
-2. 本轮不设计 Renderer 订阅协议、多窗口广播或 UI job center。
-3. Renderer / preload 暂时仍以 `getJob` 查询为准。
-4. 如果后续需要实时 UI 推送，可以在 Orchestration 或专门的 bridge service 中订阅 `onJobChanged` 后再转发 IPC。
-
-不使用 `Signal` 表达 task 状态，因为 task 状态是 repeatable event，不是一次性初始化完成信号。
+如果后续需要实时 UI 推送，应复用统一 JobManager progress 机制或建立通用 job bridge，而不是为 file-processing 增加独立事件接口。
 
 ---
 
@@ -465,9 +449,10 @@ file-processing 相关数据按职责分层：
      - `feature.file_processing.default_image_to_text`
      - `feature.file_processing.overrides`
 3. job 运行时状态
-   - 位于 `FileProcessingJobService` 内存 store
-   - 包括 job record、provider task id、query context、abort controller、in-flight query、background execution
-   - 不落 DataApi，不镜像到 Cache / SharedCache
+   - job record 位于 JobManager / SQLite job table
+   - remote-poll 的可恢复 provider task state 位于 job metadata
+   - API key、token、abort controller、in-flight query、background execution 等只保留在 handler 执行期内存
+   - 不新增 file-processing DataApi endpoint，不镜像到 Cache / SharedCache
 4. 最终 file artifact
    - 只保留最终 markdown 文件
    - 通过 `FileManager.createInternalEntry` 写入 internal FileEntry
@@ -475,9 +460,9 @@ file-processing 相关数据按职责分层：
 
 DataApi 边界：
 
-1. 当前没有 file-processing job 数据表。
-2. job state 是 runtime coordination state，不是 SQLite-backed business data。
-3. 因此不新增 DataApi endpoint。
+1. file-processing job 使用统一 JobManager job table，不新增业务表。
+2. job state 是 runtime coordination state，不是 DataApi-backed business data。
+3. 因此不新增 file-processing DataApi endpoint。
 
 Cache 边界：
 
@@ -487,23 +472,16 @@ Cache 边界：
 
 ---
 
-## 11. Job Retention
+## 11. Job Recovery And Retention
 
-job 状态只在当前 Main 进程会话内有效。
+file-processing job 使用统一 JobManager 的保留和恢复语义。
 
-默认保留策略：
+默认策略：
 
-1. job store 内存态。
-2. completed / failed / cancelled 终态 job 在 TTL 到期前可重复查询。
-3. pending / processing job 如果长期无访问，也会被 TTL 清理并 abort。
-4. 每次 `getJob` 可 touch `updatedAt`，持续轮询会延长保留时间。
-5. service stop 时 abort 所有非终态 job 并清理内存。
-6. app restart 后不恢复 job store。
-
-可以沿用当前默认值：
-
-1. job TTL：10 分钟
-2. prune interval：5 分钟
+1. completed / failed / cancelled 终态 job 按 JobManager 规则保留和查询。
+2. background handler 使用 `recovery: 'retry'`，重启后从头重试当前 attempt。
+3. remote-poll handler 使用 `recovery: 'retry'`，重启后从 job metadata 恢复 provider task id 和可持久 query state。
+4. API key、token、abort controller、in-flight query、background execution 等不写入 metadata。
 
 最终 artifact 文件不会因为 job TTL 自动删除。artifact 生命周期由 feature 文件数据目录和上层业务清理策略决定。
 
@@ -650,22 +628,22 @@ OCR text artifact 不落盘，直接以内联文本返回。
 服务选择：
 
 1. `FileProcessingOrchestrationService`：生命周期 service，因为它注册 IPC handler。
-2. `FileProcessingJobService`：生命周期 service，因为它持有 job store、timer、abort controller 和 internal event。
-3. `processors/tesseract/runtime/TesseractRuntimeService`：继续作为生命周期 service，因为它管理长寿命 worker、队列和 idle release。
+2. `processors/tesseract/runtime/TesseractRuntimeService`：继续作为生命周期 service，因为它管理长寿命 worker、队列和 idle release。
+3. file-processing task handlers：普通 JobManager handler，不是 lifecycle service。
 4. processor helper / pure utility：保持普通函数或 direct-import singleton，不引入无意义 lifecycle 层。
 
 依赖关系：
 
-1. `FileProcessingOrchestrationService` 依赖 `FileProcessingJobService`。
-2. `FileProcessingJobService` 不直接访问 `TesseractRuntimeService`；Tesseract image-to-text handler 在执行时通过 `application.get('TesseractRuntimeService')` 获取 runtime。
-3. 不需要声明对 BeforeReady 服务的 cross-phase `@DependsOn`；Preference 等 BeforeReady 初始化顺序由 lifecycle 系统保证。
+1. `FileProcessingOrchestrationService` 依赖 `FileManager` 和 `JobManager`。
+2. `FileProcessingOrchestrationService.onInit` 注册 file-processing JobManager handlers。
+3. Tesseract image-to-text handler 在执行时通过 `application.get('TesseractRuntimeService')` 获取 runtime。
+4. 不需要声明对 BeforeReady 服务的 cross-phase `@DependsOn`；Preference 等 BeforeReady 初始化顺序由 lifecycle 系统保证。
 
 清理要求：
 
-1. `onStop` abort 所有非终态 execution / query。
-2. 等待后台 promise settle 后清空 in-flight maps。
-3. 清理 prune timer。
-4. owned `Emitter` 在 `onDestroy` dispose，不作为 stop disposable 清掉。
+1. `FileProcessingOrchestrationService` 停止时由 lifecycle 自动清理 IPC handler。
+2. Job cancel / retry / timeout 由 JobManager 驱动。
+3. 长寿命 processor runtime 在自己的 lifecycle service 中清理资源。
 
 ---
 
@@ -677,15 +655,14 @@ OCR text artifact 不落盘，直接以内联文本返回。
 2. 不删除旧 `window.api.ocr`。
 3. 不删除旧 `src/main/services/ocr`。
 4. 不把旧 OCR IPC 桥接到新 job API。
-5. 不完成 KnowledgeService 对新 artifact 的消费、入库和 chunk 联调。
-6. 不建立统一 UI job center。
-7. 不新增 DataApi job table。
+5. 不建立统一 UI job center。
+6. 不新增 file-processing DataApi job table。
 
 短期允许并存：
 
 1. 新 file-processing job API
 2. 旧 OCR renderer/main 调用链
-3. 尚未切流的知识库旧 preprocess 调用链
+3. 旧 preprocess provider 残留代码
 
 但是新 file-processing API 自身不保留旧接口包装。
 
@@ -693,9 +670,8 @@ OCR text artifact 不落盘，直接以内联文本返回。
 
 1. Renderer / preload 对 `startJob` 与通用 Job 观察/取消入口的正式接入。
 2. 翻译 OCR 从旧 `window.api.ocr` 切到 file-processing job。
-3. KnowledgeService 消费 Markdown file artifact。
-4. 删除旧 OCR service 与旧 preprocess provider。
-5. 清理旧 i18n、设置页和 migration 中不再需要的兼容逻辑。
+3. 删除旧 OCR service 与旧 preprocess provider。
+4. 清理旧 i18n、设置页和 migration 中不再需要的兼容逻辑。
 
 ---
 
@@ -768,8 +744,8 @@ Job service 测试：
 8. 缺默认 processor 时 fail fast。
 9. processor 不支持 feature 时 fail fast。
 10. file type 不匹配 capability inputs 时 fail fast。
-11. TTL prune 会 abort 非终态 job。
-12. `onJobChanged` 在创建、进度变化和终态时 fire。
+11. background handler 在重试时重新执行 capability。
+12. remote-poll handler 可以从 metadata 恢复 provider task state。
 
 Registry 测试：
 
@@ -825,16 +801,16 @@ Processor 测试：
 2. 不需要在 job result 顶层不断增加 feature-specific 字段。
 3. OCR 保持内联文本的消费效率，Markdown 保持落盘文件的稳定性。
 
-内存 job 状态的代价：
+JobManager-backed job 状态的代价：
 
-1. app 重启后无法恢复 job。
-2. 多窗口不能天然共享实时进度。
+1. file-processing 必须遵循统一 JobManager 的 retry / retention 语义。
+2. 多窗口实时进度仍依赖统一 job progress 观察能力。
 
 接受这些代价的原因：
 
-1. 当前 job state 是 runtime coordination state，不是 business data。
+1. 当前 job state 是 runtime coordination state，不是 file-processing 自有 business data。
 2. 结果 artifact 已经稳定落盘。
-3. 避免引入 DataApi / Cache 双 source of truth。
+3. 避免引入独立 file-processing job store 或 DataApi / Cache 双 source of truth。
 
 ---
 
@@ -849,13 +825,11 @@ Processor 测试：
 3. 是否正确隐藏 provider task id 和 query context。
 4. 是否用 artifact 统一终态结果。
 5. 是否有清晰取消语义。
-6. 是否把 job runtime state 保持在 Main 内存 source of truth。
-7. 是否通过 `Emitter/Event` 暴露 Main 内部 job 变化，而没有过早设计 Renderer broadcast 协议。
+6. 是否把 job state 收口到统一 JobManager，而不是建立 file-processing 自有 store。
+7. 是否使用统一 job progress 观察能力，而没有过早设计 Renderer broadcast 协议。
 
 不应作为 blocker 的事项：
 
 1. Renderer 尚未切到新 job API。
 2. 旧 OCR service 尚未删除。
-3. KnowledgeService 尚未消费新 markdown artifact。
-4. job 状态不跨 app restart 恢复。
-5. facade 没有维护具体扩展名白名单。
+3. facade 没有维护具体扩展名白名单。

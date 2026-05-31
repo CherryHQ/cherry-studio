@@ -95,7 +95,7 @@ describe('check-file-processing-result job handler', () => {
     )
     expect(createInternalEntryMock).not.toHaveBeenCalled()
     expect(workflowService.scheduleIndexing).not.toHaveBeenCalled()
-    expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'waiting', pollRound: 3 })
+    expect(ctx.reportProgress).toHaveBeenCalledWith(0, { stage: 'waiting', pollRound: 3 })
   })
 
   it('keeps polling follow-ups attached to the original workflow parent', async () => {
@@ -333,9 +333,39 @@ describe('check-file-processing-result job handler', () => {
     await handler.execute(createCtx(createCheckPayload()))
 
     expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-file-processing-item-unavailable')
-    expect(getJobMock).not.toHaveBeenCalled()
+    expect(getJobMock).toHaveBeenCalledWith('fp-job-1')
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
     expect(workflowService.scheduleIndexing).not.toHaveBeenCalled()
+  })
+
+  it('surfaces cancel failures before skipping deleting items', async () => {
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
+    knowledgeItemGetByIdMock.mockResolvedValue(createFileItem(FILE_ITEM_ID, 'deleting'))
+    cancelMock.mockRejectedValueOnce(new Error('cancel failed'))
+
+    await expect(handler.execute(createCtx(createCheckPayload()))).rejects.toThrow('cancel failed')
+
+    expect(getJobMock).not.toHaveBeenCalled()
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
+  })
+
+  it('surfaces cancel timeouts before skipping deleting items', async () => {
+    const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
+    knowledgeItemGetByIdMock.mockResolvedValue(createFileItem(FILE_ITEM_ID, 'deleting'))
+    getJobMock.mockResolvedValue(
+      createFileProcessingJobSnapshot({
+        status: 'cancelled',
+        error: {
+          code: 'JOB_CANCELLED',
+          message: 'Cancel timed out after 30000ms (reason: knowledge-file-processing-item-unavailable)',
+          retryable: false
+        }
+      })
+    )
+
+    await expect(handler.execute(createCtx(createCheckPayload()))).rejects.toThrow('Job cancel timed out: fp-job-1')
+
+    expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
   })
 
   it('cancels linked file-processing work before skipping missing items', async () => {
@@ -345,7 +375,7 @@ describe('check-file-processing-result job handler', () => {
     await handler.execute(createCtx(createCheckPayload()))
 
     expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-file-processing-item-unavailable')
-    expect(getJobMock).not.toHaveBeenCalled()
+    expect(getJobMock).toHaveBeenCalledWith('fp-job-1')
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalled()
     expect(workflowService.scheduleIndexing).not.toHaveBeenCalled()
   })

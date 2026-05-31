@@ -4,7 +4,6 @@ import { application } from '@application'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
-import { JOB_ERROR_CODES } from '@main/core/job/errorCodes'
 import type { JobHandler } from '@main/core/job/types'
 
 import type { KnowledgeLockManager } from '../KnowledgeLockManager'
@@ -18,6 +17,7 @@ import {
 import { deleteKnowledgeItemVectors } from '../utils/cleanup/vectorCleanup'
 import { isIndexableKnowledgeItem } from '../utils/items'
 import type { KnowledgeDeleteSubtreePayload } from './jobTypes'
+import { cancelJobOrThrow } from './utils/cancel'
 import { narrowKnowledgeJobInput } from './utils/jobInput'
 
 const logger = loggerService.withContext('Knowledge:DeleteSubtreeJobHandler')
@@ -98,22 +98,9 @@ async function cancelActiveSubtreeJobs(
   const fileProcessingJobIds = activeJobs.flatMap((job) => getFileProcessingJobIdsForTouchedSubtree(job, subtreeIds))
 
   await Promise.all([
-    ...jobIds.map((jobId) => cancelKnowledgeSubtreeJobOrThrow(jobId, reason)),
-    ...fileProcessingJobIds.map((jobId) => cancelKnowledgeSubtreeJobOrThrow(jobId, reason))
+    ...jobIds.map((jobId) => cancelJobOrThrow(jobId, reason)),
+    ...fileProcessingJobIds.map((jobId) => cancelJobOrThrow(jobId, reason))
   ])
-}
-
-async function cancelKnowledgeSubtreeJobOrThrow(jobId: string, reason: string): Promise<void> {
-  const jobManager = application.get('JobManager')
-  await jobManager.cancel(jobId, reason)
-
-  const snapshot = await jobManager.get(jobId)
-  if (
-    snapshot?.error?.code === JOB_ERROR_CODES.CANCELLED &&
-    snapshot.error.message.startsWith('Cancel timed out after')
-  ) {
-    throw new Error(`Knowledge subtree job cancel timed out: ${jobId}`)
-  }
 }
 
 function jobTouchesSubtree(job: { type: string; input: unknown }, subtreeIds: Set<string>): boolean {

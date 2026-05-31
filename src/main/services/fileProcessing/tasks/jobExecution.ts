@@ -34,6 +34,10 @@ export interface PreparedRemotePollFileProcessingJob extends PreparedFileProcess
   prepared: PreparedRemoteJob<FileProcessorFeature, FileProcessingRemoteContext>
 }
 
+type PreparedFileProcessingJobByMode<Mode extends FileProcessingJobMode> = Mode extends 'background'
+  ? PreparedBackgroundFileProcessingJob
+  : PreparedRemotePollFileProcessingJob
+
 export async function prepareFileProcessingJob(
   ctx: JobContext<FileProcessingJobPayload>,
   expectedMode: 'background'
@@ -54,26 +58,24 @@ export async function prepareFileProcessingJob(
   assertFileTypeSupported(file, feature, config)
 
   const prepared = await handler.prepare(file, config, ctx.signal, { fileEntryId })
+  assertModeMatches(prepared, expectedMode)
 
-  if (expectedMode === 'background') {
-    assertModeMatches(prepared, 'background')
-    return {
-      feature,
-      fileEntryId,
-      processorId: config.id,
-      config,
-      prepared
-    }
-  }
-
-  assertModeMatches(prepared, 'remote-poll')
-  return {
+  return createPreparedFileProcessingJobResult(expectedMode, {
     feature,
     fileEntryId,
     processorId: config.id,
     config,
     prepared
+  })
+}
+
+function createPreparedFileProcessingJobResult<Mode extends FileProcessingJobMode>(
+  _mode: Mode,
+  result: PreparedFileProcessingJobBase & {
+    prepared: PreparedFileProcessingJobByMode<Mode>['prepared']
   }
+): PreparedFileProcessingJobByMode<Mode> {
+  return result as PreparedFileProcessingJobByMode<Mode>
 }
 
 /** Look up the capability handler for (processorId, feature). Throws on missing. */

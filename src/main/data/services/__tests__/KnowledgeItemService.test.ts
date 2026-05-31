@@ -564,6 +564,28 @@ describe('KnowledgeItemService', () => {
       })
     })
 
+    it('rejects attaching a file ref to a missing knowledge item', async () => {
+      await seedFileEntry(FILE_ENTRY_B_ID)
+
+      await expect(service.attachFileRef(OTHER_ITEM_ID, FILE_ENTRY_B_ID, 'processed_artifact')).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+
+      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.fileEntryId, FILE_ENTRY_B_ID))
+      expect(refs).toHaveLength(0)
+    })
+
+    it('rejects attaching a missing file entry', async () => {
+      const item = await seedItem()
+
+      await expect(service.attachFileRef(item.id, FILE_ENTRY_B_ID, 'processed_artifact')).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+
+      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, item.id))
+      expect(refs).toHaveLength(0)
+    })
+
     it('replaces existing file refs by role for an item', async () => {
       const item = await seedItem()
       await seedFileEntry(FILE_ENTRY_B_ID)
@@ -604,6 +626,34 @@ describe('KnowledgeItemService', () => {
         { fileEntryId: FILE_ENTRY_B_ID, role: 'processed_artifact' },
         { fileEntryId: FILE_ENTRY_A_ID, role: 'source' }
       ])
+    })
+
+    it('rejects replacing a file ref for a missing knowledge item', async () => {
+      await seedFileEntry(FILE_ENTRY_B_ID)
+
+      await expect(service.replaceFileRef(OTHER_ITEM_ID, FILE_ENTRY_B_ID, 'processed_artifact')).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+
+      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.fileEntryId, FILE_ENTRY_B_ID))
+      expect(refs).toHaveLength(0)
+    })
+
+    it('rejects replacing a file ref with a missing file entry without deleting the existing ref', async () => {
+      const item = await seedItem()
+      await seedFileEntry(FILE_ENTRY_A_ID)
+      await seedKnowledgeFileRef(item.id, FILE_ENTRY_A_ID, 'processed_artifact')
+
+      await expect(service.replaceFileRef(item.id, FILE_ENTRY_B_ID, 'processed_artifact')).rejects.toMatchObject({
+        code: ErrorCode.NOT_FOUND
+      })
+
+      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, item.id))
+      expect(refs).toHaveLength(1)
+      expect(refs[0]).toMatchObject({
+        fileEntryId: FILE_ENTRY_A_ID,
+        role: 'processed_artifact'
+      })
     })
   })
 

@@ -62,10 +62,15 @@ describe('fileProcessing result persistence utils', () => {
     expect(closeMock).toHaveBeenCalled()
   })
 
-  it('rejects zip entries that escape the archive root', async () => {
+  it.each([
+    ['relative parent escape', '../escape.md'],
+    ['POSIX absolute path', '/tmp/output.md'],
+    ['Windows drive-letter path', 'C:\\temp\\output.md'],
+    ['backslash separator', 'bundle\\output.md']
+  ])('rejects zip entries that escape the archive root via %s', async (_name, entryName) => {
     entriesMock.mockResolvedValueOnce({
-      '../escape.md': {
-        name: '../escape.md',
+      [entryName]: {
+        name: entryName,
         isDirectory: false
       }
     })

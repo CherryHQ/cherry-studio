@@ -17,6 +17,7 @@ const {
   deleteStoreMock,
   enqueueMock,
   fileProcessingStartJobMock,
+  getJobMock,
   getStoreIfExistsMock,
   knowledgeBaseCreateMock,
   knowledgeBaseDeleteMock,
@@ -43,6 +44,7 @@ const {
   deleteStoreMock: vi.fn(),
   enqueueMock: vi.fn(),
   fileProcessingStartJobMock: vi.fn(),
+  getJobMock: vi.fn(),
   getStoreIfExistsMock: vi.fn(),
   knowledgeBaseCreateMock: vi.fn(),
   knowledgeBaseDeleteMock: vi.fn(),
@@ -74,6 +76,7 @@ vi.mock('@application', async () => {
       cancel: cancelMock,
       cancelMany: cancelManyMock,
       enqueue: enqueueMock,
+      get: getJobMock,
       list: listMock,
       registerHandler: registerHandlerMock
     },
@@ -302,6 +305,7 @@ describe('KnowledgeOrchestrationService', () => {
     })
     enqueueMock.mockResolvedValue({ id: 'job-1', snapshot: {}, finished: Promise.resolve({}) })
     fileProcessingStartJobMock.mockResolvedValue({ id: 'fp-job-1', snapshot: {}, finished: Promise.resolve({}) })
+    getJobMock.mockResolvedValue(null)
     listMock.mockResolvedValue([])
     createStoreMock.mockResolvedValue({
       deleteByIdAndExternalId: vectorDeleteByIdAndExternalIdMock,
@@ -743,6 +747,25 @@ describe('KnowledgeOrchestrationService', () => {
 
     expect(fileProcessingStartJobMock).toHaveBeenCalled()
     expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-file-processing-check-enqueue-failed')
+  })
+
+  it('surfaces cancel failures when check scheduling fails', async () => {
+    const service = new KnowledgeOrchestrationService()
+    const processingFile = createFileItem('file-1', 'kb-1', '/docs/source.pdf', 'processing')
+    knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ fileProcessorId: 'doc2x' }))
+    knowledgeItemGetByIdMock.mockResolvedValueOnce(processingFile)
+    enqueueMock.mockRejectedValueOnce(new Error('check enqueue failed'))
+    cancelMock.mockRejectedValueOnce(new Error('cancel failed'))
+
+    const workflowService = (
+      service as unknown as {
+        workflowService: {
+          scheduleItem(baseId: string, itemId: string, parentJobId?: string | null): Promise<void>
+        }
+      }
+    ).workflowService
+
+    await expect(workflowService.scheduleItem('kb-1', 'file-1')).rejects.toThrow('cancel failed')
   })
 
   it('uses the parent job as the direct indexing idempotency scope during reindex', async () => {
