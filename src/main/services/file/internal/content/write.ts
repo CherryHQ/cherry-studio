@@ -111,13 +111,22 @@ export async function createWriteStream(deps: FileManagerDeps, id: FileEntryId):
       }
       deps.versionCache.set(id, version)
     } catch (err) {
-      // The file is committed on disk but the metadata sync (re-stat + DB
-      // size update + versionCache.set) failed. This silently desyncs
-      // `file_entry.size` and any cached `FileVersion` from disk, which the
-      // module-level JSDoc explicitly warns against — surface it at `error`
-      // with a stable code so Sentry can group these for follow-up. The
-      // stream itself does NOT re-throw because the consumer has already
-      // observed `'finish'`; the only mitigation is observability.
+      // The file is committed on disk but the post-commit metadata sync (re-stat
+      // + DB size/contentHash update + versionCache.set) failed. The stream does
+      // NOT re-throw — the consumer has already observed `'finish'` — so on this
+      // fire-and-forget path both synced columns are best-effort by design, and
+      // observability is the only mitigation. Contract for the desync:
+      //   - `size` / cached `FileVersion`: left stale until the next write. The
+      //     module-level JSDoc warns against this; hence the `error` log below
+      //     with a stable code so Sentry can group these for follow-up.
+      //   - `contentHash`: left stale (a prior write's hash) or NULL (entry never
+      //     hashed). A NULL row is repaired by the content-hash backfill job on
+      //     the next startup (the NULL set is its work queue); a stale row
+      //     self-corrects on the next successful write — the backfill job does
+      //     NOT touch it (it scans `contentHash IS NULL` only). Because
+      //     contentHash is a collision-tolerant DETECTION substrate (a wrong
+      //     candidate is rejected by the consumer's secondary check), a transient
+      //     stale value only degrades dedup detection — it never mis-serves bytes.
       logger.error('createWriteStream: post-commit metadata sync failed', {
         code: 'WRITE_STREAM_DB_DESYNC',
         id,
