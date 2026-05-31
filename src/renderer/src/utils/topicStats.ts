@@ -1,4 +1,5 @@
 import db from '@renderer/databases'
+import store from '@renderer/store'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockType } from '@renderer/types/newMessage'
 
@@ -119,7 +120,22 @@ function extractTextContent(message: Message, blocksMap: Map<string, MessageBloc
 
 function resolveProvider(msg: Message): string {
   // Try model.provider first
-  if (msg.model?.provider) return msg.model.provider
+  const providerId = msg.model?.provider
+  if (providerId) {
+    // UUID pattern — look up from Redux store to get the actual provider name
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(providerId)) {
+      try {
+        const state = store.getState()
+        const providers = (state as any).llm?.providers as { id: string; name: string }[] | undefined
+        const found = providers?.find((p) => p.id === providerId)
+        if (found?.name) return found.name
+      } catch {
+        // Fall through
+      }
+    }
+    // Known provider type names
+    return providerId
+  }
   // Try to infer from model id (e.g. "openai/gpt-4o" → "openai")
   const mid = msg.modelId || msg.model?.id
   if (mid) {

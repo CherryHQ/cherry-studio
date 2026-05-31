@@ -44,6 +44,8 @@ function fmtSpeed(tps: number): string {
 }
 
 function fmtProvider(p: string): string {
+  // UUID fallback — couldn't resolve to a name
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(p)) return 'Custom'
   const m: Record<string, string> = {
     openai: 'OpenAI',
     anthropic: 'Anthropic',
@@ -126,34 +128,7 @@ const MMeta = styled.div`
 
 // ─── Daily Heatmap ──────────────────────────────────────────────────────────
 
-const HMWrap = styled.div`
-  display: flex; flex-direction: column; align-items: center;
-`
-
-const HMGrid = styled.div`
-  display: flex; gap: 3px; justify-content: center;
-`
-
-const HMCol = styled.div` display: flex; flex-direction: column; gap: 3px; `
-
-const HMCell = styled.div.attrs<{ $level: number; title: string }>((p) => ({ title: p.title }))<{ $level: number }>`
-  width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0;
-  background: ${(p) => {
-    const g = ['var(--color-background-soft)', '#0e4429', '#006d32', '#26a641', '#39d353']
-    return g[p.$level] || g[0]
-  }};
-`
-
-const HMLegend = styled.div`
-  display: flex; align-items: center; gap: 4px; justify-content: center;
-  margin-top: 8px; font-size: 10px; color: var(--color-text-secondary, #888);
-`
-
-const HMMonths = styled.div`
-  display: flex; justify-content: space-between; width: 100%; max-width: 100%;
-  margin-bottom: 4px; font-size: 10px; color: var(--color-text-secondary, #888);
-  padding: 0 1px;
-`
+// const HMWrap, HMGrid, HMCol, HMCell, HMLegend, HMMonths removed — heatmap rewritten below
 
 // ─── Heatmap Component ──────────────────────────────────────────────────────
 
@@ -164,7 +139,7 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
     return m
   }, [dailyUsage])
 
-  const { weeks, monthLabels, maxCount } = useMemo(() => {
+  const { weeks, monthMarkers, maxCount } = useMemo(() => {
     const today = new Date()
     const end = new Date(today)
     const start = new Date(end)
@@ -172,15 +147,14 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
     // Align to Sunday
     start.setDate(start.getDate() - start.getDay())
 
-    const allWeeks: { dateStr: string; count: number; month: number; year: number }[][] = []
-    let cur: { dateStr: string; count: number; month: number; year: number }[] = []
+    const allWeeks: { dateStr: string; count: number; month: number }[][] = []
+    let cur: { dateStr: string; count: number; month: number }[] = []
     let max = 0
 
-    // Build month labels: map each week index to its month name
+    // Track which week index starts which month
     const mn = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    const labels: { label: string; weekIdx: number }[] = []
+    const markers: { label: string; weekIdx: number }[] = []
     let lastMonth = -1
-    let lastYear = -1
     let wi = 0
 
     const d = new Date(start)
@@ -188,15 +162,15 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
       const ds = d.toISOString().slice(0, 10)
       const count = usageMap.get(ds) || 0
       if (count > max) max = count
-      cur.push({ dateStr: ds, count, month: d.getMonth(), year: d.getFullYear() })
+      cur.push({ dateStr: ds, count, month: d.getMonth() })
 
-      // Track first appearance of each month
-      if (d.getMonth() !== lastMonth || d.getFullYear() !== lastYear) {
-        if (lastMonth !== -1 || lastYear !== -1) {
-          labels.push({ label: mn[lastMonth] || '', weekIdx: wi })
+      // Check if month changed — record it
+      if (d.getMonth() !== lastMonth) {
+        if (lastMonth !== -1) {
+          // Record previous month's label at the week index where it first appeared
+          markers.push({ label: mn[lastMonth], weekIdx: wi })
         }
         lastMonth = d.getMonth()
-        lastYear = d.getFullYear()
       }
 
       d.setDate(d.getDate() + 1)
@@ -207,12 +181,12 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
       }
     }
     if (cur.length > 0) allWeeks.push(cur)
-    // Push the last month's label
+    // Push the last month
     if (lastMonth >= 0) {
-      labels.push({ label: mn[lastMonth] || '', weekIdx: wi })
+      markers.push({ label: mn[lastMonth], weekIdx: wi })
     }
 
-    return { weeks: allWeeks, monthLabels: labels, maxCount: max || 1 }
+    return { weeks: allWeeks, monthMarkers: markers, maxCount: max || 1 }
   }, [usageMap])
 
   const getLevel = (count: number): number => {
@@ -226,47 +200,83 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
 
   if (weeks.length === 0) return null
 
-  // Build flexible month label row
-  const totalWeeks = weeks.length
-  // First and last labels at edges, others distributed evenly
-  const firstLabel = monthLabels.length > 0 ? monthLabels[0] : null
-  const lastLabel = monthLabels.length > 1 ? monthLabels[monthLabels.length - 1] : null
-  const middleLabels = monthLabels.length > 2 ? monthLabels.slice(1, -1) : []
+  // Build a map of week-index → month label
+  const weekMonthMap = new Map<number, string>()
+  for (const m of monthMarkers) {
+    weekMonthMap.set(m.weekIdx, m.label)
+  }
 
   return (
-    <HMWrap>
-      {/* Month labels — distribute across available width using flex */}
-      <HMMonths style={{ width: totalWeeks * 15 - 3 }}>
-        <span>{firstLabel?.label ?? ''}</span>
-        {middleLabels.map((m, i) => {
-          const pct = ((m.weekIdx - firstLabel!.weekIdx) / (totalWeeks - 1)) * 100
-          return (
-            <span key={i} style={{ position: 'absolute', left: `${pct}%` }}>
-              {m.label}
-            </span>
-          )
-        })}
-        <span>{lastLabel?.label ?? ''}</span>
-      </HMMonths>
-
-      <HMGrid>
-        {weeks.map((week, wi) => (
-          <HMCol key={wi}>
-            {week.map((day, di) => (
-              <HMCell key={di} $level={getLevel(day.count)} title={`${day.dateStr}: ${day.count} messages`} />
-            ))}
-          </HMCol>
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', overflowX: 'auto' }}>
+      {/* Headers row: month label above each week column */}
+      <div style={{ display: 'flex', gap: 3, marginBottom: 4, height: 16 }}>
+        {weeks.map((_week, wi) => (
+          <div
+            key={wi}
+            style={{
+              width: 12,
+              flexShrink: 0,
+              fontSize: 10,
+              color: 'var(--color-text-secondary, #888)',
+              lineHeight: '16px'
+            }}>
+            {weekMonthMap.has(wi) ? weekMonthMap.get(wi) : ''}
+          </div>
         ))}
-      </HMGrid>
+      </div>
 
-      <HMLegend>
+      {/* Grid */}
+      <div style={{ display: 'flex', gap: 3 }}>
+        {weeks.map((week, wi) => (
+          <div key={wi} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            {week.map((day, di) => (
+              <div
+                key={di}
+                title={`${day.dateStr}: ${day.count} messages`}
+                style={{
+                  width: 12,
+                  height: 12,
+                  borderRadius: 2,
+                  flexShrink: 0,
+                  background:
+                    getLevel(day.count) === 0
+                      ? 'var(--color-background-soft)'
+                      : ['', '#0e4429', '#006d32', '#26a641', '#39d353'][getLevel(day.count)]
+                }}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {/* Legend */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
+          justifyContent: 'center',
+          marginTop: 8,
+          fontSize: 10,
+          color: 'var(--color-text-secondary, #888)'
+        }}>
         Less
         {[0, 1, 2, 3, 4].map((lvl) => (
-          <HMCell key={lvl} $level={lvl} title="" style={{ width: 12, height: 12, borderRadius: 2 }} />
+          <div
+            key={lvl}
+            style={{
+              width: 12,
+              height: 12,
+              borderRadius: 2,
+              flexShrink: 0,
+              background:
+                lvl === 0 ? 'var(--color-background-soft)' : ['', '#0e4429', '#006d32', '#26a641', '#39d353'][lvl]
+            }}
+          />
         ))}
         More
-      </HMLegend>
-    </HMWrap>
+      </div>
+    </div>
   )
 }
 
@@ -524,7 +534,7 @@ const StatsSettings: React.FC = () => {
 
   useEffect(() => {
     let cancelled = false
-    computeGlobalStatsFromDB().then((r) => {
+    void computeGlobalStatsFromDB().then((r) => {
       if (!cancelled) setStats(r)
     })
     return () => {

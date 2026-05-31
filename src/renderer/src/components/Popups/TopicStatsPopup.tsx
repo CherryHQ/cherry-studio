@@ -55,6 +55,8 @@ function fmtSpeed(tps: number): string {
 }
 
 function fmtProvider(p: string): string {
+  // UUID fallback — couldn't resolve to a name
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(p)) return 'Custom'
   const map: Record<string, string> = {
     openai: 'OpenAI',
     anthropic: 'Anthropic',
@@ -222,7 +224,7 @@ const TopicStatsPanel: React.FC<Props> = ({ topicId, topicName, resolve }) => {
 
   useEffect(() => {
     let cancelled = false
-    computeTopicStatsFromDB(topicId).then((r) => {
+    void computeTopicStatsFromDB(topicId).then((r) => {
       if (!cancelled) setStats(r)
     })
     return () => {
