@@ -31,7 +31,7 @@
     "build:linux:x64": "dotenv npm run build && electron-builder --linux --x64",
     "release": "node scripts/version.js",
     "publish": "pnpm build:check && pnpm release patch push",
-    "pulish:artifacts": "cd packages/artifacts && npm publish && cd -",
+    "publish:artifacts": "cd packages/artifacts && npm publish && cd -",
     "analyze:renderer": "VISUALIZER_RENDERER=true pnpm build",
     "analyze:main": "VISUALIZER_MAIN=true pnpm build",
     "typecheck": "pnpm --filter @cherrystudio/ai-sdk-provider build && concurrently -n \"node,web,aicore\" -c \"cyan,magenta,yellow\" \"npm run typecheck:node\" \"npm run typecheck:web\" \"pnpm --filter @cherrystudio/ai-core typecheck\"",
