@@ -131,6 +131,21 @@ jobs:
       - name: Type Check
         run: pnpm typecheck
 
+      - name: DB Migrations Check
+        run: |
+          # 1) Snapshot chain integrity — exits 1 on duplicate id / forked prevId (e.g. #15438).
+          pnpm db:migrations:check
+          # 2) Drift — schema source must match committed migrations. Catches "renamed a migration
+          #    on merge instead of re-running generate" even when it does not collide an id.
+          #    Note: `generate` exits 0 even on a chain collision, so it can never replace step 1.
+          pnpm db:migrations:generate
+          if [ -n "$(git status --porcelain migrations/)" ]; then
+            echo "::error::Schema and migrations are out of sync. Run \`pnpm db:migrations:generate\` and commit the result."
+            git --no-pager status --porcelain migrations/
+            git --no-pager diff -- migrations/
+            exit 1
+          fi
+
       - name: i18n Check
         run: pnpm i18n:check
 

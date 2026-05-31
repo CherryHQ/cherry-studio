@@ -82,7 +82,7 @@ export class DbService extends BaseService {
    * whose PRAGMAs reset to libsql compile-time defaults:
    * - `synchronous` reverts to FULL (standard SQLite default)
    * - `foreign_keys` stays ON — libsql is compiled with
-   *   `SQLITE_DEFAULT_FOREIGN_KEYS=1`, unlike standard SQLite
+   *   `SQLITE_DEFAULT_FOREIGN_KEYS=1` (see libsql-ffi/build.rs), unlike standard SQLite
    * - `journal_mode = WAL` is unaffected (persisted in the database file)
    *
    * ## Fix: patched setPragma() with PRAGMA replay
