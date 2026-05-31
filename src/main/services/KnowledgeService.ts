@@ -331,11 +331,11 @@ class KnowledgeService {
                   loaderTask.loaderDoneReturn = errorResult
                   return errorResult
                 })
-            } catch (e: any) {
+            } catch (e: unknown) {
               logger.error(`Preprocessing failed for ${file.name}: ${e}`)
               const errorResult: LoaderReturn = {
                 ...KnowledgeService.ERROR_LOADER_RETURN,
-                message: e.message,
+                message: e instanceof Error ? e.message : String(e),
                 messageSource: 'preprocess'
               }
               loaderTask.loaderDoneReturn = errorResult
@@ -503,7 +503,7 @@ class KnowledgeService {
   ): LoaderTask {
     const { base, item, forceReload } = options
     const content = item.content as string
-    const sourceUrl = (item as any).sourceUrl
+    const sourceUrl = item.sourceUrl
 
     const encoder = new TextEncoder()
     const contentBytes = encoder.encode(content)

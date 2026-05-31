@@ -67,7 +67,7 @@ import { windowService } from './WindowService'
 // Generic type for caching wrapped functions
 type CachedFunction<T extends unknown[], R> = (...args: T) => Promise<R>
 
-type CallToolArgs = { server: MCPServer; name: string; args: any; callId?: string }
+type CallToolArgs = { server: MCPServer; name: string; args: Record<string, unknown>; callId?: string }
 
 const logger = loggerService.withContext('MCPService')
 
@@ -77,19 +77,19 @@ const logger = loggerService.withContext('MCPService')
 const MCP_CONNECT_TIMEOUT_FLOOR_MS = 180_000
 
 // Redact potentially sensitive fields in objects (headers, tokens, api keys)
-function redactSensitive(input: any): any {
+function redactSensitive(input: unknown): unknown {
   const SENSITIVE_KEYS = ['authorization', 'Authorization', 'apiKey', 'api_key', 'apikey', 'token', 'access_token']
   const MAX_STRING = 300
 
-  const redact = (val: any): any => {
+  const redact = (val: unknown): unknown => {
     if (val == null) return val
     if (typeof val === 'string') {
       return val.length > MAX_STRING ? `${val.slice(0, MAX_STRING)}…<${val.length - MAX_STRING} more>` : val
     }
     if (Array.isArray(val)) return val.map((v) => redact(v))
     if (typeof val === 'object') {
-      const out: Record<string, any> = {}
-      for (const [k, v] of Object.entries(val)) {
+      const out: Record<string, unknown> = {}
+      for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
         if (SENSITIVE_KEYS.includes(k)) {
           out[k] = '<redacted>'
         } else {
@@ -105,7 +105,7 @@ function redactSensitive(input: any): any {
 }
 
 // Create a context-aware logger for a server
-function getServerLogger(server: MCPServer, extra?: Record<string, any>) {
+function getServerLogger(server: MCPServer, extra?: Record<string, unknown>) {
   const base = {
     serverName: server?.name,
     serverId: server?.id,
@@ -286,7 +286,7 @@ class McpService {
         } else {
           return existingClient
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         getServerLogger(server).error(`Error pinging server ${server.name}`, error as Error)
         this.clients.delete(serverKey)
       }
@@ -354,7 +354,7 @@ class McpService {
             try {
               await inMemoryServer.connect(serverTransport)
               getServerLogger(server).debug(`In-memory server started`)
-            } catch (error: any) {
+            } catch (error: unknown) {
               getServerLogger(server).error(`Error starting in-memory server`, error as Error)
               throw new Error(`Failed to start in-memory server: ${error.message}`)
             }
@@ -612,7 +612,7 @@ class McpService {
           }
           try {
             await client.connect(transport, connectOptions)
-          } catch (error: any) {
+          } catch (error: unknown) {
             if (
               error instanceof Error &&
               (error.name === 'UnauthorizedError' || error.message.includes('Unauthorized'))
@@ -840,7 +840,7 @@ class McpService {
     for (const [key] of this.clients) {
       try {
         await this.closeClient(key)
-      } catch (error: any) {
+      } catch (error: unknown) {
         logger.error(`Failed to close client`, error as Error)
       }
     }
@@ -1007,7 +1007,7 @@ class McpService {
     getServerLogger(server).debug(`Listing prompts`)
     try {
       const { prompts } = await client.listPrompts()
-      return prompts.map((prompt: any) => ({
+      return prompts.map((prompt) => ({
         ...prompt,
         id: `p${nanoid()}`,
         serverId: server.id,
@@ -1041,7 +1041,7 @@ class McpService {
   /**
    * Get a specific prompt from an MCP server (implementation)
    */
-  private async getPromptImpl(server: MCPServer, name: string, args?: Record<string, any>): Promise<GetPromptResult> {
+  private async getPromptImpl(server: MCPServer, name: string, args?: Record<string, unknown>): Promise<GetPromptResult> {
     logger.debug(`Getting prompt ${name} from server: ${server.name}`)
     const client = await this.initClient(server)
     return await client.getPrompt({ name, arguments: args })
@@ -1053,9 +1053,9 @@ class McpService {
   @TraceMethod({ spanName: 'getPrompt', tag: 'mcp' })
   public async getPrompt(
     _: Electron.IpcMainInvokeEvent,
-    { server, name, args }: { server: MCPServer; name: string; args?: Record<string, any> }
+    { server, name, args }: { server: MCPServer; name: string; args?: Record<string, unknown> }
   ): Promise<GetPromptResult> {
-    const cachedGetPrompt = withCache<[MCPServer, string, Record<string, any> | undefined], GetPromptResult>(
+    const cachedGetPrompt = withCache<[MCPServer, string, Record<string, unknown> | undefined], GetPromptResult>(
       this.getPromptImpl.bind(this),
       (server, name, args) => {
         const serverKey = this.getServerKey(server)
@@ -1077,12 +1077,12 @@ class McpService {
     try {
       const result = await client.listResources()
       const resources = result.resources || []
-      return (Array.isArray(resources) ? resources : []).map((resource: any) => ({
+      return (Array.isArray(resources) ? resources : []).map((resource) => ({
         ...resource,
         serverId: server.id,
         serverName: server.name
       }))
-    } catch (error: any) {
+    } catch (error: unknown) {
       // -32601 is the code for the method not found
       if (error?.code !== -32601) {
         getServerLogger(server).error(`Failed to list resources`, error as Error)
@@ -1117,7 +1117,7 @@ class McpService {
       const result = await client.readResource({ uri: uri })
       const contents: MCPResource[] = []
       if (result.contents && result.contents.length > 0) {
-        result.contents.forEach((content: any) => {
+        result.contents.forEach((content) => {
           contents.push({
             ...content,
             serverId: server.id,
@@ -1128,7 +1128,7 @@ class McpService {
       return {
         contents: contents
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       getServerLogger(server, { uri }).error(`Failed to get resource`, error as Error)
       throw new Error(`Failed to get resource ${uri} from server: ${server.name}: ${error.message}`)
     }
@@ -1187,7 +1187,7 @@ class McpService {
 
       getServerLogger(server).warn(`No version information available`)
       return null
-    } catch (error: any) {
+    } catch (error: unknown) {
       getServerLogger(server).error(`Failed to get server version`, error as Error)
       return null
     }

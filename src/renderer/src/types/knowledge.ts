@@ -19,6 +19,7 @@ export type KnowledgeItem = {
   processingError?: string
   retryCount?: number
   isPreprocessed?: boolean
+  sourceUrl?: string
 }
 
 export type KnowledgeFileItem = KnowledgeItem & {

@@ -21,6 +21,7 @@ import {
 } from 'docx'
 import { dialog } from 'electron'
 import MarkdownIt from 'markdown-it'
+import type Token from 'markdown-it/lib/token'
 
 import { fileStorage } from './FileStorage'
 
@@ -34,7 +35,7 @@ export class ExportService {
 
   private convertMarkdownToDocxElements(markdown: string) {
     const tokens = this.md.parse(markdown, {})
-    const elements: any[] = []
+    const elements: (Paragraph | Table)[] = []
     let listLevel = 0
     let currentTable: Table | null = null
     let currentRowCells: TableCell[] = []
@@ -42,7 +43,7 @@ export class ExportService {
     let tableColumnCount = 0
     let tableRows: TableRow[] = [] // Store rows temporarily
 
-    const processInlineTokens = (tokens: any[], isHeaderRow: boolean): (TextRun | ExternalHyperlink)[] => {
+    const processInlineTokens = (tokens: Token[], isHeaderRow: boolean): (TextRun | ExternalHyperlink)[] => {
       const runs: (TextRun | ExternalHyperlink)[] = []
       let linkText = ''
       let linkUrl = ''
