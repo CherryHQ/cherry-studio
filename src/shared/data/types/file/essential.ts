@@ -60,6 +60,16 @@ export const SafeExtSchema = z
  * hash correctness: `contentHash` is a detection substrate, not an identity
  * (see file-manager-architecture.md).
  */
+/**
+ * Canonical content-hash format pattern: `{algo}:{hex}`, anchored, lowercase.
+ * Single source of truth for the shape — the two capture groups are
+ * `(algo)(hex)`, which `parseContentHash` (`@main/utils/file/contentHash`) uses
+ * to decompose a stored hash. `ContentHashSchema` only `.test()`s it (capture
+ * groups are inert for `.regex()`); the flag-free regex carries no `lastIndex`
+ * state, so sharing one instance between `.test()` and `.exec()` is safe.
+ */
+export const CONTENT_HASH_PATTERN = /^([a-z0-9]+(?:-[a-z0-9]+)*):([0-9a-f]+)$/
+
 export const ContentHashSchema = z
   .string()
-  .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*:[0-9a-f]+$/, 'contentHash must be `{algo}:{hex}` (e.g. "xxh3-64:…")')
+  .regex(CONTENT_HASH_PATTERN, 'contentHash must be `{algo}:{hex}` (e.g. "xxh3-64:…")')

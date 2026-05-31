@@ -17,6 +17,7 @@
  */
 
 import { xxh3 } from '@node-rs/xxhash'
+import { CONTENT_HASH_PATTERN } from '@shared/data/types/file/essential'
 
 /** Algorithm tag prefixing every stored content hash (`{CONTENT_HASH_ALGO}:{hex}`). */
 export const CONTENT_HASH_ALGO = 'xxh3-64'
@@ -76,9 +77,6 @@ export interface ParsedContentHash {
   hex: string
 }
 
-/** Mirrors `ContentHashSchema`'s shape (`@shared/data/types/file/essential`): `{algo}:{hex}`, anchored. */
-const CONTENT_HASH_RE = /^([a-z0-9]+(?:-[a-z0-9]+)*):([0-9a-f]+)$/
-
 /**
  * Parse a stored content hash into its `{ algo, hex }` parts — the inverse of
  * the `{algo}:{hex}` format that {@link hashContent} / {@link createContentHasher}
@@ -87,14 +85,14 @@ const CONTENT_HASH_RE = /^([a-z0-9]+(?:-[a-z0-9]+)*):([0-9a-f]+)$/
  * tag is part of the stored contract).
  *
  * Returns `null` — never throws — for a value that doesn't match the
- * `{algo}:{hex}` shape (algo `[a-z0-9]+(?:-[a-z0-9]+)*`, hex `[0-9a-f]+`, both
- * non-empty), mirroring {@link ContentHashSchema}. `null` (not an exception) is
- * the right shape here: a stored value can be malformed (legacy / corrupted
- * data), and callers branch on presence rather than wrap every read in
- * try/catch. Pure function.
+ * `{algo}:{hex}` shape, validated against the same `CONTENT_HASH_PATTERN` that
+ * backs {@link ContentHashSchema} (its `(algo)(hex)` capture groups are what we
+ * decompose here). `null` (not an exception) is the right shape: a stored value
+ * can be malformed (legacy / corrupted data), and callers branch on presence
+ * rather than wrap every read in try/catch. Pure function.
  */
 export function parseContentHash(value: string): ParsedContentHash | null {
-  const match = CONTENT_HASH_RE.exec(value)
+  const match = CONTENT_HASH_PATTERN.exec(value)
   if (!match) return null
   return { algo: match[1], hex: match[2] }
 }
