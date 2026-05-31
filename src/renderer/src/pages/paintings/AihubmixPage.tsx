@@ -824,7 +824,7 @@ const AihubmixPage: FC<{ Options: string[] }> = ({ Options }) => {
             }}>
             {painting[item.key!] ? (
               <ImagePreview>
-                <img src={painting[item.key!]} alt="预览图" />
+                <img src={painting[item.key!]} alt={t('common.image_preview')} />
               </ImagePreview>
             ) : (
               <ImageSizeImage src={IcImageUp} theme={theme} />
