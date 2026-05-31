@@ -3,7 +3,7 @@ import type { DailyUsage, ModelStats, TopicStats } from '@renderer/utils/topicSt
 import { computeGlobalStatsFromDB } from '@renderer/utils/topicStats'
 import { Select } from 'antd'
 import { BarChart3, BookOpen, Bot, Clock, Cpu, FileText, Gauge, Loader, MessageSquare, Type, Zap } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -125,8 +125,8 @@ const MSearch = styled.input`
 
 // ─── Heatmap ────────────────────────────────────────────────────────────────
 
-const CELL = 12
-const GAP = 3
+const BASE_CELL = 12
+const BASE_GAP = 3
 
 function heatColor(count: number, max: number): string {
   if (count === 0) return 'var(--color-background-soft)'
@@ -152,15 +152,15 @@ const HeatmapInner = styled.div`
   min-width: fit-content;
 `
 
-const MonthRow = styled.div`
+const MonthRow = styled.div<{ $cell: number; $gap: number }>`
   display: flex;
-  gap: ${GAP}px;
+  gap: ${(p) => p.$gap}px;
   margin-bottom: 4px;
   height: 16px;
 `
 
-const MonthLabel = styled.div`
-  width: ${CELL}px;
+const MonthLabel = styled.div<{ $cell: number }>`
+  width: ${(p) => p.$cell}px;
   flex-shrink: 0;
   font-size: 10px;
   color: var(--color-text-secondary, #888);
@@ -168,20 +168,20 @@ const MonthLabel = styled.div`
   overflow: visible;
 `
 
-const GridRow = styled.div`
+const GridRow = styled.div<{ $gap: number }>`
   display: flex;
-  gap: ${GAP}px;
+  gap: ${(p) => p.$gap}px;
 `
 
-const WeekCol = styled.div`
+const WeekCol = styled.div<{ $gap: number }>`
   display: flex;
   flex-direction: column;
-  gap: ${GAP}px;
+  gap: ${(p) => p.$gap}px;
 `
 
-const Cell = styled.div<{ $bg: string }>`
-  width: ${CELL}px;
-  height: ${CELL}px;
+const Cell = styled.div<{ $bg: string; $s: number }>`
+  width: ${(p) => p.$s}px;
+  height: ${(p) => p.$s}px;
   border-radius: 2px;
   flex-shrink: 0;
   cursor: ${(p) => (p.$bg !== 'var(--color-background-soft)' ? 'pointer' : 'default')};
@@ -190,6 +190,30 @@ const Cell = styled.div<{ $bg: string }>`
 
 function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
   const [tip, setTip] = useState<{ x: number; y: number; text: string } | null>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const [availW, setAvailW] = useState(800)
+
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const ro = new ResizeObserver(([e]) => {
+      if (e) setAvailW(e.contentRect.width)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const CELL = useMemo(() => {
+    const weeks = 54
+    const minCell = 9
+    const maxCell = BASE_CELL
+    const needed = weeks * (maxCell + BASE_GAP) + 10
+    if (availW >= needed) return maxCell
+    const c = Math.floor((availW - 10) / weeks - BASE_GAP)
+    return Math.max(minCell, c)
+  }, [availW])
+  const GAP = CELL < BASE_CELL ? Math.max(1, BASE_GAP - (BASE_CELL - CELL)) : BASE_GAP
+
   const um = useMemo(() => {
     const m = new Map<string, number>()
     for (const d of dailyUsage) m.set(d.date, d.messages)
@@ -233,19 +257,22 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
   const wm = new Map<number, string>()
   for (const m of markers) wm.set(m.wi, m.l)
   return (
-    <HeatmapWrap>
+    <HeatmapWrap ref={wrapRef}>
       <HeatmapInner onMouseLeave={() => setTip(null)}>
-        <MonthRow>
+        <MonthRow $cell={CELL} $gap={GAP}>
           {weeks.map((_, wi) => (
-            <MonthLabel key={wi}>{wm.get(wi) || ''}</MonthLabel>
+            <MonthLabel $cell={CELL} key={wi}>
+              {wm.get(wi) || ''}
+            </MonthLabel>
           ))}
         </MonthRow>
-        <GridRow>
+        <GridRow $gap={GAP}>
           {weeks.map((wk, wi) => (
-            <WeekCol key={wi}>
+            <WeekCol $gap={GAP} key={wi}>
               {wk.map((dy, di) => (
                 <Cell
                   key={di}
+                  $s={CELL}
                   $bg={heatColor(dy.c, maxC)}
                   title={`${dy.ds}: ${dy.c} messages`}
                   onMouseEnter={(e) => setTip({ x: e.clientX, y: e.clientY, text: `${dy.ds}: ${dy.c} messages` })}
@@ -600,13 +627,6 @@ function StatsDisplay({ stats }: { stats: TopicStats }) {
   )
 }
 
-// ─── Responsive wrapper — allow flex to shrink the content area ─────────────
-
-const ContentArea = styled.div`
-  min-width: 0;
-  width: 100%;
-`
-
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 const StatsSettings: React.FC = () => {
@@ -630,29 +650,27 @@ const StatsSettings: React.FC = () => {
 
   return (
     <SettingContainer theme={theme}>
-      <ContentArea>
-        {loading ? (
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 8,
-              padding: '48px 24px',
-              color: 'var(--color-text-secondary, #888)',
-              fontSize: 14
-            }}>
-            <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} />
-            {t('stats.loading')}
-          </div>
-        ) : stats === null || stats.totalMessages === 0 ? (
-          <div style={{ textAlign: 'center', padding: 48, color: 'var(--color-text-secondary, #888)', fontSize: 14 }}>
-            {t('stats.no_data')}
-          </div>
-        ) : (
-          <StatsDisplay stats={stats} />
-        )}
-      </ContentArea>
+      {loading ? (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+            padding: '48px 24px',
+            color: 'var(--color-text-secondary, #888)',
+            fontSize: 14
+          }}>
+          <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} />
+          {t('stats.loading')}
+        </div>
+      ) : stats === null || stats.totalMessages === 0 ? (
+        <div style={{ textAlign: 'center', padding: 48, color: 'var(--color-text-secondary, #888)', fontSize: 14 }}>
+          {t('stats.no_data')}
+        </div>
+      ) : (
+        <StatsDisplay stats={stats} />
+      )}
     </SettingContainer>
   )
 }
