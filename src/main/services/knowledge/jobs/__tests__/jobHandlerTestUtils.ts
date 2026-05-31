@@ -258,6 +258,6 @@ beforeEach(() => {
   detachFileRefsMock.mockResolvedValue(undefined)
   deleteItemsByIdsMock.mockResolvedValue(undefined)
   rebuildFileRefsForItemsMock.mockResolvedValue(undefined)
-  cancelMock.mockResolvedValue(undefined)
+  cancelMock.mockResolvedValue({ outcome: 'cancelled' })
   scheduleItemMock.mockResolvedValue({ id: 'scheduled-job' })
 })
