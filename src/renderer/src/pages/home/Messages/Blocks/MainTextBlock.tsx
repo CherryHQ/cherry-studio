@@ -53,17 +53,26 @@ const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions
     // committed by the time this effect runs, but the rAF re-paint covers
     // any late DOM commit so the registered Range points at live nodes.
     // `block.content` as a dep re-runs the paint if the text changes.
+    //
+    // P1-S2a: each paint stamps data-branch-id + data-hl; cleanup clears
+    // ONLY the branchIds this effect painted (targeted), so anchors that
+    // belong to other concurrently-open branches are left intact. At S1
+    // invariant length ≤ 1 this is exactly one paint and one clear, byte-
+    // equivalent to the pre-S2a path.
+    const paintedBranchIds = matchingAnchors.map((a) => a.branchId)
     for (const a of matchingAnchors) {
-      paintSourceHighlight(el, a.selectionStart, a.selectionEnd)
+      paintSourceHighlight(el, a.selectionStart, a.selectionEnd, a.branchId, a.color)
     }
     const raf = requestAnimationFrame(() => {
       for (const a of matchingAnchors) {
-        paintSourceHighlight(el, a.selectionStart, a.selectionEnd)
+        paintSourceHighlight(el, a.selectionStart, a.selectionEnd, a.branchId, a.color)
       }
     })
     return () => {
       cancelAnimationFrame(raf)
-      clearSourceHighlight()
+      for (const id of paintedBranchIds) {
+        clearSourceHighlight(id)
+      }
     }
   }, [matchingAnchors, block.content])
 

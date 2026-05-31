@@ -1,3 +1,4 @@
+import type { BranchHlColorKey } from '@renderer/pages/home/Messages/BranchPanel'
 import { createContext, use } from 'react'
 
 /**
@@ -27,6 +28,12 @@ export interface BranchAnchorHighlight {
   selectionStart: number
   /** Char offset of the selection end within the source block's text content. */
   selectionEnd: number
+  /**
+   * Palette key for the highlight color (P1-S2a). Stamped on each injected
+   * span as `data-hl="cN"`; CSS resolves it to the matching `--branch-hl-cN`.
+   * S2a always 'c1' (legacy amber); S2b cycles per branch.
+   */
+  color: BranchHlColorKey
 }
 
 /** Value carried by BranchAnchorContext — list of currently-open anchors. */

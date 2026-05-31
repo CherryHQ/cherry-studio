@@ -490,13 +490,17 @@ describe('MainTextBlock', () => {
     const getInjectedSpans = (blockId: string) =>
       getBlockScope(blockId)?.querySelectorAll('span.branch-anchor-highlight') ?? []
     // P1-S1: BranchAnchorContext value shape generalized to { anchors: [...] }.
-    // helper preserves the previous test-call signature so every assertion in
-    // this block stays IDENTICAL — blockId === null → no anchor; otherwise a
-    // single-element anchors list (S1 invariant: length ≤ 1).
-    const highlight = (blockId: string | null, start = 0, end = 0) =>
+    // P1-S2a: each anchor now carries `color` too (palette key, drives
+    // data-hl stamp on each injected span).
+    // The helper preserves the previous call signature for every previous
+    // assertion; opt-in branchId / color params are for the new attribute
+    // assertions below.
+    const TEST_BRANCH_ID = 'test-branch-1'
+    const TEST_COLOR = 'c1' as const
+    const highlight = (blockId: string | null, start = 0, end = 0, branchId = TEST_BRANCH_ID, color = TEST_COLOR) =>
       blockId === null
         ? { anchors: [] }
-        : { anchors: [{ branchId: 'test-branch-1', blockId, selectionStart: start, selectionEnd: end }] }
+        : { anchors: [{ branchId, blockId, selectionStart: start, selectionEnd: end, color }] }
 
     it('injects no highlight spans when no BranchAnchorContext Provider is present (main chat default)', () => {
       const block = createMainTextBlock({ id: 'blk-A', content: 'plain body text' })
@@ -505,7 +509,7 @@ describe('MainTextBlock', () => {
       expect(getInjectedSpans('blk-A')).toHaveLength(0)
     })
 
-    it('injects span.branch-anchor-highlight when the highlighted blockId matches this block', () => {
+    it('injects span.branch-anchor-highlight when the highlighted blockId matches this block (with correct data-branch-id + data-hl)', () => {
       const block = createMainTextBlock({ id: 'blk-A', content: 'anchored body text' })
       render(
         <Provider store={mockStore}>
@@ -515,7 +519,14 @@ describe('MainTextBlock', () => {
         </Provider>
       )
 
-      expect(getInjectedSpans('blk-A').length).toBeGreaterThan(0)
+      const spans = getInjectedSpans('blk-A')
+      expect(spans.length).toBeGreaterThan(0)
+      // S2a: each injected span carries the load-bearing data-branch-id and
+      // the palette key. Every span must be tagged (not just the first).
+      for (const s of Array.from(spans)) {
+        expect(s.getAttribute('data-branch-id')).toBe(TEST_BRANCH_ID)
+        expect(s.getAttribute('data-hl')).toBe(TEST_COLOR)
+      }
     })
 
     it('injects no spans when the context highlightedBlockId targets a different block', () => {

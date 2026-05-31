@@ -1,5 +1,7 @@
 import type { Topic } from '@renderer/types'
 
+import type { BranchHlColorKey } from './constants'
+
 /**
  * BranchAnchor carries the context needed to open a branch from a text
  * selection inside a `MainTextBlock`. `findBlockContext` resolves
@@ -57,4 +59,12 @@ export interface Branch {
   topic: Topic | null
   /** Wall-clock millis when the branch was opened (for ordering / debug). */
   createdAt: number
+  /**
+   * Palette key driving the source-passage highlight color (P1-S2a). Stamped
+   * onto each injected `<span class="branch-anchor-highlight">` as
+   * `data-hl="cN"`; CSS maps each key to a `--branch-hl-cN` custom property.
+   * S2a assigns `BRANCH_HL_DEFAULT_COLOR` ('c1') unconditionally; S2b cycles
+   * through the palette as multiple branches open.
+   */
+  color: BranchHlColorKey
 }

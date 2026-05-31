@@ -32,7 +32,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 import ChatNavbar from './components/ChatNavBar'
 import Inputbar from './Inputbar/Inputbar'
-import { type Branch, type BranchAnchor, BranchPane } from './Messages/BranchPanel'
+import { type Branch, BRANCH_HL_DEFAULT_COLOR, type BranchAnchor, BranchPane } from './Messages/BranchPanel'
 import ChatNavigation from './Messages/ChatNavigation'
 import Messages from './Messages/Messages'
 import Tabs from './Tabs'
@@ -76,6 +76,11 @@ const Chat: FC<Props> = (props) => {
   // Branch starts with `topic: null` to mirror the previous "anchor first,
   // POST /topics later" two-phase timing. `id` is client-generated so it's
   // stable from anchor-emit through topic-creation through close.
+  //
+  // S2a: every new branch gets the default palette color (c1, legacy amber).
+  // S2b will cycle through the palette as multiple branches open
+  // concurrently. The S1 invariant (branches.length ≤ 1) means we never
+  // need to disambiguate today; same color is fine.
   const openBranchAnchor = useCallback((anchor: BranchAnchor) => {
     setBranches([
       {
@@ -87,7 +92,8 @@ const Chat: FC<Props> = (props) => {
           offsets: { start: anchor.selectionStart, end: anchor.selectionEnd }
         },
         topic: null,
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        color: BRANCH_HL_DEFAULT_COLOR
       }
     ])
   }, [])
@@ -151,7 +157,8 @@ const Chat: FC<Props> = (props) => {
         branchId: b.id,
         blockId: b.source.blockId,
         selectionStart: b.source.offsets.start,
-        selectionEnd: b.source.offsets.end
+        selectionEnd: b.source.offsets.end,
+        color: b.color
       }))
     }),
     [branches]
@@ -364,11 +371,13 @@ const Chat: FC<Props> = (props) => {
             }}
             onComposeCancel={() => {
               // Universal close path — works in compose state AND conversation
-              // state. Order: (1) clearSourceHighlight removes injected spans
-              // synchronously (defense in depth — the MainTextBlock effect
-              // cleanup will also run when matchingAnchors flips to empty on
-              // the next render, but doing it here makes the DOM clean BEFORE
-              // React commits the panel-collapse, so there is no flash).
+              // state. Order: (1) targeted clearSourceHighlight removes the
+              // injected spans for THIS branch(es) synchronously (defense in
+              // depth — the MainTextBlock effect cleanup will also run when
+              // matchingAnchors flips to empty on the next render, but doing
+              // it here makes the DOM clean BEFORE React commits the panel-
+              // collapse, so there is no flash). S2a: per-branchId, so other
+              // branches (none at S1, but future-proof at S2b) are untouched.
               // (2) setBranches([]) + setCollapsedBranchIds(new Set()) drives
               // `BranchPane`'s `isVisible` (derived from composerAnchor +
               // activeBranchTopic) to false (motion.div animates width → 0).
@@ -376,7 +385,7 @@ const Chat: FC<Props> = (props) => {
               // next open starts clean. NOTE: this does NOT delete the forked
               // topic from SQLite — the row remains as an orphan until
               // T-006D-2C-5 cleanup ships path Y (delete-on-close).
-              clearSourceHighlight()
+              branches.forEach((b) => clearSourceHighlight(b.id))
               setBranches([])
               setCollapsedBranchIds(new Set())
               branchFork.reset()

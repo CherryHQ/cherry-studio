@@ -174,34 +174,48 @@ describe('captureSelectionOffsets ↔ resolveBranchHighlightRange round-trip', (
  * production `paintSourceHighlight` itself uses.
  */
 describe('paintSourceHighlight + clearSourceHighlight (DOM mutation chain)', () => {
-  it('paint wraps a single-text-node selection in one span whose text === the selected passage', () => {
+  // Branch-id helpers — all assertions read these so the load-bearing
+  // data-branch-id attribute is checked alongside text content.
+  const A = 'branch-A-id'
+  const B = 'branch-B-id'
+  const queryByBranch = (root: Element | Document, id: string) =>
+    root.querySelectorAll(`span.branch-anchor-highlight[data-branch-id="${id}"]`)
+
+  it('paint wraps a single-text-node selection in one span whose text === the selected passage (with correct data-branch-id + data-hl)', () => {
     const block = makeBlock('Distillation transfers knowledge to a student model.')
 
-    paintSourceHighlight(block, 13, 32) // "transfers knowledge"
+    paintSourceHighlight(block, 13, 32, A, 'c1') // "transfers knowledge"
 
     const spans = block.querySelectorAll('span.branch-anchor-highlight')
     expect(spans).toHaveLength(1)
     expect(spans[0].textContent).toBe('transfers knowledge')
+    expect(spans[0].getAttribute('data-branch-id')).toBe(A)
+    expect(spans[0].getAttribute('data-hl')).toBe('c1')
   })
 
-  it('paint wraps a multi-node selection in ≥2 spans whose concatenated text === the selected passage', () => {
+  it('paint wraps a multi-node selection in ≥2 spans whose concatenated text === the selected passage (every span tagged)', () => {
     // childNodes: [text "teacher passes ", <strong>knowledge</strong>, text " to student"]
     const block = makeBlock('teacher passes <strong>knowledge</strong> to student')
 
-    paintSourceHighlight(block, 8, 24) // "passes " + "knowledge" = "passes knowledge"
+    paintSourceHighlight(block, 8, 24, B, 'c3') // "passes " + "knowledge" = "passes knowledge"
 
     const spans = Array.from(block.querySelectorAll('span.branch-anchor-highlight'))
     expect(spans.length).toBeGreaterThanOrEqual(2)
     expect(spans.map((s) => s.textContent).join('')).toBe('passes knowledge')
+    // Every span carries the right id + color — not just the first.
+    for (const span of spans) {
+      expect(span.getAttribute('data-branch-id')).toBe(B)
+      expect(span.getAttribute('data-hl')).toBe('c3')
+    }
   })
 
-  it('clear removes all injected spans (no shells) and restores the source DOM intact + contiguous', () => {
+  it('clear(branchId) removes that branch spans (no shells) and restores the source DOM intact + contiguous', () => {
     const block = makeBlock('alpha beta gamma delta')
     const originalText = block.textContent
-    paintSourceHighlight(block, 6, 16) // "beta gamma"
-    expect(block.querySelectorAll('span.branch-anchor-highlight').length).toBeGreaterThan(0)
+    paintSourceHighlight(block, 6, 16, A, 'c1') // "beta gamma"
+    expect(queryByBranch(block, A).length).toBeGreaterThan(0)
 
-    clearSourceHighlight()
+    clearSourceHighlight(A)
 
     // (a) No remaining branch-anchor spans anywhere — neither full nor empty shells.
     expect(document.querySelectorAll('span.branch-anchor-highlight')).toHaveLength(0)
@@ -213,36 +227,150 @@ describe('paintSourceHighlight + clearSourceHighlight (DOM mutation chain)', () 
     expect(block.firstChild!.nodeType).toBe(Node.TEXT_NODE)
   })
 
-  it('clear is idempotent and safe when there is nothing to clear', () => {
+  it('clear(branchId) is idempotent and safe when there is nothing to clear for that id', () => {
     const block = makeBlock('untouched body')
-    expect(() => clearSourceHighlight()).not.toThrow()
+    expect(() => clearSourceHighlight('never-painted')).not.toThrow()
     expect(block.textContent).toBe('untouched body')
     expect(block.querySelectorAll('span.branch-anchor-highlight')).toHaveLength(0)
   })
 
-  it('switching anchors (open A then open B) leaves only B-range spans — no accumulation', () => {
+  it('re-painting the same branchId replaces (paint internally clears that id first), never accumulates', () => {
     const block = makeBlock('alpha beta gamma delta')
 
-    paintSourceHighlight(block, 0, 5) // A: "alpha"
-    paintSourceHighlight(block, 17, 22) // B: "delta" — paint internally clears A first
+    paintSourceHighlight(block, 0, 5, A, 'c1') // A: "alpha"
+    paintSourceHighlight(block, 17, 22, A, 'c1') // re-paint A elsewhere → A's old span gone, only new "delta" left
 
-    const spans = block.querySelectorAll('span.branch-anchor-highlight')
-    expect(spans).toHaveLength(1)
-    expect(spans[0].textContent).toBe('delta')
+    const aSpans = queryByBranch(block, A)
+    expect(aSpans).toHaveLength(1)
+    expect(aSpans[0].textContent).toBe('delta')
+    // And nothing leaked under any other id.
+    expect(document.querySelectorAll('span.branch-anchor-highlight')).toHaveLength(1)
   })
 
-  it('repeated open/clear cycles never accumulate spans and always end at zero', () => {
+  it('repeated paint/clear cycles for one branchId never accumulate and always end at zero', () => {
     const block = makeBlock('alpha beta gamma delta')
 
     for (let i = 0; i < 5; i++) {
-      paintSourceHighlight(block, 6, 16)
-      expect(block.querySelectorAll('span.branch-anchor-highlight').length).toBeGreaterThan(0)
-      clearSourceHighlight()
-      expect(block.querySelectorAll('span.branch-anchor-highlight')).toHaveLength(0)
+      paintSourceHighlight(block, 6, 16, A, 'c1')
+      expect(queryByBranch(block, A).length).toBeGreaterThan(0)
+      clearSourceHighlight(A)
+      expect(queryByBranch(block, A)).toHaveLength(0)
     }
 
     // Final DOM matches the original — text intact, children contiguous.
     expect(block.textContent).toBe('alpha beta gamma delta')
+    expect(block.childNodes).toHaveLength(1)
+  })
+
+  // --- P1-S2a targeted-clear coverage (multi-branch fixtures, even though
+  // the production UI still creates at most one branch). The implementation
+  // is what's being verified here, not the UI.
+
+  it('disjoint paint(A) + paint(B) coexist; each span set tagged with its own branchId/color; per-branch concat === passage', () => {
+    const block = makeBlock('alpha beta gamma delta')
+
+    paintSourceHighlight(block, 0, 5, A, 'c1') // A: "alpha"
+    paintSourceHighlight(block, 17, 22, B, 'c2') // B: "delta"
+
+    const aSpans = Array.from(queryByBranch(block, A))
+    const bSpans = Array.from(queryByBranch(block, B))
+    expect(aSpans.length).toBeGreaterThan(0)
+    expect(bSpans.length).toBeGreaterThan(0)
+    expect(aSpans.map((s) => s.textContent).join('')).toBe('alpha')
+    expect(bSpans.map((s) => s.textContent).join('')).toBe('delta')
+    // Colors are kept independent.
+    for (const s of aSpans) expect(s.getAttribute('data-hl')).toBe('c1')
+    for (const s of bSpans) expect(s.getAttribute('data-hl')).toBe('c2')
+  })
+
+  it('clear(A) leaves B fully intact (count + text + attributes); then clear(B) wipes everything and DOM is restored', () => {
+    const block = makeBlock('alpha beta gamma delta')
+
+    paintSourceHighlight(block, 0, 5, A, 'c1') // A: "alpha"
+    paintSourceHighlight(block, 17, 22, B, 'c2') // B: "delta"
+
+    // Snapshot B's spans BEFORE clearing A.
+    const bSpansBefore = Array.from(queryByBranch(block, B))
+    const bTextBefore = bSpansBefore.map((s) => s.textContent).join('')
+    const bColorsBefore = bSpansBefore.map((s) => s.getAttribute('data-hl'))
+
+    clearSourceHighlight(A)
+
+    // A gone.
+    expect(queryByBranch(block, A)).toHaveLength(0)
+    // B unchanged — same count, same text, same color attributes.
+    const bSpansAfter = Array.from(queryByBranch(block, B))
+    expect(bSpansAfter).toHaveLength(bSpansBefore.length)
+    expect(bSpansAfter.map((s) => s.textContent).join('')).toBe(bTextBefore)
+    expect(bSpansAfter.map((s) => s.getAttribute('data-hl'))).toEqual(bColorsBefore)
+    // Total spans now = just B's.
+    expect(document.querySelectorAll('span.branch-anchor-highlight')).toHaveLength(bSpansAfter.length)
+
+    clearSourceHighlight(B)
+
+    // Both gone.
+    expect(document.querySelectorAll('span.branch-anchor-highlight')).toHaveLength(0)
+    // DOM fully restored.
+    expect(block.textContent).toBe('alpha beta gamma delta')
+    expect(block.childNodes).toHaveLength(1)
+    expect(block.firstChild!.nodeType).toBe(Node.TEXT_NODE)
+  })
+
+  it('nested/overlapping selections: clear(A) leaves nested B spans intact (count + text + attributes)', () => {
+    // A = [0, 16) "alpha beta gamma"; B = [11, 22) "gamma delta" — overlap on "gamma".
+    // Paint A first; paint B second → B's wrap walks Text nodes inside A's span
+    // and nests INSIDE it for the overlapping portion, plus a sibling span for
+    // the part outside A. The flattened-text-walker is what makes nesting work.
+    const block = makeBlock('alpha beta gamma delta epsilon')
+
+    paintSourceHighlight(block, 0, 16, A, 'c1')
+    paintSourceHighlight(block, 11, 22, B, 'c2')
+
+    const bSpansBefore = Array.from(queryByBranch(block, B))
+    expect(bSpansBefore.length).toBeGreaterThanOrEqual(2) // nested + sibling
+    expect(bSpansBefore.map((s) => s.textContent).join('')).toBe('gamma delta')
+    for (const s of bSpansBefore) expect(s.getAttribute('data-hl')).toBe('c2')
+
+    clearSourceHighlight(A)
+
+    // A gone.
+    expect(queryByBranch(block, A)).toHaveLength(0)
+    // B's two spans (the formerly-nested one + the sibling) still present;
+    // their text concatenates to the same passage.
+    const bSpansAfter = Array.from(queryByBranch(block, B))
+    expect(bSpansAfter).toHaveLength(bSpansBefore.length)
+    expect(bSpansAfter.map((s) => s.textContent).join('')).toBe('gamma delta')
+    for (const s of bSpansAfter) expect(s.getAttribute('data-hl')).toBe('c2')
+    // Total spans = just B's (no A residue).
+    expect(document.querySelectorAll('span.branch-anchor-highlight')).toHaveLength(bSpansAfter.length)
+    // Text content of the block stays intact.
+    expect(block.textContent).toBe('alpha beta gamma delta epsilon')
+  })
+
+  it('repeated paint/clear cycles across two branches: each clear leaves the other intact; both-clear restores DOM', () => {
+    const block = makeBlock('alpha beta gamma delta epsilon')
+
+    for (let i = 0; i < 4; i++) {
+      paintSourceHighlight(block, 0, 5, A, 'c1') // "alpha"
+      paintSourceHighlight(block, 6, 10, B, 'c2') // "beta"
+
+      // Clear A: B intact.
+      clearSourceHighlight(A)
+      expect(queryByBranch(block, A)).toHaveLength(0)
+      expect(queryByBranch(block, B).length).toBeGreaterThan(0)
+      expect(
+        Array.from(queryByBranch(block, B))
+          .map((s) => s.textContent)
+          .join('')
+      ).toBe('beta')
+
+      // Clear B: both gone.
+      clearSourceHighlight(B)
+      expect(document.querySelectorAll('span.branch-anchor-highlight')).toHaveLength(0)
+    }
+
+    // After several cycles the block is byte-for-byte the original.
+    expect(block.textContent).toBe('alpha beta gamma delta epsilon')
     expect(block.childNodes).toHaveLength(1)
   })
 })
