@@ -456,7 +456,7 @@ function StatsDisplay({ stats }: { stats: TopicStats }) {
               {t('stats.avg_completion')}
             </SettingRowTitle>
             <strong style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-              {fmtDurationCoarse(stats.avgCompletionTime, t)}
+              {fmtLatency(stats.avgCompletionTime)}
             </strong>
           </SettingRow>
           <SettingDivider />

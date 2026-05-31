@@ -84,11 +84,7 @@ const MC = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#a855f7', '#06b6d4', '#
 // ─── Styled ─────────────────────────────────────────────────────────────────
 
 const Modal = styled(AntdModal)`
-  .ant-modal-content { border: 0.5px solid var(--color-border); border-radius: 10px; }
-  .ant-modal-header { margin-bottom: 0; padding: 14px 20px; border-bottom: 0.5px solid var(--color-border); }
-  .ant-modal-title { font-size: 15px; font-weight: 600; }
-  .ant-modal-close { top: 13px; }
-  .ant-modal-body { padding: 18px 20px 14px; max-height: 60vh; overflow-y: auto; }
+  .ant-modal-body { max-height: 60vh; overflow-y: auto; }
 `
 const Row = styled.div` display: flex; justify-content: space-between; align-items: center; min-height: 26px; padding: 2px 0; `
 const RL = styled.span` font-size: 13px; color: var(--color-text-1); display: flex; align-items: center; gap: 6px; `
@@ -267,7 +263,7 @@ const TopicStatsPanel: React.FC<Props> = ({ topicId, topicName, resolve }) => {
             </Row>
             <Row>
               <RL>{t('stats.avg_completion')}</RL>
-              <RV>{fmtDurationCoarse(stats.avgCompletionTime, t)}</RV>
+              <RV>{fmtLatency(stats.avgCompletionTime)}</RV>
             </Row>
             <Row>
               <RL>{t('stats.avg_speed')}</RL>
@@ -323,6 +319,7 @@ const TopicStatsPanel: React.FC<Props> = ({ topicId, topicName, resolve }) => {
       footer={null}
       width={560}
       centered
+      transitionName="animation-move-down"
       destroyOnClose>
       {body()}
     </Modal>
