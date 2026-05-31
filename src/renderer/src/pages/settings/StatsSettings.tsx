@@ -124,7 +124,8 @@ const MSearch = styled.input` background: var(--color-background-soft); border: 
 
 // ─── Heatmap ────────────────────────────────────────────────────────────────
 
-const HM_COLORS = ['var(--color-background-soft)', '#0e4429', '#006d32', '#1a7f3a', '#216e39']
+// Less→More: light→dark (GitHub-style green ramp)
+const HM_COLORS = ['var(--color-background-soft)', '#9be9a8', '#40c463', '#30a14e', '#216e39']
 
 function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
   const [tip, setTip] = useState<{ x: number; y: number; text: string } | null>(null)
