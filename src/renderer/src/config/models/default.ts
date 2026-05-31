@@ -380,6 +380,12 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   anthropic: [
     {
+      id: 'claude-opus-4-8',
+      provider: 'anthropic',
+      name: 'Claude Opus 4.8',
+      group: 'Claude 4.8'
+    },
+    {
       id: 'claude-opus-4-7',
       provider: 'anthropic',
       name: 'Claude Opus 4.7',

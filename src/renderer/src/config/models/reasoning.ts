@@ -23,7 +23,7 @@ import {
 import {
   GEMINI_FLASH_MODEL_REGEX,
   isClaude46SeriesModel,
-  isClaude47SeriesModel,
+  isClaudeOpus47PlusModel,
   isGemini3FlashModel,
   isGemini3ProModel,
   isGemini31FlashLiteModel,
@@ -141,9 +141,9 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
   const modelId = getLowerBaseModelName(model.id)
   if (isClaudeReasoningModel(model)) {
     thinkingModelType = 'claude'
-    // 4.7 reuses the 4.6 effort list (low/medium/high/xhigh); provider-level
-    // mapping still distinguishes them (4.7 sends native 'xhigh', 4.6 sends 'max').
-    if (isClaude46SeriesModel(model) || isClaude47SeriesModel(model)) {
+    // 4.7+ reuses the 4.6 effort list (low/medium/high/xhigh); provider-level
+    // mapping still distinguishes them (4.7+ sends native 'xhigh', 4.6 sends 'max').
+    if (isClaude46SeriesModel(model) || isClaudeOpus47PlusModel(model)) {
       thinkingModelType = 'claude46'
     }
   } else if (isOpenAIDeepResearchModel(model)) {
