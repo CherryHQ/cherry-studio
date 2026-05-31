@@ -6,7 +6,7 @@ import {
   type InsertAgentSessionRow as InsertSessionRow
 } from '@data/db/schemas/agentSession'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
-import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
+import { normalizePaths, nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import {
@@ -50,7 +50,7 @@ function agentRowToSessionDefaults(row: Record<string, unknown>): {
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
     name: (row.name as string) || '',
     model: row.model as string,
-    accessiblePaths: row.accessiblePaths as string[],
+    accessiblePaths: normalizePaths(row.accessiblePaths as string[]),
     configuration: parseConfiguration(row.configuration)
   }
 }
@@ -60,7 +60,7 @@ function rowToSession(row: SessionRow): AgentSessionEntity {
   return {
     ...clean,
     agentType: (row.agentType === 'cherry-claw' ? 'claude-code' : row.agentType) as AgentType,
-    accessiblePaths: row.accessiblePaths,
+    accessiblePaths: normalizePaths(row.accessiblePaths),
     configuration: parseConfiguration(row.configuration),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
