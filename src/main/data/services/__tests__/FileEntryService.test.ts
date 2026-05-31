@@ -720,6 +720,52 @@ describe('FileEntryService', () => {
         })
       ).rejects.toThrow()
     })
+
+    it('rejects an external row carrying a non-null content_hash (CHECK fe_contenthash_external_null)', async () => {
+      // Threat model: a path that bypasses Zod (a v2 migrator / direct Drizzle
+      // insert) attaches a contentHash to an external row. contentHash is an
+      // internal-only detection substrate; the DB CHECK is the last line of
+      // defense. Raw-insert (not via the service) so the constraint itself is
+      // pinned — a typo in the predicate (e.g. IS NOT NULL) would ship green.
+      const id = '019606a0-0000-7000-8000-000000000a05'
+      const now = Date.now()
+      await expect(
+        dbh.db.insert(fileEntryTable).values({
+          id,
+          origin: 'external',
+          name: 'doc',
+          ext: 'pdf',
+          size: null,
+          contentHash: 'xxh3-64:24ccc9acaa9f65e4',
+          externalPath: '/Users/me/doc.pdf',
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        })
+      ).rejects.toThrow()
+    })
+
+    it('accepts an internal row with a null content_hash (the deliberately-permitted backfill window)', async () => {
+      // Positive control / inverse of the rejection above: an internal row MAY
+      // carry contentHash = NULL (v1-migrated / pre-feature rows the backfill
+      // job fills later). The CHECK must not reject this.
+      const id = '019606a0-0000-7000-8000-000000000a06'
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values({
+        id,
+        origin: 'internal',
+        name: 'legacy',
+        ext: 'txt',
+        size: 1,
+        contentHash: null,
+        externalPath: null,
+        deletedAt: null,
+        createdAt: now,
+        updatedAt: now
+      })
+      const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, id))
+      expect(raw?.contentHash).toBeNull()
+    })
   })
 
   describe('update', () => {
