@@ -1,0 +1,57 @@
+name: 📋 Task
+description: Create a task for tracking work items
+title: '[Task]: '
+labels: []
+type: Task
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template to create a task for tracking work items, such as maintenance, documentation, CI/CD, or other actionable items.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Issue Checklist
+      description: |
+        Before submitting an issue, please make sure you have completed the following steps
+      options:
+        - label: I have checked the pinned issues and searched through the existing [open issues](https://github.com/CherryHQ/cherry-studio/issues), [closed issues](https://github.com/CherryHQ/cherry-studio/issues?q=is%3Aissue%20state%3Aclosed), and [discussions](https://github.com/CherryHQ/cherry-studio/discussions) and did not find a similar task.
+          required: true
+        - label: I have provided a short and descriptive title so that developers can quickly understand the task.
+          required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Task Description
+      description: Describe the task clearly. What needs to be done?
+      placeholder: Describe the task...
+    validations:
+      required: true
+
+  - type: textarea
+    id: background
+    attributes:
+      label: Background & Requirements
+      description: Why is this task needed? Include any relevant context, constraints, or requirements.
+      placeholder: Explain the motivation and requirements behind this task...
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: Define what "done" looks like for this task.
+      placeholder: |
+        - [ ] Criterion 1
+        - [ ] Criterion 2
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other context, references, or related issues.
