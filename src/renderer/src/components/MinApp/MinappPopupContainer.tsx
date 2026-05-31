@@ -256,13 +256,12 @@ const MinappPopupContainer: React.FC = () => {
   }, [combinedApps, pinned])
 
   /** get the current app info with extra info */
-  let currentAppInfo: AppInfo | null = null
-  if (currentMinappId) {
+  const currentAppInfo = useMemo<AppInfo | null>(() => {
+    if (!currentMinappId) return null
     const currentApp = combinedApps.find((item) => item.id === currentMinappId)
-    if (currentApp) {
-      currentAppInfo = { ...currentApp, ...appsExtraInfo[currentApp.id] }
-    }
-  }
+    if (!currentApp) return null
+    return { ...currentApp, ...appsExtraInfo[currentApp.id] }
+  }, [currentMinappId, combinedApps, appsExtraInfo])
 
   /** will close the popup and delete the webview */
   const handlePopupClose = useCallback(
