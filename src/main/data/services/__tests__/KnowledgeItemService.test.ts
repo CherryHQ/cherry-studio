@@ -548,50 +548,12 @@ describe('KnowledgeItemService', () => {
       })
     })
 
-    it('attaches processed artifact file refs to existing knowledge items', async () => {
-      const item = await seedItem()
-      await seedFileEntry(FILE_ENTRY_B_ID)
-
-      await service.attachFileRef(item.id, FILE_ENTRY_B_ID, 'processed_artifact')
-
-      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, item.id))
-      expect(refs).toHaveLength(1)
-      expect(refs[0]).toMatchObject({
-        fileEntryId: FILE_ENTRY_B_ID,
-        sourceType: 'knowledge_item',
-        sourceId: item.id,
-        role: 'processed_artifact'
-      })
-    })
-
-    it('rejects attaching a file ref to a missing knowledge item', async () => {
-      await seedFileEntry(FILE_ENTRY_B_ID)
-
-      await expect(service.attachFileRef(OTHER_ITEM_ID, FILE_ENTRY_B_ID, 'processed_artifact')).rejects.toMatchObject({
-        code: ErrorCode.NOT_FOUND
-      })
-
-      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.fileEntryId, FILE_ENTRY_B_ID))
-      expect(refs).toHaveLength(0)
-    })
-
-    it('rejects attaching a missing file entry', async () => {
-      const item = await seedItem()
-
-      await expect(service.attachFileRef(item.id, FILE_ENTRY_B_ID, 'processed_artifact')).rejects.toMatchObject({
-        code: ErrorCode.NOT_FOUND
-      })
-
-      const refs = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, item.id))
-      expect(refs).toHaveLength(0)
-    })
-
     it('replaces existing file refs by role for an item', async () => {
       const item = await seedItem()
       await seedFileEntry(FILE_ENTRY_B_ID)
       const replacementFileEntryId = '019606a0-0000-7000-8000-000000000003'
       await seedFileEntry(replacementFileEntryId)
-      await service.attachFileRef(item.id, FILE_ENTRY_B_ID, 'processed_artifact')
+      await seedKnowledgeFileRef(item.id, FILE_ENTRY_B_ID, 'processed_artifact')
 
       await service.replaceFileRef(item.id, replacementFileEntryId, 'processed_artifact')
 

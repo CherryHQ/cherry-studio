@@ -433,45 +433,6 @@ export class KnowledgeItemService {
     `)
   }
 
-  async attachFileRef(itemId: string, fileEntryId: FileEntryId, role: KnowledgeItemFileRefRole): Promise<void> {
-    const dbService = application.get('DbService')
-    await dbService.withWriteTx(async (tx) => {
-      const [item] = await tx
-        .select({ id: knowledgeItemTable.id })
-        .from(knowledgeItemTable)
-        .where(eq(knowledgeItemTable.id, itemId))
-        .limit(1)
-      if (!item) {
-        throw DataApiErrorFactory.notFound('KnowledgeItem', itemId)
-      }
-
-      const [fileEntry] = await tx
-        .select({ id: fileEntryTable.id })
-        .from(fileEntryTable)
-        .where(eq(fileEntryTable.id, fileEntryId))
-        .limit(1)
-      if (!fileEntry) {
-        throw DataApiErrorFactory.notFound('FileEntry', fileEntryId)
-      }
-
-      const now = Date.now()
-      await tx
-        .insert(fileRefTable)
-        .values({
-          id: uuidv4(),
-          fileEntryId,
-          sourceType: knowledgeItemSourceType,
-          sourceId: itemId,
-          role,
-          createdAt: now,
-          updatedAt: now
-        })
-        .onConflictDoNothing()
-    })
-
-    logger.info('Attached knowledge item file ref', { itemId, fileEntryId, role })
-  }
-
   async replaceFileRef(itemId: string, fileEntryId: FileEntryId, role: KnowledgeItemFileRefRole): Promise<void> {
     const dbService = application.get('DbService')
     await dbService.withWriteTx(async (tx) => {

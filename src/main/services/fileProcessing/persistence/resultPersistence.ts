@@ -41,13 +41,21 @@ export async function readMarkdownFromZipFile(zipFilePath: string): Promise<Uint
   const zip = new StreamZip.async({ file: zipFilePath })
   try {
     const entries = Object.values(await zip.entries())
-    const normalizedEntries = entries.map((entry) => ({
-      entry,
-      relativePath: normalizeEntryPath(entry.name)
-    }))
-    const markdownEntry = normalizedEntries.find(
-      ({ entry, relativePath }) => !entry.isDirectory && relativePath.toLowerCase().endsWith('.md')
-    )?.entry
+    let markdownEntry: StreamZip.ZipEntry | undefined
+    for (const entry of entries) {
+      if (entry.isDirectory) {
+        continue
+      }
+      const entryName = entry.name.toLowerCase()
+      if (!entryName.endsWith('.md') && !entryName.includes('.md\\')) {
+        continue
+      }
+      const relativePath = normalizeEntryPath(entry.name)
+      if (relativePath.toLowerCase().endsWith('.md')) {
+        markdownEntry = entry
+        break
+      }
+    }
 
     if (!markdownEntry) {
       throw new Error('Result zip does not contain a markdown file')

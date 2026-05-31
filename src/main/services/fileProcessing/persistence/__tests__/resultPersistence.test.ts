@@ -80,7 +80,7 @@ describe('fileProcessing result persistence utils', () => {
     expect(closeMock).toHaveBeenCalled()
   })
 
-  it('rejects unsafe non-markdown entries before reading markdown data', async () => {
+  it('skips unsafe non-markdown entries when reading markdown data', async () => {
     entriesMock.mockResolvedValueOnce({
       'bundle/output.md': {
         name: 'bundle/output.md',
@@ -92,8 +92,13 @@ describe('fileProcessing result persistence utils', () => {
       }
     })
 
-    await expect(readMarkdownFromZipFile('/tmp/download/result.zip')).rejects.toThrow('Unsafe zip entry path')
-    expect(entryDataMock).not.toHaveBeenCalled()
+    await expect(readMarkdownFromZipFile('/tmp/download/result.zip')).resolves.toEqual(
+      new Uint8Array(Buffer.from('# output'))
+    )
+    expect(entryDataMock).toHaveBeenCalledWith({
+      name: 'bundle/output.md',
+      isDirectory: false
+    })
     expect(closeMock).toHaveBeenCalled()
   })
 
