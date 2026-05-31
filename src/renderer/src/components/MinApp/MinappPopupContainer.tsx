@@ -28,7 +28,7 @@ import { delay } from '@renderer/utils'
 import { clearWebviewState, getWebviewLoaded, setWebviewLoaded } from '@renderer/utils/webviewStateManager'
 import { Alert, Avatar, Button, Drawer, Tooltip } from 'antd'
 import type { WebviewTag } from 'electron'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import BeatLoader from 'react-spinners/BeatLoader'
 import styled from 'styled-components'
@@ -265,19 +265,22 @@ const MinappPopupContainer: React.FC = () => {
   }
 
   /** will close the popup and delete the webview */
-  const handlePopupClose = async (appid: string) => {
-    setIsPopupShow(false)
-    await delay(0.3)
-    clearWebviewState(appid)
-    closeMinapp(appid)
-  }
+  const handlePopupClose = useCallback(
+    async (appid: string) => {
+      setIsPopupShow(false)
+      await delay(0.3)
+      clearWebviewState(appid)
+      closeMinapp(appid)
+    },
+    [closeMinapp]
+  )
 
   /** will hide the popup and remain the webviews */
-  const handlePopupMinimize = async () => {
+  const handlePopupMinimize = useCallback(async () => {
     setIsPopupShow(false)
     await delay(0.3)
     hideMinappPopup()
-  }
+  }, [hideMinappPopup])
 
   /** the callback function to set the webviews ref */
   const handleWebviewSetRef = (appid: string, element: WebviewTag | null) => {
@@ -317,45 +320,51 @@ const MinappPopupContainer: React.FC = () => {
   }
 
   /** will open the devtools of the minapp */
-  const handleOpenDevTools = (appid: string) => {
+  const handleOpenDevTools = useCallback((appid: string) => {
     const webview = webviewRefs.current.get(appid)
     if (webview) {
       webview.openDevTools()
     }
-  }
+  }, [])
 
   /** only reload the original url */
-  const handleReload = (appid: string) => {
-    const webview = webviewRefs.current.get(appid)
-    if (webview) {
-      const url = combinedApps.find((item) => item.id === appid)?.url
-      if (url) {
-        webview.src = url
+  const handleReload = useCallback(
+    (appid: string) => {
+      const webview = webviewRefs.current.get(appid)
+      if (webview) {
+        const url = combinedApps.find((item) => item.id === appid)?.url
+        if (url) {
+          webview.src = url
+        }
       }
-    }
-  }
+    },
+    [combinedApps]
+  )
 
   /** open the giving url in browser */
-  const handleOpenLink = (url: string) => {
+  const handleOpenLink = useCallback((url: string) => {
     void window.api.openWebsite(url)
-  }
+  }, [])
 
   /** toggle the pin status of the minapp */
-  const handleTogglePin = (appid: string) => {
-    const app = combinedApps.find((item) => item.id === appid)
-    if (!app) return
+  const handleTogglePin = useCallback(
+    (appid: string) => {
+      const app = combinedApps.find((item) => item.id === appid)
+      if (!app) return
 
-    const newPinned = appsExtraInfo[appid].isPinned ? pinned.filter((item) => item.id !== appid) : [...pinned, app]
-    updatePinnedMinapps(newPinned)
-  }
+      const newPinned = appsExtraInfo[appid].isPinned ? pinned.filter((item) => item.id !== appid) : [...pinned, app]
+      updatePinnedMinapps(newPinned)
+    },
+    [combinedApps, appsExtraInfo, pinned, updatePinnedMinapps]
+  )
 
   /** set the open external status */
-  const handleToggleOpenExternal = () => {
+  const handleToggleOpenExternal = useCallback(() => {
     dispatch(setMinappsOpenLinkExternal(!minappsOpenLinkExternal))
-  }
+  }, [dispatch, minappsOpenLinkExternal])
 
   /** navigate back in webview history */
-  const handleGoBack = (appid: string) => {
+  const handleGoBack = useCallback((appid: string) => {
     const webview = webviewRefs.current.get(appid)
     if (webview) {
       try {
@@ -366,10 +375,10 @@ const MinappPopupContainer: React.FC = () => {
         logger.debug(`WebView ${appid} not ready for goBack()`)
       }
     }
-  }
+  }, [])
 
   /** navigate forward in webview history */
-  const handleGoForward = (appid: string) => {
+  const handleGoForward = useCallback((appid: string) => {
     const webview = webviewRefs.current.get(appid)
     if (webview) {
       try {
@@ -380,14 +389,13 @@ const MinappPopupContainer: React.FC = () => {
         logger.debug(`WebView ${appid} not ready for goForward()`)
       }
     }
-  }
+  }, [])
 
-  /** Title bar of the popup */
-  const Title = ({ appInfo, url }: { appInfo: AppInfo | null; url: string | null }) => {
-    if (!appInfo) return null
+  /** Title bar of the popup — memoized to avoid Drawer re-mount on every render */
+  const titleBar = useMemo(() => {
+    if (!currentAppInfo) return null
 
     const handleCopyUrl = (event: any, url: string) => {
-      //don't show app-wide context menu
       event.preventDefault()
       navigator.clipboard
         .writeText(url)
@@ -404,7 +412,7 @@ const MinappPopupContainer: React.FC = () => {
         <Tooltip
           title={
             <TitleTextTooltip>
-              {url ?? appInfo.url} <br />
+              {currentUrl ?? currentAppInfo.url} <br />
               <CopyOutlined className="icon-copy" />
               {t('minapp.popup.rightclick_copyurl')}
             </TitleTextTooltip>
@@ -416,11 +424,13 @@ const MinappPopupContainer: React.FC = () => {
               maxWidth: '400px'
             }
           }}>
-          <TitleText onContextMenu={(e) => handleCopyUrl(e, url ?? appInfo.url)}>{appInfo.name}</TitleText>
+          <TitleText onContextMenu={(e) => handleCopyUrl(e, currentUrl ?? currentAppInfo.url)}>
+            {currentAppInfo.name}
+          </TitleText>
         </Tooltip>
-        {appInfo.canOpenExternalLink && (
+        {currentAppInfo.canOpenExternalLink && (
           <Tooltip title={t('minapp.popup.openExternal')} mouseEnterDelay={0.8} placement="bottom">
-            <TitleButton onClick={() => handleOpenLink(url ?? appInfo.url)}>
+            <TitleButton onClick={() => handleOpenLink(currentUrl ?? currentAppInfo.url)}>
               <ExportOutlined />
             </TitleButton>
           </Tooltip>
@@ -431,24 +441,24 @@ const MinappPopupContainer: React.FC = () => {
           style={{ marginRight: isWin || isLinux ? '140px' : 0 }}
           isTopNavbar={isTopNavbar}>
           <Tooltip title={t('minapp.popup.goBack')} mouseEnterDelay={0.8} placement="bottom">
-            <TitleButton onClick={() => handleGoBack(appInfo.id)}>
+            <TitleButton onClick={() => handleGoBack(currentAppInfo.id)}>
               <ArrowLeftOutlined />
             </TitleButton>
           </Tooltip>
           <Tooltip title={t('minapp.popup.goForward')} mouseEnterDelay={0.8} placement="bottom">
-            <TitleButton onClick={() => handleGoForward(appInfo.id)}>
+            <TitleButton onClick={() => handleGoForward(currentAppInfo.id)}>
               <ArrowRightOutlined />
             </TitleButton>
           </Tooltip>
           <Tooltip title={t('minapp.popup.refresh')} mouseEnterDelay={0.8} placement="bottom">
-            <TitleButton onClick={() => handleReload(appInfo.id)}>
+            <TitleButton onClick={() => handleReload(currentAppInfo.id)}>
               <ReloadOutlined />
             </TitleButton>
           </Tooltip>
-          {appInfo.canPinned && (
+          {currentAppInfo.canPinned && (
             <Tooltip
               title={
-                appInfo.isPinned
+                currentAppInfo.isPinned
                   ? isTopNavbar
                     ? t('minapp.remove_from_launchpad')
                     : t('minapp.remove_from_sidebar')
@@ -458,7 +468,9 @@ const MinappPopupContainer: React.FC = () => {
               }
               mouseEnterDelay={0.8}
               placement="bottom">
-              <TitleButton onClick={() => handleTogglePin(appInfo.id)} className={appInfo.isPinned ? 'pinned' : ''}>
+              <TitleButton
+                onClick={() => handleTogglePin(currentAppInfo.id)}
+                className={currentAppInfo.isPinned ? 'pinned' : ''}>
                 <PushpinOutlined style={{ fontSize: 16 }} />
               </TitleButton>
             </Tooltip>
@@ -477,7 +489,7 @@ const MinappPopupContainer: React.FC = () => {
           </Tooltip>
           {isDev && (
             <Tooltip title={t('minapp.popup.devtools')} mouseEnterDelay={0.8} placement="bottom">
-              <TitleButton onClick={() => handleOpenDevTools(appInfo.id)}>
+              <TitleButton onClick={() => handleOpenDevTools(currentAppInfo.id)}>
                 <CodeOutlined />
               </TitleButton>
             </Tooltip>
@@ -490,7 +502,7 @@ const MinappPopupContainer: React.FC = () => {
             </Tooltip>
           )}
           <Tooltip title={t('minapp.popup.close')} mouseEnterDelay={0.8} placement="bottom">
-            <TitleButton onClick={() => handlePopupClose(appInfo.id)}>
+            <TitleButton onClick={() => handlePopupClose(currentAppInfo.id)}>
               <CloseOutlined />
             </TitleButton>
           </Tooltip>
@@ -502,7 +514,24 @@ const MinappPopupContainer: React.FC = () => {
         )}
       </TitleContainer>
     )
-  }
+  }, [
+    currentAppInfo,
+    currentUrl,
+    backgroundColor,
+    t,
+    isTopNavbar,
+    minappsOpenLinkExternal,
+    canMinimize,
+    handleOpenLink,
+    handleGoBack,
+    handleGoForward,
+    handleReload,
+    handleTogglePin,
+    handleToggleOpenExternal,
+    handleOpenDevTools,
+    handlePopupMinimize,
+    handlePopupClose
+  ])
 
   /** group the webview containers with Memo, one of the key to make them keepalive */
   const WebviewContainerGroup = useMemo(() => {
@@ -523,7 +552,7 @@ const MinappPopupContainer: React.FC = () => {
 
   return (
     <Drawer
-      title={isTopNavbar ? null : <Title appInfo={currentAppInfo} url={currentUrl} />}
+      title={isTopNavbar ? null : titleBar}
       placement="bottom"
       onClose={handlePopupMinimize}
       open={isPopupShow}
@@ -540,7 +569,7 @@ const MinappPopupContainer: React.FC = () => {
           marginTop: isTopNavbar ? 'var(--navbar-height)' : 0
         },
         content: {
-          backgroundColor: window.root.style.background
+          backgroundColor: window.root?.style?.background || 'var(--color-background)'
         },
         body: {
           borderTopLeftRadius: '10px'
