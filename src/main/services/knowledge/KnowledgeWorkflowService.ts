@@ -174,7 +174,14 @@ export class KnowledgeWorkflowService {
           parentJobId: parentJobId ?? fileProcessingJob.id
         })
       } catch (error) {
-        await this.cancelFileProcessingJob(fileProcessingJob.id, 'knowledge-file-processing-check-enqueue-failed')
+        try {
+          await this.cancelFileProcessingJob(fileProcessingJob.id, 'knowledge-file-processing-check-enqueue-failed')
+        } catch (cancelError) {
+          logger.warn('Failed to cancel file-processing job after check enqueue failure', {
+            fileProcessingJobId: fileProcessingJob.id,
+            cancelError: cancelError instanceof Error ? cancelError.message : String(cancelError)
+          })
+        }
         throw error
       }
       return

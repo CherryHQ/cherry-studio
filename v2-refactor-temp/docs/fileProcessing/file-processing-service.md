@@ -112,7 +112,7 @@ FileProcessing job 是统一 JobManager job。调用方通过通用 job snapshot
 约束：
 
 1. JobManager dispatcher 推进 background / remote-poll handler。
-2. completed / failed / cancelled 是终态，重复查询返回同一终态快照，直到 TTL 清理。
+2. completed / failed / cancelled 是终态，重复查询返回同一终态快照，保留周期由统一 JobManager 规则决定。
 3. pending / delayed / running job cancel 后进入 `cancelled`。
 4. 本地 background execution 必须 abort。
 5. remote-poll handler 必须停止本地轮询。
@@ -483,7 +483,7 @@ file-processing job 使用统一 JobManager 的保留和恢复语义。
 3. remote-poll handler 使用 `recovery: 'retry'`，重启后从 job metadata 恢复 provider task id 和可持久 query state。
 4. API key、token、abort controller、in-flight query、background execution 等不写入 metadata。
 
-最终 artifact 文件不会因为 job TTL 自动删除。artifact 生命周期由 feature 文件数据目录和上层业务清理策略决定。
+最终 artifact 文件不会随 job 记录保留周期自动删除。artifact 生命周期由 feature 文件数据目录和上层业务清理策略决定。
 
 ---
 

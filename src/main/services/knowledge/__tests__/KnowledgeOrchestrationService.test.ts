@@ -749,7 +749,7 @@ describe('KnowledgeOrchestrationService', () => {
     expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-file-processing-check-enqueue-failed')
   })
 
-  it('surfaces cancel failures when check scheduling fails', async () => {
+  it('preserves check scheduling errors when rollback cancellation fails', async () => {
     const service = new KnowledgeOrchestrationService()
     const processingFile = createFileItem('file-1', 'kb-1', '/docs/source.pdf', 'processing')
     knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ fileProcessorId: 'doc2x' }))
@@ -765,7 +765,8 @@ describe('KnowledgeOrchestrationService', () => {
       }
     ).workflowService
 
-    await expect(workflowService.scheduleItem('kb-1', 'file-1')).rejects.toThrow('cancel failed')
+    await expect(workflowService.scheduleItem('kb-1', 'file-1')).rejects.toThrow('check enqueue failed')
+    expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-file-processing-check-enqueue-failed')
   })
 
   it('uses the parent job as the direct indexing idempotency scope during reindex', async () => {
