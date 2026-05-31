@@ -294,7 +294,7 @@ beforeEach(() => {
   knowledgeItemReplaceFileRefMock.mockResolvedValue(undefined)
   deleteItemsByIdsMock.mockResolvedValue(undefined)
   rebuildFileRefsForItemsMock.mockResolvedValue(undefined)
-  cancelMock.mockResolvedValue(undefined)
+  cancelMock.mockResolvedValue({ outcome: 'cancelled' })
   workflowService.scheduleFileProcessingCheck.mockResolvedValue(undefined)
   workflowService.scheduleIndexing.mockResolvedValue(undefined)
   scheduleItemMock.mockResolvedValue({ id: 'scheduled-job' })
