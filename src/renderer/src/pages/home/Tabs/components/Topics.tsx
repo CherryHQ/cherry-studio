@@ -568,6 +568,8 @@ export const Topics: React.FC<Props> = ({ assistant: _assistant, activeTopic, se
         onUpdate={updateTopics}
         style={{ height: '100%', padding: '8px 0 10px 10px', paddingBottom: isManageMode ? 70 : 10 }}
         itemContainerStyle={{ paddingBottom: '8px' }}
+        role="list"
+        aria-label={t('chat.topics.title', 'Topics')}
         header={
           <HeaderRow>
             <AddButton onClick={() => EventEmitter.emit(EVENT_NAMES.ADD_NEW_TOPIC)}>

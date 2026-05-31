@@ -709,7 +709,11 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
             selected: item.isSelected,
             disabled: item.disabled
           })}
+          id={`quick-panel-item-${itemIndex}`}
           data-id={itemIndex}
+          role="option"
+          aria-selected={itemIndex === index}
+          aria-disabled={item.disabled}
           onClick={(e) => {
             e.stopPropagation()
             handleItemAction(item, 'click')
@@ -744,7 +748,11 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
       $selectedColorHover={selectedColorHover}
       $collapsed={collapsed}
       className={ctx.isVisible ? 'visible' : ''}
-      data-testid="quick-panel">
+      data-testid="quick-panel"
+      role="listbox"
+      aria-label={ctx.title || 'Quick panel'}
+      aria-activedescendant={index >= 0 ? `quick-panel-item-${index}` : undefined}
+      aria-expanded={ctx.isVisible}>
       <QuickPanelBody
         ref={bodyRef}
         onMouseMove={() =>
@@ -754,7 +762,7 @@ export const QuickPanelView: React.FC<Props> = ({ setInputText }) => {
           })
         }>
         {collapsed ? (
-          <QuickPanelEmpty>{t('settings.quickPanel.noResult', 'No results')}</QuickPanelEmpty>
+          <QuickPanelEmpty aria-live="polite">{t('settings.quickPanel.noResult', 'No results')}</QuickPanelEmpty>
         ) : (
           <DynamicVirtualList
             ref={listRef}

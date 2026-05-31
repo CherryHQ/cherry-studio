@@ -306,7 +306,10 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
       className="messages-container"
       ref={scrollContainerRef}
       key={assistant.id}
-      onScroll={handleScrollPosition}>
+      onScroll={handleScrollPosition}
+      role="log"
+      aria-label={t('chat.messages', 'Chat messages')}
+      aria-live="polite">
       <NarrowLayout style={{ display: 'flex', flexDirection: 'column-reverse' }}>
         <InfiniteScroll
           dataLength={displayMessages.length}

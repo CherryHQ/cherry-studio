@@ -57,115 +57,115 @@ const SettingsPage: FC = () => {
         <NavbarCenter style={{ borderRight: 'none' }}>{t('settings.title')}</NavbarCenter>
       </Navbar>
       <ContentContainer id="content-container">
-        <SettingMenus>
+        <SettingMenus role="navigation" aria-label={t('settings.navigation', 'Settings navigation')}>
           <MenuItemLink to="/settings/provider">
-            <MenuItem className={isRoute('/settings/provider')}>
+            <MenuItem className={isRoute('/settings/provider')} role="menuitem">
               <Cloud size={18} />
               {t('settings.provider.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/model">
-            <MenuItem className={isRoute('/settings/model')}>
+            <MenuItem className={isRoute('/settings/model')} role="menuitem">
               <Package size={18} />
               {t('settings.model')}
             </MenuItem>
           </MenuItemLink>
           <Divider />
           <MenuItemLink to="/settings/general">
-            <MenuItem className={isRoute('/settings/general')}>
+            <MenuItem className={isRoute('$0')} role="menuitem">
               <Settings2 size={18} />
               {t('settings.general.label')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/display">
-            <MenuItem className={isRoute('/settings/display')}>
+            <MenuItem className={isRoute('$0')} role="menuitem">
               <MonitorCog size={18} />
               {t('settings.display.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/data">
-            <MenuItem className={isRoute('/settings/data')}>
+            <MenuItem className={isRoute('$0')} role="menuitem">
               <HardDrive size={18} />
               {t('settings.data.title')}
             </MenuItem>
           </MenuItemLink>
           <Divider />
           <MenuItemLink to="/settings/mcp">
-            <MenuItem className={isRoute('/settings/mcp')}>
+            <MenuItem className={isRoute('$0')} role="menuitem">
               <McpLogo width={18} height={18} style={{ opacity: 0.8 }} />
               {t('settings.mcp.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/skills">
-            <MenuItem className={isRoute('/settings/skills')}>
+            <MenuItem className={isRoute('$0')} role="menuitem">
               <Sparkles size={18} />
               {t('settings.skills.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/websearch">
-            <MenuItem className={isRoute('/settings/websearch')}>
+            <MenuItem className={isRoute('$0')} role="menuitem">
               <Search size={18} />
               {t('settings.tool.websearch.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/memory">
-            <MenuItem className={isRoute('/settings/memory')}>
+            <MenuItem className={isRoute('$0')} role="menuitem">
               <Brain size={18} />
               {t('memory.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/api-server">
-            <MenuItem className={isRoute('/settings/api-server')}>
+            <MenuItem className={isRoute('$0')} role="menuitem">
               <Server size={18} />
               {t('apiServer.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/channels">
-            <MenuItem className={isRoute('/settings/channels')}>
+            <MenuItem className={isRoute('$0')} role="menuitem">
               <Radio size={18} />
               {t('settings.channels.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/scheduled-tasks">
-            <MenuItem className={isRoute('/settings/scheduled-tasks')}>
+            <MenuItem className={isRoute('$0')} role="menuitem">
               <CalendarClock size={18} />
               {t('settings.scheduledTasks.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/docprocess">
-            <MenuItem className={isRoute('/settings/docprocess')}>
+            <MenuItem className={isRoute('$0')} role="menuitem">
               <FileCode size={18} />
               {t('settings.tool.preprocess.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/quickphrase">
-            <MenuItem className={isRoute('/settings/quickphrase')}>
+            <MenuItem className={isRoute('$0')} role="menuitem">
               <Zap size={18} />
               {t('settings.quickPhrase.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/shortcut">
-            <MenuItem className={isRoute('/settings/shortcut')}>
+            <MenuItem className={isRoute('$0')} role="menuitem">
               <Command size={18} />
               {t('settings.shortcuts.title')}
             </MenuItem>
           </MenuItemLink>
           <Divider />
           <MenuItemLink to="/settings/quickAssistant">
-            <MenuItem className={isRoute('/settings/quickAssistant')}>
+            <MenuItem className={isRoute('$0')} role="menuitem">
               <PictureInPicture2 size={18} />
               {t('settings.quickAssistant.title')}
             </MenuItem>
           </MenuItemLink>
           <MenuItemLink to="/settings/selectionAssistant">
-            <MenuItem className={isRoute('/settings/selectionAssistant')}>
+            <MenuItem className={isRoute('$0')} role="menuitem">
               <TextCursorInput size={18} />
               {t('selection.name')}
             </MenuItem>
           </MenuItemLink>
           <Divider />
           <MenuItemLink to="/settings/about">
-            <MenuItem className={isRoute('/settings/about')}>
+            <MenuItem className={isRoute('$0')} role="menuitem">
               <Info size={18} />
               {t('settings.about.label')}
             </MenuItem>

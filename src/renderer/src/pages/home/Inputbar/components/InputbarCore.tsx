@@ -639,7 +639,9 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
         onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
-        className={classNames('inputbar')}>
+        className={classNames('inputbar')}
+        role="group"
+        aria-label={t('chat.input.label', 'Message input')}>
         {pinnedContent}
         {quickPanelElement}
         <InputBarContainer
@@ -674,6 +676,7 @@ export const InputbarCore: FC<InputbarCoreProps> = ({
               minHeight: '30px'
             }}
             disabled={isTranslating || searching}
+            aria-label={t('chat.input.placeholder', 'Type a message')}
             onClick={() => {
               searching && dispatch(setSearching(false))
               quickPanel.close()

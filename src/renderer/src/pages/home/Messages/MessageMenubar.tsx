@@ -593,7 +593,9 @@ const MessageMenubar: FC<Props> = (props) => {
     <>
       {showMessageTokens && <MessageTokens message={message} />}
       <MenusBar
-        className={classNames({ menubar: true, show: isLastMessage, 'user-bubble-style': isUserBubbleStyleMessage })}>
+        className={classNames({ menubar: true, show: isLastMessage, 'user-bubble-style': isUserBubbleStyleMessage })}
+        role="toolbar"
+        aria-label={t('message.actions', 'Message actions')}>
         {buttonIds.map((buttonId) => {
           const renderFn = buttonRenderers[buttonId]
           if (!renderFn) {

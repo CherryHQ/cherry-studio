@@ -68,7 +68,9 @@ const Sidebar: FC = () => {
     <Container
       $isFullscreen={isFullscreen}
       id="app-sidebar"
-      style={{ backgroundColor, zIndex: minappShow ? 10000 : 'initial' }}>
+      style={{ backgroundColor, zIndex: minappShow ? 10000 : 'initial' }}
+      role="navigation"
+      aria-label={t('sidebar.navigation', 'Main navigation')}>
       {isEmoji(avatar) ? (
         <EmojiAvatar onClick={onEditUser} className="sidebar-avatar" size={31} fontSize={18}>
           {avatar}

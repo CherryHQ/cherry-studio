@@ -22,7 +22,7 @@ export const Navbar: FC<Props> = ({ children, ...props }) => {
   }
 
   return (
-    <NavbarContainer {...props} style={{ backgroundColor }} $isFullScreen={isFullscreen}>
+    <NavbarContainer {...props} style={{ backgroundColor }} $isFullScreen={isFullscreen} role="banner">
       {children}
       {!minappShow && <WindowControls />}
     </NavbarContainer>
