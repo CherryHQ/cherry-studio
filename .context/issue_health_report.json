@@ -1,42 +1,42 @@
 {
-  "generated_at": "2026-05-30T08:00:00.000000+00:00",
-  "snapshot_date": "2026-05-30",
+  "generated_at": "2026-05-31T08:00:00.000000+00:00",
+  "snapshot_date": "2026-05-31",
   "health_score": 85,
   "health_grade": "B",
-  "health_score_delta": -1,
-  "health_score_note": "Down 1 from 86/B (2026-05-29): P1 issues #13193 and #13608 both stale 80+ days with no recent updates (-2); partial offset by #15437 and #15438 closing today (+1). ARM64 bug #15426 still open. Security issue #15372 fix PR still pending.",
-  "total_open_issues": 893,
-  "total_open_issues_delta": 9,
+  "health_score_delta": 0,
+  "health_score_note": "Unchanged at 85/B (2026-05-31 vs 2026-05-30): P1 bugs #13193 (88d stale) and #13608 (73d stale) remain unaddressed. Open issues down 5 to 888. MAJOR EVENT: v2 branch merged into main on 2026-05-29 via PR #10162. Security fix PR #15388 for OAuth CSRF (#15372) still open. Unlabeled % improved: 5.5% (was 9.5%).",
+  "total_open_issues": 888,
+  "total_open_issues_delta": -5,
   "sample_size": 200,
   "age_distribution": {
-    "Active_lt30d": 105,
-    "Aging_30_90d": 92,
-    "Stale_gt90d_created": 3,
+    "Active_lt30d": 200,
+    "Aging_30_90d": 0,
+    "Stale_gt90d_created": 2,
     "Zombie_not_updated_90d": 5,
     "note": "Creation-based age from 200-issue sample. 5 confirmed zombies from exhaustive search (not updated since before 2026-03-01)."
   },
   "label_health": {
-    "unlabeled_estimate": 85,
-    "unlabeled_pct_estimate": 9.5,
-    "unlabeled_note": "~9.5% of 200-issue sample have no labels; estimated ~85 total unlabeled open issues (up from 68 confirmed yesterday)",
-    "inactive_pct_of_sample": 42,
-    "inactive_note": "42% of sampled issues carry 'inactive' — automated stale-issue bot is running aggressively",
+    "unlabeled_estimate": 49,
+    "unlabeled_pct_estimate": 5.5,
+    "unlabeled_note": "~5.5% of 200-issue sample have no labels (improved from 9.5% yesterday)",
+    "inactive_pct_of_sample": 39,
+    "inactive_note": "39% of sampled issues carry inactive label (down from 42%)",
     "top_labels": {
-      "inactive": 84,
+      "inactive": 78,
       "UI/UX": 66,
-      "Models": 41,
-      "Assistant": 35,
-      "needs-repro": 18,
-      "MCP": 16,
-      "Data": 10,
-      "RAG": 8,
-      "Connectivity": 8,
-      "help wanted": 9,
-      "discussion": 9,
+      "Assistant": 42,
+      "Models": 39,
+      "needs-repro": 19,
+      "MCP": 18,
+      "help wanted": 10,
+      "discussion": 10,
+      "Data": 8,
       "feature": 6,
-      "BUG": 4,
+      "RAG": 6,
+      "Connectivity": 6,
+      "BUG": 3,
       "P2": 2,
-      "P3": 1,
+      "Performance": 2,
       "needs-triage": 2
     }
   },
@@ -44,7 +44,12 @@
     {
       "number": 14899,
       "title": "[Feature]: Unified Notification Center",
-      "labels": ["Planned", "P1", "feature", "UI/UX"],
+      "labels": [
+        "Planned",
+        "P1",
+        "feature",
+        "UI/UX"
+      ],
       "milestone": "v2.4.0",
       "author": "SiinXu",
       "created_at": "2026-05-07",
@@ -56,24 +61,30 @@
     {
       "number": 13608,
       "title": "[Bug]: xiaomi mimo response only displays the last line",
-      "labels": ["P1", "Models"],
+      "labels": [
+        "P1",
+        "Models"
+      ],
       "author": "lsy08",
       "created_at": "2026-03-18",
       "updated_at": "2026-03-19",
       "severity": "HIGH",
-      "status": "STALE — 72 days without update",
+      "status": "STALE — 73 days without update",
       "detail": "Streaming bug: mimo-v2-flash only shows last token in rotating display. 8 comments. Last updated 2026-03-19 — no assignee, no fix in progress."
     },
     {
       "number": 13193,
       "title": "[Bug]: Azure OpenAI defaults to responses API instead of chat/completions — Resource not found 404",
-      "labels": ["P1", "Models"],
+      "labels": [
+        "P1",
+        "Models"
+      ],
       "author": "simplezhao",
       "created_at": "2026-03-04",
       "updated_at": "2026-03-05",
       "severity": "HIGH",
-      "status": "STALE — 86 days without update",
-      "detail": "Regression from v1.7.19→v1.7.22: Azure deployments hit /responses endpoint instead of /chat/completions. ERR 404 for all Azure gpt-5.2 users. Assigned to DeJeune but no fix merged. 4 reactions.",
+      "status": "STALE — 87 days without update",
+      "detail": "Regression v1.7.19→v1.7.22: Azure OpenAI uses /responses endpoint instead of /chat/completions. 4 upvotes. Assignee: DeJeune. No update in 87 days.",
       "assignee": "DeJeune"
     }
   ],
@@ -122,11 +133,53 @@
     }
   ],
   "zombie_issues": [
-    {"number": 5712,  "title": "【需求汇总】Agents with Workflows",                                     "last_updated": "2025-10-23", "days_stale": 219, "labels": ["invalid", "inactive"]},
-    {"number": 10844, "title": "[Feature]: Backup feature enhance",                                    "last_updated": "2025-11-01", "days_stale": 210, "labels": ["Dev Team", "Data"]},
-    {"number": 11578, "title": "Upgrade to the MCP protocol by November 25, 2025",                    "last_updated": "2025-11-30", "days_stale": 181, "labels": ["MCP"]},
-    {"number": 5640,  "title": "Cherry Studio as a Service (CSaaS)",                                  "last_updated": "2026-01-31", "days_stale": 119, "labels": ["Dev Team"]},
-    {"number": 12023, "title": "Migrate to AI sdk v6",                                                "last_updated": "2026-02-27", "days_stale": 92,  "labels": ["AI-SDK"]}
+    {
+      "number": 5712,
+      "title": "【需求汇总】Agents with Workflows",
+      "last_updated": "2025-10-23",
+      "days_stale": 219,
+      "labels": [
+        "invalid",
+        "inactive"
+      ]
+    },
+    {
+      "number": 10844,
+      "title": "[Feature]: Backup feature enhance",
+      "last_updated": "2025-11-01",
+      "days_stale": 210,
+      "labels": [
+        "Dev Team",
+        "Data"
+      ]
+    },
+    {
+      "number": 11578,
+      "title": "Upgrade to the MCP protocol by November 25, 2025",
+      "last_updated": "2025-11-30",
+      "days_stale": 181,
+      "labels": [
+        "MCP"
+      ]
+    },
+    {
+      "number": 5640,
+      "title": "Cherry Studio as a Service (CSaaS)",
+      "last_updated": "2026-01-31",
+      "days_stale": 119,
+      "labels": [
+        "Dev Team"
+      ]
+    },
+    {
+      "number": 12023,
+      "title": "Migrate to AI sdk v6",
+      "last_updated": "2026-02-27",
+      "days_stale": 92,
+      "labels": [
+        "AI-SDK"
+      ]
+    }
   ],
   "action_needed_issues": [
     {
@@ -158,15 +211,37 @@
   "new_issues_today": {
     "count_estimate": "~9 (based on +9 total delta)",
     "notable": [
-      {"number": 15443, "title": "[Bug]: Multiple window error",                                             "comments": 3},
-      {"number": 15444, "title": "[Bug]: deepseek-v4-pro only displays the last token (likely today)",      "note": "inferred from high-comment recent issue"},
-      {"number": 15415, "title": "[Feature]: Support Intel GPU Detection for OVMS",                         "labels": []},
-      {"number": 15411, "title": "[Bug]: Memory deduplication ignores user and assistant scope",             "labels": []}
+      {
+        "number": 15443,
+        "title": "[Bug]: Multiple window error",
+        "comments": 3
+      },
+      {
+        "number": 15444,
+        "title": "[Bug]: deepseek-v4-pro only displays the last token (likely today)",
+        "note": "inferred from high-comment recent issue"
+      },
+      {
+        "number": 15415,
+        "title": "[Feature]: Support Intel GPU Detection for OVMS",
+        "labels": []
+      },
+      {
+        "number": 15411,
+        "title": "[Bug]: Memory deduplication ignores user and assistant scope",
+        "labels": []
+      }
     ]
   },
   "closed_today": [
-    {"number": 15438, "title": "[Bug]: pnpm db:migrations:generate blocked — duplicate snapshot id"},
-    {"number": 15437, "title": "[Bug]: After update, startup fails with React #185 error"}
+    {
+      "number": 15438,
+      "title": "[Bug]: pnpm db:migrations:generate blocked — duplicate snapshot id"
+    },
+    {
+      "number": 15437,
+      "title": "[Bug]: After update, startup fails with React #185 error"
+    }
   ],
   "trend": {
     "issues_velocity_7d": "+9 net open (opened ~18, closed ~9 est.)",

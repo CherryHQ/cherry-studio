@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-05-30T08:00:00.000000+00:00",
-  "snapshot_date": "2026-05-30",
+  "generated_at": "2026-05-31T08:00:00.000000+00:00",
+  "snapshot_date": "2026-05-31",
   "fetch_status": "missing",
   "fetch_note": "GitHub Discussions require GraphQL API access which is not exposed by the MCP server. Run locally to populate: gh api graphql -f query='{ repository(owner: \"CherryHQ\", name: \"cherry-studio\") { discussions(first: 100, orderBy: {field: UPDATED_AT, direction: DESC}) { nodes { number title category { name } author { login } createdAt updatedAt upvoteCount comments { totalCount } answer { author { login } createdAt } labels(first: 10) { nodes { name } } } } } }' > .context/discussions_raw.json",
   "high_signal_from_issues": {
@@ -10,21 +10,28 @@
         "number": 14691,
         "title": "[Discussion]: Enabling MCP service may affect DeepSeek's response",
         "comments": 4,
-        "labels": ["discussion"],
+        "labels": [
+          "discussion"
+        ],
         "url": "https://github.com/CherryHQ/cherry-studio/issues/14691"
       },
       {
         "number": 14648,
         "title": "[Discussion]: No models available when adding agent",
         "comments": 3,
-        "labels": ["discussion"],
+        "labels": [
+          "discussion"
+        ],
         "url": "https://github.com/CherryHQ/cherry-studio/issues/14648"
       },
       {
         "number": 5712,
         "title": "【需求汇总】Agents with Workflows / 工作流&协同",
         "comments": 5,
-        "labels": ["invalid", "inactive"],
+        "labels": [
+          "invalid",
+          "inactive"
+        ],
         "reactions": 5,
         "url": "https://github.com/CherryHQ/cherry-studio/issues/5712",
         "note": "Team-created requirements aggregation thread — zombie (not updated since 2025-10-23)"
@@ -33,7 +40,9 @@
         "number": 5640,
         "title": "Cherry Studio as a Service (CSaaS) / Cherry Studio作为服务对外提供API接口",
         "comments": 25,
-        "labels": ["Dev Team"],
+        "labels": [
+          "Dev Team"
+        ],
         "reactions": 8,
         "url": "https://github.com/CherryHQ/cherry-studio/issues/5640",
         "note": "Most commented requirement thread; 25 comments; last active 2026-01-31"
