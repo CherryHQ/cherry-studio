@@ -343,10 +343,10 @@ export const isClaude46SeriesModel = (model: Model): boolean => {
   return /(?:anthropic\.)?claude-(?:opus|sonnet)-4[.-]6(?:[@\-:][\w\-:]+)?$/i.test(id)
 }
 
-/** Check if model is Claude Opus 4.7. Rejects temperature/top_p/top_k and natively supports xhigh reasoning effort. */
+/** Check if model is Claude Opus 4.7 or newer. Rejects temperature/top_p/top_k and natively supports xhigh reasoning effort. */
 export const isClaude47SeriesModel = (model: Model): boolean => {
   const id = getLowerBaseModelName(getRawModelId(model), '/')
-  return /(?:anthropic\.)?claude-opus-4[.-]7(?:[@\-:][\w\-:]+)?$/i.test(id)
+  return /(?:anthropic\.)?claude-opus-4[.-](?:[7-9]|[1-9]\d)(?:[@\-:][\w\-:]+)?$/i.test(id)
 }
 
 /** Check if model is a Gemma 4 model hosted on Gemini API (supports thinking mode but no hard-off). */
@@ -822,7 +822,7 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   'qwen-max-latest$': { min: 0, max: 81_920 },
   '^qwen3\\.[5-9]': { min: 0, max: 81_920 },
   'qwen3-(?!max).*$': { min: 1024, max: 38_912 },
-  '(?:anthropic\\.)?claude-opus-4[.-]7(?:[@\\-:][\\w\\-:]+)?$': { min: 1024, max: 128_000 },
+  '(?:anthropic\\.)?claude-opus-4[.-](?:[7-9]|[1-9]\\d)(?:[@\\-:][\\w\\-:]+)?$': { min: 1024, max: 128_000 },
   '(?:anthropic\\.)?claude-opus-4[.-]6(?:[@\\-:][\\w\\-:]+)?$': { min: 1024, max: 128_000 },
   '(?:anthropic\\.)?claude-(:?sonnet|haiku)-4[.-]6.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 64_000 },
   '(?:anthropic\\.)?claude-(:?haiku|sonnet|opus)-4[.-]5.*(?:-v\\d+:\\d+)?$': { min: 1024, max: 64_000 },

@@ -2784,10 +2784,15 @@ describe('Claude Models', () => {
     })
   })
 
-  describe('Claude 4.7 thinking model type and token limits', () => {
+  describe('Claude Opus 4.7+ thinking model type and token limits', () => {
     it('routes Opus 4.7 through the claude46 thinking type', () => {
       expect(getThinkModelType(createModel({ id: 'claude-opus-4-7' }))).toBe('claude46')
       expect(getThinkModelType(createModel({ id: 'anthropic.claude-opus-4-7-v1' }))).toBe('claude46')
+    })
+
+    it('routes newer Opus 4.x models through the claude46 thinking type', () => {
+      expect(getThinkModelType(createModel({ id: 'claude-opus-4-8' }))).toBe('claude46')
+      expect(getThinkModelType(createModel({ id: 'anthropic.claude-opus-4-8-v1' }))).toBe('claude46')
     })
 
     it('returns 128K max tokens for Opus 4.7 models', () => {
@@ -2795,6 +2800,13 @@ describe('Claude Models', () => {
       expect(findTokenLimit('claude-opus-4.7')).toEqual({ min: 1024, max: 128_000 })
       expect(findTokenLimit('anthropic.claude-opus-4-7-v1')).toEqual({ min: 1024, max: 128_000 })
       expect(findTokenLimit('claude-opus-4-7@20260401')).toEqual({ min: 1024, max: 128_000 })
+    })
+
+    it('returns 128K max tokens for newer Opus 4.x models', () => {
+      expect(findTokenLimit('claude-opus-4-8')).toEqual({ min: 1024, max: 128_000 })
+      expect(findTokenLimit('claude-opus-4.8')).toEqual({ min: 1024, max: 128_000 })
+      expect(findTokenLimit('anthropic.claude-opus-4-8-v1')).toEqual({ min: 1024, max: 128_000 })
+      expect(findTokenLimit('claude-opus-4-10@20261201')).toEqual({ min: 1024, max: 128_000 })
     })
   })
 })
