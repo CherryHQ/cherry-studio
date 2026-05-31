@@ -193,24 +193,39 @@ function computeModelStats(messages: Message[]): ModelStats[] {
     const cost = getMessageCost(msg)
     stats.cost += cost.totalCost
 
+    // Accumulate raw values; use separate counters for proper averaging
+    ;(stats as any)._ftCount = (stats as any)._ftCount || 0
+    ;(stats as any)._compCount = (stats as any)._compCount || 0
+    ;(stats as any)._speedCount = (stats as any)._speedCount || 0
     if (msg.metrics) {
-      stats.avgFirstTokenLatency += msg.metrics.time_first_token_millsec ?? 0
-      stats.avgCompletionTime += msg.metrics.time_completion_millsec ?? 0
-      const speed =
-        msg.metrics.time_completion_millsec > 0
-          ? (msg.metrics.completion_tokens / msg.metrics.time_completion_millsec) * 1000
-          : 0
-      stats.avgTokensPerSecond += speed
+      const ft = msg.metrics.time_first_token_millsec ?? 0
+      if (ft > 0) {
+        stats.avgFirstTokenLatency += ft
+        ;(stats as any)._ftCount++
+      }
+      const ct = msg.metrics.time_completion_millsec ?? 0
+      if (ct > 0) {
+        stats.avgCompletionTime += ct
+        ;(stats as any)._compCount++
+        if (msg.metrics.completion_tokens > 0) {
+          stats.avgTokensPerSecond += (msg.metrics.completion_tokens / ct) * 1000
+          ;(stats as any)._speedCount++
+        }
+      }
     }
   }
 
-  // Compute averages
+  // Compute averages per model using actual counts
   for (const stats of modelMap.values()) {
-    if (stats.messageCount > 0) {
-      stats.avgFirstTokenLatency /= stats.messageCount
-      stats.avgCompletionTime /= stats.messageCount
-      stats.avgTokensPerSecond /= stats.messageCount
-    }
+    const fc = (stats as any)._ftCount || 0
+    const cc = (stats as any)._compCount || 0
+    const sc = (stats as any)._speedCount || 0
+    stats.avgFirstTokenLatency = fc > 0 ? stats.avgFirstTokenLatency / fc : 0
+    stats.avgCompletionTime = cc > 0 ? stats.avgCompletionTime / cc : 0
+    stats.avgTokensPerSecond = sc > 0 ? stats.avgTokensPerSecond / sc : 0
+    delete (stats as any)._ftCount
+    delete (stats as any)._compCount
+    delete (stats as any)._speedCount
   }
 
   return Array.from(modelMap.values()).sort((a, b) => b.totalTokens - a.totalTokens)
@@ -275,7 +290,9 @@ export function computeTopicStats(messages: Message[], blocksMap?: Map<string, M
   let inputCostSum = 0
   let outputCostSum = 0
   let totalFtLatency = 0
+  let ftCount = 0
   let totalCompletionTime = 0
+  let compCount = 0
   let totalSpeed = 0
   let speedCount = 0
   let totalChars = 0
@@ -318,12 +335,18 @@ export function computeTopicStats(messages: Message[], blocksMap?: Map<string, M
       inputCostSum += cost.inputCost
       outputCostSum += cost.outputCost
 
-      // Performance metrics
+      // Performance metrics — only count messages that actually have metrics data
       if (msg.metrics) {
         const ftLatency = msg.metrics.time_first_token_millsec ?? 0
         const compTime = msg.metrics.time_completion_millsec ?? 0
-        if (ftLatency > 0) totalFtLatency += ftLatency
-        if (compTime > 0) totalCompletionTime += compTime
+        if (ftLatency > 0) {
+          totalFtLatency += ftLatency
+          ftCount++
+        }
+        if (compTime > 0) {
+          totalCompletionTime += compTime
+          compCount++
+        }
 
         if (compTime > 0 && msg.metrics.completion_tokens > 0) {
           totalSpeed += (msg.metrics.completion_tokens / compTime) * 1000
@@ -336,9 +359,9 @@ export function computeTopicStats(messages: Message[], blocksMap?: Map<string, M
   const durationMs =
     firstMessageAt && lastMessageAt ? new Date(lastMessageAt).getTime() - new Date(firstMessageAt).getTime() : 0
 
-  // Compute averages
-  const avgFtLatency = assistantMessages > 0 ? totalFtLatency / assistantMessages : 0
-  const avgCompTime = assistantMessages > 0 ? totalCompletionTime / assistantMessages : 0
+  // Compute averages — only over messages that actually reported each metric
+  const avgFtLatency = ftCount > 0 ? totalFtLatency / ftCount : 0
+  const avgCompTime = compCount > 0 ? totalCompletionTime / compCount : 0
   const avgSpeed = speedCount > 0 ? totalSpeed / speedCount : 0
 
   return {

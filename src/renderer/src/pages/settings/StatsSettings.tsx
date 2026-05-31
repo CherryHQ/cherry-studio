@@ -16,17 +16,14 @@ function fmtTokens(n: number): string {
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
   return String(n)
 }
-
 function fmtLatency(ms: number): string {
   if (ms <= 0) return '—'
   if (ms < 1000) return `${Math.round(ms)}ms`
   return `${(ms / 1000).toFixed(1)}s`
 }
-
 function fmtSpeed(tps: number): string {
   return tps > 0 ? `${Math.round(tps)} tok/s` : '—'
 }
-
 function fmtProvider(p: string): string {
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(p)) return 'Custom'
   const m: Record<string, string> = {
@@ -52,14 +49,12 @@ function fmtProvider(p: string): string {
   }
   return m[p] || p
 }
-
-/** i18n-aware fine-grained duration: "3d 5h 23m 12s" */
 function useFmtDuration() {
   const { t } = useTranslation()
   return (ms: number): string => {
     if (ms <= 0) return '—'
     if (ms < 1000) return `${ms}ms`
-    let remaining = Math.floor(ms / 1000) // seconds
+    let remaining = Math.floor(ms / 1000)
     const parts: string[] = []
     const d = Math.floor(remaining / 86400)
     if (d > 0) {
@@ -86,15 +81,15 @@ function useFmtDuration() {
 const C = { input: '#6366f1', output: '#10b981', thinking: '#a855f7' }
 const MODEL_C = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#a855f7', '#06b6d4', '#ec4899', '#84cc16']
 
-// ─── Overview Cards ─────────────────────────────────────────────────────────
+// ─── Overview Cards — responsive grid ───────────────────────────────────────
 
-const OV = styled.div` display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 20px; `
+const OV = styled.div` display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; `
 const OCard = styled.div<{ $a: string }>`
   background: var(--color-background-soft); border: 0.5px solid var(--color-border);
   border-radius: 10px; padding: 14px 16px; position: relative; overflow: hidden;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: box-shadow 0.15s ease;
   &::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: ${(p) => p.$a}; }
-  &:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+  &:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
 `
 const OIcon = styled.div<{ $c: string }>`
   display: inline-flex; align-items: center; justify-content: center;
@@ -116,13 +111,12 @@ const BLDot = styled.div<{
   $c: string
 }>` width: 9px; height: 9px; border-radius: 2px; background: ${(p) => p.$c}; flex-shrink: 0; `
 
-// ─── Model Bars ─────────────────────────────────────────────────────────────
+// ─── Model Cards ────────────────────────────────────────────────────────────
 
 const MBContainer = styled.div` display: flex; flex-direction: column; gap: 8px; `
 const MBox = styled.div`
   background: var(--color-background-soft); border: 0.5px solid var(--color-border);
-  border-radius: 8px; padding: 12px 14px; transition: box-shadow 0.15s;
-  &:hover { box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+  border-radius: 8px; padding: 12px 14px;
 `
 const MTop = styled.div` display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 6px; `
 const MName = styled.span` font-size: 13px; font-weight: 600; color: var(--color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; `
@@ -135,12 +129,7 @@ const MMeta = styled.div`
   display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 4px 12px;
   font-size: 11px; color: var(--color-text-secondary, #888); font-variant-numeric: tabular-nums;
 `
-
-// Model filter controls
-const MFilter = styled.div`
-  display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;
-  .ant-select { min-width: 140px; }
-`
+const MFilter = styled.div` display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; `
 const MSearch = styled.input`
   background: var(--color-background-soft); border: 0.5px solid var(--color-border);
   border-radius: 6px; padding: 4px 10px; font-size: 13px; color: var(--color-text);
@@ -151,12 +140,10 @@ const MSearch = styled.input`
 
 // ─── Heatmap ────────────────────────────────────────────────────────────────
 
-// Reverse color gradient: More messages = darker green
 const HM_LEVEL_COLORS = ['var(--color-background-soft)', '#0e4429', '#006d32', '#1a7f3a', '#216e39']
 
 function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
   const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null)
-
   const usageMap = useMemo(() => {
     const m = new Map<string, number>()
     for (const d of dailyUsage) m.set(d.date, d.messages)
@@ -167,18 +154,18 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
     const today = new Date()
     const end = new Date(today)
     const start = new Date(end)
-    start.setDate(start.getDate() - 364)
+    // Full year: today to (today - 365 days)
+    start.setFullYear(start.getFullYear() - 1)
+    // Align to Sunday
     start.setDate(start.getDate() - start.getDay())
 
     const allWeeks: { dateStr: string; count: number; month: number }[][] = []
-    let cur: { dateStr: string; count: number; month: number }[] = []
+    let cur: (typeof allWeeks)[0] = []
     let max = 0
-    const top: { date: string; count: number }[] = []
-
     const mn = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     const markers: { label: string; weekIdx: number }[] = []
-    let lastMonth = -1
-    let wi = 0
+    let lastMonth = -1,
+      wi = 0
 
     const d = new Date(start)
     while (d <= end) {
@@ -186,12 +173,10 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
       const count = usageMap.get(ds) || 0
       if (count > max) max = count
       cur.push({ dateStr: ds, count, month: d.getMonth() })
-
       if (d.getMonth() !== lastMonth) {
         if (lastMonth !== -1) markers.push({ label: mn[lastMonth], weekIdx: wi })
         lastMonth = d.getMonth()
       }
-
       d.setDate(d.getDate() + 1)
       if (cur.length === 7) {
         allWeeks.push(cur)
@@ -201,34 +186,22 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
     }
     if (cur.length > 0) allWeeks.push(cur)
     if (lastMonth >= 0) markers.push({ label: mn[lastMonth], weekIdx: wi })
-
-    return { weeks: allWeeks, monthMarkers: markers, maxCount: max || 1, topDates: top }
+    return { weeks: allWeeks, monthMarkers: markers, maxCount: max || 1 }
   }, [usageMap])
 
-  const getLevel = (count: number): number => {
-    if (count === 0) return 0
-    if (count <= maxCount * 0.25) return 1
-    if (count <= maxCount * 0.5) return 2
-    if (count <= maxCount * 0.75) return 3
-    return 4
-  }
-
+  const getLevel = (c: number) =>
+    c === 0 ? 0 : c <= maxCount * 0.25 ? 1 : c <= maxCount * 0.5 ? 2 : c <= maxCount * 0.75 ? 3 : 4
   if (weeks.length === 0) return null
 
-  const weekMonthMap = new Map<number, string>()
-  for (const m of monthMarkers) weekMonthMap.set(m.weekIdx, m.label)
-
-  const handleCellHover = (e: React.MouseEvent, dateStr: string, count: number) => {
-    setTooltip({ x: e.clientX, y: e.clientY, text: `${dateStr}: ${count} messages` })
-  }
+  const wm = new Map<number, string>()
+  for (const m of monthMarkers) wm.set(m.weekIdx, m.label)
 
   return (
     <div
       style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', overflowX: 'auto' }}
       onMouseLeave={() => setTooltip(null)}>
-      {/* Month labels */}
       <div style={{ display: 'flex', gap: 3, marginBottom: 4, height: 16 }}>
-        {weeks.map((_week, wi) => (
+        {weeks.map((_, wi) => (
           <div
             key={wi}
             style={{
@@ -238,12 +211,10 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
               color: 'var(--color-text-secondary, #888)',
               lineHeight: '16px'
             }}>
-            {weekMonthMap.has(wi) ? weekMonthMap.get(wi) : ''}
+            {wm.get(wi) || ''}
           </div>
         ))}
       </div>
-
-      {/* Grid */}
       <div style={{ display: 'flex', gap: 3 }}>
         {weeks.map((week, wi) => (
           <div key={wi} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -253,22 +224,22 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
                 <div
                   key={di}
                   title={`${day.dateStr}: ${day.count} messages`}
-                  onMouseEnter={(e) => handleCellHover(e, day.dateStr, day.count)}
+                  onMouseEnter={(e) =>
+                    setTooltip({ x: e.clientX, y: e.clientY, text: `${day.dateStr}: ${day.count} messages` })
+                  }
+                  onMouseOver={(e) => {
+                    ;(e.currentTarget as HTMLElement).style.outline = '2px solid var(--color-text)'
+                  }}
+                  onMouseOut={(e) => {
+                    ;(e.currentTarget as HTMLElement).style.outline = 'none'
+                  }}
                   style={{
                     width: 12,
                     height: 12,
                     borderRadius: 2,
                     flexShrink: 0,
                     cursor: day.count > 0 ? 'pointer' : 'default',
-                    background: HM_LEVEL_COLORS[lvl],
-                    transition: 'outline 0.1s',
-                    outline: tooltip ? undefined : undefined
-                  }}
-                  onMouseOver={(e) => {
-                    ;(e.currentTarget as HTMLElement).style.outline = '2px solid var(--color-text)'
-                  }}
-                  onMouseOut={(e) => {
-                    ;(e.currentTarget as HTMLElement).style.outline = 'none'
+                    background: HM_LEVEL_COLORS[lvl]
                   }}
                 />
               )
@@ -276,8 +247,6 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
           </div>
         ))}
       </div>
-
-      {/* Tooltip */}
       {tooltip && (
         <div
           style={{
@@ -298,8 +267,6 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
           {tooltip.text}
         </div>
       )}
-
-      {/* Legend — More = right side, darker color */}
       <div
         style={{
           display: 'flex',
@@ -310,62 +277,56 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
           fontSize: 10,
           color: 'var(--color-text-secondary, #888)'
         }}>
-        Less
+        Less{' '}
         {[0, 1, 2, 3, 4].map((lvl) => (
           <div
             key={lvl}
             style={{ width: 12, height: 12, borderRadius: 2, flexShrink: 0, background: HM_LEVEL_COLORS[lvl] }}
           />
-        ))}
+        ))}{' '}
         More
       </div>
     </div>
   )
 }
 
-// ─── Model Filter + Display ─────────────────────────────────────────────────
+// ─── Model Filter ───────────────────────────────────────────────────────────
 
 function ModelUsageSection({ modelStats }: { modelStats: ModelStats[] }) {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
   const [sortBy, setSortBy] = useState<'tokens' | 'messages' | 'speed'>('tokens')
-  const [providerFilter, setProviderFilter] = useState<string>('all')
-
+  const [provF, setProvF] = useState('all')
   const providers = useMemo(() => {
-    const seen = new Set<string>()
-    for (const m of modelStats) seen.add(fmtProvider(m.provider))
-    return Array.from(seen).sort()
+    const s = new Set<string>()
+    for (const m of modelStats) s.add(fmtProvider(m.provider))
+    return [...s].sort()
   }, [modelStats])
-
-  const filtered = useMemo(() => {
-    let list = [...modelStats]
+  const list = useMemo(() => {
+    let l = [...modelStats]
     if (search) {
       const q = search.toLowerCase()
-      list = list.filter(
-        (m) => m.modelName.toLowerCase().includes(q) || fmtProvider(m.provider).toLowerCase().includes(q)
-      )
+      l = l.filter((m) => m.modelName.toLowerCase().includes(q) || fmtProvider(m.provider).toLowerCase().includes(q))
     }
-    if (providerFilter !== 'all') {
-      list = list.filter((m) => fmtProvider(m.provider) === providerFilter)
-    }
-    list.sort((a, b) => {
-      if (sortBy === 'tokens') return b.totalTokens - a.totalTokens
-      if (sortBy === 'messages') return b.messageCount - a.messageCount
-      return b.avgTokensPerSecond - a.avgTokensPerSecond
-    })
-    return list
-  }, [modelStats, search, sortBy, providerFilter])
-
-  const maxT = filtered.length > 0 ? filtered[0].totalTokens : 1
-
+    if (provF !== 'all') l = l.filter((m) => fmtProvider(m.provider) === provF)
+    l.sort((a, b) =>
+      sortBy === 'tokens'
+        ? b.totalTokens - a.totalTokens
+        : sortBy === 'messages'
+          ? b.messageCount - a.messageCount
+          : b.avgTokensPerSecond - a.avgTokensPerSecond
+    )
+    return l
+  }, [modelStats, search, sortBy, provF])
+  const maxT = list[0]?.totalTokens || 1
   return (
     <>
       <MFilter>
         <MSearch placeholder="Search models..." value={search} onChange={(e) => setSearch(e.target.value)} />
         <Select
           size="small"
-          value={providerFilter}
-          onChange={setProviderFilter}
+          value={provF}
+          onChange={setProvF}
           options={[
             { value: 'all', label: t('stats.model_filter_all') },
             ...providers.map((p) => ({ value: p, label: p }))
@@ -383,7 +344,7 @@ function ModelUsageSection({ modelStats }: { modelStats: ModelStats[] }) {
         />
       </MFilter>
       <MBContainer>
-        {filtered.map((m, i) => (
+        {list.map((m, i) => (
           <MBox key={m.modelId}>
             <MTop>
               <MName title={m.modelName}>{m.modelName}</MName>
@@ -417,17 +378,16 @@ function ModelUsageSection({ modelStats }: { modelStats: ModelStats[] }) {
   )
 }
 
-// ─── Stats Display ──────────────────────────────────────────────────────────
+// ─── Main Display ───────────────────────────────────────────────────────────
 
 function StatsDisplay({ stats }: { stats: TopicStats }) {
   const { t } = useTranslation()
   const fmtDuration = useFmtDuration()
-
   const tokTotal = stats.totalTokens || 1
 
   return (
     <>
-      {/* ── Overview Cards ── */}
+      {/* Overview Cards */}
       <OV>
         <OCard $a="#6366f1">
           <OIcon $c="#6366f1">
@@ -452,7 +412,7 @@ function StatsDisplay({ stats }: { stats: TopicStats }) {
         </OCard>
       </OV>
 
-      {/* ── Conversation Info ── */}
+      {/* Conversation Info */}
       <SettingGroup>
         <SettingTitle>
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -505,78 +465,7 @@ function StatsDisplay({ stats }: { stats: TopicStats }) {
         </SettingRow>
       </SettingGroup>
 
-      {/* ── Token Breakdown ── */}
-      {stats.totalTokens > 0 && (
-        <SettingGroup>
-          <SettingTitle>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Cpu size={15} />
-              {t('stats.token_breakdown')}
-            </span>
-            <strong style={{ fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{fmtTokens(stats.totalTokens)}</strong>
-          </SettingTitle>
-          <SettingDivider />
-          <BTrack>
-            <BSeg $w={(stats.totalInputTokens / tokTotal) * 100} $c={C.input} />
-            <BSeg $w={(stats.totalOutputTokens / tokTotal) * 100} $c={C.output} />
-            {stats.totalThinkingTokens > 0 && (
-              <BSeg $w={(stats.totalThinkingTokens / tokTotal) * 100} $c={C.thinking} />
-            )}
-          </BTrack>
-          <BLegend>
-            <BLItem>
-              <BLDot $c={C.input} />
-              {t('stats.input_tokens')}{' '}
-              <strong style={{ color: 'var(--color-text)' }}>{fmtTokens(stats.totalInputTokens)}</strong>
-            </BLItem>
-            <BLItem>
-              <BLDot $c={C.output} />
-              {t('stats.output_tokens')}{' '}
-              <strong style={{ color: 'var(--color-text)' }}>{fmtTokens(stats.totalOutputTokens)}</strong>
-            </BLItem>
-            {stats.totalThinkingTokens > 0 && (
-              <BLItem>
-                <BLDot $c={C.thinking} />
-                {t('stats.thinking_tokens')}{' '}
-                <strong style={{ color: 'var(--color-text)' }}>{fmtTokens(stats.totalThinkingTokens)}</strong>
-              </BLItem>
-            )}
-          </BLegend>
-        </SettingGroup>
-      )}
-
-      {/* ── Daily Usage Heatmap ── */}
-      {stats.dailyUsage.length > 0 && (
-        <SettingGroup>
-          <SettingTitle>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <BarChart3 size={15} />
-              {t('stats.daily_usage')}
-            </span>
-            <span style={{ fontSize: 12, color: 'var(--color-text-secondary, #888)' }}>
-              {stats.dailyUsage.length} {t('stats.active_days')}
-            </span>
-          </SettingTitle>
-          <SettingDivider />
-          <DailyHeatmap dailyUsage={stats.dailyUsage} />
-        </SettingGroup>
-      )}
-
-      {/* ── Model Usage ── */}
-      {stats.modelStats.length > 0 && (
-        <SettingGroup>
-          <SettingTitle>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Bot size={15} />
-              {t('stats.model_usage')}
-            </span>
-          </SettingTitle>
-          <SettingDivider />
-          <ModelUsageSection modelStats={stats.modelStats} />
-        </SettingGroup>
-      )}
-
-      {/* ── Performance ── */}
+      {/* Performance — moved up, right after conversation info */}
       {stats.assistantMessages > 0 && (
         <SettingGroup>
           <SettingTitle>
@@ -617,6 +506,77 @@ function StatsDisplay({ stats }: { stats: TopicStats }) {
           </SettingRow>
         </SettingGroup>
       )}
+
+      {/* Token Breakdown */}
+      {stats.totalTokens > 0 && (
+        <SettingGroup>
+          <SettingTitle>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Cpu size={15} />
+              {t('stats.token_breakdown')}
+            </span>
+            <strong style={{ fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{fmtTokens(stats.totalTokens)}</strong>
+          </SettingTitle>
+          <SettingDivider />
+          <BTrack>
+            <BSeg $w={(stats.totalInputTokens / tokTotal) * 100} $c={C.input} />
+            <BSeg $w={(stats.totalOutputTokens / tokTotal) * 100} $c={C.output} />
+            {stats.totalThinkingTokens > 0 && (
+              <BSeg $w={(stats.totalThinkingTokens / tokTotal) * 100} $c={C.thinking} />
+            )}
+          </BTrack>
+          <BLegend>
+            <BLItem>
+              <BLDot $c={C.input} />
+              {t('stats.input_tokens')}{' '}
+              <strong style={{ color: 'var(--color-text)' }}>{fmtTokens(stats.totalInputTokens)}</strong>
+            </BLItem>
+            <BLItem>
+              <BLDot $c={C.output} />
+              {t('stats.output_tokens')}{' '}
+              <strong style={{ color: 'var(--color-text)' }}>{fmtTokens(stats.totalOutputTokens)}</strong>
+            </BLItem>
+            {stats.totalThinkingTokens > 0 && (
+              <BLItem>
+                <BLDot $c={C.thinking} />
+                {t('stats.thinking_tokens')}{' '}
+                <strong style={{ color: 'var(--color-text)' }}>{fmtTokens(stats.totalThinkingTokens)}</strong>
+              </BLItem>
+            )}
+          </BLegend>
+        </SettingGroup>
+      )}
+
+      {/* Daily Heatmap */}
+      {stats.dailyUsage.length > 0 && (
+        <SettingGroup>
+          <SettingTitle>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <BarChart3 size={15} />
+              {t('stats.daily_usage')}
+            </span>
+            <span style={{ fontSize: 12, color: 'var(--color-text-secondary, #888)' }}>
+              {stats.dailyUsage.length} {t('stats.active_days')}
+            </span>
+          </SettingTitle>
+          <SettingDivider />
+          <DailyHeatmap dailyUsage={stats.dailyUsage} />
+        </SettingGroup>
+      )}
+
+      {/* Model Usage */}
+      {stats.modelStats.length > 0 && (
+        <SettingGroup>
+          <SettingTitle>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Bot size={15} />
+              {t('stats.model_usage')}
+            </span>
+          </SettingTitle>
+          <SettingDivider />
+          <ModelUsageSection modelStats={stats.modelStats} />
+        </SettingGroup>
+      )}
     </>
   )
 }
@@ -626,27 +586,23 @@ function StatsDisplay({ stats }: { stats: TopicStats }) {
 const LoadingState = styled.div`
   display: flex; align-items: center; justify-content: center; gap: 8px;
   padding: 48px 24px; color: var(--color-text-secondary, #888); font-size: 14px;
-  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-  svg { animation: spin 1s linear infinite; }
+  @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+  svg{animation:spin 1s linear infinite}
 `
-
-// ─── Main ───────────────────────────────────────────────────────────────────
 
 const StatsSettings: React.FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const [stats, setStats] = useState<TopicStats | null>(null)
-
   useEffect(() => {
-    let cancelled = false
+    let c = false
     void computeGlobalStatsFromDB().then((r) => {
-      if (!cancelled) setStats(r)
+      if (!c) setStats(r)
     })
     return () => {
-      cancelled = true
+      c = true
     }
   }, [])
-
   return (
     <SettingContainer theme={theme}>
       {stats === null ? (
