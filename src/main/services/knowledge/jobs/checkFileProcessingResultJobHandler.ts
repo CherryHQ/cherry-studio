@@ -49,7 +49,7 @@ export function createCheckFileProcessingResultJobHandler(
       ctx.signal.throwIfAborted()
 
       if (await shouldSkipMissingOrDeletingItem(baseId, itemId, ctx.jobId)) {
-        await cancelFileProcessingJob(fileProcessingJobId, FILE_PROCESSING_ITEM_UNAVAILABLE_CANCEL_REASON)
+        await cancelJobOrThrow(fileProcessingJobId, FILE_PROCESSING_ITEM_UNAVAILABLE_CANCEL_REASON)
         return
       }
 
@@ -70,7 +70,7 @@ export function createCheckFileProcessingResultJobHandler(
 
       if (!isTerminalStatus(snapshot.status)) {
         if (Date.now() - firstScheduledAt >= FILE_PROCESSING_MAX_WAIT_MS) {
-          await cancelFileProcessingJob(fileProcessingJobId, 'knowledge-file-processing-timeout')
+          await cancelJobOrThrow(fileProcessingJobId, 'knowledge-file-processing-timeout')
           await markItemFailed(itemId, `File processing job ${fileProcessingJobId} did not finish within 30 minutes`)
           ctx.reportProgress(100, { stage: 'failed' })
           return
@@ -155,10 +155,6 @@ function reportWaitingProgress(
     fileProcessingJobId,
     fileProcessing: childProgress
   })
-}
-
-async function cancelFileProcessingJob(fileProcessingJobId: string, reason: string): Promise<void> {
-  await cancelJobOrThrow(fileProcessingJobId, reason)
 }
 
 function isExpectedFileProcessingJob(snapshot: JobSnapshot, sourceFileEntryId: FileEntryId): boolean {

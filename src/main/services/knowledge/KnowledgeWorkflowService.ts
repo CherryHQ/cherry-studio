@@ -175,7 +175,7 @@ export class KnowledgeWorkflowService {
         })
       } catch (error) {
         try {
-          await this.cancelFileProcessingJob(fileProcessingJob.id, 'knowledge-file-processing-check-enqueue-failed')
+          await cancelJobOrThrow(fileProcessingJob.id, 'knowledge-file-processing-check-enqueue-failed')
         } catch (cancelError) {
           logger.warn('Failed to cancel file-processing job after check enqueue failure', {
             fileProcessingJobId: fileProcessingJob.id,
@@ -243,10 +243,6 @@ export class KnowledgeWorkflowService {
         parentId: parentJobId ?? undefined
       }
     )
-  }
-
-  private async cancelFileProcessingJob(fileProcessingJobId: string, reason: string): Promise<void> {
-    await cancelJobOrThrow(fileProcessingJobId, reason)
   }
 
   private async rollbackAcceptedItems(baseId: string, items: KnowledgeItem[], originalError: unknown): Promise<void> {

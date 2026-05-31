@@ -9,7 +9,6 @@ import {
   createJobSnapshot,
   createNoteItem,
   deleteItemsByIdsMock,
-  getJobMock,
   knowledgeBaseGetByIdMock,
   knowledgeItemGetSubtreeItemsMock,
   knowledgeLockManager,
@@ -117,19 +116,7 @@ describe('delete-subtree job handler', () => {
         input: { baseId: 'kb-1', itemId: 'note-1', parentJobId: null }
       })
     ])
-    getJobMock.mockResolvedValue(
-      createJobSnapshot({
-        id: 'index-job',
-        type: 'knowledge.index-documents',
-        input: { baseId: 'kb-1', itemId: 'note-1', parentJobId: null },
-        status: 'cancelled',
-        error: {
-          code: 'JOB_CANCELLED',
-          message: 'Cancel timed out after 30000ms (reason: knowledge-delete-subtree)',
-          retryable: false
-        }
-      })
-    )
+    cancelMock.mockResolvedValue({ outcome: 'timed-out' })
 
     await expect(handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'delete-job'))).rejects.toThrow(
       'Job cancel timed out: index-job'
