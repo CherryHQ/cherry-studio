@@ -844,6 +844,13 @@ describe('model utils', () => {
         expect(isClaude47PlusModel(createModel({ id: 'claude-haiku-4-5' }))).toBe(false)
       })
 
+      it('does not misread date-stamped Claude 4.0 ids as a high minor version', () => {
+        expect(isClaude47PlusModel(createModel({ id: 'claude-opus-4-20250514' }))).toBe(false)
+        expect(isClaude47PlusModel(createModel({ id: 'claude-sonnet-4-20250514' }))).toBe(false)
+        expect(isClaude47PlusModel(createModel({ id: 'anthropic.claude-sonnet-4-20250514-v1:0' }))).toBe(false)
+        expect(isClaude47PlusModel(createModel({ id: 'claude-sonnet-4@20250514' }))).toBe(false)
+      })
+
       it('returns false for undefined and null', () => {
         expect(isClaude47PlusModel(undefined as unknown as Model)).toBe(false)
         expect(isClaude47PlusModel(null as unknown as Model)).toBe(false)

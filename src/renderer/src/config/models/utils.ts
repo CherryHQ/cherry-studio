@@ -446,8 +446,10 @@ export function isClaude47PlusModel(model: Model | undefined | null): boolean {
     return false
   }
   const modelId = getLowerBaseModelName(model.id, '/')
-  // Matches any tier at minor version >= 7: single digit 7-9, or any two-or-more
-  // digit minor (10, 11, ...). Excludes 4.6 and below.
-  const regex = /(?:anthropic\.)?claude-[a-z]+-4[.-](?:[7-9]|\d{2,})(?:[@\-:][\w\-:]+)?$/i
+  // Matches any tier at minor version >= 7: single digit 7-9, or two-digit minor
+  // 10-99. `\d{2,}` is intentionally avoided so 8-digit date-stamped 4.0 ids like
+  // `claude-opus-4-20250514` are not misread as a high minor version. Excludes 4.6
+  // and below.
+  const regex = /(?:anthropic\.)?claude-[a-z]+-4[.-](?:[7-9]|[1-9]\d)(?:[@\-:][\w\-:]+)?$/i
   return regex.test(modelId)
 }
