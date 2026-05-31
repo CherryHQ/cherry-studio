@@ -1,6 +1,7 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
-import type { DailyUsage, TopicStats } from '@renderer/utils/topicStats'
+import type { DailyUsage, ModelStats, TopicStats } from '@renderer/utils/topicStats'
 import { computeGlobalStatsFromDB } from '@renderer/utils/topicStats'
+import { Select } from 'antd'
 import { BarChart3, Bot, Clock, Cpu, FileText, Gauge, Hash, Loader, MessageSquare, Type, Zap } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,23 +17,6 @@ function fmtTokens(n: number): string {
   return String(n)
 }
 
-function fmtDuration(ms: number): string {
-  if (ms <= 0) return '—'
-  if (ms < 1000) return `${ms}ms`
-  const s = Math.floor(ms / 1000)
-  if (s < 60) return `${s}s`
-  const m = Math.floor(s / 60)
-  if (m < 60) return `${m}m ${s % 60}s`
-  const h = Math.floor(m / 60)
-  if (h < 24) return `${h}h ${m % 60}m`
-  const d = Math.floor(h / 24)
-  if (d < 30) return `${d}d ${h % 24}h`
-  const mo = Math.floor(d / 30)
-  if (mo < 12) return `${mo}mo ${d % 30}d`
-  const y = Math.floor(mo / 12)
-  return `${y}y ${mo % 12}mo`
-}
-
 function fmtLatency(ms: number): string {
   if (ms <= 0) return '—'
   if (ms < 1000) return `${Math.round(ms)}ms`
@@ -44,7 +28,6 @@ function fmtSpeed(tps: number): string {
 }
 
 function fmtProvider(p: string): string {
-  // UUID fallback — couldn't resolve to a name
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(p)) return 'Custom'
   const m: Record<string, string> = {
     openai: 'OpenAI',
@@ -70,13 +53,37 @@ function fmtProvider(p: string): string {
   return m[p] || p
 }
 
+/** i18n-aware fine-grained duration: "3d 5h 23m 12s" */
+function useFmtDuration() {
+  const { t } = useTranslation()
+  return (ms: number): string => {
+    if (ms <= 0) return '—'
+    if (ms < 1000) return `${ms}ms`
+    let remaining = Math.floor(ms / 1000) // seconds
+    const parts: string[] = []
+    const d = Math.floor(remaining / 86400)
+    if (d > 0) {
+      parts.push(`${d}${t('stats.duration_d')}`)
+      remaining %= 86400
+    }
+    const h = Math.floor(remaining / 3600)
+    if (h > 0) {
+      parts.push(`${h}${t('stats.duration_h')}`)
+      remaining %= 3600
+    }
+    const m = Math.floor(remaining / 60)
+    if (m > 0) {
+      parts.push(`${m}${t('stats.duration_m')}`)
+      remaining %= 60
+    }
+    if (remaining > 0 || parts.length === 0) parts.push(`${remaining}${t('stats.duration_s')}`)
+    return parts.join(' ')
+  }
+}
+
 // ─── Colors ─────────────────────────────────────────────────────────────────
 
-const COLORS = {
-  input: '#6366f1',
-  output: '#10b981',
-  thinking: '#a855f7'
-}
+const C = { input: '#6366f1', output: '#10b981', thinking: '#a855f7' }
 const MODEL_C = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#a855f7', '#06b6d4', '#ec4899', '#84cc16']
 
 // ─── Overview Cards ─────────────────────────────────────────────────────────
@@ -85,7 +92,9 @@ const OV = styled.div` display: grid; grid-template-columns: repeat(3, 1fr); gap
 const OCard = styled.div<{ $a: string }>`
   background: var(--color-background-soft); border: 0.5px solid var(--color-border);
   border-radius: 10px; padding: 14px 16px; position: relative; overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
   &::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: ${(p) => p.$a}; }
+  &:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
 `
 const OIcon = styled.div<{ $c: string }>`
   display: inline-flex; align-items: center; justify-content: center;
@@ -99,7 +108,7 @@ const OLbl = styled.div` font-size: 11px; color: var(--color-text-secondary, #88
 
 const BTrack = styled.div` height: 20px; border-radius: 6px; background: var(--color-background-soft); overflow: hidden; display: flex; margin-bottom: 8px; `
 const BSeg = styled.div<{ $w: number; $c: string }>`
-  width: ${(p) => p.$w}%; background: ${(p) => p.$c}; min-width: ${(p) => (p.$w > 0 ? 2 : 0)}px; transition: width 0.3s;
+  width: ${(p) => p.$w}%; background: ${(p) => p.$c}; min-width: ${(p) => (p.$w > 0 ? 2 : 0)}px; transition: width 0.4s ease;
 `
 const BLegend = styled.div` display: flex; gap: 16px; flex-wrap: wrap; `
 const BLItem = styled.div` display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--color-text-secondary, #888); `
@@ -109,10 +118,11 @@ const BLDot = styled.div<{
 
 // ─── Model Bars ─────────────────────────────────────────────────────────────
 
-const MBContainer = styled.div` display: flex; flex-direction: column; gap: 10px; `
+const MBContainer = styled.div` display: flex; flex-direction: column; gap: 8px; `
 const MBox = styled.div`
   background: var(--color-background-soft); border: 0.5px solid var(--color-border);
-  border-radius: 8px; padding: 12px 14px;
+  border-radius: 8px; padding: 12px 14px; transition: box-shadow 0.15s;
+  &:hover { box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
 `
 const MTop = styled.div` display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 6px; `
 const MName = styled.span` font-size: 13px; font-weight: 600; color: var(--color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; `
@@ -126,13 +136,27 @@ const MMeta = styled.div`
   font-size: 11px; color: var(--color-text-secondary, #888); font-variant-numeric: tabular-nums;
 `
 
-// ─── Daily Heatmap ──────────────────────────────────────────────────────────
+// Model filter controls
+const MFilter = styled.div`
+  display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;
+  .ant-select { min-width: 140px; }
+`
+const MSearch = styled.input`
+  background: var(--color-background-soft); border: 0.5px solid var(--color-border);
+  border-radius: 6px; padding: 4px 10px; font-size: 13px; color: var(--color-text);
+  outline: none; min-width: 160px;
+  &::placeholder { color: var(--color-text-secondary, #888); }
+  &:focus { border-color: #6366f1; }
+`
 
-// const HMWrap, HMGrid, HMCol, HMCell, HMLegend, HMMonths removed — heatmap rewritten below
+// ─── Heatmap ────────────────────────────────────────────────────────────────
 
-// ─── Heatmap Component ──────────────────────────────────────────────────────
+// Reverse color gradient: More messages = darker green
+const HM_LEVEL_COLORS = ['var(--color-background-soft)', '#0e4429', '#006d32', '#1a7f3a', '#216e39']
 
 function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
+  const [tooltip, setTooltip] = useState<{ x: number; y: number; text: string } | null>(null)
+
   const usageMap = useMemo(() => {
     const m = new Map<string, number>()
     for (const d of dailyUsage) m.set(d.date, d.messages)
@@ -144,14 +168,13 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
     const end = new Date(today)
     const start = new Date(end)
     start.setDate(start.getDate() - 364)
-    // Align to Sunday
     start.setDate(start.getDate() - start.getDay())
 
     const allWeeks: { dateStr: string; count: number; month: number }[][] = []
     let cur: { dateStr: string; count: number; month: number }[] = []
     let max = 0
+    const top: { date: string; count: number }[] = []
 
-    // Track which week index starts which month
     const mn = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     const markers: { label: string; weekIdx: number }[] = []
     let lastMonth = -1
@@ -164,12 +187,8 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
       if (count > max) max = count
       cur.push({ dateStr: ds, count, month: d.getMonth() })
 
-      // Check if month changed — record it
       if (d.getMonth() !== lastMonth) {
-        if (lastMonth !== -1) {
-          // Record previous month's label at the week index where it first appeared
-          markers.push({ label: mn[lastMonth], weekIdx: wi })
-        }
+        if (lastMonth !== -1) markers.push({ label: mn[lastMonth], weekIdx: wi })
         lastMonth = d.getMonth()
       }
 
@@ -181,34 +200,33 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
       }
     }
     if (cur.length > 0) allWeeks.push(cur)
-    // Push the last month
-    if (lastMonth >= 0) {
-      markers.push({ label: mn[lastMonth], weekIdx: wi })
-    }
+    if (lastMonth >= 0) markers.push({ label: mn[lastMonth], weekIdx: wi })
 
-    return { weeks: allWeeks, monthMarkers: markers, maxCount: max || 1 }
+    return { weeks: allWeeks, monthMarkers: markers, maxCount: max || 1, topDates: top }
   }, [usageMap])
 
   const getLevel = (count: number): number => {
     if (count === 0) return 0
-    const r = count / maxCount
-    if (r <= 0.25) return 1
-    if (r <= 0.5) return 2
-    if (r <= 0.75) return 3
+    if (count <= maxCount * 0.25) return 1
+    if (count <= maxCount * 0.5) return 2
+    if (count <= maxCount * 0.75) return 3
     return 4
   }
 
   if (weeks.length === 0) return null
 
-  // Build a map of week-index → month label
   const weekMonthMap = new Map<number, string>()
-  for (const m of monthMarkers) {
-    weekMonthMap.set(m.weekIdx, m.label)
+  for (const m of monthMarkers) weekMonthMap.set(m.weekIdx, m.label)
+
+  const handleCellHover = (e: React.MouseEvent, dateStr: string, count: number) => {
+    setTooltip({ x: e.clientX, y: e.clientY, text: `${dateStr}: ${count} messages` })
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', overflowX: 'auto' }}>
-      {/* Headers row: month label above each week column */}
+    <div
+      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', overflowX: 'auto' }}
+      onMouseLeave={() => setTooltip(null)}>
+      {/* Month labels */}
       <div style={{ display: 'flex', gap: 3, marginBottom: 4, height: 16 }}>
         {weeks.map((_week, wi) => (
           <div
@@ -229,27 +247,59 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
       <div style={{ display: 'flex', gap: 3 }}>
         {weeks.map((week, wi) => (
           <div key={wi} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {week.map((day, di) => (
-              <div
-                key={di}
-                title={`${day.dateStr}: ${day.count} messages`}
-                style={{
-                  width: 12,
-                  height: 12,
-                  borderRadius: 2,
-                  flexShrink: 0,
-                  background:
-                    getLevel(day.count) === 0
-                      ? 'var(--color-background-soft)'
-                      : ['', '#0e4429', '#006d32', '#26a641', '#39d353'][getLevel(day.count)]
-                }}
-              />
-            ))}
+            {week.map((day, di) => {
+              const lvl = getLevel(day.count)
+              return (
+                <div
+                  key={di}
+                  title={`${day.dateStr}: ${day.count} messages`}
+                  onMouseEnter={(e) => handleCellHover(e, day.dateStr, day.count)}
+                  style={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: 2,
+                    flexShrink: 0,
+                    cursor: day.count > 0 ? 'pointer' : 'default',
+                    background: HM_LEVEL_COLORS[lvl],
+                    transition: 'outline 0.1s',
+                    outline: tooltip ? undefined : undefined
+                  }}
+                  onMouseOver={(e) => {
+                    ;(e.currentTarget as HTMLElement).style.outline = '2px solid var(--color-text)'
+                  }}
+                  onMouseOut={(e) => {
+                    ;(e.currentTarget as HTMLElement).style.outline = 'none'
+                  }}
+                />
+              )
+            })}
           </div>
         ))}
       </div>
 
-      {/* Legend */}
+      {/* Tooltip */}
+      {tooltip && (
+        <div
+          style={{
+            position: 'fixed',
+            left: tooltip.x + 10,
+            top: tooltip.y - 30,
+            background: 'var(--color-background)',
+            border: '0.5px solid var(--color-border)',
+            borderRadius: 6,
+            padding: '4px 10px',
+            fontSize: 12,
+            color: 'var(--color-text)',
+            pointerEvents: 'none',
+            zIndex: 9999,
+            whiteSpace: 'nowrap',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+          }}>
+          {tooltip.text}
+        </div>
+      )}
+
+      {/* Legend — More = right side, darker color */}
       <div
         style={{
           display: 'flex',
@@ -264,14 +314,7 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
         {[0, 1, 2, 3, 4].map((lvl) => (
           <div
             key={lvl}
-            style={{
-              width: 12,
-              height: 12,
-              borderRadius: 2,
-              flexShrink: 0,
-              background:
-                lvl === 0 ? 'var(--color-background-soft)' : ['', '#0e4429', '#006d32', '#26a641', '#39d353'][lvl]
-            }}
+            style={{ width: 12, height: 12, borderRadius: 2, flexShrink: 0, background: HM_LEVEL_COLORS[lvl] }}
           />
         ))}
         More
@@ -280,17 +323,111 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
   )
 }
 
+// ─── Model Filter + Display ─────────────────────────────────────────────────
+
+function ModelUsageSection({ modelStats }: { modelStats: ModelStats[] }) {
+  const { t } = useTranslation()
+  const [search, setSearch] = useState('')
+  const [sortBy, setSortBy] = useState<'tokens' | 'messages' | 'speed'>('tokens')
+  const [providerFilter, setProviderFilter] = useState<string>('all')
+
+  const providers = useMemo(() => {
+    const seen = new Set<string>()
+    for (const m of modelStats) seen.add(fmtProvider(m.provider))
+    return Array.from(seen).sort()
+  }, [modelStats])
+
+  const filtered = useMemo(() => {
+    let list = [...modelStats]
+    if (search) {
+      const q = search.toLowerCase()
+      list = list.filter(
+        (m) => m.modelName.toLowerCase().includes(q) || fmtProvider(m.provider).toLowerCase().includes(q)
+      )
+    }
+    if (providerFilter !== 'all') {
+      list = list.filter((m) => fmtProvider(m.provider) === providerFilter)
+    }
+    list.sort((a, b) => {
+      if (sortBy === 'tokens') return b.totalTokens - a.totalTokens
+      if (sortBy === 'messages') return b.messageCount - a.messageCount
+      return b.avgTokensPerSecond - a.avgTokensPerSecond
+    })
+    return list
+  }, [modelStats, search, sortBy, providerFilter])
+
+  const maxT = filtered.length > 0 ? filtered[0].totalTokens : 1
+
+  return (
+    <>
+      <MFilter>
+        <MSearch placeholder="Search models..." value={search} onChange={(e) => setSearch(e.target.value)} />
+        <Select
+          size="small"
+          value={providerFilter}
+          onChange={setProviderFilter}
+          options={[
+            { value: 'all', label: t('stats.model_filter_all') },
+            ...providers.map((p) => ({ value: p, label: p }))
+          ]}
+        />
+        <Select
+          size="small"
+          value={sortBy}
+          onChange={setSortBy}
+          options={[
+            { value: 'tokens', label: t('stats.model_sort_tokens') },
+            { value: 'messages', label: t('stats.model_sort_messages') },
+            { value: 'speed', label: t('stats.model_sort_speed') }
+          ]}
+        />
+      </MFilter>
+      <MBContainer>
+        {filtered.map((m, i) => (
+          <MBox key={m.modelId}>
+            <MTop>
+              <MName title={m.modelName}>{m.modelName}</MName>
+              <MBadge>{fmtProvider(m.provider)}</MBadge>
+            </MTop>
+            <MTrack>
+              <MFill $w={maxT > 0 ? (m.totalTokens / maxT) * 100 : 0} $c={MODEL_C[i % MODEL_C.length]} />
+            </MTrack>
+            <MMeta>
+              <span>
+                {t('stats.messages')}: <strong style={{ color: 'var(--color-text)' }}>{m.messageCount}</strong>
+              </span>
+              <span>
+                Tokens: <strong style={{ color: 'var(--color-text)' }}>{fmtTokens(m.totalTokens)}</strong>
+              </span>
+              {m.avgTokensPerSecond > 0 && (
+                <span>
+                  ⚡ <strong style={{ color: 'var(--color-text)' }}>{fmtSpeed(m.avgTokensPerSecond)}</strong>
+                </span>
+              )}
+              {m.avgFirstTokenLatency > 0 && (
+                <span>
+                  ⏱ <strong style={{ color: 'var(--color-text)' }}>{fmtLatency(m.avgFirstTokenLatency)}</strong>
+                </span>
+              )}
+            </MMeta>
+          </MBox>
+        ))}
+      </MBContainer>
+    </>
+  )
+}
+
 // ─── Stats Display ──────────────────────────────────────────────────────────
 
 function StatsDisplay({ stats }: { stats: TopicStats }) {
   const { t } = useTranslation()
+  const fmtDuration = useFmtDuration()
 
   const tokTotal = stats.totalTokens || 1
-  const maxModelT = stats.modelStats.length > 0 ? stats.modelStats[0].totalTokens : 1
 
   return (
     <>
-      {/* ── Overview Cards (3 cards, no cost) ── */}
+      {/* ── Overview Cards ── */}
       <OV>
         <OCard $a="#6366f1">
           <OIcon $c="#6366f1">
@@ -324,13 +461,12 @@ function StatsDisplay({ stats }: { stats: TopicStats }) {
           </span>
         </SettingTitle>
         <SettingDivider />
-
         <SettingRow>
           <SettingRowTitle>
             <MessageSquare size={13} style={{ marginRight: 6 }} />
             {t('stats.messages')}
           </SettingRowTitle>
-          <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 13 }}>
+          <span style={{ fontVariantNumeric: 'tabular-nums', fontSize: 13, whiteSpace: 'nowrap' }}>
             <strong>{stats.totalMessages.toLocaleString()}</strong>
             <span style={{ color: 'var(--color-text-secondary, #888)', marginLeft: 6 }}>
               (用户 {stats.userMessages.toLocaleString()} / 助手 {stats.assistantMessages.toLocaleString()})
@@ -381,26 +517,26 @@ function StatsDisplay({ stats }: { stats: TopicStats }) {
           </SettingTitle>
           <SettingDivider />
           <BTrack>
-            <BSeg $w={(stats.totalInputTokens / tokTotal) * 100} $c={COLORS.input} />
-            <BSeg $w={(stats.totalOutputTokens / tokTotal) * 100} $c={COLORS.output} />
+            <BSeg $w={(stats.totalInputTokens / tokTotal) * 100} $c={C.input} />
+            <BSeg $w={(stats.totalOutputTokens / tokTotal) * 100} $c={C.output} />
             {stats.totalThinkingTokens > 0 && (
-              <BSeg $w={(stats.totalThinkingTokens / tokTotal) * 100} $c={COLORS.thinking} />
+              <BSeg $w={(stats.totalThinkingTokens / tokTotal) * 100} $c={C.thinking} />
             )}
           </BTrack>
           <BLegend>
             <BLItem>
-              <BLDot $c={COLORS.input} />
+              <BLDot $c={C.input} />
               {t('stats.input_tokens')}{' '}
               <strong style={{ color: 'var(--color-text)' }}>{fmtTokens(stats.totalInputTokens)}</strong>
             </BLItem>
             <BLItem>
-              <BLDot $c={COLORS.output} />
+              <BLDot $c={C.output} />
               {t('stats.output_tokens')}{' '}
               <strong style={{ color: 'var(--color-text)' }}>{fmtTokens(stats.totalOutputTokens)}</strong>
             </BLItem>
             {stats.totalThinkingTokens > 0 && (
               <BLItem>
-                <BLDot $c={COLORS.thinking} />
+                <BLDot $c={C.thinking} />
                 {t('stats.thinking_tokens')}{' '}
                 <strong style={{ color: 'var(--color-text)' }}>{fmtTokens(stats.totalThinkingTokens)}</strong>
               </BLItem>
@@ -409,7 +545,7 @@ function StatsDisplay({ stats }: { stats: TopicStats }) {
         </SettingGroup>
       )}
 
-      {/* ── Daily Usage Heatmap (global only) ── */}
+      {/* ── Daily Usage Heatmap ── */}
       {stats.dailyUsage.length > 0 && (
         <SettingGroup>
           <SettingTitle>
@@ -436,37 +572,7 @@ function StatsDisplay({ stats }: { stats: TopicStats }) {
             </span>
           </SettingTitle>
           <SettingDivider />
-          <MBContainer>
-            {stats.modelStats.map((m, i) => (
-              <MBox key={m.modelId}>
-                <MTop>
-                  <MName title={m.modelName}>{m.modelName}</MName>
-                  <MBadge>{fmtProvider(m.provider)}</MBadge>
-                </MTop>
-                <MTrack>
-                  <MFill $w={maxModelT > 0 ? (m.totalTokens / maxModelT) * 100 : 0} $c={MODEL_C[i % MODEL_C.length]} />
-                </MTrack>
-                <MMeta>
-                  <span>
-                    {t('stats.messages')}: <strong style={{ color: 'var(--color-text)' }}>{m.messageCount}</strong>
-                  </span>
-                  <span>
-                    Tokens: <strong style={{ color: 'var(--color-text)' }}>{fmtTokens(m.totalTokens)}</strong>
-                  </span>
-                  {m.avgTokensPerSecond > 0 && (
-                    <span>
-                      ⚡ <strong style={{ color: 'var(--color-text)' }}>{fmtSpeed(m.avgTokensPerSecond)}</strong>
-                    </span>
-                  )}
-                  {m.avgFirstTokenLatency > 0 && (
-                    <span>
-                      ⏱ <strong style={{ color: 'var(--color-text)' }}>{fmtLatency(m.avgFirstTokenLatency)}</strong>
-                    </span>
-                  )}
-                </MMeta>
-              </MBox>
-            ))}
-          </MBContainer>
+          <ModelUsageSection modelStats={stats.modelStats} />
         </SettingGroup>
       )}
 
@@ -515,17 +621,16 @@ function StatsDisplay({ stats }: { stats: TopicStats }) {
   )
 }
 
-// ─── Loading State ──────────────────────────────────────────────────────────
+// ─── Loading ────────────────────────────────────────────────────────────────
 
 const LoadingState = styled.div`
   display: flex; align-items: center; justify-content: center; gap: 8px;
   padding: 48px 24px; color: var(--color-text-secondary, #888); font-size: 14px;
-
   @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
   svg { animation: spin 1s linear infinite; }
 `
 
-// ─── Main Component ─────────────────────────────────────────────────────────
+// ─── Main ───────────────────────────────────────────────────────────────────
 
 const StatsSettings: React.FC = () => {
   const { t } = useTranslation()
