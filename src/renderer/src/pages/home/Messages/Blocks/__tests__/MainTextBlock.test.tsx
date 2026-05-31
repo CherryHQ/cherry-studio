@@ -489,11 +489,14 @@ describe('MainTextBlock', () => {
     const getBlockScope = (blockId: string) => document.querySelector(`[data-block-id="${blockId}"]`)
     const getInjectedSpans = (blockId: string) =>
       getBlockScope(blockId)?.querySelectorAll('span.branch-anchor-highlight') ?? []
-    const highlight = (blockId: string | null, start = 0, end = 0) => ({
-      highlightedBlockId: blockId,
-      selectionStart: start,
-      selectionEnd: end
-    })
+    // P1-S1: BranchAnchorContext value shape generalized to { anchors: [...] }.
+    // helper preserves the previous test-call signature so every assertion in
+    // this block stays IDENTICAL — blockId === null → no anchor; otherwise a
+    // single-element anchors list (S1 invariant: length ≤ 1).
+    const highlight = (blockId: string | null, start = 0, end = 0) =>
+      blockId === null
+        ? { anchors: [] }
+        : { anchors: [{ branchId: 'test-branch-1', blockId, selectionStart: start, selectionEnd: end }] }
 
     it('injects no highlight spans when no BranchAnchorContext Provider is present (main chat default)', () => {
       const block = createMainTextBlock({ id: 'blk-A', content: 'plain body text' })

@@ -8,7 +8,7 @@ import PromptPopup from '@renderer/components/Popups/PromptPopup'
 import { SelectChatModelPopup } from '@renderer/components/Popups/SelectModelPopup'
 import { QuickPanelProvider } from '@renderer/components/QuickPanel'
 import { isEmbeddingModel, isRerankModel, isWebSearchModel } from '@renderer/config/models'
-import { BranchAnchorContext, type BranchAnchorHighlight } from '@renderer/context/BranchAnchorContext'
+import { BranchAnchorContext, type BranchAnchorContextValue } from '@renderer/context/BranchAnchorContext'
 import { BranchAssistantContext, type BranchAssistantOverride } from '@renderer/context/BranchAssistantContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useBranchFork } from '@renderer/hooks/useBranchFork'
@@ -24,14 +24,15 @@ import { Flex } from 'antd'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
-import React, { useMemo, useState } from 'react'
+import React, { useCallback, useMemo, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
+import { v4 as uuidv4 } from 'uuid'
 
 import ChatNavbar from './components/ChatNavBar'
 import Inputbar from './Inputbar/Inputbar'
-import { type BranchAnchor, BranchPane } from './Messages/BranchPanel'
+import { type Branch, type BranchAnchor, BranchPane } from './Messages/BranchPanel'
 import ChatNavigation from './Messages/ChatNavigation'
 import Messages from './Messages/Messages'
 import Tabs from './Tabs'
@@ -59,47 +60,101 @@ const Chat: FC<Props> = (props) => {
   const contentSearchRef = React.useRef<ContentSearchRef>(null)
   const [filterIncludeUser, setFilterIncludeUser] = useState(false)
 
-  // T-006D-2B state lift: branchAnchor + branchTopic live at the Chat layer
-  // so the side panel can be a layout sibling of <Main>. Messages.tsx forwards
-  // SelectionContextMenu's onOpenBranchPanel via the `onOpenBranchAnchor`
-  // prop into setBranchAnchor below.
+  // P1-S1 state foundation: the legacy `branchAnchor + branchTopic` pair is
+  // generalized to a `branches[]` array. INVARIANT (S1): branches.length ≤ 1
+  // — there is no UI today that opens a second branch. The list shape is the
+  // state foundation S2 builds on; at length ≤ 1 every downstream derivation
+  // collapses to bit-for-bit the same runtime values the old shape produced.
   //
-  // S2' deliberately does NOT render any branch UI. The state lift is what
-  // we're verifying here; BranchPane (composer / conversation) lands in S3'.
-  const [branchAnchor, setBranchAnchor] = useState<BranchAnchor | null>(null)
-  const [branchTopic, setBranchTopic] = useState<Topic | null>(null)
+  // collapsedBranchIds is reserved for the S2 collapse/expand UI and is
+  // unused at S1; it always starts empty (= all expanded) and is reset to
+  // empty on close along with branches.
+  const [branches, setBranches] = useState<Branch[]>([])
+  const [, setCollapsedBranchIds] = useState<Set<string>>(() => new Set())
+
+  // S1: a fresh anchor REPLACES branches (only one allowed now). The new
+  // Branch starts with `topic: null` to mirror the previous "anchor first,
+  // POST /topics later" two-phase timing. `id` is client-generated so it's
+  // stable from anchor-emit through topic-creation through close.
+  const openBranchAnchor = useCallback((anchor: BranchAnchor) => {
+    setBranches([
+      {
+        id: uuidv4(),
+        source: {
+          messageId: anchor.messageId,
+          blockId: anchor.blockId,
+          selectedText: anchor.selectedText,
+          offsets: { start: anchor.selectionStart, end: anchor.selectionEnd }
+        },
+        topic: null,
+        createdAt: Date.now()
+      }
+    ])
+  }, [])
 
   const branchFork = useBranchFork({
     assistant,
     topic: props.activeTopic,
     onCreated: (created) => {
-      setBranchTopic(created)
+      // S1 invariant: branches.length ≤ 1. Attach the created topic to the
+      // (single) currently-composing branch — the one whose `topic` is still
+      // null. Functional updater keeps this race-safe if branches changes
+      // between the fork start and onCreated.
+      setBranches((prev) => prev.map((b) => (b.topic === null ? { ...b, topic: created } : b)))
     }
   })
 
-  // Synthetic assistant for the branch subtree. Same id as the main assistant,
-  // but `.topics` transiently carries the branch topic (with `prompt` set by
-  // useBranchFork). messageThunk:854 reads `topic.prompt` from this object's
-  // `.topics` array — that's why regenerate / resend / edit / delete inside
-  // the branch must see this synthetic, not the Redux one. Stable reference
-  // via useMemo so useAssistant's downstream useMemo / useEffect don't churn.
-  const branchOverride = useMemo<BranchAssistantOverride | null>(() => {
-    if (!branchTopic) return null
-    return {
-      assistant: { ...assistant, topics: [...assistant.topics, branchTopic] }
-    }
-  }, [assistant, branchTopic])
+  // Compose-time facade for BranchPane and useBranchFork.fork(): both APIs
+  // still take a single BranchAnchor today (they're outside this refactor's
+  // touch-list). At S1 invariant length ≤ 1, branches[0] is the only one.
+  const activeBranch = branches[0] ?? null
+  const composerAnchor: BranchAnchor | null = useMemo(
+    () =>
+      activeBranch
+        ? {
+            messageId: activeBranch.source.messageId,
+            blockId: activeBranch.source.blockId,
+            selectedText: activeBranch.source.selectedText,
+            selectionStart: activeBranch.source.offsets.start,
+            selectionEnd: activeBranch.source.offsets.end
+          }
+        : null,
+    [activeBranch]
+  )
+  const activeBranchTopic: Topic | null = activeBranch?.topic ?? null
 
-  // T-006D-2B S6': source-passage highlight. branchAnchor stays alive for the
-  // whole branch lifetime (onCreated does not clear it), so the exact
-  // selected passage is highlighted from branch-open through branch-close.
-  const branchAnchorHighlight = useMemo<BranchAnchorHighlight>(
+  // Synthetic assistant for the branch subtree. Same id as the main assistant,
+  // but `.topics` transiently carries the branch topic(s) (with `prompt` set
+  // by useBranchFork). messageThunk:854 reads `topic.prompt` from this
+  // object's `.topics` array — that's why regenerate / resend / edit / delete
+  // inside the branch must see this synthetic, not the Redux one. Stable
+  // reference via useMemo so useAssistant's downstream useMemo / useEffect
+  // don't churn. At branches.length ≤ 1 this is byte-identical to the
+  // previous single-branchTopic shape.
+  const branchTopics = useMemo(() => branches.map((b) => b.topic).filter((t): t is Topic => t !== null), [branches])
+  const branchOverride = useMemo<BranchAssistantOverride | null>(() => {
+    if (branchTopics.length === 0) return null
+    return {
+      assistant: { ...assistant, topics: [...assistant.topics, ...branchTopics] }
+    }
+  }, [assistant, branchTopics])
+
+  // T-006D-2B S6' / P1-S1: source-passage highlight as a list of anchors.
+  // branches stay alive for the whole branch lifetime (onCreated does not
+  // clear them), so the exact selected passage(s) are highlighted from
+  // branch-open through branch-close. At branches.length ≤ 1 this collapses
+  // to exactly the previous { highlightedBlockId, selectionStart/End } object
+  // — just wrapped in an array of length 1.
+  const branchAnchorHighlight = useMemo<BranchAnchorContextValue>(
     () => ({
-      highlightedBlockId: branchAnchor?.blockId ?? null,
-      selectionStart: branchAnchor?.selectionStart ?? 0,
-      selectionEnd: branchAnchor?.selectionEnd ?? 0
+      anchors: branches.map((b) => ({
+        branchId: b.id,
+        blockId: b.source.blockId,
+        selectionStart: b.source.offsets.start,
+        selectionEnd: b.source.offsets.end
+      }))
     }),
-    [branchAnchor]
+    [branches]
   )
 
   const { setTimeoutTimer } = useTimer()
@@ -248,7 +303,7 @@ const Chat: FC<Props> = (props) => {
                     assistant={assistant}
                     topic={props.activeTopic}
                     setActiveTopic={props.setActiveTopic}
-                    onOpenBranchAnchor={setBranchAnchor}
+                    onOpenBranchAnchor={openBranchAnchor}
                     onComponentUpdate={messagesComponentUpdateHandler}
                     onFirstUpdate={messagesComponentFirstUpdateHandler}
                   />
@@ -300,29 +355,30 @@ const Chat: FC<Props> = (props) => {
         */}
         <BranchAssistantContext value={branchOverride}>
           <BranchPane
-            anchor={branchAnchor}
-            branchTopic={branchTopic}
+            anchor={composerAnchor}
+            branchTopic={activeBranchTopic}
             status={branchFork.status}
             errorMessage={branchFork.errorMessage}
             onCreate={(followUp) => {
-              if (branchAnchor) void branchFork.fork(branchAnchor, followUp)
+              if (composerAnchor) void branchFork.fork(composerAnchor, followUp)
             }}
             onComposeCancel={() => {
               // Universal close path — works in compose state AND conversation
               // state. Order: (1) clearSourceHighlight removes injected spans
               // synchronously (defense in depth — the MainTextBlock effect
-              // cleanup will also run when isBranchAnchored flips to false on
+              // cleanup will also run when matchingAnchors flips to empty on
               // the next render, but doing it here makes the DOM clean BEFORE
               // React commits the panel-collapse, so there is no flash).
-              // (2) setBranchAnchor(null) + setBranchTopic(null) drives
-              // `BranchPane`'s `isVisible` to false (motion.div animates
-              // width → 0). (3) branchFork.reset() returns the fork status to
-              // idle so the next open starts clean. NOTE: this does NOT delete
-              // the forked topic from SQLite — the row remains as an orphan
-              // until T-006D-2C-5 cleanup ships path Y (delete-on-close).
+              // (2) setBranches([]) + setCollapsedBranchIds(new Set()) drives
+              // `BranchPane`'s `isVisible` (derived from composerAnchor +
+              // activeBranchTopic) to false (motion.div animates width → 0).
+              // (3) branchFork.reset() returns the fork status to idle so the
+              // next open starts clean. NOTE: this does NOT delete the forked
+              // topic from SQLite — the row remains as an orphan until
+              // T-006D-2C-5 cleanup ships path Y (delete-on-close).
               clearSourceHighlight()
-              setBranchAnchor(null)
-              setBranchTopic(null)
+              setBranches([])
+              setCollapsedBranchIds(new Set())
               branchFork.reset()
             }}
           />

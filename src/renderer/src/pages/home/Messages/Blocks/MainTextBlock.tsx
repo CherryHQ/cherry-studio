@@ -8,7 +8,7 @@ import { type Model } from '@renderer/types'
 import type { MainTextMessageBlock, Message } from '@renderer/types/newMessage'
 import { clearSourceHighlight, paintSourceHighlight } from '@renderer/utils/branchAnchor/sourceHighlight'
 import { determineCitationSource, withCitationTags } from '@renderer/utils/citation'
-import React, { useCallback, useEffect, useRef } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useSelector } from 'react-redux'
 import styled from 'styled-components'
 
@@ -28,29 +28,44 @@ const MainTextBlock: React.FC<Props> = ({ block, citationBlockId, role, mentions
   // Use the passed citationBlockId directly in the selector
   const [renderInputMessageAsMarkdown] = usePreference('chat.message.render_as_markdown')
 
-  // T-006D-2B S6' / T-006E: when a branch panel is anchored to THIS block,
-  // paint the exact selected passage (not the whole block — a whole reply is
-  // one MAIN_TEXT block) via paintSourceHighlight, which wraps the resolved
-  // Range's text nodes in `<span class="branch-anchor-highlight">`. Default
-  // context value is null → no highlight when no branch is open.
-  const { highlightedBlockId, selectionStart, selectionEnd } = useBranchAnchorHighlight()
-  const isBranchAnchored = highlightedBlockId !== null && highlightedBlockId === block.id
+  // T-006D-2B S6' / T-006E / P1-S1: when one or more branches are anchored to
+  // THIS block, paint the exact selected passage(s) via paintSourceHighlight,
+  // which wraps the resolved Range's text nodes in
+  // `<span class="branch-anchor-highlight">`. Default context value is an
+  // empty anchors list → no highlight when no branch is open.
+  //
+  // S1 invariant: anchors.length ≤ 1 ⇒ matchingAnchors.length ≤ 1 ⇒ the loop
+  // body runs at most once per effect, byte-identical to the previous
+  // single-anchor effect. S2 will add per-branch span tagging so multiple
+  // matching anchors can coexist (today's paintSourceHighlight clears the
+  // document first, which is only correct at length ≤ 1).
+  const { anchors } = useBranchAnchorHighlight()
+  const matchingAnchors = useMemo(
+    () => anchors.filter((a) => a.blockId === block.id && a.selectionStart < a.selectionEnd),
+    [anchors, block.id]
+  )
   const blockScopeRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const el = blockScopeRef.current
-    if (!isBranchAnchored || !el || selectionStart >= selectionEnd) return
+    if (!el || matchingAnchors.length === 0) return
     // Paint now, then again next frame: the markdown subtree is normally
     // committed by the time this effect runs, but the rAF re-paint covers
     // any late DOM commit so the registered Range points at live nodes.
     // `block.content` as a dep re-runs the paint if the text changes.
-    paintSourceHighlight(el, selectionStart, selectionEnd)
-    const raf = requestAnimationFrame(() => paintSourceHighlight(el, selectionStart, selectionEnd))
+    for (const a of matchingAnchors) {
+      paintSourceHighlight(el, a.selectionStart, a.selectionEnd)
+    }
+    const raf = requestAnimationFrame(() => {
+      for (const a of matchingAnchors) {
+        paintSourceHighlight(el, a.selectionStart, a.selectionEnd)
+      }
+    })
     return () => {
       cancelAnimationFrame(raf)
       clearSourceHighlight()
     }
-  }, [isBranchAnchored, selectionStart, selectionEnd, block.content])
+  }, [matchingAnchors, block.content])
 
   const rawCitations = useSelector((state: RootState) => selectFormattedCitationsByBlockId(state, citationBlockId))
 
