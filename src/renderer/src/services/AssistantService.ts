@@ -208,11 +208,10 @@ export function getProviderByModel(model?: Model): Provider {
   return provider
 }
 
-// FIXME: This function may return undefined but as Provider
-export function getProviderByModelId(modelId?: string) {
+export function getProviderByModelId(modelId?: string): Provider | undefined {
   const providers = getStoreProviders()
   const _modelId = modelId || getDefaultModel().id
-  return providers.find((p) => p.models.find((m) => m.id === _modelId)) as Provider
+  return providers.find((p) => p.models.find((m) => m.id === _modelId))
 }
 
 /**
