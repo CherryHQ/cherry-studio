@@ -164,7 +164,7 @@ baseId
 itemId
 fileProcessingJobId
 sourceFileEntryId
-checkCount? / firstScheduledAt?
+pollRound / firstScheduledAt / parentJobId
 ```
 
 职责：

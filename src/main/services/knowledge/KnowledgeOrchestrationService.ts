@@ -4,7 +4,6 @@ import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api'
-import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import {
   type CreateKnowledgeBaseDto,
   type KnowledgeBase,
@@ -59,13 +58,6 @@ const SEARCH_TOKEN_PATTERN = /[\p{L}\p{N}_]+/u
 const DELETE_RECOVERY_ROOT_CHUNK_SIZE = 500
 const REINDEX_ALLOWED_STATUSES = new Set<KnowledgeItemStatus>(['completed', 'failed'])
 const KNOWLEDGE_JOB_TYPE_SET = new Set<string>(KNOWLEDGE_JOB_TYPES)
-
-function getLinkedFileProcessingJobIds(jobs: JobSnapshot[]): string[] {
-  return jobs.flatMap((job) => {
-    const narrowed = narrowKnowledgeJobInput(job)
-    return narrowed?.type === 'knowledge.check-file-processing-result' ? [narrowed.input.fileProcessingJobId] : []
-  })
-}
 
 @Injectable('KnowledgeOrchestrationService')
 @ServicePhase(Phase.WhenReady)
@@ -359,7 +351,10 @@ export class KnowledgeOrchestrationService extends BaseService {
       limit: KNOWLEDGE_ACTIVE_JOB_LIMIT
     })
     const jobsToCancel = activeJobs.filter((job) => KNOWLEDGE_JOB_TYPE_SET.has(job.type))
-    const linkedFileProcessingJobIds = getLinkedFileProcessingJobIds(activeJobs)
+    const linkedFileProcessingJobIds = activeJobs.flatMap((job) => {
+      const narrowed = narrowKnowledgeJobInput(job)
+      return narrowed?.type === 'knowledge.check-file-processing-result' ? [narrowed.input.fileProcessingJobId] : []
+    })
 
     await Promise.all([
       ...jobsToCancel.map((job) => jobManager.cancel(job.id, 'delete-base')),

@@ -5,7 +5,7 @@ import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { JobContext, JobHandler } from '@main/core/job/types'
 import { JOB_PROGRESS_KEY_PREFIX } from '@main/core/job/types'
-import { isTerminalStatus, type JobProgress, type JobSnapshot } from '@shared/data/api/schemas/jobs'
+import { isTerminalStatus, type JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { FileEntryId } from '@shared/data/types/file'
 import { FileEntryIdSchema } from '@shared/data/types/file'
 
@@ -42,7 +42,7 @@ export function createCheckFileProcessingResultJobHandler(
     async execute(ctx) {
       const { baseId, itemId, fileProcessingJobId } = ctx.input
       const sourceFileEntryId = FileEntryIdSchema.parse(ctx.input.sourceFileEntryId)
-      const firstScheduledAt = ctx.input.firstScheduledAt ?? Date.now()
+      const firstScheduledAt = ctx.input.firstScheduledAt
       ctx.signal.throwIfAborted()
 
       if (await shouldSkipMissingOrDeletingItem(baseId, itemId, ctx.jobId)) {
@@ -73,19 +73,19 @@ export function createCheckFileProcessingResultJobHandler(
           return
         }
 
-        const nextCheckCount = (ctx.input.checkCount ?? 0) + 1
+        const nextPollRound = ctx.input.pollRound + 1
         await workflowService.scheduleFileProcessingCheck(
           toKnowledgeBaseId(baseId),
           toKnowledgeItemId(itemId),
           fileProcessingJobId,
           sourceFileEntryId,
           {
-            checkCount: nextCheckCount,
+            pollRound: nextPollRound,
             firstScheduledAt,
             parentJobId: ctx.input.parentJobId ?? ctx.jobId
           }
         )
-        reportWaitingProgress(ctx, fileProcessingJobId, nextCheckCount)
+        reportWaitingProgress(ctx, fileProcessingJobId, nextPollRound)
         return
       }
 
@@ -138,24 +138,20 @@ export function createCheckFileProcessingResultJobHandler(
 function reportWaitingProgress(
   ctx: JobContext<KnowledgeCheckFileProcessingResultPayload>,
   fileProcessingJobId: string,
-  checkCount: number
+  pollRound: number
 ): void {
-  const childProgress = getFileProcessingJobProgress(fileProcessingJobId)
+  const childProgress = application.get('CacheService').getShared(`${JOB_PROGRESS_KEY_PREFIX}${fileProcessingJobId}`)
   if (!childProgress) {
-    ctx.reportProgress(100, { stage: 'waiting', checkCount })
+    ctx.reportProgress(100, { stage: 'waiting', pollRound })
     return
   }
 
   ctx.reportProgress(childProgress.progress, {
     stage: 'waiting',
-    checkCount,
+    pollRound,
     fileProcessingJobId,
     fileProcessing: childProgress
   })
-}
-
-function getFileProcessingJobProgress(fileProcessingJobId: string): JobProgress | undefined {
-  return application.get('CacheService').getShared(`${JOB_PROGRESS_KEY_PREFIX}${fileProcessingJobId}`)
 }
 
 async function cancelFileProcessingJob(fileProcessingJobId: string, reason: string): Promise<void> {

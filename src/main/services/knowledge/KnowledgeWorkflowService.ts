@@ -165,7 +165,7 @@ export class KnowledgeWorkflowService {
       )
       try {
         await this.scheduleFileProcessingCheck(baseId, itemId, fileProcessingJob.id, item.data.fileEntryId, {
-          checkCount: 0,
+          pollRound: 0,
           firstScheduledAt: Date.now(),
           parentJobId: parentJobId ?? fileProcessingJob.id
         })
@@ -192,10 +192,9 @@ export class KnowledgeWorkflowService {
     itemId: KnowledgeItemId,
     fileProcessingJobId: string,
     sourceFileEntryId: FileEntryId,
-    options: { checkCount?: number; firstScheduledAt?: number; parentJobId?: string | null } = {}
+    options: { pollRound: number; firstScheduledAt: number; parentJobId: string | null }
   ): Promise<void> {
-    const checkCount = options.checkCount ?? 0
-    const firstScheduledAt = options.firstScheduledAt ?? Date.now()
+    const { pollRound, firstScheduledAt, parentJobId } = options
     const jobManager = application.get('JobManager')
     await jobManager.enqueue(
       'knowledge.check-file-processing-result',
@@ -204,14 +203,14 @@ export class KnowledgeWorkflowService {
         itemId,
         fileProcessingJobId,
         sourceFileEntryId,
-        checkCount,
+        pollRound,
         firstScheduledAt,
-        parentJobId: options.parentJobId ?? null
+        parentJobId
       },
       {
-        idempotencyKey: knowledgeFileProcessingCheckIdempotencyKey(baseId, itemId, fileProcessingJobId, checkCount),
+        idempotencyKey: knowledgeFileProcessingCheckIdempotencyKey(baseId, itemId, fileProcessingJobId, pollRound),
         queue: knowledgeQueueName(baseId),
-        parentId: options.parentJobId ?? undefined,
+        parentId: parentJobId ?? undefined,
         scheduledAt: Date.now() + FILE_PROCESSING_CHECK_DELAY_MS
       }
     )

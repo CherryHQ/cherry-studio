@@ -3,6 +3,7 @@ import { DataApiErrorFactory } from '@shared/data/api'
 import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { describe, expect, it } from 'vitest'
 
+import type { KnowledgeCheckFileProcessingResultPayload } from '../jobTypes'
 import {
   cancelMock,
   createCheckFileProcessingResultJobHandler,
@@ -37,19 +38,27 @@ function createFileProcessingJobSnapshot(overrides: Partial<ReturnType<typeof cr
   }
 }
 
+function createCheckPayload(
+  overrides: Partial<KnowledgeCheckFileProcessingResultPayload> = {}
+): KnowledgeCheckFileProcessingResultPayload {
+  return {
+    baseId: 'kb-1',
+    itemId: FILE_ITEM_ID,
+    fileProcessingJobId: 'fp-job-1',
+    sourceFileEntryId: FILE_ENTRY_ID,
+    pollRound: 0,
+    firstScheduledAt: Date.now(),
+    parentJobId: null,
+    ...overrides
+  }
+}
+
 describe('check-file-processing-result job handler', () => {
   it('declares the knowledge check job contract', () => {
     const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
 
     expect(handler.recovery).toBe('retry')
-    expect(
-      handler.defaultQueue?.({
-        baseId: 'kb-1',
-        itemId: FILE_ITEM_ID,
-        fileProcessingJobId: 'fp-job-1',
-        sourceFileEntryId: FILE_ENTRY_ID
-      })
-    ).toBe('base.kb-1')
+    expect(handler.defaultQueue?.(createCheckPayload())).toBe('base.kb-1')
     expect(handler.defaultRetryPolicy).toEqual({
       maxAttempts: 3,
       backoff: 'exponential',
@@ -65,14 +74,12 @@ describe('check-file-processing-result job handler', () => {
     getJobMock.mockResolvedValue(createFileProcessingJobSnapshot({ status: 'running' }))
 
     const firstScheduledAt = Date.now()
-    const ctx = createCtx({
-      baseId: 'kb-1',
-      itemId: FILE_ITEM_ID,
-      fileProcessingJobId: 'fp-job-1',
-      sourceFileEntryId: FILE_ENTRY_ID,
-      checkCount: 2,
-      firstScheduledAt
-    })
+    const ctx = createCtx(
+      createCheckPayload({
+        pollRound: 2,
+        firstScheduledAt
+      })
+    )
     await handler.execute(ctx)
 
     expect(workflowService.scheduleFileProcessingCheck).toHaveBeenCalledWith(
@@ -81,14 +88,14 @@ describe('check-file-processing-result job handler', () => {
       'fp-job-1',
       FILE_ENTRY_ID,
       {
-        checkCount: 3,
+        pollRound: 3,
         firstScheduledAt,
         parentJobId: 'job-1'
       }
     )
     expect(createInternalEntryMock).not.toHaveBeenCalled()
     expect(workflowService.scheduleIndexing).not.toHaveBeenCalled()
-    expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'waiting', checkCount: 3 })
+    expect(ctx.reportProgress).toHaveBeenCalledWith(100, { stage: 'waiting', pollRound: 3 })
   })
 
   it('keeps polling follow-ups attached to the original workflow parent', async () => {
@@ -99,15 +106,11 @@ describe('check-file-processing-result job handler', () => {
     const firstScheduledAt = Date.now()
     await handler.execute(
       createCtx(
-        {
-          baseId: 'kb-1',
-          itemId: FILE_ITEM_ID,
-          fileProcessingJobId: 'fp-job-1',
-          sourceFileEntryId: FILE_ENTRY_ID,
-          checkCount: 2,
+        createCheckPayload({
+          pollRound: 2,
           firstScheduledAt,
           parentJobId: 'reindex-job'
-        },
+        }),
         'check-job-2'
       )
     )
@@ -118,7 +121,7 @@ describe('check-file-processing-result job handler', () => {
       'fp-job-1',
       FILE_ENTRY_ID,
       {
-        checkCount: 3,
+        pollRound: 3,
         firstScheduledAt,
         parentJobId: 'reindex-job'
       }
@@ -135,19 +138,17 @@ describe('check-file-processing-result job handler', () => {
     })
 
     const firstScheduledAt = Date.now()
-    const ctx = createCtx({
-      baseId: 'kb-1',
-      itemId: FILE_ITEM_ID,
-      fileProcessingJobId: 'fp-job-1',
-      sourceFileEntryId: FILE_ENTRY_ID,
-      checkCount: 2,
-      firstScheduledAt
-    })
+    const ctx = createCtx(
+      createCheckPayload({
+        pollRound: 2,
+        firstScheduledAt
+      })
+    )
     await handler.execute(ctx)
 
     expect(ctx.reportProgress).toHaveBeenCalledWith(42, {
       stage: 'waiting',
-      checkCount: 3,
+      pollRound: 3,
       fileProcessingJobId: 'fp-job-1',
       fileProcessing: {
         progress: 42,
@@ -161,14 +162,12 @@ describe('check-file-processing-result job handler', () => {
     knowledgeItemGetByIdMock.mockResolvedValue(createFileItem())
     getJobMock.mockResolvedValue(createFileProcessingJobSnapshot({ status: 'running' }))
 
-    const ctx = createCtx({
-      baseId: 'kb-1',
-      itemId: FILE_ITEM_ID,
-      fileProcessingJobId: 'fp-job-1',
-      sourceFileEntryId: FILE_ENTRY_ID,
-      checkCount: 360,
-      firstScheduledAt: Date.now() - 30 * 60 * 1000
-    })
+    const ctx = createCtx(
+      createCheckPayload({
+        pollRound: 360,
+        firstScheduledAt: Date.now() - 30 * 60 * 1000
+      })
+    )
     await handler.execute(ctx)
 
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', {
@@ -191,12 +190,7 @@ describe('check-file-processing-result job handler', () => {
       })
     )
 
-    const ctx = createCtx({
-      baseId: 'kb-1',
-      itemId: FILE_ITEM_ID,
-      fileProcessingJobId: 'fp-job-1',
-      sourceFileEntryId: FILE_ENTRY_ID
-    })
+    const ctx = createCtx(createCheckPayload())
     await handler.execute(ctx)
 
     expect(knowledgeItemReplaceFileRefMock).toHaveBeenCalledWith(
@@ -227,13 +221,11 @@ describe('check-file-processing-result job handler', () => {
     )
 
     await handler.execute(
-      createCtx({
-        baseId: 'kb-1',
-        itemId: FILE_ITEM_ID,
-        fileProcessingJobId: 'fp-job-1',
-        sourceFileEntryId: FILE_ENTRY_ID,
-        parentJobId: 'reindex-job'
-      })
+      createCtx(
+        createCheckPayload({
+          parentJobId: 'reindex-job'
+        })
+      )
     )
 
     expect(workflowService.scheduleIndexing).toHaveBeenCalledWith(
@@ -257,12 +249,7 @@ describe('check-file-processing-result job handler', () => {
       })
     )
 
-    const ctx = createCtx({
-      baseId: 'kb-1',
-      itemId: FILE_ITEM_ID,
-      fileProcessingJobId: 'fp-job-1',
-      sourceFileEntryId: FILE_ENTRY_ID
-    })
+    const ctx = createCtx(createCheckPayload())
     await handler.execute(ctx)
 
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', {
@@ -287,12 +274,7 @@ describe('check-file-processing-result job handler', () => {
       })
     )
 
-    const ctx = createCtx({
-      baseId: 'kb-1',
-      itemId: FILE_ITEM_ID,
-      fileProcessingJobId: 'fp-job-1',
-      sourceFileEntryId: FILE_ENTRY_ID
-    })
+    const ctx = createCtx(createCheckPayload())
     await handler.execute(ctx)
 
     expect(createInternalEntryMock).not.toHaveBeenCalled()
@@ -311,12 +293,7 @@ describe('check-file-processing-result job handler', () => {
       })
     )
 
-    const ctx = createCtx({
-      baseId: 'kb-1',
-      itemId: FILE_ITEM_ID,
-      fileProcessingJobId: 'fp-job-1',
-      sourceFileEntryId: FILE_ENTRY_ID
-    })
+    const ctx = createCtx(createCheckPayload())
     await handler.execute(ctx)
 
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', {
@@ -339,12 +316,7 @@ describe('check-file-processing-result job handler', () => {
       })
     )
 
-    const ctx = createCtx({
-      baseId: 'kb-1',
-      itemId: FILE_ITEM_ID,
-      fileProcessingJobId: 'fp-job-1',
-      sourceFileEntryId: FILE_ENTRY_ID
-    })
+    const ctx = createCtx(createCheckPayload())
     await handler.execute(ctx)
 
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(FILE_ITEM_ID, 'failed', {
@@ -358,14 +330,7 @@ describe('check-file-processing-result job handler', () => {
     const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
     knowledgeItemGetByIdMock.mockResolvedValue(createFileItem(FILE_ITEM_ID, 'deleting'))
 
-    await handler.execute(
-      createCtx({
-        baseId: 'kb-1',
-        itemId: FILE_ITEM_ID,
-        fileProcessingJobId: 'fp-job-1',
-        sourceFileEntryId: FILE_ENTRY_ID
-      })
-    )
+    await handler.execute(createCtx(createCheckPayload()))
 
     expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-file-processing-item-unavailable')
     expect(getJobMock).not.toHaveBeenCalled()
@@ -377,14 +342,7 @@ describe('check-file-processing-result job handler', () => {
     const handler = createCheckFileProcessingResultJobHandler(knowledgeLockManager as never, workflowService as never)
     knowledgeItemGetByIdMock.mockRejectedValue(DataApiErrorFactory.notFound('KnowledgeItem', FILE_ITEM_ID))
 
-    await handler.execute(
-      createCtx({
-        baseId: 'kb-1',
-        itemId: FILE_ITEM_ID,
-        fileProcessingJobId: 'fp-job-1',
-        sourceFileEntryId: FILE_ENTRY_ID
-      })
-    )
+    await handler.execute(createCtx(createCheckPayload()))
 
     expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-file-processing-item-unavailable')
     expect(getJobMock).not.toHaveBeenCalled()
@@ -415,12 +373,7 @@ describe('check-file-processing-result job handler', () => {
       createdAt: '2026-04-08T00:00:00.000Z',
       updatedAt: '2026-04-08T00:00:00.000Z',
       type: 'knowledge.check-file-processing-result',
-      input: {
-        baseId: 'kb-1',
-        itemId: FILE_ITEM_ID,
-        fileProcessingJobId: 'fp-job-1',
-        sourceFileEntryId: FILE_ENTRY_ID
-      }
+      input: createCheckPayload()
     })
     knowledgeItemGetByIdMock.mockResolvedValue(createFileItem())
 
@@ -459,12 +412,7 @@ describe('check-file-processing-result job handler', () => {
       createdAt: '2026-04-08T00:00:00.000Z',
       updatedAt: '2026-04-08T00:00:00.000Z',
       type: 'knowledge.check-file-processing-result',
-      input: {
-        baseId: 'kb-1',
-        itemId: FILE_ITEM_ID,
-        fileProcessingJobId: 'fp-job-1',
-        sourceFileEntryId: FILE_ENTRY_ID
-      }
+      input: createCheckPayload()
     })
     knowledgeItemGetByIdMock.mockResolvedValue(createFileItem())
 

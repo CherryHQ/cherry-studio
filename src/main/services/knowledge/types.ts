@@ -30,7 +30,7 @@ export type KnowledgeProgressDetail =
     }
   | {
       stage: 'waiting'
-      checkCount: number
+      pollRound: number
       fileProcessingJobId?: string
       fileProcessing?: unknown
     }
@@ -92,7 +92,7 @@ export function knowledgeFileProcessingCheckIdempotencyKey(
   baseId: KnowledgeBaseId,
   itemId: KnowledgeItemId,
   fileProcessingJobId: string,
-  checkCount: number
+  pollRound: number
 ): string {
-  return `knowledge:${baseId}:${itemId}:fp-check:${fileProcessingJobId}:${checkCount}`
+  return `knowledge:${baseId}:${itemId}:fp-check:${fileProcessingJobId}:${pollRound}`
 }

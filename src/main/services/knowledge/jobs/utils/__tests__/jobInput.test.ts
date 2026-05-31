@@ -24,7 +24,7 @@ describe('narrowKnowledgeJobInput', () => {
           itemId: 'file-1',
           fileProcessingJobId: 'fp-job-1',
           sourceFileEntryId: '019606a0-0000-7000-8000-000000000001',
-          checkCount: 2,
+          pollRound: 2,
           firstScheduledAt: 1779811200000,
           parentJobId: 'reindex-job'
         }
@@ -36,7 +36,7 @@ describe('narrowKnowledgeJobInput', () => {
         itemId: 'file-1',
         fileProcessingJobId: 'fp-job-1',
         sourceFileEntryId: '019606a0-0000-7000-8000-000000000001',
-        checkCount: 2,
+        pollRound: 2,
         firstScheduledAt: 1779811200000,
         parentJobId: 'reindex-job'
       }

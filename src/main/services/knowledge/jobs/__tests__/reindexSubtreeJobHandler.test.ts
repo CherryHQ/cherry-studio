@@ -203,7 +203,10 @@ describe('reindex-subtree job handler', () => {
           baseId: 'kb-1',
           itemId: FILE_ITEM_ID,
           fileProcessingJobId: 'fp-job-1',
-          sourceFileEntryId: FILE_ENTRY_ID
+          sourceFileEntryId: FILE_ENTRY_ID,
+          pollRound: 0,
+          firstScheduledAt: 1779811200000,
+          parentJobId: 'reindex-job'
         }
       })
     ])

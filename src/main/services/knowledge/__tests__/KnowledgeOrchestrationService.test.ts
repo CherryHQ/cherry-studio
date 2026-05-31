@@ -487,7 +487,10 @@ describe('KnowledgeOrchestrationService', () => {
           baseId: 'kb-1',
           itemId: 'file-1',
           fileProcessingJobId: 'fp-job-1',
-          sourceFileEntryId: FILE_ENTRY_ID
+          sourceFileEntryId: FILE_ENTRY_ID,
+          pollRound: 0,
+          firstScheduledAt: 1779811200000,
+          parentJobId: null
         }
       }
     ])
@@ -662,7 +665,7 @@ describe('KnowledgeOrchestrationService', () => {
         itemId: 'file-1',
         fileProcessingJobId: 'fp-job-1',
         sourceFileEntryId: FILE_ENTRY_ID,
-        checkCount: 0,
+        pollRound: 0,
         firstScheduledAt: expect.any(Number),
         parentJobId: 'fp-job-1'
       },
@@ -708,7 +711,7 @@ describe('KnowledgeOrchestrationService', () => {
         itemId: 'file-1',
         fileProcessingJobId: 'fp-job-1',
         sourceFileEntryId: FILE_ENTRY_ID,
-        checkCount: 0,
+        pollRound: 0,
         firstScheduledAt: expect.any(Number),
         parentJobId: 'reindex-job'
       },
@@ -780,14 +783,14 @@ describe('KnowledgeOrchestrationService', () => {
             itemId: string,
             fileProcessingJobId: string,
             sourceFileEntryId: string,
-            options: { checkCount?: number; firstScheduledAt?: number; parentJobId?: string | null }
+            options: { pollRound: number; firstScheduledAt: number; parentJobId: string | null }
           ): Promise<void>
         }
       }
     ).workflowService
 
     await workflowService.scheduleFileProcessingCheck('kb-1', 'file-1', 'fp-job-1', FILE_ENTRY_ID, {
-      checkCount: 1,
+      pollRound: 1,
       firstScheduledAt: Date.parse('2026-04-08T00:00:00.000Z'),
       parentJobId: 'check-job-0'
     })
@@ -799,7 +802,7 @@ describe('KnowledgeOrchestrationService', () => {
         itemId: 'file-1',
         fileProcessingJobId: 'fp-job-1',
         sourceFileEntryId: FILE_ENTRY_ID,
-        checkCount: 1,
+        pollRound: 1,
         firstScheduledAt: Date.parse('2026-04-08T00:00:00.000Z'),
         parentJobId: 'check-job-0'
       },
