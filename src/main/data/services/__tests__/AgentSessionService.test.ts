@@ -1,6 +1,8 @@
 import { agentTable } from '@data/db/schemas/agent'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentSessionService, buildSessionUpdateData } from '@data/services/AgentSessionService'
 import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 
 // ─────────────────────────────────────────────────────────
@@ -184,6 +186,40 @@ describe('AgentSessionService', () => {
       const agentId = await insertAgent(`agent_${Date.now()}_delmiss`)
       const result = await agentSessionService.deleteSession(agentId, 'nonexistent')
       expect(result).toBe(false)
+    })
+
+    it('cascade-deletes session messages when session is deleted', async () => {
+      const agentId = await insertAgent(`agent_${Date.now()}_cascade`)
+      const session = await agentSessionService.createSession(agentId, { name: 'Cascade test' })
+
+      // Insert test messages (content is AgentPersistedMessage, cast for test brevity)
+      const row = (role: string) => ({
+        id: crypto.randomUUID(),
+        sessionId: session!.id,
+        role,
+        content: { message: { id: 't', role }, blocks: [] } as any,
+        agentSessionId: null as any,
+        metadata: null as any
+      })
+      await dbh.db.insert(agentSessionMessageTable).values([row('user'), row('assistant')] as any)
+
+      // Verify messages exist before delete
+      const before = await dbh.db
+        .select()
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.sessionId, session!.id))
+      expect(before).toHaveLength(2)
+
+      // Delete the session
+      const deleted = await agentSessionService.deleteSession(agentId, session!.id)
+      expect(deleted).toBe(true)
+
+      // Verify messages are gone
+      const after = await dbh.db
+        .select()
+        .from(agentSessionMessageTable)
+        .where(eq(agentSessionMessageTable.sessionId, session!.id))
+      expect(after).toHaveLength(0)
     })
   })
 })

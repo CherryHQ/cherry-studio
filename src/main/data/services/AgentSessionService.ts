@@ -5,6 +5,7 @@ import {
   agentSessionTable as sessionsTable,
   type InsertAgentSessionRow as InsertSessionRow
 } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable as sessionMessagesTable } from '@data/db/schemas/agentSessionMessage'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
@@ -223,11 +224,15 @@ export class AgentSessionService {
 
   async deleteSession(agentId: string, id: string): Promise<boolean> {
     const database = application.get('DbService').getDb()
-    const result = await withSqliteErrors(
-      () => database.delete(sessionsTable).where(and(eq(sessionsTable.id, id), eq(sessionsTable.agentId, agentId))),
-      defaultHandlersFor('Session', id)
-    )
-    return result.rowsAffected > 0
+    let deleted = false
+    await database.transaction(async (tx) => {
+      await tx.delete(sessionMessagesTable).where(eq(sessionMessagesTable.sessionId, id))
+      const result = await tx
+        .delete(sessionsTable)
+        .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agentId, agentId)))
+      deleted = result.rowsAffected > 0
+    })
+    return deleted
   }
 
   async reorderSessions(agentId: string, orderedIds: string[]): Promise<void> {
