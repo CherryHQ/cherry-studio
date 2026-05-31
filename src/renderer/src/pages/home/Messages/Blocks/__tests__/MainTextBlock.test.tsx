@@ -544,9 +544,14 @@ describe('MainTextBlock', () => {
       expect(getInjectedSpans('blk-B')).toHaveLength(0)
     })
 
-    it('removes all injected spans when the component unmounts (effect cleanup)', () => {
-      const block = createMainTextBlock({ id: 'blk-A', content: 'cleanup body text' })
-      const { unmount } = render(
+    it('removes all spans when anchor context flips to non-matching (deps-change cleanup)', () => {
+      // The component stays MOUNTED across this rerender — only the Provider
+      // value flips. So spans can disappear only if the useEffect's cleanup
+      // function actually runs clearSourceHighlight. A subtree teardown
+      // (which would happen on unmount and would mask a broken cleanup) is
+      // intentionally not used here.
+      const block = createMainTextBlock({ id: 'blk-A', content: 'deps cleanup body text' })
+      const { rerender } = render(
         <Provider store={mockStore}>
           <BranchAnchorContext value={highlight('blk-A', 0, 8)}>
             <MainTextBlock block={block} role="assistant" messageId="msg-A" />
@@ -555,7 +560,13 @@ describe('MainTextBlock', () => {
       )
       expect(document.querySelectorAll('span.branch-anchor-highlight').length).toBeGreaterThan(0)
 
-      unmount()
+      rerender(
+        <Provider store={mockStore}>
+          <BranchAnchorContext value={highlight(null)}>
+            <MainTextBlock block={block} role="assistant" messageId="msg-A" />
+          </BranchAnchorContext>
+        </Provider>
+      )
 
       expect(document.querySelectorAll('span.branch-anchor-highlight')).toHaveLength(0)
     })
