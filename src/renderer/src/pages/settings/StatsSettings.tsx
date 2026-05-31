@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from './'
+import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
 
 // ─── Formatters ─────────────────────────────────────────────────────────────
 
@@ -50,7 +50,6 @@ function fmtProvider(p: string): string {
   return m[p] || p
 }
 
-/** Duration without seconds — d/h/m granularity for global stats */
 function fmtDurationCoarse(ms: number, t: (k: string) => string): string {
   if (ms <= 0) return '—'
   if (ms < 60_000) return '<1' + t('stats.duration_m')
@@ -71,7 +70,6 @@ function fmtDurationCoarse(ms: number, t: (k: string) => string): string {
     parts.push(`${m}${t('stats.duration_m')}`)
     r %= 60
   }
-  // drop seconds for global
   return parts.join(' ') || `<1${t('stats.duration_m')}`
 }
 
@@ -83,10 +81,12 @@ const MODEL_C = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#a855f7', '#06b6d4
 // ─── Bar ────────────────────────────────────────────────────────────────────
 
 const BTrack = styled.div` height: 20px; border-radius: 6px; background: var(--color-background-soft); overflow: hidden; display: flex; margin-bottom: 8px; `
-const BSeg = styled.div<{
-  $w: number
-  $c: string
-}>` width: ${(p) => p.$w}%; background: ${(p) => p.$c}; min-width: ${(p) => (p.$w > 0 ? 2 : 0)}px; transition: width 0.4s ease; `
+const BSeg = styled.div<{ $w: number; $c: string }>`
+  width: ${(p) => p.$w}%;
+  background: ${(p) => p.$c};
+  min-width: ${(p) => (p.$w > 0 ? 2 : 0)}px;
+  transition: width 0.4s ease;
+`
 const BLegend = styled.div` display: flex; gap: 16px; flex-wrap: wrap; `
 const BLItem = styled.div` display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--color-text-secondary, #888); `
 const BLDot = styled.div<{
@@ -95,32 +95,98 @@ const BLDot = styled.div<{
 
 // ─── Model Cards ────────────────────────────────────────────────────────────
 
-const MBContainer = styled.div` display: flex; flex-direction: column; gap: 8px; `
-const MBox = styled.div` background: var(--color-background-soft); border: 0.5px solid var(--color-border); border-radius: 8px; padding: 12px 14px; `
-const MTop = styled.div` display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 6px; `
-const MName = styled.span` font-size: 13px; font-weight: 600; color: var(--color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; `
+const MBContainer = styled.div` display: flex; flex-direction: column; gap: 8px; min-width: 0; `
+const MBox = styled.div` background: var(--color-background-soft); border: 0.5px solid var(--color-border); border-radius: 8px; padding: 12px 14px; min-width: 0; `
+const MTop = styled.div` display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 6px; min-width: 0; `
+const MName = styled.span` font-size: 13px; font-weight: 600; color: var(--color-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; min-width: 0; `
 const MBadge = styled.span` font-size: 10px; color: var(--color-text-secondary, #888); background: var(--color-background); padding: 2px 6px; border-radius: 4px; flex-shrink: 0; white-space: nowrap; `
 const MTrack = styled.div` height: 8px; border-radius: 4px; background: var(--color-background); overflow: hidden; margin-bottom: 6px; `
-const MFill = styled.div<{
-  $w: number
-  $c: string
-}>` height: 100%; width: ${(p) => p.$w}%; background: ${(p) => p.$c}; border-radius: 4px; transition: width 0.5s ease; `
+const MFill = styled.div<{ $w: number; $c: string }>`
+  height: 100%; width: ${(p) => p.$w}%; background: ${(p) => p.$c}; border-radius: 4px; transition: width 0.5s ease;
+`
 const MMeta = styled.div` display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 4px 12px; font-size: 11px; color: var(--color-text-secondary, #888); font-variant-numeric: tabular-nums; `
-const MFilter = styled.div` display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; `
-const MSearch = styled.input` background: var(--color-background-soft); border: 0.5px solid var(--color-border); border-radius: 6px; padding: 0 8px; font-size: 13px; color: var(--color-text); outline: none; min-width: 160px; height: 24px; line-height: 24px; box-sizing: border-box; &::placeholder{color:var(--color-text-secondary, #888)} &:focus{border-color:#6366f1} `
+const MFilter = styled.div` display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; `
+const MSearch = styled.input`
+  background: var(--color-background-soft);
+  border: 0.5px solid var(--color-border);
+  border-radius: 6px;
+  padding: 0 8px;
+  font-size: 13px;
+  color: var(--color-text);
+  outline: none;
+  width: 140px;
+  height: 24px;
+  line-height: 24px;
+  box-sizing: border-box;
+  flex-shrink: 0;
+  &::placeholder { color: var(--color-text-secondary, #888); }
+  &:focus { border-color: #6366f1; }
+`
 
 // ─── Heatmap ────────────────────────────────────────────────────────────────
 
-// Continuous color: interpolate between light green (1 msg) and dark green (max msg)
+const CELL = 12
+const GAP = 3
+
 function heatColor(count: number, max: number): string {
   if (count === 0) return 'var(--color-background-soft)'
   const r = Math.max(0, Math.min(1, Math.log(count + 1) / Math.log(max + 1)))
-  // light green #9be9a8 → dark green #216e39
   const R = Math.round(155 + (33 - 155) * r)
-  const G = Math.round(233 + (110 - 233) * r)
+  const GVal = Math.round(233 + (110 - 233) * r)
   const B = Math.round(168 + (57 - 168) * r)
-  return `rgb(${R},${G},${B})`
+  return `rgb(${R},${GVal},${B})`
 }
+
+const HeatmapWrap = styled.div`
+  overflow-x: auto;
+  max-width: 100%;
+  padding-bottom: 2px;
+  &::-webkit-scrollbar { height: 4px; }
+  &::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 2px; }
+`
+
+const HeatmapInner = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: fit-content;
+`
+
+const MonthRow = styled.div`
+  display: flex;
+  gap: ${GAP}px;
+  margin-bottom: 4px;
+  height: 16px;
+`
+
+const MonthLabel = styled.div`
+  width: ${CELL}px;
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--color-text-secondary, #888);
+  line-height: 16px;
+  overflow: visible;
+`
+
+const GridRow = styled.div`
+  display: flex;
+  gap: ${GAP}px;
+`
+
+const WeekCol = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: ${GAP}px;
+`
+
+const Cell = styled.div<{ $bg: string }>`
+  width: ${CELL}px;
+  height: ${CELL}px;
+  border-radius: 2px;
+  flex-shrink: 0;
+  cursor: ${(p) => (p.$bg !== 'var(--color-background-soft)' ? 'pointer' : 'default')};
+  background: ${(p) => p.$bg};
+`
 
 function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
   const [tip, setTip] = useState<{ x: number; y: number; text: string } | null>(null)
@@ -135,8 +201,8 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
     const start = new Date(end)
     start.setFullYear(start.getFullYear() - 1)
     start.setDate(start.getDate() - start.getDay())
-    const aw: { ds: string; c: number; mo: number }[][] = []
-    let cur: (typeof aw)[0] = []
+    const allWeeks: { ds: string; c: number; mo: number }[][] = []
+    let cur: (typeof allWeeks)[0] = []
     let mx = 0
     const mn = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
     const ms: { l: string; wi: number }[] = []
@@ -154,44 +220,33 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
       }
       d.setDate(d.getDate() + 1)
       if (cur.length === 7) {
-        aw.push(cur)
+        allWeeks.push(cur)
         cur = []
         wi++
       }
     }
-    if (cur.length > 0) aw.push(cur)
+    if (cur.length > 0) allWeeks.push(cur)
     if (lm >= 0) ms.push({ l: mn[lm], wi })
-    return { weeks: aw, markers: ms, maxC: mx || 1 }
+    return { weeks: allWeeks, markers: ms, maxC: mx || 1 }
   }, [um])
   if (weeks.length === 0) return null
   const wm = new Map<number, string>()
   for (const m of markers) wm.set(m.wi, m.l)
   return (
-    <div
-      style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', overflowX: 'auto' }}
-      onMouseLeave={() => setTip(null)}>
-      <div style={{ display: 'flex', gap: 3, marginBottom: 4, height: 16 }}>
-        {weeks.map((_, wi) => (
-          <div
-            key={wi}
-            style={{
-              width: 12,
-              flexShrink: 0,
-              fontSize: 10,
-              color: 'var(--color-text-secondary, #888)',
-              lineHeight: '16px'
-            }}>
-            {wm.get(wi) || ''}
-          </div>
-        ))}
-      </div>
-      <div style={{ display: 'flex', gap: 3 }}>
-        {weeks.map((wk, wi) => (
-          <div key={wi} style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            {wk.map((dy, di) => {
-              return (
-                <div
+    <HeatmapWrap>
+      <HeatmapInner onMouseLeave={() => setTip(null)}>
+        <MonthRow>
+          {weeks.map((_, wi) => (
+            <MonthLabel key={wi}>{wm.get(wi) || ''}</MonthLabel>
+          ))}
+        </MonthRow>
+        <GridRow>
+          {weeks.map((wk, wi) => (
+            <WeekCol key={wi}>
+              {wk.map((dy, di) => (
+                <Cell
                   key={di}
+                  $bg={heatColor(dy.c, maxC)}
                   title={`${dy.ds}: ${dy.c} messages`}
                   onMouseEnter={(e) => setTip({ x: e.clientX, y: e.clientY, text: `${dy.ds}: ${dy.c} messages` })}
                   onMouseOver={(e) => {
@@ -200,67 +255,59 @@ function DailyHeatmap({ dailyUsage }: { dailyUsage: DailyUsage[] }) {
                   onMouseOut={(e) => {
                     ;(e.currentTarget as HTMLElement).style.outline = 'none'
                   }}
-                  style={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: 2,
-                    flexShrink: 0,
-                    cursor: dy.c > 0 ? 'pointer' : 'default',
-                    background: heatColor(dy.c, maxC)
-                  }}
                 />
-              )
-            })}
+              ))}
+            </WeekCol>
+          ))}
+        </GridRow>
+        {tip && (
+          <div
+            style={{
+              position: 'fixed',
+              left: tip.x + 10,
+              top: tip.y - 30,
+              background: 'var(--color-background)',
+              border: '0.5px solid var(--color-border)',
+              borderRadius: 6,
+              padding: '4px 10px',
+              fontSize: 12,
+              color: 'var(--color-text)',
+              pointerEvents: 'none',
+              zIndex: 9999,
+              whiteSpace: 'nowrap',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+            }}>
+            {tip.text}
           </div>
-        ))}
-      </div>
-      {tip && (
+        )}
         <div
           style={{
-            position: 'fixed',
-            left: tip.x + 10,
-            top: tip.y - 30,
-            background: 'var(--color-background)',
-            border: '0.5px solid var(--color-border)',
-            borderRadius: 6,
-            padding: '4px 10px',
-            fontSize: 12,
-            color: 'var(--color-text)',
-            pointerEvents: 'none',
-            zIndex: 9999,
-            whiteSpace: 'nowrap',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            justifyContent: 'center',
+            marginTop: 8,
+            fontSize: 10,
+            color: 'var(--color-text-secondary, #888)'
           }}>
-          {tip.text}
+          Less{' '}
+          {[0, 1, 2, 3, 4].map((l) => (
+            <div
+              key={l}
+              style={{
+                width: 12,
+                height: 12,
+                borderRadius: 2,
+                flexShrink: 0,
+                background:
+                  l === 0 ? 'var(--color-background-soft)' : heatColor(l === 4 ? maxC : Math.ceil((maxC * l) / 4), maxC)
+              }}
+            />
+          ))}{' '}
+          More
         </div>
-      )}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 4,
-          justifyContent: 'center',
-          marginTop: 8,
-          fontSize: 10,
-          color: 'var(--color-text-secondary, #888)'
-        }}>
-        Less{' '}
-        {[0, 1, 2, 3, 4].map((l) => (
-          <div
-            key={l}
-            style={{
-              width: 12,
-              height: 12,
-              borderRadius: 2,
-              flexShrink: 0,
-              background:
-                l === 0 ? 'var(--color-background-soft)' : heatColor(l === 4 ? maxC : Math.ceil((maxC * l) / 4), maxC)
-            }}
-          />
-        ))}{' '}
-        More
-      </div>
-    </div>
+      </HeatmapInner>
+    </HeatmapWrap>
   )
 }
 
@@ -302,6 +349,7 @@ function ModelUsageSection({ stats }: { stats: ModelStats[] }) {
           size="small"
           value={pf}
           onChange={setPf}
+          style={{ width: 130, flexShrink: 0 }}
           options={[
             { value: 'all', label: t('stats.model_filter_all') },
             ...provs.map((p) => ({ value: p, label: p }))
@@ -311,6 +359,7 @@ function ModelUsageSection({ stats }: { stats: ModelStats[] }) {
           size="small"
           value={sb}
           onChange={setSb}
+          style={{ width: 110, flexShrink: 0 }}
           options={[
             { value: 'tokens', label: t('stats.model_sort_tokens') },
             { value: 'messages', label: t('stats.model_sort_messages') },
@@ -321,6 +370,7 @@ function ModelUsageSection({ stats }: { stats: ModelStats[] }) {
           size="small"
           value={lim}
           onChange={setLim}
+          style={{ width: 72, flexShrink: 0 }}
           options={[
             { value: 10, label: '10' },
             { value: 20, label: '20' },
@@ -364,7 +414,7 @@ function ModelUsageSection({ stats }: { stats: ModelStats[] }) {
   )
 }
 
-// ─── Main Display — no overview cards, key metrics in Conversation Info ─────
+// ─── Main Display ───────────────────────────────────────────────────────────
 
 function StatsDisplay({ stats }: { stats: TopicStats }) {
   const { t } = useTranslation()
@@ -372,7 +422,7 @@ function StatsDisplay({ stats }: { stats: TopicStats }) {
 
   return (
     <>
-      {/* Conversation Info — includes key overview metrics inline */}
+      {/* Conversation Info */}
       <SettingGroup>
         <SettingTitle>
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -485,7 +535,6 @@ function StatsDisplay({ stats }: { stats: TopicStats }) {
               <Cpu size={15} />
               {t('stats.token_breakdown')}
             </span>
-            <strong style={{ fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{fmtTokens(stats.totalTokens)}</strong>
           </SettingTitle>
           <SettingDivider />
           <BTrack>
@@ -551,6 +600,13 @@ function StatsDisplay({ stats }: { stats: TopicStats }) {
   )
 }
 
+// ─── Responsive wrapper — allow flex to shrink the content area ─────────────
+
+const ContentArea = styled.div`
+  min-width: 0;
+  width: 100%;
+`
+
 // ─── Main Component ─────────────────────────────────────────────────────────
 
 const StatsSettings: React.FC = () => {
@@ -572,38 +628,31 @@ const StatsSettings: React.FC = () => {
     }
   }, [])
 
-  if (stats === null && loading) {
-    return (
-      <SettingContainer theme={theme}>
-        <div
-          style={{ minWidth: 0 }}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 8,
-            padding: '48px 24px',
-            color: 'var(--color-text-secondary, #888)',
-            fontSize: 14
-          }}>
-          <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} />
-          {t('stats.loading')}
-        </div>
-      </SettingContainer>
-    )
-  }
-
   return (
     <SettingContainer theme={theme}>
-      {stats === null || stats.totalMessages === 0 ? (
-        <div style={{ textAlign: 'center', padding: 48, color: 'var(--color-text-secondary, #888)', fontSize: 14 }}>
-          {t('stats.no_data')}
-        </div>
-      ) : (
-        <div style={{ minWidth: 0, overflow: 'hidden' }}>
+      <ContentArea>
+        {loading ? (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              padding: '48px 24px',
+              color: 'var(--color-text-secondary, #888)',
+              fontSize: 14
+            }}>
+            <Loader size={16} style={{ animation: 'spin 1s linear infinite' }} />
+            {t('stats.loading')}
+          </div>
+        ) : stats === null || stats.totalMessages === 0 ? (
+          <div style={{ textAlign: 'center', padding: 48, color: 'var(--color-text-secondary, #888)', fontSize: 14 }}>
+            {t('stats.no_data')}
+          </div>
+        ) : (
           <StatsDisplay stats={stats} />
-        </div>
-      )}
+        )}
+      </ContentArea>
     </SettingContainer>
   )
 }

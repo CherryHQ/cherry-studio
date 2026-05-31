@@ -427,7 +427,7 @@ export async function computeGlobalStatsFromDB(): Promise<TopicStats> {
   }
   try {
     const allTopics = await db.topics.toArray()
-    const allMessages = allTopics.flatMap((t) => (t.messages || []) as Message[])
+    const allMessages = allTopics.flatMap((t) => t.messages || [])
 
     // Load ALL blocks from the message_blocks table
     const allBlocks = await db.message_blocks.toArray()

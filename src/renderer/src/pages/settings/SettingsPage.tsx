@@ -265,6 +265,8 @@ const SettingContent = styled.div`
   display: flex;
   height: 100%;
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
 `
 
 const Divider = styled(AntDivider)`
