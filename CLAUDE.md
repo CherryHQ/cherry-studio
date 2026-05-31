@@ -58,6 +58,7 @@ Project-specific tools, paths, and conventions.
 - **Write conventional commits**: Commit small, focused changes using Conventional Commit messages (e.g., `feat(data-api):`, `fix(lifecycle):`, `refactor(quick-assistant):`, `docs(testing):`, `chore(deps):`, `test(window-manager):`). Scope must be a specific kebab-case module, never generic like `main` — when `git log` conflicts with this rule, this rule wins.
 - **Keep history linear**: On shared branches, never use plain `git pull` — it creates merge commits. Always `git pull --rebase` (or `git fetch && git rebase origin/<branch>`). Before `git push`, run `git fetch`; if `origin/<branch>` has advanced, rebase your local commits onto it first. If you notice a merge commit in local history that hasn't been pushed yet, rebase it away — cleaning one up after it's public requires a risky force-push on a shared branch.
 - **Sign commits**: Use `git commit --signoff` as required by contributor guidelines.
+- **Target the right branch**: `main` is the active v2 development line — submit features, refactors, and v2 work here. v1 maintenance fixes must branch from and target the `v1` branch (never `main`). See [v2 Refactoring](#v2-refactoring-in-progress).
 
 ## Development
 
@@ -193,6 +194,8 @@ Services without long-lived resources or persistent side effects: use **named ex
 
 ## v2 Refactoring (In Progress)
 
+> **Current state — read before contributing.** The former `v2` branch has been **merged into `main`**; `main` is now the active v2 development line, with v1 and v2 code **coexisting**. Expect large, frequent, breaking changes — code you touch today may be deleted or reshaped tomorrow. Before doing v2 work, read [docs/references/data](docs/references/data/README.md) to learn which subsystems are being replaced (and thus deleted), and heed `@deprecated` annotations in the code — they mark call sites slated for removal. v1 maintenance fixes go to the `v1` branch, not `main`.
+
 ### Data Layer
 
 - **Removing**: Redux, Dexie, ElectronStore
@@ -210,6 +213,8 @@ Two things on this branch are throwaway — do not defend them.
 **v1 is throwaway.** "v1" here means the legacy data stacks listed in Data Layer above (Redux, Dexie, ElectronStore) and any call site that reads or writes through them. All such code will be deleted; v1 data reaches v2 only through the migrators in `src/main/data/migration/v2/`. So: no fallbacks, dual-writes, or guards for v1 save / read / loss; no fixing v1 bugs encountered during v2 work; leave mixed-branch v1 code alone unless it blocks v2.
 
 **Schemas and drizzle SQL are throwaway.** `src/main/data/db/schemas/` may change freely; `migrations/sqlite-drizzle/*.sql` are dev-only artifacts overwritten by `drizzle-kit generate` on every schema change. Mid-development DB drift is acceptable — do not author patch migrations to "fix" it. `migrations/sqlite-drizzle/` will be wiped and regenerated from the final schemas as a single clean initial migration before release; only that regenerated migration must be correct.
+
+**Resolving migration merge conflicts: regenerate, never rename.** When a merge/rebase brings in an upstream migration that conflicts with your local one, delete your local migration `.sql` + its `meta/*_snapshot.json` and re-run `pnpm db:migrations:generate`. Never just rename/renumber the `.sql` or hand-edit the snapshot to make room — renaming silently reuses the snapshot's random `id`, which forks the chain and makes `pnpm db:migrations:generate` abort for everyone (#15438), and leaves the schema source diverged from the migration SQL. Note `drizzle-kit generate` exits `0` even on a forked chain, so it will not warn you; only `pnpm db:migrations:check` (`drizzle-kit check`) does. CI enforces both — chain integrity via `db:migrations:check` and schema↔migration drift via a generate-and-diff step.
 
 ### Data Classification Toolchain
 

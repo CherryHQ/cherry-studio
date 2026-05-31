@@ -3,18 +3,14 @@
 1. Consider creating this PR as draft: https://github.com/CherryHQ/cherry-studio/blob/main/CONTRIBUTING.md
 -->
 
-<!--
-
-🚨 Branch Strategy Change (Effective April 3, 2026) 🚨
-
-The `main` branch is now under CODE FREEZE.
-
-- main branch: Only accepts critical bug fixes via `hotfix/*` branches. Fix PRs must be minimal in scope and must not include any refactoring code.
-- v2 branch: All new features, refactoring, and optimizations should be submitted to the `v2` branch.
-
-If you are submitting a bug fix to main, please ensure your PR is from a `hotfix/*` branch.
-
--->
+> ### 🚨 Branch strategy — read before opening this PR
+>
+> The v2 refactor has landed: the old `v2` branch is now **merged into `main`**, and `main` is the **active v2 development line** (v1 and v2 code coexist — expect large, breaking changes).
+>
+> - **v2 work** (features, refactors, optimizations) → target **`main`** (the default base).
+> - **v1 maintenance** (critical user-facing bug fixes only) → branch from and target **`v1`**, _not_ `main`.
+>
+> Before doing v2 work, read `docs/references/data/` to see which subsystems are being replaced, and watch for `@deprecated` markers — they flag code being deleted.
 
 ### What this PR does
 
@@ -49,6 +45,7 @@ If this PR introduces breaking changes, please describe the changes and the impa
 This checklist is not enforcing, but it's a reminder of items that could be relevant to every PR.
 Approvers are expected to review this list.
 
+- [ ] Branch: This PR targets the correct branch — `main` for v2 work, `v1` for v1 maintenance fixes
 - [ ] PR: The PR description is expressive enough and will help future contributors
 - [ ] Code: [Write code that humans can understand](https://en.wikiquote.org/wiki/Martin_Fowler#code-for-humans) and [Keep it simple](https://en.wikipedia.org/wiki/KISS_principle)
 - [ ] Refactor: You have [left the code cleaner than you found it (Boy Scout Rule)](https://learning.oreilly.com/library/view/97-things-every/9780596809515/ch08.html)

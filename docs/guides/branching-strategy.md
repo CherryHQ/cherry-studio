@@ -2,6 +2,8 @@
 
 Cherry Studio implements a structured branching strategy to maintain code quality and streamline the development process.
 
+> **Current model (v2 development).** `main` is the active v2 development line — submit features, refactors, and optimizations here. The `v1` branch is the maintenance line for the shipped v1 release: critical user-facing bug fixes go there via `hotfix/*`, targeting `v1` (not `main`). The generic flow below predates the v2 phase; where it conflicts, this note wins.
+
 ## Main Branches
 
 - `main`: Main development branch
@@ -59,7 +61,7 @@ When contributing to Cherry Studio, please follow these guidelines:
 
 ## Pull Request Guidelines
 
-- All PRs should be submitted to the `main` branch unless fixing a critical production issue
+- v2 work (features, refactors, optimizations) goes to `main`; critical v1 production fixes go to the `v1` branch (see the note at the top)
 - Ensure your branch is up to date with the latest `main` changes before submitting
 - Include relevant issue numbers in your PR description
 - Make sure all tests pass and code meets our quality standards

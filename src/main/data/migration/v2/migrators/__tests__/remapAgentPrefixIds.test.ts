@@ -4,7 +4,7 @@ import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentTaskRunLogTable, agentTaskTable } from '@data/db/schemas/agentTask'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq, sql } from 'drizzle-orm'
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import { remapAgentPrefixIds } from '../remapAgentPrefixIds'
 
@@ -46,6 +46,13 @@ async function insertTask(db: ReturnType<typeof setupTestDatabase>['db'], taskId
 
 describe('remapAgentPrefixIds', () => {
   const dbh = setupTestDatabase()
+
+  beforeEach(async () => {
+    // remapAgentPrefixIds no longer toggles FK itself — it runs inside the engine's
+    // migration-wide FK=OFF window (MigrationDbService). Mirror that here so the id-remap
+    // UPDATEs don't trip FK enforcement during the transient parent/child id mismatch.
+    await dbh.db.run(sql`PRAGMA foreign_keys = OFF`)
+  })
 
   it('migrates agent_* prefix IDs to UUIDs and updates FK references', async () => {
     const agentId = 'agent_1234567890_abc123'
