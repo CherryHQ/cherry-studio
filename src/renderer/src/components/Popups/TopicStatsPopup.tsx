@@ -2,7 +2,7 @@ import { TopView } from '@renderer/components/TopView'
 import type { TopicStats } from '@renderer/utils/topicStats'
 import { computeTopicStatsFromDB } from '@renderer/utils/topicStats'
 import { Modal as AntdModal, Spin } from 'antd'
-import { BarChart3, Bot, Cpu, FileText, Gauge, Hash, MessageSquare, Type, Zap } from 'lucide-react'
+import { BarChart3, BookOpen, Bot, Cpu, FileText, Gauge, MessageSquare, Type } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -135,7 +135,7 @@ const TopicStatsPanel: React.FC<Props> = ({ topicId, topicName, resolve }) => {
       <>
         {/* Conversation Info — clean rows */}
         <SHdr>
-          <Hash size={12} />
+          <BookOpen size={12} />
           {t('stats.conversation_info')}
         </SHdr>
         <Row>
@@ -156,13 +156,6 @@ const TopicStatsPanel: React.FC<Props> = ({ topicId, topicName, resolve }) => {
             {t('stats.total_tokens')}
           </RL>
           <RV>{fmtTokens(stats.totalTokens)}</RV>
-        </Row>
-        <Row>
-          <RL>
-            <Zap size={12} />
-            {t('stats.avg_first_token')}
-          </RL>
-          <RV>{fmtLatency(stats.avgFirstTokenLatency)}</RV>
         </Row>
         <Row>
           <RL>

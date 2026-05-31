@@ -2,7 +2,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import type { DailyUsage, ModelStats, TopicStats } from '@renderer/utils/topicStats'
 import { computeGlobalStatsFromDB } from '@renderer/utils/topicStats'
 import { Select } from 'antd'
-import { BarChart3, Bot, Clock, Cpu, FileText, Gauge, Loader, MessageSquare, Type, Zap } from 'lucide-react'
+import { BarChart3, BookOpen, Bot, Clock, Cpu, FileText, Gauge, Loader, MessageSquare, Type, Zap } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -376,7 +376,7 @@ function StatsDisplay({ stats }: { stats: TopicStats }) {
       <SettingGroup>
         <SettingTitle>
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <MessageSquare size={15} />
+            <BookOpen size={15} />
             {t('stats.conversation_info')}
           </span>
         </SettingTitle>
@@ -576,6 +576,7 @@ const StatsSettings: React.FC = () => {
     return (
       <SettingContainer theme={theme}>
         <div
+          style={{ minWidth: 0 }}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -599,7 +600,9 @@ const StatsSettings: React.FC = () => {
           {t('stats.no_data')}
         </div>
       ) : (
-        <StatsDisplay stats={stats} />
+        <div style={{ minWidth: 0, overflow: 'hidden' }}>
+          <StatsDisplay stats={stats} />
+        </div>
       )}
     </SettingContainer>
   )
