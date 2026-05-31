@@ -11,7 +11,7 @@ import {
   V3_STYLE_TYPES
 } from './constants'
 
-// 配置项类型定义
+// Configuration item type definition
 export type ConfigItem = {
   type:
     | 'select'
@@ -56,7 +56,7 @@ export type ConfigItem = {
 
 export type AihubmixMode = 'aihubmix_image_generate' | 'aihubmix_image_remix' | 'aihubmix_image_upscale'
 
-// 创建配置项函数
+// Function to create configuration items
 export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
   return {
     aihubmix_image_generate: [
@@ -134,7 +134,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         title: 'paintings.style_type',
         tooltip: 'paintings.generate.style_type_tip',
         options: (_config, painting) => {
-          // 根据模型选择显示不同的样式类型选项
+          // Show different style type options based on model selection
           return painting?.model?.includes('V_3') ? V3_STYLE_TYPES : STYLE_TYPES
         },
         disabled: false,
@@ -348,7 +348,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
         title: 'paintings.style_type',
         tooltip: 'paintings.remix.style_type_tip',
         options: (_config, painting) => {
-          // 根据模型选择显示不同的样式类型选项
+          // Show different style type options based on model selection
           return painting?.model?.includes('V_3') ? V3_STYLE_TYPES : STYLE_TYPES
         },
         disabled: false
@@ -418,7 +418,7 @@ export const createModeConfigs = (): Record<AihubmixMode, ConfigItem[]> => {
   }
 }
 
-// 几种默认的绘画配置
+// Default painting configurations
 export const DEFAULT_PAINTING: PaintingAction = {
   id: 'aihubmix_1',
   model: 'gemini-3-pro-image-preview',

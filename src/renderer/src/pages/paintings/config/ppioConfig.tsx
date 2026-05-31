@@ -1,9 +1,9 @@
 import type { PpioPainting } from '@renderer/types'
 
-// PPIO 模式类型
+// PPIO mode types
 export type PpioMode = 'ppio_draw' | 'ppio_edit'
 
-// 配置项类型定义
+// Configuration item type definition
 export type PpioConfigItem = {
   type: 'select' | 'slider' | 'input' | 'switch' | 'image' | 'textarea' | 'resolution'
   key?: keyof PpioPainting
@@ -22,7 +22,7 @@ export type PpioConfigItem = {
   condition?: (painting: PpioPainting) => boolean
 }
 
-// PPIO 模型定义
+// PPIO model definition
 export interface PpioModel {
   id: string
   name: string
@@ -30,13 +30,13 @@ export interface PpioModel {
   group: string
   description?: string
   mode: PpioMode
-  // 是否是同步 API（直接返回结果而非 task_id）
+  // Whether it's a synchronous API (returns result directly instead of task_id)
   isSync?: boolean
 }
 
-// 所有 PPIO 图像生成模型
+// All PPIO image generation models
 export const PPIO_MODELS: PpioModel[] = [
-  // ===== Draw 模式 (文生图) =====
+  // ===== Draw mode (text-to-image) =====
   {
     id: 'jimeng-txt2img-v3.1',
     name: '即梦文生图 3.1',
@@ -104,7 +104,7 @@ export const PPIO_MODELS: PpioModel[] = [
     description: '支持4K分辨率的图像生成'
   },
 
-  // ===== Edit 模式 (图像编辑) =====
+  // ===== Edit mode (image editing) =====
   {
     id: 'seedream-4.5-edit',
     name: 'Seedream 4.5 图生图',
@@ -157,17 +157,17 @@ export const PPIO_MODELS: PpioModel[] = [
   }
 ]
 
-// 获取指定模式的模型列表
+// Get model list for specified mode
 export const getModelsByMode = (mode: PpioMode): PpioModel[] => {
   return PPIO_MODELS.filter((m) => m.mode === mode)
 }
 
-// 获取模型配置
+// Get model configuration
 export const getModelConfig = (modelId: string): PpioModel | undefined => {
   return PPIO_MODELS.find((m) => m.id === modelId)
 }
 
-// 即梦模型支持的尺寸
+// Sizes supported by Jimeng models
 export const JIMENG_SIZE_OPTIONS = [
   { label: '1:1 (1328×1328)', value: '1328x1328' },
   { label: '4:3 (1472×1104)', value: '1472x1104' },
@@ -177,7 +177,7 @@ export const JIMENG_SIZE_OPTIONS = [
   { label: '2K (2048×2048)', value: '2048x2048' }
 ]
 
-// 通用尺寸选项
+// Common size options
 export const COMMON_SIZE_OPTIONS = [
   { label: '1024×1024', value: '1024x1024' },
   { label: '1024×1536', value: '1024x1536' },
@@ -187,7 +187,7 @@ export const COMMON_SIZE_OPTIONS = [
   { label: '1024×768', value: '1024x768' }
 ]
 
-// Seedream 尺寸选项
+// Seedream size options
 export const SEEDREAM_SIZE_OPTIONS = [
   { label: '1K', value: '1K' },
   { label: '2K', value: '2K' },
@@ -199,21 +199,21 @@ export const SEEDREAM_SIZE_OPTIONS = [
   { label: '1440×2560 (9:16)', value: '1440x2560' }
 ]
 
-// 图像高清化分辨率选项
+// Image upscaling resolution options
 export const UPSCALER_RESOLUTION_OPTIONS = [
   { label: '2K', value: '2k' },
   { label: '4K', value: '4k' },
   { label: '8K', value: '8k' }
 ]
 
-// 输出格式选项
+// Output format options
 export const OUTPUT_FORMAT_OPTIONS = [
   { label: 'JPEG', value: 'jpeg' },
   { label: 'PNG', value: 'png' },
   { label: 'WebP', value: 'webp' }
 ]
 
-// 支持 seed 的模型
+// Models that support seed
 const MODELS_WITH_SEED = [
   'jimeng-txt2img-v3.1',
   'jimeng-txt2img-v3.0',
@@ -222,7 +222,7 @@ const MODELS_WITH_SEED = [
   'z-image-turbo-lora'
 ]
 
-// 支持 watermark 的模型
+// Models that support watermark
 const MODELS_WITH_WATERMARK = [
   'jimeng-txt2img-v3.1',
   'jimeng-txt2img-v3.0',
@@ -232,7 +232,7 @@ const MODELS_WITH_WATERMARK = [
   'seedream-4.0-draw'
 ]
 
-// Draw 模式的配置
+// Draw mode configuration
 export const createDrawModeConfig = (): PpioConfigItem[] => [
   {
     type: 'select',
@@ -244,7 +244,7 @@ export const createDrawModeConfig = (): PpioConfigItem[] => [
       group: m.group
     }))
   },
-  // 即梦尺寸选项
+  // Jimeng size options
   {
     type: 'select',
     key: 'size',
@@ -252,7 +252,7 @@ export const createDrawModeConfig = (): PpioConfigItem[] => [
     options: JIMENG_SIZE_OPTIONS,
     condition: (painting) => painting.model?.startsWith('jimeng-') ?? false
   },
-  // 通用尺寸选项 (Hunyuan, Qwen, Z Image)
+  // Common size options (Hunyuan, Qwen, Z Image)
   {
     type: 'select',
     key: 'size',
@@ -261,7 +261,7 @@ export const createDrawModeConfig = (): PpioConfigItem[] => [
     condition: (painting) =>
       ['hunyuan-image-3', 'qwen-image-txt2img', 'z-image-turbo', 'z-image-turbo-lora'].includes(painting.model || '')
   },
-  // Seedream 尺寸选项
+  // Seedream size options
   {
     type: 'select',
     key: 'size',
@@ -269,7 +269,7 @@ export const createDrawModeConfig = (): PpioConfigItem[] => [
     options: SEEDREAM_SIZE_OPTIONS,
     condition: (painting) => painting.model?.includes('seedream-') ?? false
   },
-  // seed - 只有部分模型支持
+  // seed - only supported by some models
   {
     type: 'input',
     key: 'ppioSeed',
@@ -277,7 +277,7 @@ export const createDrawModeConfig = (): PpioConfigItem[] => [
     tooltip: 'paintings.ppio.seed_tip',
     condition: (painting) => MODELS_WITH_SEED.includes(painting.model || '')
   },
-  // use_pre_llm - 只有即梦支持
+  // use_pre_llm - only supported by Jimeng
   {
     type: 'switch',
     key: 'usePreLlm',
@@ -286,7 +286,7 @@ export const createDrawModeConfig = (): PpioConfigItem[] => [
     initialValue: true,
     condition: (painting) => painting.model?.startsWith('jimeng-') ?? false
   },
-  // watermark - 部分模型支持
+  // watermark - supported by some models
   {
     type: 'switch',
     key: 'addWatermark',
@@ -297,8 +297,8 @@ export const createDrawModeConfig = (): PpioConfigItem[] => [
   }
 ]
 
-// Edit 模式的配置
-// 注意：prompt 使用底部全局输入框，不在左侧配置中单独添加
+// Edit mode configuration
+// Note: prompt uses the global input box at the bottom, not added separately in the left panel
 export const createEditModeConfig = (): PpioConfigItem[] => [
   {
     type: 'select',
@@ -316,7 +316,7 @@ export const createEditModeConfig = (): PpioConfigItem[] => [
     title: 'paintings.edit.image_file',
     required: true
   },
-  // mask 图片 - 只有 image-eraser 支持
+  // mask image - only supported by image-eraser
   {
     type: 'image',
     key: 'ppioMask',
@@ -325,7 +325,7 @@ export const createEditModeConfig = (): PpioConfigItem[] => [
     required: false,
     condition: (painting) => painting.model === 'image-eraser'
   },
-  // resolution - 只有 image-upscaler 支持
+  // resolution - only supported by image-upscaler
   {
     type: 'select',
     key: 'resolution',
@@ -334,7 +334,7 @@ export const createEditModeConfig = (): PpioConfigItem[] => [
     initialValue: '4k',
     condition: (painting) => painting.model === 'image-upscaler'
   },
-  // output_format - image-upscaler, image-eraser, qwen-image-edit 支持
+  // output_format - supported by image-upscaler, image-eraser, qwen-image-edit
   {
     type: 'select',
     key: 'outputFormat',
@@ -343,7 +343,7 @@ export const createEditModeConfig = (): PpioConfigItem[] => [
     initialValue: 'jpeg',
     condition: (painting) => ['image-upscaler', 'image-eraser', 'qwen-image-edit'].includes(painting.model || '')
   },
-  // size - 只有 seedream 支持
+  // size - only supported by seedream
   {
     type: 'select',
     key: 'size',
@@ -351,7 +351,7 @@ export const createEditModeConfig = (): PpioConfigItem[] => [
     options: SEEDREAM_SIZE_OPTIONS,
     condition: (painting) => painting.model?.includes('seedream-') ?? false
   },
-  // seed - 只有 qwen-image-edit 支持
+  // seed - only supported by qwen-image-edit
   {
     type: 'input',
     key: 'ppioSeed',
@@ -359,7 +359,7 @@ export const createEditModeConfig = (): PpioConfigItem[] => [
     tooltip: 'paintings.ppio.seed_tip',
     condition: (painting) => painting.model === 'qwen-image-edit'
   },
-  // watermark - qwen-image-edit 和 seedream 支持
+  // watermark - supported by qwen-image-edit and seedream
   {
     type: 'switch',
     key: 'addWatermark',
@@ -371,7 +371,7 @@ export const createEditModeConfig = (): PpioConfigItem[] => [
   }
 ]
 
-// 创建模式配置
+// Create mode configuration
 export const createModeConfigs = (): Record<PpioMode, PpioConfigItem[]> => {
   return {
     ppio_draw: createDrawModeConfig(),
@@ -379,7 +379,7 @@ export const createModeConfigs = (): Record<PpioMode, PpioConfigItem[]> => {
   }
 }
 
-// 默认 painting 配置
+// Default painting configuration
 export const DEFAULT_PPIO_PAINTING: PpioPainting = {
   id: '',
   urls: [],

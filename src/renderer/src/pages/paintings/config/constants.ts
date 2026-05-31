@@ -96,19 +96,19 @@ export const STYLE_TYPES = [
   {
     labelKey: 'paintings.style_types.3d',
     value: 'RENDER_3D',
-    onlyV2: true // 仅V2模型支持
+    onlyV2: true // Only supported by V2 models
   },
   {
     labelKey: 'paintings.style_types.anime',
     value: 'ANIME',
-    onlyV2: true // 仅V2模型支持
+    onlyV2: true // Only supported by V2 models
   }
 ]
 
-// V3模型支持的样式类型
+// Style types supported by V3 models
 export const V3_STYLE_TYPES = STYLE_TYPES.filter((style) => !style.onlyV2)
 
-// 新增V3渲染速度选项
+// V3 rendering speed options
 export const RENDERING_SPEED_OPTIONS = [
   {
     labelKey: 'paintings.rendering_speeds.default',
