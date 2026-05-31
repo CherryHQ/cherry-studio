@@ -45,7 +45,7 @@ export const useNotesEditing = ({ onRenameNode }: UseNotesEditingProps) => {
 
       setRenamingNodeIds((prev) => new Set(prev).add(note.id))
       try {
-        const content = await window.api.file.readExternal(note.externalPath)
+        const content = await window.api.legacyFile.readExternal(note.externalPath)
         if (!content || content.trim().length === 0) {
           window.toast.warning(t('notes.auto_rename.empty_note'))
           return

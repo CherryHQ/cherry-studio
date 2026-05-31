@@ -71,7 +71,7 @@ export function useFileContent(filePath?: string) {
     queryKey: ['fileContent', filePath],
     queryFn: async () => {
       if (!filePath) return ''
-      return await window.api.file.readExternal(filePath)
+      return await window.api.legacyFile.readExternal(filePath)
     },
     enabled: !!filePath,
     staleTime: 30 * 1000,

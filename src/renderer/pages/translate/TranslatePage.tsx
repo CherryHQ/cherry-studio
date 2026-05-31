@@ -419,8 +419,8 @@ const TranslatePage: FC = () => {
 
         try {
           const result = isDocument
-            ? await window.api.file.readExternal(file.path, true)
-            : await window.api.fs.readText(file.path)
+            ? await window.api.legacyFile.readExternal(file.path, true)
+            : await window.api.legacyFile.readText(file.path)
           appendTranslateInput(result)
         } catch (error) {
           logger.error('Failed to read file.', error as Error)
@@ -535,7 +535,7 @@ const TranslatePage: FC = () => {
         const file = getSingleFile(event.clipboardData.files) as File
         if (!file) return
 
-        const filePath = window.api.file.getPathForFile(file)
+        const filePath = window.api.legacyFile.getPathForFile(file)
         let selectedFile: FileMetadata | null
 
         if (!filePath) {
@@ -543,13 +543,13 @@ const TranslatePage: FC = () => {
             window.toast.info(t('common.file.not_supported', { type: getFileExtension(file.name) }))
             return
           }
-          const tempFilePath = await window.api.file.createTempFile(file.name)
+          const tempFilePath = await window.api.legacyFile.createTempFile(file.name)
           const arrayBuffer = await file.arrayBuffer()
           const uint8Array = new Uint8Array(arrayBuffer)
-          await window.api.file.write(tempFilePath, uint8Array)
-          selectedFile = await window.api.file.get(tempFilePath)
+          await window.api.legacyFile.write(tempFilePath, uint8Array)
+          selectedFile = await window.api.legacyFile.get(tempFilePath)
         } else {
-          selectedFile = await window.api.file.get(filePath)
+          selectedFile = await window.api.legacyFile.get(filePath)
         }
 
         if (!selectedFile) {

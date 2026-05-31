@@ -90,7 +90,7 @@ export async function searchFileContent(
       return null
     }
 
-    const content = await window.api.file.readExternal(node.externalPath)
+    const content = await window.api.legacyFile.readExternal(node.externalPath)
 
     if (!content) {
       return null

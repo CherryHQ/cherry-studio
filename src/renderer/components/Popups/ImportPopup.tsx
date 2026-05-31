@@ -43,7 +43,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
     setSelecting(true)
     try {
       // Select ChatGPT JSON file
-      const file = await window.api.file.open({
+      const file = await window.api.legacyFile.open({
         filters: [{ name: 'ChatGPT Conversations', extensions: ['json'] }]
       })
 

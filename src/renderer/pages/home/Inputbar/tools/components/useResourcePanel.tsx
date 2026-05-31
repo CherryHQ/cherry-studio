@@ -199,7 +199,7 @@ export const useResourcePanel = (params: Params, role: 'button' | 'manager' = 'b
           }
           if (!dirPath) continue
           try {
-            const files = await window.api.file.listDirectory(dirPath, {
+            const files = await window.api.legacyFile.listDirectory(dirPath, {
               recursive: true,
               maxDepth: 10,
               includeHidden: false,

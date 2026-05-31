@@ -15,9 +15,9 @@ export const getFilesFromDropEvent = async (e: React.DragEvent<HTMLDivElement>):
     const filePromises = [...e.dataTransfer.files].map(async (file) => {
       try {
         // 使用新的webUtils.getPathForFile API获取文件路径
-        const filePath = window.api.file.getPathForFile(file)
+        const filePath = window.api.legacyFile.getPathForFile(file)
         if (filePath) {
-          return window.api.file.get(filePath)
+          return window.api.legacyFile.get(filePath)
         }
         return null
       } catch (error) {
@@ -44,7 +44,7 @@ export const getFilesFromDropEvent = async (e: React.DragEvent<HTMLDivElement>):
         if (type === 'codefiles') {
           item.getAsString(async (filePathListString) => {
             const filePathList: string[] = JSON.parse(filePathListString)
-            const filePathListPromises = filePathList.map((filePath) => window.api.file.get(filePath))
+            const filePathListPromises = filePathList.map((filePath) => window.api.legacyFile.get(filePath))
             resolve(
               await Promise.allSettled(filePathListPromises).then((results) =>
                 results

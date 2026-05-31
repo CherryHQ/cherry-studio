@@ -28,7 +28,7 @@ import {
 } from '@renderer/services/NotesTreeService'
 import type { NotesSortType, NotesTreeNode } from '@renderer/types/note'
 import type { Note } from '@shared/data/types/note'
-import type { DirectoryTreeOptions } from '@shared/file/types'
+import type { DirectoryTreeOptions, FilePath } from '@shared/file/types'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
@@ -165,7 +165,7 @@ const NotesPage: FC = () => {
       }
 
       try {
-        await window.api.file.write(targetPath, content)
+        await window.api.legacyFile.write(targetPath, content)
         // 保存后立即刷新缓存，确保下次读取时获取最新内容
         invalidateFileContent(targetPath)
       } catch (error) {
@@ -276,7 +276,7 @@ const NotesPage: FC = () => {
 
         // 检查默认路径下是否有笔记文件
         try {
-          const entries = await window.api.file.listDirectory(defaultPath, {
+          const entries = await window.api.file.listDirectory(defaultPath as FilePath, {
             recursive: false,
             includeFiles: true,
             includeDirectories: true
@@ -336,7 +336,7 @@ const NotesPage: FC = () => {
   // the tree, the `shouldClearPath` guard above clears `activeFilePath`.
   useEffect(() => {
     if (!notesPath || !treeId) return
-    const unsubscribe = window.api.tree.onMutation((payload) => {
+    const unsubscribe = window.api.file.tree.onMutation((payload) => {
       // File_TreeMutation is a shared channel — ignore payloads from other trees.
       if (payload.treeId !== treeId) return
       // Best-effort: any `updated` event for the active file triggers a
@@ -490,10 +490,10 @@ const NotesPage: FC = () => {
 
   const rollbackFileMove = useCallback(async (fromPath: string, toPath: string, nodeType: NotesTreeNode['type']) => {
     if (nodeType === 'folder') {
-      await window.api.file.moveDir(fromPath, toPath)
+      await window.api.legacyFile.moveDir(fromPath, toPath)
       return
     }
-    await window.api.file.move(fromPath, toPath)
+    await window.api.legacyFile.move(fromPath, toPath)
   }, [])
 
   const syncMetadataAfterFileOperation = useCallback(
@@ -698,7 +698,7 @@ const NotesPage: FC = () => {
         // or the IPC fails, the watcher will catch up via removed+added —
         // just without identity preservation.
         if (treeId) {
-          await window.api.tree
+          await window.api.file.tree
             .rename(treeId, oldPath, renamed.path)
             .catch((err) => logger.warn('Failed to notify tree of rename', err as Error))
         }
@@ -861,7 +861,7 @@ const NotesPage: FC = () => {
           return
         }
 
-        const { safeName } = await window.api.file.checkFileName(
+        const { safeName } = await window.api.legacyFile.checkFileName(
           normalizedTargetParent,
           sourceNode.name,
           sourceNode.type === 'file'
@@ -877,9 +877,9 @@ const NotesPage: FC = () => {
         }
 
         if (sourceNode.type === 'file') {
-          await window.api.file.move(sourceNode.externalPath, destinationPath)
+          await window.api.legacyFile.move(sourceNode.externalPath, destinationPath)
         } else {
-          await window.api.file.moveDir(sourceNode.externalPath, destinationPath)
+          await window.api.legacyFile.moveDir(sourceNode.externalPath, destinationPath)
         }
 
         const metadataSynced = await syncMetadataAfterFileOperation(

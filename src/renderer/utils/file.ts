@@ -90,7 +90,7 @@ export async function isSupportedFile(filePath: string, supportExts: Set<string>
       return true
     }
 
-    if (await window.api.file.isTextFile(filePath)) {
+    if (await window.api.legacyFile.isTextFile(filePath)) {
       return true
     }
 

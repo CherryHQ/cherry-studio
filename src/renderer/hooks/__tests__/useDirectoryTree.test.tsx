@@ -23,10 +23,12 @@ beforeEach(() => {
   ;(globalThis as { window: typeof window }).window = globalThis.window ?? ({} as Window)
   Object.assign(globalThis.window, {
     api: {
-      tree: {
-        create: mocks.create,
-        dispose: mocks.dispose.mockResolvedValue(undefined),
-        onMutation: mocks.onMutation
+      file: {
+        tree: {
+          create: mocks.create,
+          dispose: mocks.dispose.mockResolvedValue(undefined),
+          onMutation: mocks.onMutation
+        }
       }
     }
   })

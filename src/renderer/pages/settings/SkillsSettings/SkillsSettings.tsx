@@ -400,10 +400,10 @@ const SkillsSettings: FC = () => {
     async (file: File) => {
       if (isInstalling()) return false
 
-      const filePath = window.api.file.getPathForFile(file)
+      const filePath = window.api.legacyFile.getPathForFile(file)
       if (!filePath) return false
 
-      const isDirectory = await window.api.file.isDirectory(filePath)
+      const isDirectory = await window.api.legacyFile.isDirectory(filePath)
 
       if (isDirectory) {
         const installed = await installFromDirectory(filePath)
@@ -453,7 +453,7 @@ const SkillsSettings: FC = () => {
   const handleZipInstall = useCallback(
     async (e: React.MouseEvent) => {
       e.stopPropagation()
-      const selected = await window.api.file.select({
+      const selected = await window.api.legacyFile.select({
         filters: [{ name: 'ZIP', extensions: ['zip'] }],
         properties: ['openFile']
       })
@@ -471,7 +471,7 @@ const SkillsSettings: FC = () => {
   const handleDirInstall = useCallback(
     async (e: React.MouseEvent) => {
       e.stopPropagation()
-      const selected = await window.api.file.select({
+      const selected = await window.api.legacyFile.select({
         properties: ['openDirectory']
       })
       if (selected && selected.length > 0) {

@@ -492,10 +492,10 @@ const DmxapiPage: FC<{ Options: string[] }> = ({ Options }) => {
           }
 
           if (url.startsWith('data:image')) {
-            return await window.api.file.saveBase64Image(url)
+            return await window.api.legacyFile.saveBase64Image(url)
           }
 
-          return await window.api.file.download(url, true)
+          return await window.api.legacyFile.download(url, true)
         } catch (error) {
           if (
             error instanceof Error &&

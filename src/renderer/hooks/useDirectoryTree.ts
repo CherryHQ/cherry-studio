@@ -137,14 +137,14 @@ export function useDirectoryTree(rootPath: string | undefined, options?: Directo
       // Wrap so mocked / synchronous dispose impls that return `undefined`
       // don't throw before our `.catch`. The IPC contract is async; we
       // treat the result defensively.
-      Promise.resolve(window.api.tree.dispose(treeId)).catch((err) => {
+      Promise.resolve(window.api.file.tree.dispose(treeId)).catch((err) => {
         logger.error(`Failed to dispose tree ${treeId}`, err as Error)
       })
     }
 
     void (async () => {
       try {
-        const result: CreateTreeIpcResult = await window.api.tree.create(rootPath, optionsRef.current)
+        const result: CreateTreeIpcResult = await window.api.file.tree.create(rootPath, optionsRef.current)
         if (cancelled) {
           disposeTree(result.treeId)
           return
@@ -159,7 +159,7 @@ export function useDirectoryTree(rootPath: string | undefined, options?: Directo
         setTreeId(result.treeId)
         setIsLoading(false)
 
-        unsubscribeMutations = window.api.tree.onMutation((payload: TreeMutationPushPayload) => {
+        unsubscribeMutations = window.api.file.tree.onMutation((payload: TreeMutationPushPayload) => {
           if (payload.treeId !== result.treeId) return
           const mirror = mirrorRef.current
           if (!mirror) return

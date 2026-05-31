@@ -175,7 +175,7 @@ export const CodeBlockView: React.FC<Props> = memo(({ children, language, onSave
     }
 
     const ext = getExtensionByLanguage(language)
-    void window.api.file.save(`${fileName}${ext}`, children)
+    void window.api.legacyFile.save(`${fileName}${ext}`, children)
   }, [children, language])
 
   const handleRunScript = useCallback(() => {

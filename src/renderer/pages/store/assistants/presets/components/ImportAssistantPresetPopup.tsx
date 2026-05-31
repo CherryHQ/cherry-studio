@@ -38,7 +38,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
   const isSubscribed = !!agentssubscribeUrl
 
   const handleSelectFile = async () => {
-    const result = await window.api.file.open({
+    const result = await window.api.legacyFile.open({
       filters: [{ name: t('assistants.presets.import.file_filter'), extensions: ['json'] }]
     })
 

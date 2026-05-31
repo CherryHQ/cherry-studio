@@ -102,7 +102,7 @@ const PopupContainer: React.FC = () => {
 
     const fileName = selectedIds.size === 1 ? `${selectedPresets[0].name}.json` : `assistants_${selectedIds.size}.json`
 
-    await window.api.file.save(fileName, JSON.stringify(exportData, null, 2))
+    await window.api.legacyFile.save(fileName, JSON.stringify(exportData, null, 2))
   }
 
   const isAllSelected = presets.length > 0 && selectedIds.size === presets.length

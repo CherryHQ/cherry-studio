@@ -25,7 +25,7 @@ const getDirectoryName = (directoryPath: string) => {
 }
 
 const resolveFilePath = (file: File): string | Error => {
-  const filePath = window.api.file.getPathForFile(file)
+  const filePath = window.api.legacyFile.getPathForFile(file)
 
   if (!filePath) {
     return new Error(`Failed to resolve a local path for "${file.name}"`)
@@ -73,7 +73,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
 
   const handleDirectorySelect = useCallback(async () => {
     setSubmitErrorMessage('')
-    const directoryPath = await window.api.file.selectFolder()
+    const directoryPath = await window.api.legacyFile.selectFolder()
 
     if (!directoryPath) {
       return
@@ -150,7 +150,7 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     setSubmitErrorMessage('')
     setIsResolvingSubmit(true)
 
-    const submitPromise = (() => {
+    const submitPromise = (async () => {
       if (activeSource === 'file') {
         return Promise.all(selectedFiles.map(resolveSelectedFileEntryData)).then((fileData) =>
           submitKnowledgeItems(

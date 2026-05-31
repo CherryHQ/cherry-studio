@@ -20,7 +20,7 @@ async function getFileContent(file: FileMetadata) {
   }
 
   if (file.type === FILE_TYPE.TEXT) {
-    return await window.api.file.read(file.id + file.ext, true)
+    return await window.api.legacyFile.read(file.id + file.ext, true)
   }
 
   return ''

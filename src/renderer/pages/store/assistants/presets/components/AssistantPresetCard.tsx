@@ -60,7 +60,7 @@ const AssistantPresetCard: FC<Props> = ({ preset, onClick, activegroup, getLocal
 
     const resultStr = JSON.stringify(result, null, 2)
 
-    await window.api.file.save(`${preset.name}.json`, new TextEncoder().encode(resultStr), {
+    await window.api.legacyFile.save(`${preset.name}.json`, new TextEncoder().encode(resultStr), {
       filters: [{ name: t('assistants.presets.import.file_filter'), extensions: ['json'] }]
     })
   }, [preset])

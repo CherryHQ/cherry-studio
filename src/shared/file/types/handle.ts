@@ -36,13 +36,13 @@ import * as z from 'zod'
 import type { FilePath } from './common'
 
 export type FileEntryHandle = {
-  readonly kind: 'entry'
-  readonly entryId: FileEntryId
+  kind: 'entry'
+  entryId: FileEntryId
 }
 
 export type FilePathHandle = {
-  readonly kind: 'path'
-  readonly path: FilePath
+  kind: 'path'
+  path: FilePath
 }
 
 export type FileHandle = FileEntryHandle | FilePathHandle

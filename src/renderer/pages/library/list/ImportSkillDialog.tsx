@@ -76,7 +76,7 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
 
   const handleZipPick = async () => {
     if (installing) return
-    const selected = await window.api.file.select({
+    const selected = await window.api.legacyFile.select({
       filters: [{ name: 'ZIP', extensions: ['zip'] }],
       properties: ['openFile']
     })
@@ -95,7 +95,7 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
 
   const handleDirPick = async () => {
     if (installing) return
-    const selected = await window.api.file.select({
+    const selected = await window.api.legacyFile.select({
       properties: ['openDirectory']
     })
     if (!selected || selected.length === 0) return
@@ -113,17 +113,17 @@ export function ImportSkillDialog({ open, onOpenChange, onInstalled }: Props) {
 
   /**
    * Drag-and-drop accepts either a single ZIP or a single directory. Settings
-   * page uses the same probe (`window.api.file.isDirectory`) since dropped
+   * page uses the same probe (`window.api.legacyFile.isDirectory`) since dropped
    * directories show up as `File` entries on Electron.
    */
   const handleDroppedEntry = async (file?: File) => {
     if (installing) return
     if (!file) return
 
-    const filePath = window.api.file.getPathForFile(file)
+    const filePath = window.api.legacyFile.getPathForFile(file)
     if (!filePath) return
 
-    const isDirectory = await window.api.file.isDirectory(filePath)
+    const isDirectory = await window.api.legacyFile.isDirectory(filePath)
     setStatus({ kind: 'idle' })
 
     if (isDirectory) {

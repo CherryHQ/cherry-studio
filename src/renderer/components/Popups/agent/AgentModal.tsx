@@ -92,7 +92,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
 
   const handlePickGitBash = useCallback(async () => {
     try {
-      const selected = await window.api.file.select({
+      const selected = await window.api.legacyFile.select({
         title: t('agent.gitBash.pick.title', 'Select Git Bash executable'),
         filters: [{ name: 'Executable', extensions: ['exe'] }],
         properties: ['openFile']
@@ -218,7 +218,7 @@ const PopupContainer: React.FC<Props> = ({ agent, afterSubmit, resolve }) => {
 
   const addAccessiblePath = useCallback(async () => {
     try {
-      const selected = await window.api.file.selectFolder()
+      const selected = await window.api.legacyFile.selectFolder()
       if (!selected) {
         return
       }

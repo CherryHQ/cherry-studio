@@ -46,12 +46,7 @@ import type {
   WebSearchSearchKeywordsRequest
 } from '@shared/data/types/webSearch'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
-import type { FileHandle } from '@shared/file/types/handle'
-import type {
-  CreateInternalEntryIpcParams,
-  EnsureExternalEntryIpcParams,
-  GetPhysicalPathIpcParams
-} from '@shared/file/types/ipc'
+import type { FilePreloadApi } from '@shared/file/types/ipc'
 import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/file/types/tree'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
@@ -128,6 +123,101 @@ export function tracedInvoke(channel: string, spanContext: SpanContext | undefin
     return ipcRenderer.invoke(channel, ...args, data)
   }
   return ipcRenderer.invoke(channel, ...args)
+}
+
+/**
+ * v2 File IPC bridge.
+ *
+ * ## Safety model
+ *
+ * This bridge is a transparent forwarding layer. Implementations use untyped
+ * (`any`) argument forwarding via `ipcRenderer.invoke`. This is deliberate:
+ *
+ * - **Renderer**: `FilePreloadApi` provides type-safe overloaded signatures
+ *   with narrowed return types at the call site.
+ * - **Preload**: Forwards arguments as-is. No validation.
+ * - **Main**: Zod schemas (`*IpcSchema.parse()`) validate every parameter
+ *   before the handler executes.
+ *
+ * The preload does NOT validate arguments — that responsibility belongs to
+ * the Zod schemas at the main-process IPC boundary.
+ */
+const fileV2: FilePreloadApi = {
+  // A. Dialogs
+  openSelectDialog: (options: any) => ipcRenderer.invoke(IpcChannel.File_OpenSelectDialog, options),
+  openSaveDialog: (options: any) => ipcRenderer.invoke(IpcChannel.File_OpenSaveDialog, options),
+
+  // B. Entry creation
+  createInternalEntry: (params: any) => ipcRenderer.invoke(IpcChannel.File_CreateInternalEntry, params),
+  ensureExternalEntry: (params: any) => ipcRenderer.invoke(IpcChannel.File_EnsureExternalEntry, params),
+  batchCreateInternalEntries: (items: any) => ipcRenderer.invoke(IpcChannel.File_BatchCreateInternalEntries, items),
+  batchEnsureExternalEntries: (items: any) => ipcRenderer.invoke(IpcChannel.File_BatchEnsureExternalEntries, items),
+
+  // C. Read / Metadata
+  read: (handle: any, options?: any) => ipcRenderer.invoke(IpcChannel.File_Read, handle, options),
+  getMetadata: (handle: any) => ipcRenderer.invoke(IpcChannel.File_GetMetadata, handle),
+  batchGetMetadata: (params: any) => ipcRenderer.invoke(IpcChannel.File_BatchGetMetadata, params),
+  getVersion: (handle: any) => ipcRenderer.invoke(IpcChannel.File_GetVersion, handle),
+  getContentHash: (handle: any) => ipcRenderer.invoke(IpcChannel.File_GetContentHash, handle),
+
+  // D. Write
+  write: (handle: any, data: any) => ipcRenderer.invoke(IpcChannel.File_Write, handle, data),
+  writeIfUnchanged: (handle: any, data: any, version: any, hash?: any) =>
+    ipcRenderer.invoke(IpcChannel.File_WriteIfUnchanged, handle, data, version, hash),
+
+  // E. Lifecycle
+  trash: (params: any) => ipcRenderer.invoke(IpcChannel.File_Trash, params),
+  restore: (params: any) => ipcRenderer.invoke(IpcChannel.File_Restore, params),
+  permanentDelete: (handle: any) => ipcRenderer.invoke(IpcChannel.File_PermanentDelete, handle),
+  batchTrash: (params: any) => ipcRenderer.invoke(IpcChannel.File_BatchTrash, params),
+  batchRestore: (params: any) => ipcRenderer.invoke(IpcChannel.File_BatchRestore, params),
+  batchPermanentDelete: (params: any) => ipcRenderer.invoke(IpcChannel.File_BatchPermanentDelete, params),
+
+  // F. Rename / Copy
+  rename: (handle: any, newTarget: any) => ipcRenderer.invoke(IpcChannel.File_Rename, handle, newTarget),
+  copy: (params: any) => ipcRenderer.invoke(IpcChannel.File_Copy, params),
+
+  // G. System
+  open: (handle: any) => ipcRenderer.invoke(IpcChannel.File_Open, handle),
+  showInFolder: (handle: any) => ipcRenderer.invoke(IpcChannel.File_ShowInFolder, handle),
+
+  // H. Directory
+  listDirectory: (dirPath: any, options?: any) => ipcRenderer.invoke(IpcChannel.File_ListDirectory, dirPath, options),
+  isNotEmptyDir: (dirPath: any) => ipcRenderer.invoke(IpcChannel.File_IsNotEmptyDir, dirPath),
+
+  // I. Entry enrichment
+  getDanglingState: (params: any) => ipcRenderer.invoke(IpcChannel.File_GetDanglingState, params),
+  batchGetDanglingStates: (params: any) => ipcRenderer.invoke(IpcChannel.File_BatchGetDanglingStates, params),
+  getPhysicalPath: (params: any) => ipcRenderer.invoke(IpcChannel.File_GetPhysicalPath, params),
+  batchGetPhysicalPaths: (params: any) => ipcRenderer.invoke(IpcChannel.File_BatchGetPhysicalPaths, params),
+
+  // J. Sweep
+  runSweep: () => ipcRenderer.invoke(IpcChannel.File_RunSweep),
+
+  // K. Path utilities
+  canWrite: (dirPath: any) => ipcRenderer.invoke(IpcChannel.File_CanWrite, dirPath),
+  toAbsolutePath: (filePath: any) => ipcRenderer.invoke(IpcChannel.File_ToAbsolutePath, filePath),
+  isPathInside: (child: any, parent: any) =>
+    ipcRenderer.invoke(IpcChannel.File_IsPathInside, { childPath: child, parentPath: parent }),
+
+  // L. Preload-only
+  getPathForFile: (file: File) => webUtils.getPathForFile(file),
+
+  // M. Tree related
+  tree: {
+    create: (rootPath: string, options?: DirectoryTreeOptions): Promise<CreateTreeIpcResult> =>
+      ipcRenderer.invoke(IpcChannel.File_TreeCreate, { rootPath, options }),
+    dispose: (treeId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.File_TreeDispose, { treeId }),
+    rename: (treeId: string, oldPath: string, newPath: string): Promise<boolean> =>
+      ipcRenderer.invoke(IpcChannel.File_TreeRename, { treeId, oldPath, newPath }),
+    onMutation: (callback: (payload: TreeMutationPushPayload) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, payload: TreeMutationPushPayload) => {
+        if (payload && typeof payload === 'object') callback(payload)
+      }
+      ipcRenderer.on(IpcChannel.File_TreeMutation, listener)
+      return () => ipcRenderer.off(IpcChannel.File_TreeMutation, listener)
+    }
+  }
 }
 
 // Custom APIs for renderer
@@ -236,7 +326,7 @@ const api = {
     deleteLanTransferBackup: (filePath: string): Promise<boolean> =>
       ipcRenderer.invoke(IpcChannel.Backup_DeleteLanTransferBackup, filePath)
   },
-  file: {
+  legacyFile: {
     select: (options?: OpenDialogOptions): Promise<FileMetadata[] | null> =>
       ipcRenderer.invoke(IpcChannel.File_Select, options),
     upload: (file: FileMetadata) => ipcRenderer.invoke(IpcChannel.File_Upload, file),
@@ -246,19 +336,20 @@ const api = {
     deleteExternalDir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_DeleteExternalDir, dirPath),
     move: (path: string, newPath: string) => ipcRenderer.invoke(IpcChannel.File_Move, path, newPath),
     moveDir: (dirPath: string, newDirPath: string) => ipcRenderer.invoke(IpcChannel.File_MoveDir, dirPath, newDirPath),
-    rename: (path: string, newName: string) => ipcRenderer.invoke(IpcChannel.File_Rename, path, newName),
+    rename: (path: string, newName: string) => ipcRenderer.invoke(IpcChannel.File_LegacyRename, path, newName),
     renameDir: (dirPath: string, newName: string) => ipcRenderer.invoke(IpcChannel.File_RenameDir, dirPath, newName),
     read: (fileId: string, detectEncoding?: boolean) =>
-      ipcRenderer.invoke(IpcChannel.File_Read, fileId, detectEncoding),
+      ipcRenderer.invoke(IpcChannel.File_LegacyRead, fileId, detectEncoding),
     readExternal: (filePath: string, detectEncoding?: boolean) =>
       ipcRenderer.invoke(IpcChannel.File_ReadExternal, filePath, detectEncoding),
     clear: (spanContext?: SpanContext) => ipcRenderer.invoke(IpcChannel.File_Clear, spanContext),
     get: (filePath: string): Promise<FileMetadata | null> => ipcRenderer.invoke(IpcChannel.File_Get, filePath),
     createTempFile: (fileName: string): Promise<string> => ipcRenderer.invoke(IpcChannel.File_CreateTempFile, fileName),
     mkdir: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_Mkdir, dirPath),
-    write: (filePath: string, data: Uint8Array | string) => ipcRenderer.invoke(IpcChannel.File_Write, filePath, data),
+    write: (filePath: string, data: Uint8Array | string) =>
+      ipcRenderer.invoke(IpcChannel.File_LegacyWrite, filePath, data),
     writeWithId: (id: string, content: string) => ipcRenderer.invoke(IpcChannel.File_WriteWithId, id, content),
-    open: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_Open, options),
+    open: (options?: OpenDialogOptions) => ipcRenderer.invoke(IpcChannel.File_LegacyOpen, options),
     openPath: (path: string) => ipcRenderer.invoke(IpcChannel.File_OpenPath, path),
     save: (path: string, content: string | NodeJS.ArrayBufferView, options?: any) =>
       ipcRenderer.invoke(IpcChannel.File_Save, path, content, options),
@@ -274,7 +365,7 @@ const api = {
       ipcRenderer.invoke(IpcChannel.File_SavePastedImage, imageData, extension),
     download: (url: string, isUseContentType?: boolean) =>
       ipcRenderer.invoke(IpcChannel.File_Download, url, isUseContentType),
-    copy: (fileId: string, destPath: string) => ipcRenderer.invoke(IpcChannel.File_Copy, fileId, destPath),
+    copy: (fileId: string, destPath: string) => ipcRenderer.invoke(IpcChannel.File_LegacyCopy, fileId, destPath),
     base64File: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_Base64File, fileId),
     pdfInfo: (fileId: string) => ipcRenderer.invoke(IpcChannel.File_GetPdfInfo, fileId),
     getPathForFile: (file: File) => webUtils.getPathForFile(file),
@@ -282,7 +373,7 @@ const api = {
     isTextFile: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsTextFile, filePath),
     isDirectory: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsDirectory, filePath),
     listDirectory: (dirPath: string, options?: DirectoryListOptions) =>
-      ipcRenderer.invoke(IpcChannel.File_ListDirectory, dirPath, options),
+      ipcRenderer.invoke(IpcChannel.File_LegacyListDirectory, dirPath, options),
     checkFileName: (dirPath: string, fileName: string, isFile: boolean) =>
       ipcRenderer.invoke(IpcChannel.File_CheckFileName, dirPath, fileName, isFile),
     validateNotesDirectory: (dirPath: string) => ipcRenderer.invoke(IpcChannel.File_ValidateNotesDirectory, dirPath),
@@ -290,37 +381,17 @@ const api = {
     // / `pauseFileWatcher` / `resumeFileWatcher` / `onFileChange`) and
     // `getDirectoryStructure` were removed alongside the Notes migration
     // to `DirectoryTreeBuilder` (see docs/references/file/directory-tree.md).
-    // mutations via `window.api.tree.onMutation` instead.
+    // mutations via `window.api.file.tree.onMutation` instead.
     batchUploadMarkdown: (filePaths: string[], targetPath: string) =>
       ipcRenderer.invoke(IpcChannel.File_BatchUploadMarkdown, filePaths, targetPath),
-    showInFolder: (path: string): Promise<void> => ipcRenderer.invoke(IpcChannel.File_ShowInFolder, path),
-    // FileManager v2 surface (Phase 2)
-    createInternalEntry: (params: CreateInternalEntryIpcParams) =>
-      ipcRenderer.invoke(IpcChannel.File_CreateInternalEntry, params),
-    ensureExternalEntry: (params: EnsureExternalEntryIpcParams) =>
-      ipcRenderer.invoke(IpcChannel.File_EnsureExternalEntry, params),
-    getPhysicalPath: (params: GetPhysicalPathIpcParams) => ipcRenderer.invoke(IpcChannel.File_GetPhysicalPath, params),
-    permanentDelete: (handle: FileHandle) => ipcRenderer.invoke(IpcChannel.File_PermanentDelete, handle),
-    runSweep: () => ipcRenderer.invoke(IpcChannel.File_RunSweep)
-  },
-  fs: {
-    read: (pathOrUrl: string, encoding?: BufferEncoding) => ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding),
+    showInFolder: (path: string): Promise<void> => ipcRenderer.invoke(IpcChannel.File_LegacyShowInFolder, path),
+    // Origin: v1 fs
+    fsRead: (pathOrUrl: string, encoding?: BufferEncoding) =>
+      ipcRenderer.invoke(IpcChannel.Fs_Read, pathOrUrl, encoding),
     readText: (pathOrUrl: string): Promise<string> => ipcRenderer.invoke(IpcChannel.Fs_ReadText, pathOrUrl)
   },
-  tree: {
-    create: (rootPath: string, options?: DirectoryTreeOptions): Promise<CreateTreeIpcResult> =>
-      ipcRenderer.invoke(IpcChannel.File_TreeCreate, { rootPath, options }),
-    dispose: (treeId: string): Promise<void> => ipcRenderer.invoke(IpcChannel.File_TreeDispose, { treeId }),
-    rename: (treeId: string, oldPath: string, newPath: string): Promise<boolean> =>
-      ipcRenderer.invoke(IpcChannel.File_TreeRename, { treeId, oldPath, newPath }),
-    onMutation: (callback: (payload: TreeMutationPushPayload) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, payload: TreeMutationPushPayload) => {
-        if (payload && typeof payload === 'object') callback(payload)
-      }
-      ipcRenderer.on(IpcChannel.File_TreeMutation, listener)
-      return () => ipcRenderer.off(IpcChannel.File_TreeMutation, listener)
-    }
-  },
+  // FileManager v2 surface (Phase 2)
+  file: fileV2,
   pdf: {
     extractText: (data: Uint8Array | ArrayBuffer | string): Promise<string> =>
       ipcRenderer.invoke(IpcChannel.Pdf_ExtractText, data)

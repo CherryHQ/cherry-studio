@@ -90,9 +90,9 @@ export function sortTree(nodes: NotesTreeNode[], sortType: NotesSortType): Notes
 export async function addDir(name: string, parentPath: string): Promise<{ path: string; name: string }> {
   const resolved = await resolveNotesPath(parentPath)
   const basePath = resolved.path
-  const { safeName } = await window.api.file.checkFileName(basePath, name, false)
+  const { safeName } = await window.api.legacyFile.checkFileName(basePath, name, false)
   const fullPath = `${basePath}/${safeName}`
-  await window.api.file.mkdir(fullPath)
+  await window.api.legacyFile.mkdir(fullPath)
   return { path: fullPath, name: safeName }
 }
 
@@ -103,9 +103,9 @@ export async function addNote(
 ): Promise<{ path: string; name: string }> {
   const resolved = await resolveNotesPath(parentPath)
   const basePath = resolved.path
-  const { safeName } = await window.api.file.checkFileName(basePath, name, true)
+  const { safeName } = await window.api.legacyFile.checkFileName(basePath, name, true)
   const notePath = `${basePath}/${safeName}${MARKDOWN_EXT}`
-  await window.api.file.write(notePath, content)
+  await window.api.legacyFile.write(notePath, content)
   return { path: notePath, name: safeName }
 }
 
@@ -152,7 +152,7 @@ export async function resolveNotesPath(parentPath: string): Promise<ResolvedNote
   }
 
   try {
-    const isValid = await window.api.file.validateNotesDirectory(basePath)
+    const isValid = await window.api.legacyFile.validateNotesDirectory(basePath)
     if (isValid) {
       return {
         path: basePath,
@@ -184,27 +184,27 @@ export async function resolveNotesPath(parentPath: string): Promise<ResolvedNote
 
 export async function delNode(node: NotesTreeNode): Promise<void> {
   if (node.type === 'folder') {
-    await window.api.file.deleteExternalDir(node.externalPath)
+    await window.api.legacyFile.deleteExternalDir(node.externalPath)
   } else {
-    await window.api.file.deleteExternalFile(node.externalPath)
+    await window.api.legacyFile.deleteExternalFile(node.externalPath)
   }
 }
 
 export async function renameNode(node: NotesTreeNode, newName: string): Promise<{ path: string; name: string }> {
   const isFile = node.type === 'file'
   const parentDir = normalizePath(getFileDirectory(node.externalPath))
-  const { safeName, exists } = await window.api.file.checkFileName(parentDir, newName, isFile)
+  const { safeName, exists } = await window.api.legacyFile.checkFileName(parentDir, newName, isFile)
 
   if (exists) {
     throw new Error(`Target name already exists: ${safeName}`)
   }
 
   if (isFile) {
-    await window.api.file.rename(node.externalPath, safeName)
+    await window.api.legacyFile.rename(node.externalPath, safeName)
     return { path: `${parentDir}/${safeName}${MARKDOWN_EXT}`, name: safeName }
   }
 
-  await window.api.file.renameDir(node.externalPath, safeName)
+  await window.api.legacyFile.renameDir(node.externalPath, safeName)
   return { path: `${parentDir}/${safeName}`, name: safeName }
 }
 
@@ -247,7 +247,7 @@ export async function uploadNotes(files: File[], targetPath: string): Promise<Up
     // gone with the FileStorage chokidar singleton. The new per-tree
     // chokidar instance still fires N `add` events; the renderer's
     // projection effect debounces them implicitly via React batching.
-    const result = await window.api.file.batchUploadMarkdown(filePaths, basePath)
+    const result = await window.api.legacyFile.batchUploadMarkdown(filePaths, basePath)
 
     return {
       uploadedNodes: [],
@@ -298,11 +298,11 @@ async function uploadNotesLegacy(files: File[], targetPath: string): Promise<Upl
     const results = await Promise.allSettled(
       batch.map(async (file) => {
         const { dir, name } = resolveFileTarget(file, basePath)
-        const { safeName } = await window.api.file.checkFileName(dir, name, true)
+        const { safeName } = await window.api.legacyFile.checkFileName(dir, name, true)
         const finalPath = `${dir}/${safeName}${MARKDOWN_EXT}`
 
         const content = await file.text()
-        await window.api.file.write(finalPath, content)
+        await window.api.legacyFile.write(finalPath, content)
         return true
       })
     )
@@ -391,7 +391,7 @@ async function createFolders(folders: Set<string>): Promise<void> {
 
   for (const folder of ordered) {
     try {
-      await window.api.file.mkdir(folder)
+      await window.api.legacyFile.mkdir(folder)
     } catch (error) {
       logger.error('Failed to create folder while uploading notes', error as Error)
       throw error

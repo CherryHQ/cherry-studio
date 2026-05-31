@@ -78,7 +78,7 @@ const BasicSection: FC<Props> = ({ form, onChange, nameError, modelError }) => {
   // against the current list, and toast on both duplicate + select failure.
   const addPath = useCallback(async () => {
     try {
-      const selected = await window.api.file.selectFolder()
+      const selected = await window.api.legacyFile.selectFolder()
       if (!selected) return
       if (form.accessiblePaths.includes(selected)) {
         window.toast.warning(t('agent.session.accessible_paths.duplicate'))

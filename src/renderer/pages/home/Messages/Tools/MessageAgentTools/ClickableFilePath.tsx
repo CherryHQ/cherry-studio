@@ -34,7 +34,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
   const handleOpen = useCallback(
     (e: React.MouseEvent | React.KeyboardEvent) => {
       e.stopPropagation()
-      window.api.file.openPath(path).catch(() => {
+      window.api.legacyFile.openPath(path).catch(() => {
         window.toast.error(t('chat.input.tools.open_file_error', { path }))
       })
     },
@@ -59,7 +59,7 @@ export const ClickableFilePath = memo(function ClickableFilePath({ path, display
         icon: <FolderOpen size={16} />,
         onClick: ({ domEvent }) => {
           domEvent.stopPropagation()
-          window.api.file.showInFolder(path).catch(() => {
+          window.api.legacyFile.showInFolder(path).catch(() => {
             window.toast.error(t('chat.input.tools.file_not_found', { path }))
           })
         }

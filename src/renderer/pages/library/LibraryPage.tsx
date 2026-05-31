@@ -294,7 +294,7 @@ export default function LibraryPage() {
       try {
         const content = serializeAssistantForExport(assistant)
 
-        await window.api.file.save(`${assistant.name}.json`, new TextEncoder().encode(content), {
+        await window.api.legacyFile.save(`${assistant.name}.json`, new TextEncoder().encode(content), {
           filters: [{ name: t('assistants.presets.import.file_filter'), extensions: ['json'] }]
         })
       } catch (error) {

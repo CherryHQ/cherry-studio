@@ -36,7 +36,7 @@ describe('usePreviewKnowledgeSource', () => {
     mockOpenPath.mockResolvedValue(undefined)
     mockOpenExternal.mockResolvedValue(undefined)
     ;(window as any).api = {
-      file: {
+      legacyFile: {
         openPath: mockOpenPath
       },
       shell: {

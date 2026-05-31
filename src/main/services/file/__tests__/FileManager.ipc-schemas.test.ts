@@ -10,7 +10,36 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { BatchGetDanglingStatesIpcSchema, FILE_BATCH_DANGLING_MAX_IDS, GetDanglingStateIpcSchema } from '../FileManager'
+import {
+  BatchCreateInternalEntriesIpcSchema,
+  BatchEnsureExternalEntriesIpcSchema,
+  BatchGetDanglingStatesIpcSchema,
+  BatchGetMetadataIpcSchema,
+  BatchGetPhysicalPathsIpcSchema,
+  BatchIdsIpcSchema,
+  CanWriteIpcSchema,
+  CopyIpcSchema,
+  DirectoryListOptionsIpcSchema,
+  FILE_BATCH_DANGLING_MAX_IDS,
+  FILE_BATCH_MAX_IDS,
+  FileVersionIpcSchema,
+  GetContentHashIpcSchema,
+  GetDanglingStateIpcSchema,
+  GetMetadataIpcSchema,
+  GetVersionIpcSchema,
+  IsNotEmptyDirIpcSchema,
+  IsPathInsideIpcSchema,
+  OpenIpcSchema,
+  OpenSaveDialogIpcSchema,
+  OpenSelectDialogIpcSchema,
+  ReadIpcOptionsSchema,
+  RenameNewTargetIpcSchema,
+  RestoreIpcSchema,
+  ShowInFolderIpcSchema,
+  ToAbsolutePathIpcSchema,
+  TrashIpcSchema,
+  WriteDataIpcSchema
+} from '../FileManager'
 
 const VALID_UUID_V7 = '019606a0-0000-7000-8000-000000000001'
 
@@ -57,5 +86,387 @@ describe('BatchGetDanglingStatesIpcSchema', () => {
 
   it('rejects extra keys (strictObject)', () => {
     expect(() => BatchGetDanglingStatesIpcSchema.parse({ ids: [VALID_UUID_V7], extra: 1 })).toThrow()
+  })
+})
+
+describe('TrashIpcSchema', () => {
+  it('accepts a valid UUID id', () => {
+    expect(TrashIpcSchema.parse({ id: VALID_UUID_V7 })).toEqual({ id: VALID_UUID_V7 })
+  })
+  it('rejects a non-UUID id', () => {
+    expect(() => TrashIpcSchema.parse({ id: 'not-a-uuid' })).toThrow()
+  })
+  it('rejects extra keys', () => {
+    expect(() => TrashIpcSchema.parse({ id: VALID_UUID_V7, extra: 1 })).toThrow()
+  })
+  it('rejects missing id', () => {
+    expect(() => TrashIpcSchema.parse({})).toThrow()
+  })
+})
+
+describe('RestoreIpcSchema', () => {
+  it('accepts a valid UUID id', () => {
+    expect(RestoreIpcSchema.parse({ id: VALID_UUID_V7 })).toEqual({ id: VALID_UUID_V7 })
+  })
+  it('rejects a non-UUID id', () => {
+    expect(() => RestoreIpcSchema.parse({ id: 'not-a-uuid' })).toThrow()
+  })
+  it('rejects extra keys', () => {
+    expect(() => RestoreIpcSchema.parse({ id: VALID_UUID_V7, extra: 1 })).toThrow()
+  })
+  it('rejects missing id', () => {
+    expect(() => RestoreIpcSchema.parse({})).toThrow()
+  })
+})
+
+describe('BatchIdsIpcSchema', () => {
+  it('accepts array of valid UUIDs', () => {
+    expect(BatchIdsIpcSchema.parse({ ids: [VALID_UUID_V7] })).toEqual({ ids: [VALID_UUID_V7] })
+  })
+  it('accepts empty array', () => {
+    expect(BatchIdsIpcSchema.parse({ ids: [] })).toEqual({ ids: [] })
+  })
+  it('rejects array with non-UUID', () => {
+    expect(() => BatchIdsIpcSchema.parse({ ids: ['not-a-uuid'] })).toThrow()
+  })
+  it(`caps batch size at FILE_BATCH_MAX_IDS (${FILE_BATCH_MAX_IDS})`, () => {
+    const ok = Array.from({ length: FILE_BATCH_MAX_IDS }, () => VALID_UUID_V7)
+    expect(BatchIdsIpcSchema.parse({ ids: ok }).ids).toHaveLength(FILE_BATCH_MAX_IDS)
+    const tooMany = [...ok, VALID_UUID_V7]
+    expect(() => BatchIdsIpcSchema.parse({ ids: tooMany })).toThrow()
+  })
+  it('rejects extra keys', () => {
+    expect(() => BatchIdsIpcSchema.parse({ ids: [VALID_UUID_V7], extra: 1 })).toThrow()
+  })
+})
+
+describe('GetContentHashIpcSchema', () => {
+  it('accepts entry handle', () => {
+    const input = { kind: 'entry', entryId: VALID_UUID_V7 }
+    expect(GetContentHashIpcSchema.parse(input)).toEqual(input)
+  })
+  it('accepts path handle', () => {
+    const input = { kind: 'path', path: '/test/file.txt' }
+    expect(GetContentHashIpcSchema.parse(input)).toEqual(input)
+  })
+  it('rejects invalid kind', () => {
+    expect(() => GetContentHashIpcSchema.parse({ kind: 'invalid' })).toThrow()
+  })
+  it('rejects entry handle with non-UUID', () => {
+    expect(() => GetContentHashIpcSchema.parse({ kind: 'entry', entryId: 'bad' })).toThrow()
+  })
+  it('rejects path handle with relative path', () => {
+    expect(() => GetContentHashIpcSchema.parse({ kind: 'path', path: 'relative' })).toThrow()
+  })
+})
+
+describe('OpenIpcSchema', () => {
+  it('accepts entry handle', () => {
+    expect(OpenIpcSchema.parse({ kind: 'entry', entryId: VALID_UUID_V7 })).toEqual({
+      kind: 'entry',
+      entryId: VALID_UUID_V7
+    })
+  })
+  it('accepts path handle', () => {
+    expect(OpenIpcSchema.parse({ kind: 'path', path: '/test' })).toEqual({ kind: 'path', path: '/test' })
+  })
+  it('rejects invalid handle', () => {
+    expect(() => OpenIpcSchema.parse({ kind: 'invalid' })).toThrow()
+  })
+})
+
+describe('ShowInFolderIpcSchema', () => {
+  it('accepts entry handle', () => {
+    expect(ShowInFolderIpcSchema.parse({ kind: 'entry', entryId: VALID_UUID_V7 })).toEqual({
+      kind: 'entry',
+      entryId: VALID_UUID_V7
+    })
+  })
+  it('accepts path handle', () => {
+    expect(ShowInFolderIpcSchema.parse({ kind: 'path', path: '/test' })).toEqual({ kind: 'path', path: '/test' })
+  })
+  it('rejects invalid handle', () => {
+    expect(() => ShowInFolderIpcSchema.parse({ kind: 'invalid' })).toThrow()
+  })
+})
+
+describe('GetMetadataIpcSchema', () => {
+  it('accepts entry handle', () => {
+    expect(GetMetadataIpcSchema.parse({ kind: 'entry', entryId: VALID_UUID_V7 })).toEqual({
+      kind: 'entry',
+      entryId: VALID_UUID_V7
+    })
+  })
+  it('accepts path handle', () => {
+    expect(GetMetadataIpcSchema.parse({ kind: 'path', path: '/test/file.txt' })).toEqual({
+      kind: 'path',
+      path: '/test/file.txt'
+    })
+  })
+  it('rejects invalid handle', () => {
+    expect(() => GetMetadataIpcSchema.parse({ kind: 'invalid' })).toThrow()
+  })
+})
+
+describe('BatchGetMetadataIpcSchema', () => {
+  it('accepts array of valid UUIDs', () => {
+    expect(BatchGetMetadataIpcSchema.parse({ ids: [VALID_UUID_V7] })).toEqual({ ids: [VALID_UUID_V7] })
+  })
+  it('accepts empty array', () => {
+    expect(BatchGetMetadataIpcSchema.parse({ ids: [] })).toEqual({ ids: [] })
+  })
+  it('rejects non-UUID in array', () => {
+    expect(() => BatchGetMetadataIpcSchema.parse({ ids: ['bad'] })).toThrow()
+  })
+  it(`caps at FILE_BATCH_MAX_IDS`, () => {
+    const tooMany = Array.from({ length: FILE_BATCH_MAX_IDS + 1 }, () => VALID_UUID_V7)
+    expect(() => BatchGetMetadataIpcSchema.parse({ ids: tooMany })).toThrow()
+  })
+  it('rejects extra keys', () => {
+    expect(() => BatchGetMetadataIpcSchema.parse({ ids: [], extra: 1 })).toThrow()
+  })
+})
+
+describe('GetVersionIpcSchema', () => {
+  it('accepts entry handle', () => {
+    expect(GetVersionIpcSchema.parse({ kind: 'entry', entryId: VALID_UUID_V7 })).toEqual({
+      kind: 'entry',
+      entryId: VALID_UUID_V7
+    })
+  })
+  it('accepts path handle', () => {
+    expect(GetVersionIpcSchema.parse({ kind: 'path', path: '/test' })).toEqual({ kind: 'path', path: '/test' })
+  })
+  it('rejects invalid handle', () => {
+    expect(() => GetVersionIpcSchema.parse({ kind: 'bad' })).toThrow()
+  })
+})
+
+describe('ReadIpcOptionsSchema', () => {
+  it('accepts undefined (default text)', () => {
+    expect(ReadIpcOptionsSchema.parse(undefined)).toBeUndefined()
+  })
+  it('accepts text encoding', () => {
+    expect(ReadIpcOptionsSchema.parse({ encoding: 'text' })).toEqual({ encoding: 'text' })
+  })
+  it('accepts base64 encoding', () => {
+    expect(ReadIpcOptionsSchema.parse({ encoding: 'base64' })).toEqual({ encoding: 'base64' })
+  })
+  it('accepts binary encoding', () => {
+    expect(ReadIpcOptionsSchema.parse({ encoding: 'binary' })).toEqual({ encoding: 'binary' })
+  })
+  it('accepts detectEncoding flag', () => {
+    expect(ReadIpcOptionsSchema.parse({ detectEncoding: true })).toEqual({ detectEncoding: true })
+  })
+  it('rejects invalid encoding', () => {
+    expect(() => ReadIpcOptionsSchema.parse({ encoding: 'utf16' })).toThrow()
+  })
+})
+
+describe('WriteDataIpcSchema', () => {
+  it('accepts string data', () => {
+    expect(WriteDataIpcSchema.parse('hello')).toBe('hello')
+  })
+  it('accepts Uint8Array data', () => {
+    const data = new Uint8Array([1, 2, 3])
+    expect(WriteDataIpcSchema.parse(data)).toEqual(data)
+  })
+  it('rejects number', () => {
+    expect(() => WriteDataIpcSchema.parse(42)).toThrow()
+  })
+})
+
+describe('FileVersionIpcSchema', () => {
+  it('accepts valid version', () => {
+    expect(FileVersionIpcSchema.parse({ mtime: 1000, size: 42 })).toEqual({ mtime: 1000, size: 42 })
+  })
+  it('rejects missing mtime', () => {
+    expect(() => FileVersionIpcSchema.parse({ size: 42 })).toThrow()
+  })
+  it('rejects missing size', () => {
+    expect(() => FileVersionIpcSchema.parse({ mtime: 1000 })).toThrow()
+  })
+})
+
+describe('RenameNewTargetIpcSchema', () => {
+  it('accepts non-empty string', () => {
+    expect(RenameNewTargetIpcSchema.parse('new-name')).toBe('new-name')
+  })
+  it('rejects empty string', () => {
+    expect(() => RenameNewTargetIpcSchema.parse('')).toThrow()
+  })
+})
+
+describe('CopyIpcSchema', () => {
+  it('accepts source handle without newName', () => {
+    const input = { source: { kind: 'entry', entryId: VALID_UUID_V7 } }
+    expect(CopyIpcSchema.parse(input)).toEqual(input)
+  })
+  it('accepts source handle with newName', () => {
+    const input = { source: { kind: 'path', path: '/test.txt' }, newName: 'copy.txt' }
+    expect(CopyIpcSchema.parse(input)).toEqual(input)
+  })
+  it('rejects missing source', () => {
+    expect(() => CopyIpcSchema.parse({})).toThrow()
+  })
+  it('rejects invalid source handle', () => {
+    expect(() => CopyIpcSchema.parse({ source: { kind: 'bad' } })).toThrow()
+  })
+  it('rejects extra keys', () => {
+    expect(() => CopyIpcSchema.parse({ source: { kind: 'entry', entryId: VALID_UUID_V7 }, extra: 1 })).toThrow()
+  })
+})
+
+describe('OpenSelectDialogIpcSchema', () => {
+  it('accepts empty options (single file default)', () => {
+    expect(OpenSelectDialogIpcSchema.parse({})).toEqual({})
+  })
+  it('accepts multiple files option', () => {
+    expect(OpenSelectDialogIpcSchema.parse({ multiple: true })).toEqual({ multiple: true })
+  })
+  it('accepts directory option', () => {
+    expect(OpenSelectDialogIpcSchema.parse({ directory: true })).toEqual({ directory: true })
+  })
+  it('accepts filters', () => {
+    const input = { filters: [{ name: 'Images', extensions: ['png', 'jpg'] }] }
+    expect(OpenSelectDialogIpcSchema.parse(input)).toEqual(input)
+  })
+  it('accepts title', () => {
+    expect(OpenSelectDialogIpcSchema.parse({ title: 'Pick a file' })).toEqual({ title: 'Pick a file' })
+  })
+  it('rejects invalid filter shape', () => {
+    expect(() => OpenSelectDialogIpcSchema.parse({ filters: [{ bad: true }] })).toThrow()
+  })
+})
+
+describe('OpenSaveDialogIpcSchema', () => {
+  it('accepts string content', () => {
+    expect(OpenSaveDialogIpcSchema.parse({ content: 'hello' })).toEqual({ content: 'hello' })
+  })
+  it('accepts Uint8Array content', () => {
+    const input = { content: new Uint8Array([1, 2, 3]) }
+    expect(OpenSaveDialogIpcSchema.parse(input)).toEqual(input)
+  })
+  it('accepts optional defaultPath and filters', () => {
+    const input = { content: 'hi', defaultPath: '/tmp/file.txt', filters: [{ name: 'Text', extensions: ['txt'] }] }
+    expect(OpenSaveDialogIpcSchema.parse(input)).toEqual(input)
+  })
+  it('rejects missing content', () => {
+    expect(() => OpenSaveDialogIpcSchema.parse({})).toThrow()
+  })
+  it('rejects number content', () => {
+    expect(() => OpenSaveDialogIpcSchema.parse({ content: 42 })).toThrow()
+  })
+})
+
+describe('DirectoryListOptionsIpcSchema', () => {
+  it('accepts undefined', () => {
+    expect(DirectoryListOptionsIpcSchema.parse(undefined)).toBeUndefined()
+  })
+  it('accepts valid options', () => {
+    const input = { recursive: true, maxDepth: 3 }
+    expect(DirectoryListOptionsIpcSchema.parse(input)).toEqual(input)
+  })
+  it('accepts empty object', () => {
+    expect(DirectoryListOptionsIpcSchema.parse({})).toEqual({})
+  })
+})
+
+describe('IsNotEmptyDirIpcSchema', () => {
+  it('accepts absolute path', () => {
+    expect(IsNotEmptyDirIpcSchema.parse('/test')).toBe('/test')
+  })
+  it('rejects relative path', () => {
+    expect(() => IsNotEmptyDirIpcSchema.parse('relative')).toThrow()
+  })
+  it('rejects empty string', () => {
+    expect(() => IsNotEmptyDirIpcSchema.parse('')).toThrow()
+  })
+})
+
+describe('BatchCreateInternalEntriesIpcSchema', () => {
+  it('accepts array of path-source params', () => {
+    const input = [{ source: 'path', path: '/test.txt' }]
+    expect(BatchCreateInternalEntriesIpcSchema.parse(input)).toEqual(input)
+  })
+  it('accepts empty array', () => {
+    expect(BatchCreateInternalEntriesIpcSchema.parse([])).toEqual([])
+  })
+  it('rejects invalid source', () => {
+    expect(() => BatchCreateInternalEntriesIpcSchema.parse([{ source: 'invalid' }])).toThrow()
+  })
+  it(`caps at FILE_BATCH_MAX_IDS`, () => {
+    const tooMany = Array.from({ length: FILE_BATCH_MAX_IDS + 1 }, () => ({ source: 'path', path: '/test.txt' }))
+    expect(() => BatchCreateInternalEntriesIpcSchema.parse(tooMany)).toThrow()
+  })
+})
+
+describe('BatchEnsureExternalEntriesIpcSchema', () => {
+  it('accepts array of external path params', () => {
+    const input = [{ externalPath: '/test.txt' }]
+    expect(BatchEnsureExternalEntriesIpcSchema.parse(input)).toEqual(input)
+  })
+  it('accepts empty array', () => {
+    expect(BatchEnsureExternalEntriesIpcSchema.parse([])).toEqual([])
+  })
+  it('rejects relative path', () => {
+    expect(() => BatchEnsureExternalEntriesIpcSchema.parse([{ externalPath: 'relative' }])).toThrow()
+  })
+  it(`caps at FILE_BATCH_MAX_IDS`, () => {
+    const tooMany = Array.from({ length: FILE_BATCH_MAX_IDS + 1 }, () => ({ externalPath: '/test.txt' }))
+    expect(() => BatchEnsureExternalEntriesIpcSchema.parse(tooMany)).toThrow()
+  })
+})
+
+describe('BatchGetPhysicalPathsIpcSchema', () => {
+  it('accepts valid ids', () => {
+    expect(BatchGetPhysicalPathsIpcSchema.parse({ ids: [VALID_UUID_V7] })).toEqual({ ids: [VALID_UUID_V7] })
+  })
+  it('rejects non-UUID', () => {
+    expect(() => BatchGetPhysicalPathsIpcSchema.parse({ ids: ['bad'] })).toThrow()
+  })
+  it(`caps at FILE_BATCH_MAX_IDS`, () => {
+    const tooMany = Array.from({ length: FILE_BATCH_MAX_IDS + 1 }, () => VALID_UUID_V7)
+    expect(() => BatchGetPhysicalPathsIpcSchema.parse({ ids: tooMany })).toThrow()
+  })
+  it('rejects extra keys', () => {
+    expect(() => BatchGetPhysicalPathsIpcSchema.parse({ ids: [], extra: 1 })).toThrow()
+  })
+})
+
+describe('CanWriteIpcSchema', () => {
+  it('accepts absolute path', () => {
+    expect(CanWriteIpcSchema.parse('/test')).toBe('/test')
+  })
+  it('rejects relative path', () => {
+    expect(() => CanWriteIpcSchema.parse('relative')).toThrow()
+  })
+})
+
+describe('ToAbsolutePathIpcSchema', () => {
+  it('accepts non-empty string', () => {
+    expect(ToAbsolutePathIpcSchema.parse('~/Documents')).toBe('~/Documents')
+  })
+  it('rejects empty string', () => {
+    expect(() => ToAbsolutePathIpcSchema.parse('')).toThrow()
+  })
+  it('rejects non-string', () => {
+    expect(() => ToAbsolutePathIpcSchema.parse(42)).toThrow()
+  })
+})
+
+describe('IsPathInsideIpcSchema', () => {
+  it('accepts two non-empty strings', () => {
+    const input = { childPath: '/a/b', parentPath: '/a' }
+    expect(IsPathInsideIpcSchema.parse(input)).toEqual(input)
+  })
+  it('rejects missing childPath', () => {
+    expect(() => IsPathInsideIpcSchema.parse({ parentPath: '/a' })).toThrow()
+  })
+  it('rejects missing parentPath', () => {
+    expect(() => IsPathInsideIpcSchema.parse({ childPath: '/a/b' })).toThrow()
+  })
+  it('rejects empty childPath', () => {
+    expect(() => IsPathInsideIpcSchema.parse({ childPath: '', parentPath: '/a' })).toThrow()
   })
 })

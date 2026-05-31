@@ -37,7 +37,7 @@ const NotesSettings: FC = () => {
   const handleSelectWorkDirectory = async () => {
     try {
       setIsSelecting(true)
-      const result = await window.api.file.selectFolder({
+      const result = await window.api.legacyFile.selectFolder({
         title: t('notes.settings.data.current_work_directory')
       })
 
@@ -60,7 +60,7 @@ const NotesSettings: FC = () => {
 
     try {
       // 验证目录是否可用
-      const isValidDir = await window.api.file.validateNotesDirectory(tempPath)
+      const isValidDir = await window.api.legacyFile.validateNotesDirectory(tempPath)
 
       if (!isValidDir) {
         window.toast.error(t('notes.settings.data.invalid_directory'))

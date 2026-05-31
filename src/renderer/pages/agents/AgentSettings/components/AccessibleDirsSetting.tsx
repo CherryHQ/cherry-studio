@@ -29,7 +29,7 @@ export const AccessibleDirsSetting = ({ base, update }: AccessibleDirsSettingPro
     if (!base) return
 
     try {
-      const selected = await window.api.file.selectFolder()
+      const selected = await window.api.legacyFile.selectFolder()
       if (!selected) {
         return
       }

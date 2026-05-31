@@ -55,7 +55,7 @@ export const createImageCallbacks = (deps: ImageCallbacksDependencies) => {
       const buildImageBlockFields = async (imageData: GenerateImageResponse): Promise<Partial<ImageMessageBlock>> => {
         const imageUrl: string = imageData.images?.[0] || 'placeholder_image_url'
         if (imageData.type === 'base64' && imageUrl.startsWith('data:')) {
-          const savedFile = await window.api.file.saveBase64Image(imageUrl)
+          const savedFile = await window.api.legacyFile.saveBase64Image(imageUrl)
           await FileManager.addFile(savedFile)
           return {
             file: savedFile,

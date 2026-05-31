@@ -199,13 +199,13 @@ export enum IpcChannel {
   FileProcessing_ListAvailableProcessors = 'file-processing:list-available-processors',
 
   //file
-  File_Open = 'file:open',
+  File_LegacyOpen = 'file:legacy:open',
   File_OpenPath = 'file:openPath',
   File_Save = 'file:save',
   File_Select = 'file:select',
   File_Upload = 'file:upload',
   File_Clear = 'file:clear',
-  File_Read = 'file:read',
+  File_LegacyRead = 'file:legacy:read',
   File_ReadExternal = 'file:readExternal',
   File_Delete = 'file:delete',
   File_DeleteDir = 'file:deleteDir',
@@ -213,20 +213,20 @@ export enum IpcChannel {
   File_DeleteExternalDir = 'file:deleteExternalDir',
   File_Move = 'file:move',
   File_MoveDir = 'file:moveDir',
-  File_Rename = 'file:rename',
+  File_LegacyRename = 'file:legacy:rename',
   File_RenameDir = 'file:renameDir',
   File_Get = 'file:get',
   File_SelectFolder = 'file:selectFolder',
   File_CreateTempFile = 'file:createTempFile',
   File_Mkdir = 'file:mkdir',
-  File_Write = 'file:write',
+  File_LegacyWrite = 'file:legacy:write',
   File_WriteWithId = 'file:writeWithId',
   File_SaveImage = 'file:saveImage',
   File_Base64Image = 'file:base64Image',
   File_SaveBase64Image = 'file:saveBase64Image',
   File_SavePastedImage = 'file:savePastedImage',
   File_Download = 'file:download',
-  File_Copy = 'file:copy',
+  File_LegacyCopy = 'file:legacy:copy',
   File_BinaryImage = 'file:binaryImage',
   File_Base64File = 'file:base64File',
   File_GetPdfInfo = 'file:getPdfInfo',
@@ -235,11 +235,12 @@ export enum IpcChannel {
   File_OpenWithRelativePath = 'file:openWithRelativePath',
   File_IsTextFile = 'file:isTextFile',
   File_IsDirectory = 'file:isDirectory',
-  File_ListDirectory = 'file:listDirectory',
+  File_LegacyListDirectory = 'file:legacy:listDirectory',
+  File_GetDirectoryStructure = 'file:getDirectoryStructure',
   File_CheckFileName = 'file:checkFileName',
   File_ValidateNotesDirectory = 'file:validateNotesDirectory',
   File_BatchUploadMarkdown = 'file:batchUploadMarkdown',
-  File_ShowInFolder = 'file:showInFolder',
+  File_LegacyShowInFolder = 'file:legacy:showInFolder',
   // FileManager v2 surface (Phase 1b.3)
   File_GetDanglingState = 'file:getDanglingState',
   File_BatchGetDanglingStates = 'file:batchGetDanglingStates',
@@ -255,6 +256,48 @@ export enum IpcChannel {
   File_TreeDispose = 'file:tree:dispose',
   File_TreeRename = 'file:tree:rename',
   File_TreeMutation = 'file:tree:mutation',
+
+  // ─── File v2: Read / Metadata ───
+  File_Read = 'file:read',
+  File_GetMetadata = 'file:getMetadata',
+  File_BatchGetMetadata = 'file:batchGetMetadata',
+  File_GetVersion = 'file:getVersion',
+  File_GetContentHash = 'file:getContentHash',
+
+  // ─── File v2: Write ───
+  File_Write = 'file:write',
+  File_WriteIfUnchanged = 'file:writeIfUnchanged',
+
+  // ─── File v2: Lifecycle ───
+  File_Trash = 'file:trash',
+  File_Restore = 'file:restore',
+  File_BatchTrash = 'file:batchTrash',
+  File_BatchRestore = 'file:batchRestore',
+  File_BatchPermanentDelete = 'file:batchPermanentDelete',
+
+  // ─── File v2: Mutation ───
+  File_Rename = 'file:rename',
+  File_Copy = 'file:copy',
+
+  // ─── File v2: System / Navigation ───
+  File_Open = 'file:open',
+  File_ShowInFolder = 'file:showInFolder',
+  File_OpenSelectDialog = 'file:openSelectDialog',
+  File_OpenSaveDialog = 'file:openSaveDialog',
+
+  // ─── File v2: Directory ───
+  File_ListDirectory = 'file:listDirectory',
+  File_IsNotEmptyDir = 'file:isNotEmptyDir',
+
+  // ─── File v2: Batch Entry Operations ───
+  File_BatchCreateInternalEntries = 'file:batchCreateInternalEntries',
+  File_BatchEnsureExternalEntries = 'file:batchEnsureExternalEntries',
+  File_BatchGetPhysicalPaths = 'file:batchGetPhysicalPaths',
+
+  // ─── File v2: Path Utilities ───
+  File_CanWrite = 'file:canWrite',
+  File_ToAbsolutePath = 'file:toAbsolutePath',
+  File_IsPathInside = 'file:isPathInside',
 
   // PDF
   Pdf_ExtractText = 'pdf:extractText',

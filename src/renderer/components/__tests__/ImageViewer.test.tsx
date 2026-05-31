@@ -53,7 +53,7 @@ describe('ImageViewer', () => {
     mocks.fsRead.mockResolvedValue(new Uint8Array([1, 2, 3]))
 
     Object.assign(window, {
-      api: { fs: { read: mocks.fsRead } },
+      api: { legacyFile: { fsRead: mocks.fsRead } },
       toast: mocks.toast
     })
     Object.assign(navigator, { clipboard: mocks.clipboard })

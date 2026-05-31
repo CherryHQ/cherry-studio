@@ -126,6 +126,7 @@
  */
 
 import { createReadStream as nodeCreateReadStream } from 'node:fs'
+import path from 'node:path'
 import type { Readable, Writable } from 'node:stream'
 import { pathToFileURL } from 'node:url'
 
@@ -134,7 +135,10 @@ import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { orphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry'
-import { remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
+import { listDirectory } from '@main/services/file/tree/search'
+import { atomicWriteFile, move as fsMove, remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
+import { untildify } from '@main/utils/file/legacyFile'
+import { canWrite, isNotEmptyDir, isPathInside } from '@main/utils/file/path'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
 import { SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
@@ -143,23 +147,25 @@ import type {
   BatchMutationResult,
   CreateInternalEntryIpcParams,
   EnsureExternalEntryIpcParams,
+  FileIpcApi,
   FilePath,
   FileURLString,
   PhysicalFileMetadata
 } from '@shared/file/types'
-import type { FileHandle } from '@shared/file/types/handle'
 import { FileHandleSchema } from '@shared/file/types/handle'
 import { IpcChannel } from '@shared/IpcChannel'
+import { dialog } from 'electron'
 import mime from 'mime'
 import * as z from 'zod'
 
 import { danglingCache } from './danglingCache'
-import { hash as internalHash } from './internal/content/hash'
-import { read as internalRead } from './internal/content/read'
+import { hash as internalHash, hashByPath } from './internal/content/hash'
+import { read as internalRead, readByPath } from './internal/content/read'
 import {
   createWriteStream as internalCreateWriteStream,
   write as internalWrite,
-  writeIfUnchanged as internalWriteIfUnchanged
+  writeIfUnchanged as internalWriteIfUnchanged,
+  writeIfUnchangedByPath
 } from './internal/content/write'
 import type { FileManagerDeps } from './internal/deps'
 import { dispatchHandle } from './internal/dispatch'
@@ -232,6 +238,9 @@ export type EnsureExternalEntryParams = EnsureExternalEntryIpcParams
  */
 export const FILE_BATCH_DANGLING_MAX_IDS = 500
 
+/** Max batch size for id-array IPC calls (shared across all batch endpoints). */
+export const FILE_BATCH_MAX_IDS = 500
+
 export const GetDanglingStateIpcSchema = z.strictObject({ id: FileEntryIdSchema })
 export const BatchGetDanglingStatesIpcSchema = z.strictObject({
   ids: z.array(FileEntryIdSchema).max(FILE_BATCH_DANGLING_MAX_IDS)
@@ -256,9 +265,87 @@ export const CreateInternalEntryIpcSchema = z.discriminatedUnion('source', [
 
 export const EnsureExternalEntryIpcSchema = z.strictObject({ externalPath: AbsolutePathSchema })
 
+export const BatchCreateInternalEntriesIpcSchema = z.array(CreateInternalEntryIpcSchema).max(FILE_BATCH_MAX_IDS)
+
+export const BatchEnsureExternalEntriesIpcSchema = z.array(EnsureExternalEntryIpcSchema).max(FILE_BATCH_MAX_IDS)
+
+export const BatchGetPhysicalPathsIpcSchema = z.strictObject({
+  ids: z.array(FileEntryIdSchema).max(FILE_BATCH_MAX_IDS)
+})
+
+export const CanWriteIpcSchema = AbsolutePathSchema
+
+export const ToAbsolutePathIpcSchema = z.string().min(1)
+
+export const IsPathInsideIpcSchema = z.strictObject({
+  childPath: z.string().min(1),
+  parentPath: z.string().min(1)
+})
+
 export const GetPhysicalPathIpcSchema = z.strictObject({ id: FileEntryIdSchema })
 
 export const PermanentDeleteIpcSchema = FileHandleSchema
+
+export const GetContentHashIpcSchema = FileHandleSchema
+export const OpenIpcSchema = FileHandleSchema
+export const ShowInFolderIpcSchema = FileHandleSchema
+
+export const TrashIpcSchema = z.strictObject({ id: FileEntryIdSchema })
+export const RestoreIpcSchema = z.strictObject({ id: FileEntryIdSchema })
+export const BatchIdsIpcSchema = z.strictObject({
+  ids: z.array(FileEntryIdSchema).max(FILE_BATCH_MAX_IDS)
+})
+
+export const GetMetadataIpcSchema = FileHandleSchema
+export const BatchGetMetadataIpcSchema = z.strictObject({
+  ids: z.array(FileEntryIdSchema).max(FILE_BATCH_MAX_IDS)
+})
+export const GetVersionIpcSchema = FileHandleSchema
+export const WriteDataIpcSchema = z.union([z.string(), z.instanceof(Uint8Array)])
+export const FileVersionIpcSchema = z.strictObject({ mtime: z.number(), size: z.number() })
+export const RenameNewTargetIpcSchema = z.string().min(1)
+export const CopyIpcSchema = z.strictObject({
+  source: FileHandleSchema,
+  newName: z.string().optional()
+})
+export const ReadIpcOptionsSchema = z
+  .object({
+    encoding: z.enum(['text', 'base64', 'binary']).optional(),
+    detectEncoding: z.boolean().optional()
+  })
+  .optional()
+
+const FileFilterIpcSchema = z.object({
+  name: z.string(),
+  extensions: z.array(z.string())
+})
+
+export const OpenSelectDialogIpcSchema = z.object({
+  directory: z.literal(true).optional(),
+  multiple: z.literal(true).optional(),
+  filters: z.array(FileFilterIpcSchema).optional(),
+  title: z.string().optional()
+})
+
+export const OpenSaveDialogIpcSchema = z.object({
+  content: z.union([z.string(), z.instanceof(Uint8Array)]),
+  defaultPath: z.string().optional(),
+  filters: z.array(FileFilterIpcSchema).optional()
+})
+
+export const DirectoryListOptionsIpcSchema = z
+  .object({
+    recursive: z.boolean().optional(),
+    maxDepth: z.number().optional(),
+    includeHidden: z.boolean().optional(),
+    includeFiles: z.boolean().optional(),
+    includeDirectories: z.boolean().optional(),
+    maxEntries: z.number().optional(),
+    searchPattern: z.string().optional()
+  })
+  .optional()
+
+export const IsNotEmptyDirIpcSchema = AbsolutePathSchema
 
 // ─── Version types ───
 
@@ -709,14 +796,275 @@ export class FileManager extends BaseService implements IFileManager {
       this.getPhysicalPath(GetPhysicalPathIpcSchema.parse(params).id)
     )
     this.ipcHandle(IpcChannel.File_PermanentDelete, async (_e, params: unknown) => {
-      const handle = PermanentDeleteIpcSchema.parse(params) as FileHandle
+      const handle = PermanentDeleteIpcSchema.parse(params)
       return dispatchHandle(
         handle,
         (entryId) => this.permanentDelete(entryId),
         (path) => fsRemove(path)
       )
     })
+    this.ipcHandle(IpcChannel.File_GetContentHash, async (_e, rawHandle: unknown) => {
+      const handle = GetContentHashIpcSchema.parse(rawHandle)
+      return dispatchHandle(
+        handle,
+        (id) => this.getContentHash(id),
+        (p) => hashByPath(this.deps, p)
+      )
+    })
+    this.ipcHandle(IpcChannel.File_Open, async (_e, rawHandle: unknown) => {
+      const handle = OpenIpcSchema.parse(rawHandle)
+      return dispatchHandle(
+        handle,
+        (id) => this.open(id),
+        (p) => internalShellOpen(p)
+      )
+    })
+    this.ipcHandle(IpcChannel.File_ShowInFolder, async (_e, rawHandle: unknown) => {
+      const handle = ShowInFolderIpcSchema.parse(rawHandle)
+      return dispatchHandle(
+        handle,
+        (id) => this.showInFolder(id),
+        (p) => internalShellShowInFolder(p)
+      )
+    })
+    this.ipcHandle(IpcChannel.File_GetMetadata, async (_e, rawHandle: unknown) => {
+      const handle = GetMetadataIpcSchema.parse(rawHandle)
+      return dispatchHandle(
+        handle,
+        (id) => this.getMetadata(id),
+        async (p) => {
+          const s = await fsStat(p)
+          if (s.isDirectory) {
+            return {
+              kind: 'directory',
+              size: s.size,
+              createdAt: s.createdAt || s.modifiedAt,
+              modifiedAt: s.modifiedAt
+            } as PhysicalFileMetadata
+          }
+          const ext = p.includes('.') ? p.slice(p.lastIndexOf('.') + 1) : null
+          const inferredMime = ext ? (mime.getType(ext) ?? 'application/octet-stream') : 'application/octet-stream'
+          return {
+            kind: 'file',
+            type: 'other',
+            size: s.size,
+            createdAt: s.createdAt || s.modifiedAt,
+            modifiedAt: s.modifiedAt,
+            mime: inferredMime
+          } as PhysicalFileMetadata
+        }
+      )
+    })
+    this.ipcHandle(IpcChannel.File_BatchGetMetadata, async (_e, params: unknown) => {
+      const { ids } = BatchGetMetadataIpcSchema.parse(params)
+      const results = await Promise.all(
+        ids.map(async (id) => {
+          try {
+            return [id, await this.getMetadata(id)] as const
+          } catch (err) {
+            fileManagerLogger.warn('batchGetMetadata item failed', { id, err })
+            return [id, null] as const
+          }
+        })
+      )
+      return Object.fromEntries(results) as Record<string, PhysicalFileMetadata | null>
+    })
+    this.ipcHandle(IpcChannel.File_GetVersion, async (_e, rawHandle: unknown) => {
+      const handle = GetVersionIpcSchema.parse(rawHandle)
+      return dispatchHandle(
+        handle,
+        (id) => this.getVersion(id),
+        async (p) => {
+          const s = await fsStat(p)
+          return { mtime: s.modifiedAt, size: s.size } as FileVersion
+        }
+      )
+    })
+    this.ipcHandle(IpcChannel.File_Read, async (_e, rawHandle: unknown, rawOptions: unknown) => {
+      const handle = FileHandleSchema.parse(rawHandle)
+      const options = ReadIpcOptionsSchema.parse(rawOptions)
+      return dispatchHandle(
+        handle,
+        (id) => this.read(id, options as { encoding?: 'text'; detectEncoding?: boolean }),
+        (p) => readByPath(this.deps, p, options)
+      )
+    })
+    this.ipcHandle(IpcChannel.File_Write, async (_e, rawHandle: unknown, rawData: unknown) => {
+      const handle = FileHandleSchema.parse(rawHandle)
+      const data = WriteDataIpcSchema.parse(rawData)
+      return dispatchHandle(
+        handle,
+        (id) => this.write(id, data),
+        async (p) => {
+          await atomicWriteFile(p, data)
+          const s = await fsStat(p)
+          return { mtime: s.modifiedAt, size: s.size } as FileVersion
+        }
+      )
+    })
+    this.ipcHandle(
+      IpcChannel.File_WriteIfUnchanged,
+      async (_e, rawHandle: unknown, rawData: unknown, rawVersion: unknown, rawHash: unknown) => {
+        const handle = FileHandleSchema.parse(rawHandle)
+        const data = WriteDataIpcSchema.parse(rawData)
+        const version = FileVersionIpcSchema.parse(rawVersion) as FileVersion
+        const contentHash = rawHash != null ? z.string().parse(rawHash) : undefined
+        return dispatchHandle(
+          handle,
+          (id) => this.writeIfUnchanged(id, data, version, contentHash),
+          async (p) => {
+            const out = await writeIfUnchangedByPath(this.deps, p, data, version, contentHash)
+            return { mtime: out.mtime, size: out.size } as FileVersion
+          }
+        )
+      }
+    )
+    this.ipcHandle(IpcChannel.File_Rename, async (_e, rawHandle: unknown, rawNewTarget: unknown) => {
+      const handle = FileHandleSchema.parse(rawHandle)
+      const newTarget = RenameNewTargetIpcSchema.parse(rawNewTarget)
+      if (handle.kind === 'entry') {
+        return this.rename(handle.entryId, newTarget)
+      }
+      await fsMove(handle.path, AbsolutePathSchema.parse(newTarget))
+      return undefined
+    })
+    this.ipcHandle(IpcChannel.File_Copy, async (_e, params: unknown) => {
+      const { source, newName } = CopyIpcSchema.parse(params)
+      const handle = source
+      return dispatchHandle(
+        handle,
+        (id) => this.copy({ id, newName }),
+        (p) => this.createInternalEntry({ source: 'path', path: p })
+      )
+    })
     this.ipcHandle(IpcChannel.File_RunSweep, async () => this.runSweep())
+    this.ipcHandle(IpcChannel.File_Trash, async (_e, params: unknown) => this.trash(TrashIpcSchema.parse(params).id))
+    this.ipcHandle(IpcChannel.File_Restore, async (_e, params: unknown) =>
+      this.restore(RestoreIpcSchema.parse(params).id)
+    )
+    this.ipcHandle(IpcChannel.File_BatchTrash, async (_e, params: unknown) =>
+      this.batchTrash(BatchIdsIpcSchema.parse(params).ids)
+    )
+    this.ipcHandle(IpcChannel.File_BatchRestore, async (_e, params: unknown) =>
+      this.batchRestore(BatchIdsIpcSchema.parse(params).ids)
+    )
+    this.ipcHandle(IpcChannel.File_BatchPermanentDelete, async (_e, params: unknown) =>
+      this.batchPermanentDelete(BatchIdsIpcSchema.parse(params).ids)
+    )
+    this.ipcHandle(IpcChannel.File_OpenSelectDialog, async (_e, options: unknown) => {
+      const opts = OpenSelectDialogIpcSchema.parse(options)
+      if (opts.directory) {
+        const { canceled, filePaths } = await dialog.showOpenDialog({
+          properties: ['openDirectory'],
+          title: opts.title
+        })
+        return canceled ? null : (filePaths[0] ?? null)
+      }
+      const properties: Electron.OpenDialogOptions['properties'] = ['openFile']
+      if (opts.multiple) properties.push('multiSelections')
+      const { canceled, filePaths } = await dialog.showOpenDialog({
+        properties,
+        filters: opts.filters,
+        title: opts.title
+      })
+      if (canceled) return opts.multiple ? [] : null
+      return opts.multiple ? filePaths : (filePaths[0] ?? null)
+    })
+    this.ipcHandle(IpcChannel.File_OpenSaveDialog, async (_e, options: unknown) => {
+      const { content, defaultPath, filters } = OpenSaveDialogIpcSchema.parse(options)
+      const { canceled, filePath } = await dialog.showSaveDialog({
+        defaultPath,
+        filters
+      })
+      if (canceled || !filePath) return null
+      await atomicWriteFile(filePath as FilePath, content)
+      return filePath
+    })
+    this.ipcHandle(IpcChannel.File_ListDirectory, async (_e, rawDirPath: unknown, rawOptions: unknown) => {
+      const dirPath = AbsolutePathSchema.parse(rawDirPath)
+      const options = DirectoryListOptionsIpcSchema.parse(rawOptions)
+      return listDirectory(dirPath, options)
+    })
+    this.ipcHandle(IpcChannel.File_IsNotEmptyDir, async (_e, params: unknown) =>
+      isNotEmptyDir(IsNotEmptyDirIpcSchema.parse(params))
+    )
+    this.ipcHandle(IpcChannel.File_BatchCreateInternalEntries, async (_e, params: unknown) => {
+      const items = BatchCreateInternalEntriesIpcSchema.parse(params) as CreateInternalEntryIpcParams[]
+      return this.batchCreateInternalEntries(items)
+    })
+    this.ipcHandle(IpcChannel.File_BatchEnsureExternalEntries, async (_e, params: unknown) => {
+      const items = BatchEnsureExternalEntriesIpcSchema.parse(params) as EnsureExternalEntryIpcParams[]
+      return this.batchEnsureExternalEntries(items)
+    })
+    this.ipcHandle(IpcChannel.File_BatchGetPhysicalPaths, async (_e, params: unknown) => {
+      const { ids } = BatchGetPhysicalPathsIpcSchema.parse(params)
+      const pairs = await Promise.all(
+        ids.map(async (id) => {
+          try {
+            return [id, await this.getPhysicalPath(id)] as const
+          } catch (err) {
+            fileManagerLogger.warn('batchGetPhysicalPaths item failed', { id, err })
+            return [id, null] as const
+          }
+        })
+      )
+      return Object.fromEntries(pairs) as Record<string, FilePath | null>
+    })
+    this.ipcHandle(IpcChannel.File_CanWrite, async (_e, params: unknown) => canWrite(CanWriteIpcSchema.parse(params)))
+    this.ipcHandle(IpcChannel.File_ToAbsolutePath, async (_e, params: unknown) => {
+      const raw = ToAbsolutePathIpcSchema.parse(params)
+      return path.resolve(untildify(raw))
+    })
+    this.ipcHandle(IpcChannel.File_IsPathInside, async (_e, params: unknown) => {
+      const { childPath, parentPath } = IsPathInsideIpcSchema.parse(params)
+      return isPathInside(childPath, parentPath)
+    })
+
+    // ─── Compile-time handler completeness check ───
+    // If a method is added to FileIpcApi but not listed here, TypeScript errors.
+    // This array is dead code — its sole purpose is type-level verification.
+    const _handledMethods = [
+      'openSelectDialog',
+      'openSaveDialog',
+      'createInternalEntry',
+      'ensureExternalEntry',
+      'batchCreateInternalEntries',
+      'batchEnsureExternalEntries',
+      'read',
+      'getMetadata',
+      'batchGetMetadata',
+      'getVersion',
+      'getContentHash',
+      'write',
+      'writeIfUnchanged',
+      'trash',
+      'restore',
+      'permanentDelete',
+      'batchTrash',
+      'batchRestore',
+      'batchPermanentDelete',
+      'rename',
+      'copy',
+      'open',
+      'showInFolder',
+      'listDirectory',
+      'isNotEmptyDir',
+      'getDanglingState',
+      'batchGetDanglingStates',
+      'getPhysicalPath',
+      'batchGetPhysicalPaths',
+      'runSweep',
+      'canWrite',
+      'toAbsolutePath',
+      'isPathInside'
+    ] as const satisfies readonly (keyof FileIpcApi)[]
+
+    // `tree.*` is a nested sub-contract owned by DirectoryTreeManager
+    // (`tree/DirectoryTreeManager.ts` registers the `File_Tree*` channels), not
+    // FileManager, so it is excluded from this completeness check.
+    type _AssertComplete = keyof Omit<FileIpcApi, 'tree'> extends (typeof _handledMethods)[number] ? true : never
+    const _check: _AssertComplete = true
+    void _handledMethods, _check
   }
 
   /**
@@ -1070,12 +1418,16 @@ export class FileManager extends BaseService implements IFileManager {
    * (microtask); cache-miss external entries run a single parallel `fs.stat`.
    */
   async batchGetDanglingStates(params: { ids: FileEntryId[] }): Promise<Record<FileEntryId, DanglingState>> {
-    const entries = await Promise.all(params.ids.map((id) => this.deps.fileEntryService.findById(id)))
     const pairs = await Promise.all(
-      entries.map(async (entry, index) => {
-        const id = params.ids[index]
-        const state: DanglingState = entry ? await this.deps.danglingCache.check(entry) : 'unknown'
-        return [id, state] as const
+      params.ids.map(async (id) => {
+        try {
+          const entry = await this.deps.fileEntryService.findById(id)
+          const state: DanglingState = entry ? await this.deps.danglingCache.check(entry) : 'unknown'
+          return [id, state] as const
+        } catch (err) {
+          fileManagerLogger.warn('batchGetDanglingStates item failed', { id, err })
+          return [id, 'unknown' as DanglingState] as const
+        }
       })
     )
     return Object.fromEntries(pairs) as Record<FileEntryId, DanglingState>

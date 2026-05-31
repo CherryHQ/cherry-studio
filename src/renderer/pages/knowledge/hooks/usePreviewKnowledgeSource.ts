@@ -46,7 +46,7 @@ export const usePreviewKnowledgeSource = () => {
           return
         }
 
-        await window.api.file.openPath(source)
+        await window.api.legacyFile.openPath(source)
       } catch (error) {
         const previewError = normalizeKnowledgeError(error)
 

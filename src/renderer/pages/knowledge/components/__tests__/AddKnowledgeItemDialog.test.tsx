@@ -220,7 +220,9 @@ describe('AddKnowledgeItemDialog', () => {
     mockGetPathForFile.mockImplementation((file: File) => `/external/${file.name}`)
     ;(window as any).api = {
       file: {
-        ensureExternalEntry: mockEnsureExternalEntry,
+        ensureExternalEntry: mockEnsureExternalEntry
+      },
+      legacyFile: {
         getPathForFile: mockGetPathForFile,
         selectFolder: mockSelectFolder
       }

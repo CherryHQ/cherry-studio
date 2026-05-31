@@ -102,7 +102,7 @@ const FilesPage: FC = () => {
     return {
       key: file.id,
       file: (
-        <span onClick={() => window.api.file.openPath(FileManager.getFilePath(file))}>
+        <span onClick={() => window.api.legacyFile.openPath(FileManager.getFilePath(file))}>
           {FileManager.formatFileName(file)}
         </span>
       ),

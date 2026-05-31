@@ -139,7 +139,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
       EventEmitter.on(EVENT_NAMES.EXPORT_TOPIC_IMAGE, async () => {
         const imageData = await captureScrollableAsDataURL(scrollContainerRef)
         if (imageData) {
-          void window.api.file.saveImage(removeSpecialCharactersForFileName(topic.name), imageData)
+          void window.api.legacyFile.saveImage(removeSpecialCharactersForFileName(topic.name), imageData)
         }
       }),
       EventEmitter.on(EVENT_NAMES.NEW_CONTEXT, async () => {

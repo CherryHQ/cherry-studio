@@ -351,7 +351,7 @@ const CodeCliPage: FC = () => {
 
   const handleSetCustomPath = async (terminalId: string) => {
     try {
-      const result = await window.api.file.select({
+      const result = await window.api.legacyFile.select({
         properties: ['openFile'],
         filters: [
           { name: 'Executable', extensions: ['exe'] },

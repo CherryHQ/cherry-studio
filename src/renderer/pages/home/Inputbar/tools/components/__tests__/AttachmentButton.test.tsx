@@ -171,8 +171,10 @@ describe('AttachmentButton', () => {
       configurable: true,
       value: {
         file: {
+          getPhysicalPath: mockGetPhysicalPath
+        },
+        legacyFile: {
           get: mockFileGet,
-          getPhysicalPath: mockGetPhysicalPath,
           select: vi.fn()
         }
       }
