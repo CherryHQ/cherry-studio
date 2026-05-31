@@ -432,21 +432,22 @@ export function isClaude46SeriesModel(model: Model | undefined | null): boolean 
 }
 
 /**
- * Check if the model is Claude Opus 4.7 or later (4.7, 4.8, ...).
- * Starting with Opus 4.7, Anthropic switched to adaptive thinking with an output
- * effort config: these models reject temperature/top_p/top_k, natively support the
- * 'xhigh' reasoning effort, and reject `thinking.type: 'enabled'` (must use
- * `thinking.type: 'adaptive'` + effort). This is treated as a long-term Anthropic
- * direction, so the matcher covers the whole 4.7+ minor-version range rather than a
- * single hardcoded version.
+ * Check if the model is Claude 4.7 or later (4.7, 4.8, ...), across any tier
+ * (Opus, Sonnet, Haiku, or a future tier name). Starting with 4.7, Anthropic switched
+ * to adaptive thinking with an output effort config: these models reject
+ * temperature/top_p/top_k, natively support the 'xhigh' reasoning effort, and reject
+ * `thinking.type: 'enabled'` (must use `thinking.type: 'adaptive'` + effort). This is a
+ * version-driven, long-term Anthropic direction rather than a per-tier trait, so the
+ * matcher is intentionally tier-agnostic: pinning it to specific tier names would let a
+ * future tier at 4.7+ silently fall back to the rejected `enabled` path.
  */
-export function isClaudeOpus47PlusModel(model: Model | undefined | null): boolean {
+export function isClaude47PlusModel(model: Model | undefined | null): boolean {
   if (!model) {
     return false
   }
   const modelId = getLowerBaseModelName(model.id, '/')
-  // Matches Opus minor version >= 7: single digit 7-9, or any two-or-more digit
-  // minor (10, 11, ...). Excludes 4.6 and below.
-  const regex = /(?:anthropic\.)?claude-opus-4[.-](?:[7-9]|\d{2,})(?:[@\-:][\w\-:]+)?$/i
+  // Matches any tier at minor version >= 7: single digit 7-9, or any two-or-more
+  // digit minor (10, 11, ...). Excludes 4.6 and below.
+  const regex = /(?:anthropic\.)?claude-[a-z]+-4[.-](?:[7-9]|\d{2,})(?:[@\-:][\w\-:]+)?$/i
   return regex.test(modelId)
 }

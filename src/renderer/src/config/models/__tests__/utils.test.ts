@@ -10,7 +10,7 @@ import {
   groupQwenModels,
   isAnthropicModel,
   isClaude46SeriesModel,
-  isClaudeOpus47PlusModel,
+  isClaude47PlusModel,
   isDeepSeekModel,
   isGemini3FlashModel,
   isGemini3Model,
@@ -789,52 +789,64 @@ describe('model utils', () => {
     })
   })
 
-  describe('Claude 4.7 Models Detection', () => {
-    describe('isClaudeOpus47PlusModel', () => {
+  describe('Claude 4.7+ Models Detection', () => {
+    describe('isClaude47PlusModel', () => {
       it('detects Opus 4.7 in direct API format', () => {
-        expect(isClaudeOpus47PlusModel(createModel({ id: 'claude-opus-4-7' }))).toBe(true)
-        expect(isClaudeOpus47PlusModel(createModel({ id: 'claude-opus-4.7' }))).toBe(true)
+        expect(isClaude47PlusModel(createModel({ id: 'claude-opus-4-7' }))).toBe(true)
+        expect(isClaude47PlusModel(createModel({ id: 'claude-opus-4.7' }))).toBe(true)
       })
 
       it('detects Opus 4.7 with version suffixes', () => {
-        expect(isClaudeOpus47PlusModel(createModel({ id: 'claude-opus-4-7-20260401' }))).toBe(true)
-        expect(isClaudeOpus47PlusModel(createModel({ id: 'claude-opus-4-7-preview' }))).toBe(true)
+        expect(isClaude47PlusModel(createModel({ id: 'claude-opus-4-7-20260401' }))).toBe(true)
+        expect(isClaude47PlusModel(createModel({ id: 'claude-opus-4-7-preview' }))).toBe(true)
       })
 
       it('detects Opus 4.7 in AWS Bedrock format', () => {
-        expect(isClaudeOpus47PlusModel(createModel({ id: 'anthropic.claude-opus-4-7-v1' }))).toBe(true)
-        expect(isClaudeOpus47PlusModel(createModel({ id: 'anthropic.claude-opus-4-7-v2:0' }))).toBe(true)
+        expect(isClaude47PlusModel(createModel({ id: 'anthropic.claude-opus-4-7-v1' }))).toBe(true)
+        expect(isClaude47PlusModel(createModel({ id: 'anthropic.claude-opus-4-7-v2:0' }))).toBe(true)
       })
 
       it('detects Opus 4.7 with provider prefix', () => {
-        expect(isClaudeOpus47PlusModel(createModel({ id: 'anthropic/claude-opus-4-7' }))).toBe(true)
+        expect(isClaude47PlusModel(createModel({ id: 'anthropic/claude-opus-4-7' }))).toBe(true)
       })
 
       it('detects Opus 4.8 and later minor versions', () => {
-        expect(isClaudeOpus47PlusModel(createModel({ id: 'claude-opus-4-8' }))).toBe(true)
-        expect(isClaudeOpus47PlusModel(createModel({ id: 'claude-opus-4.8' }))).toBe(true)
-        expect(isClaudeOpus47PlusModel(createModel({ id: 'claude-opus-4-9' }))).toBe(true)
-        expect(isClaudeOpus47PlusModel(createModel({ id: 'claude-opus-4-10' }))).toBe(true)
-        expect(isClaudeOpus47PlusModel(createModel({ id: 'anthropic.claude-opus-4-8-v1' }))).toBe(true)
-        expect(isClaudeOpus47PlusModel(createModel({ id: 'anthropic/claude-opus-4-8' }))).toBe(true)
-        expect(isClaudeOpus47PlusModel(createModel({ id: 'claude-opus-4-8-20260601' }))).toBe(true)
+        expect(isClaude47PlusModel(createModel({ id: 'claude-opus-4-8' }))).toBe(true)
+        expect(isClaude47PlusModel(createModel({ id: 'claude-opus-4.8' }))).toBe(true)
+        expect(isClaude47PlusModel(createModel({ id: 'claude-opus-4-9' }))).toBe(true)
+        expect(isClaude47PlusModel(createModel({ id: 'claude-opus-4-10' }))).toBe(true)
+        expect(isClaude47PlusModel(createModel({ id: 'anthropic.claude-opus-4-8-v1' }))).toBe(true)
+        expect(isClaude47PlusModel(createModel({ id: 'anthropic/claude-opus-4-8' }))).toBe(true)
+        expect(isClaude47PlusModel(createModel({ id: 'claude-opus-4-8-20260601' }))).toBe(true)
       })
 
       it('handles case insensitivity', () => {
-        expect(isClaudeOpus47PlusModel(createModel({ id: 'CLAUDE-OPUS-4-7' }))).toBe(true)
-        expect(isClaudeOpus47PlusModel(createModel({ id: 'Claude-Opus-4.7' }))).toBe(true)
+        expect(isClaude47PlusModel(createModel({ id: 'CLAUDE-OPUS-4-7' }))).toBe(true)
+        expect(isClaude47PlusModel(createModel({ id: 'Claude-Opus-4.7' }))).toBe(true)
+      })
+
+      it('detects non-Opus tiers (Sonnet, Haiku) at 4.7+', () => {
+        expect(isClaude47PlusModel(createModel({ id: 'claude-sonnet-4-7' }))).toBe(true)
+        expect(isClaude47PlusModel(createModel({ id: 'claude-haiku-4-7' }))).toBe(true)
+        expect(isClaude47PlusModel(createModel({ id: 'claude-sonnet-4-8' }))).toBe(true)
+        expect(isClaude47PlusModel(createModel({ id: 'anthropic.claude-haiku-4-8-v1' }))).toBe(true)
+      })
+
+      it('is tier-agnostic: detects a hypothetical future tier at 4.7+', () => {
+        expect(isClaude47PlusModel(createModel({ id: 'claude-neo-4-7' }))).toBe(true)
+        expect(isClaude47PlusModel(createModel({ id: 'anthropic/claude-neo-4-8' }))).toBe(true)
       })
 
       it('returns false for other Claude models', () => {
-        expect(isClaudeOpus47PlusModel(createModel({ id: 'claude-opus-4-6' }))).toBe(false)
-        expect(isClaudeOpus47PlusModel(createModel({ id: 'claude-opus-4-5' }))).toBe(false)
-        expect(isClaudeOpus47PlusModel(createModel({ id: 'claude-sonnet-4-7' }))).toBe(false)
-        expect(isClaudeOpus47PlusModel(createModel({ id: 'claude-haiku-4-7' }))).toBe(false)
+        expect(isClaude47PlusModel(createModel({ id: 'claude-opus-4-6' }))).toBe(false)
+        expect(isClaude47PlusModel(createModel({ id: 'claude-opus-4-5' }))).toBe(false)
+        expect(isClaude47PlusModel(createModel({ id: 'claude-sonnet-4-6' }))).toBe(false)
+        expect(isClaude47PlusModel(createModel({ id: 'claude-haiku-4-5' }))).toBe(false)
       })
 
       it('returns false for undefined and null', () => {
-        expect(isClaudeOpus47PlusModel(undefined as unknown as Model)).toBe(false)
-        expect(isClaudeOpus47PlusModel(null as unknown as Model)).toBe(false)
+        expect(isClaude47PlusModel(undefined as unknown as Model)).toBe(false)
+        expect(isClaude47PlusModel(null as unknown as Model)).toBe(false)
       })
     })
   })

@@ -11,7 +11,7 @@ import {
   GEMINI_FLASH_MODEL_REGEX,
   getModelSupportedReasoningEffortOptions,
   isClaude46SeriesModel,
-  isClaudeOpus47PlusModel,
+  isClaude47PlusModel,
   isDeepSeekHybridInferenceModel,
   isDeepSeekV4PlusModel,
   isDoubaoSeed18Model,
@@ -729,10 +729,10 @@ export function getAnthropicReasoningParams(
 
   // Claude reasoning parameters
   if (isSupportedThinkingTokenClaudeModel(model)) {
-    // Claude Opus 4.7+: adaptive thinking + native 'xhigh' effort.
+    // Claude 4.7+: adaptive thinking + native 'xhigh' effort.
     // Also requires thinking.display: 'summarized' — API defaults to 'omitted'
     // (no reasoning text in response), which would break Cherry's thinking UI.
-    if (isClaudeOpus47PlusModel(model)) {
+    if (isClaude47PlusModel(model)) {
       const effort47Map = {
         default: undefined,
         auto: undefined,
@@ -1008,7 +1008,7 @@ export function getBedrockReasoningParams(
   // Claude 4.6 / 4.7 use adaptive thinking + maxReasoningEffort.
   // Bedrock's maxReasoningEffort enum doesn't yet include 'xhigh', so 4.7 xhigh
   // falls back to 'max' here (matches the 4.6 mapping).
-  if (isClaude46SeriesModel(model) || isClaudeOpus47PlusModel(model)) {
+  if (isClaude46SeriesModel(model) || isClaude47PlusModel(model)) {
     const effortMap = {
       auto: undefined,
       minimal: 'low',
