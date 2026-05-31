@@ -1,4 +1,3 @@
-import { Icon } from '@iconify/react'
 import CodeViewer from '@renderer/components/CodeViewer'
 import ListItem from '@renderer/components/ListItem'
 import RichEditor from '@renderer/components/RichEditor'
@@ -6,6 +5,9 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useInstalledSkills, useSkillInstall, useSkillSearch } from '@renderer/hooks/useSkills'
 import { getFileIconName } from '@renderer/utils/fileIconName'
 import type { InstalledSkill, SkillFileNode, SkillSearchResult, SkillSearchSource } from '@types'
+
+import { FileTreeNode } from './FileTreeNode'
+import { SearchResultRow } from './SearchResultRow'
 import {
   Button,
   Checkbox,
@@ -43,8 +45,6 @@ const { Dragger } = Upload
 const TITLE_STYLE = { fontWeight: 500 } as const
 const SEARCH_SOURCES: SkillSearchSource[] = ['claude-plugins.dev', 'skills.sh', 'clawhub.ai']
 const MARKDOWN_EXTENSIONS = new Set(['.md', '.mdx', '.markdown'])
-const ICON_STYLE_16 = { fontSize: 16, flexShrink: 0 } as const
-const SPACER_STYLE = { width: 12, flexShrink: 0 } as const
 const FLEX_1_STYLE = { flex: 1 } as const
 const SKILL_NAME_STYLE = {
   fontSize: 13,
@@ -57,12 +57,9 @@ const FONT_13_STYLE = { fontSize: 13 } as const
 const SEARCH_PREFIX_STYLE = { opacity: 0.4 } as const
 const EMPTY_ICON_STYLE = { opacity: 0.3 } as const
 const CLOSE_ICON_STYLE = { cursor: 'pointer', opacity: 0.5 } as const
-const INSTALL_BTN_STYLE = { fontSize: 11, height: 22 } as const
 const DROP_ICON_STYLE = { opacity: 0.2 } as const
 const NO_EVENTS_STYLE = { pointerEvents: 'none' } as const
 const NO_PADDING_STYLE = { padding: 0 } as const
-const CHEVRON_EXPANDED = { transform: 'rotate(90deg)', transition: 'transform 0.15s', flexShrink: 0 } as const
-const CHEVRON_COLLAPSED = { transform: 'none', transition: 'transform 0.15s', flexShrink: 0 } as const
 
 const LANG_MAP: Record<string, string> = {
   ts: 'typescript',
@@ -104,110 +101,6 @@ function getFileIcon(filename: string): string {
 function getFolderIcon(isOpen: boolean): string {
   return isOpen ? 'material-icon-theme:folder-open' : 'material-icon-theme:folder'
 }
-
-// ─── FileTreeNode (extracted from inline renderFileTree) ─────
-
-const FileTreeNode: FC<{
-  node: SkillFileNode
-  depth: number
-  expandedDirs: Set<string>
-  selectedFile: string | null
-  onToggleDir: (path: string) => void
-  onSelectFile: (path: string) => void
-}> = memo(({ node, depth, expandedDirs, selectedFile, onToggleDir, onSelectFile }) => {
-  if (node.type === 'directory') {
-    const isExpanded = expandedDirs.has(node.path)
-    return (
-      <div>
-        <FileTreeItem $depth={depth} $active={false} onClick={() => onToggleDir(node.path)} title={node.name}>
-          <ChevronRight size={12} style={isExpanded ? CHEVRON_EXPANDED : CHEVRON_COLLAPSED} />
-          <Icon icon={getFolderIcon(isExpanded)} style={ICON_STYLE_16} />
-          <FileTreeName>{node.name}</FileTreeName>
-        </FileTreeItem>
-        {isExpanded &&
-          node.children?.map((child) => (
-            <FileTreeNode
-              key={child.path}
-              node={child}
-              depth={depth + 1}
-              expandedDirs={expandedDirs}
-              selectedFile={selectedFile}
-              onToggleDir={onToggleDir}
-              onSelectFile={onSelectFile}
-            />
-          ))}
-      </div>
-    )
-  }
-
-  const isActive = selectedFile === node.path
-  return (
-    <FileTreeItem
-      key={node.path}
-      $depth={depth}
-      $active={isActive}
-      onClick={() => onSelectFile(node.path)}
-      title={node.name}>
-      <span style={SPACER_STYLE} />
-      <Icon icon={getFileIcon(node.name)} style={ICON_STYLE_16} />
-      <FileTreeName>{node.name}</FileTreeName>
-    </FileTreeItem>
-  )
-})
-
-FileTreeNode.displayName = 'FileTreeNode'
-
-// ─── SearchResultRow (extracted for memo) ────────────────────
-
-const SearchResultRow: FC<{
-  result: SkillSearchResult
-  isInstalling: (source?: string) => boolean
-  onInstall: (result: SkillSearchResult) => void
-  onPreview: (result: SkillSearchResult) => void
-  installLabel: string
-}> = memo(({ result, isInstalling, onInstall, onPreview, installLabel }) => (
-  <SearchResultItem>
-    <ResultInfo onClick={() => onPreview(result)}>
-      <ResultName>{result.name}</ResultName>
-      <ResultMeta>
-        {result.stars > 0 ? (
-          <MetaBadge>
-            <Star size={10} /> {result.stars}
-          </MetaBadge>
-        ) : null}
-        {result.downloads > 0 ? (
-          <MetaBadge>
-            <Download size={10} /> {result.downloads}
-          </MetaBadge>
-        ) : null}
-      </ResultMeta>
-    </ResultInfo>
-    <ResultActions>
-      {result.sourceUrl ? (
-        <Tooltip title={result.sourceRegistry}>
-          <ExternalLinkButton
-            onClick={(e) => {
-              e.stopPropagation()
-              window.open(result.sourceUrl!)
-            }}>
-            <ExternalLink size={12} />
-          </ExternalLinkButton>
-        </Tooltip>
-      ) : null}
-      <Button
-        type="primary"
-        size="small"
-        icon={<Download size={12} />}
-        loading={isInstalling(result.installSource)}
-        onClick={() => onInstall(result)}
-        style={INSTALL_BTN_STYLE}>
-        {installLabel}
-      </Button>
-    </ResultActions>
-  </SearchResultItem>
-))
-
-SearchResultRow.displayName = 'SearchResultRow'
 
 // ─── Main Component ──────────────────────────────────────────
 
@@ -982,68 +875,6 @@ const DropdownEmpty = styled.div`
   font-size: 12px;
 `
 
-const SearchResultItem = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  gap: 8px;
-  &:hover {
-    background: var(--color-background-soft);
-  }
-  & + & {
-    border-top: 0.5px solid var(--color-border);
-  }
-`
-
-const ResultActions = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-`
-
-const ExternalLinkButton = styled.div`
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  color: var(--color-text-3);
-  &:hover {
-    color: var(--color-text);
-    background: var(--color-background-soft);
-  }
-`
-
-const ResultInfo = styled.div`
-  flex: 1;
-  min-width: 0;
-  cursor: pointer;
-`
-
-const ResultName = styled.div`
-  font-size: 13px;
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-`
-
-const ResultMeta = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 2px;
-`
-
-const MetaBadge = styled.span`
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  font-size: 11px;
-  color: var(--color-text-3);
-`
 
 const ContentArea = styled.div`
   flex: 1;
@@ -1135,29 +966,6 @@ const FileTreeContainer = styled.div`
   overflow-y: auto;
 `
 
-const FileTreeItem = styled.div<{ $depth: number; $active: boolean }>`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  padding-left: ${(p) => 8 + p.$depth * 16}px;
-  border-radius: 6px;
-  font-size: 12px;
-  cursor: pointer;
-  color: ${(p) => (p.$active ? 'var(--color-text)' : 'var(--color-text-2)')};
-  background: ${(p) => (p.$active ? 'var(--color-background-soft)' : 'transparent')};
-
-  &:hover {
-    background: var(--color-background-soft);
-  }
-`
-
-const FileTreeName = styled.span`
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-`
 
 // ─── Content Viewers ────────────────────────────────────────
 
