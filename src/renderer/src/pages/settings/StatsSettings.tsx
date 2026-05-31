@@ -1,22 +1,9 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
 import type { DailyUsage, ModelStats, TopicStats } from '@renderer/utils/topicStats'
-import { computeGlobalStatsFromDB, invalidateGlobalStatsCache } from '@renderer/utils/topicStats'
+import { computeGlobalStatsFromDB } from '@renderer/utils/topicStats'
 import { Select } from 'antd'
-import {
-  BarChart3,
-  Bot,
-  Clock,
-  Cpu,
-  FileText,
-  Gauge,
-  Hash,
-  Loader,
-  MessageSquare,
-  RefreshCw,
-  Type,
-  Zap
-} from 'lucide-react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { BarChart3, Bot, Clock, Cpu, FileText, Gauge, Loader, MessageSquare, Type, Zap } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -120,7 +107,7 @@ const MFill = styled.div<{
 }>` height: 100%; width: ${(p) => p.$w}%; background: ${(p) => p.$c}; border-radius: 4px; transition: width 0.5s ease; `
 const MMeta = styled.div` display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 4px 12px; font-size: 11px; color: var(--color-text-secondary, #888); font-variant-numeric: tabular-nums; `
 const MFilter = styled.div` display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; `
-const MSearch = styled.input` background: var(--color-background-soft); border: 0.5px solid var(--color-border); border-radius: 6px; padding: 4px 10px; font-size: 13px; color: var(--color-text); outline: none; min-width: 160px; &::placeholder{color:var(--color-text-secondary, #888)} &:focus{border-color:#6366f1} `
+const MSearch = styled.input` background: var(--color-background-soft); border: 0.5px solid var(--color-border); border-radius: 6px; padding: 0 8px; font-size: 13px; color: var(--color-text); outline: none; min-width: 160px; height: 24px; line-height: 24px; box-sizing: border-box; &::placeholder{color:var(--color-text-secondary, #888)} &:focus{border-color:#6366f1} `
 
 // ─── Heatmap ────────────────────────────────────────────────────────────────
 
@@ -389,7 +376,7 @@ function StatsDisplay({ stats }: { stats: TopicStats }) {
       <SettingGroup>
         <SettingTitle>
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Hash size={15} />
+            <MessageSquare size={15} />
             {t('stats.conversation_info')}
           </span>
         </SettingTitle>
@@ -414,16 +401,6 @@ function StatsDisplay({ stats }: { stats: TopicStats }) {
           </SettingRowTitle>
           <strong style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
             {fmtTokens(stats.totalTokens)}
-          </strong>
-        </SettingRow>
-        <SettingDivider />
-        <SettingRow>
-          <SettingRowTitle>
-            <Zap size={13} style={{ marginRight: 6 }} />
-            {t('stats.avg_first_token')}
-          </SettingRowTitle>
-          <strong style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-            {fmtLatency(stats.avgFirstTokenLatency)}
           </strong>
         </SettingRow>
         <SettingDivider />
@@ -467,6 +444,16 @@ function StatsDisplay({ stats }: { stats: TopicStats }) {
               {t('stats.performance')}
             </span>
           </SettingTitle>
+          <SettingDivider />
+          <SettingRow>
+            <SettingRowTitle>
+              <Zap size={13} style={{ marginRight: 6 }} />
+              {t('stats.avg_first_token')}
+            </SettingRowTitle>
+            <strong style={{ fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+              {fmtLatency(stats.avgFirstTokenLatency)}
+            </strong>
+          </SettingRow>
           <SettingDivider />
           <SettingRow>
             <SettingRowTitle>
@@ -572,17 +559,18 @@ const StatsSettings: React.FC = () => {
   const [stats, setStats] = useState<TopicStats | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const load = useCallback(async (force?: boolean) => {
-    if (force) invalidateGlobalStatsCache()
-    setLoading(true)
-    const r = await computeGlobalStatsFromDB()
-    setStats(r)
-    setLoading(false)
-  }, [])
-
   useEffect(() => {
-    void load()
-  }, [load])
+    let c = false
+    void computeGlobalStatsFromDB().then((r) => {
+      if (!c) {
+        setStats(r)
+        setLoading(false)
+      }
+    })
+    return () => {
+      c = true
+    }
+  }, [])
 
   if (stats === null && loading) {
     return (
@@ -611,25 +599,7 @@ const StatsSettings: React.FC = () => {
           {t('stats.no_data')}
         </div>
       ) : (
-        <>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-            <span
-              onClick={() => load(true)}
-              style={{
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 4,
-                fontSize: 12,
-                color: 'var(--color-text-secondary, #888)',
-                userSelect: 'none'
-              }}>
-              <RefreshCw size={12} />
-              {t('stats.refresh') || 'Refresh'}
-            </span>
-          </div>
-          <StatsDisplay stats={stats} />
-        </>
+        <StatsDisplay stats={stats} />
       )}
     </SettingContainer>
   )

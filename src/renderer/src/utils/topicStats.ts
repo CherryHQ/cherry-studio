@@ -393,7 +393,7 @@ export function computeTopicStats(messages: Message[], blocksMap?: Map<string, M
 // ─── Cache ──────────────────────────────────────────────────────────────────
 
 let _globalCache: { stats: TopicStats; ts: number } | null = null
-const CACHE_TTL = 30_000 // 30s — short enough to feel fresh, long enough to avoid spinner
+const CACHE_TTL = 300_000 // 5min — avoids reload on tab switch, still fresh enough
 
 /**
  * Load messages + blocks for a specific topic from the database and compute stats.
