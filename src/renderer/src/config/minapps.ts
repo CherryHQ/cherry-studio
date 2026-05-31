@@ -97,7 +97,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'ChatGPT',
     url: 'https://chatgpt.com/',
     logo: OpenAiProviderLogo,
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN', 'Global']
   },
   {
@@ -105,7 +105,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Gemini',
     url: 'https://gemini.google.com/',
     logo: GeminiAppLogo,
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN', 'Global']
   },
   {
@@ -128,7 +128,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     nameKey: 'minapps.wanzhi',
     url: 'https://www.wanzhi.com/',
     logo: WanZhiAppLogo,
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN']
   },
   {
@@ -137,7 +137,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     nameKey: 'minapps.chatglm',
     url: 'https://chatglm.cn/main/alltoolsdetail',
     logo: ZhipuProviderLogo,
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN']
   },
   {
@@ -169,7 +169,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     nameKey: 'minapps.stepfun',
     url: 'https://stepfun.com',
     logo: StepfunAppLogo,
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN']
   },
   {
@@ -193,7 +193,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     nameKey: 'minapps.hailuo',
     url: 'https://hailuoai.com/',
     logo: HailuoModelLogo,
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN']
   },
   {
@@ -202,7 +202,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     nameKey: 'minapps.minimax-agent',
     url: 'https://agent.minimaxi.com/',
     logo: MinimaxAgentLogo,
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN']
   },
   {
@@ -211,7 +211,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     nameKey: 'minapps.minimax-global',
     url: 'https://agent.minimax.io/',
     logo: MinimaxAgentLogo,
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN', 'Global']
   },
   {
@@ -220,7 +220,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     nameKey: 'minapps.ima',
     url: 'https://ima.qq.com/',
     logo: ImaAppLogo,
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN']
   },
   {
@@ -242,7 +242,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Google',
     url: 'https://google.com/',
     logo: GoogleAppLogo,
-    bodered: true,
+    bordered: true,
     style: {
       padding: 5
     },
@@ -262,7 +262,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     nameKey: 'minapps.baidu-ai-search',
     logo: BaiduAiSearchLogo,
     url: 'https://chat.baidu.com/',
-    bodered: true,
+    bordered: true,
     style: {
       padding: 5
     },
@@ -274,7 +274,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     nameKey: 'minapps.tencent-yuanbao',
     logo: TencentYuanbaoAppLogo,
     url: 'https://yuanbao.tencent.com/chat',
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN', 'Global']
   },
   {
@@ -283,7 +283,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     nameKey: 'minapps.sensechat',
     logo: SensetimeAppLogo,
     url: 'https://chat.sensetime.com/wb/chat',
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN']
   },
   {
@@ -328,7 +328,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     nameKey: 'minapps.tiangong-ai',
     logo: TiangongAiLogo,
     url: 'https://www.tiangong.cn/',
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN']
   },
   {
@@ -336,7 +336,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Felo',
     logo: FeloAppLogo,
     url: 'https://felo.ai/',
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN', 'Global']
   },
   {
@@ -351,7 +351,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'bolt',
     logo: BoltAppLogo,
     url: 'https://bolt.new/',
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN', 'Global']
   },
   {
@@ -360,7 +360,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     nameKey: 'minapps.nami-ai',
     logo: NamiAiLogo,
     url: 'https://bot.n.cn/',
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN']
   },
   {
@@ -368,7 +368,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'ThinkAny',
     logo: ThinkAnyLogo,
     url: 'https://thinkany.ai/',
-    bodered: true,
+    bordered: true,
     style: {
       padding: 5
     },
@@ -393,7 +393,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Grok',
     logo: GrokAppLogo,
     url: 'https://grok.com',
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN', 'Global']
   },
   {
@@ -401,7 +401,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Grok / X',
     logo: GrokXAppLogo,
     url: 'https://x.com/i/grok',
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN', 'Global']
   },
   {
@@ -416,7 +416,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Flowith',
     logo: FlowithAppLogo,
     url: 'https://www.flowith.io/',
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN', 'Global']
   },
   {
@@ -440,7 +440,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     nameKey: 'minapps.xiaoyi',
     logo: XiaoYiAppLogo,
     url: 'https://xiaoyi.huawei.com/chat/',
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN']
   },
   {
@@ -455,7 +455,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Coze',
     logo: CozeAppLogo,
     url: 'https://www.coze.com/space',
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN', 'Global']
   },
   {
@@ -463,7 +463,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Dify',
     logo: DifyAppLogo,
     url: 'https://cloud.dify.ai/apps',
-    bodered: true,
+    bordered: true,
     style: {
       padding: 5
     },
@@ -475,7 +475,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     nameKey: 'minapps.wps-copilot',
     logo: WPSLingXiLogo,
     url: 'https://copilot.wps.cn/',
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN']
   },
   {
@@ -483,7 +483,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'LeChat',
     logo: LeChatLogo,
     url: 'https://chat.mistral.ai/chat',
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN', 'Global']
   },
   {
@@ -491,7 +491,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Abacus',
     logo: AbacusLogo,
     url: 'https://apps.abacus.ai/chatllm',
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN', 'Global']
   },
   {
@@ -499,7 +499,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Lambda Chat',
     logo: LambdaChatLogo,
     url: 'https://lambda.chat/',
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN', 'Global']
   },
   {
@@ -507,7 +507,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'Monica',
     logo: MonicaLogo,
     url: 'https://monica.im/home/',
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN', 'Global']
   },
   {
@@ -523,7 +523,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     nameKey: 'minapps.zhihu',
     logo: ZhihuAppLogo,
     url: 'https://zhida.zhihu.com/',
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN']
   },
   {
@@ -532,7 +532,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     nameKey: 'minapps.dangbei',
     logo: DangbeiLogo,
     url: 'https://ai.dangbei.com/',
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN', 'Global']
   },
   {
@@ -540,7 +540,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: `Z.ai`,
     logo: ZaiAppLogo,
     url: `https://chat.z.ai/`,
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN', 'Global']
   },
   {
@@ -548,7 +548,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'n8n',
     logo: n8nLogo,
     url: 'https://app.n8n.cloud/',
-    bodered: true,
+    bordered: true,
     style: {
       padding: 5
     },
@@ -559,7 +559,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'LongCat',
     logo: LongCatAppLogo,
     url: 'https://longcat.chat/',
-    bodered: true,
+    bordered: true,
     supportedRegions: ['CN', 'Global']
   },
   {
@@ -568,7 +568,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     nameKey: 'minapps.ant-ling',
     url: 'https://ling.tbox.cn/chat',
     logo: LingAppLogo,
-    bodered: true,
+    bordered: true,
     style: {
       padding: 6
     },
@@ -579,7 +579,7 @@ const ORIGIN_DEFAULT_MIN_APPS: MinAppType[] = [
     name: 'HuggingChat',
     url: 'https://huggingface.co/chat/',
     logo: HuggingChatLogo,
-    bodered: true,
+    bordered: true,
     style: {
       padding: 6
     },
