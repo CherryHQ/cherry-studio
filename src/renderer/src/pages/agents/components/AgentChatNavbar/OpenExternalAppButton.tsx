@@ -6,6 +6,7 @@ import type { ExternalAppInfo } from '@shared/externalApp/types'
 import { Button, Dropdown, type MenuProps, Space, Tooltip } from 'antd'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import styled from 'styled-components'
 
 const logger = loggerService.withContext('OpenExternalAppButton')
 
@@ -72,15 +73,30 @@ const OpenExternalAppButton = ({ workdir, className }: OpenExternalAppButtonProp
   }
 
   return (
-    <Space.Compact className={className}>
+    <ExternalAppButtonGroup className={className}>
       <Tooltip title={t('common.open_in', { name: selectedEditor.name })} mouseEnterDelay={0.5}>
         <Button onClick={() => openInEditor(selectedEditor)} icon={getEditorIcon(selectedEditor)} />
       </Tooltip>
       <Dropdown menu={menuProps} placement="bottomRight">
         <Button icon={<DownOutlined />} />
       </Dropdown>
-    </Space.Compact>
+    </ExternalAppButtonGroup>
   )
 }
+
+const ExternalAppButtonGroup = styled(Space.Compact)`
+  .ant-btn {
+    border-color: var(--color-border) !important;
+  }
+
+  .ant-btn-compact-first-item {
+    border-inline-end-width: 0 !important;
+  }
+
+  .ant-btn-compact-item:not(.ant-btn-compact-first-item) {
+    margin-inline-start: 0 !important;
+    border-inline-start-width: 0 !important;
+  }
+`
 
 export default OpenExternalAppButton

@@ -161,7 +161,7 @@ const RichEditorContainer = styled.div`
     flex: 1;
     background: transparent;
 
-    .rich-editor-wrapper {
+    &.rich-editor-wrapper {
       height: 100%;
       display: flex;
       flex-direction: column;

@@ -6,6 +6,7 @@ export const DEFAULT_KNOWLEDGE_DOCUMENT_COUNT = 6
 export const DEFAULT_KNOWLEDGE_THRESHOLD = 0.0
 export const DEFAULT_WEBSEARCH_RAG_DOCUMENT_COUNT = 1
 export const DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE = true
+export const LATEST_PRIVACY_POLICY_VERSION = '20260531'
 
 // Max tool calls validation constants
 export const MIN_TOOL_CALLS = 1

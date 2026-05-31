@@ -11,7 +11,7 @@ import type { MCPProgressEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Collapse, ConfigProvider, Flex, Progress, Tooltip } from 'antd'
 import { message } from 'antd'
-import { Check, ChevronRight, ShieldCheck } from 'lucide-react'
+import { Check, ChevronRight, ShieldCheck, Wrench } from 'lucide-react'
 import { parse as parsePartialJson } from 'partial-json'
 import type { FC } from 'react'
 import { memo, useEffect, useMemo, useState } from 'react'
@@ -133,6 +133,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
       label: (
         <MessageTitleLabel>
           <TitleContent>
+            <Wrench size={14} color="var(--color-text-2)" />
             <ToolName align="center" gap={4}>
               {tool.serverName} : {tool.name}
               {isToolAutoApproved(tool) && (
@@ -394,12 +395,16 @@ const ToolResponseContent: FC<{
 }
 
 const ToolContentWrapper = styled.div`
-  padding: 1px;
-  border-radius: 8px;
+  padding: 0;
+  border-radius: 10px;
   overflow: hidden;
+  width: 100%;
+  max-width: 100%;
 
   .ant-collapse {
-    border: 1px solid var(--color-border);
+    border: 0.5px solid var(--color-border);
+    border-radius: 10px;
+    width: 100%;
   }
 
   &.pending {
@@ -437,14 +442,27 @@ const CollapseContainer = styled(Collapse)`
   --status-color-invoking: var(--color-primary);
   --status-color-error: var(--color-status-error, #ff4d4f);
   --status-color-success: var(--color-primary, green);
-  border-radius: 7px;
+  width: 100%;
+  max-width: 100%;
+  border-radius: 10px;
   border: none;
   background-color: var(--color-background);
   overflow: hidden;
 
   .ant-collapse-header {
-    padding: 8px 10px !important;
+    padding: 5px 0 5px 10px !important;
     align-items: center !important;
+  }
+
+  .ant-collapse-expand-icon {
+    height: 30px !important;
+    width: 40px;
+    padding: 0 !important;
+    margin-inline-start: 0 !important;
+    color: var(--color-text-3) !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
   }
 
   .ant-collapse-content-box {
@@ -453,13 +471,8 @@ const CollapseContainer = styled(Collapse)`
 `
 
 const ToolContainer = styled.div`
-  margin-top: 10px;
-  margin-bottom: 10px;
-
-  &:first-child {
-    margin-top: 0;
-    padding-top: 0;
-  }
+  width: 100%;
+  max-width: 100%;
 `
 
 const MarkdownContainer = styled.div`
@@ -479,7 +492,7 @@ const MessageTitleLabel = styled.div`
   width: 100%;
   gap: 10px;
   padding: 0;
-  margin-left: 4px;
+  line-height: 20px;
 `
 
 const TitleContent = styled.div`
@@ -487,12 +500,15 @@ const TitleContent = styled.div`
   flex-direction: row;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 `
 
 const ToolName = styled(Flex)`
   color: var(--color-text);
   font-weight: 500;
   font-size: 13px;
+  line-height: 20px;
+  min-width: 0;
 `
 
 const ActionButtonsContainer = styled.div`

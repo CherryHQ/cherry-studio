@@ -1,6 +1,6 @@
 import { LoadingIcon } from '@renderer/components/Icons'
 import { Button, Dropdown } from 'antd'
-import { ChevronDown, CirclePlay, CircleX, ShieldCheck } from 'lucide-react'
+import { Ban, ChevronDown, CirclePlay, ShieldCheck } from 'lucide-react'
 import type { FC, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -68,11 +68,10 @@ export const ToolApprovalActionsComponent: FC<ToolApprovalActionsProps> = ({
     <ActionsContainer $compact={compact} onClick={(e) => e.stopPropagation()}>
       <Button
         size="small"
-        color="danger"
         variant={compact ? 'text' : 'outlined'}
         disabled={isSubmitting}
         onClick={(e) => handleClick(e, cancel)}>
-        <CircleX size={compact ? 13 : 14} className="lucide-custom" />
+        <Ban size={compact ? 13 : 14} className="lucide-custom" />
         {!compact && t('common.cancel')}
       </Button>
 

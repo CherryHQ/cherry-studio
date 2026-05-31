@@ -104,6 +104,11 @@ const ThinkingBlock: React.FC<Props> = ({ block }) => {
 
 const normalizeThinkingTime = (value?: number) => (typeof value === 'number' && Number.isFinite(value) ? value : 0)
 
+const splitThinkingLabel = (label: string) => {
+  const match = label.match(/^(.*?)(\s*[\uFF08(].*[\uFF09)])$/)
+  return match ? { title: match[1], meta: match[2] } : { title: label, meta: '' }
+}
+
 const ThinkingTimeSeconds = memo(
   ({ blockThinkingTime, isThinking }: { blockThinkingTime: number; isThinking: boolean }) => {
     const { t } = useTranslation()
@@ -142,13 +147,25 @@ const ThinkingTimeSeconds = memo(
       return ((safeTime < 1000 ? 100 : safeTime) / 1000).toFixed(1)
     }, [displayTime])
 
-    return isThinking
+    const label = isThinking
       ? t('chat.thinking', {
           seconds: thinkingTimeSeconds
         })
       : t('chat.deeply_thought', {
           seconds: thinkingTimeSeconds
         })
+    const { title, meta } = splitThinkingLabel(label)
+
+    if (!meta) {
+      return label
+    }
+
+    return (
+      <>
+        <span className="thinking-title-main">{title}</span>
+        {meta && <span className="thinking-title-meta">{meta}</span>}
+      </>
+    )
   }
 )
 

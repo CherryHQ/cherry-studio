@@ -2,10 +2,11 @@ import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useAppSelector } from '@renderer/store'
 import type { ToolPermissionEntry } from '@renderer/store/toolPermissions'
 import type { MCPToolResponseStatus } from '@renderer/types'
-import type { ToolMessageBlock } from '@renderer/types/newMessage'
+import type { Message, MessageBlock, ToolMessageBlock } from '@renderer/types/newMessage'
+import { MessageBlockType } from '@renderer/types/newMessage'
 import { isToolPending } from '@renderer/utils/userConfirmation'
 import { Collapse, type CollapseProps } from 'antd'
-import { Wrench } from 'lucide-react'
+import { ChevronRight, Wrench } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -17,45 +18,70 @@ import MessageTools from '../Tools/MessageTools'
 import ToolApprovalActionsComponent from '../Tools/ToolApprovalActions'
 import ToolHeader from '../Tools/ToolHeader'
 import BlockErrorFallback from './BlockErrorFallback'
+import MainTextBlock from './MainTextBlock'
+import ThinkingBlock from './ThinkingBlock'
 
 // ============ Styled Components ============
 
 const Container = styled.div`
-  width: fit-content;
+  width: 100%;
   max-width: 100%;
 
   /* Only style the direct group collapse, not nested tool collapses */
   > .ant-collapse {
     background: transparent;
     border: none;
+    width: 100%;
 
     > .ant-collapse-item {
       border: none !important;
+      width: 100%;
 
       > .ant-collapse-header {
-        padding: 8px 12px !important;
+        box-sizing: border-box !important;
+        height: 38px !important;
+        min-height: 38px !important;
+        padding: 0 !important;
         background: var(--color-background);
-        border: 1px solid var(--color-border);
-        border-radius: 0.75rem !important;
-        display: flex;
-        align-items: center;
+        border: 0.5px solid var(--color-border);
+        border-radius: 10px !important;
+        display: flex !important;
+        align-items: center !important;
 
         .ant-collapse-expand-icon {
+          width: 40px;
+          height: 38px !important;
           padding: 0 !important;
-          margin-left: 8px;
-          height: auto !important;
+          margin-inline-start: 0 !important;
+          display: flex !important;
+          align-items: center;
+          justify-content: center;
         }
+
+        .ant-collapse-header-text {
+          height: 38px !important;
+          min-width: 0;
+          display: flex !important;
+          align-items: center !important;
+          flex: 1 !important;
+        }
+      }
+
+      &.tool-group-waiting-approval > .ant-collapse-header {
+        padding: 0 !important;
       }
 
       > .ant-collapse-content {
         border: none;
         background: transparent;
+        width: 100%;
 
         > .ant-collapse-content-box {
-          padding: 4px 0 0 0 !important;
+          padding: 10px 0 0 0 !important;
           display: flex;
           flex-direction: column;
           gap: 4px;
+          width: 100%;
         }
       }
     }
@@ -65,34 +91,56 @@ const Container = styled.div`
 const GroupHeader = styled.div`
   display: flex;
   align-items: center;
-  gap: 8px;
+  height: 38px;
+  width: 100%;
   font-size: 13px;
   font-weight: 500;
 
   .tool-icon {
-    color: var(--color-primary);
+    color: var(--color-text-2);
+    width: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
   }
 
   .tool-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
     color: var(--color-text-1);
   }
 `
 
-const ScrollableToolList = styled.div`
-  max-height: 300px;
-  overflow-y: auto;
+const HeaderSeparator = styled.span`
+  width: 1px;
+  height: 12px;
+  background-color: var(--color-border-soft);
+`
+
+const ScrollableToolList = styled.div<{ $allCompleted: boolean }>`
+  max-height: ${(props) => (props.$allCompleted ? 'none' : '300px')};
+  overflow-y: ${(props) => (props.$allCompleted ? 'visible' : 'auto')};
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 10px;
+  width: 100%;
 `
 
 const ToolItem = styled.div<{ $isCompleted: boolean }>`
   opacity: ${(props) => (props.$isCompleted ? 0.7 : 1)};
   transition: opacity 0.2s;
+  width: 100%;
+
+  .message-thought-container {
+    margin-bottom: 0;
+  }
 `
 
 const AnimatedHeaderWrapper = styled(motion.div)`
-  display: inline-block;
+  display: block;
+  width: 100%;
 `
 
 const HeaderWithActions = styled.div`
@@ -103,10 +151,16 @@ const HeaderWithActions = styled.div`
   justify-content: space-between;
 `
 
+const ExpandIcon = styled(ChevronRight)<{ $isActive?: boolean }>`
+  transition: transform 0.2s;
+  transform: ${({ $isActive }) => ($isActive ? 'rotate(90deg)' : 'rotate(0deg)')};
+`
+
 // ============ Types & Helpers ============
 
 interface Props {
-  blocks: ToolMessageBlock[]
+  blocks: MessageBlock[]
+  role?: Message['role']
 }
 
 function isCompletedStatus(status: MCPToolResponseStatus | undefined): boolean {
@@ -168,25 +222,43 @@ const WaitingToolHeader = React.memo(({ block }: WaitingToolHeaderProps) => {
 WaitingToolHeader.displayName = 'WaitingToolHeader'
 
 interface GroupHeaderContentProps {
-  blocks: ToolMessageBlock[]
+  blocks: MessageBlock[]
   allCompleted: boolean
 }
 
 const GroupHeaderContent = React.memo(({ blocks, allCompleted }: GroupHeaderContentProps) => {
   const { t } = useTranslation()
   const agentPermissions = useAppSelector((state) => state.toolPermissions.requests)
+  const toolBlocks = blocks.filter((block): block is ToolMessageBlock => block.type === MessageBlockType.TOOL)
+  const thinkingBlockCount = blocks.filter((block) => block.type === MessageBlockType.THINKING).length
+  const messageBlockCount = blocks.filter((block) => block.type === MessageBlockType.MAIN_TEXT).length
+  const groupHeaderParts = [
+    toolBlocks.length > 0 ? t('message.tools.groupHeader', { count: toolBlocks.length }) : null,
+    thinkingBlockCount > 0 ? t('message.tools.groupHeaderThinking', { count: thinkingBlockCount }) : null,
+    messageBlockCount > 0 ? t('message.tools.groupHeaderMessages', { count: messageBlockCount }) : null
+  ].filter(Boolean)
+  const groupHeader = (
+    <>
+      {groupHeaderParts.map((part, index) => (
+        <React.Fragment key={part}>
+          {index > 0 && <HeaderSeparator />}
+          <span>{part}</span>
+        </React.Fragment>
+      ))}
+    </>
+  )
 
   if (allCompleted) {
     return (
       <GroupHeader>
         <Wrench size={14} className="tool-icon" />
-        <span className="tool-count">{t('message.tools.groupHeader', { count: blocks.length })}</span>
+        <span className="tool-count">{groupHeader}</span>
       </GroupHeader>
     )
   }
 
   // Find blocks actually waiting for approval (using effective status)
-  const waitingBlocks = blocks.filter((block) => getBlockEffectiveStatus(block, agentPermissions) === 'waiting')
+  const waitingBlocks = toolBlocks.filter((block) => getBlockEffectiveStatus(block, agentPermissions) === 'waiting')
 
   // Prioritize showing waiting blocks that need approval
   const lastWaitingBlock = waitingBlocks[waitingBlocks.length - 1]
@@ -206,7 +278,7 @@ const GroupHeaderContent = React.memo(({ blocks, allCompleted }: GroupHeaderCont
   }
 
   // Find running blocks (invoking or streaming)
-  const runningBlocks = blocks.filter((block) => {
+  const runningBlocks = toolBlocks.filter((block) => {
     const status = getBlockEffectiveStatus(block, agentPermissions)
     return status === 'invoking' || status === 'streaming'
   })
@@ -232,7 +304,7 @@ const GroupHeaderContent = React.memo(({ blocks, allCompleted }: GroupHeaderCont
   return (
     <GroupHeader>
       <Wrench size={14} className="tool-icon" />
-      <span className="tool-count">{t('message.tools.groupHeader', { count: blocks.length })}</span>
+      <span className="tool-count">{groupHeader}</span>
     </GroupHeader>
   )
 })
@@ -240,13 +312,41 @@ GroupHeaderContent.displayName = 'GroupHeaderContent'
 
 // Component for tool list content with auto-scroll
 interface ToolListContentProps {
-  blocks: ToolMessageBlock[]
+  blocks: MessageBlock[]
+  allCompleted: boolean
+  role: Message['role']
   scrollRef: React.RefObject<HTMLDivElement | null>
 }
 
-const ToolListContent = React.memo(({ blocks, scrollRef }: ToolListContentProps) => (
-  <ScrollableToolList ref={scrollRef}>
+const ToolListContent = React.memo(({ blocks, allCompleted, role, scrollRef }: ToolListContentProps) => (
+  <ScrollableToolList ref={scrollRef} $allCompleted={allCompleted}>
     {blocks.map((block) => {
+      if (block.type === MessageBlockType.THINKING) {
+        return (
+          <ToolItem key={block.id} data-block-id={block.id} $isCompleted>
+            <ErrorBoundary fallbackComponent={BlockErrorFallback}>
+              <ThinkingBlock block={block} />
+            </ErrorBoundary>
+          </ToolItem>
+        )
+      }
+
+      if (block.type === MessageBlockType.MAIN_TEXT) {
+        const citationBlockId = block.citationReferences?.[0]?.citationBlockId
+
+        return (
+          <ToolItem key={block.id} data-block-id={block.id} $isCompleted>
+            <ErrorBoundary fallbackComponent={BlockErrorFallback}>
+              <MainTextBlock block={block} citationBlockId={citationBlockId} role={role} />
+            </ErrorBoundary>
+          </ToolItem>
+        )
+      }
+
+      if (block.type !== MessageBlockType.TOOL) {
+        return null
+      }
+
       const status = block.metadata?.rawMcpToolResponse?.status
       const isCompleted = isCompletedStatus(status)
       return (
@@ -263,31 +363,32 @@ ToolListContent.displayName = 'ToolListContent'
 
 // ============ Main Component ============
 
-const ToolBlockGroup: React.FC<Props> = ({ blocks }) => {
+const ToolBlockGroup: React.FC<Props> = ({ blocks, role = 'assistant' }) => {
   const [activeKey, setActiveKey] = useState<string[]>([])
   const scrollRef = useRef<HTMLDivElement>(null)
-  const userExpandedRef = useRef(false)
+  const agentPermissions = useAppSelector((state) => state.toolPermissions.requests)
+  const toolBlocks = useMemo(
+    () => blocks.filter((block): block is ToolMessageBlock => block.type === MessageBlockType.TOOL),
+    [blocks]
+  )
 
   const allCompleted = useMemo(() => {
-    return blocks.every((block) => {
+    return toolBlocks.every((block) => {
       const status = block.metadata?.rawMcpToolResponse?.status
       return isCompletedStatus(status)
     })
-  }, [blocks])
-
-  // Auto-expand group when there are active tools (pending/waiting for approval, streaming)
-  useEffect(() => {
-    if (!allCompleted) {
-      setActiveKey((prev) => (prev.includes('tool-group') ? prev : [...prev, 'tool-group']))
-    }
-  }, [allCompleted])
+  }, [toolBlocks])
 
   const currentRunningBlock = useMemo(() => {
-    return blocks.find((block) => {
+    return toolBlocks.find((block) => {
       const status = block.metadata?.rawMcpToolResponse?.status
       return !isCompletedStatus(status)
     })
-  }, [blocks])
+  }, [toolBlocks])
+
+  const hasWaitingTool = useMemo(() => {
+    return toolBlocks.some((block) => getBlockEffectiveStatus(block, agentPermissions) === 'waiting')
+  }, [toolBlocks, agentPermissions])
 
   useEffect(() => {
     if (activeKey.includes('tool-group') && currentRunningBlock && scrollRef.current) {
@@ -298,8 +399,6 @@ const ToolBlockGroup: React.FC<Props> = ({ blocks }) => {
 
   const handleChange = (keys: string | string[]) => {
     const keyArray = Array.isArray(keys) ? keys : [keys]
-    const isExpanding = keyArray.includes('tool-group')
-    userExpandedRef.current = isExpanding
     setActiveKey(keyArray)
   }
 
@@ -307,11 +406,12 @@ const ToolBlockGroup: React.FC<Props> = ({ blocks }) => {
     return [
       {
         key: 'tool-group',
+        className: hasWaitingTool ? 'tool-group-waiting-approval' : undefined,
         label: <GroupHeaderContent blocks={blocks} allCompleted={allCompleted} />,
-        children: <ToolListContent blocks={blocks} scrollRef={scrollRef} />
+        children: <ToolListContent blocks={blocks} allCompleted={allCompleted} role={role} scrollRef={scrollRef} />
       }
     ]
-  }, [blocks, allCompleted])
+  }, [blocks, allCompleted, hasWaitingTool, role])
 
   return (
     <Container>
@@ -322,6 +422,9 @@ const ToolBlockGroup: React.FC<Props> = ({ blocks }) => {
         activeKey={activeKey}
         onChange={handleChange}
         items={items}
+        expandIcon={({ isActive }) => (
+          <ExpandIcon $isActive={isActive} size={18} color="var(--color-text-3)" strokeWidth={1.5} />
+        )}
       />
     </Container>
   )

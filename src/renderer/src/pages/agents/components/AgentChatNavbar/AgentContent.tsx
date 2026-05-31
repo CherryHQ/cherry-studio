@@ -1,6 +1,7 @@
 import HorizontalScrollContainer from '@renderer/components/HorizontalScrollContainer'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
+import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
 import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
 import { useNavbarPosition } from '@renderer/hooks/useSettings'
 import { useShowAssistants } from '@renderer/hooks/useStore'
@@ -28,14 +29,19 @@ const AgentContent = ({ activeAgent }: AgentContentProps) => {
   const { showAssistants, toggleShowAssistants } = useShowAssistants()
   const { isTopNavbar } = useNavbarPosition()
   const { session: activeSession } = useActiveSession()
-  const { updateModel } = useUpdateSession(activeAgent?.id ?? null)
+  const { updateAgent } = useUpdateAgent()
+  const { updateModel: updateSessionModel } = useUpdateSession(activeAgent?.id ?? null)
 
   const handleUpdateModel = useCallback(
     async (model: ApiModel) => {
       if (!activeAgent || !activeSession) return
-      return updateModel(activeSession.id, model.id, { showSuccessToast: false })
+
+      const updatedAgent = await updateAgent({ id: activeAgent.id, model: model.id }, { showSuccessToast: false })
+      if (!updatedAgent) return
+
+      return updateSessionModel(activeSession.id, model.id, { showSuccessToast: false })
     },
-    [activeAgent, activeSession, updateModel]
+    [activeAgent, activeSession, updateAgent, updateSessionModel]
   )
 
   return (
