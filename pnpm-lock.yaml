@@ -221,7 +221,7 @@ importers:
         specifier: ^3.0.104
         version: 3.0.104(zod@4.3.4)
       '@ai-sdk/google':
-        specifier: ^3.0.64
+        specifier: 3.0.64
         version: 3.0.64(patch_hash=8486f495c82f8187fcc9dfe9b4c77b9f54026c273fab22ab7d4bbdc2e50d0312)(zod@4.3.4)
       '@ai-sdk/google-vertex':
         specifier: ^4.0.112
@@ -239,7 +239,7 @@ importers:
         specifier: ^3.0.53
         version: 3.0.53(patch_hash=83a4d486601eff47ad8b5e22024878be2ced05b5b86e09884199a3f47fd53530)(zod@4.3.4)
       '@ai-sdk/openai-compatible':
-        specifier: ^2.0.37
+        specifier: 2.0.37
         version: 2.0.37(patch_hash=363512fcab5b030cf6a7f6327f8ef038eb76dabf71ffb6689e4fe7f9c461780a)(zod@4.3.4)
       '@ai-sdk/perplexity':
         specifier: ^3.0.29
@@ -719,7 +719,7 @@ importers:
         specifier: 0.4.16
         version: 0.4.16
       ai:
-        specifier: ^6.0.143
+        specifier: 6.0.143
         version: 6.0.143(patch_hash=a6fc1788c6b23da25d4d91aee1fa72564041e79e3cb20811d7d9e61a2c53878e)(zod@4.3.4)
       ansi-to-react:
         specifier: ^6.2.6
