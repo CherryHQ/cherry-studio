@@ -3,6 +3,8 @@ import { nanoid } from '@reduxjs/toolkit'
 import { getMcpServerType, type MCPServer } from '@renderer/types'
 import i18next from 'i18next'
 
+import { isSameMcpServerCandidate } from '../utils'
+
 const logger = loggerService.withContext('ModelScopeSyncUtils')
 
 // Token storage constants and utilities
@@ -107,8 +109,6 @@ export const syncModelScopeServers = async (
       try {
         if (!server.operational_urls?.[0]?.url) continue
 
-        // Check if server already exists
-        const existingServer = existingServers.find((s) => s.id === `@modelscope/${server.id}`)
         const url = server.operational_urls[0].url
         const mcpServer: MCPServer = {
           id: `@modelscope/${server.id}`,
@@ -125,6 +125,7 @@ export const syncModelScopeServers = async (
           logoUrl: server.logo_url || '',
           tags: server.tags || []
         }
+        const existingServer = existingServers.find((s) => isSameMcpServerCandidate(s, mcpServer))
 
         if (existingServer) {
           // Update existing server with latest info

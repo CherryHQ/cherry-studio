@@ -3,6 +3,8 @@ import { nanoid } from '@reduxjs/toolkit'
 import type { MCPServer } from '@renderer/types'
 import i18next from 'i18next'
 
+import { isSameMcpServerCandidate } from '../utils'
+
 const logger = loggerService.withContext('MCPRouterSyncUtils')
 
 // Token storage constants and utilities
@@ -111,8 +113,6 @@ export const syncMCPRouterServers = async (
     for (const server of servers) {
       try {
         // Check if server already exists using server_key
-        const existingServer = existingServers.find((s) => s.id === `@mcprouter/${server.server_key}`)
-
         const mcpServer: MCPServer = {
           id: `@mcprouter/${server.server_key}`,
           name: server.title || server.name || `MCPRouter Server ${nanoid()}`,
@@ -128,6 +128,7 @@ export const syncMCPRouterServers = async (
             Authorization: `Bearer ${token}`
           }
         }
+        const existingServer = existingServers.find((s) => isSameMcpServerCandidate(s, mcpServer))
 
         if (existingServer) {
           // Update existing server with corrected URL and latest info

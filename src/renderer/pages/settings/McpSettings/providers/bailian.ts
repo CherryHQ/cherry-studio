@@ -3,6 +3,8 @@ import { nanoid } from '@reduxjs/toolkit'
 import type { MCPServer } from '@renderer/types'
 import i18next from 'i18next'
 
+import { isSameMcpServerCandidate } from '../utils'
+
 const logger = loggerService.withContext('BailianSyncUtils')
 
 // 常量定义
@@ -126,11 +128,8 @@ export const syncBailianServers = async (token: string, existingServers: MCPServ
           continue
         }
 
-        const id = `@bailian/${server.id}`
-        const existingServer = existingServers.find((s) => s.id === id)
-
         const mcpServer: MCPServer = {
-          id,
+          id: `@bailian/${server.id}`,
           name: server.name || `Bailian Server ${nanoid()}`,
           description: server.description || '',
           type: server.type,
@@ -147,6 +146,7 @@ export const syncBailianServers = async (token: string, existingServers: MCPServ
             Authorization: `Bearer ${token}`
           }
         }
+        const existingServer = existingServers.find((s) => isSameMcpServerCandidate(s, mcpServer))
 
         if (existingServer) {
           updatedServers.push(mcpServer)

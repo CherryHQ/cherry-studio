@@ -1,7 +1,43 @@
 import { loggerService } from '@logger'
+import type { CreateMCPServerDto, UpdateMCPServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 
 const logger = loggerService.withContext('McpSettings/utils')
+
+type McpServerDraft = Partial<MCPServer> & { url?: string }
+type CreateMcpServerDraft = McpServerDraft & Pick<MCPServer, 'name'>
+
+export const toCreateMcpServerDto = (server: CreateMcpServerDraft): CreateMCPServerDto => {
+  const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, url, ...fields } = server
+  const dto: CreateMCPServerDto = { ...fields }
+
+  if (dto.baseUrl === undefined && url !== undefined) {
+    dto.baseUrl = url
+  }
+
+  return dto
+}
+
+export const toUpdateMcpServerDto = (server: McpServerDraft): UpdateMCPServerDto => {
+  const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, url: _url, ...fields } = server
+  return fields
+}
+
+export const isSameMcpServerCandidate = (existing: MCPServer, candidate: MCPServer): boolean => {
+  if (candidate.provider && existing.provider === candidate.provider) {
+    return (
+      (candidate.providerUrl !== undefined && existing.providerUrl === candidate.providerUrl) ||
+      (candidate.baseUrl !== undefined && existing.baseUrl === candidate.baseUrl) ||
+      existing.name === candidate.name
+    )
+  }
+
+  if (candidate.installSource === 'builtin') {
+    return existing.name === candidate.name
+  }
+
+  return false
+}
 
 /**
  * Whitelist of trusted MCP server URLs that auto-approve without user confirmation
@@ -42,7 +78,7 @@ export const getCommandPreview = (server: MCPServer): string => {
 export async function ensureServerTrusted(
   currentServer: MCPServer,
   requestConfirm: (server: MCPServer) => Promise<boolean>,
-  updateServer: (body: Partial<MCPServer>) => void
+  updateServer: (body: UpdateMCPServerDto) => void
 ): Promise<MCPServer | null> {
   const isProtocolInstall = currentServer.installSource === 'protocol'
 

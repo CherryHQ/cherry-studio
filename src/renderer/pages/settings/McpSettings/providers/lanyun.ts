@@ -3,6 +3,8 @@ import { getProviderLabel } from '@renderer/i18n/label'
 import type { MCPServer } from '@renderer/types'
 import i18next from 'i18next'
 
+import { isSameMcpServerCandidate } from '../utils'
+
 const logger = loggerService.withContext('TokenLanYunSyncUtils')
 
 // Token storage constants and utilities
@@ -146,9 +148,6 @@ export const syncTokenLanYunServers = async (
       try {
         if (!server.operationalUrls?.[0]?.url) continue
 
-        // Check if server already exists
-        const existingServer = existingServers.find((s) => s.id === `@lanyun/${server.id}`)
-
         const mcpServer: MCPServer = {
           id: `@lanyun/${server.id}`,
           name:
@@ -165,6 +164,7 @@ export const syncTokenLanYunServers = async (
           logoUrl: server.logoUrl || '',
           tags: server.tags ?? (server.chineseName ? [server.chineseName] : [])
         }
+        const existingServer = existingServers.find((s) => isSameMcpServerCandidate(s, mcpServer))
 
         if (existingServer) {
           // Update existing server with latest info

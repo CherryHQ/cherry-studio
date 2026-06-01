@@ -3,6 +3,8 @@ import { nanoid } from '@reduxjs/toolkit'
 import type { MCPServer } from '@renderer/types'
 import i18next from 'i18next'
 
+import { isSameMcpServerCandidate } from '../utils'
+
 const logger = loggerService.withContext('302ai')
 
 // Token storage constants and utilities
@@ -93,9 +95,6 @@ export const syncAi302Servers = async (token: string, existingServers: MCPServer
 
     for (const server of servers) {
       try {
-        // Check if server already exists
-        const existingServer = existingServers.find((s) => s.id === `@302ai/${server.name}`)
-
         const mcpServer: MCPServer = {
           id: `@302ai/${server.name}`,
           name: server.name || `302ai Server ${nanoid()}`,
@@ -108,6 +107,7 @@ export const syncAi302Servers = async (token: string, existingServers: MCPServer
           tags: server.tags,
           logoUrl: server.logoUrl
         }
+        const existingServer = existingServers.find((s) => isSameMcpServerCandidate(s, mcpServer))
 
         if (existingServer) {
           // Update existing server with latest info
