@@ -100,6 +100,17 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
     return {}
   }
 
+  // MiniMax models: always enable thinking to ensure <think> tags in response
+  // This must be before the reasoningEffort check because MiniMax needs thinking
+  // to be explicitly enabled regardless of the user's reasoning effort setting
+  if (isMiniMaxReasoningModel(model)) {
+    const reasoningEffort = assistant?.settings?.reasoning_effort
+    if (reasoningEffort === 'none') {
+      return { thinking: { type: 'disabled' } }
+    }
+    return { thinking: { type: 'enabled' } }
+  }
+
   if (isOpenAIDeepResearchModel(model)) {
     return {
       reasoning_effort: 'medium'
@@ -177,13 +188,12 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       }
     }
 
-    // use thinking, doubao, zhipu, minimax, etc.
+    // use thinking, doubao, zhipu, etc.
     if (
       isSupportedThinkingTokenDoubaoModel(model) ||
       isSupportedThinkingTokenZhipuModel(model) ||
       isSupportedThinkingTokenMiMoModel(model) ||
-      isSupportedThinkingTokenKimiModel(model) ||
-      isMiniMaxReasoningModel(model)
+      isSupportedThinkingTokenKimiModel(model)
     ) {
       if (provider.id === SystemProviderIds.cerebras) {
         return {
@@ -589,13 +599,6 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   }
 
   if (isSupportedThinkingTokenMiMoModel(model) || isSupportedThinkingTokenKimiModel(model)) {
-    return {
-      thinking: { type: 'enabled' }
-    }
-  }
-
-  // MiniMax models: explicitly enable thinking to ensure <think> tags in response
-  if (isMiniMaxReasoningModel(model)) {
     return {
       thinking: { type: 'enabled' }
     }
