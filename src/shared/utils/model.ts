@@ -643,7 +643,7 @@ export function inferReasoningFromModelId(rawModelId: string): boolean {
     id.includes('gemma4') ||
     id.includes('step-3') ||
     id.includes('step-r1-v-mini') ||
-    ['minimax-m1', 'minimax-m2', 'minimax-m2.1'].some((m) => id.includes(m)) ||
+    ['minimax-m1', 'minimax-m2', 'minimax-m2.1', 'minimax-m3'].some((m) => id.includes(m)) ||
     id === 'baichuan-m2' ||
     id === 'baichuan-m3' ||
     ['ring-1t', 'ring-mini', 'ring-flash'].some((m) => id.includes(m)) ||
@@ -749,7 +749,7 @@ const FUNCTION_CALLING_ALLOWED_MODELS = [
   'kimi-k2(?:-[\\w-]+)?',
   'ling-\\w+(?:-[\\w-]+)?',
   'ring-\\w+(?:-[\\w-]+)?',
-  'minimax-m2(?:\\.\\d+)?(?:-[\\w-]+)?',
+  'minimax-m[23](?:\\.\\d+)?(?:-[\\w-]+)?',
   'mimo-v2-flash',
   'mimo-v2-pro',
   'mimo-v2-omni',
@@ -999,6 +999,7 @@ const visionAllowedModels = [
   'doubao-seed-1[.-][68](?:-[\\w-]+)?',
   'doubao-seed-2[.-]0(?:-[\\w-]+)?',
   'doubao-seed-code(?:-[\\w-]+)?',
+  'minimax-m3(?:-[\\w-]+)?',
   'kimi-thinking-preview',
   'gemma3(?:[-:\\w]+)?',
   'kimi-vl-a3b-thinking(?:-[\\w-]+)?',
