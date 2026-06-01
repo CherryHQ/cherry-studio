@@ -20,6 +20,7 @@ import {
   isGemini3ThinkingTokenModel,
   isGrok4FastReasoningModel,
   isHostedGemma4ThinkingModel,
+  isMiniMaxReasoningModel,
   isOpenAIDeepResearchModel,
   isOpenAIModel,
   isOpenAIOpenWeightModel,
@@ -176,12 +177,13 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
       }
     }
 
-    // use thinking, doubao, zhipu, etc.
+    // use thinking, doubao, zhipu, minimax, etc.
     if (
       isSupportedThinkingTokenDoubaoModel(model) ||
       isSupportedThinkingTokenZhipuModel(model) ||
       isSupportedThinkingTokenMiMoModel(model) ||
-      isSupportedThinkingTokenKimiModel(model)
+      isSupportedThinkingTokenKimiModel(model) ||
+      isMiniMaxReasoningModel(model)
     ) {
       if (provider.id === SystemProviderIds.cerebras) {
         return {
@@ -587,6 +589,13 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
   }
 
   if (isSupportedThinkingTokenMiMoModel(model) || isSupportedThinkingTokenKimiModel(model)) {
+    return {
+      thinking: { type: 'enabled' }
+    }
+  }
+
+  // MiniMax models: explicitly enable thinking to ensure <think> tags in response
+  if (isMiniMaxReasoningModel(model)) {
     return {
       thinking: { type: 'enabled' }
     }
