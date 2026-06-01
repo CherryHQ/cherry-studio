@@ -93,6 +93,12 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
     { match: (p) => p.id === 'cherryai', build: buildCherryAIConfig },
     { match: (p) => isOllamaProvider(p), build: buildOllamaConfig },
     { match: (p) => isAzureOpenAIProvider(p), build: buildAzureConfig },
+    // DashScope chat is OpenAI-compatible, but Bailian rerank uses a provider-specific URL.
+    // Only replace the OpenAI-compatible branch so other DashScope endpoint families stay routed normally.
+    {
+      match: (p, id) => p.id === SystemProviderIds.dashscope && id === 'openai-compatible',
+      build: buildDashScopeConfig
+    },
     { match: (_, id) => id === 'bedrock', build: buildBedrockConfig },
     // `google-vertex-anthropic` (Vertex on an anthropic-messages endpoint) must route here
     // too — `buildVertexConfig` branches on `isAnthropic`. Otherwise it falls through to the
@@ -405,6 +411,17 @@ function buildGenericProviderConfig(ctx: BuilderContext): ProviderConfig {
 function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
   return {
     providerId: 'aihubmix',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+    }
+  }
+}
+
+function buildDashScopeConfig(ctx: BuilderContext): ProviderConfig<'dashscope'> {
+  return {
+    providerId: 'dashscope',
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,

@@ -1,8 +1,8 @@
 /**
  * Runtime 层类型定义
  */
-import type { EmbeddingModelV3, ImageModelV3, ProviderV3 } from '@ai-sdk/provider'
-import type { embedMany, Experimental_DownloadFunction, generateImage, generateText, streamText } from 'ai'
+import type { EmbeddingModelV3, ImageModelV3, ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
+import type { embedMany, Experimental_DownloadFunction, generateImage, generateText, rerank, streamText } from 'ai'
 
 import { type AiPlugin } from '../plugins'
 import type { CoreProviderSettingsMap, StringKeys } from '../providers/types'
@@ -42,3 +42,8 @@ export type EmbedManyParams = Omit<Parameters<typeof embedMany>[0], 'model'> & {
   model: string | EmbeddingModelV3
 }
 export type EmbedManyResult = Awaited<ReturnType<typeof embedMany>>
+
+export type RerankParams = Omit<Parameters<typeof rerank>[0], 'model'> & {
+  model: string | RerankingModelV3
+}
+export type RerankResult = Awaited<ReturnType<typeof rerank>>
