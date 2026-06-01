@@ -1,3 +1,5 @@
+import { useModels } from '@renderer/hooks/useModels'
+import { isEditImageModel } from '@shared/utils/model'
 import { useCallback } from 'react'
 
 import { createDefaultPainting } from '../model/paintingPipeline'
@@ -20,6 +22,7 @@ export function usePaintingModelSwitch({
   ensureProviderCatalog
 }: UsePaintingModelSwitchInput) {
   const currentProviderId = painting.providerId
+  const { models } = useModels(currentProviderId ? { providerId: currentProviderId } : undefined)
 
   return useCallback(
     async ({ providerId, modelId }: PaintingModelSelection) => {
@@ -37,9 +40,17 @@ export function usePaintingModelSwitch({
           mode: tabToImageGenerationMode(painting.mode),
           currentValues: painting.params ?? {}
         })
+        // Drop attached input images when the target model can't accept them:
+        // the prompt-bar upload UI is gated on `isEditImageModel`, so a hidden
+        // attachment left over from an edit model would otherwise still be
+        // sent to a generate-only model. `onPaintingChange` merges, so the
+        // clear must be explicit.
+        const nextModel = models.find((model) => model.apiModelId === modelId)
+        const keepInputFiles = nextModel ? isEditImageModel(nextModel) : false
         onPaintingChange({
           params: { ...painting.params, ...resetPatch },
-          model: modelId
+          model: modelId,
+          ...(keepInputFiles ? {} : { inputFiles: [] })
         } as Partial<PaintingData>)
         return
       }
@@ -54,9 +65,12 @@ export function usePaintingModelSwitch({
         prompt: painting.prompt,
         providerId,
         mode: 'generate',
-        model: modelId
+        model: modelId,
+        // Switching providers resets the form context; never carry input
+        // images across to a different provider's model.
+        inputFiles: []
       } as Partial<PaintingData>)
     },
-    [currentProviderId, ensureProviderCatalog, onPaintingChange, painting]
+    [currentProviderId, ensureProviderCatalog, models, onPaintingChange, painting]
   )
 }
