@@ -148,7 +148,10 @@ export type ProgressCallback = (progress: KnowledgeProgress) => void
 export function createProgressReporter(callback?: ProgressCallback) {
   return {
     report: (progress: KnowledgeProgress) => {
-      logger.debug(`Knowledge progress: ${progress.stage} ${progress.progress}% - ${progress.message}`, progress.details)
+      logger.debug(
+        `Knowledge progress: ${progress.stage} ${progress.progress}% - ${progress.message}`,
+        progress.details
+      )
       callback?.(progress)
     },
     loading: (message: string, details?: Record<string, unknown>) => {
