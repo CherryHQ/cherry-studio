@@ -9,8 +9,11 @@ import { ImageGenerationSupportSchema, ModelConfigSchema } from '../schemas/mode
  * union (switch / enum / range / size / text) driving widget choice.
  */
 describe('ImageGenerationSupportSchema', () => {
-  it('accepts an empty descriptor (every field optional)', () => {
-    expect(ImageGenerationSupportSchema.parse({})).toEqual({})
+  it('requires `modes` but allows an empty modes record', () => {
+    // An image-generation block conveys nothing without `modes`, so the field
+    // is required; an empty record is still valid (every mode key is optional).
+    expect(() => ImageGenerationSupportSchema.parse({})).toThrow()
+    expect(ImageGenerationSupportSchema.parse({ modes: {} })).toEqual({ modes: {} })
   })
 
   it('gpt-image-1: pixel size enum + numImages range + quality/moderation/background enums', () => {
