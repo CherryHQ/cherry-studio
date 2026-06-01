@@ -245,6 +245,7 @@ export enum IpcChannel {
   File_BatchGetDanglingStates = 'file:batchGetDanglingStates',
   // FileManager v2 surface (Phase 2)
   File_CreateInternalEntry = 'file:createInternalEntry',
+  File_FindInternalByContentHash = 'file:findInternalByContentHash',
   File_EnsureExternalEntry = 'file:ensureExternalEntry',
   File_GetPhysicalPath = 'file:getPhysicalPath',
   File_PermanentDelete = 'file:permanentDelete',

@@ -49,3 +49,47 @@ export const SafeExtSchema = z
   .refine((s) => !/[/\\]/.test(s), 'Extension must not contain path separators')
   .refine((s) => !s.startsWith('.'), 'Extension must be bare (no leading dot), e.g. "pdf" not ".pdf"')
   .refine((s) => s.trim().length > 0, 'Extension must not be all whitespace')
+
+/**
+ * Content-hash schema for the dedup detection substrate.
+ *
+ * Stored / transported as `{algo}:{hex}` (e.g. `xxh3-64:24ccc9acaa9f65e4`) —
+ * the algorithm tag is part of the contract, so a future algorithm change can
+ * coexist with old values via incremental migration instead of a flag-day
+ * re-hash. This validates the *shape* only (lowercase `{algo}:{hex}`), never
+ * hash correctness: `contentHash` is a detection substrate, not an identity
+ * (see file-manager-architecture.md).
+ */
+/**
+ * Canonical content-hash format pattern: `{algo}:{hex}`, anchored, lowercase.
+ * Single source of truth for the shape — the two capture groups are
+ * `(algo)(hex)`, which `parseContentHash` (`@main/utils/file/contentHash`) uses
+ * to decompose a stored hash. `ContentHashSchema` only `.test()`s it (capture
+ * groups are inert for `.regex()`); the flag-free regex carries no `lastIndex`
+ * state, so sharing one instance between `.test()` and `.exec()` is safe.
+ */
+export const CONTENT_HASH_PATTERN = /^([a-z0-9]+(?:-[a-z0-9]+)*):([0-9a-f]+)$/
+
+export const ContentHashSchema = z
+  .string()
+  .regex(CONTENT_HASH_PATTERN, 'contentHash must be `{algo}:{hex}` (e.g. "xxh3-64:…")')
+  .brand<'ContentHash'>()
+
+/**
+ * A `{algo}:{hex}` content hash that reached this type through the sanctioned
+ * path — never an arbitrary `string`. It is minted only by:
+ *   - the main-process hasher (`format` / `hashContent` / `createContentHasher`
+ *     / `fs.hash` in `@main/utils/file/contentHash` + `@main/utils/file/fs`),
+ *     trusted at compile time as the single producer, and
+ *   - `ContentHashSchema.parse()` at a runtime boundary (e.g. a renderer-supplied
+ *     value validated in the File IPC handler).
+ *
+ * The brand makes "an untagged bare-hex digest / a non-canonical hash / an
+ * unrelated string" a compile error at every DB write + detection-query surface
+ * (`CreateFileEntryRow.contentHash`, `UpdateFileEntryRow.contentHash`,
+ * `FileEntryService.findInternalByContentHash`). It is a TypeScript-only phantom
+ * brand: zero runtime cost and zero wire cost — erased to a plain string in
+ * SQLite and over IPC. Tests/fixtures may cast a known-canonical literal with
+ * `'xxh3-64:…' as ContentHash`.
+ */
+export type ContentHash = z.infer<typeof ContentHashSchema>

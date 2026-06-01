@@ -42,9 +42,11 @@ import path from 'node:path'
 import { Writable } from 'node:stream'
 
 import { loggerService } from '@logger'
+import type { ContentHash } from '@shared/data/types/file'
 import type { FilePath } from '@shared/file/types'
 import mime from 'mime'
-import xxhashLoader from 'xxhash-wasm'
+
+import { createContentHasher } from './contentHash'
 
 const logger = loggerService.withContext('utils/file/fs')
 
@@ -540,28 +542,23 @@ export async function download(url: string, dest: FilePath): Promise<void> {
 }
 
 /**
- * Compute the content hash of a file (streaming).
+ * Compute the content hash of a file (streaming) → `xxh3-64:{hex}`.
  *
- * Algorithm: xxhash-h64 — non-cryptographic, ~10× faster than MD5, and the
- * `writeIfUnchanged` precision-fallback only needs collision resistance under
- * a single file's write history (which h64 trivially satisfies).
+ * Delegates to the shared {@link createContentHasher} primitive (XXH3-64 via
+ * native `@node-rs/xxhash`) so file-streamed and in-memory content hash through
+ * one library and one algorithm. Non-cryptographic; here it backs the
+ * `writeIfUnchanged` second-precision OCC fallback — a freshly streamed digest
+ * compared against the caller's `expectedContentHash` — which only needs
+ * collision resistance under a single file's write history.
  *
- * The architecture doc names xxhash-128 as the conceptual contract; the
- * `xxhash-wasm` package available at this version exposes only h32 / h64,
- * so we ship h64 and revisit if a 128-bit variant becomes necessary.
+ * Chunks are fed straight in: a `Buffer` is a `Uint8Array`, so the hasher
+ * consumes it without the per-chunk copy the old WASM loop required.
  */
-let xxhashApi: Awaited<ReturnType<typeof xxhashLoader>> | undefined
-async function getXxhash() {
-  if (!xxhashApi) xxhashApi = await xxhashLoader()
-  return xxhashApi
-}
-
-export async function hash(path: FilePath): Promise<string> {
-  const api = await getXxhash()
-  const hasher = api.create64()
+export async function hash(path: FilePath): Promise<ContentHash> {
+  const hasher = createContentHasher()
   const stream = createReadStream(path)
   for await (const chunk of stream) {
-    hasher.update(new Uint8Array(chunk as Buffer))
+    hasher.update(chunk as Buffer)
   }
-  return hasher.digest().toString(16).padStart(16, '0')
+  return hasher.digest()
 }

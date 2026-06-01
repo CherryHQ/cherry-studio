@@ -1,7 +1,7 @@
 /**
  * Compute content hash for a managed FileEntry or a raw FilePath.
  *
- * Algorithm: xxhash-h64 streamed via `@main/utils/file/fs.hash` —
+ * Algorithm: XXH3-64 streamed via `@main/utils/file/fs.hash` —
  * non-cryptographic, fast, sufficient for the `writeIfUnchanged`
  * second-precision fallback that compares hashes when mtimes are ambiguous.
  *

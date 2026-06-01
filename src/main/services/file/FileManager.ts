@@ -129,6 +129,7 @@ import { createReadStream as nodeCreateReadStream } from 'node:fs'
 import type { Readable, Writable } from 'node:stream'
 import { pathToFileURL } from 'node:url'
 
+import { application } from '@application'
 import { fileEntryService } from '@data/services/FileEntryService'
 import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
@@ -137,7 +138,7 @@ import { orphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry
 import { remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
-import { SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
+import { type ContentHash, ContentHashSchema, SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
 import type {
   BatchCreateResult,
   BatchMutationResult,
@@ -187,6 +188,7 @@ import {
 } from './internal/orphanSweep'
 import { open as internalShellOpen, showInFolder as internalShellShowInFolder } from './internal/system/shell'
 import { withTempCopy as internalWithTempCopy } from './internal/system/tempCopy'
+import { contentHashBackfillJobHandler } from './tasks/contentHashBackfillJobHandler'
 import { canonicalizeExternalPath, resolvePhysicalPath } from './utils/pathResolver'
 import { createVersionCacheImpl, type VersionCache } from './versionCache'
 
@@ -243,14 +245,20 @@ export const BatchGetDanglingStatesIpcSchema = z.strictObject({
 const SafeExtNullableSchema = SafeExtSchema.nullable()
 
 export const CreateInternalEntryIpcSchema = z.discriminatedUnion('source', [
-  z.strictObject({ source: z.literal('path'), path: AbsolutePathSchema }),
-  z.strictObject({ source: z.literal('url'), url: z.url() }),
-  z.strictObject({ source: z.literal('base64'), data: z.string().min(1), name: SafeNameSchema.optional() }),
+  z.strictObject({ source: z.literal('path'), path: AbsolutePathSchema, contentHash: ContentHashSchema.optional() }),
+  z.strictObject({ source: z.literal('url'), url: z.url(), contentHash: ContentHashSchema.optional() }),
+  z.strictObject({
+    source: z.literal('base64'),
+    data: z.string().min(1),
+    name: SafeNameSchema.optional(),
+    contentHash: ContentHashSchema.optional()
+  }),
   z.strictObject({
     source: z.literal('bytes'),
     data: z.instanceof(Uint8Array),
     name: SafeNameSchema,
-    ext: SafeExtNullableSchema
+    ext: SafeExtNullableSchema,
+    contentHash: ContentHashSchema.optional()
   })
 ])
 
@@ -279,8 +287,8 @@ export const PermanentDeleteIpcSchema = FileHandleSchema
  *
  * ## Opt-in hash fallback
  *
- * `writeIfUnchanged` accepts an optional `expectedContentHash` (xxhash-h64 hex
- * of the content the caller last observed). When supplied AND the observed
+ * `writeIfUnchanged` accepts an optional `expectedContentHash` (the XXH3-64
+ * `{algo}:{hex}` value of the content the caller last observed). When supplied AND the observed
  * mtime is ambiguous (ms === 0 AND size matches), the implementation re-hashes
  * the file on disk and throws `StaleVersionError` on mismatch. When omitted
  * (the default), `writeIfUnchanged` proceeds optimistically under reduced
@@ -342,7 +350,7 @@ export interface AtomicWriteStream extends Writable {
  * Thrown by `writeIfUnchanged` when the current file version does not match the
  * caller's expected version. Caller should refresh or present a conflict UX.
  *
- * Note: this implementation uses the xxhash-h64 fallback path described on
+ * Note: this implementation uses the XXH3-64 fallback path described on
  * `FileVersion` when mtime resolution is ambiguous — a `StaleVersionError`
  * under that branch means the hash also diverged, i.e. the content genuinely
  * differs even when `(mtime, size)` looked equal.
@@ -477,7 +485,7 @@ export interface IFileManager {
   /** Get FileVersion (stat-based) — live for both origins. */
   getVersion(id: FileEntryId): Promise<FileVersion>
 
-  /** Compute xxhash-h64 of file content. Reads full file. */
+  /** Compute the XXH3-64 content hash (returns the tagged `xxh3-64:{hex}` form). Reads full file. */
   getContentHash(id: FileEntryId): Promise<string>
 
   // ─── Writing ───
@@ -668,6 +676,30 @@ export class FileManager extends BaseService implements IFileManager {
   protected override async onInit(): Promise<void> {
     await this.deps.danglingCache.initFromDb()
     this.registerIpcHandlers()
+    // Register the content-hash backfill handler in onInit (before any
+    // onAllReady fires) so it is in JobManager's registry by the time startup
+    // recovery and our own onAllReady trigger run — see job handler-authoring
+    // §"Registration timing".
+    application.get('JobManager').registerHandler('file.contenthash-backfill', contentHashBackfillJobHandler)
+  }
+
+  /**
+   * Once the whole app is ready, kick a one-shot content-hash backfill for any
+   * internal entries still missing a `contentHash` (v1-migrated / pre-feature
+   * rows). The `count > 0` probe also serves as crash-recovery: a backfill
+   * interrupted by a prior crash is simply re-triggered here, since the
+   * `content_hash IS NULL` set is itself the resumable work queue. No job is
+   * enqueued when nothing is pending (the steady state).
+   */
+  protected override async onAllReady(): Promise<void> {
+    try {
+      const pending = await this.deps.fileEntryService.countInternalMissingContentHash()
+      if (pending === 0) return
+      await application.get('JobManager').enqueue('file.contenthash-backfill', {})
+      fileManagerLogger.info('contentHash backfill: enqueued', { pending })
+    } catch (err) {
+      fileManagerLogger.warn('contentHash backfill: failed to enqueue at startup', { err })
+    }
   }
 
   /**
@@ -701,6 +733,9 @@ export class FileManager extends BaseService implements IFileManager {
     // in this file.
     this.ipcHandle(IpcChannel.File_CreateInternalEntry, async (_e, params: unknown) =>
       this.createInternalEntry(CreateInternalEntryIpcSchema.parse(params) as CreateInternalEntryIpcParams)
+    )
+    this.ipcHandle(IpcChannel.File_FindInternalByContentHash, async (_e, params: unknown) =>
+      this.findInternalByContentHash(ContentHashSchema.parse(params))
     )
     this.ipcHandle(IpcChannel.File_EnsureExternalEntry, async (_e, params: unknown) =>
       this.ensureExternalEntry(EnsureExternalEntryIpcSchema.parse(params) as EnsureExternalEntryIpcParams)
@@ -832,6 +867,16 @@ export class FileManager extends BaseService implements IFileManager {
 
   async findByExternalPath(rawPath: string): Promise<FileEntry | null> {
     return this.deps.fileEntryService.findByExternalPath(canonicalizeExternalPath(rawPath))
+  }
+
+  /**
+   * Detection-query primitive for content-level dedup: active internal entries
+   * whose `contentHash` matches. NON-unique → may return >1 (see
+   * `FileEntryService.findInternalByContentHash`). The reuse-vs-create decision
+   * is the consumer's; this only surfaces candidates.
+   */
+  async findInternalByContentHash(contentHash: ContentHash): Promise<FileEntry[]> {
+    return this.deps.fileEntryService.findInternalByContentHash(contentHash)
   }
 
   async ensureExternalEntry(params: EnsureExternalEntryParams): Promise<FileEntry> {

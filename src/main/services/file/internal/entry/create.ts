@@ -14,8 +14,16 @@ import { realpath } from 'node:fs/promises'
 
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { atomicWriteFile, copy as fsCopy, download, remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
-import type { FileEntry } from '@shared/data/types/file'
+import { hashContent } from '@main/utils/file/contentHash'
+import {
+  atomicWriteFile,
+  copy as fsCopy,
+  download,
+  hash,
+  remove as fsRemove,
+  stat as fsStat
+} from '@main/utils/file/fs'
+import { type ContentHash, ContentHashSchema, type FileEntry } from '@shared/data/types/file'
 import type { FilePath } from '@shared/file/types'
 import mime from 'mime'
 import { v7 as uuidv7 } from 'uuid'
@@ -55,6 +63,13 @@ async function bestEffortCleanup(physical: FilePath, context: string): Promise<v
 interface NormalisedSource {
   name: string
   ext: string | null
+  /**
+   * In-memory content when the source is already resident (`bytes` / `base64`),
+   * enabling a zero-extra-IO one-shot content hash; `null` for streaming
+   * sources (`path` / `url`), whose hash is read back from the just-written
+   * physical file instead.
+   */
+  bytes: Uint8Array | null
   writeTo(target: FilePath): Promise<void>
 }
 
@@ -66,6 +81,7 @@ function normaliseSource(params: CreateInternalEntryParams): NormalisedSource {
     return {
       name: params.name,
       ext: params.ext,
+      bytes: data,
       writeTo: (target) => atomicWriteFile(target, data)
     }
   }
@@ -81,6 +97,7 @@ function normaliseSource(params: CreateInternalEntryParams): NormalisedSource {
     return {
       name: params.name ?? `Pasted ${new Date().toISOString().slice(0, 10)}`,
       ext: ext ?? null,
+      bytes,
       writeTo: (target) => atomicWriteFile(target, new Uint8Array(bytes))
     }
   }
@@ -89,6 +106,7 @@ function normaliseSource(params: CreateInternalEntryParams): NormalisedSource {
     return {
       name: basenameWithoutExt(src),
       ext: extWithoutDot(src),
+      bytes: null,
       writeTo: (target) => fsCopy(src, target)
     }
   }
@@ -97,6 +115,7 @@ function normaliseSource(params: CreateInternalEntryParams): NormalisedSource {
   return {
     name: urlTail(url),
     ext: extWithoutDot(url),
+    bytes: null,
     writeTo: (target) => download(url, target)
   }
 }
@@ -137,10 +156,23 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
   const physical = application.getPath('feature.files.data', filename) as FilePath
   await source.writeTo(physical)
   let stats
+  let contentHash: ContentHash
   try {
     stats = await fsStat(physical)
+    // Content-dedup detection substrate. Prefer a caller-supplied hash (a
+    // detect-first consumer already hashed the source) — validate+brand it via
+    // ContentHashSchema, as it arrives as a plain string across the IPC boundary
+    // (and this doubles as the pre-persist guard). Otherwise hash the in-memory
+    // bytes one-shot (zero extra IO) for resident sources, or read the
+    // just-written file back for streaming sources (page-cache warm).
+    contentHash =
+      params.contentHash !== undefined
+        ? ContentHashSchema.parse(params.contentHash)
+        : source.bytes !== null
+          ? hashContent(source.bytes)
+          : await hash(physical)
   } catch (err) {
-    await bestEffortCleanup(physical, 'createInternal:stat-failed')
+    await bestEffortCleanup(physical, 'createInternal:stat-or-hash-failed')
     throw err
   }
   try {
@@ -150,6 +182,7 @@ export async function createInternal(deps: FileManagerDeps, params: CreateIntern
       name: source.name,
       ext: source.ext,
       size: stats.size,
+      contentHash,
       externalPath: null
     })
   } catch (err) {

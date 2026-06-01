@@ -295,6 +295,8 @@ const api = {
     // FileManager v2 surface (Phase 2)
     createInternalEntry: (params: CreateInternalEntryIpcParams) =>
       ipcRenderer.invoke(IpcChannel.File_CreateInternalEntry, params),
+    findInternalByContentHash: (contentHash: string) =>
+      ipcRenderer.invoke(IpcChannel.File_FindInternalByContentHash, contentHash),
     ensureExternalEntry: (params: EnsureExternalEntryIpcParams) =>
       ipcRenderer.invoke(IpcChannel.File_EnsureExternalEntry, params),
     getPhysicalPath: (params: GetPhysicalPathIpcParams) => ipcRenderer.invoke(IpcChannel.File_GetPhysicalPath, params),

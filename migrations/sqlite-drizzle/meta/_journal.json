@@ -8,6 +8,13 @@
       "when": 1780123366362,
       "tag": "0000_loud_sugar_man",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1780126469473,
+      "tag": "0001_special_white_tiger",
+      "breakpoints": true
     }
   ]
 }

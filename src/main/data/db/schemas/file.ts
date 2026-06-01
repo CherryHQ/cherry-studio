@@ -47,6 +47,28 @@ export const fileEntryTable = sqliteTable(
      */
     size: integer(),
 
+    // ─── Content dedup ───
+    /**
+     * Content hash of the backing blob, format `{algo}:{hex}` (e.g.
+     * `xxh3-64:9a0f…`). A **detection substrate** for content-level dedup —
+     * NOT an identity and NOT a unique key. Identity stays `id` (UUID v7); a
+     * hash collision at worst surfaces a wrong candidate that a consumer's
+     * secondary check rejects, never mis-served bytes (hence the non-unique
+     * `fe_content_hash_idx`).
+     *
+     * - internal: maintained on create + every write; NULL only during the
+     *   backfill window (rows created before this feature) — a transitional
+     *   state, not steady.
+     * - external: always NULL — external content lives outside Cherry and is
+     *   never hashed (enforced by `fe_contenthash_external_null`).
+     *
+     * Distinct from `fe_external_path_lower_unique_idx` (external *path*
+     * identity) and from the on-demand hash behind `writeIfUnchanged` (an
+     * ephemeral deep-compare, never persisted). See
+     * `file-manager-architecture.md`.
+     */
+    contentHash: text(),
+
     // ─── External ───
     /** Absolute path to the user-provided file. Non-null iff origin='external' */
     externalPath: text(),
@@ -89,6 +111,12 @@ export const fileEntryTable = sqliteTable(
     // Without this the functional unique index alone cannot serve
     // `WHERE externalPath = ?` — SQLite would fall back to a seq scan.
     index('fe_external_path_idx').on(t.externalPath),
+    // Non-unique index backing the content-dedup detection query
+    // (`findInternalByContentHash`). Deliberately NOT unique: `contentHash` is a
+    // detection substrate, not a key — multiple internal rows may legitimately
+    // share a hash (identical content under different names), and a collision
+    // must never raise a constraint violation.
+    index('fe_content_hash_idx').on(t.contentHash),
     // Origin must be 'internal' or 'external'
     check('fe_origin_check', sql`${t.origin} IN ('internal', 'external')`),
     // externalPath must be non-null iff origin='external'
@@ -109,7 +137,12 @@ export const fileEntryTable = sqliteTable(
     check(
       'fe_size_internal_only',
       sql`(${t.origin} = 'internal' AND ${t.size} IS NOT NULL AND ${t.size} >= 0) OR (${t.origin} = 'external' AND ${t.size} IS NULL)`
-    )
+    ),
+    // contentHash is internal-only: external content lives outside Cherry and is
+    // never hashed. Softer than `fe_size_internal_only` — internal rows MAY
+    // carry a NULL contentHash (backfill window / not yet computed), so this
+    // only forbids the external⇒non-NULL combination.
+    check('fe_contenthash_external_null', sql`${t.origin} != 'external' OR ${t.contentHash} IS NULL`)
   ]
 )
 

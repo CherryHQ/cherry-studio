@@ -76,7 +76,7 @@ export interface ReadResult<T> {
  *
  * See `file-arch-problems-response.md` for the full rationale (extension of A-7).
  */
-export type CreateInternalEntryIpcParams =
+export type CreateInternalEntryIpcParams = (
   | {
       /** Copy the file at `path` into Cherry storage. `name` / `ext` derived from basename+extname. */
       source: 'path'
@@ -103,6 +103,20 @@ export type CreateInternalEntryIpcParams =
       /** File extension without leading dot (e.g. `'pdf'`), or `null` for extensionless. */
       ext: string | null
     }
+) & {
+  /**
+   * Optional pre-computed content hash (`{algo}:{hex}`, e.g. `xxh3-64:…`) for
+   * content-dedup detection. A detect-first consumer that already hashed the
+   * source (e.g. base64 / bytes in the renderer) passes it to skip
+   * recomputation; when omitted, FileManager computes it during the write.
+   *
+   * **Insert-always semantics are unchanged** — supplying this never triggers
+   * reuse. The reuse-vs-create decision is the consumer's, layered on top of
+   * the detection query (`findInternalByContentHash`); the file module only
+   * persists the hash here.
+   */
+  contentHash?: string
+}
 
 /**
  * Params for ensuring an entry exists for a user-provided (external) path.
@@ -274,6 +288,21 @@ export interface FileIpcApi {
   createInternalEntry(params: CreateInternalEntryIpcParams): Promise<FileEntry>
 
   /**
+   * Detection-query primitive for content-level dedup: the active internal
+   * entries whose `contentHash` matches. NON-unique — may return >1 (identical
+   * content under different names, or a rare collision the consumer rejects);
+   * `[]` on no match.
+   *
+   * Surfaces candidates only — the reuse-vs-create decision (and any secondary
+   * key like `(contentHash, name, ext)`) is the consumer's. Obtaining the
+   * `contentHash` is also the consumer's concern (e.g. the value returned by a
+   * prior `createInternalEntry`).
+   *
+   * @phase 2 — wired (`IpcChannel.File_FindInternalByContentHash` → `FileManager.registerIpcHandlers`)
+   */
+  findInternalByContentHash(contentHash: string): Promise<FileEntry[]>
+
+  /**
    * Ensure an external FileEntry exists for the given absolute path.
    *
    * **Pure upsert** semantics keyed by `externalPath`:
@@ -373,7 +402,7 @@ export interface FileIpcApi {
   getVersion(handle: FileHandle): Promise<FileVersion>
 
   /**
-   * Compute xxhash-h64 of file content.
+   * Compute the XXH3-64 content hash (returns the tagged `xxh3-64:{hex}` form).
    * @phase 2 — not yet wired
    */
   getContentHash(handle: FileHandle): Promise<string>
@@ -391,7 +420,7 @@ export interface FileIpcApi {
   /**
    * Optimistic-concurrency write. Throws StaleVersionError on version mismatch.
    *
-   * `expectedContentHash` (xxhash-h64 hex) is optional and only consulted on
+   * `expectedContentHash` (the XXH3-64 tagged `xxh3-64:{hex}` value) is optional and only consulted on
    * second-precision filesystems (FAT32 / SMB / NFS) where the observed mtime
    * truncates to whole seconds — see `FileVersion` JSDoc for the full
    * fallback contract.

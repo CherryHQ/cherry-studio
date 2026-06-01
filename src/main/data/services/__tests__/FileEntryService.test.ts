@@ -1,6 +1,6 @@
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { DataApiError, ErrorCode } from '@shared/data/api'
-import type { CanonicalExternalPath, FileEntryId } from '@shared/data/types/file'
+import type { CanonicalExternalPath, ContentHash, FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { eq } from 'drizzle-orm'
@@ -201,6 +201,125 @@ describe('FileEntryService', () => {
       const causeMsg = (caught as Error & { cause?: { message?: string } }).cause?.message ?? ''
       const envelope = (caught as Error).message
       expect(causeMsg + envelope).toMatch(/UNIQUE|fe_external_path_lower_unique_idx/i)
+    })
+  })
+
+  describe('findInternalByContentHash', () => {
+    const HASH = 'xxh3-64:1111222233334444' as ContentHash
+
+    it('returns active internal entries sharing the hash, oldest-first (non-unique)', async () => {
+      // Two internal entries with identical content (same hash, different names) —
+      // legitimate under a non-unique detection substrate.
+      await fileEntryService.create({
+        id: '019606a0-0000-7000-8000-0000000000c1' as FileEntryId,
+        origin: 'internal',
+        name: 'first',
+        ext: 'bin',
+        size: 3,
+        contentHash: HASH,
+        externalPath: null
+      })
+      await fileEntryService.create({
+        id: '019606a0-0000-7000-8000-0000000000c2' as FileEntryId,
+        origin: 'internal',
+        name: 'second',
+        ext: 'bin',
+        size: 3,
+        contentHash: HASH,
+        externalPath: null
+      })
+      const hits = await fileEntryService.findInternalByContentHash(HASH)
+      expect(hits.map((h) => h.id)).toEqual([
+        '019606a0-0000-7000-8000-0000000000c1',
+        '019606a0-0000-7000-8000-0000000000c2'
+      ])
+    })
+
+    it('returns empty array when no internal entry matches', async () => {
+      await fileEntryService.create({
+        id: '019606a0-0000-7000-8000-0000000000c3' as FileEntryId,
+        origin: 'internal',
+        name: 'other',
+        ext: null,
+        size: 1,
+        contentHash: 'xxh3-64:deadbeefdeadbeef' as ContentHash,
+        externalPath: null
+      })
+      expect(await fileEntryService.findInternalByContentHash(HASH)).toEqual([])
+    })
+
+    it('excludes trashed internal entries (only active rows are reuse targets)', async () => {
+      const id = '019606a0-0000-7000-8000-0000000000c4' as FileEntryId
+      await fileEntryService.create({
+        id,
+        origin: 'internal',
+        name: 'trashed',
+        ext: 'bin',
+        size: 3,
+        contentHash: HASH,
+        externalPath: null
+      })
+      await fileEntryService.update(id, { deletedAt: Date.now() })
+      expect(await fileEntryService.findInternalByContentHash(HASH)).toEqual([])
+    })
+  })
+
+  describe('countInternalMissingContentHash / findInternalMissingContentHash', () => {
+    const PREFIX = '019606a0-0000-7000-8000-0000000000'
+
+    it('counts internal NULL-contentHash rows including trashed, excluding external and hashed', async () => {
+      // internal, NULL contentHash
+      await fileEntryService.create({
+        id: `${PREFIX}d1` as FileEntryId,
+        origin: 'internal',
+        name: 'a',
+        ext: 'bin',
+        size: 1,
+        externalPath: null
+      })
+      // internal, NULL, trashed → still counted (blob preserved, hashable)
+      await fileEntryService.create({
+        id: `${PREFIX}d2` as FileEntryId,
+        origin: 'internal',
+        name: 'b',
+        ext: 'bin',
+        size: 1,
+        externalPath: null
+      })
+      await fileEntryService.update(`${PREFIX}d2` as FileEntryId, { deletedAt: Date.now() })
+      // internal, already hashed → excluded
+      await fileEntryService.create({
+        id: `${PREFIX}d3` as FileEntryId,
+        origin: 'internal',
+        name: 'c',
+        ext: 'bin',
+        size: 1,
+        contentHash: 'xxh3-64:1111222233334444' as ContentHash,
+        externalPath: null
+      })
+      // external → excluded (never carries a contentHash)
+      await fileEntryService.create({
+        id: `${PREFIX}d4` as FileEntryId,
+        origin: 'external',
+        name: 'd',
+        ext: 'txt',
+        size: null,
+        externalPath: '/tmp/d.txt'
+      })
+
+      expect(await fileEntryService.countInternalMissingContentHash()).toBe(2)
+    })
+
+    it('pages NULL-contentHash internal rows by id keyset', async () => {
+      const ids = [`${PREFIX}e1`, `${PREFIX}e2`, `${PREFIX}e3`] as FileEntryId[]
+      for (const id of ids) {
+        await fileEntryService.create({ id, origin: 'internal', name: 'x', ext: 'bin', size: 1, externalPath: null })
+      }
+      const page1 = await fileEntryService.findInternalMissingContentHash(null, 2)
+      expect(page1.map((e) => e.id)).toEqual([ids[0], ids[1]])
+      const page2 = await fileEntryService.findInternalMissingContentHash(page1[page1.length - 1].id, 2)
+      expect(page2.map((e) => e.id)).toEqual([ids[2]])
+      expect(await fileEntryService.findInternalMissingContentHash(ids[2], 2)).toEqual([])
     })
   })
 
@@ -600,6 +719,52 @@ describe('FileEntryService', () => {
           externalPath: '/some/path' as string
         })
       ).rejects.toThrow()
+    })
+
+    it('rejects an external row carrying a non-null content_hash (CHECK fe_contenthash_external_null)', async () => {
+      // Threat model: a path that bypasses Zod (a v2 migrator / direct Drizzle
+      // insert) attaches a contentHash to an external row. contentHash is an
+      // internal-only detection substrate; the DB CHECK is the last line of
+      // defense. Raw-insert (not via the service) so the constraint itself is
+      // pinned — a typo in the predicate (e.g. IS NOT NULL) would ship green.
+      const id = '019606a0-0000-7000-8000-000000000a05'
+      const now = Date.now()
+      await expect(
+        dbh.db.insert(fileEntryTable).values({
+          id,
+          origin: 'external',
+          name: 'doc',
+          ext: 'pdf',
+          size: null,
+          contentHash: 'xxh3-64:24ccc9acaa9f65e4',
+          externalPath: '/Users/me/doc.pdf',
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        })
+      ).rejects.toThrow()
+    })
+
+    it('accepts an internal row with a null content_hash (the deliberately-permitted backfill window)', async () => {
+      // Positive control / inverse of the rejection above: an internal row MAY
+      // carry contentHash = NULL (v1-migrated / pre-feature rows the backfill
+      // job fills later). The CHECK must not reject this.
+      const id = '019606a0-0000-7000-8000-000000000a06'
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values({
+        id,
+        origin: 'internal',
+        name: 'legacy',
+        ext: 'txt',
+        size: 1,
+        contentHash: null,
+        externalPath: null,
+        deletedAt: null,
+        createdAt: now,
+        updatedAt: now
+      })
+      const [raw] = await dbh.db.select().from(fileEntryTable).where(eq(fileEntryTable.id, id))
+      expect(raw?.contentHash).toBeNull()
     })
   })
 
