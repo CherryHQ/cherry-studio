@@ -20,10 +20,12 @@ export function usePaintingInitialProvider(providerOptions: string[]) {
   )
 
   useEffect(() => {
-    if (!defaultPaintingProvider) {
+    // Wait until provider options have loaded before persisting — otherwise
+    // the first render persists the FALLBACK_PROVIDER the user never chose.
+    if (!defaultPaintingProvider && providerOptions.length > 0) {
       void setDefaultPaintingProvider(initialProviderId)
     }
-  }, [defaultPaintingProvider, initialProviderId, setDefaultPaintingProvider])
+  }, [defaultPaintingProvider, initialProviderId, providerOptions, setDefaultPaintingProvider])
 
   return { initialProviderId }
 }
