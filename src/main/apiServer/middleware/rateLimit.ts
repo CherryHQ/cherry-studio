@@ -5,7 +5,7 @@
 
 import type { NextFunction, Request, Response } from 'express'
 
-import { loggerService } from '../../services/LoggerService'
+import { loggerService } from '../../core/logger/LoggerService'
 
 const logger = loggerService.withContext('ApiServerRateLimit')
 
