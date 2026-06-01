@@ -76,21 +76,14 @@ function sortProvidersByPriority(providers: Provider[], prioritizedProviderIds: 
 export function useModelSelectorData({
   selectedModelIds = [],
   maxSelectedCount,
-  providersOverride,
-  modelsOverride,
-  isDataLoadingOverride,
   searchText,
   filter,
   showTagFilter = true,
   showPinnedModels = true,
   prioritizedProviderIds = []
 }: UseModelSelectorDataOptions): UseModelSelectorDataResult {
-  const hasCompleteDataOverride = providersOverride !== undefined && modelsOverride !== undefined
   const { providers, isLoading: isProvidersLoading } = useProviders({ enabled: true })
-  const { models, isLoading: isModelsLoading } = useModels(
-    { enabled: true },
-    { fetchEnabled: !hasCompleteDataOverride }
-  )
+  const { models, isLoading: isModelsLoading } = useModels({ enabled: true })
   const {
     isLoading: isPinsLoading,
     isRefreshing: isPinsRefreshing,
@@ -102,8 +95,8 @@ export function useModelSelectorData({
   const { tagSelection, selectedTags, tagFilter, toggleTag, resetTags } = useModelTagFilter()
 
   const pinnedIds = useMemo(() => rawPinnedIds.filter(isUniqueModelId), [rawPinnedIds])
-  const availableProviders = providersOverride ?? providers
-  const availableModels = modelsOverride ?? models
+  const availableProviders = providers
+  const availableModels = models
 
   const baseModelFilter = useCallback((model: Model) => filter?.(model) ?? true, [filter])
 
@@ -290,7 +283,7 @@ export function useModelSelectorData({
 
   return {
     availableTags,
-    isLoading: (isDataLoadingOverride ?? (isProvidersLoading || isModelsLoading)) || isPinsLoading,
+    isLoading: isProvidersLoading || isModelsLoading || isPinsLoading,
     isPinActionDisabled: isPinsLoading || isPinsRefreshing || isPinsMutating,
     listItems,
     modelItems,

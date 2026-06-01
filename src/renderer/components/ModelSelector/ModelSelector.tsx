@@ -261,7 +261,6 @@ export function ModelSelector(props: ModelSelectorProps) {
     trigger,
     open: openProp,
     onOpenChange,
-    dataOverride,
     filter,
     showTagFilter = true,
     showPinnedModels = true,
@@ -373,9 +372,6 @@ export function ModelSelector(props: ModelSelectorProps) {
   } = useModelSelectorData({
     selectedModelIds: rawSelectedModelIds,
     maxSelectedCount: multiple && multiSelectMode ? undefined : 1,
-    providersOverride: dataOverride?.providers,
-    modelsOverride: dataOverride?.models,
-    isDataLoadingOverride: dataOverride?.isLoading,
     searchText: deferredSearchText,
     filter,
     prioritizedProviderIds,
