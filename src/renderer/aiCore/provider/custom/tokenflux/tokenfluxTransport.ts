@@ -1,4 +1,5 @@
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
+import { createAbortError } from '../transportUtils'
 
 /**
  * TokenFlux submit/poll transport.
@@ -11,12 +12,6 @@ import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../im
  */
 
 export const DEFAULT_TOKENFLUX_BASE_URL = 'https://api.tokenflux.ai'
-
-function createAbortError(message: string): Error {
-  const error = new Error(message)
-  error.name = 'AbortError'
-  return error
-}
 
 export interface TokenFluxGenerationRequest {
   model: string
