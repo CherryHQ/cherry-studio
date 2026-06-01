@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "b2f4f492-7829-40d7-9ac6-94ec9384a926",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "a781fbf0-e398-4d40-adea-700d4637307c",
+  "prevId": "b2f4f492-7829-40d7-9ac6-94ec9384a926",
   "tables": {
     "agent": {
       "name": "agent",
@@ -1891,13 +1891,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false,
-          "autoincrement": false
-        },
-        "emoji": {
-          "name": "emoji",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
           "autoincrement": false
         },
         "dimensions": {

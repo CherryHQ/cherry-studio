@@ -299,6 +299,7 @@ CREATE TABLE `knowledge_base` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
 	`group_id` text,
+	`emoji` text NOT NULL,
 	`dimensions` integer,
 	`embedding_model_id` text,
 	`status` text NOT NULL,
