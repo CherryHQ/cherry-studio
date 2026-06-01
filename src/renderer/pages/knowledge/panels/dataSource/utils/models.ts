@@ -2,7 +2,7 @@ import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
 import type { FileEntry } from '@shared/data/types/file'
 import type { KnowledgeItemOf, KnowledgeItemStatus, KnowledgeItemType } from '@shared/data/types/knowledge'
 import type { LucideIcon } from 'lucide-react'
-import { FileText, Folder, Globe, Link2, StickyNote } from 'lucide-react'
+import { Boxes, FileText, Folder, Globe, Link2, StickyNote } from 'lucide-react'
 
 export type DataSourceFilter = 'all' | KnowledgeItemType
 export type DataSourceStatus = 'completed' | 'processing' | 'failed'
@@ -21,6 +21,7 @@ export interface DataSourceIconMeta {
 export interface DataSourceFilterDefinition {
   value: DataSourceFilter
   labelKey: string
+  icon: LucideIcon
 }
 
 export interface DataSourceStatusViewModel {
@@ -91,7 +92,7 @@ export const resolveDataSourceStatusViewModel = (status: KnowledgeItemStatus): D
     return {
       kind: 'completed',
       labelKey: 'knowledge.data_source.status.ready',
-      textClassName: 'text-emerald-500/70',
+      textClassName: 'text-success',
       icon: 'check'
     }
   }
@@ -214,10 +215,12 @@ const dataSourceTypeDisplayEntries = Object.entries(dataSourceTypeDisplayConfig)
 export const dataSourceFilterDefinitions: DataSourceFilterDefinition[] = [
   {
     value: 'all',
-    labelKey: 'knowledge.data_source.filters.all'
+    labelKey: 'knowledge.data_source.filters.all',
+    icon: Boxes
   },
   ...dataSourceTypeDisplayEntries.map(([value, config]) => ({
     value,
-    labelKey: config.filterLabelKey
+    labelKey: config.filterLabelKey,
+    icon: config.icon.icon
   }))
 ]

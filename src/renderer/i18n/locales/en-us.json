@@ -1847,6 +1847,23 @@
   "docs": {
     "title": "Docs"
   },
+  "emoji_picker": {
+    "categories": {
+      "activities": "Activities",
+      "animals_nature": "Animals & Nature",
+      "flags": "Flags",
+      "food_drink": "Food & Drink",
+      "objects": "Objects",
+      "people_body": "People & Body",
+      "recent": "Frequently used",
+      "smileys_emotion": "Smileys & Emotion",
+      "symbols": "Symbols",
+      "travel_places": "Travel & Places"
+    },
+    "clear_recent": "Clear recent",
+    "no_results": "No matching emoji",
+    "search": "Search"
+  },
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
@@ -2102,7 +2119,6 @@
   "knowledge": {
     "add": {
       "group": "Group",
-      "icon": "Icon",
       "submit": "Create",
       "title": "New Knowledge Base"
     },
@@ -2164,12 +2180,37 @@
           "title": "Import a single webpage"
         }
       },
+      "bulk": {
+        "cancel": "Cancel",
+        "delete": "Delete",
+        "delete_confirm_description": "Delete {{count}} selected data sources? This cannot be undone.",
+        "delete_confirm_title": "Delete Selected Data Sources?",
+        "reindex": "Reindex",
+        "selected_count": "{{count}} selected"
+      },
       "chunk_delete_confirm_description": "After deletion, this chunk will no longer be used for retrieval. Reindexing the data source will generate it again.",
       "chunk_delete_confirm_title": "Delete Chunk?",
       "chunks_count": "{{count}} chunks",
       "delete_confirm_description": "This data source and its index data cannot be recovered after deletion.",
       "delete_confirm_title": "Delete Data Source?",
       "delete_failed": "Failed to delete data source",
+      "empty": {
+        "shortcuts": {
+          "directory": {
+            "title": "Folder Import"
+          },
+          "file": {
+            "title": "File"
+          },
+          "sitemap": {
+            "title": "Website Sync"
+          },
+          "url": {
+            "title": "URL"
+          }
+        },
+        "title": "Upload Your First Data Source"
+      },
       "empty_description": "No data sources yet",
       "filters": {
         "all": "All",
@@ -2191,6 +2232,22 @@
         "error": "Error",
         "pending": "Waiting",
         "ready": "Ready"
+      },
+      "table": {
+        "columns": {
+          "actions": "Actions",
+          "name": "Name",
+          "status": "Status",
+          "type": "Type",
+          "updated_at": "Updated"
+        },
+        "select_all": "Select all",
+        "select_row": "Select row"
+      },
+      "toolbar": {
+        "add": "Add Data Source",
+        "no_search_results": "No matching data sources",
+        "search_placeholder": "Search data sources"
       }
     },
     "dimensions": "Embedding Dimensions",
@@ -2214,8 +2271,9 @@
     "groups": {
       "add": "New Group",
       "create_base_here": "Create here",
+      "default": "Default",
       "delete": "Delete Group",
-      "delete_confirm_description": "Knowledge bases in this group will be moved to Ungrouped after deletion.",
+      "delete_confirm_description": "Knowledge bases in this group will be moved to the default group after deletion.",
       "delete_confirm_title": "Delete Group?",
       "error": {
         "failed_to_create": "Failed to create group",
@@ -2229,7 +2287,9 @@
       "ungrouped": "Ungrouped"
     },
     "meta": {
-      "documents_count": "{{count}} documents"
+      "data_sources_count": "{{count}} sources",
+      "documents_count": "{{count}} documents",
+      "updated_at": "Updated {{time}}"
     },
     "name_required": "Knowledge base name is required",
     "not_set": "Not Set",
@@ -2248,7 +2308,7 @@
       "document_count": "Requested Chunks (Top K)",
       "embedding_model": "Embedding Model",
       "embedding_model_select": "Model Selection",
-      "file_processing": "Document Preprocessing",
+      "file_processing": "File Processing",
       "file_processing_hint": "Document preprocessing runs automatically during document import. Choosing the right provider can improve document parsing quality.",
       "hints": {
         "chunk_overlap": "Number of overlapping tokens kept between adjacent chunks to reduce semantic breaks.",
@@ -2271,7 +2331,7 @@
       "rerank_model": "Rerank Model",
       "reset_action": "Restore Defaults",
       "reset_defaults": "Reset Defaults",
-      "retrieval": "Retrieval Settings",
+      "retrieval": "Retrieval",
       "save_action": "Save",
       "saved": "Saved",
       "search_mode": {

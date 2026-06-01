@@ -120,6 +120,41 @@ describe('KnowledgeBaseService', () => {
       expect(result.page).toBe(2)
       expect(result.items).toHaveLength(1)
     })
+
+    it('should include non-deleting item counts for each knowledge base', async () => {
+      await seedKnowledgeBase()
+      await seedKnowledgeBase({ id: SECOND_KNOWLEDGE_BASE_ID, name: 'Another Base' })
+      await dbh.db.insert(knowledgeItemTable).values([
+        {
+          baseId: KNOWLEDGE_BASE_ID,
+          type: 'url',
+          data: { source: 'https://example.com/a', url: 'https://example.com/a' },
+          status: 'completed',
+          error: null
+        },
+        {
+          baseId: KNOWLEDGE_BASE_ID,
+          type: 'url',
+          data: { source: 'https://example.com', url: 'https://example.com' },
+          status: 'failed',
+          error: 'Read failed'
+        },
+        {
+          baseId: KNOWLEDGE_BASE_ID,
+          type: 'url',
+          data: { source: 'https://example.com/deleting', url: 'https://example.com/deleting' },
+          status: 'deleting',
+          error: null
+        }
+      ])
+
+      const result = await service.list({ page: 1, limit: 10 })
+      const baseWithItems = result.items.find((item) => item.id === KNOWLEDGE_BASE_ID)
+      const emptyBase = result.items.find((item) => item.id === SECOND_KNOWLEDGE_BASE_ID)
+
+      expect(baseWithItems?.itemCount).toBe(2)
+      expect(emptyBase?.itemCount).toBe(0)
+    })
   })
 
   describe('getById', () => {

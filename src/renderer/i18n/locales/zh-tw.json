@@ -1847,6 +1847,23 @@
   "docs": {
     "title": "說明文件"
   },
+  "emoji_picker": {
+    "categories": {
+      "activities": "活動",
+      "animals_nature": "動物與自然",
+      "flags": "旗幟",
+      "food_drink": "食物與飲品",
+      "objects": "物件",
+      "people_body": "人物",
+      "recent": "最近使用",
+      "smileys_emotion": "表情與角色",
+      "symbols": "符號",
+      "travel_places": "旅行和地點"
+    },
+    "clear_recent": "清除最近使用",
+    "no_results": "沒有匹配的表情",
+    "search": "搜尋"
+  },
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
@@ -2102,7 +2119,6 @@
   "knowledge": {
     "add": {
       "group": "分组",
-      "icon": "图标",
       "submit": "创建",
       "title": "新建知识库"
     },
@@ -2164,12 +2180,37 @@
           "title": "导入单个网页"
         }
       },
+      "bulk": {
+        "cancel": "取消",
+        "delete": "刪除",
+        "delete_confirm_description": "確認刪除選中的 {{count}} 個資料來源？刪除後無法復原。",
+        "delete_confirm_title": "確認批次刪除",
+        "reindex": "重新索引",
+        "selected_count": "已選 {{count}} 項"
+      },
       "chunk_delete_confirm_description": "删除后该 Chunk 将不再参与召回，重新索引数据源后会重新生成。",
       "chunk_delete_confirm_title": "确认删除 Chunk",
       "chunks_count": "{{count}} chunks",
       "delete_confirm_description": "删除后将无法恢复该数据源及其索引数据。",
       "delete_confirm_title": "确认删除数据源",
       "delete_failed": "刪除資料來源失敗",
+      "empty": {
+        "shortcuts": {
+          "directory": {
+            "title": "目錄匯入"
+          },
+          "file": {
+            "title": "檔案"
+          },
+          "sitemap": {
+            "title": "網站同步"
+          },
+          "url": {
+            "title": "網址"
+          }
+        },
+        "title": "上傳第一個資料來源"
+      },
       "empty_description": "暂无数据源",
       "filters": {
         "all": "全部",
@@ -2191,6 +2232,22 @@
         "error": "错误",
         "pending": "等待中",
         "ready": "就绪"
+      },
+      "table": {
+        "columns": {
+          "actions": "操作",
+          "name": "名稱",
+          "status": "狀態",
+          "type": "類型",
+          "updated_at": "更新時間"
+        },
+        "select_all": "全選",
+        "select_row": "選取列"
+      },
+      "toolbar": {
+        "add": "新增資料來源",
+        "no_search_results": "未找到符合的資料來源",
+        "search_placeholder": "搜尋資料來源"
       }
     },
     "dimensions": "嵌入维度",
@@ -2214,8 +2271,9 @@
     "groups": {
       "add": "新建分组",
       "create_base_here": "在此分组新建",
+      "default": "預設",
       "delete": "删除分组",
-      "delete_confirm_description": "删除后，该分组下的知识库将移至未分组。",
+      "delete_confirm_description": "刪除後，該分組下的知識庫將移至預設分組。",
       "delete_confirm_title": "确认删除分组",
       "error": {
         "failed_to_create": "分组创建失败",
@@ -2229,7 +2287,9 @@
       "ungrouped": "未分组"
     },
     "meta": {
-      "documents_count": "{{count}} 文档"
+      "data_sources_count": "{{count}} 資料來源",
+      "documents_count": "{{count}} 文档",
+      "updated_at": "更新於 {{time}}"
     },
     "name_required": "知识库名称为必填项",
     "not_set": "未设置",
@@ -2242,13 +2302,13 @@
       "chunk_size": "分段大小",
       "chunk_size_change_warning": "分段大小和重叠大小修改只针对新添加的内容有效",
       "chunk_size_invalid": "分块大小必须大于 0",
-      "chunking": "分块规则 (Chunking)",
+      "chunking": "Chunking",
       "default_separator": "自动（推荐）",
       "dimensions": "向量維度",
       "document_count": "請求文件片段數 (Top K)",
-      "embedding_model": "Embedding 模型",
+      "embedding_model": "嵌入模型",
       "embedding_model_select": "模型選擇",
-      "file_processing": "文件預處理",
+      "file_processing": "文件處理",
       "file_processing_hint": "文件預處理將在文件導入時自動執行，選擇合適的處理服務商可提升文件解析品質",
       "hints": {
         "chunk_overlap": "相邻文档片段之间保留的重叠 token 数，有助于减少语义截断。",
@@ -2271,7 +2331,7 @@
       "rerank_model": "重排模型 (Rerank)",
       "reset_action": "恢復預設",
       "reset_defaults": "恢复默认",
-      "retrieval": "检索设置",
+      "retrieval": "Retrieval",
       "save_action": "儲存",
       "saved": "已儲存",
       "search_mode": {

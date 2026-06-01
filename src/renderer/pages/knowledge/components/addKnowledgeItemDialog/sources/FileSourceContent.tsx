@@ -1,7 +1,8 @@
 import { formatFileSize } from '@renderer/utils/file'
-import { FileText, Upload } from 'lucide-react'
+import { FileText } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { KNOWLEDGE_SUPPORTED_FILE_TYPES } from '../constants'
 import DropzoneCard from '../primitives/DropzoneCard'
 import SelectionListItem from '../primitives/SelectionListItem'
 import type { DropzoneOnDrop } from '../types'
@@ -16,22 +17,15 @@ const FileSourceContent = ({ files, onDrop, onRemove }: FileSourceContentProps) 
   const { t } = useTranslation()
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
-      <DropzoneCard
-        icon={Upload}
-        onDrop={onDrop}
-        title={t('knowledge.data_source.add_dialog.placeholder.title')}
-        description={t('knowledge.data_source.add_dialog.placeholder.supported_formats')}
-      />
-
-      {files.length > 0 ? (
-        <div data-testid="knowledge-source-file-list" className="max-h-52 overflow-y-auto">
+    <div className="flex h-full min-h-0 flex-1 flex-col gap-3">
+      <div data-testid="knowledge-source-file-list" className="min-h-0 flex-1 overflow-y-auto">
+        {files.length > 0 ? (
           <div role="list" className="space-y-1.5 pr-1">
             {files.map((file, index) => (
               <SelectionListItem
                 key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
                 icon={FileText}
-                iconClassName="size-2.5 shrink-0 text-blue-500"
+                iconClassName="size-3.5 shrink-0 text-blue-500"
                 name={file.name}
                 meta={formatFileSize(file.size)}
                 onRemove={() => onRemove(index)}
@@ -39,8 +33,14 @@ const FileSourceContent = ({ files, onDrop, onRemove }: FileSourceContentProps) 
               />
             ))}
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
+
+      <DropzoneCard
+        onDrop={onDrop}
+        title={t('knowledge.drag_file')}
+        description={t('knowledge.file_hint', { file_types: KNOWLEDGE_SUPPORTED_FILE_TYPES })}
+      />
     </div>
   )
 }

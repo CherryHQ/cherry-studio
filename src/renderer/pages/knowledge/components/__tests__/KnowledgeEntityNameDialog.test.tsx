@@ -5,12 +5,26 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import KnowledgeEntityNameDialog from '../KnowledgeEntityNameDialog'
 
 vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, loading, ...props }: { children: ReactNode; loading?: boolean; [key: string]: unknown }) => (
-    <button {...props}>{loading ? 'loading' : children}</button>
+  Button: ({
+    children,
+    loading,
+    type = 'button',
+    ...props
+  }: {
+    children: ReactNode
+    loading?: boolean
+    type?: 'button' | 'submit'
+    [key: string]: unknown
+  }) => (
+    <button type={type} {...props}>
+      {loading ? 'loading' : children}
+    </button>
   ),
   Dialog: ({ children, open }: { children: ReactNode; open: boolean }) => (open ? <div>{children}</div> : null),
-  DialogContent: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
-    <div {...props}>{children}</div>
+  DialogContent: ({ children, size, ...props }: { children: ReactNode; size?: string; [key: string]: unknown }) => (
+    <div role="dialog" data-size={size} {...props}>
+      {children}
+    </div>
   ),
   DialogFooter: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
     <div {...props}>{children}</div>
@@ -88,6 +102,7 @@ describe('KnowledgeEntityNameDialog', () => {
     renderDialog({ initialName: 'Research' })
 
     expect(screen.getByRole('heading', { name: '重命名实体' })).toBeInTheDocument()
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-size', 'sm')
     expect(screen.getByLabelText('名称')).toHaveValue('Research')
   })
 

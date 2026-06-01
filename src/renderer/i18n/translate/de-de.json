@@ -1847,6 +1847,23 @@
   "docs": {
     "title": "Hilfedokumentation"
   },
+  "emoji_picker": {
+    "categories": {
+      "activities": "[to be translated]:Activities",
+      "animals_nature": "[to be translated]:Animals & Nature",
+      "flags": "[to be translated]:Flags",
+      "food_drink": "[to be translated]:Food & Drink",
+      "objects": "[to be translated]:Objects",
+      "people_body": "[to be translated]:People & Body",
+      "recent": "[to be translated]:Frequently used",
+      "smileys_emotion": "[to be translated]:Smileys & Emotion",
+      "symbols": "[to be translated]:Symbols",
+      "travel_places": "[to be translated]:Travel & Places"
+    },
+    "clear_recent": "[to be translated]:Clear recent",
+    "no_results": "[to be translated]:No matching emoji",
+    "search": "[to be translated]:Search"
+  },
   "endpoint_type": {
     "anthropic": "Anthropic",
     "gemini": "Gemini",
@@ -2102,7 +2119,6 @@
   "knowledge": {
     "add": {
       "group": "[to be translated]:Group",
-      "icon": "[to be translated]:Icon",
       "submit": "[to be translated]:Create",
       "title": "[to be translated]:New Knowledge Base"
     },
@@ -2164,12 +2180,37 @@
           "title": "[to be translated]:Import a single webpage"
         }
       },
+      "bulk": {
+        "cancel": "[to be translated]:Cancel",
+        "delete": "[to be translated]:Delete",
+        "delete_confirm_description": "[to be translated]:Delete {{count}} selected data sources? This cannot be undone.",
+        "delete_confirm_title": "[to be translated]:Delete Selected Data Sources?",
+        "reindex": "[to be translated]:Reindex",
+        "selected_count": "[to be translated]:{{count}} selected"
+      },
       "chunk_delete_confirm_description": "[to be translated]:After deletion, this chunk will no longer be used for retrieval. Reindexing the data source will generate it again.",
       "chunk_delete_confirm_title": "[to be translated]:Delete Chunk?",
       "chunks_count": "[to be translated]:{{count}} chunks",
       "delete_confirm_description": "[to be translated]:This data source and its index data cannot be recovered after deletion.",
       "delete_confirm_title": "[to be translated]:Delete Data Source?",
       "delete_failed": "[to be translated]:Failed to delete data source",
+      "empty": {
+        "shortcuts": {
+          "directory": {
+            "title": "[to be translated]:Folder Import"
+          },
+          "file": {
+            "title": "[to be translated]:File"
+          },
+          "sitemap": {
+            "title": "[to be translated]:Website Sync"
+          },
+          "url": {
+            "title": "[to be translated]:URL"
+          }
+        },
+        "title": "[to be translated]:Upload Your First Data Source"
+      },
       "empty_description": "[to be translated]:No data sources yet",
       "filters": {
         "all": "[to be translated]:All",
@@ -2191,6 +2232,22 @@
         "error": "[to be translated]:Error",
         "pending": "[to be translated]:Waiting",
         "ready": "[to be translated]:Ready"
+      },
+      "table": {
+        "columns": {
+          "actions": "[to be translated]:Actions",
+          "name": "[to be translated]:Name",
+          "status": "[to be translated]:Status",
+          "type": "[to be translated]:Type",
+          "updated_at": "[to be translated]:Updated"
+        },
+        "select_all": "[to be translated]:Select all",
+        "select_row": "[to be translated]:Select row"
+      },
+      "toolbar": {
+        "add": "[to be translated]:Add Data Source",
+        "no_search_results": "[to be translated]:No matching data sources",
+        "search_placeholder": "[to be translated]:Search data sources"
       }
     },
     "dimensions": "[to be translated]:Embedding Dimensions",
@@ -2214,6 +2271,7 @@
     "groups": {
       "add": "[to be translated]:New Group",
       "create_base_here": "[to be translated]:Create here",
+      "default": "[to be translated]:Default",
       "delete": "[to be translated]:Delete Group",
       "delete_confirm_description": "[to be translated]:Knowledge bases in this group will be moved to Ungrouped after deletion.",
       "delete_confirm_title": "[to be translated]:Delete Group?",
@@ -2229,7 +2287,9 @@
       "ungrouped": "[to be translated]:Ungrouped"
     },
     "meta": {
-      "documents_count": "[to be translated]:{{count}} documents"
+      "data_sources_count": "[to be translated]:{{count}} sources",
+      "documents_count": "[to be translated]:{{count}} documents",
+      "updated_at": "[to be translated]:Updated {{time}}"
     },
     "name_required": "[to be translated]:Knowledge base name is required",
     "not_set": "[to be translated]:Not Set",
