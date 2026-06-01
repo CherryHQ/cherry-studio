@@ -1,4 +1,28 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+// Integration tests for `PaintingMigrator`, run against a real SQLite DB via
+// `setupTestDatabase()` so the production migrations, FK constraints, and
+// transaction semantics all apply.
+//
+// The riskiest (previously untested) path is the `file_ref` emission in
+// `execute()`: legacy painting rows carry output/input `file_entry.id`s in
+// JSON, but the FileMigrator may have skipped some of those ids as malformed.
+// `execute()` resolves the referenced ids against `file_entry` and emits
+// `file_ref` rows ONLY for ids that survived — dropping (and counting as
+// `droppedFileRefs`) the dangling ones so the engine's final
+// `PRAGMA foreign_key_check` never aborts the whole migration.
+//
+// `setupTestDatabase` keeps `foreign_keys = ON` (stricter than migration
+// runtime, where the engine keeps them OFF until `verifyForeignKeys`). That's
+// deliberate: if the dangling guard ever regresses, the FK constraint fires
+// immediately on insert and `execute()` returns `success=false` — the same
+// signal as the production check, just earlier.
+import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
+import { paintingTable } from '@data/db/schemas/painting'
+import { paintingSourceType } from '@shared/data/types/file/ref'
+import { setupTestDatabase } from '@test-helpers/db'
+import { eq } from 'drizzle-orm'
+import { describe, expect, it, vi } from 'vitest'
+
+import { PaintingMigrator } from '../PaintingMigrator'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -11,136 +35,193 @@ vi.mock('@logger', () => ({
   }
 }))
 
-import { PaintingMigrator } from '../PaintingMigrator'
+// `painting.id` is a UUID v4 (the painting file-ref variant validates sourceId
+// as `z.uuidv4()`), so seed realistic v4 ids even though `file_ref.sourceId`
+// carries no FK constraint at the DB layer.
+const PAINTING_OUTPUT_ID = '11111111-1111-4111-8111-111111111111'
+const PAINTING_INPUT_ID = '22222222-2222-4222-8222-222222222222'
+const PAINTING_DANGLING_ID = '33333333-3333-4333-8333-333333333333'
 
-function createMigrationContext(
-  paintingsState: Record<string, unknown>,
-  insertedRows: unknown[],
-  validModelIds: string[] = []
-): Record<string, unknown> {
+// `file_entry.id` is a UUID v7 (ordered) in production; any uuid-shaped string
+// is accepted by the column. Use distinct ids for present vs. missing files.
+const FILE_PRESENT_OUTPUT_ID = '019606a0-0000-7000-8000-000000000001'
+const FILE_PRESENT_INPUT_ID = '019606a0-0000-7000-8000-000000000002'
+const FILE_MISSING_A_ID = '019606a0-0000-7000-8000-0000000000aa'
+const FILE_MISSING_B_ID = '019606a0-0000-7000-8000-0000000000bb'
+
+type Dbh = ReturnType<typeof setupTestDatabase>
+
+function makeCtx(dbh: Dbh, paintingsState: Record<string, unknown>) {
+  // Only `sources.reduxState.getCategory` and `db` are consulted on this code
+  // path; the full MigrationContext has more reader fields, so cast through
+  // `never` and mock just what the migrator touches.
   return {
     sources: {
       reduxState: {
         getCategory: vi.fn((name: string) => (name === 'paintings' ? paintingsState : undefined))
       }
     },
-    db: {
-      transaction: vi.fn(async (fn: (tx: Record<string, unknown>) => Promise<unknown>) =>
-        fn({
-          insert: vi.fn(() => ({
-            values: vi.fn(async (values: unknown[]) => {
-              insertedRows.push(...values)
-            })
-          }))
-        })
-      ),
-      select: vi.fn(() => ({
-        from: vi.fn(() =>
-          Object.assign(
-            validModelIds.map((id) => ({ id })),
-            {
-              get: vi.fn(async () => ({ count: insertedRows.length }))
-            }
-          )
-        )
-      }))
-    }
-  }
+    db: dbh.db
+  } as never
 }
 
-describe('PaintingMigrator', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
+async function seedInternalFile(dbh: Dbh, id: string): Promise<void> {
+  const now = Date.now()
+  await dbh.db.insert(fileEntryTable).values({
+    id,
+    origin: 'internal',
+    name: 'image',
+    ext: 'png',
+    size: 1024,
+    createdAt: now,
+    updatedAt: now
   })
+}
 
-  it('prepares records with global orderKey and DMXAPI mode normalization', async () => {
+describe('PaintingMigrator file_ref integration', () => {
+  const dbh = setupTestDatabase()
+
+  it('emits file_ref rows for present file ids and inserts painting rows (happy path)', async () => {
+    await seedInternalFile(dbh, FILE_PRESENT_OUTPUT_ID)
+    await seedInternalFile(dbh, FILE_PRESENT_INPUT_ID)
+
     const migrator = new PaintingMigrator()
-    const insertedRows: unknown[] = []
-    const ctx = createMigrationContext(
-      {
-        dmxapi_paintings: [
-          { id: 'dmx-1', prompt: 'first', generationMode: 'generation' },
-          { id: 'dmx-2', prompt: 'second', generationMode: 'edit' }
-        ],
-        openai_image_generate: [{ id: 'openai-1', providerId: 'custom-openai', prompt: 'third' }]
-      },
-      insertedRows
-    )
-
-    const prepareResult = await migrator.prepare(ctx as never)
-    expect(prepareResult.success).toBe(true)
-
-    const preparedRows = (migrator as unknown as { preparedPaintings: Array<Record<string, unknown>> })
-      .preparedPaintings
-    expect(preparedRows).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: 'dmx-1',
-          providerId: 'dmxapi',
-          orderKey: expect.any(String)
-        }),
-        expect.objectContaining({
-          id: 'dmx-2',
-          providerId: 'dmxapi',
-          orderKey: expect.any(String)
-        }),
-        expect.objectContaining({
-          id: 'openai-1',
-          providerId: 'custom-openai',
-          orderKey: expect.any(String)
-        })
-      ])
-    )
-    expect(new Set(preparedRows.map((row) => row.orderKey)).size).toBe(preparedRows.length)
-  })
-
-  it('executes inserts and validates migrated row counts', async () => {
-    const migrator = new PaintingMigrator()
-    const insertedRows: unknown[] = []
-    const ctx = createMigrationContext(
-      {
-        siliconflow_paintings: [{ id: 'painting-1', prompt: 'hello' }],
-        ppio_edit: [{ id: 'painting-2', prompt: 'world', taskId: 'task-2' }]
-      },
-      insertedRows
-    )
-
-    await migrator.prepare(ctx as never)
-    await expect(migrator.execute(ctx as never)).resolves.toMatchObject({
-      success: true,
-      processedCount: 2
+    const ctx = makeCtx(dbh, {
+      // openai_image_edit carries both output (`files`) and input (`imageFile`).
+      openai_image_edit: [
+        {
+          id: PAINTING_OUTPUT_ID,
+          providerId: 'openai',
+          prompt: 'edit a fox',
+          files: [{ id: FILE_PRESENT_OUTPUT_ID }],
+          imageFile: { id: FILE_PRESENT_INPUT_ID }
+        }
+      ]
     })
-    await expect(migrator.validate(ctx as never)).resolves.toMatchObject({
-      success: true,
-      stats: {
-        sourceCount: 2,
-        targetCount: 2,
-        skippedCount: 0
-      }
+
+    expect((await migrator.prepare(ctx)).success).toBe(true)
+    await expect(migrator.execute(ctx)).resolves.toMatchObject({ success: true, processedCount: 1 })
+
+    const paintingRows = await dbh.db.select().from(paintingTable)
+    expect(paintingRows).toHaveLength(1)
+    expect(paintingRows[0]).toMatchObject({
+      id: PAINTING_OUTPUT_ID,
+      providerId: 'openai',
+      prompt: 'edit a fox'
     })
+    expect(paintingRows[0].orderKey).toEqual(expect.any(String))
+
+    const refRows = await dbh.db.select().from(fileRefTable).where(eq(fileRefTable.sourceId, PAINTING_OUTPUT_ID))
+    expect(refRows).toHaveLength(2)
+    expect(refRows.every((r) => r.sourceType === paintingSourceType)).toBe(true)
+    const byRole = new Map(refRows.map((r) => [r.role, r.fileEntryId]))
+    expect(byRole.get('output')).toBe(FILE_PRESENT_OUTPUT_ID)
+    expect(byRole.get('input')).toBe(FILE_PRESENT_INPUT_ID)
+
+    // No dangling refs in the happy path.
+    expect((migrator as unknown as { droppedFileRefs: number }).droppedFileRefs).toBe(0)
+
+    // The post-migration check the engine runs must pass.
+    const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
+    expect(fkCheck.rows).toHaveLength(0)
   })
 
-  it('preserves all model references during migration regardless of userModel presence', async () => {
+  it('drops file ids absent from file_entry, counts them, and still migrates paintings', async () => {
+    // Only the output id exists; the two referenced input ids were skipped by
+    // the FileMigrator, so they are dangling.
+    await seedInternalFile(dbh, FILE_PRESENT_OUTPUT_ID)
+
     const migrator = new PaintingMigrator()
-    const insertedRows: unknown[] = []
-    const ctx = createMigrationContext(
-      {
-        openai_image_generate: [
-          { id: 'painting-known', providerId: 'openai', modelId: 'openai::gpt-image-1', prompt: 'known' },
-          { id: 'painting-dangling', providerId: 'openai', modelId: 'openai::missing', prompt: 'dangling' }
-        ]
-      },
-      insertedRows
-    )
+    const ctx = makeCtx(dbh, {
+      // One painting referencing a present output + a missing output.
+      aihubmix_image_generate: [
+        {
+          id: PAINTING_OUTPUT_ID,
+          prompt: 'a fox',
+          files: [{ id: FILE_PRESENT_OUTPUT_ID }, { id: FILE_MISSING_A_ID }]
+        }
+      ],
+      // One edit painting whose only input file is missing — the painting row
+      // still migrates (input file is otherwise preserved as a ref), but the
+      // dangling input ref is dropped.
+      aihubmix_image_edit: [
+        {
+          id: PAINTING_INPUT_ID,
+          prompt: 'edit it',
+          imageFiles: [{ id: FILE_MISSING_B_ID }]
+        }
+      ]
+    })
 
-    await migrator.prepare(ctx as never)
-    await migrator.execute(ctx as never)
+    expect((await migrator.prepare(ctx)).success).toBe(true)
+    await expect(migrator.execute(ctx)).resolves.toMatchObject({ success: true, processedCount: 2 })
 
-    expect(insertedRows).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ id: 'painting-known', modelId: 'openai::gpt-image-1' }),
-        expect.objectContaining({ id: 'painting-dangling', modelId: 'openai::missing' })
-      ])
-    )
+    // Both paintings persisted.
+    const paintingRows = await dbh.db.select().from(paintingTable)
+    expect(paintingRows.map((r) => r.id).sort()).toEqual([PAINTING_OUTPUT_ID, PAINTING_INPUT_ID].sort())
+
+    // Only the present output id produced a file_ref; the two missing ids were
+    // dropped (one output + one input).
+    const refRows = await dbh.db.select().from(fileRefTable)
+    expect(refRows).toHaveLength(1)
+    expect(refRows[0]).toMatchObject({
+      fileEntryId: FILE_PRESENT_OUTPUT_ID,
+      sourceId: PAINTING_OUTPUT_ID,
+      sourceType: paintingSourceType,
+      role: 'output'
+    })
+    expect((migrator as unknown as { droppedFileRefs: number }).droppedFileRefs).toBe(2)
+
+    // No dangling FK left behind for the engine's final check.
+    const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
+    expect(fkCheck.rows).toHaveLength(0)
+  })
+
+  it('drops every ref and emits none when all referenced file ids are dangling', async () => {
+    // No file_entry seeded at all → every referenced id is dangling.
+    const migrator = new PaintingMigrator()
+    const ctx = makeCtx(dbh, {
+      siliconflow_paintings: [
+        {
+          id: PAINTING_DANGLING_ID,
+          prompt: 'orphaned files',
+          files: [{ id: FILE_MISSING_A_ID }, { id: FILE_MISSING_B_ID }]
+        }
+      ]
+    })
+
+    expect((await migrator.prepare(ctx)).success).toBe(true)
+    await expect(migrator.execute(ctx)).resolves.toMatchObject({ success: true, processedCount: 1 })
+
+    const paintingRows = await dbh.db.select().from(paintingTable)
+    expect(paintingRows).toHaveLength(1)
+    expect(paintingRows[0].id).toBe(PAINTING_DANGLING_ID)
+
+    const refRows = await dbh.db.select().from(fileRefTable)
+    expect(refRows).toHaveLength(0)
+    expect((migrator as unknown as { droppedFileRefs: number }).droppedFileRefs).toBe(2)
+
+    const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
+    expect(fkCheck.rows).toHaveLength(0)
+  })
+
+  it('validates migrated row counts after a mixed present/dangling run', async () => {
+    await seedInternalFile(dbh, FILE_PRESENT_OUTPUT_ID)
+
+    const migrator = new PaintingMigrator()
+    const ctx = makeCtx(dbh, {
+      dmxapi_paintings: [
+        { id: PAINTING_OUTPUT_ID, prompt: 'present', files: [{ id: FILE_PRESENT_OUTPUT_ID }] },
+        { id: PAINTING_DANGLING_ID, prompt: 'dangling', files: [{ id: FILE_MISSING_A_ID }] }
+      ]
+    })
+
+    await migrator.prepare(ctx)
+    await migrator.execute(ctx)
+
+    await expect(migrator.validate(ctx)).resolves.toMatchObject({
+      success: true,
+      stats: { sourceCount: 2, targetCount: 2, skippedCount: 0 }
+    })
   })
 })

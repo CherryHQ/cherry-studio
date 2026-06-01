@@ -18,8 +18,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
 
-const { isActiveProviderRegistryModelMock } = vi.hoisted(() => ({
-  isActiveProviderRegistryModelMock: vi.fn()
+const { isActiveProviderRegistryModelMock, lookupModelMock } = vi.hoisted(() => ({
+  isActiveProviderRegistryModelMock: vi.fn(),
+  // `list()` enriches every row by calling `lookupModel`. Default to an
+  // empty registry hit (no preset / override) so the enrichment is a no-op
+  // unless a test opts in; individual tests override per (providerId, modelId).
+  lookupModelMock: vi.fn(
+    async (
+      _providerId: string,
+      _modelId: string
+    ): Promise<{
+      presetModel: { id?: string; capabilities?: string[]; imageGeneration?: unknown } | null
+      registryOverride: {
+        capabilities?: { force?: string[]; add?: string[]; remove?: string[] }
+        imageGeneration?: unknown
+      } | null
+    }> => ({ presetModel: null, registryOverride: null })
+  )
 }))
 
 vi.mock('@data/services/ProviderRegistryService', async (importOriginal) => {
@@ -27,7 +42,8 @@ vi.mock('@data/services/ProviderRegistryService', async (importOriginal) => {
   return {
     ...actual,
     providerRegistryService: {
-      isActiveProviderRegistryModel: isActiveProviderRegistryModelMock
+      isActiveProviderRegistryModel: isActiveProviderRegistryModelMock,
+      lookupModel: lookupModelMock
     }
   }
 })
@@ -600,6 +616,91 @@ describe('ModelService.list', () => {
     const models = await modelService.list({ providerId: 'nonexistent' })
 
     expect(models).toEqual([])
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ModelService.list — registry enrichment (imageGeneration + capability union)
+//
+// `list()` reads each row's at-rest capabilities and unions in ONLY
+// `image-generation` from the registry preset (so the painting filter picks a
+// model up even when the provider shipped it untagged). It does NOT re-add any
+// OTHER preset capability the user removed. It also attaches `imageGeneration`
+// preset metadata (not stored on user_model) when present.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('ModelService.list — registry enrichment', () => {
+  const dbh = setupTestDatabase()
+
+  const imageGenerationMeta = { modes: {} } as any
+
+  beforeEach(() => {
+    // Reset to the default no-op registry hit; tests opt in per model.
+    lookupModelMock.mockReset()
+    lookupModelMock.mockResolvedValue({ presetModel: null, registryOverride: null })
+  })
+
+  it('adds image-generation (and imageGeneration metadata) when the preset declares it but the user row lacks it', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('cherryin', 'CherryIn'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('cherryin', 'qwen-image-edit-2509', {
+        presetModelId: 'qwen-image-edit-2509',
+        name: 'Qwen Image Edit',
+        // Provider's /models endpoint shipped it untagged.
+        capabilities: []
+      })
+    )
+
+    lookupModelMock.mockImplementation(async (providerId: string, modelId: string) => {
+      if (providerId === 'cherryin' && modelId === 'qwen-image-edit-2509') {
+        return {
+          presetModel: {
+            id: 'qwen-image-edit-2509',
+            capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+            imageGeneration: imageGenerationMeta
+          },
+          registryOverride: null
+        }
+      }
+      return { presetModel: null, registryOverride: null }
+    })
+
+    const [model] = await modelService.list({ providerId: 'cherryin' })
+
+    expect(model.capabilities).toContain(MODEL_CAPABILITY.IMAGE_GENERATION)
+    expect(model.imageGeneration).toEqual(imageGenerationMeta)
+  })
+
+  it('does NOT re-add a non-image-generation preset capability the user removed', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('anthropic', 'Anthropic'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('anthropic', 'claude-3', {
+        presetModelId: 'claude-3',
+        name: 'Claude 3',
+        // User dropped `reasoning` from the at-rest row; only function-call left.
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+      })
+    )
+
+    lookupModelMock.mockImplementation(async (providerId: string, modelId: string) => {
+      if (providerId === 'anthropic' && modelId === 'claude-3') {
+        return {
+          presetModel: {
+            id: 'claude-3',
+            // Preset still ships reasoning + function-call; reasoning must NOT
+            // be resurrected at read time.
+            capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING]
+          },
+          registryOverride: null
+        }
+      }
+      return { presetModel: null, registryOverride: null }
+    })
+
+    const [model] = await modelService.list({ providerId: 'anthropic' })
+
+    expect(model.capabilities).toEqual([MODEL_CAPABILITY.FUNCTION_CALL])
+    expect(model.capabilities).not.toContain(MODEL_CAPABILITY.REASONING)
   })
 })
 
