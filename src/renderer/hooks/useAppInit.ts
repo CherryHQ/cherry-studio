@@ -1,7 +1,8 @@
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import { isMac } from '@renderer/config/constant'
+import PrivacyPolicyUpdateNotice from '@renderer/components/app/PrivacyPolicyUpdateNotice'
+import { isMac, LATEST_PRIVACY_POLICY_VERSION } from '@renderer/config/constant'
 import { isLocalAi } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import db from '@renderer/databases'
@@ -38,6 +39,7 @@ export function useAppInit() {
   const [customCss] = usePreference('ui.custom_css')
   const [autoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
   const [enableDataCollection] = usePreference('app.privacy.data_collection.enabled')
+  const [privacyPolicyVersion] = usePreference('app.privacy.policy_version')
 
   const { isLeftNavbar } = useNavbarPosition()
   const { miniAppShow } = useMiniApps()
@@ -70,6 +72,15 @@ export function useAppInit() {
 
   useAppUpdateHandler()
   useFullScreenNotice()
+
+  useEffect(() => {
+    if (privacyPolicyVersion === LATEST_PRIVACY_POLICY_VERSION) {
+      PrivacyPolicyUpdateNotice.hide()
+      return
+    }
+
+    void PrivacyPolicyUpdateNotice.show()
+  }, [privacyPolicyVersion])
 
   useEffect(() => {
     savedAvatar?.value && cacheService.set('app.user.avatar', savedAvatar.value)

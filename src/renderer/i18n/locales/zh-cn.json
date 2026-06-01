@@ -1724,6 +1724,7 @@
     "copy_failed": "复制失败",
     "current": "当前",
     "cut": "剪切",
+    "decline": "拒绝",
     "default": "默认",
     "delete": "删除",
     "delete_confirm": "确定要删除吗？",
@@ -4050,6 +4051,14 @@
     "source": "查看源代码",
     "zoom_in": "放大",
     "zoom_out": "缩小"
+  },
+  "privacy_policy": {
+    "title": "隐私协议"
+  },
+  "privacy_policy_update": {
+    "description_before_link": "我们更新了隐私协议。请查看最新的",
+    "policy": "隐私协议",
+    "title": "隐私协议更新"
   },
   "prompts": {
     "explanation": "帮我解释一下这个概念",

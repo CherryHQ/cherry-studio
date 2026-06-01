@@ -1724,6 +1724,7 @@
     "copy_failed": "Error al copiar",
     "current": "Actual",
     "cut": "Cortar",
+    "decline": "Decline",
     "default": "Predeterminado",
     "delete": "Eliminar",
     "delete_confirm": "¿Está seguro de que desea eliminarlo?",
@@ -4051,6 +4052,14 @@
     "zoom_in": "ampliar",
     "zoom_out": "reducir"
   },
+  "privacy_policy": {
+    "title": "Privacy Policy"
+  },
+  "privacy_policy_update": {
+    "description_before_link": "We have updated the privacy policy. Please review the latest ",
+    "policy": "Privacy Policy",
+    "title": "Privacy Policy Updated"
+  },
   "prompts": {
     "explanation": "Ayúdame a explicar este concepto",
     "summarize": "Ayúdame a resumir este párrafo",
@@ -4738,6 +4747,7 @@
         },
         "description": "[to be translated]:Run every configured file processor through the real file processing IPC and compare results.",
         "duration": "[to be translated]:{{seconds}}s",
+        "jobId": "[to be translated]:Job ID",
         "markdown": {
           "description": "[to be translated]:Select a document and run all document-to-markdown processors.",
           "fileFilterName": "[to be translated]:Documents",
@@ -4759,13 +4769,14 @@
         "status": {
           "cancelled": "[to be translated]:Cancelled",
           "completed": "[to be translated]:Completed",
+          "delayed": "[to be translated]:Delayed",
           "failed": "[to be translated]:Failed",
           "idle": "[to be translated]:Idle",
           "pending": "[to be translated]:Pending",
           "processing": "[to be translated]:Processing",
+          "running": "[to be translated]:Running",
           "starting": "[to be translated]:Starting"
         },
-        "taskId": "[to be translated]:Task ID",
         "title": "[to be translated]:Document Parsing"
       },
       "label": "Laboratorio de Componentes",
