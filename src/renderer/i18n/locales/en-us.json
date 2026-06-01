@@ -3838,6 +3838,7 @@
     "image_size_options": {
       "auto": "Auto"
     },
+    "image_weight": "Image Weight",
     "inference_steps": "Inference Steps",
     "inference_steps_tip": "The number of inference steps to perform ({{min}}-{{max}}). More steps produce higher quality but take longer",
     "input_image": "Input Image",
@@ -3892,6 +3893,7 @@
     "prompt_placeholder": "Describe the image you want to create, e.g. A serene lake at sunset with mountains in the background",
     "prompt_placeholder_edit": "Enter your image description, text drawing uses \"double quotes\" to wrap",
     "prompt_placeholder_en": "Enter your image description, currently only supports English prompts",
+    "prompt_required": "Please enter a prompt",
     "proxy_required": "Open the proxy and enable \"TUN mode\" to view generated images or copy them to the browser for opening. In the future, domestic direct connection will be supported",
     "quality": "Quality",
     "quality_options": {

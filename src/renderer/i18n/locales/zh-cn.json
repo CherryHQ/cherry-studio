@@ -3838,6 +3838,7 @@
     "image_size_options": {
       "auto": "自动"
     },
+    "image_weight": "图像权重",
     "inference_steps": "推理步数",
     "inference_steps_tip": "要执行的推理步数 ({{min}}-{{max}})。步数越多，质量越高但耗时越长",
     "input_image": "输入图片",
@@ -3892,6 +3893,7 @@
     "prompt_placeholder": "描述你想创建的图片，例如：一个宁静的湖泊，夕阳西下，远处是群山",
     "prompt_placeholder_edit": "输入你的图片描述，文本绘制用 \"双引号\" 包裹",
     "prompt_placeholder_en": "输入 \"英文\" 图片描述，目前仅支持英文提示词",
+    "prompt_required": "请输入提示词",
     "proxy_required": "打开代理并开启 \"TUN 模式\" 查看生成图片或复制到浏览器打开，后续会支持国内直连",
     "quality": "质量",
     "quality_options": {
