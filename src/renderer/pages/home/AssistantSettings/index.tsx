@@ -87,7 +87,12 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
           padding: 0,
           overflow: 'hidden'
         },
-        header: { padding: '10px 15px', borderBottom: '0.5px solid var(--color-border)', margin: 0, borderRadius: 0 },
+        header: {
+          padding: '10px 15px',
+          borderBottom: '0.5px solid var(--color-border-muted)',
+          margin: 0,
+          borderRadius: 0
+        },
         body: {
           padding: 0
         }
@@ -97,7 +102,7 @@ const AssistantSettingPopupContainer: React.FC<Props> = ({ resolve, tab, ...prop
       height="80vh"
       centered>
       <RowFlex>
-        <div className="h-[calc(80vh-20px)] border-border border-r-[0.5px]">
+        <div className="h-[calc(80vh-20px)] [border-right:0.5px_solid_var(--color-border-muted)]">
           <MenuList className="mt-0.5 w-[220px] p-1.25">
             {items.map((item) => (
               <MenuItem

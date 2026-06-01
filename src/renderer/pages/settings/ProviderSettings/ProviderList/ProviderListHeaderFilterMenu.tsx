@@ -39,13 +39,12 @@ export default function ProviderListHeaderFilterMenu({
           <Filter size={14} />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-fit min-w-32 rounded-xl p-1.5">
+      <PopoverContent align="end" variant="menu" className="w-fit min-w-32">
         <MenuList className="gap-1">
           {FILTER_MENU_OPTIONS.map(({ mode, labelKey }) => (
             <MenuItem
               key={mode}
               label={t(labelKey)}
-              className="h-8 rounded-lg px-2.5 text-sm"
               icon={<Check className={cn('size-3.5', filterMode === mode ? 'opacity-100' : 'opacity-0')} />}
               onClick={() => {
                 onFilterChange(mode)

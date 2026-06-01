@@ -3390,6 +3390,7 @@
       "label": "Generate Note Name",
       "success": "Note name generated successfully"
     },
+    "back_to_library": "Back to all",
     "characters": "Characters",
     "collapse": "Collapse",
     "content_placeholder": "Please enter the note content...",
@@ -3410,12 +3411,14 @@
     "export_knowledge": "Export notes to knowledge base",
     "export_success": "Successfully exported to the knowledge base",
     "export_to_word_failed": "Failed to export to Word",
+    "favorites_empty_hint": "No favorites yet. Right-click a note and star it to collect it here.",
     "folder": "folder",
     "load_failed": "Failed to load note",
     "load_failed_description": "The file could not be read. Editing is disabled to protect the note content.",
     "metadata_sync_failed": "File updated, but note state sync failed. Please retry the operation.",
     "metadata_update_failed": "Failed to update note state",
     "move_failed": "Failed to move note",
+    "my_library": "All",
     "new_folder": "New Folder",
     "new_note": "Create a new note",
     "no_content_to_copy": "No content to copy",
@@ -3489,7 +3492,6 @@
       "save_failed": "Failed to save notes settings",
       "title": "Notes"
     },
-    "show_starred": "Show favorite notes",
     "sort_a2z": "File name (A-Z)",
     "sort_created_asc": "Creation time (oldest first)",
     "sort_created_desc": "Creation time (newest first)",
@@ -3513,7 +3515,8 @@
     "upload_folder": "Upload Folder",
     "upload_partial_failed": "Uploaded {{uploaded}} notes, {{failed}} failed",
     "upload_success": "Note uploaded success",
-    "uploading_files": "Uploading {{count}} files..."
+    "uploading_files": "Uploading {{count}} files...",
+    "view_favorites": "Favorites"
   },
   "notification": {
     "assistant": "Assistant Response",

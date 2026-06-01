@@ -53,20 +53,19 @@ const STYLE_CONTENT = `
   align-items: center;
   gap: 4px;
   padding: 4px 8px;
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-background-subtle);
+  border-bottom: 0.5px solid var(--color-border-muted);
   overflow-x: auto;
   overflow-y: hidden;
   white-space: nowrap;
   scrollbar-width: thin;
-  scrollbar-color: var(--color-border) var(--color-background-subtle);
+  scrollbar-color: var(--color-border) transparent;
 }
   position: sticky;
   top: 0;
   z-index: 10;
 
 .ToolbarWrapper::-webkit-scrollbar-track {
-  background: var(--color-background-subtle);
+  background: transparent;
 }
 
 .ToolbarWrapper::-webkit-scrollbar-thumb {
@@ -85,7 +84,7 @@ const STYLE_CONTENT = `
   width: 32px;
   height: 32px;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--color-foreground);
   cursor: pointer;
@@ -98,8 +97,7 @@ const STYLE_CONTENT = `
 }
 
 .ToolbarButton.is-active {
-  background: var(--color-muted);
-  color: var(--color-foreground);
+  color: var(--color-primary);
 }
 
 .ToolbarButton:disabled,
@@ -151,7 +149,7 @@ const STYLE_CONTENT = `
 .RichEditorContent .drag-handle svg {
   width: 1.25rem;
   height: 1.25rem;
-  color: var(--color-icon);
+  color: var(--color-foreground-secondary);
 }
 
 .RichEditorContent .plusButton {
@@ -266,8 +264,8 @@ const STYLE_CONTENT = `
 }
 
 .TableOfContentsWrapper .toc-item.is-active a {
-  background: var(--color-primary-soft);
-  color: var(--color-primary);
+  background: var(--color-secondary);
+  color: var(--color-foreground);
   font-weight: 500;
 }
 
@@ -506,7 +504,7 @@ export const ToolbarButton = ({
     ref,
     disabled,
     className: cn('ToolbarButton', $active && 'is-active', $disabled && 'is-disabled', className),
-    style: $active ? { ...style, background: 'var(--color-muted)', color: 'var(--color-foreground)' } : style
+    style: $active ? { ...style, color: 'var(--color-primary)' } : style
   })
 }
 ToolbarButton.displayName = 'ToolbarButton'

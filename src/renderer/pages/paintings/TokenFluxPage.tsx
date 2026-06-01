@@ -628,7 +628,7 @@ const LeftContainer = styled(Scrollbar)`
   padding: 20px;
   background-color: var(--color-background);
   max-width: var(--assistants-width);
-  border-right: 0.5px solid var(--color-border);
+  border-right: 0.5px solid var(--color-border-muted);
 `
 
 const MainContainer = styled.div`
@@ -654,7 +654,7 @@ const ImageComparisonSection = styled.div`
   height: 100%;
   background-color: var(--color-background);
   &:first-child {
-    border-right: 0.5px solid var(--color-border);
+    border-right: 0.5px solid var(--color-border-muted);
   }
 `
 

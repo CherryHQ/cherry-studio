@@ -83,7 +83,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
 
     return (
       <>
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden transition-opacity duration-200 [&_.notes-rich-editor]:flex-1 [&_.notes-rich-editor]:rounded-none [&_.notes-rich-editor]:border-0 [&_.notes-rich-editor]:bg-transparent [&_.notes-rich-editor_.rich-editor-content]:flex-1 [&_.notes-rich-editor_.rich-editor-content]:overflow-auto [&_.notes-rich-editor_.rich-editor-content]:p-4 [&_.notes-rich-editor_.rich-editor-content]:transition-all [&_.notes-rich-editor_.rich-editor-content]:duration-150 [&_.notes-rich-editor_.rich-editor-wrapper]:flex [&_.notes-rich-editor_.rich-editor-wrapper]:h-full [&_.notes-rich-editor_.rich-editor-wrapper]:flex-col [&_.notes-rich-editor_.rich-editor-wrapper]:transition-all [&_.notes-rich-editor_.rich-editor-wrapper]:duration-150">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden pb-3 transition-opacity duration-200 [&_.notes-rich-editor]:flex-1 [&_.notes-rich-editor]:rounded-none [&_.notes-rich-editor]:border-0 [&_.notes-rich-editor]:bg-transparent [&_.notes-rich-editor_.rich-editor-content]:flex-1 [&_.notes-rich-editor_.rich-editor-content]:overflow-auto [&_.notes-rich-editor_.rich-editor-content]:px-4 [&_.notes-rich-editor_.rich-editor-content]:py-3 [&_.notes-rich-editor_.rich-editor-content]:transition-all [&_.notes-rich-editor_.rich-editor-content]:duration-150 [&_.notes-rich-editor_.rich-editor-wrapper]:flex [&_.notes-rich-editor_.rich-editor-wrapper]:h-full [&_.notes-rich-editor_.rich-editor-wrapper]:flex-col [&_.notes-rich-editor_.rich-editor-wrapper]:transition-all [&_.notes-rich-editor_.rich-editor-wrapper]:duration-150">
           {tmpViewMode === 'source' ? (
             <div className={`h-full ${settings.isFullWidth ? 'w-full' : 'mx-auto w-[60%]'}`}>
               <CodeEditor
@@ -112,23 +112,24 @@ const NotesEditor: FC<NotesEditorProps> = memo(
               enableContentSearch
               className="notes-rich-editor rounded-none! [&_.ToolbarWrapper]:rounded-none!"
               wrapperStyle={{ border: 'none', borderRadius: 0, background: 'transparent' }}
-              isFullWidth
+              isFullWidth={settings.isFullWidth}
               fontFamily={settings.fontFamily}
               fontSize={settings.fontSize}
               enableSpellCheck={enableSpellCheck}
             />
           )}
         </div>
-        <div className="flex h-12 shrink-0 items-center border-border border-t px-4 py-2">
+        <div className="flex flex-shrink-0 items-center bg-background p-3 [border-top:0.5px_solid_var(--color-border-muted)]">
           <SpaceBetweenRowFlex className="w-full items-center">
-            <div className="select-none text-muted-foreground text-xs leading-none">
+            <div className="select-none text-foreground-muted text-xs leading-none">
               {t('notes.characters')}: {tokenCount}
             </div>
-            <div className="flex items-center gap-3 text-muted-foreground text-xs">
+            <div className="flex items-center gap-0.5 text-foreground-muted text-xs">
               {tmpViewMode === 'preview' && (
                 <Tooltip placement="top" content={t('notes.spell_check_tooltip')}>
                   <ActionIconButton
                     active={enableSpellCheck}
+                    className="rounded-md"
                     onClick={() => {
                       const newValue = !enableSpellCheck
                       void setEnableSpellCheck(newValue).catch((error) => {
@@ -140,7 +141,7 @@ const NotesEditor: FC<NotesEditorProps> = memo(
                         window.toast.error(t('notes.settings.save_failed'))
                       })
                     }}
-                    icon={<SpellCheck size={18} />}
+                    icon={<SpellCheck size={14} />}
                   />
                 </Tooltip>
               )}

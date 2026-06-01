@@ -132,7 +132,7 @@ export const SettingsContainer: React.FC<React.ComponentPropsWithRef<'div'> & Sc
 }
 
 export const LeftMenu = ({ className, ...props }: React.ComponentPropsWithRef<'div'>) => (
-  <div className={cn('h-full border-border border-r-[0.5px]', className)} {...props} />
+  <div className={cn('h-full [border-right:0.5px_solid_var(--color-border-muted)]', className)} {...props} />
 )
 
 export const Settings = ({ className, ...props }: React.ComponentPropsWithRef<'div'>) => (
@@ -153,7 +153,7 @@ export const settingsModalStyles: ModalProps['styles'] = {
   header: {
     padding: '10px 15px',
     paddingRight: '32px',
-    borderBottom: '0.5px solid var(--color-border)',
+    borderBottom: '0.5px solid var(--color-border-muted)',
     margin: 0,
     borderRadius: 0
   },

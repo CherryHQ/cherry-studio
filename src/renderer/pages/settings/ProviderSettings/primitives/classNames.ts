@@ -105,8 +105,6 @@ export const providerListClasses = {
   itemIdle: 'hover:bg-muted',
   itemAvatar: 'shrink-0 rounded-lg border border-border/30',
   itemLabel: 'truncate text-sm leading-[1.35]',
-  itemMenuContent: 'w-fit min-w-32 rounded-xl p-1.5',
-  itemMenuEntry: 'h-8 rounded-lg px-2.5 text-sm',
   groupHeader:
     'relative flex w-full items-center justify-between rounded-xl border border-transparent pl-2 pr-1.5 py-2 text-left shadow-none outline-none transition-colors hover:bg-accent/50 focus-visible:ring-0',
   groupHeaderHasSelected: 'bg-muted/30 dark:bg-muted/25',

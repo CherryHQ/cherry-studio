@@ -277,6 +277,11 @@
 }
 
 .tiptap .tableWrapper {
+  --table-action-bg: color-mix(in srgb, var(--color-success-bg) 68%, var(--color-background) 32%);
+  --table-action-bg-hover: color-mix(in srgb, var(--color-success-bg-hover) 44%, var(--color-background) 56%);
+  --table-action-border: color-mix(in srgb, var(--color-success-base) 18%, transparent);
+  --table-action-border-hover: color-mix(in srgb, var(--color-success-base) 28%, transparent);
+  --table-action-text: color-mix(in srgb, var(--color-success-base) 82%, var(--color-foreground) 18%);
   position: relative;
   margin: 1rem 0;
   display: grid;
@@ -317,8 +322,8 @@
 
 .tiptap .tableWrapper .add-row-button,
 .tiptap .tableWrapper .add-column-button {
-  border: 1px solid var(--color-border);
-  background: var(--color-bg-base);
+  border: 1px solid var(--table-action-border);
+  background: var(--table-action-bg);
   border-radius: 4px;
   font-size: 12px;
   line-height: 1;
@@ -326,7 +331,7 @@
   display: none;
   align-items: center;
   justify-content: center;
-  color: var(--color-text);
+  color: var(--table-action-text);
   z-index: 20;
   transition: all 0.2s ease;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -335,9 +340,9 @@
 
 .tiptap .tableWrapper .add-row-button:hover,
 .tiptap .tableWrapper .add-column-button:hover {
-  background: var(--color-primary);
-  color: white;
-  border-color: var(--color-primary);
+  background: var(--table-action-bg-hover);
+  color: var(--color-success-text-hover);
+  border-color: var(--table-action-border-hover);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
@@ -388,9 +393,9 @@
   position: absolute;
   height: 20px;
   border-radius: 8px;
-  background: var(--color-primary);
-  color: #fff;
-  border: 1px solid var(--color-primary);
+  background: var(--table-action-bg);
+  color: var(--table-action-text);
+  border: 1px solid var(--table-action-border);
   display: none;
   align-items: center;
   justify-content: center;

@@ -23,7 +23,7 @@ export const McpDetailItem = ({
 }: McpDetailItemProps) => (
   <div
     className={cn(
-      'grid grid-cols-[minmax(120px,0.32fr)_minmax(0,1fr)] border-border border-b last:border-b-0',
+      'grid grid-cols-[minmax(120px,0.32fr)_minmax(0,1fr)] border-border-muted border-b last:border-b-0',
       className
     )}
     {...props}>

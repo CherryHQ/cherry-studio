@@ -766,7 +766,7 @@ describe('BaseNavigator', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: /Alpha/ })).toHaveClass('bg-accent')
+    expect(screen.getByRole('button', { name: /Alpha/ })).toHaveAttribute('aria-current', 'page')
 
     fireEvent.click(screen.getByRole('button', { name: /Beta/ }))
 

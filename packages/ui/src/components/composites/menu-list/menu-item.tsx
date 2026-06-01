@@ -9,13 +9,13 @@ import * as React from 'react'
 
 const menuItemVariants = cva(
   cn(
-    'group relative flex w-full items-center gap-2.5 rounded-lg font-normal',
+    'group relative flex w-full items-center gap-3 rounded-[10px] font-normal',
     'border border-transparent',
     'transition-all duration-150',
     'outline-none select-none',
     'focus-visible:ring-ring/50 focus-visible:ring-[3px]',
     'disabled:pointer-events-none disabled:opacity-40',
-    '[&_svg]:pointer-events-none [&_svg]:shrink-0'
+    '[&_svg]:pointer-events-none [&_svg:not([class*="size-"])]:size-4 [&_svg]:shrink-0'
   ),
   {
     variants: {
@@ -29,8 +29,8 @@ const menuItemVariants = cva(
         ghost: cn('text-foreground', 'hover:bg-accent', 'data-[active=true]:bg-accent')
       },
       size: {
-        default: 'px-2.5 py-1.5 text-sm',
-        sm: 'px-2.5 py-1 text-xs'
+        default: 'h-8 px-3 py-0 text-sm leading-5',
+        sm: 'h-7 px-2.5 py-0 text-xs leading-4'
       }
     },
     defaultVariants: {
@@ -135,7 +135,7 @@ function MenuDivider({ className, ref, ...props }: MenuDividerProps) {
       ref={ref}
       data-slot="menu-divider"
       role="separator"
-      className={cn('my-1 h-px bg-border', className)}
+      className={cn('my-1 h-px bg-border-muted', className)}
       {...props}
     />
   )

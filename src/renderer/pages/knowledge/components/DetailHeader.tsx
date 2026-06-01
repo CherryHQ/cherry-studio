@@ -43,9 +43,7 @@ const DetailHeader = ({ base, itemCount, onRenameBase, onDeleteBase }: DetailHea
     <>
       <header className="flex h-11 shrink-0 items-center justify-between border-border/15 border-b px-3.5">
         <div className="flex min-w-0 items-center gap-2">
-          <div
-            className="flex size-6 shrink-0 items-center justify-center rounded text-xs"
-            style={{ background: 'rgba(139, 92, 246, 0.125)' }}>
+          <div className="flex size-6 shrink-0 items-center justify-center text-xs">
             <span aria-hidden="true">{base.emoji}</span>
           </div>
 

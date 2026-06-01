@@ -129,6 +129,7 @@ export type UseCacheSchema = {
 
   // Notes page state
   'notes.active_file_path': string | undefined
+  'notes.show_favorites_only': boolean
 
   // MiniApp management
   'mini_app.opened_keep_alive': CacheValueTypes.CacheMiniAppType[]
@@ -202,6 +203,7 @@ export const DefaultUseCache: UseCacheSchema = {
   'chat.web_search.searching': false,
   'knowledge.recall.search_queries': {},
   'notes.active_file_path': undefined,
+  'notes.show_favorites_only': false,
 
   // MiniApp management
   'mini_app.opened_keep_alive': [],

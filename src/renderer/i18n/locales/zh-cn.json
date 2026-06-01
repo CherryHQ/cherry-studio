@@ -3390,6 +3390,7 @@
       "label": "生成笔记名称",
       "success": "笔记名称生成成功"
     },
+    "back_to_library": "返回全部",
     "characters": "字符",
     "collapse": "收起",
     "content_placeholder": "请输入笔记内容...",
@@ -3410,12 +3411,14 @@
     "export_knowledge": "导出笔记到知识库",
     "export_success": "成功导出到知识库",
     "export_to_word_failed": "导出为 Word 失败",
+    "favorites_empty_hint": "暂无收藏，对笔记右键加星即可收藏到此处",
     "folder": "文件夹",
     "load_failed": "笔记加载失败",
     "load_failed_description": "无法读取该文件。为保护笔记内容，已禁用编辑。",
     "metadata_sync_failed": "文件已更新，但笔记状态同步失败，请重试该操作。",
     "metadata_update_failed": "笔记状态更新失败",
     "move_failed": "移动笔记失败",
+    "my_library": "全部",
     "new_folder": "新建文件夹",
     "new_note": "新建笔记",
     "no_content_to_copy": "没有内容可复制",
@@ -3489,7 +3492,6 @@
       "save_failed": "保存笔记设置失败",
       "title": "笔记"
     },
-    "show_starred": "显示收藏的笔记",
     "sort_a2z": "文件名（A-Z）",
     "sort_created_asc": "创建时间（从旧到新）",
     "sort_created_desc": "创建时间（从新到旧）",
@@ -3513,7 +3515,8 @@
     "upload_folder": "上传文件夹",
     "upload_partial_failed": "已上传 {{uploaded}} 个笔记，{{failed}} 个失败",
     "upload_success": "笔记上传成功",
-    "uploading_files": "正在上传 {{count}} 个文件..."
+    "uploading_files": "正在上传 {{count}} 个文件...",
+    "view_favorites": "收藏夹"
   },
   "notification": {
     "assistant": "助手响应",

@@ -76,7 +76,7 @@ const Container = styled(Scrollbar)`
   padding: 10px;
   background-color: var(--color-background);
   max-width: 100px;
-  border-left: 0.5px solid var(--color-border);
+  border-left: 0.5px solid var(--color-border-muted);
   height: calc(100vh - var(--navbar-height));
   overflow-x: hidden;
 `

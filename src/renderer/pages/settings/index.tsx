@@ -82,7 +82,7 @@ export const SettingGroup = ({
 )
 
 export const settingsSubmenuScrollClassName =
-  'h-[calc(100vh-var(--navbar-height))] w-(--settings-width) border-border border-r-[0.5px]'
+  'h-[calc(100vh-var(--navbar-height))] w-(--settings-width) [border-right:0.5px_solid_var(--color-border-muted)]'
 
 export const settingsSubmenuListClassName = 'flex flex-col gap-1 px-2.5 pb-2.5 [box-sizing:border-box]'
 

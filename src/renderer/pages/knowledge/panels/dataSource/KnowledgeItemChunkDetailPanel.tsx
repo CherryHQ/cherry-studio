@@ -70,7 +70,7 @@ const KnowledgeItemChunkCard = ({
   return (
     <div className="group/ck rounded-lg border border-border/20 transition-all hover:border-border/40">
       <div className="flex items-center gap-1.5 px-2.5 py-1.5">
-        <span className="flex size-4 shrink-0 items-center justify-center rounded bg-accent/50 text-muted-foreground/40 text-xs leading-3">
+        <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground/40 text-xs leading-3">
           {chunk.metadata.chunkIndex}
         </span>
         <span className="flex-1 text-muted-foreground/30 text-xs leading-4">
@@ -219,11 +219,7 @@ const KnowledgeItemChunkDetailPanel = ({
           <ArrowLeft className="size-2.75" />
         </Button>
         {Icon && viewModel ? (
-          <div
-            className={cn(
-              'flex size-5 shrink-0 items-center justify-center rounded bg-accent/50',
-              viewModel.icon.iconClassName
-            )}>
+          <div className={cn('flex size-5 shrink-0 items-center justify-center', viewModel.icon.iconClassName)}>
             <Icon className="size-2.5" strokeWidth={1.6} />
           </div>
         ) : null}

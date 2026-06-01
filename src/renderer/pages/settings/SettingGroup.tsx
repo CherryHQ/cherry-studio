@@ -21,7 +21,7 @@ export const CollapsibleSettingGroup = ({
 
   return (
     <div className={cn('mt-0 mb-1 w-full rounded-lg px-1.25', className)} {...rest}>
-      <div className="mb-2.5 flex cursor-pointer select-none items-center border-border border-b-[0.5px] pb-3">
+      <div className="mb-2.5 flex cursor-pointer select-none items-center pb-3 [border-bottom:0.5px_solid_var(--color-border-muted)]">
         <div onClick={() => setIsExpanded(!isExpanded)} className="flex flex-1 cursor-pointer items-center">
           {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           <div className="ml-1 font-medium text-sm">{title}</div>
