@@ -11,11 +11,11 @@ export default function SizeField({ item, painting, onChange }: PaintingFieldCom
 
   // SizeField only renders when the parent chip widget has `sizeKey === 'custom'`
   // (see `condition` on the customSize item in imageGenerationToFields). The
-  // user's typed width/height are persisted under `customWidth`/`customHeight`
-  // — not flattened back into `sizeKey` as `${w}x${h}`. Overwriting `sizeKey`
-  // here would break the condition that keeps this widget rendered AND
-  // bypass the per-vendor custom-size validator (e.g. resolveCogviewSize)
-  // which keys off `sizeKey === 'custom'` to enter its rule-checking branch.
+  // typed width/height persist under `widthKey`/`heightKey` (e.g.
+  // `customSize_width`/`customSize_height`); `canonicalGenerate` composes them
+  // into the wire `imageSize` when `size === 'custom'`. They are NOT flattened
+  // back into `sizeKey` here — doing so would break the `condition` that keeps
+  // this widget rendered.
   return (
     <div className="flex flex-col gap-2">
       <RowFlex className="items-center gap-2">

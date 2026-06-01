@@ -55,15 +55,8 @@ export interface CanonicalGenerateOptions<T extends PaintingData> {
    */
   preValidate?: (painting: T) => void
   /**
-   * Per-canonical-key resolver that wins over the raw `painting.params`
-   * read. Returning `undefined` skips the key. Use for vendor-specific
-   * transforms — currently only zhipu's CogView size rule
-   * (`resolveCogviewSize`) needs one.
-   */
-  resolvers?: Record<string, (painting: T) => unknown>
-  /**
-   * Constants always written into `aiSdkParams`, overriding any resolver
-   * or `painting.params` read for the same key. Use for vendor-wide flags
+   * Constants always written into `aiSdkParams`, overriding any
+   * `painting.params` read for the same key. Use for vendor-wide flags
    * (newapi's `allowAutoSize: true`).
    */
   constants?: Partial<AiSdkParams>
@@ -122,6 +115,11 @@ export async function canonicalGenerate<T extends PaintingData>(
   const aiSdkParams: Record<string, unknown> = {}
   const providerBag: Record<string, unknown> = {}
 
+  // UI-only companions of the `customSize` widget: it stores the typed
+  // width/height under these keys and sets its paired enum (`size`) to
+  // 'custom'. They're composed into the wire size below, never sent raw.
+  const CUSTOM_SIZE_KEYS = new Set(['customSize_width', 'customSize_height'])
+
   function place(paramKey: string, value: unknown): void {
     if (value === undefined || value === '' || value === null) return
     const aiKey = POSITIONAL_RENAME[paramKey] ?? paramKey
@@ -133,12 +131,22 @@ export async function canonicalGenerate<T extends PaintingData>(
   }
 
   // 1. Raw painting state — every params entry partitions into one slot.
-  for (const [paramKey, value] of Object.entries(params)) place(paramKey, value)
+  for (const [paramKey, value] of Object.entries(params)) {
+    if (CUSTOM_SIZE_KEYS.has(paramKey)) continue
+    place(paramKey, value)
+  }
 
-  // 2. Resolvers win for declared keys.
-  if (options.resolvers) {
-    for (const [paramKey, resolver] of Object.entries(options.resolvers)) {
-      place(paramKey, resolver(painting))
+  // 2. Custom size: the customSize widget pairs `size: 'custom'` with
+  //    `customSize_width`/`customSize_height` (zhipu CogView's free WxH
+  //    range). Compose them into the AI SDK `imageSize`; drop the sentinel
+  //    when width/height are incomplete so the server applies its default.
+  if (aiSdkParams.imageSize === 'custom') {
+    const width = params.customSize_width
+    const height = params.customSize_height
+    if (typeof width === 'number' && typeof height === 'number') {
+      aiSdkParams.imageSize = `${width}x${height}`
+    } else {
+      delete aiSdkParams.imageSize
     }
   }
 
