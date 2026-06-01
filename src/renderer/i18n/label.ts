@@ -109,7 +109,7 @@ export const getProviderLabel = (id: string): string => {
   return getLabel(providerKeyMap, id)
 }
 
-const fileProcessorKeyMap = {
+export const fileProcessorKeyMap = {
   doc2x: 'provider.doc2x',
   mineru: 'provider.mineru',
   ovocr: 'provider.ovocr',
@@ -189,7 +189,7 @@ export const getThemeModeLabel = (key: string): string => {
   return getLabel(themeModeKeyMap, key)
 }
 
-const sidebarIconKeyMap = {
+export const sidebarIconKeyMap = {
   assistants: 'assistants.title',
   agents: 'agent.sidebar_title',
   store: 'assistants.presets.title',

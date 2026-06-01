@@ -1,7 +1,7 @@
 import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModels'
-import { getFileProcessorLabel } from '@renderer/i18n/label'
+import { fileProcessorKeyMap } from '@renderer/i18n/label'
 import { PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { isUniqueModelId, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
@@ -45,11 +45,14 @@ export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
   const initialValues = useMemo(() => createKnowledgeRagConfigFormValues(base), [base])
 
   const fileProcessorOptions = useMemo(() => {
-    return KNOWLEDGE_V2_FILE_PROCESSORS.map((processor) => ({
-      value: processor.id,
-      label: getFileProcessorLabel(processor.id)
-    }))
-  }, [])
+    return KNOWLEDGE_V2_FILE_PROCESSORS.map((processor) => {
+      const labelKey = fileProcessorKeyMap[processor.id]
+      return {
+        value: processor.id,
+        label: labelKey ? t(labelKey) : processor.id
+      }
+    })
+  }, [t])
 
   const embeddingModelOptions = useMemo(() => {
     return embeddingModels.map((model) => ({

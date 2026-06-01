@@ -29,16 +29,13 @@ vi.mock('@logger', () => ({
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
-  getFileProcessorLabel: (id: string) =>
-    (
-      ({
-        paddleocr: 'PaddleOCR',
-        mineru: 'MinerU',
-        doc2x: 'Doc2X',
-        mistral: 'Mistral',
-        'open-mineru': 'Open MinerU'
-      }) as Record<string, string>
-    )[id] ?? id
+  fileProcessorKeyMap: {
+    paddleocr: 'provider.paddleocr',
+    mineru: 'provider.mineru',
+    doc2x: 'provider.doc2x',
+    mistral: 'provider.mistral',
+    'open-mineru': 'provider.open-mineru'
+  }
 }))
 
 vi.mock('react-i18next', () => ({
@@ -48,7 +45,12 @@ vi.mock('react-i18next', () => ({
         ({
           'knowledge.rag.search_mode.hybrid': '混合检索（推荐）',
           'knowledge.rag.search_mode.default': '向量检索',
-          'knowledge.rag.search_mode.bm25': '全文检索'
+          'knowledge.rag.search_mode.bm25': '全文检索',
+          'provider.paddleocr': 'PaddleOCR',
+          'provider.mineru': 'MinerU',
+          'provider.doc2x': 'Doc2X',
+          'provider.mistral': 'Mistral',
+          'provider.open-mineru': 'Open MinerU'
         }) as Record<string, string>
       )[key] ?? key
   })
