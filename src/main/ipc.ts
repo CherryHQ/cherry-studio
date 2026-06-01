@@ -27,7 +27,6 @@ import fontList from 'font-list'
 
 import { skillService } from './services/agents/skills/SkillService'
 import { appService } from './services/AppService'
-import BackupManager from './services/BackupManager'
 import { ConfigKeys, configManager } from './services/ConfigManager'
 import { copilotService } from './services/CopilotService'
 import { ExportService } from './services/ExportService'
@@ -35,6 +34,7 @@ import { externalAppsService } from './services/ExternalAppsService'
 import { fileStorage as fileManager } from './services/FileStorage'
 import FileService from './services/FileSystemService'
 import { knowledgeService } from './services/KnowledgeService'
+import LegacyBackupManager from './services/LegacyBackupManager'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/nutstore/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
@@ -49,7 +49,7 @@ import { compress, decompress } from './utils/zip'
 
 const logger = loggerService.withContext('IPC')
 
-const backupManager = new BackupManager()
+const backupManager = new LegacyBackupManager()
 const exportService = new ExportService()
 const obsidianVaultService = new ObsidianVaultService()
 

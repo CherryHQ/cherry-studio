@@ -129,7 +129,7 @@ vi.mock('node-stream-zip', () => ({
 import * as fs from 'fs-extra'
 import * as path from 'path'
 
-import BackupManager from '../BackupManager'
+import BackupManager from '../LegacyBackupManager'
 
 // Helper to construct platform-independent paths for assertions
 // The implementation uses path.normalize() which converts to platform separators
