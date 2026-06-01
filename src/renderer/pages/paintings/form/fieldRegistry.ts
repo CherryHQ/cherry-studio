@@ -1,8 +1,6 @@
 import type { ComponentType } from 'react'
 
 import type { BaseConfigItem } from '../form/baseConfigItem'
-import NumberField from './fields/NumberField'
-import SchemaField from './fields/SchemaField'
 import SelectField from './fields/SelectField'
 import SizeChipsField from './fields/SizeChipsField'
 import SizeField from './fields/SizeField'
@@ -23,7 +21,5 @@ export type PaintingFieldComponent = ComponentType<PaintingFieldComponentProps>
 export const fieldRegistry: Partial<Record<BaseConfigItem['type'], PaintingFieldComponent>> = {
   select: SelectField,
   sizeChips: SizeChipsField,
-  inputNumber: NumberField,
-  customSize: SizeField,
-  dynamicSchema: SchemaField
+  customSize: SizeField
 }

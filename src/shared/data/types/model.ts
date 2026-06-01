@@ -329,12 +329,10 @@ export const ModelSchema = z.object({
   pricing: RuntimeModelPricingSchema.optional(),
 
   /**
-   * Painting-page metadata (sizes, batch, supports.*, vendorParams, inputSchema).
+   * Painting-page metadata (per-mode `supports.*` widget specs).
    * Sourced from the registry preset at read time — not persisted in
    * user_model. Lets the painting page render the model's form
-   * (per-vendor sizes, custom-size range, dynamic input fields) and pass
-   * vendor-specific request extras (e.g. dmxapi's `extend_params`,
-   * tokenflux's `input_schema` selections) without a side-channel
+   * (per-vendor sizes, custom-size range) without a side-channel
    * catalog fetch.
    */
   imageGeneration: ImageGenerationSupportSchema.optional(),

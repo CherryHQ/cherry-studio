@@ -161,19 +161,7 @@ export const ImageGenerationSupportSchema = z.object({
   // `z.partialRecord` because not every mode is declared — single-mode
   // models only carry `generate`; Ideogram V_* carry generate/remix/upscale
   // but no edit/merge. Zod's plain `z.record(enum, …)` is exhaustive.
-  modes: z.partialRecord(ImageGenerationModeSchema, ImageModeDefSchema),
-  /**
-   * Free-form vendor extras passed through to the AI SDK adapter via
-   * `providerOptions`. The generic renderer does NOT render these; only
-   * vendors with custom UI (tokenflux) consume them.
-   */
-  vendorParams: z.record(z.string(), z.unknown()).optional(),
-  /**
-   * JSON-schema-driven dynamic form spec (tokenflux pattern). When
-   * present, a generic schema-form is rendered alongside the
-   * `supports`-driven controls.
-   */
-  inputSchema: z.record(z.string(), z.unknown()).optional()
+  modes: z.partialRecord(ImageGenerationModeSchema, ImageModeDefSchema)
 })
 
 // Parameter support configuration

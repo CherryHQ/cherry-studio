@@ -24,13 +24,11 @@ export type BaseConfigItem = {
     | 'slider'
     | 'input'
     | 'switch'
-    | 'inputNumber'
     | 'textarea'
     | 'image'
     | 'customSize'
     | 'iconRadio'
     | 'styleToggle'
-    | 'dynamicSchema'
     | 'sizeChips'
   key?: string
   title?: string
@@ -55,6 +53,4 @@ export type BaseConfigItem = {
   }
   columns?: number
   toggleMode?: 'single' | 'multi'
-  schema?: Record<string, any>
-  schemaReader?: (property: Record<string, any>, key: string) => string
 }
