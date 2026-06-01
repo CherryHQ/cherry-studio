@@ -100,7 +100,7 @@ const MODEL_TO_PROVIDER_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   // Step
   [/step-/i, 'step'],
   // 01.AI / Yi
-  [/yi-/i, 'zeroOne'],
+  [/yi-/i, 'zero-one'],
   // Cerebras
   [/cerebras/i, 'cerebras'],
   // Hugging Face
@@ -112,7 +112,7 @@ const MODEL_TO_PROVIDER_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   // Upstage
   [/solar/i, 'upstage'],
   // Arcee AI (incl. trinity, spotlight, virtuoso, coder-large)
-  [/arcee|spotlight|virtuoso|coder-large/i, 'arceeAi'],
+  [/arcee|spotlight|virtuoso|coder-large/i, 'arcee-ai'],
   // InternLM
   [/internlm|internvl|intern/i, 'internlm'],
   // Wenxin / Ernie (Baidu)
@@ -132,7 +132,7 @@ const MODEL_TO_PROVIDER_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   // StreamLake
   [/kat/i, 'streamlake'],
   // Dolphin AI
-  [/dolphin/i, 'dolphinAi'],
+  [/dolphin/i, 'dolphin-ai'],
   // ElevenLabs
   [/eleven/i, 'elevenlabs'],
   // Relace
@@ -154,7 +154,7 @@ const MODEL_TO_PROVIDER_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   // Kwaipilot
   [/kwaipilot/i, 'kwaipilot'],
   // Netease Youdao / BCE
-  [/bce/i, 'neteaseYoudao'],
+  [/bce/i, 'netease-youdao'],
   // BAAI / BGE
   [/bge/i, 'baai'],
   // Deep Cogito
@@ -164,7 +164,7 @@ const MODEL_TO_PROVIDER_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   // Recraft
   [/recraft/i, 'recraft'],
   // Runway
-  [/runway/i, 'runaway'],
+  [/runway/i, 'runway'],
   // Stability AI
   [/stable-|sd3|sdxl/i, 'stability'],
   // TNG
@@ -177,22 +177,23 @@ const MODEL_TO_PROVIDER_PATTERNS: ReadonlyArray<[RegExp, string]> = [
 const PROVIDER_ID_ALIASES: Record<string, string> = {
   'azure-openai': 'azureai',
   'new-api': 'newapi',
-  'tencent-cloud-ti': 'tencentCloudTi',
-  'baidu-cloud': 'baiduCloud',
-  'aws-bedrock': 'awsBedrock',
-  'gitee-ai': 'giteeAi',
-  yi: 'zeroOne',
+  'tencent-cloud-ti': 'tencent-cloud-ti',
+  'baidu-cloud': 'baidu-cloud',
+  'aws-bedrock': 'aws-bedrock',
+  'gitee-ai': 'gitee-ai',
+  yi: 'zero-one',
   ovms: 'intel',
   gemini: 'google',
-  copilot: 'githubCopilot',
+  copilot: 'github-copilot',
+  'github-copilot-openai-compatible': 'github-copilot',
   doubao: 'volcengine',
   stepfun: 'step',
   voyageai: 'voyage',
   gateway: 'vercel',
   zhinao: 'xirang',
-  aionly: 'aiOnly',
+  aionly: 'ai-only',
   dashscope: 'bailian',
-  zai: 'zAi',
+  zai: 'z-ai',
   'minimax-global': 'minimax',
   cherryai: 'cherryin'
 }
