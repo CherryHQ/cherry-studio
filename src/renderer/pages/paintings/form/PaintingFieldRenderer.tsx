@@ -2,8 +2,9 @@ import { Button, Input, RadioGroup, RadioGroupItem, Slider, Switch, Textarea } f
 import { RotateCcw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import type { BaseConfigItem, OptionItem } from '../form/baseConfigItem'
+import type { BaseConfigItem } from '../form/baseConfigItem'
 import { fieldRegistry } from './fieldRegistry'
+import { resolveOptions } from './resolveOptions'
 
 export type { BaseConfigItem, OptionItem } from '../form/baseConfigItem'
 
@@ -12,19 +13,6 @@ export interface PaintingFieldRendererProps {
   painting: Record<string, unknown>
   onChange: (updates: Record<string, unknown>) => void
   onGenerateRandomSeed?: (key: string) => void
-}
-
-function mapOptions(
-  item: BaseConfigItem,
-  painting: Record<string, unknown>,
-  translate: (key: string) => string
-): OptionItem[] {
-  const rawOptions = typeof item.options === 'function' ? item.options(item, painting) : (item.options ?? [])
-
-  return rawOptions.map((option) => ({
-    ...option,
-    label: option.labelKey ? translate(option.labelKey) : option.label
-  }))
 }
 
 export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRandomSeed }: PaintingFieldRendererProps) {
@@ -55,7 +43,7 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
 
   switch (item.type) {
     case 'radio': {
-      const options = mapOptions(item, painting, t)
+      const options = resolveOptions(item, painting, t)
       const value = currentValue !== undefined && currentValue !== null ? String(currentValue) : ''
 
       return (
@@ -148,13 +136,14 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
     }
 
     case 'iconRadio': {
-      const options = mapOptions(item, painting, t)
+      const options = resolveOptions(item, painting, t)
       const value = currentValue !== undefined && currentValue !== null ? String(currentValue) : ''
       const columns = item.columns || 3
 
       return (
         <RadioGroup
           value={value}
+          aria-label={item.title ? t(item.title) : fieldKey}
           className="grid gap-2"
           style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
           onValueChange={(nextValue) => onChange({ [fieldKey]: nextValue })}>
@@ -162,10 +151,10 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
             <label
               key={String(option.value)}
               htmlFor={`${fieldKey}-${option.value}`}
-              className={`flex cursor-pointer flex-col items-center justify-center gap-1 rounded-[var(--painting-radius-control)] px-2 py-1.5 text-[11px] transition-all ${
+              className={`flex cursor-pointer flex-col items-center justify-center gap-1 rounded-[10px] px-2 py-1.5 text-[11px] transition-all ${
                 value === String(option.value)
-                  ? 'bg-(--painting-choice-active-bg) text-[var(--painting-choice-active-fg)] ring-1 ring-[var(--painting-choice-active-ring)]'
-                  : 'bg-[var(--painting-choice-bg)] text-muted-foreground/60 hover:bg-[var(--painting-choice-bg-hover)] hover:text-foreground'
+                  ? 'bg-secondary-active text-foreground ring-1 ring-[var(--color-border-active)]'
+                  : 'bg-muted text-muted-foreground/60 hover:bg-secondary-hover hover:text-foreground'
               }`}>
               <RadioGroupItem value={String(option.value)} id={`${fieldKey}-${option.value}`} className="sr-only" />
               {option.icon && (
@@ -187,7 +176,7 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
     }
 
     case 'styleToggle': {
-      const options = mapOptions(item, painting, t)
+      const options = resolveOptions(item, painting, t)
       const { toggleMode = 'single' } = item
 
       return (

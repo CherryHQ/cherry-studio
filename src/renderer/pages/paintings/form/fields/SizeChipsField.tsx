@@ -2,34 +2,20 @@ import { cn } from '@cherrystudio/ui/lib/utils'
 
 import type { OptionItem } from '../../form/baseConfigItem'
 import type { PaintingFieldComponentProps } from '../fieldRegistry'
+import { resolveOptions } from '../resolveOptions'
 
 const MAX_THUMB = 14
 const MIN_THUMB = 6
 const DEFAULT_COLUMNS = 3
 
 const chipClass = {
-  base: 'flex min-h-10 min-w-0 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[var(--painting-radius-control)] px-2 py-1 text-[11px] leading-tight transition-all',
-  active:
-    'bg-[var(--painting-choice-active-bg)] text-[var(--painting-choice-active-fg)] ring-1 ring-[var(--painting-choice-active-ring)]',
-  inactive:
-    'bg-[var(--painting-choice-bg)] text-muted-foreground/60 hover:bg-[var(--painting-choice-bg-hover)] hover:text-foreground',
+  base: 'flex min-h-10 min-w-0 cursor-pointer flex-col items-center justify-center gap-0.5 rounded-[10px] px-2 py-1 text-[11px] leading-tight transition-all',
+  active: 'bg-secondary-active text-foreground ring-1 ring-[var(--color-border-active)]',
+  inactive: 'bg-muted text-muted-foreground/60 hover:bg-secondary-hover hover:text-foreground',
   disabled: 'cursor-not-allowed opacity-50'
 }
 
 type Dim = { w: number; h: number }
-
-function mapOptions(
-  itemOptions: PaintingFieldComponentProps['item']['options'],
-  item: PaintingFieldComponentProps['item'],
-  painting: Record<string, unknown>,
-  translate: (key: string) => string
-): OptionItem[] {
-  const rawOptions = typeof itemOptions === 'function' ? itemOptions(item, painting) : (itemOptions ?? [])
-  return rawOptions.map((option) => ({
-    ...option,
-    label: option.labelKey ? translate(option.labelKey) : option.label
-  }))
-}
 
 function parseRatio(value: string): Dim | null {
   const dims = value.match(/^(\d+)[x×](\d+)$/)
@@ -137,7 +123,7 @@ export default function SizeChipsField({
   currentValue,
   disabled
 }: PaintingFieldComponentProps) {
-  const options = mapOptions(item.options, item, painting, translate)
+  const options = resolveOptions(item, painting, translate)
   const value = currentValue == null ? '' : String(currentValue)
   const columns = autoColumns(options, item.columns)
 
