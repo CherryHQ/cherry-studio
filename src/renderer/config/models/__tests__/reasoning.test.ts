@@ -352,6 +352,7 @@ describe('Claude & regional providers', () => {
     expect(isMiniMaxReasoningModel(createModel({ id: 'minimax-m2-pro' }))).toBe(true)
     expect(isMiniMaxReasoningModel(createModel({ id: 'minimax-m2.7' }))).toBe(true)
     expect(isMiniMaxReasoningModel(createModel({ id: 'minimax-m2.7-highspeed' }))).toBe(true)
+    expect(isMiniMaxReasoningModel(createModel({ id: 'minimax-m3' }))).toBe(true)
   })
 })
 

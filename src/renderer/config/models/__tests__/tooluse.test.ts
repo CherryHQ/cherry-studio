@@ -185,6 +185,11 @@ describe('isFunctionCallingModel', () => {
       expect(isFunctionCallingModel(createModel({ id: 'MiniMax-M2.7', provider: 'minimax' }))).toBe(true)
       expect(isFunctionCallingModel(createModel({ id: 'MiniMax-M2.7-highspeed', provider: 'minimax' }))).toBe(true)
     })
+
+    it('supports minimax-m3 model', () => {
+      expect(isFunctionCallingModel(createModel({ id: 'minimax-m3', provider: 'minimax' }))).toBe(true)
+      expect(isFunctionCallingModel(createModel({ id: 'MiniMax-M3', provider: 'minimax' }))).toBe(true)
+    })
   })
 
   describe('MiMo V2.5 Models', () => {
