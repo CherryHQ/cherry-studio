@@ -4,9 +4,7 @@ import type { PaintingProviderRuntime } from './paintingProviderRuntime'
 /**
  * Argument shape for `paintingGenerate`. Carries the painting state, the
  * runtime provider (apiKey / apiHost / isEnabled — see
- * `usePaintingProviderRuntime`), the abort controller for cancellation, and
- * an optional progress callback for the async submit/poll transports
- * (ppio / tokenflux).
+ * `usePaintingProviderRuntime`), and the abort controller for cancellation.
  *
  * `tab` is a vestigial single-value 'default' kept for backward-compat with
  * any consumer that still expects it on the input.
@@ -16,9 +14,4 @@ export interface GenerateInput<T extends PaintingData = PaintingData> {
   provider: PaintingProviderRuntime
   tab: string
   abortController: AbortController
-  onGenerationStateChange?: (
-    updates: Partial<
-      Pick<PaintingData, 'generationTaskId' | 'generationError' | 'generationProgress' | 'generationStatus'>
-    >
-  ) => void
 }

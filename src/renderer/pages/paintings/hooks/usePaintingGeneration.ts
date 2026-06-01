@@ -106,8 +106,7 @@ export function usePaintingGeneration({ painting, onPaintingChange }: UsePaintin
         painting: targetPainting,
         provider,
         tab: 'default',
-        abortController: controller,
-        onGenerationStateChange: pushGenerationState
+        abortController: controller
       })
       await updatePainting(targetPainting.id, {
         files: {
