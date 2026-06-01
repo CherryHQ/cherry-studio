@@ -1,7 +1,7 @@
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
-import { createAbortError, waitWithSignal } from '../transportUtils'
+import { createAbortError, fileToDataUrl, isTerminalHttpStatus, waitWithSignal } from '../transportUtils'
 
 /**
  * PPIO submit/poll transport.
@@ -93,7 +93,6 @@ export interface PpioProviderParams {
   ppioSeed?: number
   usePreLlm?: boolean
   addWatermark?: boolean
-  imageFile?: string
   outputFormat?: string
   onProgress?: (progress: number) => void
   /** Painting telemetry: called once with the PPIO async task id (parity with
@@ -241,6 +240,7 @@ class PpioTransport implements ImageGenerationTransport {
       case 'qwen-image-txt2img':
         return this.buildQwenTxt2ImgParams(input, painting)
       case 'qwen-image-edit':
+      case 'qwen-image-edit-2509':
         return this.buildQwenEditParams(input, painting)
       case 'glm-image':
         return this.buildGlmParams(input, painting)
@@ -307,9 +307,10 @@ class PpioTransport implements ImageGenerationTransport {
     input: ImageGenerationSubmitInput,
     painting: PpioProviderParams
   ): Record<string, unknown> {
+    const firstFile = input.files?.[0]
     return {
       prompt: input.prompt,
-      image: painting.imageFile,
+      image: firstFile ? fileToDataUrl(firstFile) : undefined,
       seed: painting.ppioSeed ?? -1,
       output_format: painting.outputFormat || 'jpeg',
       watermark: painting.addWatermark ?? false
@@ -362,7 +363,8 @@ class PpioTransport implements ImageGenerationTransport {
     painting: PpioProviderParams,
     modelId: string
   ): Record<string, unknown> {
-    const rawImage = painting.imageFile ?? ''
+    const firstFile = input.files?.[0]
+    const rawImage = firstFile ? fileToDataUrl(firstFile) : ''
     if (modelId === 'seedream-4.0' || modelId === 'seedream-4.0-edit') {
       return {
         prompt: input.prompt,
@@ -447,10 +449,10 @@ class PpioTransport implements ImageGenerationTransport {
           throw createAbortError('Task polling aborted')
         }
 
-        // Terminal classifications — propagate without retrying. Anything else
-        // falls through to transient handling below (network blips, transient
-        // 5xx, etc.).
-        if (error instanceof PpioApiError) {
+        // Terminal classifications — propagate without retrying. A 4xx (bar
+        // 429) poll response won't recover; 5xx / 429 fall through to the
+        // transient handling below (network blips, server hiccups, rate limits).
+        if (error instanceof PpioApiError && isTerminalHttpStatus(error.statusCode)) {
           throw error
         }
 

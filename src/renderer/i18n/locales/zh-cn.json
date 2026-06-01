@@ -1778,7 +1778,6 @@
     "on": "启用",
     "open": "打开",
     "open_in": "在 {{name}} 中打开",
-    "parameter": "参数",
     "paste": "粘贴",
     "placeholders": {
       "select": {
@@ -3867,7 +3866,6 @@
     "number_images_tip": "一次生成的图片数量 ({{min}}-{{max}})",
     "operation_failed": "操作失败，请稍后重试",
     "paint_course": "教程",
-    "parameters": "参数设置",
     "per_image": "每张图片",
     "per_images": "每张图片",
     "person_generation": "生成人物",

@@ -93,7 +93,7 @@ export class PaintingMigrator extends BaseMigrator {
           const normalized = { ...result.value }
           if (seenIds.has(normalized.id)) {
             const duplicateId = normalized.id
-            normalized.id = `${duplicateId}_${namespace}_${index}`
+            normalized.id = uuidv4()
             this.warnings.push(`Rewrote duplicate painting id '${duplicateId}' to '${normalized.id}' during migration`)
           }
           seenIds.add(normalized.id)

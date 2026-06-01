@@ -32,7 +32,7 @@ const PaintingPage: FC = () => {
 
   const history = usePaintingHistory()
 
-  usePaintingInitialSelection({ currentPainting, historyItems: history.items, setCurrentPainting })
+  usePaintingInitialSelection({ currentPainting, historyItems: history.items, initialProviderId, setCurrentPainting })
 
   // Rehydrate the running spinner after a page switch: the cache mirror of
   // generation state survives unmount, so re-mounting picks it back up.
@@ -136,6 +136,7 @@ const PaintingPage: FC = () => {
 
               <PaintingStrip
                 selectedPaintingId={currentPainting.id}
+                runningPaintingId={generating ? currentPainting.id : undefined}
                 items={history.items}
                 hasMore={history.hasMore}
                 loadMore={history.loadMore}

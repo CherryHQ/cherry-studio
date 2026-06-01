@@ -23,6 +23,16 @@ export function createAbortError(message: string): Error {
   return error
 }
 
+/**
+ * Whether an HTTP error status should end a poll loop immediately. A 4xx
+ * client error (bad request, auth, not-found) won't fix itself on retry, so
+ * it's terminal. 5xx server errors and 429 rate-limits are transient — a poll
+ * GET that hits one should retry rather than kill an otherwise-healthy task.
+ */
+export function isTerminalHttpStatus(status: number): boolean {
+  return status >= 400 && status < 500 && status !== 429
+}
+
 export function waitWithSignal(delayMs: number, signal?: AbortSignal): Promise<void> {
   if (signal?.aborted) return Promise.reject(createAbortError('Task polling aborted'))
   return new Promise((resolve, reject) => {

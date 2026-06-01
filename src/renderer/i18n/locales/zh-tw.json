@@ -1778,7 +1778,6 @@
     "on": "開啟",
     "open": "開啟",
     "open_in": "在 {{name}} 中開啟",
-    "parameter": "參數",
     "paste": "貼上",
     "placeholders": {
       "select": {
@@ -3867,7 +3866,6 @@
     "number_images_tip": "一次生成的圖片數量 ({{min}}-{{max}})",
     "operation_failed": "操作失敗，請稍後再試",
     "paint_course": "教學",
-    "parameters": "參數設定",
     "per_image": "每張圖片",
     "per_images": "每張圖片",
     "person_generation": "[to be translated]:Generate people",

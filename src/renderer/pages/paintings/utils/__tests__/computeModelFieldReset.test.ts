@@ -217,4 +217,72 @@ describe('computeModelFieldReset', () => {
 
     expect(patch).toEqual({ size: '2048x2048' })
   })
+
+  it('resets an out-of-range slider value carried from the previous model', async () => {
+    mockSupportPerModel({
+      'Qwen/Qwen-Image': {
+        modes: { generate: { supports: { numInferenceSteps: { type: 'range', min: 1, max: 100, default: 30 } } } }
+      },
+      'Z-Image-Turbo': {
+        modes: { generate: { supports: { numInferenceSteps: { type: 'range', min: 1, max: 30, default: 20 } } } }
+      }
+    })
+
+    const patch = await computeModelFieldReset({
+      providerId: 'modelscope',
+      oldModelId: 'Qwen/Qwen-Image',
+      newModelId: 'Z-Image-Turbo',
+      mode: 'generate',
+      currentValues: { numInferenceSteps: 80 }
+    })
+
+    // 80 is outside the new model's [1, 30] window → reset to its default.
+    expect(patch).toEqual({ numInferenceSteps: 20 })
+  })
+
+  it('keeps an in-range slider value carried from the previous model', async () => {
+    mockSupportPerModel({
+      'Qwen/Qwen-Image': {
+        modes: { generate: { supports: { numInferenceSteps: { type: 'range', min: 1, max: 100, default: 30 } } } }
+      },
+      'Z-Image-Turbo': {
+        modes: { generate: { supports: { numInferenceSteps: { type: 'range', min: 1, max: 30, default: 20 } } } }
+      }
+    })
+
+    const patch = await computeModelFieldReset({
+      providerId: 'modelscope',
+      oldModelId: 'Qwen/Qwen-Image',
+      newModelId: 'Z-Image-Turbo',
+      mode: 'generate',
+      currentValues: { numInferenceSteps: 25 }
+    })
+
+    // 25 fits the new [1, 30] window → preserved, no patch entry.
+    expect(patch).toEqual({})
+  })
+
+  it('resets a stale default-less enum value to undefined', async () => {
+    mockSupportPerModel({
+      modelA: {
+        modes: { generate: { supports: { style: { type: 'enum', options: ['vivid', 'natural'] } } } }
+      },
+      modelB: {
+        modes: { generate: { supports: { style: { type: 'enum', options: ['<auto>', '<photography>'] } } } }
+      }
+    })
+
+    const patch = await computeModelFieldReset({
+      providerId: 'aihubmix',
+      oldModelId: 'modelA',
+      newModelId: 'modelB',
+      mode: 'generate',
+      currentValues: { style: 'vivid' }
+    })
+
+    // 'vivid' is absent from modelB's options and modelB's style has no
+    // default → reset to undefined (previously skipped because the field
+    // had no `initialValue`, leaking 'vivid' to the wire).
+    expect(patch).toEqual({ style: undefined })
+  })
 })

@@ -1778,7 +1778,6 @@
     "on": "On",
     "open": "Open",
     "open_in": "Open in {{name}}",
-    "parameter": "Parameter",
     "paste": "Paste",
     "placeholders": {
       "select": {
@@ -3867,7 +3866,6 @@
     "number_images_tip": "Number of images to generate ({{min}}-{{max}})",
     "operation_failed": "Operation failed, please try again later",
     "paint_course": "tutorial",
-    "parameters": "Parameters",
     "per_image": "per image",
     "per_images": "per images",
     "person_generation": "Generate people",

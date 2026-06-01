@@ -205,6 +205,13 @@ class PaintingService {
       providerId: row.providerId
     })
 
+    // Return the requested `dto.files`, NOT the persisted refs. During the
+    // v1→v2 transition the renderer attaches outputs through the legacy
+    // FileManager path, so their `file_entry` rows don't exist yet and
+    // `buildPaintingRefRowsFiltered` drops every id — re-hydrating here would
+    // hand back empty files for a painting the caller just populated. The
+    // divergence from `list`/`get` (which read `file_ref`) is intentional and
+    // disappears once the renderer cuts over to `createInternalEntry`.
     return rowToPainting(row, dto.files)
   }
 
@@ -265,6 +272,9 @@ class PaintingService {
     )
 
     logger.info('Updated painting', { id, changes: Object.keys(dto) })
+    // On a files write, echo the requested `dto.files` for the same reason as
+    // `create` (transition-era ids aren't in `file_entry` yet, so the persisted
+    // refs would under-report). Otherwise hydrate from the stored refs.
     const files = filesDirty ? dto.files! : ((await loadFilesForPaintings([row.id])).get(row.id) ?? EMPTY_FILES)
     return rowToPainting(row, files)
   }

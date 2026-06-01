@@ -10,7 +10,7 @@ import type { PaintingProviderRuntime } from '../model/types/paintingProviderRun
  * call doesn't trip on OVMS's local OpenVINO Model Server. Vendor adapter
  * knows not to attach an Authorization header.
  */
-const NO_AUTH_PROVIDER_IDS: ReadonlySet<string> = new Set(['ovms'])
+export const NO_AUTH_PROVIDER_IDS: ReadonlySet<string> = new Set(['ovms'])
 
 function navigateToProviderSettings(providerId: string) {
   void openSettingsWindow(`/settings/provider?id=${encodeURIComponent(providerId)}`)

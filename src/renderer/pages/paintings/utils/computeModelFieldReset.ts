@@ -18,8 +18,11 @@ const logger = loggerService.withContext('paintings/modelFieldReset')
  *      a default visually via `item.initialValue` but never commit it to
  *      state, so `canonicalGenerate` reads `undefined` and downstream code
  *      falls back to its own default (e.g. `resolveImageSize('1024x1024')`).
- *   3. Resets enum fields whose current value isn't in the new model's
- *      `options` list (cross-model carry-over of a now-invalid pick).
+ *   3. Resets carry-over values the new model can't accept: enum/select
+ *      values absent from the new `options` list, and range/slider values
+ *      outside the new `[min, max]` window. Transports forward these
+ *      unclamped and a controlled Radix slider won't self-correct, so a
+ *      stale pick would otherwise reach the vendor verbatim.
  *
  * Apply alongside `{ model: newModelId }` in `usePaintingModelSwitch` so
  * post-switch state contains exactly the fields the new model accepts AND
@@ -86,21 +89,36 @@ export async function computeModelFieldReset(input: {
   }
 
   for (const item of newItems) {
-    if (!item.key || item.initialValue === undefined) continue
+    if (!item.key) continue
     if (Object.prototype.hasOwnProperty.call(patch, item.key)) continue
 
     const currentValue = currentValues[item.key]
     const isMissing = currentValue === undefined || currentValue === null || currentValue === ''
+
+    // Field the user never set: seed the new model's registry default so the
+    // widget's visible default matches the wire. Default-less field stays unset.
     if (isMissing) {
-      patch[item.key] = item.initialValue
+      if (item.initialValue !== undefined) patch[item.key] = item.initialValue
       continue
     }
 
+    // Field carried a value over from the previous model. Validate it against
+    // the new model's constraints; reset to the new default (or `undefined`
+    // when there's none) whenever it no longer fits.
     const options = typeof item.options === 'function' ? item.options(item, currentValues) : (item.options ?? [])
-    if (options.length === 0) continue
-    const allowedValues = new Set(options.map((option) => String(option.value)))
-    if (!allowedValues.has(String(currentValue))) {
-      patch[item.key] = item.initialValue
+    if (options.length > 0) {
+      const allowedValues = new Set(options.map((option) => String(option.value)))
+      if (!allowedValues.has(String(currentValue))) patch[item.key] = item.initialValue
+      continue
+    }
+
+    if (item.type === 'slider') {
+      const numeric = typeof currentValue === 'number' ? currentValue : Number(currentValue)
+      const outOfRange =
+        Number.isNaN(numeric) ||
+        (typeof item.min === 'number' && numeric < item.min) ||
+        (typeof item.max === 'number' && numeric > item.max)
+      if (outOfRange) patch[item.key] = item.initialValue
     }
   }
 

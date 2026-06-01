@@ -113,6 +113,28 @@ describe('usePaintingGenerationGuard', () => {
     })
   })
 
+  it('exempts keyless local providers (OVMS) from the enable / API key checks', async () => {
+    // A running OVMS provider is selectable with no API key and may report
+    // `isEnabled: false`; the guard must defer to the model availability check
+    // instead of rejecting it with provider_disabled / no_api_key.
+    vi.mocked(usePaintingProviderRuntime).mockReturnValue({
+      provider: {
+        id: 'ovms',
+        name: 'OpenVINO Model Server',
+        apiHost: 'http://localhost:8000',
+        isEnabled: false,
+        getApiKey: vi.fn(async () => '')
+      },
+      isLoading: false
+    })
+    const { result } = renderGuard({
+      painting: { providerId: 'ovms', mode: 'generate', model: 'ovms-model' },
+      ensureCurrentCatalog: vi.fn(async () => [{ label: 'OVMS Model', value: 'ovms-model' }])
+    })
+
+    await expect(result.current.validateBeforeGenerate()).resolves.toEqual({ ok: true })
+  })
+
   it('allows a selected model that resolves through the current catalog load', async () => {
     const { result } = renderGuard({
       painting: {

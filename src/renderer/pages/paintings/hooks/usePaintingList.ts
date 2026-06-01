@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { presentPaintingGenerateError } from '@renderer/aiCore/errors/paintingGenerateError'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import type { PaintingMode } from '@shared/data/types/painting'
@@ -9,6 +10,8 @@ import { recordToPaintingData } from '../model/mappers/recordToPaintingData'
 import { createDefaultPainting } from '../model/paintingPipeline'
 import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'
+
+const logger = loggerService.withContext('paintings/usePaintingList')
 
 interface UsePaintingListInput {
   painting: PaintingData
@@ -109,7 +112,16 @@ export function usePaintingList({
   const remove = useCallback(
     async (target: PaintingData) => {
       cancelGeneration(target.id)
-      await deletePainting(target.id)
+      try {
+        await deletePainting(target.id)
+      } catch (error) {
+        // A rejected DELETE (SQLITE_BUSY / FK / IPC) must surface like the
+        // sibling write paths — otherwise the row silently reappears on the
+        // next refresh with no toast or log.
+        logger.error('Failed to delete painting', error as Error)
+        presentPaintingGenerateError(error)
+        return
+      }
       if (target.id === painting.id) {
         await selectNextAfterDelete(target.id)
       } else {

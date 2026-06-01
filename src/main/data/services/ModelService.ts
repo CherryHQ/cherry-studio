@@ -409,7 +409,15 @@ class ModelService {
             capabilities.some((c: ModelCapability, i: number) => c !== model.capabilities[i])
           if (changed) updates.capabilities = capabilities
           return Object.keys(updates).length > 0 ? { ...model, ...updates } : model
-        } catch {
+        } catch (error) {
+          // A registry-lookup failure must not silently strip a model's
+          // imageGeneration / capabilities — log so a real registry/IO fault
+          // is diagnosable rather than masquerading as "model isn't image-gen".
+          logger.warn('Registry enrichment failed; serving model without registry metadata', {
+            providerId: model.providerId,
+            modelId: presetId,
+            error
+          })
           return model
         }
       })

@@ -2,7 +2,7 @@ import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import { parseDataUrl } from '@shared/utils'
 
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
-import { createAbortError, uint8ToBase64, waitWithSignal } from '../transportUtils'
+import { createAbortError, isTerminalHttpStatus, uint8ToBase64, waitWithSignal } from '../transportUtils'
 
 /**
  * ModelScope (魔搭) API Inference transport for AIGC image generation.
@@ -199,7 +199,12 @@ class ModelscopeTransport implements ImageGenerationTransport {
         if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
           throw createAbortError('Task polling aborted')
         }
-        if (error instanceof ModelscopeApiError || error instanceof ModelscopeTaskFailedError) {
+        // Terminal failure or a 4xx (bar 429) poll response ends the loop;
+        // 5xx / 429 fall through to transient retry.
+        if (error instanceof ModelscopeTaskFailedError) {
+          throw error
+        }
+        if (error instanceof ModelscopeApiError && isTerminalHttpStatus(error.statusCode)) {
           throw error
         }
 

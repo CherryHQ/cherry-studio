@@ -17,7 +17,7 @@
 // signal as the production check, just earlier.
 import { fileEntryTable, fileRefTable } from '@data/db/schemas/file'
 import { paintingTable } from '@data/db/schemas/painting'
-import { paintingSourceType } from '@shared/data/types/file/ref'
+import { paintingFileRefSchema, paintingSourceType } from '@shared/data/types/file/ref'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { describe, expect, it, vi } from 'vitest'
@@ -200,6 +200,42 @@ describe('PaintingMigrator file_ref integration', () => {
     const refRows = await dbh.db.select().from(fileRefTable)
     expect(refRows).toHaveLength(0)
     expect((migrator as unknown as { droppedFileRefs: number }).droppedFileRefs).toBe(2)
+
+    const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
+    expect(fkCheck.rows).toHaveLength(0)
+  })
+
+  it('rewrites a cross-namespace duplicate id to a fresh uuidv4 so file_refs validate', async () => {
+    await seedInternalFile(dbh, FILE_PRESENT_OUTPUT_ID)
+    await seedInternalFile(dbh, FILE_PRESENT_INPUT_ID)
+
+    // Same legacy id in two namespaces → the second occurrence collides and
+    // must be rewritten. The composite `${id}_${ns}_${i}` form used previously
+    // is not a uuidv4, so its emitted file_ref would fail `paintingFileRefSchema`.
+    const migrator = new PaintingMigrator()
+    const ctx = makeCtx(dbh, {
+      siliconflow_paintings: [{ id: PAINTING_OUTPUT_ID, prompt: 'first', files: [{ id: FILE_PRESENT_OUTPUT_ID }] }],
+      dmxapi_paintings: [{ id: PAINTING_OUTPUT_ID, prompt: 'duplicate', files: [{ id: FILE_PRESENT_INPUT_ID }] }]
+    })
+
+    expect((await migrator.prepare(ctx)).success).toBe(true)
+    await expect(migrator.execute(ctx)).resolves.toMatchObject({ success: true, processedCount: 2 })
+
+    const paintingRows = await dbh.db.select().from(paintingTable)
+    expect(paintingRows).toHaveLength(2)
+    const ids = paintingRows.map((r) => r.id)
+    // One row keeps the original id; the collision was rewritten to a distinct id.
+    expect(new Set(ids).size).toBe(2)
+    expect(ids).toContain(PAINTING_OUTPUT_ID)
+
+    // Every emitted file_ref (including the rewritten sourceId) parses against
+    // the painting ref schema, whose `sourceId` is `z.uuidv4()`.
+    const refRows = await dbh.db.select().from(fileRefTable)
+    expect(refRows).toHaveLength(2)
+    for (const row of refRows) {
+      expect(() => paintingFileRefSchema.parse(row)).not.toThrow()
+    }
+    expect(new Set(refRows.map((r) => r.sourceId))).toEqual(new Set(ids))
 
     const fkCheck = await dbh.client.execute('PRAGMA foreign_key_check')
     expect(fkCheck.rows).toHaveLength(0)

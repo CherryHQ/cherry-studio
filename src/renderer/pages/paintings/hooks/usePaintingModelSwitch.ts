@@ -1,3 +1,5 @@
+import { loggerService } from '@logger'
+import { presentPaintingGenerateError } from '@renderer/aiCore/errors/paintingGenerateError'
 import { useModels } from '@renderer/hooks/useModels'
 import { isEditImageModel } from '@shared/utils/model'
 import { useCallback } from 'react'
@@ -7,6 +9,8 @@ import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'
 import { computeModelFieldReset } from '../utils/computeModelFieldReset'
 import { tabToImageGenerationMode } from '../utils/paintingProviderMode'
+
+const logger = loggerService.withContext('paintings/usePaintingModelSwitch')
 
 interface UsePaintingModelSwitchInput {
   painting: PaintingData
@@ -55,7 +59,15 @@ export function usePaintingModelSwitch({
         return
       }
 
-      await ensureProviderCatalog(providerId)
+      try {
+        await ensureProviderCatalog(providerId)
+      } catch (error) {
+        // Cold-cache + DB/IPC failure must not silently revert the dropdown —
+        // surface it like the generate path instead of swallowing the switch.
+        logger.error('Failed to load provider catalog on model switch', error as Error)
+        presentPaintingGenerateError(error)
+        return
+      }
       const targetPainting = createDefaultPainting(providerId)
 
       onPaintingChange({

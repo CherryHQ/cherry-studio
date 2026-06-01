@@ -1,7 +1,7 @@
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 
 import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../imageGenerationModel'
-import { createAbortError, fileToDataUrl, waitWithSignal } from '../transportUtils'
+import { createAbortError, fileToDataUrl, isTerminalHttpStatus, waitWithSignal } from '../transportUtils'
 
 /**
  * Aliyun DashScope (Bailian) async image-generation transport.
@@ -419,6 +419,17 @@ class DashScopeTransport implements ImageGenerationTransport {
     }
   }
 
+  /**
+   * DashScope has no public task-cancel endpoint, so cancellation is local
+   * only: drop the pending descriptor. The image-model adapter invokes this on
+   * abort, including the abort-after-submit-before-poll window where `poll()`'s
+   * `finally` never runs — without it that descriptor would leak for the
+   * lifetime of the (reused) transport.
+   */
+  async cancel(taskId: string): Promise<void> {
+    this.pendingDescriptors.delete(taskId)
+  }
+
   private async pollTaskResult(
     taskId: string,
     options: {
@@ -454,7 +465,10 @@ class DashScopeTransport implements ImageGenerationTransport {
         if (signal?.aborted || (error instanceof Error && error.name === 'AbortError')) {
           throw createAbortError('Task polling aborted')
         }
-        if (error instanceof DashScopeApiError || error instanceof DashScopeTaskFailedError) throw error
+        // A terminal vendor failure or a 4xx (bar 429) poll response ends the
+        // loop; 5xx / 429 fall through to transient retry.
+        if (error instanceof DashScopeTaskFailedError) throw error
+        if (error instanceof DashScopeApiError && isTerminalHttpStatus(error.statusCode)) throw error
 
         transientRetries++
         if (transientRetries >= maxTransientRetries) {

@@ -93,7 +93,16 @@ export function PaintingFieldRenderer({ item, painting, onChange, onGenerateRand
             max={max}
             step={item.step}
             value={String(numericValue)}
-            onChange={(event) => onChange({ [fieldKey]: Number(event.target.value) })}
+            onChange={(event) => {
+              const raw = event.target.value
+              // Ignore the transient empty state (clearing to retype) — committing
+              // `Number('')` → 0 would drop below `min`. Otherwise clamp to [min,max]
+              // so the controlled value never escapes the field's range.
+              if (raw === '') return
+              const parsed = Number(raw)
+              if (Number.isNaN(parsed)) return
+              onChange({ [fieldKey]: Math.min(max, Math.max(min, parsed)) })
+            }}
           />
         </div>
       )

@@ -165,9 +165,12 @@ function specToField(key: string, spec: SupportSpec, allSupports: Record<string,
     }
     case 'enum': {
       const renderAsChips = spec.render === 'chips'
-      // Mode allows arbitrary width × height via a sibling `size` spec —
-      // append the `'custom'` chip so the customSize widget can gate on it.
-      const pairedSize = key === 'size' && allSupports.customSize?.type === 'size'
+      // A sibling `size`-type spec lets the user pick arbitrary width × height.
+      // Append the `'custom'` chip to whichever enum that widget gates on —
+      // its `pairedEnumKey` (default `'size'`), the same key the size arm reads.
+      const customSizeSpec = allSupports.customSize
+      const customSizePairedKey = customSizeSpec?.type === 'size' ? (customSizeSpec.pairedEnumKey ?? 'size') : undefined
+      const pairedSize = customSizePairedKey === key
       const options: OptionItem[] = toOptions(key, spec.options)
       if (pairedSize) options.push({ labelKey: 'paintings.custom_size', value: 'custom' })
       if (renderAsChips) {
@@ -184,7 +187,7 @@ function specToField(key: string, spec: SupportSpec, allSupports: Record<string,
     }
     case 'size': {
       const pairedKey = spec.pairedEnumKey
-      return {
+      const item: BaseConfigItem = {
         type: 'customSize',
         key,
         widthKey: `${key}_width`,
@@ -197,7 +200,8 @@ function specToField(key: string, spec: SupportSpec, allSupports: Record<string,
           maxHeight: spec.maxSide
         },
         condition: pairedKey ? (painting: Record<string, unknown>) => painting[pairedKey] === 'custom' : undefined
-      } as unknown as BaseConfigItem
+      }
+      return item
     }
     default: {
       const _exhaustive: never = spec

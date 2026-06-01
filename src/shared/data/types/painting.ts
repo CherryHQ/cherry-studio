@@ -23,8 +23,11 @@ export const PaintingSchema = z.strictObject({
   prompt: z.string(),
   files: PaintingFilesSchema,
   orderKey: z.string().min(1),
-  createdAt: z.string(),
-  updatedAt: z.string()
+  // ISO 8601 (matches the assistant/topic/tag/note/prompt convention); the
+  // service emits these via `timestampToISO`. `id` stays `z.string()` because
+  // migration supplies opaque ids.
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime()
 })
 
 export type Painting = z.infer<typeof PaintingSchema>

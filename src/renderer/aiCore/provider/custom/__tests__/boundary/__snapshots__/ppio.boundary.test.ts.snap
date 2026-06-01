@@ -31,7 +31,17 @@ exports[`PPIO request boundary > jimeng — width/height split + use_pre_llm + l
 }
 `;
 
-exports[`PPIO request boundary > qwen-image-edit — image + output_format + seed: satisfies the wire contract and matches snapshot 1`] = `
+exports[`PPIO request boundary > qwen-image-edit — image from files + output_format + seed: satisfies the wire contract and matches snapshot 1`] = `
+{
+  "image": "data:image/png;base64,AQID",
+  "output_format": "png",
+  "prompt": "a fox",
+  "seed": 5,
+  "watermark": false,
+}
+`;
+
+exports[`PPIO request boundary > qwen-image-edit-2509 — image from files + output_format + seed: satisfies the wire contract and matches snapshot 1`] = `
 {
   "image": "data:image/png;base64,AQID",
   "output_format": "png",

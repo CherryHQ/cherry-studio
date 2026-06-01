@@ -38,6 +38,7 @@ function fixture(opts: {
   mode?: string
   size?: string
   seed?: number
+  files?: ImageGenerationSubmitInput['files']
   params?: Record<string, unknown>
   schema: z.ZodTypeAny
 }): Case {
@@ -53,10 +54,16 @@ function fixture(opts: {
       prompt: 'a fox',
       size: opts.size,
       seed: opts.seed,
+      files: opts.files,
       providerParams: { modelDescriptor: { id: opts.id, endpoint: opts.endpoint, isSync: false, mode }, ...opts.params }
     } as ImageGenerationSubmitInput
   }
 }
+
+// `[1, 2, 3]` base64-encodes to `AQID`, so `fileToDataUrl` yields
+// `data:image/png;base64,AQID` — the canonical attached-image path the
+// painting pipeline feeds edit models via `inputImages` → `options.files`.
+const editFiles = [{ mediaType: 'image/png', data: new Uint8Array([1, 2, 3]) }] as ImageGenerationSubmitInput['files']
 
 const CASES: Case[] = [
   fixture({
@@ -93,12 +100,32 @@ const CASES: Case[] = [
     schema: z.strictObject({ prompt: z.string(), size: z.string(), watermark: z.boolean() })
   }),
   fixture({
-    name: 'qwen-image-edit — image + output_format + seed',
+    // Live registry edit id (no `apiModelId`, so it reaches the transport
+    // verbatim). Pins the `qwen-image-edit-2509` switch arm + `input.files`
+    // image plumbing — the gap this fixture set previously masked.
+    name: 'qwen-image-edit-2509 — image from files + output_format + seed',
+    id: 'qwen-image-edit-2509',
+    endpoint: '/v3/async/qwen-image-edit-2509',
+    mode: 'edit',
+    seed: 5,
+    files: editFiles,
+    params: { outputFormat: 'png', addWatermark: false },
+    schema: z.strictObject({
+      prompt: z.string(),
+      image: z.string(),
+      seed: z.number().int(),
+      output_format: z.string(),
+      watermark: z.boolean()
+    })
+  }),
+  fixture({
+    name: 'qwen-image-edit — image from files + output_format + seed',
     id: 'qwen-image-edit',
     endpoint: '/v3/async/qwen-image-edit',
     mode: 'edit',
     seed: 5,
-    params: { imageFile: 'data:image/png;base64,AQID', outputFormat: 'png', addWatermark: false },
+    files: editFiles,
+    params: { outputFormat: 'png', addWatermark: false },
     schema: z.strictObject({
       prompt: z.string(),
       image: z.string(),
@@ -152,7 +179,8 @@ const CASES: Case[] = [
     endpoint: '/v3/seedream-4.0',
     mode: 'edit',
     size: '2048x2048',
-    params: { imageFile: 'data:image/png;base64,AQID', addWatermark: true },
+    files: editFiles,
+    params: { addWatermark: true },
     schema: z.strictObject({
       prompt: z.string(),
       images: z.array(z.string()),

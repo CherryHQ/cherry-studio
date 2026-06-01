@@ -12,6 +12,8 @@ import { paintingClasses } from '../paintingPrimitives'
 
 interface PaintingStripProps {
   selectedPaintingId?: string
+  /** Id of the painting with an in-flight generation, or undefined when idle. */
+  runningPaintingId?: string
   items: PaintingStripEntry[]
   hasMore: boolean
   loadMore: () => void
@@ -80,6 +82,7 @@ const PaintingStripItem: FC<{
 
 const PaintingStrip: FC<PaintingStripProps> = ({
   selectedPaintingId,
+  runningPaintingId,
   items,
   hasMore,
   loadMore,
@@ -123,7 +126,7 @@ const PaintingStrip: FC<PaintingStripProps> = ({
             key={painting.id}
             painting={painting}
             selected={painting.id === selectedPaintingId}
-            loading={painting.generationStatus === 'running'}
+            loading={painting.id === runningPaintingId}
             onDelete={setPendingDelete}
             onSelect={onSelectPainting}
             selectLabel={t('paintings.button.select.image')}

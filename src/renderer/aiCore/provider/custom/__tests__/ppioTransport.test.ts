@@ -1,7 +1,8 @@
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { createPpioTransport, PpioTaskFailedError } from '../ppio/ppioTransport'
+import type { ImageGenerationSubmitInput } from '../imageGenerationModel'
+import { createPpioTransport, PpioApiError, PpioTaskFailedError } from '../ppio/ppioTransport'
 
 /**
  * Ported from the legacy `providers/ppio/__tests__/PpioService.test.ts` plus
@@ -72,6 +73,33 @@ describe('PpioTransport', () => {
     expect(error).toBeInstanceOf(Error)
     expect((error as Error).message).toBe('network glitch')
     expect(getTaskResultSpy).toHaveBeenCalledTimes(10)
+  })
+
+  it('retries a transient 5xx poll response up to the cap instead of failing fast', async () => {
+    const transport = createPpioTransport({ apiKey: 'token' })
+    const getTaskResultSpy = vi
+      .spyOn(transport, 'getTaskResult')
+      .mockRejectedValue(new PpioApiError('PPIO API error: 503', 503))
+
+    const promise = transport.pollTaskResult('task-1').catch((e) => e)
+    await vi.advanceTimersByTimeAsync(60000)
+    const error = await promise
+
+    expect(error).toBeInstanceOf(PpioApiError)
+    // 503 is transient → retried to the cap, not thrown on the first hit.
+    expect(getTaskResultSpy).toHaveBeenCalledTimes(10)
+  })
+
+  it('treats a 4xx poll response as terminal (single call, no retry storm)', async () => {
+    const transport = createPpioTransport({ apiKey: 'token' })
+    const getTaskResultSpy = vi
+      .spyOn(transport, 'getTaskResult')
+      .mockRejectedValue(new PpioApiError('PPIO API error: 400', 400))
+
+    const error = await transport.pollTaskResult('task-1').catch((e) => e)
+
+    expect(error).toBeInstanceOf(PpioApiError)
+    expect(getTaskResultSpy).toHaveBeenCalledTimes(1)
   })
 
   it('builds jimeng params with width/height from size and seed default', async () => {
@@ -219,7 +247,9 @@ describe('PpioTransport', () => {
       n: 1,
       size: undefined,
       seed: undefined,
-      files: undefined,
+      // Attached edit image flows through the canonical `input.files` path
+      // (inputImages → options.files), not a providerOptions bag key.
+      files: [{ mediaType: 'image/png', data: 'abc' }] as ImageGenerationSubmitInput['files'],
       mask: undefined,
       providerParams: {
         model: 'seedream-4.0',
@@ -229,7 +259,6 @@ describe('PpioTransport', () => {
           isSync: true,
           mode: 'edit'
         },
-        imageFile: 'data:image/png;base64,abc',
         size: '2048x2048'
       }
     })

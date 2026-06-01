@@ -349,8 +349,6 @@ export type PaintingParams = {
   providerId?: string
 }
 
-export type PaintingProvider = 'zhipu' | 'aihubmix' | 'silicon' | 'dmxapi' | 'new-api' | 'ovms' | 'cherryin' | 'ppio'
-
 export interface Painting extends PaintingParams {
   model?: string
   prompt?: string
@@ -479,42 +477,6 @@ export interface PpioPainting extends PaintingParams {
   outputFormat?: string // 输出格式
 }
 
-export type PaintingAction = Partial<
-  GeneratePainting &
-    RemixPainting &
-    EditPainting &
-    ScalePainting &
-    DmxapiPainting &
-    TokenFluxPainting &
-    OvmsPainting &
-    PpioPainting
-> &
-  PaintingParams
-
-export interface PaintingsState {
-  // SiliconFlow
-  siliconflow_paintings: Painting[]
-  // DMXAPI
-  dmxapi_paintings: DmxapiPainting[]
-  // TokenFlux
-  tokenflux_paintings: TokenFluxPainting[]
-  // Zhipu
-  zhipu_paintings: Painting[]
-  // Aihubmix
-  aihubmix_image_generate: Partial<GeneratePainting> & PaintingParams[]
-  aihubmix_image_remix: Partial<RemixPainting> & PaintingParams[]
-  aihubmix_image_edit: Partial<EditPainting> & PaintingParams[]
-  aihubmix_image_upscale: Partial<ScalePainting> & PaintingParams[]
-  // OpenAI
-  openai_image_generate: Partial<GeneratePainting> & PaintingParams[]
-  openai_image_edit: Partial<EditPainting> & PaintingParams[]
-  // OVMS
-  ovms_paintings: OvmsPainting[]
-  // PPIO
-  ppio_draw: PpioPainting[]
-  ppio_edit: PpioPainting[]
-}
-
 export enum ThemeMode {
   light = 'light',
   dark = 'dark',
@@ -593,7 +555,8 @@ export type GenerateImageParams = {
   negativePrompt?: string
   imageSize?: string
   aspectRatio?: string
-  batchSize: number
+  /** Optional: painting callers may omit it; `AiProvider` falls back to `n: 1`. */
+  batchSize?: number
   /**
    * Painting-only opt-in: when true and `imageSize` is undefined, `AiProvider`
    * skips the `'1024x1024'` default so `size` is omitted from the request body

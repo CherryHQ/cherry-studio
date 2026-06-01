@@ -54,8 +54,6 @@ Source of truth: [`packages/provider-registry/src/schemas/model.ts`](../../../pa
 ```ts
 interface ImageGenerationSupport {
   modes: Partial<Record<ImageGenerationMode, ModeDef>> // generate | edit | remix | upscale | merge
-  vendorParams?: Record<string, unknown> // free-form extras for custom-UI vendors
-  inputSchema?: Record<string, unknown>  // JSON-schema dynamic form
 }
 
 interface ModeDef {
@@ -141,8 +139,11 @@ model is selected, by `computeModelFieldReset` ([`src/renderer/pages/paintings/u
 - **`AI_SDK_NATIVE_KEYS`** (after `POSITIONAL_RENAME`: `size→imageSize`, `numImages→batchSize`) → `aiSdkParams`, the positional AI SDK call options.
 - **everything else** → `providerBag` = `providerOptions[providerId]`, forwarded by reference (so non-JSON callbacks like `onProgress` survive the plugin chain).
 
-Empty / `undefined` / `'auto'` values are dropped — the server applies its own
-default. No client-side defaults are invented here.
+Empty / `undefined` / `null` values are dropped here — the server applies its
+own default; no client-side defaults are invented. The `'auto'` sentinel is
+**not** dropped at this stage: it's carried through and resolved to "omit the
+field" one stage later by the emitters (e.g. `toDashScopeSize` /
+`AiProvider.resolveImageSize`).
 
 ### 2. Transport routing hint (`paintingPipeline`)
 
