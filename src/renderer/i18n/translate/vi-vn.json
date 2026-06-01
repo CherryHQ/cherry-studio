@@ -6513,7 +6513,7 @@
         "cherryIn": {
           "description": "Đăng nhập vào CherryIN bằng OAuth 2.0",
           "logged_in": "Đã đăng nhập qua OAuth",
-          "login_button": "[to be translated]:CherryIN 授权登陆",
+          "login_button": "[to be translated]:Authorize with CherryIN",
           "logout_button": "Keluar",
           "not_logged_in": "[to be translated]:Not logged in",
           "register_account": "Create account",

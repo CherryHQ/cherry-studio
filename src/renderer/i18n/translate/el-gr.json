@@ -6513,7 +6513,7 @@
         "cherryIn": {
           "description": "Συνδεθείτε με τον διακομιστή New-API που φιλοξενείτε ο ίδιος χρησιμοποιώντας OAuth 2.0 (PKCE)",
           "logged_in": "Σύνδεση μέσω OAuth",
-          "login_button": "[to be translated]:CherryIN 授权登陆",
+          "login_button": "[to be translated]:Authorize with CherryIN",
           "logout_button": "Αποσύνδεση",
           "not_logged_in": "[to be translated]:Not logged in",
           "register_account": "Create account",

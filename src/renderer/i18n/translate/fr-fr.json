@@ -6513,7 +6513,7 @@
         "cherryIn": {
           "description": "Connectez-vous à votre serveur New-API auto-hébergé à l'aide d'OAuth 2.0 (PKCE)",
           "logged_in": "Connecté via OAuth",
-          "login_button": "[to be translated]:CherryIN 授权登陆",
+          "login_button": "[to be translated]:Authorize with CherryIN",
           "logout_button": "Déconnexion",
           "not_logged_in": "[to be translated]:Not logged in",
           "register_account": "Create account",

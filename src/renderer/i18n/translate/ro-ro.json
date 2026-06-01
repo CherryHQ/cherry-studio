@@ -6513,7 +6513,7 @@
         "cherryIn": {
           "description": "Autentifică-te cu serverul tău auto-găzduit New-API folosind OAuth 2.0 (PKCE)",
           "logged_in": "Conectat prin OAuth",
-          "login_button": "[to be translated]:CherryIN 授权登陆",
+          "login_button": "[to be translated]:Authorize with CherryIN",
           "logout_button": "Deconectare",
           "not_logged_in": "[to be translated]:Not logged in",
           "register_account": "Create account",
