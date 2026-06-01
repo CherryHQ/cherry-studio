@@ -121,6 +121,13 @@ class AihubmixFluxTransport implements ImageGenerationTransport {
     const fetchImpl = this.settings.fetch ?? globalThis.fetch
     const url = `${this.settings.apiRoot}/v1/tasks/${encodeURIComponent(taskId)}`
     const startedAt = Date.now()
+    // Absorb transient poll failures (network blips, transient 5xx) the same
+    // way the sibling async transports do (ppio/dashscope/modelscope), so a
+    // single hiccup mid-render doesn't abort an otherwise-healthy task.
+    // Terminal vendor statuses (Error/Moderated) and timeout/abort still fail
+    // immediately.
+    const maxTransientRetries = 10
+    let transientRetries = 0
     while (true) {
       if (options.signal?.aborted) throw createAbortError('FLUX polling aborted')
       if (Date.now() - startedAt > MAX_WAIT_MS) {
@@ -128,20 +135,31 @@ class AihubmixFluxTransport implements ImageGenerationTransport {
       }
       await waitWithSignal(POLL_INTERVAL_MS, options.signal)
 
-      const response = await fetchImpl(url, {
-        method: 'GET',
-        headers: { Authorization: `Bearer ${this.settings.apiKey}` },
-        signal: options.signal
-      })
-      if (!response.ok) {
-        const message = await readErrorMessage(response, 'paintings.generate_failed')
-        throw createPaintingGenerateError('REMOTE_ERROR', { message })
+      let json: { status?: string; result?: { sample?: string; samples?: string[] }; detail?: string }
+      try {
+        const response = await fetchImpl(url, {
+          method: 'GET',
+          headers: { Authorization: `Bearer ${this.settings.apiKey}` },
+          signal: options.signal
+        })
+        if (!response.ok) {
+          const message = await readErrorMessage(response, 'paintings.generate_failed')
+          throw new Error(message)
+        }
+        json = (await response.json()) as typeof json
+      } catch (error) {
+        // Re-raise an abort immediately; otherwise treat as transient and
+        // retry up to the bounded ceiling before surfacing the failure.
+        if (options.signal?.aborted) throw createAbortError('FLUX polling aborted')
+        if (++transientRetries > maxTransientRetries) {
+          throw createPaintingGenerateError('REMOTE_ERROR', {
+            message: error instanceof Error ? error.message : 'FLUX polling failed'
+          })
+        }
+        continue
       }
-      const json = (await response.json()) as {
-        status?: string
-        result?: { sample?: string; samples?: string[] }
-        detail?: string
-      }
+
+      transientRetries = 0
       const status = json?.status
       if (status === 'Ready') {
         const sample = json.result?.sample
