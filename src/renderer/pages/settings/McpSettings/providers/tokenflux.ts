@@ -3,6 +3,8 @@ import { nanoid } from '@reduxjs/toolkit'
 import type { MCPServer } from '@renderer/types'
 import i18next from 'i18next'
 
+import { isSameMcpServerInstall } from './identity'
+
 const logger = loggerService.withContext('TokenFluxSyncUtils')
 
 // Token storage constants and utilities
@@ -111,9 +113,6 @@ export const syncTokenFluxServers = async (
     logger.debug('TokenFlux servers:', servers)
     for (const server of servers) {
       try {
-        // Check if server already exists
-        const existingServer = existingServers.find((s) => s.id === `@tokenflux/${server.name}`)
-
         const authHeaders = {}
         if (server.security_schemes && server.security_schemes.api_key) {
           const keyAuth = server.security_schemes.api_key as TokenFluxServerAuthSchemaApiKey
@@ -135,6 +134,7 @@ export const syncTokenFluxServers = async (
           tags: server.categories || [],
           headers: authHeaders
         }
+        const existingServer = existingServers.find((s) => isSameMcpServerInstall(s, mcpServer))
 
         if (existingServer) {
           // Update existing server with corrected URL and latest info

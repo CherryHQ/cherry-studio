@@ -1,7 +1,12 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import NavigationService from '@renderer/services/NavigationService'
-import type { CreateMCPServerDto, ListMCPServersQuery } from '@shared/data/api/schemas/mcpServers'
+import {
+  type CreateMCPServerDto,
+  type ListMCPServersQuery,
+  stripReadOnlyMCPServerFields,
+  type UpdateMCPServerDto
+} from '@shared/data/api/schemas/mcpServers'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useCallback, useMemo } from 'react'
@@ -11,6 +16,10 @@ window.electron.ipcRenderer.on(IpcChannel.Mcp_AddServer, (_event, server: { id: 
   void NavigationService.navigate?.({ to: '/settings/mcp' })
   void NavigationService.navigate?.({ to: `/settings/mcp/settings/${server.id}` })
 })
+
+type ReadOnlyMcpServerFields = Pick<MCPServer, 'id' | 'createdAt' | 'updatedAt'>
+type CreateMcpServerInput = CreateMCPServerDto & Partial<ReadOnlyMcpServerFields>
+type UpdateMcpServerInput = UpdateMCPServerDto & Partial<ReadOnlyMcpServerFields>
 
 /**
  * MCP servers list hook — data fetching with optional filters and create mutation.
@@ -24,7 +33,10 @@ export const useMcpServers = (query?: ListMCPServersQuery) => {
     refresh: ['/mcp-servers']
   })
 
-  const addMcpServer = useCallback((dto: CreateMCPServerDto) => createMcpServer({ body: dto }), [createMcpServer])
+  const addMcpServer = useCallback(
+    (dto: CreateMcpServerInput) => createMcpServer({ body: stripReadOnlyMCPServerFields(dto) }),
+    [createMcpServer]
+  )
 
   const { trigger: reorderTrigger } = useMutation('PATCH', '/mcp-servers', {
     refresh: ['/mcp-servers']
@@ -76,9 +88,21 @@ export const useMcpServer = (id: string) => {
 export const useMcpServerMutations = (id: string) => {
   const path = `/mcp-servers/${id}` as const
 
-  const { trigger: updateMcpServer } = useMutation('PATCH', path, {
+  const { trigger: updateMcpServerTrigger } = useMutation('PATCH', path, {
     refresh: ['/mcp-servers']
   })
+
+  type UpdateMcpServerArgs = Omit<NonNullable<Parameters<typeof updateMcpServerTrigger>[0]>, 'body'> & {
+    body?: UpdateMcpServerInput
+  }
+
+  const updateMcpServer = useCallback(
+    (data?: UpdateMcpServerArgs) => {
+      if (!data?.body) return updateMcpServerTrigger(data)
+      return updateMcpServerTrigger({ ...data, body: stripReadOnlyMCPServerFields(data.body) })
+    },
+    [updateMcpServerTrigger]
+  )
 
   const { trigger: deleteMcpServer } = useMutation('DELETE', path, {
     refresh: ['/mcp-servers']

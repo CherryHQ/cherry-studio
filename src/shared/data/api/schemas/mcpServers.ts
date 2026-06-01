@@ -62,6 +62,18 @@ export type CreateMCPServerDto = z.infer<typeof CreateMCPServerSchema>
 export const UpdateMCPServerSchema = CreateMCPServerSchema.partial()
 export type UpdateMCPServerDto = z.infer<typeof UpdateMCPServerSchema>
 
+type MCPServerReadOnlyFields = Pick<MCPServer, 'id' | 'createdAt' | 'updatedAt'>
+
+export function stripReadOnlyMCPServerFields<T extends CreateMCPServerDto | UpdateMCPServerDto>(
+  dto: T & Partial<MCPServerReadOnlyFields>
+): T {
+  const body = { ...dto }
+  delete body.id
+  delete body.createdAt
+  delete body.updatedAt
+  return body as T
+}
+
 /**
  * Query parameters for listing MCP servers
  */

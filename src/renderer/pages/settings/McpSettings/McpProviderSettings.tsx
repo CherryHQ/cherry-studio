@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { getMCPProviderLogo, getProviderDisplayName, type ProviderConfig } from './providers/config'
+import { isSameMcpServerInstall } from './providers/identity'
 
 const logger = loggerService.withContext('McpProviderSettings')
 
@@ -201,7 +202,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                   </div>
                 </div>
                 {(() => {
-                  const isAlreadyAdded = existingServers.some((existing) => existing.id === server.id)
+                  const isAlreadyAdded = existingServers.some((existing) => isSameMcpServerInstall(existing, server))
                   return (
                     <Button
                       disabled={isAlreadyAdded}
