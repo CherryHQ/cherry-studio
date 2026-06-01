@@ -57,7 +57,7 @@ vi.mock('@electron-toolkit/utils', () => ({
   }
 }))
 
-import { sessionMessagesTable, sessionsTable } from '../../database/schema'
+import { channelsTable, sessionMessagesTable, sessionsTable } from '../../database/schema'
 import { SessionService } from '../SessionService'
 
 function createSessionSelect(rows: unknown[]) {
@@ -80,11 +80,15 @@ describe('SessionService deleteSession', () => {
   it('deletes session messages before deleting the session row', async () => {
     const deleteWhere = vi.fn().mockResolvedValue({ rowsAffected: 1 })
     const txDelete = vi.fn(() => ({ where: deleteWhere }))
+    const updateWhere = vi.fn().mockResolvedValue(undefined)
+    const txUpdateSet = vi.fn(() => ({ where: updateWhere }))
+    const txUpdate = vi.fn(() => ({ set: txUpdateSet }))
     const database = {
       transaction: vi.fn(async (callback: (tx: unknown) => Promise<boolean>) =>
         callback({
           select: vi.fn(() => createSessionSelect([{ id: 'session-1' }])),
-          delete: txDelete
+          delete: txDelete,
+          update: txUpdate
         })
       )
     }
@@ -95,6 +99,8 @@ describe('SessionService deleteSession', () => {
 
     expect(deleted).toBe(true)
     expect(database.transaction).toHaveBeenCalledTimes(1)
+    expect(txUpdate).toHaveBeenCalledWith(channelsTable)
+    expect(txUpdateSet).toHaveBeenCalledWith({ sessionId: null })
     expect(txDelete).toHaveBeenNthCalledWith(1, sessionMessagesTable)
     expect(txDelete).toHaveBeenNthCalledWith(2, sessionsTable)
   })

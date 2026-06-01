@@ -18,6 +18,7 @@ import { and, asc, count, desc, eq, isNull, type SQL, sql } from 'drizzle-orm'
 import { BaseService } from '../BaseService'
 import {
   agentsTable,
+  channelsTable,
   type InsertSessionRow,
   sessionMessagesTable,
   type SessionRow,
@@ -334,6 +335,7 @@ export class SessionService extends BaseService {
         return false
       }
 
+      await tx.update(channelsTable).set({ sessionId: null }).where(eq(channelsTable.sessionId, id))
       await tx.delete(sessionMessagesTable).where(eq(sessionMessagesTable.session_id, id))
       const result = await tx
         .delete(sessionsTable)

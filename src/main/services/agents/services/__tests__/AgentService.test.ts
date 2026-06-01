@@ -170,10 +170,13 @@ describe('AgentService built-in agent lifecycle', () => {
       .fn()
       .mockReturnValueOnce(createSelectWhereQuery([{ id: 'session-1' }]))
       .mockReturnValueOnce(createSelectWhereQuery([{ id: 'task-1' }]))
+    const updateWhere = vi.fn().mockResolvedValue(undefined)
+    const txUpdateSet = vi.fn(() => ({ where: updateWhere }))
+    const txUpdate = vi.fn(() => ({ set: txUpdateSet }))
     const database = {
       select: vi.fn(() => createSelectQuery([{ id: 'agent-1', deleted_at: null }])),
       transaction: vi.fn(async (callback: (tx: unknown) => Promise<{ rowsAffected: number }>) =>
-        callback({ delete: txDelete, select: txSelect })
+        callback({ delete: txDelete, select: txSelect, update: txUpdate })
       )
     }
 
@@ -189,5 +192,6 @@ describe('AgentService built-in agent lifecycle', () => {
     expect(txDelete).toHaveBeenCalledWith(sessionMessagesTable)
     expect(txDelete).toHaveBeenCalledWith(sessionsTable)
     expect(txDelete).toHaveBeenCalledWith(agentsTable)
+    expect(txUpdateSet).toHaveBeenCalledWith({ agentId: null })
   })
 })

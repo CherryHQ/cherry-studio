@@ -613,6 +613,7 @@ export class AgentService extends BaseService {
         await tx.delete(sessionMessagesTable).where(inArray(sessionMessagesTable.session_id, sessionIds))
       }
       await tx.delete(sessionsTable).where(eq(sessionsTable.agent_id, id))
+      await tx.update(channelsTable).set({ agentId: null }).where(eq(channelsTable.agentId, id))
 
       return await tx.delete(agentsTable).where(eq(agentsTable.id, id))
     })
