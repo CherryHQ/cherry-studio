@@ -41,6 +41,10 @@ export async function paintingGenerate(input: GenerateInput): Promise<FileMetada
   const modelId = input.painting.model
   const canonicalMode = tabToImageGenerationMode(input.painting.mode)
   let requirePrompt: boolean | undefined
+  // Local params copy threaded to canonicalGenerate — never reassign
+  // `input.painting.params`, or the synthetic `modelDescriptor` leaks into
+  // the live in-memory draft and re-emits on regenerate.
+  let paramsForGenerate = input.painting.params
 
   if (modelId) {
     try {
@@ -58,7 +62,7 @@ export async function paintingGenerate(input: GenerateInput): Promise<FileMetada
       const transport = modeDef?.vendorTransport
       requirePrompt = modeDef?.requirePrompt
       if (transport?.endpoint) {
-        input.painting.params = {
+        paramsForGenerate = {
           ...input.painting.params,
           modelDescriptor: {
             id: modelId,
@@ -83,5 +87,9 @@ export async function paintingGenerate(input: GenerateInput): Promise<FileMetada
     ...(downloadOptions && { downloadOptions }),
     ...(requirePrompt !== undefined && { requirePrompt })
   }
-  return canonicalGenerate(input, Object.keys(options).length > 0 ? options : undefined)
+  const generateInput: GenerateInput =
+    paramsForGenerate === input.painting.params
+      ? input
+      : { ...input, painting: { ...input.painting, params: paramsForGenerate } }
+  return canonicalGenerate(generateInput, Object.keys(options).length > 0 ? options : undefined)
 }
