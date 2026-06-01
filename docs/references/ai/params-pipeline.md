@@ -57,8 +57,7 @@ export const INTERNAL_FEATURES = [
   qwenThinkingFeature,
   skipGeminiThoughtSignatureFeature,
   providerWebSearchFeature,
-  providerUrlContextFeature,
-  promptToolUseFeature
+  providerUrlContextFeature
 ]
 ```
 
