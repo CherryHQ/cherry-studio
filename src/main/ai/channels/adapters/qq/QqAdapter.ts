@@ -82,13 +82,12 @@ class QqAdapter extends ChannelAdapter {
   /** Number of rapid disconnects before invalidating session */
   private readonly maxRapidDisconnects = 3
 
-  constructor(config: ChannelAdapterConfig) {
+  constructor(config: ChannelAdapterConfig<'qq'>) {
     super(config)
     const { app_id, client_secret, allowed_chat_ids } = config.channelConfig
-    this.appId = (app_id as string) ?? ''
-    this.clientSecret = (client_secret as string) ?? ''
-    const rawIds = allowed_chat_ids as string[] | undefined
-    this.allowedChatIds = Array.isArray(rawIds) ? rawIds.map(String) : []
+    this.appId = app_id
+    this.clientSecret = client_secret
+    this.allowedChatIds = allowed_chat_ids ?? []
     this.notifyChatIds = [...this.allowedChatIds]
   }
 

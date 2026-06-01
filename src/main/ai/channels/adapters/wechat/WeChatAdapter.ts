@@ -17,13 +17,11 @@ class WeChatAdapter extends ChannelAdapter {
   private readonly tokenPath: string
   private readonly allowedChatIds: string[]
 
-  constructor(config: ChannelAdapterConfig) {
+  constructor(config: ChannelAdapterConfig<'wechat'>) {
     super(config)
     const { token_path, allowed_chat_ids } = config.channelConfig
-    this.tokenPath =
-      (token_path as string) || application.getPath('feature.agents.channels', `weixin_bot_${config.channelId}.json`)
-    const rawIds = allowed_chat_ids as string[] | undefined
-    this.allowedChatIds = Array.isArray(rawIds) ? rawIds.map(String) : []
+    this.tokenPath = token_path || application.getPath('feature.agents.channels', `weixin_bot_${config.channelId}.json`)
+    this.allowedChatIds = allowed_chat_ids ?? []
     this.notifyChatIds = [...this.allowedChatIds]
   }
 

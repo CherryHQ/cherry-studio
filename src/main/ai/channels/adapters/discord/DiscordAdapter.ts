@@ -232,12 +232,11 @@ class DiscordAdapter extends ChannelAdapter {
   /** Per-chat streaming controller. One stream at a time per chat. */
   private readonly streamingControllers = new Map<string, DiscordStreamingController>()
 
-  constructor(config: ChannelAdapterConfig) {
+  constructor(config: ChannelAdapterConfig<'discord'>) {
     super(config)
     const { bot_token, allowed_channel_ids } = config.channelConfig
-    this.botToken = (bot_token as string) ?? ''
-    const rawIds = allowed_channel_ids as string[] | undefined
-    this.allowedChannelIds = Array.isArray(rawIds) ? rawIds.map(String) : []
+    this.botToken = bot_token
+    this.allowedChannelIds = allowed_channel_ids ?? []
     this.notifyChatIds = [...this.allowedChannelIds]
   }
 

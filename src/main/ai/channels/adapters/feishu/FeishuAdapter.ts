@@ -470,16 +470,15 @@ class FeishuAdapter extends ChannelAdapter {
   /** Active status reaction per chat, so we can swap or remove it. */
   private readonly chatReactions = new Map<string, ChatReaction>()
 
-  constructor(config: ChannelAdapterConfig) {
+  constructor(config: ChannelAdapterConfig<'feishu'>) {
     super(config)
     const { app_id, app_secret, encrypt_key, verification_token, allowed_chat_ids, domain } = config.channelConfig
-    this.appId = (app_id as string) ?? ''
-    this.appSecret = (app_secret as string) ?? ''
-    this.encryptKey = (encrypt_key as string) ?? ''
-    this.verificationToken = (verification_token as string) ?? ''
-    const rawIds = allowed_chat_ids as string[] | undefined
-    this.allowedChatIds = Array.isArray(rawIds) ? rawIds.map(String) : []
-    this.domain = ((domain as string) ?? 'feishu') as FeishuDomain
+    this.appId = app_id
+    this.appSecret = app_secret
+    this.encryptKey = encrypt_key
+    this.verificationToken = verification_token
+    this.allowedChatIds = allowed_chat_ids ?? []
+    this.domain = domain
     this.notifyChatIds = [...this.allowedChatIds]
   }
 

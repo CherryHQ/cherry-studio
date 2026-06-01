@@ -20,12 +20,11 @@ class TelegramAdapter extends ChannelAdapter {
   private readonly botToken: string
   private readonly allowedChatIds: string[]
 
-  constructor(config: ChannelAdapterConfig) {
+  constructor(config: ChannelAdapterConfig<'telegram'>) {
     super(config)
     const { bot_token, allowed_chat_ids } = config.channelConfig
-    this.botToken = (bot_token as string) ?? ''
-    const rawIds = allowed_chat_ids as string[] | undefined
-    this.allowedChatIds = Array.isArray(rawIds) ? rawIds.map(String) : []
+    this.botToken = bot_token
+    this.allowedChatIds = allowed_chat_ids ?? []
     this.notifyChatIds = [...this.allowedChatIds]
   }
 

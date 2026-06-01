@@ -205,13 +205,12 @@ class SlackAdapter extends ChannelAdapter {
   /** Track the latest incoming message ts per chatId for reaction acknowledgment */
   private readonly pendingReactions = new Map<string, string>()
 
-  constructor(config: ChannelAdapterConfig) {
+  constructor(config: ChannelAdapterConfig<'slack'>) {
     super(config)
     const { bot_token, app_token, allowed_channel_ids } = config.channelConfig
-    this.botToken = (bot_token as string) ?? ''
-    this.appToken = (app_token as string) ?? ''
-    const rawIds = allowed_channel_ids as string[] | undefined
-    this.allowedChannelIds = Array.isArray(rawIds) ? rawIds.map(String) : []
+    this.botToken = bot_token
+    this.appToken = app_token
+    this.allowedChannelIds = allowed_channel_ids ?? []
     this.notifyChatIds = [...this.allowedChannelIds]
   }
 

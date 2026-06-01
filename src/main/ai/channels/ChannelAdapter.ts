@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
 import type { ChannelLogEntry, ChannelLogLevel, ChannelStatusEvent } from '@shared/config/types'
+import type { AgentChannelEntity, AgentChannelType } from '@shared/data/api/schemas/agentChannels'
 import { EventEmitter } from 'events'
 
 export type ChannelMessageEvent = {
@@ -27,11 +28,19 @@ export type SendMessageOptions = {
   replyToMessageId?: number
 }
 
-export type ChannelAdapterConfig = {
+/** Channel type → its config payload, projected from the `AgentChannelEntity` discriminated union. */
+type ChannelConfigByType = {
+  [T in AgentChannelType]: Extract<AgentChannelEntity, { type: T }>['config']
+}
+
+/** The config payload for a specific channel type. Indexing keeps `ChannelAdapterConfig` covariant in `T`. */
+export type ChannelConfigForType<T extends AgentChannelType = AgentChannelType> = ChannelConfigByType[T]
+
+export type ChannelAdapterConfig<T extends AgentChannelType = AgentChannelType> = {
   channelId: string
-  channelType: string
+  channelType: T
   agentId: string
-  channelConfig: Record<string, unknown>
+  channelConfig: ChannelConfigForType<T>
 }
 
 /**
@@ -53,7 +62,7 @@ export type ChannelAdapterConfig = {
  */
 export abstract class ChannelAdapter extends EventEmitter {
   readonly channelId: string
-  readonly channelType: string
+  readonly channelType: AgentChannelType
   readonly agentId: string
   /**
    * Chat IDs that this adapter can send notifications/task results to.

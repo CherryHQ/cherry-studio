@@ -4,7 +4,7 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import type { ChannelLogEntry, ChannelStatusEvent } from '@shared/config/types'
-import type { AgentChannelEntity as ChannelRow } from '@shared/data/api/schemas/agentChannels'
+import type { AgentChannelEntity as ChannelRow, AgentChannelType } from '@shared/data/api/schemas/agentChannels'
 import type { ChannelConfig } from '@shared/data/types/channel'
 import { IpcChannel } from '@shared/IpcChannel'
 
@@ -14,12 +14,21 @@ import { channelMessageHandler } from './ChannelMessageHandler'
 
 const logger = loggerService.withContext('ChannelManager')
 
-// Adapter factory registry -- adapters register themselves here
-type AdapterFactory = (channel: ChannelRow, agentId: string) => ChannelAdapter
-const adapterFactories = new Map<string, AdapterFactory>()
+// Adapter factory registry -- adapters register themselves here. The factory
+// for a given channel type receives the matching variant of the discriminated
+// `ChannelRow` union, so `channel.config` is strongly typed per adapter.
+type AdapterFactory<T extends AgentChannelType = AgentChannelType> = (
+  channel: Extract<ChannelRow, { type: T }>,
+  agentId: string
+) => ChannelAdapter
+const adapterFactories = new Map<AgentChannelType, AdapterFactory>()
 
-export function registerAdapterFactory(type: string, factory: AdapterFactory): void {
-  adapterFactories.set(type, factory)
+export function registerAdapterFactory<T extends AgentChannelType>(type: T, factory: AdapterFactory<T>): void {
+  // A factory is always stored under, and looked up by, its own channel type
+  // (see `connectChannelFromRow`), so the row handed to it is guaranteed to be
+  // this variant. That invariant is the one thing the type system can't see, so
+  // we narrow the row to the factory's variant here — nothing wider is asserted.
+  adapterFactories.set(type, (channel, agentId) => factory(channel as Extract<ChannelRow, { type: T }>, agentId))
 }
 
 /**
@@ -27,7 +36,7 @@ export function registerAdapterFactory(type: string, factory: AdapterFactory): v
  * Each module registers itself via `registerAdapterFactory()` as a side effect.
  * This avoids eagerly importing all 6 heavy adapter modules at startup.
  */
-const adapterImportMap: Record<string, () => Promise<unknown>> = {
+const adapterImportMap: Record<AgentChannelType, () => Promise<unknown>> = {
   discord: () => import('./adapters/discord/DiscordAdapter'),
   feishu: () => import('./adapters/feishu/FeishuAdapter'),
   qq: () => import('./adapters/qq/QqAdapter'),
@@ -37,11 +46,9 @@ const adapterImportMap: Record<string, () => Promise<unknown>> = {
 }
 
 /** Ensure the adapter factory for the given type is loaded (idempotent). */
-async function ensureAdapterLoaded(type: string): Promise<void> {
+async function ensureAdapterLoaded(type: AgentChannelType): Promise<void> {
   if (adapterFactories.has(type)) return
-  const loader = adapterImportMap[type]
-  if (!loader) return
-  await loader()
+  await adapterImportMap[type]()
 }
 
 @Injectable('ChannelManager')
