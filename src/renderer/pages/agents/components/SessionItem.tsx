@@ -42,7 +42,7 @@ const SessionItem = ({ session, channelType, pinned, onTogglePin, onDelete, onPr
   const { isEditing, isSaving, startEdit, inputProps } = useInPlaceEdit({
     onSave: async (value) => {
       if (value !== session.name) {
-        await updateSession({ id: session.id, name: value })
+        await updateSession({ id: session.id, name: value, isNameManuallyEdited: true })
       }
     }
   })
