@@ -6,10 +6,13 @@
 import { loggerService } from '@logger'
 import {
   isClaude46SeriesModel,
-  isClaudeOpusAdaptiveThinkingModel,
+  isClaudeModelRejectsTemperature,
+  isClaudeModelRejectsTopK,
+  isClaudeModelRejectsTopP,
   isClaudeReasoningModel,
   isGemini3Model,
   isMaxTemperatureOneModel,
+  isSupportAdaptiveThinkingClaudeModel,
   isSupportedFlexServiceTier,
   isSupportedThinkingTokenClaudeModel,
   isSupportTemperatureModel,
@@ -52,7 +55,7 @@ export function getTemperature(assistant: Assistant, model: Model): number | und
 
   // Claude Opus 4.7+ rejects sampling params (temperature/top_p/top_k) with HTTP 400
   // regardless of reasoning settings. See Vercel AI SDK PR #14529.
-  if (isClaudeOpusAdaptiveThinkingModel(model)) {
+  if (isClaudeModelRejectsTemperature(model)) {
     logger.info(`Model ${model.id} rejects sampling parameters, disabling temperature`)
     return undefined
   }
@@ -110,7 +113,7 @@ export function getTopP(assistant: Assistant, model: Model): number | undefined 
   }
 
   // Claude Opus 4.7+ rejects sampling params unconditionally (see getTemperature).
-  if (isClaudeOpusAdaptiveThinkingModel(model)) {
+  if (isClaudeModelRejectsTopP(model)) {
     logger.info(`Model ${model.id} rejects sampling parameters, disabling topP`)
     return undefined
   }
@@ -161,7 +164,7 @@ export function filterStandardParams(
     return rest
   }
 
-  if (isClaudeOpusAdaptiveThinkingModel(model) && 'topK' in standardParams) {
+  if (isClaudeModelRejectsTopK(model) && 'topK' in standardParams) {
     const { topK, ...rest } = standardParams
     logger.info(`Model ${model.id} rejects sampling parameters, dropping topK=${topK} from custom params`)
     return rest
@@ -198,7 +201,7 @@ export function getMaxTokens(assistant: Assistant, model: Model): number | undef
   if (
     isSupportedThinkingTokenClaudeModel(model) &&
     !isClaude46SeriesModel(model) &&
-    !isClaudeOpusAdaptiveThinkingModel(model) &&
+    !isSupportAdaptiveThinkingClaudeModel(model) &&
     ['anthropic', 'aws-bedrock'].includes(provider.type)
   ) {
     const { reasoning_effort: reasoningEffort } = assistantSettings
