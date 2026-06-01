@@ -33,18 +33,33 @@ describe('delete-subtree job handler', () => {
       createJobSnapshot({
         id: 'index-job',
         type: 'knowledge.index-documents',
-        input: { baseId: 'kb-1', itemId: 'note-1' }
+        input: { baseId: 'kb-1', itemId: 'note-1', parentJobId: null }
+      }),
+      createJobSnapshot({
+        id: 'check-job',
+        type: 'knowledge.check-file-processing-result',
+        input: {
+          baseId: 'kb-1',
+          itemId: 'note-1',
+          fileProcessingJobId: 'fp-job-1',
+          sourceFileEntryId: '019606a0-0000-7000-8000-000000000001',
+          pollRound: 0,
+          firstScheduledAt: 1779811200000,
+          parentJobId: null
+        }
       }),
       createJobSnapshot({
         id: 'unrelated-job',
         type: 'knowledge.index-documents',
-        input: { baseId: 'kb-1', itemId: 'other' }
+        input: { baseId: 'kb-1', itemId: 'other', parentJobId: null }
       })
     ])
 
     await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'current-job'))
 
     expect(cancelMock).toHaveBeenCalledWith('index-job', 'knowledge-delete-subtree')
+    expect(cancelMock).toHaveBeenCalledWith('check-job', 'knowledge-delete-subtree')
+    expect(cancelMock).toHaveBeenCalledWith('fp-job-1', 'knowledge-delete-subtree')
     expect(cancelMock).not.toHaveBeenCalledWith('unrelated-job', expect.anything())
     expect(replaceByExternalIdMock).toHaveBeenCalledWith('note-1', [])
     expect(deleteItemsByIdsMock).toHaveBeenCalledWith('kb-1', ['dir-1', 'note-1'])
@@ -74,7 +89,7 @@ describe('delete-subtree job handler', () => {
       createJobSnapshot({
         id: 'index-job',
         type: 'knowledge.index-documents',
-        input: { baseId: 'kb-1', itemId: 'note-1' }
+        input: { baseId: 'kb-1', itemId: 'note-1', parentJobId: null }
       })
     ])
     cancelMock.mockRejectedValue(new Error('cancel failed'))
@@ -98,13 +113,13 @@ describe('delete-subtree job handler', () => {
       createJobSnapshot({
         id: 'index-job',
         type: 'knowledge.index-documents',
-        input: { baseId: 'kb-1', itemId: 'note-1' }
+        input: { baseId: 'kb-1', itemId: 'note-1', parentJobId: null }
       })
     ])
     cancelMock.mockResolvedValue({ outcome: 'timed-out' })
 
     await expect(handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['dir-1'] }, 'delete-job'))).rejects.toThrow(
-      'Knowledge subtree job cancel timed out: index-job'
+      'Job cancel timed out: index-job'
     )
 
     expect(replaceByExternalIdMock).not.toHaveBeenCalled()

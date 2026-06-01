@@ -1,12 +1,14 @@
 import type { JobContext } from '@main/core/job/types'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
+import type { FileEntryId } from '@shared/data/types/file'
 import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
+import { MockMainCacheServiceUtils } from '@test-mocks/main/CacheService'
 import { beforeEach, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   cancelMock: vi.fn(),
+  createInternalEntryMock: vi.fn(),
   createStoreMock: vi.fn(),
-  detachFileRefsMock: vi.fn(),
   enqueueMock: vi.fn(),
   getJobMock: vi.fn(),
   getStoreIfExistsMock: vi.fn(),
@@ -16,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   knowledgeItemGetSubtreeItemsMock: vi.fn(),
   knowledgeItemSetSubtreeStatusMock: vi.fn(),
   knowledgeItemUpdateStatusMock: vi.fn(),
+  knowledgeItemReplaceFileRefMock: vi.fn(),
   rebuildFileRefsForItemsMock: vi.fn(),
   listMock: vi.fn(),
   loadKnowledgeItemDocumentsMock: vi.fn(),
@@ -26,8 +29,8 @@ const mocks = vi.hoisted(() => ({
 
 export const {
   cancelMock,
+  createInternalEntryMock,
   createStoreMock,
-  detachFileRefsMock,
   enqueueMock,
   getJobMock,
   getStoreIfExistsMock,
@@ -37,6 +40,7 @@ export const {
   knowledgeItemGetSubtreeItemsMock,
   knowledgeItemSetSubtreeStatusMock,
   knowledgeItemUpdateStatusMock,
+  knowledgeItemReplaceFileRefMock,
   rebuildFileRefsForItemsMock,
   listMock,
   loadKnowledgeItemDocumentsMock,
@@ -53,6 +57,9 @@ vi.mock('@application', async () => {
       enqueue: enqueueMock,
       get: getJobMock,
       list: listMock
+    },
+    FileManager: {
+      createInternalEntry: createInternalEntryMock
     },
     KnowledgeVectorStoreService: {
       createStore: createStoreMock,
@@ -79,11 +86,11 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
 
 vi.mock('@data/services/KnowledgeItemService', () => ({
   knowledgeItemService: {
-    detachFileRefs: detachFileRefsMock,
     getById: knowledgeItemGetByIdMock,
     getSubtreeItems: knowledgeItemGetSubtreeItemsMock,
     deleteItemsByIds: deleteItemsByIdsMock,
     rebuildFileRefsForItems: rebuildFileRefsForItemsMock,
+    replaceFileRef: knowledgeItemReplaceFileRefMock,
     setSubtreeStatus: knowledgeItemSetSubtreeStatusMock,
     updateStatus: knowledgeItemUpdateStatusMock
   }
@@ -108,11 +115,15 @@ vi.mock('../../utils/model/embedding', () => ({
 }))
 
 export const { createDeleteSubtreeJobHandler } = await import('../deleteSubtreeJobHandler')
+export const { createCheckFileProcessingResultJobHandler } = await import('../checkFileProcessingResultJobHandler')
 export const { createIndexDocumentsJobHandler } = await import('../indexDocumentsJobHandler')
 export const { createPrepareRootJobHandler } = await import('../prepareRootJobHandler')
 export const { createReindexSubtreeJobHandler } = await import('../reindexSubtreeJobHandler')
 
 export const NOTE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
+export const FILE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abd'
+export const FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000501' as FileEntryId
+export const PROCESSED_FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000502' as FileEntryId
 type KnowledgeJobSnapshotInput = Pick<JobSnapshot, 'type' | 'input'> & Partial<JobSnapshot>
 
 export function createBase(): KnowledgeBase {
@@ -149,6 +160,23 @@ export function createNoteItem(
     groupId,
     type: 'note',
     data: { source: id, content: `hello ${id}` },
+    status,
+    error: null,
+    createdAt: '2026-04-08T00:00:00.000Z',
+    updatedAt: '2026-04-08T00:00:00.000Z'
+  }
+}
+
+export function createFileItem(
+  id = FILE_ITEM_ID,
+  status: Exclude<KnowledgeItemOf<'file'>['status'], 'failed'> = 'processing'
+): KnowledgeItemOf<'file'> {
+  return {
+    id,
+    baseId: 'kb-1',
+    groupId: null,
+    type: 'file',
+    data: { source: '/docs/source.pdf', fileEntryId: FILE_ENTRY_ID },
     status,
     error: null,
     createdAt: '2026-04-08T00:00:00.000Z',
@@ -230,11 +258,14 @@ export const knowledgeLockManager = {
 }
 
 export const workflowService = {
+  scheduleFileProcessingCheck: vi.fn(),
+  scheduleIndexing: vi.fn(),
   scheduleItem: scheduleItemMock
 }
 
 beforeEach(() => {
   vi.clearAllMocks()
+  MockMainCacheServiceUtils.resetMocks()
   knowledgeLockManager.withBaseMutationLock.mockImplementation(
     async (_baseId: string, task: () => Promise<unknown>) => await task()
   )
@@ -255,9 +286,12 @@ beforeEach(() => {
   listMock.mockResolvedValue([])
   getJobMock.mockResolvedValue(null)
   enqueueMock.mockResolvedValue({ id: 'job-index', snapshot: {}, finished: Promise.resolve({}) })
-  detachFileRefsMock.mockResolvedValue(undefined)
+  createInternalEntryMock.mockResolvedValue({ id: PROCESSED_FILE_ENTRY_ID })
+  knowledgeItemReplaceFileRefMock.mockResolvedValue(undefined)
   deleteItemsByIdsMock.mockResolvedValue(undefined)
   rebuildFileRefsForItemsMock.mockResolvedValue(undefined)
   cancelMock.mockResolvedValue({ outcome: 'cancelled' })
+  workflowService.scheduleFileProcessingCheck.mockResolvedValue(undefined)
+  workflowService.scheduleIndexing.mockResolvedValue(undefined)
   scheduleItemMock.mockResolvedValue({ id: 'scheduled-job' })
 })

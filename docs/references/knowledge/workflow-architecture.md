@@ -74,11 +74,9 @@ Round 1 job types:
 - `knowledge.delete-subtree`: cancel active subtree jobs, delete vectors, detach Knowledge file refs, then delete resolved item ids with `deleteItemsByIds`. Detached `FileEntry` rows are preserved by the file module's no-reference policy.
 - `knowledge.reindex-subtree`: for terminal subtrees only, delete vectors, remove stale container descendants, reset selected root state, then call `scheduleItem`. Selected leaf root source refs remain attached and are repaired by `index-documents` from `knowledge_item.data`.
 
-Round 2 adds FileProcessing:
-
 - `knowledge.check-file-processing-result`: poll or inspect the FileProcessing job, attach the markdown artifact on success, then schedule indexing.
 
-`knowledge_base.fileProcessorId` is persisted today but indexing does not consume it in Round 1. Round 2 wires source planning to FileProcessing.
+`knowledge_base.fileProcessorId` controls source planning for supported file items. When a source needs conversion, the workflow starts FileProcessing, schedules `knowledge.check-file-processing-result`, attaches the converted markdown as a `processed_artifact` ref, then indexes that artifact.
 
 ## Mutation And Crash Semantics
 

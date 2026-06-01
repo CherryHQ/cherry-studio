@@ -94,6 +94,7 @@ vi.mock('../files/EpubReader', () => ({
 const { loadKnowledgeItemDocuments } = await import('../KnowledgeReader')
 
 const FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000501'
+const PROCESSED_FILE_ENTRY_ID = '019606a0-0000-7000-8000-000000000502'
 
 function createFileItem(ext: string, sourcePath?: string): KnowledgeItemOf<'file'> {
   return {
@@ -221,6 +222,31 @@ describe('loadKnowledgeItemDocuments', () => {
         source: '/tmp/sample.log'
       }
     })
+  })
+
+  it('can read a processed artifact file entry while preserving source metadata', async () => {
+    const item = createFileItem('.pdf', '/tmp/source.pdf')
+    getPhysicalPathMock.mockResolvedValueOnce('/resolved/processed.md')
+
+    const docs = await loadKnowledgeItemDocuments(item, undefined, { fileEntryId: PROCESSED_FILE_ENTRY_ID })
+
+    expect(getPhysicalPathMock).toHaveBeenCalledWith(PROCESSED_FILE_ENTRY_ID)
+    expect(readerSpies.markdown).toHaveBeenCalledWith('/resolved/processed.md')
+    expect(docs[0]).toMatchObject({
+      metadata: {
+        source: '/tmp/source.pdf'
+      }
+    })
+  })
+
+  it('rejects fileEntryId overrides for non-file items', async () => {
+    const item = createNoteItem('hello world', 'https://example.com/note')
+
+    await expect(loadKnowledgeItemDocuments(item, undefined, { fileEntryId: PROCESSED_FILE_ENTRY_ID })).rejects.toThrow(
+      'fileEntryId override is only supported for file knowledge items: note'
+    )
+
+    expect(getPhysicalPathMock).not.toHaveBeenCalled()
   })
 
   it('uses the drafts export reader for .draftsexport files', async () => {

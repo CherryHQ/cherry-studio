@@ -4738,6 +4738,7 @@
         },
         "description": "透過真實 file processing IPC 執行所有已設定的檔案處理器，並比較結果。",
         "duration": "{{seconds}} 秒",
+        "jobId": "Job ID",
         "markdown": {
           "description": "選擇文件，並執行所有文件轉 Markdown 處理器。",
           "fileFilterName": "文件",
@@ -4759,13 +4760,14 @@
         "status": {
           "cancelled": "已取消",
           "completed": "已完成",
+          "delayed": "已延遲",
           "failed": "失敗",
           "idle": "閒置",
           "pending": "等待中",
           "processing": "處理中",
+          "running": "執行中",
           "starting": "啟動中"
         },
-        "taskId": "任務 ID",
         "title": "文件解析"
       },
       "label": "元件測試",
