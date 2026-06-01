@@ -1,61 +1,60 @@
-import { Button } from '@cherrystudio/ui'
-import type { Topic } from '@renderer/types'
-import { X } from 'lucide-react'
 import { motion } from 'motion/react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import BranchComposer from './BranchComposer'
-import BranchMessageStream from './BranchMessageStream'
+import BranchCard from './BranchCard'
 import { BRANCH_PANE_DEFAULT_WIDTH } from './constants'
-import type { BranchAnchor } from './types'
+import type { Branch } from './types'
 import { useBranchPaneResize } from './useBranchPaneResize'
 
 type ForkStatus = 'idle' | 'creating' | 'error'
 
 interface Props {
-  /** When non-null, the panel is visible. */
-  anchor: BranchAnchor | null
-  /** Once Create has succeeded, the branch topic is stored here. */
-  branchTopic: Topic | null
-  /** Status from useBranchFork (idle | creating | error). */
-  status: ForkStatus
-  /** Translated error from useBranchFork. */
-  errorMessage?: string
-  /** Triggers useBranchFork.fork(anchor, followUp). */
-  onCreate: (followUp: string) => void
+  /** All currently-open branches (P1-S2b-1: previously a single anchor + topic). */
+  branches: Branch[]
+  /** Set of branch ids whose card body is currently collapsed (header-only). */
+  collapsedBranchIds: Set<string>
+  /** Toggle collapse for a single branch id. Setter is host-owned. */
+  onToggleCollapsedBranchId: (branchId: string) => void
   /**
-   * Compose-state close (Cancel or header X while no branchTopic yet) —
-   * clears anchor in the host. Safe to call.
+   * Branch id of the fork currently in flight (`useBranchFork` is a single
+   * global hook; Chat.tsx tracks which branch initiated the in-flight fork).
+   * Only that card receives forkStatus/errorMessage; others always see 'idle'.
    */
-  onComposeCancel: () => void
+  creatingBranchId: string | null
+  forkStatus: ForkStatus
+  forkErrorMessage?: string
+  /** Compose-state submit. Host wires fork(branchId, followUp). */
+  onCreate: (branchId: string, followUp: string) => void
+  /** Close a single branch (X button or composer Cancel). Removes its spans + drops from branches[]. */
+  onCloseBranch: (branchId: string) => void
 }
 
 /**
- * BranchPane — T-006D-2B side-by-side container.
+ * BranchPane — P1-S2b-1 multi-branch container.
  *
- * Mounts as a layout sibling of the chat <Main> column via Chat.tsx's
- * `<RowFlex>`, mirroring the existing right-Tabs motion.div pattern.
+ * Renders a vertical stack of N <BranchCard> components (one per branch).
+ * Pane is visible iff branches.length > 0; width animates 0 ↔ width via
+ * framer-motion, identical to the prior single-branch behaviour generalised
+ * to N. Cards inside this pane intentionally sit OUTSIDE the
+ * BranchAnchorContext Provider (which wraps only the main <Messages>) so
+ * branch-internal MessageGroup renders never re-paint source-passage
+ * highlights — see the integration risk note in P1-S2b-1 README.
  *
- * State routing:
- *   - anchor && !branchTopic  → <BranchComposer/>
- *   - branchTopic             → <BranchMessageStream/>  (S4')
- *
- * Width (T-006D-2B Task 3): drag-controlled in-session state. The handle on
- * the LEFT edge resizes the pane; main chat column stays `flex:1` and
- * reflows. framer-motion still owns open/close (width 0 ↔ width); while
- * dragging, transition duration drops to 0 so the pane tracks the cursor
- * 1:1 without fighting the 0.3s easing. No persistence — width resets to
- * BRANCH_PANE_DEFAULT_WIDTH on app reload (out of scope here).
- *
- * Close behaviour: compose-state X clears anchor; conversation-state X is
- * disabled (DELETE-on-close ships later as path Y, see preflight cleanup).
+ * Width state (drag-controlled) stays here; identical mechanics to S2a.
  */
-export default function BranchPane({ anchor, branchTopic, status, errorMessage, onCreate, onComposeCancel }: Props) {
+export default function BranchPane({
+  branches,
+  collapsedBranchIds,
+  onToggleCollapsedBranchId,
+  creatingBranchId,
+  forkStatus,
+  forkErrorMessage,
+  onCreate,
+  onCloseBranch
+}: Props) {
   const { t } = useTranslation()
-  const isVisible = anchor !== null || branchTopic !== null
-  const isComposing = anchor !== null && branchTopic === null
-  const isConversation = branchTopic !== null
+  const isVisible = branches.length > 0
 
   const [width, setWidth] = useState<number>(BRANCH_PANE_DEFAULT_WIDTH)
   const widthRef = useRef(width)
@@ -71,23 +70,9 @@ export default function BranchPane({ anchor, branchTopic, status, errorMessage, 
       key="branch-pane"
       initial={false}
       animate={{ width: isVisible ? width : 0, opacity: isVisible ? 1 : 0 }}
-      // Drag must be 1:1 with the cursor; the open/close easing only fires
-      // when motion drives the change itself (visibility toggles).
       transition={isResizing ? { duration: 0 } : { duration: 0.3, ease: 'easeInOut' }}
       style={{ overflow: 'hidden' }}
-      // h-full is required to anchor the inner overflow-y-auto chain — see
-      // Chat.tsx RowFlex note. Without it the motion.div has no bounded
-      // height (animate only sets width), the inner `h-full` div resolves to
-      // 0, and the scroll container collapses.
       className="relative h-full border-border border-l bg-accent/40">
-      {/*
-        Drag handle — left edge, full-height, 4px wide hit-target with a 1px
-        visible border that highlights on hover. Only rendered when the pane
-        is visible to avoid pointer interception during close animation.
-        cursor-col-resize is set both on the element and (during drag) on
-        document.body via the hook, so the cursor stays correct even when
-        the pointer leaves the 4px strip mid-drag.
-      */}
       {isVisible && (
         <div
           onMouseDown={startResizing}
@@ -98,58 +83,27 @@ export default function BranchPane({ anchor, branchTopic, status, errorMessage, 
           role="separator"
         />
       )}
-      {/*
-        Inner container width tracks the state (NOT a fixed 420). During the
-        open/close animation the outer motion.div clips overflow — content
-        stays at full `width` while the visible window animates 0 → width.
-      */}
       <div className="flex h-full shrink-0 flex-col" style={{ width }}>
-        <header
-          className="flex items-center justify-between border-border border-b px-4 py-3"
-          data-testid="branch-pane-header">
-          <div className="min-w-0 flex-1 truncate text-muted-foreground text-xs">
-            {isComposing && anchor
-              ? t('chat.message.anchor.panel.from_message', { id: anchor.messageId.slice(0, 8) })
-              : isConversation && branchTopic
-                ? t('chat.message.anchor.panel.conversation_header', { id: branchTopic.id.slice(0, 8) })
-                : ''}
-          </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onComposeCancel}
-            title={t('chat.message.anchor.panel.close')}
-            aria-label={t('chat.message.anchor.panel.close')}
-            data-testid="branch-pane-close">
-            <X className="h-4 w-4" />
-          </Button>
-        </header>
-
-        <div className="flex min-h-0 flex-1 flex-col">
-          {isComposing && anchor && (
-            <div className="overflow-y-auto">
-              <BranchComposer
-                anchor={anchor}
-                status={status}
-                errorMessage={errorMessage}
-                onCreate={onCreate}
-                onCancel={onComposeCancel}
-              />
-            </div>
-          )}
-          {isConversation && branchTopic && (
-            <>
-              {anchor && (
-                <div className="shrink-0 border-border border-b bg-accent/40 px-4 py-3" data-testid="branch-pane-quote">
-                  <div className="mb-1 text-muted-foreground text-xs">{t('chat.message.anchor.panel.from')}</div>
-                  <blockquote className="border-accent border-l-2 bg-background/60 px-3 py-2 text-sm italic">
-                    {anchor.selectedText}
-                  </blockquote>
-                </div>
-              )}
-              <BranchMessageStream topic={branchTopic} />
-            </>
-          )}
+        {/*
+          N cards rendered in creation order (branches[] is append-ordered).
+          The outer scroll container lets the stack overflow when many cards
+          are expanded; each individual BranchMessageStream owns its own
+          inner scroll for the conversation body.
+        */}
+        <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-2" data-testid="branch-pane-stack">
+          {branches.map((branch, idx) => (
+            <BranchCard
+              key={branch.id}
+              branch={branch}
+              index={idx}
+              collapsed={collapsedBranchIds.has(branch.id)}
+              forkStatus={creatingBranchId === branch.id ? forkStatus : 'idle'}
+              forkErrorMessage={creatingBranchId === branch.id ? forkErrorMessage : undefined}
+              onToggleCollapse={() => onToggleCollapsedBranchId(branch.id)}
+              onClose={() => onCloseBranch(branch.id)}
+              onCreate={(followUp) => onCreate(branch.id, followUp)}
+            />
+          ))}
         </div>
       </div>
     </motion.div>

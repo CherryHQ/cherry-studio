@@ -558,6 +558,105 @@ describe('MainTextBlock', () => {
       expect(getInjectedSpans('blk-B')).toHaveLength(0)
     })
 
+    // P1-S2b-1: first time N>1 anchors run through the REAL effect (not the
+    // direct-DOM fixtures of S2a). Each block gets its own span(s) with its
+    // OWN data-branch-id + data-hl; cross-branch isolation holds end-to-end.
+    it('anchors on different blocks → each block injects its own span with its own branchId + color (coexistence through the real effect)', () => {
+      const blockA = createMainTextBlock({ id: 'blk-A', content: 'first block body text' })
+      const blockB = createMainTextBlock({ id: 'blk-B', content: 'second block body text' })
+      const multiAnchors = {
+        anchors: [
+          { branchId: 'branch-A', blockId: 'blk-A', selectionStart: 0, selectionEnd: 5, color: 'c1' as const },
+          { branchId: 'branch-B', blockId: 'blk-B', selectionStart: 0, selectionEnd: 6, color: 'c3' as const }
+        ]
+      }
+      render(
+        <Provider store={mockStore}>
+          <BranchAnchorContext value={multiAnchors}>
+            <MainTextBlock block={blockA} role="assistant" messageId="msg-1" />
+            <MainTextBlock block={blockB} role="assistant" messageId="msg-1" />
+          </BranchAnchorContext>
+        </Provider>
+      )
+
+      const aSpans = Array.from(getInjectedSpans('blk-A'))
+      const bSpans = Array.from(getInjectedSpans('blk-B'))
+      expect(aSpans.length).toBeGreaterThan(0)
+      expect(bSpans.length).toBeGreaterThan(0)
+      // Each block's spans carry the matching branch id + color (no cross-leak).
+      for (const s of aSpans) {
+        expect(s.getAttribute('data-branch-id')).toBe('branch-A')
+        expect(s.getAttribute('data-hl')).toBe('c1')
+      }
+      for (const s of bSpans) {
+        expect(s.getAttribute('data-branch-id')).toBe('branch-B')
+        expect(s.getAttribute('data-hl')).toBe('c3')
+      }
+      // Two distinct colors actually present in the DOM.
+      const colorsInDom = new Set(
+        Array.from(document.querySelectorAll('span.branch-anchor-highlight')).map((s) => s.getAttribute('data-hl'))
+      )
+      expect(colorsInDom).toEqual(new Set(['c1', 'c3']))
+    })
+
+    // P1-S2b-1: targeted clear through the REAL MainTextBlock effect (the
+    // S2a equivalent was direct-DOM fixture). Closing one branch removes
+    // only that branch's spans; the other's spans + attrs are preserved.
+    it('anchors [A, B] then flip to [B] → A spans removed, B intact (targeted clear via the real effect)', () => {
+      const blockA = createMainTextBlock({ id: 'blk-A', content: 'a block body text' })
+      const blockB = createMainTextBlock({ id: 'blk-B', content: 'b block body text' })
+      const anchorA = {
+        branchId: 'branch-A',
+        blockId: 'blk-A',
+        selectionStart: 0,
+        selectionEnd: 5,
+        color: 'c1' as const
+      }
+      const anchorB = {
+        branchId: 'branch-B',
+        blockId: 'blk-B',
+        selectionStart: 0,
+        selectionEnd: 6,
+        color: 'c3' as const
+      }
+      const { rerender } = render(
+        <Provider store={mockStore}>
+          <BranchAnchorContext value={{ anchors: [anchorA, anchorB] }}>
+            <MainTextBlock block={blockA} role="assistant" messageId="msg-1" />
+            <MainTextBlock block={blockB} role="assistant" messageId="msg-1" />
+          </BranchAnchorContext>
+        </Provider>
+      )
+
+      const bSpansBefore = Array.from(getInjectedSpans('blk-B'))
+      const bTextBefore = bSpansBefore.map((s) => s.textContent).join('')
+      expect(bSpansBefore.length).toBeGreaterThan(0)
+      expect(getInjectedSpans('blk-A').length).toBeGreaterThan(0)
+      // Color is asserted ABSOLUTELY (against the literal palette key 'c3'),
+      // not via after===before. The latter is trivially satisfied if paint
+      // never stamps data-hl at all (both sides become [null,...] — vacuous
+      // under a stamping-skipped mutation). See the matching nested-overlap
+      // pattern in sourceHighlight.test.ts.
+      for (const s of bSpansBefore) expect(s.getAttribute('data-hl')).toBe('c3')
+
+      // Close A: anchors drops to [B].
+      rerender(
+        <Provider store={mockStore}>
+          <BranchAnchorContext value={{ anchors: [anchorB] }}>
+            <MainTextBlock block={blockA} role="assistant" messageId="msg-1" />
+            <MainTextBlock block={blockB} role="assistant" messageId="msg-1" />
+          </BranchAnchorContext>
+        </Provider>
+      )
+
+      // A gone, B fully intact (count + text + absolute color).
+      expect(getInjectedSpans('blk-A')).toHaveLength(0)
+      const bSpansAfter = Array.from(getInjectedSpans('blk-B'))
+      expect(bSpansAfter).toHaveLength(bSpansBefore.length)
+      expect(bSpansAfter.map((s) => s.textContent).join('')).toBe(bTextBefore)
+      for (const s of bSpansAfter) expect(s.getAttribute('data-hl')).toBe('c3')
+    })
+
     it('removes all spans when anchor context flips to non-matching (deps-change cleanup)', () => {
       // The component stays MOUNTED across this rerender — only the Provider
       // value flips. So spans can disappear only if the useEffect's cleanup

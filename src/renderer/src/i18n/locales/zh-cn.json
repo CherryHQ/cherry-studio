@@ -1307,6 +1307,9 @@
         "ask_here": "针对此处提问",
         "open_as_branch": "展开为分支",
         "panel": {
+          "card": {
+            "toggle_collapse": "折叠/展开分支卡片"
+          },
           "close": "关闭分支面板",
           "close_disabled_tooltip": "分支清理将在后续步骤接入。",
           "conversation_header": "分支 #{{id}}",

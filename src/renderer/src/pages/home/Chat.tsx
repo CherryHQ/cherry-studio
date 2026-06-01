@@ -24,7 +24,7 @@ import { Flex } from 'antd'
 import { debounce } from 'lodash'
 import { AnimatePresence, motion } from 'motion/react'
 import type { FC } from 'react'
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -32,7 +32,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 import ChatNavbar from './components/ChatNavBar'
 import Inputbar from './Inputbar/Inputbar'
-import { type Branch, BRANCH_HL_DEFAULT_COLOR, type BranchAnchor, BranchPane } from './Messages/BranchPanel'
+import { type Branch, type BranchAnchor, BranchPane, pickNextColor } from './Messages/BranchPanel'
 import ChatNavigation from './Messages/ChatNavigation'
 import Messages from './Messages/Messages'
 import Tabs from './Tabs'
@@ -61,28 +61,36 @@ const Chat: FC<Props> = (props) => {
   const [filterIncludeUser, setFilterIncludeUser] = useState(false)
 
   // P1-S1 state foundation: the legacy `branchAnchor + branchTopic` pair is
-  // generalized to a `branches[]` array. INVARIANT (S1): branches.length ≤ 1
-  // — there is no UI today that opens a second branch. The list shape is the
-  // state foundation S2 builds on; at length ≤ 1 every downstream derivation
-  // collapses to bit-for-bit the same runtime values the old shape produced.
+  // generalized to a `branches[]` array. P1-S2b-1: invariant lifted —
+  // branches.length can now be > 1 (append semantics). The list is the
+  // single source of truth; per-branch derivations (anchors for highlight,
+  // synthetic assistant.topics, BranchPane cards) iterate it.
   //
-  // collapsedBranchIds is reserved for the S2 collapse/expand UI and is
-  // unused at S1; it always starts empty (= all expanded) and is reset to
-  // empty on close along with branches.
+  // collapsedBranchIds (now consumed in S2b-1): set of branch ids whose
+  // card body is currently hidden. New branches start expanded (not in
+  // this set). X-button close drops the branch from both branches[] and
+  // collapsedBranchIds.
   const [branches, setBranches] = useState<Branch[]>([])
-  const [, setCollapsedBranchIds] = useState<Set<string>>(() => new Set())
+  const [collapsedBranchIds, setCollapsedBranchIds] = useState<Set<string>>(() => new Set())
 
-  // S1: a fresh anchor REPLACES branches (only one allowed now). The new
-  // Branch starts with `topic: null` to mirror the previous "anchor first,
-  // POST /topics later" two-phase timing. `id` is client-generated so it's
-  // stable from anchor-emit through topic-creation through close.
-  //
-  // S2a: every new branch gets the default palette color (c1, legacy amber).
-  // S2b will cycle through the palette as multiple branches open
-  // concurrently. The S1 invariant (branches.length ≤ 1) means we never
-  // need to disambiguate today; same color is fine.
+  // P1-S2b-1: track which branch's fork is currently in flight. useBranchFork
+  // is a single global hook with one in-flight slot at a time; this ref +
+  // mirror state tells `onCreated` which branch to attach the new topic to,
+  // and tells BranchPane which card should show the 'creating'/'error'
+  // status. The ref is the source of truth (closure-captured by onCreated);
+  // the state is for UI re-render via Provider value.
+  const creatingBranchIdRef = useRef<string | null>(null)
+  const [creatingBranchId, setCreatingBranchId] = useState<string | null>(null)
+
+  // P1-S2b-1: a fresh anchor APPENDS to branches (S1 replace semantics is
+  // dropped). The new Branch starts with `topic: null` to mirror the
+  // previous "anchor first, POST /topics later" two-phase timing. `color` is
+  // the next palette key not in use by an open branch (pickNextColor).
+  // `id` is client-generated (uuid v4) so it stays stable from emit through
+  // topic-creation through close.
   const openBranchAnchor = useCallback((anchor: BranchAnchor) => {
-    setBranches([
+    setBranches((prev) => [
+      ...prev,
       {
         id: uuidv4(),
         source: {
@@ -93,7 +101,7 @@ const Chat: FC<Props> = (props) => {
         },
         topic: null,
         createdAt: Date.now(),
-        color: BRANCH_HL_DEFAULT_COLOR
+        color: pickNextColor(prev.map((b) => b.color))
       }
     ])
   }, [])
@@ -101,33 +109,83 @@ const Chat: FC<Props> = (props) => {
   const branchFork = useBranchFork({
     assistant,
     topic: props.activeTopic,
-    onCreated: (created) => {
-      // S1 invariant: branches.length ≤ 1. Attach the created topic to the
-      // (single) currently-composing branch — the one whose `topic` is still
-      // null. Functional updater keeps this race-safe if branches changes
-      // between the fork start and onCreated.
-      setBranches((prev) => prev.map((b) => (b.topic === null ? { ...b, topic: created } : b)))
-    }
+    onCreated: useCallback((created: Topic) => {
+      // P1-S2b-1: attach the new topic to the branch that initiated this
+      // fork. Tracked via ref (closure-captured stably across renders) so
+      // multiple concurrent compose-state branches don't fight for it.
+      const id = creatingBranchIdRef.current
+      if (id === null) return
+      setBranches((prev) => prev.map((b) => (b.id === id ? { ...b, topic: created } : b)))
+      creatingBranchIdRef.current = null
+      setCreatingBranchId(null)
+    }, [])
   })
 
-  // Compose-time facade for BranchPane and useBranchFork.fork(): both APIs
-  // still take a single BranchAnchor today (they're outside this refactor's
-  // touch-list). At S1 invariant length ≤ 1, branches[0] is the only one.
-  const activeBranch = branches[0] ?? null
-  const composerAnchor: BranchAnchor | null = useMemo(
-    () =>
-      activeBranch
-        ? {
-            messageId: activeBranch.source.messageId,
-            blockId: activeBranch.source.blockId,
-            selectedText: activeBranch.source.selectedText,
-            selectionStart: activeBranch.source.offsets.start,
-            selectionEnd: activeBranch.source.offsets.end
-          }
-        : null,
-    [activeBranch]
+  // P1-S2b-1: per-card onCreate. BranchPane forwards (branchId, followUp)
+  // for the card that submitted; this builds the BranchAnchor that
+  // useBranchFork.fork still expects (its API is outside the touch list)
+  // and records which branch the fork belongs to so onCreated finds it.
+  const handleCreateBranchFollowUp = useCallback(
+    (branchId: string, followUp: string) => {
+      const target = branches.find((b) => b.id === branchId)
+      if (!target) return
+      const anchorForFork: BranchAnchor = {
+        messageId: target.source.messageId,
+        blockId: target.source.blockId,
+        selectedText: target.source.selectedText,
+        selectionStart: target.source.offsets.start,
+        selectionEnd: target.source.offsets.end
+      }
+      creatingBranchIdRef.current = branchId
+      setCreatingBranchId(branchId)
+      void branchFork.fork(anchorForFork, followUp)
+    },
+    [branches, branchFork]
   )
-  const activeBranchTopic: Topic | null = activeBranch?.topic ?? null
+
+  // P1-S2b-1: collapse / expand a single branch's card body (chevron click).
+  // Plain Set immutability — derive a new Set from prev so React re-renders.
+  const toggleCollapsedBranchId = useCallback((branchId: string) => {
+    setCollapsedBranchIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(branchId)) {
+        next.delete(branchId)
+      } else {
+        next.add(branchId)
+      }
+      return next
+    })
+  }, [])
+
+  // P1-S2b-1: per-branch close (X-button OR composer Cancel).
+  // 1. Targeted clear of THIS branch's highlight spans (S2a-targeted API,
+  //    other branches' spans stay intact).
+  // 2. Drop from branches[].
+  // 3. Drop from collapsedBranchIds (else a stale id would haunt the set if
+  //    the user reopens a branch with a recycled id, although uuid makes
+  //    that vanishingly unlikely).
+  // 4. If the closed branch was the currently-creating one, reset fork state
+  //    so a stale 'creating' / 'error' doesn't bleed into the next compose.
+  // NOTE: this does NOT DELETE the branch topic from SQLite — the row stays
+  // as an orphan until S3 disposition (discard vs save) ships path Y.
+  const handleCloseBranch = useCallback(
+    (branchId: string) => {
+      clearSourceHighlight(branchId)
+      setBranches((prev) => prev.filter((b) => b.id !== branchId))
+      setCollapsedBranchIds((prev) => {
+        if (!prev.has(branchId)) return prev
+        const next = new Set(prev)
+        next.delete(branchId)
+        return next
+      })
+      if (creatingBranchIdRef.current === branchId) {
+        creatingBranchIdRef.current = null
+        setCreatingBranchId(null)
+        branchFork.reset()
+      }
+    },
+    [branchFork]
+  )
 
   // Synthetic assistant for the branch subtree. Same id as the main assistant,
   // but `.topics` transiently carries the branch topic(s) (with `prompt` set
@@ -360,36 +418,29 @@ const Chat: FC<Props> = (props) => {
           see `null` from useContext and keep their original Redux behaviour
           bit-for-bit identical.
         */}
+        {/*
+          P1-S2b-1: BranchAssistantContext carries the synthetic assistant
+          whose .topics now includes ALL open branch topics (each card's
+          MessageGroup-level lookups by topicId find the right one).
+
+          CRITICAL: BranchPane sits OUTSIDE BranchAnchorContext (which only
+          wraps <Messages> above). Cards inside this pane render their own
+          BranchMessageStream → MessageGroup → MainTextBlock; those
+          MainTextBlocks read the default empty anchors list and therefore
+          never paint highlights into branch-internal messages. That's the
+          designed isolation that prevents cross-contamination of the source-
+          passage highlight into branch conversations.
+        */}
         <BranchAssistantContext value={branchOverride}>
           <BranchPane
-            anchor={composerAnchor}
-            branchTopic={activeBranchTopic}
-            status={branchFork.status}
-            errorMessage={branchFork.errorMessage}
-            onCreate={(followUp) => {
-              if (composerAnchor) void branchFork.fork(composerAnchor, followUp)
-            }}
-            onComposeCancel={() => {
-              // Universal close path — works in compose state AND conversation
-              // state. Order: (1) targeted clearSourceHighlight removes the
-              // injected spans for THIS branch(es) synchronously (defense in
-              // depth — the MainTextBlock effect cleanup will also run when
-              // matchingAnchors flips to empty on the next render, but doing
-              // it here makes the DOM clean BEFORE React commits the panel-
-              // collapse, so there is no flash). S2a: per-branchId, so other
-              // branches (none at S1, but future-proof at S2b) are untouched.
-              // (2) setBranches([]) + setCollapsedBranchIds(new Set()) drives
-              // `BranchPane`'s `isVisible` (derived from composerAnchor +
-              // activeBranchTopic) to false (motion.div animates width → 0).
-              // (3) branchFork.reset() returns the fork status to idle so the
-              // next open starts clean. NOTE: this does NOT delete the forked
-              // topic from SQLite — the row remains as an orphan until
-              // T-006D-2C-5 cleanup ships path Y (delete-on-close).
-              branches.forEach((b) => clearSourceHighlight(b.id))
-              setBranches([])
-              setCollapsedBranchIds(new Set())
-              branchFork.reset()
-            }}
+            branches={branches}
+            collapsedBranchIds={collapsedBranchIds}
+            onToggleCollapsedBranchId={toggleCollapsedBranchId}
+            creatingBranchId={creatingBranchId}
+            forkStatus={branchFork.status}
+            forkErrorMessage={branchFork.errorMessage}
+            onCreate={handleCreateBranchFollowUp}
+            onCloseBranch={handleCloseBranch}
           />
         </BranchAssistantContext>
       </RowFlex>

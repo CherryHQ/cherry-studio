@@ -289,20 +289,25 @@ describe('paintSourceHighlight + clearSourceHighlight (DOM mutation chain)', () 
     paintSourceHighlight(block, 0, 5, A, 'c1') // A: "alpha"
     paintSourceHighlight(block, 17, 22, B, 'c2') // B: "delta"
 
-    // Snapshot B's spans BEFORE clearing A.
+    // Snapshot B's spans BEFORE clearing A. Color is asserted ABSOLUTELY
+    // against the literal palette key 'c2' (the value passed to paint),
+    // never via after===before — the latter is trivially satisfied if paint
+    // never stamps data-hl at all (both sides become [null,...] — vacuous
+    // under a stamping-skipped mutation). Same pattern as the nested-overlap
+    // case below.
     const bSpansBefore = Array.from(queryByBranch(block, B))
     const bTextBefore = bSpansBefore.map((s) => s.textContent).join('')
-    const bColorsBefore = bSpansBefore.map((s) => s.getAttribute('data-hl'))
+    for (const s of bSpansBefore) expect(s.getAttribute('data-hl')).toBe('c2')
 
     clearSourceHighlight(A)
 
     // A gone.
     expect(queryByBranch(block, A)).toHaveLength(0)
-    // B unchanged — same count, same text, same color attributes.
+    // B unchanged — same count, same text, absolute-asserted color.
     const bSpansAfter = Array.from(queryByBranch(block, B))
     expect(bSpansAfter).toHaveLength(bSpansBefore.length)
     expect(bSpansAfter.map((s) => s.textContent).join('')).toBe(bTextBefore)
-    expect(bSpansAfter.map((s) => s.getAttribute('data-hl'))).toEqual(bColorsBefore)
+    for (const s of bSpansAfter) expect(s.getAttribute('data-hl')).toBe('c2')
     // Total spans now = just B's.
     expect(document.querySelectorAll('span.branch-anchor-highlight')).toHaveLength(bSpansAfter.length)
 

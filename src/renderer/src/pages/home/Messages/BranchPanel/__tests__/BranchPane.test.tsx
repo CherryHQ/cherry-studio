@@ -1,11 +1,11 @@
 import type { Topic } from '@renderer/types'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import BranchPane from '../BranchPane'
-import type { BranchAnchor } from '../types'
+import type { Branch } from '../types'
 
-// Stub BranchMessageStream so BranchPane tests stay pure layout/routing —
+// Stub BranchMessageStream so BranchPane tests stay pure layout / routing —
 // the stream's own contract is verified in BranchMessageStream.test.tsx.
 vi.mock('../BranchMessageStream', () => ({
   default: (props: { topic: Topic }) => <div data-testid="branch-message-stream" data-topic-id={props.topic.id} />
@@ -15,176 +15,238 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
 
-const anchor: BranchAnchor = {
-  messageId: 'msg-source-12345678',
-  blockId: 'blk-1',
-  selectedText: 'student model is a smaller distilled model',
-  selectionStart: 0,
-  selectionEnd: 42
+function makeBranch(overrides: Partial<Branch> & Pick<Branch, 'id' | 'color'>): Branch {
+  return {
+    source: {
+      messageId: `msg-${overrides.id}`,
+      blockId: `blk-${overrides.id}`,
+      selectedText: `selection-${overrides.id}`,
+      offsets: { start: 0, end: 10 }
+    },
+    topic: null,
+    createdAt: 1_700_000_000_000,
+    ...overrides
+  } as Branch
 }
 
-const branchTopic: Topic = {
-  id: 'topic-branch-abcd1234',
+const branchA: Branch = makeBranch({ id: 'branch-A', color: 'c1' })
+const branchBTopic: Topic = {
+  id: 'topic-B',
   assistantId: 'asst-1',
-  name: 'student model is a smaller dis',
-  createdAt: '2026-05-22T00:00:00.000Z',
-  updatedAt: '2026-05-22T00:00:00.000Z',
+  name: 'B branch topic',
+  createdAt: '2026-06-01T00:00:00.000Z',
+  updatedAt: '2026-06-01T00:00:00.000Z',
   messages: []
-}
+} as Topic
+const branchB: Branch = makeBranch({ id: 'branch-B', color: 'c2', topic: branchBTopic })
 
 afterEach(() => {
   vi.restoreAllMocks()
   document.body.innerHTML = ''
 })
 
-describe('BranchPane (T-006D-2B container + state routing)', () => {
-  it('compose state: renders BranchComposer when anchor is set and branchTopic is null', () => {
-    render(<BranchPane anchor={anchor} branchTopic={null} status="idle" onCreate={vi.fn()} onComposeCancel={vi.fn()} />)
-
-    expect(screen.getByTestId('branch-composer-quote')).toBeInTheDocument()
-    expect(screen.queryByTestId('branch-message-stream')).toBeNull()
-  })
-
-  it('conversation state: renders BranchMessageStream bound to the branch topic id', () => {
-    // In real flow Chat.tsx keeps anchor alive into the conversation state so
-    // the quote box stays visible.
+describe('BranchPane (P1-S2b-1 multi-branch card stack)', () => {
+  // ── Visibility (panel open/close generalised to N branches) ─────────────
+  it('omits the resize handle when branches is empty (panel hidden)', () => {
     render(
       <BranchPane
-        anchor={anchor}
-        branchTopic={branchTopic}
-        status="idle"
+        branches={[]}
+        collapsedBranchIds={new Set()}
+        onToggleCollapsedBranchId={vi.fn()}
+        creatingBranchId={null}
+        forkStatus="idle"
         onCreate={vi.fn()}
-        onComposeCancel={vi.fn()}
+        onCloseBranch={vi.fn()}
       />
     )
-
-    const stream = screen.getByTestId('branch-message-stream')
-    expect(stream).toBeInTheDocument()
-    expect(stream.getAttribute('data-topic-id')).toBe(branchTopic.id)
-    expect(screen.queryByTestId('branch-composer-quote')).toBeNull()
+    expect(screen.queryByTestId('branch-pane-resize-handle')).toBeNull()
+    // Stack container still renders (motion.div is animated to width 0) but
+    // contains zero cards.
+    expect(screen.getByTestId('branch-pane-stack').children).toHaveLength(0)
   })
 
-  it('conversation state: sticky quote box shows selectedText from anchor when both are present', () => {
+  it('renders the resize handle when branches has at least one entry', () => {
     render(
       <BranchPane
-        anchor={anchor}
-        branchTopic={branchTopic}
-        status="idle"
+        branches={[branchA]}
+        collapsedBranchIds={new Set()}
+        onToggleCollapsedBranchId={vi.fn()}
+        creatingBranchId={null}
+        forkStatus="idle"
         onCreate={vi.fn()}
-        onComposeCancel={vi.fn()}
+        onCloseBranch={vi.fn()}
       />
     )
-
-    expect(screen.getByTestId('branch-pane-quote')).toHaveTextContent(anchor.selectedText)
-  })
-
-  it('conversation state: quote box is omitted if anchor was already cleared', () => {
-    render(
-      <BranchPane anchor={null} branchTopic={branchTopic} status="idle" onCreate={vi.fn()} onComposeCancel={vi.fn()} />
-    )
-
-    expect(screen.queryByTestId('branch-pane-quote')).toBeNull()
-    expect(screen.getByTestId('branch-message-stream')).toBeInTheDocument()
-  })
-
-  it('close button is enabled in compose state and calls onComposeCancel', () => {
-    const onComposeCancel = vi.fn()
-    render(
-      <BranchPane
-        anchor={anchor}
-        branchTopic={null}
-        status="idle"
-        onCreate={vi.fn()}
-        onComposeCancel={onComposeCancel}
-      />
-    )
-
-    const closeBtn = screen.getByTestId('branch-pane-close')
-    expect(closeBtn).not.toBeDisabled()
-    fireEvent.click(closeBtn)
-    expect(onComposeCancel).toHaveBeenCalledTimes(1)
-  })
-
-  it('close button is enabled in conversation state and calls onComposeCancel', () => {
-    // D-013 close wiring: the X is now universal — works in compose AND
-    // conversation state. Host wires the same handler to clear the anchor,
-    // clear branchTopic, reset fork status, and call clearSourceHighlight.
-    // The SQLite orphan-topic row (path Y / delete-on-close) is still deferred
-    // to T-006D-2C-5 cleanup; UI side of close is complete.
-    const onComposeCancel = vi.fn()
-    render(
-      <BranchPane
-        anchor={null}
-        branchTopic={branchTopic}
-        status="idle"
-        onCreate={vi.fn()}
-        onComposeCancel={onComposeCancel}
-      />
-    )
-
-    const closeBtn = screen.getByTestId('branch-pane-close')
-    expect(closeBtn).not.toBeDisabled()
-    fireEvent.click(closeBtn)
-    expect(onComposeCancel).toHaveBeenCalledTimes(1)
-  })
-
-  it('header shows source message id in compose state', () => {
-    render(<BranchPane anchor={anchor} branchTopic={null} status="idle" onCreate={vi.fn()} onComposeCancel={vi.fn()} />)
-
-    expect(screen.getByTestId('branch-pane-header')).toHaveTextContent('chat.message.anchor.panel.from_message')
-  })
-
-  it('header shows branch id in conversation state', () => {
-    render(
-      <BranchPane anchor={null} branchTopic={branchTopic} status="idle" onCreate={vi.fn()} onComposeCancel={vi.fn()} />
-    )
-
-    expect(screen.getByTestId('branch-pane-header')).toHaveTextContent('chat.message.anchor.panel.conversation_header')
-  })
-
-  it('forwards status + errorMessage to BranchComposer (compose state)', () => {
-    render(
-      <BranchPane
-        anchor={anchor}
-        branchTopic={null}
-        status="error"
-        errorMessage="chat.message.anchor.panel.error.create_failed"
-        onCreate={vi.fn()}
-        onComposeCancel={vi.fn()}
-      />
-    )
-
-    expect(screen.getByTestId('branch-composer-error')).toHaveTextContent(
-      'chat.message.anchor.panel.error.create_failed'
-    )
-  })
-
-  it('forwards onCreate to BranchComposer', () => {
-    const onCreate = vi.fn()
-    render(
-      <BranchPane anchor={anchor} branchTopic={null} status="idle" onCreate={onCreate} onComposeCancel={vi.fn()} />
-    )
-
-    fireEvent.change(screen.getByLabelText('chat.message.anchor.panel.follow_up_label'), {
-      target: { value: 'q' }
-    })
-    fireEvent.click(screen.getByRole('button', { name: /chat\.message\.anchor\.panel\.create_branch/ }))
-
-    expect(onCreate).toHaveBeenCalledWith('q')
-  })
-
-  // T-006D-2B Task 3 — drag-resize handle render coverage. jsdom has no
-  // layout / pointer behaviour worth verifying (the false-green scroll test
-  // taught us this), so we only assert handle presence/absence here. The
-  // actual pointer-drag logic is reviewed by reading useBranchPaneResize.ts
-  // and visually confirmed in `pnpm dev`.
-  it('renders the resize handle when the pane is visible', () => {
-    render(<BranchPane anchor={anchor} branchTopic={null} status="idle" onCreate={vi.fn()} onComposeCancel={vi.fn()} />)
     expect(screen.getByTestId('branch-pane-resize-handle')).toBeInTheDocument()
   })
 
-  it('omits the resize handle when the pane is collapsed (anchor=null && branchTopic=null)', () => {
-    render(<BranchPane anchor={null} branchTopic={null} status="idle" onCreate={vi.fn()} onComposeCancel={vi.fn()} />)
-    expect(screen.queryByTestId('branch-pane-resize-handle')).toBeNull()
+  // ── N-card render ───────────────────────────────────────────────────────
+  it('renders one card per branch in creation order; badges 1, 2 reflect index+1', () => {
+    render(
+      <BranchPane
+        branches={[branchA, branchB]}
+        collapsedBranchIds={new Set()}
+        onToggleCollapsedBranchId={vi.fn()}
+        creatingBranchId={null}
+        forkStatus="idle"
+        onCreate={vi.fn()}
+        onCloseBranch={vi.fn()}
+      />
+    )
+    expect(screen.getByTestId(`branch-card-${branchA.id}`)).toBeInTheDocument()
+    expect(screen.getByTestId(`branch-card-${branchB.id}`)).toBeInTheDocument()
+    const cards = screen.getAllByTestId(/^branch-card-branch-/)
+    expect(cards).toHaveLength(2)
+    // Order = branches[] order
+    expect(cards[0].getAttribute('data-testid')).toBe(`branch-card-${branchA.id}`)
+    expect(cards[1].getAttribute('data-testid')).toBe(`branch-card-${branchB.id}`)
+    // Badges from the cards themselves (one badge per card).
+    const badges = screen.getAllByTestId('branch-card-badge')
+    expect(badges[0]).toHaveTextContent('1')
+    expect(badges[1]).toHaveTextContent('2')
+  })
+
+  it('each card carries its own data-branch-id + data-hl on the tab (cards do not share color)', () => {
+    render(
+      <BranchPane
+        branches={[branchA, branchB]}
+        collapsedBranchIds={new Set()}
+        onToggleCollapsedBranchId={vi.fn()}
+        creatingBranchId={null}
+        forkStatus="idle"
+        onCreate={vi.fn()}
+        onCloseBranch={vi.fn()}
+      />
+    )
+    const tabs = screen.getAllByTestId('branch-card-tab')
+    expect(tabs[0].getAttribute('data-branch-id')).toBe(branchA.id)
+    expect(tabs[0].getAttribute('data-hl')).toBe('c1')
+    expect(tabs[1].getAttribute('data-branch-id')).toBe(branchB.id)
+    expect(tabs[1].getAttribute('data-hl')).toBe('c2')
+  })
+
+  // ── Per-card body routing ───────────────────────────────────────────────
+  it('compose-state card body has a composer; conversation-state card body has a stream bound to that branch topic', () => {
+    render(
+      <BranchPane
+        branches={[branchA, branchB]}
+        collapsedBranchIds={new Set()}
+        onToggleCollapsedBranchId={vi.fn()}
+        creatingBranchId={null}
+        forkStatus="idle"
+        onCreate={vi.fn()}
+        onCloseBranch={vi.fn()}
+      />
+    )
+    const cardA = screen.getByTestId(`branch-card-${branchA.id}`)
+    expect(within(cardA).getByTestId('branch-composer-quote')).toBeInTheDocument()
+    expect(within(cardA).queryByTestId('branch-message-stream')).toBeNull()
+
+    const cardB = screen.getByTestId(`branch-card-${branchB.id}`)
+    expect(within(cardB).queryByTestId('branch-composer-quote')).toBeNull()
+    const streamB = within(cardB).getByTestId('branch-message-stream')
+    expect(streamB.getAttribute('data-topic-id')).toBe(branchBTopic.id)
+  })
+
+  // ── Collapse routing ────────────────────────────────────────────────────
+  it('body of a card whose id is in collapsedBranchIds is hidden; others stay expanded', () => {
+    render(
+      <BranchPane
+        branches={[branchA, branchB]}
+        collapsedBranchIds={new Set([branchB.id])}
+        onToggleCollapsedBranchId={vi.fn()}
+        creatingBranchId={null}
+        forkStatus="idle"
+        onCreate={vi.fn()}
+        onCloseBranch={vi.fn()}
+      />
+    )
+    const cardA = screen.getByTestId(`branch-card-${branchA.id}`)
+    const cardB = screen.getByTestId(`branch-card-${branchB.id}`)
+    expect(within(cardA).getByTestId('branch-card-body')).toBeInTheDocument()
+    expect(within(cardB).queryByTestId('branch-card-body')).toBeNull()
+  })
+
+  it('chevron click calls onToggleCollapsedBranchId with that branch id', () => {
+    const onToggle = vi.fn()
+    render(
+      <BranchPane
+        branches={[branchA, branchB]}
+        collapsedBranchIds={new Set()}
+        onToggleCollapsedBranchId={onToggle}
+        creatingBranchId={null}
+        forkStatus="idle"
+        onCreate={vi.fn()}
+        onCloseBranch={vi.fn()}
+      />
+    )
+    const cardB = screen.getByTestId(`branch-card-${branchB.id}`)
+    fireEvent.click(within(cardB).getByTestId('branch-card-chevron'))
+    expect(onToggle).toHaveBeenCalledExactlyOnceWith(branchB.id)
+  })
+
+  // ── Close routing ───────────────────────────────────────────────────────
+  it('X on a single card calls onCloseBranch with THAT branch id (not the others)', () => {
+    const onCloseBranch = vi.fn()
+    render(
+      <BranchPane
+        branches={[branchA, branchB]}
+        collapsedBranchIds={new Set()}
+        onToggleCollapsedBranchId={vi.fn()}
+        creatingBranchId={null}
+        forkStatus="idle"
+        onCreate={vi.fn()}
+        onCloseBranch={onCloseBranch}
+      />
+    )
+    const cardA = screen.getByTestId(`branch-card-${branchA.id}`)
+    fireEvent.click(within(cardA).getByTestId('branch-card-close'))
+    expect(onCloseBranch).toHaveBeenCalledExactlyOnceWith(branchA.id)
+  })
+
+  // ── Fork status routing (only the creating card gets non-idle status) ──
+  it('forkStatus + forkErrorMessage only reach the card whose id === creatingBranchId; others see idle', () => {
+    render(
+      <BranchPane
+        branches={[branchA, branchB]}
+        collapsedBranchIds={new Set()}
+        onToggleCollapsedBranchId={vi.fn()}
+        creatingBranchId={branchA.id}
+        forkStatus="error"
+        forkErrorMessage="chat.message.anchor.panel.error.create_failed"
+        onCreate={vi.fn()}
+        onCloseBranch={vi.fn()}
+      />
+    )
+    // A is the creating branch and in compose state → composer surfaces the error.
+    const cardA = screen.getByTestId(`branch-card-${branchA.id}`)
+    expect(within(cardA).getByTestId('branch-composer-error')).toHaveTextContent(
+      'chat.message.anchor.panel.error.create_failed'
+    )
+    // B is in conversation state (no composer at all) AND not the creating branch.
+    // The composer-error testid simply doesn't exist on B's card.
+    const cardB = screen.getByTestId(`branch-card-${branchB.id}`)
+    expect(within(cardB).queryByTestId('branch-composer-error')).toBeNull()
+  })
+
+  // ── Create routing ──────────────────────────────────────────────────────
+  it('composer submit on a compose-state card calls onCreate(branchId, followUp) — branch id namespaced per card', () => {
+    const onCreate = vi.fn()
+    render(
+      <BranchPane
+        branches={[branchA]}
+        collapsedBranchIds={new Set()}
+        onToggleCollapsedBranchId={vi.fn()}
+        creatingBranchId={null}
+        forkStatus="idle"
+        onCreate={onCreate}
+        onCloseBranch={vi.fn()}
+      />
+    )
+    fireEvent.change(screen.getByLabelText('chat.message.anchor.panel.follow_up_label'), {
+      target: { value: 'q1' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: /chat\.message\.anchor\.panel\.create_branch/ }))
+    expect(onCreate).toHaveBeenCalledExactlyOnceWith(branchA.id, 'q1')
   })
 })

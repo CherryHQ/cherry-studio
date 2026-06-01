@@ -10,17 +10,19 @@
 |---|---|---|
 | **P1-S1 — State shape refactor** | 把 `branchAnchor + branchTopic` 双 useState 推广成 `branches: Branch[]` 数组形 state；BranchAnchorContext 改成 anchors 列表；MainTextBlock effect 改成 filter+迭代；BranchAssistantContext synthetic.topics 改成展开 branches.map | **零** —— `branches.length ≤ 1`，所有派生值与现网完全一致 |
 | **P1-S2a — Highlight implementation** | sourceHighlight.ts 加 `data-branch-id` + `data-hl` stamping；`clearSourceHighlight(branchId)` 按 id targeted；`paintSourceHighlight` 加 `(branchId, colorKey)` 参数；6 色调色板；MainTextBlock effect / Chat.tsx close path 改 targeted clear；测试用双 branchId 直接构造 DOM fixture 验证多分支隔离 | **零（用户视角）** —— UI 仍 ≤ 1 分支；实现已支持 N，多分支能力由测试 fixture 验证 |
-| **P1-S2b — Multi-branch UI** | 解 length ≤ 1 invariant；右键新选区 append；BranchPane 多卡片视图；hover 联动；颜色 cycling；collapse 接 UI；单分支独立关闭 | 有 —— 用户能开第 2、第 N 个分支 |
+| **P1-S2b-1 — Multi-branch UI 基础** | 解 length ≤ 1 invariant；右键新选区 APPEND；BranchPane 多卡片视图（卡 = 彩色 tab header + 单徽章 + snippet + chevron + X + body）；颜色 cycling（pickNextColor）；collapse 接 UI；单分支独立关闭；N>1 真路径首次穿过 React effect；sourceHighlight.ts **不允许永久改动**（mutation 临时 + revert） | 有 —— 用户能开第 2、第 N 个分支 |
+| **P1-S2b-2 — Multi-branch UI 精修** | hover 联动；新分支 auto-scroll-into-view；凸起/斜角 folder-tab 视觉 + 动画；conversation-state 加 follow-up composer（触碰 streaming 链） | 有 —— 体验细节 |
 | **P1-S3 — Branch disposition** | 关闭路径分裂：弃用（discard，DELETE topic）vs 保存（save，留 SQLite + 可重开）；UI 给关闭按钮加二级菜单或确认 | 有 —— 关闭语义不再单一 |
 
-**S1 是 P1 最高风险的状态迁移、S2a 是 P1 唯一一次允许动 sourceHighlight.ts**（D-013 同一文件），所以这两步都单独隔离 + 带满 mutation/red-test 验证：S1 零行为变化 + 纯 shape + length 仍 ≤ 1；S2a 加 targeted-clear 能力但 UI 仍 ≤ 1。S2b 才解约束 + 上 UI；S3 才加 disposition。每一步都可独立 verify + revert。
+**S1 是 P1 最高风险的状态迁移、S2a 是 P1 唯一一次允许动 sourceHighlight.ts**（D-013 同一文件），所以这两步都单独隔离 + 带满 mutation/red-test 验证：S1 零行为变化 + 纯 shape + length 仍 ≤ 1；S2a 加 targeted-clear 能力但 UI 仍 ≤ 1；S2b-1 首次 N>1 真路径（带 data-hl mutation 验证）；S2b-2 才上视觉细节。每一步都可独立 verify + revert。
 
 ## 子任务
 
 - [[P1-S1_StateFoundation/README|P1-S1 State Foundation]] ✅ 2026-06-01（commit `f915938ec`）
-- [[P1-S2a_HighlightImpl/README|P1-S2a Highlight Implementation]] ✅ 2026-06-01（待 commit）
-- P1-S2b Multi-Branch UI（未开始）
-- P1-S3 Disposition（未开始）
+- [[P1-S2a_HighlightImpl/README|P1-S2a Highlight Implementation]] ✅ 2026-06-01（commit `14edaa0f7`）
+- [[P1-S2b-1_MultiBranchUI/README|P1-S2b-1 Multi-Branch UI 基础]] ✅ 2026-06-01（待 commit）
+- P1-S2b-2 Multi-Branch UI 精修（hover / auto-scroll / folder-tab 视觉 / follow-up composer）— 未开始
+- P1-S3 Disposition（discard vs save on close）— 未开始
 
 ## 触碰边界（整个 P1 都遵守）
 

@@ -1,5 +1,11 @@
 export { default as BranchComposer } from './BranchComposer'
 export { default as BranchMessageStream } from './BranchMessageStream'
 export { default as BranchPane } from './BranchPane'
-export { BRANCH_HL_COLOR_KEYS, BRANCH_HL_DEFAULT_COLOR, type BranchHlColorKey } from './constants'
+export {
+  BRANCH_HL_COLOR_KEYS,
+  BRANCH_HL_COLOR_VALUES,
+  BRANCH_HL_DEFAULT_COLOR,
+  type BranchHlColorKey,
+  pickNextColor
+} from './constants'
 export type { Branch, BranchAnchor } from './types'

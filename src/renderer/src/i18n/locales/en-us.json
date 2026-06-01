@@ -1307,6 +1307,9 @@
         "ask_here": "Ask about this",
         "open_as_branch": "Open as branch",
         "panel": {
+          "card": {
+            "toggle_collapse": "Toggle branch card"
+          },
           "close": "Close branch panel",
           "close_disabled_tooltip": "Branch cleanup ships in a follow-up step.",
           "conversation_header": "Branch #{{id}}",
