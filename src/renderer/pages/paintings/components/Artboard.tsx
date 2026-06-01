@@ -86,7 +86,7 @@ const Artboard: FC<ArtboardProps> = ({ painting, isLoading, onCancel, imageCover
               // TODO(#15353): same custom-protocol switch as `currentImageUrl` above.
               items={painting.files.map((file) => ({ id: file.id, src: FileManager.getFileUrl(file) }))}
               alt=""
-              className="max-h-full max-w-full cursor-zoom-in rounded-md bg-(--painting-control-bg) object-contain"
+              className="max-h-full max-w-full cursor-zoom-in rounded-md bg-secondary object-contain"
             />
             {painting.files.length > 1 && (
               <Button

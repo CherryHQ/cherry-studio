@@ -76,13 +76,13 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
         showPinnedModels={false}
         showPinActions={false}
         prioritizedProviderIds={painting.providerId ? [painting.providerId] : undefined}
-        contentClassName="painting-theme-portal w-[min(420px,calc(100vw-2rem))] rounded-(--painting-radius-track)"
+        contentClassName="w-[min(420px,calc(100vw-2rem))] rounded-[8px]"
         trigger={
           <Button
             variant="ghost"
             size="sm"
             className={cn(
-              'h-auto w-full max-w-none justify-between gap-2 rounded-(--painting-radius-track) border border-border-subtle bg-(--painting-control-bg) px-2.5 py-1.5 text-muted-foreground text-xs shadow-none hover:bg-(--painting-control-bg-hover) hover:text-foreground',
+              'h-auto w-full max-w-none justify-between gap-2 rounded-[8px] border border-border-subtle bg-secondary px-2.5 py-1.5 text-muted-foreground text-xs shadow-none hover:bg-secondary-hover hover:text-foreground',
               className
             )}>
             <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">

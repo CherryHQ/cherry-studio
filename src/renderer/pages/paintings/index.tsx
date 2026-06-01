@@ -1,5 +1,3 @@
-import './painting-theme.css'
-
 import { useCache } from '@data/hooks/useCache'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { type FC, useCallback, useEffect, useMemo, useRef, useState } from 'react'
