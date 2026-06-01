@@ -45,7 +45,7 @@ export function usePaintingModelSwitch({
       }
 
       await ensureProviderCatalog(providerId)
-      const targetPainting = providerId === painting.providerId ? painting : createDefaultPainting(providerId)
+      const targetPainting = createDefaultPainting(providerId)
 
       onPaintingChange({
         ...targetPainting,
