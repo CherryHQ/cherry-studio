@@ -39,7 +39,17 @@ vi.mock('../streamAdapter', () => ({
       mocks.adapterInstances.push(this)
     }
 
+    handleTruncationError(error: any) {
+      if (!String(error?.message ?? '').includes('truncat')) return false
+      this.options.sink.enqueue({ type: 'text-delta', id: 'salvaged', delta: ' [truncated]' })
+      this.options.sink.enqueue({ type: 'finish', finishReason: { unified: 'length', raw: 'truncation' } })
+      return true
+    }
+
     handleMessage(message: any) {
+      if (message.type === 'truncate-now') {
+        throw new Error('Claude Code SDK output ended unexpectedly; truncated response')
+      }
       if (message.type === 'system' && message.subtype === 'init') {
         this.options.onSessionId(message.session_id)
         this.options.sink.enqueue({ type: 'response-metadata', id: message.session_id })
@@ -209,6 +219,38 @@ describe('ClaudeCodeRuntimeDriver', () => {
     await expect(events.next()).resolves.toMatchObject({
       value: { type: 'turn-complete' }
     })
+    void connection.close()
+  })
+
+  it('salvages a truncated SDK stream into a completed turn instead of erroring', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    queryQueue.push({ type: 'system', subtype: 'init', session_id: 'resume-init' })
+    await events.next() // resume-token
+    void connection.send({ message: userMessage() })
+    await events.next() // response-metadata chunk
+    queryQueue.push({ type: 'stream_event', event: {}, session_id: 'resume-init' })
+    await events.next() // buffered text-delta
+
+    // SDK ends abruptly mid-output -> the adapter salvages buffered text.
+    queryQueue.push({ type: 'truncate-now' })
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'chunk', chunk: { type: 'text-delta', delta: ' [truncated]' } }
+    })
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'chunk', chunk: { type: 'finish', finishReason: { raw: 'truncation' } } }
+    })
+    // Turn completes cleanly — no `error` event surfaced for the dropped stream.
+    await expect(events.next()).resolves.toMatchObject({ value: { type: 'turn-complete' } })
     void connection.close()
   })
 

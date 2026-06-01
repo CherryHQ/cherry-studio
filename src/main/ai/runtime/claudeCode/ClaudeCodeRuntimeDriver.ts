@@ -229,8 +229,13 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         }
       }
     } catch (error) {
+      // The Claude Code SDK sometimes ends the stream abruptly mid-output. When
+      // enough text was already buffered, salvage it as a truncated turn (the
+      // adapter emits the buffered text + a `truncated` finish through the sink)
+      // instead of dropping the partial response and surfacing an error.
+      const salvaged = this.adapter?.handleTruncationError(error) ?? false
       this.adapter = undefined
-      this.eventQueue.push({ type: 'error', error })
+      this.eventQueue.push(salvaged ? { type: 'turn-complete' } : { type: 'error', error })
     } finally {
       this.query = undefined
       this.eventQueue.close()
