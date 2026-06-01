@@ -86,11 +86,6 @@ describe('PaintingMappings', () => {
   })
 
   it('migrates async-task legacy records by prompt and drops the non-persisted task id', () => {
-    const tokenFluxResult = transformLegacyPaintingRecord('tokenflux_paintings', {
-      id: 'painting-1',
-      generationId: 'task-1',
-      prompt: 'hello'
-    })
     const ppioResult = transformLegacyPaintingRecord('ppio_edit', {
       id: 'painting-2',
       taskId: 'task-2',
@@ -99,15 +94,10 @@ describe('PaintingMappings', () => {
 
     // The frozen-receipt row no longer carries params/taskId — records with a
     // prompt still migrate as slim rows; the legacy async task id is dropped.
-    expect(tokenFluxResult).toMatchObject({
-      ok: true,
-      value: { id: 'painting-1', providerId: 'tokenflux', prompt: 'hello' }
-    })
     expect(ppioResult).toMatchObject({
       ok: true,
       value: { id: 'painting-2', providerId: 'ppio', prompt: 'hello' }
     })
-    expect(tokenFluxResult.ok && 'params' in tokenFluxResult.value).toBe(false)
     expect(ppioResult.ok && 'params' in ppioResult.value).toBe(false)
   })
 

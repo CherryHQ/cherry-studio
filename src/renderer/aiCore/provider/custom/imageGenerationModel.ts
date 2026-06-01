@@ -26,7 +26,7 @@ export interface ImageGenerationSubmitInput {
   providerParams: Record<string, unknown>
   /**
    * Abort signal forwarded from `options.abortSignal`. Async providers
-   * (ppio/tokenflux) ignore it (they abort during `poll()`); single-shot
+   * (ppio) ignore it (they abort during `poll()`); single-shot
    * providers (dmxapi/ovms) use it to make their one `submit()` fetch
    * cancellable, since `poll()` is never reached.
    */

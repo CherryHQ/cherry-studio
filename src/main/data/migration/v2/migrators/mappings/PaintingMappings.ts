@@ -7,7 +7,6 @@ import { type LegacyModelRef, legacyModelToUniqueId } from '../transformers/Mode
 export const LEGACY_PAINTING_NAMESPACES = [
   'siliconflow_paintings',
   'dmxapi_paintings',
-  'tokenflux_paintings',
   'zhipu_paintings',
   'aihubmix_image_generate',
   'aihubmix_image_remix',
@@ -172,8 +171,6 @@ export function getPaintingFilter(
   switch (namespace) {
     case 'siliconflow_paintings':
       return { providerId: 'silicon', mode: 'generate' }
-    case 'tokenflux_paintings':
-      return { providerId: 'tokenflux', mode: 'generate' }
     case 'zhipu_paintings':
       return { providerId: 'zhipu', mode: 'generate' }
     case 'aihubmix_image_generate':

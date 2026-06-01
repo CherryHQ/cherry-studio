@@ -38,7 +38,6 @@ import { DEFAULT_DASHSCOPE_IMAGE_BASE_URL } from './custom/dashscope/dashscopeTr
 import { DEFAULT_DMXAPI_BASE_URL } from './custom/dmxapi/dmxapiTransport'
 import { DEFAULT_OVMS_BASE_URL } from './custom/ovms/ovmsTransport'
 import { DEFAULT_PPIO_BASE_URL } from './custom/ppio/ppioTransport'
-import { DEFAULT_TOKENFLUX_BASE_URL } from './custom/tokenflux/tokenfluxTransport'
 import { getAiSdkProviderId } from './factory'
 
 // === Types ===
@@ -157,7 +156,6 @@ export function providerToAiSdkConfig(
     { match: (p) => p.id === 'aionly', build: buildAionlyConfig },
     { match: (_, id) => id === 'aihubmix', build: buildAiHubMixConfig },
     { match: (_, id) => id === 'ppio', build: buildPpioConfig },
-    { match: (_, id) => id === 'tokenflux', build: buildTokenFluxConfig },
     { match: (_, id) => id === 'silicon', build: buildSiliconConfig },
     { match: (_, id) => id === 'zhipu', build: buildZhipuConfig },
     { match: (_, id) => id === 'dashscope', build: buildDashScopeConfig },
@@ -452,14 +450,13 @@ function buildDashScopeConfig(ctx: BuilderContext): ProviderConfig<'dashscope'> 
 }
 
 /**
- * PPIO/TokenFlux providers serve BOTH chat and image off one ProviderV3, but
- * the two endpoints live on different hosts/paths:
+ * PPIO serves BOTH chat and image off one ProviderV3, but the two endpoints
+ * live on different hosts/paths:
  *   PPIO chat = `api.ppinfra.com/v3/openai`    image = `api.ppio.com`
- *   TokenFlux chat = `api.tokenflux.ai/openai/v1`    image = `api.tokenflux.ai`
  * `baseURL` carries the resolved chat `apiHost` for the OpenAICompatible
  * chat/embedding models; `imageBaseURL` carries the legacy pinned image host
  * that the polling transport uses — keeping the painting request URLs
- * byte-identical to the bespoke services while letting chat reach the right
+ * byte-identical to the bespoke service while letting chat reach the right
  * endpoint.
  */
 function buildPpioConfig(ctx: BuilderContext): ProviderConfig<'ppio'> {
@@ -474,21 +471,9 @@ function buildPpioConfig(ctx: BuilderContext): ProviderConfig<'ppio'> {
   }
 }
 
-function buildTokenFluxConfig(ctx: BuilderContext): ProviderConfig<'tokenflux'> {
-  return {
-    providerId: 'tokenflux',
-    endpoint: ctx.endpoint,
-    providerSettings: {
-      ...ctx.baseConfig,
-      imageBaseURL: DEFAULT_TOKENFLUX_BASE_URL,
-      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
-    }
-  }
-}
-
 /**
  * DMXAPI/OVMS providers serve chat + image off one ProviderV3. Unlike
- * PPIO/TokenFlux (where the image host is pinned to a different domain),
+ * PPIO (where the image host is pinned to a different domain),
  * DMXAPI's image host follows the user-configured `apiHost` (cross-platform
  * .com/.cn/enterprise), and OVMS is a local OpenVINO server where chat and
  * image share `localhost` (only path differs). `baseURL` carries the chat

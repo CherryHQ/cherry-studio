@@ -23,7 +23,7 @@ const logger = loggerService.withContext('AiProvider')
 
 /**
  * Merge caller-supplied extra `providerOptions` (e.g. the polling `onProgress`
- * callback for ppio/tokenflux) into the structurally-built map. Per-provider
+ * callback for ppio) into the structurally-built map. Per-provider
  * keys are shallow-merged so structured params and pass-through params coexist.
  * Extra values are kept by reference — non-JSON callbacks survive the plugin
  * chain (it shallow-copies, no JSON clone).

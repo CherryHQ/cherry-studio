@@ -141,7 +141,7 @@ describe('createImageGenerationModel.doGenerate', () => {
     const transport: ImageGenerationTransport = {
       submit: vi.fn().mockResolvedValue({})
     }
-    const model = createImageGenerationModel('m', { provider: 'tokenflux', transport })
+    const model = createImageGenerationModel('m', { provider: 'ppio', transport })
 
     const result = await model.doGenerate(makeOptions())
 

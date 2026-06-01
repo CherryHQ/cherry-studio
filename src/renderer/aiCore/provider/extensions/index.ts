@@ -33,7 +33,6 @@ import { createNewApi, type NewApiProviderSettings } from '../custom/newapiProvi
 import { createOvmsProvider, type OvmsProviderSettings } from '../custom/ovms/ovmsProvider'
 import { createPpioProvider, type PpioProviderSettings } from '../custom/ppio/ppioProvider'
 import { createSiliconProvider, type SiliconProviderSettings } from '../custom/silicon/siliconProvider'
-import { createTokenFluxProvider, type TokenFluxProviderSettings } from '../custom/tokenflux/tokenfluxProvider'
 import { createZhipuProvider, type ZhipuProviderSettings } from '../custom/zhipuProvider'
 
 /**
@@ -221,15 +220,6 @@ export const PpioExtension = ProviderExtension.create({
 } as const satisfies ProviderExtensionConfig<PpioProviderSettings, ProviderV3, 'ppio'>)
 
 /**
- * TokenFlux Extension - unified chat + embedding + image (async submit/poll for painting)
- */
-export const TokenFluxExtension = ProviderExtension.create({
-  name: 'tokenflux',
-  supportsImageGeneration: true,
-  create: createTokenFluxProvider
-} as const satisfies ProviderExtensionConfig<TokenFluxProviderSettings, ProviderV3, 'tokenflux'>)
-
-/**
  * DMXAPI Extension - unified chat + embedding + image (single-shot for painting)
  */
 export const DmxapiExtension = ProviderExtension.create({
@@ -316,7 +306,6 @@ export const extensions = [
   AiHubMixExtension,
   NewApiExtension,
   PpioExtension,
-  TokenFluxExtension,
   DmxapiExtension,
   SiliconExtension,
   ZhipuExtension,

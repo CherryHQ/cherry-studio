@@ -76,7 +76,6 @@ import type { DmxapiProviderSettings } from '../custom/dmxapi/dmxapiProvider'
 import type { NewApiProviderSettings } from '../custom/newapiProvider'
 import type { OvmsProviderSettings } from '../custom/ovms/ovmsProvider'
 import type { PpioProviderSettings } from '../custom/ppio/ppioProvider'
-import type { TokenFluxProviderSettings } from '../custom/tokenflux/tokenfluxProvider'
 import { adaptProvider, formatProviderApiHost, getActualProvider, providerToAiSdkConfig } from '../providerConfig'
 
 const { __mockGetState: mockGetState } = vi.mocked(await import('@renderer/store')) as unknown as {
@@ -858,13 +857,13 @@ describe('providerToAiSdkConfig', () => {
     })
   })
 
-  // The four vendor providers (PPIO / TokenFlux / DMXAPI / OVMS) serve chat
-  // and image off ONE ProviderV3 each. `baseURL` carries the user-configured
-  // chat host so OpenAICompatibleChatLanguageModel reaches the right
-  // endpoint; `imageBaseURL` carries the painting transport host (legacy
-  // pinned for PPIO/TokenFlux, user-overridable with default fallback for
-  // DMXAPI/OVMS) so the polling image transport stays byte-identical to
-  // the bespoke service. See `providerConfig.ts:buildPpioConfig` etc.
+  // The vendor providers (PPIO / DMXAPI / OVMS) serve chat and image off ONE
+  // ProviderV3 each. `baseURL` carries the user-configured chat host so
+  // OpenAICompatibleChatLanguageModel reaches the right endpoint;
+  // `imageBaseURL` carries the painting transport host (legacy pinned for
+  // PPIO, user-overridable with default fallback for DMXAPI/OVMS) so the
+  // polling image transport stays byte-identical to the bespoke service.
+  // See `providerConfig.ts:buildPpioConfig` etc.
 
   describe('PPIO builder', () => {
     it('passes chat apiHost as baseURL and pins imageBaseURL to the image default', async () => {
@@ -878,21 +877,6 @@ describe('providerToAiSdkConfig', () => {
       const settings = config.providerSettings as PpioProviderSettings
       expect(settings.baseURL).toContain('api.ppinfra.com')
       expect(settings.imageBaseURL).toBe('https://api.ppio.com')
-    })
-  })
-
-  describe('TokenFlux builder', () => {
-    it('passes chat apiHost as baseURL and pins imageBaseURL to the image default', async () => {
-      const provider = makeProvider({
-        id: 'tokenflux',
-        type: 'openai',
-        apiHost: 'https://api.tokenflux.ai/openai/v1'
-      })
-      const config = await providerToAiSdkConfig(provider, makeModel('flux-pro', provider.id))
-      expect(config.providerId).toBe('tokenflux')
-      const settings = config.providerSettings as TokenFluxProviderSettings
-      expect(settings.baseURL).toContain('api.tokenflux.ai')
-      expect(settings.imageBaseURL).toBe('https://api.tokenflux.ai')
     })
   })
 

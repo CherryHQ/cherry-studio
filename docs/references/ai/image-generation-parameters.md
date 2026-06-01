@@ -54,8 +54,8 @@ Source of truth: [`packages/provider-registry/src/schemas/model.ts`](../../../pa
 ```ts
 interface ImageGenerationSupport {
   modes: Partial<Record<ImageGenerationMode, ModeDef>> // generate | edit | remix | upscale | merge
-  vendorParams?: Record<string, unknown> // free-form extras for custom-UI vendors (tokenflux)
-  inputSchema?: Record<string, unknown>  // JSON-schema dynamic form (tokenflux)
+  vendorParams?: Record<string, unknown> // free-form extras for custom-UI vendors
+  inputSchema?: Record<string, unknown>  // JSON-schema dynamic form
 }
 
 interface ModeDef {
