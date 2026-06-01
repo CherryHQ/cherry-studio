@@ -82,6 +82,8 @@ export const AgentSessionEntitySchema = z.strictObject({
   id: z.string(),
   agentId: z.string().nullable(),
   name: AgentNameAtomSchema,
+  /** Whether the name was manually edited by the user; when true, auto-rename is skipped. */
+  isNameManuallyEdited: z.boolean(),
   description: z.string().optional(),
   workspaceId: z.string().nullable(),
   workspace: WorkspaceEntitySchema.nullable(),
@@ -104,6 +106,7 @@ export type CreateSessionDto = z.infer<typeof CreateSessionSchema>
 
 export const UpdateSessionSchema = z.strictObject({
   name: AgentNameAtomSchema.optional(),
+  isNameManuallyEdited: z.boolean().optional(),
   description: z.string().optional(),
   agentId: z.string().min(1).optional(),
   workspaceId: z.string().min(1).optional()

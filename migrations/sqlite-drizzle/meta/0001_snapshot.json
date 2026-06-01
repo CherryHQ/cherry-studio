@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "3ff79ebb-0987-4bac-865d-ad609a3d8af2",
+  "id": "e74e8550-b2bf-4847-b602-54e7aeccb698",
   "prevId": "b2f4f492-7829-40d7-9ac6-94ec9384a926",
   "tables": {
     "agent": {
@@ -501,6 +501,14 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "is_name_manually_edited": {
+          "name": "is_name_manually_edited",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
         },
         "description": {
           "name": "description",

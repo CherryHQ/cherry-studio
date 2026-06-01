@@ -57,6 +57,7 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
     id: row.session.id,
     agentId: row.session.agentId,
     name: row.session.name,
+    isNameManuallyEdited: row.session.isNameManuallyEdited,
     description: row.session.description,
     workspaceId: row.session.workspaceId,
     workspace: row.workspace ? rowToWorkspace(row.workspace) : null,

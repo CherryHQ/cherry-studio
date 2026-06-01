@@ -11,22 +11,6 @@ CREATE UNIQUE INDEX `agent_workspace_path_unique_idx` ON `agent_workspace` (`pat
 CREATE INDEX `agent_workspace_order_key_idx` ON `agent_workspace` (`order_key`);--> statement-breakpoint
 DROP TABLE `agent_task_run_log`;--> statement-breakpoint
 DROP TABLE `agent_task`;--> statement-breakpoint
--- MANUAL PATCH: workaround for drizzle-orm/drizzle-kit #3653
--- (rebuild-table path drops leading ALTER TABLE ADD/RENAME COLUMN statements,
--- so the INSERT ... SELECT blocks below reference columns that don't yet exist
--- on the old tables. Add them by hand per yume-chan's patch suggestion.)
--- https://github.com/drizzle-team/drizzle-orm/issues/3653
-ALTER TABLE `agent_session` ADD COLUMN `workspace_id` text;--> statement-breakpoint
-ALTER TABLE `agent_session` ADD COLUMN `order_key` text NOT NULL DEFAULT '';--> statement-breakpoint
-ALTER TABLE `agent` ADD COLUMN `order_key` text NOT NULL DEFAULT '';--> statement-breakpoint
-ALTER TABLE `agent_session_message` ADD COLUMN `data` text NOT NULL DEFAULT '{}';--> statement-breakpoint
-ALTER TABLE `agent_session_message` ADD COLUMN `searchable_text` text NOT NULL DEFAULT '';--> statement-breakpoint
-ALTER TABLE `agent_session_message` ADD COLUMN `status` text NOT NULL DEFAULT 'success';--> statement-breakpoint
-ALTER TABLE `agent_session_message` ADD COLUMN `model_id` text;--> statement-breakpoint
-ALTER TABLE `agent_session_message` ADD COLUMN `model_snapshot` text;--> statement-breakpoint
-ALTER TABLE `agent_session_message` ADD COLUMN `trace_id` text;--> statement-breakpoint
-ALTER TABLE `agent_session_message` ADD COLUMN `stats` text;--> statement-breakpoint
-ALTER TABLE `agent_session_message` ADD COLUMN `runtime_resume_token` text;--> statement-breakpoint
 PRAGMA foreign_keys=OFF;--> statement-breakpoint
 CREATE TABLE `__new_agent_channel_task` (
 	`channel_id` text NOT NULL,
@@ -46,6 +30,7 @@ CREATE TABLE `__new_agent_session` (
 	`id` text PRIMARY KEY NOT NULL,
 	`agent_id` text,
 	`name` text NOT NULL,
+	`is_name_manually_edited` integer DEFAULT false NOT NULL,
 	`description` text DEFAULT '' NOT NULL,
 	`workspace_id` text,
 	`order_key` text NOT NULL,
@@ -55,7 +40,7 @@ CREATE TABLE `__new_agent_session` (
 	FOREIGN KEY (`workspace_id`) REFERENCES `agent_workspace`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
-INSERT INTO `__new_agent_session`("id", "agent_id", "name", "description", "workspace_id", "order_key", "created_at", "updated_at") SELECT "id", "agent_id", "name", "description", "workspace_id", "order_key", "created_at", "updated_at" FROM `agent_session`;--> statement-breakpoint
+INSERT INTO `__new_agent_session`("id", "agent_id", "name", "is_name_manually_edited", "description", "workspace_id", "order_key", "created_at", "updated_at") SELECT "id", "agent_id", "name", "is_name_manually_edited", "description", "workspace_id", "order_key", "created_at", "updated_at" FROM `agent_session`;--> statement-breakpoint
 DROP TABLE `agent_session`;--> statement-breakpoint
 ALTER TABLE `__new_agent_session` RENAME TO `agent_session`;--> statement-breakpoint
 CREATE INDEX `agent_session_order_key_idx` ON `agent_session` (`order_key`);--> statement-breakpoint
@@ -110,5 +95,5 @@ INSERT INTO `__new_agent_session_message`("id", "session_id", "role", "data", "s
 DROP TABLE `agent_session_message`;--> statement-breakpoint
 ALTER TABLE `__new_agent_session_message` RENAME TO `agent_session_message`;--> statement-breakpoint
 CREATE INDEX `agent_session_message_session_created_id_idx` ON `agent_session_message` (`session_id`,`created_at`,`id`);--> statement-breakpoint
-ALTER TABLE `assistant` ADD `order_key` text NOT NULL DEFAULT '';--> statement-breakpoint
+ALTER TABLE `assistant` ADD `order_key` text NOT NULL;--> statement-breakpoint
 CREATE INDEX `assistant_order_key_idx` ON `assistant` (`order_key`);
