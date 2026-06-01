@@ -123,7 +123,6 @@ function createForm(overrides: Partial<AssistantFormState> = {}): AssistantFormS
     maxTokens: 4096,
     enableMaxTokens: false,
     streamOutput: true,
-    toolUseMode: 'function',
     maxToolCalls: 20,
     enableMaxToolCalls: true,
     customParameters: [],

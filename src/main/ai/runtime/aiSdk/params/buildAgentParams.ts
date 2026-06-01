@@ -58,7 +58,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const { request, signal, provider, model, assistant, extraFeatures } = input
 
   const sdkConfig = await resolveSdkConfig(provider, model, request.chatId)
-  const { tools, deferredEntries, mcpToolIds } = canModelConsumeTools(model, assistant)
+  const { tools, deferredEntries, mcpToolIds } = canModelConsumeTools(model)
     ? await resolveTools(request, assistant, model)
     : { tools: undefined, deferredEntries: [] as ToolEntry[], mcpToolIds: new Set<string>() }
   const capabilities = assistant ? resolveCapabilities(model, provider, assistant) : undefined
@@ -118,16 +118,11 @@ async function resolveSdkConfig(provider: Provider, model: Model, _chatId: strin
  * prompt section pushed at it for nothing — pure token waste with no way
  * for the model to act on it.
  *
- * Two consumption modes count as "can consume":
- *   - native function calling (provider's tool API)
- *   - prompt-mode tool use (XML-injected via `promptToolUseFeature`)
- *
- * When `assistant` is absent (embed / translate / etc.) we fall back to
- * the model's native capability — there's no `toolUseMode` to read.
+ * "Can consume" means the model supports native function calling (the
+ * provider's tool API).
  */
-function canModelConsumeTools(model: Model, assistant: Assistant | undefined): boolean {
-  if (isFunctionCallingModel(model)) return true
-  return assistant?.settings?.toolUseMode === 'prompt'
+function canModelConsumeTools(model: Model): boolean {
+  return isFunctionCallingModel(model)
 }
 
 /**

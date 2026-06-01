@@ -53,6 +53,9 @@ export type McpMode = DataApiMcpMode
  */
 export type LegacyAssistantSettings = AssistantSettings & {
   contextCount?: number
+  /** v1-only: tool-call mode (`function` | `prompt`). Removed from v2 AssistantSettings;
+   *  retained here solely so the deprecated store migrations in `store/migrate.ts` compile. */
+  toolUseMode?: 'function' | 'prompt'
 }
 
 /**

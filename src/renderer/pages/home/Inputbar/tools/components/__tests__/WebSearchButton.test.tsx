@@ -41,9 +41,7 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
     assistant: {
       id: 'assistant-1',
       name: 'Assistant',
-      settings: {
-        toolUseMode: 'function'
-      },
+      settings: {},
       enableWebSearch: false,
       mcpMode: 'disabled',
       mcpServers: []
@@ -104,10 +102,6 @@ vi.mock('@renderer/types', () => ({
     hub: '@cherry/hub'
   },
   getEffectiveMcpMode: () => 'disabled'
-}))
-
-vi.mock('@renderer/utils/assistant', () => ({
-  isToolUseModeFunction: () => true
 }))
 
 describe('WebSearchButton', () => {

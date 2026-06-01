@@ -1,7 +1,7 @@
 import { useAssistantMutations } from '@renderer/hooks/useAssistant'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
 import type { KnowledgeBase } from '@renderer/types'
-import { isPromptToolUse, isSupportedToolUse } from '@renderer/utils/assistant'
+import { isSupportedToolUse } from '@renderer/utils/assistant'
 import { useCallback } from 'react'
 
 import KnowledgeBaseButton from './components/KnowledgeBaseButton'
@@ -16,7 +16,7 @@ const knowledgeBaseTool = defineTool({
   key: 'knowledge_base',
   label: (t) => t('chat.input.knowledge_base'),
   visibleInScopes: [TopicType.Chat],
-  condition: ({ assistant, model }) => isSupportedToolUse(assistant, model) || isPromptToolUse(assistant),
+  condition: ({ model }) => isSupportedToolUse(model),
 
   dependencies: {
     state: ['selectedKnowledgeBases', 'files'] as const,

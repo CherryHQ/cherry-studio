@@ -10,7 +10,6 @@ import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import { EventEmitter } from '@renderer/services/EventService'
 import type { AssistantSettings, McpMode, MCPPrompt, MCPResource } from '@renderer/types'
 import { getEffectiveMcpMode } from '@renderer/types'
-import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { isGemini3Model, isGeminiModel } from '@shared/utils/model'
 import { isGeminiWebSearchProvider } from '@shared/utils/provider'
@@ -165,7 +164,7 @@ const MCPToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
         : [...Array.from(mcpServerIds), server.id]
 
       const settingsPatch: Partial<AssistantSettings> = { mcpMode: 'manual' }
-      if (nextServerIds.length > 0 && model && isGeminiModel(model) && assistant && isToolUseModeFunction(assistant)) {
+      if (nextServerIds.length > 0 && model && isGeminiModel(model) && assistant) {
         // Gemini 3+ supports combining built-in tools with function calling
         if (
           modelProvider &&

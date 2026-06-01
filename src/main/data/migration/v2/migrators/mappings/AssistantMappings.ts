@@ -78,7 +78,6 @@ export interface OldAssistantSettings {
   }[]
   reasoning_effort?: string
   qwenThinkMode?: boolean
-  toolUseMode?: 'function' | 'prompt'
   maxToolCalls?: number
   enableMaxToolCalls?: boolean
 }

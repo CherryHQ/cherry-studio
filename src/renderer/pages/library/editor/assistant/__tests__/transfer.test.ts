@@ -31,7 +31,6 @@ function createAssistant(overrides: Partial<Assistant> = {}): Assistant {
       streamOutput: true,
       reasoning_effort: 'default',
       mcpMode: 'auto',
-      toolUseMode: 'function',
       maxToolCalls: 20,
       enableMaxToolCalls: true,
       enableWebSearch: false,

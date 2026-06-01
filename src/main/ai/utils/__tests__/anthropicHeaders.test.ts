@@ -7,27 +7,18 @@ const claudeModel = () =>
   makeModel({ id: 'anthropic::claude-sonnet-4-5-20250101', providerId: 'anthropic', name: 'Claude 4.5 Sonnet' })
 
 describe('addAnthropicHeaders', () => {
-  it('adds interleaved-thinking beta for Claude 4.5 reasoning + function tool use on direct Anthropic', () => {
+  it('adds interleaved-thinking beta for Claude 4.5 reasoning on direct Anthropic', () => {
     const headers = addAnthropicHeaders(
-      makeAssistant({ settings: { toolUseMode: 'function' } }),
+      makeAssistant(),
       claudeModel(),
       makeProvider({ id: 'anthropic', name: 'Anthropic' })
     )
     expect(headers).toContain('interleaved-thinking-2025-05-14')
   })
 
-  it('skips interleaved-thinking when tool use mode is `prompt`', () => {
-    const headers = addAnthropicHeaders(
-      makeAssistant({ settings: { toolUseMode: 'prompt' } }),
-      claudeModel(),
-      makeProvider({ id: 'anthropic', name: 'Anthropic' })
-    )
-    expect(headers).not.toContain('interleaved-thinking-2025-05-14')
-  })
-
   it('skips interleaved-thinking on Bedrock', () => {
     const headers = addAnthropicHeaders(
-      makeAssistant({ settings: { toolUseMode: 'function' } }),
+      makeAssistant(),
       claudeModel(),
       makeProvider({ id: 'aws-bedrock', presetProviderId: 'aws-bedrock', authType: 'iam-aws' })
     )

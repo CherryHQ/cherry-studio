@@ -47,8 +47,6 @@ export const AssistantSettingsSchema = z.object({
   reasoning_effort: z.string(),
   // -- Tool use --
   mcpMode: McpModeSchema,
-  /** gracefully falls back to prompt if not supported */
-  toolUseMode: z.enum(['function', 'prompt']),
   maxToolCalls: z.number().int().positive(),
   enableMaxToolCalls: z.boolean(),
 
@@ -86,7 +84,6 @@ export const DEFAULT_ASSISTANT_SETTINGS: AssistantSettings = {
   streamOutput: true,
   reasoning_effort: 'default',
   mcpMode: 'auto',
-  toolUseMode: 'function',
   maxToolCalls: 20,
   enableMaxToolCalls: true,
   enableWebSearch: false,

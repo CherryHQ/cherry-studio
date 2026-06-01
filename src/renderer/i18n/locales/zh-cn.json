@@ -2560,9 +2560,6 @@
           "temperature": {
             "hint": "启用后控制回复随机性"
           },
-          "tool_use_mode": {
-            "hint": "控制工具如何暴露给模型"
-          },
           "top_p": {
             "hint": "启用后限制采样范围"
           }
@@ -2584,9 +2581,6 @@
         "tags": "标签",
         "temperature": "模型温度",
         "title": "基础设置",
-        "tool_use_function": "函数",
-        "tool_use_mode": "工具调用方式",
-        "tool_use_prompt": "Prompt",
         "top_p": "Top-P",
         "unlimited": "不限"
       },

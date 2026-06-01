@@ -5,7 +5,6 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import { useWebSearchProviders } from '@renderer/hooks/useWebSearch'
 import { getWebSearchProviderLogo } from '@renderer/pages/settings/WebSearchSettings/utils/webSearchProviderMeta'
 import { getEffectiveMcpMode } from '@renderer/types'
-import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import type { WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
 import {
   isGemini3Model,
@@ -86,7 +85,6 @@ const WebSearchButton: FC<Props> = ({ assistantId }) => {
       isGeminiWebSearchProvider(modelProvider) &&
       isGeminiModel(model) &&
       !isGemini3Model(model) &&
-      isToolUseModeFunction(assistant) &&
       getEffectiveMcpMode(assistant) !== 'disabled'
     ) {
       window.toast.warning(t('chat.mcp.warning.gemini_web_search'))

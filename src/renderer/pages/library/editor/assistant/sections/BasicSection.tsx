@@ -1,6 +1,5 @@
 import {
   Button,
-  ButtonGroup,
   EditableNumber,
   EmojiAvatar,
   Field,
@@ -279,34 +278,6 @@ export const BasicSection: FC<Props> = ({
               className="min-w-0 flex-1"
             />
             <Switch checked={form.streamOutput} onCheckedChange={(v) => onChange({ streamOutput: v })} />
-          </div>
-
-          <div className="flex items-center justify-between gap-3">
-            <FieldHeader
-              label={t('library.config.basic.tool_use_mode')}
-              hint={t('library.config.basic.field.tool_use_mode.hint')}
-              className="min-w-0 flex-1"
-            />
-            <ButtonGroup className="shrink-0 overflow-hidden rounded-2xs border border-border/30">
-              {(['function', 'prompt'] as const).map((mode) => (
-                <Button
-                  key={mode}
-                  type="button"
-                  variant="ghost"
-                  onClick={() => onChange({ toolUseMode: mode })}
-                  className={`h-auto min-h-0 px-2.5 py-1 font-normal text-xs shadow-none transition-colors focus-visible:ring-0 ${
-                    form.toolUseMode === mode
-                      ? 'bg-accent text-foreground'
-                      : 'text-muted-foreground/80 hover:bg-accent/50 hover:text-foreground'
-                  }`}>
-                  {t(
-                    mode === 'function'
-                      ? 'library.config.basic.tool_use_function'
-                      : 'library.config.basic.tool_use_prompt'
-                  )}
-                </Button>
-              ))}
-            </ButtonGroup>
           </div>
 
           <ToggleFieldGroup

@@ -27,7 +27,6 @@ export function addAnthropicHeaders(assistant: Assistant, model: Model, provider
   // (those providers handle interleaved thinking differently).
   if (
     isClaude45ReasoningModel(model) &&
-    assistant.settings?.toolUseMode === 'function' &&
     !(provider && (isVertexProvider(provider) || isAwsBedrockProvider(provider)))
   ) {
     headers.push(INTERLEAVED_THINKING_HEADER)

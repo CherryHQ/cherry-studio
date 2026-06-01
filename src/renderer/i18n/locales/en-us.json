@@ -2560,9 +2560,6 @@
           "temperature": {
             "hint": "Controls randomness when enabled"
           },
-          "tool_use_mode": {
-            "hint": "Controls how tools are exposed to the model"
-          },
           "top_p": {
             "hint": "Limits token sampling range when enabled"
           }
@@ -2584,9 +2581,6 @@
         "tags": "Tags",
         "temperature": "Temperature",
         "title": "Basic settings",
-        "tool_use_function": "Function",
-        "tool_use_mode": "Tool call mode",
-        "tool_use_prompt": "Prompt",
         "top_p": "Top-P",
         "unlimited": "Unlimited"
       },

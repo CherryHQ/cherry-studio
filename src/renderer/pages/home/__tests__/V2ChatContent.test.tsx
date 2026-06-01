@@ -32,7 +32,6 @@ vi.mock('@renderer/services/ApiService', () => ({
 }))
 
 vi.mock('@renderer/utils/assistant', () => ({
-  isPromptToolUse: vi.fn(() => false),
   isSupportedToolUse: vi.fn(() => false)
 }))
 

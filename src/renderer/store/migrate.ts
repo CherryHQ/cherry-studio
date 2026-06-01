@@ -2782,7 +2782,7 @@ const migrateConfig = {
         if (!preset.settings) {
           preset.settings = DEFAULT_ASSISTANT_SETTINGS
         } else if (!preset.settings.toolUseMode) {
-          preset.settings.toolUseMode = DEFAULT_ASSISTANT_SETTINGS.toolUseMode
+          preset.settings.toolUseMode = 'function'
         }
       })
 

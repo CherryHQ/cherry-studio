@@ -40,7 +40,6 @@ export interface ResolvedCapabilities {
   enableWebSearch: boolean
   enableUrlContext: boolean
   enableGenerateImage: boolean
-  isPromptToolUse: boolean
   isSupportedToolUse: boolean
   streamOutput: boolean
   webSearchPluginConfig?: WebSearchPluginConfig
@@ -89,9 +88,7 @@ export function resolveCapabilities(
 
   const enableGenerateImage = isGenerateImageModel(model) && false
 
-  const toolUseMode = assistant.settings?.toolUseMode
-  const isPromptToolUse = toolUseMode === 'prompt'
-  const isSupportedToolUse = toolUseMode === 'function' && isFunctionCallingModel(model)
+  const isSupportedToolUse = isFunctionCallingModel(model)
 
   const streamOutput = assistant.settings?.streamOutput !== false
 
@@ -119,7 +116,6 @@ export function resolveCapabilities(
     enableWebSearch,
     enableUrlContext,
     enableGenerateImage,
-    isPromptToolUse,
     isSupportedToolUse,
     streamOutput,
     webSearchPluginConfig

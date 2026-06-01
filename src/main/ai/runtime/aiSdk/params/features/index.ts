@@ -15,7 +15,6 @@ import { modelParamsFeature } from './modelParams'
 import { noThinkFeature } from './noThink'
 import { openrouterReasoningFeature } from './openrouterReasoning'
 import { pdfCompatibilityFeature } from './pdfCompatibility'
-import { promptToolUseFeature } from './promptToolUse'
 import { providerUrlContextFeature } from './providerUrlContext'
 import { providerWebSearchFeature } from './providerWebSearch'
 import { qwenThinkingFeature } from './qwenThinking'
@@ -37,6 +36,5 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   qwenThinkingFeature,
   skipGeminiThoughtSignatureFeature,
   providerWebSearchFeature,
-  providerUrlContextFeature,
-  promptToolUseFeature
+  providerUrlContextFeature
 ]

@@ -42,8 +42,7 @@ vi.mock('../../../plugins/skipGeminiThoughtSignaturePlugin', () => ({
   createSkipGeminiThoughtSignaturePlugin: vi.fn(() => ({ name: 'skip-gemini-thought-signature' }))
 }))
 vi.mock('@cherrystudio/ai-core/built-in/plugins', () => ({
-  providerToolPlugin: vi.fn((kind: string) => ({ name: `provider-tool-${kind}` })),
-  createPromptToolUsePlugin: vi.fn(() => ({ name: 'prompt-tool-use' }))
+  providerToolPlugin: vi.fn((kind: string) => ({ name: `provider-tool-${kind}` }))
 }))
 
 import { collectFromFeatures } from '../../collectFromFeatures'
@@ -178,12 +177,6 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
     ).toContain('provider-tool-webSearch')
     expect(activeNames(makeScope({ provider: {}, model: {}, capabilities: { enableUrlContext: true } }))).toContain(
       'provider-tool-urlContext'
-    )
-  })
-
-  it('prompt-tool-use activates only when capabilities.isPromptToolUse', () => {
-    expect(activeNames(makeScope({ provider: {}, model: {}, capabilities: { isPromptToolUse: true } }))).toContain(
-      'prompt-tool-use'
     )
   })
 
