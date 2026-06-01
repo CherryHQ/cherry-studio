@@ -1,59 +1,53 @@
 {
-  "generated_at": "2026-05-31T08:00:00.000000+00:00",
-  "snapshot_date": "2026-05-31",
-  "health_score": 85,
+  "generated_at": "2026-06-01T17:00:00.000000+00:00",
+  "snapshot_date": "2026-06-01",
+  "health_score": 84,
   "health_grade": "B",
-  "health_score_delta": 0,
-  "health_score_note": "Unchanged at 85/B (2026-05-31 vs 2026-05-30): P1 bugs #13193 (88d stale) and #13608 (73d stale) remain unaddressed. Open issues down 5 to 888. MAJOR EVENT: v2 branch merged into main on 2026-05-29 via PR #10162. Security fix PR #15388 for OAuth CSRF (#15372) still open. Unlabeled % improved: 5.5% (was 9.5%).",
-  "total_open_issues": 888,
-  "total_open_issues_delta": -5,
-  "sample_size": 200,
+  "health_score_delta": -1,
+  "health_score_note": "Down 1 to 84/B (2026-06-01 vs 2026-05-31): Security PR #15388 (OAuth CSRF) now 4 days old without merge; P1 bugs #13193 (89d stale) and #13608 (74d stale) remain unaddressed; open issues up 5 to 893. Offset by v1.9.8 release and 4 PRs merged today.",
+  "total_open_issues": 893,
+  "total_open_issues_delta": 5,
+  "sample_size": 100,
   "age_distribution": {
-    "Active_lt30d": 200,
+    "Active_lt30d": 100,
     "Aging_30_90d": 0,
-    "Stale_gt90d_created": 2,
+    "Stale_gt90d_created": 0,
     "Zombie_not_updated_90d": 5,
-    "note": "Creation-based age from 200-issue sample. 5 confirmed zombies from exhaustive search (not updated since before 2026-03-01)."
+    "note": "100/100 sampled issues updated within last 30 days (API sorts by updated_at DESC). 5 confirmed zombies from prior exhaustive search."
   },
   "label_health": {
-    "unlabeled_estimate": 49,
-    "unlabeled_pct_estimate": 5.5,
-    "unlabeled_note": "~5.5% of 200-issue sample have no labels (improved from 9.5% yesterday)",
-    "inactive_pct_of_sample": 39,
-    "inactive_note": "39% of sampled issues carry inactive label (down from 42%)",
+    "unlabeled_estimate": 89,
+    "unlabeled_pct_estimate": 10.0,
+    "unlabeled_note": "10% of 100-issue sample have no labels (up from 5.5% yesterday) — triage backlog growing",
+    "inactive_pct_of_sample": 29,
+    "inactive_note": "29% of sampled issues carry inactive label (down from 39% yesterday — recent issues dominating the sample)",
     "top_labels": {
-      "inactive": 78,
-      "UI/UX": 66,
-      "Assistant": 42,
-      "Models": 39,
-      "needs-repro": 19,
-      "MCP": 18,
-      "help wanted": 10,
-      "discussion": 10,
-      "Data": 8,
-      "feature": 6,
-      "RAG": 6,
-      "Connectivity": 6,
+      "UI/UX": 39,
+      "inactive": 29,
+      "Models": 16,
+      "Assistant": 15,
+      "needs-repro": 12,
+      "discussion": 6,
+      "MCP": 6,
+      "help wanted": 5,
       "BUG": 3,
-      "P2": 2,
       "Performance": 2,
-      "needs-triage": 2
+      "Data": 2,
+      "RAG": 2,
+      "P2": 2,
+      "Connectivity": 2
     }
   },
   "p1_issues": [
     {
       "number": 14899,
       "title": "[Feature]: Unified Notification Center",
-      "labels": [
-        "Planned",
-        "P1",
-        "feature",
-        "UI/UX"
-      ],
+      "labels": ["Planned", "P1", "feature", "UI/UX"],
       "milestone": "v2.4.0",
       "author": "SiinXu",
       "created_at": "2026-05-07",
       "updated_at": "2026-05-07",
+      "days_stale": 25,
       "severity": "HIGH",
       "status": "PLANNED",
       "detail": "Formal P1 planned feature — persistent notification center (system events, usage alerts, official announcements) with OS-level toast, unread badge, 30-day retention. Milestone v2.4.0."
@@ -61,30 +55,28 @@
     {
       "number": 13608,
       "title": "[Bug]: xiaomi mimo response only displays the last line",
-      "labels": [
-        "P1",
-        "Models"
-      ],
+      "labels": ["P1", "Models"],
       "author": "lsy08",
       "created_at": "2026-03-18",
       "updated_at": "2026-03-19",
+      "days_stale": 74,
+      "comments": 8,
       "severity": "HIGH",
-      "status": "STALE — 73 days without update",
+      "status": "STALE — 74 days without update",
       "detail": "Streaming bug: mimo-v2-flash only shows last token in rotating display. 8 comments. Last updated 2026-03-19 — no assignee, no fix in progress."
     },
     {
       "number": 13193,
       "title": "[Bug]: Azure OpenAI defaults to responses API instead of chat/completions — Resource not found 404",
-      "labels": [
-        "P1",
-        "Models"
-      ],
+      "labels": ["P1", "Models"],
       "author": "simplezhao",
       "created_at": "2026-03-04",
       "updated_at": "2026-03-05",
+      "days_stale": 88,
+      "comments": 1,
       "severity": "HIGH",
-      "status": "STALE — 87 days without update",
-      "detail": "Regression v1.7.19→v1.7.22: Azure OpenAI uses /responses endpoint instead of /chat/completions. 4 upvotes. Assignee: DeJeune. No update in 87 days.",
+      "status": "STALE — 88 days without update",
+      "detail": "Regression v1.7.19→v1.7.22: Azure OpenAI uses /responses endpoint instead of /chat/completions. 4 upvotes. Assignee: DeJeune. No update in 88 days.",
       "assignee": "DeJeune"
     }
   ],
@@ -97,39 +89,40 @@
       "fix_pr": 15388,
       "fix_author": "3em0",
       "fix_status": "open",
-      "detail": "OAuth CSRF attack vector: state parameter not validated before token exchange in MCP OAuth callback. Fix PR #15388 open — needs merge."
+      "fix_age_days": 4,
+      "detail": "OAuth CSRF attack vector: state parameter not validated before token exchange in MCP OAuth callback. Fix PR #15388 open 4 days — needs immediate merge review."
     }
   ],
   "inferred_high_priority": [
     {
-      "number": 15426,
-      "title": "[Bug] v1.9.7 Windows x64 portable ships ARM64 native module (registry.node), breaking OpenClaw entirely",
-      "labels": [],
-      "priority_signal": "CRITICAL: ships-broken — ARM64 registry.node in x64 portable → ERR_DLOPEN_FAILED → IPC broken → MemoryService crash. Affects all Windows x64 portable users on v1.9.7."
-    },
-    {
-      "number": 15416,
-      "title": "[Bug]: Taskbar icon becomes blank after merging",
-      "labels": [],
-      "priority_signal": "4 comments — visual regression in merged state, potentially widespread"
-    },
-    {
       "number": 15293,
       "title": "[Bug]: deepseek-v4-pro only displays the last token",
       "labels": [],
-      "priority_signal": "4 comments — streaming display bug similar to P1 #13608; popular model affected"
+      "priority_signal": "Streaming display bug similar to P1 #13608; popular model affected — likely high user impact"
     },
     {
       "number": 15405,
       "title": "[Bug]: Minified React error #185",
       "labels": [],
-      "priority_signal": "6 comments — React invariant crash; related #15437 closed today"
+      "priority_signal": "6 comments — React invariant crash in production build"
+    },
+    {
+      "number": 15416,
+      "title": "[Bug]: Taskbar icon becomes blank after merging",
+      "labels": [],
+      "priority_signal": "4 comments — visual regression, potentially widespread"
     },
     {
       "number": 13710,
       "title": "[Bug]: The MCP server requires administrator privileges to start",
       "labels": [],
       "priority_signal": "4 comments — MCP blocked for non-admin users on Windows"
+    },
+    {
+      "number": 15546,
+      "title": "[Bug]: Bash tool stdout/stderr completely lost on Windows (Git Bash)",
+      "labels": [],
+      "priority_signal": "New today — Windows Git Bash stdout/stderr capture failure in tool execution"
     }
   ],
   "zombie_issues": [
@@ -137,115 +130,122 @@
       "number": 5712,
       "title": "【需求汇总】Agents with Workflows",
       "last_updated": "2025-10-23",
-      "days_stale": 219,
-      "labels": [
-        "invalid",
-        "inactive"
-      ]
+      "days_stale": 220,
+      "labels": ["invalid", "inactive"]
     },
     {
       "number": 10844,
       "title": "[Feature]: Backup feature enhance",
       "last_updated": "2025-11-01",
-      "days_stale": 210,
-      "labels": [
-        "Dev Team",
-        "Data"
-      ]
+      "days_stale": 211,
+      "labels": ["Dev Team", "Data"]
     },
     {
       "number": 11578,
       "title": "Upgrade to the MCP protocol by November 25, 2025",
       "last_updated": "2025-11-30",
-      "days_stale": 181,
-      "labels": [
-        "MCP"
-      ]
+      "days_stale": 182,
+      "labels": ["MCP"]
     },
     {
       "number": 5640,
       "title": "Cherry Studio as a Service (CSaaS)",
       "last_updated": "2026-01-31",
-      "days_stale": 119,
-      "labels": [
-        "Dev Team"
-      ]
+      "days_stale": 120,
+      "labels": ["Dev Team"]
     },
     {
       "number": 12023,
       "title": "Migrate to AI sdk v6",
       "last_updated": "2026-02-27",
-      "days_stale": 92,
-      "labels": [
-        "AI-SDK"
-      ]
+      "days_stale": 93,
+      "labels": ["AI-SDK"]
     }
   ],
   "action_needed_issues": [
     {
       "number": 15388,
       "title": "fix: validate MCP OAuth callback state (fixes #15372)",
-      "reason": "Security fix PR — OAuth CSRF vulnerability. Needs immediate merge review."
-    },
-    {
-      "number": 15426,
-      "title": "[Bug] v1.9.7 Windows x64 portable ships ARM64 native module",
-      "reason": "Ships-broken for all Windows x64 portable users on v1.9.7 — hotfix or advisory needed"
+      "reason": "URGENT: Security fix PR — OAuth CSRF vulnerability open 4 days. Needs immediate merge review.",
+      "urgency": "CRITICAL"
     },
     {
       "number": 13193,
       "title": "[Bug]: Azure OpenAI Resource not found — wrong API endpoint",
-      "reason": "P1 bug stale 86 days; assigned to DeJeune but no fix. Azure users fully blocked."
+      "reason": "P1 bug stale 88 days; assigned to DeJeune but no fix. Azure users fully blocked.",
+      "urgency": "HIGH"
     },
     {
       "number": 13608,
       "title": "[Bug]: mimo response only displays the last line",
-      "reason": "P1 bug stale 72 days; no fix in sight despite being high-priority label"
+      "reason": "P1 bug stale 74 days; no fix in sight despite being high-priority label. 8 comments.",
+      "urgency": "HIGH"
     },
     {
       "number": 15405,
       "title": "[Bug]: Minified React error #185",
-      "reason": "6 comments; React invariant crash in production build — related startup crash closed today but root may remain"
+      "reason": "6 comments; React invariant crash in production build",
+      "urgency": "MEDIUM"
+    },
+    {
+      "number": 15546,
+      "title": "[Bug]: Bash tool stdout/stderr completely lost on Windows (Git Bash)",
+      "reason": "New today — Windows tool execution failure, critical for agent functionality",
+      "urgency": "MEDIUM"
     }
   ],
   "new_issues_today": {
-    "count_estimate": "~9 (based on +9 total delta)",
+    "count": 17,
+    "note": "17 issues created on 2026-06-01 (from sample analysis)",
     "notable": [
       {
-        "number": 15443,
-        "title": "[Bug]: Multiple window error",
-        "comments": 3
+        "number": 15560,
+        "title": "[Other]: Cannot use SiliconFlow's API to deploy agent",
+        "labels": ["needs-more-info"]
       },
       {
-        "number": 15444,
-        "title": "[Bug]: deepseek-v4-pro only displays the last token (likely today)",
-        "note": "inferred from high-comment recent issue"
-      },
-      {
-        "number": 15415,
-        "title": "[Feature]: Support Intel GPU Detection for OVMS",
+        "number": 15557,
+        "title": "[Discussion]: After updating to 1.9.8, my assistant with 300k tokens conversation disappeared",
         "labels": []
       },
       {
-        "number": 15411,
-        "title": "[Bug]: Memory deduplication ignores user and assistant scope",
+        "number": 15556,
+        "title": "[Bug]: Private chat conversations between multiple Lark users merged into single session",
+        "labels": []
+      },
+      {
+        "number": 15554,
+        "title": "[Feature]: Optimize global memory: per-model GPU pinning + idle delay",
+        "labels": []
+      },
+      {
+        "number": 15546,
+        "title": "[Bug]: Bash tool stdout/stderr completely lost on Windows (Git Bash)",
         "labels": []
       }
     ]
   },
   "closed_today": [
     {
-      "number": 15438,
-      "title": "[Bug]: pnpm db:migrations:generate blocked — duplicate snapshot id"
+      "number": 15537,
+      "title": "[Bug] Multimodal model not showing in Agent model selection dropdown",
+      "reason": "completed"
     },
     {
-      "number": 15437,
-      "title": "[Bug]: After update, startup fails with React #185 error"
+      "number": 15449,
+      "title": "[Bug]: Version 1.9.7 runtime conflict with embedded open claw",
+      "reason": "needs-repro → closed"
+    },
+    {
+      "number": 15528,
+      "title": "Frequent errors in version V1.9.8",
+      "reason": "needs-repro → closed"
     }
   ],
   "trend": {
-    "issues_velocity_7d": "+9 net open (opened ~18, closed ~9 est.)",
-    "closure_rate_30d": "~385 closed vs 893 open = 43% closure rate over 30d window",
-    "inactive_label_pressure": "42% of open issues marked inactive — indicates backlog accumulation outpaces active triage"
+    "issues_velocity_7d": "+5 net open (opened ~17 today, ~12 closed today)",
+    "closure_rate_30d": "~377 closed vs 893 open = 42% closure rate over 30d window",
+    "inactive_label_pressure": "Large batch of inactive-label closures driving 78% not_planned closure ratio",
+    "unlabeled_trend": "Unlabeled % in sample jumped from 5.5% to 10% — triage needed for recently opened issues"
   }
 }

@@ -1,109 +1,107 @@
 {
-  "generated_at": "2026-05-31T08:00:00.000000+00:00",
-  "snapshot_date": "2026-05-31",
+  "generated_at": "2026-06-01T17:00:00.000000+00:00",
+  "snapshot_date": "2026-06-01",
   "data_source": "GitHub MCP API (CherryHQ/cherry-studio)",
   "release": {
-    "latest": "v1.9.7",
-    "released_at": "2026-05-27T14:03:56Z",
-    "pr": 15362,
-    "note": "Released 2026-05-27; chore commit by kangfenmao. ARM64 native module bug (#15426) still open in this release."
+    "latest": "v1.9.8",
+    "released_at": "2026-05-31T16:30:06Z",
+    "branch": "v1",
+    "changes": [
+      "fix(ci): add v1 branch to workflow triggers (#15446)",
+      "refactor: update tool components for improved styling and functionality"
+    ],
+    "note": "Released 2026-05-31 from v1 branch. Security fix PR #15388 (OAuth CSRF) still not included — still open."
   },
   "open_issues": {
-    "total": 888,
-    "total_delta": -5,
-    "sample_size": 200,
-    "sample_note": "Statistics from 200 most-recently-updated issues (2 pages); API reports 888 total open issues",
+    "total": 893,
+    "total_delta": 5,
+    "sample_size": 100,
+    "sample_note": "Statistics from 100 most-recently-updated issues; API reports 893 total open issues",
     "by_label": {
-      "inactive": 78,
-      "UI/UX": 66,
-      "Assistant": 42,
-      "Models": 39,
-      "needs-repro": 19,
-      "MCP": 18,
-      "help wanted": 10,
-      "discussion": 10,
-      "Data": 8,
-      "feature": 6,
-      "RAG": 6,
-      "Connectivity": 6,
+      "UI/UX": 39,
+      "inactive": 29,
+      "Models": 16,
+      "Assistant": 15,
+      "needs-repro": 12,
+      "discussion": 6,
+      "MCP": 6,
+      "help wanted": 5,
       "BUG": 3,
-      "P2": 2,
       "Performance": 2,
-      "needs-triage": 2,
-      "P3": 1,
-      "Planned": 1,
+      "Data": 2,
+      "RAG": 2,
+      "P2": 2,
+      "Connectivity": 2,
       "needs-more-info": 1,
-      "Agent": 1,
-      "module:knowledge-rag": 1
+      "v2": 1,
+      "P3": 1,
+      "feature": 1,
+      "Planned": 1
     },
     "unlabeled": {
-      "count": 11,
-      "sample_size": 200,
-      "percentage_of_sample": 5.5,
-      "estimated_total": 49,
-      "note": "~5.5% of 200-issue sample have no labels (down from 9.5% yesterday); estimated ~49 total unlabeled"
+      "count": 10,
+      "sample_size": 100,
+      "percentage_of_sample": 10.0,
+      "estimated_total": 89,
+      "note": "10% of 100-issue sample have no labels (up from 5.5% yesterday); estimated ~89 total unlabeled"
     },
     "age_distribution": {
-      "Active_lt30d": 105,
-      "Aging_30_90d": 92,
-      "Stale_gt90d_created": 3,
+      "Active_lt30d": 100,
+      "Aging_30_90d": 0,
+      "Stale_gt90d_created": 0,
       "Zombie_not_updated_90d": 5,
-      "note": "Creation-based age from 200-issue sample. Zombie count (5) from exhaustive updated:<2026-03-01 search."
+      "note": "All 100 sampled issues updated within the last 30 days (API returns recently-updated first). 5 zombie issues carried over from exhaustive historical search."
+    },
+    "issues_by_created_month": {
+      "2026-06": 17,
+      "2026-05": 52,
+      "2026-04": 26,
+      "2026-03": 3,
+      "2026-02": 1,
+      "2025-11": 1
     },
     "zombie_issues": [
       {
         "number": 5712,
         "title": "【需求汇总】Agents with Workflows / 工作流&协同",
         "last_updated": "2025-10-23",
-        "labels": [
-          "invalid",
-          "inactive"
-        ]
+        "days_stale": 220,
+        "labels": ["invalid", "inactive"]
       },
       {
         "number": 10844,
         "title": "[Feature]: Backup feature enhance",
         "last_updated": "2025-11-01",
-        "labels": [
-          "Dev Team",
-          "Data"
-        ]
+        "days_stale": 211,
+        "labels": ["Dev Team", "Data"]
       },
       {
         "number": 11578,
         "title": "Upgrade to the MCP protocol by November 25, 2025",
         "last_updated": "2025-11-30",
-        "labels": [
-          "MCP"
-        ]
+        "days_stale": 182,
+        "labels": ["MCP"]
       },
       {
         "number": 5640,
-        "title": "Cherry Studio as a Service (CSaaS) / Cherry Studio作为服务对外提供API接口",
+        "title": "Cherry Studio as a Service (CSaaS)",
         "last_updated": "2026-01-31",
-        "labels": [
-          "Dev Team"
-        ]
+        "days_stale": 120,
+        "labels": ["Dev Team"]
       },
       {
         "number": 12023,
         "title": "Migrate to AI sdk v6",
         "last_updated": "2026-02-27",
-        "labels": [
-          "AI-SDK"
-        ]
+        "days_stale": 93,
+        "labels": ["AI-SDK"]
       }
     ],
     "p1_issues": [
       {
         "number": 14899,
         "title": "[Feature]: Unified Notification Center",
-        "labels": [
-          "Planned",
-          "P1",
-          "feature",
-          "UI/UX"
-        ],
+        "labels": ["Planned", "P1", "feature", "UI/UX"],
         "milestone": "v2.4.0",
         "author": "SiinXu",
         "created_at": "2026-05-07",
@@ -114,28 +112,24 @@
       {
         "number": 13608,
         "title": "[Bug]: xiaomi mimo response only displays the last line",
-        "labels": [
-          "P1",
-          "Models"
-        ],
+        "labels": ["P1", "Models"],
         "author": "lsy08",
         "created_at": "2026-03-18",
         "updated_at": "2026-03-19",
+        "comments": 8,
         "severity": "HIGH",
-        "note": "P1 bug stale since 2026-03-19, 8 comments; mimo-v2-flash streaming shows only last line"
+        "note": "P1 bug stale 74 days; mimo-v2-flash streaming shows only last line. Milestone v1.8.1 (closed)."
       },
       {
         "number": 13193,
         "title": "[Bug]: Azure OpenAI defaults to responses API instead of chat/completions (Resource not found)",
-        "labels": [
-          "P1",
-          "Models"
-        ],
+        "labels": ["P1", "Models"],
         "author": "simplezhao",
         "created_at": "2026-03-04",
         "updated_at": "2026-03-05",
+        "comments": 1,
         "severity": "HIGH",
-        "note": "P1 bug stale since 2026-03-05; regression from v1.7.19→v1.7.22 — Azure uses wrong endpoint",
+        "note": "P1 bug stale 88 days; regression v1.7.19→v1.7.22 — Azure uses wrong endpoint. Assignee: DeJeune. No update.",
         "assignee": "DeJeune"
       }
     ],
@@ -147,10 +141,16 @@
         "created_at": "2026-05-28",
         "fix_pr": 15388,
         "fix_status": "open",
-        "note": "OAuth CSRF attack vector; state param not validated before token exchange"
+        "fix_age_days": 4,
+        "note": "OAuth CSRF attack vector; state param not validated before token exchange. Fix PR #15388 open 4 days — needs merge urgently."
       }
     ],
     "top_10_most_commented_sample": [
+      {
+        "number": 13608,
+        "title": "[Bug]: xiaomi mimo response only displays the last line",
+        "comments": 8
+      },
       {
         "number": 11101,
         "title": "[Feature]: Keep Tool Calling Context",
@@ -195,233 +195,136 @@
         "number": 15443,
         "title": "[Bug]: Multiple window error",
         "comments": 3
-      },
-      {
-        "number": 14648,
-        "title": "[Discussion]: No models available when adding agent",
-        "comments": 3
       }
     ]
   },
   "closed_issues_30d": {
-    "total": 364,
-    "total_delta": -21,
+    "total": 377,
+    "total_delta": 13,
     "sample_size": 100,
-    "top_label_in_closed": "inactive (78/100 — automated stale-issue sweep)",
-    "avg_time_to_close_days": 40.8,
-    "median_time_to_close_days": 40.8,
+    "top_label_in_closed": "inactive (79/100 — automated stale-issue sweep)",
+    "avg_time_to_close_days": 43.92,
+    "close_reasons": {
+      "not_planned": 78,
+      "completed": 21,
+      "other_unknown": 1,
+      "note": "78% not_planned — dominated by inactive-label batch closures; 21% completed"
+    },
     "notable_closed_today": [
       {
-        "number": 15464,
-        "title": "fix: remove duplicate ESLint ignore entry for nutstore sso lib",
-        "note": "chore fix merged today"
+        "number": 15537,
+        "title": "[Bug] Multimodal model not showing in Agent model selection dropdown",
+        "closed_at": "2026-06-01T12:58:44Z",
+        "labels": ["UI/UX"]
       },
       {
-        "number": 15470,
-        "title": "feat(knowledge): integrate file processing for document ingestion",
-        "note": "feat merged today"
+        "number": 15449,
+        "title": "[Bug]: Version 1.9.7 has a runtime conflict with the embedded open claw",
+        "closed_at": "2026-06-01T08:19:31Z",
+        "labels": ["needs-repro"]
       },
       {
-        "number": 15461,
-        "title": "docs(branch-strategy): align with #13984",
-        "note": "docs merged today"
+        "number": 15528,
+        "title": "Frequent errors in version V1.9.8",
+        "closed_at": "2026-06-01T08:10:30Z",
+        "labels": ["needs-repro"]
       }
     ]
   },
   "open_prs": {
-    "total_page1": 100,
-    "pagination_note": "API returned 100 PRs sorted by updated desc; full count unknown — likely 150-200+ total",
-    "by_base_branch_page1": {
-      "main": 93,
-      "v1": 3,
+    "total": 274,
+    "total_note": "API search reports 274 total open PRs",
+    "by_base_branch_sample100": {
+      "main": 84,
+      "v1": 12,
       "DeJeune/ai-service": 2,
       "stack/ai-service/02-main-ai-backend": 1,
       "stack/ai-service/01-provider-core": 1
     },
+    "label_coverage": {
+      "unlabeled_count_sample100": 91,
+      "unlabeled_pct_sample100": 91.0,
+      "note": "Only 9% of sampled open PRs carry any label — extremely low label coverage"
+    },
+    "draft_count_sample": 4,
     "v2_labeled_prs": {
-      "total": 21,
-      "note": "21 open PRs carry the v2 label — all target main branch (v2 branch fully merged into main on 2026-05-29 via #10162)",
-      "oldest_stale": [
+      "total_from_yesterday": 22,
+      "note": "22+ open PRs carry the v2 label targeting main branch; v2 branch fully merged into main on 2026-05-29 via #10162",
+      "new_today": [
         {
-          "number": 11420,
-          "title": "feat: Model & Provider Catalog",
-          "author": "DeJeune",
-          "age_days": 188,
-          "draft": true
+          "number": 15154,
+          "title": "refactor(paintings): migrate to v2 data layer and UI",
+          "author": "kangfenmao",
+          "labels": ["v2"],
+          "createdAt": "2026-05-18T03:52:59Z"
         },
         {
-          "number": 11878,
-          "title": "feat(ui): toast",
+          "number": 15335,
+          "title": "feat(file-ipc): wire v2 File IPC — full preload surface",
           "author": "EurFelux",
-          "age_days": 169,
-          "draft": false
+          "labels": [],
+          "createdAt": "2026-05-26T09:45:01Z"
         },
         {
-          "number": 12150,
-          "title": "refactor(files): File Management System Architecture",
-          "author": "EurFelux",
-          "age_days": 155,
-          "draft": true
-        },
-        {
-          "number": 12659,
-          "title": "feat(backup): add v2 backup system refactor plan document",
-          "author": "GeorgeDong32",
-          "age_days": 120,
-          "draft": false
-        },
-        {
-          "number": 13238,
-          "title": "feat(data): add provider/model data API and catalog core",
+          "number": 15333,
+          "title": "docs(ai): document v2 AI architecture",
           "author": "DeJeune",
-          "age_days": 86,
-          "draft": false
+          "labels": [],
+          "createdAt": "2026-05-26T08:40:23Z"
         }
       ]
     },
-    "age_buckets_page1": {
-      "active_lt7d": 40,
-      "aging_7_30d": 39,
-      "stale_30_90d": 17,
-      "zombie_gt90d": 4
-    },
-    "top_10_contributors": [
-      {
-        "login": "DeJeune",
-        "open_prs": 17
-      },
-      {
-        "login": "EurFelux",
-        "open_prs": 8
-      },
-      {
-        "login": "LWWZH",
-        "open_prs": 7
-      },
-      {
-        "login": "xxiaoxiong",
-        "open_prs": 7
-      },
-      {
-        "login": "GeorgeDong32",
-        "open_prs": 6
-      },
-      {
-        "login": "Raymond8196",
-        "open_prs": 5
-      },
-      {
-        "login": "mturac",
-        "open_prs": 5
-      },
-      {
-        "login": "kangfenmao",
-        "open_prs": 4
-      },
-      {
-        "login": "SiinXu",
-        "open_prs": 4
-      },
-      {
-        "login": "xvweirong",
-        "open_prs": 4
-      }
-    ],
-    "special_flags": [
-      {
-        "number": 13173,
-        "title": "refactor(renderer): migrate from ReactMarkdown to Streamdown",
-        "flag": "ready-to-merge",
-        "author": "DeJeune",
-        "age_days": 88
-      },
-      {
-        "number": 10912,
-        "title": "refactor: i18n",
-        "flag": "Blocked: v2",
-        "author": "EurFelux",
-        "age_days": 219
-      },
-      {
-        "number": 13687,
-        "title": "chore: migrate to vite 8",
-        "flag": "Pending",
-        "author": "EurFelux",
-        "age_days": 70
-      }
-    ]
+    "top_contributors_sample100": {
+      "HUQIANTAO": 32,
+      "LWWZH": 9,
+      "ousugo": 6,
+      "DeJeune": 6,
+      "Love-JourneY": 6,
+      "Cherry-Yiran": 5,
+      "kangfenmao": 4,
+      "github-actions[bot]": 4,
+      "angri450": 4,
+      "dependabot[bot]": 3,
+      "kovsu": 3,
+      "Raymond8196": 3,
+      "EurFelux": 3,
+      "GeorgeDong32": 3
+    }
   },
-  "merged_prs_30d": {
-    "total_v2_label": 48,
-    "total_v2_label_note": "48 v2-labeled PRs merged in last 30 days (to main branch); v2 branch merged into main in April 2026",
-    "active_areas_this_week": [
-      "file module (FileMigrator, FileRefSourceType, DirectoryTreeBuilder)",
-      "knowledge system (JobManager migration, workflow jobs round 1 & 2)",
-      "settings navigation redesign (Cherry-Yiran)",
-      "notes migration to v2 (kangfenmao)",
-      "paintings migration to v2 (kangfenmao — open PR #15361)",
-      "AI provider separation / runtime core (DeJeune)"
-    ],
-    "recently_merged_10": [
+  "merged_prs_today": {
+    "count": 4,
+    "items": [
       {
-        "number": 15363,
-        "title": "feat(file-manager): unified DirectoryTreeBuilder primitive for Notes",
-        "author": "DeJeune",
-        "mergedAt": "2026-05-28T15:33:49Z"
-      },
-      {
-        "number": 15371,
-        "title": "refactor(knowledge): knowledge workflow jobs round2",
-        "author": "eeee0717",
-        "mergedAt": "2026-05-28T12:33:18Z"
-      },
-      {
-        "number": 15356,
-        "title": "refactor(file-entry): use file entries for knowledge and processing",
-        "author": "eeee0717",
-        "mergedAt": "2026-05-27T14:52:07Z"
-      },
-      {
-        "number": 15263,
-        "title": "feat(settings): redesign settings navigation",
-        "author": "Cherry-Yiran",
-        "mergedAt": "2026-05-27T08:53:22Z"
-      },
-      {
-        "number": 15330,
-        "title": "feat(file): register chat_message FileRefSourceType + ChatMigrator",
-        "author": "EurFelux",
-        "mergedAt": "2026-05-27T04:23:50Z"
-      },
-      {
-        "number": 15309,
-        "title": "refactor(knowledge): knowledge v2 rfc and implement round 1",
-        "author": "eeee0717",
-        "mergedAt": "2026-05-27T03:54:26Z"
-      },
-      {
-        "number": 15067,
-        "title": "feat(file): Phase 2 Batch 0 — FileMigrator + cross-module coordination",
-        "author": "EurFelux",
-        "mergedAt": "2026-05-26T06:00:50Z"
-      },
-      {
-        "number": 15186,
-        "title": "refactor(notes): migrate notes UI and data to v2",
+        "number": 15424,
+        "title": "ci(preview-build): select latest preview branch",
         "author": "kangfenmao",
-        "mergedAt": "2026-05-25T11:52:52Z"
+        "base": "main",
+        "merged_at": "2026-06-01T13:15:46Z"
       },
       {
-        "number": 15265,
-        "title": "feat(translate): refresh translate page and shared drawer",
-        "author": "Cherry-Yiran",
-        "mergedAt": "2026-05-25T09:45:25Z"
+        "number": 15543,
+        "title": "feat(models): add MiniMax M3 to the system model registry",
+        "author": "kapelame",
+        "base": "v1",
+        "merged_at": "2026-06-01T12:35:01Z",
+        "note": "Adds MiniMax-M3 with tool use, vision, and reasoning support"
       },
       {
-        "number": 15238,
-        "title": "fix(sidebar): align resize thresholds with layouts",
-        "author": "kovsu",
-        "mergedAt": "2026-05-23T11:45:28Z"
+        "number": 15533,
+        "title": "fix: respect topic naming setting for agent sessions",
+        "author": "kangfenmao",
+        "base": "main",
+        "merged_at": "2026-06-01T10:39:01Z",
+        "fixes": 15457
+      },
+      {
+        "number": 15538,
+        "title": "fix: guard OV OCR availability CPU detection",
+        "author": "kangfenmao",
+        "base": "main",
+        "merged_at": "2026-06-01T09:55:17Z",
+        "note": "Fixes Windows startup crash when os.cpus() returns empty array",
+        "fixes": 15315
       }
     ]
   },
@@ -432,6 +335,11 @@
       "merged_at": "2026-05-29T02:54:10Z",
       "author": "0xfullex",
       "significance": "MAJOR MILESTONE: v2 branch fully merged into main. main is now the single active development branch for all v2 work."
+    },
+    "v1_9_8_released": {
+      "tag": "v1.9.8",
+      "released_at": "2026-05-31T16:30:06Z",
+      "significance": "Minor v1 maintenance release — CI fix and tool component styling update"
     }
   }
 }
