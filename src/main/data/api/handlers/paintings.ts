@@ -1,5 +1,5 @@
 import { paintingService } from '@data/services/PaintingService'
-import type { ApiHandler, ApiMethods } from '@shared/data/api/apiTypes'
+import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import type { PaintingsSchemas } from '@shared/data/api/schemas/paintings'
 import {
@@ -8,13 +8,7 @@ import {
   UpdatePaintingSchema
 } from '@shared/data/api/schemas/paintings'
 
-type PaintingHandler<Path extends keyof PaintingsSchemas, Method extends ApiMethods<Path>> = ApiHandler<Path, Method>
-
-export const paintingHandlers: {
-  [Path in keyof PaintingsSchemas]: {
-    [Method in keyof PaintingsSchemas[Path]]: PaintingHandler<Path, Method & ApiMethods<Path>>
-  }
-} = {
+export const paintingHandlers: HandlersFor<PaintingsSchemas> = {
   '/paintings': {
     GET: async ({ query }) => {
       const parsed = ListPaintingsQuerySchema.parse(query ?? {})
