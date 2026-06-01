@@ -14,6 +14,7 @@ export const RichEditorWrapper = styled.div<{
   border-radius: 6px;
   background: var(--color-background);
   overflow-y: hidden;
+  min-height: 0;
   .ProseMirror table,
   .tiptap table {
     table-layout: auto !important;
@@ -59,6 +60,9 @@ export const ToolbarWrapper = styled.div`
   overflow-x: auto;
   overflow-y: hidden;
   white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 10;
 
   &::-webkit-scrollbar-track {
     background: var(--color-background-soft);

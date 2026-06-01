@@ -22,12 +22,16 @@ export class OvOcrService extends OcrBaseService {
   }
 
   public isAvailable(): boolean {
-    return (
-      isWin &&
-      os.cpus()[0].model.toLowerCase().includes('intel') &&
-      os.cpus()[0].model.toLowerCase().includes('ultra') &&
-      fs.existsSync(PATH_BAT_FILE)
-    )
+    if (!isWin) {
+      return false
+    }
+
+    const cpuModel = os.cpus()[0]?.model.toLowerCase()
+    if (!cpuModel) {
+      return false
+    }
+
+    return cpuModel.includes('intel') && cpuModel.includes('ultra') && fs.existsSync(PATH_BAT_FILE)
   }
 
   private getOvOcrPath(): string {

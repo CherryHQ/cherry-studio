@@ -551,9 +551,9 @@ const MessageMenubar: FC<Props> = (props) => {
     return translationBlocks.length > 0
   }, [message])
 
-  const softHoverBg = isBubbleStyle && !isLastMessage
-  const showMessageTokens = !isBubbleStyle
+  const softHoverBg = isBubbleStyle && isUserMessage && !isLastMessage
   const isUserBubbleStyleMessage = isBubbleStyle && isUserMessage
+  const showMessageTokens = !isBubbleStyle || isAssistantMessage || isUserBubbleStyleMessage
 
   const buttonContext: MessageMenubarButtonContext = {
     assistant,
@@ -591,7 +591,14 @@ const MessageMenubar: FC<Props> = (props) => {
 
   return (
     <>
-      {showMessageTokens && <MessageTokens message={message} />}
+      {showMessageTokens && (
+        <FooterMetadata className="message-footer-metadata">
+          {isUserBubbleStyleMessage && (
+            <MessageTime>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</MessageTime>
+          )}
+          <MessageTokens message={message} />
+        </FooterMetadata>
+      )}
       <MenusBar
         className={classNames({ menubar: true, show: isLastMessage, 'user-bubble-style': isUserBubbleStyleMessage })}>
         {buttonIds.map((buttonId) => {
@@ -611,16 +618,36 @@ const MessageMenubar: FC<Props> = (props) => {
   )
 }
 
+const FooterMetadata = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+  line-height: 26px;
+  min-width: 0;
+
+  .message-tokens {
+    display: flex;
+    align-items: center;
+    height: 26px;
+    line-height: 26px;
+  }
+`
+
+const MessageTime = styled.div`
+  flex-shrink: 0;
+  font-size: 10px;
+  height: 26px;
+  line-height: 26px;
+  color: var(--color-text-3);
+`
+
 const MenusBar = styled.div`
   display: flex;
   flex-direction: row;
   justify-content: flex-end;
   align-items: center;
   gap: 8px;
-
-  &.user-bubble-style {
-    margin-top: 5px;
-  }
 `
 
 const ActionButton = styled.div<{ $softHoverBg?: boolean }>`

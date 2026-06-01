@@ -4,3 +4,18 @@
 /packages/shared/IpcChannel.ts @0xfullex @DeJeune
 /src/main/ipc.ts @0xfullex @DeJeune
 /app-upgrade-config.json @kangfenmao
+
+# Privacy policy ownership
+/PRIVACY.md @kangfenmao
+/resources/cherry-studio/privacy-en.html @kangfenmao
+/resources/cherry-studio/privacy-zh.html @kangfenmao
+/src/main/services/AnalyticsService.ts @kangfenmao
+/src/main/services/ConfigManager.ts @kangfenmao
+/src/renderer/src/components/Popups/PrivacyPopup.tsx @kangfenmao
+/src/renderer/src/components/app/PrivacyPolicyUpdateNotice.tsx @kangfenmao
+/src/renderer/src/config/constant.ts @kangfenmao
+/src/renderer/src/hooks/useAppInit.ts @kangfenmao
+/src/renderer/src/pages/onboarding/OnboardingPage.tsx @kangfenmao
+/src/renderer/src/store/migrate.ts @kangfenmao
+/src/renderer/src/store/settings.ts @kangfenmao
+/src/renderer/src/utils/analytics.ts @kangfenmao

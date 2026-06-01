@@ -23,8 +23,6 @@ import { memo, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
-import MessageTokens from './MessageTokens'
-
 interface Props {
   message: Message
   assistant: Assistant
@@ -74,6 +72,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
 
   const isAssistantMessage = message.role === 'assistant'
   const isUserMessage = message.role === 'user'
+  const isUserBubbleMessage = isBubbleStyle && isUserMessage && !isMultiSelectMode
   const showMinappIcon = sidebarIcons.visible.includes('minapp')
 
   const avatarName = useMemo(() => firstLetter(assistant?.name).toUpperCase(), [assistant?.name])
@@ -92,7 +91,7 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
   }, [isBubbleStyle, isUserMessage, isMultiSelectMode])
 
   return (
-    <Container className="message-header">
+    <Container className={isUserBubbleMessage ? 'message-header user-bubble-header' : 'message-header'}>
       {isAssistantMessage ? (
         <Avatar
           src={avatarSource}
@@ -122,27 +121,23 @@ const MessageHeader: FC<Props> = memo(({ assistant, model, message, topic, isGro
           )}
         </>
       )}
-      <UserWrap>
-        <HStack alignItems="center" justifyContent={userNameJustifyContent}>
-          <UserName isBubbleStyle={isBubbleStyle} theme={theme}>
-            {username}
-          </UserName>
-          {isGroupContextMessage && (
-            <Tooltip title={t('chat.message.useful.tip')}>
-              <Sparkle fill="var(--color-primary)" strokeWidth={0} size={18} />
-            </Tooltip>
-          )}
-        </HStack>
-        <InfoWrap className="message-header-info-wrap text-(--color-text-3) text-[10px]">
-          <MessageTime>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</MessageTime>
-          {isBubbleStyle && message.usage !== undefined && (
-            <>
-              |
-              <MessageTokens message={message} />
-            </>
-          )}
-        </InfoWrap>
-      </UserWrap>
+      {!isUserBubbleMessage && (
+        <UserWrap>
+          <HStack alignItems="center" justifyContent={userNameJustifyContent}>
+            <UserName isBubbleStyle={isBubbleStyle && isUserMessage} theme={theme}>
+              {username}
+            </UserName>
+            {isGroupContextMessage && (
+              <Tooltip title={t('chat.message.useful.tip')}>
+                <Sparkle fill="var(--color-primary)" strokeWidth={0} size={18} />
+              </Tooltip>
+            )}
+          </HStack>
+          <InfoWrap className="message-header-info-wrap text-(--color-text-3) text-[10px]">
+            <MessageTime>{dayjs(message?.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</MessageTime>
+          </InfoWrap>
+        </UserWrap>
+      )}
       {isMultiSelectMode && (
         <Checkbox
           checked={isSelected}
