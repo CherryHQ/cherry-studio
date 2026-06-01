@@ -1,5 +1,6 @@
 import { createPaintingGenerateError } from '@renderer/aiCore/errors/paintingGenerateError'
 import type { FileMetadata, GenerateImageParams } from '@renderer/types'
+import type { CanonicalParamKey } from '@shared/data/types/model'
 
 import { checkProviderEnabled } from '../utils/checkProviderEnabled'
 import type { DownloadImagesOptions } from '../utils/downloadImages'
@@ -15,7 +16,7 @@ type AiSdkParams = Omit<GenerateImageParams, 'model' | 'prompt' | 'signal' | 'pr
  * canonical vs AI SDK canonical) and `numImages → batchSize`. Everything
  * else matches name-for-name.
  */
-const POSITIONAL_RENAME: Record<string, string> = {
+const POSITIONAL_RENAME: Partial<Record<CanonicalParamKey, string>> = {
   size: 'imageSize',
   numImages: 'batchSize'
 }
@@ -122,7 +123,7 @@ export async function canonicalGenerate<T extends PaintingData>(
 
   function place(paramKey: string, value: unknown): void {
     if (value === undefined || value === '' || value === null) return
-    const aiKey = POSITIONAL_RENAME[paramKey] ?? paramKey
+    const aiKey = (POSITIONAL_RENAME as Record<string, string>)[paramKey] ?? paramKey
     if (AI_SDK_NATIVE_KEYS.has(aiKey)) {
       aiSdkParams[aiKey] = value
     } else {

@@ -6,6 +6,7 @@
 // Enums — const objects (SCREAMING_CASE)
 export {
   ANTHROPIC_REASONING_EFFORT,
+  CANONICAL_PARAM_KEY,
   CURRENCY,
   ENDPOINT_TYPE,
   GEMINI_THINKING_LEVEL,
@@ -22,6 +23,7 @@ export { ImageGenerationSupportSchema } from './schemas/model'
 // Enum types (PascalCase, derived from const objects)
 export type {
   AnthropicReasoningEffort,
+  CanonicalParamKey,
   Currency,
   EndpointType,
   GeminiThinkingLevel,

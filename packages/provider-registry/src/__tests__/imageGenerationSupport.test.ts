@@ -151,6 +151,14 @@ describe('ImageGenerationSupportSchema', () => {
       })
     ).toThrow()
   })
+
+  it('rejects a supports key outside the canonical vocabulary', () => {
+    expect(() =>
+      ImageGenerationSupportSchema.parse({
+        modes: { generate: { supports: { notACanonicalKey: { type: 'switch' } } } }
+      })
+    ).toThrow()
+  })
 })
 
 describe('ModelConfigSchema with imageGeneration', () => {

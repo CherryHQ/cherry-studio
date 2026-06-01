@@ -11,6 +11,7 @@
  */
 
 import type {
+  CanonicalParamKey,
   Currency,
   EndpointType,
   ImageGenerationMode,
@@ -22,6 +23,7 @@ import type {
   SupportSpec
 } from '@cherrystudio/provider-registry'
 import {
+  CANONICAL_PARAM_KEY,
   CURRENCY,
   ENDPOINT_TYPE,
   ImageGenerationSupportSchema,
@@ -33,10 +35,11 @@ import {
 import * as z from 'zod'
 
 // Re-export const objects for consumers
-export { CURRENCY, ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY, objectValues, REASONING_EFFORT }
+export { CANONICAL_PARAM_KEY, CURRENCY, ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY, objectValues, REASONING_EFFORT }
 
 // Re-export types for consumers
 export type {
+  CanonicalParamKey,
   Currency,
   EndpointType,
   ImageGenerationMode,

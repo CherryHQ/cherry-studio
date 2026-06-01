@@ -1,13 +1,21 @@
-import type { ImageGenerationMode, ImageGenerationSupport, SupportSpec } from '@shared/data/types/model'
+import type {
+  CanonicalParamKey,
+  ImageGenerationMode,
+  ImageGenerationSupport,
+  SupportSpec
+} from '@shared/data/types/model'
 
 import type { BaseConfigItem, OptionItem } from '../form/baseConfigItem'
 
 /**
- * Canonical key → i18n labels. Adding a new canonical control is a one-row
- * addition here + a registry data entry on the relevant models — no schema
- * change, no per-key handler.
+ * Canonical key → i18n labels. Exhaustive over `CanonicalParamKey`: every
+ * canonical key MUST have a label, so adding a key to `CANONICAL_PARAM_KEY`
+ * without a label here is a compile error (rather than a silent raw-key
+ * render). Adding a new canonical control is a one-row addition here + a
+ * registry data entry on the relevant models — no schema change, no per-key
+ * handler.
  */
-const KEY_LABELS: Record<string, { title: string; tooltip?: string }> = {
+const KEY_LABELS: Record<CanonicalParamKey, { title: string; tooltip?: string }> = {
   size: { title: 'paintings.image.size' },
   numImages: { title: 'paintings.number_images', tooltip: 'paintings.number_images_tip' },
   aspectRatio: { title: 'paintings.aspect_ratio' },
@@ -62,7 +70,7 @@ const KEY_LABELS: Record<string, { title: string; tooltip?: string }> = {
  * `aspectRatio`, `imageResolution`, `outputFormat`, language codes) whose
  * options are already human-readable.
  */
-const OPTION_LABELS: Record<string, Record<string, string>> = {
+const OPTION_LABELS: Partial<Record<CanonicalParamKey, Record<string, string>>> = {
   quality: {
     auto: 'paintings.quality_options.auto',
     low: 'paintings.quality_options.low',
@@ -137,7 +145,10 @@ const OPTION_LABELS: Record<string, Record<string, string>> = {
 }
 
 function toOptions(key: string, values: readonly string[]): OptionItem[] {
-  const labelMap = OPTION_LABELS[key]
+  // `key` is a runtime string from the registry `supports` map; index defensively
+  // (the typed maps are keyed by CanonicalParamKey, but a registry parse already
+  // guarantees membership — the cast just bridges the string→literal index).
+  const labelMap = (OPTION_LABELS as Record<string, Record<string, string>>)[key]
   return values.map((v) => {
     const labelKey = labelMap?.[v]
     return labelKey ? { labelKey, value: v } : { label: v, value: v }
@@ -145,7 +156,7 @@ function toOptions(key: string, values: readonly string[]): OptionItem[] {
 }
 
 function specToField(key: string, spec: SupportSpec, allSupports: Record<string, SupportSpec>): BaseConfigItem | null {
-  const labels = KEY_LABELS[key] ?? { title: key }
+  const labels = (KEY_LABELS as Record<string, { title: string; tooltip?: string }>)[key] ?? { title: key }
   switch (spec.type) {
     case 'switch':
       return { type: 'switch', key, ...labels, initialValue: spec.default ?? false }

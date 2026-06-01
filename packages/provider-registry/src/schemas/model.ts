@@ -13,13 +13,16 @@ import {
   VersionSchema,
   ZodCurrencySchema
 } from './common'
-import { MODALITY, MODEL_CAPABILITY, objectValues, REASONING_EFFORT } from './enums'
+import { CANONICAL_PARAM_KEY, MODALITY, MODEL_CAPABILITY, objectValues, REASONING_EFFORT } from './enums'
 
 export const ModalitySchema = z.enum(objectValues(MODALITY))
 export type ModalityType = z.infer<typeof ModalitySchema>
 
 export const ModelCapabilityTypeSchema = z.enum(objectValues(MODEL_CAPABILITY))
 export type ModelCapabilityType = z.infer<typeof ModelCapabilityTypeSchema>
+
+export const CanonicalParamKeySchema = z.enum(objectValues(CANONICAL_PARAM_KEY))
+export type CanonicalParamKeyType = z.infer<typeof CanonicalParamKeySchema>
 
 // Thinking token limits schema (shared across reasoning types)
 // min and max must be both present or both absent; when present, min <= max
@@ -129,18 +132,22 @@ export const SupportSpecSchema = z.discriminatedUnion('type', [
 
 /**
  * Per-mode model capability declaration. The renderer iterates `supports`
- * and dispatches `specToField` by `spec.type`; no per-vendor logic. Adding
- * a new canonical param across the codebase requires three steps: (1) pick
- * the canonical key (e.g. `'styleType'`), (2) add a label entry to
+ * and dispatches `specToField` by `spec.type`; no per-vendor logic. `supports`
+ * keys are drawn from the closed `CanonicalParamKey` vocabulary (see
+ * `CANONICAL_PARAM_KEY` in `enums.ts`) — an unknown key fails to parse, and
+ * the same vocabulary types the form's `KEY_LABELS`/`OPTION_LABELS` and
+ * `canonicalGenerate`'s `POSITIONAL_RENAME`, so a typo/rename is a compile or
+ * parse error rather than a silent raw-key render. Adding a new canonical
+ * param: (1) add the member to `CANONICAL_PARAM_KEY`, (2) add a label to
  * `KEY_LABELS` in `imageGenerationToFields`, (3) declare it on models'
- * `supports`. The schema itself does not enumerate canonical keys.
+ * `supports`.
  *
  * `vendorTransport` carries PPIO-style per-model endpoint routing — the
  * AI SDK adapter for that vendor reads endpoint + isSync off the registry
  * instead of a hand-maintained routing table.
  */
 const ImageModeDefSchema = z.object({
-  supports: z.record(z.string(), SupportSpecSchema),
+  supports: z.partialRecord(CanonicalParamKeySchema, SupportSpecSchema),
   vendorTransport: z
     .object({
       endpoint: z.string(),
