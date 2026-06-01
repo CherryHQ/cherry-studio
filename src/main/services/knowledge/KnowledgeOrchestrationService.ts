@@ -20,10 +20,12 @@ import { IpcChannel } from '@shared/IpcChannel'
 import { MetadataMode } from '@vectorstores/core'
 import { embedMany } from 'ai'
 
+import { createCheckFileProcessingResultJobHandler } from './jobs/checkFileProcessingResultJobHandler'
 import { createDeleteSubtreeJobHandler } from './jobs/deleteSubtreeJobHandler'
 import { createIndexDocumentsJobHandler } from './jobs/indexDocumentsJobHandler'
 import { createPrepareRootJobHandler } from './jobs/prepareRootJobHandler'
 import { createReindexSubtreeJobHandler } from './jobs/reindexSubtreeJobHandler'
+import { narrowKnowledgeJobInput } from './jobs/utils/jobInput'
 import { KnowledgeLockManager } from './KnowledgeLockManager'
 import { KnowledgeWorkflowService } from './KnowledgeWorkflowService'
 import { rerankKnowledgeSearchResults } from './rerank/rerank'
@@ -59,7 +61,7 @@ const KNOWLEDGE_JOB_TYPE_SET = new Set<string>(KNOWLEDGE_JOB_TYPES)
 
 @Injectable('KnowledgeOrchestrationService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['KnowledgeVectorStoreService', 'FileManager', 'JobManager'])
+@DependsOn(['KnowledgeVectorStoreService', 'FileManager', 'JobManager', 'FileProcessingOrchestrationService'])
 export class KnowledgeOrchestrationService extends BaseService {
   private readonly knowledgeLockManager = new KnowledgeLockManager()
   private readonly workflowService = new KnowledgeWorkflowService(this.knowledgeLockManager)
@@ -71,6 +73,10 @@ export class KnowledgeOrchestrationService extends BaseService {
       createPrepareRootJobHandler(this.knowledgeLockManager, this.workflowService)
     )
     jobManager.registerHandler('knowledge.index-documents', createIndexDocumentsJobHandler(this.knowledgeLockManager))
+    jobManager.registerHandler(
+      'knowledge.check-file-processing-result',
+      createCheckFileProcessingResultJobHandler(this.knowledgeLockManager, this.workflowService)
+    )
     jobManager.registerHandler('knowledge.delete-subtree', createDeleteSubtreeJobHandler(this.knowledgeLockManager))
     jobManager.registerHandler(
       'knowledge.reindex-subtree',
@@ -345,8 +351,15 @@ export class KnowledgeOrchestrationService extends BaseService {
       limit: KNOWLEDGE_ACTIVE_JOB_LIMIT
     })
     const jobsToCancel = activeJobs.filter((job) => KNOWLEDGE_JOB_TYPE_SET.has(job.type))
+    const linkedFileProcessingJobIds = activeJobs.flatMap((job) => {
+      const narrowed = narrowKnowledgeJobInput(job)
+      return narrowed?.type === 'knowledge.check-file-processing-result' ? [narrowed.input.fileProcessingJobId] : []
+    })
 
-    await Promise.all(jobsToCancel.map((job) => jobManager.cancel(job.id, 'delete-base')))
+    await Promise.all([
+      ...jobsToCancel.map((job) => jobManager.cancel(job.id, 'delete-base')),
+      ...linkedFileProcessingJobIds.map((jobId) => jobManager.cancel(jobId, 'delete-base'))
+    ])
   }
 
   private async recoverDeletingItems(): Promise<void> {

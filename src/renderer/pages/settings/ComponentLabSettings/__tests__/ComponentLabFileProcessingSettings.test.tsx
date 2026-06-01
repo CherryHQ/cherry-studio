@@ -11,7 +11,9 @@ import ComponentLabFileProcessingSettings from '../ComponentLabFileProcessingSet
 
 const selectFileMock = vi.hoisted(() => vi.fn())
 const ensureExternalEntryMock = vi.hoisted(() => vi.fn())
-const startTaskMock = vi.hoisted(() => vi.fn())
+const startJobMock = vi.hoisted(() => vi.fn())
+const useJobMock = vi.hoisted(() => vi.fn())
+const useJobProgressMock = vi.hoisted(() => vi.fn())
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -20,6 +22,12 @@ vi.mock('react-i18next', () => ({
   },
   useTranslation: () => ({
     t: (key: string, params?: Record<string, unknown>) => {
+      const translations: Record<string, string> = {
+        'settings.componentLab.fileProcessing.status.running': 'Running'
+      }
+      if (translations[key]) {
+        return translations[key]
+      }
       if (key === 'settings.componentLab.fileProcessing.processorCount') {
         return `${params?.count ?? 0} processors`
       }
@@ -33,8 +41,8 @@ vi.mock('@data/hooks/usePreference', () => ({
 }))
 
 vi.mock('@renderer/hooks/useJob', () => ({
-  useJob: () => ({ data: undefined, isTerminal: false }),
-  useJobProgress: () => ({ progress: 0 })
+  useJob: useJobMock,
+  useJobProgress: useJobProgressMock
 }))
 
 vi.mock('../../FileProcessingSettings/hooks/useAvailableFileProcessors', () => ({
@@ -87,14 +95,14 @@ const fileEntry = FileEntrySchema.parse({
 describe('ComponentLabFileProcessingSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    useJobMock.mockReturnValue({ data: undefined, isTerminal: false })
+    useJobProgressMock.mockReturnValue({ progress: 0 })
     selectFileMock.mockResolvedValue([selectedImage])
     ensureExternalEntryMock.mockResolvedValue(fileEntry)
-    startTaskMock.mockResolvedValue({
-      taskId: 'job-1',
-      feature: 'image_to_text',
-      processorId: 'tesseract',
-      status: 'pending',
-      progress: 0
+    startJobMock.mockResolvedValue({
+      id: 'job-1',
+      type: 'file-processing.background',
+      status: 'pending'
     })
     Object.defineProperty(window, 'api', {
       configurable: true,
@@ -104,7 +112,7 @@ describe('ComponentLabFileProcessingSettings', () => {
           ensureExternalEntry: ensureExternalEntryMock
         },
         fileProcessing: {
-          startTask: startTaskMock
+          startJob: startJobMock
         }
       }
     })
@@ -122,13 +130,39 @@ describe('ComponentLabFileProcessingSettings', () => {
     fireEvent.click(screen.getByRole('button', { name: /settings\.componentLab\.fileProcessing\.ocr\.start/ }))
 
     await waitFor(() => {
-      expect(startTaskMock).toHaveBeenCalledWith({
+      expect(startJobMock).toHaveBeenCalledWith({
         feature: 'image_to_text',
         fileEntryId: fileEntry.id,
         processorId: 'tesseract'
       })
     })
     expect(ensureExternalEntryMock).toHaveBeenCalledWith({ externalPath: '/tmp/scan.png' })
-    expect(startTaskMock.mock.calls[0][0]).not.toHaveProperty('file')
+    expect(startJobMock.mock.calls[0][0]).not.toHaveProperty('file')
+  })
+
+  it('renders active job status labels instead of raw i18n keys', async () => {
+    useJobMock.mockReturnValue({
+      data: {
+        id: 'job-1',
+        type: 'file-processing.background',
+        status: 'running',
+        output: null,
+        error: null
+      },
+      isTerminal: false
+    })
+
+    render(<ComponentLabFileProcessingSettings />)
+
+    fireEvent.click(screen.getByRole('button', { name: /settings\.componentLab\.fileProcessing\.ocr\.select/ }))
+
+    await waitFor(() => {
+      expect(screen.getByText('/tmp/scan.png')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: /settings\.componentLab\.fileProcessing\.ocr\.start/ }))
+
+    expect(await screen.findByText('Running')).toBeInTheDocument()
+    expect(screen.queryByText('settings.componentLab.fileProcessing.status.running')).not.toBeInTheDocument()
   })
 })

@@ -195,7 +195,7 @@ export enum IpcChannel {
   KnowledgeRuntime_ListItemChunks = 'knowledge-runtime:list-item-chunks',
   KnowledgeRuntime_DeleteItemChunk = 'knowledge-runtime:delete-item-chunk',
 
-  FileProcessing_StartTask = 'file-processing:start-task',
+  FileProcessing_StartJob = 'file-processing:start-job',
   FileProcessing_ListAvailableProcessors = 'file-processing:list-available-processors',
 
   //file

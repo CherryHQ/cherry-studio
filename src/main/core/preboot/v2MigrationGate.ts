@@ -10,12 +10,14 @@ import {
   setVersionIncompatible,
   unregisterMigrationIpcHandlers
 } from '@data/migration/v2'
+import { isSchemaOutOfSyncError } from '@data/migration/v2/core/migrationErrors'
 import {
   checkUpgradePathCompatibility,
   getBlockMessage,
   readPreviousVersion
 } from '@data/migration/v2/core/versionPolicy'
 import { loggerService } from '@logger'
+import { isDev } from '@main/core/platform'
 import { app, dialog } from 'electron'
 
 const logger = loggerService.withContext('V2MigrationGate')
@@ -96,6 +98,29 @@ export async function runV2MigrationGate(): Promise<V2MigrationGateResult> {
   } catch (error) {
     logger.error('Migration status check failed', error as Error)
     await app.whenReady()
+
+    // Dev-only: when the disposable migration SQL is regenerated/deleted but
+    // the local DB is kept, drizzle re-runs CREATE TABLE on objects that
+    // already exist and throws "... already exists". Guide the developer to
+    // reset the local DB instead of the generic connectivity message. Never
+    // auto-delete, and never surface this in production — real users must not
+    // be told to delete their database.
+    if (isDev && isSchemaOutOfSyncError(error)) {
+      dialog.showErrorBox(
+        'Database Schema Out of Sync (Dev)',
+        `During v2 development (before release), the database schema can change at any time. ` +
+          `Your local database no longer matches the bundled migration SQL, so startup migration cannot continue.\n\n` +
+          `To fix this, delete the local database, then restart:\n\n` +
+          `  ${paths.databaseFile}\n\n` +
+          `Or run:\n  rm -f "${paths.databaseFile}"\n\n` +
+          `Then start the app again (pnpm dev).\n\n` +
+          `Original error: ${(error as Error).message}`
+      )
+      logger.error('Exiting application due to schema out of sync (dev)')
+      application.quit()
+      return 'handled'
+    }
+
     dialog.showErrorBox(
       'Migration Status Check Failed - Application Cannot Start',
       `Could not determine if data migration is completed.\n\nThis may indicate a database connectivity issue: ${(error as Error).message}\n\nThe application will now exit. Please check your installation and try again.`

@@ -1056,7 +1056,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     const deleteMock = createDeleteMock()
 
     const result = await migrator.execute({
-      db: { delete: deleteMock }
+      db: { delete: deleteMock, all: vi.fn().mockResolvedValue([]) }
     } as any)
 
     expect(result).toEqual({
@@ -1086,7 +1086,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     })
 
     const result = await migrator.execute({
-      db: { transaction, delete: createDeleteMock() },
+      db: { transaction, delete: createDeleteMock(), all: vi.fn().mockResolvedValue([]) },
       sharedData: new Map()
     } as any)
 
@@ -1138,7 +1138,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     })
 
     const result = await migrator.execute({
-      db: { transaction, delete: createDeleteMock() },
+      db: { transaction, delete: createDeleteMock(), all: vi.fn().mockResolvedValue([]) },
       sharedData: new Map()
     } as any)
 
@@ -1183,7 +1183,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     const sharedData = new Map<string, unknown>()
 
     const result = await migrator.execute({
-      db: { transaction, delete: createDeleteMock() },
+      db: { transaction, delete: createDeleteMock(), all: vi.fn().mockResolvedValue([]) },
       sharedData
     } as any)
 
@@ -1215,7 +1215,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     const deleteMock = createDeleteMock()
 
     const result = await migrator.execute({
-      db: { transaction, delete: deleteMock },
+      db: { transaction, delete: deleteMock, all: vi.fn().mockResolvedValue([]) },
       sharedData: new Map()
     } as any)
 
@@ -1272,7 +1272,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     })
 
     const result = await migrator.execute({
-      db: { transaction, delete: createDeleteMock() },
+      db: { transaction, delete: createDeleteMock(), all: vi.fn().mockResolvedValue([]) },
       sharedData: new Map()
     } as any)
 
@@ -1341,7 +1341,7 @@ describe('KnowledgeMigrator execute/validate paths', () => {
     })
 
     const result = await migrator.execute({
-      db: { transaction, delete: createDeleteMock() }
+      db: { transaction, delete: createDeleteMock(), all: vi.fn().mockResolvedValue([]) }
     } as any)
 
     expect(result.success).toBe(false)
@@ -1470,7 +1470,7 @@ describe('KnowledgeMigrator file_ref creation', () => {
 
     return {
       sharedData,
-      db: { transaction, insert: outerInsert, delete: deleteMock },
+      db: { transaction, insert: outerInsert, delete: deleteMock, all: vi.fn().mockResolvedValue([]) },
       logger,
       insertedInsideTx,
       insertedOutsideTx,

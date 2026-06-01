@@ -11,6 +11,7 @@ v2-refactor-temp/
 ├── tools/                    # Refactor tooling
 │   └── data-classify/        # Data classification and code generation
 ├── docs/                     # Working notes
+│   ├── v2-todo.md            # Cross-cutting global v2-refactor TODO tracker
 │   ├── breaking-changes.md   # V2 breaking changes index
 │   └── breaking-changes/     # Individual breaking change records
 └── README.md                 # This file
@@ -27,6 +28,11 @@ v2-refactor-temp/
   - See [tools/data-classify/README.md](./tools/data-classify/README.md)
 
 ### Docs (`docs/`)
+
+- **v2-todo.md** — Cross-cutting global v2-refactor TODO tracker
+  - Tracks whole-refactor tasks only: v1 data-stack and UI-library teardown, migrator and schema finalization, removal-slated `@deprecated` sites, release cleanup
+  - Per-module fine-grained TODOs stay in their own docs and are not duplicated here
+  - See [docs/v2-todo.md](./docs/v2-todo.md)
 
 - **breaking-changes.md** — Index of v2 user-perceivable breaking changes
   - Any removed capability, incompatible data shape, migration downgrade, or user-visible behavior change should add an individual document and update this index

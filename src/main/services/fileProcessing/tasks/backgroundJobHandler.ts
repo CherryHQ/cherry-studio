@@ -1,20 +1,8 @@
-import { loggerService } from '@logger'
 import type { JobHandler } from '@main/core/job/types'
 
-import { resolveProcessorConfigByFeature } from '../config/resolveProcessorConfig'
-import type { PreparedBackgroundTask } from '../processors/types'
-import {
-  assertFileTypeSupported,
-  assertModeMatches,
-  cleanupFileProcessingResultsDir,
-  createArtifacts,
-  type FileProcessingJobOutput,
-  type FileProcessingJobPayload,
-  getCapabilityHandler,
-  resolveFileProcessingFileInfo
-} from './shared'
-
-const logger = loggerService.withContext('FileProcessing:BackgroundJobHandler')
+import { createFileProcessingJobOutput } from '../persistence/artifacts'
+import { prepareFileProcessingJob } from './jobExecution'
+import type { FileProcessingJobPayload } from './shared'
 
 /**
  * Handles capability handlers whose execution is a single awaited call against
@@ -38,42 +26,16 @@ export const backgroundJobHandler: JobHandler<FileProcessingJobPayload> = {
   defaultRetryPolicy: { maxAttempts: 1, backoff: 'none', baseDelayMs: 0, maxDelayMs: 0 },
   defaultTimeoutMs: 15 * 60_000,
   async execute(ctx) {
-    const { feature, fileEntryId, processorId } = ctx.input
-    const config = resolveProcessorConfigByFeature(feature, processorId)
-    const handler = getCapabilityHandler(config.id, feature)
-    assertModeMatches(handler, 'background')
-    const file = await resolveFileProcessingFileInfo(fileEntryId)
-    assertFileTypeSupported(file, feature, config)
+    const { prepared } = await prepareFileProcessingJob(ctx, 'background')
+    const output = await prepared.execute({
+      signal: ctx.signal,
+      reportProgress: (progress) => ctx.reportProgress(progress)
+    })
 
-    const prepared = await handler.prepare(file, config, ctx.signal, { fileEntryId })
-    assertModeMatches(prepared, 'background')
-    const background = prepared as PreparedBackgroundTask
-
-    let artifactsMayExist = false
-    try {
-      const output = await background.execute({
-        signal: ctx.signal,
-        reportProgress: (progress) => ctx.reportProgress(progress)
-      })
-
-      if (ctx.signal.aborted) {
-        throw new DOMException('aborted', 'AbortError')
-      }
-
-      artifactsMayExist = true
-      const artifacts = await createArtifacts(ctx.jobId, output, ctx.signal)
-      return { artifacts } satisfies FileProcessingJobOutput
-    } catch (error) {
-      if (artifactsMayExist) {
-        const cleaned = await cleanupFileProcessingResultsDir(ctx.jobId)
-        logger.warn('Background execution failed after artifacts may have been created', {
-          jobId: ctx.jobId,
-          processorId: config.id,
-          feature,
-          cleaned
-        })
-      }
-      throw error
+    if (ctx.signal.aborted) {
+      throw new DOMException('aborted', 'AbortError')
     }
+
+    return await createFileProcessingJobOutput(ctx, output)
   }
 }

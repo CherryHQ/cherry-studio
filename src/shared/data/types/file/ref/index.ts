@@ -38,6 +38,7 @@ import {
   chatMessageSourceType
 } from './chatMessage'
 import {
+  type KnowledgeItemFileRefRole,
   knowledgeItemFileRefSchema,
   knowledgeItemRefFields,
   knowledgeItemRoles,
@@ -69,7 +70,8 @@ import { tempSessionFileRefSchema, tempSessionRefFields, tempSessionRoles, tempS
  * - `temp_session` — transient paste/draft refs (`./tempSession.ts`).
  * - `chat_message` — refs from migrated chat message attachments (`./chatMessage.ts`).
  * - `knowledge_item` — refs from `knowledge_item` rows (`./knowledgeItem.ts`).
- *   `role='source'` marks the indexed source file.
+ *   `role='source'` marks the user-provided source file; `role='processed_artifact'`
+ *   marks a Cherry-owned derived file used for indexing.
  * - `painting` — refs from `painting` rows (`./painting.ts`), roles
  *   `output`/`input`. `PaintingService` owns ref removal on delete; ref
  *   creation is done by the separate v1→v2 file-data-migration PR (paintings
@@ -121,6 +123,7 @@ export {
   chatMessageRoles,
   chatMessageRoleSchema,
   chatMessageSourceType,
+  type KnowledgeItemFileRefRole,
   knowledgeItemFileRefSchema,
   knowledgeItemRefFields,
   knowledgeItemRoles,

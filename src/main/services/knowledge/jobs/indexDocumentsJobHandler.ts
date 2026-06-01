@@ -5,6 +5,8 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import type { JobContext, JobHandler } from '@main/core/job/types'
+import type { FileEntryId } from '@shared/data/types/file'
+import { FileEntryIdSchema } from '@shared/data/types/file'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 import type { KnowledgeLockManager } from '../KnowledgeLockManager'
@@ -60,7 +62,11 @@ export function createIndexDocumentsJobHandler(
       })
 
       // Read and chunk outside the base lock; these phases can be slow and do not mutate shared state.
-      const documents = await readItemDocuments(ctx, item)
+      const processedFileEntryId =
+        ctx.input.processedFileEntryId === undefined
+          ? undefined
+          : FileEntryIdSchema.parse(ctx.input.processedFileEntryId)
+      const documents = await readItemDocuments(ctx, item, processedFileEntryId)
       const chunks = chunkItemDocuments(base, item, documents)
 
       // Mark embedding separately so the UI reflects the current long-running phase.
@@ -121,10 +127,11 @@ async function loadIndexDocumentsInputOrSkip(
 
 async function readItemDocuments(
   ctx: JobContext<KnowledgeIndexDocumentsPayload>,
-  item: IndexableKnowledgeItem
+  item: IndexableKnowledgeItem,
+  fileEntryId?: FileEntryId
 ): Promise<LoadedDocuments> {
   ctx.signal.throwIfAborted()
-  return await loadKnowledgeItemDocuments(item, ctx.signal)
+  return await loadKnowledgeItemDocuments(item, ctx.signal, { fileEntryId })
 }
 
 function chunkItemDocuments(
