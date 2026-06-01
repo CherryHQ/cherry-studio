@@ -18,7 +18,6 @@ import * as z from 'zod'
 const KNOWLEDGE_BASE_MUTABLE_FIELDS = {
   name: true,
   groupId: true,
-  emoji: true,
   rerankModelId: true,
   fileProcessorId: true,
   chunkSize: true,

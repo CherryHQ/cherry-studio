@@ -58,7 +58,6 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   id: 'base-1',
   name: 'Base 1',
   groupId: null,
-  emoji: '📁',
   dimensions: 1536,
   embeddingModelId: 'openai::text-embedding-3-small',
   rerankModelId: undefined,

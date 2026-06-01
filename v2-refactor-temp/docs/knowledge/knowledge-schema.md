@@ -15,7 +15,6 @@ This document records the current V2 knowledge target schema, migration constrai
   - `id`
   - `name`
   - `groupId`
-  - `emoji`
   - `dimensions`
   - `embeddingModelId`
   - `status`

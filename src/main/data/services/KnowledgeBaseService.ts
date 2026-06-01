@@ -20,7 +20,6 @@ import {
   type CreateKnowledgeBaseDto,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
-  DEFAULT_KNOWLEDGE_BASE_EMOJI,
   DEFAULT_KNOWLEDGE_BASE_STATUS,
   DEFAULT_KNOWLEDGE_SEARCH_MODE,
   type KnowledgeBase,
@@ -130,7 +129,6 @@ export class KnowledgeBaseService {
     const createValues: Omit<typeof knowledgeBaseTable.$inferInsert, 'id' | 'createdAt' | 'updatedAt'> = {
       name: dto.name.trim(),
       groupId: dto.groupId ?? null,
-      emoji: dto.emoji ?? DEFAULT_KNOWLEDGE_BASE_EMOJI,
       dimensions: dto.dimensions,
       embeddingModelId: dto.embeddingModelId.trim(),
       status: DEFAULT_KNOWLEDGE_BASE_STATUS,
@@ -186,9 +184,6 @@ export class KnowledgeBaseService {
     }
     if (dto.groupId !== undefined && dto.groupId !== existing.groupId) {
       updates.groupId = dto.groupId
-    }
-    if (dto.emoji !== undefined && dto.emoji !== existing.emoji) {
-      updates.emoji = dto.emoji
     }
     if (dto.rerankModelId !== undefined && dto.rerankModelId !== existing.rerankModelId) {
       updates.rerankModelId = dto.rerankModelId

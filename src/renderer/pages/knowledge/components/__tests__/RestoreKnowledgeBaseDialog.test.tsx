@@ -93,7 +93,6 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   id: 'source-base',
   name: 'Legacy KB',
   groupId: 'group-1',
-  emoji: '📁',
   dimensions: null,
   embeddingModelId: null,
   rerankModelId: undefined,

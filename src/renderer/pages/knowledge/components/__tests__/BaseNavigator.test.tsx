@@ -242,7 +242,6 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): Kn
   name: '',
   itemCount: 0,
   groupId: null,
-  emoji: '📁',
   dimensions: 1536,
   embeddingModelId: null,
   rerankModelId: undefined,

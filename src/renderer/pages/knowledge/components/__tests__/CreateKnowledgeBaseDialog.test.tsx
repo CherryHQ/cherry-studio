@@ -99,7 +99,6 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   id: 'base-1',
   name: 'Base 1',
   groupId: null,
-  emoji: '📁',
   dimensions: 1024,
   embeddingModelId: 'openai::text-embedding-3-small',
   rerankModelId: undefined,
@@ -291,7 +290,6 @@ describe('CreateKnowledgeBaseDialog', () => {
     await waitFor(() =>
       expect(createBase).toHaveBeenCalledWith({
         name: 'My Base',
-        emoji: '📁',
         embeddingModelId: 'openai::text-embedding-3-small',
         dimensions: 1024
       })
@@ -345,7 +343,6 @@ describe('CreateKnowledgeBaseDialog', () => {
     await waitFor(() =>
       expect(createBase).toHaveBeenCalledWith({
         name: 'My Base',
-        emoji: '📁',
         groupId: 'group-2',
         embeddingModelId: 'openai::text-embedding-3-small',
         dimensions: 1024
@@ -375,7 +372,6 @@ describe('CreateKnowledgeBaseDialog', () => {
     await waitFor(() =>
       expect(createBase).toHaveBeenCalledWith({
         name: 'My Base',
-        emoji: '📁',
         groupId: 'group-2',
         embeddingModelId: 'openai::text-embedding-3-small',
         dimensions: 1024

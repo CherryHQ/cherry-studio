@@ -52,7 +52,6 @@ describe('KnowledgeBaseService', () => {
     const values: typeof knowledgeBaseTable.$inferInsert = {
       id: KNOWLEDGE_BASE_ID,
       name: 'Knowledge Base',
-      emoji: '📁',
       dimensions: 1536,
       embeddingModelId: createUniqueModelId('openai', 'embed-model'),
       status: 'completed',
@@ -198,7 +197,6 @@ describe('KnowledgeBaseService', () => {
       expect(result.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model'))
       expect(result.chunkSize).toBe(1024)
       expect(result.chunkOverlap).toBe(200)
-      expect(result.emoji).toBe('📁')
       expect(result.searchMode).toBe('hybrid')
       expect(result.status).toBe('completed')
       expect(result.error).toBeNull()
@@ -213,7 +211,6 @@ describe('KnowledgeBaseService', () => {
       expect(row.chunkOverlap).toBe(200)
       expect(row.threshold).toBeNull()
       expect(row.documentCount).toBeNull()
-      expect(row.emoji).toBe('📁')
       expect(row.searchMode).toBe('hybrid')
       expect(row.hybridAlpha).toBeNull()
       expect(row.status).toBe('completed')
@@ -338,7 +335,6 @@ describe('KnowledgeBaseService', () => {
 
       const result = await service.update(KNOWLEDGE_BASE_ID, {
         name: '  Updated Base  ',
-        emoji: '📚',
         chunkSize: 1024,
         chunkOverlap: 128,
         hybridAlpha: 0.9
@@ -348,13 +344,11 @@ describe('KnowledgeBaseService', () => {
       expect(result.chunkSize).toBe(1024)
       expect(result.chunkOverlap).toBe(128)
       expect(result.hybridAlpha).toBe(0.9)
-      expect(result.emoji).toBe('📚')
 
       const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
       expect(row.name).toBe('Updated Base')
       expect(row.chunkSize).toBe(1024)
       expect(row.chunkOverlap).toBe(128)
-      expect(row.emoji).toBe('📚')
     })
 
     it('should clear nullable processor and rerank config fields', async () => {

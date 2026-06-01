@@ -61,7 +61,6 @@ describe('orphanCheckerRegistry', () => {
       await dbh.db.insert(knowledgeBaseTable).values({
         id: 'kb-orphan-test',
         name: 'KB',
-        emoji: '📁',
         embeddingModelId: null,
         dimensions: 1024,
         status: 'failed',
@@ -147,7 +146,6 @@ describe('orphanCheckerRegistry', () => {
       await dbh.db.insert(knowledgeBaseTable).values({
         id: 'kb-retry-test',
         name: 'KB',
-        emoji: '📁',
         embeddingModelId: null,
         dimensions: 1024,
         status: 'failed',

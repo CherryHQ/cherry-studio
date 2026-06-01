@@ -303,7 +303,6 @@ vi.mock('../components/CreateKnowledgeBaseDialog', () => ({
     initialGroupId?: string
     createBase: (input: {
       name: string
-      emoji: string
       groupId?: string
       embeddingModelId: string | null
       dimensions: number
@@ -320,7 +319,6 @@ vi.mock('../components/CreateKnowledgeBaseDialog', () => ({
           onClick={async () => {
             const createdBase = await createBase({
               name: 'Base 2',
-              emoji: '📚',
               ...(initialGroupId ? { groupId: initialGroupId } : {}),
               embeddingModelId: 'openai::text-embedding-3-small',
               dimensions: 1536
@@ -476,7 +474,6 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): Kn
   name: '',
   itemCount: 0,
   groupId: null,
-  emoji: '📁',
   dimensions: 1536,
   embeddingModelId: null,
   rerankModelId: undefined,
@@ -1090,7 +1087,7 @@ describe('KnowledgePage', () => {
 
   it('opens the create dialog, passes groups through, and selects the newly created knowledge base after success', async () => {
     const firstBase = createKnowledgeBase({ id: 'base-1', name: 'Base 1' })
-    const secondBase = createKnowledgeBase({ id: 'base-2', name: 'Base 2', emoji: '📚' })
+    const secondBase = createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
     let bases = [firstBase]
     const createBase = vi.fn().mockResolvedValue(secondBase)
 
@@ -1136,7 +1133,7 @@ describe('KnowledgePage', () => {
 
   it('falls back when a newly created base is missing after the base list refreshes', async () => {
     const firstBase = createKnowledgeBase({ id: 'base-1', name: 'Base 1' })
-    const createdBase = createKnowledgeBase({ id: 'base-2', name: 'Base 2', emoji: '📚' })
+    const createdBase = createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
     let bases = [firstBase]
     const createBase = vi.fn().mockResolvedValue(createdBase)
 
@@ -1168,7 +1165,7 @@ describe('KnowledgePage', () => {
   })
 
   it('opens the create dialog with the selected group id from a group action', async () => {
-    const createdBase = createKnowledgeBase({ id: 'base-2', name: 'Base 2', emoji: '📚', groupId: 'group-2' })
+    const createdBase = createKnowledgeBase({ id: 'base-2', name: 'Base 2', groupId: 'group-2' })
     const createBase = vi.fn().mockResolvedValue(createdBase)
 
     mockUseKnowledgeBases.mockReturnValue({
@@ -1325,7 +1322,7 @@ describe('KnowledgePage', () => {
   })
 
   it('clears the initial group id after closing a grouped create dialog', async () => {
-    const createBase = vi.fn().mockResolvedValue(createKnowledgeBase({ id: 'base-2', name: 'Base 2', emoji: '📚' }))
+    const createBase = vi.fn().mockResolvedValue(createKnowledgeBase({ id: 'base-2', name: 'Base 2' }))
 
     mockUseKnowledgeBases.mockReturnValue({
       bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],

@@ -160,6 +160,7 @@ vi.mock('react-i18next', () => ({
             'knowledge.data_source.delete_confirm_description': '删除后将无法恢复该数据源及其索引数据。',
             'knowledge.data_source.delete_confirm_title': '确认删除数据源',
             'knowledge.data_source.delete_failed': '删除数据源失败',
+            'knowledge.data_source.reindex_failed': '重新索引数据源失败',
             'knowledge.data_source.empty_description': '暂无数据源',
             'knowledge.data_source.filters.all': '全部',
             'knowledge.data_source.filters.file': '文件',
@@ -635,6 +636,91 @@ describe('DataSourcePanel', () => {
     await waitFor(() => {
       expect(onReindex).toHaveBeenCalledWith(expect.objectContaining({ id: 'file-1' }))
     })
+  })
+
+  it('shows bulk reindex failure toast and keeps the current selection when reindex rejects', async () => {
+    const onReindex = vi.fn().mockRejectedValue(new Error('reindex failed'))
+
+    render(
+      <DataSourcePanel
+        items={[
+          createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
+          createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
+        ]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={onReindex}
+      />
+    )
+
+    fireEvent.click(screen.getAllByRole('checkbox', { name: '选择行' })[0])
+    fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('重新索引数据源失败: reindex failed')
+    })
+    expect(screen.getByText('已选 1 项')).toBeInTheDocument()
+  })
+
+  it('clears the current selection after bulk reindex succeeds', async () => {
+    const onReindex = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <DataSourcePanel
+        items={[
+          createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
+          createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
+        ]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={onReindex}
+      />
+    )
+
+    fireEvent.click(screen.getAllByRole('checkbox', { name: '选择行' })[0])
+    fireEvent.click(screen.getByRole('button', { name: '重新索引' }))
+
+    await waitFor(() => {
+      expect(onReindex).toHaveBeenCalledWith(expect.objectContaining({ id: 'file-1' }))
+    })
+    await waitFor(() => {
+      expect(screen.queryByText('已选 1 项')).not.toBeInTheDocument()
+    })
+  })
+
+  it('prunes selected item ids when the backing item list changes', async () => {
+    const { rerender } = render(
+      <DataSourcePanel
+        items={[
+          createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
+          createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
+        ]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getAllByRole('checkbox', { name: '选择行' })[0])
+    expect(screen.getByText('已选 1 项')).toBeInTheDocument()
+
+    rerender(
+      <DataSourcePanel
+        items={[createFileItem({ id: 'file-2', originName: '会议记录.pdf' })]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.queryByText('已选 1 项')).not.toBeInTheDocument()
+    })
+    expect(screen.getByText('已就绪 1/1')).toBeInTheDocument()
   })
 
   it('does not forward menu actions as row clicks', async () => {

@@ -1893,13 +1893,6 @@
           "notNull": false,
           "autoincrement": false
         },
-        "emoji": {
-          "name": "emoji",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "dimensions": {
           "name": "dimensions",
           "type": "integer",

@@ -16,7 +16,7 @@ import type { KnowledgeSelectOption } from '@renderer/pages/knowledge/types'
 import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { Group } from '@shared/data/types/group'
-import type { CreateKnowledgeBaseDto, KnowledgeBase, KnowledgeBaseEmoji } from '@shared/data/types/knowledge'
+import type { CreateKnowledgeBaseDto, KnowledgeBase } from '@shared/data/types/knowledge'
 import { isUniqueModelId, MODEL_CAPABILITY, parseUniqueModelId } from '@shared/data/types/model'
 import type { FormEvent, ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
@@ -39,19 +39,15 @@ interface CreateKnowledgeBaseDialogProps {
   onCreated: (base: KnowledgeBase) => void
 }
 
-const DEFAULT_EMOJI: KnowledgeBaseEmoji = '📁'
 export const KNOWLEDGE_BASE_DEFAULT_DIMENSIONS = 1024
 
-type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId' | 'embeddingModelId' | 'dimensions'> & {
-  emoji: KnowledgeBaseEmoji
-}
+type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId' | 'embeddingModelId' | 'dimensions'>
 type CreateKnowledgeBaseFormValues = Omit<CreateKnowledgeBaseInput, 'dimensions' | 'embeddingModelId'> & {
   embeddingModelId: string | null
 }
 
 const createInitialInput = (groupId?: string): CreateKnowledgeBaseFormValues => ({
   name: '',
-  emoji: DEFAULT_EMOJI,
   groupId,
   embeddingModelId: null
 })
@@ -162,7 +158,6 @@ const CreateKnowledgeBaseDialogRoot = ({
 
     const createInput: CreateKnowledgeBaseInput = {
       name: values.name,
-      emoji: values.emoji,
       embeddingModelId: values.embeddingModelId,
       dimensions: KNOWLEDGE_BASE_DEFAULT_DIMENSIONS
     }

@@ -2,7 +2,7 @@ import { Button, ConfirmDialog } from '@cherrystudio/ui'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeItem, KnowledgeItemType } from '@shared/data/types/knowledge'
 import type { ChangeEvent, DragEvent } from 'react'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
@@ -104,6 +104,15 @@ const DataSourcePanel = ({
     [filteredByType, searchQuery]
   )
 
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      const itemIds = new Set(items.map((item) => item.id))
+      const next = new Set([...prev].filter((itemId) => itemIds.has(itemId)))
+
+      return next.size === prev.size ? prev : next
+    })
+  }, [items])
+
   const readyCount = useMemo(() => getReadyCount(items), [items])
   const supportedFileHint = t('knowledge.file_hint', { file_types: KNOWLEDGE_SUPPORTED_FILE_TYPES })
   const shouldShowFooterDropzone = !isLoading && items.length === 0 && activeFilter === 'file'
@@ -135,9 +144,14 @@ const DataSourcePanel = ({
 
   const handleBulkReindex = useCallback(async () => {
     const targets = items.filter((item) => selectedIds.has(item.id))
-    await Promise.allSettled(targets.map((item) => onReindex(item)))
+    try {
+      await Promise.all(targets.map((item) => onReindex(item)))
+    } catch (error) {
+      window.toast.error(formatErrorMessageWithPrefix(error, t('knowledge.data_source.reindex_failed')))
+      return
+    }
     setSelectedIds(new Set())
-  }, [items, onReindex, selectedIds])
+  }, [items, onReindex, selectedIds, t])
 
   const handleBulkDelete = useCallback(async () => {
     const targets = items.filter((item) => selectedIds.has(item.id))
