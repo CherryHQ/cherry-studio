@@ -1,3 +1,4 @@
+import { loggerService } from '@logger'
 import { useModels } from '@renderer/hooks/useModels'
 import { useProviders } from '@renderer/hooks/useProviders'
 import type { Model } from '@shared/data/types/model'
@@ -14,6 +15,8 @@ interface OvmsState {
 }
 
 const DEFAULT_OVMS_STATE: OvmsState = { supported: false, status: 'not-running' }
+
+const logger = loggerService.withContext('usePaintingProviderOptions')
 
 let cachedOvmsState: OvmsState | undefined
 let inflightOvmsPromise: Promise<OvmsState> | undefined
@@ -77,9 +80,14 @@ export function usePaintingProviderOptions(): string[] {
   useEffect(() => {
     if (cachedOvmsState) return
     let cancelled = false
-    void loadOvmsState().then((state) => {
-      if (!cancelled) setOvmsState(state)
-    })
+    loadOvmsState()
+      .then((state) => {
+        if (!cancelled) setOvmsState(state)
+      })
+      .catch((error) => {
+        logger.warn('Failed to load OVMS state', error)
+        if (!cancelled) setOvmsState(DEFAULT_OVMS_STATE)
+      })
     return () => {
       cancelled = true
     }
