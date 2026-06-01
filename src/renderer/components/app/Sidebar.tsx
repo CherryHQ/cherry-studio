@@ -76,7 +76,8 @@ function resolveActiveItem(pathname: string): SidebarIconType | '' {
 }
 
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+  const language = i18n.language
   const [userName] = usePreference('app.user.name')
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
   const { activeTab, updateTab, openTab } = useTabs()
@@ -121,12 +122,12 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         return [
           {
             id: icon,
-            label: getSidebarIconLabel(icon),
+            label: getSidebarIconLabel(icon, t, language),
             icon: Icon
           }
         ]
       }),
-    [defaultPaintingProvider, visibleSidebarIcons]
+    [defaultPaintingProvider, language, t, visibleSidebarIcons]
   )
 
   const activeItem = resolveActiveItem(pathname)

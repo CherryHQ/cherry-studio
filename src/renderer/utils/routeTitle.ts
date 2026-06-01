@@ -1,4 +1,5 @@
 import i18n from '@renderer/i18n'
+import type { TFunction } from 'i18next'
 
 /** Base URL for parsing relative route paths */
 const BASE_URL = 'https://www.cherry-ai.com/'
@@ -24,6 +25,8 @@ const routeTitleKeys: Record<string, string> = {
   '/settings': 'title.settings'
 }
 
+const autoLocalizableBasePaths = new Set(['/app/paintings'])
+
 /**
  * Get the base path for route matching
  * For /app/* routes, returns first two segments (e.g., '/app/chat')
@@ -48,19 +51,23 @@ function getBasePath(pathname: string): string {
  * getDefaultRouteTitle('/app/chat/abc123') // '助手'
  * getDefaultRouteTitle('/unknown') // 'unknown'
  */
-export function getDefaultRouteTitle(url: string): string {
+function translateRouteTitle(t: TFunction, key: string, language?: string): string {
+  return language ? t(key, { lng: language }) : t(key)
+}
+
+export function getDefaultRouteTitle(url: string, t: TFunction = i18n.t, language?: string): string {
   const sanitizedUrl = new URL(url, BASE_URL).pathname
 
   // Try exact match first
   const exactKey = routeTitleKeys[sanitizedUrl]
   if (exactKey) {
-    return i18n.t(exactKey)
+    return translateRouteTitle(t, exactKey, language)
   }
 
   // Try matching base path
   const baseKey = routeTitleKeys[getBasePath(sanitizedUrl)]
   if (baseKey) {
-    return i18n.t(baseKey)
+    return translateRouteTitle(t, baseKey, language)
   }
 
   // Fallback to last segment of pathname
@@ -87,4 +94,13 @@ export function getRouteTitleKey(url: string): string | undefined {
 export function isTopLevelRoute(url: string): boolean {
   const pathname = new URL(url, BASE_URL).pathname
   return routeTitleKeys[pathname] !== undefined
+}
+
+/**
+ * True when TabsContext can safely refresh the title from the route's default
+ * i18n key after language changes.
+ */
+export function shouldAutoLocalizeRouteTitle(url: string): boolean {
+  const pathname = new URL(url, BASE_URL).pathname
+  return isTopLevelRoute(url) || pathname.startsWith('/settings') || autoLocalizableBasePaths.has(getBasePath(pathname))
 }

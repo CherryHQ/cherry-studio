@@ -8,17 +8,26 @@ import { loggerService } from '@logger'
 import type { AgentType, BuiltinMCPServerName, BuiltinOcrProviderId } from '@renderer/types'
 import { BuiltinMCPServerNames } from '@renderer/types'
 import { SHORTCUT_DEFINITIONS, type ShortcutLabelKey } from '@shared/shortcuts/definitions'
+import type { TFunction } from 'i18next'
 
 import i18n from './index'
 
-const t = i18n.t
-
 const logger = loggerService.withContext('i18n:label')
 
-const getLabel = (keyMap: Record<string, string>, key: string, fallback?: string) => {
+const translateLabel = (t: TFunction, key: string, language?: string) => {
+  return language ? t(key, { lng: language }) : t(key)
+}
+
+const getLabel = (
+  keyMap: Record<string, string>,
+  key: string,
+  fallback?: string,
+  t: TFunction = i18n.t,
+  language?: string
+) => {
   const result = keyMap[key]
   if (result) {
-    return t(result)
+    return translateLabel(t, result, language)
   } else {
     logger.error(`Missing key ${key}`)
     return fallback ?? key
@@ -203,8 +212,8 @@ const sidebarIconKeyMap = {
   openclaw: 'openclaw.title'
 } as const
 
-export const getSidebarIconLabel = (key: string): string => {
-  return getLabel(sidebarIconKeyMap, key)
+export const getSidebarIconLabel = (key: string, t?: TFunction, language?: string): string => {
+  return getLabel(sidebarIconKeyMap, key, undefined, t, language)
 }
 
 const shortcutLabelKeyMap = Object.fromEntries(
@@ -339,7 +348,7 @@ const builtInMcpDescriptionKeyMap: Record<BuiltinMCPServerName, string> = {
 } as const
 
 export const getBuiltInMcpServerDescriptionLabel = (key: string): string => {
-  return getLabel(builtInMcpDescriptionKeyMap, key, t('settings.mcp.builtinServersDescriptions.no'))
+  return getLabel(builtInMcpDescriptionKeyMap, key, i18n.t('settings.mcp.builtinServersDescriptions.no'))
 }
 
 const builtinOcrProviderKeyMap = {
