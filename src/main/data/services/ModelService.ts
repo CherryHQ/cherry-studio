@@ -27,7 +27,7 @@ import type {
   RuntimeParameterSupport,
   RuntimeReasoning
 } from '@shared/data/types/model'
-import { createUniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 import type { ReasoningFormatType } from '@shared/data/types/provider'
 import { and, asc, eq, inArray, type SQL } from 'drizzle-orm'
 
@@ -36,13 +36,15 @@ const logger = loggerService.withContext('DataApi:ModelService')
 /**
  * Resolve the effective capability set for a Model row at query-time.
  *
- * Mirrors `applyPresetAndOverride`'s capability semantics (force replaces
- * entirely; add unions in; remove subtracts) so the read-time enrichment
- * stays consistent with the at-rest user_model row written at add-time.
- *
- * Anchors the union on existing user-row capabilities so a model the user
- * explicitly tagged stays tagged, even when the registry preset doesn't
- * carry that capability.
+ * Anchored on the at-rest user-row capabilities so the user's explicit
+ * capability edits — including removals — survive each read. The ONLY preset
+ * capability unioned in is `image-generation`: the painting model filter must
+ * pick a model up even when the provider's `/models` endpoint shipped it
+ * untagged (e.g. cherryin returning `qwen/qwen-image-edit-2509(free)` with no
+ * capability field). Other preset capabilities are NOT re-added at read time —
+ * doing so would silently resurrect any capability the user removed. Registry
+ * `override.capabilities` still applies (force replaces; add unions; remove
+ * subtracts), matching `applyPresetAndOverride` add-time semantics.
  */
 function resolveCapabilities(
   presetCapabilities: readonly ModelCapability[] | undefined,
@@ -52,7 +54,10 @@ function resolveCapabilities(
   if (overrideCapabilities?.force) {
     return [...overrideCapabilities.force]
   }
-  const set = new Set<ModelCapability>([...userCapabilities, ...(presetCapabilities ?? [])])
+  const set = new Set<ModelCapability>(userCapabilities)
+  if (presetCapabilities?.includes(MODEL_CAPABILITY.IMAGE_GENERATION)) {
+    set.add(MODEL_CAPABILITY.IMAGE_GENERATION)
+  }
   if (overrideCapabilities?.add) {
     for (const c of overrideCapabilities.add) set.add(c)
   }
@@ -374,6 +379,13 @@ class ModelService {
     // filter still picks it up. `override.capabilities.force` replaces; `add`
     // adds; `remove` subtracts — matches `applyPresetAndOverride` semantics at
     // add-time, so re-fetching models stays idempotent with the at-rest row.
+    // Memoize the per-provider reasoning config so a list of N models in the
+    // same provider resolves it once instead of issuing N identical
+    // `getByProviderId` reads (the painting model picker lists one provider).
+    const reasoningConfigCache = new Map<
+      string,
+      { defaultChatEndpoint?: EndpointType; reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>> }
+    >()
     models = await Promise.all(
       models.map(async (model) => {
         const presetId = model.presetModelId ?? model.apiModelId
@@ -381,7 +393,8 @@ class ModelService {
         try {
           const { presetModel, registryOverride } = await providerRegistryService.lookupModel(
             model.providerId,
-            presetId
+            presetId,
+            reasoningConfigCache
           )
           const imageGeneration = registryOverride?.imageGeneration ?? presetModel?.imageGeneration
           const capabilities = resolveCapabilities(

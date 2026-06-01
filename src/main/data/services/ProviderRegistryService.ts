@@ -516,7 +516,11 @@ class ProviderRegistryService {
    */
   async lookupModel(
     providerId: string,
-    modelId: string
+    modelId: string,
+    reasoningConfigCache?: Map<
+      string,
+      { defaultChatEndpoint?: EndpointType; reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>> }
+    >
   ): Promise<{
     presetModel: ProtoModelConfig | null
     registryOverride: ProtoProviderModelOverride | null
@@ -526,7 +530,14 @@ class ProviderRegistryService {
     const loader = this.getLoader()
     const registryOverride = loader.findOverride(providerId, modelId)
     const presetModel = loader.findModel(registryOverride?.modelId ?? modelId)
-    const reasoningConfig = await this.getEffectiveReasoningConfig(providerId)
+    // `getEffectiveReasoningConfig` reads the provider row from the DB; when an
+    // optional cache is supplied (batch enrichment in `ModelService.list`),
+    // resolve it once per provider instead of once per model.
+    let reasoningConfig = reasoningConfigCache?.get(providerId)
+    if (!reasoningConfig) {
+      reasoningConfig = await this.getEffectiveReasoningConfig(providerId)
+      reasoningConfigCache?.set(providerId, reasoningConfig)
+    }
 
     return { presetModel, registryOverride, ...reasoningConfig }
   }
