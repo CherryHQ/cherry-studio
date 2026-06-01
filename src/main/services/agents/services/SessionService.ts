@@ -16,7 +16,13 @@ import {
 import { and, asc, count, desc, eq, isNull, type SQL, sql } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
-import { agentsTable, type InsertSessionRow, type SessionRow, sessionsTable } from '../database/schema'
+import {
+  agentsTable,
+  type InsertSessionRow,
+  sessionMessagesTable,
+  type SessionRow,
+  sessionsTable
+} from '../database/schema'
 import type { AgentModelField } from '../errors'
 import { builtinSlashCommands } from './claudecode/commands'
 
@@ -316,11 +322,25 @@ export class SessionService extends BaseService {
 
   async deleteSession(agentId: string, id: string): Promise<boolean> {
     const database = await this.getDatabase()
-    const result = await database
-      .delete(sessionsTable)
-      .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))
 
-    return result.rowsAffected > 0
+    return await database.transaction(async (tx) => {
+      const session = await tx
+        .select({ id: sessionsTable.id })
+        .from(sessionsTable)
+        .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))
+        .limit(1)
+
+      if (!session[0]) {
+        return false
+      }
+
+      await tx.delete(sessionMessagesTable).where(eq(sessionMessagesTable.session_id, id))
+      const result = await tx
+        .delete(sessionsTable)
+        .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))
+
+      return result.rowsAffected > 0
+    })
   }
 
   async reorderSessions(agentId: string, orderedIds: string[]): Promise<void> {

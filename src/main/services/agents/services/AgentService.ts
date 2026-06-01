@@ -10,7 +10,7 @@ import type {
   UpdateAgentResponse
 } from '@types'
 import { AgentBaseSchema } from '@types'
-import { and, asc, count, desc, eq, isNull, min } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, isNull, min } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import {
@@ -20,6 +20,7 @@ import {
   channelsTable,
   type InsertAgentRow,
   scheduledTasksTable,
+  sessionMessagesTable,
   sessionsTable
 } from '../database/schema'
 import type { AgentModelField } from '../errors'
@@ -560,8 +561,17 @@ export class AgentService extends BaseService {
       const now = new Date().toISOString()
 
       await database.transaction(async (tx) => {
+        const sessions = await tx
+          .select({ id: sessionsTable.id })
+          .from(sessionsTable)
+          .where(eq(sessionsTable.agent_id, id))
+        const sessionIds = sessions.map((session) => session.id)
+
         await tx.delete(agentSkillsTable).where(eq(agentSkillsTable.agent_id, id))
         await tx.delete(scheduledTasksTable).where(eq(scheduledTasksTable.agent_id, id))
+        if (sessionIds.length > 0) {
+          await tx.delete(sessionMessagesTable).where(inArray(sessionMessagesTable.session_id, sessionIds))
+        }
         await tx.delete(sessionsTable).where(eq(sessionsTable.agent_id, id))
         await tx.update(channelsTable).set({ agentId: null }).where(eq(channelsTable.agentId, id))
         await tx.update(agentsTable).set({ deleted_at: now, updated_at: now }).where(eq(agentsTable.id, id))
@@ -570,7 +580,22 @@ export class AgentService extends BaseService {
       return true
     }
 
-    const result = await database.delete(agentsTable).where(eq(agentsTable.id, id))
+    const result = await database.transaction(async (tx) => {
+      const sessions = await tx
+        .select({ id: sessionsTable.id })
+        .from(sessionsTable)
+        .where(eq(sessionsTable.agent_id, id))
+      const sessionIds = sessions.map((session) => session.id)
+
+      await tx.delete(agentSkillsTable).where(eq(agentSkillsTable.agent_id, id))
+      await tx.delete(scheduledTasksTable).where(eq(scheduledTasksTable.agent_id, id))
+      if (sessionIds.length > 0) {
+        await tx.delete(sessionMessagesTable).where(inArray(sessionMessagesTable.session_id, sessionIds))
+      }
+      await tx.delete(sessionsTable).where(eq(sessionsTable.agent_id, id))
+
+      return await tx.delete(agentsTable).where(eq(agentsTable.id, id))
+    })
 
     return result.rowsAffected > 0
   }

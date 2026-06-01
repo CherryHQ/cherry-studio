@@ -69,6 +69,7 @@ vi.mock('../../skills/SkillService', () => ({
   }
 }))
 
+import { agentsTable, sessionMessagesTable, sessionsTable } from '../../database/schema'
 import { AgentService } from '../AgentService'
 
 function createSelectQuery(rows: unknown[]) {
@@ -77,6 +78,14 @@ function createSelectQuery(rows: unknown[]) {
       where: vi.fn(() => ({
         limit: vi.fn().mockResolvedValue(rows)
       }))
+    }))
+  }
+}
+
+function createSelectWhereQuery(rows: unknown[]) {
+  return {
+    from: vi.fn(() => ({
+      where: vi.fn().mockResolvedValue(rows)
     }))
   }
 }
@@ -113,10 +122,11 @@ describe('AgentService built-in agent lifecycle', () => {
     const updateWhere = vi.fn().mockResolvedValue(undefined)
     const txUpdateSet = vi.fn(() => ({ where: updateWhere }))
     const txUpdate = vi.fn(() => ({ set: txUpdateSet }))
+    const txSelect = vi.fn(() => createSelectWhereQuery([{ id: 'session-1' }]))
     const database = {
       select: vi.fn(() => createSelectQuery([{ id: 'cherry-claw-default', deleted_at: null }])),
       transaction: vi.fn(async (callback: (tx: unknown) => Promise<void>) =>
-        callback({ delete: txDelete, update: txUpdate })
+        callback({ delete: txDelete, select: txSelect, update: txUpdate })
       ),
       delete: vi.fn(() => ({ where: deleteWhere }))
     }
@@ -127,7 +137,8 @@ describe('AgentService built-in agent lifecycle', () => {
 
     expect(deleted).toBe(true)
     expect(database.transaction).toHaveBeenCalledTimes(1)
-    expect(txDelete).toHaveBeenCalledTimes(3)
+    expect(txDelete).toHaveBeenCalledTimes(4)
+    expect(txDelete).toHaveBeenCalledWith(sessionMessagesTable)
     expect(txUpdate).toHaveBeenCalledTimes(2)
     expect(database.delete).not.toHaveBeenCalled()
     expect(txUpdateSet).toHaveBeenCalledWith(expect.objectContaining({ agentId: null }))
@@ -137,5 +148,27 @@ describe('AgentService built-in agent lifecycle', () => {
         updated_at: expect.any(String)
       })
     )
+  })
+
+  it('deletes regular agents with their sessions and session messages', async () => {
+    const deleteWhere = vi.fn().mockResolvedValue({ rowsAffected: 1 })
+    const txDelete = vi.fn(() => ({ where: deleteWhere }))
+    const txSelect = vi.fn(() => createSelectWhereQuery([{ id: 'session-1' }]))
+    const database = {
+      select: vi.fn(() => createSelectQuery([{ id: 'agent-1', deleted_at: null }])),
+      transaction: vi.fn(async (callback: (tx: unknown) => Promise<{ rowsAffected: number }>) =>
+        callback({ delete: txDelete, select: txSelect })
+      )
+    }
+
+    vi.spyOn(service as never, 'getDatabase').mockResolvedValue(database as never)
+
+    const deleted = await service.deleteAgent('agent-1')
+
+    expect(deleted).toBe(true)
+    expect(database.transaction).toHaveBeenCalledTimes(1)
+    expect(txDelete).toHaveBeenCalledWith(sessionMessagesTable)
+    expect(txDelete).toHaveBeenCalledWith(sessionsTable)
+    expect(txDelete).toHaveBeenCalledWith(agentsTable)
   })
 })
