@@ -23,18 +23,18 @@ const { isActiveProviderRegistryModelMock, lookupModelMock } = vi.hoisted(() => 
   // `list()` enriches every row by calling `lookupModel`. Default to an
   // empty registry hit (no preset / override) so the enrichment is a no-op
   // unless a test opts in; individual tests override per (providerId, modelId).
-  lookupModelMock: vi.fn(
-    async (
-      _providerId: string,
-      _modelId: string
-    ): Promise<{
+  lookupModelMock: vi.fn<
+    (
+      providerId: string,
+      modelId: string
+    ) => Promise<{
       presetModel: { id?: string; capabilities?: string[]; imageGeneration?: unknown } | null
       registryOverride: {
         capabilities?: { force?: string[]; add?: string[]; remove?: string[] }
         imageGeneration?: unknown
       } | null
-    }> => ({ presetModel: null, registryOverride: null })
-  )
+    }>
+  >(async () => ({ presetModel: null, registryOverride: null }))
 }))
 
 vi.mock('@data/services/ProviderRegistryService', async (importOriginal) => {
