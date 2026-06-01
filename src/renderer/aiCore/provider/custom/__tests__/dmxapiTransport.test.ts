@@ -4,7 +4,7 @@ import { createDmxapiTransport } from '../dmxapi/dmxapiTransport'
 
 vi.mock('i18next', () => ({
   default: {
-    t: (key: string) => (key === 'paintings.dmxapi.style' ? ', Style: ' : key)
+    t: (key: string) => key
   }
 }))
 
