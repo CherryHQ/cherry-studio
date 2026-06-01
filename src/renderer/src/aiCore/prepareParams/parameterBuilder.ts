@@ -212,7 +212,7 @@ export async function buildStreamTextParams(
     temperature: getTemperature(assistant, model),
     topP: getTopP(assistant, model),
     // Include AI SDK standard params extracted from custom parameters
-    // (filtered to drop ones the model rejects, e.g. topK on Claude Opus 4.7)
+    // (filtered to drop ones the model rejects, e.g. topK on Claude Opus 4.7+)
     ...filterStandardParams(standardParams, model),
     abortSignal: finalSignal,
     headers,
