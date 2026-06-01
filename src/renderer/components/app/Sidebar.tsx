@@ -35,7 +35,7 @@ const noop = () => {}
 const routePrefixMap: Record<SidebarIconType, string> = {
   assistants: '/app/chat',
   agents: '/app/agents',
-  store: '/app/assistant',
+  store: '/app/library',
   paintings: '/app/paintings',
   translate: '/app/translate',
   mini_app: '/app/mini-app',

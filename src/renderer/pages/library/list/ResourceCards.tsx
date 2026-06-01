@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next'
 
 import { RESOURCE_TYPE_META } from '../constants'
 import type { ResourceItem } from '../types'
+import { AssistantPresetIcon } from './AssistantPresetIcon'
 import { type AssistantCatalogPreset, getAssistantPresetCatalogKey } from './useAssistantPresetCatalog'
 
 function getPresetSummary(preset: AssistantCatalogPreset) {
@@ -128,7 +129,7 @@ function AssistantPresetGridCard({ preset, adding, onAdd, onPreview }: Assistant
       onClick={() => onPreview(preset)}>
       <div className="mb-3 flex items-start gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xs bg-accent/55 text-base">
-          {preset.emoji || '🤖'}
+          <AssistantPresetIcon preset={preset} />
         </div>
         <div className="min-w-0 flex-1">
           <h4 className="truncate text-foreground text-sm">{preset.name}</h4>

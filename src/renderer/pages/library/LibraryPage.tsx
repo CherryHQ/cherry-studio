@@ -1,7 +1,10 @@
 import { Alert, Button } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
+import { useModels } from '@renderer/hooks/useModels'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
 import type { AgentDetail, InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
+import type { UniqueModelId } from '@shared/data/types/model'
 import type { Prompt } from '@shared/data/types/prompt'
 import type { Tag } from '@shared/data/types/tag'
 import { useNavigate, useSearch } from '@tanstack/react-router'
@@ -21,6 +24,7 @@ import { DeleteConfirmDialog } from './list/DeleteConfirmDialog'
 import { ImportAssistantDialog } from './list/ImportAssistantDialog'
 import { ImportSkillDialog } from './list/ImportSkillDialog'
 import { LibrarySidebar } from './list/LibrarySidebar'
+import { resolveVendorModel } from './list/officialVendorResolver'
 import { ResourceGrid } from './list/ResourceGrid'
 import {
   ASSISTANT_CATALOG_MY_TAB,
@@ -114,6 +118,11 @@ export default function LibraryPage() {
   const assistantTagUiEnabled = isAssistantLibrary && isAssistantCatalogMine
 
   const { createAssistant, duplicateAssistant } = useAssistantMutations()
+  // Official-vendor presets resolve their bound model from the user's currently
+  // enabled models. We read once at the page level so multiple add paths
+  // (card + preview dialog) share the same snapshot.
+  const { models: userModels } = useModels()
+  const [defaultModelId] = usePreference('chat.default_model_id')
   // The add-tag control uses ensureTags idempotently: existing names are reused,
   // and missing names are created before the card menu / editor binds them.
   const { ensureTags } = useEnsureTags({ getDefaultColor: getRandomTagColor })
@@ -238,13 +247,48 @@ export default function LibraryPage() {
     [duplicateAssistant, refetch, t]
   )
 
+  /**
+   * Add an assistant preset to "my assistants".
+   *
+   * For official-vendor presets (preset.vendor set), resolve a userModel that
+   * matches the vendor first. If the user has no enabled model for that vendor,
+   * surface a guidance dialog and return false — the caller should treat this
+   * as "user opted out" rather than a failure (no error toast).
+   *
+   * Returns `true` when the assistant was actually created.
+   */
   const addAssistantPreset = useCallback(
-    async (preset: AssistantCatalogPreset) => {
-      await createAssistant(toCreateAssistantDtoFromCatalogPreset(preset))
+    async (preset: AssistantCatalogPreset): Promise<boolean> => {
+      let resolvedModelId: UniqueModelId | undefined
+
+      if (preset.vendor) {
+        const resolved = resolveVendorModel(preset.vendor, {
+          models: userModels,
+          defaultModelId: (defaultModelId ?? null) as UniqueModelId | null
+        })
+
+        if (!resolved) {
+          window.modal.confirm({
+            title: t('library.assistant_catalog.official.no_models_title', { vendor: preset.name }),
+            content: t('library.assistant_catalog.official.no_models_body', { vendor: preset.name }),
+            okText: t('library.assistant_catalog.official.go_to_settings'),
+            cancelText: t('common.cancel'),
+            onOk: () => {
+              void navigate({ to: '/settings/model' })
+            }
+          })
+          return false
+        }
+
+        resolvedModelId = resolved
+      }
+
+      await createAssistant(toCreateAssistantDtoFromCatalogPreset(preset, resolvedModelId))
       refetch()
       window.toast.success(t('common.add_success'))
+      return true
     },
-    [createAssistant, refetch, t]
+    [createAssistant, refetch, t, userModels, defaultModelId, navigate]
   )
 
   const handleAddAssistantPreset = useCallback(
@@ -267,8 +311,10 @@ export default function LibraryPage() {
 
     setPreviewAssistantPresetAdding(true)
     try {
-      await addAssistantPreset(previewAssistantPreset)
-      setPreviewAssistantPreset(null)
+      const created = await addAssistantPreset(previewAssistantPreset)
+      // Keep the preview open when add was aborted by the vendor-guidance
+      // dialog — the user may still want to inspect the prompt.
+      if (created) setPreviewAssistantPreset(null)
     } catch (error) {
       window.toast.error(error instanceof Error ? error.message : t('library.assistant_catalog.add_failed'))
     } finally {

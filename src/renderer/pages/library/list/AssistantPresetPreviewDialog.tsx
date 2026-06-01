@@ -2,6 +2,7 @@ import { Badge, Button, Dialog, DialogContent, DialogDescription, DialogFooter, 
 import { X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
+import { AssistantPresetIcon } from './AssistantPresetIcon'
 import type { AssistantCatalogPreset } from './useAssistantPresetCatalog'
 
 interface Props {
@@ -30,7 +31,7 @@ export function AssistantPresetPreviewDialog({ preset, open, adding = false, onO
         <div className="flex items-start justify-between gap-4 border-border/15 border-b px-5 py-4">
           <div className="flex min-w-0 items-start gap-3">
             <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xs bg-accent/55 text-base">
-              {preset.emoji || '🤖'}
+              <AssistantPresetIcon preset={preset} />
             </div>
             <div className="min-w-0 pt-0.5">
               <DialogTitle className="truncate text-foreground text-lg leading-6">{preset.name}</DialogTitle>
