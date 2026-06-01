@@ -89,7 +89,7 @@ describe('CherryInOauth', () => {
       expect(window.api.cherryin.getBalance).toHaveBeenCalledWith('https://open.cherryin.ai')
     })
 
-    expect(screen.getByText('Siin')).toBeInTheDocument()
+    expect(await screen.findByText('Siin')).toBeInTheDocument()
     expect(screen.getByText('siin@gmail.com')).toBeInTheDocument()
     expect(screen.getByText('Pro')).toBeInTheDocument()
     expect(screen.getByText('$128.50')).toBeInTheDocument()
