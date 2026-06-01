@@ -391,8 +391,12 @@ describe('createDirectoryTree — watcher mutations', () => {
     const sub = builder.onMutation((e) => events.push(e))
 
     // Quick proof the watcher is alive: a write before dispose lands.
+    const liveEventPromise = waitForEvent(
+      builder,
+      (e) => e.type === 'added' && 'path' in e && e.path.endsWith('/live.md')
+    )
     await writeFile(path.join(tmp, 'live.md'), 'y')
-    await new Promise((resolve) => setTimeout(resolve, 300))
+    await liveEventPromise
     expect(events.some((e) => e.type === 'added' && 'path' in e && e.path.endsWith('/live.md'))).toBe(true)
 
     sub.dispose()
