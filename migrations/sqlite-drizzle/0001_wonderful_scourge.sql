@@ -40,7 +40,7 @@ CREATE TABLE `__new_agent_session` (
 	FOREIGN KEY (`workspace_id`) REFERENCES `agent_workspace`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
-INSERT INTO `__new_agent_session`("id", "agent_id", "name", "is_name_manually_edited", "description", "workspace_id", "order_key", "created_at", "updated_at") SELECT "id", "agent_id", "name", "is_name_manually_edited", "description", "workspace_id", "order_key", "created_at", "updated_at" FROM `agent_session`;--> statement-breakpoint
+INSERT INTO `__new_agent_session`("id", "agent_id", "name", "is_name_manually_edited", "description", "workspace_id", "order_key", "created_at", "updated_at") SELECT "id", "agent_id", "name", false, "description", NULL, '', "created_at", "updated_at" FROM `agent_session`;--> statement-breakpoint
 DROP TABLE `agent_session`;--> statement-breakpoint
 ALTER TABLE `__new_agent_session` RENAME TO `agent_session`;--> statement-breakpoint
 CREATE INDEX `agent_session_order_key_idx` ON `agent_session` (`order_key`);--> statement-breakpoint
@@ -65,7 +65,7 @@ CREATE TABLE `__new_agent` (
 	FOREIGN KEY (`small_model`) REFERENCES `user_model`(`id`) ON UPDATE no action ON DELETE set null
 );
 --> statement-breakpoint
-INSERT INTO `__new_agent`("id", "type", "name", "description", "instructions", "model", "plan_model", "small_model", "mcps", "allowed_tools", "configuration", "order_key", "created_at", "updated_at", "deleted_at") SELECT "id", "type", "name", "description", "instructions", "model", "plan_model", "small_model", "mcps", "allowed_tools", "configuration", "order_key", "created_at", "updated_at", "deleted_at" FROM `agent`;--> statement-breakpoint
+INSERT INTO `__new_agent`("id", "type", "name", "description", "instructions", "model", "plan_model", "small_model", "mcps", "allowed_tools", "configuration", "order_key", "created_at", "updated_at", "deleted_at") SELECT "id", "type", "name", "description", "instructions", "model", "plan_model", "small_model", "mcps", "allowed_tools", "configuration", '', "created_at", "updated_at", "deleted_at" FROM `agent`;--> statement-breakpoint
 DROP TABLE `agent`;--> statement-breakpoint
 ALTER TABLE `__new_agent` RENAME TO `agent`;--> statement-breakpoint
 CREATE INDEX `agent_name_idx` ON `agent` (`name`);--> statement-breakpoint
@@ -91,7 +91,7 @@ CREATE TABLE `__new_agent_session_message` (
 	CONSTRAINT "agent_session_message_status_check" CHECK("__new_agent_session_message"."status" IN ('pending', 'success', 'error', 'paused'))
 );
 --> statement-breakpoint
-INSERT INTO `__new_agent_session_message`("id", "session_id", "role", "data", "searchable_text", "status", "model_id", "model_snapshot", "trace_id", "stats", "runtime_resume_token", "created_at", "updated_at") SELECT "id", "session_id", "role", "data", "searchable_text", "status", "model_id", "model_snapshot", "trace_id", "stats", "runtime_resume_token", "created_at", "updated_at" FROM `agent_session_message`;--> statement-breakpoint
+INSERT INTO `__new_agent_session_message`("id", "session_id", "role", "data", "searchable_text", "status", "model_id", "model_snapshot", "trace_id", "stats", "runtime_resume_token", "created_at", "updated_at") SELECT "id", "session_id", "role", json_object('parts', json_array(json_object('type', 'text', 'text', "content"))), "content", 'success', NULL, NULL, NULL, NULL, NULL, "created_at", "updated_at" FROM `agent_session_message`;--> statement-breakpoint
 DROP TABLE `agent_session_message`;--> statement-breakpoint
 ALTER TABLE `__new_agent_session_message` RENAME TO `agent_session_message`;--> statement-breakpoint
 CREATE INDEX `agent_session_message_session_created_id_idx` ON `agent_session_message` (`session_id`,`created_at`,`id`);--> statement-breakpoint

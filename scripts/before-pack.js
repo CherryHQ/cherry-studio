@@ -124,7 +124,7 @@ exports.default = async function (context) {
     .filter((p) => !x64KeepPackages.includes(p))
     .map((p) => '!node_modules/' + p + '/**')
 
-  const excludeRipgrepFilters = ['arm64-darwin', 'arm64-linux', 'x64-darwin', 'x64-linux', 'x64-win32']
+  const excludeRipgrepFilters = ['arm64-darwin', 'arm64-linux', 'arm64-win32', 'x64-darwin', 'x64-linux', 'x64-win32']
     .filter((f) => {
       // On Windows ARM64, also keep x64-win32 for emulation compatibility
       if (platform === 'win32' && context.arch === Arch.arm64 && f === 'x64-win32') {
@@ -132,7 +132,7 @@ exports.default = async function (context) {
       }
       return f !== `${arch}-${platform}`
     })
-    .map((f) => '!node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep/' + f + '/**')
+    .map((f) => '!node_modules/@cherrystudio/ripgrep/vendor/ripgrep/' + f + '/**')
 
   // Exclude rtk binaries for other platform-arch combinations
   const currentPlatformKey = `${platform}-${arch}`

@@ -83,32 +83,15 @@ function getRipgrepBinaryPath(): string | null {
   try {
     const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
     const platform = isMac ? 'darwin' : isWin ? 'win32' : 'linux'
-    const tail = path.join(
-      'node_modules',
-      '@anthropic-ai',
-      'claude-agent-sdk',
-      'vendor',
-      'ripgrep',
-      `${arch}-${platform}`,
-      isWin ? 'rg.exe' : 'rg'
-    )
+    const pkgJsonPath = require.resolve('@cherrystudio/ripgrep/package.json')
+    const pkgRoot = path.dirname(pkgJsonPath)
+    const candidate = path.join(pkgRoot, 'vendor', 'ripgrep', `${arch}-${platform}`, isWin ? 'rg.exe' : 'rg')
 
-    // Walk up parents until we find a `node_modules/@anthropic-ai/claude-agent-sdk`
-    // checkout. This is robust to: production bundle (`out/main/…`), source
-    // layout (`src/main/services/file/tree/…` under vitest), and any future
-    // re-layering. Also checks the asar-unpacked sibling at each step so
-    // packaged builds find the binary.
-    let dir = __dirname
-    while (true) {
-      const candidate = path.join(dir, tail)
-      if (fs.existsSync(candidate)) return candidate
-      const unpacked = toAsarUnpackedPath(candidate)
-      if (unpacked !== candidate && fs.existsSync(unpacked)) return unpacked
+    if (fs.existsSync(candidate)) return candidate
+    const unpacked = toAsarUnpackedPath(candidate)
+    if (unpacked !== candidate && fs.existsSync(unpacked)) return unpacked
 
-      const parent = path.dirname(dir)
-      if (parent === dir) return null
-      dir = parent
-    }
+    return null
   } catch (error) {
     logger.error('Failed to locate ripgrep binary:', error as Error)
     return null
