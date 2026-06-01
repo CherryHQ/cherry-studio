@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, X } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import BranchComposer from './BranchComposer'
+import BranchFollowUpComposer from './BranchFollowUpComposer'
 import BranchMessageStream from './BranchMessageStream'
 import { BRANCH_HL_COLOR_VALUES, type BranchHlColorKey } from './constants'
 import type { Branch, BranchAnchor } from './types'
@@ -29,6 +30,8 @@ interface Props {
   onClose: () => void
   /** Compose-state submit. Host wires fork({branchId, followUp}). */
   onCreate: (followUp: string) => void
+  /** Conversation-state follow-up submit (P1-S2b-2). Host routes to THIS branch's topic. */
+  onSendFollowUp: (followUp: string) => void
 }
 
 /**
@@ -54,7 +57,8 @@ export default function BranchCard({
   forkErrorMessage,
   onToggleCollapse,
   onClose,
-  onCreate
+  onCreate,
+  onSendFollowUp
 }: Props) {
   const { t } = useTranslation()
 
@@ -135,6 +139,12 @@ export default function BranchCard({
               </div>
               {/* branch.topic is non-null here by the isComposing check. */}
               {branch.topic && <BranchMessageStream topic={branch.topic} />}
+              {/*
+                P1-S2b-2: follow-up composer. Bound to THIS card via onSendFollowUp
+                — local draft state keeps typing isolated per card; the host
+                routes the submit to branch.topic.id.
+              */}
+              <BranchFollowUpComposer onSend={onSendFollowUp} />
             </>
           )}
         </div>

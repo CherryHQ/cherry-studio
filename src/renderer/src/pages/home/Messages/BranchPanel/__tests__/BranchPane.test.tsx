@@ -56,6 +56,7 @@ describe('BranchPane (P1-S2b-1 multi-branch card stack)', () => {
         creatingBranchId={null}
         forkStatus="idle"
         onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
         onCloseBranch={vi.fn()}
       />
     )
@@ -74,6 +75,7 @@ describe('BranchPane (P1-S2b-1 multi-branch card stack)', () => {
         creatingBranchId={null}
         forkStatus="idle"
         onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
         onCloseBranch={vi.fn()}
       />
     )
@@ -90,6 +92,7 @@ describe('BranchPane (P1-S2b-1 multi-branch card stack)', () => {
         creatingBranchId={null}
         forkStatus="idle"
         onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
         onCloseBranch={vi.fn()}
       />
     )
@@ -115,6 +118,7 @@ describe('BranchPane (P1-S2b-1 multi-branch card stack)', () => {
         creatingBranchId={null}
         forkStatus="idle"
         onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
         onCloseBranch={vi.fn()}
       />
     )
@@ -135,6 +139,7 @@ describe('BranchPane (P1-S2b-1 multi-branch card stack)', () => {
         creatingBranchId={null}
         forkStatus="idle"
         onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
         onCloseBranch={vi.fn()}
       />
     )
@@ -158,6 +163,7 @@ describe('BranchPane (P1-S2b-1 multi-branch card stack)', () => {
         creatingBranchId={null}
         forkStatus="idle"
         onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
         onCloseBranch={vi.fn()}
       />
     )
@@ -177,6 +183,7 @@ describe('BranchPane (P1-S2b-1 multi-branch card stack)', () => {
         creatingBranchId={null}
         forkStatus="idle"
         onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
         onCloseBranch={vi.fn()}
       />
     )
@@ -196,6 +203,7 @@ describe('BranchPane (P1-S2b-1 multi-branch card stack)', () => {
         creatingBranchId={null}
         forkStatus="idle"
         onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
         onCloseBranch={onCloseBranch}
       />
     )
@@ -215,6 +223,7 @@ describe('BranchPane (P1-S2b-1 multi-branch card stack)', () => {
         forkStatus="error"
         forkErrorMessage="chat.message.anchor.panel.error.create_failed"
         onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
         onCloseBranch={vi.fn()}
       />
     )
@@ -240,6 +249,7 @@ describe('BranchPane (P1-S2b-1 multi-branch card stack)', () => {
         creatingBranchId={null}
         forkStatus="idle"
         onCreate={onCreate}
+        onSendFollowUp={vi.fn()}
         onCloseBranch={vi.fn()}
       />
     )
@@ -248,5 +258,96 @@ describe('BranchPane (P1-S2b-1 multi-branch card stack)', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: /chat\.message\.anchor\.panel\.create_branch/ }))
     expect(onCreate).toHaveBeenCalledExactlyOnceWith(branchA.id, 'q1')
+  })
+
+  // ── Follow-up routing (P1-S2b-2) ─────────────────────────────────────────
+  // The core of this step: with N conversation-state branches, a follow-up
+  // typed into card X must route to card X — never branches[0] or a global
+  // "active" branch.
+  const convBranch = (id: string, color: 'c1' | 'c2' | 'c3'): Branch =>
+    makeBranch({
+      id,
+      color,
+      topic: {
+        id: `topic-${id}`,
+        assistantId: 'asst-1',
+        name: id,
+        createdAt: '2026-06-01T00:00:00.000Z',
+        updatedAt: '2026-06-01T00:00:00.000Z',
+        messages: []
+      } as Topic
+    })
+
+  it('conversation-state cards render a follow-up composer; compose-state cards do not', () => {
+    render(
+      <BranchPane
+        branches={[branchA /* compose */, branchB /* conversation */]}
+        collapsedBranchIds={new Set()}
+        onToggleCollapsedBranchId={vi.fn()}
+        creatingBranchId={null}
+        forkStatus="idle"
+        onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
+        onCloseBranch={vi.fn()}
+      />
+    )
+    const cardA = screen.getByTestId(`branch-card-${branchA.id}`)
+    const cardB = screen.getByTestId(`branch-card-${branchB.id}`)
+    expect(within(cardA).queryByTestId('branch-followup-composer')).toBeNull()
+    expect(within(cardB).getByTestId('branch-followup-composer')).toBeInTheDocument()
+  })
+
+  it('a follow-up submitted in card B routes to B; A and C receive nothing (NOT branches[0])', () => {
+    const onSendFollowUp = vi.fn()
+    const a = convBranch('branch-A', 'c1')
+    const b = convBranch('branch-B', 'c2')
+    const c = convBranch('branch-C', 'c3')
+    render(
+      <BranchPane
+        branches={[a, b, c]}
+        collapsedBranchIds={new Set()}
+        onToggleCollapsedBranchId={vi.fn()}
+        creatingBranchId={null}
+        forkStatus="idle"
+        onCreate={vi.fn()}
+        onSendFollowUp={onSendFollowUp}
+        onCloseBranch={vi.fn()}
+      />
+    )
+    const cardB = screen.getByTestId(`branch-card-${b.id}`)
+    fireEvent.change(within(cardB).getByLabelText('chat.message.anchor.panel.follow_up_label'), {
+      target: { value: 'deepen B' }
+    })
+    fireEvent.click(within(cardB).getByTestId('branch-followup-send'))
+
+    expect(onSendFollowUp).toHaveBeenCalledExactlyOnceWith(b.id, 'deepen B')
+    // Explicitly assert it did NOT route to the first or any other branch.
+    expect(onSendFollowUp).not.toHaveBeenCalledWith(a.id, expect.anything())
+    expect(onSendFollowUp).not.toHaveBeenCalledWith(c.id, expect.anything())
+  })
+
+  it('a follow-up submitted in card A routes to A (first card is not special)', () => {
+    const onSendFollowUp = vi.fn()
+    const a = convBranch('branch-A', 'c1')
+    const b = convBranch('branch-B', 'c2')
+    render(
+      <BranchPane
+        branches={[a, b]}
+        collapsedBranchIds={new Set()}
+        onToggleCollapsedBranchId={vi.fn()}
+        creatingBranchId={null}
+        forkStatus="idle"
+        onCreate={vi.fn()}
+        onSendFollowUp={onSendFollowUp}
+        onCloseBranch={vi.fn()}
+      />
+    )
+    const cardA = screen.getByTestId(`branch-card-${a.id}`)
+    fireEvent.change(within(cardA).getByLabelText('chat.message.anchor.panel.follow_up_label'), {
+      target: { value: 'deepen A' }
+    })
+    fireEvent.click(within(cardA).getByTestId('branch-followup-send'))
+
+    expect(onSendFollowUp).toHaveBeenCalledExactlyOnceWith(a.id, 'deepen A')
   })
 })

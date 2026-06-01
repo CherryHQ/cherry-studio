@@ -11,6 +11,7 @@ import { isEmbeddingModel, isRerankModel, isWebSearchModel } from '@renderer/con
 import { BranchAnchorContext, type BranchAnchorContextValue } from '@renderer/context/BranchAnchorContext'
 import { BranchAssistantContext, type BranchAssistantOverride } from '@renderer/context/BranchAssistantContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useBranchFollowUp } from '@renderer/hooks/useBranchFollowUp'
 import { useBranchFork } from '@renderer/hooks/useBranchFork'
 import { useChatContext } from '@renderer/hooks/useChatContext'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
@@ -141,6 +142,22 @@ const Chat: FC<Props> = (props) => {
       void branchFork.fork(anchorForFork, followUp)
     },
     [branches, branchFork]
+  )
+
+  // P1-S2b-2: per-card follow-up send. Reuses the existing sendMessage thunk
+  // (no POST /topics, no streaming-internal changes). `branchId` comes from the
+  // card that submitted; we resolve it to that branch's own topic so a
+  // follow-up in card B targets B's topic — never branches[0] or a global
+  // "active" branch. Guard: a branch still in compose state (topic === null)
+  // can't take a follow-up, so we no-op.
+  const branchFollowUp = useBranchFollowUp({ assistant })
+  const handleSendBranchFollowUp = useCallback(
+    (branchId: string, followUp: string) => {
+      const target = branches.find((b) => b.id === branchId)
+      if (!target?.topic) return
+      branchFollowUp.send(target.topic, followUp)
+    },
+    [branches, branchFollowUp]
   )
 
   // P1-S2b-1: collapse / expand a single branch's card body (chevron click).
@@ -440,6 +457,7 @@ const Chat: FC<Props> = (props) => {
             forkStatus={branchFork.status}
             forkErrorMessage={branchFork.errorMessage}
             onCreate={handleCreateBranchFollowUp}
+            onSendFollowUp={handleSendBranchFollowUp}
             onCloseBranch={handleCloseBranch}
           />
         </BranchAssistantContext>

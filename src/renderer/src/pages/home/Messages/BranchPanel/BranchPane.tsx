@@ -26,6 +26,8 @@ interface Props {
   forkErrorMessage?: string
   /** Compose-state submit. Host wires fork(branchId, followUp). */
   onCreate: (branchId: string, followUp: string) => void
+  /** Conversation-state follow-up submit (P1-S2b-2). Host routes to that branch's topic. */
+  onSendFollowUp: (branchId: string, followUp: string) => void
   /** Close a single branch (X button or composer Cancel). Removes its spans + drops from branches[]. */
   onCloseBranch: (branchId: string) => void
 }
@@ -51,6 +53,7 @@ export default function BranchPane({
   forkStatus,
   forkErrorMessage,
   onCreate,
+  onSendFollowUp,
   onCloseBranch
 }: Props) {
   const { t } = useTranslation()
@@ -102,6 +105,7 @@ export default function BranchPane({
               onToggleCollapse={() => onToggleCollapsedBranchId(branch.id)}
               onClose={() => onCloseBranch(branch.id)}
               onCreate={(followUp) => onCreate(branch.id, followUp)}
+              onSendFollowUp={(followUp) => onSendFollowUp(branch.id, followUp)}
             />
           ))}
         </div>

@@ -58,6 +58,7 @@ describe('BranchCard (P1-S2b-1 single card)', () => {
         onToggleCollapse={vi.fn()}
         onClose={vi.fn()}
         onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
       />
     )
     expect(screen.getByTestId('branch-card-badge')).toHaveTextContent('3')
@@ -73,6 +74,7 @@ describe('BranchCard (P1-S2b-1 single card)', () => {
         onToggleCollapse={vi.fn()}
         onClose={vi.fn()}
         onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
       />
     )
     const tab = screen.getByTestId('branch-card-tab')
@@ -90,6 +92,7 @@ describe('BranchCard (P1-S2b-1 single card)', () => {
         onToggleCollapse={vi.fn()}
         onClose={vi.fn()}
         onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
       />
     )
     const tab = screen.getByTestId('branch-card-tab') as HTMLElement
@@ -118,6 +121,7 @@ describe('BranchCard (P1-S2b-1 single card)', () => {
         onToggleCollapse={vi.fn()}
         onClose={vi.fn()}
         onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
       />
     )
     expect(screen.getByTestId('branch-card-snippet')).toHaveTextContent(composeBranch.source.selectedText)
@@ -135,6 +139,7 @@ describe('BranchCard (P1-S2b-1 single card)', () => {
         onToggleCollapse={onToggleCollapse}
         onClose={vi.fn()}
         onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
       />
     )
     expect(screen.getByTestId('branch-card-body')).toBeInTheDocument()
@@ -152,6 +157,7 @@ describe('BranchCard (P1-S2b-1 single card)', () => {
         onToggleCollapse={onToggleCollapse}
         onClose={vi.fn()}
         onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
       />
     )
     expect(screen.queryByTestId('branch-card-body')).toBeNull()
@@ -167,6 +173,7 @@ describe('BranchCard (P1-S2b-1 single card)', () => {
         onToggleCollapse={vi.fn()}
         onClose={vi.fn()}
         onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
       />
     )
     expect(screen.getByTestId('branch-card-chevron')).toHaveAttribute('aria-expanded', 'true')
@@ -180,6 +187,7 @@ describe('BranchCard (P1-S2b-1 single card)', () => {
         onToggleCollapse={vi.fn()}
         onClose={vi.fn()}
         onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
       />
     )
     expect(screen.getByTestId('branch-card-chevron')).toHaveAttribute('aria-expanded', 'false')
@@ -197,6 +205,7 @@ describe('BranchCard (P1-S2b-1 single card)', () => {
         onToggleCollapse={vi.fn()}
         onClose={onClose}
         onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
       />
     )
     fireEvent.click(screen.getByTestId('branch-card-close'))
@@ -214,6 +223,7 @@ describe('BranchCard (P1-S2b-1 single card)', () => {
         onToggleCollapse={vi.fn()}
         onClose={onClose}
         onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
       />
     )
     fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }))
@@ -231,6 +241,7 @@ describe('BranchCard (P1-S2b-1 single card)', () => {
         onToggleCollapse={vi.fn()}
         onClose={vi.fn()}
         onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
       />
     )
     expect(screen.getByTestId('branch-composer-quote')).toBeInTheDocument()
@@ -247,12 +258,65 @@ describe('BranchCard (P1-S2b-1 single card)', () => {
         onToggleCollapse={vi.fn()}
         onClose={vi.fn()}
         onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
       />
     )
     expect(screen.queryByTestId('branch-composer-quote')).toBeNull()
     expect(screen.getByTestId('branch-card-quote')).toBeInTheDocument()
     const stream = screen.getByTestId('branch-message-stream')
     expect(stream.getAttribute('data-topic-id')).toBe(conversationBranch.topic!.id)
+  })
+
+  // ── Conversation-state follow-up composer (P1-S2b-2) ─────────────────────
+  it('conversation state: renders the follow-up composer; compose state does NOT', () => {
+    const { rerender } = render(
+      <BranchCard
+        branch={conversationBranch}
+        index={0}
+        collapsed={false}
+        forkStatus="idle"
+        onToggleCollapse={vi.fn()}
+        onClose={vi.fn()}
+        onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
+      />
+    )
+    expect(screen.getByTestId('branch-followup-composer')).toBeInTheDocument()
+
+    rerender(
+      <BranchCard
+        branch={composeBranch}
+        index={0}
+        collapsed={false}
+        forkStatus="idle"
+        onToggleCollapse={vi.fn()}
+        onClose={vi.fn()}
+        onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
+      />
+    )
+    expect(screen.queryByTestId('branch-followup-composer')).toBeNull()
+  })
+
+  it('forwards a follow-up submit to onSendFollowUp(text)', () => {
+    const onSendFollowUp = vi.fn()
+    render(
+      <BranchCard
+        branch={conversationBranch}
+        index={0}
+        collapsed={false}
+        forkStatus="idle"
+        onToggleCollapse={vi.fn()}
+        onClose={vi.fn()}
+        onCreate={vi.fn()}
+        onSendFollowUp={onSendFollowUp}
+      />
+    )
+    fireEvent.change(screen.getByLabelText('chat.message.anchor.panel.follow_up_label'), {
+      target: { value: 'next turn in this branch' }
+    })
+    fireEvent.click(screen.getByTestId('branch-followup-send'))
+    expect(onSendFollowUp).toHaveBeenCalledExactlyOnceWith('next turn in this branch')
   })
 
   // ── Fork status forwarding ──────────────────────────────────────────────
@@ -267,6 +331,7 @@ describe('BranchCard (P1-S2b-1 single card)', () => {
         onToggleCollapse={vi.fn()}
         onClose={vi.fn()}
         onCreate={vi.fn()}
+        onSendFollowUp={vi.fn()}
       />
     )
     expect(screen.getByTestId('branch-composer-error')).toHaveTextContent(
@@ -285,6 +350,7 @@ describe('BranchCard (P1-S2b-1 single card)', () => {
         onToggleCollapse={vi.fn()}
         onClose={vi.fn()}
         onCreate={onCreate}
+        onSendFollowUp={vi.fn()}
       />
     )
     fireEvent.change(screen.getByLabelText('chat.message.anchor.panel.follow_up_label'), {

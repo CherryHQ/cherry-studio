@@ -1324,6 +1324,7 @@
           "from": "選取內容",
           "from_message": "選自訊息 #{{id}}",
           "resize_handle": "調整分支面板寬度",
+          "send": "傳送",
           "title": "從選區建立分支"
         }
       },
