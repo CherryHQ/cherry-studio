@@ -81,19 +81,19 @@ export type FileProcessingRemotePollResult<
       output: FileProcessingHandlerOutput<Feature>
     }
 
-export interface PreparedBackgroundTask<Feature extends FileProcessorFeature = FileProcessorFeature> {
+export interface PreparedBackgroundJob<Feature extends FileProcessorFeature = FileProcessorFeature> {
   mode: 'background'
   execute(executionContext: FileProcessingExecutionContext): Promise<FileProcessingHandlerOutput<Feature>>
 }
 
-export type FileProcessingRemoteTaskRef<
+export type FileProcessingRemoteJobRef<
   RemoteContext extends FileProcessingRemoteContext = FileProcessingRemoteContext
 > = {
   providerTaskId: string
   remoteContext: RemoteContext
 }
 
-export interface PreparedRemoteTask<
+export interface PreparedRemoteJob<
   Feature extends FileProcessorFeature = FileProcessorFeature,
   RemoteContext extends FileProcessingRemoteContext = FileProcessingRemoteContext
 > {
@@ -105,7 +105,7 @@ export interface PreparedRemoteTask<
     remoteContext: RemoteContext
   }>
   pollRemote(
-    task: FileProcessingRemoteTaskRef<RemoteContext>,
+    job: FileProcessingRemoteJobRef<RemoteContext>,
     signal?: AbortSignal
   ): Promise<FileProcessingRemotePollResult<Feature, RemoteContext>>
   /**
@@ -125,10 +125,10 @@ export interface PreparedRemoteTask<
   ): { providerTaskId: string; remoteContext: RemoteContext }
 }
 
-export type PreparedFileProcessingTask<
+export type PreparedFileProcessingJob<
   Feature extends FileProcessorFeature = FileProcessorFeature,
   RemoteContext extends FileProcessingRemoteContext = FileProcessingRemoteContext
-> = PreparedBackgroundTask<Feature> | PreparedRemoteTask<Feature, RemoteContext>
+> = PreparedBackgroundJob<Feature> | PreparedRemoteJob<Feature, RemoteContext>
 
 export interface FileProcessingCapabilityHandler<
   Feature extends FileProcessorFeature = FileProcessorFeature,
@@ -136,7 +136,7 @@ export interface FileProcessingCapabilityHandler<
 > {
   /**
    * Execution model declared statically on the handler. Mirrors the `mode`
-   * field on PreparedTask but is available without awaiting prepare(), so the
+   * field on PreparedJob but is available without awaiting prepare(), so the
    * orchestrator can route to the correct JobHandler synchronously at enqueue
    * time. Runtime assertion: prepared.mode must equal this value.
    */
@@ -146,7 +146,7 @@ export interface FileProcessingCapabilityHandler<
     config: FileProcessorMerged,
     signal?: AbortSignal,
     context?: FileProcessingPrepareContext
-  ): Promise<PreparedFileProcessingTask<Feature, RemoteContext>> | PreparedFileProcessingTask<Feature, RemoteContext>
+  ): Promise<PreparedFileProcessingJob<Feature, RemoteContext>> | PreparedFileProcessingJob<Feature, RemoteContext>
 }
 
 export type FileProcessingProcessorCapabilities = {

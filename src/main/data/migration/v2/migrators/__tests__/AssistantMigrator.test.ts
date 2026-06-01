@@ -22,6 +22,8 @@ function createMockContext(reduxData: Record<string, unknown> = {}) {
       dexieSettings: { keys: vi.fn().mockReturnValue([]), get: vi.fn() }
     },
     db: {
+      // assertOwnedForeignKeys() runs PRAGMA foreign_key_check via db.all; empty => no violations.
+      all: vi.fn().mockResolvedValue([]),
       transaction: vi.fn(async (fn: (tx: any) => Promise<void>) => {
         const tx = {
           insert: vi.fn().mockReturnValue({

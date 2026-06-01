@@ -1,17 +1,17 @@
 /**
- * @deprecated Scheduled for removal in v2.0.0
+ * @deprecated LEGACY v1 CODE — removed when the v2 migration is dropped.
  * --------------------------------------------------------------------------
- * ⚠️ NOTICE: V2 DATA&UI REFACTORING (by 0xfullex)
- * --------------------------------------------------------------------------
- * STOP: Feature PRs affecting this file are currently BLOCKED.
- * Only critical bug fixes are accepted during this migration phase.
+ * DO NOT MODIFY. This is v1's BackupManager, preserved verbatim for the v2
+ * migration only: it creates/restores v1-format backups so users can still
+ * recover them in v1. It is kept strictly in sync with v1's BackupManager and
+ * may be overwritten wholesale from the v1 source.
  *
- * This file is being refactored to v2 standards.
- * Any non-critical changes will conflict with the ongoing work.
- *
- * 🔗 Context & Status:
- * - Contribution Hold: https://github.com/CherryHQ/cherry-studio/issues/10954
- * - v2 Refactor PR   : https://github.com/CherryHQ/cherry-studio/pull/10162
+ * Rules:
+ * - No v2 features, no refactors.
+ * - Do NOT rename the `BackupManager` class, its exports, or the logger
+ *   context. The filename is intentionally `LegacyBackupManager.ts` while the
+ *   class stays `BackupManager`, so this file remains a drop-in mirror of v1.
+ * - When re-syncing from v1, re-apply this banner.
  * --------------------------------------------------------------------------
  */
 import type { Stats } from 'node:fs'

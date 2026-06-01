@@ -84,7 +84,7 @@ src/main/data/migration/v2/
 - Base contract: extend `migrators/BaseMigrator.ts` and implement:
   - `id`, `name`, `description`, `order` (lower runs first)
   - `prepare(ctx)`: dry-run checks, counts, and staging data; return `PrepareResult`
-  - `execute(ctx)`: perform inserts/updates; manage your own transactions; report progress via `reportProgress`
+  - `execute(ctx)`: perform inserts/updates; manage your own transactions; report progress via `reportProgress`; self-check FK integrity of owned tables via `assertOwnedForeignKeys` (see Conventions → Foreign keys)
   - `validate(ctx)`: verify counts and integrity; return `ValidateResult` with stats (`sourceCount`, `targetCount`, `skippedCount`) and any `errors`
 - Registration: list migrators (in order) in `migrators/index.ts` so the engine can sort and run them.
 - Current migrators (see `migrators/README-<name>.md` for detailed documentation):
@@ -97,7 +97,8 @@ src/main/data/migration/v2/
   - Use `MigrationContext.sources` instead of accessing raw files/stores directly.
   - Use `sharedData` to pass IDs or lookup tables between migrators (e.g., assistant -> chat references) instead of re-reading sources.
   - Stream large Dexie exports (`JSONStreamReader`) and batch inserts to avoid memory spikes.
-  - **Foreign keys during bulk inserts**: libsql (turso's SQLite fork) is compiled with `SQLITE_DEFAULT_FOREIGN_KEYS=1`, so every new connection has `foreign_keys = ON` by default (unlike standard SQLite). Additionally, `@libsql/client`'s `transaction()` nullifies its internal connection after each transaction (`this.#db = null`), and the lazily-created replacement inherits the compile-time default (FK ON). If your migrator does batch inserts into tables with self-referencing FKs (e.g., `message.parentId → message.id`), you **must** run `await db.run(sql\`PRAGMA foreign_keys = OFF\`)` before **each** `db.transaction()` call — setting it once is not enough. The engine runs `PRAGMA foreign_key_check` after all migrators complete to verify referential integrity.
+  - **Foreign keys are OFF for the whole migration — do NOT toggle them per-migrator**: libsql (turso's SQLite fork) is compiled with `SQLITE_DEFAULT_FOREIGN_KEYS=1`, so every new connection defaults to `foreign_keys = ON`, and `@libsql/client`'s `transaction()` nullifies its internal connection after each call (`this.#db = null`) — a one-shot `PRAGMA foreign_keys = OFF` would be lost at the first transaction boundary. The engine therefore registers `foreign_keys = OFF` **once** via the patched `client.setPragma()` (in `MigrationDbService`), which replays it on every (re)connection. This lets bulk inserts carry not-yet-resolved references (self-referencing `message.parentId`, or cross-domain refs a later migrator resolves). Integrity is verified in two layers: (1) each migrator calls `this.assertOwnedForeignKeys(ctx.db, [...])` at the end of `execute()` for the tables it owns, giving early, well-attributed failures; (2) the engine runs a whole-database `PRAGMA foreign_key_check` after all migrators complete (`MigrationEngine.verifyForeignKeys`) as the final backstop.
+    - **Self-check scope**: pass only tables whose FKs are fully resolved when *your* migrator finishes. **Exclude** refs a later migrator resolves — e.g. `assistant_knowledge_base.knowledgeBaseId` is written by `AssistantMigrator` but only becomes valid after `KnowledgeMigrator` remaps/prunes it, so `KnowledgeMigrator` self-checks that table, not `AssistantMigrator`. **Exclude** polymorphic shared tables that can't be scoped to your rows (e.g. `file_ref`, written by both Chat and Knowledge); the engine's final check covers those.
   - Count validation is mandatory; engine will fail the run if `targetCount < sourceCount - skippedCount` or if `ValidateResult.errors` is non-empty.
   - Keep migrations idempotent per run—engine clears target tables before it starts, but each migrator should tolerate retries within the same run.
   - **Path safety**: All filesystem paths MUST come from `ctx.paths` (the `MigrationPaths` object). NEVER call `app.getPath('userData')` or construct paths with `path.join` from scratch. Doing so bypasses the v1 legacy userData detection and may cause data loss for users with custom `appDataPath` configurations. If you need a path not yet in `MigrationPaths`, add it to the interface — do not inline it.
@@ -123,6 +124,7 @@ src/main/data/migration/v2/
 - [ ] Wire progress updates through `reportProgress` so UI shows per-migrator progress.
 - [ ] Register the migrator in `migrators/index.ts` with the correct `order`.
 - [ ] Add any new target tables to `MigrationEngine.verifyAndClearNewTables` once those tables exist.
+- [ ] Self-check FK integrity at the end of `execute()` via `this.assertOwnedForeignKeys(ctx.db, [...ownedTables])`, excluding cross-domain-deferred refs and shared polymorphic tables (see Conventions → Foreign keys). Do NOT toggle `PRAGMA foreign_keys` yourself — the engine keeps it OFF for the whole migration.
 - [ ] Include detailed comments for maintainability (file-level, function-level, logic blocks).
 - [ ] **Create/update `migrators/README-<MigratorName>.md`** with detailed documentation including:
   - Data sources and target tables

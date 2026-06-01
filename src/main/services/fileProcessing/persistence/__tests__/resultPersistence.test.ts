@@ -2,43 +2,44 @@ import fs from 'node:fs/promises'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { mockMainLoggerService } from '../../../../../../tests/__mocks__/MainLoggerService'
-import { persistMarkdownResult, persistZipResult } from '../resultPersistence'
-
-const { entriesMock, extractMock, closeMock, pathExistsMock } = vi.hoisted(() => ({
+const { entriesMock, entryDataMock, closeMock, createWriteStreamMock, pipelineMock } = vi.hoisted(() => ({
   entriesMock: vi.fn(),
-  extractMock: vi.fn(),
+  entryDataMock: vi.fn(),
   closeMock: vi.fn(),
-  pathExistsMock: vi.fn()
+  createWriteStreamMock: vi.fn(),
+  pipelineMock: vi.fn()
+}))
+
+vi.mock('node:fs', () => ({
+  createWriteStream: createWriteStreamMock
+}))
+
+vi.mock('node:stream/promises', () => ({
+  pipeline: pipelineMock
 }))
 
 vi.mock('node-stream-zip', () => ({
   default: {
     async: vi.fn(() => ({
       entries: entriesMock,
-      extract: extractMock,
+      entryData: entryDataMock,
       close: closeMock
     }))
   }
 }))
 
-vi.mock('@main/utils/file', () => ({
-  pathExists: pathExistsMock
-}))
+const { readMarkdownFromResponseZip, readMarkdownFromZipFile } = await import('../resultPersistence')
 
 describe('fileProcessing result persistence utils', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     closeMock.mockResolvedValue(undefined)
-    extractMock.mockResolvedValue(undefined)
-    pathExistsMock.mockResolvedValue(false)
+    entryDataMock.mockResolvedValue(Buffer.from('# output'))
+    createWriteStreamMock.mockReturnValue({ write: vi.fn(), end: vi.fn() })
+    pipelineMock.mockResolvedValue(undefined)
   })
 
-  it('persists zip results via a temp directory and atomically swaps the final result directory', async () => {
-    const mkdirSpy = vi.spyOn(fs, 'mkdir').mockResolvedValue(undefined)
-    const mkdtempSpy = vi.spyOn(fs, 'mkdtemp').mockResolvedValue('/tmp/file-processing/task-1.tmp-abc')
-    const renameSpy = vi.spyOn(fs, 'rename').mockResolvedValue(undefined)
-    vi.spyOn(fs, 'rm').mockResolvedValue(undefined)
+  it('reads the first markdown file from a zip without extracting attachments', async () => {
     entriesMock.mockResolvedValueOnce({
       'bundle/output.md': {
         name: 'bundle/output.md',
@@ -49,180 +50,115 @@ describe('fileProcessing result persistence utils', () => {
         isDirectory: false
       }
     })
-    const markdownPath = await persistZipResult({
-      zipFilePath: '/tmp/download/result.zip',
-      resultsDir: '/tmp/file-processing/task-1'
-    })
 
-    expect(markdownPath).toBe('/tmp/file-processing/task-1/output.md')
-    expect(mkdirSpy).toHaveBeenCalledWith('/tmp/file-processing', { recursive: true })
-    expect(mkdtempSpy).toHaveBeenCalledWith('/tmp/file-processing/task-1.tmp-')
-    expect(pathExistsMock).toHaveBeenCalledWith('/tmp/file-processing/task-1')
-    expect(extractMock).toHaveBeenCalledWith('bundle/output.md', '/tmp/file-processing/task-1.tmp-abc/output.md')
-    expect(extractMock).toHaveBeenCalledWith(
-      'bundle/images/page-1.png',
-      '/tmp/file-processing/task-1.tmp-abc/images/page-1.png'
+    await expect(readMarkdownFromZipFile('/tmp/download/result.zip')).resolves.toEqual(
+      new Uint8Array(Buffer.from('# output'))
     )
-    expect(renameSpy).toHaveBeenCalledWith('/tmp/file-processing/task-1.tmp-abc', '/tmp/file-processing/task-1')
+
+    expect(entryDataMock).toHaveBeenCalledWith({
+      name: 'bundle/output.md',
+      isDirectory: false
+    })
     expect(closeMock).toHaveBeenCalled()
   })
 
-  it('persists plain markdown through the same atomic directory swap flow', async () => {
-    vi.spyOn(fs, 'mkdir').mockResolvedValue(undefined)
-    vi.spyOn(fs, 'mkdtemp').mockResolvedValue('/tmp/file-processing/task-2.tmp-abc')
-    const writeFileSpy = vi.spyOn(fs, 'writeFile').mockResolvedValue(undefined)
-    const renameSpy = vi.spyOn(fs, 'rename').mockResolvedValue(undefined)
-    vi.spyOn(fs, 'rm').mockResolvedValue(undefined)
-
-    const markdownPath = await persistMarkdownResult({
-      resultsDir: '/tmp/file-processing/task-2',
-      markdownContent: '# output'
-    })
-
-    expect(markdownPath).toBe('/tmp/file-processing/task-2/output.md')
-    expect(writeFileSpy).toHaveBeenCalledWith('/tmp/file-processing/task-2.tmp-abc/output.md', '# output', 'utf-8')
-    expect(renameSpy).toHaveBeenCalledWith('/tmp/file-processing/task-2.tmp-abc', '/tmp/file-processing/task-2')
-  })
-
-  it('rejects zip entries that escape the task directory', async () => {
-    vi.spyOn(fs, 'mkdir').mockResolvedValue(undefined)
-    const rmSpy = vi.spyOn(fs, 'rm').mockResolvedValue(undefined)
+  it.each([
+    ['relative parent escape', '../escape.md'],
+    ['POSIX absolute path', '/tmp/output.md'],
+    ['Windows drive-letter path', 'C:\\temp\\output.md'],
+    ['backslash separator', 'bundle\\output.md']
+  ])('rejects zip entries that escape the archive root via %s', async (_name, entryName) => {
     entriesMock.mockResolvedValueOnce({
-      '../escape.md': {
-        name: '../escape.md',
+      [entryName]: {
+        name: entryName,
         isDirectory: false
       }
     })
 
-    await expect(
-      persistZipResult({
-        zipFilePath: '/tmp/download/result.zip',
-        resultsDir: '/tmp/file-processing/task-2'
-      })
-    ).rejects.toThrow('Unsafe zip entry path')
-
-    expect(rmSpy).toHaveBeenCalledWith('/tmp/file-processing/task-2.tmp-abc', { recursive: true, force: true })
+    await expect(readMarkdownFromZipFile('/tmp/download/result.zip')).rejects.toThrow('Unsafe zip entry path')
+    expect(entryDataMock).not.toHaveBeenCalled()
+    expect(closeMock).toHaveBeenCalled()
   })
 
-  it('treats a false pathExists probe as a simple cache miss while persisting markdown', async () => {
+  it('skips unsafe non-markdown entries when reading markdown data', async () => {
+    entriesMock.mockResolvedValueOnce({
+      'bundle/output.md': {
+        name: 'bundle/output.md',
+        isDirectory: false
+      },
+      '../escape.png': {
+        name: '../escape.png',
+        isDirectory: false
+      }
+    })
+
+    await expect(readMarkdownFromZipFile('/tmp/download/result.zip')).resolves.toEqual(
+      new Uint8Array(Buffer.from('# output'))
+    )
+    expect(entryDataMock).toHaveBeenCalledWith({
+      name: 'bundle/output.md',
+      isDirectory: false
+    })
+    expect(closeMock).toHaveBeenCalled()
+  })
+
+  it('rejects zips without a markdown file', async () => {
+    entriesMock.mockResolvedValueOnce({
+      'bundle/page-1.png': {
+        name: 'bundle/page-1.png',
+        isDirectory: false
+      }
+    })
+
+    await expect(readMarkdownFromZipFile('/tmp/download/result.zip')).rejects.toThrow(
+      'Result zip does not contain a markdown file'
+    )
+    expect(entryDataMock).not.toHaveBeenCalled()
+    expect(closeMock).toHaveBeenCalled()
+  })
+
+  it('downloads a response zip to temp storage and reads its markdown entry', async () => {
+    const mkdirSpy = vi.spyOn(fs, 'mkdir').mockResolvedValue(undefined)
+    const mkdtempSpy = vi.spyOn(fs, 'mkdtemp').mockResolvedValue('/tmp/file-processing/file-processing-result-abc')
+    const rmSpy = vi.spyOn(fs, 'rm').mockResolvedValue(undefined)
+    entriesMock.mockResolvedValueOnce({
+      'output.md': {
+        name: 'output.md',
+        isDirectory: false
+      }
+    })
+    const response = new Response('zip-binary')
+
+    await expect(
+      readMarkdownFromResponseZip({
+        response,
+        tempDir: '/tmp/file-processing'
+      })
+    ).resolves.toEqual(new Uint8Array(Buffer.from('# output')))
+
+    expect(mkdirSpy).toHaveBeenCalledWith('/tmp/file-processing', { recursive: true })
+    expect(mkdtempSpy).toHaveBeenCalledWith('/tmp/file-processing/file-processing-result-')
+    expect(createWriteStreamMock).toHaveBeenCalledWith('/tmp/file-processing/file-processing-result-abc/result.zip')
+    expect(pipelineMock).toHaveBeenCalled()
+    expect(rmSpy).toHaveBeenCalledWith('/tmp/file-processing/file-processing-result-abc', {
+      recursive: true,
+      force: true
+    })
+  })
+
+  it('rejects response zips without a body', async () => {
     vi.spyOn(fs, 'mkdir').mockResolvedValue(undefined)
-    vi.spyOn(fs, 'mkdtemp').mockResolvedValue('/tmp/file-processing/task-3.tmp-abc')
-    vi.spyOn(fs, 'writeFile').mockResolvedValue(undefined)
-    const renameSpy = vi.spyOn(fs, 'rename').mockResolvedValue(undefined)
+    vi.spyOn(fs, 'mkdtemp').mockResolvedValue('/tmp/file-processing/file-processing-result-abc')
     vi.spyOn(fs, 'rm').mockResolvedValue(undefined)
+    const response = new Response(null)
 
     await expect(
-      persistMarkdownResult({
-        resultsDir: '/tmp/file-processing/task-3',
-        markdownContent: '# output'
+      readMarkdownFromResponseZip({
+        response,
+        tempDir: '/tmp/file-processing'
       })
-    ).resolves.toBe('/tmp/file-processing/task-3/output.md')
+    ).rejects.toThrow('Result download response body is empty')
 
-    expect(pathExistsMock).toHaveBeenCalledWith('/tmp/file-processing/task-3')
-    expect(renameSpy).toHaveBeenCalledWith('/tmp/file-processing/task-3.tmp-abc', '/tmp/file-processing/task-3')
-  })
-
-  it('serializes concurrent writes for the same results directory within the main process', async () => {
-    vi.spyOn(fs, 'mkdir').mockResolvedValue(undefined)
-    vi.spyOn(fs, 'mkdtemp')
-      .mockResolvedValueOnce('/tmp/file-processing/task-4.tmp-a')
-      .mockResolvedValueOnce('/tmp/file-processing/task-4.tmp-b')
-    vi.spyOn(fs, 'writeFile').mockResolvedValue(undefined)
-    vi.spyOn(fs, 'rm').mockResolvedValue(undefined)
-    pathExistsMock.mockResolvedValue(false)
-
-    let notifyFirstRenameStarted!: () => void
-    const firstRenameStarted = new Promise<void>((resolve) => {
-      notifyFirstRenameStarted = resolve
-    })
-    let releaseFirstRename: (() => void) | undefined
-    const renameSpy = vi.spyOn(fs, 'rename').mockImplementationOnce(
-      () =>
-        new Promise((resolve) => {
-          notifyFirstRenameStarted()
-          releaseFirstRename = () => resolve(undefined)
-        })
-    )
-    renameSpy.mockResolvedValueOnce(undefined)
-
-    const firstWrite = persistMarkdownResult({
-      resultsDir: '/tmp/file-processing/task-4',
-      markdownContent: '# first'
-    })
-    const secondWrite = persistMarkdownResult({
-      resultsDir: '/tmp/file-processing/task-4',
-      markdownContent: '# second'
-    })
-
-    await firstRenameStarted
-
-    expect(renameSpy).toHaveBeenCalledTimes(1)
-
-    releaseFirstRename?.()
-
-    await expect(firstWrite).resolves.toBe('/tmp/file-processing/task-4/output.md')
-    await expect(secondWrite).resolves.toBe('/tmp/file-processing/task-4/output.md')
-
-    expect(renameSpy).toHaveBeenNthCalledWith(1, '/tmp/file-processing/task-4.tmp-a', '/tmp/file-processing/task-4')
-    expect(renameSpy).toHaveBeenNthCalledWith(2, '/tmp/file-processing/task-4.tmp-b', '/tmp/file-processing/task-4')
-  })
-
-  it('logs rollback cleanup failures while preserving the original atomic swap error', async () => {
-    const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
-    const swapError = new Error('swap failed')
-    const restoreError = new Error('restore failed')
-    const removeTempError = new Error('remove temp failed')
-
-    vi.spyOn(fs, 'mkdir').mockResolvedValue(undefined)
-    vi.spyOn(fs, 'mkdtemp').mockResolvedValue('/tmp/file-processing/task-5.tmp-abc')
-    vi.spyOn(fs, 'writeFile').mockResolvedValue(undefined)
-    vi.spyOn(fs, 'rename')
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(swapError)
-      .mockRejectedValueOnce(restoreError)
-    vi.spyOn(fs, 'rm').mockRejectedValue(removeTempError)
-    pathExistsMock
-      .mockResolvedValueOnce(true)
-      .mockResolvedValueOnce(true)
-      .mockResolvedValueOnce(false)
-      .mockResolvedValueOnce(true)
-
-    await expect(
-      persistMarkdownResult({
-        resultsDir: '/tmp/file-processing/task-5',
-        markdownContent: '# output'
-      })
-    ).rejects.toBe(swapError)
-
-    expect(warnSpy).toHaveBeenCalledWith(
-      'File processing result persistence cleanup failed',
-      restoreError,
-      expect.objectContaining({
-        resultsDir: '/tmp/file-processing/task-5',
-        tempDir: '/tmp/file-processing/task-5.tmp-abc',
-        backupDir: expect.stringContaining('/tmp/file-processing/task-5.bak-'),
-        step: 'restore-backup'
-      })
-    )
-    expect(warnSpy).toHaveBeenCalledWith(
-      'File processing result persistence cleanup failed',
-      removeTempError,
-      expect.objectContaining({
-        resultsDir: '/tmp/file-processing/task-5',
-        tempDir: '/tmp/file-processing/task-5.tmp-abc',
-        step: 'remove-temp'
-      })
-    )
-    expect(warnSpy).toHaveBeenCalledWith(
-      'File processing result persistence cleanup failed',
-      removeTempError,
-      expect.objectContaining({
-        resultsDir: '/tmp/file-processing/task-5',
-        tempDir: '/tmp/file-processing/task-5.tmp-abc',
-        step: 'remove-temp-after-error'
-      })
-    )
-
-    warnSpy.mockRestore()
+    expect(pipelineMock).not.toHaveBeenCalled()
   })
 })
