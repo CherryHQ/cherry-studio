@@ -10,7 +10,7 @@ import type {
   UpdateAgentResponse
 } from '@types'
 import { AgentBaseSchema } from '@types'
-import { and, asc, count, desc, eq, inArray, isNull, min } from 'drizzle-orm'
+import { and, asc, count, desc, eq, isNull, min, sql } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import {
@@ -552,24 +552,24 @@ export class AgentService extends BaseService {
   }
 
   private async deleteAgentRelations(tx: any, id: string): Promise<void> {
-    const sessions = await tx.select({ id: sessionsTable.id }).from(sessionsTable).where(eq(sessionsTable.agent_id, id))
-    const sessionIds = sessions.map((session: { id: string }) => session.id)
-    const tasks = await tx
-      .select({ id: scheduledTasksTable.id })
-      .from(scheduledTasksTable)
-      .where(eq(scheduledTasksTable.agent_id, id))
-    const taskIds = tasks.map((task: { id: string }) => task.id)
-
+    // Agent DB migrations did not always create FK constraints, so clean child rows explicitly.
     await tx.delete(agentSkillsTable).where(eq(agentSkillsTable.agent_id, id))
-    if (taskIds.length > 0) {
-      await tx.delete(channelTaskSubscriptionsTable).where(inArray(channelTaskSubscriptionsTable.taskId, taskIds))
-      await tx.delete(taskRunLogsTable).where(inArray(taskRunLogsTable.task_id, taskIds))
-      await tx.delete(scheduledTasksTable).where(eq(scheduledTasksTable.agent_id, id))
-    }
-    if (sessionIds.length > 0) {
-      // Agent DB migrations did not always create FK constraints, so clean child rows explicitly.
-      await tx.delete(sessionMessagesTable).where(inArray(sessionMessagesTable.session_id, sessionIds))
-    }
+    await tx
+      .delete(channelTaskSubscriptionsTable)
+      .where(
+        sql`${channelTaskSubscriptionsTable.taskId} IN (SELECT ${scheduledTasksTable.id} FROM ${scheduledTasksTable} WHERE ${scheduledTasksTable.agent_id} = ${id})`
+      )
+    await tx
+      .delete(taskRunLogsTable)
+      .where(
+        sql`${taskRunLogsTable.task_id} IN (SELECT ${scheduledTasksTable.id} FROM ${scheduledTasksTable} WHERE ${scheduledTasksTable.agent_id} = ${id})`
+      )
+    await tx.delete(scheduledTasksTable).where(eq(scheduledTasksTable.agent_id, id))
+    await tx
+      .delete(sessionMessagesTable)
+      .where(
+        sql`${sessionMessagesTable.session_id} IN (SELECT ${sessionsTable.id} FROM ${sessionsTable} WHERE ${sessionsTable.agent_id} = ${id})`
+      )
     await tx.delete(sessionsTable).where(eq(sessionsTable.agent_id, id))
     await tx.update(channelsTable).set({ agentId: null }).where(eq(channelsTable.agentId, id))
   }
