@@ -17,8 +17,8 @@ import type { ImageGenerationSubmitInput, ImageGenerationTransport } from '../im
  *     (snake_case via `buildImageProviderOptions`'s default branch). Read
  *     both for forward/backward compatibility.
  *   - `rng_seed` is OVMS's bespoke wire name for seed. Source from the bag
- *     under any of `rngSeed` / `seed` (camelCase) or `rng_seed` /
- *     `num_inference_steps` (snake_case from `buildImageProviderOptions`).
+ *     under any of `rngSeed` / `seed` (camelCase) or `rng_seed`
+ *     (snake_case from `buildImageProviderOptions`).
  */
 
 export const DEFAULT_OVMS_BASE_URL = 'http://localhost:8000'
