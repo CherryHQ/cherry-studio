@@ -1,13 +1,11 @@
-import fs from 'node:fs/promises'
-import path from 'node:path'
-
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { sanitizeFileProcessingRemoteUrl } from '@main/services/fileProcessing/utils/url'
-import { pathExists } from '@main/utils/file'
+import type { FileEntryId } from '@shared/data/types/file'
+import { FileEntryIdSchema } from '@shared/data/types/file'
 import { net } from 'electron'
 
-import { persistMarkdownResult, persistResponseZipResult } from './resultPersistence'
+import { readMarkdownFromResponseZip } from './resultPersistence'
 
 const logger = loggerService.withContext('MarkdownResultStore')
 
@@ -26,118 +24,85 @@ export type MarkdownPersistencePayload =
       response: Response
     }
 
-export function getFileProcessingResultsDir(taskId: string): string {
-  if (
-    taskId.length === 0 ||
-    path.isAbsolute(taskId) ||
-    taskId === '.' ||
-    taskId === '..' ||
-    taskId.includes('/') ||
-    taskId.includes('\\')
-  ) {
-    throw new Error(`Invalid file processing task id: ${taskId}`)
-  }
-
-  // TODO(file-processing): Keep artifacts in the shared results root until the
-  // file storage layout is finalized; move to the final per-file directory in
-  // one filesystem pass instead of changing this path piecemeal.
-  return path.join(application.getPath('feature.file_processing.results'), taskId)
-}
-
-export async function cleanupFileProcessingResultsDir(taskId: string): Promise<boolean> {
-  const resultsDir = getFileProcessingResultsDir(taskId)
-
-  try {
-    if (!(await pathExists(resultsDir))) {
-      return false
-    }
-
-    await fs.rm(resultsDir, { recursive: true, force: true })
-    return true
-  } catch (error) {
-    logger.warn('Failed to cleanup file processing result directory', error as Error, {
-      taskId,
-      resultsDir
-    })
-    return false
-  }
-}
-
 class MarkdownResultStore {
   async persistResult(options: {
-    taskId: string
+    jobId: string
     result: MarkdownPersistencePayload
     signal?: AbortSignal
-  }): Promise<string> {
-    const resultsDir = getFileProcessingResultsDir(options.taskId)
-
+  }): Promise<FileEntryId> {
     try {
-      switch (options.result.kind) {
-        case 'markdown':
-          return await persistMarkdownResult({
-            resultsDir,
-            markdownContent: options.result.markdownContent
-          })
-
-        case 'response-zip':
-          return await persistResponseZipResult({
-            response: options.result.response,
-            resultsDir,
-            signal: options.signal
-          })
-
-        case 'remote-zip-url': {
-          const safeDownloadUrl = sanitizeFileProcessingRemoteUrl(
-            options.result.downloadUrl,
-            options.result.configuredApiHost
-          )
-          const response = await net.fetch(safeDownloadUrl, {
-            method: 'GET',
-            redirect: 'error',
-            signal: options.signal
-          })
-
-          if (!response.ok) {
-            const message = await response.text()
-            throw new Error(`Markdown result download failed: ${response.status} ${response.statusText} ${message}`)
-          }
-
-          const contentType = response.headers.get('content-type')
-          if (contentType !== 'application/zip') {
-            throw new Error(`Markdown result download returned unexpected content-type: ${contentType}`)
-          }
-
-          return await persistResponseZipResult({
-            response,
-            resultsDir,
-            signal: options.signal
-          })
-        }
-      }
+      const data = await this.resolveMarkdownBytes(options)
+      const file = await application.get('FileManager').createInternalEntry({
+        source: 'bytes',
+        data,
+        name: `file-processing-${options.jobId}`,
+        ext: 'md'
+      })
+      return FileEntryIdSchema.parse(file.id)
     } catch (error) {
       logger.warn(
         'Markdown result persistence failed',
         getSafeMarkdownPersistenceErrorForLog(error),
-        getMarkdownPersistenceLogContext(options, resultsDir)
+        getMarkdownPersistenceLogContext(options)
       )
       throw error
     }
+  }
+
+  private async resolveMarkdownBytes(options: {
+    result: MarkdownPersistencePayload
+    signal?: AbortSignal
+  }): Promise<Uint8Array> {
+    switch (options.result.kind) {
+      case 'markdown':
+        return new TextEncoder().encode(options.result.markdownContent)
+
+      case 'response-zip':
+        return await this.readMarkdownFromZipResponse(options.result.response, options.signal)
+
+      case 'remote-zip-url': {
+        const safeDownloadUrl = sanitizeFileProcessingRemoteUrl(
+          options.result.downloadUrl,
+          options.result.configuredApiHost
+        )
+        const response = await net.fetch(safeDownloadUrl, {
+          method: 'GET',
+          redirect: 'error',
+          signal: options.signal
+        })
+
+        if (!response.ok) {
+          throw new Error(`Markdown result download failed: ${response.status} ${response.statusText}`)
+        }
+
+        const contentType = response.headers.get('content-type')
+        if (contentType !== 'application/zip') {
+          throw new Error(`Markdown result download returned unexpected content-type: ${contentType}`)
+        }
+
+        return await this.readMarkdownFromZipResponse(response, options.signal)
+      }
+    }
+  }
+
+  private async readMarkdownFromZipResponse(response: Response, signal?: AbortSignal): Promise<Uint8Array> {
+    return await readMarkdownFromResponseZip({
+      response,
+      tempDir: application.getPath('feature.file_processing.temp'),
+      signal
+    })
   }
 }
 
 export const markdownResultStore = new MarkdownResultStore()
 
-function getMarkdownPersistenceLogContext(
-  options: {
-    taskId: string
-    result: MarkdownPersistencePayload
-  },
-  resultsDir: string
-): Record<string, unknown> {
+function getMarkdownPersistenceLogContext(options: {
+  jobId: string
+  result: MarkdownPersistencePayload
+}): Record<string, unknown> {
   const context: Record<string, unknown> = {
-    taskId: options.taskId,
-    resultKind: options.result.kind,
-    resultsDir
+    jobId: options.jobId,
+    resultKind: options.result.kind
   }
 
   if (options.result.kind === 'remote-zip-url') {

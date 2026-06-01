@@ -337,6 +337,15 @@ export class AssistantMigrator extends BaseMigrator {
         }
       })
 
+      // Self-check FK integrity for the tables that should be fully resolved by now:
+      // assistant.modelId is sanitized, assistant_mcp_server.mcpServerId points at rows
+      // McpServerMigrator (order 1.5) already inserted, and tag/entity_tag were inserted in
+      // the transaction above. assistant_knowledge_base is intentionally EXCLUDED — its
+      // knowledgeBaseId references rows KnowledgeMigrator (order 3) creates later, so those
+      // refs are dangling-by-design here and are covered by the engine's final
+      // verifyForeignKeys().
+      await this.assertOwnedForeignKeys(ctx.db, [assistantTable, assistantMcpServerTable, tagTable, entityTagTable])
+
       // FK whitelist for ChatMigrator. v2 has no system-reserved 'default' row,
       // so the set contains only the migrated user assistants (including the
       // legacy 'default' under its remapped UUID).

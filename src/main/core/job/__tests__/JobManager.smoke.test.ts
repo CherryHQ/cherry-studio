@@ -40,6 +40,11 @@ interface EchoOutput {
   echoed: string
 }
 
+interface StubbornInput {
+  /** Sleep duration; set longer than `cancelTimeoutMs` to force the timeout path. */
+  sleepMs: number
+}
+
 let scheduler: SchedulerService
 let jobManager: JobManager
 
@@ -70,6 +75,31 @@ function makeEchoHandler(): JobHandler<EchoInput> {
       return { echoed: `echo: ${ctx.input.message}` } satisfies EchoOutput
     }
   }
+}
+
+/**
+ * Handler that intentionally IGNORES `ctx.signal` until after the grace window,
+ * forcing `cancel()` down its force-finalize-on-timeout branch. After the grace
+ * window it honors the abort and throws, so the late settlement finalizes as
+ * cancelled (matching a real handler that eventually reacts) rather than
+ * clobbering the row back to completed.
+ */
+function makeStubbornHandler(): JobHandler<StubbornInput> {
+  return {
+    recovery: 'abandon',
+    cancelTimeoutMs: 200,
+    defaultConcurrency: 2,
+    async execute(ctx) {
+      await new Promise<void>((resolve) => setTimeout(resolve, ctx.input.sleepMs))
+      if (ctx.signal.aborted) throw new Error('AbortError (late)')
+      return { done: true }
+    }
+  }
+}
+
+/** Read JobManager's private executor-settlement promise for a job (test-only). */
+function inFlightExecutedOf(id: string): Promise<void> | undefined {
+  return (jobManager as unknown as { inFlightExecuted: Map<string, Promise<void>> }).inFlightExecuted.get(id)
 }
 
 // Local thin alias so existing call sites stay short — implementation lives
@@ -106,6 +136,7 @@ describe('JobManager smoke (dummy.echo)', () => {
     await scheduler._doInit()
     await jobManager._doInit()
     jobManager.registerHandler('dummy.echo' as never, makeEchoHandler() as JobHandler)
+    jobManager.registerHandler('dummy.stubborn' as never, makeStubbornHandler() as JobHandler)
 
     // `onAllReady` now schedules startup recovery via a setTimeout and returns
     // synchronously (the framework runs `_doAllReady` fire-and-forget). Skip
@@ -166,16 +197,17 @@ describe('JobManager smoke (dummy.echo)', () => {
     expect(progressCalls.at(-1)?.[1]).toMatchObject({ progress: 100 })
   })
 
-  it('cancels an in-flight job', async () => {
+  it('cancels an in-flight job (handler observes abort → outcome cancelled)', async () => {
     const handle = await jobManager.enqueue('dummy.echo' as never, { message: 'long', sleepMs: 500 } as never)
     // Wait for dispatch tx to fully commit before launching the next write.
     await drainTrailingDispatch()
     // Give the handler time to actually enter its abortable await.
     await new Promise((r) => setTimeout(r, 50))
 
-    await jobManager.cancel(handle.id, 'user requested')
-    const settled = await handle.finished
+    const result = await jobManager.cancel(handle.id, 'user requested')
+    expect(result).toEqual({ outcome: 'cancelled' })
 
+    const settled = await handle.finished
     expect(settled.status).toBe('cancelled')
     expect(settled.cancelRequested).toBe(true)
     expect(settled.error).toMatchObject({
@@ -183,6 +215,52 @@ describe('JobManager smoke (dummy.echo)', () => {
       retryable: false,
       message: expect.stringContaining('user requested')
     })
+  })
+
+  it('reports timed-out when the handler ignores the abort past cancelTimeoutMs', async () => {
+    const handle = await jobManager.enqueue('dummy.stubborn' as never, { sleepMs: 600 } as never)
+    await drainTrailingDispatch()
+    // Give the handler time to enter its (un-abortable) sleep before cancelling.
+    await new Promise((r) => setTimeout(r, 50))
+    // Capture the executor settlement so we can await the late handler return and
+    // not leak a trailing task into the next test.
+    const executed = inFlightExecutedOf(handle.id)
+
+    const result = await jobManager.cancel(handle.id, 'stubborn cancel')
+    expect(result).toEqual({ outcome: 'timed-out' })
+
+    const settled = await handle.finished
+    expect(settled.status).toBe('cancelled')
+
+    await executed
+    await drainTrailingDispatch()
+  }, 10_000)
+
+  it('reports cancelled for a not-in-flight delayed job', async () => {
+    const handle = await jobManager.enqueue(
+      'dummy.echo' as never,
+      { message: 'later' } as never,
+      {
+        scheduledAt: Date.now() + 60_000
+      } as never
+    )
+    expect(handle.snapshot.status).toBe('delayed')
+
+    const result = await jobManager.cancel(handle.id)
+    expect(result).toEqual({ outcome: 'cancelled' })
+
+    const row = await jobService.getById(handle.id)
+    expect(row?.status).toBe('cancelled')
+  })
+
+  it('reports not-cancellable for an already-terminal job', async () => {
+    const handle = await jobManager.enqueue('dummy.echo' as never, { message: 'done' } as never)
+    const settled = await handle.finished
+    expect(settled.status).toBe('completed')
+    await drainTrailingDispatch()
+
+    const result = await jobManager.cancel(handle.id)
+    expect(result).toEqual({ outcome: 'not-cancellable' })
   })
 
   it('reuses an existing handle when idempotencyKey matches a non-terminal job', async () => {

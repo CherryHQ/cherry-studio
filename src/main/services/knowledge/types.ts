@@ -4,6 +4,7 @@ export type KnowledgeWorkflowJobType = Extract<JobType, `knowledge.${string}`>
 export const KNOWLEDGE_JOB_TYPES = [
   'knowledge.prepare-root',
   'knowledge.index-documents',
+  'knowledge.check-file-processing-result',
   'knowledge.delete-subtree',
   'knowledge.reindex-subtree'
 ] as const satisfies readonly KnowledgeWorkflowJobType[]
@@ -26,6 +27,15 @@ export type KnowledgeProgressDetail =
       stage: 'deleting' | 'done' | 'item-gone'
       currentFile?: number
       totalFiles?: number
+    }
+  | {
+      stage: 'waiting'
+      pollRound: number
+      fileProcessingJobId?: string
+      fileProcessing?: unknown
+    }
+  | {
+      stage: 'failed'
     }
 
 export const KNOWLEDGE_ACTIVE_JOB_STATUSES = ['pending', 'delayed', 'running'] as const
@@ -69,6 +79,20 @@ export function knowledgePrepareIdempotencyKey(baseId: KnowledgeBaseId, itemId: 
   return `knowledge:${baseId}:${itemId}:prepare`
 }
 
-export function knowledgeIndexIdempotencyKey(baseId: KnowledgeBaseId, itemId: KnowledgeItemId): string {
-  return `knowledge:${baseId}:${itemId}:index`
+export function knowledgeIndexIdempotencyKey(
+  baseId: KnowledgeBaseId,
+  itemId: KnowledgeItemId,
+  parentJobId?: string | null
+): string {
+  const runKey = parentJobId ? `:${parentJobId}` : ''
+  return `knowledge:${baseId}:${itemId}:index${runKey}`
+}
+
+export function knowledgeFileProcessingCheckIdempotencyKey(
+  baseId: KnowledgeBaseId,
+  itemId: KnowledgeItemId,
+  fileProcessingJobId: string,
+  pollRound: number
+): string {
+  return `knowledge:${baseId}:${itemId}:fp-check:${fileProcessingJobId}:${pollRound}`
 }

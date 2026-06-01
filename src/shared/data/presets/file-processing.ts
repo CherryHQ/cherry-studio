@@ -13,6 +13,7 @@ import {
   type FileProcessorOverrides,
   type FileProcessorType
 } from '../preference/preferenceTypes'
+import { FILE_TYPE, FileTypeSchema } from '../types/file'
 
 export const FileProcessorTypeSchema = z.enum(FILE_PROCESSOR_TYPES)
 
@@ -29,7 +30,7 @@ export const FileProcessorIdSchema = z.enum(FILE_PROCESSOR_IDS)
 export const ImageToTextCapabilitySchema = z
   .object({
     feature: z.literal('image_to_text'),
-    inputs: z.array(z.literal('image')).min(1),
+    inputs: z.array(FileTypeSchema.extract([FILE_TYPE.IMAGE])).min(1),
     output: z.literal('text'),
     apiHost: z.string().optional(),
     modelId: z.string().min(1).optional()
@@ -40,7 +41,7 @@ export type ImageToTextCapability = z.infer<typeof ImageToTextCapabilitySchema>
 export const DocumentToMarkdownCapabilitySchema = z
   .object({
     feature: z.literal('document_to_markdown'),
-    inputs: z.array(z.literal('document')).min(1),
+    inputs: z.array(FileTypeSchema.extract([FILE_TYPE.DOCUMENT])).min(1),
     output: z.literal('markdown'),
     apiHost: z.string().optional(),
     modelId: z.string().min(1).optional()

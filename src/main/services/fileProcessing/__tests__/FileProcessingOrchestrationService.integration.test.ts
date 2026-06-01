@@ -2,9 +2,9 @@
  * Orchestration-layer tests for FileProcessingOrchestrationService.
  *
  * Verifies (1) handler registration on onInit, (2) mode → JobRegistry type
- * routing on startTask, (3) idempotencyKey shape, and (4) listAvailableProcessors
+ * routing on startJob, (3) fresh job creation, and (4) listAvailableProcessors
  * delegates to the processor registry. The JobManager itself is stubbed — its
- * idempotency dedup / cancellation behavior is covered by JobManager's own
+ * idempotency / cancellation behavior is covered by JobManager's own
  * test suite; this layer just verifies we hand it the right arguments.
  */
 import type * as LifecycleModule from '@main/core/lifecycle'
@@ -175,9 +175,9 @@ beforeEach(() => {
 })
 
 describe('FileProcessingOrchestrationService — lifecycle metadata', () => {
-  it('runs in WhenReady phase and depends on JobManager', () => {
+  it('runs in WhenReady phase and depends on FileManager and JobManager', () => {
     expect(getPhase(FileProcessingOrchestrationService)).toBe(Phase.WhenReady)
-    expect(getDependencies(FileProcessingOrchestrationService)).toEqual(['JobManager'])
+    expect(getDependencies(FileProcessingOrchestrationService)).toEqual(['FileManager', 'JobManager'])
   })
 })
 
@@ -199,17 +199,25 @@ describe('FileProcessingOrchestrationService.onInit', () => {
     const ipcHandle = (svc as unknown as { ipcHandle: ReturnType<typeof vi.fn> }).ipcHandle
     const channels = ipcHandle.mock.calls.map((c) => c[0])
     expect(channels).toEqual([
-      expect.stringContaining('start-task'),
+      expect.stringContaining('start-job'),
       expect.stringContaining('list-available-processors')
     ])
   })
 })
 
-describe('FileProcessingOrchestrationService.startTask — routing', () => {
+describe('FileProcessingOrchestrationService.startJob — routing', () => {
   function makeSvc() {
     const svc = new FileProcessingOrchestrationService()
     ;(svc as unknown as { onInit(): void }).onInit()
-    enqueueMock.mockResolvedValue({ id: 'job-test-1', snapshot: { status: 'pending' } })
+    enqueueMock.mockResolvedValue({
+      id: 'job-test-1',
+      snapshot: {
+        id: 'job-test-1',
+        type: 'file-processing.background',
+        status: 'pending',
+        input: { feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' }
+      }
+    })
     return svc
   }
 
@@ -220,7 +228,7 @@ describe('FileProcessingOrchestrationService.startTask — routing', () => {
     })
     const svc = makeSvc()
 
-    const result = await svc.startTask({
+    const result = await svc.startJob({
       feature: 'image_to_text',
       fileEntryId: IMAGE_ENTRY_ID,
       processorId: 'tesseract'
@@ -229,14 +237,13 @@ describe('FileProcessingOrchestrationService.startTask — routing', () => {
     expect(enqueueMock).toHaveBeenCalledWith(
       'file-processing.background',
       { feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' },
-      { idempotencyKey: `fp:${IMAGE_ENTRY_ID}:tesseract:image_to_text` }
+      {}
     )
     expect(result).toEqual({
-      taskId: 'job-test-1',
-      feature: 'image_to_text',
-      processorId: 'tesseract',
+      id: 'job-test-1',
+      type: 'file-processing.background',
       status: 'pending',
-      progress: 0
+      input: { feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' }
     })
   })
 
@@ -247,7 +254,7 @@ describe('FileProcessingOrchestrationService.startTask — routing', () => {
     })
     const svc = makeSvc()
 
-    await svc.startTask({
+    await svc.startJob({
       feature: 'document_to_markdown',
       fileEntryId: PDF_ENTRY_ID,
       processorId: 'doc2x'
@@ -256,23 +263,45 @@ describe('FileProcessingOrchestrationService.startTask — routing', () => {
     expect(enqueueMock).toHaveBeenCalledWith(
       'file-processing.remote-poll',
       { feature: 'document_to_markdown', fileEntryId: PDF_ENTRY_ID, processorId: 'doc2x' },
-      { idempotencyKey: `fp:${PDF_ENTRY_ID}:doc2x:document_to_markdown` }
+      {}
     )
   })
 
-  it('builds idempotencyKey deterministically from fileEntryId + processorId + feature', async () => {
+  it('passes parent job linkage to JobManager enqueue options', async () => {
     resolveProcessorConfigByFeatureMock.mockReturnValue({
       id: 'tesseract',
       capabilities: [{ feature: 'image_to_text', inputs: ['image'] }]
     })
     const svc = makeSvc()
 
-    await svc.startTask({ feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' })
-    await svc.startTask({ feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' })
+    await svc.startJob(
+      {
+        feature: 'image_to_text',
+        fileEntryId: IMAGE_ENTRY_ID,
+        processorId: 'tesseract'
+      },
+      { parentId: 'parent-job-1' }
+    )
 
-    const keys = enqueueMock.mock.calls.map((c) => c[2]?.idempotencyKey)
-    expect(keys[0]).toBe(keys[1])
-    expect(keys[0]).toBe(`fp:${IMAGE_ENTRY_ID}:tesseract:image_to_text`)
+    expect(enqueueMock).toHaveBeenCalledWith(
+      'file-processing.background',
+      { feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' },
+      { parentId: 'parent-job-1' }
+    )
+  })
+
+  it('starts a fresh processing job for each call', async () => {
+    resolveProcessorConfigByFeatureMock.mockReturnValue({
+      id: 'tesseract',
+      capabilities: [{ feature: 'image_to_text', inputs: ['image'] }]
+    })
+    const svc = makeSvc()
+
+    await svc.startJob({ feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' })
+    await svc.startJob({ feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' })
+
+    expect(enqueueMock).toHaveBeenCalledTimes(2)
+    expect(enqueueMock.mock.calls.map((call) => call[2])).toEqual([{}, {}])
   })
 
   it('rejects when file type is not in the processor capability inputs', async () => {
@@ -283,7 +312,7 @@ describe('FileProcessingOrchestrationService.startTask — routing', () => {
     const svc = makeSvc()
 
     await expect(
-      svc.startTask({ feature: 'document_to_markdown', fileEntryId: IMAGE_ENTRY_ID, processorId: 'doc2x' })
+      svc.startJob({ feature: 'document_to_markdown', fileEntryId: IMAGE_ENTRY_ID, processorId: 'doc2x' })
     ).rejects.toThrow(/does not support .* files/)
     expect(enqueueMock).not.toHaveBeenCalled()
   })
@@ -302,7 +331,7 @@ describe('FileProcessingOrchestrationService.startTask — routing', () => {
     const svc = makeSvc()
 
     await expect(
-      svc.startTask({ feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' })
+      svc.startJob({ feature: 'image_to_text', fileEntryId: IMAGE_ENTRY_ID, processorId: 'tesseract' })
     ).rejects.toThrow('File processing does not support directories')
     expect(enqueueMock).not.toHaveBeenCalled()
     expect(fileManagerGetByIdMock).not.toHaveBeenCalled()
@@ -317,7 +346,7 @@ describe('FileProcessingOrchestrationService.startTask — routing', () => {
     const svc = makeSvc()
 
     await expect(
-      svc.startTask({ feature: 'document_to_markdown', fileEntryId: PDF_ENTRY_ID, processorId: 'tesseract' })
+      svc.startJob({ feature: 'document_to_markdown', fileEntryId: PDF_ENTRY_ID, processorId: 'tesseract' })
     ).rejects.toThrow(/does not support document_to_markdown/)
     expect(enqueueMock).not.toHaveBeenCalled()
   })

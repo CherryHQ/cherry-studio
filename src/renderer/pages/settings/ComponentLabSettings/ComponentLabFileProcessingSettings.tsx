@@ -5,7 +5,7 @@ import { formatErrorMessage } from '@renderer/utils/error'
 import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
-import type { FileProcessingArtifact } from '@shared/data/types/fileProcessing'
+import type { FileProcessingArtifact, FileProcessingJobOutput } from '@shared/data/types/fileProcessing'
 import type { FilePath } from '@shared/file/types'
 import type { FileMetadata } from '@types'
 import { CheckCircle2, CircleAlert, FileText, Image, Loader2, Play, Upload } from 'lucide-react'
@@ -24,10 +24,6 @@ const TEXT_PREVIEW_LIMIT = 500
 
 type LabFeature = Extract<FileProcessorFeature, 'image_to_text' | 'document_to_markdown'>
 type LabRunStatus = JobSnapshot['status'] | 'idle' | 'starting'
-
-interface FileProcessingJobOutput {
-  artifacts: FileProcessingArtifact[]
-}
 
 type LabSectionConfig = {
   feature: LabFeature
@@ -100,7 +96,7 @@ function getDurationSeconds(durationMs: number | undefined): string {
 
 function getArtifactPreview(artifact: FileProcessingArtifact): string {
   if (artifact.kind === 'file') {
-    return artifact.path
+    return artifact.fileEntryId
   }
 
   return artifact.text.length > TEXT_PREVIEW_LIMIT ? `${artifact.text.slice(0, TEXT_PREVIEW_LIMIT)}...` : artifact.text
@@ -175,9 +171,9 @@ function ProcessorJobView({
   const jobProgress = useJobProgress(jobId)
 
   const status: LabRunStatus = snapshot?.status ?? 'starting'
-  const artifacts = useMemo<FileProcessingArtifact[] | undefined>(() => {
+  const artifact = useMemo<FileProcessingArtifact | undefined>(() => {
     if (!isTerminal || snapshot?.status !== 'completed') return undefined
-    return (snapshot.output as FileProcessingJobOutput | undefined)?.artifacts
+    return (snapshot.output as FileProcessingJobOutput | undefined)?.artifact
   }, [isTerminal, snapshot?.output, snapshot?.status])
   const errorMessage = useMemo(() => {
     if (!isTerminal) return undefined
@@ -208,7 +204,7 @@ function ProcessorJobView({
       </div>
 
       <div className="mt-2 truncate text-muted-foreground text-xs">
-        {t('settings.componentLab.fileProcessing.taskId')}: {jobId}
+        {t('settings.componentLab.fileProcessing.jobId')}: {jobId}
       </div>
 
       {errorMessage ? (
@@ -217,20 +213,18 @@ function ProcessorJobView({
         </pre>
       ) : null}
 
-      {artifacts?.length ? (
+      {artifact ? (
         <div className="mt-3 space-y-2">
-          {artifacts.map((artifact, index) => (
-            <div key={`${artifact.kind}-${index}`} className="rounded-lg border border-border/70 bg-muted/20 p-2">
-              <div className="mb-1 text-muted-foreground text-xs">
-                {artifact.kind === 'file'
-                  ? t('settings.componentLab.fileProcessing.artifact.file')
-                  : t('settings.componentLab.fileProcessing.artifact.text')}
-              </div>
-              <pre className="wrap-break-word max-h-40 overflow-auto whitespace-pre-wrap font-mono text-foreground text-xs leading-5">
-                {getArtifactPreview(artifact)}
-              </pre>
+          <div className="rounded-lg border border-border/70 bg-muted/20 p-2">
+            <div className="mb-1 text-muted-foreground text-xs">
+              {artifact.kind === 'file'
+                ? t('settings.componentLab.fileProcessing.artifact.file')
+                : t('settings.componentLab.fileProcessing.artifact.text')}
             </div>
-          ))}
+            <pre className="wrap-break-word max-h-40 overflow-auto whitespace-pre-wrap font-mono text-foreground text-xs leading-5">
+              {getArtifactPreview(artifact)}
+            </pre>
+          </div>
         </div>
       ) : null}
     </>
@@ -331,12 +325,12 @@ const ComponentLabFileProcessingSettings: FC = () => {
       const results = await Promise.allSettled(
         processorsForFeature.map(async (processor) => {
           const entry = await fileEntry
-          const startResult = await window.api.fileProcessing.startTask({
+          const job = await window.api.fileProcessing.startJob({
             feature: section.feature,
             fileEntryId: entry.id,
             processorId: processor.id
           })
-          return { processorId: processor.id, jobId: startResult.taskId }
+          return { processorId: processor.id, jobId: job.id }
         })
       )
 

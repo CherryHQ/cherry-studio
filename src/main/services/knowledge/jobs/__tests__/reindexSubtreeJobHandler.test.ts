@@ -4,11 +4,13 @@ import {
   cancelMock,
   createCtx,
   createDirectoryItem,
+  createFileItem,
   createJobSnapshot,
   createNoteItem,
   createReindexSubtreeJobHandler,
   deleteItemsByIdsMock,
-  detachFileRefsMock,
+  FILE_ENTRY_ID,
+  FILE_ITEM_ID,
   getJobMock,
   knowledgeItemGetSubtreeItemsMock,
   knowledgeItemSetSubtreeStatusMock,
@@ -89,7 +91,6 @@ describe('reindex-subtree job handler', () => {
 
     await handler.execute(createCtx({ baseId: 'kb-1', rootItemIds: ['note-1'] }, 'reindex-job'))
 
-    expect(detachFileRefsMock).not.toHaveBeenCalled()
     expect(deleteItemsByIdsMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith('note-1', 'processing')
     expect(scheduleItemMock).toHaveBeenCalledWith('kb-1', 'note-1', 'reindex-job')
@@ -179,6 +180,45 @@ describe('reindex-subtree job handler', () => {
       status: 'cancelled',
       error: { code: 'CANCELLED', message: 'cancelled', retryable: false },
       attempt: 1
+    })
+
+    expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalled()
+  })
+
+  it('onSettled treats file-processing check jobs as follow-up jobs', async () => {
+    const handler = createReindexSubtreeJobHandler(knowledgeLockManager as never, workflowService as never)
+    getJobMock.mockResolvedValue(
+      createJobSnapshot({
+        id: 'reindex-job',
+        type: 'knowledge.reindex-subtree',
+        input: { baseId: 'kb-1', rootItemIds: [FILE_ITEM_ID] }
+      })
+    )
+    listMock.mockResolvedValue([
+      createJobSnapshot({
+        id: 'check-file-1',
+        type: 'knowledge.check-file-processing-result',
+        parentId: 'reindex-job',
+        input: {
+          baseId: 'kb-1',
+          itemId: FILE_ITEM_ID,
+          fileProcessingJobId: 'fp-job-1',
+          sourceFileEntryId: FILE_ENTRY_ID,
+          pollRound: 0,
+          firstScheduledAt: 1779811200000,
+          parentJobId: 'reindex-job'
+        }
+      })
+    ])
+    knowledgeItemGetSubtreeItemsMock.mockResolvedValue([createFileItem(FILE_ITEM_ID, 'processing')])
+
+    await handler.onSettled?.({
+      jobId: 'reindex-job',
+      type: 'knowledge.reindex-subtree',
+      scheduleId: null,
+      status: 'failed',
+      error: { code: 'FAILED', message: 'reset failed', retryable: false },
+      attempt: 3
     })
 
     expect(knowledgeItemSetSubtreeStatusMock).not.toHaveBeenCalled()

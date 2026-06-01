@@ -85,7 +85,7 @@ describe('AgentsMigrator', () => {
     expect(result.itemCount).toBe(45)
   })
 
-  it('execute attaches the legacy db and imports every table inside a FK-off transaction', async () => {
+  it('execute attaches the legacy db and imports every table without per-migrator FK toggling', async () => {
     const run = vi.fn().mockResolvedValue(undefined)
     // remapAgentPrefixIds calls db.select().from().where() to find old-prefix IDs;
     // mock to return empty arrays so the remap loop is a no-op.
@@ -109,36 +109,36 @@ describe('AgentsMigrator', () => {
     expect(result.processedCount).toBe(45)
 
     const outer = getExecutedSql(run)
-    // Import phase: ATTACH → PRAGMA FK OFF → BEGIN → [INSERTs] → COMMIT
+    // FK is managed globally by the engine (MigrationDbService setPragma) — no per-migrator
+    // PRAGMA toggling. Import phase: ATTACH → BEGIN → [INSERTs] → COMMIT
     expect(outer[0]).toBe("ATTACH DATABASE '/mock/feature.agents.db_file' AS agents_legacy")
-    expect(outer[1]).toBe('PRAGMA foreign_keys = OFF')
-    expect(outer[2]).toBe('BEGIN')
-    // After import COMMIT: remapAgentPrefixIds emits PRAGMA FK OFF → BEGIN → COMMIT → PRAGMA FK ON
-    // Then execute() finally emits PRAGMA FK ON → DETACH
-    // run tail: ...COMMIT(import), PRAGMA FK OFF, BEGIN, COMMIT, PRAGMA FK ON, PRAGMA FK ON, DETACH
-    expect(outer.at(-7)).toBe('COMMIT')
-    expect(outer.at(-6)).toBe('PRAGMA foreign_keys = OFF')
-    expect(outer.at(-5)).toBe('BEGIN')
+    expect(outer[1]).toBe('BEGIN')
+    // run tail after import COMMIT: remapAgentPrefixIds emits BEGIN → COMMIT (no old-prefix
+    // IDs here, so no UPDATEs), then execute() emits DETACH.
     expect(outer.at(-4)).toBe('COMMIT')
-    expect(outer.at(-3)).toBe('PRAGMA foreign_keys = ON')
-    expect(outer.at(-2)).toBe('PRAGMA foreign_keys = ON')
+    expect(outer.at(-3)).toBe('BEGIN')
+    expect(outer.at(-2)).toBe('COMMIT')
     expect(outer.at(-1)).toBe('DETACH DATABASE agents_legacy')
-    // INSERT statements sit between the initial BEGIN and the main COMMIT
-    const insertCalls = outer.slice(3, -7)
+    expect(outer).not.toContain('PRAGMA foreign_keys = OFF')
+    expect(outer).not.toContain('PRAGMA foreign_keys = ON')
+    // INSERT statements sit between the import BEGIN and the import COMMIT
+    const insertCalls = outer.slice(2, -4)
     expect(insertCalls).toHaveLength(AGENTS_TABLE_MIGRATION_SPECS.length)
     // No old-prefix IDs returned → no UPDATE calls
     expect(update).not.toHaveBeenCalled()
+    // Agent-domain FK self-check ran (one foreign_key_check per AGENT_TABLES entry)
+    expect(all).toHaveBeenCalled()
   })
 
-  it('re-enables FK and detaches when an import statement fails inside the transaction', async () => {
-    // First 3 calls succeed (ATTACH, FK_OFF, BEGIN), 4th (first INSERT) fails
+  it('rolls back and detaches when an import statement fails inside the transaction', async () => {
+    // First 2 calls succeed (ATTACH, BEGIN), 3rd (first INSERT) fails. FK is managed
+    // globally by the engine now, so no per-migrator FK pragma appears in this sequence.
     const run = vi
       .fn()
       .mockResolvedValueOnce(undefined) // ATTACH
-      .mockResolvedValueOnce(undefined) // PRAGMA foreign_keys = OFF
       .mockResolvedValueOnce(undefined) // BEGIN
       .mockRejectedValueOnce(new Error('insert failed')) // first INSERT fails
-      .mockResolvedValue(undefined) // ROLLBACK, FK_ON, DETACH
+      .mockResolvedValue(undefined) // ROLLBACK, DETACH
 
     vi.spyOn(LegacyAgentsDbReader.prototype, 'resolvePath').mockReturnValue('/mock/feature.agents.db_file')
     vi.spyOn(LegacyAgentsDbReader.prototype, 'inspectSchema').mockResolvedValue(createSchemaInfo() as never)
@@ -149,7 +149,7 @@ describe('AgentsMigrator', () => {
 
     const executed = getExecutedSql(run)
     expect(executed).toContain('ROLLBACK')
-    expect(executed).toContain('PRAGMA foreign_keys = ON')
+    expect(executed).not.toContain('PRAGMA foreign_keys = ON')
     expect(executed.at(-1)).toBe('DETACH DATABASE agents_legacy')
     expect(executed.some((stmt) => stmt?.startsWith('DELETE FROM agent'))).toBe(false)
   })
