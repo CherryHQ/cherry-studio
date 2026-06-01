@@ -18,10 +18,12 @@ import {
   agentSkillsTable,
   agentsTable,
   channelsTable,
+  channelTaskSubscriptionsTable,
   type InsertAgentRow,
   scheduledTasksTable,
   sessionMessagesTable,
-  sessionsTable
+  sessionsTable,
+  taskRunLogsTable
 } from '../database/schema'
 import type { AgentModelField } from '../errors'
 import { skillService } from '../skills/SkillService'
@@ -566,9 +568,18 @@ export class AgentService extends BaseService {
           .from(sessionsTable)
           .where(eq(sessionsTable.agent_id, id))
         const sessionIds = sessions.map((session) => session.id)
+        const tasks = await tx
+          .select({ id: scheduledTasksTable.id })
+          .from(scheduledTasksTable)
+          .where(eq(scheduledTasksTable.agent_id, id))
+        const taskIds = tasks.map((task) => task.id)
 
         await tx.delete(agentSkillsTable).where(eq(agentSkillsTable.agent_id, id))
-        await tx.delete(scheduledTasksTable).where(eq(scheduledTasksTable.agent_id, id))
+        if (taskIds.length > 0) {
+          await tx.delete(channelTaskSubscriptionsTable).where(inArray(channelTaskSubscriptionsTable.taskId, taskIds))
+          await tx.delete(taskRunLogsTable).where(inArray(taskRunLogsTable.task_id, taskIds))
+          await tx.delete(scheduledTasksTable).where(eq(scheduledTasksTable.agent_id, id))
+        }
         if (sessionIds.length > 0) {
           await tx.delete(sessionMessagesTable).where(inArray(sessionMessagesTable.session_id, sessionIds))
         }
@@ -586,9 +597,18 @@ export class AgentService extends BaseService {
         .from(sessionsTable)
         .where(eq(sessionsTable.agent_id, id))
       const sessionIds = sessions.map((session) => session.id)
+      const tasks = await tx
+        .select({ id: scheduledTasksTable.id })
+        .from(scheduledTasksTable)
+        .where(eq(scheduledTasksTable.agent_id, id))
+      const taskIds = tasks.map((task) => task.id)
 
       await tx.delete(agentSkillsTable).where(eq(agentSkillsTable.agent_id, id))
-      await tx.delete(scheduledTasksTable).where(eq(scheduledTasksTable.agent_id, id))
+      if (taskIds.length > 0) {
+        await tx.delete(channelTaskSubscriptionsTable).where(inArray(channelTaskSubscriptionsTable.taskId, taskIds))
+        await tx.delete(taskRunLogsTable).where(inArray(taskRunLogsTable.task_id, taskIds))
+        await tx.delete(scheduledTasksTable).where(eq(scheduledTasksTable.agent_id, id))
+      }
       if (sessionIds.length > 0) {
         await tx.delete(sessionMessagesTable).where(inArray(sessionMessagesTable.session_id, sessionIds))
       }
