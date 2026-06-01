@@ -551,6 +551,29 @@ export class AgentService extends BaseService {
     logger.info('Agents reordered', { count: orderedIds.length })
   }
 
+  private async deleteAgentRelations(tx: any, id: string): Promise<void> {
+    const sessions = await tx.select({ id: sessionsTable.id }).from(sessionsTable).where(eq(sessionsTable.agent_id, id))
+    const sessionIds = sessions.map((session: { id: string }) => session.id)
+    const tasks = await tx
+      .select({ id: scheduledTasksTable.id })
+      .from(scheduledTasksTable)
+      .where(eq(scheduledTasksTable.agent_id, id))
+    const taskIds = tasks.map((task: { id: string }) => task.id)
+
+    await tx.delete(agentSkillsTable).where(eq(agentSkillsTable.agent_id, id))
+    if (taskIds.length > 0) {
+      await tx.delete(channelTaskSubscriptionsTable).where(inArray(channelTaskSubscriptionsTable.taskId, taskIds))
+      await tx.delete(taskRunLogsTable).where(inArray(taskRunLogsTable.task_id, taskIds))
+      await tx.delete(scheduledTasksTable).where(eq(scheduledTasksTable.agent_id, id))
+    }
+    if (sessionIds.length > 0) {
+      // Agent DB migrations did not always create FK constraints, so clean child rows explicitly.
+      await tx.delete(sessionMessagesTable).where(inArray(sessionMessagesTable.session_id, sessionIds))
+    }
+    await tx.delete(sessionsTable).where(eq(sessionsTable.agent_id, id))
+    await tx.update(channelsTable).set({ agentId: null }).where(eq(channelsTable.agentId, id))
+  }
+
   async deleteAgent(id: string): Promise<boolean> {
     const database = await this.getDatabase()
     const agent = await this.findAgentRow(id)
@@ -563,28 +586,7 @@ export class AgentService extends BaseService {
       const now = new Date().toISOString()
 
       await database.transaction(async (tx) => {
-        const sessions = await tx
-          .select({ id: sessionsTable.id })
-          .from(sessionsTable)
-          .where(eq(sessionsTable.agent_id, id))
-        const sessionIds = sessions.map((session) => session.id)
-        const tasks = await tx
-          .select({ id: scheduledTasksTable.id })
-          .from(scheduledTasksTable)
-          .where(eq(scheduledTasksTable.agent_id, id))
-        const taskIds = tasks.map((task) => task.id)
-
-        await tx.delete(agentSkillsTable).where(eq(agentSkillsTable.agent_id, id))
-        if (taskIds.length > 0) {
-          await tx.delete(channelTaskSubscriptionsTable).where(inArray(channelTaskSubscriptionsTable.taskId, taskIds))
-          await tx.delete(taskRunLogsTable).where(inArray(taskRunLogsTable.task_id, taskIds))
-          await tx.delete(scheduledTasksTable).where(eq(scheduledTasksTable.agent_id, id))
-        }
-        if (sessionIds.length > 0) {
-          await tx.delete(sessionMessagesTable).where(inArray(sessionMessagesTable.session_id, sessionIds))
-        }
-        await tx.delete(sessionsTable).where(eq(sessionsTable.agent_id, id))
-        await tx.update(channelsTable).set({ agentId: null }).where(eq(channelsTable.agentId, id))
+        await this.deleteAgentRelations(tx, id)
         await tx.update(agentsTable).set({ deleted_at: now, updated_at: now }).where(eq(agentsTable.id, id))
       })
 
@@ -592,28 +594,7 @@ export class AgentService extends BaseService {
     }
 
     const result = await database.transaction(async (tx) => {
-      const sessions = await tx
-        .select({ id: sessionsTable.id })
-        .from(sessionsTable)
-        .where(eq(sessionsTable.agent_id, id))
-      const sessionIds = sessions.map((session) => session.id)
-      const tasks = await tx
-        .select({ id: scheduledTasksTable.id })
-        .from(scheduledTasksTable)
-        .where(eq(scheduledTasksTable.agent_id, id))
-      const taskIds = tasks.map((task) => task.id)
-
-      await tx.delete(agentSkillsTable).where(eq(agentSkillsTable.agent_id, id))
-      if (taskIds.length > 0) {
-        await tx.delete(channelTaskSubscriptionsTable).where(inArray(channelTaskSubscriptionsTable.taskId, taskIds))
-        await tx.delete(taskRunLogsTable).where(inArray(taskRunLogsTable.task_id, taskIds))
-        await tx.delete(scheduledTasksTable).where(eq(scheduledTasksTable.agent_id, id))
-      }
-      if (sessionIds.length > 0) {
-        await tx.delete(sessionMessagesTable).where(inArray(sessionMessagesTable.session_id, sessionIds))
-      }
-      await tx.delete(sessionsTable).where(eq(sessionsTable.agent_id, id))
-      await tx.update(channelsTable).set({ agentId: null }).where(eq(channelsTable.agentId, id))
+      await this.deleteAgentRelations(tx, id)
 
       return await tx.delete(agentsTable).where(eq(agentsTable.id, id))
     })

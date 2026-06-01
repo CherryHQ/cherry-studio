@@ -325,23 +325,18 @@ export class SessionService extends BaseService {
     const database = await this.getDatabase()
 
     return await database.transaction(async (tx) => {
-      const session = await tx
-        .select({ id: sessionsTable.id })
-        .from(sessionsTable)
+      const result = await tx
+        .delete(sessionsTable)
         .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))
-        .limit(1)
 
-      if (!session[0]) {
+      if (result.rowsAffected === 0) {
         return false
       }
 
       await tx.update(channelsTable).set({ sessionId: null }).where(eq(channelsTable.sessionId, id))
       await tx.delete(sessionMessagesTable).where(eq(sessionMessagesTable.session_id, id))
-      const result = await tx
-        .delete(sessionsTable)
-        .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))
 
-      return result.rowsAffected > 0
+      return true
     })
   }
 
