@@ -1,7 +1,6 @@
 import type { ISeeder } from '../types'
 import { MiniAppSeeder } from './seeders/miniAppSeeder'
 import { PreferenceSeeder } from './seeders/preferenceSeeder'
-import { PresetImageModelSeeder } from './seeders/presetImageModelSeeder'
 import { PresetProviderSeeder } from './seeders/presetProviderSeeder'
 import { TranslateLanguageSeeder } from './seeders/translateLanguageSeeder'
 
@@ -14,6 +13,5 @@ export const seeders: ISeeder[] = [
   new PreferenceSeeder(),
   new TranslateLanguageSeeder(),
   new PresetProviderSeeder(),
-  new PresetImageModelSeeder(),
   new MiniAppSeeder()
 ]
