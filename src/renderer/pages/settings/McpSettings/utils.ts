@@ -7,20 +7,27 @@ const logger = loggerService.withContext('McpSettings/utils')
 type McpServerDraft = Partial<MCPServer> & { url?: string }
 type CreateMcpServerDraft = McpServerDraft & Pick<MCPServer, 'name'>
 
-export const toCreateMcpServerDto = (server: CreateMcpServerDraft): CreateMCPServerDto => {
-  const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, url, ...fields } = server
-  const dto: CreateMCPServerDto = { ...fields }
+const stripReadonlyMcpServerFields = (server: McpServerDraft): UpdateMCPServerDto => {
+  const dto = { ...server }
+  delete dto.id
+  delete dto.createdAt
+  delete dto.updatedAt
+  delete dto.url
+  return dto
+}
 
-  if (dto.baseUrl === undefined && url !== undefined) {
-    dto.baseUrl = url
+export const toCreateMcpServerDto = (server: CreateMcpServerDraft): CreateMCPServerDto => {
+  const dto: CreateMCPServerDto = { ...stripReadonlyMcpServerFields(server), name: server.name }
+
+  if (dto.baseUrl === undefined && server.url !== undefined) {
+    dto.baseUrl = server.url
   }
 
   return dto
 }
 
 export const toUpdateMcpServerDto = (server: McpServerDraft): UpdateMCPServerDto => {
-  const { id: _id, createdAt: _createdAt, updatedAt: _updatedAt, url: _url, ...fields } = server
-  return fields
+  return stripReadonlyMcpServerFields(server)
 }
 
 export const isSameMcpServerCandidate = (existing: MCPServer, candidate: MCPServer): boolean => {
