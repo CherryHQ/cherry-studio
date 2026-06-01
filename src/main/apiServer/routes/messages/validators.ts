@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import * as z from 'zod'
 
 // Schema for message content blocks
 const ContentBlockSchema = z.object({
