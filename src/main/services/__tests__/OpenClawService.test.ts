@@ -90,7 +90,7 @@ describe('OpenClawService gateway status state machine', () => {
       service.gatewayAuthToken = 'a b+c'
 
       const url = service.getDashboardUrl()
-      expect(url).toBe(`http://127.0.0.1:18790?token=${encodeURIComponent('a b+c')}`)
+      expect(url).toBe(`http://127.0.0.1:18790#token=${encodeURIComponent('a b+c')}`)
     })
   })
 

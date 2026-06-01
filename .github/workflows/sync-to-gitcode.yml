@@ -104,7 +104,7 @@ jobs:
           retention-days: 1
 
   sync-to-gitcode:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, windows-signing]
     needs: build-windows-signed
     steps:
       - name: Check out Git repository

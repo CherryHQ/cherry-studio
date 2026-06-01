@@ -151,7 +151,7 @@ export function ToolStatusIndicator({ status, hasError = false }: { status: Tool
           ? {
               label: t('message.tools.error'),
               icon: <TriangleAlert size={13} className="lucide-custom" />,
-              color: 'error'
+              color: 'warning'
             }
           : {
               label: t('message.tools.completed'),
@@ -162,7 +162,7 @@ export function ToolStatusIndicator({ status, hasError = false }: { status: Tool
         return {
           label: t('message.tools.error'),
           icon: <TriangleAlert size={13} className="lucide-custom" />,
-          color: 'error'
+          color: 'warning'
         }
       default:
         return null
@@ -190,7 +190,7 @@ function getStatusColor(color: StatusColor): string {
     case 'warning':
       return 'var(--color-status-warning, #faad14)'
     case 'error':
-      return 'var(--color-status-error, #ff4d4f)'
+      return 'var(--color-status-warning, #faad14)'
     default:
       return 'var(--color-text)'
   }
@@ -202,7 +202,12 @@ export const StatusIndicatorContainer = styled.span<{ $color: StatusColor }>`
   align-items: center;
   gap: 4px;
   opacity: 0.85;
-  color: ${(props) => getStatusColor(props.$color)};
+  color: ${(props) => getStatusColor(props.$color)} !important;
+
+  svg {
+    color: currentColor !important;
+    stroke: currentColor !important;
+  }
 `
 
 export function TruncatedIndicator({ originalLength }: { originalLength: number }) {
