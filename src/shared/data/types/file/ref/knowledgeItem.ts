@@ -13,7 +13,9 @@
  * `sourceId` is strict (`z.uuidv7()`) — `knowledge_item.id` is v2-native, so
  * there is no legacy format risk.
  *
- * `source` marks the indexed source document for the `knowledge_item` row.
+ * `source` marks the user-provided source document for the `knowledge_item`
+ * row. `processed_artifact` marks a Cherry-owned derived document produced
+ * from that source, such as FileProcessing markdown used for indexing.
  */
 
 import * as z from 'zod'
@@ -22,8 +24,9 @@ import { createRefSchema } from './essential'
 
 export const knowledgeItemSourceType = 'knowledge_item' as const
 
-export const knowledgeItemRoles = ['source'] as const
+export const knowledgeItemRoles = ['source', 'processed_artifact'] as const
 export const knowledgeItemRoleSchema = z.enum(knowledgeItemRoles)
+export type KnowledgeItemFileRefRole = (typeof knowledgeItemRoles)[number]
 
 export const knowledgeItemRefFields = {
   sourceType: z.literal(knowledgeItemSourceType),

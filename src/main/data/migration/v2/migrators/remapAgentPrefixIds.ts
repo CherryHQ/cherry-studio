@@ -1,5 +1,5 @@
 import { agentTable } from '@data/db/schemas/agent'
-import { agentChannelTable } from '@data/db/schemas/agentChannel'
+import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
@@ -22,10 +22,8 @@ export const AGENT_TABLES: SQLiteTable[] = [
   agentTable,
   agentSessionTable,
   agentSkillTable,
-  agentTaskTable,
   agentChannelTable,
   agentSessionMessageTable,
-  agentTaskRunLogTable,
   agentChannelTaskTable
 ]
 

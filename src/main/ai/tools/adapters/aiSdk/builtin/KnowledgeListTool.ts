@@ -112,8 +112,12 @@ async function buildOutputItem(
 function deriveSampleSource(item: KnowledgeItem): string | null {
   switch (item.type) {
     case 'file': {
-      const { origin_name, name } = item.data.file
-      const value = origin_name?.trim() || name?.trim()
+      const legacyFile = (item.data as { file?: { origin_name?: string; name?: string } }).file
+      const value =
+        legacyFile?.origin_name?.trim() ||
+        legacyFile?.name?.trim() ||
+        item.data.source.trim() ||
+        item.data.fileEntryId.trim()
       return value ? value : null
     }
     case 'url':

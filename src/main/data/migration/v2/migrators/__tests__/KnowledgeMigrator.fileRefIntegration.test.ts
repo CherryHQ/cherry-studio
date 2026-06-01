@@ -93,7 +93,8 @@ async function seedAssistantKnowledgeBaseRefs(dbh: ReturnType<typeof setupTestDa
     id: ASSISTANT_ID,
     name: 'Assistant',
     emoji: '*',
-    settings: DEFAULT_ASSISTANT_SETTINGS
+    settings: DEFAULT_ASSISTANT_SETTINGS,
+    orderKey: 'a0'
   })
 
   await dbh.client.execute('PRAGMA foreign_keys = OFF')

@@ -34,8 +34,8 @@ import AssistantServer from '@main/ai/mcp/servers/assistant'
 import ClawServer from '@main/ai/mcp/servers/claw'
 import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSdkMcpServerInstance'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
-import { isLinux, isWin } from '@main/constant'
 import { application } from '@main/core/application'
+import { isLinux, isWin } from '@main/core/platform'
 import { getProxyEnvironment } from '@main/services/proxy/nodeProxy'
 import { toAsarUnpackedPath } from '@main/utils'
 import { checkWorkspacePathStatus, formatWorkspacePathStatus } from '@main/utils/file/workspacePathStatus'
@@ -53,6 +53,7 @@ import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import type { CherryToolMeta } from '@shared/data/types/uiParts'
 import { app } from 'electron'
 
 import { toolApprovalRegistry } from './ToolApprovalRegistry'
@@ -430,7 +431,7 @@ async function buildToolPermissions(
         type: 'tool-approval-request',
         approvalId,
         toolCallId: namespacedToolCallId,
-        providerMetadata: { cherry: { transport: 'claude-agent', toolName } }
+        providerMetadata: { cherry: { transport: 'claude-agent', toolName } satisfies CherryToolMeta }
       })
     })
   }
