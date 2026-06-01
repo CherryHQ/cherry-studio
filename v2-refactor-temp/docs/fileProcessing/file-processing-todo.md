@@ -8,13 +8,12 @@
 
 ## 1. 后续业务接入
 
-这些工作不属于当前 Main-side task API 重构范围，需要拆到后续 PR。
+这些工作不属于当前 Main-side job API 重构范围，需要拆到后续 PR。
 
-1. Renderer / preload 正式接入 `startTask`、`getTask`、`cancelTask`。
-2. 翻译 OCR 从旧 `window.api.ocr` 切到新 file-processing task API。
-3. `KnowledgeService` 消费 `document_to_markdown` 的 markdown file artifact，并完成入库、chunk、embedding 联调。
-4. 删除旧 `src/main/services/ocr` 和旧 preprocess provider。
-5. 清理旧 i18n、设置页、migration 中不再需要的兼容逻辑。
+1. Renderer / preload 正式接入 `startJob`、`getJob`、`cancelJob`。
+2. 翻译 OCR 从旧 `window.api.ocr` 切到新 file-processing job API。
+3. 删除旧 `src/main/services/ocr` 和旧 preprocess provider。
+4. 清理旧 i18n、设置页、migration 中不再需要的兼容逻辑。
 
 ---
 
@@ -22,14 +21,13 @@
 
 这些能力当前有明确设计边界，不应作为本 PR 的 blocker。
 
-1. 不建立 Renderer task subscription / IPC broadcast。
-2. 不建立全局 UI task center。
-3. 不新增 DataApi task table。
-4. 不新增 Cache / SharedCache task mirror。
-5. 不把旧 OCR IPC 桥接到新 file-processing task API。
-6. 不让 file-processing task state 跨 app restart 恢复。
+1. 不建立 Renderer job subscription / IPC broadcast。
+2. 不建立全局 UI job center。
+3. 不新增 DataApi job table。
+4. 不新增 Cache / SharedCache job mirror。
+5. 不把旧 OCR IPC 桥接到新 file-processing job API。
 
-如果后续产品需要实时进度 UI，可以在 Orchestration 或专门的 bridge service 中订阅 `FileProcessingTaskService.onTaskChanged` 后再转发给 Renderer。
+如果后续产品需要实时进度 UI，应复用统一 JobManager progress 机制或建立通用 job bridge。
 
 ---
 
@@ -72,7 +70,7 @@
 
 ## 4. 推荐拆分顺序
 
-1. 先接 Renderer / preload 的统一 task API，使新 contract 真正被业务调用。
-2. 再分别迁移翻译 OCR 和 KnowledgeService markdown artifact 消费。
+1. 先接 Renderer / preload 的统一 job API，使新 contract 真正被业务调用。
+2. 再迁移翻译 OCR。
 3. 业务链路稳定后删除旧 OCR / preprocess 代码。
 4. 最后处理设置页、i18n、migration、file management、ProcessManager 这类清理和基础设施项。

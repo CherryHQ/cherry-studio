@@ -1026,31 +1026,20 @@ export class ChatMigrator extends BaseMigrator {
       const now = Date.now()
       const batchFileRefRows = this.collectFileRefRows(batchMessages, now)
 
-      await db.run(sql`PRAGMA foreign_keys = OFF`)
-      // Bare finally would let a PRAGMA-reset failure (closed conn, writer-lock)
-      // overwrite the original tx error. Capture, reset, then rethrow the tx one.
-      let txErr: unknown
-      try {
-        await db.transaction(async (tx) => {
-          await tx.insert(topicTable).values(batch.map((d) => d.topic))
-          for (let i = 0; i < batchMessages.length; i += MESSAGE_INSERT_BATCH_SIZE) {
-            await tx.insert(messageTable).values(batchMessages.slice(i, i + MESSAGE_INSERT_BATCH_SIZE))
+      // FK stays OFF for the whole migration (MigrationDbService registers it via
+      // setPragma), so this batch can insert self-referencing message.parentId rows that
+      // resolve within the batch. assertOwnedForeignKeys() below verifies the result.
+      await db.transaction(async (tx) => {
+        await tx.insert(topicTable).values(batch.map((d) => d.topic))
+        for (let i = 0; i < batchMessages.length; i += MESSAGE_INSERT_BATCH_SIZE) {
+          await tx.insert(messageTable).values(batchMessages.slice(i, i + MESSAGE_INSERT_BATCH_SIZE))
+        }
+        if (batchFileRefRows.length > 0) {
+          for (let i = 0; i < batchFileRefRows.length; i += FILE_REF_INSERT_BATCH_SIZE) {
+            await tx.insert(fileRefTable).values(batchFileRefRows.slice(i, i + FILE_REF_INSERT_BATCH_SIZE))
           }
-          if (batchFileRefRows.length > 0) {
-            for (let i = 0; i < batchFileRefRows.length; i += FILE_REF_INSERT_BATCH_SIZE) {
-              await tx.insert(fileRefTable).values(batchFileRefRows.slice(i, i + FILE_REF_INSERT_BATCH_SIZE))
-            }
-          }
-        })
-      } catch (e) {
-        txErr = e
-      }
-      try {
-        await db.run(sql`PRAGMA foreign_keys = ON`)
-      } catch (resetErr) {
-        logger.error('FK pragma reset failed', resetErr as Error, { hadTxError: txErr !== undefined })
-      }
-      if (txErr) throw txErr
+        }
+      })
 
       for (const id of batchIds) seenMessageIds.add(id)
       this.fileRefInsertCount += batchFileRefRows.length
@@ -1102,6 +1091,13 @@ export class ChatMigrator extends BaseMigrator {
         throw error
       }
     }
+
+    // Self-check FK integrity for the tables this migrator owns: topic.assistantId →
+    // assistant (migrated at order 2) and message.topicId / parentId / modelId all resolve
+    // by now. file_ref is intentionally excluded — it is a polymorphic table shared with
+    // KnowledgeMigrator, so foreign_key_check cannot be scoped to "our rows" here; it is
+    // covered by the engine's final verifyForeignKeys().
+    await this.assertOwnedForeignKeys(db, [topicTable, messageTable, pinTable])
 
     return { topicsInserted, messagesInserted, pinsInserted }
   }

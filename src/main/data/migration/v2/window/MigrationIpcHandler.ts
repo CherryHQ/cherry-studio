@@ -4,7 +4,7 @@
 
 import type { VersionBlockReason } from '@data/migration/v2/core/versionPolicy'
 import { loggerService } from '@logger'
-import BackupManager from '@main/services/BackupManager'
+import LegacyBackupManager from '@main/services/LegacyBackupManager'
 import {
   MigrationIpcChannels,
   type MigrationProgress,
@@ -22,7 +22,7 @@ const logger = loggerService.withContext('MigrationIpcHandler')
 const CONCURRENT_MIGRATION_ERROR = 'Migration is already in progress.'
 
 let inFlightMigration: Promise<MigrationResult> | null = null
-const backupManager = new BackupManager()
+const backupManager = new LegacyBackupManager()
 
 // Current migration progress
 let currentProgress: MigrationProgress = {

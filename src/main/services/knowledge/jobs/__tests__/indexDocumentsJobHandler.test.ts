@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest'
 import {
   createAbortedCtx,
   createCtx,
+  createFileItem,
   createIndexDocumentsJobHandler,
   createJobSnapshot,
   createNoteItem,
+  FILE_ITEM_ID,
   getJobMock,
   knowledgeBaseGetByIdMock,
   knowledgeItemGetByIdMock,
@@ -13,6 +15,7 @@ import {
   knowledgeLockManager,
   loadKnowledgeItemDocumentsMock,
   NOTE_ITEM_ID,
+  PROCESSED_FILE_ENTRY_ID,
   rebuildFileRefsForItemsMock,
   replaceByExternalIdMock
 } from './jobHandlerTestUtils'
@@ -23,14 +26,34 @@ describe('index-documents job handler', () => {
     knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
     knowledgeItemUpdateStatusMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
 
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
 
     expect(rebuildFileRefsForItemsMock).toHaveBeenCalledWith([NOTE_ITEM_ID])
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'reading')
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'embedding')
     expect(replaceByExternalIdMock).toHaveBeenCalledWith(NOTE_ITEM_ID, expect.any(Array))
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
-    expect(handler.defaultQueue?.({ baseId: 'kb-1', itemId: NOTE_ITEM_ID })).toBe('base.kb-1')
+    expect(handler.defaultQueue?.({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null })).toBe('base.kb-1')
+  })
+
+  it('passes processed artifact file entries to the reader', async () => {
+    const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
+    knowledgeItemGetByIdMock.mockResolvedValue(createFileItem(FILE_ITEM_ID))
+
+    await handler.execute(
+      createCtx({
+        baseId: 'kb-1',
+        itemId: FILE_ITEM_ID,
+        parentJobId: null,
+        processedFileEntryId: PROCESSED_FILE_ENTRY_ID
+      })
+    )
+
+    expect(loadKnowledgeItemDocumentsMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: FILE_ITEM_ID }),
+      expect.any(AbortSignal),
+      { fileEntryId: PROCESSED_FILE_ENTRY_ID }
+    )
   })
 
   it('completes with empty vectors when the reader returns no documents', async () => {
@@ -39,7 +62,7 @@ describe('index-documents job handler', () => {
     knowledgeItemUpdateStatusMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
     loadKnowledgeItemDocumentsMock.mockResolvedValueOnce([])
 
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
 
     expect(rebuildFileRefsForItemsMock).toHaveBeenCalledWith([NOTE_ITEM_ID])
     expect(knowledgeItemUpdateStatusMock).toHaveBeenCalledWith(NOTE_ITEM_ID, 'reading')
@@ -54,7 +77,7 @@ describe('index-documents job handler', () => {
       .mockResolvedValueOnce(createNoteItem(NOTE_ITEM_ID))
       .mockResolvedValueOnce(createNoteItem(NOTE_ITEM_ID, null, 'deleting'))
 
-    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))
+    await handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
 
     expect(replaceByExternalIdMock).not.toHaveBeenCalled()
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
@@ -65,9 +88,9 @@ describe('index-documents job handler', () => {
     knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem(NOTE_ITEM_ID))
     replaceByExternalIdMock.mockRejectedValueOnce(new Error('vector write failed'))
 
-    await expect(handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))).rejects.toThrow(
-      'vector write failed'
-    )
+    await expect(
+      handler.execute(createCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
+    ).rejects.toThrow('vector write failed')
 
     expect(knowledgeItemUpdateStatusMock).not.toHaveBeenCalledWith(NOTE_ITEM_ID, 'completed')
   })
@@ -75,7 +98,9 @@ describe('index-documents job handler', () => {
   it('stops before side effects when aborted before execution', async () => {
     const handler = createIndexDocumentsJobHandler(knowledgeLockManager as never)
 
-    await expect(handler.execute(createAbortedCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID }))).rejects.toThrow()
+    await expect(
+      handler.execute(createAbortedCtx({ baseId: 'kb-1', itemId: NOTE_ITEM_ID, parentJobId: null }))
+    ).rejects.toThrow()
 
     expect(knowledgeBaseGetByIdMock).not.toHaveBeenCalled()
     expect(replaceByExternalIdMock).not.toHaveBeenCalled()
@@ -88,7 +113,7 @@ describe('index-documents job handler', () => {
       createJobSnapshot({
         id: 'index-job',
         type: 'knowledge.index-documents',
-        input: { baseId: 'kb-1', itemId: 'note-1' }
+        input: { baseId: 'kb-1', itemId: 'note-1', parentJobId: null }
       })
     )
     knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem('note-1', null, 'deleting'))

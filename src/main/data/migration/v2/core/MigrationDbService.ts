@@ -56,13 +56,17 @@ export class MigrationDbService {
     // Schema migrations
     await migrate(db, { migrationsFolder: paths.migrationsFolder })
 
-    // libsql is compiled with SQLITE_DEFAULT_FOREIGN_KEYS=1 (see libsql-ffi/build.rs),
-    // so every new connection has foreign_keys = ON by default. Drizzle's migrate()
-    // also forces foreign_keys = ON in its finally block. Turn it OFF for migration:
-    // bulk inserts with self-referencing FKs (message.parentId → message.id) need FK
-    // disabled. Migration validates data integrity via PRAGMA foreign_key_check after
-    // all migrators complete (see MigrationEngine.verifyForeignKeys).
-    await db.run(sql`PRAGMA foreign_keys = OFF`)
+    // Keep foreign keys OFF for the ENTIRE migration, on every connection. setPragma() (vs a
+    // one-shot db.run) is required because it replays across @libsql/client's post-transaction
+    // connection swaps — see DbService.configurePragmas() for the full libsql pragma-replay
+    // background. Must run AFTER migrate(), whose finally block forces FK = ON on its connection.
+    //
+    // This lets bulk inserts carry not-yet-resolved references; integrity is then verified after
+    // all migrators complete (MigrationEngine.verifyForeignKeys), with each migrator also
+    // self-checking its own tables via BaseMigrator.assertOwnedForeignKeys. FK enforcement is
+    // restored implicitly: this migration client is disposed via close() when migration ends, and
+    // normal runtime uses DbService's own client (which registers foreign_keys = ON).
+    client.setPragma('PRAGMA foreign_keys = OFF')
 
     // Custom SQL (triggers, FTS, etc.) — all idempotent
     for (const statement of CUSTOM_SQL_STATEMENTS) {

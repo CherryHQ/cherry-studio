@@ -77,6 +77,7 @@
     "prepare": "git config blame.ignoreRevsFile .git-blame-ignore-revs && prek install",
     "claude": "dotenv -e .env -- claude",
     "db:migrations:generate": "drizzle-kit generate --config ./migrations/sqlite-drizzle.config.ts",
+    "db:migrations:check": "drizzle-kit check --config ./migrations/sqlite-drizzle.config.ts",
     "changeset": "changeset",
     "changeset:status": "changeset status",
     "changeset:version": "changeset version && pnpm format",

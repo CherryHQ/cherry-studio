@@ -98,7 +98,10 @@ Path Safety section above.
 
 ### Foreign Keys Caveat
 
-libsql defaults to `foreign_keys = ON` (compiled with `SQLITE_DEFAULT_FOREIGN_KEYS=1`).
-`@libsql/client` creates new connections after each `transaction()`, resetting PRAGMAs.
-For bulk inserts with self-referencing FKs, run `PRAGMA foreign_keys = OFF` before **each**
-`db.transaction()` call. See the [migration guide](../../../../../docs/references/data/v2-migration-guide.md) for details.
+The engine keeps `foreign_keys = OFF` for the **entire** migration: `MigrationDbService` registers
+it via the patched `client.setPragma()`, which replays on every (re)connection (libsql defaults to
+`foreign_keys = ON` and resets PRAGMAs after each `transaction()`). **Migrators must NOT toggle FK
+themselves.** Verify integrity with `this.assertOwnedForeignKeys(ctx.db, [...])` at the end of
+`execute()` (own, fully-resolved tables only — exclude cross-domain-deferred and shared polymorphic
+tables); the engine runs a final whole-database `foreign_key_check` as backstop. See the
+[migration guide](../../../../../docs/references/data/v2-migration-guide.md) for details.
