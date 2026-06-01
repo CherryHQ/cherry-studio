@@ -112,17 +112,23 @@ describe('AgentService', () => {
     })
 
     it('places newly created agents first under default sort (createdAt desc)', async () => {
-      await insertAgent({ id: 'agent_existing_a' })
-      await insertAgent({ id: 'agent_existing_b' })
+      const dateNow = vi.spyOn(Date, 'now').mockReturnValue(1_000)
+      try {
+        await insertAgent({ id: 'agent_existing_a' })
+        await insertAgent({ id: 'agent_existing_b' })
 
-      const created = await agentService.createAgent({
-        type: 'claude-code',
-        name: 'Newest',
-        model: TEST_MODEL_ID
-      })
+        dateNow.mockReturnValue(2_000)
+        const created = await agentService.createAgent({
+          type: 'claude-code',
+          name: 'Newest',
+          model: TEST_MODEL_ID
+        })
 
-      const { agents } = await agentService.listAgents()
-      expect(agents[0]?.id).toBe(created.id)
+        const { agents } = await agentService.listAgents()
+        expect(agents[0]?.id).toBe(created.id)
+      } finally {
+        dateNow.mockRestore()
+      }
     })
   })
 
