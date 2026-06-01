@@ -1,6 +1,5 @@
 import { presentPaintingGenerateError } from '@renderer/aiCore/errors/paintingGenerateError'
 import { usePaintings } from '@renderer/hooks/usePaintings'
-import FileManager from '@renderer/services/FileManager'
 import type { PaintingMode } from '@shared/data/types/painting'
 import { useCallback, useRef } from 'react'
 
@@ -111,7 +110,6 @@ export function usePaintingList({
     async (target: PaintingData) => {
       cancelGeneration(target.id)
       await deletePainting(target.id)
-      await FileManager.deleteFiles(target.files ?? [])
       if (target.id === painting.id) {
         await selectNextAfterDelete(target.id)
       } else {
