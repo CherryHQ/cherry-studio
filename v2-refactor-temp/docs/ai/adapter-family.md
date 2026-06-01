@@ -1,8 +1,5 @@
 # Adapter Family — single source of truth for AI SDK routing
 
-Canonical reference: `docs/references/ai/adapter-family.md`. This
-review narrative must stay aligned with the current PR state.
-
 ## What this fixes
 
 Cherry Studio routes every AI request to one of ~26 "adapters" — each adapter is an `@ai-sdk/*` package (`@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/google-vertex`, …) that knows the request format, streaming codec, capability matrix, and per-vendor tools (`webSearch_20250305`, `googleSearch`, `responses` API …). Picking the wrong adapter means sending OpenAI-shape JSON to an Anthropic-protocol endpoint and getting nonsense back.
@@ -13,10 +10,7 @@ The most visible symptom: `<think>` tags leaking into translate output. The rela
 
 ## The design — `adapterFamily` per endpoint
 
-Endpoint configs may carry an `adapterFamily: string`. Resolver reads only
-that when present; missing or unknown values fall back to
-`openai-compatible` because legacy and hand-written rows can exist without
-the field.
+Every endpoint config carries an `adapterFamily: string`. Resolver reads only that.
 
 ```ts
 // src/main/ai/provider/endpoint.ts — entire production resolver
@@ -41,7 +35,7 @@ For MiniMax-style relays, `provider.id='minimax'` while the two endpoints carry 
 
 ## Where the value comes from
 
-`adapterFamily` is a **write-time derived value**. The shared inference function is:
+`adapterFamily` is a **write-time derived value**. Three write paths, one shared inference function:
 
 ```ts
 // packages/provider-registry/src/registry-utils.ts
@@ -78,17 +72,19 @@ The endpoint-type defaults are protocol-derived (any anthropic-messages endpoint
 
 This covers every provider in the catalog (audited: 100% of catalog entries have `adapterFamily` on every endpoint).
 
-### Path 2 — v1 → v2 migration (not implemented in this PR)
+### Path 2 — v1 → v2 migration (existing users)
 
-`src/main/data/migration/v2/migrators/mappings/ProviderModelMappings.ts`
-currently does not backfill `adapterFamily`. It carries legacy base URLs
-and reasoning format metadata only. Migrated rows remain schema-valid
-because `adapterFamily` is optional; runtime resolution falls back to
-`openai-compatible` when the field is absent.
+`src/main/data/migration/v2/migrators/mappings/ProviderModelMappings.ts` looks up the catalog for each migrated `legacy.id`, falls back to `legacy.type` when there's no catalog match, finally to the endpoint-type default:
 
-If migration backfill is added later, it should use catalog values first,
-then endpoint-type defaults, and add dedicated migrator tests before this
-section is changed back to an implemented path.
+```ts
+const fromCatalog = catalogEndpoints?.[key]?.adapterFamily
+const legacyHint = key === ENDPOINT_TYPE.ANTHROPIC_MESSAGES ? undefined : legacyTypeFamily
+const adapterFamily = fromCatalog ?? legacyHint ?? inferAdapterFamily(key)
+```
+
+The `ANTHROPIC_MESSAGES → skip legacy hint` rule exists because custom anthropic relays in v1 carried `legacy.type='openai'` (the relay protocol type) even when the endpoint was anthropic-format. The protocol of the endpoint must win there.
+
+`LEGACY_TYPE_TO_ADAPTER_FAMILY` (migrator-local) provides the more-specific signal for cases like `legacy.type='new-api'` → `newapi` adapter, which is more accurate than the generic `openai-compatible` default for the same endpoint.
 
 ### Path 3 — UI custom provider creation (future)
 
@@ -101,8 +97,10 @@ When the future provider-add UI lets users enter a baseUrl, the form submission 
 | `packages/provider-registry/data/providers.json` | Catalog: `adapterFamily` per endpoint per provider |
 | `packages/provider-registry/src/schemas/provider.ts` | `RegistryEndpointConfigSchema.adapterFamily` |
 | `packages/provider-registry/src/registry-utils.ts` | `inferAdapterFamily` (single source of truth) + `buildRuntimeEndpointConfigs` (carries field through) |
+| `packages/provider-registry/src/registry-loader.ts` | `findProvider(id)` lookup used by the migrator |
 | `packages/shared/data/types/provider.ts` | Runtime `EndpointConfigSchema.adapterFamily` |
 | `src/main/data/db/seeding/seeders/presetProviderSeeder.ts` | New-install write path |
+| `src/main/data/migration/v2/migrators/mappings/ProviderModelMappings.ts` | v1 → v2 backfill (`buildEndpointConfigs`) |
 | `src/main/ai/provider/endpoint.ts` | Runtime resolver — reads `adapterFamily`, applies variant suffix |
 
 ## Alternatives considered
@@ -133,7 +131,7 @@ Resolver could fall back to `inferAdapterFamily(endpointType)` directly when `pr
 - Makes the resolver responsible for inference logic that belongs at write time
 - Splits the "what's the right adapter" decision across two files
 
-Keeping inference at write time means catalog updates (e.g. a new entry adds `adapterFamily`) take effect for new installs and any future write path without changing the runtime resolver.
+Keeping inference at write time means catalog updates (e.g. a new entry adds `adapterFamily`) take effect for new installs and migrations immediately, without any runtime resolver change.
 
 ### D. Expose `adapterFamily` in the provider-add UI
 
@@ -149,9 +147,12 @@ UI exposes endpoint type; the system derives adapter family from it.
 
 | target | how |
 |---|---|
-| `inferAdapterFamily` | `packages/provider-registry/src/__tests__/registry-utils.test.ts` — catalog wins, endpoint defaults, openai-compatible terminal fallback, dual schema acceptance |
-| Resolver | `src/main/ai/provider/__tests__/endpoint.test.ts` — catalog adapterFamily routing, variant suffix application (base `openai` → `openai-chat`, already-variant `azure-responses` idempotent), MiniMax-style relay regression (the original bug), unknown-family degradation |
-| `buildRuntimeEndpointConfigs` | `packages/provider-registry/src/__tests__/registry-utils.test.ts` — adapterFamily passthrough, retention rule |
+| `inferAdapterFamily` (5 cases) | `packages/provider-registry/src/__tests__/registry-utils.test.ts` — catalog wins, endpoint defaults, openai-compatible terminal fallback, dual schema acceptance |
+| Migrator backfill (9 cases) | `src/main/data/migration/v2/migrators/mappings/__tests__/ProviderModelMappings.test.ts` — catalog hit, legacy.type fallback, ANTHROPIC default, catalog > legacy.type precedence, multi-endpoint relays |
+| Resolver (54 cases) | `src/main/ai/provider/__tests__/endpoint.test.ts` — catalog adapterFamily routing, variant suffix application (base `openai` → `openai-chat`, already-variant `azure-responses` idempotent), MiniMax-style relay regression (the original bug), unknown-family degradation |
+| `buildRuntimeEndpointConfigs` (9 cases) | `packages/provider-registry/src/__tests__/registry-utils.test.ts` — adapterFamily passthrough, retention rule |
+
+Regression baseline check on `src/main/ai`: 317 ✅ / 7 ❌ (same 3 pre-existing files: AiStreamManager, WebSearchTool, toolSearch — unrelated to this change).
 
 ## Database migration
 
@@ -159,6 +160,6 @@ None required. `endpoint_configs` is a JSON text column (`src/main/data/db/schem
 
 ## Test fixtures
 
-Centralised `Provider` / `Model` / `Assistant` factories live at `src/main/ai/__tests__/fixtures/` (`makeProvider`, `makeModel`, `makeAssistant`). Current main AI provider tests reuse them instead of carrying local provider/model fixture shapes.
+Centralised `Provider` / `Model` / `Assistant` factories created at `src/main/ai/__tests__/fixtures/` (`makeProvider`, `makeModel`, `makeAssistant`). Five test files migrated to use them; each previously had its own near-identical local factory. Not strictly required for the adapterFamily refactor, but the resolver test suite became large enough that the duplication became a maintenance issue.
 
 The fixtures live with the consumers (`src/main/ai/`) rather than next to the schema (`packages/shared/data/types/`) — present-tense rule: there's no non-`src/main/ai/` consumer yet. Easy to lift later if one appears.

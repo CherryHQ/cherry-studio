@@ -2,9 +2,8 @@
 
 `adapterFamily` is the field on every `EndpointConfig` that picks the
 `@ai-sdk/*` package implementing that endpoint's protocol. The runtime
-resolver reads it when present. The field is optional because legacy and
-hand-written rows can exist without it; missing or unknown values fall
-back to `openai-compatible`.
+resolver reads it; UI and migrator code derive it; the schema enforces
+its presence.
 
 ## Identity stack
 
@@ -34,13 +33,13 @@ export function resolveAiSdkProviderId(provider, endpointType) {
 }
 ```
 
-One signal, no heuristics. Tested in
+One signal, no heuristics. Tested with 54 cases in
 `provider/__tests__/endpoint.test.ts`.
 
 ## Write paths
 
-`adapterFamily` is a derived value computed when endpoint configs are
-written, never at request time. One shared inference function lives at
+`adapterFamily` is a derived value computed at row-write time, never at
+request time. One shared inference function lives at
 `packages/provider-registry/src/registry-utils.ts`:
 
 ```ts
@@ -61,22 +60,22 @@ export function inferAdapterFamily(endpointType, catalogConfig?): string {
 | `openai-responses` | `openai` |
 | everything else | `openai-compatible` (terminal fallback) |
 
-### Current write path
+### Three write paths
 
-**Catalog (new installs)** — `packages/provider-registry/data/providers.json`
-declares `adapterFamily` per endpoint per provider. The seeder copies it
-through via `buildRuntimeEndpointConfigs`.
-
-### Not implemented in this PR
-
-- **v1 → v2 migration backfill** currently does not populate
-  `adapterFamily`. `ProviderModelMappings.buildEndpointConfigs` only
-  carries legacy base URLs and reasoning format metadata. Migrated rows
-  remain schema-valid because `adapterFamily` is optional; the runtime
-  resolver falls back to `openai-compatible` when it is absent.
-- **UI custom provider creation** is not wired here. When added, the form
-  should derive `adapterFamily` from the selected `endpointType` and
-  optional catalog config instead of exposing the field directly.
+1. **Catalog (new installs)** — `packages/provider-registry/data/providers.json`
+   declares `adapterFamily` per endpoint per provider. The seeder copies
+   it through via `buildRuntimeEndpointConfigs`.
+2. **v1 → v2 migration (existing users)** —
+   `src/main/data/migration/v2/migrators/mappings/ProviderModelMappings.ts::buildEndpointConfigs`
+   looks up the catalog by legacy id, falls back to legacy
+   `provider.type`, finally to the endpoint-type default. The
+   `ANTHROPIC_MESSAGES` endpoint skips the legacy-type hint because v1
+   custom anthropic relays carried `legacy.type='openai'` even when the
+   endpoint was anthropic-format.
+3. **UI custom provider creation** — the form calls
+   `inferAdapterFamily(userPickedEndpoint, catalogConfigIfAny)`. The
+   user never picks `adapterFamily` directly — they pick
+   `endpointType` from a dropdown, which determines the family.
 
 ## Schema
 
@@ -84,8 +83,8 @@ through via `buildRuntimeEndpointConfigs`.
 
 ```ts
 EndpointConfigSchema = z.object({
-  baseUrl: z.string().optional(),
-  adapterFamily: z.string().optional(),
+  baseUrl: z.string(),
+  adapterFamily: z.string(),       // required
   // ... other endpoint-config fields
 })
 ```
@@ -95,14 +94,15 @@ mirrors this for catalog entries.
 
 ## Tests
 
-| Target | File |
-|---|---|
-| `inferAdapterFamily` | `packages/provider-registry/src/__tests__/registry-utils.test.ts` |
-| Runtime resolver | `src/main/ai/provider/__tests__/endpoint.test.ts` |
-| `buildRuntimeEndpointConfigs` | `packages/provider-registry/src/__tests__/registry-utils.test.ts` |
+| Target | File | Cases |
+|---|---|---|
+| `inferAdapterFamily` | `packages/provider-registry/src/__tests__/registry-utils.test.ts` | 5 |
+| Migrator backfill | `src/main/data/migration/v2/migrators/mappings/__tests__/ProviderModelMappings.test.ts` | 9 |
+| Runtime resolver | `src/main/ai/provider/__tests__/endpoint.test.ts` | 54 |
+| `buildRuntimeEndpointConfigs` | `packages/provider-registry/src/__tests__/registry-utils.test.ts` | 9 |
 
 ## Where to read more
 
-- This file is the canonical reference.
-- Review narrative: `v2-refactor-temp/docs/ai/adapter-family.md`
+- Reviewer narrative (why this design): `v2-refactor-temp/docs/ai/adapter-family.md`
+- Runtime usage: [Provider Resolution](./provider-resolution.md)
 - Catalog: `packages/provider-registry/data/providers.json`
