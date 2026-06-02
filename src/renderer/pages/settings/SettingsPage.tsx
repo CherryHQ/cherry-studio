@@ -30,10 +30,9 @@ import {
   settingsSubmenuDividerClassName,
   settingsSubmenuItemClassName,
   settingsSubmenuItemLabelClassName,
+  settingsSubmenuListClassName,
   settingsSubmenuSectionTitleClassName
 } from '.'
-
-const settingsRootMenuListClassName = 'flex flex-col gap-1 px-6 pb-2.5 [box-sizing:border-box]'
 
 const SettingsPage: FC = () => {
   const location = useLocation()
@@ -59,7 +58,7 @@ const SettingsPage: FC = () => {
           )}>
           <PageHeader title={t('settings.menuGroups.appSettings')} />
           <Scrollbar className="min-h-0 flex-1 select-none">
-            <MenuList className={settingsRootMenuListClassName}>
+            <MenuList className={settingsSubmenuListClassName}>
               <div className={settingsSubmenuSectionTitleClassName}>{t('settings.menuGroups.integrations')}</div>
               <MenuItem
                 className={settingsSubmenuItemClassName}
