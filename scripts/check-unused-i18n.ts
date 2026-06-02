@@ -5,15 +5,15 @@ import * as readline from 'readline/promises'
 import { type CallExpression, Node, Project, type SourceFile } from 'ts-morph'
 import { pathToFileURL } from 'url'
 
-import { SHORTCUT_DEFINITIONS } from '../packages/shared/shortcuts/definitions'
+import { SHORTCUT_DEFINITIONS } from '../src/shared/shortcuts/definitions'
 import { sortedObjectByKeys } from './sort'
 
 const ROOT_DIR = path.resolve(__dirname, '..')
-const LOCALES_DIR = path.join(ROOT_DIR, 'src/renderer/src/i18n/locales')
-const TRANSLATE_DIR = path.join(ROOT_DIR, 'src/renderer/src/i18n/translate')
+const LOCALES_DIR = path.join(ROOT_DIR, 'src/renderer/i18n/locales')
+const TRANSLATE_DIR = path.join(ROOT_DIR, 'src/renderer/i18n/translate')
 const BASE_LOCALE = 'zh-cn'
 const BASE_LOCALE_PATH = path.join(LOCALES_DIR, `${BASE_LOCALE}.json`)
-const SCAN_DIRS = ['src/renderer/src', 'src/main', 'packages'].map((dir) => path.join(ROOT_DIR, dir))
+const SCAN_DIRS = ['src/renderer', 'src/main', 'src/shared', 'packages'].map((dir) => path.join(ROOT_DIR, dir))
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx'])
 const IGNORED_DIRS = new Set(['.git', '.turbo', 'dist', 'node_modules', 'out', 'release', '.vite'])
 const KEY_PROPERTY_NAMES = new Set([
@@ -253,7 +253,7 @@ function collectTranslationNamespaceAliases(
 export function collectUsedI18nKeysFromSource(sourceFile: SourceFile, localeKeys: Set<string>): Set<string> {
   const usedKeys = new Set<string>()
   const topLevelNamespaces = new Set([...localeKeys].map((key) => key.split('.')[0]))
-  const isI18nLabelFile = sourceFile.getFilePath().endsWith(path.join('src/renderer/src/i18n/label.ts'))
+  const isI18nLabelFile = sourceFile.getFilePath().endsWith(path.join('src/renderer/i18n/label.ts'))
   const translationNamespaceAliases = collectTranslationNamespaceAliases(sourceFile, topLevelNamespaces)
 
   collectCommentReferences(sourceFile, localeKeys, usedKeys)

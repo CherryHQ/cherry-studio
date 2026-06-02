@@ -109,7 +109,7 @@ describe('check-unused-i18n', () => {
           const label = appMenu.about
           const providerKeyMap = { openai: 'provider.openai', unused: 'provider.missing' }
         `,
-        '/repo/src/renderer/src/i18n/label.ts'
+        '/repo/src/renderer/i18n/label.ts'
       )
 
       expect([...collectUsedI18nKeysFromSource(sourceFile, localeKeys)].sort()).toEqual([
