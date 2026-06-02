@@ -36,7 +36,6 @@ function createKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeB
     id: overrides.id ?? 'kb-1',
     name: overrides.name ?? 'Knowledge Base',
     groupId: overrides.groupId ?? null,
-    emoji: overrides.emoji ?? '📁',
     dimensions: overrides.dimensions ?? 1024,
     embeddingModelId: overrides.embeddingModelId ?? 'ollama::nomic-embed-text',
     status: overrides.status ?? 'completed',

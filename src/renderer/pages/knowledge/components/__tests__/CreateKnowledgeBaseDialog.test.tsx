@@ -25,8 +25,10 @@ vi.mock('@cherrystudio/ui', async () => {
       <button {...props}>{loading ? 'loading' : children}</button>
     ),
     Dialog: ({ children, open }: { children: ReactNode; open: boolean }) => (open ? <div>{children}</div> : null),
-    DialogContent: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
-      <div {...props}>{children}</div>
+    DialogContent: ({ children, size, ...props }: { children: ReactNode; size?: string; [key: string]: unknown }) => (
+      <div role="dialog" data-size={size} {...props}>
+        {children}
+      </div>
     ),
     DialogFooter: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
       <div {...props}>{children}</div>
@@ -80,7 +82,6 @@ vi.mock('react-i18next', () => ({
           'common.name': '名称',
           'common.cancel': '取消',
           'knowledge.add.title': '新建知识库',
-          'knowledge.add.icon': '图标',
           'knowledge.add.group': '分组',
           'knowledge.add.submit': '创建',
           'knowledge.embedding_model': '嵌入模型',
@@ -88,7 +89,7 @@ vi.mock('react-i18next', () => ({
           'knowledge.name_required': '知识库名称为必填项',
           'knowledge.embedding_model_required': '知识库嵌入模型是必需的',
           'knowledge.error.failed_to_create': '知识库创建失败',
-          'knowledge.groups.ungrouped': '未分组'
+          'knowledge.groups.default': '默认'
         }) as Record<string, string>
       )[key] ?? key
   })
@@ -98,7 +99,6 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   id: 'base-1',
   name: 'Base 1',
   groupId: null,
-  emoji: '📁',
   dimensions: 1024,
   embeddingModelId: 'openai::text-embedding-3-small',
   rerankModelId: undefined,
@@ -148,6 +148,7 @@ describe('CreateKnowledgeBaseDialog', () => {
       />
     )
 
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-size', 'lg')
     fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
     fireEvent.click(screen.getByRole('button', { name: '创建' }))
 
@@ -191,7 +192,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     expect(screen.queryByLabelText('嵌入维度')).not.toBeInTheDocument()
   })
 
-  it('applies compact sizing to the fields and actions', () => {
+  it('renders all required fields and actions when a knowledge base is being created', () => {
     render(
       <CreateKnowledgeBaseDialog
         open
@@ -203,37 +204,13 @@ describe('CreateKnowledgeBaseDialog', () => {
       />
     )
 
-    expect(screen.getByRole('heading', { name: '新建知识库' })).toHaveClass('leading-4')
-    expect(screen.getByText('名称')).toHaveClass('leading-4')
-    expect(screen.getByLabelText('名称')).toHaveClass('h-8')
+    expect(screen.getByRole('heading', { name: '新建知识库' })).toBeInTheDocument()
+    expect(screen.getByText('名称')).toBeInTheDocument()
+    expect(screen.getByLabelText('名称')).toBeInTheDocument()
     expect(screen.queryByText('分组')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '未设置' })).toHaveClass('h-8')
-    expect(screen.getByRole('button', { name: '取消' })).toHaveClass('h-8')
-    expect(screen.getByRole('button', { name: '创建' })).toHaveClass('h-8')
-  })
-
-  it('toggles the selected emoji', () => {
-    render(
-      <CreateKnowledgeBaseDialog
-        open
-        groups={[]}
-        isCreating={false}
-        createBase={vi.fn().mockResolvedValue(createKnowledgeBase())}
-        onOpenChange={vi.fn()}
-        onCreated={vi.fn()}
-      />
-    )
-
-    const defaultEmoji = screen.getByRole('button', { name: '📁' })
-    const nextEmoji = screen.getByRole('button', { name: '📚' })
-
-    expect(defaultEmoji).toHaveAttribute('aria-pressed', 'true')
-    expect(nextEmoji).toHaveAttribute('aria-pressed', 'false')
-
-    fireEvent.click(nextEmoji)
-
-    expect(defaultEmoji).toHaveAttribute('aria-pressed', 'false')
-    expect(nextEmoji).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: '未设置' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '取消' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '创建' })).toBeInTheDocument()
   })
 
   it('closes the dialog on cancel without sending a request', () => {
@@ -270,10 +247,10 @@ describe('CreateKnowledgeBaseDialog', () => {
     )
 
     expect(screen.queryByText('分组')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '未分组' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: '默认' })).not.toBeInTheDocument()
   })
 
-  it('renders real group options without an ungrouped option', () => {
+  it('uses the default knowledge group as the group placeholder', () => {
     render(
       <CreateKnowledgeBaseDialog
         open
@@ -286,7 +263,7 @@ describe('CreateKnowledgeBaseDialog', () => {
     )
 
     expect(screen.getByText('分组')).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: '未分组' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: '默认' })).toHaveLength(1)
     expect(screen.getByRole('button', { name: 'Research' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Archive' })).toBeInTheDocument()
   })
@@ -313,44 +290,10 @@ describe('CreateKnowledgeBaseDialog', () => {
     await waitFor(() =>
       expect(createBase).toHaveBeenCalledWith({
         name: 'My Base',
-        emoji: '📁',
         embeddingModelId: 'openai::text-embedding-3-small',
         dimensions: 1024
       })
     )
-  })
-
-  it('submits the selected emoji in the request payload', async () => {
-    const createBase = vi.fn().mockResolvedValue(createKnowledgeBase({ emoji: '📚' }))
-    const onOpenChange = vi.fn()
-    const onCreated = vi.fn()
-
-    render(
-      <CreateKnowledgeBaseDialog
-        open
-        groups={[createGroup()]}
-        isCreating={false}
-        createBase={createBase}
-        onOpenChange={onOpenChange}
-        onCreated={onCreated}
-      />
-    )
-
-    fireEvent.change(screen.getByLabelText('名称'), { target: { value: 'My Base' } })
-    fireEvent.click(screen.getByRole('button', { name: '📚' }))
-    fireEvent.click(screen.getByRole('button', { name: 'text-embedding-3-small · openai' }))
-    fireEvent.click(screen.getByRole('button', { name: '创建' }))
-
-    await waitFor(() =>
-      expect(createBase).toHaveBeenCalledWith({
-        name: 'My Base',
-        emoji: '📚',
-        embeddingModelId: 'openai::text-embedding-3-small',
-        dimensions: 1024
-      })
-    )
-    expect(onCreated).toHaveBeenCalled()
-    expect(onOpenChange).toHaveBeenCalledWith(false)
   })
 
   it('shows submit error and keeps the dialog open when createBase rejects', async () => {
@@ -400,7 +343,6 @@ describe('CreateKnowledgeBaseDialog', () => {
     await waitFor(() =>
       expect(createBase).toHaveBeenCalledWith({
         name: 'My Base',
-        emoji: '📁',
         groupId: 'group-2',
         embeddingModelId: 'openai::text-embedding-3-small',
         dimensions: 1024
@@ -430,7 +372,6 @@ describe('CreateKnowledgeBaseDialog', () => {
     await waitFor(() =>
       expect(createBase).toHaveBeenCalledWith({
         name: 'My Base',
-        emoji: '📁',
         groupId: 'group-2',
         embeddingModelId: 'openai::text-embedding-3-small',
         dimensions: 1024

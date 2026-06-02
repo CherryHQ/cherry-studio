@@ -4,7 +4,7 @@ import { cva } from 'class-variance-authority'
 import * as React from 'react'
 
 const TabsContext = React.createContext<{
-  variant?: 'default' | 'line'
+  variant?: 'default' | 'line' | 'underline' | 'workflow'
   orientation?: 'horizontal' | 'vertical'
 }>({
   variant: 'default',
@@ -17,7 +17,7 @@ function Tabs({
   orientation = 'horizontal',
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.Root> & {
-  variant?: 'default' | 'line'
+  variant?: 'default' | 'line' | 'underline' | 'workflow'
 }) {
   return (
     <TabsContext value={{ variant, orientation }}>
@@ -35,7 +35,9 @@ const tabsListVariants = cva('inline-flex items-center justify-center', {
   variants: {
     variant: {
       default: 'bg-muted text-muted-foreground h-9 w-fit rounded-lg p-[3px]',
-      line: 'bg-transparent gap-4 justify-start border-b-0 p-0'
+      line: 'bg-transparent gap-4 justify-start border-b-0 p-0',
+      underline: 'bg-transparent gap-0 justify-start border-b-0 p-0',
+      workflow: 'bg-transparent gap-3 justify-start border-b-0 p-0'
     },
     orientation: {
       horizontal: 'flex-row',
@@ -96,6 +98,25 @@ const tabsTriggerVariants = cva(
           'data-[state=active]:text-primary',
           'after:absolute after:rounded-full after:bg-transparent',
           'data-[state=active]:after:bg-primary'
+        ],
+        underline: [
+          'relative gap-1.5 px-2.5 py-2',
+          'font-normal text-muted-foreground hover:text-foreground',
+          'focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          'data-[state=active]:text-foreground',
+          'after:absolute after:rounded-none after:bg-transparent',
+          'data-[state=active]:after:bg-primary'
+        ],
+        workflow: [
+          'relative gap-1.5 px-1 py-1.5 text-sm font-normal',
+          'text-foreground-muted hover:text-foreground',
+          'rounded-sm focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+          'data-[state=active]:text-foreground data-[state=active]:font-semibold',
+          'data-[state=active]:underline data-[state=active]:underline-offset-4 data-[state=active]:decoration-1',
+          "[&:not(:first-child)]:before:content-['›']",
+          '[&:not(:first-child)]:before:mr-3 [&:not(:first-child)]:before:text-base',
+          '[&:not(:first-child)]:before:font-normal [&:not(:first-child)]:before:no-underline',
+          '[&:not(:first-child)]:before:text-foreground-muted'
         ]
       },
       orientation: {
@@ -116,6 +137,11 @@ const tabsTriggerVariants = cva(
           'justify-center after:bottom-0 after:left-0 after:h-[4px] after:w-full after:bg-transparent data-[state=active]:after:bg-primary',
           'hover:text-primary hover:bg-primary/10'
         ]
+      },
+      {
+        variant: 'underline',
+        orientation: 'horizontal',
+        class: 'after:bottom-0 after:left-0 after:h-0.5 after:w-full'
       }
     ],
     defaultVariants: {

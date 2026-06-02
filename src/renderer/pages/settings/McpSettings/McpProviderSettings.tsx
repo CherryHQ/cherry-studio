@@ -12,6 +12,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { getMCPProviderLogo, getProviderDisplayName, type ProviderConfig } from './providers/config'
+import { isSameMcpServerCandidate, toCreateMcpServerDto } from './utils'
 
 const logger = loggerService.withContext('McpProviderSettings')
 
@@ -94,10 +95,10 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
 
     try {
       provider.saveToken(token)
-      const result = await provider.syncServers(token, existingServers)
+      const result = await provider.syncServers(token)
 
       if (result.success) {
-        const servers = result.allServers || []
+        const servers = result.allServers
         setAvailableServers(servers)
 
         // Save to database
@@ -114,7 +115,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
     } finally {
       setIsFetching(false)
     }
-  }, [existingServers, provider, t, token])
+  }, [provider, t, token])
 
   const isFetchDisabled = !token
   const ProviderLogo = getMCPProviderLogo(provider.key)
@@ -201,7 +202,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                   </div>
                 </div>
                 {(() => {
-                  const isAlreadyAdded = existingServers.some((existing) => existing.id === server.id)
+                  const isAlreadyAdded = existingServers.some((existing) => isSameMcpServerCandidate(existing, server))
                   return (
                     <Button
                       disabled={isAlreadyAdded}
@@ -211,7 +212,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
                       onClick={async () => {
                         if (!isAlreadyAdded) {
                           try {
-                            await addMcpServer(server)
+                            await addMcpServer(toCreateMcpServerDto(server))
                             window.toast.success(t('settings.mcp.addSuccess'))
                           } catch {
                             window.toast.error(t('settings.mcp.addError'))

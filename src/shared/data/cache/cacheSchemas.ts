@@ -160,6 +160,10 @@ export type UseCacheSchema = {
   // Assistant reasoning effort cache (per-assistant, not persisted to DB)
   'assistant.reasoning_effort_cache.${assistantId}': string | undefined
 
+  // Painting in-flight generation state, keyed by paintingId. Survives page
+  // navigation so the spinner reappears when the user returns mid-run.
+  'painting.generation.${paintingId}': CacheValueTypes.CachePaintingGenerationState | null
+
   // Template key examples (for testing and demonstration)
   'scroll.position.${topicId}': number
   'entity.cache.${type}_${id}': { loaded: boolean; data: unknown }
@@ -232,6 +236,8 @@ export const DefaultUseCache: UseCacheSchema = {
   // Assistant reasoning effort cache
   'assistant.reasoning_effort_cache.${assistantId}': undefined,
 
+  'painting.generation.${paintingId}': null,
+
   // Template key examples (for testing and demonstration)
   'scroll.position.${topicId}': 0,
   'entity.cache.${type}_${id}': { loaded: false, data: null },
@@ -288,6 +294,8 @@ export type RendererPersistCacheSchema = {
   // Multi-model list for @mention parallel answering, keyed by assistantId
   // This is UI-level state, not core assistant config (default model is assistant.modelId)
   'ui.assistant.multi_model_ids': Record<string, string[]>
+  // Recently picked emojis (MRU order, capped to 32) shown at the top of the shared emoji picker
+  'ui.emoji.recently_used': string[]
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
@@ -298,7 +306,8 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'settings.provider.openai.alert.dismissed': false,
   'feature.mcp.is_uv_installed': false,
   'feature.mcp.is_bun_installed': false,
-  'ui.assistant.multi_model_ids': {}
+  'ui.assistant.multi_model_ids': {},
+  'ui.emoji.recently_used': []
 }
 
 // ============================================================================

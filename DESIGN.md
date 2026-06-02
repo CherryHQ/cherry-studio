@@ -322,7 +322,11 @@ Source: `DialogContent` and related primitives from `@cherrystudio/ui` (`package
 **Layout**
 - Overlay: fixed full-window scrim, `z-[80]`, default `bg-black/50`
 - Content: fixed centered, `top-[50%] left-[50%]`, translated by `-50%`
-- Width: full width with `max-w-[calc(100%-2rem)]`; desktop default `sm:max-w-lg`
+- Width: full width with `max-w-[calc(100%-2rem)]` (narrow-window fallback, all sizes). Desktop width is set by the `size` prop on `DialogContent`:
+  - `size="sm"` → `sm:max-w-sm` (24rem ≈ 384px) — single-field inputs, rename, short confirmations. Use this whenever the body is one label + one input or a one-line confirmation; the default size feels empty for that amount of content.
+  - `size="default"` (current default) → `sm:max-w-lg` (32rem ≈ 512px) — standard forms with a few fields.
+  - `size="lg"` → `sm:max-w-xl` (36rem ≈ 576px) — multi-field forms, scrollable bodies, rich configuration panels.
+- Do not override the dialog width with `className="sm:max-w-*"` or similar. Pick a `size` instead; if no size fits, propose a new size in `@cherrystudio/ui` rather than patching at the call site. `className` on `DialogContent` is reserved for non-width layout concerns (e.g. `max-h-[70vh]`, `flex flex-col overflow-hidden` for scrollable bodies).
 - Consumers should use the default overlay first. If the scrim needs local tuning, pass `overlayClassName`; do not rewrite a page-local Dialog shell.
 
 **Structure**

@@ -6,7 +6,29 @@ import KnowledgeItemList from '../KnowledgeItemList'
 import { createFileItem, createNoteItem } from './testUtils'
 
 vi.mock('@cherrystudio/ui', () => ({
-  Scrollbar: ({ children }: { children: ReactNode }) => <div>{children}</div>
+  Checkbox: ({
+    checked,
+    onCheckedChange,
+    'aria-label': ariaLabel
+  }: {
+    checked?: boolean | 'indeterminate'
+    onCheckedChange?: (checked: boolean | 'indeterminate') => void
+    'aria-label'?: string
+  }) => (
+    <input
+      type="checkbox"
+      aria-label={ariaLabel}
+      checked={checked === true}
+      onChange={(event) => onCheckedChange?.(event.target.checked)}
+    />
+  ),
+  Scrollbar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+  Table: ({ children }: { children: ReactNode }) => <table>{children}</table>,
+  TableHeader: ({ children }: { children: ReactNode }) => <thead>{children}</thead>,
+  TableBody: ({ children }: { children: ReactNode }) => <tbody>{children}</tbody>,
+  TableRow: ({ children }: { children: ReactNode }) => <tr>{children}</tr>,
+  TableHead: ({ children }: { children: ReactNode }) => <th>{children}</th>,
+  TableCell: ({ children }: { children: ReactNode }) => <td>{children}</td>
 }))
 
 vi.mock('../KnowledgeItemRow', () => ({
@@ -25,23 +47,25 @@ vi.mock('../KnowledgeItemRow', () => ({
     onReindex?: () => void
     onViewChunks?: () => void
   }) => (
-    <div>
-      <button type="button" onClick={onClick}>
-        {item.id}
-      </button>
-      <button type="button" onClick={onDelete}>
-        delete-{item.id}
-      </button>
-      <button type="button" onClick={onReindex}>
-        reindex-{item.id}
-      </button>
-      <button type="button" onClick={onPreviewSource}>
-        preview-{item.id}
-      </button>
-      <button type="button" onClick={onViewChunks}>
-        chunks-{item.id}
-      </button>
-    </div>
+    <tr>
+      <td>
+        <button type="button" onClick={onClick}>
+          {item.id}
+        </button>
+        <button type="button" onClick={onDelete}>
+          delete-{item.id}
+        </button>
+        <button type="button" onClick={onReindex}>
+          reindex-{item.id}
+        </button>
+        <button type="button" onClick={onPreviewSource}>
+          preview-{item.id}
+        </button>
+        <button type="button" onClick={onViewChunks}>
+          chunks-{item.id}
+        </button>
+      </td>
+    </tr>
   )
 }))
 
@@ -51,55 +75,51 @@ vi.mock('react-i18next', () => ({
       (
         ({
           'common.loading': '加载中...',
-          'common.no_results': '暂无结果'
+          'knowledge.data_source.toolbar.no_search_results': '未找到匹配的数据源',
+          'knowledge.data_source.table.select_all': '全选'
         }) as Record<string, string>
       )[key] ?? key
   })
 }))
 
+const noopProps = {
+  selectedIds: new Set<string>(),
+  onToggleOne: () => undefined,
+  onToggleAll: () => undefined,
+  onItemClick: () => undefined,
+  onDelete: () => undefined,
+  onPreviewSource: () => undefined,
+  onReindex: () => undefined,
+  onViewChunks: () => undefined
+}
+
 describe('KnowledgeItemList', () => {
   it('renders the loading state before item rows', () => {
-    render(
-      <KnowledgeItemList
-        items={[]}
-        isLoading
-        onItemClick={() => undefined}
-        onDelete={() => undefined}
-        onPreviewSource={() => undefined}
-        onReindex={() => undefined}
-        onViewChunks={() => undefined}
-      />
-    )
+    render(<KnowledgeItemList items={[]} allItemsCount={0} isLoading {...noopProps} />)
 
     expect(screen.getByText('加载中...')).toBeInTheDocument()
   })
 
-  it('renders the empty state when there are no visible items', () => {
-    render(
-      <KnowledgeItemList
-        items={[]}
-        isLoading={false}
-        onItemClick={() => undefined}
-        onDelete={() => undefined}
-        onPreviewSource={() => undefined}
-        onReindex={() => undefined}
-        onViewChunks={() => undefined}
-      />
-    )
+  it('renders no empty shortcut group when no items exist at all', () => {
+    render(<KnowledgeItemList items={[]} allItemsCount={0} isLoading={false} {...noopProps} />)
 
-    expect(screen.getByText('暂无结果')).toBeInTheDocument()
+    expect(screen.queryByText('未找到匹配的数据源')).not.toBeInTheDocument()
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+  })
+
+  it('renders the no-search-results message when items exist but the filter hides them', () => {
+    render(<KnowledgeItemList items={[]} allItemsCount={3} isLoading={false} {...noopProps} />)
+
+    expect(screen.getByText('未找到匹配的数据源')).toBeInTheDocument()
   })
 
   it('renders rows when items are available', () => {
     render(
       <KnowledgeItemList
         items={[createFileItem({ id: 'file-1' }), createNoteItem({ id: 'note-1' })]}
+        allItemsCount={2}
         isLoading={false}
-        onItemClick={() => undefined}
-        onDelete={() => undefined}
-        onPreviewSource={() => undefined}
-        onReindex={() => undefined}
-        onViewChunks={() => undefined}
+        {...noopProps}
       />
     )
 
@@ -114,12 +134,10 @@ describe('KnowledgeItemList', () => {
     render(
       <KnowledgeItemList
         items={[item]}
+        allItemsCount={1}
         isLoading={false}
+        {...noopProps}
         onItemClick={handleItemClick}
-        onDelete={() => undefined}
-        onPreviewSource={() => undefined}
-        onReindex={() => undefined}
-        onViewChunks={() => undefined}
       />
     )
 
@@ -133,15 +151,7 @@ describe('KnowledgeItemList', () => {
     const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
 
     render(
-      <KnowledgeItemList
-        items={[item]}
-        isLoading={false}
-        onItemClick={() => undefined}
-        onDelete={handleDelete}
-        onPreviewSource={() => undefined}
-        onReindex={() => undefined}
-        onViewChunks={() => undefined}
-      />
+      <KnowledgeItemList items={[item]} allItemsCount={1} isLoading={false} {...noopProps} onDelete={handleDelete} />
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'delete-note-1' }))
@@ -154,15 +164,7 @@ describe('KnowledgeItemList', () => {
     const item = createNoteItem({ id: 'note-1', content: '会议纪要' })
 
     render(
-      <KnowledgeItemList
-        items={[item]}
-        isLoading={false}
-        onItemClick={() => undefined}
-        onDelete={() => undefined}
-        onPreviewSource={() => undefined}
-        onReindex={handleReindex}
-        onViewChunks={() => undefined}
-      />
+      <KnowledgeItemList items={[item]} allItemsCount={1} isLoading={false} {...noopProps} onReindex={handleReindex} />
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'reindex-note-1' }))
@@ -177,12 +179,10 @@ describe('KnowledgeItemList', () => {
     render(
       <KnowledgeItemList
         items={[item]}
+        allItemsCount={1}
         isLoading={false}
-        onItemClick={() => undefined}
-        onDelete={() => undefined}
+        {...noopProps}
         onPreviewSource={handlePreviewSource}
-        onReindex={() => undefined}
-        onViewChunks={() => undefined}
       />
     )
 
@@ -198,11 +198,9 @@ describe('KnowledgeItemList', () => {
     render(
       <KnowledgeItemList
         items={[item]}
+        allItemsCount={1}
         isLoading={false}
-        onItemClick={() => undefined}
-        onDelete={() => undefined}
-        onPreviewSource={() => undefined}
-        onReindex={() => undefined}
+        {...noopProps}
         onViewChunks={handleViewChunks}
       />
     )

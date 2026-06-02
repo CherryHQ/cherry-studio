@@ -8,6 +8,7 @@ import { useMcpServerTrust } from '@renderer/hooks/useMcpServerTrust'
 import { formatMcpError } from '@renderer/utils/error'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
+import type { UpdateMCPServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { CircleXIcon, SquareArrowOutUpRight } from 'lucide-react'
 import type React from 'react'
@@ -29,7 +30,7 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
   const [loading, setLoading] = useState(false)
   const [version, setVersion] = useState<string | null>(null)
 
-  const updateServerBody = useCallback((body: Partial<MCPServer>) => updateMcpServer({ body }), [updateMcpServer])
+  const updateServerBody = useCallback((body: UpdateMCPServerDto) => updateMcpServer({ body }), [updateMcpServer])
 
   const { ensureServerTrusted } = useMcpServerTrust(updateServerBody)
   const { t } = useTranslation()
