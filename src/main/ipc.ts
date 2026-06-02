@@ -815,6 +815,64 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
   })
   ipcMain.handle(IpcChannel.Mcp_GetServerVersion, mcpService.getServerVersion)
   ipcMain.handle(IpcChannel.Mcp_GetServerLogs, mcpService.getServerLogs)
+  ipcMain.handle(IpcChannel.Mcp_CleanupAgentReferences, async (_event, serverId: string) => {
+    try {
+      const { agentsTable } = await import('./services/agents/database/schema/agents.schema')
+      const { sessionsTable } = await import('./services/agents/database/schema/sessions.schema')
+      const { DatabaseManager } = await import('./services/agents/database/DatabaseManager')
+      const { eq, sql } = await import('drizzle-orm')
+      const logger = loggerService.withContext('IpcHandler:McpCleanup')
+
+      const dbManager = await DatabaseManager.getInstance()
+      const db = dbManager.getDatabase()
+
+      const rawLike = `%"${serverId.replace(/[\\%_]/g, '\\$&')}"%`
+
+      // Clean up agent mcps arrays
+      const agentsToFix = await db
+        .select({ id: agentsTable.id, mcps: agentsTable.mcps })
+        .from(agentsTable)
+        .where(sql`${agentsTable.mcps} LIKE ${rawLike} ESCAPE '\\'`)
+
+      for (const a of agentsToFix) {
+        if (!a.mcps) continue
+        const mcps = JSON.parse(a.mcps)
+        if (Array.isArray(mcps)) {
+          await db
+            .update(agentsTable)
+            .set({ mcps: JSON.stringify(mcps.filter((id: string) => id !== serverId)) })
+            .where(eq(agentsTable.id, a.id))
+        }
+      }
+
+      // Clean up session mcps arrays
+      const sessionsToFix = await db
+        .select({ id: sessionsTable.id, mcps: sessionsTable.mcps })
+        .from(sessionsTable)
+        .where(sql`${sessionsTable.mcps} LIKE ${rawLike} ESCAPE '\\'`)
+
+      for (const s of sessionsToFix) {
+        if (!s.mcps) continue
+        const mcps = JSON.parse(s.mcps)
+        if (Array.isArray(mcps)) {
+          await db
+            .update(sessionsTable)
+            .set({ mcps: JSON.stringify(mcps.filter((id: string) => id !== serverId)) })
+            .where(eq(sessionsTable.id, s.id))
+        }
+      }
+
+      if (agentsToFix.length > 0 || sessionsToFix.length > 0) {
+        logger.info('Cleaned up stale MCP references from agents/sessions', {
+          serverId,
+          affectedAgents: agentsToFix.length,
+          affectedSessions: sessionsToFix.length
+        })
+      }
+    } catch (error) {
+      loggerService.withContext('IpcHandler:McpCleanup').error('Failed to clean up MCP references', error as Error)
+    }
+  })
 
   // Channel logs & status
   ipcMain.handle(IpcChannel.Channel_GetLogs, async (_event, channelId: string) => {

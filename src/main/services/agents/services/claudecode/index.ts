@@ -21,6 +21,7 @@ import type { Base64ImageSource, ContentBlockParam } from '@anthropic-ai/sdk/res
 import { loggerService } from '@logger'
 import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
+import { getMCPServersFromRedux } from '@main/apiServer/utils/mcp'
 import { isWin } from '@main/constant'
 import AssistantServer from '@main/mcpServers/assistant'
 import ClawServer from '@main/mcpServers/claw'
@@ -563,9 +564,22 @@ class ClaudeCodeService implements AgentServiceInterface {
     }
 
     if (session.mcps && session.mcps.length > 0) {
+      // Pre-filter: only connect to servers that still exist and are active.
+      // This avoids log noise, wasted DB lookups, and connection timeouts from
+      // stale references in session mcps arrays (e.g. after an MCP server
+      // was deleted without cleaning up the session's mcps list).
+      const activeServers = await getMCPServersFromRedux()
+      const activeServerIds = new Set(activeServers.filter((s) => s.isActive).map((s) => s.id))
+      const validIds = session.mcps.filter((id: string) => activeServerIds.has(id))
+
+      if (validIds.length < session.mcps.length) {
+        const dropped = session.mcps.filter((id: string) => !activeServerIds.has(id))
+        logger.warn('Skipping inactive/deleted MCP servers when creating session', { dropped })
+      }
+
       // mcp configs
       const mcpList: Record<string, McpHttpServerConfig> = {}
-      for (const mcpId of session.mcps) {
+      for (const mcpId of validIds) {
         mcpList[mcpId] = {
           type: 'http',
           url: `http://${apiConfig.host}:${apiConfig.port}/v1/mcps/${mcpId}/mcp`,
