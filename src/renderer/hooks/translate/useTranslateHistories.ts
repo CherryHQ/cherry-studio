@@ -7,6 +7,27 @@ import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('translate/useTranslateHistories')
 
+const isSameHistoryList = (left: TranslateHistory[], right: TranslateHistory[]) => {
+  if (left.length !== right.length) return false
+
+  return left.every((item, index) => {
+    const next = right[index]
+    if (!next) return false
+
+    return (
+      item === next ||
+      (item.id === next.id &&
+        item.sourceText === next.sourceText &&
+        item.targetText === next.targetText &&
+        item.sourceLanguage === next.sourceLanguage &&
+        item.targetLanguage === next.targetLanguage &&
+        item.star === next.star &&
+        item.createdAt === next.createdAt &&
+        item.updatedAt === next.updatedAt)
+    )
+  })
+}
+
 interface UseTranslateHistoriesOptions {
   /** Full-text search on sourceText/targetText (server-side LIKE). */
   search?: string
@@ -52,10 +73,11 @@ export const useTranslateHistories = ({
 
   useEffect(() => {
     setLoadedItems((prev) => {
-      if (page <= 1) return items
+      if (page <= 1) return isSameHistoryList(prev, items) ? prev : items
 
       const itemIds = new Set(items.map((item) => item.id))
-      return [...prev.filter((item) => !itemIds.has(item.id)), ...items]
+      const nextItems = [...prev.filter((item) => !itemIds.has(item.id)), ...items]
+      return isSameHistoryList(prev, nextItems) ? prev : nextItems
     })
   }, [items, page])
 

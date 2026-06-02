@@ -52,6 +52,36 @@ describe('useTranslateHistories', () => {
     expect(result.current.hasMore).toBe(true)
   })
 
+  it('keeps loaded items stable when a page re-emits equivalent history data', async () => {
+    mockUsePaginatedQuery.mockReturnValue(buildPaginatedState({ items: [{ id: 'a' }], total: 1, page: 1 }))
+
+    const { result, rerender } = renderHook(() => useTranslateHistories())
+    await act(async () => {})
+    const firstItems = result.current.items
+
+    mockUsePaginatedQuery.mockReturnValue(buildPaginatedState({ items: [{ id: 'a' }], total: 1, page: 1 }))
+    rerender()
+    await act(async () => {})
+
+    expect(result.current.items).toBe(firstItems)
+  })
+
+  it('does not replace loaded items while the next page has no new rows yet', async () => {
+    mockUsePaginatedQuery.mockReturnValue(buildPaginatedState({ items: [{ id: 'a' }], total: 2, page: 1 }))
+
+    const { result, rerender } = renderHook(() => useTranslateHistories())
+    await act(async () => {})
+    const firstItems = result.current.items
+
+    mockUsePaginatedQuery.mockReturnValue(
+      buildPaginatedState({ items: [], total: 2, page: 2, isRefreshing: true, hasNext: false })
+    )
+    rerender()
+    await act(async () => {})
+
+    expect(result.current.items).toBe(firstItems)
+  })
+
   it('reports hasMore=false once loaded items reach the total', () => {
     mockUsePaginatedQuery.mockReturnValue(
       buildPaginatedState({ items: [{ id: 'a' }, { id: 'b' }], total: 2, hasNext: false })
