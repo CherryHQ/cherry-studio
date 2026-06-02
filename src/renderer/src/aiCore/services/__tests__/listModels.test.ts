@@ -464,6 +464,26 @@ describe('listModels', () => {
       expect(models[0].id).toBe('gemini-2.5-flash')
       expect(models).toMatchSnapshot()
     })
+
+    it('should encode special characters in API key query parameter', async () => {
+      mockGetFromApi.mockResolvedValue({ value: REAL_GEMINI })
+
+      await listModels(
+        makeProvider({
+          id: 'gemini',
+          type: 'gemini',
+          apiHost: 'https://generativelanguage.googleapis.com/v1beta',
+          apiKey: 'AIzaSyABC&DEF=xyz+123'
+        })
+      )
+
+      const [request] = mockGetFromApi.mock.calls[0]
+      expect(request.url).toBe(
+        'https://generativelanguage.googleapis.com/v1beta/models?key=AIzaSyABC%26DEF%3Dxyz%2B123'
+      )
+      expect(new URL(request.url).searchParams.get('key')).toBe('AIzaSyABC&DEF=xyz+123')
+      expect(Array.from(new URL(request.url).searchParams.keys())).toEqual(['key'])
+    })
   })
 
   describe('Vertex AI', () => {
