@@ -10,7 +10,7 @@ import type {
   UpdateAgentResponse
 } from '@types'
 import { AgentBaseSchema } from '@types'
-import { and, asc, count, desc, eq, isNull, min } from 'drizzle-orm'
+import { and, asc, count, desc, eq, isNull, min, sql } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
 import {
@@ -18,9 +18,12 @@ import {
   agentSkillsTable,
   agentsTable,
   channelsTable,
+  channelTaskSubscriptionsTable,
   type InsertAgentRow,
   scheduledTasksTable,
-  sessionsTable
+  sessionMessagesTable,
+  sessionsTable,
+  taskRunLogsTable
 } from '../database/schema'
 import type { AgentModelField } from '../errors'
 import { skillService } from '../skills/SkillService'
@@ -28,6 +31,9 @@ import { CHERRY_CLAW_AGENT_ID, isBuiltinAgentId } from './builtin/BuiltinAgentId
 import { seedWorkspaceTemplates } from './cherryclaw/seedWorkspace'
 
 const logger = loggerService.withContext('AgentService')
+
+type AgentDatabase = Awaited<ReturnType<BaseService['getDatabase']>>
+type AgentTransaction = Parameters<Parameters<AgentDatabase['transaction']>[0]>[0]
 
 export type BuiltinAgentInitResult =
   | { agentId: string; skippedReason?: undefined }
@@ -548,6 +554,35 @@ export class AgentService extends BaseService {
     logger.info('Agents reordered', { count: orderedIds.length })
   }
 
+  private async deleteAgentRelations(tx: AgentTransaction, id: string): Promise<void> {
+    // Agent DB migrations did not always create FK constraints, so clean child rows explicitly.
+    await tx.delete(agentSkillsTable).where(eq(agentSkillsTable.agent_id, id))
+    await tx
+      .delete(channelTaskSubscriptionsTable)
+      .where(
+        sql`${channelTaskSubscriptionsTable.taskId} IN (SELECT ${scheduledTasksTable.id} FROM ${scheduledTasksTable} WHERE ${scheduledTasksTable.agent_id} = ${id})`
+      )
+    await tx
+      .delete(taskRunLogsTable)
+      .where(
+        sql`${taskRunLogsTable.task_id} IN (SELECT ${scheduledTasksTable.id} FROM ${scheduledTasksTable} WHERE ${scheduledTasksTable.agent_id} = ${id})`
+      )
+    await tx.delete(scheduledTasksTable).where(eq(scheduledTasksTable.agent_id, id))
+    await tx
+      .delete(sessionMessagesTable)
+      .where(
+        sql`${sessionMessagesTable.session_id} IN (SELECT ${sessionsTable.id} FROM ${sessionsTable} WHERE ${sessionsTable.agent_id} = ${id})`
+      )
+    await tx
+      .update(channelsTable)
+      .set({ sessionId: null })
+      .where(
+        sql`${channelsTable.sessionId} IN (SELECT ${sessionsTable.id} FROM ${sessionsTable} WHERE ${sessionsTable.agent_id} = ${id})`
+      )
+    await tx.delete(sessionsTable).where(eq(sessionsTable.agent_id, id))
+    await tx.update(channelsTable).set({ agentId: null }).where(eq(channelsTable.agentId, id))
+  }
+
   async deleteAgent(id: string): Promise<boolean> {
     const database = await this.getDatabase()
     const agent = await this.findAgentRow(id)
@@ -560,19 +595,26 @@ export class AgentService extends BaseService {
       const now = new Date().toISOString()
 
       await database.transaction(async (tx) => {
-        await tx.delete(agentSkillsTable).where(eq(agentSkillsTable.agent_id, id))
-        await tx.delete(scheduledTasksTable).where(eq(scheduledTasksTable.agent_id, id))
-        await tx.delete(sessionsTable).where(eq(sessionsTable.agent_id, id))
-        await tx.update(channelsTable).set({ agentId: null }).where(eq(channelsTable.agentId, id))
+        await this.deleteAgentRelations(tx, id)
         await tx.update(agentsTable).set({ deleted_at: now, updated_at: now }).where(eq(agentsTable.id, id))
       })
 
+      logger.info('Agent deleted', { id, soft: true })
       return true
     }
 
-    const result = await database.delete(agentsTable).where(eq(agentsTable.id, id))
+    const result = await database.transaction(async (tx) => {
+      await this.deleteAgentRelations(tx, id)
 
-    return result.rowsAffected > 0
+      return await tx.delete(agentsTable).where(eq(agentsTable.id, id))
+    })
+
+    const deleted = result.rowsAffected > 0
+    if (deleted) {
+      logger.info('Agent deleted', { id, soft: false })
+    }
+
+    return deleted
   }
 
   async agentExists(id: string): Promise<boolean> {
