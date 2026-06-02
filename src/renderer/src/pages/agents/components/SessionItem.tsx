@@ -145,7 +145,7 @@ const SessionItem = ({ session, agentId, channelType, onDelete, onPress }: Sessi
           void dispatch(loadTopicMessagesThunk(sessionTopicId))
           try {
             startTopicRenaming(sessionTopicId)
-            await renameAgentSessionIfNeeded(agentSession, sessionTopicId, store.getState)
+            await renameAgentSessionIfNeeded(agentSession, sessionTopicId, store.getState, { force: true })
           } finally {
             finishTopicRenaming(sessionTopicId)
           }

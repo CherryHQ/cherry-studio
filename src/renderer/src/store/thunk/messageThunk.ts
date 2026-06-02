@@ -154,7 +154,8 @@ const buildAgentBaseURL = (apiServer: ApiServerConfig) => {
 export const renameAgentSessionIfNeeded = async (
   agentSession: AgentSessionContext,
   topicId: string,
-  getState: () => RootState
+  getState: () => RootState,
+  options: { force?: boolean } = {}
 ): Promise<void> => {
   const lockId = `${agentSession.agentId}:${agentSession.sessionId}`
   if (agentSessionRenameLocks.has(lockId)) {
@@ -165,6 +166,10 @@ export const renameAgentSessionIfNeeded = async (
     const state = getState()
     const apiServer = state.settings.apiServer
     if (!apiServer?.apiKey) {
+      return
+    }
+
+    if (!options.force && !state.settings.enableTopicNaming) {
       return
     }
 
