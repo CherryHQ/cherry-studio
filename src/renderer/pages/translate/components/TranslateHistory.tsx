@@ -7,7 +7,7 @@ import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 import type { TranslateHistory, TranslateLanguage } from '@shared/data/types/translate'
 import { ArrowRight, ChevronRight, Clock, Copy, Repeat, Star, Trash2 } from 'lucide-react'
 import type { FC, UIEvent } from 'react'
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import IconButton from './IconButton'
@@ -56,6 +56,7 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
   })
   const { getLanguage, getLabel } = useLanguageLabels()
   const { clear: clearHistory, update: updateHistory } = useTranslateHistory()
+  const pendingLoadMoreRef = useRef(false)
 
   const history: DisplayedTranslateHistoryItem[] = useMemo(
     () =>
@@ -114,6 +115,10 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
     }
   }, [history, selectedId])
 
+  useEffect(() => {
+    pendingLoadMoreRef.current = false
+  }, [hasMore, history.length, isLoadingMore])
+
   const handleReuse = useCallback(
     (item: DisplayedTranslateHistoryItem) => {
       setSelectedId(null)
@@ -127,8 +132,14 @@ const TranslateHistoryList: FC<Props> = ({ isOpen, onHistoryItemClick, onClose }
   const handleListScroll = useCallback(
     (e: UIEvent<HTMLDivElement>) => {
       const el = e.currentTarget
-      if (hasMore && !isLoadingMore && el.scrollHeight - el.scrollTop - el.clientHeight < ITEM_HEIGHT * 2) {
-        loadMore()
+      if (
+        hasMore &&
+        !isLoadingMore &&
+        !pendingLoadMoreRef.current &&
+        el.scrollHeight - el.scrollTop - el.clientHeight < ITEM_HEIGHT * 2
+      ) {
+        pendingLoadMoreRef.current = true
+        queueMicrotask(loadMore)
       }
     },
     [hasMore, isLoadingMore, loadMore]

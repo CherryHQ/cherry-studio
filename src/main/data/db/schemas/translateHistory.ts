@@ -7,7 +7,7 @@ import { translateLanguageTable } from './translateLanguage'
  * Translate history table - stores translation records
  *
  * Design notes:
- * - Data grows unbounded, renderer should use paginated queries (offset/limit)
+ * - Data grows unbounded, renderer should use cursor paginated queries
  *   with infinite scroll instead of loading all records at once.
  * - Text search (sourceText/targetText) uses SQL LIKE at DB layer,
  *   not client-side filtering.
