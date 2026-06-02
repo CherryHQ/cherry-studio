@@ -3,8 +3,6 @@ import { nanoid } from '@reduxjs/toolkit'
 import type { MCPServer } from '@renderer/types'
 import i18next from 'i18next'
 
-import { isSameMcpServerCandidate } from '../utils'
-
 const logger = loggerService.withContext('BailianSyncUtils')
 
 // 常量定义
@@ -112,14 +110,12 @@ async function fetchAllMcpServers(token: string): Promise<BailianServer[]> {
 }
 
 // ========== 主同步函数 ==========
-export const syncBailianServers = async (token: string, existingServers: MCPServer[]): Promise<BailianSyncResult> => {
+export const syncBailianServers = async (token: string): Promise<BailianSyncResult> => {
   const t = i18next.t
 
   try {
     const servers = await fetchAllMcpServers(token)
 
-    const addedServers: MCPServer[] = []
-    const updatedServers: MCPServer[] = []
     const allServers: MCPServer[] = []
 
     for (const server of servers) {
@@ -146,26 +142,17 @@ export const syncBailianServers = async (token: string, existingServers: MCPServ
             Authorization: `Bearer ${token}`
           }
         }
-        const existingServer = existingServers.find((s) => isSameMcpServerCandidate(s, mcpServer))
-
-        if (existingServer) {
-          updatedServers.push(mcpServer)
-        } else {
-          addedServers.push(mcpServer)
-        }
         allServers.push(mcpServer)
       } catch (err) {
         logger.error(`Error processing Bailian server ${server.id}:`, err as Error)
       }
     }
 
-    const totalServers = addedServers.length + updatedServers.length
-
     return {
       success: true,
-      message: t('settings.mcp.sync.success', { count: totalServers }),
-      addedServers,
-      updatedServers,
+      message: t('settings.mcp.sync.success', { count: allServers.length }),
+      addedServers: [],
+      updatedServers: [],
       allServers
     }
   } catch (error) {

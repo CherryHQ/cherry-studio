@@ -3,8 +3,6 @@ import { nanoid } from '@reduxjs/toolkit'
 import type { MCPServer } from '@renderer/types'
 import i18next from 'i18next'
 
-import { isSameMcpServerCandidate } from '../utils'
-
 const logger = loggerService.withContext('302ai')
 
 // Token storage constants and utilities
@@ -37,7 +35,7 @@ interface Ai302SyncResult {
 }
 
 // Function to fetch and process 302ai servers
-export const syncAi302Servers = async (token: string, existingServers: MCPServer[]): Promise<Ai302SyncResult> => {
+export const syncAi302Servers = async (token: string): Promise<Ai302SyncResult> => {
   const t = i18next.t
 
   try {
@@ -89,8 +87,6 @@ export const syncAi302Servers = async (token: string, existingServers: MCPServer
     }
 
     // Transform 302ai servers to MCP servers format
-    const addedServers: MCPServer[] = []
-    const updatedServers: MCPServer[] = []
     const allServers: MCPServer[] = []
 
     for (const server of servers) {
@@ -107,26 +103,17 @@ export const syncAi302Servers = async (token: string, existingServers: MCPServer
           tags: server.tags,
           logoUrl: server.logoUrl
         }
-        const existingServer = existingServers.find((s) => isSameMcpServerCandidate(s, mcpServer))
-
-        if (existingServer) {
-          // Update existing server with latest info
-          updatedServers.push(mcpServer)
-        } else {
-          // Add new server
-          addedServers.push(mcpServer)
-        }
+        allServers.push(mcpServer)
       } catch (err) {
         logger.error('Error processing 302ai server:', err as Error)
       }
     }
 
-    const totalServers = addedServers.length + updatedServers.length
     return {
       success: true,
-      message: t('settings.mcp.sync.success', { count: totalServers }),
-      addedServers,
-      updatedServers,
+      message: t('settings.mcp.sync.success', { count: allServers.length }),
+      addedServers: [],
+      updatedServers: [],
       allServers
     }
   } catch (error) {

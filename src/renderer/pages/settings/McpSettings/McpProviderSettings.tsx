@@ -95,7 +95,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
 
     try {
       provider.saveToken(token)
-      const result = await provider.syncServers(token, existingServers)
+      const result = await provider.syncServers(token)
 
       if (result.success) {
         const servers = result.allServers || []
@@ -115,7 +115,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
     } finally {
       setIsFetching(false)
     }
-  }, [existingServers, provider, t, token])
+  }, [provider, t, token])
 
   const isFetchDisabled = !token
   const ProviderLogo = getMCPProviderLogo(provider.key)

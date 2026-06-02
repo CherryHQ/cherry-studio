@@ -3,8 +3,6 @@ import { nanoid } from '@reduxjs/toolkit'
 import type { MCPServer } from '@renderer/types'
 import i18next from 'i18next'
 
-import { isSameMcpServerCandidate } from '../utils'
-
 const logger = loggerService.withContext('TokenFluxSyncUtils')
 
 // Token storage constants and utilities
@@ -53,10 +51,7 @@ interface TokenFluxSyncResult {
 }
 
 // Function to fetch and process TokenFlux servers
-export const syncTokenFluxServers = async (
-  token: string,
-  existingServers: MCPServer[]
-): Promise<TokenFluxSyncResult> => {
+export const syncTokenFluxServers = async (token: string): Promise<TokenFluxSyncResult> => {
   const t = i18next.t
 
   try {
@@ -107,13 +102,10 @@ export const syncTokenFluxServers = async (
     }
 
     // Transform TokenFlux servers to MCP servers format
-    const addedServers: MCPServer[] = []
-    const updatedServers: MCPServer[] = []
     const allServers: MCPServer[] = []
     logger.debug('TokenFlux servers:', servers)
     for (const server of servers) {
       try {
-        // Check if server already exists
         const authHeaders = {}
         if (server.security_schemes && server.security_schemes.api_key) {
           const keyAuth = server.security_schemes.api_key as TokenFluxServerAuthSchemaApiKey
@@ -135,27 +127,17 @@ export const syncTokenFluxServers = async (
           tags: server.categories || [],
           headers: authHeaders
         }
-        const existingServer = existingServers.find((s) => isSameMcpServerCandidate(s, mcpServer))
-
-        if (existingServer) {
-          // Update existing server with corrected URL and latest info
-          updatedServers.push(mcpServer)
-        } else {
-          // Add new server
-          addedServers.push(mcpServer)
-        }
         allServers.push(mcpServer)
       } catch (err) {
         logger.error('Error processing TokenFlux server:', err as Error)
       }
     }
 
-    const totalServers = addedServers.length + updatedServers.length
     return {
       success: true,
-      message: t('settings.mcp.sync.success', { count: totalServers }),
-      addedServers,
-      updatedServers,
+      message: t('settings.mcp.sync.success', { count: allServers.length }),
+      addedServers: [],
+      updatedServers: [],
       allServers
     }
   } catch (error) {

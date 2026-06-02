@@ -23,6 +23,24 @@ describe('McpSettings utils', () => {
     expect(isSameMcpServerCandidate(existing, candidate)).toBe(true)
   })
 
+  it('matches url candidates by baseUrl when provider is absent', () => {
+    const existing: MCPServer = {
+      id: '550e8400-e29b-41d4-a716-446655440000',
+      name: 'Fetch',
+      type: 'streamableHttp',
+      baseUrl: 'https://example.com/mcp',
+      isActive: true
+    }
+
+    const candidate: MCPServer = {
+      ...existing,
+      id: '@302ai/fetch',
+      provider: undefined
+    }
+
+    expect(isSameMcpServerCandidate(existing, candidate)).toBe(true)
+  })
+
   it('removes readonly fields from create and update DTOs', () => {
     const createDto = toCreateMcpServerDto({
       id: '@provider/fetch',

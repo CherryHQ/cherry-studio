@@ -3,8 +3,6 @@ import { getProviderLabel } from '@renderer/i18n/label'
 import type { MCPServer } from '@renderer/types'
 import i18next from 'i18next'
 
-import { isSameMcpServerCandidate } from '../utils'
-
 const logger = loggerService.withContext('TokenLanYunSyncUtils')
 
 // Token storage constants and utilities
@@ -64,10 +62,7 @@ interface TokenLanYunSyncResult {
 }
 
 // Function to fetch and process TokenLanYun servers
-export const syncTokenLanYunServers = async (
-  token: string,
-  existingServers: MCPServer[]
-): Promise<TokenLanYunSyncResult> => {
+export const syncTokenLanYunServers = async (token: string): Promise<TokenLanYunSyncResult> => {
   const t = i18next.t
 
   try {
@@ -139,8 +134,6 @@ export const syncTokenLanYunServers = async (
     }
 
     // Transform Token servers to MCP servers format
-    const addedServers: MCPServer[] = []
-    const updatedServers: MCPServer[] = []
     const allServers: MCPServer[] = []
     logger.debug('TokenLanYun servers:', servers)
 
@@ -164,27 +157,17 @@ export const syncTokenLanYunServers = async (
           logoUrl: server.logoUrl || '',
           tags: server.tags ?? (server.chineseName ? [server.chineseName] : [])
         }
-        const existingServer = existingServers.find((s) => isSameMcpServerCandidate(s, mcpServer))
-
-        if (existingServer) {
-          // Update existing server with latest info
-          updatedServers.push(mcpServer)
-        } else {
-          // Add new server
-          addedServers.push(mcpServer)
-        }
         allServers.push(mcpServer)
       } catch (err) {
         logger.error('Error processing LanYun server:', err as Error)
       }
     }
 
-    const totalServers = addedServers.length + updatedServers.length
     return {
       success: true,
-      message: t('settings.mcp.sync.success', { count: totalServers }),
-      addedServers,
-      updatedServers,
+      message: t('settings.mcp.sync.success', { count: allServers.length }),
+      addedServers: [],
+      updatedServers: [],
       allServers
     }
   } catch (error) {
