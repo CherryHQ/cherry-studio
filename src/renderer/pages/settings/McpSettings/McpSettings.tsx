@@ -43,6 +43,7 @@ import { parseKeyValueString } from '@renderer/utils/env'
 import { formatErrorMessage, formatMcpError } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { MCPServerLogEntry } from '@shared/config/types'
+import type { UpdateMCPServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { ArrowLeft, ChevronDown, SaveIcon, X } from 'lucide-react'
@@ -55,6 +56,7 @@ import { SettingContainer, SettingDivider, SettingTitle } from '..'
 import MCPPromptsSection from './McpPrompt'
 import MCPResourcesSection from './McpResource'
 import MCPToolsSection from './McpTool'
+import { toUpdateMcpServerDto } from './utils'
 
 const logger = loggerService.withContext('McpSettings')
 
@@ -119,7 +121,7 @@ const McpSettings: React.FC = () => {
   const serverId = params.serverId
   const { server, isLoading: isServerLoading, updateMcpServer, deleteMcpServer } = useMcpServer(serverId ?? '')
 
-  const updateServerBody = useCallback((body: Partial<MCPServer>) => updateMcpServer({ body }), [updateMcpServer])
+  const updateServerBody = useCallback((body: UpdateMCPServerDto) => updateMcpServer({ body }), [updateMcpServer])
 
   const { ensureServerTrusted } = useMcpServerTrust(updateServerBody)
   const [serverType, setServerType] = useState<MCPServer['type']>('stdio')
@@ -400,15 +402,17 @@ const McpSettings: React.FC = () => {
         mcpServer.headers = parseKeyValueString(values.headers)
       }
 
+      const mcpServerDto = toUpdateMcpServerDto(mcpServer)
+
       if (server.isActive) {
         try {
           await window.api.mcp.restartServer(mcpServer)
-          await updateMcpServer({ body: { ...mcpServer, isActive: true } })
+          await updateMcpServer({ body: { ...mcpServerDto, isActive: true } })
           window.toast.success(t('settings.mcp.updateSuccess'))
           setIsFormChanged(false)
         } catch (error: any) {
           try {
-            await updateMcpServer({ body: { ...mcpServer, isActive: false } })
+            await updateMcpServer({ body: { ...mcpServerDto, isActive: false } })
           } catch (rollbackError) {
             logger.error('Failed to rollback MCP server active state after restart failure:', rollbackError as Error)
             window.toast.error(`${t('settings.mcp.updateError')}: ${formatErrorMessage(rollbackError)}`)
@@ -420,7 +424,7 @@ const McpSettings: React.FC = () => {
           })
         }
       } else {
-        await updateMcpServer({ body: { ...mcpServer, isActive: false } })
+        await updateMcpServer({ body: { ...mcpServerDto, isActive: false } })
         window.toast.success(t('settings.mcp.updateSuccess'))
         setIsFormChanged(false)
       }

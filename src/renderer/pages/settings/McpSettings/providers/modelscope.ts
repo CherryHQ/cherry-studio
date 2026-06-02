@@ -38,17 +38,12 @@ interface ModelScopeServer {
 interface ModelScopeSyncResult {
   success: boolean
   message: string
-  addedServers: MCPServer[]
-  updatedServers: MCPServer[]
   allServers: MCPServer[]
   errorDetails?: string
 }
 
 // Function to fetch and process ModelScope servers
-export const syncModelScopeServers = async (
-  token: string,
-  existingServers: MCPServer[]
-): Promise<ModelScopeSyncResult> => {
+export const syncModelScopeServers = async (token: string): Promise<ModelScopeSyncResult> => {
   const t = i18next.t
 
   try {
@@ -66,8 +61,6 @@ export const syncModelScopeServers = async (
       return {
         success: false,
         message: t('settings.mcp.sync.unauthorized', 'Sync Unauthorized'),
-        addedServers: [],
-        updatedServers: [],
         allServers: []
       }
     }
@@ -77,8 +70,6 @@ export const syncModelScopeServers = async (
       return {
         success: false,
         message: t('settings.mcp.sync.error'),
-        addedServers: [],
-        updatedServers: [],
         allServers: [],
         errorDetails: `Status: ${response.status}`
       }
@@ -92,23 +83,17 @@ export const syncModelScopeServers = async (
       return {
         success: true,
         message: t('settings.mcp.sync.noServersAvailable', 'No MCP servers available'),
-        addedServers: [],
-        updatedServers: [],
         allServers: []
       }
     }
 
     // Transform ModelScope servers to MCP servers format
-    const addedServers: MCPServer[] = []
-    const updatedServers: MCPServer[] = []
     const allServers: MCPServer[] = []
     logger.debug('ModelScope servers:', servers)
     for (const server of servers) {
       try {
         if (!server.operational_urls?.[0]?.url) continue
 
-        // Check if server already exists
-        const existingServer = existingServers.find((s) => s.id === `@modelscope/${server.id}`)
         const url = server.operational_urls[0].url
         const mcpServer: MCPServer = {
           id: `@modelscope/${server.id}`,
@@ -125,26 +110,15 @@ export const syncModelScopeServers = async (
           logoUrl: server.logo_url || '',
           tags: server.tags || []
         }
-
-        if (existingServer) {
-          // Update existing server with latest info
-          updatedServers.push(mcpServer)
-        } else {
-          // Add new server
-          addedServers.push(mcpServer)
-        }
         allServers.push(mcpServer)
       } catch (err) {
         logger.error('Error processing ModelScope server:', err as Error)
       }
     }
 
-    const totalServers = addedServers.length + updatedServers.length
     return {
       success: true,
-      message: t('settings.mcp.sync.success', { count: totalServers }),
-      addedServers,
-      updatedServers,
+      message: t('settings.mcp.sync.success', { count: allServers.length }),
       allServers
     }
   } catch (error) {
@@ -152,8 +126,6 @@ export const syncModelScopeServers = async (
     return {
       success: false,
       message: t('settings.mcp.sync.error'),
-      addedServers: [],
-      updatedServers: [],
       allServers: [],
       errorDetails: String(error)
     }

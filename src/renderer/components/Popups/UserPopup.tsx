@@ -115,15 +115,21 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
                 }
               }}>
               <PopoverTrigger asChild>
-                {isEmoji(avatar) ? (
-                  <EmojiAvatar size={80} fontSize={40} className="cursor-pointer transition-opacity hover:opacity-80">
-                    {avatar}
-                  </EmojiAvatar>
-                ) : (
-                  <Avatar className="size-20 cursor-pointer rounded-[25%] transition-opacity hover:opacity-80">
-                    <AvatarImage src={avatar} />
-                  </Avatar>
-                )}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  aria-label={t('common.avatar')}
+                  className="size-20 rounded-[25%] p-0 text-foreground shadow-none transition-opacity hover:bg-transparent hover:text-foreground hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring/50">
+                  {isEmoji(avatar) ? (
+                    <EmojiAvatar size={80} fontSize={40}>
+                      {avatar}
+                    </EmojiAvatar>
+                  ) : (
+                    <Avatar className="size-20 rounded-[25%]">
+                      <AvatarImage src={avatar} />
+                    </Avatar>
+                  )}
+                </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-2" align="center" sideOffset={6}>
                 {avatarPopoverView === 'emoji' ? (

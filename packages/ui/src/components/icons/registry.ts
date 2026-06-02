@@ -166,7 +166,7 @@ const MODEL_TO_PROVIDER_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   // Recraft
   [/recraft/i, 'recraft'],
   // Runway
-  [/runway/i, 'runaway'],
+  [/runway/i, 'runway'],
   // Stability AI
   [/stable-|sd3|sdxl/i, 'stability'],
   // TNG
@@ -179,10 +179,15 @@ const MODEL_TO_PROVIDER_PATTERNS: ReadonlyArray<[RegExp, string]> = [
 const PROVIDER_ID_ALIASES: Record<string, string> = {
   'azure-openai': 'azureai',
   'new-api': 'newapi',
+  'tencent-cloud-ti': 'tencent-cloud-ti',
+  'baidu-cloud': 'baidu-cloud',
+  'aws-bedrock': 'aws-bedrock',
+  'gitee-ai': 'gitee-ai',
   yi: 'zero-one',
   ovms: 'intel',
   gemini: 'google',
   copilot: 'github-copilot',
+  'github-copilot-openai-compatible': 'github-copilot',
   doubao: 'volcengine',
   stepfun: 'step',
   voyageai: 'voyage',
