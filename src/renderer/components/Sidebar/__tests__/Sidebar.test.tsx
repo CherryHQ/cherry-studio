@@ -57,4 +57,15 @@ describe('Sidebar resize handle', () => {
 
     expect(queryByText('Chat')).not.toBeInTheDocument()
   })
+
+  it('uses a solid sidebar background for the floating hidden-state panel', () => {
+    const { container } = render(
+      <Sidebar width={10} setWidth={vi.fn()} activeItem="chat" items={items} isFloating onItemClick={vi.fn()} />
+    )
+
+    const panel = container.querySelector('.slide-in-from-left-2')
+
+    expect(panel).toHaveClass('bg-sidebar')
+    expect(panel).not.toHaveClass('bg-sidebar/70')
+  })
 })
