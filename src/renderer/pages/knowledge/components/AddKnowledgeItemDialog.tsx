@@ -46,7 +46,7 @@ const resolveSelectedFileEntryData = async (file: File) => {
 
 const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogProps) => {
   const { t } = useTranslation()
-  const { selectedBaseId } = useKnowledgePage()
+  const { selectedBaseId, pendingAddSource, pendingAddFiles } = useKnowledgePage()
   const [activeSource, setActiveSource] = useState(DEFAULT_SOURCE_TYPE)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [selectedDirectories, setSelectedDirectories] = useState<DirectoryItem[]>([])
@@ -109,8 +109,19 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
   useEffect(() => {
     if (!open) {
       resetDialogState()
+      return
     }
-  }, [open, resetDialogState])
+
+    if (pendingAddFiles?.length) {
+      setActiveSource('file')
+      setSelectedFiles(pendingAddFiles)
+      return
+    }
+
+    if (pendingAddSource) {
+      setActiveSource(pendingAddSource)
+    }
+  }, [open, pendingAddFiles, pendingAddSource, resetDialogState])
 
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
@@ -230,33 +241,29 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent
-        showCloseButton={false}
-        className="z-401 max-h-[70vh] w-100 max-w-[calc(100%-2rem)] gap-0 overflow-hidden rounded-[14px] border-border bg-popover p-0 shadow-2xl">
-        <AddKnowledgeItemDialogHeader
-          title={t('knowledge.data_source.add_dialog.title')}
-          closeLabel={t('common.close')}
-        />
-        <AddKnowledgeItemDialogSourceTabs
-          activeSource={activeSource}
-          selectedDirectories={selectedDirectories}
-          selectedFiles={selectedFiles}
-          sitemapValue={sitemapValue}
-          urlValue={urlValue}
-          onDirectoryRemove={handleDirectoryRemove}
-          onDirectorySelect={handleDirectorySelect}
-          onFileDrop={handleFileDrop}
-          onFileRemove={handleFileRemove}
-          onSourceChange={setActiveSource}
-          onSitemapValueChange={(value) => {
-            setSubmitErrorMessage('')
-            setSitemapValue(value)
-          }}
-          onUrlValueChange={(value) => {
-            setSubmitErrorMessage('')
-            setUrlValue(value)
-          }}
-        />
+      <DialogContent size="lg" className="flex max-h-[70vh] flex-col overflow-hidden">
+        <AddKnowledgeItemDialogHeader title={t('knowledge.data_source.add_dialog.title')} />
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden pr-1">
+          <AddKnowledgeItemDialogSourceTabs
+            activeSource={activeSource}
+            selectedDirectories={selectedDirectories}
+            selectedFiles={selectedFiles}
+            sitemapValue={sitemapValue}
+            urlValue={urlValue}
+            onDirectoryRemove={handleDirectoryRemove}
+            onDirectorySelect={handleDirectorySelect}
+            onFileDrop={handleFileDrop}
+            onFileRemove={handleFileRemove}
+            onSitemapValueChange={(value) => {
+              setSubmitErrorMessage('')
+              setSitemapValue(value)
+            }}
+            onUrlValueChange={(value) => {
+              setSubmitErrorMessage('')
+              setUrlValue(value)
+            }}
+          />
+        </div>
         <AddKnowledgeItemDialogFooter
           activeSource={activeSource}
           canSubmit={canSubmit}

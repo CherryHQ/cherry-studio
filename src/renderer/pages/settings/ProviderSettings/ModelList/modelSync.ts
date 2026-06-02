@@ -107,6 +107,27 @@ function normalizeFetchedModel(providerId: string, model: LegacyModel): Model {
   }
 }
 
+async function fetchProviderRegistryModels(providerId: string): Promise<Model[]> {
+  const resolveModelsPath: ProviderResolveModelsPath = `/providers/${providerId}/models:resolve`
+  return (await dataApiService.get(resolveModelsPath, { query: {} })) as Model[]
+}
+
+function modelApiId(model: Model): string {
+  return model.apiModelId ?? parseUniqueModelId(model.id).modelId
+}
+
+function mergeProviderModels(remoteModels: Model[], registryModels: Model[]): Model[] {
+  const result = [...remoteModels]
+  const seen = new Set(remoteModels.map(modelApiId))
+  for (const model of registryModels) {
+    const apiModelId = modelApiId(model)
+    if (seen.has(apiModelId)) continue
+    seen.add(apiModelId)
+    result.push(model)
+  }
+  return result
+}
+
 async function enrichFetchedModels(providerId: string, fetchedModels: LegacyModel[]): Promise<Model[]> {
   const filteredModels = fetchedModels.filter((model) => !isEmpty(model.name))
   if (filteredModels.length === 0) {
@@ -216,7 +237,11 @@ export async function fetchResolvedProviderModels(providerId: string, provider: 
       providerId,
       fetchedModelCount: fetched.length
     })
-    return await enrichFetchedModels(providerId, fetched)
+    const [remoteModels, registryModels] = await Promise.all([
+      enrichFetchedModels(providerId, fetched),
+      fetchProviderRegistryModels(providerId)
+    ])
+    return mergeProviderModels(remoteModels, registryModels)
   } catch (error) {
     logger.error('Failed to fetch and resolve provider models', {
       providerId,

@@ -36,7 +36,7 @@ describe('useDeleteKnowledgeItem', () => {
     })
 
     expect(mockDeleteItems).toHaveBeenCalledWith('base-1', ['note-1'])
-    expect(mockInvalidateCache).toHaveBeenCalledWith('/knowledge-bases/base-1/items')
+    expect(mockInvalidateCache).toHaveBeenCalledWith(['/knowledge-bases/base-1/items', '/knowledge-bases'])
     expect(mockDeleteItems.mock.invocationCallOrder[0]).toBeLessThan(mockInvalidateCache.mock.invocationCallOrder[0])
     expect(result.current.error).toBeUndefined()
     expect(result.current.isDeleting).toBe(false)
@@ -52,7 +52,7 @@ describe('useDeleteKnowledgeItem', () => {
       await expect(result.current.deleteItem(item)).rejects.toBe(deleteError)
     })
 
-    expect(mockInvalidateCache).toHaveBeenCalledWith('/knowledge-bases/base-1/items')
+    expect(mockInvalidateCache).toHaveBeenCalledWith(['/knowledge-bases/base-1/items', '/knowledge-bases'])
     expect(mockDeleteItems.mock.invocationCallOrder[0]).toBeLessThan(mockInvalidateCache.mock.invocationCallOrder[0])
     expect(result.current.error).toBe(deleteError)
     expect(result.current.isDeleting).toBe(false)

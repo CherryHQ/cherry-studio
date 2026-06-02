@@ -3,50 +3,84 @@ index d257090..e9cd53e 100644
 --- a/dist/index.js
 +++ b/dist/index.js
 @@ -698,7 +698,7 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
- 
+
  // src/get-model-path.ts
  function getModelPath(modelId) {
 -  return modelId.includes("/") ? modelId : `models/${modelId}`;
 +  return modelId.includes("models/") ? modelId : `models/${modelId}`;
  }
- 
+
  // src/google-generative-ai-options.ts
+@@ -2589,7 +2589,7 @@ var GoogleGenerativeAIImageModel = class {
+       parameters
+     };
+     const { responseHeaders, value: response } = await (0, import_provider_utils14.postJsonToApi)({
+-      url: `${this.config.baseURL}/models/${this.modelId}:predict`,
++      url: `${this.config.baseURL}/${getModelPath(this.modelId)}:predict`,
+       headers: (0, import_provider_utils14.combineHeaders)(await (0, import_provider_utils14.resolve)(this.config.headers), headers),
+       body,
+       failedResponseHandler: googleFailedResponseHandler,
+@@ -2727,6 +2727,6 @@ var GoogleGenerativeAIImageModel = class {
+ };
+ function isGeminiModel(modelId) {
+-  return modelId.startsWith("gemini-");
++  return modelId.replace(/^(google\/|models\/)/i, "").startsWith("gemini-");
+ }
+ var googleImageResponseSchema = (0, import_provider_utils14.lazySchema)(
+   () => (0, import_provider_utils14.zodSchema)(
 diff --git a/dist/index.mjs b/dist/index.mjs
 index b5f41bc..c75255d 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
 @@ -704,7 +704,7 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
- 
+
  // src/get-model-path.ts
  function getModelPath(modelId) {
 -  return modelId.includes("/") ? modelId : `models/${modelId}`;
 +  return modelId.includes("models/") ? modelId : `models/${modelId}`;
  }
- 
+
  // src/google-generative-ai-options.ts
+@@ -2627,7 +2627,7 @@ var GoogleGenerativeAIImageModel = class {
+       parameters
+     };
+     const { responseHeaders, value: response } = await postJsonToApi3({
+-      url: `${this.config.baseURL}/models/${this.modelId}:predict`,
++      url: `${this.config.baseURL}/${getModelPath(this.modelId)}:predict`,
+       headers: combineHeaders3(await resolve3(this.config.headers), headers),
+       body,
+       failedResponseHandler: googleFailedResponseHandler,
+@@ -2765,6 +2765,6 @@ var GoogleGenerativeAIImageModel = class {
+ };
+ function isGeminiModel(modelId) {
+-  return modelId.startsWith("gemini-");
++  return modelId.replace(/^(google\/|models\/)/i, "").startsWith("gemini-");
+ }
+ var googleImageResponseSchema = lazySchema11(
+   () => zodSchema11(
 diff --git a/dist/internal/index.js b/dist/internal/index.js
 index bfc039b..e239776 100644
 --- a/dist/internal/index.js
 +++ b/dist/internal/index.js
 @@ -487,7 +487,7 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
- 
+
  // src/get-model-path.ts
  function getModelPath(modelId) {
 -  return modelId.includes("/") ? modelId : `models/${modelId}`;
 +  return modelId.includes("models/") ? modelId : `models/${modelId}`;
  }
- 
+
  // src/google-error.ts
 diff --git a/dist/internal/index.mjs b/dist/internal/index.mjs
 index ba71d04..8596000 100644
 --- a/dist/internal/index.mjs
 +++ b/dist/internal/index.mjs
 @@ -470,7 +470,7 @@ function convertToGoogleGenerativeAIMessages(prompt, options) {
- 
+
  // src/get-model-path.ts
  function getModelPath(modelId) {
 -  return modelId.includes("/") ? modelId : `models/${modelId}`;
 +  return modelId.includes("models/") ? modelId : `models/${modelId}`;
  }
- 
+
  // src/google-error.ts

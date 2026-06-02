@@ -349,8 +349,6 @@ export type PaintingParams = {
   providerId?: string
 }
 
-export type PaintingProvider = 'zhipu' | 'aihubmix' | 'silicon' | 'dmxapi' | 'new-api' | 'ovms' | 'cherryin' | 'ppio'
-
 export interface Painting extends PaintingParams {
   model?: string
   prompt?: string
@@ -479,42 +477,6 @@ export interface PpioPainting extends PaintingParams {
   outputFormat?: string // 输出格式
 }
 
-export type PaintingAction = Partial<
-  GeneratePainting &
-    RemixPainting &
-    EditPainting &
-    ScalePainting &
-    DmxapiPainting &
-    TokenFluxPainting &
-    OvmsPainting &
-    PpioPainting
-> &
-  PaintingParams
-
-export interface PaintingsState {
-  // SiliconFlow
-  siliconflow_paintings: Painting[]
-  // DMXAPI
-  dmxapi_paintings: DmxapiPainting[]
-  // TokenFlux
-  tokenflux_paintings: TokenFluxPainting[]
-  // Zhipu
-  zhipu_paintings: Painting[]
-  // Aihubmix
-  aihubmix_image_generate: Partial<GeneratePainting> & PaintingParams[]
-  aihubmix_image_remix: Partial<RemixPainting> & PaintingParams[]
-  aihubmix_image_edit: Partial<EditPainting> & PaintingParams[]
-  aihubmix_image_upscale: Partial<ScalePainting> & PaintingParams[]
-  // OpenAI
-  openai_image_generate: Partial<GeneratePainting> & PaintingParams[]
-  openai_image_edit: Partial<EditPainting> & PaintingParams[]
-  // OVMS
-  ovms_paintings: OvmsPainting[]
-  // PPIO
-  ppio_draw: PpioPainting[]
-  ppio_edit: PpioPainting[]
-}
-
 export enum ThemeMode {
   light = 'light',
   dark = 'dark',
@@ -583,9 +545,26 @@ export type ApiClient = {
 export type GenerateImageParams = {
   model: string
   prompt: string
+  /**
+   * Input images for image-to-image / edit / remix / upscale flows. When
+   * non-empty, painting callers ({@link AiProvider.generatePaintingImage})
+   * forward these to AI SDK as `prompt: { text, images }` so the vendor
+   * image-model picks the right edit endpoint.
+   */
+  inputImages?: (Buffer | Uint8Array | string)[]
   negativePrompt?: string
-  imageSize: string
-  batchSize: number
+  imageSize?: string
+  aspectRatio?: string
+  /** Optional: painting callers may omit it; `AiProvider` falls back to `n: 1`. */
+  batchSize?: number
+  /**
+   * Painting-only opt-in: when true and `imageSize` is undefined, `AiProvider`
+   * skips the `'1024x1024'` default so `size` is omitted from the request body
+   * entirely (matches the bespoke `painting.size === 'auto' → undefined`
+   * handling for models whose server-side default differs from 1024×1024).
+   * Chat callers must leave this unset to keep the legacy default.
+   */
+  allowAutoSize?: boolean
   seed?: string
   numInferenceSteps?: number
   guidanceScale?: number
@@ -593,6 +572,19 @@ export type GenerateImageParams = {
   promptEnhancement?: boolean
   personGeneration?: PersonGeneration
   quality?: string
+  /** OpenAI image-body field (e.g. 'transparent'/'opaque'/'auto') */
+  background?: string
+  /** OpenAI image-body field (e.g. 'low'/'auto') */
+  moderation?: string
+  /** OpenAI image-body field — DALL-E 3 only ('vivid' / 'natural') */
+  style?: string
+  /**
+   * Extra AI SDK `providerOptions` merged into the built map, keyed by the
+   * resolved provider id. Carries provider-specific params (and non-JSON
+   * callbacks like the polling `onProgress`) that the structured params can't
+   * express. Passed by reference through the plugin chain.
+   */
+  providerOptions?: Record<string, Record<string, unknown>>
 }
 
 /**
@@ -610,6 +602,19 @@ export type EditImageParams = {
   mask?: Buffer | Uint8Array | string
   /** 输出图像尺寸 */
   imageSize?: string
+  /** See {@link GenerateImageParams.allowAutoSize}. */
+  allowAutoSize?: boolean
+  /** OpenAI image-body quality (e.g. 'high'/'auto'); forwarded via providerOptions */
+  quality?: string
+  /** OpenAI image-body field (e.g. 'transparent'/'opaque'/'auto') */
+  background?: string
+  /** OpenAI image-body field (e.g. 'low'/'auto') */
+  moderation?: string
+  /**
+   * Extra AI SDK `providerOptions` merged into the built map, keyed by the
+   * resolved provider id. See {@link GenerateImageParams.providerOptions}.
+   */
+  providerOptions?: Record<string, Record<string, unknown>>
   /** 中止信号 */
   signal?: AbortSignal
 }

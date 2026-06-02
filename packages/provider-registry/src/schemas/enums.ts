@@ -57,6 +57,71 @@ export const MODEL_CAPABILITY = {
 export type ModelCapability = (typeof MODEL_CAPABILITY)[keyof typeof MODEL_CAPABILITY]
 
 // ─────────────────────────────────────────────────────────────────────────────
+// CanonicalParamKey
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * The closed vocabulary of image-generation param keys. A model declares a
+ * subset of these under `imageGeneration.modes[mode].supports` (see
+ * `ImageModeDefSchema`), and they flow end-to-end as `painting.params` keys.
+ *
+ * Unlike the other enums, the VALUES are camelCase on purpose: they ARE the
+ * runtime param-bag keys and must match `painting.params`/registry data
+ * verbatim — do NOT kebab-case them (it would break the wire contract).
+ *
+ * This is the single source of truth that ties together the registry schema,
+ * the form's `KEY_LABELS`/`OPTION_LABELS`, and `canonicalGenerate`'s
+ * `POSITIONAL_RENAME`. Adding a new canonical param is a deliberate change:
+ * add the member here, give it a label in `KEY_LABELS`, and declare it on the
+ * relevant models in registry data.
+ */
+export const CANONICAL_PARAM_KEY = {
+  ADD_WATERMARK: 'addWatermark',
+  ASPECT_RATIO: 'aspectRatio',
+  BACKGROUND: 'background',
+  BOTTOM_SCALE: 'bottomScale',
+  CFG: 'cfg',
+  CUSTOM_SIZE: 'customSize',
+  DETAIL: 'detail',
+  ENABLE_INTERLEAVE: 'enableInterleave',
+  FUNCTION: 'function',
+  GUIDANCE_SCALE: 'guidanceScale',
+  IMAGE_RESOLUTION: 'imageResolution',
+  IMAGE_WEIGHT: 'imageWeight',
+  IS_SKETCH: 'isSketch',
+  LEFT_SCALE: 'leftScale',
+  MAGIC_PROMPT_OPTION: 'magicPromptOption',
+  MAX_IMAGES: 'maxImages',
+  MODERATION: 'moderation',
+  NEGATIVE_PROMPT: 'negativePrompt',
+  NUM_IMAGES: 'numImages',
+  NUM_INFERENCE_STEPS: 'numInferenceSteps',
+  OUTPUT_FORMAT: 'outputFormat',
+  PERSON_GENERATION: 'personGeneration',
+  PROMPT_ENHANCEMENT: 'promptEnhancement',
+  PROMPT_EXTEND: 'promptExtend',
+  QUALITY: 'quality',
+  REF_MODE: 'refMode',
+  REF_STRENGTH: 'refStrength',
+  RENDERING_SPEED: 'renderingSpeed',
+  RESEMBLANCE: 'resemblance',
+  RIGHT_SCALE: 'rightScale',
+  SAFETY_TOLERANCE: 'safetyTolerance',
+  SEED: 'seed',
+  SEQUENTIAL_IMAGE_GENERATION: 'sequentialImageGeneration',
+  SIZE: 'size',
+  SOURCE_LANG: 'sourceLang',
+  STRENGTH: 'strength',
+  STYLE: 'style',
+  STYLE_TYPE: 'styleType',
+  TARGET_LANG: 'targetLang',
+  THINKING_MODE: 'thinkingMode',
+  TOP_SCALE: 'topScale',
+  UPSCALE_FACTOR: 'upscaleFactor'
+} as const
+export type CanonicalParamKey = (typeof CANONICAL_PARAM_KEY)[keyof typeof CANONICAL_PARAM_KEY]
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Modality
 // ─────────────────────────────────────────────────────────────────────────────
 

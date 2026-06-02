@@ -1,4 +1,4 @@
-import { Accordion, Scrollbar } from '@cherrystudio/ui'
+import { Accordion, EmptyState, Scrollbar } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
 
 import BaseNavigatorGroupSection from './BaseNavigatorGroupSection'
@@ -22,16 +22,14 @@ const BaseNavigatorContent = ({
   const { t } = useTranslation()
 
   return (
-    <Scrollbar className="min-h-0 flex-1 px-1.5 [scrollbar-gutter:auto]">
+    <Scrollbar className="min-h-0 flex-1 px-3 pb-3 [scrollbar-gutter:auto]">
       {sections.length === 0 ? (
-        <div className="flex h-full items-center justify-center px-4 text-center text-muted-foreground/60 text-sm">
-          {t('knowledge.empty')}
-        </div>
+        <EmptyState preset="no-knowledge" title={t('knowledge.empty')} compact className="h-full" />
       ) : (
         <Accordion
           type="multiple"
           defaultValue={sections.map(({ groupId }) => groupId ?? UNGROUPED_SECTION_VALUE)}
-          className="space-y-1.5">
+          className="space-y-3">
           {sections.map((section) => {
             const groupValue = section.groupId ?? UNGROUPED_SECTION_VALUE
             const group = section.groupId ? groupById.get(section.groupId) : undefined

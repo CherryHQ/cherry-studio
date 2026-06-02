@@ -1,4 +1,5 @@
 import type { KnowledgePageBaseGroupSection } from '@renderer/pages/knowledge/utils'
+import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
@@ -6,12 +7,6 @@ import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
 export interface MenuPosition {
   x: number
   y: number
-}
-
-export interface BaseNavigatorHeaderProps {
-  baseCount: number
-  onCreateGroup: () => void
-  onCreateBase: () => void
 }
 
 export interface BaseNavigatorSearchProps {
@@ -57,8 +52,9 @@ export interface BaseNavigatorSectionTriggerProps {
   onContextMenu?: (event: ReactMouseEvent<HTMLDivElement>) => void
 }
 
-export interface BaseNavigatorFooterProps {
+export interface BaseNavigatorCreateMenuProps {
   onCreateBase: () => void
+  onCreateGroup: () => void
 }
 
 export interface BaseNavigatorResizeHandleProps {
@@ -78,7 +74,7 @@ export interface NavigatorRowMenuProps {
 }
 
 export interface KnowledgeBaseRowProps {
-  base: KnowledgeBase
+  base: KnowledgeBaseListItem
   groups: Group[]
   selected: boolean
   onSelectBase: (baseId: string) => void
