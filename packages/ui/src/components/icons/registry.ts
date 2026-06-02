@@ -8,36 +8,36 @@ import type { CompoundIcon } from './types'
  */
 const MODEL_ICON_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   // GPT 5.1 series (most specific first)
-  [/gpt-5\.1-codex-mini/i, 'gpt51CodexMini'],
-  [/gpt-5\.1-codex/i, 'gpt51Codex'],
-  [/gpt-5\.1-chat/i, 'gpt51Chat'],
-  [/gpt-5\.1/i, 'gpt51'],
+  [/gpt-5\.1-codex-mini/i, 'gpt-5-1-codex-mini'],
+  [/gpt-5\.1-codex/i, 'gpt-5-1-codex'],
+  [/gpt-5\.1-chat/i, 'gpt-5-1-chat'],
+  [/gpt-5\.1/i, 'gpt-5-1'],
   // GPT 5.2 series
-  [/gpt-5\.2-pro/i, 'gpt52Pro'],
-  [/gpt-5\.2/i, 'gpt52'],
+  [/gpt-5\.2-pro/i, 'gpt-5-2-pro'],
+  [/gpt-5\.2/i, 'gpt-5-2'],
   // GPT 5 series
-  [/gpt-5-mini/i, 'gpt5Mini'],
-  [/gpt-5-nano/i, 'gpt5Nano'],
-  [/gpt-5-chat/i, 'gpt5Chat'],
-  [/gpt-5-codex/i, 'gpt5Codex'],
-  [/gpt-5/i, 'gpt5'],
+  [/gpt-5-mini/i, 'gpt-5-mini'],
+  [/gpt-5-nano/i, 'gpt-5-nano'],
+  [/gpt-5-chat/i, 'gpt-5-chat'],
+  [/gpt-5-codex/i, 'gpt-5-codex'],
+  [/gpt-5/i, 'gpt-5'],
   // GPT OSS
-  [/gpt-oss-120b/i, 'gptOss120b'],
-  [/gpt-oss-20b/i, 'gptOss20b'],
+  [/gpt-oss-120b/i, 'gpt-oss-120b'],
+  [/gpt-oss-20b/i, 'gpt-oss-20b'],
   // GPT image
-  [/gpt-image-1\.5/i, 'gptImage15'],
-  [/gpt-image/i, 'gptImage1'],
+  [/gpt-image-1\.5/i, 'gpt-image-1-5'],
+  [/gpt-image/i, 'gpt-image-1'],
   // Sora
   [/(sora-|sora_)/i, 'sora'],
   // Claude / Anthropic models
   [/(claude|anthropic-)/i, 'claude'],
-  // Google models
-  [/gemini|veo|imagen/i, 'gemini'],
+  // Google models (nano-banana = Gemini 2.5 Flash Image)
+  [/gemini|veo|imagen|nano-banana/i, 'gemini'],
   [/gemma/i, 'gemma'],
   // Chinese models
-  [/(qwen|qwq|qvq|wan-)/i, 'qwen'],
+  [/(qwen|qwq|qvq|wan|z-image)/i, 'qwen'],
   [/glm/i, 'glm'],
-  [/doubao|seedream|seedance|ep-202/i, 'doubao'],
+  [/doubao|seedream|seedance|seed-oss|ep-202/i, 'doubao'],
   [/hunyuan/i, 'hunyuan'],
   [/kimi|moonshot/i, 'kimi'],
   // Other model-specific icons
@@ -100,7 +100,7 @@ const MODEL_TO_PROVIDER_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   // Step
   [/step-/i, 'step'],
   // 01.AI / Yi
-  [/yi-/i, 'zeroOne'],
+  [/yi-/i, 'zero-one'],
   // Cerebras
   [/cerebras/i, 'cerebras'],
   // Hugging Face
@@ -112,7 +112,7 @@ const MODEL_TO_PROVIDER_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   // Upstage
   [/solar/i, 'upstage'],
   // Arcee AI (incl. trinity, spotlight, virtuoso, coder-large)
-  [/arcee|spotlight|virtuoso|coder-large/i, 'arceeAi'],
+  [/arcee|spotlight|virtuoso|coder-large/i, 'arcee-ai'],
   // InternLM
   [/internlm|internvl|intern/i, 'internlm'],
   // Wenxin / Ernie (Baidu)
@@ -132,15 +132,17 @@ const MODEL_TO_PROVIDER_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   // StreamLake
   [/kat/i, 'streamlake'],
   // Dolphin AI
-  [/dolphin/i, 'dolphinAi'],
+  [/dolphin/i, 'dolphin-ai'],
   // ElevenLabs
   [/eleven/i, 'elevenlabs'],
   // Relace
   [/relace/i, 'relace'],
   // Riverflow
   [/riverflow/i, 'riverflow'],
-  // Kling
-  [/kling/i, 'kling'],
+  // Kling / Kolors (both Kuaishou image/video)
+  [/kling|kolors/i, 'kling'],
+  // Jimeng (ByteDance/Volcengine image/video)
+  [/jimeng/i, 'jimeng'],
   // Suno
   [/suno/i, 'suno'],
   // Infini / Megrez
@@ -154,7 +156,7 @@ const MODEL_TO_PROVIDER_PATTERNS: ReadonlyArray<[RegExp, string]> = [
   // Kwaipilot
   [/kwaipilot/i, 'kwaipilot'],
   // Netease Youdao / BCE
-  [/bce/i, 'neteaseYoudao'],
+  [/bce/i, 'netease-youdao'],
   // BAAI / BGE
   [/bge/i, 'baai'],
   // Deep Cogito
@@ -177,22 +179,18 @@ const MODEL_TO_PROVIDER_PATTERNS: ReadonlyArray<[RegExp, string]> = [
 const PROVIDER_ID_ALIASES: Record<string, string> = {
   'azure-openai': 'azureai',
   'new-api': 'newapi',
-  'tencent-cloud-ti': 'tencentCloudTi',
-  'baidu-cloud': 'baiduCloud',
-  'aws-bedrock': 'awsBedrock',
-  'gitee-ai': 'giteeAi',
-  yi: 'zeroOne',
+  yi: 'zero-one',
   ovms: 'intel',
   gemini: 'google',
-  copilot: 'githubCopilot',
+  copilot: 'github-copilot',
   doubao: 'volcengine',
   stepfun: 'step',
   voyageai: 'voyage',
   gateway: 'vercel',
   zhinao: 'xirang',
-  aionly: 'aiOnly',
+  aionly: 'ai-only',
   dashscope: 'bailian',
-  zai: 'zAi',
+  zai: 'z-ai',
   'minimax-global': 'minimax',
   cherryai: 'cherryin'
 }

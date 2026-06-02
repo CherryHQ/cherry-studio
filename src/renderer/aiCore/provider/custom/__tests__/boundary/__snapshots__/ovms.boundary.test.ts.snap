@@ -1,0 +1,11 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`OVMS request boundary > local /images/generations (no /v1, no auth) 1`] = `
+{
+  "model": "OpenVINO/stable-diffusion-v1-5",
+  "num_inference_steps": 8,
+  "prompt": "a fox",
+  "rng_seed": 123,
+  "size": "768x768",
+}
+`;

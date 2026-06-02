@@ -10,9 +10,9 @@ const SitemapSourceContent = ({ value, onValueChange }: SitemapSourceContentProp
   const { t } = useTranslation()
 
   return (
-    <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-0.75">
+    <div className="flex-1 overflow-y-auto">
       <div>
-        <p className="mb-1.5 text-muted-foreground/40 text-xs leading-4">
+        <p className="mb-1.5 text-foreground-muted text-xs leading-4">
           {t('knowledge.data_source.add_dialog.sitemap.description')}
         </p>
         <Input
@@ -20,9 +20,9 @@ const SitemapSourceContent = ({ value, onValueChange }: SitemapSourceContentProp
           value={value}
           onChange={(event) => onValueChange(event.target.value)}
           placeholder={t('knowledge.data_source.add_dialog.sitemap.placeholder')}
-          className="w-full rounded-md border border-border/40 bg-transparent px-2.5 py-1.25 text-foreground outline-none transition-all focus:border-primary/40 focus:ring-1 focus:ring-primary/15"
+          className="w-full"
         />
-        <p className="mt-1 text-muted-foreground/25 text-xs leading-4">
+        <p className="mt-1 text-foreground-muted text-xs leading-4">
           {t('knowledge.data_source.add_dialog.sitemap.help')}
         </p>
       </div>

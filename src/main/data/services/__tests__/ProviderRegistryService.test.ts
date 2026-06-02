@@ -40,6 +40,8 @@ vi.mock('@cherrystudio/provider-registry/node', async () => {
     private modelByNormId: Map<string, any> | null = null
     private overrideByKey: Map<string, any> | null = null
     private overrideByNormKey: Map<string, any> | null = null
+    private overrideByApiKey: Map<string, any> | null = null
+    private overrideByNormApiKey: Map<string, any> | null = null
 
     constructor(paths: { models: string; providers: string; providerModels: string }) {
       this.paths = paths
@@ -70,10 +72,17 @@ vi.mock('@cherrystudio/provider-registry/node', async () => {
       this.cachedProviderModels = d.overrides ?? []
       this.overrideByKey = new Map()
       this.overrideByNormKey = new Map()
+      this.overrideByApiKey = new Map()
+      this.overrideByNormApiKey = new Map()
       for (const pm of this.cachedProviderModels!) {
         this.overrideByKey.set(`${pm.providerId}::${pm.modelId}`, pm)
         const nk = `${pm.providerId}::${normalize(pm.modelId)}`
         if (!this.overrideByNormKey.has(nk)) this.overrideByNormKey.set(nk, pm)
+        if (pm.apiModelId) {
+          this.overrideByApiKey.set(`${pm.providerId}::${pm.apiModelId}`, pm)
+          const ank = `${pm.providerId}::${normalize(pm.apiModelId)}`
+          if (!this.overrideByNormApiKey.has(ank)) this.overrideByNormApiKey.set(ank, pm)
+        }
       }
       return this.cachedProviderModels
     }
@@ -86,6 +95,8 @@ vi.mock('@cherrystudio/provider-registry/node', async () => {
       return (
         this.overrideByKey!.get(`${providerId}::${modelId}`) ??
         this.overrideByNormKey!.get(`${providerId}::${normalize(modelId)}`) ??
+        this.overrideByApiKey!.get(`${providerId}::${modelId}`) ??
+        this.overrideByNormApiKey!.get(`${providerId}::${normalize(modelId)}`) ??
         null
       )
     }
@@ -96,6 +107,10 @@ vi.mock('@cherrystudio/provider-registry/node', async () => {
     getModelsVersion() {
       this.loadModels()
       return this.ver!
+    }
+    getProviderModelsVersion() {
+      this.loadProviderModels()
+      return '1.0'
     }
   }
 
@@ -326,6 +341,184 @@ describe('ProviderRegistryService', () => {
 
       expect(models).toHaveLength(1)
       expect(models[0].name).toBe('GPT-4o')
+    })
+
+    it('getImageGenerationSupport returns the model block when present', async () => {
+      const block = {
+        modes: {
+          generate: { supports: { size: { type: 'enum' as const, options: ['1024x1024'], render: 'chips' as const } } }
+        }
+      }
+      mockReadModels.mockReturnValue({
+        version: '1.0',
+        models: [{ id: 'sd-1-5', name: 'SD 1.5', imageGeneration: block }]
+      } as ReturnType<typeof readModelRegistry>)
+      mockReadProviderModels.mockReturnValue({ version: '1.0', overrides: [] } as ReturnType<
+        typeof readProviderModelRegistry
+      >)
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [
+          {
+            id: 'ovms',
+            name: 'OVMS',
+            defaultChatEndpoint: null,
+            metadata: { website: { official: 'https://openvino.ai' } }
+          }
+        ]
+      } as ReturnType<typeof readProviderRegistry>)
+      const result = await providerRegistryService.getImageGenerationSupport('ovms', 'sd-1-5')
+      expect(result).toEqual(block)
+    })
+
+    it('getImageGenerationSupport returns null when the model is unknown', async () => {
+      mockReadModels.mockReturnValue({ version: '1.0', models: [] } as ReturnType<typeof readModelRegistry>)
+      mockReadProviderModels.mockReturnValue({ version: '1.0', overrides: [] } as ReturnType<
+        typeof readProviderModelRegistry
+      >)
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [
+          {
+            id: 'ovms',
+            name: 'OVMS',
+            defaultChatEndpoint: null,
+            metadata: { website: { official: 'https://openvino.ai' } }
+          }
+        ]
+      } as ReturnType<typeof readProviderRegistry>)
+      const result = await providerRegistryService.getImageGenerationSupport('ovms', 'user-custom-sd')
+      expect(result).toBeNull()
+    })
+
+    it('getImageGenerationSupport returns null when neither model nor provider has the block', async () => {
+      setupRegistryData()
+      const result = await providerRegistryService.getImageGenerationSupport('openai', 'gpt-4o')
+      expect(result).toBeNull()
+    })
+
+    it('lists provider-declared registry models by disabled flag', async () => {
+      mockReadModels.mockReturnValue({
+        version: '1.0',
+        models: [
+          {
+            id: 'qwen-image',
+            name: 'Qwen Image',
+            capabilities: ['image-generation'],
+            imageGeneration: { modes: ['generate'] }
+          },
+          {
+            id: 'text-model',
+            name: 'Text Model',
+            capabilities: ['function-call']
+          }
+        ]
+      } as ReturnType<typeof readModelRegistry>)
+      mockReadProviderModels.mockReturnValue({
+        version: '1.0',
+        overrides: [
+          {
+            providerId: 'silicon',
+            modelId: 'qwen-image',
+            apiModelId: 'Qwen/Qwen-Image'
+          },
+          {
+            providerId: 'silicon',
+            modelId: 'text-model'
+          },
+          {
+            providerId: 'cherryin',
+            modelId: 'qwen-image',
+            disabled: true
+          }
+        ]
+      } as ReturnType<typeof readProviderModelRegistry>)
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [
+          {
+            id: 'silicon',
+            name: 'Silicon',
+            defaultChatEndpoint: null,
+            metadata: {}
+          },
+          {
+            id: 'cherryin',
+            name: 'CherryIN',
+            defaultChatEndpoint: null,
+            metadata: {}
+          }
+        ]
+      } as ReturnType<typeof readProviderRegistry>)
+
+      const active = await providerRegistryService.listProviderRegistryModels({ providerId: 'silicon' })
+      const disabled = await providerRegistryService.listProviderRegistryModels({ disabled: true })
+
+      expect(active.map((item) => `${item.providerId}:${item.presetModelId}:${item.apiModelId}`)).toEqual([
+        'silicon:qwen-image:Qwen/Qwen-Image',
+        'silicon:text-model:text-model'
+      ])
+      expect(disabled.map((item) => `${item.providerId}:${item.presetModelId}:${item.apiModelId}`)).toEqual([
+        'cherryin:qwen-image:qwen-image'
+      ])
+      await expect(providerRegistryService.isActiveProviderRegistryModel('silicon', 'qwen-image')).resolves.toBe(true)
+      await expect(providerRegistryService.isActiveProviderRegistryModel('silicon', 'Qwen/Qwen-Image')).resolves.toBe(
+        true
+      )
+      await expect(providerRegistryService.isActiveProviderRegistryModel('cherryin', 'qwen-image')).resolves.toBe(false)
+    })
+
+    it('lists provider-declared registry models without reading provider rows from DB', async () => {
+      setupRegistryData()
+      const providerSpy = vi
+        .spyOn(providerService, 'getByProviderId')
+        .mockRejectedValueOnce(new Error('DB unavailable'))
+
+      const models = await providerRegistryService.listProviderRegistryModels({ providerId: 'openai' })
+
+      expect(models.map((model) => model.id)).toEqual(['openai::gpt-4o'])
+      expect(providerSpy).not.toHaveBeenCalled()
+      providerSpy.mockRestore()
+    })
+
+    it('looks up provider API model ids through provider-models overrides', async () => {
+      mockReadModels.mockReturnValue({
+        version: '1.0',
+        models: [
+          {
+            id: 'qwen-image',
+            name: 'Qwen Image',
+            capabilities: ['image-generation']
+          }
+        ]
+      } as ReturnType<typeof readModelRegistry>)
+      mockReadProviderModels.mockReturnValue({
+        version: '1.0',
+        overrides: [
+          {
+            providerId: 'silicon',
+            modelId: 'qwen-image',
+            apiModelId: 'Qwen/Qwen-Image'
+          }
+        ]
+      } as ReturnType<typeof readProviderModelRegistry>)
+      mockReadProviders.mockReturnValue({
+        version: '1.0',
+        providers: [
+          {
+            id: 'silicon',
+            name: 'Silicon',
+            defaultChatEndpoint: null,
+            metadata: {}
+          }
+        ]
+      } as ReturnType<typeof readProviderRegistry>)
+
+      const result = await providerRegistryService.lookupModel('silicon', 'Qwen/Qwen-Image')
+
+      expect(result.presetModel?.id).toBe('qwen-image')
+      expect(result.registryOverride?.modelId).toBe('qwen-image')
+      expect(result.registryOverride?.apiModelId).toBe('Qwen/Qwen-Image')
     })
 
     it('should prefer persisted provider endpoint config over registry reasoning defaults', async () => {

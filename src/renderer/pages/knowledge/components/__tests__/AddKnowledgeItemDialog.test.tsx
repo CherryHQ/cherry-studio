@@ -44,16 +44,31 @@ vi.mock('@cherrystudio/ui', async () => {
     onOpenChange: () => undefined,
     open: false
   })
-  const TabsContext = React.createContext<{ onValueChange: (value: string) => void; value: string }>({
-    onValueChange: () => undefined,
-    value: ''
-  })
 
   return {
-    Button: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) => (
-      <button {...props}>{children}</button>
+    Button: ({
+      children,
+      type = 'button',
+      ...props
+    }: {
+      children: React.ReactNode
+      loading?: boolean
+      type?: 'button' | 'submit' | 'reset'
+      [key: string]: unknown
+    }) => (
+      <button type={type} {...props}>
+        {children}
+      </button>
     ),
-    Dropzone: ({ children, onDrop, ...props }: { children: React.ReactNode; onDrop?: (files: File[]) => void }) => (
+    Dropzone: ({
+      children,
+      onDrop,
+      ...props
+    }: {
+      children: React.ReactNode
+      maxFiles?: number
+      onDrop?: (files: File[]) => void
+    }) => (
       <div data-testid="file-dropzone" {...props}>
         <button type="button" data-testid="mock-file-dropzone-trigger" onClick={() => onDrop?.(mockAcceptedFiles)}>
           触发选择
@@ -85,24 +100,28 @@ vi.mock('@cherrystudio/ui', async () => {
     }) => {
       const { onOpenChange } = React.use(DialogContext)
 
-      if (asChild && React.isValidElement(children)) {
-        return React.cloneElement(children, {
-          ...props,
-          onClick: (event: React.MouseEvent<HTMLElement>) => {
-            children.props.onClick?.(event)
-            onOpenChange(false)
-          }
-        })
+      if (asChild) {
+        return (
+          <span role="presentation" {...props} onClick={() => onOpenChange(false)}>
+            {children}
+          </span>
+        )
       }
 
-      return <button {...props}>{children}</button>
+      return (
+        <button type="button" {...props}>
+          {children}
+        </button>
+      )
     },
     DialogContent: ({
       children,
+      size,
       ...props
     }: {
       children: React.ReactNode
       showCloseButton?: boolean
+      size?: string
       [key: string]: unknown
     }) => {
       const { open } = React.use(DialogContext)
@@ -110,72 +129,35 @@ vi.mock('@cherrystudio/ui', async () => {
       delete dialogProps.showCloseButton
 
       return open ? (
-        <div role="dialog" {...dialogProps}>
+        <div role="dialog" data-size={size} {...dialogProps}>
           {children}
         </div>
       ) : null
     },
+    DialogFooter: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) => (
+      <div {...props}>{children}</div>
+    ),
+    DialogHeader: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) => (
+      <div {...props}>{children}</div>
+    ),
     DialogTitle: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) => (
       <h1 {...props}>{children}</h1>
     ),
-    Tabs: ({
-      children,
-      value,
-      onValueChange
-    }: {
-      children: React.ReactNode
-      value: string
-      onValueChange: (value: string) => void
-    }) => <TabsContext value={{ value, onValueChange }}>{children}</TabsContext>,
-    TabsContent: ({
-      children,
-      value,
-      ...props
-    }: {
-      children: React.ReactNode
-      value: string
-      [key: string]: unknown
-    }) => {
-      const context = React.use(TabsContext)
-      return context.value === value ? <div {...props}>{children}</div> : null
-    },
-    TabsList: ({ children, ...props }: { children: React.ReactNode; [key: string]: unknown }) => (
-      <div role="tablist" {...props}>
-        {children}
-      </div>
-    ),
-    TabsTrigger: ({
-      children,
-      value,
-      ...props
-    }: {
-      children: React.ReactNode
-      value: string
-      [key: string]: unknown
-    }) => {
-      const context = React.use(TabsContext)
-
-      return (
-        <button
-          role="tab"
-          aria-selected={context.value === value}
-          onClick={() => context.onValueChange(value)}
-          {...props}>
-          {children}
-        </button>
-      )
-    }
+    Popover: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    PopoverContent: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+    PopoverTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>
   }
 })
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string, options?: { count?: number; defaultValue?: string }) => {
+    t: (key: string, options?: { count?: number; defaultValue?: string; file_types?: string }) => {
       const translations = {
         'common.add': '添加',
         'common.cancel': '取消',
         'common.close': '关闭',
         'common.delete': '删除',
+        'knowledge.drag_file': '拖拽文件到这里',
         'knowledge.data_source.add_dialog.directory.description': '将递归导入文件夹中的支持文件',
         'knowledge.data_source.add_dialog.directory.title': '点击选择文件夹',
         'knowledge.data_source.add_dialog.footer.selected_directories': `已选 ${options?.count ?? 0} 个目录`,
@@ -199,7 +181,8 @@ vi.mock('react-i18next', () => ({
         'knowledge.data_source.add_dialog.title': '添加数据源',
         'knowledge.data_source.add_dialog.url.description': '输入网页链接：',
         'knowledge.data_source.add_dialog.url.help': '将自动抓取页面文本并分块索引',
-        'knowledge.data_source.add_dialog.url.placeholder': 'https://example.com'
+        'knowledge.data_source.add_dialog.url.placeholder': 'https://example.com',
+        'knowledge.file_hint': `支持 ${options?.file_types} 格式`
       } satisfies Record<string, string>
 
       return translations[key] ?? options?.defaultValue ?? key
@@ -228,6 +211,14 @@ describe('AddKnowledgeItemDialog', () => {
     ;(window as any).toast = { success: vi.fn(), error: vi.fn() }
   })
 
+  const setPendingAddSource = (pendingAddSource: 'file' | 'note' | 'directory' | 'url' | 'sitemap') => {
+    mockUseKnowledgePage.mockReturnValue({ selectedBaseId: 'base-1', pendingAddSource })
+  }
+
+  const setPendingAddFiles = (pendingAddFiles: File[]) => {
+    mockUseKnowledgePage.mockReturnValue({ selectedBaseId: 'base-1', pendingAddFiles })
+  }
+
   const renderControlledDialog = (onOpenChange = vi.fn()) => {
     const DialogHarness = () => {
       const [open, setOpen] = useState(true)
@@ -254,13 +245,12 @@ describe('AddKnowledgeItemDialog', () => {
   it('renders default file content and disabled add action', () => {
     render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
+    expect(screen.getByRole('dialog')).toHaveAttribute('data-size', 'lg')
     expect(screen.getByRole('heading', { name: '添加数据源' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: '文件' })).toHaveAttribute('aria-selected', 'true')
-    expect(screen.getByRole('tab', { name: '笔记' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: '目录' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: '网址' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: '网站' })).toBeInTheDocument()
-    expect(screen.getByText('点击选择文件或拖拽到此处')).toBeInTheDocument()
+    expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
+    expect(screen.getByText('拖拽文件到这里')).toBeInTheDocument()
+    expect(screen.getByText('支持 PDF, DOCX, MD, XLSX, TXT, CSV, EPUB 格式')).toBeInTheDocument()
+    expect(screen.getByTestId('file-dropzone').querySelectorAll('img')).toHaveLength(0)
     expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
   })
 
@@ -273,6 +263,11 @@ describe('AddKnowledgeItemDialog', () => {
     expect(screen.getByText('alpha.pdf')).toBeInTheDocument()
     expect(screen.getByText('beta.md')).toBeInTheDocument()
     expect(screen.getByText('已选 2 个文件')).toBeInTheDocument()
+    expect(screen.getByText('拖拽文件到这里')).toBeInTheDocument()
+    expect(
+      screen.getByTestId('knowledge-source-file-list').compareDocumentPosition(screen.getByTestId('file-dropzone')) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
     expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
 
     fireEvent.click(screen.getAllByRole('button', { name: '删除' })[0])
@@ -282,19 +277,28 @@ describe('AddKnowledgeItemDialog', () => {
     expect(screen.getByText('已选 1 个文件')).toBeInTheDocument()
   })
 
-  it('keeps note disabled', () => {
+  it('renders files passed from the external footer dropzone', () => {
+    setPendingAddFiles([createMockFile('external.pdf', 1024)])
+
     render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('tab', { name: '笔记' }))
+    expect(screen.getByText('external.pdf')).toBeInTheDocument()
+    expect(screen.getByText('已选 1 个文件')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
+  })
+
+  it('keeps note disabled', () => {
+    setPendingAddSource('note')
+    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
     expect(screen.getByText('暂未接入笔记数据源')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
   })
 
   it('selects directories through folder picker, deduplicates paths, and removes selections', async () => {
+    setPendingAddSource('directory')
     render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('tab', { name: '目录' }))
     expect(screen.getByText('点击选择文件夹')).toBeInTheDocument()
     expect(screen.getByText('将递归导入文件夹中的支持文件')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
@@ -322,9 +326,9 @@ describe('AddKnowledgeItemDialog', () => {
   })
 
   it('keeps existing directories when folder picker is cancelled', async () => {
+    setPendingAddSource('directory')
     render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('tab', { name: '目录' }))
     mockSelectFolder.mockResolvedValueOnce('/Users/me/docs')
     fireEvent.click(screen.getByTestId('knowledge-source-directory-select'))
     await screen.findByText('docs')
@@ -339,21 +343,89 @@ describe('AddKnowledgeItemDialog', () => {
   })
 
   it('enables url and sitemap submit only after input', () => {
-    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+    setPendingAddSource('url')
+    const { rerender } = render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-    fireEvent.click(screen.getByRole('tab', { name: '网址' }))
     expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
     fireEvent.change(screen.getByPlaceholderText('https://example.com'), {
       target: { value: 'https://example.com' }
     })
     expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
 
-    fireEvent.click(screen.getByRole('tab', { name: '网站' }))
+    setPendingAddSource('sitemap')
+    rerender(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
     expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
     fireEvent.change(screen.getByPlaceholderText('https://example.com/sitemap.xml'), {
       target: { value: 'https://example.com/sitemap.xml' }
     })
     expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
+  })
+
+  it('submits directory source body through generic hook', async () => {
+    setPendingAddSource('directory')
+    mockSubmitKnowledgeItems.mockResolvedValue(undefined)
+    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+    mockSelectFolder.mockResolvedValueOnce('/Users/me/docs')
+    fireEvent.click(screen.getByTestId('knowledge-source-directory-select'))
+    await screen.findByText('docs')
+    fireEvent.click(screen.getByRole('button', { name: '添加' }))
+    await waitFor(() => {
+      expect(mockSubmitKnowledgeItems).toHaveBeenLastCalledWith([
+        {
+          type: 'directory',
+          data: {
+            source: '/Users/me/docs',
+            path: '/Users/me/docs'
+          }
+        }
+      ])
+    })
+  })
+
+  it('submits url source body through generic hook', async () => {
+    setPendingAddSource('url')
+    mockSubmitKnowledgeItems.mockResolvedValue(undefined)
+    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+    fireEvent.change(screen.getByPlaceholderText('https://example.com'), {
+      target: { value: ' https://example.com ' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: '添加' }))
+    await waitFor(() => {
+      expect(mockSubmitKnowledgeItems).toHaveBeenLastCalledWith([
+        {
+          type: 'url',
+          data: {
+            source: 'https://example.com',
+            url: 'https://example.com'
+          }
+        }
+      ])
+    })
+  })
+
+  it('submits sitemap source body through generic hook', async () => {
+    setPendingAddSource('sitemap')
+    mockSubmitKnowledgeItems.mockResolvedValue(undefined)
+    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+
+    fireEvent.change(screen.getByPlaceholderText('https://example.com/sitemap.xml'), {
+      target: { value: ' https://example.com/sitemap.xml ' }
+    })
+    fireEvent.click(screen.getByRole('button', { name: '添加' }))
+    await waitFor(() => {
+      expect(mockSubmitKnowledgeItems).toHaveBeenLastCalledWith([
+        {
+          type: 'sitemap',
+          data: {
+            source: 'https://example.com/sitemap.xml',
+            url: 'https://example.com/sitemap.xml'
+          }
+        }
+      ])
+    })
   })
 
   it('submits file source through generic hook with real file paths', async () => {
@@ -420,63 +492,6 @@ describe('AddKnowledgeItemDialog', () => {
       expect(mockSubmitKnowledgeItems).toHaveBeenCalledTimes(1)
     })
   })
-
-  it('submits directory, url, and sitemap source bodies through generic hook', async () => {
-    mockSubmitKnowledgeItems.mockResolvedValue(undefined)
-    render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
-
-    fireEvent.click(screen.getByRole('tab', { name: '目录' }))
-    mockSelectFolder.mockResolvedValueOnce('/Users/me/docs')
-    fireEvent.click(screen.getByTestId('knowledge-source-directory-select'))
-    await screen.findByText('docs')
-    fireEvent.click(screen.getByRole('button', { name: '添加' }))
-    await waitFor(() => {
-      expect(mockSubmitKnowledgeItems).toHaveBeenLastCalledWith([
-        {
-          type: 'directory',
-          data: {
-            source: '/Users/me/docs',
-            path: '/Users/me/docs'
-          }
-        }
-      ])
-    })
-
-    fireEvent.click(screen.getByRole('tab', { name: '网址' }))
-    fireEvent.change(screen.getByPlaceholderText('https://example.com'), {
-      target: { value: ' https://example.com ' }
-    })
-    fireEvent.click(screen.getByRole('button', { name: '添加' }))
-    await waitFor(() => {
-      expect(mockSubmitKnowledgeItems).toHaveBeenLastCalledWith([
-        {
-          type: 'url',
-          data: {
-            source: 'https://example.com',
-            url: 'https://example.com'
-          }
-        }
-      ])
-    })
-
-    fireEvent.click(screen.getByRole('tab', { name: '网站' }))
-    fireEvent.change(screen.getByPlaceholderText('https://example.com/sitemap.xml'), {
-      target: { value: ' https://example.com/sitemap.xml ' }
-    })
-    fireEvent.click(screen.getByRole('button', { name: '添加' }))
-    await waitFor(() => {
-      expect(mockSubmitKnowledgeItems).toHaveBeenLastCalledWith([
-        {
-          type: 'sitemap',
-          data: {
-            source: 'https://example.com/sitemap.xml',
-            url: 'https://example.com/sitemap.xml'
-          }
-        }
-      ])
-    })
-  })
-
   it('shows inline error and keeps selected files when create submit fails', async () => {
     const onOpenChange = vi.fn()
     mockEnsureExternalEntry.mockResolvedValueOnce(
@@ -573,26 +588,31 @@ describe('AddKnowledgeItemDialog', () => {
     setMockAcceptedFiles([createMockFile('alpha.pdf', 1024)])
     fireEvent.click(screen.getByTestId('mock-file-dropzone-trigger'))
 
-    fireEvent.click(screen.getByRole('tab', { name: '目录' }))
+    setPendingAddSource('directory')
+    rerender(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
     mockSelectFolder.mockResolvedValueOnce('/Users/me/docs')
     fireEvent.click(screen.getByTestId('knowledge-source-directory-select'))
     await screen.findByText('docs')
 
-    fireEvent.click(screen.getByRole('tab', { name: '网址' }))
+    setPendingAddSource('url')
+    rerender(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
     fireEvent.change(screen.getByPlaceholderText('https://example.com'), {
       target: { value: 'https://example.com' }
     })
 
     rerender(<AddKnowledgeItemDialog open={false} onOpenChange={vi.fn()} />)
+    mockUseKnowledgePage.mockReturnValue({ selectedBaseId: 'base-1' })
     rerender(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
-    expect(screen.getByRole('tab', { name: '文件' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
     expect(screen.queryByText('alpha.pdf')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('tab', { name: '目录' }))
+    setPendingAddSource('directory')
+    rerender(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
     expect(screen.queryByText('docs')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('tab', { name: '网址' }))
+    setPendingAddSource('url')
+    rerender(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
     expect(screen.getByPlaceholderText('https://example.com')).toHaveValue('')
   })
 })

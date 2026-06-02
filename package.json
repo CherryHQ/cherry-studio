@@ -57,6 +57,7 @@
     "test:aicore": "vitest run --project aiCore",
     "test:pkg:ui": "vitest run --project ui",
     "test:shared": "vitest run --project shared",
+    "test:provider-registry": "vitest run --project provider-registry",
     "test:vectorstores": "vitest run --project vectorstores",
     "test:update": "pnpm test:renderer --update",
     "test:coverage": "vitest run --coverage --silent",
@@ -85,7 +86,7 @@
     "packages:build": "pnpm --filter @cherrystudio/ai-sdk-provider build && pnpm --filter @cherrystudio/ai-core build && pnpm --filter @cherrystudio/extension-table-plus build && pnpm --filter @vectorstores/libsql build",
     "packages:release": "pnpm packages:build && changeset publish",
     "ci:basic-check": "pnpm test:lint && pnpm format:check && pnpm typecheck && pnpm i18n:check && pnpm i18n:hardcoded:strict && pnpm openapi:check && pnpm skills:check",
-    "ci:test-check": "pnpm test:main && pnpm test:renderer && pnpm test:aicore && pnpm test:shared && pnpm test:vectorstores && pnpm test:scripts",
+    "ci:test-check": "pnpm test:main && pnpm test:renderer && pnpm test:aicore && pnpm test:shared && pnpm test:provider-registry && pnpm test:vectorstores && pnpm test:scripts",
     "ci": "pnpm ci:basic-check && pnpm ci:test-check"
   },
   "dependencies": {
@@ -128,13 +129,13 @@
     "@ai-sdk/cerebras": "^2.0.45",
     "@ai-sdk/cohere": "^3.0.30",
     "@ai-sdk/gateway": "^3.0.104",
-    "@ai-sdk/google": "^3.0.64",
+    "@ai-sdk/google": "3.0.64",
     "@ai-sdk/google-vertex": "^4.0.112",
     "@ai-sdk/groq": "^3.0.35",
     "@ai-sdk/huggingface": "^1.0.43",
     "@ai-sdk/mistral": "^3.0.30",
     "@ai-sdk/openai": "^3.0.53",
-    "@ai-sdk/openai-compatible": "^2.0.37",
+    "@ai-sdk/openai-compatible": "2.0.37",
     "@ai-sdk/perplexity": "^3.0.29",
     "@ai-sdk/provider": "^3.0.8",
     "@ai-sdk/provider-utils": "^4.0.23",
@@ -294,7 +295,7 @@
     "@viz-js/viz": "^3.14.0",
     "@xyflow/react": "^12.4.4",
     "adm-zip": "0.4.16",
-    "ai": "^6.0.143",
+    "ai": "6.0.143",
     "ansi-to-react": "^6.2.6",
     "antd": "5.27.0",
     "archiver": "^7.0.1",
@@ -521,7 +522,8 @@
       "@libsql/client@0.15.15": "patches/@libsql__client@0.15.15.patch",
       "@ai-sdk/anthropic": "patches/@ai-sdk__anthropic.patch",
       "@ai-sdk/deepseek@2.0.30": "patches/@ai-sdk__deepseek@2.0.30.patch",
-      "@cherrystudio/embedjs-loader-web@0.1.31": "patches/@cherrystudio__embedjs-loader-web@0.1.31.patch"
+      "@cherrystudio/embedjs-loader-web@0.1.31": "patches/@cherrystudio__embedjs-loader-web@0.1.31.patch",
+      "ai@6.0.143": "patches/ai@6.0.143.patch"
     },
     "onlyBuiltDependencies": [
       "@j178/prek",

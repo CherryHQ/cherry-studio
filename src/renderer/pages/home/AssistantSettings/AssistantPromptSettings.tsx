@@ -1,5 +1,3 @@
-import 'emoji-picker-element'
-
 import CloseCircleFilled from '@ant-design/icons/lib/icons/CloseCircleFilled'
 import {
   Box,

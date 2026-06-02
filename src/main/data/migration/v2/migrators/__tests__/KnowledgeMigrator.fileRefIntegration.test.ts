@@ -128,7 +128,6 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
         id: migratedBaseId,
         name: 'KB 1',
         groupId: null,
-        emoji: '*',
         dimensions: 768,
         embeddingModelId: null,
         status: 'failed',
