@@ -586,6 +586,34 @@ describe('SlackAdapter', () => {
     expect(result).toBe(false)
   })
 
+  it('onStreamComplete() splits long final text across multiple Slack messages', async () => {
+    const adapter = await connectAdapter()
+    vi.useFakeTimers()
+
+    // Build text well past Slack's 4000-char limit, with paragraph breaks for clean split points.
+    const paragraph = 'A'.repeat(1900)
+    const longText = Array.from({ length: 5 }, () => paragraph).join('\n\n')
+    expect(longText.length).toBeGreaterThan(4000 * 2)
+
+    await adapter.onTextUpdate('C0ALLOWED', 'starting...')
+    await vi.advanceTimersByTimeAsync(2000)
+    const result = await adapter.onStreamComplete('C0ALLOWED', longText)
+    expect(result).toBe(true)
+
+    const postCalls = mockNetFetch.mock.calls.filter((c: unknown[]) => (c[0] as string).includes('chat.postMessage'))
+    // Initial post + at least one rollover post.
+    expect(postCalls.length).toBeGreaterThanOrEqual(3)
+    for (const call of postCalls) {
+      const body = JSON.parse((call as unknown as [unknown, { body: string }])[1].body)
+      expect(body.text.length).toBeLessThanOrEqual(4000)
+    }
+    const updateCalls = mockNetFetch.mock.calls.filter((c: unknown[]) => (c[0] as string).includes('chat.update'))
+    for (const call of updateCalls) {
+      const body = JSON.parse((call as unknown as [unknown, { body: string }])[1].body)
+      expect(body.text.length).toBeLessThanOrEqual(4000)
+    }
+  })
+
   it('onStreamError() updates the message with error text', async () => {
     const adapter = await connectAdapter()
     vi.useFakeTimers()

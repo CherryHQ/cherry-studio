@@ -13,7 +13,7 @@ import {
 } from '../../ChannelAdapter'
 import { registerAdapterFactory } from '../../ChannelManager'
 import { isSlashCommand, SLASH_COMMANDS } from '../../constants'
-import { FlushController } from '../../FlushController'
+import { type StreamingControllerLogger, StreamingMessageController } from '../../StreamingMessageController'
 import { splitMessage } from '../../utils'
 
 const DISCORD_API_BASE = 'https://discord.com/api/v10'
@@ -67,131 +67,31 @@ type DiscordMessage = {
  */
 const DISCORD_STREAM_THROTTLE_MS = 1200
 
-/**
- * Manages a single streaming response by creating a message, then
- * editing it in-place with throttled updates via FlushController.
- */
-class DiscordStreamingController {
-  private messageId: string | null = null
-  private currentText = ''
-  private readonly flush: FlushController
-  private messageCreationPromise: Promise<void> | null = null
-  private _completed = false
-
-  constructor(
-    private readonly discordChannelId: string,
-    private readonly apiRequest: DiscordAdapter['apiRequest'],
-    private readonly log: Record<string, (msg: string, meta?: Record<string, unknown>) => void>
-  ) {
-    this.flush = new FlushController(() => this.performFlush())
-  }
-
-  get completed(): boolean {
-    return this._completed
-  }
-
-  async onText(text: string): Promise<void> {
-    if (this._completed) return
-    this.currentText = text
-    await this.ensureMessageCreated()
-    if (this.messageId) {
-      await this.flush.throttledUpdate(DISCORD_STREAM_THROTTLE_MS)
-    }
-  }
-
-  async complete(finalText: string): Promise<boolean> {
-    if (this._completed) return false
-    this._completed = true
-    this.flush.complete()
-
-    if (this.messageCreationPromise) await this.messageCreationPromise
-    if (!this.messageId) return false
-
-    await this.flush.waitForFlush()
-
-    try {
-      this.currentText = finalText
-      await this.editMessage(finalText)
-      return true
-    } catch (error) {
-      this.log.warn('Failed to finalize Discord stream', {
-        error: error instanceof Error ? error.message : String(error)
-      })
-      return false
-    }
-  }
-
-  async error(errorMessage: string): Promise<void> {
-    if (this._completed) return
-    this._completed = true
-    this.flush.complete()
-
-    if (this.messageCreationPromise) await this.messageCreationPromise
-    if (!this.messageId) return
-
-    await this.flush.waitForFlush()
-
-    try {
-      const displayText = this.currentText
-        ? `${this.currentText}\n\n---\n**Error**: ${errorMessage}`
-        : `**Error**: ${errorMessage}`
-      await this.editMessage(displayText)
-    } catch {
-      // Best-effort error update
-    }
-  }
-
-  dispose(): void {
-    this._completed = true
-    this.flush.cancelPendingFlush()
-    this.flush.complete()
-  }
-
-  // ---- Internal ----
-
-  private async ensureMessageCreated(): Promise<void> {
-    if (this.messageId) return
-    if (this.messageCreationPromise) {
-      await this.messageCreationPromise
-      return
-    }
-    this.messageCreationPromise = this.createMessage()
-    await this.messageCreationPromise
-  }
-
-  private async createMessage(): Promise<void> {
-    try {
-      const response = await this.apiRequest(`${DISCORD_API_BASE}/channels/${this.discordChannelId}/messages`, {
-        method: 'POST',
-        body: { content: this.currentText || '...' }
-      })
-      const data = (await response.json()) as { id?: string }
-      this.messageId = data.id ?? null
-    } catch (error) {
-      this.log.warn('Failed to create Discord streaming message', {
-        error: error instanceof Error ? error.message : String(error)
-      })
-    }
-  }
-
-  private async editMessage(text: string): Promise<void> {
-    if (!this.messageId) return
-    // Discord messages max 2000 chars — truncate with indicator if needed
-    const content = text.length > DISCORD_MAX_LENGTH ? text.slice(0, DISCORD_MAX_LENGTH - 3) + '...' : text
-    await this.apiRequest(`${DISCORD_API_BASE}/channels/${this.discordChannelId}/messages/${this.messageId}`, {
-      method: 'PATCH',
-      body: { content }
-    })
-  }
-
-  private async performFlush(): Promise<void> {
-    if (!this.messageId || !this.currentText) return
-    try {
-      await this.editMessage(this.currentText)
-    } catch {
-      // Swallow flush errors — FlushController will reflush if needed
-    }
-  }
+function createDiscordStreamingController(
+  discordChannelId: string,
+  apiRequest: DiscordAdapter['apiRequest'],
+  log: StreamingControllerLogger
+): StreamingMessageController<string> {
+  return new StreamingMessageController<string>(
+    {
+      async post(content) {
+        const response = await apiRequest(`${DISCORD_API_BASE}/channels/${discordChannelId}/messages`, {
+          method: 'POST',
+          body: { content }
+        })
+        const data = (await response.json()) as { id?: string }
+        return data.id ?? null
+      },
+      async edit(messageId, content) {
+        await apiRequest(`${DISCORD_API_BASE}/channels/${discordChannelId}/messages/${messageId}`, {
+          method: 'PATCH',
+          body: { content }
+        })
+      }
+    },
+    { maxLength: DISCORD_MAX_LENGTH, throttleMs: DISCORD_STREAM_THROTTLE_MS },
+    log
+  )
 }
 
 // Discord Interaction types
@@ -232,7 +132,7 @@ class DiscordAdapter extends ChannelAdapter {
   private readonly reconnectDelays = [1000, 2000, 5000, 10000, 30000, 60000]
   private readonly maxReconnectAttempts = 50
   /** Per-chat streaming controller. One stream at a time per chat. */
-  private readonly streamingControllers = new Map<string, DiscordStreamingController>()
+  private readonly streamingControllers = new Map<string, StreamingMessageController<string>>()
 
   constructor(config: ChannelAdapterConfig) {
     super(config)
@@ -712,7 +612,7 @@ class DiscordAdapter extends ChannelAdapter {
     const discordChannelId = chatId.split(':')[1]
     let controller = this.streamingControllers.get(chatId)
     if (!controller || controller.completed) {
-      controller = new DiscordStreamingController(discordChannelId, this.apiRequest.bind(this), this.log)
+      controller = createDiscordStreamingController(discordChannelId, this.apiRequest.bind(this), this.log)
       this.streamingControllers.set(chatId, controller)
     }
     await controller.onText(fullText)
