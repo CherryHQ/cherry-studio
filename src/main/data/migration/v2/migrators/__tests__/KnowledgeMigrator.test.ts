@@ -1231,7 +1231,6 @@ describe('KnowledgeMigrator execute/validate paths', () => {
         id: 'kb-missing-model',
         name: 'Missing Model KB',
         groupId: null,
-        emoji: '📁',
         dimensions: 768,
         embeddingModelId: null,
         status: 'failed',

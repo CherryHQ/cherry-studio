@@ -20,7 +20,6 @@ export const knowledgeBaseTable = sqliteTable(
     id: uuidPrimaryKey(),
     name: text().notNull(),
     groupId: text().references(() => groupTable.id, { onDelete: 'set null' }),
-    emoji: text().notNull(),
     dimensions: integer(),
 
     embeddingModelId: text().references(() => userModelTable.id),

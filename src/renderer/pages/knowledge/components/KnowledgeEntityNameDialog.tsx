@@ -1,18 +1,15 @@
-import {
-  Button,
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  FieldError,
-  Input,
-  Label
-} from '@cherrystudio/ui'
+import { Button, Dialog, DialogContent, FieldError, Input, Label } from '@cherrystudio/ui'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { FormEvent } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import {
+  KnowledgeDialogBody,
+  KnowledgeDialogField,
+  KnowledgeDialogFooter,
+  KnowledgeDialogHeader
+} from './KnowledgeDialogLayout'
 
 export interface KnowledgeEntityNameDialogProps {
   open: boolean
@@ -78,42 +75,37 @@ const KnowledgeEntityNameDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md gap-0 overflow-hidden rounded-2xl border-border/60 p-0">
-        <DialogHeader className="gap-0.5 border-border/40 border-b px-4 py-3 text-left">
-          <DialogTitle className="leading-4">{title}</DialogTitle>
-        </DialogHeader>
+      <DialogContent size="sm">
+        <KnowledgeDialogHeader>{title}</KnowledgeDialogHeader>
 
-        <form onSubmit={handleSubmit} className="flex flex-col">
-          <div className="space-y-1 px-4 py-3">
-            <Label htmlFor="knowledge-entity-name" className="text-muted-foreground leading-4">
-              {t('common.name')}
-            </Label>
-            <Input
-              id="knowledge-entity-name"
-              autoFocus
-              value={name}
-              aria-invalid={hasAttemptedSubmit && !name.trim()}
-              placeholder={namePlaceholder}
-              className="h-8 rounded-lg px-2.5 leading-4 placeholder:text-muted-foreground/70"
-              onChange={(event) => {
-                setName(event.target.value)
-                setSubmitError(null)
-              }}
-            />
-            {hasAttemptedSubmit && !name.trim() ? (
-              <FieldError className="leading-4">{nameRequiredMessage}</FieldError>
-            ) : null}
-            {submitError ? <FieldError className="leading-4">{submitError}</FieldError> : null}
-          </div>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <KnowledgeDialogBody>
+            <KnowledgeDialogField>
+              <Label htmlFor="knowledge-entity-name">{t('common.name')}</Label>
+              <Input
+                id="knowledge-entity-name"
+                autoFocus
+                value={name}
+                aria-invalid={hasAttemptedSubmit && !name.trim()}
+                placeholder={namePlaceholder}
+                onChange={(event) => {
+                  setName(event.target.value)
+                  setSubmitError(null)
+                }}
+              />
+              {hasAttemptedSubmit && !name.trim() ? <FieldError>{nameRequiredMessage}</FieldError> : null}
+              {submitError ? <FieldError>{submitError}</FieldError> : null}
+            </KnowledgeDialogField>
+          </KnowledgeDialogBody>
 
-          <DialogFooter className="gap-2 border-border/40 border-t px-4 py-3 sm:justify-end">
-            <Button type="button" variant="outline" className="h-8 rounded-lg px-3" onClick={() => onOpenChange(false)}>
+          <KnowledgeDialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               {t('common.cancel')}
             </Button>
-            <Button type="submit" loading={isSubmitting} className="h-8 rounded-lg px-3">
+            <Button type="submit" variant="emphasis" loading={isSubmitting}>
               {submitLabel}
             </Button>
-          </DialogFooter>
+          </KnowledgeDialogFooter>
         </form>
       </DialogContent>
     </Dialog>

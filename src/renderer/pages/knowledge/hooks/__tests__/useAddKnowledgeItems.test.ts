@@ -58,7 +58,7 @@ describe('useAddKnowledgeItems', () => {
     })
 
     expect(mockAddItems).toHaveBeenCalledWith('base-1', items)
-    expect(mockInvalidateCache).toHaveBeenCalledWith('/knowledge-bases/base-1/items')
+    expect(mockInvalidateCache).toHaveBeenCalledWith(['/knowledge-bases/base-1/items', '/knowledge-bases'])
     expect(result.current.error).toBeUndefined()
     expect(result.current.isSubmitting).toBe(false)
   })
@@ -83,7 +83,7 @@ describe('useAddKnowledgeItems', () => {
       ).rejects.toBe(submitError)
     })
 
-    expect(mockInvalidateCache).toHaveBeenCalledWith('/knowledge-bases/base-1/items')
+    expect(mockInvalidateCache).toHaveBeenCalledWith(['/knowledge-bases/base-1/items', '/knowledge-bases'])
     expect(result.current.error).toBe(submitError)
     expect(result.current.isSubmitting).toBe(false)
     expect(loggerErrorSpy).toHaveBeenCalledWith('Failed to add knowledge sources', submitError, {

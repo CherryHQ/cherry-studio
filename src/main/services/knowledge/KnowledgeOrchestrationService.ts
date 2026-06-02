@@ -136,7 +136,6 @@ export class KnowledgeOrchestrationService extends BaseService {
 
     const createDto: CreateKnowledgeBaseDto = {
       name: dto.name?.trim() ?? sourceBase.name,
-      emoji: sourceBase.emoji,
       dimensions: dto.dimensions,
       embeddingModelId: dto.embeddingModelId,
       rerankModelId: sourceBase.rerankModelId,

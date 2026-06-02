@@ -1,19 +1,8 @@
 import { OpenClawIcon } from '@renderer/components/Icons/SvgIcon'
 import App from '@renderer/components/MiniApp/MiniApp'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useNavigate } from '@tanstack/react-router'
-import {
-  BookMarked,
-  Code,
-  FileSearch,
-  Folder,
-  Languages,
-  LayoutGrid,
-  NotepadText,
-  Palette,
-  Sparkle
-} from 'lucide-react'
+import { Code, FileSearch, Folder, Languages, LayoutGrid, Library, NotepadText, Palette, Sparkle } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,7 +11,6 @@ import styled from 'styled-components'
 const LaunchpadPage: FC = () => {
   const navigate = useNavigate()
   const { t } = useTranslation()
-  const { defaultPaintingProvider } = useSettings()
   const { pinned, openedKeepAliveMiniApps } = useMiniApps()
 
   const appMenuItems = [
@@ -41,7 +29,7 @@ const LaunchpadPage: FC = () => {
     {
       icon: <Palette size={32} className="icon" />,
       text: t('title.paintings'),
-      path: `/app/paintings/${defaultPaintingProvider}`,
+      path: '/app/paintings',
       bgColor: 'linear-gradient(135deg, #EC4899, #F472B6)' // 绘画：活力粉色，代表创造力和艺术
     },
     {
@@ -81,7 +69,7 @@ const LaunchpadPage: FC = () => {
       bgColor: 'linear-gradient(135deg, #F97316, #FB923C)' // 笔记：橙色，代表活力和清晰思路
     },
     {
-      icon: <BookMarked size={32} className="icon" />,
+      icon: <Library size={32} className="icon" />,
       text: t('library.title'),
       path: '/app/library',
       bgColor: 'linear-gradient(135deg, #0EA5E9, #6366F1)' // 资源库：临时入口

@@ -1,4 +1,5 @@
-import { Clock, LoaderCircle, Search, Sparkles } from 'lucide-react'
+import { EmptyState } from '@cherrystudio/ui'
+import { Clock, LoaderCircle, Sparkles } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import RecallResultCard from './RecallResultCard'
@@ -12,22 +13,24 @@ const RecallResultSummary = () => {
   } = useRecallTest()
 
   return (
-    <div className="mt-1.5 flex items-center gap-2.5 text-muted-foreground/35 text-xs leading-4">
-      <span className="flex items-center gap-0.5">
-        <Sparkles className="size-2" />
-        {t('knowledge.recall.result_count', { count: results.length })}
-      </span>
-      <span className="flex items-center gap-0.5">
-        <Clock className="size-2" />
-        {t('knowledge.recall.duration', { duration })}
-      </span>
-      <span>
-        {scoreKind === 'ranking'
-          ? t('knowledge.recall.ranking_only')
-          : t('knowledge.recall.top_score', {
-              score: results.length === 0 ? formatRecallScore(topScore) : formatRecallPercent(topScore)
-            })}
-      </span>
+    <div className="flex items-center justify-between gap-4 border-border-muted border-b px-4 py-3 text-foreground-muted text-xs leading-4">
+      <div className="flex items-center gap-2.5">
+        <span className="flex items-center gap-0.5">
+          <Sparkles className="size-3" />
+          {t('knowledge.recall.result_count', { count: results.length })}
+        </span>
+        <span className="flex items-center gap-0.5">
+          <Clock className="size-3" />
+          {t('knowledge.recall.duration', { duration })}
+        </span>
+        <span>
+          {scoreKind === 'ranking'
+            ? t('knowledge.recall.ranking_only')
+            : t('knowledge.recall.top_score', {
+                score: results.length === 0 ? formatRecallScore(topScore) : formatRecallPercent(topScore)
+              })}
+        </span>
+      </div>
     </div>
   )
 }
@@ -38,12 +41,14 @@ const RecallResults = () => {
   } = useRecallTest()
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3 [&::-webkit-scrollbar]:hidden">
-      <div className="space-y-1.5">
+    <div className="min-h-0 overflow-y-auto px-6 py-5 [&::-webkit-scrollbar]:hidden">
+      <div className="mx-auto max-w-3xl overflow-hidden rounded-lg border border-border-subtle bg-card">
         <RecallResultSummary />
-        {results.map((item, index) => (
-          <RecallResultCard key={item.id} item={item} index={index} />
-        ))}
+        <div className="space-y-2 p-3">
+          {results.map((item, index) => (
+            <RecallResultCard key={item.id} item={item} index={index} />
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -53,12 +58,13 @@ const RecallEmptyState = () => {
   const { t } = useTranslation()
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden">
-      <div className="flex min-h-full flex-col items-center justify-center py-12 text-center text-muted-foreground/25">
-        <Search className="size-5.5" />
-        <p className="mt-1 text-sm leading-5">{t('knowledge.recall.empty_title')}</p>
-        <p className="mt-0.5 text-xs leading-4">{t('knowledge.recall.empty_description')}</p>
-      </div>
+    <div className="h-full min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden">
+      <EmptyState
+        preset="no-result"
+        title={t('knowledge.recall.empty_title')}
+        description={t('knowledge.recall.empty_description')}
+        className="h-full"
+      />
     </div>
   )
 }
@@ -67,7 +73,7 @@ const RecallSearchingState = () => {
   const { t } = useTranslation()
 
   return (
-    <div className="flex min-h-full flex-col items-center justify-center py-12 text-center text-muted-foreground/35">
+    <div className="flex h-full min-h-full flex-col items-center justify-center py-12 text-center text-foreground-muted">
       <LoaderCircle className="size-5.5 animate-spin text-primary" />
       <p className="mt-2 text-sm leading-5">{t('knowledge.recall.searching')}</p>
     </div>
@@ -81,7 +87,7 @@ const RecallTestBody = () => {
 
   if (isSearching) {
     return (
-      <div className="min-h-0 flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden">
+      <div className="h-full min-h-0 overflow-y-auto [&::-webkit-scrollbar]:hidden">
         <RecallSearchingState />
       </div>
     )

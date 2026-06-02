@@ -133,6 +133,10 @@ export type Provider = {
   isVertex?: boolean
   notes?: string
   extra_headers?: Record<string, string>
+  /** Mirrors `ProviderSchema.presetProviderId` — user-added custom providers
+   * may pin themselves to a built-in preset (e.g. `'new-api'`) so SDK
+   * resolution can fold them into the preset's image / chat code path. */
+  presetProviderId?: string
 
   // Anthropic prompt caching settings
   anthropicCacheControl?: AnthropicCacheControlSettings

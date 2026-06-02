@@ -94,6 +94,7 @@ export const useKnowledgeRagConfig = (base: KnowledgeBase) => {
 
   return {
     initialValues,
+    embeddingModels,
     fileProcessorOptions,
     embeddingModelOptions,
     rerankModelOptions,

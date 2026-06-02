@@ -17,7 +17,7 @@ const meta: Meta<typeof Tabs> = {
   argTypes: {
     variant: {
       control: { type: 'select' },
-      options: ['default', 'line'],
+      options: ['default', 'line', 'underline', 'workflow'],
       description: 'The visual style of the tabs'
     },
     defaultValue: {
@@ -79,6 +79,50 @@ export const LineStyle: Story = {
       </TabsContent>
       <TabsContent value="tab3">
         <div className="p-4 mt-2 border rounded-md bg-muted/10">Content for Tab 3</div>
+      </TabsContent>
+    </Tabs>
+  )
+}
+
+// Underline Style — minimal flat underline (no thickening on active)
+export const UnderlineStyle: Story = {
+  render: () => (
+    <Tabs defaultValue="tab1" variant="underline" className="w-[400px]">
+      <TabsList>
+        <TabsTrigger value="tab1">Tab 1</TabsTrigger>
+        <TabsTrigger value="tab2">Tab 2</TabsTrigger>
+        <TabsTrigger value="tab3">Tab 3</TabsTrigger>
+      </TabsList>
+      <TabsContent value="tab1">
+        <div className="p-4 mt-2 border rounded-md bg-muted/10">Content for Tab 1</div>
+      </TabsContent>
+      <TabsContent value="tab2">
+        <div className="p-4 mt-2 border rounded-md bg-muted/10">Content for Tab 2</div>
+      </TabsContent>
+      <TabsContent value="tab3">
+        <div className="p-4 mt-2 border rounded-md bg-muted/10">Content for Tab 3</div>
+      </TabsContent>
+    </Tabs>
+  )
+}
+
+// Workflow Style — minimal text flow with chevron separators between steps (Codex-style)
+export const WorkflowStyle: Story = {
+  render: () => (
+    <Tabs defaultValue="data" variant="workflow" className="w-[500px]">
+      <TabsList>
+        <TabsTrigger value="data">Data Source</TabsTrigger>
+        <TabsTrigger value="rag">RAG Config</TabsTrigger>
+        <TabsTrigger value="recall">Recall Test</TabsTrigger>
+      </TabsList>
+      <TabsContent value="data">
+        <div className="p-4 mt-2 border rounded-md bg-muted/10">Upload and manage data sources.</div>
+      </TabsContent>
+      <TabsContent value="rag">
+        <div className="p-4 mt-2 border rounded-md bg-muted/10">Configure embedding, chunking, retrieval.</div>
+      </TabsContent>
+      <TabsContent value="recall">
+        <div className="p-4 mt-2 border rounded-md bg-muted/10">Test retrieval quality.</div>
       </TabsContent>
     </Tabs>
   )

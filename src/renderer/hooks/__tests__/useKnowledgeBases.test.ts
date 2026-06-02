@@ -12,9 +12,7 @@ import {
   useUpdateKnowledgeBase
 } from '../useKnowledgeBases'
 
-type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId' | 'embeddingModelId' | 'dimensions'> & {
-  emoji: string
-}
+type CreateKnowledgeBaseInput = Pick<CreateKnowledgeBaseDto, 'name' | 'groupId' | 'embeddingModelId' | 'dimensions'>
 
 const mockUseQuery = vi.fn()
 const mockUseMutation = vi.fn()
@@ -34,7 +32,6 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   id: '',
   name: '',
   groupId: null,
-  emoji: '📁',
   dimensions: 1536,
   embeddingModelId: null,
   rerankModelId: undefined,
@@ -127,14 +124,12 @@ describe('useCreateKnowledgeBase', () => {
       id: 'base-2',
       name: 'Base 2',
       groupId: 'group-2',
-      emoji: '📚',
       embeddingModelId: 'openai::text-embedding-3-small',
       dimensions: 2048
     })
     mockRuntimeCreateBase.mockResolvedValueOnce(createdBase)
     const input: CreateKnowledgeBaseInput = {
       name: '  Base 2  ',
-      emoji: '📚',
       groupId: 'group-2',
       embeddingModelId: 'openai::text-embedding-3-small',
       dimensions: 2048
@@ -150,7 +145,6 @@ describe('useCreateKnowledgeBase', () => {
     expect(mockUseMutation).not.toHaveBeenCalled()
     expect(mockRuntimeCreateBase).toHaveBeenCalledWith({
       name: 'Base 2',
-      emoji: '📚',
       groupId: 'group-2',
       embeddingModelId: 'openai::text-embedding-3-small',
       dimensions: 2048
@@ -165,14 +159,12 @@ describe('useCreateKnowledgeBase', () => {
     const createdBase = createKnowledgeBase({
       id: 'base-3',
       name: 'Base 3',
-      emoji: '🧠',
       embeddingModelId: 'openai::text-embedding-3-small',
       dimensions: 1536
     })
     mockRuntimeCreateBase.mockResolvedValueOnce(createdBase)
     const input: CreateKnowledgeBaseInput = {
       name: 'Base 3',
-      emoji: '🧠',
       embeddingModelId: 'openai::text-embedding-3-small',
       dimensions: 1536
     }
@@ -185,7 +177,6 @@ describe('useCreateKnowledgeBase', () => {
 
     expect(mockRuntimeCreateBase).toHaveBeenCalledWith({
       name: 'Base 3',
-      emoji: '🧠',
       embeddingModelId: 'openai::text-embedding-3-small',
       dimensions: 1536
     })
@@ -196,7 +187,6 @@ describe('useCreateKnowledgeBase', () => {
     mockRuntimeCreateBase.mockRejectedValueOnce(createError)
     const input: CreateKnowledgeBaseInput = {
       name: 'Base 4',
-      emoji: '📁',
       embeddingModelId: 'openai::text-embedding-3-small',
       dimensions: 1536
     }

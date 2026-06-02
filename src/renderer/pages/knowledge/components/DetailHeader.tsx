@@ -1,30 +1,57 @@
-import { Button, ConfirmDialog, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
-import { cn } from '@cherrystudio/ui/lib/utils'
+import {
+  Badge,
+  Button,
+  ConfirmDialog,
+  MenuItem,
+  MenuList,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  SearchInput
+} from '@cherrystudio/ui'
 import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { Clock3, FileText, MoreHorizontal, PencilLine, Trash2 } from 'lucide-react'
+import { MoreHorizontal, PencilLine, Search, SlidersHorizontal, Trash2, Zap } from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { statusDotClassNames } from './statusStyles'
+import KnowledgeBaseIcon from './KnowledgeBaseIcon'
+import { statusBadgeClassNames } from './statusStyles'
 
 interface DetailHeaderProps {
   base: KnowledgeBase
   itemCount: number
+  searchQuery?: string
+  onSearchChange?: (value: string) => void
+  onOpenRagConfig: () => void
+  onOpenRecallTest: () => void
   onRenameBase: (base: Pick<KnowledgeBase, 'id' | 'name'>) => void
   onDeleteBase: (baseId: string) => Promise<void> | void
 }
 
-const DetailHeader = ({ base, itemCount, onRenameBase, onDeleteBase }: DetailHeaderProps) => {
+const DetailHeader = ({
+  base,
+  itemCount,
+  searchQuery = '',
+  onSearchChange,
+  onOpenRagConfig,
+  onOpenRecallTest,
+  onRenameBase,
+  onDeleteBase
+}: DetailHeaderProps) => {
   const { t, i18n } = useTranslation()
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const canSearch = Boolean(onSearchChange)
+  const isSearchVisible = isSearchOpen || searchQuery.length > 0
 
   const formattedUpdatedAt = useMemo(
     () => formatRelativeTime(base.updatedAt, i18n.language),
     [base.updatedAt, i18n.language]
   )
-  const statusLabel = t(`knowledge.status.${base.status}`)
+  const statusLabelKey = `knowledge.status.${base.status}` as const
+  const statusLabel = t(statusLabelKey)
 
   const handleRenameBase = useCallback(() => {
     setIsMenuOpen(false)
@@ -39,78 +66,120 @@ const DetailHeader = ({ base, itemCount, onRenameBase, onDeleteBase }: DetailHea
     setIsDeleteDialogOpen(false)
   }, [base.id, onDeleteBase])
 
+  const handleSearchBlur = useCallback(() => {
+    if (searchQuery.length === 0) {
+      setIsSearchOpen(false)
+    }
+  }, [searchQuery])
+
+  const handleSearchClear = useCallback(() => {
+    onSearchChange?.('')
+    setIsSearchOpen(false)
+  }, [onSearchChange])
+
   return (
     <>
-      <header className="flex h-11 shrink-0 items-center justify-between border-border/15 border-b px-3.5">
-        <div className="flex min-w-0 items-center gap-2">
-          <div
-            className="flex size-6 shrink-0 items-center justify-center rounded text-xs"
-            style={{ background: 'rgba(139, 92, 246, 0.125)' }}>
-            <span aria-hidden="true">{base.emoji}</span>
+      <header className="shrink-0 px-3 py-3.5">
+        <div className="flex min-w-0 items-start justify-between gap-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <KnowledgeBaseIcon />
+
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <div className="flex min-w-0 items-center gap-2">
+                <h1 className="min-w-0 truncate font-bold text-2xl text-foreground leading-8">{base.name}</h1>
+                <Badge
+                  variant="outline"
+                  className={`${statusBadgeClassNames[base.status]} shrink-0`}
+                  aria-label={statusLabel}
+                  title={statusLabel}>
+                  {statusLabel}
+                </Badge>
+              </div>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-foreground-muted text-xs leading-4">
+                <span>{t('knowledge.meta.data_sources_count', { count: itemCount })}</span>
+                <span aria-hidden="true">·</span>
+                <span>{t('knowledge.meta.updated_at', { time: formattedUpdatedAt })}</span>
+              </div>
+            </div>
           </div>
 
-          <div className="min-w-0">
-            <h1 className="flex min-w-0 items-center gap-1.5">
-              <span className="truncate text-foreground text-sm">{base.name}</span>
-              <span
-                className={cn('size-1 shrink-0 rounded-full', statusDotClassNames[base.status])}
-                aria-label={statusLabel}
-                title={statusLabel}
-              />
-              <span className="text-muted-foreground/35 text-xs">{statusLabel}</span>
-            </h1>
-          </div>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-3 text-muted-foreground/35 text-xs leading-4">
-          <div className="flex items-center gap-1">
-            <FileText className="size-3" />
-            <span>{t('knowledge.meta.documents_count', { count: itemCount })}</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Clock3 className="size-3" />
-            <span>{formattedUpdatedAt}</span>
-          </div>
-          <Popover open={isMenuOpen} onOpenChange={setIsMenuOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                className="size-5 min-h-5 min-w-5 rounded p-0 text-muted-foreground/35 shadow-none hover:bg-accent/60 hover:text-foreground"
-                aria-label={t('common.more')}>
-                <MoreHorizontal className="size-3" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              align="end"
-              side="bottom"
-              sideOffset={8}
-              collisionPadding={8}
-              className="w-27.5 min-w-27.5 rounded-lg border-border bg-popover p-1 shadow-xl"
-              onOpenAutoFocus={(event) => event.preventDefault()}
-              onCloseAutoFocus={(event) => event.preventDefault()}>
-              <MenuList className="gap-0">
-                <MenuItem
+          <div className="flex shrink-0 items-center gap-1">
+            {canSearch ? (
+              isSearchVisible ? (
+                <div className="w-36 shrink-0 [&_[data-slot=input-group-addon]]:py-1 [&_[data-slot=input-group-control]]:h-7 [&_[data-slot=input-group-control]]:py-0 [&_[data-slot=input-group]]:h-7">
+                  <SearchInput
+                    autoFocus
+                    value={searchQuery}
+                    className="h-7 py-0 text-xs"
+                    placeholder={t('knowledge.data_source.toolbar.search_placeholder')}
+                    onChange={(event) => onSearchChange?.(event.target.value)}
+                    onBlur={handleSearchBlur}
+                    onClear={handleSearchClear}
+                    clearLabel={t('common.clear')}
+                  />
+                </div>
+              ) : (
+                <Button
+                  type="button"
                   variant="ghost"
-                  icon={<PencilLine className="size-2.25" />}
-                  label={t('knowledge.context.rename')}
-                  className="gap-1.5 rounded-md px-2 py-1 font-normal text-popover-foreground hover:bg-accent"
-                  onClick={handleRenameBase}
-                />
-                <MenuItem
-                  variant="ghost"
-                  icon={<Trash2 className="size-2.25" />}
-                  label={t('knowledge.context.delete')}
-                  className="gap-1.5 rounded-md px-2 py-1 font-normal text-red-500 hover:bg-red-500/10 hover:text-red-500 focus-visible:ring-red-500/20"
-                  onClick={() => {
-                    setIsMenuOpen(false)
-                    setIsDeleteDialogOpen(true)
-                  }}
-                />
-              </MenuList>
-            </PopoverContent>
-          </Popover>
+                  size="icon-sm"
+                  aria-label={t('knowledge.data_source.toolbar.search_placeholder')}
+                  onClick={() => setIsSearchOpen(true)}>
+                  <Search size={14} />
+                </Button>
+              )
+            ) : null}
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('knowledge.tabs.rag_config')}
+              onClick={onOpenRagConfig}>
+              <SlidersHorizontal size={14} />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t('knowledge.tabs.recall_test')}
+              onClick={onOpenRecallTest}>
+              <Zap size={14} />
+            </Button>
+            <Popover open={isMenuOpen} onOpenChange={setIsMenuOpen}>
+              <PopoverTrigger asChild>
+                <Button type="button" variant="ghost" size="icon-sm" aria-label={t('common.more')}>
+                  <MoreHorizontal size={14} />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="end"
+                side="bottom"
+                sideOffset={8}
+                collisionPadding={8}
+                className="w-27.5 min-w-27.5 rounded-lg border-border bg-popover p-1 shadow-md"
+                onOpenAutoFocus={(event) => event.preventDefault()}
+                onCloseAutoFocus={(event) => event.preventDefault()}>
+                <MenuList>
+                  <MenuItem
+                    variant="ghost"
+                    icon={<PencilLine className="size-3.5" />}
+                    label={t('knowledge.context.rename')}
+                    onClick={handleRenameBase}
+                  />
+                  <MenuItem
+                    variant="ghost"
+                    icon={<Trash2 className="size-3.5" />}
+                    label={t('knowledge.context.delete')}
+                    className="text-destructive hover:bg-destructive/10 hover:text-destructive focus-visible:ring-destructive/20"
+                    onClick={() => {
+                      setIsMenuOpen(false)
+                      setIsDeleteDialogOpen(true)
+                    }}
+                  />
+                </MenuList>
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
       </header>
 

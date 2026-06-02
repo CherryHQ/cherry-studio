@@ -1,19 +1,21 @@
+import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
 
 export interface KnowledgePageBaseGroupSection {
   groupId: string | null
-  items: KnowledgeBase[]
+  items: KnowledgeBaseListItem[]
 }
 
+export const DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY = 'knowledge.groups.default'
+
 export const buildKnowledgeBaseGroupSections = (
-  bases: ReadonlyArray<KnowledgeBase>,
+  bases: ReadonlyArray<KnowledgeBaseListItem>,
   groups: ReadonlyArray<Group>,
   searchValue: string
 ): KnowledgePageBaseGroupSection[] => {
   const normalizedSearch = searchValue.trim().toLowerCase()
   const includeEmptyKnownGroups = normalizedSearch.length === 0
-  const groupedBases = new Map<string | null, KnowledgeBase[]>()
+  const groupedBases = new Map<string | null, KnowledgeBaseListItem[]>()
   const knownGroupIds = new Set(groups.map((group) => group.id))
   const unknownGroupIds: string[] = []
 
@@ -39,9 +41,9 @@ export const buildKnowledgeBaseGroupSections = (
 
   const sections: KnowledgePageBaseGroupSection[] = []
 
-  const ungroupedItems = groupedBases.get(null)
-  if (ungroupedItems) {
-    sections.push({ groupId: null, items: ungroupedItems })
+  const defaultGroupItems = groupedBases.get(null)
+  if (defaultGroupItems || includeEmptyKnownGroups) {
+    sections.push({ groupId: null, items: defaultGroupItems ?? [] })
   }
 
   for (const group of groups) {
