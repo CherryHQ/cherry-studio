@@ -40,7 +40,7 @@ type Props = {
 }
 
 const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
-  const { session } = useSession(agentId, sessionId)
+  const { session, isLoading: isSessionLoading } = useSession(agentId, sessionId)
   const sessionTopicId = useMemo(() => buildAgentSessionTopicId(sessionId), [sessionId])
   // Use the same hook as Messages.tsx for consistent behavior
   const messages = useTopicMessages(sessionTopicId)
@@ -179,6 +179,20 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
     })
     return Object.entries(newGrouped)
   }, [displayMessages])
+  const [showSessionLoading, setShowSessionLoading] = useState(false)
+
+  useEffect(() => {
+    if (!isSessionLoading || groupedMessages.length > 0 || session) {
+      setShowSessionLoading(false)
+      return
+    }
+
+    const timer = setTimeout(() => {
+      setShowSessionLoading(true)
+    }, 1000)
+
+    return () => clearTimeout(timer)
+  }, [groupedMessages.length, isSessionLoading, session])
 
   const loadMoreMessages = useCallback(() => {
     if (!hasMore || isLoadingMore || isRestoringScrollRef.current) return
@@ -259,7 +273,7 @@ const AgentSessionMessages = ({ agentId, sessionId }: Props) => {
                 groupedMessages.map(([key, groupMessages]) => (
                   <MessageGroup key={key} messages={groupMessages} topic={derivedTopic} />
                 ))
-              ) : !session ? (
+              ) : showSessionLoading ? (
                 <div className="flex items-center justify-center py-5">
                   <Spin size="small" />
                 </div>

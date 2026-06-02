@@ -2,6 +2,7 @@ import { LoadingIcon } from '@renderer/components/Icons'
 import type { NormalToolResponse } from '@renderer/types'
 import type { CollapseProps } from 'antd'
 import { Collapse } from 'antd'
+import { ChevronRight } from 'lucide-react'
 import { useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
@@ -50,9 +51,9 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
     const toolContentItem: NonNullable<CollapseProps['items']>[number] = {
       ...renderedItem,
       label: (
-        <div className="flex w-full items-start justify-between gap-2">
+        <div className="flex w-full items-center justify-between gap-2">
           <div className="min-w-0 flex-1">{renderedItem.label}</div>
-          <div className="shrink-0 pt-px">{statusIndicator}</div>
+          <div className="shrink-0">{statusIndicator}</div>
         </div>
       ),
       classNames: {
@@ -65,6 +66,9 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
         <Collapse
           className="w-full"
           expandIconPosition="end"
+          expandIcon={({ isActive }) => (
+            <ExpandIcon $isActive={isActive} size={18} color="var(--color-text-3)" strokeWidth={1.5} />
+          )}
           size="small"
           defaultActiveKey={[String(renderedItem.key ?? toolName)]}
           items={[toolContentItem]}
@@ -90,7 +94,7 @@ export function ToolPermissionRequestCard({ toolResponse }: Props) {
 
 const Container = styled.div`
   width: 100%;
-  max-width: 36rem;
+  max-width: 100%;
   border-radius: 0.75rem;
   border: 1px solid var(--color-border);
   background-color: var(--color-background-soft);
@@ -107,8 +111,36 @@ const Container = styled.div`
   }
 
   .ant-collapse-header {
-    padding: 8px 12px !important;
+    padding: 0 !important;
+    background: var(--color-background);
+    display: flex !important;
+    align-items: center !important;
   }
+
+  .ant-collapse-expand-icon {
+    height: 38px !important;
+    width: 40px;
+    padding: 0 !important;
+    margin-inline-start: 0 !important;
+    color: var(--color-text-3) !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .ant-collapse-header-text {
+    height: 38px !important;
+    min-width: 0;
+    display: flex !important;
+    align-items: center !important;
+    flex: 1 !important;
+  }
+`
+
+const ExpandIcon = styled(ChevronRight)<{ $isActive?: boolean }>`
+  transition: transform 150ms;
+  transform: ${({ $isActive }) => ($isActive ? 'rotate(90deg)' : 'rotate(0deg)')};
+  flex-shrink: 0;
 `
 
 const ActionsBar = styled.div`

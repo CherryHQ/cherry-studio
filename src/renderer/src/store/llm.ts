@@ -18,9 +18,9 @@ import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
 import { isLocalAi } from '@renderer/config/env'
 import { SYSTEM_MODELS } from '@renderer/config/models'
-import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
+import { INITIAL_STATE_EXCLUDED_PROVIDER_IDS, SYSTEM_PROVIDERS_CONFIG } from '@renderer/config/providers'
 import type { AwsBedrockAuthType, Model, Provider } from '@renderer/types'
-import { uniqBy } from 'lodash'
+import { omit, uniqBy } from 'lodash'
 
 type LlmSettings = {
   ollama: {
@@ -70,7 +70,7 @@ export const initialState: LlmState = {
   quickModel: SYSTEM_MODELS.defaultModel[1],
   translateModel: SYSTEM_MODELS.defaultModel[2],
   quickAssistantId: '',
-  providers: SYSTEM_PROVIDERS,
+  providers: Object.values(omit(SYSTEM_PROVIDERS_CONFIG, INITIAL_STATE_EXCLUDED_PROVIDER_IDS)),
   settings: {
     ollama: {
       keepAliveTime: 0

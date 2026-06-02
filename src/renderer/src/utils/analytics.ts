@@ -1,5 +1,4 @@
 import { getProviderById } from '@renderer/services/ProviderService'
-import store from '@renderer/store'
 import { isSystemProvider, type Model, type Usage } from '@renderer/types'
 import type { LanguageModelUsage } from 'ai'
 
@@ -54,7 +53,6 @@ function getProviderTrackId(id: string): string {
  * Handles both OpenAI format (prompt_tokens) and AI SDK format (inputTokens)
  */
 export function trackTokenUsage({ usage, model, source = 'chat' }: TokenUsageParams): void {
-  if (!store.getState().settings.enableDataCollection) return
   if (!usage || !model?.provider || !model?.id) return
 
   const [inputTokens, outputTokens] = isAiSdkUsage(usage)

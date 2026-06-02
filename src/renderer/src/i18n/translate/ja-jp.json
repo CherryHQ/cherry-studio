@@ -2486,6 +2486,10 @@
       "completed": "完了",
       "error": "エラーが発生しました",
       "groupHeader": "{{count}}ツール呼び出し",
+      "groupHeaderMessages": "{{count}}メッセージ",
+      "groupHeaderThinking": "{{count}}思考",
+      "groupHeaderWithDetails": "{{toolCount}}ツール呼び出し · {{thinkingCount}}思考 · {{messageCount}}メッセージ",
+      "groupHeaderWithMessages": "{{toolCount}}ツール呼び出し · {{messageCount}}メッセージ",
       "invoking": "呼び出し中",
       "labels": {
         "bash": "バッシュ",
@@ -2904,6 +2908,11 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "notice": "続行することで、あなたは以下を読み、同意したことを確認します。",
+      "period": "。",
+      "policy": "プライバシーポリシー"
+    },
     "select_model": {
       "change_later": "いつでも設定で変更できます",
       "start": "始めましょう",

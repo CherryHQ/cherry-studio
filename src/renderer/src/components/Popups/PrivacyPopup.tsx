@@ -3,13 +3,13 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { ThemeMode } from '@renderer/types'
 import { runAsyncFunction } from '@renderer/utils'
 import { Button, Modal } from 'antd'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 const WebViewContainer = styled.div`
   width: 100%;
-  height: 500px;
+  height: min(500px, calc(85vh - 132px));
   overflow: hidden;
 
   webview {
@@ -22,43 +22,65 @@ const WebViewContainer = styled.div`
 
 interface ShowParams {
   title?: string
+  acceptButtonText?: string
   showDeclineButton?: boolean
+  force?: boolean
+  quitOnDecline?: boolean
+  modal?: boolean
+  onAccepted?: () => void
 }
 
 interface Props extends ShowParams {
   resolve: (data: any) => void
 }
 
-const PopupContainer: React.FC<Props> = ({ title, showDeclineButton = true, resolve }) => {
+const PopupContainer: React.FC<Props> = ({
+  title,
+  acceptButtonText,
+  showDeclineButton,
+  quitOnDecline,
+  modal = false,
+  onAccepted,
+  resolve
+}) => {
   const [open, setOpen] = useState(true)
   const [privacyUrl, setPrivacyUrl] = useState<string>('')
+  const resolvedRef = useRef(false)
   const { theme } = useTheme()
-  const { i18n } = useTranslation()
+  const { i18n, t } = useTranslation()
+  const shouldShowDeclineButton = !modal && (showDeclineButton ?? true)
+  const shouldQuitOnDecline = quitOnDecline ?? !modal
 
   const getTitle = () => {
     if (title) return title
-    const isChinese = i18n.language.startsWith('zh')
-    return isChinese ? '隐私协议' : 'Privacy Policy'
+    return t('privacy_policy.title')
   }
+
+  const resolveOnce = useCallback(
+    (data: { accepted: boolean }) => {
+      if (resolvedRef.current) {
+        return
+      }
+
+      resolvedRef.current = true
+      resolve(data)
+    },
+    [resolve]
+  )
 
   const handleAccept = () => {
     setOpen(false)
     localStorage.setItem('privacy-popup-accepted', 'true')
-    resolve({ accepted: true })
+    onAccepted?.()
+    resolveOnce({ accepted: true })
   }
 
   const handleDecline = () => {
     setOpen(false)
-    void window.api.quit()
-    resolve({ accepted: false })
-  }
-
-  const onClose = () => {
-    if (!showDeclineButton) {
-      handleAccept()
-    } else {
-      handleDecline()
+    if (shouldQuitOnDecline) {
+      void window.api.quit()
     }
+    resolveOnce({ accepted: false })
   }
 
   useEffect(() => {
@@ -77,27 +99,26 @@ const PopupContainer: React.FC<Props> = ({ title, showDeclineButton = true, reso
     <Modal
       title={getTitle()}
       open={open}
-      onCancel={showDeclineButton ? handleDecline : undefined}
-      afterClose={onClose}
+      onCancel={shouldShowDeclineButton ? handleDecline : undefined}
       transitionName=""
       maskTransitionName=""
       centered
       closable={false}
       maskClosable={false}
       styles={{
-        mask: { backgroundColor: 'var(--color-background)' },
+        content: { maxHeight: '85vh', overflow: 'hidden' },
         header: { paddingLeft: 20 },
-        body: { paddingLeft: 20 }
+        body: { paddingLeft: 20, overflow: 'hidden' }
       }}
       width={900}
       footer={[
-        showDeclineButton && (
+        shouldShowDeclineButton && (
           <Button key="decline" onClick={handleDecline}>
-            {i18n.language.startsWith('zh') ? '拒绝' : 'Decline'}
+            {t('common.decline')}
           </Button>
         ),
         <Button key="accept" type="primary" onClick={handleAccept}>
-          {i18n.language.startsWith('zh') ? '同意并继续' : 'Accept and Continue'}
+          {acceptButtonText ?? t('common.i_know')}
         </Button>
       ].filter(Boolean)}>
       <WebViewContainer>
@@ -117,7 +138,7 @@ export default class PrivacyPopup {
   static async show(props?: ShowParams) {
     const accepted = localStorage.getItem('privacy-popup-accepted')
 
-    if (accepted) {
+    if (accepted && !props?.force) {
       return
     }
 
