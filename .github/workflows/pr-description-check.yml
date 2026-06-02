@@ -9,6 +9,7 @@ on:
       - main
       - develop
       - v2
+      - v1
     types: [opened, edited, synchronize, ready_for_review]
 
 jobs:

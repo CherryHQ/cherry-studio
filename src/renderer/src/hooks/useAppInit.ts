@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
-import { isMac } from '@renderer/config/constant'
+import PrivacyPolicyUpdateNotice from '@renderer/components/app/PrivacyPolicyUpdateNotice'
+import { isMac, LATEST_PRIVACY_POLICY_VERSION } from '@renderer/config/constant'
 import { isLocalAi } from '@renderer/config/env'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import db from '@renderer/databases'
@@ -42,7 +43,8 @@ export function useAppInit() {
     autoCheckUpdate,
     proxyMode,
     customCss,
-    enableDataCollection
+    enableDataCollection,
+    privacyPolicyVersion
   } = useSettings()
   const { isLeftNavbar } = useNavbarPosition()
   const { minappShow } = useRuntime()
@@ -76,6 +78,15 @@ export function useAppInit() {
 
   useUpdateHandler()
   useFullScreenNotice()
+
+  useEffect(() => {
+    if (privacyPolicyVersion === LATEST_PRIVACY_POLICY_VERSION) {
+      PrivacyPolicyUpdateNotice.hide()
+      return
+    }
+
+    void PrivacyPolicyUpdateNotice.show()
+  }, [privacyPolicyVersion])
 
   useEffect(() => {
     avatar?.value && dispatch(setAvatar(avatar.value))

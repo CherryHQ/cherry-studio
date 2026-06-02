@@ -47,6 +47,14 @@ class AnalyticsService {
     logger.info('Analytics service initialized')
   }
 
+  public async trackAppUpdate(): Promise<void> {
+    if (!this.client || !configManager.getEnableDataCollection()) {
+      return
+    }
+
+    await this.client.trackAppUpdate()
+  }
+
   public trackTokenUsage(data: TokenUsageData): void {
     const enableDataCollection = configManager.getEnableDataCollection()
 
@@ -55,14 +63,6 @@ class AnalyticsService {
     }
 
     this.client.trackTokenUsage(data)
-  }
-
-  public async trackAppUpdate(): Promise<void> {
-    if (!this.client || !configManager.getEnableDataCollection()) {
-      return
-    }
-
-    await this.client.trackAppUpdate()
   }
 
   public async destroy(): Promise<void> {

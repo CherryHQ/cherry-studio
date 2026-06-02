@@ -14,7 +14,7 @@ import { COPILOT_DEFAULT_HEADERS } from '@renderer/aiCore/provider/constants'
 import store from '@renderer/store'
 import type { EndpointType, Model, Provider } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
-import { formatApiHost, withoutTrailingSlash } from '@renderer/utils'
+import { formatApiHost, getDefaultGroupName, withoutTrailingSlash } from '@renderer/utils'
 import { isGeminiProvider, isOllamaProvider, isVertexProvider } from '@renderer/utils/provider'
 import { defaultAppHeaders } from '@shared/utils'
 import * as z from 'zod'
@@ -120,9 +120,13 @@ function defaultHeaders(provider: Provider): Record<string, string> {
   }
 }
 
-function defaultGroup(modelId: string, providerId: string): string {
+function defaultGroup(modelId: string, provider: Provider): string {
+  if (provider.isSystem === false) {
+    return getDefaultGroupName(modelId, provider.id)
+  }
+
   const parts = modelId.split('/')
-  return parts.length > 1 ? parts[0] : providerId
+  return parts.length > 1 ? parts[0] : provider.id
 }
 
 function toModel(id: string, provider: Provider, extra?: Partial<Model>): Model {
@@ -130,7 +134,7 @@ function toModel(id: string, provider: Provider, extra?: Partial<Model>): Model 
     id,
     name: extra?.name || id,
     provider: provider.id,
-    group: extra?.group || defaultGroup(id, provider.id),
+    group: extra?.group || defaultGroup(id, provider),
     ...extra
   }
 }
@@ -180,8 +184,9 @@ const geminiFetcher: ModelFetcher = {
   fetch: async (provider, signal) => {
     let baseUrl = withoutTrailingSlash(provider.apiHost)
     baseUrl = baseUrl.replace(/\/v1(beta)?$/, '')
+    const searchParams = new URLSearchParams({ key: getApiKey(provider) })
     const response = await getFromApi({
-      url: `${baseUrl}/v1beta/models?key=${getApiKey(provider)}`,
+      url: `${baseUrl}/v1beta/models?${searchParams.toString()}`,
       headers: { ...defaultAppHeaders(), ...provider.extra_headers },
       responseSchema: GeminiModelsResponseSchema,
       abortSignal: signal

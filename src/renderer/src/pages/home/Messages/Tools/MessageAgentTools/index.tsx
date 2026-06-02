@@ -3,8 +3,10 @@ import { selectPendingPermission } from '@renderer/store/toolPermissions'
 import type { NormalToolResponse } from '@renderer/types'
 import type { CollapseProps } from 'antd'
 import { Collapse } from 'antd'
+import { ChevronRight } from 'lucide-react'
 import { parse as parsePartialJson } from 'partial-json'
 import { useMemo } from 'react'
+import styled from 'styled-components'
 
 // 导出所有类型
 export * from './types'
@@ -103,8 +105,8 @@ function ToolContent({
   const toolContentItem: NonNullable<CollapseProps['items']>[number] = {
     ...renderedItem,
     label: (
-      <div className="flex w-full items-start justify-between gap-2">
-        <div className="min-w-0">{renderedItem.label}</div>
+      <div className="flex w-full items-center justify-between gap-2">
+        <div className="min-w-0 flex-1">{renderedItem.label}</div>
         {status && (
           <div className="shrink-0">
             <ToolStatusIndicator status={status} hasError={hasError} />
@@ -119,16 +121,81 @@ function ToolContent({
 
   return (
     <StreamingContext value={isStreaming}>
-      <Collapse
-        className="w-max max-w-full has-[.ant-collapse-item-active]:w-full"
+      <ToolCollapse
         expandIconPosition="end"
         size="small"
         defaultActiveKey={toolName === AgentToolsType.TodoWrite ? [AgentToolsType.TodoWrite] : []}
         items={[toolContentItem]}
+        expandIcon={({ isActive }) => (
+          <ExpandIconContainer $isActive={isActive}>
+            <ChevronRight size={18} color="var(--color-text-3)" strokeWidth={1.5} />
+          </ExpandIconContainer>
+        )}
       />
     </StreamingContext>
   )
 }
+
+const ToolCollapse = styled(Collapse)`
+  width: 100%;
+  max-width: 100%;
+  border: 0.5px solid var(--color-border) !important;
+  border-radius: 10px !important;
+  overflow: hidden;
+
+  > .ant-collapse-item {
+    border-bottom: none !important;
+  }
+
+  > .ant-collapse-item > .ant-collapse-header {
+    box-sizing: border-box !important;
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+
+  > .ant-collapse-item > .ant-collapse-header .ant-collapse-expand-icon {
+    height: 38px !important;
+    width: 40px;
+    padding: 0 !important;
+    margin-inline-start: 0 !important;
+    color: var(--color-text-3) !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+  }
+
+  > .ant-collapse-item > .ant-collapse-header .ant-collapse-header-text {
+    height: 38px !important;
+    min-width: 0;
+    display: flex !important;
+    align-items: center !important;
+    flex: 1 !important;
+  }
+
+  > .ant-collapse-item > .ant-collapse-content {
+    border-top: 0.5px solid var(--color-border) !important;
+  }
+`
+
+const ExpandIconContainer = styled.div<{ $isActive?: boolean }>`
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-3);
+  transition: transform 150ms;
+  transform: ${({ $isActive }) => ($isActive ? 'rotate(90deg)' : 'rotate(0deg)')};
+  flex-shrink: 0;
+
+  svg {
+    color: var(--color-text-3);
+    stroke: var(--color-text-3);
+  }
+`
 
 // 统一的组件渲染入口
 export function MessageAgentTools({ toolResponse }: { toolResponse: NormalToolResponse }) {
