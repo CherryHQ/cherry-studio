@@ -790,7 +790,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
     },
     websites: {
       official: 'https://www.siliconflow.cn',
-      apiKey: 'https://cloud.siliconflow.cn/i/d1nTBKXU',
+      apiKey: 'https://cloud.siliconflow.cn/',
       docs: 'https://docs.siliconflow.cn/',
       models: 'https://cloud.siliconflow.cn/models'
     }
@@ -833,8 +833,8 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       url: 'https://www.dmxapi.cn'
     },
     websites: {
-      official: 'https://www.dmxapi.cn/register?aff=bwwY',
-      apiKey: 'https://www.dmxapi.cn/register?aff=bwwY',
+      official: 'https://www.dmxapi.cn/register',
+      apiKey: 'https://www.dmxapi.cn/register',
       docs: 'https://doc.dmxapi.cn/',
       models: 'https://www.dmxapi.cn/pricing'
     }
@@ -982,7 +982,7 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
     },
     websites: {
       official: 'https://console.volcengine.com/ark/',
-      apiKey: 'https://www.volcengine.com/experience/ark?utm_term=202502dsinvite&ac=DSASUQY5&rc=DB4II4FC',
+      apiKey: 'https://www.volcengine.com/experience/ark',
       docs: 'https://www.volcengine.com/docs/82379/1182403',
       models: 'https://console.volcengine.com/ark/region:ark+cn-beijing/endpoint'
     }
@@ -1131,8 +1131,8 @@ export const PROVIDER_URLS: Record<SystemProviderId, ProviderUrls> = {
       url: 'https://aihubmix.com'
     },
     websites: {
-      official: 'https://aihubmix.com?aff=SJyh',
-      apiKey: 'https://aihubmix.com?aff=SJyh',
+      official: 'https://aihubmix.com',
+      apiKey: 'https://aihubmix.com',
       docs: 'https://doc.aihubmix.com/',
       models: 'https://aihubmix.com/models'
     }
