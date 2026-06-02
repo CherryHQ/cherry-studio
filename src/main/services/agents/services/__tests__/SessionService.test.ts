@@ -57,7 +57,7 @@ vi.mock('@electron-toolkit/utils', () => ({
   }
 }))
 
-import { channelsTable, sessionMessagesTable, sessionsTable } from '../../database/schema'
+import { channelsTable, sessionMessagesTable, sessionsTable, taskRunLogsTable } from '../../database/schema'
 import { SessionService } from '../SessionService'
 
 describe('SessionService deleteSession', () => {
@@ -71,7 +71,7 @@ describe('SessionService deleteSession', () => {
     vi.restoreAllMocks()
   })
 
-  it('deletes the session row and then cleans associated data in one transaction', async () => {
+  it('cleans associated data and then deletes the session row in one transaction', async () => {
     const deleteWhere = vi.fn().mockResolvedValue({ rowsAffected: 1 })
     const txDelete = vi.fn(() => ({ where: deleteWhere }))
     const updateWhere = vi.fn().mockResolvedValue(undefined)
@@ -93,15 +93,19 @@ describe('SessionService deleteSession', () => {
     expect(deleted).toBe(true)
     expect(database.transaction).toHaveBeenCalledTimes(1)
     expect(txUpdate).toHaveBeenCalledWith(channelsTable)
+    expect(txUpdate).toHaveBeenCalledWith(taskRunLogsTable)
     expect(txUpdateSet).toHaveBeenCalledWith({ sessionId: null })
-    expect(txDelete).toHaveBeenNthCalledWith(1, sessionsTable)
-    expect(txDelete).toHaveBeenNthCalledWith(2, sessionMessagesTable)
+    expect(txUpdateSet).toHaveBeenCalledWith({ session_id: null })
+    expect(txDelete).toHaveBeenNthCalledWith(1, sessionMessagesTable)
+    expect(txDelete).toHaveBeenNthCalledWith(2, sessionsTable)
   })
 
-  it('does not delete messages when the session does not belong to the agent', async () => {
+  it('returns false when the session does not belong to the agent', async () => {
     const deleteWhere = vi.fn().mockResolvedValue({ rowsAffected: 0 })
     const txDelete = vi.fn(() => ({ where: deleteWhere }))
-    const txUpdate = vi.fn()
+    const updateWhere = vi.fn().mockResolvedValue(undefined)
+    const txUpdateSet = vi.fn(() => ({ where: updateWhere }))
+    const txUpdate = vi.fn(() => ({ set: txUpdateSet }))
     const database = {
       transaction: vi.fn(async (callback: (tx: unknown) => Promise<boolean>) =>
         callback({
@@ -116,9 +120,10 @@ describe('SessionService deleteSession', () => {
     const deleted = await service.deleteSession('agent-1', 'session-1')
 
     expect(deleted).toBe(false)
-    expect(txDelete).toHaveBeenCalledTimes(1)
+    expect(txDelete).toHaveBeenCalledTimes(2)
+    expect(txDelete).toHaveBeenCalledWith(sessionMessagesTable)
     expect(txDelete).toHaveBeenCalledWith(sessionsTable)
-    expect(txDelete).not.toHaveBeenCalledWith(sessionMessagesTable)
-    expect(txUpdate).not.toHaveBeenCalled()
+    expect(txUpdate).toHaveBeenCalledWith(channelsTable)
+    expect(txUpdate).toHaveBeenCalledWith(taskRunLogsTable)
   })
 })

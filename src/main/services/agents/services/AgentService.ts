@@ -32,6 +32,9 @@ import { seedWorkspaceTemplates } from './cherryclaw/seedWorkspace'
 
 const logger = loggerService.withContext('AgentService')
 
+type AgentDatabase = Awaited<ReturnType<BaseService['getDatabase']>>
+type AgentTransaction = Parameters<Parameters<AgentDatabase['transaction']>[0]>[0]
+
 export type BuiltinAgentInitResult =
   | { agentId: string; skippedReason?: undefined }
   | { agentId: null; skippedReason: 'deleted' | 'no_model' }
@@ -551,7 +554,7 @@ export class AgentService extends BaseService {
     logger.info('Agents reordered', { count: orderedIds.length })
   }
 
-  private async deleteAgentRelations(tx: any, id: string): Promise<void> {
+  private async deleteAgentRelations(tx: AgentTransaction, id: string): Promise<void> {
     // Agent DB migrations did not always create FK constraints, so clean child rows explicitly.
     await tx.delete(agentSkillsTable).where(eq(agentSkillsTable.agent_id, id))
     await tx
@@ -569,6 +572,12 @@ export class AgentService extends BaseService {
       .delete(sessionMessagesTable)
       .where(
         sql`${sessionMessagesTable.session_id} IN (SELECT ${sessionsTable.id} FROM ${sessionsTable} WHERE ${sessionsTable.agent_id} = ${id})`
+      )
+    await tx
+      .update(channelsTable)
+      .set({ sessionId: null })
+      .where(
+        sql`${channelsTable.sessionId} IN (SELECT ${sessionsTable.id} FROM ${sessionsTable} WHERE ${sessionsTable.agent_id} = ${id})`
       )
     await tx.delete(sessionsTable).where(eq(sessionsTable.agent_id, id))
     await tx.update(channelsTable).set({ agentId: null }).where(eq(channelsTable.agentId, id))
@@ -590,6 +599,7 @@ export class AgentService extends BaseService {
         await tx.update(agentsTable).set({ deleted_at: now, updated_at: now }).where(eq(agentsTable.id, id))
       })
 
+      logger.info('Agent deleted', { id, soft: true })
       return true
     }
 
@@ -599,7 +609,12 @@ export class AgentService extends BaseService {
       return await tx.delete(agentsTable).where(eq(agentsTable.id, id))
     })
 
-    return result.rowsAffected > 0
+    const deleted = result.rowsAffected > 0
+    if (deleted) {
+      logger.info('Agent deleted', { id, soft: false })
+    }
+
+    return deleted
   }
 
   async agentExists(id: string): Promise<boolean> {

@@ -71,6 +71,7 @@ vi.mock('../../skills/SkillService', () => ({
 
 import {
   agentsTable,
+  channelsTable,
   channelTaskSubscriptionsTable,
   scheduledTasksTable,
   sessionMessagesTable,
@@ -144,8 +145,10 @@ describe('AgentService built-in agent lifecycle', () => {
     expect(txDelete).toHaveBeenCalledWith(taskRunLogsTable)
     expect(txDelete).toHaveBeenCalledWith(scheduledTasksTable)
     expect(txDelete).toHaveBeenCalledWith(sessionMessagesTable)
-    expect(txUpdate).toHaveBeenCalledTimes(2)
+    expect(txUpdate).toHaveBeenCalledTimes(3)
     expect(database.delete).not.toHaveBeenCalled()
+    expect(txUpdate).toHaveBeenCalledWith(channelsTable)
+    expect(txUpdateSet).toHaveBeenCalledWith(expect.objectContaining({ sessionId: null }))
     expect(txUpdateSet).toHaveBeenCalledWith(expect.objectContaining({ agentId: null }))
     expect(txUpdateSet).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -180,6 +183,7 @@ describe('AgentService built-in agent lifecycle', () => {
     expect(txDelete).toHaveBeenCalledWith(sessionMessagesTable)
     expect(txDelete).toHaveBeenCalledWith(sessionsTable)
     expect(txDelete).toHaveBeenCalledWith(agentsTable)
+    expect(txUpdateSet).toHaveBeenCalledWith({ sessionId: null })
     expect(txUpdateSet).toHaveBeenCalledWith({ agentId: null })
   })
 })

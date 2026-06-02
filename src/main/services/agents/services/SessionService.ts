@@ -22,7 +22,8 @@ import {
   type InsertSessionRow,
   sessionMessagesTable,
   type SessionRow,
-  sessionsTable
+  sessionsTable,
+  taskRunLogsTable
 } from '../database/schema'
 import type { AgentModelField } from '../errors'
 import { builtinSlashCommands } from './claudecode/commands'
@@ -325,18 +326,27 @@ export class SessionService extends BaseService {
     const database = await this.getDatabase()
 
     return await database.transaction(async (tx) => {
+      const sessionQuery = sql`SELECT ${sessionsTable.id} FROM ${sessionsTable} WHERE ${sessionsTable.id} = ${id} AND ${sessionsTable.agent_id} = ${agentId}`
+
+      await tx
+        .update(channelsTable)
+        .set({ sessionId: null })
+        .where(sql`${channelsTable.sessionId} IN (${sessionQuery})`)
+      await tx
+        .update(taskRunLogsTable)
+        .set({ session_id: null })
+        .where(sql`${taskRunLogsTable.session_id} IN (${sessionQuery})`)
+      await tx.delete(sessionMessagesTable).where(sql`${sessionMessagesTable.session_id} IN (${sessionQuery})`)
+
       const result = await tx
         .delete(sessionsTable)
         .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))
 
-      if (result.rowsAffected === 0) {
-        return false
+      if (result.rowsAffected > 0) {
+        logger.info('Session deleted', { agentId, id })
       }
 
-      await tx.update(channelsTable).set({ sessionId: null }).where(eq(channelsTable.sessionId, id))
-      await tx.delete(sessionMessagesTable).where(eq(sessionMessagesTable.session_id, id))
-
-      return true
+      return result.rowsAffected > 0
     })
   }
 
