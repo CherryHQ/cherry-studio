@@ -1,7 +1,54 @@
 import { loggerService } from '@logger'
+import type { CreateMCPServerDto, UpdateMCPServerDto } from '@shared/data/api/schemas/mcpServers'
 import type { MCPServer } from '@shared/data/types/mcpServer'
 
 const logger = loggerService.withContext('McpSettings/utils')
+
+type McpServerDraft = Partial<MCPServer> & { url?: string }
+type CreateMcpServerDraft = McpServerDraft & Pick<MCPServer, 'name'>
+
+const stripReadonlyMcpServerFields = (server: McpServerDraft): UpdateMCPServerDto => {
+  const dto = { ...server }
+  // Keep this aligned with fields that strict create/update DTO schemas reject.
+  delete dto.id
+  delete dto.createdAt
+  delete dto.updatedAt
+  delete dto.url
+  return dto
+}
+
+export const toCreateMcpServerDto = (server: CreateMcpServerDraft): CreateMCPServerDto => {
+  const dto: CreateMCPServerDto = { ...stripReadonlyMcpServerFields(server), name: server.name }
+
+  if (dto.baseUrl === undefined && server.url !== undefined) {
+    dto.baseUrl = server.url
+  }
+
+  return dto
+}
+
+export const toUpdateMcpServerDto = (server: McpServerDraft): UpdateMCPServerDto => {
+  return stripReadonlyMcpServerFields(server)
+}
+
+export const isSameMcpServerCandidate = (existing: MCPServer, candidate: MCPServer): boolean => {
+  if (candidate.baseUrl && existing.baseUrl === candidate.baseUrl) {
+    return true
+  }
+
+  if (candidate.provider && existing.provider === candidate.provider) {
+    return (
+      (candidate.providerUrl !== undefined && existing.providerUrl === candidate.providerUrl) ||
+      existing.name === candidate.name
+    )
+  }
+
+  if (candidate.installSource === 'builtin') {
+    return existing.name === candidate.name
+  }
+
+  return false
+}
 
 /**
  * Whitelist of trusted MCP server URLs that auto-approve without user confirmation
@@ -42,7 +89,7 @@ export const getCommandPreview = (server: MCPServer): string => {
 export async function ensureServerTrusted(
   currentServer: MCPServer,
   requestConfirm: (server: MCPServer) => Promise<boolean>,
-  updateServer: (body: Partial<MCPServer>) => void
+  updateServer: (body: UpdateMCPServerDto) => void
 ): Promise<MCPServer | null> {
   const isProtocolInstall = currentServer.installSource === 'protocol'
 
