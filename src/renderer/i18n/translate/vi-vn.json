@@ -1778,6 +1778,7 @@
     "on": "On",
     "open": "Abierto",
     "open_in": "Mở trong {{name}}",
+    "parameter": "Tham số",
     "paste": "Pasta",
     "placeholders": {
       "select": {
@@ -3764,40 +3765,51 @@
       },
       "new": {
         "image": "Hình ảnh mới"
+      },
+      "select": {
+        "image": "[to be translated]:Select Image"
       }
     },
     "custom_size": "Kích thước tùy chỉnh",
+    "dashscope": {
+      "bottom_scale": "[to be translated]:Expand Bottom",
+      "enable_interleave": "[to be translated]:Text+Image Mixed Mode",
+      "enable_interleave_tip": "[to be translated]:When on, generates text-and-image mixed output without requiring an input image. Turn off to use edit mode (requires 1–4 input images).",
+      "function": "[to be translated]:Edit Function",
+      "function_options": {
+        "colorization": "[to be translated]:Colorization",
+        "control_cartoon_feature": "[to be translated]:Cartoon Reference",
+        "description_edit": "[to be translated]:Instruction Edit",
+        "description_edit_with_mask": "[to be translated]:Masked Edit",
+        "doodle": "[to be translated]:Doodle to Image",
+        "expand": "[to be translated]:Expand",
+        "remove_watermark": "[to be translated]:Remove Watermark",
+        "stylization_all": "[to be translated]:Global Stylization",
+        "stylization_local": "[to be translated]:Local Stylization",
+        "super_resolution": "[to be translated]:Super Resolution"
+      },
+      "is_sketch": "[to be translated]:Sketch Input",
+      "left_scale": "[to be translated]:Expand Left",
+      "ref_mode": "[to be translated]:Reference Mode",
+      "ref_mode_options": {
+        "refonly": "[to be translated]:Reference only",
+        "repaint": "[to be translated]:Repaint"
+      },
+      "ref_strength": "[to be translated]:Reference Strength",
+      "right_scale": "[to be translated]:Expand Right",
+      "source_lang": "[to be translated]:Source Language",
+      "strength": "[to be translated]:Strength",
+      "target_lang": "[to be translated]:Target Language",
+      "top_scale": "[to be translated]:Expand Top",
+      "upscale_factor": "[to be translated]:Upscale Factor"
+    },
     "dmxapi": {
       "generating_tip": "Đang tạo với mô hình chính thức, thời gian chờ ước tính là 2-5 phút để có kết quả tốt nhất. Vui lòng kiểm tra nhật ký backend DMXAPI để biết chi phí của thao tác này.",
-      "style": ", Kiểu:",
-      "style_types": {
-        "25d_animation": "Hoạt hình 2.5D",
-        "3d_cartoon": "Hoạt hình 3D",
-        "american_retro": "Retro Mỹ",
-        "baroque": "Baroque",
-        "cartoon_illustration": "Minh họa Hoạt hình",
-        "chinese_gongbi": "Công bút Trung Quốc",
-        "clay": "Đất sét",
-        "cyberpunk": "Cyberpunk",
-        "felt": "Nỉ",
-        "flat": "Phẳng",
-        "fresh_anime": "Anime Tươi",
-        "ghibli": "Ghibli",
-        "japanese_anime": "Phim hoạt hình Nhật Bản",
-        "little_people_book": "Sách Người Nhỏ",
-        "monet_garden": "Vườn Monet",
-        "oil_painting": "Tranh sơn dầu",
-        "pixar": "Pixar",
-        "pixel_art": "Nghệ thuật điểm ảnh",
-        "poetic_ancient": "Thơ Cổ",
-        "psychedelic": "Tiếm thần",
-        "sketch": "Phác thảo",
-        "street_art": "Nghệ thuật đường phố",
-        "texture": "Kết cấu",
-        "ukiyo_e": "Ukiyo-e",
-        "watercolor": "Màu nước",
-        "wood_carving": "Chạm gỗ",
-        "yarn_doll": "Búp bê len"
+      "max_images": "[to be translated]:Max Images",
+      "sequential_image_generation": "[to be translated]:Sequential Image Generation",
+      "sequential_image_generation_options": {
+        "auto": "[to be translated]:Auto",
+        "disabled": "[to be translated]:Disabled"
       }
     },
     "edit": {
@@ -3806,21 +3818,11 @@
     },
     "generate": {
       "height": "Chiều cao",
-      "magic_prompt_option_tip": "Tăng cường thông minh các lời nhắc để có kết quả tốt hơn",
-      "model_tip": "Phiên bản mô hình: V3 là phiên bản mới nhất, V2 là mô hình trước đó, V2A là mô hình nhanh, V_1 là mô hình thế hệ đầu tiên, _TURBO là phiên bản tăng tốc",
-      "negative_prompt_tip": "Mô tả các yếu tố không mong muốn, chỉ dành cho V_1, V_1_TURBO, V_2 và V_2_TURBO",
-      "number_images_tip": "Số lượng hình ảnh cần tạo",
-      "person_generation": "Tạo người",
-      "person_generation_tip": "Cho phép mô hình tạo ra hình ảnh người",
-      "rendering_speed_tip": "Điều khiển sự đánh đổi giữa tốc độ kết xuất và chất lượng, chỉ khả dụng cho V_3",
-      "safety_tolerance": "Dung sai an toàn",
-      "safety_tolerance_tip": "Kiểm soát dung sai an toàn cho việc tạo hình ảnh, chỉ khả dụng cho FLUX.1-Kontext-pro",
-      "seed_tip": "Kiểm soát độ ngẫu nhiên trong việc tạo ảnh để đạt được kết quả có thể lặp lại",
-      "style_type_tip": "Phong cách tạo ảnh cho V_2 trở lên",
       "width": "Chiều rộng"
     },
     "generate_failed": "Không thể tạo hình ảnh",
     "generated_image": "Hình ảnh được tạo",
+    "generating": "Đang tạo...",
     "go_to_settings": "Đi tới Cài đặt",
     "guidance_scale": "Thang đo hướng dẫn",
     "guidance_scale_tip": "Hướng dẫn Không Phân loại. Mức độ bạn muốn mô hình tuân thủ sát prompt của bạn khi tìm kiếm một hình ảnh liên quan để hiển thị cho bạn",
@@ -3836,6 +3838,7 @@
     "image_size_options": {
       "auto": "Tự động"
     },
+    "image_weight": "[to be translated]:Image Weight",
     "inference_steps": "Bước Suy Luận",
     "inference_steps_tip": "Số bước suy luận cần thực hiện. Nhiều bước hơn sẽ tạo ra chất lượng cao hơn nhưng mất nhiều thời gian hơn",
     "input_image": "Ảnh đầu vào",
@@ -3864,13 +3867,16 @@
     "number_images_tip": "Số lượng hình ảnh cần tạo (1-4)",
     "operation_failed": "Thao tác thất bại, vui lòng thử lại sau",
     "paint_course": "hướng dẫn",
+    "parameters": "Tham số",
     "per_image": "mỗi hình ảnh",
     "per_images": "per immagini",
+    "person_generation": "[to be translated]:Generate people",
     "person_generation_options": {
       "allow_adult": "Cho phép người lớn",
       "allow_all": "Cho phép tất cả",
       "allow_none": "Không được phép"
     },
+    "person_generation_tip": "[to be translated]:Allow the model to generate images of people",
     "ppio": {
       "edit_prompt_tip": "Dùng để chỉ đối tượng hoặc khu vực cần xóa khỏi hình ảnh, ví dụ: 'chó' hoặc 'mũ'",
       "mask_image": "Ảnh mặt nạ",
@@ -3887,28 +3893,19 @@
     "prompt_placeholder": "Mô tả hình ảnh bạn muốn tạo, ví dụ: Một hồ yên tĩnh lúc hoàng hôn với dãy núi phía xa",
     "prompt_placeholder_edit": "Nhập mô tả hình ảnh của bạn, vẽ văn bản dùng \"dấu ngoặc kép\" để bao quanh",
     "prompt_placeholder_en": "Nhập mô tả hình ảnh của bạn, hiện tại chỉ hỗ trợ lời nhắc bằng tiếng Anh",
+    "prompt_required": "[to be translated]:Please enter a prompt",
     "proxy_required": "Mở proxy và bật \"chế độ TUN\" để xem ảnh đã tạo hoặc sao chép chúng sang trình duyệt để mở. Trong tương lai, sẽ hỗ trợ kết nối trực tiếp trong nước.",
     "quality": "Chất lượng",
     "quality_options": {
       "auto": "Tự động",
+      "hd": "[to be translated]:HD",
       "high": "Cao",
       "low": "Thấp",
-      "medium": "Trung bình"
+      "medium": "Trung bình",
+      "standard": "[to be translated]:Standard"
     },
     "regenerate": {
       "confirm": "Thao tác này sẽ thay thế các hình ảnh đã tạo hiện có của bạn. Bạn có muốn tiếp tục không?"
-    },
-    "remix": {
-      "image_file": "Hình ảnh tham chiếu",
-      "image_weight": "Trọng số ảnh tham chiếu",
-      "image_weight_tip": "Điều chỉnh ảnh hưởng của hình ảnh tham chiếu",
-      "magic_prompt_option_tip": "Tăng cường thông minh các lời nhắc remix",
-      "model_tip": "Chọn phiên bản mô hình AI để phối lại",
-      "negative_prompt_tip": "Mô tả các yếu tố không mong muốn trong kết quả phối lại",
-      "number_images_tip": "Số lượng kết quả phối lại cần tạo",
-      "rendering_speed_tip": "Kiểm soát sự đánh đổi giữa tốc độ kết xuất và chất lượng, chỉ khả dụng cho V_3",
-      "seed_tip": "Kiểm soát độ ngẫu nhiên của kết quả trộn",
-      "style_type_tip": "Phong cách cho hình ảnh được pha trộn, chỉ dành cho V_2 trở lên"
     },
     "rendering_speed": "Tốc độ kết xuất",
     "rendering_speeds": {
@@ -3921,21 +3918,40 @@
     "req_error_text": "Máy chủ đang bận hoặc lời nhắc chứa các từ \"bản quyền\" hoặc \"nhạy cảm\". Vui lòng thử lại.",
     "req_error_token": "Vui lòng kiểm tra tính hợp lệ của mã thông báo",
     "required_field": "Trường bắt buộc",
+    "safety_tolerance": "[to be translated]:Safety Tolerance",
+    "safety_tolerance_tip": "[to be translated]:Higher = more permissive filter; 0 is strictest, 6 is most permissive",
     "seed": "Hạt giống",
     "seed_desc_tip": "Cùng một seed và prompt có thể tạo ra những hình ảnh tương tự, đặt -1 sẽ tạo ra kết quả khác nhau mỗi lần",
     "seed_random": "Ngẫu nhiên",
     "seed_tip": "Cùng một hạt giống và lời nhắc có thể tạo ra những hình ảnh tương tự",
     "select_model": "Chọn Mô hình",
-    "style_type": "Phong cách",
-    "style_types": {
-      "3d": "3D",
-      "anime": "Anime",
-      "auto": "Tự động",
-      "design": "Thiết kế",
-      "general": "Tổng quát",
-      "realistic": "Chân thực"
+    "style_options": {
+      "anime": "[to be translated]:Anime",
+      "auto": "[to be translated]:Auto",
+      "cartoon_3d": "[to be translated]:3D Cartoon",
+      "chinese_painting": "[to be translated]:Chinese Painting",
+      "flat_illustration": "[to be translated]:Flat Illustration",
+      "natural": "[to be translated]:Natural",
+      "oil_painting": "[to be translated]:Oil Painting",
+      "photography": "[to be translated]:Photography",
+      "portrait": "[to be translated]:Portrait",
+      "sketch": "[to be translated]:Sketch",
+      "vivid": "[to be translated]:Vivid",
+      "watercolor": "[to be translated]:Watercolor"
     },
+    "style_type": "[to be translated]:Style",
+    "style_type_options": {
+      "anime": "[to be translated]:Anime",
+      "auto": "[to be translated]:Auto",
+      "design": "[to be translated]:Design",
+      "general": "[to be translated]:General",
+      "realistic": "[to be translated]:Realistic",
+      "render_3d": "[to be translated]:3D Render"
+    },
+    "style_type_tip": "[to be translated]:Image generation style",
     "text_desc_required": "Vui lòng nhập mô tả hình ảnh trước",
+    "thinking_mode": "[to be translated]:Thinking Mode",
+    "thinking_mode_tip": "[to be translated]:When on, generation quality is higher but adds about 10–30 seconds.",
     "title": "Hình ảnh",
     "top_up": "Nạp tiền",
     "translating": "Đang dịch...",
@@ -4738,6 +4754,7 @@
         },
         "description": "[to be translated]:Run every configured file processor through the real file processing IPC and compare results.",
         "duration": "[to be translated]:{{seconds}}s",
+        "jobId": "[to be translated]:Job ID",
         "markdown": {
           "description": "[to be translated]:Select a document and run all document-to-markdown processors.",
           "fileFilterName": "[to be translated]:Documents",
@@ -4759,13 +4776,14 @@
         "status": {
           "cancelled": "[to be translated]:Cancelled",
           "completed": "[to be translated]:Completed",
+          "delayed": "[to be translated]:Delayed",
           "failed": "[to be translated]:Failed",
           "idle": "[to be translated]:Idle",
           "pending": "[to be translated]:Pending",
           "processing": "[to be translated]:Processing",
+          "running": "[to be translated]:Running",
           "starting": "[to be translated]:Starting"
         },
-        "taskId": "[to be translated]:Task ID",
         "title": "[to be translated]:Document Parsing"
       },
       "label": "Phòng thí nghiệm linh kiện",

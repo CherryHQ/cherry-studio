@@ -3764,40 +3764,51 @@
       },
       "new": {
         "image": "New Image"
+      },
+      "select": {
+        "image": "Select Image"
       }
     },
     "custom_size": "Custom Size",
+    "dashscope": {
+      "bottom_scale": "Expand Bottom",
+      "enable_interleave": "Text+Image Mixed Mode",
+      "enable_interleave_tip": "When on, generates text-and-image mixed output without requiring an input image. Turn off to use edit mode (requires 1–4 input images).",
+      "function": "Edit Function",
+      "function_options": {
+        "colorization": "Colorization",
+        "control_cartoon_feature": "Cartoon Reference",
+        "description_edit": "Instruction Edit",
+        "description_edit_with_mask": "Masked Edit",
+        "doodle": "Doodle to Image",
+        "expand": "Expand",
+        "remove_watermark": "Remove Watermark",
+        "stylization_all": "Global Stylization",
+        "stylization_local": "Local Stylization",
+        "super_resolution": "Super Resolution"
+      },
+      "is_sketch": "Sketch Input",
+      "left_scale": "Expand Left",
+      "ref_mode": "Reference Mode",
+      "ref_mode_options": {
+        "refonly": "Reference only",
+        "repaint": "Repaint"
+      },
+      "ref_strength": "Reference Strength",
+      "right_scale": "Expand Right",
+      "source_lang": "Source Language",
+      "strength": "Strength",
+      "target_lang": "Target Language",
+      "top_scale": "Expand Top",
+      "upscale_factor": "Upscale Factor"
+    },
     "dmxapi": {
       "generating_tip": "Generating with the official model, estimated wait time is 2-5 minutes for best results. Please check DMXAPI backend logs for the cost of this operation.",
-      "style": ", Style: ",
-      "style_types": {
-        "25d_animation": "2.5D Animation",
-        "3d_cartoon": "3D Cartoon",
-        "american_retro": "American Retro",
-        "baroque": "Baroque",
-        "cartoon_illustration": "Cartoon Illustration",
-        "chinese_gongbi": "Chinese Gongbi",
-        "clay": "Clay",
-        "cyberpunk": "Cyberpunk",
-        "felt": "Felt",
-        "flat": "Flat",
-        "fresh_anime": "Fresh Anime",
-        "ghibli": "Ghibli",
-        "japanese_anime": "Japanese Anime",
-        "little_people_book": "Little People Book",
-        "monet_garden": "Monet Garden",
-        "oil_painting": "Oil Painting",
-        "pixar": "Pixar",
-        "pixel_art": "Pixel Art",
-        "poetic_ancient": "Poetic Ancient",
-        "psychedelic": "Psychedelic",
-        "sketch": "Sketch",
-        "street_art": "Street Art",
-        "texture": "Texture",
-        "ukiyo_e": "Ukiyo-e",
-        "watercolor": "Watercolor",
-        "wood_carving": "Wood Carving",
-        "yarn_doll": "Yarn Doll"
+      "max_images": "Max Images",
+      "sequential_image_generation": "Sequential Image Generation",
+      "sequential_image_generation_options": {
+        "auto": "Auto",
+        "disabled": "Disabled"
       }
     },
     "edit": {
@@ -3806,24 +3817,14 @@
     },
     "generate": {
       "height": "Height",
-      "magic_prompt_option_tip": "Intelligently enhances prompts for better results",
-      "model_tip": "Model version: V3 is the latest version, V2 is the previous model, V2A is the fast model, V_1 is the first-generation model, _TURBO is the acceleration version",
-      "negative_prompt_tip": "Describe unwanted elements, only for V_1, V_1_TURBO, V_2, and V_2_TURBO",
-      "number_images_tip": "Number of images to generate",
-      "person_generation": "Generate person",
-      "person_generation_tip": "Allow model to generate person images",
-      "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3",
-      "safety_tolerance": "Safety Tolerance",
-      "safety_tolerance_tip": "Controls safety tolerance for image generation, only available for FLUX.1-Kontext-pro",
-      "seed_tip": "Controls image generation randomness for reproducible results",
-      "style_type_tip": "Image generation style for V_2 and above",
       "width": "Width"
     },
     "generate_failed": "Failed to generate image",
     "generated_image": "Generated Image",
+    "generating": "Generating...",
     "go_to_settings": "Go to Settings",
     "guidance_scale": "Guidance Scale",
-    "guidance_scale_tip": "Classifier Free Guidance. How close you want the model to stick to your prompt when looking for a related image to show you",
+    "guidance_scale_tip": "Classifier Free Guidance ({{min}}-{{max}}). How close you want the model to stick to your prompt when looking for a related image to show you",
     "image": {
       "size": "Image Size"
     },
@@ -3836,8 +3837,9 @@
     "image_size_options": {
       "auto": "Auto"
     },
+    "image_weight": "Image Weight",
     "inference_steps": "Inference Steps",
-    "inference_steps_tip": "The number of inference steps to perform. More steps produce higher quality but take longer",
+    "inference_steps_tip": "The number of inference steps to perform ({{min}}-{{max}}). More steps produce higher quality but take longer",
     "input_image": "Input Image",
     "input_parameters": "Input Parameters",
     "invalid_image_url": "Invalid image URL format",
@@ -3861,16 +3863,18 @@
     "negative_prompt_tip": "Describe what you don't want included in the image",
     "no_image_generation_model": "No available image generation model, please add a model and set the endpoint type to {{endpoint_type}}",
     "number_images": "Number Images",
-    "number_images_tip": "Number of images to generate (1-4)",
+    "number_images_tip": "Number of images to generate ({{min}}-{{max}})",
     "operation_failed": "Operation failed, please try again later",
     "paint_course": "tutorial",
     "per_image": "per image",
     "per_images": "per images",
+    "person_generation": "Generate people",
     "person_generation_options": {
       "allow_adult": "Allow adult",
       "allow_all": "Allow all",
       "allow_none": "Not allowed"
     },
+    "person_generation_tip": "Allow the model to generate images of people",
     "ppio": {
       "edit_prompt_tip": "Used to specify the object or area to remove from the image, e.g., 'dog' or 'hat'",
       "mask_image": "Mask Image",
@@ -3887,28 +3891,19 @@
     "prompt_placeholder": "Describe the image you want to create, e.g. A serene lake at sunset with mountains in the background",
     "prompt_placeholder_edit": "Enter your image description, text drawing uses \"double quotes\" to wrap",
     "prompt_placeholder_en": "Enter your image description, currently only supports English prompts",
+    "prompt_required": "Please enter a prompt",
     "proxy_required": "Open the proxy and enable \"TUN mode\" to view generated images or copy them to the browser for opening. In the future, domestic direct connection will be supported",
     "quality": "Quality",
     "quality_options": {
       "auto": "Auto",
+      "hd": "HD",
       "high": "High",
       "low": "Low",
-      "medium": "Medium"
+      "medium": "Medium",
+      "standard": "Standard"
     },
     "regenerate": {
       "confirm": "This will replace your existing generated images. Do you want to continue?"
-    },
-    "remix": {
-      "image_file": "Reference Image",
-      "image_weight": "Reference Image Weight",
-      "image_weight_tip": "Adjust reference image influence",
-      "magic_prompt_option_tip": "Intelligently enhances remix prompts",
-      "model_tip": "Select AI model version for remixing",
-      "negative_prompt_tip": "Describe unwanted elements in remix results",
-      "number_images_tip": "Number of remix results to generate",
-      "rendering_speed_tip": "Controls rendering speed vs. quality trade-off, only available for V_3",
-      "seed_tip": "Control the randomness of the mixed result",
-      "style_type_tip": "Style for remixed image, only for V_2 and above"
     },
     "rendering_speed": "Rendering Speed",
     "rendering_speeds": {
@@ -3921,21 +3916,40 @@
     "req_error_text": "The server is busy or the prompt contains \"copyrighted\" or \"sensitive\" terms. Please try again.",
     "req_error_token": "Please check the validity of the token",
     "required_field": "Required field",
+    "safety_tolerance": "Safety Tolerance",
+    "safety_tolerance_tip": "Higher = more permissive filter; 0 is strictest, 6 is most permissive",
     "seed": "Seed",
     "seed_desc_tip": "The same seed and prompt can generate similar images, setting -1 will generate different results each time",
     "seed_random": "Random",
     "seed_tip": "The same seed and prompt can produce similar images",
     "select_model": "Select Model",
+    "style_options": {
+      "anime": "Anime",
+      "auto": "Auto",
+      "cartoon_3d": "3D Cartoon",
+      "chinese_painting": "Chinese Painting",
+      "flat_illustration": "Flat Illustration",
+      "natural": "Natural",
+      "oil_painting": "Oil Painting",
+      "photography": "Photography",
+      "portrait": "Portrait",
+      "sketch": "Sketch",
+      "vivid": "Vivid",
+      "watercolor": "Watercolor"
+    },
     "style_type": "Style",
-    "style_types": {
-      "3d": "3D",
+    "style_type_options": {
       "anime": "Anime",
       "auto": "Auto",
       "design": "Design",
       "general": "General",
-      "realistic": "Realistic"
+      "realistic": "Realistic",
+      "render_3d": "3D Render"
     },
+    "style_type_tip": "Image generation style",
     "text_desc_required": "Please enter image description first",
+    "thinking_mode": "Thinking Mode",
+    "thinking_mode_tip": "When on, generation quality is higher but adds about 10–30 seconds.",
     "title": "Images",
     "top_up": "Top up ",
     "translating": "Translating...",

@@ -1778,6 +1778,7 @@
     "on": "En",
     "open": "Abrir",
     "open_in": "Abrir en {{name}}",
+    "parameter": "Parámetro",
     "paste": "Pegar",
     "placeholders": {
       "select": {
@@ -3764,40 +3765,51 @@
       },
       "new": {
         "image": "Nueva imagen"
+      },
+      "select": {
+        "image": "[to be translated]:Select Image"
       }
     },
     "custom_size": "Tamaño personalizado",
+    "dashscope": {
+      "bottom_scale": "[to be translated]:Expand Bottom",
+      "enable_interleave": "[to be translated]:Text+Image Mixed Mode",
+      "enable_interleave_tip": "[to be translated]:When on, generates text-and-image mixed output without requiring an input image. Turn off to use edit mode (requires 1–4 input images).",
+      "function": "[to be translated]:Edit Function",
+      "function_options": {
+        "colorization": "[to be translated]:Colorization",
+        "control_cartoon_feature": "[to be translated]:Cartoon Reference",
+        "description_edit": "[to be translated]:Instruction Edit",
+        "description_edit_with_mask": "[to be translated]:Masked Edit",
+        "doodle": "[to be translated]:Doodle to Image",
+        "expand": "[to be translated]:Expand",
+        "remove_watermark": "[to be translated]:Remove Watermark",
+        "stylization_all": "[to be translated]:Global Stylization",
+        "stylization_local": "[to be translated]:Local Stylization",
+        "super_resolution": "[to be translated]:Super Resolution"
+      },
+      "is_sketch": "[to be translated]:Sketch Input",
+      "left_scale": "[to be translated]:Expand Left",
+      "ref_mode": "[to be translated]:Reference Mode",
+      "ref_mode_options": {
+        "refonly": "[to be translated]:Reference only",
+        "repaint": "[to be translated]:Repaint"
+      },
+      "ref_strength": "[to be translated]:Reference Strength",
+      "right_scale": "[to be translated]:Expand Right",
+      "source_lang": "[to be translated]:Source Language",
+      "strength": "[to be translated]:Strength",
+      "target_lang": "[to be translated]:Target Language",
+      "top_scale": "[to be translated]:Expand Top",
+      "upscale_factor": "[to be translated]:Upscale Factor"
+    },
     "dmxapi": {
       "generating_tip": "Generando con el modelo oficial, el tiempo de espera estimado es de 2-5 minutos para obtener los mejores resultados. Por favor, verifica los registros del backend de DMXAPI para conocer el costo de esta operación.",
-      "style": ", Estilo:",
-      "style_types": {
-        "25d_animation": "Animación 2.5D",
-        "3d_cartoon": "Caricatura 3D",
-        "american_retro": "Retro Americano",
-        "baroque": "Barroco",
-        "cartoon_illustration": "Ilustración de caricatura",
-        "chinese_gongbi": "Gongbi chino",
-        "clay": "Arcilla",
-        "cyberpunk": "Ciberpunk",
-        "felt": "Fieltro",
-        "flat": "Plano",
-        "fresh_anime": "Anime Fresco",
-        "ghibli": "Ghibli",
-        "japanese_anime": "Anime japonés",
-        "little_people_book": "Libro de Little People",
-        "monet_garden": "Jardín Monet",
-        "oil_painting": "Pintura al óleo",
-        "pixar": "Pixar",
-        "pixel_art": "Arte de píxeles",
-        "poetic_ancient": "Poético Antiguo",
-        "psychedelic": "Psicodélico",
-        "sketch": "Boceto",
-        "street_art": "Arte urbano",
-        "texture": "Textura",
-        "ukiyo_e": "Ukiyo-e",
-        "watercolor": "Acuarela",
-        "wood_carving": "Talla en madera",
-        "yarn_doll": "Muñeca de hilo"
+      "max_images": "[to be translated]:Max Images",
+      "sequential_image_generation": "[to be translated]:Sequential Image Generation",
+      "sequential_image_generation_options": {
+        "auto": "[to be translated]:Auto",
+        "disabled": "[to be translated]:Disabled"
       }
     },
     "edit": {
@@ -3806,21 +3818,11 @@
     },
     "generate": {
       "height": "Altura",
-      "magic_prompt_option_tip": "Optimización inteligente de indicaciones para mejorar los resultados de generación",
-      "model_tip": "Versión del modelo: V2 es el modelo más reciente de la interfaz, V2A es un modelo rápido, V_1 es el modelo inicial y _TURBO es la versión acelerada",
-      "negative_prompt_tip": "Describe elementos que no deseas en la imagen. Solo compatible con las versiones V_1, V_1_TURBO, V_2 y V_2_TURBO",
-      "number_images_tip": "Número de imágenes generadas a la vez",
-      "person_generation": "Generar Persona",
-      "person_generation_tip": "Permite que el modelo genere imágenes de personas",
-      "rendering_speed_tip": "Controla el equilibrio entre velocidad y calidad de renderizado, solo aplicable a la versión V_3",
-      "safety_tolerance": "Tolerancia de seguridad",
-      "safety_tolerance_tip": "Controla la tolerancia de seguridad en la generación de imágenes, solo aplicable a la versión FLUX.1-Kontext-pro",
-      "seed_tip": "Controla la aleatoriedad en la generación de imágenes, útil para reproducir resultados idénticos",
-      "style_type_tip": "Estilo de generación de imágenes, solo aplicable para la versión V_2 y posteriores",
       "width": "Ancho"
     },
     "generate_failed": "Error al generar la imagen",
     "generated_image": "Generar imagen",
+    "generating": "Generando...",
     "go_to_settings": "Ir a configuración",
     "guidance_scale": "Escala de guía",
     "guidance_scale_tip": "Sin clasificador de guía. Controla la medida en que el modelo sigue la sugerencia al buscar imágenes relacionadas",
@@ -3836,6 +3838,7 @@
     "image_size_options": {
       "auto": "Automático"
     },
+    "image_weight": "[to be translated]:Image Weight",
     "inference_steps": "Paso de inferencia",
     "inference_steps_tip": "Número de pasos de inferencia a realizar. Cuantos más pasos, mejor la calidad pero más tiempo tarda",
     "input_image": "Imagen de entrada",
@@ -3864,13 +3867,16 @@
     "number_images_tip": "Número de imágenes generadas por vez (1-4)",
     "operation_failed": "Operación fallida, por favor inténtelo de nuevo más tarde",
     "paint_course": "Tutorial",
+    "parameters": "Parámetros",
     "per_image": "Por imagen",
     "per_images": "Por imagen",
+    "person_generation": "[to be translated]:Generate people",
     "person_generation_options": {
       "allow_adult": "Permitir adultos",
       "allow_all": "Permitir todos",
       "allow_none": "No permitir ninguno"
     },
+    "person_generation_tip": "[to be translated]:Allow the model to generate images of people",
     "ppio": {
       "edit_prompt_tip": "Especifica el objeto o área a eliminar de la imagen, ej: 'perro' o 'sombrero'",
       "mask_image": "Imagen de máscara",
@@ -3887,28 +3893,19 @@
     "prompt_placeholder": "Describe la imagen que deseas crear, por ejemplo: un lago tranquilo, el sol poniente, con montañas lejanas",
     "prompt_placeholder_edit": "Introduce la descripción de tu imagen, utiliza comillas dobles \" \" para texto a dibujar",
     "prompt_placeholder_en": "Introduzca la descripción de la imagen en \"inglés\". Actualmente, Imagen solo admite indicaciones en inglés",
+    "prompt_required": "[to be translated]:Please enter a prompt",
     "proxy_required": "Actualmente es necesario tener un proxy activo para ver las imágenes generadas, en el futuro se soportará conexión directa desde China",
     "quality": "Calidad",
     "quality_options": {
       "auto": "Automático",
+      "hd": "[to be translated]:HD",
       "high": "Alto",
       "low": "Bajo",
-      "medium": "Medio"
+      "medium": "Medio",
+      "standard": "[to be translated]:Standard"
     },
     "regenerate": {
       "confirm": "Esto sobrescribirá las imágenes generadas, ¿desea continuar?"
-    },
-    "remix": {
-      "image_file": "Imagen de referencia",
-      "image_weight": "Peso de la imagen de referencia",
-      "image_weight_tip": "Ajuste el grado de influencia de la imagen de referencia",
-      "magic_prompt_option_tip": "Optimización inteligente de las palabras clave para el remix",
-      "model_tip": "Seleccione la versión del modelo de inteligencia artificial para usar en el remix",
-      "negative_prompt_tip": "Describa los elementos que no desea ver en los resultados del remix",
-      "number_images_tip": "Número de resultados de remix generados",
-      "rendering_speed_tip": "Controla el equilibrio entre velocidad y calidad de renderizado, aplicable solo a la versión V_3",
-      "seed_tip": "Controla la aleatoriedad de los resultados del remix",
-      "style_type_tip": "Estilo de la imagen tras el remix, solo aplicable a partir de la versión V_2"
     },
     "rendering_speed": "Velocidad de renderizado",
     "rendering_speeds": {
@@ -3921,21 +3918,40 @@
     "req_error_text": "El servidor está ocupado o la indicación contiene palabras con derechos de autor o palabras sensibles. Por favor, inténtelo de nuevo.",
     "req_error_token": "Por favor, verifique la validez del token",
     "required_field": "Campo obligatorio",
+    "safety_tolerance": "[to be translated]:Safety Tolerance",
+    "safety_tolerance_tip": "[to be translated]:Higher = more permissive filter; 0 is strictest, 6 is most permissive",
     "seed": "Semilla aleatoria",
     "seed_desc_tip": "Las mismas semilla y descripción generan imágenes similares. Establezca -1 para que cada generación sea diferente",
     "seed_random": "Aleatorio",
     "seed_tip": "La misma semilla y la misma sugerencia generarán imágenes similares",
     "select_model": "Seleccionar modelo",
-    "style_type": "Estilo",
-    "style_types": {
-      "3d": "3D",
-      "anime": "Anime",
-      "auto": "Automático",
-      "design": "Diseño",
-      "general": "General",
-      "realistic": "Realista"
+    "style_options": {
+      "anime": "[to be translated]:Anime",
+      "auto": "[to be translated]:Auto",
+      "cartoon_3d": "[to be translated]:3D Cartoon",
+      "chinese_painting": "[to be translated]:Chinese Painting",
+      "flat_illustration": "[to be translated]:Flat Illustration",
+      "natural": "[to be translated]:Natural",
+      "oil_painting": "[to be translated]:Oil Painting",
+      "photography": "[to be translated]:Photography",
+      "portrait": "[to be translated]:Portrait",
+      "sketch": "[to be translated]:Sketch",
+      "vivid": "[to be translated]:Vivid",
+      "watercolor": "[to be translated]:Watercolor"
     },
+    "style_type": "[to be translated]:Style",
+    "style_type_options": {
+      "anime": "[to be translated]:Anime",
+      "auto": "[to be translated]:Auto",
+      "design": "[to be translated]:Design",
+      "general": "[to be translated]:General",
+      "realistic": "[to be translated]:Realistic",
+      "render_3d": "[to be translated]:3D Render"
+    },
+    "style_type_tip": "[to be translated]:Image generation style",
     "text_desc_required": "Por favor, introduzca primero la descripción de la imagen",
+    "thinking_mode": "[to be translated]:Thinking Mode",
+    "thinking_mode_tip": "[to be translated]:When on, generation quality is higher but adds about 10–30 seconds.",
     "title": "Imagen",
     "top_up": "Recarga",
     "translating": "Traduciendo...",
@@ -4738,6 +4754,7 @@
         },
         "description": "[to be translated]:Run every configured file processor through the real file processing IPC and compare results.",
         "duration": "[to be translated]:{{seconds}}s",
+        "jobId": "[to be translated]:Job ID",
         "markdown": {
           "description": "[to be translated]:Select a document and run all document-to-markdown processors.",
           "fileFilterName": "[to be translated]:Documents",
@@ -4759,13 +4776,14 @@
         "status": {
           "cancelled": "[to be translated]:Cancelled",
           "completed": "[to be translated]:Completed",
+          "delayed": "[to be translated]:Delayed",
           "failed": "[to be translated]:Failed",
           "idle": "[to be translated]:Idle",
           "pending": "[to be translated]:Pending",
           "processing": "[to be translated]:Processing",
+          "running": "[to be translated]:Running",
           "starting": "[to be translated]:Starting"
         },
-        "taskId": "[to be translated]:Task ID",
         "title": "[to be translated]:Document Parsing"
       },
       "label": "Laboratorio de Componentes",

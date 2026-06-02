@@ -11,15 +11,22 @@
  */
 
 import type {
+  CanonicalParamKey,
   Currency,
   EndpointType,
+  ImageGenerationMode,
+  ImageGenerationSupport,
+  ImageModeDef,
   Modality,
   ModelCapability,
-  ReasoningEffort
+  ReasoningEffort,
+  SupportSpec
 } from '@cherrystudio/provider-registry'
 import {
+  CANONICAL_PARAM_KEY,
   CURRENCY,
   ENDPOINT_TYPE,
+  ImageGenerationSupportSchema,
   MODALITY,
   MODEL_CAPABILITY,
   objectValues,
@@ -28,10 +35,21 @@ import {
 import * as z from 'zod'
 
 // Re-export const objects for consumers
-export { CURRENCY, ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY, objectValues, REASONING_EFFORT }
+export { CANONICAL_PARAM_KEY, CURRENCY, ENDPOINT_TYPE, MODALITY, MODEL_CAPABILITY, objectValues, REASONING_EFFORT }
 
 // Re-export types for consumers
-export type { Currency, EndpointType, Modality, ModelCapability, ReasoningEffort }
+export type {
+  CanonicalParamKey,
+  Currency,
+  EndpointType,
+  ImageGenerationMode,
+  ImageGenerationSupport,
+  ImageModeDef,
+  Modality,
+  ModelCapability,
+  ReasoningEffort,
+  SupportSpec
+}
 
 /** Price per token schema */
 export const PricePerTokenSchema = z.object({
@@ -312,6 +330,15 @@ export const ModelSchema = z.object({
   parameterSupport: RuntimeParameterSupportSchema.optional(),
 
   pricing: RuntimeModelPricingSchema.optional(),
+
+  /**
+   * Painting-page metadata (per-mode `supports.*` widget specs).
+   * Sourced from the registry preset at read time — not persisted in
+   * user_model. Lets the painting page render the model's form
+   * (per-vendor sizes, custom-size range) without a side-channel
+   * catalog fetch.
+   */
+  imageGeneration: ImageGenerationSupportSchema.optional(),
 
   // Status
   /** Whether this model is available for use */

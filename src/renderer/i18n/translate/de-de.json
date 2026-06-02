@@ -1778,6 +1778,7 @@
     "on": "An",
     "open": "Öffnen",
     "open_in": "In {{name}} öffnen",
+    "parameter": "Parameter",
     "paste": "Einfügen",
     "placeholders": {
       "select": {
@@ -3764,40 +3765,51 @@
       },
       "new": {
         "image": "Neues Bild"
+      },
+      "select": {
+        "image": "[to be translated]:Select Image"
       }
     },
     "custom_size": "Benutzerdefinierte Größe",
+    "dashscope": {
+      "bottom_scale": "[to be translated]:Expand Bottom",
+      "enable_interleave": "[to be translated]:Text+Image Mixed Mode",
+      "enable_interleave_tip": "[to be translated]:When on, generates text-and-image mixed output without requiring an input image. Turn off to use edit mode (requires 1–4 input images).",
+      "function": "[to be translated]:Edit Function",
+      "function_options": {
+        "colorization": "[to be translated]:Colorization",
+        "control_cartoon_feature": "[to be translated]:Cartoon Reference",
+        "description_edit": "[to be translated]:Instruction Edit",
+        "description_edit_with_mask": "[to be translated]:Masked Edit",
+        "doodle": "[to be translated]:Doodle to Image",
+        "expand": "[to be translated]:Expand",
+        "remove_watermark": "[to be translated]:Remove Watermark",
+        "stylization_all": "[to be translated]:Global Stylization",
+        "stylization_local": "[to be translated]:Local Stylization",
+        "super_resolution": "[to be translated]:Super Resolution"
+      },
+      "is_sketch": "[to be translated]:Sketch Input",
+      "left_scale": "[to be translated]:Expand Left",
+      "ref_mode": "[to be translated]:Reference Mode",
+      "ref_mode_options": {
+        "refonly": "[to be translated]:Reference only",
+        "repaint": "[to be translated]:Repaint"
+      },
+      "ref_strength": "[to be translated]:Reference Strength",
+      "right_scale": "[to be translated]:Expand Right",
+      "source_lang": "[to be translated]:Source Language",
+      "strength": "[to be translated]:Strength",
+      "target_lang": "[to be translated]:Target Language",
+      "top_scale": "[to be translated]:Expand Top",
+      "upscale_factor": "[to be translated]:Upscale Factor"
+    },
     "dmxapi": {
       "generating_tip": "Generierung mit dem offiziellen Modell, geschätzte Wartezeit beträgt 2–5 Minuten für beste Ergebnisse. Bitte überprüfe die DMXAPI-Backend-Logs für die Kosten dieses Vorgangs.",
-      "style": ", Stil:",
-      "style_types": {
-        "25d_animation": "2.5D-Animation",
-        "3d_cartoon": "3D-Cartoon",
-        "american_retro": "Amerikanisches Retro",
-        "baroque": "Barock",
-        "cartoon_illustration": "Cartoon-Illustration",
-        "chinese_gongbi": "Chinesische Gongbi",
-        "clay": "Ton",
-        "cyberpunk": "Cyberpunk",
-        "felt": "Filz",
-        "flat": "Flach",
-        "fresh_anime": "Frisches Anime",
-        "ghibli": "Ghibli",
-        "japanese_anime": "Japanischer Anime",
-        "little_people_book": "Kleine-Leute-Buch",
-        "monet_garden": "Monet-Garten",
-        "oil_painting": "Ölgemälde",
-        "pixar": "Pixar",
-        "pixel_art": "Pixelkunst",
-        "poetic_ancient": "Poetisch Antik",
-        "psychedelic": "Psychedelisch",
-        "sketch": "Skizze",
-        "street_art": "Street Art",
-        "texture": "Textur",
-        "ukiyo_e": "Ukiyo-e",
-        "watercolor": "Aquarell",
-        "wood_carving": "Holzschnitzerei",
-        "yarn_doll": "Garnpuppe"
+      "max_images": "[to be translated]:Max Images",
+      "sequential_image_generation": "[to be translated]:Sequential Image Generation",
+      "sequential_image_generation_options": {
+        "auto": "[to be translated]:Auto",
+        "disabled": "[to be translated]:Disabled"
       }
     },
     "edit": {
@@ -3806,21 +3818,11 @@
     },
     "generate": {
       "height": "Höhe",
-      "magic_prompt_option_tip": "Intelligente Prompt-Optimierung für bessere Generierung",
-      "model_tip": "Modellversion: V3 neueste, V2 vorherige, V2A schnell, V_1 erste Generation, _TURBO beschleunigte Version",
-      "negative_prompt_tip": "Beschreiben Sie Elemente, die nicht im Bild erscheinen sollen, nur für V_1, V_1_TURBO, V_2 und V_2_TURBO",
-      "number_images_tip": "Anzahl der Bilder pro Generierung",
-      "person_generation": "Personen generieren",
-      "person_generation_tip": "Modell erlauben, Personenbilder zu generieren",
-      "rendering_speed_tip": "Balance zwischen Rendering-Geschwindigkeit und Qualität, nur für V_3",
-      "safety_tolerance": "Sicherheitstoleranz",
-      "safety_tolerance_tip": "Sicherheitstoleranz der Bildgenerierung, nur für FLUX.1-Kontext-pro",
-      "seed_tip": "Kontrolle der Zufälligkeit der Bildgenerierung zur Reproduzierung gleicher Ergebnisse",
-      "style_type_tip": "Bildgenerierungsstil, nur für V_2 und höher",
       "width": "Breite"
     },
     "generate_failed": "Fehler beim Generieren des Bildes",
     "generated_image": "Generiertes Bild",
+    "generating": "Wird generiert...",
     "go_to_settings": "Zu Einstellungen",
     "guidance_scale": "Guidance-Skala",
     "guidance_scale_tip": "Classifier-free Guidance. Kontrolliert, wie genau das Modell dem Prompt folgt",
@@ -3836,6 +3838,7 @@
     "image_size_options": {
       "auto": "Automatisch"
     },
+    "image_weight": "[to be translated]:Image Weight",
     "inference_steps": "Inference-Schritte",
     "inference_steps_tip": "Anzahl der auszuführenden Inference-Schritte. Mehr Schritte bedeuten höhere Qualität, aber längere Dauer",
     "input_image": "Eingabebild",
@@ -3864,13 +3867,16 @@
     "number_images_tip": "Anzahl der Bilder pro Generierung (1-4)",
     "operation_failed": "Vorgang fehlgeschlagen, bitte versuchen Sie es später erneut",
     "paint_course": "Tutorial",
+    "parameters": "Parameter",
     "per_image": "Pro Bild",
     "per_images": "Pro Bild",
+    "person_generation": "[to be translated]:Generate people",
     "person_generation_options": {
       "allow_adult": "Erwachsene erlauben",
       "allow_all": "Alle erlauben",
       "allow_none": "Keine erlauben"
     },
+    "person_generation_tip": "[to be translated]:Allow the model to generate images of people",
     "ppio": {
       "edit_prompt_tip": "Gibt das zu entfernende Objekt oder den Bereich an, z.B. 'Hund' oder 'Hut'",
       "mask_image": "Maskenbild",
@@ -3887,28 +3893,19 @@
     "prompt_placeholder": "Beschreiben Sie das gewünschte Bild, z.B.: Ein ruhiger See bei Sonnenuntergang mit Bergen in der Ferne",
     "prompt_placeholder_edit": "Geben Sie Ihre Bildbeschreibung ein. Text zum Rendern in \"Anführungszeichen\" setzen",
     "prompt_placeholder_en": "Geben Sie \"englische\" Bildbeschreibung ein, derzeit nur englische Prompts unterstützt",
+    "prompt_required": "[to be translated]:Please enter a prompt",
     "proxy_required": "Öffnen Sie Proxy und aktivieren Sie \"TUN-Modus\", um generierte Bilder anzuzeigen, oder kopieren Sie in Browser. Direkte Verbindung wird später unterstützt",
     "quality": "Qualität",
     "quality_options": {
       "auto": "Automatisch",
+      "hd": "[to be translated]:HD",
       "high": "Hoch",
       "low": "Niedrig",
-      "medium": "Mittel"
+      "medium": "Mittel",
+      "standard": "[to be translated]:Standard"
     },
     "regenerate": {
       "confirm": "Dies überschreibt das generierte Bild. Fortfahren?"
-    },
-    "remix": {
-      "image_file": "Referenzbild",
-      "image_weight": "Referenzbild-Gewichtung",
-      "image_weight_tip": "Einflussgrad des Referenzbildes anpassen",
-      "magic_prompt_option_tip": "Intelligente Optimierung des Remix-Prompts",
-      "model_tip": "AI-Modellversion für Remix auswählen",
-      "negative_prompt_tip": "Elemente beschreiben, die nicht im Remix-Ergebnis erscheinen sollen",
-      "number_images_tip": "Anzahl der generierten Remix-Ergebnisse",
-      "rendering_speed_tip": "Balance zwischen Rendering-Geschwindigkeit und Qualität, nur für V_3",
-      "seed_tip": "Kontrolle der Zufälligkeit des Remix-Ergebnisses",
-      "style_type_tip": "Stil des geremixt Bildes, nur für V_2 und höher"
     },
     "rendering_speed": "Rendering-Geschwindigkeit",
     "rendering_speeds": {
@@ -3921,21 +3918,40 @@
     "req_error_text": "Server ausgelastet oder Prompt enthält \"urheberrechtlich geschützte\" oder \"sensible Wörter\". Bitte erneut versuchen.",
     "req_error_token": "Bitte Token-Gültigkeit überprüfen",
     "required_field": "Pflichtfeld",
+    "safety_tolerance": "[to be translated]:Safety Tolerance",
+    "safety_tolerance_tip": "[to be translated]:Higher = more permissive filter; 0 is strictest, 6 is most permissive",
     "seed": "Seed",
     "seed_desc_tip": "Gleicher Seed und Prompt können ähnliche Bilder generieren, -1 für unterschiedliche Ergebnisse bei jeder Generierung",
     "seed_random": "Zufällig",
     "seed_tip": "Gleicher Seed und Prompt können ähnliche Bilder generieren",
     "select_model": "Modell auswählen",
-    "style_type": "Stil",
-    "style_types": {
-      "3d": "3D",
-      "anime": "Anime",
-      "auto": "Automatisch",
-      "design": "Design",
-      "general": "Allgemein",
-      "realistic": "Realistisch"
+    "style_options": {
+      "anime": "[to be translated]:Anime",
+      "auto": "[to be translated]:Auto",
+      "cartoon_3d": "[to be translated]:3D Cartoon",
+      "chinese_painting": "[to be translated]:Chinese Painting",
+      "flat_illustration": "[to be translated]:Flat Illustration",
+      "natural": "[to be translated]:Natural",
+      "oil_painting": "[to be translated]:Oil Painting",
+      "photography": "[to be translated]:Photography",
+      "portrait": "[to be translated]:Portrait",
+      "sketch": "[to be translated]:Sketch",
+      "vivid": "[to be translated]:Vivid",
+      "watercolor": "[to be translated]:Watercolor"
     },
+    "style_type": "[to be translated]:Style",
+    "style_type_options": {
+      "anime": "[to be translated]:Anime",
+      "auto": "[to be translated]:Auto",
+      "design": "[to be translated]:Design",
+      "general": "[to be translated]:General",
+      "realistic": "[to be translated]:Realistic",
+      "render_3d": "[to be translated]:3D Render"
+    },
+    "style_type_tip": "[to be translated]:Image generation style",
     "text_desc_required": "Bitte geben Sie zuerst eine Bildbeschreibung ein",
+    "thinking_mode": "[to be translated]:Thinking Mode",
+    "thinking_mode_tip": "[to be translated]:When on, generation quality is higher but adds about 10–30 seconds.",
     "title": "Bilder",
     "top_up": "Aufladen",
     "translating": "Wird übersetzt...",
@@ -4738,6 +4754,7 @@
         },
         "description": "[to be translated]:Run every configured file processor through the real file processing IPC and compare results.",
         "duration": "[to be translated]:{{seconds}}s",
+        "jobId": "[to be translated]:Job ID",
         "markdown": {
           "description": "[to be translated]:Select a document and run all document-to-markdown processors.",
           "fileFilterName": "[to be translated]:Documents",
@@ -4759,13 +4776,14 @@
         "status": {
           "cancelled": "[to be translated]:Cancelled",
           "completed": "[to be translated]:Completed",
+          "delayed": "[to be translated]:Delayed",
           "failed": "[to be translated]:Failed",
           "idle": "[to be translated]:Idle",
           "pending": "[to be translated]:Pending",
           "processing": "[to be translated]:Processing",
+          "running": "[to be translated]:Running",
           "starting": "[to be translated]:Starting"
         },
-        "taskId": "[to be translated]:Task ID",
         "title": "[to be translated]:Document Parsing"
       },
       "label": "Komponentenlabor",

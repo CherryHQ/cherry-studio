@@ -1,0 +1,21 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`ModelScope request boundary > edit: inlines the input file as image_url data URL 1`] = `
+{
+  "image_url": "data:image/png;base64,AQID",
+  "model": "Qwen/Qwen-Image-Edit",
+  "prompt": "make it night",
+}
+`;
+
+exports[`ModelScope request boundary > text2image: steps/guidance/negative_prompt/seed 1`] = `
+{
+  "guidance": 4,
+  "model": "MusePublic/489_ckpt_FLUX_1",
+  "negative_prompt": "blur",
+  "prompt": "a fox",
+  "seed": 7,
+  "size": "1024x1024",
+  "steps": 30,
+}
+`;

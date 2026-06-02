@@ -71,8 +71,11 @@ import { getProviderById } from '@renderer/services/ProviderService'
 import type { AwsBedrockAuthType, Model, Provider } from '@renderer/types'
 
 import { COPILOT_DEFAULT_HEADERS } from '../constants'
-import type { AihubmixProviderSettings } from '../custom/aihubmixProvider'
+import type { AihubmixProviderSettings } from '../custom/aihubmix/aihubmixProvider'
+import type { DmxapiProviderSettings } from '../custom/dmxapi/dmxapiProvider'
 import type { NewApiProviderSettings } from '../custom/newapiProvider'
+import type { OvmsProviderSettings } from '../custom/ovms/ovmsProvider'
+import type { PpioProviderSettings } from '../custom/ppio/ppioProvider'
 import { adaptProvider, formatProviderApiHost, getActualProvider, providerToAiSdkConfig } from '../providerConfig'
 
 const { __mockGetState: mockGetState } = vi.mocked(await import('@renderer/store')) as unknown as {
@@ -854,7 +857,76 @@ describe('providerToAiSdkConfig', () => {
     })
   })
 
+  // The vendor providers (PPIO / DMXAPI / OVMS) serve chat and image off ONE
+  // ProviderV3 each. `baseURL` carries the user-configured chat host so
+  // OpenAICompatibleChatLanguageModel reaches the right endpoint;
+  // `imageBaseURL` carries the painting transport host (legacy pinned for
+  // PPIO, user-overridable with default fallback for DMXAPI/OVMS) so the
+  // polling image transport stays byte-identical to the bespoke service.
+  // See `providerConfig.ts:buildPpioConfig` etc.
+
+  describe('PPIO builder', () => {
+    it('passes chat apiHost as baseURL and pins imageBaseURL to the image default', async () => {
+      const provider = makeProvider({
+        id: 'ppio',
+        type: 'openai',
+        apiHost: 'https://api.ppinfra.com/v3/openai/'
+      })
+      const config = await providerToAiSdkConfig(provider, makeModel('z-image-turbo', provider.id))
+      expect(config.providerId).toBe('ppio')
+      const settings = config.providerSettings as PpioProviderSettings
+      expect(settings.baseURL).toContain('api.ppinfra.com')
+      expect(settings.imageBaseURL).toBe('https://api.ppio.com')
+    })
+  })
+
+  describe('DMXAPI builder', () => {
+    it('forwards the user apiHost as `baseURL` (factory derives the native-API origin internally)', async () => {
+      const provider = makeProvider({
+        id: 'dmxapi',
+        type: 'openai',
+        apiHost: 'https://www.dmxapi.cn'
+      })
+      const config = await providerToAiSdkConfig(provider, makeModel('gpt-image-1', provider.id))
+      expect(config.providerId).toBe('dmxapi')
+      const settings = config.providerSettings as DmxapiProviderSettings
+      expect(settings.baseURL).toContain('www.dmxapi.cn')
+    })
+  })
+
+  describe('OVMS builder', () => {
+    it('mirrors user apiHost to both baseURL and imageBaseURL', async () => {
+      const provider = makeProvider({
+        id: 'ovms',
+        type: 'openai',
+        apiHost: 'http://localhost:8000/v3/'
+      })
+      const config = await providerToAiSdkConfig(provider, makeModel('llama', provider.id))
+      expect(config.providerId).toBe('ovms')
+      const settings = config.providerSettings as OvmsProviderSettings
+      expect(settings.baseURL).toContain('localhost:8000')
+      expect(settings.imageBaseURL).toContain('localhost:8000')
+    })
+  })
+
   describe('OpenAI-compatible fallback', () => {
+    it('routes SiliconFlow to its custom provider config', async () => {
+      const provider = makeProvider({
+        id: 'silicon',
+        type: 'openai',
+        apiHost: 'https://api.siliconflow.cn/v1'
+      })
+
+      const config = (await providerToAiSdkConfig(
+        provider,
+        makeModel('Qwen/Qwen-Image', provider.id)
+      )) as ProviderConfig<'silicon'>
+
+      expect(config.providerId).toBe('silicon')
+      const settings = config.providerSettings
+      expect(settings.baseURL).toBe('https://api.siliconflow.cn/v1')
+    })
+
     it('includes includeUsage when provider supports stream options', async () => {
       setupStoreMock({ includeUsage: true })
 

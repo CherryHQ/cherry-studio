@@ -1778,6 +1778,7 @@
     "on": "Вкл",
     "open": "Открыть",
     "open_in": "Открыть в {{name}}",
+    "parameter": "Параметр",
     "paste": "Вставить",
     "placeholders": {
       "select": {
@@ -3764,40 +3765,51 @@
       },
       "new": {
         "image": "Новое изображение"
+      },
+      "select": {
+        "image": "[to be translated]:Select Image"
       }
     },
     "custom_size": "Пользовательский размер",
+    "dashscope": {
+      "bottom_scale": "[to be translated]:Expand Bottom",
+      "enable_interleave": "[to be translated]:Text+Image Mixed Mode",
+      "enable_interleave_tip": "[to be translated]:When on, generates text-and-image mixed output without requiring an input image. Turn off to use edit mode (requires 1–4 input images).",
+      "function": "[to be translated]:Edit Function",
+      "function_options": {
+        "colorization": "[to be translated]:Colorization",
+        "control_cartoon_feature": "[to be translated]:Cartoon Reference",
+        "description_edit": "[to be translated]:Instruction Edit",
+        "description_edit_with_mask": "[to be translated]:Masked Edit",
+        "doodle": "[to be translated]:Doodle to Image",
+        "expand": "[to be translated]:Expand",
+        "remove_watermark": "[to be translated]:Remove Watermark",
+        "stylization_all": "[to be translated]:Global Stylization",
+        "stylization_local": "[to be translated]:Local Stylization",
+        "super_resolution": "[to be translated]:Super Resolution"
+      },
+      "is_sketch": "[to be translated]:Sketch Input",
+      "left_scale": "[to be translated]:Expand Left",
+      "ref_mode": "[to be translated]:Reference Mode",
+      "ref_mode_options": {
+        "refonly": "[to be translated]:Reference only",
+        "repaint": "[to be translated]:Repaint"
+      },
+      "ref_strength": "[to be translated]:Reference Strength",
+      "right_scale": "[to be translated]:Expand Right",
+      "source_lang": "[to be translated]:Source Language",
+      "strength": "[to be translated]:Strength",
+      "target_lang": "[to be translated]:Target Language",
+      "top_scale": "[to be translated]:Expand Top",
+      "upscale_factor": "[to be translated]:Upscale Factor"
+    },
     "dmxapi": {
       "generating_tip": "Генерация с использованием официальной модели, ожидаемое время ожидания — 2–5 минут для достижения наилучших результатов. Пожалуйста, проверьте логи бэкенда DMXAPI для получения информации о стоимости этой операции.",
-      "style": ", Стиль:",
-      "style_types": {
-        "25d_animation": "2.5D анимация",
-        "3d_cartoon": "3D мультфильм",
-        "american_retro": "Американский ретро",
-        "baroque": "Барокко",
-        "cartoon_illustration": "Мультяшная иллюстрация",
-        "chinese_gongbi": "Китайский гунби",
-        "clay": "Глина",
-        "cyberpunk": "Киберпанк",
-        "felt": "Фетр",
-        "flat": "Плоский",
-        "fresh_anime": "Свежее аниме",
-        "ghibli": "Гибли",
-        "japanese_anime": "Японское аниме",
-        "little_people_book": "Книжка о маленьких людях",
-        "monet_garden": "Сад Моне",
-        "oil_painting": "Живопись маслом",
-        "pixar": "Пиксар",
-        "pixel_art": "Пиксель-арт",
-        "poetic_ancient": "Поэтическое древнее",
-        "psychedelic": "Психоделический",
-        "sketch": "Эскиз",
-        "street_art": "Уличное искусство",
-        "texture": "Текстура",
-        "ukiyo_e": "Укиё-э",
-        "watercolor": "Акварель",
-        "wood_carving": "Резьба по дереву",
-        "yarn_doll": "Кукла из пряжи"
+      "max_images": "[to be translated]:Max Images",
+      "sequential_image_generation": "[to be translated]:Sequential Image Generation",
+      "sequential_image_generation_options": {
+        "auto": "[to be translated]:Auto",
+        "disabled": "[to be translated]:Disabled"
       }
     },
     "edit": {
@@ -3806,21 +3818,11 @@
     },
     "generate": {
       "height": "Высота",
-      "magic_prompt_option_tip": "Интеллектуально оптимизирует подсказки для улучшения эффекта генерации",
-      "model_tip": "Версия модели: V2 - новейшая API модель, V2A - быстрая модель, V_1 - первое поколение, _TURBO - ускоренная версия",
-      "negative_prompt_tip": "Описывает, что вы не хотите видеть в изображении",
-      "number_images_tip": "Количество изображений для одновременной генерации",
-      "person_generation": "Генерация персонажа",
-      "person_generation_tip": "Разрешить модель генерировать изображения людей",
-      "rendering_speed_tip": "Управляет балансом между скоростью рендеринга и качеством, доступно только для V_3",
-      "safety_tolerance": "Безопасность",
-      "safety_tolerance_tip": "Контролирует безопасность изображения, доступно только для FLUX.1-Kontext-pro",
-      "seed_tip": "Контролирует случайность генерации изображений для воспроизведения одинаковых результатов",
-      "style_type_tip": "Стиль генерации изображений, доступен только для версий V_2 и выше",
       "width": "Ширина"
     },
     "generate_failed": "Не удалось сгенерировать изображение",
     "generated_image": "Сгенерированное изображение",
+    "generating": "Генерация...",
     "go_to_settings": "Перейти в настройки",
     "guidance_scale": "Масштаб руководства",
     "guidance_scale_tip": "Без классификатора руководства. Насколько близко вы хотите, чтобы модель придерживалась вашего промпта при поиске связанного изображения для показа вам",
@@ -3836,6 +3838,7 @@
     "image_size_options": {
       "auto": "Авто"
     },
+    "image_weight": "[to be translated]:Image Weight",
     "inference_steps": "Шаги вывода",
     "inference_steps_tip": "Количество шагов вывода для выполнения. Больше шагов производят более высокое качество, но занимают больше времени",
     "input_image": "Входное изображение",
@@ -3864,13 +3867,16 @@
     "number_images_tip": "Количество изображений для генерации (1-4)",
     "operation_failed": "Операция не удалась, повторите попытку позже",
     "paint_course": "Руководство / Учебник",
+    "parameters": "Параметры",
     "per_image": "за изображение",
     "per_images": "за изображения",
+    "person_generation": "[to be translated]:Generate people",
     "person_generation_options": {
       "allow_adult": "Разрешено взрослые",
       "allow_all": "Разрешено все",
       "allow_none": "Не разрешено"
     },
+    "person_generation_tip": "[to be translated]:Allow the model to generate images of people",
     "ppio": {
       "edit_prompt_tip": "Указывает объект или область для удаления из изображения, например: 'собака' или 'шляпа'",
       "mask_image": "Изображение маски",
@@ -3887,28 +3893,19 @@
     "prompt_placeholder": "Опишите изображение, которое вы хотите создать, например, Спокойное озеро на закате с горами на заднем плане",
     "prompt_placeholder_edit": "Введите ваше описание изображения, текстовая отрисовка использует двойные кавычки для обертки",
     "prompt_placeholder_en": "Введите описание изображения, в настоящее время поддерживает только английские подсказки",
+    "prompt_required": "[to be translated]:Please enter a prompt",
     "proxy_required": "Сейчас необходимо открыть прокси для просмотра сгенерированных изображений, в будущем будет поддерживаться прямое соединение",
     "quality": "Качество",
     "quality_options": {
       "auto": "Авто",
+      "hd": "[to be translated]:HD",
       "high": "Высокое",
       "low": "Низкое",
-      "medium": "Среднее"
+      "medium": "Среднее",
+      "standard": "[to be translated]:Standard"
     },
     "regenerate": {
       "confirm": "Это заменит ваши существующие сгенерированные изображения. Хотите продолжить?"
-    },
-    "remix": {
-      "image_file": "Референсное изображение",
-      "image_weight": "Вес референсного изображения",
-      "image_weight_tip": "Регулирует степень влияния референсного изображения",
-      "magic_prompt_option_tip": "Интеллектуально оптимизирует подсказки для улучшения эффекта ремикса",
-      "model_tip": "Выберите версию AI модели для ремикса",
-      "negative_prompt_tip": "Описывает, что вы не хотите видеть в результатах ремикса",
-      "number_images_tip": "Количество результатов ремикса для генерации",
-      "rendering_speed_tip": "Управляет балансом между скоростью рендеринга и качеством, доступно только для V_3",
-      "seed_tip": "Контролирует случайность результатов ремикса",
-      "style_type_tip": "Стиль изображения после ремикса, доступен только для версий V_2 и выше"
     },
     "rendering_speed": "Скорость рендеринга",
     "rendering_speeds": {
@@ -3921,21 +3918,40 @@
     "req_error_text": "Сервер перегружен или в запросе обнаружены «авторские» либо «чувствительные» слова. Пожалуйста, повторите попытку.",
     "req_error_token": "Пожалуйста, проверьте действительность токена",
     "required_field": "Обязательное поле",
+    "safety_tolerance": "[to be translated]:Safety Tolerance",
+    "safety_tolerance_tip": "[to be translated]:Higher = more permissive filter; 0 is strictest, 6 is most permissive",
     "seed": "Ключ генерации",
     "seed_desc_tip": "Одинаковые сиды и промпты могут генерировать похожие изображения, установка -1 будет создавать разные результаты каждый раз",
     "seed_random": "Случайно",
     "seed_tip": "Одинаковый ключ генерации и промпт могут производить похожие изображения",
     "select_model": "Выбрать модель",
-    "style_type": "Стиль",
-    "style_types": {
-      "3d": "3D",
-      "anime": "Аниме",
-      "auto": "Авто",
-      "design": "Дизайн",
-      "general": "Общий",
-      "realistic": "Реалистичный"
+    "style_options": {
+      "anime": "[to be translated]:Anime",
+      "auto": "[to be translated]:Auto",
+      "cartoon_3d": "[to be translated]:3D Cartoon",
+      "chinese_painting": "[to be translated]:Chinese Painting",
+      "flat_illustration": "[to be translated]:Flat Illustration",
+      "natural": "[to be translated]:Natural",
+      "oil_painting": "[to be translated]:Oil Painting",
+      "photography": "[to be translated]:Photography",
+      "portrait": "[to be translated]:Portrait",
+      "sketch": "[to be translated]:Sketch",
+      "vivid": "[to be translated]:Vivid",
+      "watercolor": "[to be translated]:Watercolor"
     },
+    "style_type": "[to be translated]:Style",
+    "style_type_options": {
+      "anime": "[to be translated]:Anime",
+      "auto": "[to be translated]:Auto",
+      "design": "[to be translated]:Design",
+      "general": "[to be translated]:General",
+      "realistic": "[to be translated]:Realistic",
+      "render_3d": "[to be translated]:3D Render"
+    },
+    "style_type_tip": "[to be translated]:Image generation style",
     "text_desc_required": "Пожалуйста, сначала введите описание изображения",
+    "thinking_mode": "[to be translated]:Thinking Mode",
+    "thinking_mode_tip": "[to be translated]:When on, generation quality is higher but adds about 10–30 seconds.",
     "title": "Изображения",
     "top_up": "пополнить счёт",
     "translating": "Перевод...",
@@ -4738,6 +4754,7 @@
         },
         "description": "[to be translated]:Run every configured file processor through the real file processing IPC and compare results.",
         "duration": "[to be translated]:{{seconds}}s",
+        "jobId": "[to be translated]:Job ID",
         "markdown": {
           "description": "[to be translated]:Select a document and run all document-to-markdown processors.",
           "fileFilterName": "[to be translated]:Documents",
@@ -4759,13 +4776,14 @@
         "status": {
           "cancelled": "[to be translated]:Cancelled",
           "completed": "[to be translated]:Completed",
+          "delayed": "[to be translated]:Delayed",
           "failed": "[to be translated]:Failed",
           "idle": "[to be translated]:Idle",
           "pending": "[to be translated]:Pending",
           "processing": "[to be translated]:Processing",
+          "running": "[to be translated]:Running",
           "starting": "[to be translated]:Starting"
         },
-        "taskId": "[to be translated]:Task ID",
         "title": "[to be translated]:Document Parsing"
       },
       "label": "Компонентная лаборатория",

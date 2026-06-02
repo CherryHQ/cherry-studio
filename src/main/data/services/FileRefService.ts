@@ -23,6 +23,7 @@
 
 import { application } from '@application'
 import { fileRefTable } from '@data/db/schemas/file'
+import type { DbType } from '@data/db/types'
 import type { FileEntryId, FileRef, FileRefSourceType } from '@shared/data/types/file'
 import { FileRefSchema } from '@shared/data/types/file'
 import { and, asc, count, eq, inArray } from 'drizzle-orm'
@@ -57,9 +58,17 @@ export interface FileRefService {
 
   /**
    * Pull-model cleanup: remove all refs owned by the given source. Called
-   * when the business entity itself is deleted.
+   * when the business entity itself is deleted. Thin wrapper that opens its
+   * own transaction around {@link FileRefService.cleanupBySourceTx}.
    */
   cleanupBySource(source: FileRefSourceKey): Promise<number>
+
+  /**
+   * Transaction-aware variant of {@link FileRefService.cleanupBySource}. Lets
+   * an owning service delete its row AND its file refs in one atomic boundary
+   * (tx-first, `Tx` suffix — same convention as `TagService.purgeForEntityTx`).
+   */
+  cleanupBySourceTx(tx: Pick<DbType, 'delete'>, source: FileRefSourceKey): Promise<number>
 
   /** Batch variant of `cleanupBySource` — one `DELETE … IN (…)` per sourceType. */
   cleanupBySourceBatch(sourceType: FileRefSourceType, sourceIds: readonly string[]): Promise<number>
@@ -160,7 +169,11 @@ class FileRefServiceImpl implements FileRefService {
   }
 
   async cleanupBySource(source: FileRefSourceKey): Promise<number> {
-    const rows = await this.getDb()
+    return this.getDb().transaction((tx) => this.cleanupBySourceTx(tx, source))
+  }
+
+  async cleanupBySourceTx(tx: Pick<DbType, 'delete'>, source: FileRefSourceKey): Promise<number> {
+    const rows = await tx
       .delete(fileRefTable)
       .where(and(eq(fileRefTable.sourceType, source.sourceType), eq(fileRefTable.sourceId, source.sourceId)))
       .returning({ id: fileRefTable.id })
