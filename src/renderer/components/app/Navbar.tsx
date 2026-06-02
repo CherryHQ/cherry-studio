@@ -1,13 +1,10 @@
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useFullscreen } from '@renderer/hooks/useFullscreen'
-import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import useNavBackgroundColor from '@renderer/hooks/useNavBackgroundColor'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { cn } from '@renderer/utils'
 import type { FC, PropsWithChildren } from 'react'
 import type { HTMLAttributes } from 'react'
-
-import WindowControls from '../WindowControls'
 
 type Props = PropsWithChildren & HTMLAttributes<HTMLDivElement>
 
@@ -15,7 +12,6 @@ export const Navbar: FC<Props> = ({ children, ...props }) => {
   const backgroundColor = useNavBackgroundColor()
   const isFullscreen = useFullscreen()
   const { isTopNavbar } = useNavbarPosition()
-  const { miniAppShow } = useMiniApps()
 
   if (isTopNavbar) {
     return null
@@ -24,7 +20,6 @@ export const Navbar: FC<Props> = ({ children, ...props }) => {
   return (
     <NavbarContainer {...props} style={{ ...props.style, backgroundColor }} isFullScreen={isFullscreen}>
       {children}
-      {!miniAppShow && <WindowControls />}
     </NavbarContainer>
   )
 }
