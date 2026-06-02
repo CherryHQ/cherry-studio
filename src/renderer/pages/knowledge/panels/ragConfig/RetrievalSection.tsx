@@ -1,9 +1,8 @@
 import type { KnowledgeSelectOption } from '@renderer/pages/knowledge/types'
 import type { KnowledgeSearchMode } from '@shared/data/types/knowledge'
-import { Search } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { RagFieldLabel, RagSectionTitle, RagSelectField, RagSliderField } from './panelPrimitives'
+import { RagFieldLabel, RagSelectField, RagSliderField } from './panelPrimitives'
 
 const EMPTY_OPTION_VALUE = '__none__'
 const DEFAULT_HYBRID_ALPHA = 0.5
@@ -42,9 +41,7 @@ const RetrievalSection = ({
   const usesRelevanceThreshold = searchMode === 'default'
 
   return (
-    <section className="space-y-2.5">
-      <RagSectionTitle title={t('knowledge.rag.retrieval')} icon={Search} />
-
+    <div className="flex flex-col gap-4">
       <RagSliderField
         label={t('knowledge.rag.document_count')}
         hint={t('knowledge.rag.hints.document_count')}
@@ -104,7 +101,7 @@ const RetrievalSection = ({
           onValueChange={(value) => onRerankModelChange(value === EMPTY_OPTION_VALUE ? null : value)}
         />
       </div>
-    </section>
+    </div>
   )
 }
 

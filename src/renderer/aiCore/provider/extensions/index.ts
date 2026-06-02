@@ -25,8 +25,15 @@ import type { OllamaProviderSettings } from 'ollama-ai-provider-v2'
 import { createOllama } from 'ollama-ai-provider-v2'
 import { createVoyage, type VoyageProviderSettings } from 'voyage-ai-provider'
 
-import { type AihubmixProviderSettings, createAihubmix } from '../custom/aihubmixProvider'
+import { type AihubmixProviderSettings, createAihubmix } from '../custom/aihubmix/aihubmixProvider'
+import { createDashScopeProvider, type DashScopeProviderSettings } from '../custom/dashscope/dashscopeProvider'
+import { createDmxapiProvider, type DmxapiProviderSettings } from '../custom/dmxapi/dmxapiProvider'
+import { createModelscopeProvider, type ModelscopeProviderSettings } from '../custom/modelscope/modelscopeProvider'
 import { createNewApi, type NewApiProviderSettings } from '../custom/newapiProvider'
+import { createOvmsProvider, type OvmsProviderSettings } from '../custom/ovms/ovmsProvider'
+import { createPpioProvider, type PpioProviderSettings } from '../custom/ppio/ppioProvider'
+import { createSiliconProvider, type SiliconProviderSettings } from '../custom/silicon/siliconProvider'
+import { createZhipuProvider, type ZhipuProviderSettings } from '../custom/zhipuProvider'
 
 /**
  * Google Vertex AI Extension
@@ -188,7 +195,7 @@ export const AiHubMixExtension = ProviderExtension.create({
  */
 export const NewApiExtension = ProviderExtension.create({
   name: 'newapi',
-  aliases: ['new-api'] as const,
+  aliases: ['new-api', 'o3'] as const,
   supportsImageGeneration: true,
   create: createNewApi
 } as const satisfies ProviderExtensionConfig<NewApiProviderSettings, ProviderV3, 'newapi'>)
@@ -202,6 +209,75 @@ export const TogetherAIExtension = ProviderExtension.create({
   supportsImageGeneration: true,
   create: createTogetherAI
 } as const satisfies ProviderExtensionConfig<TogetherAIProviderSettings, ProviderV3, 'togetherai'>)
+
+/**
+ * PPIO Extension - unified chat + embedding + image (async submit/poll for painting)
+ */
+export const PpioExtension = ProviderExtension.create({
+  name: 'ppio',
+  supportsImageGeneration: true,
+  create: createPpioProvider
+} as const satisfies ProviderExtensionConfig<PpioProviderSettings, ProviderV3, 'ppio'>)
+
+/**
+ * DMXAPI Extension - unified chat + embedding + image (single-shot for painting)
+ */
+export const DmxapiExtension = ProviderExtension.create({
+  name: 'dmxapi',
+  supportsImageGeneration: true,
+  create: createDmxapiProvider
+} as const satisfies ProviderExtensionConfig<DmxapiProviderSettings, ProviderV3, 'dmxapi'>)
+
+/**
+ * SiliconFlow Extension - OpenAI-compatible chat + embedding, URL-returning sync image generation.
+ */
+export const SiliconExtension = ProviderExtension.create({
+  name: 'silicon',
+  supportsImageGeneration: true,
+  create: createSiliconProvider
+} as const satisfies ProviderExtensionConfig<SiliconProviderSettings, ProviderV3, 'silicon'>)
+
+/**
+ * Zhipu Extension - OpenAI-compatible chat + embedding, URL-returning sync image generation.
+ */
+export const ZhipuExtension = ProviderExtension.create({
+  name: 'zhipu',
+  supportsImageGeneration: true,
+  create: createZhipuProvider
+} as const satisfies ProviderExtensionConfig<ZhipuProviderSettings, ProviderV3, 'zhipu'>)
+
+/**
+ * OVMS Extension - unified chat + embedding + image (local OpenVINO Model Server, no auth)
+ */
+export const OvmsExtension = ProviderExtension.create({
+  name: 'ovms',
+  supportsImageGeneration: true,
+  create: createOvmsProvider
+} as const satisfies ProviderExtensionConfig<OvmsProviderSettings, ProviderV3, 'ovms'>)
+
+/**
+ * ModelScope Extension - OpenAI-compatible chat + embedding, async submit/poll image
+ * generation via `X-ModelScope-Async-Mode`.
+ */
+export const ModelscopeExtension = ProviderExtension.create({
+  name: 'modelscope',
+  supportsImageGeneration: true,
+  create: createModelscopeProvider
+} as const satisfies ProviderExtensionConfig<ModelscopeProviderSettings, ProviderV3, 'modelscope'>)
+
+/**
+ * DashScope (Bailian) Extension - OpenAI-compatible chat + embedding,
+ * native DashScope async submit/poll image generation against
+ * `/api/v1/services/aigc/*`. Image baseURL is derived per-call from the
+ * user's chat baseURL by `buildDashScopeConfig`, so cn/intl/proxy hosts
+ * track the user's provider config without hardcoded region URLs.
+ */
+export const DashScopeExtension = ProviderExtension.create({
+  name: 'dashscope',
+  aliases: ['bailian'] as const,
+  supportsImageGeneration: true,
+  create: createDashScopeProvider
+} as const satisfies ProviderExtensionConfig<DashScopeProviderSettings, ProviderV3, 'dashscope'>)
 
 /**
  * Voyage AI Extension - embeddings and reranking
@@ -229,6 +305,13 @@ export const extensions = [
   OllamaExtension,
   AiHubMixExtension,
   NewApiExtension,
+  PpioExtension,
+  DmxapiExtension,
+  SiliconExtension,
+  ZhipuExtension,
+  OvmsExtension,
+  ModelscopeExtension,
+  DashScopeExtension,
   VoyageExtension,
   TogetherAIExtension,
   GroqExtension

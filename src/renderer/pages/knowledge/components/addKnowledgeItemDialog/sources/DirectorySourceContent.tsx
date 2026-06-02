@@ -19,14 +19,14 @@ const DirectorySourceContent = ({ directories, onRemove, onSelectDirectory }: Di
         type="button"
         data-testid="knowledge-source-directory-select"
         onClick={() => void onSelectDirectory()}
-        className="min-h-29.5 shrink-0 rounded-lg border-2 border-border/30 border-dashed bg-muted/[0.06] p-5 text-center text-foreground shadow-none transition-colors hover:border-border/30 hover:bg-muted/[0.06] hover:text-foreground">
+        className="min-h-29.5 shrink-0 rounded-lg border-2 border-border-subtle border-dashed bg-background-subtle p-5 text-center text-foreground shadow-none transition-colors hover:border-border-hover hover:bg-background-subtle hover:text-foreground">
         <div className="flex flex-col items-center gap-2">
-          <div className="flex size-8 items-center justify-center rounded-full bg-muted/40 text-muted-foreground/55">
+          <div className="flex size-8 items-center justify-center rounded-full bg-accent text-foreground-muted">
             <Folder className="size-4" />
           </div>
           <div className="space-y-1">
             <p className="text-sm leading-4">{t('knowledge.data_source.add_dialog.directory.title')}</p>
-            <p className="text-muted-foreground/60 text-xs leading-4">
+            <p className="text-foreground-muted text-xs leading-4">
               {t('knowledge.data_source.add_dialog.directory.description')}
             </p>
           </div>
@@ -40,7 +40,7 @@ const DirectorySourceContent = ({ directories, onRemove, onSelectDirectory }: Di
               <SelectionListItem
                 key={directory.path}
                 icon={Folder}
-                iconClassName="size-2.5 shrink-0 text-amber-500"
+                iconClassName="size-3.5 shrink-0 text-amber-500"
                 name={directory.name}
                 meta={directory.path}
                 onRemove={() => onRemove(directory.path)}

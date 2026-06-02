@@ -1,5 +1,6 @@
 import { knowledgeBaseTable, knowledgeItemTable } from '@data/db/schemas/knowledge'
 import { messageTable } from '@data/db/schemas/message'
+import { paintingTable } from '@data/db/schemas/painting'
 import { topicTable } from '@data/db/schemas/topic'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
@@ -22,6 +23,7 @@ const {
   createDefaultOrphanCheckerRegistry,
   knowledgeItemChecker,
   orphanCheckerRegistry,
+  paintingChecker,
   tempSessionChecker
 } = await import('../orphanCheckerRegistry')
 
@@ -61,7 +63,6 @@ describe('orphanCheckerRegistry', () => {
       await dbh.db.insert(knowledgeBaseTable).values({
         id: 'kb-orphan-test',
         name: 'KB',
-        emoji: '📁',
         embeddingModelId: null,
         dimensions: 1024,
         status: 'failed',
@@ -132,6 +133,34 @@ describe('orphanCheckerRegistry', () => {
     })
   })
 
+  describe('painting checker', () => {
+    async function seedPainting(id: string) {
+      await dbh.db.insert(paintingTable).values({
+        id,
+        providerId: 'aihubmix',
+        prompt: 'p',
+        orderKey: id
+      })
+    }
+
+    it('returns the subset of painting ids that exist', async () => {
+      await seedPainting('pt-alive-1')
+      await seedPainting('pt-alive-2')
+
+      const alive = await paintingChecker.checkExists(['pt-alive-1', 'pt-alive-2', 'pt-gone'])
+      expect(alive).toEqual(new Set(['pt-alive-1', 'pt-alive-2']))
+    })
+
+    it('returns empty set for an empty input (skips DB round-trip)', async () => {
+      const alive = await paintingChecker.checkExists([])
+      expect(alive.size).toBe(0)
+    })
+
+    it('declares its sourceType', () => {
+      expect(paintingChecker.sourceType).toBe('painting')
+    })
+  })
+
   describe('knowledge_item checker runWithBusyRetry behaviour', () => {
     // Test the file-private runWithBusyRetry indirectly via its only call site
     // (knowledgeItemChecker.checkExists). The DB is a real test SQLite instance,
@@ -147,7 +176,6 @@ describe('orphanCheckerRegistry', () => {
       await dbh.db.insert(knowledgeBaseTable).values({
         id: 'kb-retry-test',
         name: 'KB',
-        emoji: '📁',
         embeddingModelId: null,
         dimensions: 1024,
         status: 'failed',
@@ -349,7 +377,7 @@ describe('orphanCheckerRegistry', () => {
   describe('createDefaultOrphanCheckerRegistry / orphanCheckerRegistry', () => {
     it('exposes a checker for every FileRefSourceType', () => {
       const registry = createDefaultOrphanCheckerRegistry()
-      const expected = ['temp_session', 'knowledge_item'] as const
+      const expected = ['temp_session', 'knowledge_item', 'chat_message', 'painting'] as const
       for (const sourceType of expected) {
         expect(registry[sourceType].sourceType).toBe(sourceType)
         expect(typeof registry[sourceType].checkExists).toBe('function')
@@ -359,6 +387,8 @@ describe('orphanCheckerRegistry', () => {
     it('singleton wires the same checker instances', () => {
       expect(orphanCheckerRegistry.temp_session).toBe(tempSessionChecker)
       expect(orphanCheckerRegistry.knowledge_item).toBe(knowledgeItemChecker)
+      expect(orphanCheckerRegistry.chat_message).toBe(chatMessageChecker)
+      expect(orphanCheckerRegistry.painting).toBe(paintingChecker)
     })
   })
 
@@ -389,7 +419,8 @@ describe('orphanCheckerRegistry', () => {
         // not assignable to slot keyed 'temp_session'
         temp_session: knowledgeItemChecker,
         knowledge_item: knowledgeItemChecker,
-        chat_message: chatMessageChecker
+        chat_message: chatMessageChecker,
+        painting: paintingChecker
       }
       expect(wrongBrand).toBeDefined()
     })

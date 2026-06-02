@@ -1,6 +1,5 @@
 import { Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import type { KnowledgeTabKey } from '@renderer/pages/knowledge/types'
-import { Database, SlidersHorizontal, Zap } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 interface DetailTabsProps {
@@ -13,32 +12,19 @@ const DetailTabs = ({ activeTab, dataSourceCount, onChange }: DetailTabsProps) =
   const { t } = useTranslation()
 
   return (
-    <div className="shrink-0 border-border/15 border-b px-2.5">
-      <Tabs
-        value={activeTab}
-        onValueChange={(value) => onChange(value as KnowledgeTabKey)}
-        variant="line"
-        className="gap-0">
-        <TabsList className="gap-0">
-          <TabsTrigger
-            value="data"
-            className="gap-1 px-2.5 py-2 text-muted-foreground/60 leading-4 after:h-0.5 after:rounded-none after:bg-transparent hover:text-foreground data-[state=active]:text-foreground data-[state=active]:after:h-0.5 data-[state=active]:after:bg-primary">
-            <Database className="size-2.5" />
+    <div className="shrink-0 border-border-muted border-b bg-background px-3 py-1.5">
+      <Tabs value={activeTab} onValueChange={(value) => onChange(value as KnowledgeTabKey)} variant="workflow">
+        <TabsList>
+          <TabsTrigger value="data">
             <span>{t('knowledge.tabs.data_source')}</span>
-            <span>{dataSourceCount}</span>
+            {dataSourceCount > 0 ? <span className="text-foreground-muted text-xs">({dataSourceCount})</span> : null}
           </TabsTrigger>
 
-          <TabsTrigger
-            value="rag"
-            className="gap-1 px-2.5 py-2 text-muted-foreground/60 leading-4 after:h-0.5 after:rounded-none after:bg-transparent hover:text-foreground data-[state=active]:text-foreground data-[state=active]:after:h-0.5 data-[state=active]:after:bg-primary">
-            <SlidersHorizontal className="size-2.5" />
+          <TabsTrigger value="rag">
             <span>{t('knowledge.tabs.rag_config')}</span>
           </TabsTrigger>
 
-          <TabsTrigger
-            value="recall"
-            className="gap-1 px-2.5 py-2 text-muted-foreground/60 leading-4 after:h-0.5 after:rounded-none after:bg-transparent hover:text-foreground data-[state=active]:text-foreground data-[state=active]:after:h-0.5 data-[state=active]:after:bg-primary">
-            <Zap className="size-2.5" />
+          <TabsTrigger value="recall">
             <span>{t('knowledge.tabs.recall_test')}</span>
           </TabsTrigger>
         </TabsList>

@@ -25,8 +25,21 @@ vi.mock('@cherrystudio/ui', async () => {
   })
 
   return {
-    Button: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
-      <button {...props}>{children}</button>
+    Badge: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+      <span {...props}>{children}</span>
+    ),
+    Button: ({
+      children,
+      type = 'button',
+      ...props
+    }: {
+      children: ReactNode
+      type?: 'button'
+      [key: string]: unknown
+    }) => (
+      <button type={type} {...props}>
+        {children}
+      </button>
     ),
     ConfirmDialog: ({
       open,
@@ -62,7 +75,7 @@ vi.mock('@cherrystudio/ui', async () => {
         </div>
       ) : null,
     MenuItem: ({ icon, label, ...props }: { icon?: ReactNode; label: string; [key: string]: unknown }) => (
-      <button {...props}>
+      <button type="button" {...props}>
         {icon}
         {label}
       </button>
@@ -102,7 +115,25 @@ vi.mock('@cherrystudio/ui', async () => {
           {children}
         </button>
       )
-    }
+    },
+    SearchInput: ({
+      clearLabel,
+      onClear,
+      ...props
+    }: {
+      clearLabel?: string
+      onClear?: () => void
+      [key: string]: unknown
+    }) => (
+      <div>
+        <input type="search" {...props} />
+        {onClear ? (
+          <button type="button" aria-label={clearLabel} onClick={onClear}>
+            {clearLabel}
+          </button>
+        ) : null}
+      </div>
+    )
   }
 })
 
@@ -111,10 +142,11 @@ vi.mock('react-i18next', () => ({
     i18n: {
       language: 'zh-CN'
     },
-    t: (key: string, options?: { count?: number }) =>
+    t: (key: string, options?: { count?: number; time?: string }) =>
       (
         ({
           'common.cancel': '取消',
+          'common.clear': '清除',
           'common.delete': '删除',
           'common.more': '更多',
           'knowledge.context.delete': '删除知识库',
@@ -124,10 +156,14 @@ vi.mock('react-i18next', () => ({
           'knowledge.error.failed_base_unknown': '该知识库迁移失败，请重建知识库并选择新的嵌入模型。',
           'knowledge.error.missing_embedding_model':
             '迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。',
-          'knowledge.meta.documents_count': `${options?.count ?? 0} 文档`,
+          'knowledge.meta.data_sources_count': `${options?.count ?? 0} 数据源`,
+          'knowledge.meta.updated_at': `更新于 ${options?.time ?? ''}`,
+          'knowledge.data_source.toolbar.search_placeholder': '搜索数据源',
           'knowledge.restore.action': '重建知识库',
           'knowledge.status.completed': '就绪',
-          'knowledge.status.failed': '失败'
+          'knowledge.status.failed': '失败',
+          'knowledge.tabs.rag_config': 'RAG 配置',
+          'knowledge.tabs.recall_test': '召回测试'
         }) as Record<string, string>
       )[key] ?? key
   })
@@ -137,7 +173,6 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   id: 'base-1',
   name: 'Base 1',
   groupId: null,
-  emoji: '📁',
   dimensions: 1536,
   embeddingModelId: null,
   rerankModelId: undefined,
@@ -158,26 +193,42 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
 describe('DetailHeader', () => {
   it('renders the current selected base item count and completed status', () => {
     const { container } = render(
-      <DetailHeader base={createKnowledgeBase()} itemCount={3} onRenameBase={vi.fn()} onDeleteBase={vi.fn()} />
+      <DetailHeader
+        base={createKnowledgeBase()}
+        itemCount={3}
+        onOpenRagConfig={vi.fn()}
+        onOpenRecallTest={vi.fn()}
+        onRenameBase={vi.fn()}
+        onDeleteBase={vi.fn()}
+      />
     )
 
-    expect(screen.getByText('3 文档')).toBeInTheDocument()
+    expect(screen.getByText('3 数据源')).toBeInTheDocument()
+    expect(screen.getByText('更新于 2小时前')).toBeInTheDocument()
     expect(screen.getByText('就绪')).toBeInTheDocument()
-    expect(container.querySelector('.bg-primary')).toHaveAttribute('aria-label', '就绪')
+    expect(screen.getByText('就绪')).toHaveClass('bg-success/10', 'text-success')
+    expect(screen.getByText('就绪')).toHaveAttribute('aria-label', '就绪')
+
+    const detailIcon = container.querySelector('img')
+    expect(detailIcon).toBeInTheDocument()
+    expect(detailIcon).toHaveClass('size-6')
   })
 
   it('renders the failed status from the base status', () => {
-    const { container } = render(
+    render(
       <DetailHeader
         base={createKnowledgeBase({ status: 'failed', error: 'missing_embedding_model' })}
         itemCount={0}
+        onOpenRagConfig={vi.fn()}
+        onOpenRecallTest={vi.fn()}
         onRenameBase={vi.fn()}
         onDeleteBase={vi.fn()}
       />
     )
 
     expect(screen.getByText('失败')).toBeInTheDocument()
-    expect(container.querySelector('.bg-destructive')).toHaveAttribute('aria-label', '失败')
+    expect(screen.getByText('失败')).toHaveClass('bg-destructive/10', 'text-destructive')
+    expect(screen.getByText('失败')).toHaveAttribute('aria-label', '失败')
     expect(
       screen.queryByText('迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。')
     ).not.toBeInTheDocument()
@@ -189,6 +240,8 @@ describe('DetailHeader', () => {
       <DetailHeader
         base={createKnowledgeBase({ status: 'failed', error: null })}
         itemCount={0}
+        onOpenRagConfig={vi.fn()}
+        onOpenRecallTest={vi.fn()}
         onRenameBase={vi.fn()}
         onDeleteBase={vi.fn()}
       />
@@ -199,8 +252,64 @@ describe('DetailHeader', () => {
     expect(screen.queryByRole('button', { name: '重建知识库' })).not.toBeInTheDocument()
   })
 
+  it('renders the header actions as icon-only buttons', () => {
+    const onOpenRagConfig = vi.fn()
+    const onOpenRecallTest = vi.fn()
+
+    render(
+      <DetailHeader
+        base={createKnowledgeBase()}
+        itemCount={0}
+        onOpenRagConfig={onOpenRagConfig}
+        onOpenRecallTest={onOpenRecallTest}
+        onRenameBase={vi.fn()}
+        onDeleteBase={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'RAG 配置' }))
+    fireEvent.click(screen.getByRole('button', { name: '召回测试' }))
+
+    expect(onOpenRagConfig).toHaveBeenCalledOnce()
+    expect(onOpenRecallTest).toHaveBeenCalledOnce()
+    expect(screen.queryByText('RAG 配置')).not.toBeInTheDocument()
+    expect(screen.queryByText('召回测试')).not.toBeInTheDocument()
+  })
+
+  it('expands the top-right search button into an inline data source search field', () => {
+    const onSearchChange = vi.fn()
+
+    render(
+      <DetailHeader
+        base={createKnowledgeBase()}
+        itemCount={1}
+        searchQuery=""
+        onSearchChange={onSearchChange}
+        onOpenRagConfig={vi.fn()}
+        onOpenRecallTest={vi.fn()}
+        onRenameBase={vi.fn()}
+        onDeleteBase={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: '搜索数据源' }))
+    fireEvent.change(screen.getByPlaceholderText('搜索数据源'), { target: { value: '报告' } })
+
+    expect(screen.getByPlaceholderText('搜索数据源')).toBeInTheDocument()
+    expect(onSearchChange).toHaveBeenCalledWith('报告')
+  })
+
   it('opens the more menu and shows rename and delete actions', () => {
-    render(<DetailHeader base={createKnowledgeBase()} itemCount={0} onRenameBase={vi.fn()} onDeleteBase={vi.fn()} />)
+    render(
+      <DetailHeader
+        base={createKnowledgeBase()}
+        itemCount={0}
+        onOpenRagConfig={vi.fn()}
+        onOpenRecallTest={vi.fn()}
+        onRenameBase={vi.fn()}
+        onDeleteBase={vi.fn()}
+      />
+    )
 
     fireEvent.click(screen.getByRole('button', { name: '更多' }))
 
@@ -212,7 +321,14 @@ describe('DetailHeader', () => {
     const onRenameBase = vi.fn()
 
     render(
-      <DetailHeader base={createKnowledgeBase()} itemCount={0} onRenameBase={onRenameBase} onDeleteBase={vi.fn()} />
+      <DetailHeader
+        base={createKnowledgeBase()}
+        itemCount={0}
+        onOpenRagConfig={vi.fn()}
+        onOpenRecallTest={vi.fn()}
+        onRenameBase={onRenameBase}
+        onDeleteBase={vi.fn()}
+      />
     )
 
     fireEvent.click(screen.getByRole('button', { name: '更多' }))
@@ -228,7 +344,14 @@ describe('DetailHeader', () => {
     const onDeleteBase = vi.fn().mockResolvedValue(undefined)
 
     render(
-      <DetailHeader base={createKnowledgeBase()} itemCount={0} onRenameBase={vi.fn()} onDeleteBase={onDeleteBase} />
+      <DetailHeader
+        base={createKnowledgeBase()}
+        itemCount={0}
+        onOpenRagConfig={vi.fn()}
+        onOpenRecallTest={vi.fn()}
+        onRenameBase={vi.fn()}
+        onDeleteBase={onDeleteBase}
+      />
     )
 
     fireEvent.click(screen.getByRole('button', { name: '更多' }))

@@ -18,18 +18,18 @@ const SelectionListItem = ({
   removeLabel
 }: SelectionListItemProps) => {
   return (
-    <div role="listitem" className="flex items-center gap-1.5 rounded-md bg-accent/30 px-2 py-1">
+    <div role="listitem" className="flex items-center gap-1.5 rounded-md bg-background-subtle px-2 py-1">
       <Icon className={iconClassName} />
 
-      <span className="min-w-0 flex-1 truncate text-foreground text-sm leading-4">{name}</span>
-      {meta ? <span className="shrink-0 text-muted-foreground/35 text-xs leading-4">{meta}</span> : null}
+      <span className="min-w-0 flex-1 truncate text-foreground text-xs leading-4">{name}</span>
+      {meta ? <span className="shrink-0 text-foreground-muted text-xs leading-4">{meta}</span> : null}
 
       <button
         type="button"
         aria-label={removeLabel}
-        className="shrink-0 text-muted-foreground/25 hover:text-red-500"
+        className="shrink-0 text-foreground-muted hover:text-destructive"
         onClick={onRemove}>
-        <X className="size-2.25" />
+        <X className="size-3" />
       </button>
     </div>
   )

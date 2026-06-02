@@ -18,7 +18,6 @@ import * as z from 'zod'
 const KNOWLEDGE_BASE_MUTABLE_FIELDS = {
   name: true,
   groupId: true,
-  emoji: true,
   rerankModelId: true,
   fileProcessorId: true,
   chunkSize: true,
@@ -57,6 +56,9 @@ export const ListKnowledgeBasesQuerySchema = z.strictObject({
 
 export type ListKnowledgeBasesQueryParams = z.input<typeof ListKnowledgeBasesQuerySchema>
 export type ListKnowledgeBasesQuery = z.output<typeof ListKnowledgeBasesQuerySchema>
+export type KnowledgeBaseListItem = KnowledgeBase & {
+  itemCount: number
+}
 
 /**
  * Query parameters for GET /knowledge-bases/:id/items
@@ -77,7 +79,7 @@ export type KnowledgeSchemas = {
   '/knowledge-bases': {
     GET: {
       query?: ListKnowledgeBasesQueryParams
-      response: OffsetPaginationResponse<KnowledgeBase>
+      response: OffsetPaginationResponse<KnowledgeBaseListItem>
     }
   }
 

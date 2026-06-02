@@ -2318,9 +2318,9 @@
           "originalKey": "defaultPaintingProvider",
           "type": "string",
           "defaultValue": "zhipu",
-          "status": "pending",
-          "category": "cache",
-          "targetKey": null
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.paintings.default_provider"
         },
         {
           "originalKey": "s3",
