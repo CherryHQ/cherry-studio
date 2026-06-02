@@ -8,7 +8,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
-  SettingContainer,
+  SettingsContentColumn,
   settingsSubmenuItemClassName,
   settingsSubmenuItemLabelClassName,
   settingsSubmenuListClassName,
@@ -61,13 +61,13 @@ const IntegrationSettings: FC = () => {
           </MenuList>
         </Scrollbar>
       </div>
-      <SettingContainer theme={theme} style={{ display: 'flex', flex: 1, height: '100%' }}>
+      <SettingsContentColumn theme={theme}>
         {menu === 'notion' && <NotionSettings />}
         {menu === 'yuque' && <YuqueSettings />}
         {menu === 'joplin' && <JoplinSettings />}
         {menu === 'obsidian' && <ObsidianSettings />}
         {menu === 'siyuan' && <SiyuanSettings />}
-      </SettingContainer>
+      </SettingsContentColumn>
     </RowFlex>
   )
 }
