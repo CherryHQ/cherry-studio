@@ -35,3 +35,11 @@ export function findPaintingByFiles<T extends { providerId?: string; files: Read
       painting.files.every((file, index) => file.id === files[index]?.id)
   )
 }
+
+export function getNewApiSeedPainting<T extends { providerId?: string }>(
+  currentPainting: T,
+  providerId: string,
+  createPainting: (basePainting?: T) => T
+): T {
+  return createPainting(currentPainting.providerId === providerId ? currentPainting : undefined)
+}

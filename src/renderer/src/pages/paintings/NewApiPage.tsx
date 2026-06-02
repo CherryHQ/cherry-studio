@@ -20,7 +20,11 @@ import {
   getPaintingsQualityOptionsLabel
 } from '@renderer/i18n/label'
 import PaintingsList from '@renderer/pages/paintings/components/PaintingsList'
-import { DEFAULT_PAINTING, MODELS, SUPPORTED_MODELS } from '@renderer/pages/paintings/config/NewApiConfig'
+import {
+  DEFAULT_PAINTING,
+  getNewApiModelConfig,
+  isSupportedNewApiModel
+} from '@renderer/pages/paintings/config/NewApiConfig'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import { useAppDispatch } from '@renderer/store'
@@ -44,7 +48,7 @@ import SendMessageButton from '../home/Inputbar/SendMessageButton'
 import { SettingHelpLink, SettingTitle } from '../settings'
 import Artboard from './components/Artboard'
 import ProviderSelect from './components/ProviderSelect'
-import { checkProviderEnabled, findPaintingByFiles } from './utils'
+import { checkProviderEnabled, findPaintingByFiles, getNewApiSeedPainting } from './utils'
 
 const logger = loggerService.withContext('NewApiPage')
 
@@ -160,7 +164,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
       .map((m) => ({
         label: m.name,
         value: m.id,
-        custom: !SUPPORTED_MODELS.includes(m.id),
+        custom: !isSupportedNewApiModel(m.id),
         group: m.group
       }))
     return [...customModels]
@@ -178,22 +182,23 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
     }, {})
   }, [modelOptions])
 
-  const getNewPainting = useCallback(() => {
-    return {
-      ...DEFAULT_PAINTING,
-      model: painting.model || modelOptions[0]?.value || '',
-      id: uuid(),
-      providerId: newApiProvider.id
-    }
-  }, [modelOptions, painting.model, newApiProvider.id])
-
-  const selectedModelConfig = useMemo(
-    () => MODELS.find((m) => m.name === painting.model) || MODELS[0],
-    [painting.model]
+  const getNewPainting = useCallback(
+    (basePainting?: PaintingAction) => {
+      return {
+        ...DEFAULT_PAINTING,
+        ...basePainting,
+        model: basePainting?.model || painting.model || modelOptions[0]?.value || '',
+        id: basePainting?.id || uuid(),
+        providerId: newApiProvider.id
+      }
+    },
+    [modelOptions, painting.model, newApiProvider.id]
   )
 
+  const selectedModelConfig = useMemo(() => getNewApiModelConfig(painting.model), [painting.model])
+
   const handleModelChange = (value: string) => {
-    const modelConfig = MODELS.find((m) => m.name === value)
+    const modelConfig = getNewApiModelConfig(value)
     const updates: Partial<PaintingAction> = { model: value }
 
     // 设置默认值
@@ -544,7 +549,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
 
   useEffect(() => {
     if (filteredPaintings.length === 0) {
-      const newPainting = getNewPainting()
+      const newPainting = getNewApiSeedPainting(painting, newApiProvider.id, getNewPainting)
       addPainting(mode, newPainting)
       setPainting(newPainting)
     } else {
@@ -556,7 +561,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
         setPainting(filteredPaintings[0])
       }
     }
-  }, [filteredPaintings, mode, addPainting, getNewPainting, painting.id])
+  }, [filteredPaintings, mode, addPainting, getNewPainting, newApiProvider.id, painting])
 
   useEffect(() => {
     const timer = spaceClickTimer.current
