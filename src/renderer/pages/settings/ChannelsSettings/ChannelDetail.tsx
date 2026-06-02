@@ -31,7 +31,7 @@ import type { FC } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingDivider, SettingTitle } from '..'
+import { SettingDivider, SettingsContentBody, SettingTitle } from '..'
 import { getFormForType } from './ChannelForms'
 import type { AvailableChannel, ChannelData } from './channelTypes'
 
@@ -488,10 +488,10 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
 
   if (isLoading) {
     return (
-      <Scrollbar
-        className="flex flex-1 flex-col items-center justify-center px-5 py-4"
-        style={{ height: 'calc(100vh - var(--navbar-height))' }}>
-        <Spinner text={t('common.loading')} />
+      <Scrollbar className="flex flex-1 flex-col" style={{ height: 'calc(100vh - var(--navbar-height))' }}>
+        <SettingsContentBody className="flex-1 items-center justify-center">
+          <Spinner text={t('common.loading')} />
+        </SettingsContentBody>
       </Scrollbar>
     )
   }
@@ -499,45 +499,47 @@ const ChannelDetail: FC<ChannelDetailProps> = ({ channelDef }) => {
   const icon = getChannelTypeIcon(channelDef.type)
 
   return (
-    <Scrollbar className="flex flex-1 flex-col px-5 py-4" style={{ height: 'calc(100vh - var(--navbar-height))' }}>
-      <div className="flex items-center justify-between gap-4 pb-1">
-        <div className="min-w-0">
-          <SettingTitle className="justify-start gap-2">
-            {icon && <img src={icon} className="h-5 w-5 rounded-sm object-contain" />}
-            <span className="truncate">{channelDef.name}</span>
-          </SettingTitle>
-          <p className="mt-1.5 mb-0 text-(--color-foreground-muted) text-xs">
-            {channelDef.available ? t(channelDef.description) : t('agent.cherryClaw.channels.comingSoon')}
-          </p>
+    <Scrollbar className="flex flex-1 flex-col" style={{ height: 'calc(100vh - var(--navbar-height))' }}>
+      <SettingsContentBody>
+        <div className="flex items-center justify-between gap-4 pb-1">
+          <div className="min-w-0">
+            <SettingTitle className="justify-start gap-2">
+              {icon && <img src={icon} className="h-5 w-5 rounded-sm object-contain" />}
+              <span className="truncate">{channelDef.name}</span>
+            </SettingTitle>
+            <p className="mt-1.5 mb-0 text-(--color-foreground-muted) text-xs">
+              {channelDef.available ? t(channelDef.description) : t('agent.cherryClaw.channels.comingSoon')}
+            </p>
+          </div>
+          <Button size="sm" disabled={!channelDef.available} variant="outline" onClick={handleAdd}>
+            <Plus className="size-4" />
+            {t('agent.cherryClaw.channels.add')}
+          </Button>
         </div>
-        <Button size="sm" disabled={!channelDef.available} variant="outline" onClick={handleAdd}>
-          <Plus className="size-4" />
-          {t('agent.cherryClaw.channels.add')}
-        </Button>
-      </div>
-      <SettingDivider className="m-0 mt-2" />
-      <div className="flex flex-col">
-        {channelList.length === 0 && (
-          <EmptyState
-            compact
-            preset="no-resource"
-            description={t('agent.cherryClaw.channels.noInstances', { type: channelDef.name })}
-            className="py-8"
-          />
-        )}
-        {channelList.map((ch) => (
-          <ChannelInstanceRow
-            key={ch.id}
-            channel={ch}
-            agents={agents}
-            connectionStatus={statuses.get(ch.id)}
-            onEdit={() => setEditingChannelId(ch.id)}
-            onDelete={() => handleDelete(ch.id)}
-            onToggle={(active) => handleToggle(ch.id, active)}
-            onShowLogs={() => setLogChannel({ id: ch.id, name: ch.name })}
-          />
-        ))}
-      </div>
+        <SettingDivider className="m-0 mt-2" />
+        <div className="flex flex-col">
+          {channelList.length === 0 && (
+            <EmptyState
+              compact
+              preset="no-resource"
+              description={t('agent.cherryClaw.channels.noInstances', { type: channelDef.name })}
+              className="py-8"
+            />
+          )}
+          {channelList.map((ch) => (
+            <ChannelInstanceRow
+              key={ch.id}
+              channel={ch}
+              agents={agents}
+              connectionStatus={statuses.get(ch.id)}
+              onEdit={() => setEditingChannelId(ch.id)}
+              onDelete={() => handleDelete(ch.id)}
+              onToggle={(active) => handleToggle(ch.id, active)}
+              onShowLogs={() => setLogChannel({ id: ch.id, name: ch.name })}
+            />
+          ))}
+        </div>
+      </SettingsContentBody>
 
       <ChannelEditModal
         open={!!editingChannel}

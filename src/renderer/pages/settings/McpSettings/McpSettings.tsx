@@ -1052,82 +1052,86 @@ const McpSettings: React.FC = () => {
           onValueChange={(value) => setActiveTab(value as TabKey)}
           variant="line"
           className="flex min-h-0 flex-1 flex-col bg-transparent">
-          <div className="shrink-0 px-4 pt-4">
-            <SettingTitle className="min-w-0 flex-wrap gap-2">
-              <Flex className="min-w-0 flex-1 flex-wrap items-center gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="shrink-0 rounded-full"
-                  aria-label={t('common.back')}
-                  title={t('common.back')}
-                  onClick={() => void navigate({ to: '/settings/mcp/servers' })}>
-                  <ArrowLeft size={16} />
-                </Button>
-                <Flex className="min-w-0 flex-1 items-center gap-2">
-                  <ServerName className="truncate">{server?.name}</ServerName>
-                  {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
-                  <Button size="sm" variant="ghost" className="shrink-0" onClick={() => setLogModalOpen(true)}>
-                    {t('settings.mcp.logs', 'View Logs')}
-                  </Button>
+          <div className="shrink-0 px-6 pt-4">
+            <div className="mx-auto w-full max-w-3xl">
+              <SettingTitle className="min-w-0 flex-wrap gap-2">
+                <Flex className="min-w-0 flex-1 flex-wrap items-center gap-2">
                   <Button
-                    size="icon-sm"
+                    type="button"
                     variant="ghost"
-                    className="shrink-0"
-                    aria-label={t('common.delete')}
-                    title={t('common.delete')}
-                    onClick={() => onDeleteMcpServer(server)}>
-                    <DeleteIcon size={14} className="lucide-custom text-destructive" />
+                    size="icon-sm"
+                    className="shrink-0 rounded-full"
+                    aria-label={t('common.back')}
+                    title={t('common.back')}
+                    onClick={() => void navigate({ to: '/settings/mcp/servers' })}>
+                    <ArrowLeft size={16} />
+                  </Button>
+                  <Flex className="min-w-0 flex-1 items-center gap-2">
+                    <ServerName className="truncate">{server?.name}</ServerName>
+                    {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
+                    <Button size="sm" variant="ghost" className="shrink-0" onClick={() => setLogModalOpen(true)}>
+                      {t('settings.mcp.logs', 'View Logs')}
+                    </Button>
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      className="shrink-0"
+                      aria-label={t('common.delete')}
+                      title={t('common.delete')}
+                      onClick={() => onDeleteMcpServer(server)}>
+                      <DeleteIcon size={14} className="lucide-custom text-destructive" />
+                    </Button>
+                  </Flex>
+                </Flex>
+                <Flex className="shrink-0 items-center gap-3">
+                  <Switch
+                    checked={server.isActive}
+                    key={server.id}
+                    loading={loadingServer === server.id}
+                    onCheckedChange={onToggleActive}
+                  />
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={onSave}
+                    disabled={loading || !isFormChanged || activeTabValue !== 'settings'}
+                    className="rounded-full">
+                    <SaveIcon size={14} />
+                    {t('common.save')}
                   </Button>
                 </Flex>
-              </Flex>
-              <Flex className="shrink-0 items-center gap-3">
-                <Switch
-                  checked={server.isActive}
-                  key={server.id}
-                  loading={loadingServer === server.id}
-                  onCheckedChange={onToggleActive}
-                />
-                <Button
-                  size="sm"
-                  variant="default"
-                  onClick={onSave}
-                  disabled={loading || !isFormChanged || activeTabValue !== 'settings'}
-                  className="rounded-full">
-                  <SaveIcon size={14} />
-                  {t('common.save')}
-                </Button>
-              </Flex>
-            </SettingTitle>
-            <SettingDivider className="mb-0" />
-            <div className="mt-1 flex min-w-0 items-center justify-between gap-2">
-              <TabsList className="min-w-0 max-w-full overflow-x-auto">
-                {tabs.map((tab) => (
-                  <TabsTrigger key={tab.key} value={tab.key}>
-                    {tab.label}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-              {activeTabValue === 'tools' && tools.length > 0 && (
-                <div className="shrink-0 pt-1">
-                  <CollapsibleSearchBar
-                    onSearch={setToolSearchText}
-                    placeholder={t('common.search')}
-                    tooltip={t('common.search')}
-                    maxWidth={220}
-                    style={{ borderRadius: 20 }}
-                  />
-                </div>
-              )}
+              </SettingTitle>
+              <SettingDivider className="mb-0" />
+              <div className="mt-1 flex min-w-0 items-center justify-between gap-2">
+                <TabsList className="min-w-0 max-w-full overflow-x-auto">
+                  {tabs.map((tab) => (
+                    <TabsTrigger key={tab.key} value={tab.key}>
+                      {tab.label}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+                {activeTabValue === 'tools' && tools.length > 0 && (
+                  <div className="shrink-0 pt-1">
+                    <CollapsibleSearchBar
+                      onSearch={setToolSearchText}
+                      placeholder={t('common.search')}
+                      tooltip={t('common.search')}
+                      maxWidth={220}
+                      style={{ borderRadius: 20 }}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-          <Scrollbar className="min-h-0 flex-1 px-4 pt-2 pb-4">
-            {tabs.map((tab) => (
-              <TabsContent key={tab.key} value={tab.key} className="mt-0 min-h-0">
-                {tab.children}
-              </TabsContent>
-            ))}
+          <Scrollbar className="min-h-0 flex-1 pt-2 pb-4">
+            <div className="mx-auto w-full max-w-3xl px-6">
+              {tabs.map((tab) => (
+                <TabsContent key={tab.key} value={tab.key} className="mt-0 min-h-0">
+                  {tab.children}
+                </TabsContent>
+              ))}
+            </div>
           </Scrollbar>
         </Tabs>
       </SettingContainer>

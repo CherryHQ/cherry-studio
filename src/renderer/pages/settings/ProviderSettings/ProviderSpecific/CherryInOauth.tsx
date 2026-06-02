@@ -2,10 +2,12 @@ import { Button, Skeleton } from '@cherrystudio/ui'
 import { Cherryin } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { useProvider, useProviderAuthConfig } from '@renderer/hooks/useProviders'
-import { oauthCardClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
+import {
+  oauthCardClasses,
+  sectionHeadingClasses
+} from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { hasApiKeys } from '@renderer/pages/settings/ProviderSettings/utils/provider'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'
-import { ExternalLink } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'
@@ -181,21 +183,23 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
 
   if (!isOAuthLoggedIn) {
     return (
-      <div className={oauthCardClasses.container}>
-        <div className={oauthCardClasses.shellLoggedOut}>
-          <div className={oauthCardClasses.loginHeaderRow}>
-            <div className={oauthCardClasses.loginIconWrap}>
-              <Cherryin.Avatar shape="circle" size={32} />
+      <div className="flex flex-col gap-3">
+        <h3 className={sectionHeadingClasses}>{t('settings.provider.section.account')}</h3>
+        <div className={oauthCardClasses.shell}>
+          <div className={oauthCardClasses.loggedInRow}>
+            <div className={oauthCardClasses.profileMeta}>
+              <Cherryin.Avatar shape="circle" size={48} />
+              <div className={oauthCardClasses.nameBlock}>
+                <div className={oauthCardClasses.loggedInName}>
+                  {t('settings.provider.oauth.cherryIn.not_logged_in')}
+                </div>
+                <div className={oauthCardClasses.loggedInEmail}>{t('settings.provider.oauth.cherryIn.tagline')}</div>
+              </div>
             </div>
-            <div className={oauthCardClasses.loginTextBlock}>
-              <p className={oauthCardClasses.loginTitle}>{t('settings.provider.oauth.cherryIn.account_title')}</p>
-              <p className={oauthCardClasses.loginSubtitle}>{t('settings.provider.oauth.cherryIn.tagline')}</p>
-            </div>
+            <Button variant="emphasis" onClick={handleOAuthLogin}>
+              {t('settings.provider.oauth.cherryIn.login_button')}
+            </Button>
           </div>
-          <Button className={oauthCardClasses.loginPrimaryCta} onClick={handleOAuthLogin}>
-            <ExternalLink className="size-[11px] shrink-0" />
-            {t('settings.provider.oauth.cherryIn.login_button')}
-          </Button>
         </div>
       </div>
     )

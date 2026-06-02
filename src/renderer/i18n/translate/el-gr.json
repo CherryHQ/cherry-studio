@@ -6127,6 +6127,7 @@
         }
       },
       "api_key": "Κλειδί API",
+      "available_count": "{{count}} διαθέσιμα",
       "base_url": "Βασικό URL",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6441,7 +6442,6 @@
         "unnamed": "[to be translated]:API Key"
       },
       "api_version": "Έκδοση API",
-      "auth_connection_section": "Connection & authentication",
       "aws-bedrock": {
         "access_key_id": "Αναγνωριστικό κλειδιού πρόσβασης AWS",
         "access_key_id_help": "Το ID του κλειδιού πρόσβασης AWS που χρησιμοποιείται για την πρόσβαση στην υπηρεσία AWS Bedrock",
@@ -6589,11 +6589,11 @@
         "balance_error": "[to be translated]:Failed to fetch balance",
         "button": "Σύνδεση με λογαριασμό {{provider}}",
         "cherryIn": {
-          "account_title": "Cherry IN account",
           "description": "Συνδεθείτε με τον διακομιστή New-API που φιλοξενείτε ο ίδιος χρησιμοποιώντας OAuth 2.0 (PKCE)",
           "logged_in": "Σύνδεση μέσω OAuth",
-          "login_button": "Σύνδεση με OAuth",
+          "login_button": "Εξουσιοδότηση με CherryIN",
           "logout_button": "Αποσύνδεση",
+          "not_logged_in": "Δεν έχετε συνδεθεί",
           "register_account": "Create account",
           "service_attribution": "This service is provided by <link>open.cherryin.ai</link>",
           "tagline": "After you sign in, you can use all model services",
@@ -6627,6 +6627,10 @@
       "save_failed": "[to be translated]:Failed to save provider settings",
       "search": "Αναζήτηση πλατφόρμας μονάδων...",
       "search_placeholder": "Αναζήτηση ID ή ονόματος μονάδας",
+      "section": {
+        "account": "Λογαριασμός",
+        "configuration": "Διαμόρφωση"
+      },
       "title": "Υπηρεσία μονάδων",
       "vertex_ai": {
         "api_host_help": "Η διεύθυνση API του Vertex AI, δεν συνιστάται να συμπληρωθεί, συνήθως κατάλληλη για αντίστροφη διαμεσολάβηση",

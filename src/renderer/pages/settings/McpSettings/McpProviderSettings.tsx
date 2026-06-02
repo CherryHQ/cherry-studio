@@ -232,8 +232,12 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
   )
 }
 
-const DetailContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Scrollbar>) => (
-  <Scrollbar className={cn('flex h-[calc(100vh-var(--navbar-height))] flex-col px-5 py-4', className)} {...props} />
+const DetailContainer = ({ className, children, ...props }: React.ComponentPropsWithoutRef<typeof Scrollbar>) => (
+  <Scrollbar className={cn('flex h-[calc(100vh-var(--navbar-height))] flex-col', className)} {...props}>
+    <div className="flex min-h-full w-full flex-col px-6 py-4">
+      <div className="mx-auto w-full max-w-3xl">{children}</div>
+    </div>
+  </Scrollbar>
 )
 
 const ProviderHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

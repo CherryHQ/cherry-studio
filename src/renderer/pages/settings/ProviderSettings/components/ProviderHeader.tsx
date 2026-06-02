@@ -45,29 +45,30 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
   return (
     <>
       <div className="flex items-center gap-3">
-        <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
           <ProviderAvatar provider={provider} size={32} className="shrink-0 rounded-xl" />
           <div className="min-w-0 self-center">
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              {meta.docsWebsite ? (
+            <div className="flex min-w-0 flex-wrap items-center gap-1">
+              <h1 className="truncate font-semibold text-(--color-foreground) text-[16px] leading-[1.25]">
+                {meta.fancyProviderName}
+              </h1>
+              {meta.docsWebsite && (
                 <Tooltip content={t('common.docs')}>
-                  <a
-                    href={meta.docsWebsite}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label={`${meta.fancyProviderName} · ${t('common.docs')}`}
-                    className="group inline-flex min-w-0 items-center gap-1 text-(--color-foreground) transition-colors hover:text-(--color-primary)">
-                    <h1 className="truncate font-semibold text-[16px] leading-[1.25]">{meta.fancyProviderName}</h1>
-                    <ExternalLink
-                      className="size-3.5 shrink-0 text-muted-foreground/50 transition-colors group-hover:text-(--color-primary)"
-                      aria-hidden
-                    />
-                  </a>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    asChild
+                    className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground">
+                    <a
+                      href={meta.docsWebsite}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label={`${meta.fancyProviderName} · ${t('common.docs')}`}>
+                      <ExternalLink className="size-3.5" aria-hidden />
+                    </a>
+                  </Button>
                 </Tooltip>
-              ) : (
-                <h1 className="truncate font-semibold text-(--color-foreground) text-[16px] leading-[1.25]">
-                  {meta.fancyProviderName}
-                </h1>
               )}
               {meta.modelsWebsite && (
                 <Tooltip content={t('settings.models.list_title')}>
@@ -76,7 +77,7 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
                     variant="ghost"
                     size="icon"
                     asChild
-                    className="size-7 shrink-0 rounded-lg p-0 text-muted-foreground/65 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground">
+                    className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground">
                     <a
                       href={meta.modelsWebsite}
                       target="_blank"
@@ -93,7 +94,7 @@ export default function ProviderHeader({ providerId }: ProviderHeaderProps) {
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="size-7 shrink-0 rounded-lg p-0 text-muted-foreground/65 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground"
+                    className="size-7 shrink-0 rounded-lg p-0 text-foreground-muted shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground"
                     aria-label={t('settings.provider.api.options.label')}
                     onClick={() => setApiOptionsOpen(true)}>
                     <Bolt className="size-3.5" aria-hidden />

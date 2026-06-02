@@ -45,7 +45,7 @@ import {
   SettingGroup,
   SettingRow,
   SettingRowTitle,
-  settingsContentBodyClassName,
+  SettingsContentBody,
   settingsContentScrollClassName,
   settingsSubmenuItemClassName,
   settingsSubmenuItemLabelClassName,
@@ -847,7 +847,7 @@ const CommonSettings: FC = () => {
         </div>
 
         <Scrollbar className={settingsContentScrollClassName}>
-          <div className={settingsContentBodyClassName}>{renderSectionContent()}</div>
+          <SettingsContentBody>{renderSectionContent()}</SettingsContentBody>
         </Scrollbar>
       </div>
     </div>

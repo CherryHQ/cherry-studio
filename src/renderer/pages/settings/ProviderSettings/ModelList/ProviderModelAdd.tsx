@@ -1,5 +1,4 @@
 import { Button } from '@cherrystudio/ui'
-import { cn } from '@renderer/utils'
 import { Plus } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useState } from 'react'
@@ -30,13 +29,12 @@ const ProviderModelAdd: React.FC<ProviderModelAddProps> = ({ providerId, disable
       <Button
         type="button"
         variant="outline"
-        size="sm"
-        className={cn(modelListClasses.fetchOutline, 'gap-1 px-2 py-[3px] text-xs')}
+        size="icon-sm"
+        className={modelListClasses.addModelIconButton}
         disabled={disabled}
         aria-label={t('settings.models.add.add_model')}
         onClick={openDrawer}>
         <Plus className={modelListClasses.toolbarDesignIcon} />
-        <span>{t('settings.models.toolbar.custom_add')}</span>
       </Button>
       <AddModelDrawer providerId={providerId} open={drawerOpen} prefill={null} onClose={closeDrawer} />
     </>

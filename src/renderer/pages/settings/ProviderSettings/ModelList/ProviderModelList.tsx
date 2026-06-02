@@ -1,4 +1,8 @@
+import { Button, Tooltip } from '@cherrystudio/ui'
+import { ToggleLeft, ToggleRight } from 'lucide-react'
 import type React from 'react'
+import { useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
 import { EditModelDrawer } from './ModelDrawer'
@@ -10,23 +14,40 @@ interface ProviderModelListProps {
   providerId: string
   disabled: boolean
   actions?: (state: { disabled: boolean; hasVisibleModels: boolean }) => React.ReactNode
+  enabledSectionActions?: (state: { disabled: boolean; hasVisibleModels: boolean }) => React.ReactNode
 }
 
-const ProviderModelList: React.FC<ProviderModelListProps> = ({ providerId, disabled, actions }) => {
+const ProviderModelList: React.FC<ProviderModelListProps> = ({
+  providerId,
+  disabled,
+  actions,
+  enabledSectionActions
+}) => {
+  const { t } = useTranslation()
   const modelList = useProviderModelList({
     providerId,
     disabled
   })
   const toolbarDisabled = disabled || modelList.isBulkUpdating
+  const bulkCloseLabel = t('settings.models.bulk_disable')
+  const bulkEnableLabel = t('settings.models.bulk_enable')
+
+  const handleCloseVisibleModels = useCallback(() => {
+    void Promise.resolve(modelList.header.onToggleVisibleModels(false)).catch(() => {
+      window.toast.error(t('settings.models.manage.operation_failed'))
+    })
+  }, [modelList.header, t])
+
+  const handleEnableVisibleModels = useCallback(() => {
+    void Promise.resolve(modelList.header.onToggleVisibleModels(true)).catch(() => {
+      window.toast.error(t('settings.models.manage.operation_failed'))
+    })
+  }, [modelList.header, t])
 
   return (
     <>
       <div className={modelListClasses.headerBlock}>
         <ModelListHeader
-          enabledModelCount={modelList.header.enabledModelCount}
-          modelCount={modelList.header.modelCount}
-          hasVisibleModels={modelList.header.hasVisibleModels}
-          allEnabled={modelList.header.allEnabled}
           isBusy={toolbarDisabled}
           hasNoModels={modelList.header.hasNoModels}
           searchText={modelList.header.searchText}
@@ -35,7 +56,6 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({ providerId, disab
           setSelectedCapabilityFilter={modelList.header.setSelectedCapabilityFilter}
           capabilityOptions={modelList.header.capabilityOptions}
           capabilityModelCounts={modelList.header.capabilityModelCounts}
-          onToggleVisibleModels={modelList.header.onToggleVisibleModels}
           actions={actions?.({
             disabled: toolbarDisabled,
             hasVisibleModels: modelList.header.hasVisibleModels
@@ -53,6 +73,40 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({ providerId, disab
           pendingModelIds={modelList.sections.pendingModelIds}
           onEditModel={modelList.sections.onEditModel}
           onToggleModel={modelList.sections.onToggleModel}
+          enabledSectionActions={
+            <>
+              <Tooltip content={bulkCloseLabel}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-label={bulkCloseLabel}
+                  className={modelListClasses.subsectionIconButton}
+                  disabled={!modelList.header.hasVisibleModels || toolbarDisabled}
+                  onClick={handleCloseVisibleModels}>
+                  <ToggleLeft className={modelListClasses.subsectionIcon} />
+                </Button>
+              </Tooltip>
+              {enabledSectionActions?.({
+                disabled: toolbarDisabled,
+                hasVisibleModels: modelList.header.hasVisibleModels
+              })}
+            </>
+          }
+          disabledSectionActions={
+            <Tooltip content={bulkEnableLabel}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={bulkEnableLabel}
+                className={modelListClasses.subsectionIconButton}
+                disabled={!modelList.header.hasVisibleModels || modelList.header.allEnabled || toolbarDisabled}
+                onClick={handleEnableVisibleModels}>
+                <ToggleRight className={modelListClasses.subsectionIcon} />
+              </Button>
+            </Tooltip>
+          }
         />
       </div>
       <EditModelDrawer

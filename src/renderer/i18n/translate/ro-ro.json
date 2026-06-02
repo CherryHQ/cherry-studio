@@ -6127,6 +6127,7 @@
         }
       },
       "api_key": "Cheie API",
+      "available_count": "{{count}} disponibile",
       "base_url": "URL de bază",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6441,7 +6442,6 @@
         "unnamed": "[to be translated]:API Key"
       },
       "api_version": "Versiune API",
-      "auth_connection_section": "Connection & authentication",
       "aws-bedrock": {
         "access_key_id": "ID cheie acces AWS",
         "access_key_id_help": "ID-ul tău de cheie de acces AWS pentru accesarea serviciilor AWS Bedrock",
@@ -6589,11 +6589,11 @@
         "balance_error": "[to be translated]:Failed to fetch balance",
         "button": "Conectare cu {{provider}}",
         "cherryIn": {
-          "account_title": "Cherry IN account",
           "description": "Autentifică-te cu serverul tău auto-găzduit New-API folosind OAuth 2.0 (PKCE)",
           "logged_in": "Conectat prin OAuth",
-          "login_button": "Conectare cu OAuth",
+          "login_button": "Autorizează cu CherryIN",
           "logout_button": "Deconectare",
+          "not_logged_in": "Neautentificat",
           "register_account": "Create account",
           "service_attribution": "This service is provided by <link>open.cherryin.ai</link>",
           "tagline": "After you sign in, you can use all model services",
@@ -6627,6 +6627,10 @@
       "save_failed": "[to be translated]:Failed to save provider settings",
       "search": "Caută furnizori...",
       "search_placeholder": "Caută id sau nume model",
+      "section": {
+        "account": "Cont",
+        "configuration": "Configurare"
+      },
       "title": "Furnizor model",
       "vertex_ai": {
         "api_host_help": "Gazda API pentru Vertex AI, nerecomandat de completat, aplicabil în general pentru reverse proxy",

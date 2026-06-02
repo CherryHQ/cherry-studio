@@ -64,7 +64,6 @@ const PopupContainer: FC<Props> = ({ providerId, resolve }) => {
 
   return (
     <ProviderSettingsDrawer
-      size="wide"
       title={t('settings.provider.notes.title')}
       open={open}
       onClose={onCancel}

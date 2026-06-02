@@ -6127,6 +6127,7 @@
         }
       },
       "api_key": "Clé API",
+      "available_count": "{{count}} disponibles",
       "base_url": "URL de base",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6441,7 +6442,6 @@
         "unnamed": "[to be translated]:API Key"
       },
       "api_version": "Version API",
-      "auth_connection_section": "Connection & authentication",
       "aws-bedrock": {
         "access_key_id": "Identifiant de clé d'accès AWS",
         "access_key_id_help": "Votre identifiant de clé d'accès AWS, utilisé pour accéder au service AWS Bedrock",
@@ -6589,11 +6589,11 @@
         "balance_error": "[to be translated]:Failed to fetch balance",
         "button": "Войти через аккаунт {{provider}}",
         "cherryIn": {
-          "account_title": "Cherry IN account",
           "description": "Connectez-vous à votre serveur New-API auto-hébergé à l'aide d'OAuth 2.0 (PKCE)",
           "logged_in": "Connecté via OAuth",
-          "login_button": "Se connecter avec OAuth",
+          "login_button": "Autoriser avec CherryIN",
           "logout_button": "Déconnexion",
+          "not_logged_in": "Non connecté",
           "register_account": "Create account",
           "service_attribution": "This service is provided by <link>open.cherryin.ai</link>",
           "tagline": "After you sign in, you can use all model services",
@@ -6627,6 +6627,10 @@
       "save_failed": "[to be translated]:Failed to save provider settings",
       "search": "Rechercher une plateforme de modèles...",
       "search_placeholder": "Rechercher un ID ou un nom de modèle",
+      "section": {
+        "account": "Compte",
+        "configuration": "Configuration"
+      },
       "title": "Services de modèles",
       "vertex_ai": {
         "api_host_help": "Adresse API de Vertex AI, il n'est pas recommandé de la remplir, généralement utilisée pour un proxy inverse",

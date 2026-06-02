@@ -29,7 +29,7 @@ import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
+import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingsContentColumn, SettingTitle } from '.'
 
 const QuickAssistantSettings: FC = () => {
   const [enableQuickAssistant, setEnableQuickAssistant] = usePreference('feature.quick_assistant.enabled')
@@ -93,7 +93,7 @@ const QuickAssistantSettings: FC = () => {
   }
 
   return (
-    <SettingContainer theme={theme}>
+    <SettingsContentColumn theme={theme}>
       <SettingGroup theme={theme}>
         <SettingTitle>{t('settings.quickAssistant.title')}</SettingTitle>
         <SettingDivider />
@@ -218,7 +218,7 @@ const QuickAssistantSettings: FC = () => {
           <HomeWindow draggable={false} />
         </div>
       )}
-    </SettingContainer>
+    </SettingsContentColumn>
   )
 }
 

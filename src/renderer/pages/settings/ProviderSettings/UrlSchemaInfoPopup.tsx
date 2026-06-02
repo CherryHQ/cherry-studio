@@ -146,14 +146,14 @@ const PopupContainer = ({ id, apiKey: newApiKey, baseUrl, type, name, resolve }:
               <div
                 key={row.label}
                 className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-3 border-[color:var(--color-border-fg-hairline)] border-b px-3 py-2.5 last:border-b-0">
-                <div className="text-[length:var(--font-size-body-xs)] text-muted-foreground">{row.label}</div>
+                <div className="text-[length:var(--font-size-body-xs)] text-foreground-muted">{row.label}</div>
                 <div className="min-w-0 truncate text-[length:var(--font-size-body-sm)] text-foreground/85">
                   {row.value}
                 </div>
               </div>
             ))}
             <div className="grid grid-cols-[7.5rem_minmax(0,1fr)] gap-3 px-3 py-2.5">
-              <div className="text-[length:var(--font-size-body-xs)] text-muted-foreground">
+              <div className="text-[length:var(--font-size-body-xs)] text-foreground-muted">
                 {t('settings.models.api_key')}
               </div>
               <div className="flex min-w-0 items-center justify-between gap-2">

@@ -1,4 +1,4 @@
-import { Button, Input, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, Input, PageSidePanelItem, Switch, Tooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProviders'
 import { cn } from '@renderer/utils'
 import type { Provider, RuntimeApiFeatures } from '@shared/data/types/provider'
@@ -40,10 +40,10 @@ function apiOptionId(providerId: string, key: string): string {
   return `provider-api-option-${providerId}-${key}`
 }
 
-function OptionLabel({ id, label, help }: { id: string; label: string; help: string }) {
+function OptionTitle({ id, label, help }: { id: string; label: string; help: string }) {
   return (
-    <div className="flex min-w-0 items-center gap-1.5">
-      <label htmlFor={id} className="min-w-0 cursor-pointer truncate text-[13px] text-foreground/75 leading-[1.35]">
+    <span className="flex min-w-0 items-center gap-1.5">
+      <label htmlFor={id} className="min-w-0 cursor-pointer truncate">
         {label}
       </label>
       <Tooltip content={help}>
@@ -53,7 +53,7 @@ function OptionLabel({ id, label, help }: { id: string; label: string; help: str
           <Info className="size-3" aria-hidden />
         </span>
       </Tooltip>
-    </div>
+    </span>
   )
 }
 
@@ -205,14 +205,7 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
   )
 
   if (!provider) {
-    return (
-      <ProviderSettingsDrawer
-        open={open}
-        onClose={onClose}
-        title={t('settings.provider.api.options.label')}
-        size="form"
-      />
-    )
+    return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('settings.provider.api.options.label')} />
   }
 
   const isSupportAnthropicPromptCache = isAnthropicSupportedProvider(provider)
@@ -224,23 +217,23 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
       open={open}
       onClose={onClose}
       title={t('settings.provider.api.options.label')}
-      footer={footer}
-      size="form">
-      <div className="flex min-w-0 flex-col gap-5 py-1">
-        <div className="space-y-3">
+      footer={footer}>
+      <div className="flex min-w-0 flex-col gap-5">
+        <div className="flex flex-col gap-5">
           {options.map((item) => {
             const id = apiOptionId(providerId, item.key)
             return (
-              <div
+              <PageSidePanelItem
                 key={item.key}
-                className="flex min-w-0 items-center justify-between gap-4 rounded-xl border border-[color:var(--section-border)] bg-muted/40 px-3 py-2.5">
-                <OptionLabel id={id} label={item.label} help={item.help} />
-                <Switch
-                  id={id}
-                  checked={provider.apiFeatures[item.key]}
-                  onCheckedChange={(checked) => updateApiFeature(item.key, checked)}
-                />
-              </div>
+                title={<OptionTitle id={id} label={item.label} help={item.help} />}
+                action={
+                  <Switch
+                    id={id}
+                    checked={provider.apiFeatures[item.key]}
+                    onCheckedChange={(checked) => updateApiFeature(item.key, checked)}
+                  />
+                }
+              />
             )
           })}
         </div>
@@ -248,73 +241,85 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
         {isSupportAnthropicPromptCache ? (
           <>
             <div className={drawerClasses.divider} />
-            <div className="space-y-3">
-              <div className="flex min-w-0 items-center justify-between gap-4 rounded-xl border border-[color:var(--section-border)] bg-muted/40 px-3 py-2.5">
-                <OptionLabel
-                  id={apiOptionId(providerId, 'cache-token-threshold')}
-                  label={t('settings.provider.api.options.anthropic_cache.token_threshold')}
-                  help={t('settings.provider.api.options.anthropic_cache.token_threshold_help')}
-                />
-                <Input
-                  id={apiOptionId(providerId, 'cache-token-threshold')}
-                  type="number"
-                  min={0}
-                  max={CACHE_TOKEN_THRESHOLD_MAX}
-                  value={tokenThresholdDraft}
-                  onChange={(event) => setTokenThresholdDraft(event.target.value)}
-                  onBlur={commitTokenThreshold}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.currentTarget.blur()
-                    }
-                  }}
-                  className={cn(drawerClasses.input, 'h-9 w-28 shrink-0 rounded-xl px-3 py-1.5 text-right')}
-                />
-              </div>
+            <div className="flex flex-col gap-5">
+              <PageSidePanelItem
+                title={
+                  <OptionTitle
+                    id={apiOptionId(providerId, 'cache-token-threshold')}
+                    label={t('settings.provider.api.options.anthropic_cache.token_threshold')}
+                    help={t('settings.provider.api.options.anthropic_cache.token_threshold_help')}
+                  />
+                }
+                action={
+                  <Input
+                    id={apiOptionId(providerId, 'cache-token-threshold')}
+                    type="number"
+                    min={0}
+                    max={CACHE_TOKEN_THRESHOLD_MAX}
+                    value={tokenThresholdDraft}
+                    onChange={(event) => setTokenThresholdDraft(event.target.value)}
+                    onBlur={commitTokenThreshold}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.currentTarget.blur()
+                      }
+                    }}
+                    className={cn(drawerClasses.input, 'h-9 w-28 shrink-0 text-right')}
+                  />
+                }
+              />
 
               {showCacheDetailOptions ? (
                 <>
-                  <div className="flex min-w-0 items-center justify-between gap-4 rounded-xl border border-[color:var(--section-border)] bg-muted/40 px-3 py-2.5">
-                    <OptionLabel
-                      id={apiOptionId(providerId, 'cache-system-message')}
-                      label={t('settings.provider.api.options.anthropic_cache.cache_system')}
-                      help={t('settings.provider.api.options.anthropic_cache.cache_system_help')}
-                    />
-                    <Switch
-                      id={apiOptionId(providerId, 'cache-system-message')}
-                      checked={cacheSystemMessage}
-                      onCheckedChange={(checked) =>
-                        updateCacheSettings({
-                          enabled: effectiveCacheTokenThreshold > 0,
-                          tokenThreshold: effectiveCacheTokenThreshold,
-                          cacheSystemMessage: checked
-                        })
-                      }
-                    />
-                  </div>
-
-                  <div className="flex min-w-0 items-center justify-between gap-4 rounded-xl border border-[color:var(--section-border)] bg-muted/40 px-3 py-2.5">
-                    <OptionLabel
-                      id={apiOptionId(providerId, 'cache-last-n')}
-                      label={t('settings.provider.api.options.anthropic_cache.cache_last_n')}
-                      help={t('settings.provider.api.options.anthropic_cache.cache_last_n_help')}
-                    />
-                    <Input
-                      id={apiOptionId(providerId, 'cache-last-n')}
-                      type="number"
-                      min={0}
-                      max={CACHE_LAST_N_MAX}
-                      value={cacheLastNDraft}
-                      onChange={(event) => setCacheLastNDraft(event.target.value)}
-                      onBlur={commitCacheLastNMessages}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') {
-                          event.currentTarget.blur()
+                  <PageSidePanelItem
+                    title={
+                      <OptionTitle
+                        id={apiOptionId(providerId, 'cache-system-message')}
+                        label={t('settings.provider.api.options.anthropic_cache.cache_system')}
+                        help={t('settings.provider.api.options.anthropic_cache.cache_system_help')}
+                      />
+                    }
+                    action={
+                      <Switch
+                        id={apiOptionId(providerId, 'cache-system-message')}
+                        checked={cacheSystemMessage}
+                        onCheckedChange={(checked) =>
+                          updateCacheSettings({
+                            enabled: effectiveCacheTokenThreshold > 0,
+                            tokenThreshold: effectiveCacheTokenThreshold,
+                            cacheSystemMessage: checked
+                          })
                         }
-                      }}
-                      className={cn(drawerClasses.input, 'h-9 w-20 shrink-0 rounded-xl px-3 py-1.5 text-right')}
-                    />
-                  </div>
+                      />
+                    }
+                  />
+
+                  <PageSidePanelItem
+                    title={
+                      <OptionTitle
+                        id={apiOptionId(providerId, 'cache-last-n')}
+                        label={t('settings.provider.api.options.anthropic_cache.cache_last_n')}
+                        help={t('settings.provider.api.options.anthropic_cache.cache_last_n_help')}
+                      />
+                    }
+                    action={
+                      <Input
+                        id={apiOptionId(providerId, 'cache-last-n')}
+                        type="number"
+                        min={0}
+                        max={CACHE_LAST_N_MAX}
+                        value={cacheLastNDraft}
+                        onChange={(event) => setCacheLastNDraft(event.target.value)}
+                        onBlur={commitCacheLastNMessages}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') {
+                            event.currentTarget.blur()
+                          }
+                        }}
+                        className={cn(drawerClasses.input, 'h-9 w-20 shrink-0 text-right')}
+                      />
+                    }
+                  />
                 </>
               ) : null}
             </div>
