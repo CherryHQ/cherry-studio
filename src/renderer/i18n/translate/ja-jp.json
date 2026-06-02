@@ -137,7 +137,6 @@
           "confirm": "このタスクを削除してもよろしいですか？",
           "label": "削除"
         },
-        "edit": "編集",
         "error": {
           "loadFailed": "[to be translated]:Failed to load tasks"
         },
@@ -148,7 +147,6 @@
           "duration": "所要時間",
           "empty": "実行履歴がありません。",
           "error": "エラー",
-          "justNow": "さっき",
           "label": "実行履歴",
           "loadError": "[to be translated]:Failed to load run history",
           "result": "結果",
@@ -185,10 +183,6 @@
           "active": "アクティブ",
           "completed": "完了",
           "paused": "一時停止中"
-        },
-        "time": {
-          "hoursAgo": "{{count}}時間前",
-          "minutesAgo": "{{count}}分前"
         },
         "timeout": {
           "label": "タイムアウト",
@@ -708,8 +702,7 @@
     "title": "アシスタント"
   },
   "auth": {
-    "get_key_success": "APIキーの自動取得に成功しました",
-    "login": "認証"
+    "get_key_success": "APIキーの自動取得に成功しました"
   },
   "backup": {
     "confirm": {
@@ -852,12 +845,6 @@
       },
       "url_context": "URLコンテキスト",
       "web_search": {
-        "builtin": {
-          "disabled_content": "現在のモデルはウェブ検索をサポートしていません",
-          "enabled_content": "モデル内蔵のウェブ検索機能を使用",
-          "label": "モデル内蔵"
-        },
-        "enable_content": "ウェブ検索の接続性を先に設定で確認する必要があります",
         "label": "ウェブ検索"
       }
     },
@@ -1127,7 +1114,6 @@
         "title": "トピックを管理"
       },
       "move_to": "移動先",
-      "new": "新しいトピック",
       "pin": "トピックを固定",
       "prompt": {
         "edit": {
@@ -1241,7 +1227,6 @@
     "add_success": "追加成功",
     "advanced_settings": "詳細設定",
     "agent_one": "エージェント",
-    "and": "と",
     "assistant": "アシスタント",
     "assistant_one": "助手",
     "assistant_other": "助手",
@@ -1251,7 +1236,6 @@
     "cancel": "キャンセル",
     "chat": "チャット",
     "clear": "クリア",
-    "clear_all": "すべてクリア",
     "close": "閉じる",
     "collapse": "折りたたむ",
     "confirm": "確認",
@@ -1278,20 +1262,15 @@
     },
     "footnotes": "脚注",
     "fullscreen": "全画面モードに入りました。F11キーで終了します",
-    "generate_random_seed": "ランダムシードを生成",
     "get_embedding_dimension": "埋め込み次元を取得",
     "go_to_settings": "設定に移動",
     "html_preview": "HTMLプレビュー",
     "ignore": "無視",
-    "image_preview": "画像プレビュー",
-    "image_url": "画像URL",
-    "image_url_or_upload": "画像のURLを入力するか、ファイルをアップロードしてください",
     "inspect": "検査",
     "knowledge_base": "ナレッジベース",
     "language": "言語",
     "loading": "読み込み中...",
     "model": "モデル",
-    "models": "モデル",
     "more": "もっと",
     "name": "名前",
     "next_match": "次の試合",
@@ -1305,10 +1284,8 @@
     "preview": "プレビュー",
     "previous_match": "前回の試合",
     "prompt": "プロンプト",
-    "provider": "プロバイダー",
     "reasoning_content": "深く考察済み",
     "regenerate": "再生成",
-    "remove_image": "画像を削除",
     "required_field": "必須項目",
     "reset": "リセット",
     "retry": "リトライ",
@@ -1336,9 +1313,6 @@
     "unnamed": "無題",
     "unsubscribe": "配信停止",
     "update_success": "更新成功",
-    "upload_files": "ファイルをアップロードする",
-    "upload_image": "画像ファイルをアップロード",
-    "uploaded_image": "アップロードされた画像",
     "warning": "警告",
     "you": "あなた"
   },
@@ -1611,9 +1585,7 @@
     "search_placeholder": "検索するテキストを入力",
     "status_embedding_failed": "埋め込み失敗",
     "status_preprocess_failed": "前処理に失敗しました",
-    "subtitle_file": "字幕ファイル",
-    "title": "ナレッジベース",
-    "videos_file": "動画ファイル"
+    "title": "ナレッジベース"
   },
   "languages": {
     "arabic": "アラビア語",
@@ -1978,7 +1950,6 @@
     "price": {
       "cost": "コスト",
       "currency": "通貨",
-      "custom": "カスタム",
       "custom_currency": "カスタム通貨",
       "custom_currency_placeholder": "カスタム通貨を入力してください",
       "input": "入力価格",
@@ -1986,8 +1957,7 @@
       "output": "出力価格"
     },
     "search": {
-      "placeholder": "モデルを検索...",
-      "tooltip": "モデルを検索"
+      "placeholder": "モデルを検索..."
     },
     "stream_output": "ストリーム出力",
     "type": {
@@ -2152,27 +2122,6 @@
       }
     }
   },
-  "onboarding": {
-    "select_model": {
-      "change_later": "いつでも設定で変更できます",
-      "start": "始めましょう",
-      "subtitle": "各シナリオごとのデフォルトモデルを選択",
-      "title": "デフォルトモデルを選択"
-    },
-    "skip": "スキップ",
-    "toast": {
-      "connected": "CherryINに正常に接続されました"
-    },
-    "welcome": {
-      "login_cherryin": "CherryINでログイン",
-      "or_continue_with": "または続行",
-      "other_provider": "他のプロバイダーを選択",
-      "select_other_provider": "他のプロバイダーを選択",
-      "setup_hint": "ベストな体験のために、少なくとも1つのプロバイダーを設定してください",
-      "subtitle": "CherryINでトップクラスのAIサービスをお楽しみください",
-      "title": "Cherry Studioへようこそ"
-    }
-  },
   "openclaw": {
     "checking_installation": "OpenClawのインストールを確認しています...",
     "description": "Cherry Studio プロバイダーを OpenClaw Gateway と統合し、Claude Code、Qwen-Coder などの AI コーディングエージェントを有効にします。",
@@ -2245,7 +2194,6 @@
     "description": "<div><p>1. OVモデルをダウンロードします。</p><p>2. 'マネージャー'でモデルを追加します。</p><p>Windowsのみサポート！</p><p>OVMSインストールパス: '%USERPROFILE%\\.cherrystudio\\ovms' 。</p><p>詳細は<a href=https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md>Intel OVMSガイド</a>をご参照ください。</p></dev>",
     "download": {
       "button": "ダウンロード",
-      "error": "ダウンロードエラー",
       "model_id": {
         "label": "モデルID",
         "model_id_pattern": "モデルIDはOpenVINO/で始まる必要があります",
@@ -2259,7 +2207,6 @@
       },
       "model_source": "モデルソース:",
       "model_task": "モデルタスク:",
-      "success": "ダウンロード成功",
       "success_desc": "モデル\"{{modelName}}\"-\"{{modelId}}\"ダウンロード成功、OVMS管理インターフェースに移動してモデルを追加してください",
       "tip": "モデルはダウンロードされていますが、時には数時間かかります。我慢してください...",
       "title": "Intel OpenVINOモデルをダウンロード"
@@ -2286,12 +2233,6 @@
   },
   "paintings": {
     "aspect_ratio": "画幅比例",
-    "aspect_ratios": {
-      "landscape": "横図",
-      "square": "正方形"
-    },
-    "auto_create_paint": "画像を自動作成",
-    "auto_create_paint_tip": "画像が生成された後、自動的に新しい画像が作成されます。",
     "background": "背景",
     "background_options": {
       "auto": "自動",
@@ -2310,7 +2251,6 @@
     },
     "custom_size": "カスタムサイズ",
     "dmxapi": {
-      "generating_tip": "公式モデルで生成中です。最良の結果のため、推定待機時間は2〜5分です。この操作のコストについては、DMXAPIバックエンドログをご確認ください。",
       "style": "スタイル：",
       "style_types": {
         "25d_animation": "2.5Dアニメーション",
@@ -2343,7 +2283,6 @@
       }
     },
     "edit": {
-      "image_file": "編集画像",
       "image_required": "編集する画像を先にアップロードしてください"
     },
     "generate": {
@@ -2362,8 +2301,6 @@
       "width": "幅"
     },
     "generate_failed": "画像の生成に失敗しました",
-    "generated_image": "生成画像",
-    "go_to_settings": "設定に移動",
     "guidance_scale": "ガイダンススケール",
     "guidance_scale_tip": "分類器なしのガイダンス。モデルが関連する画像を探す際にプロンプトにどれだけ従うかを制御します",
     "image": {
@@ -2373,26 +2310,13 @@
     "image_file_retry": "画像を先にアップロードしてください",
     "image_handle_required": "最初に画像をアップロードしてください。",
     "image_mix_failed": "画像の混合に失敗しました",
-    "image_placeholder": "画像がありません",
-    "image_retry": "再試行",
     "image_size_options": {
       "auto": "自動"
     },
     "inference_steps": "推論ステップ数",
     "inference_steps_tip": "実行する推論ステップ数。ステップ数が多いほど品質が向上しますが、時間がかかります",
-    "input_image": "入力画像",
-    "input_parameters": "パラメータ入力",
-    "learn_more": "詳しくはこちら",
     "magic_prompt_option": "プロンプト強化",
-    "mode": {
-      "edit": "部分編集",
-      "generate": "画像生成",
-      "merge": "マージ",
-      "remix": "混合",
-      "upscale": "拡大"
-    },
     "model": "モデル",
-    "model_and_pricing": "モデルと料金",
     "moderation": "敏感度",
     "moderation_options": {
       "auto": "自動",
@@ -2400,32 +2324,20 @@
     },
     "negative_prompt": "ネガティブプロンプト",
     "negative_prompt_tip": "画像に含めたくない内容を説明します",
-    "no_image_generation_model": "利用可能な画像生成モデルがありません。モデルを追加し、エンドポイントタイプを {{endpoint_type}} に設定してください",
     "number_images": "生成数",
     "number_images_tip": "生成する画像の数（1-4）",
     "operation_failed": "操作に失敗しました。後でもう一度お試しください。",
-    "paint_course": "チュートリアル",
-    "per_image": "1枚あたり",
-    "per_images": "複数枚あたり",
     "person_generation_options": {
       "allow_adult": "許可する",
       "allow_all": "許可する",
       "allow_none": "許可しない"
     },
     "ppio": {
-      "mask_image": "マスク画像",
-      "mask_image_tip": "消去する領域を示します。消去する領域は白、保持する領域は黒にしてください",
-      "output_format": "出力形式",
-      "resolution": "目標解像度",
-      "seed_tip": "ランダムシード、同じシードとパラメータで類似の画像を生成、-1はランダム",
-      "use_pre_llm_tip": "テキスト拡張を有効にしてプロンプトを最適化。短いプロンプトには推奨、長いプロンプトには無効化を推奨",
-      "watermark_tip": "生成画像に透かしを追加するかどうか、デフォルトは無効"
+      "output_format": "出力形式"
     },
     "prompt_enhancement": "プロンプト強化",
     "prompt_enhancement_tip": "オンにすると、プロンプトを詳細でモデルに適したバージョンに書き直します",
     "prompt_placeholder": "作成したい画像を説明します。例：夕日の湖畔、遠くに山々",
-    "prompt_placeholder_edit": "画像の説明を入力します。テキスト描画には '二重引用符' を使用します",
-    "prompt_placeholder_en": "「英語」の説明を入力します。は現在、英語のプロンプト語のみをサポートしています",
     "proxy_required": "打開代理並開啟TUN模式查看生成圖片或複製到瀏覽器開啟，後續會支持國內直連",
     "quality": "品質",
     "quality_options": {
@@ -2433,9 +2345,6 @@
       "high": "高",
       "low": "低",
       "medium": "中"
-    },
-    "regenerate": {
-      "confirm": "これにより、既存の生成画像が置き換えられます。続行しますか？"
     },
     "remix": {
       "image_file": "参照画像",
@@ -2455,11 +2364,8 @@
     },
     "req_error_model": "モデルの取得に失敗しました",
     "req_error_no_balance": "トークンの有効性を確認してください",
-    "req_error_text": "サーバーが混雑しているか、プロンプトに「著作権用語」または「敏感な用語」が含まれています。もう一度お試しください。",
     "req_error_token": "トークンの有効性を確認してください",
     "seed": "シード",
-    "seed_desc_tip": "同じシードとプロンプトで類似した画像を生成できますが、-1 に設定すると毎回異なる結果が生成されます",
-    "seed_random": "ランダム",
     "seed_tip": "同じシードとプロンプトで似た画像を生成できます",
     "select_model": "モデルを選択",
     "style_type": "スタイル",
@@ -2473,38 +2379,16 @@
     },
     "text_desc_required": "画像の説明を先に入力してください",
     "title": "画像",
-    "top_up": "チャージする",
-    "translating": "翻訳中...",
-    "uploaded_input": "アップロード済みの入力",
     "upscale": {
       "detail": "詳細度",
-      "detail_tip": "拡大画像の詳細度を制御します",
-      "image_file": "拡大する画像",
-      "magic_prompt_option_tip": "拡大効果を向上させるための提示詞を最適化します",
-      "number_images_tip": "生成される拡大結果の数",
-      "resemblance": "類似度",
-      "seed_tip": "拡大結果のランダム性を制御します"
+      "resemblance": "類似度"
     },
     "watermark": "透かしを追加",
     "zhipu": {
       "custom_size_divisible": "カスタムサイズは16で割り切れる必要があります",
-      "custom_size_hint": "幅と高さは512px～2048pxの間で16で割り切れ、総ピクセル数は2^21pxを超えてはなりません",
       "custom_size_pixels": "カスタムサイズの総ピクセル数は2,097,152を超えることはできません",
       "custom_size_range": "カスタムサイズは512px～2048pxの間でなければなりません",
-      "custom_size_required": "カスタム幅と高さを設定してください",
-      "image_sizes": {
-        "1024x1024_default": "1024x1024（デフォルト）",
-        "1152x864": "1152×864",
-        "1344x768": "1344x768",
-        "1440x720": "1440x720",
-        "720x1440": "720x1440",
-        "768x1344": "768x1344",
-        "864x1152": "864×1152"
-      },
-      "quality_options": {
-        "hd": "HD",
-        "standard_default": "標準（デフォルト）"
-      }
+      "custom_size_required": "カスタム幅と高さを設定してください"
     }
   },
   "preview": {
@@ -3240,7 +3124,6 @@
         "title": "データディレクトリ"
       },
       "divider": {
-        "basic": "基本データ設定",
         "cloud_storage": "クラウドバックアップ設定",
         "export_settings": "エクスポート設定",
         "import_settings": "設定のインポート"
@@ -3902,7 +3785,6 @@
       "deleteSuccess": "サーバーが正常に削除されました",
       "description": "説明",
       "discover": "発見",
-      "editJson": "JSONを編集",
       "env": "環境変数",
       "envTooltip": "形式: KEY=value, 1行に1つ",
       "fetch": {
@@ -3915,10 +3797,6 @@
       "install": "インストール",
       "installError": "依存関係のインストールに失敗しました",
       "installSuccess": "依存関係のインストールに成功しました",
-      "jsonFormatError": "JSONフォーマットエラー",
-      "jsonModeHint": "MCPサーバー設定のJSON表現を編集します。保存する前に、フォーマットが正しいことを確認してください。",
-      "jsonSaveError": "JSON設定の保存に失敗しました",
-      "jsonSaveSuccess": "JSON設定が保存されました。",
       "logoUrl": "ロゴURL",
       "logs": "ログ",
       "longRunning": "長時間運行モード",
@@ -3997,12 +3875,7 @@
       "stdio": "標準入力/出力 (stdio)",
       "streamableHttp": "ストリーミング可能なHTTP (streamable)",
       "sync": {
-        "button": "同期する",
-        "discoverMcpServers": "MCPサーバーを発見",
-        "discoverMcpServersDescription": "プラットフォームを訪れて利用可能なMCPサーバーを発見",
         "error": "MCPサーバーの同期エラー",
-        "getToken": "API トークンを取得する",
-        "getTokenDescription": "アカウントから個人用 API トークンを取得します",
         "noServersAvailable": "利用可能な MCP サーバーがありません",
         "providerDescriptions": {
           "302ai": "302.AIプラットフォームMCPサービス",
@@ -4012,10 +3885,7 @@
           "modelscope": "ModelScopeプラットフォームMCPサービス",
           "tokenflux": "TokenFlux Platform MCP Service"
         },
-        "selectProvider": "プロバイダーを選択：",
-        "setToken": "トークンを入力してください",
         "success": "MCPサーバーの同期成功",
-        "title": "サーバーの同期",
         "tokenPlaceholder": "ここに API トークンを入力してください",
         "tokenRequired": "API トークンは必須です",
         "unauthorized": "同期が許可されていません"
@@ -4098,7 +3968,6 @@
     "models": {
       "add": {
         "add_model": "モデルを追加",
-        "batch_add_models": "モデルを一括追加",
         "endpoint_type": {
           "label": "エンドポイントタイプ",
           "placeholder": "エンドポイントタイプを選択",
@@ -4107,18 +3976,15 @@
         },
         "group_name": {
           "label": "グループ名",
-          "placeholder": "例：ChatGPT",
-          "tooltip": "例：ChatGPT"
+          "placeholder": "例：ChatGPT"
         },
         "model_id": {
           "label": "モデルID",
-          "placeholder": "必須 例：gpt-3.5-turbo",
-          "tooltip": "例：gpt-3.5-turbo"
+          "placeholder": "必須 例：gpt-3.5-turbo"
         },
         "model_name": {
           "label": "モデル名",
-          "placeholder": "例：GPT-4",
-          "tooltip": "例：GPT-4"
+          "placeholder": "例：GPT-4"
         },
         "supported_text_delta": {
           "label": "インクリメンタルテキスト出力のサポート",
@@ -4152,16 +4018,7 @@
       "default_assistant_model_description": "新しいアシスタントを作成する際に使用されるモデル。アシスタントがモデルを設定していない場合、このモデルが使用されます",
       "empty": "モデルが見つかりません",
       "manage": {
-        "add_listed": {
-          "confirm": "すべてのモデルをリストに追加しますか？",
-          "label": "リストにモデルを追加"
-        },
-        "add_whole_group": "グループ全体を追加",
-        "fetch_list": "モデルリストを取得",
-        "refetch_list": "モデルリストを再取得",
-        "remove_listed": "リストからモデルを削除",
-        "remove_model": "モデルを削除",
-        "remove_whole_group": "グループ全体を削除"
+        "remove_model": "モデルを削除"
       },
       "provider_id": "プロバイダー ID",
       "provider_key_add_confirm": "{{provider}} の API キーを追加しますか？",
@@ -4191,13 +4048,10 @@
     },
     "moresetting": {
       "check": {
-        "confirm": "選択を確認",
         "warn": "このオプションを選択する際は慎重に行ってください。誤った選択はモデルの誤動作を引き起こす可能性があります！"
       },
-      "label": "詳細設定",
-      "warn": "リスク警告"
+      "label": "詳細設定"
     },
-    "no_provider_selected": "未選択のプロバイダー",
     "notification": {
       "assistant": "アシスタントメッセージ",
       "backup": "バックアップメッセージ",
@@ -4246,8 +4100,7 @@
           "label": "プロバイダー名",
           "placeholder": "例：OpenAI"
         },
-        "title": "プロバイダーを追加",
-        "type": "プロバイダータイプ"
+        "title": "プロバイダーを追加"
       },
       "anthropic": {
         "apikey": "API キー",
@@ -4272,12 +4125,8 @@
       },
       "anthropic_api_host": "Anthropic APIアドレス",
       "anthropic_api_host_preview": "Anthropic プレビュー：{{url}}",
-      "anthropic_api_host_tooltip": "サービスプロバイダーがClaude互換のベースアドレスを提供する場合のみ入力してください。",
       "api": {
         "key": {
-          "check": {
-            "latency": "遅延"
-          },
           "error": {
             "duplicate": "APIキーはすでに存在します",
             "empty": "APIキーは空にできません"
@@ -4326,14 +4175,12 @@
           }
         },
         "url": {
-          "reset": "リセット",
-          "tip": "自動的に付加されるAPIバージョンを無効にするには、末尾に#を追加します。"
+          "reset": "リセット"
         }
       },
       "api_host": "APIホスト",
       "api_host_no_valid": "APIアドレスが無効です",
       "api_host_preview": "プレビュー：{{url}}",
-      "api_host_tooltip": "サービスプロバイダーがカスタムOpenAI互換アドレスを必要とする場合のみ上書きしてください。",
       "api_key": {
         "label": "APIキー",
         "tip": "複数のキーはカンマまたはスペースで区切ります"
@@ -4375,7 +4222,6 @@
       "bills": "費用帳單",
       "charge": "残高充電",
       "check": "チェック",
-      "check_all_keys": "すべてのキーをチェック",
       "copilot": {
         "auth_failed": "Github Copilotの認証に失敗しました。",
         "auth_success": "Github Copilotの認証が成功しました",
@@ -4417,8 +4263,6 @@
         "platform_official": "www.DMXAPI.cn（人民元）",
         "select_platform": "プラットフォームを選択"
       },
-      "docs_check": "チェック",
-      "docs_more_details": "詳細を確認",
       "filter": {
         "agent": "エージェントサポート",
         "all": "すべてのプロバイダー"
@@ -4439,22 +4283,17 @@
         "logout_confirm": "本当にログアウトしますか？",
         "logout_success": "正常にログアウトしました",
         "logout_warning": "ローカルではログアウトしましたが、サーバートークンの失効に失敗した可能性があります",
-        "provided_by": "提供",
-        "provided_by_suffix": "I’m ready—please provide the text you’d like translated into Japanese.",
         "topup": "チャージ"
       },
       "openai": {
         "alert": "OpenAIプロバイダーは旧式の呼び出し方法をサポートしなくなりました。サードパーティのAPIを使用している場合は、新しいサービスプロバイダーを作成してください。"
       },
-      "remove_invalid_keys": "無効なキーを削除",
       "search": "プロバイダーを検索...",
-      "search_placeholder": "モデルIDまたは名前を検索",
       "title": "モデルプロバイダー",
       "vertex_ai": {
         "api_host_help": "Vertex AIのAPIアドレス。逆プロキシに適しています。",
         "location": "場所",
         "location_help": "Vertex AIサービスの場所、例：us-central1。この項目は Service Account JSON から読み取られないため、手動で入力する必要があります。",
-        "location_placeholder": "Vertex AI の場所を選択",
         "project_id": "プロジェクトID",
         "project_id_help": "Google CloudプロジェクトID",
         "project_id_placeholder": "your-google-cloud-project-id",
@@ -4464,11 +4303,6 @@
           "client_email_placeholder": "サービスアカウントのクライアントメールを入力してください",
           "description": "ADCが利用できない環境での認証に適しています",
           "incomplete_config": "まずサービスアカウントの設定を完了してください",
-          "json_input": "Service Account JSON",
-          "json_input_help": "完全な JSON キー内容を貼り付けてください。解析後は project_id、client_email、private_key のみ保存され、元の JSON はクリアされます。",
-          "json_input_placeholder": "完全な Service Account JSON キー内容を貼り付け",
-          "json_parse_error": "Service Account JSON の解析に失敗しました。形式が正しいことを確認してください。",
-          "json_parse_success": "Service Account JSON を解析しました",
           "private_key": "秘密鍵",
           "private_key_help": "Google Cloud ConsoleからダウンロードしたJSONキーファイルのprivate_keyフィールド",
           "private_key_placeholder": "サービスアカウントの秘密鍵を入力してください",
@@ -4597,8 +4431,6 @@
         "api_key_required": {
           "ok": "設定"
         },
-        "api_providers": "APIプロバイダー",
-        "apikey": "APIキー",
         "blacklist": "ブラックリスト",
         "blacklist_description": "以下のウェブサイトの結果は検索結果に表示されません",
         "blacklist_tooltip": "以下の形式を使用してください(改行区切り)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
@@ -4611,10 +4443,6 @@
               "label": "切り捨て長",
               "placeholder": "長さを入力",
               "tooltip": "検索結果の内容長を制限し、制限を超える内容は切り捨てられます（例：2000文字）"
-            },
-            "unit": {
-              "char": "文字",
-              "token": "トークン"
             }
           },
           "method": {
@@ -4625,7 +4453,6 @@
           "title": "検索結果の圧縮"
         },
         "default_provider": "デフォルトプロバイダー",
-        "free": "無料",
         "is_default": "デフォルト",
         "search_max_result": {
           "label": "検索結果の数",
@@ -4648,9 +4475,7 @@
         "subscribe_update_failed": "フィードの更新に失敗しました",
         "subscribe_update_success": "订阅源更新成功",
         "subscribe_url": "購読URL",
-        "title": "ウェブ検索",
-        "url_invalid": "無効なURLが入力されました",
-        "url_required": "URLの入力が必要です"
+        "title": "ウェブ検索"
       }
     },
     "topic": {

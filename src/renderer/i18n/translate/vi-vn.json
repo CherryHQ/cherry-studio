@@ -137,7 +137,6 @@
           "confirm": "Bạn có chắc chắn muốn xóa nhiệm vụ này không?",
           "label": "Xóa"
         },
-        "edit": "Chỉnh sửa",
         "error": {
           "loadFailed": "[to be translated]:Failed to load tasks"
         },
@@ -148,7 +147,6 @@
           "duration": "Thời lượng",
           "empty": "Chưa có lịch sử chạy nào.",
           "error": "Lỗi",
-          "justNow": "vừa mới đây",
           "label": "Lịch sử chạy",
           "loadError": "[to be translated]:Failed to load run history",
           "result": "Kết quả",
@@ -185,10 +183,6 @@
           "active": "Hoạt động",
           "completed": "Hoàn thành",
           "paused": "Tạm dừng"
-        },
-        "time": {
-          "hoursAgo": "{{count}}h ago",
-          "minutesAgo": "{{count}} m pli frue"
         },
         "timeout": {
           "label": "Timeout",
@@ -708,8 +702,7 @@
     "title": "Trợ lý"
   },
   "auth": {
-    "get_key_success": "Khóa API đã được lấy tự động thành công",
-    "login": "Đăng nhập"
+    "get_key_success": "Khóa API đã được lấy tự động thành công"
   },
   "backup": {
     "confirm": {
@@ -852,12 +845,6 @@
       },
       "url_context": "Bối cảnh URL",
       "web_search": {
-        "builtin": {
-          "disabled_content": "Mô hình hiện tại không hỗ trợ tìm kiếm web",
-          "enabled_content": "Sử dụng chức năng tìm kiếm web tích hợp sẵn của mô hình",
-          "label": "Mô hình tích hợp sẵn"
-        },
-        "enable_content": "Cần kiểm tra kết nối tìm kiếm web trong cài đặt trước",
         "label": "Tìm kiếm trên web"
       }
     },
@@ -1127,7 +1114,6 @@
         "title": "Quản lý chủ đề"
       },
       "move_to": "Di chuyển đến",
-      "new": "Chủ đề mới",
       "pin": "Ghim chủ đề",
       "prompt": {
         "edit": {
@@ -1241,7 +1227,6 @@
     "add_success": "Đã thêm thành công",
     "advanced_settings": "Cài đặt nâng cao",
     "agent_one": "Đại lý",
-    "and": "và",
     "assistant": "Đại lý",
     "assistant_one": "Trợ lý",
     "assistant_other": "Trợ lý",
@@ -1251,7 +1236,6 @@
     "cancel": "Hủy",
     "chat": "Trò chuyện",
     "clear": "Rõ ràng",
-    "clear_all": "Xóa tất cả",
     "close": "Đóng",
     "collapse": "Thu gọn",
     "confirm": "Xác nhận",
@@ -1278,20 +1262,15 @@
     },
     "footnotes": "Tài liệu tham khảo",
     "fullscreen": "Đã vào chế độ toàn màn hình. Nhấn F11 để thoát",
-    "generate_random_seed": "Tạo hạt giống ngẫu nhiên",
     "get_embedding_dimension": "Lấy kích thước embedding",
     "go_to_settings": "Đi tới cài đặt",
     "html_preview": "Xem trước HTML",
     "ignore": "Bỏ qua",
-    "image_preview": "Xem trước hình ảnh",
-    "image_url": "URL hình ảnh",
-    "image_url_or_upload": "Nhập URL hình ảnh hoặc tải tệp lên",
     "inspect": "Kiểm tra",
     "knowledge_base": "Cơ sở tri thức",
     "language": "Ngôn ngữ",
     "loading": "Đang tải...",
     "model": "Mô hình",
-    "models": "Mô hình",
     "more": "Thêm",
     "name": "Tên",
     "next_match": "Trận đấu tiếp theo",
@@ -1305,10 +1284,8 @@
     "preview": "Xem trước",
     "previous_match": "Trận đấu trước",
     "prompt": "Lời nhắc",
-    "provider": "Nhà cung cấp",
     "reasoning_content": "Reasoning profundo",
     "regenerate": "Tái tạo",
-    "remove_image": "Xóa hình ảnh",
     "required_field": "Trường bắt buộc",
     "reset": "Đặt lại",
     "retry": "Thử lại",
@@ -1336,9 +1313,6 @@
     "unnamed": "Không tên",
     "unsubscribe": "Hủy đăng ký",
     "update_success": "Cập nhật thành công",
-    "upload_files": "Tải lên tệp",
-    "upload_image": "Tải lên tệp hình ảnh",
-    "uploaded_image": "Hình ảnh đã tải lên",
     "warning": "Cảnh báo",
     "you": "Bạn"
   },
@@ -1611,9 +1585,7 @@
     "search_placeholder": "Nhập văn bản để tìm kiếm",
     "status_embedding_failed": "Nhúng Thất Bại",
     "status_preprocess_failed": "Tiền xử lý thất bại",
-    "subtitle_file": "tập tin phụ đề",
-    "title": "Cơ sở tri thức",
-    "videos_file": "tệp video"
+    "title": "Cơ sở tri thức"
   },
   "languages": {
     "arabic": "Tiếng Ả Rập",
@@ -1978,7 +1950,6 @@
     "price": {
       "cost": "Chi phí",
       "currency": "Tiền tệ",
-      "custom": "Tùy chỉnh",
       "custom_currency": "Tiền tệ tùy chỉnh",
       "custom_currency_placeholder": "Nhập Tiền Tệ Tùy Chỉnh",
       "input": "Harga Masukan",
@@ -1986,8 +1957,7 @@
       "output": "Preis der Ausgabe"
     },
     "search": {
-      "placeholder": "Buscar modelos...",
-      "tooltip": "Mô hình tìm kiếm"
+      "placeholder": "Buscar modelos..."
     },
     "stream_output": "Salida de transmisión",
     "type": {
@@ -2152,27 +2122,6 @@
       }
     }
   },
-  "onboarding": {
-    "select_model": {
-      "change_later": "Bạn có thể thay đổi điều này bất cứ lúc nào trong phần cài đặt",
-      "start": "Bắt đầu",
-      "subtitle": "Chọn mô hình mặc định cho mỗi kịch bản",
-      "title": "Chọn Mô hình Mặc định của Bạn"
-    },
-    "skip": "Bỏ qua",
-    "toast": {
-      "connected": "Đã kết nối thành công với CherryIN"
-    },
-    "welcome": {
-      "login_cherryin": "Đăng nhập bằng CherryIN",
-      "or_continue_with": "HOẶC TIẾP TỤC VỚI",
-      "other_provider": "Chọn Nhà Cung Cấp Khác",
-      "select_other_provider": "Chọn Nhà Cung Cấp Khác",
-      "setup_hint": "Vui lòng cấu hình ít nhất một nhà cung cấp để có trải nghiệm tốt nhất",
-      "subtitle": "Tận hưởng các dịch vụ AI hàng đầu với CherryIN",
-      "title": "Chào mừng bạn đến với Cherry Studio"
-    }
-  },
   "openclaw": {
     "checking_installation": "Đang kiểm tra cài đặt OpenClaw...",
     "description": "Sử dụng các nhà cung cấp Cherry Studio để cấp nguồn cho OpenClaw, trợ lý AI cá nhân của bạn hoạt động trên WhatsApp, Telegram, Slack, Discord và nhiều nền tảng khác.",
@@ -2245,7 +2194,6 @@
     "description": "<div><p>1. Tải xuống mô hình OV.</p><p>2. Thêm mô hình vào 'Manager'.</p><p>Chỉ hỗ trợ Windows!</p><p>Đường dẫn cài đặt OVMS: '%USERPROFILE%\\.cherrystudio\\ovms'.</p><p>Vui lòng tham khảo <a href=https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md>Hướng dẫn Intel OVMS</a></p></div>",
     "download": {
       "button": "Tải xuống",
-      "error": "Lỗi tải xuống",
       "model_id": {
         "label": "ID mô hình:",
         "model_id_pattern": "ID mô hình phải bắt đầu bằng OpenVINO/",
@@ -2259,7 +2207,6 @@
       },
       "model_source": "Nguồn mô hình:",
       "model_task": "Nhiệm vụ mẫu:",
-      "success": "Tải xuống thành công",
       "success_desc": "Mô hình \"{{modelName}}\"-\"{{modelId}}\" đã được tải xuống thành công, vui lòng vào giao diện quản lý OVMS để thêm mô hình",
       "tip": "Mô hình đang được tải xuống, đôi khi mất vài giờ. Vui lòng kiên nhẫn...",
       "title": "Tải mô hình Intel OpenVINO"
@@ -2286,12 +2233,6 @@
   },
   "paintings": {
     "aspect_ratio": "Tỷ lệ khung hình",
-    "aspect_ratios": {
-      "landscape": "Phong cảnh",
-      "square": "Vuông"
-    },
-    "auto_create_paint": "Tự động tạo hình ảnh",
-    "auto_create_paint_tip": "Sau khi hình ảnh được tạo, một hình ảnh mới sẽ được tạo tự động.",
     "background": "Nền tảng",
     "background_options": {
       "auto": "Tự động",
@@ -2310,7 +2251,6 @@
     },
     "custom_size": "Kích thước tùy chỉnh",
     "dmxapi": {
-      "generating_tip": "Đang tạo với mô hình chính thức, thời gian chờ ước tính là 2-5 phút để có kết quả tốt nhất. Vui lòng kiểm tra nhật ký backend DMXAPI để biết chi phí của thao tác này.",
       "style": ", Kiểu:",
       "style_types": {
         "25d_animation": "Hoạt hình 2.5D",
@@ -2343,7 +2283,6 @@
       }
     },
     "edit": {
-      "image_file": "Hình ảnh đầu vào",
       "image_required": "Vui lòng tải lên một hình ảnh để chỉnh sửa trước"
     },
     "generate": {
@@ -2362,8 +2301,6 @@
       "width": "Chiều rộng"
     },
     "generate_failed": "Không thể tạo hình ảnh",
-    "generated_image": "Hình ảnh được tạo",
-    "go_to_settings": "Đi tới Cài đặt",
     "guidance_scale": "Thang đo hướng dẫn",
     "guidance_scale_tip": "Hướng dẫn Không Phân loại. Mức độ bạn muốn mô hình tuân thủ sát prompt của bạn khi tìm kiếm một hình ảnh liên quan để hiển thị cho bạn",
     "image": {
@@ -2373,26 +2310,13 @@
     "image_file_retry": "Vui lòng tải lại hình ảnh trước",
     "image_handle_required": "Vui lòng tải lên một hình ảnh trước.",
     "image_mix_failed": "Không thể trộn các hình ảnh",
-    "image_placeholder": "Không có hình ảnh",
-    "image_retry": "Thử lại",
     "image_size_options": {
       "auto": "Tự động"
     },
     "inference_steps": "Bước Suy Luận",
     "inference_steps_tip": "Số bước suy luận cần thực hiện. Nhiều bước hơn sẽ tạo ra chất lượng cao hơn nhưng mất nhiều thời gian hơn",
-    "input_image": "Ảnh đầu vào",
-    "input_parameters": "Tham số đầu vào",
-    "learn_more": "Tìm Hiểu Thêm",
     "magic_prompt_option": "Lời nhắc Ma thuật",
-    "mode": {
-      "edit": "Chỉnh sửa",
-      "generate": "Vẽ",
-      "merge": "Hợp nhất",
-      "remix": "Phối lại",
-      "upscale": "Nâng cấp"
-    },
     "model": "Mô hình",
-    "model_and_pricing": "Mô hình & Giá cả",
     "moderation": "Moderación",
     "moderation_options": {
       "auto": "Tự động",
@@ -2400,32 +2324,20 @@
     },
     "negative_prompt": "Prompt tiêu cực",
     "negative_prompt_tip": "Mô tả những gì bạn không muốn có trong hình ảnh",
-    "no_image_generation_model": "Không có mô hình tạo ảnh khả dụng, vui lòng thêm một mô hình và đặt loại điểm cuối thành {{endpoint_type}}",
     "number_images": "Número de imágenes",
     "number_images_tip": "Số lượng hình ảnh cần tạo (1-4)",
     "operation_failed": "Thao tác thất bại, vui lòng thử lại sau",
-    "paint_course": "hướng dẫn",
-    "per_image": "mỗi hình ảnh",
-    "per_images": "per immagini",
     "person_generation_options": {
       "allow_adult": "Cho phép người lớn",
       "allow_all": "Cho phép tất cả",
       "allow_none": "Không được phép"
     },
     "ppio": {
-      "mask_image": "Ảnh mặt nạ",
-      "mask_image_tip": "Dùng để chỉ vùng cần xóa. Vùng cần xóa phải là màu trắng, vùng cần giữ phải là màu đen",
-      "output_format": "Định Dạng Đầu Ra",
-      "resolution": "Độ phân giải mục tiêu",
-      "seed_tip": "Semilla aleatoria: la misma semilla y parámetros pueden generar imágenes similares; -1 significa aleatorio.",
-      "use_pre_llm_tip": "Bật mở rộng văn bản để tối ưu hóa lời nhắc. Khuyên dùng cho lời nhắc ngắn, tắt cho lời nhắc dài",
-      "watermark_tip": "Có thêm hình mờ vào ảnh được tạo hay không, mặc định là tắt"
+      "output_format": "Định Dạng Đầu Ra"
     },
     "prompt_enhancement": "Mejora de Indicaciones",
     "prompt_enhancement_tip": "Viết lại các lời nhắc thành phiên bản chi tiết, thân thiện với mô hình khi được bật",
     "prompt_placeholder": "Mô tả hình ảnh bạn muốn tạo, ví dụ: Một hồ yên tĩnh lúc hoàng hôn với dãy núi phía xa",
-    "prompt_placeholder_edit": "Nhập mô tả hình ảnh của bạn, vẽ văn bản dùng \"dấu ngoặc kép\" để bao quanh",
-    "prompt_placeholder_en": "Nhập mô tả hình ảnh của bạn, hiện tại chỉ hỗ trợ lời nhắc bằng tiếng Anh",
     "proxy_required": "Mở proxy và bật \"chế độ TUN\" để xem ảnh đã tạo hoặc sao chép chúng sang trình duyệt để mở. Trong tương lai, sẽ hỗ trợ kết nối trực tiếp trong nước.",
     "quality": "Chất lượng",
     "quality_options": {
@@ -2433,9 +2345,6 @@
       "high": "Cao",
       "low": "Thấp",
       "medium": "Trung bình"
-    },
-    "regenerate": {
-      "confirm": "Thao tác này sẽ thay thế các hình ảnh đã tạo hiện có của bạn. Bạn có muốn tiếp tục không?"
     },
     "remix": {
       "image_file": "Hình ảnh tham chiếu",
@@ -2455,11 +2364,8 @@
     },
     "req_error_model": "Không thể tải mô hình",
     "req_error_no_balance": "Vui lòng kiểm tra tính hợp lệ của mã thông báo",
-    "req_error_text": "Máy chủ đang bận hoặc lời nhắc chứa các từ \"bản quyền\" hoặc \"nhạy cảm\". Vui lòng thử lại.",
     "req_error_token": "Vui lòng kiểm tra tính hợp lệ của mã thông báo",
     "seed": "Hạt giống",
-    "seed_desc_tip": "Cùng một seed và prompt có thể tạo ra những hình ảnh tương tự, đặt -1 sẽ tạo ra kết quả khác nhau mỗi lần",
-    "seed_random": "Ngẫu nhiên",
     "seed_tip": "Cùng một hạt giống và lời nhắc có thể tạo ra những hình ảnh tương tự",
     "select_model": "Chọn Mô hình",
     "style_type": "Phong cách",
@@ -2473,38 +2379,16 @@
     },
     "text_desc_required": "Vui lòng nhập mô tả hình ảnh trước",
     "title": "Hình ảnh",
-    "top_up": "Nạp tiền",
-    "translating": "Đang dịch...",
-    "uploaded_input": "Đầu vào đã tải lên",
     "upscale": {
       "detail": "Chi tiết",
-      "detail_tip": "Điều khiển mức độ cải thiện chi tiết",
-      "image_file": "Hình ảnh cần nâng cấp",
-      "magic_prompt_option_tip": "Nâng cấp thông minh các lời nhắc nâng cao độ phân giải",
-      "number_images_tip": "Số lượng kết quả được nâng cấp cần tạo",
-      "resemblance": "Tương đồng",
-      "seed_tip": "Kiểm soát độ ngẫu nhiên khi nâng cấp"
+      "resemblance": "Tương đồng"
     },
     "watermark": "Thêm Watermark",
     "zhipu": {
       "custom_size_divisible": "Kích thước tùy chỉnh phải chia hết cho 16",
-      "custom_size_hint": "Chiều rộng và chiều cao phải từ 512px đến 2048px, chia hết cho 16, và tổng số pixel không được vượt quá 2^21px",
       "custom_size_pixels": "Tổng số pixel của kích thước tùy chỉnh không được vượt quá 2.097.152",
       "custom_size_range": "Kích thước tùy chỉnh phải nằm trong khoảng 512px-2048px",
-      "custom_size_required": "Vui lòng đặt chiều rộng và chiều cao tùy chỉnh",
-      "image_sizes": {
-        "1024x1024_default": "1024x1024 (Mặc định)",
-        "1152x864": "1152x864",
-        "1344x768": "1344x768",
-        "1440x720": "1440x720",
-        "720x1440": "720x1440",
-        "768x1344": "768x1344",
-        "864x1152": "864x1152"
-      },
-      "quality_options": {
-        "hd": "HD",
-        "standard_default": "Tiêu chuẩn (Mặc định)"
-      }
+      "custom_size_required": "Vui lòng đặt chiều rộng và chiều cao tùy chỉnh"
     }
   },
   "preview": {
@@ -3240,7 +3124,6 @@
         "title": "Thư mục dữ liệu"
       },
       "divider": {
-        "basic": "Cài đặt Dữ liệu Cơ bản",
         "cloud_storage": "Cài đặt Sao lưu Đám mây",
         "export_settings": "Xuất Cài đặt",
         "import_settings": "Nhập Cài đặt"
@@ -3902,7 +3785,6 @@
       "deleteSuccess": "Servidor eliminado correctamente",
       "description": "Mô tả",
       "discover": "Khám phá",
-      "editJson": "Chỉnh sửa JSON",
       "env": "Biến môi trường",
       "envTooltip": "Định dạng: KEY=value, mỗi dòng một cặp",
       "fetch": {
@@ -3915,10 +3797,6 @@
       "install": "Cài đặt",
       "installError": "Không thể cài đặt các phụ thuộc",
       "installSuccess": "Các phụ thuộc đã được cài đặt thành công",
-      "jsonFormatError": "Lỗi định dạng JSON",
-      "jsonModeHint": "Chỉnh sửa biểu diễn JSON của cấu hình máy chủ MCP. Hãy đảm bảo định dạng chính xác trước khi lưu.",
-      "jsonSaveError": "Falha ao salvar a configuração JSON.",
-      "jsonSaveSuccess": "Configuration JSON a été enregistrée.",
       "logoUrl": "URL Logo",
       "logs": "Nhật ký",
       "longRunning": "Chế độ chạy dài",
@@ -3997,12 +3875,7 @@
       "stdio": "Đầu vào/Đầu ra chuẩn (stdio)",
       "streamableHttp": "HTTP có thể truyền dòng (streamableHttp)",
       "sync": {
-        "button": "Đồng bộ",
-        "discoverMcpServers": "Khám phá các máy chủ MCP",
-        "discoverMcpServersDescription": "Truy cập nền tảng để khám phá các máy chủ MCP có sẵn",
         "error": "Lỗi đồng bộ máy chủ MCP",
-        "getToken": "Lấy Mã Thông Báo API",
-        "getTokenDescription": "Lấy mã thông báo API cá nhân của bạn từ tài khoản",
         "noServersAvailable": "Không có máy chủ MCP nào khả dụng",
         "providerDescriptions": {
           "302ai": "Dịch vụ MCP Nền tảng 302.AI",
@@ -4012,10 +3885,7 @@
           "modelscope": "Dịch vụ MCP nền tảng ModelScope",
           "tokenflux": "Dịch vụ MCP Nền tảng TokenFlux"
         },
-        "selectProvider": "Chọn Nhà cung cấp:",
-        "setToken": "Nhập mã thông báo của bạn",
         "success": "Đồng bộ máy chủ MCP thành công",
-        "title": "Máy chủ đồng bộ",
         "tokenPlaceholder": "Nhập mã API vào đây",
         "tokenRequired": "Cần có Mã thông báo API",
         "unauthorized": "Đồng bộ không được ủy quyền"
@@ -4098,7 +3968,6 @@
     "models": {
       "add": {
         "add_model": "Thêm Mô hình",
-        "batch_add_models": "Thêm hàng loạt mô hình",
         "endpoint_type": {
           "label": "Loại Điểm Cuối",
           "placeholder": "Chọn loại điểm cuối",
@@ -4107,18 +3976,15 @@
         },
         "group_name": {
           "label": "Tên Nhóm",
-          "placeholder": "Tùy chọn ví dụ: ChatGPT",
-          "tooltip": "Tùy chọn ví dụ: ChatGPT"
+          "placeholder": "Tùy chọn ví dụ: ChatGPT"
         },
         "model_id": {
           "label": "ID mô hình",
-          "placeholder": "Bắt buộc, ví dụ: gpt-3.5-turbo",
-          "tooltip": "Ví dụ: gpt-3.5-turbo"
+          "placeholder": "Bắt buộc, ví dụ: gpt-3.5-turbo"
         },
         "model_name": {
           "label": "Tên mô hình",
-          "placeholder": "Opcional p. ej. GPT-4",
-          "tooltip": "Opcjonalnie np. GPT-4"
+          "placeholder": "Opcional p. ej. GPT-4"
         },
         "supported_text_delta": {
           "label": "Hỗ trợ xuất văn bản tăng dần",
@@ -4152,16 +4018,7 @@
       "default_assistant_model_description": "Mô hình được sử dụng khi tạo trợ lý mới, nếu trợ lý chưa được thiết lập, mô hình này sẽ được sử dụng",
       "empty": "Không tìm thấy mô hình nào",
       "manage": {
-        "add_listed": {
-          "confirm": "Bạn có chắc chắn muốn thêm tất cả các mô hình vào danh sách không?",
-          "label": "Thêm các mô hình vào danh sách"
-        },
-        "add_whole_group": "Thêm toàn bộ nhóm",
-        "fetch_list": "Lấy danh sách mô hình",
-        "refetch_list": "Tải lại danh sách mô hình",
-        "remove_listed": "Xóa các mô hình khỏi danh sách",
-        "remove_model": "Xóa mô hình",
-        "remove_whole_group": "Xóa toàn bộ nhóm"
+        "remove_model": "Xóa mô hình"
       },
       "provider_id": "ID Nhà cung cấp",
       "provider_key_add_confirm": "Bạn có muốn thêm khóa API cho {{provider}} không?",
@@ -4191,13 +4048,10 @@
     },
     "moresetting": {
       "check": {
-        "confirm": "Xác nhận lựa chọn",
         "warn": "Vui lòng thận trọng khi chọn tùy chọn này. Việc lựa chọn sai có thể khiến mô hình hoạt động không bình thường!"
       },
-      "label": "Thêm Cài đặt",
-      "warn": "Cảnh báo rủi ro"
+      "label": "Thêm Cài đặt"
     },
-    "no_provider_selected": "Nhà cung cấp chưa được chọn",
     "notification": {
       "assistant": "Tin nhắn Trợ lý",
       "backup": "Tin nhắn sao lưu",
@@ -4246,8 +4100,7 @@
           "label": "Tên nhà cung cấp",
           "placeholder": "Ví dụ: OpenAI"
         },
-        "title": "Thêm Nhà cung cấp",
-        "type": "Loại nhà cung cấp"
+        "title": "Thêm Nhà cung cấp"
       },
       "anthropic": {
         "apikey": "Khóa API",
@@ -4272,12 +4125,8 @@
       },
       "anthropic_api_host": "Máy chủ API của Anthropic",
       "anthropic_api_host_preview": "Xem trước Anthropic: {{url}}",
-      "anthropic_api_host_tooltip": "Chỉ sử dụng khi nhà cung cấp cung cấp URL cơ sở tương thích với Claude.",
       "api": {
         "key": {
-          "check": {
-            "latency": "Latência"
-          },
           "error": {
             "duplicate": "Khóa API đã tồn tại",
             "empty": "Khóa API không được để trống"
@@ -4326,14 +4175,12 @@
           }
         },
         "url": {
-          "reset": "Đặt lại",
-          "tip": "Thêm # vào cuối để vô hiệu hóa phiên bản API được thêm tự động."
+          "reset": "Đặt lại"
         }
       },
       "api_host": "Máy chủ API",
       "api_host_no_valid": "Địa chỉ API không hợp lệ",
       "api_host_preview": "Xem trước: {{url}}",
-      "api_host_tooltip": "Chỉ ghi đè khi nhà cung cấp của bạn yêu cầu một điểm cuối tương thích OpenAI tùy chỉnh.",
       "api_key": {
         "label": "Khóa API",
         "tip": "Dùng dấu phẩy để phân tách nhiều khóa"
@@ -4375,7 +4222,6 @@
       "bills": "Hóa đơn phí",
       "charge": "Nạp số dư",
       "check": "Kiểm tra",
-      "check_all_keys": "Kiểm tra tất cả các phím",
       "copilot": {
         "auth_failed": "Xác thực Github Copilot thất bại.",
         "auth_success": "Xác thực GitHub Copilot thành công.",
@@ -4417,8 +4263,6 @@
         "platform_official": "www.DMXAPI.cn (CNY)",
         "select_platform": "Chọn nền tảng"
       },
-      "docs_check": "Kiểm tra",
-      "docs_more_details": "để biết thêm chi tiết",
       "filter": {
         "agent": "Được hỗ trợ bởi đại lý",
         "all": "Tất cả nhà cung cấp"
@@ -4439,22 +4283,17 @@
         "logout_confirm": "Bạn có chắc chắn muốn đăng xuất?",
         "logout_success": "Berhasil keluar",
         "logout_warning": "Đã đăng xuất cục bộ, nhưng việc thu hồi mã thông báo từ máy chủ có thể đã thất bại",
-        "provided_by": "Được cung cấp bởi",
-        "provided_by_suffix": "I’m ready—please provide the text you’d like me to translate.",
         "topup": "Recarga"
       },
       "openai": {
         "alert": "Nhà cung cấp OpenAI không còn hỗ trợ các phương thức gọi cũ. Nếu đang sử dụng API của bên thứ ba, vui lòng tạo một nhà cung cấp dịch vụ mới."
       },
-      "remove_invalid_keys": "Xóa các khóa không hợp lệ",
       "search": "Nhà cung cấp tìm kiếm...",
-      "search_placeholder": "Tìm kiếm mã hoặc tên mô hình",
       "title": "Nhà cung cấp mô hình",
       "vertex_ai": {
         "api_host_help": "Máy chủ API cho Vertex AI, không khuyến nghị điền, thường áp dụng cho proxy ngược",
         "location": "Vị trí",
         "location_help": "Vị trí dịch vụ Vertex AI, ví dụ: us-central1. Trường này không được đọc từ JSON của Service Account và phải nhập thủ công.",
-        "location_placeholder": "Chọn vị trí Vertex AI",
         "project_id": "ID Dự án",
         "project_id_help": "ID dự án Google Cloud của bạn",
         "project_id_placeholder": "id-dự-án-google-cloud-của-bạn",
@@ -4464,11 +4303,6 @@
           "client_email_placeholder": "Nhập email khách hàng của Tài khoản Dịch vụ",
           "description": "Sử dụng Tài khoản Dịch vụ để xác thực, phù hợp cho các môi trường không có ADC",
           "incomplete_config": "Vui lòng hoàn tất cấu hình Tài khoản Dịch vụ trước",
-          "json_input": "Service Account JSON",
-          "json_input_help": "Dán toàn bộ nội dung khóa JSON. Sau khi phân tích, chỉ project_id, client_email và private_key được lưu, JSON gốc sẽ được xóa.",
-          "json_input_placeholder": "Dán toàn bộ nội dung khóa JSON của Service Account",
-          "json_parse_error": "Không thể phân tích Service Account JSON. Vui lòng xác nhận định dạng là chính xác.",
-          "json_parse_success": "Đã phân tích Service Account JSON",
           "private_key": "Khóa riêng",
           "private_key_help": "Trường private_key từ tệp khóa JSON đã tải xuống từ Google Cloud Console",
           "private_key_placeholder": "Nhập khóa riêng của Tài khoản Dịch vụ",
@@ -4597,8 +4431,6 @@
         "api_key_required": {
           "ok": "Cấu hình"
         },
-        "api_providers": "Nhà cung cấp API",
-        "apikey": "Khóa API",
         "blacklist": "Danh sách đen",
         "blacklist_description": "Kết quả từ các trang web sau sẽ không xuất hiện trong kết quả tìm kiếm",
         "blacklist_tooltip": "Pattern matching: *://*.example.com/*\nRegular expression: /example\\.(net|org)/",
@@ -4611,10 +4443,6 @@
               "label": "Limite de corte",
               "placeholder": "Nhập chiều dài",
               "tooltip": "Giới hạn độ dài nội dung của kết quả tìm kiếm, nội dung vượt quá giới hạn sẽ bị cắt ngắn (ví dụ: 2000 ký tự)"
-            },
-            "unit": {
-              "char": "Ký tự",
-              "token": "Token"
             }
           },
           "method": {
@@ -4625,7 +4453,6 @@
           "title": "Nén Kết Quả Tìm Kiếm"
         },
         "default_provider": "Nhà cung cấp mặc định",
-        "free": "Miễn phí",
         "is_default": "Mặc định",
         "search_max_result": {
           "label": "Số kết quả tìm kiếm",
@@ -4648,9 +4475,7 @@
         "subscribe_update_failed": "Cập nhật nguồn đăng ký thất bại",
         "subscribe_update_success": "Nguồn đăng ký đã được cập nhật thành công",
         "subscribe_url": "Url Đăng ký",
-        "title": "Tìm kiếm Web",
-        "url_invalid": "Đã nhập một URL không hợp lệ",
-        "url_required": "Vui lòng nhập một URL"
+        "title": "Tìm kiếm Web"
       }
     },
     "topic": {

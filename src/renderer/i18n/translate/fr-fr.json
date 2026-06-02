@@ -137,7 +137,6 @@
           "confirm": "Êtes-vous sûr de vouloir supprimer cette tâche ?",
           "label": "Supprimer"
         },
-        "edit": "Modifier",
         "error": {
           "loadFailed": "[to be translated]:Failed to load tasks"
         },
@@ -148,7 +147,6 @@
           "duration": "Durée",
           "empty": "Aucun historique d'exécution.",
           "error": "Erreur",
-          "justNow": "à l'instant",
           "label": "Historique d'exécution",
           "loadError": "[to be translated]:Failed to load run history",
           "result": "Résultat",
@@ -185,10 +183,6 @@
           "active": "Actif",
           "completed": "Terminé",
           "paused": "En pause"
-        },
-        "time": {
-          "hoursAgo": "{{count}}h il y a",
-          "minutesAgo": "{{count}}m il y a"
         },
         "timeout": {
           "label": "Délai d'attente dépassé",
@@ -708,8 +702,7 @@
     "title": "Agent"
   },
   "auth": {
-    "get_key_success": "Obtention automatique de la clé réussie",
-    "login": "Se connecter"
+    "get_key_success": "Obtention automatique de la clé réussie"
   },
   "backup": {
     "confirm": {
@@ -852,12 +845,6 @@
       },
       "url_context": "Contexte de la page web",
       "web_search": {
-        "builtin": {
-          "disabled_content": "Le modèle actuel ne prend pas en charge la recherche web",
-          "enabled_content": "Utiliser la fonction de recherche web intégrée du modèle",
-          "label": "Intégré au modèle"
-        },
-        "enable_content": "Vous devez vérifier la connectivité de la recherche web dans les paramètres",
         "label": "Activer la recherche web"
       }
     },
@@ -1127,7 +1114,6 @@
         "title": "Gérer les sujets"
       },
       "move_to": "Déplacer vers",
-      "new": "Commencer une nouvelle conversation",
       "pin": "Fixer le sujet",
       "prompt": {
         "edit": {
@@ -1241,7 +1227,6 @@
     "add_success": "Ajout réussi",
     "advanced_settings": "Paramètres avancés",
     "agent_one": "Agent",
-    "and": "et",
     "assistant": "Intelligence artificielle",
     "assistant_one": "assistant",
     "assistant_other": "assistant",
@@ -1251,7 +1236,6 @@
     "cancel": "Annuler",
     "chat": "Chat",
     "clear": "Effacer",
-    "clear_all": "Tout effacer",
     "close": "Fermer",
     "collapse": "Réduire",
     "confirm": "Confirmer",
@@ -1278,20 +1262,15 @@
     },
     "footnotes": "Notes de bas de page",
     "fullscreen": "Mode plein écran, appuyez sur F11 pour quitter",
-    "generate_random_seed": "Générer une graine aléatoire",
     "get_embedding_dimension": "Obtenir la dimension d'intégration",
     "go_to_settings": "Aller aux paramètres",
     "html_preview": "Aperçu HTML",
     "ignore": "Ignorer",
-    "image_preview": "Aperçu de l'image",
-    "image_url": "URL de l'image",
-    "image_url_or_upload": "Entrez l'URL de l'image ou téléchargez un fichier",
     "inspect": "Vérifier",
     "knowledge_base": "Base de connaissances",
     "language": "Langue",
     "loading": "Chargement...",
     "model": "Modèle",
-    "models": "Modèles",
     "more": "Plus",
     "name": "Nom",
     "next_match": "Prochain match",
@@ -1305,10 +1284,8 @@
     "preview": "Aperçu",
     "previous_match": "Match précédent",
     "prompt": "Prompt",
-    "provider": "Fournisseur",
     "reasoning_content": "Réflexion approfondie",
     "regenerate": "Regénérer",
-    "remove_image": "Supprimer l'image",
     "required_field": "Champ obligatoire",
     "reset": "Réinitialiser",
     "retry": "Réessayer",
@@ -1336,9 +1313,6 @@
     "unnamed": "Sans nom",
     "unsubscribe": "Se désabonner",
     "update_success": "Mise à jour réussie",
-    "upload_files": "Uploader des fichiers",
-    "upload_image": "Télécharger le fichier image",
-    "uploaded_image": "Image téléchargée",
     "warning": "Avertissement",
     "you": "Vous"
   },
@@ -1611,9 +1585,7 @@
     "search_placeholder": "Entrez votre requête",
     "status_embedding_failed": "Échec de l'intégration",
     "status_preprocess_failed": "Échec du prétraitement",
-    "subtitle_file": "Fichier de sous-titres",
-    "title": "Base de connaissances",
-    "videos_file": "Fichier vidéo"
+    "title": "Base de connaissances"
   },
   "languages": {
     "arabic": "Arabe",
@@ -1978,7 +1950,6 @@
     "price": {
       "cost": "Coût",
       "currency": "Devise",
-      "custom": "Personnalisé",
       "custom_currency": "Devise personnalisée",
       "custom_currency_placeholder": "Veuillez saisir une devise personnalisée",
       "input": "Prix d'entrée",
@@ -1986,8 +1957,7 @@
       "output": "Prix de sortie"
     },
     "search": {
-      "placeholder": "Rechercher un modèle...",
-      "tooltip": "Rechercher un modèle"
+      "placeholder": "Rechercher un modèle..."
     },
     "stream_output": "Sortie en flux",
     "type": {
@@ -2152,27 +2122,6 @@
       }
     }
   },
-  "onboarding": {
-    "select_model": {
-      "change_later": "Vous pouvez modifier cela à tout moment dans les paramètres",
-      "start": "Commencer",
-      "subtitle": "Sélectionner le modèle par défaut pour chaque scénario",
-      "title": "Choisissez vos modèles par défaut"
-    },
-    "skip": "Passer",
-    "toast": {
-      "connected": "Connecté avec succès à CherryIN"
-    },
-    "welcome": {
-      "login_cherryin": "Se connecter avec CherryIN",
-      "or_continue_with": "OU CONTINUER AVEC",
-      "other_provider": "Choisir d'autres fournisseurs",
-      "select_other_provider": "Sélectionner un autre fournisseur",
-      "setup_hint": "Veuillez configurer au moins un fournisseur pour une meilleure expérience",
-      "subtitle": "Profitez de services d'IA de premier ordre avec CherryIN",
-      "title": "Bienvenue à Cherry Studio"
-    }
-  },
   "openclaw": {
     "checking_installation": "Vérification de l'installation d'OpenClaw...",
     "description": "Intégrer les fournisseurs Cherry Studio avec la passerelle OpenClaw pour permettre aux agents de codage IA comme Claude Code, Qwen-Coder, et bien d'autres.",
@@ -2245,7 +2194,6 @@
     "description": "<div><p>1. Télécharger le modèle OV.</p><p>2. Ajouter le modèle dans 'Manager'.</p><p>Uniquement compatible avec Windows !</p><p>Chemin d'installation d'OVMS : '%USERPROFILE%\\.cherrystudio\\ovms' .</p><p>Veuillez vous référer au <a href=https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md>Guide Intel OVMS</a></p></dev>",
     "download": {
       "button": "Télécharger",
-      "error": "Échec de la sélection",
       "model_id": {
         "label": "ID du modèle :",
         "model_id_pattern": "L'ID du modèle doit commencer par OpenVINO/",
@@ -2259,7 +2207,6 @@
       },
       "model_source": "Source du modèle :",
       "model_task": "Tâche du modèle :",
-      "success": "Téléchargement réussi",
       "success_desc": "Le modèle \"{{modelName}}\"-\"{{modelId}}\" a été téléchargé avec succès, veuillez vous rendre à l'interface de gestion OVMS pour ajouter le modèle",
       "tip": "Le modèle est en cours de téléchargement, cela peut parfois prendre plusieurs heures. Veuillez patienter...",
       "title": "Télécharger le modèle Intel OpenVINO"
@@ -2286,12 +2233,6 @@
   },
   "paintings": {
     "aspect_ratio": "Format d'image",
-    "aspect_ratios": {
-      "landscape": "Image en format paysage",
-      "square": "Carré"
-    },
-    "auto_create_paint": "Créer automatiquement une image",
-    "auto_create_paint_tip": "Après la génération de l'image, une nouvelle image sera créée automatiquement",
     "background": "Arrière-plan",
     "background_options": {
       "auto": "Automatique",
@@ -2310,7 +2251,6 @@
     },
     "custom_size": "Dimensions personnalisées",
     "dmxapi": {
-      "generating_tip": "Génération avec le modèle officiel, le temps d'attente estimé est de 2 à 5 minutes pour les meilleurs résultats. Veuillez consulter les journaux du backend DMXAPI pour le coût de cette opération.",
       "style": ", Style :",
       "style_types": {
         "25d_animation": "Animation 2.5D",
@@ -2343,7 +2283,6 @@
       }
     },
     "edit": {
-      "image_file": "Image éditée",
       "image_required": "Veuillez d'abord télécharger une image à éditer"
     },
     "generate": {
@@ -2362,8 +2301,6 @@
       "width": "Largeur"
     },
     "generate_failed": "Échec de la génération de l'image",
-    "generated_image": "Image générée",
-    "go_to_settings": "Aller aux paramètres",
     "guidance_scale": "Échelle de guidance",
     "guidance_scale_tip": "Aucune guidance du classificateur. Contrôle le niveau d'obéissance du modèle aux mots-clés lors de la recherche d'images pertinentes",
     "image": {
@@ -2373,26 +2310,13 @@
     "image_file_retry": "Veuillez réuploader l'image",
     "image_handle_required": "Veuillez d'abord télécharger une image",
     "image_mix_failed": "Échec du mélange des images",
-    "image_placeholder": "Aucune image pour le moment",
-    "image_retry": "Réessayer",
     "image_size_options": {
       "auto": "Automatique"
     },
     "inference_steps": "Étapes d'inférence",
     "inference_steps_tip": "Nombre d'étapes d'inférence à effectuer. Plus il y a d'étapes, meilleure est la qualité mais plus c'est long",
-    "input_image": "Image d'entrée",
-    "input_parameters": "Paramètres d'entrée",
-    "learn_more": "En savoir plus",
     "magic_prompt_option": "Amélioration du prompt",
-    "mode": {
-      "edit": "Редактировать",
-      "generate": "Создать изображение",
-      "merge": "fusionner",
-      "remix": "Смешать",
-      "upscale": "Увеличить"
-    },
     "model": "Version",
-    "model_and_pricing": "Modèle et tarification",
     "moderation": "Sensibilité",
     "moderation_options": {
       "auto": "Automatique",
@@ -2400,32 +2324,20 @@
     },
     "negative_prompt": "Prompt négatif",
     "negative_prompt_tip": "Décrivez ce que vous ne voulez pas voir dans l'image",
-    "no_image_generation_model": "Aucun modèle de génération d'image disponible pour le moment. Veuillez ajouter un modèle et définir le type de point de terminaison sur {{endpoint_type}}",
     "number_images": "Nombre d'images générées",
     "number_images_tip": "Le nombre d'images générées en une seule fois (1-4)",
     "operation_failed": "L'opération a échoué, veuillez réessayer plus tard",
-    "paint_course": "Tutoriel",
-    "per_image": "Par image",
-    "per_images": "Par image",
     "person_generation_options": {
       "allow_adult": "Autoriser les adultes",
       "allow_all": "Autoriser tous",
       "allow_none": "Ne pas autoriser"
     },
     "ppio": {
-      "mask_image": "Image de masque",
-      "mask_image_tip": "Indique la zone à effacer. Les zones à effacer doivent être blanches, les zones à conserver noires",
-      "output_format": "Format de sortie",
-      "resolution": "Résolution cible",
-      "seed_tip": "Graine aléatoire, même graine et paramètres produisent des images similaires, -1 signifie aléatoire",
-      "use_pre_llm_tip": "Active l'expansion de texte pour optimiser le prompt. Recommandé pour les prompts courts, désactiver pour les longs",
-      "watermark_tip": "Ajouter un filigrane aux images générées, désactivé par défaut"
+      "output_format": "Format de sortie"
     },
     "prompt_enhancement": "Amélioration des prompts",
     "prompt_enhancement_tip": "Activez pour réécrire le prompt en une version détaillée et adaptée au modèle",
     "prompt_placeholder": "Décrivez l'image que vous souhaitez créer, par exemple : un lac paisible, le soleil couchant, avec des montagnes à l'horizon",
-    "prompt_placeholder_edit": "Entrez votre description d'image, utilisez des guillemets « \"\" » pour le texte à dessiner",
-    "prompt_placeholder_en": "Saisissez une description d'image en « anglais », actuellement Imagen ne prend en charge que les invites en anglais",
     "proxy_required": "Actuellement, un proxy doit être activé pour afficher les images générées. Le support pour une connexion directe depuis la Chine sera ajouté ultérieurement.",
     "quality": "Qualité",
     "quality_options": {
@@ -2433,9 +2345,6 @@
       "high": "Élevé",
       "low": "Bas",
       "medium": "Moyen"
-    },
-    "regenerate": {
-      "confirm": "Cela va remplacer les images générées, voulez-vous continuer?"
     },
     "remix": {
       "image_file": "Image de référence",
@@ -2455,11 +2364,8 @@
     },
     "req_error_model": "Échec de la récupération du modèle",
     "req_error_no_balance": "Veuillez vérifier la validité du jeton",
-    "req_error_text": "Le serveur est occupé ou le prompt contient des mots « protégés par droit d'auteur » ou des mots « sensibles », veuillez réessayer.",
     "req_error_token": "Veuillez vérifier la validité du jeton",
     "seed": "Graine aléatoire",
-    "seed_desc_tip": "Un même grain et un même prompt permettent de générer des images similaires. Définissez -1 pour obtenir chaque fois une image différente",
-    "seed_random": "Aléatoire",
     "seed_tip": "La même graine et le même prompt peuvent générer des images similaires",
     "select_model": "Sélectionner un modèle",
     "style_type": "Style",
@@ -2473,38 +2379,16 @@
     },
     "text_desc_required": "Veuillez d'abord saisir la description de l'image",
     "title": "Image",
-    "top_up": "recharge",
-    "translating": "Traduction en cours...",
-    "uploaded_input": "Entrée téléchargée",
     "upscale": {
       "detail": "Détail",
-      "detail_tip": "Contrôle l'intensité de l'amélioration des détails dans l'image agrandie",
-      "image_file": "Image à agrandir",
-      "magic_prompt_option_tip": "Optimisation intelligente du prompt d'agrandissement",
-      "number_images_tip": "Nombre de résultats d'agrandissement générés",
-      "resemblance": "Similarité",
-      "seed_tip": "Contrôle la randomisation du résultat d'agrandissement"
+      "resemblance": "Similarité"
     },
     "watermark": "Ajouter un filigrane",
     "zhipu": {
       "custom_size_divisible": "La taille personnalisée doit être divisible par 16",
-      "custom_size_hint": "La largeur et la hauteur doivent être comprises entre 512 px et 2048 px, divisibles par 16, et le nombre total de pixels ne peut pas dépasser 2^21 px.",
       "custom_size_pixels": "Le nombre total de pixels d'une taille personnalisée ne peut pas dépasser 2 097 152",
       "custom_size_range": "La taille personnalisée doit être comprise entre 512 px et 2048 px",
-      "custom_size_required": "Veuillez définir une largeur et une hauteur personnalisées",
-      "image_sizes": {
-        "1024x1024_default": "1024x1024 (Par défaut)",
-        "1152x864": "1152x864",
-        "1344x768": "1344x768",
-        "1440x720": "1440x720",
-        "720x1440": "720x1440",
-        "768x1344": "768x1344",
-        "864x1152": "864x1152"
-      },
-      "quality_options": {
-        "hd": "HD",
-        "standard_default": "Standard (Par défaut)"
-      }
+      "custom_size_required": "Veuillez définir une largeur et une hauteur personnalisées"
     }
   },
   "preview": {
@@ -3240,7 +3124,6 @@
         "title": "Répertoire des données"
       },
       "divider": {
-        "basic": "Paramètres de base",
         "cloud_storage": "Paramètres de sauvegarde cloud",
         "export_settings": "Paramètres d'exportation",
         "import_settings": "Importer les paramètres"
@@ -3902,7 +3785,6 @@
       "deleteSuccess": "Serveur supprimé avec succès",
       "description": "Description",
       "discover": "Découvrir",
-      "editJson": "Modifier le JSON",
       "env": "Variables d'environnement",
       "envTooltip": "Format : CLÉ=valeur, une par ligne",
       "fetch": {
@@ -3915,10 +3797,6 @@
       "install": "Installer",
       "installError": "Échec de l'installation des dépendances",
       "installSuccess": "Dépendances installées avec succès",
-      "jsonFormatError": "Erreur de format JSON",
-      "jsonModeHint": "Modifier la représentation JSON de la configuration des serveurs MCP. Assurez-vous que le format est correct avant de sauvegarder.",
-      "jsonSaveError": "Échec de la sauvegarde de la configuration JSON",
-      "jsonSaveSuccess": "Configuration JSON sauvegardée",
       "logoUrl": "Адрес логотипа",
       "logs": "Journaux",
       "longRunning": "Mode d'exécution prolongée",
@@ -3997,12 +3875,7 @@
       "stdio": "Стандартный ввод/вывод (stdio)",
       "streamableHttp": "HTTP поддерживающий потоковую передачу (streamableHttp)",
       "sync": {
-        "button": "Синхронизировать",
-        "discoverMcpServers": "Обнаружить MCP-серверы",
-        "discoverMcpServersDescription": "Посетите платформу для обнаружения доступных MCP-серверов",
         "error": "Ошибка синхронизации MCP-сервера",
-        "getToken": "Получить API-токен",
-        "getTokenDescription": "Получите персональный API-токен из вашей учетной записи",
         "noServersAvailable": "Нет доступных MCP-серверов",
         "providerDescriptions": {
           "302ai": "302.Service MCP de la Plateforme AI",
@@ -4012,10 +3885,7 @@
           "modelscope": "Service MCP de la plateforme ModelScope",
           "tokenflux": "Service MCP de la plateforme TokenFlux"
         },
-        "selectProvider": "Выберите провайдера:",
-        "setToken": "Введите ваш токен",
         "success": "MCP-сервер успешно синхронизирован",
-        "title": "Синхронизация сервера",
         "tokenPlaceholder": "Введите API-токен здесь",
         "tokenRequired": "Требуется API-токен",
         "unauthorized": "Синхронизация не авторизована"
@@ -4098,7 +3968,6 @@
     "models": {
       "add": {
         "add_model": "Ajouter un modèle",
-        "batch_add_models": "Ajouter plusieurs modèles",
         "endpoint_type": {
           "label": "Type de point d'extrémité",
           "placeholder": "Sélectionner un type de point d'extrémité",
@@ -4107,18 +3976,15 @@
         },
         "group_name": {
           "label": "Nom du groupe",
-          "placeholder": "Par exemple, ChatGPT",
-          "tooltip": "Par exemple, ChatGPT"
+          "placeholder": "Par exemple, ChatGPT"
         },
         "model_id": {
           "label": "ID du modèle",
-          "placeholder": "Obligatoire, par exemple gpt-3.5-turbo",
-          "tooltip": "Par exemple, gpt-3.5-turbo"
+          "placeholder": "Obligatoire, par exemple gpt-3.5-turbo"
         },
         "model_name": {
           "label": "Nom du modèle",
-          "placeholder": "Par exemple, GPT-3.5",
-          "tooltip": "Par exemple GPT-4"
+          "placeholder": "Par exemple, GPT-3.5"
         },
         "supported_text_delta": {
           "label": "sortie de texte incrémentielle",
@@ -4152,16 +4018,7 @@
       "default_assistant_model_description": "Modèle utilisé pour créer de nouveaux assistants, si aucun modèle n'est défini pour l'assistant, ce modèle sera utilisé",
       "empty": "Aucun modèle",
       "manage": {
-        "add_listed": {
-          "confirm": "Êtes-vous sûr de vouloir ajouter tous les modèles à la liste ?",
-          "label": "Ajouter le modèle dans la liste"
-        },
-        "add_whole_group": "Ajouter tout le groupe",
-        "fetch_list": "Récupérer la liste des modèles",
-        "refetch_list": "Récupérer à nouveau la liste des modèles",
-        "remove_listed": "Supprimer un modèle de la liste",
-        "remove_model": "Supprimer le modèle",
-        "remove_whole_group": "Supprimer tout le groupe"
+        "remove_model": "Supprimer le modèle"
       },
       "provider_id": "Identifiant du fournisseur",
       "provider_key_add_confirm": "Voulez-vous ajouter une clé API pour {{provider}} ?",
@@ -4191,13 +4048,10 @@
     },
     "moresetting": {
       "check": {
-        "confirm": "Confirmer la sélection",
         "warn": "Veuillez faire preuve de prudence en cochant cette option, une sélection incorrecte peut rendre le modèle inutilisable !!!"
       },
-      "label": "Paramètres supplémentaires",
-      "warn": "Avertissement de risque"
+      "label": "Paramètres supplémentaires"
     },
-    "no_provider_selected": "Aucun fournisseur sélectionné",
     "notification": {
       "assistant": "Message de l'assistant",
       "backup": "Sauvegarder",
@@ -4246,8 +4100,7 @@
           "label": "Nom du fournisseur",
           "placeholder": "Par exemple OpenAI"
         },
-        "title": "Ajouter un fournisseur",
-        "type": "Type de fournisseur"
+        "title": "Ajouter un fournisseur"
       },
       "anthropic": {
         "apikey": "Clé API",
@@ -4272,12 +4125,8 @@
       },
       "anthropic_api_host": "Adresse API Anthropic",
       "anthropic_api_host_preview": "Aperçu Anthropic : {{url}}",
-      "anthropic_api_host_tooltip": "Remplir seulement lorsque le fournisseur propose une adresse de base compatible Claude.",
       "api": {
         "key": {
-          "check": {
-            "latency": "Temps écoulé"
-          },
           "error": {
             "duplicate": "La clé API existe déjà",
             "empty": "La clé API ne peut pas être vide"
@@ -4326,14 +4175,12 @@
           }
         },
         "url": {
-          "reset": "Réinitialiser",
-          "tip": "Ajoutez # à la fin pour désactiver la version d'API ajoutée automatiquement."
+          "reset": "Réinitialiser"
         }
       },
       "api_host": "Adresse API",
       "api_host_no_valid": "Adresse API invalide",
       "api_host_preview": "Aperçu : {{url}}",
-      "api_host_tooltip": "Remplacer seulement lorsque le fournisseur nécessite une adresse compatible OpenAI personnalisée.",
       "api_key": {
         "label": "Clé API",
         "tip": "Séparer les clés multiples par des virgules"
@@ -4375,7 +4222,6 @@
       "bills": "Factures",
       "charge": "Recharger",
       "check": "Vérifier",
-      "check_all_keys": "Vérifier toutes les clés",
       "copilot": {
         "auth_failed": "Échec de l'authentification Github Copilot",
         "auth_success": "Authentification Github Copilot réussie",
@@ -4417,8 +4263,6 @@
         "platform_official": "www.DMXAPI.cn (CNY)",
         "select_platform": "Sélectionner la plateforme"
       },
-      "docs_check": "Voir",
-      "docs_more_details": "Obtenir plus de détails",
       "filter": {
         "agent": "Prise en charge par un agent",
         "all": "Tous les fournisseurs"
@@ -4439,22 +4283,17 @@
         "logout_confirm": "Êtes-vous sûr de vouloir vous déconnecter ?",
         "logout_success": "Déconnexion réussie",
         "logout_warning": "Déconnecté localement, mais la révocation du jeton serveur a peut-être échoué",
-        "provided_by": "Fourni par",
-        "provided_by_suffix": "I'm ready to translate. Please provide the text you'd like me to translate into French.",
         "topup": "Recharger"
       },
       "openai": {
         "alert": "Le fournisseur OpenAI ne prend plus en charge l'ancienne méthode d'appel. Veuillez créer un nouveau fournisseur si vous utilisez une API tierce"
       },
-      "remove_invalid_keys": "Supprimer les clés invalides",
       "search": "Rechercher une plateforme de modèles...",
-      "search_placeholder": "Rechercher un ID ou un nom de modèle",
       "title": "Services de modèles",
       "vertex_ai": {
         "api_host_help": "Adresse API de Vertex AI, il n'est pas recommandé de la remplir, généralement utilisée pour un proxy inverse",
         "location": "Région",
         "location_help": "La région du service Vertex AI, par exemple us-central1. Ce champ n'est pas lu depuis le JSON du compte de service et doit être saisi manuellement.",
-        "location_placeholder": "Sélectionner une région Vertex AI",
         "project_id": "ID du projet",
         "project_id_help": "Votre identifiant de projet Google Cloud",
         "project_id_placeholder": "votre-id-projet-google-cloud",
@@ -4464,11 +4303,6 @@
           "client_email_placeholder": "Veuillez saisir l'e-mail du compte de service",
           "description": "Authentification via un compte de service, adaptée aux environnements où ADC n'est pas utilisable",
           "incomplete_config": "Veuillez d'abord compléter la configuration des informations du compte de service",
-          "json_input": "Service Account JSON",
-          "json_input_help": "Collez le contenu complet de la clé JSON. Après analyse, seuls project_id, client_email et private_key sont enregistrés, et le JSON brut est effacé.",
-          "json_input_placeholder": "Collez le contenu complet de la clé JSON du compte de service",
-          "json_parse_error": "Impossible d'analyser le Service Account JSON. Veuillez vérifier que le format est correct.",
-          "json_parse_success": "Service Account JSON analysé",
           "private_key": "Clé privée",
           "private_key_help": "Champ private_key provenant du fichier de clé JSON téléchargé depuis Google Cloud Console",
           "private_key_placeholder": "Veuillez saisir la clé privée du compte de service",
@@ -4597,8 +4431,6 @@
         "api_key_required": {
           "ok": "Configurer"
         },
-        "api_providers": "Fournisseurs d'API",
-        "apikey": "Clé API",
         "blacklist": "Liste noire",
         "blacklist_description": "Les résultats provenant des sites suivants n'apparaîtront pas dans les résultats de recherche",
         "blacklist_tooltip": "Veuillez utiliser le format suivant (séparé par des sauts de ligne)\nModèle de correspondance : *://*.example.com/*\nExpression régulière : /example\\.(net|org)/",
@@ -4611,10 +4443,6 @@
               "label": "Longueur de troncature",
               "placeholder": "Longueur d'entrée",
               "tooltip": "Limite la longueur du contenu des résultats de recherche ; le contenu dépassant cette limite sera tronqué (par exemple, 2000 caractères)"
-            },
-            "unit": {
-              "char": "caractère",
-              "token": "Token"
             }
           },
           "method": {
@@ -4625,7 +4453,6 @@
           "title": "Compression des résultats de recherche"
         },
         "default_provider": "Fournisseur par défaut",
-        "free": "Gratuit",
         "is_default": "Défaut",
         "search_max_result": {
           "label": "Nombre de résultats de recherche",
@@ -4648,9 +4475,7 @@
         "subscribe_update_failed": "Échec de la mise à jour du flux d'abonnement",
         "subscribe_update_success": "La mise à jour du flux d'abonnement a réussi",
         "subscribe_url": "URL de la source d'abonnement",
-        "title": "Recherche web",
-        "url_invalid": "URL invalide entrée",
-        "url_required": "Veuillez entrer l'URL"
+        "title": "Recherche web"
       }
     },
     "topic": {

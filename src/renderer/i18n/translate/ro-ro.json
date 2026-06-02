@@ -137,7 +137,6 @@
           "confirm": "Sunteți sigur că doriți să ștergeți această sarcină?",
           "label": "Șterge"
         },
-        "edit": "Editează",
         "error": {
           "loadFailed": "[to be translated]:Failed to load tasks"
         },
@@ -148,7 +147,6 @@
           "duration": "Durată",
           "empty": "Nu există încă istoric de rulare.",
           "error": "Eroare",
-          "justNow": "chiar acum",
           "label": "Istoric rulări",
           "loadError": "[to be translated]:Failed to load run history",
           "result": "Rezultat",
@@ -185,10 +183,6 @@
           "active": "Activă",
           "completed": "Finalizată",
           "paused": "În pauză"
-        },
-        "time": {
-          "hoursAgo": "acum {{count}}h",
-          "minutesAgo": "acum {{count}}m"
         },
         "timeout": {
           "label": "Timeout",
@@ -708,8 +702,7 @@
     "title": "Asistenți"
   },
   "auth": {
-    "get_key_success": "Cheia API a fost obținută automat cu succes",
-    "login": "Autentificare"
+    "get_key_success": "Cheia API a fost obținută automat cu succes"
   },
   "backup": {
     "confirm": {
@@ -852,12 +845,6 @@
       },
       "url_context": "Context URL",
       "web_search": {
-        "builtin": {
-          "disabled_content": "Modelul curent nu acceptă căutarea web",
-          "enabled_content": "Folosește funcția de căutare web integrată a modelului",
-          "label": "Integrat în model"
-        },
-        "enable_content": "Trebuie să verifici mai întâi conectivitatea căutării web în setări",
         "label": "Căutare web"
       }
     },
@@ -1127,7 +1114,6 @@
         "title": "Gestionează subiectele"
       },
       "move_to": "Mută la",
-      "new": "Subiect nou",
       "pin": "Fixează subiectul",
       "prompt": {
         "edit": {
@@ -1241,7 +1227,6 @@
     "add_success": "Adăugat cu succes",
     "advanced_settings": "Setări avansate",
     "agent_one": "Agent",
-    "and": "și",
     "assistant": "Asistent",
     "assistant_one": "Asistent",
     "assistant_other": "Asistenți",
@@ -1251,7 +1236,6 @@
     "cancel": "Anulează",
     "chat": "Chat",
     "clear": "Golește",
-    "clear_all": "Șterge tot",
     "close": "Închide",
     "collapse": "Restrânge",
     "confirm": "Confirmă",
@@ -1278,20 +1262,15 @@
     },
     "footnotes": "Referințe",
     "fullscreen": "S-a intrat în modul ecran complet. Apasă F11 pentru a ieși",
-    "generate_random_seed": "Generează sămânță aleatoare",
     "get_embedding_dimension": "Obține dimensiunea de înglobare",
     "go_to_settings": "Mergi la setări",
     "html_preview": "Previzualizare HTML",
     "ignore": "Ignoră",
-    "image_preview": "Previzualizare imagine",
-    "image_url": "URL imagine",
-    "image_url_or_upload": "Introdu URL-ul imaginii sau încarcă fișierul",
     "inspect": "Inspectează",
     "knowledge_base": "Bază de cunoștințe",
     "language": "Limbă",
     "loading": "Se încarcă...",
     "model": "Model",
-    "models": "Modele",
     "more": "Mai mult",
     "name": "Nume",
     "next_match": "Următorul meci",
@@ -1305,10 +1284,8 @@
     "preview": "Previzualizare",
     "previous_match": "Meciul anterior",
     "prompt": "Prompt",
-    "provider": "Furnizor",
     "reasoning_content": "Raționament profund",
     "regenerate": "Regenerează",
-    "remove_image": "Elimină imaginea",
     "required_field": "Câmp obligatoriu",
     "reset": "Resetează",
     "retry": "Reîncercare",
@@ -1336,9 +1313,6 @@
     "unnamed": "Fără nume",
     "unsubscribe": "Dezabonează-te",
     "update_success": "Actualizat cu succes",
-    "upload_files": "Încarcă fișier",
-    "upload_image": "Încarcă fișier imagine",
-    "uploaded_image": "Imagine încărcată",
     "warning": "Avertisment",
     "you": "Tu"
   },
@@ -1611,9 +1585,7 @@
     "search_placeholder": "Introdu text pentru căutare",
     "status_embedding_failed": "Embedding eșuat",
     "status_preprocess_failed": "Preprocesare eșuată",
-    "subtitle_file": "fișier subtitrare",
-    "title": "Bază de cunoștințe",
-    "videos_file": "fișier video"
+    "title": "Bază de cunoștințe"
   },
   "languages": {
     "arabic": "Arabă",
@@ -1978,7 +1950,6 @@
     "price": {
       "cost": "Cost",
       "currency": "Monedă",
-      "custom": "Personalizat",
       "custom_currency": "Monedă personalizată",
       "custom_currency_placeholder": "Introdu moneda personalizată",
       "input": "Preț intrare",
@@ -1986,8 +1957,7 @@
       "output": "Preț ieșire"
     },
     "search": {
-      "placeholder": "Caută modele...",
-      "tooltip": "Caută modele"
+      "placeholder": "Caută modele..."
     },
     "stream_output": "Ieșire flux",
     "type": {
@@ -2152,27 +2122,6 @@
       }
     }
   },
-  "onboarding": {
-    "select_model": {
-      "change_later": "Poți schimba oricând asta din setări.",
-      "start": "Începe",
-      "subtitle": "Selectați modelul implicit pentru fiecare scenariu",
-      "title": "Alegeți Modelele Dvs. Implicite"
-    },
-    "skip": "Sariți",
-    "toast": {
-      "connected": "Conectat cu succes la CherryIN"
-    },
-    "welcome": {
-      "login_cherryin": "Conectare cu CherryIN",
-      "or_continue_with": "SAU CONTINUAȚI CU",
-      "other_provider": "Alegeți alți furnizori",
-      "select_other_provider": "Selectați alt furnizor",
-      "setup_hint": "Vă rugăm să configurați cel puțin un furnizor pentru cea mai bună experiență",
-      "subtitle": "Bucurați-vă de servicii AI de top cu CherryIN",
-      "title": "Bun venit la Cherry Studio"
-    }
-  },
   "openclaw": {
     "checking_installation": "Verificare instalare OpenClaw...",
     "description": "Integrează furnizorii Cherry Studio cu Gateway-ul OpenClaw pentru a permite agenților de codificare AI precum Claude Code, Qwen-Coder și alții.",
@@ -2245,7 +2194,6 @@
     "description": "<div><p>1. Descarcă modele OV.</p><p>2. Adaugă modele în 'Manager'.</p><p>Suportă doar Windows!</p><p>Cale instalare OVMS: '%USERPROFILE%\\.cherrystudio\\ovms' .</p><p>Te rugăm să consulți <a href=https://github.com/openvinotoolkit/model_server/blob/c55551763d02825829337b62c2dcef9339706f79/docs/deploying_server_baremetal.md>Ghidul Intel OVMS</a></p></dev>",
     "download": {
       "button": "Descarcă",
-      "error": "Eroare descărcare",
       "model_id": {
         "label": "ID model:",
         "model_id_pattern": "ID-ul modelului trebuie să înceapă cu OpenVINO/",
@@ -2259,7 +2207,6 @@
       },
       "model_source": "Sursă model:",
       "model_task": "Sarcină model:",
-      "success": "Descărcare reușită",
       "success_desc": "Modelul \"{{modelName}}\"-\"{{modelId}}\" descărcat cu succes, te rugăm să mergi la interfața de gestionare OVMS pentru a adăuga modelul",
       "tip": "Modelul se descarcă, uneori durează ore întregi. Te rugăm să ai răbdare...",
       "title": "Descarcă model Intel OpenVINO"
@@ -2286,12 +2233,6 @@
   },
   "paintings": {
     "aspect_ratio": "Raport de aspect",
-    "aspect_ratios": {
-      "landscape": "Peisaj",
-      "square": "Pătrat"
-    },
-    "auto_create_paint": "Creează automat imagine",
-    "auto_create_paint_tip": "După ce imaginea este generată, o nouă imagine va fi creată automat.",
     "background": "Fundal",
     "background_options": {
       "auto": "Auto",
@@ -2310,7 +2251,6 @@
     },
     "custom_size": "Dimensiune personalizată",
     "dmxapi": {
-      "generating_tip": "Generarea cu modelul oficial, timpul estimat de așteptare este de 2-5 minute pentru cele mai bune rezultate. Te rugăm să verifici logurile backend DMXAPI pentru costul acestei operațiuni.",
       "style": ", Stil:",
       "style_types": {
         "25d_animation": "Animație 2.5D",
@@ -2343,7 +2283,6 @@
       }
     },
     "edit": {
-      "image_file": "Imagine editată",
       "image_required": "Vă rugăm să încărcați mai întâi o imagine pentru editare"
     },
     "generate": {
@@ -2362,8 +2301,6 @@
       "width": "Lățime"
     },
     "generate_failed": "Nu s-a putut genera imaginea",
-    "generated_image": "Imagine generată",
-    "go_to_settings": "Mergi la Setări",
     "guidance_scale": "Scară de ghidare",
     "guidance_scale_tip": "Classifier Free Guidance. Cât de fidel vrei să respecte modelul promptul tău când caută o imagine similară să-ți arate",
     "image": {
@@ -2373,26 +2310,13 @@
     "image_file_retry": "Te rugăm să reîncarci mai întâi o imagine",
     "image_handle_required": "Te rugăm să încarci mai întâi o imagine.",
     "image_mix_failed": "Nu s-au putut combina imaginile",
-    "image_placeholder": "Nicio imagine disponibilă",
-    "image_retry": "Reîncearcă",
     "image_size_options": {
       "auto": "Auto"
     },
     "inference_steps": "Pași de inferență",
     "inference_steps_tip": "Numărul de pași de inferență de efectuat. Mai mulți pași produc o calitate mai mare, dar durează mai mult",
-    "input_image": "Imagine de intrare",
-    "input_parameters": "Parametri de intrare",
-    "learn_more": "Află mai multe",
     "magic_prompt_option": "Prompt magic",
-    "mode": {
-      "edit": "Editează",
-      "generate": "Desenează",
-      "merge": "Îmbină",
-      "remix": "Remix",
-      "upscale": "Upscale"
-    },
     "model": "Model",
-    "model_and_pricing": "Model și prețuri",
     "moderation": "Moderare",
     "moderation_options": {
       "auto": "Auto",
@@ -2400,32 +2324,20 @@
     },
     "negative_prompt": "Prompt negativ",
     "negative_prompt_tip": "Descrie ce nu vrei să fie inclus în imagine",
-    "no_image_generation_model": "Niciun model de generare imagini disponibil, te rugăm să adaugi un model și să setezi tipul endpoint-ului la {{endpoint_type}}",
     "number_images": "Număr imagini",
     "number_images_tip": "Numărul de imagini de generat (1-4)",
     "operation_failed": "Operațiunea a eșuat, vă rugăm să încercați din nou mai târziu",
-    "paint_course": "tutorial",
-    "per_image": "pe imagine",
-    "per_images": "pe imagini",
     "person_generation_options": {
       "allow_adult": "Permite adulți",
       "allow_all": "Permite tot",
       "allow_none": "Nepermis"
     },
     "ppio": {
-      "mask_image": "Imagine mască",
-      "mask_image_tip": "Indică zona de șters. Zonele de șters trebuie să fie albe, zonele de păstrat negre",
-      "output_format": "Format ieșire",
-      "resolution": "Rezoluție țintă",
-      "seed_tip": "Sămânță aleatorie, aceeași sămânță și parametri produc imagini similare, -1 înseamnă aleatoriu",
-      "use_pre_llm_tip": "Activează expansiunea textului pentru optimizarea promptului. Recomandat pentru prompturi scurte, dezactivați pentru cele lungi",
-      "watermark_tip": "Dacă se adaugă filigran la imaginile generate, dezactivat implicit"
+      "output_format": "Format ieșire"
     },
     "prompt_enhancement": "Îmbunătățire prompt",
     "prompt_enhancement_tip": "Rescrie prompturile în versiuni detaliate, optimizate pentru model, când este activat",
     "prompt_placeholder": "Descrie imaginea pe care vrei să o creezi, de ex. Un lac senin la apus cu munți în fundal",
-    "prompt_placeholder_edit": "Introdu descrierea imaginii, desenarea textului folosește \"ghilimele duble\" pentru încadrare",
-    "prompt_placeholder_en": "Introdu descrierea imaginii, momentan acceptă doar prompturi în engleză",
     "proxy_required": "Deschide proxy-ul și activează \"Modul TUN\" pentru a vizualiza imaginile generate sau copiază-le în browser pentru deschidere. În viitor, conexiunea directă internă va fi acceptată",
     "quality": "Calitate",
     "quality_options": {
@@ -2433,9 +2345,6 @@
       "high": "Înaltă",
       "low": "Scăzută",
       "medium": "Medie"
-    },
-    "regenerate": {
-      "confirm": "Aceasta va înlocui imaginile generate existente. Vrei să continui?"
     },
     "remix": {
       "image_file": "Imagine de referință",
@@ -2455,11 +2364,8 @@
     },
     "req_error_model": "Nu s-a putut prelua modelul",
     "req_error_no_balance": "Te rugăm să verifici validitatea tokenului",
-    "req_error_text": "Serverul este ocupat sau promptul conține termeni \"protejați prin drepturi de autor\" sau \"sensibili\". Te rugăm să încerci din nou.",
     "req_error_token": "Te rugăm să verifici validitatea tokenului",
     "seed": "Seed",
-    "seed_desc_tip": "Același seed și prompt pot genera imagini similare; setarea -1 va genera rezultate diferite de fiecare dată",
-    "seed_random": "Aleatoriu",
     "seed_tip": "Același seed și prompt pot produce imagini similare",
     "select_model": "Selectează modelul",
     "style_type": "Stil",
@@ -2473,38 +2379,16 @@
     },
     "text_desc_required": "Te rugăm să introduci mai întâi descrierea imaginii",
     "title": "Imagini",
-    "top_up": "Reîncarcă ",
-    "translating": "Se traduce...",
-    "uploaded_input": "Intrare încărcată",
     "upscale": {
       "detail": "Detaliu",
-      "detail_tip": "Controlează nivelul de îmbunătățire a detaliilor",
-      "image_file": "Imagine de scalat",
-      "magic_prompt_option_tip": "Îmbunătățește inteligent prompturile de upscaling",
-      "number_images_tip": "Numărul de rezultate scalate de generat",
-      "resemblance": "Similaritate",
-      "seed_tip": "Controlează aleatoriul scalării"
+      "resemblance": "Similaritate"
     },
     "watermark": "Adaugă filigran",
     "zhipu": {
       "custom_size_divisible": "Dimensiunea personalizată trebuie să fie divizibilă cu 16",
-      "custom_size_hint": "Lățimea și înălțimea trebuie să fie între 512px-2048px, divizibile cu 16, iar numărul total de pixeli nu poate depăși 2^21px",
       "custom_size_pixels": "Numărul total de pixeli ai dimensiunii personalizate nu poate depăși 2.097.152",
       "custom_size_range": "Dimensiunea personalizată trebuie să fie între 512px și 2048px.",
-      "custom_size_required": "Vă rugăm să setați lățimea și înălțimea personalizate",
-      "image_sizes": {
-        "1024x1024_default": "1024x1024 (Implicit)",
-        "1152x864": "1152x864",
-        "1344x768": "1344x768",
-        "1440x720": "1440x720",
-        "720x1440": "720x1440",
-        "768x1344": "768x1344",
-        "864x1152": "864x1152"
-      },
-      "quality_options": {
-        "hd": "HD",
-        "standard_default": "Standard (Implicit)"
-      }
+      "custom_size_required": "Vă rugăm să setați lățimea și înălțimea personalizate"
     }
   },
   "preview": {
@@ -3240,7 +3124,6 @@
         "title": "Director de date"
       },
       "divider": {
-        "basic": "Setări date de bază",
         "cloud_storage": "Setări backup în cloud",
         "export_settings": "Setări export",
         "import_settings": "Setări import"
@@ -3902,7 +3785,6 @@
       "deleteSuccess": "Server șters cu succes",
       "description": "Descriere",
       "discover": "Descoperă",
-      "editJson": "Editează JSON",
       "env": "Variabile de mediu",
       "envTooltip": "Format: CHEIE=valoare, una pe linie",
       "fetch": {
@@ -3915,10 +3797,6 @@
       "install": "Instalează",
       "installError": "Instalarea dependențelor a eșuat",
       "installSuccess": "Dependențe instalate cu succes",
-      "jsonFormatError": "Eroare formatare JSON",
-      "jsonModeHint": "Editează reprezentarea JSON a configurației serverului MCP. Te rugăm să te asiguri că formatul este corect înainte de salvare.",
-      "jsonSaveError": "Nu s-a putut salva configurația JSON.",
-      "jsonSaveSuccess": "Configurația JSON a fost salvată.",
       "logoUrl": "URL logo",
       "logs": "Jurnale",
       "longRunning": "Mod rulare lungă",
@@ -3997,12 +3875,7 @@
       "stdio": "Intrare/Ieșire standard (stdio)",
       "streamableHttp": "HTTP fluxabil (streamableHttp)",
       "sync": {
-        "button": "Sincronizează",
-        "discoverMcpServers": "Descoperă servere MCP",
-        "discoverMcpServersDescription": "Vizitează platforma pentru a descoperi servere MCP disponibile",
         "error": "Eroare sincronizare servere MCP",
-        "getToken": "Obține token API",
-        "getTokenDescription": "Obține tokenul tău personal API din contul tău",
         "noServersAvailable": "Nu există servere MCP disponibile",
         "providerDescriptions": {
           "302ai": "Serviciul MCP al Platformei 302.AI",
@@ -4012,10 +3885,7 @@
           "modelscope": "Serviciul MCP al Platformei ModelScope",
           "tokenflux": "Serviciul MCP al Platformei TokenFlux"
         },
-        "selectProvider": "Selectează furnizor:",
-        "setToken": "Introdu tokenul tău",
         "success": "Sincronizare servere MCP reușită",
-        "title": "Sincronizare servere",
         "tokenPlaceholder": "Introdu tokenul API aici",
         "tokenRequired": "Tokenul API este obligatoriu",
         "unauthorized": "Sincronizare neautorizată"
@@ -4098,7 +3968,6 @@
     "models": {
       "add": {
         "add_model": "Adaugă model",
-        "batch_add_models": "Adaugă modele în lot",
         "endpoint_type": {
           "label": "Tip endpoint",
           "placeholder": "Selectează tip endpoint",
@@ -4107,18 +3976,15 @@
         },
         "group_name": {
           "label": "Nume grup",
-          "placeholder": "Opțional de ex. ChatGPT",
-          "tooltip": "Opțional de ex. ChatGPT"
+          "placeholder": "Opțional de ex. ChatGPT"
         },
         "model_id": {
           "label": "ID model",
-          "placeholder": "Obligatoriu de ex. gpt-3.5-turbo",
-          "tooltip": "Exemplu: gpt-3.5-turbo"
+          "placeholder": "Obligatoriu de ex. gpt-3.5-turbo"
         },
         "model_name": {
           "label": "Nume model",
-          "placeholder": "Opțional de ex. GPT-4",
-          "tooltip": "Opțional de ex. GPT-4"
+          "placeholder": "Opțional de ex. GPT-4"
         },
         "supported_text_delta": {
           "label": "Suportă ieșire text incrementală",
@@ -4152,16 +4018,7 @@
       "default_assistant_model_description": "Model folosit la crearea unui nou asistent; dacă asistentul nu este setat, va fi folosit acest model",
       "empty": "Nu s-au găsit modele",
       "manage": {
-        "add_listed": {
-          "confirm": "Ești sigur că vrei să adaugi toate modelele la listă?",
-          "label": "Adaugă modele la listă"
-        },
-        "add_whole_group": "Adaugă întregul grup",
-        "fetch_list": "Obține lista modelelor",
-        "refetch_list": "Reîmprospătează lista modelelor",
-        "remove_listed": "Elimină modelele din listă",
-        "remove_model": "Elimină modelul",
-        "remove_whole_group": "Elimină întregul grup"
+        "remove_model": "Elimină modelul"
       },
       "provider_id": "ID furnizor",
       "provider_key_add_confirm": "Vrei să adaugi cheia API pentru {{provider}}?",
@@ -4191,13 +4048,10 @@
     },
     "moresetting": {
       "check": {
-        "confirm": "Confirmă selecția",
         "warn": "Te rugăm să fii precaut când selectezi această opțiune. Selecția incorectă poate cauza funcționarea defectuoasă a modelului!"
       },
-      "label": "Mai multe setări",
-      "warn": "Avertisment de risc"
+      "label": "Mai multe setări"
     },
-    "no_provider_selected": "Furnizor neselectat",
     "notification": {
       "assistant": "Mesaj asistent",
       "backup": "Mesaj backup",
@@ -4246,8 +4100,7 @@
           "label": "Nume furnizor",
           "placeholder": "Exemplu: OpenAI"
         },
-        "title": "Adaugă furnizor",
-        "type": "Tip furnizor"
+        "title": "Adaugă furnizor"
       },
       "anthropic": {
         "apikey": "Cheie API",
@@ -4272,12 +4125,8 @@
       },
       "anthropic_api_host": "Gazdă API Anthropic",
       "anthropic_api_host_preview": "Previzualizare Anthropic: {{url}}",
-      "anthropic_api_host_tooltip": "Folosește doar când furnizorul oferă un URL de bază compatibil cu Claude.",
       "api": {
         "key": {
-          "check": {
-            "latency": "Latență"
-          },
           "error": {
             "duplicate": "Cheia API există deja",
             "empty": "Cheia API nu poate fi goală"
@@ -4326,14 +4175,12 @@
           }
         },
         "url": {
-          "reset": "Resetează",
-          "tip": "Adaugă # la final pentru a dezactiva versiunea API adăugată automat."
+          "reset": "Resetează"
         }
       },
       "api_host": "Gazdă API",
       "api_host_no_valid": "Adresa API este invalidă",
       "api_host_preview": "Previzualizare: {{url}}",
-      "api_host_tooltip": "Suprascrie doar când furnizorul tău necesită un endpoint personalizat compatibil cu OpenAI.",
       "api_key": {
         "label": "Cheie API",
         "tip": "Folosește virgule pentru a separa mai multe chei"
@@ -4375,7 +4222,6 @@
       "bills": "Facturi taxe",
       "charge": "Reîncărcare sold",
       "check": "Verifică",
-      "check_all_keys": "Verifică toate cheile",
       "copilot": {
         "auth_failed": "Autentificarea Github Copilot a eșuat.",
         "auth_success": "Autentificarea GitHub Copilot a reușit.",
@@ -4417,8 +4263,6 @@
         "platform_official": "www.DMXAPI.cn (CNY)",
         "select_platform": "Selectează platforma"
       },
-      "docs_check": "Verifică",
-      "docs_more_details": "pentru mai multe detalii",
       "filter": {
         "agent": "Asistat de agent",
         "all": "Toți furnizorii"
@@ -4439,22 +4283,17 @@
         "logout_confirm": "Ești sigur că vrei să te deconectezi?",
         "logout_success": "Delogare reușită",
         "logout_warning": "Deconectat local, dar revocarea token-ului de pe server ar fi putut eșua",
-        "provided_by": "Furnizat de",
-        "provided_by_suffix": "I’m ready—please provide the text you’d like translated into Romanian.",
         "topup": "Reîncărcare"
       },
       "openai": {
         "alert": "Furnizorul OpenAI nu mai acceptă metodele vechi de apelare. Dacă folosești un API terț, te rugăm să creezi un furnizor de servicii nou."
       },
-      "remove_invalid_keys": "Elimină cheile invalide",
       "search": "Caută furnizori...",
-      "search_placeholder": "Caută id sau nume model",
       "title": "Furnizor model",
       "vertex_ai": {
         "api_host_help": "Gazda API pentru Vertex AI, nerecomandat de completat, aplicabil în general pentru reverse proxy",
         "location": "Locație",
         "location_help": "Locația serviciului Vertex AI, de ex., us-central1. Acest câmp nu este citit din JSON-ul Service Account și trebuie introdus manual.",
-        "location_placeholder": "Selectează locația Vertex AI",
         "project_id": "ID Proiect",
         "project_id_help": "ID-ul tău de proiect Google Cloud",
         "project_id_placeholder": "id-ul-tau-proiect-google-cloud",
@@ -4464,11 +4303,6 @@
           "client_email_placeholder": "Introdu e-mailul clientului Contului de Serviciu",
           "description": "Folosește Contul de Serviciu pentru autentificare, potrivit pentru mediile unde ADC nu este disponibil",
           "incomplete_config": "Te rugăm să finalizezi mai întâi configurarea Contului de Serviciu",
-          "json_input": "Service Account JSON",
-          "json_input_help": "Lipește conținutul complet al cheii JSON. După analiză, se salvează doar project_id, client_email și private_key, iar JSON-ul inițial este șters.",
-          "json_input_placeholder": "Lipește conținutul complet al cheii JSON pentru Service Account",
-          "json_parse_error": "Analizarea Service Account JSON a eșuat. Te rugăm să confirmi că formatul este corect.",
-          "json_parse_success": "Service Account JSON analizat",
           "private_key": "Cheie privată",
           "private_key_help": "Câmpul private_key din fișierul cheie JSON descărcat din Google Cloud Console",
           "private_key_placeholder": "Introdu cheia privată a Contului de Serviciu",
@@ -4597,8 +4431,6 @@
         "api_key_required": {
           "ok": "Configurează"
         },
-        "api_providers": "Furnizori API",
-        "apikey": "Cheie API",
         "blacklist": "Listă neagră",
         "blacklist_description": "Rezultatele de pe următoarele site-uri web nu vor apărea în rezultatele căutării",
         "blacklist_tooltip": "Te rugăm să folosești următorul format (separate prin linie nouă)\nPotrivire model: *://*.exemplu.com/*\nExpresie regulată: /exemplu\\.(net|org)/",
@@ -4611,10 +4443,6 @@
               "label": "Limită trunchiere",
               "placeholder": "Introdu lungimea",
               "tooltip": "Limitează lungimea conținutului rezultatelor căutării, conținutul care depășește limita va fi trunchiat (de ex., 2000 caractere)"
-            },
-            "unit": {
-              "char": "Caractere",
-              "token": "Token"
             }
           },
           "method": {
@@ -4625,7 +4453,6 @@
           "title": "Compresie rezultate căutare"
         },
         "default_provider": "Furnizor implicit",
-        "free": "Gratuit",
         "is_default": "Implicit",
         "search_max_result": {
           "label": "Număr de rezultate căutare",
@@ -4648,9 +4475,7 @@
         "subscribe_update_failed": "Actualizarea sursei abonamentului a eșuat",
         "subscribe_update_success": "Sursa abonamentului a fost actualizată cu succes",
         "subscribe_url": "Url abonament",
-        "title": "Căutare web",
-        "url_invalid": "S-a introdus un URL invalid",
-        "url_required": "Te rugăm să introduci un URL"
+        "title": "Căutare web"
       }
     },
     "topic": {
