@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "a781fbf0-e398-4d40-adea-700d4637307c",
+  "id": "59573691-4fea-468c-a9a2-1fe5aaae9b39",
   "prevId": "b2f4f492-7829-40d7-9ac6-94ec9384a926",
   "tables": {
     "agent": {
@@ -1893,6 +1893,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "emoji": {
+          "name": "emoji",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "dimensions": {
           "name": "dimensions",
           "type": "integer",
@@ -2792,6 +2799,71 @@
           "value": "\"note\".\"is_starred\" = 1 OR \"note\".\"is_expanded\" = 1"
         }
       }
+    },
+    "painting": {
+      "name": "painting",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "provider_id": {
+          "name": "provider_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "model_id": {
+          "name": "model_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "prompt": {
+          "name": "prompt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "order_key": {
+          "name": "order_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "painting_order_key_idx": {
+          "name": "painting_order_key_idx",
+          "columns": ["order_key"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
     },
     "pin": {
       "name": "pin",

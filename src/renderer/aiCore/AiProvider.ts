@@ -8,6 +8,7 @@ import type { Assistant, EditImageParams, GenerateImageParams, Model, Provider }
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { getLowerBaseModelName } from '@renderer/utils'
 import type { StartSpanParams } from '@renderer/windows/trace/types/ModelSpanEntity'
+import type { JSONValue } from 'ai'
 
 import AiSdkToChunkAdapter from './chunk/AiSdkToChunkAdapter'
 import { buildPlugins } from './plugins/PluginBuilder'
@@ -15,8 +16,59 @@ import { adaptProvider, getActualProvider, providerToAiSdkConfig } from './provi
 import { listModels } from './services/listModels'
 import type { AppProviderSettingsMap, CompletionsResult, ProviderConfig } from './types'
 import type { AiSdkMiddlewareConfig } from './types/middlewareConfig'
+import { type ClassifiedImage, classifyImageOutput, downloadImageUrls } from './utils/imageDownload'
+import { buildImageProviderOptions } from './utils/imageOptions'
 
 const logger = loggerService.withContext('AiProvider')
+
+/**
+ * Merge caller-supplied extra `providerOptions` (e.g. the polling `onProgress`
+ * callback for ppio) into the structurally-built map. Per-provider
+ * keys are shallow-merged so structured params and pass-through params coexist.
+ * Extra values are kept by reference — non-JSON callbacks survive the plugin
+ * chain (it shallow-copies, no JSON clone).
+ */
+function mergeExtraProviderOptions(
+  base: Record<string, Record<string, unknown>>,
+  extra?: Record<string, Record<string, unknown>>
+): Record<string, Record<string, unknown>> {
+  if (!extra) return base
+  const merged: Record<string, Record<string, unknown>> = { ...base }
+  for (const [providerKey, values] of Object.entries(extra)) {
+    merged[providerKey] = { ...merged[providerKey], ...values }
+  }
+  return merged
+}
+
+/**
+ * Resolve the AI SDK `size` parameter from the caller's `imageSize`.
+ *
+ * `undefined` (returned only when `allowAutoSize` is true) tells the caller to
+ * omit the `size` field entirely — preserving the bespoke painting behavior
+ * where `painting.size === 'auto'` did NOT send `size:'1024x1024'` to the
+ * server (some backends, e.g. newapi gpt-image, treat `auto` differently from
+ * an explicit `1024x1024`).
+ */
+function resolveImageSize(
+  imageSize: string | undefined,
+  allowAutoSize: boolean | undefined
+): `${number}x${number}` | undefined {
+  if (imageSize) return imageSize as `${number}x${number}`
+  if (allowAutoSize) return undefined
+  return '1024x1024'
+}
+
+/**
+ * Normalize the painting form's `ASPECT_X_Y` enum (or already-normalized
+ * `X:Y`) into the `${number}:${number}` shape the AI SDK ImageModelV3 expects.
+ * Returns `undefined` for non-strings or mismatched values so the call site
+ * can omit the field entirely.
+ */
+function resolveAspectRatio(value: string | undefined): `${number}:${number}` | undefined {
+  if (!value) return undefined
+  const stripped = value.replace(/^ASPECT_/i, '').replace('_', ':')
+  return /^\d+:\d+$/.test(stripped) ? (stripped as `${number}:${number}`) : undefined
+}
 
 export type AiProviderConfig = AiSdkMiddlewareConfig & {
   assistant: Assistant
@@ -364,6 +416,18 @@ export default class AiProvider {
   }
 
   /**
+   * Painting-oriented image generation (R1 shared infra).
+   *
+   * Keeps the painting result shape (`url` or raw base64) while allowing AI SDK
+   * URL outputs to be downloaded through `experimental_download` before media
+   * sniffing.
+   */
+  public async generatePaintingImage(params: GenerateImageParams): Promise<ClassifiedImage[]> {
+    await this.ensureConfig(params.model)
+    return await this.modernGeneratePaintingImage(params, this.config!)
+  }
+
+  /**
    * 编辑图像 - 基于输入图像和文本提示生成新图像
    * 内部使用 AI SDK 的 generateImage，通过 prompt.images 参数实现编辑功能
    */
@@ -376,13 +440,30 @@ export default class AiProvider {
    * 使用现代化 AI SDK 的图像生成实现
    */
   private async modernGenerateImage(params: GenerateImageParams, providerConfig: ProviderConfig): Promise<string[]> {
-    const { model, prompt, imageSize, batchSize, signal } = params
+    const { model, prompt, imageSize, aspectRatio, batchSize, signal, allowAutoSize } = params
+
+    // Forward the remaining params (negativePrompt/seed/steps/guidance/
+    // promptEnhancement/personGeneration/quality) via AI SDK providerOptions —
+    // they were previously dropped here. Keyed by the resolved provider id,
+    // which is the providerOptions key the image model reads.
+    const providerOptions = mergeExtraProviderOptions(
+      buildImageProviderOptions(providerConfig.providerId, params),
+      params.providerOptions
+    )
 
     // 转换参数格式
+    const resolvedSize = resolveImageSize(imageSize, allowAutoSize)
+    const resolvedAspectRatio = resolveAspectRatio(aspectRatio)
     const aiSdkParams = {
       prompt,
-      size: (imageSize || '1024x1024') as `${number}x${number}`,
+      ...(resolvedSize !== undefined && { size: resolvedSize }),
+      ...(resolvedAspectRatio !== undefined && { aspectRatio: resolvedAspectRatio }),
       n: batchSize || 1,
+      // Cast: extra providerOptions may carry non-JSON callbacks (e.g. the
+      // polling `onProgress`) which the AI SDK passes through by reference.
+      ...(Object.keys(providerOptions).length > 0 && {
+        providerOptions: providerOptions as Record<string, Record<string, JSONValue>>
+      }),
       ...(signal && { abortSignal: signal })
     }
 
@@ -400,11 +481,70 @@ export default class AiProvider {
   }
 
   /**
+   * Painting variant of {@link modernGenerateImage}: identical request
+   * construction, but injects {@link downloadImageUrls} so URL results are
+   * downloaded before the SDK wraps them as generated files.
+   */
+  private async modernGeneratePaintingImage(
+    params: GenerateImageParams,
+    providerConfig: ProviderConfig
+  ): Promise<ClassifiedImage[]> {
+    const { model, prompt, inputImages, imageSize, aspectRatio, batchSize, signal, allowAutoSize } = params
+
+    const providerOptions = mergeExtraProviderOptions(
+      buildImageProviderOptions(providerConfig.providerId, params),
+      params.providerOptions
+    )
+
+    const resolvedSize = resolveImageSize(imageSize, allowAutoSize)
+    const resolvedAspectRatio = resolveAspectRatio(aspectRatio)
+    const aiSdkParams = {
+      prompt: inputImages && inputImages.length > 0 ? { text: prompt, images: inputImages } : prompt,
+      ...(resolvedSize !== undefined && { size: resolvedSize }),
+      ...(resolvedAspectRatio !== undefined && { aspectRatio: resolvedAspectRatio }),
+      n: batchSize || 1,
+      experimental_download: downloadImageUrls,
+      ...(Object.keys(providerOptions).length > 0 && {
+        providerOptions: providerOptions as Record<string, Record<string, JSONValue>>
+      }),
+      ...(signal && { abortSignal: signal })
+    }
+
+    const executor = await createExecutor<AppProviderSettingsMap>(
+      providerConfig.providerId,
+      providerConfig.providerSettings,
+      []
+    )
+    const result = await executor.generateImage({
+      model: model,
+      ...aiSdkParams
+    })
+
+    const out: ClassifiedImage[] = []
+    if (result.images) {
+      for (const image of result.images) {
+        if (image.base64) {
+          out.push(classifyImageOutput(image.base64))
+        }
+      }
+    }
+    return out
+  }
+
+  /**
    * 使用现代化 AI SDK 的图像编辑实现
    * 通过 AI SDK 的 generateImage 并传入 prompt.images 参数实现编辑功能
    */
   private async modernEditImage(params: EditImageParams, providerConfig: ProviderConfig): Promise<string[]> {
-    const { model, prompt, inputImages, mask, imageSize, signal } = params
+    const { model, prompt, inputImages, mask, imageSize, signal, allowAutoSize } = params
+
+    // Parity with modernGenerateImage: forward quality/background/moderation via
+    // providerOptions, keyed by the resolved provider id (the providerOptions key
+    // the image model reads). Justified by the unified newapi edit consumer.
+    const providerOptions = mergeExtraProviderOptions(
+      buildImageProviderOptions(providerConfig.providerId, params),
+      params.providerOptions
+    )
 
     const executor = await createExecutor<AppProviderSettingsMap>(
       providerConfig.providerId,
@@ -413,6 +553,7 @@ export default class AiProvider {
     )
 
     // 使用 AI SDK 的 generateImage，通过 prompt.images 实现编辑
+    const resolvedSize = resolveImageSize(imageSize, allowAutoSize)
     const result = await executor.generateImage({
       model: model,
       prompt: {
@@ -420,7 +561,12 @@ export default class AiProvider {
         images: inputImages, // 输入图像（必需）
         ...(mask && { mask }) // 可选的 mask（用于 inpainting）
       },
-      size: (imageSize || '1024x1024') as `${number}x${number}`,
+      ...(resolvedSize !== undefined && { size: resolvedSize }),
+      // Cast: see modernGenerateImage — extra providerOptions may carry
+      // non-JSON callbacks the AI SDK passes through by reference.
+      ...(Object.keys(providerOptions).length > 0 && {
+        providerOptions: providerOptions as Record<string, Record<string, JSONValue>>
+      }),
       ...(signal && { abortSignal: signal })
     })
 
@@ -435,7 +581,11 @@ export default class AiProvider {
     if (result.images) {
       for (const image of result.images) {
         if (image.base64) {
-          images.push(`data:${image.mediaType || 'image/png'};base64,${image.base64}`)
+          // Defensive: some transports already return a `data:<mt>;base64,…`
+          // string; strip it so we don't emit a double-prefixed (corrupt)
+          // data URL.
+          const base64 = image.base64.replace(/^data:[^;,]*;base64,/, '')
+          images.push(`data:${image.mediaType || 'image/png'};base64,${base64}`)
         }
       }
     }
