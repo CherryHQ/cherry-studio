@@ -61,11 +61,14 @@ export class RegistryLoader {
   private providerModels: ProviderModelOverride[] | null = null
   private modelsVersion: string | null = null
   private providersVersion: string | null = null
+  private providerModelsVersion: string | null = null
 
   private modelById: Map<string, ModelConfig> | null = null
   private modelByNormId: Map<string, ModelConfig> | null = null
   private overrideByKey: Map<string, ProviderModelOverride> | null = null
   private overrideByNormKey: Map<string, ProviderModelOverride> | null = null
+  private overrideByApiKey: Map<string, ProviderModelOverride> | null = null
+  private overrideByNormApiKey: Map<string, ProviderModelOverride> | null = null
   private overridesByProvider: Map<string, ProviderModelOverride[]> | null = null
 
   private idleTimer: ReturnType<typeof setTimeout> | null = null
@@ -111,6 +114,7 @@ export class RegistryLoader {
     if (this.providerModels) return this.providerModels
     const data = readProviderModelRegistry(this.paths.providerModels)
     this.providerModels = data.overrides ?? []
+    this.providerModelsVersion = data.version
     this.buildOverrideIndex()
     return this.providerModels
   }
@@ -125,6 +129,12 @@ export class RegistryLoader {
   getProvidersVersion(): string {
     this.loadProviders()
     return this.providersVersion!
+  }
+
+  /** Get the provider-models.json version string. */
+  getProviderModelsVersion(): string {
+    this.loadProviderModels()
+    return this.providerModelsVersion!
   }
 
   private buildModelIndex(): void {
@@ -142,6 +152,8 @@ export class RegistryLoader {
   private buildOverrideIndex(): void {
     this.overrideByKey = new Map()
     this.overrideByNormKey = new Map()
+    this.overrideByApiKey = new Map()
+    this.overrideByNormApiKey = new Map()
     this.overridesByProvider = new Map()
     for (const pm of this.providerModels!) {
       const key = `${pm.providerId}::${pm.modelId}`
@@ -149,6 +161,14 @@ export class RegistryLoader {
       const normKey = `${pm.providerId}::${normalizeModelId(pm.modelId)}`
       if (!this.overrideByNormKey.has(normKey)) {
         this.overrideByNormKey.set(normKey, pm)
+      }
+      if (pm.apiModelId) {
+        const apiKey = `${pm.providerId}::${pm.apiModelId}`
+        this.overrideByApiKey.set(apiKey, pm)
+        const normApiKey = `${pm.providerId}::${normalizeModelId(pm.apiModelId)}`
+        if (!this.overrideByNormApiKey.has(normApiKey)) {
+          this.overrideByNormApiKey.set(normApiKey, pm)
+        }
       }
       let arr = this.overridesByProvider.get(pm.providerId)
       if (!arr) {
@@ -168,7 +188,11 @@ export class RegistryLoader {
     this.loadProviderModels()
     const key = `${providerId}::${modelId}`
     return (
-      this.overrideByKey!.get(key) ?? this.overrideByNormKey!.get(`${providerId}::${normalizeModelId(modelId)}`) ?? null
+      this.overrideByKey!.get(key) ??
+      this.overrideByNormKey!.get(`${providerId}::${normalizeModelId(modelId)}`) ??
+      this.overrideByApiKey!.get(key) ??
+      this.overrideByNormApiKey!.get(`${providerId}::${normalizeModelId(modelId)}`) ??
+      null
     )
   }
 
@@ -185,10 +209,13 @@ export class RegistryLoader {
     this.providerModels = null
     this.modelsVersion = null
     this.providersVersion = null
+    this.providerModelsVersion = null
     this.modelById = null
     this.modelByNormId = null
     this.overrideByKey = null
     this.overrideByNormKey = null
+    this.overrideByApiKey = null
+    this.overrideByNormApiKey = null
     this.overridesByProvider = null
     if (this.idleTimer) {
       clearTimeout(this.idleTimer)

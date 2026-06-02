@@ -11,18 +11,40 @@ import type * as ProviderRegistryServiceModule from '@data/services/ProviderRegi
 import { generateOrderKeyBetween, generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api'
 import type { UpdateModelDto } from '@shared/data/api/schemas/models'
-import { createUniqueModelId } from '@shared/data/types/model'
+import { createUniqueModelId, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { and, eq, or } from 'drizzle-orm'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../tests/__mocks__/MainLoggerService'
+
+const { isActiveProviderRegistryModelMock, lookupModelMock } = vi.hoisted(() => ({
+  isActiveProviderRegistryModelMock: vi.fn(),
+  // `list()` enriches every row by calling `lookupModel`. Default to an
+  // empty registry hit (no preset / override) so the enrichment is a no-op
+  // unless a test opts in; individual tests override per (providerId, modelId).
+  lookupModelMock: vi.fn<
+    (
+      providerId: string,
+      modelId: string
+    ) => Promise<{
+      presetModel: { id?: string; capabilities?: string[]; imageGeneration?: unknown } | null
+      registryOverride: {
+        capabilities?: { force?: string[]; add?: string[]; remove?: string[] }
+        imageGeneration?: unknown
+      } | null
+    }>
+  >(async () => ({ presetModel: null, registryOverride: null }))
+}))
 
 vi.mock('@data/services/ProviderRegistryService', async (importOriginal) => {
   const actual = await importOriginal<typeof ProviderRegistryServiceModule>()
   return {
     ...actual,
-    providerRegistryService: {}
+    providerRegistryService: {
+      isActiveProviderRegistryModel: isActiveProviderRegistryModelMock,
+      lookupModel: lookupModelMock
+    }
   }
 })
 
@@ -598,6 +620,91 @@ describe('ModelService.list', () => {
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ModelService.list — registry enrichment (imageGeneration + capability union)
+//
+// `list()` reads each row's at-rest capabilities and unions in ONLY
+// `image-generation` from the registry preset (so the painting filter picks a
+// model up even when the provider shipped it untagged). It does NOT re-add any
+// OTHER preset capability the user removed. It also attaches `imageGeneration`
+// preset metadata (not stored on user_model) when present.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('ModelService.list — registry enrichment', () => {
+  const dbh = setupTestDatabase()
+
+  const imageGenerationMeta = { modes: {} } as any
+
+  beforeEach(() => {
+    // Reset to the default no-op registry hit; tests opt in per model.
+    lookupModelMock.mockReset()
+    lookupModelMock.mockResolvedValue({ presetModel: null, registryOverride: null })
+  })
+
+  it('adds image-generation (and imageGeneration metadata) when the preset declares it but the user row lacks it', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('cherryin', 'CherryIn'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('cherryin', 'qwen-image-edit-2509', {
+        presetModelId: 'qwen-image-edit-2509',
+        name: 'Qwen Image Edit',
+        // Provider's /models endpoint shipped it untagged.
+        capabilities: []
+      })
+    )
+
+    lookupModelMock.mockImplementation(async (providerId: string, modelId: string) => {
+      if (providerId === 'cherryin' && modelId === 'qwen-image-edit-2509') {
+        return {
+          presetModel: {
+            id: 'qwen-image-edit-2509',
+            capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION],
+            imageGeneration: imageGenerationMeta
+          },
+          registryOverride: null
+        }
+      }
+      return { presetModel: null, registryOverride: null }
+    })
+
+    const [model] = await modelService.list({ providerId: 'cherryin' })
+
+    expect(model.capabilities).toContain(MODEL_CAPABILITY.IMAGE_GENERATION)
+    expect(model.imageGeneration).toEqual(imageGenerationMeta)
+  })
+
+  it('does NOT re-add a non-image-generation preset capability the user removed', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('anthropic', 'Anthropic'))
+    await dbh.db.insert(userModelTable).values(
+      modelRow('anthropic', 'claude-3', {
+        presetModelId: 'claude-3',
+        name: 'Claude 3',
+        // User dropped `reasoning` from the at-rest row; only function-call left.
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL]
+      })
+    )
+
+    lookupModelMock.mockImplementation(async (providerId: string, modelId: string) => {
+      if (providerId === 'anthropic' && modelId === 'claude-3') {
+        return {
+          presetModel: {
+            id: 'claude-3',
+            // Preset still ships reasoning + function-call; reasoning must NOT
+            // be resurrected at read time.
+            capabilities: [MODEL_CAPABILITY.FUNCTION_CALL, MODEL_CAPABILITY.REASONING]
+          },
+          registryOverride: null
+        }
+      }
+      return { presetModel: null, registryOverride: null }
+    })
+
+    const [model] = await modelService.list({ providerId: 'anthropic' })
+
+    expect(model.capabilities).toEqual([MODEL_CAPABILITY.FUNCTION_CALL])
+    expect(model.capabilities).not.toContain(MODEL_CAPABILITY.REASONING)
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
 // ModelService.getByKey — single model lookup
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -835,6 +942,11 @@ describe('ModelService.bulkUpdate', () => {
 describe('ModelService.reconcileForProvider', () => {
   const dbh = setupTestDatabase()
 
+  beforeEach(() => {
+    isActiveProviderRegistryModelMock.mockReset()
+    isActiveProviderRegistryModelMock.mockResolvedValue(false)
+  })
+
   it('removes only the target provider rows, purges their pins, and chunks large inserts', async () => {
     // T2: service-level coverage for the atomic reconcile path. The renderer
     // test (T6 in usePullReconcileSubmit.test.ts) covers the aggregation
@@ -920,6 +1032,39 @@ describe('ModelService.reconcileForProvider', () => {
         actuallyDeleted: 1
       })
     )
+    warnSpy.mockRestore()
+  })
+
+  it('does not remove active registry presets during reconcile', async () => {
+    await dbh.db.insert(userProviderTable).values(providerRow('openai', 'OpenAI'))
+    const gpt4o = createUniqueModelId('openai', 'gpt-4o')
+    await dbh.db.insert(userModelTable).values(
+      modelRow('openai', 'gpt-4o', {
+        id: gpt4o,
+        presetModelId: 'gpt-4o',
+        name: 'GPT-4o',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+        isDeprecated: false
+      })
+    )
+    isActiveProviderRegistryModelMock.mockImplementation(async (providerId: string, modelId: string) => {
+      return providerId === 'openai' && modelId === 'gpt-4o'
+    })
+    const warnSpy = vi.spyOn(mockMainLoggerService, 'warn').mockImplementation(() => {})
+
+    const result = await modelService.reconcileForProvider('openai', {
+      toAdd: [],
+      toRemove: [gpt4o]
+    })
+
+    expect(result.map((model) => model.id)).toEqual([gpt4o])
+    const rows = await dbh.db.select().from(userModelTable).where(eq(userModelTable.id, gpt4o))
+    expect(rows).toHaveLength(1)
+    expect(warnSpy).toHaveBeenCalledWith('Skipped active registry model removal during reconcile', {
+      providerId: 'openai',
+      skippedCount: 1,
+      skippedIds: [gpt4o]
+    })
     warnSpy.mockRestore()
   })
 })

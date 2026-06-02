@@ -161,7 +161,6 @@ function createBase(overrides: Partial<KnowledgeBase> = {}): KnowledgeBase {
     id: 'kb-1',
     name: 'KB',
     groupId: null,
-    emoji: '📁',
     dimensions: 3,
     embeddingModelId: 'provider::embed',
     rerankModelId: null,

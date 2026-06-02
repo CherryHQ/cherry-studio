@@ -293,11 +293,18 @@ export class FileMigrator extends BaseMigrator {
         })
       }
 
-      // Sample physical files for internal entries
+      // Sample physical files for internal entries. Missing physical files are
+      // a real condition on v1 installs — users delete `~/.../Data/Files/*`
+      // outside Cherry, leaving dangling metadata. Surfacing it as a fatal
+      // validation error aborts the whole migration over data that the
+      // runtime FS orphan sweep already cleans up. Record as a non-fatal
+      // warning so the migration log carries the diagnostic trail but the
+      // engine still proceeds to downstream migrators.
       const internalEntries = this.preparedEntries
         .filter((e): e is PreparedInternalEntry => e.origin === 'internal')
         .slice(0, VALIDATE_SAMPLE_LIMIT)
 
+      let missingPhysical = 0
       for (const entry of internalEntries) {
         const physicalPath = path.join(
           ctx.paths.userData,
@@ -306,10 +313,8 @@ export class FileMigrator extends BaseMigrator {
           entry.ext ? `${entry.id}.${entry.ext}` : entry.id
         )
         if (!fs.existsSync(physicalPath)) {
-          errors.push({
-            key: 'file_entry_missing_physical_file',
-            message: `Physical file missing for entry id=${entry.id}: ${physicalPath}`
-          })
+          missingPhysical += 1
+          this.recordWarning(`Physical file missing for entry id=${entry.id}: ${physicalPath}`)
         }
       }
 
@@ -317,6 +322,8 @@ export class FileMigrator extends BaseMigrator {
         sourceCount: this.sourceCount,
         targetCount,
         skippedCount: this.skippedCount,
+        missingPhysicalSampled: missingPhysical,
+        sampleSize: internalEntries.length,
         errors: errors.length
       })
 

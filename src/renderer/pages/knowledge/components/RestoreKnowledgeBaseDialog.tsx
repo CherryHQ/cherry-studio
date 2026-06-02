@@ -24,6 +24,7 @@ import CreateKnowledgeBaseDialog, {
   formatKnowledgeModelOptionLabel,
   KNOWLEDGE_BASE_DEFAULT_DIMENSIONS
 } from './CreateKnowledgeBaseDialog'
+import { KnowledgeDialogBody, KnowledgeDialogField } from './KnowledgeDialogLayout'
 
 interface RestoreKnowledgeBaseDialogProps {
   open: boolean
@@ -111,30 +112,27 @@ const RestoreKnowledgeBaseDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md gap-0 overflow-hidden rounded-2xl border-border/60 p-0">
+      <DialogContent size="lg">
         <CreateKnowledgeBaseDialog.Header title={t('knowledge.restore.title')} />
 
         <CreateKnowledgeBaseDialog.Form onSubmit={handleSubmit}>
-          <div className="space-y-3 px-4 py-3">
-            <div className="space-y-1">
-              <Label htmlFor="knowledge-restore-name" className="text-muted-foreground leading-4">
-                {t('common.name')}
-              </Label>
+          <KnowledgeDialogBody>
+            <KnowledgeDialogField>
+              <Label htmlFor="knowledge-restore-name">{t('common.name')}</Label>
               <Input
                 id="knowledge-restore-name"
                 value={values.name}
                 aria-invalid={hasAttemptedSubmit && !values.name.trim()}
                 placeholder={t('common.name')}
-                className="h-8 rounded-lg px-2.5 leading-4 placeholder:text-muted-foreground/70"
                 onChange={(event) => setValues((currentValues) => ({ ...currentValues, name: event.target.value }))}
               />
               {hasAttemptedSubmit && !values.name.trim() ? (
-                <FieldError className="leading-4">{t('knowledge.name_required')}</FieldError>
+                <FieldError>{t('knowledge.name_required')}</FieldError>
               ) : null}
-            </div>
+            </KnowledgeDialogField>
 
-            <div className="space-y-1">
-              <Label className="text-muted-foreground leading-4">{t('knowledge.embedding_model')}</Label>
+            <KnowledgeDialogField>
+              <Label>{t('knowledge.embedding_model')}</Label>
               <Select
                 value={values.embeddingModelId ?? undefined}
                 onValueChange={(embeddingModelId) =>
@@ -142,7 +140,7 @@ const RestoreKnowledgeBaseDialog = ({
                 }>
                 <SelectTrigger
                   size="sm"
-                  className="h-8 w-full rounded-lg px-2.5 leading-4 data-placeholder:text-muted-foreground/70"
+                  className="w-full"
                   aria-invalid={hasAttemptedSubmit && !values.embeddingModelId}>
                   <SelectValue placeholder={t('knowledge.not_set')} />
                 </SelectTrigger>
@@ -154,17 +152,17 @@ const RestoreKnowledgeBaseDialog = ({
                       </SelectItem>
                     ))
                   ) : (
-                    <div className="px-2.5 py-2 text-muted-foreground text-sm">{t('knowledge.not_set')}</div>
+                    <div className="px-2.5 py-2 text-foreground-muted text-sm">{t('knowledge.not_set')}</div>
                   )}
                 </SelectContent>
               </Select>
               {hasAttemptedSubmit && !values.embeddingModelId ? (
-                <FieldError className="leading-4">{t('knowledge.embedding_model_required')}</FieldError>
+                <FieldError>{t('knowledge.embedding_model_required')}</FieldError>
               ) : null}
-            </div>
+            </KnowledgeDialogField>
 
-            {submitError ? <FieldError className="leading-4">{submitError}</FieldError> : null}
-          </div>
+            {submitError ? <FieldError>{submitError}</FieldError> : null}
+          </KnowledgeDialogBody>
 
           <CreateKnowledgeBaseDialog.Actions
             isCreating={isRestoring}

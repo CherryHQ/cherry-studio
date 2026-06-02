@@ -1,23 +1,29 @@
+import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { render, screen } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
 import KnowledgeBaseRow from '../navigator/KnowledgeBaseRow'
 
-vi.mock('@renderer/pages/knowledge/utils', () => ({
-  formatRelativeTime: () => '2小时前'
-}))
-
 vi.mock('@cherrystudio/ui', () => ({
-  Button: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
-    <button {...props}>{children}</button>
+  Button: ({
+    children,
+    type = 'button',
+    ...props
+  }: {
+    children: ReactNode
+    type?: 'button' | 'submit' | 'reset'
+    [key: string]: unknown
+  }) => (
+    <button type={type} {...props}>
+      {children}
+    </button>
   ),
   ConfirmDialog: () => null,
   MenuDivider: () => <hr />,
   MenuItem: ({ icon, label, ...props }: { icon?: ReactNode; label: string; [key: string]: unknown }) => (
-    <button {...props}>
+    <button type="button" {...props}>
       {icon}
       {label}
     </button>
@@ -48,11 +54,11 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeBase => ({
+const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): KnowledgeBaseListItem => ({
   id: 'base-1',
   name: 'Base 1',
+  itemCount: 0,
   groupId: null,
-  emoji: '📁',
   dimensions: 1536,
   embeddingModelId: null,
   rerankModelId: undefined,
@@ -81,7 +87,7 @@ const createGroup = (overrides: Partial<Group> = {}): Group => ({
 })
 
 describe('KnowledgeBaseRow', () => {
-  it('renders the base name, updated time, and completed status dot', () => {
+  it('renders the base name and completed status dot without updated time', () => {
     const { container } = render(
       <KnowledgeBaseRow
         base={createKnowledgeBase()}
@@ -95,9 +101,9 @@ describe('KnowledgeBaseRow', () => {
     )
 
     expect(screen.getByText('Base 1')).toBeInTheDocument()
-    expect(screen.getByText('2小时前')).toBeInTheDocument()
-    expect(screen.queryByText('0 文档')).not.toBeInTheDocument()
-    expect(container.querySelector('.bg-primary')).toHaveAttribute('aria-label', '就绪')
+    expect(screen.queryByText('2小时前')).not.toBeInTheDocument()
+    expect(screen.getByText('0 文档')).toBeInTheDocument()
+    expect(container.querySelector('[aria-label="就绪"]')).toBeInTheDocument()
   })
 
   it('renders the failed status dot from the base status', () => {
@@ -114,5 +120,24 @@ describe('KnowledgeBaseRow', () => {
     )
 
     expect(container.querySelector('.bg-destructive')).toHaveAttribute('aria-label', '失败')
+  })
+
+  it('uses the reference two-line layout with a large selected row', () => {
+    const { container } = render(
+      <KnowledgeBaseRow
+        base={createKnowledgeBase({ itemCount: 10 })}
+        groups={[createGroup()]}
+        selected
+        onSelectBase={vi.fn()}
+        onMoveBase={vi.fn()}
+        onRenameBase={vi.fn()}
+        onDeleteBase={vi.fn()}
+      />
+    )
+
+    expect(screen.getByRole('button', { name: /Base 1/ })).toHaveClass('min-h-11', 'rounded-xl', 'bg-secondary')
+    expect(screen.getByText('Base 1')).toHaveClass('text-sm', 'font-medium')
+    expect(screen.getByText('10 文档').parentElement).toHaveClass('text-xs', 'text-foreground-muted')
+    expect(container.querySelector('img')).toBeInTheDocument()
   })
 })

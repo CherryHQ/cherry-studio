@@ -1,7 +1,9 @@
-import { useDeleteKnowledgeItem, useReindexKnowledgeItem } from '@renderer/hooks/useKnowledgeItems'
+import { PageSidePanel } from '@cherrystudio/ui'
+import { useDeleteKnowledgeItem, useKnowledgeItems, useReindexKnowledgeItem } from '@renderer/hooks/useKnowledgeItems'
+import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 
 import DetailHeader from '../components/DetailHeader'
-import DetailTabs from '../components/DetailTabs'
 import { useKnowledgePage } from '../KnowledgePageProvider'
 import DataSourcePanel from '../panels/dataSource/DataSourcePanel'
 import KnowledgeItemChunkDetailPanel from '../panels/dataSource/KnowledgeItemChunkDetailPanel'
@@ -9,21 +11,26 @@ import RagConfigPanel from '../panels/ragConfig/RagConfigPanel'
 import RecallTestPanel from '../panels/recallTest/RecallTestPanel'
 
 const KnowledgePageDetailSection = () => {
+  const { t } = useTranslation()
+  const [dataSourceSearchQuery, setDataSourceSearchQuery] = useState('')
   const {
-    activeTab,
     selectedBase,
     selectedBaseId,
-    selectedBaseItems,
     selectedItemId,
-    isItemsLoading,
-    setActiveTab,
+    isRagConfigDrawerOpen,
+    isRecallTestDrawerOpen,
     openItemChunks,
     closeItemChunks,
     openAddSourceDialog,
+    openRagConfigDrawer,
+    openRecallTestDrawer,
+    handleRagConfigDrawerOpenChange,
+    handleRecallTestDrawerOpenChange,
     openRenameBaseDialog,
     openRestoreBaseDialog,
     deleteBase
   } = useKnowledgePage()
+  const { items: selectedBaseItems, isLoading: isItemsLoading } = useKnowledgeItems(selectedBaseId)
   const { deleteItem } = useDeleteKnowledgeItem(selectedBaseId)
   const { reindexItem } = useReindexKnowledgeItem(selectedBaseId)
 
@@ -32,32 +39,51 @@ const KnowledgePageDetailSection = () => {
   }
 
   return (
-    <main className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
+    <main className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
       <DetailHeader
         base={selectedBase}
         itemCount={selectedBaseItems.length}
+        searchQuery={dataSourceSearchQuery}
+        onSearchChange={selectedItemId ? undefined : setDataSourceSearchQuery}
+        onOpenRagConfig={openRagConfigDrawer}
+        onOpenRecallTest={openRecallTestDrawer}
         onRenameBase={openRenameBaseDialog}
         onDeleteBase={deleteBase}
       />
-      <DetailTabs activeTab={activeTab} dataSourceCount={selectedBaseItems.length} onChange={setActiveTab} />
 
-      <div className="min-h-0 flex-1 overflow-hidden">
-        {activeTab === 'data' && selectedItemId ? (
+      <div className="min-h-0 flex-1 overflow-hidden bg-background">
+        {selectedItemId ? (
           <KnowledgeItemChunkDetailPanel baseId={selectedBaseId} itemId={selectedItemId} onBack={closeItemChunks} />
-        ) : null}
-        {activeTab === 'data' && !selectedItemId ? (
+        ) : (
           <DataSourcePanel
             items={selectedBaseItems}
             isLoading={isItemsLoading}
+            searchQuery={dataSourceSearchQuery}
             onAdd={openAddSourceDialog}
             onItemClick={openItemChunks}
             onDelete={deleteItem}
             onReindex={reindexItem}
           />
-        ) : null}
-        {activeTab === 'rag' ? <RagConfigPanel base={selectedBase} onRestoreBase={openRestoreBaseDialog} /> : null}
-        {activeTab === 'recall' ? <RecallTestPanel baseId={selectedBaseId} /> : null}
+        )}
       </div>
+
+      <PageSidePanel
+        open={isRagConfigDrawerOpen}
+        onClose={() => handleRagConfigDrawerOpenChange(false)}
+        title={t('knowledge.tabs.rag_config')}
+        closeLabel={t('common.close')}
+        bodyClassName="px-0 py-0">
+        <RagConfigPanel base={selectedBase} onRestoreBase={openRestoreBaseDialog} />
+      </PageSidePanel>
+
+      <PageSidePanel
+        open={isRecallTestDrawerOpen}
+        onClose={() => handleRecallTestDrawerOpenChange(false)}
+        title={t('knowledge.tabs.recall_test')}
+        closeLabel={t('common.close')}
+        bodyClassName="px-0 py-0">
+        <RecallTestPanel baseId={selectedBaseId} />
+      </PageSidePanel>
     </main>
   )
 }

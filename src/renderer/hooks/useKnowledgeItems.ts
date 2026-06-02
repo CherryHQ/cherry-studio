@@ -26,6 +26,22 @@ const addLogger = loggerService.withContext('useAddKnowledgeItems')
 const deleteLogger = loggerService.withContext('useDeleteKnowledgeItem')
 const reindexLogger = loggerService.withContext('useReindexKnowledgeItem')
 
+type KnowledgeItemsLogger = typeof addLogger
+
+const refreshKnowledgeItemsCaches = async (
+  invalidateCache: ReturnType<typeof useInvalidateCache>,
+  baseId: string,
+  logger: KnowledgeItemsLogger,
+  message: string,
+  context: Record<string, unknown>
+) => {
+  try {
+    await invalidateCache([`/knowledge-bases/${baseId}/items`, '/knowledge-bases'])
+  } catch (invalidateError) {
+    logger.error(message, normalizeKnowledgeError(invalidateError), context)
+  }
+}
+
 export const useKnowledgeItems = (baseId: string) => {
   const { data, isLoading, error, refetch } = useQuery('/knowledge-bases/:id/items', {
     params: { id: baseId },
@@ -77,17 +93,13 @@ export const useAddKnowledgeItems = (baseId: string) => {
 
         setError(submitError)
       } finally {
-        try {
-          await invalidateCache(`/knowledge-bases/${baseId}/items`)
-        } catch (invalidateError) {
-          addLogger.error(
-            'Failed to refresh knowledge source list after submit',
-            normalizeKnowledgeError(invalidateError),
-            {
-              baseId
-            }
-          )
-        }
+        await refreshKnowledgeItemsCaches(
+          invalidateCache,
+          baseId,
+          addLogger,
+          'Failed to refresh knowledge source list after submit',
+          { baseId }
+        )
 
         setIsSubmitting(false)
       }
@@ -133,18 +145,16 @@ export const useDeleteKnowledgeItem = (baseId: string) => {
 
         setError(deleteError)
       } finally {
-        try {
-          await invalidateCache(`/knowledge-bases/${baseId}/items`)
-        } catch (invalidateError) {
-          deleteLogger.error(
-            'Failed to refresh knowledge source list after delete',
-            normalizeKnowledgeError(invalidateError),
-            {
-              baseId,
-              itemId: item.id
-            }
-          )
-        }
+        await refreshKnowledgeItemsCaches(
+          invalidateCache,
+          baseId,
+          deleteLogger,
+          'Failed to refresh knowledge source list after delete',
+          {
+            baseId,
+            itemId: item.id
+          }
+        )
 
         setIsDeleting(false)
       }
@@ -190,18 +200,16 @@ export const useReindexKnowledgeItem = (baseId: string) => {
 
         setError(reindexError)
       } finally {
-        try {
-          await invalidateCache(`/knowledge-bases/${baseId}/items`)
-        } catch (invalidateError) {
-          reindexLogger.error(
-            'Failed to refresh knowledge source list after reindex',
-            normalizeKnowledgeError(invalidateError),
-            {
-              baseId,
-              itemId: item.id
-            }
-          )
-        }
+        await refreshKnowledgeItemsCaches(
+          invalidateCache,
+          baseId,
+          reindexLogger,
+          'Failed to refresh knowledge source list after reindex',
+          {
+            baseId,
+            itemId: item.id
+          }
+        )
 
         setIsReindexing(false)
       }

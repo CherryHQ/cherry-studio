@@ -70,4 +70,67 @@ describe('buildModelListSyncPreview', () => {
     expect(preview).not.toHaveProperty('referenceSummary')
     expect(preview).not.toHaveProperty('replacementSuggestions')
   })
+
+  it('does not mark registry-available presets as missing when upstream models omit them', async () => {
+    vi.mocked(dataApiService.get).mockResolvedValue([
+      {
+        id: 'openai::gpt-4o',
+        providerId: 'openai',
+        apiModelId: 'gpt-4o',
+        presetModelId: 'gpt-4o',
+        name: 'GPT-4o',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false,
+        isDeprecated: false
+      }
+    ])
+    vi.mocked(fetchResolvedProviderModels).mockResolvedValue([
+      {
+        id: 'openai::gpt-4o',
+        providerId: 'openai',
+        apiModelId: 'gpt-4o',
+        presetModelId: 'gpt-4o',
+        name: 'GPT-4o',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false
+      }
+    ])
+
+    const preview = await buildModelListSyncPreview({
+      providerId: 'openai',
+      provider: { id: 'openai' } as never
+    })
+
+    expect(preview.missing).toEqual([])
+  })
+
+  it('marks deprecated registry presets as missing when remote models omit them', async () => {
+    vi.mocked(dataApiService.get).mockResolvedValue([
+      {
+        id: 'openai::gpt-4o',
+        providerId: 'openai',
+        apiModelId: 'gpt-4o',
+        presetModelId: 'gpt-4o',
+        name: 'GPT-4o',
+        capabilities: [MODEL_CAPABILITY.FUNCTION_CALL],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false,
+        isDeprecated: true
+      }
+    ])
+    vi.mocked(fetchResolvedProviderModels).mockResolvedValue([])
+
+    const preview = await buildModelListSyncPreview({
+      providerId: 'openai',
+      provider: { id: 'openai' } as never
+    })
+
+    expect(preview.missing.map((item) => item.model.id)).toEqual(['openai::gpt-4o'])
+    expect(preview.missing.map((item) => item.removalReason)).toEqual(['missing_from_provider'])
+  })
 })

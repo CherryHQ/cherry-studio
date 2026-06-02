@@ -115,7 +115,10 @@ export const providerListClasses = {
   groupCount: 'shrink-0 text-[length:var(--font-size-body-xs)] leading-none text-muted-foreground/60 tabular-nums',
   groupBody: 'mt-1 flex flex-col gap-[var(--provider-list-row-gap)] pl-3.5',
   itemMoreActions:
-    'absolute right-1.5 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-[color,opacity,background-color] hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground group-hover/row:opacity-100 focus-visible:opacity-100 data-[active=true]:opacity-100',
+    'absolute right-1.5 top-1/2 flex size-5 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground/50 opacity-0 transition-[color,opacity,background-color] hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground group-hover/row:opacity-100 group-focus-within/row:opacity-100 focus-visible:opacity-100 data-[active=true]:opacity-100',
+  /** Enabled-state dot — shown when `provider.isEnabled` is true; hidden on row hover or focus so the kebab takes the slot. */
+  itemEnabledDot:
+    'pointer-events-none absolute right-2 top-1/2 size-1.5 -translate-y-1/2 rounded-full bg-green-500 transition-opacity group-hover/row:opacity-0 group-focus-within/row:opacity-0',
   groupAddRow:
     'flex w-full items-center gap-2 rounded-xl border border-dashed border-[color:var(--section-border)] bg-transparent px-2 py-[6px] text-[length:var(--font-size-body-xs)] leading-[1.35] text-muted-foreground/70 shadow-none transition-colors hover:border-[color:var(--color-border)] hover:bg-accent/40 hover:text-foreground',
   disclosureToggle:

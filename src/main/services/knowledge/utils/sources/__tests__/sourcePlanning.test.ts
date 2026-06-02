@@ -10,7 +10,6 @@ function createBase(fileProcessorId: string | null = 'doc2x'): KnowledgeBase {
     id: 'kb-1',
     name: 'KB',
     groupId: null,
-    emoji: ':kb:',
     dimensions: 3,
     embeddingModelId: 'provider::embed',
     rerankModelId: null,
