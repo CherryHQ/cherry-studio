@@ -3,7 +3,7 @@ import { Search } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { SIDEBAR_VERTICAL_CARD_WIDTH } from '../constants'
+import { SIDEBAR_ICON_WIDTH } from '../constants'
 import { Sidebar } from '../Sidebar'
 import type { SidebarMenuItem } from '../types'
 
@@ -36,7 +36,7 @@ describe('Sidebar resize handle', () => {
     expect(resizeHandle).toHaveClass('[-webkit-app-region:no-drag]')
   })
 
-  it('uses the existing resize flow from the full-height edge handle', () => {
+  it('snaps intermediate widths to the icon layout from the full-height edge handle', () => {
     const setWidth = vi.fn()
     const { container } = render(
       <Sidebar width={50} setWidth={setWidth} activeItem="chat" items={items} onItemClick={vi.fn()} />
@@ -47,6 +47,14 @@ describe('Sidebar resize handle', () => {
     fireEvent.mouseMove(document, { clientX: 80 })
     fireEvent.mouseUp(document)
 
-    expect(setWidth).toHaveBeenCalledWith(SIDEBAR_VERTICAL_CARD_WIDTH)
+    expect(setWidth).toHaveBeenCalledWith(SIDEBAR_ICON_WIDTH)
+  })
+
+  it('renders intermediate widths without menu text', () => {
+    const { queryByText } = render(
+      <Sidebar width={80} setWidth={vi.fn()} activeItem="chat" items={items} onItemClick={vi.fn()} />
+    )
+
+    expect(queryByText('Chat')).not.toBeInTheDocument()
   })
 })

@@ -4,7 +4,7 @@ import { cn } from '@renderer/utils'
 import { Search } from 'lucide-react'
 import React, { useCallback, useEffect, useRef } from 'react'
 
-import { getSidebarLayout, SIDEBAR_ICON_WIDTH, SIDEBAR_VERTICAL_CARD_WIDTH } from './constants'
+import { getSidebarLayout, SIDEBAR_ICON_WIDTH } from './constants'
 import { DefaultLogo } from './primitives'
 import { SidebarDocked } from './SidebarDocked'
 import { SidebarFooter } from './SidebarFooter'
@@ -169,9 +169,8 @@ export function Sidebar({
     )
   }
 
-  // --- Visible sidebar (icon / vertical-card / full) ---
-  const actualWidth =
-    layout === 'icon' ? SIDEBAR_ICON_WIDTH : layout === 'vertical-card' ? SIDEBAR_VERTICAL_CARD_WIDTH : width
+  // --- Visible sidebar (icon / full) ---
+  const actualWidth = layout === 'icon' ? SIDEBAR_ICON_WIDTH : width
 
   return (
     <div

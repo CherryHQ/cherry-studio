@@ -1,13 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react'
 
-import {
-  SIDEBAR_FULL_THRESHOLD,
-  SIDEBAR_HIDDEN_THRESHOLD,
-  SIDEBAR_ICON_THRESHOLD,
-  SIDEBAR_ICON_WIDTH,
-  SIDEBAR_MAX_WIDTH,
-  SIDEBAR_VERTICAL_CARD_WIDTH
-} from './constants'
+import { SIDEBAR_FULL_THRESHOLD, SIDEBAR_HIDDEN_THRESHOLD, SIDEBAR_ICON_WIDTH, SIDEBAR_MAX_WIDTH } from './constants'
 
 export function useSidebarResize(setWidth: (width: number) => void) {
   const isResizing = useRef(false)
@@ -31,8 +24,7 @@ export function useSidebarResize(setWidth: (width: number) => void) {
         if (!isResizing.current) return
         const nextWidth = moveEvent.clientX - containerLeft
         if (nextWidth < SIDEBAR_HIDDEN_THRESHOLD) setWidth(0)
-        else if (nextWidth < SIDEBAR_ICON_THRESHOLD) setWidth(SIDEBAR_ICON_WIDTH)
-        else if (nextWidth < SIDEBAR_FULL_THRESHOLD) setWidth(SIDEBAR_VERTICAL_CARD_WIDTH)
+        else if (nextWidth < SIDEBAR_FULL_THRESHOLD) setWidth(SIDEBAR_ICON_WIDTH)
         else setWidth(Math.min(SIDEBAR_MAX_WIDTH, nextWidth))
       }
 
