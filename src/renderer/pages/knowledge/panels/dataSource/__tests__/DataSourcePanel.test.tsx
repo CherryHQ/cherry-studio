@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -32,6 +32,23 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
       <button type={type} {...props}>
         {children}
       </button>
+    ),
+    Checkbox: ({
+      checked,
+      onCheckedChange,
+      'aria-label': ariaLabel
+    }: {
+      checked?: boolean | 'indeterminate'
+      onCheckedChange?: (checked: boolean | 'indeterminate') => void
+      'aria-label'?: string
+    }) => (
+      <input
+        type="checkbox"
+        aria-label={ariaLabel}
+        aria-checked={checked === 'indeterminate' ? 'mixed' : Boolean(checked)}
+        checked={checked === true}
+        onChange={(event) => onCheckedChange?.(event.target.checked)}
+      />
     ),
     ConfirmDialog: ({
       open,
@@ -587,7 +604,7 @@ describe('DataSourcePanel', () => {
     expect(screen.getByRole('dialog')).toHaveTextContent('确认删除数据源')
     expect(screen.getByRole('dialog')).toHaveTextContent('删除后将无法恢复该数据源及其索引数据。')
 
-    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '删除' }))
 
     await waitFor(() => {
       expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'file-1' }))
@@ -609,7 +626,7 @@ describe('DataSourcePanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: '更多' }))
     fireEvent.click(screen.getByRole('button', { name: '删除' }))
-    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '删除' }))
 
     await waitFor(() => {
       expect(window.toast.error).toHaveBeenCalledWith('删除数据源失败: delete failed')
@@ -688,6 +705,134 @@ describe('DataSourcePanel', () => {
     await waitFor(() => {
       expect(screen.queryByText('已选 1 项')).not.toBeInTheDocument()
     })
+  })
+
+  it('confirms bulk delete for selected rows and clears selection after deleting each item', async () => {
+    const onDelete = vi.fn().mockResolvedValue(undefined)
+
+    render(
+      <DataSourcePanel
+        items={[
+          createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
+          createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
+        ]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={onDelete}
+        onReindex={vi.fn()}
+      />
+    )
+
+    const rowCheckboxes = screen.getAllByRole('checkbox', { name: '选择行' })
+    fireEvent.click(rowCheckboxes[0])
+    fireEvent.click(rowCheckboxes[1])
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+
+    expect(screen.getByRole('dialog')).toHaveTextContent('确认批量删除')
+    expect(screen.getByRole('dialog')).toHaveTextContent('确认删除选中的 2 个数据源')
+
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '删除' }))
+
+    await waitFor(() => {
+      expect(onDelete).toHaveBeenCalledTimes(2)
+    })
+    expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'file-1' }))
+    expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'file-2' }))
+    await waitFor(() => {
+      expect(screen.queryByText('已选 2 项')).not.toBeInTheDocument()
+    })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('shows bulk delete failure toast and keeps selection when one selected delete rejects', async () => {
+    const onDelete = vi.fn().mockImplementation((item) => {
+      if (item.id === 'file-2') {
+        return Promise.reject(new Error('delete failed'))
+      }
+
+      return Promise.resolve()
+    })
+
+    render(
+      <DataSourcePanel
+        items={[
+          createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
+          createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
+        ]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={onDelete}
+        onReindex={vi.fn()}
+      />
+    )
+
+    const rowCheckboxes = screen.getAllByRole('checkbox', { name: '选择行' })
+    fireEvent.click(rowCheckboxes[0])
+    fireEvent.click(rowCheckboxes[1])
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '删除' }))
+
+    await waitFor(() => {
+      expect(window.toast.error).toHaveBeenCalledWith('删除数据源失败: delete failed')
+    })
+    expect(screen.getByText('已选 2 项')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('selects all rows from the header checkbox and clears selection when toggled again from all selected', async () => {
+    render(
+      <DataSourcePanel
+        items={[
+          createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
+          createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
+        ]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    const selectAllCheckbox = screen.getByRole('checkbox', { name: '全选' })
+
+    fireEvent.click(selectAllCheckbox)
+
+    expect(screen.getByText('已选 2 项')).toBeInTheDocument()
+    const selectedRowCheckboxes = screen.getAllByRole('checkbox', { name: '选择行' })
+    expect(selectedRowCheckboxes).toHaveLength(2)
+    expect(selectedRowCheckboxes[0]).toBeChecked()
+    expect(selectedRowCheckboxes[1]).toBeChecked()
+
+    fireEvent.click(screen.getByRole('button', { name: '取消' }))
+    fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
+    expect(screen.getByText('已选 2 项')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('已选 2 项')).not.toBeInTheDocument()
+    })
+  })
+
+  it('shows the header select-all checkbox as partially selected after deselecting one selected row', () => {
+    render(
+      <DataSourcePanel
+        items={[
+          createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
+          createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
+        ]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
+    fireEvent.click(screen.getAllByRole('checkbox', { name: '选择行' })[0])
+
+    expect(screen.getByText('已选 1 项')).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: '全选' })).toHaveAttribute('aria-checked', 'mixed')
   })
 
   it('prunes selected item ids when the backing item list changes', async () => {

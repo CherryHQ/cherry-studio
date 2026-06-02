@@ -1,5 +1,7 @@
 import { Scrollbar } from '@cherrystudio/ui'
 import { cn } from '@cherrystudio/ui/lib/utils'
+import { loggerService } from '@logger'
+import { defaultLanguage } from '@shared/config/constant'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
 import type { FC } from 'react'
 import { useEffect, useMemo, useState } from 'react'
@@ -8,6 +10,8 @@ import { useTranslation } from 'react-i18next'
 import { EMOJI_CATEGORIES, RECENT_CATEGORY_LABEL_KEY } from './categories'
 import { type EmojiRecord, loadEmojiData } from './data'
 import { useRecentEmojis } from './useRecentEmojis'
+
+const logger = loggerService.withContext('EmojiPicker')
 
 interface Props {
   onEmojiClick: (emoji: string) => void
@@ -21,9 +25,22 @@ const EmojiPicker: FC<Props> = ({ onEmojiClick }) => {
 
   useEffect(() => {
     let cancelled = false
-    void loadEmojiData(locale).then((records) => {
-      if (!cancelled) setEmojis(records)
-    })
+    void loadEmojiData(locale)
+      .catch((error) => {
+        logger.error('Failed to load emoji data', error)
+        if (locale === defaultLanguage) {
+          return []
+        }
+
+        return loadEmojiData(defaultLanguage as LanguageVarious)
+      })
+      .catch((error) => {
+        logger.error('Failed to load fallback emoji data', error)
+        return []
+      })
+      .then((records) => {
+        if (!cancelled) setEmojis(records)
+      })
     return () => {
       cancelled = true
     }

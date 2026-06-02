@@ -154,6 +154,57 @@ describe('KnowledgeBaseService', () => {
       expect(baseWithItems?.itemCount).toBe(2)
       expect(emptyBase?.itemCount).toBe(0)
     })
+
+    it('should paginate grouped item counts by knowledge base rows', async () => {
+      await seedKnowledgeBase({ createdAt: 2, updatedAt: 2 })
+      await seedKnowledgeBase({
+        id: SECOND_KNOWLEDGE_BASE_ID,
+        name: 'Another Base',
+        createdAt: 1,
+        updatedAt: 1
+      })
+      await dbh.db.insert(knowledgeItemTable).values([
+        {
+          baseId: KNOWLEDGE_BASE_ID,
+          type: 'url',
+          data: { source: 'https://example.com/a', url: 'https://example.com/a' },
+          status: 'completed',
+          error: null
+        },
+        {
+          baseId: KNOWLEDGE_BASE_ID,
+          type: 'url',
+          data: { source: 'https://example.com/b', url: 'https://example.com/b' },
+          status: 'completed',
+          error: null
+        },
+        {
+          baseId: KNOWLEDGE_BASE_ID,
+          type: 'url',
+          data: { source: 'https://example.com/deleting', url: 'https://example.com/deleting' },
+          status: 'deleting',
+          error: null
+        },
+        {
+          baseId: SECOND_KNOWLEDGE_BASE_ID,
+          type: 'url',
+          data: { source: 'https://example.com/other', url: 'https://example.com/other' },
+          status: 'completed',
+          error: null
+        }
+      ])
+
+      const firstPage = await service.list({ page: 1, limit: 1 })
+      const secondPage = await service.list({ page: 2, limit: 1 })
+
+      expect(firstPage.total).toBe(2)
+      expect(firstPage.items).toHaveLength(1)
+      expect(firstPage.items[0]).toMatchObject({ id: KNOWLEDGE_BASE_ID, itemCount: 2 })
+
+      expect(secondPage.total).toBe(2)
+      expect(secondPage.items).toHaveLength(1)
+      expect(secondPage.items[0]).toMatchObject({ id: SECOND_KNOWLEDGE_BASE_ID, itemCount: 1 })
+    })
   })
 
   describe('getById', () => {

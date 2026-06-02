@@ -41,8 +41,18 @@ export const loadEmojiData = (locale: LanguageVarious): Promise<EmojiRecord[]> =
   if (cached) return cached
 
   const promise = fetch(url)
-    .then((response) => response.json() as Promise<EmojiRecord[]>)
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error(`Failed to load emoji data from ${url}: ${response.status} ${response.statusText}`)
+      }
+
+      return response.json() as Promise<EmojiRecord[]>
+    })
     .then((records) => records.filter((record) => record.group < 9))
+    .catch((error) => {
+      dataCache.delete(url)
+      throw error
+    })
 
   dataCache.set(url, promise)
   return promise

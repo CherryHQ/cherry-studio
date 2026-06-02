@@ -58,7 +58,7 @@ const KnowledgeBaseRow = ({
   return (
     <>
       <div className="group/kb group relative w-full" onContextMenu={handleContextMenu}>
-        {/* TODO(knowledge): Button is used as a row container here; consider switching to the Item primitive (as KnowledgeItemRow does) so the size/gap/radius overrides go away. */}
+        {/* TODO(knowledge): Button is used as a row container here; consider switching to the Item primitive so the size/gap/radius overrides go away. */}
         <Button
           type="button"
           variant="ghost"

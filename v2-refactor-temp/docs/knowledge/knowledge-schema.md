@@ -39,7 +39,6 @@ This document records the current V2 knowledge target schema, migration constrai
   - `type`
   - `data`
   - `status`
-  - `phase`
   - `error`
   - `createdAt`
   - `updatedAt`

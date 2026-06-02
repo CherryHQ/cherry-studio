@@ -135,7 +135,7 @@ export const KnowledgePageProvider = ({ children }: PropsWithChildren) => {
 
   const selectedBase = useMemo(() => {
     return bases.find((base) => base.id === selectedBaseId)
-  }, [bases, pendingSelectedBaseId, selectedBaseId])
+  }, [bases, selectedBaseId])
 
   useEffect(() => {
     return () => {
