@@ -184,8 +184,9 @@ const geminiFetcher: ModelFetcher = {
   fetch: async (provider, signal) => {
     let baseUrl = withoutTrailingSlash(provider.apiHost)
     baseUrl = baseUrl.replace(/\/v1(beta)?$/, '')
+    const searchParams = new URLSearchParams({ key: getApiKey(provider) })
     const response = await getFromApi({
-      url: `${baseUrl}/v1beta/models?key=${getApiKey(provider)}`,
+      url: `${baseUrl}/v1beta/models?${searchParams.toString()}`,
       headers: { ...defaultAppHeaders(), ...provider.extra_headers },
       responseSchema: GeminiModelsResponseSchema,
       abortSignal: signal
