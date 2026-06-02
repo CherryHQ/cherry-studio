@@ -13,11 +13,11 @@ import {
   FileSearch,
   Folder,
   Languages,
+  LayoutGrid,
   MessageCircle,
   MousePointerClick,
   NotepadText,
   Palette,
-  Puzzle,
   Sparkle
 } from 'lucide-react'
 import type { Ref } from 'react'
@@ -53,7 +53,7 @@ const iconMap: Record<SidebarIconType, SidebarMenuItem['icon']> = {
   store: Sparkle,
   paintings: Palette,
   translate: Languages,
-  mini_app: Puzzle,
+  mini_app: LayoutGrid,
   knowledge: FileSearch,
   files: Folder,
   code_tools: Code,

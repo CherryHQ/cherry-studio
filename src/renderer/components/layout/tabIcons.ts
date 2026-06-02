@@ -6,12 +6,12 @@ import {
   Globe,
   Home,
   Languages,
+  LayoutGrid,
   Library,
   MessageCircle,
   MousePointerClick,
   NotepadText,
   Palette,
-  Puzzle,
   Settings,
   Sparkle
 } from 'lucide-react'
@@ -30,7 +30,7 @@ export const ROUTE_ICONS: Record<string, IconComponent> = {
   '/app/assistant': Sparkle,
   '/app/paintings': Palette,
   '/app/translate': Languages,
-  '/app/mini-app': Puzzle,
+  '/app/mini-app': LayoutGrid,
   '/app/knowledge': FileSearch,
   '/app/library': Library,
   '/app/files': Folder,

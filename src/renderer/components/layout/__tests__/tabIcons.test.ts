@@ -3,11 +3,11 @@ import {
   FileSearch,
   Folder,
   Globe,
+  LayoutGrid,
   Library,
   MessageCircle,
   MousePointerClick,
   NotepadText,
-  Puzzle,
   Sparkle
 } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
@@ -42,7 +42,7 @@ describe('getTabIcon', () => {
     ['/app/notes', NotepadText],
     ['/app/openclaw', OpenClawSidebarIcon],
     ['/app/library', Library],
-    ['/app/mini-app', Puzzle]
+    ['/app/mini-app', LayoutGrid]
   ])('returns the shared app icon for %s', (url, Icon) => {
     expect(getTabIcon(routeTab(url))).toBe(Icon)
   })
