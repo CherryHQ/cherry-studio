@@ -762,7 +762,9 @@ export const isMiniMaxReasoningModel = (model?: Model): boolean => {
     return false
   }
   const modelId = getLowerBaseModelName(model.id, '/')
-  return (['minimax-m1', 'minimax-m2', 'minimax-m2.1', 'minimax-m3'] as const).some((id) => modelId.includes(id))
+  return (['minimax-m1', 'minimax-m2', 'minimax-m2.1', 'minimax-m2.5', 'minimax-m2.7', 'minimax-m3'] as const).some(
+    (id) => modelId.includes(id)
+  )
 }
 
 export const isBaichuanReasoningModel = (model?: Model): boolean => {

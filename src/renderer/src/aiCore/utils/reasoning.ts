@@ -19,6 +19,7 @@ import {
   isGemini3ThinkingTokenModel,
   isGrok4FastReasoningModel,
   isHostedGemma4ThinkingModel,
+  isMiniMaxReasoningModel,
   isOpenAIDeepResearchModel,
   isOpenAIModel,
   isOpenAIOpenWeightModel,
@@ -97,6 +98,17 @@ export function getReasoningEffort(assistant: Assistant, model: Model): Reasonin
 
   if (!isReasoningModel(model)) {
     return {}
+  }
+
+  // MiniMax models: always enable thinking to ensure <think> tags in response
+  // This must be before the reasoningEffort check because MiniMax needs thinking
+  // to be explicitly enabled regardless of the user's reasoning effort setting
+  if (isMiniMaxReasoningModel(model)) {
+    const reasoningEffort = assistant?.settings?.reasoning_effort
+    if (reasoningEffort === 'none') {
+      return { thinking: { type: 'disabled' } }
+    }
+    return { thinking: { type: 'enabled' } }
   }
 
   if (isOpenAIDeepResearchModel(model)) {
