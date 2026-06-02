@@ -5,7 +5,7 @@
  */
 
 import { loggerService } from '@logger'
-import type { AgentType, BuiltinMCPServerName } from '@renderer/types'
+import type { BuiltinMCPServerName } from '@renderer/types'
 import { BuiltinMCPServerNames } from '@renderer/types'
 import { SHORTCUT_DEFINITIONS, type ShortcutLabelKey } from '@shared/shortcuts/definitions'
 
@@ -340,7 +340,7 @@ export const getBuiltInMcpServerDescriptionLabelKey = (key: string): string => {
   return getLabelKey(builtInMcpDescriptionKeyMap, key, i18n.t('settings.mcp.builtinServersDescriptions.no'))
 }
 
-// oxlint-disable-next-line no-unused-vars -- placeholder for future agent type labels
-export const getAgentTypeLabelKey = (_key: AgentType) => {
-  return 'Agent'
-}
+// placeholder for future agent type labels
+// export const getAgentTypeLabelKey = (_key: AgentType) => {
+//   return 'Agent'
+// }
