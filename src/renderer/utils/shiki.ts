@@ -16,7 +16,7 @@ function isWhiteTokenColor(color: string): boolean {
   return WHITE_TOKEN_COLOR_PATTERN.test(color)
 }
 
-function replaceLightThemeWhiteTokenColor(style: string): string {
+export function replaceLightThemeWhiteTokenColor(style: string): string {
   return style
     .split(';')
     .map((declaration) => {

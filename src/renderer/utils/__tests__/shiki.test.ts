@@ -2,7 +2,7 @@ import { splitToSubTrunks } from '@renderer/services/ShikiStreamTokenizer'
 import type { ThemedToken } from 'shiki/types'
 import { describe, expect, it } from 'vitest'
 
-import { getMarkdownIt, getReactStyleFromToken } from '../shiki'
+import { getMarkdownIt, getReactStyleFromToken, replaceLightThemeWhiteTokenColor } from '../shiki'
 
 // FontStyle 常量，避免类型错误
 const FS_ITALIC = 1
@@ -223,26 +223,50 @@ describe('shiki', () => {
     })
   })
 
+  describe('replaceLightThemeWhiteTokenColor', () => {
+    it.each(['white', '#fff', '#ffffff', '#FFFFFF'])('replaces white color %s with the readable color', (color) => {
+      expect(replaceLightThemeWhiteTokenColor(`color:${color}`)).toBe('color:var(--color-foreground)')
+    })
+
+    it('keeps non-white colors unchanged', () => {
+      expect(replaceLightThemeWhiteTokenColor('color:#333')).toBe('color:#333')
+    })
+
+    it('ignores background-color declarations', () => {
+      expect(replaceLightThemeWhiteTokenColor('background-color:#fff')).toBe('background-color:#fff')
+    })
+
+    it('only rewrites the default color and preserves dual-theme css variables', () => {
+      expect(replaceLightThemeWhiteTokenColor('color:#fff;--shiki-dark:#fff')).toBe(
+        'color:var(--color-foreground);--shiki-dark:#fff'
+      )
+    })
+
+    it('preserves other declarations alongside the color rewrite', () => {
+      expect(replaceLightThemeWhiteTokenColor('color:#fff;font-style:italic')).toBe(
+        'color:var(--color-foreground);font-style:italic'
+      )
+    })
+  })
+
   describe('getMarkdownIt', () => {
     const markdownWithWhiteToken = '```json\n{,}\n```'
 
-    it('should use readable text color for white token spans in light shiki themes', async () => {
+    it('wires the readable transformer so white token spans use the readable color in light themes', async () => {
       const renderer = await getMarkdownIt('one-light', markdownWithWhiteToken)
       const html = renderer.render(markdownWithWhiteToken)
 
       expect(html).toContain('color:var(--color-foreground)')
-      expect(html).not.toContain('color:white')
     })
 
-    it('should preserve white token spans in dark shiki themes', async () => {
+    it('does not rewrite token colors in dark shiki themes', async () => {
       const renderer = await getMarkdownIt('houston', markdownWithWhiteToken)
       const html = renderer.render(markdownWithWhiteToken)
 
-      expect(html).toContain('color:#FFFFFF')
-      expect(html).not.toContain('color:var(--color-foreground)')
+      expect(html).not.toContain('var(--color-foreground)')
     })
 
-    it('should render untagged code blocks as plain text without json white tokens in light themes', async () => {
+    it('renders untagged code blocks as plain text without json white tokens', async () => {
       const untagged = '```\n{,}\n```'
       const renderer = await getMarkdownIt('one-light', untagged)
       const html = renderer.render(untagged)
