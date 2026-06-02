@@ -13,7 +13,7 @@ import {
   Folder,
   Languages,
   LayoutGrid,
-  MessageSquare,
+  MessageCircle,
   MousePointerClick,
   NotepadText,
   Palette,
@@ -47,7 +47,7 @@ const routePrefixMap: Record<SidebarIconType, string> = {
 }
 
 const iconMap: Record<SidebarIconType, SidebarMenuItem['icon']> = {
-  assistants: MessageSquare,
+  assistants: MessageCircle,
   agents: MousePointerClick,
   store: Sparkle,
   paintings: Palette,
