@@ -1724,6 +1724,7 @@
     "copy_failed": "複製失敗",
     "current": "目前",
     "cut": "剪下",
+    "decline": "拒絕",
     "default": "預設",
     "delete": "刪除",
     "delete_confirm": "確定要刪除嗎？",
@@ -4050,6 +4051,14 @@
     "source": "檢視原始碼",
     "zoom_in": "放大",
     "zoom_out": "縮小"
+  },
+  "privacy_policy": {
+    "title": "隱私協議"
+  },
+  "privacy_policy_update": {
+    "description_before_link": "我們更新了隱私協議。請查看最新的",
+    "policy": "隱私協議",
+    "title": "隱私協議更新"
   },
   "prompts": {
     "explanation": "幫我解釋一下這個概念",

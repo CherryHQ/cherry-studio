@@ -34,6 +34,13 @@
       "description": "Window height (from complex mapping) - Example, not active"
     },
     {
+      "targetKey": "app.privacy.policy_version",
+      "type": "string",
+      "defaultValue": "20260531",
+      "status": "classified",
+      "description": "Latest privacy policy version acknowledged by the user"
+    },
+    {
       "targetKey": "feature.file_processing.overrides",
       "type": "PreferenceTypes.FileProcessorOverrides",
       "defaultValue": "VALUE: {} as PreferenceTypes.FileProcessorOverrides",
