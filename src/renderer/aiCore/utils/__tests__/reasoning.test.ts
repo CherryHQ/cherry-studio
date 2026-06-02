@@ -1924,6 +1924,36 @@ describe('reasoning utils', () => {
         }
       })
     })
+
+    it('should use adaptive reasoning config for Claude Opus 4.8 on Bedrock', async () => {
+      const { isReasoningModel, isSupportedThinkingTokenClaudeModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'anthropic.claude-opus-4-8-v1:0',
+        name: 'Claude Opus 4.8',
+        provider: 'bedrock'
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'medium',
+          maxTokens: 4096
+        }
+      } as Assistant
+
+      const result = getBedrockReasoningParams(assistant, model)
+      expect(result).toEqual({
+        reasoningConfig: {
+          type: 'adaptive',
+          maxReasoningEffort: 'medium'
+        }
+      })
+    })
   })
 
   describe('getCustomParameters', () => {

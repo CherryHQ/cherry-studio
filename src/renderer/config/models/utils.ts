@@ -432,14 +432,14 @@ export function isClaude46SeriesModel(model: Model | undefined | null): boolean 
 }
 
 /**
- * Check if the model is Claude Opus 4.7.
- * 4.7 rejects temperature/top_p/top_k and natively supports xhigh reasoning effort.
+ * Check if the model is Claude Opus 4.7/4.8.
+ * These models reject temperature/top_p/top_k and natively support xhigh reasoning effort.
  */
 export function isClaude47SeriesModel(model: Model | undefined | null): boolean {
   if (!model) {
     return false
   }
   const modelId = getLowerBaseModelName(model.id, '/')
-  const regex = /(?:anthropic\.)?claude-opus-4[.-]7(?:[@\-:][\w\-:]+)?$/i
+  const regex = /(?:anthropic\.)?claude-opus-4[.-](?:7|8)(?:[@\-:][\w\-:]+)?$/i
   return regex.test(modelId)
 }

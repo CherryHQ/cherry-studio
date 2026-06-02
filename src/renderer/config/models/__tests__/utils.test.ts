@@ -789,11 +789,13 @@ describe('model utils', () => {
     })
   })
 
-  describe('Claude 4.7 Models Detection', () => {
+  describe('Claude Opus 4.7/4.8 Models Detection', () => {
     describe('isClaude47SeriesModel', () => {
-      it('detects Opus 4.7 in direct API format', () => {
+      it('detects Opus 4.7 and 4.8 in direct API format', () => {
         expect(isClaude47SeriesModel(createModel({ id: 'claude-opus-4-7' }))).toBe(true)
         expect(isClaude47SeriesModel(createModel({ id: 'claude-opus-4.7' }))).toBe(true)
+        expect(isClaude47SeriesModel(createModel({ id: 'claude-opus-4-8' }))).toBe(true)
+        expect(isClaude47SeriesModel(createModel({ id: 'claude-opus-4.8' }))).toBe(true)
       })
 
       it('detects Opus 4.7 with version suffixes', () => {
@@ -804,21 +806,27 @@ describe('model utils', () => {
       it('detects Opus 4.7 in AWS Bedrock format', () => {
         expect(isClaude47SeriesModel(createModel({ id: 'anthropic.claude-opus-4-7-v1' }))).toBe(true)
         expect(isClaude47SeriesModel(createModel({ id: 'anthropic.claude-opus-4-7-v2:0' }))).toBe(true)
+        expect(isClaude47SeriesModel(createModel({ id: 'anthropic.claude-opus-4-8-v1' }))).toBe(true)
+        expect(isClaude47SeriesModel(createModel({ id: 'anthropic.claude-opus-4-8-v2:0' }))).toBe(true)
       })
 
       it('detects Opus 4.7 with provider prefix', () => {
         expect(isClaude47SeriesModel(createModel({ id: 'anthropic/claude-opus-4-7' }))).toBe(true)
+        expect(isClaude47SeriesModel(createModel({ id: 'anthropic/claude-opus-4-8' }))).toBe(true)
       })
 
       it('handles case insensitivity', () => {
         expect(isClaude47SeriesModel(createModel({ id: 'CLAUDE-OPUS-4-7' }))).toBe(true)
         expect(isClaude47SeriesModel(createModel({ id: 'Claude-Opus-4.7' }))).toBe(true)
+        expect(isClaude47SeriesModel(createModel({ id: 'CLAUDE-OPUS-4-8' }))).toBe(true)
+        expect(isClaude47SeriesModel(createModel({ id: 'Claude-Opus-4.8' }))).toBe(true)
       })
 
       it('returns false for other Claude models', () => {
         expect(isClaude47SeriesModel(createModel({ id: 'claude-opus-4-6' }))).toBe(false)
         expect(isClaude47SeriesModel(createModel({ id: 'claude-opus-4-5' }))).toBe(false)
         expect(isClaude47SeriesModel(createModel({ id: 'claude-sonnet-4-7' }))).toBe(false)
+        expect(isClaude47SeriesModel(createModel({ id: 'claude-sonnet-4-8' }))).toBe(false)
         expect(isClaude47SeriesModel(createModel({ id: 'claude-haiku-4-7' }))).toBe(false)
       })
 
