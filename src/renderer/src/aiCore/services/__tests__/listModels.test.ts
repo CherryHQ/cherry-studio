@@ -42,6 +42,10 @@ vi.mock('@renderer/i18n', () => ({
 
 vi.mock('@renderer/utils', () => ({
   formatApiHost: (host: string) => host?.replace(/\/$/, ''),
+  getDefaultGroupName: (id: string, provider?: string) => {
+    const parts = id.toLowerCase().split(/[-_]/)
+    return provider && parts.length > 1 ? `${parts[0]}-${parts[1]}` : id.toLowerCase()
+  },
   withoutTrailingSlash: (s: string) => s?.replace(/\/$/, ''),
   getLowerBaseModelName: (id: string) => id.toLowerCase()
 }))
@@ -422,6 +426,24 @@ describe('listModels', () => {
       const models = await listModels(makeProvider({ id: 'deepseek' }))
       assertValidModels(models)
       expect(models).toMatchSnapshot()
+    })
+
+    it('should infer model groups from ids for custom UUID providers', async () => {
+      const providerId = '9d08892b-3023-4b98-8c69-8032eec3dc98'
+      mockGetFromApi.mockResolvedValue({
+        value: {
+          data: [
+            { id: 'gemini-2.5-flash', object: 'model', owned_by: 'google' },
+            { id: 'gpt-4.1-mini', object: 'model', owned_by: 'openai' }
+          ]
+        }
+      })
+
+      const models = await listModels(makeProvider({ id: providerId, isSystem: false }))
+
+      expect(models).toHaveLength(2)
+      expect(models.map((model) => model.group)).toEqual(['gemini-2.5', 'gpt-4.1'])
+      expect(models.map((model) => model.group)).not.toContain(providerId)
     })
   })
 
