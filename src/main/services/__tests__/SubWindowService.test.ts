@@ -3,9 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // Hoisted state mirrors the pattern in MainWindowService.test.ts: platform flags are
 // per-test mutable, mocks use getters to preserve live-binding semantics.
-const { platformState, nativeThemeState, applicationMock, windowManagerMock } = vi.hoisted(() => {
+const { platformState, nativeThemeState, applicationMock, windowManagerMock, onCreatedCallbacks } = vi.hoisted(() => {
   const platformState = { isMac: false, isWin: false, isLinux: false }
   const nativeThemeState = { shouldUseDarkColors: false }
+  // Subscribers registered via onWindowCreatedByType. Tests fire these to simulate a fresh
+  // BrowserWindow being created (real WindowManager fires it synchronously inside open()).
+  const onCreatedCallbacks: Array<(managed: { id: string; type: string; window: unknown }) => void> = []
   const windowManagerMock = {
     open: vi.fn<(type: string, args?: { initData?: unknown; options?: Record<string, unknown> }) => string>(
       () => 'mock-window-id'
@@ -14,7 +17,13 @@ const { platformState, nativeThemeState, applicationMock, windowManagerMock } = 
     getWindow: vi.fn<(id: string) => unknown>(() => undefined),
     getWindowsByType: vi.fn<(type: string) => Array<{ id: string }>>(() => []),
     getWindowIdByWebContents: vi.fn<(wc: unknown) => string | undefined>(() => undefined),
-    broadcastToType: vi.fn<(type: string, channel: string, ...rest: unknown[]) => void>()
+    broadcastToType: vi.fn<(type: string, channel: string, ...rest: unknown[]) => void>(),
+    onWindowCreatedByType: vi.fn<
+      (type: string, cb: (m: { id: string; type: string; window: unknown }) => void) => { dispose: () => void }
+    >((_type, cb) => {
+      onCreatedCallbacks.push(cb)
+      return { dispose: vi.fn() }
+    })
   }
   const applicationMock = {
     get: vi.fn((name: string) => {
@@ -22,7 +31,7 @@ const { platformState, nativeThemeState, applicationMock, windowManagerMock } = 
       throw new Error(`unexpected service: ${name}`)
     })
   }
-  return { platformState, nativeThemeState, applicationMock, windowManagerMock }
+  return { platformState, nativeThemeState, applicationMock, windowManagerMock, onCreatedCallbacks }
 })
 
 vi.mock('@main/core/platform', () => ({
@@ -71,6 +80,8 @@ interface MockBrowserWindow extends EventEmitter {
   isDestroyed: ReturnType<typeof vi.fn>
   isVisible: ReturnType<typeof vi.fn>
   show: ReturnType<typeof vi.fn>
+  setTitle: ReturnType<typeof vi.fn>
+  setBackgroundColor: ReturnType<typeof vi.fn>
   setContentBounds: ReturnType<typeof vi.fn>
   setPosition: ReturnType<typeof vi.fn>
   setOpacity: ReturnType<typeof vi.fn>
@@ -84,6 +95,8 @@ function createMockWindow(overrides: Partial<MockBrowserWindow> = {}): MockBrows
   win.isDestroyed = vi.fn(() => false)
   win.isVisible = vi.fn(() => true)
   win.show = vi.fn()
+  win.setTitle = vi.fn()
+  win.setBackgroundColor = vi.fn()
   win.setContentBounds = vi.fn()
   win.setPosition = vi.fn()
   win.setOpacity = vi.fn()
@@ -92,6 +105,26 @@ function createMockWindow(overrides: Partial<MockBrowserWindow> = {}): MockBrows
   win.getContentBounds = vi.fn(() => ({ x: 100, y: 100, width: 800, height: 600 }))
   Object.assign(win, overrides)
   return win
+}
+
+/** Fire the onWindowCreatedByType subscribers, simulating a fresh BrowserWindow. */
+function fireOnCreated(windowId: string, win: unknown) {
+  for (const cb of onCreatedCallbacks) cb({ id: windowId, type: 'subWindow', window: win })
+}
+
+/** Simulate a FRESH pool open: open() returns a new id AND fires onWindowCreated. */
+function primeFreshOpen(win: MockBrowserWindow, windowId = 'mock-window-id') {
+  windowManagerMock.getWindow.mockImplementation((id) => (id === windowId ? win : undefined))
+  windowManagerMock.open.mockImplementation(() => {
+    fireOnCreated(windowId, win)
+    return windowId
+  })
+}
+
+/** Simulate a pool REUSE: open() returns an existing id and does NOT fire onWindowCreated. */
+function primeReuseOpen(win: MockBrowserWindow, windowId: string) {
+  windowManagerMock.getWindow.mockImplementation((id) => (id === windowId ? win : undefined))
+  windowManagerMock.open.mockImplementation(() => windowId)
 }
 
 function lastOpenCall() {
@@ -121,16 +154,25 @@ describe('SubWindowService', () => {
     platformState.isWin = false
     platformState.isLinux = false
     nativeThemeState.shouldUseDarkColors = false
-    windowManagerMock.open.mockReset().mockReturnValue('mock-window-id')
+    // Default open() simulates a fresh create: returns the stock id and fires onWindowCreated
+    // with whatever getWindow() is set to return (so per-window listeners get attached).
+    windowManagerMock.open.mockReset().mockImplementation(() => {
+      const win = windowManagerMock.getWindow('mock-window-id')
+      if (win) fireOnCreated('mock-window-id', win)
+      return 'mock-window-id'
+    })
     windowManagerMock.close.mockReset().mockReturnValue(true)
     windowManagerMock.getWindow.mockReset().mockReturnValue(undefined)
     windowManagerMock.getWindowsByType.mockReset().mockReturnValue([])
     windowManagerMock.getWindowIdByWebContents.mockReset().mockReturnValue(undefined)
     windowManagerMock.broadcastToType.mockReset()
+    windowManagerMock.onWindowCreatedByType.mockClear()
+    onCreatedCallbacks.length = 0
     vi.mocked(BrowserWindow.fromWebContents).mockReset()
 
     svc = new SubWindowService()
-    // Service registers its handlers in onInit; drive it manually since we stubbed BaseService.
+    // Service registers its IPC handlers + onWindowCreatedByType subscription in onInit; drive
+    // it manually since we stubbed BaseService.
     await (svc as any).onInit()
   })
 
@@ -232,15 +274,13 @@ describe('SubWindowService', () => {
   describe('createWindow - tabId → windowId mapping + cleanup', () => {
     it('populates tabIdToWindowId after open and cleans up on "closed"', () => {
       const win = createMockWindow()
-      windowManagerMock.getWindow.mockReturnValue(win)
-      windowManagerMock.open.mockReturnValue('wid-A')
+      primeFreshOpen(win, 'wid-A')
 
       svc.createWindow({ id: 'tab-A', url: 'u' })
       expect((svc as any).tabIdToWindowId.get('tab-A')).toBe('wid-A')
 
       win.emit('closed')
       expect((svc as any).tabIdToWindowId.has('tab-A')).toBe(false)
-      expect((svc as any).windowState.has('tab-A')).toBe(false)
     })
 
     it('auto-shows on ready-to-show only when no initial position was provided', () => {
@@ -257,6 +297,60 @@ describe('SubWindowService', () => {
       svc.createWindow({ id: 'tab-xy', url: 'u', x: 10, y: 10 })
       win2.emit('ready-to-show')
       expect(win2.show).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('pooled reuse', () => {
+    it('drops the previous session tabId mapping when the same physical window is reused', () => {
+      const win = createMockWindow()
+      primeFreshOpen(win, 'wid-1')
+      svc.createWindow({ id: 'tab-1', url: 'u', x: 1, y: 1 })
+      expect((svc as any).tabIdToWindowId.get('tab-1')).toBe('wid-1')
+
+      // Reuse: WindowManager returns the same window WITHOUT firing onWindowCreated.
+      primeReuseOpen(win, 'wid-1')
+      svc.createWindow({ id: 'tab-2', url: 'u', x: 2, y: 2 })
+
+      expect((svc as any).tabIdToWindowId.has('tab-1')).toBe(false)
+      expect((svc as any).tabIdToWindowId.get('tab-2')).toBe('wid-1')
+    })
+
+    it('does not accumulate "closed" listeners across reuse (attached once per physical window)', () => {
+      const win = createMockWindow()
+      primeFreshOpen(win, 'wid-1')
+      svc.createWindow({ id: 'tab-1', url: 'u', x: 1, y: 1 })
+      expect(win.listenerCount('closed')).toBe(1)
+
+      primeReuseOpen(win, 'wid-1')
+      svc.createWindow({ id: 'tab-2', url: 'u', x: 2, y: 2 })
+      svc.createWindow({ id: 'tab-3', url: 'u', x: 3, y: 3 })
+      expect(win.listenerCount('closed')).toBe(1)
+    })
+
+    it('re-applies title, opacity and (non-mac) backgroundColor on every open', () => {
+      platformState.isWin = true
+      nativeThemeState.shouldUseDarkColors = true
+      const win = createMockWindow()
+      primeReuseOpen(win, 'wid-1')
+
+      svc.createWindow({ id: 'tab-1', url: 'u', title: 'Reused', x: 1, y: 1 })
+
+      expect(win.setTitle).toHaveBeenCalledWith('Reused')
+      expect(win.setOpacity).toHaveBeenCalledWith(1)
+      expect(win.setBackgroundColor).toHaveBeenCalledWith('#181818')
+    })
+
+    it('shows a no-position detach immediately when the reused window is already ready', () => {
+      const win = createMockWindow()
+      primeFreshOpen(win, 'wid-1')
+      svc.createWindow({ id: 'tab-1', url: 'u' }) // no position → waits for ready-to-show
+      win.emit('ready-to-show') // marks the window ready + shows once
+      expect(win.show).toHaveBeenCalledTimes(1)
+
+      win.show.mockClear()
+      primeReuseOpen(win, 'wid-1')
+      svc.createWindow({ id: 'tab-2', url: 'u' }) // no position, window already ready
+      expect(win.show).toHaveBeenCalledTimes(1) // shown without a second ready-to-show
     })
   })
 

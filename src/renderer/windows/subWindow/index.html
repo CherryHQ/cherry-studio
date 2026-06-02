@@ -13,11 +13,32 @@
       body {
         margin: 0;
       }
+
+      #spinner {
+        position: fixed;
+        width: 100vw;
+        height: 100vh;
+        flex-direction: row;
+        justify-content: center;
+        align-items: center;
+        display: flex;
+      }
+
+      #spinner img {
+        width: 100px;
+        border-radius: 50px;
+      }
     </style>
   </head>
 
   <body>
     <div id="root"></div>
+    <!-- Cold-start placeholder: shown while a freshly created sub-window boots its renderer.
+         Removed by SubWindowAppShell once init data arrives. Pooled reuse never shows it
+         (the renderer is already booted and the element was removed on first boot). -->
+    <div id="spinner">
+      <img src="/assets/images/logo.png" />
+    </div>
     <script type="module" src="/windows/subWindow/entryPoint.tsx"></script>
   </body>
 </html>

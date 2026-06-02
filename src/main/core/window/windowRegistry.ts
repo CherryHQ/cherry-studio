@@ -141,13 +141,14 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
   // ready-to-show auto-show fallback). Init payload (tabId, url, title, type,
   // isPinned) flows via initData and useWindowInitData<SubWindowInitData>() in
   // the renderer.
-  // NOTE on future evolution: if this ever changes to `lifecycle: 'pooled'`,
-  // the Win/Linux content-bounds move path in SubWindowService (electron#27651)
-  // requires `useContentSize: true` here — otherwise resetPooledWindowGeometry's
-  // content-bounds branch is skipped and cached size drifts across reuse.
+  // Pooled (lazy): SubWindowService keeps 1 pre-warmed hidden window after the first
+  // detach so subsequent tear-offs reuse a booted renderer instead of cold-starting a
+  // fresh SPA. The Win/Linux content-bounds move path (electron#27651) requires
+  // `useContentSize: true` in windowOptions — otherwise resetPooledWindowGeometry skips
+  // the content-bounds branch and the cached move size drifts across reuse.
   [WindowType.SubWindow]: {
     type: WindowType.SubWindow,
-    lifecycle: 'default',
+    lifecycle: 'pooled',
     htmlPath: 'windows/subWindow/index.html',
     // preload omitted → defaults to 'index.js' (full API preload).
     showMode: 'manual',
@@ -184,7 +185,23 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
         // Chromium's background-tab throttling would freeze the UI for seconds after
         // focus switches. Mirrors the Main window's choice above; do not remove.
         backgroundThrottling: false
-      }
+      },
+      // REQUIRED for pooled reuse: the Win/Linux Tab_MoveWindow path uses
+      // setContentBounds (electron#27651). resetPooledWindowGeometry only takes the
+      // content-bounds branch when this is set, so cached move size stays stable.
+      useContentSize: true
+    },
+    // Pooled: after the first tear-off, keep one pre-warmed hidden window so the 2nd+
+    // detach reuses an already-booted renderer. warmup 'lazy' → nothing is warmed at
+    // app start; replenishStandby backfills one standby after the first open(). The
+    // recycle buffer (recycleMaxSize) lets a few concurrent detached windows be reused;
+    // beyond it, close destroys. decay/inactivity trim the buffer back toward standby.
+    poolConfig: {
+      standbySize: 1,
+      recycleMaxSize: 3,
+      warmup: 'lazy',
+      decayInterval: 60,
+      inactivityTimeout: 300
     }
     // NOTE: Fields intentionally NOT set here, injected per-call via wm.open({ options }):
     //   - title (per-tab dynamic)

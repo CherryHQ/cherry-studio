@@ -61,6 +61,8 @@ export interface TabsContextValue {
   setActiveTab: (id: string) => void
   updateTab: (id: string, updates: Partial<Tab>) => void
   setTabs: (newTabs: Tab[] | ((prev: Tab[]) => Tab[])) => void
+  /** Replace in-memory normal tabs (and active tab) without touching persistent pinnedTabs */
+  resetNormalTabs: (tab?: Tab) => void
 
   // High-level Tab operations
   openTab: (url: string, options?: OpenTabOptions) => string
@@ -380,6 +382,19 @@ export function TabsProvider({ children }: { children: ReactNode }) {
   )
 
   /**
+   * Replace the in-memory normal-tab set (and active tab) in one shot.
+   *
+   * Used by detached sub-windows on pool reuse: the renderer is not reloaded across reuse,
+   * so a previous session's normal tabs would otherwise linger. This clears them WITHOUT
+   * touching the shared, persistent pinnedTabs cache (setTabs would clobber it because it
+   * routes its empty pinned slice into setPinnedTabs). With no argument it resets to home.
+   */
+  const resetNormalTabs = useCallback((tab?: Tab) => {
+    setNormalTabs(tab ? [{ ...tab, lastAccessTime: Date.now(), isDormant: false }] : [])
+    setActiveTabIdState(tab ? tab.id : DEFAULT_TAB.id)
+  }, [])
+
+  /**
    * Detach a tab to a new window
    */
   const detachTab = useCallback(
@@ -460,6 +475,7 @@ export function TabsProvider({ children }: { children: ReactNode }) {
     setActiveTab,
     updateTab,
     setTabs,
+    resetNormalTabs,
 
     // High-level Tab operations
     openTab,

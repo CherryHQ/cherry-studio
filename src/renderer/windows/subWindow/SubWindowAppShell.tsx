@@ -7,7 +7,7 @@ import { useTabs } from '@renderer/hooks/useTabs'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SubWindowInitData } from '@shared/types/subWindow'
-import { Activity, useEffect, useRef } from 'react'
+import { Activity, useEffect } from 'react'
 
 // Mock Webview component (TODO: Replace with actual MinApp/Webview)
 const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean }) => (
@@ -20,30 +20,47 @@ const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean })
 )
 
 export const SubWindowAppShell = () => {
-  const { tabs, activeTabId, setActiveTab, closeTab, updateTab, addTab, reorderTabs, openTab, pinTab, unpinTab } =
-    useTabs()
-  const initialized = useRef(false)
+  const {
+    tabs,
+    activeTabId,
+    setActiveTab,
+    closeTab,
+    updateTab,
+    addTab,
+    reorderTabs,
+    resetNormalTabs,
+    pinTab,
+    unpinTab
+  } = useTabs()
   const init = useWindowInitData<SubWindowInitData>()
 
-  // Initialize tab from WindowManager init data (delivered via useWindowInitData).
-  // First render returns `init === null`; the effect re-runs after one IPC round-trip
-  // when the payload arrives. The `initialized` ref still guards against re-entry.
+  // Initialize the tab from WindowManager init data, and re-initialize on pool reuse.
+  // useWindowInitData delivers a fresh `init` object on cold start AND again on every pool
+  // reuse (via WindowManager_Reused), so this effect runs once per detach session. We reset
+  // rather than append: a reused window's renderer is not reloaded, so a prior session's
+  // normal tabs would otherwise linger. Pinned tabs live in the shared persistent cache, so
+  // a pinned detach only clears leftover normal tabs and activates the pinned tab.
   useEffect(() => {
-    if (!init || initialized.current) return
-    initialized.current = true
+    if (!init) return
 
     if (init.isPinned) {
-      // Pinned Tab is already loaded via usePersistCache across windows; just activate.
+      resetNormalTabs()
       setActiveTab(init.tabId)
     } else {
-      openTab(init.url, {
+      resetNormalTabs({
         id: init.tabId,
-        title: init.title,
         type: init.type || 'route',
-        forceNew: true
+        url: init.url,
+        title: init.title || getDefaultRouteTitle(init.url),
+        lastAccessTime: Date.now(),
+        isDormant: false
       })
     }
-  }, [init, openTab, setActiveTab])
+
+    // Drop the cold-start loading placeholder once real content is mounting. No-op on reuse
+    // (already removed) — the placeholder only exists on a fresh renderer boot.
+    document.getElementById('spinner')?.remove()
+  }, [init, resetNormalTabs, setActiveTab])
 
   // Close tab in sub window. closeTab handles both pinned and normal tabs correctly.
   // Do NOT call unpinTab before closeTab — unpinTab moves the tab to normalTabs,

@@ -50,9 +50,21 @@ type SubWindowState = {
 export class SubWindowService extends BaseService {
   /** tabId → windowId map (windowId belongs to WindowManager's namespace, distinct from tabId) */
   private tabIdToWindowId: Map<string, string> = new Map()
+  /** windowId → cached content size (per physical window; survives pool reuse) */
   private windowState: Map<string, SubWindowState> = new Map()
+  /** windowIds that have fired ready-to-show at least once (cleared on destroy) */
+  private readyWindows: Set<string> = new Set()
 
   protected async onInit() {
+    // Attach per-physical-window listeners here, not in createWindow: onWindowCreatedByType
+    // fires exactly once per BrowserWindow and NOT on pool reuse, so listeners never
+    // accumulate across the lazy-pooled window's many reuses.
+    const wm = application.get('WindowManager')
+    this.registerDisposable(
+      wm.onWindowCreatedByType(WindowType.SubWindow, (managed) => {
+        this.attachPerWindowListeners(managed.id, managed.window)
+      })
+    )
     this.registerIpcHandlers()
   }
 
@@ -99,7 +111,8 @@ export class SubWindowService extends BaseService {
       if (win && !win.isDestroyed()) {
         const x = Math.round(payload.x)
         const y = Math.round(payload.y)
-        this.moveWindow(win, payload.tabId, x, y)
+        const windowId = targetWindowId ?? wm.getWindowIdByWebContents(event.sender)
+        this.moveWindow(win, windowId, x, y)
         if (!win.isVisible()) {
           win.show()
         }
@@ -172,9 +185,9 @@ export class SubWindowService extends BaseService {
    * On Win/Linux uses setContentBounds with cached size to avoid electron#27651 outer-bounds creep.
    * On macOS uses setPosition (no reported creep issue).
    */
-  private moveWindow(win: BrowserWindow, tabId: string, x: number, y: number) {
+  private moveWindow(win: BrowserWindow, windowId: string | undefined, x: number, y: number) {
     if (USE_CONTENT_BOUNDS_MOVE) {
-      const state = this.windowState.get(tabId)
+      const state = windowId ? this.windowState.get(windowId) : undefined
       if (state) {
         state.lastMoveAt = Date.now()
       }
@@ -186,31 +199,51 @@ export class SubWindowService extends BaseService {
   }
 
   /**
-   * Tracks the content size of a sub window, keeping windowState in sync for the
-   * DPI-rounding debounce in moveWindow. Cleanup of windowState is handled centrally
-   * by the `.once('closed')` listener in createWindow — do not attach one here too.
+   * Attach listeners that must live for the lifetime of one physical BrowserWindow.
+   * Registered via onWindowCreatedByType, which fires exactly once per window and NOT on
+   * pool reuse — so these never accumulate across the lazy-pooled window's many reuses.
    */
-  private trackWindowSize(tabId: string, win: BrowserWindow) {
-    this.windowState.set(tabId, { width: SUB_WINDOW_DEFAULT_WIDTH, height: SUB_WINDOW_DEFAULT_HEIGHT, lastMoveAt: 0 })
+  private attachPerWindowListeners(windowId: string, win: BrowserWindow) {
+    // Win/Linux only: cache content size for the setContentBounds move path (electron#27651).
+    if (USE_CONTENT_BOUNDS_MOVE) {
+      this.windowState.set(windowId, {
+        width: SUB_WINDOW_DEFAULT_WIDTH,
+        height: SUB_WINDOW_DEFAULT_HEIGHT,
+        lastMoveAt: 0
+      })
 
-    win.on('ready-to-show', () => {
-      if (!win.isDestroyed()) {
+      win.on('resize', () => {
+        if (win.isDestroyed()) return
+        const state = this.windowState.get(windowId)
+        if (!state || Date.now() - state.lastMoveAt < MOVE_RESIZE_IGNORE_MS) return
         const { width, height } = win.getContentBounds()
-        const state = this.windowState.get(tabId)
-        if (state) {
-          state.width = width
-          state.height = height
-        }
+        state.width = width
+        state.height = height
+      })
+    }
+
+    // ready-to-show fires once per physical window (not on reuse). Record readiness so a
+    // no-position reused window can be shown immediately, and capture the initial size.
+    win.once('ready-to-show', () => {
+      this.readyWindows.add(windowId)
+      if (win.isDestroyed()) return
+      const state = this.windowState.get(windowId)
+      if (state) {
+        const { width, height } = win.getContentBounds()
+        state.width = width
+        state.height = height
       }
     })
 
-    win.on('resize', () => {
-      if (win.isDestroyed()) return
-      const state = this.windowState.get(tabId)
-      if (!state || Date.now() - state.lastMoveAt < MOVE_RESIZE_IGNORE_MS) return
-      const { width, height } = win.getContentBounds()
-      state.width = width
-      state.height = height
+    // Pool reuse hides the window; only an actual destroy fires 'closed'. Clean up all
+    // per-window tracking here. Node snapshots listeners at emit time, so this still runs
+    // even though WindowManager removes its own listeners during teardown.
+    win.once('closed', () => {
+      this.readyWindows.delete(windowId)
+      this.windowState.delete(windowId)
+      for (const [tabId, mappedId] of this.tabIdToWindowId) {
+        if (mappedId === windowId) this.tabIdToWindowId.delete(tabId)
+      }
     })
   }
 
@@ -254,28 +287,38 @@ export class SubWindowService extends BaseService {
       return windowId
     }
 
+    // Pooled reuse: a recycled window may still carry the previous session's tabId mapping
+    // (recycle hides without firing 'closed'). Drop any stale entry pointing at this
+    // physical window before registering the new tab.
+    for (const [existingTabId, mappedId] of this.tabIdToWindowId) {
+      if (mappedId === windowId) this.tabIdToWindowId.delete(existingTabId)
+    }
     this.tabIdToWindowId.set(tabId, windowId)
 
-    // showMode: 'manual' — WM does not auto-show. Callers that supply an initial position
-    // will receive Tab_MoveWindow which shows the window after repositioning; otherwise
-    // auto-show once Electron signals ready.
+    // resetPooledWindowGeometry restores geometry only — title/backgroundColor/opacity are
+    // NOT re-applied on reuse. Set them per-open so a reused window matches the current tab's
+    // title and theme instead of the previous consumer's. Opacity reset matters because a
+    // successful drag-back reattach closes (now recycles) the window while it is still at
+    // the 0.85 drag opacity, which would otherwise persist into the next reuse.
+    win.setTitle(title || 'Cherry Studio Tab')
+    win.setOpacity(1)
+    if (!isMac) {
+      win.setBackgroundColor(dark ? '#181818' : '#FFFFFF')
+    }
+
+    // showMode: 'manual' — WM does not auto-show.
+    // - has position (drop-at-cursor detach): Tab_MoveWindow shows it after repositioning.
+    // - no position (programmatic detach): show once ready. A reused window already fired
+    //   ready-to-show (it won't fire again), so show now; a fresh window waits for it.
     if (!hasPosition) {
-      win.once('ready-to-show', () => {
+      if (this.readyWindows.has(windowId)) {
         if (!win.isDestroyed()) win.show()
-      })
+      } else {
+        win.once('ready-to-show', () => {
+          if (!win.isDestroyed()) win.show()
+        })
+      }
     }
-
-    if (USE_CONTENT_BOUNDS_MOVE) {
-      this.trackWindowSize(tabId, win)
-    }
-
-    // Single cleanup entry point. Node's EventEmitter snapshots listeners at emit time,
-    // so even if WindowManager's internal 'closed' handler later calls removeAllListeners,
-    // this callback has already executed.
-    win.once('closed', () => {
-      this.tabIdToWindowId.delete(tabId)
-      this.windowState.delete(tabId)
-    })
 
     logger.info(`Created sub window for tab ${tabId}`, { windowId, url, title, type, isPinned })
     return windowId
