@@ -1,0 +1,30 @@
+import GeneralPopup from '@renderer/components/Popups/GeneralPopup'
+import i18n from '@renderer/i18n'
+import { ProviderSettingsPage } from '@renderer/pages/settings/ProviderSettings'
+
+export default class ProviderPopup {
+  static show() {
+    return GeneralPopup.show({
+      title: i18n.t('onboarding.welcome.select_other_provider'),
+      content: <ProviderSettingsPage isOnboarding />,
+      footer: null,
+      width: 'min(1200px, 80vw)',
+      styles: {
+        header: {
+          borderBottom: '1px solid var(--color-border)',
+          borderBottomLeftRadius: 0,
+          borderBottomRightRadius: 0,
+          marginBottom: 0,
+          paddingBottom: 12,
+          paddingTop: 12
+        },
+        body: { display: 'flex', height: 'max(75vh, calc(100vh - var(--navbar-height) * 2))', padding: 0 },
+        content: { paddingBottom: 0 }
+      }
+    })
+  }
+
+  static hide() {
+    GeneralPopup.hide()
+  }
+}

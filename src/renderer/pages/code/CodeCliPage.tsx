@@ -1,6 +1,5 @@
 import {
   Button,
-  Checkbox,
   Dialog,
   DialogClose,
   DialogContent,
@@ -14,6 +13,7 @@ import {
 import { AiProvider } from '@renderer/aiCore'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
+import { NeutralCheckbox } from '@renderer/components/NeutralCheckbox'
 import { isMac, isWin } from '@renderer/config/constant'
 import { isEmbeddingModel, isRerankModel, isTextToImageModel } from '@renderer/config/models'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
@@ -576,12 +576,11 @@ const CodeCliPage: FC = () => {
                 </div>
 
                 <div className="flex items-center gap-2 pt-1">
-                  <Checkbox
+                  <NeutralCheckbox
                     id="code-cli-auto-update"
                     size="sm"
                     checked={autoUpdateToLatest}
                     onCheckedChange={(v) => setAutoUpdateToLatest(v === true)}
-                    className="border-input hover:bg-accent data-[state=checked]:border-foreground data-[state=checked]:bg-foreground data-[state=checked]:text-background [&_[data-slot=checkbox-indicator]>svg]:stroke-background [&_[data-slot=checkbox-indicator]>svg]:text-background"
                   />
                   <Label
                     htmlFor="code-cli-auto-update"

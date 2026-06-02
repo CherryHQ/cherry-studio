@@ -3559,6 +3559,25 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "data_sharing": {
+      "change_later": "之后可在设置中随时调整",
+      "next": "继续",
+      "private": {
+        "description": "不分享匿名使用信息，也不会上传性能、模型调用或功能使用等统计数据。",
+        "title": "仅本地使用"
+      },
+      "share": {
+        "description": "允许分享匿名使用信息，帮助我们优化 Cherry Studio。",
+        "items": {
+          "feature_interaction": "功能使用情况",
+          "model_usage": "模型调用统计",
+          "performance": "运行表现数据"
+        },
+        "title": "参与改进 Cherry Studio"
+      },
+      "subtitle": "是否分享匿名使用信息，用于优化体验，可随时在设置中调整。",
+      "title": "你想如何提供使用数据？"
+    },
     "select_model": {
       "change_later": "您可以随时在设置中更改",
       "start": "开始使用",
@@ -3570,6 +3589,7 @@
       "connected": "成功连接 CherryIN"
     },
     "welcome": {
+      "data_collection_consent": "允许分享匿名使用信息，帮助我们优化 Cherry Studio",
       "login_cherryin": "登录 CherryIN",
       "or_continue_with": "或使用其他方式",
       "other_provider": "选择其他服务商",
@@ -4820,6 +4840,13 @@
         "triggerPlaceholder": "选择一个模型",
         "triggerSelectedCount": "已选 {{count}} 个模型",
         "valueProp": "当前传入 value"
+      },
+      "onboarding": {
+        "closePreview": "关闭预览",
+        "description": "打开后会以预览模式渲染引导流程，所有选择都不会影响真实设置。",
+        "mockedLoginToast": "预览模式：已模拟登录",
+        "openPreview": "打开引导预览",
+        "title": "引导流程"
       },
       "title": "开发环境组件测试"
     },

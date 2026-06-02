@@ -4,9 +4,9 @@
  */
 
 :root {
-  /* Brand Colors */
-  --cs-primary: var(--cs-brand-500);
-  --cs-primary-hover: var(--cs-brand-300);
+  /* Primary action colors */
+  --cs-primary: var(--cs-foreground);
+  --cs-primary-hover: oklch(0 0 0 / 0.8);
   --cs-destructive: var(--cs-red-500);
   --cs-destructive-hover: var(--cs-red-400);
   --cs-success: var(--cs-green-500);
@@ -81,6 +81,7 @@
 
 /* Dark Mode */
 .dark {
+  --cs-primary-hover: oklch(1 0 0 / 0.8);
   --cs-success: var(--cs-green-400);
   --cs-warning: var(--cs-amber-400);
   --cs-info: var(--cs-blue-400);
@@ -107,8 +108,8 @@
   --cs-border-active: oklch(1 0 0 / 0.3);
   --cs-frame-border: oklch(1 0 0 / 0.14);
 
-  /* Ring (Focus) - 保持不变 */
-  --cs-ring: oklch(0.76 0.204 131 / 0.4);
+  /* Ring (Focus) */
+  --cs-ring: color-mix(in srgb, var(--cs-primary) 40%, transparent);
 
   /* UI Element Colors - Dark Mode */
   --cs-secondary: oklch(1 0 0 / 0.1); /* Secondary Button Background */

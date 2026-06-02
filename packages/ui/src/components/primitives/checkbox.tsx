@@ -9,13 +9,13 @@ export type CheckedState = CheckboxPrimitive.CheckedState
 const checkboxVariants = cva(
   cn(
     'aspect-square shrink-0 rounded-[4px] border transition-all outline-none',
-    'border-primary text-primary',
-    'hover:bg-primary/10',
-    'data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=checked]:border-primary',
-    'focus-visible:ring-3 focus-visible:ring-primary/20',
+    'border-input text-foreground',
+    'hover:bg-accent',
+    'data-[state=checked]:border-border-active data-[state=checked]:bg-muted data-[state=checked]:text-border-active',
+    'focus-visible:ring-3 focus-visible:ring-ring/50',
     'aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive',
     'disabled:cursor-not-allowed disabled:border-gray-500/10 disabled:bg-background-subtle',
-    'bg-white/10'
+    'bg-transparent'
   ),
   {
     variants: {
@@ -31,7 +31,7 @@ const checkboxVariants = cva(
   }
 )
 
-const checkboxIconVariants = cva('dark:text-white', {
+const checkboxIconVariants = cva('lucide-custom text-current', {
   variants: {
     size: {
       sm: 'size-3',
