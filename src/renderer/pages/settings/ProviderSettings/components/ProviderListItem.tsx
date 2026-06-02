@@ -51,8 +51,7 @@ export default function ProviderListItem({
         'group/row cursor-pointer',
         providerListClasses.item,
         selected ? providerListClasses.itemSelected : providerListClasses.itemIdle,
-        dragging && 'opacity-65',
-        !provider.isEnabled && 'opacity-50'
+        dragging && 'opacity-65'
       )}>
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
         <ProviderAvatar provider={provider} size={22} className={providerListClasses.itemAvatar} />
