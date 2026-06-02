@@ -21,7 +21,6 @@ import type { Base64ImageSource, ContentBlockParam } from '@anthropic-ai/sdk/res
 import { loggerService } from '@logger'
 import { config as apiConfigService } from '@main/apiServer/config'
 import { validateModelId } from '@main/apiServer/utils'
-import { getMCPServersFromRedux } from '@main/apiServer/utils/mcp'
 import { isWin } from '@main/constant'
 import AssistantServer from '@main/mcpServers/assistant'
 import ClawServer from '@main/mcpServers/claw'
@@ -568,6 +567,7 @@ class ClaudeCodeService implements AgentServiceInterface {
       // This avoids log noise, wasted DB lookups, and connection timeouts from
       // stale references in session mcps arrays (e.g. after an MCP server
       // was deleted without cleaning up the session's mcps list).
+      const { getMCPServersFromRedux } = await import('@main/apiServer/utils/mcp')
       const activeServers = await getMCPServersFromRedux()
       const activeServerIds = new Set(activeServers.filter((s) => s.isActive).map((s) => s.id))
       const validIds = session.mcps.filter((id: string) => activeServerIds.has(id))

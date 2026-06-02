@@ -2,7 +2,6 @@ import { loggerService } from '@logger'
 import { mcpApiService } from '@main/apiServer/services/mcp'
 import type { ModelValidationError } from '@main/apiServer/utils'
 import { validateModelId } from '@main/apiServer/utils'
-import { getMCPServersFromRedux } from '@main/apiServer/utils/mcp'
 import { getDataPath } from '@main/utils'
 import { buildFunctionCallToolName } from '@shared/mcp'
 import type { AgentType, MCPTool, SlashCommand, SystemProviderId, Tool } from '@types'
@@ -62,6 +61,7 @@ export abstract class BaseService {
       // Pre-filter: only connect to servers that still exist and are active.
       // This avoids log noise, wasted DB lookups, and connection timeouts from
       // stale references in agent/session mcps arrays.
+      const { getMCPServersFromRedux } = await import('@main/apiServer/utils/mcp')
       const activeServers = await getMCPServersFromRedux()
       const activeServerIds = new Set(activeServers.filter((s) => s.isActive).map((s) => s.id))
       const validIds = ids.filter((id) => activeServerIds.has(id))
