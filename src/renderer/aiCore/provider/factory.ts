@@ -37,6 +37,15 @@ export function getAiSdkProviderId(provider: Provider): AppProviderId {
     return appProviderIds[provider.id]
   }
 
+  // Custom user providers configured as a `new-api` preset (their `id` is the
+  // user's free-form string) flow through the same `createNewApi` extension
+  // the built-in `new-api`/`aionly` ids use, so painting and chat hit the
+  // verified OpenAI-compatible image path instead of falling to the generic
+  // `openai-compatible` fallback with an unknown id.
+  if (provider.presetProviderId === 'new-api') {
+    return appProviderIds['new-api']
+  }
+
   if (provider.type !== 'openai' && provider.type in appProviderIds) {
     return appProviderIds[provider.type]
   }

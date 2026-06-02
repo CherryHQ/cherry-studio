@@ -44,25 +44,135 @@ jobs:
     if: needs.check-repository.outputs.should_run == 'true'
     runs-on: ubuntu-latest
     outputs:
+      branch: ${{ steps.meta.outputs.branch }}
       date: ${{ steps.meta.outputs.date }}
       sha: ${{ steps.meta.outputs.sha }}
       short_sha: ${{ steps.meta.outputs.short_sha }}
+      version: ${{ steps.meta.outputs.version }}
     steps:
-      - name: Check out v2 branch
+      - name: Check out workflow repository
         uses: actions/checkout@v6
         with:
-          ref: v2
           fetch-depth: 1
 
       - name: Resolve build metadata
         id: meta
         shell: bash
         run: |
-          SHA=$(git rev-parse HEAD)
-          echo "sha=$SHA" >> $GITHUB_OUTPUT
-          echo "short_sha=${SHA:0:7}" >> $GITHUB_OUTPUT
+          node <<'NODE'
+          const { execFileSync } = require('child_process')
+          const fs = require('fs')
+
+          function parseVersion(version) {
+            const match = version.match(/^(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/)
+            if (!match) {
+              return null
+            }
+
+            return {
+              major: Number(match[1]),
+              minor: Number(match[2]),
+              patch: Number(match[3]),
+              prerelease: match[4] ? match[4].split('.') : []
+            }
+          }
+
+          function comparePrereleaseId(a, b) {
+            const aNumeric = /^\d+$/.test(a)
+            const bNumeric = /^\d+$/.test(b)
+
+            if (aNumeric && bNumeric) {
+              return Number(a) - Number(b)
+            }
+
+            if (aNumeric) {
+              return -1
+            }
+
+            if (bNumeric) {
+              return 1
+            }
+
+            return a.localeCompare(b)
+          }
+
+          function compareVersion(a, b) {
+            for (const key of ['major', 'minor', 'patch']) {
+              if (a[key] !== b[key]) {
+                return a[key] - b[key]
+              }
+            }
+
+            if (a.prerelease.length === 0 && b.prerelease.length === 0) {
+              return 0
+            }
+
+            if (a.prerelease.length === 0) {
+              return 1
+            }
+
+            if (b.prerelease.length === 0) {
+              return -1
+            }
+
+            const length = Math.max(a.prerelease.length, b.prerelease.length)
+            for (let index = 0; index < length; index += 1) {
+              const aId = a.prerelease[index]
+              const bId = b.prerelease[index]
+
+              if (aId === undefined) {
+                return -1
+              }
+
+              if (bId === undefined) {
+                return 1
+              }
+
+              const result = comparePrereleaseId(aId, bId)
+              if (result !== 0) {
+                return result
+              }
+            }
+
+            return 0
+          }
+
+          const refsOutput = execFileSync('git', ['ls-remote', '--heads', 'origin', 'preview/v*'], {
+            encoding: 'utf8'
+          })
+          const candidates = refsOutput
+            .trim()
+            .split('\n')
+            .filter(Boolean)
+            .map((line) => {
+              const [sha, ref] = line.split(/\s+/)
+              const branch = ref.replace(/^refs\/heads\//, '')
+              const version = branch.replace(/^preview\/v/, '')
+              const parsed = parseVersion(version)
+
+              if (!parsed) {
+                console.warn(`Skipping non-semver preview branch: ${branch}`)
+                return null
+              }
+
+              return { sha, branch, version, parsed }
+            })
+            .filter(Boolean)
+
+          if (candidates.length === 0) {
+            throw new Error('No semver preview branches found matching preview/v*')
+          }
+
+          candidates.sort((a, b) => compareVersion(a.parsed, b.parsed))
+
+          const latest = candidates[candidates.length - 1]
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `branch=${latest.branch}\n`)
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `sha=${latest.sha}\n`)
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `short_sha=${latest.sha.slice(0, 7)}\n`)
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, `version=${latest.version}\n`)
+          console.log(`Building ${latest.branch} at ${latest.sha}`)
+          NODE
           echo "date=$(TZ=Asia/Shanghai date +'%Y%m%d')" >> $GITHUB_OUTPUT
-          echo "Building v2 at $SHA"
 
   preview-build:
     needs:
@@ -77,7 +187,7 @@ jobs:
       fail-fast: false
 
     steps:
-      - name: Check out v2 branch
+      - name: Check out selected preview branch
         uses: actions/checkout@v6
         with:
           ref: ${{ needs.metadata.outputs.sha }}
@@ -112,7 +222,39 @@ jobs:
       - name: Install Dependencies
         run: pnpm install
 
-      - name: Patch preview app identity
+      - name: Patch preview package version
+        shell: bash
+        env:
+          BUILD_VERSION: ${{ needs.metadata.outputs.version }}
+        run: |
+          node <<'NODE'
+          const fs = require('fs')
+
+          const packageJsonPath = 'package.json'
+          const version = process.env.BUILD_VERSION
+
+          if (!version) {
+            throw new Error('BUILD_VERSION is required')
+          }
+
+          const content = fs.readFileSync(packageJsonPath, 'utf8')
+          const packageJson = JSON.parse(content)
+          const updated = content.replace(/("version"\s*:\s*")[^"]+(")/, `$1${version}$2`)
+
+          if (updated === content && packageJson.version !== version) {
+            throw new Error('package.json version field was not found')
+          }
+
+          const updatedPackageJson = JSON.parse(updated)
+          if (updatedPackageJson.version !== version) {
+            throw new Error(`Failed to update package.json version to ${version}`)
+          }
+
+          fs.writeFileSync(packageJsonPath, updated)
+          console.log(`Patched package.json version to ${version}`)
+          NODE
+
+      - name: Patch preview product name
         shell: bash
         run: |
           node <<'NODE'
@@ -120,22 +262,7 @@ jobs:
           const replacements = [
             {
               path: 'electron-builder.yml',
-              replace: (content) =>
-                content
-                  .replace(/^appId: .+$/m, 'appId: com.cherryai.cherrystudio.preview')
-                  .replace(/^productName: .+$/m, 'productName: Cherry Studio Next')
-            },
-            {
-              path: 'scripts/notarize.js',
-              replace: (content) => content.replaceAll('com.cherryai.cherrystudio', 'com.cherryai.cherrystudio.preview')
-            },
-            {
-              path: 'src/main/index.ts',
-              replace: (content) => content.replaceAll('com.cherryai.cherrystudio', 'com.cherryai.cherrystudio.preview')
-            },
-            {
-              path: 'src/main/services/selection/SelectionService.ts',
-              replace: (content) => content.replaceAll('com.cherryai.cherrystudio', 'com.cherryai.cherrystudio.preview')
+              replace: (content) => content.replace(/^productName: .+$/m, 'productName: Cherry Studio Next')
             }
           ]
 
@@ -143,7 +270,7 @@ jobs:
             const original = fs.readFileSync(item.path, 'utf8')
             const updated = item.replace(original)
             if (updated === original) {
-              throw new Error(`Preview identity replacement made no changes in ${item.path}`)
+              throw new Error(`Preview product name replacement made no changes in ${item.path}`)
             }
             fs.writeFileSync(item.path, updated)
             console.log(`Patched ${item.path}`)
@@ -419,6 +546,7 @@ jobs:
       - name: Create summary report
         shell: bash
         env:
+          BUILD_BRANCH: ${{ needs.metadata.outputs.branch }}
           BUILD_RESULT: ${{ needs.preview-build.result }}
           BUILD_DATE: ${{ needs.metadata.outputs.date }}
           BUILD_SHA: ${{ needs.metadata.outputs.sha }}
@@ -427,7 +555,7 @@ jobs:
         run: |
           echo "## Cherry Studio v2 Preview Build" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- Branch: \`v2\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Branch: \`${BUILD_BRANCH}\`" >> $GITHUB_STEP_SUMMARY
           echo "- Commit: \`${SHORT_SHA}\`" >> $GITHUB_STEP_SUMMARY
           echo "- Date: \`${BUILD_DATE}\`" >> $GITHUB_STEP_SUMMARY
           echo "- Status: \`${BUILD_RESULT}\`" >> $GITHUB_STEP_SUMMARY
@@ -438,6 +566,7 @@ jobs:
         if: always()
         shell: bash
         env:
+          BUILD_BRANCH: ${{ needs.metadata.outputs.branch }}
           FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_RELEASE_WEBHOOK_URL }}
           FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_RELEASE_WEBHOOK_SECRET }}
           BUILD_RESULT: ${{ needs.preview-build.result }}
@@ -461,7 +590,7 @@ jobs:
               ;;
           esac
 
-          DESCRIPTION=$(printf "**Branch:** v2\n\n**Commit:** %.7s\n\n**Date:** %s\n\n**Status:** %s\n\n**Download:** [Actions Artifacts](%s)" "$BUILD_SHA" "$BUILD_DATE" "$STATUS_TEXT" "$RUN_URL")
+          DESCRIPTION=$(printf "**Branch:** %s\n\n**Commit:** %.7s\n\n**Date:** %s\n\n**Status:** %s\n\n**Download:** [Actions Artifacts](%s)" "$BUILD_BRANCH" "$BUILD_SHA" "$BUILD_DATE" "$STATUS_TEXT" "$RUN_URL")
 
           pnpm tsx scripts/feishu-notify.ts send \
             -t "Cherry Studio v2 preview build ${STATUS_TEXT}" \

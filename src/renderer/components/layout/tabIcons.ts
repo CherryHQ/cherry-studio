@@ -1,18 +1,22 @@
 import type { Tab } from '@renderer/hooks/useTabs'
 import {
-  BookOpen,
-  Bot,
   Code,
-  Files,
-  FileText,
+  FileSearch,
+  Folder,
   Globe,
   Home,
   Languages,
+  LayoutGrid,
+  Library,
   MessageCircle,
+  MousePointerClick,
+  NotepadText,
   Palette,
   Settings,
-  Sparkles
+  Sparkle
 } from 'lucide-react'
+
+import { OpenClawSidebarIcon } from '../Icons/SvgIcon'
 
 export type IconComponent = React.FC<{ size?: number; strokeWidth?: number; className?: string }>
 
@@ -22,15 +26,17 @@ export const ROUTE_ICONS: Record<string, IconComponent> = {
   '/': Home,
   '/home': Home,
   '/app/chat': MessageCircle,
-  '/app/agents': Bot,
-  '/app/assistant': Sparkles,
+  '/app/agents': MousePointerClick,
+  '/app/assistant': Sparkle,
   '/app/paintings': Palette,
   '/app/translate': Languages,
-  '/app/mini-app': Globe,
-  '/app/knowledge': BookOpen,
-  '/app/files': Files,
+  '/app/mini-app': LayoutGrid,
+  '/app/knowledge': FileSearch,
+  '/app/library': Library,
+  '/app/files': Folder,
   '/app/code': Code,
-  '/app/notes': FileText,
+  '/app/notes': NotepadText,
+  '/app/openclaw': OpenClawSidebarIcon,
   '/settings': Settings
 }
 

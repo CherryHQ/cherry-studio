@@ -25,7 +25,7 @@ import { buildRuntimeEndpointConfigs, ENDPOINT_TYPE, REASONING_EFFORT } from '@c
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { loggerService } from '@logger'
 import { ErrorCode, isDataApiError } from '@shared/data/api/apiErrors'
-import type { Model, RuntimeModelPricing, RuntimeReasoning } from '@shared/data/types/model'
+import type { ImageGenerationSupport, Model, RuntimeModelPricing, RuntimeReasoning } from '@shared/data/types/model'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { EndpointConfig, ProviderWebsites, ReasoningFormatType } from '@shared/data/types/provider'
 
@@ -34,6 +34,11 @@ const logger = loggerService.withContext('DataApi:ProviderRegistryService')
 export interface ProviderDisplayMetadata {
   description?: string
   websites?: ProviderWebsites
+}
+
+export interface ListProviderRegistryModelsOptions {
+  providerId?: string
+  disabled?: boolean
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -125,6 +130,33 @@ export function createCustomModel(providerId: string, modelId: string): Model {
     supportsStreaming: true,
     isEnabled: true,
     isHidden: false
+  }
+}
+
+/**
+ * Synthesize a minimal `ProtoModelConfig` from a provider-models override when
+ * no `models.json` entry exists for that model id. Lets `provider-models.json`
+ * carry vendor-exclusive models (ModelScope's `Tongyi-MAI/Z-Image-Turbo`, PPIO
+ * bespoke endpoints, …) entirely on its own — no entry needed in the global
+ * model catalog.
+ *
+ * Capability resolution favors `force` (the new-row case) over `add`. The
+ * synthesized preset feeds straight into `applyPresetAndOverride`, where the
+ * override's modality / capability / pricing arrays already merge correctly.
+ */
+export function synthesizePresetFromOverride(override: ProtoProviderModelOverride): ProtoModelConfig {
+  const capabilities = override.capabilities?.force ?? override.capabilities?.add ?? []
+  return {
+    id: override.modelId,
+    name: override.name ?? override.modelId,
+    description: override.description,
+    family: override.family,
+    ownedBy: override.ownedBy,
+    capabilities,
+    inputModalities: override.inputModalities,
+    outputModalities: override.outputModalities,
+    pricing: override.pricing as ProtoModelConfig['pricing'],
+    imageGeneration: override.imageGeneration
   }
 }
 
@@ -484,7 +516,11 @@ class ProviderRegistryService {
    */
   async lookupModel(
     providerId: string,
-    modelId: string
+    modelId: string,
+    reasoningConfigCache?: Map<
+      string,
+      { defaultChatEndpoint?: EndpointType; reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>> }
+    >
   ): Promise<{
     presetModel: ProtoModelConfig | null
     registryOverride: ProtoProviderModelOverride | null
@@ -492,9 +528,16 @@ class ProviderRegistryService {
     reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
   }> {
     const loader = this.getLoader()
-    const presetModel = loader.findModel(modelId)
     const registryOverride = loader.findOverride(providerId, modelId)
-    const reasoningConfig = await this.getEffectiveReasoningConfig(providerId)
+    const presetModel = loader.findModel(registryOverride?.modelId ?? modelId)
+    // `getEffectiveReasoningConfig` reads the provider row from the DB; when an
+    // optional cache is supplied (batch enrichment in `ModelService.list`),
+    // resolve it once per provider instead of once per model.
+    let reasoningConfig = reasoningConfigCache?.get(providerId)
+    if (!reasoningConfig) {
+      reasoningConfig = await this.getEffectiveReasoningConfig(providerId)
+      reasoningConfigCache?.set(providerId, reasoningConfig)
+    }
 
     return { presetModel, registryOverride, ...reasoningConfig }
   }
@@ -528,8 +571,8 @@ class ProviderRegistryService {
       seen.add(modelId)
 
       // O(1) lookup with exact match + normalized fallback
-      const presetModel = loader.findModel(modelId)
       const registryOverride = loader.findOverride(providerId, modelId)
+      const presetModel = loader.findModel(registryOverride?.modelId ?? modelId)
 
       if (presetModel) {
         results.push(
@@ -541,6 +584,89 @@ class ProviderRegistryService {
     }
 
     return results
+  }
+
+  async listProviderRegistryModels(options: ListProviderRegistryModelsOptions = {}): Promise<Model[]> {
+    const loader = this.getLoader()
+    const overrides = options.providerId
+      ? loader.getOverridesForProvider(options.providerId)
+      : loader.loadProviderModels()
+    const includeDisabled = options.disabled ?? false
+    const reasoningConfigByProvider = new Map<
+      string,
+      {
+        defaultChatEndpoint?: EndpointType
+        reasoningFormatTypes?: Partial<Record<EndpointType, ReasoningFormatType>>
+      }
+    >()
+    const results: Model[] = []
+
+    for (const override of overrides) {
+      if ((override.disabled ?? false) !== includeDisabled) continue
+
+      // Synthesize a preset when models.json has no entry — vendor-exclusive
+      // models (modelscope's Tongyi-MAI/*, ppio bespoke endpoints, …) live
+      // entirely inside provider-models.json with their imageGeneration
+      // block declared inline. Reduces models.json clutter from
+      // single-provider entries.
+      const presetModel = loader.findModel(override.modelId) ?? synthesizePresetFromOverride(override)
+
+      let reasoningConfig = reasoningConfigByProvider.get(override.providerId)
+      if (!reasoningConfig) {
+        reasoningConfig = this.getRegistryReasoningConfig(override.providerId)
+        reasoningConfigByProvider.set(override.providerId, reasoningConfig)
+      }
+
+      const model = mergePresetModel(
+        presetModel,
+        override,
+        override.providerId,
+        reasoningConfig.reasoningFormatTypes,
+        reasoningConfig.defaultChatEndpoint
+      )
+
+      const apiModelId = model.apiModelId ?? override.apiModelId ?? override.modelId
+      results.push({
+        ...model,
+        id: createUniqueModelId(override.providerId, apiModelId),
+        apiModelId,
+        presetModelId: presetModel.id
+      })
+    }
+
+    return results
+  }
+
+  async isActiveProviderRegistryModel(providerId: string, modelId: string): Promise<boolean> {
+    const loader = this.getLoader()
+    const override = loader.findOverride(providerId, modelId)
+    // Vendor-exclusive override-only models (no models.json entry) are also
+    // active — the override carries the full model definition itself.
+    return override !== null && !(override.disabled ?? false)
+  }
+
+  /**
+   * Read the painting-page metadata block the registry exposes for a
+   * (provider, model) pair. Drives the generic painting form: providers
+   * opting into `useRegistryForm` derive their field set from this block
+   * instead of a hand-rolled `fields.ts`.
+   *
+   * Resolution order:
+   *  1. Per-(provider, model) `imageGeneration` override from the
+   *     provider-model registry (vendor-exclusive UI).
+   *  2. Model-level `imageGeneration` from `models.json` (per-model UI).
+   *  3. `null` — renderer falls back to the provider's `fields.byTab`.
+   *
+   * Used by: GET /providers/:providerId/models/:modelId/image-generation-support
+   * (greedy `:modelId` capture for HuggingFace-style ids containing `/`).
+   */
+  async getImageGenerationSupport(providerId: string, modelId: string): Promise<ImageGenerationSupport | null> {
+    const { presetModel, registryOverride } = await this.lookupModel(providerId, modelId)
+    // Override wins — lets vendor-exclusive overrides declare their own
+    // imageGeneration block without polluting the global models.json.
+    if (registryOverride?.imageGeneration) return registryOverride.imageGeneration
+    if (presetModel?.imageGeneration) return presetModel.imageGeneration
+    return null
   }
 }
 

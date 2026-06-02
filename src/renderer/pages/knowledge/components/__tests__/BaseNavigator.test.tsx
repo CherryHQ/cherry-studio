@@ -1,5 +1,5 @@
+import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
-import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import type * as ReactModule from 'react'
 import type { MouseEvent as ReactMouseEvent, ReactNode } from 'react'
@@ -40,11 +40,23 @@ vi.mock('@cherrystudio/ui', () => {
         </AccordionContext>
       )
     },
-    AccordionContent: ({ children }: { children: ReactNode }) => {
+    AccordionContent: ({
+      children,
+      className,
+      contentClassName
+    }: {
+      children: ReactNode
+      className?: string
+      contentClassName?: string
+    }) => {
       const { openValues } = React.use(AccordionContext)
       const value = React.use(AccordionItemContext)
 
-      return value && openValues.includes(value) ? <div>{children}</div> : null
+      return value && openValues.includes(value) ? (
+        <div data-slot="accordion-content" data-state="open" className={contentClassName}>
+          <div className={className}>{children}</div>
+        </div>
+      ) : null
     },
     AccordionItem: ({ children, value }: { children: ReactNode; value: string }) => (
       <AccordionItemContext value={value}>
@@ -125,6 +137,12 @@ vi.mock('@cherrystudio/ui', () => {
           </button>
         </div>
       ) : null,
+    EmptyState: ({ title, description }: { title?: ReactNode; description?: ReactNode }) => (
+      <div>
+        {title}
+        {description}
+      </div>
+    ),
     Input: (props: Record<string, unknown>) => <input {...props} />,
     MenuDivider: () => <hr />,
     MenuItem: ({
@@ -157,8 +175,29 @@ vi.mock('@cherrystudio/ui', () => {
       const open = React.use(PopoverContext)
       return open ? <div>{children}</div> : null
     },
+    PopoverTrigger: ({ children }: { children: ReactNode }) => children,
     Scrollbar: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
       <div {...props}>{children}</div>
+    ),
+    SearchInput: ({
+      clearLabel,
+      onClear,
+      value,
+      ...props
+    }: {
+      clearLabel?: string
+      onClear?: () => void
+      value?: string
+      [key: string]: unknown
+    }) => (
+      <div>
+        <input value={value} {...props} />
+        {value && onClear ? (
+          <button type="button" aria-label={clearLabel} onClick={onClear}>
+            {clearLabel}
+          </button>
+        ) : null}
+      </div>
     )
   }
 })
@@ -171,8 +210,10 @@ vi.mock('react-i18next', () => ({
     t: (key: string, options?: { count?: number }) =>
       (
         ({
+          'common.add': '添加',
           'common.cancel': '取消',
           'common.delete': '删除',
+          'common.clear': '清除',
           'common.more': '更多',
           'knowledge.title': '知识库',
           'knowledge.add.title': '新建知识库',
@@ -180,10 +221,10 @@ vi.mock('react-i18next', () => ({
           'knowledge.empty': '暂无知识库',
           'knowledge.groups.add': '新建分组',
           'knowledge.groups.create_base_here': '在此分组新建',
+          'knowledge.groups.default': '默认',
           'knowledge.groups.delete': '删除分组',
-          'knowledge.groups.delete_confirm_description': '删除后，该分组下的知识库将移至未分组。',
+          'knowledge.groups.delete_confirm_description': '删除后，该分组下的知识库将移至默认分组。',
           'knowledge.groups.delete_confirm_title': '确认删除分组',
-          'knowledge.groups.ungrouped': '未分组',
           'knowledge.context.rename': '重命名',
           'knowledge.context.move_to': '移动到',
           'knowledge.context.delete': '删除知识库',
@@ -196,11 +237,11 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeBase => ({
+const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): KnowledgeBaseListItem => ({
   id: '',
   name: '',
+  itemCount: 0,
   groupId: null,
-  emoji: '📁',
   dimensions: 1536,
   embeddingModelId: null,
   rerankModelId: undefined,
@@ -247,6 +288,18 @@ const getGroupMoreButton = (groupName: string) => {
   return within(groupRow).getByRole('button', { name: '更多' })
 }
 
+const getMenuButton = (name: string) => {
+  const button = screen
+    .getAllByRole('button', { name })
+    .find((element) => element.getAttribute('data-active') === 'false')
+
+  if (!button) {
+    throw new Error(`Missing menu button for ${name}`)
+  }
+
+  return button
+}
+
 describe('BaseNavigator', () => {
   it('keeps horizontal padding around the knowledge base list', () => {
     const { container } = render(
@@ -267,7 +320,7 @@ describe('BaseNavigator', () => {
       />
     )
 
-    expect(container.querySelector('.min-h-0.flex-1')).toHaveClass('px-1.5')
+    expect(container.querySelector('.min-h-0.flex-1')).toHaveClass('px-3', 'pb-3')
   })
 
   it('shows real group names and falls back to raw groupId when the mapping is missing', () => {
@@ -294,6 +347,68 @@ describe('BaseNavigator', () => {
 
     expect(screen.getByText('Research')).toBeInTheDocument()
     expect(screen.getByText('workspace')).toBeInTheDocument()
+  })
+
+  it('places group counts next to their labels inside the trigger', () => {
+    render(
+      <BaseNavigator
+        bases={[
+          createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: null }),
+          createKnowledgeBase({ id: 'base-2', name: 'Beta', groupId: 'group-1' })
+        ]}
+        groups={[createGroup({ id: 'group-1', name: 'Research' })]}
+        width={280}
+        selectedBaseId="base-1"
+        onSelectBase={vi.fn()}
+        onCreateGroup={vi.fn()}
+        onCreateBase={vi.fn()}
+        onMoveBase={vi.fn()}
+        onRenameBase={vi.fn()}
+        onRenameGroup={vi.fn()}
+        onDeleteGroup={vi.fn()}
+        onDeleteBase={vi.fn()}
+        onResizeStart={vi.fn()}
+      />
+    )
+
+    expect(within(screen.getByRole('button', { name: /默认/ })).getByText('1')).toBeInTheDocument()
+    expect(within(screen.getByRole('button', { name: /Research/ })).getByText('1')).toBeInTheDocument()
+  })
+
+  it('keeps the group expand and collapse motion classes attached', () => {
+    const { container } = render(
+      <BaseNavigator
+        bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: 'group-1' })]}
+        groups={[createGroup({ id: 'group-1', name: 'Research' })]}
+        width={280}
+        selectedBaseId="base-1"
+        onSelectBase={vi.fn()}
+        onCreateGroup={vi.fn()}
+        onCreateBase={vi.fn()}
+        onMoveBase={vi.fn()}
+        onRenameBase={vi.fn()}
+        onRenameGroup={vi.fn()}
+        onDeleteGroup={vi.fn()}
+        onDeleteBase={vi.fn()}
+        onResizeStart={vi.fn()}
+      />
+    )
+
+    const groupTrigger = screen.getByRole('button', { name: /Research/ })
+    const accordionContent = container.querySelector('[data-slot="accordion-content"]')
+    const accordionContentInner = accordionContent?.firstElementChild
+
+    expect(groupTrigger).toHaveClass(
+      'motion-safe:[&>svg]:duration-[150ms]',
+      'motion-safe:[&>svg]:ease-[cubic-bezier(0.25,1,0.5,1)]'
+    )
+    expect(accordionContent).toHaveClass(
+      'motion-safe:data-[state=open]:[animation-duration:180ms]',
+      'motion-safe:data-[state=closed]:[animation-duration:120ms]',
+      'motion-safe:data-[state=open]:[&>div]:animate-in',
+      'motion-safe:data-[state=open]:[&>div]:delay-[16ms]'
+    )
+    expect(accordionContentInner).toHaveClass('pt-1.5', 'pb-0')
   })
 
   it('renders ungrouped bases before real group sections', () => {
@@ -324,7 +439,7 @@ describe('BaseNavigator', () => {
     expect(ungroupedBase.compareDocumentPosition(firstRealGroup) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('renders ungrouped bases without a synthetic group label', () => {
+  it('renders ungrouped bases under the default knowledge group', () => {
     render(
       <BaseNavigator
         bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: null })]}
@@ -344,10 +459,10 @@ describe('BaseNavigator', () => {
     )
 
     expect(screen.getByRole('button', { name: /Alpha/ })).toBeInTheDocument()
-    expect(screen.queryByText('未分组')).not.toBeInTheDocument()
+    expect(screen.getByText('默认')).toBeInTheDocument()
   })
 
-  it('shows ungrouped as a move target for grouped bases', async () => {
+  it('shows the default knowledge group as a move target for grouped bases', async () => {
     const onMoveBase = vi.fn().mockResolvedValue(undefined)
 
     render(
@@ -371,7 +486,7 @@ describe('BaseNavigator', () => {
     fireEvent.contextMenu(screen.getByRole('button', { name: /Alpha/ }))
 
     expect(screen.getByText('移动到')).toBeInTheDocument()
-    fireEvent.click(screen.getAllByRole('button', { name: '未分组' })[0])
+    fireEvent.click(getMenuButton('默认'))
 
     await waitFor(() => {
       expect(onMoveBase).toHaveBeenCalledWith('base-1', null)
@@ -406,8 +521,8 @@ describe('BaseNavigator', () => {
 
     expect(screen.getByRole('button', { name: '重命名' })).not.toBeDisabled()
     expect(screen.getByText('移动到')).toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'Research' })).toHaveLength(1)
-    expect(screen.getAllByRole('button', { name: '未分组' })).toHaveLength(1)
+    expect(screen.getAllByRole('button', { name: /Research/ })).toHaveLength(1)
+    expect(getMenuButton('默认')).toBeInTheDocument()
     expect(
       screen
         .getAllByRole('button', { name: 'Archive' })
@@ -448,7 +563,7 @@ describe('BaseNavigator', () => {
     fireEvent.contextMenu(screen.getByRole('button', { name: /Alpha/ }))
 
     expect(screen.queryByText('移动到')).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '未分组' })).not.toBeInTheDocument()
+    expect(screen.getByText('默认')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '删除知识库' })).toBeInTheDocument()
   })
 
@@ -648,7 +763,7 @@ describe('BaseNavigator', () => {
     fireEvent.click(screen.getByRole('button', { name: '删除分组' }))
 
     expect(screen.getByText('确认删除分组')).toBeInTheDocument()
-    expect(screen.getByText('删除后，该分组下的知识库将移至未分组。')).toBeInTheDocument()
+    expect(screen.getByText('删除后，该分组下的知识库将移至默认分组。')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: '删除' }))
 
@@ -684,7 +799,7 @@ describe('BaseNavigator', () => {
     expect(onCreateBase).toHaveBeenCalledWith('group-1')
   })
 
-  it('does not render a group menu trigger for the ungrouped section', () => {
+  it('does not render a group menu trigger for the default knowledge group', () => {
     render(
       <BaseNavigator
         bases={[createKnowledgeBase({ id: 'base-1', name: 'Alpha', groupId: null })]}
@@ -703,7 +818,7 @@ describe('BaseNavigator', () => {
       />
     )
 
-    expect(screen.queryByText('未分组')).not.toBeInTheDocument()
+    expect(screen.getByText('默认')).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: '更多' })).toHaveLength(1)
   })
 
@@ -766,14 +881,14 @@ describe('BaseNavigator', () => {
       />
     )
 
-    expect(screen.getByRole('button', { name: /Alpha/ })).toHaveClass('bg-accent')
+    expect(screen.getByRole('button', { name: /Alpha/ })).toHaveClass('bg-secondary')
 
     fireEvent.click(screen.getByRole('button', { name: /Beta/ }))
 
     expect(onSelectBase).toHaveBeenCalledWith('base-2')
   })
 
-  it('uses the folder-plus button as the create-group entry', () => {
+  it('forwards group creation from the search-row create menu on hover', () => {
     const onCreateGroup = vi.fn()
     const onCreateBase = vi.fn()
 
@@ -795,14 +910,15 @@ describe('BaseNavigator', () => {
       />
     )
 
-    fireEvent.click(screen.getByRole('button', { name: '新建分组' }))
+    fireEvent.mouseEnter(screen.getByRole('button', { name: '添加' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '新建分组' }))
 
     expect(onCreateGroup).toHaveBeenCalledTimes(1)
     expect(onCreateBase).not.toHaveBeenCalled()
     expect(screen.getByText('Research')).toBeInTheDocument()
   })
 
-  it('uses both header and footer create-base buttons as knowledge base entry points', () => {
+  it('forwards knowledge base creation from the search-row create menu on hover', () => {
     const onCreateBase = vi.fn()
 
     render(
@@ -823,14 +939,10 @@ describe('BaseNavigator', () => {
       />
     )
 
-    const createBaseButtons = screen.getAllByRole('button', { name: '新建知识库' })
+    fireEvent.mouseEnter(screen.getByRole('button', { name: '添加' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: '新建知识库' }))
 
-    expect(createBaseButtons).toHaveLength(2)
-
-    fireEvent.click(createBaseButtons[0])
-    fireEvent.click(createBaseButtons[1])
-
-    expect(onCreateBase).toHaveBeenCalledTimes(2)
+    expect(onCreateBase).toHaveBeenCalledTimes(1)
   })
 
   it('renders a resize handle and binds mouse down to onResizeStart', () => {

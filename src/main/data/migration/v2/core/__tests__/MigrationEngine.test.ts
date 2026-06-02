@@ -141,9 +141,7 @@ describe('MigrationEngine', () => {
     await (engine as any).verifyAndClearNewTables()
 
     expect(transactionFn).toHaveBeenCalledTimes(1)
-
-    expect(deleteFn).toHaveBeenCalledTimes(28)
-
+    expect(deleteFn).toHaveBeenCalledTimes(db.select.mock.calls.length)
     expect(db).not.toHaveProperty('delete')
   })
 })

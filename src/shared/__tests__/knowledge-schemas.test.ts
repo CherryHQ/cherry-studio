@@ -31,7 +31,6 @@ describe('Knowledge base schemas', () => {
       dimensions: 1024,
       embeddingModelId: 'embed-model',
       groupId: GROUP_ID,
-      emoji: '📚',
       chunkSize: 800,
       chunkOverlap: 120,
       threshold: 0.5,
@@ -66,7 +65,6 @@ describe('Knowledge base schemas', () => {
 
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data).not.toHaveProperty('emoji')
       expect(result.data).not.toHaveProperty('searchMode')
     }
   })
@@ -249,7 +247,6 @@ describe('Knowledge base schemas', () => {
       dimensions: 1024,
       embeddingModelId: 'embed-model',
       groupId: null,
-      emoji: '📁',
       status: 'completed',
       error: null,
       chunkSize: 0,
@@ -271,7 +268,6 @@ describe('Knowledge base schemas', () => {
       dimensions: 1024,
       embeddingModelId: 'embed-model',
       groupId: null,
-      emoji: '📁',
       status: 'completed',
       error: null,
       chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
@@ -283,7 +279,6 @@ describe('Knowledge base schemas', () => {
 
     expect(result.success).toBe(true)
     if (result.success) {
-      expect(result.data.emoji).toBe('📁')
       expect(result.data.searchMode).toBe('hybrid')
     }
   })
@@ -294,7 +289,6 @@ describe('Knowledge base schemas', () => {
       name: 'KB',
       embeddingModelId: null,
       groupId: null,
-      emoji: '📁',
       status: 'failed',
       error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
       chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
@@ -337,60 +331,11 @@ describe('Knowledge base schemas', () => {
         name: 'KB',
         dimensions: 1024,
         embeddingModelId: 'embed-model',
-        emoji: '📁',
         status: 'completed',
         error: null,
         chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
         chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
         searchMode: 'hybrid',
-        createdAt: '2026-04-10T00:00:00.000Z',
-        updatedAt: '2026-04-10T00:00:00.000Z'
-      }).success
-    ).toBe(false)
-  })
-
-  it('rejects invalid knowledge base emoji values', () => {
-    expect(
-      CreateKnowledgeBaseSchema.safeParse({
-        name: 'KB',
-        dimensions: 1024,
-        embeddingModelId: 'embed-model',
-        emoji: 'books'
-      }).success
-    ).toBe(false)
-
-    expect(
-      UpdateKnowledgeBaseSchema.safeParse({
-        emoji: 'books'
-      }).success
-    ).toBe(false)
-
-    expect(
-      CreateKnowledgeBaseSchema.safeParse({
-        name: 'KB',
-        dimensions: 1024,
-        embeddingModelId: 'embed-model',
-        emoji: '  📚  '
-      }).success
-    ).toBe(false)
-
-    expect(
-      UpdateKnowledgeBaseSchema.safeParse({
-        emoji: '   '
-      }).success
-    ).toBe(false)
-
-    expect(
-      KnowledgeBaseSchema.safeParse({
-        id: KNOWLEDGE_BASE_ID,
-        name: 'KB',
-        dimensions: 1024,
-        embeddingModelId: 'embed-model',
-        emoji: 'books',
-        status: 'completed',
-        error: null,
-        chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
-        chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
         createdAt: '2026-04-10T00:00:00.000Z',
         updatedAt: '2026-04-10T00:00:00.000Z'
       }).success
@@ -530,7 +475,6 @@ it('accepts failed knowledge bases with a null embedding model id', () => {
     dimensions: 1024,
     embeddingModelId: null,
     groupId: null,
-    emoji: '📁',
     status: 'failed',
     error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
     chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
@@ -549,7 +493,6 @@ it('rejects invalid knowledge base status error combinations', () => {
     name: 'KB',
     dimensions: 1024,
     groupId: null,
-    emoji: '📁',
     chunkSize: DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
     chunkOverlap: DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
     searchMode: 'hybrid' as const,
@@ -653,5 +596,4 @@ it('keeps patch groupId aligned with topic semantics', () => {
   expect(UpdateKnowledgeBaseSchema.safeParse({ groupId: null }).success).toBe(true)
   expect(UpdateKnowledgeBaseSchema.safeParse({ groupId: GROUP_ID }).success).toBe(true)
   expect(UpdateKnowledgeBaseSchema.safeParse({ groupId: '   ' }).success).toBe(false)
-  expect(UpdateKnowledgeBaseSchema.safeParse({ emoji: null }).success).toBe(false)
 })
