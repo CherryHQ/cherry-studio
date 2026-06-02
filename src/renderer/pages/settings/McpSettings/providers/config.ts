@@ -12,9 +12,7 @@ import { getTokenFluxToken, saveTokenFluxToken, syncTokenFluxServers, TOKENFLUX_
 export interface SyncResult {
   success: boolean
   message: string
-  addedServers: MCPServer[]
-  updatedServers?: MCPServer[]
-  allServers?: MCPServer[]
+  allServers: MCPServer[]
 }
 
 export interface ProviderConfig {

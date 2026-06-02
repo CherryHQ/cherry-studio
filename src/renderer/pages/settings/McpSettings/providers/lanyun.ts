@@ -55,8 +55,6 @@ interface TokenLanYunServer {
 interface TokenLanYunSyncResult {
   success: boolean
   message: string
-  addedServers: MCPServer[]
-  updatedServers: MCPServer[]
   allServers: MCPServer[]
   errorDetails?: string
 }
@@ -80,8 +78,6 @@ export const syncTokenLanYunServers = async (token: string): Promise<TokenLanYun
       return {
         success: false,
         message: t('settings.mcp.sync.unauthorized', 'Sync Unauthorized'),
-        addedServers: [],
-        updatedServers: [],
         allServers: []
       }
     }
@@ -91,8 +87,6 @@ export const syncTokenLanYunServers = async (token: string): Promise<TokenLanYun
       return {
         success: false,
         message: t('settings.mcp.sync.error'),
-        addedServers: [],
-        updatedServers: [],
         allServers: [],
         errorDetails: `Status: ${response.status}`
       }
@@ -104,8 +98,6 @@ export const syncTokenLanYunServers = async (token: string): Promise<TokenLanYun
       return {
         success: false,
         message: t('settings.mcp.sync.unauthorized', 'Sync Unauthorized'),
-        addedServers: [],
-        updatedServers: [],
         allServers: [],
         errorDetails: `Status: ${response.status}`
       }
@@ -114,8 +106,6 @@ export const syncTokenLanYunServers = async (token: string): Promise<TokenLanYun
       return {
         success: false,
         message: t('settings.mcp.sync.error'),
-        addedServers: [],
-        updatedServers: [],
         allServers: [],
         errorDetails: `Status: ${response.status}`
       }
@@ -127,8 +117,6 @@ export const syncTokenLanYunServers = async (token: string): Promise<TokenLanYun
       return {
         success: true,
         message: t('settings.mcp.sync.noServersAvailable', 'No MCP servers available'),
-        addedServers: [],
-        updatedServers: [],
         allServers: []
       }
     }
@@ -166,8 +154,6 @@ export const syncTokenLanYunServers = async (token: string): Promise<TokenLanYun
     return {
       success: true,
       message: t('settings.mcp.sync.success', { count: allServers.length }),
-      addedServers: [],
-      updatedServers: [],
       allServers
     }
   } catch (error) {
@@ -175,8 +161,6 @@ export const syncTokenLanYunServers = async (token: string): Promise<TokenLanYun
     return {
       success: false,
       message: t('settings.mcp.sync.error'),
-      addedServers: [],
-      updatedServers: [],
       allServers: [],
       errorDetails: String(error)
     }

@@ -28,8 +28,6 @@ export const hasAI302Token = (): boolean => {
 interface Ai302SyncResult {
   success: boolean
   message: string
-  addedServers: MCPServer[]
-  updatedServers: MCPServer[]
   allServers: MCPServer[]
   errorDetails?: string
 }
@@ -53,8 +51,6 @@ export const syncAi302Servers = async (token: string): Promise<Ai302SyncResult> 
       return {
         success: false,
         message: t('settings.mcp.sync.unauthorized', 'Sync Unauthorized'),
-        addedServers: [],
-        updatedServers: [],
         allServers: []
       }
     }
@@ -64,8 +60,6 @@ export const syncAi302Servers = async (token: string): Promise<Ai302SyncResult> 
       return {
         success: false,
         message: t('settings.mcp.sync.error'),
-        addedServers: [],
-        updatedServers: [],
         allServers: [],
         errorDetails: `Status: ${response.status}`
       }
@@ -80,8 +74,6 @@ export const syncAi302Servers = async (token: string): Promise<Ai302SyncResult> 
       return {
         success: true,
         message: t('settings.mcp.sync.noServersAvailable', 'No MCP servers available'),
-        addedServers: [],
-        updatedServers: [],
         allServers: []
       }
     }
@@ -112,8 +104,6 @@ export const syncAi302Servers = async (token: string): Promise<Ai302SyncResult> 
     return {
       success: true,
       message: t('settings.mcp.sync.success', { count: allServers.length }),
-      addedServers: [],
-      updatedServers: [],
       allServers
     }
   } catch (error) {
@@ -121,8 +111,6 @@ export const syncAi302Servers = async (token: string): Promise<Ai302SyncResult> 
     return {
       success: false,
       message: t('settings.mcp.sync.error'),
-      addedServers: [],
-      updatedServers: [],
       allServers: [],
       errorDetails: String(error)
     }

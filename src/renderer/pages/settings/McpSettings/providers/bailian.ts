@@ -53,8 +53,6 @@ interface McpServerCherryDetailResponse {
 export interface BailianSyncResult {
   success: boolean
   message: string
-  addedServers: MCPServer[]
-  updatedServers: MCPServer[]
   allServers: MCPServer[]
   errorDetails?: string
 }
@@ -151,8 +149,6 @@ export const syncBailianServers = async (token: string): Promise<BailianSyncResu
     return {
       success: true,
       message: t('settings.mcp.sync.success', { count: allServers.length }),
-      addedServers: [],
-      updatedServers: [],
       allServers
     }
   } catch (error) {
@@ -166,8 +162,6 @@ export const syncBailianServers = async (token: string): Promise<BailianSyncResu
       return {
         success: false,
         message,
-        addedServers: [],
-        updatedServers: [],
         allServers: []
       }
     }
@@ -179,8 +173,6 @@ export const syncBailianServers = async (token: string): Promise<BailianSyncResu
       return {
         success: false,
         message,
-        addedServers: [],
-        updatedServers: [],
         allServers: [],
         errorDetails
       }
@@ -193,8 +185,6 @@ export const syncBailianServers = async (token: string): Promise<BailianSyncResu
     return {
       success: false,
       message,
-      addedServers: [],
-      updatedServers: [],
       allServers: [],
       errorDetails
     }

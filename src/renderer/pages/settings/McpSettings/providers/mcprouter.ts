@@ -41,8 +41,6 @@ interface MCPRouterServer {
 interface MCPRouterSyncResult {
   success: boolean
   message: string
-  addedServers: MCPServer[]
-  updatedServers: MCPServer[]
   allServers: MCPServer[]
   errorDetails?: string
 }
@@ -69,8 +67,6 @@ export const syncMCPRouterServers = async (token: string): Promise<MCPRouterSync
       return {
         success: false,
         message: t('settings.mcp.sync.unauthorized', 'Sync Unauthorized'),
-        addedServers: [],
-        updatedServers: [],
         allServers: []
       }
     }
@@ -80,8 +76,6 @@ export const syncMCPRouterServers = async (token: string): Promise<MCPRouterSync
       return {
         success: false,
         message: t('settings.mcp.sync.error'),
-        addedServers: [],
-        updatedServers: [],
         allServers: [],
         errorDetails: `Status: ${response.status}`
       }
@@ -95,8 +89,6 @@ export const syncMCPRouterServers = async (token: string): Promise<MCPRouterSync
       return {
         success: true,
         message: t('settings.mcp.sync.noServersAvailable', 'No MCP servers available'),
-        addedServers: [],
-        updatedServers: [],
         allServers: []
       }
     }
@@ -129,8 +121,6 @@ export const syncMCPRouterServers = async (token: string): Promise<MCPRouterSync
     return {
       success: true,
       message: t('settings.mcp.sync.success', { count: allServers.length }),
-      addedServers: [],
-      updatedServers: [],
       allServers
     }
   } catch (error) {
@@ -138,8 +128,6 @@ export const syncMCPRouterServers = async (token: string): Promise<MCPRouterSync
     return {
       success: false,
       message: t('settings.mcp.sync.error'),
-      addedServers: [],
-      updatedServers: [],
       allServers: [],
       errorDetails: String(error)
     }

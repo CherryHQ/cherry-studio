@@ -98,7 +98,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
       const result = await provider.syncServers(token)
 
       if (result.success) {
-        const servers = result.allServers || []
+        const servers = result.allServers
         setAvailableServers(servers)
 
         // Save to database
