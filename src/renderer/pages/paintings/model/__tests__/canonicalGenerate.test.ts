@@ -94,8 +94,8 @@ describe('canonicalGenerate', () => {
     expect(call.providerBag).toBeUndefined()
   })
 
-  it('prefetches attached input images into aiSdkParams.inputImages', async () => {
-    const binaryImage = vi.fn(async () => ({ data: [1, 2, 3] }))
+  it('prefetches attached input images into aiSdkParams.inputImages as data URLs', async () => {
+    const binaryImage = vi.fn(async () => ({ data: [1, 2, 3], mime: 'image/png' }))
     ;(window as unknown as { api: unknown }).api = { file: { binaryImage } }
 
     const inputFiles = [{ id: 'file-1', ext: 'png' }] as unknown as FileEntry[]
@@ -103,6 +103,7 @@ describe('canonicalGenerate', () => {
 
     expect(binaryImage).toHaveBeenCalledWith('file-1.png')
     const call = lastGenerateCall()
-    expect(call.aiSdkParams.inputImages).toEqual([new Uint8Array([1, 2, 3])])
+    // Encoded to a `data:` URL for the main-process image IPC (`base64('\x01\x02\x03') === 'AQID'`).
+    expect(call.aiSdkParams.inputImages).toEqual(['data:image/png;base64,AQID'])
   })
 })

@@ -134,7 +134,10 @@ import { fileRefService } from '@data/services/FileRefService'
 import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { orphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry'
+import { listDirectory as searchListDirectory } from '@main/services/file/tree/search'
+import { fileStorage } from '@main/services/FileStorage'
 import { remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
+import { getPathStatus as readPathStatus } from '@main/utils/file/pathStatus'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
 import { SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
@@ -142,6 +145,7 @@ import type {
   BatchCreateResult,
   BatchMutationResult,
   CreateInternalEntryIpcParams,
+  DirectoryListOptions,
   EnsureExternalEntryIpcParams,
   FilePath,
   FileURLString,
@@ -149,6 +153,7 @@ import type {
 } from '@shared/file/types'
 import type { FileHandle } from '@shared/file/types/handle'
 import { FileHandleSchema } from '@shared/file/types/handle'
+import type { GetPathStatusIpcParams } from '@shared/file/types/ipc'
 import { IpcChannel } from '@shared/IpcChannel'
 import mime from 'mime'
 import * as z from 'zod'
@@ -235,6 +240,10 @@ export const FILE_BATCH_DANGLING_MAX_IDS = 500
 export const GetDanglingStateIpcSchema = z.strictObject({ id: FileEntryIdSchema })
 export const BatchGetDanglingStatesIpcSchema = z.strictObject({
   ids: z.array(FileEntryIdSchema).max(FILE_BATCH_DANGLING_MAX_IDS)
+})
+export const GetPathStatusIpcSchema = z.strictObject({
+  path: z.string(),
+  expectedKind: z.enum(['file', 'directory']).optional()
 })
 
 // Phase 2 schemas — reuse the canonical essential.ts validators so the IPC
@@ -671,14 +680,24 @@ export class FileManager extends BaseService implements IFileManager {
   }
 
   /**
-   * Register all File_* IPC handlers (Phase 1 dangling-state + Phase 2
-   * entry CRUD / sweep). Kept as a dedicated helper so `onInit` stays a
-   * narrow two-step sequence (init → register).
+   * Register all File_* IPC handlers owned by this lifecycle service
+   * (Phase 1 dangling-state + Phase 2 entry CRUD / sweep + path/directory
+   * helpers). Kept as a dedicated helper so `onInit` stays a narrow
+   * three-step sequence (init → register → sweep).
    *
-   * Every handler Zod-parses its `params` before delegating, matching the
-   * DataApi handler discipline (`b8709c964` / `2437c1104`). Without this the
-   * batch fan-out is unbounded: a 100k-id `Promise.all` over `findById`
-   * would saturate the event loop and the DB connection pool.
+   * The dangling-state handlers Zod-parse their `params` before delegating,
+   * matching the DataApi handler discipline (`b8709c964` / `2437c1104`):
+   * without it the batch fan-out is unbounded — a 100k-id `Promise.all` over
+   * `findById` would saturate the event loop and the DB connection pool.
+   *
+   * The directory handlers live here (not in the post-bootstrap
+   * `registerIpc()`) so they are registered during bootstrap, before the
+   * renderer can invoke them. `File_ListDirectory` calls into the
+   * `@main/utils/file/search` primitive (RFC §G — ripgrep + fuzzy is
+   * exposed via the single `listDirectory` public entry, internals are
+   * private). `Tree_*` channels back the `DirectoryTreeBuilder` primitive
+   * (RFC §12) that replaced the legacy `getDirectoryStructure` + chokidar
+   * singleton for Notes.
    */
   private registerIpcHandlers(): void {
     // Handlers are async so a synchronous `Schema.parse` throw becomes a
@@ -690,6 +709,19 @@ export class FileManager extends BaseService implements IFileManager {
     this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, async (_e, params: unknown) =>
       this.batchGetDanglingStates(BatchGetDanglingStatesIpcSchema.parse(params))
     )
+    this.ipcHandle(IpcChannel.File_GetPathStatus, (_e, params: unknown) =>
+      this.getPathStatus(GetPathStatusIpcSchema.parse(params))
+    )
+    this.ipcHandle(IpcChannel.File_GetFileSize, async (_e, filePath: FilePath) => this.getFileSize(filePath))
+    this.ipcHandle(IpcChannel.File_SelectFolder, fileStorage.selectFolder)
+    this.ipcHandle(IpcChannel.File_ListDirectory, async (_e, dirPath: FilePath, options?: DirectoryListOptions) =>
+      searchListDirectory(dirPath, options)
+    )
+    // `File_TreeCreate` / `File_TreeDispose` are owned by `DirectoryTreeManager`
+    // itself — that service registers them in its own `onInit` so the
+    // handler lifetime tracks the service that holds the underlying
+    // chokidar watchers and IPC subscriptions.
+
     // Phase 2 channels.
     //
     // Zod outputs the structural shapes (`{ path: string }`, `{ kind: 'path';
@@ -897,6 +929,18 @@ export class FileManager extends BaseService implements IFileManager {
     const entry = await this.deps.fileEntryService.getById(id)
     const physicalPath = resolvePhysicalPath(entry)
     return pathToFileURL(physicalPath).toString() as FileURLString
+  }
+
+  private async getPathStatus(params: GetPathStatusIpcParams) {
+    return readPathStatus(params.path, { expectedKind: params.expectedKind })
+  }
+
+  private async getFileSize(filePath: FilePath): Promise<number> {
+    const s = await fsStat(filePath)
+    if (s.isDirectory) {
+      throw new Error(`Cannot read size: path is a directory (${filePath})`)
+    }
+    return s.size
   }
 
   async getPhysicalPath(id: FileEntryId): Promise<FilePath> {

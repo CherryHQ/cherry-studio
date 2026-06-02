@@ -4,14 +4,11 @@ export enum QuickPanelReservedSymbol {
   Root = '/',
   File = 'file',
   KnowledgeBase = '#',
-  MentionModels = '@',
   QuickPhrases = 'quick-phrases',
   Thinking = 'thinking',
   WebSearch = '?',
-  Mcp = 'mcp',
-  McpPrompt = 'mcp-prompt',
-  McpResource = 'mcp-resource',
-  SlashCommands = 'slash-commands'
+  SlashCommands = 'slash-commands',
+  McpStatus = 'mcp-status'
 }
 
 export type QuickPanelCloseAction = 'enter' | 'click' | 'esc' | 'outsideclick' | 'enter_empty' | string | undefined
@@ -21,12 +18,33 @@ export type QuickPanelTriggerInfo = {
   originalText?: string
 }
 
+export interface QuickPanelInputAdapter {
+  getText: () => string
+  getCursorOffset?: () => number
+  insertText: (text: string) => void
+  insertToken?: (token: unknown) => void
+  deleteTriggerRange: (range: { from: number; to: number }) => void
+  focus: () => void
+  subscribeInput?: (listener: (event?: QuickPanelInputEvent) => void) => () => void
+}
+
+export interface QuickPanelInputEvent {
+  isComposing?: boolean
+  cause?: 'user-input' | 'state-sync'
+}
+
 export type QuickPanelCallBackOptions = {
   context: QuickPanelContextType
   action: QuickPanelCloseAction
   item: QuickPanelListItem
+  parentPanel?: QuickPanelOpenOptions
+  queryAnchor?: number
   searchText?: string
+  inputAdapter?: QuickPanelInputAdapter
 }
+
+export type QuickPanelKeyDownEvent = KeyboardEvent | React.KeyboardEvent<HTMLElement>
+export type QuickPanelKeyDownHandler = (event: QuickPanelKeyDownEvent) => boolean
 
 /**
  * Filter function type
@@ -62,18 +80,24 @@ export type QuickPanelOpenOptions = {
   pageSize?: number
   /** 是否支持按住cmd/ctrl键多选，default: false */
   multiple?: boolean
+  /** Read-only panels display list content without row selection or action execution. */
+  readOnly?: boolean
   /**
    * 用于标识是哪个快捷面板，不是用于触发显示
-   * 可以是/@#符号，也可以是其他字符串
+   * 可以是 /、# 符号，也可以是其他字符串
    */
   symbol: string
   /** 触发信息，记录面板是如何被打开的 */
   triggerInfo?: QuickPanelTriggerInfo
+  /** Input text offset where the current composer-driven query starts. */
+  queryAnchor?: number
+  /** Whether this panel tracks and consumes an input trigger query such as `/foo` or `@file`. */
+  trackInputQuery?: boolean
   beforeAction?: (options: QuickPanelCallBackOptions) => void
   afterAction?: (options: QuickPanelCallBackOptions) => void
   onClose?: (options: QuickPanelCallBackOptions) => void
-  /** Callback when search text changes (called with debounced search text) */
-  onSearchChange?: (searchText: string) => void
+  /** Panel to show when navigating back from this panel. */
+  parentPanel?: QuickPanelOpenOptions
   /** Tool manages list + collapse behavior externally (skip filtering/auto-close) */
   manageListExternally?: boolean
   /** Custom filter function for items (follows open-closed principle) */
@@ -83,6 +107,8 @@ export type QuickPanelOpenOptions = {
 }
 
 export type QuickPanelListItem = {
+  /** Stable identity for selection updates and DOM keys. */
+  id?: string
   label: React.ReactNode | string
   description?: React.ReactNode | string
   /**
@@ -119,16 +145,26 @@ export interface QuickPanelContextType {
   readonly defaultIndex: number
   readonly pageSize: number
   readonly multiple: boolean
+  readonly readOnly?: boolean
   readonly triggerInfo?: QuickPanelTriggerInfo
+  readonly queryAnchor?: number
+  readonly trackInputQuery?: boolean
+  readonly parentPanel?: QuickPanelOpenOptions
   readonly manageListExternally?: boolean
   readonly lastCloseAction?: QuickPanelCloseAction
   readonly filterFn?: QuickPanelFilterFn
   readonly sortFn?: QuickPanelSortFn
 
+  /** Ambient layout hint: when true, the panel fills the available height above the input (home placement). */
+  readonly fillToAvailableHeight: boolean
+  readonly setFillToAvailableHeight: (fill: boolean) => void
+
+  readonly dispatchKeyDown: (event: QuickPanelKeyDownEvent) => boolean
+  readonly getPanelGeneration: () => number
+  readonly registerKeyDownHandler: (handler: QuickPanelKeyDownHandler | undefined) => () => void
   readonly onClose?: (Options: QuickPanelCallBackOptions) => void
   readonly beforeAction?: (Options: QuickPanelCallBackOptions) => void
   readonly afterAction?: (Options: QuickPanelCallBackOptions) => void
-  readonly onSearchChange?: (searchText: string) => void
 }
 
 export type QuickPanelScrollTrigger = 'initial' | 'keyboard' | 'none'

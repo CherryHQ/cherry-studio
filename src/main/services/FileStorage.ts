@@ -813,7 +813,7 @@ class FileStorage {
     fileName: string,
     content: string,
     options?: SaveDialogOptions
-  ): Promise<string> => {
+  ): Promise<string | null> => {
     try {
       const result: SaveDialogReturnValue = await dialog.showSaveDialog({
         title: t('dialog.save_file'),
@@ -821,13 +821,11 @@ class FileStorage {
         ...options
       })
 
-      if (result.canceled) {
-        return Promise.reject(new Error('User canceled the save dialog'))
+      if (result.canceled || !result.filePath) {
+        return null
       }
 
-      if (!result.canceled && result.filePath) {
-        writeFileSync(result.filePath, content, { encoding: 'utf-8' })
-      }
+      writeFileSync(result.filePath, content, { encoding: 'utf-8' })
 
       return result.filePath
     } catch (err: any) {

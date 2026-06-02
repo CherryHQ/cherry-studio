@@ -1,6 +1,5 @@
 /// <reference types="vite/client" />
 
-import type { PermissionUpdate } from '@anthropic-ai/claude-agent-sdk'
 import type { ToastUtilities } from '@cherrystudio/ui'
 import type { AppModalApi } from '@renderer/components/AppModal'
 import type { UseNavigateResult } from '@tanstack/react-router'
@@ -20,14 +19,5 @@ declare global {
     store: any
     navigate: UseNavigateResult<string>
     toast: ToastUtilities
-    agentTools: {
-      respondToPermission: (payload: {
-        requestId: string
-        behavior: 'allow' | 'deny'
-        updatedInput?: Record<string, unknown>
-        message?: string
-        updatedPermissions?: PermissionUpdate[]
-      }) => Promise<{ success: boolean }>
-    }
   }
 }

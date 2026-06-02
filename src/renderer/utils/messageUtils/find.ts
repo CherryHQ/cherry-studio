@@ -1,277 +1,302 @@
-import store from '@renderer/store'
-import { formatCitationsFromBlock, messageBlocksSelectors } from '@renderer/store/messageBlock'
+/**
+ * `Message` content readers.
+ *
+ * Synthesise V1-shaped `MessageBlock`s from `Message.parts` so block-shape
+ * consumers (export, knowledge analysis, etc.) keep their signatures. Pure
+ * — no Redux, no DataApi. The parameter `BlockEntities` is retained for
+ * call-site compatibility but is no longer consulted: the v1 message-blocks
+ * Redux slice is gone, parts are the single source of truth.
+ */
 import type { FileMetadata } from '@renderer/types'
+import type { ExportableMessage } from '@renderer/types/messageExport'
 import type {
   CitationMessageBlock,
+  CodeMessageBlock,
+  ErrorMessageBlock,
   FileMessageBlock,
   ImageMessageBlock,
   MainTextMessageBlock,
-  Message,
   MessageBlock,
   ThinkingMessageBlock,
   TranslationMessageBlock
 } from '@renderer/types/newMessage'
-import { MessageBlockType } from '@renderer/types/newMessage'
+import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import type { CherryMessagePart } from '@shared/data/types/message'
+import type { CodePartData, ErrorPartData, TranslationPartData } from '@shared/data/types/uiParts'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 
-export const findAllBlocks = (message: Message): MessageBlock[] => {
-  if (!message || !message.blocks || message.blocks.length === 0) {
-    return []
+// Retained as a no-op signature alias so existing call sites don't have to
+// drop their second argument when the v1 Redux-backed lookup goes away.
+type BlockEntities = Record<string, MessageBlock | undefined>
+
+function syntheticBase(
+  messageId: string,
+  index: number
+): Pick<MessageBlock, 'id' | 'messageId' | 'createdAt' | 'status'> {
+  return {
+    id: `${messageId}-part-${index}`,
+    messageId,
+    createdAt: '',
+    status: MessageBlockStatus.SUCCESS
   }
-  const state = store.getState()
-  const allBlocks: MessageBlock[] = []
-  for (const blockId of message.blocks) {
-    const block = messageBlocksSelectors.selectById(state, blockId)
-    if (block) {
-      allBlocks.push(block)
+}
+
+function getParts(message: ExportableMessage): CherryMessagePart[] {
+  return message.parts ?? []
+}
+
+function getDataPart<T>(part: CherryMessagePart): Partial<T> | undefined {
+  if ('data' in part && part.data && typeof part.data === 'object') {
+    return part.data as Partial<T>
+  }
+  return undefined
+}
+
+function formatCodePart(data: Partial<CodePartData> | undefined): string {
+  const content = data?.content ?? ''
+  if (!content.trim()) return ''
+  const language = data?.language ?? ''
+  return `\`\`\`${language}\n${content}\n\`\`\``
+}
+
+function formatErrorPart(data: Partial<ErrorPartData> | undefined): string {
+  if (!data) return ''
+  return [data.name, data.code, data.message].filter(Boolean).join('\n')
+}
+
+function getRenderableTextContent(part: CherryMessagePart): string {
+  switch (part.type) {
+    case 'text':
+      return part.text ?? ''
+    case 'data-code':
+      return formatCodePart(getDataPart<CodePartData>(part))
+    case 'data-translation':
+      return getDataPart<TranslationPartData>(part)?.content ?? ''
+    case 'data-error':
+      return formatErrorPart(getDataPart<ErrorPartData>(part))
+    default:
+      return ''
+  }
+}
+
+// ── Public API ───────────────────────────────────────────────────────
+
+export const findAllBlocks = (message: ExportableMessage): MessageBlock[] => {
+  const parts = getParts(message)
+  if (parts.length === 0) return []
+  const out: MessageBlock[] = []
+  parts.forEach((part, i) => {
+    const base = syntheticBase(message.id, i)
+    const partType = part.type as string
+    switch (partType) {
+      case 'text':
+        out.push({
+          ...base,
+          type: MessageBlockType.MAIN_TEXT,
+          content: (part as { text?: string }).text ?? ''
+        } as MainTextMessageBlock)
+        break
+      case 'reasoning': {
+        const reasoningPart = part as Extract<CherryMessagePart, { type: 'reasoning' }>
+        out.push({
+          ...base,
+          type: MessageBlockType.THINKING,
+          content: reasoningPart.text ?? '',
+          thinking_millsec: readCherryMeta(reasoningPart)?.thinkingMs ?? 0
+        } as ThinkingMessageBlock)
+        break
+      }
+      case 'data-code': {
+        const data = getDataPart<CodePartData>(part)
+        out.push({
+          ...base,
+          type: MessageBlockType.CODE,
+          content: data?.content ?? '',
+          language: data?.language ?? ''
+        } as CodeMessageBlock)
+        break
+      }
+      case 'data-error': {
+        const data = getDataPart<ErrorPartData>(part)
+        out.push({
+          ...base,
+          type: MessageBlockType.ERROR,
+          error: data
+            ? {
+                name: data.name ?? undefined,
+                message: data.message ?? data.code ?? 'Error occurred',
+                stack: data.stack ?? undefined
+              }
+            : undefined
+        } as ErrorMessageBlock)
+        break
+      }
+      case 'data-translation': {
+        const data = getDataPart<TranslationPartData>(part)
+        out.push({
+          ...base,
+          type: MessageBlockType.TRANSLATION,
+          content: data?.content ?? '',
+          sourceBlockId: data?.sourceBlockId,
+          sourceLanguage: data?.sourceLanguage,
+          targetLanguage: data?.targetLanguage ?? ''
+        } as TranslationMessageBlock)
+        break
+      }
+      case 'file': {
+        const filePart = part as { mediaType?: string; url?: string; filename?: string }
+        if (filePart.mediaType?.startsWith('image/')) {
+          out.push({
+            ...base,
+            type: MessageBlockType.IMAGE,
+            url: filePart.url,
+            file: filePart.url
+              ? ({ name: filePart.filename ?? '', path: filePart.url, type: filePart.mediaType } as FileMetadata)
+              : undefined
+          } as ImageMessageBlock)
+        } else if (filePart.url) {
+          out.push({
+            ...base,
+            type: MessageBlockType.FILE,
+            file: { name: filePart.filename ?? '', path: filePart.url, type: filePart.mediaType ?? '' } as FileMetadata
+          } as FileMessageBlock)
+        }
+        break
+      }
+      default:
+        if (partType.startsWith('tool-') || partType === 'dynamic-tool') {
+          out.push({
+            ...base,
+            type: MessageBlockType.TOOL,
+            toolId: (part as { toolCallId?: string }).toolCallId ?? base.id
+          } as MessageBlock)
+        }
+        break
     }
-  }
-  return allBlocks
+  })
+  return out
 }
 
-/**
- * Finds all MainTextMessageBlocks associated with a given message, in order.
- * @param message - The message object.
- * @returns An array of MainTextMessageBlocks (empty if none found).
- */
-export const findMainTextBlocks = (message: Message): MainTextMessageBlock[] => {
-  if (!message || !message.blocks || message.blocks.length === 0) {
-    return []
-  }
-  const state = store.getState()
-  const textBlocks: MainTextMessageBlock[] = []
-  for (const blockId of message.blocks) {
-    const block = messageBlocksSelectors.selectById(state, blockId)
-    if (block && block.type === MessageBlockType.MAIN_TEXT) {
-      textBlocks.push(block as MainTextMessageBlock)
-    }
-  }
-  return textBlocks
+export const findMainTextBlocks = (
+  message: ExportableMessage,
+  _blockEntities?: BlockEntities
+): MainTextMessageBlock[] => {
+  const out: MainTextMessageBlock[] = []
+  getParts(message).forEach((part, i) => {
+    if (part.type !== 'text') return
+    out.push({
+      ...syntheticBase(message.id, i),
+      type: MessageBlockType.MAIN_TEXT,
+      content: part.text ?? ''
+    })
+  })
+  return out
 }
 
-/**
- * Finds all ThinkingMessageBlocks associated with a given message.
- * @param message - The message object.
- * @returns An array of ThinkingMessageBlocks (empty if none found).
- */
-export const findThinkingBlocks = (message: Message): ThinkingMessageBlock[] => {
-  if (!message || !message.blocks || message.blocks.length === 0) {
-    return []
-  }
-  const state = store.getState()
-  const thinkingBlocks: ThinkingMessageBlock[] = []
-  for (const blockId of message.blocks) {
-    const block = messageBlocksSelectors.selectById(state, blockId)
-    if (block && block.type === MessageBlockType.THINKING) {
-      thinkingBlocks.push(block as ThinkingMessageBlock)
-    }
-  }
-  return thinkingBlocks
+export const findThinkingBlocks = (
+  message: ExportableMessage,
+  _blockEntities?: BlockEntities
+): ThinkingMessageBlock[] => {
+  const out: ThinkingMessageBlock[] = []
+  getParts(message).forEach((part, i) => {
+    if (part.type !== 'reasoning') return
+    out.push({
+      ...syntheticBase(message.id, i),
+      type: MessageBlockType.THINKING,
+      content: part.text ?? '',
+      thinking_millsec: readCherryMeta(part)?.thinkingMs ?? 0
+    })
+  })
+  return out
 }
 
-/**
- * Finds all ImageMessageBlocks associated with a given message.
- * @param message - The message object.
- * @returns An array of ImageMessageBlocks (empty if none found).
- */
-export const findImageBlocks = (message: Message): ImageMessageBlock[] => {
-  if (!message || !message.blocks || message.blocks.length === 0) {
-    return []
-  }
-  const state = store.getState()
-  const imageBlocks: ImageMessageBlock[] = []
-  for (const blockId of message.blocks) {
-    const block = messageBlocksSelectors.selectById(state, blockId)
-    if (block && block.type === MessageBlockType.IMAGE) {
-      imageBlocks.push(block as ImageMessageBlock)
-    }
-  }
-  return imageBlocks
+export const findImageBlocks = (message: ExportableMessage): ImageMessageBlock[] => {
+  const out: ImageMessageBlock[] = []
+  getParts(message).forEach((part, i) => {
+    if (part.type !== 'file') return
+    const filePart = part as { mediaType?: string; url?: string; filename?: string }
+    if (!filePart.mediaType?.startsWith('image/')) return
+    out.push({
+      ...syntheticBase(message.id, i),
+      type: MessageBlockType.IMAGE,
+      url: filePart.url,
+      file: filePart.url
+        ? ({ name: filePart.filename ?? '', path: filePart.url, type: filePart.mediaType } as FileMetadata)
+        : undefined
+    })
+  })
+  return out
 }
 
-/**
- * Finds all FileMessageBlocks associated with a given message.
- * @param message - The message object.
- * @returns An array of FileMessageBlocks (empty if none found).
- */
-export const findFileBlocks = (message: Message): FileMessageBlock[] => {
-  if (!message || !message.blocks || message.blocks.length === 0) {
-    return []
-  }
-  const state = store.getState()
-  const fileBlocks: FileMessageBlock[] = []
-  for (const blockId of message.blocks) {
-    const block = messageBlocksSelectors.selectById(state, blockId)
-    if (block && block.type === MessageBlockType.FILE) {
-      fileBlocks.push(block as FileMessageBlock)
-    }
-  }
-  return fileBlocks
+export const findFileBlocks = (message: ExportableMessage): FileMessageBlock[] => {
+  const out: FileMessageBlock[] = []
+  getParts(message).forEach((part, i) => {
+    if (part.type !== 'file') return
+    const filePart = part as { mediaType?: string; url?: string; filename?: string }
+    if (filePart.mediaType?.startsWith('image/')) return
+    if (!filePart.url) return
+    out.push({
+      ...syntheticBase(message.id, i),
+      type: MessageBlockType.FILE,
+      file: { name: filePart.filename ?? '', path: filePart.url, type: filePart.mediaType ?? '' } as FileMetadata
+    })
+  })
+  return out
 }
 
-/**
- * Gets the concatenated content string from all MainTextMessageBlocks of a message, in order.
- * @param message - The message object.
- * @returns The concatenated content string or an empty string if no text blocks are found.
- */
-export const getMainTextContent = (message: Message): string => {
-  const textBlocks = findMainTextBlocks(message)
-  return textBlocks.map((block) => block.content).join('\n\n')
-}
-
-/**
- * Gets the concatenated content string from all ThinkingMessageBlocks of a message, in order.
- * @param message
- * @returns The concatenated content string or an empty string if no thinking blocks are found.
- */
-export const getThinkingContent = (message: Message): string => {
-  const thinkingBlocks = findThinkingBlocks(message)
-  return thinkingBlocks.map((block) => block.content).join('\n\n')
-}
-
-export const getCitationContent = (message: Message): string => {
-  const citationBlocks = findCitationBlocks(message)
-  return citationBlocks
-    .map((block) => formatCitationsFromBlock(block))
-    .flat()
-    .map(
-      (citation) =>
-        `[${citation.number}] [${citation.title || citation.url.slice(0, 1999)}](${citation.url.slice(0, 1999)})`
-    )
+export const getMainTextContent = (message: ExportableMessage): string => {
+  return getParts(message)
+    .map(getRenderableTextContent)
+    .filter((t) => t.trim().length > 0)
     .join('\n\n')
 }
 
-/**
- * Gets the file content from all FileMessageBlocks and ImageMessageBlocks of a message.
- * @param message - The message object.
- * @returns The file content or an empty string if no file blocks are found.
- */
-export const getFileContent = (message: Message): FileMetadata[] => {
-  const files: FileMetadata[] = []
-  const fileBlocks = findFileBlocks(message)
-  for (const block of fileBlocks) {
-    if (block.file) {
-      files.push(block.file)
+export const getThinkingContent = (message: ExportableMessage, _blockEntities?: BlockEntities): string => {
+  return getParts(message)
+    .filter((p): p is Extract<CherryMessagePart, { type: 'reasoning' }> => p.type === 'reasoning')
+    .map((p) => p.text ?? '')
+    .filter((t) => t.trim().length > 0)
+    .join('\n\n')
+}
+
+export const getCitationContent = (message: ExportableMessage, _blockEntities?: BlockEntities): string => {
+  // V2 stores citations on text parts via `providerMetadata.cherry.references`
+  // (not as separate `data-citation` parts). Walk text parts and format each
+  // citation-category reference into `[N] [title](url)` — same shape v1's
+  // `formatCitationsFromBlock` produced. Non-web reference categories are
+  // dropped just like the v1 path did.
+  const lines: string[] = []
+  for (const part of getParts(message)) {
+    if (part.type !== 'text') continue
+    const refs = (readCherryMeta(part)?.references ?? []) as Array<{
+      category?: string
+      number?: number
+      title?: string
+      url?: string
+    }>
+    for (const ref of refs) {
+      if (ref.category !== 'citation') continue
+      if (!ref.url) continue
+      const number = ref.number ?? lines.length + 1
+      const title = ref.title || ref.url.slice(0, 1999)
+      lines.push(`[${number}] [${title}](${ref.url.slice(0, 1999)})`)
     }
   }
-  const imageBlocks = findImageBlocks(message)
-  for (const block of imageBlocks) {
-    if (block.file) {
-      files.push(block.file)
-    }
+  return lines.join('\n\n')
+}
+
+export const getFileContent = (message: ExportableMessage, _blockEntities?: BlockEntities): FileMetadata[] => {
+  const files: FileMetadata[] = []
+  for (const block of findFileBlocks(message)) {
+    if (block.file) files.push(block.file)
+  }
+  for (const block of findImageBlocks(message)) {
+    if (block.file) files.push(block.file)
   }
   return files
 }
 
-/**
- * Finds all CitationBlocks associated with a given message.
- * @param message - The message object.
- * @returns An array of CitationBlocks (empty if none found).
- */
-export const findCitationBlocks = (message: Message): CitationMessageBlock[] => {
-  if (!message || !message.blocks || message.blocks.length === 0) {
-    return []
-  }
-  const state = store.getState()
-  const citationBlocks: CitationMessageBlock[] = []
-  for (const blockId of message.blocks) {
-    const block = messageBlocksSelectors.selectById(state, blockId)
-    if (block && block.type === MessageBlockType.CITATION) {
-      citationBlocks.push(block as CitationMessageBlock)
-    }
-  }
-  return citationBlocks
-}
-
-/**
- * Finds all TranslationMessageBlocks associated with a given message.
- * @param message - The message object.
- * @returns An array of TranslationMessageBlocks (empty if none found).
- */
-export const findTranslationBlocks = (message: Message): TranslationMessageBlock[] => {
-  if (!message || !message.blocks || message.blocks.length === 0) {
-    return []
-  }
-  const state = store.getState()
-  const translationBlocks: TranslationMessageBlock[] = []
-  for (const blockId of message.blocks) {
-    const block = messageBlocksSelectors.selectById(state, blockId)
-    if (block && block.type === MessageBlockType.TRANSLATION) {
-      translationBlocks.push(block as TranslationMessageBlock)
-    }
-  }
-  return translationBlocks
-}
-
-/**
- * 通过消息ID从状态中查询最新的消息，并返回其中的翻译块
- * @param id - 消息ID
- * @returns 翻译块数组，如果消息不存在则返回空数组
- */
-export const findTranslationBlocksById = (id: string): TranslationMessageBlock[] => {
-  const state = store.getState()
-  const message = state.messages.entities[id]
-  return findTranslationBlocks(message)
-}
-
-/**
- * 构造带工具调用结果的消息内容
- * @deprecated
- * @param blocks
- * @returns
- */
-export function getContentWithTools(message: Message) {
-  const blocks = findAllBlocks(message)
-  let constructedContent = ''
-  for (const block of blocks) {
-    if (block.type === MessageBlockType.MAIN_TEXT || block.type === MessageBlockType.TOOL) {
-      if (block.type === MessageBlockType.MAIN_TEXT) {
-        constructedContent += block.content
-      } else if (block.type === MessageBlockType.TOOL) {
-        // 如果是工具调用结果，为其添加文本消息
-        let resultString =
-          '\n\nAssistant called a tool.\nTool Name:' +
-          block.metadata?.rawMcpToolResponse?.tool.name +
-          '\nTool call result: \n```json\n'
-        try {
-          resultString += JSON.stringify(
-            {
-              params: block.metadata?.rawMcpToolResponse?.arguments,
-              response: block.metadata?.rawMcpToolResponse?.response
-            },
-            null,
-            2
-          )
-        } catch (e) {
-          resultString += 'Invalid Result'
-        }
-        constructedContent += resultString + '\n```\n\n'
-      }
-    }
-  }
-  return constructedContent
-}
-
-/**
- * Finds the WebSearchMessageBlock associated with a given message.
- * Assumes only one web search block per message.
- * @param message - The message object.
- * @returns The WebSearchMessageBlock or undefined if not found.
- * @deprecated Web search results are now part of CitationMessageBlock.
- */
-/* // Removed function
-export const findWebSearchBlock = (message: Message): WebSearchMessageBlock | undefined => {
-  if (!message || !message.blocks || message.blocks.length === 0) {
-    return undefined
-  }
-  const state = store.getState()
-  for (const blockId of message.blocks) {
-    const block = messageBlocksSelectors.selectById(state, blockId)
-    if (block && block.type === MessageBlockType.WEB_SEARCH) { // Error here too
-      return block as WebSearchMessageBlock
-    }
-  }
-  return undefined
-}
-*/
-
-// You can add more helper functions here to find other block types if needed.
+// `findCitationBlocks` from the v1 path is no longer exposed — V2 has no
+// standalone citation blocks; consumers wanting the formatted text should
+// call `getCitationContent` directly.
+export type { CitationMessageBlock }

@@ -15,6 +15,16 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
+vi.mock('@renderer/i18n/label', () => ({
+  getProviderLabel: (id: string) => id
+}))
+
+vi.mock('@renderer/i18n', () => ({
+  default: {
+    t: (key: string) => key
+  }
+}))
+
 describe('Selector', () => {
   it('renders the selected single option and emits the original option value', async () => {
     const onChange = vi.fn()
@@ -80,13 +90,15 @@ describe('Selector', () => {
       />
     )
 
-    expect(screen.getByRole('combobox', { name: /plain/i })).toHaveAttribute('aria-disabled', 'true')
+    const combobox = screen.getByRole('combobox', { name: /plain/i })
+    expect(combobox).toHaveAttribute('aria-disabled', 'true')
+    expect(combobox).toHaveAttribute('aria-expanded', 'false')
 
-    expect(screen.queryByRole('option', { name: /bubble/i })).not.toBeInTheDocument()
-    await userEvent.click(screen.getByRole('combobox', { name: /plain/i }))
+    await userEvent.click(combobox)
 
+    // Disabled trigger ignores the click — popover stays closed and no value emits.
+    expect(combobox).toHaveAttribute('aria-expanded', 'false')
     expect(onChange).not.toHaveBeenCalled()
-    expect(screen.queryByRole('option', { name: /bubble/i })).not.toBeInTheDocument()
   })
 
   it('supports ReactNode labels in the trigger', () => {

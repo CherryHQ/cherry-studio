@@ -58,12 +58,15 @@ export class SettingsWindowService extends BaseService {
 
   public open(path?: SettingsPath): string {
     const wm = application.get('WindowManager')
-    const options = this.getWindowOptions()
+    const hasExistingSettingsWindow = wm.getWindowsByType(WindowType.Settings).length > 0
+    const options = this.getWindowOptions(!hasExistingSettingsWindow)
     const windowId = wm.open(WindowType.Settings, {
       initData: this.normalizePath(path),
       options
     })
-    this.syncSettingsWindowBounds(windowId, options)
+    if (!hasExistingSettingsWindow) {
+      this.syncSettingsWindowBounds(windowId, options)
+    }
     return windowId
   }
 
@@ -91,10 +94,10 @@ export class SettingsWindowService extends BaseService {
     this.settingsWindowCleanups.set(windowId, cleanup)
   }
 
-  private getWindowOptions(): Partial<WindowOptions> {
+  private getWindowOptions(includeMainWindowBounds = true): Partial<WindowOptions> {
     return {
       ...createSettingsWindowOptions(isMac, nativeTheme.shouldUseDarkColors),
-      ...this.getCenteredBoundsOptions()
+      ...(includeMainWindowBounds ? this.getCenteredBoundsOptions() : {})
     }
   }
 

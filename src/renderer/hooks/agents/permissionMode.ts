@@ -1,4 +1,5 @@
-import type { PermissionMode, Tool } from '@renderer/types'
+import type { PermissionMode } from '@renderer/types'
+import type { Tool } from '@shared/ai/tool'
 import { uniq } from 'lodash'
 
 export const DEFAULT_MAX_TURNS = 100
@@ -14,42 +15,37 @@ export function normalizePermissionMode(mode: string | undefined | null): Permis
 }
 
 /**
- * Computes tool IDs that are implicitly approved by a permission mode.
- * This mirrors the legacy AgentSettings popup behavior.
+ * Computes tool rules currently approved by the effective main-side policy.
  */
-export function computeModeDefaults(mode: PermissionMode, tools: Tool[]): string[] {
-  const defaultToolIds = tools.filter((tool) => !tool.requirePermissions).map((tool) => tool.id)
-  switch (mode) {
-    case 'acceptEdits':
-      return [
-        ...defaultToolIds,
-        'Edit',
-        'MultiEdit',
-        'NotebookEdit',
-        'Write',
-        'Bash(mkdir:*)',
-        'Bash(touch:*)',
-        'Bash(rm:*)',
-        'Bash(mv:*)',
-        'Bash(cp:*)'
-      ]
-    case 'bypassPermissions':
-      return tools.map((tool) => tool.id)
-    case 'default':
-    case 'plan':
-      return defaultToolIds
-  }
+export function computeModeDefaults(_mode: PermissionMode, tools: Tool[]): string[] {
+  return tools.filter((tool) => tool.approval === 'auto').map((tool) => tool.id)
+}
+
+function matchesToolRule(value: string, tool: Tool): boolean {
+  return value === tool.id || value === tool.name
+}
+
+function isRuntimeNativeRule(value: string): boolean {
+  return !value.includes(':')
+}
+
+export function normalizeAllowedToolRules(allowedTools: readonly string[], tools: Tool[]): string[] {
+  return uniq(
+    allowedTools.flatMap((value) => {
+      const tool = tools.find((item) => matchesToolRule(value, item))
+      if (tool) return [tool.id]
+      return isRuntimeNativeRule(value) ? [value] : []
+    })
+  )
 }
 
 export function mergePermissionModeTools(
   allowedTools: readonly string[],
-  currentMode: PermissionMode,
-  nextMode: PermissionMode,
+  _currentMode: PermissionMode,
+  _nextMode: PermissionMode,
   tools: Tool[]
 ): string[] {
-  const currentDefaults = new Set(computeModeDefaults(currentMode, tools))
-  const userAddedIds = allowedTools.filter((id) => !currentDefaults.has(id))
-  return uniq([...userAddedIds, ...computeModeDefaults(nextMode, tools)])
+  return normalizeAllowedToolRules(allowedTools, tools)
 }
 
 export function mergeAutoApprovedTools(
@@ -57,5 +53,5 @@ export function mergeAutoApprovedTools(
   permissionMode: PermissionMode,
   tools: Tool[]
 ): string[] {
-  return uniq([...allowedTools, ...computeModeDefaults(permissionMode, tools)])
+  return uniq([...normalizeAllowedToolRules(allowedTools, tools), ...computeModeDefaults(permissionMode, tools)])
 }

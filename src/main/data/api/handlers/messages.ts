@@ -14,11 +14,21 @@ import {
   CreateMessageSchema,
   DeleteMessageQuerySchema,
   type MessageSchemas,
+  PathThroughQuerySchema,
+  SearchMessagesQuerySchema,
   TreeQuerySchema,
   UpdateMessageSchema
 } from '@shared/data/api/schemas/messages'
+import { MessageDataSchema } from '@shared/data/types/message'
 
 export const messageHandlers: HandlersFor<MessageSchemas> = {
+  '/messages/search': {
+    GET: async ({ query }) => {
+      const q = SearchMessagesQuerySchema.parse(query)
+      return await messageService.search(q)
+    }
+  },
+
   '/topics/:topicId/tree': {
     GET: async ({ params, query }) => {
       const q = TreeQuerySchema.parse(query ?? {})
@@ -47,6 +57,13 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
     }
   },
 
+  '/topics/:topicId/path': {
+    GET: async ({ params, query }) => {
+      const q = PathThroughQuerySchema.parse(query ?? {})
+      return await messageService.getPathThrough(params.topicId, q.nodeId)
+    }
+  },
+
   '/messages/:id': {
     GET: async ({ params }) => {
       return await messageService.getById(params.id)
@@ -62,6 +79,13 @@ export const messageHandlers: HandlersFor<MessageSchemas> = {
       const cascade = q.cascade ?? false
       const activeNodeStrategy = q.activeNodeStrategy ?? 'parent'
       return await messageService.delete(params.id, cascade, activeNodeStrategy)
+    }
+  },
+
+  '/messages/:id/siblings': {
+    POST: async ({ params, body }) => {
+      const parsed = MessageDataSchema.parse(body)
+      return await messageService.createSibling(params.id, parsed)
     }
   }
 }

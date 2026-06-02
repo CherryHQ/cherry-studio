@@ -21,4 +21,10 @@ describe('DefaultPreferences', () => {
     expect(fetchUrlsDefault).toBeNull()
     expect(DefaultPreferences.default['chat.web_search.default_fetch_urls_provider']).toBeNull()
   })
+
+  it('groups agent sessions by agent for new users', () => {
+    const agentSessionDisplayDefault: PreferenceSchemas['default']['agent.session.display_mode'] = 'agent'
+
+    expect(DefaultPreferences.default['agent.session.display_mode']).toBe(agentSessionDisplayDefault)
+  })
 })

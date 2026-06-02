@@ -308,6 +308,13 @@ export default defineConfig([
               message:
                 '❌ Do not import the component from heroui directly. It\'s deprecated.'
             }
+          ],
+          patterns: [
+            {
+              group: ['@pierre/trees/react', '@pierre/trees/ssr', '@pierre/trees/web-components'],
+              message:
+                '❌ Only import from "@pierre/trees" root entry. The /react, /ssr, /web-components subpaths drag in preact and must not be used in this React app.'
+            }
           ]
         }
       ]

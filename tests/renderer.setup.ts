@@ -152,9 +152,11 @@ vi.mock('@cherrystudio/ui', () => {
   const React = require('react')
   const SelectContext = React.createContext({ value: undefined, onValueChange: undefined })
   const PopoverContext = React.createContext({ open: false, onOpenChange: undefined })
+  const ContextMenuContext = React.createContext({ open: true, onOpenChange: undefined })
+  const DropdownMenuContext = React.createContext({ open: false, onOpenChange: undefined })
   return {
-    Button: ({ children, onPress, disabled, isDisabled, startContent, asChild, ...props }) => {
-      const buttonProps = { ...props, onClick: onPress ?? props.onClick, disabled: disabled || isDisabled }
+    Button: ({ children, onPress, disabled, isDisabled, loading, startContent, asChild, ...props }) => {
+      const buttonProps = { ...props, onClick: onPress ?? props.onClick, disabled: disabled || isDisabled || loading }
       if (asChild && React.isValidElement(children)) {
         const childProps = children.props || {}
         return React.cloneElement(children, {
@@ -212,20 +214,142 @@ vi.mock('@cherrystudio/ui', () => {
         children
       ),
     AccordionContent: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'accordion-content' }, children),
-    ContextMenu: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'context-menu' }, children),
-    ContextMenuTrigger: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'context-menu-trigger' }, children),
-    ContextMenuContent: ({ children, ...props }) =>
-      React.createElement('div', { ...props, 'data-testid': 'context-menu-content' }, children),
+      React.createElement('div', { 'data-testid': 'accordion-content', ...props }, children),
+    ContextMenu: ({ children, open = true, onOpenChange, ...props }) =>
+      React.createElement(
+        ContextMenuContext.Provider,
+        { value: { open, onOpenChange } },
+        React.createElement('div', { ...props, 'data-testid': 'context-menu' }, children)
+      ),
+    ContextMenuTrigger: ({ children, asChild, ...props }) => {
+      const context = React.useContext(ContextMenuContext)
+      const triggerProps = {
+        ...props,
+        'data-testid': 'context-menu-trigger',
+        onContextMenu: (event: React.MouseEvent) => {
+          props.onContextMenu?.(event)
+          if (!event.defaultPrevented) {
+            context.onOpenChange?.(true)
+            event.preventDefault()
+          }
+        }
+      }
+      if (asChild && React.isValidElement(children)) {
+        const childProps = children.props || {}
+        return React.cloneElement(children, {
+          ...triggerProps,
+          ...childProps,
+          onContextMenu: (event: React.MouseEvent) => {
+            childProps.onContextMenu?.(event)
+            if (!event.defaultPrevented) {
+              triggerProps.onContextMenu(event)
+            }
+          }
+        })
+      }
+      return React.createElement('div', triggerProps, children)
+    },
+    ContextMenuContent: ({ children, ...props }) => {
+      const context = React.useContext(ContextMenuContext)
+      return context.open
+        ? React.createElement('div', { ...props, 'data-testid': 'context-menu-content' }, children)
+        : null
+    },
     ContextMenuItem: ({ children, onSelect, ...props }) =>
       React.createElement(
         'button',
         { ...props, type: 'button', onClick: onSelect, 'data-testid': 'context-menu-item' },
         children
       ),
+    ContextMenuItemContent: ({ badge, children, icon, shortcut, ...props }) =>
+      React.createElement(
+        React.Fragment,
+        null,
+        React.createElement('span', { ...props }, icon, children),
+        badge,
+        shortcut ? React.createElement('span', null, shortcut) : null
+      ),
     ContextMenuSeparator: (props) => React.createElement('div', { ...props, 'data-testid': 'context-menu-separator' }),
+    ContextMenuSub: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'context-menu-sub' }, children),
+    ContextMenuSubTrigger: ({ children, ...props }) =>
+      React.createElement('button', { ...props, type: 'button', 'data-testid': 'context-menu-sub-trigger' }, children),
+    ContextMenuSubContent: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'context-menu-sub-content' }, children),
+    DropdownMenu: ({ children, defaultOpen = false, open: controlledOpen, onOpenChange, ...props }) => {
+      const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen)
+      const open = controlledOpen ?? uncontrolledOpen
+      const setOpen = (nextOpen: boolean) => {
+        setUncontrolledOpen(nextOpen)
+        onOpenChange?.(nextOpen)
+      }
+      return React.createElement(
+        DropdownMenuContext.Provider,
+        { value: { open, onOpenChange: setOpen } },
+        React.createElement('div', { ...props, 'data-testid': 'dropdown-menu' }, children)
+      )
+    },
+    DropdownMenuTrigger: ({ children, asChild, ...props }) => {
+      const context = React.useContext(DropdownMenuContext)
+      const triggerProps = {
+        ...props,
+        'data-testid': 'dropdown-menu-trigger',
+        onClick: (event: React.MouseEvent) => {
+          props.onClick?.(event)
+          context.onOpenChange?.(!context.open)
+        }
+      }
+      if (asChild && React.isValidElement(children)) {
+        return React.cloneElement(children, {
+          ...children.props,
+          ...triggerProps,
+          onClick: (event: React.MouseEvent) => {
+            children.props.onClick?.(event)
+            triggerProps.onClick(event)
+          }
+        })
+      }
+      return React.createElement('button', { ...triggerProps, type: 'button' }, children)
+    },
+    DropdownMenuContent: ({ children, align, side, sideOffset, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'dropdown-menu-content' }, children),
+    DropdownMenuItem: ({ children, onSelect, ...props }) =>
+      React.createElement(
+        'button',
+        { ...props, type: 'button', onClick: onSelect, 'data-testid': 'dropdown-menu-item' },
+        children
+      ),
+    ConfirmDialog: ({
+      cancelText = 'Cancel',
+      confirmText = 'Confirm',
+      content,
+      description,
+      onConfirm,
+      onOpenChange,
+      open,
+      title
+    }) =>
+      open
+        ? React.createElement(
+            'div',
+            { role: 'dialog', 'data-testid': 'confirm-dialog' },
+            React.createElement('h2', null, title),
+            description ? React.createElement('p', null, description) : null,
+            content,
+            React.createElement('button', { type: 'button', onClick: () => onOpenChange?.(false) }, cancelText),
+            React.createElement(
+              'button',
+              {
+                type: 'button',
+                onClick: async () => {
+                  await onConfirm?.()
+                  onOpenChange?.(false)
+                }
+              },
+              confirmText
+            )
+          )
+        : null,
     ImagePreviewContextMenu: ({ actions = [], children, context, item }) =>
       React.createElement(
         'div',
@@ -307,7 +431,7 @@ vi.mock('@cherrystudio/ui', () => {
     ImagePreviewTrigger: ({ alt, item, ...props }) =>
       React.createElement('img', { ...props, alt: alt ?? item?.alt, src: item?.src }),
     Dialog: ({ children, open, ...props }) =>
-      open ? React.createElement('div', { ...props, 'data-testid': 'dialog' }, children) : null,
+      open ? React.createElement('div', { ...props, role: 'dialog', 'data-testid': 'dialog' }, children) : null,
     DialogContent: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-content' }, children),
     DialogHeader: ({ children, ...props }) =>
@@ -316,12 +440,23 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('h2', { ...props, 'data-testid': 'dialog-title' }, children),
     DialogFooter: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'dialog-footer' }, children),
+    Label: ({ children, ...props }) => React.createElement('label', props, children),
+    FieldError: ({ children, errors, ...props }) => {
+      const errorMessage = children ?? errors?.find((error) => error?.message)?.message
+      return errorMessage ? React.createElement('div', { ...props, role: 'alert' }, errorMessage) : null
+    },
     Popover: ({ children, open = false, onOpenChange, ...props }) =>
       React.createElement(
         PopoverContext.Provider,
         { value: { open, onOpenChange } },
         React.createElement('div', { ...props, 'data-testid': 'popover' }, children)
       ),
+    PopoverAnchor: ({ children, asChild, ...props }) => {
+      if (asChild && React.isValidElement(children)) {
+        return React.cloneElement(children, { ...props, ...children.props })
+      }
+      return React.createElement('div', props, children)
+    },
     PopoverTrigger: ({ children, asChild, ...props }) => {
       const context = React.useContext(PopoverContext)
       const triggerProps = {
@@ -343,6 +478,7 @@ vi.mock('@cherrystudio/ui', () => {
     },
     MenuList: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'menu-list' }, children),
+    MenuDivider: (props) => React.createElement('div', { ...props, 'data-testid': 'menu-divider' }),
     MenuItem: ({ children, icon, label, onClick, ...props }) =>
       React.createElement(
         'button',
@@ -350,6 +486,47 @@ vi.mock('@cherrystudio/ui', () => {
         icon,
         label,
         children
+      ),
+    Badge: ({ children, ...props }) => React.createElement('span', { ...props, 'data-testid': 'badge' }, children),
+    Kbd: ({ children, ...props }) => React.createElement('kbd', { ...props }, children),
+    Checkbox: ({ checked, onCheckedChange, ...props }) =>
+      React.createElement('input', {
+        ...props,
+        checked,
+        type: 'checkbox',
+        'data-slot': 'checkbox',
+        onChange: (event: React.ChangeEvent<HTMLInputElement>) => onCheckedChange?.(event.target.checked)
+      }),
+    RadioGroup: ({ children, value, onValueChange, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'radio-group', 'data-value': value }, children),
+    RadioGroupItem: ({ value, ...props }) =>
+      React.createElement('input', { ...props, type: 'radio', value, 'data-testid': 'radio-group-item' }),
+    Slider: ({ value, defaultValue, onValueChange, onValueCommit, ...props }) =>
+      React.createElement('input', {
+        ...props,
+        type: 'range',
+        value: value?.[0] ?? defaultValue?.[0] ?? 0,
+        'data-testid': 'slider',
+        onChange: (event: React.ChangeEvent<HTMLInputElement>) => onValueChange?.([Number(event.target.value)]),
+        onMouseUp: (event: React.MouseEvent<HTMLInputElement>) =>
+          onValueCommit?.([Number((event.target as HTMLInputElement).value)])
+      }),
+    SegmentedControl: ({ options = [], value, onValueChange, ...props }) =>
+      React.createElement(
+        'div',
+        { ...props, 'data-testid': 'segmented-control', 'data-value': value },
+        options.map((option) =>
+          React.createElement(
+            'button',
+            {
+              key: option.value,
+              type: 'button',
+              disabled: option.disabled,
+              onClick: () => onValueChange?.(option.value)
+            },
+            option.label
+          )
+        )
       ),
     Select: ({ children, value, onValueChange, ...props }) => {
       return React.createElement(
@@ -400,7 +577,7 @@ vi.mock('@cherrystudio/ui', () => {
           )
         )
       ),
-    Tooltip: ({ children, title, content, mouseEnterDelay, ...props }) => {
+    Tooltip: ({ children, title, content, mouseEnterDelay, classNames, ...props }) => {
       // Support both old (title) and new (content) API
       const tooltipText = content || title
       return React.createElement(
@@ -409,7 +586,8 @@ vi.mock('@cherrystudio/ui', () => {
           ...props,
           'data-testid': 'tooltip',
           ...(tooltipText && { 'data-title': tooltipText }),
-          'data-mouse-enter-delay': mouseEnterDelay
+          'data-mouse-enter-delay': mouseEnterDelay,
+          className: classNames?.placeholder
         },
         children,
         tooltipText ? React.createElement('div', { 'data-testid': 'tooltip-content' }, tooltipText) : null
@@ -530,6 +708,8 @@ vi.mock('@cherrystudio/ui', () => {
           onChange?.(event.target.value === '' ? null : event.target.valueAsNumber)
       }),
     Skeleton: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'skeleton' }, children),
+    EmptyState: ({ children, preset, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'empty-state', 'data-preset': preset }, children),
     HelpTooltip: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'help-tooltip' }, children),
     InfoTooltip: ({ children, ...props }) =>
@@ -552,6 +732,13 @@ vi.mock('@cherrystudio/ui', () => {
         onChange: (e) => onValueChange?.(e.target.checked),
         'data-testid': 'switch'
       }),
+    // Popover primitives — Radix-style trigger / content split
+    Popover: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'popover' }, children),
+    PopoverTrigger: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'popover-trigger' }, children),
+    PopoverContent: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'popover-content' }, children),
+    Skeleton: ({ children, ...props }) => React.createElement('div', { ...props, 'data-testid': 'skeleton' }, children),
     // Icon registry stubs
     PROVIDER_ICON_CATALOG: {},
     MODEL_ICON_CATALOG: {},

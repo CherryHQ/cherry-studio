@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('@cherrystudio/ui', () => ({}))
 vi.mock('@logger', () => ({ loggerService: { withContext: () => ({ error: vi.fn() }) } }))
 vi.mock('@renderer/hooks/useCopilot', () => ({ useCopilot: () => ({}) }))
-vi.mock('@renderer/hooks/useProviders', () => ({ useProvider: () => ({}) }))
+vi.mock('@renderer/hooks/useProvider', () => ({ useProvider: () => ({}) }))
 vi.mock('@renderer/pages/settings/ProviderSettings/utils/providerTopology', () => ({
   getProviderHostTopology: () => ({ primaryEndpoint: 'openai-chat-completions' })
 }))

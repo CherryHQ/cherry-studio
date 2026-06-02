@@ -1,8 +1,11 @@
+import { TooltipPortalContainerProvider } from '@cherrystudio/ui'
+import { SelectorPortalContainerProvider } from '@renderer/components/Selector/shell/SelectorPortalContainerContext'
+import { TabIdProvider } from '@renderer/context/TabIdContext'
 import { routeTree } from '@renderer/routeTree.gen'
 import type { Tab } from '@shared/data/cache/cacheValueTypes'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
 import { Activity } from 'react'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 interface TabRouterProps {
   tab: Tab
@@ -42,11 +45,19 @@ export const TabRouter = ({ tab, isActive, onUrlChange }: TabRouterProps) => {
     }
   }, [router, tab.url])
 
+  const [tabPortalContainer, setTabPortalContainer] = useState<HTMLElement | null>(null)
+
   return (
     <Activity mode={isActive ? 'visible' : 'hidden'}>
-      <div className="flex h-full min-h-0 w-full flex-1 flex-col">
-        <RouterProvider router={router} />
-      </div>
+      <TabIdProvider tabId={tab.id}>
+        <div ref={setTabPortalContainer} className="flex h-full min-h-0 w-full flex-1 flex-col">
+          <SelectorPortalContainerProvider container={tabPortalContainer}>
+            <TooltipPortalContainerProvider container={tabPortalContainer}>
+              <RouterProvider router={router} />
+            </TooltipPortalContainerProvider>
+          </SelectorPortalContainerProvider>
+        </div>
+      </TabIdProvider>
     </Activity>
   )
 }

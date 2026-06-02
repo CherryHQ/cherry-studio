@@ -8,15 +8,13 @@ vi.mock('@renderer/components/Popups/SaveToKnowledgePopup', () => ({
   default: {}
 }))
 
-vi.mock('@renderer/pages/home/Messages/MessageMenubar', () => ({
+vi.mock('@renderer/components/chat/messages/frame/MessageMenuBar', () => ({
   default: {}
 }))
 
 // Simple mocks
 vi.mock('@renderer/hooks/useTopic', () => ({
-  TopicManager: {
-    getTopicMessages: vi.fn()
-  }
+  getTopicMessages: vi.fn()
 }))
 
 describe('Topic Knowledge Functions', () => {
@@ -74,10 +72,9 @@ describe('Topic Knowledge Functions', () => {
       expect(typeof knowledgeModule.processTopicContent).toBe('function')
     })
 
-    it('should handle TopicManager mock correctly', async () => {
-      const { TopicManager } = await import('@renderer/hooks/useTopic')
-      expect(TopicManager).toHaveProperty('getTopicMessages')
-      expect(typeof TopicManager.getTopicMessages).toBe('function')
+    it('should handle getTopicMessages mock correctly', async () => {
+      const { getTopicMessages } = await import('@renderer/hooks/useTopic')
+      expect(typeof getTopicMessages).toBe('function')
     })
   })
 })

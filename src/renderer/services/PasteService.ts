@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { LONG_TEXT_PASTE_THRESHOLD } from '@renderer/config/constant'
 import type { FileMetadata } from '@renderer/types'
 import { getFileExtension, isSupportedFile } from '@renderer/utils'
 
@@ -29,8 +30,6 @@ export const handlePaste = async (
   supportExts: string[],
   setFiles: (updater: (prevFiles: FileMetadata[]) => FileMetadata[]) => void,
   setText?: (text: string) => void,
-  pasteLongTextAsFile?: boolean,
-  pasteLongTextThreshold?: number,
   text?: string,
   resizeTextArea?: () => void,
   t?: (key: string) => string
@@ -40,7 +39,7 @@ export const handlePaste = async (
     const clipboardText = event.clipboardData?.getData('text')
     if (clipboardText) {
       // 1. 文本粘贴
-      if (pasteLongTextAsFile && pasteLongTextThreshold && clipboardText.length > pasteLongTextThreshold) {
+      if (clipboardText.length > LONG_TEXT_PASTE_THRESHOLD) {
         // 长文本直接转文件，阻止默认粘贴
         event.preventDefault()
 

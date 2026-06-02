@@ -1,15 +1,17 @@
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
 import { Client } from '@notionhq/client'
+import { getTopicMessages } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n'
 import { getProviderLabel } from '@renderer/i18n/label'
 import { getMessageTitle } from '@renderer/services/MessagesService'
 import { addNote } from '@renderer/services/NotesService'
 import type { Topic } from '@renderer/types'
-import type { Message } from '@renderer/types/newMessage'
+import type { ExportableMessage } from '@renderer/types/messageExport'
 import { removeSpecialCharactersForFileName } from '@renderer/utils/file'
 import { captureScrollableAsBlob, captureScrollableAsDataURL } from '@renderer/utils/image'
 import { convertMathFormula, markdownToPlainText } from '@renderer/utils/markdown'
+import { getComposerTextFromMessage } from '@renderer/utils/messageUtils/composerTokens'
 import { getCitationContent, getMainTextContent, getThinkingContent } from '@renderer/utils/messageUtils/find'
 import { markdownToBlocks } from '@tryfabric/martian'
 import dayjs from 'dayjs'
@@ -114,17 +116,6 @@ const sanitizeReasoningContent = (content: string): string => {
     // 允许的协议（预留，虽然目前没有允许链接标签）
     ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?):|[^a-z]|[a-z+.-]+(?:[^a-z+.-:]|$))/i
   })
-}
-
-/**
- * 获取话题的消息列表，使用TopicManager确保消息被正确加载
- * 这样可以避免从未打开过的话题导出为空的问题
- * @param topicId 话题ID
- * @returns 话题消息列表
- */
-async function fetchTopicMessages(topicId: string): Promise<Message[]> {
-  const { TopicManager } = await import('@renderer/hooks/useTopic')
-  return await TopicManager.getTopicMessages(topicId)
 }
 
 /**
@@ -264,7 +255,7 @@ const formatCitationsAsFootnotes = (citations: string): string => {
 }
 
 const createBaseMarkdown = async (
-  message: Message,
+  message: ExportableMessage,
   includeReasoning: boolean = false,
   excludeCitations: boolean = false,
   normalizeCitations: boolean = true
@@ -297,7 +288,7 @@ const createBaseMarkdown = async (
     }
   }
 
-  const content = getMainTextContent(message)
+  const content = getComposerTextFromMessage(message, getMainTextContent(message))
   let citation = excludeCitations ? '' : getCitationContent(message)
 
   let processedContent = forceDollarMathInMarkdown ? convertMathFormula(content) : content
@@ -313,7 +304,7 @@ const createBaseMarkdown = async (
   return { titleSection, reasoningSection, contentSection: processedContent, citation }
 }
 
-export const messageToMarkdown = async (message: Message, excludeCitations?: boolean): Promise<string> => {
+export const messageToMarkdown = async (message: ExportableMessage, excludeCitations?: boolean): Promise<string> => {
   const { excludeCitationsInExport, standardizeCitationsInExport } = await preferenceService.getMultiple({
     excludeCitationsInExport: 'data.export.markdown.exclude_citations',
     standardizeCitationsInExport: 'data.export.markdown.standardize_citations'
@@ -328,7 +319,10 @@ export const messageToMarkdown = async (message: Message, excludeCitations?: boo
   return [titleSection, '', contentSection, citation].join('\n')
 }
 
-export const messageToMarkdownWithReasoning = async (message: Message, excludeCitations?: boolean): Promise<string> => {
+export const messageToMarkdownWithReasoning = async (
+  message: ExportableMessage,
+  excludeCitations?: boolean
+): Promise<string> => {
   const { excludeCitationsInExport, standardizeCitationsInExport } = await preferenceService.getMultiple({
     excludeCitationsInExport: 'data.export.markdown.exclude_citations',
     standardizeCitationsInExport: 'data.export.markdown.standardize_citations'
@@ -344,7 +338,7 @@ export const messageToMarkdownWithReasoning = async (message: Message, excludeCi
 }
 
 export const messagesToMarkdown = async (
-  messages: Message[],
+  messages: ExportableMessage[],
   exportReasoning?: boolean,
   excludeCitations?: boolean
 ): Promise<string> => {
@@ -353,19 +347,19 @@ export const messagesToMarkdown = async (
   return markdowns.join('\n---\n')
 }
 
-const formatMessageAsPlainText = (message: Message): string => {
+const formatMessageAsPlainText = (message: ExportableMessage): string => {
   const roleText = message.role === 'user' ? 'User:' : 'Assistant:'
-  const content = getMainTextContent(message)
+  const content = getComposerTextFromMessage(message, getMainTextContent(message))
   const plainTextContent = markdownToPlainText(content).trim()
   return `${roleText}\n${plainTextContent}`
 }
 
-export const messageToPlainText = (message: Message): string => {
-  const content = getMainTextContent(message)
+export const messageToPlainText = (message: ExportableMessage): string => {
+  const content = getComposerTextFromMessage(message, getMainTextContent(message))
   return markdownToPlainText(content).trim()
 }
 
-const messagesToPlainText = (messages: Message[]): string => {
+const messagesToPlainText = (messages: ExportableMessage[]): string => {
   return messages.map(formatMessageAsPlainText).join('\n\n')
 }
 
@@ -376,7 +370,7 @@ export const topicToMarkdown = async (
 ): Promise<string> => {
   const topicName = `# ${topic.name}`
 
-  const messages = await fetchTopicMessages(topic.id)
+  const messages = await getTopicMessages(topic.id)
 
   if (messages && messages.length > 0) {
     return topicName + '\n\n' + (await messagesToMarkdown(messages, exportReasoning, excludeCitations))
@@ -388,7 +382,7 @@ export const topicToMarkdown = async (
 export const topicToPlainText = async (topic: Topic): Promise<string> => {
   const topicName = markdownToPlainText(topic.name).trim()
 
-  const topicMessages = await fetchTopicMessages(topic.id)
+  const topicMessages = await getTopicMessages(topic.id)
 
   if (topicMessages && topicMessages.length > 0) {
     return topicName + '\n\n' + messagesToPlainText(topicMessages)
@@ -441,7 +435,7 @@ export const exportTopicAsMarkdown = async (
 }
 
 export const exportMessageAsMarkdown = async (
-  message: Message,
+  message: ExportableMessage,
   exportReasoning?: boolean,
   excludeCitations?: boolean
 ): Promise<void> => {
@@ -631,7 +625,11 @@ const executeNotionExport = async (title: string, allBlocks: any[]): Promise<boo
   }
 }
 
-export const exportMessageToNotion = async (title: string, content: string, message?: Message): Promise<boolean> => {
+export const exportMessageToNotion = async (
+  title: string,
+  content: string,
+  message?: ExportableMessage
+): Promise<boolean> => {
   const notionExportReasoning = await preferenceService.get('data.integration.notion.export_reasoning')
 
   const notionBlocks = await convertMarkdownToNotionBlocks(content)
@@ -657,7 +655,7 @@ export const exportTopicToNotion = async (topic: Topic): Promise<boolean> => {
     excludeCitationsInExport: 'data.export.markdown.exclude_citations'
   })
 
-  const topicMessages = await fetchTopicMessages(topic.id)
+  const topicMessages = await getTopicMessages(topic.id)
 
   // 创建话题标题块
   const titleBlocks = await convertMarkdownToNotionBlocks(`# ${topic.name}`)
@@ -882,7 +880,7 @@ function transformObsidianFileName(fileName: string): string {
 
 export const exportMarkdownToJoplin = async (
   title: string,
-  contentOrMessages: string | Message | Message[]
+  contentOrMessages: string | ExportableMessage | ExportableMessage[]
 ): Promise<any | null> => {
   const { joplinUrl, joplinToken, joplinExportReasoning, excludeCitationsInExport } =
     await preferenceService.getMultiple({

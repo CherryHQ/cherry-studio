@@ -19,9 +19,6 @@ const logger = loggerService.withContext('SubWindowService')
 // one on Linux and only pass it through on Linux; the field is omitted otherwise.
 const linuxIcon = isLinux ? nativeImage.createFromPath(iconPath) : undefined
 
-/** Height of the tab bar area used for drag-to-attach detection (must match CSS h-10) */
-const TAB_BAR_HEIGHT = 40
-
 /** Default content-size cache for SubWindow (must match windowRegistry width/height) */
 const SUB_WINDOW_DEFAULT_WIDTH = 800
 const SUB_WINDOW_DEFAULT_HEIGHT = 600
@@ -113,50 +110,6 @@ export class SubWindowService extends BaseService {
       }
     })
 
-    this.ipcHandle(
-      IpcChannel.Tab_TryAttach,
-      (_, payload: { tab: { id: string }; screenX: number; screenY: number }) => {
-        const wm = application.get('WindowManager')
-        const mainInfo = wm.getWindowsByType(WindowType.Main)[0]
-        const mainWindow = mainInfo ? wm.getWindow(mainInfo.id) : undefined
-        if (!mainWindow || mainWindow.isDestroyed()) {
-          logger.warn('Tab_TryAttach failed: main window not available')
-          return false
-        }
-
-        const bounds = mainWindow.getBounds()
-        const isOverTabBar =
-          payload.screenX >= bounds.x &&
-          payload.screenX <= bounds.x + bounds.width &&
-          payload.screenY >= bounds.y &&
-          payload.screenY <= bounds.y + TAB_BAR_HEIGHT
-
-        if (isOverTabBar) {
-          try {
-            wm.broadcastToType(WindowType.Main, IpcChannel.Tab_Attach, payload.tab)
-          } catch (err) {
-            logger.error('Tab_TryAttach failed: could not send to main window', err as Error)
-            return false
-          }
-
-          const subWindowId = this.tabIdToWindowId.get(payload.tab.id)
-          if (subWindowId) {
-            wm.close(subWindowId)
-          }
-          return true
-        }
-
-        // Not over tab bar — restore opacity
-        const subWindowId = this.tabIdToWindowId.get(payload.tab.id)
-        const subWin = subWindowId ? wm.getWindow(subWindowId) : undefined
-        if (subWin && !subWin.isDestroyed()) {
-          subWin.setOpacity(1)
-        }
-
-        return false
-      }
-    )
-
     this.ipcOn(IpcChannel.Tab_DragEnd, (event) => {
       // Restore opacity for the sender window after drag ends. Main window never sets
       // opacity <1, so the opacity predicate self-gates — no additional SubWindow filter needed.
@@ -164,6 +117,21 @@ export class SubWindowService extends BaseService {
       if (senderWindow && !senderWindow.isDestroyed() && senderWindow.getOpacity() < 1) {
         senderWindow.setOpacity(1)
       }
+    })
+
+    this.ipcHandle(IpcChannel.SubWindow_SetAlwaysOnTop, (event, pinned: boolean) => {
+      const wm = application.get('WindowManager')
+      const senderId = wm.getWindowIdByWebContents(event.sender)
+      if (senderId) {
+        wm.behavior.setAlwaysOnTop(senderId, pinned)
+        return true
+      }
+      const win = BrowserWindow.fromWebContents(event.sender)
+      if (win && !win.isDestroyed()) {
+        win.setAlwaysOnTop(pinned)
+        return true
+      }
+      return false
     })
   }
 
@@ -257,12 +225,19 @@ export class SubWindowService extends BaseService {
     this.tabIdToWindowId.set(tabId, windowId)
 
     // showMode: 'manual' — WM does not auto-show. Callers that supply an initial position
-    // will receive Tab_MoveWindow which shows the window after repositioning; otherwise
-    // auto-show once Electron signals ready.
+    // will receive Tab_MoveWindow which shows the window after repositioning; otherwise we show
+    // it here. A pooled standby is already loaded (ready-to-show fired during pre-warm and won't
+    // fire again), so it must be shown now; a freshly-created window (empty pool) shows on
+    // ready-to-show to avoid a blank flash. resetPooledWindowGeometry has already centered it.
     if (!hasPosition) {
-      win.once('ready-to-show', () => {
+      const showWindow = () => {
         if (!win.isDestroyed()) win.show()
-      })
+      }
+      if (win.webContents.isLoadingMainFrame()) {
+        win.once('ready-to-show', showWindow)
+      } else {
+        showWindow()
+      }
     }
 
     if (USE_CONTENT_BOUNDS_MOVE) {

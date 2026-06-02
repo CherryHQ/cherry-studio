@@ -1118,6 +1118,7 @@ function createApiFetcher<TPath extends ConcreteApiPaths, TMethod extends 'GET' 
         }) as Promise<ResponseForPath<TPath, TMethod>>
       case 'DELETE':
         return dataApiService.delete(path, {
+          body: options?.body as BodyForPath<TPath, 'DELETE'>,
           query: query as QueryParamsForPath<TPath, 'DELETE'>
         }) as Promise<ResponseForPath<TPath, TMethod>>
       case 'PATCH':

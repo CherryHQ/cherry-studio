@@ -1,0 +1,249 @@
+/**
+ * Session domain API Schema definitions.
+ */
+
+import {
+  MessageDataSchema,
+  MessageRoleSchema,
+  MessageStatsSchema,
+  MessageStatusSchema,
+  ModelSnapshotSchema
+} from '@shared/data/types/message'
+import * as z from 'zod'
+
+import type { CursorPaginationResponse } from '../apiTypes'
+import type { OrderEndpoints } from './_endpointHelpers'
+import { AgentNameAtomSchema } from './agents'
+import { WorkspaceEntitySchema, WorkspaceTypeSchema } from './workspaces'
+
+/** Cursor-paginated query for `/sessions/:sessionId/messages`. Walks history
+ *  newest-first; an absent `cursor` returns the most recent page, then each
+ *  `nextCursor` walks one page older. Limit caps at 200 — the renderer
+ *  flattens with `useInfiniteFlatItems` and the virtualizer scrolls older
+ *  pages in on demand, so per-page size never has to cover a whole session.
+ *  `messageId` anchors the first page at a known message for previews; cursor
+ *  takes precedence for subsequent older pages. */
+export const SESSION_MESSAGES_MAX_LIMIT = 200
+export const SESSION_MESSAGES_DEFAULT_LIMIT = 50
+
+export const SessionMessagesListQuerySchema = z.strictObject({
+  cursor: z.string().optional(),
+  messageId: z.string().min(1).optional(),
+  limit: z.coerce.number().int().positive().max(SESSION_MESSAGES_MAX_LIMIT).optional()
+})
+export type SessionMessagesListQuery = z.infer<typeof SessionMessagesListQuerySchema>
+
+export const SearchSessionMessagesQuerySchema = z.strictObject({
+  q: z.string().trim().min(1),
+  sessionId: z.string().min(1).optional(),
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().positive().max(1000).optional(),
+  createdAtFrom: z.iso.datetime().optional()
+})
+export type SearchSessionMessagesQueryParams = {
+  q: string
+  sessionId?: string
+  cursor?: string
+  limit?: number
+  createdAtFrom?: string
+}
+
+export interface SessionSearchMessageResult {
+  messageId: string
+  sessionId: string
+  sessionName: string
+  agentId?: string
+  agentName?: string
+  role?: 'user' | 'assistant' | 'tool' | 'system'
+  snippet: string
+  createdAt: string
+}
+export type SearchSessionMessagesResponse = CursorPaginationResponse<SessionSearchMessageResult>
+
+// ============================================================================
+// Entity & DTOs (Rule C: derive DTOs via .pick())
+// ============================================================================
+
+const AgentSessionMessageBaseSchema = z.strictObject({
+  role: MessageRoleSchema,
+  data: MessageDataSchema,
+  status: MessageStatusSchema,
+  modelId: z.string().nullable(),
+  modelSnapshot: ModelSnapshotSchema.nullable(),
+  traceId: z.string().nullable(),
+  stats: MessageStatsSchema.nullable()
+})
+
+export const AgentSessionMessageEntitySchema = AgentSessionMessageBaseSchema.extend({
+  /** Message ID (UUIDv7) */
+  id: z.string(),
+  /** Session ID this message belongs to */
+  sessionId: z.string(),
+  searchableText: z.string(),
+  runtimeResumeToken: z.string().nullable(),
+  createdAt: z.iso.datetime(),
+  updatedAt: z.iso.datetime()
+})
+export type AgentSessionMessageEntity = z.infer<typeof AgentSessionMessageEntitySchema>
+
+export const CreateAgentSessionMessageSchema = AgentSessionMessageBaseSchema.pick({
+  modelId: true,
+  modelSnapshot: true,
+  traceId: true,
+  stats: true
+})
+  .partial()
+  .extend({
+    id: z.string().optional(),
+    role: MessageRoleSchema,
+    data: MessageDataSchema,
+    status: MessageStatusSchema.optional()
+  })
+export type CreateAgentSessionMessageDto = z.infer<typeof CreateAgentSessionMessageSchema>
+
+export const CreateAgentSessionMessagesSchema = z.strictObject({
+  sessionId: z.string(),
+  runtimeResumeToken: z.string().optional(),
+  messages: z.array(CreateAgentSessionMessageSchema)
+})
+export type CreateAgentSessionMessagesDto = z.infer<typeof CreateAgentSessionMessagesSchema>
+
+export const AgentSessionEntitySchema = z.strictObject({
+  id: z.string(),
+  agentId: z.string().nullable(),
+  name: AgentNameAtomSchema,
+  description: z.string().optional(),
+  workspaceId: z.string().nullable(),
+  workspace: WorkspaceEntitySchema.nullable(),
+  orderKey: z.string(),
+  createdAt: z.string(),
+  updatedAt: z.string()
+})
+export type AgentSessionEntity = z.infer<typeof AgentSessionEntitySchema>
+
+// Create requires a real `agentId` — orphans only happen via cascade, never on insert.
+export const WorkspaceModeSchema = WorkspaceTypeSchema
+export type WorkspaceMode = z.infer<typeof WorkspaceModeSchema>
+
+// `workspaceId` is optional at create time — when omitted, the service inherits
+// from the latest user workspace sibling session of the same agent, or creates a default workspace.
+export const CreateSessionSchema = z
+  .strictObject({
+    agentId: z.string().min(1),
+    name: AgentNameAtomSchema,
+    description: z.string().optional(),
+    workspaceId: z.string().min(1).optional(),
+    workspaceMode: WorkspaceModeSchema.optional()
+  })
+  .refine((dto) => !(dto.workspaceMode === 'system' && dto.workspaceId), {
+    path: ['workspaceId'],
+    message: 'workspaceId must be omitted when workspaceMode is system'
+  })
+export type CreateSessionDto = z.infer<typeof CreateSessionSchema>
+
+export const UpdateSessionSchema = z.strictObject({
+  name: AgentNameAtomSchema.optional(),
+  description: z.string().optional(),
+  agentId: z.string().min(1).optional(),
+  workspaceId: z.string().min(1).optional()
+})
+
+export type UpdateSessionDto = z.infer<typeof UpdateSessionSchema>
+
+/** Query for `GET /sessions` (cursor pagination + optional agent filter). */
+export const ListSessionsQuerySchema = z.strictObject({
+  agentId: z.string().optional(),
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().positive().max(200).optional(),
+  search: z.string().trim().min(1).optional()
+})
+export type ListSessionsQueryParams = z.input<typeof ListSessionsQuerySchema>
+export type ListSessionsQuery = z.output<typeof ListSessionsQuerySchema>
+
+export interface DeleteSessionsResult {
+  deletedIds: string[]
+  deletedCount: number
+}
+
+export const DeleteSessionsSchema = z.strictObject({
+  ids: z.array(z.string().min(1)).min(1)
+})
+export type DeleteSessionsDto = z.infer<typeof DeleteSessionsSchema>
+
+// ============================================================================
+// API Schema definitions
+// ============================================================================
+
+export type SessionSchemas = {
+  '/sessions': {
+    GET: {
+      query?: ListSessionsQueryParams
+      response: CursorPaginationResponse<AgentSessionEntity>
+    }
+    POST: {
+      body: CreateSessionDto
+      response: AgentSessionEntity
+    }
+    /**
+     * Delete an explicit set of sessions.
+     *
+     * Used by multi-select table flows where the selection can span agents.
+     */
+    DELETE: {
+      body: DeleteSessionsDto
+      response: DeleteSessionsResult
+    }
+  }
+
+  '/sessions/:sessionId': {
+    GET: {
+      params: { sessionId: string }
+      response: AgentSessionEntity
+    }
+    PATCH: {
+      params: { sessionId: string }
+      body: UpdateSessionDto
+      response: AgentSessionEntity
+    }
+    DELETE: {
+      params: { sessionId: string }
+      response: void
+    }
+  }
+
+  '/sessions/:sessionId/messages': {
+    GET: {
+      params: { sessionId: string }
+      query?: SessionMessagesListQuery
+      response: CursorPaginationResponse<z.infer<typeof AgentSessionMessageEntitySchema>>
+    }
+  }
+
+  '/sessions/messages/search': {
+    GET: {
+      query: SearchSessionMessagesQueryParams
+      response: SearchSessionMessagesResponse
+    }
+  }
+
+  '/sessions/:sessionId/messages/:messageId': {
+    DELETE: {
+      params: { sessionId: string; messageId: string }
+      response: void
+    }
+  }
+
+  /**
+   * Delete all sessions currently linked to an agent.
+   *
+   * This is an explicit scoped collection delete. It does not change
+   * `DELETE /agents/:agentId`, which deletes only the agent entity and leaves
+   * sessions detached by FK.
+   */
+  '/agents/:agentId/sessions': {
+    DELETE: {
+      params: { agentId: string }
+      response: DeleteSessionsResult
+    }
+  }
+} & OrderEndpoints<'/sessions'>

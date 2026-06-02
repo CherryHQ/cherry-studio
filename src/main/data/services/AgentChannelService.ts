@@ -7,9 +7,9 @@ import {
 } from '@data/db/schemas/agentChannel'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
-import type { ChannelConfig } from '@main/services/agents/services/channels/channelConfig'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { AgentChannelEntity, CreateAgentChannelDto } from '@shared/data/api/schemas/agentChannels'
+import type { ChannelConfig } from '@shared/data/types/channel'
 import { and, eq, inArray } from 'drizzle-orm'
 
 const logger = loggerService.withContext('ChannelService')

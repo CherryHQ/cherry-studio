@@ -1,4 +1,9 @@
+import { Mutex } from 'async-mutex'
 import { vi } from 'vitest'
+
+const WRITE_BUSY_RETRY_DELAY_MS = 50
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 /**
  * Mock DbService for main process testing
@@ -21,6 +26,7 @@ const defaultMockDb = {
 export class MockMainDbService {
   private static instance: MockMainDbService
   private db: unknown = defaultMockDb
+  private writeMutex = new Mutex()
   private _isReady = true
 
   private constructor() {}
@@ -36,15 +42,36 @@ export class MockMainDbService {
 
   /**
    * Serialized write transaction mock. Mirrors `DbService.withWriteTx`:
-   * passes the current db (or whatever was set via `setDb`) to `fn` so tests
-   * exercising the write path do not need to know about the production mutex
-   * + BUSY retry machinery. Tests can replace this mock with `vi.spyOn(...)`
-   * to assert call order, simulate BUSY, etc.
+   * uses the current db transaction when available so rollback semantics match
+   * production data-service writes. Tests can replace this mock with
+   * `vi.spyOn(...)` to assert call order, simulate BUSY, etc.
    */
-  public withWriteTx = vi.fn(async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => fn(this.db))
+  public withWriteTx = vi.fn(async <T>(fn: (tx: unknown) => Promise<T>): Promise<T> => {
+    const release = await this.writeMutex.acquire()
+
+    try {
+      try {
+        return await this.runWriteTransaction(fn)
+      } catch (error) {
+        if ((error as { code?: string }).code !== 'SQLITE_BUSY') {
+          throw error
+        }
+
+        await delay(WRITE_BUSY_RETRY_DELAY_MS)
+        return this.runWriteTransaction(fn)
+      }
+    } finally {
+      release()
+    }
+  })
 
   public get isReady() {
     return this._isReady
+  }
+
+  private runWriteTransaction<T>(fn: (tx: unknown) => Promise<T>): Promise<T> {
+    const db = this.db as { transaction?: (callback: (tx: unknown) => Promise<T>) => Promise<T> }
+    return db.transaction ? db.transaction(fn) : fn(this.db)
   }
 }
 
@@ -79,6 +106,7 @@ export const MockMainDbServiceUtils = {
 
     // Restore default db
     mockInstance['db'] = defaultMockDb
+    mockInstance['writeMutex'] = new Mutex()
     mockInstance['_isReady'] = true
   },
 

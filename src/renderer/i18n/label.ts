@@ -5,9 +5,9 @@
  */
 
 import { loggerService } from '@logger'
-import type { AgentType, BuiltinMCPServerName, BuiltinOcrProviderId } from '@renderer/types'
+import type { BuiltinMCPServerName, BuiltinOcrProviderId } from '@renderer/types'
 import { BuiltinMCPServerNames } from '@renderer/types'
-import { SHORTCUT_DEFINITIONS, type ShortcutLabelKey } from '@shared/shortcuts/definitions'
+import type { AgentType } from '@shared/data/types/agent'
 
 import i18n from './index'
 
@@ -190,7 +190,7 @@ export const getThemeModeLabel = (key: string): string => {
 }
 
 const sidebarIconKeyMap = {
-  assistants: 'assistants.title',
+  assistants: 'agent.session.group.conversation',
   agents: 'agent.sidebar_title',
   store: 'assistants.presets.title',
   paintings: 'paintings.title',
@@ -205,14 +205,6 @@ const sidebarIconKeyMap = {
 
 export const getSidebarIconLabel = (key: string): string => {
   return getLabel(sidebarIconKeyMap, key)
-}
-
-const shortcutLabelKeyMap = Object.fromEntries(
-  SHORTCUT_DEFINITIONS.map((definition) => [definition.labelKey, `settings.shortcuts.${definition.labelKey}`])
-) as Record<ShortcutLabelKey, string>
-
-export const getShortcutLabel = (key: ShortcutLabelKey): string => {
-  return getLabel(shortcutLabelKeyMap, key)
 }
 
 const selectionDescriptionKeyMap = {

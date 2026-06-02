@@ -15,6 +15,7 @@ export {
   NormalTooltip,
   Tooltip,
   TooltipContent,
+  TooltipPortalContainerProvider,
   type TooltipProps,
   TooltipProvider,
   TooltipRoot,
@@ -134,6 +135,22 @@ export {
   type SelectItem as CompositeInputSelectItem
 } from './composites/composite-input'
 export { Sortable } from './composites/sortable'
+// TreeView
+export {
+  type DragPosition,
+  flattenTree,
+  type FlatTreeItem,
+  type RenderRowArgs,
+  type RenderRowFn,
+  type TreeDragHandleProps,
+  type TreeListSlotArgs,
+  type TreeNodeAdapter,
+  TreeView,
+  type TreeViewProps,
+  useExpandedState,
+  useSelectionState,
+  useTreeDragAndDrop
+} from './composites/TreeView'
 
 /* Shadcn Primitive Components */
 export * from './primitives/accordion'
@@ -149,6 +166,7 @@ export * from './primitives/command'
 export * from './primitives/context-menu'
 export * from './primitives/dialog'
 export * from './primitives/drawer'
+export * from './primitives/dropdown-menu'
 export * from './primitives/field'
 export * from './primitives/input'
 export * from './primitives/input-group'

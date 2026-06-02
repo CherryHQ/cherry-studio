@@ -1,65 +1,73 @@
-import { RowFlex } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import { useCommandHandler } from '@renderer/commands'
+import { type ChatPanePosition, ConversationShell } from '@renderer/components/chat'
+import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
+import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import type { ContentSearchRef } from '@renderer/components/ContentSearch'
 import { ContentSearch } from '@renderer/components/ContentSearch'
-import MultiSelectActionPopup from '@renderer/components/Popups/MultiSelectionPopup'
 import PromptPopup from '@renderer/components/Popups/PromptPopup'
-import { SelectChatModelPopup } from '@renderer/components/Popups/SelectModelPopup'
-import { QuickPanelProvider } from '@renderer/components/QuickPanel'
-import { isEmbeddingModel, isRerankModel, isWebSearchModel } from '@renderer/config/models'
-import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useShowTopics } from '@renderer/hooks/useStore'
+import type { TemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import type { Assistant, Model, Topic } from '@renderer/types'
-import { classNames } from '@renderer/utils'
-import { Flex } from 'antd'
-import { debounce } from 'lodash'
-import { AnimatePresence, motion } from 'motion/react'
-import type { FC } from 'react'
-import React, { useState } from 'react'
+import { useTopicMutations } from '@renderer/hooks/useTopic'
+import type { Citation, Topic } from '@renderer/types'
+import type { FC, ReactNode } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
 import { useTranslation } from 'react-i18next'
-import styled from 'styled-components'
 
+import ChatContent from './ChatContent'
 import ChatNavbar from './components/ChatNavBar'
-import Inputbar from './Inputbar/Inputbar'
-import ChatNavigation from './Messages/ChatNavigation'
-import Messages from './Messages/Messages'
-import Tabs from './Tabs'
+import { TopicRightPane, useTopicBranchLiveStateSetter, useTopicRightPaneActions } from './components/TopicRightPane'
+import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('Chat')
 
 interface Props {
-  assistant: Assistant
   activeTopic: Topic
-  setActiveTopic: (topic: Topic) => void
-  setActiveAssistant: (assistant: Assistant) => void
+  pane?: ReactNode
+  paneOpen?: boolean
+  panePosition?: ChatPanePosition
+  onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
+  showResourceListControls?: boolean
+  onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
+  locateMessageId?: string
+  onLocateMessageHandled?: () => void
+  onPaneCollapse?: () => void
+  /**
+   * Called by ChatContent before the first message of a freshly-leased
+   * temporary topic is sent. HomePage owns the lease so it also owns the
+   * persist trigger. `initialName` becomes a placeholder topic title so
+   * the sidebar isn't blank in the gap before auto-naming runs.
+   */
+  onPersistTemporaryTopic?: (initialName?: string) => Promise<TemporaryConversation | null>
 }
 
-const Chat: FC<Props> = (props) => {
-  const { assistant, updateAssistant, updateTopic } = useAssistant(props.assistant.id)
+const ChatInner: FC<Props> = (props) => {
+  const { updateTopic: patchTopic } = useTopicMutations()
   const { t } = useTranslation()
-  const [topicPosition] = usePreference('topic.position')
   const [messageStyle] = usePreference('chat.message.style')
-  const [messageNavigation] = usePreference('chat.message.navigation_mode')
-  const { showTopics } = useShowTopics()
-  const { isMultiSelectMode } = useChatContext(props.activeTopic)
+  const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
+  const [branchLocateMessageId, setBranchLocateMessageId] = useState<string | undefined>()
+  const setTopicBranchLiveState = useTopicBranchLiveStateSetter()
+  const { openTrace } = useTopicRightPaneActions()
 
   const mainRef = React.useRef<HTMLDivElement>(null)
-  const contentSearchRef = React.useRef<ContentSearchRef>(null)
+  const contentSearchRef = useRef<ContentSearchRef>(null)
   const [filterIncludeUser, setFilterIncludeUser] = useState(false)
-
   const { setTimeoutTimer } = useTimer()
+
+  useEffect(() => {
+    setTopicBranchLiveState(props.activeTopic.id, null)
+    setBranchLocateMessageId(undefined)
+    return () => setTopicBranchLiveState(props.activeTopic.id, null)
+  }, [props.activeTopic.id, setTopicBranchLiveState])
 
   useHotkeys('esc', () => {
     contentSearchRef.current?.disable()
   })
 
-  useShortcut('chat.search_message', () => {
+  useCommandHandler('chat.message.search', () => {
     try {
       const selectedText = window.getSelection()?.toString().trim()
       contentSearchRef.current?.enable(selectedText)
@@ -68,36 +76,18 @@ const Chat: FC<Props> = (props) => {
     }
   })
 
-  useShortcut('topic.rename', async () => {
+  useCommandHandler('topic.rename', async () => {
     const topic = props.activeTopic
     if (!topic) return
-
-    void EventEmitter.emit(EVENT_NAMES.SHOW_TOPIC_SIDEBAR)
 
     const name = await PromptPopup.show({
       title: t('chat.topics.edit.title'),
       message: '',
       defaultValue: topic.name || '',
-      extraNode: <div style={{ color: 'var(--color-text-3)', marginTop: 8 }}>{t('chat.topics.edit.title_tip')}</div>
+      extraNode: <div className="mt-2 text-foreground-secondary">{t('chat.topics.edit.title_tip')}</div>
     })
     if (name && topic.name !== name) {
-      const updatedTopic = { ...topic, name, isNameManuallyEdited: true }
-      updateTopic(updatedTopic as Topic)
-    }
-  })
-
-  useShortcut('chat.select_model', async () => {
-    const modelFilter = (m: Model) => !isEmbeddingModel(m) && !isRerankModel(m)
-    const selectedModel = await SelectChatModelPopup.show({
-      model: assistant?.model,
-      filter: modelFilter
-    })
-    if (selectedModel) {
-      const enabledWebSearch = isWebSearchModel(selectedModel)
-      updateAssistant({
-        model: selectedModel,
-        enableWebSearch: enabledWebSearch && assistant.enableWebSearch
-      })
+      await patchTopic(topic.id, { name, isNameManuallyEdited: true })
     }
   })
 
@@ -105,16 +95,10 @@ const Chat: FC<Props> = (props) => {
     acceptNode(node) {
       const container = node.parentElement?.closest('.message-content-container')
       if (!container) return NodeFilter.FILTER_REJECT
-
       const message = container.closest('.message')
       if (!message) return NodeFilter.FILTER_REJECT
-
-      if (filterIncludeUser) {
-        return NodeFilter.FILTER_ACCEPT
-      }
-      if (message.classList.contains('message-assistant')) {
-        return NodeFilter.FILTER_ACCEPT
-      }
+      if (filterIncludeUser) return NodeFilter.FILTER_ACCEPT
+      if (message.classList.contains('message-assistant')) return NodeFilter.FILTER_ACCEPT
       return NodeFilter.FILTER_REJECT
     }
   }
@@ -135,105 +119,109 @@ const Chat: FC<Props> = (props) => {
     })
   }
 
-  let firstUpdateCompleted = false
-  const firstUpdateOrNoFirstUpdateHandler = debounce(() => {
-    contentSearchRef.current?.silentSearch()
-  }, 10)
+  const citationsPanelOpen = citationPanelCitations !== null
 
-  const messagesComponentUpdateHandler = () => {
-    if (firstUpdateCompleted) {
-      firstUpdateOrNoFirstUpdateHandler()
+  const handleOpenCitationsPanel = useCallback(({ citations }: { citations: Citation[] }) => {
+    setCitationPanelCitations(citations)
+  }, [])
+
+  const handleOpenTrace = useCallback<NonNullable<MessageListActions['openTrace']>>(
+    (message, options) => {
+      if (!message.traceId) return
+      openTrace({
+        topicId: message.topicId,
+        traceId: message.traceId,
+        modelName: options?.modelName
+      })
+    },
+    [openTrace]
+  )
+
+  const handleBranchLiveStateChange = useCallback(
+    (state: Parameters<typeof setTopicBranchLiveState>[1]) => {
+      setTopicBranchLiveState(state?.topicId ?? props.activeTopic.id, state)
+    },
+    [props.activeTopic.id, setTopicBranchLiveState]
+  )
+  const branchPaneDisabled = !!props.onPersistTemporaryTopic
+  const locateMessageId = props.locateMessageId ?? branchLocateMessageId
+  const handleLocateMessageHandled = useCallback(() => {
+    setBranchLocateMessageId(undefined)
+    if (props.locateMessageId) {
+      props.onLocateMessageHandled?.()
     }
-  }
-
-  const messagesComponentFirstUpdateHandler = () => {
-    setTimeoutTimer('messagesComponentFirstUpdateHandler', () => (firstUpdateCompleted = true), 300)
-    firstUpdateOrNoFirstUpdateHandler()
-  }
+  }, [props.locateMessageId, props.onLocateMessageHandled])
 
   return (
-    <Container id="chat" className={classNames([messageStyle, { 'multi-select-mode': isMultiSelectMode }])}>
-      <RowFlex className="min-h-0 flex-1">
-        <motion.div
-          layout
-          transition={{ duration: 0.3, ease: 'easeInOut' }}
-          style={{ flex: 1, display: 'flex', minWidth: 0, overflow: 'hidden' }}>
-          <Main ref={mainRef} id="chat-main" vertical flex={1} justify="space-between" style={{ width: '100%' }}>
-            <QuickPanelProvider>
-              <ChatNavbar
-                activeAssistant={props.assistant}
-                activeTopic={props.activeTopic}
-                setActiveTopic={props.setActiveTopic}
-                setActiveAssistant={props.setActiveAssistant}
-                position="left"
-              />
-              <div className="flex min-h-0 flex-1 flex-col justify-between">
-                <Messages
-                  key={props.activeTopic.id}
-                  assistant={assistant}
-                  topic={props.activeTopic}
-                  setActiveTopic={props.setActiveTopic}
-                  onComponentUpdate={messagesComponentUpdateHandler}
-                  onFirstUpdate={messagesComponentFirstUpdateHandler}
-                />
-                <ContentSearch
-                  ref={contentSearchRef}
-                  searchTarget={mainRef as React.RefObject<HTMLElement>}
-                  filter={contentSearchFilter}
-                  includeUser={filterIncludeUser}
-                  onIncludeUserChange={userOutlinedItemClickHandler}
-                />
-                {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
-                <Inputbar assistant={assistant} setActiveTopic={props.setActiveTopic} topic={props.activeTopic} />
-                {isMultiSelectMode && <MultiSelectActionPopup topic={props.activeTopic} />}
-              </div>
-            </QuickPanelProvider>
-          </Main>
-        </motion.div>
-        <AnimatePresence initial={false}>
-          {topicPosition === 'right' && showTopics && (
-            <motion.div
-              key="right-tabs"
-              initial={{ width: 0, opacity: 0 }}
-              animate={{ width: 'var(--assistants-width)', opacity: 1 }}
-              exit={{ width: 0, opacity: 0 }}
-              transition={{ duration: 0.3, ease: 'easeInOut' }}
-              style={{
-                overflow: 'hidden'
-              }}>
-              <Tabs
-                activeAssistant={assistant}
-                activeTopic={props.activeTopic}
-                setActiveAssistant={props.setActiveAssistant}
-                setActiveTopic={props.setActiveTopic}
-                position="right"
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </RowFlex>
-    </Container>
+    <ConversationShell
+      id="chat"
+      className={messageStyle}
+      pane={props.pane}
+      paneOpen={props.paneOpen}
+      panePosition={props.panePosition}
+      onPaneCollapse={props.onPaneCollapse}
+      topBar={<ChatNavbar showSidebarControls={props.showResourceListControls} />}
+      topRightTool={<TopicRightPane.Toggle disabled={branchPaneDisabled} />}
+      sidePanel={
+        <CitationsPanel
+          open={citationsPanelOpen}
+          onClose={() => setCitationPanelCitations(null)}
+          citations={citationPanelCitations ?? []}
+        />
+      }
+      center={
+        <ChatContent
+          key={props.activeTopic.id}
+          topic={props.activeTopic}
+          onOpenCitationsPanel={handleOpenCitationsPanel}
+          onOpenTrace={handleOpenTrace}
+          onNewTopic={props.onNewTopic}
+          onTemporaryAssistantChange={props.onTemporaryAssistantChange}
+          locateMessageId={locateMessageId}
+          onLocateMessageHandled={handleLocateMessageHandled}
+          onBranchLiveStateChange={handleBranchLiveStateChange}
+          onPersistTemporaryTopic={props.onPersistTemporaryTopic}
+        />
+      }
+      centerTopOverlay={
+        <ContentSearch
+          ref={contentSearchRef}
+          searchTarget={mainRef as React.RefObject<HTMLElement>}
+          filter={contentSearchFilter}
+          includeUser={filterIncludeUser}
+          onIncludeUserChange={userOutlinedItemClickHandler}
+          positionMode="absolute"
+        />
+      }
+      centerOverlay={
+        !branchPaneDisabled && (
+          <TopicRightPane.MaximizedOverlay
+            topicId={props.activeTopic.id}
+            topicName={props.activeTopic.name}
+            onLocateMessage={setBranchLocateMessageId}
+          />
+        )
+      }
+      rightPane={
+        branchPaneDisabled ? undefined : (
+          <TopicRightPane.Host
+            topicId={props.activeTopic.id}
+            topicName={props.activeTopic.name}
+            onLocateMessage={setBranchLocateMessageId}
+          />
+        )
+      }
+      centerId="chat-main"
+      centerRef={mainRef}
+      centerClassName="transform-[translateZ(0)] relative justify-between"
+    />
   )
 }
 
-const Container = styled.div`
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  [navbar-position='top'] & {
-    background-color: var(--color-background);
-    border-top-left-radius: 10px;
-    border-bottom-left-radius: 10px;
-  }
-`
-
-const Main = styled(Flex)`
-  height: 100%;
-  min-height: 0;
-  transform: translateZ(0);
-  position: relative;
-`
+const Chat: FC<Props> = (props) => (
+  <TopicRightPane>
+    <ChatInner {...props} />
+  </TopicRightPane>
+)
 
 export default Chat

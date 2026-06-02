@@ -1,4 +1,4 @@
-import { useMcpServers } from '@renderer/hooks/useMcpServers'
+import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import ProviderDetail from '@renderer/pages/settings/McpSettings/McpProviderSettings'
 import { providers } from '@renderer/pages/settings/McpSettings/providers/config'
 import { useParams } from '@tanstack/react-router'

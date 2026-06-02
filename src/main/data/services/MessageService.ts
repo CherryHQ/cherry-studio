@@ -17,22 +17,61 @@ import type {
   ActiveNodeStrategy,
   CreateMessageDto,
   DeleteMessageResponse,
+  SearchMessageResult,
+  SearchMessagesQueryParams,
+  SearchMessagesResponse,
   UpdateMessageDto
 } from '@shared/data/api/schemas/messages'
 import type {
   BranchMessage,
   BranchMessagesResponse,
   Message,
+  MessageData,
   SiblingsGroup,
   TreeNode,
   TreeResponse
 } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
+import { buildKeywordRegexes, splitKeywordsToTerms } from '@shared/utils/keywordSearch'
+import { buildSearchSnippet, stripMarkdownFormatting } from '@shared/utils/messageSearch'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 
+import { topicService } from './TopicService'
 import { timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:MessageService')
+
+/**
+ * Input for `createUserMessageWithPlaceholders` — one chat turn (user
+ * message + assistant placeholder rows).
+ *
+ * Placeholders have `parentId` and `siblingsGroupId` intentionally omitted:
+ * both are derived by the reservation (placeholders always hang off the user
+ * message, and share the turn's group).
+ *
+ * An optional `id` on each placeholder lets callers (notably the AI stream
+ * pipeline) pre-generate the UUID on the renderer and thread it through so
+ * `useChat.activeResponse` and the DB row agree — eliminating the
+ * duplicate-assistant-message bug caused by client/DB id divergence.
+ */
+export interface AssistantPlaceholder extends Omit<CreateMessageDto, 'parentId' | 'siblingsGroupId' | 'setAsActive'> {
+  /** Optional caller-supplied UUID; falls back to the schema default when omitted. */
+  id?: string
+}
+
+export interface CreateUserMessageWithPlaceholdersInput {
+  topicId: string
+  userMessage: { mode: 'create'; dto: CreateMessageDto } | { mode: 'existing'; id: string }
+  /** If set, placeholders use this group and existing children with groupId=0 are backfilled. */
+  siblingsGroupId?: number
+  placeholders: AssistantPlaceholder[]
+}
+
+export interface CreateUserMessageWithPlaceholdersResult {
+  userMessage: Message
+  /** In the same order as `input.placeholders`. */
+  placeholders: Message[]
+}
 
 /**
  * Preview length for tree nodes
@@ -43,6 +82,28 @@ const PREVIEW_LENGTH = 50
  * Default pagination limit
  */
 const DEFAULT_LIMIT = 20
+const SEARCH_CHUNK_SIZE = 200
+
+function decodeMessageSearchCursor(raw: string): { key: string; id: string } | null {
+  const sep = raw.indexOf(':')
+  if (sep < 0) {
+    logger.warn('search: cursor missing separator, falling back to first page', { cursor: raw })
+    return null
+  }
+
+  const key = raw.slice(0, sep)
+  const id = raw.slice(sep + 1)
+  if (!key || !id) {
+    logger.warn('search: cursor has empty key or id, falling back to first page', { cursor: raw })
+    return null
+  }
+
+  return { key, id }
+}
+
+function encodeMessageSearchCursor(key: string, id: string): string {
+  return `${key}:${id}`
+}
 
 /**
  * Convert database row to Message entity.
@@ -86,16 +147,45 @@ function rowToMessage(row: typeof messageTable.$inferSelect): Message {
 /**
  * Extract preview text from message data
  */
+function truncatePreview(text: string): string {
+  return text.length > PREVIEW_LENGTH ? text.substring(0, PREVIEW_LENGTH) + '...' : text
+}
+
+function getStringField(value: unknown, key: string): string | undefined {
+  if (!value || typeof value !== 'object') return undefined
+
+  const field = (value as Record<string, unknown>)[key]
+  return typeof field === 'string' ? field : undefined
+}
+
+function getObjectField(value: unknown, key: string): Record<string, unknown> | undefined {
+  if (!value || typeof value !== 'object') return undefined
+
+  const field = (value as Record<string, unknown>)[key]
+  return field && typeof field === 'object' ? (field as Record<string, unknown>) : undefined
+}
+
 function extractPreview(message: Message): string {
-  const blocks = message.data?.blocks || []
-  for (const block of blocks) {
-    if ('content' in block && typeof block.content === 'string') {
-      const text = block.content.trim()
-      if (text.length > 0) {
-        return text.length > PREVIEW_LENGTH ? text.substring(0, PREVIEW_LENGTH) + '...' : text
-      }
+  const parts = message.data?.parts || []
+  for (const part of parts) {
+    const data = getObjectField(part, 'data')
+    const text =
+      part.type === 'text'
+        ? getStringField(part, 'text')
+        : ['data-code', 'data-translation'].includes(part.type)
+          ? getStringField(data, 'content')
+          : part.type === 'data-compact'
+            ? (getStringField(data, 'content') ?? getStringField(data, 'compactedContent'))
+            : part.type === 'data-error'
+              ? getStringField(data, 'message')
+              : undefined
+
+    const preview = text?.trim()
+    if (preview) {
+      return truncatePreview(preview)
     }
   }
+
   return ''
 }
 
@@ -113,6 +203,54 @@ function messageToTreeNode(message: Message, hasChildren: boolean): TreeNode {
     createdAt: message.createdAt,
     hasChildren
   }
+}
+
+function buildFtsLikePattern(term: string): string {
+  // Keep LIKE free of ESCAPE so SQLite can use the trigram FTS LIKE index;
+  // regex validation below preserves literal substring semantics.
+  return `%${term}%`
+}
+
+function decodeSearchCursor(raw: string | undefined): MessageSearchCursorRow | undefined {
+  if (!raw) return undefined
+
+  const decoded = decodeMessageSearchCursor(raw)
+  if (!decoded) return undefined
+
+  const createdAt = Number(decoded.key)
+  if (!Number.isFinite(createdAt)) {
+    logger.warn('search: cursor has invalid createdAt, falling back to first page', { cursor: raw })
+    return undefined
+  }
+
+  return { createdAt, id: decoded.id }
+}
+
+function getCreatedAtFromMs(createdAtFrom: string | undefined): number | undefined {
+  if (!createdAtFrom) return undefined
+  const value = Date.parse(createdAtFrom)
+  return Number.isFinite(value) ? value : undefined
+}
+
+type MessageSearchRow = {
+  id: string
+  topicId: string
+  topicName: string
+  topicAssistantId: string | null
+  role: string
+  topicCreatedAt: number
+  topicUpdatedAt: number
+  searchableText: string
+  createdAt: number
+}
+
+type MessageSearchCursorRow = {
+  id: string
+  createdAt: number
+}
+
+type InternalSearchMessageResult = SearchMessageResult & {
+  cursorCreatedAt: number
 }
 
 export class MessageService {
@@ -140,25 +278,10 @@ export class MessageService {
 
     const activeNodeId = options.nodeId || topic.activeNodeId
 
-    // Find root node if not specified
-    let rootId = options.rootId
-    if (!rootId) {
-      const [root] = await db
-        .select({ id: messageTable.id })
-        .from(messageTable)
-        .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.parentId), isNull(messageTable.deletedAt)))
-        .limit(1)
-      rootId = root?.id
-    }
-
-    if (!rootId) {
-      return { nodes: [], siblingsGroups: [], activeNodeId: null }
-    }
-
     // Build active path via CTE (single query)
     const activePath = new Set<string>()
     if (activeNodeId) {
-      const pathRows = await db.all<{ id: string }>(sql`
+      const pathRows = await db.all<{ id: string; parent_id: string | null }>(sql`
         WITH RECURSIVE path AS (
           SELECT id, parent_id FROM message WHERE id = ${activeNodeId} AND deleted_at IS NULL
           UNION ALL
@@ -166,9 +289,31 @@ export class MessageService {
           INNER JOIN path p ON m.id = p.parent_id
           WHERE m.deleted_at IS NULL
         )
-        SELECT id FROM path
+        SELECT id, parent_id FROM path
       `)
-      pathRows.forEach((r) => activePath.add(r.id))
+      pathRows.forEach((r) => {
+        activePath.add(r.id)
+      })
+    }
+
+    // Without an explicit root, the flow canvas is a topic-level view: every
+    // non-deleted root message in this topic starts its own tree.
+    const explicitRootId = options.rootId
+    const rootIds = explicitRootId
+      ? [explicitRootId]
+      : (
+          await db
+            .select({ id: messageTable.id, createdAt: messageTable.createdAt })
+            .from(messageTable)
+            .where(
+              and(eq(messageTable.topicId, topicId), isNull(messageTable.parentId), isNull(messageTable.deletedAt))
+            )
+        )
+          .sort((a, b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id))
+          .map((row) => row.id)
+
+    if (rootIds.length === 0) {
+      return { nodes: [], siblingsGroups: [], activeNodeId: null }
     }
 
     // Get tree with depth limit via CTE
@@ -180,7 +325,11 @@ export class MessageService {
     // See docs/references/data/database-patterns.md.
     const treeDepthRows = await db.all<{ id: string; tree_depth: number }>(sql`
       WITH RECURSIVE tree AS (
-        SELECT id, 0 as tree_depth FROM message WHERE id = ${rootId} AND deleted_at IS NULL
+        SELECT id, 0 as tree_depth FROM message
+        WHERE id IN (${sql.join(
+          rootIds.map((id) => sql`${id}`),
+          sql`, `
+        )}) AND deleted_at IS NULL
         UNION ALL
         SELECT m.id, t.tree_depth + 1 FROM message m
         INNER JOIN tree t ON m.parent_id = t.id
@@ -217,7 +366,10 @@ export class MessageService {
         .select()
         .from(messageTable)
         .where(and(inArray(messageTable.id, missingActivePathIds), isNull(messageTable.deletedAt)))
-      treeRows.push(...additionalRows.map((r) => ({ ...r, treeDepth: maxDepth + 1 })))
+      for (const row of additionalRows) {
+        treeRows.push({ ...row, treeDepth: maxDepth + 1 })
+        treeNodeIds.add(row.id)
+      }
     }
 
     // Also need children of active path nodes for proper tree building
@@ -283,6 +435,8 @@ export class MessageService {
     const resultNodes: TreeNode[] = []
     const siblingsGroups: SiblingsGroup[] = []
     const visitedGroups = new Set<string>()
+    const childrenKeyFor = (parentId: string | null) => parentId ?? 'root'
+    const groupKeyFor = (parentId: string | null, siblingsGroupId: number) => `${parentId ?? 'root'}-${siblingsGroupId}`
 
     const collectNodes = (nodeId: string, currentDepth: number, isOnActivePath: boolean) => {
       const message = messagesById.get(nodeId)
@@ -292,21 +446,23 @@ export class MessageService {
       const hasChildren = children.length > 0
 
       // Check if this message is part of a siblings group
-      if (message.siblingsGroupId !== 0) {
-        const groupKey = `${message.parentId}-${message.siblingsGroupId}`
+      const siblingsGroupId = message.siblingsGroupId ?? 0
+      if (siblingsGroupId !== 0) {
+        const groupKey = groupKeyFor(message.parentId, siblingsGroupId)
         if (!visitedGroups.has(groupKey)) {
           visitedGroups.add(groupKey)
 
           // Find all siblings in this group
-          const parentChildren = childrenMap.get(message.parentId || 'root') || []
+          const parentChildren = childrenMap.get(childrenKeyFor(message.parentId)) || []
           const groupMembers = parentChildren
             .map((id) => messagesById.get(id)!)
-            .filter((m) => m && m.siblingsGroupId === message.siblingsGroupId)
+            .filter((m) => m && m.siblingsGroupId === siblingsGroupId)
+            .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
 
           if (groupMembers.length > 1) {
             siblingsGroups.push({
-              parentId: message.parentId!,
-              siblingsGroupId: message.siblingsGroupId,
+              parentId: message.parentId,
+              siblingsGroupId,
               nodes: groupMembers.map((m) => {
                 const memberChildren = childrenMap.get(m.id) || []
                 const node = messageToTreeNode(m, memberChildren.length > 0)
@@ -334,8 +490,11 @@ export class MessageService {
       }
     }
 
-    // Start from root
-    collectNodes(rootId, 0, activePath.has(rootId))
+    // Start from root nodes. Root siblings are independent trees that share
+    // parentId=null, so the flow canvas needs to collect each subtree.
+    for (const startRootId of rootIds) {
+      collectNodes(startRootId, 0, activePath.has(startRootId))
+    }
 
     return {
       nodes: resultNodes,
@@ -379,7 +538,7 @@ export class MessageService {
 
     // Return empty if no active node
     if (!nodeId) {
-      return { items: [], nextCursor: undefined, activeNodeId: null }
+      return { items: [], nextCursor: undefined, activeNodeId: null, assistantId: topic.assistantId }
     }
 
     // Use recursive CTE to collect path IDs from nodeId to root (single-column
@@ -434,13 +593,15 @@ export class MessageService {
     const result: BranchMessage[] = []
 
     if (includeSiblings) {
-      // Collect unique (parentId, siblingsGroupId) pairs that need siblings
+      // Collect unique (parentId, siblingsGroupId) pairs that need siblings.
       const uniqueGroups = new Set<string>()
-      const groupsToQuery: Array<{ parentId: string; siblingsGroupId: number }> = []
+      const groupsToQuery: Array<{ parentId: string | null; siblingsGroupId: number }> = []
+      const groupKeyFor = (parentId: string | null, siblingsGroupId: number) =>
+        `${parentId ?? 'root'}-${siblingsGroupId}`
 
       for (const msg of paginatedPath) {
-        if (msg.siblingsGroupId && msg.siblingsGroupId !== 0 && msg.parentId) {
-          const key = `${msg.parentId}-${msg.siblingsGroupId}`
+        if (msg.siblingsGroupId && msg.siblingsGroupId !== 0) {
+          const key = groupKeyFor(msg.parentId, msg.siblingsGroupId)
           if (!uniqueGroups.has(key)) {
             uniqueGroups.add(key)
             groupsToQuery.push({ parentId: msg.parentId, siblingsGroupId: msg.siblingsGroupId })
@@ -452,9 +613,11 @@ export class MessageService {
       const siblingsMap = new Map<string, Message[]>()
 
       if (groupsToQuery.length > 0) {
-        // Build OR conditions for batch query
         const orConditions = groupsToQuery.map((g) =>
-          and(eq(messageTable.parentId, g.parentId), eq(messageTable.siblingsGroupId, g.siblingsGroupId))
+          and(
+            g.parentId === null ? isNull(messageTable.parentId) : eq(messageTable.parentId, g.parentId),
+            eq(messageTable.siblingsGroupId, g.siblingsGroupId)
+          )
         )
 
         const siblingsRows = await db
@@ -462,9 +625,8 @@ export class MessageService {
           .from(messageTable)
           .where(and(isNull(messageTable.deletedAt), or(...orConditions)))
 
-        // Group results by parentId-siblingsGroupId
         for (const row of siblingsRows) {
-          const key = `${row.parentId}-${row.siblingsGroupId}`
+          const key = groupKeyFor(row.parentId, row.siblingsGroupId ?? 0)
           if (!siblingsMap.has(key)) siblingsMap.set(key, [])
           siblingsMap.get(key)!.push(rowToMessage(row))
         }
@@ -475,8 +637,8 @@ export class MessageService {
         const message = rowToMessage(msg)
         let siblingsGroup: Message[] | undefined
 
-        if (msg.siblingsGroupId !== 0 && msg.parentId) {
-          const key = `${msg.parentId}-${msg.siblingsGroupId}`
+        if (msg.siblingsGroupId != null && msg.siblingsGroupId !== 0) {
+          const key = groupKeyFor(msg.parentId, msg.siblingsGroupId)
           const group = siblingsMap.get(key)
           if (group && group.length > 1) {
             siblingsGroup = group.filter((m) => m.id !== message.id)
@@ -495,7 +657,8 @@ export class MessageService {
     return {
       items: result,
       nextCursor,
-      activeNodeId: topic.activeNodeId
+      activeNodeId: topic.activeNodeId,
+      assistantId: topic.assistantId
     }
   }
 
@@ -516,6 +679,178 @@ export class MessageService {
     }
 
     return rowToMessage(row)
+  }
+
+  async search(query: SearchMessagesQueryParams): Promise<SearchMessagesResponse> {
+    const terms = splitKeywordsToTerms(query.q)
+    if (terms.length === 0) return { items: [] }
+
+    const db = application.get('DbService').getDb()
+    const matchMode = 'substring'
+    const limit = query.limit ?? 500
+    const fetchLimit = limit + 1
+    const regexes = buildKeywordRegexes(terms, { matchMode, flags: 'i' })
+    const ftsConditions = terms.map((term) => sql`fts.searchable_text LIKE ${buildFtsLikePattern(term)}`)
+    const results: InternalSearchMessageResult[] = []
+    const cursor = decodeSearchCursor(query.cursor)
+    const createdAtFromMs = getCreatedAtFromMs(query.createdAtFrom)
+    const topicConditionForMessageAlias = query.topicId ? sql`message.topic_id = ${query.topicId}` : sql`1 = 1`
+    const createdAtConditionForMessageAlias =
+      createdAtFromMs !== undefined ? sql`message.created_at >= ${createdAtFromMs}` : sql`1 = 1`
+    let offset = 0
+
+    while (results.length < fetchLimit) {
+      const rows = await db.all<MessageSearchRow>(sql`
+        SELECT
+          message.id,
+          message.topic_id AS "topicId",
+          t.name AS "topicName",
+          t.assistant_id AS "topicAssistantId",
+          message.role,
+          t.created_at AS "topicCreatedAt",
+          t.updated_at AS "topicUpdatedAt",
+          message.searchable_text AS "searchableText",
+          message.created_at AS "createdAt"
+        FROM message
+        JOIN message_fts fts ON message.rowid = fts.rowid
+        JOIN topic t ON t.id = message.topic_id
+        WHERE message.deleted_at IS NULL
+          AND t.deleted_at IS NULL
+          AND message.searchable_text != ''
+          AND ${topicConditionForMessageAlias}
+          AND ${createdAtConditionForMessageAlias}
+          AND ${sql.join(ftsConditions, sql` AND `)}
+          AND ${
+            cursor
+              ? sql`(message.created_at < ${cursor.createdAt} OR (message.created_at = ${cursor.createdAt} AND message.id < ${cursor.id}))`
+              : sql`1 = 1`
+          }
+        ORDER BY message.created_at DESC, message.id DESC
+        LIMIT ${SEARCH_CHUNK_SIZE}
+        OFFSET ${offset}
+      `)
+
+      if (rows.length === 0) break
+      offset += rows.length
+
+      for (const row of rows) {
+        const searchableText = row.searchableText
+        const plainText = stripMarkdownFormatting(searchableText)
+        const matches = regexes.every((regex) => {
+          regex.lastIndex = 0
+          return regex.test(plainText)
+        })
+        if (!matches) continue
+
+        results.push({
+          messageId: row.id,
+          topicId: row.topicId,
+          topicName: row.topicName,
+          topicAssistantId: row.topicAssistantId ?? undefined,
+          role: ['user', 'assistant'].includes(row.role) ? (row.role as 'user' | 'assistant') : undefined,
+          topicCreatedAt: timestampToISO(Number(row.topicCreatedAt)),
+          topicUpdatedAt: timestampToISO(Number(row.topicUpdatedAt)),
+          snippet: buildSearchSnippet(searchableText, terms, matchMode),
+          createdAt: timestampToISO(Number(row.createdAt)),
+          cursorCreatedAt: Number(row.createdAt)
+        })
+
+        if (results.length >= fetchLimit) break
+      }
+    }
+
+    const itemsWithCursor = results.slice(0, limit)
+    const nextCursorBoundary = results.length > limit ? itemsWithCursor.at(-1) : undefined
+    return {
+      items: itemsWithCursor.map((item) => ({
+        messageId: item.messageId,
+        topicId: item.topicId,
+        topicName: item.topicName,
+        topicAssistantId: item.topicAssistantId,
+        role: item.role,
+        topicCreatedAt: item.topicCreatedAt,
+        topicUpdatedAt: item.topicUpdatedAt,
+        snippet: item.snippet,
+        createdAt: item.createdAt
+      })),
+      nextCursor: nextCursorBoundary
+        ? encodeMessageSearchCursor(String(nextCursorBoundary.cursorCreatedAt), nextCursorBoundary.messageId)
+        : undefined
+    }
+  }
+
+  /** Get all children of a message (messages whose parentId = given id). */
+  async getChildrenByParentId(parentId: string): Promise<Message[]> {
+    const db = application.get('DbService').getDb()
+    const rows = await db
+      .select()
+      .from(messageTable)
+      .where(and(eq(messageTable.parentId, parentId), isNull(messageTable.deletedAt)))
+    return rows.map(rowToMessage)
+  }
+
+  /** Update siblingsGroupId for a single message. */
+  async updateSiblingsGroupId(id: string, siblingsGroupId: number): Promise<void> {
+    const db = application.get('DbService').getDb()
+    await db.update(messageTable).set({ siblingsGroupId }).where(eq(messageTable.id, id))
+  }
+
+  /**
+   * Create a new sibling of an existing message.
+   *
+   * Used by edit-and-resend flows where the user wants to branch the
+   * conversation rather than overwrite the previous turn. Runs in a single
+   * transaction so the source's `siblingsGroupId` backfill (when needed) and
+   * the new row's insert are atomic.
+   *
+   * Behavior:
+   * - Allocates a new `siblingsGroupId` (`Date.now()`) only if the source is
+   *   still ungrouped (`= 0`); otherwise joins the source's existing group.
+   * - The new message inherits the source's `role` and `topicId`, hangs off
+   *   the same `parentId`, and always becomes the topic's active node.
+   * - Edited user siblings are already complete (`success`); assistant siblings
+   *   stay `pending` until their response stream resolves.
+   * - Root messages (`parentId = null`) can create root siblings for editing
+   *   and resending the first user turn.
+   */
+  async createSibling(sourceId: string, data: MessageData): Promise<Message> {
+    const dbService = application.get('DbService')
+
+    return await dbService.withWriteTx(async (tx) => {
+      const [source] = await tx.select().from(messageTable).where(eq(messageTable.id, sourceId)).limit(1)
+      if (!source) {
+        throw DataApiErrorFactory.notFound('Message', sourceId)
+      }
+
+      let siblingsGroupId = source.siblingsGroupId ?? 0
+      if (siblingsGroupId === 0) {
+        siblingsGroupId = Date.now()
+        await tx.update(messageTable).set({ siblingsGroupId }).where(eq(messageTable.id, sourceId))
+      }
+
+      const [row] = await tx
+        .insert(messageTable)
+        .values({
+          topicId: source.topicId,
+          parentId: source.parentId,
+          role: source.role,
+          data,
+          status: source.role === 'user' ? 'success' : 'pending',
+          siblingsGroupId
+        })
+        .returning()
+
+      await topicService.setActiveNodeTx(tx, source.topicId, row.id, { assumeValid: true })
+
+      logger.info('Created sibling message', {
+        sourceId,
+        newId: row.id,
+        parentId: source.parentId,
+        siblingsGroupId
+      })
+
+      return rowToMessage(row)
+    })
   }
 
   /**
@@ -546,33 +881,26 @@ export class MessageService {
       let resolvedParentId: string | null
 
       if (dto.parentId === undefined) {
-        // Auto-resolution mode: Determine parentId based on topic's current state.
-        // This provides convenience for callers who want to "append" to the conversation
-        // without needing to know the tree structure.
-
-        // Check if topic has any existing messages by querying for at least one.
-        const [existingMessage] = await tx
-          .select({ id: messageTable.id })
-          .from(messageTable)
-          .where(eq(messageTable.topicId, topicId))
-          .limit(1)
-
-        if (!existingMessage) {
-          // Topic is empty: This will be the first message, so it becomes the root.
-          // Root messages have parentId = null.
-          resolvedParentId = null
-        } else if (topic.activeNodeId) {
-          // Topic has messages and an active node: Attach new message as child of activeNodeId.
-          // This is the typical case for continuing a conversation.
+        // Auto-resolution: `activeNodeId` is the authoritative "where we are
+        // in this conversation" marker. When set, append there; otherwise
+        // the topic must be empty and we create the root.
+        if (topic.activeNodeId) {
           resolvedParentId = topic.activeNodeId
         } else {
-          // Topic has messages but no activeNodeId: This is an ambiguous state.
-          // We cannot auto-resolve because we don't know where in the tree to attach.
-          // Require explicit parentId from caller to resolve the ambiguity.
-          throw DataApiErrorFactory.invalidOperation(
-            'create message',
-            'Topic has messages but no activeNodeId. Please specify parentId explicitly.'
-          )
+          // No active node → topic should be empty. If a root already exists
+          // in some ambiguous state, require the caller to be explicit.
+          const [existingRoot] = await tx
+            .select({ id: messageTable.id })
+            .from(messageTable)
+            .where(and(eq(messageTable.topicId, topicId), isNull(messageTable.parentId)))
+            .limit(1)
+          if (existingRoot) {
+            throw DataApiErrorFactory.invalidOperation(
+              'create message',
+              'Topic has messages but no activeNodeId. Please specify parentId explicitly.'
+            )
+          }
+          resolvedParentId = null
         }
       } else if (dto.parentId === null) {
         // Explicit root creation: Caller wants to create a root message.
@@ -592,18 +920,15 @@ export class MessageService {
         }
         resolvedParentId = null
       } else {
-        // Explicit parent ID provided: Validate the parent exists and belongs to this topic.
-        // This ensures referential integrity within the message tree.
-
+        // Explicit parent ID: verify existence and topic membership. Each
+        // topic's message tree is self-contained — cross-topic parent refs
+        // aren't a supported shape.
         const [parent] = await tx.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1)
 
         if (!parent) {
-          // Parent message not found: Cannot attach to non-existent message.
           throw DataApiErrorFactory.notFound('Message', dto.parentId)
         }
         if (parent.topicId !== topicId) {
-          // Parent belongs to different topic: Cross-topic references are not allowed.
-          // Each topic's message tree must be self-contained.
           throw DataApiErrorFactory.invalidOperation('create message', 'Parent message does not belong to this topic')
         }
         resolvedParentId = dto.parentId
@@ -628,12 +953,149 @@ export class MessageService {
 
       // Update activeNodeId if setAsActive is not explicitly false
       if (dto.setAsActive !== false) {
-        await tx.update(topicTable).set({ activeNodeId: row.id }).where(eq(topicTable.id, topicId))
+        await topicService.setActiveNodeTx(tx, topicId, row.id, { assumeValid: true })
       }
 
       logger.info('Created message', { id: row.id, topicId, role: dto.role, setAsActive: dto.setAsActive !== false })
 
       return rowToMessage(row)
+    })
+  }
+
+  /**
+   * Atomically create one chat turn: insert (or resolve) one user message,
+   * optionally backfill existing siblings with groupId=0, and insert N assistant
+   * placeholders as children, then point topic.activeNodeId at the last placeholder.
+   *
+   * The whole operation runs in a single DB transaction, so a failure anywhere
+   * rolls back everything — callers don't need compensation logic. Designed for
+   * the AI Stream setup phase where multi-model / regenerate turns must be
+   * written as one unit to avoid orphaned user messages or pending placeholders.
+   *
+   * User message handling:
+   * - `mode: 'create'`: caller supplies a CreateMessageDto; parentId must be null
+   *   (for root) or an existing message id in this topic. Auto-resolve is not
+   *   supported here — this API is for chat reservation, not general inserts.
+   * - `mode: 'existing'`: caller supplies the id of an already-persisted user
+   *   message (regenerate scenario).
+   *
+   * Siblings backfill: if `siblingsGroupId` is provided, any existing children
+   * of the user message whose `siblingsGroupId = 0` are backfilled to it. This
+   * is a no-op when there are no existing children (fresh turn) or when they
+   * already belong to a group (inherit case).
+   */
+  async createUserMessageWithPlaceholders(
+    input: CreateUserMessageWithPlaceholdersInput
+  ): Promise<CreateUserMessageWithPlaceholdersResult> {
+    const db = application.get('DbService').getDb()
+
+    return await db.transaction(async (tx) => {
+      // Validate topic
+      const [topic] = await tx.select().from(topicTable).where(eq(topicTable.id, input.topicId)).limit(1)
+      if (!topic) {
+        throw DataApiErrorFactory.notFound('Topic', input.topicId)
+      }
+
+      // 1. Resolve user message — insert new, or fetch existing
+      let userMessage: Message
+      if (input.userMessage.mode === 'create') {
+        const dto = input.userMessage.dto
+        let resolvedParentId: string | null
+
+        if (dto.parentId === undefined || dto.parentId === null) {
+          // Explicit/default root: enforce single-root invariant
+          const [existingRoot] = await tx
+            .select({ id: messageTable.id })
+            .from(messageTable)
+            .where(and(eq(messageTable.topicId, input.topicId), isNull(messageTable.parentId)))
+            .limit(1)
+          if (existingRoot) {
+            throw DataApiErrorFactory.invalidOperation('create root message', 'Topic already has a root message')
+          }
+          resolvedParentId = null
+        } else {
+          const [parent] = await tx.select().from(messageTable).where(eq(messageTable.id, dto.parentId)).limit(1)
+          if (!parent) {
+            throw DataApiErrorFactory.notFound('Message', dto.parentId)
+          }
+          if (parent.topicId !== input.topicId) {
+            throw DataApiErrorFactory.invalidOperation('create message', 'Parent message does not belong to this topic')
+          }
+          resolvedParentId = dto.parentId
+        }
+
+        const [row] = await tx
+          .insert(messageTable)
+          .values({
+            topicId: input.topicId,
+            parentId: resolvedParentId,
+            role: dto.role,
+            data: dto.data,
+            status: dto.status ?? 'pending',
+            siblingsGroupId: dto.siblingsGroupId ?? 0,
+            modelId: dto.modelId,
+            modelSnapshot: dto.modelSnapshot,
+            traceId: dto.traceId,
+            stats: dto.stats
+          })
+          .returning()
+        userMessage = rowToMessage(row)
+      } else {
+        const [row] = await tx.select().from(messageTable).where(eq(messageTable.id, input.userMessage.id)).limit(1)
+        if (!row) {
+          throw DataApiErrorFactory.notFound('Message', input.userMessage.id)
+        }
+        if (row.topicId !== input.topicId) {
+          throw DataApiErrorFactory.invalidOperation(
+            'reserve assistant turn',
+            'User message does not belong to this topic'
+          )
+        }
+        userMessage = rowToMessage(row)
+      }
+
+      // 2. Backfill siblings with groupId=0 under the user message
+      if (input.siblingsGroupId != null) {
+        await tx
+          .update(messageTable)
+          .set({ siblingsGroupId: input.siblingsGroupId })
+          .where(and(eq(messageTable.parentId, userMessage.id), eq(messageTable.siblingsGroupId, 0)))
+      }
+
+      // 3. Insert placeholders (preserving input order)
+      const placeholders: Message[] = []
+      for (const p of input.placeholders) {
+        const [row] = await tx
+          .insert(messageTable)
+          .values({
+            ...(p.id && { id: p.id }),
+            topicId: input.topicId,
+            parentId: userMessage.id,
+            role: p.role,
+            data: p.data,
+            status: p.status ?? 'pending',
+            siblingsGroupId: input.siblingsGroupId ?? 0,
+            modelId: p.modelId,
+            modelSnapshot: p.modelSnapshot,
+            traceId: p.traceId,
+            stats: p.stats
+          })
+          .returning()
+        placeholders.push(rowToMessage(row))
+      }
+
+      // 4. Point activeNodeId at the last placeholder (or user message if N=0)
+      const newActiveNodeId = placeholders.at(-1)?.id ?? userMessage.id
+      await topicService.setActiveNodeTx(tx, input.topicId, newActiveNodeId, { assumeValid: true })
+
+      logger.info('Reserved assistant turn', {
+        topicId: input.topicId,
+        userMessageId: userMessage.id,
+        placeholderIds: placeholders.map((p) => p.id),
+        siblingsGroupId: input.siblingsGroupId
+      })
+
+      return { userMessage, placeholders }
     })
   }
 
@@ -793,7 +1255,13 @@ export class MessageService {
 
       // Update topic.activeNodeId if needed
       if (newActiveNodeId !== undefined) {
-        await tx.update(topicTable).set({ activeNodeId: newActiveNodeId }).where(eq(topicTable.id, message.topicId))
+        if (newActiveNodeId === null) {
+          // No remaining message to anchor to — clear directly. setActiveNodeTx
+          // would reject null because it can't validate "no message".
+          await tx.update(topicTable).set({ activeNodeId: null }).where(eq(topicTable.id, message.topicId))
+        } else {
+          await topicService.setActiveNodeTx(tx, message.topicId, newActiveNodeId, { assumeValid: true })
+        }
 
         logger.info('Updated topic activeNodeId after message deletion', {
           topicId: message.topicId,
@@ -865,6 +1333,50 @@ export class MessageService {
     const ordered = ancestorRows.sort((a, b) => ancestorOrder.get(a.id)! - ancestorOrder.get(b.id)!)
 
     return ordered.reverse().map(rowToMessage)
+  }
+
+  /**
+   * Read-only path query for branch-aware UI.
+   *
+   * Returns the conversation path that passes through `nodeId` and
+   * descends into its subtree to the leaf with the greatest `created_at`
+   * (skipping deleted nodes). If `nodeId` has no live children, the leaf
+   * is `nodeId` itself.
+   *
+   * Pure read — does not touch `topic.activeNodeId`. Callers that want to
+   * persist a navigation result should follow up with `setActiveNode`.
+   */
+  async getPathThrough(topicId: string, nodeId: string): Promise<Message[]> {
+    const db = application.get('DbService').getDb()
+
+    const [node] = await db
+      .select()
+      .from(messageTable)
+      .where(and(eq(messageTable.id, nodeId), eq(messageTable.topicId, topicId), isNull(messageTable.deletedAt)))
+      .limit(1)
+    if (!node) {
+      throw DataApiErrorFactory.notFound('Message', nodeId)
+    }
+
+    const [leaf] = await db.all<{ id: string }>(sql`
+      WITH RECURSIVE subtree AS (
+        SELECT id, created_at FROM message
+          WHERE id = ${nodeId} AND topic_id = ${topicId} AND deleted_at IS NULL
+        UNION ALL
+        SELECT m.id, m.created_at FROM message m
+          INNER JOIN subtree s ON m.parent_id = s.id
+          WHERE m.deleted_at IS NULL
+      )
+      SELECT s.id FROM subtree s
+      WHERE NOT EXISTS (
+        SELECT 1 FROM message c
+        WHERE c.parent_id = s.id AND c.deleted_at IS NULL
+      )
+      ORDER BY s.created_at DESC
+      LIMIT 1
+    `)
+
+    return await this.getPathToNode(leaf?.id ?? nodeId)
   }
 }
 

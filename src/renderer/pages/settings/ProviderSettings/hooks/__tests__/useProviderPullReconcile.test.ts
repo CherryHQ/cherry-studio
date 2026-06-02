@@ -9,7 +9,7 @@ const { buildPreviewMock, useProviderMock, useProviderApiKeysMock } = vi.hoisted
   useProviderApiKeysMock: vi.fn()
 }))
 
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...a: any[]) => useProviderMock(...a),
   useProviderApiKeys: (...a: any[]) => useProviderApiKeysMock(...a)
 }))

@@ -89,6 +89,175 @@
   animation: animation-locate-highlight 2.5s ease-in-out;
 }
 
+@keyframes animation-chat-message-enter-inline {
+  from {
+    transform: translate3d(-6px, 14px, 0) scale(0.97);
+    opacity: 0;
+  }
+  to {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 1;
+  }
+}
+
+.animation-chat-message-enter-inline {
+  transform-origin: left top;
+  animation: animation-chat-message-enter-inline 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes animation-chat-message-enter-bubble {
+  from {
+    transform: translate3d(14px, 18px, 0) scale(0.93);
+    opacity: 0;
+  }
+  to {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 1;
+  }
+}
+
+.animation-chat-message-enter-bubble {
+  transform-origin: right bottom;
+  animation: animation-chat-message-enter-bubble 320ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes animation-chat-message-enter-assistant {
+  from {
+    transform: translate3d(0, 8px, 0);
+    opacity: 0;
+  }
+  to {
+    transform: translate3d(0, 0, 0);
+    opacity: 1;
+  }
+}
+
+.animation-chat-message-enter-assistant {
+  transform-origin: left top;
+  animation: animation-chat-message-enter-assistant 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.cs-mark-fill {
+  fill: currentColor;
+}
+.cs-mark-stroke {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 4.5;
+  stroke-linecap: round;
+}
+.cs-mark-gloss {
+  fill: #fff;
+  opacity: 0.4;
+}
+
+@keyframes cs-shimmer-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+@keyframes cs-shimmer-mark {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.95);
+  }
+}
+.cs-shimmer-bob {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: cs-shimmer-bob 3s ease-in-out infinite;
+}
+.cs-shimmer-mark {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: cs-shimmer-mark 2.8s ease-in-out infinite;
+}
+
+@keyframes cs-pulse-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+.cs-pulse-mark {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: cs-pulse-breathe 2.6s ease-in-out infinite;
+}
+
+@keyframes animation-chat-composer-dock-down {
+  from {
+    transform: translate3d(0, -18px, 0) scale(0.985);
+    opacity: 0.98;
+  }
+  to {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 1;
+  }
+}
+
+.animation-chat-composer-dock-down {
+  transform-origin: center bottom;
+  animation: animation-chat-composer-dock-down 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animation-chat-message-enter-inline,
+  .animation-chat-message-enter-bubble,
+  .animation-chat-message-enter-assistant,
+  .animation-chat-composer-dock-down,
+  .cs-shimmer-bob,
+  .cs-shimmer-mark,
+  .cs-pulse-mark {
+    transform: none;
+    animation: none;
+  }
+}
+
+@keyframes animation-resource-list-reveal-focus {
+  0%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.animation-resource-list-reveal-focus {
+  position: relative;
+  overflow: hidden;
+}
+
+.animation-resource-list-reveal-focus::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 62%, transparent);
+  content: '';
+  pointer-events: none;
+  animation: animation-resource-list-reveal-focus 1s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animation-resource-list-reveal-focus::after {
+    opacity: 1;
+    animation: none;
+  }
+}
+
 /* 流光动画 */
 @keyframes animation-shimmer {
   0% {
@@ -125,4 +294,51 @@
   display: block;
   white-space: nowrap;
   animation: animation-reveal 0.5s linear both;
+}
+
+@keyframes animation-animated-reveal-text {
+  0% {
+    clip-path: inset(0 100% 0 0);
+  }
+  99% {
+    clip-path: inset(0 0 0 0);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.animated-reveal-text {
+  grid-template-areas: 'text';
+}
+
+.animated-reveal-text__base,
+.animated-reveal-text__fill {
+  grid-area: text;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.animated-reveal-text__base {
+  color: transparent;
+  -webkit-text-stroke: 1px color-mix(in srgb, var(--color-foreground-muted) 72%, transparent);
+}
+
+.animated-reveal-text__fill {
+  color: color-mix(in srgb, var(--color-foreground-muted) 86%, var(--color-foreground));
+  filter: drop-shadow(0 0 14px color-mix(in srgb, var(--color-foreground-muted) 10%, transparent));
+  clip-path: inset(0 100% 0 0);
+  -webkit-text-stroke: 1px color-mix(in srgb, var(--color-foreground-muted) 86%, var(--color-foreground));
+  animation: animation-animated-reveal-text 0.9s ease-out 0.12s both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animated-reveal-text__fill {
+    filter: none;
+    clip-path: inset(0 0 0 0);
+    animation: none;
+  }
 }

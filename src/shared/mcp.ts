@@ -114,3 +114,25 @@ export function buildFunctionCallToolName(serverName: string, toolName: string):
     maxLength: 63
   })
 }
+
+export type McpFunctionCallToolNameParts = {
+  serverPart: string
+  toolPart: string
+}
+
+/**
+ * Parse MCP tool-call names in the Claude/AI-SDK format:
+ * `mcp__{server}__{tool}`.
+ */
+export function parseFunctionCallToolName(toolName: string): McpFunctionCallToolNameParts | null {
+  if (!toolName.startsWith('mcp__')) return null
+
+  const rest = toolName.slice('mcp__'.length)
+  const delimiterIndex = rest.lastIndexOf('__')
+  if (delimiterIndex <= 0 || delimiterIndex >= rest.length - 2) return null
+
+  return {
+    serverPart: rest.slice(0, delimiterIndex),
+    toolPart: rest.slice(delimiterIndex + 2)
+  }
+}

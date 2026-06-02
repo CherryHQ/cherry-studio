@@ -1,4 +1,10 @@
-import { buildFunctionCallToolName, buildMcpToolName, generateMcpToolFunctionName, toCamelCase } from '@shared/mcp'
+import {
+  buildFunctionCallToolName,
+  buildMcpToolName,
+  generateMcpToolFunctionName,
+  parseFunctionCallToolName,
+  toCamelCase
+} from '@shared/mcp'
 import { describe, expect, it } from 'vitest'
 
 describe('toCamelCase', () => {
@@ -236,5 +242,28 @@ describe('buildFunctionCallToolName', () => {
       const result = buildFunctionCallToolName('@anthropic/mcp-server', 'chat')
       expect(result).toBe('mcp__AnthropicMcpServer__chat')
     })
+  })
+})
+
+describe('parseFunctionCallToolName', () => {
+  it('parses Claude MCP tool names into server and tool parts', () => {
+    expect(parseFunctionCallToolName('mcp__context7__resolveLibraryId')).toEqual({
+      serverPart: 'context7',
+      toolPart: 'resolveLibraryId'
+    })
+  })
+
+  it('keeps raw server ids and raw tool names unchanged', () => {
+    expect(parseFunctionCallToolName('mcp__8171b5f3-c666-4ead-b2ab-bb9ac244af57__resolve-library-id')).toEqual({
+      serverPart: '8171b5f3-c666-4ead-b2ab-bb9ac244af57',
+      toolPart: 'resolve-library-id'
+    })
+  })
+
+  it('returns null for non-MCP or incomplete tool names', () => {
+    expect(parseFunctionCallToolName('Read')).toBeNull()
+    expect(parseFunctionCallToolName('mcp__server')).toBeNull()
+    expect(parseFunctionCallToolName('mcp____tool')).toBeNull()
+    expect(parseFunctionCallToolName('mcp__server__')).toBeNull()
   })
 })

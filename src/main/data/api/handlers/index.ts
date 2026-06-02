@@ -18,6 +18,7 @@ import { agentChannelHandlers } from './agentChannels'
 import { agentHandlers } from './agents'
 import { assistantHandlers } from './assistants'
 import { fileHandlers } from './files'
+import { globalSearchHandlers } from './globalSearch'
 import { groupHandlers } from './groups'
 import { jobHandlers } from './jobs'
 import { knowledgeHandlers } from './knowledges'
@@ -30,10 +31,13 @@ import { paintingHandlers } from './paintings'
 import { pinHandlers } from './pins'
 import { promptHandlers } from './prompts'
 import { providerHandlers } from './providers'
+import { sessionHandlers } from './sessions'
+import { skillHandlers } from './skills'
 import { tagHandlers } from './tags'
 import { temporaryChatHandlers } from './temporaryChats'
 import { topicHandlers } from './topics'
 import { translateHandlers } from './translate'
+import { workspaceHandlers } from './workspaces'
 
 /**
  * Complete API handlers implementation
@@ -53,6 +57,8 @@ export const apiHandlers: ApiImplementation = {
   ...modelHandlers,
   ...paintingHandlers,
   ...providerHandlers,
+  ...sessionHandlers,
+  ...skillHandlers,
   ...knowledgeHandlers,
   ...translateHandlers,
   ...mcpServerHandlers,
@@ -62,5 +68,7 @@ export const apiHandlers: ApiImplementation = {
   ...groupHandlers,
   ...pinHandlers,
   ...promptHandlers,
-  ...jobHandlers
+  ...workspaceHandlers,
+  ...jobHandlers,
+  ...globalSearchHandlers
 }

@@ -2,6 +2,13 @@ import { MODEL_ICON_CATALOG, type ModelIconKey } from './models/catalog'
 import { PROVIDER_ICON_CATALOG, type ProviderIconKey } from './providers/catalog'
 import type { CompoundIcon } from './types'
 
+// NOTE: the vendor-level regex below duplicate `@cherrystudio/provider-registry`'s
+// `VENDOR_PATTERNS` (anthropic, gemini, gemma, grok, doubao, hunyuan, kimi, zhipu,
+// mimo, ling, qwen). Kept in sync manually until UI's build surface lets us
+// import from `@cherrystudio/provider-registry` directly. When adding / tweaking
+// a vendor pattern, update BOTH places — or, better, fix the UI → registry import
+// story and swap these inline regex for `VENDOR_PATTERNS.<vendor>`.
+
 /**
  * Model ID regex patterns mapped to MODEL_ICON_CATALOG keys.
  * Order matters: more specific patterns must come before general ones.

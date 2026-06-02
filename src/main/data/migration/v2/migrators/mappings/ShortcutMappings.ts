@@ -15,6 +15,7 @@
 
 import { loggerService } from '@logger'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
+import { normalizeShortcutBinding } from '@shared/shortcuts/tokens'
 
 import type { TransformFunction } from './ComplexPreferenceMappings'
 
@@ -31,15 +32,13 @@ const LEGACY_KEY_TO_TARGET_KEY: Record<string, string> = {
   show_app: 'shortcut.general.show_main_window',
   new_topic: 'shortcut.topic.new',
   rename_topic: 'shortcut.topic.rename',
-  toggle_show_topics: 'shortcut.topic.toggle_show_topics',
-  toggle_show_assistants: 'shortcut.general.toggle_sidebar',
-  toggle_sidebar: 'shortcut.general.toggle_sidebar',
+  toggle_show_topics: 'shortcut.topic.sidebar.toggle',
+  toggle_show_assistants: 'shortcut.app.sidebar.toggle',
+  toggle_sidebar: 'shortcut.app.sidebar.toggle',
   copy_last_message: 'shortcut.chat.copy_last_message',
   edit_last_user_message: 'shortcut.chat.edit_last_user_message',
   search_message_in_chat: 'shortcut.chat.search_message',
   search_message: 'shortcut.general.search',
-  clear_topic: 'shortcut.chat.clear',
-  toggle_new_context: 'shortcut.chat.toggle_new_context',
   select_model: 'shortcut.chat.select_model',
   exit_fullscreen: 'shortcut.general.exit_fullscreen',
   mini_window: 'shortcut.feature.quick_assistant.toggle_window',
@@ -99,7 +98,7 @@ export const transformShortcuts: TransformFunction = (sources) => {
       continue
     }
 
-    const binding = isStringArray(entry.shortcut) ? entry.shortcut : []
+    const binding = normalizeShortcutBinding(isStringArray(entry.shortcut) ? entry.shortcut : [])
     const enabled = typeof entry.enabled === 'boolean' ? entry.enabled : true
 
     result[targetKey] = { binding, enabled }

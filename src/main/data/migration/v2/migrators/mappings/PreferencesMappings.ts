@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-06-01T05:06:33.909Z
+ * Generated at: 2026-06-02T11:43:59.650Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in src/shared/data/preferences.ts
@@ -79,10 +79,6 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'app.developer_mode.enabled'
     },
     {
-      originalKey: 'showAssistants',
-      targetKey: 'assistant.tab.show'
-    },
-    {
       originalKey: 'showTopics',
       targetKey: 'topic.tab.show'
     },
@@ -159,32 +155,8 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'chat.message.font_size'
     },
     {
-      originalKey: 'topicPosition',
-      targetKey: 'topic.position'
-    },
-    {
-      originalKey: 'showTopicTime',
-      targetKey: 'topic.tab.show_time'
-    },
-    {
-      originalKey: 'pinTopicsToTop',
-      targetKey: 'topic.tab.pin_to_top'
-    },
-    {
       originalKey: 'assistantIconType',
       targetKey: 'assistant.icon_type'
-    },
-    {
-      originalKey: 'pasteLongTextAsFile',
-      targetKey: 'chat.input.paste_long_text_as_file'
-    },
-    {
-      originalKey: 'pasteLongTextThreshold',
-      targetKey: 'chat.input.paste_long_text_threshold'
-    },
-    {
-      originalKey: 'clickAssistantToShowTopic',
-      targetKey: 'assistant.click_to_show_topic'
     },
     {
       originalKey: 'renderInputMessageAsMarkdown',
@@ -261,10 +233,6 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'codeFancyBlock',
       targetKey: 'chat.code.fancy_block'
-    },
-    {
-      originalKey: 'mathEngine',
-      targetKey: 'chat.message.math.engine'
     },
     {
       originalKey: 'mathEnableSingleDollar',
@@ -487,10 +455,6 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'app.spell_check.languages'
     },
     {
-      originalKey: 'enableQuickPanelTriggers',
-      targetKey: 'chat.input.quick_panel.triggers_enabled'
-    },
-    {
       originalKey: 'useSystemTitleBar',
       targetKey: 'app.use_system_title_bar'
     },
@@ -613,10 +577,6 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 's3.skipBackupFile',
       targetKey: 'data.backup.s3.skip_backup_file'
-    },
-    {
-      originalKey: 'navbarPosition',
-      targetKey: 'ui.navbar.position'
     },
     {
       originalKey: 'apiServer.enabled',
@@ -835,11 +795,11 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 185
+ * - Redux Store项: 175
  * - Redux分类: settings, selectionStore, llm, nutstore, preprocess, translate, websearch, ocr, note
  * - DexieSettings项: 4
  * - localStorage项: 0
- * - 总配置项: 190
+ * - 总配置项: 180
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

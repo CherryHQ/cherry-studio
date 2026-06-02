@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "回答済み",
+      "close": "閉じる",
       "customPlaceholder": "答えを入力してください...",
       "loading": "質問を読み込んでいます…",
       "multiSelect": "複数選択",
@@ -25,6 +26,8 @@
       "noQuestions": "利用可能な質問はありません",
       "other": "その他",
       "previous": "前",
+      "progress": "{{current}} / {{total}}",
+      "skip": "スキップ",
       "submit": "送信",
       "title": "エージェントからの質問"
     },
@@ -221,9 +224,11 @@
         "intervalUnit": "議事録",
         "lastRun": "前回の実行",
         "logs": {
+          "cancelled": "[to be translated]:Cancelled",
+          "completed": "[to be translated]:Completed",
           "duration": "所要時間",
           "empty": "実行履歴がありません。",
-          "error": "エラー",
+          "failed": "[to be translated]:Failed",
           "justNow": "さっき",
           "label": "実行履歴",
           "loadError": "実行履歴の読み込みに失敗しました",
@@ -232,7 +237,6 @@
           "running": "走っている…",
           "search": "検索ログ...",
           "status": "ステータス",
-          "success": "成功",
           "viewSession": "セッションを表示"
         },
         "name": {
@@ -325,6 +329,9 @@
       "success": "Git Bashが正常に検出されました！",
       "tooltip": "Windowsでエージェントを実行するにはGit Bashが必要です。まだインストールされていない場合は、git-scm.comからインストールしてください。"
     },
+    "home": {
+      "welcome_title": "[to be translated]:What shall we talk about today?"
+    },
     "input": {
       "placeholder": "メッセージをここに入力し、{{key}}で送信 - @でパスを選択、/でコマンドを選択",
       "soul_placeholder": "Telegramに接続するのを手伝ってください"
@@ -334,9 +341,68 @@
         "failed": "エージェントの一覧取得に失敗しました。"
       }
     },
+    "pin": {
+      "title": "[to be translated]:Pin Agent"
+    },
+    "preview_pane": {
+      "close": "[to be translated]:Close preview",
+      "code": "[to be translated]:Code",
+      "code_unavailable": "[to be translated]:Source view not available for binary files",
+      "empty": {
+        "description": "[to be translated]:Start chatting with the agent; generated code and live previews will appear here.",
+        "title": "[to be translated]:Ready"
+      },
+      "file_tree": "[to be translated]:File tree",
+      "items_one": "[to be translated]:{{count}} item",
+      "items_other": "[to be translated]:{{count}} items",
+      "maximize": "[to be translated]:Maximize",
+      "minimize": "[to be translated]:Minimize",
+      "no_search_results": "検索に一致するファイルはありません",
+      "preview": "[to be translated]:Preview",
+      "refresh": "[to be translated]:Refresh",
+      "search_placeholder": "[to be translated]:Search files...",
+      "select_file": "[to be translated]:Select a file to preview",
+      "toggle": "[to be translated]:Show preview panel",
+      "too_large": {
+        "description": "[to be translated]:File exceeds the {{limit}} preview limit.",
+        "title": "[to be translated]:File too large to preview"
+      }
+    },
     "reorder": {
       "error": {
         "failed": "エージェントの並び替えに失敗しました"
+      }
+    },
+    "right_pane": {
+      "close": "[to be translated]:Close",
+      "flow": {
+        "empty": {
+          "description": "[to be translated]:Select an agent tool call to inspect its child message flow.",
+          "title": "[to be translated]:No tool selected"
+        },
+        "no_messages": {
+          "description": "[to be translated]:This tool call has no captured child message flow.",
+          "title": "[to be translated]:No messages"
+        }
+      },
+      "status": {
+        "activity": "[to be translated]:Activity",
+        "agent": "[to be translated]:Agent",
+        "context": "[to be translated]:Context",
+        "no_tasks": "[to be translated]:No active tasks",
+        "selected_tool": "[to be translated]:Selected tool",
+        "task_count": "[to be translated]:{{completed}} / {{total}} complete",
+        "tasks": "[to be translated]:Tasks",
+        "tools_active": "[to be translated]:Active",
+        "tools_done": "[to be translated]:Done",
+        "tools_failed": "[to be translated]:Failed",
+        "tools_total": "[to be translated]:Total",
+        "workspace": "[to be translated]:Workspace"
+      },
+      "tabs": {
+        "files": "[to be translated]:Files",
+        "flow": "[to be translated]:Flow",
+        "status": "[to be translated]:Status"
       }
     },
     "server": {
@@ -359,6 +425,16 @@
       "add": {
         "title": "セッションを追加"
       },
+      "agent": {
+        "delete": {
+          "content": "[to be translated]:Deleting this agent's chats will delete all sessions associated with this agent. The agent itself will not be deleted.",
+          "error": {
+            "failed": "[to be translated]:Failed to delete agent chats"
+          },
+          "title": "[to be translated]:Delete agent chats",
+          "trigger": "[to be translated]:Delete agent chats"
+        }
+      },
       "allowed_tools": {
         "empty": "このエージェントが利用できるツールはありません。",
         "helper": "事前承認済みのツールを選択します。未選択のツールは使用時に承認が必要になります。",
@@ -378,26 +454,87 @@
         },
         "title": "セッションを削除"
       },
+      "display": {
+        "agent": "[to be translated]:Agent",
+        "time": "[to be translated]:Time",
+        "title": "[to be translated]:Display mode",
+        "workdir": "[to be translated]:Workspace"
+      },
       "edit": {
         "title": "編集セッション"
+      },
+      "file_manager": {
+        "file_explorer": "[to be translated]:File Explorer",
+        "files": "[to be translated]:Files",
+        "finder": "[to be translated]:Finder"
       },
       "get": {
         "error": {
           "failed": "セッションの取得に失敗しました",
+          "not_found": "[to be translated]:Session not found",
           "null_id": "セッション ID が null です"
         }
       },
+      "group": {
+        "collapse": "[to be translated]:Collapse sessions",
+        "conversation": "[to be translated]:Chats",
+        "drag_hint": "[to be translated]:Drag to reorder. Drag sessions to adjust display and hidden groups.",
+        "earlier": "[to be translated]:Earlier",
+        "no_workdir": "[to be translated]:No workspace",
+        "show_more": "[to be translated]:Show more sessions",
+        "this_week": "[to be translated]:This week",
+        "today": "[to be translated]:Today",
+        "unknown_agent": "[to be translated]:Unknown agent",
+        "yesterday": "[to be translated]:Yesterday"
+      },
       "label_one": "セッション",
       "label_other": "セッション",
+      "list": {
+        "title": "[to be translated]:Sessions"
+      },
       "reorder": {
         "error": {
           "failed": "セッションの並び替えに失敗しました"
         }
       },
+      "search": {
+        "placeholder": "[to be translated]:Search sessions"
+      },
       "update": {
         "error": {
           "failed": "セッションの更新に失敗しました"
         }
+      },
+      "workdir": {
+        "delete": {
+          "content": "[to be translated]:Deleting this workspace will also delete all sessions under it. Only database records are removed; the actual folder on disk will not be deleted.",
+          "error": {
+            "failed": "[to be translated]:Failed to delete the workspace"
+          },
+          "title": "[to be translated]:Delete workspace",
+          "trigger": "[to be translated]:Delete workspace"
+        },
+        "rename": {
+          "error": {
+            "failed": "[to be translated]:Failed to rename the workspace"
+          },
+          "title": "[to be translated]:Rename workspace",
+          "trigger": "[to be translated]:Rename workspace"
+        }
+      },
+      "workspace_selector": {
+        "create_failed": "[to be translated]:Failed to add project.",
+        "create_new": "[to be translated]:Add new project",
+        "empty_text": "[to be translated]:No projects",
+        "no_project": "[to be translated]:No project",
+        "placeholder": "[to be translated]:Select workspace",
+        "search_placeholder": "[to be translated]:Search projects",
+        "select_failed": "[to be translated]:Failed to select folder."
+      },
+      "workspace_status": {
+        "inaccessible": "[to be translated]:Workspace path is not accessible: {{path}}",
+        "missing": "[to be translated]:Workspace path does not exist: {{path}}",
+        "not_directory": "[to be translated]:Workspace path is not a directory: {{path}}"
       }
     },
     "settings": {
@@ -576,7 +713,7 @@
         }
       }
     },
-    "sidebar_title": "エージェント",
+    "sidebar_title": "仕事",
     "todo": {
       "mock": {
         "actions": {
@@ -689,11 +826,13 @@
         "showDetails": "ツールの詳細を表示"
       },
       "button": {
+        "allow": "許可",
         "allowAll": "常に許可",
         "cancel": "キャンセル",
+        "deny": "Deny",
         "run": "走る"
       },
-      "confirmation": "このClaudeツールを実行してもよろしいですか？",
+      "confirmation": "ツールの呼び出しを許可しますか？",
       "defaultDenyMessage": "ユーザーはこのツールの使用を拒否しました。",
       "defaultDescription": "環境内でコードまたはシステムアクションを実行します。実行前にコマンドが安全であることを確認してください。",
       "error": {
@@ -765,6 +904,9 @@
     "type": {
       "label": "エージェントタイプ",
       "unknown": "不明なタイプ"
+    },
+    "unpin": {
+      "title": "[to be translated]:Unpin Agent"
     },
     "update": {
       "error": {
@@ -875,6 +1017,7 @@
     "abbr": "アシスタント",
     "clear": {
       "content": "トピックをクリアすると、アシスタント内のすべてのトピックとファイルが削除されます。続行しますか？",
+      "menu_title": "[to be translated]:Delete all assistant chats",
       "title": "トピックをクリア"
     },
     "copy": {
@@ -896,6 +1039,9 @@
     "list": {
       "showByList": "リスト表示",
       "showByTags": "タグ表示"
+    },
+    "pin": {
+      "title": "[to be translated]:Pin Assistant"
     },
     "presets": {
       "add": {
@@ -991,6 +1137,11 @@
       },
       "title": "アシスタントライブラリ"
     },
+    "reorder": {
+      "error": {
+        "failed": "[to be translated]:Failed to reorder assistants"
+      }
+    },
     "save": {
       "success": "保存に成功しました",
       "title": "エージェントに保存"
@@ -1084,7 +1235,10 @@
       },
       "untagged": "未分類"
     },
-    "title": "アシスタント"
+    "title": "アシスタント",
+    "unpin": {
+      "title": "[to be translated]:Unpin Assistant"
+    }
   },
   "auth": {
     "error": "APIキーの自動取得に失敗しました。手動で取得してください",
@@ -1119,6 +1273,7 @@
     "download": "ダウンロード",
     "includes_user_questions": "ユーザーからの質問を含む",
     "manage": "管理",
+    "select_assistant": "アシスタントを選択します",
     "select_model": "モデルを選択",
     "show": {
       "all": "すべて表示"
@@ -1163,6 +1318,9 @@
         "placeholder": "検索"
       }
     },
+    "conversation": {
+      "new": "[to be translated]:New Chat"
+    },
     "deeply_thought": "深く考えています（{{seconds}} 秒）",
     "default": {
       "description": "こんにちは、私はデフォルトのアシスタントです。すぐにチャットを始められます。",
@@ -1180,6 +1338,9 @@
       "title": "チャット履歴",
       "user_node": "ユーザー",
       "view_full_content": "完全な内容を表示"
+    },
+    "home": {
+      "welcome_title": "[to be translated]:What shall we talk about today?"
     },
     "input": {
       "auto_resize": "高さを自動調整",
@@ -1202,6 +1363,9 @@
       "generate_image": "画像を生成する",
       "generate_image_not_supported": "モデルは画像の生成をサポートしていません。",
       "knowledge_base": "ナレッジベース",
+      "knowledge_base_disabled_by_files": "[to be translated]:Remove attached files to use Knowledge Base",
+      "knowledge_base_unavailable": "[to be translated]:Select a tool-capable model or enable prompt tool use",
+      "mcp_unavailable": "[to be translated]:Select a tool-capable model or enable prompt tool use",
       "new": {
         "context": "コンテキストをクリア {{Command}}"
       },
@@ -1210,22 +1374,11 @@
       "paste_text_file": "[to be translated]:Paste into input",
       "pause": "一時停止",
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
-      "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信...",
       "resource_panel": {
-        "categories": {
-          "agents": "エージェント",
-          "files": "ファイル",
-          "skills": "スキル"
-        },
-        "description": "ファイル、エージェント、またはスキルから選択",
         "loading": "読み込み中...",
         "no_file_found": {
           "description": "アクセス可能なディレクトリに利用可能なファイルがありません",
           "label": "ファイルが見つかりません"
-        },
-        "no_items_found": {
-          "description": "ファイル、エージェント、スキルは利用できません",
-          "label": "アイテムが見つかりません"
         },
         "title": "リソース"
       },
@@ -1237,6 +1390,7 @@
       },
       "thinking": {
         "budget_exceeds_max": "思考予算が最大トークン数を超えました",
+        "fixed_model": "[to be translated]:Reasoning is fixed for this model",
         "label": "思考",
         "mode": {
           "custom": {
@@ -1250,7 +1404,8 @@
           "tokens": {
             "tip": "思考のトークン数を設定します"
           }
-        }
+        },
+        "unsupported_model": "[to be translated]:Current model does not support adjustable reasoning"
       },
       "tools": {
         "collapse": "折りたたむ",
@@ -1268,6 +1423,8 @@
       "upload": {
         "attachment": "添付ファイルをアップロード",
         "document": "ドキュメントをアップロード（モデルは画像をサポートしません）",
+        "document_only": "[to be translated]:Documents only",
+        "image_not_supported": "[to be translated]:This model does not support image uploads. Documents only.",
         "image_or_document": "画像またはドキュメントをアップロード",
         "upload_from_local": "ローカルファイルをアップロード..."
       },
@@ -1303,6 +1460,11 @@
       }
     },
     "message": {
+      "flow": {
+        "branches": "[to be translated]:branches",
+        "nodes": "[to be translated]:nodes",
+        "title": "[to be translated]:Branch Management"
+      },
       "new": {
         "branch": {
           "created": "新しいブランチが作成されました",
@@ -1412,6 +1574,7 @@
             "save_failed": "トピックの保存に失敗しました。ナレッジベースの設定を確認してください"
           },
           "loading": "トピックの内容を分析中...",
+          "menu_title": "[to be translated]:Save to Knowledge Base",
           "select": {
             "content": {
               "label": "保存するコンテンツの種類を選択",
@@ -1498,6 +1661,12 @@
       "delete": {
         "shortcut": "{{key}}キーを押しながらで直接削除"
       },
+      "display": {
+        "assistant": "[to be translated]:Assistant",
+        "tag": "[to be translated]:Tag",
+        "time": "[to be translated]:Time",
+        "title": "[to be translated]:Display mode"
+      },
       "edit": {
         "placeholder": "新しい名前を入力",
         "title": "名前を編集",
@@ -1506,6 +1675,7 @@
       "export": {
         "failed": "[to be translated]:Export failed",
         "image": "画像としてエクスポート",
+        "image_exporting_keep_page": "画像をエクスポートしています。このページから離れないでください。",
         "image_saved": "画像が正常に保存されました",
         "joplin": "Joplin にエクスポート",
         "md": {
@@ -1552,6 +1722,15 @@
         "wait_for_title_naming": "タイトルを生成中...",
         "word": "Wordとしてエクスポート",
         "yuque": "語雀にエクスポート"
+      },
+      "group": {
+        "collapse": "[to be translated]:Collapse display",
+        "earlier": "[to be translated]:Earlier",
+        "show_more": "[to be translated]:Expand display",
+        "this_week": "[to be translated]:This week",
+        "today": "[to be translated]:Today",
+        "unknown_assistant": "[to be translated]:Unknown Assistant",
+        "yesterday": "[to be translated]:Yesterday"
       },
       "list": "トピックリスト",
       "manage": {
@@ -1701,8 +1880,10 @@
     "add": "追加",
     "add_success": "追加成功",
     "advanced_settings": "詳細設定",
+    "agent": "[to be translated]:Agent",
     "agent_one": "エージェント",
     "agent_other": "エージェント",
+    "all": "[to be translated]:All",
     "and": "と",
     "assistant": "アシスタント",
     "assistant_one": "助手",
@@ -1716,6 +1897,7 @@
     "clear_all": "すべてクリア",
     "click_to_replace": "クリックして置換",
     "close": "閉じる",
+    "close_sidebar": "[to be translated]:Close sidebar",
     "collapse": "折りたたむ",
     "completed": "完了",
     "confirm": "確認",
@@ -1766,6 +1948,8 @@
     "knowledge_base": "ナレッジベース",
     "language": "言語",
     "loading": "読み込み中...",
+    "maximize": "[to be translated]:Maximize",
+    "minimize": "[to be translated]:Minimize",
     "model": "モデル",
     "models": "モデル",
     "more": "もっと",
@@ -1778,6 +1962,8 @@
     "on": "オン",
     "open": "開く",
     "open_in": "{{name}}で開く",
+    "open_in_new_tab": "[to be translated]:Open in new tab",
+    "open_sidebar": "[to be translated]:Open sidebar",
     "parameter": "パラメータ",
     "paste": "貼り付け",
     "placeholders": {
@@ -1831,6 +2017,7 @@
     "upload_image": "画像ファイルをアップロード",
     "uploaded_image": "アップロードされた画像",
     "warning": "警告",
+    "yesterday": "[to be translated]:Yesterday",
     "you": "あなた"
   },
   "dialog": {
@@ -2041,6 +2228,85 @@
     "title": "ファイル",
     "type": "タイプ"
   },
+  "globalSearch": {
+    "clear": "[to be translated]:Clear search",
+    "error": "[to be translated]:Search failed",
+    "filters": {
+      "agent": "[to be translated]:Agent",
+      "all": "[to be translated]:All",
+      "assistant": "[to be translated]:Assistant",
+      "conversation": "[to be translated]:Work",
+      "knowledge": "[to be translated]:Knowledge",
+      "label": "[to be translated]:Search type",
+      "session": "[to be translated]:Work",
+      "topic": "[to be translated]:Topic"
+    },
+    "groups": {
+      "agent": "[to be translated]:Agent",
+      "assistant": "[to be translated]:Assistant",
+      "conversation": "[to be translated]:Work",
+      "knowledge-base": "[to be translated]:Knowledge",
+      "message": "[to be translated]:Messages",
+      "recent": "[to be translated]:Recent",
+      "session": "[to be translated]:Work",
+      "topic": "[to be translated]:Topic"
+    },
+    "keyboard": {
+      "select": "[to be translated]:Select"
+    },
+    "messageSearch": {
+      "entry": "[to be translated]:Messages",
+      "hint": "[to be translated]:Type to search message content",
+      "jumpToMessage": "[to be translated]:Jump to message",
+      "more": "[to be translated]:Show {{count}} more results",
+      "open": "[to be translated]:Search messages",
+      "roles": {
+        "assistant": "[to be translated]:Assistant",
+        "system": "[to be translated]:System",
+        "tool": "[to be translated]:Tool",
+        "user": "[to be translated]:User"
+      },
+      "sourceLabel": "[to be translated]:Message source",
+      "sources": {
+        "all": "[to be translated]:All messages",
+        "session": "[to be translated]:Work messages",
+        "topic": "[to be translated]:Topic messages"
+      },
+      "viewMore": "[to be translated]:View more in Messages"
+    },
+    "no_recent": "[to be translated]:No recent routes",
+    "open": "[to be translated]:Open global search",
+    "open_failed": "[to be translated]:Failed to open search result",
+    "placeholder": "[to be translated]:Search topics, work, assistants, agents, and knowledge...",
+    "quickApps": {
+      "hide": "[to be translated]:Hide {{name}}",
+      "manage": "[to be translated]:Manage",
+      "manager_description": "[to be translated]:Drag to reorder, click the eye to hide or show",
+      "manager_title": "[to be translated]:Manage quick apps",
+      "reset": "[to be translated]:Reset",
+      "save_failed": "[to be translated]:Failed to save quick apps",
+      "show": "[to be translated]:Show {{name}}",
+      "title": "[to be translated]:Quick apps"
+    },
+    "recent_hint": "[to be translated]:Type to search work, assistants, agents, and knowledge",
+    "resultTypes": {
+      "agent": "[to be translated]:Agent",
+      "assistant": "[to be translated]:Assistant",
+      "knowledge-base": "[to be translated]:Knowledge",
+      "session": "[to be translated]:Work",
+      "topic": "[to be translated]:Topic"
+    },
+    "showMore": "[to be translated]:Show {{count}} more",
+    "timeFilters": {
+      "any": "[to be translated]:Any time",
+      "label": "[to be translated]:Updated time",
+      "messageLabel": "[to be translated]:Created time",
+      "month": "[to be translated]:Last month",
+      "quarter": "[to be translated]:Last 3 months",
+      "today": "[to be translated]:Today",
+      "week": "[to be translated]:Last 7 days"
+    }
+  },
   "gpustack": {
     "keep_alive_time": {
       "description": "モデルがメモリに保持される時間（デフォルト：5分）",
@@ -2056,6 +2322,45 @@
     },
     "locate": {
       "message": "メッセージを探す"
+    },
+    "records": {
+      "agentSubtitle": "[to be translated]:{{count}} sessions",
+      "agentTitle": "[to be translated]:Agent History",
+      "assistantSubtitle": "[to be translated]:{{count}} topics",
+      "empty": {
+        "description": "[to be translated]:No topics for the current filters.",
+        "sessionsDescription": "[to be translated]:No sessions for the current filters.",
+        "sessionsTitle": "[to be translated]:No sessions",
+        "title": "[to be translated]:No topics"
+      },
+      "loading": {
+        "description": "[to be translated]:Loading topic list.",
+        "sessionsDescription": "[to be translated]:Loading session list.",
+        "sessionsTitle": "[to be translated]:Loading sessions",
+        "title": "[to be translated]:Loading topics"
+      },
+      "resultCount": "[to be translated]:{{count}} results",
+      "searchSession": "[to be translated]:Search sessions...",
+      "searchTopic": "[to be translated]:Search topics...",
+      "shortTitle": "[to be translated]:History",
+      "sidebar": {
+        "searchAssistant": "[to be translated]:Search assistants...",
+        "status": "[to be translated]:Status",
+        "unknownAssistant": "[to be translated]:Unknown assistant"
+      },
+      "status": {
+        "completed": "[to be translated]:Completed",
+        "failed": "[to be translated]:Failed",
+        "running": "[to be translated]:Running"
+      },
+      "table": {
+        "emptyValue": "[to be translated]:—",
+        "messages": "[to be translated]:Messages",
+        "session": "[to be translated]:Session",
+        "time": "[to be translated]:Time",
+        "title": "[to be translated]:Title"
+      },
+      "title": "[to be translated]:Topic History"
     },
     "search": {
       "match": {
@@ -2474,7 +2779,8 @@
           },
           "env_vars": {
             "help": "[to be translated]:One KEY=VALUE per line",
-            "label": "[to be translated]:Environment variables"
+            "label": "[to be translated]:Environment variables",
+            "placeholder": "[to be translated]:KEY=value\nANOTHER_KEY=another_value"
           },
           "heartbeat_enabled": {
             "label": "[to be translated]:Heartbeat check"
@@ -2507,7 +2813,6 @@
             "placeholder": "[to be translated]:Give the agent a name"
           },
           "permission_mode": {
-            "help": "[to be translated]:Switching to bypassPermissions is equivalent to enabling Soul mode",
             "label": "[to be translated]:Permission mode",
             "option": {
               "acceptEdits": "[to be translated]:Accept edits",
@@ -2615,9 +2920,6 @@
           "temperature": {
             "hint": "[to be translated]:Controls randomness when enabled"
           },
-          "tool_use_mode": {
-            "hint": "[to be translated]:Controls how tools are exposed to the model"
-          },
           "top_p": {
             "hint": "[to be translated]:Limits token sampling range when enabled"
           }
@@ -2639,13 +2941,38 @@
         "tags": "[to be translated]:Tags",
         "temperature": "[to be translated]:Temperature",
         "title": "[to be translated]:Basic settings",
-        "tool_use_function": "[to be translated]:Function",
-        "tool_use_mode": "[to be translated]:Tool call mode",
-        "tool_use_prompt": "[to be translated]:Prompt",
         "top_p": "[to be translated]:Top-P",
         "unlimited": "[to be translated]:Unlimited"
       },
       "breadcrumb": "[to be translated]:Library",
+      "dialogs": {
+        "create": {
+          "agent_title": "[to be translated]:New Agent",
+          "assistant_title": "[to be translated]:New Assistant",
+          "avatar_aria": "[to be translated]:Choose avatar",
+          "description_placeholder": "[to be translated]:Describe what it is for...",
+          "dialog_description": "[to be translated]:Create a lightweight assistant or agent.",
+          "model_placeholder": "[to be translated]:Select a model",
+          "model_required": "[to be translated]:Please select a model",
+          "name_placeholder": "[to be translated]:Enter a name",
+          "name_required": "[to be translated]:Please enter a name",
+          "submit": "[to be translated]:Create",
+          "submit_failed": "[to be translated]:Create failed"
+        },
+        "edit": {
+          "advanced_tab": "[to be translated]:Advanced",
+          "agent_description": "[to be translated]:Quickly adjust this agent's essentials.",
+          "agent_title": "[to be translated]:Edit Agent",
+          "assistant_description": "[to be translated]:Quickly adjust this assistant's essentials.",
+          "assistant_title": "[to be translated]:Edit Assistant",
+          "basic_tab": "[to be translated]:Basic",
+          "knowledge_tab": "[to be translated]:Knowledge",
+          "permission_tab": "[to be translated]:Permission",
+          "prompt_tab": "[to be translated]:Prompt",
+          "save_failed": "[to be translated]:Save failed",
+          "tools_tab": "[to be translated]:Tools"
+        }
+      },
       "knowledge": {
         "add": "[to be translated]:Add knowledge base",
         "desc": "[to be translated]:Link one or more knowledge bases; relevant snippets will be retrieved during chat",
@@ -2834,13 +3161,9 @@
     },
     "skill_detail": {
       "created_at": "[to be translated]:Created",
-      "delete_description": "[to be translated]:Remove this skill and all of its configuration. This action cannot be undone.",
-      "delete_title": "[to be translated]:Delete skill",
       "description": "[to be translated]:Description",
-      "file_preview": "[to be translated]:File preview",
       "installed": "[to be translated]:Installed",
       "no_description": "[to be translated]:No description",
-      "source_files": "[to be translated]:Source files",
       "updated_at": "[to be translated]:Recently updated"
     },
     "sort": {
@@ -2877,7 +3200,6 @@
       "prompt": "[to be translated]:Prompt",
       "skill": "[to be translated]:Skill"
     },
-    "uninstall_failed": "[to be translated]:Failed to uninstall",
     "view": {
       "grid": "[to be translated]:Grid view",
       "list": "[to be translated]:List view"
@@ -2960,6 +3282,7 @@
       "chunk_overlap_too_large": "チャンクのオーバーラップがチャンクサイズより大きくなることはできません",
       "copy": "複製に失敗しました",
       "dimension_too_large": "内容のサイズが大きすぎます",
+      "dismiss_failed": "[to be translated]:Failed to dismiss error message",
       "enter": {
         "api": {
           "host": "APIホストを入力してください",
@@ -3010,6 +3333,7 @@
         "no_api_key": "Notion ApiKey または Notion DatabaseID が設定されていません",
         "no_content": "Notionにエクスポートできる内容がありません。"
       },
+      "operation_unavailable": "[to be translated]:Message operation is unavailable. Please try again.",
       "siyuan": {
         "export": "思源ノートのエクスポートに失敗しました。接続状態を確認し、ドキュメントに従って設定を確認してください",
         "no_config": "思源ノートのAPIアドレスまたはトークンが設定されていません"
@@ -3135,6 +3459,76 @@
     "tools": {
       "abort_failed": "ツール呼び出し中断失敗",
       "aborted": "ツール呼び出し中断",
+      "activity": {
+        "archive": "[to be translated]:archive",
+        "assistantTask": "[to be translated]:task",
+        "availableFeatures": "[to be translated]:available features",
+        "availableResources": "[to be translated]:available resources",
+        "branch": "[to be translated]:code branch",
+        "build": "[to be translated]:Build",
+        "building": "[to be translated]:Building",
+        "check": "[to be translated]:Check",
+        "checking": "[to be translated]:Checking",
+        "codeFiles": "[to be translated]:code files",
+        "codeHostInfo": "[to be translated]:code hosting information",
+        "commandName": "[to be translated]:{{name}} command",
+        "configFiles": "[to be translated]:project docs and config files",
+        "copy": "[to be translated]:Copy",
+        "copying": "[to be translated]:Copying",
+        "create": "[to be translated]:Create",
+        "creating": "[to be translated]:Creating",
+        "currentFolder": "[to be translated]:current folder",
+        "delete": "[to be translated]:Delete",
+        "deleting": "[to be translated]:Deleting",
+        "documentFiles": "[to be translated]:document files",
+        "download": "[to be translated]:Download",
+        "downloading": "[to be translated]:Downloading",
+        "executeCommand": "[to be translated]:Run command",
+        "executingCommand": "[to be translated]:Running command",
+        "extract": "[to be translated]:Extract",
+        "extracting": "[to be translated]:Extracting",
+        "file": "[to be translated]:file",
+        "fileList": "[to be translated]:file list",
+        "folder": "[to be translated]:folder",
+        "handle": "[to be translated]:Handle",
+        "handling": "[to be translated]:Handling",
+        "imageFiles": "[to be translated]:image files",
+        "install": "[to be translated]:Install",
+        "installing": "[to be translated]:Installing",
+        "matchingFiles": "[to be translated]:matching files",
+        "modify": "[to be translated]:Modify",
+        "modifying": "[to be translated]:Modifying",
+        "move": "[to be translated]:Move",
+        "moving": "[to be translated]:Moving",
+        "open": "[to be translated]:Open",
+        "opening": "[to be translated]:Opening",
+        "plan": "[to be translated]:execution plan",
+        "projectChanges": "[to be translated]:project changes",
+        "projectChecks": "[to be translated]:project checks",
+        "projectDependencies": "[to be translated]:project dependencies",
+        "projectFiles": "[to be translated]:project files",
+        "projectRootFiles": "[to be translated]:project root files",
+        "projectTask": "[to be translated]:project task",
+        "relatedContent": "[to be translated]:related content",
+        "repository": "[to be translated]:code repository",
+        "search": "[to be translated]:Find",
+        "searching": "[to be translated]:Finding",
+        "switch": "[to be translated]:Switch",
+        "switching": "[to be translated]:Switching",
+        "sync": "[to be translated]:Sync",
+        "syncing": "[to be translated]:Syncing",
+        "taskList": "[to be translated]:task list",
+        "translationFiles": "[to be translated]:translation files",
+        "upload": "[to be translated]:Upload",
+        "uploading": "[to be translated]:Uploading",
+        "view": "[to be translated]:View",
+        "viewing": "[to be translated]:Viewing",
+        "webPage": "[to be translated]:web page",
+        "webSearch": "[to be translated]:web content",
+        "workspace": "[to be translated]:workspace",
+        "write": "[to be translated]:Save",
+        "writing": "[to be translated]:Saving"
+      },
       "approvalRequired": "ツール「{{tool}}」は承認が必要です",
       "autoApproveEnabled": "このツールは自動承認が有効になっています",
       "cancelled": "キャンセル",
@@ -3163,6 +3557,18 @@
       },
       "noData": "このツールに利用可能なデータはありません",
       "pending": "保留中",
+      "placeholder": {
+        "elapsed": {
+          "days": "[to be translated]:{{days}}d {{hours}}h {{minutes}}m {{seconds}}s",
+          "hours": "[to be translated]:{{hours}}h {{minutes}}m {{seconds}}s",
+          "minutes": "[to be translated]:{{minutes}}m {{seconds}}s",
+          "seconds": "[to be translated]:{{seconds}}s"
+        },
+        "generating": "[to be translated]:Writing response",
+        "preparing": "[to be translated]:Preparing response",
+        "thinking": "[to be translated]:Thinking",
+        "usingTools": "[to be translated]:Working on the task"
+      },
       "preview": "プレビュー",
       "raw": "生データ",
       "runningCount": "{{count}}個のツールが実行中",
@@ -3187,6 +3593,7 @@
         "success": "成功"
       },
       "streaming": "ストリーミング",
+      "thinkingHeader": "[to be translated]:Thinking",
       "truncated": "出力が切り捨てられました（元のサイズ: {{size}}）",
       "units": {
         "done_one": "{{count}} 完了",
@@ -3231,6 +3638,7 @@
     "websearch": {
       "cutoff": "検索内容を切り詰めています...",
       "fetch_complete": "{{count}}件の検索結果",
+      "fetch_empty": "検索結果が見つかりません",
       "partial_failure": "{{count}}件の検索結果、一部の検索に失敗しました"
     }
   },
@@ -3417,8 +3825,15 @@
       "placeholder": "モデルを検索...",
       "tooltip": "モデルを検索"
     },
+    "selection": {
+      "context_window": "[to be translated]:Context {{count}}",
+      "remove_model": "[to be translated]:Remove {{name}}",
+      "restore_default": "[to be translated]:Restore assistant model",
+      "selected_models": "[to be translated]:Selected models"
+    },
     "stream_output": "ストリーム出力",
     "type": {
+      "audio": "[to be translated]:Audio",
       "embedding": "埋め込み",
       "free": "無料",
       "function_calling": "ツール",
@@ -3426,6 +3841,7 @@
       "rerank": "再順序付け",
       "select": "モデルタイプ",
       "text": "テキスト",
+      "video": "[to be translated]:Video",
       "vision": "画像",
       "websearch": "ウェブ検索"
     }
@@ -4706,6 +5122,16 @@
       },
       "sort_label": "並び替え",
       "unpin": "ピン留めを解除"
+    },
+    "create_dialog": {
+      "refresh_failed": "[to be translated]:Created, but failed to refresh the list"
+    },
+    "edit_dialog": {
+      "refresh_failed": "[to be translated]:Saved, but failed to refresh the list"
+    },
+    "workspace": {
+      "empty_text": "[to be translated]:No workspaces yet",
+      "placeholder": "[to be translated]:Select workspace"
     }
   },
   "settings": {
@@ -4754,7 +5180,6 @@
       }
     },
     "advanced": {
-      "auto_switch_to_topics": "トピックに自動的に切り替える",
       "title": "詳細設定"
     },
     "assistant": {
@@ -4791,6 +5216,14 @@
       },
       "agentTodoList": {
         "title": "[to be translated]:Agent Todo List"
+      },
+      "askUserQuestion": {
+        "currentRequest": "現在のリクエスト",
+        "description": "サンプルの pending questions で下部 AskUserQuestion composer をプレビューします。",
+        "latestResponse": "最新のレスポンス",
+        "noResponse": "まだレスポンスは送信されていません",
+        "resetPreview": "プレビューをリセット",
+        "title": "Ask User Question"
       },
       "assistantSelector": {
         "clearSelection": "クリア",
@@ -4883,7 +5316,17 @@
         "triggerSelectedCount": "{{count}}件のモデルが選択されています",
         "valueProp": "現在のバリュープロポジション"
       },
-      "title": "開発コンポーネントラボ"
+      "title": "開発コンポーネントラボ",
+      "toolPermission": {
+        "builtinMode": "Built-in",
+        "currentRequest": "Current request",
+        "description": "Preview the bottom tool permission composer with built-in and MCP tool requests.",
+        "latestResponse": "Latest response",
+        "mcpMode": "MCP",
+        "noResponse": "No response submitted yet",
+        "resetPreview": "Reset preview",
+        "title": "Tool Permission"
+      }
     },
     "data": {
       "app_data": {
@@ -5580,6 +6023,7 @@
       },
       "common": {
         "sections": {
+          "chat_settings": "[to be translated]:Chat Settings",
           "custom_css": "カスタムCSS",
           "display_language": "表示と言語",
           "privacy_advanced": "プライバシーと高度な設定",
@@ -5838,6 +6282,13 @@
         "text": "テキスト",
         "uri": "URI"
       },
+      "runtimeStatus": {
+        "connected": "[to be translated]:Connected",
+        "connecting": "[to be translated]:Connecting",
+        "disabled": "[to be translated]:Disabled",
+        "error": "[to be translated]:Error",
+        "unavailable": "[to be translated]:Unavailable"
+      },
       "search": {
         "placeholder": "MCP サーバーを検索...",
         "tooltip": "MCP サーバーを検索"
@@ -5943,9 +6394,6 @@
       "input": {
         "confirm_delete_message": "メッセージ削除前に確認",
         "confirm_regenerate_message": "メッセージ再生成前に確認",
-        "enable_quick_triggers": "/ と @ を有効にしてクイックメニューを表示します。",
-        "paste_long_text_as_file": "長いテキストをファイルとして貼り付け",
-        "paste_long_text_threshold": "長いテキストの長さ",
         "send_shortcuts": "送信ショートカット",
         "show_estimated_tokens": "推定トークン数を表示",
         "title": "入力設定"
@@ -5964,7 +6412,8 @@
       "prompt": "プロンプト表示",
       "show_message_outline": "メッセージの概要を表示します",
       "title": "メッセージ設定",
-      "use_serif_font": "セリフフォントを使用"
+      "use_serif_font": "セリフフォントを使用",
+      "wide_mode": "広いレイアウトモード"
     },
     "miniApps": {
       "cache_change_notice": "設定値に達するまでミニアプリの開閉が行われた後に変更が適用されます",
@@ -6322,6 +6771,7 @@
         "title": "詳細度"
       }
     },
+    "parameter_settings": "パラメータ設定",
     "plugins": {
       "bunDescription": "MCPサービスおよび関連ツールチェーンで使用されるJavaScriptランタイム。",
       "description": "アプリに必要なバイナリツールとランタイム依存関係を管理します。",
@@ -6404,7 +6854,7 @@
           },
           "label": "API設定",
           "service_tier": {
-            "help": "このプロバイダーがservice_tierパラメータの設定をサポートしているかどうか。有効にすると、チャットページのサービスレベル設定でこのパラメータを調整できます。（OpenAIモデルのみ対象）",
+            "help": "このプロバイダーが service_tier パラメータの設定をサポートしているかどうか。有効にすると、この API 設定ドロワーでサービス階層の値を調整できます。（OpenAI/Groq 互換モデルのみ対象）",
             "label": "service_tier をサポート"
           },
           "stream_options": {
@@ -6755,9 +7205,9 @@
       "show_app": "アプリを表示/非表示",
       "show_settings": "設定を開く",
       "title": "ショートカット",
+      "toggle_left_sidebar": "[to be translated]:Toggle Left Sidebar",
       "toggle_new_context": "コンテキストをクリア",
-      "toggle_show_topics": "トピックの表示を切り替え",
-      "toggle_sidebar": "サイドバーを切り替える",
+      "toggle_right_sidebar": "右サイドバーを切り替える",
       "zoom_in": "ズームイン",
       "zoom_out": "ズームアウト",
       "zoom_reset": "ズームをリセット"
@@ -6975,17 +7425,6 @@
         "url_required": "URLの入力が必要です"
       }
     },
-    "topic": {
-      "pin_to_top": "固定トピックを上部に表示",
-      "position": {
-        "label": "トピックの位置",
-        "left": "左",
-        "right": "右"
-      },
-      "show": {
-        "time": "トピックの時間を表示"
-      }
-    },
     "translate": {
       "custom": {
         "delete": {
@@ -7052,6 +7491,7 @@
     "close": "タブを閉じる",
     "move_to_first": "[to be translated]:Move to First",
     "new": "新しいタブ",
+    "open_in_new_window": "[to be translated]:Open in New Window",
     "pin": "タブをピン留め",
     "unpin": "タブを固定解除"
   },
@@ -7084,8 +7524,7 @@
     "spendTime": "時間を過ごす",
     "startTime": "開始時間",
     "tag": "Tagラベル",
-    "tokenUsage": "トークンの使用",
-    "traceWindow": "呼び出しチェーンウィンドウ"
+    "tokenUsage": "トークンの使用"
   },
   "translate": {
     "alter_language": "備用言語",

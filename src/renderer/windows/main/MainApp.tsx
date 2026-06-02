@@ -2,6 +2,7 @@ import '@renderer/databases'
 
 import { preferenceService } from '@data/PreferenceService'
 import { loggerService } from '@logger'
+import { CommandProvider, ContextKeyProvider } from '@renderer/commands'
 import { AppShell } from '@renderer/components/layout/AppShell'
 import TopViewContainer from '@renderer/components/TopView'
 import AntdProvider from '@renderer/context/AntdProvider'
@@ -41,11 +42,15 @@ function MainApp(): React.ReactElement {
               <NotificationProvider>
                 <CodeStyleProvider>
                   <PersistGate loading={null} persistor={persistor}>
-                    <TabsProvider>
-                      <TopViewContainer>
-                        <AppShell />
-                      </TopViewContainer>
-                    </TabsProvider>
+                    <ContextKeyProvider>
+                      <CommandProvider>
+                        <TabsProvider>
+                          <TopViewContainer>
+                            <AppShell />
+                          </TopViewContainer>
+                        </TabsProvider>
+                      </CommandProvider>
+                    </ContextKeyProvider>
                   </PersistGate>
                 </CodeStyleProvider>
               </NotificationProvider>

@@ -13,7 +13,7 @@ describe('AssistantMappings', () => {
         emoji: '🤖',
         description: 'A test assistant',
         settings: { temperature: 0.7 },
-        mcpMode: 'prompt',
+        mcpMode: 'manual',
         enableWebSearch: true,
         model: { id: 'gpt-4', provider: 'openai', name: 'GPT-4' },
         defaultModel: { id: 'gpt-3.5', provider: 'openai', name: 'GPT-3.5' },
@@ -31,8 +31,9 @@ describe('AssistantMappings', () => {
         description: 'A test assistant',
         modelId: 'openai::gpt-4',
         // Migrator merges legacy fields onto DEFAULT_ASSISTANT_SETTINGS so the new
-        // NOT NULL settings column always sees a complete object.
-        settings: { ...DEFAULT_ASSISTANT_SETTINGS, temperature: 0.7, mcpMode: 'prompt', enableWebSearch: true }
+        // NOT NULL settings column always sees a complete object. Per-field
+        // sanitiser keeps only legacy values that validate against the v2 schema.
+        settings: { ...DEFAULT_ASSISTANT_SETTINGS, temperature: 0.7, mcpMode: 'manual', enableWebSearch: true }
       })
       expect(result.mcpServers).toStrictEqual([
         { assistantId: 'ast-1', mcpServerId: 'srv-1' },
@@ -171,6 +172,29 @@ describe('AssistantMappings', () => {
         ...DEFAULT_ASSISTANT_SETTINGS,
         mcpMode: 'auto',
         enableWebSearch: true
+      })
+    })
+
+    it('drops invalid legacy field values and falls back to v2 defaults', () => {
+      // v1's "disabled = use model default" pattern stored maxTokens=0 alongside
+      // enableMaxTokens=false — the 0 violates v2's `.positive()` rule.
+      // Migrator must drop it so the v2 row is valid from the start.
+      const result = transformAssistant({
+        id: 'ast-15',
+        // Cast the whole bag once: OldAssistantSettings types fields strictly
+        // for documentation, but real legacy data in the wild is unconstrained.
+        settings: { maxTokens: 0, enableMaxTokens: false, temperature: 0.5 } as never,
+        // Bogus mcpMode left over from confused v1 callers (real v2 enum is
+        // 'disabled' | 'auto' | 'manual').
+        mcpMode: 'prompt' as never
+      })
+      expect(result.assistant.settings).toStrictEqual({
+        ...DEFAULT_ASSISTANT_SETTINGS,
+        // Valid value preserved.
+        temperature: 0.5,
+        // Booleans validated independently — false survives.
+        enableMaxTokens: false
+        // maxTokens and mcpMode stay at DEFAULT (sanitiser dropped invalid).
       })
     })
   })

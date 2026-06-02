@@ -1,150 +1,534 @@
-import { QuickPanelProvider } from '@renderer/components/QuickPanel'
+import {
+  type ChatPanePosition,
+  ConversationCenterState,
+  ConversationShell,
+  EmptyState
+} from '@renderer/components/chat'
+import CitationsPanel from '@renderer/components/chat/citations/CitationsPanel'
+import type { ConversationComposerPlacement } from '@renderer/components/chat/composer'
+import { AgentHomeComposer, MissingAgentHomeComposer } from '@renderer/components/chat/composer/variants/AgentComposer'
+import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
 import { useCache } from '@renderer/data/hooks/useCache'
-import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
-import { useAgents } from '@renderer/hooks/agents/useAgents'
-import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
-import { useNavbarPosition } from '@renderer/hooks/useNavbar'
+import { useAgent } from '@renderer/hooks/agents/useAgent'
+import type { AgentSessionSource } from '@renderer/hooks/agents/useSession'
+import {
+  type ConversationHistoryAdapter,
+  useConversationTurnController
+} from '@renderer/hooks/useConversationTurnController'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
-import { useShowTopics } from '@renderer/hooks/useStore'
+import type { TemporaryConversation, TemporaryConversationDefaults } from '@renderer/hooks/useTemporaryConversation'
+import type { Citation, GetAgentResponse } from '@renderer/types'
 import { cn } from '@renderer/utils'
+import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
 import { buildAgentSessionTopicId } from '@renderer/utils/agentSession'
-import { Alert, Spin } from 'antd'
-import { AnimatePresence, motion } from 'motion/react'
-import type { PropsWithChildren } from 'react'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
+import type { ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { PinnedTodoPanel } from '../home/Inputbar/components/PinnedTodoPanel'
-import ChatNavigation from '../home/Messages/ChatNavigation'
-import NarrowLayout from '../home/Messages/NarrowLayout'
+import AgentChatMain from './AgentChatMain'
+import AgentComposerSlot from './AgentComposerSlot'
 import AgentChatNavbar from './components/AgentChatNavbar'
-import AgentSessionInputbar from './components/AgentSessionInputbar'
-import AgentSessionMessages from './components/AgentSessionMessages'
-import Sessions from './components/Sessions'
+import { AgentRightPane } from './components/AgentRightPane'
+import { locateAgentMessageInList } from './messages/agentMessageListAdapter'
+import {
+  type AgentSendOptions,
+  type AgentTurnInput,
+  getAgentTurnParts,
+  useAgentChatRuntimeState
+} from './useAgentChatRuntimeState'
 
-const AgentChat = () => {
+const EMPTY_MESSAGES: CherryUIMessage[] = []
+const EMPTY_PARTS: Record<string, CherryMessagePart[]> = {}
+
+function getNewSessionWorkspaceDefaults(
+  session: AgentSessionEntity
+): Pick<TemporaryConversationDefaults, 'workspaceId' | 'workspaceMode'> {
+  if (session.workspace?.type === 'system') {
+    return { workspaceMode: 'system' }
+  }
+  return session.workspaceId ? { workspaceId: session.workspaceId } : {}
+}
+
+interface AgentChatProps {
+  pane?: ReactNode
+  paneOpen?: boolean
+  panePosition?: ChatPanePosition
+  activeSession?: AgentSessionEntity | null
+  activeSessionLoading?: boolean
+  activeSessionSource?: AgentSessionSource
+  lockedSession?: AgentSessionEntity | null
+  lockedSessionLoading?: boolean
+  showResourceListControls?: boolean
+  locateMessageId?: string
+  onLocateMessageHandled?: () => void
+  onPaneCollapse?: () => void
+  temporaryConversation?: TemporaryConversation | null
+  missingAgentDraft?: boolean
+  onStartTemporarySession?: (defaults: TemporaryConversationDefaults) => void | Promise<void>
+  onMissingAgentDraftAgentChange?: (agentId: string | null) => void | Promise<void>
+  onPersistTemporarySession?: (initialName?: string) => Promise<TemporaryConversation | null>
+  onDraftAgentChange?: (agentId: string | null) => void | Promise<void>
+  onDraftWorkspaceChange?: (workspaceId: string | null) => void | Promise<void>
+  onVisibleAgentChange?: (agentId: string) => void
+  onVisibleWorkspaceChange?: (workspaceId: string) => void
+  replacingTemporaryAgent?: boolean
+  replacingTemporaryWorkspace?: boolean
+}
+
+const AgentChat = ({
+  pane,
+  paneOpen,
+  panePosition,
+  activeSession,
+  activeSessionLoading = false,
+  activeSessionSource = 'none',
+  lockedSession,
+  lockedSessionLoading = false,
+  showResourceListControls = true,
+  locateMessageId,
+  onLocateMessageHandled,
+  onPaneCollapse,
+  temporaryConversation,
+  missingAgentDraft = false,
+  onStartTemporarySession,
+  onMissingAgentDraftAgentChange,
+  onPersistTemporarySession,
+  onDraftAgentChange,
+  onDraftWorkspaceChange,
+  onVisibleAgentChange,
+  onVisibleWorkspaceChange,
+  replacingTemporaryAgent,
+  replacingTemporaryWorkspace
+}: AgentChatProps) => {
   const { t } = useTranslation()
-  const { messageNavigation, messageStyle, topicPosition } = useSettings()
-  const { showTopics } = useShowTopics()
-  const [activeAgentId] = useCache('agent.active_id')
-  const [activeSessionIdMap] = useCache('agent.session.active_id_map')
+  const { messageStyle } = useSettings()
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
+  const [citationPanelCitations, setCitationPanelCitations] = useState<Citation[] | null>(null)
+  const [reservedSessionSeed, setReservedSessionSeed] = useState<{
+    sessionId: string
+    messages: CherryUIMessage[]
+  } | null>(null)
+  const [temporaryHandoffSessionId, setTemporaryHandoffSessionId] = useState<string | null>(null)
+  const temporarySeedSessionIdRef = useRef<string | null>(null)
+  const lastTemporaryConversationIdRef = useRef<string | null>(null)
 
-  const activeSessionId = activeAgentId ? activeSessionIdMap[activeAgentId] : null
-  // undefined = session not yet initialized, null = initialized but no sessions
-  const isSessionInitialized = !activeAgentId || activeAgentId in activeSessionIdMap
-  const { agent: activeAgent, isLoading: isAgentLoading } = useActiveAgent()
-  const { isLoading: isAgentsLoading, agents } = useAgents()
-  const { createDefaultSession } = useCreateDefaultSession(activeAgentId)
+  const temporaryAgentConversation = temporaryConversation?.type === 'agent' ? temporaryConversation : null
+  const hasLockedSession = lockedSession !== undefined
+  const sessionSnapshot = hasLockedSession
+    ? (lockedSession ?? null)
+    : (temporaryAgentConversation?.session ?? activeSession ?? null)
+  const visibleAgentId = sessionSnapshot?.agentId ?? temporaryAgentConversation?.agentId ?? null
+  const visibleWorkspaceId = sessionSnapshot?.workspaceId ?? null
+  const visibleWorkspace = sessionSnapshot?.workspace ?? null
+  const { agent: activeAgent } = useAgent(visibleAgentId)
 
-  // Don't show select/create alerts while data is still loading
-  // apiServerRunning is guaranteed by AgentPage guard
-  const isInitializing =
-    isAgentsLoading || isAgentLoading || !isSessionInitialized || !agents || (!activeAgentId && agents.length > 0)
+  useEffect(() => {
+    const conversationId = temporaryAgentConversation?.id ?? null
+    if (conversationId && conversationId !== lastTemporaryConversationIdRef.current) {
+      temporarySeedSessionIdRef.current = null
+      setReservedSessionSeed(null)
+      setTemporaryHandoffSessionId(null)
+    }
+    if (conversationId) lastTemporaryConversationIdRef.current = conversationId
+  }, [temporaryAgentConversation?.id])
 
-  const showRightSessions = topicPosition === 'right' && showTopics && !!activeAgentId
+  useEffect(() => {
+    if (visibleAgentId) onVisibleAgentChange?.(visibleAgentId)
+  }, [onVisibleAgentChange, visibleAgentId])
+  useEffect(() => {
+    if (visibleWorkspaceId && visibleWorkspace?.type !== 'system') onVisibleWorkspaceChange?.(visibleWorkspaceId)
+  }, [onVisibleWorkspaceChange, visibleWorkspace, visibleWorkspaceId])
 
-  useShortcut(
-    'topic.new',
-    () => {
-      void createDefaultSession()
-    },
+  const temporaryHistoryAdapter = useMemo<ConversationHistoryAdapter>(
+    () => ({
+      seedReservedMessages: (messages) => {
+        const sessionId = temporarySeedSessionIdRef.current
+        if (!sessionId) return
+        setReservedSessionSeed({ sessionId, messages })
+      },
+      refresh: () => undefined,
+      rollback: () => {
+        temporarySeedSessionIdRef.current = null
+        setReservedSessionSeed(null)
+        setTemporaryHandoffSessionId(null)
+      }
+    }),
+    []
+  )
+
+  const temporaryTurnController = useConversationTurnController<AgentTurnInput, { topicId: string; sessionId: string }>(
     {
-      enabled: true,
-      preventDefault: true,
-      enableOnFormTags: true
+      scopeKey: temporaryAgentConversation?.id ?? activeSession?.id ?? 'none',
+      historyAdapter: temporaryHistoryAdapter,
+      ensureConversation: async ({ text }) => {
+        if (!temporaryAgentConversation || !onPersistTemporarySession) return null
+        const persisted = await onPersistTemporarySession(text)
+        if (persisted?.type !== 'agent') return null
+        temporarySeedSessionIdRef.current = persisted.sessionId
+        setTemporaryHandoffSessionId(persisted.sessionId)
+        return { topicId: persisted.topicId, sessionId: persisted.sessionId }
+      },
+      buildStreamRequest: (input, conversation) => ({
+        trigger: 'submit-message',
+        topicId: conversation.topicId,
+        userMessageParts: getAgentTurnParts(input)
+      })
     }
   )
+  const sendTemporaryMessage = useCallback(
+    async (message?: { text: string }, options?: AgentSendOptions) => {
+      await temporaryTurnController.send({ text: message?.text ?? '', options })
+    },
+    [temporaryTurnController]
+  )
+
+  const handleOpenCitationsPanel = useCallback(({ citations }: { citations: Citation[] }) => {
+    setCitationPanelCitations(citations)
+  }, [])
+
+  const isInitializing = !sessionSnapshot && (hasLockedSession ? lockedSessionLoading : activeSessionLoading)
+  const citationsPanelOpen = citationPanelCitations !== null
 
   if (isInitializing) {
     return (
-      <Container className="flex flex-1 flex-col items-center justify-center">
-        <Spin />
-      </Container>
+      <AgentRightPane
+        workspacePath={temporaryAgentConversation?.session.workspace?.path}
+        messages={EMPTY_MESSAGES}
+        partsByMessageId={EMPTY_PARTS}>
+        <ConversationShell
+          className={messageStyle}
+          pane={pane}
+          paneOpen={paneOpen}
+          panePosition={panePosition}
+          onPaneCollapse={onPaneCollapse}
+          center={<ConversationCenterState state="loading" />}
+          rightPane={<AgentRightPane.Host />}
+        />
+      </AgentRightPane>
     )
   }
 
-  // Initialized — agents.length === 0 is handled by AgentPage
-  if (!activeAgentId) {
+  if (!sessionSnapshot) {
+    if (hasLockedSession) {
+      return (
+        <ConversationShell
+          className={messageStyle}
+          pane={pane}
+          paneOpen={paneOpen}
+          panePosition={panePosition}
+          onPaneCollapse={onPaneCollapse}
+          center={<EmptyState compact className="h-full" title={t('agent.session.get.error.not_found')} />}
+        />
+      )
+    }
+    if (missingAgentDraft) {
+      const composer = !isMultiSelectMode ? (
+        <MissingAgentHomeComposer
+          onAgentChange={onMissingAgentDraftAgentChange}
+          agentChanging={replacingTemporaryAgent}
+        />
+      ) : undefined
+
+      return (
+        <ConversationShell
+          className={messageStyle}
+          pane={pane}
+          paneOpen={paneOpen}
+          panePosition={panePosition}
+          onPaneCollapse={onPaneCollapse}
+          topBar={<AgentChatNavbar activeAgent={null} showSidebarControls={showResourceListControls} />}
+          center={
+            <ConversationStageCenter
+              placement="home"
+              main={null}
+              composer={composer}
+              homeWelcomeText={t('agent.home.welcome_title')}
+            />
+          }
+        />
+      )
+    }
     return (
-      <Container className="flex flex-1 flex-col justify-between">
-        <div className="flex h-full w-full items-center justify-center">
-          <Alert type="info" message={t('chat.alerts.select_agent')} style={{ margin: '5px 16px' }} />
-        </div>
-      </Container>
+      <ConversationShell
+        className={messageStyle}
+        pane={pane}
+        paneOpen={paneOpen}
+        panePosition={panePosition}
+        onPaneCollapse={onPaneCollapse}
+        center={<ConversationCenterState state="empty" />}
+      />
     )
   }
 
-  if (!activeSessionId) {
-    return (
-      <Container className="flex flex-1 flex-col justify-between">
-        <div className="flex h-full w-full items-center justify-center">
-          <Alert type="warning" message={t('chat.alerts.create_session')} style={{ margin: '5px 16px' }} />
-        </div>
-      </Container>
-    )
-  }
+  const sessionAgentId = sessionSnapshot.agentId ?? temporaryAgentConversation?.agentId ?? null
+  const sendableAgentId = activeAgent && sessionAgentId ? sessionAgentId : undefined
+  const isDraftTemporarySession = !!temporaryAgentConversation && temporaryTurnController.layout === 'draft'
+  const reservedMessages =
+    reservedSessionSeed?.sessionId === sessionSnapshot.id ? reservedSessionSeed.messages : EMPTY_MESSAGES
+  const isTemporaryTurnInProgress =
+    temporaryTurnController.phase !== 'draft' && temporaryTurnController.phase !== 'ready'
+  const isPendingTemporarySession =
+    !!activeSession &&
+    activeSession.id === sessionSnapshot.id &&
+    (temporaryHandoffSessionId === sessionSnapshot.id || isTemporaryTurnInProgress)
+  const isQueryBackedSession =
+    activeSessionSource === 'query' ||
+    (!!activeSession && activeSessionSource === 'none' && !temporaryAgentConversation)
+  const isWaitingForReservedMessages =
+    isPendingTemporarySession && reservedMessages.length === 0 && temporaryTurnController.phase !== 'ready'
+  const isTemporaryHandoff = (!!temporaryAgentConversation && !isDraftTemporarySession) || isWaitingForReservedMessages
+  const sessionMessagesEnabled =
+    !!activeSession && activeSession.id === sessionSnapshot.id && !isWaitingForReservedMessages
+  const sessionHistoryFetchOnMount = isPendingTemporarySession
+    ? temporaryTurnController.phase === 'ready'
+    : isQueryBackedSession
+  const homeComposer =
+    isDraftTemporarySession && !isMultiSelectMode && temporaryAgentConversation ? (
+      <AgentHomeComposer
+        agentId={temporaryAgentConversation.agentId}
+        sessionId={temporaryAgentConversation.sessionId}
+        sessionOverride={temporaryAgentConversation.session}
+        sendMessage={sendTemporaryMessage}
+        stop={async () => undefined}
+        isStreaming={false}
+        onAgentChange={onDraftAgentChange}
+        agentChanging={replacingTemporaryAgent}
+        workspaceId={temporaryAgentConversation.session.workspaceId}
+        onWorkspaceChange={onDraftWorkspaceChange}
+        workspaceChanging={replacingTemporaryWorkspace}
+        showWorkspaceSelector
+        onNewSessionDraft={() =>
+          onStartTemporarySession?.({
+            agentId: temporaryAgentConversation.agentId,
+            ...getNewSessionWorkspaceDefaults(temporaryAgentConversation.session),
+            name: t('common.unnamed')
+          })
+        }
+      />
+    ) : undefined
 
   return (
-    <Container
-      // AgentChat doesn't support multi-select
-      // But we want to apply the message style for consistency
-      className={cn(messageStyle, { 'multi-select-mode': isMultiSelectMode })}>
-      <QuickPanelProvider>
-        {/* Main Chat */}
-        <div className="flex min-w-0 flex-1 flex-col">
-          {/* Header */}
-          <div className="flex h-fit w-full min-w-0">
-            {activeAgent && <AgentChatNavbar className="min-w-0" activeAgent={activeAgent} />}
-          </div>
-
-          {/* Messages */}
-          <div className="translate-z-0 relative flex w-full flex-1 flex-col justify-between overflow-y-auto overflow-x-hidden">
-            <AgentSessionMessages agentId={activeAgentId} sessionId={activeSessionId} />
-            <div className="mt-auto px-4.5 pb-2">
-              <NarrowLayout>
-                <PinnedTodoPanel topicId={buildAgentSessionTopicId(activeSessionId)} />
-              </NarrowLayout>
-            </div>
-            {messageNavigation === 'buttons' && <ChatNavigation containerId="messages" />}
-          </div>
-          {/* Inputbar */}
-          <AgentSessionInputbar agentId={activeAgentId} sessionId={activeSessionId} />
-        </div>
-      </QuickPanelProvider>
-
-      {/* Sessions Panel */}
-      <AnimatePresence initial={false}>
-        {showRightSessions && (
-          <motion.div
-            key="right-sessions"
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: 'var(--assistants-width)', opacity: 1 }}
-            exit={{ width: 0, opacity: 0 }}
-            transition={{ duration: 0.3, ease: 'easeInOut' }}
-            className="overflow-hidden">
-            <div className="flex h-full w-(--assistants-width) flex-col overflow-hidden">
-              <Sessions agentId={activeAgentId} />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </Container>
+    <AgentChatSessionFrame
+      className={cn(messageStyle, { 'multi-select-mode': isMultiSelectMode })}
+      pane={pane}
+      paneOpen={paneOpen}
+      panePosition={panePosition}
+      showResourceListControls={showResourceListControls}
+      session={sessionSnapshot}
+      placement={isDraftTemporarySession ? 'home' : 'docked'}
+      homeComposer={homeComposer}
+      homeWelcomeText={t('agent.home.welcome_title')}
+      agentId={sendableAgentId}
+      activeAgent={activeAgent}
+      isMultiSelectMode={isMultiSelectMode}
+      sessionMessagesEnabled={sessionMessagesEnabled}
+      sessionHistoryFetchOnMount={sessionHistoryFetchOnMount}
+      dockedSendDisabled={isTemporaryHandoff}
+      dockedStreaming={isTemporaryHandoff}
+      reservedMessages={reservedMessages}
+      onOpenCitationsPanel={handleOpenCitationsPanel}
+      locateMessageId={locateMessageId}
+      onLocateMessageHandled={onLocateMessageHandled}
+      onPaneCollapse={onPaneCollapse}
+      onNewSessionDraft={
+        sessionAgentId && onStartTemporarySession
+          ? () =>
+              onStartTemporarySession({
+                agentId: sessionAgentId,
+                ...getNewSessionWorkspaceDefaults(sessionSnapshot),
+                name: t('common.unnamed')
+              })
+          : undefined
+      }
+      sidePanel={
+        <CitationsPanel
+          open={citationsPanelOpen}
+          onClose={() => setCitationPanelCitations(null)}
+          citations={citationPanelCitations ?? []}
+        />
+      }
+    />
   )
 }
 
-const Container = ({ children, className }: PropsWithChildren<{ className?: string }>) => {
-  const { isTopNavbar } = useNavbarPosition()
+// ── Inner: mounted only when agentId + sessionId are resolved ──
+
+interface AgentChatSessionFrameProps {
+  className?: string
+  pane?: ReactNode
+  paneOpen?: boolean
+  panePosition?: ChatPanePosition
+  showResourceListControls?: boolean
+  sidePanel?: ReactNode
+  session: AgentSessionEntity
+  placement: ConversationComposerPlacement
+  homeComposer?: ReactNode
+  homeWelcomeText?: string
+  agentId?: string
+  activeAgent: GetAgentResponse | undefined
+  isMultiSelectMode: boolean
+  sessionMessagesEnabled: boolean
+  sessionHistoryFetchOnMount?: boolean
+  dockedSendDisabled?: boolean
+  dockedStreaming?: boolean
+  reservedMessages?: CherryUIMessage[]
+  onOpenCitationsPanel: (payload: { citations: Citation[] }) => void
+  locateMessageId?: string
+  onLocateMessageHandled?: () => void
+  onPaneCollapse?: () => void
+  onNewSessionDraft?: () => void | Promise<void>
+}
+
+const AgentChatSessionFrame = ({
+  className,
+  pane,
+  paneOpen,
+  panePosition,
+  showResourceListControls = true,
+  sidePanel,
+  session,
+  placement,
+  homeComposer,
+  homeWelcomeText,
+  agentId,
+  activeAgent,
+  isMultiSelectMode,
+  sessionMessagesEnabled,
+  sessionHistoryFetchOnMount,
+  dockedSendDisabled = false,
+  dockedStreaming = false,
+  reservedMessages = EMPTY_MESSAGES,
+  onOpenCitationsPanel,
+  locateMessageId,
+  onLocateMessageHandled,
+  onPaneCollapse,
+  onNewSessionDraft
+}: AgentChatSessionFrameProps) => {
+  const runtime = useAgentChatRuntimeState({
+    session,
+    activeAgent,
+    sessionMessagesEnabled,
+    sessionHistoryFetchOnMount,
+    reservedMessages
+  })
+  const sessionTopicId = useMemo(() => buildAgentSessionTopicId(runtime.sessionId), [runtime.sessionId])
+  const locateLoadRequestRef = useRef<string | undefined>(undefined)
+
+  useEffect(() => {
+    if (!locateMessageId) {
+      locateLoadRequestRef.current = undefined
+      return
+    }
+
+    if (runtime.uiMessages.some((message) => message.id === locateMessageId)) {
+      locateLoadRequestRef.current = undefined
+      window.requestAnimationFrame(() => {
+        locateAgentMessageInList(sessionTopicId, locateMessageId, true)
+      })
+      onLocateMessageHandled?.()
+      return
+    }
+
+    if (runtime.hasOlder && !runtime.isLoading) {
+      const requestKey = `${locateMessageId}:${runtime.uiMessages.length}`
+      if (locateLoadRequestRef.current !== requestKey) {
+        locateLoadRequestRef.current = requestKey
+        runtime.loadOlder?.()
+      }
+      return
+    }
+
+    if (!runtime.hasOlder && !runtime.isLoading) {
+      locateLoadRequestRef.current = undefined
+      onLocateMessageHandled?.()
+    }
+  }, [
+    locateMessageId,
+    onLocateMessageHandled,
+    runtime.hasOlder,
+    runtime.isLoading,
+    runtime.loadOlder,
+    runtime.uiMessages,
+    sessionTopicId
+  ])
+
+  const composer = (
+    <AgentComposerSlot
+      placement={placement}
+      homeComposer={homeComposer}
+      agentId={agentId}
+      isMultiSelectMode={isMultiSelectMode}
+      session={session}
+      sessionId={runtime.sessionId}
+      sendMessage={runtime.sendMessage}
+      stop={runtime.stop}
+      isStreaming={dockedStreaming || runtime.isPending}
+      sendDisabled={dockedSendDisabled}
+      onNewSessionDraft={onNewSessionDraft}
+      composerContext={runtime.composerContext}
+    />
+  )
+  const main = (
+    <AgentChatMain
+      placement={placement}
+      sessionMessagesEnabled={sessionMessagesEnabled}
+      agentId={agentId}
+      sessionId={runtime.sessionId}
+      messages={runtime.uiMessages}
+      activeAgent={activeAgent}
+      partsByMessageId={runtime.partsByMessageId}
+      modelFallback={runtime.fallbackSnapshot}
+      isLoading={runtime.isLoading}
+      hasOlder={runtime.hasOlder}
+      loadOlder={runtime.loadOlder}
+      onOpenCitationsPanel={onOpenCitationsPanel}
+      deleteMessage={runtime.deleteMessage}
+      respondToolApproval={runtime.respondToolApproval}
+    />
+  )
+  const rightPaneDisabled = placement === 'home'
 
   return (
-    <div
-      className={cn(
-        'flex flex-1 overflow-hidden',
-        isTopNavbar && 'rounded-tl-[10px] rounded-bl-[10px] bg-(--color-background)',
-        className
-      )}>
-      {children}
-    </div>
+    <AgentRightPane
+      key={rightPaneDisabled ? 'right-pane-disabled' : 'right-pane-enabled'}
+      workspacePath={session.workspace?.path}
+      messages={runtime.uiMessages}
+      partsByMessageId={runtime.partsByMessageId}
+      sessionId={runtime.sessionId}
+      sessionName={session.name}
+      agentId={agentId ?? session.agentId ?? undefined}
+      agentName={activeAgent?.name}
+      agentAvatar={activeAgent ? getAgentAvatarFromConfiguration(activeAgent.configuration) : undefined}
+      modelFallback={runtime.fallbackSnapshot}>
+      <ConversationShell
+        className={className}
+        pane={pane}
+        paneOpen={paneOpen}
+        panePosition={panePosition}
+        onPaneCollapse={onPaneCollapse}
+        topBar={
+          <AgentChatNavbar
+            className="min-w-0"
+            activeAgent={activeAgent ?? null}
+            showSidebarControls={showResourceListControls}
+          />
+        }
+        topRightTool={<AgentRightPane.FilesToggle disabled={rightPaneDisabled} />}
+        center={
+          <ConversationStageCenter
+            placement={placement}
+            main={main}
+            composer={composer}
+            homeWelcomeText={homeWelcomeText}
+          />
+        }
+        sidePanel={sidePanel}
+        centerOverlay={rightPaneDisabled ? undefined : <AgentRightPane.MaximizedOverlay />}
+        rightPane={rightPaneDisabled ? undefined : <AgentRightPane.Host />}
+      />
+    </AgentRightPane>
   )
 }
 

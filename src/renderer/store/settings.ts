@@ -16,14 +16,9 @@
  */
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
-import { DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE, isMac } from '@renderer/config/constant'
+import { isMac } from '@renderer/config/constant'
 import type { ApiServerConfig, CodeStyleVarious, MathEngine, OpenAIServiceTier, S3Config } from '@renderer/types'
-import type {
-  OpenAICompletionsStreamOptions,
-  OpenAIReasoningSummary,
-  OpenAIVerbosity
-} from '@renderer/types/aiCoreTypes'
-import { API_SERVER_DEFAULTS } from '@shared/config/constant'
+import { API_SERVER_DEFAULTS, DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE } from '@shared/config/constant'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type {
@@ -37,6 +32,7 @@ import type {
 } from '@shared/data/preference/preferenceTypes'
 import { parseTranslateLangCode, ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import type { MiniAppRegionFilter } from '@shared/data/types/miniApp'
+import type { OpenAICompletionsStreamOptions, OpenAIReasoningSummary, OpenAIVerbosity } from '@shared/types/aiSdk'
 import { v4 as uuid } from 'uuid'
 
 import type { RemoteSyncState } from './backup'
@@ -84,8 +80,6 @@ export interface SettingsState {
   showTopicTime: boolean
   pinTopicsToTop: boolean
   assistantIconType: AssistantIconType
-  pasteLongTextAsFile: boolean
-  pasteLongTextThreshold: number
   clickAssistantToShowTopic: boolean
   autoCheckUpdate: boolean
   testPlan: boolean
@@ -196,7 +190,6 @@ export interface SettingsState {
   enableDataCollection: boolean
   enableSpellCheck: boolean
   spellCheckLanguages: string[]
-  enableQuickPanelTriggers: boolean
   // 硬件加速设置
   disableHardwareAcceleration: boolean
   // 使用系统标题栏 (仅Linux)
@@ -282,8 +275,6 @@ export const initialState: SettingsState = {
   showTopicTime: false,
   pinTopicsToTop: false,
   assistantIconType: 'emoji',
-  pasteLongTextAsFile: false,
-  pasteLongTextThreshold: 1500,
   clickAssistantToShowTopic: true,
   autoCheckUpdate: true,
   testPlan: false,
@@ -381,7 +372,6 @@ export const initialState: SettingsState = {
   enableDataCollection: false,
   enableSpellCheck: false,
   spellCheckLanguages: [],
-  enableQuickPanelTriggers: false,
   // 消息操作确认设置
   confirmDeleteMessage: true,
   confirmRegenerateMessage: true,
@@ -541,9 +531,6 @@ const settingsSlice = createSlice({
     // setAssistantIconType: (state, action: PayloadAction<AssistantIconType>) => {
     //   state.assistantIconType = action.payload
     // },
-    // setPasteLongTextAsFile: (state, action: PayloadAction<boolean>) => {
-    //   state.pasteLongTextAsFile = action.payload
-    // },
     // setAutoCheckUpdate: (state, action: PayloadAction<boolean>) => {
     //   state.autoCheckUpdate = action.payload
     // },
@@ -684,9 +671,6 @@ const settingsSlice = createSlice({
     // setEnableTopicNaming: (state, action: PayloadAction<boolean>) => {
     //   state.enableTopicNaming = action.payload
     // },
-    // setPasteLongTextThreshold: (state, action: PayloadAction<number>) => {
-    //   state.pasteLongTextThreshold = action.payload
-    // },
     // setTopicNamingPrompt: (state, action: PayloadAction<string>) => {
     //   state.topicNamingPrompt = action.payload
     // },
@@ -814,9 +798,6 @@ const settingsSlice = createSlice({
     // },
     // setExportMenuOptions: (state, action: PayloadAction<typeof initialState.exportMenuOptions>) => {
     //   state.exportMenuOptions = action.payload
-    // },
-    // setEnableQuickPanelTriggers: (state, action: PayloadAction<boolean>) => {
-    //   state.enableQuickPanelTriggers = action.payload
     // },
     // setConfirmDeleteMessage: (state, action: PayloadAction<boolean>) => {
     //   state.confirmDeleteMessage = action.payload

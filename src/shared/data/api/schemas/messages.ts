@@ -5,8 +5,8 @@
  * Includes endpoints for tree visualization and conversation view.
  */
 
-import type { CursorPaginationParams } from '@shared/data/api/apiTypes'
-import type { BranchMessagesResponse, Message, TreeResponse } from '@shared/data/types/message'
+import type { CursorPaginationParams, CursorPaginationResponse } from '@shared/data/api/apiTypes'
+import type { BranchMessagesResponse, Message, MessageData, TreeResponse } from '@shared/data/types/message'
 import {
   MessageDataSchema,
   MessageRoleSchema,
@@ -148,6 +148,43 @@ export const DeleteMessageQuerySchema = z.strictObject({
 })
 export type DeleteMessageQuery = z.infer<typeof DeleteMessageQuerySchema>
 
+/**
+ * Query parameters for GET /topics/:topicId/path
+ */
+export const PathThroughQuerySchema = z.strictObject({
+  /** Node the returned path must pass through. */
+  nodeId: z.string().min(1)
+})
+export type PathThroughQueryParams = z.infer<typeof PathThroughQuerySchema>
+
+export const SearchMessagesQuerySchema = z.strictObject({
+  q: z.string().trim().min(1),
+  topicId: z.string().min(1).optional(),
+  cursor: z.string().optional(),
+  limit: z.coerce.number().int().positive().max(1000).optional(),
+  createdAtFrom: z.iso.datetime().optional()
+})
+export type SearchMessagesQueryParams = {
+  q: string
+  topicId?: string
+  cursor?: string
+  limit?: number
+  createdAtFrom?: string
+} & CursorPaginationParams
+
+export interface SearchMessageResult {
+  messageId: string
+  topicId: string
+  topicName: string
+  topicAssistantId?: string
+  role?: 'user' | 'assistant'
+  topicCreatedAt: string
+  topicUpdatedAt: string
+  snippet: string
+  createdAt: string
+}
+export type SearchMessagesResponse = CursorPaginationResponse<SearchMessageResult>
+
 // ============================================================================
 // API Schema Definitions
 // ============================================================================
@@ -161,6 +198,13 @@ export type DeleteMessageQuery = z.infer<typeof DeleteMessageQuerySchema>
  * - /messages/:id - Individual message operations
  */
 export type MessageSchemas = {
+  '/messages/search': {
+    GET: {
+      query: SearchMessagesQueryParams
+      response: SearchMessagesResponse
+    }
+  }
+
   /**
    * Tree query endpoint for visualization
    * @example GET /topics/abc123/tree?depth=1
@@ -195,6 +239,24 @@ export type MessageSchemas = {
   }
 
   /**
+   * Read-only path query passing through a given node.
+   *
+   * Returns root → leaf where leaf is the most recently created live
+   * descendant of `nodeId` (or `nodeId` itself if it has no live children).
+   * Does not modify topic state — use PUT /topics/:id/active-node to
+   * persist a chosen path.
+   *
+   * @example GET /topics/abc123/path?nodeId=msg42
+   */
+  '/topics/:topicId/path': {
+    GET: {
+      params: { topicId: string }
+      query: PathThroughQueryParams
+      response: Message[]
+    }
+  }
+
+  /**
    * Individual message endpoint
    * @example GET /messages/msg123
    * @example PATCH /messages/msg123 { "data": {...} }
@@ -223,6 +285,27 @@ export type MessageSchemas = {
       params: { id: string }
       query?: DeleteMessageQuery
       response: DeleteMessageResponse
+    }
+  }
+
+  /**
+   * Siblings sub-resource of a message — POST creates a new sibling under the
+   * same parent (edit-and-resend branching flow).
+   *
+   * Atomically (single DB transaction):
+   * 1. If the source has `siblingsGroupId = 0`, allocate a new group id and
+   *    backfill the source so it and the new sibling belong to the same group.
+   * 2. Insert the new message with `parentId = source.parentId`, the shared
+   *    `siblingsGroupId`, and `role = source.role`.
+   * 3. Set the topic's `activeNodeId` to the new message.
+   *
+   * @example POST /messages/msg123/siblings { "data": { "parts": [...] } }
+   */
+  '/messages/:id/siblings': {
+    POST: {
+      params: { id: string }
+      body: MessageData
+      response: Message
     }
   }
 }

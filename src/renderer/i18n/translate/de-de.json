@@ -18,6 +18,7 @@
     },
     "askUserQuestion": {
       "answered": "beantwortet",
+      "close": "Schließen",
       "customPlaceholder": "Gib deine Antwort ein...",
       "loading": "Fragen werden geladen...",
       "multiSelect": "Mehrfachauswahl",
@@ -25,6 +26,8 @@
       "noQuestions": "Keine Fragen verfügbar",
       "other": "Andere",
       "previous": "Vorherige",
+      "progress": "{{current}} von {{total}}",
+      "skip": "Überspringen",
       "submit": "Einreichen",
       "title": "Fragen vom Agenten"
     },
@@ -221,9 +224,11 @@
         "intervalUnit": "Minuten",
         "lastRun": "Letzte Ausführung",
         "logs": {
+          "cancelled": "[to be translated]:Cancelled",
+          "completed": "[to be translated]:Completed",
           "duration": "Dauer",
           "empty": "Noch keine Ausführungshistorie.",
-          "error": "Fehler",
+          "failed": "[to be translated]:Failed",
           "justNow": "soeben",
           "label": "Ausführungshistorie",
           "loadError": "Fehler beim Laden des Laufverlaufs",
@@ -232,7 +237,6 @@
           "running": "Läuft...",
           "search": "Suchprotokolle...",
           "status": "Status",
-          "success": "Erfolg",
           "viewSession": "Sitzung anzeigen"
         },
         "name": {
@@ -325,6 +329,9 @@
       "success": "Git Bash erfolgreich erkannt!",
       "tooltip": "Git Bash ist erforderlich, um Agenten unter Windows auszuführen. Installiere es von git-scm.com, falls es nicht verfügbar ist."
     },
+    "home": {
+      "welcome_title": "[to be translated]:What shall we talk about today?"
+    },
     "input": {
       "placeholder": "Gib hier deine Nachricht ein, senden mit {{key}} – @ Pfad auswählen, / Befehl auswählen",
       "soul_placeholder": "Hilf mir, mich mit Telegram zu verbinden"
@@ -334,9 +341,68 @@
         "failed": "Agent-Liste abrufen fehlgeschlagen"
       }
     },
+    "pin": {
+      "title": "[to be translated]:Pin Agent"
+    },
+    "preview_pane": {
+      "close": "[to be translated]:Close preview",
+      "code": "[to be translated]:Code",
+      "code_unavailable": "[to be translated]:Source view not available for binary files",
+      "empty": {
+        "description": "[to be translated]:Start chatting with the agent; generated code and live previews will appear here.",
+        "title": "[to be translated]:Ready"
+      },
+      "file_tree": "[to be translated]:File tree",
+      "items_one": "[to be translated]:{{count}} item",
+      "items_other": "[to be translated]:{{count}} items",
+      "maximize": "[to be translated]:Maximize",
+      "minimize": "[to be translated]:Minimize",
+      "no_search_results": "Keine Dateien entsprechen deiner Suche",
+      "preview": "[to be translated]:Preview",
+      "refresh": "[to be translated]:Refresh",
+      "search_placeholder": "[to be translated]:Search files...",
+      "select_file": "[to be translated]:Select a file to preview",
+      "toggle": "[to be translated]:Show preview panel",
+      "too_large": {
+        "description": "[to be translated]:File exceeds the {{limit}} preview limit.",
+        "title": "[to be translated]:File too large to preview"
+      }
+    },
     "reorder": {
       "error": {
         "failed": "Fehler beim Neuanordnen der Agenten"
+      }
+    },
+    "right_pane": {
+      "close": "[to be translated]:Close",
+      "flow": {
+        "empty": {
+          "description": "[to be translated]:Select an agent tool call to inspect its child message flow.",
+          "title": "[to be translated]:No tool selected"
+        },
+        "no_messages": {
+          "description": "[to be translated]:This tool call has no captured child message flow.",
+          "title": "[to be translated]:No messages"
+        }
+      },
+      "status": {
+        "activity": "[to be translated]:Activity",
+        "agent": "[to be translated]:Agent",
+        "context": "[to be translated]:Context",
+        "no_tasks": "[to be translated]:No active tasks",
+        "selected_tool": "[to be translated]:Selected tool",
+        "task_count": "[to be translated]:{{completed}} / {{total}} complete",
+        "tasks": "[to be translated]:Tasks",
+        "tools_active": "[to be translated]:Active",
+        "tools_done": "[to be translated]:Done",
+        "tools_failed": "[to be translated]:Failed",
+        "tools_total": "[to be translated]:Total",
+        "workspace": "[to be translated]:Workspace"
+      },
+      "tabs": {
+        "files": "[to be translated]:Files",
+        "flow": "[to be translated]:Flow",
+        "status": "[to be translated]:Status"
       }
     },
     "server": {
@@ -359,6 +425,16 @@
       "add": {
         "title": "Sitzung hinzufügen"
       },
+      "agent": {
+        "delete": {
+          "content": "[to be translated]:Deleting this agent's chats will delete all sessions associated with this agent. The agent itself will not be deleted.",
+          "error": {
+            "failed": "[to be translated]:Failed to delete agent chats"
+          },
+          "title": "[to be translated]:Delete agent chats",
+          "trigger": "[to be translated]:Delete agent chats"
+        }
+      },
       "allowed_tools": {
         "empty": "Für diesen Agent sind derzeit keine Tools verfügbar.",
         "helper": "Wählen Sie vorab autorisierte Tools aus. Nicht ausgewählte Tools erfordern bei der Verwendung eine manuelle Genehmigung.",
@@ -378,26 +454,87 @@
         },
         "title": "Sitzung löschen"
       },
+      "display": {
+        "agent": "[to be translated]:Agent",
+        "time": "[to be translated]:Time",
+        "title": "[to be translated]:Display mode",
+        "workdir": "[to be translated]:Workspace"
+      },
       "edit": {
         "title": "Sitzung bearbeiten"
+      },
+      "file_manager": {
+        "file_explorer": "[to be translated]:File Explorer",
+        "files": "[to be translated]:Files",
+        "finder": "[to be translated]:Finder"
       },
       "get": {
         "error": {
           "failed": "Sitzung abrufen fehlgeschlagen",
+          "not_found": "[to be translated]:Session not found",
           "null_id": "Sitzung ID ist leer."
         }
       },
+      "group": {
+        "collapse": "[to be translated]:Collapse sessions",
+        "conversation": "[to be translated]:Chats",
+        "drag_hint": "[to be translated]:Drag to reorder. Drag sessions to adjust display and hidden groups.",
+        "earlier": "[to be translated]:Earlier",
+        "no_workdir": "[to be translated]:No workspace",
+        "show_more": "[to be translated]:Show more sessions",
+        "this_week": "[to be translated]:This week",
+        "today": "[to be translated]:Today",
+        "unknown_agent": "[to be translated]:Unknown agent",
+        "yesterday": "[to be translated]:Yesterday"
+      },
       "label_one": "Sitzung",
       "label_other": "Sitzungen",
+      "list": {
+        "title": "[to be translated]:Sessions"
+      },
       "reorder": {
         "error": {
           "failed": "Fehler beim Neuordnen der Sitzungen"
         }
       },
+      "search": {
+        "placeholder": "[to be translated]:Search sessions"
+      },
       "update": {
         "error": {
           "failed": "Sitzung aktualisieren fehlgeschlagen"
         }
+      },
+      "workdir": {
+        "delete": {
+          "content": "[to be translated]:Deleting this workspace will also delete all sessions under it. Only database records are removed; the actual folder on disk will not be deleted.",
+          "error": {
+            "failed": "[to be translated]:Failed to delete the workspace"
+          },
+          "title": "[to be translated]:Delete workspace",
+          "trigger": "[to be translated]:Delete workspace"
+        },
+        "rename": {
+          "error": {
+            "failed": "[to be translated]:Failed to rename the workspace"
+          },
+          "title": "[to be translated]:Rename workspace",
+          "trigger": "[to be translated]:Rename workspace"
+        }
+      },
+      "workspace_selector": {
+        "create_failed": "[to be translated]:Failed to add project.",
+        "create_new": "[to be translated]:Add new project",
+        "empty_text": "[to be translated]:No projects",
+        "no_project": "[to be translated]:No project",
+        "placeholder": "[to be translated]:Select workspace",
+        "search_placeholder": "[to be translated]:Search projects",
+        "select_failed": "[to be translated]:Failed to select folder."
+      },
+      "workspace_status": {
+        "inaccessible": "[to be translated]:Workspace path is not accessible: {{path}}",
+        "missing": "[to be translated]:Workspace path does not exist: {{path}}",
+        "not_directory": "[to be translated]:Workspace path is not a directory: {{path}}"
       }
     },
     "settings": {
@@ -576,7 +713,7 @@
         }
       }
     },
-    "sidebar_title": "Agenten",
+    "sidebar_title": "Arbeit",
     "todo": {
       "mock": {
         "actions": {
@@ -689,11 +826,13 @@
         "showDetails": "Zeige Werkzeugdetails"
       },
       "button": {
+        "allow": "Zulassen",
         "allowAll": "Immer erlauben",
         "cancel": "Abbrechen",
+        "deny": "Deny",
         "run": "Laufen"
       },
-      "confirmation": "Bist du sicher, dass du dieses Claude-Tool ausführen möchtest?",
+      "confirmation": "Tool-Aufruf erlauben?",
       "defaultDenyMessage": "Der Benutzer hat die Berechtigung für dieses Tool verweigert.",
       "defaultDescription": "Führt Code oder Systemaktionen in Ihrer Umgebung aus. Vergewissern Sie sich, dass der Befehl sicher aussieht, bevor Sie ihn ausführen.",
       "error": {
@@ -765,6 +904,9 @@
     "type": {
       "label": "Agent-Typ",
       "unknown": "Unbekannter Typ"
+    },
+    "unpin": {
+      "title": "[to be translated]:Unpin Agent"
     },
     "update": {
       "error": {
@@ -875,6 +1017,7 @@
     "abbr": "Assistent",
     "clear": {
       "content": "Das Leeren von Themen löscht alle Themen und Dateien unter dem Assistenten. Möchten Sie fortfahren?",
+      "menu_title": "[to be translated]:Delete all assistant chats",
       "title": "Themen leeren"
     },
     "copy": {
@@ -896,6 +1039,9 @@
     "list": {
       "showByList": "Listenansicht",
       "showByTags": "Tag-Ansicht"
+    },
+    "pin": {
+      "title": "[to be translated]:Pin Assistant"
     },
     "presets": {
       "add": {
@@ -991,6 +1137,11 @@
       },
       "title": "Assistentenbibliothek"
     },
+    "reorder": {
+      "error": {
+        "failed": "[to be translated]:Failed to reorder assistants"
+      }
+    },
     "save": {
       "success": "Erfolgreich gespeichert",
       "title": "In Assistentenbibliothek speichern"
@@ -1084,7 +1235,10 @@
       },
       "untagged": "Nicht gruppiert"
     },
-    "title": "Assistent"
+    "title": "Assistent",
+    "unpin": {
+      "title": "[to be translated]:Unpin Assistant"
+    }
   },
   "auth": {
     "error": "Automatischer Schlüsselabruf fehlgeschlagen, bitte manuell abrufen",
@@ -1119,6 +1273,7 @@
     "download": "Herunterladen",
     "includes_user_questions": "Benutzerfragen einschließen",
     "manage": "Verwalten",
+    "select_assistant": "Assistent auswählen",
     "select_model": "Modell auswählen",
     "show": {
       "all": "Alle anzeigen"
@@ -1163,6 +1318,9 @@
         "placeholder": "Suchen"
       }
     },
+    "conversation": {
+      "new": "[to be translated]:New Chat"
+    },
     "deeply_thought": "Tiefgehend nachgedacht ({{seconds}} Sekunden)",
     "default": {
       "description": "Hallo, ich bin der Standardassistent. Sie können sofort mit mir chatten",
@@ -1180,6 +1338,9 @@
       "title": "Chat-Verlauf",
       "user_node": "Benutzer",
       "view_full_content": "Vollständigen Inhalt anzeigen"
+    },
+    "home": {
+      "welcome_title": "[to be translated]:What shall we talk about today?"
     },
     "input": {
       "auto_resize": "Höhe automatisch anpassen",
@@ -1202,6 +1363,9 @@
       "generate_image": "Bild generieren",
       "generate_image_not_supported": "Modell unterstützt keine Bildgenerierung",
       "knowledge_base": "Wissensdatenbank",
+      "knowledge_base_disabled_by_files": "[to be translated]:Remove attached files to use Knowledge Base",
+      "knowledge_base_unavailable": "[to be translated]:Select a tool-capable model or enable prompt tool use",
+      "mcp_unavailable": "[to be translated]:Select a tool-capable model or enable prompt tool use",
       "new": {
         "context": "Kontext löschen {{Command}}"
       },
@@ -1209,23 +1373,12 @@
       "new_topic": "Neues Thema {{Command}}",
       "paste_text_file": "[to be translated]:Paste into input",
       "pause": "Pause",
-      "placeholder": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden - @ für Modellauswahl, / für Tools",
-      "placeholder_without_triggers": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden",
+      "placeholder": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden - / für Tools",
       "resource_panel": {
-        "categories": {
-          "agents": "Agenten",
-          "files": "Dateien",
-          "skills": "Fähigkeiten"
-        },
-        "description": "Wählen Sie aus Dateien, Agenten oder Fähigkeiten",
         "loading": "Laden...",
         "no_file_found": {
           "description": "Keine Dateien in zugänglichen Verzeichnissen verfügbar",
           "label": "Keine Datei gefunden"
-        },
-        "no_items_found": {
-          "description": "Keine Dateien, Agenten oder Fähigkeiten verfügbar",
-          "label": "Keine Artikel gefunden"
         },
         "title": "Ressourcen"
       },
@@ -1237,6 +1390,7 @@
       },
       "thinking": {
         "budget_exceeds_max": "Denkbudget übersteigt maximale Token-Anzahl",
+        "fixed_model": "[to be translated]:Reasoning is fixed for this model",
         "label": "Denken",
         "mode": {
           "custom": {
@@ -1250,7 +1404,8 @@
           "tokens": {
             "tip": "Legen Sie die Token-Anzahl zum Denken fest"
           }
-        }
+        },
+        "unsupported_model": "[to be translated]:Current model does not support adjustable reasoning"
       },
       "tools": {
         "collapse": "Falten",
@@ -1268,6 +1423,8 @@
       "upload": {
         "attachment": "Anhang hochladen",
         "document": "Dokument hochladen (Modell unterstützt keine Bilder)",
+        "document_only": "[to be translated]:Documents only",
+        "image_not_supported": "[to be translated]:This model does not support image uploads. Documents only.",
         "image_or_document": "Bild oder Dokument hochladen",
         "upload_from_local": "Lokale Datei hochladen..."
       },
@@ -1303,6 +1460,11 @@
       }
     },
     "message": {
+      "flow": {
+        "branches": "[to be translated]:branches",
+        "nodes": "[to be translated]:nodes",
+        "title": "[to be translated]:Branch Management"
+      },
       "new": {
         "branch": {
           "created": "Neuer Branch erstellt",
@@ -1412,6 +1574,7 @@
             "save_failed": "Thema speichern fehlgeschlagen, bitte überprüfen Sie die Wissensdatenbank-Konfiguration"
           },
           "loading": "Themeninhalt wird analysiert...",
+          "menu_title": "[to be translated]:Save to Knowledge Base",
           "select": {
             "content": {
               "label": "Zu speichernde Inhaltstypen auswählen",
@@ -1498,6 +1661,12 @@
       "delete": {
         "shortcut": "{{key}} gedrückt halten zum direkten Löschen"
       },
+      "display": {
+        "assistant": "[to be translated]:Assistant",
+        "tag": "[to be translated]:Tag",
+        "time": "[to be translated]:Time",
+        "title": "[to be translated]:Display mode"
+      },
       "edit": {
         "placeholder": "Neuen Namen eingeben",
         "title": "Themenname bearbeiten",
@@ -1506,6 +1675,7 @@
       "export": {
         "failed": "[to be translated]:Export failed",
         "image": "Als Bild exportieren",
+        "image_exporting_keep_page": "Bild wird exportiert. Bitte bleiben Sie auf dieser Seite.",
         "image_saved": "Bild erfolgreich gespeichert",
         "joplin": "Nach Joplin exportieren",
         "md": {
@@ -1552,6 +1722,15 @@
         "wait_for_title_naming": "Titel wird generiert...",
         "word": "Als Word exportieren",
         "yuque": "Nach Yuque exportieren"
+      },
+      "group": {
+        "collapse": "[to be translated]:Collapse display",
+        "earlier": "[to be translated]:Earlier",
+        "show_more": "[to be translated]:Expand display",
+        "this_week": "[to be translated]:This week",
+        "today": "[to be translated]:Today",
+        "unknown_assistant": "[to be translated]:Unknown Assistant",
+        "yesterday": "[to be translated]:Yesterday"
       },
       "list": "Themenliste",
       "manage": {
@@ -1701,8 +1880,10 @@
     "add": "Hinzufügen",
     "add_success": "Erfolgreich hinzugefügt",
     "advanced_settings": "Erweiterte Einstellungen",
+    "agent": "[to be translated]:Agent",
     "agent_one": "Agent",
     "agent_other": "Agenten",
+    "all": "[to be translated]:All",
     "and": "und",
     "assistant": "Assistent",
     "assistant_one": "Assistent",
@@ -1716,6 +1897,7 @@
     "clear_all": "Alles löschen",
     "click_to_replace": "Klicken zum Ersetzen",
     "close": "Schließen",
+    "close_sidebar": "[to be translated]:Close sidebar",
     "collapse": "Einklappen",
     "completed": "Abgeschlossen",
     "confirm": "Bestätigen",
@@ -1766,6 +1948,8 @@
     "knowledge_base": "Wissensdatenbank",
     "language": "Sprache",
     "loading": "Lädt...",
+    "maximize": "[to be translated]:Maximize",
+    "minimize": "[to be translated]:Minimize",
     "model": "Modell",
     "models": "Modelle",
     "more": "Mehr",
@@ -1778,6 +1962,8 @@
     "on": "An",
     "open": "Öffnen",
     "open_in": "In {{name}} öffnen",
+    "open_in_new_tab": "[to be translated]:Open in new tab",
+    "open_sidebar": "[to be translated]:Open sidebar",
     "parameter": "Parameter",
     "paste": "Einfügen",
     "placeholders": {
@@ -1831,6 +2017,7 @@
     "upload_image": "Bilddatei hochladen",
     "uploaded_image": "Hochgeladenes Bild",
     "warning": "Warnung",
+    "yesterday": "[to be translated]:Yesterday",
     "you": "Sie"
   },
   "dialog": {
@@ -2041,6 +2228,85 @@
     "title": "Dateien",
     "type": "Typ"
   },
+  "globalSearch": {
+    "clear": "[to be translated]:Clear search",
+    "error": "[to be translated]:Search failed",
+    "filters": {
+      "agent": "[to be translated]:Agent",
+      "all": "[to be translated]:All",
+      "assistant": "[to be translated]:Assistant",
+      "conversation": "[to be translated]:Work",
+      "knowledge": "[to be translated]:Knowledge",
+      "label": "[to be translated]:Search type",
+      "session": "[to be translated]:Work",
+      "topic": "[to be translated]:Topic"
+    },
+    "groups": {
+      "agent": "[to be translated]:Agent",
+      "assistant": "[to be translated]:Assistant",
+      "conversation": "[to be translated]:Work",
+      "knowledge-base": "[to be translated]:Knowledge",
+      "message": "[to be translated]:Messages",
+      "recent": "[to be translated]:Recent",
+      "session": "[to be translated]:Work",
+      "topic": "[to be translated]:Topic"
+    },
+    "keyboard": {
+      "select": "[to be translated]:Select"
+    },
+    "messageSearch": {
+      "entry": "[to be translated]:Messages",
+      "hint": "[to be translated]:Type to search message content",
+      "jumpToMessage": "[to be translated]:Jump to message",
+      "more": "[to be translated]:Show {{count}} more results",
+      "open": "[to be translated]:Search messages",
+      "roles": {
+        "assistant": "[to be translated]:Assistant",
+        "system": "[to be translated]:System",
+        "tool": "[to be translated]:Tool",
+        "user": "[to be translated]:User"
+      },
+      "sourceLabel": "[to be translated]:Message source",
+      "sources": {
+        "all": "[to be translated]:All messages",
+        "session": "[to be translated]:Work messages",
+        "topic": "[to be translated]:Topic messages"
+      },
+      "viewMore": "[to be translated]:View more in Messages"
+    },
+    "no_recent": "[to be translated]:No recent routes",
+    "open": "[to be translated]:Open global search",
+    "open_failed": "[to be translated]:Failed to open search result",
+    "placeholder": "[to be translated]:Search topics, work, assistants, agents, and knowledge...",
+    "quickApps": {
+      "hide": "[to be translated]:Hide {{name}}",
+      "manage": "[to be translated]:Manage",
+      "manager_description": "[to be translated]:Drag to reorder, click the eye to hide or show",
+      "manager_title": "[to be translated]:Manage quick apps",
+      "reset": "[to be translated]:Reset",
+      "save_failed": "[to be translated]:Failed to save quick apps",
+      "show": "[to be translated]:Show {{name}}",
+      "title": "[to be translated]:Quick apps"
+    },
+    "recent_hint": "[to be translated]:Type to search work, assistants, agents, and knowledge",
+    "resultTypes": {
+      "agent": "[to be translated]:Agent",
+      "assistant": "[to be translated]:Assistant",
+      "knowledge-base": "[to be translated]:Knowledge",
+      "session": "[to be translated]:Work",
+      "topic": "[to be translated]:Topic"
+    },
+    "showMore": "[to be translated]:Show {{count}} more",
+    "timeFilters": {
+      "any": "[to be translated]:Any time",
+      "label": "[to be translated]:Updated time",
+      "messageLabel": "[to be translated]:Created time",
+      "month": "[to be translated]:Last month",
+      "quarter": "[to be translated]:Last 3 months",
+      "today": "[to be translated]:Today",
+      "week": "[to be translated]:Last 7 days"
+    }
+  },
   "gpustack": {
     "keep_alive_time": {
       "description": "Zeit, die das Modell im Speicher bleibt (Standard: 5 Minuten)",
@@ -2056,6 +2322,45 @@
     },
     "locate": {
       "message": "Zu Nachricht navigieren"
+    },
+    "records": {
+      "agentSubtitle": "[to be translated]:{{count}} sessions",
+      "agentTitle": "[to be translated]:Agent History",
+      "assistantSubtitle": "[to be translated]:{{count}} topics",
+      "empty": {
+        "description": "[to be translated]:No topics for the current filters.",
+        "sessionsDescription": "[to be translated]:No sessions for the current filters.",
+        "sessionsTitle": "[to be translated]:No sessions",
+        "title": "[to be translated]:No topics"
+      },
+      "loading": {
+        "description": "[to be translated]:Loading topic list.",
+        "sessionsDescription": "[to be translated]:Loading session list.",
+        "sessionsTitle": "[to be translated]:Loading sessions",
+        "title": "[to be translated]:Loading topics"
+      },
+      "resultCount": "[to be translated]:{{count}} results",
+      "searchSession": "[to be translated]:Search sessions...",
+      "searchTopic": "[to be translated]:Search topics...",
+      "shortTitle": "[to be translated]:History",
+      "sidebar": {
+        "searchAssistant": "[to be translated]:Search assistants...",
+        "status": "[to be translated]:Status",
+        "unknownAssistant": "[to be translated]:Unknown assistant"
+      },
+      "status": {
+        "completed": "[to be translated]:Completed",
+        "failed": "[to be translated]:Failed",
+        "running": "[to be translated]:Running"
+      },
+      "table": {
+        "emptyValue": "[to be translated]:—",
+        "messages": "[to be translated]:Messages",
+        "session": "[to be translated]:Session",
+        "time": "[to be translated]:Time",
+        "title": "[to be translated]:Title"
+      },
+      "title": "[to be translated]:Topic History"
     },
     "search": {
       "match": {
@@ -2474,7 +2779,8 @@
           },
           "env_vars": {
             "help": "[to be translated]:One KEY=VALUE per line",
-            "label": "[to be translated]:Environment variables"
+            "label": "[to be translated]:Environment variables",
+            "placeholder": "[to be translated]:KEY=value\nANOTHER_KEY=another_value"
           },
           "heartbeat_enabled": {
             "label": "[to be translated]:Heartbeat check"
@@ -2507,7 +2813,6 @@
             "placeholder": "[to be translated]:Give the agent a name"
           },
           "permission_mode": {
-            "help": "[to be translated]:Switching to bypassPermissions is equivalent to enabling Soul mode",
             "label": "[to be translated]:Permission mode",
             "option": {
               "acceptEdits": "[to be translated]:Accept edits",
@@ -2615,9 +2920,6 @@
           "temperature": {
             "hint": "[to be translated]:Controls randomness when enabled"
           },
-          "tool_use_mode": {
-            "hint": "[to be translated]:Controls how tools are exposed to the model"
-          },
           "top_p": {
             "hint": "[to be translated]:Limits token sampling range when enabled"
           }
@@ -2639,13 +2941,38 @@
         "tags": "[to be translated]:Tags",
         "temperature": "[to be translated]:Temperature",
         "title": "[to be translated]:Basic settings",
-        "tool_use_function": "[to be translated]:Function",
-        "tool_use_mode": "[to be translated]:Tool call mode",
-        "tool_use_prompt": "[to be translated]:Prompt",
         "top_p": "[to be translated]:Top-P",
         "unlimited": "[to be translated]:Unlimited"
       },
       "breadcrumb": "[to be translated]:Library",
+      "dialogs": {
+        "create": {
+          "agent_title": "[to be translated]:New Agent",
+          "assistant_title": "[to be translated]:New Assistant",
+          "avatar_aria": "[to be translated]:Choose avatar",
+          "description_placeholder": "[to be translated]:Describe what it is for...",
+          "dialog_description": "[to be translated]:Create a lightweight assistant or agent.",
+          "model_placeholder": "[to be translated]:Select a model",
+          "model_required": "[to be translated]:Please select a model",
+          "name_placeholder": "[to be translated]:Enter a name",
+          "name_required": "[to be translated]:Please enter a name",
+          "submit": "[to be translated]:Create",
+          "submit_failed": "[to be translated]:Create failed"
+        },
+        "edit": {
+          "advanced_tab": "[to be translated]:Advanced",
+          "agent_description": "[to be translated]:Quickly adjust this agent's essentials.",
+          "agent_title": "[to be translated]:Edit Agent",
+          "assistant_description": "[to be translated]:Quickly adjust this assistant's essentials.",
+          "assistant_title": "[to be translated]:Edit Assistant",
+          "basic_tab": "[to be translated]:Basic",
+          "knowledge_tab": "[to be translated]:Knowledge",
+          "permission_tab": "[to be translated]:Permission",
+          "prompt_tab": "[to be translated]:Prompt",
+          "save_failed": "[to be translated]:Save failed",
+          "tools_tab": "[to be translated]:Tools"
+        }
+      },
       "knowledge": {
         "add": "[to be translated]:Add knowledge base",
         "desc": "[to be translated]:Link one or more knowledge bases; relevant snippets will be retrieved during chat",
@@ -2834,13 +3161,9 @@
     },
     "skill_detail": {
       "created_at": "[to be translated]:Created",
-      "delete_description": "[to be translated]:Remove this skill and all of its configuration. This action cannot be undone.",
-      "delete_title": "[to be translated]:Delete skill",
       "description": "[to be translated]:Description",
-      "file_preview": "[to be translated]:File preview",
       "installed": "[to be translated]:Installed",
       "no_description": "[to be translated]:No description",
-      "source_files": "[to be translated]:Source files",
       "updated_at": "[to be translated]:Recently updated"
     },
     "sort": {
@@ -2877,7 +3200,6 @@
       "prompt": "[to be translated]:Prompt",
       "skill": "[to be translated]:Skill"
     },
-    "uninstall_failed": "[to be translated]:Failed to uninstall",
     "view": {
       "grid": "[to be translated]:Grid view",
       "list": "[to be translated]:List view"
@@ -2960,6 +3282,7 @@
       "chunk_overlap_too_large": "Segmentüberlappung darf nicht größer als Segmentgröße sein",
       "copy": "Kopieren fehlgeschlagen",
       "dimension_too_large": "Inhaltsgröße zu groß",
+      "dismiss_failed": "[to be translated]:Failed to dismiss error message",
       "enter": {
         "api": {
           "host": "Bitte geben Sie Ihre API-Adresse ein",
@@ -3010,6 +3333,7 @@
         "no_api_key": "Notion API Key oder Notion Database ID nicht konfiguriert",
         "no_content": "Kein Inhalt zum Exportieren nach Notion vorhanden"
       },
+      "operation_unavailable": "[to be translated]:Message operation is unavailable. Please try again.",
       "siyuan": {
         "export": "Export nach SiYuan-Notizen fehlgeschlagen. Bitte überprüfen Sie den Verbindungsstatus und die Konfiguration gemäß Dokumentation",
         "no_config": "SiYuan-Notizen API-Adresse oder Token nicht konfiguriert"
@@ -3135,6 +3459,76 @@
     "tools": {
       "abort_failed": "Tool-Aufruf abbrechen fehlgeschlagen",
       "aborted": "Tool-Aufruf abgebrochen",
+      "activity": {
+        "archive": "[to be translated]:archive",
+        "assistantTask": "[to be translated]:task",
+        "availableFeatures": "[to be translated]:available features",
+        "availableResources": "[to be translated]:available resources",
+        "branch": "[to be translated]:code branch",
+        "build": "[to be translated]:Build",
+        "building": "[to be translated]:Building",
+        "check": "[to be translated]:Check",
+        "checking": "[to be translated]:Checking",
+        "codeFiles": "[to be translated]:code files",
+        "codeHostInfo": "[to be translated]:code hosting information",
+        "commandName": "[to be translated]:{{name}} command",
+        "configFiles": "[to be translated]:project docs and config files",
+        "copy": "[to be translated]:Copy",
+        "copying": "[to be translated]:Copying",
+        "create": "[to be translated]:Create",
+        "creating": "[to be translated]:Creating",
+        "currentFolder": "[to be translated]:current folder",
+        "delete": "[to be translated]:Delete",
+        "deleting": "[to be translated]:Deleting",
+        "documentFiles": "[to be translated]:document files",
+        "download": "[to be translated]:Download",
+        "downloading": "[to be translated]:Downloading",
+        "executeCommand": "[to be translated]:Run command",
+        "executingCommand": "[to be translated]:Running command",
+        "extract": "[to be translated]:Extract",
+        "extracting": "[to be translated]:Extracting",
+        "file": "[to be translated]:file",
+        "fileList": "[to be translated]:file list",
+        "folder": "[to be translated]:folder",
+        "handle": "[to be translated]:Handle",
+        "handling": "[to be translated]:Handling",
+        "imageFiles": "[to be translated]:image files",
+        "install": "[to be translated]:Install",
+        "installing": "[to be translated]:Installing",
+        "matchingFiles": "[to be translated]:matching files",
+        "modify": "[to be translated]:Modify",
+        "modifying": "[to be translated]:Modifying",
+        "move": "[to be translated]:Move",
+        "moving": "[to be translated]:Moving",
+        "open": "[to be translated]:Open",
+        "opening": "[to be translated]:Opening",
+        "plan": "[to be translated]:execution plan",
+        "projectChanges": "[to be translated]:project changes",
+        "projectChecks": "[to be translated]:project checks",
+        "projectDependencies": "[to be translated]:project dependencies",
+        "projectFiles": "[to be translated]:project files",
+        "projectRootFiles": "[to be translated]:project root files",
+        "projectTask": "[to be translated]:project task",
+        "relatedContent": "[to be translated]:related content",
+        "repository": "[to be translated]:code repository",
+        "search": "[to be translated]:Find",
+        "searching": "[to be translated]:Finding",
+        "switch": "[to be translated]:Switch",
+        "switching": "[to be translated]:Switching",
+        "sync": "[to be translated]:Sync",
+        "syncing": "[to be translated]:Syncing",
+        "taskList": "[to be translated]:task list",
+        "translationFiles": "[to be translated]:translation files",
+        "upload": "[to be translated]:Upload",
+        "uploading": "[to be translated]:Uploading",
+        "view": "[to be translated]:View",
+        "viewing": "[to be translated]:Viewing",
+        "webPage": "[to be translated]:web page",
+        "webSearch": "[to be translated]:web content",
+        "workspace": "[to be translated]:workspace",
+        "write": "[to be translated]:Save",
+        "writing": "[to be translated]:Saving"
+      },
       "approvalRequired": "Das Tool \"{{tool}}\" erfordert eine Genehmigung",
       "autoApproveEnabled": "Automatische Genehmigung für dieses Tool aktiviert",
       "cancelled": "Abgebrochen",
@@ -3163,6 +3557,18 @@
       },
       "noData": "Keine Daten für dieses Tool verfügbar",
       "pending": "Wartend",
+      "placeholder": {
+        "elapsed": {
+          "days": "[to be translated]:{{days}}d {{hours}}h {{minutes}}m {{seconds}}s",
+          "hours": "[to be translated]:{{hours}}h {{minutes}}m {{seconds}}s",
+          "minutes": "[to be translated]:{{minutes}}m {{seconds}}s",
+          "seconds": "[to be translated]:{{seconds}}s"
+        },
+        "generating": "[to be translated]:Writing response",
+        "preparing": "[to be translated]:Preparing response",
+        "thinking": "[to be translated]:Thinking",
+        "usingTools": "[to be translated]:Working on the task"
+      },
       "preview": "Vorschau",
       "raw": "Roh",
       "runningCount": "{{count}} Werkzeuge laufen",
@@ -3187,6 +3593,7 @@
         "success": "Erfolg"
       },
       "streaming": "Streaming",
+      "thinkingHeader": "[to be translated]:Thinking",
       "truncated": "Ausgabe gekürzt (Original: {{size}})",
       "units": {
         "done_one": "{{count}} Erledigt",
@@ -3231,6 +3638,7 @@
     "websearch": {
       "cutoff": "Suchergebnisse werden gekürzt...",
       "fetch_complete": "{{count}} Suchergebnisse",
+      "fetch_empty": "Keine Suchergebnisse gefunden",
       "partial_failure": "{{count}} Suchergebnisse, einige Suchvorgänge sind fehlgeschlagen"
     }
   },
@@ -3417,8 +3825,15 @@
       "placeholder": "Modelle durchsuchen...",
       "tooltip": "Modelle durchsuchen"
     },
+    "selection": {
+      "context_window": "[to be translated]:Context {{count}}",
+      "remove_model": "[to be translated]:Remove {{name}}",
+      "restore_default": "[to be translated]:Restore assistant model",
+      "selected_models": "[to be translated]:Selected models"
+    },
     "stream_output": "Stream-Ausgabe",
     "type": {
+      "audio": "[to be translated]:Audio",
       "embedding": "Embedding",
       "free": "Kostenlos",
       "function_calling": "Tools",
@@ -3426,6 +3841,7 @@
       "rerank": "Rerank",
       "select": "Modelltyp",
       "text": "Text",
+      "video": "[to be translated]:Video",
       "vision": "Vision",
       "websearch": "Online"
     }
@@ -4706,6 +5122,16 @@
       },
       "sort_label": "Sortieren",
       "unpin": "Lösen"
+    },
+    "create_dialog": {
+      "refresh_failed": "[to be translated]:Created, but failed to refresh the list"
+    },
+    "edit_dialog": {
+      "refresh_failed": "[to be translated]:Saved, but failed to refresh the list"
+    },
+    "workspace": {
+      "empty_text": "[to be translated]:No workspaces yet",
+      "placeholder": "[to be translated]:Select workspace"
     }
   },
   "settings": {
@@ -4754,7 +5180,6 @@
       }
     },
     "advanced": {
-      "auto_switch_to_topics": "Automatisch zu Themenansicht wechseln",
       "title": "Erweiterte Einstellungen"
     },
     "assistant": {
@@ -4791,6 +5216,14 @@
       },
       "agentTodoList": {
         "title": "[to be translated]:Agent Todo List"
+      },
+      "askUserQuestion": {
+        "currentRequest": "Aktuelle Anfrage",
+        "description": "Vorschau des unteren AskUserQuestion-Composers mit Beispiel-Fragen.",
+        "latestResponse": "Neueste Antwort",
+        "noResponse": "Noch keine Antwort gesendet",
+        "resetPreview": "Vorschau zurücksetzen",
+        "title": "Ask User Question"
       },
       "assistantSelector": {
         "clearSelection": "Klar",
@@ -4883,7 +5316,17 @@
         "triggerSelectedCount": "{{count}} Modelle ausgewählt",
         "valueProp": "Aktueller Wertvorschlag"
       },
-      "title": "Entwicklungskomponentenlabor"
+      "title": "Entwicklungskomponentenlabor",
+      "toolPermission": {
+        "builtinMode": "Built-in",
+        "currentRequest": "Current request",
+        "description": "Preview the bottom tool permission composer with built-in and MCP tool requests.",
+        "latestResponse": "Latest response",
+        "mcpMode": "MCP",
+        "noResponse": "No response submitted yet",
+        "resetPreview": "Reset preview",
+        "title": "Tool Permission"
+      }
     },
     "data": {
       "app_data": {
@@ -5580,6 +6023,7 @@
       },
       "common": {
         "sections": {
+          "chat_settings": "[to be translated]:Chat Settings",
           "custom_css": "Benutzerdefiniertes CSS",
           "display_language": "Anzeige & Sprache",
           "privacy_advanced": "Privatsphäre & Erweitert",
@@ -5838,6 +6282,13 @@
         "text": "Text",
         "uri": "URI"
       },
+      "runtimeStatus": {
+        "connected": "[to be translated]:Connected",
+        "connecting": "[to be translated]:Connecting",
+        "disabled": "[to be translated]:Disabled",
+        "error": "[to be translated]:Error",
+        "unavailable": "[to be translated]:Unavailable"
+      },
       "search": {
         "placeholder": "MCP-Server durchsuchen...",
         "tooltip": "MCP-Server durchsuchen"
@@ -5943,9 +6394,6 @@
       "input": {
         "confirm_delete_message": "Vor Löschen von Nachrichten bestätigen",
         "confirm_regenerate_message": "Nachrichten vor Neugenerierung bestätigen",
-        "enable_quick_triggers": "Aktivieren / und @ für Schnellmenü-Trigger",
-        "paste_long_text_as_file": "Langen Text als Datei einfügen",
-        "paste_long_text_threshold": "Länge langer Text",
         "send_shortcuts": "Senden-Shortcut",
         "show_estimated_tokens": "Geschätzte Token-Anzahl anzeigen",
         "title": "Eingabeeinstellungen"
@@ -5964,7 +6412,8 @@
       "prompt": "Prompt anzeigen",
       "show_message_outline": "Nachrichtenübersicht anzeigen",
       "title": "Nachrichteneinstellungen",
-      "use_serif_font": "Serifenschrift verwenden"
+      "use_serif_font": "Serifenschrift verwenden",
+      "wide_mode": "Breiter Layoutmodus"
     },
     "miniApps": {
       "cache_change_notice": "Änderung wird wirksam wenn Anzahl geöffneter Mini-Apps auf festgelegten Wert angepasst wird",
@@ -6322,6 +6771,7 @@
         "title": "Detailgrad"
       }
     },
+    "parameter_settings": "Parametereinstellungen",
     "plugins": {
       "bunDescription": "JavaScript-Laufzeitumgebung, die von MCP-Diensten und zugehörigen Toolchains verwendet wird.",
       "description": "Verwalten Sie binäre Tools und Laufzeitabhängigkeiten, die von der App benötigt werden.",
@@ -6404,7 +6854,7 @@
           },
           "label": "API-Einstellungen",
           "service_tier": {
-            "help": "Unterstützt service_tier",
+            "help": "Ob der Anbieter die Konfiguration des Parameters service_tier unterstützt. Wenn aktiviert, kann der Service-Tier-Wert in diesem API-Einstellungsbereich angepasst werden. (Nur OpenAI/Groq-kompatible Modelle)",
             "label": "Unterstützt service_tier"
           },
           "stream_options": {
@@ -6755,9 +7205,9 @@
       "show_app": "App anzeigen/ausblenden",
       "show_settings": "Einstellungen öffnen",
       "title": "Shortcut",
+      "toggle_left_sidebar": "[to be translated]:Toggle Left Sidebar",
       "toggle_new_context": "Kontext löschen",
-      "toggle_show_topics": "Themenanzeige umschalten",
-      "toggle_sidebar": "Seitenleiste umschalten",
+      "toggle_right_sidebar": "Rechte Seitenleiste umschalten",
       "zoom_in": "Oberfläche vergrößern",
       "zoom_out": "Oberfläche verkleinern",
       "zoom_reset": "Zoom zurücksetzen"
@@ -6975,17 +7425,6 @@
         "url_required": "URL eingeben"
       }
     },
-    "topic": {
-      "pin_to_top": "Thema anpinnen",
-      "position": {
-        "label": "Themenposition",
-        "left": "Links",
-        "right": "Rechts"
-      },
-      "show": {
-        "time": "Themenzeit anzeigen"
-      }
-    },
     "translate": {
       "custom": {
         "delete": {
@@ -7052,6 +7491,7 @@
     "close": "Tab schließen",
     "move_to_first": "[to be translated]:Move to First",
     "new": "Neuer Tab",
+    "open_in_new_window": "[to be translated]:Open in New Window",
     "pin": "Tab anheften",
     "unpin": "Tab lösen"
   },
@@ -7084,8 +7524,7 @@
     "spendTime": "Verbrauchte Zeit",
     "startTime": "Startzeit",
     "tag": "Tags",
-    "tokenUsage": "Token-Verwendung",
-    "traceWindow": "Aufrufkette-Fenster"
+    "tokenUsage": "Token-Verwendung"
   },
   "translate": {
     "alter_language": "Alternative Sprache",

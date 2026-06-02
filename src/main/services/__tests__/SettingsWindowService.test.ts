@@ -104,14 +104,18 @@ function getIpcHandleHandler(service: SettingsWindowService, channel: string) {
 
 function mockManagedWindows({
   mainWindow,
-  settingsWindow
+  settingsWindow,
+  settingsWindowAlreadyExists = Boolean(settingsWindow)
 }: {
   mainWindow: MockBrowserWindow
   settingsWindow?: MockBrowserWindow
+  settingsWindowAlreadyExists?: boolean
 }) {
   windowManagerMock.getWindowsByType.mockImplementation((type: string) => {
     if (type === WindowType.Main) return [{ id: 'main-window-id' }]
-    if (type === WindowType.Settings && settingsWindow) return [{ id: 'settings-window-id' }]
+    if (type === WindowType.Settings && settingsWindow && settingsWindowAlreadyExists) {
+      return [{ id: 'settings-window-id' }]
+    }
     return []
   })
   windowManagerMock.getWindow.mockImplementation((id: string) => {
@@ -174,7 +178,7 @@ describe('SettingsWindowService', () => {
     // 1440 * 0.8 = 1152, 900 * 0.8 = 720
     // centered: x = 20 + (1440-1152)/2 = 164, y = 40 + (900-720)/2 = 130
     mainWindow.getBounds.mockReturnValue({ x: 20, y: 40, width: 1440, height: 900 })
-    mockManagedWindows({ mainWindow, settingsWindow })
+    mockManagedWindows({ mainWindow, settingsWindow, settingsWindowAlreadyExists: false })
 
     service.open('/settings/about')
 
@@ -199,7 +203,7 @@ describe('SettingsWindowService', () => {
     // 600 * 0.8 = 480 < 560 floor → height clamped to 560
     // centered: x = 0 + (900-760)/2 = 70, y = 0 + (600-560)/2 = 20
     mainWindow.getBounds.mockReturnValue({ x: 0, y: 0, width: 900, height: 600 })
-    mockManagedWindows({ mainWindow, settingsWindow })
+    mockManagedWindows({ mainWindow, settingsWindow, settingsWindowAlreadyExists: false })
 
     service.open('/settings/about')
 
@@ -223,7 +227,7 @@ describe('SettingsWindowService', () => {
     // 2560 * 0.8 = 2048 > 1280 ceiling → width capped to 1280
     // 1400 * 0.8 = 1120, centered at x = 100 + (2560-1280)/2 = 740
     mainWindow.getBounds.mockReturnValue({ x: 100, y: 50, width: 2560, height: 1400 })
-    mockManagedWindows({ mainWindow, settingsWindow })
+    mockManagedWindows({ mainWindow, settingsWindow, settingsWindowAlreadyExists: false })
 
     service.open('/settings/about')
 
@@ -239,6 +243,32 @@ describe('SettingsWindowService', () => {
       })
     )
     expect(settingsWindow.setBounds).toHaveBeenCalledWith({ x: 740, y: 190, width: 1280, height: 1120 })
+  })
+
+  it('preserves existing settings window bounds when reopening', () => {
+    const mainWindow = createMockWindow()
+    const settingsWindow = createMockWindow()
+    mainWindow.getBounds.mockReturnValue({ x: 20, y: 40, width: 1440, height: 900 })
+    mockManagedWindows({ mainWindow, settingsWindow })
+
+    service.open('/settings/about')
+
+    const openArgs = windowManagerMock.open.mock.calls.at(-1)?.[1]
+    expect(openArgs).toEqual(
+      expect.objectContaining({
+        initData: '/settings/about'
+      })
+    )
+    expect(openArgs?.options).not.toEqual(
+      expect.objectContaining({
+        x: 20,
+        y: 40,
+        width: 1440,
+        height: 900
+      })
+    )
+    expect(mainWindow.getBounds).not.toHaveBeenCalled()
+    expect(settingsWindow.setBounds).not.toHaveBeenCalled()
   })
 
   it('keeps the native title empty even when the page title changes', () => {
@@ -305,7 +335,7 @@ describe('SettingsWindowService', () => {
     const mainWindow = createMockWindow()
     const settingsWindow = createMockWindow()
     mainWindow.isDestroyed.mockReturnValue(true)
-    mockManagedWindows({ mainWindow, settingsWindow })
+    mockManagedWindows({ mainWindow, settingsWindow, settingsWindowAlreadyExists: false })
 
     service.open('/settings/about')
 
@@ -322,7 +352,7 @@ describe('SettingsWindowService', () => {
     const mainWindow = createMockWindow()
     const settingsWindow = createMockWindow()
     mainWindow.getBounds.mockReturnValue({ x: 0, y: 0, width: 0, height: 0 })
-    mockManagedWindows({ mainWindow, settingsWindow })
+    mockManagedWindows({ mainWindow, settingsWindow, settingsWindowAlreadyExists: false })
 
     service.open('/settings/about')
 

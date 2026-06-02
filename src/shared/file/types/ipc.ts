@@ -201,6 +201,19 @@ export interface BatchCreateResult {
   failed: Array<{ sourceRef: string; error: string }>
 }
 
+export type PathStatusKind = 'file' | 'directory'
+
+export type PathStatusReason = 'missing' | 'not-file' | 'not-directory' | 'inaccessible'
+
+export interface GetPathStatusIpcParams {
+  path: string
+  expectedKind?: PathStatusKind
+}
+
+export type PathStatus =
+  | { ok: true; kind: PathStatusKind }
+  | { ok: false; reason: PathStatusReason; actualKind?: PathStatusKind; detail?: string }
+
 // ─── File IPC API ───
 
 /**
@@ -514,9 +527,24 @@ export interface FileIpcApi {
    */
   showInFolder(handle: FileHandle): Promise<void>
 
-  // ─── I. Directory Listing (arbitrary path) ───
+  // ─── I. Path Queries (arbitrary path) ───
   //
-  // Section status: all `@phase 2`.
+  // Section status: mixed; check each method's `@phase` tag.
+
+  /**
+   * Get status for an arbitrary filesystem path, optionally requiring a kind.
+   * @phase 1 — wired in FileManager lifecycle IPC
+   */
+  getPathStatus(params: GetPathStatusIpcParams): Promise<PathStatus>
+
+  /**
+   * Read the size (in bytes) of a regular file at an arbitrary path. Thin
+   * wrapper around `fs.stat` — rejects if the path is missing, inaccessible,
+   * or not a regular file. Separate from `getPathStatus` to keep each
+   * single-hop facade focused on one semantic concern (kind vs. measurement).
+   * @phase 1 — wired in FileManager lifecycle IPC
+   */
+  getFileSize(path: FilePath): Promise<number>
 
   /**
    * List contents of an arbitrary directory.

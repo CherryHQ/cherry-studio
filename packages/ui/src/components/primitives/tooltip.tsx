@@ -34,7 +34,21 @@ function parsePlacement(placement?: string): { side: Side; align: Align } {
 export type TooltipProviderProps = React.ComponentProps<typeof RadixProvider>
 export type TooltipRootProps = React.ComponentProps<typeof RadixRoot>
 export type TooltipTriggerProps = React.ComponentProps<typeof RadixTrigger>
-export type TooltipContentProps = React.ComponentProps<typeof RadixContent>
+export type TooltipContentProps = React.ComponentProps<typeof RadixContent> & {
+  portalContainer?: React.ComponentProps<typeof RadixPortal>['container']
+}
+
+const TooltipPortalContainerContext = React.createContext<HTMLElement | null>(null)
+
+export function TooltipPortalContainerProvider({
+  container,
+  children
+}: {
+  container: HTMLElement | null
+  children: React.ReactNode
+}) {
+  return <TooltipPortalContainerContext value={container}>{children}</TooltipPortalContainerContext>
+}
 
 function TooltipProvider({ delayDuration = 0, ...props }: TooltipProviderProps) {
   return <RadixProvider data-slot="tooltip-provider" delayDuration={delayDuration} {...props} />
@@ -57,9 +71,10 @@ const contentStyles =
 
 const arrowStyles = 'z-[80] fill-neutral-900 dark:fill-neutral-100'
 
-function TooltipContent({ className, sideOffset = 0, children, ...props }: TooltipContentProps) {
+function TooltipContent({ className, sideOffset = 0, children, portalContainer, ...props }: TooltipContentProps) {
+  const defaultPortalContainer = React.use(TooltipPortalContainerContext)
   return (
-    <RadixPortal>
+    <RadixPortal container={portalContainer ?? defaultPortalContainer ?? undefined}>
       <RadixContent
         data-slot="tooltip-content"
         sideOffset={sideOffset}
@@ -78,6 +93,7 @@ export interface TooltipProps {
   title?: React.ReactNode
   placement?: string
   delay?: number
+  sideOffset?: TooltipContentProps['sideOffset']
   showArrow?: boolean
   classNames?: {
     content?: string
@@ -88,6 +104,7 @@ export interface TooltipProps {
   isOpen?: boolean
   onOpenChange?: (open: boolean) => void
   onClick?: React.MouseEventHandler<HTMLDivElement>
+  portalContainer?: React.ComponentProps<typeof RadixPortal>['container']
 }
 
 export const Tooltip = ({
@@ -96,13 +113,15 @@ export const Tooltip = ({
   title,
   placement,
   delay = 0,
+  sideOffset = 0,
   showArrow = true,
   classNames,
   className,
   isDisabled,
   isOpen,
   onOpenChange,
-  onClick
+  onClick,
+  portalContainer
 }: TooltipProps) => {
   const tooltipContent = content ?? title
   if (!tooltipContent || isDisabled) {
@@ -114,6 +133,7 @@ export const Tooltip = ({
   }
 
   const { side, align } = parsePlacement(placement)
+  const defaultPortalContainer = React.use(TooltipPortalContainerContext)
 
   const controlledProps: Partial<TooltipRootProps> = {}
   if (isOpen != null) {
@@ -131,12 +151,12 @@ export const Tooltip = ({
             {children}
           </div>
         </RadixTrigger>
-        <RadixPortal>
+        <RadixPortal container={portalContainer ?? defaultPortalContainer ?? undefined}>
           <RadixContent
             data-slot="tooltip-content"
             side={side}
             align={align}
-            sideOffset={0}
+            sideOffset={sideOffset}
             className={cn(contentStyles, classNames?.content, className)}>
             {tooltipContent}
             {showArrow && <RadixArrow className={arrowStyles} />}

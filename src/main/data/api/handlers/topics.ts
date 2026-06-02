@@ -9,15 +9,20 @@
  */
 
 import { topicService } from '@data/services/TopicService'
+import { loggerService } from '@logger'
+import { topicNamingService } from '@main/services/TopicNamingService'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   CreateTopicSchema,
+  DeleteTopicsSchema,
   ListTopicsQuerySchema,
   SetActiveNodeSchema,
   type TopicSchemas,
   UpdateTopicSchema
 } from '@shared/data/api/schemas/topics'
+
+const logger = loggerService.withContext('DataApi:TopicHandlers')
 
 export const topicHandlers: HandlersFor<TopicSchemas> = {
   '/topics': {
@@ -28,7 +33,18 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
 
     POST: async ({ body }) => {
       const parsed = CreateTopicSchema.parse(body)
-      return await topicService.create(parsed)
+      const topic = await topicService.create(parsed)
+      if (parsed.sourceNodeId) {
+        void topicNamingService.maybeRenameForkedTopic(topic.id, topic.assistantId).catch((err) => {
+          logger.warn('Failed to auto-name forked topic', { topicId: topic.id, err })
+        })
+      }
+      return topic
+    },
+
+    DELETE: async ({ body }) => {
+      const parsed = DeleteTopicsSchema.parse(body)
+      return await topicService.deleteByIds(parsed.ids)
     }
   },
 
@@ -52,6 +68,12 @@ export const topicHandlers: HandlersFor<TopicSchemas> = {
     PUT: async ({ params, body }) => {
       const parsed = SetActiveNodeSchema.parse(body)
       return await topicService.setActiveNode(params.id, parsed.nodeId)
+    }
+  },
+
+  '/assistants/:assistantId/topics': {
+    DELETE: async ({ params }) => {
+      return await topicService.deleteByAssistantId(params.assistantId)
     }
   },
 

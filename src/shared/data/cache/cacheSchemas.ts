@@ -1,6 +1,7 @@
 import type { JobProgress, JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { MiniAppRegion } from '@shared/data/types/miniApp'
 
+import type { TopicStatusSnapshotEntry } from '../../ai/transport'
 import type * as CacheValueTypes from './cacheValueTypes'
 
 /**
@@ -121,8 +122,10 @@ export type UseCacheSchema = {
   // Chat context
   'chat.multi_select_mode': boolean
   'chat.selected_message_ids': string[]
-  'chat.generating': boolean
   'chat.web_search.searching': boolean
+  // Message-list scroll position memory, keyed per topic / agent session.
+  // `null` = follow the latest message (at bottom or never scrolled).
+  'chat.scroll_anchor.${topicId}': CacheValueTypes.ChatScrollAnchor | null
 
   // Knowledge recall test query history (session-only)
   'knowledge.recall.search_queries': Record<string, string[]>
@@ -138,13 +141,10 @@ export type UseCacheSchema = {
   'mini_app.detected_region': MiniAppRegion | null
 
   // Topic management
-  'topic.active': CacheValueTypes.CacheTopic | null
   'topic.renaming': string[]
   'topic.newly_renamed': string[]
 
   // Agent management
-  'agent.active_id': string | null
-  'agent.session.active_id_map': Record<string, string | null>
   'agent.session.waiting_id_map': Record<string, boolean>
 
   // Translate page state management
@@ -182,6 +182,8 @@ export type UseCacheSchema = {
   'message.streaming.content.${messageId}': any // Message (renderer format)
   'message.streaming.block.${blockId}': any // MessageBlock
   'message.streaming.siblings_counter.${topicId}': number
+  'message.streaming.chat_session.${topicId}': any // { chat: Chat<CherryUIMessage> } (renderer memory-only)
+  'message.ui.${messageId}': { foldSelected?: boolean; multiModelMessageStyle?: string; useful?: boolean }
 }
 
 export const DefaultUseCache: UseCacheSchema = {
@@ -202,8 +204,8 @@ export const DefaultUseCache: UseCacheSchema = {
   // Chat context
   'chat.multi_select_mode': false,
   'chat.selected_message_ids': [],
-  'chat.generating': false,
   'chat.web_search.searching': false,
+  'chat.scroll_anchor.${topicId}': null,
   'knowledge.recall.search_queries': {},
   'notes.active_file_path': undefined,
 
@@ -215,13 +217,10 @@ export const DefaultUseCache: UseCacheSchema = {
   'mini_app.detected_region': null,
 
   // Topic management
-  'topic.active': null,
   'topic.renaming': [],
   'topic.newly_renamed': [],
 
   // Agent management
-  'agent.active_id': null,
-  'agent.session.active_id_map': {},
   'agent.session.waiting_id_map': {},
 
   // Translate page state management
@@ -247,7 +246,9 @@ export const DefaultUseCache: UseCacheSchema = {
   'message.streaming.topic_tasks.${topicId}': [],
   'message.streaming.content.${messageId}': null,
   'message.streaming.block.${blockId}': null,
-  'message.streaming.siblings_counter.${topicId}': 0
+  'message.streaming.siblings_counter.${topicId}': 0,
+  'message.streaming.chat_session.${topicId}': null,
+  'message.ui.${messageId}': {}
 }
 
 /**
@@ -255,6 +256,10 @@ export const DefaultUseCache: UseCacheSchema = {
  */
 export type SharedCacheSchema = {
   'chat.web_search.active_searches': CacheValueTypes.CacheActiveSearches
+  'mcp.tools.${serverId}': CacheValueTypes.CacheMcpTool[]
+  'mcp.status.${serverId}': CacheValueTypes.McpRuntimeStatus
+  'topic.stream.statuses.${topicId}': TopicStatusSnapshotEntry | null
+  'topic.stream.last_seen_completion.${topicId}': number | null
   'feature.openclaw.gateway_status': CacheValueTypes.OpenClawGatewayStatus
   // API key rotation state (cross-window, tracks last used key per provider)
   'web_search.provider.last_used_key.${providerId}': string
@@ -270,6 +275,10 @@ export type SharedCacheSchema = {
 
 export const DefaultSharedCache: SharedCacheSchema = {
   'chat.web_search.active_searches': {},
+  'mcp.tools.${serverId}': [],
+  'mcp.status.${serverId}': { state: 'disabled', lastCheckedAt: 0 },
+  'topic.stream.statuses.${topicId}': null,
+  'topic.stream.last_seen_completion.${topicId}': null,
   'feature.openclaw.gateway_status': 'stopped',
   'web_search.provider.last_used_key.${providerId}': '',
   'ocr.provider.last_used_key.${providerId}': '',
@@ -285,28 +294,44 @@ export const DefaultSharedCache: SharedCacheSchema = {
  */
 export type RendererPersistCacheSchema = {
   'ui.tab.pinned_tabs': CacheValueTypes.Tab[]
+  'ui.global_search.recent_items': CacheValueTypes.GlobalSearchRecentEntry[]
   'ui.sidebar.docked_tabs': CacheValueTypes.Tab[]
   'ui.sidebar.width': number
+  'ui.chat.sidebar.width': number
+  'ui.chat.artifact_pane.width': number
+  'ui.chat.artifact_pane.file_tree.width': number
+  'ui.chat.last_used_assistant_id': string | null
+  'ui.chat.last_used_topic_id': string | null
+  'ui.agent.last_used_session_id': string | null
+  'ui.agent.last_used_agent_id': string | null
+  'ui.agent.last_used_workspace_id': string | null
   'settings.provider.last_selected_provider_id': string | null
   'settings.provider.openai.alert.dismissed': boolean
   'feature.mcp.is_uv_installed': boolean
   'feature.mcp.is_bun_installed': boolean
-  // Multi-model list for @mention parallel answering, keyed by assistantId
-  // This is UI-level state, not core assistant config (default model is assistant.modelId)
-  'ui.assistant.multi_model_ids': Record<string, string[]>
+  'agent.open_external_app.last_used_target': CacheValueTypes.AgentOpenExternalAppTarget
   // Recently picked emojis (MRU order, capped to 32) shown at the top of the shared emoji picker
   'ui.emoji.recently_used': string[]
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.tab.pinned_tabs': [],
+  'ui.global_search.recent_items': [],
   'ui.sidebar.docked_tabs': [],
   'ui.sidebar.width': 65,
+  'ui.chat.sidebar.width': 275,
+  'ui.chat.artifact_pane.width': 460,
+  'ui.chat.artifact_pane.file_tree.width': 160,
+  'ui.chat.last_used_assistant_id': null,
+  'ui.chat.last_used_topic_id': null,
+  'ui.agent.last_used_session_id': null,
+  'ui.agent.last_used_agent_id': null,
+  'ui.agent.last_used_workspace_id': null,
   'settings.provider.last_selected_provider_id': null,
   'settings.provider.openai.alert.dismissed': false,
   'feature.mcp.is_uv_installed': false,
   'feature.mcp.is_bun_installed': false,
-  'ui.assistant.multi_model_ids': {},
+  'agent.open_external_app.last_used_target': null,
   'ui.emoji.recently_used': []
 }
 

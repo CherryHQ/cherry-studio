@@ -14,6 +14,10 @@ export const TopicNameEntitySchema = z.string().max(255)
 
 /**
  * Complete topic entity as stored in database.
+ *
+ * Pin state lives in the polymorphic `pin` table (entityType='topic'); the
+ * legacy `isPinned` / `pinnedOrder` fields were dropped during the v2.x
+ * migration. Order is stored as a global fractional-indexing `orderKey`.
  */
 export const TopicSchema = z.strictObject({
   /** Topic ID */
@@ -23,12 +27,12 @@ export const TopicSchema = z.strictObject({
   /** Whether the name was manually edited by user */
   isNameManuallyEdited: z.boolean(),
   /** Last-used assistant ID (updated on message send) */
-  assistantId: z.string().nullable().optional(),
+  assistantId: z.string().optional(),
   /** Active node ID in the message tree */
-  activeNodeId: z.string().nullable().optional(),
+  activeNodeId: z.string().optional(),
   /** Group ID for organization */
-  groupId: z.string().nullable().optional(),
-  /** Fractional-indexing order key, partitioned by groupId. */
+  groupId: z.string().optional(),
+  /** Fractional-indexing order key for the global topic order. */
   orderKey: z.string(),
   /** Creation timestamp (ISO string) */
   createdAt: z.iso.datetime(),

@@ -1,5 +1,5 @@
-import * as XLSX from '@e965/xlsx'
 import dayjs from 'dayjs'
+import ExcelJS from 'exceljs'
 
 /**
  * 解析 Markdown 表格为二维数组
@@ -55,22 +55,19 @@ export async function exportTableToExcel(markdown: string): Promise<boolean> {
     return false
   }
 
-  // 创建工作表
-  const worksheet = XLSX.utils.aoa_to_sheet(data)
+  // 创建工作簿和工作表
+  const workbook = new ExcelJS.Workbook()
+  const worksheet = workbook.addWorksheet('Sheet1')
+  worksheet.addRows(data)
 
   // 设置列宽自适应
-  const colWidths = data[0].map((_, colIndex) => {
+  worksheet.columns = data[0].map((_, colIndex) => {
     const maxLength = Math.max(...data.map((row) => (row[colIndex] || '').toString().length))
-    return { wch: Math.min(Math.max(maxLength + 2, 10), 50) }
+    return { width: Math.min(Math.max(maxLength + 2, 10), 50) }
   })
-  worksheet['!cols'] = colWidths
-
-  // 创建工作簿
-  const workbook = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'Sheet1')
 
   // 生成文件内容 (Uint8Array)
-  const buffer = XLSX.write(workbook, { type: 'array', bookType: 'xlsx' })
+  const buffer = await workbook.xlsx.writeBuffer()
   const uint8Array = new Uint8Array(buffer)
 
   // 生成默认文件名

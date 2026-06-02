@@ -1,6 +1,3 @@
-// import remarkParse from 'remark-parse'
-// import { unified } from 'unified'
-// import { visit } from 'unist-util-visit'
 import { describe, expect, it } from 'vitest'
 
 import {

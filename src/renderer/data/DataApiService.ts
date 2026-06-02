@@ -210,8 +210,6 @@ export class DataApiService implements ApiClient {
       }
     }
 
-    logger.debug(`Making ${method} request to ${path}`, { request })
-
     return this.sendRequest<T>(request).catch((error) => {
       logger.error(`Request failed: ${method} ${path}`, error)
       throw toDataApiError(error, `${method} ${path}`)
@@ -276,11 +274,13 @@ export class DataApiService implements ApiClient {
   async delete<TPath extends ConcreteApiPaths>(
     path: TPath,
     options?: {
+      body?: BodyForPath<TPath, 'DELETE'>
       query?: QueryParamsForPath<TPath, 'DELETE'>
       headers?: Record<string, string>
     }
   ): Promise<ResponseForPath<TPath, 'DELETE'>> {
     return this.makeRequest<ResponseForPath<TPath, 'DELETE'>>('DELETE', path as string, {
+      body: options?.body,
       params: options?.query,
       headers: options?.headers
     })

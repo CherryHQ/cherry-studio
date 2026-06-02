@@ -13,7 +13,7 @@ vi.mock('@renderer/utils', () => ({
 const useProvidersMock = vi.fn()
 const useProviderActionsMock = vi.fn()
 
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: (...args: any[]) => useProvidersMock(...args),
   useProviderActions: (...args: any[]) => useProviderActionsMock(...args)
 }))

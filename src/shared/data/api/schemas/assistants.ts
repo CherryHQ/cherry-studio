@@ -7,16 +7,17 @@
 
 import * as z from 'zod'
 
-import { type Assistant, AssistantSchema } from '../../types/assistant'
+import { type Assistant, AssistantSchema, AssistantSettingsSchema } from '../../types/assistant'
 import { TagIdSchema } from '../../types/tag'
 import type { OffsetPaginationResponse } from '../apiTypes'
+import type { OrderEndpoints } from './_endpointHelpers'
 
 // ============================================================================
 // DTO Derivation
 // ============================================================================
 
 /**
- * Mutable assistant fields — explicit whitelist of everything a client may write.
+ * Mutable assistant fields — explicit whitelist of everything a client may edit.
  * Anything not listed here (id, createdAt, updatedAt, tags, modelName, future
  * auto-managed columns) is rejected at the API boundary by default.
  *
@@ -24,6 +25,7 @@ import type { OffsetPaginationResponse } from '../apiTypes'
  * - `tags` is embedded on read via inline join; writes use `tagIds` below.
  * - `modelName` is resolved at read time from `user_model.name`; edits go via
  *   `modelId`.
+ * - `orderKey` is service-owned; writes go through `/assistants/:id/order`.
  */
 const ASSISTANT_MUTABLE_FIELDS = {
   name: true,
@@ -34,6 +36,18 @@ const ASSISTANT_MUTABLE_FIELDS = {
   modelId: true,
   mcpServerIds: true,
   knowledgeBaseIds: true
+} as const
+
+/**
+ * Create-only assistant fields.
+ *
+ * `source` is intentionally accepted only at create time: bundled assistant
+ * catalog imports stamp their preset UUID; later edits should not rewrite
+ * provenance.
+ */
+const ASSISTANT_CREATE_FIELDS = {
+  ...ASSISTANT_MUTABLE_FIELDS,
+  source: true
 } as const
 
 /**
@@ -50,7 +64,7 @@ const TagIdsField = z.array(TagIdSchema).optional()
  * - `name` is required (non-empty)
  * - `mcpServerIds` / `knowledgeBaseIds` / `tagIds` are synced to junction tables
  */
-export const CreateAssistantSchema = AssistantSchema.pick(ASSISTANT_MUTABLE_FIELDS)
+export const CreateAssistantSchema = AssistantSchema.pick(ASSISTANT_CREATE_FIELDS)
   .partial()
   .required({ name: true })
   .extend({ tagIds: TagIdsField })
@@ -58,13 +72,20 @@ export type CreateAssistantDto = z.infer<typeof CreateAssistantSchema>
 
 /**
  * DTO for updating an existing assistant. All fields optional.
- * Relation arrays (mcpServerIds, knowledgeBaseIds, tagIds), if provided,
+ *
+ * `settings` itself is a deep partial — clients can change a single setting
+ * without re-sending (and re-validating) the others. The service layer merges
+ * the partial onto the persisted settings object before writing back. This
+ * keeps a corrupt-but-historically-tolerated field (e.g. `maxTokens: 0`)
+ * from blocking unrelated updates.
+ *
+ * Relation arrays (`mcpServerIds`, `knowledgeBaseIds`, `tagIds`), if provided,
  * replace existing junction table rows. Update picks directly from the entity,
  * not Create, so Create defaults do not bleed into partial updates.
  */
 export const UpdateAssistantSchema = AssistantSchema.pick(ASSISTANT_MUTABLE_FIELDS)
   .partial()
-  .extend({ tagIds: TagIdsField })
+  .extend({ settings: AssistantSettingsSchema.partial().optional(), tagIds: TagIdsField })
 export type UpdateAssistantDto = z.infer<typeof UpdateAssistantSchema>
 
 export const ASSISTANTS_DEFAULT_PAGE = 1
@@ -156,4 +177,4 @@ export type AssistantSchemas = {
       response: void
     }
   }
-}
+} & OrderEndpoints<'/assistants'>

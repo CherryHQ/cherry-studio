@@ -1,17 +1,24 @@
 // Topic CRUD, branch switching, ordering.
 
 import { application } from '@application'
+import { assistantTable } from '@data/db/schemas/assistant'
 import { messageTable } from '@data/db/schemas/message'
 import { pinTable } from '@data/db/schemas/pin'
 import { topicTable } from '@data/db/schemas/topic'
+import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type { CreateTopicDto, ListTopicsQuery, UpdateTopicDto } from '@shared/data/api/schemas/topics'
+import type {
+  CreateTopicDto,
+  DeleteTopicsResult,
+  ListTopicsQuery,
+  UpdateTopicDto
+} from '@shared/data/api/schemas/topics'
 import type { Topic } from '@shared/data/types/topic'
 import type { SQL } from 'drizzle-orm'
-import { and, asc, desc, eq, gt, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, inArray, isNull, lt, notInArray, or, sql } from 'drizzle-orm'
 
 import { pinService } from './PinService'
 import { tagService } from './TagService'
@@ -30,17 +37,15 @@ function rowToTopic(row: TopicRow): Topic {
     id: row.id,
     name: row.name,
     isNameManuallyEdited: row.isNameManuallyEdited,
-    assistantId: row.assistantId,
-    activeNodeId: row.activeNodeId,
-    groupId: row.groupId,
+    // DB NULL ↔ domain `undefined` boundary — the domain shape uses
+    // optional fields rather than `T | null`, per data-api-in-main.md.
+    assistantId: row.assistantId ?? undefined,
+    activeNodeId: row.activeNodeId ?? undefined,
+    groupId: row.groupId ?? undefined,
     orderKey: row.orderKey,
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }
-}
-
-function topicScopePredicate(groupId: string | null): SQL {
-  return groupId === null ? isNull(topicTable.groupId) : eq(topicTable.groupId, groupId)
 }
 
 // Wire format: `pin:<orderKey>` / `topic:<updatedAt>:<id>` / `topic:` (pin exhausted).
@@ -120,7 +125,6 @@ export class TopicService {
 
   async create(dto: CreateTopicDto): Promise<Topic> {
     const db = application.get('DbService').getDb()
-    const groupId = dto.groupId ?? null
 
     const row = (await db.transaction(async (tx) => {
       // In-tx so a concurrent delete can't slip between check and insert;
@@ -140,12 +144,13 @@ export class TopicService {
         {
           name: dto.name,
           assistantId: dto.assistantId,
-          groupId,
+          groupId: dto.groupId ?? null,
           activeNodeId: dto.sourceNodeId ?? null
         },
         {
           pkColumn: topicTable.id,
-          scope: topicScopePredicate(groupId)
+          position: 'first',
+          scope: isNull(topicTable.deletedAt)
         }
       )
     })) as TopicRow
@@ -196,24 +201,96 @@ export class TopicService {
    * TODO: Clean up associated files (images, attachments) from disk.
    */
   async delete(id: string): Promise<void> {
-    const db = application.get('DbService').getDb()
-
-    await this.getById(id)
-
-    await db.transaction(async (tx) => {
-      await tx.delete(messageTable).where(eq(messageTable.topicId, id))
-      await tagService.purgeForEntityTx(tx, 'topic', id)
-      await pinService.purgeForEntityTx(tx, 'topic', id)
-      await tx.delete(topicTable).where(eq(topicTable.id, id))
-    })
+    const dbService = application.get('DbService')
+    await dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, [id], { requireAll: true }))
 
     logger.info('Deleted topic', { id })
   }
 
+  async deleteByIds(ids: string[]): Promise<DeleteTopicsResult> {
+    const dbService = application.get('DbService')
+    const deletedIds = await dbService.withWriteTx((tx) => this.deleteManyByIdsTx(tx, ids, { requireAll: true }))
+
+    logger.info('Deleted topics', { count: deletedIds.length })
+
+    return { deletedIds, deletedCount: deletedIds.length }
+  }
+
+  async deleteByAssistantId(assistantId: string): Promise<DeleteTopicsResult> {
+    const dbService = application.get('DbService')
+    const deletedIds = await dbService.withWriteTx(async (tx) => {
+      const [assistant] = await tx
+        .select({ id: assistantTable.id })
+        .from(assistantTable)
+        .where(and(eq(assistantTable.id, assistantId), isNull(assistantTable.deletedAt)))
+        .limit(1)
+      if (!assistant) throw DataApiErrorFactory.notFound('Assistant', assistantId)
+
+      const rows = await tx
+        .select({ id: topicTable.id })
+        .from(topicTable)
+        .where(and(eq(topicTable.assistantId, assistantId), isNull(topicTable.deletedAt)))
+
+      return await this.deleteManyByIdsTx(
+        tx,
+        rows.map((row) => row.id)
+      )
+    })
+
+    logger.info('Deleted assistant topics', { assistantId, count: deletedIds.length })
+
+    return { deletedIds, deletedCount: deletedIds.length }
+  }
+
+  private async deleteManyByIdsTx(
+    tx: DbOrTx,
+    ids: string[],
+    options: { requireAll?: boolean } = {}
+  ): Promise<string[]> {
+    const uniqueIds = Array.from(new Set(ids))
+    if (uniqueIds.length === 0) return []
+
+    const rows = await tx
+      .select({ id: topicTable.id })
+      .from(topicTable)
+      .where(and(inArray(topicTable.id, uniqueIds), isNull(topicTable.deletedAt)))
+    const deletedIds = rows.map((row) => row.id)
+
+    if (options.requireAll && deletedIds.length !== uniqueIds.length) {
+      const foundIds = new Set(deletedIds)
+      const missingId = uniqueIds.find((candidate) => !foundIds.has(candidate)) ?? uniqueIds[0]
+      throw DataApiErrorFactory.notFound('Topic', missingId)
+    }
+    if (deletedIds.length === 0) return []
+
+    await tx.delete(messageTable).where(inArray(messageTable.topicId, deletedIds))
+    await tagService.purgeForEntitiesTx(tx, 'topic', deletedIds)
+    await pinService.purgeForEntitiesTx(tx, 'topic', deletedIds)
+    await tx.delete(topicTable).where(inArray(topicTable.id, deletedIds))
+
+    return deletedIds
+  }
+
   async setActiveNode(topicId: string, nodeId: string): Promise<{ activeNodeId: string }> {
     const db = application.get('DbService').getDb()
+    await db.transaction((tx) => this.setActiveNodeTx(tx, topicId, nodeId))
+    logger.info('Set active node', { topicId, activeNodeId: nodeId })
+    return { activeNodeId: nodeId }
+  }
 
-    await db.transaction(async (tx) => {
+  /**
+   * Tx-aware variant — composes inside a caller's transaction (e.g.
+   * MessageService.create / fork). Validates the topic is not soft-deleted
+   * and the message belongs to it. Skip validation by passing `assumeValid`
+   * when the caller has already verified the (topicId, nodeId) pair.
+   */
+  async setActiveNodeTx(
+    tx: DbOrTx,
+    topicId: string,
+    nodeId: string,
+    options: { assumeValid?: boolean } = {}
+  ): Promise<void> {
+    if (!options.assumeValid) {
       const [topic] = await tx
         .select({ id: topicTable.id })
         .from(topicTable)
@@ -229,18 +306,14 @@ export class TopicService {
       if (!message || message.topicId !== topicId) {
         throw DataApiErrorFactory.notFound('Message', nodeId)
       }
+    }
 
-      const updated = await tx
-        .update(topicTable)
-        .set({ activeNodeId: nodeId })
-        .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
-        .returning({ id: topicTable.id })
-      if (updated.length !== 1) throw DataApiErrorFactory.notFound('Topic', topicId)
-    })
-
-    logger.info('Set active node', { topicId, nodeId })
-
-    return { activeNodeId: nodeId }
+    const updated = await tx
+      .update(topicTable)
+      .set({ activeNodeId: nodeId })
+      .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
+      .returning({ id: topicTable.id })
+    if (updated.length !== 1) throw DataApiErrorFactory.notFound('Topic', topicId)
   }
 
   /**
@@ -331,11 +404,31 @@ export class TopicService {
     return { items: items.map((i) => i.topic), nextCursor }
   }
 
+  async listRecentSearchMatches(query: { q: string; limit: number; updatedAtFrom?: number }): Promise<Topic[]> {
+    const db = application.get('DbService').getDb()
+    const limit = Math.min(query.limit, MAX_LIMIT)
+    const filters: SQL[] = [isNull(topicTable.deletedAt)]
+    const search = buildSearchPredicate(query.q)
+    if (search) filters.push(search)
+    if (query.updatedAtFrom !== undefined) {
+      filters.push(gte(topicTable.updatedAt, query.updatedAtFrom))
+    }
+
+    const rows = await db
+      .select()
+      .from(topicTable)
+      .where(and(...filters))
+      .orderBy(desc(topicTable.updatedAt), asc(topicTable.id))
+      .limit(limit)
+
+    return rows.map(rowToTopic)
+  }
+
   async reorder(id: string, anchor: OrderRequest): Promise<void> {
     const db = application.get('DbService').getDb()
     await db.transaction(async (tx) => {
       const [target] = await tx
-        .select({ groupId: topicTable.groupId })
+        .select({ id: topicTable.id })
         .from(topicTable)
         .where(and(eq(topicTable.id, id), isNull(topicTable.deletedAt)))
         .limit(1)
@@ -343,40 +436,19 @@ export class TopicService {
 
       await applyMoves(tx, topicTable, [{ id, anchor }], {
         pkColumn: topicTable.id,
-        scope: topicScopePredicate(target.groupId)
+        scope: isNull(topicTable.deletedAt)
       })
     })
   }
 
-  /** Cross-scope (mixed `groupId`) batches are rejected with VALIDATION_ERROR. */
   async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
     if (moves.length === 0) return
 
     const db = application.get('DbService').getDb()
     await db.transaction(async (tx) => {
-      const ids = moves.map((m) => m.id)
-      const targets = await tx
-        .select({ id: topicTable.id, groupId: topicTable.groupId })
-        .from(topicTable)
-        .where(and(inArray(topicTable.id, ids), isNull(topicTable.deletedAt)))
-
-      if (targets.length !== ids.length) {
-        const found = new Set(targets.map((t) => t.id))
-        const missing = ids.find((id) => !found.has(id)) ?? ids[0]
-        throw DataApiErrorFactory.notFound('Topic', missing)
-      }
-
-      const scopeValues = new Set(targets.map((t) => t.groupId))
-      if (scopeValues.size > 1) {
-        const scopeList = [...scopeValues].map((s) => (s === null ? '<null>' : s)).join(', ')
-        const message = `reorderBatch: batch spans multiple groupId scopes (${scopeList})`
-        throw DataApiErrorFactory.validation({ _root: [message] }, message)
-      }
-
-      const [scopeValue] = [...scopeValues]
       await applyMoves(tx, topicTable, moves, {
         pkColumn: topicTable.id,
-        scope: topicScopePredicate(scopeValue ?? null)
+        scope: isNull(topicTable.deletedAt)
       })
     })
   }

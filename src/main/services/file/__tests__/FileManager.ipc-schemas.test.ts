@@ -10,7 +10,12 @@
 
 import { describe, expect, it } from 'vitest'
 
-import { BatchGetDanglingStatesIpcSchema, FILE_BATCH_DANGLING_MAX_IDS, GetDanglingStateIpcSchema } from '../FileManager'
+import {
+  BatchGetDanglingStatesIpcSchema,
+  FILE_BATCH_DANGLING_MAX_IDS,
+  GetDanglingStateIpcSchema,
+  GetPathStatusIpcSchema
+} from '../FileManager'
 
 const VALID_UUID_V7 = '019606a0-0000-7000-8000-000000000001'
 
@@ -57,5 +62,26 @@ describe('BatchGetDanglingStatesIpcSchema', () => {
 
   it('rejects extra keys (strictObject)', () => {
     expect(() => BatchGetDanglingStatesIpcSchema.parse({ ids: [VALID_UUID_V7], extra: 1 })).toThrow()
+  })
+})
+
+describe('GetPathStatusIpcSchema', () => {
+  it('accepts a path with an expected kind', () => {
+    expect(GetPathStatusIpcSchema.parse({ path: '/tmp/cherry-workspace', expectedKind: 'directory' })).toEqual({
+      path: '/tmp/cherry-workspace',
+      expectedKind: 'directory'
+    })
+  })
+
+  it('keeps empty paths for the status helper to classify as missing', () => {
+    expect(GetPathStatusIpcSchema.parse({ path: '' })).toEqual({ path: '' })
+  })
+
+  it('rejects invalid expected kinds', () => {
+    expect(() => GetPathStatusIpcSchema.parse({ path: '/tmp/cherry-workspace', expectedKind: 'workspace' })).toThrow()
+  })
+
+  it('rejects extra keys', () => {
+    expect(() => GetPathStatusIpcSchema.parse({ path: '/tmp/cherry-workspace', recursive: true })).toThrow()
   })
 })

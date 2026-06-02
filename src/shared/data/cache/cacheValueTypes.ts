@@ -1,6 +1,7 @@
-import type { Topic } from '@types'
+import type { MCPTool } from '@types'
 import type { UpdateInfo } from 'builder-util-runtime'
 
+import type { ExternalAppId } from '../../externalApp/types'
 import type { MiniApp } from '../types/miniApp'
 import type { WebSearchStatus } from '../types/webSearch'
 
@@ -21,7 +22,13 @@ export type CacheActiveSearches = Record<string, WebSearchStatus>
 // For cache schema, we use any for complex types to avoid circular dependencies
 // The actual type checking will be done at runtime by the cache system
 export type CacheMiniAppType = MiniApp
-export type CacheTopic = Topic
+export type CacheMcpTool = MCPTool
+
+export type McpRuntimeStatus = {
+  state: 'disabled' | 'connecting' | 'connected' | 'error'
+  lastCheckedAt: number
+  lastError?: string
+}
 
 /**
  * Tab type for browser-like tabs
@@ -51,12 +58,38 @@ export interface Tab {
   isDormant?: boolean // 是否已休眠
   isPinned?: boolean // 是否置顶（豁免 LRU）
   savedState?: TabSavedState // 休眠前保存的状态
+  // 是否承载未持久化的临时话题/会话。临时实例仅存在于本窗口的内存租约中，
+  // 无法被新窗口独立加载，故禁止「从新窗口打开」(detach)。由页面写入。
+  isTemporary?: boolean
 }
 
 export interface TabsState {
   tabs: Tab[]
   activeTabId: string
 }
+
+export type GlobalSearchRecentEntry =
+  | {
+      kind: 'route'
+      url: string
+      title: string
+      icon?: string
+      lastAccessTime: number
+    }
+  | {
+      kind: 'topic'
+      topicId: string
+      title: string
+      assistantId?: string | null
+      lastAccessTime: number
+    }
+  | {
+      kind: 'session'
+      sessionId: string
+      title: string
+      agentId?: string | null
+      lastAccessTime: number
+    }
 
 export type TranslatingState =
   | {
@@ -69,6 +102,24 @@ export type TranslatingState =
     }
 
 export type OpenClawGatewayStatus = 'stopped' | 'starting' | 'running' | 'error'
+
+/**
+ * Saved scroll position for a chat topic / agent-session message list.
+ *
+ * Stored per topic id in the Memory cache so switching topics or sessions
+ * restores the previous reading position instead of jumping to the first
+ * message. A `null` cache value (the schema default) means "follow the
+ * latest message" — the user was at the bottom or never scrolled, so the
+ * list restores to the newest message.
+ */
+export interface ChatScrollAnchor {
+  /** Stable group key of the top-most visible message group at save time. */
+  key: string
+  /** Pixels scrolled past the top of that group. */
+  offset: number
+}
+
+export type AgentOpenExternalAppTarget = ExternalAppId | 'file_manager' | null
 
 export type CachePaintingGenerationState = {
   status: 'running' | 'failed' | 'canceled'

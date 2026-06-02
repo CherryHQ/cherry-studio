@@ -187,7 +187,7 @@ describe('MiniAppsPage', () => {
 
     render(<MiniAppsPage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'miniApp.add_to_sidebar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'miniApp.add_to_launchpad' }))
     expect(mocks.updateAppStatus).toHaveBeenCalledWith('custom', 'pinned')
 
     fireEvent.click(screen.getByRole('button', { name: 'miniApp.sidebar.hide.title' }))

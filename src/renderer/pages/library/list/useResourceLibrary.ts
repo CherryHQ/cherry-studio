@@ -1,5 +1,6 @@
 import { useTagList } from '@renderer/hooks/useTags'
-import type { AgentDetail, InstalledSkill } from '@shared/data/types/agent'
+import { getAgentAvatarFromConfiguration } from '@renderer/utils/agent'
+import type { InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Prompt } from '@shared/data/types/prompt'
 import type { Tag } from '@shared/data/types/tag'
@@ -9,7 +10,7 @@ import { agentAdapter } from '../adapters/agentAdapter'
 import { assistantAdapter } from '../adapters/assistantAdapter'
 import { promptAdapter } from '../adapters/promptAdapter'
 import { skillAdapter } from '../adapters/skillAdapter'
-import type { LibrarySidebarFilter, ResourceItem, ResourceType, SortKey } from '../types'
+import type { AgentDetail, LibrarySidebarFilter, ResourceItem, ResourceType, SortKey } from '../types'
 
 function compareItems(a: ResourceItem, b: ResourceItem, sort: SortKey): number {
   if (sort === 'name') return a.name.localeCompare(b.name, 'zh')
@@ -132,13 +133,12 @@ export function useResourceLibrary({
   }, [])
 
   const buildAgentItem = useCallback((a: AgentDetail): ResourceItem => {
-    const avatarFromConfig = typeof a.configuration?.avatar === 'string' ? a.configuration.avatar : ''
     return {
       id: a.id,
       type: 'agent',
       name: a.name ?? '',
       description: a.description ?? '',
-      avatar: avatarFromConfig || '🤖',
+      avatar: getAgentAvatarFromConfiguration(a.configuration),
       model: a.modelName ?? undefined,
       tags: [],
       createdAt: a.createdAt,

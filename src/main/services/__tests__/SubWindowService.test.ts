@@ -14,7 +14,8 @@ const { platformState, nativeThemeState, applicationMock, windowManagerMock } = 
     getWindow: vi.fn<(id: string) => unknown>(() => undefined),
     getWindowsByType: vi.fn<(type: string) => Array<{ id: string }>>(() => []),
     getWindowIdByWebContents: vi.fn<(wc: unknown) => string | undefined>(() => undefined),
-    broadcastToType: vi.fn<(type: string, channel: string, ...rest: unknown[]) => void>()
+    broadcastToType: vi.fn<(type: string, channel: string, ...rest: unknown[]) => void>(),
+    behavior: { setAlwaysOnTop: vi.fn<(id: string, enabled: boolean) => void>() }
   }
   const applicationMock = {
     get: vi.fn((name: string) => {
@@ -77,6 +78,10 @@ interface MockBrowserWindow extends EventEmitter {
   getOpacity: ReturnType<typeof vi.fn>
   getBounds: ReturnType<typeof vi.fn>
   getContentBounds: ReturnType<typeof vi.fn>
+  setAlwaysOnTop: ReturnType<typeof vi.fn>
+  webContents: {
+    isLoadingMainFrame: ReturnType<typeof vi.fn>
+  }
 }
 
 function createMockWindow(overrides: Partial<MockBrowserWindow> = {}): MockBrowserWindow {
@@ -90,6 +95,9 @@ function createMockWindow(overrides: Partial<MockBrowserWindow> = {}): MockBrows
   win.getOpacity = vi.fn(() => 1)
   win.getBounds = vi.fn(() => ({ x: 100, y: 100, width: 1200, height: 800 }))
   win.getContentBounds = vi.fn(() => ({ x: 100, y: 100, width: 800, height: 600 }))
+  win.setAlwaysOnTop = vi.fn()
+  // Fresh (still-loading) window by default; reused-pool tests override isLoadingMainFrame → false.
+  win.webContents = { isLoadingMainFrame: vi.fn(() => true) }
   Object.assign(win, overrides)
   return win
 }
@@ -127,6 +135,7 @@ describe('SubWindowService', () => {
     windowManagerMock.getWindowsByType.mockReset().mockReturnValue([])
     windowManagerMock.getWindowIdByWebContents.mockReset().mockReturnValue(undefined)
     windowManagerMock.broadcastToType.mockReset()
+    windowManagerMock.behavior.setAlwaysOnTop.mockReset()
     vi.mocked(BrowserWindow.fromWebContents).mockReset()
 
     svc = new SubWindowService()
@@ -258,6 +267,18 @@ describe('SubWindowService', () => {
       win2.emit('ready-to-show')
       expect(win2.show).not.toHaveBeenCalled()
     })
+
+    it('shows immediately when a reused pool window has already loaded (no ready-to-show wait)', () => {
+      const win = createMockWindow()
+      win.webContents.isLoadingMainFrame.mockReturnValue(false)
+      windowManagerMock.getWindow.mockReturnValue(win)
+
+      svc.createWindow({ id: 'tab-reused', url: 'u' })
+
+      // Recycled standby already fired ready-to-show during pre-warm, so it must be shown now
+      // rather than waiting for an event that will never fire again.
+      expect(win.show).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe('Tab_Attach handler', () => {
@@ -342,50 +363,40 @@ describe('SubWindowService', () => {
     })
   })
 
-  describe('Tab_TryAttach handler', () => {
-    it('broadcasts + closes sub window when drop is over Main tab bar', async () => {
-      const handler = getIpcHandleHandler(svc, 'tab:try-attach')
-      const mainWin = createMockWindow()
-      windowManagerMock.getWindowsByType.mockImplementation((type) =>
-        type === 'main' ? [{ id: 'main-1' } as any] : []
-      )
-      windowManagerMock.getWindow.mockReturnValue(mainWin)
-      ;(svc as any).tabIdToWindowId.set('tab-drop', 'wid-drop')
+  describe('SubWindow_SetAlwaysOnTop handler', () => {
+    it('pins via WindowManager behavior when the sender window is tracked', () => {
+      const handler = getIpcHandleHandler(svc, 'sub-window:set-always-on-top')
+      windowManagerMock.getWindowIdByWebContents.mockReturnValue('sub-9')
 
-      const result = await handler({} as any, {
-        tab: { id: 'tab-drop' },
-        screenX: 500,
-        screenY: 120 // within 100..900 x and 100..140 y (tab bar 40px)
-      })
+      const result = handler({ sender: {} } as any, true)
 
       expect(result).toBe(true)
-      expect(windowManagerMock.broadcastToType).toHaveBeenCalledWith('main', 'tab:attach', { id: 'tab-drop' })
-      expect(windowManagerMock.close).toHaveBeenCalledWith('wid-drop')
+      expect(windowManagerMock.behavior.setAlwaysOnTop).toHaveBeenCalledWith('sub-9', true)
+      expect(BrowserWindow.fromWebContents).not.toHaveBeenCalled()
     })
 
-    it('restores opacity to 1 when drop misses the tab bar', async () => {
-      const handler = getIpcHandleHandler(svc, 'tab:try-attach')
-      const mainWin = createMockWindow()
-      const subWin = createMockWindow()
-      windowManagerMock.getWindowsByType.mockImplementation((type) =>
-        type === 'main' ? [{ id: 'main-1' } as any] : []
-      )
-      windowManagerMock.getWindow.mockImplementation((id) => {
-        if (id === 'main-1') return mainWin
-        if (id === 'wid-drop') return subWin
-        return undefined
-      })
-      ;(svc as any).tabIdToWindowId.set('tab-drop', 'wid-drop')
+    it('falls back to the sender BrowserWindow when untracked', () => {
+      const handler = getIpcHandleHandler(svc, 'sub-window:set-always-on-top')
+      windowManagerMock.getWindowIdByWebContents.mockReturnValue(undefined)
+      const win = createMockWindow()
+      vi.mocked(BrowserWindow.fromWebContents).mockReturnValue(win as any)
 
-      const result = await handler({} as any, {
-        tab: { id: 'tab-drop' },
-        screenX: 500,
-        screenY: 500 // well below tab bar
-      })
+      const result = handler({ sender: {} } as any, false)
+
+      expect(result).toBe(true)
+      expect(win.setAlwaysOnTop).toHaveBeenCalledWith(false)
+      expect(windowManagerMock.behavior.setAlwaysOnTop).not.toHaveBeenCalled()
+    })
+
+    it('returns false when the sender resolves to no window', () => {
+      const handler = getIpcHandleHandler(svc, 'sub-window:set-always-on-top')
+      windowManagerMock.getWindowIdByWebContents.mockReturnValue(undefined)
+      vi.mocked(BrowserWindow.fromWebContents).mockReturnValue(null as any)
+
+      const result = handler({ sender: {} } as any, true)
 
       expect(result).toBe(false)
-      expect(windowManagerMock.close).not.toHaveBeenCalled()
-      expect(subWin.setOpacity).toHaveBeenCalledWith(1)
+      expect(windowManagerMock.behavior.setAlwaysOnTop).not.toHaveBeenCalled()
     })
   })
 

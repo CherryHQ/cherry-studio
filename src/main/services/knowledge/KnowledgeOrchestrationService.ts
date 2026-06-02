@@ -3,7 +3,9 @@ import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { knowledgeItemService } from '@data/services/KnowledgeItemService'
 import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { TraceMethod } from '@mcp-trace/trace-core'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api'
+import { KNOWLEDGE_BASES_MAX_LIMIT } from '@shared/data/api/schemas/knowledges'
 import {
   type CreateKnowledgeBaseDto,
   type KnowledgeBase,
@@ -165,7 +167,6 @@ export class KnowledgeOrchestrationService extends BaseService {
         )
       }
     })
-
     const restoredBase = await this.createBase(createDto)
     try {
       await this.addItems(restoredBase.id, inputs)
@@ -224,6 +225,16 @@ export class KnowledgeOrchestrationService extends BaseService {
     await this.workflowService.reindexItems(baseId, rootItemIds)
   }
 
+  async listBases(): Promise<KnowledgeBase[]> {
+    const { items } = await knowledgeBaseService.list({ page: 1, limit: KNOWLEDGE_BASES_MAX_LIMIT })
+    return items
+  }
+
+  async listRootItems(baseId: string): Promise<KnowledgeItem[]> {
+    return await knowledgeItemService.getRootItemsByBaseId(baseId)
+  }
+
+  @TraceMethod({ spanName: 'Knowledge.search', tag: 'Knowledge' })
   async search(baseId: string, query: string): Promise<KnowledgeSearchResult[]> {
     await this.assertBaseCanRunRuntimeOperation(baseId, 'search')
 

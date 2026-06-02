@@ -93,36 +93,63 @@ export interface CreateDirectoryWatcherOptions {
 const BUILTIN_IGNORE_BASENAMES = new Set(['.DS_Store', '.localized', 'Thumbs.db', 'desktop.ini'])
 
 class DirectoryWatcherImpl implements DirectoryWatcher {
-  private readonly fsw: FSWatcher
+  private fsw: FSWatcher
   private readonly emitter = new Emitter<WatcherEvent>()
+  private readonly root: FilePath
+  private readonly opts: CreateDirectoryWatcherOptions
+  private usingPolling = false
   private closed = false
 
   constructor(root: FilePath, opts: CreateDirectoryWatcherOptions = {}) {
-    const builtinIgnore = (p: string) => BUILTIN_IGNORE_BASENAMES.has(path.basename(p))
-    const userIgnore = opts.ignore
-    const recursive = opts.recursive !== false
-    const stability = opts.stabilityThresholdMs ?? 200
+    this.root = root
+    this.opts = opts
+    this.fsw = this.createWatcher(false)
+  }
 
-    this.fsw = chokidarWatch(root, {
+  private createWatcher(usePolling: boolean): FSWatcher {
+    const builtinIgnore = (p: string) => BUILTIN_IGNORE_BASENAMES.has(path.basename(p))
+    const userIgnore = this.opts.ignore
+    const recursive = this.opts.recursive !== false
+    const stability = this.opts.stabilityThresholdMs ?? 200
+
+    const fsw = chokidarWatch(this.root, {
       ignored: userIgnore ? [builtinIgnore, (p) => userIgnore(p as FilePath)] : [builtinIgnore],
       ignoreInitial: true,
       depth: recursive ? undefined : 0,
-      awaitWriteFinish: stability > 0 ? { stabilityThreshold: stability, pollInterval: 100 } : false
+      awaitWriteFinish: stability > 0 ? { stabilityThreshold: stability, pollInterval: 100 } : false,
+      usePolling
     })
 
-    this.fsw.on('add', (p) => this.handle({ kind: 'add', path: p as FilePath }))
-    this.fsw.on('addDir', (p) => this.handle({ kind: 'addDir', path: p as FilePath }))
-    this.fsw.on('change', (p) => this.handle({ kind: 'change', path: p as FilePath }))
-    this.fsw.on('unlink', (p) => this.handle({ kind: 'unlink', path: p as FilePath }))
-    this.fsw.on('unlinkDir', (p) => this.handle({ kind: 'unlinkDir', path: p as FilePath }))
-    this.fsw.on('ready', () => this.emitter.fire({ kind: 'ready' }))
-    this.fsw.on('error', (err) => {
+    fsw.on('add', (p) => this.handle({ kind: 'add', path: p as FilePath }))
+    fsw.on('addDir', (p) => this.handle({ kind: 'addDir', path: p as FilePath }))
+    fsw.on('change', (p) => this.handle({ kind: 'change', path: p as FilePath }))
+    fsw.on('unlink', (p) => this.handle({ kind: 'unlink', path: p as FilePath }))
+    fsw.on('unlinkDir', (p) => this.handle({ kind: 'unlinkDir', path: p as FilePath }))
+    fsw.on('ready', () => this.emitter.fire({ kind: 'ready' }))
+    fsw.on('error', (err) => this.handleError(err as Error))
+
+    return fsw
+  }
+
+  private handleError(err: Error): void {
+    const code = (err as NodeJS.ErrnoException).code
+    if (!this.closed && !this.usingPolling && (code === 'EMFILE' || err.message.includes('EMFILE'))) {
+      logger.warn('chokidar native watcher hit EMFILE; falling back to polling', err)
+      const oldWatcher = this.fsw
+      oldWatcher.removeAllListeners()
+      this.usingPolling = true
+      this.fsw = this.createWatcher(true)
+      void oldWatcher.close().catch((closeErr) => logger.warn('Failed to close EMFILE watcher', closeErr as Error))
+      return
+    }
+
+    if (!this.closed) {
       // Log proactively: chokidar errors (EMFILE, lost permissions on a
       // parent dir, etc.) silently stop event delivery; without this log a
       // dead watcher leaves the cache stale with no diagnostic trace.
-      logger.error('chokidar error', err as Error)
-      this.emitter.fire({ kind: 'error', error: err as Error })
-    })
+      logger.error('chokidar error', err)
+      this.emitter.fire({ kind: 'error', error: err })
+    }
   }
 
   /**

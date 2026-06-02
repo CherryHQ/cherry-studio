@@ -830,9 +830,8 @@
           "originalKey": "showAssistants",
           "type": "boolean",
           "defaultValue": true,
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "assistant.tab.show"
+          "status": "deleted",
+          "targetKey": null
         },
         {
           "originalKey": "showTopics",
@@ -1040,25 +1039,25 @@
           "originalKey": "topicPosition",
           "type": "string",
           "defaultValue": "left",
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "topic.position"
+          "status": "deleted",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "showTopicTime",
           "type": "boolean",
           "defaultValue": false,
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "topic.tab.show_time"
+          "status": "deleted",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "pinTopicsToTop",
           "type": "boolean",
           "defaultValue": false,
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "topic.tab.pin_to_top"
+          "status": "deleted",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "assistantIconType",
@@ -1073,24 +1072,24 @@
           "type": "boolean",
           "defaultValue": false,
           "status": "classified",
-          "category": "preferences",
-          "targetKey": "chat.input.paste_long_text_as_file"
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "pasteLongTextThreshold",
           "type": "number",
           "defaultValue": 1500,
           "status": "classified",
-          "category": "preferences",
-          "targetKey": "chat.input.paste_long_text_threshold"
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "clickAssistantToShowTopic",
           "type": "boolean",
           "defaultValue": true,
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "assistant.click_to_show_topic"
+          "status": "deleted",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "autoCheckUpdate",
@@ -1374,11 +1373,11 @@
         },
         {
           "originalKey": "mathEngine",
-          "type": "PreferenceTypes.MathEngine",
+          "type": "string",
           "defaultValue": "KaTeX",
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "chat.message.math.engine"
+          "status": "pending",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "mathEnableSingleDollar",
@@ -1391,7 +1390,7 @@
         {
           "originalKey": "messageStyle",
           "type": "PreferenceTypes.ChatMessageStyle",
-          "defaultValue": "plain",
+          "defaultValue": "bubble",
           "status": "classified",
           "category": "preferences",
           "targetKey": "chat.message.style"
@@ -1586,13 +1585,8 @@
                 "assistants",
                 "agents",
                 "store",
-                "paintings",
                 "translate",
-                "mini_app",
-                "knowledge",
-                "files",
-                "code_tools",
-                "notes"
+                "mini_app"
               ],
               "originalKey": "visible",
               "status": "pending",
@@ -1616,13 +1610,8 @@
             "assistants",
             "agents",
             "store",
-            "paintings",
             "translate",
-            "mini_app",
-            "knowledge",
-            "files",
-            "code_tools",
-            "notes"
+            "mini_app"
           ],
           "status": "pending",
           "category": "preferences",
@@ -1639,7 +1628,7 @@
         {
           "originalKey": "narrowMode",
           "type": "boolean",
-          "defaultValue": false,
+          "defaultValue": true,
           "status": "classified",
           "category": "preferences",
           "targetKey": "chat.narrow_mode"
@@ -1937,8 +1926,8 @@
           "type": "boolean",
           "defaultValue": false,
           "status": "classified",
-          "category": "preferences",
-          "targetKey": "chat.input.quick_panel.triggers_enabled"
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "disableHardwareAcceleration",
@@ -2424,9 +2413,9 @@
           "originalKey": "navbarPosition",
           "type": "'left' | 'top'",
           "defaultValue": "top",
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "ui.navbar.position"
+          "status": "pending",
+          "category": null,
+          "targetKey": null
         },
         {
           "originalKey": "apiServer",
@@ -2629,8 +2618,8 @@
                 "enabled": true
               },
               "originalKey": "toggle_show_topics",
-              "status": "classified",
-              "targetKey": "shortcut.topic.toggle_show_topics",
+              "status": "deleted",
+              "targetKey": "shortcut.topic.toggle_right_sidebar",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
@@ -2643,8 +2632,8 @@
                 "enabled": true
               },
               "originalKey": "toggle_show_assistants",
-              "status": "classified",
-              "targetKey": "shortcut.general.toggle_sidebar",
+              "status": "deleted",
+              "targetKey": "shortcut.topic.toggle_left_sidebar",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {

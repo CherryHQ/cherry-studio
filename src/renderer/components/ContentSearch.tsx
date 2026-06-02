@@ -1,6 +1,7 @@
 import { Tooltip } from '@cherrystudio/ui'
+import { usePreference } from '@data/hooks/usePreference'
 import { ActionIconButton } from '@renderer/components/Buttons'
-import NarrowLayout from '@renderer/pages/home/Messages/NarrowLayout'
+import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import { classNames, scrollElementIntoView } from '@renderer/utils'
 import { debounce } from 'lodash'
 import { CaseSensitive, ChevronDown, ChevronUp, User, WholeWord, X } from 'lucide-react'
@@ -153,6 +154,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
     const [isWholeWord, setIsWholeWord] = useState(false)
     const [allRanges, setAllRanges] = useState<Range[]>([])
     const [currentIndex, setCurrentIndex] = useState(-1)
+    const [narrowMode] = usePreference('chat.narrow_mode')
     const prevSearchText = useRef('')
     const { t } = useTranslation()
 
@@ -348,7 +350,7 @@ export const ContentSearch = React.forwardRef<ContentSearchRef, Props>(
         ref={containerRef}
         style={enableContentSearch ? {} : { display: 'none' }}
         overlayPosition={positionMode === 'absolute' ? 'absolute' : 'static'}>
-        <NarrowLayout style={{ width: '100%' }}>
+        <NarrowLayout narrowMode={narrowMode} style={{ width: '100%' }}>
           <SearchBarContainer position={positionMode}>
             <InputWrapper>
               <Input

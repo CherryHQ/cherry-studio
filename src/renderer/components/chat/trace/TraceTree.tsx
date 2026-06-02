@@ -1,0 +1,115 @@
+import { Button } from '@cherrystudio/ui'
+import { ChevronDown, ChevronRight } from 'lucide-react'
+import * as React from 'react'
+import { useEffect, useState } from 'react'
+
+import { ProgressBar } from './ProgressBar'
+import type { TraceModal } from './TraceModel'
+
+interface TreeNodeProps {
+  node: TraceModal
+  handleClick: (nodeId: string) => void
+  treeData?: TraceModal[]
+  paddingLeft?: number
+}
+
+export const convertTime = (time: number | null): string => {
+  if (time == null) {
+    return ''
+  }
+  if (time > 100000) {
+    return `${(time / 1000).toFixed(0)}s`
+  }
+  if (time > 10000) {
+    return `${(time / 1000).toFixed(1)}s`
+  }
+  if (time > 1000) {
+    return `${(time / 1000).toFixed(2)}s`
+  }
+  if (time > 100) {
+    return `${time.toFixed(0)}ms`
+  }
+  if (time > 10) {
+    return `${time.toFixed(1)}ms`
+  }
+  return time.toFixed(2) + 'ms'
+}
+
+const TreeNode: React.FC<TreeNodeProps> = ({ node, handleClick, treeData, paddingLeft = 2 }) => {
+  const [isOpen, setIsOpen] = useState(true)
+  const hasChildren = node.children && node.children.length > 0
+  const [usedTime, setUsedTime] = useState('--')
+
+  // 只在 endTime 或 node 变化时更新 usedTime
+  useEffect(() => {
+    const endTime = node.endTime || Date.now()
+    setUsedTime(convertTime(endTime - node.startTime))
+  }, [node])
+
+  return (
+    <div className="w-full min-w-0 text-xs">
+      <div
+        className="traceItem"
+        onClick={(e) => {
+          e.preventDefault()
+          handleClick(node.id)
+        }}>
+        <div className="min-w-0 text-left" style={{ paddingLeft: `${paddingLeft}px` }}>
+          <div className="flex min-w-0 flex-row items-center gap-1.5">
+            <Button
+              aria-label="Toggle"
+              aria-expanded={isOpen ? true : false}
+              variant="ghost"
+              size="icon-sm"
+              className="h-6 w-4 shrink-0 p-0"
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                setIsOpen(!isOpen)
+              }}
+              style={{
+                visibility: hasChildren ? 'visible' : 'hidden'
+              }}>
+              {isOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            </Button>
+            <span
+              role="button"
+              tabIndex={0}
+              className={`${node.status === 'ERROR' ? 'error-text' : 'default-text'} min-w-0 flex-1`}>
+              {node.name}
+            </span>
+          </div>
+        </div>
+        <div className="min-w-0 whitespace-nowrap text-center">
+          <span className="trace-token-prompt">{node.usage ? '↑' + node.usage.prompt_tokens : ''}</span>&nbsp;
+          <span className="trace-token-completion">{node.usage ? '↓' + node.usage.completion_tokens : ''}</span>
+        </div>
+        <div className="min-w-0 whitespace-nowrap text-center">
+          <span>{usedTime}</span>
+        </div>
+        <div className="min-w-0 px-1 py-2 text-center">
+          <ProgressBar progress={Math.max(node.percent, 5)} start={node.start} />
+        </div>
+      </div>
+      <div className="trace-row-divider" />
+      {hasChildren && isOpen && (
+        <div>
+          {node.children &&
+            node.children
+              .sort((a, b) => a.startTime - b.startTime)
+              .map((childNode) => (
+                <TreeNode
+                  key={childNode.id}
+                  treeData={treeData}
+                  node={childNode}
+                  handleClick={handleClick}
+                  paddingLeft={paddingLeft + 4}
+                />
+              ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+export default TreeNode

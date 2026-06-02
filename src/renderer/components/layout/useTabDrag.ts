@@ -1,9 +1,6 @@
-import { loggerService } from '@logger'
 import type { Tab } from '@renderer/hooks/useTabs'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useCallback, useEffect, useRef, useState } from 'react'
-
-const logger = loggerService.withContext('useTabDrag')
 
 const DRAG_THRESHOLD = 5
 const DETACH_THRESHOLD = 30
@@ -20,7 +17,6 @@ interface DragState {
 interface UseTabDragOptions {
   pinnedTabs: Tab[]
   normalTabs: Tab[]
-  isDetached: boolean
   reorderTabs: (type: 'pinned' | 'normal', oldIndex: number, newIndex: number) => void
   closeTab: (id: string) => void
   setActiveTab: (id: string) => void
@@ -32,7 +28,7 @@ export interface UseTabDragReturn {
   noTransition: boolean
   getTranslateX: (tabId: string, tabType: 'pinned' | 'normal') => number
   handlePointerDown: (e: React.PointerEvent, tab: Tab, tabType: 'pinned' | 'normal') => void
-  handleTabClick: (tabId: string) => void
+  handleTabClick: (tabId: string) => boolean
   isDragging: (tabId: string) => boolean
   isGhost: (tabId: string) => boolean
 }
@@ -40,7 +36,6 @@ export interface UseTabDragReturn {
 export function useTabDrag({
   pinnedTabs,
   normalTabs,
-  isDetached,
   reorderTabs,
   closeTab,
   setActiveTab
@@ -173,15 +168,21 @@ export function useTabDrag({
     (tabId: string) => {
       if (didDragRef.current) {
         didDragRef.current = false
-        return
+        return false
       }
       setActiveTab(tabId)
+      return true
     },
     [setActiveTab]
   )
 
   useEffect(() => {
     if (!dragState) return
+
+    // Temporary topics/sessions live only in this window's in-memory lease, so
+    // a detached window couldn't reconstruct them — forbid detaching them.
+    const draggedTab = [...pinnedTabs, ...normalTabs].find((t) => t.id === dragState.tabId)
+    const blockDetach = !!draggedTab?.isTemporary
 
     const onMove = (e: PointerEvent) => {
       if (e.pointerId !== dragRef.current.pointerId) return
@@ -190,29 +191,6 @@ export function useTabDrag({
       const deltaX = e.clientX - dragRef.current.startX
       const deltaY = e.clientY - dragRef.current.startY
 
-      // Detached window: dragging tab = dragging the entire window
-      if (isDetached) {
-        const pastThreshold = Math.abs(deltaX) > DRAG_THRESHOLD || Math.abs(deltaY) > DRAG_THRESHOLD
-        if (dragState.mode === 'pending' && pastThreshold) {
-          setDragState((prev) => (prev ? { ...prev, mode: 'detach' } : null))
-        }
-        // Use pastThreshold as fallback to avoid losing the first frame due to mode still being pending in closure
-        if (dragState.mode === 'detach' || pastThreshold) {
-          if (rafId.current === null) {
-            rafId.current = requestAnimationFrame(() => {
-              window.electron.ipcRenderer.send(IpcChannel.Tab_MoveWindow, {
-                tabId: dragState.tabId,
-                x: e.screenX - dragRef.current.grabOffsetX,
-                y: e.screenY - dragRef.current.grabOffsetY
-              })
-              rafId.current = null
-            })
-          }
-        }
-        return
-      }
-
-      // Main window logic
       const tabBarRect = tabBarRef.current?.getBoundingClientRect()
       if (!tabBarRect) return
 
@@ -220,13 +198,13 @@ export function useTabDrag({
         e.clientY < tabBarRect.top - DETACH_THRESHOLD || e.clientY > tabBarRect.bottom + DETACH_THRESHOLD
 
       if (dragState.mode === 'pending') {
-        if (isOutsideTabBar && Math.abs(deltaY) > DETACH_THRESHOLD) {
+        if (!blockDetach && isOutsideTabBar && Math.abs(deltaY) > DETACH_THRESHOLD) {
           setDragState((prev) => (prev ? { ...prev, mode: 'detach' } : null))
         } else if (Math.abs(deltaX) > DRAG_THRESHOLD) {
           setDragState((prev) => (prev ? { ...prev, mode: 'reorder' } : null))
         }
       } else if (dragState.mode === 'reorder') {
-        if (isOutsideTabBar) {
+        if (!blockDetach && isOutsideTabBar) {
           setDragState((prev) => (prev ? { ...prev, mode: 'detach' } : null))
         } else if (rafId.current === null) {
           rafId.current = requestAnimationFrame(() => {
@@ -237,8 +215,8 @@ export function useTabDrag({
         }
       }
 
-      // Detach mode: create/move window
-      if (dragState.mode === 'detach' || (isOutsideTabBar && Math.abs(deltaY) > DETACH_THRESHOLD)) {
+      // Detach mode: create/move window (never for temporary tabs)
+      if (!blockDetach && (dragState.mode === 'detach' || (isOutsideTabBar && Math.abs(deltaY) > DETACH_THRESHOLD))) {
         if (!dragRef.current.detachedCreated) {
           const allTabs = [...pinnedTabs, ...normalTabs]
           const tab = allTabs.find((t) => t.id === dragState.tabId)
@@ -281,29 +259,6 @@ export function useTabDrag({
         }
       }
 
-      // Detached window: try to attach back to main window on pointer up
-      if (isDetached && dragState.mode === 'detach') {
-        didDragRef.current = true
-        const allTabs = [...pinnedTabs, ...normalTabs]
-        const tab = allTabs.find((t) => t.id === dragState.tabId)
-        if (tab) {
-          window.electron.ipcRenderer
-            .invoke(IpcChannel.Tab_TryAttach, { tab, screenX: e.screenX, screenY: e.screenY })
-            .catch((err: unknown) => {
-              logger.debug(
-                'Tab_TryAttach failed, window stays detached',
-                err instanceof Error ? err : new Error(String(err))
-              )
-            })
-        }
-        setDragState(null)
-        if (rafId.current !== null) {
-          cancelAnimationFrame(rafId.current)
-          rafId.current = null
-        }
-        return
-      }
-
       if (dragState.mode === 'reorder') {
         didDragRef.current = true
         const list = dragRef.current.tabType === 'pinned' ? pinnedTabs : normalTabs
@@ -339,7 +294,7 @@ export function useTabDrag({
         rafId.current = null
       }
     }
-  }, [dragState, pinnedTabs, normalTabs, calculateInsertIndex, reorderTabs, closeTab, isDetached])
+  }, [dragState, pinnedTabs, normalTabs, calculateInsertIndex, reorderTabs, closeTab])
 
   return {
     tabBarRef,

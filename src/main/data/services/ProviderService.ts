@@ -28,7 +28,7 @@ import type {
   RuntimeApiFeatures
 } from '@shared/data/types/provider'
 import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
-import { asc, eq } from 'drizzle-orm'
+import { and, asc, eq, sql, type SQLWrapper } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('DataApi:ProviderService')
@@ -158,17 +158,26 @@ class ProviderService {
   async list(query: ListProvidersQuery): Promise<Provider[]> {
     const db = application.get('DbService').getDb()
 
-    let rows: UserProvider[]
+    const conditions: SQLWrapper[] = []
 
     if (query.enabled !== undefined) {
-      rows = await db
-        .select()
-        .from(userProviderTable)
-        .where(eq(userProviderTable.isEnabled, query.enabled))
-        .orderBy(asc(userProviderTable.orderKey))
-    } else {
-      rows = await db.select().from(userProviderTable).orderBy(asc(userProviderTable.orderKey))
+      conditions.push(eq(userProviderTable.isEnabled, query.enabled))
     }
+
+    if (query.endpointType !== undefined) {
+      // endpointConfigs is a JSON text column: { "anthropic-messages": {...}, "openai-chat": {...} }
+      // Check if the key exists and is not null
+      conditions.push(sql`json_extract(${userProviderTable.endpointConfigs}, ${'$.' + query.endpointType}) IS NOT NULL`)
+    }
+
+    const rows =
+      conditions.length > 0
+        ? await db
+            .select()
+            .from(userProviderTable)
+            .where(and(...conditions))
+            .orderBy(asc(userProviderTable.orderKey))
+        : await db.select().from(userProviderTable).orderBy(asc(userProviderTable.orderKey))
 
     return rows.map(rowToRuntimeProvider)
   }
@@ -228,7 +237,20 @@ class ProviderService {
   async update(providerId: string, dto: UpdateProviderDto): Promise<Provider> {
     const db = application.get('DbService').getDb()
 
-    // Build update object
+    // Read the raw row's providerSettings, not the merged entity. PATCH
+    // semantics require merging with the stored partial, not with runtime
+    // defaults — otherwise DEFAULT_PROVIDER_SETTINGS would be persisted
+    // into the row and break the "row stores only overrides" contract.
+    const [current] = await db
+      .select({ providerSettings: userProviderTable.providerSettings })
+      .from(userProviderTable)
+      .where(eq(userProviderTable.providerId, providerId))
+      .limit(1)
+
+    if (!current) {
+      throw DataApiErrorFactory.notFound('Provider', providerId)
+    }
+
     const updates: Partial<NewUserProvider> = {}
 
     if (dto.name !== undefined) updates.name = dto.name
@@ -236,7 +258,12 @@ class ProviderService {
     if (dto.defaultChatEndpoint !== undefined) updates.defaultChatEndpoint = dto.defaultChatEndpoint
     if (dto.authConfig !== undefined) updates.authConfig = dto.authConfig
     if (dto.apiFeatures !== undefined) updates.apiFeatures = dto.apiFeatures
-    if (dto.providerSettings !== undefined) updates.providerSettings = dto.providerSettings
+    if (dto.providerSettings !== undefined) {
+      updates.providerSettings = {
+        ...((current.providerSettings as Partial<ProviderSettings> | null) ?? {}),
+        ...dto.providerSettings
+      }
+    }
     if (dto.isEnabled !== undefined) updates.isEnabled = dto.isEnabled
 
     const [row] = await db

@@ -178,6 +178,6 @@ All tool calls execute within an internal try-catch. On error, returns an `{ isE
 
 | File | Description |
 |---|---|
-| `src/main/mcpServers/claw.ts` | ClawServer complete implementation (4 tools + helpers) |
-| `src/main/mcpServers/__tests__/claw.test.ts` | 37 unit tests |
+| `src/main/ai/mcp/servers/claw.ts` | ClawServer complete implementation (4 tools + helpers) |
+| `src/main/ai/mcp/servers/__tests__/claw.test.ts` | 37 unit tests |
 | `src/main/services/agents/services/cherryclaw/index.ts` | MCP server injection logic |

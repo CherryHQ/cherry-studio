@@ -9,19 +9,22 @@
 import { application } from '@application'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
+import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { CreateAssistantDto, ListAssistantsQuery, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { Tag } from '@shared/data/types/tag'
-import { and, asc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 
 import { modelService } from './ModelService'
 import { pinService } from './PinService'
 import { tagService } from './TagService'
+import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
 const logger = loggerService.withContext('DataApi:AssistantService')
@@ -29,6 +32,11 @@ const logger = loggerService.withContext('DataApi:AssistantService')
 type AssistantRow = typeof assistantTable.$inferSelect
 
 type AssistantRelationIds = Pick<Assistant, 'mcpServerIds' | 'knowledgeBaseIds'>
+type ListAssistantsServiceQuery = ListAssistantsQuery & {
+  updatedAtFrom?: number
+  sortBy?: 'updatedAt'
+  orderBy?: 'asc' | 'desc'
+}
 type AssistantRowWithModelName = {
   assistant: AssistantRow
   modelName: string | null
@@ -209,7 +217,7 @@ export class AssistantDataService {
    *
    * `page` and `limit` are filled by the schema default — no runtime fallback.
    */
-  async list(query: ListAssistantsQuery): Promise<{ items: Assistant[]; total: number; page: number }> {
+  async list(query: ListAssistantsServiceQuery): Promise<{ items: Assistant[]; total: number; page: number }> {
     const { page, limit } = query
     const offset = (page - 1) * limit
 
@@ -229,16 +237,38 @@ export class AssistantDataService {
       const assistantIds = await tagService.getEntityIdsByTagsTx(this.db, 'assistant', query.tagIds)
       conditions.push(assistantIds.length > 0 ? inArray(assistantTable.id, assistantIds) : sql`0 = 1`)
     }
+    if (query.updatedAtFrom !== undefined) {
+      conditions.push(gte(assistantTable.updatedAt, query.updatedAtFrom))
+    }
 
     const whereClause = and(...conditions)
+    const orderFn = query.orderBy === 'asc' ? asc : desc
+    const orderByClauses =
+      query.sortBy === 'updatedAt'
+        ? [orderFn(assistantTable.updatedAt), asc(assistantTable.id)]
+        : [
+            sql`CASE WHEN ${pinTable.orderKey} IS NULL THEN 1 ELSE 0 END`,
+            asc(pinTable.orderKey),
+            asc(assistantTable.orderKey),
+            // Production orderKeys are unique so this tiebreaker is rarely hit;
+            // tests that seed multiple rows with the same default key fall back
+            // to insertion-ordered createdAt instead of SQLite ROWID order.
+            asc(assistantTable.createdAt)
+          ]
 
+    // Pin-aware ordering: LEFT JOIN with the pin table, push pinned rows to
+    // the top (sorted by pin.orderKey ASC), then unpinned rows sorted by the
+    // assistant's own orderKey. Tests that never pin rows see the same order
+    // as before because the CASE evaluates to 1 for every row and falls
+    // through to the secondary sort untouched.
     const [rows, [{ count }]] = await Promise.all([
       this.db
-        .select({ assistant: assistantTable, modelName: userModelTable.name })
+        .select({ assistant: assistantTable, modelName: userModelTable.name, pinOrderKey: pinTable.orderKey })
         .from(assistantTable)
         .leftJoin(userModelTable, eq(assistantTable.modelId, userModelTable.id))
+        .leftJoin(pinTable, and(eq(pinTable.entityType, 'assistant'), eq(pinTable.entityId, assistantTable.id)))
         .where(whereClause)
-        .orderBy(asc(assistantTable.createdAt))
+        .orderBy(...orderByClauses)
         .limit(limit)
         .offset(offset),
       this.db.select({ count: sql<number>`count(*)` }).from(assistantTable).where(whereClause)
@@ -270,7 +300,7 @@ export class AssistantDataService {
   async create(dto: CreateAssistantDto): Promise<Assistant> {
     this.validateName(dto.name)
 
-    const { row, tags, modelName } = await this.db.transaction(async (tx) => {
+    const { row, tags, modelName } = await application.get('DbService').withWriteTx(async (tx) => {
       // Resolve modelId: explicit values strictly validated; omission falls
       // back to `chat.default_model_id` preference (stale → null with a
       // logger.warn).
@@ -278,15 +308,21 @@ export class AssistantDataService {
 
       // Split relation/tag fields from columns. Service owns emoji/settings
       // defaults; prompt/description stay omitted when undefined so DB DEFAULTs apply.
-      const { mcpServerIds, knowledgeBaseIds, tagIds, ...columnDto } = dto
-      const insertValues: typeof assistantTable.$inferInsert = {
+      // orderKey is omitted — `insertWithOrderKey` computes the next fractional
+      // key from the existing max and injects it before the DB write.
+      const { mcpServerIds, knowledgeBaseIds, tagIds, source, ...columnDto } = dto
+      const insertValues: Omit<typeof assistantTable.$inferInsert, 'orderKey'> = {
         ...columnDto,
         modelId,
+        ...(source !== undefined ? { source } : {}),
         emoji: dto.emoji ?? '🌟',
         settings: dto.settings ?? DEFAULT_ASSISTANT_SETTINGS
-      }
+      } satisfies Omit<typeof assistantTable.$inferInsert, 'orderKey'>
 
-      const [inserted] = await tx.insert(assistantTable).values(insertValues).returning()
+      const inserted = (await insertWithOrderKey(tx, assistantTable, insertValues, {
+        pkColumn: assistantTable.id,
+        scope: isNull(assistantTable.deletedAt)
+      })) as AssistantRow
 
       // Insert junction table rows
       await this.syncRelationsTx(tx, inserted.id, { mcpServerIds, knowledgeBaseIds })
@@ -340,10 +376,13 @@ export class AssistantDataService {
     }
 
     // Strip relation fields — these are synced to junction tables, not assistant columns
-    const { mcpServerIds, knowledgeBaseIds, tagIds, ...columnFields } = dto
+    const { mcpServerIds, knowledgeBaseIds, tagIds, settings: settingsPatch, ...columnFields } = dto
     const updates = Object.fromEntries(Object.entries(columnFields).filter(([, v]) => v !== undefined)) as Partial<
       typeof assistantTable.$inferInsert
     >
+    if (settingsPatch !== undefined) {
+      updates.settings = { ...current.settings, ...settingsPatch }
+    }
     const hasColumnUpdates = Object.keys(updates).length > 0
     const hasRelationUpdates = mcpServerIds !== undefined || knowledgeBaseIds !== undefined
     const hasTagUpdate = tagIds !== undefined
@@ -359,7 +398,7 @@ export class AssistantDataService {
 
     const aliveFilter = and(eq(assistantTable.id, id), isNull(assistantTable.deletedAt))
 
-    const { row, tags, modelName } = await this.db.transaction(async (tx) => {
+    const { row, tags, modelName } = await application.get('DbService').withWriteTx(async (tx) => {
       // Pre-validate the new FK target before any write — same reasoning as
       // in `create`. Skipped when the caller is unbinding (null) or leaving
       // the existing modelId untouched (undefined/empty).
@@ -414,6 +453,28 @@ export class AssistantDataService {
     return rowToAssistant(row, nextRelations, tags, modelName)
   }
 
+  /** Move a single assistant within the active (non-deleted) assistant list. */
+  async reorder(id: string, anchor: OrderRequest): Promise<void> {
+    await application.get('DbService').withWriteTx(async (tx) => {
+      await applyMoves(tx, assistantTable, [{ id, anchor }], {
+        pkColumn: assistantTable.id,
+        scope: isNull(assistantTable.deletedAt)
+      })
+    })
+  }
+
+  /** Apply multiple assistant moves atomically within the active assistant list. */
+  async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
+    if (moves.length === 0) return
+
+    await application.get('DbService').withWriteTx(async (tx) => {
+      await applyMoves(tx, assistantTable, moves, {
+        pkColumn: assistantTable.id,
+        scope: isNull(assistantTable.deletedAt)
+      })
+    })
+  }
+
   /**
    * Soft-delete an assistant (sets deletedAt timestamp).
    * The row is preserved so topic.assistantId FK remains valid
@@ -424,7 +485,7 @@ export class AssistantDataService {
   async delete(id: string): Promise<void> {
     await this.getActiveRowById(id)
 
-    await this.db.transaction(async (tx) => {
+    await application.get('DbService').withWriteTx(async (tx) => {
       await tx.update(assistantTable).set({ deletedAt: Date.now() }).where(eq(assistantTable.id, id))
       await tagService.purgeForEntityTx(tx, 'assistant', id)
       await pinService.purgeForEntityTx(tx, 'assistant', id)

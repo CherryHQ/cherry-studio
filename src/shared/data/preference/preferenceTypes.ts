@@ -1,4 +1,5 @@
 import type { BootConfigPreferenceKeys } from '@shared/data/bootConfig/bootConfigTypes'
+import type { ShortcutBinding } from '@shared/shortcuts/tokens'
 import * as z from 'zod'
 
 import type { PreferenceSchemas } from './preferenceSchemas'
@@ -23,9 +24,12 @@ export type PreferenceUpdateOptions = {
 }
 
 export type PreferenceShortcutType = {
-  binding: string[]
+  binding: ShortcutBinding
   enabled: boolean
 }
+
+/** Global menu presentation mode: native system menus or Cherry custom menus. */
+export type MenuPresentationMode = 'native' | 'cherry'
 
 export enum SelectionTriggerMode {
   Selected = 'selected',
@@ -78,6 +82,19 @@ export type SendMessageShortcut = 'Enter' | 'Shift+Enter' | 'Ctrl+Enter' | 'Comm
 
 export type AssistantTabSortType = 'tags' | 'list'
 
+export type TopicDisplayMode = 'time' | 'assistant'
+
+export type AgentSessionDisplayMode = 'time' | 'agent' | 'workdir'
+
+export type ResourceListExpansionPreferenceState = {
+  expandedSectionIds: string[]
+  expandedGroupIds: string[]
+}
+
+export type TopicGroupExpansionPreference = Record<TopicDisplayMode, ResourceListExpansionPreferenceState>
+
+export type AgentSessionGroupExpansionPreference = Record<AgentSessionDisplayMode, ResourceListExpansionPreferenceState>
+
 export type SidebarIcon =
   | 'assistants'
   | 'agents'
@@ -96,8 +113,6 @@ export type AssistantIconType = 'model' | 'emoji' | 'none'
 export type ProxyMode = 'system' | 'custom' | 'none'
 
 export type MultiModelFoldDisplayMode = 'expanded' | 'compact'
-
-export type MathEngine = 'KaTeX' | 'MathJax' | 'none'
 
 export enum UpgradeChannel {
   LATEST = 'latest', // 最新稳定版本

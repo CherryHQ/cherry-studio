@@ -3,23 +3,37 @@ import { useTranslation } from 'react-i18next'
 
 interface Props {
   disabled: boolean
+  onDisabledClick?: () => void
   sendMessage: () => void
 }
 
-const SendMessageButton: FC<Props> = ({ disabled, sendMessage }) => {
+const SendMessageButton: FC<Props> = ({ disabled, onDisabledClick, sendMessage }) => {
   const { t } = useTranslation()
 
-  const handleKeyDown = (e: KeyboardEvent<HTMLElement>) => {
-    if (!disabled && (e.key === 'Enter' || e.key === ' ')) {
-      e.preventDefault()
-      sendMessage()
+  const handleClick = () => {
+    if (disabled) {
+      onDisabledClick?.()
+      return
     }
+    sendMessage()
+  }
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLElement>) => {
+    if (e.key !== 'Enter' && e.key !== ' ') return
+
+    e.preventDefault()
+    if (disabled) {
+      onDisabledClick?.()
+      return
+    }
+
+    sendMessage()
   }
 
   return (
     <i
       className="iconfont icon-ic_send"
-      onClick={disabled ? undefined : sendMessage}
+      onClick={handleClick}
       onKeyDown={handleKeyDown}
       role="button"
       aria-label={t('chat.input.send')}

@@ -64,6 +64,10 @@
   margin-bottom: 5px;
 }
 
+.markdown p:only-child {
+  margin-bottom: 0;
+}
+
 .markdown p:first-child {
   margin-top: 0;
 }
@@ -137,6 +141,11 @@
   overflow-x: auto;
   font-family: var(--code-font-family);
   background-color: var(--color-background-mute);
+}
+
+[data-streamdown='code-block-header'] span,
+[data-streamdown='mermaid-block'] > div:first-child span {
+  text-transform: uppercase;
 }
 
 .markdown pre:has(.special-preview) {
@@ -229,8 +238,17 @@
   text-decoration: underline;
 }
 
-.markdown strong {
+/* Streamdown renders bold as `<span data-streamdown="strong">` (not a `<strong>`
+   tag), so the tag selector alone leaves it at the component's font-semibold.
+   Match the data attribute too so streamed bold is as heavy as the markdown-it
+   path (real `<strong>`) used elsewhere. */
+.markdown strong,
+.markdown [data-streamdown='strong'] {
   font-weight: bold;
+}
+
+.markdown [data-sd-animate] {
+  font-weight: inherit;
 }
 
 .markdown em {

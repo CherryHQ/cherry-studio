@@ -10,9 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as HomeRouteImport } from './routes/home'
 import { Route as AppRouteImport } from './routes/app'
-import { Route as IndexRouteImport } from './routes/index'
 import { Route as SettingsIndexRouteImport } from './routes/settings/index'
 import { Route as SettingsWebsearchRouteImport } from './routes/settings/websearch'
 import { Route as SettingsSkillsRouteImport } from './routes/settings/skills'
@@ -21,7 +19,6 @@ import { Route as SettingsSelectionAssistantRouteImport } from './routes/setting
 import { Route as SettingsScheduledTasksRouteImport } from './routes/settings/scheduled-tasks'
 import { Route as SettingsQuickAssistantRouteImport } from './routes/settings/quick-assistant'
 import { Route as SettingsProviderRouteImport } from './routes/settings/provider'
-import { Route as SettingsPromptsRouteImport } from './routes/settings/prompts'
 import { Route as SettingsPluginsRouteImport } from './routes/settings/plugins'
 import { Route as SettingsModelRouteImport } from './routes/settings/model'
 import { Route as SettingsMcpRouteImport } from './routes/settings/mcp'
@@ -41,7 +38,6 @@ import { Route as AppKnowledgeRouteImport } from './routes/app/knowledge'
 import { Route as AppFilesRouteImport } from './routes/app/files'
 import { Route as AppCodeRouteImport } from './routes/app/code'
 import { Route as AppChatRouteImport } from './routes/app/chat'
-import { Route as AppAssistantRouteImport } from './routes/app/assistant'
 import { Route as AppAgentsRouteImport } from './routes/app/agents'
 import { Route as SettingsMcpIndexRouteImport } from './routes/settings/mcp/index'
 import { Route as AppPaintingsIndexRouteImport } from './routes/app/paintings/index'
@@ -61,19 +57,9 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
-const HomeRoute = HomeRouteImport.update({
-  id: '/home',
-  path: '/home',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AppRoute = AppRouteImport.update({
   id: '/app',
   path: '/app',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsIndexRoute = SettingsIndexRouteImport.update({
@@ -115,11 +101,6 @@ const SettingsQuickAssistantRoute = SettingsQuickAssistantRouteImport.update({
 const SettingsProviderRoute = SettingsProviderRouteImport.update({
   id: '/provider',
   path: '/provider',
-  getParentRoute: () => SettingsRoute,
-} as any)
-const SettingsPromptsRoute = SettingsPromptsRouteImport.update({
-  id: '/prompts',
-  path: '/prompts',
   getParentRoute: () => SettingsRoute,
 } as any)
 const SettingsPluginsRoute = SettingsPluginsRouteImport.update({
@@ -217,11 +198,6 @@ const AppChatRoute = AppChatRouteImport.update({
   path: '/chat',
   getParentRoute: () => AppRoute,
 } as any)
-const AppAssistantRoute = AppAssistantRouteImport.update({
-  id: '/assistant',
-  path: '/assistant',
-  getParentRoute: () => AppRoute,
-} as any)
 const AppAgentsRoute = AppAgentsRouteImport.update({
   id: '/agents',
   path: '/agents',
@@ -290,12 +266,9 @@ const SettingsMcpSettingsServerIdRoute =
   } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
-  '/home': typeof HomeRoute
   '/settings': typeof SettingsRouteWithChildren
   '/app/agents': typeof AppAgentsRoute
-  '/app/assistant': typeof AppAssistantRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
   '/app/files': typeof AppFilesRoute
@@ -315,7 +288,6 @@ export interface FileRoutesByFullPath {
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/model': typeof SettingsModelRoute
   '/settings/plugins': typeof SettingsPluginsRoute
-  '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quick-assistant': typeof SettingsQuickAssistantRoute
   '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
@@ -338,11 +310,8 @@ export interface FileRoutesByFullPath {
   '/settings/mcp/settings/$serverId': typeof SettingsMcpSettingsServerIdRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
-  '/home': typeof HomeRoute
   '/app/agents': typeof AppAgentsRoute
-  '/app/assistant': typeof AppAssistantRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
   '/app/files': typeof AppFilesRoute
@@ -361,7 +330,6 @@ export interface FileRoutesByTo {
   '/settings/integrations': typeof SettingsIntegrationsRoute
   '/settings/model': typeof SettingsModelRoute
   '/settings/plugins': typeof SettingsPluginsRoute
-  '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quick-assistant': typeof SettingsQuickAssistantRoute
   '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
@@ -385,12 +353,9 @@ export interface FileRoutesByTo {
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
   '/app': typeof AppRouteWithChildren
-  '/home': typeof HomeRoute
   '/settings': typeof SettingsRouteWithChildren
   '/app/agents': typeof AppAgentsRoute
-  '/app/assistant': typeof AppAssistantRoute
   '/app/chat': typeof AppChatRoute
   '/app/code': typeof AppCodeRoute
   '/app/files': typeof AppFilesRoute
@@ -410,7 +375,6 @@ export interface FileRoutesById {
   '/settings/mcp': typeof SettingsMcpRouteWithChildren
   '/settings/model': typeof SettingsModelRoute
   '/settings/plugins': typeof SettingsPluginsRoute
-  '/settings/prompts': typeof SettingsPromptsRoute
   '/settings/provider': typeof SettingsProviderRoute
   '/settings/quick-assistant': typeof SettingsQuickAssistantRoute
   '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
@@ -435,12 +399,9 @@ export interface FileRoutesById {
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | '/'
     | '/app'
-    | '/home'
     | '/settings'
     | '/app/agents'
-    | '/app/assistant'
     | '/app/chat'
     | '/app/code'
     | '/app/files'
@@ -460,7 +421,6 @@ export interface FileRouteTypes {
     | '/settings/mcp'
     | '/settings/model'
     | '/settings/plugins'
-    | '/settings/prompts'
     | '/settings/provider'
     | '/settings/quick-assistant'
     | '/settings/scheduled-tasks'
@@ -483,11 +443,8 @@ export interface FileRouteTypes {
     | '/settings/mcp/settings/$serverId'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/'
     | '/app'
-    | '/home'
     | '/app/agents'
-    | '/app/assistant'
     | '/app/chat'
     | '/app/code'
     | '/app/files'
@@ -506,7 +463,6 @@ export interface FileRouteTypes {
     | '/settings/integrations'
     | '/settings/model'
     | '/settings/plugins'
-    | '/settings/prompts'
     | '/settings/provider'
     | '/settings/quick-assistant'
     | '/settings/scheduled-tasks'
@@ -529,12 +485,9 @@ export interface FileRouteTypes {
     | '/settings/mcp/settings/$serverId'
   id:
     | '__root__'
-    | '/'
     | '/app'
-    | '/home'
     | '/settings'
     | '/app/agents'
-    | '/app/assistant'
     | '/app/chat'
     | '/app/code'
     | '/app/files'
@@ -554,7 +507,6 @@ export interface FileRouteTypes {
     | '/settings/mcp'
     | '/settings/model'
     | '/settings/plugins'
-    | '/settings/prompts'
     | '/settings/provider'
     | '/settings/quick-assistant'
     | '/settings/scheduled-tasks'
@@ -578,9 +530,7 @@ export interface FileRouteTypes {
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRouteWithChildren
-  HomeRoute: typeof HomeRoute
   SettingsRoute: typeof SettingsRouteWithChildren
 }
 
@@ -593,25 +543,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/home': {
-      id: '/home'
-      path: '/home'
-      fullPath: '/home'
-      preLoaderRoute: typeof HomeRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/app': {
       id: '/app'
       path: '/app'
       fullPath: '/app'
       preLoaderRoute: typeof AppRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/settings/': {
@@ -668,13 +604,6 @@ declare module '@tanstack/react-router' {
       path: '/provider'
       fullPath: '/settings/provider'
       preLoaderRoute: typeof SettingsProviderRouteImport
-      parentRoute: typeof SettingsRoute
-    }
-    '/settings/prompts': {
-      id: '/settings/prompts'
-      path: '/prompts'
-      fullPath: '/settings/prompts'
-      preLoaderRoute: typeof SettingsPromptsRouteImport
       parentRoute: typeof SettingsRoute
     }
     '/settings/plugins': {
@@ -810,13 +739,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppChatRouteImport
       parentRoute: typeof AppRoute
     }
-    '/app/assistant': {
-      id: '/app/assistant'
-      path: '/assistant'
-      fullPath: '/app/assistant'
-      preLoaderRoute: typeof AppAssistantRouteImport
-      parentRoute: typeof AppRoute
-    }
     '/app/agents': {
       id: '/app/agents'
       path: '/agents'
@@ -913,7 +835,6 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteChildren {
   AppAgentsRoute: typeof AppAgentsRoute
-  AppAssistantRoute: typeof AppAssistantRoute
   AppChatRoute: typeof AppChatRoute
   AppCodeRoute: typeof AppCodeRoute
   AppFilesRoute: typeof AppFilesRoute
@@ -930,7 +851,6 @@ interface AppRouteChildren {
 
 const AppRouteChildren: AppRouteChildren = {
   AppAgentsRoute: AppAgentsRoute,
-  AppAssistantRoute: AppAssistantRoute,
   AppChatRoute: AppChatRoute,
   AppCodeRoute: AppCodeRoute,
   AppFilesRoute: AppFilesRoute,
@@ -985,7 +905,6 @@ interface SettingsRouteChildren {
   SettingsMcpRoute: typeof SettingsMcpRouteWithChildren
   SettingsModelRoute: typeof SettingsModelRoute
   SettingsPluginsRoute: typeof SettingsPluginsRoute
-  SettingsPromptsRoute: typeof SettingsPromptsRoute
   SettingsProviderRoute: typeof SettingsProviderRoute
   SettingsQuickAssistantRoute: typeof SettingsQuickAssistantRoute
   SettingsScheduledTasksRoute: typeof SettingsScheduledTasksRoute
@@ -1008,7 +927,6 @@ const SettingsRouteChildren: SettingsRouteChildren = {
   SettingsMcpRoute: SettingsMcpRouteWithChildren,
   SettingsModelRoute: SettingsModelRoute,
   SettingsPluginsRoute: SettingsPluginsRoute,
-  SettingsPromptsRoute: SettingsPromptsRoute,
   SettingsProviderRoute: SettingsProviderRoute,
   SettingsQuickAssistantRoute: SettingsQuickAssistantRoute,
   SettingsScheduledTasksRoute: SettingsScheduledTasksRoute,
@@ -1024,9 +942,7 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
 )
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
   AppRoute: AppRouteWithChildren,
-  HomeRoute: HomeRoute,
   SettingsRoute: SettingsRouteWithChildren,
 }
 export const routeTree = rootRouteImport

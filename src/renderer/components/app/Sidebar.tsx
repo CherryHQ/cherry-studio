@@ -1,29 +1,29 @@
 import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
+import {
+  emitResourceListReveal,
+  type ResourceListRevealSource
+} from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { AppLogo } from '@renderer/config/env'
+import {
+  findAppTabToFocus,
+  getOrderedVisibleSidebarIcons,
+  getSidebarApp,
+  getSidebarMenuPath,
+  resolveAppOpenUrl,
+  resolveSidebarActiveItem,
+  SIDEBAR_ICON_COMPONENTS
+} from '@renderer/config/sidebar'
 import useAvatar from '@renderer/hooks/useAvatar'
-import { modelGenerating } from '@renderer/hooks/useModel'
+import { useSettings } from '@renderer/hooks/useSettings'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { getSidebarIconLabel } from '@renderer/i18n/label'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarIcon as SidebarIconType } from '@shared/data/preference/preferenceTypes'
-import {
-  Code,
-  FileSearch,
-  Folder,
-  Languages,
-  LayoutGrid,
-  MessageCircle,
-  MousePointerClick,
-  NotepadText,
-  Palette,
-  Sparkle
-} from 'lucide-react'
 import type { Ref } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { OpenClawSidebarIcon } from '../Icons/SvgIcon'
 import UserPopup from '../Popups/UserPopup'
 import { Sidebar as UISidebar } from '../Sidebar'
 import { getSidebarLayout } from '../Sidebar/constants'
@@ -31,61 +31,34 @@ import type { SidebarMenuItem, SidebarUser } from '../Sidebar/types'
 
 const APP_LOGO = <img src={AppLogo} alt="Cherry Studio" className="h-9 w-9 rounded-lg" draggable={false} />
 const noop = () => {}
+const FLOATING_SIDEBAR_EXIT_MS = 200
+type FloatingSidebarState = 'closed' | 'open' | 'closing'
 
-const routePrefixMap: Record<SidebarIconType, string> = {
-  assistants: '/app/chat',
-  agents: '/app/agents',
-  store: '/app/assistant',
-  paintings: '/app/paintings',
-  translate: '/app/translate',
-  mini_app: '/app/mini-app',
-  knowledge: '/app/knowledge',
-  files: '/app/files',
-  code_tools: '/app/code',
-  notes: '/app/notes',
-  openclaw: '/app/openclaw'
-}
-
-const iconMap: Record<SidebarIconType, SidebarMenuItem['icon']> = {
-  assistants: MessageCircle,
-  agents: MousePointerClick,
-  store: Sparkle,
-  paintings: Palette,
-  translate: Languages,
-  mini_app: LayoutGrid,
-  knowledge: FileSearch,
-  files: Folder,
-  code_tools: Code,
-  notes: NotepadText,
-  openclaw: OpenClawSidebarIcon
-}
-
-function getMenuPath(icon: SidebarIconType): string {
-  return routePrefixMap[icon] || ''
-}
-
-function resolveActiveItem(pathname: string): SidebarIconType | '' {
-  const match = (Object.entries(routePrefixMap) as Array<[SidebarIconType, string]>).find(
-    ([, prefix]) => pathname === prefix || pathname.startsWith(`${prefix}/`)
-  )
-  return match?.[0] || ''
+function getResourceListRevealSource(menuItemId: SidebarIconType): ResourceListRevealSource | null {
+  if (menuItemId === 'assistants' || menuItemId === 'agents') return menuItemId
+  return null
 }
 
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
-  const { activeTab, updateTab, openTab } = useTabs()
+  const { activeTab, tabs, openTab, setActiveTab } = useTabs()
+  const { defaultPaintingProvider } = useSettings()
+  const [lastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
+  const [lastUsedSessionId] = usePersistCache('ui.agent.last_used_session_id')
 
-  // Sidebar width — persisted across restarts
-  const [persistedWidth, setPersistedWidth] = usePersistCache('ui.sidebar.width')
-  const [sidebarWidth, setSidebarWidth] = useState(persistedWidth)
+  // Sidebar width — persisted across restarts. Drive the CSS variable
+  // straight from the cached value so:
+  //   (1) cross-window updates flow without a local-state mirror
+  //   (2) the resize handler writes to the cache directly (event-handler
+  //       semantics) instead of via an effect on derived state, which
+  //       would loop on revalidation per the SWR write-back antipattern.
+  const [sidebarWidth, setSidebarWidth] = usePersistCache('ui.sidebar.width')
 
-  // Sync local width to CSS variable and persist cache
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.style.setProperty('--sidebar-width', `${sidebarWidth}px`)
-    setPersistedWidth(sidebarWidth)
-  }, [sidebarWidth, setPersistedWidth])
+  }, [sidebarWidth])
 
   // User avatar
   const avatar = useAvatar()
@@ -99,17 +72,47 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   )
 
   // Floating sidebar (hover reveal when hidden)
-  const [hoverVisible, setHoverVisible] = useState(false)
+  const [floatingSidebarState, setFloatingSidebarState] = useState<FloatingSidebarState>('closed')
+  const hoverCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const layout = getSidebarLayout(sidebarWidth)
+  const hoverVisible = floatingSidebarState !== 'closed'
+  const hoverClosing = floatingSidebarState === 'closing'
+
+  const clearHoverCloseTimer = useCallback(() => {
+    if (!hoverCloseTimerRef.current) return
+    clearTimeout(hoverCloseTimerRef.current)
+    hoverCloseTimerRef.current = null
+  }, [])
+
+  const setFloatingSidebarVisible = useCallback(
+    (visible: boolean) => {
+      if (visible) {
+        clearHoverCloseTimer()
+        setFloatingSidebarState('open')
+        return
+      }
+
+      if (floatingSidebarState !== 'open') return
+
+      setFloatingSidebarState('closing')
+      hoverCloseTimerRef.current = setTimeout(() => {
+        setFloatingSidebarState('closed')
+        hoverCloseTimerRef.current = null
+      }, FLOATING_SIDEBAR_EXIT_MS)
+    },
+    [clearHoverCloseTimer, floatingSidebarState]
+  )
+
+  useEffect(() => clearHoverCloseTimer, [clearHoverCloseTimer])
 
   // Menu items
   const pathname = activeTab?.url || '/'
 
   const items = useMemo<SidebarMenuItem[]>(
     () =>
-      visibleSidebarIcons.flatMap((icon) => {
-        const path = getMenuPath(icon)
-        const Icon = iconMap[icon]
+      getOrderedVisibleSidebarIcons(visibleSidebarIcons).flatMap((icon) => {
+        const path = getSidebarMenuPath(icon, defaultPaintingProvider)
+        const Icon = SIDEBAR_ICON_COMPONENTS[icon]
         if (!path || !Icon) {
           return []
         }
@@ -121,38 +124,34 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           }
         ]
       }),
-    [visibleSidebarIcons]
+    [defaultPaintingProvider, visibleSidebarIcons]
   )
 
-  const activeItem = resolveActiveItem(pathname)
+  const activeItem = resolveSidebarActiveItem(pathname)
 
   const handleNavigate = useCallback(
-    async (menuItemId: string) => {
-      const menuId = menuItemId as SidebarIconType
-      const path = getMenuPath(menuId)
-      if (!path) return
+    (menuItemId: string) => {
+      const app = getSidebarApp(menuItemId as SidebarIconType)
+      if (!app) return
 
-      try {
-        await modelGenerating()
-      } catch {
+      const navCtx = { defaultPaintingProvider, lastUsedTopicId, lastUsedSessionId }
+      const existingId = findAppTabToFocus(app, tabs, navCtx)
+      const revealSource = getResourceListRevealSource(app.id)
+      if (existingId) {
+        setActiveTab(existingId)
+        if (revealSource) {
+          emitResourceListReveal({ source: revealSource, tabId: existingId })
+        }
         return
       }
 
-      if (activeTab?.isPinned) {
-        openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })
-        return
-      }
-
-      if (activeTab && activeTab.id !== 'home') {
-        // Reusing the active tab — clear any per-entity icon (e.g. a mini-app
-        // logo carried over from /app/mini-app/<id>) so the new top-level
-        // route falls back to its default Lucide icon.
-        updateTab(activeTab.id, { url: path, title: getDefaultRouteTitle(path), icon: undefined })
-      } else {
-        openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })
+      const url = resolveAppOpenUrl(app, navCtx)
+      const openedId = openTab(url, { title: getDefaultRouteTitle(url) })
+      if (revealSource && openedId) {
+        emitResourceListReveal({ source: revealSource, tabId: openedId })
       }
     },
-    [activeTab, updateTab, openTab]
+    [tabs, openTab, setActiveTab, defaultPaintingProvider, lastUsedTopicId, lastUsedSessionId]
   )
 
   // Common props shared between normal and floating sidebar
@@ -169,13 +168,19 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
 
   return (
     <div ref={ref} id="app-sidebar" className="relative h-full [-webkit-app-region:no-drag]">
-      <UISidebar width={sidebarWidth} setWidth={setSidebarWidth} onHoverChange={setHoverVisible} {...sidebarProps} />
+      <UISidebar
+        width={sidebarWidth}
+        setWidth={setSidebarWidth}
+        onHoverChange={setFloatingSidebarVisible}
+        {...sidebarProps}
+      />
       {hoverVisible && layout === 'hidden' && (
         <UISidebar
           width={sidebarWidth}
           setWidth={setSidebarWidth}
           isFloating
-          onDismiss={() => setHoverVisible(false)}
+          isFloatingClosing={hoverClosing}
+          onDismiss={() => setFloatingSidebarVisible(false)}
           {...sidebarProps}
         />
       )}

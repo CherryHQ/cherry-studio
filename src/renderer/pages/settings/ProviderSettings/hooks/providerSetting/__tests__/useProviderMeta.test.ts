@@ -6,7 +6,7 @@ import { useProviderMeta } from '../useProviderMeta'
 const useProviderMock = vi.fn()
 const useTranslationMock = vi.fn()
 
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args)
 }))
 
@@ -118,5 +118,92 @@ describe('useProviderMeta', () => {
     expect(result.current.apiKeyWebsite).toBeUndefined()
     expect(result.current.docsWebsite).toBeUndefined()
     expect(result.current.modelsWebsite).toBeUndefined()
+  })
+
+  it('shows api options for system OpenAI-compatible providers with visible settings', () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'openai',
+        presetProviderId: 'openai',
+        name: 'OpenAI',
+        defaultChatEndpoint: 'openai-responses',
+        authType: 'api-key',
+        apiKeys: [],
+        apiFeatures: {
+          arrayContent: true,
+          streamOptions: true,
+          developerRole: false,
+          serviceTier: true,
+          verbosity: false,
+          enableThinking: true
+        },
+        settings: {},
+        isEnabled: true
+      }
+    })
+
+    const { result } = renderHook(() => useProviderMeta('openai'))
+
+    expect(result.current.showApiOptionsButton).toBe(true)
+  })
+
+  it('keeps api options hidden for system OpenAI-compatible providers without visible settings', () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'github',
+        presetProviderId: 'github',
+        name: 'GitHub Models',
+        defaultChatEndpoint: 'openai-chat-completions',
+        endpointConfigs: {
+          'openai-chat-completions': {
+            baseUrl: 'https://models.github.ai/inference',
+            adapterFamily: 'openai-compatible'
+          }
+        },
+        authType: 'api-key',
+        apiKeys: [],
+        apiFeatures: {
+          arrayContent: true,
+          streamOptions: true,
+          developerRole: false,
+          serviceTier: false,
+          verbosity: false,
+          enableThinking: true
+        },
+        settings: {},
+        isEnabled: true
+      }
+    })
+
+    const { result } = renderHook(() => useProviderMeta('github'))
+
+    expect(result.current.showApiOptionsButton).toBe(false)
+  })
+
+  it('keeps api options hidden for system providers without supported api options', () => {
+    useProviderMock.mockReturnValue({
+      provider: {
+        id: 'google',
+        presetProviderId: 'gemini',
+        name: 'Gemini',
+        defaultChatEndpoint: 'google-generate-content',
+        authType: 'api-key',
+        apiKeys: [],
+        apiFeatures: {
+          arrayContent: true,
+          streamOptions: true,
+          developerRole: false,
+          serviceTier: false,
+          verbosity: false,
+          enableThinking: true
+        },
+        settings: {},
+        isEnabled: true
+      }
+    })
+
+    const { result } = renderHook(() => useProviderMeta('google'))
+
+    expect(result.current.showApiOptionsButton).toBe(false)
   })
 })

@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { parseMatchPattern } from '@renderer/utils/blacklistMatchPattern'
+import { parseMatchPattern } from '@shared/utils/blacklistMatchPattern'
 
 const logger = loggerService.withContext('WebSearchBlacklist')
 

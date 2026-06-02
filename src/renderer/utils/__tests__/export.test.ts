@@ -1,4 +1,6 @@
 // Import Message, MessageBlock, and necessary enums
+import { getTopicMessages } from '@renderer/hooks/useTopic'
+import type { MessageExportView } from '@renderer/types/messageExport'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
 import { AssistantMessageStatus, MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { afterEach, beforeEach, describe, expect, it, test, vi } from 'vitest'
@@ -41,17 +43,41 @@ vi.mock('@renderer/i18n/label', () => ({
 // Mock the find utility functions - crucial for the test
 vi.mock('@renderer/utils/messageUtils/find', () => ({
   // Provide type safety for mocked message
-  getMainTextContent: vi.fn((message: Message & { _fullBlocks?: MessageBlock[] }) => {
+  getMainTextContent: vi.fn((message: Message & { _fullBlocks?: MessageBlock[]; parts?: any[] }) => {
+    if (message.parts?.length) {
+      return message.parts
+        .filter((part) => part.type === 'text')
+        .map((part) => part.text || '')
+        .filter((text) => text.trim().length > 0)
+        .join('\n\n')
+    }
     const mainTextBlock = message._fullBlocks?.find((b) => b.type === MessageBlockType.MAIN_TEXT)
     return mainTextBlock?.content || '' // Assuming content exists on MainTextBlock
   }),
-  getThinkingContent: vi.fn((message: Message & { _fullBlocks?: MessageBlock[] }) => {
+  getThinkingContent: vi.fn((message: Message & { _fullBlocks?: MessageBlock[]; parts?: any[] }) => {
+    if (message.parts?.length) {
+      return message.parts
+        .filter((part) => part.type === 'reasoning')
+        .map((part) => part.text || '')
+        .filter((text) => text.trim().length > 0)
+        .join('\n\n')
+    }
     const thinkingBlock = message._fullBlocks?.find((b) => b.type === MessageBlockType.THINKING)
     // Assuming content exists on ThinkingBlock
     // Need to cast block to access content if not on base type
     return (thinkingBlock as any)?.content || ''
   }),
-  getCitationContent: vi.fn((message: Message & { _fullBlocks?: MessageBlock[] }) => {
+  getCitationContent: vi.fn((message: Message & { _fullBlocks?: MessageBlock[]; parts?: any[] }) => {
+    if (message.parts?.length) {
+      const citations = message.parts.flatMap((part) => (part as any).providerMetadata?.cherry?.references || [])
+      if (citations.length === 0) return ''
+      return citations
+        .map(
+          (ref, index) =>
+            `[${index + 1}] [${ref.url || `https://example${index + 1}.com`}](${ref.title || `Example Citation ${index + 1}`})`
+        )
+        .join('\n\n')
+    }
     const citationBlocks = message._fullBlocks?.filter((b) => b.type === MessageBlockType.CITATION) || []
     // Return empty string if no citation blocks, otherwise mock citation content
     if (citationBlocks.length === 0) return ''
@@ -62,11 +88,9 @@ vi.mock('@renderer/utils/messageUtils/find', () => ({
   })
 }))
 
-// Mock TopicManager for dynamic import
+// Mock getTopicMessages for dynamic import
 vi.mock('@renderer/hooks/useTopic', () => ({
-  TopicManager: {
-    getTopicMessages: vi.fn()
-  }
+  getTopicMessages: vi.fn()
 }))
 
 // PreferenceService is now mocked globally in tests/renderer.setup.ts
@@ -179,6 +203,17 @@ function createMessage(
   })
 
   return message
+}
+
+function createExportView(parts: any[], role: 'user' | 'assistant' | 'system' = 'assistant'): MessageExportView {
+  return {
+    id: `export-${Math.random().toString(36).substring(7)}`,
+    role,
+    topicId: 'topic_default',
+    createdAt: '2024-01-01T00:00:00Z',
+    status: 'success',
+    parts: parts as MessageExportView['parts']
+  }
 }
 
 // --- Global Test Setup ---
@@ -319,6 +354,68 @@ describe('export', () => {
       expect(markdown).toContain('Main content')
       expect(markdown).toContain('[^1]: [https://example1.com](Example Citation 1)')
     })
+
+    it('should format parts-only export view text', async () => {
+      const message = createExportView([{ type: 'text', text: 'Parts-only content' }])
+
+      const markdown = await messageToMarkdown(message)
+
+      expect(markdown).toContain('## 🤖 Assistant')
+      expect(markdown).toContain('Parts-only content')
+    })
+
+    it('should format composer skill tokens as pasteable markers instead of hidden prompt text', async () => {
+      const message = createExportView(
+        [
+          {
+            type: 'text',
+            text: 'Use the find-skills skill. **hello**',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    {
+                      id: 'skill:find-skills',
+                      kind: 'skill',
+                      label: 'find-skills',
+                      index: 0,
+                      textOffset: 0,
+                      promptText: 'Use the find-skills skill.'
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        'user'
+      )
+
+      const markdown = await messageToMarkdown(message)
+
+      expect(markdown).toContain('/find-skills/ **hello**')
+      expect(markdown).not.toContain('Use the find-skills skill.')
+    })
+
+    it('should format parts-only export view citations', async () => {
+      const message = createExportView([
+        {
+          type: 'text',
+          text: 'Answer with citation [1]',
+          providerMetadata: {
+            cherry: {
+              references: [{ category: 'citation', url: 'https://example.com', title: 'Example' }]
+            }
+          }
+        }
+      ])
+
+      const markdown = await messageToMarkdown(message)
+
+      expect(markdown).toContain('Answer with citation')
+      expect(markdown).toContain('[^1]: [https://example.com](Example)')
+    })
   })
 
   describe('messageToMarkdownWithReasoning', () => {
@@ -388,6 +485,18 @@ describe('export', () => {
       expect(markdown).toContain('[^1]: [https://example1.com](Example Citation 1)')
     })
 
+    it('should include reasoning from parts-only export view', async () => {
+      const message = createExportView([
+        { type: 'reasoning', text: 'Parts reasoning' },
+        { type: 'text', text: 'Parts answer' }
+      ])
+
+      const markdown = await messageToMarkdownWithReasoning(message)
+
+      expect(markdown).toContain('Parts answer')
+      expect(markdown).toContain('Parts reasoning')
+    })
+
     it('should format citations as footnotes when standardize citations is enabled', () => {
       // Remove this test as it's testing integration with mocked store settings
       // The functionality is already tested in the Citation formatting section
@@ -433,16 +542,8 @@ describe('export', () => {
   })
 
   describe('formatMessageAsPlainText (via topicToPlainText)', () => {
-    beforeEach(async () => {
+    beforeEach(() => {
       vi.clearAllMocks()
-      vi.resetModules()
-
-      // Re-mock TopicManager for this test suite
-      vi.doMock('@renderer/hooks/useTopic', () => ({
-        TopicManager: {
-          getTopicMessages: vi.fn()
-        }
-      }))
     })
 
     it('should format user and assistant messages correctly to plain text with roles', async () => {
@@ -461,9 +562,8 @@ describe('export', () => {
         updatedAt: '',
         type: TopicType.Chat
       }
-      // Mock TopicManager.getTopicMessages to return the expected messages
-      const { TopicManager } = await import('@renderer/hooks/useTopic')
-      ;(TopicManager.getTopicMessages as any).mockResolvedValue([userMsg, assistantMsg])
+      // Mock getTopicMessages to return the expected messages
+      ;(getTopicMessages as any).mockResolvedValue([userMsg, assistantMsg])
       // Specific mock for this test to check formatting
       ;(markdownToPlainText as any).mockImplementation((str: string) => str.replace(/[#*]/g, ''))
 
@@ -531,19 +631,46 @@ describe('export', () => {
       expect(result).toBe('Header\nBold and italic text\nList item')
       expect(markdownToPlainText).toHaveBeenCalledWith('# Header\n**Bold** and *italic* text\n- List item')
     })
+
+    it('should copy composer skill tokens as pasteable markers instead of hidden prompt text', () => {
+      const testMessage = createExportView(
+        [
+          {
+            type: 'text',
+            text: 'Use the pdf skill. hello',
+            providerMetadata: {
+              cherry: {
+                composer: {
+                  version: 1,
+                  tokens: [
+                    {
+                      id: 'skill:pdf',
+                      kind: 'skill',
+                      label: 'pdf',
+                      index: 0,
+                      textOffset: 0,
+                      promptText: 'Use the pdf skill.'
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        ],
+        'user'
+      )
+      ;(markdownToPlainText as any).mockImplementation((str: string) => str)
+
+      const result = messageToPlainText(testMessage)
+
+      expect(result).toBe('/pdf/ hello')
+      expect(markdownToPlainText).toHaveBeenCalledWith('/pdf/ hello')
+    })
   })
 
   describe('messagesToPlainText (via topicToPlainText)', () => {
-    beforeEach(async () => {
-      vi.clearAllMocks() // Clear mocks before each test in this suite
-      vi.resetModules() // Reset module cache
-
-      // Re-import and re-mock TopicManager to ensure clean state
-      vi.doMock('@renderer/hooks/useTopic', () => ({
-        TopicManager: {
-          getTopicMessages: vi.fn()
-        }
-      }))
+    beforeEach(() => {
+      vi.clearAllMocks()
     })
 
     it('should join multiple formatted plain text messages with double newlines', async () => {
@@ -562,9 +689,8 @@ describe('export', () => {
         updatedAt: '',
         type: TopicType.Chat
       }
-      // Mock TopicManager.getTopicMessages to return the expected messages
-      const { TopicManager } = await import('@renderer/hooks/useTopic')
-      ;(TopicManager.getTopicMessages as any).mockResolvedValue([msg1, msg2])
+      // Mock getTopicMessages to return the expected messages
+      ;(getTopicMessages as any).mockResolvedValue([msg1, msg2])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str) // Pass-through
 
       const plainText = await topicToPlainText(testTopic)
@@ -598,9 +724,8 @@ describe('export', () => {
         updatedAt: '',
         type: TopicType.Chat
       }
-      // Mock TopicManager.getTopicMessages to return the expected messages
-      const { TopicManager } = await import('@renderer/hooks/useTopic')
-      ;(TopicManager.getTopicMessages as any).mockResolvedValue([msgWithEmpty])
+      // Mock getTopicMessages to return the expected messages
+      ;(getTopicMessages as any).mockResolvedValue([msgWithEmpty])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str)
 
       const result = await topicToPlainText(testTopic)
@@ -620,9 +745,8 @@ describe('export', () => {
         updatedAt: '',
         type: TopicType.Chat
       }
-      // Mock TopicManager.getTopicMessages to return the expected messages
-      const { TopicManager } = await import('@renderer/hooks/useTopic')
-      ;(TopicManager.getTopicMessages as any).mockResolvedValue([msgWithSpecial])
+      // Mock getTopicMessages to return the expected messages
+      ;(getTopicMessages as any).mockResolvedValue([msgWithSpecial])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str)
 
       const result = await topicToPlainText(testTopic)
@@ -647,9 +771,8 @@ describe('export', () => {
         updatedAt: '',
         type: TopicType.Chat
       }
-      // Mock TopicManager.getTopicMessages to return the expected messages
-      const { TopicManager } = await import('@renderer/hooks/useTopic')
-      ;(TopicManager.getTopicMessages as any).mockResolvedValue([msg1, msg2])
+      // Mock getTopicMessages to return the expected messages
+      ;(getTopicMessages as any).mockResolvedValue([msg1, msg2])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str.replace(/[#*_]/g, ''))
 
       const result = await topicToPlainText(testTopic)
@@ -669,9 +792,8 @@ describe('export', () => {
         updatedAt: '',
         type: TopicType.Chat
       }
-      // Mock TopicManager.getTopicMessages to return empty array
-      const { TopicManager } = await import('@renderer/hooks/useTopic')
-      ;(TopicManager.getTopicMessages as any).mockResolvedValue([])
+      // Mock getTopicMessages to return empty array
+      ;(getTopicMessages as any).mockResolvedValue([])
       ;(markdownToPlainText as any).mockImplementation((str: string) => str.replace(/[#*_]/g, ''))
 
       const result = await topicToPlainText(testTopic)
@@ -689,9 +811,8 @@ describe('export', () => {
         updatedAt: '',
         type: TopicType.Chat
       }
-      // Mock TopicManager.getTopicMessages to return empty array for null case
-      const { TopicManager } = await import('@renderer/hooks/useTopic')
-      ;(TopicManager.getTopicMessages as any).mockResolvedValue([])
+      // Mock getTopicMessages to return empty array for null case
+      ;(getTopicMessages as any).mockResolvedValue([])
 
       const result = await topicToPlainText(testTopic)
       expect(result).toBe('Null Messages Topic')

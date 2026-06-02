@@ -1,7 +1,11 @@
 import { LoadingOutlined } from '@ant-design/icons'
+import { MessageContentProvider } from '@renderer/components/chat/messages'
+import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import Scrollbar from '@renderer/components/Scrollbar'
-import { useTopicMessages } from '@renderer/hooks/useMessageOperations'
-import type { Assistant, Topic } from '@renderer/types'
+import { useMessageListRenderConfig } from '@renderer/pages/shared/messages/hooks/useMessageListRenderConfig'
+import { useMessagePlatformActions } from '@renderer/pages/shared/messages/hooks/useMessagePlatformActions'
+import type { Assistant } from '@renderer/types'
+import type { CherryMessagePart } from '@shared/data/types/message'
 import type { FC } from 'react'
 import styled from 'styled-components'
 
@@ -9,25 +13,33 @@ import MessageItem from './Message'
 
 interface Props {
   assistant: Assistant
-  topic: Topic
   route: string
   isOutputted: boolean
+  messages: MessageListItem[]
+  partsByMessageId: Record<string, CherryMessagePart[]>
 }
 
 interface ContainerProps {
   right?: boolean
 }
 
-const Messages: FC<Props> = ({ assistant, topic, route, isOutputted }) => {
-  const messages = useTopicMessages(topic.id)
+const Messages: FC<Props> = ({ assistant, route, isOutputted, messages, partsByMessageId }) => {
+  const { renderConfig } = useMessageListRenderConfig()
+  const platformActions = useMessagePlatformActions()
 
   return (
-    <Container id="messages" key={assistant.id}>
-      {!isOutputted && <LoadingOutlined style={{ fontSize: 16 }} spin />}
-      {[...messages].reverse().map((message, index) => (
-        <MessageItem key={message.id} message={message} index={index} total={messages.length} route={route} />
-      ))}
-    </Container>
+    <MessageContentProvider
+      messages={messages}
+      partsByMessageId={partsByMessageId}
+      renderConfig={renderConfig}
+      actions={platformActions}>
+      <Container id="messages" key={assistant.id}>
+        {!isOutputted && <LoadingOutlined style={{ fontSize: 16 }} spin />}
+        {[...messages].reverse().map((message, index) => (
+          <MessageItem key={message.id} message={message} index={index} total={messages.length} route={route} />
+        ))}
+      </Container>
+    </MessageContentProvider>
   )
 }
 
