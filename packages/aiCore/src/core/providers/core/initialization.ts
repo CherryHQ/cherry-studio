@@ -205,8 +205,6 @@ const OpenAIExtension = ProviderExtension.create({
 
 const OpenRouterExtension = ProviderExtension.create({
   name: 'openrouter',
-  // TODO: 实现注册后修改拓展配置
-  aliases: ['tokenflux'] as const,
   supportsImageGeneration: true,
   create: createOpenRouter,
   toolFactories: {

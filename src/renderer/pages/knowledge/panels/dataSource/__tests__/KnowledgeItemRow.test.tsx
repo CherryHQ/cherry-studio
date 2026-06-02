@@ -22,10 +22,6 @@ vi.mock('@renderer/utils/error', () => ({
     `${prefix}: ${error instanceof Error ? error.message : String(error)}`
 }))
 
-vi.mock('@renderer/utils', () => ({
-  formatFileSize: () => '1 KB'
-}))
-
 vi.mock('@cherrystudio/ui', async () => {
   const React = await import('react')
   const PopoverContext = React.createContext<{
@@ -36,8 +32,53 @@ vi.mock('@cherrystudio/ui', async () => {
   })
 
   return {
+    Badge: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+      <span {...props}>{children}</span>
+    ),
     Button: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
       <button {...props}>{children}</button>
+    ),
+    Checkbox: ({
+      checked,
+      onCheckedChange,
+      'aria-label': ariaLabel
+    }: {
+      checked?: boolean | 'indeterminate'
+      onCheckedChange?: (checked: boolean | 'indeterminate') => void
+      'aria-label'?: string
+    }) => (
+      <input
+        type="checkbox"
+        aria-label={ariaLabel}
+        checked={checked === true}
+        onChange={(event) => onCheckedChange?.(event.target.checked)}
+      />
+    ),
+    TableRow: ({
+      children,
+      onClick,
+      ...props
+    }: {
+      children: ReactNode
+      onClick?: (event: React.MouseEvent) => void
+      [key: string]: unknown
+    }) => (
+      <tr onClick={onClick} {...props}>
+        {children}
+      </tr>
+    ),
+    TableCell: ({
+      children,
+      onClick,
+      ...props
+    }: {
+      children: ReactNode
+      onClick?: (event: React.MouseEvent) => void
+      [key: string]: unknown
+    }) => (
+      <td onClick={onClick} {...props}>
+        {children}
+      </td>
     ),
     MenuItem: ({ icon, label, ...props }: { icon?: ReactNode; label: string; [key: string]: unknown }) => (
       <button {...props}>
@@ -120,6 +161,12 @@ vi.mock('react-i18next', () => ({
           'knowledge.data_source.delete_failed': '删除数据源失败',
           'knowledge.data_source.preview.failed': '预览原文失败',
           'knowledge.data_source.reindex_failed': '数据源重新索引失败',
+          'knowledge.data_source.filters.file': '文件',
+          'knowledge.data_source.filters.note': '笔记',
+          'knowledge.data_source.filters.directory': '目录',
+          'knowledge.data_source.filters.url': '网址',
+          'knowledge.data_source.filters.sitemap': '网站',
+          'knowledge.data_source.table.select_row': '选择行',
           'common.more': '更多',
           'knowledge.rag.file_processing': '文件处理'
         }) as Record<string, string>
@@ -128,6 +175,8 @@ vi.mock('react-i18next', () => ({
 }))
 
 const defaultHandlers = {
+  selected: false,
+  onToggleSelect: () => undefined,
   onClick: () => undefined,
   onDelete: () => undefined,
   onPreviewSource: () => undefined,
@@ -169,7 +218,8 @@ describe('KnowledgeItemRow', () => {
 
     expect(screen.getByText('季度报告.pdf')).toBeInTheDocument()
     expect(screen.getByText('pdf')).toBeInTheDocument()
-    expect(screen.getByText('刚刚')).toBeInTheDocument()
+    expect(screen.getByText('文件')).toBeInTheDocument()
+    expect(screen.getAllByText('刚刚')).toHaveLength(2)
     expect(mockUseQuery).toHaveBeenCalledWith('/files/entries/:id', {
       params: { id: '019606a0-0000-7000-8000-000000000001' },
       enabled: true
@@ -183,6 +233,7 @@ describe('KnowledgeItemRow', () => {
 
     expect(screen.getByText('fallback.md')).toBeInTheDocument()
     expect(screen.getByText('md')).toBeInTheDocument()
+    expect(screen.getByText('文件')).toBeInTheDocument()
   })
 
   it('renders the completed status label for ready items', () => {

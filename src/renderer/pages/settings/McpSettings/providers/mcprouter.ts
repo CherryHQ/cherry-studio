@@ -41,17 +41,12 @@ interface MCPRouterServer {
 interface MCPRouterSyncResult {
   success: boolean
   message: string
-  addedServers: MCPServer[]
-  updatedServers: MCPServer[]
   allServers: MCPServer[]
   errorDetails?: string
 }
 
 // Function to fetch and process MCPRouter servers
-export const syncMCPRouterServers = async (
-  token: string,
-  existingServers: MCPServer[]
-): Promise<MCPRouterSyncResult> => {
+export const syncMCPRouterServers = async (token: string): Promise<MCPRouterSyncResult> => {
   const t = i18next.t
 
   try {
@@ -72,8 +67,6 @@ export const syncMCPRouterServers = async (
       return {
         success: false,
         message: t('settings.mcp.sync.unauthorized', 'Sync Unauthorized'),
-        addedServers: [],
-        updatedServers: [],
         allServers: []
       }
     }
@@ -83,8 +76,6 @@ export const syncMCPRouterServers = async (
       return {
         success: false,
         message: t('settings.mcp.sync.error'),
-        addedServers: [],
-        updatedServers: [],
         allServers: [],
         errorDetails: `Status: ${response.status}`
       }
@@ -98,21 +89,14 @@ export const syncMCPRouterServers = async (
       return {
         success: true,
         message: t('settings.mcp.sync.noServersAvailable', 'No MCP servers available'),
-        addedServers: [],
-        updatedServers: [],
         allServers: []
       }
     }
 
     // Transform MCPRouter servers to MCP servers format
-    const addedServers: MCPServer[] = []
-    const updatedServers: MCPServer[] = []
     const allServers: MCPServer[] = []
     for (const server of servers) {
       try {
-        // Check if server already exists using server_key
-        const existingServer = existingServers.find((s) => s.id === `@mcprouter/${server.server_key}`)
-
         const mcpServer: MCPServer = {
           id: `@mcprouter/${server.server_key}`,
           name: server.title || server.name || `MCPRouter Server ${nanoid()}`,
@@ -128,26 +112,15 @@ export const syncMCPRouterServers = async (
             Authorization: `Bearer ${token}`
           }
         }
-
-        if (existingServer) {
-          // Update existing server with corrected URL and latest info
-          updatedServers.push(mcpServer)
-        } else {
-          // Add new server
-          addedServers.push(mcpServer)
-        }
         allServers.push(mcpServer)
       } catch (err) {
         logger.error('Error processing MCPRouter server:', err as Error)
       }
     }
 
-    const totalServers = addedServers.length + updatedServers.length
     return {
       success: true,
-      message: t('settings.mcp.sync.success', { count: totalServers }),
-      addedServers,
-      updatedServers,
+      message: t('settings.mcp.sync.success', { count: allServers.length }),
       allServers
     }
   } catch (error) {
@@ -155,8 +128,6 @@ export const syncMCPRouterServers = async (
     return {
       success: false,
       message: t('settings.mcp.sync.error'),
-      addedServers: [],
-      updatedServers: [],
       allServers: [],
       errorDetails: String(error)
     }

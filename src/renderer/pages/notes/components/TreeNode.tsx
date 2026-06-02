@@ -119,16 +119,17 @@ const TreeNode = memo<TreeNodeProps>(({ node, depth, renderChildren = true, onHi
   if (isHintNode) {
     return (
       <div key={node.id}>
-        <div className="relative mb-0.5 flex cursor-pointer items-center justify-between rounded-sm border border-transparent bg-transparent px-1.5 py-1 transition-all duration-200 hover:bg-muted">
+        <button
+          type="button"
+          className="relative mb-0.5 flex min-h-8 w-full cursor-pointer items-center justify-between rounded-md border border-border-muted border-dashed bg-background px-2.5 py-1.5 text-left transition-all duration-200 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={onHintClick}>
           <div className="flex min-w-0 flex-1 items-center">
             <div className="mr-2 flex shrink-0 items-center justify-center text-muted-foreground">
-              <FilePlus size={16} />
+              <FilePlus size={14} />
             </div>
-            <div className="text-muted-foreground text-xs italic" onClick={onHintClick}>
-              {t('notes.drop_markdown_hint')}
-            </div>
+            <div className="text-muted-foreground text-xs leading-4">{t('notes.drop_markdown_hint')}</div>
           </div>
-        </div>
+        </button>
       </div>
     )
   }

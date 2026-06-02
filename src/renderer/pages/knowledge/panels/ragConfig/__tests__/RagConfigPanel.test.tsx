@@ -1,4 +1,5 @@
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
+import { ENDPOINT_TYPE, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -7,6 +8,8 @@ import RagConfigPanel from '../RagConfigPanel'
 
 const mockUseKnowledgeRagConfig = vi.fn()
 const mockSave = vi.fn()
+const mockDataApiGet = vi.fn()
+const mockGetEmbeddingDimensions = vi.fn()
 
 const renderRagConfigPanel = (onRestoreBase = vi.fn(), baseOverrides: Partial<KnowledgeBase> = {}) => {
   return render(<RagConfigPanel base={createKnowledgeBase(baseOverrides)} onRestoreBase={onRestoreBase} />)
@@ -17,8 +20,40 @@ vi.mock('@cherrystudio/ui', async () => {
   const SelectContext = React.createContext<{ onValueChange?: (value: string) => void }>({})
 
   return {
-    Button: ({ children, loading, ...props }: { children: ReactNode; loading?: boolean; [key: string]: unknown }) => (
-      <button {...props}>{loading ? 'loading' : children}</button>
+    Alert: ({
+      action,
+      description,
+      message,
+      ...props
+    }: {
+      action?: ReactNode
+      description?: ReactNode
+      message?: ReactNode
+      [key: string]: unknown
+    }) => (
+      <div {...props}>
+        <div>{message}</div>
+        <div>{description}</div>
+        {action}
+      </div>
+    ),
+    Button: ({
+      children,
+      loading,
+      type = 'button',
+      ...props
+    }: {
+      children: ReactNode
+      loading?: boolean
+      type?: 'button' | 'submit' | 'reset'
+      [key: string]: unknown
+    }) => (
+      <button type={type} {...props}>
+        {loading ? 'loading' : children}
+      </button>
+    ),
+    DialogFooter: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
+      <div {...props}>{children}</div>
     ),
     FieldError: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
       <div role="alert" {...props}>
@@ -96,6 +131,28 @@ vi.mock('../../../hooks', () => ({
   useKnowledgeRagConfig: (base: KnowledgeBase) => mockUseKnowledgeRagConfig(base)
 }))
 
+vi.mock('@data/DataApiService', () => ({
+  dataApiService: {
+    get: (...args: unknown[]) => mockDataApiGet(...args)
+  }
+}))
+
+vi.mock('@renderer/aiCore', () => ({
+  AiProvider: vi.fn().mockImplementation(() => ({
+    getEmbeddingDimensions: mockGetEmbeddingDimensions
+  }))
+}))
+
+vi.mock('@renderer/pages/settings/ProviderSettings/utils/v1ProviderShim', () => ({
+  toV1ModelForCheckApi: (model: { apiModelId?: string; id: string; name: string; providerId: string }) => ({
+    id: model.apiModelId ?? model.id,
+    provider: model.providerId,
+    name: model.name,
+    group: ''
+  }),
+  toV1ProviderShim: (provider: unknown, options?: unknown) => ({ provider, options })
+}))
+
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
@@ -106,25 +163,28 @@ vi.mock('react-i18next', () => ({
           'knowledge.error.missing_embedding_model':
             '迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。',
           'knowledge.not_set': '未设置',
-          'knowledge.embedding_model': 'Embedding 模型',
+          'knowledge.embedding_model': '嵌入模型',
+          'knowledge.embedding_model_required': '请选择嵌入模型',
+          'knowledge.provider_not_found': '找不到提供商',
           'knowledge.dimensions': '向量维度',
+          'message.error.get_embedding_dimensions': '获取嵌入维度失败',
           'knowledge.restore.action': '重建知识库',
           'knowledge.restore.submit': '重建',
           'knowledge.status.failed': '失败',
           'knowledge.dimensions_error_invalid': '无效的嵌入维度',
           'knowledge.rag.dimensions': '向量维度',
           'knowledge.rag.document_count': '请求文档片段数 (Top K)',
-          'knowledge.rag.embedding_model': 'Embedding 模型',
+          'knowledge.rag.embedding_model': '嵌入模型',
           'knowledge.rag.embedding_model_select': '模型选择',
-          'knowledge.rag.file_processing': '文档预处理',
+          'knowledge.rag.file_processing': '文档处理',
           'knowledge.rag.file_processing_hint':
             '文档预处理将在文档导入时自动执行，选择合适的处理服务商可提升文档解析质量',
           'knowledge.rag.processor': '处理服务商',
           'knowledge.rag.chunk_size': '分块大小',
           'knowledge.rag.chunk_overlap': '分块重叠',
-          'knowledge.rag.chunk_size_change_warning': '修改分块参数后，旧文档需要重新处理',
-          'knowledge.rag.chunking': '分块规则',
-          'knowledge.rag.retrieval': '检索设置',
+          'knowledge.rag.chunk_size_change_warning': '分段大小和重叠大小修改只针对新添加的内容有效',
+          'knowledge.rag.chunking': 'Chunking',
+          'knowledge.rag.retrieval': 'Retrieval',
           'knowledge.rag.threshold': '相似度阈值',
           'knowledge.rag.tokens_unit': 'tokens',
           'knowledge.rag.search_mode.title': '检索模式',
@@ -162,7 +222,6 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   id: 'base-1',
   name: 'Base 1',
   groupId: null,
-  emoji: '📁',
   dimensions: 1536,
   embeddingModelId: 'openai::text-embedding-3-small',
   rerankModelId: undefined,
@@ -183,6 +242,39 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
 describe('RagConfigPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetEmbeddingDimensions.mockResolvedValue(2048)
+    mockDataApiGet.mockImplementation((path: string) => {
+      if (path === '/providers/openai') {
+        return Promise.resolve({
+          id: 'openai',
+          name: 'OpenAI',
+          endpointConfigs: {
+            [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: {
+              baseUrl: 'https://api.openai.com/v1'
+            }
+          },
+          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
+          apiKeys: [{ id: 'key-1', isEnabled: true }],
+          authType: 'api-key',
+          apiFeatures: {
+            arrayContent: true,
+            streamOptions: true,
+            developerRole: false,
+            serviceTier: false,
+            verbosity: false,
+            enableThinking: true
+          },
+          settings: {},
+          isEnabled: true
+        })
+      }
+
+      if (path === '/providers/openai/api-keys') {
+        return Promise.resolve({ keys: [{ id: 'key-1', key: 'sk-test', isEnabled: true }] })
+      }
+
+      return Promise.resolve({ id: 'mock' })
+    })
     Object.assign(window, {
       toast: {
         success: vi.fn(),
@@ -203,6 +295,30 @@ describe('RagConfigPanel', () => {
         searchMode: 'default',
         hybridAlpha: null
       },
+      embeddingModels: [
+        {
+          id: 'openai::text-embedding-3-small',
+          providerId: 'openai',
+          apiModelId: 'text-embedding-3-small',
+          name: 'text-embedding-3-small',
+          capabilities: [MODEL_CAPABILITY.EMBEDDING],
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+          supportsStreaming: false,
+          isEnabled: true,
+          isHidden: false
+        },
+        {
+          id: 'voyage::voyage-3-large',
+          providerId: 'voyage',
+          apiModelId: 'voyage-3-large',
+          name: 'voyage-3-large',
+          capabilities: [MODEL_CAPABILITY.EMBEDDING],
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+          supportsStreaming: false,
+          isEnabled: true,
+          isHidden: false
+        }
+      ],
       fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
       embeddingModelOptions: [
         { value: 'openai::text-embedding-3-small', label: 'text-embedding-3-small · openai' },
@@ -236,10 +352,10 @@ describe('RagConfigPanel', () => {
       'justify-center'
     )
     expect(screen.getByText('迁移时未找到原知识库使用的嵌入模型，请重建知识库并选择新的嵌入模型。')).toBeInTheDocument()
-    expect(screen.queryByText('文档预处理')).not.toBeInTheDocument()
-    expect(screen.queryByText('分块规则')).not.toBeInTheDocument()
-    expect(screen.queryByText('Embedding 模型')).not.toBeInTheDocument()
-    expect(screen.queryByText('检索设置')).not.toBeInTheDocument()
+    expect(screen.queryByText('文档处理')).not.toBeInTheDocument()
+    expect(screen.queryByText('分块大小')).not.toBeInTheDocument()
+    expect(screen.queryByText('嵌入模型')).not.toBeInTheDocument()
+    expect(screen.queryByText('请求文档片段数 (Top K)')).not.toBeInTheDocument()
     expect(mockUseKnowledgeRagConfig).not.toHaveBeenCalled()
 
     fireEvent.click(screen.getByRole('button', { name: '重建知识库' }))
@@ -252,13 +368,13 @@ describe('RagConfigPanel', () => {
 
     expect(screen.queryByText('separatorRule')).not.toBeInTheDocument()
     expect(screen.queryByText('分隔符规则')).not.toBeInTheDocument()
-    expect(screen.getByText('文档预处理')).toBeInTheDocument()
+    expect(screen.getByText('文档处理')).toBeInTheDocument()
     expect(screen.getByText('请求文档片段数 (Top K)')).toBeInTheDocument()
     expect(screen.getByText('重排模型 (Rerank)')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '不使用' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'text-embedding-3-small · openai' })).toBeInTheDocument()
     expect(screen.getByDisplayValue('1536')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '刷新向量维度' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '刷新向量维度' })).not.toBeDisabled()
     expect(screen.queryByRole('button', { name: '获取嵌入维度' })).not.toBeInTheDocument()
     expect(screen.getByDisplayValue('512')).toBeInTheDocument()
     expect(screen.getByDisplayValue('64')).toBeInTheDocument()
@@ -291,24 +407,26 @@ describe('RagConfigPanel', () => {
     })
   })
 
-  it('applies the compact visual treatment from the RAG design draft', () => {
-    const { container } = renderRagConfigPanel()
+  it('uses the mini-apps style flat field layout', () => {
+    renderRagConfigPanel()
 
-    expect(screen.getByText('文档预处理').parentElement).toHaveClass('font-medium', 'text-sm')
-    expect(screen.getByText('处理服务商')).toHaveClass('text-xs', 'text-foreground')
-    expect(container.querySelector('button.h-7\\.5.text-xs.font-medium')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('512')).toHaveClass('h-7.5', 'text-xs', 'shadow-xs')
-    expect(screen.getAllByText('tokens')[0]).toHaveClass('text-muted-foreground/50', 'text-xs')
-    expect(screen.getByText('文档预处理').parentElement?.querySelector('svg')).not.toHaveClass('text-primary/70')
-    const fileProcessingHint = screen.getByText(
-      '文档预处理将在文档导入时自动执行，选择合适的处理服务商可提升文档解析质量'
+    // Each field label is now a strong text-sm font-medium label (mini-apps FieldLabel parity).
+    expect(screen.getByText('文档处理')).toHaveClass('font-medium', 'text-sm')
+    expect(screen.getByText('分块大小')).toHaveClass('font-medium', 'text-sm')
+    expect(screen.getByText('嵌入模型')).toHaveClass('font-medium', 'text-sm')
+    expect(screen.getByText('请求文档片段数 (Top K)')).toHaveClass('font-medium', 'text-sm')
+    // Section-level small-caps headings are gone — no Chunking / Embedding / Retrieval section title in the DOM.
+    expect(screen.queryByText('Chunking')).not.toBeInTheDocument()
+    expect(screen.queryByText('Embedding')).not.toBeInTheDocument()
+    expect(screen.queryByText('Retrieval')).not.toBeInTheDocument()
+    // Chunk warning is still rendered as a muted hint paragraph.
+    expect(screen.getAllByText('分段大小和重叠大小修改只针对新添加的内容有效')).toHaveLength(1)
+    expect(screen.getByText('分段大小和重叠大小修改只针对新添加的内容有效')).toHaveClass(
+      'text-foreground-muted',
+      'text-xs'
     )
-    expect(fileProcessingHint).toHaveClass('text-muted-foreground/70', 'text-xs')
-    expect(fileProcessingHint.parentElement).toHaveClass('bg-success/5', 'border-success/20')
     expect(screen.getByRole('slider', { name: '请求文档片段数 (Top K)' })).toHaveClass('w-full')
-    expect(screen.getByText('6')).toHaveClass('text-primary/80', 'text-xs')
-    expect(screen.getByRole('button', { name: '恢复默认' })).toHaveClass('h-6', 'text-xs', 'font-medium')
-    expect(screen.getByRole('button', { name: '保存' })).toHaveClass('h-9', 'text-sm', 'font-medium')
+    expect(screen.getByText('6')).toHaveClass('text-foreground-secondary', 'text-xs')
   })
 
   it('disables save when a required chunk field is cleared or becomes non-positive', () => {
@@ -376,6 +494,34 @@ describe('RagConfigPanel', () => {
     })
   })
 
+  it('refreshes embedding dimensions and opens the rebuild flow with the fetched value', async () => {
+    const onRestoreBase = vi.fn()
+
+    renderRagConfigPanel(onRestoreBase)
+
+    fireEvent.click(screen.getByRole('button', { name: '刷新向量维度' }))
+
+    await waitFor(() => {
+      expect(mockDataApiGet).toHaveBeenCalledWith('/providers/openai')
+      expect(mockDataApiGet).toHaveBeenCalledWith('/providers/openai/api-keys', { query: { enabled: true } })
+      expect(mockGetEmbeddingDimensions).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'text-embedding-3-small',
+          provider: 'openai'
+        })
+      )
+      expect(screen.getByDisplayValue('2048')).toBeInTheDocument()
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: '重建' }))
+
+    expect(mockSave).not.toHaveBeenCalled()
+    expect(onRestoreBase).toHaveBeenCalledWith(expect.objectContaining({ id: 'base-1' }), {
+      embeddingModelId: 'openai::text-embedding-3-small',
+      dimensions: 2048
+    })
+  })
+
   it('renders hover hint tooltip content for RAG field labels', () => {
     renderRagConfigPanel()
 
@@ -407,6 +553,19 @@ describe('RagConfigPanel', () => {
         { value: 'hybrid', label: '混合检索（推荐）' },
         { value: 'default', label: '向量检索' },
         { value: 'bm25', label: '全文检索' }
+      ],
+      embeddingModels: [
+        {
+          id: 'openai::text-embedding-3-small',
+          providerId: 'openai',
+          apiModelId: 'text-embedding-3-small',
+          name: 'text-embedding-3-small',
+          capabilities: [MODEL_CAPABILITY.EMBEDDING],
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+          supportsStreaming: false,
+          isEnabled: true,
+          isHidden: false
+        }
       ],
       rerankModelOptions: [{ value: 'jina::rerank', label: 'rerank · jina' }],
       save: mockSave,

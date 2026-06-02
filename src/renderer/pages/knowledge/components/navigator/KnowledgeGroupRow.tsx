@@ -1,5 +1,4 @@
 import { ConfirmDialog } from '@cherrystudio/ui'
-import { Briefcase } from 'lucide-react'
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -46,11 +45,10 @@ const KnowledgeGroupRow = ({
       <BaseNavigatorSectionTrigger
         label={group.name}
         itemCount={itemCount}
-        leadingSlot={<Briefcase className="size-2.75 shrink-0" strokeWidth={1.5} />}
         actionSlot={
           <NavigatorMoreButton
             visible={Boolean(contextMenuPosition)}
-            className="group-focus-within/grp:opacity-100 group-hover/grp:opacity-100"
+            className="size-6 min-h-6 min-w-6 rounded-md p-0 text-foreground-muted hover:bg-accent hover:text-foreground group-focus-within/grp:opacity-100 group-hover/grp:opacity-100 [&_svg]:size-3.5"
             onClick={handleMoreButtonClick}
           />
         }

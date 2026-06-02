@@ -52,7 +52,6 @@ describe('KnowledgeBaseService', () => {
     const values: typeof knowledgeBaseTable.$inferInsert = {
       id: KNOWLEDGE_BASE_ID,
       name: 'Knowledge Base',
-      emoji: '📁',
       dimensions: 1536,
       embeddingModelId: createUniqueModelId('openai', 'embed-model'),
       status: 'completed',
@@ -120,6 +119,92 @@ describe('KnowledgeBaseService', () => {
       expect(result.page).toBe(2)
       expect(result.items).toHaveLength(1)
     })
+
+    it('should include non-deleting item counts for each knowledge base', async () => {
+      await seedKnowledgeBase()
+      await seedKnowledgeBase({ id: SECOND_KNOWLEDGE_BASE_ID, name: 'Another Base' })
+      await dbh.db.insert(knowledgeItemTable).values([
+        {
+          baseId: KNOWLEDGE_BASE_ID,
+          type: 'url',
+          data: { source: 'https://example.com/a', url: 'https://example.com/a' },
+          status: 'completed',
+          error: null
+        },
+        {
+          baseId: KNOWLEDGE_BASE_ID,
+          type: 'url',
+          data: { source: 'https://example.com', url: 'https://example.com' },
+          status: 'failed',
+          error: 'Read failed'
+        },
+        {
+          baseId: KNOWLEDGE_BASE_ID,
+          type: 'url',
+          data: { source: 'https://example.com/deleting', url: 'https://example.com/deleting' },
+          status: 'deleting',
+          error: null
+        }
+      ])
+
+      const result = await service.list({ page: 1, limit: 10 })
+      const baseWithItems = result.items.find((item) => item.id === KNOWLEDGE_BASE_ID)
+      const emptyBase = result.items.find((item) => item.id === SECOND_KNOWLEDGE_BASE_ID)
+
+      expect(baseWithItems?.itemCount).toBe(2)
+      expect(emptyBase?.itemCount).toBe(0)
+    })
+
+    it('should paginate grouped item counts by knowledge base rows', async () => {
+      await seedKnowledgeBase({ createdAt: 2, updatedAt: 2 })
+      await seedKnowledgeBase({
+        id: SECOND_KNOWLEDGE_BASE_ID,
+        name: 'Another Base',
+        createdAt: 1,
+        updatedAt: 1
+      })
+      await dbh.db.insert(knowledgeItemTable).values([
+        {
+          baseId: KNOWLEDGE_BASE_ID,
+          type: 'url',
+          data: { source: 'https://example.com/a', url: 'https://example.com/a' },
+          status: 'completed',
+          error: null
+        },
+        {
+          baseId: KNOWLEDGE_BASE_ID,
+          type: 'url',
+          data: { source: 'https://example.com/b', url: 'https://example.com/b' },
+          status: 'completed',
+          error: null
+        },
+        {
+          baseId: KNOWLEDGE_BASE_ID,
+          type: 'url',
+          data: { source: 'https://example.com/deleting', url: 'https://example.com/deleting' },
+          status: 'deleting',
+          error: null
+        },
+        {
+          baseId: SECOND_KNOWLEDGE_BASE_ID,
+          type: 'url',
+          data: { source: 'https://example.com/other', url: 'https://example.com/other' },
+          status: 'completed',
+          error: null
+        }
+      ])
+
+      const firstPage = await service.list({ page: 1, limit: 1 })
+      const secondPage = await service.list({ page: 2, limit: 1 })
+
+      expect(firstPage.total).toBe(2)
+      expect(firstPage.items).toHaveLength(1)
+      expect(firstPage.items[0]).toMatchObject({ id: KNOWLEDGE_BASE_ID, itemCount: 2 })
+
+      expect(secondPage.total).toBe(2)
+      expect(secondPage.items).toHaveLength(1)
+      expect(secondPage.items[0]).toMatchObject({ id: SECOND_KNOWLEDGE_BASE_ID, itemCount: 1 })
+    })
   })
 
   describe('getById', () => {
@@ -163,7 +248,6 @@ describe('KnowledgeBaseService', () => {
       expect(result.embeddingModelId).toBe(createUniqueModelId('openai', 'embed-model'))
       expect(result.chunkSize).toBe(1024)
       expect(result.chunkOverlap).toBe(200)
-      expect(result.emoji).toBe('📁')
       expect(result.searchMode).toBe('hybrid')
       expect(result.status).toBe('completed')
       expect(result.error).toBeNull()
@@ -178,7 +262,6 @@ describe('KnowledgeBaseService', () => {
       expect(row.chunkOverlap).toBe(200)
       expect(row.threshold).toBeNull()
       expect(row.documentCount).toBeNull()
-      expect(row.emoji).toBe('📁')
       expect(row.searchMode).toBe('hybrid')
       expect(row.hybridAlpha).toBeNull()
       expect(row.status).toBe('completed')
@@ -303,7 +386,6 @@ describe('KnowledgeBaseService', () => {
 
       const result = await service.update(KNOWLEDGE_BASE_ID, {
         name: '  Updated Base  ',
-        emoji: '📚',
         chunkSize: 1024,
         chunkOverlap: 128,
         hybridAlpha: 0.9
@@ -313,13 +395,11 @@ describe('KnowledgeBaseService', () => {
       expect(result.chunkSize).toBe(1024)
       expect(result.chunkOverlap).toBe(128)
       expect(result.hybridAlpha).toBe(0.9)
-      expect(result.emoji).toBe('📚')
 
       const [row] = await dbh.db.select().from(knowledgeBaseTable).where(eq(knowledgeBaseTable.id, KNOWLEDGE_BASE_ID))
       expect(row.name).toBe('Updated Base')
       expect(row.chunkSize).toBe(1024)
       expect(row.chunkOverlap).toBe(128)
-      expect(row.emoji).toBe('📚')
     })
 
     it('should clear nullable processor and rerank config fields', async () => {

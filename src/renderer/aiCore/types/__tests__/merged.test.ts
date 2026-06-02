@@ -141,11 +141,6 @@ describe('Unified Provider Types', () => {
     })
 
     it('should map aliases to same settings as main ID', () => {
-      type OpenRouterByName = AppProviderSettingsMap['openrouter']
-      type OpenRouterByAlias = AppProviderSettingsMap['tokenflux']
-
-      expectTypeOf<OpenRouterByName>().toEqualTypeOf<OpenRouterByAlias>()
-
       // Vertex AI aliases should have the same settings
       type VertexByName = AppProviderSettingsMap['google-vertex']
       type VertexByAlias = AppProviderSettingsMap['vertexai']

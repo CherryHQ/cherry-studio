@@ -19,7 +19,10 @@ export function ImagePreviewImage({ className, item, style, transform, ...props 
   return (
     <img
       alt={item.alt ?? item.title ?? ''}
-      className={cn('max-h-full max-w-full select-none object-contain transition-transform duration-150', className)}
+      className={cn(
+        'block max-h-full max-w-full select-none object-contain transition-transform duration-150',
+        className
+      )}
       draggable={false}
       src={item.src}
       style={{ ...style, transform: transformValue }}
