@@ -66,11 +66,12 @@ const testApp: MinAppType = {
 describe('useMinappPopup - disposeAfter reentry regression (issue #15405)', () => {
   let result: { current: ReturnType<typeof useMinappPopup> }
 
-  beforeEach(() => {
-    // Clear module-level cache before mocks so disposeAfter side-effects
-    // (queueMicrotask dispatch) are consumed and then discarded.
+  beforeEach(async () => {
+    // Clear module-level cache and drain pending microtasks so
+    // disposeAfter's queueMicrotask dispatches don't leak between tests.
     const hook = renderHook(() => useMinappPopup())
     hook.result.current.minAppsCache.clear()
+    await new Promise<void>((resolve) => queueMicrotask(resolve))
     vi.clearAllMocks()
     mockGetTabs.mockReturnValue([{ id: 'apps:test-app', path: '/apps/test-app' }])
     result = renderHook(() => useMinappPopup()).result
@@ -132,9 +133,10 @@ describe('useMinappPopup - disposeAfter reentry regression (issue #15405)', () =
 describe('useMinappPopup - keep-alive idempotent cache writes (issue #15405)', () => {
   let result: { current: ReturnType<typeof useMinappPopup> }
 
-  beforeEach(() => {
+  beforeEach(async () => {
     const hook = renderHook(() => useMinappPopup())
     hook.result.current.minAppsCache.clear()
+    await new Promise<void>((resolve) => queueMicrotask(resolve))
     vi.clearAllMocks()
     result = renderHook(() => useMinappPopup()).result
   })
@@ -194,10 +196,11 @@ describe('useMinappPopup - keep-alive idempotent cache writes (issue #15405)', (
     expect(cached?.url).toBe('https://example.com/new-token')
   })
 
-  it('openMinappKeepAlive callback stays stable across rerenders', () => {
+  it('openMinappKeepAlive callback stays stable across rerenders', async () => {
     const { result, rerender } = renderHook(() => useMinappPopup())
-    // Ensure clean cache for this isolated render
+    // Ensure clean cache and drain pending microtasks for this isolated render
     result.current.minAppsCache.clear()
+    await new Promise<void>((resolve) => queueMicrotask(resolve))
     vi.clearAllMocks()
 
     const firstRef = result.current.openMinappKeepAlive
