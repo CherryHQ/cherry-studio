@@ -1,3 +1,5 @@
+import { agentTable } from '@data/db/schemas/agent'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
 import { McpServerService, mcpServerService } from '@data/services/McpServerService'
 import { DataApiError, ErrorCode } from '@shared/data/api'
@@ -137,6 +139,75 @@ describe('McpServerService', () => {
       await expect(mcpServerService.delete('non-existent')).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
+    })
+
+    it('should remove the deleted server ID from agent and session mcps arrays', async () => {
+      await seedServer({ id: 'srv-1', name: 'server-to-delete' })
+
+      // Seed an agent that references this server (and another non-deleted one)
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-a',
+        type: 'claude-code',
+        name: 'Agent with MCP refs',
+        model: 'model-1',
+        instructions: 'test',
+        mcps: ['srv-1', 'other-srv'],
+        configuration: {},
+        accessiblePaths: [],
+        allowedTools: []
+      })
+
+      // Seed a session linked to this agent that also references the server
+      await dbh.db.insert(agentSessionTable).values({
+        id: 'session-a',
+        agentId: 'agent-a',
+        agentType: 'claude-code',
+        name: 'Session with MCP refs',
+        model: 'model-1',
+        instructions: 'test',
+        mcps: ['srv-1', 'other-srv'],
+        configuration: {},
+        accessiblePaths: [],
+        allowedTools: []
+      })
+
+      await mcpServerService.delete('srv-1')
+
+      // Agent should have srv-1 removed but keep other-srv
+      const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-a'))
+      expect(agent.mcps).toEqual(['other-srv'])
+
+      // Session should have srv-1 removed but keep other-srv
+      const [session] = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, 'session-a'))
+      expect(session.mcps).toEqual(['other-srv'])
+    })
+
+    it('should handle delete when no agent references exist', async () => {
+      await seedServer({ id: 'srv-orphan', name: 'orphan-server' })
+
+      await expect(mcpServerService.delete('srv-orphan')).resolves.toBeUndefined()
+    })
+
+    it('should handle delete when agent mcps is an empty array', async () => {
+      await seedServer({ id: 'srv-empty', name: 'empty-ref-server' })
+
+      await dbh.db.insert(agentTable).values({
+        id: 'agent-empty',
+        type: 'claude-code',
+        name: 'Agent with empty mcps',
+        model: 'model-1',
+        instructions: 'test',
+        mcps: [],
+        configuration: {},
+        accessiblePaths: [],
+        allowedTools: []
+      })
+
+      await expect(mcpServerService.delete('srv-empty')).resolves.toBeUndefined()
+
+      // Agent's empty mcps should remain empty
+      const [agent] = await dbh.db.select().from(agentTable).where(eq(agentTable.id, 'agent-empty'))
+      expect(agent.mcps).toEqual([])
     })
   })
 

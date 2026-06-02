@@ -7,7 +7,10 @@
  */
 
 import { application } from '@application'
+import { agentTable } from '@data/db/schemas/agent'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { mcpServerTable } from '@data/db/schemas/mcpServer'
+import type { DbOrTx } from '@data/db/types'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateMCPServerDto, ListMCPServersQuery, UpdateMCPServerDto } from '@shared/data/api/schemas/mcpServers'
@@ -136,14 +139,62 @@ export class McpServerService {
   }
 
   /**
-   * Delete an MCP server
+   * Delete an MCP server and remove its reference from all agents and sessions.
+   *
+   * Uses a transaction so the server delete + cross-entity cleanup are atomic:
+   * if either fails, both roll back — no orphaned references are left behind.
    */
   async delete(id: string): Promise<void> {
     await this.getById(id)
 
-    await this.db.delete(mcpServerTable).where(eq(mcpServerTable.id, id))
+    await this.db.transaction(async (tx) => {
+      await this.cleanupMcpReferencesTx(tx, id)
+      await tx.delete(mcpServerTable).where(eq(mcpServerTable.id, id))
+    })
 
-    logger.info('Deleted MCP server', { id })
+    logger.info('Deleted MCP server and cleaned up agent/session references', { id })
+  }
+
+  /**
+   * Remove the deleted MCP server's ID from every agent and session that
+   * references it.  Operates inside an existing transaction.
+   */
+  private async cleanupMcpReferencesTx(tx: DbOrTx, mcpServerId: string): Promise<void> {
+    // Each mcps column is a JSON array of server IDs stored as text.
+    // LIKE matches the raw JSON to find rows that reference this server.
+    const rawLike = `%"${mcpServerId}"%`
+
+    // Agents
+    const agentsToFix = await tx
+      .select({ id: agentTable.id, mcps: agentTable.mcps })
+      .from(agentTable)
+      .where(sql`${agentTable.mcps} LIKE ${rawLike}`)
+    for (const a of agentsToFix) {
+      await tx
+        .update(agentTable)
+        .set({ mcps: a.mcps.filter((mcpId) => mcpId !== mcpServerId) })
+        .where(eq(agentTable.id, a.id))
+    }
+
+    // Sessions
+    const sessionsToFix = await tx
+      .select({ id: agentSessionTable.id, mcps: agentSessionTable.mcps })
+      .from(agentSessionTable)
+      .where(sql`${agentSessionTable.mcps} LIKE ${rawLike}`)
+    for (const s of sessionsToFix) {
+      await tx
+        .update(agentSessionTable)
+        .set({ mcps: s.mcps.filter((mcpId) => mcpId !== mcpServerId) })
+        .where(eq(agentSessionTable.id, s.id))
+    }
+
+    if (agentsToFix.length > 0 || sessionsToFix.length > 0) {
+      logger.info('Cleaned up stale MCP references', {
+        mcpServerId,
+        affectedAgents: agentsToFix.length,
+        affectedSessions: sessionsToFix.length
+      })
+    }
   }
 
   /**
