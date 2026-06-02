@@ -13,11 +13,11 @@ import {
   FileSearch,
   Folder,
   Languages,
-  LayoutGrid,
-  MessageSquare,
+  MessageCircle,
   MousePointerClick,
   NotepadText,
   Palette,
+  Puzzle,
   Sparkle
 } from 'lucide-react'
 import type { Ref } from 'react'
@@ -48,12 +48,12 @@ const routePrefixMap: Record<SidebarIconType, string> = {
 }
 
 const iconMap: Record<SidebarIconType, SidebarMenuItem['icon']> = {
-  assistants: MessageSquare,
+  assistants: MessageCircle,
   agents: MousePointerClick,
   store: Sparkle,
   paintings: Palette,
   translate: Languages,
-  mini_app: LayoutGrid,
+  mini_app: Puzzle,
   knowledge: FileSearch,
   files: Folder,
   code_tools: Code,

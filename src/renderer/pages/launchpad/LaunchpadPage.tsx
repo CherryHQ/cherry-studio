@@ -3,17 +3,7 @@ import App from '@renderer/components/MiniApp/MiniApp'
 import { useMiniApps } from '@renderer/hooks/useMiniApps'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useNavigate } from '@tanstack/react-router'
-import {
-  BookMarked,
-  Code,
-  FileSearch,
-  Folder,
-  Languages,
-  LayoutGrid,
-  NotepadText,
-  Palette,
-  Sparkle
-} from 'lucide-react'
+import { Code, FileSearch, Folder, Languages, Library, NotepadText, Palette, Puzzle, Sparkle } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -27,7 +17,7 @@ const LaunchpadPage: FC = () => {
 
   const appMenuItems = [
     {
-      icon: <LayoutGrid size={32} className="icon" />,
+      icon: <Puzzle size={32} className="icon" />,
       text: t('title.apps'),
       path: '/app/mini-app',
       bgColor: 'linear-gradient(135deg, #8B5CF6, #A855F7)' // 小程序：紫色，代表多功能和灵活性
@@ -81,7 +71,7 @@ const LaunchpadPage: FC = () => {
       bgColor: 'linear-gradient(135deg, #F97316, #FB923C)' // 笔记：橙色，代表活力和清晰思路
     },
     {
-      icon: <BookMarked size={32} className="icon" />,
+      icon: <Library size={32} className="icon" />,
       text: t('library.title'),
       path: '/app/library',
       bgColor: 'linear-gradient(135deg, #0EA5E9, #6366F1)' // 资源库：临时入口
