@@ -160,6 +160,10 @@ export type UseCacheSchema = {
   // Assistant reasoning effort cache (per-assistant, not persisted to DB)
   'assistant.reasoning_effort_cache.${assistantId}': string | undefined
 
+  // Painting in-flight generation state, keyed by paintingId. Survives page
+  // navigation so the spinner reappears when the user returns mid-run.
+  'painting.generation.${paintingId}': CacheValueTypes.CachePaintingGenerationState | null
+
   // Template key examples (for testing and demonstration)
   'scroll.position.${topicId}': number
   'entity.cache.${type}_${id}': { loaded: boolean; data: unknown }
@@ -231,6 +235,8 @@ export const DefaultUseCache: UseCacheSchema = {
 
   // Assistant reasoning effort cache
   'assistant.reasoning_effort_cache.${assistantId}': undefined,
+
+  'painting.generation.${paintingId}': null,
 
   // Template key examples (for testing and demonstration)
   'scroll.position.${topicId}': 0,

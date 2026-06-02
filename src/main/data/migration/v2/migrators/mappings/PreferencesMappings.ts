@@ -1,9 +1,9 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-05-11T09:55:37.835Z
+ * Generated at: 2026-06-01T05:06:33.909Z
  *
  * This file contains pure mapping relationships without default values.
- * Default values are managed in packages/shared/data/preferences.ts
+ * Default values are managed in src/shared/data/preferences.ts
  *
  * === AUTO-GENERATED CONTENT START ===
  */
@@ -571,6 +571,10 @@ export const REDUX_STORE_MAPPINGS = {
       targetKey: 'data.backup.local.skip_backup_file'
     },
     {
+      originalKey: 'defaultPaintingProvider',
+      targetKey: 'feature.paintings.default_provider'
+    },
+    {
       originalKey: 's3.endpoint',
       targetKey: 'data.backup.s3.endpoint'
     },
@@ -831,11 +835,11 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 184
+ * - Redux Store项: 185
  * - Redux分类: settings, selectionStore, llm, nutstore, preprocess, translate, websearch, ocr, note
  * - DexieSettings项: 4
  * - localStorage项: 0
- * - 总配置项: 189
+ * - 总配置项: 190
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

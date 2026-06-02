@@ -1,0 +1,13 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`OVMS response boundary > data[].b64_json → data: URLs 1`] = `
+[
+  "data:image/png;base64,QUJD",
+]
+`;
+
+exports[`OVMS response boundary > data[].url → urls 1`] = `
+[
+  "https://img/o.png",
+]
+`;

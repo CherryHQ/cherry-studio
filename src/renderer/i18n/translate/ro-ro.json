@@ -1778,6 +1778,7 @@
     "on": "Pornit",
     "open": "Deschide",
     "open_in": "Deschide în {{name}}",
+    "parameter": "Parametru",
     "paste": "Lipește",
     "placeholders": {
       "select": {
@@ -3764,40 +3765,51 @@
       },
       "new": {
         "image": "Imagine nouă"
+      },
+      "select": {
+        "image": "[to be translated]:Select Image"
       }
     },
     "custom_size": "Dimensiune personalizată",
+    "dashscope": {
+      "bottom_scale": "[to be translated]:Expand Bottom",
+      "enable_interleave": "[to be translated]:Text+Image Mixed Mode",
+      "enable_interleave_tip": "[to be translated]:When on, generates text-and-image mixed output without requiring an input image. Turn off to use edit mode (requires 1–4 input images).",
+      "function": "[to be translated]:Edit Function",
+      "function_options": {
+        "colorization": "[to be translated]:Colorization",
+        "control_cartoon_feature": "[to be translated]:Cartoon Reference",
+        "description_edit": "[to be translated]:Instruction Edit",
+        "description_edit_with_mask": "[to be translated]:Masked Edit",
+        "doodle": "[to be translated]:Doodle to Image",
+        "expand": "[to be translated]:Expand",
+        "remove_watermark": "[to be translated]:Remove Watermark",
+        "stylization_all": "[to be translated]:Global Stylization",
+        "stylization_local": "[to be translated]:Local Stylization",
+        "super_resolution": "[to be translated]:Super Resolution"
+      },
+      "is_sketch": "[to be translated]:Sketch Input",
+      "left_scale": "[to be translated]:Expand Left",
+      "ref_mode": "[to be translated]:Reference Mode",
+      "ref_mode_options": {
+        "refonly": "[to be translated]:Reference only",
+        "repaint": "[to be translated]:Repaint"
+      },
+      "ref_strength": "[to be translated]:Reference Strength",
+      "right_scale": "[to be translated]:Expand Right",
+      "source_lang": "[to be translated]:Source Language",
+      "strength": "[to be translated]:Strength",
+      "target_lang": "[to be translated]:Target Language",
+      "top_scale": "[to be translated]:Expand Top",
+      "upscale_factor": "[to be translated]:Upscale Factor"
+    },
     "dmxapi": {
       "generating_tip": "Generarea cu modelul oficial, timpul estimat de așteptare este de 2-5 minute pentru cele mai bune rezultate. Te rugăm să verifici logurile backend DMXAPI pentru costul acestei operațiuni.",
-      "style": ", Stil:",
-      "style_types": {
-        "25d_animation": "Animație 2.5D",
-        "3d_cartoon": "Desen animat 3D",
-        "american_retro": "Retro American",
-        "baroque": "Baroc",
-        "cartoon_illustration": "Ilustrație de desen animat",
-        "chinese_gongbi": "Gongbi chinezesc",
-        "clay": "Argilă",
-        "cyberpunk": "Cyberpunk",
-        "felt": "Filț",
-        "flat": "Plat",
-        "fresh_anime": "Anime Proaspăt",
-        "ghibli": "Ghibli",
-        "japanese_anime": "Anime japonez",
-        "little_people_book": "Cartea Oamenilor Mici",
-        "monet_garden": "Grădina Monet",
-        "oil_painting": "Pictură în ulei",
-        "pixar": "Pixar",
-        "pixel_art": "Artă pixelată",
-        "poetic_ancient": "Poetic Antic",
-        "psychedelic": "Psichedelic",
-        "sketch": "Schiță",
-        "street_art": "Artă stradală",
-        "texture": "Textură",
-        "ukiyo_e": "Ukiyo-e",
-        "watercolor": "Acuarelă",
-        "wood_carving": "Sculptură în lemn",
-        "yarn_doll": "Păpușă din fire de lână"
+      "max_images": "[to be translated]:Max Images",
+      "sequential_image_generation": "[to be translated]:Sequential Image Generation",
+      "sequential_image_generation_options": {
+        "auto": "[to be translated]:Auto",
+        "disabled": "[to be translated]:Disabled"
       }
     },
     "edit": {
@@ -3806,21 +3818,11 @@
     },
     "generate": {
       "height": "Înălțime",
-      "magic_prompt_option_tip": "Îmbunătățește inteligent prompturile pentru rezultate mai bune",
-      "model_tip": "Versiune model: V3 este cea mai recentă versiune, V2 este modelul anterior, V2A este modelul rapid, V_1 este modelul de prima generație, _TURBO este versiunea accelerată",
-      "negative_prompt_tip": "Descrie elementele nedorite, doar pentru V_1, V_1_TURBO, V_2 și V_2_TURBO",
-      "number_images_tip": "Numărul de imagini de generat",
-      "person_generation": "Generare persoană",
-      "person_generation_tip": "Permite modelului să genereze imagini cu persoane",
-      "rendering_speed_tip": "Controlează compromisul dintre viteza de randare și calitate, disponibil doar pentru V_3",
-      "safety_tolerance": "Toleranță de siguranță",
-      "safety_tolerance_tip": "Controlează toleranța de siguranță pentru generarea imaginilor, disponibil doar pentru FLUX.1-Kontext-pro",
-      "seed_tip": "Controlează aleatoriul generării imaginii pentru rezultate reproductibile",
-      "style_type_tip": "Stil generare imagine pentru V_2 și versiuni ulterioare",
       "width": "Lățime"
     },
     "generate_failed": "Nu s-a putut genera imaginea",
     "generated_image": "Imagine generată",
+    "generating": "Se generează...",
     "go_to_settings": "Mergi la Setări",
     "guidance_scale": "Scară de ghidare",
     "guidance_scale_tip": "Classifier Free Guidance. Cât de fidel vrei să respecte modelul promptul tău când caută o imagine similară să-ți arate",
@@ -3836,6 +3838,7 @@
     "image_size_options": {
       "auto": "Auto"
     },
+    "image_weight": "[to be translated]:Image Weight",
     "inference_steps": "Pași de inferență",
     "inference_steps_tip": "Numărul de pași de inferență de efectuat. Mai mulți pași produc o calitate mai mare, dar durează mai mult",
     "input_image": "Imagine de intrare",
@@ -3864,13 +3867,16 @@
     "number_images_tip": "Numărul de imagini de generat (1-4)",
     "operation_failed": "Operațiunea a eșuat, vă rugăm să încercați din nou mai târziu",
     "paint_course": "tutorial",
+    "parameters": "Parametri",
     "per_image": "pe imagine",
     "per_images": "pe imagini",
+    "person_generation": "[to be translated]:Generate people",
     "person_generation_options": {
       "allow_adult": "Permite adulți",
       "allow_all": "Permite tot",
       "allow_none": "Nepermis"
     },
+    "person_generation_tip": "[to be translated]:Allow the model to generate images of people",
     "ppio": {
       "edit_prompt_tip": "Specifică obiectul sau zona de eliminat din imagine, ex: 'câine' sau 'pălărie'",
       "mask_image": "Imagine mască",
@@ -3887,28 +3893,19 @@
     "prompt_placeholder": "Descrie imaginea pe care vrei să o creezi, de ex. Un lac senin la apus cu munți în fundal",
     "prompt_placeholder_edit": "Introdu descrierea imaginii, desenarea textului folosește \"ghilimele duble\" pentru încadrare",
     "prompt_placeholder_en": "Introdu descrierea imaginii, momentan acceptă doar prompturi în engleză",
+    "prompt_required": "[to be translated]:Please enter a prompt",
     "proxy_required": "Deschide proxy-ul și activează \"Modul TUN\" pentru a vizualiza imaginile generate sau copiază-le în browser pentru deschidere. În viitor, conexiunea directă internă va fi acceptată",
     "quality": "Calitate",
     "quality_options": {
       "auto": "Auto",
+      "hd": "[to be translated]:HD",
       "high": "Înaltă",
       "low": "Scăzută",
-      "medium": "Medie"
+      "medium": "Medie",
+      "standard": "[to be translated]:Standard"
     },
     "regenerate": {
       "confirm": "Aceasta va înlocui imaginile generate existente. Vrei să continui?"
-    },
-    "remix": {
-      "image_file": "Imagine de referință",
-      "image_weight": "Pondere imagine de referință",
-      "image_weight_tip": "Ajustează influența imaginii de referință",
-      "magic_prompt_option_tip": "Îmbunătățește inteligent prompturile de remix",
-      "model_tip": "Selectează versiunea modelului AI pentru remixare",
-      "negative_prompt_tip": "Descrie elementele nedorite în rezultatele remix",
-      "number_images_tip": "Numărul de rezultate remix de generat",
-      "rendering_speed_tip": "Controlează compromisul dintre viteza de randare și calitate, disponibil doar pentru V_3",
-      "seed_tip": "Controlează aleatoriul rezultatului combinat",
-      "style_type_tip": "Stil pentru imaginea remixată, doar pentru V_2 și versiuni ulterioare"
     },
     "rendering_speed": "Viteză de randare",
     "rendering_speeds": {
@@ -3921,21 +3918,40 @@
     "req_error_text": "Serverul este ocupat sau promptul conține termeni \"protejați prin drepturi de autor\" sau \"sensibili\". Te rugăm să încerci din nou.",
     "req_error_token": "Te rugăm să verifici validitatea tokenului",
     "required_field": "Câmp obligatoriu",
+    "safety_tolerance": "[to be translated]:Safety Tolerance",
+    "safety_tolerance_tip": "[to be translated]:Higher = more permissive filter; 0 is strictest, 6 is most permissive",
     "seed": "Seed",
     "seed_desc_tip": "Același seed și prompt pot genera imagini similare; setarea -1 va genera rezultate diferite de fiecare dată",
     "seed_random": "Aleatoriu",
     "seed_tip": "Același seed și prompt pot produce imagini similare",
     "select_model": "Selectează modelul",
-    "style_type": "Stil",
-    "style_types": {
-      "3d": "3D",
-      "anime": "Anime",
-      "auto": "Auto",
-      "design": "Design",
-      "general": "General",
-      "realistic": "Realist"
+    "style_options": {
+      "anime": "[to be translated]:Anime",
+      "auto": "[to be translated]:Auto",
+      "cartoon_3d": "[to be translated]:3D Cartoon",
+      "chinese_painting": "[to be translated]:Chinese Painting",
+      "flat_illustration": "[to be translated]:Flat Illustration",
+      "natural": "[to be translated]:Natural",
+      "oil_painting": "[to be translated]:Oil Painting",
+      "photography": "[to be translated]:Photography",
+      "portrait": "[to be translated]:Portrait",
+      "sketch": "[to be translated]:Sketch",
+      "vivid": "[to be translated]:Vivid",
+      "watercolor": "[to be translated]:Watercolor"
     },
+    "style_type": "[to be translated]:Style",
+    "style_type_options": {
+      "anime": "[to be translated]:Anime",
+      "auto": "[to be translated]:Auto",
+      "design": "[to be translated]:Design",
+      "general": "[to be translated]:General",
+      "realistic": "[to be translated]:Realistic",
+      "render_3d": "[to be translated]:3D Render"
+    },
+    "style_type_tip": "[to be translated]:Image generation style",
     "text_desc_required": "Te rugăm să introduci mai întâi descrierea imaginii",
+    "thinking_mode": "[to be translated]:Thinking Mode",
+    "thinking_mode_tip": "[to be translated]:When on, generation quality is higher but adds about 10–30 seconds.",
     "title": "Imagini",
     "top_up": "Reîncarcă ",
     "translating": "Se traduce...",
@@ -4738,6 +4754,7 @@
         },
         "description": "[to be translated]:Run every configured file processor through the real file processing IPC and compare results.",
         "duration": "[to be translated]:{{seconds}}s",
+        "jobId": "[to be translated]:Job ID",
         "markdown": {
           "description": "[to be translated]:Select a document and run all document-to-markdown processors.",
           "fileFilterName": "[to be translated]:Documents",
@@ -4759,13 +4776,14 @@
         "status": {
           "cancelled": "[to be translated]:Cancelled",
           "completed": "[to be translated]:Completed",
+          "delayed": "[to be translated]:Delayed",
           "failed": "[to be translated]:Failed",
           "idle": "[to be translated]:Idle",
           "pending": "[to be translated]:Pending",
           "processing": "[to be translated]:Processing",
+          "running": "[to be translated]:Running",
           "starting": "[to be translated]:Starting"
         },
-        "taskId": "[to be translated]:Task ID",
         "title": "[to be translated]:Document Parsing"
       },
       "label": "Laborator de Componente",

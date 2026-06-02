@@ -1778,6 +1778,7 @@
     "on": "Ενεργό",
     "open": "Άνοιγμα",
     "open_in": "Άνοιγμα στο {{name}}",
+    "parameter": "Παράμετρος",
     "paste": "Επικόλληση",
     "placeholders": {
       "select": {
@@ -3764,40 +3765,51 @@
       },
       "new": {
         "image": "Νέα εικόνα"
+      },
+      "select": {
+        "image": "[to be translated]:Select Image"
       }
     },
     "custom_size": "Προσαρμοσμένο μέγεθος",
+    "dashscope": {
+      "bottom_scale": "[to be translated]:Expand Bottom",
+      "enable_interleave": "[to be translated]:Text+Image Mixed Mode",
+      "enable_interleave_tip": "[to be translated]:When on, generates text-and-image mixed output without requiring an input image. Turn off to use edit mode (requires 1–4 input images).",
+      "function": "[to be translated]:Edit Function",
+      "function_options": {
+        "colorization": "[to be translated]:Colorization",
+        "control_cartoon_feature": "[to be translated]:Cartoon Reference",
+        "description_edit": "[to be translated]:Instruction Edit",
+        "description_edit_with_mask": "[to be translated]:Masked Edit",
+        "doodle": "[to be translated]:Doodle to Image",
+        "expand": "[to be translated]:Expand",
+        "remove_watermark": "[to be translated]:Remove Watermark",
+        "stylization_all": "[to be translated]:Global Stylization",
+        "stylization_local": "[to be translated]:Local Stylization",
+        "super_resolution": "[to be translated]:Super Resolution"
+      },
+      "is_sketch": "[to be translated]:Sketch Input",
+      "left_scale": "[to be translated]:Expand Left",
+      "ref_mode": "[to be translated]:Reference Mode",
+      "ref_mode_options": {
+        "refonly": "[to be translated]:Reference only",
+        "repaint": "[to be translated]:Repaint"
+      },
+      "ref_strength": "[to be translated]:Reference Strength",
+      "right_scale": "[to be translated]:Expand Right",
+      "source_lang": "[to be translated]:Source Language",
+      "strength": "[to be translated]:Strength",
+      "target_lang": "[to be translated]:Target Language",
+      "top_scale": "[to be translated]:Expand Top",
+      "upscale_factor": "[to be translated]:Upscale Factor"
+    },
     "dmxapi": {
       "generating_tip": "Η δημιουργία γίνεται με το επίσημο μοντέλο, ο εκτιμώμενος χρόνος αναμονής είναι 2-5 λεπτά για τα καλύτερα αποτελέσματα. Ελέγξτε τα αρχεία καταγραφής του διακομιστή DMXAPI για το κόστος αυτής της λειτουργίας.",
-      "style": ", Στυλ:",
-      "style_types": {
-        "25d_animation": "Κινούμενα Σχέδια 2.5D",
-        "3d_cartoon": "3D Καρτούν",
-        "american_retro": "Αμερικανικό Ρετρό",
-        "baroque": "Μπαρόκ",
-        "cartoon_illustration": "Κινούμενη εικονογράφηση",
-        "chinese_gongbi": "Κινέζικο Γκόνγκμπι",
-        "clay": "Πηλός",
-        "cyberpunk": "Κυβερνοπάνκ",
-        "felt": "Ύφασμα",
-        "flat": "Flat",
-        "fresh_anime": "Φρέσκο Anime",
-        "ghibli": "Γκίμπλι",
-        "japanese_anime": "Ιαπωνικό Άνιμε",
-        "little_people_book": "Βιβλίο για τους Μικρούς Ανθρώπους",
-        "monet_garden": "Κήπος Μονέ",
-        "oil_painting": "Ζωγραφική με λάδι",
-        "pixar": "Pixar",
-        "pixel_art": "Τέχνη των Πίξελ",
-        "poetic_ancient": "Ποιητικό Αρχαίο",
-        "psychedelic": "Ψυχεδελικό",
-        "sketch": "Σχέδιο",
-        "street_art": "Τέχνη του Δρόμου",
-        "texture": "Υφή",
-        "ukiyo_e": "Ουκιγιό-ε",
-        "watercolor": "Νερομπογιά",
-        "wood_carving": "Ξυλογλυπτική",
-        "yarn_doll": "Κούκλα από κλωστή"
+      "max_images": "[to be translated]:Max Images",
+      "sequential_image_generation": "[to be translated]:Sequential Image Generation",
+      "sequential_image_generation_options": {
+        "auto": "[to be translated]:Auto",
+        "disabled": "[to be translated]:Disabled"
       }
     },
     "edit": {
@@ -3806,21 +3818,11 @@
     },
     "generate": {
       "height": "Ύψος",
-      "magic_prompt_option_tip": "Έξυπνη βελτιστοποίηση της προτροπής για βελτίωση των αποτελεσμάτων",
-      "model_tip": "Έκδοση μοντέλου: Το V2 είναι το τελευταίο μοντέλο διεπαφής, το V2A είναι γρήγορο μοντέλο, το V_1 είναι το αρχικό μοντέλο και το _TURBO είναι η επιταχυνόμενη έκδοση",
-      "negative_prompt_tip": "Περιγράψτε στοιχεία που δεν θέλετε να εμφανίζονται στην εικόνα, υποστηρίζεται μόνο στις εκδόσεις V_1, V_1_TURBO, V_2 και V_2_TURBO",
-      "number_images_tip": "Αριθμός εικόνων ανά παραγωγή",
-      "person_generation": "Δημιουργία προσώπου",
-      "person_generation_tip": "Επιτρέπει στο μοντέλο να δημιουργεί εικόνες προσώπων",
-      "rendering_speed_tip": "Ελέγχει την ισορροπία μεταξύ ταχύτητας και ποιότητας απόδοσης, ισχύει μόνο για την έκδοση V_3",
-      "safety_tolerance": "Ασφάλεια",
-      "safety_tolerance_tip": "Έλεγχος της ασφάλειας της δημιουργίας εικόνας, ισχύει μόνο για την έκδοση FLUX.1-Kontext-pro",
-      "seed_tip": "Ελέγχει την τυχαιότητα της δημιουργίας εικόνας, χρησιμοποιείται για να επαναληφθεί το ίδιο αποτέλεσμα",
-      "style_type_tip": "Στυλ δημιουργίας εικόνας, ισχύει μόνο για την έκδοση V_2 και μεταγενέστερες",
       "width": "Πλάτος"
     },
     "generate_failed": "Αποτυχία δημιουργίας εικόνας",
     "generated_image": "Δημιουργία εικόνας",
+    "generating": "Δημιουργία...",
     "go_to_settings": "Πηγαίνετε στις ρυθμίσεις",
     "guidance_scale": "Κλίμακα προσαρμογής",
     "guidance_scale_tip": "Χωρίς κλάσικο προσαρμογής. Ελέγχει την προσαρμογή του μοντέλου στην αναζήτηση παρόμοιων εικόνων για το σχόλιο.",
@@ -3836,6 +3838,7 @@
     "image_size_options": {
       "auto": "Αυτόματο"
     },
+    "image_weight": "[to be translated]:Image Weight",
     "inference_steps": "Βήματα επεξεργασίας",
     "inference_steps_tip": "Το πλήθος των βημάτων επεξεργασίας που πρέπει να εκτελεστούν. Περισσότερα βήματα = χαμηλότερη ποιότητα και μεγαλύτερος χρόνος εκτέλεσης",
     "input_image": "Εικόνα εισόδου",
@@ -3864,13 +3867,16 @@
     "number_images_tip": "Ποσότητα εικόνων που θα δημιουργηθούν μια φορά (1-4)",
     "operation_failed": "Η λειτουργία απέτυχε, παρακαλώ δοκιμάστε ξανά αργότερα",
     "paint_course": "Εκπαίδευση",
+    "parameters": "Παράμετροι",
     "per_image": "Ανά εικόνα",
     "per_images": "Ανά εικόνα",
+    "person_generation": "[to be translated]:Generate people",
     "person_generation_options": {
       "allow_adult": "Να επιτρέπεται ενήλικας",
       "allow_all": "Να επιτρέπονται όλα",
       "allow_none": "Να μην επιτρέπεται τίποτα"
     },
+    "person_generation_tip": "[to be translated]:Allow the model to generate images of people",
     "ppio": {
       "edit_prompt_tip": "Καθορίζει το αντικείμενο ή την περιοχή προς αφαίρεση από την εικόνα, π.χ. 'σκύλος' ή 'καπέλο'",
       "mask_image": "Εικόνα μάσκας",
@@ -3887,28 +3893,19 @@
     "prompt_placeholder": "Περιγράψτε την εικόνα που θέλετε να δημιουργήσετε, για παράδειγμα: ένα ηρωϊκό λιμάνι, το δείπνο του θεού, με απέναντι την ορεινή περιοχή",
     "prompt_placeholder_edit": "Εισάγετε την περιγραφή της εικόνας σας, χρησιμοποιήστε διπλά εισαγωγικά \"\" για κείμενο",
     "prompt_placeholder_en": "Εισαγάγετε την περιγραφή εικόνας στα «Αγγλικά», η Imagen υποστηρίζει μόνο αγγλικές εντολές προς το παρόν",
+    "prompt_required": "[to be translated]:Please enter a prompt",
     "proxy_required": "Αυτή τη στιγμή χρειάζεται να ενεργοποιήσετε τον μεσολαβητή (proxy) για να δείτε τις δημιουργημένες εικόνες. Στο μέλλον θα υποστηρίζεται η άμεση σύνδεση στην Κίνα",
     "quality": "Ποιότητα",
     "quality_options": {
       "auto": "Αυτόματο",
+      "hd": "[to be translated]:HD",
       "high": "Υψηλό",
       "low": "Χαμηλό",
-      "medium": "Μεσαίο"
+      "medium": "Μεσαίο",
+      "standard": "[to be translated]:Standard"
     },
     "regenerate": {
       "confirm": "Αυτό θα επιβάλει τις δημιουργίες που έχετε κάνει, θέλετε να συνεχίσετε;"
-    },
-    "remix": {
-      "image_file": "Εικόνα αναφοράς",
-      "image_weight": "Βάρος εικόνας αναφοράς",
-      "image_weight_tip": "Ρυθμίστε την επίδραση της εικόνας αναφοράς",
-      "magic_prompt_option_tip": "Έξυπνη βελτιστοποίηση της προτροπής remix",
-      "model_tip": "Επιλέξτε την έκδοση του AI μοντέλου για χρήση σε remix",
-      "negative_prompt_tip": "Περιγράψτε στοιχεία που δεν θέλετε να εμφανιστούν στο αποτέλεσμα remix",
-      "number_images_tip": "Αριθμός αποτελεσμάτων remix που θα δημιουργηθούν",
-      "rendering_speed_tip": "Ελέγχει την ισορροπία μεταξύ ταχύτητας και ποιότητας απόδοσης, εφαρμόζεται μόνο στην έκδοση V_3",
-      "seed_tip": "Έλεγχος τυχαιότητας των αποτελεσμάτων remix",
-      "style_type_tip": "Στυλ εικόνας μετά το remix, διαθέσιμο μόνο για εκδόσεις V_2 και νεότερες"
     },
     "rendering_speed": "Ταχύτητα απόδοσης",
     "rendering_speeds": {
@@ -3921,21 +3918,40 @@
     "req_error_text": "Ο διακομιστής είναι απασχολημένος ή η εντολή περιέχει «λέξεις πνευματικής ιδιοκτησίας» ή «ευαίσθητες λέξεις». Παρακαλούμε δοκιμάστε ξανά.",
     "req_error_token": "Ελέγξτε την εγκυρότητα του token",
     "required_field": "Υποχρεωτικό πεδίο",
+    "safety_tolerance": "[to be translated]:Safety Tolerance",
+    "safety_tolerance_tip": "[to be translated]:Higher = more permissive filter; 0 is strictest, 6 is most permissive",
     "seed": "Τυχαίος παράγοντας",
     "seed_desc_tip": "Οι ίδιοι σπόρος και εντολή μπορούν να δημιουργήσουν παρόμοιες εικόνες. Ορίστε -1 για διαφορετική εικόνα κάθε φορά",
     "seed_random": "Τυχαίο",
     "seed_tip": "Η χρήση του ίδιου παραγόντα και του σχολίου μπορεί να δημιουργήσει παρόμοιες εικόνες",
     "select_model": "Επιλέξτε μοντέλο",
-    "style_type": "Στυλ",
-    "style_types": {
-      "3d": "3D",
-      "anime": "Άνιμε",
-      "auto": "Αυτόματο",
-      "design": "Σχεδιασμός",
-      "general": "Γενικό",
-      "realistic": "Ρεαλιστικό"
+    "style_options": {
+      "anime": "[to be translated]:Anime",
+      "auto": "[to be translated]:Auto",
+      "cartoon_3d": "[to be translated]:3D Cartoon",
+      "chinese_painting": "[to be translated]:Chinese Painting",
+      "flat_illustration": "[to be translated]:Flat Illustration",
+      "natural": "[to be translated]:Natural",
+      "oil_painting": "[to be translated]:Oil Painting",
+      "photography": "[to be translated]:Photography",
+      "portrait": "[to be translated]:Portrait",
+      "sketch": "[to be translated]:Sketch",
+      "vivid": "[to be translated]:Vivid",
+      "watercolor": "[to be translated]:Watercolor"
     },
+    "style_type": "[to be translated]:Style",
+    "style_type_options": {
+      "anime": "[to be translated]:Anime",
+      "auto": "[to be translated]:Auto",
+      "design": "[to be translated]:Design",
+      "general": "[to be translated]:General",
+      "realistic": "[to be translated]:Realistic",
+      "render_3d": "[to be translated]:3D Render"
+    },
+    "style_type_tip": "[to be translated]:Image generation style",
     "text_desc_required": "Παρακαλούμε εισάγετε πρώτα την περιγραφή της εικόνας",
+    "thinking_mode": "[to be translated]:Thinking Mode",
+    "thinking_mode_tip": "[to be translated]:When on, generation quality is higher but adds about 10–30 seconds.",
     "title": "Εικόνα",
     "top_up": "Επαναφόρτωση",
     "translating": "Μετάφραση...",
@@ -4738,6 +4754,7 @@
         },
         "description": "[to be translated]:Run every configured file processor through the real file processing IPC and compare results.",
         "duration": "[to be translated]:{{seconds}}s",
+        "jobId": "[to be translated]:Job ID",
         "markdown": {
           "description": "[to be translated]:Select a document and run all document-to-markdown processors.",
           "fileFilterName": "[to be translated]:Documents",
@@ -4759,13 +4776,14 @@
         "status": {
           "cancelled": "[to be translated]:Cancelled",
           "completed": "[to be translated]:Completed",
+          "delayed": "[to be translated]:Delayed",
           "failed": "[to be translated]:Failed",
           "idle": "[to be translated]:Idle",
           "pending": "[to be translated]:Pending",
           "processing": "[to be translated]:Processing",
+          "running": "[to be translated]:Running",
           "starting": "[to be translated]:Starting"
         },
-        "taskId": "[to be translated]:Task ID",
         "title": "[to be translated]:Document Parsing"
       },
       "label": "Εργαστήριο Συστατικών",

@@ -3764,40 +3764,51 @@
       },
       "new": {
         "image": "新繪圖"
+      },
+      "select": {
+        "image": "選擇繪圖"
       }
     },
     "custom_size": "自訂尺寸",
+    "dashscope": {
+      "bottom_scale": "向下擴展",
+      "enable_interleave": "圖文混排模式",
+      "enable_interleave_tip": "啟用後生成圖文混排內容，無需輸入圖像。關閉後切換到編輯模式（需要 1–4 張輸入圖像）。",
+      "function": "編輯功能",
+      "function_options": {
+        "colorization": "影像上色",
+        "control_cartoon_feature": "卡通形象參考",
+        "description_edit": "指令編輯",
+        "description_edit_with_mask": "局部重繪（遮罩）",
+        "doodle": "塗鴉作畫",
+        "expand": "擴圖",
+        "remove_watermark": "去浮水印",
+        "stylization_all": "全域風格化",
+        "stylization_local": "局部風格化",
+        "super_resolution": "影像超分"
+      },
+      "is_sketch": "草圖輸入",
+      "left_scale": "向左擴展",
+      "ref_mode": "參考模式",
+      "ref_mode_options": {
+        "refonly": "僅參考",
+        "repaint": "重繪"
+      },
+      "ref_strength": "參考強度",
+      "right_scale": "向右擴展",
+      "source_lang": "來源語言",
+      "strength": "強度",
+      "target_lang": "目標語言",
+      "top_scale": "向上擴展",
+      "upscale_factor": "放大倍數"
+    },
     "dmxapi": {
       "generating_tip": "使用官方模型生成，預計等待時間為 2–5 分鐘以獲得最佳結果。請查看 DMXAPI 後端日誌以了解此操作的成本。",
-      "style": "，風格：",
-      "style_types": {
-        "25d_animation": "2.5D動畫",
-        "3d_cartoon": "3D卡通",
-        "american_retro": "美式復古",
-        "baroque": "巴洛克",
-        "cartoon_illustration": "卡通插圖",
-        "chinese_gongbi": "中國工筆",
-        "clay": "黏土",
-        "cyberpunk": "賽博龐克",
-        "felt": "氈",
-        "flat": "平的",
-        "fresh_anime": "新鮮動漫",
-        "ghibli": "吉卜力",
-        "japanese_anime": "日本動畫",
-        "little_people_book": "小小人書",
-        "monet_garden": "莫內花園",
-        "oil_painting": "油畫",
-        "pixar": "皮克斯",
-        "pixel_art": "像素藝術",
-        "poetic_ancient": "詩意的古代",
-        "psychedelic": "迷幻",
-        "sketch": "草圖",
-        "street_art": "街頭藝術",
-        "texture": "質地",
-        "ukiyo_e": "浮世繪",
-        "watercolor": "水彩",
-        "wood_carving": "木雕",
-        "yarn_doll": "毛線娃娃"
+      "max_images": "最大圖像數",
+      "sequential_image_generation": "組圖生成",
+      "sequential_image_generation_options": {
+        "auto": "自動",
+        "disabled": "停用"
       }
     },
     "edit": {
@@ -3806,24 +3817,14 @@
     },
     "generate": {
       "height": "高度",
-      "magic_prompt_option_tip": "開啟後會自動調整提示詞，以提升效果",
-      "model_tip": "模型版本：V2 是最新 API 模型，V2A 是高速模型，V_1 是初代模型，_TURBO 是高速處理版",
-      "negative_prompt_tip": "描述不想在影像中出現的內容",
-      "number_images_tip": "一次產生的圖片數量",
-      "person_generation": "產生人物",
-      "person_generation_tip": "允許模型產生人物影像",
-      "rendering_speed_tip": "控制渲染速度與品質之間的平衡，僅適用於 V_3 版本",
-      "safety_tolerance": "安全耐性",
-      "safety_tolerance_tip": "控制影像產生的安全耐性，僅適用於 FLUX.1-Kontext-pro 版本",
-      "seed_tip": "控制影像產生的隨機性，以重現相同結果",
-      "style_type_tip": "產生圖片的風格，僅適用於 V_2 及以上版本",
       "width": "寬度"
     },
     "generate_failed": "無法生成圖片",
     "generated_image": "產生的圖片",
+    "generating": "生成中...",
     "go_to_settings": "前往設定",
     "guidance_scale": "引導比例",
-    "guidance_scale_tip": "無分類器指導。控制模型在尋找相關影像時對提示詞的遵循程度",
+    "guidance_scale_tip": "無分類器指導 ({{min}}-{{max}})。控制模型在尋找相關影像時對提示詞的遵循程度",
     "image": {
       "size": "影像尺寸"
     },
@@ -3836,8 +3837,9 @@
     "image_size_options": {
       "auto": "自動"
     },
+    "image_weight": "[to be translated]:Image Weight",
     "inference_steps": "推理步數",
-    "inference_steps_tip": "要執行的推理步數。步數越多，品質越高但耗時越長",
+    "inference_steps_tip": "要執行的推理步數 ({{min}}-{{max}})。步數越多，品質越高但耗時越長",
     "input_image": "輸入圖片",
     "input_parameters": "輸入參數",
     "invalid_image_url": "圖片網址格式無效",
@@ -3861,16 +3863,18 @@
     "negative_prompt_tip": "描述你不想在圖片中出現的內容",
     "no_image_generation_model": "暫無可用的圖片產生模型，請先新增模型並設定端點類型為 {{endpoint_type}}",
     "number_images": "張數",
-    "number_images_tip": "一次產生的圖片數量 (1-4)",
+    "number_images_tip": "一次生成的圖片數量 ({{min}}-{{max}})",
     "operation_failed": "操作失敗，請稍後再試",
     "paint_course": "教學",
     "per_image": "每張圖片",
     "per_images": "每張圖片",
+    "person_generation": "[to be translated]:Generate people",
     "person_generation_options": {
       "allow_adult": "允許成人",
       "allow_all": "允許所有",
       "allow_none": "不允許"
     },
+    "person_generation_tip": "[to be translated]:Allow the model to generate images of people",
     "ppio": {
       "edit_prompt_tip": "用於指定要從圖像中移除的對象或區域，例如：'dog' 或 'hat'",
       "mask_image": "遮罩圖像",
@@ -3887,28 +3891,19 @@
     "prompt_placeholder": "描述你想建立的圖片，例如：一個寧靜的湖泊，夕陽西下，遠處是群山",
     "prompt_placeholder_edit": "輸入你的圖片描述，文字繪製用 ' 雙引號 ' 包裹",
     "prompt_placeholder_en": "輸入英文圖片描述，目前僅支援英文提示詞",
+    "prompt_required": "[to be translated]:Please enter a prompt",
     "proxy_required": "請開啟代理並啟用「TUN 模式」，即可查看產生的圖片；也可以複製到瀏覽器開啟。日後將支援免代理直接連線。",
     "quality": "品質",
     "quality_options": {
       "auto": "自動",
+      "hd": "高清",
       "high": "高",
       "low": "低",
-      "medium": "中"
+      "medium": "中",
+      "standard": "標準"
     },
     "regenerate": {
       "confirm": "這將覆蓋已產生的圖片，是否繼續？"
-    },
-    "remix": {
-      "image_file": "參考圖",
-      "image_weight": "參考圖權重",
-      "image_weight_tip": "調整參考影像的影響程度",
-      "magic_prompt_option_tip": "開啟後會自動調整重混提示詞，以提升效果",
-      "model_tip": "選擇重混使用的 AI 模型版本",
-      "negative_prompt_tip": "描述不想在重混結果中出現的元素",
-      "number_images_tip": "要產生的重混結果數量",
-      "rendering_speed_tip": "控制渲染速度與品質之間的平衡，僅適用於 V_3 版本",
-      "seed_tip": "控制重混結果的隨機性",
-      "style_type_tip": "重混後的影像風格，僅適用於 V_2 及以上版本"
     },
     "rendering_speed": "渲染速度",
     "rendering_speeds": {
@@ -3921,21 +3916,40 @@
     "req_error_text": "伺服器繁忙或提示詞中出現「版權詞」或「敏感詞」，請重試。",
     "req_error_token": "請檢查權杖的有效性",
     "required_field": "必填欄位",
+    "safety_tolerance": "[to be translated]:Safety Tolerance",
+    "safety_tolerance_tip": "[to be translated]:Higher = more permissive filter; 0 is strictest, 6 is most permissive",
     "seed": "隨機種子",
     "seed_desc_tip": "相同的種子和提示詞可以產生相似的圖片，設定為 -1 時，每次結果都會不同",
     "seed_random": "隨機",
     "seed_tip": "相同的種子和提示詞可以產生相似的圖片",
     "select_model": "選擇模型",
-    "style_type": "風格",
-    "style_types": {
-      "3d": "3D",
+    "style_options": {
+      "anime": "動漫",
+      "auto": "自動",
+      "cartoon_3d": "3D 卡通",
+      "chinese_painting": "國畫",
+      "flat_illustration": "扁平插畫",
+      "natural": "自然",
+      "oil_painting": "油畫",
+      "photography": "攝影",
+      "portrait": "人像",
+      "sketch": "素描",
+      "vivid": "鮮豔",
+      "watercolor": "水彩"
+    },
+    "style_type": "[to be translated]:Style",
+    "style_type_options": {
       "anime": "動漫",
       "auto": "自動",
       "design": "設計",
       "general": "通用",
-      "realistic": "寫實"
+      "realistic": "寫實",
+      "render_3d": "3D 渲染"
     },
+    "style_type_tip": "[to be translated]:Image generation style",
     "text_desc_required": "請先輸入圖片描述",
+    "thinking_mode": "[to be translated]:Thinking Mode",
+    "thinking_mode_tip": "[to be translated]:When on, generation quality is higher but adds about 10–30 seconds.",
     "title": "繪圖",
     "top_up": "儲值",
     "translating": "翻譯中...",

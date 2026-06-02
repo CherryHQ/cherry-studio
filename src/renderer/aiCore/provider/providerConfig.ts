@@ -34,6 +34,10 @@ import { cloneDeep, isEmpty } from 'lodash'
 
 import type { ProviderConfig } from '../types'
 import { COPILOT_DEFAULT_HEADERS } from './constants'
+import { DEFAULT_DASHSCOPE_IMAGE_BASE_URL } from './custom/dashscope/dashscopeTransport'
+import { DEFAULT_DMXAPI_BASE_URL } from './custom/dmxapi/dmxapiTransport'
+import { DEFAULT_OVMS_BASE_URL } from './custom/ovms/ovmsTransport'
+import { DEFAULT_PPIO_BASE_URL } from './custom/ppio/ppioTransport'
 import { getAiSdkProviderId } from './factory'
 
 // === Types ===
@@ -41,6 +45,26 @@ import { getAiSdkProviderId } from './factory'
 interface BaseConfig {
   baseURL: string
   apiKey: string
+}
+
+/**
+ * Derive the native image-API origin from a user-configured chat baseURL by
+ * stripping the trailing OpenAI-compat path segment. Providers that serve BOTH
+ * OpenAI-compat chat (under `/v1/`, `/compatible-mode/v1/`, `/openai/v1/`) and
+ * a native image API at the host root call this so the user only configures
+ * one baseURL (the chat one) and the painting transport reaches the right host
+ * without duplicating the path segment.
+ *
+ * Examples:
+ *   - DMXAPI:    `https://www.dmxapi.cn/v1/`               → `https://www.dmxapi.cn`
+ *   - DashScope: `https://dashscope.aliyuncs.com/compatible-mode/v1/` → `https://dashscope.aliyuncs.com`
+ *   - Proxy:     `https://proxy.example.com/dashscope/compatible-mode/v1` → `https://proxy.example.com/dashscope`
+ *   - Already root: `https://www.dmxapi.cn` → unchanged
+ */
+function deriveImageBaseURL(chatBaseURL: string, fallback: string): string {
+  if (!chatBaseURL) return fallback
+  const stripped = chatBaseURL.replace(/\/(?:compatible-mode\/v1|openai\/v1|v1)\/?$/, '')
+  return stripped || fallback
 }
 
 interface BuilderContext {
@@ -129,7 +153,14 @@ export function providerToAiSdkConfig(
     { match: (_, id) => id === 'google-vertex', build: buildVertexConfig },
     { match: (_, id) => id === 'cherryin', build: buildCherryinConfig },
     { match: (_, id) => id === 'newapi', build: buildNewApiConfig },
-    { match: (_, id) => id === 'aihubmix', build: buildAiHubMixConfig }
+    { match: (p) => p.id === 'aionly', build: buildAionlyConfig },
+    { match: (_, id) => id === 'aihubmix', build: buildAiHubMixConfig },
+    { match: (_, id) => id === 'ppio', build: buildPpioConfig },
+    { match: (_, id) => id === 'silicon', build: buildSiliconConfig },
+    { match: (_, id) => id === 'zhipu', build: buildZhipuConfig },
+    { match: (_, id) => id === 'dashscope', build: buildDashScopeConfig },
+    { match: (p) => p.id === 'dmxapi', build: buildDmxapiConfig },
+    { match: (p) => p.id === 'ovms', build: buildOvmsConfig }
   ]
 
   const builder = builders.find((b) => b.match(actualProvider, aiSdkProviderId))
@@ -341,7 +372,12 @@ function buildOpenAICompatibleConfig(ctx: BuilderContext): ProviderConfig<'opena
   return {
     providerId: 'openai-compatible',
     endpoint: ctx.endpoint,
-    providerSettings: { ...ctx.baseConfig, ...commonOptions, name: ctx.actualProvider.id, includeUsage }
+    providerSettings: {
+      ...ctx.baseConfig,
+      ...commonOptions,
+      name: ctx.actualProvider.id,
+      includeUsage
+    }
   }
 }
 
@@ -366,6 +402,108 @@ function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
   }
 }
 
+function buildSiliconConfig(ctx: BuilderContext): ProviderConfig<'silicon'> {
+  const commonOptions = buildCommonOptions(ctx)
+  const includeUsage = isSupportStreamOptionsProvider(ctx.actualProvider)
+    ? store.getState().settings.openAI?.streamOptions?.includeUsage
+    : undefined
+
+  return {
+    providerId: 'silicon',
+    endpoint: ctx.endpoint,
+    providerSettings: { ...ctx.baseConfig, ...commonOptions, includeUsage }
+  }
+}
+
+function buildZhipuConfig(ctx: BuilderContext): ProviderConfig<'zhipu'> {
+  const commonOptions = buildCommonOptions(ctx)
+  const includeUsage = isSupportStreamOptionsProvider(ctx.actualProvider)
+    ? store.getState().settings.openAI?.streamOptions?.includeUsage
+    : undefined
+
+  return {
+    providerId: 'zhipu',
+    endpoint: ctx.endpoint,
+    providerSettings: { ...ctx.baseConfig, ...commonOptions, includeUsage }
+  }
+}
+
+/**
+ * DashScope (Bailian) serves chat (OpenAI-compatible at `/compatible-mode/v1/`)
+ * and image (native DashScope at `/api/v1/services/aigc/*`) off ONE provider.
+ * Chat keeps the user-configured baseURL verbatim; image strips the
+ * `/compatible-mode/v1/?` suffix so the native endpoints resolve correctly
+ * whether the user pointed at cn / intl / Frankfurt / a proxy. No region URL
+ * is hardcoded — whatever the user typed wins.
+ */
+function buildDashScopeConfig(ctx: BuilderContext): ProviderConfig<'dashscope'> {
+  const imageBaseURL = deriveImageBaseURL(ctx.baseConfig.baseURL, DEFAULT_DASHSCOPE_IMAGE_BASE_URL)
+  return {
+    providerId: 'dashscope',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      imageBaseURL,
+      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
+    }
+  }
+}
+
+/**
+ * PPIO serves BOTH chat and image off one ProviderV3, but the two endpoints
+ * live on different hosts/paths:
+ *   PPIO chat = `api.ppinfra.com/v3/openai`    image = `api.ppio.com`
+ * `baseURL` carries the resolved chat `apiHost` for the OpenAICompatible
+ * chat/embedding models; `imageBaseURL` carries the legacy pinned image host
+ * that the polling transport uses — keeping the painting request URLs
+ * byte-identical to the bespoke service while letting chat reach the right
+ * endpoint.
+ */
+function buildPpioConfig(ctx: BuilderContext): ProviderConfig<'ppio'> {
+  return {
+    providerId: 'ppio',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      imageBaseURL: DEFAULT_PPIO_BASE_URL,
+      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
+    }
+  }
+}
+
+/**
+ * DMXAPI/OVMS providers serve chat + image off one ProviderV3. Unlike
+ * PPIO (where the image host is pinned to a different domain),
+ * DMXAPI's image host follows the user-configured `apiHost` (cross-platform
+ * .com/.cn/enterprise), and OVMS is a local OpenVINO server where chat and
+ * image share `localhost` (only path differs). `baseURL` carries the chat
+ * apiHost; `imageBaseURL` mirrors it (with `DEFAULT_*` as empty-fallback) so
+ * the polling transport keeps the same user override. OVMS carries no auth.
+ */
+function buildDmxapiConfig(ctx: BuilderContext): ProviderConfig<'dmxapi'> {
+  return {
+    providerId: 'dmxapi',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      baseURL: ctx.baseConfig.baseURL || DEFAULT_DMXAPI_BASE_URL,
+      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
+    }
+  }
+}
+
+function buildOvmsConfig(ctx: BuilderContext): ProviderConfig<'ovms'> {
+  return {
+    providerId: 'ovms',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      baseURL: ctx.baseConfig.baseURL || DEFAULT_OVMS_BASE_URL,
+      imageBaseURL: ctx.baseConfig.baseURL || DEFAULT_OVMS_BASE_URL
+    }
+  }
+}
+
 function formatNewApiBaseURL(baseURL: string, endpointType?: string): string {
   switch (endpointType) {
     case 'gemini':
@@ -379,6 +517,34 @@ function formatNewApiBaseURL(baseURL: string, endpointType?: string): string {
 
 function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
   const baseURL = formatNewApiBaseURL(ctx.baseConfig.baseURL, ctx.model.endpoint_type)
+
+  return {
+    providerId: 'newapi',
+    endpoint: ctx.endpoint,
+    providerSettings: {
+      ...ctx.baseConfig,
+      baseURL,
+      endpointType: ctx.model.endpoint_type,
+      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
+    }
+  }
+}
+
+/**
+ * `aionly` reuses the `newapi` OpenAI-compatible image model but its images
+ * endpoint lives under a `/openai/v1` path prefix. The legacy painting code
+ * (`providers/newapi/generate.ts` `buildRequestUrls`) computed
+ * `${apiHost.replace(/\/v1$/, '')}/openai/v1/images/{generations,edits}`.
+ *
+ * `ctx.baseConfig.baseURL` here is the already-formatted apiHost (via
+ * `formatProviderApiHost` → `formatApiHost`, which appends `/v1` when absent),
+ * and the `newapi` image model URL builder yields
+ * `withoutTrailingSlash(baseURL) + '/images/{generations,edits}'`. Stripping a
+ * trailing `/v1` then appending `/openai/v1` makes the final URL byte-identical
+ * to the legacy URL for every well-formed apiHost.
+ */
+function buildAionlyConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
+  const baseURL = `${ctx.baseConfig.baseURL.replace(/\/v1$/, '')}/openai/v1`
 
   return {
     providerId: 'newapi',

@@ -3764,40 +3764,51 @@
       },
       "new": {
         "image": "新建图片"
+      },
+      "select": {
+        "image": "选择图片"
       }
     },
     "custom_size": "自定义尺寸",
+    "dashscope": {
+      "bottom_scale": "向下扩展",
+      "enable_interleave": "图文混排模式",
+      "enable_interleave_tip": "开启后生成图文混排内容，无需输入图像。关闭后切换到编辑模式（需要 1–4 张输入图像）。",
+      "function": "编辑功能",
+      "function_options": {
+        "colorization": "图像上色",
+        "control_cartoon_feature": "卡通形象参考",
+        "description_edit": "指令编辑",
+        "description_edit_with_mask": "局部重绘（蒙版）",
+        "doodle": "涂鸦作画",
+        "expand": "扩图",
+        "remove_watermark": "去水印",
+        "stylization_all": "全局风格化",
+        "stylization_local": "局部风格化",
+        "super_resolution": "图像超分"
+      },
+      "is_sketch": "草图输入",
+      "left_scale": "向左扩展",
+      "ref_mode": "参考模式",
+      "ref_mode_options": {
+        "refonly": "仅参考",
+        "repaint": "重绘"
+      },
+      "ref_strength": "参考强度",
+      "right_scale": "向右扩展",
+      "source_lang": "源语言",
+      "strength": "强度",
+      "target_lang": "目标语言",
+      "top_scale": "向上扩展",
+      "upscale_factor": "放大倍数"
+    },
     "dmxapi": {
       "generating_tip": "正在使用官方的模型生成，预计等待2~5分钟效果最好，本次消耗金额请到DMXAPI后台日志查看",
-      "style": "，风格：",
-      "style_types": {
-        "25d_animation": "2.5D动画",
-        "3d_cartoon": "3D卡通",
-        "american_retro": "美式复古",
-        "baroque": "巴洛克",
-        "cartoon_illustration": "卡通插画",
-        "chinese_gongbi": "中国工笔",
-        "clay": "黏土",
-        "cyberpunk": "赛博朋克",
-        "felt": "毛毡",
-        "flat": "平坦",
-        "fresh_anime": "新鲜动漫",
-        "ghibli": "吉卜力",
-        "japanese_anime": "日本动漫",
-        "little_people_book": "小人书",
-        "monet_garden": "莫奈花园",
-        "oil_painting": "油画",
-        "pixar": "皮克斯",
-        "pixel_art": "像素艺术",
-        "poetic_ancient": "诗意古风",
-        "psychedelic": "迷幻",
-        "sketch": "草图",
-        "street_art": "街头艺术",
-        "texture": "纹理",
-        "ukiyo_e": "浮世绘",
-        "watercolor": "水彩",
-        "wood_carving": "木雕",
-        "yarn_doll": "纱线娃娃"
+      "max_images": "最大图像数",
+      "sequential_image_generation": "组图生成",
+      "sequential_image_generation_options": {
+        "auto": "自动",
+        "disabled": "禁用"
       }
     },
     "edit": {
@@ -3806,24 +3817,14 @@
     },
     "generate": {
       "height": "高度",
-      "magic_prompt_option_tip": "智能优化提示词以提升生成效果",
-      "model_tip": "模型版本：V3 为最新版本，V2 为之前版本，V2A 为快速模型、V_1 为初代模型，_TURBO 为加速版本",
-      "negative_prompt_tip": "描述不想在图像中出现的元素，仅支持 V_1、V_1_TURBO、V_2 和 V_2_TURBO 版本",
-      "number_images_tip": "单次出图数量",
-      "person_generation": "生成人物",
-      "person_generation_tip": "允许模型生成人物图像",
-      "rendering_speed_tip": "控制渲染速度与质量的平衡，仅适用于 V_3 版本",
-      "safety_tolerance": "安全容忍度",
-      "safety_tolerance_tip": "控制图像生成的安全容忍度，仅适用于 FLUX.1-Kontext-pro 版本",
-      "seed_tip": "控制图像生成的随机性，用于复现相同的生成结果",
-      "style_type_tip": "图像生成风格，仅适用于 V_2 及以上版本",
       "width": "宽度"
     },
     "generate_failed": "生成图像失败",
     "generated_image": "生成图片",
+    "generating": "生成中...",
     "go_to_settings": "去设置",
     "guidance_scale": "引导比例",
-    "guidance_scale_tip": "无分类器指导。控制模型在寻找相关图像时对提示词的遵循程度",
+    "guidance_scale_tip": "无分类器指导 ({{min}}-{{max}})。控制模型在寻找相关图像时对提示词的遵循程度",
     "image": {
       "size": "图片尺寸"
     },
@@ -3836,8 +3837,9 @@
     "image_size_options": {
       "auto": "自动"
     },
+    "image_weight": "图像权重",
     "inference_steps": "推理步数",
-    "inference_steps_tip": "要执行的推理步数。步数越多，质量越高但耗时越长",
+    "inference_steps_tip": "要执行的推理步数 ({{min}}-{{max}})。步数越多，质量越高但耗时越长",
     "input_image": "输入图片",
     "input_parameters": "输入参数",
     "invalid_image_url": "无效的图片URL格式",
@@ -3861,16 +3863,18 @@
     "negative_prompt_tip": "描述你不想在图片中出现的内容",
     "no_image_generation_model": "暂无可用的图片生成模型，请先新增模型并设置端点类型为 {{endpoint_type}}",
     "number_images": "生成数量",
-    "number_images_tip": "一次生成的图片数量 (1-4)",
+    "number_images_tip": "一次生成的图片数量 ({{min}}-{{max}})",
     "operation_failed": "操作失败，请稍后重试",
     "paint_course": "教程",
     "per_image": "每张图片",
     "per_images": "每张图片",
+    "person_generation": "生成人物",
     "person_generation_options": {
       "allow_adult": "允许成人",
       "allow_all": "允许所有",
       "allow_none": "不允许"
     },
+    "person_generation_tip": "允许模型生成人物图像",
     "ppio": {
       "edit_prompt_tip": "用于指定要从图像中移除的对象或区域，例如：'dog' 或 'hat'",
       "mask_image": "遮罩图像",
@@ -3887,28 +3891,19 @@
     "prompt_placeholder": "描述你想创建的图片，例如：一个宁静的湖泊，夕阳西下，远处是群山",
     "prompt_placeholder_edit": "输入你的图片描述，文本绘制用 \"双引号\" 包裹",
     "prompt_placeholder_en": "输入 \"英文\" 图片描述，目前仅支持英文提示词",
+    "prompt_required": "请输入提示词",
     "proxy_required": "打开代理并开启 \"TUN 模式\" 查看生成图片或复制到浏览器打开，后续会支持国内直连",
     "quality": "质量",
     "quality_options": {
       "auto": "自动",
+      "hd": "高清",
       "high": "高",
       "low": "低",
-      "medium": "中"
+      "medium": "中",
+      "standard": "标准"
     },
     "regenerate": {
       "confirm": "这将覆盖已生成的图片，是否继续？"
-    },
-    "remix": {
-      "image_file": "参考图",
-      "image_weight": "参考图权重",
-      "image_weight_tip": "调整参考图像的影响程度",
-      "magic_prompt_option_tip": "智能优化重混提示词",
-      "model_tip": "选择重混使用的 AI 模型版本",
-      "negative_prompt_tip": "描述不想在重混结果中出现的元素",
-      "number_images_tip": "生成的重混结果数量",
-      "rendering_speed_tip": "控制渲染速度与质量之间的平衡，仅适用于 V_3 版本",
-      "seed_tip": "控制重混结果的随机性",
-      "style_type_tip": "重混后的图像风格，仅适用于 V_2 及以上版本"
     },
     "rendering_speed": "渲染速度",
     "rendering_speeds": {
@@ -3921,21 +3916,40 @@
     "req_error_text": "服务器繁忙或提示词出现 \"版权词\" 和 \"敏感词\" ，请重试。",
     "req_error_token": "请检查令牌有效性",
     "required_field": "必填项",
+    "safety_tolerance": "安全容忍度",
+    "safety_tolerance_tip": "数值越高过滤越宽松，0 最严格，6 最宽松",
     "seed": "随机种子",
     "seed_desc_tip": "相同的种子和提示词可以生成相似的图片，设置 -1 每次生成都不一样",
     "seed_random": "随机",
     "seed_tip": "相同的种子和提示词可以生成相似的图片",
     "select_model": "选择模型",
+    "style_options": {
+      "anime": "动漫",
+      "auto": "自动",
+      "cartoon_3d": "3D 卡通",
+      "chinese_painting": "国画",
+      "flat_illustration": "扁平插画",
+      "natural": "自然",
+      "oil_painting": "油画",
+      "photography": "摄影",
+      "portrait": "人像",
+      "sketch": "素描",
+      "vivid": "鲜艳",
+      "watercolor": "水彩"
+    },
     "style_type": "风格",
-    "style_types": {
-      "3d": "3D",
+    "style_type_options": {
       "anime": "动漫",
       "auto": "自动",
       "design": "设计",
       "general": "通用",
-      "realistic": "写实"
+      "realistic": "写实",
+      "render_3d": "3D 渲染"
     },
+    "style_type_tip": "图像生成风格",
     "text_desc_required": "请先输入图片描述",
+    "thinking_mode": "思考模式",
+    "thinking_mode_tip": "开启后生成质量更高，但耗时增加约 10-30 秒",
     "title": "图片",
     "top_up": "充值",
     "translating": "翻译中...",
