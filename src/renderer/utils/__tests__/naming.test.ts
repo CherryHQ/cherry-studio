@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 // Mock i18n to return English provider labels
 vi.mock('@renderer/i18n/label', () => ({
-  getProviderLabel: vi.fn((id: string) => {
+  getProviderLabelKey: vi.fn((id: string) => {
     const labelMap: Record<string, string> = {
       dashscope: 'Alibaba Cloud',
       openai: 'OpenAI',

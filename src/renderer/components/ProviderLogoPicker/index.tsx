@@ -2,10 +2,11 @@ import { SearchOutlined } from '@ant-design/icons'
 import { Tooltip } from '@cherrystudio/ui'
 import { PROVIDER_ICON_CATALOG } from '@cherrystudio/ui/icons'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
-import { getProviderLabel } from '@renderer/i18n/label'
+import { getProviderLabelKey } from '@renderer/i18n/label'
 import { Input } from 'antd'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
 interface Props {
@@ -14,20 +15,21 @@ interface Props {
 
 // 用于选择内置头像的提供商Logo选择器组件
 const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
+  const { t } = useTranslation()
   const [searchText, setSearchText] = useState('')
 
   const filteredProviders = useMemo(() => {
     const providers = Object.entries(PROVIDER_ICON_CATALOG).map(([id, icon]) => ({
       id,
       icon,
-      name: getProviderLabel(id)
+      name: t(getProviderLabelKey(id))
     }))
 
     if (!searchText) return providers
 
     const searchLower = searchText.toLowerCase()
     return providers.filter((p) => p.name.toLowerCase().includes(searchLower))
-  }, [searchText])
+  }, [searchText, t])
 
   const handleProviderClick = (event: React.MouseEvent, providerId: string) => {
     event.stopPropagation()

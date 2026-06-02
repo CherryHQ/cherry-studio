@@ -9,7 +9,7 @@ import { isMac } from '@renderer/config/constant'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { getProviderLabel } from '@renderer/i18n/label'
+import { getProviderLabelKey } from '@renderer/i18n/label'
 import FileManager from '@renderer/services/FileManager'
 import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata, OvmsPainting } from '@renderer/types'
@@ -57,7 +57,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
     const provider = providers.find((p) => p.id === option)
     if (provider) {
       return {
-        label: getProviderLabel(provider.id),
+        label: t(getProviderLabelKey(provider.id)),
         value: provider.id
       }
     } else {

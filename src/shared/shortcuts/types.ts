@@ -28,7 +28,7 @@ export interface ShortcutDefinition {
   scope: ShortcutScope
   /** Dot-separated category for UI grouping (e.g. `general`, `chat`, `topic`, `plugin.translator`). */
   category: ShortcutCategory
-  /** i18n label key used by `getShortcutLabel()` for display. */
+  /** i18n label key used by `getShortcutLabelKey()` for display. */
   labelKey: string
   /** Whether users can modify the binding in settings. Defaults to `true`. */
   editable?: boolean

@@ -15,10 +15,10 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import { useAllProviders } from '@renderer/hooks/useProvider'
 import {
-  getPaintingsBackgroundOptionsLabel,
-  getPaintingsImageSizeOptionsLabel,
-  getPaintingsModerationOptionsLabel,
-  getPaintingsQualityOptionsLabel
+  getPaintingsBackgroundOptionsLabelKey,
+  getPaintingsImageSizeOptionsLabelKey,
+  getPaintingsModerationOptionsLabelKey,
+  getPaintingsQualityOptionsLabelKey
 } from '@renderer/i18n/label'
 import PaintingsList from '@renderer/pages/paintings/components/PaintingsList'
 import { DEFAULT_PAINTING, MODELS, SUPPORTED_MODELS } from '@renderer/pages/paintings/config/NewApiConfig'
@@ -679,7 +679,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
                   <Select value={painting.size} onChange={handleSizeChange} style={{ width: '100%', marginBottom: 15 }}>
                     {selectedModelConfig.imageSizes.map((s) => (
                       <Select.Option value={s.value} key={s.value}>
-                        {getPaintingsImageSizeOptionsLabel(s.value) ?? s.value}
+                        {t(getPaintingsImageSizeOptionsLabelKey(s.value)) ?? s.value}
                       </Select.Option>
                     ))}
                   </Select>
@@ -696,7 +696,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
                     style={{ width: '100%', marginBottom: 15 }}>
                     {selectedModelConfig.quality.map((q) => (
                       <Select.Option value={q.value} key={q.value}>
-                        {getPaintingsQualityOptionsLabel(q.value) ?? q.value}
+                        {t(getPaintingsQualityOptionsLabelKey(q.value)) ?? q.value}
                       </Select.Option>
                     ))}
                   </Select>
@@ -715,7 +715,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
                       style={{ width: '100%', marginBottom: 15 }}>
                       {selectedModelConfig.moderation.map((m) => (
                         <Select.Option value={m.value} key={m.value}>
-                          {getPaintingsModerationOptionsLabel(m.value) ?? m.value}
+                          {t(getPaintingsModerationOptionsLabelKey(m.value)) ?? m.value}
                         </Select.Option>
                       ))}
                     </Select>
@@ -734,7 +734,7 @@ const NewApiPage: FC<{ Options: string[] }> = ({ Options }) => {
                       style={{ width: '100%', marginBottom: 15 }}>
                       {selectedModelConfig.background.map((b) => (
                         <Select.Option value={b.value} key={b.value}>
-                          {getPaintingsBackgroundOptionsLabel(b.value) ?? b.value}
+                          {t(getPaintingsBackgroundOptionsLabelKey(b.value)) ?? b.value}
                         </Select.Option>
                       ))}
                     </Select>

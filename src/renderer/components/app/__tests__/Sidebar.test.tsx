@@ -32,7 +32,7 @@ vi.mock('react-i18next', () => ({
 }))
 
 vi.mock('@renderer/i18n/label', () => ({
-  getSidebarIconLabel: sidebarLabel
+  getSidebarIconLabelKey: sidebarLabel
 }))
 
 vi.mock('@renderer/i18n', () => ({

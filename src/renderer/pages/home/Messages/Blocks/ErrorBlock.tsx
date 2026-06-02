@@ -2,7 +2,7 @@ import { SettingOutlined } from '@ant-design/icons'
 import { Button } from '@cherrystudio/ui'
 import { showErrorDetailPopup } from '@renderer/components/ErrorDetailModal'
 import { useTimer } from '@renderer/hooks/useTimer'
-import { getHttpMessageLabel, getProviderLabel } from '@renderer/i18n/label'
+import { getHttpMessageLabelKey, getProviderLabelKey } from '@renderer/i18n/label'
 import type { DiagnosisResult } from '@renderer/services/ErrorDiagnosisService'
 import { classifyErrorByAI } from '@renderer/services/ErrorDiagnosisService'
 import { useAppDispatch } from '@renderer/store'
@@ -44,7 +44,7 @@ const ErrorMessage: React.FC<{ block: ErrorMessageBlock }> = ({ block }) => {
       return (
         <Trans
           i18nKey={i18nKey}
-          values={{ provider: getProviderLabel(providerId) }}
+          values={{ provider: t(getProviderLabelKey(providerId)) }}
           components={{
             provider: (
               <Link style={{ color: 'var(--color-link)' }} to="/settings/provider" search={{ id: providerId }} />
@@ -62,7 +62,7 @@ const ErrorMessage: React.FC<{ block: ErrorMessageBlock }> = ({ block }) => {
   if (typeof errorStatus === 'number' && HTTP_ERROR_CODES.includes(errorStatus)) {
     return (
       <span>
-        {getHttpMessageLabel(errorStatus.toString())} {block.error?.message}
+        {t(getHttpMessageLabelKey(errorStatus.toString()))} {block.error?.message}
       </span>
     )
   }

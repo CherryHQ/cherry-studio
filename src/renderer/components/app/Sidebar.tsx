@@ -5,7 +5,7 @@ import useAvatar from '@renderer/hooks/useAvatar'
 import { modelGenerating } from '@renderer/hooks/useModel'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { useTabs } from '@renderer/hooks/useTabs'
-import { getSidebarIconLabel } from '@renderer/i18n/label'
+import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SidebarIcon as SidebarIconType } from '@shared/data/preference/preferenceTypes'
 import {
@@ -119,7 +119,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
     return [
       {
         id: icon,
-        label: getSidebarIconLabel(icon),
+        label: t(getSidebarIconLabelKey(icon)),
         icon: Icon
       }
     ]

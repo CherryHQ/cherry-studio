@@ -1,6 +1,6 @@
 import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { isMac, platform } from '@renderer/config/constant'
-import { getShortcutLabel } from '@renderer/i18n/label'
+import { getShortcutLabelKey } from '@renderer/i18n/label'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import { findShortcutDefinition, SHORTCUT_DEFINITIONS } from '@shared/shortcuts/definitions'
 import type {
@@ -19,6 +19,7 @@ import {
 } from '@shared/shortcuts/utils'
 import { useCallback, useMemo, useRef } from 'react'
 import { useHotkeys } from 'react-hotkeys-hook'
+import { useTranslation } from 'react-i18next'
 
 interface UseShortcutOptions {
   preventDefault?: boolean
@@ -179,6 +180,7 @@ export const getAllShortcutDefaultPreferences = (): Record<ShortcutPreferenceKey
 }
 
 export const useAllShortcuts = () => {
+  const { t } = useTranslation()
   const [values, setValues] = useMultiplePreferences(shortcutPreferenceKeyMap)
   const [dependencyValues] = useMultiplePreferences(shortcutDependencyPreferenceKeyMap)
 
@@ -211,7 +213,7 @@ export const useAllShortcuts = () => {
         return [
           {
             key: definition.key,
-            label: getShortcutLabel(definition.labelKey),
+            label: t(getShortcutLabelKey(definition.labelKey)),
             definition,
             preference: {
               binding: preference.binding,
@@ -221,7 +223,7 @@ export const useAllShortcuts = () => {
           }
         ]
       }),
-    [dependencyValues, values]
+    [dependencyValues, values, t]
   )
 
   return { shortcuts, updatePreference }

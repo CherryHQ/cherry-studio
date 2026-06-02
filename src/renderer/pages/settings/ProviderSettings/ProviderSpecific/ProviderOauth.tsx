@@ -3,7 +3,7 @@ import { resolveProviderIcon } from '@cherrystudio/ui/icons'
 import OauthButton from '@renderer/components/Oauth/OauthButton'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProviders'
-import { getProviderLabel } from '@renderer/i18n/label'
+import { getProviderLabelKey } from '@renderer/i18n/label'
 import { hasApiKeys } from '@renderer/pages/settings/ProviderSettings/utils/provider'
 import { toV1ProviderShim } from '@renderer/pages/settings/ProviderSettings/utils/v1ProviderShim'
 import { providerBills, providerCharge } from '@renderer/utils/oauth'
@@ -49,7 +49,7 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
           provider={toV1ProviderShim(provider)}
           onSuccess={setApiKey}
           className="rounded-lg! px-3! py-[6px]! text-[13px]!">
-          {t('settings.provider.oauth.button', { provider: getProviderLabel(provider.id) })}
+          {t('settings.provider.oauth.button', { provider: t(getProviderLabelKey(provider.id)) })}
         </OauthButton>
       ) : (
         <RowFlex className="gap-2.5">

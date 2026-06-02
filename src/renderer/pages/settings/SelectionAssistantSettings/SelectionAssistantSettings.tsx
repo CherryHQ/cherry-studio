@@ -2,7 +2,7 @@ import { Button, RadioGroup, RadioGroupItem, Slider, Switch, Tooltip } from '@ch
 import { usePreference } from '@data/hooks/usePreference'
 import { isLinux, isMac, isWin } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { getSelectionDescriptionLabel } from '@renderer/i18n/label'
+import { getSelectionDescriptionLabelKey } from '@renderer/i18n/label'
 import { cn } from '@renderer/utils/style'
 import SelectionToolbar from '@renderer/windows/selection/toolbar/SelectionToolbar'
 import type { SelectionFilterMode, SelectionTriggerMode } from '@shared/data/preference/preferenceTypes'
@@ -189,7 +189,7 @@ const SelectionAssistantSettings: FC = () => {
                 <SettingRowTitle>
                   <div style={{ marginRight: '4px' }}>{t('selection.settings.toolbar.trigger_mode.title')}</div>
                   {/* FIXME: 没有考虑Linux？ */}
-                  <Tooltip content={getSelectionDescriptionLabel(isWin ? 'windows' : isLinux ? 'linux' : 'mac')}>
+                  <Tooltip content={t(getSelectionDescriptionLabelKey(isWin ? 'windows' : isLinux ? 'linux' : 'mac'))}>
                     <QuestionIcon size={14} />
                   </Tooltip>
                 </SettingRowTitle>

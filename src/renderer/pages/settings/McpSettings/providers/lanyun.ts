@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { getProviderLabel } from '@renderer/i18n/label'
+import { getProviderLabelKey } from '@renderer/i18n/label'
 import type { MCPServer } from '@renderer/types'
 import i18next from 'i18next'
 
@@ -160,7 +160,7 @@ export const syncTokenLanYunServers = async (
           args: [],
           env: {},
           isActive: true,
-          provider: getProviderLabel('lanyun'),
+          provider: i18next.t(getProviderLabelKey('lanyun')),
           providerUrl: server.operationalUrls[0].url,
           logoUrl: server.logoUrl || '',
           tags: server.tags ?? (server.chineseName ? [server.chineseName] : [])
