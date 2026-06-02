@@ -2,7 +2,7 @@ import { splitToSubTrunks } from '@renderer/services/ShikiStreamTokenizer'
 import type { ThemedToken } from 'shiki/types'
 import { describe, expect, it } from 'vitest'
 
-import { getReactStyleFromToken } from '../shiki'
+import { getMarkdownIt, getReactStyleFromToken } from '../shiki'
 
 // FontStyle 常量，避免类型错误
 const FS_ITALIC = 1
@@ -195,28 +195,51 @@ describe('shiki', () => {
       expect(result).toEqual({})
     })
 
-    it('should use readable text color for white tokens in light themes', () => {
+    it.each(['white', '#fff', '#ffffff', '#FFFFFF'])(
+      'should use readable text color for %s tokens in light themes',
+      (color) => {
+        const token = createThemedToken({
+          content: 'LogPage',
+          offset: 0,
+          color
+        })
+
+        const result = getReactStyleFromToken(token, { isDarkTheme: false })
+
+        expect(result.color).toBe('var(--color-foreground)')
+      }
+    )
+
+    it.each(['white', '#fff', '#ffffff', '#FFFFFF'])('should preserve %s tokens in dark themes', (color) => {
       const token = createThemedToken({
         content: 'LogPage',
         offset: 0,
-        color: 'white'
-      })
-
-      const result = getReactStyleFromToken(token, { isDarkTheme: false })
-
-      expect(result.color).toBe('var(--color-text)')
-    })
-
-    it('should preserve white tokens in dark themes', () => {
-      const token = createThemedToken({
-        content: 'LogPage',
-        offset: 0,
-        color: 'white'
+        color
       })
 
       const result = getReactStyleFromToken(token, { isDarkTheme: true })
 
-      expect(result.color).toBe('white')
+      expect(result.color).toBe(color)
+    })
+  })
+
+  describe('getMarkdownIt', () => {
+    const markdownWithWhiteToken = '```json\n{,}\n```'
+
+    it('should use readable text color for white token spans in light shiki themes', async () => {
+      const renderer = await getMarkdownIt('one-light', markdownWithWhiteToken)
+      const html = renderer.render(markdownWithWhiteToken)
+
+      expect(html).toContain('color:var(--color-foreground)')
+      expect(html).not.toContain('color:white')
+    })
+
+    it('should preserve white token spans in dark shiki themes', async () => {
+      const renderer = await getMarkdownIt('houston', markdownWithWhiteToken)
+      const html = renderer.render(markdownWithWhiteToken)
+
+      expect(html).toContain('color:#FFFFFF')
+      expect(html).not.toContain('color:var(--color-foreground)')
     })
   })
 })

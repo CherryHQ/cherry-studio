@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import type { BundledLanguage, BundledTheme } from 'shiki/bundle/web'
-import type { SpecialLanguage, ThemedToken } from 'shiki/core'
+import type { ShikiTransformer, SpecialLanguage, ThemedToken } from 'shiki/core'
 import { getTokenStyleObject, type HighlighterGeneric } from 'shiki/core'
 
 import { AsyncInitializer } from './asyncInitializer'
@@ -9,6 +9,45 @@ export const DEFAULT_LANGUAGES = ['text', 'javascript', 'typescript', 'python', 
 export const DEFAULT_THEMES = ['one-light', 'material-theme-darker']
 
 const logger = loggerService.withContext('Shiki')
+const WHITE_TOKEN_COLOR_PATTERN = /^(?:white|#fff(?:fff)?)$/i
+const READABLE_TEXT_COLOR = 'var(--color-foreground)'
+
+function isWhiteTokenColor(color: string): boolean {
+  return WHITE_TOKEN_COLOR_PATTERN.test(color)
+}
+
+function replaceLightThemeWhiteTokenColor(style: string): string {
+  return style
+    .split(';')
+    .map((declaration) => {
+      const separatorIndex = declaration.indexOf(':')
+      if (separatorIndex === -1) {
+        return declaration
+      }
+
+      const property = declaration.slice(0, separatorIndex).trim()
+      const value = declaration.slice(separatorIndex + 1).trim()
+      if (property === 'color' && isWhiteTokenColor(value)) {
+        return `${property}:${READABLE_TEXT_COLOR}`
+      }
+
+      return declaration
+    })
+    .join(';')
+}
+
+function createReadableLightThemeTokenTransformer(isDarkTheme: boolean): ShikiTransformer {
+  return {
+    name: 'cherry:readable-light-theme-token-color',
+    span(node) {
+      if (isDarkTheme || typeof node.properties.style !== 'string') {
+        return
+      }
+
+      node.properties.style = replaceLightThemeWhiteTokenColor(node.properties.style)
+    }
+  }
+}
 
 /**
  * shiki 初始化器，避免并发问题
@@ -114,8 +153,8 @@ export function getReactStyleFromToken(
   const style = token.htmlStyle || getTokenStyleObject(token)
   const reactStyle: Record<string, string> = {}
   for (const [key, value] of Object.entries(style)) {
-    if (key === 'color' && !options?.isDarkTheme && ['white', '#fff', '#ffffff'].includes(value.toLowerCase())) {
-      reactStyle.color = 'var(--color-text)'
+    if (key === 'color' && !options?.isDarkTheme && isWhiteTokenColor(value)) {
+      reactStyle.color = READABLE_TEXT_COLOR
       continue
     }
 
@@ -178,12 +217,15 @@ export async function getMarkdownIt(theme: string, markdown: string) {
     themes[actualTheme] = actualTheme
   }
 
+  const isActualThemeDark = highlighter.getTheme(actualTheme).type === 'dark'
+
   md.use(
     fromHighlighter(highlighter, {
       themes,
       defaultColor: actualTheme,
       defaultLanguage: 'json',
-      fallbackLanguage: 'json'
+      fallbackLanguage: 'json',
+      transformers: [createReadableLightThemeTokenTransformer(isActualThemeDark)]
     })
   )
 
