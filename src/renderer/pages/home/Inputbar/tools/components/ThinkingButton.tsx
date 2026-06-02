@@ -82,6 +82,11 @@ const ThinkingButton: FC<Props> = ({
         cacheService.set(`assistant.reasoning_effort_cache.${assistantId}`, option)
         updateAssistantSettings({
           reasoning_effort: option,
+          reasoning_effort_cache: option,
+          reasoning_effort_by_model: {
+            ...assistant.settings?.reasoning_effort_by_model,
+            [model.id]: option
+          },
           qwenThinkMode: false
         })
         return
@@ -98,10 +103,23 @@ const ThinkingButton: FC<Props> = ({
       cacheService.set(`assistant.reasoning_effort_cache.${assistantId}`, option)
       updateAssistantSettings({
         reasoning_effort: option,
+        reasoning_effort_cache: option,
+        reasoning_effort_by_model: {
+          ...assistant.settings?.reasoning_effort_by_model,
+          [model.id]: option
+        },
         qwenThinkMode: true
       })
     },
-    [isControlled, onReasoningEffortChange, updateAssistantSettings, assistantId, assistant.enableWebSearch, model, t]
+    [
+      isControlled,
+      onReasoningEffortChange,
+      updateAssistantSettings,
+      assistant.enableWebSearch,
+      assistant.settings,
+      model,
+      t
+    ]
   )
 
   const reasoningEffortOptionLabelMap = {

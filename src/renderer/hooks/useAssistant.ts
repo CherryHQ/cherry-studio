@@ -116,6 +116,21 @@ export function useAssistant(id: string) {
       if (isSupportedThinkingTokenModel(model) || isSupportedReasoningEffortModel(model)) {
         const modelType = getThinkModelType(model)
         const supportedOptions = MODEL_SUPPORTED_OPTIONS[modelType]
+
+        // 优先尝试恢复该模型之前保存的偏好
+        const modelPreference = settings.reasoning_effort_by_model?.[model.id]
+        if (modelPreference && supportedOptions.includes(modelPreference)) {
+          const normalizedValue = modelPreference === 'none' ? undefined : modelPreference
+          if (currentReasoningEffort !== normalizedValue) {
+            updateAssistantSettings({
+              reasoning_effort: normalizedValue,
+              reasoning_effort_cache: normalizedValue,
+              qwenThinkMode: modelPreference === 'none' ? undefined : true
+            })
+          }
+          return
+        }
+
         if (supportedOptions.every((option) => option !== currentReasoningEffort)) {
           const cache = cacheService.get(cacheKey) as ThinkingOption | undefined
           let fallbackOption: ThinkingOption
