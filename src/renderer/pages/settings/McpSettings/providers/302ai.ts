@@ -28,14 +28,12 @@ export const hasAI302Token = (): boolean => {
 interface Ai302SyncResult {
   success: boolean
   message: string
-  addedServers: MCPServer[]
-  updatedServers: MCPServer[]
   allServers: MCPServer[]
   errorDetails?: string
 }
 
 // Function to fetch and process 302ai servers
-export const syncAi302Servers = async (token: string, existingServers: MCPServer[]): Promise<Ai302SyncResult> => {
+export const syncAi302Servers = async (token: string): Promise<Ai302SyncResult> => {
   const t = i18next.t
 
   try {
@@ -53,8 +51,6 @@ export const syncAi302Servers = async (token: string, existingServers: MCPServer
       return {
         success: false,
         message: t('settings.mcp.sync.unauthorized', 'Sync Unauthorized'),
-        addedServers: [],
-        updatedServers: [],
         allServers: []
       }
     }
@@ -64,8 +60,6 @@ export const syncAi302Servers = async (token: string, existingServers: MCPServer
       return {
         success: false,
         message: t('settings.mcp.sync.error'),
-        addedServers: [],
-        updatedServers: [],
         allServers: [],
         errorDetails: `Status: ${response.status}`
       }
@@ -80,22 +74,15 @@ export const syncAi302Servers = async (token: string, existingServers: MCPServer
       return {
         success: true,
         message: t('settings.mcp.sync.noServersAvailable', 'No MCP servers available'),
-        addedServers: [],
-        updatedServers: [],
         allServers: []
       }
     }
 
     // Transform 302ai servers to MCP servers format
-    const addedServers: MCPServer[] = []
-    const updatedServers: MCPServer[] = []
     const allServers: MCPServer[] = []
 
     for (const server of servers) {
       try {
-        // Check if server already exists
-        const existingServer = existingServers.find((s) => s.id === `@302ai/${server.name}`)
-
         const mcpServer: MCPServer = {
           id: `@302ai/${server.name}`,
           name: server.name || `302ai Server ${nanoid()}`,
@@ -108,25 +95,15 @@ export const syncAi302Servers = async (token: string, existingServers: MCPServer
           tags: server.tags,
           logoUrl: server.logoUrl
         }
-
-        if (existingServer) {
-          // Update existing server with latest info
-          updatedServers.push(mcpServer)
-        } else {
-          // Add new server
-          addedServers.push(mcpServer)
-        }
+        allServers.push(mcpServer)
       } catch (err) {
         logger.error('Error processing 302ai server:', err as Error)
       }
     }
 
-    const totalServers = addedServers.length + updatedServers.length
     return {
       success: true,
-      message: t('settings.mcp.sync.success', { count: totalServers }),
-      addedServers,
-      updatedServers,
+      message: t('settings.mcp.sync.success', { count: allServers.length }),
       allServers
     }
   } catch (error) {
@@ -134,8 +111,6 @@ export const syncAi302Servers = async (token: string, existingServers: MCPServer
     return {
       success: false,
       message: t('settings.mcp.sync.error'),
-      addedServers: [],
-      updatedServers: [],
       allServers: [],
       errorDetails: String(error)
     }
