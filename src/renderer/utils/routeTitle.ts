@@ -1,5 +1,4 @@
 import i18n from '@renderer/i18n'
-import type { TFunction } from 'i18next'
 
 /** Base URL for parsing relative route paths */
 const BASE_URL = 'https://www.cherry-ai.com/'
@@ -51,23 +50,19 @@ function getBasePath(pathname: string): string {
  * getDefaultRouteTitle('/app/chat/abc123') // '助手'
  * getDefaultRouteTitle('/unknown') // 'unknown'
  */
-function translateRouteTitle(t: TFunction, key: string, language?: string): string {
-  return language ? t(key, { lng: language }) : t(key)
-}
-
-export function getDefaultRouteTitle(url: string, t: TFunction = i18n.t, language?: string): string {
+export function getDefaultRouteTitle(url: string): string {
   const sanitizedUrl = new URL(url, BASE_URL).pathname
 
   // Try exact match first
   const exactKey = routeTitleKeys[sanitizedUrl]
   if (exactKey) {
-    return translateRouteTitle(t, exactKey, language)
+    return i18n.t(exactKey)
   }
 
   // Try matching base path
   const baseKey = routeTitleKeys[getBasePath(sanitizedUrl)]
   if (baseKey) {
-    return translateRouteTitle(t, baseKey, language)
+    return i18n.t(baseKey)
   }
 
   // Fallback to last segment of pathname

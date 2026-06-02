@@ -76,8 +76,7 @@ function resolveActiveItem(pathname: string): SidebarIconType | '' {
 }
 
 export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
-  const { t, i18n } = useTranslation()
-  const language = i18n.language
+  const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
   const { activeTab, updateTab, openTab } = useTabs()
@@ -111,24 +110,20 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   // Menu items
   const pathname = activeTab?.url || '/'
 
-  const items = useMemo<SidebarMenuItem[]>(
-    () =>
-      visibleSidebarIcons.flatMap((icon) => {
-        const path = getMenuPath(icon, defaultPaintingProvider)
-        const Icon = iconMap[icon]
-        if (!path || !Icon) {
-          return []
-        }
-        return [
-          {
-            id: icon,
-            label: getSidebarIconLabel(icon, t, language),
-            icon: Icon
-          }
-        ]
-      }),
-    [defaultPaintingProvider, language, t, visibleSidebarIcons]
-  )
+  const items: SidebarMenuItem[] = visibleSidebarIcons.flatMap((icon) => {
+    const path = getMenuPath(icon, defaultPaintingProvider)
+    const Icon = iconMap[icon]
+    if (!path || !Icon) {
+      return []
+    }
+    return [
+      {
+        id: icon,
+        label: getSidebarIconLabel(icon),
+        icon: Icon
+      }
+    ]
+  })
 
   const activeItem = resolveActiveItem(pathname)
 
