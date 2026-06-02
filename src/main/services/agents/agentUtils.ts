@@ -161,6 +161,11 @@ export async function listMcpTools(
     const activeServerIds = new Set(activeServers.items.map((s) => s.id))
     const validIds = ids.filter((id) => activeServerIds.has(id))
 
+    if (validIds.length < ids.length) {
+      const dropped = ids.filter((id) => !activeServerIds.has(id))
+      logger.warn('Skipping inactive/deleted MCP servers when listing tools', { dropped })
+    }
+
     for (const id of validIds) {
       try {
         const server = await getMcpApiService().getServerInfo(id)
@@ -202,6 +207,11 @@ export async function prefetchMcpServers(ids: string[]): Promise<Map<string, Mcp
   const { items: allServers } = await mcpServerService.list({ isActive: true })
   const activeServerIds = new Set(allServers.map((s) => s.id))
   const validIds = ids.filter((id) => activeServerIds.has(id))
+
+  if (validIds.length < ids.length) {
+    const dropped = ids.filter((id) => !activeServerIds.has(id))
+    logger.warn('Skipping inactive/deleted MCP servers when prefetching', { dropped })
+  }
 
   const cache = new Map<string, McpServerInfo>()
   await Promise.all(

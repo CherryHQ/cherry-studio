@@ -141,13 +141,15 @@ export class McpServerService {
   /**
    * Delete an MCP server and remove its reference from all agents and sessions.
    *
-   * Uses a transaction so the server delete + cross-entity cleanup are atomic:
-   * if either fails, both roll back — no orphaned references are left behind.
+   * Uses withWriteTx so the server delete + cross-entity cleanup are serialized
+   * against other writes (avoids libsql issue #288 SQLITE_BUSY). If either fails,
+   * both roll back — no orphaned references are left behind.
    */
   async delete(id: string): Promise<void> {
     await this.getById(id)
 
-    await this.db.transaction(async (tx) => {
+    const dbService = application.get('DbService')
+    await dbService.withWriteTx(async (tx) => {
       await this.cleanupMcpReferencesTx(tx, id)
       await tx.delete(mcpServerTable).where(eq(mcpServerTable.id, id))
     })
@@ -162,13 +164,14 @@ export class McpServerService {
   private async cleanupMcpReferencesTx(tx: DbOrTx, mcpServerId: string): Promise<void> {
     // Each mcps column is a JSON array of server IDs stored as text.
     // LIKE matches the raw JSON to find rows that reference this server.
-    const rawLike = `%"${mcpServerId}"%`
+    const escaped = mcpServerId.replace(/[\\%_]/g, '\\$&')
+    const rawLike = `%"${escaped}"%`
 
     // Agents
     const agentsToFix = await tx
       .select({ id: agentTable.id, mcps: agentTable.mcps })
       .from(agentTable)
-      .where(sql`${agentTable.mcps} LIKE ${rawLike}`)
+      .where(sql`${agentTable.mcps} LIKE ${rawLike} ESCAPE '\\'`)
     for (const a of agentsToFix) {
       await tx
         .update(agentTable)
@@ -180,7 +183,7 @@ export class McpServerService {
     const sessionsToFix = await tx
       .select({ id: agentSessionTable.id, mcps: agentSessionTable.mcps })
       .from(agentSessionTable)
-      .where(sql`${agentSessionTable.mcps} LIKE ${rawLike}`)
+      .where(sql`${agentSessionTable.mcps} LIKE ${rawLike} ESCAPE '\\'`)
     for (const s of sessionsToFix) {
       await tx
         .update(agentSessionTable)
