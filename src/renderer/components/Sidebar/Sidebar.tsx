@@ -228,7 +228,7 @@ export function Sidebar({
       {/* Resize handle */}
       <div
         onMouseDown={startResizing}
-        className="group/handle absolute top-0 right-0 bottom-0 z-50 w-0.75 cursor-col-resize">
+        className="group/handle absolute top-0 right-0 bottom-0 z-50 w-0.75 cursor-col-resize [-webkit-app-region:no-drag]">
         <div className="h-full w-full bg-primary/20 opacity-0 transition-opacity group-hover/handle:opacity-100" />
       </div>
     </div>
