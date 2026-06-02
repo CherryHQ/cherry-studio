@@ -241,5 +241,14 @@ describe('shiki', () => {
       expect(html).toContain('color:#FFFFFF')
       expect(html).not.toContain('color:var(--color-foreground)')
     })
+
+    it('should render untagged code blocks as plain text without json white tokens in light themes', async () => {
+      const untagged = '```\n{,}\n```'
+      const renderer = await getMarkdownIt('one-light', untagged)
+      const html = renderer.render(untagged)
+
+      expect(html).toContain('language-text')
+      expect(html).not.toContain('var(--color-foreground)')
+    })
   })
 })

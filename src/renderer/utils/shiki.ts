@@ -223,8 +223,9 @@ export async function getMarkdownIt(theme: string, markdown: string) {
     fromHighlighter(highlighter, {
       themes,
       defaultColor: actualTheme,
-      defaultLanguage: 'json',
-      fallbackLanguage: 'json',
+      // 'text' 是 Shiki 内置 plain 语言，但未纳入 BundledLanguage 类型联合，故做类型断言
+      defaultLanguage: 'text' as BundledLanguage,
+      fallbackLanguage: 'text' as BundledLanguage,
       transformers: [createReadableLightThemeTokenTransformer(isActualThemeDark)]
     })
   )
