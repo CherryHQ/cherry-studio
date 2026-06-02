@@ -45,7 +45,7 @@ vi.mock('../useProviderModelList', () => ({
       enabledModelCount: 1,
       modelCount: 1,
       hasVisibleModels: true,
-      allEnabled: true,
+      allEnabled: false,
       hasNoModels: false,
       searchText: '',
       setSearchText: vi.fn(),
@@ -64,8 +64,8 @@ vi.mock('../useProviderModelList', () => ({
       hasVisibleModels: true,
       displayEnabledModelCount: 1,
       enabledSections: [{ groupName: 'OpenAI', items: [] }],
-      disabledSections: [],
-      displayDisabledModelCount: 0,
+      disabledSections: [{ groupName: 'OpenAI', items: [] }],
+      displayDisabledModelCount: 1,
       disabled: false,
       pendingModelIds: new Set<string>(),
       onEditModel: vi.fn(),
@@ -115,5 +115,13 @@ describe('ProviderModelList', () => {
     await waitFor(() => {
       expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
     })
+  })
+
+  it('enables visible disabled models from the disabled section row', () => {
+    render(<ProviderModelList providerId="openai" disabled={false} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'settings.models.bulk_enable' }))
+
+    expect(onToggleVisibleModelsMock).toHaveBeenCalledWith(true)
   })
 })

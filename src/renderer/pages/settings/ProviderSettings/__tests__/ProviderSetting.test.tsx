@@ -62,8 +62,7 @@ describe('ProviderSetting', () => {
   it('renders the provider detail divider below the provider header, aligned to body content width', () => {
     render(<ProviderSetting providerId="openai" />)
 
-    const header = screen.getByTestId('provider-detail-header')
-    const innerWrap = header.firstElementChild as HTMLElement
+    const innerWrap = screen.getByText('provider-header-openai').parentElement as HTMLElement
     expect(innerWrap.className).toMatch(/(^|\s)border-b(\s|$)/)
     expect(innerWrap.className).toMatch(/(^|\s)max-w-3xl(\s|$)/)
     expect(innerWrap.className).toMatch(/(^|\s)mx-auto(\s|$)/)

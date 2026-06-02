@@ -205,14 +205,7 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
   )
 
   if (!provider) {
-    return (
-      <ProviderSettingsDrawer
-        open={open}
-        onClose={onClose}
-        title={t('settings.provider.api.options.label')}
-        size="form"
-      />
-    )
+    return <ProviderSettingsDrawer open={open} onClose={onClose} title={t('settings.provider.api.options.label')} />
   }
 
   const isSupportAnthropicPromptCache = isAnthropicSupportedProvider(provider)
@@ -224,8 +217,7 @@ export default function ProviderApiOptionsDrawer({ providerId, open, onClose }: 
       open={open}
       onClose={onClose}
       title={t('settings.provider.api.options.label')}
-      footer={footer}
-      size="form">
+      footer={footer}>
       <div className="flex min-w-0 flex-col gap-5">
         <div className="flex flex-col gap-5">
           {options.map((item) => {

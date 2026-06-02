@@ -6589,7 +6589,7 @@
         "cherryIn": {
           "description": "使用 OAuth 2.0 登录 CherryIN",
           "logged_in": "已通过 OAuth 登录",
-          "login_button": "CherryIN 授权登陆",
+          "login_button": "CherryIN 授权登录",
           "logout_button": "退出登录",
           "not_logged_in": "未登录",
           "register_account": "注册账户",

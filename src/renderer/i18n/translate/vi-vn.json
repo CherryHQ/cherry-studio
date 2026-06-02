@@ -6127,7 +6127,7 @@
         }
       },
       "api_key": "Khóa API",
-      "available_count": "[to be translated]:{{count}} available",
+      "available_count": "Có {{count}} mục",
       "base_url": "URL cơ sở",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6591,9 +6591,9 @@
         "cherryIn": {
           "description": "Đăng nhập vào CherryIN bằng OAuth 2.0",
           "logged_in": "Đã đăng nhập qua OAuth",
-          "login_button": "[to be translated]:Authorize with CherryIN",
+          "login_button": "Ủy quyền với CherryIN",
           "logout_button": "Keluar",
-          "not_logged_in": "[to be translated]:Not logged in",
+          "not_logged_in": "Chưa đăng nhập",
           "register_account": "Create account",
           "service_attribution": "This service is provided by <link>open.cherryin.ai</link>",
           "tagline": "After you sign in, you can use all model services",
@@ -6628,8 +6628,8 @@
       "search": "Nhà cung cấp tìm kiếm...",
       "search_placeholder": "Tìm kiếm mã hoặc tên mô hình",
       "section": {
-        "account": "[to be translated]:Account",
-        "configuration": "[to be translated]:Configuration"
+        "account": "Tài khoản",
+        "configuration": "Cấu hình"
       },
       "title": "Nhà cung cấp mô hình",
       "vertex_ai": {

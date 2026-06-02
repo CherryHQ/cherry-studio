@@ -6127,7 +6127,7 @@
         }
       },
       "api_key": "API キー",
-      "available_count": "[to be translated]:{{count}} available",
+      "available_count": "{{count}}件利用可能",
       "base_url": "ベース URL",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6591,9 +6591,9 @@
         "cherryIn": {
           "description": "セルフホストしたNew-APIサーバーでOAuth 2.0（PKCE）を使用してログイン",
           "logged_in": "OAuth経由でログインしました",
-          "login_button": "[to be translated]:Authorize with CherryIN",
+          "login_button": "CherryINで認証",
           "logout_button": "ログアウト",
-          "not_logged_in": "[to be translated]:Not logged in",
+          "not_logged_in": "未ログイン",
           "register_account": "Create account",
           "service_attribution": "This service is provided by <link>open.cherryin.ai</link>",
           "tagline": "After you sign in, you can use all model services",
@@ -6628,8 +6628,8 @@
       "search": "プロバイダーを検索...",
       "search_placeholder": "モデルIDまたは名前を検索",
       "section": {
-        "account": "[to be translated]:Account",
-        "configuration": "[to be translated]:Configuration"
+        "account": "アカウント",
+        "configuration": "設定"
       },
       "title": "モデルプロバイダー",
       "vertex_ai": {

@@ -298,7 +298,7 @@ export default function ProviderEditorDrawer({
   )
 
   return (
-    <ProviderSettingsDrawer open={open} onClose={onClose} title={title} size="compact" footer={footer}>
+    <ProviderSettingsDrawer open={open} onClose={onClose} title={title} footer={footer}>
       <div className="flex flex-col gap-5">
         {duplicateSource && duplicateSource.presetProviderId && <DuplicateHeader source={duplicateSource} />}
 

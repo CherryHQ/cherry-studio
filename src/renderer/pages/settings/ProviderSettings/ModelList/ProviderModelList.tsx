@@ -1,5 +1,5 @@
 import { Button, Tooltip } from '@cherrystudio/ui'
-import { ToggleLeft } from 'lucide-react'
+import { ToggleLeft, ToggleRight } from 'lucide-react'
 import type React from 'react'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -30,9 +30,16 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({
   })
   const toolbarDisabled = disabled || modelList.isBulkUpdating
   const bulkCloseLabel = t('settings.models.bulk_disable')
+  const bulkEnableLabel = t('settings.models.bulk_enable')
 
   const handleCloseVisibleModels = useCallback(() => {
     void Promise.resolve(modelList.header.onToggleVisibleModels(false)).catch(() => {
+      window.toast.error(t('settings.models.manage.operation_failed'))
+    })
+  }, [modelList.header, t])
+
+  const handleEnableVisibleModels = useCallback(() => {
+    void Promise.resolve(modelList.header.onToggleVisibleModels(true)).catch(() => {
       window.toast.error(t('settings.models.manage.operation_failed'))
     })
   }, [modelList.header, t])
@@ -85,6 +92,20 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({
                 hasVisibleModels: modelList.header.hasVisibleModels
               })}
             </>
+          }
+          disabledSectionActions={
+            <Tooltip content={bulkEnableLabel}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={bulkEnableLabel}
+                className={modelListClasses.subsectionIconButton}
+                disabled={!modelList.header.hasVisibleModels || modelList.header.allEnabled || toolbarDisabled}
+                onClick={handleEnableVisibleModels}>
+                <ToggleRight className={modelListClasses.subsectionIcon} />
+              </Button>
+            </Tooltip>
           }
         />
       </div>

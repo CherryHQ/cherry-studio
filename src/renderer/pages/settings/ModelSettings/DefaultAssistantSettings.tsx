@@ -127,9 +127,7 @@ export const AssistantSettings: FC = () => {
           <Popover>
             <div className="group/emoji relative inline-block">
               <PopoverTrigger asChild>
-                <Button size="icon" className="text-xl">
-                  {emoji}
-                </Button>
+                <Button className="h-[30px] min-w-[30px] p-1 text-xl">{emoji}</Button>
               </PopoverTrigger>
               {emoji && (
                 <CircleX

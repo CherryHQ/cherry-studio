@@ -176,7 +176,6 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
       onClose={onClose}
       title={t('settings.provider.api.key.list.title')}
       description={t('settings.provider.api_key.list_description')}
-      size="wide"
       footer={
         <div className="flex items-center justify-between gap-3">
           <div className={apiKeyListClasses.summaryMeta}>

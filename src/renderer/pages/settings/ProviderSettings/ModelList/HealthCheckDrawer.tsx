@@ -127,7 +127,7 @@ export default function HealthCheckDrawer({
   )
 
   return (
-    <ProviderSettingsDrawer open={open} onClose={onClose} title={title} footer={footer} size="wide">
+    <ProviderSettingsDrawer open={open} onClose={onClose} title={title} footer={footer}>
       <p className={cn(drawerClasses.helpText, 'shrink-0')}>{t('settings.models.check.disclaimer')}</p>
 
       {showPipeline && progressStats ? (

@@ -241,7 +241,6 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
 
   return (
     <ProviderSettingsDrawer
-      size="form"
       title={title}
       open={open}
       onClose={() => void onCancel()}

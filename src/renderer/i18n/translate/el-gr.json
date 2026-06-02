@@ -6127,7 +6127,7 @@
         }
       },
       "api_key": "Κλειδί API",
-      "available_count": "[to be translated]:{{count}} available",
+      "available_count": "{{count}} διαθέσιμα",
       "base_url": "Βασικό URL",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6591,9 +6591,9 @@
         "cherryIn": {
           "description": "Συνδεθείτε με τον διακομιστή New-API που φιλοξενείτε ο ίδιος χρησιμοποιώντας OAuth 2.0 (PKCE)",
           "logged_in": "Σύνδεση μέσω OAuth",
-          "login_button": "[to be translated]:Authorize with CherryIN",
+          "login_button": "Εξουσιοδότηση με CherryIN",
           "logout_button": "Αποσύνδεση",
-          "not_logged_in": "[to be translated]:Not logged in",
+          "not_logged_in": "Δεν έχετε συνδεθεί",
           "register_account": "Create account",
           "service_attribution": "This service is provided by <link>open.cherryin.ai</link>",
           "tagline": "After you sign in, you can use all model services",
@@ -6628,8 +6628,8 @@
       "search": "Αναζήτηση πλατφόρμας μονάδων...",
       "search_placeholder": "Αναζήτηση ID ή ονόματος μονάδας",
       "section": {
-        "account": "[to be translated]:Account",
-        "configuration": "[to be translated]:Configuration"
+        "account": "Λογαριασμός",
+        "configuration": "Διαμόρφωση"
       },
       "title": "Υπηρεσία μονάδων",
       "vertex_ai": {

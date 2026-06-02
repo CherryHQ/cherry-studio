@@ -3,15 +3,12 @@ import { cn } from '@renderer/utils'
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-type ProviderSettingsDrawerSize = 'compact' | 'form' | 'wide' | 'manage' | 'fetch'
-
 interface ProviderSettingsDrawerProps {
   open: boolean
   onClose: () => void
   title: ReactNode
   description?: ReactNode
   footer?: ReactNode
-  size?: ProviderSettingsDrawerSize
   children?: ReactNode
   bodyClassName?: string
   contentClassName?: string

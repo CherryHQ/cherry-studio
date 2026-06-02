@@ -21,6 +21,7 @@ interface ModelListSectionsProps {
   onEditModel: (model: Model) => void
   onToggleModel: (model: Model, enabled: boolean) => Promise<void>
   enabledSectionActions?: React.ReactNode
+  disabledSectionActions?: React.ReactNode
 }
 
 const ModelListSections: React.FC<ModelListSectionsProps> = ({
@@ -35,7 +36,8 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
   pendingModelIds,
   onEditModel,
   onToggleModel,
-  enabledSectionActions
+  enabledSectionActions,
+  disabledSectionActions
 }) => {
   const { t } = useTranslation()
 
@@ -92,6 +94,9 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
                 <p className={modelListClasses.subsectionTitleDisabled}>{t('settings.models.check.disabled')}</p>
                 <span className={modelListClasses.subsectionCountDisabled}>{displayDisabledModelCount}</span>
               </div>
+              {disabledSectionActions ? (
+                <div className={modelListClasses.subsectionActions}>{disabledSectionActions}</div>
+              ) : null}
             </div>
             <div className="flex flex-col gap-3">
               {disabledSections.map(({ groupName, items }, index) => (

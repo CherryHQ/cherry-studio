@@ -345,8 +345,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       open={open}
       onClose={onClose}
       title={t('settings.provider.request_configuration')}
-      footer={footer}
-      size="form">
+      footer={footer}>
       <div className={customHeaderDrawerClasses.bodyScroll}>
         {visibleEndpointTypes.map((type, index) => {
           const isPrimary = index === 0

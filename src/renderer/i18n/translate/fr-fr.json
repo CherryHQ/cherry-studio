@@ -6127,7 +6127,7 @@
         }
       },
       "api_key": "Clé API",
-      "available_count": "[to be translated]:{{count}} available",
+      "available_count": "{{count}} disponibles",
       "base_url": "URL de base",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6591,9 +6591,9 @@
         "cherryIn": {
           "description": "Connectez-vous à votre serveur New-API auto-hébergé à l'aide d'OAuth 2.0 (PKCE)",
           "logged_in": "Connecté via OAuth",
-          "login_button": "[to be translated]:Authorize with CherryIN",
+          "login_button": "Autoriser avec CherryIN",
           "logout_button": "Déconnexion",
-          "not_logged_in": "[to be translated]:Not logged in",
+          "not_logged_in": "Non connecté",
           "register_account": "Create account",
           "service_attribution": "This service is provided by <link>open.cherryin.ai</link>",
           "tagline": "After you sign in, you can use all model services",
@@ -6628,8 +6628,8 @@
       "search": "Rechercher une plateforme de modèles...",
       "search_placeholder": "Rechercher un ID ou un nom de modèle",
       "section": {
-        "account": "[to be translated]:Account",
-        "configuration": "[to be translated]:Configuration"
+        "account": "Compte",
+        "configuration": "Configuration"
       },
       "title": "Services de modèles",
       "vertex_ai": {
