@@ -15,7 +15,7 @@ import { isEmoji, removeLeadingEmoji } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { CircleChevronDown } from 'lucide-react'
-import { type FC, useCallback, useEffect, useRef, useState } from 'react'
+import React, { type FC, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import styled from 'styled-components'
 
@@ -345,4 +345,4 @@ const MessageItemContent = styled.div`
   max-width: 200px;
 `
 
-export default MessageAnchorLine
+export default React.memo(MessageAnchorLine)

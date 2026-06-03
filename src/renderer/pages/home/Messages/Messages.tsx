@@ -32,7 +32,7 @@ import { updateCodeBlock } from '@renderer/utils/markdown'
 import { getMainTextContent } from '@renderer/utils/messageUtils/find'
 import { isTextLikeBlock } from '@renderer/utils/messageUtils/is'
 import { last } from 'lodash'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import InfiniteScroll from 'react-infinite-scroll-component'
 import styled from 'styled-components'
@@ -58,6 +58,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
     `topic-${topic.id}`
   )
   const [displayMessages, setDisplayMessages] = useState<Message[]>([])
+  const deferredDisplayMessages = useDeferredValue(displayMessages)
   const [hasMore, setHasMore] = useState(false)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isProcessingContext, setIsProcessingContext] = useState(false)
@@ -68,17 +69,18 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   const { t } = useTranslation()
   const dispatch = useAppDispatch()
   const messages = useTopicMessages(topic.id)
+  const deferredMessages = useDeferredValue(messages)
   const { displayCount, clearTopicMessages, deleteMessage, createTopicBranch } = useMessageOperations(topic)
   const { setTimeoutTimer } = useTimer()
 
   const { isMultiSelectMode, handleSelectMessage } = useChatContext(topic)
 
   const messageElements = useRef<Map<string, HTMLElement>>(new Map())
-  const messagesRef = useRef<Message[]>(messages)
+  const messagesRef = useRef<Message[]>(deferredMessages)
 
   useEffect(() => {
-    messagesRef.current = messages
-  }, [messages])
+    messagesRef.current = deferredMessages
+  }, [deferredMessages])
 
   const registerMessageElement = useCallback((id: string, element: HTMLElement | null) => {
     if (element) {
@@ -89,10 +91,10 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
   }, [])
 
   useEffect(() => {
-    const newDisplayMessages = computeDisplayMessages(messages, 0, displayCount)
+    const newDisplayMessages = computeDisplayMessages(deferredMessages, 0, displayCount)
     setDisplayMessages(newDisplayMessages)
-    setHasMore(messages.length > displayCount)
-  }, [messages, displayCount])
+    setHasMore(deferredMessages.length > displayCount)
+  }, [deferredMessages, displayCount])
 
   // NOTE: 如果设置为平滑滚动会导致滚动条无法跟随生成的新消息保持在底部位置
   const scrollToBottom = useCallback(() => {
@@ -258,15 +260,15 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
       'loadMoreMessages',
       () => {
         const currentLength = displayMessages.length
-        const newMessages = computeDisplayMessages(messages, currentLength, LOAD_MORE_COUNT)
+        const newMessages = computeDisplayMessages(deferredMessages, currentLength, LOAD_MORE_COUNT)
 
         setDisplayMessages((prev) => [...prev, ...newMessages])
-        setHasMore(currentLength + LOAD_MORE_COUNT < messages.length)
+        setHasMore(currentLength + LOAD_MORE_COUNT < deferredMessages.length)
         setIsLoadingMore(false)
       },
       300
     )
-  }, [displayMessages.length, hasMore, isLoadingMore, messages, setTimeoutTimer])
+  }, [displayMessages.length, hasMore, isLoadingMore, deferredMessages, setTimeoutTimer])
 
   useShortcut('chat.copy_last_message', () => {
     const lastMessage = last(messages)
@@ -289,7 +291,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
   // NOTE: 因为displayMessages是倒序的，所以得到的groupedMessages每个group内部也是倒序的，需要再倒一遍
   const groupedMessages = useMemo(() => {
-    const grouped = Object.entries(getGroupedMessages(displayMessages))
+    const grouped = Object.entries(getGroupedMessages(deferredDisplayMessages))
     const newGrouped: {
       [key: string]: (Message & {
         index: number
@@ -299,7 +301,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
       newGrouped[key] = group.toReversed()
     })
     return Object.entries(newGrouped)
-  }, [displayMessages])
+  }, [deferredDisplayMessages])
 
   return (
     <MessagesContainer
@@ -340,7 +342,7 @@ const Messages: React.FC<MessagesProps> = ({ assistant, topic, setActiveTopic, o
 
         {showPrompt && <Prompt assistant={assistant} key={assistant.prompt} topic={topic} />}
       </NarrowLayout>
-      {messageNavigation === 'anchor' && <MessageAnchorLine messages={displayMessages} />}
+      {messageNavigation === 'anchor' && <MessageAnchorLine messages={deferredDisplayMessages} />}
       <SelectionBox
         isMultiSelectMode={isMultiSelectMode}
         scrollContainerRef={scrollContainerRef}

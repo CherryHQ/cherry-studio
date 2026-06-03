@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import styled from 'styled-components'
 
 interface SelectionBoxProps {
@@ -156,4 +156,4 @@ const SelectionBoxContainer = styled.div`
   z-index: 100;
 `
 
-export default SelectionBox
+export default React.memo(SelectionBox)
