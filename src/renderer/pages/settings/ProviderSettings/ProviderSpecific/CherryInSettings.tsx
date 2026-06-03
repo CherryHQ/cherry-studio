@@ -1,4 +1,4 @@
-import { Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProviders'
 import { fieldClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { replaceEndpointConfigDomain } from '@renderer/pages/settings/ProviderSettings/utils/provider'
@@ -63,55 +63,45 @@ const CherryInSettings: FC<CherryInSettingsProps> = ({ providerId }) => {
   )
 
   return (
-    <div className={fieldClasses.inputRow}>
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        className={cn(fieldClasses.inputGroupBlock, 'group cursor-pointer justify-between text-left outline-none')}>
+        <span
           className={cn(
-            fieldClasses.inputGroup,
-            'group flex min-w-0 flex-1 cursor-pointer items-center justify-between text-left outline-none'
+            fieldClasses.input,
+            'block min-h-[1.25em] min-w-0 flex-1 truncate bg-transparent py-0 font-mono tabular-nums'
           )}>
-          <span
-            className={cn(
-              fieldClasses.input,
-              'block min-h-[1.25em] min-w-0 flex-1 truncate bg-transparent py-0 font-mono tabular-nums'
-            )}>
-            {currentHost}
-          </span>
-          <ChevronDown
-            size={12}
-            className="ml-2 shrink-0 text-muted-foreground/55 transition-transform group-data-[state=open]:rotate-180"
-            aria-hidden
-          />
-        </PopoverTrigger>
-        <PopoverContent
-          align="start"
-          sideOffset={4}
-          className="w-(--radix-popover-trigger-width) rounded-md border-[color:var(--section-border)] p-1">
+          {currentHost}
+        </span>
+        <ChevronDown
+          size={12}
+          className="ml-2 shrink-0 text-muted-foreground/55 transition-transform group-data-[state=open]:rotate-180"
+          aria-hidden
+        />
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        sideOffset={4}
+        className="w-(--radix-popover-trigger-width) rounded-lg border-[0.5px] border-border bg-popover p-1.5 text-popover-foreground shadow-lg">
+        <MenuList>
           {API_HOST_OPTIONS.map((option) => {
             const isSelected = option.value === currentHost
             return (
-              <button
+              <MenuItem
                 key={option.value}
-                type="button"
+                label={t(option.labelKey)}
+                description={option.description}
+                active={isSelected}
+                suffix={isSelected ? <Check size={14} className="text-foreground/70" aria-hidden /> : null}
+                className="rounded-lg px-2.5 text-sm"
+                descriptionClassName="font-mono text-muted-foreground/70 text-xs tabular-nums"
                 onClick={() => void handleHostChange(option.value)}
-                className={cn(
-                  'flex w-full items-center justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-foreground text-sm outline-none transition-colors',
-                  'hover:bg-accent focus-visible:bg-accent',
-                  isSelected && 'bg-accent/70'
-                )}>
-                <span className="flex min-w-0 flex-col gap-0.5">
-                  <span className="truncate">{t(option.labelKey)}</span>
-                  <span className="truncate font-mono text-muted-foreground/70 text-xs tabular-nums">
-                    {option.description}
-                  </span>
-                </span>
-                {isSelected && <Check size={14} className="shrink-0 text-foreground/70" aria-hidden />}
-              </button>
+              />
             )
           })}
-        </PopoverContent>
-      </Popover>
-    </div>
+        </MenuList>
+      </PopoverContent>
+    </Popover>
   )
 }
 

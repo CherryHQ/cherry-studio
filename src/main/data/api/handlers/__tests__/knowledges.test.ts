@@ -167,22 +167,20 @@ describe('knowledgeHandlers', () => {
       expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
     })
 
-    it('should trim groupId and keep emoji unchanged in PATCH bodies before calling the service', async () => {
-      updateKnowledgeBaseMock.mockResolvedValueOnce({ id: 'kb-1', groupId: GROUP_ID, emoji: '📚' })
+    it('should trim groupId in PATCH bodies before calling the service', async () => {
+      updateKnowledgeBaseMock.mockResolvedValueOnce({ id: 'kb-1', groupId: GROUP_ID })
 
       await expect(
         knowledgeHandlers['/knowledge-bases/:id'].PATCH({
           params: { id: 'kb-1' },
           body: {
-            groupId: `  ${GROUP_ID}  `,
-            emoji: '📚'
+            groupId: `  ${GROUP_ID}  `
           }
         })
       ).resolves.toMatchObject({ id: 'kb-1' })
 
       expect(updateKnowledgeBaseMock).toHaveBeenCalledWith('kb-1', {
-        groupId: GROUP_ID,
-        emoji: '📚'
+        groupId: GROUP_ID
       })
     })
 
@@ -230,32 +228,6 @@ describe('knowledgeHandlers', () => {
             threshold: null,
             documentCount: null,
             hybridAlpha: null
-          }
-        } as never)
-      ).rejects.toHaveProperty('name', 'ZodError')
-
-      expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
-    })
-
-    it('should reject invalid emoji in PATCH bodies before calling the service', async () => {
-      await expect(
-        knowledgeHandlers['/knowledge-bases/:id'].PATCH({
-          params: { id: 'kb-1' },
-          body: {
-            emoji: 'books'
-          }
-        } as never)
-      ).rejects.toHaveProperty('name', 'ZodError')
-
-      expect(updateKnowledgeBaseMock).not.toHaveBeenCalled()
-    })
-
-    it('should reject whitespace-padded emoji in PATCH bodies before calling the service', async () => {
-      await expect(
-        knowledgeHandlers['/knowledge-bases/:id'].PATCH({
-          params: { id: 'kb-1' },
-          body: {
-            emoji: '  📚  '
           }
         } as never)
       ).rejects.toHaveProperty('name', 'ZodError')

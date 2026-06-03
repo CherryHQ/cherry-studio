@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { MODEL_LIST_CAPABILITY_FILTERS, type ModelListCapabilityCounts } from '../modelListDerivedState'
@@ -37,10 +37,6 @@ function emptyCapabilityCounts(): ModelListCapabilityCounts {
 }
 
 const baseProps = {
-  enabledModelCount: 1,
-  modelCount: 3,
-  hasVisibleModels: true,
-  allEnabled: false,
   isBusy: false,
   hasNoModels: false,
   searchText: '',
@@ -48,55 +44,62 @@ const baseProps = {
   selectedCapabilityFilter: 'all' as const,
   setSelectedCapabilityFilter: vi.fn(),
   capabilityOptions: MODEL_LIST_CAPABILITY_FILTERS,
-  capabilityModelCounts: emptyCapabilityCounts(),
-  onToggleVisibleModels: vi.fn()
+  capabilityModelCounts: {
+    ...emptyCapabilityCounts(),
+    all: 3
+  }
 }
 
 describe('ModelListHeader', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // jsdom does not implement scrollIntoView; the capability filter calls it on click.
+    Element.prototype.scrollIntoView = vi.fn()
     ;(window as any).toast = {
       error: vi.fn()
     }
   })
 
-  it('renders the model list title, list actions, and external action slot', () => {
+  it('renders the model list title, persistent search, and external action slot', () => {
     render(<ModelListHeader {...baseProps} actions={<button type="button">external-action</button>} />)
 
     expect(screen.getByText('settings.models.list_title')).toBeInTheDocument()
-    expect(screen.getByText(/1\/3 common\.enabled/)).toBeInTheDocument()
-    expect(screen.queryByPlaceholderText('models.search.placeholder')).not.toBeInTheDocument()
+    expect(screen.getByText('settings.models.available_count')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('models.search.placeholder')).toBeInTheDocument()
     expect(screen.getByText('external-action')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'settings.models.bulk_enable' }))
-    expect(baseProps.onToggleVisibleModels).toHaveBeenCalledWith(true)
+    expect(screen.queryByRole('button', { name: 'settings.models.bulk_enable' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'settings.models.bulk_disable' })).not.toBeInTheDocument()
   })
 
-  it('shows an error toast when bulk toggle fails', async () => {
-    const onToggleVisibleModels = vi.fn().mockRejectedValue(new Error('bulk failed'))
+  it('updates and clears the persistent search input', () => {
+    render(<ModelListHeader {...baseProps} searchText="GPT" />)
 
-    render(<ModelListHeader {...baseProps} onToggleVisibleModels={onToggleVisibleModels} />)
+    fireEvent.change(screen.getByPlaceholderText('models.search.placeholder'), { target: { value: 'Claude' } })
+    expect(baseProps.setSearchText).toHaveBeenCalledWith('Claude')
 
-    fireEvent.click(screen.getByRole('button', { name: 'settings.models.bulk_enable' }))
-
-    await waitFor(() => {
-      expect(window.toast.error).toHaveBeenCalledWith('settings.models.manage.operation_failed')
-    })
+    fireEvent.click(screen.getByRole('button', { name: 'common.clear' }))
+    expect(baseProps.setSearchText).toHaveBeenCalledWith('')
   })
 
-  it('switches the bulk action label when all models are enabled', () => {
-    render(<ModelListHeader {...baseProps} allEnabled={true} enabledModelCount={2} modelCount={2} />)
-
-    expect(screen.getByRole('button', { name: 'settings.models.bulk_disable' })).toBeInTheDocument()
-  })
-
-  it('keeps search collapsed by default and expands it when the search toggle is activated', () => {
+  it('renders capability filters by default when models exist', () => {
     render(<ModelListHeader {...baseProps} />)
 
-    expect(screen.queryByPlaceholderText('models.search.placeholder')).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'models.search.tooltip' }))
-    expect(screen.getByPlaceholderText('models.search.placeholder')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'models.search.tooltip' }))
-    expect(screen.queryByPlaceholderText('models.search.placeholder')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /models\.all/ })).toBeInTheDocument()
+  })
+
+  it('selects a capability filter from the line-style filter row', () => {
+    render(
+      <ModelListHeader
+        {...baseProps}
+        capabilityModelCounts={{
+          ...baseProps.capabilityModelCounts,
+          reasoning: 2
+        }}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: /models\.type\.reasoning/ }))
+
+    expect(baseProps.setSelectedCapabilityFilter).toHaveBeenCalledWith('reasoning')
   })
 })

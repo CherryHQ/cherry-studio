@@ -1,8 +1,7 @@
-import type { KnowledgeRagChunkValidationErrorCode } from '@renderer/pages/knowledge/utils'
-import { Layers } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { RagHintText, RagNumericField, RagSectionTitle } from './panelPrimitives'
+import type { KnowledgeRagChunkValidationErrorCode } from '../../utils'
+import { RagHintText, RagNumericField } from './panelPrimitives'
 
 interface ChunkingSectionProps {
   chunkSize: string
@@ -36,10 +35,8 @@ const ChunkingSection = ({
   }
 
   return (
-    <section className="space-y-2.5">
-      <RagSectionTitle title={t('knowledge.rag.chunking')} icon={Layers} />
-
-      <div className="grid grid-cols-2 gap-2">
+    <div className="space-y-2">
+      <div className="flex flex-col gap-4">
         <RagNumericField
           label={t('knowledge.rag.chunk_size')}
           hint={t('knowledge.rag.hints.chunk_size')}
@@ -63,7 +60,7 @@ const ChunkingSection = ({
         <RagHintText tone="error">{getValidationErrorMessage(chunkOverlapErrorCode)}</RagHintText>
       ) : null}
       <RagHintText tone="warning">{t('knowledge.rag.chunk_size_change_warning')}</RagHintText>
-    </section>
+    </div>
   )
 }
 

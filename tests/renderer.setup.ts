@@ -498,6 +498,19 @@ vi.mock('@cherrystudio/ui', () => {
     TextBadge: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'text-badge' }, children),
     Badge: ({ children, ...props }) => React.createElement('span', { ...props, 'data-testid': 'badge' }, children),
+    EmptyState: ({ title, description, actionLabel, onAction, secondaryLabel, onSecondary, ...props }) =>
+      React.createElement(
+        'div',
+        { ...props, 'data-testid': 'empty-state' },
+        title ? React.createElement('div', {}, title) : null,
+        description ? React.createElement('div', {}, description) : null,
+        actionLabel && onAction
+          ? React.createElement('button', { type: 'button', onClick: onAction }, actionLabel)
+          : null,
+        secondaryLabel && onSecondary
+          ? React.createElement('button', { type: 'button', onClick: onSecondary }, secondaryLabel)
+          : null
+      ),
     Alert: ({ children, message, description, type, ...props }) =>
       React.createElement(
         'div',
@@ -525,6 +538,10 @@ vi.mock('@cherrystudio/ui', () => {
       React.createElement('div', { ...props, 'data-testid': 'scrollbar' }, children),
     Avatar: ({ children, src, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'avatar' }, src ? null : children),
+    AvatarImage: ({ src, ...props }) =>
+      React.createElement('img', { ...props, src, alt: '', 'data-testid': 'avatar-image' }),
+    AvatarFallback: ({ children, ...props }) =>
+      React.createElement('div', { ...props, 'data-testid': 'avatar-fallback' }, children),
     EmojiAvatar: ({ children, ...props }) =>
       React.createElement('div', { ...props, 'data-testid': 'emoji-avatar' }, children),
     Switch: ({ isSelected, onValueChange, ...props }) =>

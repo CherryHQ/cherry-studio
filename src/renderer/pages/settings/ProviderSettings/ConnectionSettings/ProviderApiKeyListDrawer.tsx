@@ -1,4 +1,4 @@
-import { Button, Switch, Tooltip } from '@cherrystudio/ui'
+import { Button, Input, Switch, Tooltip } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useProviderApiKeys, useProviderMutations } from '@renderer/hooks/useProviders'
@@ -176,7 +176,6 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
       onClose={onClose}
       title={t('settings.provider.api.key.list.title')}
       description={t('settings.provider.api_key.list_description')}
-      size="wide"
       footer={
         <div className="flex items-center justify-between gap-3">
           <div className={apiKeyListClasses.summaryMeta}>
@@ -191,7 +190,7 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
         <div className={apiKeyListClasses.listWrap}>
           <Scrollbar className={apiKeyListClasses.listScroller}>
             {apiKeys.length === 0 && !draft ? (
-              <div className="px-4 py-6 text-center text-[length:var(--font-size-body-md)] text-muted-foreground/70">
+              <div className="px-4 py-6 text-center text-[length:var(--font-size-body-md)] text-muted-foreground">
                 {t('error.no_api_key')}
               </div>
             ) : null}
@@ -232,11 +231,7 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
 
         <div className={apiKeyListClasses.actionRow}>
           <div className={apiKeyListClasses.helperText}>{t('settings.provider.api_key.tip')}</div>
-          <Button
-            className={apiKeyListClasses.addButton}
-            variant="outline"
-            disabled={!!draft || saving}
-            onClick={startAdd}>
+          <Button variant="secondary" size="sm" disabled={!!draft || saving} onClick={startAdd}>
             <Plus size={14} />
             {t('common.add')}
           </Button>
@@ -260,15 +255,13 @@ function ApiKeyDraftRow({ draft, saving, onChange, onSave, onCancel }: ApiKeyDra
   return (
     <div className="space-y-2">
       <div className={apiKeyListClasses.keyInputRow}>
-        <input
-          className={apiKeyListClasses.input}
+        <Input
           value={draft.label}
           placeholder={t('settings.provider.api_key.label_placeholder')}
           disabled={saving}
           onChange={(event) => onChange({ ...draft, label: event.target.value })}
         />
-        <input
-          className={apiKeyListClasses.input}
+        <Input
           value={draft.key}
           placeholder={t('settings.provider.api.key.new_key.placeholder')}
           disabled={saving}
@@ -288,7 +281,7 @@ function ApiKeyDraftRow({ draft, saving, onChange, onSave, onCancel }: ApiKeyDra
         />
       </div>
       <div className={apiKeyListClasses.actionRow}>
-        <label className="text-(length:--font-size-body-xs) flex items-center gap-2 text-muted-foreground">
+        <label className="text-(length:--font-size-body-xs) flex items-center gap-2 text-foreground-muted">
           <Switch
             checked={draft.isEnabled}
             disabled={saving}
@@ -298,12 +291,12 @@ function ApiKeyDraftRow({ draft, saving, onChange, onSave, onCancel }: ApiKeyDra
         </label>
         <div className={apiKeyListClasses.actionCluster}>
           <Tooltip content={t('common.save')}>
-            <Button variant="ghost" size="icon-sm" disabled={saving} onClick={onSave}>
+            <Button variant="ghost" size="icon-sm" aria-label={t('common.save')} disabled={saving} onClick={onSave}>
               <Check size={14} />
             </Button>
           </Tooltip>
           <Tooltip content={t('common.cancel')}>
-            <Button variant="ghost" size="icon-sm" disabled={saving} onClick={onCancel}>
+            <Button variant="ghost" size="icon-sm" aria-label={t('common.cancel')} disabled={saving} onClick={onCancel}>
               <X size={14} />
             </Button>
           </Tooltip>
@@ -335,7 +328,7 @@ function ApiKeyDisplayRow({ entry, saving, onEdit, onRemove, onToggleEnabled }: 
           <button
             type="button"
             title={t('settings.provider.api_key.copy')}
-            className={`${apiKeyListClasses.keyValue} block cursor-pointer text-left transition-colors hover:text-foreground/85`}
+            className={`${apiKeyListClasses.keyValue} block cursor-pointer text-left transition-colors hover:text-foreground`}
             onClick={handleCopy}>
             {maskApiKey(entry.key)}
           </button>
@@ -344,17 +337,22 @@ function ApiKeyDisplayRow({ entry, saving, onEdit, onRemove, onToggleEnabled }: 
       </div>
       <div className="flex items-center justify-end gap-1">
         <Tooltip content={t('settings.provider.api_key.copy')}>
-          <Button variant="ghost" size="icon-sm" disabled={saving} onClick={handleCopy}>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t('settings.provider.api_key.copy')}
+            disabled={saving}
+            onClick={handleCopy}>
             <Copy size={14} />
           </Button>
         </Tooltip>
         <Tooltip content={t('common.edit')}>
-          <Button variant="ghost" size="icon-sm" disabled={saving} onClick={onEdit}>
+          <Button variant="ghost" size="icon-sm" aria-label={t('common.edit')} disabled={saving} onClick={onEdit}>
             <Edit3 size={14} />
           </Button>
         </Tooltip>
         <Tooltip content={t('common.delete')}>
-          <Button variant="ghost" size="icon-sm" disabled={saving} onClick={onRemove}>
+          <Button variant="ghost" size="icon-sm" aria-label={t('common.delete')} disabled={saving} onClick={onRemove}>
             <Minus size={14} />
           </Button>
         </Tooltip>

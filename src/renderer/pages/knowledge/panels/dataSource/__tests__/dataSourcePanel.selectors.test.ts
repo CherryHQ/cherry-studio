@@ -37,7 +37,7 @@ describe('dataSourcePanel.selectors', () => {
     expect(getItemStatus(createFileItem({ id: 'file-1', status: 'completed' }))).toEqual({
       kind: 'completed',
       labelKey: 'knowledge.data_source.status.ready',
-      textClassName: 'text-emerald-500/70',
+      textClassName: 'text-success',
       icon: 'check'
     })
     expect(getItemStatus(createFileItem({ id: 'file-2', status: 'failed' }))).toEqual({

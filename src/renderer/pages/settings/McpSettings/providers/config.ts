@@ -12,9 +12,7 @@ import { getTokenFluxToken, saveTokenFluxToken, syncTokenFluxServers, TOKENFLUX_
 export interface SyncResult {
   success: boolean
   message: string
-  addedServers: MCPServer[]
-  updatedServers?: MCPServer[]
-  allServers?: MCPServer[]
+  allServers: MCPServer[]
 }
 
 export interface ProviderConfig {
@@ -28,7 +26,7 @@ export interface ProviderConfig {
   tokenFieldName: string
   getToken: () => string | null
   saveToken: (token: string) => void
-  syncServers: (token: string, existingServers: MCPServer[]) => Promise<SyncResult>
+  syncServers: (token: string) => Promise<SyncResult>
 }
 
 export const providers: ProviderConfig[] = [

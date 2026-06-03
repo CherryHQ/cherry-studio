@@ -1,3 +1,4 @@
+import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'
 import type { KnowledgeBase, KnowledgeItemOf } from '@shared/data/types/knowledge'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -44,6 +45,70 @@ vi.mock('@renderer/components/app/Navbar', () => ({
   Navbar: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   NavbarCenter: ({ children }: { children: ReactNode }) => <div>{children}</div>
 }))
+
+vi.mock('@cherrystudio/ui', async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>
+  const React = await import('react')
+
+  return {
+    ...actual,
+    PageSidePanel: ({
+      open,
+      onClose,
+      children,
+      title
+    }: {
+      open: boolean
+      onClose: () => void
+      title?: ReactNode
+      children: ReactNode
+    }) => {
+      if (!open) {
+        return null
+      }
+      return (
+        <div data-testid="page-side-panel">
+          {title ? <div data-testid="page-side-panel-title">{title}</div> : null}
+          {children}
+          <button type="button" onClick={onClose}>
+            PageSidePanelClose
+          </button>
+        </div>
+      )
+    },
+    Dialog: ({
+      open,
+      onOpenChange,
+      children
+    }: {
+      open: boolean
+      onOpenChange: (open: boolean) => void
+      children: ReactNode
+    }) => {
+      if (!open) {
+        return null
+      }
+      return (
+        <div data-testid="dialog">
+          {children}
+          <button type="button" onClick={() => onOpenChange(false)}>
+            DialogOverlayClose
+          </button>
+        </div>
+      )
+    },
+    DialogContent: ({ children }: { children: ReactNode; showCloseButton?: boolean; [key: string]: unknown }) => (
+      <div data-testid="dialog-content">{children}</div>
+    ),
+    DialogTitle: ({ children }: { children: ReactNode }) => <h2>{children}</h2>,
+    DialogClose: ({ children, asChild }: { children: ReactNode; asChild?: boolean }) => {
+      if (asChild && React.isValidElement(children)) {
+        return children
+      }
+      return <button type="button">{children}</button>
+    }
+  }
+})
 
 vi.mock('../components/navigator', () => ({
   default: ({
@@ -118,48 +183,32 @@ vi.mock('../components/DetailHeader', () => ({
   default: ({
     base,
     itemCount,
+    onOpenRagConfig,
+    onOpenRecallTest,
     onRenameBase,
     onDeleteBase
   }: {
     base: KnowledgeBase
     itemCount: number
+    onOpenRagConfig: () => void
+    onOpenRecallTest: () => void
     onRenameBase: (base: { id: string; name: string }) => void
     onDeleteBase: (baseId: string) => Promise<void> | void
   }) => (
     <div>
       <div data-testid="detail-header">{base.name}</div>
       <div data-testid="detail-header-item-count">{itemCount}</div>
+      <button type="button" onClick={onOpenRagConfig}>
+        OpenRagConfig
+      </button>
+      <button type="button" onClick={onOpenRecallTest}>
+        OpenRecallTest
+      </button>
       <button type="button" onClick={() => onRenameBase(base)}>
         HeaderRename {base.name}
       </button>
       <button type="button" onClick={() => void onDeleteBase(base.id)}>
         HeaderDelete {base.name}
-      </button>
-    </div>
-  )
-}))
-
-vi.mock('../components/DetailTabs', () => ({
-  default: ({
-    activeTab,
-    dataSourceCount,
-    onChange
-  }: {
-    activeTab: 'data' | 'rag' | 'recall'
-    dataSourceCount: number
-    onChange: (tab: 'data' | 'rag' | 'recall') => void
-  }) => (
-    <div>
-      <div data-testid="detail-tabs">{dataSourceCount}</div>
-      <div data-testid="active-tab">{activeTab}</div>
-      <button type="button" onClick={() => onChange('data')}>
-        Data
-      </button>
-      <button type="button" onClick={() => onChange('rag')}>
-        RAG
-      </button>
-      <button type="button" onClick={() => onChange('recall')}>
-        Recall
       </button>
     </div>
   )
@@ -254,7 +303,6 @@ vi.mock('../components/CreateKnowledgeBaseDialog', () => ({
     initialGroupId?: string
     createBase: (input: {
       name: string
-      emoji: string
       groupId?: string
       embeddingModelId: string | null
       dimensions: number
@@ -271,7 +319,6 @@ vi.mock('../components/CreateKnowledgeBaseDialog', () => ({
           onClick={async () => {
             const createdBase = await createBase({
               name: 'Base 2',
-              emoji: '📚',
               ...(initialGroupId ? { groupId: initialGroupId } : {}),
               embeddingModelId: 'openai::text-embedding-3-small',
               dimensions: 1536
@@ -422,11 +469,11 @@ vi.mock('react-i18next', () => ({
   })
 }))
 
-const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeBase => ({
+const createKnowledgeBase = (overrides: Partial<KnowledgeBaseListItem> = {}): KnowledgeBaseListItem => ({
   id: '',
   name: '',
+  itemCount: 0,
   groupId: null,
-  emoji: '📁',
   dimensions: 1536,
   embeddingModelId: null,
   rerankModelId: undefined,
@@ -566,11 +613,10 @@ describe('KnowledgePage', () => {
     expect(screen.getByTestId('group-names')).toHaveTextContent('Research,Archive')
     expect(screen.getByTestId('selected-base-id')).toHaveTextContent('base-1')
     expect(screen.getByTestId('detail-header-item-count')).toHaveTextContent('2')
-    expect(screen.getByTestId('detail-tabs')).toHaveTextContent('2')
     expect(screen.getByTestId('data-source-panel')).toHaveTextContent('2:idle')
   })
 
-  it('switches tabs and renders the matching detail panel', async () => {
+  it('opens the RAG config drawer and the recall test drawer from the header', async () => {
     mockUseKnowledgeBases.mockReturnValue({
       bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
       isLoading: false,
@@ -588,21 +634,18 @@ describe('KnowledgePage', () => {
     render(<KnowledgePage />)
 
     await waitFor(() => {
-      expect(screen.getByTestId('active-tab')).toHaveTextContent('data')
+      expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:loading')
     })
-    expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:loading')
+    expect(screen.queryByTestId('rag-config-panel')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('recall-test-panel')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'RAG' }))
-    expect(screen.getByTestId('active-tab')).toHaveTextContent('rag')
+    fireEvent.click(screen.getByRole('button', { name: 'OpenRagConfig' }))
     expect(screen.getByTestId('rag-config-panel')).toHaveTextContent('Base 1')
+    // Data source stays visible behind the drawer
+    expect(screen.getByTestId('data-source-panel')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Recall' }))
-    expect(screen.getByTestId('active-tab')).toHaveTextContent('recall')
+    fireEvent.click(screen.getByRole('button', { name: 'OpenRecallTest' }))
     expect(screen.getByTestId('recall-test-panel')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Data' }))
-    expect(screen.getByTestId('active-tab')).toHaveTextContent('data')
-    expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:loading')
   })
 
   it('opens and closes the add-source dialog from the data source panel when a knowledge base is selected', async () => {
@@ -730,7 +773,7 @@ describe('KnowledgePage', () => {
     expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
   })
 
-  it('clears open item chunks when switching away from the data tab', async () => {
+  it('keeps the chunk detail panel visible behind the RAG drawer when opened', async () => {
     mockUseKnowledgeBases.mockReturnValue({
       bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],
       isLoading: false,
@@ -754,12 +797,10 @@ describe('KnowledgePage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'OpenChunks item-1' }))
     expect(screen.getByTestId('chunk-detail-panel')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'RAG' }))
+    fireEvent.click(screen.getByRole('button', { name: 'OpenRagConfig' }))
     expect(screen.getByTestId('rag-config-panel')).toHaveTextContent('Base 1')
-
-    fireEvent.click(screen.getByRole('button', { name: 'Data' }))
-    expect(screen.getByTestId('data-source-panel')).toHaveTextContent('1:idle')
-    expect(screen.queryByTestId('chunk-detail-panel')).not.toBeInTheDocument()
+    // Drawer overlay does not unmount the chunk detail panel underneath
+    expect(screen.getByTestId('chunk-detail-panel')).toBeInTheDocument()
   })
 
   it('shows the loading state when bases are still loading', () => {
@@ -1046,7 +1087,7 @@ describe('KnowledgePage', () => {
 
   it('opens the create dialog, passes groups through, and selects the newly created knowledge base after success', async () => {
     const firstBase = createKnowledgeBase({ id: 'base-1', name: 'Base 1' })
-    const secondBase = createKnowledgeBase({ id: 'base-2', name: 'Base 2', emoji: '📚' })
+    const secondBase = createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
     let bases = [firstBase]
     const createBase = vi.fn().mockResolvedValue(secondBase)
 
@@ -1092,7 +1133,7 @@ describe('KnowledgePage', () => {
 
   it('falls back when a newly created base is missing after the base list refreshes', async () => {
     const firstBase = createKnowledgeBase({ id: 'base-1', name: 'Base 1' })
-    const createdBase = createKnowledgeBase({ id: 'base-2', name: 'Base 2', emoji: '📚' })
+    const createdBase = createKnowledgeBase({ id: 'base-2', name: 'Base 2' })
     let bases = [firstBase]
     const createBase = vi.fn().mockResolvedValue(createdBase)
 
@@ -1124,7 +1165,7 @@ describe('KnowledgePage', () => {
   })
 
   it('opens the create dialog with the selected group id from a group action', async () => {
-    const createdBase = createKnowledgeBase({ id: 'base-2', name: 'Base 2', emoji: '📚', groupId: 'group-2' })
+    const createdBase = createKnowledgeBase({ id: 'base-2', name: 'Base 2', groupId: 'group-2' })
     const createBase = vi.fn().mockResolvedValue(createdBase)
 
     mockUseKnowledgeBases.mockReturnValue({
@@ -1203,7 +1244,7 @@ describe('KnowledgePage', () => {
       expect(screen.getByTestId('detail-header')).toHaveTextContent('Legacy KB')
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'RAG' }))
+    fireEvent.click(screen.getByRole('button', { name: 'OpenRagConfig' }))
     fireEvent.click(screen.getByRole('button', { name: 'RagRestore Legacy KB' }))
     expect(screen.getByTestId('restore-dialog')).toBeInTheDocument()
     expect(screen.getByTestId('restore-dialog-source-name')).toHaveTextContent('Legacy KB')
@@ -1266,7 +1307,7 @@ describe('KnowledgePage', () => {
 
     const { rerender } = render(<KnowledgePage />)
 
-    fireEvent.click(screen.getByRole('button', { name: 'RAG' }))
+    fireEvent.click(screen.getByRole('button', { name: 'OpenRagConfig' }))
     fireEvent.click(screen.getByRole('button', { name: 'RagRestore Legacy KB' }))
     fireEvent.click(screen.getByRole('button', { name: 'Submit Restore' }))
 
@@ -1281,7 +1322,7 @@ describe('KnowledgePage', () => {
   })
 
   it('clears the initial group id after closing a grouped create dialog', async () => {
-    const createBase = vi.fn().mockResolvedValue(createKnowledgeBase({ id: 'base-2', name: 'Base 2', emoji: '📚' }))
+    const createBase = vi.fn().mockResolvedValue(createKnowledgeBase({ id: 'base-2', name: 'Base 2' }))
 
     mockUseKnowledgeBases.mockReturnValue({
       bases: [createKnowledgeBase({ id: 'base-1', name: 'Base 1' })],

@@ -367,6 +367,24 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                 />
 
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                  {!isShowStarred && !isShowSearch && (
+                    <div className="px-2 pt-2">
+                      <TreeNode
+                        node={{
+                          id: 'hint-node',
+                          name: '',
+                          type: 'hint',
+                          treePath: '',
+                          externalPath: '',
+                          createdAt: '',
+                          updatedAt: ''
+                        }}
+                        depth={0}
+                        renderChildren={false}
+                        onHintClick={handleSelectFolder}
+                      />
+                    </div>
+                  )}
                   {isShowSearch && isSearching && (
                     <div className="flex items-center gap-2 border-border border-b bg-muted px-3 py-2 text-muted-foreground text-xs">
                       <Loader2 size={14} className="animate-spin" />
@@ -406,24 +424,6 @@ const NotesSidebar: FC<NotesSidebarProps> = ({
                     </ContextMenuTrigger>
                     <ContextMenuContent>{renderEmptyAreaMenuItems()}</ContextMenuContent>
                   </ContextMenu>
-                  {!isShowStarred && !isShowSearch && (
-                    <div className="mt-1.5 mb-3 px-2">
-                      <TreeNode
-                        node={{
-                          id: 'hint-node',
-                          name: '',
-                          type: 'hint',
-                          treePath: '',
-                          externalPath: '',
-                          createdAt: '',
-                          updatedAt: ''
-                        }}
-                        depth={0}
-                        renderChildren={false}
-                        onHintClick={handleSelectFolder}
-                      />
-                    </div>
-                  )}
                 </div>
 
                 {isDragOverSidebar && (

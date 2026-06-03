@@ -1,19 +1,18 @@
-import { SearchOutlined } from '@ant-design/icons'
-import { Tooltip } from '@cherrystudio/ui'
+import { InputGroup, InputGroupAddon, InputGroupInput, Tooltip } from '@cherrystudio/ui'
 import { PROVIDER_ICON_CATALOG } from '@cherrystudio/ui/icons'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { getProviderLabel } from '@renderer/i18n/label'
-import { Input } from 'antd'
+import { Search } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
-import styled from 'styled-components'
+import { useTranslation } from 'react-i18next'
 
 interface Props {
   onProviderClick: (providerId: string) => void
 }
 
-// 用于选择内置头像的提供商Logo选择器组件
 const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
+  const { t } = useTranslation()
   const [searchText, setSearchText] = useState('')
 
   const filteredProviders = useMemo(() => {
@@ -35,88 +34,37 @@ const ProviderLogoPicker: FC<Props> = ({ onProviderClick }) => {
   }
 
   return (
-    <Container>
-      <SearchContainer>
-        <Input
-          placeholder="search"
-          prefix={<SearchOutlined style={{ color: 'var(--color-text-3)' }} />}
+    <div className="flex max-h-[300px] w-[350px] flex-col">
+      <InputGroup className="mb-3">
+        <InputGroupAddon align="inline-start">
+          <Search />
+        </InputGroupAddon>
+        <InputGroupInput
+          placeholder={t('common.search')}
           value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
-          size="small"
-          allowClear
-          style={{
-            borderRadius: 'var(--list-item-border-radius)',
-            background: 'var(--color-background-soft)'
-          }}
+          onChange={(event) => setSearchText(event.target.value)}
         />
-      </SearchContainer>
-      <LogoGrid>
+      </InputGroup>
+      <div className="grid flex-1 grid-cols-5 gap-2 overflow-y-auto p-1">
         {filteredProviders.map(({ id, name, icon }) => (
           <Tooltip key={id} content={name}>
-            <LogoItem onClick={(e) => handleProviderClick(e, id)}>
+            <button
+              type="button"
+              aria-label={name}
+              className="flex size-[52px] shrink-0 items-center justify-center overflow-hidden rounded-full border border-border/50 bg-muted/50 transition-all hover:scale-105 hover:border-primary hover:bg-muted"
+              onClick={(event) => handleProviderClick(event, id)}>
               <ProviderAvatarPrimitive
                 providerId={id}
                 style={{ width: '52px', height: '52px' }}
                 providerName={name}
                 logo={icon}
               />
-            </LogoItem>
+            </button>
           </Tooltip>
         ))}
-      </LogoGrid>
-    </Container>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  width: 350px;
-  max-height: 300px;
-  display: flex;
-  flex-direction: column;
-  padding: 12px;
-  background: var(--color-background);
-  border-radius: 8px;
-`
-
-const SearchContainer = styled.div`
-  margin-bottom: 12px;
-`
-
-const LogoGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
-  overflow-y: auto;
-  flex: 1;
-  padding: 4px;
-`
-
-const LogoItem = styled.div`
-  width: 52px;
-  height: 52px;
-  border-radius: 100%;
-  overflow: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  background: var(--color-background-soft);
-  border: 0.5px solid var(--color-border);
-
-  &:hover {
-    background: var(--color-background-mute);
-    transform: scale(1.05);
-    border-color: var(--color-primary);
-  }
-
-  img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    user-select: none;
-    -webkit-user-drag: none;
-  }
-`
 
 export default ProviderLogoPicker

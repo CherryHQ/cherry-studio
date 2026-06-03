@@ -294,6 +294,8 @@ export type RendererPersistCacheSchema = {
   // Multi-model list for @mention parallel answering, keyed by assistantId
   // This is UI-level state, not core assistant config (default model is assistant.modelId)
   'ui.assistant.multi_model_ids': Record<string, string[]>
+  // Recently picked emojis (MRU order, capped to 32) shown at the top of the shared emoji picker
+  'ui.emoji.recently_used': string[]
 }
 
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
@@ -304,7 +306,8 @@ export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'settings.provider.openai.alert.dismissed': false,
   'feature.mcp.is_uv_installed': false,
   'feature.mcp.is_bun_installed': false,
-  'ui.assistant.multi_model_ids': {}
+  'ui.assistant.multi_model_ids': {},
+  'ui.emoji.recently_used': []
 }
 
 // ============================================================================

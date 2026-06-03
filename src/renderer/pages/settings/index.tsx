@@ -16,6 +16,38 @@ export const SettingContainer = ({
   />
 )
 
+// Canonical settings page container — mirrors the model service (Provider Settings) detail column:
+// outer px-6 py-4 + inner mx-auto max-w-3xl. Use for "simple right-content" settings pages.
+// Pages with their own internal split layout (Data / Integration / MCP / WebSearch / FileProcessing / Channels / Skills)
+// keep SettingContainer instead. See DESIGN.md §4 "Settings Page Content Container".
+export const SettingsContentColumn = ({
+  className,
+  innerClassName,
+  theme,
+  children,
+  ...rest
+}: React.ComponentPropsWithoutRef<'div'> & { theme?: ThemeMode; innerClassName?: string }) => (
+  <div
+    data-theme-mode={theme}
+    className={cn('flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4 [&::-webkit-scrollbar]:hidden', className)}
+    {...rest}>
+    <div className={cn('mx-auto w-full max-w-3xl', innerClassName)}>{children}</div>
+  </div>
+)
+
+// Body variant for pages that handle their own Scrollbar (e.g. CommonSettings, ShortcutSettings).
+// Renders the same two-layer structure (outer px-6 py-4, inner mx-auto max-w-3xl) without owning the scroll.
+export const SettingsContentBody = ({
+  className,
+  innerClassName,
+  children,
+  ...rest
+}: React.ComponentPropsWithoutRef<'div'> & { innerClassName?: string }) => (
+  <div className={cn('flex min-h-full w-full flex-col px-6 py-4', className)} {...rest}>
+    <div className={cn('mx-auto w-full max-w-3xl', innerClassName)}>{children}</div>
+  </div>
+)
+
 export const SettingTitle = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div
     className={cn('flex select-none items-center justify-between font-semibold text-[15px]', className)}
@@ -98,7 +130,7 @@ export const settingsSubmenuDividerClassName = 'my-1 bg-transparent'
 
 export const settingsContentScrollClassName = 'flex-1 min-h-0'
 
-export const settingsContentBodyClassName = 'flex min-h-full w-full flex-col px-5 py-4'
+export const settingsContentBodyClassName = 'flex min-h-full w-full flex-col px-6 py-4'
 
 export const settingsContentHeaderClassName = 'mb-5'
 

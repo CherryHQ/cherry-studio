@@ -15,6 +15,13 @@
       "when": 1780281721797,
       "tag": "0001_cloudy_masked_marvel",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1780386366672,
+      "tag": "0002_clever_skin",
+      "breakpoints": true
     }
   ]
 }

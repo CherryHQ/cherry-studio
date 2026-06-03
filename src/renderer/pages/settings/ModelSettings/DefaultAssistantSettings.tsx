@@ -34,7 +34,7 @@ import { useTranslation } from 'react-i18next'
 import { SettingContainer, SettingRow, SettingSubtitle } from '..'
 import ParameterSlider from './ParameterSlider'
 
-const PARAMETER_ROW_CLASS = 'border-border/60 border-b py-4 last:border-b-0'
+const PARAMETER_ROW_CLASS = 'border-border-muted border-b py-4 last:border-b-0'
 const PARAMETER_SLIDER_CLASS = 'mt-3 grid grid-cols-[minmax(0,1fr)_96px] items-center gap-4'
 
 export const AssistantSettings: FC = () => {
@@ -173,7 +173,7 @@ export const AssistantSettings: FC = () => {
           </Tooltip>
         </SettingSubtitle>
 
-        <div className="rounded-md border border-border/60 bg-muted/20 px-4">
+        <div className="rounded-md border border-border-muted px-4">
           <div className={PARAMETER_ROW_CLASS}>
             <SettingRow>
               <RowFlex className="items-center">
@@ -184,7 +184,7 @@ export const AssistantSettings: FC = () => {
                 />
               </RowFlex>
               <Switch
-                style={{ marginLeft: 10 }}
+                className="ml-2.5"
                 checked={enableTemperature}
                 onCheckedChange={(enabled) => {
                   setEnableTemperature(enabled)
@@ -217,7 +217,7 @@ export const AssistantSettings: FC = () => {
                 />
               </RowFlex>
               <Switch
-                style={{ marginLeft: 10 }}
+                className="ml-2.5"
                 checked={enableTopP}
                 onCheckedChange={(enabled) => {
                   setEnableTopP(enabled)
@@ -245,7 +245,7 @@ export const AssistantSettings: FC = () => {
               <p className="m-0 mr-1.25 text-sm">{t('chat.settings.context_count.label')}</p>
               <HelpTooltip
                 content={t('chat.settings.context_count.tip')}
-                iconProps={{ className: 'cursor-pointer text-color-text-3' }}
+                iconProps={{ className: 'cursor-pointer text-foreground-muted' }}
               />
             </div>
             <div className={PARAMETER_SLIDER_CLASS}>
@@ -271,7 +271,7 @@ export const AssistantSettings: FC = () => {
                 />
               </RowFlex>
               <Switch
-                style={{ marginLeft: 10 }}
+                className="ml-2.5"
                 checked={enableMaxTokens}
                 onCheckedChange={async (enabled) => {
                   if (enabled) {

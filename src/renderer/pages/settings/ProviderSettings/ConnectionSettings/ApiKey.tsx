@@ -1,7 +1,7 @@
 import { InputGroup, InputGroupAddon, InputGroupInput, Tooltip, WarnTooltip } from '@cherrystudio/ui'
 import { useProvider } from '@renderer/hooks/useProviders'
 import type { ApiKeyConnectivity } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
-import { Activity, Copy, Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react'
+import { Activity, Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -10,7 +10,6 @@ import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'
 import ProviderField from '../primitives/ProviderField'
 import ProviderSection from '../primitives/ProviderSection'
 import { fieldClasses } from '../primitives/ProviderSettingsPrimitives'
-import { copyApiKeyToClipboard } from './copyApiKeyToClipboard'
 import ProviderApiKeyListDrawer from './ProviderApiKeyListDrawer'
 
 interface ApiKeyProps {
@@ -44,7 +43,10 @@ export default function ApiKey({
   return (
     <>
       <ProviderSection id={provider.id === 'cherryin' ? 'cherryin-api-key-section' : undefined}>
-        <ProviderField className="space-y-2.5" title={t('settings.provider.api_key.label')}>
+        <ProviderField
+          className="space-y-2"
+          title={t('settings.provider.api_key.label')}
+          titleClassName="text-foreground">
           <div className={fieldClasses.inputRow}>
             <InputGroup className={fieldClasses.inputGroup}>
               <InputGroupInput
@@ -56,7 +58,7 @@ export default function ApiKey({
                 disabled={provider.id === 'copilot'}
               />
               {provider.id !== 'copilot' && (
-                <InputGroupAddon align="inline-end">
+                <InputGroupAddon align="inline-end" className="pr-1.5 has-[>button]:mr-0">
                   <Tooltip
                     content={
                       showApiKey ? t('settings.provider.api_key.hide_key') : t('settings.provider.api_key.show_key')
@@ -79,44 +81,30 @@ export default function ApiKey({
                 </InputGroupAddon>
               )}
             </InputGroup>
-            <Tooltip content={t('settings.provider.api_key.copy')}>
-              <span className="inline-flex">
-                <button
-                  type="button"
-                  disabled={provider.id === 'copilot' || !inputApiKey}
-                  className={fieldClasses.iconButton}
-                  onClick={() => {
-                    if (!inputApiKey) {
-                      return
-                    }
-                    void copyApiKeyToClipboard(inputApiKey, t)
-                  }}>
-                  <Copy size={12} />
-                </button>
-              </span>
-            </Tooltip>
             <Tooltip content={t('settings.provider.api.key.list.title')}>
-              <span className="inline-flex">
+              <span className="inline-flex shrink-0">
                 <button
                   type="button"
                   disabled={provider.id === 'copilot'}
-                  className={fieldClasses.iconButton}
+                  className={fieldClasses.inputActionButton}
+                  aria-label={t('settings.provider.api.key.list.title')}
                   onClick={() => setKeyListOpen(true)}>
-                  <KeyRound size={12} />
+                  <KeyRound size={14} />
                 </button>
               </span>
             </Tooltip>
             <Tooltip content={t('settings.provider.check')}>
-              <span className="inline-flex">
+              <span className="inline-flex shrink-0">
                 <button
                   type="button"
                   disabled={provider.id === 'copilot' || !inputApiKey || apiKeyConnectivity.checking}
-                  className={fieldClasses.iconButton}
+                  className={fieldClasses.inputActionButton}
+                  aria-label={t('settings.provider.check')}
                   onClick={onOpenConnectionCheck}>
                   {apiKeyConnectivity.checking ? (
-                    <Loader2 size={12} className="animate-spin" />
+                    <Loader2 size={14} className="animate-spin" />
                   ) : (
-                    <Activity size={12} />
+                    <Activity size={14} />
                   )}
                 </button>
               </span>

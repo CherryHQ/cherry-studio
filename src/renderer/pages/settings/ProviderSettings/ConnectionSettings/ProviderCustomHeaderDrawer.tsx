@@ -17,7 +17,7 @@ import { cn, validateApiHost } from '@renderer/utils'
 import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
 import type { EndpointConfig } from '@shared/data/types/provider'
 import { trim } from 'lodash'
-import { Plus, Settings, Trash2 } from 'lucide-react'
+import { Braces, List, Plus, Trash2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v4 as uuidv4 } from 'uuid'
@@ -345,8 +345,7 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
       open={open}
       onClose={onClose}
       title={t('settings.provider.request_configuration')}
-      footer={footer}
-      size="form">
+      footer={footer}>
       <div className={customHeaderDrawerClasses.bodyScroll}>
         {visibleEndpointTypes.map((type, index) => {
           const isPrimary = index === 0
@@ -410,60 +409,62 @@ export default function ProviderCustomHeaderDrawer({ providerId, open, onClose }
                 aria-label={toggleLabel}
                 className={cn(fieldClasses.iconButton, 'shrink-0')}
                 onClick={toggleHeadersUiMode}>
-                <Settings className="size-3" aria-hidden />
+                {headersUiMode === 'list' ? (
+                  <Braces className="size-3" aria-hidden />
+                ) : (
+                  <List className="size-3" aria-hidden />
+                )}
               </button>
             </Tooltip>
           </div>
 
           {headersUiMode === 'list' ? (
             <>
-              {rows.map((row) => (
-                <div key={row.id} className={customHeaderDrawerClasses.card}>
-                  <div className={customHeaderDrawerClasses.cardRow}>
-                    <label className={customHeaderDrawerClasses.cardRowLabel} htmlFor={`provider-hdr-key-${row.id}`}>
-                      {t('settings.provider.copilot.header_field_name')}
-                    </label>
-                    <input
-                      id={`provider-hdr-key-${row.id}`}
-                      className={customHeaderDrawerClasses.cardInput}
-                      value={row.key}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, key: v } : r)))
-                      }}
-                      placeholder={t('settings.provider.copilot.header_name_placeholder')}
-                      autoComplete="off"
-                    />
-                  </div>
-                  <div className={customHeaderDrawerClasses.cardRow}>
-                    <label className={customHeaderDrawerClasses.cardRowLabel} htmlFor={`provider-hdr-val-${row.id}`}>
-                      {t('settings.provider.copilot.header_field_value')}
-                    </label>
-                    <input
-                      id={`provider-hdr-val-${row.id}`}
-                      className={customHeaderDrawerClasses.cardInput}
-                      value={row.value}
-                      onChange={(e) => {
-                        const v = e.target.value
-                        setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, value: v } : r)))
-                      }}
-                      placeholder={t('settings.provider.copilot.header_value_placeholder')}
-                      autoComplete="off"
-                    />
-                  </div>
-                  <div className={customHeaderDrawerClasses.cardRemoveRow}>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className={customHeaderDrawerClasses.removeIconButton}
-                      onClick={() => setRows((prev) => prev.filter((r) => r.id !== row.id))}
-                      aria-label={t('common.delete')}>
-                      <Trash2 aria-hidden />
-                    </Button>
-                  </div>
+              {rows.length > 0 ? (
+                <div className={customHeaderDrawerClasses.headerList}>
+                  {rows.map((row) => (
+                    <div key={row.id} className={customHeaderDrawerClasses.headerRow}>
+                      <InputGroup className={fieldClasses.inputGroup}>
+                        <InputGroupInput
+                          id={`provider-hdr-key-${row.id}`}
+                          className={fieldClasses.input}
+                          value={row.key}
+                          onChange={(e) => {
+                            const v = e.target.value
+                            setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, key: v } : r)))
+                          }}
+                          placeholder={t('settings.provider.copilot.header_name_placeholder')}
+                          aria-label={t('settings.provider.copilot.header_field_name')}
+                          autoComplete="off"
+                        />
+                      </InputGroup>
+                      <InputGroup className={fieldClasses.inputGroup}>
+                        <InputGroupInput
+                          id={`provider-hdr-val-${row.id}`}
+                          className={fieldClasses.input}
+                          value={row.value}
+                          onChange={(e) => {
+                            const v = e.target.value
+                            setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, value: v } : r)))
+                          }}
+                          placeholder={t('settings.provider.copilot.header_value_placeholder')}
+                          aria-label={t('settings.provider.copilot.header_field_value')}
+                          autoComplete="off"
+                        />
+                      </InputGroup>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className={customHeaderDrawerClasses.removeIconButton}
+                        onClick={() => setRows((prev) => prev.filter((r) => r.id !== row.id))}
+                        aria-label={t('common.delete')}>
+                        <Trash2 aria-hidden />
+                      </Button>
+                    </div>
+                  ))}
                 </div>
-              ))}
+              ) : null}
               <Button
                 type="button"
                 variant="ghost"

@@ -4,6 +4,10 @@ import OauthButton from '@renderer/components/Oauth/OauthButton'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProviders'
 import { getProviderLabel } from '@renderer/i18n/label'
+import {
+  oauthCardClasses,
+  sectionHeadingClasses
+} from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { hasApiKeys } from '@renderer/pages/settings/ProviderSettings/utils/provider'
 import { toV1ProviderShim } from '@renderer/pages/settings/ProviderSettings/utils/v1ProviderShim'
 import { providerBills, providerCharge } from '@renderer/utils/oauth'
@@ -35,6 +39,48 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
 
   const Icon = resolveProviderIcon(provider.id)
 
+  const serviceDescription = (
+    <Trans
+      i18nKey="settings.provider.oauth.description"
+      components={{
+        website: (
+          <a className="text-inherit hover:underline" href={officialWebsite ?? ''} rel="noreferrer" target="_blank" />
+        )
+      }}
+      values={{ provider: providerWebsite }}
+    />
+  )
+
+  // Logged-out: align with the CherryIN account card (section heading + bordered shell + one row:
+  // avatar/name/description on the left, login button on the right).
+  if (!hasApiKeys(provider)) {
+    return (
+      <div className="flex flex-col gap-3">
+        <h3 className={sectionHeadingClasses}>{t('settings.provider.section.account')}</h3>
+        <div className={oauthCardClasses.shell}>
+          <div className={oauthCardClasses.loggedInRow}>
+            <div className={oauthCardClasses.profileMeta}>
+              {Icon ? (
+                <Icon.Avatar size={48} />
+              ) : (
+                <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-(--color-background-soft) font-bold text-[20px]">
+                  {provider.name[0]}
+                </div>
+              )}
+              <div className={oauthCardClasses.nameBlock}>
+                <div className={oauthCardClasses.loggedInName}>{getProviderLabel(provider.id)}</div>
+                <div className={oauthCardClasses.loggedInEmail}>{serviceDescription}</div>
+              </div>
+            </div>
+            {/* className="" clears OauthButton's hard-coded `rounded-full` so the emphasis variant's own radius/size matches the CherryIN login button */}
+            <OauthButton provider={toV1ProviderShim(provider)} onSuccess={setApiKey} variant="emphasis" className="" />
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Logged-in: charge / bills actions (original centered layout).
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-3 pb-2">
       {Icon ? (
@@ -44,44 +90,20 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
           {provider.name[0]}
         </div>
       )}
-      {!hasApiKeys(provider) ? (
-        <OauthButton
-          provider={toV1ProviderShim(provider)}
-          onSuccess={setApiKey}
-          className="rounded-lg! px-3! py-[6px]! text-[13px]!">
-          {t('settings.provider.oauth.button', { provider: getProviderLabel(provider.id) })}
-        </OauthButton>
-      ) : (
-        <RowFlex className="gap-2.5">
-          <Button
-            className="rounded-lg px-3 py-[6px] text-[13px] shadow-none"
-            onClick={() => providerCharge(provider.id)}>
-            <CircleDollarSign aria-hidden className="size-4 shrink-0 text-white" />
-            {t('settings.provider.charge')}
-          </Button>
-          <Button
-            className="rounded-lg px-3 py-[6px] text-[13px] shadow-none"
-            onClick={() => providerBills(provider.id)}>
-            <ReceiptText aria-hidden className="size-4 shrink-0 text-white" />
-            {t('settings.provider.bills')}
-          </Button>
-        </RowFlex>
-      )}
+      <RowFlex className="gap-2.5">
+        <Button
+          className="rounded-lg px-3 py-[6px] text-[13px] shadow-none"
+          onClick={() => providerCharge(provider.id)}>
+          <CircleDollarSign aria-hidden className="size-4 shrink-0 text-white" />
+          {t('settings.provider.charge')}
+        </Button>
+        <Button className="rounded-lg px-3 py-[6px] text-[13px] shadow-none" onClick={() => providerBills(provider.id)}>
+          <ReceiptText aria-hidden className="size-4 shrink-0 text-white" />
+          {t('settings.provider.bills')}
+        </Button>
+      </RowFlex>
       <div className="flex items-center gap-1.5 text-(--color-text-2) text-[13px] leading-[1.35]">
-        <Trans
-          i18nKey="settings.provider.oauth.description"
-          components={{
-            website: (
-              <a
-                className="text-(--color-text-2) no-underline"
-                href={officialWebsite ?? ''}
-                rel="noreferrer"
-                target="_blank"
-              />
-            )
-          }}
-          values={{ provider: providerWebsite }}
-        />
+        {serviceDescription}
       </div>
     </div>
   )

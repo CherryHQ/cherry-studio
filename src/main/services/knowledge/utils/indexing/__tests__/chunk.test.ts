@@ -14,7 +14,6 @@ function createBase(): KnowledgeBase {
     id: KNOWLEDGE_BASE_ID,
     name: 'KB',
     groupId: null,
-    emoji: '📁',
     dimensions: 1024,
     embeddingModelId: 'ollama::nomic-embed-text',
     status: 'completed',

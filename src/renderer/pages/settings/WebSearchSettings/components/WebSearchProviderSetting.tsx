@@ -16,12 +16,12 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
-  SettingContainer,
   SettingDivider,
   SettingGroup,
   SettingHelpLink,
   SettingHelpText,
   SettingHelpTextRow,
+  SettingsContentColumn,
   SettingSubtitle,
   SettingTitle,
   SettingTitleExternalLink
@@ -285,7 +285,7 @@ export const WebSearchProviderSetting: FC<Props> = ({
   }
 
   return (
-    <SettingContainer theme={theme}>
+    <SettingsContentColumn theme={theme}>
       <SettingGroup theme={theme}>
         <SettingTitle>
           <Flex className="items-center justify-between" style={{ width: '100%' }}>
@@ -453,6 +453,6 @@ export const WebSearchProviderSetting: FC<Props> = ({
           </>
         )}
       </SettingGroup>
-    </SettingContainer>
+    </SettingsContentColumn>
   )
 }
