@@ -3421,7 +3421,7 @@ const migrateConfig = {
           provider.anthropicApiHost = 'https://api.stepfun.com'
         }
       })
-
+      state.assistants.lastActiveAssistantId = ''
       logger.info('migrate 207 success')
       return state
     } catch (error) {
