@@ -7,7 +7,7 @@ import { useTabs } from '@renderer/hooks/useTabs'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
 import type { SubWindowInitData } from '@shared/types/subWindow'
-import { Activity, useEffect } from 'react'
+import { Activity, useEffect, useRef } from 'react'
 
 // Mock Webview component (TODO: Replace with actual MinApp/Webview)
 const WebviewContainer = ({ url, isActive }: { url: string; isActive: boolean }) => (
@@ -33,15 +33,22 @@ export const SubWindowAppShell = () => {
     unpinTab
   } = useTabs()
   const init = useWindowInitData<SubWindowInitData>()
+  // Guards against re-processing the same init payload. useWindowInitData delivers a fresh
+  // `init` object reference on cold start AND on every pool reuse, so keying on identity lets
+  // us run exactly once per detach session. This must NOT be replaced by adding the tab
+  // callbacks to the effect deps: `setActiveTab` (and friends) are recreated whenever `tabs`
+  // changes, and the effect body changes `tabs` via resetNormalTabs — so depending on them
+  // would re-fire the effect after its own state update, looping until React throws
+  // "Maximum update depth exceeded" and the detached window renders an error boundary.
+  const processedInitRef = useRef<SubWindowInitData | null>(null)
 
   // Initialize the tab from WindowManager init data, and re-initialize on pool reuse.
-  // useWindowInitData delivers a fresh `init` object on cold start AND again on every pool
-  // reuse (via WindowManager_Reused), so this effect runs once per detach session. We reset
-  // rather than append: a reused window's renderer is not reloaded, so a prior session's
-  // normal tabs would otherwise linger. Pinned tabs live in the shared persistent cache, so
-  // a pinned detach only clears leftover normal tabs and activates the pinned tab.
+  // We reset rather than append: a reused window's renderer is not reloaded, so a prior
+  // session's normal tabs would otherwise linger. Pinned tabs live in the shared persistent
+  // cache, so a pinned detach only clears leftover normal tabs and activates the pinned tab.
   useEffect(() => {
-    if (!init) return
+    if (!init || init === processedInitRef.current) return
+    processedInitRef.current = init
 
     if (init.isPinned) {
       resetNormalTabs()
