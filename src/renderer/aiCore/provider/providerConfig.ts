@@ -40,6 +40,21 @@ import { DEFAULT_OVMS_BASE_URL } from './custom/ovms/ovmsTransport'
 import { DEFAULT_PPIO_BASE_URL } from './custom/ppio/ppioTransport'
 import { getAiSdkProviderId } from './factory'
 
+// === Helpers ===
+
+function createCustomFetch(extraHeaders: Record<string, string> | undefined): typeof globalThis.fetch | undefined {
+  if (!extraHeaders) return undefined
+  const uaKey = Object.keys(extraHeaders).find((k) => k.toLowerCase() === 'user-agent')
+  if (!uaKey) return undefined
+  const customUA = extraHeaders[uaKey]
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    const headers = new Headers(init?.headers)
+    const existing = headers.get('user-agent') || ''
+    headers.set('user-agent', existing ? `${customUA} ${existing}` : customUA)
+    return fetch(input, { ...init, headers })
+  }
+}
+
 // === Types ===
 
 interface BaseConfig {
@@ -196,7 +211,8 @@ function buildCommonOptions(ctx: BuilderContext) {
     headers: {
       ...defaultAppHeaders(),
       ...ctx.actualProvider.extra_headers
-    }
+    },
+    fetch: createCustomFetch(ctx.actualProvider.extra_headers)
   }
   if (ctx.aiSdkProviderId === 'openai') {
     options.headers['X-Api-Key'] = ctx.baseConfig.apiKey
@@ -216,7 +232,8 @@ async function buildCopilotConfig(ctx: BuilderContext): Promise<ProviderConfig<'
       ...ctx.baseConfig,
       apiKey: token,
       headers: { ...headers, ...ctx.actualProvider.extra_headers },
-      name: ctx.actualProvider.id
+      name: ctx.actualProvider.id,
+      fetch: createCustomFetch(ctx.actualProvider.extra_headers)
     }
   }
 }
@@ -233,7 +250,7 @@ function buildOllamaConfig(ctx: BuilderContext): ProviderConfig<'ollama'> {
   return {
     providerId: 'ollama',
     endpoint: ctx.endpoint,
-    providerSettings: { ...ctx.baseConfig, headers }
+    providerSettings: { ...ctx.baseConfig, headers, fetch: createCustomFetch(ctx.actualProvider.extra_headers) }
   }
 }
 
@@ -291,12 +308,14 @@ function buildCherryinConfig(ctx: BuilderContext): ProviderConfig<'cherryin'> {
       endpointType: ctx.model.endpoint_type,
       anthropicBaseURL: cherryinProvider ? cherryinProvider.anthropicApiHost + '/v1' : undefined,
       geminiBaseURL: cherryinProvider ? cherryinProvider.apiHost + '/v1beta' : undefined,
-      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
+      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers },
+      fetch: createCustomFetch(ctx.actualProvider.extra_headers)
     }
   }
 }
 
 async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<'openai-compatible'>> {
+  const customFetch = createCustomFetch(ctx.actualProvider.extra_headers)
   return {
     providerId: 'openai-compatible',
     endpoint: ctx.endpoint,
@@ -304,15 +323,25 @@ async function buildCherryAIConfig(ctx: BuilderContext): Promise<ProviderConfig<
       ...ctx.baseConfig,
       name: ctx.actualProvider.id,
       headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers },
-      fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
-        const signature = await window.api.cherryai.generateSignature({
-          method: 'POST',
-          path: '/chat/completions',
-          query: '',
-          body: init?.body && typeof init.body === 'string' ? JSON.parse(init.body) : undefined
-        })
-        return fetch(input, { ...init, headers: { ...init?.headers, ...signature } })
-      }
+      fetch: customFetch
+        ? async (input: RequestInfo | URL, init?: RequestInit) => {
+            const signature = await window.api.cherryai.generateSignature({
+              method: 'POST',
+              path: '/chat/completions',
+              query: '',
+              body: init?.body && typeof init.body === 'string' ? JSON.parse(init.body) : undefined
+            })
+            return customFetch(input, { ...init, headers: { ...init?.headers, ...signature } })
+          }
+        : async (input: RequestInfo | URL, init?: RequestInit) => {
+            const signature = await window.api.cherryai.generateSignature({
+              method: 'POST',
+              path: '/chat/completions',
+              query: '',
+              body: init?.body && typeof init.body === 'string' ? JSON.parse(init.body) : undefined
+            })
+            return fetch(input, { ...init, headers: { ...init?.headers, ...signature } })
+          }
     }
   }
 }
@@ -335,7 +364,8 @@ function buildAzureConfig(
       providerSettings: {
         ...ctx.baseConfig,
         baseURL: formatAzureBaseURL(ctx.baseConfig.baseURL, true),
-        headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
+        headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers },
+        fetch: createCustomFetch(ctx.actualProvider.extra_headers)
       }
     }
   }
@@ -346,7 +376,8 @@ function buildAzureConfig(
   const providerSettings: ProviderConfig<'azure'>['providerSettings'] = {
     ...ctx.baseConfig,
     baseURL: formatAzureBaseURL(ctx.baseConfig.baseURL, false),
-    headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
+    headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers },
+    fetch: createCustomFetch(ctx.actualProvider.extra_headers)
   }
 
   if (apiVersion) {
@@ -397,7 +428,8 @@ function buildAiHubMixConfig(ctx: BuilderContext): ProviderConfig<'aihubmix'> {
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
-      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
+      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers },
+      fetch: createCustomFetch(ctx.actualProvider.extra_headers)
     }
   }
 }
@@ -525,7 +557,8 @@ function buildNewApiConfig(ctx: BuilderContext): ProviderConfig<'newapi'> {
       ...ctx.baseConfig,
       baseURL,
       endpointType: ctx.model.endpoint_type,
-      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers }
+      headers: { ...defaultAppHeaders(), ...ctx.actualProvider.extra_headers },
+      fetch: createCustomFetch(ctx.actualProvider.extra_headers)
     }
   }
 }
