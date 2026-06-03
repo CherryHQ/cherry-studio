@@ -20,6 +20,7 @@ import { getItemTitle, getReadyCount, getVisibleItems } from './utils/selectors'
 export interface DataSourcePanelProps {
   items: KnowledgeItem[]
   isLoading: boolean
+  activeFilter?: DataSourceFilter
   searchQuery?: string
   onAdd: (source?: KnowledgeItemType, files?: File[]) => void
   onItemClick?: (itemId: string) => void
@@ -84,6 +85,7 @@ const DataSourceEmptyState = ({
 const DataSourcePanel = ({
   items,
   isLoading,
+  activeFilter = 'all',
   searchQuery = '',
   onAdd,
   onItemClick,
@@ -93,7 +95,6 @@ const DataSourcePanel = ({
   const { t } = useTranslation()
   const { previewSource } = usePreviewKnowledgeSource()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [activeFilter, setActiveFilter] = useState<DataSourceFilter>('all')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set())
   const [pendingDeleteItem, setPendingDeleteItem] = useState<KnowledgeItem | null>(null)
   const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false)
@@ -226,7 +227,6 @@ const DataSourcePanel = ({
         <div className="border-border-muted border-b pb-3">
           <DataSourcePanelHeader
             activeFilter={activeFilter}
-            onFilterChange={setActiveFilter}
             readyCount={readyCount}
             totalCount={items.length}
             selectedCount={selectedIds.size}

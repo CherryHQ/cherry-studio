@@ -179,7 +179,6 @@ vi.mock('react-i18next', () => ({
             'knowledge.data_source.delete_failed': '删除数据源失败',
             'knowledge.data_source.reindex_failed': '重新索引数据源失败',
             'knowledge.data_source.empty_description': '暂无数据源',
-            'knowledge.data_source.filters.all': '全部',
             'knowledge.data_source.filters.file': '文件',
             'knowledge.data_source.filters.note': '笔记',
             'knowledge.data_source.filters.directory': '目录',
@@ -271,9 +270,16 @@ describe('DataSourcePanel', () => {
   it('shows the file add button and dropzone directly on the empty file filter page', () => {
     const onAdd = vi.fn()
 
-    render(<DataSourcePanel items={[]} isLoading={false} onAdd={onAdd} onDelete={vi.fn()} onReindex={vi.fn()} />)
-
-    fireEvent.click(screen.getByRole('radio', { name: '文件' }))
+    render(
+      <DataSourcePanel
+        items={[]}
+        isLoading={false}
+        activeFilter="file"
+        onAdd={onAdd}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
 
     expect(onAdd).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: '文件' })).toBeInTheDocument()
@@ -299,8 +305,7 @@ describe('DataSourcePanel', () => {
     )
 
     expect(screen.getByText('第一行标题')).toBeInTheDocument()
-    // "笔记" appears 3 times: once as the filter option label + once per row in the new type column
-    expect(screen.getAllByText('笔记')).toHaveLength(3)
+    expect(screen.getAllByText('笔记')).toHaveLength(2)
     expect(screen.getByText('已就绪 2/2')).toBeInTheDocument()
   })
 
@@ -354,8 +359,8 @@ describe('DataSourcePanel', () => {
     expect(screen.queryByText('等待中')).not.toBeInTheDocument()
   })
 
-  it('builds filter labels from the type display config and filters the visible rows by type', () => {
-    render(
+  it('keeps type filtering available without rendering the old tab controls', () => {
+    const { rerender } = render(
       <DataSourcePanel
         items={[
           createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
@@ -368,18 +373,39 @@ describe('DataSourcePanel', () => {
       />
     )
 
-    expect(screen.getByRole('radio', { name: '全部' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: '文件' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: '笔记' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: '目录' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: '网址' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: '网站' })).toBeInTheDocument()
+    expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
+    expect(screen.getByText('季度报告.pdf')).toBeInTheDocument()
+    expect(screen.getByText('会议纪要')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('radio', { name: '文件' }))
+    rerender(
+      <DataSourcePanel
+        items={[
+          createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
+          createNoteItem({ id: 'note-1', content: '会议纪要' })
+        ]}
+        isLoading={false}
+        activeFilter="file"
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
     expect(screen.getByText('季度报告.pdf')).toBeInTheDocument()
     expect(screen.queryByText('会议纪要')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('radio', { name: '笔记' }))
+    rerender(
+      <DataSourcePanel
+        items={[
+          createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
+          createNoteItem({ id: 'note-1', content: '会议纪要' })
+        ]}
+        isLoading={false}
+        activeFilter="note"
+        onAdd={vi.fn()}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
     expect(screen.getByText('会议纪要')).toBeInTheDocument()
     expect(screen.queryByText('季度报告.pdf')).not.toBeInTheDocument()
   })
@@ -433,8 +459,16 @@ describe('DataSourcePanel', () => {
     const onAdd = vi.fn()
     const file = new File(['alpha'], 'alpha.pdf', { type: 'application/pdf' })
 
-    render(<DataSourcePanel items={[]} isLoading={false} onAdd={onAdd} onDelete={vi.fn()} onReindex={vi.fn()} />)
-    fireEvent.click(screen.getByRole('radio', { name: '文件' }))
+    render(
+      <DataSourcePanel
+        items={[]}
+        isLoading={false}
+        activeFilter="file"
+        onAdd={onAdd}
+        onDelete={vi.fn()}
+        onReindex={vi.fn()}
+      />
+    )
 
     expect(screen.getByTestId('knowledge-data-source-footer-dropzone')).toBeInTheDocument()
 
@@ -473,13 +507,12 @@ describe('DataSourcePanel', () => {
       <DataSourcePanel
         items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
         isLoading={false}
+        activeFilter="file"
         onAdd={onAdd}
         onDelete={vi.fn()}
         onReindex={vi.fn()}
       />
     )
-
-    fireEvent.click(screen.getByRole('radio', { name: '文件' }))
 
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
     const filePickerClick = vi.spyOn(fileInput, 'click')
@@ -503,13 +536,12 @@ describe('DataSourcePanel', () => {
       <DataSourcePanel
         items={[createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/资料目录' })]}
         isLoading={false}
+        activeFilter="directory"
         onAdd={onAdd}
         onDelete={vi.fn()}
         onReindex={vi.fn()}
       />
     )
-
-    fireEvent.click(screen.getByRole('radio', { name: '目录' }))
 
     fireEvent.mouseEnter(screen.getByRole('button', { name: '添加数据源' }))
     expect(screen.queryByRole('menuitem', { name: '文件' })).not.toBeInTheDocument()
@@ -540,8 +572,7 @@ describe('DataSourcePanel', () => {
     expect(screen.getByText('季度报告.pdf')).toBeInTheDocument()
     expect(screen.queryByText('会议记录.pdf')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '搜索数据源' })).not.toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: '全部' })).toBeInTheDocument()
-    expect(screen.getByRole('radio', { name: '文件' })).toBeInTheDocument()
+    expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
   })
 
   it('forwards row clicks to the item chunk detail handler', () => {

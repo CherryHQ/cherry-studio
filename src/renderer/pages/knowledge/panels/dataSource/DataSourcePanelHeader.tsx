@@ -5,12 +5,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { KNOWLEDGE_DATA_SOURCE_TYPES } from '../../components/addKnowledgeItemDialog/constants'
-import DataSourceFilters from './DataSourceFilters'
 import type { DataSourceFilter } from './utils/models'
 
 interface DataSourcePanelHeaderProps {
   activeFilter: DataSourceFilter
-  onFilterChange: (value: DataSourceFilter) => void
   readyCount: number
   totalCount: number
   selectedCount: number
@@ -22,7 +20,6 @@ interface DataSourcePanelHeaderProps {
 
 const DataSourcePanelHeader = ({
   activeFilter,
-  onFilterChange,
   readyCount,
   totalCount,
   selectedCount,
@@ -102,11 +99,7 @@ const DataSourcePanelHeader = ({
   }
 
   return (
-    <div className="flex min-w-0 items-center gap-4">
-      <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <DataSourceFilters value={activeFilter} onValueChange={onFilterChange} />
-      </div>
-
+    <div className="flex min-w-0 items-center justify-end gap-2">
       <div className="flex shrink-0 items-center gap-2">
         {totalCount > 0 ? (
           <span className="text-foreground-muted text-xs leading-4">
