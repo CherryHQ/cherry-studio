@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { handleBranchComposerKeyDown } from './composerKeyboard'
 import type { BranchAnchor } from './types'
 
 type ForkStatus = 'idle' | 'creating' | 'error'
@@ -80,12 +81,13 @@ export default function BranchComposer({ anchor, status, errorMessage, onCreate,
 
       <div>
         <label className="mb-1 block font-medium text-sm" htmlFor="branch-composer-follow-up">
-          {t('chat.message.anchor.panel.follow_up_label')}
+          {t('chat.message.anchor.panel.compose_label')}
         </label>
         <Textarea.Input
           id="branch-composer-follow-up"
           value={followUp}
           onValueChange={handleFollowUpChange}
+          onKeyDown={(event) => handleBranchComposerKeyDown(event, handleCreate)}
           placeholder={t('chat.message.anchor.panel.follow_up_placeholder')}
           rows={4}
           readOnly={isCreating}

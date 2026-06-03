@@ -3,29 +3,25 @@ import { SendHorizontal } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { handleBranchComposerKeyDown } from './composerKeyboard'
+
 interface Props {
   /** Emits the trimmed follow-up text. The host routes it to THIS card's branch topic. */
   onSend: (followUp: string) => void
 }
 
 /**
- * BranchFollowUpComposer — P1-S2b-2 conversation-state composer.
+ * BranchFollowUpComposer — conversation-state composer (P1-S2b-2).
  *
- * The deferred-from-S2b-1 piece: a small textarea + Send affordance pinned to
- * the bottom of an open branch card's conversation body. Unlike
- * `BranchComposer` (which is the compose-state form: quote block, "create
- * branch" button, Cancel == close-branch), this is just "append a turn to the
- * conversation already in this card" — so it is intentionally minimal and
- * separate rather than a mode flag on BranchComposer.
+ * Append a turn to the branch conversation already open in this detail block.
+ * Per-branch isolation: the draft text lives in THIS component's local state,
+ * so typing in branch B never bleeds into A. Routing to the right branch topic
+ * is the host's job (Chat.tsx resolves branchId → topic); this only emits
+ * `onSend(text)`.
  *
- * Per-card isolation: the draft text lives in THIS component's local state, so
- * typing in branch B's composer never bleeds into A's or C's. Routing to the
- * correct branch topic is the host's job (Chat.tsx resolves branchId → topic);
- * this component only knows how to emit `onSend(text)`.
- *
- * Streaming / loading feedback is intentionally NOT modelled here — the reply
- * streams into the card's own <BranchMessageStream>. (Per-card streaming-state
- * polish is deferred; see P1-S2b-2 README.)
+ * Keyboard (P1-S2c B3): shares the ONE `handleBranchComposerKeyDown` handler
+ * with the initial-ask `BranchComposer` — Enter sends, Shift+Enter newlines,
+ * IME-compose Enter doesn't send.
  */
 export default function BranchFollowUpComposer({ onSend }: Props) {
   const { t } = useTranslation()
@@ -53,6 +49,7 @@ export default function BranchFollowUpComposer({ onSend }: Props) {
       <Textarea.Input
         value={followUp}
         onValueChange={handleChange}
+        onKeyDown={(event) => handleBranchComposerKeyDown(event, handleSend)}
         placeholder={t('chat.message.anchor.panel.follow_up_placeholder')}
         rows={2}
         aria-label={t('chat.message.anchor.panel.follow_up_label')}

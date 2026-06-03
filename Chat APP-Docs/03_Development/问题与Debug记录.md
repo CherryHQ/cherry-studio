@@ -9,7 +9,10 @@
 |---|---|---|---|---|---|
 | D-006 | fresh install 默认模型仍是 CherryAI Qwen，不自动选 Ollama | `rm -rf ~/Library/Application\ Support/CherryStudioDev && pnpm dev` → 新建 topic 默认 model 是 Qwen \| CherryAI | 🟢 小毛刺，可手动切；非 baseline 阻塞 | 暂未建任务；等 v2 用户偏好 / 默认模型策略迁移时一起处理 | （无） |
 | D-007 | Regenerate 切到 Ollama 后点旧回复 refresh 无明显反应 | 切到 Ollama 模型 → 在历史 assistant 消息上点 refresh / regenerate | 🟢 候选 issue；主聊天侧；与 D-009 分支侧无关 | 用户在 T-009 关闭后可单独复测；如仍存在则开 T-010 | （无） |
-> 注：D-006 / D-007 是用户明确要求**先记录、不优先修**的候选 issue。
+| **B4** | 开关一次分支后右键 "Open as branch"/"Ask" 变灰 | 开分支 → 关 → 重选 assistant 文本右键 | 🟡 既存；最可能是高亮 paint/clear 使选区坍缩 | S2d（菜单兜底）；详见本文末「分支面板调试弧」 | 本文 §B4 |
+| **B5** | 流式中关闭分支,回复继续、无法中止 | 分支流式回复中点 X | 🟡 既存；`handleCloseBranch` 从不 abort | 单独成步（动 abort 保护区，需批准）；详见本文末 | 本文 §B5 |
+| **B2** | 关两个分支后第三个开不出 | 见调试弧；多半 = B4 或 stale-ref | 🟡 待复现确认 | accordion 后复测；归 S2d/排查 | 本文 §B1-B5 表 |
+> 注：D-006 / D-007 / B2 / B4 / B5 是**先记录、不优先修 / 单独成步**的 issue。**B1（卡片重叠/串位）、B3（Enter 不发送）已在 S2c 修复**（见文末调试弧）。
 
 ### D-009 根因 + 修法（已 closed 2026-05-22，留存供后人复习）
 
@@ -174,4 +177,39 @@ Schema 安全（`ProviderConfigSchema.refine` 只要求该值是 endpointConfigs
 - 索引一行：见上方 §当前 open 问题
 - 影响 / 风险定位：[../01_Project/风险与限制.md#R0.3](../01_Project/风险与限制.md)
 - 是否阻塞 Phase 3：见 [当前状态.md](./当前状态.md)
+
+---
+
+## 分支面板 S2b-3 → S2c 调试弧（B1–B5 + merge；2026-06-03）
+
+> 背景：P1-S2b-3「sticky-stacking via `display:contents`」在 dev-smoke 一次性暴露 5 个缺陷(B1–B5);随后 S2c master/detail 又暴露一个 merge 变体。下表 + 详记是这一弧的诊断落档(之前只在会话里)。
+
+| ID | 标题 | 引入 vs 既存 | 状态 |
+|---|---|---|---|
+| **B1** | 双流卡片重叠/串位 | **S2b-3 引入**(display:contents+手搓 sticky)| ✅ 已修(S2c accordion 真实盒子 + shrink-0) |
+| **B2** | 关两个分支后第三个开不出 | 多半 = B4 或 S2b-1 stale-ref(既存)| ⏳ 待复现确认(随 accordion 可能已缓解;归 S2d/排查) |
+| **B3** | 初始/follow-up composer Enter 不发送 | 初始 `BranchComposer` 从无 keydown(既存)+ 跟随偏好 | ✅ 已修(共享 `composerKeyboard` + forceEnterToSend,初始+follow-up 共用) |
+| **B4** | 开关一次分支后右键 "Open as branch" 变灰 | **既存**(菜单 gating/findBlockContext/高亮 paint-clear 全在未动文件)| ⏳ open(归 S2d:菜单兜底)|
+| **B5** | 流式中关闭分支不中止,回复继续 | **既存**(`handleCloseBranch` 自 S2b-1 起从不 abort)| ⏳ open(需动 abort 保护区,需批准)|
+
+### B1（核心,已修）
+- **根因**:S2b-3 把 `BranchCard` 外层设 `display:contents`(无盒子)+ 每个 header `position:sticky` 递增 `top` → 所有 header 共享滚动容器为 containing block、同时常驻并叠在下方 body 上;双流增长时视觉交叉。
+- **S2c 第一版(master/detail)**留下 merge 变体:detail 盒子 `flex min-h-0`(默认 `flex-shrink:1`、无 overflow)在高度有界的 `overflow-y-auto` 区里被 flex **压缩到比内容矮** → 内容溢出叠到下一个盒子(混态 conversation+compose 最明显);`overflow-y-auto` 因"压缩装下了"从不滚动。
+- **修**:① 盒子 `shrink-0` + 去 `min-h-0`(自然高度,区接管滚动);② 最终 accordion 把"两区"并成单滚动区 + 标题贴内容(§3b 定稿)。**绝不用** sticky/display:contents。
+
+### B3（已修）
+- **根因**:`chat.input.send_message_shortcut` 默认 `'Enter'`,但 composer 跟随用户偏好(实例非纯 Enter)→ Enter 落换行;且**初始 `BranchComposer` 根本没接 keydown→submit**。
+- **修**:共享 `composerKeyboard.ts` 唯一 `handleBranchComposerKeyDown`(`isSendMessageKeyPressed(event,'Enter',true)` 覆盖偏好 + IME 守卫),初始 + follow-up composer 共用。
+
+### B4（open,既存,未修）
+- **机制**:右键菜单 `disabled={!hasAnchor}`(`SelectionContextMenu.tsx`),`hasAnchor` 由当前选区 + `findBlockContext` 决定。最可能 = 开/关分支时高亮 `paint/clear` 的 DOM 突变使 live Selection 坍缩 → 关后未重选则菜单变灰。**菜单/findBlockContext/sourceHighlight 全在 S2c 未动文件 → 既存**。
+- **修向(未做)**:菜单侧兜底(非保护区);若要在 paint/clear 保护 Selection 则触 `sourceHighlight.ts`(保护区,需批准)。归 **S2d**。
+
+### B5（open,既存,需批准）
+- **机制**:`Chat.tsx handleCloseBranch`(S2b-1)只 `clearSourceHighlight + 移除 branch`,**从不 abort**。中止机制 = `abortCompletion(id)`(`utils/abortController.ts`),由 `messageThunk` 发起时 `addAbortController(userMessageId,…)` 注册。
+- **修向(未做)**:close 时拿该分支 in-flight 消息 id 调 `abortCompletion`。**触 abort/streaming 保护区,需你批准**。单独成步。
+
+### 测试缺口教训
+- jsdom **无布局引擎** → "视觉不重叠 / 标题滚走 / 滚到顶"**单测测不了**。S2c 用**结构不变量**(header+content 同 item、无 display:contents/sticky、盒子 `shrink-0`)+ **行为**(locate scroll 调用)做契约代理,视觉一律列 **manual-smoke**,SCOPE 注释明写"绿 ≠ 不重叠"。
+- B1 之所以"131 绿却坏":master/detail 的结构断言断的是 **DOM 分离**(真),而 bug 是 **flex 压缩溢出**(jsdom 盲区) —— 用错代理。accordion 的"header+content 同 item"是真实结构属性,mutation 可验。
 

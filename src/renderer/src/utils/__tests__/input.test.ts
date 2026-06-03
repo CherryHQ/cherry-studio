@@ -178,5 +178,29 @@ describe('input', () => {
       expect(isSendMessageKeyPressed(multiModifierEvent, 'Ctrl+Enter')).toBe(false)
       expect(isSendMessageKeyPressed(multiModifierEvent, 'Shift+Enter')).toBe(false)
     })
+
+    // P1-S2b-3 (B): forceEnterToSend override (branch follow-up composer).
+    const ev = (mods: Partial<React.KeyboardEvent<HTMLTextAreaElement>>) =>
+      ({ key: 'Enter', shiftKey: false, ctrlKey: false, metaKey: false, altKey: false, ...mods }) as any
+
+    it('forceEnterToSend=true: plain Enter sends; any modifier+Enter does NOT', () => {
+      // shortcut arg is ignored under the override — pass a non-Enter one to prove it.
+      expect(isSendMessageKeyPressed(ev({}), 'Shift+Enter', true)).toBe(true)
+      expect(isSendMessageKeyPressed(ev({ shiftKey: true }), 'Shift+Enter', true)).toBe(false)
+      expect(isSendMessageKeyPressed(ev({ ctrlKey: true }), 'Enter', true)).toBe(false)
+      expect(isSendMessageKeyPressed(ev({ metaKey: true }), 'Enter', true)).toBe(false)
+      expect(isSendMessageKeyPressed(ev({ altKey: true }), 'Enter', true)).toBe(false)
+    })
+
+    it('parity: forceEnterToSend defaults to false → 2-arg behaviour is byte-identical (main input unaffected)', () => {
+      // Plain Enter
+      expect(isSendMessageKeyPressed(ev({}), 'Enter')).toBe(isSendMessageKeyPressed(ev({}), 'Enter', false))
+      // Under a non-Enter global shortcut, plain Enter must NOT send when not forced.
+      expect(isSendMessageKeyPressed(ev({}), 'Shift+Enter')).toBe(false)
+      expect(isSendMessageKeyPressed(ev({}), 'Ctrl+Enter')).toBe(false)
+      // And the configured combos still send under the default (forced=false) path.
+      expect(isSendMessageKeyPressed(ev({ shiftKey: true }), 'Shift+Enter')).toBe(true)
+      expect(isSendMessageKeyPressed(ev({ ctrlKey: true }), 'Ctrl+Enter')).toBe(true)
+    })
   })
 })

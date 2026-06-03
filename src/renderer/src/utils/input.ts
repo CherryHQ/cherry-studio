@@ -86,10 +86,22 @@ export const getSendMessageShortcutLabel = (shortcut: SendMessageShortcut) => {
 }
 
 // check if the send message key is pressed in textarea
+//
+// `forceEnterToSend` (P1-S2b-3 B): optional opt-in that overrides `shortcut`
+// so a plain Enter (no modifiers) always counts as "send" and Shift/Ctrl/etc.
+// +Enter never does. Defaults to `false` → the `shortcut` switch below runs
+// exactly as before, so existing 2-arg callers (Inputbar, MessageEditor, the
+// initial-ask composer) are byte-for-byte unaffected. The branch follow-up
+// composer opts in because it's a quick "reply in this branch" box where
+// Enter-to-send is always the right default regardless of the global setting.
 export const isSendMessageKeyPressed = (
   event: React.KeyboardEvent<HTMLTextAreaElement>,
-  shortcut: SendMessageShortcut
+  shortcut: SendMessageShortcut,
+  forceEnterToSend = false
 ) => {
+  if (forceEnterToSend) {
+    return !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey
+  }
   let isSendMessageKeyPressed = false
   switch (shortcut) {
     case 'Enter':

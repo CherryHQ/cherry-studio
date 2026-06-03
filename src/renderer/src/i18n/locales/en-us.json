@@ -1312,6 +1312,7 @@
           },
           "close": "Close branch panel",
           "close_disabled_tooltip": "Branch cleanup ships in a follow-up step.",
+          "compose_label": "Ask about the selected text",
           "conversation_header": "Branch #{{id}}",
           "create_branch": "Create branch",
           "empty_stream": "Waiting for the model to reply…",

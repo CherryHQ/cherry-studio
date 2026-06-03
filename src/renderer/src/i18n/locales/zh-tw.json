@@ -1312,6 +1312,7 @@
           },
           "close": "關閉分支面板",
           "close_disabled_tooltip": "分支清理將在後續步驟接入。",
+          "compose_label": "針對選中內容提問",
           "conversation_header": "分支 #{{id}}",
           "create_branch": "建立分支",
           "empty_stream": "等待模型回覆…",

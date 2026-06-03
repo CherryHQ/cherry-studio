@@ -1,11 +1,11 @@
 import { fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import BranchFollowUpComposer from '../BranchFollowUpComposer'
-
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key })
 }))
+
+import BranchFollowUpComposer from '../BranchFollowUpComposer'
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -61,5 +61,55 @@ describe('BranchFollowUpComposer (P1-S2b-2)', () => {
 
     typeFollowUp('a real question')
     expect(screen.queryByTestId('branch-followup-validation-error')).toBeNull()
+  })
+
+  // ── Keyboard: Enter-to-send OVERRIDE (P1-S2b-3 B) ─────────────────────────
+  // The composer forces Enter=send regardless of the global send-key
+  // preference (it's a quick reply box). Driven by the shared
+  // isSendMessageKeyPressed(..., forceEnterToSend=true) — see input.test.ts for
+  // the helper-level parity proof that this does NOT affect the main input.
+  it('Enter (no modifier, not composing) sends', () => {
+    const onSend = vi.fn()
+    render(<BranchFollowUpComposer onSend={onSend} />)
+
+    const textarea = screen.getByLabelText('chat.message.anchor.panel.follow_up_label')
+    typeFollowUp('send me')
+    fireEvent.keyDown(textarea, { key: 'Enter' })
+
+    expect(onSend).toHaveBeenCalledExactlyOnceWith('send me')
+  })
+
+  it('Shift+Enter does NOT send (inserts a newline)', () => {
+    const onSend = vi.fn()
+    render(<BranchFollowUpComposer onSend={onSend} />)
+
+    const textarea = screen.getByLabelText('chat.message.anchor.panel.follow_up_label')
+    typeFollowUp('do not send')
+    fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: true })
+
+    expect(onSend).not.toHaveBeenCalled()
+  })
+
+  it('IME-safe: Enter WHILE composing does NOT send', () => {
+    const onSend = vi.fn()
+    render(<BranchFollowUpComposer onSend={onSend} />)
+
+    const textarea = screen.getByLabelText('chat.message.anchor.panel.follow_up_label')
+    typeFollowUp('选择候选词')
+    // isComposing true → mid-IME-composition Enter selects a candidate, never sends.
+    fireEvent.keyDown(textarea, { key: 'Enter', isComposing: true })
+
+    expect(onSend).not.toHaveBeenCalled()
+  })
+
+  it('Enter on an empty / whitespace-only draft does NOT send', () => {
+    const onSend = vi.fn()
+    render(<BranchFollowUpComposer onSend={onSend} />)
+
+    const textarea = screen.getByLabelText('chat.message.anchor.panel.follow_up_label')
+    typeFollowUp('   ')
+    fireEvent.keyDown(textarea, { key: 'Enter' })
+
+    expect(onSend).not.toHaveBeenCalled()
   })
 })

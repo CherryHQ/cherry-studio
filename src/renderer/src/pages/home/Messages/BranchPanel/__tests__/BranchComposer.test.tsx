@@ -30,7 +30,7 @@ describe('BranchComposer (T-006D-2B compose state)', () => {
     render(<BranchComposer anchor={anchor} status="idle" onCreate={vi.fn()} onCancel={vi.fn()} />)
 
     expect(screen.getByTestId('branch-composer-quote')).toHaveTextContent(anchor.selectedText)
-    expect(screen.getByLabelText('chat.message.anchor.panel.follow_up_label')).toBeInTheDocument()
+    expect(screen.getByLabelText('chat.message.anchor.panel.compose_label')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'common.cancel' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /chat\.message\.anchor\.panel\.create_branch/ })).toBeInTheDocument()
   })
@@ -51,7 +51,7 @@ describe('BranchComposer (T-006D-2B compose state)', () => {
     const onCreate = vi.fn()
     render(<BranchComposer anchor={anchor} status="idle" onCreate={onCreate} onCancel={vi.fn()} />)
 
-    fireEvent.change(screen.getByLabelText('chat.message.anchor.panel.follow_up_label'), {
+    fireEvent.change(screen.getByLabelText('chat.message.anchor.panel.compose_label'), {
       target: { value: '  what does student mean?  ' }
     })
     fireEvent.click(screen.getByRole('button', { name: /chat\.message\.anchor\.panel\.create_branch/ }))
@@ -73,7 +73,7 @@ describe('BranchComposer (T-006D-2B compose state)', () => {
     )
 
     // The composer's textarea retains user input across status changes.
-    const textarea = screen.getByLabelText<HTMLTextAreaElement>('chat.message.anchor.panel.follow_up_label')
+    const textarea = screen.getByLabelText<HTMLTextAreaElement>('chat.message.anchor.panel.compose_label')
     fireEvent.change(textarea, { target: { value: 'my follow up' } })
 
     rerender(
@@ -89,7 +89,7 @@ describe('BranchComposer (T-006D-2B compose state)', () => {
     expect(screen.getByTestId('branch-composer-error')).toHaveTextContent(
       'chat.message.anchor.panel.error.create_failed'
     )
-    expect(screen.getByLabelText<HTMLTextAreaElement>('chat.message.anchor.panel.follow_up_label').value).toBe(
+    expect(screen.getByLabelText<HTMLTextAreaElement>('chat.message.anchor.panel.compose_label').value).toBe(
       'my follow up'
     )
     expect(screen.getByRole('button', { name: /chat\.message\.anchor\.panel\.create_branch/ })).not.toBeDisabled()
@@ -101,7 +101,7 @@ describe('BranchComposer (T-006D-2B compose state)', () => {
     fireEvent.click(screen.getByRole('button', { name: /chat\.message\.anchor\.panel\.create_branch/ }))
     expect(screen.getByTestId('branch-composer-validation-error')).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('chat.message.anchor.panel.follow_up_label'), {
+    fireEvent.change(screen.getByLabelText('chat.message.anchor.panel.compose_label'), {
       target: { value: 'q' }
     })
 
@@ -122,13 +122,66 @@ describe('BranchComposer (T-006D-2B compose state)', () => {
 
   it('resets the follow-up draft when the anchor changes (re-anchoring)', () => {
     const { rerender } = render(<BranchComposer anchor={anchor} status="idle" onCreate={vi.fn()} onCancel={vi.fn()} />)
-    const textarea = screen.getByLabelText<HTMLTextAreaElement>('chat.message.anchor.panel.follow_up_label')
+    const textarea = screen.getByLabelText<HTMLTextAreaElement>('chat.message.anchor.panel.compose_label')
     fireEvent.change(textarea, { target: { value: 'stale draft' } })
     expect(textarea.value).toBe('stale draft')
 
     const newAnchor: BranchAnchor = { ...anchor, messageId: 'msg-99', selectedText: 'different selection' }
     rerender(<BranchComposer anchor={newAnchor} status="idle" onCreate={vi.fn()} onCancel={vi.fn()} />)
 
-    expect(screen.getByLabelText<HTMLTextAreaElement>('chat.message.anchor.panel.follow_up_label').value).toBe('')
+    expect(screen.getByLabelText<HTMLTextAreaElement>('chat.message.anchor.panel.compose_label').value).toBe('')
+  })
+
+  // ── Keyboard submit (P1-S2c B3): initial composer must send on Enter too,
+  //    via the SAME shared handler as the follow-up composer. ──────────────
+  function typeFollowUp(value: string) {
+    fireEvent.change(screen.getByLabelText('chat.message.anchor.panel.compose_label'), { target: { value } })
+  }
+
+  it('Enter (no modifier, not composing) creates the branch', () => {
+    const onCreate = vi.fn()
+    render(<BranchComposer anchor={anchor} status="idle" onCreate={onCreate} onCancel={vi.fn()} />)
+
+    typeFollowUp('what does student mean?')
+    fireEvent.keyDown(screen.getByLabelText('chat.message.anchor.panel.compose_label'), { key: 'Enter' })
+
+    expect(onCreate).toHaveBeenCalledExactlyOnceWith('what does student mean?')
+  })
+
+  it('Shift+Enter does NOT create (inserts a newline)', () => {
+    const onCreate = vi.fn()
+    render(<BranchComposer anchor={anchor} status="idle" onCreate={onCreate} onCancel={vi.fn()} />)
+
+    typeFollowUp('do not create')
+    fireEvent.keyDown(screen.getByLabelText('chat.message.anchor.panel.compose_label'), {
+      key: 'Enter',
+      shiftKey: true
+    })
+
+    expect(onCreate).not.toHaveBeenCalled()
+  })
+
+  it('IME-safe: Enter WHILE composing does NOT create', () => {
+    const onCreate = vi.fn()
+    render(<BranchComposer anchor={anchor} status="idle" onCreate={onCreate} onCancel={vi.fn()} />)
+
+    typeFollowUp('选择候选词')
+    fireEvent.keyDown(screen.getByLabelText('chat.message.anchor.panel.compose_label'), {
+      key: 'Enter',
+      isComposing: true
+    })
+
+    expect(onCreate).not.toHaveBeenCalled()
+  })
+
+  it('Enter on an empty / whitespace-only draft does NOT create (keeps validation)', () => {
+    const onCreate = vi.fn()
+    render(<BranchComposer anchor={anchor} status="idle" onCreate={onCreate} onCancel={vi.fn()} />)
+
+    typeFollowUp('   ')
+    fireEvent.keyDown(screen.getByLabelText('chat.message.anchor.panel.compose_label'), { key: 'Enter' })
+
+    expect(onCreate).not.toHaveBeenCalled()
+    expect(screen.getByTestId('branch-composer-validation-error')).toBeInTheDocument()
   })
 })
