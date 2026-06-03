@@ -157,8 +157,9 @@ const NormalTabButton = ({
     [tabRef, ref]
   )
 
-  const showRightClose = showClose && !isNarrow
-  const showIconOverlayClose = showClose && isNarrow
+  const canClose = showClose
+  const showRightClose = canClose && !isNarrow
+  const showIconOverlayClose = canClose && isNarrow
 
   return (
     // Spread injected ContextMenuTrigger props first; the explicit drag handler
@@ -172,6 +173,22 @@ const NormalTabButton = ({
       type="button"
       onPointerDown={drag.onPointerDown}
       onClick={onSelect}
+      onAuxClick={(e) => {
+        if (e.button === 1) {
+          e.preventDefault()
+          e.stopPropagation()
+          if (canClose) {
+            onClose()
+          }
+        }
+      }}
+      onDoubleClick={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        if (canClose) {
+          onClose()
+        }
+      }}
       style={{
         transform: `translateX(${drag.translateX}px)`,
         transition: drag.isDragging || drag.noTransition ? 'none' : 'transform 200ms ease',
