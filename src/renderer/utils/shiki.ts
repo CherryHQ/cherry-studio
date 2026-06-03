@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import type { BundledLanguage, BundledTheme } from 'shiki/bundle/web'
-import type { ShikiTransformer, SpecialLanguage, ThemedToken } from 'shiki/core'
+import type { SpecialLanguage, ThemedToken } from 'shiki/core'
 import { getTokenStyleObject, type HighlighterGeneric } from 'shiki/core'
 
 import { AsyncInitializer } from './asyncInitializer'
@@ -12,41 +12,35 @@ const logger = loggerService.withContext('Shiki')
 const WHITE_TOKEN_COLOR_PATTERN = /^(?:white|#fff(?:fff)?)$/i
 const READABLE_TEXT_COLOR = 'var(--color-foreground)'
 
+// 直接写法的白色兜底（含带 alpha 的 #ffffffff）。Shiki colorReplacements 按精确小写匹配，故逐个枚举
+const LITERAL_WHITE_COLOR_REPLACEMENTS: Record<string, string> = {
+  white: READABLE_TEXT_COLOR,
+  '#fff': READABLE_TEXT_COLOR,
+  '#ffffff': READABLE_TEXT_COLOR,
+  '#ffffffff': READABLE_TEXT_COLOR
+}
+
 function isWhiteTokenColor(color: string): boolean {
   return WHITE_TOKEN_COLOR_PATTERN.test(color)
 }
 
-export function replaceLightThemeWhiteTokenColor(style: string): string {
-  return style
-    .split(';')
-    .map((declaration) => {
-      const separatorIndex = declaration.indexOf(':')
-      if (separatorIndex === -1) {
-        return declaration
-      }
-
-      const property = declaration.slice(0, separatorIndex).trim()
-      const value = declaration.slice(separatorIndex + 1).trim()
-      if (property === 'color' && isWhiteTokenColor(value)) {
-        return `${property}:${READABLE_TEXT_COLOR}`
-      }
-
-      return declaration
-    })
-    .join(';')
-}
-
-function createReadableLightThemeTokenTransformer(isDarkTheme: boolean): ShikiTransformer {
-  return {
-    name: 'cherry:readable-light-theme-token-color',
-    span(node) {
-      if (isDarkTheme || typeof node.properties.style !== 'string') {
-        return
-      }
-
-      node.properties.style = replaceLightThemeWhiteTokenColor(node.properties.style)
+/**
+ * 计算浅色主题下的白色 token 颜色替换表，供 Shiki 原生 colorReplacements 使用。
+ *
+ * 关键点：one-light 等主题通过自身 colorReplacements 把哨兵色（如 `#00000001`）映射为 `white`，
+ * 而 Shiki 只做单次替换，直接用 `white` 作 key 无法命中。故先读取主题自身的 colorReplacements，
+ * 把"值为白色"的哨兵键改写为可读色，再附带直接白色写法做兜底。
+ */
+function getLightThemeWhiteColorReplacements(theme: {
+  colorReplacements?: Record<string, string>
+}): Record<string, string> {
+  const replacements: Record<string, string> = { ...LITERAL_WHITE_COLOR_REPLACEMENTS }
+  for (const [sentinel, value] of Object.entries(theme.colorReplacements ?? {})) {
+    if (isWhiteTokenColor(value)) {
+      replacements[sentinel] = READABLE_TEXT_COLOR
     }
   }
+  return replacements
 }
 
 /**
@@ -179,14 +173,13 @@ export function getReactStyleFromToken(
 }
 
 /**
- * 获取 markdown-it，避免并发问题
+ * 缓存 markdown-it 构造器，避免并发重复导入。
+ * 注意：返回的是构造器而非单例实例 —— 每次渲染需创建独立实例，
+ * 否则共享实例的 options.highlight 会在并发渲染/切主题时相互覆盖（串台）
  */
 const mdInitializer = new AsyncInitializer(async () => {
   const md = await import('markdown-it')
-  return md.default({
-    linkify: true, // 自动转换 URL 为链接
-    typographer: true // 启用印刷格式优化
-  })
+  return md.default
 })
 
 /**
@@ -197,7 +190,12 @@ const mdInitializer = new AsyncInitializer(async () => {
 export async function getMarkdownIt(theme: string, markdown: string) {
   const highlighter = await getHighlighter()
   await loadMarkdownLanguage(markdown, highlighter)
-  const md = await mdInitializer.get()
+  // 每次渲染创建独立的 markdown-it 实例，避免共享实例 options.highlight 并发串台
+  const MarkdownIt = await mdInitializer.get()
+  const md = MarkdownIt({
+    linkify: true, // 自动转换 URL 为链接
+    typographer: true // 启用印刷格式优化
+  })
   const { fromHighlighter } = await import('@shikijs/markdown-it/core')
 
   let actualTheme = theme
@@ -217,16 +215,25 @@ export async function getMarkdownIt(theme: string, markdown: string) {
     themes[actualTheme] = actualTheme
   }
 
-  const isActualThemeDark = highlighter.getTheme(actualTheme).type === 'dark'
+  const actualThemeRegistration = highlighter.getTheme(actualTheme)
+  const isActualThemeDark = actualThemeRegistration.type === 'dark'
+
+  // 仅当默认主题为浅色时，用 Shiki 原生 colorReplacements 把白色 token 改写为可读色；
+  // 按主题名嵌套，确保深色主题不受影响。colorReplacements 不在 MarkdownItShikiSetupOptions
+  // 类型内，但 fromHighlighter 会把整个 options 原样透传给 codeToHtml，故经独立对象展开传入
+  const colorReplacementOption = isActualThemeDark
+    ? {}
+    : { colorReplacements: { [actualTheme]: getLightThemeWhiteColorReplacements(actualThemeRegistration) } }
 
   md.use(
     fromHighlighter(highlighter, {
       themes,
       defaultColor: actualTheme,
-      // 'text' 是 Shiki 内置 plain 语言，但未纳入 BundledLanguage 类型联合，故做类型断言
-      defaultLanguage: 'text' as BundledLanguage,
+      // 'text' 是 Shiki 内置 plain 语言，未纳入 BundledLanguage 类型联合，故做类型断言。
+      // defaultLanguage 默认即为 'text'，无需显式声明；fallbackLanguage 仍需保留，
+      // 否则未加载的未知语言会以原 lang 调用 codeToHtml 而抛错
       fallbackLanguage: 'text' as BundledLanguage,
-      transformers: [createReadableLightThemeTokenTransformer(isActualThemeDark)]
+      ...colorReplacementOption
     })
   )
 
