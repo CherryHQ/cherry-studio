@@ -33,10 +33,7 @@ const ThinkingEffect: React.FC<Props> = ({ isThinking, thinkingTimeText, content
     <ThinkingContainer style={{ height: containerHeight }} className={expanded ? 'expanded' : ''}>
       <LoadingContainer>
         <motion.div variants={lightbulbVariants} animate={isThinking ? 'active' : 'idle'} initial="idle">
-          <Lightbulb
-            size={!showThinking || messages.length < 2 ? 20 : 30}
-            style={{ transition: 'width,height, 150ms' }}
-          />
+          <Lightbulb size={14} style={{ transition: 'width,height, 150ms' }} />
         </motion.div>
       </LoadingContainer>
 
@@ -69,7 +66,7 @@ const ThinkingEffect: React.FC<Props> = ({ isThinking, thinkingTimeText, content
         )}
       </TextContainer>
       <ArrowContainer className={expanded ? 'expanded' : ''}>
-        <ChevronRight size={20} color="var(--color-text-3)" strokeWidth={1} />
+        <ChevronRight size={18} color="var(--color-text-3)" strokeWidth={1.5} />
       </ArrowContainer>
     </ThinkingContainer>
   )
@@ -94,7 +91,9 @@ const ThinkingContainer = styled.div`
 const Title = styled.div`
   position: absolute;
   inset: 0 0 auto 0;
-  font-size: 14px;
+  display: flex;
+  align-items: center;
+  font-size: 13px;
   line-height: 14px;
   font-weight: 500;
   padding: 10px 0;
@@ -103,17 +102,27 @@ const Title = styled.div`
   &.showThinking {
     padding-top: 12px;
   }
+
+  .thinking-title-main {
+    font-size: 13px;
+    line-height: 14px;
+  }
+
+  .thinking-title-meta {
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 14px;
+  }
 `
 
 const LoadingContainer = styled.div`
-  width: 50px;
+  width: 34px;
   display: flex;
   justify-content: center;
   align-items: center;
   height: 100%;
   flex-shrink: 0;
   position: relative;
-  padding-left: 5px;
   transition: width 150ms;
   > div {
     display: flex;

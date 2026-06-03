@@ -2,7 +2,13 @@ import { loggerService } from '@logger'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import type { RootState } from '@renderer/store'
 import { messageBlocksSelectors } from '@renderer/store/messageBlock'
-import type { ImageMessageBlock, Message, MessageBlock } from '@renderer/types/newMessage'
+import type {
+  ImageMessageBlock,
+  Message,
+  MessageBlock,
+  ThinkingMessageBlock,
+  ToolMessageBlock
+} from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { isMainTextBlock, isMessageProcessing, isToolBlock, isVideoBlock } from '@renderer/utils/messageUtils/is'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
@@ -66,8 +72,83 @@ interface Props {
   message: Message
 }
 
-const groupSimilarBlocks = (blocks: MessageBlock[]): (MessageBlock[] | MessageBlock)[] => {
-  return blocks.reduce((acc: (MessageBlock[] | MessageBlock)[], currentBlock) => {
+const isCompletedToolBlock = (block: MessageBlock): boolean => {
+  if (!isToolBlock(block)) {
+    return false
+  }
+
+  const status = block.metadata?.rawMcpToolResponse?.status
+  if (status) {
+    return status === 'done' || status === 'error' || status === 'cancelled'
+  }
+
+  return (
+    block.status === MessageBlockStatus.SUCCESS ||
+    block.status === MessageBlockStatus.ERROR ||
+    block.status === MessageBlockStatus.PAUSED
+  )
+}
+
+const isExecutionDetailBlock = (block: MessageBlock): block is ThinkingMessageBlock | ToolMessageBlock => {
+  return block.type === MessageBlockType.THINKING || block.type === MessageBlockType.TOOL
+}
+
+const hasOutputAfterLastExecutionDetail = (blocks: MessageBlock[]): boolean => {
+  const lastExecutionIndex = blocks.findLastIndex(isExecutionDetailBlock)
+
+  if (lastExecutionIndex === -1) {
+    return false
+  }
+
+  return blocks.slice(lastExecutionIndex + 1).some((block) => isMainTextBlock(block) && block.content.trim().length > 0)
+}
+
+const shouldCollapseExecutionDetails = (blocks: MessageBlock[], allowCollapseExecutionDetails: boolean): boolean => {
+  if (!allowCollapseExecutionDetails) {
+    return false
+  }
+
+  const toolBlocks = blocks.filter(isToolBlock)
+  const hasExecutionDetails = blocks.some(isExecutionDetailBlock)
+  const allToolBlocksCompleted = toolBlocks.length > 0 && toolBlocks.every(isCompletedToolBlock)
+
+  return hasExecutionDetails && allToolBlocksCompleted && hasOutputAfterLastExecutionDetail(blocks)
+}
+
+const groupCompletedExecutionBlocks = (
+  blocks: MessageBlock[],
+  allowCollapseExecutionDetails: boolean
+): (MessageBlock[] | MessageBlock)[] => {
+  if (!shouldCollapseExecutionDetails(blocks, allowCollapseExecutionDetails)) {
+    return blocks
+  }
+
+  const firstExecutionIndex = blocks.findIndex(isExecutionDetailBlock)
+  const lastExecutionIndex = blocks.findLastIndex(isExecutionDetailBlock)
+
+  if (firstExecutionIndex === -1 || lastExecutionIndex === -1) {
+    return blocks
+  }
+
+  return [
+    ...blocks.slice(0, firstExecutionIndex),
+    blocks.slice(firstExecutionIndex, lastExecutionIndex + 1),
+    ...blocks.slice(lastExecutionIndex + 1)
+  ]
+}
+
+const groupSimilarBlocks = (
+  blocks: MessageBlock[],
+  allowCollapseExecutionDetails: boolean
+): (MessageBlock[] | MessageBlock)[] => {
+  const executionGroupedBlocks = groupCompletedExecutionBlocks(blocks, allowCollapseExecutionDetails)
+
+  return executionGroupedBlocks.reduce((acc: (MessageBlock[] | MessageBlock)[], currentBlock) => {
+    if (Array.isArray(currentBlock)) {
+      acc.push(currentBlock)
+      return acc
+    }
+
     if (currentBlock.type === MessageBlockType.IMAGE) {
       // 对于IMAGE类型，按连续分组
       const prevGroup = acc[acc.length - 1]
@@ -117,16 +198,37 @@ const MessageBlockRenderer: React.FC<Props> = ({ blocks, message }) => {
   const blockEntities = useSelector((state: RootState) => messageBlocksSelectors.selectEntities(state))
   // 根据blocks类型处理渲染数据
   const renderedBlocks = blocks.map((blockId) => blockEntities[blockId]).filter(Boolean)
-  const groupedBlocks = useMemo(() => groupSimilarBlocks(renderedBlocks), [renderedBlocks])
-
   // Check if message is still processing
   const isProcessing = isMessageProcessing(message)
+  const allowCollapseExecutionDetails = !(message.role === 'assistant' && isProcessing)
+  const groupedBlocks = useMemo(
+    () => groupSimilarBlocks(renderedBlocks, allowCollapseExecutionDetails),
+    [renderedBlocks, allowCollapseExecutionDetails]
+  )
 
   return (
     <AnimatePresence mode="sync">
       {groupedBlocks.map((block) => {
         if (Array.isArray(block)) {
           const groupKey = block.map((b) => b.id).join('-')
+
+          if (block.some(isExecutionDetailBlock)) {
+            if (block.length === 1 && isToolBlock(block[0])) {
+              return (
+                <AnimatedBlockWrapper key={groupKey} enableAnimation={message.status.includes('ing')}>
+                  <ToolBlock key={block[0].id} block={block[0]} />
+                </AnimatedBlockWrapper>
+              )
+            }
+
+            return (
+              <AnimatedBlockWrapper
+                key={`execution-group-${groupKey}`}
+                enableAnimation={message.status.includes('ing')}>
+                <ToolBlockGroup blocks={block} role={message.role} />
+              </AnimatedBlockWrapper>
+            )
+          }
 
           if (block[0].type === MessageBlockType.IMAGE) {
             if (block.length === 1) {

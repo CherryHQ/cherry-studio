@@ -42,6 +42,10 @@ vi.mock('@renderer/i18n', () => ({
 
 vi.mock('@renderer/utils', () => ({
   formatApiHost: (host: string) => host?.replace(/\/$/, ''),
+  getDefaultGroupName: (id: string, provider?: string) => {
+    const parts = id.toLowerCase().split(/[-_]/)
+    return provider && parts.length > 1 ? `${parts[0]}-${parts[1]}` : id.toLowerCase()
+  },
   withoutTrailingSlash: (s: string) => s?.replace(/\/$/, ''),
   getLowerBaseModelName: (id: string) => id.toLowerCase()
 }))
@@ -423,6 +427,24 @@ describe('listModels', () => {
       assertValidModels(models)
       expect(models).toMatchSnapshot()
     })
+
+    it('should infer model groups from ids for custom UUID providers', async () => {
+      const providerId = '9d08892b-3023-4b98-8c69-8032eec3dc98'
+      mockGetFromApi.mockResolvedValue({
+        value: {
+          data: [
+            { id: 'gemini-2.5-flash', object: 'model', owned_by: 'google' },
+            { id: 'gpt-4.1-mini', object: 'model', owned_by: 'openai' }
+          ]
+        }
+      })
+
+      const models = await listModels(makeProvider({ id: providerId, isSystem: false }))
+
+      expect(models).toHaveLength(2)
+      expect(models.map((model) => model.group)).toEqual(['gemini-2.5', 'gpt-4.1'])
+      expect(models.map((model) => model.group)).not.toContain(providerId)
+    })
   })
 
   describe('OpenAI-compatible (SiliconFlow)', () => {
@@ -463,6 +485,26 @@ describe('listModels', () => {
       expect(models[0].name).toBe('Gemini 2.5 Flash')
       expect(models[0].id).toBe('gemini-2.5-flash')
       expect(models).toMatchSnapshot()
+    })
+
+    it('should encode special characters in API key query parameter', async () => {
+      mockGetFromApi.mockResolvedValue({ value: REAL_GEMINI })
+
+      await listModels(
+        makeProvider({
+          id: 'gemini',
+          type: 'gemini',
+          apiHost: 'https://generativelanguage.googleapis.com/v1beta',
+          apiKey: 'AIzaSyABC&DEF=xyz+123'
+        })
+      )
+
+      const [request] = mockGetFromApi.mock.calls[0]
+      expect(request.url).toBe(
+        'https://generativelanguage.googleapis.com/v1beta/models?key=AIzaSyABC%26DEF%3Dxyz%2B123'
+      )
+      expect(new URL(request.url).searchParams.get('key')).toBe('AIzaSyABC&DEF=xyz+123')
+      expect(Array.from(new URL(request.url).searchParams.keys())).toEqual(['key'])
     })
   })
 

@@ -1,7 +1,7 @@
 import { permissionModeCards } from '@renderer/config/agent'
 import SessionSettingsPopup from '@renderer/pages/settings/AgentSettings/SessionSettingsPopup'
 import type { GetAgentSessionResponse, PermissionMode } from '@renderer/types'
-import { FileEdit, Lightbulb, Shield, ShieldOff } from 'lucide-react'
+import { FileEdit, Lightbulb, Shield, ShieldAlert } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -11,6 +11,9 @@ interface Props {
   agentId: string
 }
 
+const FULL_AUTO_MODE_COLOR = '#ff7a45'
+const AUTO_EDIT_MODE_COLOR = '#9254de'
+
 const getPermissionModeConfig = (mode: PermissionMode) => {
   switch (mode) {
     case 'default':
@@ -19,15 +22,15 @@ const getPermissionModeConfig = (mode: PermissionMode) => {
       }
     case 'plan':
       return {
-        icon: <Lightbulb size={18} color="#faad14" />
+        icon: <Lightbulb size={18} color="var(--color-link)" />
       }
     case 'acceptEdits':
       return {
-        icon: <FileEdit size={18} color="#52c41a" />
+        icon: <FileEdit size={18} color={AUTO_EDIT_MODE_COLOR} />
       }
     case 'bypassPermissions':
       return {
-        icon: <ShieldOff size={18} color="var(--color-error)" />
+        icon: <ShieldAlert size={18} color={FULL_AUTO_MODE_COLOR} />
       }
     default:
       return {
