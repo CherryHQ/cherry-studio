@@ -20,6 +20,9 @@ export async function createSdkMcpServerInstance(mcpId: string): Promise<McpServ
   if (!serverConfig) {
     throw new Error(`MCP server not found: ${mcpId}`)
   }
+  if (!serverConfig.isActive) {
+    throw new Error(`MCP server is inactive: ${mcpId}`)
+  }
 
   const sdkServer = new McpServer({ name: serverConfig.name, version: '0.1.0' }, { capabilities: { tools: {} } })
 

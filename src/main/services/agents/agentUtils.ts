@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import { getMcpApiService } from '@main/apiServer/services/mcp'
 import { type ModelValidationError, validateModelId } from '@main/apiServer/utils'
@@ -152,7 +153,20 @@ export async function listMcpTools(
   }
 
   if (ids && ids.length > 0) {
-    for (const id of ids) {
+    // Pre-filter: only connect to servers that still exist and are active.
+    // This avoids log noise, wasted DB lookups, and connection timeouts from
+    // stale references in agent/session mcps arrays (e.g. after an MCP server
+    // was deleted without cleaning up the agent's mcps list).
+    const activeServers = await mcpServerService.list({ isActive: true })
+    const activeServerIds = new Set(activeServers.items.map((s) => s.id))
+    const validIds = ids.filter((id) => activeServerIds.has(id))
+
+    if (validIds.length < ids.length) {
+      const dropped = ids.filter((id) => !activeServerIds.has(id))
+      logger.warn('Skipping inactive/deleted MCP servers when listing tools', { dropped })
+    }
+
+    for (const id of validIds) {
       try {
         const server = await getMcpApiService().getServerInfo(id)
         if (server) {
@@ -189,9 +203,19 @@ export async function listMcpTools(
 type McpServerInfo = Awaited<ReturnType<ReturnType<typeof getMcpApiService>['getServerInfo']>>
 
 export async function prefetchMcpServers(ids: string[]): Promise<Map<string, McpServerInfo>> {
+  // Pre-filter to only fetch servers that still exist and are active
+  const { items: allServers } = await mcpServerService.list({ isActive: true })
+  const activeServerIds = new Set(allServers.map((s) => s.id))
+  const validIds = ids.filter((id) => activeServerIds.has(id))
+
+  if (validIds.length < ids.length) {
+    const dropped = ids.filter((id) => !activeServerIds.has(id))
+    logger.warn('Skipping inactive/deleted MCP servers when prefetching', { dropped })
+  }
+
   const cache = new Map<string, McpServerInfo>()
   await Promise.all(
-    ids.map(async (id) => {
+    validIds.map(async (id) => {
       try {
         cache.set(id, await getMcpApiService().getServerInfo(id))
       } catch (error) {
