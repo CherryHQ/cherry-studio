@@ -38,7 +38,9 @@ export default function ProviderSetting({ providerId, isOnboarding = false }: Pr
           data-testid="provider-detail-shell"
           className="provider-settings-default-scope flex min-h-0 flex-1 flex-col overflow-hidden">
           <div className={providerDetailColumnClasses.headerPad}>
-            <ProviderHeader providerId={providerId} />
+            <div className={providerDetailColumnClasses.headerContentMaxWidth}>
+              <ProviderHeader providerId={providerId} />
+            </div>
           </div>
           <Scrollbar className={providerDetailColumnClasses.scrollStrip}>
             <div className={providerDetailColumnClasses.sectionStack}>

@@ -6125,8 +6125,9 @@
         }
       },
       "api_key": "API Key",
+      "available_count": "{{count}} available",
       "base_url": "Base URL",
-      "bulk_disable": "Select none",
+      "bulk_disable": "Close all",
       "bulk_enable": "Select all",
       "check": {
         "all": "All",
@@ -6257,7 +6258,7 @@
         "custom_add": "Custom",
         "filter_close": "Close filter",
         "filter_open": "Filter by capability",
-        "pull_short": "Add"
+        "pull_short": "Get model list"
       },
       "topic_naming": {
         "auto": "Topic Auto Naming",
@@ -6439,7 +6440,6 @@
         "unnamed": "API Key"
       },
       "api_version": "API Version",
-      "auth_connection_section": "Connection & authentication",
       "aws-bedrock": {
         "access_key_id": "AWS Access Key ID",
         "access_key_id_help": "Your AWS Access Key ID for accessing AWS Bedrock services",
@@ -6587,11 +6587,11 @@
         "balance_error": "Failed to fetch balance",
         "button": "Login with {{provider}}",
         "cherryIn": {
-          "account_title": "Cherry IN account",
           "description": "Login to CherryIN using OAuth 2.0",
           "logged_in": "Logged in via OAuth",
-          "login_button": "Authorize with OAuth",
+          "login_button": "Authorize with CherryIN",
           "logout_button": "Logout",
+          "not_logged_in": "Not logged in",
           "register_account": "Create account",
           "service_attribution": "This service is provided by <link>open.cherryin.ai</link>",
           "tagline": "After you sign in, you can use all model services",
@@ -6625,6 +6625,10 @@
       "save_failed": "Failed to save provider settings",
       "search": "Search Providers...",
       "search_placeholder": "Search model id or name",
+      "section": {
+        "account": "Account",
+        "configuration": "Configuration"
+      },
       "title": "Model Provider",
       "vertex_ai": {
         "api_host_help": "The API host for Vertex AI, not recommended to fill in, generally applicable to reverse proxy",

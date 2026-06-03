@@ -39,9 +39,19 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
   // Resolve the icon: prefer `logo` prop, fall back to `logoSrc` for backwards compat
   const resolvedLogo = logo ?? logoSrc
 
+  // A logo stored as `icon:<providerId>` references a built-in brand icon from the
+  // registry (chosen via the avatar picker). Resolve it back to the CompoundIcon so a
+  // custom provider can wear a brand logo, instead of rendering the raw string as an
+  // (invalid) image URL.
+  const builtinIcon =
+    typeof resolvedLogo === 'string' && resolvedLogo.startsWith('icon:')
+      ? resolveProviderIcon(resolvedLogo.slice('icon:'.length))
+      : undefined
+  const effectiveLogo = builtinIcon ?? resolvedLogo
+
   // If logo is a CompoundIcon, render one concrete theme variant to avoid duplicate light/dark SVGs.
-  if (resolvedLogo && typeof resolvedLogo !== 'string') {
-    const Icon = resolvedLogo
+  if (effectiveLogo && typeof effectiveLogo !== 'string') {
+    const Icon = effectiveLogo
     const styleSize = typeof style?.width === 'number' ? style.width : undefined
     const resolvedSize = size ?? styleSize ?? 32
     const iconSize = resolvedSize * 0.7
@@ -55,11 +65,12 @@ export const ProviderAvatarPrimitive: React.FC<ProviderAvatarPrimitiveProps> = (
     )
   }
 
-  // If logo source is a string URL, render image avatar
-  if (typeof resolvedLogo === 'string') {
+  // If logo source is a string URL, render image avatar. An unresolved `icon:` reference
+  // (unknown id) is not a URL — fall through to the initial-character fallback below.
+  if (typeof effectiveLogo === 'string' && !effectiveLogo.startsWith('icon:')) {
     return (
       <Avatar className={className} style={{ width: size, height: size, ...style }}>
-        <AvatarImage src={resolvedLogo} draggable={false} />
+        <AvatarImage src={effectiveLogo} draggable={false} />
       </Avatar>
     )
   }

@@ -6127,6 +6127,7 @@
         }
       },
       "api_key": "Khóa API",
+      "available_count": "Có {{count}} mục",
       "base_url": "URL cơ sở",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6441,7 +6442,6 @@
         "unnamed": "[to be translated]:API Key"
       },
       "api_version": "Phiên bản API",
-      "auth_connection_section": "Connection & authentication",
       "aws-bedrock": {
         "access_key_id": "ID Khóa Truy Cập AWS",
         "access_key_id_help": "Votre ID de clé d'accès AWS pour accéder aux services AWS Bedrock",
@@ -6589,11 +6589,11 @@
         "balance_error": "[to be translated]:Failed to fetch balance",
         "button": "Iniciar sesión con {{provider}}",
         "cherryIn": {
-          "account_title": "Cherry IN account",
           "description": "Đăng nhập vào CherryIN bằng OAuth 2.0",
           "logged_in": "Đã đăng nhập qua OAuth",
-          "login_button": "Đăng nhập bằng OAuth",
+          "login_button": "Ủy quyền với CherryIN",
           "logout_button": "Keluar",
+          "not_logged_in": "Chưa đăng nhập",
           "register_account": "Create account",
           "service_attribution": "This service is provided by <link>open.cherryin.ai</link>",
           "tagline": "After you sign in, you can use all model services",
@@ -6627,6 +6627,10 @@
       "save_failed": "[to be translated]:Failed to save provider settings",
       "search": "Nhà cung cấp tìm kiếm...",
       "search_placeholder": "Tìm kiếm mã hoặc tên mô hình",
+      "section": {
+        "account": "Tài khoản",
+        "configuration": "Cấu hình"
+      },
       "title": "Nhà cung cấp mô hình",
       "vertex_ai": {
         "api_host_help": "Máy chủ API cho Vertex AI, không khuyến nghị điền, thường áp dụng cho proxy ngược",

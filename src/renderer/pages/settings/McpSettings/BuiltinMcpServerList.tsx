@@ -10,6 +10,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingTitle } from '..'
+import { toCreateMcpServerDto } from './utils'
 
 const BuiltinMcpServerList: FC = () => {
   const { t } = useTranslation()
@@ -135,7 +136,7 @@ const BuiltinMcpServerList: FC = () => {
                     className="h-7 rounded-lg px-2 text-muted-foreground text-xs shadow-none hover:bg-muted hover:text-foreground hover:shadow-none"
                     onClick={async () => {
                       try {
-                        await addMcpServer(server)
+                        await addMcpServer(toCreateMcpServerDto(server))
                         window.toast.success(t('settings.mcp.addSuccess'))
                       } catch {
                         window.toast.error(t('settings.mcp.addError'))

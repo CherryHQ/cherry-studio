@@ -6125,8 +6125,9 @@
         }
       },
       "api_key": "API 金鑰",
+      "available_count": "可用模型 {{count}} 個",
       "base_url": "基礎 URL",
-      "bulk_disable": "全不選",
+      "bulk_disable": "全部關閉",
       "bulk_enable": "全選",
       "check": {
         "all": "所有",
@@ -6257,7 +6258,7 @@
         "custom_add": "自訂",
         "filter_close": "關閉篩選",
         "filter_open": "依能力篩選",
-        "pull_short": "新增"
+        "pull_short": "取得模型列表"
       },
       "topic_naming": {
         "auto": "話題自動重新命名",
@@ -6439,7 +6440,6 @@
         "unnamed": "API Key"
       },
       "api_version": "API 版本",
-      "auth_connection_section": "連接認證",
       "aws-bedrock": {
         "access_key_id": "AWS 存取金鑰 ID",
         "access_key_id_help": "您的 AWS 存取金鑰 ID，用於存取 AWS Bedrock 服務",
@@ -6587,11 +6587,11 @@
         "balance_error": "取得餘額失敗",
         "button": "使用 {{provider}} 帳號登入",
         "cherryIn": {
-          "account_title": "Cherry IN 帳戶",
           "description": "使用 OAuth 2.0 登入 CherryIN",
           "logged_in": "已透過 OAuth 登入",
-          "login_button": "OAuth 授權登入",
+          "login_button": "CherryIN 授權登入",
           "logout_button": "登出",
+          "not_logged_in": "未登入",
           "register_account": "註冊帳戶",
           "service_attribution": "本服務由 <link>open.cherryin.ai</link> 提供",
           "tagline": "登入後即可使用所有模型服務",
@@ -6625,6 +6625,10 @@
       "save_failed": "服務商設定儲存失敗",
       "search": "搜尋模型平臺...",
       "search_placeholder": "搜尋模型 ID 或名稱",
+      "section": {
+        "account": "帳號資訊",
+        "configuration": "設定資訊"
+      },
       "title": "模型提供者",
       "vertex_ai": {
         "api_host_help": "Vertex AI 的 API 位址，不建議填寫，通常適用於反向代理",

@@ -14,7 +14,7 @@ import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingTitle } from '.'
+import { SettingDivider, SettingGroup, SettingRow, SettingsContentColumn, SettingTitle } from '.'
 
 const logger = loggerService.withContext('PromptSettings')
 
@@ -131,7 +131,7 @@ const PromptSettings: FC = () => {
   const isSavingPrompt = isCreatingPrompt || isUpdatingPrompt
 
   return (
-    <SettingContainer theme={theme}>
+    <SettingsContentColumn theme={theme}>
       <SettingGroup style={{ marginBottom: 0 }} theme={theme}>
         <SettingTitle>
           {t('settings.prompts.title')}
@@ -214,7 +214,7 @@ const PromptSettings: FC = () => {
         destructive
         confirmLoading={isDeletingPrompt}
       />
-    </SettingContainer>
+    </SettingsContentColumn>
   )
 }
 
