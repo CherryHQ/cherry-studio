@@ -61,7 +61,7 @@ export function Sidebar({
   onDismiss
 }: SidebarProps) {
   const isMacTransparentWindow = useMacTransparentWindow()
-  const { sidebarRef, startResizing } = useSidebarResize(setWidth)
+  const { sidebarRef, startResizing } = useSidebarResize(width, setWidth)
   const hoverTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
   const layout = getSidebarLayout(width)
   const showFooter = Boolean(extensionsLabel || user || onExtensionsClick || actions)
@@ -170,7 +170,7 @@ export function Sidebar({
   }
 
   // --- Visible sidebar (icon / full) ---
-  const actualWidth = layout === 'icon' ? SIDEBAR_ICON_WIDTH : width
+  const actualWidth = layout === 'icon' && width < SIDEBAR_ICON_WIDTH ? SIDEBAR_ICON_WIDTH : width
 
   return (
     <div
