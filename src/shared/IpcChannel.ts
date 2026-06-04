@@ -214,6 +214,8 @@ export enum IpcChannel {
   File_IsTextFile = 'file:isTextFile',
   File_IsDirectory = 'file:isDirectory',
   File_CheckWorkspacePath = 'file:checkWorkspacePath',
+  File_GetPathStatus = 'file:getPathStatus',
+  File_GetFileSize = 'file:getFileSize',
   File_ListDirectory = 'file:listDirectory',
   File_CheckFileName = 'file:checkFileName',
   File_ValidateNotesDirectory = 'file:validateNotesDirectory',

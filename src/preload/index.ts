@@ -64,7 +64,9 @@ import type { FileHandle } from '@shared/file/types/handle'
 import type {
   CreateInternalEntryIpcParams,
   EnsureExternalEntryIpcParams,
+  GetPathStatusIpcParams,
   GetPhysicalPathIpcParams,
+  PathStatus,
   WorkspacePathStatus
 } from '@shared/file/types/ipc'
 import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/file/types/tree'
@@ -297,6 +299,9 @@ const api = {
     isDirectory: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsDirectory, filePath),
     checkWorkspacePath: (filePath: string): Promise<WorkspacePathStatus> =>
       ipcRenderer.invoke(IpcChannel.File_CheckWorkspacePath, filePath),
+    getPathStatus: (params: GetPathStatusIpcParams): Promise<PathStatus> =>
+      ipcRenderer.invoke(IpcChannel.File_GetPathStatus, params),
+    getFileSize: (filePath: string): Promise<number> => ipcRenderer.invoke(IpcChannel.File_GetFileSize, filePath),
     listDirectory: (dirPath: string, options?: DirectoryListOptions) =>
       ipcRenderer.invoke(IpcChannel.File_ListDirectory, dirPath, options),
     checkFileName: (dirPath: string, fileName: string, isFile: boolean) =>

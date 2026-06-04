@@ -1,0 +1,53 @@
+import type { FilePath } from '@shared/file/types'
+import type { PathStatus, PathStatusKind } from '@shared/file/types/ipc'
+
+import { stat } from './fs'
+
+function errorCode(error: unknown): string | undefined {
+  return typeof error === 'object' && error !== null && 'code' in error
+    ? String((error as NodeJS.ErrnoException).code)
+    : undefined
+}
+
+function errorDetail(error: unknown): string | undefined {
+  return error instanceof Error ? error.message : String(error)
+}
+
+function mismatchReason(expectedKind: PathStatusKind): 'not-file' | 'not-directory' {
+  return expectedKind === 'file' ? 'not-file' : 'not-directory'
+}
+
+export async function getPathStatus(path: string, options?: { expectedKind?: PathStatusKind }): Promise<PathStatus> {
+  if (!path.trim()) {
+    return { ok: false, reason: 'missing' }
+  }
+
+  try {
+    const stats = await stat(path as FilePath)
+    const actualKind = stats.isDirectory ? 'directory' : 'file'
+    if (options?.expectedKind && actualKind !== options.expectedKind) {
+      return { ok: false, reason: mismatchReason(options.expectedKind), actualKind }
+    }
+    return { ok: true, kind: actualKind }
+  } catch (error) {
+    const code = errorCode(error)
+    if (code === 'ENOENT' || code === 'ENOTDIR') {
+      return { ok: false, reason: 'missing', detail: errorDetail(error) }
+    }
+    return { ok: false, reason: 'inaccessible', detail: errorDetail(error) }
+  }
+}
+
+export function formatPathStatusMessage(path: string, status: Exclude<PathStatus, { ok: true }>, label = 'Path') {
+  const detail = status.detail ? `. ${status.detail}` : ''
+  switch (status.reason) {
+    case 'missing':
+      return `${label} does not exist: ${path}${detail}`
+    case 'not-file':
+      return `${label} is not a file: ${path}`
+    case 'not-directory':
+      return `${label} is not a directory: ${path}`
+    case 'inaccessible':
+      return `${label} is not accessible: ${path}${detail}`
+  }
+}
