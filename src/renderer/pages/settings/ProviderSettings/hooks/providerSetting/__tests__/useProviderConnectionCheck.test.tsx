@@ -11,6 +11,7 @@ const useAuthenticationApiKeyMock = vi.fn()
 const useProviderEndpointsMock = vi.fn()
 const checkApiMock = vi.fn()
 const updateProviderMock = vi.fn()
+const commitInputApiKeyNowMock = vi.fn()
 const showErrorDetailPopupMock = vi.fn()
 const { loggerErrorMock } = vi.hoisted(() => ({
   loggerErrorMock: vi.fn()
@@ -98,8 +99,10 @@ describe('useProviderConnectionCheck', () => {
       ]
     })
     useTimerMock.mockReturnValue({ setTimeoutTimer })
+    commitInputApiKeyNowMock.mockResolvedValue(undefined)
     useAuthenticationApiKeyMock.mockReturnValue({
-      inputApiKey: 'sk-a,sk-b'
+      inputApiKey: 'sk-a,sk-b',
+      commitInputApiKeyNow: commitInputApiKeyNowMock
     })
     useProviderEndpointsMock.mockReturnValue({
       apiHost: 'https://open.cherryin.cc',
@@ -152,6 +155,45 @@ describe('useProviderConnectionCheck', () => {
     })
 
     expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: true })
+  })
+
+  it('saves a pending API key before enabling a provider after a successful connection check', async () => {
+    const { result } = renderHook(() => useProviderConnectionCheck('cherryin'))
+
+    await act(async () => {
+      await result.current.startConnectionCheck({
+        model: result.current.checkableModels[0],
+        apiKey: 'sk-a'
+      })
+    })
+
+    expect(commitInputApiKeyNowMock).toHaveBeenCalledTimes(1)
+    expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: true })
+    expect(commitInputApiKeyNowMock.mock.invocationCallOrder[0]).toBeLessThan(
+      updateProviderMock.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('does not enable the provider when saving the pending API key fails after a successful check', async () => {
+    const saveError = new Error('save failed')
+    commitInputApiKeyNowMock.mockRejectedValueOnce(saveError)
+    const { result } = renderHook(() => useProviderConnectionCheck('cherryin'))
+
+    await act(async () => {
+      await result.current.startConnectionCheck({
+        model: result.current.checkableModels[0],
+        apiKey: 'sk-a'
+      })
+    })
+
+    expect(checkApiMock).toHaveBeenCalled()
+    expect(updateProviderMock).not.toHaveBeenCalled()
+    expect(loggerErrorMock).toHaveBeenCalledWith('Provider connection check failed', {
+      providerId: 'cherryin',
+      modelId: 'cherryin::claude-4-sonnet',
+      error: saveError
+    })
+    expect(window.toast.error).toHaveBeenCalled()
   })
 
   it('does not patch an already enabled provider after a successful model connection check', async () => {

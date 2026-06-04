@@ -20,12 +20,24 @@ const apiKeys = (...keys: string[]) => ({
   data: { keys: keys.map((key) => ({ key, isEnabled: true })) }
 })
 
-const providerWithHost = (baseUrl: string) => ({
-  provider: {
-    id: 'openai',
-    defaultChatEndpoint: 'openai_chat_completions',
-    endpointConfigs: { openai_chat_completions: { baseUrl } }
+const providerWithHost = (baseUrl: string, providerId = 'openai') => {
+  const endpoint = providerId === 'ollama' ? 'ollama_chat' : 'openai_chat_completions'
+
+  return {
+    provider: {
+      id: providerId,
+      defaultChatEndpoint: endpoint,
+      endpointConfigs: { [endpoint]: { baseUrl } }
+    }
   }
+}
+
+const emptyApiKeys = () => ({
+  data: { keys: [] }
+})
+
+const keyEntries = (entries: Array<{ key: string; isEnabled: boolean }>) => ({
+  data: { keys: entries }
 })
 
 describe('useAutoPullOnApiKeyChange', () => {
@@ -81,6 +93,35 @@ describe('useAutoPullOnApiKeyChange', () => {
     expect(onTrigger).toHaveBeenCalledTimes(1)
   })
 
+  it('fires when an API-key-exempt provider host changes without enabled keys', () => {
+    const onTrigger = vi.fn()
+    useProviderApiKeysMock.mockReturnValue(emptyApiKeys())
+    useModelsMock.mockReturnValue({ models: [{ id: 'ollama::llama3.2' }] })
+    useProviderMock.mockReturnValue(providerWithHost('http://localhost:11434', 'ollama'))
+
+    const { rerender } = renderHook(() => useAutoPullOnApiKeyChange('ollama', onTrigger))
+    expect(onTrigger).not.toHaveBeenCalled()
+
+    useProviderMock.mockReturnValue(providerWithHost('http://localhost:11435', 'ollama'))
+    rerender()
+
+    expect(onTrigger).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not fire when an API-key-required provider host changes without enabled keys', () => {
+    const onTrigger = vi.fn()
+    useProviderApiKeysMock.mockReturnValue(emptyApiKeys())
+    useModelsMock.mockReturnValue({ models: [{ id: 'openai::gpt-4o' }] })
+    useProviderMock.mockReturnValue(providerWithHost('https://api.openai.com/v1'))
+
+    const { rerender } = renderHook(() => useAutoPullOnApiKeyChange('openai', onTrigger))
+
+    useProviderMock.mockReturnValue(providerWithHost('https://proxy.example.com/v1'))
+    rerender()
+
+    expect(onTrigger).not.toHaveBeenCalled()
+  })
+
   it('does not fire when no models exist locally yet', () => {
     const onTrigger = vi.fn()
     useProviderApiKeysMock.mockReturnValue(apiKeys('sk-one'))
@@ -95,8 +136,6 @@ describe('useAutoPullOnApiKeyChange', () => {
   })
 
   describe('key-set transitions (models already present)', () => {
-    const keyEntries = (entries: Array<{ key: string; isEnabled: boolean }>) => ({ data: { keys: entries } })
-
     beforeEach(() => {
       useModelsMock.mockReturnValue({ models: [{ id: 'openai::gpt-4o' }] })
     })

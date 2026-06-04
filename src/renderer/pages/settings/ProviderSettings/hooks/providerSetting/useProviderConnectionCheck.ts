@@ -30,7 +30,7 @@ export function useProviderConnectionCheck(providerId: string) {
   )
   const { setTimeoutTimer } = useTimer()
   const { t, i18n } = useTranslation()
-  const { inputApiKey } = useAuthenticationApiKey()
+  const { commitInputApiKeyNow, inputApiKey } = useAuthenticationApiKey()
   const { apiHost, anthropicApiHost } = useProviderEndpoints(provider)
   const enableProviderWhenModelsAvailable = useEnableProviderWhenModelsAvailable({
     providerId,
@@ -113,6 +113,7 @@ export function useProviderConnectionCheck(providerId: string) {
 
         // A successful check confirms a working local model, so enable the
         // provider if the user has it disabled (shared with the other model flows).
+        await commitInputApiKeyNow()
         await enableProviderWhenModelsAvailable(checkableModels.length)
 
         setApiKeyConnectivity({ kind: 'ok', checking: false, status: HealthStatus.SUCCESS, model })
@@ -141,7 +142,15 @@ export function useProviderConnectionCheck(providerId: string) {
         setConnectionCheckOpen(false)
       }
     },
-    [abortInFlightCheck, checkableModels.length, enableProviderWhenModelsAvailable, i18n, provider, setTimeoutTimer]
+    [
+      abortInFlightCheck,
+      checkableModels.length,
+      commitInputApiKeyNow,
+      enableProviderWhenModelsAvailable,
+      i18n,
+      provider,
+      setTimeoutTimer
+    ]
   )
 
   const checkApi = useCallback(async () => {

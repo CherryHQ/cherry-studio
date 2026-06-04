@@ -3,12 +3,15 @@ import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { getProviderHostTopology } from '@shared/utils/providerTopology'
 import { useEffect, useMemo, useRef } from 'react'
 
+import { providerNeedsApiKeyForModelSync } from './providerModelSyncRequirements'
+
 /**
  * Fires `onTrigger` once whenever the provider's enabled API-key fingerprint OR
  * its host (endpoint/baseUrl/authType) changes — but only after the first render
  * and only when local models already exist (first-time bootstrap is owned by
- * `useProviderAutoModelSync`). A pull still requires at least one enabled key, so
- * disabling the only key never fires.
+ * `useProviderAutoModelSync`). A pull still requires at least one enabled key
+ * for providers whose model sync needs API-key auth, so disabling the only key
+ * never fires for those providers.
  */
 export function useAutoPullOnApiKeyChange(providerId: string, onTrigger: () => void | Promise<void>) {
   const { provider } = useProvider(providerId)
@@ -34,6 +37,7 @@ export function useAutoPullOnApiKeyChange(providerId: string, onTrigger: () => v
   }, [provider])
 
   const changeSignature = `${hostSignature}::${enabledKeySignature}`
+  const requiresApiKeyForModelSync = provider ? providerNeedsApiKeyForModelSync(provider) : true
 
   const lastSignatureRef = useRef<string | null>(null)
   const onTriggerRef = useRef(onTrigger)
@@ -55,9 +59,9 @@ export function useAutoPullOnApiKeyChange(providerId: string, onTrigger: () => v
       return
     }
     lastSignatureRef.current = changeSignature
-    // A pull still needs an enabled key; disabling the only key must not fire.
-    if (!enabledKeySignature) return
+    // Key-required providers still need an enabled key; disabling the only key must not fire.
+    if (requiresApiKeyForModelSync && !enabledKeySignature) return
     if (models.length === 0) return
     void onTriggerRef.current()
-  }, [apiKeysData, changeSignature, enabledKeySignature, models.length, provider])
+  }, [apiKeysData, changeSignature, enabledKeySignature, models.length, provider, requiresApiKeyForModelSync])
 }
