@@ -1,4 +1,4 @@
-import type { MCPServer, MCPTool, MCPToolResponse } from '@renderer/types'
+import type { McpServer, McpTool, McpToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
 import { act, renderHook } from '@testing-library/react'
@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // --- Mocks ---
 
-const mockMcpServers: MCPServer[] = []
+const mockMcpServers: McpServer[] = []
 const mockDataApiPatch = vi.fn().mockResolvedValue({})
 
 vi.mock('@data/DataApiService', () => ({
@@ -50,7 +50,7 @@ vi.mock('@renderer/store', () => ({
 }))
 
 vi.mock('@renderer/store/mcp', () => ({
-  hubMCPServer: { id: 'hub', name: 'MCP Hub', type: 'inMemory', isActive: true },
+  hubMcpServer: { id: 'hub', name: 'MCP Hub', type: 'inMemory', isActive: true },
   addMcpServer: vi.fn()
 }))
 
@@ -91,7 +91,7 @@ import { useMcpToolApproval } from '../useMcpToolApproval'
 
 // --- Helpers ---
 
-function makeTool(overrides: Partial<MCPTool> = {}): MCPTool {
+function makeTool(overrides: Partial<McpTool> = {}): McpTool {
   return {
     id: 'server1__tool1',
     name: 'tool1',
@@ -104,7 +104,7 @@ function makeTool(overrides: Partial<MCPTool> = {}): MCPTool {
   }
 }
 
-function makeServer(overrides: Partial<MCPServer> = {}): MCPServer {
+function makeServer(overrides: Partial<McpServer> = {}): McpServer {
   return {
     id: 'server1',
     name: 'Server 1',
@@ -112,10 +112,10 @@ function makeServer(overrides: Partial<MCPServer> = {}): MCPServer {
     isActive: true,
     command: 'test',
     ...overrides
-  } as MCPServer
+  } as McpServer
 }
 
-function makeBlock(toolResponse?: Partial<MCPToolResponse>): ToolMessageBlock {
+function makeBlock(toolResponse?: Partial<McpToolResponse>): ToolMessageBlock {
   return {
     id: 'block-1',
     messageId: 'msg-1',
@@ -131,7 +131,7 @@ function makeBlock(toolResponse?: Partial<MCPToolResponse>): ToolMessageBlock {
             arguments: undefined,
             status: 'pending',
             ...toolResponse
-          } as MCPToolResponse
+          } as McpToolResponse
         }
       : undefined
   }

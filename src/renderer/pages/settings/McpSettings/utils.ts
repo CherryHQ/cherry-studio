@@ -1,13 +1,13 @@
 import { loggerService } from '@logger'
-import type { CreateMCPServerDto, UpdateMCPServerDto } from '@shared/data/api/schemas/mcpServers'
-import type { MCPServer } from '@shared/data/types/mcpServer'
+import type { CreateMcpServerDto, UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
+import type { McpServer } from '@shared/data/types/mcpServer'
 
 const logger = loggerService.withContext('McpSettings/utils')
 
-type McpServerDraft = Partial<MCPServer> & { url?: string }
-type CreateMcpServerDraft = McpServerDraft & Pick<MCPServer, 'name'>
+type McpServerDraft = Partial<McpServer> & { url?: string }
+type CreateMcpServerDraft = McpServerDraft & Pick<McpServer, 'name'>
 
-const stripReadonlyMcpServerFields = (server: McpServerDraft): UpdateMCPServerDto => {
+const stripReadonlyMcpServerFields = (server: McpServerDraft): UpdateMcpServerDto => {
   const dto = { ...server }
   // Keep this aligned with fields that strict create/update DTO schemas reject.
   delete dto.id
@@ -17,8 +17,8 @@ const stripReadonlyMcpServerFields = (server: McpServerDraft): UpdateMCPServerDt
   return dto
 }
 
-export const toCreateMcpServerDto = (server: CreateMcpServerDraft): CreateMCPServerDto => {
-  const dto: CreateMCPServerDto = { ...stripReadonlyMcpServerFields(server), name: server.name }
+export const toCreateMcpServerDto = (server: CreateMcpServerDraft): CreateMcpServerDto => {
+  const dto: CreateMcpServerDto = { ...stripReadonlyMcpServerFields(server), name: server.name }
 
   if (dto.baseUrl === undefined && server.url !== undefined) {
     dto.baseUrl = server.url
@@ -27,11 +27,11 @@ export const toCreateMcpServerDto = (server: CreateMcpServerDraft): CreateMCPSer
   return dto
 }
 
-export const toUpdateMcpServerDto = (server: McpServerDraft): UpdateMCPServerDto => {
+export const toUpdateMcpServerDto = (server: McpServerDraft): UpdateMcpServerDto => {
   return stripReadonlyMcpServerFields(server)
 }
 
-export const isSameMcpServerCandidate = (existing: MCPServer, candidate: MCPServer): boolean => {
+export const isSameMcpServerCandidate = (existing: McpServer, candidate: McpServer): boolean => {
   if (candidate.baseUrl && existing.baseUrl === candidate.baseUrl) {
     return true
   }
@@ -60,7 +60,7 @@ const TRUSTED_SERVER_WHITELIST: readonly string[] = [
 /**
  * Check if a server URL is in the trusted whitelist
  */
-function isServerInWhitelist(server: MCPServer): boolean {
+function isServerInWhitelist(server: McpServer): boolean {
   const isUrlBasedServer = server.type === 'sse' || server.type === 'streamableHttp'
   if (!isUrlBasedServer || !server.baseUrl) {
     return false
@@ -73,7 +73,7 @@ function isServerInWhitelist(server: MCPServer): boolean {
  * @param server - The MCP server to extract command from
  * @returns Formatted command string with arguments
  */
-export const getCommandPreview = (server: MCPServer): string => {
+export const getCommandPreview = (server: McpServer): string => {
   return [server.command, ...(server.args ?? [])]
     .filter((value): value is string => typeof value === 'string' && value.trim().length > 0)
     .join(' ')
@@ -87,10 +87,10 @@ export const getCommandPreview = (server: MCPServer): string => {
  * @returns The trusted server if confirmed, or null if user declined
  */
 export async function ensureServerTrusted(
-  currentServer: MCPServer,
-  requestConfirm: (server: MCPServer) => Promise<boolean>,
-  updateServer: (body: UpdateMCPServerDto) => void
-): Promise<MCPServer | null> {
+  currentServer: McpServer,
+  requestConfirm: (server: McpServer) => Promise<boolean>,
+  updateServer: (body: UpdateMcpServerDto) => void
+): Promise<McpServer | null> {
   const isProtocolInstall = currentServer.installSource === 'protocol'
 
   logger.silly('ensureServerTrusted', {

@@ -5,7 +5,7 @@ import { streamingService } from '@renderer/services/messageStreaming/StreamingS
 import { createStreamProcessor } from '@renderer/services/StreamProcessingService'
 import { messageBlocksSlice } from '@renderer/store/messageBlock'
 import { messagesSlice } from '@renderer/store/newMessage'
-import type { Assistant, ExternalToolResult, MCPTool, Model } from '@renderer/types'
+import type { Assistant, ExternalToolResult, McpTool, Model } from '@renderer/types'
 import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import { ChunkType } from '@renderer/types/chunk'
@@ -527,7 +527,7 @@ describe('streamCallback Integration Tests', () => {
   it('should handle tool call flow', async () => {
     const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant)
 
-    const mockTool: MCPTool = {
+    const mockTool: McpTool = {
       id: 'tool-1',
       serverId: 'server-1',
       serverName: 'Test Server',
@@ -671,7 +671,7 @@ describe('streamCallback Integration Tests', () => {
   it('should handle mixed content flow (thinking + tool + text)', async () => {
     const callbacks = createMockCallbacks(mockAssistantMsgId, mockTopicId, mockAssistant)
 
-    const mockCalculatorTool: MCPTool = {
+    const mockCalculatorTool: McpTool = {
       id: 'tool-1',
       serverId: 'server-1',
       serverName: 'Test Server',

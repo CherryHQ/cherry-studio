@@ -1,9 +1,9 @@
-import type { MCPCallToolResponse, MCPTool } from '@types'
+import type { McpCallToolResponse, McpTool } from '@types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mockMcpService = {
-  listAllActiveServerTools: vi.fn(async (): Promise<MCPTool[]> => []),
-  callToolById: vi.fn(async (): Promise<MCPCallToolResponse> => ({ content: [{ type: 'text', text: '{}' }] })),
+  listAllActiveServerTools: vi.fn(async (): Promise<McpTool[]> => []),
+  callToolById: vi.fn(async (): Promise<McpCallToolResponse> => ({ content: [{ type: 'text', text: '{}' }] })),
   abortTool: vi.fn(async () => true)
 }
 
@@ -26,7 +26,7 @@ import {
   syncToolMapFromTools
 } from '../mcp-bridge'
 
-const githubSearchRepos: MCPTool = {
+const githubSearchRepos: McpTool = {
   id: 'github__search_repos',
   name: 'search_repos',
   serverId: 'github',
@@ -36,7 +36,7 @@ const githubSearchRepos: MCPTool = {
   type: 'mcp'
 }
 
-async function callWithMockedResponse(response: MCPCallToolResponse): Promise<unknown> {
+async function callWithMockedResponse(response: McpCallToolResponse): Promise<unknown> {
   mockMcpService.callToolById.mockResolvedValueOnce(response)
   syncToolMapFromTools([githubSearchRepos])
   return callMcpTool('githubSearchRepos', {})

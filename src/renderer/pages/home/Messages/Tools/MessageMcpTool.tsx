@@ -6,10 +6,10 @@ import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { CopyIcon } from '@renderer/components/Icons'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
-import type { MCPToolResponse } from '@renderer/types'
+import type { McpToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolAutoApproved } from '@renderer/utils/mcpTools'
-import type { MCPProgressEvent } from '@shared/config/types'
+import type { McpProgressEvent } from '@shared/config/types'
 import { IpcChannel } from '@shared/IpcChannel'
 import { Collapse, ConfigProvider, Progress } from 'antd'
 import { Check, ChevronRight, ShieldCheck } from 'lucide-react'
@@ -56,7 +56,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
   // Use the unified approval hook
   const approval = useToolApproval(block)
 
-  const toolResponse = block.metadata?.rawMcpToolResponse as MCPToolResponse
+  const toolResponse = block.metadata?.rawMcpToolResponse as McpToolResponse
 
   const { id, tool, status, response, partialArguments } = toolResponse
   const isPending = status === 'pending'
@@ -67,7 +67,7 @@ const MessageMcpTool: FC<Props> = ({ block }) => {
   useEffect(() => {
     const removeListener = window.electron.ipcRenderer.on(
       IpcChannel.Mcp_Progress,
-      (_event: Electron.IpcRendererEvent, data: MCPProgressEvent) => {
+      (_event: Electron.IpcRendererEvent, data: McpProgressEvent) => {
         // Only update progress if this event is for our specific tool call
         if (data.callId === id) {
           setProgress(data.progress)

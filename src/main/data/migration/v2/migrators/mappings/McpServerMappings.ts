@@ -1,7 +1,7 @@
 /**
  * MCP Server migration mappings and transform functions
  *
- * Transforms legacy Redux MCPServer objects to SQLite mcp_server table rows.
+ * Transforms legacy Redux McpServer objects to SQLite mcp_server table rows.
  */
 
 import type { McpServerInsert } from '@data/db/schemas/mcpServer'

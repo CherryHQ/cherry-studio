@@ -1,4 +1,4 @@
-import type { MCPTool, MCPToolResponse, NormalToolResponse } from '@renderer/types'
+import type { McpTool, McpToolResponse, NormalToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolAutoApproved } from '@renderer/utils/mcpTools'
 import { Flex, Tooltip } from 'antd'
@@ -119,7 +119,7 @@ const getAgentToolLabel = (toolName: string, t: (key: string) => string): string
   }
 }
 
-const getToolDescription = (toolResponse?: MCPToolResponse | NormalToolResponse): string | undefined => {
+const getToolDescription = (toolResponse?: McpToolResponse | NormalToolResponse): string | undefined => {
   if (!toolResponse) return undefined
   const args = toolResponse.arguments
   if (!args || typeof args !== 'object' || Array.isArray(args)) return undefined
@@ -222,7 +222,7 @@ const ToolHeader: FC<ToolHeaderProps> = ({
   const Container = variant === 'standalone' ? HeaderContainer : LabelContainer
 
   if (block && tool?.type === 'mcp') {
-    const mcpTool = tool as MCPTool
+    const mcpTool = tool as McpTool
     return (
       <Container>
         <ToolName align="center" gap={6}>

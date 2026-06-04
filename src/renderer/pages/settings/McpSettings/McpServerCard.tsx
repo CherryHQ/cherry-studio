@@ -8,8 +8,8 @@ import { useMcpServerTrust } from '@renderer/hooks/useMcpServerTrust'
 import { formatMcpError } from '@renderer/utils/error'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
-import type { UpdateMCPServerDto } from '@shared/data/api/schemas/mcpServers'
-import type { MCPServer } from '@shared/data/types/mcpServer'
+import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import { CircleXIcon, SquareArrowOutUpRight } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
@@ -20,7 +20,7 @@ import { useTranslation } from 'react-i18next'
 const logger = loggerService.withContext('McpServerCard')
 
 interface McpServerCardProps {
-  server: MCPServer
+  server: McpServer
   isEditing?: boolean
   onEdit: () => void
 }
@@ -30,13 +30,13 @@ const McpServerCard: FC<McpServerCardProps> = ({ server, isEditing = false, onEd
   const [loading, setLoading] = useState(false)
   const [version, setVersion] = useState<string | null>(null)
 
-  const updateServerBody = useCallback((body: UpdateMCPServerDto) => updateMcpServer({ body }), [updateMcpServer])
+  const updateServerBody = useCallback((body: UpdateMcpServerDto) => updateMcpServer({ body }), [updateMcpServer])
 
   const { ensureServerTrusted } = useMcpServerTrust(updateServerBody)
   const { t } = useTranslation()
 
   // Fetch version for active servers
-  const fetchServerVersion = useCallback(async (s: MCPServer) => {
+  const fetchServerVersion = useCallback(async (s: McpServer) => {
     if (!s.isActive) return
     try {
       const v = await window.api.mcp.getServerVersion(s)

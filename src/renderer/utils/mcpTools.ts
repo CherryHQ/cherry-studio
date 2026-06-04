@@ -1,14 +1,14 @@
 import { loggerService } from '@logger'
 import { currentSpan } from '@renderer/services/SpanManagerService'
 import store from '@renderer/store'
-import { addMCPServer, hubMCPServer } from '@renderer/store/mcp'
-import type { MCPCallToolResponse, MCPServer, MCPTool, MCPToolResponse } from '@renderer/types'
-import { BuiltinMCPServerNames } from '@renderer/types'
+import { addMcpServer, hubMcpServer } from '@renderer/store/mcp'
+import type { McpCallToolResponse, McpServer, McpTool, McpToolResponse } from '@renderer/types'
+import { BuiltinMcpServerNames } from '@renderer/types'
 import { nanoid } from 'nanoid'
 
-const logger = loggerService.withContext('Utils:MCPTools')
+const logger = loggerService.withContext('Utils:McpTools')
 
-export async function callBuiltInTool(toolResponse: MCPToolResponse): Promise<MCPCallToolResponse | undefined> {
+export async function callBuiltInTool(toolResponse: McpToolResponse): Promise<McpCallToolResponse | undefined> {
   logger.info(`[BuiltIn] Calling Built-in Tool: ${toolResponse.tool.name}`, toolResponse.tool)
 
   if (
@@ -32,11 +32,11 @@ export async function callBuiltInTool(toolResponse: MCPToolResponse): Promise<MC
   return undefined
 }
 
-export async function callMCPTool(
-  toolResponse: MCPToolResponse,
+export async function callMcpTool(
+  toolResponse: McpToolResponse,
   topicId?: string,
   modelName?: string
-): Promise<MCPCallToolResponse> {
+): Promise<McpCallToolResponse> {
   logger.info(
     `Calling Tool: ${toolResponse.id} ${toolResponse.tool.serverName} ${toolResponse.tool.name}`,
     toolResponse.tool
@@ -57,9 +57,9 @@ export async function callMCPTool(
       },
       topicId ? currentSpan(topicId, modelName)?.spanContext() : undefined
     )
-    if (toolResponse.tool.serverName === BuiltinMCPServerNames.mcpAutoInstall) {
+    if (toolResponse.tool.serverName === BuiltinMcpServerNames.mcpAutoInstall) {
       if (resp.data) {
-        const mcpServer: MCPServer = {
+        const mcpServer: McpServer = {
           id: `f${nanoid()}`,
           name: resp.data.name,
           description: resp.data.description,
@@ -71,7 +71,7 @@ export async function callMCPTool(
           isActive: false,
           provider: 'CherryAI'
         }
-        store.dispatch(addMCPServer(mcpServer))
+        store.dispatch(addMcpServer(mcpServer))
       }
     }
 
@@ -91,7 +91,7 @@ export async function callMCPTool(
   }
 }
 
-export function getMcpServerByTool(tool: MCPTool) {
+export function getMcpServerByTool(tool: McpTool) {
   const servers = store.getState().mcp.servers
   const server = servers.find((s) => s.id === tool.serverId)
   if (server) {
@@ -100,12 +100,12 @@ export function getMcpServerByTool(tool: MCPTool) {
   // For hub server (auto mode), the server isn't in the store
   // Return the hub server constant if the tool's serverId matches
   if (tool.serverId === 'hub') {
-    return hubMCPServer
+    return hubMcpServer
   }
   return undefined
 }
 
-export function isToolAutoApproved(tool: MCPTool, server?: MCPServer, allowedTools?: string[]): boolean {
+export function isToolAutoApproved(tool: McpTool, server?: McpServer, allowedTools?: string[]): boolean {
   if (tool.isBuiltIn) {
     return true
   }

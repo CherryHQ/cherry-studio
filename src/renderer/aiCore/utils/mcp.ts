@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import store from '@renderer/store'
-import type { MCPCallToolResponse, MCPTool, MCPToolResponse } from '@renderer/types'
-import { callMCPTool, getMcpServerByTool, isToolAutoApproved } from '@renderer/utils/mcpTools'
+import type { McpCallToolResponse, McpTool, McpToolResponse } from '@renderer/types'
+import { callMcpTool, getMcpServerByTool, isToolAutoApproved } from '@renderer/utils/mcpTools'
 import {
   confirmSameNameTools,
   requestToolConfirmation,
@@ -16,7 +16,7 @@ const logger = loggerService.withContext('MCP-utils')
 
 // Setup tools configuration based on provided parameters
 export function setupToolsConfig(
-  mcpTools?: MCPTool[],
+  mcpTools?: McpTool[],
   allowedTools?: string[]
 ): Record<string, Tool<any, any>> | undefined {
   let tools: ToolSet = {}
@@ -34,7 +34,7 @@ export function setupToolsConfig(
  * 检查 MCP 工具调用结果是否包含可能携带大体积 base64 数据的多模态内容。
  * 包括 image、audio 以及含 blob 的 resource 类型。
  */
-export function hasMultimodalContent(result: MCPCallToolResponse): boolean {
+export function hasMultimodalContent(result: McpCallToolResponse): boolean {
   return (
     Array.isArray(result?.content) &&
     result.content.some(
@@ -47,7 +47,7 @@ export function hasMultimodalContent(result: MCPCallToolResponse): boolean {
  * 将 MCP 工具调用结果转换为纯文本摘要，把图片/音频/resource blob 替换为文本占位描述，
  * 避免 base64 数据超出消息大小限制（如 kimi 的 4MB 限制）。
  */
-export function mcpResultToTextSummary(result: MCPCallToolResponse): string {
+export function mcpResultToTextSummary(result: McpCallToolResponse): string {
   if (!result || !result.content || !Array.isArray(result.content)) {
     return JSON.stringify(result)
   }
@@ -83,9 +83,9 @@ export function mcpResultToTextSummary(result: MCPCallToolResponse): string {
 }
 
 /**
- * 将 MCPTool 转换为 AI SDK 工具格式
+ * 将 McpTool 转换为 AI SDK 工具格式
  */
-export function convertMcpToolsToAiSdkTools(mcpTools: MCPTool[], allowedTools?: string[]): ToolSet {
+export function convertMcpToolsToAiSdkTools(mcpTools: McpTool[], allowedTools?: string[]): ToolSet {
   const tools: ToolSet = {}
 
   for (const mcpTool of mcpTools) {
@@ -163,8 +163,8 @@ export function convertMcpToolsToAiSdkTools(mcpTools: MCPTool[], allowedTools?: 
         // 用户确认或自动批准，执行工具
         logger.debug(`Executing tool: ${mcpTool.name}`)
 
-        // 创建适配的 MCPToolResponse 对象
-        const toolResponse: MCPToolResponse = {
+        // 创建适配的 McpToolResponse 对象
+        const toolResponse: McpToolResponse = {
           id: toolCallId,
           tool: mcpTool,
           arguments: params,
@@ -172,7 +172,7 @@ export function convertMcpToolsToAiSdkTools(mcpTools: MCPTool[], allowedTools?: 
           toolCallId
         }
 
-        const result = await callMCPTool(toolResponse)
+        const result = await callMcpTool(toolResponse)
 
         // 返回结果，AI SDK 会处理序列化
         if (result.isError) {
@@ -185,9 +185,9 @@ export function convertMcpToolsToAiSdkTools(mcpTools: MCPTool[], allowedTools?: 
       // 图片/音频已通过 IMAGE_COMPLETE chunk 展示给用户。
       // TODO: 待 AI SDK 支持 provider 感知后，可按 provider 返回 media 格式。
       toModelOutput(rawOutput: unknown) {
-        // rawOutput 来自上方 execute 的 return result，类型始终为 MCPCallToolResponse
+        // rawOutput 来自上方 execute 的 return result，类型始终为 McpCallToolResponse
         // mcpResultToTextSummary 内部已有 null/content 校验，不会因意外输入崩溃
-        const result = rawOutput as MCPCallToolResponse
+        const result = rawOutput as McpCallToolResponse
         return { type: 'text' as const, value: mcpResultToTextSummary(result) }
       }
     })

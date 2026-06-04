@@ -1,7 +1,7 @@
 import { dataApiService } from '@data/DataApiService'
 import { useActiveAgent } from '@renderer/hooks/agents/useActiveAgent'
 import { useMcpServers } from '@renderer/hooks/useMcpServers'
-import type { MCPToolResponse } from '@renderer/types'
+import type { McpToolResponse } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolAutoApproved } from '@renderer/utils/mcpTools'
 import {
@@ -10,7 +10,7 @@ import {
   isToolPending,
   onToolPendingChange
 } from '@renderer/utils/userConfirmation'
-import type { MCPServer } from '@shared/data/types/mcpServer'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import { useCallback, useEffect, useReducer, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -22,9 +22,9 @@ import type { ToolApprovalActions, ToolApprovalState } from './useToolApproval'
  */
 async function resolveHubToolServer(
   tool: { serverId: string; name: string },
-  toolResponse: MCPToolResponse | undefined,
-  mcpServers: MCPServer[]
-): Promise<{ server: MCPServer; toolName: string } | null> {
+  toolResponse: McpToolResponse | undefined,
+  mcpServers: McpServer[]
+): Promise<{ server: McpServer; toolName: string } | null> {
   if (tool.serverId !== 'hub' || (tool.name !== 'invoke' && tool.name !== 'exec')) {
     return null
   }
@@ -52,7 +52,7 @@ export function useMcpToolApproval(block: ToolMessageBlock): ToolApprovalState &
   const { mcpServers } = useMcpServers()
   const { agent } = useActiveAgent()
 
-  const toolResponse = block.metadata?.rawMcpToolResponse as MCPToolResponse | undefined
+  const toolResponse = block.metadata?.rawMcpToolResponse as McpToolResponse | undefined
   const tool = toolResponse?.tool
   const id = toolResponse?.id ?? ''
   const status = toolResponse?.status

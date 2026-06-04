@@ -2,7 +2,7 @@ import { Badge, Button, Popover, PopoverContent, PopoverTrigger, Tabs, TabsList,
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { useMcpServers } from '@renderer/hooks/useMcpServers'
 import { getBuiltInMcpServerDescriptionLabel } from '@renderer/i18n/label'
-import { builtinMCPServers } from '@renderer/store/mcp'
+import { builtinMcpServers } from '@renderer/store/mcp'
 import { cn } from '@renderer/utils/style'
 import { Check, Plus } from 'lucide-react'
 import type { FC } from 'react'
@@ -20,7 +20,7 @@ const BuiltinMcpServerList: FC = () => {
 
   const installedCount = useMemo(
     () =>
-      builtinMCPServers.filter((server) => mcpServers.some((existingServer) => existingServer.name === server.name))
+      builtinMcpServers.filter((server) => mcpServers.some((existingServer) => existingServer.name === server.name))
         .length,
     [mcpServers]
   )
@@ -28,7 +28,7 @@ const BuiltinMcpServerList: FC = () => {
   const filteredServers = useMemo(() => {
     const keyword = searchText.trim().toLowerCase()
 
-    return builtinMCPServers.filter((server) => {
+    return builtinMcpServers.filter((server) => {
       const isInstalled = mcpServers.some((existingServer) => existingServer.name === server.name)
 
       if (filter === 'installed' && !isInstalled) return false
@@ -46,7 +46,7 @@ const BuiltinMcpServerList: FC = () => {
       <div className="mb-3 flex items-center gap-2">
         <SettingTitle className="m-0">{t('settings.mcp.builtinServers')}</SettingTitle>
         <span className="text-muted-foreground text-sm">
-          {installedCount}/{builtinMCPServers.length}
+          {installedCount}/{builtinMcpServers.length}
         </span>
       </div>
 
