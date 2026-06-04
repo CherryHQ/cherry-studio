@@ -15,6 +15,7 @@
 
 import { loggerService } from '@logger'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
+import { normalizeShortcutBinding } from '@shared/shortcuts/tokens'
 
 import type { TransformFunction } from './ComplexPreferenceMappings'
 
@@ -99,7 +100,7 @@ export const transformShortcuts: TransformFunction = (sources) => {
       continue
     }
 
-    const binding = isStringArray(entry.shortcut) ? entry.shortcut : []
+    const binding = normalizeShortcutBinding(isStringArray(entry.shortcut) ? entry.shortcut : [])
     const enabled = typeof entry.enabled === 'boolean' ? entry.enabled : true
 
     result[targetKey] = { binding, enabled }

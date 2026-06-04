@@ -3,6 +3,7 @@ import { isMac, platform } from '@renderer/config/constant'
 import { getShortcutLabel } from '@renderer/i18n/label'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import { findShortcutDefinition, SHORTCUT_DEFINITIONS } from '@shared/shortcuts/definitions'
+import { normalizeShortcutBinding } from '@shared/shortcuts/tokens'
 import type {
   ResolvedShortcut,
   ShortcutDependencyPreferenceKey,
@@ -169,7 +170,7 @@ export const getAllShortcutDefaultPreferences = (): Record<ShortcutPreferenceKey
     (acc, definition) => {
       const defaultPreference = getDefaultShortcut(definition)
       acc[definition.key] = {
-        binding: defaultPreference.binding,
+        binding: normalizeShortcutBinding(defaultPreference.binding),
         enabled: defaultPreference.enabled
       }
       return acc

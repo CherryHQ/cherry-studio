@@ -15,6 +15,7 @@ import type {
   StreamDonePayload,
   StreamErrorPayload
 } from '@shared/ai/transport'
+import type { CommandId, MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/commands'
 import type { GitBashPathInfo, TerminalConfig } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type {
@@ -372,6 +373,20 @@ const api = {
     setMinimumSize: (width: number, height: number) =>
       ipcRenderer.invoke(IpcChannel.MainWindow_SetMinimumSize, width, height),
     resetMinimumSize: () => ipcRenderer.invoke(IpcChannel.MainWindow_ResetMinimumSize)
+  },
+  command: {
+    showNativePopupMenu: (
+      model: NativePopupMenuModel<CommandId>,
+      anchor?: MenuAnchor
+    ): Promise<NativePopupMenuResult<CommandId> | undefined> =>
+      ipcRenderer.invoke(IpcChannel.NativeCommandPopupMenu_Show, model, anchor),
+    onExecuteFromNativeMenu: (callback: (command: CommandId) => void): (() => void) => {
+      const listener = (_: Electron.IpcRendererEvent, command: CommandId) => callback(command)
+      ipcRenderer.on(IpcChannel.NativeCommandPopupMenu_ExecuteCommand, listener)
+      return () => {
+        ipcRenderer.removeListener(IpcChannel.NativeCommandPopupMenu_ExecuteCommand, listener)
+      }
+    }
   },
   selectionMenu: {
     action: (action: string) => ipcRenderer.invoke('selection-menu:action', action)

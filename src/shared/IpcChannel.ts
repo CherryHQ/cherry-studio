@@ -155,6 +155,9 @@ export enum IpcChannel {
 
   Shortcut_RegistrationConflict = 'shortcut:registration-conflict',
 
+  NativeCommandPopupMenu_Show = 'native-command-popup-menu:show',
+  NativeCommandPopupMenu_ExecuteCommand = 'native-command-popup-menu:execute-command',
+
   // Tab
   Tab_Attach = 'tab:attach',
   Tab_Detach = 'tab:detach',

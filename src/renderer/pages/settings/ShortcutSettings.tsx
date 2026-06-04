@@ -9,6 +9,7 @@ import { getAllShortcutDefaultPreferences, useAllShortcuts } from '@renderer/hoo
 import { useTimer } from '@renderer/hooks/useTimer'
 import { cn } from '@renderer/utils/style'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
+import { normalizeShortcutBinding } from '@shared/shortcuts/tokens'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
 import {
   convertKeyToAccelerator,
@@ -196,7 +197,7 @@ const ShortcutSettings: FC = () => {
     try {
       clearSystemConflict(record.key)
       await updatePreference(record.key, {
-        binding: record.defaultPreference.binding,
+        binding: normalizeShortcutBinding(record.defaultPreference.binding),
         enabled: record.defaultPreference.enabled
       })
       clearEditingState()
@@ -248,7 +249,7 @@ const ShortcutSettings: FC = () => {
     setConflictLabel(null)
     try {
       clearSystemConflict(record.key)
-      await updatePreference(record.key, { binding: keys, enabled: true })
+      await updatePreference(record.key, { binding: normalizeShortcutBinding(keys), enabled: true })
       clearEditingState()
     } catch (error) {
       handleUpdateFailure(record, error)
@@ -278,7 +279,7 @@ const ShortcutSettings: FC = () => {
       (acc, record) => {
         if (!record.preference.binding.length) return acc
         acc[record.key] = {
-          binding: record.preference.binding,
+          binding: normalizeShortcutBinding(record.preference.binding),
           enabled
         }
         return acc

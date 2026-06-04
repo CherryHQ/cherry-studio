@@ -424,12 +424,25 @@ export interface PreferenceSchemas {
     'feature.translate.page.source_language': PreferenceTypes.TranslateSourceLanguage
     // target-key-definitions/complex/complex
     'feature.translate.page.target_language': PreferenceTypes.TranslateLangCode
+    'menu.presentation_mode': PreferenceTypes.MenuPresentationMode
+    'shortcut.app.fullscreen.exit': PreferenceTypes.PreferenceShortcutType
+    'shortcut.app.search': PreferenceTypes.PreferenceShortcutType
+    'shortcut.app.settings.open': PreferenceTypes.PreferenceShortcutType
+    'shortcut.app.sidebar.toggle': PreferenceTypes.PreferenceShortcutType
+    'shortcut.app.window.show': PreferenceTypes.PreferenceShortcutType
+    'shortcut.app.zoom.in': PreferenceTypes.PreferenceShortcutType
+    'shortcut.app.zoom.out': PreferenceTypes.PreferenceShortcutType
+    'shortcut.app.zoom.reset': PreferenceTypes.PreferenceShortcutType
     // redux/shortcuts/shortcuts.clear_topic
     'shortcut.chat.clear': PreferenceTypes.PreferenceShortcutType
     // redux/shortcuts/shortcuts.copy_last_message
     'shortcut.chat.copy_last_message': PreferenceTypes.PreferenceShortcutType
     // redux/shortcuts/shortcuts.edit_last_user_message
     'shortcut.chat.edit_last_user_message': PreferenceTypes.PreferenceShortcutType
+    'shortcut.chat.message.copy_last': PreferenceTypes.PreferenceShortcutType
+    'shortcut.chat.message.edit_last_user': PreferenceTypes.PreferenceShortcutType
+    'shortcut.chat.message.search': PreferenceTypes.PreferenceShortcutType
+    'shortcut.chat.model.select': PreferenceTypes.PreferenceShortcutType
     // redux/shortcuts/shortcuts.search_message_in_chat
     'shortcut.chat.search_message': PreferenceTypes.PreferenceShortcutType
     // redux/shortcuts/shortcuts.select_model
@@ -458,10 +471,15 @@ export interface PreferenceSchemas {
     'shortcut.general.zoom_out': PreferenceTypes.PreferenceShortcutType
     // redux/shortcuts/shortcuts.zoom_reset
     'shortcut.general.zoom_reset': PreferenceTypes.PreferenceShortcutType
+    'shortcut.quick_assistant.toggle': PreferenceTypes.PreferenceShortcutType
+    'shortcut.selection.capture_text': PreferenceTypes.PreferenceShortcutType
+    'shortcut.selection.toggle': PreferenceTypes.PreferenceShortcutType
+    'shortcut.topic.create': PreferenceTypes.PreferenceShortcutType
     // redux/shortcuts/shortcuts.new_topic
     'shortcut.topic.new': PreferenceTypes.PreferenceShortcutType
     // redux/shortcuts/shortcuts.rename_topic
     'shortcut.topic.rename': PreferenceTypes.PreferenceShortcutType
+    'shortcut.topic.sidebar.toggle': PreferenceTypes.PreferenceShortcutType
     // redux/shortcuts/shortcuts.toggle_show_topics
     'shortcut.topic.toggle_show_topics': PreferenceTypes.PreferenceShortcutType
     // redux/settings/enableTopicNaming
@@ -723,9 +741,22 @@ export const DefaultPreferences: PreferenceSchemas = {
     'feature.translate.page.scroll_sync': false,
     'feature.translate.page.source_language': 'auto',
     'feature.translate.page.target_language': 'zh-cn',
+    'menu.presentation_mode': 'cherry',
+    'shortcut.app.fullscreen.exit': { binding: ['Escape'], enabled: true },
+    'shortcut.app.search': { binding: ['CommandOrControl', 'Shift', 'F'], enabled: true },
+    'shortcut.app.settings.open': { binding: ['CommandOrControl', ','], enabled: true },
+    'shortcut.app.sidebar.toggle': { binding: ['CommandOrControl', '['], enabled: true },
+    'shortcut.app.window.show': { binding: [], enabled: false },
+    'shortcut.app.zoom.in': { binding: ['CommandOrControl', '='], enabled: true },
+    'shortcut.app.zoom.out': { binding: ['CommandOrControl', '-'], enabled: true },
+    'shortcut.app.zoom.reset': { binding: ['CommandOrControl', '0'], enabled: true },
     'shortcut.chat.clear': { binding: ['CommandOrControl', 'L'], enabled: true },
     'shortcut.chat.copy_last_message': { binding: ['CommandOrControl', 'Shift', 'C'], enabled: false },
     'shortcut.chat.edit_last_user_message': { binding: ['CommandOrControl', 'Shift', 'E'], enabled: false },
+    'shortcut.chat.message.copy_last': { binding: ['CommandOrControl', 'Shift', 'C'], enabled: false },
+    'shortcut.chat.message.edit_last_user': { binding: ['CommandOrControl', 'Shift', 'E'], enabled: false },
+    'shortcut.chat.message.search': { binding: ['CommandOrControl', 'F'], enabled: true },
+    'shortcut.chat.model.select': { binding: ['CommandOrControl', 'Shift', 'M'], enabled: true },
     'shortcut.chat.search_message': { binding: ['CommandOrControl', 'F'], enabled: true },
     'shortcut.chat.select_model': { binding: ['CommandOrControl', 'Shift', 'M'], enabled: true },
     'shortcut.chat.toggle_new_context': { binding: ['CommandOrControl', 'K'], enabled: true },
@@ -740,8 +771,13 @@ export const DefaultPreferences: PreferenceSchemas = {
     'shortcut.general.zoom_in': { binding: ['CommandOrControl', '='], enabled: true },
     'shortcut.general.zoom_out': { binding: ['CommandOrControl', '-'], enabled: true },
     'shortcut.general.zoom_reset': { binding: ['CommandOrControl', '0'], enabled: true },
+    'shortcut.quick_assistant.toggle': { binding: ['CommandOrControl', 'E'], enabled: false },
+    'shortcut.selection.capture_text': { binding: [], enabled: false },
+    'shortcut.selection.toggle': { binding: [], enabled: false },
+    'shortcut.topic.create': { binding: ['CommandOrControl', 'N'], enabled: true },
     'shortcut.topic.new': { binding: ['CommandOrControl', 'N'], enabled: true },
     'shortcut.topic.rename': { binding: ['CommandOrControl', 'T'], enabled: false },
+    'shortcut.topic.sidebar.toggle': { binding: ['CommandOrControl', ']'], enabled: true },
     'shortcut.topic.toggle_show_topics': { binding: ['CommandOrControl', ']'], enabled: true },
     'topic.naming.enabled': true,
     'topic.naming.model_id': null,
