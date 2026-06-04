@@ -1,4 +1,4 @@
-import { useProvider } from '@renderer/hooks/useProviders'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { Fragment } from 'react'
 
 import { useProviderMeta } from '../hooks/providerSetting/useProviderMeta'

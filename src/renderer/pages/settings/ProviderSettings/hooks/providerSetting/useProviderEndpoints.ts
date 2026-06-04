@@ -1,6 +1,6 @@
-import { isAnthropicProvider, isVertexProvider } from '@renderer/pages/settings/ProviderSettings/utils/provider'
-import { getProviderHostTopology } from '@renderer/pages/settings/ProviderSettings/utils/providerTopology'
 import type { Provider } from '@shared/data/types/provider'
+import { isAnthropicProvider, isVertexProvider } from '@shared/utils/provider'
+import { getProviderHostTopology } from '@shared/utils/providerTopology'
 import { useEffect, useRef, useState } from 'react'
 
 type ProviderEndpointSnapshot = {

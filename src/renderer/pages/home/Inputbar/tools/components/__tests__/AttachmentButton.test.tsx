@@ -46,7 +46,7 @@ vi.mock('@renderer/components/QuickPanel', () => ({
   useQuickPanel: () => mockUseQuickPanel()
 }))
 
-vi.mock('@renderer/hooks/useKnowledgeBases', () => ({
+vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
   useKnowledgeBases: () => mockUseKnowledgeBases()
 }))
 

@@ -221,9 +221,11 @@
         "intervalUnit": "分鐘",
         "lastRun": "上次執行",
         "logs": {
+          "cancelled": "已取消",
+          "completed": "已完成",
           "duration": "耗時",
           "empty": "暫無執行歷史。",
-          "error": "錯誤",
+          "failed": "失敗",
           "justNow": "剛剛",
           "label": "執行歷史",
           "loadError": "",
@@ -232,7 +234,6 @@
           "running": "執行中...",
           "search": "搜尋執行記錄...",
           "status": "狀態",
-          "success": "成功",
           "viewSession": "查看會話"
         },
         "name": {
@@ -398,6 +399,11 @@
         "error": {
           "failed": "無法更新工作階段"
         }
+      },
+      "workspace_status": {
+        "inaccessible": "工作區路徑無法存取：{{path}}",
+        "missing": "工作區路徑不存在：{{path}}",
+        "not_directory": "工作區路徑不是目錄：{{path}}"
       }
     },
     "settings": {
@@ -1230,6 +1236,7 @@
         "title": "資源"
       },
       "send": "傳送",
+      "send_failed": "訊息傳送失敗",
       "settings": "設定",
       "slash_commands": {
         "description": "Agent 工作階段斜線指令",
@@ -2614,9 +2621,6 @@
           "temperature": {
             "hint": "[to be translated]:Controls randomness when enabled"
           },
-          "tool_use_mode": {
-            "hint": "[to be translated]:Controls how tools are exposed to the model"
-          },
           "top_p": {
             "hint": "[to be translated]:Limits token sampling range when enabled"
           }
@@ -2638,9 +2642,6 @@
         "tags": "[to be translated]:Tags",
         "temperature": "[to be translated]:Temperature",
         "title": "基礎設定",
-        "tool_use_function": "[to be translated]:Function",
-        "tool_use_mode": "[to be translated]:Tool call mode",
-        "tool_use_prompt": "[to be translated]:Prompt",
         "top_p": "[to be translated]:Top-P",
         "unlimited": "[to be translated]:Unlimited"
       },
@@ -3418,6 +3419,7 @@
     },
     "stream_output": "串流輸出",
     "type": {
+      "audio": "音訊",
       "embedding": "嵌入",
       "free": "免費",
       "function_calling": "工具",
@@ -3425,6 +3427,7 @@
       "rerank": "重排",
       "select": "模型類型",
       "text": "文字",
+      "video": "影片",
       "vision": "視覺",
       "websearch": "網路搜尋"
     }
@@ -4704,6 +4707,10 @@
       },
       "sort_label": "排序",
       "unpin": "取消固定"
+    },
+    "workspace": {
+      "empty_text": "暫無工作區",
+      "placeholder": "選擇工作區"
     }
   },
   "settings": {

@@ -1,4 +1,5 @@
 import {
+  Alert,
   Badge,
   Button,
   Dialog,
@@ -35,12 +36,14 @@ import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import { DeleteIcon } from '@renderer/components/Icons'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useMcpServer } from '@renderer/hooks/useMcpServers'
+import { useSharedCache } from '@renderer/data/hooks/useCache'
+import { useMcpRuntimeStatus } from '@renderer/hooks/useMcpRuntimeStatus'
+import { useMcpServer } from '@renderer/hooks/useMcpServer'
 import { useMcpServerTrust } from '@renderer/hooks/useMcpServerTrust'
 import McpDescription from '@renderer/pages/settings/McpSettings/McpDescription'
 import type { McpPrompt, McpResource, McpTool } from '@renderer/types'
 import { parseKeyValueString } from '@renderer/utils/env'
-import { formatErrorMessage, formatMcpError } from '@renderer/utils/error'
+import { formatMcpError } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import type { McpServerLogEntry } from '@shared/config/types'
 import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
@@ -114,6 +117,9 @@ type McpTabItem = {
   label: React.ReactNode
   children: React.ReactNode
 }
+type McpToolsCacheKey = `mcp.tools.${string}`
+
+const mcpToolsCacheKey = (serverId: string): McpToolsCacheKey => `mcp.tools.${serverId}`
 
 const McpSettings: React.FC = () => {
   const { t } = useTranslation()
@@ -151,8 +157,9 @@ const McpSettings: React.FC = () => {
   const [loadingServer, setLoadingServer] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabKey>('settings')
   const [toolSearchText, setToolSearchText] = useState('')
+  const [tools] = useSharedCache(serverId ? mcpToolsCacheKey(serverId) : mcpToolsCacheKey('__draft__'), [] as McpTool[])
+  const runtimeStatus = useMcpRuntimeStatus(server?.id, Boolean(server?.isActive))
 
-  const [tools, setTools] = useState<McpTool[]>([])
   const [prompts, setPrompts] = useState<McpPrompt[]>([])
   const [resources, setResources] = useState<McpResource[]>([])
   const [isShowRegistry, setIsShowRegistry] = useState(false)
@@ -255,11 +262,9 @@ const McpSettings: React.FC = () => {
     if (server?.isActive) {
       try {
         setLoadingServer(server.id)
-        const localTools = await window.api.mcp.listTools(server)
-        setTools(localTools)
+        await window.api.mcp.refreshTools(server.id)
       } catch (error) {
         logger.error('Failed to list MCP tools', error as Error)
-        setTools([])
       } finally {
         setLoadingServer(null)
       }
@@ -270,7 +275,7 @@ const McpSettings: React.FC = () => {
     if (server?.isActive) {
       try {
         setLoadingServer(server.id)
-        const localPrompts = await window.api.mcp.listPrompts(server)
+        const localPrompts = await window.api.mcp.listPrompts(server.id)
         setPrompts(localPrompts)
       } catch (error) {
         logger.error('Failed to list MCP prompts', error as Error)
@@ -285,7 +290,7 @@ const McpSettings: React.FC = () => {
     if (server?.isActive) {
       try {
         setLoadingServer(server.id)
-        const localResources = await window.api.mcp.listResources(server)
+        const localResources = await window.api.mcp.listResources(server.id)
         setResources(localResources)
       } catch (error) {
         logger.error('Failed to list MCP resources', error as Error)
@@ -299,7 +304,7 @@ const McpSettings: React.FC = () => {
   const fetchServerVersion = async () => {
     if (server?.isActive) {
       try {
-        const version = await window.api.mcp.getServerVersion(server)
+        const version = await window.api.mcp.getServerVersion(server.id)
         setServerVersion(version)
       } catch (error) {
         logger.error('Failed to get MCP server version', error as Error)
@@ -311,7 +316,7 @@ const McpSettings: React.FC = () => {
   const fetchServerLogs = async () => {
     if (!server) return
     try {
-      const history = await window.api.mcp.getServerLogs(server)
+      const history = await window.api.mcp.getServerLogs(server.id)
       setLogs(history)
     } catch (error) {
       logger.warn('Failed to load server logs', error as Error)
@@ -406,17 +411,11 @@ const McpSettings: React.FC = () => {
 
       if (server.isActive) {
         try {
-          await window.api.mcp.restartServer(mcpServer)
           await updateMcpServer({ body: { ...mcpServerDto, isActive: true } })
+          await window.api.mcp.restartServer(server.id)
           window.toast.success(t('settings.mcp.updateSuccess'))
           setIsFormChanged(false)
         } catch (error: any) {
-          try {
-            await updateMcpServer({ body: { ...mcpServerDto, isActive: false } })
-          } catch (rollbackError) {
-            logger.error('Failed to rollback MCP server active state after restart failure:', rollbackError as Error)
-            window.toast.error(`${t('settings.mcp.updateError')}: ${formatErrorMessage(rollbackError)}`)
-          }
           window.modal.error({
             title: t('settings.mcp.updateError'),
             content: error.message,
@@ -488,7 +487,7 @@ const McpSettings: React.FC = () => {
           centered: true,
           okButtonProps: { danger: true },
           onOk: async () => {
-            await window.api.mcp.removeServer(serverToDelete)
+            await window.api.mcp.removeServer(serverToDelete.id)
             await deleteMcpServer({})
             window.toast.success(t('settings.mcp.deleteSuccess'))
             void navigate({ to: '/settings/mcp' })
@@ -524,34 +523,38 @@ const McpSettings: React.FC = () => {
     }
 
     setLoadingServer(serverForUpdate.id)
-    const oldActiveState = serverForUpdate.isActive
 
     try {
       if (active) {
-        const localTools = await window.api.mcp.listTools(serverForUpdate)
-        setTools(localTools)
+        await updateMcpServer({ body: { isActive: true } })
+        try {
+          await window.api.mcp.refreshTools(serverForUpdate.id)
 
-        const localPrompts = await window.api.mcp.listPrompts(serverForUpdate)
-        setPrompts(localPrompts)
+          const localPrompts = await window.api.mcp.listPrompts(serverForUpdate.id)
+          setPrompts(localPrompts)
 
-        const localResources = await window.api.mcp.listResources(serverForUpdate)
-        setResources(localResources)
+          const localResources = await window.api.mcp.listResources(serverForUpdate.id)
+          setResources(localResources)
 
-        const version = await window.api.mcp.getServerVersion(serverForUpdate)
-        setServerVersion(version)
+          const version = await window.api.mcp.getServerVersion(serverForUpdate.id)
+          setServerVersion(version)
+        } catch (error: any) {
+          window.modal.error({
+            title: t('settings.mcp.startError'),
+            content: formatMcpError(error as McpError),
+            centered: true
+          })
+        }
       } else {
-        await window.api.mcp.stopServer(serverForUpdate)
+        await updateMcpServer({ body: { isActive: false } })
+        await window.api.mcp.stopServer(serverForUpdate.id)
         setServerVersion(null)
       }
-      void updateMcpServer({ body: { isActive: active } })
     } catch (error: any) {
       window.modal.error({
-        title: t('settings.mcp.startError'),
+        title: active ? t('settings.mcp.startError') : t('settings.mcp.updateError'),
         content: formatMcpError(error as McpError),
         centered: true
-      })
-      void updateMcpServer({ body: { isActive: oldActiveState } }).catch((rollbackError) => {
-        logger.error('Failed to rollback MCP server active state after toggle failure:', rollbackError as Error)
       })
     } finally {
       setLoadingServer(null)
@@ -605,6 +608,14 @@ const McpSettings: React.FC = () => {
   if (!server || isServerLoading) {
     return null
   }
+
+  const runtimeError = server.isActive && runtimeStatus.state === 'error' ? runtimeStatus.lastError : undefined
+  const runtimeStatusLabel = {
+    disabled: t('settings.mcp.runtimeStatus.disabled', 'Disabled'),
+    connecting: t('settings.mcp.runtimeStatus.connecting', 'Connecting'),
+    connected: t('settings.mcp.runtimeStatus.connected', 'Connected'),
+    error: t('settings.mcp.runtimeStatus.error', 'Error')
+  }[server.isActive ? runtimeStatus.state : 'disabled']
 
   const tabs: McpTabItem[] = [
     {
@@ -1015,13 +1026,24 @@ const McpSettings: React.FC = () => {
       key: 'tools',
       label: t('settings.mcp.tabs.tools') + (tools.length > 0 ? ` (${tools.length})` : ''),
       children: (
-        <McpToolsSection
-          tools={tools}
-          server={server}
-          searchText={toolSearchText}
-          onToggleTool={handleToggleTool}
-          onToggleAutoApprove={handleToggleAutoApprove}
-        />
+        <>
+          {runtimeError && tools.length === 0 ? (
+            <Alert
+              type="error"
+              showIcon
+              message={t('settings.mcp.runtimeStatus.unavailable', 'Server unavailable')}
+              description={runtimeError}
+            />
+          ) : (
+            <McpToolsSection
+              tools={tools}
+              server={server}
+              searchText={toolSearchText}
+              onToggleTool={handleToggleTool}
+              onToggleAutoApprove={handleToggleAutoApprove}
+            />
+          )}
+        </>
       )
     })
 
@@ -1068,6 +1090,9 @@ const McpSettings: React.FC = () => {
                   </Button>
                   <Flex className="min-w-0 flex-1 items-center gap-2">
                     <ServerName className="truncate">{server?.name}</ServerName>
+                    <McpRuntimeStatusBadge state={server.isActive ? runtimeStatus.state : 'disabled'}>
+                      {runtimeStatusLabel}
+                    </McpRuntimeStatusBadge>
                     {serverVersion && <VersionBadge count={serverVersion} color="blue" />}
                     <Button size="sm" variant="ghost" className="shrink-0" onClick={() => setLogModalOpen(true)}>
                       {t('settings.mcp.logs', 'View Logs')}
@@ -1260,6 +1285,24 @@ const VersionBadge = ({ count, className, ...props }: { count: string } & React.
     {...props}>
     {count}
   </span>
+)
+
+const McpRuntimeStatusBadge = ({
+  state,
+  className,
+  ...props
+}: { state: 'disabled' | 'connecting' | 'connected' | 'error' } & React.ComponentProps<'span'>) => (
+  <span
+    className={cn(
+      'inline-flex h-[18px] items-center rounded-[9px] px-1.5 font-medium text-[11px] leading-[18px]',
+      state === 'connected' && 'bg-success/10 text-success',
+      state === 'connecting' && 'bg-warning/10 text-warning',
+      state === 'error' && 'bg-destructive/10 text-destructive',
+      state === 'disabled' && 'bg-muted text-muted-foreground',
+      className
+    )}
+    {...props}
+  />
 )
 
 interface TagsInputProps {

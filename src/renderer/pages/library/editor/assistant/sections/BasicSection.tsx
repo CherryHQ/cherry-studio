@@ -1,6 +1,5 @@
 import {
   Button,
-  ButtonGroup,
   EditableNumber,
   EmojiAvatar,
   Field,
@@ -23,9 +22,6 @@ import {
   Tooltip
 } from '@cherrystudio/ui'
 import EmojiPicker from '@renderer/components/EmojiPicker'
-import { FieldHeader } from '@renderer/pages/library/editor/FieldHeader'
-import { ModelSelectorField } from '@renderer/pages/library/editor/ModelSelectorField'
-import { TagSelector } from '@renderer/pages/library/TagSelector'
 import type { Assistant, AssistantSettings } from '@shared/data/types/assistant'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import { Plus, Trash2 } from 'lucide-react'
@@ -33,14 +29,16 @@ import type { FC, ReactNode } from 'react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { ASSISTANT_CONTEXT_COUNT_MIN, type AssistantFormState } from '../descriptor'
+import { TagSelector } from '../../../TagSelector'
+import { FieldHeader } from '../../FieldHeader'
+import { ModelSelectorField } from '../../ModelSelectorField'
+import type { AssistantFormState } from '../descriptor'
 import { isSelectableAssistantModel } from '../modelFilter'
 
 type CustomParameter = AssistantSettings['customParameters'][number]
 type CustomParameterType = CustomParameter['type']
 
 const UI_DEFAULT_MAX_TOKENS = 4096
-const UI_MAX_CONTEXT_COUNT = 20
 const UI_DEFAULT_MAX_TOOL_CALLS = 20
 
 const AVATAR_OPTIONS = ['🤖', '💬', '✍️', '🎓', '💻', '🎨', '📝', '🌟', '🔮', '⚡', '🎭', '📊']
@@ -228,7 +226,7 @@ export const BasicSection: FC<Props> = ({
               step={0.1}
               value={[form.temperature]}
               onValueChange={([v]) => onChange({ temperature: v })}
-              className="w-full [&_[data-slot=slider-range]]:bg-accent/40 [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-foreground [&_[data-slot=slider-thumb]]:shadow-none [&_[data-slot=slider-thumb]]:hover:ring-0 [&_[data-slot=slider-thumb]]:hover:ring-offset-0 [&_[data-slot=slider-thumb]]:focus-visible:ring-0 [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-accent/40"
+              className="w-full **:data-[slot=slider-thumb]:size-3 **:data-[slot=slider-track]:h-1 **:data-[slot=slider-thumb]:border-0 **:data-[slot=slider-range]:bg-accent/40 **:data-[slot=slider-thumb]:bg-foreground **:data-[slot=slider-track]:bg-accent/40 **:data-[slot=slider-thumb]:shadow-none **:data-[slot=slider-thumb]:focus-visible:ring-0 **:data-[slot=slider-thumb]:hover:ring-0 **:data-[slot=slider-thumb]:hover:ring-offset-0"
             />
             <div className="mt-1 flex justify-between">
               <span className="text-muted-foreground/80 text-xs">{t('library.config.basic.precise')}</span>
@@ -249,34 +247,9 @@ export const BasicSection: FC<Props> = ({
               step={0.05}
               value={[form.topP]}
               onValueChange={([v]) => onChange({ topP: v })}
-              className="w-full [&_[data-slot=slider-range]]:bg-accent/40 [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-foreground [&_[data-slot=slider-thumb]]:shadow-none [&_[data-slot=slider-thumb]]:hover:ring-0 [&_[data-slot=slider-thumb]]:hover:ring-offset-0 [&_[data-slot=slider-thumb]]:focus-visible:ring-0 [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-accent/40"
+              className="w-full **:data-[slot=slider-thumb]:size-3 **:data-[slot=slider-track]:h-1 **:data-[slot=slider-thumb]:border-0 **:data-[slot=slider-range]:bg-accent/40 **:data-[slot=slider-thumb]:bg-foreground **:data-[slot=slider-track]:bg-accent/40 **:data-[slot=slider-thumb]:shadow-none **:data-[slot=slider-thumb]:focus-visible:ring-0 **:data-[slot=slider-thumb]:hover:ring-0 **:data-[slot=slider-thumb]:hover:ring-offset-0"
             />
           </ToggleFieldGroup>
-
-          <Field className="gap-1.5">
-            <div className="flex items-center gap-1.5">
-              <FieldHeader
-                label={t('library.config.basic.context_count')}
-                hint={t('library.config.basic.field.context_count.hint')}
-              />
-              <span className="text-muted-foreground/80 text-sm">
-                {form.contextCount >= UI_MAX_CONTEXT_COUNT ? t('library.config.basic.unlimited') : form.contextCount}
-              </span>
-            </div>
-            <FieldContent>
-              <Slider
-                size="sm"
-                min={ASSISTANT_CONTEXT_COUNT_MIN}
-                max={UI_MAX_CONTEXT_COUNT}
-                step={1}
-                value={[form.contextCount]}
-                onValueChange={([v]) => onChange({ contextCount: Math.max(ASSISTANT_CONTEXT_COUNT_MIN, v) })}
-                className="w-full [&_[data-slot=slider-range]]:bg-accent/40 [&_[data-slot=slider-thumb]]:size-3 [&_[data-slot=slider-thumb]]:border-0 [&_[data-slot=slider-thumb]]:bg-foreground [&_[data-slot=slider-thumb]]:shadow-none [&_[data-slot=slider-thumb]]:hover:ring-0 [&_[data-slot=slider-thumb]]:hover:ring-offset-0 [&_[data-slot=slider-thumb]]:focus-visible:ring-0 [&_[data-slot=slider-track]]:h-1 [&_[data-slot=slider-track]]:bg-accent/40"
-              />
-            </FieldContent>
-          </Field>
-
-          <Separator className="bg-border/30" />
 
           <ToggleFieldGroup
             label={t('library.config.basic.max_tokens')}
@@ -305,34 +278,6 @@ export const BasicSection: FC<Props> = ({
               className="min-w-0 flex-1"
             />
             <Switch checked={form.streamOutput} onCheckedChange={(v) => onChange({ streamOutput: v })} />
-          </div>
-
-          <div className="flex items-center justify-between gap-3">
-            <FieldHeader
-              label={t('library.config.basic.tool_use_mode')}
-              hint={t('library.config.basic.field.tool_use_mode.hint')}
-              className="min-w-0 flex-1"
-            />
-            <ButtonGroup className="shrink-0 overflow-hidden rounded-2xs border border-border/30">
-              {(['function', 'prompt'] as const).map((mode) => (
-                <Button
-                  key={mode}
-                  type="button"
-                  variant="ghost"
-                  onClick={() => onChange({ toolUseMode: mode })}
-                  className={`h-auto min-h-0 px-2.5 py-1 font-normal text-xs shadow-none transition-colors focus-visible:ring-0 ${
-                    form.toolUseMode === mode
-                      ? 'bg-accent text-foreground'
-                      : 'text-muted-foreground/80 hover:bg-accent/50 hover:text-foreground'
-                  }`}>
-                  {t(
-                    mode === 'function'
-                      ? 'library.config.basic.tool_use_function'
-                      : 'library.config.basic.tool_use_prompt'
-                  )}
-                </Button>
-              ))}
-            </ButtonGroup>
           </div>
 
           <ToggleFieldGroup

@@ -1,46 +1,50 @@
-import type { KnowledgeSearchToolInput, KnowledgeSearchToolOutput } from '@renderer/aiCore/tools/KnowledgeSearchTool'
 import Spinner from '@renderer/components/Spinner'
 import i18n from '@renderer/i18n'
 import type { NormalToolResponse } from '@renderer/types'
+import { kbSearchInputSchema, type KbSearchOutputItem, kbSearchOutputSchema } from '@shared/ai/builtinTools'
 import { Typography } from 'antd'
 import { FileSearch } from 'lucide-react'
 import styled from 'styled-components'
 
 const { Text } = Typography
+
 export function MessageKnowledgeSearchToolTitle({ toolResponse }: { toolResponse: NormalToolResponse }) {
-  const toolInput = toolResponse.arguments as KnowledgeSearchToolInput
-  const toolOutput = toolResponse.response as KnowledgeSearchToolOutput
+  const inputParse = kbSearchInputSchema.safeParse(toolResponse.arguments)
+  const outputParse = kbSearchOutputSchema.safeParse(toolResponse.response)
+  const query = inputParse.success ? inputParse.data.query : ''
+  const resultCount = outputParse.success ? outputParse.data.length : 0
 
   return toolResponse.status !== 'done' ? (
     <Spinner
       text={
         <PrepareToolWrapper>
           {i18n.t('message.searching')}
-          <span>{toolInput?.additionalContext ?? ''}</span>
+          <span>{query}</span>
         </PrepareToolWrapper>
       }
     />
   ) : (
     <MessageWebSearchToolTitleTextWrapper type="secondary">
       <FileSearch size={16} style={{ color: 'unset' }} />
-      {i18n.t('message.websearch.fetch_complete', { count: toolOutput.length ?? 0 })}
+      {i18n.t('message.websearch.fetch_complete', { count: resultCount })}
     </MessageWebSearchToolTitleTextWrapper>
   )
 }
 
 export function MessageKnowledgeSearchToolBody({ toolResponse }: { toolResponse: NormalToolResponse }) {
-  const toolOutput = toolResponse.response as KnowledgeSearchToolOutput
+  const outputParse = kbSearchOutputSchema.safeParse(toolResponse.response)
+  if (toolResponse.status !== 'done' || !outputParse.success) return null
 
-  return toolResponse.status === 'done' ? (
+  return (
     <MessageWebSearchToolBodyUlWrapper>
-      {toolOutput.map((result) => (
+      {outputParse.data.map((result: KbSearchOutputItem) => (
         <li key={result.id}>
           <span>{result.id}</span>
           <span>{result.content}</span>
         </li>
       ))}
     </MessageWebSearchToolBodyUlWrapper>
-  ) : null
+  )
 }
 
 const PrepareToolWrapper = styled.span`

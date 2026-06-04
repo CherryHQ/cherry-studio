@@ -6,15 +6,15 @@ import { loggerService } from '@logger'
 import { Application } from '@main/core/application/Application'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import type { Disposable } from '@main/core/lifecycle/event'
+import type { JobScheduleSnapshot, RetryPolicy, Trigger, UpdateJobScheduleDto } from '@shared/data/api/schemas/jobs'
 import { type JobError, type JobSnapshot } from '@shared/data/api/schemas/jobs'
+import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 
-import { JOB_ERROR_CODES } from './errorCodes'
 import type { JobPayloadOf, JobType } from './jobRegistry'
 import { computeBackoff } from './runtime/backoff'
 import { computeCatchUpAction } from './runtime/catchUp'
 import { DispatchQueue } from './runtime/DispatchQueue'
 import { runStartupRecovery } from './runtime/recovery'
-import type { JobScheduleSnapshot, RetryPolicy, Trigger, UpdateJobScheduleDto } from './scheduleTypes'
 import {
   type EnqueueOptions,
   JOB_PROGRESS_KEY_PREFIX,

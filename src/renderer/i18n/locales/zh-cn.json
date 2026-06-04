@@ -221,9 +221,11 @@
         "intervalUnit": "分钟",
         "lastRun": "上次运行",
         "logs": {
+          "cancelled": "已取消",
+          "completed": "已完成",
           "duration": "耗时",
           "empty": "暂无运行历史。",
-          "error": "错误",
+          "failed": "失败",
           "justNow": "刚刚",
           "label": "运行历史",
           "loadError": "",
@@ -232,7 +234,6 @@
           "running": "运行中...",
           "search": "搜索运行记录...",
           "status": "状态",
-          "success": "成功",
           "viewSession": "查看会话"
         },
         "name": {
@@ -398,6 +399,11 @@
         "error": {
           "failed": "更新会话失败"
         }
+      },
+      "workspace_status": {
+        "inaccessible": "工作区路径不可访问：{{path}}",
+        "missing": "工作区路径不存在：{{path}}",
+        "not_directory": "工作区路径不是目录：{{path}}"
       }
     },
     "settings": {
@@ -1230,6 +1236,7 @@
         "title": "资源"
       },
       "send": "发送",
+      "send_failed": "消息发送失败",
       "settings": "设置",
       "slash_commands": {
         "description": "代理会话斜杠命令",
@@ -2614,9 +2621,6 @@
           "temperature": {
             "hint": "启用后控制回复随机性"
           },
-          "tool_use_mode": {
-            "hint": "控制工具如何暴露给模型"
-          },
           "top_p": {
             "hint": "启用后限制采样范围"
           }
@@ -2638,9 +2642,6 @@
         "tags": "标签",
         "temperature": "模型温度",
         "title": "基础设置",
-        "tool_use_function": "函数",
-        "tool_use_mode": "工具调用方式",
-        "tool_use_prompt": "Prompt",
         "top_p": "Top-P",
         "unlimited": "不限"
       },
@@ -3418,6 +3419,7 @@
     },
     "stream_output": "流式输出",
     "type": {
+      "audio": "音频",
       "embedding": "嵌入",
       "free": "免费",
       "function_calling": "工具",
@@ -3425,6 +3427,7 @@
       "rerank": "重排",
       "select": "模型类型",
       "text": "文本",
+      "video": "视频",
       "vision": "视觉",
       "websearch": "联网"
     }
@@ -4704,6 +4707,10 @@
       },
       "sort_label": "排序",
       "unpin": "取消固定"
+    },
+    "workspace": {
+      "empty_text": "暂无工作区",
+      "placeholder": "选择工作区"
     }
   },
   "settings": {

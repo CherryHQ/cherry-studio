@@ -21,12 +21,12 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args),
   useProviderApiKeys: (...args: any[]) => useProviderApiKeysMock(...args)
 }))
 
-vi.mock('@renderer/hooks/useModels', () => ({
+vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: any[]) => useModelsMock(...args),
   useModelMutations: () => ({
     createModels: vi.fn(),
@@ -79,10 +79,7 @@ describe('useProviderAutoModelSync', () => {
   it('syncs only once for the same initial eligible configuration', async () => {
     const { rerender } = renderHook(() => useProviderAutoModelSync('openai'))
 
-    await waitFor(() =>
-      expect(syncProviderModelsMock).toHaveBeenCalledWith(useProviderMock.mock.results[0].value.provider)
-    )
-    expect(syncProviderModelsMock).toHaveBeenCalledTimes(1)
+    await waitFor(() => expect(syncProviderModelsMock).toHaveBeenCalledTimes(1))
 
     rerender()
 

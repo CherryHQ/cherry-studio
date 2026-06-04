@@ -1,73 +1,64 @@
+import { Button } from '@cherrystudio/ui'
 import { useAttachment } from '@renderer/hooks/useAttachment'
 import FileManager from '@renderer/services/FileManager'
-import type { FileMessageBlock } from '@renderer/types/newMessage'
-import { parseFileTypes } from '@renderer/utils'
-import { Upload } from 'antd'
+import type { FileMetadata } from '@renderer/types/file'
+import { formatFileSize, parseFileTypes } from '@renderer/utils'
 import { t } from 'i18next'
+import { Paperclip } from 'lucide-react'
 import type { FC } from 'react'
-import styled from 'styled-components'
 
 interface Props {
-  block: FileMessageBlock
+  file: FileMetadata
 }
 
-const StyledUpload = styled(Upload)`
-  .ant-upload-list-item-name {
-    max-width: 220px;
-    display: inline-block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    vertical-align: bottom;
-  }
-`
-
-const MessageAttachments: FC<Props> = ({ block }) => {
+const MessageAttachments: FC<Props> = ({ file }) => {
   const { preview } = useAttachment()
-  if (!block.file) {
+
+  if (!file) {
     return null
   }
 
+  const safePath = FileManager.getSafePath(file)
+  const fileName = FileManager.formatFileName(file)
+  const fileSuffix = file.ext ? file.ext.replace('.', '').toUpperCase() : file.type.toUpperCase()
+
+  const handlePreview = () => {
+    const fileType = parseFileTypes(file.type)
+    if (fileType === null) {
+      window.modal.error({ content: t('files.preview.error'), centered: true })
+      return
+    }
+    void preview(safePath, fileName, fileType, file.ext)
+  }
+
   return (
-    <Container style={{ marginTop: 2, marginBottom: 8 }} className="message-attachments">
-      <StyledUpload
-        listType="text"
-        disabled
-        fileList={[
-          {
-            uid: block.file.id,
-            url: 'file://' + FileManager.getSafePath(block.file),
-            status: 'done' as const,
-            name: FileManager.formatFileName(block.file),
-            type: block.file.type,
-            preview: block.file.ext
-          }
-        ]}
-        onPreview={(file) => {
-          if (file.url === undefined || file.type === undefined) {
-            return
-          }
-          const fileType = parseFileTypes(file.type)
-          if (fileType === null) {
-            window.modal.error({ content: t('files.preview.error'), centered: true })
-            return
-          }
-          let path = file.url
-          if (path.startsWith('file://')) {
-            path = path.replace('file://', '')
-          }
-          void preview(path, file.name, fileType, file.preview)
-        }}
-      />
-    </Container>
+    <div className="message-attachments mt-0.5 mb-2">
+      <div className="flex max-w-[520px] items-center gap-3 rounded-lg border border-(--color-border) bg-(--color-background-soft) px-3 py-2">
+        <div className="shrink-0 text-(--color-text-2)">
+          <Paperclip size={16} />
+        </div>
+        <button
+          type="button"
+          className="min-w-0 flex-1 text-left"
+          onClick={handlePreview}
+          title={fileName}
+          aria-label={fileName}>
+          <div className="truncate text-(--color-text-1) text-sm">{fileName}</div>
+          <div className="text-(--color-text-2) text-xs">
+            {formatFileSize(file.size)} · {fileSuffix}
+          </div>
+        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <Button size="sm" variant="secondary" onClick={handlePreview}>
+            {t('common.preview')}
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => window.api.file.openPath(safePath)}>
+            {t('files.open')}
+          </Button>
+        </div>
+      </div>
+    </div>
   )
 }
-
-const Container = styled.div`
-  display: flex;
-  flex-direction: row;
-  gap: 10px;
-  margin-top: 8px;
-`
 
 export default MessageAttachments

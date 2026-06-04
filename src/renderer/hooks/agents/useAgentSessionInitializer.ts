@@ -1,60 +1,28 @@
-import { loggerService } from '@logger'
-import { cacheService } from '@renderer/data/CacheService'
-import { dataApiService } from '@renderer/data/DataApiService'
+import { useQuery } from '@data/hooks/useDataApi'
 import { useCache } from '@renderer/data/hooks/useCache'
-import { useCallback, useEffect, useRef } from 'react'
-
-const logger = loggerService.withContext('useAgentSessionInitializer')
+import { useEffect } from 'react'
 
 /**
- * Hook to automatically initialize and load the latest session for an agent
- * when the agent is activated. This ensures that when switching to an agent,
- * its most recent session is automatically selected.
+ * On startup, if no active session is set, pick the most-recently-ordered one
+ * and seed `agent.active_session_id`. The list endpoint already returns
+ * sessions sorted by `(orderKey, id)` ASC and `createSession` inserts at
+ * position `'first'`, so the first item is what the user touched most
+ * recently (or the first pinned one — pinning floats above otherwise).
+ *
+ * Read via `useQuery` (SWR-deduped) instead of a raw `dataApiService.get`
+ * inside an effect — multiple windows on first launch would otherwise each
+ * fire a fetch and stomp each other's `setActiveSessionId` write.
  */
 export const useAgentSessionInitializer = () => {
-  const [activeAgentId] = useCache('agent.active_id')
-  const [activeSessionIdMap] = useCache('agent.session.active_id_map')
+  const [activeSessionId, setActiveSessionId] = useCache('agent.active_session_id')
+  const { data } = useQuery('/sessions', {
+    query: { limit: 1 },
+    enabled: !activeSessionId
+  })
 
-  // Use a ref to keep the callback stable across activeSessionIdMap changes
-  const activeSessionIdMapRef = useRef(activeSessionIdMap)
-  activeSessionIdMapRef.current = activeSessionIdMap
-
-  /**
-   * Initialize session for the given agent by loading its sessions
-   * and setting the latest one as active
-   */
-  const initializeAgentSession = useCallback(async (agentId: string) => {
-    if (!agentId) return
-    try {
-      // Check if this agent has already been initialized (key exists in map)
-      if (agentId in activeSessionIdMapRef.current) return
-
-      const response = await dataApiService.get(`/agents/${agentId}/sessions` as never, {
-        query: { limit: 1 }
-      })
-      const sessions = (response as any).items ?? []
-
-      const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
-      if (sessions.length > 0) {
-        cacheService.set('agent.session.active_id_map', { ...currentMap, [agentId]: sessions[0].id })
-      } else {
-        cacheService.set('agent.session.active_id_map', { ...currentMap, [agentId]: null })
-      }
-    } catch (error) {
-      logger.error('Failed to initialize agent session:', error as Error)
-    }
-  }, [])
-
-  /**
-   * Auto-initialize when activeAgentId changes
-   */
   useEffect(() => {
-    if (activeAgentId && !(activeAgentId in activeSessionIdMapRef.current)) {
-      void initializeAgentSession(activeAgentId)
-    }
-  }, [activeAgentId, initializeAgentSession])
-
-  return {
-    initializeAgentSession
-  }
+    if (activeSessionId) return
+    const first = data?.items?.[0]?.id
+    if (first) setActiveSessionId(first)
+  }, [activeSessionId, data, setActiveSessionId])
 }

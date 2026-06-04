@@ -221,9 +221,11 @@
         "intervalUnit": "Minuten",
         "lastRun": "Letzte Ausführung",
         "logs": {
+          "cancelled": "[to be translated]:Cancelled",
+          "completed": "[to be translated]:Completed",
           "duration": "Dauer",
           "empty": "Noch keine Ausführungshistorie.",
-          "error": "Fehler",
+          "failed": "[to be translated]:Failed",
           "justNow": "soeben",
           "label": "Ausführungshistorie",
           "loadError": "Fehler beim Laden des Laufverlaufs",
@@ -232,7 +234,6 @@
           "running": "Läuft...",
           "search": "Suchprotokolle...",
           "status": "Status",
-          "success": "Erfolg",
           "viewSession": "Sitzung anzeigen"
         },
         "name": {
@@ -2615,9 +2616,6 @@
           "temperature": {
             "hint": "[to be translated]:Controls randomness when enabled"
           },
-          "tool_use_mode": {
-            "hint": "[to be translated]:Controls how tools are exposed to the model"
-          },
           "top_p": {
             "hint": "[to be translated]:Limits token sampling range when enabled"
           }
@@ -2639,9 +2637,6 @@
         "tags": "[to be translated]:Tags",
         "temperature": "[to be translated]:Temperature",
         "title": "[to be translated]:Basic settings",
-        "tool_use_function": "[to be translated]:Function",
-        "tool_use_mode": "[to be translated]:Tool call mode",
-        "tool_use_prompt": "[to be translated]:Prompt",
         "top_p": "[to be translated]:Top-P",
         "unlimited": "[to be translated]:Unlimited"
       },
@@ -3419,6 +3414,7 @@
     },
     "stream_output": "Stream-Ausgabe",
     "type": {
+      "audio": "[to be translated]:Audio",
       "embedding": "Embedding",
       "free": "Kostenlos",
       "function_calling": "Tools",
@@ -3426,6 +3422,7 @@
       "rerank": "Rerank",
       "select": "Modelltyp",
       "text": "Text",
+      "video": "[to be translated]:Video",
       "vision": "Vision",
       "websearch": "Online"
     }
