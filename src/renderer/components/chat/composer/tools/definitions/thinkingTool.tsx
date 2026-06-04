@@ -5,6 +5,7 @@ const thinkingTool = defineTool({
   key: 'thinking',
   label: (t) => t('chat.input.thinking.label'),
   visibleInScopes: [TopicType.Chat, TopicType.Session],
+  requiresPersistedAssistant: true,
   composer: {
     runtime: ({ context: { assistant, model, launcher, session } }) => (
       <ThinkingToolRuntime

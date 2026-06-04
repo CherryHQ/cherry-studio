@@ -5,6 +5,7 @@ import { useCommandHandler } from '@renderer/commands'
 import { DynamicVirtualList, type DynamicVirtualListRef } from '@renderer/components/VirtualList'
 import { isDev } from '@renderer/config/constant'
 import { isUniqueModelId, type Model, type UniqueModelId } from '@shared/data/types/model'
+import { isCherryAIProvider } from '@shared/utils/provider'
 import { useNavigate } from '@tanstack/react-router'
 import { first } from 'lodash'
 import { Pin, Settings2 } from 'lucide-react'
@@ -172,7 +173,7 @@ function ModelRow({
   const icon = resolveIcon(item.modelIdentifier, item.provider.id)
   const rowTags = useMemo(() => MODEL_SELECTOR_TAGS.filter((tag) => matchesModelTag(item.model, tag)), [item.model])
   const providerName = getProviderDisplayName(item.provider)
-  const isCherryAi = item.provider.id === 'cherryai'
+  const isCherryAi = isCherryAIProvider(item.provider)
 
   const leading = icon ? (
     <icon.Avatar size={20} />

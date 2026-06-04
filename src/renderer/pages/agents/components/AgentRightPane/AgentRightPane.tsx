@@ -365,7 +365,7 @@ function AgentToolFlowMessageList({
     () => ({
       id: meta.sessionId ? buildAgentSessionTopicId(meta.sessionId) : 'agent-session:tool-flow',
       type: TopicType.Session as TopicTypeEnum,
-      assistantId: meta.agentId,
+      assistantId: meta.agentId ?? null,
       name: meta.sessionName ?? meta.sessionId ?? 'agent-tool-flow',
       createdAt: FALLBACK_TIMESTAMP,
       updatedAt: FALLBACK_TIMESTAMP,

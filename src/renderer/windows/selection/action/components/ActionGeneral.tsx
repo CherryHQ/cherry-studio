@@ -6,7 +6,8 @@ import { MessageContentProvider } from '@renderer/components/chat/messages'
 import MessageContent from '@renderer/components/chat/messages/frame/MessageContent'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import CopyButton from '@renderer/components/CopyButton'
-import { useAssistant, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { normalizeAssistantId } from '@renderer/domain/assistant/runtimeDefaultAssistant'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -40,14 +41,10 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
   const { renderConfig } = useMessageListRenderConfig()
   const platformActions = useMessagePlatformActions()
 
-  const { assistant: defaultAssistant } = useDefaultAssistant()
-  const { assistant: chosenAssistant } = useAssistant(action.assistantId ?? '')
-  const activeAssistant = chosenAssistant ?? defaultAssistant
+  const actionPersistedAssistantId = normalizeAssistantId(action.assistantId)
+  const { assistant: activeAssistant } = useAssistant(actionPersistedAssistantId)
 
-  // Temporary in-memory topic — never touches SQLite, released on unmount.
-  // activeAssistant may be the synthesised default — only pass a real
-  // persisted id (chosenAssistant) to bind the temp topic to.
-  const { topicId: temporaryTopicId, ready } = useTemporaryTopic({ assistantId: chosenAssistant?.id })
+  const { topicId: temporaryTopicId, ready } = useTemporaryTopic({ assistantId: actionPersistedAssistantId })
 
   const promptContent = useMemo(() => {
     let userContent = ''
@@ -126,9 +123,9 @@ const ActionGeneral: FC<Props> = React.memo(({ action, scrollToBottom }) => {
           status: isPending ? 'pending' : 'success'
         }
       },
-      { assistantId: activeAssistant?.id, topicId: temporaryTopicId ?? '' }
+      { assistantId: actionPersistedAssistantId, topicId: temporaryTopicId ?? '' }
     )
-  }, [activeAssistant?.id, latestAssistantUIMsg, isPending, temporaryTopicId])
+  }, [actionPersistedAssistantId, latestAssistantUIMsg, isPending, temporaryTopicId])
 
   const content = useMemo(
     () => (latestAssistantUIMsg ? getTextFromParts(latestAssistantUIMsg.parts as CherryMessagePart[]) : ''),

@@ -11,10 +11,10 @@ import {
   QuickPanelReservedSymbol,
   useQuickPanel
 } from '@renderer/components/QuickPanel'
+import type { RuntimeAssistant } from '@renderer/domain/assistant/runtimeDefaultAssistant'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useMcpRuntimeStatusMap } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
-import type { Assistant } from '@renderer/types'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpMode } from '@shared/data/types/assistant'
 import type { MCPServer } from '@shared/data/types/mcpServer'
@@ -39,7 +39,7 @@ const MCP_MODE_LABEL_KEYS: Record<McpMode, string> = {
 }
 
 interface BuildMcpStatusItemsOptions {
-  assistant?: Assistant
+  assistant?: RuntimeAssistant
   agent?: McpStatusAgent
   mcpServers: readonly MCPServer[]
   mcpStatuses: Record<string, McpRuntimeStatus | undefined>
@@ -223,6 +223,7 @@ const mcpStatusTool = defineTool({
   key: 'mcp_status',
   label: 'MCP',
   visibleInScopes: [TopicType.Chat, TopicType.Session],
+  requiresPersistedAssistant: true,
   composer: {
     runtime: ({ context }) => <McpStatusComposerRuntime context={context} />
   }

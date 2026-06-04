@@ -614,6 +614,14 @@ describe('TopicService', () => {
       expect(result.activeNodeId).toBe('src-msg')
     })
 
+    it('persists runtime default assistant as null before insert', async () => {
+      const result = await topicService.create({ name: 'default runtime', assistantId: null })
+
+      expect(result.assistantId).toBeNull()
+      const [row] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, result.id))
+      expect(row.assistantId).toBeNull()
+    })
+
     it('rejects sourceNodeId pointing to a missing message', async () => {
       await expect(topicService.create({ name: 'fork', sourceNodeId: 'no-such' })).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
@@ -636,6 +644,24 @@ describe('TopicService', () => {
       await expect(topicService.create({ name: 'fork', sourceNodeId: 'gone-msg' })).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
+    })
+  })
+
+  describe('update', () => {
+    it('persists runtime default assistant as null before update', async () => {
+      await dbh.db.insert(topicTable).values({
+        id: 'runtime-default-topic',
+        name: 'T',
+        orderKey: 'a0',
+        createdAt: 1,
+        updatedAt: 1
+      })
+
+      const result = await topicService.update('runtime-default-topic', { assistantId: null })
+
+      expect(result.assistantId).toBeNull()
+      const [row] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, 'runtime-default-topic'))
+      expect(row.assistantId).toBeNull()
     })
   })
 

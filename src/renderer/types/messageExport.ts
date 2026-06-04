@@ -6,7 +6,7 @@ import type { Message } from './newMessage'
 export interface MessageExportView {
   id: string
   role: CherryUIMessage['role']
-  assistantId?: string
+  assistantId?: string | null
   topicId: string
   createdAt: string
   updatedAt?: string

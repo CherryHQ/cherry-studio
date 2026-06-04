@@ -1,7 +1,6 @@
-import { DEFAULT_ASSISTANT_ID } from '@shared/data/types/assistant'
 import { mockUseQuery } from '@test-mocks/renderer/useDataApi'
 import { MockUsePreferenceUtils } from '@test-mocks/renderer/usePreference'
-import { renderHook } from '@testing-library/react'
+import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAssistant, useDefaultAssistant } from '../useAssistant'
@@ -23,9 +22,9 @@ describe('useDefaultAssistant', () => {
     MockUsePreferenceUtils.resetMocks()
   })
 
-  it('returns an assistant with the sentinel default id', () => {
+  it('returns the runtime default assistant with a null id', () => {
     const { result } = renderHook(() => useDefaultAssistant())
-    expect(result.current.assistant.id).toBe(DEFAULT_ASSISTANT_ID)
+    expect(result.current.assistant.id).toBeNull()
   })
 
   it('reflects the chat.default_model_id preference in assistant.modelId', () => {
@@ -82,10 +81,33 @@ describe('useAssistant', () => {
     })
   })
 
-  it('returns assistant: undefined for a topic without an assistant', () => {
+  it('returns the synthesized default assistant for a topic without an assistant', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', 'provider::default-model')
     const { result } = renderHook(() => useAssistant(null))
 
+    expect(result.current.assistant?.id).toBeNull()
+    expect(result.current.assistant?.modelId).toBe('provider::default-model')
+  })
+
+  it('does not synthesize the runtime default assistant for an undefined assistant id', () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', 'provider::default-model')
+    mockUseQuery.mockImplementation((path, options) => {
+      if (options?.enabled === false) return queryResult()
+      if (path === '/models/provider::default-model') {
+        return queryResult({ id: 'provider::default-model', name: 'Default Model' })
+      }
+      return queryResult()
+    })
+
+    const { result } = renderHook(() => useAssistant(undefined))
+
     expect(result.current.assistant).toBeUndefined()
+    expect(result.current.model).toBeUndefined()
+    expect(mockUseQuery).toHaveBeenCalledWith('/assistants/:id', {
+      params: { id: '' },
+      enabled: false,
+      swrOptions: { keepPreviousData: false }
+    })
   })
 
   it('uses the default model only when the topic has no persisted assistant', () => {
@@ -99,14 +121,13 @@ describe('useAssistant', () => {
     })
   })
 
-  it('can skip the default model lookup for callers that only need persisted assistants', () => {
+  it('keeps the default model lookup for the runtime default assistant', () => {
     MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', 'provider::default-model')
 
-    renderHook(() => useAssistant(null, { loadDefaultModel: false }))
+    renderHook(() => useAssistant(null))
 
-    expect(mockUseQuery).not.toHaveBeenCalledWith('/models/provider::default-model', expect.anything())
-    expect(mockUseQuery).toHaveBeenCalledWith('/models/', {
-      enabled: false,
+    expect(mockUseQuery).toHaveBeenCalledWith('/models/provider::default-model', {
+      enabled: true,
       swrOptions: { keepPreviousData: false }
     })
   })
@@ -141,6 +162,27 @@ describe('useAssistant', () => {
       enabled: false,
       swrOptions: { keepPreviousData: false }
     })
+  })
+
+  it('updates chat.default_model_id for the runtime default assistant model switch', async () => {
+    MockUsePreferenceUtils.setPreferenceValue('chat.default_model_id', 'provider::default-model')
+
+    const { result } = renderHook(() => useAssistant(null))
+
+    await act(async () => {
+      await result.current.setModel({
+        id: 'provider::next-model',
+        providerId: 'provider',
+        name: 'Next Model',
+        capabilities: [],
+        supportsStreaming: true,
+        isEnabled: true,
+        isHidden: false,
+        isDeprecated: false
+      })
+    })
+
+    expect(MockUsePreferenceUtils.getPreferenceValue('chat.default_model_id')).toBe('provider::next-model')
   })
 
   it('marks the model pending while a persisted assistant is loading', () => {

@@ -2,9 +2,9 @@ import { LoadingOutlined } from '@ant-design/icons'
 import { MessageContentProvider } from '@renderer/components/chat/messages'
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import Scrollbar from '@renderer/components/Scrollbar'
+import type { RuntimeAssistant } from '@renderer/domain/assistant/runtimeDefaultAssistant'
 import { useMessageListRenderConfig } from '@renderer/pages/shared/messages/hooks/useMessageListRenderConfig'
 import { useMessagePlatformActions } from '@renderer/pages/shared/messages/hooks/useMessagePlatformActions'
-import type { Assistant } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { FC } from 'react'
 import styled from 'styled-components'
@@ -12,7 +12,7 @@ import styled from 'styled-components'
 import MessageItem from './Message'
 
 interface Props {
-  assistant: Assistant
+  assistant: RuntimeAssistant
   route: string
   isOutputted: boolean
   messages: MessageListItem[]
@@ -33,7 +33,7 @@ const Messages: FC<Props> = ({ assistant, route, isOutputted, messages, partsByM
       partsByMessageId={partsByMessageId}
       renderConfig={renderConfig}
       actions={platformActions}>
-      <Container id="messages" key={assistant.id}>
+      <Container id="messages" key={assistant.id ?? 'runtime-default-assistant'}>
         {!isOutputted && <LoadingOutlined style={{ fontSize: 16 }} spin />}
         {[...messages].reverse().map((message, index) => (
           <MessageItem key={message.id} message={message} index={index} total={messages.length} route={route} />

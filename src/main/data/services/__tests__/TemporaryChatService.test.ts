@@ -106,6 +106,13 @@ describe('TemporaryChatService', () => {
       expect(new Date(topic.createdAt).getTime()).toBeGreaterThan(0)
     })
 
+    it('createTopic stores runtime default assistant as assistant-less state', async () => {
+      const topic = await service.createTopic({ name: 'hello', assistantId: null })
+
+      expect(topic.assistantId).toBeNull()
+      expect(service.getTopic(topic.id)?.assistantId).toBeNull()
+    })
+
     it('appendMessage returns Message with parentId=null, siblingsGroupId=0, searchableText=""', async () => {
       const topic = await service.createTopic({ name: 'T' })
       const snapshot = { id: 'mdl-1', name: 'GPT', provider: 'openai' }
@@ -146,8 +153,17 @@ describe('TemporaryChatService', () => {
       const updated = await service.updateTopic(topic.id, { assistantId: null })
 
       expect(updated.id).toBe(topic.id)
-      expect(updated.assistantId).toBeUndefined()
-      expect(service.getTopic(topic.id)?.assistantId).toBeUndefined()
+      expect(updated.assistantId).toBeNull()
+      expect(service.getTopic(topic.id)?.assistantId).toBeNull()
+    })
+
+    it('stores runtime default assistant as assistant-less state', async () => {
+      const topic = await service.createTopic({ name: 'T', assistantId: 'assistant-1' })
+
+      const updated = await service.updateTopic(topic.id, { assistantId: null })
+
+      expect(updated.assistantId).toBeNull()
+      expect(service.getTopic(topic.id)?.assistantId).toBeNull()
     })
 
     it('unknown topicId throws notFound', async () => {
@@ -216,6 +232,16 @@ describe('TemporaryChatService', () => {
       expect(result.messageCount).toBe(0)
       const [dbTopic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, topic.id)).limit(1)
       expect(dbTopic?.activeNodeId).toBeNull()
+    })
+
+    it('persists runtime default assistant as null', async () => {
+      const topic = await service.createTopic({ name: 'persisted', assistantId: null })
+      await service.appendMessage(topic.id, { role: 'user', data: mainText('hi') })
+
+      await service.persist(topic.id)
+
+      const [dbTopic] = await dbh.db.select().from(topicTable).where(eq(topicTable.id, topic.id)).limit(1)
+      expect(dbTopic?.assistantId).toBeNull()
     })
 
     it('unknown topicId → notFound', async () => {

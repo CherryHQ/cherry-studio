@@ -789,7 +789,7 @@ describe('ChatMigrator model reference sanitization', () => {
         searchableText: '',
         status: 'success',
         siblingsGroupId: 0,
-        modelId: 'cherryai::qwen',
+        modelId: 'ghost::missing-model',
         modelSnapshot: null,
         traceId: null,
         stats: null,

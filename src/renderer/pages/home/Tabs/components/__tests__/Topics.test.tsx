@@ -302,6 +302,7 @@ import {
   TOPIC_ASSISTANT_SECTION_ID,
   TOPIC_PINNED_GROUP_ID,
   TOPIC_PINNED_SECTION_ID,
+  TOPIC_RUNTIME_ASSISTANT_GROUP_ID,
   TOPIC_UNLINKED_ASSISTANT_GROUP_ID
 } from '../Topics.helpers'
 
@@ -1644,7 +1645,7 @@ describe('Topics', () => {
             createApiTopic({
               id: 'topic-c',
               name: 'Default topic',
-              assistantId: undefined,
+              assistantId: null,
               orderKey: 'c'
             }),
             createApiTopic({
@@ -1675,7 +1676,7 @@ describe('Topics', () => {
     const { onNewTopic } = renderTopicList()
 
     expect(screen.getByRole('button', { name: 'Pinned' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Default Assistant' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Default Assistant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Beta Assistant' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Gamma Assistant' })).not.toBeInTheDocument()
@@ -1685,6 +1686,7 @@ describe('Topics', () => {
       .find((button) => button.hasAttribute('aria-expanded'))
     expect(screen.getByRole('button', { name: 'Pinned' })).toHaveAttribute('aria-expanded', 'true')
     expect(assistantSectionButton).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('button', { name: 'Default Assistant' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByRole('button', { name: 'Unlinked Assistant' })).toHaveAttribute('aria-expanded', 'false')
@@ -1692,8 +1694,15 @@ describe('Topics', () => {
     expect(screen.queryByText('Known alpha')).not.toBeInTheDocument()
     expect(screen.queryByText('Known beta')).not.toBeInTheDocument()
     expect(screen.queryByText('Default topic')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Default Assistant' }).closest('div')).toHaveTextContent('😀')
     expect(screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')).toHaveTextContent('🧪')
     expect(screen.getByRole('button', { name: 'Beta Assistant' }).closest('div')).toHaveTextContent('✍️')
+
+    const defaultHeader = screen.getByRole('button', { name: 'Default Assistant' }).closest('div')
+    expect(defaultHeader).toBeInTheDocument()
+    expect(within(defaultHeader as HTMLElement).queryByRole('button', { name: 'More' })).not.toBeInTheDocument()
+    fireEvent.click(within(defaultHeader as HTMLElement).getByRole('button', { name: 'chat.conversation.new' }))
+    expect(onNewTopic).toHaveBeenCalledWith({ assistantId: null })
 
     fireEvent.click(screen.getByRole('button', { name: 'Alpha Assistant' }))
 
@@ -2427,9 +2436,16 @@ describe('Topics', () => {
     await vi.waitFor(() => expect(topicDataMocks.refreshTopics).toHaveBeenCalledTimes(1))
   })
 
-  it('does not drop topics into the unlinked assistant group for empty assistant ids', () => {
+  it('moves topics into the default assistant group for empty assistant ids', async () => {
     const patchSpy = vi.spyOn(dataApiService, 'patch').mockResolvedValue(undefined as never)
     MockUsePreferenceUtils.setPreferenceValue('topic.tab.display_mode' as never, 'assistant')
+    MockUsePreferenceUtils.setPreferenceValue(TOPIC_GROUP_EXPANSION_KEY as never, {
+      ...createExpandedTopicGroupExpansionFixture(),
+      assistant: {
+        expandedSectionIds: [...DEFAULT_EXPANDED_TOPIC_ASSISTANT_SECTION_IDS],
+        expandedGroupIds: ['topic:assistant:assistant-1', TOPIC_RUNTIME_ASSISTANT_GROUP_ID]
+      }
+    })
     mockUseQuery.mockImplementation((path) => {
       if (path === '/pins') {
         return {
@@ -2476,7 +2492,7 @@ describe('Topics', () => {
         {
           items: [
             createApiTopic({ id: 'topic-a', name: 'Known alpha', assistantId: 'assistant-1', orderKey: 'a' }),
-            createApiTopic({ id: 'topic-c', name: 'Default topic', assistantId: undefined, orderKey: 'c' })
+            createApiTopic({ id: 'topic-c', name: 'Default topic', assistantId: null, orderKey: 'c' })
           ]
         }
       ],
@@ -2492,12 +2508,19 @@ describe('Topics', () => {
 
     renderTopicList()
 
+    expect(screen.getByRole('button', { name: 'Default Assistant' })).toBeInTheDocument()
+    expect(dndMocks.sortableData.has(`group:${TOPIC_RUNTIME_ASSISTANT_GROUP_ID}`)).toBe(false)
+
     dndMocks.onDragEnd?.({
       active: { data: sortableData('item:topic-a'), id: 'item:topic-a' },
       over: { data: sortableData('item:topic-c'), id: 'item:topic-c' }
     })
 
-    expect(patchSpy).not.toHaveBeenCalled()
+    await vi.waitFor(() =>
+      expect(patchSpy).toHaveBeenNthCalledWith(1, '/topics/topic-a', { body: { assistantId: null } })
+    )
+    expect(patchSpy).toHaveBeenNthCalledWith(2, '/topics/topic-a/order', { body: { after: 'topic-c' } })
+    expect(patchSpy).toHaveBeenCalledTimes(2)
   })
 
   it('allows unlinked assistant topics to move into known assistant groups', async () => {

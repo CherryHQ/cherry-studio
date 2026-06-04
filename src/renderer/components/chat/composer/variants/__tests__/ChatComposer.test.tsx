@@ -249,6 +249,9 @@ vi.mock('@renderer/components/Selector', () => ({
       <button type="button" onClick={() => onChange('assistant-2')}>
         select assistant 2
       </button>
+      <button type="button" onClick={() => onChange(null)}>
+        select default assistant
+      </button>
     </div>
   ),
   ModelSelector: ({
@@ -427,7 +430,7 @@ const topic = {
 
 const unlinkedTopic = {
   id: 'topic-unlinked',
-  assistantId: undefined,
+  assistantId: null,
   type: 'chat'
 } as any
 
@@ -795,17 +798,70 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.sendBlockedReason).toBe('code.model_required')
   })
 
-  it('shows assistant selection instead of the default assistant for unlinked home topics', () => {
-    mocks.assistant = undefined
+  it('shows the runtime default assistant for unlinked home topics', () => {
+    vi.mocked(cacheService.getCasual).mockReturnValue('hello')
+    mocks.assistant = {
+      id: null,
+      name: 'Default Assistant',
+      emoji: 'D',
+      modelId: model.id,
+      settings: { enableWebSearch: true },
+      knowledgeBaseIds: []
+    }
 
     render(<ChatHomeComposer topic={unlinkedTopic} onSend={vi.fn()} />)
 
-    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('button.select_assistant')
-    expect(screen.getByTestId('composer-below-controls')).not.toHaveTextContent('Default Assistant')
-    expect(screen.getByTestId('composer-below-controls')).not.toHaveTextContent('Model A | Provider')
+    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Default Assistant')
+    expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model A | Provider')
     expect(screen.getByTestId('assistant-selector')).toHaveAttribute('data-value', '')
-    expect(mocks.surfaceProps?.sendDisabled).toBe(true)
-    expect(mocks.surfaceProps?.sendBlockedReason).toBe('button.select_assistant')
+    expect(mocks.surfaceProps?.sendDisabled).toBe(false)
+    expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
+  })
+
+  it('updates the default model preference when the runtime default assistant selects a model', () => {
+    mocks.assistant = {
+      id: null,
+      name: 'Default Assistant',
+      emoji: 'D',
+      modelId: model.id,
+      settings: { enableWebSearch: true },
+      knowledgeBaseIds: []
+    }
+
+    render(<ChatHomeComposer topic={unlinkedTopic} onSend={vi.fn()} />)
+
+    fireEvent.click(screen.getByText('select model 2'))
+
+    expect(mocks.setDefaultModel).toHaveBeenCalledWith(modelB)
+    expect(mocks.setModel).not.toHaveBeenCalled()
+  })
+
+  it('shows the runtime default assistant in the selector trigger when assistant id is empty', () => {
+    mocks.assistant = {
+      id: null,
+      name: 'Default Assistant',
+      emoji: 'D',
+      modelId: model.id,
+      settings: { enableWebSearch: true },
+      knowledgeBaseIds: []
+    }
+
+    render(<ChatComposer topic={{ ...topic, assistantId: null }} onSend={vi.fn()} />)
+
+    expect(screen.getByTestId('assistant-selector')).toHaveAttribute('data-value', '')
+    expect(screen.getByTestId('assistant-selector')).toHaveTextContent('Default Assistant')
+    expect(screen.getByTestId('assistant-selector')).not.toHaveTextContent('button.select_assistant')
+  })
+
+  it('falls back to the runtime assistant trigger while runtime assistant data is absent', () => {
+    mocks.assistant = undefined
+    mocks.model = undefined
+
+    render(<ChatHomeComposer topic={unlinkedTopic} onSend={vi.fn()} />)
+
+    expect(screen.getByTestId('assistant-selector')).toHaveAttribute('data-value', '')
+    expect(screen.getByTestId('assistant-selector')).toHaveTextContent('chat.default.name')
+    expect(screen.getByTestId('assistant-selector')).not.toHaveTextContent('button.select_assistant')
   })
 
   it('blocks sends for missing-assistant topics until a new assistant is selected', async () => {
@@ -821,6 +877,14 @@ describe('ChatComposer', () => {
     expect(mocks.toastError).toHaveBeenCalledWith('button.select_assistant')
     expect(mocks.updateTopic).toHaveBeenCalledWith('topic-missing', { assistantId: 'assistant-2' })
     expect(mocks.setDefaultModel).not.toHaveBeenCalled()
+  })
+
+  it('updates persisted topics to null when selecting the runtime default assistant', () => {
+    render(<ChatComposer topic={topic} onSend={vi.fn()} />)
+
+    fireEvent.click(screen.getByText('select default assistant'))
+
+    expect(mocks.updateTopic).toHaveBeenCalledWith(topic.id, { assistantId: null })
   })
 
   it('does not auto-select assistants created from a persisted topic', () => {

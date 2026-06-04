@@ -126,4 +126,22 @@ describe('PersistentChatContextProvider', () => {
       })
     ])
   })
+
+  it('treats null assistant id as runtime default when resolving the model', async () => {
+    getTopicByIdMock.mockResolvedValue({ id: 'topic-1', assistantId: null })
+    const provider = new PersistentChatContextProvider()
+    const subscriber = makeSubscriber()
+
+    await provider.prepareDispatch(subscriber, openReq({ parentAnchorId: 'assistant-streaming' }), {
+      hasLiveStream: true
+    })
+
+    expect(getAssistantByIdMock).not.toHaveBeenCalled()
+    expect(createMessageMock).toHaveBeenCalledWith(
+      'topic-1',
+      expect.objectContaining({
+        modelId: 'openai::gpt-4o'
+      })
+    )
+  })
 })

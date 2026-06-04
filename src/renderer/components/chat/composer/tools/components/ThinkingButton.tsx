@@ -29,7 +29,7 @@ import { useTranslation } from 'react-i18next'
 interface Props {
   launcher: ToolLauncherApi
   model: Model
-  assistantId?: string
+  assistantId?: string | null
   reasoningEffort?: ThinkingOption
   onReasoningEffortChange?: (option: ThinkingOption) => void
 }
@@ -43,7 +43,8 @@ const useThinkingToolController = ({
 }: Props) => {
   const { t } = useTranslation()
   const isControlled = controlledEffort !== undefined
-  const { assistant, updateAssistantSettings } = useAssistant(assistantId)
+  const assistantResult = useAssistant(assistantId ?? null)
+  const assistant = assistantResult.assistant
 
   const currentReasoningEffort = useMemo<ThinkingOption>(() => {
     if (isControlled) return controlledEffort
@@ -79,7 +80,8 @@ const useThinkingToolController = ({
 
       if (!isEnabled) {
         cacheService.set(`assistant.reasoning_effort_cache.${assistantId}`, option)
-        updateAssistantSettings({
+        if (assistantResult.kind !== 'persisted') return
+        assistantResult.updateAssistantSettings({
           reasoning_effort: option
         })
         return
@@ -94,19 +96,12 @@ const useThinkingToolController = ({
         return
       }
       cacheService.set(`assistant.reasoning_effort_cache.${assistantId}`, option)
-      updateAssistantSettings({
+      if (assistantResult.kind !== 'persisted') return
+      assistantResult.updateAssistantSettings({
         reasoning_effort: option
       })
     },
-    [
-      isControlled,
-      onReasoningEffortChange,
-      updateAssistantSettings,
-      assistantId,
-      assistant?.settings.enableWebSearch,
-      model,
-      t
-    ]
+    [isControlled, onReasoningEffortChange, assistantResult, assistantId, assistant?.settings.enableWebSearch, model, t]
   )
 
   const reasoningEffortOptionLabelMap = useMemo(

@@ -1,6 +1,7 @@
 import { loggerService } from '@logger'
 import type { ComposerToolLauncher } from '@renderer/components/chat/composer/toolLauncher'
-import { type Assistant, type ThinkingOption, TopicType } from '@renderer/types'
+import { isRuntimeDefaultAssistant, type RuntimeAssistant } from '@renderer/domain/assistant/runtimeDefaultAssistant'
+import { type ThinkingOption, TopicType } from '@renderer/types'
 import type { InputBarToolType } from '@renderer/types/chat'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -58,7 +59,7 @@ export interface ToolDependencies {
 export interface ToolContext {
   scope: ComposerToolScope
   /** Absent in Agent Session scope — Sessions have an `agentId` (see `session`), not an assistant row. */
-  assistant?: Assistant
+  assistant?: RuntimeAssistant
   model: Model
   // Resolved v2 provider for `model.providerId`. Injected by the React
   // dispatch site (ComposerToolRuntimeHost) so sync `condition()` predicates can run
@@ -127,6 +128,7 @@ export interface ToolDefinition<
   // Visibility and conditions
   condition?: (context: ToolContext) => boolean
   visibleInScopes?: ComposerToolScope[]
+  requiresPersistedAssistant?: boolean
   defaultHidden?: boolean
 
   // Dependencies
@@ -164,6 +166,10 @@ export const getAllTools = (): ToolDefinition<any, any>[] => {
   return Array.from(toolRegistry.values())
 }
 
+export function hasPersistedAssistantContext(context: Pick<ToolContext, 'assistant'>): boolean {
+  return !!context.assistant && !isRuntimeDefaultAssistant(context.assistant)
+}
+
 export const getToolsForScope = (
   scope: ComposerToolScope,
   context: Omit<ToolContext, 'scope'>
@@ -173,6 +179,10 @@ export const getToolsForScope = (
   return getAllTools().filter((tool) => {
     // Check scope visibility
     if (tool.visibleInScopes && !tool.visibleInScopes.includes(scope)) {
+      return false
+    }
+
+    if (tool.requiresPersistedAssistant && scope === TopicType.Chat && !hasPersistedAssistantContext(fullContext)) {
       return false
     }
 

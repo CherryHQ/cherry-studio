@@ -1,8 +1,8 @@
 /**
  * Assistant data layer — three tiers in one module:
  *
- *  1. `composeDefaultAssistant` — pure, non-React synthesis of the default
- *     assistant template (also imported by `services/AssistantService`).
+ *  1. Runtime/default-assistant composition lives in
+ *     `@renderer/domain/assistant/runtimeDefaultAssistant`.
  *  2. DataApi tier — raw SQLite-backed queries/mutations
  *     (`useAssistantsApi` / `useAssistantApiById` / `useAssistantMutations`).
  *  3. Composed hooks — `useAssistants` / `useDefaultAssistant` / `useAssistant`.
@@ -21,50 +21,44 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
+import {
+  composeDefaultAssistant,
+  composeRuntimeDefaultAssistant,
+  isRuntimeDefaultAssistantId,
+  type RuntimeDefaultAssistant
+} from '@renderer/domain/assistant/runtimeDefaultAssistant'
 import { useModelById } from '@renderer/hooks/useModel'
-import i18n from '@renderer/i18n'
 import type { Assistant, AssistantSettings } from '@renderer/types'
 import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/modelReconcile'
 import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type { CreateAssistantDto, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
-import { ASSISTANT_SOURCE_USER, DEFAULT_ASSISTANT_ID, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { Model } from '@shared/data/types/model'
 import { type UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useMemo, useRef } from 'react'
 
 const logger = loggerService.withContext('useAssistant')
 
-// ─── Tier 1: pure default-assistant composition ───────────────────────────
-
-const DEFAULT_ASSISTANT_TIMESTAMP = new Date(0).toISOString()
-
-/**
- * Pure runtime composition of the default assistant. v2 has no `id='default'`
- * row in SQLite (legacy `'default'` was remapped to a UUID by AssistantMigrator);
- * the default assistant is always synthesized from a static template plus the
- * caller-supplied `modelId` (sourced from `chat.default_model_id` preference).
- *
- * React contexts: prefer `useDefaultAssistant()` below.
- */
-export function composeDefaultAssistant(modelId: UniqueModelId | null): Assistant {
-  return {
-    id: DEFAULT_ASSISTANT_ID,
-    source: ASSISTANT_SOURCE_USER,
-    name: i18n.t('chat.default.name'),
-    emoji: '😀',
-    prompt: '',
-    description: '',
-    settings: DEFAULT_ASSISTANT_SETTINGS,
-    modelId,
-    modelName: null,
-    orderKey: '',
-    mcpServerIds: [],
-    knowledgeBaseIds: [],
-    tags: [],
-    createdAt: DEFAULT_ASSISTANT_TIMESTAMP,
-    updatedAt: DEFAULT_ASSISTANT_TIMESTAMP
-  }
+type UseAssistantResultBase<TAssistant> = {
+  assistant: TAssistant
+  isLoading: boolean
+  error: unknown
+  model: Model | undefined
+  isModelPending: boolean
+  isModelMissing: boolean
+  setModel: (next: Model, extraSettings?: Partial<AssistantSettings>) => Promise<unknown> | void
 }
+
+type PersistedAssistantResult = UseAssistantResultBase<Assistant | undefined> & {
+  kind: 'persisted'
+  updateAssistant: (patch: UpdateAssistantDto) => Promise<Assistant | undefined>
+  updateAssistantSettings: (settings: Partial<AssistantSettings>) => void
+}
+
+type RuntimeDefaultAssistantResult = UseAssistantResultBase<RuntimeDefaultAssistant> & {
+  kind: 'default'
+}
+
+type UseAssistantResult = PersistedAssistantResult | RuntimeDefaultAssistantResult
 
 // ─── Tier 2: raw DataApi queries/mutations ────────────────────────────────
 
@@ -184,14 +178,11 @@ export function useAssistants() {
 }
 
 /**
- * Returns the runtime-composed default-assistant template. Use this only at
- * UI sites that need to render the "Default" preset card or seed a new
- * assistant from the template (e.g. settings pages). It is
- * NOT meant for chat call sites — a topic without an assistant should be
- * rendered by handling `useAssistant(...).assistant === undefined` directly,
- * not by faking up an Assistant.
+ * Returns the runtime default assistant display object. Use this only at UI
+ * sites that need to render the "Default" option. Chat call sites should pass
+ * `null` to `useAssistant()` and keep the runtime assistant id as `null`.
  */
-export function useDefaultAssistant(): { assistant: Assistant } {
+export function useDefaultAssistant(): { assistant: RuntimeDefaultAssistant } {
   const [defaultModelId] = usePreference('chat.default_model_id')
   const modelId = (defaultModelId ?? null) as UniqueModelId | null
   const assistant = useMemo(() => composeDefaultAssistant(modelId), [modelId])
@@ -199,15 +190,11 @@ export function useDefaultAssistant(): { assistant: Assistant } {
 }
 
 /**
- * Hook for a single persisted assistant. Returns `assistant: undefined` when
- * `id` is empty / null — callers should fall back to UI defaults (e.g.
- * `assistant?.name ?? t('chat.default.name')`) rather than receiving a
- * synthesised default Assistant. There is no special-case branch for the
- * "default assistant" — a topic with no assistant carries
- * `assistantId: undefined`, not a sentinel.
+ * Hook for one chat assistant identity. Null means the runtime default assistant
+ * and uses `chat.default_model_id`, without querying Assistant DB.
  *
  * Model contract:
- * - no assistant id: use the runtime default model preference;
+ * - null assistant id: use the runtime default model preference;
  * - persisted assistant id: use only that assistant's `modelId`.
  *
  * Do not fall back from a persisted assistant with an empty `modelId` to the
@@ -218,34 +205,47 @@ export function useDefaultAssistant(): { assistant: Assistant } {
  * `keepPreviousData` behavior at the query boundary, so this hook only exposes
  * the source data for the current id.
  */
-export function useAssistant(id: string | null | undefined, options: { loadDefaultModel?: boolean } = {}) {
-  const { assistant, isLoading, error } = useAssistantApiById(id ?? undefined)
+export function useAssistant(id: string): PersistedAssistantResult
+export function useAssistant(id: null): RuntimeDefaultAssistantResult
+export function useAssistant(id: string | null | undefined): UseAssistantResult
+export function useAssistant(id: string | null | undefined): UseAssistantResult {
+  const isRuntimeDefaultAssistant = isRuntimeDefaultAssistantId(id)
+  const { assistant, isLoading, error } = useAssistantApiById(isRuntimeDefaultAssistant ? undefined : (id ?? undefined))
   const { updateAssistant: patchAssistant } = useAssistantMutations()
-  const [defaultModelId] = usePreference('chat.default_model_id')
-  const shouldLoadDefaultModel = options.loadDefaultModel ?? true
+  const [defaultModelId, setDefaultModelId] = usePreference('chat.default_model_id')
+  const modelIdFromDefaultPreference = (defaultModelId ?? null) as UniqueModelId | null
+  const runtimeDefaultAssistant = useMemo(
+    () => (isRuntimeDefaultAssistant ? composeRuntimeDefaultAssistant(modelIdFromDefaultPreference) : undefined),
+    [isRuntimeDefaultAssistant, modelIdFromDefaultPreference]
+  )
+  const resolvedAssistant = runtimeDefaultAssistant ?? assistant
   const idRef = useRef(id)
-  const assistantRef = useRef(assistant)
+  const assistantRef = useRef(resolvedAssistant)
   const patchAssistantRef = useRef(patchAssistant)
+  const setDefaultModelIdRef = useRef(setDefaultModelId)
   idRef.current = id
-  assistantRef.current = assistant
+  assistantRef.current = resolvedAssistant
   patchAssistantRef.current = patchAssistant
+  setDefaultModelIdRef.current = setDefaultModelId
 
-  const modelId =
-    assistant?.modelId ?? (!id && shouldLoadDefaultModel ? (defaultModelId as UniqueModelId | null) : undefined)
+  const modelId = resolvedAssistant?.modelId ?? undefined
   const { model, isLoading: isModelLoading } = useModelById(modelId)
-  const isModelPending = (!!id && isLoading) || (!!modelId && isModelLoading)
+  const isModelPending = (!!id && !isRuntimeDefaultAssistant && isLoading) || (!!modelId && isModelLoading)
   const isModelMissing = !isModelPending && !model
 
   const updateAssistantSettings = useCallback((settings: Partial<AssistantSettings>) => {
     const currentId = idRef.current
     const currentAssistant = assistantRef.current
-    if (!currentId || !currentAssistant) return
+    if (isRuntimeDefaultAssistantId(currentId) || !currentId || !currentAssistant) return
     void patchAssistantRef.current(currentId, { settings })
   }, [])
 
   const setModel = useCallback((next: Model, extraSettings?: Partial<AssistantSettings>) => {
     const currentId = idRef.current
     const currentAssistant = assistantRef.current
+    if (isRuntimeDefaultAssistantId(currentId)) {
+      return setDefaultModelIdRef.current(next.id)
+    }
     if (!currentId || !currentAssistant) return
     // reconcile* are v2-native; next.id is the UniqueModelId.
     const reasoning = reconcileReasoningEffortForModel(next, currentAssistant.settings.reasoning_effort, currentId)
@@ -262,11 +262,25 @@ export function useAssistant(id: string | null | undefined, options: { loadDefau
 
   const updateAssistant = useCallback((patch: UpdateAssistantDto) => {
     const currentId = idRef.current
-    if (!currentId) return Promise.resolve(undefined)
+    if (isRuntimeDefaultAssistantId(currentId) || !currentId) return Promise.resolve(undefined)
     return patchAssistantRef.current(currentId, patch)
   }, [])
 
+  if (isRuntimeDefaultAssistant) {
+    return {
+      kind: 'default',
+      assistant: runtimeDefaultAssistant!,
+      isLoading,
+      error,
+      model,
+      isModelPending,
+      isModelMissing,
+      setModel
+    }
+  }
+
   return {
+    kind: 'persisted',
     assistant,
     isLoading,
     error,

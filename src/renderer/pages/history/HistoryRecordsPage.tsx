@@ -58,7 +58,7 @@ const EMPTY_AGENT_BY_ID: ReadonlyMap<string, AgentEntity> = new Map()
 const logger = loggerService.withContext('HistoryRecordsPage')
 type AgentHistorySessionStatus = Exclude<HistorySourceStatus, 'all'>
 type HistoryTopicItem = ApiTopic & {
-  assistantId: string | undefined
+  assistantId: string | null
   pinned: boolean
 }
 

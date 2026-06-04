@@ -1,6 +1,6 @@
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import Scrollbar from '@renderer/components/Scrollbar'
-import type { Assistant } from '@renderer/types'
+import type { RuntimeAssistant } from '@renderer/domain/assistant/runtimeDefaultAssistant'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { FC } from 'react'
 import styled from 'styled-components'
@@ -8,7 +8,7 @@ import styled from 'styled-components'
 import Messages from './components/Messages'
 interface Props {
   route: string
-  assistant: Assistant | null
+  assistant: RuntimeAssistant | null
   isOutputted: boolean
   messages: MessageListItem[]
   partsByMessageId: Record<string, CherryMessagePart[]>

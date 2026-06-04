@@ -703,7 +703,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     hookMocks.useTopics.mockReturnValue({
       topics: [
         createTopic({ id: 'topic-alpha', name: 'Alpha topic', orderKey: 'a' }),
-        createTopic({ id: 'topic-unlinked', assistantId: undefined, name: 'Local orphan topic', orderKey: 'b' }),
+        createTopic({ id: 'topic-unlinked', assistantId: null, name: 'Local orphan topic', orderKey: 'b' }),
         createTopic({
           id: 'topic-missing',
           assistantId: 'assistant-missing',

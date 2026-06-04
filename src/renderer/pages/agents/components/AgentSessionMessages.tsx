@@ -65,7 +65,7 @@ const AgentSessionMessages = ({
     () => ({
       id: sessionTopicId,
       type: TopicType.Session as TopicTypeEnum,
-      assistantId: sessionAssistantId,
+      assistantId: sessionAssistantId ?? null,
       name: sessionName,
       createdAt: sessionCreatedAt,
       updatedAt: sessionUpdatedAt,

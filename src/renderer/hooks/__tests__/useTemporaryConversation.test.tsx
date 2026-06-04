@@ -127,6 +127,44 @@ describe('useTemporaryConversation', () => {
     })
   })
 
+  it('passes null assistantId through for the runtime default assistant', async () => {
+    const { result } = renderHook(() => useTemporaryConversation({ type: 'assistant' }))
+
+    mocks.dataApiPost.mockResolvedValueOnce({
+      id: 'temp-topic-1',
+      messages: []
+    })
+
+    await act(async () => {
+      await result.current.start({ assistantId: null })
+    })
+
+    expect(mocks.dataApiPost).toHaveBeenCalledWith('/temporary/topics', { body: { assistantId: null } })
+    expect(result.current.conversation).toMatchObject({
+      type: 'assistant',
+      topicId: 'temp-topic-1',
+      assistantId: null
+    })
+
+    mocks.dataApiPatch.mockResolvedValueOnce({
+      id: 'temp-topic-1',
+      messages: []
+    })
+
+    await act(async () => {
+      await result.current.updateAssistant(null)
+    })
+
+    expect(mocks.dataApiPatch).toHaveBeenCalledWith('/temporary/topics/temp-topic-1', {
+      body: { assistantId: null }
+    })
+    expect(result.current.conversation).toMatchObject({
+      type: 'assistant',
+      topicId: 'temp-topic-1',
+      assistantId: null
+    })
+  })
+
   it('clears a temporary agent conversation after persisting it', async () => {
     const { result } = renderHook(() => useTemporaryConversation({ type: 'agent' }))
 

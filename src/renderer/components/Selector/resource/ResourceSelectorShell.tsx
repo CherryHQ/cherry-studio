@@ -21,13 +21,17 @@ import {
 } from '../model/ModelSelectorRow'
 import { SelectorShell, type SelectorShellMountStrategy, type SelectorShellProps } from '../shell/SelectorShell'
 
+export type ResourceSelectorShellItemId = string | null
+
 export type ResourceSelectorShellItem = {
-  id: string
+  id: ResourceSelectorShellItemId
   name: string
   emoji?: string
   description?: string
   tags?: string[]
   disabled?: boolean
+  editable?: boolean
+  pinnable?: boolean
 }
 
 export type ResourceSelectorShellTag = string | { name: string; color?: string }
@@ -153,8 +157,9 @@ export type ResourceSelectorShellProps<T extends ResourceSelectorShellItem> =
  * Normalize value of any supported shape to an id list - used internally for selection display
  * and toolbar's initial state. Handles string, string[], item object, item[], and null.
  */
-function extractValueIds<T extends ResourceSelectorShellItem>(value: unknown): string[] {
-  if (value == null) return []
+function extractValueIds<T extends ResourceSelectorShellItem>(value: unknown): ResourceSelectorShellItemId[] {
+  if (value === null) return [null]
+  if (value === undefined) return []
   if (typeof value === 'string') return [value]
   if (Array.isArray(value)) {
     if (value.length === 0) return []
@@ -169,6 +174,11 @@ function extractValueIds<T extends ResourceSelectorShellItem>(value: unknown): s
 const DEFAULT_RESOURCE_TAG_COLOR = '#6372bd'
 const DEFAULT_MIN_LIST_HEIGHT = 144
 const DEFAULT_MAX_CONTENT_HEIGHT = 360
+const NULL_ITEM_DOM_ID = 'resource-selector-null-item'
+
+function getItemDomId(id: ResourceSelectorShellItemId): string {
+  return id ?? NULL_ITEM_DOM_ID
+}
 
 function normalizeTag(tag: ResourceSelectorShellTag) {
   return typeof tag === 'string' ? { name: tag, color: undefined } : tag
@@ -325,8 +335,8 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       )
     }
 
-    const pinned = filtered.filter((item) => pinnedSet.has(item.id))
-    const unpinned = filtered.filter((item) => !pinnedSet.has(item.id))
+    const pinned = filtered.filter((item) => item.id !== null && pinnedSet.has(item.id))
+    const unpinned = filtered.filter((item) => item.id === null || !pinnedSet.has(item.id))
     const pinnedOrdered = pinnedIds.map((id) => pinned.find((item) => item.id === id)).filter(Boolean) as T[]
     return { pinnedItems: pinnedOrdered, unpinnedItems: unpinned }
   }, [items, pinnedIds, pinnedSet, searchValue, selectedTagIds])
@@ -374,21 +384,21 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   }, [flatItems, firstEnabledIndex, initActiveIndex, open])
 
   const emitChange = useCallback(
-    (ids: string[]) => {
+    (ids: ResourceSelectorShellItemId[]) => {
       if (isMulti) {
         if (isItemType) {
-          const byId = new Map<string, T>(items.map((item) => [item.id, item]))
+          const byId = new Map<ResourceSelectorShellItemId, T>(items.map((item) => [item.id, item]))
           const mapped = ids.map((id) => byId.get(id)).filter(Boolean) as T[]
           ;(props.onChange as (value: T[]) => void)(mapped)
         } else {
-          ;(props.onChange as (value: string[]) => void)(ids)
+          ;(props.onChange as (value: string[]) => void)(ids.filter((id): id is string => id !== null))
         }
         return
       }
 
       const id = ids[0] ?? null
       if (isItemType) {
-        const item = id ? (items.find((candidate) => candidate.id === id) ?? null) : null
+        const item = items.find((candidate) => candidate.id === id) ?? null
         ;(props.onChange as (value: T | null) => void)(item)
       } else {
         ;(props.onChange as (value: string | null) => void)(id)
@@ -476,12 +486,16 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     if (activeIndex < 0) return
     const item = flatItems[activeIndex]
     if (!item) return
-    const element = listRef.current?.querySelector<HTMLElement>(`[data-option-id="${CSS.escape(item.id)}"]`)
+    const element = listRef.current?.querySelector<HTMLElement>(
+      `[data-option-id="${CSS.escape(getItemDomId(item.id))}"]`
+    )
     element?.scrollIntoView({ block: 'nearest' })
   }, [activeIndex, flatItems])
 
   const activeOptionDomId =
-    activeIndex >= 0 && flatItems[activeIndex] ? `${listboxId}-opt-${flatItems[activeIndex].id}` : undefined
+    activeIndex >= 0 && flatItems[activeIndex]
+      ? `${listboxId}-opt-${getItemDomId(flatItems[activeIndex].id)}`
+      : undefined
 
   const togglePin = useCallback(
     (id: string) => {
@@ -493,16 +507,20 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
 
   const renderPinAction = useCallback(
     (item: T) => {
-      const isPinned = pinnedSet.has(item.id)
+      if (item.id === null) return null
+      if (item.pinnable === false) return null
+
+      const itemId = item.id
+      const isPinned = pinnedSet.has(itemId)
       return (
         <ModelSelectorRowActionButton
           disabled={item.disabled || isPinActionDisabled}
           aria-label={isPinned ? labels.unpin : labels.pin}
           className="size-4 rounded-sm hover:bg-transparent"
           pinned={isPinned}
-          selected={selectedSet.has(item.id)}
+          selected={selectedSet.has(itemId)}
           onClick={() => {
-            togglePin(item.id)
+            togglePin(itemId)
           }}>
           <Pin className="size-3" />
         </ModelSelectorRowActionButton>
@@ -514,6 +532,8 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   const renderEditAction = useCallback(
     (item: T) => {
       if (!onEditItem) return null
+      if (item.id === null) return null
+      if (item.editable === false) return null
 
       return (
         <ModelSelectorRowActionButton
@@ -540,6 +560,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       if (next || !isMulti || valueIds.length < 2) return
 
       const firstId = valueIds[0]
+      if (firstId === null) return
       if (isItemType) {
         const firstItem = items.find((item) => item.id === firstId) ?? null
         ;(props.onChange as (value: T[]) => void)(firstItem ? [firstItem] : [])
@@ -582,6 +603,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     : undefined
 
   const renderOptionRow = (item: T, flatIndex: number) => {
+    const itemDomId = getItemDomId(item.id)
     const isSelected = selectedSet.has(item.id)
     const isActive = flatIndex === activeIndex
     const editAction = renderEditAction(item)
@@ -597,15 +619,15 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       item.tags && item.tags.length > 0 ? (
         <div
           className="ml-2 flex h-4 max-w-[48%] shrink-0 items-center justify-end gap-1 overflow-hidden"
-          data-resource-selector-tags={item.id}>
+          data-resource-selector-tags={itemDomId}>
           {item.tags.map((tag) => (
-            <ResourceTagChip key={`${item.id}-${tag}`} tag={tag} color={tagColorByName.get(tag)} />
+            <ResourceTagChip key={`${itemDomId}-${tag}`} tag={tag} color={tagColorByName.get(tag)} />
           ))}
         </div>
       ) : null
 
     return (
-      <div key={item.id} className="py-0.5">
+      <div key={itemDomId} className="py-0.5">
         <ModelSelectorRow
           selected={isSelected}
           focused={isActive}
@@ -635,15 +657,15 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
               if (!item.disabled) setActiveIndex(flatIndex)
             },
             className: 'pr-0.5',
-            'data-option-row': item.id
+            'data-option-row': itemDomId
           }}
           optionProps={{
-            id: `${listboxId}-opt-${item.id}`,
+            id: `${listboxId}-opt-${itemDomId}`,
             'aria-disabled': item.disabled || undefined,
-            'data-option-id': item.id,
+            'data-option-id': itemDomId,
             'data-active': isActive || undefined
           }}>
-          <span className="min-w-0 truncate" data-resource-selector-name={item.id}>
+          <span className="min-w-0 truncate" data-resource-selector-name={itemDomId}>
             {item.name}
           </span>
         </ModelSelectorRow>

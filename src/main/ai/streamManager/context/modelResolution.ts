@@ -30,9 +30,10 @@ export async function resolveModels(
 }
 
 /**
- * Assistant model when `assistantId` is given, otherwise the
- * `chat.default_model_id` preference. Returned `assistantId` is
- * `undefined` (not a sentinel) for assistant-less topics.
+ * Assistant model when a persisted assistant id is given; otherwise resolve
+ * the renderer-only runtime default assistant through `chat.default_model_id`.
+ * The returned `assistantId` remains undefined because no Assistant row exists
+ * for the runtime default assistant.
  */
 export async function resolveAssistantModelId(
   assistantId: string | null | undefined
@@ -44,7 +45,7 @@ export async function resolveAssistantModelId(
   }
 
   const defaultModelId = application.get('PreferenceService').get('chat.default_model_id') as UniqueModelId | null
-  if (!defaultModelId) throw new Error('No default model configured for assistant-less topic')
+  if (!defaultModelId) throw new Error('No default model configured for runtime default assistant')
   return { assistantId: undefined, defaultModelId }
 }
 

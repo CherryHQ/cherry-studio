@@ -746,7 +746,7 @@ describe('AssistantMigrator', () => {
 
     it('should null out dangling assistant model refs not present in user_model', async () => {
       const assistantsWithDanglingModel = [
-        { id: 'ast-1', name: 'Dangling Model', model: { id: 'qwen', provider: 'cherryai' } }
+        { id: 'ast-1', name: 'Dangling Model', model: { id: 'missing-model', provider: 'ghost' } }
       ]
       const ctx = createMockContext({ assistants: { assistants: assistantsWithDanglingModel, presets: [] } })
       const insertedBatches: any[] = []

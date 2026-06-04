@@ -11,6 +11,12 @@ import { pinService } from '@data/services/PinService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { ErrorCode } from '@shared/data/api'
 import { type ListAssistantsQuery, ListAssistantsQuerySchema } from '@shared/data/api/schemas/assistants'
+import {
+  CHERRYAI_DEFAULT_MODEL_ID,
+  CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+  CHERRYAI_PROVIDER_ID,
+  CHERRYAI_PROVIDER_NAME
+} from '@shared/data/presets/cherryai'
 import { ASSISTANT_SOURCE_USER, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -37,10 +43,12 @@ describe('AssistantDataService', () => {
   })
 
   async function seedModelRefs() {
-    const [openaiKey, anthropicKey, gpt4Key, claude3Key, embeddingKey] = generateOrderKeySequence(5)
+    const [openaiKey, anthropicKey, cherryaiKey, gpt4Key, claude3Key, embeddingKey, qwenKey] =
+      generateOrderKeySequence(7)
     await dbh.db.insert(userProviderTable).values([
       { providerId: 'openai', name: 'OpenAI', orderKey: openaiKey },
-      { providerId: 'anthropic', name: 'Anthropic', orderKey: anthropicKey }
+      { providerId: 'anthropic', name: 'Anthropic', orderKey: anthropicKey },
+      { providerId: CHERRYAI_PROVIDER_ID, name: CHERRYAI_PROVIDER_NAME, orderKey: cherryaiKey }
     ])
 
     await dbh.db.insert(userModelTable).values([
@@ -73,6 +81,15 @@ describe('AssistantDataService', () => {
         isEnabled: true,
         isHidden: false,
         orderKey: embeddingKey
+      },
+      {
+        id: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
+        providerId: CHERRYAI_PROVIDER_ID,
+        modelId: CHERRYAI_DEFAULT_MODEL_ID,
+        name: 'Qwen',
+        isEnabled: true,
+        isHidden: false,
+        orderKey: qwenKey
       }
     ])
   }
@@ -744,7 +761,7 @@ describe('AssistantDataService', () => {
       await expect(
         assistantDataService.create({
           name: 'bad-model',
-          modelId: 'cherryai::qwen'
+          modelId: 'ghost::missing-model'
         })
       ).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
@@ -753,6 +770,16 @@ describe('AssistantDataService', () => {
 
       const rows = await dbh.db.select().from(assistantTable)
       expect(rows).toHaveLength(0)
+    })
+
+    it('should accept the seeded CherryAI default model', async () => {
+      const result = await assistantDataService.create({
+        name: 'cherry-default',
+        modelId: CHERRYAI_DEFAULT_UNIQUE_MODEL_ID
+      })
+
+      expect(result.modelId).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+      expect(result.modelName).toBe('Qwen')
     })
 
     it('should inject chat.default_model_id when the DTO omits modelId', async () => {
@@ -1153,7 +1180,7 @@ describe('AssistantDataService', () => {
     it('should reject with VALIDATION_ERROR when update modelId is not in user_model', async () => {
       await seedAssistantRow({ id: 'ast-1', name: 'before' })
 
-      await expect(assistantDataService.update('ast-1', { modelId: 'cherryai::qwen' })).rejects.toMatchObject({
+      await expect(assistantDataService.update('ast-1', { modelId: 'ghost::missing-model' })).rejects.toMatchObject({
         code: ErrorCode.VALIDATION_ERROR,
         details: { fieldErrors: { modelId: expect.any(Array) } }
       })

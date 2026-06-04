@@ -251,7 +251,7 @@
         {
           "originalKey": "quickAssistantId",
           "type": "string",
-          "defaultValue": "",
+          "defaultValue": null,
           "status": "classified",
           "category": "preferences",
           "targetKey": "feature.quick_assistant.assistant_id"

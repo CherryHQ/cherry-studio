@@ -34,6 +34,7 @@ import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('HomePage')
 const LAST_USED_ASSISTANT_CACHE_KEY = 'ui.chat.last_used_assistant_id'
+type RuntimeAssistantTarget = string | null
 
 /**
  * Synthesise a renderer Topic shape from a freshly-leased temporary id.
@@ -44,7 +45,7 @@ function buildPendingTemporaryTopic(id: string, assistantId?: string | null): To
   const nowIso = new Date().toISOString()
   return {
     id,
-    assistantId: assistantId ?? undefined,
+    assistantId: assistantId ?? null,
     name: '',
     createdAt: nowIso,
     updatedAt: nowIso,
@@ -54,8 +55,8 @@ function buildPendingTemporaryTopic(id: string, assistantId?: string | null): To
   }
 }
 
-function getTopicAssistantId(topic?: Pick<Topic, 'assistantId'> | null): string | undefined {
-  return topic?.assistantId || undefined
+function getTopicAssistantId(topic?: Pick<Topic, 'assistantId'> | null): string | null {
+  return topic?.assistantId ?? null
 }
 
 const HomePage: FC = () => {
@@ -65,9 +66,9 @@ const HomePage: FC = () => {
   const [topicRevealRequest, setTopicRevealRequest] = useState<ResourceListRevealRequest>()
   const topicRevealRequestIdRef = useRef(0)
   const startingTemporaryTopicRef = useRef(false)
-  const startingTemporaryAssistantIdRef = useRef<string | undefined>(undefined)
+  const startingTemporaryAssistantIdRef = useRef<RuntimeAssistantTarget | undefined>(undefined)
   const pendingTemporaryTopicRef = useRef<{ topicId: string; assistantId?: string | null } | null>(null)
-  const queuedTemporaryTopicTargetRef = useRef<{ assistantId?: string } | null>(null)
+  const queuedTemporaryTopicTargetRef = useRef<{ assistantId: RuntimeAssistantTarget } | null>(null)
   const [ignoredTemporaryTopicId, setIgnoredTemporaryTopicId] = useState<string | null>(null)
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
   const lastUsedAssistantIdRef = useRef<string | undefined>(lastUsedAssistantId ?? undefined)
@@ -323,15 +324,13 @@ const HomePage: FC = () => {
       try {
         const hasExplicitAssistantTarget = !!payload && 'assistantId' in payload
         const targetAssistantId = hasExplicitAssistantTarget
-          ? (payload.assistantId ?? undefined)
-          : lastUsedAssistantIdRef.current
-        const shouldReuseTemporaryTopic = (currentAssistantId: string | undefined) =>
-          hasExplicitAssistantTarget
-            ? currentAssistantId === targetAssistantId
-            : currentAssistantId !== undefined || targetAssistantId === undefined
+          ? (payload.assistantId ?? null)
+          : (lastUsedAssistantIdRef.current ?? null)
+        const shouldReuseTemporaryTopic = (currentAssistantId: string | null) =>
+          currentAssistantId === targetAssistantId
 
         if (temporaryTopicConversation?.type === 'assistant') {
-          const currentAssistantId = temporaryTopicConversation.assistantId ?? undefined
+          const currentAssistantId = temporaryTopicConversation.assistantId ?? null
           if (shouldReuseTemporaryTopic(currentAssistantId)) {
             setIgnoredTemporaryTopicId(null)
             setActiveTopic(buildPendingTemporaryTopic(temporaryTopicConversation.topicId, currentAssistantId))
@@ -341,7 +340,7 @@ const HomePage: FC = () => {
 
         if (pendingTemporaryTopicRef.current) {
           const pending = pendingTemporaryTopicRef.current
-          const pendingAssistantId = pending.assistantId ?? undefined
+          const pendingAssistantId = pending.assistantId ?? null
           if (shouldReuseTemporaryTopic(pendingAssistantId)) {
             setIgnoredTemporaryTopicId(null)
             setActiveTopic(buildPendingTemporaryTopic(pending.topicId, pendingAssistantId))
@@ -371,7 +370,7 @@ const HomePage: FC = () => {
         const queuedTarget = queuedTemporaryTopicTargetRef.current
         queuedTemporaryTopicTargetRef.current = null
         if (queuedTarget) {
-          void startTemporaryTopic({ assistantId: queuedTarget.assistantId ?? null })
+          void startTemporaryTopic({ assistantId: queuedTarget.assistantId })
         }
       }
     },
@@ -380,8 +379,8 @@ const HomePage: FC = () => {
 
   const updateTemporaryTopicAssistant = useCallback(
     async (assistantId: string | null) => {
-      if (!assistantId || temporaryTopicConversation?.type !== 'assistant') return
-      if (assistantId === temporaryTopicConversation.assistantId) return
+      if (temporaryTopicConversation?.type !== 'assistant') return
+      if (assistantId === (temporaryTopicConversation.assistantId ?? null)) return
 
       try {
         const next = await updateTemporaryAssistant(assistantId)

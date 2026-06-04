@@ -55,7 +55,7 @@ function fakeTopic(overrides: Partial<Topic> = {}): Topic {
     id: 'tid-123',
     name: 'Untitled',
     isNameManuallyEdited: false,
-    assistantId: undefined,
+    assistantId: null,
     activeNodeId: undefined,
     groupId: undefined,
     orderKey: '',

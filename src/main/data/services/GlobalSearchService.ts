@@ -181,7 +181,7 @@ export class GlobalSearchService {
     }))
   }
 
-  private async getAssistantNameMap(ids: Array<string | undefined>): Promise<Map<string, string>> {
+  private async getAssistantNameMap(ids: Array<string | null | undefined>): Promise<Map<string, string>> {
     const uniqueIds = [...new Set(ids.filter((id): id is string => !!id))]
     const pairs = await Promise.all(
       uniqueIds.map(async (id) => {

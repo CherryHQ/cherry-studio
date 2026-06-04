@@ -15,9 +15,12 @@ const webSearchTool = defineTool({
   label: (t) => t('chat.input.web_search.label'),
 
   visibleInScopes: [TopicType.Chat],
+  requiresPersistedAssistant: true,
 
   composer: {
-    runtime: ({ context }) => <WebSearchToolRuntime assistantId={context.assistant!.id} launcher={context.launcher} />
+    runtime: ({ context }) => (
+      <WebSearchToolRuntime assistantId={context.assistant!.id as string} launcher={context.launcher} />
+    )
   }
 })
 

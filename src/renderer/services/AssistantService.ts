@@ -1,4 +1,4 @@
-import { composeDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { composeDefaultAssistant } from '@renderer/domain/assistant/runtimeDefaultAssistant'
 import type { Assistant, AssistantSettings } from '@renderer/types'
 import { DEFAULT_ASSISTANT_SETTINGS as SHARED_DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 
@@ -7,7 +7,7 @@ import { DEFAULT_ASSISTANT_SETTINGS as SHARED_DEFAULT_ASSISTANT_SETTINGS } from 
  * `defaultAssistant` synchronously without a modelId. Dies with the slice.
  */
 export function getDefaultAssistant(): Assistant {
-  return composeDefaultAssistant(null)
+  return composeDefaultAssistant(null) as unknown as Assistant
 }
 
 /** Default assistant settings — single source of truth lives in the shared

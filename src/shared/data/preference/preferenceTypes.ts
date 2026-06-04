@@ -50,7 +50,7 @@ export type SelectionActionItem = {
   isBuiltIn: boolean
   icon?: string
   prompt?: string
-  assistantId?: string
+  assistantId?: string | null
   selectedText?: string
   searchEngine?: string
 }

@@ -12,7 +12,7 @@ import { isToolUIPart } from 'ai'
 import type { MessageListItem } from '../types'
 
 export interface MessageListItemContext {
-  assistantId?: string
+  assistantId?: string | null
   topicId: string
   modelFallback?: ModelSnapshot
 }

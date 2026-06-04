@@ -78,7 +78,7 @@ export class TemporaryChatService {
       id: uuidv4(),
       name: dto.name ?? '',
       isNameManuallyEdited: false,
-      assistantId: dto.assistantId,
+      assistantId: dto.assistantId ?? null,
       activeNodeId: undefined,
       groupId: dto.groupId,
       // In-memory store has no real ordering — temp topics are scoped per
@@ -109,7 +109,7 @@ export class TemporaryChatService {
     }
 
     if ('assistantId' in dto) {
-      row.assistantId = dto.assistantId ?? undefined
+      row.assistantId = dto.assistantId ?? null
     }
     row.updatedAt = Date.now()
     return rowToTopic(row)
@@ -200,17 +200,13 @@ export class TemporaryChatService {
         // `orderKey` is computed via `insertWithOrderKey` so the new persisted
         // topic lands at the head of the global non-deleted topic order,
         // matching what `topicService.create` does for normal topics. The
-        // `?? undefined` pattern used for the other fields converts `null` to
-        // `undefined` so Drizzle omits the column entirely, letting the DB
-        // default apply.
-        const assistantId = topic.assistantId ?? undefined
         await insertWithOrderKey(
           tx,
           topicTable,
           {
             id: topic.id,
             name: topic.name ?? undefined,
-            assistantId,
+            assistantId: topic.assistantId,
             groupId: topic.groupId ?? undefined
           },
           {

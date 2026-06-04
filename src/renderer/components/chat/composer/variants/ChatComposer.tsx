@@ -23,9 +23,15 @@ import { isGenerateImageModel, isGenerateImageModels, isVisionModel, isVisionMod
 import { useIsActiveTab } from '@renderer/context/TabIdContext'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
+import {
+  getRuntimeDefaultAssistantName,
+  isRuntimeDefaultAssistantId,
+  RUNTIME_DEFAULT_ASSISTANT_EMOJI
+} from '@renderer/domain/assistant/runtimeDefaultAssistant'
 import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
+import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
 import { useTopicMutations } from '@renderer/hooks/useTopic'
 import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
@@ -378,15 +384,8 @@ const ChatComposerInner = ({
   const { files, mentionedModels, selectedKnowledgeBases, isExpanded } = useComposerToolState()
   const { setFiles, setMentionedModels, setSelectedKnowledgeBases, setIsExpanded } = useComposerToolDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherActions()
-  const {
-    assistant,
-    isLoading: isAssistantLoading,
-    model,
-    isModelPending,
-    isModelMissing,
-    setModel
-  } = useAssistant(topic.assistantId, { loadDefaultModel: false })
   const { updateTopic } = useTopicMutations()
+  const { setDefaultModel } = useDefaultModel()
   const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
   const { providers } = useProviders()
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
@@ -407,11 +406,22 @@ const ChatComposerInner = ({
   const mentionedModelMultiSelectModeRef = useRef(mentionedModelMultiSelectMode)
   const mentionedModelsRef = useRef(mentionedModels)
   const selectAssistantMessage = t('button.select_assistant')
+  const {
+    assistant,
+    isLoading: isAssistantLoading,
+    model,
+    isModelPending,
+    isModelMissing,
+    setModel
+  } = useAssistant(topic.assistantId)
   const runtimeModel = assistant ? model : undefined
   const runtimeModelPending = isAssistantLoading || (!!assistant && isModelPending)
   const selectedModelForMissingAssistantDefault =
     assistant && !assistant.modelId ? mentionedModelSelectorValue[0] : undefined
-  const missingAssistantMessage = !isAssistantLoading && !assistant ? selectAssistantMessage : undefined
+  const selectedAssistantId = topic.assistantId ?? null
+  const isRuntimeAssistantSelected = isRuntimeDefaultAssistantId(selectedAssistantId)
+  const missingAssistantMessage =
+    !isRuntimeAssistantSelected && !isAssistantLoading && !assistant ? selectAssistantMessage : undefined
   const missingModelMessage =
     assistant && isModelMissing && !selectedModelForMissingAssistantDefault ? t('code.model_required') : undefined
   const missingSelectedModelMessage =
@@ -428,9 +438,15 @@ const ChatComposerInner = ({
   }, [topic.id])
 
   const loading = isPending || isSending || awaitingApproval
-  const selectedAssistantId = assistant?.id ?? null
   const selectedKnowledgeBasesScopeKey = `${topic.id}:${selectedAssistantId ?? 'no-assistant'}`
-  const assistantName = assistant?.name ?? (isAssistantLoading ? t('common.loading') : selectAssistantMessage)
+  const assistantName =
+    assistant?.name ??
+    (isRuntimeAssistantSelected
+      ? getRuntimeDefaultAssistantName(t)
+      : isAssistantLoading
+        ? t('common.loading')
+        : selectAssistantMessage)
+  const assistantEmoji = assistant?.emoji ?? (isRuntimeAssistantSelected ? RUNTIME_DEFAULT_ASSISTANT_EMOJI : undefined)
   const providerName = useProviderDisplayName(runtimeModel?.providerId)
 
   const isVisionAssistant = useMemo(() => (runtimeModel ? isVisionModel(runtimeModel) : false), [runtimeModel])
@@ -628,7 +644,7 @@ const ChatComposerInner = ({
 
   const handleAssistantChange = useCallback(
     async (nextId: string | null) => {
-      if (!nextId || nextId === selectedAssistantId) return
+      if (nextId === selectedAssistantId) return
       if (onTemporaryAssistantChange) {
         await onTemporaryAssistantChange(nextId)
         return
@@ -642,11 +658,14 @@ const ChatComposerInner = ({
     (nextModel: Model | undefined) => {
       if (!nextModel) return
       if (!assistant) return
+      if (isRuntimeAssistantSelected) {
+        return setDefaultModel(nextModel)
+      }
 
       const enabledWebSearch = canModelUseAssistantWebSearch(nextModel)
       return setModel(nextModel, { enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch })
     },
-    [assistant, setModel]
+    [assistant, isRuntimeAssistantSelected, setDefaultModel, setModel]
   )
   const handleMentionedModelsSelect = useCallback(
     (nextModels: Model[]) => {
@@ -800,7 +819,7 @@ const ChatComposerInner = ({
 
   const handleSendDraft = useCallback(
     async (draft: ComposerSerializedDraft) => {
-      if (!assistant) {
+      if (!assistant && !isRuntimeAssistantSelected) {
         window.toast?.error(selectAssistantMessage)
         return
       }
@@ -836,6 +855,7 @@ const ChatComposerInner = ({
       buildQueuedPayload,
       clearCurrentDraft,
       handleModelSelect,
+      isRuntimeAssistantSelected,
       loading,
       missingSelectedModelMessage,
       runtimeModel,
@@ -853,7 +873,7 @@ const ChatComposerInner = ({
   const controlSlots = renderControls({
     assistantId: selectedAssistantId,
     assistantName,
-    assistantEmoji: assistant?.emoji,
+    assistantEmoji,
     model: runtimeModel,
     modelProviderName: providerName,
     modelPending: runtimeModelPending,

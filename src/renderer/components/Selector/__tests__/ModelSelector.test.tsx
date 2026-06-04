@@ -77,6 +77,28 @@ vi.mock('@cherrystudio/ui', () => {
     Checkbox: ({ checked, ...props }: InputHTMLAttributes<HTMLInputElement>) => (
       <input type="checkbox" checked={Boolean(checked)} readOnly {...props} />
     ),
+    CustomTag: ({
+      children,
+      onClick,
+      ...props
+    }: HTMLAttributes<HTMLButtonElement> & {
+      color?: string
+      icon?: ReactNode
+      size?: number
+      tooltip?: string
+    }) => {
+      const { color, icon, size, tooltip, ...buttonProps } = props
+      void color
+      void icon
+      void size
+      void tooltip
+
+      return (
+        <button type="button" onClick={onClick} {...buttonProps}>
+          {children}
+        </button>
+      )
+    },
     Input: ({
       ref,
       ...props
@@ -201,7 +223,7 @@ const PROVIDER: Provider = {
   isEnabled: true
 } as Provider
 
-function makeModel(modelId: UniqueModelId, name: string): Model {
+function makeModel(modelId: UniqueModelId, name: string, overrides: Partial<Model> = {}): Model {
   return {
     id: modelId,
     providerId: PROVIDER.id,
@@ -209,7 +231,8 @@ function makeModel(modelId: UniqueModelId, name: string): Model {
     capabilities: [],
     supportsStreaming: true,
     isEnabled: true,
-    isHidden: false
+    isHidden: false,
+    ...overrides
   } as Model
 }
 
@@ -650,6 +673,60 @@ describe('ModelSelector', () => {
       expect(mockNavigate).toHaveBeenCalledWith({ to: '/settings/provider', search: { id: 'openai' } })
     )
     expect(onSelect).not.toHaveBeenCalled()
+  })
+
+  it('does not render a provider jump tag for the built-in CherryAI Qwen model', () => {
+    const modelId = 'cherryai::qwen' as UniqueModelId
+    const cherryAiProvider = { ...PROVIDER, id: 'cherryai', name: 'CherryAI' } as Provider
+    const cherryAiItem = makeModelItem(modelId, {
+      model: makeModel(modelId, 'Qwen', {
+        providerId: 'cherryai'
+      }),
+      provider: cherryAiProvider,
+      modelIdentifier: 'qwen'
+    })
+    mockUseModelSelectorData.mockReturnValue(
+      makeData({
+        listItems: [cherryAiItem],
+        modelItems: [cherryAiItem],
+        sortedProviders: [cherryAiProvider],
+        selectableModelsById: new Map([[modelId, cherryAiItem.model]])
+      })
+    )
+
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    expect(screen.getByText('Qwen')).toBeInTheDocument()
+    expect(screen.queryByText('cherryai')).not.toBeInTheDocument()
+  })
+
+  it('keeps the CherryIN trial jump tag for mapped CherryAI models', async () => {
+    const modelId = 'cherryai::Qwen/Qwen3-8B' as UniqueModelId
+    const cherryAiProvider = { ...PROVIDER, id: 'cherryai', name: 'CherryAI' } as Provider
+    const cherryAiItem = makeModelItem(modelId, {
+      model: makeModel(modelId, 'Qwen3-8B', {
+        providerId: 'cherryai',
+        apiModelId: 'Qwen/Qwen3-8B'
+      }),
+      provider: cherryAiProvider,
+      modelIdentifier: 'Qwen/Qwen3-8B'
+    })
+    mockUseModelSelectorData.mockReturnValue(
+      makeData({
+        listItems: [cherryAiItem],
+        modelItems: [cherryAiItem],
+        sortedProviders: [cherryAiProvider],
+        selectableModelsById: new Map([[modelId, cherryAiItem.model]])
+      })
+    )
+
+    render(<ModelSelector open multiple={false} trigger={<button type="button">open</button>} onSelect={vi.fn()} />)
+
+    fireEvent.click(screen.getByText('cherryin'))
+
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith({ to: '/settings/provider', search: { id: 'cherryin' } })
+    )
   })
 
   it('sets a 360px default popover max height for long model lists', () => {

@@ -4,9 +4,9 @@ import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { isMac } from '@renderer/config/constant'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useAssistant, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { normalizeAssistantId } from '@renderer/domain/assistant/runtimeDefaultAssistant'
+import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
-import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import i18n from '@renderer/i18n'
@@ -65,22 +65,16 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const inputBarRef = useRef<HTMLDivElement>(null)
   const featureMenusRef = useRef<FeatureMenusRef>(null)
 
-  const { assistant: defaultAssistant } = useDefaultAssistant()
-  const { defaultModel: defaultApiModel } = useDefaultModel()
-  const { assistant: chosenAssistant, model: chosenApiModel } = useAssistant(quickAssistantId ?? '')
-  const currentAssistant = chosenAssistant ?? defaultAssistant
-  const currentModel = chosenApiModel ?? defaultApiModel
+  const quickAssistantPersistedId = normalizeAssistantId(quickAssistantId)
+  const { assistant: currentAssistant, model: currentModel } = useAssistant(quickAssistantPersistedId)
 
   // Lease a temporary topic for the quick-assistant conversation.
   // Lifecycle is tied to this component; resetting the conversation drops and leases a new one.
-  // currentAssistant may be the synthesised default — only pass a real
-  // persisted id (chosenAssistant) so main treats it as "no assistant" when
-  // the user hasn't picked one.
   const {
     topicId: temporaryTopicId,
     ready: isTopicReady,
     reset: resetTemporaryTopic
-  } = useTemporaryTopic({ enabled: true, assistantId: chosenAssistant?.id })
+  } = useTemporaryTopic({ enabled: true, assistantId: quickAssistantPersistedId })
 
   const referenceText = clipboardText || userInputText
 
@@ -199,12 +193,12 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     () =>
       displayMessages.map((message) =>
         toMessageListItem(message, {
-          assistantId: currentAssistant?.id,
+          assistantId: quickAssistantPersistedId,
           topicId: temporaryTopicId ?? '',
           modelFallback: quickAssistantModelSnapshot
         })
       ),
-    [currentAssistant?.id, displayMessages, quickAssistantModelSnapshot, temporaryTopicId]
+    [displayMessages, quickAssistantModelSnapshot, quickAssistantPersistedId, temporaryTopicId]
   )
 
   const latestAssistantUIMsg = useMemo(() => allAssistants[allAssistants.length - 1], [allAssistants])
@@ -399,9 +393,9 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       return t('quickAssistant.input.placeholder.title')
     }
     return t('quickAssistant.input.placeholder.empty', {
-      model: quickAssistantId ? (currentAssistant?.name ?? '') : (currentModel?.name ?? '')
+      model: quickAssistantPersistedId ? (currentAssistant?.name ?? '') : (currentModel?.name ?? '')
     })
-  }, [referenceText, route, t, quickAssistantId, currentAssistant, currentModel])
+  }, [referenceText, route, t, quickAssistantPersistedId, currentAssistant, currentModel])
 
   const baseFooterProps = useMemo(
     () => ({

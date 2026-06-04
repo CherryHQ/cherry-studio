@@ -1,3 +1,4 @@
+import { CHERRYAI_DEFAULT_UNIQUE_MODEL_ID } from '@shared/data/presets/cherryai'
 import { describe, expect, it } from 'vitest'
 
 import { transformLlmModelIds } from '../LlmModelTransforms'
@@ -22,11 +23,11 @@ describe('LlmModelTransforms', () => {
       })
     })
 
-    it('returns null for missing model objects', () => {
+    it('falls back default model to CherryAI and returns null for other missing model objects', () => {
       const result = transformLlmModelIds({})
 
       expect(result).toEqual({
-        'chat.default_model_id': null,
+        'chat.default_model_id': CHERRYAI_DEFAULT_UNIQUE_MODEL_ID,
         'topic.naming.model_id': null,
         'feature.quick_assistant.model_id': null,
         'feature.translate.model_id': null
@@ -48,7 +49,7 @@ describe('LlmModelTransforms', () => {
       expect(result['feature.translate.model_id']).toBeNull()
     })
 
-    it('handles model with incomplete data (missing provider)', () => {
+    it('falls back default model when data is incomplete', () => {
       const sources = {
         defaultModel: { id: 'gpt-4' }, // no provider
         topicNamingModel: { provider: 'openai' } // no id
@@ -56,8 +57,22 @@ describe('LlmModelTransforms', () => {
 
       const result = transformLlmModelIds(sources)
 
-      expect(result['chat.default_model_id']).toBeNull()
+      expect(result['chat.default_model_id']).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
       expect(result['topic.naming.model_id']).toBeNull()
+    })
+
+    it('normalizes every legacy CherryAI default model reference to the canonical default id', () => {
+      const result = transformLlmModelIds({
+        defaultModel: { id: 'legacy-free-trial-model', provider: 'cherryai' },
+        topicNamingModel: { id: 'legacy-free-trial-model', provider: 'cherryai' },
+        quickModel: { id: 'legacy-free-trial-model', provider: 'cherryai' },
+        translateModel: { id: 'legacy-free-trial-model', provider: 'cherryai' }
+      })
+
+      expect(result['chat.default_model_id']).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+      expect(result['topic.naming.model_id']).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+      expect(result['feature.quick_assistant.model_id']).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
+      expect(result['feature.translate.model_id']).toBe(CHERRYAI_DEFAULT_UNIQUE_MODEL_ID)
     })
 
     it('uses shared model conversion behavior for passthrough, trimming, and invalid providers', () => {

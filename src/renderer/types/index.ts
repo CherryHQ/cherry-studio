@@ -109,7 +109,7 @@ export type AssistantMessage = {
  * v2 keeps `mcpMode` inside `settings` and supplies a default — this helper
  * stays as a thin facade so existing callers don't have to change.
  */
-export function getEffectiveMcpMode(assistant: Assistant): McpMode {
+export function getEffectiveMcpMode(assistant: Pick<Assistant, 'settings'>): McpMode {
   return assistant.settings?.mcpMode ?? 'disabled'
 }
 
@@ -267,12 +267,9 @@ export type Topic = {
   id: string
   type?: TopicType
   /**
-   * Last-used assistant id. `undefined` means the topic has no associated
-   * assistant (e.g. a first-launch temp topic, or a topic created before any
-   * assistant was selected). Renderer code must NOT substitute a sentinel —
-   * callers should branch on `undefined` and fall back to UI defaults.
+   * Last-used assistant id. `null` means the runtime default assistant.
    */
-  assistantId: string | undefined
+  assistantId: string | null
   name: string
   createdAt: string
   updatedAt: string

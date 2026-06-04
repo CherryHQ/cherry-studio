@@ -81,6 +81,7 @@ vi.mock('react-i18next', async (importOriginal) => {
           'common.name': 'Name',
           'common.required_field': 'Required',
           'common.save': 'Save',
+          'chat.default.name': 'Default Assistant',
           'assistants.edit.title': 'Edit assistant',
           'library.config.basic.field.description.hint': 'Short assistant summary.',
           'library.config.basic.field.description.placeholder': 'Describe this assistant',
@@ -312,19 +313,22 @@ describe('AssistantSelector', () => {
     expect(document.querySelector('[data-selector-shell-content]')).toHaveStyle({ maxHeight: '360px' })
   })
 
-  it('renders rows in DataApi order and shows tag filters without sort controls', () => {
+  it('renders the default assistant before rows in DataApi order and shows tag filters without sort controls', () => {
     renderSelector()
     openPopover()
 
     const options = screen.getAllByRole('option')
-    expect(options[0]).toHaveTextContent('Alpha Assistant')
-    expect(options[1]).toHaveTextContent('Beta Assistant')
+    expect(options[0]).toHaveTextContent('Default Assistant')
+    expect(options[1]).toHaveTextContent('Alpha Assistant')
+    expect(options[2]).toHaveTextContent('Beta Assistant')
     expect(screen.getByRole('button', { name: 'work' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Newest' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Oldest' })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Pin' })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: 'Edit assistant' })).toHaveLength(2)
   })
 
-  it('renders the empty state prompt when no assistants exist', () => {
+  it('renders the default assistant when no persisted assistants exist', () => {
     useQueryMock.mockReturnValue({
       data: { items: [], total: 0, page: 1 },
       isLoading: false,
@@ -337,8 +341,21 @@ describe('AssistantSelector', () => {
     renderSelector()
     openPopover()
 
-    expect(screen.getByText('No assistants yet. Create one first.')).toBeInTheDocument()
+    expect(screen.getByRole('option', { name: /Default Assistant/ })).toBeInTheDocument()
+    expect(screen.queryByText('No assistants yet. Create one first.')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Create assistant' })).toBeInTheDocument()
+  })
+
+  it('selects the runtime default assistant from the synthesized row', () => {
+    const onChange = vi.fn()
+    render(
+      <AssistantSelector trigger={<button type="button">Open</button>} multi={false} value={null} onChange={onChange} />
+    )
+    openPopover()
+
+    fireEvent.click(screen.getByRole('option', { name: /Default Assistant/ }))
+
+    expect(onChange).toHaveBeenCalledWith(null)
   })
 
   it('renders assistant tag chips and filters rows by selected tag', () => {

@@ -576,7 +576,7 @@ describe('HomePage', () => {
       activeTopicId: 'topic-message'
     })
     await waitFor(() => {
-      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: undefined })
+      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: null })
     })
   })
 
@@ -714,7 +714,7 @@ describe('HomePage', () => {
     homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-2')
     homeMocks.temporaryConversation = {
       id: 'temp-topic-empty',
-      topic: { ...initialTopic, assistantId: undefined, id: 'temp-topic-empty' },
+      topic: { ...initialTopic, assistantId: null, id: 'temp-topic-empty' },
       topicId: 'temp-topic-empty',
       type: 'assistant'
     }

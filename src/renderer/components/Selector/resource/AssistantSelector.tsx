@@ -1,5 +1,6 @@
 import { loggerService } from '@logger'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
+import { createRuntimeDefaultAssistantDisplay } from '@renderer/domain/assistant/runtimeDefaultAssistant'
 import { usePins } from '@renderer/hooks/usePins'
 import { isSelectableAssistantModel } from '@renderer/pages/library/dialogs/form/assistantModelFilter'
 import {
@@ -111,17 +112,22 @@ export function AssistantSelector(props: AssistantSelectorProps) {
   } = usePins('assistant')
   const isPinActionDisabled = isPinnedLoading || isPinsRefreshing || isPinsMutating
 
-  const items: AssistantSelectorItem[] = useMemo(
-    () =>
-      (data?.items ?? []).map((a) => ({
-        id: a.id,
-        name: a.name,
-        emoji: a.emoji,
-        description: a.description,
-        tags: (a.tags ?? []).map((tag) => tag.name)
-      })),
-    [data]
-  )
+  const items: AssistantSelectorItem[] = useMemo(() => {
+    const defaultItem: AssistantSelectorItem = {
+      ...createRuntimeDefaultAssistantDisplay(t),
+      editable: false,
+      pinnable: false
+    }
+    const assistantItems = (data?.items ?? []).map((a) => ({
+      id: a.id,
+      name: a.name,
+      emoji: a.emoji,
+      description: a.description,
+      tags: (a.tags ?? []).map((tag) => tag.name)
+    }))
+
+    return props.multi === true ? assistantItems : [defaultItem, ...assistantItems]
+  }, [data?.items, props.multi, t])
 
   const tags = useMemo<ResourceSelectorShellTag[]>(() => {
     const byName = new Map<string, string | undefined>()

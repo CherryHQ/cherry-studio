@@ -1,7 +1,8 @@
 import { CustomTag } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { getProviderLabel } from '@renderer/i18n/label'
-import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import type { Model } from '@shared/data/types/model'
+import { resolveFreeTrialLinkedProviderId } from '@shared/utils/freeTrialModel'
 import { useNavigate } from '@tanstack/react-router'
 import { ArrowUpRight } from 'lucide-react'
 import type { FC, MouseEvent } from 'react'
@@ -15,31 +16,25 @@ interface Props {
   onBeforeNavigate?: () => void
 }
 
-const CHERRY_TRIAL_PROVIDER_OVERRIDES: Record<string, string> = {
-  'Qwen/Qwen3-8B': 'cherryin',
-  'Qwen/Qwen3-Next-80B-A3B-Instruct': 'cherryin'
-}
-
-function resolveTrialProviderId(model: Model): string {
-  const apiModelId = model.apiModelId ?? parseUniqueModelId(model.id).modelId
-  return CHERRY_TRIAL_PROVIDER_OVERRIDES[apiModelId] ?? model.providerId
-}
-
 /**
  * v2 版 FreeTrialModelTag：替换旧 src/renderer/components/FreeTrialModelTag.tsx 中
  * styled-components + antd 依赖；其余业务语义保持一致：
- * - 仅对 provider === 'cherryai' 的模型显示
+ * - 仅对 provider === 'cherryai' 且存在可跳转 provider 的模型显示
  * - 特定试用模型 (Qwen/Qwen3-8B, Qwen/Qwen3-Next-80B-A3B-Instruct) 跳转到 cherryin provider
  */
 export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true, onBeforeNavigate }) => {
   const { t } = useTranslation()
   const navigate = useNavigate()
 
-  if (model.providerId !== 'cherryai') {
+  const providerId = resolveFreeTrialLinkedProviderId({
+    providerId: model.providerId,
+    modelId: model.id,
+    apiModelId: model.apiModelId
+  })
+
+  if (!providerId) {
     return null
   }
-
-  const providerId = resolveTrialProviderId(model)
 
   const navigateToProvider = () => {
     onBeforeNavigate?.()

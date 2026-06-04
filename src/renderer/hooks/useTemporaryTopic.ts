@@ -37,11 +37,11 @@ export interface UseTemporaryTopicOptions {
    */
   enabled?: boolean
   /**
-   * Optional assistant id to bind the temp topic to. `undefined` means the
-   * topic has no associated assistant — main composes capabilities from the
-   * default model preference. Not a sentinel: do NOT pass DEFAULT_ASSISTANT_ID.
+   * Optional assistant id to bind the temp topic to. `null` means the renderer
+   * runtime default assistant; `undefined` means the caller has not chosen yet.
+   * Do not pass a string sentinel.
    */
-  assistantId?: string
+  assistantId?: string | null
 }
 
 export interface UseTemporaryTopicResult {
@@ -74,7 +74,7 @@ export function useTemporaryTopic(options: UseTemporaryTopicOptions = {}): UseTe
 
     let cancelled = false
 
-    const body = assistantId ? { assistantId } : {}
+    const body = assistantId !== undefined ? { assistantId } : {}
 
     void dataApiService
       .post('/temporary/topics', { body })

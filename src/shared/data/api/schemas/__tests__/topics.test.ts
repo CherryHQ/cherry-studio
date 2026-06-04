@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
-import { SetActiveNodeSchema, UpdateTopicSchema } from '../topics'
+import { CreateTopicSchema, SetActiveNodeSchema, UpdateTopicSchema } from '../topics'
+
+describe('CreateTopicSchema', () => {
+  it('accepts null assistantId for the runtime default assistant', () => {
+    expect(CreateTopicSchema.parse({ assistantId: null })).toEqual({ assistantId: null })
+  })
+})
 
 describe('UpdateTopicSchema', () => {
   // Pin state and ordering must NOT be mutable through PATCH /topics/:id —
@@ -22,7 +28,7 @@ describe('UpdateTopicSchema', () => {
     expect(parsed).toEqual({ name: 'n', isNameManuallyEdited: true, assistantId: 'a1', groupId: 'g1' })
   })
 
-  it('accepts null assistantId to clear default-assistant ownership', () => {
+  it('accepts null assistantId to clear assistant ownership', () => {
     expect(UpdateTopicSchema.parse({ assistantId: null })).toEqual({ assistantId: null })
   })
 })

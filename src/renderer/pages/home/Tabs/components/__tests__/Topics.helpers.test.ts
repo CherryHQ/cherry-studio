@@ -16,6 +16,7 @@ import {
   moveTopicAfterDrop,
   normalizeTopicDropPayload,
   sortTopicsForDisplayGroups,
+  TOPIC_RUNTIME_ASSISTANT_GROUP_ID,
   TOPIC_UNLINKED_ASSISTANT_GROUP_ID
 } from '../Topics.helpers'
 
@@ -249,6 +250,7 @@ describe('Topics helpers', () => {
   it('builds assistant display groups with pinned/known/unlinked buckets', () => {
     const groupTopic = createTopicDisplayGroupResolver({
       assistantById: new Map([
+        [null, { id: null, name: 'Default Assistant' }],
         ['assistant-1', { id: 'assistant-1', name: 'Research' }],
         ['assistant-2', { id: 'assistant-2', name: 'Writing' }]
       ]),
@@ -256,13 +258,13 @@ describe('Topics helpers', () => {
       mode: 'assistant'
     })
 
-    expect(groupTopic(createTopic({ id: 'pinned', pinned: true, assistantId: undefined }))).toEqual({
+    expect(groupTopic(createTopic({ id: 'pinned', pinned: true, assistantId: null }))).toEqual({
       id: 'topic:pinned',
       label: 'Pinned'
     })
-    expect(groupTopic(createTopic({ id: 'default', assistantId: undefined }))).toEqual({
-      id: TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
-      label: 'Unlinked Assistant'
+    expect(groupTopic(createTopic({ id: 'default', assistantId: null }))).toEqual({
+      id: TOPIC_RUNTIME_ASSISTANT_GROUP_ID,
+      label: 'Default Assistant'
     })
     expect(groupTopic(createTopic({ id: 'known', assistantId: 'assistant-2' }))).toEqual({
       id: 'topic:assistant:assistant-2',

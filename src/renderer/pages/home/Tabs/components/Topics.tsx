@@ -23,6 +23,7 @@ import {
 import EditNameDialog from '@renderer/components/EditNameDialog'
 import EmojiIcon from '@renderer/components/EmojiIcon'
 import { useOptionalTabsContext } from '@renderer/context/TabsContext'
+import { createRuntimeDefaultAssistantDisplay } from '@renderer/domain/assistant/runtimeDefaultAssistant'
 import { useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useConversationNavigation } from '@renderer/hooks/useConversationNavigation'
 import { useNotesSettings } from '@renderer/hooks/useNotesSettings'
@@ -75,6 +76,7 @@ import {
   TOPIC_PINNED_GROUP_ID,
   TOPIC_PINNED_SECTION_ID,
   TOPIC_UNLINKED_ASSISTANT_GROUP_ID,
+  type TopicDisplayAssistant,
   type TopicDisplayMode
 } from './Topics.helpers'
 import { useTopicMenuActions } from './useTopicMenuActions'
@@ -93,18 +95,18 @@ const TOPIC_DISPLAY_OPTIONS: TopicDisplayMode[] = ['time', 'assistant']
 
 function buildCreateTopicPayload(
   topic: Topic | null | undefined,
-  assistantById?: ReadonlyMap<string, unknown>
+  assistantById?: ReadonlyMap<string | null, unknown>
 ): AddNewTopicPayload | undefined {
   if (!topic) return undefined
 
-  const assistantId = topic.assistantId
-  return { assistantId: assistantId && assistantById?.has(assistantId) ? assistantId : null }
+  const assistantId = topic.assistantId ?? null
+  return { assistantId: assistantById?.has(assistantId) ? assistantId : null }
 }
 
 function findLatestCreateTopicPayload(
   topics: readonly Topic[],
   predicate: (topic: Topic) => boolean = () => true,
-  assistantById?: ReadonlyMap<string, unknown>
+  assistantById?: ReadonlyMap<string | null, unknown>
 ): AddNewTopicPayload | undefined {
   let latestTopic: Topic | null = null
   let latestUpdatedAtMs = Number.NEGATIVE_INFINITY
@@ -125,10 +127,10 @@ function findLatestCreateTopicPayload(
 
 function resolveAssistantIdForTopicGroup(
   groupId: string,
-  assistantById: ReadonlyMap<string, unknown>
+  assistantById: ReadonlyMap<string | null, unknown>
 ): string | null | undefined {
   const assistantId = getAssistantIdFromTopicGroupId(groupId)
-  if (!assistantId || !assistantById.has(assistantId)) {
+  if (assistantId === undefined || !assistantById.has(assistantId)) {
     return undefined
   }
 
@@ -400,9 +402,14 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
   }, [apiTopicOrderSignature])
 
   const [optimisticAssistantOrderIds, setOptimisticAssistantOrderIds] = useState<readonly string[] | null>(null)
+  const defaultAssistantForTopics = useMemo<TopicDisplayAssistant>(() => createRuntimeDefaultAssistantDisplay(t), [t])
+  const displayedAssistants = useMemo<TopicDisplayAssistant[]>(
+    () => [defaultAssistantForTopics, ...assistants],
+    [assistants, defaultAssistantForTopics]
+  )
   const assistantOrderSignature = useMemo(
-    () => assistants.map((assistant) => `${assistant.id}:${assistant.orderKey ?? ''}`).join('|'),
-    [assistants]
+    () => displayedAssistants.map((assistant) => `${assistant.id ?? 'null'}:${assistant.orderKey ?? ''}`).join('|'),
+    [displayedAssistants]
   )
 
   useEffect(() => {
@@ -411,24 +418,27 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
 
   const orderedAssistants = useMemo(() => {
     if (!optimisticAssistantOrderIds) {
-      return assistants
+      return displayedAssistants
     }
 
-    const assistantById = new Map(assistants.map((assistant) => [assistant.id, assistant]))
-    const ordered = optimisticAssistantOrderIds.flatMap((assistantId) => {
-      const assistant = assistantById.get(assistantId)
-      return assistant ? [assistant] : []
-    })
+    const assistantById = new Map(displayedAssistants.map((assistant) => [assistant.id, assistant]))
+    const ordered = displayedAssistants.filter((assistant) => assistant.id === null)
+    ordered.push(
+      ...optimisticAssistantOrderIds.flatMap((assistantId) => {
+        const assistant = assistantById.get(assistantId)
+        return assistant ? [assistant] : []
+      })
+    )
     const optimisticIds = new Set(optimisticAssistantOrderIds)
 
-    for (const assistant of assistants) {
-      if (!optimisticIds.has(assistant.id)) {
+    for (const assistant of displayedAssistants) {
+      if (assistant.id !== null && !optimisticIds.has(assistant.id)) {
         ordered.push(assistant)
       }
     }
 
     return ordered
-  }, [assistants, optimisticAssistantOrderIds])
+  }, [displayedAssistants, optimisticAssistantOrderIds])
   const assistantById = useMemo(
     () => new Map(orderedAssistants.map((assistant) => [assistant.id, assistant])),
     [orderedAssistants]
@@ -749,24 +759,25 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
 
   const getGroupHeaderAction = useCallback(
     (group: { id: string }) => {
-      let assistantGroupId: string | undefined
+      let assistantGroupId: string | null | undefined
 
       if (group.id === TOPIC_PINNED_GROUP_ID) return null
       if (displayMode === 'time') return null
 
       const assistantId = getAssistantIdFromTopicGroupId(group.id)
-      if (assistantId && assistantById.has(assistantId)) {
+      if (assistantId !== undefined && assistantById.has(assistantId)) {
         assistantGroupId = assistantId
       }
 
-      if (!assistantGroupId) return null
+      if (assistantGroupId === undefined) return null
 
       const payload = getCreateTopicPayloadForGroup(group.id)
-      if (!payload && !assistantGroupId) return null
+      if (!payload && assistantGroupId === undefined) return null
+      const isRuntimeDefaultGroup = assistantGroupId === null
 
       return (
         <>
-          {assistantGroupId && (
+          {assistantGroupId !== null && !isRuntimeDefaultGroup && (
             <Tooltip title={t('common.more')} delay={500}>
               <AssistantGroupMoreMenu
                 assistantId={assistantGroupId}
@@ -818,7 +829,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
       if (displayMode !== 'assistant') return null
 
       const assistantId = getAssistantIdFromTopicGroupId(group.id)
-      if (!assistantId || !assistantById.has(assistantId)) return null
+      if (assistantId === undefined || assistantId === null || !assistantById.has(assistantId)) return null
 
       const actionContext: AssistantGroupActionContext = {
         assistantId,
@@ -857,7 +868,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
       if (group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) return null
 
       const assistantId = getAssistantIdFromTopicGroupId(group.id)
-      const assistant = assistantId ? assistantById.get(assistantId) : undefined
+      const assistant = assistantId !== undefined ? assistantById.get(assistantId) : undefined
       if (!assistant) return undefined
 
       return assistant.emoji ? (
@@ -902,7 +913,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
       if (!isAssistantDisplayMode) return false
 
       const assistantId = getAssistantIdFromTopicGroupId(group.id)
-      return !!assistantId && assistantById.has(assistantId)
+      return assistantId !== undefined && assistantId !== null && assistantById.has(assistantId)
     },
     [assistantById, isAssistantDisplayMode]
   )
@@ -950,7 +961,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
           return
         }
 
-        const assistantIds = orderedAssistants.map((assistant) => assistant.id)
+        const assistantIds = orderedAssistants.flatMap((assistant) => (assistant.id === null ? [] : [assistant.id]))
         const nextAssistantIds = moveAssistantGroupAfterDrop(assistantIds, activeAssistantId, overAssistantId, payload)
         const anchor = buildAssistantGroupDropAnchor(payload, overAssistantId)
 

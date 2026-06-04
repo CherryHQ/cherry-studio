@@ -30,6 +30,7 @@ export const CreateTopicSchema = TopicSchema.pick({
 })
   .partial()
   .extend({
+    assistantId: z.string().nullable().optional(),
     /** Source node ID for fork operation. */
     sourceNodeId: z.string().optional()
   })

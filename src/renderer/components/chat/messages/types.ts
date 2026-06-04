@@ -194,7 +194,7 @@ export interface RemoveMessageErrorPartInput {
 export interface MessageListItem {
   id: string
   role: CherryUIMessage['role']
-  assistantId?: string
+  assistantId?: string | null
   topicId: string
   parentId?: string | null
   createdAt: string
@@ -271,7 +271,7 @@ export interface MessageListState {
   overscan: number
   loadOlderDelayMs: number
   loadingResetDelayMs: number
-  listKey?: string
+  listKey?: string | null
   readonly?: boolean
   renderConfig: MessageRenderConfig
   editorConfig?: MessageEditorConfig

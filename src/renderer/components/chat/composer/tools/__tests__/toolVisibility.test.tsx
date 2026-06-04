@@ -73,8 +73,11 @@ describe('composer tool visibility', () => {
     )
   })
 
-  it('shows MCP status in chat and agent session scopes only', async () => {
+  it('hides persisted-assistant tools for the runtime default assistant in chat scope', async () => {
     await import('../definitions/mcpStatusTool')
+    await import('../definitions/webSearchTool')
+    await import('../definitions/thinkingTool')
+    await import('../definitions/knowledgeBaseTool')
 
     const model = {
       id: 'text-only',
@@ -82,7 +85,25 @@ describe('composer tool visibility', () => {
       name: 'Text only'
     } as any
 
-    expect(getToolsForScope(TopicType.Chat, { model }).map((tool) => tool.key)).toContain('mcp_status')
+    const chatDefaultTools = getToolsForScope(TopicType.Chat, {
+      assistant: {
+        id: null,
+        settings: {},
+        mcpServerIds: [],
+        knowledgeBaseIds: []
+      } as any,
+      model
+    }).map((tool) => tool.key)
+
+    expect(chatDefaultTools).not.toContain('mcp_status')
+    expect(chatDefaultTools).not.toContain('web_search')
+    expect(chatDefaultTools).not.toContain('thinking')
+    expect(chatDefaultTools).not.toContain('knowledge_base')
+    expect(
+      getToolsForScope(TopicType.Chat, { assistant: { id: 'assistant-1', settings: {} } as any, model }).map(
+        (tool) => tool.key
+      )
+    ).toContain('mcp_status')
     expect(getToolsForScope(TopicType.Session, { model }).map((tool) => tool.key)).toContain('mcp_status')
     expect(getToolsForScope('quick-assistant', { model }).map((tool) => tool.key)).not.toContain('mcp_status')
   })

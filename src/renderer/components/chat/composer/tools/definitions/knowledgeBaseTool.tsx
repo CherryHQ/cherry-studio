@@ -53,6 +53,7 @@ const knowledgeBaseTool = defineTool({
   key: 'knowledge_base',
   label: (t) => t('chat.input.knowledge_base'),
   visibleInScopes: [TopicType.Chat],
+  requiresPersistedAssistant: true,
 
   dependencies: {
     state: ['selectedKnowledgeBases', 'files'] as const,

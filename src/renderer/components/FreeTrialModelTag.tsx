@@ -1,6 +1,7 @@
 import { getProviderLabel } from '@renderer/i18n/label'
 import NavigationService from '@renderer/services/NavigationService'
 import type { Model } from '@renderer/types'
+import { resolveFreeTrialLinkedProviderId } from '@shared/utils/freeTrialModel'
 import { ArrowUpRight } from 'lucide-react'
 import type { FC, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -16,19 +17,8 @@ interface Props {
 export const FreeTrialModelTag: FC<Props> = ({ model, showLabel = true }) => {
   const { t } = useTranslation()
 
-  if (model.provider !== 'cherryai') {
-    return null
-  }
-
-  let providerId
-
-  if (model.id === 'Qwen/Qwen3-8B') {
-    providerId = 'cherryin'
-  }
-
-  if (model.id === 'Qwen/Qwen3-Next-80B-A3B-Instruct') {
-    providerId = 'cherryin'
-  }
+  const providerId = resolveFreeTrialLinkedProviderId({ providerId: model.provider, modelId: model.id })
+  if (!providerId) return null
 
   const onSelectProvider = () => {
     void NavigationService.navigate!({ to: `/settings/provider`, search: { id: providerId } })

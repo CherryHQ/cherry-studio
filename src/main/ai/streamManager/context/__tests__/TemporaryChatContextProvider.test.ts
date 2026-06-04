@@ -121,8 +121,8 @@ describe('TemporaryChatContextProvider', () => {
     expect(prepared.models[0].request.assistantId).toBeUndefined()
   })
 
-  it('uses the default model preference when topic.assistantId is undefined', async () => {
-    getTopicMock.mockReturnValueOnce({ id: '1', assistantId: undefined })
+  it('uses the default model preference when topic.assistantId is null', async () => {
+    getTopicMock.mockReturnValueOnce({ id: '1', assistantId: null })
 
     const prepared = await provider.prepareDispatch(makeSubscriber(), openReq())
 
@@ -132,7 +132,7 @@ describe('TemporaryChatContextProvider', () => {
   })
 
   it('honours a single mentionedModelId — pins that model instead of the default preference', async () => {
-    getTopicMock.mockReturnValueOnce({ id: '1', assistantId: undefined })
+    getTopicMock.mockReturnValueOnce({ id: '1', assistantId: null })
     getByKeyMock.mockReset()
     getByKeyMock.mockImplementation(async (providerId: string, modelId: string) => ({
       id: `${providerId}::${modelId}`,
@@ -151,7 +151,7 @@ describe('TemporaryChatContextProvider', () => {
   })
 
   it('warns and uses only the first when multiple mentionedModelIds are supplied (single-execution constraint)', async () => {
-    getTopicMock.mockReturnValueOnce({ id: '1', assistantId: undefined })
+    getTopicMock.mockReturnValueOnce({ id: '1', assistantId: null })
     getByKeyMock.mockReset()
     getByKeyMock.mockImplementation(async (providerId: string, modelId: string) => ({
       id: `${providerId}::${modelId}`,

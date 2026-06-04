@@ -70,9 +70,6 @@ export const AssistantSettingsSchema = z.object({
 })
 export type AssistantSettings = z.infer<typeof AssistantSettingsSchema>
 
-/** Renderer-side sentinel for "default assistant" routing in runtime */
-export const DEFAULT_ASSISTANT_ID = 'default' as const
-
 /** Source marker for assistants created by users instead of bundled presets. */
 export const ASSISTANT_SOURCE_USER = 'user' as const
 

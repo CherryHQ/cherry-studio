@@ -38,9 +38,7 @@ function rowToTopic(row: TopicRow): Topic {
     id: row.id,
     name: row.name,
     isNameManuallyEdited: row.isNameManuallyEdited,
-    // DB NULL ↔ domain `undefined` boundary — the domain shape uses
-    // optional fields rather than `T | null`, per data-api-in-main.md.
-    assistantId: row.assistantId ?? undefined,
+    assistantId: row.assistantId,
     activeNodeId: row.activeNodeId ?? undefined,
     groupId: row.groupId ?? undefined,
     orderKey: row.orderKey,
@@ -144,7 +142,7 @@ export class TopicService {
         topicTable,
         {
           name: dto.name,
-          assistantId: dto.assistantId,
+          assistantId: dto.assistantId ?? null,
           groupId: dto.groupId ?? null,
           activeNodeId: dto.sourceNodeId ?? null
         },
@@ -290,7 +288,7 @@ export class TopicService {
       const updates: Partial<typeof topicTable.$inferInsert> = {}
       if (dto.name !== undefined) updates.name = dto.name
       if (dto.isNameManuallyEdited !== undefined) updates.isNameManuallyEdited = dto.isNameManuallyEdited
-      if (dto.assistantId !== undefined) updates.assistantId = dto.assistantId
+      if (dto.assistantId !== undefined) updates.assistantId = dto.assistantId ?? null
       if (dto.groupId !== undefined) updates.groupId = dto.groupId
 
       const [row] = await tx.update(topicTable).set(updates).where(eq(topicTable.id, id)).returning()

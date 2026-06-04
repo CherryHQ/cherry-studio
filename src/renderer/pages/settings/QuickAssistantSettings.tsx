@@ -17,7 +17,8 @@ import {
 import { usePreference } from '@data/hooks/usePreference'
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { useAssistants, useDefaultAssistant } from '@renderer/hooks/useAssistant'
+import { normalizeAssistantId } from '@renderer/domain/assistant/runtimeDefaultAssistant'
+import { useAssistants } from '@renderer/hooks/useAssistant'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import type { Assistant } from '@renderer/types'
 import { cn } from '@renderer/utils/style'
@@ -45,20 +46,12 @@ const QuickAssistantSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const { assistants } = useAssistants()
-  const { assistant: _defaultAssistant } = useDefaultAssistant()
   const { defaultModel } = useDefaultModel()
   const [assistantSelectOpen, setAssistantSelectOpen] = useState(false)
 
-  // Take the "default assistant" from the assistant list first.
-  const defaultAssistant = useMemo(
-    () => assistants.find((a) => a.id === _defaultAssistant.id) || _defaultAssistant,
-    [assistants, _defaultAssistant]
-  )
-  const assistantOptions = useMemo(
-    () => [defaultAssistant, ...assistants.filter((assistant) => assistant.id !== defaultAssistant.id)],
-    [assistants, defaultAssistant]
-  )
-  const selectedAssistant = assistantOptions.find((assistant) => assistant.id === quickAssistantId) || defaultAssistant
+  const quickAssistantPersistedId = normalizeAssistantId(quickAssistantId)
+  const assistantOptions = useMemo(() => assistants, [assistants])
+  const selectedAssistant = assistantOptions.find((assistant) => assistant.id === quickAssistantPersistedId) ?? null
   const handleAssistantSelect = (assistantId: string) => {
     void setQuickAssistantId(assistantId)
   }
@@ -139,7 +132,7 @@ const QuickAssistantSettings: FC = () => {
               <Spacer />
             </RowFlex>
             <RowFlex className="items-center gap-2.5">
-              {!quickAssistantId ? null : (
+              {!quickAssistantPersistedId || !selectedAssistant ? null : (
                 <RowFlex className="items-center">
                   <Popover open={assistantSelectOpen} onOpenChange={setAssistantSelectOpen}>
                     <PopoverTrigger asChild>
@@ -147,11 +140,7 @@ const QuickAssistantSettings: FC = () => {
                         variant="outline"
                         className="h-[34px] w-[300px] justify-between px-2 shadow-none"
                         aria-expanded={assistantSelectOpen}>
-                        <AssistantOption
-                          assistant={selectedAssistant}
-                          defaultAssistantId={defaultAssistant.id}
-                          defaultModel={defaultModel}
-                        />
+                        <AssistantOption assistant={selectedAssistant} defaultModel={defaultModel} />
                         <ChevronDown size={16} className="shrink-0 opacity-50" />
                       </Button>
                     </PopoverTrigger>
@@ -175,12 +164,8 @@ const QuickAssistantSettings: FC = () => {
                                 onSelect={() => {
                                   handleAssistantSelect(assistant.id)
                                 }}>
-                                <AssistantOption
-                                  assistant={assistant}
-                                  defaultAssistantId={defaultAssistant.id}
-                                  defaultModel={defaultModel}
-                                />
-                                {assistant.id === quickAssistantId && (
+                                <AssistantOption assistant={assistant} defaultModel={defaultModel} />
+                                {assistant.id === quickAssistantPersistedId && (
                                   <Check size={14} className="ml-auto text-primary" />
                                 )}
                               </CommandItem>
@@ -195,16 +180,17 @@ const QuickAssistantSettings: FC = () => {
               <ButtonGroup>
                 <Button
                   className="min-w-20"
-                  variant={quickAssistantId ? 'default' : 'outline'}
+                  variant={quickAssistantPersistedId ? 'default' : 'outline'}
+                  disabled={assistantOptions.length === 0}
                   onClick={() => {
-                    void setQuickAssistantId(defaultAssistant.id)
+                    void setQuickAssistantId(selectedAssistant?.id ?? assistantOptions[0]?.id ?? null)
                   }}>
                   {t('settings.models.use_assistant')}
                 </Button>
                 <Button
                   className="min-w-20"
-                  variant={!quickAssistantId ? 'default' : 'outline'}
-                  onClick={() => void setQuickAssistantId('')}>
+                  variant={!quickAssistantPersistedId ? 'default' : 'outline'}
+                  onClick={() => void setQuickAssistantId(null)}>
                   {t('settings.models.use_model')}
                 </Button>
               </ButtonGroup>
@@ -221,24 +207,12 @@ const QuickAssistantSettings: FC = () => {
   )
 }
 
-const AssistantOption = ({
-  assistant,
-  defaultAssistantId,
-  defaultModel
-}: {
-  assistant: Assistant
-  defaultAssistantId: string
-  defaultModel: Model | undefined
-}) => {
-  const { t } = useTranslation()
-  const isDefault = assistant.id === defaultAssistantId
-
+const AssistantOption = ({ assistant, defaultModel }: { assistant: Assistant; defaultModel: Model | undefined }) => {
   return (
     <AssistantItem>
       <ModelAvatar model={defaultModel} size={18} />
       <AssistantName>{assistant.name}</AssistantName>
       <Spacer />
-      {isDefault && <DefaultTag isCurrent={true}>{t('settings.models.quick_assistant_default_tag')}</DefaultTag>}
     </AssistantItem>
   )
 }
@@ -253,17 +227,6 @@ const AssistantName = ({ className, ...props }: React.ComponentPropsWithoutRef<'
 
 const Spacer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div className={cn('flex-1', className)} {...props} />
-)
-
-const DefaultTag = ({
-  className,
-  isCurrent,
-  ...props
-}: React.ComponentPropsWithoutRef<'span'> & { isCurrent: boolean }) => (
-  <span
-    className={cn('rounded px-1 py-0.5 text-xs', isCurrent ? 'text-primary' : 'text-foreground-muted', className)}
-    {...props}
-  />
 )
 
 export default QuickAssistantSettings

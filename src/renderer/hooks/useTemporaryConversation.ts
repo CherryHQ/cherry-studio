@@ -75,7 +75,7 @@ export function useTemporaryConversation(options: UseTemporaryConversationOption
 
       if (merged.type === 'assistant') {
         const topic = await dataApiService.post('/temporary/topics', {
-          body: merged.assistantId ? { assistantId: merged.assistantId } : {}
+          body: merged.assistantId !== undefined ? { assistantId: merged.assistantId } : {}
         })
         next = {
           type: 'assistant',
@@ -159,7 +159,7 @@ export function useTemporaryConversation(options: UseTemporaryConversationOption
     const topic = await dataApiService.patch(`/temporary/topics/${current.id}`, { body: { assistantId } })
     const next: TemporaryConversation = {
       ...current,
-      assistantId: topic.assistantId,
+      assistantId,
       topic
     }
     activeRef.current = next

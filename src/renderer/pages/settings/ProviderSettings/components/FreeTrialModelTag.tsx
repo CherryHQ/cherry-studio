@@ -2,6 +2,7 @@ import IndicatorLight from '@renderer/components/IndicatorLight'
 import CustomTag from '@renderer/components/Tags/CustomTag'
 import { getProviderLabel } from '@renderer/i18n/label'
 import NavigationService from '@renderer/services/NavigationService'
+import { resolveFreeTrialLinkedProviderId } from '@shared/utils/freeTrialModel'
 import { ArrowUpRight } from 'lucide-react'
 import type { FC, MouseEvent } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -15,13 +16,7 @@ interface Props {
 export const FreeTrialModelTag: FC<Props> = ({ modelId, providerId, showLabel = true }) => {
   const { t } = useTranslation()
 
-  if (providerId !== 'cherryai') {
-    return null
-  }
-
-  const rawId = modelId.includes('::') ? modelId.slice(modelId.indexOf('::') + 2) : modelId
-  const cherryInModels = ['Qwen/Qwen3-8B', 'Qwen/Qwen3-Next-80B-A3B-Instruct']
-  const linkedProviderId = cherryInModels.includes(rawId) ? 'cherryin' : ''
+  const linkedProviderId = resolveFreeTrialLinkedProviderId({ providerId, modelId })
   if (!linkedProviderId) return null
 
   const onSelectProvider = () => {
