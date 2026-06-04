@@ -254,6 +254,8 @@ export type CodeCliOverride = {
   terminal?: string
   currentDirectory?: string
   directories?: string[]
+  pinned?: boolean
+  order?: number
 }
 
 export type CodeCliOverrides = Partial<Record<CodeCliId, CodeCliOverride>>

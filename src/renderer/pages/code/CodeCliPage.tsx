@@ -79,13 +79,16 @@ const CodeCliPage: FC = () => {
     directories,
     currentDirectory,
     canLaunch,
+    overrides,
     setCliTool,
     setModel,
     setTerminal,
     setEnvVars,
     setCurrentDir,
     removeDir,
-    selectFolder
+    selectFolder,
+    togglePin,
+    reorderTools
   } = useCodeCli()
   const { setTimeoutTimer } = useTimer()
 
@@ -454,6 +457,9 @@ const CodeCliPage: FC = () => {
           activeToolValue={activeToolValue}
           handleSelectTool={handleSelectTool}
           toMeta={toMeta}
+          overrides={overrides}
+          onTogglePin={(id) => void togglePin(id)}
+          onReorder={(ids) => void reorderTools(ids)}
         />
 
         {activeMeta && (

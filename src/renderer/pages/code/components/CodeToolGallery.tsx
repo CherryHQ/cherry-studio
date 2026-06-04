@@ -1,4 +1,7 @@
-import { Alert, Button } from '@cherrystudio/ui'
+import { Alert, Button, Sortable } from '@cherrystudio/ui'
+import type { CodeCliOverrides } from '@shared/data/preference/preferenceTypes'
+import { GripVertical } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { CLI_TOOLS } from '..'
@@ -16,6 +19,32 @@ export interface CodeToolGalleryProps {
   activeToolValue: CliToolItem['value'] | undefined
   handleSelectTool: (value: CliToolItem['value']) => void
   toMeta: (tool: CliToolItem) => CodeToolMeta
+  overrides: CodeCliOverrides
+  onTogglePin: (toolId: CliToolItem['value']) => void
+  onReorder: (orderedIds: CliToolItem['value'][]) => void
+}
+
+interface GalleryItem {
+  id: CliToolItem['value']
+  tool: CliToolItem
+  meta: CodeToolMeta
+  description: string
+}
+
+function getSortedTools(tools: readonly CliToolItem[], overrides: CodeCliOverrides): CliToolItem[] {
+  const sorted = [...tools]
+  sorted.sort((a, b) => {
+    const aPinned = overrides[a.value]?.pinned ? 1 : 0
+    const bPinned = overrides[b.value]?.pinned ? 1 : 0
+    if (aPinned !== bPinned) return bPinned - aPinned
+    const aOrder = overrides[a.value]?.order
+    const bOrder = overrides[b.value]?.order
+    if (aOrder != null && bOrder != null) return aOrder - bOrder
+    if (aOrder != null) return -1
+    if (bOrder != null) return 1
+    return 0
+  })
+  return sorted
 }
 
 export function CodeToolGallery({
@@ -25,9 +54,37 @@ export function CodeToolGallery({
   handleInstallBun,
   activeToolValue,
   handleSelectTool,
-  toMeta
+  toMeta,
+  overrides,
+  onTogglePin,
+  onReorder
 }: CodeToolGalleryProps) {
   const { t } = useTranslation()
+
+  const [localOrder, setLocalOrder] = useState<CliToolItem['value'][] | null>(null)
+
+  useEffect(() => {
+    setLocalOrder(null)
+  }, [overrides])
+
+  const sortedTools = localOrder
+    ? localOrder.map((id) => tools.find((t) => t.value === id)).filter((t): t is CliToolItem => t != null)
+    : getSortedTools(tools, overrides)
+
+  const galleryItems: GalleryItem[] = sortedTools.map((tool) => {
+    const meta = toMeta(tool)
+    const descriptionKey = `code.tool_description.${meta.id.replace(/-/g, '_')}`
+    return { id: tool.value, tool, meta, description: t(descriptionKey, { defaultValue: '' }) }
+  })
+
+  const handleSortEnd = ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
+    const reordered = [...sortedTools]
+    const [removed] = reordered.splice(oldIndex, 1)
+    reordered.splice(newIndex, 0, removed)
+    const newOrder = reordered.map((t) => t.value)
+    setLocalOrder(newOrder)
+    onReorder(newOrder)
+  }
 
   return (
     <div className="relative flex-1 overflow-y-auto bg-background [&::-webkit-scrollbar]:hidden">
@@ -55,24 +112,35 @@ export function CodeToolGallery({
             <h1 className="font-semibold text-2xl text-foreground tracking-tight">{t('code.hero_tagline')}</h1>
           </div>
 
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-            {tools.map((tool) => {
-              const meta = toMeta(tool)
-              if (!meta.icon) return null
-              const descriptionKey = `code.tool_description.${meta.id.replace(/-/g, '_')}`
-              const description = t(descriptionKey, { defaultValue: '' })
+          <Sortable<GalleryItem>
+            items={galleryItems}
+            itemKey="id"
+            onSortEnd={handleSortEnd}
+            layout="grid"
+            useDragOverlay={true}
+            showGhost={false}
+            gap="1.25rem"
+            className="grid-cols-1! sm:grid-cols-2! md:grid-cols-3! lg:grid-cols-4!"
+            renderItem={(item) => {
+              const isPinned = !!overrides[item.id]?.pinned
               return (
-                <CodeToolCard
-                  key={tool.value}
-                  icon={meta.icon}
-                  title={meta.label}
-                  subtitle={description || undefined}
-                  selected={activeToolValue === tool.value}
-                  onClick={() => handleSelectTool(tool.value)}
-                />
+                <div className="group relative">
+                  <div className="absolute top-2 left-2 z-10 cursor-grab rounded-md p-0.5 opacity-0 transition-opacity group-hover:opacity-40 hover:!opacity-100 active:cursor-grabbing">
+                    <GripVertical size={14} />
+                  </div>
+                  <CodeToolCard
+                    icon={item.meta.icon!}
+                    title={item.meta.label}
+                    subtitle={item.description || undefined}
+                    selected={activeToolValue === item.id}
+                    pinned={isPinned}
+                    onClick={() => handleSelectTool(item.id)}
+                    onTogglePin={() => onTogglePin(item.id)}
+                  />
+                </div>
               )
-            })}
-          </div>
+            }}
+          />
         </div>
       </div>
     </div>

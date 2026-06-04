@@ -18,7 +18,9 @@ function getEffectiveToolConfig(toolId: CodeCliId, overrides: CodeCliOverrides):
     envVars: override.envVars ?? preset.envVars,
     terminal: override.terminal ?? preset.terminal,
     currentDirectory: override.currentDirectory ?? preset.currentDirectory,
-    directories: override.directories ?? [...preset.directories]
+    directories: override.directories ?? [...preset.directories],
+    pinned: override.pinned ?? false,
+    order: override.order ?? 0
   }
 }
 
@@ -157,6 +159,31 @@ export const useCodeCli = () => {
     }
   }, [setCurrentDir])
 
+  const togglePin = useCallback(
+    async (toolId: CodeCliId) => {
+      const existing = overrides[toolId] ?? {}
+      const newPinned = !existing.pinned
+      await setOverrides({
+        ...overrides,
+        [toolId]: { ...existing, pinned: newPinned }
+      })
+    },
+    [overrides, setOverrides]
+  )
+
+  const reorderTools = useCallback(
+    async (orderedIds: CodeCliId[]) => {
+      const newOverrides = { ...overrides }
+      for (let i = 0; i < orderedIds.length; i++) {
+        const id = orderedIds[i]
+        const existing = newOverrides[id] ?? {}
+        newOverrides[id] = { ...existing, order: i }
+      }
+      await setOverrides(newOverrides)
+    },
+    [overrides, setOverrides]
+  )
+
   return {
     selectedCliTool,
     selectedModel,
@@ -165,6 +192,7 @@ export const useCodeCli = () => {
     directories,
     currentDirectory,
     canLaunch,
+    overrides,
     setCliTool,
     setModel,
     setTerminal,
@@ -173,6 +201,8 @@ export const useCodeCli = () => {
     removeDir,
     clearDirs,
     resetSettings,
-    selectFolder
+    selectFolder,
+    togglePin,
+    reorderTools
   }
 }
