@@ -1,11 +1,11 @@
-import type { MCPServer } from '@shared/data/types/mcpServer'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import { describe, expect, it } from 'vitest'
 
 import { isSameMcpServerCandidate, toCreateMcpServerDto, toUpdateMcpServerDto } from '../utils'
 
 describe('McpSettings utils', () => {
   it('matches provider candidates without using their transient id', () => {
-    const existing: MCPServer = {
+    const existing: McpServer = {
       id: '550e8400-e29b-41d4-a716-446655440000',
       name: 'Fetch',
       type: 'streamableHttp',
@@ -15,7 +15,7 @@ describe('McpSettings utils', () => {
       isActive: true
     }
 
-    const candidate: MCPServer = {
+    const candidate: McpServer = {
       ...existing,
       id: '@modelscope/fetch'
     }
@@ -24,7 +24,7 @@ describe('McpSettings utils', () => {
   })
 
   it('matches url candidates by baseUrl when provider is absent', () => {
-    const existing: MCPServer = {
+    const existing: McpServer = {
       id: '550e8400-e29b-41d4-a716-446655440000',
       name: 'Fetch',
       type: 'streamableHttp',
@@ -32,7 +32,7 @@ describe('McpSettings utils', () => {
       isActive: true
     }
 
-    const candidate: MCPServer = {
+    const candidate: McpServer = {
       ...existing,
       id: '@302ai/fetch',
       provider: undefined

@@ -1,4 +1,4 @@
-import type { MCPServer, MCPTool } from '@renderer/types'
+import type { McpServer, McpTool } from '@renderer/types'
 import { describe, expect, it, vi } from 'vitest'
 
 // Mock all transitive dependencies that cause initialization errors
@@ -11,8 +11,8 @@ vi.mock('@renderer/store', () => ({
 }))
 
 vi.mock('@renderer/store/mcp', () => ({
-  hubMCPServer: { id: 'hub', name: 'MCP Hub', type: 'inMemory', isActive: true },
-  addMCPServer: vi.fn()
+  hubMcpServer: { id: 'hub', name: 'MCP Hub', type: 'inMemory', isActive: true },
+  addMcpServer: vi.fn()
 }))
 
 vi.mock('@renderer/store/assistants', () => ({
@@ -40,7 +40,7 @@ vi.mock('@renderer/config/models', () => ({
 
 import { isToolAutoApproved } from '../mcpTools'
 
-function makeTool(overrides: Partial<MCPTool> = {}): MCPTool {
+function makeTool(overrides: Partial<McpTool> = {}): McpTool {
   return {
     id: 'server1__tool1',
     name: 'tool1',
@@ -53,7 +53,7 @@ function makeTool(overrides: Partial<MCPTool> = {}): MCPTool {
   }
 }
 
-function makeServer(overrides: Partial<MCPServer> = {}): MCPServer {
+function makeServer(overrides: Partial<McpServer> = {}): McpServer {
   return {
     id: 'server1',
     name: 'Server 1',
@@ -61,7 +61,7 @@ function makeServer(overrides: Partial<MCPServer> = {}): MCPServer {
     isActive: true,
     command: 'test',
     ...overrides
-  } as MCPServer
+  } as McpServer
 }
 
 describe('isToolAutoApproved', () => {

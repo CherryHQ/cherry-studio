@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
-import type { MCPServer } from '@renderer/types'
+import type { McpServer } from '@renderer/types'
 import i18next from 'i18next'
 
 const logger = loggerService.withContext('TokenFluxSyncUtils')
@@ -44,7 +44,7 @@ interface TokenFluxServer {
 interface TokenFluxSyncResult {
   success: boolean
   message: string
-  allServers: MCPServer[]
+  allServers: McpServer[]
   errorDetails?: string
 }
 
@@ -94,7 +94,7 @@ export const syncTokenFluxServers = async (token: string): Promise<TokenFluxSync
     }
 
     // Transform TokenFlux servers to MCP servers format
-    const allServers: MCPServer[] = []
+    const allServers: McpServer[] = []
     logger.debug('TokenFlux servers:', servers)
     for (const server of servers) {
       try {
@@ -106,7 +106,7 @@ export const syncTokenFluxServers = async (token: string): Promise<TokenFluxSync
           }
         }
 
-        const mcpServer: MCPServer = {
+        const mcpServer: McpServer = {
           id: `@tokenflux/${server.name}`,
           name: server.display_name || server.name || `TokenFlux Server ${nanoid()}`,
           description: server.description || '',

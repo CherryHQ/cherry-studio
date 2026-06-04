@@ -1,16 +1,16 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
-import type { MCPServer } from '@shared/data/types/mcpServer'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import { IpcChannel } from '@shared/IpcChannel'
 
 const logger = loggerService.withContext('ProtocolService:mcpInstall')
 
-function installMCPServer(server: MCPServer) {
+function installMcpServer(server: McpServer) {
   const mainWindow = application.get('MainWindowService').getMainWindow()
   const now = Date.now()
 
-  const payload: MCPServer = {
+  const payload: McpServer = {
     ...server,
     id: server.id ?? nanoid(),
     installSource: 'protocol',
@@ -25,13 +25,13 @@ function installMCPServer(server: MCPServer) {
   }
 }
 
-function installMCPServers(servers: Record<string, MCPServer>) {
+function installMcpServers(servers: Record<string, McpServer>) {
   for (const name in servers) {
     const server = servers[name]
     if (!server.name) {
       server.name = name
     }
-    installMCPServer(server)
+    installMcpServer(server)
   }
 }
 
@@ -63,13 +63,13 @@ export function handleMcpProtocolUrl(url: URL) {
 
         // support both {mcpServers: [servers]}, [servers] and {server}
         if (jsonConfig.mcpServers) {
-          installMCPServers(jsonConfig.mcpServers)
+          installMcpServers(jsonConfig.mcpServers)
         } else if (Array.isArray(jsonConfig)) {
           for (const server of jsonConfig) {
-            installMCPServer(server)
+            installMcpServer(server)
           }
         } else {
-          installMCPServer(jsonConfig)
+          installMcpServer(jsonConfig)
         }
       }
 
