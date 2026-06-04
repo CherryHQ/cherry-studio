@@ -210,6 +210,7 @@ export enum IpcChannel {
   File_GetPdfInfo = 'file:getPdfInfo',
   Fs_Read = 'fs:read',
   Fs_ReadText = 'fs:readText',
+  Word_ReadPreview = 'word:readPreview',
   File_OpenWithRelativePath = 'file:openWithRelativePath',
   File_IsTextFile = 'file:isTextFile',
   File_IsDirectory = 'file:isDirectory',
@@ -237,6 +238,9 @@ export enum IpcChannel {
 
   // PDF
   Pdf_ExtractText = 'pdf:extractText',
+
+  // Excel
+  Excel_ReadWorkbookPreview = 'excel:readWorkbookPreview',
 
   Export_Word = 'export:word',
 
