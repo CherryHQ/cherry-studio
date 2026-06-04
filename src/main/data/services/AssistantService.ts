@@ -19,7 +19,7 @@ import type { CreateAssistantDto, ListAssistantsQuery, UpdateAssistantDto } from
 import { type Assistant, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { Tag } from '@shared/data/types/tag'
-import { and, asc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 
 import { modelService } from './ModelService'
 import { pinService } from './PinService'
@@ -32,6 +32,11 @@ const logger = loggerService.withContext('DataApi:AssistantService')
 type AssistantRow = typeof assistantTable.$inferSelect
 
 type AssistantRelationIds = Pick<Assistant, 'mcpServerIds' | 'knowledgeBaseIds'>
+type ListAssistantsServiceQuery = ListAssistantsQuery & {
+  updatedAtFrom?: number
+  sortBy?: 'updatedAt'
+  orderBy?: 'asc' | 'desc'
+}
 type AssistantRowWithModelName = {
   assistant: AssistantRow
   modelName: string | null
@@ -212,7 +217,7 @@ export class AssistantDataService {
    *
    * `page` and `limit` are filled by the schema default — no runtime fallback.
    */
-  async list(query: ListAssistantsQuery): Promise<{ items: Assistant[]; total: number; page: number }> {
+  async list(query: ListAssistantsServiceQuery): Promise<{ items: Assistant[]; total: number; page: number }> {
     const { page, limit } = query
     const offset = (page - 1) * limit
 
@@ -232,8 +237,24 @@ export class AssistantDataService {
       const assistantIds = await tagService.getEntityIdsByTagsTx(this.db, 'assistant', query.tagIds)
       conditions.push(assistantIds.length > 0 ? inArray(assistantTable.id, assistantIds) : sql`0 = 1`)
     }
+    if (query.updatedAtFrom !== undefined) {
+      conditions.push(gte(assistantTable.updatedAt, query.updatedAtFrom))
+    }
 
     const whereClause = and(...conditions)
+    const orderFn = query.orderBy === 'asc' ? asc : desc
+    const orderByClauses =
+      query.sortBy === 'updatedAt'
+        ? [orderFn(assistantTable.updatedAt), asc(assistantTable.id)]
+        : [
+            sql`CASE WHEN ${pinTable.orderKey} IS NULL THEN 1 ELSE 0 END`,
+            asc(pinTable.orderKey),
+            asc(assistantTable.orderKey),
+            // Production orderKeys are unique so this tiebreaker is rarely hit;
+            // tests that seed multiple rows with the same default key fall back
+            // to insertion-ordered createdAt instead of SQLite ROWID order.
+            asc(assistantTable.createdAt)
+          ]
 
     // Pin-aware ordering: LEFT JOIN with the pin table, push pinned rows to
     // the top (sorted by pin.orderKey ASC), then unpinned rows sorted by the
@@ -247,15 +268,7 @@ export class AssistantDataService {
         .leftJoin(userModelTable, eq(assistantTable.modelId, userModelTable.id))
         .leftJoin(pinTable, and(eq(pinTable.entityType, 'assistant'), eq(pinTable.entityId, assistantTable.id)))
         .where(whereClause)
-        .orderBy(
-          sql`CASE WHEN ${pinTable.orderKey} IS NULL THEN 1 ELSE 0 END`,
-          asc(pinTable.orderKey),
-          asc(assistantTable.orderKey),
-          // Production orderKeys are unique so this tiebreaker is rarely hit;
-          // tests that seed multiple rows with the same default key fall back
-          // to insertion-ordered createdAt instead of SQLite ROWID order.
-          asc(assistantTable.createdAt)
-        )
+        .orderBy(...orderByClauses)
         .limit(limit)
         .offset(offset),
       this.db.select({ count: sql<number>`count(*)` }).from(assistantTable).where(whereClause)

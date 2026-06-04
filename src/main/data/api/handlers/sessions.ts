@@ -15,6 +15,7 @@ import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/sc
 import {
   CreateSessionSchema,
   ListSessionsQuerySchema,
+  SearchSessionMessagesQuerySchema,
   SessionMessagesListQuerySchema,
   type SessionSchemas,
   UpdateSessionSchema
@@ -57,6 +58,14 @@ export const sessionHandlers: HandlersFor<SessionSchemas> = {
       const parsed = SessionMessagesListQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
       return await sessionMessageService.listSessionMessages(params.sessionId, parsed.data)
+    }
+  },
+
+  '/sessions/messages/search': {
+    GET: async ({ query }) => {
+      const parsed = SearchSessionMessagesQuerySchema.safeParse(query)
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return await sessionMessageService.search(parsed.data)
     }
   },
 

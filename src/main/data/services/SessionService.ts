@@ -17,7 +17,7 @@ import type {
   ListSessionsQuery,
   UpdateSessionDto
 } from '@shared/data/api/schemas/sessions'
-import { and, asc, desc, eq, gt, or, type SQL } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, gte, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
@@ -67,7 +67,43 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
   }
 }
 
+function buildSearchPredicate(search: string | undefined): SQL | undefined {
+  const trimmed = search?.trim()
+  if (!trimmed) return undefined
+
+  const pattern = `%${trimmed.replace(/[\\%_]/g, '\\$&')}%`
+  const nameMatch = sql`${sessionsTable.name} LIKE ${pattern} ESCAPE '\\'`
+  const descriptionMatch = sql`${sessionsTable.description} LIKE ${pattern} ESCAPE '\\'`
+
+  return or(nameMatch, descriptionMatch)
+}
+
 export class SessionService {
+  async listRecentSearchMatches(query: {
+    search: string
+    limit: number
+    updatedAtFrom?: number
+  }): Promise<AgentSessionEntity[]> {
+    const db = application.get('DbService').getDb()
+    const limit = Math.min(query.limit, MAX_LIMIT)
+    const filters: SQL[] = []
+    const search = buildSearchPredicate(query.search)
+    if (search) filters.push(search)
+    if (query.updatedAtFrom !== undefined) {
+      filters.push(gte(sessionsTable.updatedAt, query.updatedAtFrom))
+    }
+
+    const rows = await db
+      .select({ session: sessionsTable, workspace: workspaceTable })
+      .from(sessionsTable)
+      .leftJoin(workspaceTable, eq(sessionsTable.workspaceId, workspaceTable.id))
+      .where(filters.length > 0 ? and(...filters) : undefined)
+      .orderBy(desc(sessionsTable.updatedAt), asc(sessionsTable.id))
+      .limit(limit)
+
+    return rows.map(rowToSession)
+  }
+
   async createSession(dto: CreateSessionDto): Promise<AgentSessionEntity> {
     const dbService = application.get('DbService')
     const id = uuidv4()

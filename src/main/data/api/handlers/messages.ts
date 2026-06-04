@@ -15,12 +15,20 @@ import {
   DeleteMessageQuerySchema,
   type MessageSchemas,
   PathThroughQuerySchema,
+  SearchMessagesQuerySchema,
   TreeQuerySchema,
   UpdateMessageSchema
 } from '@shared/data/api/schemas/messages'
 import { MessageDataSchema } from '@shared/data/types/message'
 
 export const messageHandlers: HandlersFor<MessageSchemas> = {
+  '/messages/search': {
+    GET: async ({ query }) => {
+      const q = SearchMessagesQuerySchema.parse(query)
+      return await messageService.search(q)
+    }
+  },
+
   '/topics/:topicId/tree': {
     GET: async ({ params, query }) => {
       const q = TreeQuerySchema.parse(query ?? {})
