@@ -15,9 +15,9 @@ const SessionsTab: FC<SessionsTabProps> = () => {
   const { chat } = useRuntime()
   const { activeAgentId } = chat
   const { t } = useTranslation()
-  const { apiServer } = useSettings()
+  const { apiGateway } = useSettings()
 
-  if (!apiServer.enabled) {
+  if (!apiGateway.enabled) {
     return <Alert type="warning" message={t('agent.warning.enable_server')} style={{ margin: 10 }} />
   }
 

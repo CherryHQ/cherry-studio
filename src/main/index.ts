@@ -16,7 +16,7 @@ import process from 'node:process'
 
 import { registerIpc } from './ipc'
 import { agentService } from './services/agents'
-import { apiServerService } from './services/ApiServerService'
+import { apiGatewayService } from './services/ApiGatewayService'
 import { appMenuService } from './services/AppMenuService'
 import { configManager } from './services/ConfigManager'
 import { lanTransferClientService } from './services/lanTransfer'
@@ -178,7 +178,7 @@ if (!app.requestSingleInstanceLock()) {
     runAsyncFunction(async () => {
       // Start API server if enabled or if agents exist
       try {
-        const config = await apiServerService.getCurrentConfig()
+        const config = await apiGatewayService.getCurrentConfig()
         logger.info('API server config:', config)
 
         // Check if there are any agents
@@ -196,7 +196,7 @@ if (!app.requestSingleInstanceLock()) {
         }
 
         if (shouldStart) {
-          await apiServerService.start()
+          await apiGatewayService.start()
         }
       } catch (error: any) {
         logger.error('Failed to check/start API server:', error)
@@ -259,7 +259,7 @@ if (!app.requestSingleInstanceLock()) {
 
     try {
       await mcpService.cleanup()
-      await apiServerService.stop()
+      await apiGatewayService.stop()
     } catch (error) {
       logger.warn('Error cleaning up MCP service:', error as Error)
     }

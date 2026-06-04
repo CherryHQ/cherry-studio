@@ -317,7 +317,7 @@
       "enable_server": "Habilitar el servidor API para usar agentes."
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
       "copy": "Copiar",
       "regenerate": "Regenerar",
@@ -1297,6 +1297,7 @@
     "backup": {
       "file_format": "Formato de archivo de copia de seguridad incorrecto"
     },
+    "base64DataTruncated": "[to be translated]:Base64 image data truncated, size",
     "boundary": {
       "default": {
         "devtools": "Abrir el panel de depuración",
@@ -1377,6 +1378,8 @@
     "text": "Texto",
     "toolInput": "Herramienta de entrada",
     "toolName": "Nombre de la herramienta",
+    "truncated": "[to be translated]:Data truncated, original size",
+    "truncatedBadge": "[to be translated]:Truncated",
     "unknown": "Error desconocido",
     "usage": "Cantidad de uso",
     "user_message_not_found": "No se pudo encontrar el mensaje original del usuario",

@@ -317,7 +317,7 @@
       "enable_server": "请启用 API 服务器以使用智能体功能"
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
       "copy": "复制",
       "regenerate": "重新生成",

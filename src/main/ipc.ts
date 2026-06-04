@@ -38,7 +38,7 @@ import fontList from 'font-list'
 
 import { agentMessageRepository } from './services/agents/database'
 import { PluginService } from './services/agents/plugins/PluginService'
-import { apiServerService } from './services/ApiServerService'
+import { apiGatewayService } from './services/ApiGatewayService'
 import appService from './services/AppService'
 import AppUpdater from './services/AppUpdater'
 import BackupManager from './services/BackupManager'
@@ -943,7 +943,7 @@ export async function registerIpc(mainWindow: BrowserWindow, app: Electron.App) 
     }
   })
   // API Server
-  apiServerService.registerIpcHandlers()
+  apiGatewayService.registerIpcHandlers()
 
   // Anthropic OAuth
   ipcMain.handle(IpcChannel.Anthropic_StartOAuthFlow, () => anthropicService.startOAuthFlow())

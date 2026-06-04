@@ -317,7 +317,7 @@
       "enable_server": "Разрешить серверу API использовать агентов."
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
       "copy": "Копировать",
       "regenerate": "Перегенерировать",
@@ -1297,6 +1297,7 @@
     "backup": {
       "file_format": "Ошибка формата файла резервной копии"
     },
+    "base64DataTruncated": "[to be translated]:Base64 image data truncated, size",
     "boundary": {
       "default": {
         "devtools": "Открыть панель отладки",
@@ -1377,6 +1378,8 @@
     "text": "текст",
     "toolInput": "ввод инструмента",
     "toolName": "имя инструмента",
+    "truncated": "[to be translated]:Data truncated, original size",
+    "truncatedBadge": "[to be translated]:Truncated",
     "unknown": "Неизвестная ошибка",
     "usage": "Дозировка",
     "user_message_not_found": "Не удалось найти исходное сообщение пользователя",

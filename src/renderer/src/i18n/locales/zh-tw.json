@@ -317,7 +317,7 @@
       "enable_server": "啟用 API 伺服器以使用 Agent。"
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
       "copy": "複製",
       "regenerate": "重新產生",

@@ -317,7 +317,7 @@
       "enable_server": "Bitte aktivieren Sie den API-Server, um Agent-Funktionen zu verwenden"
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
       "copy": "Kopieren",
       "regenerate": "Neu generieren",
@@ -1297,6 +1297,7 @@
     "backup": {
       "file_format": "Backup-Dateiformat fehlerhaft"
     },
+    "base64DataTruncated": "[to be translated]:Base64 image data truncated, size",
     "boundary": {
       "default": {
         "devtools": "Debug-Panel öffnen",
@@ -1377,6 +1378,8 @@
     "text": "Text",
     "toolInput": "Tool-Eingabe",
     "toolName": "Tool-Name",
+    "truncated": "[to be translated]:Data truncated, original size",
+    "truncatedBadge": "[to be translated]:Truncated",
     "unknown": "Unbekannter Fehler",
     "usage": "Nutzung",
     "user_message_not_found": "Ursprüngliche Benutzernachricht nicht gefunden",

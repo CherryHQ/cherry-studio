@@ -8,14 +8,14 @@ export type UnifiedItem = { type: 'agent'; data: AgentEntity } | { type: 'assist
 interface UseUnifiedItemsOptions {
   agents: AgentEntity[]
   assistants: Assistant[]
-  apiServerEnabled: boolean
+  apiGatewayEnabled: boolean
   agentsLoading: boolean
   agentsError: Error | null
   updateAssistants: (assistants: Assistant[]) => void
 }
 
 export const useUnifiedItems = (options: UseUnifiedItemsOptions) => {
-  const { agents, assistants, apiServerEnabled, agentsLoading, agentsError, updateAssistants } = options
+  const { agents, assistants, apiGatewayEnabled, agentsLoading, agentsError, updateAssistants } = options
   const dispatch = useAppDispatch()
   const unifiedListOrder = useAppSelector((state) => state.assistants.unifiedListOrder || [])
 
@@ -27,7 +27,7 @@ export const useUnifiedItems = (options: UseUnifiedItemsOptions) => {
     const availableAgents = new Map<string, AgentEntity>()
     const availableAssistants = new Map<string, Assistant>()
 
-    if (apiServerEnabled && !agentsLoading && !agentsError) {
+    if (apiGatewayEnabled && !agentsLoading && !agentsError) {
       agents.forEach((agent) => availableAgents.set(agent.id, agent))
     }
     assistants.forEach((assistant) => availableAssistants.set(assistant.id, assistant))
@@ -50,7 +50,7 @@ export const useUnifiedItems = (options: UseUnifiedItemsOptions) => {
     items.unshift(...newItems)
 
     return items
-  }, [agents, assistants, apiServerEnabled, agentsLoading, agentsError, unifiedListOrder])
+  }, [agents, assistants, apiGatewayEnabled, agentsLoading, agentsError, unifiedListOrder])
 
   const handleUnifiedListReorder = useCallback(
     (newList: UnifiedItem[]) => {

@@ -183,7 +183,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     customHeight,
     setCustomHeight
   } = useTextareaResize({ maxHeight: 500, minHeight: 30 })
-  const { sendMessageShortcut, apiServer } = useSettings()
+  const { sendMessageShortcut, apiGateway } = useSettings()
 
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
@@ -343,7 +343,7 @@ const AgentSessionInputbarInner: FC<InnerProps> = ({ assistant, agentId, session
     }
   }, [config.enableQuickPanel, toolsRegistry])
 
-  const sendDisabled = (inputEmpty && files.length === 0) || !apiServer.enabled
+  const sendDisabled = (inputEmpty && files.length === 0) || !apiGateway.enabled
 
   const streamingAskIds = useMemo(() => {
     if (!topicMessages) {

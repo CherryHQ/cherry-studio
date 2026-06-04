@@ -336,13 +336,13 @@ export enum IpcChannel {
   TRACE_ADD_STREAM_MESSAGE = 'trace:addStreamMessage',
 
   // API Server
-  ApiServer_Start = 'api-server:start',
-  ApiServer_Stop = 'api-server:stop',
-  ApiServer_Restart = 'api-server:restart',
-  ApiServer_GetStatus = 'api-server:get-status',
-  ApiServer_Ready = 'api-server:ready',
+  ApiGateway_Start = 'api-server:start',
+  ApiGateway_Stop = 'api-server:stop',
+  ApiGateway_Restart = 'api-server:restart',
+  ApiGateway_GetStatus = 'api-server:get-status',
+  ApiGateway_Ready = 'api-server:ready',
   // NOTE: This api is not be used.
-  ApiServer_GetConfig = 'api-server:get-config',
+  ApiGateway_GetConfig = 'api-server:get-config',
 
   // Anthropic OAuth
   Anthropic_StartOAuthFlow = 'anthropic:start-oauth-flow',

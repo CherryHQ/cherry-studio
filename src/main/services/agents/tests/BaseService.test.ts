@@ -1,13 +1,13 @@
 import type { Tool } from '@types'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('@main/apiServer/services/mcp', () => ({
+vi.mock('@main/apiGateway/services/mcp', () => ({
   mcpApiService: {
     getServerInfo: vi.fn()
   }
 }))
 
-vi.mock('@main/apiServer/utils', () => ({
+vi.mock('@main/apiGateway/utils', () => ({
   validateModelId: vi.fn()
 }))
 
