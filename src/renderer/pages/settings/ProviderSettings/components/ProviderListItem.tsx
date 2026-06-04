@@ -80,7 +80,9 @@ export default function ProviderListItem({
         <div
           className={cn(
             providerListClasses.itemTrailingSlot,
-            onOpenMenu ? providerListClasses.itemTrailingSlotAction : providerListClasses.itemTrailingSlotIndicatorOnly
+            provider.isEnabled
+              ? providerListClasses.itemTrailingSlotIndicatorOnly
+              : providerListClasses.itemTrailingSlotAction
           )}>
           {provider.isEnabled && <span aria-hidden className={providerListClasses.itemEnabledDot} />}
           {menuButton && (renderMenuButton ? renderMenuButton(menuButton) : menuButton)}

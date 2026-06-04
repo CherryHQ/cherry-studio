@@ -94,6 +94,23 @@ describe('ProviderListItem', () => {
     expect(row?.lastElementChild).toHaveClass('size-5', 'shrink-0')
   })
 
+  it('keeps a compact trailing slot for enabled rows even when row actions can appear', () => {
+    const { container } = render(
+      <ProviderListItem
+        provider={{ ...provider, isEnabled: true }}
+        selected={false}
+        dragging={false}
+        onClick={vi.fn()}
+        onOpenMenu={vi.fn()}
+      />
+    )
+
+    const row = container.querySelector('[data-testid="provider-list-item-silicon-flow"]')
+
+    expect(row?.lastElementChild).toHaveClass('size-2', 'shrink-0')
+    expect(screen.getByTestId('provider-list-menu-silicon-flow')).toHaveClass('size-5')
+  })
+
   it('wraps the row action with renderMenuButton when provided', () => {
     render(
       <ProviderListItem
