@@ -554,6 +554,90 @@ export class AgentService extends BaseService {
     logger.info('Agents reordered', { count: orderedIds.length })
   }
 
+  async cleanupMcpReferences(serverId: string): Promise<{ affectedAgents: number; affectedSessions: number }> {
+    const database = await this.getDatabase()
+    const rawLike = `%"${serverId.replace(/[\\%_]/g, '\\$&')}"%`
+
+    let affectedAgents = 0
+    let affectedSessions = 0
+
+    await database.transaction(async (tx) => {
+      const agentsToFix = await tx
+        .select({ id: agentsTable.id, mcps: agentsTable.mcps })
+        .from(agentsTable)
+        .where(sql`${agentsTable.mcps} LIKE ${rawLike} ESCAPE '\\'`)
+
+      for (const agent of agentsToFix) {
+        if (!agent.mcps) continue
+
+        let parsedMcps: unknown
+        try {
+          parsedMcps = JSON.parse(agent.mcps)
+        } catch (error) {
+          logger.warn('Failed to parse agent mcps during MCP cleanup', {
+            serverId,
+            agentId: agent.id,
+            error: error instanceof Error ? error.message : String(error)
+          })
+          continue
+        }
+
+        if (!Array.isArray(parsedMcps)) continue
+
+        const filteredMcps = parsedMcps.filter((id: string) => id !== serverId)
+        if (filteredMcps.length === parsedMcps.length) continue
+
+        await tx
+          .update(agentsTable)
+          .set({ mcps: JSON.stringify(filteredMcps) })
+          .where(eq(agentsTable.id, agent.id))
+        affectedAgents++
+      }
+
+      const sessionsToFix = await tx
+        .select({ id: sessionsTable.id, mcps: sessionsTable.mcps })
+        .from(sessionsTable)
+        .where(sql`${sessionsTable.mcps} LIKE ${rawLike} ESCAPE '\\'`)
+
+      for (const session of sessionsToFix) {
+        if (!session.mcps) continue
+
+        let parsedMcps: unknown
+        try {
+          parsedMcps = JSON.parse(session.mcps)
+        } catch (error) {
+          logger.warn('Failed to parse session mcps during MCP cleanup', {
+            serverId,
+            sessionId: session.id,
+            error: error instanceof Error ? error.message : String(error)
+          })
+          continue
+        }
+
+        if (!Array.isArray(parsedMcps)) continue
+
+        const filteredMcps = parsedMcps.filter((id: string) => id !== serverId)
+        if (filteredMcps.length === parsedMcps.length) continue
+
+        await tx
+          .update(sessionsTable)
+          .set({ mcps: JSON.stringify(filteredMcps) })
+          .where(eq(sessionsTable.id, session.id))
+        affectedSessions++
+      }
+    })
+
+    if (affectedAgents > 0 || affectedSessions > 0) {
+      logger.info('Cleaned up stale MCP references from agents/sessions', {
+        serverId,
+        affectedAgents,
+        affectedSessions
+      })
+    }
+
+    return { affectedAgents, affectedSessions }
+  }
+
   private async deleteAgentRelations(tx: AgentTransaction, id: string): Promise<void> {
     // Agent DB migrations did not always create FK constraints, so clean child rows explicitly.
     await tx.delete(agentSkillsTable).where(eq(agentSkillsTable.agent_id, id))
