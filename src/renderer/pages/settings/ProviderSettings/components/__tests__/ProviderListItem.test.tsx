@@ -74,7 +74,7 @@ describe('ProviderListItem', () => {
     const row = container.querySelector('[data-testid="provider-list-item-silicon-flow"]')
 
     expect(row?.children).toHaveLength(2)
-    expect(row?.lastElementChild).toHaveClass('size-5', 'shrink-0')
+    expect(row?.lastElementChild).toHaveClass('size-2', 'shrink-0')
   })
 
   it('reserves a trailing slot when row actions can appear', () => {
@@ -109,6 +109,7 @@ describe('ProviderListItem', () => {
     expect(screen.getByTestId('provider-list-menu-anchor')).toContainElement(
       screen.getByTestId('provider-list-menu-silicon-flow')
     )
+    expect(screen.getByTestId('provider-list-menu-anchor').parentElement).toHaveClass('size-5', 'shrink-0')
   })
 
   it('omits the enabled-state dot when provider.isEnabled is false', () => {
