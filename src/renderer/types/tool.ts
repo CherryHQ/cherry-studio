@@ -19,7 +19,7 @@ export interface BaseTool {
 //   providerExecuted?: boolean // 标识是Provider端执行还是客户端执行
 // }
 
-export const MCPToolOutputSchema = z
+export const McpToolOutputSchema = z
   .object({
     type: z.literal('object'),
     properties: z.object({}).loose().optional(),
@@ -27,7 +27,7 @@ export const MCPToolOutputSchema = z
   })
   .loose()
 
-export const MCPToolInputSchema = z
+export const McpToolInputSchema = z
   .object({
     type: z.literal('object'),
     properties: z.object({}).loose().optional(),
@@ -45,18 +45,18 @@ export const MCPToolInputSchema = z
   })
 
 export interface BuiltinTool extends BaseTool {
-  inputSchema: z.infer<typeof MCPToolInputSchema>
+  inputSchema: z.infer<typeof McpToolInputSchema>
   type: 'builtin'
 }
 
-export interface MCPTool extends BaseTool {
+export interface McpTool extends BaseTool {
   id: string
   serverId: string
   serverName: string
   name: string
   description?: string
-  inputSchema: z.infer<typeof MCPToolInputSchema>
-  outputSchema?: z.infer<typeof MCPToolOutputSchema>
+  inputSchema: z.infer<typeof McpToolInputSchema>
+  outputSchema?: z.infer<typeof McpToolOutputSchema>
   isBuiltIn?: boolean // 标识是否为内置工具，内置工具不需要通过MCP协议调用
   type: 'mcp'
 }

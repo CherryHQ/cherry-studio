@@ -1,12 +1,12 @@
-import { BuiltinMCPServerNames } from '@renderer/types'
+import { BuiltinMcpServerNames } from '@renderer/types'
 import { createMigrate } from 'redux-persist'
 import { describe, expect, it } from 'vitest'
 
-import { builtinMCPServers } from '../mcp'
+import { builtinMcpServers } from '../mcp'
 
 describe('MCP filesystem defaults', () => {
   it('disables auto-approve for sensitive filesystem tools by default', () => {
-    const filesystemServer = builtinMCPServers.find((server) => server.name === BuiltinMCPServerNames.filesystem)
+    const filesystemServer = builtinMcpServers.find((server) => server.name === BuiltinMcpServerNames.filesystem)
 
     expect(filesystemServer?.disabledAutoApproveTools).toEqual(['write', 'edit', 'delete'])
   })

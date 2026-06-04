@@ -27,7 +27,7 @@ import { getHubModeSystemPrompt } from '@renderer/config/promptsCodeMode'
 import { DEFAULT_ASSISTANT_SETTINGS, getDefaultModel } from '@renderer/services/AssistantService'
 import type { Model } from '@renderer/types'
 import type { WebSearchState } from '@renderer/types'
-import { type Assistant, getEffectiveMcpMode, type MCPTool, type Provider, SystemProviderIds } from '@renderer/types'
+import { type Assistant, getEffectiveMcpMode, type McpTool, type Provider, SystemProviderIds } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { IdleTimeoutController, type IdleTimeoutHandle } from '@renderer/utils/IdleTimeoutController'
 import { replacePromptVariables } from '@renderer/utils/prompt'
@@ -95,7 +95,7 @@ export async function buildStreamTextParams(
   assistant: Assistant,
   provider: Provider,
   options: {
-    mcpTools?: MCPTool[]
+    mcpTools?: McpTool[]
     allowedTools?: string[]
     webSearchConfig?: Pick<WebSearchState, 'maxResults' | 'excludeDomains'>
     requestOptions?: {
@@ -255,7 +255,7 @@ export async function buildGenerateTextParams(
   assistant: Assistant,
   provider: Provider,
   options: {
-    mcpTools?: MCPTool[]
+    mcpTools?: McpTool[]
     allowedTools?: string[]
     enableTools?: boolean
   } = {}

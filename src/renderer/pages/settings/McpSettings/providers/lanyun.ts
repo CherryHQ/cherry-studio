@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { getProviderLabel } from '@renderer/i18n/label'
-import type { MCPServer } from '@renderer/types'
+import type { McpServer } from '@renderer/types'
 import i18next from 'i18next'
 
 const logger = loggerService.withContext('TokenLanYunSyncUtils')
@@ -55,7 +55,7 @@ interface TokenLanYunServer {
 interface TokenLanYunSyncResult {
   success: boolean
   message: string
-  allServers: MCPServer[]
+  allServers: McpServer[]
   errorDetails?: string
 }
 
@@ -122,14 +122,14 @@ export const syncTokenLanYunServers = async (token: string): Promise<TokenLanYun
     }
 
     // Transform Token servers to MCP servers format
-    const allServers: MCPServer[] = []
+    const allServers: McpServer[] = []
     logger.debug('TokenLanYun servers:', servers)
 
     for (const server of servers) {
       try {
         if (!server.operationalUrls?.[0]?.url) continue
 
-        const mcpServer: MCPServer = {
+        const mcpServer: McpServer = {
           id: `@lanyun/${server.id}`,
           name:
             server.chineseName || server.locales?.zh?.name || server.locales?.en?.name || `LanYun Server ${server.id}`,

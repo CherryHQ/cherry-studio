@@ -40,7 +40,7 @@ import type {
   ProviderApiOptions,
   WebSearchProvider
 } from '@renderer/types'
-import { isBuiltinMCPServer, isSystemProvider, SystemProviderIds } from '@renderer/types'
+import { isBuiltinMcpServer, isSystemProvider, SystemProviderIds } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
 import {
   isSupportArrayContentProvider,
@@ -2667,7 +2667,7 @@ const migrateConfig = {
     try {
       if (state?.mcp?.servers) {
         state.mcp.servers = state.mcp.servers.map((server) => {
-          const inferredSource = isBuiltinMCPServer(server) ? 'builtin' : 'unknown'
+          const inferredSource = isBuiltinMcpServer(server) ? 'builtin' : 'unknown'
           return {
             ...server,
             installSource: inferredSource

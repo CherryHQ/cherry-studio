@@ -9,11 +9,11 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
 import { getProviderByModel } from '@renderer/services/AssistantService'
 import { EventEmitter } from '@renderer/services/EventService'
-import type { McpMode, MCPPrompt, MCPResource } from '@renderer/types'
+import type { McpMode, McpPrompt, McpResource } from '@renderer/types'
 import { getEffectiveMcpMode } from '@renderer/types'
 import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { isGeminiWebSearchProvider, isSupportUrlContextProvider } from '@renderer/utils/provider'
-import type { MCPServer } from '@shared/data/types/mcpServer'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import { useNavigate } from '@tanstack/react-router'
 import { Form, Input } from 'antd'
 import { CircleX, Hammer, Plus, Sparkles } from 'lucide-react'
@@ -34,7 +34,7 @@ interface PromptArgument {
   required?: boolean
 }
 
-interface MCPPromptWithArgs extends MCPPrompt {
+interface McpPromptWithArgs extends McpPrompt {
   arguments?: PromptArgument[]
 }
 
@@ -158,7 +158,7 @@ const McpToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
   )
 
   const handleMcpServerSelect = useCallback(
-    (server: MCPServer) => {
+    (server: McpServer) => {
       const update = { ...assistant }
       if (assistantMcpServers.some((s) => s.id === server.id)) {
         update.mcpServers = mcpServers.filter((s) => s.id !== server.id)
@@ -189,7 +189,7 @@ const McpToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
   handleMcpServerSelectRef.current = handleMcpServerSelect
 
   useEffect(() => {
-    const handler = (server: MCPServer) => handleMcpServerSelectRef.current(server)
+    const handler = (server: McpServer) => handleMcpServerSelectRef.current(server)
     EventEmitter.on('mcp-server-select', handler)
     return () => EventEmitter.off('mcp-server-select', handler)
   }, [])
@@ -296,7 +296,7 @@ const McpToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
   )
 
   const handlePromptSelect = useCallback(
-    (prompt: MCPPromptWithArgs) => {
+    (prompt: McpPromptWithArgs) => {
       const server = activedMcpServers.find((s) => s.id === prompt.serverId)
       if (!server) return
 
@@ -390,7 +390,7 @@ const McpToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
     [activedMcpServers, form, t, insertPromptIntoTextArea]
   )
 
-  const [prompts, setPrompts] = useState<MCPPrompt[]>([])
+  const [prompts, setPrompts] = useState<McpPrompt[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -414,7 +414,7 @@ const McpToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
         label: prompt.name,
         description: prompt.description,
         icon: hammerIcon,
-        action: () => handlePromptSelect(prompt as MCPPromptWithArgs)
+        action: () => handlePromptSelect(prompt as McpPromptWithArgs)
       })),
     [prompts, handlePromptSelect]
   )
@@ -429,7 +429,7 @@ const McpToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
   }, [promptList, quickPanelHook, t])
 
   const handleResourceSelect = useCallback(
-    (resource: MCPResource) => {
+    (resource: McpResource) => {
       const server = activedMcpServers.find((s) => s.id === resource.serverId)
       if (!server) return
 
@@ -473,7 +473,7 @@ const McpToolsButton: FC<Props> = ({ quickPanel, setInputValue, resizeTextArea, 
     [activedMcpServers, t, insertPromptIntoTextArea]
   )
 
-  const [resources, setResources] = useState<MCPResource[]>([])
+  const [resources, setResources] = useState<McpResource[]>([])
 
   useEffect(() => {
     let cancelled = false

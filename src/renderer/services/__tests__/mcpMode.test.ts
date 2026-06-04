@@ -1,4 +1,4 @@
-import type { Assistant, MCPServer } from '@renderer/types'
+import type { Assistant, McpServer } from '@renderer/types'
 import { getEffectiveMcpMode } from '@renderer/types'
 import { describe, expect, it } from 'vitest'
 
@@ -20,7 +20,7 @@ describe('getEffectiveMcpMode', () => {
 
   it('should return manual when no mcpMode but mcpServers has items (backward compatibility)', () => {
     const assistant: Partial<Assistant> = {
-      mcpServers: [{ id: 'test', name: 'Test Server', isActive: true }] as MCPServer[]
+      mcpServers: [{ id: 'test', name: 'Test Server', isActive: true }] as McpServer[]
     }
     expect(getEffectiveMcpMode(assistant as Assistant)).toBe('manual')
   })
@@ -38,7 +38,7 @@ describe('getEffectiveMcpMode', () => {
   it('should prioritize explicit mcpMode over mcpServers presence', () => {
     const assistant: Partial<Assistant> = {
       mcpMode: 'disabled',
-      mcpServers: [{ id: 'test', name: 'Test Server', isActive: true }] as MCPServer[]
+      mcpServers: [{ id: 'test', name: 'Test Server', isActive: true }] as McpServer[]
     }
     expect(getEffectiveMcpMode(assistant as Assistant)).toBe('disabled')
   })
@@ -46,7 +46,7 @@ describe('getEffectiveMcpMode', () => {
   it('should return auto when mcpMode is auto regardless of mcpServers', () => {
     const assistant: Partial<Assistant> = {
       mcpMode: 'auto',
-      mcpServers: [{ id: 'test', name: 'Test Server', isActive: true }] as MCPServer[]
+      mcpServers: [{ id: 'test', name: 'Test Server', isActive: true }] as McpServer[]
     }
     expect(getEffectiveMcpMode(assistant as Assistant)).toBe('auto')
   })

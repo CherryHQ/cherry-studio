@@ -1,4 +1,4 @@
-import type { ExternalToolResult, KnowledgeReference, MCPToolResponse, NormalToolResponse, WebSearchResponse } from '.'
+import type { ExternalToolResult, KnowledgeReference, McpToolResponse, NormalToolResponse, WebSearchResponse } from '.'
 import type { Response, ResponseError } from './newMessage'
 
 /**
@@ -314,12 +314,12 @@ export interface ExternalToolCompleteChunk {
   type: ChunkType.EXTERNEL_TOOL_COMPLETE
 }
 
-export interface MCPToolPendingChunk {
+export interface McpToolPendingChunk {
   type: ChunkType.MCP_TOOL_PENDING
-  responses: MCPToolResponse[] | NormalToolResponse[]
+  responses: McpToolResponse[] | NormalToolResponse[]
 }
 
-export interface MCPToolInProgressChunk {
+export interface McpToolInProgressChunk {
   /**
    * The type of the chunk
    */
@@ -327,14 +327,14 @@ export interface MCPToolInProgressChunk {
   /**
    * The tool responses of the chunk
    */
-  responses: MCPToolResponse[] | NormalToolResponse[]
+  responses: McpToolResponse[] | NormalToolResponse[]
 }
 
-export interface MCPToolCompleteChunk {
+export interface McpToolCompleteChunk {
   /**
    * The tool response of the chunk
    */
-  responses: MCPToolResponse[] | NormalToolResponse[]
+  responses: McpToolResponse[] | NormalToolResponse[]
 
   /**
    * The type of the chunk
@@ -345,7 +345,7 @@ export interface MCPToolCompleteChunk {
 /**
  * Streaming tool arguments chunk - emitted during tool-input-delta events
  */
-export interface MCPToolStreamingChunk {
+export interface McpToolStreamingChunk {
   /**
    * The type of the chunk
    */
@@ -353,7 +353,7 @@ export interface MCPToolStreamingChunk {
   /**
    * The tool responses with streaming arguments
    */
-  responses: (MCPToolResponse | NormalToolResponse)[]
+  responses: (McpToolResponse | NormalToolResponse)[]
 }
 
 export interface LLMResponseCompleteChunk {
@@ -461,10 +461,10 @@ export type Chunk =
   | WebSearchCompleteChunk // 互联网搜索完成
   | KnowledgeSearchInProgressChunk // 知识库搜索进行中
   | KnowledgeSearchCompleteChunk // 知识库搜索完成
-  | MCPToolPendingChunk // MCP工具调用等待中
-  | MCPToolInProgressChunk // MCP工具调用中
-  | MCPToolCompleteChunk // MCP工具调用完成
-  | MCPToolStreamingChunk // MCP工具参数流式传输中
+  | McpToolPendingChunk // MCP工具调用等待中
+  | McpToolInProgressChunk // MCP工具调用中
+  | McpToolCompleteChunk // MCP工具调用完成
+  | McpToolStreamingChunk // MCP工具参数流式传输中
   | ExternalToolCompleteChunk // 外部工具调用完成，外部工具包含搜索互联网，知识库，MCP服务器
   | LLMResponseCreatedChunk // 大模型响应创建，返回即将创建的块类型
   | LLMResponseInProgressChunk // 大模型响应进行中

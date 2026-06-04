@@ -73,7 +73,7 @@ export class NodeTraceService extends BaseService implements Activatable {
    * Only called during app shutdown (auto-deactivation in _doStop).
    * Runtime deactivation is not supported — developer_mode changes require restart.
    *
-   * Note: MCPNodeTracer.shutdown() only flushes the span processor.
+   * Note: McpNodeTracer.shutdown() only flushes the span processor.
    * Global OTel registrations (TracerProvider, ContextManager, Propagator) persist
    * until process exit. This is acceptable for shutdown-only deactivation.
    */
