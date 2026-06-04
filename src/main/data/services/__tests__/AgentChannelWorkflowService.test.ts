@@ -5,12 +5,15 @@ const { syncChannelMock, disconnectChannelMock } = vi.hoisted(() => ({
   disconnectChannelMock: vi.fn()
 }))
 
-vi.mock('@main/services/agents/services/channels', () => ({
-  channelManager: {
-    syncChannel: syncChannelMock,
-    disconnectChannel: disconnectChannelMock
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    ChannelManager: {
+      syncChannel: syncChannelMock,
+      disconnectChannel: disconnectChannelMock
+    }
+  } as Parameters<typeof mockApplicationFactory>[0])
+})
 
 const { createChannelMock, getChannelMock, updateChannelMock, deleteChannelMock } = vi.hoisted(() => ({
   createChannelMock: vi.fn(),

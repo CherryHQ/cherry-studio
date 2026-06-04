@@ -11,9 +11,8 @@ interface Props {
 }
 
 /**
- * Covers: configuration.max_turns, configuration.env_vars. Matches the
- * legacy AgentSettings **Advanced** tab exactly — soul / heartbeat
- * switches stayed in the Essential (Basic) tab, not here.
+ * Covers: configuration.max_turns and configuration.env_vars. Soul / heartbeat
+ * switches stay in the Essential (Basic) tab, not here.
  */
 const AdvancedSection: FC<Props> = ({ form, onChange }) => {
   const { t } = useTranslation()

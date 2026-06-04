@@ -38,7 +38,6 @@ describe('routeTitle', () => {
         ['/home', '首页'],
         ['/app/chat', '聊天'],
         ['/app/agents', '智能体'],
-        ['/app/assistant', '助手库'],
         ['/app/paintings', '绘画'],
         ['/app/translate', '翻译'],
         ['/app/mini-app', '小程序'],
@@ -115,7 +114,6 @@ describe('routeTitle', () => {
         ['/', 'title.home'],
         ['/app/chat', 'common.chat'],
         ['/app/agents', 'common.agent_one'],
-        ['/app/assistant', 'title.store'],
         ['/app/openclaw', 'title.openclaw'],
         ['/settings', 'title.settings']
       ])('should return i18n key for %s', (url, expectedKey) => {

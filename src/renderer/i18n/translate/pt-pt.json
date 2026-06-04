@@ -221,9 +221,11 @@
         "intervalUnit": "minutos",
         "lastRun": "Última execução",
         "logs": {
+          "cancelled": "[to be translated]:Cancelled",
+          "completed": "[to be translated]:Completed",
           "duration": "Duração",
           "empty": "Ainda sem histórico de execução.",
-          "error": "Erro",
+          "failed": "[to be translated]:Failed",
           "justNow": "agora mesmo",
           "label": "Histórico de execução",
           "loadError": "Falha ao carregar o histórico de execução",
@@ -232,7 +234,6 @@
           "running": "Correndo...",
           "search": "Pesquisar registros...",
           "status": "Estado",
-          "success": "Sucesso",
           "viewSession": "Ver sessão"
         },
         "name": {
@@ -2615,9 +2616,6 @@
           "temperature": {
             "hint": "[to be translated]:Controls randomness when enabled"
           },
-          "tool_use_mode": {
-            "hint": "[to be translated]:Controls how tools are exposed to the model"
-          },
           "top_p": {
             "hint": "[to be translated]:Limits token sampling range when enabled"
           }
@@ -2639,9 +2637,6 @@
         "tags": "[to be translated]:Tags",
         "temperature": "[to be translated]:Temperature",
         "title": "[to be translated]:Basic settings",
-        "tool_use_function": "[to be translated]:Function",
-        "tool_use_mode": "[to be translated]:Tool call mode",
-        "tool_use_prompt": "[to be translated]:Prompt",
         "top_p": "[to be translated]:Top-P",
         "unlimited": "[to be translated]:Unlimited"
       },
@@ -3419,6 +3414,7 @@
     },
     "stream_output": "Saída em fluxo",
     "type": {
+      "audio": "[to be translated]:Audio",
       "embedding": "inserção",
       "free": "Grátis",
       "function_calling": "chamada de função",
@@ -3426,6 +3422,7 @@
       "rerank": "Reclassificar",
       "select": "Tipos de modelo",
       "text": "texto",
+      "video": "[to be translated]:Video",
       "vision": "imagem",
       "websearch": "Procurar na web"
     }

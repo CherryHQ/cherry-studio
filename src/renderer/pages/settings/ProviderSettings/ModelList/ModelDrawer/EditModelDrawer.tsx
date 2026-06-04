@@ -9,25 +9,22 @@ import {
   SelectValue
 } from '@cherrystudio/ui'
 import CopyIcon from '@renderer/components/Icons/CopyIcon'
-import { useModelMutations } from '@renderer/hooks/useModels'
-import { useProvider } from '@renderer/hooks/useProviders'
-import ProviderActions from '@renderer/pages/settings/ProviderSettings/primitives/ProviderActions'
-import ProviderField from '@renderer/pages/settings/ProviderSettings/primitives/ProviderField'
-import ProviderSection from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSection'
-import ProviderSettingsDrawer from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsDrawer'
-import {
-  drawerClasses,
-  fieldClasses
-} from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { isNewApiProvider } from '@renderer/pages/settings/ProviderSettings/utils/provider'
+import { useModelMutations } from '@renderer/hooks/useModel'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { getDefaultGroupName } from '@renderer/utils'
 import { CURRENCY, type Currency, type EndpointType, type Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
+import { isNewApiProvider } from '@shared/utils/provider'
 import { ChevronDown, ChevronUp, SaveIcon } from 'lucide-react'
 import type { FormEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import ProviderActions from '../../primitives/ProviderActions'
+import ProviderField from '../../primitives/ProviderField'
+import ProviderSection from '../../primitives/ProviderSection'
+import ProviderSettingsDrawer from '../../primitives/ProviderSettingsDrawer'
+import { drawerClasses, fieldClasses } from '../../primitives/ProviderSettingsPrimitives'
 import {
   getInitialSelectedCapabilities,
   getModelApiId,

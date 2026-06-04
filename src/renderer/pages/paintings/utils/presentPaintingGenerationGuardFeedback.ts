@@ -1,11 +1,8 @@
 import { loggerService } from '@logger'
-import {
-  createPaintingGenerateError,
-  presentPaintingGenerateError
-} from '@renderer/aiCore/errors/paintingGenerateError'
 import i18n from '@renderer/i18n'
 import { openSettingsWindow } from '@renderer/services/SettingsWindowService'
 
+import { createPaintingGenerateError, presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import type { PaintingGenerationGuardReason } from '../hooks/usePaintingGenerationGuard'
 
 const logger = loggerService.withContext('paintings')

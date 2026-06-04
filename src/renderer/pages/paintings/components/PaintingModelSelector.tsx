@@ -3,8 +3,8 @@ import { resolveIcon } from '@cherrystudio/ui/icons'
 import { cn } from '@cherrystudio/ui/lib/utils'
 import { ModelSelector } from '@renderer/components/ModelSelector'
 import { getProviderDisplayName } from '@renderer/components/ModelSelector/utils'
-import { useModels } from '@renderer/hooks/useModels'
-import { useProviders } from '@renderer/hooks/useProviders'
+import { useModels } from '@renderer/hooks/useModel'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { createUniqueModelId, parseUniqueModelId } from '@shared/data/types/model'
 import { isGenerateImageModel } from '@shared/utils/model'
 import { first } from 'lodash'
@@ -73,6 +73,7 @@ const PaintingModelSelector: FC<PaintingModelSelectorProps> = ({ className, pain
           onSelect({ providerId, modelId })
         }}
         filter={isGenerateImageModel}
+        showTagFilter={false}
         showPinnedModels={false}
         showPinActions={false}
         prioritizedProviderIds={painting.providerId ? [painting.providerId] : undefined}

@@ -221,9 +221,11 @@
         "intervalUnit": "phút",
         "lastRun": "Lần chạy cuối",
         "logs": {
+          "cancelled": "[to be translated]:Cancelled",
+          "completed": "[to be translated]:Completed",
           "duration": "Thời lượng",
           "empty": "Chưa có lịch sử chạy nào.",
-          "error": "Lỗi",
+          "failed": "[to be translated]:Failed",
           "justNow": "vừa mới đây",
           "label": "Lịch sử chạy",
           "loadError": "Không tải được lịch sử chạy",
@@ -232,7 +234,6 @@
           "running": "Đang chạy...",
           "search": "Tìm nhật ký...",
           "status": "Trạng thái",
-          "success": "Thành công",
           "viewSession": "Xem phiên"
         },
         "name": {
@@ -2615,9 +2616,6 @@
           "temperature": {
             "hint": "[to be translated]:Controls randomness when enabled"
           },
-          "tool_use_mode": {
-            "hint": "[to be translated]:Controls how tools are exposed to the model"
-          },
           "top_p": {
             "hint": "[to be translated]:Limits token sampling range when enabled"
           }
@@ -2639,9 +2637,6 @@
         "tags": "[to be translated]:Tags",
         "temperature": "[to be translated]:Temperature",
         "title": "[to be translated]:Basic settings",
-        "tool_use_function": "[to be translated]:Function",
-        "tool_use_mode": "[to be translated]:Tool call mode",
-        "tool_use_prompt": "[to be translated]:Prompt",
         "top_p": "[to be translated]:Top-P",
         "unlimited": "[to be translated]:Unlimited"
       },
@@ -3419,6 +3414,7 @@
     },
     "stream_output": "Salida de transmisión",
     "type": {
+      "audio": "[to be translated]:Audio",
       "embedding": "Nhúng",
       "free": "Libre",
       "function_calling": "Herramienta",
@@ -3426,6 +3422,7 @@
       "rerank": "Công cụ sắp xếp lại",
       "select": "Các Loại Mô Hình",
       "text": "Văn bản",
+      "video": "[to be translated]:Video",
       "vision": "Tầm nhìn",
       "websearch": "Tìm kiếm Web"
     }

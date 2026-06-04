@@ -1,9 +1,6 @@
 import { loggerService } from '@logger'
-import {
-  createPaintingGenerateError,
-  normalizePaintingGenerateError
-} from '@renderer/aiCore/errors/paintingGenerateError'
 import type { FileMetadata } from '@renderer/types'
+import { createPaintingGenerateError, normalizePaintingGenerateError } from '@shared/ai/paintingGenerateError'
 
 import { downloadImages } from '../utils/downloadImages'
 import { fileEntryToMetadata } from '../utils/fileEntryAdapter'

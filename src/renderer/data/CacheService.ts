@@ -198,7 +198,7 @@ export class CacheService {
    * cacheService.set('scroll.position.topic123', 150)
    *
    * // With TTL (expires after 30 seconds)
-   * cacheService.set('chat.generating', true, 30000)
+   * cacheService.set('chat.web_search.searching', true, 30000)
    * ```
    */
   set<K extends UseCacheKey>(key: K, value: InferUseCacheValue<K>, ttl?: number): void {

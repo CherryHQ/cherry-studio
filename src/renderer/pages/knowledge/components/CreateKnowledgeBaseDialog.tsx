@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@cherrystudio/ui'
-import { useModels } from '@renderer/hooks/useModels'
+import { useModels } from '@renderer/hooks/useModel'
 import type { KnowledgeSelectOption } from '@renderer/pages/knowledge/types'
 import { DEFAULT_KNOWLEDGE_GROUP_LABEL_KEY } from '@renderer/pages/knowledge/utils'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'

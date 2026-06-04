@@ -1,6 +1,6 @@
 import { Badge, Button, Popover, PopoverContent, PopoverTrigger, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import { useMcpServers } from '@renderer/hooks/useMcpServers'
+import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { getBuiltInMcpServerDescriptionLabel } from '@renderer/i18n/label'
 import { builtinMcpServers } from '@renderer/store/mcp'
 import { cn } from '@renderer/utils/style'

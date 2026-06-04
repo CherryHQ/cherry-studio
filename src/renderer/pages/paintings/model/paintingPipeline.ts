@@ -29,9 +29,8 @@ export function createDefaultPainting(providerId: string): PaintingData {
  *      endpoints, future custom-transport vendors), inject the descriptor
  *      into `painting.params.modelDescriptor` so the AI SDK image-model
  *      can read it from `providerOptions[providerId]`.
- *   3. Hand off to `canonicalGenerate` with provider-derived download
- *      options (aihubmix wants the proxy-warning hint stamped on URL
- *      downloads).
+ *   3. Hand off to `canonicalGenerate` (with the mode's `requirePrompt`
+ *      flag when the registry declares one).
  *
  * Vendor wire-format quirks live in the aiCore image-model adapters
  * (`aihubmix/aihubmixImageModel.ts`, `{ppio,dmxapi,ovms,modelscope}/<vendor>Transport.ts`),
@@ -82,9 +81,7 @@ export async function paintingGenerate(input: GenerateInput): Promise<FileMetada
     }
   }
 
-  const downloadOptions = input.provider.id === 'aihubmix' ? { showProxyWarning: true } : undefined
   const options = {
-    ...(downloadOptions && { downloadOptions }),
     ...(requirePrompt !== undefined && { requirePrompt })
   }
   const generateInput: GenerateInput =
