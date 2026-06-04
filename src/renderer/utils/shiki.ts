@@ -12,7 +12,7 @@ const logger = loggerService.withContext('Shiki')
 const WHITE_TOKEN_COLOR_PATTERN = /^(?:white|#fff(?:fff)?)$/i
 const READABLE_TEXT_COLOR = 'var(--color-foreground)'
 
-// 直接写法的白色兜底（含带 alpha 的 #ffffffff）。Shiki colorReplacements 按精确小写匹配，故逐个枚举
+// Literal white fallbacks (including #ffffffff with alpha). Shiki colorReplacements matches by exact, lowercased value, so enumerate each one.
 const LITERAL_WHITE_COLOR_REPLACEMENTS: Record<string, string> = {
   white: READABLE_TEXT_COLOR,
   '#fff': READABLE_TEXT_COLOR,
@@ -25,11 +25,12 @@ function isWhiteTokenColor(color: string): boolean {
 }
 
 /**
- * 计算浅色主题下的白色 token 颜色替换表，供 Shiki 原生 colorReplacements 使用。
+ * Build the white-token color replacement map for light themes, to feed Shiki's native colorReplacements.
  *
- * 关键点：one-light 等主题通过自身 colorReplacements 把哨兵色（如 `#00000001`）映射为 `white`，
- * 而 Shiki 只做单次替换，直接用 `white` 作 key 无法命中。故先读取主题自身的 colorReplacements，
- * 把"值为白色"的哨兵键改写为可读色，再附带直接白色写法做兜底。
+ * Key insight: themes like one-light map a sentinel color (e.g. `#00000001`) to `white` via their own
+ * colorReplacements, and Shiki only replaces once, so using `white` as the key never matches. We therefore
+ * read the theme's own colorReplacements, rewrite any sentinel whose value is white to the readable color,
+ * and add the literal white spellings as a fallback.
  */
 function getLightThemeWhiteColorReplacements(theme: {
   colorReplacements?: Record<string, string>
@@ -173,9 +174,10 @@ export function getReactStyleFromToken(
 }
 
 /**
- * 缓存 markdown-it 构造器，避免并发重复导入。
- * 注意：返回的是构造器而非单例实例 —— 每次渲染需创建独立实例，
- * 否则共享实例的 options.highlight 会在并发渲染/切主题时相互覆盖（串台）
+ * Cache the markdown-it constructor to avoid duplicate concurrent imports.
+ * Note: this returns the constructor, not a singleton instance — each render must create its own instance,
+ * otherwise a shared instance's options.highlight would overwrite one another (cross-contaminate) during
+ * concurrent renders / theme switches.
  */
 const mdInitializer = new AsyncInitializer(async () => {
   const md = await import('markdown-it')
@@ -190,11 +192,11 @@ const mdInitializer = new AsyncInitializer(async () => {
 export async function getMarkdownIt(theme: string, markdown: string) {
   const highlighter = await getHighlighter()
   await loadMarkdownLanguage(markdown, highlighter)
-  // 每次渲染创建独立的 markdown-it 实例，避免共享实例 options.highlight 并发串台
+  // Create an independent markdown-it instance per render so a shared instance's options.highlight can't cross-contaminate under concurrency
   const MarkdownIt = await mdInitializer.get()
   const md = MarkdownIt({
-    linkify: true, // 自动转换 URL 为链接
-    typographer: true // 启用印刷格式优化
+    linkify: true, // auto-convert URLs to links
+    typographer: true // enable typographic replacements
   })
   const { fromHighlighter } = await import('@shikijs/markdown-it/core')
 
@@ -218,9 +220,10 @@ export async function getMarkdownIt(theme: string, markdown: string) {
   const actualThemeRegistration = highlighter.getTheme(actualTheme)
   const isActualThemeDark = actualThemeRegistration.type === 'dark'
 
-  // 仅当默认主题为浅色时，用 Shiki 原生 colorReplacements 把白色 token 改写为可读色；
-  // 按主题名嵌套，确保深色主题不受影响。colorReplacements 不在 MarkdownItShikiSetupOptions
-  // 类型内，但 fromHighlighter 会把整个 options 原样透传给 codeToHtml，故经独立对象展开传入
+  // Only when the default theme is light, use Shiki's native colorReplacements to rewrite white tokens to a
+  // readable color; nest it by theme name so dark themes are unaffected. colorReplacements is not part of the
+  // MarkdownItShikiSetupOptions type, but fromHighlighter forwards the whole options object to codeToHtml
+  // as-is, so we spread it in via a separate object.
   const colorReplacementOption = isActualThemeDark
     ? {}
     : { colorReplacements: { [actualTheme]: getLightThemeWhiteColorReplacements(actualThemeRegistration) } }
@@ -229,9 +232,9 @@ export async function getMarkdownIt(theme: string, markdown: string) {
     fromHighlighter(highlighter, {
       themes,
       defaultColor: actualTheme,
-      // 'text' 是 Shiki 内置 plain 语言，未纳入 BundledLanguage 类型联合，故做类型断言。
-      // defaultLanguage 默认即为 'text'，无需显式声明；fallbackLanguage 仍需保留，
-      // 否则未加载的未知语言会以原 lang 调用 codeToHtml 而抛错
+      // 'text' is Shiki's built-in plain language, not in the BundledLanguage union, hence the type assertion.
+      // defaultLanguage already defaults to 'text', so it doesn't need to be declared; fallbackLanguage must
+      // stay, otherwise an unloaded/unknown language would call codeToHtml with the original lang and throw.
       fallbackLanguage: 'text' as BundledLanguage,
       ...colorReplacementOption
     })
