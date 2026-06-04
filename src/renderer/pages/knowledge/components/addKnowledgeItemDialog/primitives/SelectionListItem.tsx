@@ -18,11 +18,15 @@ const SelectionListItem = ({
   removeLabel
 }: SelectionListItemProps) => {
   return (
-    <div role="listitem" className="flex items-center gap-1.5 rounded-md bg-background-subtle px-2 py-1">
+    <div
+      role="listitem"
+      className="flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden rounded-md bg-background-subtle px-2 py-1">
       <Icon className={iconClassName} />
 
       <span className="min-w-0 flex-1 truncate text-foreground text-xs leading-4">{name}</span>
-      {meta ? <span className="shrink-0 text-foreground-muted text-xs leading-4">{meta}</span> : null}
+      {meta ? (
+        <span className="min-w-0 max-w-[60%] truncate text-foreground-muted text-xs leading-4">{meta}</span>
+      ) : null}
 
       <button
         type="button"

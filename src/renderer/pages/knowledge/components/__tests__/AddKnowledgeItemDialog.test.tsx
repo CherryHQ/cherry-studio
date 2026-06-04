@@ -309,7 +309,22 @@ describe('AddKnowledgeItemDialog', () => {
     await waitFor(() => {
       expect(screen.getByText('docs')).toBeInTheDocument()
     })
+    const directoryName = screen.getByText('docs')
+    const directoryPath = screen.getByText('/Users/me/docs')
+    const directoryItem = directoryName.closest('[role="listitem"]')
+
     expect(screen.getByText('/Users/me/docs')).toBeInTheDocument()
+    expect(directoryItem).toHaveClass('min-w-0')
+    expect(directoryItem).toHaveClass('max-w-full')
+    expect(directoryItem).toHaveClass('overflow-hidden')
+    expect(directoryName).toHaveClass('min-w-0')
+    expect(directoryName).toHaveClass('truncate')
+    expect(directoryPath).toHaveClass('min-w-0')
+    expect(directoryPath).toHaveClass('max-w-[60%]')
+    expect(directoryPath).toHaveClass('truncate')
+    expect(screen.getByTestId('knowledge-source-directory-list')).toHaveClass('min-h-0')
+    expect(screen.getByTestId('knowledge-source-directory-list')).toHaveClass('flex-1')
+    expect(screen.getByTestId('knowledge-source-directory-list')).toHaveClass('overflow-y-auto')
     expect(screen.getByText('已选 1 个目录')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
 
@@ -345,9 +360,15 @@ describe('AddKnowledgeItemDialog', () => {
   it('enables url and sitemap submit only after input', () => {
     setPendingAddSource('url')
     const { rerender } = render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+    const urlInput = screen.getByPlaceholderText('https://example.com')
 
     expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
-    fireEvent.change(screen.getByPlaceholderText('https://example.com'), {
+    expect(urlInput.parentElement).toHaveClass('min-w-0')
+    expect(urlInput.parentElement?.parentElement).toHaveClass('min-w-0')
+    expect(urlInput).toHaveClass('w-full')
+    expect(urlInput).toHaveClass('border-border-subtle')
+    expect(urlInput).toHaveClass('focus-visible:ring-0')
+    fireEvent.change(urlInput, {
       target: { value: 'https://example.com' }
     })
     expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
@@ -356,7 +377,13 @@ describe('AddKnowledgeItemDialog', () => {
     rerender(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
     expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
-    fireEvent.change(screen.getByPlaceholderText('https://example.com/sitemap.xml'), {
+    const sitemapInput = screen.getByPlaceholderText('https://example.com/sitemap.xml')
+    expect(sitemapInput.parentElement).toHaveClass('min-w-0')
+    expect(sitemapInput.parentElement?.parentElement).toHaveClass('min-w-0')
+    expect(sitemapInput).toHaveClass('w-full')
+    expect(sitemapInput).toHaveClass('border-border-subtle')
+    expect(sitemapInput).toHaveClass('focus-visible:ring-0')
+    fireEvent.change(sitemapInput, {
       target: { value: 'https://example.com/sitemap.xml' }
     })
     expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
