@@ -10,7 +10,7 @@ import { useTranslateHistory } from '@renderer/hooks/translate'
 import { useDetectLang } from '@renderer/hooks/translate/useDetectLang'
 import { useDrag } from '@renderer/hooks/useDrag'
 import { useFiles } from '@renderer/hooks/useFiles'
-import { useModels } from '@renderer/hooks/useModels'
+import { useModels } from '@renderer/hooks/useModel'
 import { useOcr } from '@renderer/hooks/useOcr'
 import { useTemporaryValue } from '@renderer/hooks/useTemporaryValue'
 import { useTimer } from '@renderer/hooks/useTimer'
@@ -18,7 +18,7 @@ import { translateText } from '@renderer/services/TranslateService'
 import type { FileMetadata, SupportedOcrFile } from '@renderer/types'
 import { isSupportedOcrFile } from '@renderer/types'
 import { cn, getFileExtension, isTextFile, uuid } from '@renderer/utils'
-import { abortCompletion } from '@renderer/utils/abortController'
+import { abortCompletion, addAbortController, removeAbortController } from '@renderer/utils/abortController'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
 import { getFilesFromDropEvent, getTextFromDropEvent } from '@renderer/utils/input'
 import {
@@ -187,12 +187,15 @@ const TranslatePage: FC = () => {
       if (translatingState.isTranslating) return
 
       const nextAbortKey = uuid()
+      const controller = new AbortController()
+      const abortTranslation = () => controller.abort()
+      addAbortController(nextAbortKey, abortTranslation)
       setTranslatingState({ isTranslating: true, abortKey: nextAbortKey })
 
       const throttledSetOutput = throttle((content: string) => setTranslateOutput(content), 100)
 
       try {
-        const translated = await translateText(rawText, actualTargetLanguage, throttledSetOutput, nextAbortKey)
+        const translated = await translateText(rawText, actualTargetLanguage, throttledSetOutput, controller.signal)
         throttledSetOutput.cancel()
         setTranslateOutput(translated)
 
@@ -226,6 +229,7 @@ const TranslatePage: FC = () => {
           window.toast.error(formatErrorMessageWithPrefix(error, t('translate.error.failed')))
         }
       } finally {
+        removeAbortController(nextAbortKey, abortTranslation)
         throttledSetOutput.cancel()
         setTranslatingState({ isTranslating: false, abortKey: null })
       }

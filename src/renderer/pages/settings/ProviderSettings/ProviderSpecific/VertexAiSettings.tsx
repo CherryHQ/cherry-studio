@@ -1,6 +1,6 @@
 import { Input, RowFlex, Textarea } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
-import { useProvider, useProviderAuthConfig, useProviderMutations } from '@renderer/hooks/useProviders'
+import { useProvider, useProviderAuthConfig, useProviderMutations } from '@renderer/hooks/useProvider'
 import { Info } from 'lucide-react'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'

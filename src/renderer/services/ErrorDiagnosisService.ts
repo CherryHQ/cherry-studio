@@ -1,10 +1,9 @@
-import { CHERRYAI_PROVIDER } from '@renderer/config/providers'
 import { loggerService } from '@renderer/services/LoggerService'
-import store from '@renderer/store'
-import type { Model } from '@renderer/types'
 import type { SerializedError } from '@renderer/types/error'
+import type { Model } from '@shared/data/types/model'
 
-import { fetchGenerate, fetchModels } from './ApiService'
+import { fetchGenerate } from './ApiService'
+import { readDefaultModel } from './ModelService'
 
 const logger = loggerService.withContext('ErrorDiagnosisService')
 
@@ -27,8 +26,11 @@ export interface DiagnosisContext {
 
 async function getCherryAiFreeModel(): Promise<Model | undefined> {
   try {
-    const models = await fetchModels(CHERRYAI_PROVIDER)
-    return models.length > 0 ? models[0] : undefined
+    const models = await window.api.ai.listModels({ providerId: 'cherryai' })
+    const first = models[0]
+    // listModels returns Partial<Model>; the diagnosis flow only needs `.id`,
+    // which the IPC always populates. Cast through the known-complete subset.
+    return first?.id ? (first as Model) : undefined
   } catch {
     logger.warn('Failed to fetch CherryAI free models')
     return undefined
@@ -36,7 +38,7 @@ async function getCherryAiFreeModel(): Promise<Model | undefined> {
 }
 
 async function buildModelsToTry(context?: DiagnosisContext): Promise<Model[]> {
-  const defaultModel = store.getState().llm.defaultModel
+  const defaultModel = await readDefaultModel()
   const models: Model[] = []
 
   // CherryAI free model as primary diagnosis model

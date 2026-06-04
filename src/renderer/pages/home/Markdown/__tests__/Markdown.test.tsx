@@ -2,6 +2,7 @@ import 'katex/dist/katex.min.css'
 
 import type { MainTextMessageBlock, ThinkingMessageBlock, TranslationMessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
+import type * as MarkdownUtils from '@renderer/utils/markdown'
 import { render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -49,10 +50,13 @@ vi.mock('@renderer/utils/formats', () => ({
   removeSvgEmptyLines: vi.fn((str) => str)
 }))
 
-vi.mock('@renderer/utils/markdown', () => ({
+vi.mock('@renderer/utils/markdown', async (importOriginal) => ({
   findCitationInChildren: vi.fn(() => '{"id": 1, "url": "https://example.com"}'),
   getCodeBlockId: vi.fn(() => 'code-block-1'),
-  processLatexBrackets: vi.fn((str) => str)
+  processLatexBrackets: vi.fn((str) => str),
+  // Real splitter — its boundary correctness is unit-tested separately;
+  // here the integration test needs the genuine split-while-streaming wiring.
+  splitMarkdownBlocks: (await importOriginal<typeof MarkdownUtils>()).splitMarkdownBlocks
 }))
 
 // Mock components with more realistic behavior
@@ -389,6 +393,44 @@ describe('Markdown', () => {
 
       // Should still render correctly with new math engine
       expect(screen.getByTestId('markdown-content')).toBeInTheDocument()
+    })
+  })
+
+  // The streaming O(n²) regression guard. The mocked react-markdown renders
+  // one `markdown-content` node per `<ReactMarkdown>` instance, i.e. one per
+  // `MarkdownBlock`. So the testid count == number of memoized blocks.
+  //
+  // Correctness of the block boundaries themselves (tables / $$ math / fenced
+  // code never split) is covered exhaustively by the `splitMarkdownBlocks`
+  // unit tests in utils/markdown.test.ts. Here we only assert the wiring:
+  // split into many blocks while streaming, collapse to one when done — and
+  // that the rendered text still reconstructs the original (no loss).
+  describe('block-level streaming split', () => {
+    it('renders the whole message as ONE block when not streaming', () => {
+      const block = createMainTextBlock({
+        content: '# Title\n\nFirst paragraph.\n\nSecond paragraph.',
+        status: MessageBlockStatus.SUCCESS
+      })
+      render(<Markdown block={block} />)
+
+      // Single instance ⇒ output path byte-identical to the pre-refactor
+      // single <ReactMarkdown>; existing getByTestId-singular tests rely on it.
+      expect(screen.getAllByTestId('markdown-content')).toHaveLength(1)
+    })
+
+    it('splits into multiple memoized blocks while streaming', () => {
+      const content = '# Title\n\nFirst paragraph.\n\nSecond paragraph.'
+      const block = createMainTextBlock({ content, status: MessageBlockStatus.STREAMING })
+      render(<Markdown block={block} />)
+
+      const blocks = screen.getAllByTestId('markdown-content')
+      expect(blocks.length).toBeGreaterThan(1)
+      // Every segment still rendered (nothing dropped by the split); exact
+      // join-invariant is asserted in the splitter unit tests.
+      const allText = blocks.map((b) => b.textContent).join('')
+      expect(allText).toContain('# Title')
+      expect(allText).toContain('First paragraph.')
+      expect(allText).toContain('Second paragraph.')
     })
   })
 })

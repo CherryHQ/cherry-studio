@@ -7,7 +7,7 @@ const logger = loggerService.withContext('McpRouterSyncUtils')
 
 // Token storage constants and utilities
 const TOKEN_STORAGE_KEY = 'mcprouter_token'
-export const MCPROUTER_HOST = 'https://mcprouter.co'
+export const McpROUTER_HOST = 'https://mcprouter.co'
 
 export const saveMcpRouterToken = (token: string): void => {
   localStorage.setItem(TOKEN_STORAGE_KEY, token)

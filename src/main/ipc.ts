@@ -3,7 +3,6 @@ import { arch } from 'node:os'
 import path from 'node:path'
 
 import { application } from '@application'
-import { agentSessionMessageService as sessionMessageService } from '@data/services/AgentSessionMessageService'
 import { loggerService } from '@logger'
 import { isMac, isWin } from '@main/core/platform'
 import { generateSignature } from '@main/integration/cherryai'
@@ -20,12 +19,12 @@ import {
 import { handleZoomFactor } from '@main/utils/zoom'
 import { IpcChannel } from '@shared/IpcChannel'
 import { extractPdfText } from '@shared/utils/pdf'
-import type { AgentPersistedMessage, FileMetadata, Notification, Provider } from '@types'
+import type { Notification } from '@types'
 import checkDiskSpace from 'check-disk-space'
 import { app, BrowserWindow, dialog, ipcMain, session, shell, systemPreferences, webContents } from 'electron'
 import fontList from 'font-list'
 
-import { skillService } from './services/agents/skills/SkillService'
+import { skillService } from './ai/skills/SkillService'
 import { appService } from './services/AppService'
 import { ConfigKeys, configManager } from './services/ConfigManager'
 import { copilotService } from './services/CopilotService'
@@ -38,12 +37,12 @@ import LegacyBackupManager from './services/LegacyBackupManager'
 import NotificationService from './services/NotificationService'
 import * as NutstoreService from './services/nutstore/NutstoreService'
 import ObsidianVaultService from './services/ObsidianVaultService'
-import { fileServiceManager } from './services/remotefile/FileServiceManager'
 import { vertexAiService } from './services/VertexAiService'
 import { calculateDirectorySize } from './utils'
 import { decrypt, encrypt } from './utils/aes'
 import { isSafeExternalUrl } from './utils/externalUrlSafety'
 import { hasWritePermission, isPathInside, untildify } from './utils/file'
+import { checkWorkspacePathStatus } from './utils/file/workspacePathStatus'
 import { getCpuName, getDeviceType, getHostname } from './utils/system'
 import { compress, decompress } from './utils/zip'
 
@@ -115,27 +114,6 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.App_SetLaunchOnBoot, async (_, isLaunchOnBoot: boolean) => {
     await appService.setAppLaunchOnBoot(isLaunchOnBoot)
   })
-
-  ipcMain.handle(IpcChannel.AgentMessage_PersistExchange, async (_event, payload) => {
-    try {
-      return await sessionMessageService.persistExchange(payload)
-    } catch (error) {
-      logger.error('Failed to persist agent session messages', error as Error)
-      throw error
-    }
-  })
-
-  ipcMain.handle(
-    IpcChannel.AgentMessage_GetHistory,
-    async (_event, { sessionId }: { sessionId: string }): Promise<AgentPersistedMessage[]> => {
-      try {
-        return await sessionMessageService.getSessionHistory(sessionId)
-      } catch (error) {
-        logger.error('Failed to get agent session history', error as Error)
-        throw error
-      }
-    }
-  )
 
   //only for mac
   if (isMac) {
@@ -412,15 +390,7 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.Backup_CreateLanTransferBackup, backupManager.createLanTransferBackup.bind(backupManager))
   ipcMain.handle(IpcChannel.Backup_DeleteLanTransferBackup, backupManager.deleteLanTransferBackup.bind(backupManager))
 
-  // [v2] v1 legacy file IPC — these 44 channels expose physical file IO
-  // (read/write/delete/move on <userData>/Data/Files/<v1uuid>.<ext>, plus
-  // notes/watcher/directory utilities) backed by the FileStorage singleton.
-  // The Dexie `db.files` metadata + refcount layer lives entirely in the
-  // renderer (`src/renderer/services/FileManager.ts`); main never
-  // touches IndexedDB. Both sides stay live until Batch A-E migrates the
-  // renderer callers to the v2 surface (createInternalEntry /
-  // ensureExternalEntry / getPhysicalPath / permanentDelete / runSweep)
-  // registered by the v2 FileManager lifecycle service, not here.
+  // file
   ipcMain.handle(IpcChannel.File_Open, fileManager.open.bind(fileManager))
   ipcMain.handle(IpcChannel.File_OpenPath, fileManager.openPath.bind(fileManager))
   ipcMain.handle(IpcChannel.File_Save, fileManager.save.bind(fileManager))
@@ -455,6 +425,7 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.File_OpenWithRelativePath, fileManager.openFileWithRelativePath.bind(fileManager))
   ipcMain.handle(IpcChannel.File_IsTextFile, fileManager.isTextFile.bind(fileManager))
   ipcMain.handle(IpcChannel.File_IsDirectory, fileManager.isDirectory.bind(fileManager))
+  ipcMain.handle(IpcChannel.File_CheckWorkspacePath, (_, filePath: string) => checkWorkspacePathStatus(filePath))
   ipcMain.handle(IpcChannel.File_ListDirectory, (_e, dirPath, options) => searchListDirectory(dirPath, options))
   ipcMain.handle(IpcChannel.File_CheckFileName, fileManager.fileNameGuard.bind(fileManager))
   ipcMain.handle(IpcChannel.File_ValidateNotesDirectory, fileManager.validateNotesDirectory.bind(fileManager))
@@ -462,30 +433,7 @@ export async function registerIpc() {
   ipcMain.handle(IpcChannel.File_ShowInFolder, fileManager.showInFolder.bind(fileManager))
 
   // pdf
-  // TODO: It should be handled by FileProcessingService
   ipcMain.handle(IpcChannel.Pdf_ExtractText, (_, data: Uint8Array | ArrayBuffer | string) => extractPdfText(data))
-
-  // file service
-  // TODO: They should be handled by FileUploadService
-  ipcMain.handle(IpcChannel.FileService_Upload, async (_, provider: Provider, file: FileMetadata) => {
-    const service = fileServiceManager.getService(provider)
-    return await service.uploadFile(file)
-  })
-
-  ipcMain.handle(IpcChannel.FileService_List, async (_, provider: Provider) => {
-    const service = fileServiceManager.getService(provider)
-    return await service.listFiles()
-  })
-
-  ipcMain.handle(IpcChannel.FileService_Delete, async (_, provider: Provider, fileId: string) => {
-    const service = fileServiceManager.getService(provider)
-    return await service.deleteFile(fileId)
-  })
-
-  ipcMain.handle(IpcChannel.FileService_Retrieve, async (_, provider: Provider, fileId: string) => {
-    const service = fileServiceManager.getService(provider)
-    return await service.retrieveFile(fileId)
-  })
 
   // fs
   ipcMain.handle(IpcChannel.Fs_Read, FileService.readFile.bind(FileService))
@@ -499,13 +447,9 @@ export async function registerIpc() {
     await shell.openPath(path)
   })
 
-  ipcMain.handle(IpcChannel.KnowledgeBase_Create, knowledgeService.create.bind(knowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Reset, knowledgeService.reset.bind(knowledgeService))
+  // v1 renderer knowledge IPC retired (T4.2); only base deletion remains,
+  // used by the v1 Redux store/knowledge slice until it is removed.
   ipcMain.handle(IpcChannel.KnowledgeBase_Delete, knowledgeService.delete.bind(knowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Add, knowledgeService.add.bind(knowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Remove, knowledgeService.remove.bind(knowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Search, knowledgeService.search.bind(knowledgeService))
-  ipcMain.handle(IpcChannel.KnowledgeBase_Rerank, knowledgeService.rerank.bind(knowledgeService))
 
   // memory
   // VertexAI
@@ -530,15 +474,11 @@ export async function registerIpc() {
   )
 
   // Channel logs & status
-  ipcMain.handle(IpcChannel.Channel_GetLogs, async (_event, channelId: string) => {
-    const { channelManager } = await import('@main/services/agents/services/channels/ChannelManager')
-    return channelManager.getChannelLogs(channelId)
-  })
+  ipcMain.handle(IpcChannel.Channel_GetLogs, (_event, channelId: string) =>
+    application.get('ChannelManager').getChannelLogs(channelId)
+  )
 
-  ipcMain.handle(IpcChannel.Channel_GetStatuses, async () => {
-    const { channelManager } = await import('@main/services/agents/services/channels/ChannelManager')
-    return channelManager.getAllStatuses()
-  })
+  ipcMain.handle(IpcChannel.Channel_GetStatuses, () => application.get('ChannelManager').getAllStatuses())
 
   ipcMain.handle(IpcChannel.App_IsBinaryExist, (_, name: string) => isBinaryExists(name))
   ipcMain.handle(IpcChannel.App_GetBinaryPath, (_, name: string) => getBinaryPath(name))

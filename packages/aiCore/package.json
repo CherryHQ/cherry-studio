@@ -45,7 +45,7 @@
     "@ai-sdk/xai": "^3.0.83",
     "@cherrystudio/ai-sdk-provider": "workspace:*",
     "@openrouter/ai-sdk-provider": "^2.3.3",
-    "lru-cache": "^11.2.4",
+    "quick-lru": "^5.1.1",
     "zod": "^4.1.5"
   },
   "devDependencies": {

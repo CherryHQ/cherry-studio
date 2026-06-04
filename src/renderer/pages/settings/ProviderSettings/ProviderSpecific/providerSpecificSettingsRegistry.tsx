@@ -1,10 +1,5 @@
-import {
-  isAwsBedrockProvider,
-  isProviderSupportAuth,
-  isVertexProvider,
-  matchesPreset
-} from '@renderer/pages/settings/ProviderSettings/utils/provider'
 import type { Provider } from '@shared/data/types/provider'
+import { isAwsBedrockProvider, isProviderSupportAuth, isVertexProvider, matchesPreset } from '@shared/utils/provider'
 import type { ReactNode } from 'react'
 
 import OpenaiAlert from '../components/OpenaiAlert'

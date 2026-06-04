@@ -1,6 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import { sanitizeFileProcessingRemoteUrl } from '@main/services/fileProcessing/utils/url'
+import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import type { FileEntryId } from '@shared/data/types/file'
 import { FileEntryIdSchema } from '@shared/data/types/file'
 import { net } from 'electron'
@@ -61,10 +61,7 @@ class MarkdownResultStore {
         return await this.readMarkdownFromZipResponse(options.result.response, options.signal)
 
       case 'remote-zip-url': {
-        const safeDownloadUrl = sanitizeFileProcessingRemoteUrl(
-          options.result.downloadUrl,
-          options.result.configuredApiHost
-        )
+        const safeDownloadUrl = sanitizeRemoteUrl(options.result.downloadUrl, options.result.configuredApiHost)
         const response = await net.fetch(safeDownloadUrl, {
           method: 'GET',
           redirect: 'error',

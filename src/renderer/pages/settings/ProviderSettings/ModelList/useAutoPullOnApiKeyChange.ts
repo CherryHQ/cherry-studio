@@ -1,5 +1,5 @@
-import { useModels } from '@renderer/hooks/useModels'
-import { useProviderApiKeys } from '@renderer/hooks/useProviders'
+import { useModels } from '@renderer/hooks/useModel'
+import { useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { useEffect, useMemo, useRef } from 'react'
 
 /**

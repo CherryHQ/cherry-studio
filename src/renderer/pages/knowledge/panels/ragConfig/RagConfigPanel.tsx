@@ -1,13 +1,7 @@
 import { Alert, Button, Scrollbar } from '@cherrystudio/ui'
-import { dataApiService } from '@data/DataApiService'
 import { loggerService } from '@logger'
-import { AiProvider } from '@renderer/aiCore'
-import { toV1ModelForCheckApi, toV1ProviderShim } from '@renderer/pages/settings/ProviderSettings/utils/v1ProviderShim'
 import { formatErrorMessageWithPrefix, getErrorMessage } from '@renderer/utils/error'
-import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
-import { ENDPOINT_TYPE, type EndpointType } from '@shared/data/types/model'
-import type { ApiKeyEntry } from '@shared/data/types/provider'
 import { RotateCcw } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -22,14 +16,6 @@ import FileProcessingSection from './FileProcessingSection'
 import RetrievalSection from './RetrievalSection'
 
 const logger = loggerService.withContext('RagConfigPanel')
-type ProviderPath = Extract<ConcreteApiPaths, `/providers/${string}`>
-type ProviderApiKeysResponse = { keys: ApiKeyEntry[] }
-
-const isEmbeddingEndpoint = (endpointType: EndpointType) =>
-  endpointType === ENDPOINT_TYPE.OPENAI_EMBEDDINGS ||
-  endpointType === ENDPOINT_TYPE.OLLAMA_GENERATE ||
-  endpointType === ENDPOINT_TYPE.OLLAMA_CHAT ||
-  endpointType === ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT
 
 export interface KnowledgeRestoreBaseInitialValues {
   embeddingModelId?: string | null
@@ -100,24 +86,11 @@ const ActiveRagConfigPanel = ({ base, onRestoreBase }: RagConfigPanelProps) => {
 
     setIsFetchingDimensions(true)
     try {
-      const providerId = selectedEmbeddingModel.providerId
-      const selectedEmbeddingProvider = await dataApiService.get(`/providers/${providerId}` as ProviderPath)
-      const selectedEmbeddingProviderApiKeys = (await dataApiService.get(`/providers/${providerId}/api-keys`, {
-        query: { enabled: true }
-      })) as ProviderApiKeysResponse
-      const apiKey = selectedEmbeddingProviderApiKeys.keys.map((key) => key.key).join(',')
-      const embeddingEndpoint = selectedEmbeddingModel.endpointTypes?.find(isEmbeddingEndpoint)
-      const apiHost = embeddingEndpoint
-        ? selectedEmbeddingProvider.endpointConfigs?.[embeddingEndpoint]?.baseUrl
-        : undefined
-      const provider = toV1ProviderShim(selectedEmbeddingProvider, {
-        apiKey,
-        apiHost,
-        models: embeddingModels
+      const { embeddings } = await window.api.ai.embedMany({
+        uniqueModelId: selectedEmbeddingModel.id,
+        values: ['test']
       })
-      const model = toV1ModelForCheckApi(selectedEmbeddingModel)
-      const aiProvider = new AiProvider(provider)
-      const dimensions = await aiProvider.getEmbeddingDimensions(model)
+      const dimensions = embeddings[0].length
       setValues((currentValues) => ({ ...currentValues, dimensions: dimensions.toString() }))
     } catch (error) {
       logger.error(t('message.error.get_embedding_dimensions'), error as Error)

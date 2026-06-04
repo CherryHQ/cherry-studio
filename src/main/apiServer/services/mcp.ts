@@ -1,8 +1,8 @@
 import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
-import type { Tool } from '@modelcontextprotocol/sdk/types'
 import type { McpServer } from '@shared/data/types/mcpServer'
+import type { McpTool } from '@types'
 
 const logger = loggerService.withContext('McpApiService')
 
@@ -11,7 +11,7 @@ const logger = loggerService.withContext('McpApiService')
  *
  * This service provides a REST API interface for MCP servers:
  * 1. Reads server config from SQLite via McpServerService
- * 2. Leverages McpService for actual server connections
+ * 2. Leverages MCP runtime/catalog services for actual server connections
  * 3. Provides session management for API clients
  */
 class McpApiService {
@@ -45,7 +45,7 @@ class McpApiService {
 
   async getServerInfo(
     id: string
-  ): Promise<(Pick<McpServer, 'id' | 'name' | 'type' | 'description'> & { tools: Tool[] }) | null> {
+  ): Promise<(Pick<McpServer, 'id' | 'name' | 'type' | 'description'> & { tools: McpTool[] }) | null> {
     try {
       const server = await this.getServerById(id)
       if (!server) {
@@ -53,14 +53,13 @@ class McpApiService {
         return null
       }
 
-      const client = await application.get('McpService').initClient(server)
-      const tools = await client.listTools()
+      const tools = await application.get('McpCatalogService').listTools(server.id)
       return {
         id: server.id,
         name: server.name,
         type: server.type,
         description: server.description,
-        tools: tools.tools
+        tools
       }
     } catch (error: any) {
       logger.error('Failed to get server info', { id, error })
