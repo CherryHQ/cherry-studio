@@ -1,9 +1,9 @@
-import type { MCPTool } from '@types'
+import type { McpTool } from '@types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { HubServer } from '../index'
 
-const mockTools: MCPTool[] = [
+const mockTools: McpTool[] = [
   {
     id: 'github__search_repos',
     name: 'search_repos',

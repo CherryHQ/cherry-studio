@@ -2,7 +2,7 @@ import { application } from '@application'
 import { mcpServerService } from '@data/services/McpServerService'
 import { loggerService } from '@logger'
 import type { Tool } from '@modelcontextprotocol/sdk/types'
-import type { MCPServer } from '@shared/data/types/mcpServer'
+import type { McpServer } from '@shared/data/types/mcpServer'
 
 const logger = loggerService.withContext('McpApiService')
 
@@ -20,14 +20,14 @@ class McpApiService {
   }
 
   // get all activated servers
-  async getAllActiveServers(): Promise<MCPServer[]> {
+  async getAllActiveServers(): Promise<McpServer[]> {
     const { items: servers } = await mcpServerService.list({ isActive: true })
     logger.debug('Returning active servers', { count: servers.length })
     return servers
   }
 
   // get server by id
-  async getServerById(id: string): Promise<MCPServer | null> {
+  async getServerById(id: string): Promise<McpServer | null> {
     try {
       logger.debug('getServerById called', { id })
       const server = await mcpServerService.getById(id)
@@ -45,7 +45,7 @@ class McpApiService {
 
   async getServerInfo(
     id: string
-  ): Promise<(Pick<MCPServer, 'id' | 'name' | 'type' | 'description'> & { tools: Tool[] }) | null> {
+  ): Promise<(Pick<McpServer, 'id' | 'name' | 'type' | 'description'> & { tools: Tool[] }) | null> {
     try {
       const server = await this.getServerById(id)
       if (!server) {

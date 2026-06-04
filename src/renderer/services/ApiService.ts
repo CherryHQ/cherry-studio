@@ -10,8 +10,8 @@ import type { AiSdkMiddlewareConfig } from '@renderer/aiCore/types/middlewareCon
 import { buildProviderOptions } from '@renderer/aiCore/utils/options'
 import { isDedicatedImageGenerationModel, isEmbeddingModel, isFunctionCallingModel } from '@renderer/config/models'
 import i18n from '@renderer/i18n'
-import { hubMCPServer } from '@renderer/store/mcp'
-import type { Assistant, MCPServer, MCPTool, Model, Provider } from '@renderer/types'
+import { hubMcpServer } from '@renderer/store/mcp'
+import type { Assistant, McpServer, McpTool, Model, Provider } from '@renderer/types'
 import { type FetchChatCompletionParams, getEffectiveMcpMode, isSystemProvider } from '@renderer/types'
 import type { StreamTextParams } from '@renderer/types/aiCoreTypes'
 import { type Chunk, ChunkType } from '@renderer/types/chunk'
@@ -58,22 +58,22 @@ const SUMMARY_REQUEST_TIMEOUT_MS = 15_000
 /**
  * Fetch active MCP servers from the Data API.
  */
-async function fetchActiveMcpServers(): Promise<MCPServer[]> {
+async function fetchActiveMcpServers(): Promise<McpServer[]> {
   const response = await dataApiService.get('/mcp-servers', { query: { isActive: true } })
-  return (response as { items: MCPServer[] }).items ?? []
+  return (response as { items: McpServer[] }).items ?? []
 }
 
 /**
  * Get the MCP servers to use based on the assistant's MCP mode.
  */
-export async function getMcpServersForAssistant(assistant: Assistant): Promise<MCPServer[]> {
+export async function getMcpServersForAssistant(assistant: Assistant): Promise<McpServer[]> {
   const mode = getEffectiveMcpMode(assistant)
 
   switch (mode) {
     case 'disabled':
       return []
     case 'auto':
-      return [hubMCPServer]
+      return [hubMcpServer]
     case 'manual': {
       const activedMcpServers = await fetchActiveMcpServers()
       const assistantMcpServers = assistant.mcpServers || []
@@ -84,7 +84,7 @@ export async function getMcpServersForAssistant(assistant: Assistant): Promise<M
   }
 }
 
-export async function fetchAllActiveServerTools(): Promise<MCPTool[]> {
+export async function fetchAllActiveServerTools(): Promise<McpTool[]> {
   const activedMcpServers = await fetchActiveMcpServers()
 
   if (activedMcpServers.length === 0) {
@@ -92,7 +92,7 @@ export async function fetchAllActiveServerTools(): Promise<MCPTool[]> {
   }
 
   try {
-    const toolPromises = activedMcpServers.map(async (mcpServer: MCPServer) => {
+    const toolPromises = activedMcpServers.map(async (mcpServer: McpServer) => {
       try {
         const tools = await window.api.mcp.listTools(mcpServer)
         return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
@@ -103,7 +103,7 @@ export async function fetchAllActiveServerTools(): Promise<MCPTool[]> {
     })
     const results = await Promise.allSettled(toolPromises)
     return results
-      .filter((result): result is PromiseFulfilledResult<MCPTool[]> => result.status === 'fulfilled')
+      .filter((result): result is PromiseFulfilledResult<McpTool[]> => result.status === 'fulfilled')
       .map((result) => result.value)
       .flat()
   } catch (toolError) {
@@ -113,12 +113,12 @@ export async function fetchAllActiveServerTools(): Promise<MCPTool[]> {
 }
 
 export async function fetchMcpTools(assistant: Assistant) {
-  let mcpTools: MCPTool[] = []
+  let mcpTools: McpTool[] = []
   const enabledMCPs = await getMcpServersForAssistant(assistant)
 
   if (enabledMCPs && enabledMCPs.length > 0) {
     try {
-      const toolPromises = enabledMCPs.map(async (mcpServer: MCPServer) => {
+      const toolPromises = enabledMCPs.map(async (mcpServer: McpServer) => {
         try {
           const tools = await window.api.mcp.listTools(mcpServer)
           return tools.filter((tool: any) => !mcpServer.disabledTools?.includes(tool.name))
@@ -129,7 +129,7 @@ export async function fetchMcpTools(assistant: Assistant) {
       })
       const results = await Promise.allSettled(toolPromises)
       mcpTools = results
-        .filter((result): result is PromiseFulfilledResult<MCPTool[]> => result.status === 'fulfilled')
+        .filter((result): result is PromiseFulfilledResult<McpTool[]> => result.status === 'fulfilled')
         .map((result) => result.value)
         .flat()
     } catch (toolError) {
@@ -241,7 +241,7 @@ export async function fetchChatCompletion({
   const AI = new AiProvider(assistant.model || getDefaultModel(), providerWithRotatedKey)
   const provider = AI.getActualProvider()
 
-  const mcpTools: MCPTool[] = []
+  const mcpTools: McpTool[] = []
   onChunkReceived({ type: ChunkType.LLM_RESPONSE_CREATED })
 
   if (isPromptToolUse(assistant) || isSupportedToolUse(assistant)) {

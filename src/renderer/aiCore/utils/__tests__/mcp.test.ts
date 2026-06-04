@@ -3,7 +3,7 @@
  * Tests for MCP tools configuration and conversion utilities
  */
 
-import type { MCPTool } from '@renderer/types'
+import type { McpTool } from '@renderer/types'
 import type { Tool } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -24,7 +24,7 @@ vi.mock('@logger', () => ({
 vi.mock('@renderer/utils/mcpTools', () => ({
   getMcpServerByTool: vi.fn(() => ({ id: 'test-server', autoApprove: false })),
   isToolAutoApproved: vi.fn(() => false),
-  callMCPTool: vi.fn(async () => ({
+  callMcpTool: vi.fn(async () => ({
     content: [{ type: 'text', text: 'Tool executed successfully' }],
     isError: false
   }))
@@ -54,7 +54,7 @@ describe('mcp utils', () => {
     })
 
     it('should convert MCP tools to AI SDK tools format', () => {
-      const mcpTools: MCPTool[] = [
+      const mcpTools: McpTool[] = [
         {
           id: 'test-tool-1',
           serverId: 'test-server',
@@ -82,7 +82,7 @@ describe('mcp utils', () => {
     })
 
     it('should handle multiple MCP tools', () => {
-      const mcpTools: MCPTool[] = [
+      const mcpTools: McpTool[] = [
         {
           id: 'tool1-id',
           serverId: 'server1',
@@ -120,7 +120,7 @@ describe('mcp utils', () => {
 
   describe('convertMcpToolsToAiSdkTools', () => {
     it('should convert single MCP tool to AI SDK tool', () => {
-      const mcpTools: MCPTool[] = [
+      const mcpTools: McpTool[] = [
         {
           id: 'get-weather-id',
           serverId: 'weather-server',
@@ -150,7 +150,7 @@ describe('mcp utils', () => {
     })
 
     it('should handle tool without description', () => {
-      const mcpTools: MCPTool[] = [
+      const mcpTools: McpTool[] = [
         {
           id: 'no-desc-tool-id',
           serverId: 'test-server',
@@ -177,7 +177,7 @@ describe('mcp utils', () => {
     })
 
     it('should handle complex input schemas', () => {
-      const mcpTools: MCPTool[] = [
+      const mcpTools: McpTool[] = [
         {
           id: 'complex-tool-id',
           serverId: 'server',
@@ -215,7 +215,7 @@ describe('mcp utils', () => {
     })
 
     it('should preserve tool id with special characters', () => {
-      const mcpTools: MCPTool[] = [
+      const mcpTools: McpTool[] = [
         {
           id: 'special-tool-id',
           serverId: 'server',
@@ -236,7 +236,7 @@ describe('mcp utils', () => {
     })
 
     it('should handle multiple tools with different schemas', () => {
-      const mcpTools: MCPTool[] = [
+      const mcpTools: McpTool[] = [
         {
           id: 'string-tool-id',
           serverId: 'server1',
@@ -423,16 +423,16 @@ describe('mcp utils', () => {
 
   describe('tool execution', () => {
     it('should execute tool with user confirmation', async () => {
-      const { callMCPTool } = await import('@renderer/utils/mcpTools')
+      const { callMcpTool } = await import('@renderer/utils/mcpTools')
       const { requestToolConfirmation } = await import('@renderer/utils/userConfirmation')
 
       vi.mocked(requestToolConfirmation).mockResolvedValue(true)
-      vi.mocked(callMCPTool).mockResolvedValue({
+      vi.mocked(callMcpTool).mockResolvedValue({
         content: [{ type: 'text', text: 'Success' }],
         isError: false
       })
 
-      const mcpTools: MCPTool[] = [
+      const mcpTools: McpTool[] = [
         {
           id: 'test-exec-tool-id',
           serverId: 'test-server',
@@ -452,7 +452,7 @@ describe('mcp utils', () => {
       const result = await tool.execute!({}, { messages: [], abortSignal: undefined, toolCallId: 'test-call-123' })
 
       expect(requestToolConfirmation).toHaveBeenCalled()
-      expect(callMCPTool).toHaveBeenCalled()
+      expect(callMcpTool).toHaveBeenCalled()
       expect(result).toEqual({
         content: [{ type: 'text', text: 'Success' }],
         isError: false
@@ -461,11 +461,11 @@ describe('mcp utils', () => {
 
     it('should handle user cancellation', async () => {
       const { requestToolConfirmation } = await import('@renderer/utils/userConfirmation')
-      const { callMCPTool } = await import('@renderer/utils/mcpTools')
+      const { callMcpTool } = await import('@renderer/utils/mcpTools')
 
       vi.mocked(requestToolConfirmation).mockResolvedValue(false)
 
-      const mcpTools: MCPTool[] = [
+      const mcpTools: McpTool[] = [
         {
           id: 'cancelled-tool-id',
           serverId: 'test-server',
@@ -485,7 +485,7 @@ describe('mcp utils', () => {
       const result = await tool.execute!({}, { messages: [], abortSignal: undefined, toolCallId: 'cancel-call-123' })
 
       expect(requestToolConfirmation).toHaveBeenCalled()
-      expect(callMCPTool).not.toHaveBeenCalled()
+      expect(callMcpTool).not.toHaveBeenCalled()
       expect(result).toEqual({
         content: [
           {
@@ -498,16 +498,16 @@ describe('mcp utils', () => {
     })
 
     it('should handle tool execution error', async () => {
-      const { callMCPTool } = await import('@renderer/utils/mcpTools')
+      const { callMcpTool } = await import('@renderer/utils/mcpTools')
       const { requestToolConfirmation } = await import('@renderer/utils/userConfirmation')
 
       vi.mocked(requestToolConfirmation).mockResolvedValue(true)
-      vi.mocked(callMCPTool).mockResolvedValue({
+      vi.mocked(callMcpTool).mockResolvedValue({
         content: [{ type: 'text', text: 'Error occurred' }],
         isError: true
       })
 
-      const mcpTools: MCPTool[] = [
+      const mcpTools: McpTool[] = [
         {
           id: 'error-tool-id',
           serverId: 'test-server',
@@ -534,16 +534,16 @@ describe('mcp utils', () => {
     })
 
     it('should auto-approve when enabled', async () => {
-      const { callMCPTool, isToolAutoApproved } = await import('@renderer/utils/mcpTools')
+      const { callMcpTool, isToolAutoApproved } = await import('@renderer/utils/mcpTools')
       const { requestToolConfirmation } = await import('@renderer/utils/userConfirmation')
 
       vi.mocked(isToolAutoApproved).mockReturnValue(true)
-      vi.mocked(callMCPTool).mockResolvedValue({
+      vi.mocked(callMcpTool).mockResolvedValue({
         content: [{ type: 'text', text: 'Auto-approved success' }],
         isError: false
       })
 
-      const mcpTools: MCPTool[] = [
+      const mcpTools: McpTool[] = [
         {
           id: 'auto-approve-tool-id',
           serverId: 'test-server',
@@ -563,7 +563,7 @@ describe('mcp utils', () => {
       const result = await tool.execute!({}, { messages: [], abortSignal: undefined, toolCallId: 'auto-call-123' })
 
       expect(requestToolConfirmation).not.toHaveBeenCalled()
-      expect(callMCPTool).toHaveBeenCalled()
+      expect(callMcpTool).toHaveBeenCalled()
       expect(result).toEqual({
         content: [{ type: 'text', text: 'Auto-approved success' }],
         isError: false

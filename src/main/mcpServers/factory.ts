@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import type { Server } from '@modelcontextprotocol/sdk/server/index.js'
-import type { BuiltinMCPServerName } from '@types'
-import { BuiltinMCPServerNames } from '@types'
+import type { BuiltinMcpServerName } from '@types'
+import { BuiltinMcpServerNames } from '@types'
 
 import BraveSearchServer from './brave-search'
 import BrowserServer from './browser'
@@ -15,46 +15,46 @@ import MemoryServer from './memory'
 import PythonServer from './python'
 import ThinkingServer from './sequentialthinking'
 
-const logger = loggerService.withContext('MCPFactory')
+const logger = loggerService.withContext('McpFactory')
 
-export function createInMemoryMCPServer(
-  name: BuiltinMCPServerName,
+export function createInMemoryMcpServer(
+  name: BuiltinMcpServerName,
   args: string[] = [],
   envs: Record<string, string> = {}
 ): Server {
   logger.debug(`[MCP] Creating in-memory MCP server: ${name} with args: ${args} and envs: ${JSON.stringify(envs)}`)
   switch (name) {
-    case BuiltinMCPServerNames.memory: {
+    case BuiltinMcpServerNames.memory: {
       const envPath = envs.MEMORY_FILE_PATH
       return new MemoryServer(envPath).server
     }
-    case BuiltinMCPServerNames.sequentialThinking: {
+    case BuiltinMcpServerNames.sequentialThinking: {
       return new ThinkingServer().server
     }
-    case BuiltinMCPServerNames.braveSearch: {
+    case BuiltinMcpServerNames.braveSearch: {
       return new BraveSearchServer(envs.BRAVE_API_KEY).server
     }
-    case BuiltinMCPServerNames.fetch: {
+    case BuiltinMcpServerNames.fetch: {
       return new FetchServer().server
     }
-    case BuiltinMCPServerNames.filesystem: {
+    case BuiltinMcpServerNames.filesystem: {
       return new FileSystemServer(resolveFilesystemBaseDir(args, envs)).server
     }
-    case BuiltinMCPServerNames.difyKnowledge: {
+    case BuiltinMcpServerNames.difyKnowledge: {
       const difyKey = envs.DIFY_KEY
       return new DifyKnowledgeServer(difyKey, args).server
     }
-    case BuiltinMCPServerNames.python: {
+    case BuiltinMcpServerNames.python: {
       return new PythonServer().server
     }
-    case BuiltinMCPServerNames.didiMCP: {
+    case BuiltinMcpServerNames.didiMcp: {
       const apiKey = envs.DIDI_API_KEY
       return new DiDiMcpServer(apiKey).server
     }
-    case BuiltinMCPServerNames.browser: {
+    case BuiltinMcpServerNames.browser: {
       return new BrowserServer().server
     }
-    case BuiltinMCPServerNames.hub: {
+    case BuiltinMcpServerNames.hub: {
       return new HubServer().server
     }
     default:

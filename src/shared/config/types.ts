@@ -26,12 +26,12 @@ export type LoaderReturn = {
   messageSource?: 'preprocess' | 'embedding' | 'validation'
 }
 
-export type MCPProgressEvent = {
+export type McpProgressEvent = {
   callId: string
   progress: number // 0-1 range
 }
 
-export type MCPServerLogEntry = {
+export type McpServerLogEntry = {
   timestamp: number
   level: 'debug' | 'info' | 'warn' | 'error' | 'stderr' | 'stdout'
   message: string
