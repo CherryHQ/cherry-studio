@@ -96,7 +96,7 @@ src/main/data/migration/v2/
   - All logging goes through `loggerService` with a migrator-specific context.
   - Use `MigrationContext.sources` instead of accessing raw files/stores directly.
   - Use `sharedData` to pass IDs or lookup tables between migrators (e.g., assistant -> chat references) instead of re-reading sources.
-  - Stream large Dexie exports (`JSONStreamReader`) and batch inserts to avoid memory spikes.
+  - Stream large Dexie exports (`JsonStreamReader`) and batch inserts to avoid memory spikes.
   - **Foreign keys are OFF for the whole migration — do NOT toggle them per-migrator**: libsql (turso's SQLite fork) is compiled with `SQLITE_DEFAULT_FOREIGN_KEYS=1`, so every new connection defaults to `foreign_keys = ON`, and `@libsql/client`'s `transaction()` nullifies its internal connection after each call (`this.#db = null`) — a one-shot `PRAGMA foreign_keys = OFF` would be lost at the first transaction boundary. The engine therefore registers `foreign_keys = OFF` **once** via the patched `client.setPragma()` (in `MigrationDbService`), which replays it on every (re)connection. This lets bulk inserts carry not-yet-resolved references (self-referencing `message.parentId`, or cross-domain refs a later migrator resolves). Integrity is verified in two layers: (1) each migrator calls `this.assertOwnedForeignKeys(ctx.db, [...])` at the end of `execute()` for the tables it owns, giving early, well-attributed failures; (2) the engine runs a whole-database `PRAGMA foreign_key_check` after all migrators complete (`MigrationEngine.verifyForeignKeys`) as the final backstop.
     - **Self-check scope**: pass only tables whose FKs are fully resolved when *your* migrator finishes. **Exclude** refs a later migrator resolves — e.g. `assistant_knowledge_base.knowledgeBaseId` is written by `AssistantMigrator` but only becomes valid after `KnowledgeMigrator` remaps/prunes it, so `KnowledgeMigrator` self-checks that table, not `AssistantMigrator`. **Exclude** polymorphic shared tables that can't be scoped to your rows (e.g. `file_ref`, written by both Chat and Knowledge); the engine's final check covers those.
   - Count validation is mandatory; engine will fail the run if `targetCount < sourceCount - skippedCount` or if `ValidateResult.errors` is non-empty.
@@ -107,7 +107,7 @@ src/main/data/migration/v2/
 
 - `utils/ReduxStateReader.ts`: safe accessor for categorized Redux Persist data with dot-path lookup.
 - `utils/DexieFileReader.ts`: reads exported Dexie JSON tables; can stream large tables.
-- `utils/JSONStreamReader.ts`: streaming reader with batching, counting, and sampling helpers for very large arrays.
+- `utils/JsonStreamReader.ts`: streaming reader with batching, counting, and sampling helpers for very large arrays.
 - `utils/LegacyHomeConfigReader.ts`: synchronously reads the v1 `~/.cherrystudio/config/config.json` file and normalizes its `appDataPath` field (both the legacy string shape and the current `{ executablePath, dataPath }[]` shape) into a `Record<executablePath, dataPath> | null`. Used exclusively by `BootConfigMigrator`'s `'configfile'` source.
 
 ## Window & IPC Integration

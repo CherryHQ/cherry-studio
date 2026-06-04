@@ -149,7 +149,7 @@ const swaggerOptions: swaggerJSDoc.Options = {
             owned_by: { type: 'string' }
           }
         },
-        MCPServer: {
+        McpServer: {
           type: 'object',
           properties: {
             id: { type: 'string' },

@@ -2,7 +2,7 @@ import { loggerService } from '@logger'
 import type {
   ExternalToolResult,
   GenerateImageResponse,
-  MCPToolResponse,
+  McpToolResponse,
   NormalToolResponse,
   WebSearchResponse
 } from '@renderer/types'
@@ -29,11 +29,11 @@ export interface StreamProcessorCallbacks {
   onThinkingChunk?: (text: string, thinking_millsec?: number) => void
   onThinkingComplete?: (text: string, thinking_millsec?: number) => void
   // A tool call response chunk (from MCP)
-  onToolCallPending?: (toolResponse: MCPToolResponse | NormalToolResponse) => void
-  onToolCallInProgress?: (toolResponse: MCPToolResponse | NormalToolResponse) => void
-  onToolCallComplete?: (toolResponse: MCPToolResponse | NormalToolResponse) => void
+  onToolCallPending?: (toolResponse: McpToolResponse | NormalToolResponse) => void
+  onToolCallInProgress?: (toolResponse: McpToolResponse | NormalToolResponse) => void
+  onToolCallComplete?: (toolResponse: McpToolResponse | NormalToolResponse) => void
   // Tool argument streaming (partial arguments during streaming)
-  onToolArgumentStreaming?: (toolResponse: MCPToolResponse | NormalToolResponse) => void
+  onToolArgumentStreaming?: (toolResponse: McpToolResponse | NormalToolResponse) => void
   // External tool call in progress
   onExternalToolInProgress?: () => void
   // Citation data received (e.g., from Internet and  Knowledge Base)

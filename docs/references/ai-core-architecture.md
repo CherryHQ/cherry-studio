@@ -477,7 +477,7 @@ export async function fetchChatCompletion({
   );
 
   // 3. Get MCP tools
-  const mcpTools: MCPTool[] = [];
+  const mcpTools: McpTool[] = [];
   if (isPromptToolUse(assistant) || isSupportedToolUse(assistant)) {
     mcpTools.push(...(await fetchMcpTools(assistant)));
   }
@@ -1196,7 +1196,7 @@ export class ConversationService {
 export default class AiSdkToChunkAdapter {
   constructor(
     private onChunk: (chunk: Chunk) => void,
-    private mcpTools?: MCPTool[],
+    private mcpTools?: McpTool[],
     private accumulate: boolean = true,
     private enableWebSearch: boolean = false,
   ) {}

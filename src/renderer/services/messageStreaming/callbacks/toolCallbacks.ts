@@ -17,7 +17,7 @@ import { loggerService } from '@logger'
 import { BUILTIN_FETCH_URLS_TOOL_NAME, BUILTIN_WEB_SEARCH_TOOL_NAME } from '@renderer/aiCore/tools/WebSearchTool'
 import store from '@renderer/store'
 import { toolPermissionsActions } from '@renderer/store/toolPermissions'
-import type { MCPToolResponse, NormalToolResponse } from '@renderer/types'
+import type { McpToolResponse, NormalToolResponse } from '@renderer/types'
 import { WEB_SEARCH_SOURCE } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { MessageBlockStatus, MessageBlockType } from '@renderer/types/newMessage'
@@ -28,7 +28,7 @@ import type { BlockManager } from '../BlockManager'
 
 const logger = loggerService.withContext('ToolCallbacks')
 
-type ToolResponse = MCPToolResponse | NormalToolResponse
+type ToolResponse = McpToolResponse | NormalToolResponse
 
 /**
  * Dependencies required for tool callbacks
@@ -154,7 +154,7 @@ export const createToolCallbacks = (deps: ToolCallbacksDependencies) => {
           isPlainObject(resolvedInput) ? resolvedInput : null
         )
 
-        const mergedToolResponse: MCPToolResponse | NormalToolResponse = {
+        const mergedToolResponse: McpToolResponse | NormalToolResponse = {
           ...(existingResponse ?? toolResponse),
           ...toolResponse,
           arguments: mergedArguments,

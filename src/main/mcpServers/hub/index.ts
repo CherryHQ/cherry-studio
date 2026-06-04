@@ -2,7 +2,7 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
-import type { MCPTool } from '@types'
+import type { McpTool } from '@types'
 
 import { formatAsText, schemaToJSDoc } from './format'
 import { formatListResultAsText, listTools } from './list'
@@ -11,7 +11,7 @@ import { Runtime } from './runtime'
 import { buildToolNameMapping, resolveToolId } from './toolname'
 import type { ExecInput, HubTool, InspectInput, InvokeInput, ListInput } from './types'
 
-const logger = loggerService.withContext('MCPServer:Hub')
+const logger = loggerService.withContext('McpServer:Hub')
 const TOOLS_CACHE_KEY = 'hub:tools:v2'
 const TOOLS_CACHE_TTL = 60 * 1000 // 1 minute
 
@@ -171,7 +171,7 @@ export class HubServer {
     return hubTools
   }
 
-  private toHubTools(tools: MCPTool[]): HubTool[] {
+  private toHubTools(tools: McpTool[]): HubTool[] {
     const mapping = buildToolNameMapping(
       tools.map((tool) => ({
         id: `${tool.serverId}__${tool.name}`,

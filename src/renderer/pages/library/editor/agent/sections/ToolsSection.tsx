@@ -15,7 +15,7 @@ import {
 import { McpServerAvatar } from '@renderer/pages/library/editor/components/McpServerAvatar'
 import type { Tool } from '@renderer/types'
 import type { AgentDetail } from '@shared/data/types/agent'
-import type { MCPServer } from '@shared/data/types/mcpServer'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import { uniq } from 'lodash'
 import { Network, Search, Sparkles, Wrench } from 'lucide-react'
 import type { FC } from 'react'
@@ -101,7 +101,7 @@ const ToolsSection: FC<Props> = ({ agent, tools, form, onChange }) => {
 
   // --- MCP Server --------------------------------------------------------------
   const { data: mcpData, isLoading: mcpLoading } = useQuery('/mcp-servers', {})
-  const mcpServers = useMemo<MCPServer[]>(() => mcpData?.items ?? [], [mcpData])
+  const mcpServers = useMemo<McpServer[]>(() => mcpData?.items ?? [], [mcpData])
   const mcpCatalog = useMemo<CatalogItem[]>(
     () =>
       mcpServers.map((s) => ({
@@ -124,9 +124,9 @@ const ToolsSection: FC<Props> = ({ agent, tools, form, onChange }) => {
     [mcpServers, t]
   )
   const mcpIds = useMemo(() => new Set(form.mcps), [form.mcps])
-  const boundMCP = useMemo(() => mcpCatalog.filter((it) => mcpIds.has(it.id)), [mcpCatalog, mcpIds])
-  const enableMCP = (id: string) => onChange({ mcps: [...form.mcps, id] })
-  const disableMCP = (id: string) => onChange({ mcps: form.mcps.filter((x) => x !== id) })
+  const boundMcp = useMemo(() => mcpCatalog.filter((it) => mcpIds.has(it.id)), [mcpCatalog, mcpIds])
+  const enableMcp = (id: string) => onChange({ mcps: [...form.mcps, id] })
+  const disableMcp = (id: string) => onChange({ mcps: form.mcps.filter((x) => x !== id) })
 
   // --- Skills -----------------------------------------------------------------
   const { skills, loading: skillsLoading, toggle: toggleSkill } = useInstalledSkills(agent.id || undefined)
@@ -165,7 +165,7 @@ const ToolsSection: FC<Props> = ({ agent, tools, form, onChange }) => {
     {
       id: 'mcp',
       label: t('library.config.agent.section.tools.tab.mcp'),
-      enabled: boundMCP.length,
+      enabled: boundMcp.length,
       total: mcpCatalog.length
     },
     {
@@ -226,7 +226,7 @@ const ToolsSection: FC<Props> = ({ agent, tools, form, onChange }) => {
           <AddCatalogPopover
             items={mcpCatalog}
             enabledIds={mcpIds}
-            onAdd={enableMCP}
+            onAdd={enableMcp}
             disabled={mcpLoading}
             triggerLabel={t('library.config.agent.section.tools.add')}
             searchPlaceholder={t('library.config.tools.search')}
@@ -258,10 +258,10 @@ const ToolsSection: FC<Props> = ({ agent, tools, form, onChange }) => {
         )}
         {activeTab === 'mcp' && (
           <BoundCatalogList
-            items={boundMCP}
+            items={boundMcp}
             loading={mcpLoading}
             search={search}
-            onDisable={disableMCP}
+            onDisable={disableMcp}
             emptyLabel={t('library.config.agent.section.tools.no_mcp_bound')}
             noMatchLabel={t('library.no_match')}
           />

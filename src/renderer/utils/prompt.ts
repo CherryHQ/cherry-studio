@@ -2,7 +2,7 @@ import { DEFAULT_SYSTEM_PROMPT } from '@cherrystudio/ai-core/built-in/plugins'
 import { loggerService } from '@logger'
 import { preferenceService } from '@renderer/data/PreferenceService'
 import store from '@renderer/store'
-import type { MCPTool } from '@renderer/types'
+import type { McpTool } from '@renderer/types'
 import { defaultLanguage } from '@shared/config/constant'
 
 const logger = loggerService.withContext('Utils:Prompt')
@@ -84,7 +84,7 @@ User: <tool_use_result>
 A: The population of Shanghai is 26 million, while Guangzhou has a population of 15 million. Therefore, Shanghai has the highest population.
 `
 
-export const AvailableTools = (tools: MCPTool[]) => {
+export const AvailableTools = (tools: McpTool[]) => {
   const availableTools = tools
     .map((tool) => {
       return `
@@ -206,7 +206,7 @@ export const replacePromptVariables = async (userSystemPrompt: string, modelName
   return userSystemPrompt
 }
 
-export const buildSystemPromptWithTools = (userSystemPrompt: string, tools?: MCPTool[]): string => {
+export const buildSystemPromptWithTools = (userSystemPrompt: string, tools?: McpTool[]): string => {
   if (tools && tools.length > 0) {
     return DEFAULT_SYSTEM_PROMPT.replace('{{ USER_SYSTEM_PROMPT }}', userSystemPrompt || '')
       .replace('{{ TOOL_USE_EXAMPLES }}', ToolUseExamples)

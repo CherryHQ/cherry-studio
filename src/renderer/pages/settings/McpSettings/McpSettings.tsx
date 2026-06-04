@@ -37,14 +37,14 @@ import Scrollbar from '@renderer/components/Scrollbar'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useMcpServer } from '@renderer/hooks/useMcpServers'
 import { useMcpServerTrust } from '@renderer/hooks/useMcpServerTrust'
-import MCPDescription from '@renderer/pages/settings/McpSettings/McpDescription'
-import type { MCPPrompt, MCPResource, MCPTool } from '@renderer/types'
+import McpDescription from '@renderer/pages/settings/McpSettings/McpDescription'
+import type { McpPrompt, McpResource, McpTool } from '@renderer/types'
 import { parseKeyValueString } from '@renderer/utils/env'
 import { formatErrorMessage, formatMcpError } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
-import type { MCPServerLogEntry } from '@shared/config/types'
-import type { UpdateMCPServerDto } from '@shared/data/api/schemas/mcpServers'
-import type { MCPServer } from '@shared/data/types/mcpServer'
+import type { McpServerLogEntry } from '@shared/config/types'
+import type { UpdateMcpServerDto } from '@shared/data/api/schemas/mcpServers'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import { useNavigate, useParams } from '@tanstack/react-router'
 import { ArrowLeft, ChevronDown, SaveIcon, X } from 'lucide-react'
 import React, { useCallback, useEffect, useState } from 'react'
@@ -53,9 +53,9 @@ import { useTranslation } from 'react-i18next'
 import * as z from 'zod'
 
 import { SettingContainer, SettingDivider, SettingTitle } from '..'
-import MCPPromptsSection from './McpPrompt'
-import MCPResourcesSection from './McpResource'
-import MCPToolsSection from './McpTool'
+import McpPromptsSection from './McpPrompt'
+import McpResourcesSection from './McpResource'
+import McpToolsSection from './McpTool'
 import { toUpdateMcpServerDto } from './utils'
 
 const logger = loggerService.withContext('McpSettings')
@@ -89,7 +89,7 @@ const buildMcpSchema = (t: (key: string) => string) =>
       }
     })
 
-type MCPFormValues = z.infer<ReturnType<typeof buildMcpSchema>>
+type McpFormValues = z.infer<ReturnType<typeof buildMcpSchema>>
 
 interface Registry {
   name: string
@@ -121,11 +121,11 @@ const McpSettings: React.FC = () => {
   const serverId = params.serverId
   const { server, isLoading: isServerLoading, updateMcpServer, deleteMcpServer } = useMcpServer(serverId ?? '')
 
-  const updateServerBody = useCallback((body: UpdateMCPServerDto) => updateMcpServer({ body }), [updateMcpServer])
+  const updateServerBody = useCallback((body: UpdateMcpServerDto) => updateMcpServer({ body }), [updateMcpServer])
 
   const { ensureServerTrusted } = useMcpServerTrust(updateServerBody)
-  const [serverType, setServerType] = useState<MCPServer['type']>('stdio')
-  const form = useForm<MCPFormValues>({
+  const [serverType, setServerType] = useState<McpServer['type']>('stdio')
+  const form = useForm<McpFormValues>({
     resolver: zodResolver(buildMcpSchema(t)) as any,
     defaultValues: {
       name: '',
@@ -152,9 +152,9 @@ const McpSettings: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabKey>('settings')
   const [toolSearchText, setToolSearchText] = useState('')
 
-  const [tools, setTools] = useState<MCPTool[]>([])
-  const [prompts, setPrompts] = useState<MCPPrompt[]>([])
-  const [resources, setResources] = useState<MCPResource[]>([])
+  const [tools, setTools] = useState<McpTool[]>([])
+  const [prompts, setPrompts] = useState<McpPrompt[]>([])
+  const [resources, setResources] = useState<McpResource[]>([])
   const [isShowRegistry, setIsShowRegistry] = useState(false)
   const [registry, setRegistry] = useState<Registry[]>()
   const [customRegistryUrl, setCustomRegistryUrl] = useState('')
@@ -163,7 +163,7 @@ const McpSettings: React.FC = () => {
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [serverVersion, setServerVersion] = useState<string | null>(null)
   const [logModalOpen, setLogModalOpen] = useState(false)
-  const [logs, setLogs] = useState<(MCPServerLogEntry & { serverId?: string })[]>([])
+  const [logs, setLogs] = useState<(McpServerLogEntry & { serverId?: string })[]>([])
 
   const { theme } = useTheme()
 
@@ -172,7 +172,7 @@ const McpSettings: React.FC = () => {
   // Initialize form values whenever the server changes
   useEffect(() => {
     if (!server) return
-    const serverType: MCPServer['type'] = server.type || (server.baseUrl ? 'sse' : 'stdio')
+    const serverType: McpServer['type'] = server.type || (server.baseUrl ? 'sse' : 'stdio')
     setServerType(serverType)
 
     // Set registry UI state based on command and registryUrl
@@ -367,7 +367,7 @@ const McpSettings: React.FC = () => {
       const values = form.getValues()
 
       // set basic fields
-      const mcpServer: MCPServer = {
+      const mcpServer: McpServer = {
         ...server,
         id: server.id,
         name: values.name,
@@ -480,7 +480,7 @@ const McpSettings: React.FC = () => {
   }
 
   const onDeleteMcpServer = useCallback(
-    async (serverToDelete: MCPServer) => {
+    async (serverToDelete: McpServer) => {
       try {
         window.modal.confirm({
           title: t('settings.mcp.deleteServer'),
@@ -560,7 +560,7 @@ const McpSettings: React.FC = () => {
 
   // Handle toggling a tool on/off
   const handleToggleTool = useCallback(
-    async (tool: MCPTool, enabled: boolean) => {
+    async (tool: McpTool, enabled: boolean) => {
       if (!server) return
       // Create a new disabledTools array or use the existing one
       let disabledTools = [...(server.disabledTools || [])]
@@ -583,7 +583,7 @@ const McpSettings: React.FC = () => {
 
   // Handle toggling auto-approve for a tool
   const handleToggleAutoApprove = useCallback(
-    async (tool: MCPTool, autoApprove: boolean) => {
+    async (tool: McpTool, autoApprove: boolean) => {
       if (!server) return
       let disabledAutoApproveTools = [...(server.disabledAutoApproveTools || [])]
 
@@ -643,7 +643,7 @@ const McpSettings: React.FC = () => {
                             value={field.value}
                             onValueChange={(value) => {
                               field.onChange(value)
-                              setServerType(value as MCPServer['type'])
+                              setServerType(value as McpServer['type'])
                             }}>
                             <SelectTrigger className="w-full">
                               <SelectValue />
@@ -1006,7 +1006,7 @@ const McpSettings: React.FC = () => {
     tabs.push({
       key: 'description',
       label: t('settings.mcp.tabs.description'),
-      children: <MCPDescription searchKey={server.searchKey} />
+      children: <McpDescription searchKey={server.searchKey} />
     })
   }
 
@@ -1015,7 +1015,7 @@ const McpSettings: React.FC = () => {
       key: 'tools',
       label: t('settings.mcp.tabs.tools') + (tools.length > 0 ? ` (${tools.length})` : ''),
       children: (
-        <MCPToolsSection
+        <McpToolsSection
           tools={tools}
           server={server}
           searchText={toolSearchText}
@@ -1029,12 +1029,12 @@ const McpSettings: React.FC = () => {
       {
         key: 'prompts',
         label: t('settings.mcp.tabs.prompts') + (prompts.length > 0 ? ` (${prompts.length})` : ''),
-        children: <MCPPromptsSection prompts={prompts} />
+        children: <McpPromptsSection prompts={prompts} />
       },
       {
         key: 'resources',
         label: t('settings.mcp.tabs.resources') + (resources.length > 0 ? ` (${resources.length})` : ''),
-        children: <MCPResourcesSection resources={resources} />
+        children: <McpResourcesSection resources={resources} />
       }
     )
   }
@@ -1236,7 +1236,7 @@ const PreBlock = ({ className, ...props }: React.ComponentPropsWithoutRef<'pre'>
   />
 )
 
-function mapLogLevelClass(level: MCPServerLogEntry['level']) {
+function mapLogLevelClass(level: McpServerLogEntry['level']) {
   switch (level) {
     case 'error':
     case 'stderr':

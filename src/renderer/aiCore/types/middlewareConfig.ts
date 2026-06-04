@@ -1,5 +1,5 @@
 import type { WebSearchPluginConfig } from '@cherrystudio/ai-core/built-in/plugins'
-import type { MCPTool } from '@renderer/types'
+import type { McpTool } from '@renderer/types'
 import type { Assistant, Message } from '@renderer/types'
 import type { Chunk } from '@renderer/types/chunk'
 import type { IdleTimeoutHandle } from '@renderer/utils/IdleTimeoutController'
@@ -22,7 +22,7 @@ export interface AiSdkMiddlewareConfig {
   enableWebSearchTools?: boolean
   enableGenerateImage: boolean
   enableUrlContext: boolean
-  mcpTools?: MCPTool[]
+  mcpTools?: McpTool[]
   uiMessages?: Message[]
   webSearchPluginConfig?: WebSearchPluginConfig
   urlContextConfig?: Record<string, any>

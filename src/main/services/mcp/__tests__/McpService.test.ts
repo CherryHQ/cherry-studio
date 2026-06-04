@@ -1,5 +1,5 @@
-import type { MCPServer } from '@shared/data/types/mcpServer'
-import type { MCPTool } from '@types'
+import type { McpServer } from '@shared/data/types/mcpServer'
+import type { McpTool } from '@types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@data/services/McpServerService', () => ({
@@ -48,7 +48,7 @@ const baseInputSchema: { type: 'object'; properties: Record<string, unknown>; re
   required: []
 }
 
-const createTool = (overrides: Partial<MCPTool>): MCPTool => ({
+const createTool = (overrides: Partial<McpTool>): McpTool => ({
   id: `${overrides.serverId}__${overrides.name}`,
   name: overrides.name ?? 'tool',
   description: overrides.description,
@@ -72,7 +72,7 @@ describe('McpService.listAllActiveServerTools', () => {
   })
 
   it('filters disabled tools per server', async () => {
-    const servers: MCPServer[] = [
+    const servers: McpServer[] = [
       {
         id: 'alpha',
         name: 'Alpha',
