@@ -34,6 +34,7 @@ import { v4 as uuidv4 } from 'uuid'
 import ChatNavbar from './components/ChatNavBar'
 import Inputbar from './Inputbar/Inputbar'
 import { type Branch, type BranchAnchor, BranchPane, pickNextColor } from './Messages/BranchPanel'
+import { abortBranchTopicStream } from './Messages/BranchPanel/abortBranchTopicStream'
 import ChatNavigation from './Messages/ChatNavigation'
 import Messages from './Messages/Messages'
 import Tabs from './Tabs'
@@ -175,6 +176,9 @@ const Chat: FC<Props> = (props) => {
   }, [])
 
   // P1-S2b-1: per-branch close (X-button OR composer Cancel).
+  // 0. P1-B5: if this branch's forked topic has an in-flight streaming reply,
+  //    abort it FIRST (capture the topic id before we drop the branch). A
+  //    non-streaming branch aborts nothing.
   // 1. Targeted clear of THIS branch's highlight spans (S2a-targeted API,
   //    other branches' spans stay intact).
   // 2. Drop from branches[].
@@ -187,6 +191,8 @@ const Chat: FC<Props> = (props) => {
   // as an orphan until S3 disposition (discard vs save) ships path Y.
   const handleCloseBranch = useCallback(
     (branchId: string) => {
+      const branchTopicId = branches.find((b) => b.id === branchId)?.topic?.id
+      if (branchTopicId) abortBranchTopicStream(branchTopicId)
       clearSourceHighlight(branchId)
       setBranches((prev) => prev.filter((b) => b.id !== branchId))
       setCollapsedBranchIds((prev) => {
@@ -201,7 +207,7 @@ const Chat: FC<Props> = (props) => {
         branchFork.reset()
       }
     },
-    [branchFork]
+    [branches, branchFork]
   )
 
   // Synthetic assistant for the branch subtree. Same id as the main assistant,

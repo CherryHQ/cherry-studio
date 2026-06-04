@@ -9,10 +9,10 @@
 |---|---|---|---|---|---|
 | D-006 | fresh install 默认模型仍是 CherryAI Qwen，不自动选 Ollama | `rm -rf ~/Library/Application\ Support/CherryStudioDev && pnpm dev` → 新建 topic 默认 model 是 Qwen \| CherryAI | 🟢 小毛刺，可手动切；非 baseline 阻塞 | 暂未建任务；等 v2 用户偏好 / 默认模型策略迁移时一起处理 | （无） |
 | D-007 | Regenerate 切到 Ollama 后点旧回复 refresh 无明显反应 | 切到 Ollama 模型 → 在历史 assistant 消息上点 refresh / regenerate | 🟢 候选 issue；主聊天侧；与 D-009 分支侧无关 | 用户在 T-009 关闭后可单独复测；如仍存在则开 T-010 | （无） |
-| **B4** | 开关一次分支后右键 "Open as branch"/"Ask" 变灰 | 开分支 → 关 → 重选 assistant 文本右键 | 🟡 既存；最可能是高亮 paint/clear 使选区坍缩 | S2d（菜单兜底）；详见本文末「分支面板调试弧」 | 本文 §B4 |
-| **B5** | 流式中关闭分支,回复继续、无法中止 | 分支流式回复中点 X | 🟡 既存；`handleCloseBranch` 从不 abort | 单独成步（动 abort 保护区，需批准）；详见本文末 | 本文 §B5 |
+| **B4** | 开关一次分支后右键 "Open as branch"/"Ask" 变灰 | 开分支 → 关 → 重选 assistant 文本右键 | ✅ **已调查 = 非 bug**（菜单正确,重选即恢复）| 不修（保留选区需改 paint 保护区）| 本文 §B4 |
+| **B5** | 流式中关闭分支,回复继续、无法中止 | 分支流式回复中点 X | ✅ **已修(未提交)** | `handleCloseBranch` 前调 `abortBranchTopicStream`,复用 abortCompletion | 本文 §B5 |
 | **B2** | 关两个分支后第三个开不出 | 见调试弧；多半 = B4 或 stale-ref | 🟡 待复现确认 | accordion 后复测；归 S2d/排查 | 本文 §B1-B5 表 |
-> 注：D-006 / D-007 / B2 / B4 / B5 是**先记录、不优先修 / 单独成步**的 issue。**B1（卡片重叠/串位）、B3（Enter 不发送）已在 S2c 修复**（见文末调试弧）。
+> 注：D-006 / D-007 / B2 是**先记录、待复现**的 issue。**B1/B3 已在 S2c 修复;B4 已调查=非 bug;B5 已修(未提交)**（见文末调试弧）。
 
 ### D-009 根因 + 修法（已 closed 2026-05-22，留存供后人复习）
 
@@ -189,8 +189,8 @@ Schema 安全（`ProviderConfigSchema.refine` 只要求该值是 endpointConfigs
 | **B1** | 双流卡片重叠/串位 | **S2b-3 引入**(display:contents+手搓 sticky)| ✅ 已修(S2c accordion 真实盒子 + shrink-0) |
 | **B2** | 关两个分支后第三个开不出 | 多半 = B4 或 S2b-1 stale-ref(既存)| ⏳ 待复现确认(随 accordion 可能已缓解;归 S2d/排查) |
 | **B3** | 初始/follow-up composer Enter 不发送 | 初始 `BranchComposer` 从无 keydown(既存)+ 跟随偏好 | ✅ 已修(共享 `composerKeyboard` + forceEnterToSend,初始+follow-up 共用) |
-| **B4** | 开关一次分支后右键 "Open as branch" 变灰 | **既存**(菜单 gating/findBlockContext/高亮 paint-clear 全在未动文件)| ⏳ open(归 S2d:菜单兜底)|
-| **B5** | 流式中关闭分支不中止,回复继续 | **既存**(`handleCloseBranch` 自 S2b-1 起从不 abort)| ⏳ open(需动 abort 保护区,需批准)|
+| **B4** | 开关一次分支后右键 "Open as branch" 变灰 | **既存**(菜单 gating/findBlockContext/高亮 paint-clear 全在未动文件)| ✅ **已调查 = 非 bug**(菜单逻辑正确;重选即恢复;实证 STEP3 ENABLED)|
+| **B5** | 流式中关闭分支不中止,回复继续 | **既存**(`handleCloseBranch` 自 S2b-1 起从不 abort)| ✅ **已修(未提交)**:close 前 `abortBranchTopicStream` 复用 abortCompletion |
 
 ### B1（核心,已修）
 - **根因**:S2b-3 把 `BranchCard` 外层设 `display:contents`(无盒子)+ 每个 header `position:sticky` 递增 `top` → 所有 header 共享滚动容器为 containing block、同时常驻并叠在下方 body 上;双流增长时视觉交叉。
@@ -201,13 +201,17 @@ Schema 安全（`ProviderConfigSchema.refine` 只要求该值是 endpointConfigs
 - **根因**:`chat.input.send_message_shortcut` 默认 `'Enter'`,但 composer 跟随用户偏好(实例非纯 Enter)→ Enter 落换行;且**初始 `BranchComposer` 根本没接 keydown→submit**。
 - **修**:共享 `composerKeyboard.ts` 唯一 `handleBranchComposerKeyDown`(`isSendMessageKeyPressed(event,'Enter',true)` 覆盖偏好 + IME 守卫),初始 + follow-up composer 共用。
 
-### B4（open,既存,未修）
-- **机制**:右键菜单 `disabled={!hasAnchor}`(`SelectionContextMenu.tsx`),`hasAnchor` 由当前选区 + `findBlockContext` 决定。最可能 = 开/关分支时高亮 `paint/clear` 的 DOM 突变使 live Selection 坍缩 → 关后未重选则菜单变灰。**菜单/findBlockContext/sourceHighlight 全在 S2c 未动文件 → 既存**。
-- **修向(未做)**:菜单侧兜底(非保护区);若要在 paint/clear 保护 Selection 则触 `sourceHighlight.ts`(保护区,需批准)。归 **S2d**。
+### B4（已调查 = 非 bug，2026-06-03）
+- **机制**:右键菜单 `disabled={!hasAnchor}`(`SelectionContextMenu.tsx:166,178,181`),`hasAnchor` = `hasSelection && blockContext!==null && role==='assistant'`,且 `handleOpenChange`(`:98-111`)**每次右键都重读** `window.getSelection()`,**无任何持久 gating flag**。
+- **实证**(jsdom 临时复现,跑完即删):有选区→ENABLED;开分支后(选区被 `paintSourceHighlight` 的 splitText 打散)无选区→DISABLED(正确);**关闭后做新选区→ENABLED(STEP3)**。
+- **结论**:**菜单逻辑正确,不是 menu-side/state-side bug**。"变灰"是菜单如实反映"当前没选区"(开分支 paint 把 live 选区打散了)。**重新选中文本即恢复**。
+- **唯一能让"开分支后选区不丢"的修法** = 在 paint 时保存/恢复选区,触 `sourceHighlight.ts`(保护区)→ **不做**;现状可接受(重选即可)。
 
-### B5（open,既存,需批准）
-- **机制**:`Chat.tsx handleCloseBranch`(S2b-1)只 `clearSourceHighlight + 移除 branch`,**从不 abort**。中止机制 = `abortCompletion(id)`(`utils/abortController.ts`),由 `messageThunk` 发起时 `addAbortController(userMessageId,…)` 注册。
-- **修向(未做)**:close 时拿该分支 in-flight 消息 id 调 `abortCompletion`。**触 abort/streaming 保护区,需你批准**。单独成步。
+### B5（✅ 已修，未提交，2026-06-04）
+- **机制**:`Chat.tsx handleCloseBranch`(S2b-1)只 `clearSourceHighlight + 移除 branch`,**从不 abort**。中止机制 = `abortCompletion(askId)`(`utils/abortController.ts:23`),key = `messageThunk` 发起时 `addAbortController(userMessageId,…)`(`:670/926`,userMessageId = 流式 assistant 消息的 `askId`)。
+- **修(本步)**:新 `BranchPanel/abortBranchTopicStream.ts`(镜像 `useMessageOperations.pauseMessages:137-147`,scoped 到一个 topic:`selectMessagesForTopic(topicId)` → 过滤 `processing/pending` → `askId` → `abortCompletion`);`Chat.tsx handleCloseBranch` 关分支**前**先 `const branchTopicId = branches.find(b=>b.id===branchId)?.topic?.id; if(branchTopicId) abortBranchTopicStream(branchTopicId)`,其余 close 行为不变(仍只移除 + clear,不删 topic = S3)。
+- **只 CALL 现有 abort,未改 StreamingService/messageThunk/abortController 内部**(git diff 全空);非流式分支不 abort;测试 5 + mutation 非空转。
+- **未做(归后续)**:删 forked topic = **S3 disposition**。
 
 ### 测试缺口教训
 - jsdom **无布局引擎** → "视觉不重叠 / 标题滚走 / 滚到顶"**单测测不了**。S2c 用**结构不变量**(header+content 同 item、无 display:contents/sticky、盒子 `shrink-0`)+ **行为**(locate scroll 调用)做契约代理,视觉一律列 **manual-smoke**,SCOPE 注释明写"绿 ≠ 不重叠"。
