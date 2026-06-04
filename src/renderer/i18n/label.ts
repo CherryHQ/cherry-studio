@@ -5,8 +5,9 @@
  */
 
 import { loggerService } from '@logger'
-import type { AgentType, BuiltinMcpServerName, BuiltinOcrProviderId } from '@renderer/types'
+import type { BuiltinMcpServerName, BuiltinOcrProviderId } from '@renderer/types'
 import { BuiltinMcpServerNames } from '@renderer/types'
+import type { AgentType } from '@shared/data/types/agent'
 import { SHORTCUT_DEFINITIONS, type ShortcutLabelKey } from '@shared/shortcuts/definitions'
 
 import i18n from './index'

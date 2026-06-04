@@ -1,6 +1,4 @@
 import { RowFlex } from '@cherrystudio/ui'
-import { useAppDispatch } from '@renderer/store'
-import { loadTopicMessagesThunk } from '@renderer/store/thunk/messageThunk'
 import type { Topic } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
 import type { InputRef } from 'antd'
@@ -32,7 +30,6 @@ const HistoryPage: FC = () => {
   const [topic, setTopic] = useState<Topic | undefined>(_topic)
   const [message, setMessage] = useState<Message | undefined>(_message)
   const inputRef = useRef<InputRef>(null)
-  const dispatch = useAppDispatch()
 
   _search = search
   _stack = stack
@@ -65,7 +62,6 @@ const HistoryPage: FC = () => {
   }
 
   const onMessageClick = (message: Message) => {
-    void dispatch(loadTopicMessagesThunk(message.topicId))
     setStack(['topics', 'search', 'message'])
     setMessage(message)
   }

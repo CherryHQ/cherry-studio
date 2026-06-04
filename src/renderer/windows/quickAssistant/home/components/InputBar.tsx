@@ -1,6 +1,7 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useTimer } from '@renderer/hooks/useTimer'
 import type { Assistant } from '@renderer/types'
+import type { Model } from '@shared/data/types/model'
 import { Input as AntdInput } from 'antd'
 import type { InputRef } from 'rc-input/lib/interface'
 import React, { useRef } from 'react'
@@ -9,6 +10,7 @@ import styled from 'styled-components'
 interface InputBarProps {
   text: string
   assistant: Assistant
+  model?: Model
   referenceText: string
   placeholder: string
   loading: boolean
@@ -19,7 +21,7 @@ interface InputBarProps {
 const InputBar = ({
   ref,
   text,
-  assistant,
+  model,
   placeholder,
   loading,
   handleKeyDown,
@@ -32,7 +34,7 @@ const InputBar = ({
   }
   return (
     <InputWrapper ref={ref}>
-      {assistant.model && <ModelAvatar model={assistant.model} size={30} />}
+      {model && <ModelAvatar model={model} size={30} />}
       <Input
         value={text}
         placeholder={placeholder}

@@ -1,9 +1,9 @@
 import { loggerService } from '@logger'
-import { presentPaintingGenerateError } from '@renderer/aiCore/errors/paintingGenerateError'
-import { useModels } from '@renderer/hooks/useModels'
+import { useModels } from '@renderer/hooks/useModel'
 import { isEditImageModel } from '@shared/utils/model'
 import { useCallback } from 'react'
 
+import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import { createDefaultPainting } from '../model/paintingPipeline'
 import type { PaintingData } from '../model/types/paintingData'
 import type { ModelOption } from '../model/types/paintingModel'

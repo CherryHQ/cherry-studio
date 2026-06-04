@@ -242,7 +242,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
             'handleOk',
             () => {
               window.api.mcp
-                .checkMcpConnectivity(createdServer)
+                .checkMcpConnectivity(createdServer.id)
                 .then((isConnected) => {
                   logger.debug(`Connectivity check for ${createdServer.name}: ${isConnected}`)
                   void dataApiService.patch(`/mcp-servers/${createdServer.id}`, {
@@ -306,7 +306,7 @@ const AddMcpServerModal: FC<AddMcpServerModalProps> = ({
 
         // 在背景非同步檢查伺服器可用性並更新狀態
         window.api.mcp
-          .checkMcpConnectivity(createdServer)
+          .checkMcpConnectivity(createdServer.id)
           .then((isConnected) => {
             logger.debug(`Connectivity check for ${createdServer.name}: ${isConnected}`)
             void dataApiService.patch(`/mcp-servers/${createdServer.id}`, {

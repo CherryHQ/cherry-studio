@@ -1,10 +1,10 @@
 import { loggerService } from '@logger'
 import { PROVIDER_URLS } from '@renderer/config/providers'
-import { isVertexProvider } from '@renderer/pages/settings/ProviderSettings/utils/provider'
 import { validateApiHost } from '@renderer/utils'
 import { ErrorCode, isDataApiError, isSerializedDataApiError, toDataApiError } from '@shared/data/api'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { isVertexProvider } from '@shared/utils/provider'
 import { debounce, trim } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -87,7 +87,7 @@ export function useProviderEndpointActions({
 
   const syncProviderModelsInBackground = useCallback(
     (nextProvider: Provider) => {
-      void syncProviderModels(nextProvider).catch((error) => {
+      void syncProviderModels().catch((error) => {
         logger.error('Silent provider model sync failed after endpoint update', {
           providerId: nextProvider.id,
           error

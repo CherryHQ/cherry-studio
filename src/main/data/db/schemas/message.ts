@@ -89,13 +89,13 @@ export const MESSAGE_FTS_STATEMENTS: string[] = [
   )`,
 
   // Trigger: populate searchable_text and sync FTS on INSERT.
-  // COALESCE wraps group_concat because group_concat returns NULL when no main_text
-  // blocks match (e.g. tool-only or empty messages); searchable_text is NOT NULL.
+  // COALESCE wraps group_concat because group_concat returns NULL when no text
+  // parts match (e.g. tool-only or empty messages); searchable_text is NOT NULL.
   `CREATE TRIGGER IF NOT EXISTS message_ai AFTER INSERT ON message BEGIN
     UPDATE message SET searchable_text = COALESCE((
-      SELECT group_concat(json_extract(value, '$.content'), ' ')
-      FROM json_each(json_extract(NEW.data, '$.blocks'))
-      WHERE json_extract(value, '$.type') = 'main_text'
+      SELECT group_concat(json_extract(value, '$.text'), ' ')
+      FROM json_each(json_extract(NEW.data, '$.parts'))
+      WHERE json_extract(value, '$.type') = 'text'
     ), '') WHERE id = NEW.id;
     INSERT INTO message_fts(rowid, searchable_text)
     SELECT rowid, searchable_text FROM message WHERE id = NEW.id;
@@ -113,9 +113,9 @@ export const MESSAGE_FTS_STATEMENTS: string[] = [
     INSERT INTO message_fts(message_fts, rowid, searchable_text)
     VALUES ('delete', OLD.rowid, OLD.searchable_text);
     UPDATE message SET searchable_text = COALESCE((
-      SELECT group_concat(json_extract(value, '$.content'), ' ')
-      FROM json_each(json_extract(NEW.data, '$.blocks'))
-      WHERE json_extract(value, '$.type') = 'main_text'
+      SELECT group_concat(json_extract(value, '$.text'), ' ')
+      FROM json_each(json_extract(NEW.data, '$.parts'))
+      WHERE json_extract(value, '$.type') = 'text'
     ), '') WHERE id = NEW.id;
     INSERT INTO message_fts(rowid, searchable_text)
     SELECT rowid, searchable_text FROM message WHERE id = NEW.id;

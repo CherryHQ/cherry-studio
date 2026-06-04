@@ -143,7 +143,7 @@ Empty / `undefined` / `null` values are dropped here — the server applies its
 own default; no client-side defaults are invented. The `'auto'` sentinel is
 **not** dropped at this stage: it's carried through and resolved to "omit the
 field" one stage later by the emitters (e.g. `toDashScopeSize` /
-`AiProvider.resolveImageSize`).
+`resolveSizeParameter` in `dashscopeTransport.ts`).
 
 ### 2. Transport routing hint (`paintingPipeline`)
 
@@ -154,7 +154,7 @@ field" one stage later by the emitters (e.g. `toDashScopeSize` /
 
 ### 3. providerOptions emitters (`buildImageProviderOptions`)
 
-[`src/renderer/aiCore/utils/imageOptions.ts`](../../../src/renderer/aiCore/utils/imageOptions.ts) is a **table of per-provider emitters** that map canonical params to each vendor's real wire field names and bag key:
+[`src/main/ai/utils/imageOptions.ts`](../../../src/main/ai/utils/imageOptions.ts) is a **table of per-provider emitters** that map canonical params to each vendor's real wire field names and bag key:
 
 ```
 EMITTERS: Record<providerId, Emitter>   // unlisted ids → diffusion fallback
@@ -170,10 +170,10 @@ nesting, enum casing. Nowhere else.
 
 ### 4. The model itself
 
-[`AiProvider.modernGeneratePaintingImage`](../../../src/renderer/aiCore/AiProvider.ts) hands `aiSdkParams` + `providerOptions` to the resolved image model. The model is one of two kinds, decided by the provider factory:
+[`AiService.generateImage`](../../../src/main/ai/AiService.ts) (reached via the `Ai_GenerateImage` IPC) hands `aiSdkParams` + `providerOptions` to the resolved image model. The model is one of two kinds, decided by the provider factory:
 
 - **Native AI SDK image model** — `OpenAIImageModel`, `@ai-sdk/google` `.image()`, `OpenAICompatibleImageModel`. Spreads `providerOptions[key]` into the request body.
-- **Custom `ImageGenerationTransport`** — for async submit→poll vendors or non-OpenAI wire shapes (DashScope, PPIO, DMXAPI's Doubao/Wan/async-Qwen families). See [`src/renderer/aiCore/provider/custom/imageGenerationModel.ts`](../../../src/renderer/aiCore/provider/custom/imageGenerationModel.ts); each vendor's transport lives beside its provider in a per-vendor folder (e.g. [`dmxapi/dmxapiTransport.ts`](../../../src/renderer/aiCore/provider/custom/dmxapi/dmxapiTransport.ts)), with shared helpers in [`transportUtils.ts`](../../../src/renderer/aiCore/provider/custom/transportUtils.ts). Multi-backend gateways (DMXAPI) dispatch by a `{match, family}` table on the model id — see [`dmxapi/dmxapiProvider.ts`](../../../src/renderer/aiCore/provider/custom/dmxapi/dmxapiProvider.ts).
+- **Custom `ImageGenerationTransport`** — for async submit→poll vendors or non-OpenAI wire shapes (DashScope, PPIO, DMXAPI's Doubao/Wan/async-Qwen families). See [`src/main/ai/provider/custom/imageGenerationModel.ts`](../../../src/main/ai/provider/custom/imageGenerationModel.ts); each vendor's transport lives beside its provider in a per-vendor folder (e.g. [`dmxapi/dmxapiTransport.ts`](../../../src/main/ai/provider/custom/dmxapi/dmxapiTransport.ts)), with shared helpers in [`transportUtils.ts`](../../../src/main/ai/provider/custom/transportUtils.ts). Multi-backend gateways (DMXAPI) dispatch by a `{match, family}` table on the model id — see [`dmxapi/dmxapiProvider.ts`](../../../src/main/ai/provider/custom/dmxapi/dmxapiProvider.ts).
 
 ---
 
@@ -213,8 +213,8 @@ nesting, enum casing. Nowhere else.
 | Default population on switch | `src/renderer/pages/paintings/utils/computeModelFieldReset.ts` |
 | Param partition | `src/renderer/pages/paintings/model/canonicalGenerate.ts` |
 | Transport hint + requirePrompt | `src/renderer/pages/paintings/model/paintingPipeline.ts` |
-| providerOptions emitters | `src/renderer/aiCore/utils/imageOptions.ts` |
-| Custom transport wrapper | `src/renderer/aiCore/provider/custom/imageGenerationModel.ts` |
-| Vendor provider + transport | `src/renderer/aiCore/provider/custom/<vendor>/{<vendor>Provider,<vendor>Transport}.ts` |
-| Shared transport helpers | `src/renderer/aiCore/provider/custom/transportUtils.ts` |
+| providerOptions emitters | `src/main/ai/utils/imageOptions.ts` |
+| Custom transport wrapper | `src/main/ai/provider/custom/imageGenerationModel.ts` |
+| Vendor provider + transport | `src/main/ai/provider/custom/<vendor>/{<vendor>Provider,<vendor>Transport}.ts` |
+| Shared transport helpers | `src/main/ai/provider/custom/transportUtils.ts` |
 ```

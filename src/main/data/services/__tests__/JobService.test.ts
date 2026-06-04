@@ -1,7 +1,7 @@
 import type { InsertJobRow } from '@data/db/schemas/job'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
-import type { Trigger } from '@main/core/job/scheduleTypes'
+import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { setupTestDatabase } from '@test-helpers/db'
 import { describe, expect, it } from 'vitest'
 

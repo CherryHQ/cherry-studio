@@ -1,11 +1,11 @@
 import { createReadStream } from 'node:fs'
 import fs from 'node:fs/promises'
 
+import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { MB } from '@shared/config/constant'
 import type { FileInfo } from '@shared/file/types'
 import { net } from 'electron'
 
-import { sanitizeFileProcessingRemoteUrl } from '../../utils/url'
 import {
   MineruApiResponseSchema,
   MineruBatchUploadDataSchema,
@@ -75,7 +75,7 @@ export async function uploadFile(
     throw new Error('Mineru file is too large (must be smaller than 200MB)')
   }
 
-  const safeUploadUrl = sanitizeFileProcessingRemoteUrl(uploadUrl, configuredApiHost)
+  const safeUploadUrl = sanitizeRemoteUrl(uploadUrl, configuredApiHost)
   const fileStream = createReadStream(file.path)
 
   try {

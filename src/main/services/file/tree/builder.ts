@@ -139,6 +139,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
   public readonly onMutation = this.emitter.event
   private watcher: DirectoryWatcher | null = null
   private watcherSubscription: Disposable | null = null
+  private watcherClosePromise: Promise<void> | null = null
   private readonly options: ResolvedTreeOptions
   private readonly rootPath: string
   // Loaded once during `init()`; what the user's `.gitignore` (plus the
@@ -175,8 +176,8 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     // miss events for paths created during the scan window. The events are
     // queued behind the scan promise and applied after it resolves.
     this.initialScanPromise = this.runInitialScan()
-    this.attachWatcher()
-    await this.initialScanPromise
+    const watcherReadyPromise = this.attachWatcher()
+    await Promise.all([this.initialScanPromise, watcherReadyPromise])
     // Clear once the scan is done so subsequent watcher events take the
     // synchronous fast path in the dispatcher instead of attaching another
     // `.then()` continuation to a settled promise per event.
@@ -239,7 +240,7 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     })
   }
 
-  private attachWatcher(): void {
+  private attachWatcher(): Promise<void> {
     // Let attach failures propagate too. A silently-failed watcher install
     // produces a zombie builder: the initial snapshot looks fine but no
     // mutation will ever fire — worse than failing init() outright because
@@ -256,22 +257,35 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
       ? (((p: FilePath) => predicate(normalizePath(p))) as (path: FilePath) => boolean)
       : undefined
 
-    this.watcher = createDirectoryWatcher(this.rootPath as FilePath, {
+    const watcher = createDirectoryWatcher(this.rootPath as FilePath, {
       recursive: true,
       stabilityThresholdMs: 200,
       ignore: watcherIgnore
     })
-    this.watcherSubscription = {
-      dispose: this.watcher.onEvent((ev) => {
-        // Defer watcher events until the initial scan completes so we
-        // don't apply a mutation for a path the scan is about to insert.
-        if (this.initialScanPromise) {
-          void this.initialScanPromise.then(() => this.handleWatcherEvent(ev))
-        } else {
-          void this.handleWatcherEvent(ev)
-        }
-      })
-    }
+    this.watcher = watcher
+    let ready = false
+    const watcherReadyPromise = new Promise<void>((resolve, reject) => {
+      this.watcherSubscription = {
+        dispose: watcher.onEvent((ev) => {
+          if (ev.kind === 'ready') {
+            ready = true
+            resolve()
+            return
+          }
+          if (ev.kind === 'error' && !ready) {
+            reject(ev.error)
+          }
+          // Defer watcher events until the initial scan completes so we
+          // don't apply a mutation for a path the scan is about to insert.
+          if (this.initialScanPromise) {
+            void this.initialScanPromise.then(() => this.handleWatcherEvent(ev))
+          } else {
+            void this.handleWatcherEvent(ev)
+          }
+        })
+      }
+    })
+    return watcherReadyPromise
   }
 
   private async handleWatcherEvent(ev: WatcherEvent): Promise<void> {
@@ -507,14 +521,20 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     this.disposed = true
     this.watcherSubscription?.dispose()
     this.watcherSubscription = null
-    void this.watcher?.close().catch((err) => logger.error('Watcher close failed', err as Error))
+    const watcher = this.watcher
     this.watcher = null
     this.emitter.dispose()
     this.map.clear()
+    if (watcher) {
+      this.watcherClosePromise = watcher.close().catch((err) => logger.error('Watcher close failed', err as Error))
+    }
   }
 
   async disposeAsync(): Promise<void> {
-    if (this.disposed) return
+    if (this.disposed) {
+      await this.watcherClosePromise
+      return
+    }
     this.disposed = true
     this.watcherSubscription?.dispose()
     this.watcherSubscription = null
@@ -527,11 +547,8 @@ class DirectoryTreeBuilderImpl implements DirectoryTreeBuilder {
     this.emitter.dispose()
     this.map.clear()
     if (watcher) {
-      try {
-        await watcher.close()
-      } catch (err) {
-        logger.error('Watcher close failed', err as Error)
-      }
+      this.watcherClosePromise = watcher.close().catch((err) => logger.error('Watcher close failed', err as Error))
+      await this.watcherClosePromise
     }
   }
 }
