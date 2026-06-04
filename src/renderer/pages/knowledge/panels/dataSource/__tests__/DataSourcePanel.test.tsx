@@ -234,7 +234,6 @@ describe('DataSourcePanel', () => {
     expect(screen.getByRole('button', { name: '目录' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '网址' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '网站' })).toBeInTheDocument()
-    expect(screen.queryByTestId('knowledge-data-source-footer-dropzone')).not.toBeInTheDocument()
   })
 
   it('guides users from the empty data source state into file or URL add flows', () => {
@@ -259,35 +258,11 @@ describe('DataSourcePanel', () => {
 
     expect(onAdd).not.toHaveBeenCalled()
     expect(filePickerClick).toHaveBeenCalledTimes(1)
-    expect(screen.queryByTestId('knowledge-data-source-footer-dropzone')).not.toBeInTheDocument()
 
     rerender(<DataSourcePanel items={[]} isLoading={false} onAdd={onAdd} onDelete={vi.fn()} onReindex={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: '网址' }))
 
     expect(onAdd).toHaveBeenCalledWith('url')
-  })
-
-  it('shows the file add button and dropzone directly on the empty file filter page', () => {
-    const onAdd = vi.fn()
-
-    render(
-      <DataSourcePanel
-        items={[]}
-        isLoading={false}
-        activeFilter="file"
-        onAdd={onAdd}
-        onDelete={vi.fn()}
-        onReindex={vi.fn()}
-      />
-    )
-
-    expect(onAdd).not.toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: '文件' })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '笔记' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '目录' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '网址' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: '网站' })).not.toBeInTheDocument()
-    expect(screen.getByTestId('knowledge-data-source-footer-dropzone')).toBeInTheDocument()
   })
 
   it('uses the first non-empty note line as the title and leaves blank notes without the old fallback label', () => {
@@ -330,7 +305,9 @@ describe('DataSourcePanel', () => {
 
     expect(screen.getByText('https://example.com/product-docs')).toBeInTheDocument()
     expect(screen.getByText('https://example.com/sitemap.xml')).toBeInTheDocument()
-    expect(screen.getByText('/Users/eeee/本地资料夹')).toBeInTheDocument()
+    const directoryTitle = screen.getByText('本地资料夹')
+    expect(directoryTitle).toBeInTheDocument()
+    expect(directoryTitle).toHaveAttribute('title', '/Users/eeee/本地资料夹')
     expect(screen.getByText('已就绪 2/3')).toBeInTheDocument()
     expect(screen.getByText('等待中')).toBeInTheDocument()
   })
@@ -353,61 +330,12 @@ describe('DataSourcePanel', () => {
       />
     )
 
-    expect(screen.getByText('/Users/eeee/本地资料夹')).toBeInTheDocument()
+    const directoryTitle = screen.getByText('本地资料夹')
+    expect(directoryTitle).toBeInTheDocument()
+    expect(directoryTitle).toHaveAttribute('title', '/Users/eeee/本地资料夹')
     expect(screen.getByText('https://example.com/sitemap.xml')).toBeInTheDocument()
     expect(screen.getAllByText('处理中')).toHaveLength(2)
     expect(screen.queryByText('等待中')).not.toBeInTheDocument()
-  })
-
-  it('keeps type filtering available without rendering the old tab controls', () => {
-    const { rerender } = render(
-      <DataSourcePanel
-        items={[
-          createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
-          createNoteItem({ id: 'note-1', content: '会议纪要' })
-        ]}
-        isLoading={false}
-        onAdd={vi.fn()}
-        onDelete={vi.fn()}
-        onReindex={vi.fn()}
-      />
-    )
-
-    expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
-    expect(screen.getByText('季度报告.pdf')).toBeInTheDocument()
-    expect(screen.getByText('会议纪要')).toBeInTheDocument()
-
-    rerender(
-      <DataSourcePanel
-        items={[
-          createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
-          createNoteItem({ id: 'note-1', content: '会议纪要' })
-        ]}
-        isLoading={false}
-        activeFilter="file"
-        onAdd={vi.fn()}
-        onDelete={vi.fn()}
-        onReindex={vi.fn()}
-      />
-    )
-    expect(screen.getByText('季度报告.pdf')).toBeInTheDocument()
-    expect(screen.queryByText('会议纪要')).not.toBeInTheDocument()
-
-    rerender(
-      <DataSourcePanel
-        items={[
-          createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
-          createNoteItem({ id: 'note-1', content: '会议纪要' })
-        ]}
-        isLoading={false}
-        activeFilter="note"
-        onAdd={vi.fn()}
-        onDelete={vi.fn()}
-        onReindex={vi.fn()}
-      />
-    )
-    expect(screen.getByText('会议纪要')).toBeInTheDocument()
-    expect(screen.queryByText('季度报告.pdf')).not.toBeInTheDocument()
   })
 
   it('does not open the add source dialog from the header button before a source is selected', () => {
@@ -442,8 +370,6 @@ describe('DataSourcePanel', () => {
       />
     )
 
-    expect(screen.queryByTestId('knowledge-data-source-footer-dropzone')).not.toBeInTheDocument()
-
     const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
     const filePickerClick = vi.spyOn(fileInput, 'click')
 
@@ -452,33 +378,6 @@ describe('DataSourcePanel', () => {
 
     expect(onAdd).not.toHaveBeenCalled()
     expect(filePickerClick).toHaveBeenCalledTimes(1)
-    expect(screen.queryByTestId('knowledge-data-source-footer-dropzone')).not.toBeInTheDocument()
-  })
-
-  it('forwards dropped files from the empty file page footer dropzone', () => {
-    const onAdd = vi.fn()
-    const file = new File(['alpha'], 'alpha.pdf', { type: 'application/pdf' })
-
-    render(
-      <DataSourcePanel
-        items={[]}
-        isLoading={false}
-        activeFilter="file"
-        onAdd={onAdd}
-        onDelete={vi.fn()}
-        onReindex={vi.fn()}
-      />
-    )
-
-    expect(screen.getByTestId('knowledge-data-source-footer-dropzone')).toBeInTheDocument()
-
-    fireEvent.drop(screen.getByTestId('knowledge-data-source-footer-dropzone'), {
-      dataTransfer: {
-        files: [file]
-      }
-    })
-
-    expect(onAdd).toHaveBeenCalledWith('file', [file])
   })
 
   it('shows source choices on header add hover and forwards the selected source', () => {
@@ -496,60 +395,6 @@ describe('DataSourcePanel', () => {
 
     fireEvent.mouseEnter(screen.getByRole('button', { name: '添加数据源' }))
     fireEvent.click(screen.getByRole('menuitem', { name: '目录' }))
-
-    expect(onAdd).toHaveBeenCalledWith('directory')
-  })
-
-  it('opens the active source add flow directly from the filtered header add button', () => {
-    const onAdd = vi.fn()
-
-    render(
-      <DataSourcePanel
-        items={[createFileItem({ id: 'file-1', originName: '季度报告.pdf' })]}
-        isLoading={false}
-        activeFilter="file"
-        onAdd={onAdd}
-        onDelete={vi.fn()}
-        onReindex={vi.fn()}
-      />
-    )
-
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement
-    const filePickerClick = vi.spyOn(fileInput, 'click')
-
-    fireEvent.mouseEnter(screen.getByRole('button', { name: '添加数据源' }))
-    expect(screen.queryByRole('menuitem', { name: '笔记' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('menuitem', { name: '目录' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('menuitem', { name: '网址' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('menuitem', { name: '网站' })).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: '添加数据源' }))
-
-    expect(onAdd).not.toHaveBeenCalled()
-    expect(filePickerClick).toHaveBeenCalledTimes(1)
-  })
-
-  it('opens the active dialog source directly from the filtered header add button', () => {
-    const onAdd = vi.fn()
-
-    render(
-      <DataSourcePanel
-        items={[createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/资料目录' })]}
-        isLoading={false}
-        activeFilter="directory"
-        onAdd={onAdd}
-        onDelete={vi.fn()}
-        onReindex={vi.fn()}
-      />
-    )
-
-    fireEvent.mouseEnter(screen.getByRole('button', { name: '添加数据源' }))
-    expect(screen.queryByRole('menuitem', { name: '文件' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('menuitem', { name: '目录' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('menuitem', { name: '网址' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('menuitem', { name: '网站' })).not.toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: '添加数据源' }))
 
     expect(onAdd).toHaveBeenCalledWith('directory')
   })
@@ -573,6 +418,54 @@ describe('DataSourcePanel', () => {
     expect(screen.queryByText('会议记录.pdf')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '搜索数据源' })).not.toBeInTheDocument()
     expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
+  })
+
+  it('prunes selected item ids when search hides selected rows', async () => {
+    const onDelete = vi.fn().mockResolvedValue(undefined)
+
+    const { rerender } = render(
+      <DataSourcePanel
+        items={[
+          createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
+          createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
+        ]}
+        isLoading={false}
+        onAdd={vi.fn()}
+        onDelete={onDelete}
+        onReindex={vi.fn()}
+      />
+    )
+
+    fireEvent.click(screen.getByRole('checkbox', { name: '全选' }))
+    expect(screen.getByText('已选 2 项')).toBeInTheDocument()
+
+    rerender(
+      <DataSourcePanel
+        items={[
+          createFileItem({ id: 'file-1', originName: '季度报告.pdf' }),
+          createFileItem({ id: 'file-2', originName: '会议记录.pdf' })
+        ]}
+        isLoading={false}
+        searchQuery="季度"
+        onAdd={vi.fn()}
+        onDelete={onDelete}
+        onReindex={vi.fn()}
+      />
+    )
+
+    await waitFor(() => {
+      expect(screen.getByText('已选 1 项')).toBeInTheDocument()
+    })
+    expect(screen.queryByText('会议记录.pdf')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: '删除' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '删除' }))
+
+    await waitFor(() => {
+      expect(onDelete).toHaveBeenCalledTimes(1)
+    })
+    expect(onDelete).toHaveBeenCalledWith(expect.objectContaining({ id: 'file-1' }))
+    expect(onDelete).not.toHaveBeenCalledWith(expect.objectContaining({ id: 'file-2' }))
   })
 
   it('forwards row clicks to the item chunk detail handler', () => {

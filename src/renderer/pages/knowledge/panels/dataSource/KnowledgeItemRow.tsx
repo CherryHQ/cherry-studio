@@ -212,7 +212,7 @@ const KnowledgeItemRowMoreMenu = ({
         side="bottom"
         sideOffset={4}
         collisionPadding={8}
-        className="z-30 w-40"
+        className="z-30 w-max max-w-56 p-1.5"
         onClick={(event) => event.stopPropagation()}
         onOpenAutoFocus={(event) => event.preventDefault()}
         onCloseAutoFocus={(event) => event.preventDefault()}>
@@ -254,6 +254,7 @@ const KnowledgeItemRow = ({
   const canViewChunks = item.status === 'completed'
   const typeLabel = t(dataSourceTypeDisplayConfig[item.type].filterLabelKey)
   const updatedAt = formatRelativeTime(item.updatedAt, language)
+  const fullTitle = 'source' in item.data ? item.data.source : title
 
   return (
     <TableRow
@@ -284,7 +285,9 @@ const KnowledgeItemRow = ({
           </span>
           <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-1.5">
-              <span className="min-w-0 truncate text-foreground text-sm">{title}</span>
+              <span className="min-w-0 truncate text-foreground text-sm" title={fullTitle}>
+                {title}
+              </span>
               {suffix ? <span className="shrink-0 text-foreground-muted text-xs uppercase">{suffix}</span> : null}
             </div>
             {metaParts.length > 0 ? (

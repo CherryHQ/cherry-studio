@@ -1,7 +1,7 @@
 import type { FileEntry } from '@shared/data/types/file'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 
-import { type DataSourceFilter, dataSourceTypeDisplayConfig, type KnowledgeItemRowViewModel } from './models'
+import { dataSourceTypeDisplayConfig, type KnowledgeItemRowViewModel } from './models'
 
 export const getItemStatus = (item: KnowledgeItem) => {
   switch (item.type) {
@@ -31,14 +31,6 @@ export const getItemTitle = (item: KnowledgeItem, fileEntry?: FileEntry): string
     case 'sitemap':
       return dataSourceTypeDisplayConfig.sitemap.getTitle(item, { language: '' })
   }
-}
-
-export const getVisibleItems = (items: KnowledgeItem[], activeFilter: DataSourceFilter) => {
-  if (activeFilter === 'all') {
-    return items
-  }
-
-  return items.filter((item) => item.type === activeFilter)
 }
 
 export const getReadyCount = (items: KnowledgeItem[]) =>

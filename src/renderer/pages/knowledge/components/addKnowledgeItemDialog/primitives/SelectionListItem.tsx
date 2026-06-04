@@ -9,6 +9,13 @@ interface SelectionListItemProps {
   removeLabel: string
 }
 
+const getPathName = (value: string) => {
+  const normalizedValue = value.replace(/[/\\]+$/, '')
+  const name = normalizedValue.split(/[/\\]/).pop()?.trim()
+
+  return name || normalizedValue || value
+}
+
 const SelectionListItem = ({
   icon: Icon,
   iconClassName,
@@ -17,15 +24,21 @@ const SelectionListItem = ({
   onRemove,
   removeLabel
 }: SelectionListItemProps) => {
+  const displayName = getPathName(name)
+
   return (
     <div
       role="listitem"
-      className="flex min-w-0 max-w-full items-center gap-1.5 overflow-hidden rounded-md bg-background-subtle px-2 py-1">
+      className="grid min-w-0 max-w-full grid-cols-[auto_minmax(0,1fr)_minmax(0,max-content)_auto] items-center gap-1.5 overflow-hidden rounded-md bg-background-subtle px-2 py-1">
       <Icon className={iconClassName} />
 
-      <span className="min-w-0 flex-1 truncate text-foreground text-xs leading-4">{name}</span>
+      <span className="min-w-0 truncate text-foreground text-xs leading-4" title={name}>
+        {displayName}
+      </span>
       {meta ? (
-        <span className="min-w-0 max-w-[60%] truncate text-foreground-muted text-xs leading-4">{meta}</span>
+        <span className="min-w-0 max-w-60 truncate text-foreground-muted text-xs leading-4" title={meta}>
+          {meta}
+        </span>
       ) : null}
 
       <button
