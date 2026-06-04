@@ -10,28 +10,28 @@
 
 import { mcpServerService } from '@data/services/McpServerService'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
-import type { MCPServerSchemas } from '@shared/data/api/schemas/mcpServers'
+import type { McpServerSchemas } from '@shared/data/api/schemas/mcpServers'
 import {
-  CreateMCPServerSchema,
-  ListMCPServersQuerySchema,
-  ReorderMCPServersSchema,
-  UpdateMCPServerSchema
+  CreateMcpServerSchema,
+  ListMcpServersQuerySchema,
+  ReorderMcpServersSchema,
+  UpdateMcpServerSchema
 } from '@shared/data/api/schemas/mcpServers'
 
-export const mcpServerHandlers: HandlersFor<MCPServerSchemas> = {
+export const mcpServerHandlers: HandlersFor<McpServerSchemas> = {
   '/mcp-servers': {
     GET: async ({ query }) => {
-      const parsed = ListMCPServersQuerySchema.parse(query ?? {})
+      const parsed = ListMcpServersQuerySchema.parse(query ?? {})
       return await mcpServerService.list(parsed)
     },
 
     POST: async ({ body }) => {
-      const parsed = CreateMCPServerSchema.parse(body)
+      const parsed = CreateMcpServerSchema.parse(body)
       return await mcpServerService.create(parsed)
     },
 
     PATCH: async ({ body }) => {
-      const parsed = ReorderMCPServersSchema.parse(body)
+      const parsed = ReorderMcpServersSchema.parse(body)
       await mcpServerService.reorder(parsed.orderedIds)
       return undefined
     }
@@ -43,7 +43,7 @@ export const mcpServerHandlers: HandlersFor<MCPServerSchemas> = {
     },
 
     PATCH: async ({ params, body }) => {
-      const parsed = UpdateMCPServerSchema.parse(body)
+      const parsed = UpdateMcpServerSchema.parse(body)
       return await mcpServerService.update(params.id, parsed)
     },
 

@@ -1,8 +1,8 @@
 import { Badge, Button, Popover, PopoverContent, PopoverTrigger, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
-import { useMcpServers } from '@renderer/hooks/useMcpServers'
+import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import { getBuiltInMcpServerDescriptionLabel } from '@renderer/i18n/label'
-import { builtinMCPServers } from '@renderer/store/mcp'
+import { builtinMcpServers } from '@renderer/store/mcp'
 import { cn } from '@renderer/utils/style'
 import { Check, Plus } from 'lucide-react'
 import type { FC } from 'react'
@@ -10,6 +10,7 @@ import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { SettingTitle } from '..'
+import { toCreateMcpServerDto } from './utils'
 
 const BuiltinMcpServerList: FC = () => {
   const { t } = useTranslation()
@@ -19,7 +20,7 @@ const BuiltinMcpServerList: FC = () => {
 
   const installedCount = useMemo(
     () =>
-      builtinMCPServers.filter((server) => mcpServers.some((existingServer) => existingServer.name === server.name))
+      builtinMcpServers.filter((server) => mcpServers.some((existingServer) => existingServer.name === server.name))
         .length,
     [mcpServers]
   )
@@ -27,7 +28,7 @@ const BuiltinMcpServerList: FC = () => {
   const filteredServers = useMemo(() => {
     const keyword = searchText.trim().toLowerCase()
 
-    return builtinMCPServers.filter((server) => {
+    return builtinMcpServers.filter((server) => {
       const isInstalled = mcpServers.some((existingServer) => existingServer.name === server.name)
 
       if (filter === 'installed' && !isInstalled) return false
@@ -45,7 +46,7 @@ const BuiltinMcpServerList: FC = () => {
       <div className="mb-3 flex items-center gap-2">
         <SettingTitle className="m-0">{t('settings.mcp.builtinServers')}</SettingTitle>
         <span className="text-muted-foreground text-sm">
-          {installedCount}/{builtinMCPServers.length}
+          {installedCount}/{builtinMcpServers.length}
         </span>
       </div>
 
@@ -135,7 +136,7 @@ const BuiltinMcpServerList: FC = () => {
                     className="h-7 rounded-lg px-2 text-muted-foreground text-xs shadow-none hover:bg-muted hover:text-foreground hover:shadow-none"
                     onClick={async () => {
                       try {
-                        await addMcpServer(server)
+                        await addMcpServer(toCreateMcpServerDto(server))
                         window.toast.success(t('settings.mcp.addSuccess'))
                       } catch {
                         window.toast.error(t('settings.mcp.addError'))

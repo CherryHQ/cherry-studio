@@ -6,7 +6,7 @@ import { useProviderMeta } from '../useProviderMeta'
 const useProviderMock = vi.fn()
 const useTranslationMock = vi.fn()
 
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args)
 }))
 

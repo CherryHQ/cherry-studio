@@ -1,4 +1,4 @@
-import { useModelMutations, useModels } from '@renderer/hooks/useModels'
+import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'

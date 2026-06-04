@@ -6,7 +6,7 @@ interface AgentStatusScreenProps {
   iconClassName: string
   title: string
   description: string
-  actions: ReactNode
+  actions?: ReactNode
 }
 
 const AgentStatusScreen = ({ icon: Icon, iconClassName, title, description, actions }: AgentStatusScreenProps) => {
@@ -17,7 +17,7 @@ const AgentStatusScreen = ({ icon: Icon, iconClassName, title, description, acti
         <h3 className="m-0 font-medium text-(--color-text) text-base">{title}</h3>
         <p className="m-0 max-w-xs text-center text-(--color-text-secondary) text-sm">{description}</p>
       </div>
-      <div className="flex gap-3">{actions}</div>
+      {actions && <div className="flex gap-3">{actions}</div>}
     </div>
   )
 }

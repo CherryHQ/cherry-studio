@@ -68,7 +68,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onE
             <button
               type="button"
               className={cn(
-                'block min-w-0 shrink overflow-hidden text-ellipsis whitespace-nowrap text-left font-[weight:var(--font-weight-medium)] text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]',
+                'block min-w-0 shrink overflow-hidden text-ellipsis whitespace-nowrap text-left font-[weight:var(--font-weight-normal)] text-[length:var(--font-size-body-md)] text-foreground/90 leading-[var(--line-height-body-md)]',
                 modelListClasses.rowNameCopyable
               )}
               onClick={handleEdit}>
@@ -92,7 +92,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onE
         <div className={modelListClasses.rowActionsCluster}>
           <div className={modelListClasses.rowCapabilityStrip}>
             <div className={modelListClasses.rowCapabilityTagCluster}>
-              <ModelTagsWithLabel model={model} size={8} showLabel={false} style={{ flexWrap: 'nowrap' }} />
+              <ModelTagsWithLabel model={model} size={10} showLabel={false} style={{ flexWrap: 'nowrap' }} />
             </div>
             <FreeTrialModelTag modelId={model.id} providerId={model.providerId} />
           </div>

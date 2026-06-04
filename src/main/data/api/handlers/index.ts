@@ -26,13 +26,17 @@ import { messageHandlers } from './messages'
 import { miniAppHandlers } from './miniApps'
 import { modelHandlers } from './models'
 import { noteHandlers } from './notes'
+import { paintingHandlers } from './paintings'
 import { pinHandlers } from './pins'
 import { promptHandlers } from './prompts'
 import { providerHandlers } from './providers'
+import { sessionHandlers } from './sessions'
+import { skillHandlers } from './skills'
 import { tagHandlers } from './tags'
 import { temporaryChatHandlers } from './temporaryChats'
 import { topicHandlers } from './topics'
 import { translateHandlers } from './translate'
+import { workspaceHandlers } from './workspaces'
 
 /**
  * Complete API handlers implementation
@@ -50,7 +54,10 @@ export const apiHandlers: ApiImplementation = {
   ...fileHandlers,
   ...temporaryChatHandlers,
   ...modelHandlers,
+  ...paintingHandlers,
   ...providerHandlers,
+  ...sessionHandlers,
+  ...skillHandlers,
   ...knowledgeHandlers,
   ...translateHandlers,
   ...mcpServerHandlers,
@@ -60,5 +67,6 @@ export const apiHandlers: ApiImplementation = {
   ...groupHandlers,
   ...pinHandlers,
   ...promptHandlers,
+  ...workspaceHandlers,
   ...jobHandlers
 }

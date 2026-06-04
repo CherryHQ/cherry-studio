@@ -7,7 +7,6 @@ import type { LoggerService } from '@main/core/logger/LoggerService'
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
-  DEFAULT_KNOWLEDGE_BASE_EMOJI,
   DEFAULT_KNOWLEDGE_SEARCH_MODE
 } from '@shared/data/types/knowledge'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -54,7 +53,6 @@ describe('markUnscheduledKnowledgeItemsFailed integration', () => {
       id: BASE_ID,
       name: 'KB',
       groupId: null,
-      emoji: DEFAULT_KNOWLEDGE_BASE_EMOJI,
       dimensions: 3,
       embeddingModelId: 'provider::embed',
       status: 'completed',

@@ -3,7 +3,6 @@ import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import {
   DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP,
   DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE,
-  DEFAULT_KNOWLEDGE_BASE_EMOJI,
   DEFAULT_KNOWLEDGE_BASE_STATUS,
   DEFAULT_KNOWLEDGE_SEARCH_MODE,
   KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL,
@@ -240,7 +239,6 @@ export const transformKnowledgeBase = (
     id: uuidv4(),
     name: base.name,
     groupId: null,
-    emoji: DEFAULT_KNOWLEDGE_BASE_EMOJI,
     dimensions,
     embeddingModelId,
     status: embeddingModelId ? DEFAULT_KNOWLEDGE_BASE_STATUS : 'failed',

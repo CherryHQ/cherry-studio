@@ -4,8 +4,10 @@ import type {
   QuickPanelListItem,
   QuickPanelReservedSymbol
 } from '@renderer/components/QuickPanel'
-import { type Assistant, type Model, type ThinkingOption, TopicType } from '@renderer/types'
+import { type Assistant, type ThinkingOption, TopicType } from '@renderer/types'
 import type { InputBarToolType } from '@renderer/types/chat'
+import type { Model } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import type { TFunction } from 'i18next'
 import React from 'react'
 
@@ -61,11 +63,18 @@ export interface ToolContext {
   scope: InputbarScope
   assistant: Assistant
   model: Model
-  // Session data for Agent Session scope (only available when scope is TopicType.Session)
+  // Resolved v2 provider for `model.providerId`. Injected by the React
+  // dispatch site (InputbarTools) so sync `condition()` predicates can run
+  // v2 provider checks without a v1 Redux lookup. Undefined while loading
+  // or when the provider is unknown.
+  provider?: Provider
+  // Session data for Agent Session scope (only available when scope is TopicType.Session).
+  // Note: config fields (model/instructions/...) live on the parent agent — fetch via
+  // useAgent(session.agentId). agentType drives builtin slash command lookup.
   session?: {
     agentId?: string
     sessionId?: string
-    slashCommands?: Array<{ command: string; description?: string }>
+    agentType?: string
     tools?: Array<{ id: string; name: string; type: string; description?: string }>
     accessiblePaths?: string[]
     reasoningEffort?: ThinkingOption

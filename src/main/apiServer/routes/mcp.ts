@@ -4,7 +4,7 @@ import express from 'express'
 
 import { getMcpApiService } from '../services/mcp'
 
-const logger = loggerService.withContext('ApiServerMCPRoutes')
+const logger = loggerService.withContext('ApiServerMcpRoutes')
 
 const router = express.Router()
 
@@ -28,7 +28,7 @@ const router = express.Router()
  *                 data:
  *                   type: array
  *                   items:
- *                     $ref: '#/components/schemas/MCPServer'
+ *                     $ref: '#/components/schemas/McpServer'
  *       503:
  *         description: Service unavailable
  *         content:
@@ -97,7 +97,7 @@ router.get('/', async (_req: Request, res: Response) => {
  *                 success:
  *                   type: boolean
  *                 data:
- *                   $ref: '#/components/schemas/MCPServer'
+ *                   $ref: '#/components/schemas/McpServer'
  *       404:
  *         description: MCP server not found
  *         content:

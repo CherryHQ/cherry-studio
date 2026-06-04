@@ -93,7 +93,8 @@ async function seedAssistantKnowledgeBaseRefs(dbh: ReturnType<typeof setupTestDa
     id: ASSISTANT_ID,
     name: 'Assistant',
     emoji: '*',
-    settings: DEFAULT_ASSISTANT_SETTINGS
+    settings: DEFAULT_ASSISTANT_SETTINGS,
+    orderKey: 'a0'
   })
 
   await dbh.client.execute('PRAGMA foreign_keys = OFF')
@@ -128,7 +129,6 @@ describe('KnowledgeMigrator reference integrity guards (integration)', () => {
         id: migratedBaseId,
         name: 'KB 1',
         groupId: null,
-        emoji: '*',
         dimensions: 768,
         embeddingModelId: null,
         status: 'failed',

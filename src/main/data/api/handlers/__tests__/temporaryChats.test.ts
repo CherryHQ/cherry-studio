@@ -1,4 +1,4 @@
-import { BlockType, type Message, type MessageData } from '@shared/data/types/message'
+import type { Message, MessageData } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -23,7 +23,7 @@ vi.mock('@data/services/TemporaryChatService', () => ({
 import { temporaryChatHandlers } from '../temporaryChats'
 
 function mainText(content: string): MessageData {
-  return { blocks: [{ type: BlockType.MAIN_TEXT, content, createdAt: 0 }] }
+  return { parts: [{ type: 'text', text: content }] }
 }
 
 function fakeTopic(overrides: Partial<Topic> = {}): Topic {
@@ -31,9 +31,9 @@ function fakeTopic(overrides: Partial<Topic> = {}): Topic {
     id: 'tid-123',
     name: 'Untitled',
     isNameManuallyEdited: false,
-    assistantId: null,
-    activeNodeId: null,
-    groupId: null,
+    assistantId: undefined,
+    activeNodeId: undefined,
+    groupId: undefined,
     orderKey: '',
     createdAt: '2025-01-01T00:00:00.000Z',
     updatedAt: '2025-01-01T00:00:00.000Z',

@@ -830,9 +830,8 @@
           "originalKey": "showAssistants",
           "type": "boolean",
           "defaultValue": true,
-          "status": "classified",
-          "category": "preferences",
-          "targetKey": "assistant.tab.show"
+          "status": "deleted",
+          "targetKey": null
         },
         {
           "originalKey": "showTopics",
@@ -2318,9 +2317,9 @@
           "originalKey": "defaultPaintingProvider",
           "type": "string",
           "defaultValue": "zhipu",
-          "status": "pending",
-          "category": "cache",
-          "targetKey": null
+          "status": "classified",
+          "category": "preferences",
+          "targetKey": "feature.paintings.default_provider"
         },
         {
           "originalKey": "s3",

@@ -8,20 +8,20 @@ import {
   Flex,
   Tooltip
 } from '@cherrystudio/ui'
-import type { MCPPrompt } from '@renderer/types'
+import type { McpPrompt } from '@renderer/types'
 import { useTranslation } from 'react-i18next'
 
 import { McpDetailItem, McpDetailList, RequiredMark } from './McpDetailList'
 
-interface MCPPromptsSectionProps {
-  prompts: MCPPrompt[]
+interface McpPromptsSectionProps {
+  prompts: McpPrompt[]
 }
 
-const MCPPromptsSection = ({ prompts }: MCPPromptsSectionProps) => {
+const McpPromptsSection = ({ prompts }: McpPromptsSectionProps) => {
   const { t } = useTranslation()
 
   // Render prompt arguments
-  const renderPromptArguments = (prompt: MCPPrompt) => {
+  const renderPromptArguments = (prompt: McpPrompt) => {
     if (!prompt.arguments || prompt.arguments.length === 0) return null
 
     return (
@@ -85,4 +85,4 @@ const MCPPromptsSection = ({ prompts }: MCPPromptsSectionProps) => {
   )
 }
 
-export default MCPPromptsSection
+export default McpPromptsSection

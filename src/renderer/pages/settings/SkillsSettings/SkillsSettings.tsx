@@ -871,7 +871,7 @@ const MenuScroll = ({ className, ...props }: React.ComponentProps<typeof Scrollb
 const ListHeader = divWithClass('flex items-center gap-2 pt-1 pb-2')
 const FilterContainer = divWithClass('pb-2')
 const RightContainer = divWithClass('relative flex flex-1 flex-col')
-const TopBar = divWithClass('flex min-h-11 items-center gap-2 border-border border-b-[0.5px] px-4 py-2.5')
+const TopBar = divWithClass('flex min-h-11 items-center gap-2 border-border border-b-[0.5px] px-6 py-2.5')
 const BackButton = divWithClass(
   'flex cursor-pointer items-center rounded p-1 text-foreground-secondary hover:bg-accent'
 )
@@ -945,9 +945,9 @@ const FileTreeItem = ({
 )
 const FileTreeName = spanWithClass('flex-1 truncate')
 const MarkdownContainer = divWithClass(
-  'h-full overflow-y-auto px-4 pt-4 pb-0 [&_.drag-handle]:hidden! [&_.plusButton]:hidden! [&>div]:rounded-none [&>div]:border-none'
+  'h-full overflow-y-auto px-6 pt-4 pb-0 [&_.drag-handle]:hidden! [&_.plusButton]:hidden! [&>div]:rounded-none [&>div]:border-none'
 )
-const CodeViewerContainer = divWithClass('h-full select-text overflow-y-auto px-4 pt-4 pb-0')
+const CodeViewerContainer = divWithClass('h-full select-text overflow-y-auto px-6 pt-4 pb-0')
 const DropZoneContainer = divWithClass(
   'flex h-full pb-0.5 [&_.ant-upload-btn]:flex! [&_.ant-upload-btn]:h-full! [&_.ant-upload-btn]:items-center [&_.ant-upload-btn]:justify-center [&_.ant-upload-drag.ant-upload-drag-hover]:border-primary [&_.ant-upload-drag]:flex [&_.ant-upload-drag]:flex-1 [&_.ant-upload-drag]:rounded-none [&_.ant-upload-drag]:rounded-br-md [&_.ant-upload-drag]:border-2 [&_.ant-upload-drag]:border-dashed [&_.ant-upload-drag]:border-transparent [&_.ant-upload-drag]:bg-transparent [&_.ant-upload-drag]:transition-colors [&_.ant-upload-wrapper]:flex [&_.ant-upload-wrapper]:h-full [&_.ant-upload-wrapper]:flex-1'
 )

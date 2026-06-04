@@ -64,7 +64,7 @@ function topic(id: string, messages: OldMessage[]): OldTopic {
 }
 
 /** Set up ChatMigrator internal state and call prepareTopicData. */
-function prepareTopic(oldTopic: OldTopic, blocks: OldBlock[]): PreparedTopicData | null {
+async function prepareTopic(oldTopic: OldTopic, blocks: OldBlock[]): Promise<PreparedTopicData | null> {
   const migrator = new ChatMigrator()
   // Access private fields via index signature to avoid `as any`
   const m = migrator as unknown as Record<string, unknown>
@@ -76,8 +76,11 @@ function prepareTopic(oldTopic: OldTopic, blocks: OldBlock[]): PreparedTopicData
   m['seenMessageIds'] = new Set()
   m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
 
-  const fn = m['prepareTopicData'] as (t: OldTopic) => PreparedTopicData | null
-  return fn.call(migrator, oldTopic)
+  // No FileManager — tests don't touch images with base64; deps stays undefined so
+  // image cases that need promotion would degrade gracefully (same as before this
+  // helper existed).
+  const fn = m['prepareTopicData'] as (t: OldTopic, deps?: undefined) => Promise<PreparedTopicData | null>
+  return fn.call(migrator, oldTopic, undefined)
 }
 
 /** Build a Map<id, message> from result messages for easy lookup */
@@ -100,12 +103,12 @@ describe('ChatMigrator.prepareTopicData', () => {
     vi.clearAllMocks()
   })
 
-  it('produces valid parentId chain for simple sequential messages', () => {
+  it('produces valid parentId chain for simple sequential messages', async () => {
     const b1 = block('b1', 'u1')
     const b2 = block('b2', 'a1')
     const messages = [msg('u1', 'user', ['b1']), msg('a1', 'assistant', ['b2'])]
 
-    const result = prepareTopic(topic('t1', messages), [b1, b2])
+    const result = await prepareTopic(topic('t1', messages), [b1, b2])
 
     expect(result).not.toBeNull()
     const msgMap = toMsgMap(result?.messages ?? [])
@@ -113,7 +116,7 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(msgMap.get('a1')?.parentId).toBe('u1')
   })
 
-  it('resolves parentId through first-pass skipped messages (no blocks)', () => {
+  it('resolves parentId through first-pass skipped messages (no blocks)', async () => {
     // u1 → a1 (no blocks, skipped) → u2
     // u2's parentId should resolve through a1 to u1
     const b1 = block('b1', 'u1')
@@ -124,7 +127,7 @@ describe('ChatMigrator.prepareTopicData', () => {
       msg('u2', 'user', ['b3'])
     ]
 
-    const result = prepareTopic(topic('t1', messages), [b1, b3])
+    const result = await prepareTopic(topic('t1', messages), [b1, b3])
 
     expect(result).not.toBeNull()
     const msgMap = toMsgMap(result?.messages ?? [])
@@ -134,7 +137,7 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(msgMap.get('u2')?.parentId).toBe('u1')
   })
 
-  it('resolves parentId through second-pass skipped messages (transform failure)', () => {
+  it('resolves parentId through second-pass skipped messages (transform failure)', async () => {
     // u1 → a1 (has block IDs but blocks not in lookup → 0 resolved blocks → skipped) → u2
     const b1 = block('b1', 'u1')
     const b3 = block('b3', 'u2')
@@ -144,7 +147,7 @@ describe('ChatMigrator.prepareTopicData', () => {
       msg('u2', 'user', ['b3'])
     ]
 
-    const result = prepareTopic(topic('t1', messages), [b1, b3])
+    const result = await prepareTopic(topic('t1', messages), [b1, b3])
 
     expect(result).not.toBeNull()
     const msgMap = toMsgMap(result?.messages ?? [])
@@ -153,7 +156,7 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(msgMap.get('u2')?.parentId).toBe('u1')
   })
 
-  it('handles askId pointing to deleted user message (preserves sibling relationship)', () => {
+  it('handles askId pointing to deleted user message (preserves sibling relationship)', async () => {
     // deleted-user-msg was the user message, a1 and a2 have askId pointing to it
     const b0 = block('b0', 'prev')
     const b1 = block('b1', 'a1')
@@ -164,7 +167,7 @@ describe('ChatMigrator.prepareTopicData', () => {
       msg('a2', 'assistant', ['b2'], { askId: 'deleted-user-msg' })
     ]
 
-    const result = prepareTopic(topic('t1', messages), [b0, b1, b2])
+    const result = await prepareTopic(topic('t1', messages), [b0, b1, b2])
 
     expect(result).not.toBeNull()
     const msgMap = toMsgMap(result?.messages ?? [])
@@ -173,7 +176,7 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(msgMap.get('a2')?.parentId).toBe('prev')
   })
 
-  it('produces no dangling parentId across mixed edge cases', () => {
+  it('produces no dangling parentId across mixed edge cases', async () => {
     // Mix of all edge cases: deleted askId target, missing blocks, valid messages
     const b1 = block('b1', 'u1')
     const b3 = block('b3', 'a2')
@@ -185,13 +188,13 @@ describe('ChatMigrator.prepareTopicData', () => {
       msg('u2', 'user', ['b4'])
     ]
 
-    const result = prepareTopic(topic('t1', messages), [b1, b3, b4])
+    const result = await prepareTopic(topic('t1', messages), [b1, b3, b4])
 
     expect(result).not.toBeNull()
     assertNoDanglingParentIds(result?.messages ?? [])
   })
 
-  it('all parentIds reference migrated messages (comprehensive invariant)', () => {
+  it('all parentIds reference migrated messages (comprehensive invariant)', async () => {
     // Complex scenario with multiple skip reasons
     const b1 = block('b1', 'u1')
     const b2 = block('b2', 'a1')
@@ -207,13 +210,13 @@ describe('ChatMigrator.prepareTopicData', () => {
       msg('a4', 'assistant', ['b6'])
     ]
 
-    const result = prepareTopic(topic('t1', messages), [b1, b2, b4, b5, b6])
+    const result = await prepareTopic(topic('t1', messages), [b1, b2, b4, b5, b6])
 
     expect(result).not.toBeNull()
     assertNoDanglingParentIds(result?.messages ?? [])
   })
 
-  it('resolves multi-hop ancestor chain when consecutive messages are skipped', () => {
+  it('resolves multi-hop ancestor chain when consecutive messages are skipped', async () => {
     // u1 → a1 (no blocks, skipped) → u2 (no blocks, skipped) → a2 (has blocks)
     // a2's parentId should resolve through u2 → a1 → u1
     const b1 = block('b1', 'u1')
@@ -225,7 +228,7 @@ describe('ChatMigrator.prepareTopicData', () => {
       msg('a2', 'assistant', ['b4'])
     ]
 
-    const result = prepareTopic(topic('t1', messages), [b1, b4])
+    const result = await prepareTopic(topic('t1', messages), [b1, b4])
 
     expect(result).not.toBeNull()
     const msgMap = toMsgMap(result?.messages ?? [])
@@ -235,7 +238,7 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(msgMap.get('a2')?.parentId).toBe('u1')
   })
 
-  it('derives missing topic timestamps from messages instead of Date.now()', () => {
+  it('derives missing topic timestamps from messages instead of Date.now()', async () => {
     // Topic with no createdAt/updatedAt — should derive from messages, NOT
     // fall back to Date.now() (which floods the topic list with migration-time
     // entries). createdAt = min(message.createdAt), updatedAt = max.
@@ -253,13 +256,13 @@ describe('ChatMigrator.prepareTopicData', () => {
       ]
     }
 
-    const result = prepareTopic(oldTopic, [b1, b2])
+    const result = await prepareTopic(oldTopic, [b1, b2])
     expect(result).not.toBeNull()
     expect(result?.topic.createdAt).toBe(new Date('2025-03-15T10:00:00.000Z').getTime())
     expect(result?.topic.updatedAt).toBe(new Date('2025-03-15T10:05:00.000Z').getTime())
   })
 
-  it('accepts numeric epoch-ms timestamps when deriving from messages', () => {
+  it('accepts numeric epoch-ms timestamps when deriving from messages', async () => {
     // Older v1 versions stored message.createdAt as a number, not an ISO
     // string. Date.parse(number) returns NaN, so without the typeof number
     // branch these would be silently filtered and the topic would fall
@@ -275,13 +278,13 @@ describe('ChatMigrator.prepareTopicData', () => {
       // @ts-expect-error - exercising legacy numeric timestamp path
       messages: [msg('u1', 'user', ['b1'], { createdAt: numericTs })]
     }
-    const result = prepareTopic(oldTopic, [b1])
+    const result = await prepareTopic(oldTopic, [b1])
     expect(result).not.toBeNull()
     expect(result?.topic.createdAt).toBe(numericTs)
     expect(result?.topic.updatedAt).toBe(numericTs)
   })
 
-  it('falls through to parseTimestamp when no message has a parseable createdAt', () => {
+  it('falls through to parseTimestamp when no message has a parseable createdAt', async () => {
     // Edge case: topic has messages but none carry a parseable createdAt.
     // messageMillis is empty, so we cannot derive timestamps; downstream
     // parseTimestamp() will fall back to Date.now(). The path is logged as
@@ -297,7 +300,7 @@ describe('ChatMigrator.prepareTopicData', () => {
       messages: [msg('u1', 'user', ['b1'], { createdAt: 'not-a-date' })]
     }
     const before = Date.now()
-    const result = prepareTopic(oldTopic, [b1])
+    const result = await prepareTopic(oldTopic, [b1])
     const after = Date.now()
     expect(result).not.toBeNull()
     // Both timestamps fell through to Date.now() bracketed by the test window
@@ -307,7 +310,7 @@ describe('ChatMigrator.prepareTopicData', () => {
     expect(result?.topic.updatedAt).toBeLessThanOrEqual(after)
   })
 
-  it('skips topics with no messages (empty conversations are noise)', () => {
+  it('skips topics with no messages (empty conversations are noise)', async () => {
     // v1 created an empty topic on first launch and on every abandoned "new
     // topic" click — migrating those just clutters the post-migration list.
     // They also lack a usable timestamp source (no messages to derive from),
@@ -320,10 +323,10 @@ describe('ChatMigrator.prepareTopicData', () => {
       updatedAt: '2025-01-01T00:00:00.000Z',
       messages: []
     }
-    expect(prepareTopic(oldTopic, [])).toBeNull()
+    expect(await prepareTopic(oldTopic, [])).toBeNull()
   })
 
-  it('keeps empty topic when user pinned it (user-intent signal)', () => {
+  it('keeps empty topic when user pinned it (user-intent signal)', async () => {
     // A pinned empty topic is "user touched this" — the user explicitly
     // pinned a placeholder. Dropping it would lose intentional state.
     // The pin flag lives on PreparedTopicData (not topic) since v2 stores
@@ -337,12 +340,12 @@ describe('ChatMigrator.prepareTopicData', () => {
       messages: [],
       pinned: true
     }
-    const result = prepareTopic(oldTopic, [])
+    const result = await prepareTopic(oldTopic, [])
     expect(result).not.toBeNull()
     expect(result?.pinned).toBe(true)
   })
 
-  it('keeps empty topic when user manually renamed it', () => {
+  it('keeps empty topic when user manually renamed it', async () => {
     // isNameManuallyEdited is set by the rename UI — also a clear
     // user-intent signal that should survive the empty-topic skip.
     const oldTopic: OldTopic = {
@@ -354,10 +357,10 @@ describe('ChatMigrator.prepareTopicData', () => {
       messages: [],
       isNameManuallyEdited: true
     }
-    expect(prepareTopic(oldTopic, [])).not.toBeNull()
+    expect(await prepareTopic(oldTopic, [])).not.toBeNull()
   })
 
-  it('keeps empty topic when user wrote a topic-level prompt', () => {
+  it('keeps empty topic when user wrote a topic-level prompt', async () => {
     // A user-written topic prompt before the first message is a clear
     // intent signal — losing it would discard the system prompt the user typed.
     const oldTopic: OldTopic = {
@@ -369,10 +372,10 @@ describe('ChatMigrator.prepareTopicData', () => {
       messages: [],
       prompt: 'You are a haiku coach.'
     }
-    expect(prepareTopic(oldTopic, [])).not.toBeNull()
+    expect(await prepareTopic(oldTopic, [])).not.toBeNull()
   })
 
-  it('still drops empty topic when prompt is whitespace only', () => {
+  it('still drops empty topic when prompt is whitespace only', async () => {
     // Whitespace prompt is not a real user signal — auto-init or stray edit.
     const oldTopic: OldTopic = {
       id: 't-blank-prompt-empty',
@@ -383,10 +386,10 @@ describe('ChatMigrator.prepareTopicData', () => {
       messages: [],
       prompt: '   '
     }
-    expect(prepareTopic(oldTopic, [])).toBeNull()
+    expect(await prepareTopic(oldTopic, [])).toBeNull()
   })
 
-  it('sets assistantId to NULL when topic.assistantId is empty', () => {
+  it('sets assistantId to NULL when topic.assistantId is empty', async () => {
     // v2 has no system-reserved 'default' row; the renderer composes a runtime
     // default from Preference. Empty assistantId becomes NULL on insert
     // (FK is nullable; transformTopic converts falsy → null).
@@ -400,12 +403,12 @@ describe('ChatMigrator.prepareTopicData', () => {
       messages: [msg('u1', 'user', ['b1'])]
     }
 
-    const result = prepareTopic(oldTopic, [b1])
+    const result = await prepareTopic(oldTopic, [b1])
     expect(result).not.toBeNull()
     expect(result?.topic.assistantId).toBeNull()
   })
 
-  it('sets assistantId to NULL when topic.assistantId points to missing FK', () => {
+  it('sets assistantId to NULL when topic.assistantId points to missing FK', async () => {
     // validAssistantIds set up to NOT include 'orphaned-id', so the FK check
     // fires and the topic gets NULL instead of a dangling reference.
     const oldTopic: OldTopic = {
@@ -432,12 +435,12 @@ describe('ChatMigrator.prepareTopicData', () => {
     m['validAssistantIds'] = new Set(['some-valid-uuid'])
     m['legacyAssistantIdRemap'] = new Map()
 
-    const fn = m['prepareTopicData'] as (t: OldTopic) => PreparedTopicData | null
-    const result = fn.call(migrator, oldTopic)
+    const fn = m['prepareTopicData'] as (t: OldTopic) => Promise<PreparedTopicData | null>
+    const result = await fn.call(migrator, oldTopic)
     expect(result?.topic.assistantId).toBeNull()
   })
 
-  it('remaps legacy "default" assistantId to the migrated UUID via sharedData', () => {
+  it('remaps legacy "default" assistantId to the migrated UUID via sharedData', async () => {
     // AssistantMigrator inserts the v1 default row under a fresh UUID and
     // exposes the remap; ChatMigrator must rewrite topic.assistantId='default'
     // to the new UUID instead of orphaning the topic.
@@ -464,8 +467,8 @@ describe('ChatMigrator.prepareTopicData', () => {
     m['validAssistantIds'] = new Set([remappedDefaultId])
     m['legacyAssistantIdRemap'] = new Map([['default', remappedDefaultId]])
 
-    const fn = m['prepareTopicData'] as (t: OldTopic) => PreparedTopicData | null
-    const result = fn.call(migrator, oldTopic)
+    const fn = m['prepareTopicData'] as (t: OldTopic) => Promise<PreparedTopicData | null>
+    const result = await fn.call(migrator, oldTopic)
     expect(result?.topic.assistantId).toBe(remappedDefaultId)
   })
 })
@@ -601,7 +604,7 @@ describe('ChatMigrator pin migration', () => {
     vi.clearAllMocks()
   })
 
-  it('captures pinned flag from Redux topic metadata onto PreparedTopicData', () => {
+  it('captures pinned flag from Redux topic metadata onto PreparedTopicData', async () => {
     // Dexie topic row has no `pinned` column; the v1 source stores pin state
     // on the Redux side under assistant.topics[].pinned. The migrator must
     // merge that flag into PreparedTopicData so insertStagedTopics can later
@@ -621,21 +624,21 @@ describe('ChatMigrator pin migration', () => {
     m['skippedMessages'] = 0
     m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
 
-    const fn = m['prepareTopicData'] as (t: OldTopic) => PreparedTopicData | null
-    const result = fn.call(migrator, oldTopic)
+    const fn = m['prepareTopicData'] as (t: OldTopic) => Promise<PreparedTopicData | null>
+    const result = await fn.call(migrator, oldTopic)
 
     expect(result).not.toBeNull()
     expect(result?.pinned).toBe(true)
   })
 
-  it('defaults pinned to false when source has no pinned flag', () => {
+  it('defaults pinned to false when source has no pinned flag', async () => {
     const b1 = block('b1', 'u1')
-    const result = prepareTopic(topic('t1', [msg('u1', 'user', ['b1'])]), [b1])
+    const result = await prepareTopic(topic('t1', [msg('u1', 'user', ['b1'])]), [b1])
     expect(result).not.toBeNull()
     expect(result?.pinned).toBe(false)
   })
 
-  it('lets Redux pinned=false override Dexie pinned=true (Redux is authoritative)', () => {
+  it('lets Redux pinned=false override Dexie pinned=true (Redux is authoritative)', async () => {
     // The merge order is `topicMeta.pinned ?? oldTopic.pinned`, so an explicit
     // false in Redux wins over a stale true on the Dexie side.
     const b1 = block('b1', 'u1')
@@ -658,8 +661,8 @@ describe('ChatMigrator pin migration', () => {
     m['skippedMessages'] = 0
     m['blockStats'] = { requested: 0, resolved: 0, messagesWithMissingBlocks: 0, messagesWithEmptyBlocks: 0 }
 
-    const fn = m['prepareTopicData'] as (t: OldTopic) => PreparedTopicData | null
-    const result = fn.call(migrator, oldTopic)
+    const fn = m['prepareTopicData'] as (t: OldTopic) => Promise<PreparedTopicData | null>
+    const result = await fn.call(migrator, oldTopic)
     expect(result?.pinned).toBe(false)
   })
 })
@@ -772,7 +775,7 @@ describe('ChatMigrator.insertStagedTopics phase 3 (pin emission)', () => {
 })
 
 describe('ChatMigrator model reference sanitization', () => {
-  it('nulls out dangling migrated message model ids', () => {
+  it('nulls out dangling migrated message model ids', async () => {
     const migrator = new ChatMigrator() as unknown as Record<string, unknown>
     migrator['validModelIds'] = new Set(['openai::gpt-4'])
 
@@ -782,7 +785,7 @@ describe('ChatMigrator model reference sanitization', () => {
         parentId: null,
         topicId: 't1',
         role: 'assistant',
-        data: { blocks: [] },
+        data: { parts: [] },
         searchableText: '',
         status: 'success',
         siblingsGroupId: 0,
@@ -847,10 +850,16 @@ describe('ChatMigrator.insertStagedTopics file_ref backfill', () => {
       topicId,
       role: 'user',
       data: {
-        blocks: blocks.map((b) => {
-          if (b.type === 'image') return { type: 'image', fileId: b.fileId } as any
-          if (b.type === 'file') return { type: 'file', fileId: b.fileId } as any
-          return { type: 'main_text', content: b.content ?? 'hello' } as any
+        parts: blocks.map((b) => {
+          if (b.type === 'image' || b.type === 'file') {
+            return {
+              type: 'file',
+              mediaType: b.type === 'image' ? 'image/png' : 'application/octet-stream',
+              url: 'file:///tmp/dummy',
+              ...(b.fileId ? { providerMetadata: { cherry: { fileEntryId: b.fileId } } } : {})
+            } as any
+          }
+          return { type: 'text', text: b.content ?? 'hello', state: 'done' } as any
         })
       },
       searchableText: '',

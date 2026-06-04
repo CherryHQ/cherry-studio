@@ -1,6 +1,7 @@
 import remarkParse from 'remark-parse'
 import remarkStringify from 'remark-stringify'
 import removeMarkdown from 'remove-markdown'
+import type { PluggableList } from 'unified'
 import { unified } from 'unified'
 import type { Point, Position } from 'unist'
 import { visit } from 'unist-util-visit'
@@ -239,6 +240,66 @@ export function isOpenFenceBlock(codeLength?: number, metaLength?: number, posit
   const end = position?.end?.offset ?? 0
   // 余量至少是 fence (3) + newlines (2)
   return end - start <= contentLength + 5
+}
+
+/**
+ * 把 Markdown 字符串按顶层块边界切分，使流式渲染可以对已完成的块做
+ * memo 跳过，只重解析仍在增长的最后一块（消掉 O(n²) 的渲染/reconcile）。
+ *
+ * 关键：必须传入**与渲染器同一条 `remarkPlugins`**。`remarkGfm` /
+ * `remarkMath` 注册的 micromark 扩展在 `.parse()` 阶段即生效，所以传入
+ * 后表格 = 单个 `table` 节点、`$$…$$` = 单个 `math` 节点、围栏代码块 /
+ * mermaid = 单个 `code` 节点、alert = 单个 blockquote 节点——块边界严格
+ * 等于渲染单元，不会从表格/公式/代码块中间切开。不传插件会退化成核心
+ * CommonMark 解析（表格/公式不被识别），仅用于无插件的简单场景。
+ *
+ * 仅在「顶层节点起始 offset」处切分，不依赖结束 offset，因此
+ * `splitMarkdownBlocks(c, p).join('') === c` 恒成立——零字符丢失，且对
+ * 流式期间未闭合的尾部围栏 / `$$`（会成为最后一块，本就每帧重渲，正确）
+ * 都安全。任一顶层节点缺 offset 时跳过该切点（仅合并相邻块，仍正确）。
+ *
+ * @param content 原始（已预处理）Markdown 字符串
+ * @param remarkPlugins 渲染器使用的 remark 插件链（强烈建议传入）
+ * @returns 顶层块字符串数组，拼接等于入参
+ */
+export function splitMarkdownBlocks(content: string, remarkPlugins?: PluggableList): string[] {
+  if (!content || !content.trim()) return [content]
+
+  const processor = unified().use(remarkParse)
+  if (remarkPlugins && remarkPlugins.length > 0) {
+    // Skip non-usable entries (undefined/null/false). Real plugin lists never
+    // contain these; guarding keeps a malformed list from throwing and just
+    // degrades parsing to core CommonMark (still splits at block boundaries —
+    // only table/$$ recognition is lost) instead of breaking the render.
+    for (const plugin of remarkPlugins) {
+      const usable = Array.isArray(plugin) ? plugin[0] : plugin
+      if (usable) {
+        try {
+          processor.use([plugin] as PluggableList)
+        } catch {
+          // ignore an unusable plugin rather than fail the whole split
+        }
+      }
+    }
+  }
+  const tree = processor.parse(content)
+
+  const starts: number[] = []
+  for (const child of tree.children) {
+    const offset = child.position?.start?.offset
+    if (typeof offset === 'number' && offset > 0) starts.push(offset)
+  }
+  if (starts.length === 0) return [content]
+
+  // child 按文档顺序排列；在每个块起始处连续切片，保证 join 等于原文。
+  const boundaries = [0, ...starts]
+  const blocks: string[] = []
+  for (let i = 0; i < boundaries.length; i++) {
+    const from = boundaries[i]
+    const to = i + 1 < boundaries.length ? boundaries[i + 1] : content.length
+    if (to > from) blocks.push(content.slice(from, to))
+  }
+  return blocks.length > 0 ? blocks : [content]
 }
 
 /**

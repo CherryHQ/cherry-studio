@@ -1,8 +1,7 @@
-import { usePaginatedQuery } from '@data/hooks/useDataApi'
+import { useInfiniteFlatItems, useInfiniteQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import { TRANSLATE_HISTORY_DEFAULT_LIMIT } from '@shared/data/api/schemas/translate'
-import type { TranslateHistory } from '@shared/data/types/translate'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('translate/useTranslateHistories')
@@ -23,41 +22,31 @@ export const useTranslateHistories = ({
 }: UseTranslateHistoriesOptions = {}) => {
   const searchKey = search?.trim() || undefined
   const starKey = star || undefined
-  const [loadedItems, setLoadedItems] = useState<TranslateHistory[]>([])
+  const query = useMemo(() => ({ search: searchKey, star: starKey }), [searchKey, starKey])
 
   const {
-    items,
-    total,
-    page,
+    pages,
     error,
     isLoading,
     isRefreshing,
     hasNext,
-    nextPage,
+    loadNext,
     refresh: pageRefresh,
     reset
-  } = usePaginatedQuery('/translate/histories', {
-    query: { search: searchKey, star: starKey },
+  } = useInfiniteQuery('/translate/histories', {
+    query,
     limit: pageSize,
     swrOptions: { keepPreviousData: false }
   })
+  const histories = useInfiniteFlatItems(pages)
+  const total = pages[0]?.total ?? 0
 
   const resetRef = useRef(reset)
   resetRef.current = reset
 
   useEffect(() => {
-    setLoadedItems([])
     resetRef.current()
   }, [pageSize, searchKey, starKey])
-
-  useEffect(() => {
-    setLoadedItems((prev) => {
-      if (page <= 1) return items
-
-      const itemIds = new Set(items.map((item) => item.id))
-      return [...prev.filter((item) => !itemIds.has(item.id)), ...items]
-    })
-  }, [items, page])
 
   const { t } = useTranslation()
   // One-shot UX surface: mirror useLanguages — only notify the user once per
@@ -71,18 +60,16 @@ export const useTranslateHistories = ({
     }
   }, [error, t])
 
-  const histories = useMemo(() => loadedItems, [loadedItems])
   const hasMore = hasNext
-  const isLoadingMore = isRefreshing && page > 1
+  const isLoadingMore = isRefreshing && pages.length > 0
 
   const loadMore = useCallback(() => {
     if (!isLoadingMore && hasMore) {
-      nextPage()
+      loadNext()
     }
-  }, [isLoadingMore, hasMore, nextPage])
+  }, [isLoadingMore, hasMore, loadNext])
 
   const reload = useCallback(async () => {
-    setLoadedItems([])
     resetRef.current()
     await pageRefresh()
   }, [pageRefresh])

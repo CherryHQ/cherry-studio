@@ -121,6 +121,6 @@ Both tables are associated with the agents table via foreign key cascades.
 | `src/main/services/agents/services/AgentServiceRegistry.ts` | Agent service registry |
 | `src/main/services/agents/services/TaskService.ts` | Task CRUD + scheduling calculation |
 | `src/main/services/agents/services/SchedulerService.ts` | Polling scheduler |
-| `src/main/mcpServers/claw.ts` | Claw MCP server |
+| `src/main/ai/mcp/servers/claw.ts` | Claw MCP server |
 | `src/main/services/agents/services/channels/` | Channel abstraction layer |
 | `src/main/services/agents/database/schema/tasks.schema.ts` | Task table schema |

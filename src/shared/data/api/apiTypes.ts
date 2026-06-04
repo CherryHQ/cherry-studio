@@ -230,6 +230,16 @@ export interface SearchParams {
   search?: string
 }
 
+/** Service-layer pagination convention used by main-side list queries. */
+export interface ListOptions {
+  limit?: number
+  offset?: number
+  sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'orderKey'
+  orderBy?: 'asc' | 'desc'
+  /** LIKE %kw% match against name OR description (case-insensitive). */
+  search?: string
+}
+
 // ----- Response Types -----
 
 /**

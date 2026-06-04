@@ -22,46 +22,66 @@ describe('TranslateHistoryService', () => {
   }
 
   describe('list', () => {
-    it('should return paginated results with defaults', async () => {
+    it('should return cursor paginated results with defaults', async () => {
       await seedHistory()
 
-      const result = await translateHistoryService.list({ page: 1, limit: 20 })
+      const result = await translateHistoryService.list({ limit: 20 })
       expect(result.items).toHaveLength(1)
       expect(result.total).toBe(1)
-      expect(result.page).toBe(1)
+      expect(result.nextCursor).toBeUndefined()
     })
 
     it('should return empty results', async () => {
-      const result = await translateHistoryService.list({ page: 1, limit: 20 })
+      const result = await translateHistoryService.list({ limit: 20 })
       expect(result.items).toHaveLength(0)
       expect(result.total).toBe(0)
+      expect(result.nextCursor).toBeUndefined()
     })
 
-    it('should pass custom page and limit', async () => {
-      const result = await translateHistoryService.list({ page: 2, limit: 10 })
-      expect(result.page).toBe(2)
+    it('should page by createdAt and id cursor', async () => {
+      const newest = await seedHistory({
+        id: '550e8400-e29b-41d4-a716-446655440010',
+        createdAt: 3000,
+        updatedAt: 3000
+      })
+      const middle = await seedHistory({
+        id: '550e8400-e29b-41d4-a716-446655440011',
+        createdAt: 2000,
+        updatedAt: 2000
+      })
+      const oldest = await seedHistory({
+        id: '550e8400-e29b-41d4-a716-446655440012',
+        createdAt: 1000,
+        updatedAt: 1000
+      })
+
+      const firstPage = await translateHistoryService.list({ limit: 2 })
+      expect(firstPage.items.map((item) => item.id)).toEqual([newest.id, middle.id])
+      expect(firstPage.nextCursor).toBe(`${middle.createdAt}:${middle.id}`)
+
+      const secondPage = await translateHistoryService.list({ cursor: firstPage.nextCursor, limit: 2 })
+      expect(secondPage.items.map((item) => item.id)).toEqual([oldest.id])
+      expect(secondPage.nextCursor).toBeUndefined()
     })
 
     it('should search by text', async () => {
       await seedHistory({ sourceText: 'Hello world' })
       await seedHistory({ id: '550e8400-e29b-41d4-a716-446655440001', sourceText: 'Goodbye' })
 
-      const result = await translateHistoryService.list({ page: 1, limit: 20, search: 'Hello' })
+      const result = await translateHistoryService.list({ limit: 20, search: 'Hello' })
       expect(result.items.length).toBeGreaterThanOrEqual(1)
       expect(result.items.some((i) => i.sourceText.includes('Hello'))).toBe(true)
     })
 
     it('should escape LIKE wildcards in search', async () => {
-      await expect(
-        translateHistoryService.list({ page: 1, limit: 20, search: '100% off_sale\\test' })
-      ).resolves.toBeDefined()
+      await expect(translateHistoryService.list({ limit: 20, search: '100% off_sale\\test' })).resolves.toBeDefined()
     })
 
     it('should filter by star', async () => {
       await seedHistory({ star: true })
       await seedHistory({ id: '550e8400-e29b-41d4-a716-446655440002', star: false })
 
-      const result = await translateHistoryService.list({ page: 1, limit: 20, star: true })
+      const result = await translateHistoryService.list({ limit: 20, star: true })
       expect(result.items.every((i) => i.star === true)).toBe(true)
     })
   })

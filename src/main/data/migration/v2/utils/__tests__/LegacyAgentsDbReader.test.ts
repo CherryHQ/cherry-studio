@@ -100,15 +100,10 @@ describe('LegacyAgentsDbReader', () => {
       expect(schema.sessions.exists).toBe(true)
       expect(schema.sessions.columns).toEqual(new Set(['id', 'agent_id']))
 
-      const stillMissing: AgentsSourceTableName[] = [
-        'skills',
-        'agent_skills',
-        'scheduled_tasks',
-        'task_run_logs',
-        'channels',
-        'channel_task_subscriptions',
-        'session_messages'
-      ]
+      // scheduled_tasks / task_run_logs / channel_task_subscriptions migrate via
+      // the TS-loop and are not part of getAgentsSourceTableNames anymore, so
+      // they don't appear in the schemaInfo map at all.
+      const stillMissing: AgentsSourceTableName[] = ['skills', 'agent_skills', 'channels', 'session_messages']
       for (const tableName of stillMissing) {
         expect(schema[tableName].exists).toBe(false)
         expect(schema[tableName].columns.size).toBe(0)
