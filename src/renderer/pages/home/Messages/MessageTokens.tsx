@@ -1,9 +1,8 @@
 // import { useRuntime } from '@renderer/hooks/useRuntime'
+import { Tooltip } from '@cherrystudio/ui'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Message } from '@renderer/types/newMessage'
-import { Popover } from 'antd'
 import { t } from 'i18next'
-import styled from 'styled-components'
 
 interface MessageTokensProps {
   message: Message
@@ -56,9 +55,11 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
 
   if (message.role === 'user') {
     return (
-      <MessageMetadata className="message-tokens" onClick={locateMessage}>
+      <div
+        className="message-tokens cursor-pointer select-text text-right text-(--color-text-3) text-[10px]"
+        onClick={locateMessage}>
         {`Tokens: ${message?.usage?.total_tokens}`}
-      </MessageMetadata>
+      </div>
     )
   }
 
@@ -67,50 +68,43 @@ const MessageTokens: React.FC<MessageTokensProps> = ({ message }) => {
     let hasMetrics = false
     if (message?.metrics?.completion_tokens && message?.metrics?.time_completion_millsec) {
       hasMetrics = true
+      // Exclude TTFT from the denominator so the tooltip reports generation
+      // throughput, not wall-clock throughput.
+      const totalMs = message.metrics.time_completion_millsec
+      const ttftMs = message.metrics.time_first_token_millsec
+      const generationMs = ttftMs !== undefined && ttftMs < totalMs ? totalMs - ttftMs : totalMs
       metrixs = t('settings.messages.metrics', {
-        time_first_token_millsec: message?.metrics?.time_first_token_millsec,
-        token_speed: (message?.metrics?.completion_tokens / (message?.metrics?.time_completion_millsec / 1000)).toFixed(
-          0
-        )
+        time_first_token_millsec: ttftMs,
+        token_speed: (message.metrics.completion_tokens / (generationMs / 1000)).toFixed(0)
       })
     }
 
     const tokensInfo = (
-      <span className="tokens">
+      <span className="tokens inline-flex items-center">
         Tokens:
-        <span>{message?.usage?.total_tokens}</span>
-        <span>↑{message?.usage?.prompt_tokens}</span>
-        <span>↓{message?.usage?.completion_tokens}</span>
-        <span>{getPriceString()}</span>
+        <span className="px-0.5">{message?.usage?.total_tokens}</span>
+        <span className="px-0.5">↑{message?.usage?.prompt_tokens}</span>
+        <span className="px-0.5">↓{message?.usage?.completion_tokens}</span>
+        <span className="px-0.5">{getPriceString()}</span>
       </span>
     )
 
     return (
-      <MessageMetadata className="message-tokens" onClick={locateMessage}>
+      <div
+        className="message-tokens cursor-pointer select-text text-right text-(--color-text-3) text-[10px]"
+        onClick={locateMessage}>
         {hasMetrics ? (
-          <Popover content={metrixs} placement="top" trigger="hover" styles={{ root: { fontSize: 11 } }}>
+          <Tooltip content={metrixs} placement="top" classNames={{ content: 'text-[11px]' }}>
             {tokensInfo}
-          </Popover>
+          </Tooltip>
         ) : (
           tokensInfo
         )}
-      </MessageMetadata>
+      </div>
     )
   }
 
   return null
 }
-
-const MessageMetadata = styled.div`
-  font-size: 10px;
-  color: var(--color-text-3);
-  user-select: text;
-  cursor: pointer;
-  text-align: right;
-
-  .tokens span {
-    padding: 0 2px;
-  }
-`
 
 export default MessageTokens

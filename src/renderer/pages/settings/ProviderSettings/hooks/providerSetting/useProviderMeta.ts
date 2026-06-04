@@ -1,13 +1,13 @@
-import { useProvider } from '@renderer/hooks/useProviders'
+import { useProvider } from '@renderer/hooks/useProvider'
+import { getFancyProviderName } from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
 import {
-  getFancyProviderName,
   isAnthropicSupportedProvider,
   isAwsBedrockProvider,
   isAzureOpenAIProvider,
   isSystemProvider,
   isVertexProvider,
   matchesPreset
-} from '@renderer/pages/settings/ProviderSettings/utils/provider'
+} from '@shared/utils/provider'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 

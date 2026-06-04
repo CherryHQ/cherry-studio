@@ -300,7 +300,7 @@ export function EntitySelector<T extends EntityItemBase>(props: EntitySelectorPr
             userOnOpenAutoFocus?.(event)
           }}
           className={cn(
-            'flex max-h-[var(--radix-popover-content-available-height)] flex-col overflow-hidden rounded-2xs border-border/60 bg-popover p-0 shadow-lg',
+            'flex max-h-[var(--radix-popover-content-available-height)] flex-col overflow-hidden rounded-lg border-border/60 bg-popover p-0 shadow-lg',
             userPopoverClassName,
             className
           )}>

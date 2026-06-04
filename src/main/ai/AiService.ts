@@ -1,0 +1,591 @@
+import { embedMany as aiCoreEmbedMany, generateImage as aiCoreGenerateImage } from '@cherrystudio/ai-core'
+import { assistantDataService } from '@data/services/AssistantService'
+import type { PersonGeneration } from '@google/genai'
+import { loggerService } from '@logger'
+import { application } from '@main/core/application'
+import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { messageService } from '@main/data/services/MessageService'
+import { modelService } from '@main/data/services/ModelService'
+import { providerService } from '@main/data/services/ProviderService'
+import { type TranslateOpenRequest, translateService } from '@main/services/translate/translateService'
+import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
+import { applyApprovalDecisions } from '@shared/ai/transport'
+import { type Assistant } from '@shared/data/types/assistant'
+import type { FileEntry } from '@shared/data/types/file/fileEntry'
+import { type Model, parseUniqueModelId } from '@shared/data/types/model'
+import type { Base64String } from '@shared/file/types/common'
+import { IpcChannel } from '@shared/IpcChannel'
+import { isEmbeddingModel } from '@shared/utils/model'
+import {
+  type EmbeddingModelUsage,
+  isToolUIPart,
+  type LanguageModelUsage,
+  type ModelMessage,
+  type UIMessageChunk
+} from 'ai'
+import * as z from 'zod'
+
+import { isAgentSessionTopic } from './agentSession/topic'
+import { resolveUIMessageFileUrls } from './messages/messageConverter'
+import { listModels as listModelsFromProvider } from './provider/listModels'
+import { Agent } from './runtime/aiSdk/Agent'
+import type { AgentLoopHooks } from './runtime/aiSdk/loop'
+import { mergeUsage, ZERO_USAGE } from './runtime/aiSdk/observers/usage'
+import { buildAgentParams } from './runtime/aiSdk/params/buildAgentParams'
+import type { RequestFeature } from './runtime/aiSdk/params/feature'
+import { WebContentsListener } from './streamManager/listeners/WebContentsListener'
+import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin'
+import type { AppProviderSettingsMap } from './types'
+import type { AiBaseRequest, AiStreamRequest, AiTransportOptions, ListModelsRequest } from './types/requests'
+import { buildImageProviderOptions, normalizeAspectRatio } from './utils/imageOptions'
+
+const logger = loggerService.withContext('AiService')
+
+// ── Request types ──────────────────────────────────────────────────
+
+/** In-process variant of `AiTransportOptions` — adds `signal`, which is not IPC-serialisable. */
+export interface AiRequestOptions extends AiTransportOptions {
+  /** In-process only. Renderer payloads use `AiTransportOptions` (no signal). */
+  signal?: AbortSignal
+}
+
+/** Widens `requestOptions` to accept the in-process shape on `AiService.*` method signatures. */
+export type AsInProcess<T extends AiBaseRequest> = Omit<T, 'requestOptions'> & {
+  requestOptions?: AiRequestOptions
+}
+
+/** Non-streaming text generation request — pure transport data. */
+export interface AiGenerateRequest extends AiBaseRequest {
+  system?: string
+  prompt?: string
+  messages?: ModelMessage[]
+}
+
+// ── SDK extensions ─────────────────────────────────────────────────
+
+/** Result of non-streaming text generation. */
+export interface AiGenerateResult {
+  text: string
+  usage?: LanguageModelUsage
+}
+
+/** Image generation request. */
+export interface AiImageRequest extends AiBaseRequest {
+  prompt: string
+  /** Input images for editing (base64 data URLs or URLs). If provided, uses edit mode. */
+  inputImages?: string[]
+  /** Mask for inpainting (only with inputImages). */
+  mask?: string
+  n?: number
+  size?: string
+  negativePrompt?: string
+  seed?: number
+  quality?: string
+  numInferenceSteps?: number
+  guidanceScale?: number
+  promptEnhancement?: boolean
+  personGeneration?: PersonGeneration
+  aspectRatio?: string
+  background?: string
+  moderation?: string
+  style?: string
+  /** Vendor-specific image params keyed by provider id; mapped to AI SDK provider options in main. */
+  providerOptions?: Record<string, Record<string, unknown>>
+}
+
+/** Image generation result — persisted file entries (main writes the bytes). */
+export interface AiImageResult {
+  files: FileEntry[]
+}
+
+/** Embedding request. */
+export interface AiEmbedRequest extends AiBaseRequest {
+  values: string[]
+}
+
+/** Embedding result. */
+export interface AiEmbedResult {
+  embeddings: number[][]
+  usage?: EmbeddingModelUsage
+}
+
+/** Validates the `Ai_ToolApproval_Respond` IPC payload at the renderer boundary. */
+const ToolApprovalRespondSchema = z.object({
+  approvalId: z.string().min(1),
+  approved: z.boolean(),
+  reason: z.string().optional(),
+  updatedInput: z.record(z.string(), z.unknown()).optional(),
+  topicId: z.string().optional(),
+  anchorId: z.string().optional()
+})
+
+// ── Service ────────────────────────────────────────────────────────
+
+/**
+ * Lifecycle AI service. See `docs/references/ai/core-architecture.md`.
+ *
+ * DO NOT mirror `@DependsOn(['AiService'])` on AiStreamManager —
+ * `runExecutionLoop` looks AiService up at runtime, and every `send()`
+ * caller routes through AiService first.
+ */
+@Injectable('AiService')
+@ServicePhase(Phase.WhenReady)
+@DependsOn(['McpRuntimeService', 'McpCatalogService', 'AiStreamManager'])
+export class AiService extends BaseService {
+  // Per-request AbortControllers for `Ai_GenerateImage`, paired with the
+  // `Ai_AbortImage` channel. Key is the renderer-generated requestId
+  // (see `src/preload/index.ts`). Entries are self-cleaning via the
+  // handler's `finally` block; abort on an unknown id is a no-op.
+  // TODO(abort-registry): collapse with MCP/stream/LAN registries once
+  // the shared `ipcHandleWithAbort` helper lands.
+  private readonly imageRequests = new Map<string, AbortController>()
+
+  protected async onInit(): Promise<void> {
+    registerBuiltinTools()
+    this.registerIpcHandlers()
+    logger.info('AiService initialized')
+  }
+
+  private registerIpcHandlers(): void {
+    this.ipcHandle(IpcChannel.Ai_GenerateText, async (_, request: AiGenerateRequest) => {
+      return this.generateText(request)
+    })
+
+    this.ipcHandle(IpcChannel.Ai_CheckModel, async (_, request: AiBaseRequest & { timeout?: number }) => {
+      return this.checkModel(request)
+    })
+
+    this.ipcHandle(IpcChannel.Ai_EmbedMany, async (_, request: AiEmbedRequest) => {
+      return this.embedMany(request)
+    })
+
+    this.ipcHandle(IpcChannel.Ai_GenerateImage, async (_, request: { requestId: string; payload: AiImageRequest }) => {
+      const { requestId, payload } = request
+      const controller = new AbortController()
+      this.imageRequests.set(requestId, controller)
+      try {
+        return await this.generateImage({
+          ...payload,
+          requestOptions: { ...payload.requestOptions, signal: controller.signal }
+        })
+      } finally {
+        this.imageRequests.delete(requestId)
+      }
+    })
+
+    this.ipcOn(IpcChannel.Ai_AbortImage, (_, request: { requestId: string }) => {
+      this.imageRequests.get(request.requestId)?.abort()
+    })
+
+    this.ipcHandle(IpcChannel.Ai_ListModels, async (_, request: ListModelsRequest) => {
+      return this.listModels(request)
+    })
+
+    this.ipcHandle(IpcChannel.Ai_Translate_Open, async (event, request: TranslateOpenRequest) => {
+      return translateService.open(event.sender, request)
+    })
+
+    this.ipcHandle(IpcChannel.Ai_ToolApproval_Respond, async (event, rawPayload: unknown): Promise<{ ok: boolean }> => {
+      // Validate the renderer payload at the IPC boundary before any registry dispatch or DB read.
+      const parsed = ToolApprovalRespondSchema.safeParse(rawPayload)
+      if (!parsed.success) {
+        logger.warn('Tool-approval response rejected: invalid payload', { issues: parsed.error.issues })
+        return { ok: false }
+      }
+      const payload = parsed.data
+
+      // Claude-Agent fast-path: live registry entry unblocks `canUseTool`.
+      const dispatched = application.get('AgentSessionRuntimeService').respondToolApproval(payload.approvalId, {
+        approved: payload.approved,
+        reason: payload.reason,
+        updatedInput: payload.updatedInput
+      })
+      if (dispatched) return { ok: true }
+
+      // MCP path: write decisions to DB, then dispatch continue-conversation when nothing is pending.
+      if (!payload.topicId || !payload.anchorId) {
+        logger.warn('Tool-approval response had no live registry entry and no anchor context', {
+          approvalId: payload.approvalId
+        })
+        return { ok: false }
+      }
+
+      // Main is the single authority for the approval mutation: the
+      // renderer no longer PATCHes (it sourced parts from a DB projection
+      // that didn't carry the overlay-only `approval-requested` part and
+      // raced/overwrote the persisted row). The decision is carried
+      // explicitly in the IPC payload; apply it here to the DB-authoritative
+      // parts (the original stream's terminal persistence wrote the
+      // `approval-requested` part onto this row) and persist.
+      const decision = {
+        approvalId: payload.approvalId,
+        approved: payload.approved,
+        ...(payload.reason !== undefined && { reason: payload.reason })
+      }
+      // A stale click on a deleted message must resolve through the documented
+      // result shape, not throw out of the handler (getById rejects when the
+      // anchor is missing), consistent with the no-context branch above.
+      let anchor: Awaited<ReturnType<typeof messageService.getById>>
+      try {
+        anchor = await messageService.getById(payload.anchorId)
+      } catch {
+        logger.warn('Tool-approval response anchor is missing or deleted', {
+          approvalId: payload.approvalId,
+          anchorId: payload.anchorId
+        })
+        return { ok: false }
+      }
+      const beforeParts = anchor.data.parts ?? []
+      const targetPresent = beforeParts.some(
+        (p) => isToolUIPart(p) && p.state === 'approval-requested' && p.approval?.id === decision.approvalId
+      )
+      const afterParts = applyApprovalDecisions(beforeParts, [decision])
+      // Only write parts when this approval is present on the DB row.
+      // `applyApprovalDecisions` always returns a fresh array, so writing
+      // unconditionally would overwrite real (or not-yet-persisted) parts
+      // with an unchanged set. When the part is overlay-only (persist not
+      // landed yet), the continue dispatch below carries the decision and
+      // the continue provider applies it authoritatively where it reads parts.
+      if (targetPresent) {
+        await messageService.update(payload.anchorId, { data: { parts: afterParts } })
+      }
+
+      // Only resume once every approval on this turn is decided — a turn
+      // can request several tools at once; the not-yet-decided ones keep
+      // their cards.
+      const anyStillPending = afterParts.some((p) => isToolUIPart(p) && p.state === 'approval-requested')
+      if (anyStillPending) {
+        return { ok: true }
+      }
+
+      const aiStreamManager = application.get('AiStreamManager')
+      const subscriber = new WebContentsListener(event.sender, payload.topicId)
+      await aiStreamManager.dispatch(subscriber, {
+        trigger: 'continue-conversation',
+        topicId: payload.topicId,
+        parentAnchorId: payload.anchorId,
+        // Idempotent against the conditional write above; safety net when the part wasn't on the row.
+        approvalDecisions: [decision]
+      })
+      return { ok: true }
+    })
+  }
+
+  // ── Streaming chat (agent.stream) ──
+
+  /**
+   * Raw `UIMessageChunk` stream from `Agent.stream`. Caller (usually
+   * `AiStreamManager`) owns read/multicast/accumulation/terminal dispatch.
+   * Pre-stream errors reject the Promise; mid-stream errors come through
+   * the stream itself.
+   */
+  async streamText(
+    request: AsInProcess<AiStreamRequest>,
+    extraFeatures: readonly RequestFeature[] = []
+  ): Promise<ReadableStream<UIMessageChunk>> {
+    logger.info('streamText started', { chatId: request.chatId })
+    const signal = request.requestOptions?.signal
+    if (!signal) {
+      throw new Error('streamText requires requestOptions.signal — no AbortController was attached by the caller')
+    }
+
+    if (request.runtime?.kind === 'agent-session') {
+      return application.get('AgentSessionRuntimeService').openTurnStream({
+        sessionId: request.runtime.sessionId,
+        turnId: request.runtime.turnId,
+        signal
+      })
+    }
+
+    if (isAgentSessionTopic(request.chatId)) {
+      throw new Error(`Agent session stream ${request.chatId} requires an agent-session runtime request`)
+    }
+
+    const { sdkConfig, tools, plugins, system, options, model, hookParts } = await this.buildAgentParamsFor(
+      request,
+      signal,
+      extraFeatures
+    )
+
+    const preparedMessages = await resolveUIMessageFileUrls(request.messages ?? [])
+
+    const agent = new Agent({
+      providerId: sdkConfig.providerId,
+      providerSettings: sdkConfig.providerSettings,
+      modelId: sdkConfig.modelId,
+      messageId: request.messageId,
+      plugins,
+      tools,
+      system,
+      options,
+      hookParts: [this.analyticsHookPart(model), ...hookParts]
+    })
+
+    return agent.stream(preparedMessages, signal)
+  }
+
+  private analyticsHookPart(model: Model): Partial<AgentLoopHooks> {
+    let total: LanguageModelUsage = ZERO_USAGE
+    return {
+      onStepFinish: (step) => {
+        if (step.usage) total = mergeUsage(total, step.usage)
+      },
+      onFinish: () => this.trackUsage(model, total)
+    }
+  }
+
+  // ── Non-streaming text generation (agent.generate) ──
+
+  async generateText(
+    request: AsInProcess<AiGenerateRequest>,
+    extraFeatures: readonly RequestFeature[] = []
+  ): Promise<AiGenerateResult> {
+    logger.info('generateText started', { assistantId: request.assistantId })
+    const signal = request.requestOptions?.signal
+
+    const { sdkConfig, tools, plugins, system, options, model, hookParts } = await this.buildAgentParamsFor(
+      request,
+      signal,
+      extraFeatures
+    )
+
+    const agent = new Agent({
+      providerId: sdkConfig.providerId,
+      providerSettings: sdkConfig.providerSettings,
+      modelId: sdkConfig.modelId,
+      plugins,
+      tools,
+      system: request.system ?? system,
+      options,
+      hookParts: [this.analyticsHookPart(model), ...hookParts]
+    })
+
+    // prompt and messages are mutually exclusive in AI SDK; preserve that.
+    return agent.generate(request.prompt ? { prompt: request.prompt } : { messages: request.messages ?? [] }, signal)
+  }
+
+  // ── Image generation ──
+
+  async generateImage(request: AsInProcess<AiImageRequest>): Promise<AiImageResult> {
+    logger.info('generateImage started', { assistantId: request.assistantId, uniqueModelId: request.uniqueModelId })
+    const signal = request.requestOptions?.signal
+
+    const { sdkConfig } = await this.buildAgentParamsFor(request, signal)
+
+    const promptParam = request.inputImages
+      ? { text: request.prompt, images: request.inputImages, ...(request.mask && { mask: request.mask }) }
+      : request.prompt
+
+    // Map the canonical painting params onto each vendor's real image-API field
+    // names (negative_prompt / seed / imageConfig / …). AI SDK image models
+    // spread `providerOptions[<providerId>]` into the request body, so this is
+    // how negativePrompt/seed/steps/guidance/aspectRatio actually reach vendors.
+    const imageProviderOptions = buildImageProviderOptions(sdkConfig.providerId, {
+      negativePrompt: request.negativePrompt,
+      seed: request.seed !== undefined ? String(request.seed) : undefined,
+      numInferenceSteps: request.numInferenceSteps,
+      guidanceScale: request.guidanceScale,
+      promptEnhancement: request.promptEnhancement,
+      personGeneration: request.personGeneration,
+      quality: request.quality,
+      aspectRatio: request.aspectRatio,
+      imageSize: request.size,
+      providerOptions: request.providerOptions,
+      background: request.background,
+      moderation: request.moderation,
+      style: request.style
+    })
+    const aspectRatio = normalizeAspectRatio(request.aspectRatio)
+
+    const imageParams = {
+      model: sdkConfig.modelId,
+      prompt: promptParam,
+      n: request.n ?? 1,
+      // Client-side default: when the caller omits `size`, fall back to 1024x1024
+      // rather than letting the server pick its own default. Dropping this fallback
+      // (to truly let the server choose) is a behavior decision, not done here.
+      size: (request.size ?? '1024x1024') as `${number}x${number}`,
+      ...(request.negativePrompt ? { negativePrompt: request.negativePrompt } : {}),
+      ...(request.seed !== undefined ? { seed: request.seed } : {}),
+      ...(request.quality ? { quality: request.quality } : {}),
+      ...(request.numInferenceSteps !== undefined ? { numInferenceSteps: request.numInferenceSteps } : {}),
+      ...(request.guidanceScale !== undefined ? { guidanceScale: request.guidanceScale } : {}),
+      ...(request.promptEnhancement !== undefined ? { promptEnhancement: request.promptEnhancement } : {}),
+      ...(aspectRatio ? { aspectRatio: aspectRatio as `${number}:${number}` } : {}),
+      ...(Object.keys(imageProviderOptions).length > 0 ? { providerOptions: imageProviderOptions } : {}),
+      ...(signal ? { abortSignal: signal } : {}),
+      experimental_download: async (downloads) => {
+        return Promise.all(
+          downloads.map(async ({ url }) => {
+            if (signal?.aborted) return null
+            const downloaded = await downloadImageAsBase64(url.toString())
+            if (signal?.aborted) return null
+            if (!downloaded) return null
+            return {
+              data: Buffer.from(downloaded.data, 'base64'),
+              mediaType: downloaded.media_type
+            }
+          })
+        )
+      }
+    }
+
+    const result = await aiCoreGenerateImage<AppProviderSettingsMap>(
+      sdkConfig.providerId,
+      sdkConfig.providerSettings,
+      imageParams
+    )
+
+    const dataUrls: Base64String[] = []
+    let filteredCount = 0
+    for (const image of result.images ?? []) {
+      if (image.base64) {
+        dataUrls.push(`data:${image.mediaType || 'image/png'};base64,${image.base64}`)
+        continue
+      }
+
+      filteredCount += 1
+    }
+
+    if (filteredCount > 0) {
+      logger.warn('Filtered invalid generated images', {
+        uniqueModelId: request.uniqueModelId,
+        providerId: sdkConfig.providerId,
+        modelId: sdkConfig.modelId,
+        filteredCount
+      })
+    }
+    const fileManager = application.get('FileManager')
+    const files = await Promise.all(dataUrls.map((data) => fileManager.createInternalEntry({ source: 'base64', data })))
+
+    return { files }
+  }
+
+  // ── Embedding ──
+
+  async embedMany(request: AsInProcess<AiEmbedRequest>): Promise<AiEmbedResult> {
+    logger.info('embedMany started', { assistantId: request.assistantId, count: request.values.length })
+    const signal = request.requestOptions?.signal
+
+    const { sdkConfig, model } = await this.buildAgentParamsFor(request, signal)
+
+    const result = await aiCoreEmbedMany<AppProviderSettingsMap>(sdkConfig.providerId, sdkConfig.providerSettings, {
+      model: sdkConfig.modelId,
+      values: request.values,
+      ...(signal ? { abortSignal: signal } : {})
+    })
+
+    this.trackUsage(model, { inputTokens: result.usage?.tokens ?? 0, outputTokens: 0 })
+    return { embeddings: result.embeddings, usage: result.usage }
+  }
+
+  // ── Model listing ──
+  async listModels(request: ListModelsRequest): Promise<Partial<Model>[]> {
+    let providerId = request.providerId
+    if (!providerId && request.assistantId) {
+      const assistant = await assistantDataService.getById(request.assistantId).catch(() => undefined)
+      if (assistant?.modelId) {
+        providerId = parseUniqueModelId(assistant.modelId).providerId
+      }
+    }
+    if (!providerId) {
+      throw new Error('Cannot resolve providerId: not in request and assistant has no model')
+    }
+    const provider = await providerService.getByProviderId(providerId)
+    return listModelsFromProvider(provider, undefined, { throwOnError: request.throwOnError })
+  }
+
+  // ── API validation ──
+
+  /** Dispatches to `embedMany` for embedding models, `generateText` otherwise. */
+  async checkModel(request: AiBaseRequest & { timeout?: number }): Promise<{ latency: number }> {
+    const { model } = await this.getProviderAndModel(request)
+    const start = performance.now()
+    const timeout = request.timeout ?? 15000
+
+    // AbortController on timeout so the HTTP work cancels too (otherwise tokens keep burning).
+    const controller = new AbortController()
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(() => {
+        controller.abort(new Error('Check model timeout'))
+        reject(new Error('Check model timeout'))
+      }, timeout)
+    })
+
+    const probeRequest = {
+      ...request,
+      requestOptions: { ...request.requestOptions, signal: controller.signal }
+    }
+    const probe = isEmbeddingModel(model)
+      ? this.embedMany({ ...probeRequest, values: ['test'] })
+      : this.generateText({ ...probeRequest, system: 'test', prompt: 'hi' })
+
+    try {
+      await Promise.race([probe, timeoutPromise])
+      return { latency: performance.now() - start }
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle)
+    }
+  }
+
+  // ── Shared agent parameter resolution ──
+
+  private async buildAgentParamsFor(
+    request: AsInProcess<AiBaseRequest> & { chatId?: string },
+    signal: AbortSignal | undefined,
+    extraFeatures: readonly RequestFeature[] = []
+  ) {
+    const { provider, model, assistant } = await this.getProviderAndModel(request)
+    const built = await buildAgentParams({ request, signal, provider, model, assistant, extraFeatures })
+    return { ...built, provider, model, assistant }
+  }
+
+  // ── Token usage tracking ──
+
+  private trackUsage(model: Model, usage?: { inputTokens?: number; outputTokens?: number }): void {
+    if (!usage || !model.providerId || !model.apiModelId) return
+    const inputTokens = usage.inputTokens ?? 0
+    const outputTokens = usage.outputTokens ?? 0
+    if (inputTokens === 0 && outputTokens === 0) return
+
+    try {
+      const analyticsService = application.get('AnalyticsService')
+      analyticsService.trackTokenUsage({
+        provider: model.providerId,
+        model: model.apiModelId ?? model.id,
+        input_tokens: inputTokens,
+        output_tokens: outputTokens
+      })
+    } catch {
+      // AnalyticsService may not be activated (data collection disabled)
+    }
+  }
+
+  /** Priority: explicit `uniqueModelId` > `assistant.modelId`. */
+  private async getProviderAndModel(request: AiBaseRequest & { chatId?: string }) {
+    let assistant: Assistant | undefined
+    if (request.assistantId) {
+      assistant = await assistantDataService.getById(request.assistantId).catch(() => undefined)
+    }
+
+    let providerId: string | undefined
+    let modelId: string | undefined
+    if (request.uniqueModelId) {
+      const parsed = parseUniqueModelId(request.uniqueModelId)
+      providerId = parsed.providerId
+      modelId = parsed.modelId
+    } else if (assistant?.modelId) {
+      const parsed = parseUniqueModelId(assistant.modelId)
+      providerId = parsed.providerId
+      modelId = parsed.modelId
+    }
+    if (!providerId) throw new Error('Cannot resolve providerId: not in request and assistant has no model')
+    if (!modelId) throw new Error('Cannot resolve modelId: not in request and assistant has no model')
+
+    const provider = await providerService.getByProviderId(providerId)
+    const model = await modelService.getByKey(providerId, modelId)
+
+    return { provider, model, assistant }
+  }
+}

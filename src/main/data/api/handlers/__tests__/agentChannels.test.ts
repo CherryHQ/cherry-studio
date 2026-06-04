@@ -44,7 +44,6 @@ vi.mock('@data/services/AgentTaskService', () => ({
 vi.mock('@data/services/AgentService', () => ({ agentService: {} }))
 vi.mock('@data/services/AgentSessionService', () => ({ agentSessionService: {} }))
 vi.mock('@data/services/AgentSessionMessageService', () => ({ agentSessionMessageService: {} }))
-vi.mock('@data/services/AgentTaskWorkflowService', () => ({ agentTaskWorkflowService: {} }))
 vi.mock('@main/services/agents/skills/SkillService', () => ({ skillService: {} }))
 
 import { agentChannelHandlers } from '../agentChannels'
@@ -70,11 +69,11 @@ const mockChannel = {
 
 const mockLog = {
   id: 1,
-  taskId: TASK_ID,
+  scheduleId: TASK_ID,
   sessionId: null,
-  runAt: '2024-01-01T00:00:00.000Z',
+  startedAt: '2024-01-01T00:00:00.000Z',
   durationMs: 100,
-  status: 'success',
+  status: 'completed',
   result: 'ok',
   error: null
 }

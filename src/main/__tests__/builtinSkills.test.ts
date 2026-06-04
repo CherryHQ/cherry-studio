@@ -35,10 +35,8 @@ const { mockSyncBuiltinSkill } = vi.hoisted(() => ({
   mockSyncBuiltinSkill: vi.fn()
 }))
 
-vi.mock('../services/agents/skills/SkillService', () => ({
-  skillService: {
-    syncBuiltinSkill: mockSyncBuiltinSkill
-  }
+vi.mock('@main/ai/skills/SkillService', () => ({
+  skillService: { syncBuiltinSkill: mockSyncBuiltinSkill }
 }))
 
 // Matches the stub in tests/main.setup.ts → mockApplicationFactory().getPath

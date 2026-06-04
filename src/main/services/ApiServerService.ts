@@ -1,4 +1,5 @@
 import { application } from '@application'
+import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -12,7 +13,6 @@ import type {
 import { v4 as uuidv4 } from 'uuid'
 
 import { ApiServer } from '../apiServer'
-import { agentService } from './agents'
 
 const logger = loggerService.withContext('ApiServerService')
 

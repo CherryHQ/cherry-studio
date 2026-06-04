@@ -88,7 +88,8 @@ describe('ProviderModelMappings', () => {
       })
       expect(result.endpointConfigs).toEqual({
         [ENDPOINT_TYPE.GOOGLE_GENERATE_CONTENT]: {
-          baseUrl: 'https://vertex-proxy.example.com/v1/projects/project-1/locations/us-central1'
+          baseUrl: 'https://vertex-proxy.example.com/v1/projects/project-1/locations/us-central1',
+          adapterFamily: 'google'
         }
       })
     })
@@ -112,7 +113,8 @@ describe('ProviderModelMappings', () => {
       expect(result.defaultChatEndpoint).toBe(ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS)
       expect(result.endpointConfigs).toEqual({
         [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
-          baseUrl: 'https://example.openai.azure.com/openai/deployments/deployment-1'
+          baseUrl: 'https://example.openai.azure.com/openai/deployments/deployment-1',
+          adapterFamily: 'openai-compatible'
         }
       })
       expect(result.authConfig).toEqual({
@@ -296,6 +298,93 @@ describe('ProviderModelMappings', () => {
 
       expect(result.apiKeys?.map((key) => key.key)).toEqual(['sk-a', 'sk-b', 'sk-c'])
       expect(result.apiKeys?.every((key) => key.isEnabled)).toBe(true)
+    })
+  })
+
+  describe('adapterFamily backfill', () => {
+    it('infers adapterFamily from legacy type for a custom OpenAI-compatible provider', () => {
+      const result = transformProvider(
+        {
+          id: 'my-custom',
+          name: 'My Custom',
+          type: 'openai',
+          apiKey: 'k',
+          apiHost: 'https://example.com/v1',
+          models: [],
+          enabled: true,
+          isSystem: false
+        } as never,
+        {}
+      )
+
+      expect(result.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.adapterFamily).toBe('openai-compatible')
+    })
+
+    it('routes a custom anthropic relay to the anthropic adapter even when legacy type is openai', () => {
+      // Regression: the v1 Xiaomi MIMO token-plan relay was migrated with
+      // type='openai' + an anthropicApiHost. Without a per-endpoint
+      // adapterFamily the resolver fell back to openai-compatible and POSTed
+      // `/anthropic/v1/chat/completions` → 404. The endpoint protocol must
+      // win over the legacy relay type for ANTHROPIC_MESSAGES.
+      const result = transformProvider(
+        {
+          id: '7c3dfc0b-985d-440b-b18b-e639fcf9218e',
+          name: 'XIAOMI MIMO TOKEN PLAN',
+          type: 'openai',
+          apiKey: 'k',
+          apiHost: '',
+          anthropicApiHost: 'https://token-plan-cn.xiaomimimo.com/anthropic',
+          models: [],
+          enabled: true,
+          isSystem: false
+        } as never,
+        {}
+      )
+
+      expect(result.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]).toMatchObject({
+        baseUrl: 'https://token-plan-cn.xiaomimimo.com/anthropic',
+        adapterFamily: 'anthropic'
+      })
+    })
+
+    it('uses the more specific legacy-type family for non-anthropic endpoints (new-api → newapi)', () => {
+      const result = transformProvider(
+        {
+          id: 'my-relay',
+          name: 'My Relay',
+          type: 'new-api',
+          apiKey: 'k',
+          apiHost: 'https://relay.example/v1',
+          models: [],
+          enabled: true,
+          isSystem: false
+        } as never,
+        {}
+      )
+
+      expect(result.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]?.adapterFamily).toBe('newapi')
+    })
+
+    it('adds adapterFamily without dropping baseUrl or reasoningFormatType', () => {
+      const result = transformProvider(
+        {
+          id: 'openai',
+          name: 'OpenAI',
+          type: 'openai',
+          apiKey: 'k',
+          apiHost: 'https://api.openai.com/v1',
+          models: [],
+          enabled: true,
+          isSystem: true
+        } as never,
+        {}
+      )
+
+      expect(result.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]).toMatchObject({
+        baseUrl: 'https://api.openai.com/v1',
+        reasoningFormatType: 'openai-chat',
+        adapterFamily: 'openai-compatible'
+      })
     })
   })
 })

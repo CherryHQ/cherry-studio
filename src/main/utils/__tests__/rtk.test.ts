@@ -74,7 +74,7 @@ vi.mock('semver', () => ({
 import { execFile } from 'node:child_process'
 import fs from 'node:fs'
 
-import { extractRtkBinaries, rtkRewrite } from '../rtk'
+import { rtkRewrite } from '../rtk'
 
 const mockExecFile = vi.mocked(execFile)
 const mockFs = vi.mocked(fs)
@@ -86,42 +86,6 @@ describe('rtk utils', () => {
 
   afterEach(() => {
     vi.restoreAllMocks()
-  })
-
-  describe('extractRtkBinaries', () => {
-    it('should skip when bundled dir does not exist', async () => {
-      mockFs.existsSync.mockReturnValue(false)
-
-      await extractRtkBinaries()
-
-      expect(mockFs.copyFileSync).not.toHaveBeenCalled()
-    })
-
-    it('should copy binary when destination does not exist', async () => {
-      mockFs.existsSync.mockImplementation((p: fs.PathLike) => {
-        const filePath = String(p)
-        if (filePath.includes('resources/binaries')) return true
-        if (filePath.includes('rtk') && filePath.includes('.cherrystudio')) return false
-        if (filePath.includes('.rtk-version') && filePath.includes('resources')) return true
-        if (filePath.includes('.rtk-version') && filePath.includes('.cherrystudio')) return false
-        return true
-      })
-      mockFs.readFileSync.mockReturnValue('0.30.1')
-
-      await extractRtkBinaries()
-
-      expect(mockFs.copyFileSync).toHaveBeenCalled()
-      expect(mockFs.chmodSync).toHaveBeenCalledWith(expect.any(String), 0o755)
-    })
-
-    it('should skip copy when version matches', async () => {
-      mockFs.existsSync.mockReturnValue(true)
-      mockFs.readFileSync.mockReturnValue('0.30.1')
-
-      await extractRtkBinaries()
-
-      expect(mockFs.copyFileSync).not.toHaveBeenCalled()
-    })
   })
 
   describe('rtkRewrite', () => {

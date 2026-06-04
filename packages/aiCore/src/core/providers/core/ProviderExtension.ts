@@ -1,5 +1,5 @@
 import type { ProviderV3 } from '@ai-sdk/provider'
-import { LRUCache } from 'lru-cache'
+import QuickLRU from 'quick-lru'
 
 import { deepMergeObjects } from '../../utils'
 import type { ProviderVariant, ToolFactoryMap } from '../types'
@@ -116,7 +116,7 @@ export class ProviderExtension<
   >
 > {
   /** Provider 实例缓存 - 按 settings hash 存储，LRU 自动清理 */
-  private instances: LRUCache<string, TProvider>
+  private instances: QuickLRU<string, TProvider>
 
   /** In-flight promise map - 防止并发创建相同 settings 的 provider */
   private pendingCreations: Map<string, Promise<TProvider>> = new Map()
@@ -126,9 +126,8 @@ export class ProviderExtension<
       throw new Error('ProviderExtension: name is required')
     }
 
-    this.instances = new LRUCache<string, TProvider>({
-      max: 10,
-      updateAgeOnGet: true
+    this.instances = new QuickLRU<string, TProvider>({
+      maxSize: 10
     })
   }
 
@@ -161,10 +160,13 @@ export class ProviderExtension<
         return 'default'
       }
 
+      const seen = new WeakSet()
       const stableStringify = (obj: any): string => {
         if (obj === null || obj === undefined) return 'null'
         if (typeof obj === 'function') return '"[function]"'
         if (typeof obj !== 'object') return JSON.stringify(obj)
+        if (seen.has(obj)) return '"[circular]"'
+        seen.add(obj)
         if (Array.isArray(obj)) return `[${obj.map(stableStringify).join(',')}]`
 
         const keys = Object.keys(obj).sort()
@@ -324,10 +326,10 @@ export class ProviderExtension<
    * 获取已缓存的 provider 实例（如果存在）
    */
   getCachedProvider(): TProvider | undefined {
-    for (const [key, value] of this.instances.entries()) {
+    for (const [key, value] of this.instances) {
       if (!key.includes(':')) return value
     }
-    for (const [, value] of this.instances.entries()) {
+    for (const [, value] of this.instances) {
       return value
     }
     return undefined

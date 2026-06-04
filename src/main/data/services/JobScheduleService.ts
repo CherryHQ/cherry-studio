@@ -4,7 +4,8 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
-import { JOB_ERROR_CODES } from '@main/core/job/errorCodes'
+import { DataApiErrorFactory } from '@shared/data/api'
+import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 import {
   type CatchUpPolicy,
   CatchUpPolicySchema,
@@ -14,8 +15,7 @@ import {
   type Trigger,
   TriggerSchema,
   type UpdateJobScheduleDto
-} from '@main/core/job/scheduleTypes'
-import { DataApiErrorFactory } from '@shared/data/api'
+} from '@shared/data/api/schemas/jobs'
 import { and, asc, eq, type SQL } from 'drizzle-orm'
 
 const logger = loggerService.withContext('JobScheduleService')

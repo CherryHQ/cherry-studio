@@ -20,7 +20,7 @@ const mockUseDeleteKnowledgeItem = vi.fn()
 const mockUseKnowledgeItems = vi.fn()
 const mockUseReindexKnowledgeItem = vi.fn()
 
-vi.mock('@renderer/hooks/useKnowledgeBases', () => ({
+vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
   useKnowledgeBases: () => mockUseKnowledgeBases(),
   useCreateKnowledgeBase: () => mockUseCreateKnowledgeBase(),
   useRestoreKnowledgeBase: () => mockUseRestoreKnowledgeBase(),

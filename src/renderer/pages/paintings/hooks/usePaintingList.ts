@@ -1,9 +1,9 @@
 import { loggerService } from '@logger'
-import { presentPaintingGenerateError } from '@renderer/aiCore/errors/paintingGenerateError'
 import { usePaintings } from '@renderer/hooks/usePaintings'
 import type { PaintingMode } from '@shared/data/types/painting'
 import { useCallback, useRef } from 'react'
 
+import { presentPaintingGenerateError } from '../errors/paintingGenerateError'
 import { paintingDataToCreateDto } from '../model/mappers/paintingDataToCreateDto'
 import { paintingDataToUpdateDto } from '../model/mappers/paintingDataToUpdateDto'
 import { recordToPaintingData } from '../model/mappers/recordToPaintingData'

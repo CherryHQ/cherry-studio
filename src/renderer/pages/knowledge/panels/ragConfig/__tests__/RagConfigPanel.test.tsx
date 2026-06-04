@@ -8,8 +8,7 @@ import RagConfigPanel from '../RagConfigPanel'
 
 const mockUseKnowledgeRagConfig = vi.fn()
 const mockSave = vi.fn()
-const mockDataApiGet = vi.fn()
-const mockGetEmbeddingDimensions = vi.fn()
+const mockEmbedMany = vi.fn()
 
 const renderRagConfigPanel = (onRestoreBase = vi.fn(), baseOverrides: Partial<KnowledgeBase> = {}) => {
   return render(<RagConfigPanel base={createKnowledgeBase(baseOverrides)} onRestoreBase={onRestoreBase} />)
@@ -131,28 +130,6 @@ vi.mock('../../../hooks', () => ({
   useKnowledgeRagConfig: (base: KnowledgeBase) => mockUseKnowledgeRagConfig(base)
 }))
 
-vi.mock('@data/DataApiService', () => ({
-  dataApiService: {
-    get: (...args: unknown[]) => mockDataApiGet(...args)
-  }
-}))
-
-vi.mock('@renderer/aiCore', () => ({
-  AiProvider: vi.fn().mockImplementation(() => ({
-    getEmbeddingDimensions: mockGetEmbeddingDimensions
-  }))
-}))
-
-vi.mock('@renderer/pages/settings/ProviderSettings/utils/v1ProviderShim', () => ({
-  toV1ModelForCheckApi: (model: { apiModelId?: string; id: string; name: string; providerId: string }) => ({
-    id: model.apiModelId ?? model.id,
-    provider: model.providerId,
-    name: model.name,
-    group: ''
-  }),
-  toV1ProviderShim: (provider: unknown, options?: unknown) => ({ provider, options })
-}))
-
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) =>
@@ -242,43 +219,18 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
 describe('RagConfigPanel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetEmbeddingDimensions.mockResolvedValue(2048)
-    mockDataApiGet.mockImplementation((path: string) => {
-      if (path === '/providers/openai') {
-        return Promise.resolve({
-          id: 'openai',
-          name: 'OpenAI',
-          endpointConfigs: {
-            [ENDPOINT_TYPE.OPENAI_EMBEDDINGS]: {
-              baseUrl: 'https://api.openai.com/v1'
-            }
-          },
-          defaultChatEndpoint: ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS,
-          apiKeys: [{ id: 'key-1', isEnabled: true }],
-          authType: 'api-key',
-          apiFeatures: {
-            arrayContent: true,
-            streamOptions: true,
-            developerRole: false,
-            serviceTier: false,
-            verbosity: false,
-            enableThinking: true
-          },
-          settings: {},
-          isEnabled: true
-        })
-      }
-
-      if (path === '/providers/openai/api-keys') {
-        return Promise.resolve({ keys: [{ id: 'key-1', key: 'sk-test', isEnabled: true }] })
-      }
-
-      return Promise.resolve({ id: 'mock' })
-    })
+    mockEmbedMany.mockResolvedValue({ embeddings: [new Array(2048).fill(0)] })
     Object.assign(window, {
       toast: {
         success: vi.fn(),
         error: vi.fn()
+      },
+      api: {
+        ...(window as unknown as { api?: Record<string, unknown> }).api,
+        ai: {
+          ...(window as unknown as { api?: { ai?: Record<string, unknown> } }).api?.ai,
+          embedMany: mockEmbedMany
+        }
       }
     })
 
@@ -502,14 +454,10 @@ describe('RagConfigPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: '刷新向量维度' }))
 
     await waitFor(() => {
-      expect(mockDataApiGet).toHaveBeenCalledWith('/providers/openai')
-      expect(mockDataApiGet).toHaveBeenCalledWith('/providers/openai/api-keys', { query: { enabled: true } })
-      expect(mockGetEmbeddingDimensions).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: 'text-embedding-3-small',
-          provider: 'openai'
-        })
-      )
+      expect(mockEmbedMany).toHaveBeenCalledWith({
+        uniqueModelId: 'openai::text-embedding-3-small',
+        values: ['test']
+      })
       expect(screen.getByDisplayValue('2048')).toBeInTheDocument()
     })
 

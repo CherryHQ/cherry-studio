@@ -40,48 +40,46 @@ const mapChatCompletionError = (error: unknown): { status: number; body: ErrorRe
   }
 
   if (error instanceof ChatCompletionModelError) {
-    logger.warn('Chat completion model error', error.error)
+    logger.warn('Chat completion model error', { message: error.message })
 
     return {
       status: 400,
       body: {
         error: {
-          message: error.error.message,
+          message: error.message,
           type: 'invalid_request_error',
-          code: error.error.code
+          code: 'model_error'
         }
       }
     }
   }
 
   if (error instanceof Error) {
-    let statusCode = 500
-    let errorType = 'server_error'
-    let errorCode = 'internal_error'
+    // Trust the SDK's structured `.status` rather than regex-matching
+    // `.message`. The OpenAI / Anthropic SDKs throw subclasses of `APIError`
+    // with `.status`, `.code`, and a stable name. A genuine 500 whose
+    // message happens to contain "connection" must not be remapped to 502.
+    const errAny = error as unknown as { status?: unknown; code?: unknown }
+    const status = typeof errAny.status === 'number' ? errAny.status : 500
+    const code = typeof errAny.code === 'string' ? errAny.code : 'internal_error'
+    const errorType =
+      status === 401 || status === 403
+        ? 'authentication_error'
+        : status === 429
+          ? 'rate_limit_error'
+          : status >= 500 && status < 600
+            ? 'server_error'
+            : 'invalid_request_error'
 
-    if (error.message.includes('API key') || error.message.includes('authentication')) {
-      statusCode = 401
-      errorType = 'authentication_error'
-      errorCode = 'invalid_api_key'
-    } else if (error.message.includes('rate limit') || error.message.includes('quota')) {
-      statusCode = 429
-      errorType = 'rate_limit_error'
-      errorCode = 'rate_limit_exceeded'
-    } else if (error.message.includes('timeout') || error.message.includes('connection')) {
-      statusCode = 502
-      errorType = 'server_error'
-      errorCode = 'upstream_error'
-    }
-
-    logger.error('Chat completion error', { error })
+    logger.error('Chat completion error', error)
 
     return {
-      status: statusCode,
+      status,
       body: {
         error: {
           message: error.message || 'Internal server error',
           type: errorType,
-          code: errorCode
+          code
         }
       }
     }
@@ -204,7 +202,14 @@ router.post('/completions', async (req: Request, res: Response) => {
     const isStreaming = !!request.stream
 
     if (isStreaming) {
-      const { stream } = await chatCompletionService.processStreamingCompletion(request)
+      // Abort the upstream stream when the HTTP client disconnects so we
+      // don't keep consuming provider tokens for a closed socket.
+      const abortController = new AbortController()
+      res.once('close', () => {
+        if (!res.writableEnded) abortController.abort()
+      })
+
+      const { stream } = await chatCompletionService.processStreamingCompletion(request, abortController.signal)
 
       res.setHeader('Content-Type', 'text/event-stream; charset=utf-8')
       res.setHeader('Cache-Control', 'no-cache, no-transform')
@@ -214,22 +219,31 @@ router.post('/completions', async (req: Request, res: Response) => {
 
       try {
         for await (const chunk of stream) {
+          if (res.writableEnded || abortController.signal.aborted) break
           res.write(`data: ${JSON.stringify(chunk)}\n\n`)
         }
-        res.write('data: [DONE]\n\n')
-      } catch (streamError: any) {
-        logger.error('Stream error', { error: streamError })
-        res.write(
-          `data: ${JSON.stringify({
-            error: {
-              message: 'Stream processing error',
-              type: 'server_error',
-              code: 'stream_error'
-            }
-          })}\n\n`
-        )
+        if (!res.writableEnded) res.write('data: [DONE]\n\n')
+      } catch (streamError) {
+        // Aborts surface here as AbortError — that's a normal client-disconnect,
+        // not an error worth surfacing.
+        if (abortController.signal.aborted) {
+          logger.debug('Stream aborted by client disconnect')
+        } else {
+          logger.error('Stream error', streamError as Error)
+          if (!res.writableEnded) {
+            res.write(
+              `data: ${JSON.stringify({
+                error: {
+                  message: 'Stream processing error',
+                  type: 'server_error',
+                  code: 'stream_error'
+                }
+              })}\n\n`
+            )
+          }
+        }
       } finally {
-        res.end()
+        if (!res.writableEnded) res.end()
       }
       return
     }
