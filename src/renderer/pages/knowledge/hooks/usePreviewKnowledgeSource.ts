@@ -31,7 +31,7 @@ export const usePreviewKnowledgeSource = () => {
       }
 
       try {
-        if (item.type === 'url' || item.type === 'sitemap') {
+        if (item.type === 'url') {
           await window.api.shell.openExternal(source)
           return
         }

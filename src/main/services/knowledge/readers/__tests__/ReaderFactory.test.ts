@@ -148,23 +148,6 @@ function createUrlItem(): KnowledgeItemOf<'url'> {
   }
 }
 
-function createSitemapItem(): KnowledgeItemOf<'sitemap'> {
-  return {
-    id: 'sitemap-1',
-    baseId: 'base-1',
-    groupId: null,
-    type: 'sitemap',
-    status: 'idle',
-    error: null,
-    createdAt: '2026-04-03T00:00:00.000Z',
-    updatedAt: '2026-04-03T00:00:00.000Z',
-    data: {
-      source: 'https://example.com/sitemap.xml',
-      url: 'https://example.com/sitemap.xml'
-    }
-  }
-}
-
 function createDirectoryItem(): KnowledgeItemOf<'directory'> {
   return {
     id: 'directory-1',
@@ -339,10 +322,9 @@ describe('loadKnowledgeItemDocuments', () => {
     })
   })
 
-  it.each([
-    ['directory', createDirectoryItem()],
-    ['sitemap', createSitemapItem()]
-  ])('throws for unsupported %s items', async (_type, item) => {
+  it('throws for unsupported directory items', async () => {
+    const item = createDirectoryItem()
+
     await expect(
       loadKnowledgeItemDocuments(item as unknown as Parameters<typeof loadKnowledgeItemDocuments>[0])
     ).rejects.toThrow(`Unsupported knowledge item type: ${item.type}`)

@@ -311,7 +311,7 @@ export const transformKnowledgeItem = (
       }
     }
 
-    type = 'sitemap'
+    type = 'url'
     data = {
       source: item.content,
       url: item.content

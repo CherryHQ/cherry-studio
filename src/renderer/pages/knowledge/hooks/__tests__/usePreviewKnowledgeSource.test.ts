@@ -2,7 +2,6 @@ import {
   createDirectoryItem,
   createFileItem,
   createNoteItem,
-  createSitemapItem,
   createUrlItem
 } from '@renderer/pages/knowledge/panels/dataSource/__tests__/testUtils'
 import { mockRendererLoggerService } from '@test-mocks/RendererLoggerService'
@@ -73,18 +72,14 @@ describe('usePreviewKnowledgeSource', () => {
     expect(mockOpenExternal).not.toHaveBeenCalled()
   })
 
-  it('opens url and sitemap sources in the external browser', async () => {
+  it('opens url sources in the external browser', async () => {
     const { result } = renderHook(() => usePreviewKnowledgeSource())
 
     await act(async () => {
       await result.current.previewSource(createUrlItem({ id: 'url-1', source: 'https://example.com/article' }))
-      await result.current.previewSource(
-        createSitemapItem({ id: 'sitemap-1', source: 'https://example.com/sitemap.xml' })
-      )
     })
 
     expect(mockOpenExternal).toHaveBeenCalledWith('https://example.com/article')
-    expect(mockOpenExternal).toHaveBeenCalledWith('https://example.com/sitemap.xml')
     expect(mockOpenPath).not.toHaveBeenCalled()
   })
 

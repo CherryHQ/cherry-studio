@@ -41,13 +41,6 @@ describe('useAddKnowledgeItems', () => {
           source: 'https://example.com/article',
           url: 'https://example.com/article'
         }
-      },
-      {
-        type: 'sitemap' as const,
-        data: {
-          source: 'https://docs.cherry-ai.com/sitemap-pages.xml',
-          url: 'https://docs.cherry-ai.com/sitemap-pages.xml'
-        }
       }
     ]
 
