@@ -30,6 +30,8 @@ interface HistoryResultListProps {
   sessions: readonly AgentSessionEntity[]
   assistantById: ReadonlyMap<string, Assistant>
   agentById: ReadonlyMap<string, AgentEntity>
+  defaultAssistantLabel?: string
+  defaultAssistantEmoji?: string
   unlinkedAssistantLabel: string
   isLoading?: boolean
   isSessionPinned?: (sessionId: string) => boolean
@@ -78,6 +80,8 @@ const HistoryResultList = ({
   sessions,
   assistantById,
   agentById,
+  defaultAssistantLabel,
+  defaultAssistantEmoji,
   unlinkedAssistantLabel,
   isLoading = false,
   isSessionPinned = () => false,
@@ -276,19 +280,24 @@ const HistoryResultList = ({
   const renderTopicRow = useCallback(
     (topic: Topic, index: number) => {
       const assistant = topic.assistantId ? assistantById.get(topic.assistantId) : undefined
+      const isRuntimeDefaultTopic = topic.assistantId === null
       const contextOverride = getTopicMenuContextOverride(topic)
       const actions = topicMenuPreset?.getActions(topic, contextOverride) ?? []
       const row = (
         <HistoryTopicRow
           actions={actions}
-          assistant={assistant}
           isPinned={isTopicPinned(topic.id)}
           isSelected={selectedTopicIdSet.has(topic.id)}
           deleteLabel={t('common.delete')}
           pinLabel={t('chat.topics.pin')}
           selectLabel={`${t('common.select')} ${topic.name || t('chat.default.topic.name')}`}
           showFixedActionShadow={showFixedActionShadow}
-          sourceName={assistant?.name ?? unlinkedAssistantLabel}
+          sourceEmoji={isRuntimeDefaultTopic ? defaultAssistantEmoji : assistant?.emoji}
+          sourceName={
+            isRuntimeDefaultTopic
+              ? (defaultAssistantLabel ?? unlinkedAssistantLabel)
+              : (assistant?.name ?? unlinkedAssistantLabel)
+          }
           timeLabel={formatHistoryTime(topic.updatedAt, t)}
           title={topic.name || t('chat.default.topic.name')}
           unpinLabel={t('chat.topics.unpin')}
@@ -303,6 +312,8 @@ const HistoryResultList = ({
     },
     [
       assistantById,
+      defaultAssistantEmoji,
+      defaultAssistantLabel,
       getTopicMenuContextOverride,
       handleToggleTopicSelection,
       isTopicPinned,
@@ -520,13 +531,13 @@ const HistoryTableHeader = ({
 
 interface HistoryTopicRowProps {
   actions: readonly ResolvedAction[]
-  assistant?: Assistant
   deleteLabel: string
   isPinned: boolean
   isSelected: boolean
   pinLabel: string
   selectLabel: string
   showFixedActionShadow: boolean
+  sourceEmoji?: string
   sourceName: string
   timeLabel: string
   title: string
@@ -539,13 +550,13 @@ interface HistoryTopicRowProps {
 
 const HistoryTopicRow = ({
   actions,
-  assistant,
   deleteLabel,
   isPinned,
   isSelected,
   pinLabel,
   selectLabel,
   showFixedActionShadow,
+  sourceEmoji,
   sourceName,
   timeLabel,
   title,
@@ -568,7 +579,7 @@ const HistoryTopicRow = ({
     <div className={historyBodyCellClassName} role="cell">
       <RowFlex className="min-w-0 items-center gap-2">
         <span className="flex size-5 shrink-0 items-center justify-center text-foreground-muted text-sm leading-none">
-          {assistant?.emoji ? <span aria-hidden>{assistant.emoji}</span> : <Bot size={14} />}
+          {sourceEmoji ? <span aria-hidden>{sourceEmoji}</span> : <Bot size={14} />}
         </span>
         <span className="truncate text-foreground-secondary text-xs">{sourceName}</span>
       </RowFlex>

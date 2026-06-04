@@ -1,7 +1,12 @@
 import i18n from '@renderer/i18n'
-import type { Assistant } from '@renderer/types'
-import { ASSISTANT_SOURCE_USER, DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import {
+  type Assistant,
+  ASSISTANT_SOURCE_USER,
+  type AssistantSettings,
+  DEFAULT_ASSISTANT_SETTINGS
+} from '@shared/data/types/assistant'
 import type { UniqueModelId } from '@shared/data/types/model'
+import type { Tag } from '@shared/data/types/tag'
 
 type Translate = (key: string) => string
 
@@ -11,7 +16,23 @@ export const RUNTIME_DEFAULT_ASSISTANT_ORDER_KEY = ''
 
 const DEFAULT_ASSISTANT_TIMESTAMP = new Date(0).toISOString()
 
-export type RuntimeDefaultAssistant = Omit<Assistant, 'id'> & { id: null }
+export type RuntimeDefaultAssistant = {
+  id: null
+  source: typeof ASSISTANT_SOURCE_USER
+  name: string
+  emoji: string
+  prompt: string
+  description: string
+  settings: AssistantSettings
+  modelId: UniqueModelId | null
+  modelName: null
+  orderKey: string
+  mcpServerIds: string[]
+  knowledgeBaseIds: string[]
+  tags: Tag[]
+  createdAt: string
+  updatedAt: string
+}
 export type RuntimeAssistant = Assistant | RuntimeDefaultAssistant
 
 export type RuntimeDefaultAssistantRef = {
@@ -39,7 +60,7 @@ export function createRuntimeDefaultAssistantDisplay(t: Translate) {
   }
 }
 
-export function composeDefaultAssistant(modelId: UniqueModelId | null): RuntimeDefaultAssistant {
+export function composeRuntimeDefaultAssistant(modelId: UniqueModelId | null): RuntimeDefaultAssistant {
   return {
     id: RUNTIME_DEFAULT_ASSISTANT_ID,
     source: ASSISTANT_SOURCE_USER,
@@ -57,10 +78,6 @@ export function composeDefaultAssistant(modelId: UniqueModelId | null): RuntimeD
     createdAt: DEFAULT_ASSISTANT_TIMESTAMP,
     updatedAt: DEFAULT_ASSISTANT_TIMESTAMP
   }
-}
-
-export function composeRuntimeDefaultAssistant(modelId: UniqueModelId | null): RuntimeDefaultAssistant {
-  return composeDefaultAssistant(modelId)
 }
 
 export function normalizeAssistantId(id: string | null | undefined): string | null {

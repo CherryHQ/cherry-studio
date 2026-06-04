@@ -699,7 +699,7 @@ describe('HistoryRecordsPage assistant mode', () => {
     expect(screen.getByText('No topics')).toBeInTheDocument()
   })
 
-  it('groups empty and missing assistant topics under one unlinked source', () => {
+  it('groups runtime default and missing assistant topics separately', () => {
     hookMocks.useTopics.mockReturnValue({
       topics: [
         createTopic({ id: 'topic-alpha', name: 'Alpha topic', orderKey: 'a' }),
@@ -718,13 +718,19 @@ describe('HistoryRecordsPage assistant mode', () => {
 
     render(<HistoryRecordsPage mode="assistant" open onClose={vi.fn()} onRecordSelect={vi.fn()} />)
 
-    const unlinkedSource = screen.getByRole('button', { name: /Unlinked assistant 2/ })
-    expect(screen.queryByRole('button', { name: /Default assistant/ })).not.toBeInTheDocument()
+    const defaultSource = screen.getByRole('button', { name: /Default assistant 1/ })
+    const unlinkedSource = screen.getByRole('button', { name: /Unlinked assistant 1/ })
+
+    fireEvent.click(defaultSource)
+
+    expect(screen.getByText('Local orphan topic')).toBeInTheDocument()
+    expect(screen.queryByText('Missing assistant topic')).not.toBeInTheDocument()
+    expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
 
     fireEvent.click(unlinkedSource)
 
-    expect(screen.getByText('Local orphan topic')).toBeInTheDocument()
     expect(screen.getByText('Missing assistant topic')).toBeInTheDocument()
+    expect(screen.queryByText('Local orphan topic')).not.toBeInTheDocument()
     expect(screen.queryByText('Alpha topic')).not.toBeInTheDocument()
   })
 

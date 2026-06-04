@@ -22,7 +22,6 @@ import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import {
-  composeDefaultAssistant,
   composeRuntimeDefaultAssistant,
   isRuntimeDefaultAssistantId,
   type RuntimeDefaultAssistant
@@ -185,7 +184,7 @@ export function useAssistants() {
 export function useDefaultAssistant(): { assistant: RuntimeDefaultAssistant } {
   const [defaultModelId] = usePreference('chat.default_model_id')
   const modelId = (defaultModelId ?? null) as UniqueModelId | null
-  const assistant = useMemo(() => composeDefaultAssistant(modelId), [modelId])
+  const assistant = useMemo(() => composeRuntimeDefaultAssistant(modelId), [modelId])
   return { assistant }
 }
 

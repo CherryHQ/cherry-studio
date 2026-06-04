@@ -2,6 +2,7 @@ import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useMultiplePreferences } from '@renderer/data/hooks/usePreference'
+import { createRuntimeDefaultAssistantDisplay } from '@renderer/domain/assistant/runtimeDefaultAssistant'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
 import {
   type AgentSessionStreamState,
@@ -51,6 +52,7 @@ import HistorySourceSidebar, {
 export type HistoryRecordsMode = 'assistant' | 'agent'
 
 const ALL_SOURCE_ID = 'all'
+const RUNTIME_DEFAULT_ASSISTANT_SOURCE_ID = '__runtime_default_assistant__'
 const UNLINKED_ASSISTANT_SOURCE_ID = '__unlinked_assistant__'
 const UNKNOWN_AGENT_SOURCE_ID = '__unknown_agent__'
 const EMPTY_ASSISTANT_BY_ID: ReadonlyMap<string, Assistant> = new Map()
@@ -205,6 +207,7 @@ const AssistantHistoryRecordsContent = ({
     () => new Map(assistants.map((assistant, index) => [assistant.id, index])),
     [assistants]
   )
+  const runtimeDefaultAssistantDisplay = useMemo(() => createRuntimeDefaultAssistantDisplay(t), [t])
   const unlinkedAssistantLabel = t('history.records.sidebar.unknownAssistant')
   const timeSortedTopics = useMemo(
     () => sortTopicsForDisplayGroups(topics, { mode: 'time', now: groupNow }),
@@ -242,8 +245,16 @@ const AssistantHistoryRecordsContent = ({
   )
 
   const assistantSources = useMemo(
-    () => buildAssistantSources(topics, assistantById, assistantRankById, unlinkedAssistantLabel, t),
-    [assistantById, assistantRankById, t, topics, unlinkedAssistantLabel]
+    () =>
+      buildAssistantSources(
+        topics,
+        assistantById,
+        assistantRankById,
+        runtimeDefaultAssistantDisplay,
+        unlinkedAssistantLabel,
+        t
+      ),
+    [assistantById, assistantRankById, runtimeDefaultAssistantDisplay, t, topics, unlinkedAssistantLabel]
   )
   const bulkMoveTargets = useMemo<HistoryBulkMoveTarget[]>(
     () =>
@@ -472,6 +483,8 @@ const AssistantHistoryRecordsContent = ({
         sessions={[]}
         assistantById={assistantById}
         agentById={EMPTY_AGENT_BY_ID}
+        defaultAssistantLabel={runtimeDefaultAssistantDisplay.name}
+        defaultAssistantEmoji={runtimeDefaultAssistantDisplay.emoji}
         unlinkedAssistantLabel={unlinkedAssistantLabel}
         isLoading={isTopicsLoading}
         isTopicPinned={isTopicPinned}
@@ -795,6 +808,7 @@ const HistoryRecordsLayout = ({
 }
 
 function getTopicSourceId(topic: Pick<ApiTopic, 'assistantId'>, assistantById?: ReadonlyMap<string, Assistant>) {
+  if (topic.assistantId === null) return RUNTIME_DEFAULT_ASSISTANT_SOURCE_ID
   if (!topic.assistantId) return UNLINKED_ASSISTANT_SOURCE_ID
   if (assistantById && !assistantById.has(topic.assistantId)) return UNLINKED_ASSISTANT_SOURCE_ID
 
@@ -896,6 +910,7 @@ function buildAssistantSources(
   topics: readonly ApiTopic[],
   assistantById: ReadonlyMap<string, Assistant>,
   assistantRankById: ReadonlyMap<string, number>,
+  runtimeDefaultAssistantDisplay: ReturnType<typeof createRuntimeDefaultAssistantDisplay>,
   unlinkedAssistantLabel: string,
   t: ReturnType<typeof useTranslation>['t']
 ): HistorySourceItem[] {
@@ -905,6 +920,7 @@ function buildAssistantSources(
     const sourceId = getTopicSourceId(topic, assistantById)
     counts.set(sourceId, (counts.get(sourceId) ?? 0) + 1)
   }
+  const runtimeDefaultCount = counts.get(RUNTIME_DEFAULT_ASSISTANT_SOURCE_ID) ?? 0
   const unlinkedCount = counts.get(UNLINKED_ASSISTANT_SOURCE_ID) ?? 0
 
   return [
@@ -913,6 +929,16 @@ function buildAssistantSources(
       label: t('common.all'),
       count: topics.length
     },
+    ...(runtimeDefaultCount > 0
+      ? [
+          {
+            id: RUNTIME_DEFAULT_ASSISTANT_SOURCE_ID,
+            label: runtimeDefaultAssistantDisplay.name,
+            count: runtimeDefaultCount,
+            icon: <span className="text-sm leading-none">{runtimeDefaultAssistantDisplay.emoji}</span>
+          }
+        ]
+      : []),
     ...Array.from(assistantById.values())
       .sort(
         (left, right) =>
