@@ -109,6 +109,10 @@ export const getProviderLabel = (id: string): string => {
   return getLabel(providerKeyMap, id)
 }
 
+export const hasProviderLabel = (id: string): boolean => {
+  return Object.prototype.hasOwnProperty.call(providerKeyMap, id)
+}
+
 const fileProcessorKeyMap = {
   doc2x: 'provider.doc2x',
   mineru: 'provider.mineru',

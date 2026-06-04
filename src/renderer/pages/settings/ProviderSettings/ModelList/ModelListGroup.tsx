@@ -6,7 +6,7 @@ import React, { memo, useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
-import { getModelGroupLabel } from './grouping'
+import { getModelGroupDisplayName, getModelGroupLabel } from './grouping'
 import ModelListItem from './ModelListItem'
 import type { ModelListGroupItem } from './useProviderModelList'
 
@@ -32,7 +32,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
   const { t } = useTranslation()
   const [open, setOpen] = useState(defaultOpen)
   const scrollerRef = useRef<HTMLDivElement>(null)
-  const groupLabel = getModelGroupLabel(groupName, t)
+  const groupLabel = getModelGroupDisplayName(getModelGroupLabel(groupName, t))
   const shouldVirtualize = items.length > 80
   const previewItems = useMemo(() => items.slice(0, 80), [items])
   const virtualizer = useVirtualizer({
