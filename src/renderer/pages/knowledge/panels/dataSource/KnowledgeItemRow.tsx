@@ -212,7 +212,7 @@ const KnowledgeItemRowMoreMenu = ({
         side="bottom"
         sideOffset={4}
         collisionPadding={8}
-        className="z-30 w-max max-w-56 p-1.5"
+        className="z-30 w-max max-w-56"
         onClick={(event) => event.stopPropagation()}
         onOpenAutoFocus={(event) => event.preventDefault()}
         onCloseAutoFocus={(event) => event.preventDefault()}>
