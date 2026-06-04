@@ -6,6 +6,7 @@ import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { BaseService } from '@main/core/lifecycle'
 import type { FileEntryId } from '@shared/data/types/file'
+import { FilePathSchema } from '@shared/file/types'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -98,13 +99,13 @@ describe('FileManager (integration)', () => {
       updatedAt: now
     })
 
-    // Canonical lookup
-    const found = await fm.findByExternalPath(`${file}/`) // trailing slash → canonicalize strips
+    // Canonical lookup — schema canonicalizes trailing slash at the IPC boundary.
+    const found = await fm.findByExternalPath(FilePathSchema.parse(`${file}/`))
     expect(found?.id).toBe(id)
 
-    // NFC re-normalization survives a synthesized NFD form
+    // NFC re-normalization survives a synthesized NFD form (schema parses to NFC).
     const nfdFile = file.normalize('NFD')
-    const foundNfc = await fm.findByExternalPath(nfdFile)
+    const foundNfc = await fm.findByExternalPath(FilePathSchema.parse(nfdFile))
     expect(foundNfc?.id).toBe(id)
 
     // Content hash works for external entries

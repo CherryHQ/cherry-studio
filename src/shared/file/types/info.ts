@@ -58,8 +58,7 @@
 
 import * as z from 'zod'
 
-import type { FilePath } from './common'
-import { FileTypeSchema } from './common'
+import { FilePathSchema, FileTypeSchema } from './common'
 
 /**
  * Zod schema for `FileInfo`. Branded so consumers cannot construct a raw
@@ -74,17 +73,13 @@ import { FileTypeSchema } from './common'
 export const FileInfoSchema = z
   .strictObject({
     /**
-     * Absolute filesystem path. The TypeScript template-literal `FilePath`
-     * brand is enforced only at the type level; the runtime check here is
-     * the same shape gate (`/`-prefixed POSIX or `X:\` Windows drive)
-     * plus a null-byte rejection — anything that survives is safe to feed
-     * to `fs` APIs.
+     * Absolute filesystem path, canonicalized via `FilePathSchema`:
+     * NFC-normalized, segment-resolved, trailing-separator-stripped, no null
+     * bytes. Carries the `FilePath` brand at runtime — the same guarantee
+     * every other entry point asserts — so a parsed `FileInfo.path` is safe
+     * to feed to `fs` APIs and to use as a canonical key.
      */
-    path: z
-      .string()
-      .min(1)
-      .refine((s) => !s.includes('\0'), 'path must not contain null bytes')
-      .refine((s) => s.startsWith('/') || /^[A-Za-z]:\\/.test(s), 'path must be an absolute filesystem path'),
+    path: FilePathSchema,
     /** Basename without extension. */
     name: z.string(),
     /** Extension without leading dot, or `null` for extensionless files. */
@@ -109,10 +104,8 @@ export const FileInfoSchema = z
  * @see {@link PhysicalFileMetadata} for per-kind rich stat (dimensions,
  *      pageCount, etc.).
  *
- * Inferred from `FileInfoSchema`; the schema is the source of truth.
- * The runtime `path` shape check is intentionally weaker than the TS
- * `FilePath` template literal (template literals can't be expressed in
- * Zod) — the field is still typed as `FilePath` here for ergonomics
- * everywhere it crosses an IPC boundary.
+ * Inferred from `FileInfoSchema`; the schema is the source of truth. `path`
+ * goes through `FilePathSchema`, so the inferred `path` already carries the
+ * `FilePath` brand — no `Omit`/intersection patching needed.
  */
-export type FileInfo = Omit<z.infer<typeof FileInfoSchema>, 'path'> & { readonly path: FilePath }
+export type FileInfo = z.infer<typeof FileInfoSchema>

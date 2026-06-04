@@ -3,15 +3,11 @@
  *
  * Lives in shared (no `node:*` imports) so the FileEntry schema can `refine`
  * its `externalPath` field against the same canonicalization rule the main
- * process uses on write. That refine is what gives the `CanonicalFilePath`
+ * process uses on write. That refine is what gives the `FilePath`
  * brand on the BO real runtime backing — any value that survives parsing IS
  * canonical, not just typed as if it were.
  *
  * ## Scope (this function's contract)
- *
- * Same rules as the main-side `canonicalizeExternalPath` (see
- * `src/main/services/file/utils/pathResolver.ts`) — only the implementation
- * differs (this version does not depend on `node:path`):
  *
  *   0. Reject null bytes (`\0`).
  *   1. Resolve segments (`.`, `..`, repeated separators).
@@ -32,6 +28,24 @@
  * `file_ref` rows whose canonical forms now collide. See
  * `docs/references/file/file-manager-architecture.md §1.2 Rule evolution
  * discipline`.
+ *
+ * ## Deliberately NOT handled here
+ *
+ * The following are intentionally out of scope so this function stays sync,
+ * FS-IO-free, and safe to run inside Zod refines / read paths:
+ *
+ * - **Case-insensitive FS de-duplication** (macOS APFS / Windows NTFS):
+ *   `/Users/me/FILE.pdf` vs `/Users/me/file.pdf` are byte-distinct after
+ *   canonicalize. Enforced downstream by the DB functional unique index
+ *   `UNIQUE(lower(externalPath))` and the `ensureExternalEntry` `fs.realpath`
+ *   peer-resolution path.
+ * - **Symlink resolution** (`realpath` target collapse): symlinks remain
+ *   distinct entries — collapse would require unconditional `fs.realpath`
+ *   on every canonicalize call, trading the sync/cheap contract.
+ * - **Windows short-name (8.3) resolution** (`LONGNA~1` vs `longname`):
+ *   requires WinAPI, low-priority edge case.
+ * - **SMB / NFS mounts with FS-level case-sensitivity diverging from host**:
+ *   documented as known limitation.
  */
 
 export function canonicalizeAbsolutePath(raw: string): string {
@@ -63,7 +77,7 @@ function canonicalizePosix(raw: string): string {
 function canonicalizeWindows(raw: string): string {
   // Drive letter is uppercased so `C:\Foo` and `c:\Foo` canonicalize to the
   // same string at the byte layer — case folding the path itself is
-  // deliberately deferred (see pathResolver.ts JSDoc for the rationale).
+  // deliberately deferred (see "Deliberately NOT handled here" above).
   const drive = raw.slice(0, 2).toUpperCase()
   const segments = raw.slice(3).split(/[/\\]/)
   const stack: string[] = []

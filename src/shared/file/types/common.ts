@@ -2,6 +2,7 @@
  * General file module types — used across ops, FileManager, and IPC.
  */
 
+import { canonicalizeAbsolutePath } from '@shared/file/canonicalize'
 import * as z from 'zod'
 
 // ─── File Type Classification ───
@@ -29,13 +30,26 @@ export type FileType = z.infer<typeof FileTypeSchema>
 // ─── Content Source Types ───
 
 /**
- * Local filesystem path (absolute Unix or Windows).
+ * Absolute filesystem path that has passed through `FilePathSchema`:
+ * NFC-normalized, segment-resolved, trailing-separator-stripped, no null bytes.
  *
- * Runtime validation required — the template-literal pattern only provides
- * type-level hints. Rejects `file://` URLs; use a dedicated URL type (or plain
- * `string`) when a consumer needs to accept URLs.
+ * The phantom brand (via `z.brand`) carries zero runtime cost. IPC serialization
+ * drops it; receivers re-assert via `FilePathSchema.parse()` at the trusted
+ * boundary.
+ *
+ * Construction:
+ * - Production: `FilePathSchema.parse(raw)` / `safeParse(raw)`
+ * - Tests / fixtures: `'string literal' as FilePath` for readability
  */
-export type FilePath = `/${string}` | `${string}:\\${string}`
+export const FilePathSchema = z
+  .string()
+  .min(1)
+  .refine((s) => !s.includes('\0'), 'must not contain null bytes')
+  .refine((s) => s.startsWith('/') || /^[A-Za-z]:[/\\]/.test(s), 'must be absolute')
+  .transform((v) => canonicalizeAbsolutePath(v))
+  .brand<'FilePath'>()
+
+export type FilePath = z.infer<typeof FilePathSchema>
 export type Base64String = `data:${string};base64,${string}`
 export type URLString = `http://${string}` | `https://${string}`
 

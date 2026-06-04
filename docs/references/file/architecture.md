@@ -99,7 +99,8 @@ Pure FS primitives (src/main/utils/file/) — sole FS owner, open to the entire 
 │                   atomic write: atomicWriteFile / atomicWriteIfUnchanged / createAtomicWriteStream
 │                   version: statVersion / contentHash (xxhash-h64)
 ├── shell.ts      — system ops: open / showInFolder
-├── path.ts       — path utils: resolvePath / isPathInside / canWrite / isNotEmptyDir / canonicalizeExternalPath
+├── path.ts       — path utils: resolvePath / isPathInside / canWrite / isNotEmptyDir
+│                   (canonical-path branding lives in `src/shared/file/canonicalize.ts` + `FilePathSchema` in `src/shared/file/types/common.ts`)
 ├── metadata.ts   — type detection: getFileType / isTextFile / mimeToExt
 ├── search.ts     — directory search: listDirectory (ripgrep + fuzzy matching)
 ├── legacyFile.ts — shared legacy helpers (`getFileType(ext)` / `sanitizeFilename` / `getAllFiles` / `pathExists` / …); planned to be split into the modules above over time
@@ -286,7 +287,7 @@ All operations that can act on any file (FileEntry or arbitrary path) **accept a
 | Method | Description |
 |---|---|
 | `createInternalEntry` / `batchCreateInternalEntries` | Create a new Cherry-owned FileEntry (writes to `{userData}/Data/Files/{id}.{ext}`; each call produces an independent new entry, no conflict possible) |
-| `ensureExternalEntry` / `batchEnsureExternalEntries` | Pure upsert by `externalPath`—the entry point first `canonicalizeExternalPath(raw)` normalizes it (see `pathResolver.ts`); reuses the existing entry with the same path or inserts a new one. Idempotent by design—callers may safely repeat calls. No "restore" branch: external entries cannot be trashed. External rows carry no stored `size` (always `null`); live values come from `getMetadata`. |
+| `ensureExternalEntry` / `batchEnsureExternalEntries` | Pure upsert by `externalPath`—the IPC boundary's `FilePathSchema` normalizes the input (segment resolve + NFC + trailing-strip via `canonicalizeAbsolutePath`) before the handler ever sees it; reuses the existing entry with the same path or inserts a new one. Idempotent by design—callers may safely repeat calls. No "restore" branch: external entries cannot be trashed. External rows carry no stored `size` (always `null`); live values come from `getMetadata`. |
 | `trash` / `restore` | Soft delete based on deletedAt (DB only). **Internal-origin only** — external-origin entries cannot be trashed (`fe_external_no_delete` CHECK); passing an external id throws. |
 | `batchTrash` / `batchRestore` | Batch versions of `trash` / `restore` — same internal-origin-only rule. |
 | `batchPermanentDelete` | Batch version of `permanentDelete`. |

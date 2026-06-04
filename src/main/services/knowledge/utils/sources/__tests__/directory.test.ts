@@ -167,6 +167,52 @@ describe('expandDirectoryOwnerToTree', () => {
     )
   })
 
+  it('canonicalizes NFD directory entries to NFC at the producer', async () => {
+    tempRoot = createTempRoot()
+    const rootDir = path.join(tempRoot, 'notes')
+    realFs.mkdirSync(rootDir, { recursive: true })
+    // 'café.md' written NFD (e + combining acute). The persisted externalPath
+    // must come back NFC — matching the renderer path that canonicalizes via
+    // FilePathSchema — or the same physical file forks into two byte-distinct
+    // file_entry rows on macOS APFS. fs.stat reads the raw path, so this holds
+    // on every platform (no FS lookup of the canonical form is involved).
+    const nfdName = `${'café'.normalize('NFD')}.md`
+    const nfcName = `${'café'.normalize('NFC')}.md`
+    expect(nfdName).not.toBe(nfcName) // byte-distinct input
+    realFs.writeFileSync(path.join(rootDir, nfdName), '# note')
+
+    const nodes = await expandDirectoryOwnerToTree(
+      {
+        id: 'dir-owner-1',
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'directory',
+        data: {
+          source: rootDir,
+          path: rootDir
+        },
+        status: 'idle',
+        error: null,
+        createdAt: '2026-04-08T00:00:00.000Z',
+        updatedAt: '2026-04-08T00:00:00.000Z'
+      },
+      createSignal()
+    )
+
+    const expectedPath = path.join(rootDir, nfcName)
+    expect(nodes).toEqual([
+      {
+        type: 'file',
+        data: {
+          source: expectedPath,
+          fileEntryId: expect.stringMatching(/^019606a0-0000-7000-8000-\d{12}$/)
+        }
+      }
+    ])
+    // ensureExternalEntry received the canonical NFC path, not the raw NFD one.
+    expect(ensureExternalEntryMock).toHaveBeenCalledWith({ externalPath: expectedPath })
+  })
+
   it('stops before reading when the runtime signal is already aborted', async () => {
     tempRoot = createTempRoot()
     const controller = new AbortController()

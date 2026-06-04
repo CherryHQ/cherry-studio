@@ -1,5 +1,5 @@
 import { FILE_TYPE } from '@shared/data/types/file'
-import { type FileInfo, FileInfoSchema } from '@shared/file/types'
+import { FileInfoSchema } from '@shared/file/types'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { mockMainLoggerService } from '../../../../../../../../tests/__mocks__/MainLoggerService'
@@ -27,7 +27,7 @@ const imageFile = FileInfoSchema.parse({
   type: FILE_TYPE.IMAGE,
   createdAt: 1,
   modifiedAt: 1
-}) as FileInfo
+})
 
 describe('systemImageToTextHandler', () => {
   beforeEach(() => {

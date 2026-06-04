@@ -4,8 +4,7 @@ import path from 'node:path'
 import { application } from '@application'
 import type { FileEntryId } from '@shared/data/types/file'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
-import type { FilePath } from '@shared/file/types'
-import type { NotesTreeNode } from '@types'
+import { type FilePath, FilePathSchema } from '@shared/file/types'
 import { v4 as uuidv4 } from 'uuid'
 
 export type ExpandedDirectoryNode =
@@ -25,15 +24,35 @@ export type ExpandedDirectoryNode =
       }
     }
 
+/**
+ * Local node shape for directory-knowledge ingest. Mirrors the subset of
+ * `NotesTreeNode` that `readDirectoryTree` builds, but brands `externalPath`
+ * as `FilePath`: the path is canonicalized at the producer below, so the
+ * `ensureExternalEntry` consumer trusts the brand instead of re-casting a
+ * possibly-NFD raw path. (`NotesTreeNode` itself stays an untyped renderer
+ * DTO — branding it is a cross-platform Notes-subsystem refactor tracked
+ * separately.)
+ */
+interface DirectoryScanNode {
+  id: string
+  name: string
+  type: 'folder' | 'file'
+  treePath: string
+  externalPath: FilePath
+  createdAt: string
+  updatedAt: string
+  children?: DirectoryScanNode[]
+}
+
 async function readDirectoryTree(
   dirPath: string,
   signal: AbortSignal,
   rootPath: string = dirPath
-): Promise<NotesTreeNode[]> {
+): Promise<DirectoryScanNode[]> {
   signal.throwIfAborted()
   const entries = await fs.readdir(dirPath, { withFileTypes: true })
   signal.throwIfAborted()
-  const nodes: NotesTreeNode[] = []
+  const nodes: DirectoryScanNode[] = []
 
   for (const entry of entries) {
     signal.throwIfAborted()
@@ -47,6 +66,10 @@ async function readDirectoryTree(
     signal.throwIfAborted()
     const relativePath = path.relative(rootPath, entryPath)
     const treePath = `/${relativePath.replace(/\\/g, '/')}`
+    // Canonicalize at the producer: entry.name from fs.readdir is raw (NFD on
+    // macOS APFS), so parsing here gives every node a canonical FilePath that
+    // the ensureExternalEntry consumer can trust without re-casting.
+    const externalPath = FilePathSchema.parse(entryPath)
 
     if (entry.isDirectory()) {
       nodes.push({
@@ -54,7 +77,7 @@ async function readDirectoryTree(
         name: entry.name,
         type: 'folder',
         treePath,
-        externalPath: entryPath,
+        externalPath,
         createdAt: stats.birthtime.toISOString(),
         updatedAt: stats.mtime.toISOString(),
         children: await readDirectoryTree(entryPath, signal, rootPath)
@@ -68,7 +91,7 @@ async function readDirectoryTree(
         name: entry.name,
         type: 'file',
         treePath,
-        externalPath: entryPath,
+        externalPath,
         createdAt: stats.birthtime.toISOString(),
         updatedAt: stats.mtime.toISOString()
       })
@@ -78,10 +101,13 @@ async function readDirectoryTree(
   return nodes
 }
 
-async function expandDirectoryNode(node: NotesTreeNode, signal: AbortSignal): Promise<ExpandedDirectoryNode | null> {
+async function expandDirectoryNode(
+  node: DirectoryScanNode,
+  signal: AbortSignal
+): Promise<ExpandedDirectoryNode | null> {
   if (node.type === 'file') {
     const fileManager = application.get('FileManager')
-    const entry = await fileManager.ensureExternalEntry({ externalPath: node.externalPath as FilePath })
+    const entry = await fileManager.ensureExternalEntry({ externalPath: node.externalPath })
     signal.throwIfAborted()
 
     return {

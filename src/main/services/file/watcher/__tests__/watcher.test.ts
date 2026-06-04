@@ -171,8 +171,9 @@ describe('createDirectoryWatcher', () => {
       const writtenPath = path.join(dir, nfd) as FilePath
       const canonicalPath = path.join(dir, nfc) as FilePath
 
-      // DanglingCache's reverse index is populated by `ensureExternalEntry` →
-      // `canonicalizeExternalPath` which already lands NFC. Mirror that here.
+      // DanglingCache's reverse index is populated by `ensureExternalEntry`;
+      // the input is already FilePath (FilePathSchema's transform lands NFC).
+      // Mirror that here.
       danglingCache.addEntry('e-w-nfd' as FileEntryId, canonicalPath)
 
       const w = createDirectoryWatcher(dir as FilePath)

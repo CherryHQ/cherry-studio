@@ -8,12 +8,10 @@ vi.mock('@application', async () => {
   return mockApplicationFactory()
 })
 
-import path from 'node:path'
-
-import type { CanonicalExternalPath } from '@shared/data/types/file'
+import type { FilePath } from '@shared/file/types'
 
 import type { PathResolvableEntry } from '../pathResolver'
-import { canonicalizeExternalPath, getExtSuffix, resolvePhysicalPath } from '../pathResolver'
+import { getExtSuffix, resolvePhysicalPath } from '../pathResolver'
 
 describe('getExtSuffix', () => {
   it('returns dot-prefixed extension for non-null ext', () => {
@@ -53,19 +51,9 @@ describe('resolvePhysicalPath', () => {
         id: '019606a0-0000-7000-8000-000000000001',
         origin: 'external',
         ext: 'md',
-        externalPath: '/Users/me/notes/readme.md'
+        externalPath: '/Users/me/notes/readme.md' as FilePath
       }
       expect(resolvePhysicalPath(entry)).toBe('/Users/me/notes/readme.md')
-    })
-
-    it('resolves path (normalizes relative segments)', () => {
-      const entry: PathResolvableEntry = {
-        id: '019606a0-0000-7000-8000-000000000002',
-        origin: 'external',
-        ext: 'pdf',
-        externalPath: '/Users/me/./docs/../docs/report.pdf'
-      }
-      expect(resolvePhysicalPath(entry)).toBe('/Users/me/docs/report.pdf')
     })
   })
 
@@ -88,45 +76,10 @@ describe('resolvePhysicalPath', () => {
       expect(() => resolvePhysicalPath(entry)).toThrow('null bytes')
     })
 
-    it('rejects null bytes in externalPath', () => {
-      const entry: PathResolvableEntry = {
-        id: '019606a0-0000-7000-8000-000000000001',
-        origin: 'external',
-        ext: 'md',
-        externalPath: '/Users/me/evil\0path.md'
-      }
-      expect(() => resolvePhysicalPath(entry)).toThrow('null bytes')
-    })
-  })
-})
-
-describe('canonicalizeExternalPath', () => {
-  it('resolves "." and ".." segments', () => {
-    const input = path.resolve('/foo/./bar/../baz')
-    expect(canonicalizeExternalPath(input) as string).toBe(path.resolve('/foo/baz'))
-  })
-
-  it('NFC-normalizes Unicode (NFD → NFC)', () => {
-    const nfd = '/users/Müller'
-    const nfc = '/users/Müller'
-    expect(canonicalizeExternalPath(nfd) as string).toBe(canonicalizeExternalPath(nfc) as string)
-  })
-
-  it('strips trailing path separator', () => {
-    expect(canonicalizeExternalPath('/foo/bar/') as string).toBe(canonicalizeExternalPath('/foo/bar') as string)
-  })
-
-  it('preserves a path that is already canonical', () => {
-    const canonical = path.resolve('/foo/bar/baz.txt')
-    expect(canonicalizeExternalPath(canonical) as string).toBe(canonical)
-  })
-
-  it('rejects null bytes', () => {
-    expect(() => canonicalizeExternalPath('/foo/bar\0/baz')).toThrow(/null byte/i)
-  })
-
-  it('returns a CanonicalExternalPath brand (compile-time check)', () => {
-    const canonical: CanonicalExternalPath = canonicalizeExternalPath('/foo')
-    expect(typeof canonical).toBe('string')
+    // Null-byte rejection for externalPath is enforced upstream at the
+    // FilePathSchema layer (refine: no null bytes) — covered by the schema
+    // spec at src/shared/file/types/__tests__/FilePathSchema.test.ts.
+    // resolvePhysicalPath's external branch trusts the brand and returns
+    // entry.externalPath directly with no further check.
   })
 })

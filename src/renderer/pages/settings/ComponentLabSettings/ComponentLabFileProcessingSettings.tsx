@@ -6,7 +6,7 @@ import type { JobSnapshot } from '@shared/data/api/schemas/jobs'
 import type { FileProcessorFeature, FileProcessorId } from '@shared/data/preference/preferenceTypes'
 import { type FileProcessorMerged, PRESETS_FILE_PROCESSORS } from '@shared/data/presets/file-processing'
 import type { FileProcessingArtifact, FileProcessingJobOutput } from '@shared/data/types/fileProcessing'
-import type { FilePath } from '@shared/file/types'
+import { FilePathSchema } from '@shared/file/types'
 import type { FileMetadata } from '@types'
 import { CheckCircle2, CircleAlert, FileText, Image, Loader2, Play, Upload } from 'lucide-react'
 import type { FC, ReactNode } from 'react'
@@ -141,7 +141,9 @@ function ProcessorIdleHeader({ processor }: { processor: FileProcessorMerged }) 
         <div className="min-w-0">
           <div className="truncate font-medium text-foreground text-sm">{t(getProcessorNameKey(processor.id))}</div>
           <div className="mt-1 text-muted-foreground text-xs">
-            {t('settings.componentLab.fileProcessing.duration', { seconds: '-' })}
+            {t('settings.componentLab.fileProcessing.duration', {
+              seconds: '-'
+            })}
           </div>
         </div>
         <Badge variant="outline" className="gap-1">
@@ -190,7 +192,9 @@ function ProcessorJobView({
         <div className="min-w-0">
           <div className="truncate font-medium text-foreground text-sm">{t(getProcessorNameKey(processor.id))}</div>
           <div className="mt-1 text-muted-foreground text-xs">
-            {t('settings.componentLab.fileProcessing.duration', { seconds: getDurationSeconds(durationMs) })}
+            {t('settings.componentLab.fileProcessing.duration', {
+              seconds: getDurationSeconds(durationMs)
+            })}
           </div>
         </div>
         <Badge variant={status === 'failed' || status === 'cancelled' ? 'destructive' : 'outline'} className="gap-1">
@@ -233,7 +237,9 @@ function ProcessorJobView({
 
 const ComponentLabFileProcessingSettings: FC = () => {
   const { t } = useTranslation()
-  const [preferences] = useMultiplePreferences(FILE_PROCESSING_KEYS, { optimistic: false })
+  const [preferences] = useMultiplePreferences(FILE_PROCESSING_KEYS, {
+    optimistic: false
+  })
   const availableProcessors = useAvailableFileProcessors()
   const processors = useMemo<FileProcessorMerged[]>(() => {
     return PRESETS_FILE_PROCESSORS.map((preset) => {
@@ -270,7 +276,10 @@ const ComponentLabFileProcessingSettings: FC = () => {
 
   const handleSelectFile = useCallback(
     async (section: LabSectionConfig) => {
-      setSectionErrors((current) => ({ ...current, [section.feature]: undefined }))
+      setSectionErrors((current) => ({
+        ...current,
+        [section.feature]: undefined
+      }))
 
       try {
         const files = await window.api.file.select({
@@ -286,7 +295,10 @@ const ComponentLabFileProcessingSettings: FC = () => {
         const file = files?.[0]
 
         if (file) {
-          setSelectedFiles((current) => ({ ...current, [section.feature]: file }))
+          setSelectedFiles((current) => ({
+            ...current,
+            [section.feature]: file
+          }))
         }
       } catch (error) {
         setSectionErrors((current) => ({
@@ -315,13 +327,21 @@ const ComponentLabFileProcessingSettings: FC = () => {
         return
       }
 
-      setSectionErrors((current) => ({ ...current, [section.feature]: undefined }))
-      setStartingFeatures((current) => ({ ...current, [section.feature]: true }))
+      setSectionErrors((current) => ({
+        ...current,
+        [section.feature]: undefined
+      }))
+      setStartingFeatures((current) => ({
+        ...current,
+        [section.feature]: true
+      }))
       // Clear stale runs from a previous file selection.
       setRuns((current) => ({ ...current, [section.feature]: {} }))
 
       const startedAt = Date.now()
-      const fileEntry = window.api.file.ensureExternalEntry({ externalPath: file.path as FilePath })
+      const fileEntry = window.api.file.ensureExternalEntry({
+        externalPath: FilePathSchema.parse(file.path)
+      })
       const results = await Promise.allSettled(
         processorsForFeature.map(async (processor) => {
           const entry = await fileEntry
@@ -338,7 +358,10 @@ const ComponentLabFileProcessingSettings: FC = () => {
       const errors: string[] = []
       for (const result of results) {
         if (result.status === 'fulfilled') {
-          nextRuns[result.value.processorId] = { jobId: result.value.jobId, startedAt }
+          nextRuns[result.value.processorId] = {
+            jobId: result.value.jobId,
+            startedAt
+          }
         } else {
           errors.push(formatErrorMessage(result.reason))
         }
@@ -346,9 +369,15 @@ const ComponentLabFileProcessingSettings: FC = () => {
 
       setRuns((current) => ({ ...current, [section.feature]: nextRuns }))
       if (errors.length) {
-        setSectionErrors((current) => ({ ...current, [section.feature]: errors.join('\n') }))
+        setSectionErrors((current) => ({
+          ...current,
+          [section.feature]: errors.join('\n')
+        }))
       }
-      setStartingFeatures((current) => ({ ...current, [section.feature]: false }))
+      setStartingFeatures((current) => ({
+        ...current,
+        [section.feature]: false
+      }))
     },
     [processorsByFeature, selectedFiles, startingFeatures, t]
   )

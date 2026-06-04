@@ -390,10 +390,15 @@ describe('createDirectoryTree — watcher mutations', () => {
     const events: TreeMutationEvent[] = []
     const sub = builder.onMutation((e) => events.push(e))
 
-    // Quick proof the watcher is alive: a write before dispose lands.
+    // Quick proof the watcher is alive: a write before dispose lands. Use the
+    // same race-free waitForEvent helper the other watcher tests use rather
+    // than a fixed sleep — on slow CI chokidar's inotify latency occasionally
+    // exceeded the 300ms window, making the assertion flaky. Awaiting the
+    // promise IS the liveness proof: a dead watcher times out (4s) and fails
+    // loudly instead of racing.
+    const livePromise = waitForEvent(builder, (e) => e.type === 'added' && e.path.endsWith('/live.md'))
     await writeFile(path.join(tmp, 'live.md'), 'y')
-    await new Promise((resolve) => setTimeout(resolve, 300))
-    expect(events.some((e) => e.type === 'added' && 'path' in e && e.path.endsWith('/live.md'))).toBe(true)
+    await livePromise
 
     sub.dispose()
     builder.dispose()

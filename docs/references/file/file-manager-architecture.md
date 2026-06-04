@@ -55,9 +55,9 @@ CREATE UNIQUE INDEX fe_external_path_lower_unique_idx
 
 `fe_external_path_idx` (plain index on the raw `external_path`) backs byte-exact lookups (`findByExternalPath`, rename re-finds, path-resolution call sites). The functional index simultaneously serves the case-insensitive lookup path (`WHERE lower(externalPath) = lower(?)`) used by `findCaseInsensitivePeers` and enforces the uniqueness invariant — `ensureExternalEntry` MUST resolve case-collisions at the application layer before INSERT (see "Duplicate-entry detection on insert" below) because a DB-level rejection would otherwise surface as an opaque `SQLITE_CONSTRAINT`. Internal rows (`externalPath = NULL`) are exempt — SQLite treats multiple NULLs as distinct in a UNIQUE index.
 
-**Canonical invariant of `externalPath`**: SQLite performs **byte-level** comparison on the raw `externalPath` column and cannot natively detect NFC ≡ NFD (Unicode). The functional index above handles case folding via `lower()` but does **not** apply Unicode normalization, so `externalPath` **must** be normalized via `canonicalizeExternalPath(raw)` before persistence—this is an application-layer invariant, with `ensureExternalEntry` and `fileEntryService.findByExternalPath` as mandatory call sites.
+**Canonical invariant of `externalPath`**: SQLite performs **byte-level** comparison on the raw `externalPath` column and cannot natively detect NFC ≡ NFD (Unicode). The functional index above handles case folding via `lower()` but does **not** apply Unicode normalization, so `externalPath` **must** be normalized via `FilePathSchema.parse(raw)` before persistence—this is an application-layer invariant, with `ensureExternalEntry` and `fileEntryService.findByExternalPath` as mandatory call sites.
 
-**Compile-time enforcement via `CanonicalExternalPath` brand**: `canonicalizeExternalPath()` returns a branded `CanonicalExternalPath` (TS phantom type, zero runtime cost; see `src/shared/data/types/file/fileEntry.ts`). Every DB read/write surface that filters by `externalPath` — today `findByExternalPath`, and any future DataApi endpoint or repository method — MUST accept this type, not a plain `string`. The type system then guarantees callers routed their input through the normalization function, eliminating the "forgot to canonicalize" class of bug that would silently miss all matches.
+**Compile-time enforcement via `FilePath` brand**: `FilePathSchema.parse()` returns a branded `FilePath` (TS phantom type, zero runtime cost; see `src/shared/file/types/common.ts`). Every DB read/write surface that filters by `externalPath` — today `findByExternalPath`, and any future DataApi endpoint or repository method — MUST accept this type, not a plain `string`. The type system then guarantees callers routed their input through the normalization function, eliminating the "forgot to canonicalize" class of bug that would silently miss all matches.
 
 | Source | Natively canonical | Relies on normalization to disambiguate |
 |---|---|---|
@@ -69,22 +69,22 @@ CREATE UNIQUE INDEX fe_external_path_lower_unique_idx
 
 **Normalization scope** (synchronous, no FS IO):
 - Null-byte rejection — `raw.includes('\0')` → throw, so poisoned paths never reach DB persistence (reject at the earliest boundary, not at use-time inside `resolvePhysicalPath`)
-- `path.resolve(raw)` → absolutize + eliminate `./` `../`
+- Segment resolve → absolutize + eliminate `./` `../`
 - `.normalize('NFC')` → Unicode normalization (closes the NFD/NFC window for macOS CJK)
 - Trailing separator trimming
 
 **Intentionally omitted** (deferred until concrete user feedback warrants the cost):
-- `fs.realpath` as a step *inside* `canonicalizeExternalPath` itself (would require async FS IO at every canonicalization call site and a file-existence precondition). `fs.realpath` IS used on the `ensureExternalEntry` collision path described below — that is a per-collision probe, not a per-canonicalize step.
+- `fs.realpath` as a step *inside* `canonicalizeAbsolutePath` itself (would require async FS IO at every canonicalization call site and a file-existence precondition). `fs.realpath` IS used on the `ensureExternalEntry` collision path described below — that is a per-collision probe, not a per-canonicalize step.
 - Symlink target merging at canonicalize time
 - Windows 8.3 short-name resolution
 
-See the JSDoc for `canonicalizeExternalPath` in `src/main/services/file/utils/pathResolver.ts` for the detailed contract.
+See the JSDoc for `canonicalizeAbsolutePath` in `src/shared/file/canonicalize.ts` for the detailed contract; `FilePathSchema` in `src/shared/file/types/common.ts` wraps it as the branded entry point.
 
 #### Rule evolution discipline
 
-Because the canonical form is **application-layer logic**, not DB schema, any change to `canonicalizeExternalPath`'s normalization steps desynchronizes historical rows (written under the old rule) from new queries (running under the new rule). This produces a silent failure mode: byte-compare misses, the user sees "my file is in the library but the app says it isn't", and `ensureExternalEntry` inserts a duplicate.
+Because the canonical form is **application-layer logic**, not DB schema, any change to `canonicalizeAbsolutePath`'s normalization steps desynchronizes historical rows (written under the old rule) from new queries (running under the new rule). This produces a silent failure mode: byte-compare misses, the user sees "my file is in the library but the app says it isn't", and `ensureExternalEntry` inserts a duplicate.
 
-**Rule**: modifying `canonicalizeExternalPath` ≡ ship a paired Drizzle migration that re-canonicalizes every existing `file_entry` row with `origin='external'` in the **same PR**. No exceptions — even if the new rule is claimed "strictly more permissive", the byte-compare will still miss.
+**Rule**: modifying `canonicalizeAbsolutePath` ≡ ship a paired Drizzle migration that re-canonicalizes every existing `file_entry` row with `origin='external'` in the **same PR**. No exceptions — even if the new rule is claimed "strictly more permissive", the byte-compare will still miss.
 
 When a rule change additionally collapses previously-distinct strings to the same canonical form (e.g. adding `fs.realpath` merges APFS case-insensitive duplicates), the migration MUST also merge the colliding rows. The rules below are prescriptive; follow them exactly rather than improvising per-migration.
 
@@ -686,8 +686,8 @@ Query: `WHERE deletedAt < now() - retentionMs` → batch permanentDelete.
 |---|---|
 | unlink fails on permanentDelete internal (file already missing, permission issue) | Log warn; the DB row is already gone, so the failure surfaces only as an orphan blob that the next user-triggered orphan sweep will reclaim |
 | permanentDelete on external | DB-only by design; the user's file at `externalPath` is never touched — Cherry owns only the reference |
-| `ensureExternalEntry(path)` when an entry for the same path already exists | Entry point first calls `canonicalizeExternalPath(raw)`; upsert returns the existing row. External entries cannot be trashed, so there is no "restore" branch. |
-| **Two entries for the same file due to case / NFC differences** (macOS APFS, Windows NTFS, or NFD ↔ NFC input) | NFC closed by `canonicalizeExternalPath`; case-collision rejected at INSERT by the DB functional unique index plus the `fs.realpath`-based reuse-or-throw decision in `ensureExternalEntry` (see §1.2 "Duplicate-entry detection on insert"). |
+| `ensureExternalEntry(path)` when an entry for the same path already exists | `params.externalPath` is already canonical (branded by `FilePathSchema` at the IPC boundary); upsert returns the existing row. External entries cannot be trashed, so there is no "restore" branch. |
+| **Two entries for the same file due to case / NFC differences** (macOS APFS, Windows NTFS, or NFD ↔ NFC input) | NFC closed by `FilePathSchema` at the IPC boundary; case-collision rejected at INSERT by the DB functional unique index plus the `fs.realpath`-based reuse-or-throw decision in `ensureExternalEntry` (see §1.2 "Duplicate-entry detection on insert"). |
 | External file at original path externally replaced with a different file | Cherry does not check content consistency (best-effort). `name` / `ext` on the row are derived from `externalPath` and do not change; `size` is always served live by `getMetadata`. DanglingCache flips to `'present'` on the next stat, so the UI just renders the new file under the existing reference. |
 | A trashed entry is permanently externally deleted and then restored | Appears dangling (DanglingCache returns missing on next check), UI shows failed style |
 | External write with permission error / disk full on target path | Throw without polluting DB; caller decides retry or user notification |
@@ -1436,7 +1436,7 @@ This checklist is the canonical addition procedure. A PR introducing a new origi
 | Location | Change required |
 |---|---|
 | `src/main/services/file/utils/pathResolver.ts` → `resolvePhysicalPath` | Add the new `entry.origin` branch; decide storage layout |
-| Same file → `canonicalizeExternalPath` | If the new variant is path-based and distinct from `'external'`, decide whether it shares the canonical form or needs its own normalization + brand |
+| `src/shared/file/canonicalize.ts` → `canonicalizeAbsolutePath` (and `FilePathSchema` in `src/shared/file/types/common.ts`) | If the new variant is path-based and distinct from `'external'`, decide whether it shares the canonical form or needs its own normalization + brand |
 
 ### 13.4 Behavior Policy Matrix
 
