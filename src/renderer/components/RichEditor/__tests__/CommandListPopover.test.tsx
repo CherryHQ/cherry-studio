@@ -6,12 +6,11 @@ import CommandListPopover from '../CommandListPopover'
 
 const mocks = vi.hoisted(() => ({
   command: vi.fn(),
-  scrollToIndex: vi.fn(),
-  theme: 'dark' as 'dark' | 'light'
+  scrollToIndex: vi.fn()
 }))
 
 vi.mock('@renderer/context/ThemeProvider', () => ({
-  useTheme: () => ({ theme: mocks.theme })
+  useTheme: () => ({ theme: 'dark' })
 }))
 
 vi.mock('react-i18next', () => ({
@@ -69,7 +68,6 @@ function renderPopover() {
 
 describe('CommandListPopover', () => {
   beforeEach(() => {
-    mocks.theme = 'dark'
     vi.clearAllMocks()
   })
 
@@ -77,18 +75,7 @@ describe('CommandListPopover', () => {
     cleanup()
   })
 
-  it('uses popover background token in dark theme', () => {
-    mocks.theme = 'dark'
-
-    const { container } = renderPopover()
-
-    const popover = container.querySelector('.command-list-popover') as HTMLElement
-    expect(popover.style.background).toBe('var(--color-popover)')
-  })
-
-  it('uses popover background token in light theme', () => {
-    mocks.theme = 'light'
-
+  it('uses the design-system popover surface token for its background', () => {
     const { container } = renderPopover()
 
     const popover = container.querySelector('.command-list-popover') as HTMLElement
