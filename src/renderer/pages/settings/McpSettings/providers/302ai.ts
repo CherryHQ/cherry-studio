@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
-import type { MCPServer } from '@renderer/types'
+import type { McpServer } from '@renderer/types'
 import i18next from 'i18next'
 
 const logger = loggerService.withContext('302ai')
@@ -28,7 +28,7 @@ export const hasAI302Token = (): boolean => {
 interface Ai302SyncResult {
   success: boolean
   message: string
-  allServers: MCPServer[]
+  allServers: McpServer[]
   errorDetails?: string
 }
 
@@ -67,7 +67,7 @@ export const syncAi302Servers = async (token: string): Promise<Ai302SyncResult> 
 
     // Process successful response
     const data = await response.json()
-    const servers: MCPServer[] = data.mcps || []
+    const servers: McpServer[] = data.mcps || []
     logger.debug('servers', servers)
 
     if (servers.length === 0) {
@@ -79,11 +79,11 @@ export const syncAi302Servers = async (token: string): Promise<Ai302SyncResult> 
     }
 
     // Transform 302ai servers to MCP servers format
-    const allServers: MCPServer[] = []
+    const allServers: McpServer[] = []
 
     for (const server of servers) {
       try {
-        const mcpServer: MCPServer = {
+        const mcpServer: McpServer = {
           id: `@302ai/${server.name}`,
           name: server.name || `302ai Server ${nanoid()}`,
           description: server.description || '',

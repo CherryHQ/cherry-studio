@@ -1,7 +1,7 @@
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
 import { useAppSelector } from '@renderer/store'
 import type { ToolPermissionEntry } from '@renderer/store/toolPermissions'
-import type { MCPToolResponseStatus } from '@renderer/types'
+import type { McpToolResponseStatus } from '@renderer/types'
 import type { ToolMessageBlock } from '@renderer/types/newMessage'
 import { isToolPending } from '@renderer/utils/userConfirmation'
 import { Collapse, type CollapseProps } from 'antd'
@@ -109,7 +109,7 @@ interface Props {
   blocks: ToolMessageBlock[]
 }
 
-function isCompletedStatus(status: MCPToolResponseStatus | undefined): boolean {
+function isCompletedStatus(status: McpToolResponseStatus | undefined): boolean {
   return status === 'done' || status === 'error' || status === 'cancelled'
 }
 

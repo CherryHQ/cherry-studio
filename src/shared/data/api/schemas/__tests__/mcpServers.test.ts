@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { CreateMCPServerSchema, UpdateMCPServerSchema } from '../mcpServers'
+import { CreateMcpServerSchema, UpdateMcpServerSchema } from '../mcpServers'
 
 describe('MCP server DTO schemas', () => {
   it.each(['id', 'createdAt', 'updatedAt', 'url'])('rejects unknown or readonly create field %s', (key) => {
     expect(() =>
-      CreateMCPServerSchema.parse({
+      CreateMcpServerSchema.parse({
         name: 'server',
         [key]: key === 'url' ? 'https://example.com/mcp' : 'value'
       })
@@ -14,7 +14,7 @@ describe('MCP server DTO schemas', () => {
 
   it.each(['id', 'createdAt', 'updatedAt', 'url'])('rejects unknown or readonly update field %s', (key) => {
     expect(() =>
-      UpdateMCPServerSchema.parse({
+      UpdateMcpServerSchema.parse({
         name: 'server',
         [key]: key === 'url' ? 'https://example.com/mcp' : 'value'
       })
@@ -22,7 +22,7 @@ describe('MCP server DTO schemas', () => {
   })
 
   it('accepts writable create and update fields', () => {
-    const create = CreateMCPServerSchema.parse({
+    const create = CreateMcpServerSchema.parse({
       name: 'server',
       type: 'streamableHttp',
       baseUrl: 'https://example.com/mcp',
@@ -39,7 +39,7 @@ describe('MCP server DTO schemas', () => {
       headers: { Authorization: 'Bearer token' }
     })
 
-    const update = UpdateMCPServerSchema.parse({
+    const update = UpdateMcpServerSchema.parse({
       isActive: true,
       disabledTools: ['tool']
     })

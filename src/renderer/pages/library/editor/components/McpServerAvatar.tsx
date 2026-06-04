@@ -1,8 +1,8 @@
-import type { MCPServer } from '@shared/data/types/mcpServer'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import { type LucideIcon, Wrench } from 'lucide-react'
 
 interface McpServerAvatarProps {
-  server: MCPServer
+  server: McpServer
   size: number
   fallbackIcon?: LucideIcon
   fallbackIconClassName?: string

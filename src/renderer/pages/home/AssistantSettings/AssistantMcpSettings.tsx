@@ -3,7 +3,7 @@ import { useMcpServers } from '@renderer/hooks/useMcpServers'
 import type { Assistant, McpMode } from '@renderer/types'
 import { getEffectiveMcpMode } from '@renderer/types'
 import { cn } from '@renderer/utils'
-import type { MCPServer } from '@shared/data/types/mcpServer'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import { Radio } from 'antd'
 import type React from 'react'
 import { useTranslation } from 'react-i18next'
@@ -26,7 +26,7 @@ const AssistantMcpSettings: React.FC<Props> = ({ assistant, updateAssistant }) =
   const onUpdate = (ids: string[]) => {
     const mcpServers = ids
       .map((id) => allMcpServers.find((server) => server.id === id))
-      .filter((server): server is MCPServer => server !== undefined && server.isActive)
+      .filter((server): server is McpServer => server !== undefined && server.isActive)
 
     updateAssistant({ ...assistant, mcpServers, mcpMode: 'manual' })
   }

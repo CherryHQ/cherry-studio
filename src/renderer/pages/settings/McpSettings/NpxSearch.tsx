@@ -1,7 +1,7 @@
 import { Badge, Button, Center, Flex, Input, RowFlex, Spinner } from '@cherrystudio/ui'
 import logo from '@renderer/assets/images/cherry-text-logo.svg'
 import { useMcpServers } from '@renderer/hooks/useMcpServers'
-import type { MCPServer } from '@renderer/types'
+import type { McpServer } from '@renderer/types'
 import { getMcpConfigSampleFromReadme } from '@renderer/utils'
 import { Check, Plus } from 'lucide-react'
 import { npxFinder } from 'npx-scope-finder'
@@ -15,8 +15,8 @@ interface SearchResult {
   usage: string
   npmLink: string
   fullName: string
-  type: MCPServer['type']
-  configSample?: MCPServer['configSample']
+  type: McpServer['type']
+  configSample?: McpServer['configSample']
 }
 
 const npmScopes = ['@modelcontextprotocol', '@gongrzhe', '@mcpmarket']

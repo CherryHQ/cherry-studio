@@ -12,7 +12,7 @@ import type {
   LanHandshakeAckMessage,
   LanTransferConnectPayload,
   LanTransferState,
-  MCPServerLogEntry,
+  McpServerLogEntry,
   OperationResult,
   WebviewKeyEvent
 } from '@shared/config/types'
@@ -61,7 +61,7 @@ import type {
   KnowledgeBaseParams,
   KnowledgeItem,
   KnowledgeSearchResult,
-  MCPServer,
+  McpServer,
   Model,
   Notification,
   OcrProvider,
@@ -455,12 +455,12 @@ const api = {
       ipcRenderer.invoke(IpcChannel.Aes_Decrypt, encryptedData, iv, secretKey)
   },
   mcp: {
-    removeServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_RemoveServer, server),
-    restartServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_RestartServer, server),
-    stopServer: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_StopServer, server),
-    listTools: (server: MCPServer, context?: SpanContext) => tracedInvoke(IpcChannel.Mcp_ListTools, context, server),
+    removeServer: (server: McpServer) => ipcRenderer.invoke(IpcChannel.Mcp_RemoveServer, server),
+    restartServer: (server: McpServer) => ipcRenderer.invoke(IpcChannel.Mcp_RestartServer, server),
+    stopServer: (server: McpServer) => ipcRenderer.invoke(IpcChannel.Mcp_StopServer, server),
+    listTools: (server: McpServer, context?: SpanContext) => tracedInvoke(IpcChannel.Mcp_ListTools, context, server),
     callTool: (
-      { server, name, args, callId }: { server: MCPServer; name: string; args: any; callId?: string },
+      { server, name, args, callId }: { server: McpServer; name: string; args: any; callId?: string },
       context?: SpanContext
     ) =>
       tracedInvoke(IpcChannel.Mcp_CallTool, context, {
@@ -469,11 +469,11 @@ const api = {
         args,
         callId
       }),
-    listPrompts: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListPrompts, server),
-    getPrompt: ({ server, name, args }: { server: MCPServer; name: string; args?: Record<string, any> }) =>
+    listPrompts: (server: McpServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListPrompts, server),
+    getPrompt: ({ server, name, args }: { server: McpServer; name: string; args?: Record<string, any> }) =>
       ipcRenderer.invoke(IpcChannel.Mcp_GetPrompt, { server, name, args }),
-    listResources: (server: MCPServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListResources, server),
-    getResource: ({ server, uri }: { server: MCPServer; uri: string }) =>
+    listResources: (server: McpServer) => ipcRenderer.invoke(IpcChannel.Mcp_ListResources, server),
+    getResource: ({ server, uri }: { server: McpServer; uri: string }) =>
       ipcRenderer.invoke(IpcChannel.Mcp_GetResource, { server, uri }),
     getInstallInfo: () => ipcRenderer.invoke(IpcChannel.Mcp_GetInstallInfo),
     checkMcpConnectivity: (server: any) => ipcRenderer.invoke(IpcChannel.Mcp_CheckConnectivity, server),
@@ -484,12 +484,12 @@ const api = {
     abortTool: (callId: string) => ipcRenderer.invoke(IpcChannel.Mcp_AbortTool, callId),
     resolveHubTool: (nameOrId: string): Promise<{ serverId: string; toolName: string } | null> =>
       ipcRenderer.invoke(IpcChannel.Mcp_ResolveHubTool, nameOrId),
-    getServerVersion: (server: MCPServer): Promise<string | null> =>
+    getServerVersion: (server: McpServer): Promise<string | null> =>
       ipcRenderer.invoke(IpcChannel.Mcp_GetServerVersion, server),
-    getServerLogs: (server: MCPServer): Promise<MCPServerLogEntry[]> =>
+    getServerLogs: (server: McpServer): Promise<McpServerLogEntry[]> =>
       ipcRenderer.invoke(IpcChannel.Mcp_GetServerLogs, server),
-    onServerLog: (callback: (log: MCPServerLogEntry & { serverId?: string }) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, log: MCPServerLogEntry & { serverId?: string }) => {
+    onServerLog: (callback: (log: McpServerLogEntry & { serverId?: string }) => void) => {
+      const listener = (_event: Electron.IpcRendererEvent, log: McpServerLogEntry & { serverId?: string }) => {
         callback(log)
       }
       ipcRenderer.on(IpcChannel.Mcp_ServerLog, listener)

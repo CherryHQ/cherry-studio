@@ -2,7 +2,7 @@
  * Bridge module for Hub server to access McpService.
  */
 import { application } from '@application'
-import type { MCPCallToolResponse, MCPTool, MCPToolResultContent } from '@types'
+import type { McpCallToolResponse, McpTool, McpToolResultContent } from '@types'
 
 import { buildToolNameMapping, resolveToolId, type ToolIdentity, type ToolNameMapping } from './toolname'
 
@@ -15,7 +15,7 @@ export async function refreshToolMap(): Promise<void> {
   syncToolMapFromTools(tools)
 }
 
-export function syncToolMapFromTools(tools: MCPTool[]): void {
+export function syncToolMapFromTools(tools: McpTool[]): void {
   const identities: ToolIdentity[] = tools.map((tool) => ({
     id: `${tool.serverId}__${tool.name}`,
     serverName: tool.serverName,
@@ -118,7 +118,7 @@ export const abortMcpTool = async (callId: string): Promise<boolean> => {
   return application.get('McpService').abortTool(callId)
 }
 
-function extractToolResult(result: MCPCallToolResponse): unknown {
+function extractToolResult(result: McpCallToolResponse): unknown {
   // Some MCP tools deliver their payload exclusively via structuredContent
   // with an empty content array; surface it instead of returning null.
   if (result.structuredContent !== undefined && result.structuredContent !== null) {
@@ -130,7 +130,7 @@ function extractToolResult(result: MCPCallToolResponse): unknown {
   }
 
   const textBlocks = result.content.filter(
-    (item): item is MCPToolResultContent & { type: 'text'; text: string } =>
+    (item): item is McpToolResultContent & { type: 'text'; text: string } =>
       item.type === 'text' && typeof item.text === 'string'
   )
 
@@ -172,7 +172,7 @@ function extractToolResult(result: MCPCallToolResponse): unknown {
   })
 }
 
-function throwIfToolError(result: MCPCallToolResponse): void {
+function throwIfToolError(result: McpCallToolResponse): void {
   if (!result.isError) {
     return
   }
@@ -181,7 +181,7 @@ function throwIfToolError(result: MCPCallToolResponse): void {
   throw new Error(textContent ?? 'Tool execution failed')
 }
 
-function extractTextContent(content: MCPToolResultContent[] | undefined): string | undefined {
+function extractTextContent(content: McpToolResultContent[] | undefined): string | undefined {
   if (!content || content.length === 0) {
     return undefined
   }
@@ -190,7 +190,7 @@ function extractTextContent(content: MCPToolResultContent[] | undefined): string
   // instead of being truncated to the first block.
   const textParts = content
     .filter(
-      (item): item is MCPToolResultContent & { type: 'text'; text: string } =>
+      (item): item is McpToolResultContent & { type: 'text'; text: string } =>
         item.type === 'text' && typeof item.text === 'string' && item.text.length > 0
     )
     .map((item) => item.text)

@@ -1,5 +1,5 @@
 import { configureStore } from '@reduxjs/toolkit'
-import { type Assistant, type MCPTool, type Model } from '@renderer/types'
+import { type Assistant, type McpTool, type Model } from '@renderer/types'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
@@ -37,8 +37,8 @@ vi.mock('@renderer/store', () => {
   }
 })
 
-// Helper to create a mock MCPTool
-const createMockTool = (id: string, description: string, inputSchema: any = {}): MCPTool => ({
+// Helper to create a mock McpTool
+const createMockTool = (id: string, description: string, inputSchema: any = {}): McpTool => ({
   id,
   serverId: 'test-server',
   serverName: 'Test Server',
@@ -171,7 +171,7 @@ describe('prompt', () => {
   describe('Tool prompt composition', () => {
     let basePrompt: string
     let expectedBasePrompt: string
-    let tools: MCPTool[]
+    let tools: McpTool[]
 
     beforeEach(async () => {
       const initialPrompt = `
