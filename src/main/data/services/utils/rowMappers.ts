@@ -58,3 +58,13 @@ export function timestampToISO(value: number | Date): string {
 export function timestampToISOOrUndefined(value: number | Date | null | undefined): string | undefined {
   return value ? new Date(value).toISOString() : undefined
 }
+
+/**
+ * Normalize backslash paths from cross-platform backup restores.
+ * On non-Windows platforms, Windows-style `\` separators in stored paths
+ * are converted to `/` so the paths resolve correctly.
+ */
+export function normalizePaths(paths: string[]): string[] {
+  if (process.platform === 'win32') return paths
+  return paths.map((p) => p.replace(/\\/g, '/'))
+}

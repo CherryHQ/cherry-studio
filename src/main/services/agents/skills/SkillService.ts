@@ -9,7 +9,7 @@ import {
   type InsertAgentGlobalSkillRow
 } from '@data/db/schemas/agentGlobalSkill'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
-import { timestampToISO } from '@data/services/utils/rowMappers'
+import { normalizePaths, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { directoryExists } from '@main/utils/file'
 import { deleteDirectoryRecursive } from '@main/utils/fileOperations'
@@ -841,7 +841,8 @@ export class SkillService {
 
   private parseFirstAccessiblePath(paths: string[] | null | undefined): string | undefined {
     if (!paths || paths.length === 0) return undefined
-    return typeof paths[0] === 'string' ? paths[0] : undefined
+    const normalized = normalizePaths(paths)
+    return typeof normalized[0] === 'string' ? normalized[0] : undefined
   }
 
   private async getSkillById(id: string): Promise<InstalledSkill | null> {

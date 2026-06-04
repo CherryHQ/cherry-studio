@@ -5,7 +5,7 @@ import { userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
-import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
+import { normalizePaths, nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import {
@@ -35,7 +35,7 @@ function rowToAgent(row: AgentRow, modelName: string | null = null): AgentEntity
   return {
     ...clean,
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
-    accessiblePaths: row.accessiblePaths,
+    accessiblePaths: normalizePaths(row.accessiblePaths),
     configuration: parseConfiguration(row.configuration),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt),
