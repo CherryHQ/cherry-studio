@@ -1,9 +1,8 @@
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
-import { agentTaskRunLogTable, agentTaskTable } from '@data/db/schemas/agentTask'
 import { setupTestDatabase } from '@test-helpers/db'
-import { eq, sql } from 'drizzle-orm'
+import { sql } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
 
 import { remapAgentPrefixIds } from '../remapAgentPrefixIds'
@@ -16,31 +15,17 @@ async function insertAgent(db: ReturnType<typeof setupTestDatabase>['db'], id: s
     type: 'claude-code',
     name: 'Test Agent',
     instructions: 'You are a helpful assistant.',
-    model: 'claude-3-5-sonnet',
-    sortOrder: 0
+    model: null,
+    orderKey: 'a0'
   })
 }
 
 async function insertSession(db: ReturnType<typeof setupTestDatabase>['db'], sessionId: string, agentId: string) {
   await db.insert(agentSessionTable).values({
     id: sessionId,
-    agentType: 'claude-code',
     agentId,
     name: 'Test Session',
-    instructions: 'You are a helpful assistant.',
-    model: 'claude-3-5-sonnet'
-  })
-}
-
-async function insertTask(db: ReturnType<typeof setupTestDatabase>['db'], taskId: string, agentId: string) {
-  await db.insert(agentTaskTable).values({
-    id: taskId,
-    agentId,
-    name: 'Test Task',
-    prompt: 'Do something',
-    scheduleType: 'once',
-    scheduleValue: '0',
-    status: 'active'
+    orderKey: 'a0'
   })
 }
 
@@ -77,8 +62,9 @@ describe('remapAgentPrefixIds', () => {
     await insertSession(dbh.db, sessionId, agentId)
     await dbh.db.insert(agentSessionMessageTable).values({
       sessionId,
+      status: 'success',
       role: 'user',
-      content: { role: 'user', content: 'hello' } as never
+      data: { parts: [{ type: 'text', text: 'hello' }] } as never
     })
 
     await remapAgentPrefixIds(dbh.db)
@@ -91,27 +77,9 @@ describe('remapAgentPrefixIds', () => {
     expect(messages[0].sessionId).toBe(newSession.id)
   })
 
-  it('migrates task_* prefix IDs and updates child FK references', async () => {
-    const agentId = 'agent_3456789012_cde345'
-    const taskId = 'task_3456789012_cde345'
-    await insertAgent(dbh.db, agentId)
-    await insertTask(dbh.db, taskId, agentId)
-    await dbh.db.insert(agentTaskRunLogTable).values({
-      taskId,
-      runAt: Date.now(),
-      durationMs: 100,
-      status: 'success'
-    })
-
-    await remapAgentPrefixIds(dbh.db)
-
-    const tasks = await dbh.db.select().from(agentTaskTable)
-    const newTask = tasks.find((t) => t.id !== taskId)!
-    expect(newTask.id).toMatch(UUID_PATTERN)
-
-    const logs = await dbh.db.select().from(agentTaskRunLogTable).where(eq(agentTaskRunLogTable.taskId, newTask.id))
-    expect(logs).toHaveLength(1)
-  })
+  // Note: task_* prefix-id remap was removed when agent.task tasks migrated
+  // out of `agent_task` into `job_schedule`. The migrator now writes fresh
+  // UUIDs into job_schedule directly — no in-place rewrite is needed.
 
   it('migrates hardcoded builtin agent IDs to UUIDs', async () => {
     await insertAgent(dbh.db, 'cherry-claw-default')
@@ -143,10 +111,8 @@ describe('remapAgentPrefixIds', () => {
   it('passes PRAGMA foreign_key_check after remapping', async () => {
     const agentId = 'agent_9999999999_zzz'
     const sessionId = 'session_9999999999_zzz'
-    const taskId = 'task_9999999999_zzz'
     await insertAgent(dbh.db, agentId)
     await insertSession(dbh.db, sessionId, agentId)
-    await insertTask(dbh.db, taskId, agentId)
 
     await remapAgentPrefixIds(dbh.db)
 

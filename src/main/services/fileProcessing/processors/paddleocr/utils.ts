@@ -1,20 +1,18 @@
 import fs from 'node:fs/promises'
 
 import { loggerService } from '@logger'
+import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { MB } from '@shared/config/constant'
 import { net } from 'electron'
 import FormData from 'form-data'
 
-import { sanitizeFileProcessingRemoteUrl } from '../../utils/url'
-import {
-  PaddleCreateJobResponseSchema,
-  type PaddleJobResultData,
-  PaddleJobResultResponseSchema,
-  type PaddleJsonlLine,
-  PaddleJsonlLineSchema,
-  type PreparedPaddleQueryContext,
-  type PreparedPaddleStartContext
+import type {
+  PaddleJobResultData,
+  PaddleJsonlLine,
+  PreparedPaddleQueryContext,
+  PreparedPaddleStartContext
 } from './types'
+import { PaddleCreateJobResponseSchema, PaddleJobResultResponseSchema, PaddleJsonlLineSchema } from './types'
 
 const POLL_INTERVAL_MS = 1000
 const MAX_POLL_DURATION_MS = 5 * 60 * 1000
@@ -197,7 +195,7 @@ export async function downloadPaddleResult(
   configuredApiHost: string,
   signal?: AbortSignal
 ): Promise<string> {
-  const safeDownloadUrl = sanitizeFileProcessingRemoteUrl(downloadUrl, configuredApiHost)
+  const safeDownloadUrl = sanitizeRemoteUrl(downloadUrl, configuredApiHost)
   const response = await net.fetch(safeDownloadUrl, {
     method: 'GET',
     redirect: 'error',

@@ -1,13 +1,17 @@
 import { application } from '@application'
 import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@data/db/schemas/agent'
-import { agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
+import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
+import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
+import { Emitter, type Event } from '@main/core/lifecycle'
 import { DataApiErrorFactory } from '@shared/data/api'
+import type { ListOptions } from '@shared/data/api/apiTypes'
+import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import {
   AGENT_MUTABLE_FIELDS,
   type AgentConfiguration,
@@ -16,11 +20,27 @@ import {
   sanitizeAgentConfiguration,
   type UpdateAgentDto
 } from '@shared/data/api/schemas/agents'
-import type { AgentType, ListOptions } from '@types'
-import { and, asc, count, desc, eq, isNull, or, type SQL, sql } from 'drizzle-orm'
+import type { AgentType } from '@shared/data/types/agent'
+import type { UniqueModelId } from '@shared/data/types/model'
+import { and, asc, count, desc, eq, inArray, isNull, or, type SQL, sql } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('AgentService')
+
+export interface AgentUpdatedEvent {
+  agentId: string
+  updates: UpdateAgentDto
+  agent: AgentEntity
+}
+
+export interface AgentCreatedEvent {
+  agentId: string
+  agent: AgentEntity
+}
+
+export interface AgentDeletedEvent {
+  agentId: string
+}
 
 function parseConfiguration(raw: unknown): AgentConfiguration | undefined {
   const { data, invalidKeys } = sanitizeAgentConfiguration(raw)
@@ -35,7 +55,7 @@ function rowToAgent(row: AgentRow, modelName: string | null = null): AgentEntity
   return {
     ...clean,
     type: (row.type === 'cherry-claw' ? 'claude-code' : row.type) as AgentType,
-    accessiblePaths: row.accessiblePaths,
+    model: (clean.model ?? null) as UniqueModelId | null,
     configuration: parseConfiguration(row.configuration),
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt),
@@ -43,24 +63,23 @@ function rowToAgent(row: AgentRow, modelName: string | null = null): AgentEntity
   }
 }
 
-/** Compute the default workspace paths for an agent without creating any directories. */
-function computeWorkspacePaths(paths: string[] | undefined): string[] {
-  if (paths && paths.length > 0) return paths
-  // Workspace dir uses its own uuid, decoupled from agent.id, so id-format
-  // changes never require moving on-disk workspaces.
-  return [`${application.getPath('feature.agents.workspaces')}/${uuidv4()}`]
-}
-
 export class AgentService {
+  private readonly _onAgentCreated = new Emitter<AgentCreatedEvent>()
+  readonly onAgentCreated: Event<AgentCreatedEvent> = this._onAgentCreated.event
+
+  private readonly _onAgentUpdated = new Emitter<AgentUpdatedEvent>()
+  readonly onAgentUpdated: Event<AgentUpdatedEvent> = this._onAgentUpdated.event
+
+  private readonly _onAgentDeleted = new Emitter<AgentDeletedEvent>()
+  readonly onAgentDeleted: Event<AgentDeletedEvent> = this._onAgentDeleted.event
+
   async createAgent(req: CreateAgentDto): Promise<AgentEntity> {
     const id = uuidv4()
 
-    // Compute workspace paths (pure — directory creation is the caller's responsibility).
-    const resolvedPaths = computeWorkspacePaths(req.accessiblePaths)
-
     // Omit fields that are undefined so DB DEFAULTs (e.g. '', '[]', '{}') apply.
     // instructions has no DB DEFAULT — service supplies the product-strategic default.
-    const insertData: Omit<InsertAgentRow, 'sortOrder'> = {
+    // orderKey is omitted — `insertWithOrderKey` computes the next fractional key.
+    const insertData: Omit<InsertAgentRow, 'orderKey'> = {
       id,
       type: req.type,
       name: req.name || 'New Agent',
@@ -71,38 +90,35 @@ export class AgentService {
       smallModel: req.smallModel,
       mcps: req.mcps,
       allowedTools: req.allowedTools,
-      configuration: req.configuration,
-      accessiblePaths: resolvedPaths
+      configuration: req.configuration
     }
 
-    const database = application.get('DbService').getDb()
     const row = await withSqliteErrors(
-      () =>
-        database.transaction(async (tx) => {
-          // Prepend: place new agent ahead of existing rows under asc(sortOrder).
-          // Avoids the prior O(N) `sort_order = sort_order + 1` rewrite while
-          // preserving the user-visible "newest at top" ordering.
-          const [minRow] = await tx
-            .select({ min: sql<number>`COALESCE(MIN(${agentsTable.sortOrder}), 0)` })
-            .from(agentsTable)
-          const sortOrder = (minRow?.min ?? 0) - 1
-          await tx.insert(agentsTable).values({ ...insertData, sortOrder })
-
-          const [inserted] = await tx
-            .select({ agent: agentsTable, modelName: userModelTable.name })
-            .from(agentsTable)
-            .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
-            .where(eq(agentsTable.id, id))
-            .limit(1)
-          if (!inserted) {
-            throw DataApiErrorFactory.invalidOperation('create agent', 'insert succeeded but select returned no row')
-          }
-          return inserted
-        }),
+      () => application.get('DbService').withWriteTx((tx) => this.createAgentTx(tx, id, insertData)),
       defaultHandlersFor('Agent', id)
     )
+    if (!row) {
+      throw DataApiErrorFactory.invalidOperation('create agent', 'insert succeeded but select returned no row')
+    }
 
-    return rowToAgent(row.agent, row.modelName || null)
+    const agent = rowToAgent(row.agent, row.modelName || null)
+    this._onAgentCreated.fire({ agentId: id, agent })
+    return agent
+  }
+
+  async createAgentTx(
+    tx: DbOrTx,
+    id: string,
+    insertData: Omit<InsertAgentRow, 'orderKey'>
+  ): Promise<{ agent: AgentRow; modelName: string | null } | null> {
+    await insertWithOrderKey(tx, agentsTable, insertData, { pkColumn: agentsTable.id })
+    const [joined] = await tx
+      .select({ agent: agentsTable, modelName: userModelTable.name })
+      .from(agentsTable)
+      .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
+      .where(eq(agentsTable.id, id))
+      .limit(1)
+    return joined ?? null
   }
 
   private async findAgentRow(id: string, options: { includeDeleted?: boolean } = {}): Promise<AgentRow | undefined> {
@@ -145,38 +161,36 @@ export class AgentService {
 
     const totalResult = await database.select({ count: count() }).from(agentsTable).where(whereClause)
 
-    const sortBy = options.sortBy || 'sortOrder'
-    const orderBy = options.orderBy || (sortBy === 'sortOrder' ? 'asc' : 'desc')
+    // Default to `createdAt desc` so the most recently created agent shows up
+    // first; callers can opt into `orderKey` to honour user-defined ordering.
+    const sortBy = options.sortBy ?? 'createdAt'
+    const orderBy = options.orderBy ?? 'desc'
 
     const sortByToColumn: Record<
       string,
-      | typeof agentsTable.sortOrder
-      | typeof agentsTable.createdAt
-      | typeof agentsTable.name
-      | typeof agentsTable.updatedAt
+      typeof agentsTable.createdAt | typeof agentsTable.name | typeof agentsTable.updatedAt
     > = {
-      sortOrder: agentsTable.sortOrder,
       createdAt: agentsTable.createdAt,
       updatedAt: agentsTable.updatedAt,
       name: agentsTable.name
     }
-    const sortField = sortByToColumn[sortBy] ?? agentsTable.sortOrder
+    const sortField = sortByToColumn[sortBy] ?? agentsTable.createdAt
     const orderFn = orderBy === 'asc' ? asc : desc
 
-    const baseQuery =
-      sortBy === 'sortOrder'
-        ? database
-            .select({ agent: agentsTable, modelName: userModelTable.name })
-            .from(agentsTable)
-            .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
-            .where(whereClause)
-            .orderBy(orderFn(sortField), desc(agentsTable.createdAt))
-        : database
-            .select({ agent: agentsTable, modelName: userModelTable.name })
-            .from(agentsTable)
-            .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
-            .where(whereClause)
-            .orderBy(orderFn(sortField))
+    // Pin-aware ordering: LEFT JOIN with the pin table, push pinned rows to
+    // the top (sorted by pin.orderKey ASC), then unpinned rows by the
+    // caller-specified sortBy/orderBy. Same shape as AssistantService.list.
+    const baseQuery = database
+      .select({ agent: agentsTable, modelName: userModelTable.name, pinOrderKey: pinTable.orderKey })
+      .from(agentsTable)
+      .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
+      .leftJoin(pinTable, and(eq(pinTable.entityType, 'agent'), eq(pinTable.entityId, agentsTable.id)))
+      .where(whereClause)
+      .orderBy(
+        sql`CASE WHEN ${pinTable.orderKey} IS NULL THEN 1 ELSE 0 END`,
+        asc(pinTable.orderKey),
+        orderFn(sortField)
+      )
 
     const result =
       options.limit !== undefined
@@ -190,141 +204,113 @@ export class AgentService {
     return { agents, total: totalResult[0].count }
   }
 
-  async updateAgent(
-    id: string,
-    updates: UpdateAgentDto,
-    options: { replace?: boolean } = {}
-  ): Promise<AgentEntity | null> {
+  async updateAgent(id: string, updates: UpdateAgentDto): Promise<AgentEntity | null> {
     const existing = await this.getAgent(id)
     if (!existing) return null
-
-    if (updates.accessiblePaths !== undefined && updates.accessiblePaths.length === 0) {
-      throw DataApiErrorFactory.validation({ accessiblePaths: ['must not be empty'] })
-    }
 
     const updateData: Partial<AgentRow> = {
       updatedAt: Date.now()
     }
 
-    const replaceableEntityFields = Object.keys(AGENT_MUTABLE_FIELDS)
-    const shouldReplace = options.replace ?? false
-    const columnUpdates = updates
-
-    for (const field of replaceableEntityFields) {
-      if (shouldReplace || Object.prototype.hasOwnProperty.call(columnUpdates, field)) {
-        if (Object.prototype.hasOwnProperty.call(columnUpdates, field)) {
-          const value = columnUpdates[field as keyof typeof columnUpdates]
-          ;(updateData as Record<string, unknown>)[field] = value ?? null
-        } else if (shouldReplace) {
-          ;(updateData as Record<string, unknown>)[field] = null
-        }
-      }
+    // Several mutable fields map to NOT NULL columns with DB defaults
+    // (description, instructions, mcps, allowedTools, configuration). Writing
+    // literal NULL when the DTO omits a field would violate the constraint.
+    // Skip undefined values so Drizzle preserves the column's current value.
+    for (const field of Object.keys(AGENT_MUTABLE_FIELDS)) {
+      if (!Object.prototype.hasOwnProperty.call(updates, field)) continue
+      const value = updates[field as keyof typeof updates]
+      if (value === undefined) continue
+      ;(updateData as Record<string, unknown>)[field] = value
     }
 
-    const database = application.get('DbService').getDb()
-
-    const rawRows = await database
-      .select()
-      .from(agentsTable)
-      .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
-      .limit(1)
-    const rawOldAgent = rawRows[0]
-
     await withSqliteErrors(
-      () =>
-        database.transaction(async (tx) => {
-          await tx.update(agentsTable).set(updateData).where(eq(agentsTable.id, id))
-          if (rawOldAgent) {
-            await this.syncSettingsToSessionsTx(tx, id, rawOldAgent, updates)
-          }
-        }),
+      () => application.get('DbService').withWriteTx((tx) => this.updateAgentTx(tx, id, updateData)),
       defaultHandlersFor('Agent', id)
     )
 
-    return await this.getAgent(id)
-  }
-
-  /**
-   * Sync agent settings to all sessions that haven't been individually customized.
-   * Must be called inside a transaction so agent update and session sync are atomic.
-   */
-  private async syncSettingsToSessionsTx(
-    tx: DbOrTx,
-    agentId: string,
-    rawOldAgent: Record<string, unknown>,
-    updates: Record<string, unknown>
-  ): Promise<void> {
-    const syncFields = ['model', 'planModel', 'smallModel', 'allowedTools', 'configuration', 'mcps', 'instructions']
-
-    const changedFields = syncFields.filter((field) => {
-      if (!Object.prototype.hasOwnProperty.call(updates, field)) return false
-      return JSON.stringify(updates[field] ?? null) !== JSON.stringify(rawOldAgent[field] ?? null)
-    })
-    if (changedFields.length === 0) return
-
-    const sessions = await tx.select().from(sessionsTable).where(eq(sessionsTable.agentId, agentId))
-    if (sessions.length === 0) return
-
-    for (const session of sessions) {
-      const sessionUpdateData: Partial<Record<string, unknown>> = {}
-
-      for (const field of changedFields) {
-        const oldAgentValue = rawOldAgent[field] ?? null
-        const sessionValue = (session as Record<string, unknown>)[field] ?? null
-
-        if (JSON.stringify(oldAgentValue) === JSON.stringify(sessionValue)) {
-          sessionUpdateData[field] = updates[field] ?? null
-        }
-      }
-
-      if (Object.keys(sessionUpdateData).length > 0) {
-        sessionUpdateData.updatedAt = Date.now()
-        await tx.update(sessionsTable).set(sessionUpdateData).where(eq(sessionsTable.id, session.id))
-      }
+    const updated = await this.getAgent(id)
+    if (updated) {
+      this._onAgentUpdated.fire({ agentId: id, updates, agent: updated })
     }
-
-    logger.info('Synced agent settings to sessions', {
-      agentId,
-      changedFields,
-      sessionCount: sessions.length
-    })
+    return updated
   }
 
-  async reorderAgents(orderedIds: string[]): Promise<void> {
-    const database = application.get('DbService').getDb()
-    await database.transaction(async (tx) => {
-      for (let i = 0; i < orderedIds.length; i++) {
-        await tx.update(agentsTable).set({ sortOrder: i }).where(eq(agentsTable.id, orderedIds[i]))
-      }
-    })
-    logger.info('Agents reordered', { count: orderedIds.length })
+  async updateAgentTx(tx: DbOrTx, id: string, updateData: Partial<AgentRow>): Promise<void> {
+    await tx.update(agentsTable).set(updateData).where(eq(agentsTable.id, id))
   }
 
   async deleteAgent(id: string): Promise<boolean> {
-    const database = application.get('DbService').getDb()
     const agent = await this.findAgentRow(id)
 
     if (!agent) {
       return false
     }
 
-    // Wrap pin purge + agent delete in one transaction so a partial delete
-    // cannot leave dangling cross-entity rows behind.
+    // Sessions detach (agentId → NULL) via FK ON DELETE SET NULL; their rows
+    // and pins survive the agent. Wrap pin purge + agent delete in one
+    // transaction so a partial delete cannot leave dangling cross-entity
+    // rows behind. `pin` has no FK back here, so this is the only purge
+    // needed up-front.
     const result = await withSqliteErrors(
-      async () =>
-        database.transaction(async (tx) => {
-          await pinService.purgeForEntityTx(tx, 'agent', id)
-          return tx.delete(agentsTable).where(eq(agentsTable.id, id))
-        }),
+      async () => application.get('DbService').withWriteTx((tx) => this.deleteAgentTx(tx, id)),
       defaultHandlersFor('Agent', id)
     )
 
-    return result.rowsAffected > 0
+    const deleted = result.rowsAffected > 0
+    if (deleted) {
+      this._onAgentDeleted.fire({ agentId: id })
+    }
+    return deleted
+  }
+
+  async deleteAgentTx(tx: DbOrTx, id: string): Promise<{ rowsAffected: number }> {
+    await pinService.purgeForEntityTx(tx, 'agent', id)
+    return tx.delete(agentsTable).where(eq(agentsTable.id, id))
   }
 
   async agentExists(id: string): Promise<boolean> {
     const result = await this.findAgentRow(id)
     return !!result
+  }
+
+  /**
+   * Move a single agent to a new position in the ordered list. Agents share a
+   * single global scope, so no scope predicate is passed to `applyMoves`.
+   */
+  async reorder(id: string, anchor: OrderRequest): Promise<void> {
+    await application.get('DbService').withWriteTx((tx) => this.reorderTx(tx, id, anchor))
+    logger.info('Reordered agent', { id })
+  }
+
+  async reorderTx(tx: DbOrTx, id: string, anchor: OrderRequest): Promise<void> {
+    const [target] = await tx
+      .select({ id: agentsTable.id })
+      .from(agentsTable)
+      .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
+      .limit(1)
+    if (!target) throw DataApiErrorFactory.notFound('Agent', id)
+
+    await applyMoves(tx, agentsTable, [{ id, anchor }], { pkColumn: agentsTable.id })
+  }
+
+  async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
+    if (moves.length === 0) return
+    await application.get('DbService').withWriteTx((tx) => this.reorderBatchTx(tx, moves))
+  }
+
+  async reorderBatchTx(tx: DbOrTx, moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
+    const ids = moves.map((m) => m.id)
+    const targets = await tx
+      .select({ id: agentsTable.id })
+      .from(agentsTable)
+      .where(and(inArray(agentsTable.id, ids), isNull(agentsTable.deletedAt)))
+    if (targets.length !== ids.length) {
+      const found = new Set(targets.map((t) => t.id))
+      const missing = ids.find((id) => !found.has(id)) ?? ids[0]
+      throw DataApiErrorFactory.notFound('Agent', missing)
+    }
+
+    await applyMoves(tx, agentsTable, moves, { pkColumn: agentsTable.id })
   }
 }
 

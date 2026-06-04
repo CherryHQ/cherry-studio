@@ -71,7 +71,7 @@ export enum IpcChannel {
   Mcp_RemoveServer = 'mcp:remove-server',
   Mcp_RestartServer = 'mcp:restart-server',
   Mcp_StopServer = 'mcp:stop-server',
-  Mcp_ListTools = 'mcp:list-tools',
+  Mcp_RefreshTools = 'mcp:refresh-tools',
   Mcp_CallTool = 'mcp:call-tool',
   Mcp_ListPrompts = 'mcp:list-prompts',
   Mcp_GetPrompt = 'mcp:get-prompt',
@@ -83,7 +83,6 @@ export enum IpcChannel {
   Mcp_CheckConnectivity = 'mcp:check-connectivity',
   Mcp_UploadDxt = 'mcp:upload-dxt',
   Mcp_AbortTool = 'mcp:abort-tool',
-  Mcp_ResolveHubTool = 'mcp:resolve-hub-tool',
   Mcp_GetServerVersion = 'mcp:get-server-version',
   Mcp_Progress = 'mcp:progress',
   Mcp_GetServerLogs = 'mcp:get-server-logs',
@@ -92,21 +91,6 @@ export enum IpcChannel {
   Python_Execute = 'python:execute',
   Python_ExecutionRequest = 'python:execution-request',
   Python_ExecutionResponse = 'python:execution-response',
-
-  // agent messages
-  AgentMessage_PersistExchange = 'agent-message:persist-exchange',
-  AgentMessage_GetHistory = 'agent-message:get-history',
-
-  AgentToolPermission_Request = 'agent-tool-permission:request',
-  AgentToolPermission_Response = 'agent-tool-permission:response',
-  AgentToolPermission_Result = 'agent-tool-permission:result',
-
-  // Agent session stream (IM channel -> renderer real-time)
-  AgentSessionStream_Subscribe = 'agent-session-stream:subscribe',
-  AgentSessionStream_Unsubscribe = 'agent-session-stream:unsubscribe',
-  AgentSessionStream_Abort = 'agent-session-stream:abort',
-  AgentSessionStream_Chunk = 'agent-session-stream:chunk',
-  AgentSession_Changed = 'agent-session:changed',
 
   // WeChat channel
   WeChat_QrLogin = 'wechat:qr-login',
@@ -178,13 +162,7 @@ export enum IpcChannel {
   Tab_TryAttach = 'tab:try-attach',
   Tab_DragEnd = 'tab:drag-end',
 
-  KnowledgeBase_Create = 'knowledge-base:create',
-  KnowledgeBase_Reset = 'knowledge-base:reset',
   KnowledgeBase_Delete = 'knowledge-base:delete',
-  KnowledgeBase_Add = 'knowledge-base:add',
-  KnowledgeBase_Remove = 'knowledge-base:remove',
-  KnowledgeBase_Search = 'knowledge-base:search',
-  KnowledgeBase_Rerank = 'knowledge-base:rerank',
   KnowledgeRuntime_CreateBase = 'knowledge-runtime:create-base',
   KnowledgeRuntime_RestoreBase = 'knowledge-runtime:restore-base',
   KnowledgeRuntime_DeleteBase = 'knowledge-runtime:delete-base',
@@ -235,6 +213,7 @@ export enum IpcChannel {
   File_OpenWithRelativePath = 'file:openWithRelativePath',
   File_IsTextFile = 'file:isTextFile',
   File_IsDirectory = 'file:isDirectory',
+  File_CheckWorkspacePath = 'file:checkWorkspacePath',
   File_ListDirectory = 'file:listDirectory',
   File_CheckFileName = 'file:checkFileName',
   File_ValidateNotesDirectory = 'file:validateNotesDirectory',
@@ -258,12 +237,6 @@ export enum IpcChannel {
 
   // PDF
   Pdf_ExtractText = 'pdf:extractText',
-
-  // file service
-  FileService_Upload = 'file-service:upload',
-  FileService_List = 'file-service:list',
-  FileService_Delete = 'file-service:delete',
-  FileService_Retrieve = 'file-service:retrieve',
 
   Export_Word = 'export:word',
 
@@ -343,6 +316,7 @@ export enum IpcChannel {
   // Web Search
   WebSearch_SearchKeywords = 'web-search:search-keywords',
   WebSearch_FetchUrls = 'web-search:fetch-urls',
+  WebSearch_CheckProvider = 'web-search:check-provider',
 
   //Selection Assistant
   Selection_TextSelected = 'selection:text-selected',
@@ -373,6 +347,11 @@ export enum IpcChannel {
   DataApi_Subscribe = 'data-api:subscribe',
   DataApi_Unsubscribe = 'data-api:unsubscribe',
   DataApi_Stream = 'data-api:stream',
+
+  // Topic auto-rename push (main → renderer; payload: { topicId })
+  Topic_AutoRenamed = 'topic:auto-renamed',
+  // Agent session auto-rename push (main → renderer; payload: { sessionId })
+  AgentSession_AutoRenamed = 'agent-session:auto-renamed',
 
   // TRACE
   TRACE_SAVE_DATA = 'trace:saveData',
@@ -465,6 +444,34 @@ export enum IpcChannel {
   // Analytics
   Analytics_TrackTokenUsage = 'analytics:track-token-usage',
 
+  // AI Stream (AiStreamManager)
+  Ai_StreamChunk = 'ai:stream-chunk',
+  Ai_StreamDone = 'ai:stream-done',
+  Ai_StreamError = 'ai:stream-error',
+  Ai_Translate_Open = 'ai:translate:open',
+  /** Renderer → Main: send message (AiStreamManager routes to start or steer) */
+  Ai_Stream_Open = 'ai:stream:open',
+  /** Renderer → Main: subscribe to a topic's stream state */
+  Ai_Stream_Attach = 'ai:stream:attach',
+  /** Renderer → Main: unsubscribe from a topic (stream continues in Main) */
+  Ai_Stream_Detach = 'ai:stream:detach',
+  /** Renderer → Main: abort the active generation on a topic */
+  Ai_Stream_Abort = 'ai:stream:abort',
+  /** Renderer → Main: prewarm the next Claude Agent SDK query for an agent session */
+  Ai_AgentSession_Prewarm = 'ai:agent-session:prewarm',
+  /** Renderer → Main: close unused Claude Agent SDK warm query for an agent session */
+  Ai_AgentSession_CloseWarm = 'ai:agent-session:close-warm',
+  Ai_ToolApproval_Respond = 'ai:tool-approval:respond',
+
+  // AI Non-streaming
+  Ai_GenerateText = 'ai:generate-text',
+  Ai_CheckModel = 'ai:check-model',
+  Ai_EmbedMany = 'ai:embed-many',
+  Ai_GenerateImage = 'ai:generate-image',
+  Ai_AbortImage = 'ai:abort-image',
+  Ai_ListModels = 'ai:list-models',
+  Ai_Agent_RunTask = 'ai:agent:run-task',
+
   // WindowManager
   SettingsWindow_Open = 'settings-window:open',
   WindowManager_Open = 'window-manager:open',
@@ -482,12 +489,7 @@ export enum IpcChannel {
   // OS-level only; does NOT cover HTML5 element.requestFullscreen() or macOS setSimpleFullScreen.
   WindowManager_FullscreenChanged = 'window-manager:fullscreen-changed',
   // Payload = the initData passed to open(); omitted if none supplied, not fired on fresh creation.
-  WindowManager_Reused = 'window-manager:reused',
-
-  // Agent operations
-  Agent_RunTask = 'agent:run-task',
-  Agent_GetModels = 'agent:get-models',
-  Agent_ListTools = 'agent:list-tools'
+  WindowManager_Reused = 'window-manager:reused'
 
   // ──────────────────────────────────────────────────────────────
   // TODO(v2): the following IPC channels are still referenced via

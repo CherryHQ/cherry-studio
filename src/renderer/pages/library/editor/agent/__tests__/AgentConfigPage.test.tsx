@@ -1,9 +1,9 @@
-import type { AgentDetail } from '@shared/data/types/agent'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import type { AgentDetail } from '../../../types'
 import AgentConfigPage from '../AgentConfigPage'
 
 const { createAgentMock, updateAgentMock } = vi.hoisted(() => ({
@@ -28,7 +28,14 @@ vi.mock('../../../adapters/agentAdapter', () => ({
 
 vi.mock('@renderer/hooks/agents/useAgentTools', () => ({
   useAgentTools: () => ({
-    tools: [{ id: 'Read', name: 'Read', type: 'builtin', requirePermissions: false }],
+    tools: [
+      {
+        id: 'Read',
+        name: 'Read',
+        origin: 'builtin',
+        approval: 'auto'
+      }
+    ],
     isLoading: false,
     error: undefined
   })
@@ -112,9 +119,8 @@ function createAgent(overrides: Partial<AgentDetail> = {}): AgentDetail {
     type: 'claude-code',
     name: 'Agent',
     description: '',
-    model: 'claude-sonnet-4-5',
+    model: 'anthropic::claude-sonnet-4-5',
     modelName: null,
-    accessiblePaths: [],
     instructions: '',
     mcps: [],
     allowedTools: [],

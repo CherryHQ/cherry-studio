@@ -1,16 +1,12 @@
 import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
 import type { KnowledgeItemType } from '@shared/data/types/knowledge'
 import { Plus, RefreshCw, Trash2 } from 'lucide-react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { KNOWLEDGE_DATA_SOURCE_TYPES } from '../../components/addKnowledgeItemDialog/constants'
-import DataSourceFilters from './DataSourceFilters'
-import type { DataSourceFilter } from './utils/models'
 
 interface DataSourcePanelHeaderProps {
-  activeFilter: DataSourceFilter
-  onFilterChange: (value: DataSourceFilter) => void
   readyCount: number
   totalCount: number
   selectedCount: number
@@ -21,8 +17,6 @@ interface DataSourcePanelHeaderProps {
 }
 
 const DataSourcePanelHeader = ({
-  activeFilter,
-  onFilterChange,
   readyCount,
   totalCount,
   selectedCount,
@@ -65,16 +59,6 @@ const DataSourcePanelHeader = ({
   )
 
   useEffect(() => clearSourceMenuCloseTimer, [clearSourceMenuCloseTimer])
-  const isAllFilter = activeFilter === 'all'
-  const availableSourceTypes = useMemo(() => (isAllFilter ? KNOWLEDGE_DATA_SOURCE_TYPES : []), [isAllFilter])
-
-  const handleFilteredAdd = useCallback(() => {
-    if (activeFilter !== 'all') {
-      clearSourceMenuCloseTimer()
-      setIsSourceMenuOpen(false)
-      onAdd(activeFilter)
-    }
-  }, [activeFilter, clearSourceMenuCloseTimer, onAdd])
 
   if (selectedCount > 0) {
     return (
@@ -102,11 +86,7 @@ const DataSourcePanelHeader = ({
   }
 
   return (
-    <div className="flex min-w-0 items-center gap-4">
-      <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <DataSourceFilters value={activeFilter} onValueChange={onFilterChange} />
-      </div>
-
+    <div className="flex min-w-0 items-center justify-end gap-2">
       <div className="flex shrink-0 items-center gap-2">
         {totalCount > 0 ? (
           <span className="text-foreground-muted text-xs leading-4">
@@ -114,59 +94,47 @@ const DataSourcePanelHeader = ({
           </span>
         ) : null}
 
-        {isAllFilter ? (
-          <Popover open={isSourceMenuOpen} onOpenChange={setIsSourceMenuOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                aria-haspopup="menu"
-                aria-expanded={isSourceMenuOpen}
-                className="min-h-0 rounded-lg px-3 py-1.5 font-medium text-foreground-secondary text-sm leading-5 shadow-none hover:bg-accent hover:text-foreground"
-                onClick={openSourceMenu}
-                onFocus={openSourceMenu}
-                onMouseEnter={openSourceMenu}
-                onMouseLeave={scheduleSourceMenuClose}>
-                <Plus className="size-3.5" />
-                {t('knowledge.data_source.toolbar.add')}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              align="end"
-              side="top"
-              sideOffset={8}
-              collisionPadding={8}
-              className="w-[var(--radix-popover-trigger-width)] rounded-xl p-1.5"
+        <Popover open={isSourceMenuOpen} onOpenChange={setIsSourceMenuOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              aria-haspopup="menu"
+              aria-expanded={isSourceMenuOpen}
+              className="min-h-0 rounded-lg px-3 py-1.5 font-medium text-foreground-secondary text-sm leading-5 shadow-none hover:bg-accent hover:text-foreground"
+              onClick={openSourceMenu}
+              onFocus={openSourceMenu}
               onMouseEnter={openSourceMenu}
-              onMouseLeave={scheduleSourceMenuClose}
-              onOpenAutoFocus={(event) => event.preventDefault()}
-              onCloseAutoFocus={(event) => event.preventDefault()}>
-              <MenuList role="menu" className="gap-1">
-                {availableSourceTypes.map((source) => (
-                  <MenuItem
-                    key={source.value}
-                    role="menuitem"
-                    variant="ghost"
-                    label={t(source.labelKey)}
-                    className="h-8 rounded-lg px-2.5 text-sm"
-                    onClick={() => handleSourceSelect(source.value)}
-                  />
-                ))}
-              </MenuList>
-            </PopoverContent>
-          </Popover>
-        ) : (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="min-h-0 rounded-lg px-3 py-1.5 font-medium text-foreground-secondary text-sm leading-5 shadow-none hover:bg-accent hover:text-foreground"
-            onClick={handleFilteredAdd}>
-            <Plus className="size-3.5" />
-            {t('knowledge.data_source.toolbar.add')}
-          </Button>
-        )}
+              onMouseLeave={scheduleSourceMenuClose}>
+              <Plus className="size-3.5" />
+              {t('knowledge.data_source.toolbar.add')}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            align="end"
+            side="top"
+            sideOffset={8}
+            collisionPadding={8}
+            className="w-[var(--radix-popover-trigger-width)] rounded-xl p-1.5"
+            onMouseEnter={openSourceMenu}
+            onMouseLeave={scheduleSourceMenuClose}
+            onOpenAutoFocus={(event) => event.preventDefault()}
+            onCloseAutoFocus={(event) => event.preventDefault()}>
+            <MenuList role="menu" className="gap-1">
+              {KNOWLEDGE_DATA_SOURCE_TYPES.map((source) => (
+                <MenuItem
+                  key={source.value}
+                  role="menuitem"
+                  variant="ghost"
+                  label={t(source.labelKey)}
+                  className="h-8 rounded-lg px-2.5 text-sm"
+                  onClick={() => handleSourceSelect(source.value)}
+                />
+              ))}
+            </MenuList>
+          </PopoverContent>
+        </Popover>
       </div>
     </div>
   )

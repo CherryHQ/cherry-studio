@@ -1,8 +1,8 @@
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
 import type { JobError } from '@shared/data/api/schemas/jobs'
+import { JOB_ERROR_CODES } from '@shared/data/api/schemas/jobs'
 
-import { JOB_ERROR_CODES } from '../errorCodes'
 import type { JobHandler } from '../types'
 
 const logger = loggerService.withContext('JobRecovery')

@@ -300,6 +300,83 @@ describe('ProviderModelMigrator', () => {
       expect(providerRow.apiFeatures).toBeNull()
     })
 
+    it('keeps the catalog adapterFamily over the migrator fallback for relay system providers', async () => {
+      // aihubmix's anthropic-messages endpoint routes through adapterFamily
+      // 'aihubmix' (vendor-specific multi-provider relay), which is strictly
+      // more accurate than the migrator's generic 'anthropic' fallback. The
+      // enrichment merge must not let the fallback clobber it.
+      registryFixtures.providers = [
+        {
+          id: 'aihubmix',
+          name: 'AiHubMix',
+          endpointConfigs: {
+            'anthropic-messages': { baseUrl: 'https://aihubmix.com', adapterFamily: 'aihubmix' }
+          },
+          defaultChatEndpoint: 'anthropic-messages'
+        }
+      ]
+
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              id: 'aihubmix',
+              name: 'AiHubMix',
+              type: 'openai',
+              enabled: true,
+              apiHost: '',
+              anthropicApiHost: 'https://aihubmix.com',
+              models: []
+            }
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+      const [providerRow] = await dbh.db
+        .select()
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, 'aihubmix'))
+      const endpointConfigs = providerRow.endpointConfigs as Record<string, { adapterFamily?: string }>
+      expect(endpointConfigs['anthropic-messages'].adapterFamily).toBe('aihubmix')
+    })
+
+    it('backfills the anthropic adapterFamily for a custom relay with no catalog match', async () => {
+      // End-to-end regression for the Xiaomi MIMO token-plan provider: a v1
+      // custom relay (UUID id, type='openai', anthropicApiHost) with no
+      // registry preset. Without this backfill the resolver fell back to
+      // openai-compatible and POSTed `/anthropic/v1/chat/completions` → 404.
+      registryFixtures.providers = []
+
+      const migrationContext = createContext(dbh.db, {
+        llm: {
+          providers: [
+            {
+              id: '7c3dfc0b-985d-440b-b18b-e639fcf9218e',
+              name: 'XIAOMI MIMO TOKEN PLAN',
+              type: 'openai',
+              enabled: true,
+              apiHost: '',
+              anthropicApiHost: 'https://token-plan-cn.xiaomimimo.com/anthropic',
+              models: []
+            }
+          ]
+        }
+      })
+      await migrator.prepare(migrationContext)
+      const result = await migrator.execute(migrationContext)
+
+      expect(result.success).toBe(true)
+      const [providerRow] = await dbh.db
+        .select()
+        .from(userProviderTable)
+        .where(eq(userProviderTable.providerId, '7c3dfc0b-985d-440b-b18b-e639fcf9218e'))
+      const endpointConfigs = providerRow.endpointConfigs as Record<string, { adapterFamily?: string }>
+      expect(endpointConfigs['anthropic-messages'].adapterFamily).toBe('anthropic')
+    })
+
     it('enriches model rows with registry preset metadata when a preset is found', async () => {
       registryFixtures.models.set('gpt-4o', {
         id: 'gpt-4o',

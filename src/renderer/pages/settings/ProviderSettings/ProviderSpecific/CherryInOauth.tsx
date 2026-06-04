@@ -1,13 +1,13 @@
 import { Button, Skeleton } from '@cherrystudio/ui'
 import { Cherryin } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
-import { useProvider, useProviderAuthConfig } from '@renderer/hooks/useProviders'
+import { useProvider, useProviderAuthConfig } from '@renderer/hooks/useProvider'
 import {
   oauthCardClasses,
   sectionHeadingClasses
 } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { hasApiKeys } from '@renderer/pages/settings/ProviderSettings/utils/provider'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'
+import { hasApiKeys } from '@shared/utils/provider'
 import type { FC } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import { Trans, useTranslation } from 'react-i18next'

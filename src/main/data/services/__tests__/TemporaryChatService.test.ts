@@ -1,7 +1,7 @@
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { TemporaryChatService } from '@data/services/TemporaryChatService'
-import { BlockType, type MessageData } from '@shared/data/types/message'
+import type { MessageData } from '@shared/data/types/message'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it } from 'vitest'
@@ -12,7 +12,7 @@ function fieldsOf(err: unknown): Record<string, string[]> {
 }
 
 function mainText(content: string): MessageData {
-  return { blocks: [{ type: BlockType.MAIN_TEXT, content, createdAt: 0 }] }
+  return { parts: [{ type: 'text', text: content }] }
 }
 
 describe('TemporaryChatService', () => {
@@ -100,7 +100,7 @@ describe('TemporaryChatService', () => {
       const topic = await service.createTopic({ name: 'hello' })
       expect(topic.id).toMatch(/^[0-9a-f-]{36}$/)
       expect(topic.name).toBe('hello')
-      expect(topic.activeNodeId).toBeNull()
+      expect(topic.activeNodeId).toBeUndefined()
       expect(topic.orderKey).toBe('')
       expect(typeof topic.createdAt).toBe('string')
       expect(new Date(topic.createdAt).getTime()).toBeGreaterThan(0)
@@ -144,14 +144,14 @@ describe('TemporaryChatService', () => {
       await service.appendMessage(topic.id, { role: 'user', data: mainText('a') })
       const list1 = await service.listMessages(topic.id)
       expect(list1).toHaveLength(1)
-      const block = list1[0].data.blocks[0]
-      if (block.type === BlockType.MAIN_TEXT) block.content = 'mutated'
+      const part = list1[0].data.parts![0]
+      if (part.type === 'text') part.text = 'mutated'
       const list2 = await service.listMessages(topic.id)
       expect(list2).toHaveLength(1)
-      const fresh = list2[0].data.blocks[0]
-      expect(fresh.type).toBe(BlockType.MAIN_TEXT)
-      if (fresh.type === BlockType.MAIN_TEXT) {
-        expect(fresh.content).toBe('a')
+      const fresh = list2[0].data.parts![0]
+      expect(fresh.type).toBe('text')
+      if (fresh.type === 'text') {
+        expect(fresh.text).toBe('a')
       }
     })
   })

@@ -7,6 +7,12 @@ vi.mock('../ApiService', () => ({
   fetchModels: vi.fn().mockResolvedValue([])
 }))
 
+// `readDefaultModel` now reads from preferenceService + dataApiService, not Redux.
+// Mock the boundary directly so tests can stage the value without rewiring v2 data.
+vi.mock('../ModelService', () => ({
+  readDefaultModel: vi.fn().mockResolvedValue(undefined)
+}))
+
 // Mock CHERRYAI_PROVIDER
 vi.mock('@renderer/config/providers', () => ({
   CHERRYAI_PROVIDER: { id: 'cherryai', type: 'openai', apiHost: 'https://api.cherry-ai.com', models: [] }
@@ -39,14 +45,27 @@ import store from '@renderer/store'
 
 import { fetchGenerate, fetchModels } from '../ApiService'
 import { diagnoseError } from '../ErrorDiagnosisService'
+import { readDefaultModel } from '../ModelService'
 
 const mockFetchGenerate = vi.mocked(fetchGenerate)
 const mockFetchModels = vi.mocked(fetchModels)
 const mockGetState = vi.mocked(store.getState)
+const mockReadDefaultModel = vi.mocked(readDefaultModel)
 
 function makeError(overrides: Partial<SerializedError> = {}): SerializedError {
   return { name: 'Error', message: 'test error', stack: null, ...overrides }
 }
+
+const mockListModels = vi.fn()
+Object.assign(window, {
+  api: {
+    ...(window as any).api,
+    ai: {
+      ...(window as any).api?.ai,
+      listModels: (...args: any[]) => mockListModels(...args)
+    }
+  }
+})
 
 describe('ErrorDiagnosisService', () => {
   beforeEach(() => {
@@ -56,6 +75,7 @@ describe('ErrorDiagnosisService', () => {
     } as any)
     // Default: CherryAI returns a free model as fallback
     mockFetchModels.mockResolvedValue([{ id: 'qwen', name: 'Qwen', provider: 'cherryai' }] as any)
+    mockListModels.mockResolvedValue([{ id: 'qwen', name: 'Qwen', provider: 'cherryai' }])
   })
 
   describe('diagnoseError', () => {
@@ -123,8 +143,9 @@ describe('ErrorDiagnosisService', () => {
 
     it('falls back to defaultModel when CherryAI is unavailable', async () => {
       mockFetchModels.mockResolvedValue([])
+      mockListModels.mockResolvedValue([])
       const customModel = { id: 'gpt-4', name: 'GPT-4', provider: 'openai' }
-      mockGetState.mockReturnValue({ llm: { defaultModel: customModel } } as any)
+      mockReadDefaultModel.mockResolvedValueOnce(customModel as any)
 
       const mockResult = {
         summary: 'Error',
