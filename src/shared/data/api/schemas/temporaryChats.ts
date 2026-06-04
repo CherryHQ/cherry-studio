@@ -13,8 +13,11 @@
 
 import type { Message } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
+import * as z from 'zod'
 
+import { AgentNameAtomSchema } from './agents'
 import type { CreateMessageDto } from './messages'
+import { type AgentSessionEntity, WorkspaceModeSchema } from './sessions'
 import type { CreateTopicDto } from './topics'
 
 // ============================================================================
@@ -31,6 +34,24 @@ export interface PersistTemporaryChatResponse {
   messageCount: number
 }
 
+export const CreateTemporarySessionSchema = z
+  .strictObject({
+    agentId: z.string().min(1),
+    name: AgentNameAtomSchema.optional(),
+    description: z.string().optional(),
+    workspaceId: z.string().min(1).optional(),
+    workspaceMode: WorkspaceModeSchema.optional()
+  })
+  .refine((dto) => !(dto.workspaceMode === 'system' && dto.workspaceId), {
+    path: ['workspaceId'],
+    message: 'workspaceId must be omitted when workspaceMode is system'
+  })
+export type CreateTemporarySessionDto = z.infer<typeof CreateTemporarySessionSchema>
+
+export interface UpdateTemporaryTopicDto {
+  assistantId?: string | null
+}
+
 // ============================================================================
 // API Schema Definitions
 // ============================================================================
@@ -40,6 +61,7 @@ export interface PersistTemporaryChatResponse {
  *
  * Mirrors a strict subset of the persistent topic / message API:
  * - POST   /temporary/topics
+ * - PATCH  /temporary/topics/:id
  * - DELETE /temporary/topics/:id
  * - POST   /temporary/topics/:topicId/messages
  * - GET    /temporary/topics/:topicId/messages
@@ -47,7 +69,6 @@ export interface PersistTemporaryChatResponse {
  *
  * Endpoints deliberately NOT provided (and their rationale):
  * - GET /temporary/topics/:id                — create response already carries full Topic
- * - PATCH /temporary/topics/:id              — no rename / reassign in temporary chats
  * - PUT /temporary/topics/:id/active-node    — no activeNode concept
  * - GET /temporary/topics/:topicId/tree      — no tree structure
  * - GET /messages/:id, PATCH, DELETE         — messages are immutable once appended
@@ -70,6 +91,12 @@ export type TemporaryChatSchemas = {
    * @example DELETE /temporary/topics/abc123
    */
   '/temporary/topics/:id': {
+    /** Update the send context for an existing temporary topic without changing its id. */
+    PATCH: {
+      params: { id: string }
+      body: UpdateTemporaryTopicDto
+      response: Topic
+    }
     /** Destroy a temporary topic and all its messages. Returns 404 when id is unknown. */
     DELETE: {
       params: { id: string }
@@ -114,6 +141,27 @@ export type TemporaryChatSchemas = {
     POST: {
       params: { id: string }
       response: PersistTemporaryChatResponse
+    }
+  }
+
+  '/temporary/sessions': {
+    POST: {
+      body: CreateTemporarySessionDto
+      response: AgentSessionEntity
+    }
+  }
+
+  '/temporary/sessions/:id': {
+    DELETE: {
+      params: { id: string }
+      response: void
+    }
+  }
+
+  '/temporary/sessions/:id/persist': {
+    POST: {
+      params: { id: string }
+      response: AgentSessionEntity
     }
   }
 }

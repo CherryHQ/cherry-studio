@@ -129,6 +129,32 @@ describe('TemporaryChatService', () => {
     })
   })
 
+  describe('updateTopic', () => {
+    it('updates assistantId without changing the temporary topic id', async () => {
+      const topic = await service.createTopic({ name: 'T', assistantId: 'assistant-1' })
+
+      const updated = await service.updateTopic(topic.id, { assistantId: 'assistant-2' })
+
+      expect(updated.id).toBe(topic.id)
+      expect(updated.assistantId).toBe('assistant-2')
+      expect(service.getTopic(topic.id)?.assistantId).toBe('assistant-2')
+    })
+
+    it('clears assistantId when null is provided', async () => {
+      const topic = await service.createTopic({ name: 'T', assistantId: 'assistant-1' })
+
+      const updated = await service.updateTopic(topic.id, { assistantId: null })
+
+      expect(updated.id).toBe(topic.id)
+      expect(updated.assistantId).toBeUndefined()
+      expect(service.getTopic(topic.id)?.assistantId).toBeUndefined()
+    })
+
+    it('unknown topicId throws notFound', async () => {
+      await expect(service.updateTopic('missing', { assistantId: 'assistant-2' })).rejects.toThrow(/not found/i)
+    })
+  })
+
   describe('listMessages — deep-clone isolation', () => {
     it('mutating the returned array does not affect internal store', async () => {
       const topic = await service.createTopic({ name: 'T' })

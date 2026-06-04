@@ -7,7 +7,7 @@ import { workspaceService } from '@data/services/WorkspaceService'
 import { ErrorCode } from '@shared/data/api'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { mkdtemp } from 'fs/promises'
+import { mkdtemp, stat } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
@@ -98,6 +98,49 @@ describe('SessionService', () => {
     const rows = await dbh.db.select().from(workspaceTable)
     expect(rows).toHaveLength(1)
     expect(rows[0].id).toBe(session.workspaceId)
+  })
+
+  it('creates and binds a system workspace for explicit no-project sessions', async () => {
+    const session = await sessionService.createSession({
+      agentId: 'agent-session-test',
+      name: 'No project',
+      workspaceMode: 'system'
+    })
+
+    expect(session.workspaceId).toBeTruthy()
+    expect(session.workspace).toMatchObject({ type: 'system' })
+    expect(session.workspace?.path).toContain(path.join('Agents', 'system'))
+    await expect(stat(session.workspace!.path)).resolves.toMatchObject({ isDirectory: expect.any(Function) })
+    await expect(workspaceService.list()).resolves.toEqual([])
+  })
+
+  it('rejects system workspace mode combined with an explicit workspace id', async () => {
+    const workspace = await workspaceService.findOrCreateByPath(path.join(root, 'explicit'))
+
+    await expect(
+      sessionService.createSession({
+        agentId: 'agent-session-test',
+        name: 'Invalid',
+        workspaceId: workspace.id,
+        workspaceMode: 'system'
+      })
+    ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+  })
+
+  it('does not inherit a system workspace when legacy callers omit workspace options', async () => {
+    const systemSession = await sessionService.createSession({
+      agentId: 'agent-session-test',
+      name: 'No project',
+      workspaceMode: 'system'
+    })
+
+    const inherited = await sessionService.createSession({
+      agentId: 'agent-session-test',
+      name: 'Legacy default'
+    })
+
+    expect(inherited.workspaceId).not.toBe(systemSession.workspaceId)
+    expect(inherited.workspace).toMatchObject({ type: 'user' })
   })
 
   it('returns migrated sessions without a workspace binding', async () => {

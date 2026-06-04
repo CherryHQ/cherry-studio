@@ -18,6 +18,7 @@ import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CreateMessageDto } from '@shared/data/api/schemas/messages'
+import type { UpdateTemporaryTopicDto } from '@shared/data/api/schemas/temporaryChats'
 import type { CreateTopicDto } from '@shared/data/api/schemas/topics'
 import type { Message, MessageRole, MessageStatus } from '@shared/data/types/message'
 import type { Topic } from '@shared/data/types/topic'
@@ -99,6 +100,19 @@ export class TemporaryChatService {
     this.topics.delete(id)
     this.messages.delete(id)
     logger.info('Deleted temporary topic', { id })
+  }
+
+  async updateTopic(id: string, dto: UpdateTemporaryTopicDto): Promise<Topic> {
+    const row = this.topics.get(id)
+    if (!row) {
+      throw DataApiErrorFactory.notFound('TemporaryTopic', id)
+    }
+
+    if ('assistantId' in dto) {
+      row.assistantId = dto.assistantId ?? undefined
+    }
+    row.updatedAt = Date.now()
+    return rowToTopic(row)
   }
 
   async appendMessage(topicId: string, dto: CreateMessageDto): Promise<Message> {
