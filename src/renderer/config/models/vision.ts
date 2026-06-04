@@ -92,6 +92,7 @@ const DEDICATED_IMAGE_MODELS = [
   // OpenAI series
   'dall-e(?:-[\\w-]+)?',
   'gpt-image(?:-[\\w-]+)?',
+  'gpt-[\\d.]+-image(?:-[\\w-]+)?',
   // xAI
   'grok-2-image(?:-[\\w-]+)?',
   // Google
@@ -122,6 +123,7 @@ const IMAGE_ENHANCEMENT_MODELS = [
   'qwen-image-edit',
   'gpt-image-1',
   'gpt-image-2',
+  'gpt-[\\d.]+-image(?:-[\\w-]+)?',
   'gemini-2.5-flash-image(?:-[\\w-]+)?',
   'gemini-2.0-flash-preview-image-generation',
   'gemini-3(?:\\.\\d+)?-(?:flash|pro)-image(?:-[\\w-]+)?'
