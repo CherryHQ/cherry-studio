@@ -15,13 +15,14 @@ import { useTranslation } from 'react-i18next'
 
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from './constants'
 import { useAuthenticationApiKey } from './useAuthenticationApiKey'
+import { useEnableProviderWhenModelsAvailable } from './useEnableProviderWhenModelsAvailable'
 import { useProviderEndpoints } from './useProviderEndpoints'
 
 /** Runs provider connection checks against the current editable credentials and endpoint. */
 const logger = loggerService.withContext('ProviderSettings:ConnectionCheck')
 
 export function useProviderConnectionCheck(providerId: string) {
-  const { provider } = useProvider(providerId)
+  const { provider, updateProvider } = useProvider(providerId)
   const [connectionCheckOpen, setConnectionCheckOpen] = useState(false)
   const { models } = useModels(
     { providerId },
@@ -31,6 +32,12 @@ export function useProviderConnectionCheck(providerId: string) {
   const { t, i18n } = useTranslation()
   const { inputApiKey } = useAuthenticationApiKey()
   const { apiHost, anthropicApiHost } = useProviderEndpoints(provider)
+  const enableProviderWhenModelsAvailable = useEnableProviderWhenModelsAvailable({
+    providerId,
+    provider,
+    updateProvider,
+    source: 'connection_check'
+  })
   const [apiKeyConnectivity, setApiKeyConnectivity] = useState<ApiKeyConnectivity>({
     kind: 'idle',
     status: HealthStatus.NOT_CHECKED,
@@ -104,6 +111,10 @@ export function useProviderConnectionCheck(providerId: string) {
           title: i18n.t('message.api.connection.success')
         })
 
+        // A successful check confirms a working local model, so enable the
+        // provider if the user has it disabled (shared with the other model flows).
+        await enableProviderWhenModelsAvailable(checkableModels.length)
+
         setApiKeyConnectivity({ kind: 'ok', checking: false, status: HealthStatus.SUCCESS, model })
         setConnectionCheckOpen(false)
         setTimeoutTimer(
@@ -130,7 +141,7 @@ export function useProviderConnectionCheck(providerId: string) {
         setConnectionCheckOpen(false)
       }
     },
-    [abortInFlightCheck, i18n, provider, setTimeoutTimer]
+    [abortInFlightCheck, checkableModels.length, enableProviderWhenModelsAvailable, i18n, provider, setTimeoutTimer]
   )
 
   const checkApi = useCallback(async () => {

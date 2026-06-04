@@ -5,8 +5,10 @@ import { useAutoPullOnApiKeyChange } from '../useAutoPullOnApiKeyChange'
 
 const useModelsMock = vi.fn()
 const useProviderApiKeysMock = vi.fn()
+const useProviderMock = vi.fn()
 
 vi.mock('@renderer/hooks/useProvider', () => ({
+  useProvider: (...args: any[]) => useProviderMock(...args),
   useProviderApiKeys: (...args: any[]) => useProviderApiKeysMock(...args)
 }))
 
@@ -18,11 +20,20 @@ const apiKeys = (...keys: string[]) => ({
   data: { keys: keys.map((key) => ({ key, isEnabled: true })) }
 })
 
+const providerWithHost = (baseUrl: string) => ({
+  provider: {
+    id: 'openai',
+    defaultChatEndpoint: 'openai_chat_completions',
+    endpointConfigs: { openai_chat_completions: { baseUrl } }
+  }
+})
+
 describe('useAutoPullOnApiKeyChange', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useModelsMock.mockReturnValue({ models: [] })
     useProviderApiKeysMock.mockReturnValue({ data: undefined })
+    useProviderMock.mockReturnValue(providerWithHost('https://api.openai.com/v1'))
   })
 
   it('does not fire when api-keys resolve after models on cold cache', () => {
@@ -50,6 +61,21 @@ describe('useAutoPullOnApiKeyChange', () => {
     expect(onTrigger).not.toHaveBeenCalled()
 
     useProviderApiKeysMock.mockReturnValue(apiKeys('sk-two'))
+    rerender()
+
+    expect(onTrigger).toHaveBeenCalledTimes(1)
+  })
+
+  it('fires when the host (baseUrl) changes after the first render (models present)', () => {
+    const onTrigger = vi.fn()
+    useProviderApiKeysMock.mockReturnValue(apiKeys('sk-one'))
+    useModelsMock.mockReturnValue({ models: [{ id: 'openai::gpt-4o' }] })
+    useProviderMock.mockReturnValue(providerWithHost('https://api.openai.com/v1'))
+
+    const { rerender } = renderHook(() => useAutoPullOnApiKeyChange('openai', onTrigger))
+    expect(onTrigger).not.toHaveBeenCalled()
+
+    useProviderMock.mockReturnValue(providerWithHost('https://proxy.example.com/v1'))
     rerender()
 
     expect(onTrigger).toHaveBeenCalledTimes(1)

@@ -7,15 +7,22 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useProviderModelSync } from '../useProviderModelSync'
 import { PROVIDER_SETTINGS_MODEL_SWR_OPTIONS } from './constants'
 import { getModelSyncSignature } from './getModelSyncSignature'
+import { useEnableProviderWhenModelsAvailable } from './useEnableProviderWhenModelsAvailable'
 
 const logger = loggerService.withContext('ProviderSettings:AutoModelSync')
 
 /** Triggers one automatic model sync when a provider becomes configured and has no local models. */
 export function useProviderAutoModelSync(providerId: string) {
-  const { provider } = useProvider(providerId)
+  const { provider, updateProvider } = useProvider(providerId)
   const { data: apiKeysData } = useProviderApiKeys(providerId)
   const { models } = useModels({ providerId }, { swrOptions: PROVIDER_SETTINGS_MODEL_SWR_OPTIONS })
   const { syncProviderModels, isSyncingModels } = useProviderModelSync(providerId, { existingModels: [...models] })
+  const enableProviderWhenModelsAvailable = useEnableProviderWhenModelsAvailable({
+    providerId,
+    provider,
+    updateProvider,
+    source: 'auto_model_sync'
+  })
 
   const initialModelSyncSignatureRef = useRef<string | null>(null)
   const lastAutoSyncLogKeyRef = useRef<string | null>(null)
@@ -143,11 +150,22 @@ export function useProviderAutoModelSync(providerId: string) {
     }
 
     initialModelSyncSignatureRef.current = initialModelSyncSignature
-    void syncProviderModels().catch((error) => {
-      logger.error('Provider auto model sync failed', { providerId, error })
-      if (initialModelSyncSignatureRef.current === initialModelSyncSignature) {
-        initialModelSyncSignatureRef.current = null
-      }
-    })
-  }, [autoSyncDecision, initialModelSyncSignature, provider, providerId, syncProviderModels])
+    void syncProviderModels()
+      .then(async (syncedModels) => {
+        await enableProviderWhenModelsAvailable(syncedModels.length)
+      })
+      .catch((error) => {
+        logger.error('Provider auto model sync failed', { providerId, error })
+        if (initialModelSyncSignatureRef.current === initialModelSyncSignature) {
+          initialModelSyncSignatureRef.current = null
+        }
+      })
+  }, [
+    autoSyncDecision,
+    enableProviderWhenModelsAvailable,
+    initialModelSyncSignature,
+    provider,
+    providerId,
+    syncProviderModels
+  ])
 }

@@ -1,5 +1,7 @@
 import { useMutation } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
+import { useProvider } from '@renderer/hooks/useProvider'
+import { useEnableProviderWhenModelsAvailable } from '@renderer/pages/settings/ProviderSettings/hooks/providerSetting/useEnableProviderWhenModelsAvailable'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -21,6 +23,13 @@ type UsePullReconcileSubmitOptions = {
  */
 export function usePullReconcileSubmit({ providerId, onApplyCommitted }: UsePullReconcileSubmitOptions) {
   const { t } = useTranslation()
+  const { provider, updateProvider } = useProvider(providerId)
+  const enableProviderWhenModelsAvailable = useEnableProviderWhenModelsAvailable({
+    providerId,
+    provider,
+    updateProvider,
+    source: 'pull_reconcile_apply'
+  })
   const { trigger: reconcileTrigger, isLoading: applyBusy } = useMutation(
     'POST',
     '/providers/:providerId/models:reconcile',
@@ -31,13 +40,14 @@ export function usePullReconcileSubmit({ providerId, onApplyCommitted }: UsePull
     async (payload: ModelPullApplyPayload) => {
       try {
         const { toAdd, toRemove } = payload
-        await reconcileTrigger({
+        const reconciledModels = await reconcileTrigger({
           params: { providerId },
           body: {
             toAdd: toAdd.map((model) => toCreateModelDto(providerId, model)),
             toRemove
           }
         })
+        await enableProviderWhenModelsAvailable(reconciledModels.length)
         window.toast.success(
           t('settings.models.manage.sync_apply_result', {
             added: toAdd.length,
@@ -51,7 +61,7 @@ export function usePullReconcileSubmit({ providerId, onApplyCommitted }: UsePull
         window.toast.error(t('settings.models.manage.sync_pull_failed'))
       }
     },
-    [onApplyCommitted, providerId, reconcileTrigger, t]
+    [enableProviderWhenModelsAvailable, onApplyCommitted, providerId, reconcileTrigger, t]
   )
 
   return {
