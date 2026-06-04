@@ -73,6 +73,8 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({
           pendingModelIds={modelList.sections.pendingModelIds}
           onEditModel={modelList.sections.onEditModel}
           onToggleModel={modelList.sections.onToggleModel}
+          onToggleModels={modelList.sections.onToggleModels}
+          bulkActionDisabled={toolbarDisabled}
           enabledSectionActions={
             <>
               <Tooltip content={bulkCloseLabel}>

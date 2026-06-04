@@ -78,7 +78,7 @@ const ShortcutSettings: FC = () => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const { shortcuts, updatePreference } = useAllShortcuts()
-  const inputRefs = useRef<Record<string, HTMLInputElement>>({})
+  const recorderRefs = useRef<Record<string, HTMLButtonElement>>({})
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [pendingKeys, setPendingKeys] = useState<string[]>([])
   const [conflictLabel, setConflictLabel] = useState<string | null>(null)
@@ -181,7 +181,7 @@ const ShortcutSettings: FC = () => {
     setTimeoutTimer(
       `focus-${key}`,
       () => {
-        inputRefs.current[key]?.focus()
+        recorderRefs.current[key]?.focus()
       },
       0
     )
@@ -212,6 +212,11 @@ const ShortcutSettings: FC = () => {
 
   const handleKeyDown = async (event: ReactKeyboardEvent, record: (typeof shortcuts)[number]) => {
     event.preventDefault()
+    event.stopPropagation()
+
+    if (event.nativeEvent.isComposing || event.key === 'Process') {
+      return
+    }
 
     if (event.code === 'Escape') {
       clearEditingState()
@@ -313,24 +318,25 @@ const ShortcutSettings: FC = () => {
 
       return (
         <div className="relative flex flex-col items-end">
-          <Input
+          <button
             ref={(el) => {
-              if (el) inputRefs.current[record.key] = el
+              if (el) recorderRefs.current[record.key] = el
             }}
+            type="button"
             className={cn(
               'h-8 w-36 rounded-lg border-border/60 bg-background text-center text-sm',
+              !pendingDisplay && 'text-muted-foreground',
               hasConflict && 'border-red-500 focus-visible:ring-red-500/50'
             )}
-            value={pendingDisplay}
-            placeholder={t('settings.shortcuts.press_shortcut')}
             onKeyDown={(event) => void handleKeyDown(event, record)}
             onBlur={(event) => {
               const isUndoClick = (event.relatedTarget as HTMLElement)?.closest('.shortcut-undo-icon')
               if (!isUndoClick) {
                 clearEditingState()
               }
-            }}
-          />
+            }}>
+            {pendingDisplay || t('settings.shortcuts.press_shortcut')}
+          </button>
           {hasConflict && (
             <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-red-500 text-xs">
               {conflictLabel ? t('settings.shortcuts.conflict_with', { name: conflictLabel }) : conflictMessage}

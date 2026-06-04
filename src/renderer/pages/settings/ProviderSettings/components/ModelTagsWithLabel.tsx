@@ -54,11 +54,11 @@ const CAPABILITY_TAGS: readonly CapabilityTagConfig[] = [
   },
   {
     capability: MODEL_CAPABILITY.EMBEDDING,
-    render: ({ size }) => <EmbeddingTag size={size} />
+    render: (props) => <EmbeddingTag {...props} />
   },
   {
     capability: MODEL_CAPABILITY.RERANK,
-    render: ({ size }) => <RerankerTag size={size} />
+    render: (props) => <RerankerTag {...props} />
   }
 ] as const
 
@@ -114,7 +114,7 @@ const ModelTagsWithLabel: FC<ModelTagsProps> = ({
           </span>
         ) : null
       )}
-      {showFree && isFreeModel(model) && <FreeTag size={size} />}
+      {showFree && isFreeModel(model) && <FreeTag {...tagProps} />}
     </div>
   )
 }
