@@ -2,6 +2,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput, Tooltip } from '@cherryst
 import { PROVIDER_ICON_CATALOG } from '@cherrystudio/ui/icons'
 import { ProviderAvatarPrimitive } from '@renderer/components/ProviderAvatar'
 import { getProviderLabelKey } from '@renderer/i18n/label'
+import { Search } from 'lucide-react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
