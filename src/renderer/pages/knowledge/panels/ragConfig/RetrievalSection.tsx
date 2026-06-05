@@ -38,7 +38,7 @@ const RetrievalSection = ({
 }: RetrievalSectionProps) => {
   const { t } = useTranslation()
   const isHybridMode = searchMode === 'hybrid'
-  const usesRelevanceThreshold = searchMode === 'default'
+  const usesRelevanceThreshold = searchMode === 'default' || rerankModelId !== null
 
   return (
     <div className="flex flex-col gap-4">
@@ -55,19 +55,20 @@ const RetrievalSection = ({
         formatValue={(value) => String(value)}
       />
 
-      <RagSliderField
-        label={t('knowledge.rag.threshold')}
-        hint={t(usesRelevanceThreshold ? 'knowledge.rag.hints.threshold' : 'knowledge.rag.hints.threshold_disabled')}
-        value={threshold}
-        onValueChange={onThresholdChange}
-        min={0}
-        max={1}
-        step={0.1}
-        minLabel="0.0"
-        maxLabel="1.0"
-        formatValue={(value) => value.toFixed(1)}
-        disabled={!usesRelevanceThreshold}
-      />
+      {usesRelevanceThreshold ? (
+        <RagSliderField
+          label={t('knowledge.rag.threshold')}
+          hint={t('knowledge.rag.hints.threshold')}
+          value={threshold}
+          onValueChange={onThresholdChange}
+          min={0}
+          max={1}
+          step={0.1}
+          minLabel="0.0"
+          maxLabel="1.0"
+          formatValue={(value) => value.toFixed(1)}
+        />
+      ) : null}
 
       <div>
         <RagFieldLabel label={t('knowledge.rag.search_mode.title')} hint={t('knowledge.rag.hints.search_mode')} />

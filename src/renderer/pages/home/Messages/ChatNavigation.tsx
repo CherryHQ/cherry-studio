@@ -2,24 +2,17 @@ import {
   ArrowDownOutlined,
   ArrowUpOutlined,
   CloseOutlined,
-  HistoryOutlined,
   VerticalAlignBottomOutlined,
   VerticalAlignTopOutlined
 } from '@ant-design/icons'
 import { Button, Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { useTimer } from '@renderer/hooks/useTimer'
-import type { RootState } from '@renderer/store'
-// import { selectCurrentTopicId } from '@renderer/store/newMessage'
 import { scrollIntoView } from '@renderer/utils/dom'
-import { Drawer } from 'antd'
 import type { FC } from 'react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSelector } from 'react-redux'
 import styled from 'styled-components'
-
-import ChatFlowHistory from './ChatFlowHistory'
 
 // Exclude some areas from the navigation
 const EXCLUDED_SELECTORS = [
@@ -44,9 +37,7 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
   const [isVisible, setIsVisible] = useState(false)
   const timerKey = 'hide'
   const { setTimeoutTimer, clearTimeoutTimer } = useTimer()
-  const [showChatHistory, setShowChatHistory] = useState(false)
   const [manuallyClosedUntil, setManuallyClosedUntil] = useState<number | null>(null)
-  const currentTopicId = useSelector((state: RootState) => state.messages.currentTopicId)
   const lastMoveTime = useRef(0)
   const isHoveringNavigationRef = useRef(false)
   const isPointerInTriggerAreaRef = useRef(false)
@@ -93,15 +84,6 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
     isHoveringNavigationRef.current = false
     scheduleHide(500)
   }, [scheduleHide])
-
-  const handleChatHistoryClick = () => {
-    setShowChatHistory(true)
-    showNavigation()
-  }
-
-  const handleDrawerClose = () => {
-    setShowChatHistory(false)
-  }
 
   const findUserMessages = () => {
     const container = document.getElementById(containerId)
@@ -375,34 +357,8 @@ const ChatNavigation: FC<ChatNavigationProps> = ({ containerId }) => {
               <VerticalAlignBottomOutlined />
             </NavigationButton>
           </Tooltip>
-          <Divider />
-          <Tooltip placement="left" content={t('chat.navigation.history')} delay={500}>
-            <NavigationButton
-              variant="ghost"
-              onClick={handleChatHistoryClick}
-              aria-label={t('chat.navigation.history')}>
-              <HistoryOutlined />
-            </NavigationButton>
-          </Tooltip>
         </ButtonGroup>
       </NavigationContainer>
-
-      <Drawer
-        title={t('chat.history.title')}
-        placement="right"
-        onClose={handleDrawerClose}
-        open={showChatHistory}
-        width={680}
-        destroyOnHidden
-        styles={{
-          header: { border: 'none' },
-          body: {
-            padding: 0,
-            height: 'calc(100% - 55px)'
-          }
-        }}>
-        <ChatFlowHistory conversationId={currentTopicId || undefined} />
-      </Drawer>
     </>
   )
 }

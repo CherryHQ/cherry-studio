@@ -385,12 +385,13 @@ export const WebSearchProviderSetting: FC<Props> = ({
             <SettingSubtitle style={{ marginTop: 5, marginBottom: 10 }}>
               {t('settings.provider.api_host')}
             </SettingSubtitle>
-            <Flex className="gap-2">
+            <Flex className="min-w-0 gap-2">
               <Input
                 value={apiHostInput}
                 placeholder={t('settings.provider.api_host')}
                 onChange={(e) => setApiHostInput(e.target.value)}
                 onBlur={() => void persist(commitApiHostDraft, 'Failed to save web search API host')}
+                className="min-w-0 flex-1"
               />
               {showApiHostCheckButton && (
                 <Button

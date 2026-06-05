@@ -38,9 +38,11 @@ function makeModel(overrides: Partial<Model> = {}): Model {
 }
 
 describe('MODEL_SELECTOR_TAGS', () => {
-  it('lists the seven tags the selector surfaces in the filter chip row', () => {
+  it('lists the tags the selector surfaces in the filter chip row', () => {
     expect(MODEL_SELECTOR_TAGS).toEqual([
       MODEL_CAPABILITY.IMAGE_RECOGNITION,
+      MODEL_CAPABILITY.AUDIO_RECOGNITION,
+      MODEL_CAPABILITY.VIDEO_RECOGNITION,
       MODEL_CAPABILITY.EMBEDDING,
       MODEL_CAPABILITY.REASONING,
       MODEL_CAPABILITY.FUNCTION_CALL,

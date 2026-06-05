@@ -13,8 +13,7 @@ interface Props {
 const PERMISSION_MODES = ['default', 'plan', 'acceptEdits', 'bypassPermissions'] as const
 
 /**
- * Covers: configuration.permission_mode. Mirrors the legacy AgentSettings
- * "Permission Mode" tab — single responsibility, no other fields mixed in.
+ * Covers configuration.permission_mode only — no other fields mixed in.
  */
 const PermissionSection: FC<Props> = ({ form, onChange }) => {
   const { t } = useTranslation()

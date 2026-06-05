@@ -522,3 +522,10 @@ export const CHERRYIN_CONFIG = {
 }
 
 export const APP_NAME = 'Cherry Studio'
+
+export const DEFAULT_TEMPERATURE = 1.0
+export const DEFAULT_CONTEXTCOUNT = 5
+export const DEFAULT_MAX_TOKENS = 8192
+export const MIN_TOOL_CALLS = 1
+export const MAX_TOOL_CALLS = 100
+export const DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE = true

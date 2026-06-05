@@ -3,7 +3,6 @@ import { agentChannelTable, agentChannelTaskTable } from '@data/db/schemas/agent
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
-import { agentTaskRunLogTable, agentTaskTable } from '@data/db/schemas/agentTask'
 import { loggerService } from '@logger'
 import { eq, sql } from 'drizzle-orm'
 import type { SQLiteTable } from 'drizzle-orm/sqlite-core'
@@ -23,10 +22,8 @@ export const AGENT_TABLES: SQLiteTable[] = [
   agentTable,
   agentSessionTable,
   agentSkillTable,
-  agentTaskTable,
   agentChannelTable,
   agentSessionMessageTable,
-  agentTaskRunLogTable,
   agentChannelTaskTable
 ]
 
@@ -57,9 +54,21 @@ export async function remapAgentPrefixIds(db: MigrationContext['db']): Promise<v
       await db.update(agentTable).set({ id: newId }).where(eq(agentTable.id, oldId))
       await db.update(agentSessionTable).set({ agentId: newId }).where(eq(agentSessionTable.agentId, oldId))
       await db.update(agentSkillTable).set({ agentId: newId }).where(eq(agentSkillTable.agentId, oldId))
-      await db.update(agentTaskTable).set({ agentId: newId }).where(eq(agentTaskTable.agentId, oldId))
       await db.update(agentChannelTable).set({ agentId: newId }).where(eq(agentChannelTable.agentId, oldId))
+      // job_schedule.jobInputTemplate is a JSON column carrying the same agent_id
+      // for migrated agent.task schedules. json_set rewrites it atomically so
+      // post-remap reads see the new id consistently with agent.id above.
+      await db.run(sql`
+        UPDATE job_schedule
+        SET job_input_template = json_set(job_input_template, '$.agentId', ${newId})
+        WHERE type = 'agent.task'
+          AND json_extract(job_input_template, '$.agentId') = ${oldId}
+      `)
     }
+    // agent_task is dropped in v2 — its rows are migrated into jobScheduleTable
+    // by AgentsMigrator's TS-loop, which writes fresh UUIDs straight away. No
+    // prefix-id remap needed for the schedule rows or the agent_channel_task
+    // link rows (the TS-loop populates them with the new schedule ids).
 
     const oldSessions = await db
       .select({ id: agentSessionTable.id })
@@ -74,19 +83,6 @@ export async function remapAgentPrefixIds(db: MigrationContext['db']): Promise<v
         .set({ sessionId: newId })
         .where(eq(agentSessionMessageTable.sessionId, oldId))
       await db.update(agentChannelTable).set({ sessionId: newId }).where(eq(agentChannelTable.sessionId, oldId))
-      await db.update(agentTaskRunLogTable).set({ sessionId: newId }).where(eq(agentTaskRunLogTable.sessionId, oldId))
-    }
-
-    const oldTasks = await db
-      .select({ id: agentTaskTable.id })
-      .from(agentTaskTable)
-      .where(sql`${agentTaskTable.id} GLOB 'task_*'`)
-
-    for (const { id: oldId } of oldTasks) {
-      const newId = uuidv4()
-      await db.update(agentTaskTable).set({ id: newId }).where(eq(agentTaskTable.id, oldId))
-      await db.update(agentTaskRunLogTable).set({ taskId: newId }).where(eq(agentTaskRunLogTable.taskId, oldId))
-      await db.update(agentChannelTaskTable).set({ taskId: newId }).where(eq(agentChannelTaskTable.taskId, oldId))
     }
 
     await db.run(sql.raw('COMMIT'))

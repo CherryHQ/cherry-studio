@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProviders'
+import { useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -14,14 +14,13 @@ const logger = loggerService.withContext('ProviderPullReconcile')
  */
 export function useProviderPullReconcile(providerId: string) {
   const { t } = useTranslation()
-  const { provider } = useProvider(providerId)
   const { data: apiKeysData } = useProviderApiKeys(providerId)
   const [preview, setPreview] = useState<ModelSyncPreviewResponse | null>(null)
   const [isPreviewLoading, setIsPreviewLoading] = useState(false)
 
-  // The provider object from useProvider omits the secret `key`
-  // (RuntimeApiKeySchema strips it), so the concrete-key fingerprint must
-  // come from the api-keys endpoint — same source the auto-pull trigger uses.
+  // The provider object omits the secret `key` (RuntimeApiKeySchema strips
+  // it), so the concrete-key fingerprint must come from the api-keys
+  // endpoint — same source the auto-pull trigger uses.
   const enabledKeySignature = useMemo(
     () =>
       (apiKeysData?.keys ?? [])
@@ -45,9 +44,6 @@ export function useProviderPullReconcile(providerId: string) {
   }, [])
 
   const fetchPreview = useCallback(async (): Promise<ModelSyncPreviewResponse | null> => {
-    if (!provider) {
-      return null
-    }
     const signature = enabledKeySignature
     const inflight = inflightRef.current
     if (inflight && inflight.signature === signature) {
@@ -58,10 +54,7 @@ export function useProviderPullReconcile(providerId: string) {
     setIsPreviewLoading(true)
     const promise = (async () => {
       try {
-        const next = await buildModelListSyncPreview({
-          providerId,
-          provider
-        })
+        const next = await buildModelListSyncPreview({ providerId })
         if (isCurrent()) setPreview(next)
         return next
       } catch (error) {
@@ -84,7 +77,7 @@ export function useProviderPullReconcile(providerId: string) {
     })()
     inflightRef.current = { signature, promise }
     return promise
-  }, [provider, providerId, t, enabledKeySignature])
+  }, [providerId, t, enabledKeySignature])
 
   return {
     preview,

@@ -1,7 +1,7 @@
 import { FileEntrySchema } from '@shared/data/types/file'
 import { describe, expect, it } from 'vitest'
 
-import { getItemStatus, getItemTitle, getReadyCount, getVisibleItems } from '../utils/selectors'
+import { getItemStatus, getItemTitle, getReadyCount } from '../utils/selectors'
 import { createDirectoryItem, createFileItem, createNoteItem, createSitemapItem, createUrlItem } from './testUtils'
 
 describe('dataSourcePanel.selectors', () => {
@@ -25,7 +25,7 @@ describe('dataSourcePanel.selectors', () => {
       'https://example.com/product-docs'
     )
     expect(getItemTitle(createDirectoryItem({ id: 'directory-1', source: '/Users/eeee/本地资料夹' }))).toBe(
-      '/Users/eeee/本地资料夹'
+      '本地资料夹'
     )
     expect(getItemTitle(createNoteItem({ id: 'note-1', content: '\n \n  第一行标题  \n第二行内容' }))).toBe(
       '第一行标题'
@@ -88,18 +88,6 @@ describe('dataSourcePanel.selectors', () => {
       textClassName: 'text-zinc-500/70',
       icon: 'loader'
     })
-  })
-
-  it('filters items by the active filter without changing the all filter behavior', () => {
-    const items = [
-      createFileItem({ id: 'file-1' }),
-      createNoteItem({ id: 'note-1', content: '会议纪要' }),
-      createUrlItem({ id: 'url-1', source: 'https://example.com/product-docs' })
-    ]
-
-    expect(getVisibleItems(items, 'all')).toBe(items)
-    expect(getVisibleItems(items, 'note')).toEqual([items[1]])
-    expect(getVisibleItems(items, 'url')).toEqual([items[2]])
   })
 
   it('counts only completed items as ready', () => {

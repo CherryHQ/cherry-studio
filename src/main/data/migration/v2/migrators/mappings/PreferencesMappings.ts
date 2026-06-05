@@ -1,6 +1,6 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-06-01T05:06:33.909Z
+ * Generated at: 2026-06-02T09:40:02.540Z
  *
  * This file contains pure mapping relationships without default values.
  * Default values are managed in src/shared/data/preferences.ts
@@ -77,10 +77,6 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'enableDeveloperMode',
       targetKey: 'app.developer_mode.enabled'
-    },
-    {
-      originalKey: 'showAssistants',
-      targetKey: 'assistant.tab.show'
     },
     {
       originalKey: 'showTopics',
@@ -835,11 +831,11 @@ export const LOCALSTORAGE_MAPPINGS: ReadonlyArray<{ originalKey: string; targetK
 /**
  * 映射统计:
  * - ElectronStore项: 1
- * - Redux Store项: 185
+ * - Redux Store项: 184
  * - Redux分类: settings, selectionStore, llm, nutstore, preprocess, translate, websearch, ocr, note
  * - DexieSettings项: 4
  * - localStorage项: 0
- * - 总配置项: 190
+ * - 总配置项: 189
  *
  * 使用说明:
  * 1. ElectronStore读取: configManager.get(mapping.originalKey)

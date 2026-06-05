@@ -6,7 +6,6 @@ import { usePromptProcessor } from '@renderer/hooks/usePromptProcessor'
 import { FieldHeader } from '@renderer/pages/library/editor/FieldHeader'
 import { PromptVariablesTooltip } from '@renderer/pages/library/editor/PromptVariablesTooltip'
 import { fetchGenerate } from '@renderer/services/ApiService'
-import { estimateTextTokens } from '@renderer/services/TokenService'
 import { AGENT_PROMPT } from '@shared/config/prompts'
 import type { Assistant } from '@shared/data/types/assistant'
 import { Edit, Eye, Loader2, Sparkles, Undo2 } from 'lucide-react'
@@ -14,6 +13,7 @@ import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
+import { estimateTokenCount as estimateTextTokens } from 'tokenx'
 
 interface Props {
   assistant?: Pick<Assistant, 'modelName'> | null
