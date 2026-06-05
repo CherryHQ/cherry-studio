@@ -15,15 +15,8 @@ const visualizerPlugin = (type: 'renderer' | 'main') => {
 
 const isDev = process.env.NODE_ENV === 'development'
 const isProd = process.env.NODE_ENV === 'production'
-// Elysia and its plugins are ESM-first and rely on Web-standard runtime APIs;
-// bundle them into the main process output rather than externalizing as CJS.
-const bundledMainDependencies = new Set([
-  '@vectorstores/libsql',
-  'elysia',
-  '@elysia/node',
-  '@elysia/cors',
-  '@elysia/openapi'
-])
+
+const bundledMainDependencies = new Set(['@vectorstores/libsql'])
 const mainExternalDependencies = Object.keys(pkg.dependencies).filter(
   (dependency) => !bundledMainDependencies.has(dependency)
 )
