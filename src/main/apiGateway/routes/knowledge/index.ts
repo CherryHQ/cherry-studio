@@ -95,6 +95,16 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
         })
       )
 
+      // Every targeted search failed (e.g. broken embedding/vector-store config). Surface a
+      // server error instead of a 200 with empty results, so clients can tell infrastructure
+      // failure apart from "no matches".
+      if (resultsPerBase.every((r) => r.error)) {
+        throw DataApiErrorFactory.internal(
+          new Error(resultsPerBase.map((r) => r.error).join('; ')),
+          'knowledge base search'
+        )
+      }
+
       const warnings = resultsPerBase
         .filter((r) => r.error)
         .map((r) => `Knowledge base "${r.base.name}" search failed: ${r.error}`)
