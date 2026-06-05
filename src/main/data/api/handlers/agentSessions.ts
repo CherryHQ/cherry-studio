@@ -7,7 +7,7 @@
  * session relation.
  */
 
-import { agentSessionMessageService as sessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { toDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
@@ -57,7 +57,7 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
     GET: async ({ params, query }) => {
       const parsed = AgentSessionMessagesListQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await sessionMessageService.listSessionMessages(params.sessionId, parsed.data)
+      return await agentSessionMessageService.listSessionMessages(params.sessionId, parsed.data)
     }
   },
 
@@ -65,13 +65,13 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
     GET: async ({ query }) => {
       const parsed = SearchAgentSessionMessagesQuerySchema.safeParse(query)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await sessionMessageService.search(parsed.data)
+      return await agentSessionMessageService.search(parsed.data)
     }
   },
 
   '/agent-sessions/:sessionId/messages/:messageId': {
     DELETE: async ({ params }) => {
-      await sessionMessageService.deleteSessionMessage(params.sessionId, params.messageId)
+      await agentSessionMessageService.deleteSessionMessage(params.sessionId, params.messageId)
       return undefined
     }
   },

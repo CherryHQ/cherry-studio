@@ -1,3 +1,6 @@
+import { application } from '@application'
+import { agentTable } from '@data/db/schemas/agent'
+import { assistantTable } from '@data/db/schemas/assistant'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
@@ -13,6 +16,8 @@ import type {
   GlobalSearchResponse,
   GlobalSearchType
 } from '@shared/data/api/schemas/globalSearch'
+import { GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE } from '@shared/data/api/schemas/globalSearch'
+import { and, inArray, isNull } from 'drizzle-orm'
 
 const GLOBAL_SEARCH_TYPES: GlobalSearchType[] = ['assistant', 'agent', 'topic', 'session', 'knowledge-base']
 const GLOBAL_SEARCH_DEFAULT_LIMIT_PER_TYPE = 50
@@ -31,11 +36,15 @@ function getAgentAvatar(configuration: unknown): string | undefined {
 }
 
 export class GlobalSearchService {
+  private get db() {
+    return application.get('DbService').getDb()
+  }
+
   async search(query: GlobalSearchQuery): Promise<GlobalSearchResponse> {
     const requestedTypes = new Set(query.types ?? GLOBAL_SEARCH_TYPES)
     const types = GLOBAL_SEARCH_TYPES.filter((type) => requestedTypes.has(type))
     const updatedAtFromMs = getUpdatedAtFromMs(query.updatedAtFrom)
-    const limit = query.limitPerType ?? GLOBAL_SEARCH_DEFAULT_LIMIT_PER_TYPE
+    const limit = Math.min(query.limitPerType ?? GLOBAL_SEARCH_DEFAULT_LIMIT_PER_TYPE, GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE)
 
     const [groups, messageItems] = await Promise.all([
       Promise.all(
@@ -217,27 +226,26 @@ export class GlobalSearchService {
 
   private async getAssistantNameMap(ids: Array<string | undefined>): Promise<Map<string, string>> {
     const uniqueIds = [...new Set(ids.filter((id): id is string => !!id))]
-    const pairs = await Promise.all(
-      uniqueIds.map(async (id) => {
-        const result = await assistantDataService.list({ id, page: 1, limit: 1 })
-        const assistant = result.items[0]
-        return assistant ? ([id, assistant.name] as const) : undefined
-      })
-    )
+    if (uniqueIds.length === 0) return new Map()
 
-    return new Map(pairs.filter((pair): pair is readonly [string, string] => !!pair))
+    const rows = await this.db
+      .select({ id: assistantTable.id, name: assistantTable.name })
+      .from(assistantTable)
+      .where(and(inArray(assistantTable.id, uniqueIds), isNull(assistantTable.deletedAt)))
+
+    return new Map(rows.map((row) => [row.id, row.name]))
   }
 
   private async getAgentNameMap(ids: Array<string | null>): Promise<Map<string, string>> {
     const uniqueIds = [...new Set(ids.filter((id): id is string => !!id))]
-    const pairs = await Promise.all(
-      uniqueIds.map(async (id) => {
-        const agent = await agentService.getAgent(id)
-        return agent ? ([id, agent.name] as const) : undefined
-      })
-    )
+    if (uniqueIds.length === 0) return new Map()
 
-    return new Map(pairs.filter((pair): pair is readonly [string, string] => !!pair))
+    const rows = await this.db
+      .select({ id: agentTable.id, name: agentTable.name })
+      .from(agentTable)
+      .where(and(inArray(agentTable.id, uniqueIds), isNull(agentTable.deletedAt)))
+
+    return new Map(rows.map((row) => [row.id, row.name]))
   }
 }
 

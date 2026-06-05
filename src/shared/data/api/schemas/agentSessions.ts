@@ -4,6 +4,7 @@
 
 import {
   MessageDataSchema,
+  type MessageRole,
   MessageRoleSchema,
   MessageStatsSchema,
   MessageStatusSchema,
@@ -51,7 +52,7 @@ export interface AgentSessionSearchMessageResult {
   sessionName: string
   agentId?: string
   agentName?: string
-  role?: 'user' | 'assistant' | 'tool' | 'system'
+  role?: MessageRole
   snippet: string
   createdAt: string
 }

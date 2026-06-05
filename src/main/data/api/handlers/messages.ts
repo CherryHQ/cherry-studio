@@ -8,6 +8,7 @@
  */
 
 import { messageService } from '@data/services/MessageService'
+import { toDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import {
   BranchMessagesQuerySchema,
@@ -24,8 +25,9 @@ import { MessageDataSchema } from '@shared/data/types/message'
 export const messageHandlers: HandlersFor<MessageSchemas> = {
   '/messages/search': {
     GET: async ({ query }) => {
-      const q = SearchMessagesQuerySchema.parse(query)
-      return await messageService.search(q)
+      const parsed = SearchMessagesQuerySchema.safeParse(query)
+      if (!parsed.success) throw toDataApiError(parsed.error)
+      return await messageService.search(parsed.data)
     }
   },
 

@@ -112,8 +112,8 @@ describe('AgentService', () => {
     })
 
     it('places newly created agents first under default sort (createdAt desc)', async () => {
-      await insertAgent({ id: 'agent_existing_a' })
-      await insertAgent({ id: 'agent_existing_b' })
+      await insertAgent({ id: 'agent_existing_a', createdAt: 100, updatedAt: 100 })
+      await insertAgent({ id: 'agent_existing_b', createdAt: 200, updatedAt: 200 })
 
       const created = await agentService.createAgent({
         type: 'claude-code',
@@ -177,6 +177,16 @@ describe('AgentService', () => {
 
       const names = agents.map((a) => a.name)
       expect(names).toEqual([...names].sort())
+    })
+
+    it('sorts by updatedAt without pin-first ordering', async () => {
+      await insertAgent({ id: 'agent_updated_old', name: 'Old', updatedAt: 100, createdAt: 100 })
+      await insertAgent({ id: 'agent_updated_new', name: 'New', updatedAt: 200, createdAt: 200 })
+      await pinService.pin({ entityType: 'agent', entityId: 'agent_updated_old' })
+
+      const { agents } = await agentService.listAgents({ sortBy: 'updatedAt', orderBy: 'desc' })
+
+      expect(agents.map((agent) => agent.id).slice(0, 2)).toEqual(['agent_updated_new', 'agent_updated_old'])
     })
 
     it('does not expose tags in agent rows', async () => {

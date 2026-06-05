@@ -20,12 +20,13 @@ export type GlobalSearchTarget =
 
 export type GlobalSearchType = GlobalSearchTarget['type']
 export const GlobalSearchTypeSchema = z.enum(['assistant', 'agent', 'topic', 'session', 'knowledge-base'])
+export const GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE = 200
 
 export const GlobalSearchQuerySchema = z.strictObject({
   q: z.string().trim().min(1),
   types: z.array(GlobalSearchTypeSchema).min(1).optional(),
   updatedAtFrom: z.iso.datetime().optional(),
-  limitPerType: z.coerce.number().int().positive().optional(),
+  limitPerType: z.coerce.number().int().positive().max(GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE).optional(),
   includeMessages: z.boolean().optional()
 })
 export type GlobalSearchQueryParams = z.input<typeof GlobalSearchQuerySchema>

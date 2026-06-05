@@ -330,12 +330,23 @@ describe('AgentSessionMessageService', () => {
         status: 'success',
         createdAt: 200,
         updatedAt: 200
+      },
+      {
+        id: '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1be',
+        sessionId: 'session-search-literal',
+        role: 'assistant',
+        data: { parts: [{ type: 'text', text: 'Save 50_ off today.' }] },
+        status: 'success',
+        createdAt: 300,
+        updatedAt: 300
       }
     ])
 
-    const result = await agentSessionMessageService.search({ q: '50%' })
+    const percentResult = await agentSessionMessageService.search({ q: '50%' })
+    const underscoreResult = await agentSessionMessageService.search({ q: '50_' })
 
-    expect(result.items.map((item) => item.messageId)).toEqual(['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1bc'])
+    expect(percentResult.items.map((item) => item.messageId)).toEqual(['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1bc'])
+    expect(underscoreResult.items.map((item) => item.messageId)).toEqual(['018f6ed6-73b8-7f40-8d0d-9bb2f8f1d1be'])
   })
 
   it('uses the session message FTS index as the search candidate source', async () => {

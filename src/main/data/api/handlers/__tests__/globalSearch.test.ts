@@ -10,6 +10,8 @@ vi.mock('@data/services/GlobalSearchService', () => ({
   }
 }))
 
+import { GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE } from '@shared/data/api/schemas/globalSearch'
+
 import { globalSearchHandlers } from '../globalSearch'
 
 describe('globalSearchHandlers', () => {
@@ -42,7 +44,7 @@ describe('globalSearchHandlers', () => {
           q: 'agent',
           types: ['agent', 'session'],
           updatedAtFrom: '2026-05-01T00:00:00.000Z',
-          limitPerType: 500,
+          limitPerType: GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE,
           includeMessages: true
         }
       } as never)
@@ -51,7 +53,7 @@ describe('globalSearchHandlers', () => {
         q: 'agent',
         types: ['agent', 'session'],
         updatedAtFrom: '2026-05-01T00:00:00.000Z',
-        limitPerType: 500,
+        limitPerType: GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE,
         includeMessages: true
       })
     })

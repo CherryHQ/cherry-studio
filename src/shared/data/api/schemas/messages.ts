@@ -6,7 +6,13 @@
  */
 
 import type { CursorPaginationParams, CursorPaginationResponse } from '@shared/data/api/apiTypes'
-import type { BranchMessagesResponse, Message, MessageData, TreeResponse } from '@shared/data/types/message'
+import type {
+  BranchMessagesResponse,
+  Message,
+  MessageData,
+  MessageRole,
+  TreeResponse
+} from '@shared/data/types/message'
 import {
   MessageDataSchema,
   MessageRoleSchema,
@@ -177,7 +183,7 @@ export interface SearchMessageResult {
   topicId: string
   topicName: string
   topicAssistantId?: string
-  role?: 'user' | 'assistant'
+  role?: Extract<MessageRole, 'user' | 'assistant'>
   topicCreatedAt: string
   topicUpdatedAt: string
   snippet: string

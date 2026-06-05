@@ -183,21 +183,20 @@ export class AgentService {
     }
     const sortField = sortByToColumn[sortBy] ?? agentsTable.createdAt
     const orderFn = orderBy === 'asc' ? asc : desc
+    const orderByClauses =
+      sortBy === 'updatedAt'
+        ? [orderFn(sortField), asc(agentsTable.id)]
+        : [sql`CASE WHEN ${pinTable.orderKey} IS NULL THEN 1 ELSE 0 END`, asc(pinTable.orderKey), orderFn(sortField)]
 
-    // Pin-aware ordering: LEFT JOIN with the pin table, push pinned rows to
-    // the top (sorted by pin.orderKey ASC), then unpinned rows by the
-    // caller-specified sortBy/orderBy. Same shape as AssistantService.list.
+    // Default lists remain pin-aware. The updatedAt branch is pure recency so
+    // global search ranks agents the same way as assistants.
     const baseQuery = database
       .select({ agent: agentsTable, modelName: userModelTable.name, pinOrderKey: pinTable.orderKey })
       .from(agentsTable)
       .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
       .leftJoin(pinTable, and(eq(pinTable.entityType, 'agent'), eq(pinTable.entityId, agentsTable.id)))
       .where(whereClause)
-      .orderBy(
-        sql`CASE WHEN ${pinTable.orderKey} IS NULL THEN 1 ELSE 0 END`,
-        asc(pinTable.orderKey),
-        orderFn(sortField)
-      )
+      .orderBy(...orderByClauses)
 
     const result =
       options.limit !== undefined

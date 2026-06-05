@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
 
 import type { GlobalSearchItem } from '../globalSearch'
-import { GlobalSearchQuerySchema } from '../globalSearch'
+import { GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE, GlobalSearchQuerySchema } from '../globalSearch'
 
 describe('GlobalSearchQuerySchema', () => {
   it('trims q without applying a default limit', () => {
@@ -16,22 +16,25 @@ describe('GlobalSearchQuerySchema', () => {
         q: 'agent',
         types: ['agent', 'session'],
         updatedAtFrom: '2026-05-01T00:00:00.000Z',
-        limitPerType: 500,
+        limitPerType: GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE,
         includeMessages: true
       })
     ).toEqual({
       q: 'agent',
       types: ['agent', 'session'],
       updatedAtFrom: '2026-05-01T00:00:00.000Z',
-      limitPerType: 500,
+      limitPerType: GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE,
       includeMessages: true
     })
   })
 
-  it('rejects blank q, invalid updatedAtFrom, and non-positive limits', () => {
+  it('rejects blank q, invalid updatedAtFrom, and out-of-range limits', () => {
     expect(() => GlobalSearchQuerySchema.parse({ q: '   ' })).toThrow()
     expect(() => GlobalSearchQuerySchema.parse({ q: 'agent', updatedAtFrom: 'today' })).toThrow()
     expect(() => GlobalSearchQuerySchema.parse({ q: 'agent', limitPerType: 0 })).toThrow()
+    expect(() =>
+      GlobalSearchQuerySchema.parse({ q: 'agent', limitPerType: GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE + 1 })
+    ).toThrow()
   })
 
   it('narrows target by result type at compile time', () => {

@@ -101,6 +101,22 @@ Backs every Service's reorder write path and POST-create. Encapsulates the `frac
 - **External imports of `fractional-indexing` are forbidden**: always go through the three generator wrappers above.
 - **Character set is locked to base62** (library default); no `digits` parameter is exposed. Changing the alphabet requires a whole-database migration, and the source-of-truth constant lives at the top of `orderKey.ts`.
 
+### `messageSearch.ts` — Message-search cursor, filtering, and pagination core
+
+Shared by topic-message and agent-session-message search. It owns the common
+opaque cursor codec, trigram-FTS candidate filtering, literal regex
+revalidation, snippet construction, offset scanning, and next-cursor assembly.
+
+**Design boundaries:**
+
+- **SQL shape stays with the owning service**: callers provide the raw SQL
+  query and row mapper because topic messages and agent-session messages join
+  different domain tables.
+- **Read-only search only**: this utility never writes, opens transactions, or
+  applies domain ownership rules.
+- **Role subsets are explicit**: exported role lists are constrained by
+  `MessageRole` so result DTOs cannot drift from the canonical role schema.
+
 ## Criteria for Adding a New Utility
 
 Before adding a new utility to this directory, confirm:

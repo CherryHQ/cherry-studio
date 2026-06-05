@@ -428,12 +428,25 @@ describe('MessageService', () => {
           siblingsGroupId: 0,
           createdAt: 200,
           updatedAt: 200
+        },
+        {
+          id: 'm-search-literal-3',
+          parentId: 'm-search-literal-2',
+          topicId: 'topic-search-literal',
+          role: 'assistant',
+          data: partsText('Save 50_ off today.'),
+          status: 'success',
+          siblingsGroupId: 0,
+          createdAt: 300,
+          updatedAt: 300
         }
       ])
 
-      const result = await messageService.search({ q: '50%' })
+      const percentResult = await messageService.search({ q: '50%' })
+      const underscoreResult = await messageService.search({ q: '50_' })
 
-      expect(result.items.map((item) => item.messageId)).toEqual(['m-search-literal-1'])
+      expect(percentResult.items.map((item) => item.messageId)).toEqual(['m-search-literal-1'])
+      expect(underscoreResult.items.map((item) => item.messageId)).toEqual(['m-search-literal-3'])
     })
 
     it('uses the message FTS index as the search candidate source', async () => {
