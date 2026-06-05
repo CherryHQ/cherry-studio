@@ -22,9 +22,15 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   protected async onInit(): Promise<void> {
     this.registerIpcHandlers()
-    // FIXME: Original code does not subscribe to feature.csaas.enabled runtime changes.
-    // Start/stop is driven entirely by the renderer UI via IPC.
-    // Consider adding a preference subscription for automatic runtime toggle in the future.
+    this.registerDisposable(
+      application.get('PreferenceService').subscribeChange('feature.csaas.enabled', (enabled) => {
+        if (enabled) {
+          this.activate().catch((error) => logger.error('Auto-start on preference change failed', error as Error))
+        } else {
+          this.deactivate().catch((error) => logger.error('Auto-stop on preference change failed', error as Error))
+        }
+      })
+    )
   }
 
   protected async onReady(): Promise<void> {
