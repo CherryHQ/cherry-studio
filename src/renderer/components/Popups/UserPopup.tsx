@@ -126,7 +126,7 @@ const PopupContainer: React.FC<Props> = ({ resolve }) => {
                     </EmojiAvatar>
                   ) : (
                     <Avatar className="size-20 rounded-[25%]">
-                      <AvatarImage src={avatar} />
+                      <AvatarImage src={avatar} className="object-cover" />
                     </Avatar>
                   )}
                 </Button>
