@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { getSearchMatchScore } from '../modelSearch'
+import { getSearchMatchScore, type ModelSearchField } from '../modelSearch'
 
 describe('modelSearch', () => {
   const fields = [
@@ -74,19 +74,17 @@ describe('modelSearch', () => {
     })
 
     it('should rank name > apiModelId > id > group > description based on weights', () => {
-      const modelFields = [
-        { name: { value: 'test-model', weight: 0, allowAbbreviation: true } },
-        { apiModelId: { value: 'test-api-id', weight: 1, allowAbbreviation: true } },
-        { id: { value: 'test-id', weight: 1, allowAbbreviation: true } },
-        { group: { value: 'test-group', weight: 2, allowAbbreviation: true } },
-        { description: { value: 'test-desc', weight: 30, allowAbbreviation: true } }
-      ]
+      const nameField: ModelSearchField = { value: 'test-model', weight: 0, allowAbbreviation: true }
+      const apiField: ModelSearchField = { value: 'test-api-id', weight: 1, allowAbbreviation: true }
+      const idField: ModelSearchField = { value: 'test-id', weight: 1, allowAbbreviation: true }
+      const groupField: ModelSearchField = { value: 'test-group', weight: 2, allowAbbreviation: true }
+      const descField: ModelSearchField = { value: 'test-desc', weight: 30, allowAbbreviation: true }
 
-      const scoreName = getSearchMatchScore('test', [modelFields[0].name])
-      const scoreApi = getSearchMatchScore('test', [modelFields[1].apiModelId])
-      const scoreId = getSearchMatchScore('test', [modelFields[2].id])
-      const scoreGroup = getSearchMatchScore('test', [modelFields[3].group])
-      const scoreDesc = getSearchMatchScore('test', [modelFields[4].description])
+      const scoreName = getSearchMatchScore('test', [nameField])
+      const scoreApi = getSearchMatchScore('test', [apiField])
+      const scoreId = getSearchMatchScore('test', [idField])
+      const scoreGroup = getSearchMatchScore('test', [groupField])
+      const scoreDesc = getSearchMatchScore('test', [descField])
 
       // Lower score is better
       expect(scoreName!).toBeLessThan(scoreApi!)
