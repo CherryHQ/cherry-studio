@@ -59,6 +59,7 @@ const router = express.Router()
  *     responses:
  *       200:
  *         description: Response created successfully
+ *         content:
  *           text/event-stream:
  *             schema:
  *               type: string

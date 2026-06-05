@@ -63,6 +63,7 @@ const mapChatCompletionError = (error: unknown): { status: number; body: ErrorRe
  *     responses:
  *       200:
  *         description: Chat completion response
+ *         content:
  *           text/event-stream:
  *             schema:
  *               type: string
