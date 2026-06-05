@@ -1,17 +1,14 @@
+import { loggerService } from '@logger'
 import type { FilePath } from '@shared/file/types'
 import type { PathStatus, PathStatusKind } from '@shared/file/types/ipc'
 
+// `errorCode` / `errorDetail` are shared with the sync, workspace-scoped
+// `workspacePathStatus.ts`; see `./errno` for how the two path-status utilities
+// relate (this one is async/general, that one is sync/workspace-scoped).
+import { errorCode, errorDetail } from './errno'
 import { stat } from './fs'
 
-function errorCode(error: unknown): string | undefined {
-  return typeof error === 'object' && error !== null && 'code' in error
-    ? String((error as NodeJS.ErrnoException).code)
-    : undefined
-}
-
-function errorDetail(error: unknown): string | undefined {
-  return error instanceof Error ? error.message : String(error)
-}
+const logger = loggerService.withContext('utils/file/pathStatus')
 
 function mismatchReason(expectedKind: PathStatusKind): 'not-file' | 'not-directory' {
   return expectedKind === 'file' ? 'not-file' : 'not-directory'
@@ -34,20 +31,23 @@ export async function getPathStatus(path: string, options?: { expectedKind?: Pat
     if (code === 'ENOENT' || code === 'ENOTDIR') {
       return { ok: false, reason: 'missing', detail: errorDetail(error) }
     }
+    // Truly-unexpected errno (EIO / EMFILE / ELOOP / EACCES …). Map to
+    // `inaccessible` but warn-log so the underlying cause leaves a breadcrumb,
+    // matching the observability discipline in sibling `fs.ts`.
+    logger.warn('getPathStatus: unexpected stat error, reporting as inaccessible', { path, code, error })
     return { ok: false, reason: 'inaccessible', detail: errorDetail(error) }
   }
 }
 
 export function formatPathStatusMessage(path: string, status: Exclude<PathStatus, { ok: true }>, label = 'Path') {
-  const detail = status.detail ? `. ${status.detail}` : ''
   switch (status.reason) {
     case 'missing':
-      return `${label} does not exist: ${path}${detail}`
+      return `${label} does not exist: ${path}${status.detail ? `. ${status.detail}` : ''}`
     case 'not-file':
       return `${label} is not a file: ${path}`
     case 'not-directory':
       return `${label} is not a directory: ${path}`
     case 'inaccessible':
-      return `${label} is not accessible: ${path}${detail}`
+      return `${label} is not accessible: ${path}${status.detail ? `. ${status.detail}` : ''}`
   }
 }

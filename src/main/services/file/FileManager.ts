@@ -697,10 +697,15 @@ export class FileManager extends BaseService implements IFileManager {
     this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, async (_e, params: unknown) =>
       this.batchGetDanglingStates(BatchGetDanglingStatesIpcSchema.parse(params))
     )
-    this.ipcHandle(IpcChannel.File_GetPathStatus, (_e, params: unknown) =>
+    this.ipcHandle(IpcChannel.File_GetPathStatus, async (_e, params: unknown) =>
       this.getPathStatus(GetPathStatusIpcSchema.parse(params))
     )
-    this.ipcHandle(IpcChannel.File_GetFileSize, async (_e, filePath: FilePath) => this.getFileSize(filePath))
+    // Gate the raw path arg at the boundary, mirroring `File_EnsureExternalEntry`
+    // (both reuse `AbsolutePathSchema`). The `as FilePath` re-applies the brand
+    // Zod can't reproduce — same pattern as the Phase 2 handlers below.
+    this.ipcHandle(IpcChannel.File_GetFileSize, async (_e, filePath: unknown) =>
+      this.getFileSize(AbsolutePathSchema.parse(filePath) as FilePath)
+    )
     // Phase 2 channels.
     //
     // Zod outputs the structural shapes (`{ path: string }`, `{ kind: 'path';

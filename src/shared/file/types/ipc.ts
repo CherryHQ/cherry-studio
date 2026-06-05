@@ -207,8 +207,6 @@ export type WorkspacePathStatus = { ok: true } | { ok: false; reason: WorkspaceP
 
 export type PathStatusKind = 'file' | 'directory'
 
-export type PathStatusReason = 'missing' | 'not-file' | 'not-directory' | 'inaccessible'
-
 export interface GetPathStatusIpcParams {
   path: string
   expectedKind?: PathStatusKind
@@ -216,7 +214,8 @@ export interface GetPathStatusIpcParams {
 
 export type PathStatus =
   | { ok: true; kind: PathStatusKind }
-  | { ok: false; reason: PathStatusReason; actualKind?: PathStatusKind; detail?: string }
+  | { ok: false; reason: 'missing' | 'inaccessible'; detail?: string }
+  | { ok: false; reason: 'not-file' | 'not-directory'; actualKind: PathStatusKind }
 
 // ─── File IPC API ───
 
@@ -234,7 +233,7 @@ export type PathStatus =
  *
  * | Phase 1 — wired | Phase 2 Batch 0 — wired | Phase 2 — type-only |
  * |---|---|---|
- * | `getDanglingState`, `batchGetDanglingStates` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, `permanentDelete` | everything else |
+ * | `getDanglingState`, `batchGetDanglingStates`, `getPathStatus`, `getFileSize` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, `permanentDelete` | everything else |
  *
  * Remaining `@phase 2` method shapes are *design drafts*; signatures may shift
  * when each channel actually lands alongside its first FileManager consumer.
@@ -537,16 +536,22 @@ export interface FileIpcApi {
 
   /**
    * Get status for an arbitrary filesystem path, optionally requiring a kind.
-   * @phase 1 — wired in FileManager lifecycle IPC
+   * @phase 1 — wired in `IpcChannel.File_GetPathStatus`
    */
   getPathStatus(params: GetPathStatusIpcParams): Promise<PathStatus>
 
   /**
-   * Read the size (in bytes) of a regular file at an arbitrary path. Thin
-   * wrapper around `fs.stat` — rejects if the path is missing, inaccessible,
-   * or not a regular file. Separate from `getPathStatus` to keep each
-   * single-hop facade focused on one semantic concern (kind vs. measurement).
-   * @phase 1 — wired in FileManager lifecycle IPC
+   * Read the size (in bytes) of a non-directory file at an arbitrary path.
+   * Thin wrapper around `fs.stat`:
+   * - Rejects with an explicit error when the path resolves to a directory.
+   * - Missing / inaccessible paths surface as the underlying `fs.stat` error
+   *   verbatim — unlike `getPathStatus`, this method does NOT normalize the
+   *   errno into a typed `detail` / `code`, nor does it special-case sockets,
+   *   FIFOs, devices, or symlinks (any non-directory stat returns its `size`).
+   *
+   * Separate from `getPathStatus` to keep each single-hop facade focused on one
+   * semantic concern (kind vs. measurement).
+   * @phase 1 — wired in `IpcChannel.File_GetFileSize`
    */
   getFileSize(path: FilePath): Promise<number>
 

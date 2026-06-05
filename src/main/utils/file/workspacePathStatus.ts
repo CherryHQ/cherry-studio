@@ -2,15 +2,11 @@ import fs from 'node:fs'
 
 import type { WorkspacePathStatus } from '@shared/file/types/ipc'
 
-function errorCode(error: unknown): string | undefined {
-  return typeof error === 'object' && error !== null && 'code' in error
-    ? String((error as NodeJS.ErrnoException).code)
-    : undefined
-}
-
-function errorDetail(error: unknown): string | undefined {
-  return error instanceof Error ? error.message : String(error)
-}
+// `errorCode` / `errorDetail` are shared with the async, general-purpose
+// `pathStatus.ts`; see `./errno` for how the two path-status utilities relate.
+// This one stays sync (`statSync`) because it is called from sync workspace
+// validation paths, so it cannot be folded into the async sibling.
+import { errorCode, errorDetail } from './errno'
 
 export function checkWorkspacePathStatus(workspacePath: string): WorkspacePathStatus {
   if (!workspacePath.trim()) {

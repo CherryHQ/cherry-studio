@@ -247,4 +247,31 @@ describe('FileManager v2 IPC handler registration', () => {
     // path-handle with a relative path
     await expect(deleteHandler!({} as never, { kind: 'path', path: 'relative.txt' })).rejects.toThrow()
   })
+
+  it('getFileSize handler returns the byte size of a regular file', async () => {
+    const file = path.join(tmp, 'sized.bin')
+    await writeFile(file, new Uint8Array([1, 2, 3, 4, 5]))
+
+    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_GetFileSize)?.[1]
+    expect(handler).toBeDefined()
+
+    await expect(handler!({} as never, file)).resolves.toBe(5)
+  })
+
+  it('getFileSize handler rejects when the path is a directory', async () => {
+    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_GetFileSize)?.[1]
+    // `tmp` itself is an existing directory
+    await expect(handler!({} as never, tmp)).rejects.toThrow(/directory/)
+  })
+
+  it('getFileSize handler propagates ENOENT for a missing path', async () => {
+    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_GetFileSize)?.[1]
+    const missing = path.join(tmp, 'does-not-exist.bin')
+    await expect(handler!({} as never, missing)).rejects.toThrow()
+  })
+
+  it('getFileSize handler rejects a relative path at the schema boundary', async () => {
+    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_GetFileSize)?.[1]
+    await expect(handler!({} as never, 'relative/file.bin')).rejects.toThrow()
+  })
 })
