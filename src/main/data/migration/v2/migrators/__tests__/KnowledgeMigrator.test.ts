@@ -73,6 +73,37 @@ describe('KnowledgeMappings', () => {
     })
   })
 
+  it('trims whitespace around legacy sitemap content before migrating', () => {
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'legacy-sitemap-2',
+        type: 'sitemap',
+        content: '   https://example.com/sitemap.xml   ',
+        uniqueId: 'loader-sitemap'
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        baseId: 'kb-1',
+        groupId: null,
+        type: 'url',
+        data: {
+          source: 'https://example.com/sitemap.xml',
+          url: 'https://example.com/sitemap.xml'
+        },
+        status: 'completed',
+        error: null
+      }
+    })
+  })
+
   it('keeps invalid legacy sitemap items skippable', () => {
     const result = transformKnowledgeItem(
       'kb-1',
