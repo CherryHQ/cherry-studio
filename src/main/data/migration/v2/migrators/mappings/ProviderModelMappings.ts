@@ -9,8 +9,8 @@ import {
   MODEL_CAPABILITY,
   type ModelCapability
 } from '@cherrystudio/provider-registry'
-import type { NewUserModel } from '@data/db/schemas/userModel'
-import type { NewUserProvider } from '@data/db/schemas/userProvider'
+import type { InsertUserModelRow } from '@data/db/schemas/userModel'
+import type { InsertUserProviderRow } from '@data/db/schemas/userProvider'
 import { loggerService } from '@logger'
 import { createUniqueModelId, type RuntimeModelPricing } from '@shared/data/types/model'
 import type {
@@ -193,7 +193,7 @@ function resolvePresetProviderId(legacy: LegacyProvider): string | null {
   return TYPE_TO_PRESET_PROVIDER_ID[legacy.type] ?? null
 }
 
-type NewUserProviderInput = Omit<NewUserProvider, 'orderKey'>
+type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
 
 export function transformProvider(legacy: LegacyProvider, settings: OldLlmSettings): NewUserProviderInput {
   const endpointType = ENDPOINT_MAP[legacy.type]
@@ -218,7 +218,7 @@ export function transformProvider(legacy: LegacyProvider, settings: OldLlmSettin
 function buildEndpointConfigs(
   legacy: LegacyProvider,
   endpointType: EndpointType | undefined
-): NewUserProvider['endpointConfigs'] {
+): InsertUserProviderRow['endpointConfigs'] {
   const configs: Partial<Record<EndpointType, EndpointConfig>> = {}
 
   if (legacy.apiHost && endpointType !== undefined) {
@@ -455,7 +455,7 @@ function buildProviderSettings(legacy: LegacyProvider, llmSettings: OldLlmSettin
   return hasValue ? settings : null
 }
 
-export function transformModel(legacy: LegacyModel, providerId: string): Omit<NewUserModel, 'orderKey'> {
+export function transformModel(legacy: LegacyModel, providerId: string): Omit<InsertUserModelRow, 'orderKey'> {
   const hasCustomizedCapabilities =
     legacy.capabilities?.some((capability) => capability.isUserSelected !== undefined) ?? false
 

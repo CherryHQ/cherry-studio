@@ -20,5 +20,5 @@ export const noteTable = sqliteTable(
   ]
 )
 
-export type NoteInsert = typeof noteTable.$inferInsert
-export type NoteSelect = typeof noteTable.$inferSelect
+export type InsertNoteRow = typeof noteTable.$inferInsert
+export type NoteRow = typeof noteTable.$inferSelect
