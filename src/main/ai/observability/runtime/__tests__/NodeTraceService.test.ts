@@ -34,6 +34,9 @@ describe('NodeTraceService', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     preferenceServiceMock.get.mockReturnValue(false)
+    // patchIpcMainHandle() reassigns ipcMain.handle and the stubbed
+    // registerDisposable never reverts it, so reset to a fresh fn per test.
+    ipcMainMock.handle = vi.fn()
   })
 
   it('does not register standalone trace window IPC handlers', async () => {
@@ -47,9 +50,21 @@ describe('NodeTraceService', () => {
   it('still patches IPC handlers for trace context when developer mode is enabled', async () => {
     preferenceServiceMock.get.mockReturnValue(true)
     const service = new NodeTraceService()
+    const originalHandle = ipcMainMock.handle
 
     await (service as any).onInit()
 
     expect((service as any).registerDisposable).toHaveBeenCalledTimes(1)
+    // patchIpcMainHandle() must have replaced ipcMain.handle with its wrapper.
+    expect(ipcMainMock.handle).not.toBe(originalHandle)
+  })
+
+  it('leaves ipcMain.handle untouched when developer mode is disabled', async () => {
+    const service = new NodeTraceService()
+    const originalHandle = ipcMainMock.handle
+
+    await (service as any).onInit()
+
+    expect(ipcMainMock.handle).toBe(originalHandle)
   })
 })

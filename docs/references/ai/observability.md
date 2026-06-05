@@ -1,7 +1,7 @@
 # Observability
 
 The `src/main/ai/observability/` subsystem: OTel tracing, the local span
-projection (trace viewer), and the sink registry. "Trace / telemetry" is the
+projection, and the sink registry. "Trace / telemetry" is the
 user-facing surface; this doc covers the whole subsystem.
 
 ## What's instrumented
@@ -27,7 +27,7 @@ The main-process observability boundary is `src/main/ai/observability`:
 - `core/` creates Cherry-owned turn roots and common `cs.*` attributes.
 - `adapters/aiSdk/` interprets AI SDK child spans.
 - `adapters/claudeCode/` interprets Claude Code OTLP spans and logs.
-- `cache/` keeps the trace-window projection and JSONL-compatible history.
+- `cache/` keeps the in-memory span projection and JSONL-compatible history.
 - `sinks/` defines the extension point for local and future external export.
 
 ## Local history flush
@@ -45,7 +45,7 @@ trace UI:
   `TraceFlushListener` calls `SpanCacheService.saveSpans(topicId)`.
 - Flush errors are logged as warnings and do not affect message completion.
 
-The trace pane and trace window are viewers only. They read spans through
+Span readers are viewers only. They read spans through
 `SpanCacheService.getSpans(...)`, which falls back to the JSONL history file
 when the in-memory store has already been cleared.
 
@@ -110,7 +110,7 @@ Dev mode only. The dev-tools span viewer reads from the local observability
 projection (`SpanCacheService`) and renders the per-topic tree. Outside
 developer mode `buildTelemetry` returns `undefined`, so **no tracer is
 attached at all** and the AI SDK emits no spans — there is nothing to
-project. Viewer mount, tab close, and window close are not part of the
+project. Viewer mount and tab close are not part of the
 trace persistence lifecycle.
 
 ## Where to read more

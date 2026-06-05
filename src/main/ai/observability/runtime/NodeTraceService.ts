@@ -40,8 +40,8 @@ export class NodeTraceService extends BaseService implements Activatable {
   private nodeTracer: { shutdown(): Promise<void> } | null = null
 
   /**
-   * IPC handlers are always registered (renderer may call them regardless).
-   * ipcMain.handle patch is applied only when developer_mode is enabled at startup.
+   * Registers no IPC handlers of its own.
+   * The ipcMain.handle patch is applied only when developer_mode is enabled at startup.
    * Runtime preference changes take effect after restart.
    */
   protected async onInit() {
