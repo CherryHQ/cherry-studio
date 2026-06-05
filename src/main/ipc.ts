@@ -26,8 +26,6 @@ import fontList from 'font-list'
 
 import { skillService } from './ai/skills/SkillService'
 import { appService } from './services/AppService'
-import { readExcelWorkbookPreview } from './services/artifact/excel/ExcelPreviewService'
-import { readWordPreview } from './services/artifact/word/WordPreviewService'
 import { ConfigKeys, configManager } from './services/ConfigManager'
 import { copilotService } from './services/CopilotService'
 import { ExportService } from './services/ExportService'
@@ -436,12 +434,6 @@ export async function registerIpc() {
 
   // pdf
   ipcMain.handle(IpcChannel.Pdf_ExtractText, (_, data: Uint8Array | ArrayBuffer | string) => extractPdfText(data))
-
-  // excel
-  ipcMain.handle(IpcChannel.Excel_ReadWorkbookPreview, (_, request) => readExcelWorkbookPreview(request))
-
-  // word
-  ipcMain.handle(IpcChannel.Word_ReadPreview, (_, request) => readWordPreview(request))
 
   // fs
   ipcMain.handle(IpcChannel.Fs_Read, FileService.readFile.bind(FileService))
