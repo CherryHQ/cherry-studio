@@ -59,7 +59,8 @@ export function buildApp() {
           info: {
             title: 'Cherry Studio API',
             version: '1.0.0',
-            description: 'OpenAI-compatible API for Cherry Studio with additional Cherry-specific endpoints'
+            description:
+              'OpenAI- and Anthropic-compatible HTTP API for Cherry Studio, plus Cherry-specific endpoints (models, knowledge bases)'
           }
         }
       })

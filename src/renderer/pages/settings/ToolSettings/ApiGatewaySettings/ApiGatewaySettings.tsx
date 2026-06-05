@@ -76,7 +76,9 @@ const ApiGatewaySettings: FC = () => {
 
   const openApiDocs = () => {
     if (apiGatewayRunning) {
-      window.open(`${serverUrl}/api-docs`, '_blank')
+      // The ElysiaJS `@elysia/openapi` plugin serves the docs UI at `/openapi`
+      // (the Express `/api-docs` path was removed in the gateway migration).
+      window.open(`${serverUrl}/openapi`, '_blank')
     }
   }
 
