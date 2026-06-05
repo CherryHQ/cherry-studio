@@ -6,7 +6,7 @@ import { loggerService } from '@logger'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { convertSpanToSpanEntity } from '@mcp-trace/trace-core/core/spanConvert'
 import type { TraceCache } from '@mcp-trace/trace-core/core/traceCache'
-import type { Attributes, AttributeValue, SpanEntity, TokenUsage } from '@mcp-trace/trace-core/types/config'
+import type { Attributes, AttributeValue, SpanEntity } from '@mcp-trace/trace-core/types/config'
 import { SpanStatusCode } from '@opentelemetry/api'
 import type { ReadableSpan, TimedEvent } from '@opentelemetry/sdk-trace-base'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -52,32 +52,15 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
 
   private registerIpcHandlers() {
     this.ipcHandle(IpcChannel.TRACE_SAVE_DATA, (_, topicId: string) => this.saveSpans(topicId))
-    this.ipcHandle(IpcChannel.TRACE_GET_DATA, (_, topicId: string, traceId: string, modelName?: string) =>
-      this.getSpans(topicId, traceId, modelName)
-    )
     this.ipcHandle(IpcChannel.TRACE_SAVE_ENTITY, (_, entity: SpanEntity) => this.saveEntity(entity))
     this.ipcHandle(IpcChannel.TRACE_GET_ENTITY, (_, spanId: string) => this.getEntity(spanId))
     this.ipcHandle(IpcChannel.TRACE_BIND_TOPIC, (_, topicId: string, traceId: string) =>
       this.setTopicId(traceId, topicId)
     )
-    this.ipcHandle(IpcChannel.TRACE_CLEAN_TOPIC, (_, topicId: string, traceId?: string) =>
-      this.cleanTopic(topicId, traceId)
-    )
-    this.ipcHandle(IpcChannel.TRACE_TOKEN_USAGE, (_, spanId: string, usage: TokenUsage) =>
-      this.updateTokenUsage(spanId, usage)
-    )
     this.ipcHandle(IpcChannel.TRACE_CLEAN_HISTORY, (_, topicId: string, traceId: string, modelName?: string) =>
       this.cleanHistoryTrace(topicId, traceId, modelName)
     )
-    this.ipcHandle(IpcChannel.TRACE_ADD_END_MESSAGE, (_, spanId: string, modelName: string, message: string) =>
-      this.setEndMessage(spanId, modelName, message)
-    )
     this.ipcHandle(IpcChannel.TRACE_CLEAN_LOCAL_DATA, () => this.cleanLocalData())
-    this.ipcHandle(
-      IpcChannel.TRACE_ADD_STREAM_MESSAGE,
-      (_, spanId: string, modelName: string, context: string, msg: any) =>
-        this.addStreamMessage(spanId, modelName, context, msg)
-    )
   }
 
   createSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {
@@ -112,22 +95,6 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
     this.store.clear()
   }
 
-  async cleanTopic(topicId: string, traceId?: string, modelName?: string) {
-    this.store.clearTopic(topicId, traceId, modelName)
-
-    if (modelName && traceId) {
-      await this.cleanHistoryTrace(topicId, traceId, modelName)
-      return
-    }
-
-    if (traceId) {
-      await fs.rm(this.traceFilePath(topicId, traceId), { force: true })
-      return
-    }
-
-    await fs.rm(this.traceTopicDir(topicId), { recursive: true, force: true })
-  }
-
   async cleanLocalData() {
     this.store.clear()
     try {
@@ -144,14 +111,6 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
     for (const traceId of traceIds) {
       await this.flushTrace(topicId, traceId)
     }
-  }
-
-  async getSpans(topicId: string, traceId: string, modelName?: string) {
-    const cached = this.store.getSpans({ topicId, traceId, modelName })
-    if (cached.length > 0) {
-      return cached
-    }
-    return this.getHistoryData(topicId, traceId, modelName)
   }
 
   setTopicId(traceId: string, topicId: string): void {
@@ -185,54 +144,6 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
     const events = Array.isArray(span.events) ? [...span.events, event] : [event]
     span.events = events
     this.store.setSpan(span)
-  }
-
-  updateTokenUsage(spanId: string, usage: TokenUsage) {
-    if (!this.isActivated) return
-    const entity = this.store.getSpan(spanId)
-    if (entity) {
-      entity.usage = { ...usage }
-      this.store.setSpan(entity)
-    }
-    if (entity?.parentId) {
-      this.updateParentUsage(entity.parentId, usage)
-    }
-  }
-
-  addStreamMessage(spanId: string, modelName: string, context: string, message: any) {
-    if (!this.isActivated) return
-    const span = this.store.getSpan(spanId)
-    if (!span) {
-      return
-    }
-    const attributes = span.attributes
-    let msgArray: any[] = []
-    if (attributes && attributes['outputs'] && Array.isArray(attributes['outputs'])) {
-      msgArray = attributes['outputs'] || []
-      msgArray.push(message)
-      attributes['outputs'] = msgArray
-    } else {
-      msgArray = [message]
-      span.attributes = { ...attributes, outputs: msgArray } as Attributes
-    }
-    this.store.setSpan(span)
-    this.updateParentOutputs(span.parentId, modelName, context)
-  }
-
-  setEndMessage(spanId: string, modelName: string, message: string) {
-    if (!this.isActivated) return
-    const span = this.store.getSpan(spanId)
-    if (span && span.attributes) {
-      let outputs = span.attributes['outputs']
-      if (!outputs || typeof outputs !== 'object' || Array.isArray(outputs)) {
-        outputs = {}
-      }
-      if (!(`${modelName}` in outputs) || !outputs[`${modelName}`]) {
-        outputs[`${modelName}`] = message
-        span.attributes[`outputs`] = outputs
-        this.store.setSpan(span)
-      }
-    }
   }
 
   async cleanHistoryTrace(topicId: string, traceId: string, modelName?: string) {
@@ -351,56 +262,6 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
       }
     })
     savedEntity.attributes = savedAttrs
-  }
-
-  // Walk the parent chain iteratively with a visited set. A renderer-saved cycle
-  // (e.g. `{id:'x',parentId:'x'}` or a→b→a) would otherwise recurse forever → main-process crash.
-  private updateParentOutputs(spanId: string | undefined, modelName: string, context: string) {
-    if (!context) return
-    const visited = new Set<string>()
-    let currentId = spanId
-    while (currentId && !visited.has(currentId)) {
-      visited.add(currentId)
-      const span = this.store.getSpan(currentId)
-      if (!span) return
-      const attributes = span.attributes
-      if (attributes && span.modelName) {
-        const currentValue = attributes['outputs']
-        if (currentValue && typeof currentValue === 'object' && !Array.isArray(currentValue)) {
-          const allContext = (currentValue['streamText'] || '') + context
-          attributes['outputs'] = { ...currentValue, streamText: allContext }
-        } else {
-          attributes['outputs'] = { streamText: context }
-        }
-        span.attributes = attributes
-      } else if (span.modelName) {
-        span.attributes = { outputs: { [`${modelName}`]: context } } as Attributes
-      } else {
-        return
-      }
-      this.store.setSpan(span)
-      currentId = span.parentId ?? undefined
-    }
-  }
-
-  // Iterative + visited set for the same cycle-safety reason as updateParentOutputs.
-  private updateParentUsage(spanId: string | undefined, usage: TokenUsage) {
-    const visited = new Set<string>()
-    let currentId = spanId
-    while (currentId && !visited.has(currentId)) {
-      visited.add(currentId)
-      const entity = this.store.getSpan(currentId)
-      if (!entity) return
-      if (!entity.usage) {
-        entity.usage = { ...usage }
-      } else {
-        entity.usage.prompt_tokens = entity.usage.prompt_tokens + usage.prompt_tokens
-        entity.usage.completion_tokens = entity.usage.completion_tokens + usage.completion_tokens
-        entity.usage.total_tokens = entity.usage.total_tokens + usage.total_tokens
-      }
-      this.store.setSpan(entity)
-      currentId = entity.parentId ?? undefined
-    }
   }
 
   private async flushTrace(topicId: string, traceId: string) {
