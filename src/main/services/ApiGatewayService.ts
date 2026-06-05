@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
-import { type Activatable, BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
+import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
   ApiServerConfig,
@@ -17,7 +17,6 @@ const logger = loggerService.withContext('ApiGatewayService')
 
 @Injectable('ApiGatewayService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['MainWindowService'])
 export class ApiGatewayService extends BaseService implements Activatable {
   private apiGateway: ApiGateway | null = null
 
