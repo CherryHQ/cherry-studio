@@ -5,7 +5,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  *
  * They verify the idiomatic route wiring end-to-end: declarative schema
  * validation (auto-400), the per-dialect `onError` envelopes (OpenAI vs
- * Anthropic), auth short-circuiting, and `status()`-based domain responses.
+ * Anthropic), auth short-circuiting, and `status()`-based responses.
+ * (Knowledge route behaviour is covered in ../knowledge/__tests__.)
  */
 
 // All mock fns live in vi.hoisted so the (hoisted) vi.mock factories can close
@@ -51,9 +52,11 @@ vi.mock('../../services/responses', () => ({
   responsesService: { transformError: vi.fn() }
 }))
 
-// Knowledge handlers eagerly import these at module load (pulled in by buildApp).
-vi.mock('@main/services/ReduxService', () => ({ reduxService: { select: vi.fn() } }))
-vi.mock('@main/services/KnowledgeService', () => ({ default: { search: vi.fn() } }))
+// Knowledge routes use the v2 KB service (pulled in by buildApp); stubbed so
+// building the app stays hermetic (knowledge behaviour tested separately).
+vi.mock('@data/services/KnowledgeBaseService', () => ({
+  knowledgeBaseService: { list: vi.fn(async () => ({ items: [], total: 0, page: 1 })), getById: vi.fn() }
+}))
 
 import { buildApp } from '../../app'
 
