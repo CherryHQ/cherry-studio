@@ -1,5 +1,5 @@
 import { application } from '@application'
-import { type WorkspaceRow, workspaceTable } from '@data/db/schemas/workspace'
+import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
@@ -7,15 +7,15 @@ import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
+import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { asc, eq } from 'drizzle-orm'
 import fs from 'fs'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 
-const logger = loggerService.withContext('WorkspaceService')
+const logger = loggerService.withContext('AgentWorkspaceService')
 
-export function rowToWorkspace(row: WorkspaceRow): WorkspaceEntity {
+export function rowToWorkspace(row: AgentWorkspaceRow): AgentWorkspaceEntity {
   return {
     id: row.id,
     name: row.name,
@@ -74,37 +74,44 @@ function cleanupPreparedWorkspaceDirectory(workspacePath: string): void {
   }
 }
 
-export class WorkspaceService {
-  async list(): Promise<WorkspaceEntity[]> {
+export class AgentWorkspaceService {
+  async list(): Promise<AgentWorkspaceEntity[]> {
     const db = application.get('DbService').getDb()
-    const rows = await db.select().from(workspaceTable).orderBy(asc(workspaceTable.orderKey), asc(workspaceTable.id))
+    const rows = await db
+      .select()
+      .from(agentWorkspaceTable)
+      .orderBy(asc(agentWorkspaceTable.orderKey), asc(agentWorkspaceTable.id))
     return rows.map(rowToWorkspace)
   }
 
-  async getById(id: string): Promise<WorkspaceEntity> {
+  async getById(id: string): Promise<AgentWorkspaceEntity> {
     const db = application.get('DbService').getDb()
     const row = await this.getRowByIdTx(db, id)
     return rowToWorkspace(row)
   }
 
-  async getByIdTx(tx: DbOrTx, id: string): Promise<WorkspaceEntity> {
+  async getByIdTx(tx: DbOrTx, id: string): Promise<AgentWorkspaceEntity> {
     const row = await this.getRowByIdTx(tx, id)
     return rowToWorkspace(row)
   }
 
-  async getRowByIdTx(tx: DbOrTx, id: string): Promise<WorkspaceRow> {
-    const [row] = await tx.select().from(workspaceTable).where(eq(workspaceTable.id, id)).limit(1)
+  async getRowByIdTx(tx: DbOrTx, id: string): Promise<AgentWorkspaceRow> {
+    const [row] = await tx.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, id)).limit(1)
     if (!row) throw DataApiErrorFactory.notFound('Workspace', id)
     return row
   }
 
-  async findOrCreateByPath(rawPath: string, options: { name?: string } = {}): Promise<WorkspaceEntity> {
+  async findOrCreateByPath(rawPath: string, options: { name?: string } = {}): Promise<AgentWorkspaceEntity> {
     const workspacePath = normalizeWorkspacePath(rawPath)
     ensureWorkspaceDirectory(workspacePath)
     return await this.findOrCreatePreparedPath(workspacePath, options)
   }
 
-  async findOrCreateByPathTx(tx: DbOrTx, rawPath: string, options: { name?: string } = {}): Promise<WorkspaceEntity> {
+  async findOrCreateByPathTx(
+    tx: DbOrTx,
+    rawPath: string,
+    options: { name?: string } = {}
+  ): Promise<AgentWorkspaceEntity> {
     const workspacePath = normalizeWorkspacePath(rawPath)
     const row = await withSqliteErrors(() => this.findOrCreateRowByNormalizedPathTx(tx, workspacePath, options), {
       ...defaultHandlersFor('Workspace', workspacePath),
@@ -123,7 +130,7 @@ export class WorkspaceService {
     cleanupPreparedWorkspaceDirectory(workspacePath)
   }
 
-  async createDefaultWorkspace(): Promise<WorkspaceEntity> {
+  async createDefaultWorkspace(): Promise<AgentWorkspaceEntity> {
     const workspacePath = this.prepareDefaultWorkspaceDirectory()
     try {
       return await this.findOrCreatePreparedPath(workspacePath)
@@ -133,14 +140,14 @@ export class WorkspaceService {
     }
   }
 
-  async createDefaultWorkspaceTx(tx: DbOrTx, workspacePath: string): Promise<WorkspaceEntity> {
+  async createDefaultWorkspaceTx(tx: DbOrTx, workspacePath: string): Promise<AgentWorkspaceEntity> {
     return await this.findOrCreateByPathTx(tx, workspacePath)
   }
 
   private async findOrCreatePreparedPath(
     workspacePath: string,
     options: { name?: string } = {}
-  ): Promise<WorkspaceEntity> {
+  ): Promise<AgentWorkspaceEntity> {
     const dbService = application.get('DbService')
     const row = await withSqliteErrors(
       () => dbService.withWriteTx((tx) => this.findOrCreateRowByNormalizedPathTx(tx, workspacePath, options)),
@@ -157,18 +164,22 @@ export class WorkspaceService {
     tx: DbOrTx,
     workspacePath: string,
     options: { name?: string } = {}
-  ): Promise<WorkspaceRow> {
-    const [existing] = await tx.select().from(workspaceTable).where(eq(workspaceTable.path, workspacePath)).limit(1)
+  ): Promise<AgentWorkspaceRow> {
+    const [existing] = await tx
+      .select()
+      .from(agentWorkspaceTable)
+      .where(eq(agentWorkspaceTable.path, workspacePath))
+      .limit(1)
     if (existing) return existing
 
     const id = uuidv4()
     const name = options.name?.trim() || defaultWorkspaceName(workspacePath)
     return (await insertWithOrderKey(
       tx,
-      workspaceTable,
+      agentWorkspaceTable,
       { id, name, path: workspacePath },
-      { pkColumn: workspaceTable.id, position: 'first' }
-    )) as WorkspaceRow
+      { pkColumn: agentWorkspaceTable.id, position: 'first' }
+    )) as AgentWorkspaceRow
   }
 
   async reorder(id: string, anchor: OrderRequest): Promise<void> {
@@ -176,9 +187,12 @@ export class WorkspaceService {
   }
 
   async reorderTx(tx: DbOrTx, id: string, anchor: OrderRequest): Promise<void> {
-    const [target] = await tx.select({ id: workspaceTable.id }).from(workspaceTable).where(eq(workspaceTable.id, id))
+    const [target] = await tx
+      .select({ id: agentWorkspaceTable.id })
+      .from(agentWorkspaceTable)
+      .where(eq(agentWorkspaceTable.id, id))
     if (!target) throw DataApiErrorFactory.notFound('Workspace', id)
-    await applyMoves(tx, workspaceTable, [{ id, anchor }], { pkColumn: workspaceTable.id })
+    await applyMoves(tx, agentWorkspaceTable, [{ id, anchor }], { pkColumn: agentWorkspaceTable.id })
   }
 
   async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
@@ -187,8 +201,8 @@ export class WorkspaceService {
   }
 
   async reorderBatchTx(tx: DbOrTx, moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
-    await applyMoves(tx, workspaceTable, moves, { pkColumn: workspaceTable.id })
+    await applyMoves(tx, agentWorkspaceTable, moves, { pkColumn: agentWorkspaceTable.id })
   }
 }
 
-export const workspaceService = new WorkspaceService()
+export const agentWorkspaceService = new AgentWorkspaceService()

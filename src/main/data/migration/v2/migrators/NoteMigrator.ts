@@ -1,4 +1,4 @@
-import { type NoteInsert, noteTable } from '@data/db/schemas/note'
+import { type InsertNoteRow, noteTable } from '@data/db/schemas/note'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult } from '@shared/data/migration/v2/types'
 import { eq, sql } from 'drizzle-orm'
@@ -34,7 +34,7 @@ export class NoteMigrator extends BaseMigrator {
   readonly description = 'Migrate notes starred and expanded state from Redux to SQLite'
   readonly order = 1.1
 
-  private preparedRows: NoteInsert[] = []
+  private preparedRows: InsertNoteRow[] = []
   private skippedCount = 0
 
   override reset(): void {
@@ -67,7 +67,7 @@ export class NoteMigrator extends BaseMigrator {
       return { success: true, itemCount: 0, warnings }
     }
 
-    const rows = new Map<string, NoteInsert>()
+    const rows = new Map<string, InsertNoteRow>()
 
     for (const path of starredPaths) {
       rows.set(path, {

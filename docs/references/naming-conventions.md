@@ -307,6 +307,26 @@ The `Service` suffix names a **role** (a stateful domain capability), not a **me
 
 The criteria for choosing between them are defined in [`docs/references/lifecycle/lifecycle-decision-guide.md`](lifecycle/lifecycle-decision-guide.md).
 
+### 5.3 Drizzle Schema Inferred Row Types
+
+Every Drizzle table in `src/main/data/db/schemas/` exports its inferred select/insert types using the **`Row` suffix** form:
+
+| Inferred from | Type name | Example |
+|---|---|---|
+| `xxxTable.$inferSelect` | `XxxRow` | `AgentRow`, `McpServerRow` |
+| `xxxTable.$inferInsert` | `InsertXxxRow` | `InsertAgentRow`, `InsertMcpServerRow` |
+
+```ts
+export const mcpServerTable = sqliteTable('mcp_server', { /* ... */ })
+
+export type McpServerRow = typeof mcpServerTable.$inferSelect
+export type InsertMcpServerRow = typeof mcpServerTable.$inferInsert
+```
+
+`Row` names the raw database row and is deliberately distinct from the API entity type (`XxxEntity`, e.g. `WorkspaceEntity`) the row is mapped to in the shared layer. The `Xxx` stem matches the table-derived `xxxTable` const (see §3.2), so `agent_workspace` → `agentWorkspaceTable` → `AgentWorkspaceRow` / `InsertAgentWorkspaceRow`.
+
+Do **not** use the alternatives that previously coexisted here: `XxxSelect` / `XxxInsert`, `Xxx` / `NewXxx`, or Drizzle's docs-style `SelectXxx` / `InsertXxx`. The `Row` suffix is chosen over Drizzle's docs form precisely because it keeps the DB-row type visibly separate from the API `XxxEntity` type.
+
 ---
 
 ## 6. Edge Cases

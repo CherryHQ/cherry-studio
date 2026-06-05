@@ -196,7 +196,7 @@ export const AgentChannelListQuerySchema = z.strictObject({
 export type AgentChannelListQuery = z.infer<typeof AgentChannelListQuerySchema>
 
 export type AgentChannelSchemas = {
-  '/channels': {
+  '/agent-channels': {
     GET: {
       query?: AgentChannelListQuery
       response: AgentChannelEntity[]
@@ -207,7 +207,7 @@ export type AgentChannelSchemas = {
     }
   }
 
-  '/channels/:channelId': {
+  '/agent-channels/:channelId': {
     GET: {
       params: { channelId: string }
       response: AgentChannelEntity

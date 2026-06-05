@@ -16,13 +16,13 @@ const EMPTY_CHANNELS: readonly AgentChannelEntity[] = Object.freeze([])
 
 export const useChannels = (type?: AgentChannelType) => {
   const { t } = useTranslation()
-  const { data, error, isLoading, refetch, mutate } = useQuery('/channels', {
+  const { data, error, isLoading, refetch, mutate } = useQuery('/agent-channels', {
     query: type ? { type } : undefined,
     swrOptions: { keepPreviousData: false }
   })
   const channels = data ?? (EMPTY_CHANNELS as AgentChannelEntity[])
 
-  const { trigger: createTrigger } = useMutation('POST', '/channels', { refresh: ['/channels'] })
+  const { trigger: createTrigger } = useMutation('POST', '/agent-channels', { refresh: ['/agent-channels'] })
   const createChannel = useCallback(
     async (channelData: CreateAgentChannelDto) => {
       try {
@@ -36,8 +36,8 @@ export const useChannels = (type?: AgentChannelType) => {
     [createTrigger, t]
   )
 
-  const { trigger: updateTrigger } = useMutation('PATCH', '/channels/:channelId', {
-    refresh: ({ args }) => ['/channels', `/channels/${args?.params.channelId}` as never]
+  const { trigger: updateTrigger } = useMutation('PATCH', '/agent-channels/:channelId', {
+    refresh: ({ args }) => ['/agent-channels', `/agent-channels/${args?.params.channelId}` as never]
   })
   const updateChannel = useCallback(
     async (id: string, updates: UpdateAgentChannelDto) => {
@@ -52,8 +52,8 @@ export const useChannels = (type?: AgentChannelType) => {
     [updateTrigger, t]
   )
 
-  const { trigger: deleteTrigger } = useMutation('DELETE', '/channels/:channelId', {
-    refresh: ['/channels']
+  const { trigger: deleteTrigger } = useMutation('DELETE', '/agent-channels/:channelId', {
+    refresh: ['/agent-channels']
   })
   const deleteChannel = useCallback(
     async (id: string) => {

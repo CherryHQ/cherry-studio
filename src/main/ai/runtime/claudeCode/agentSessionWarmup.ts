@@ -1,8 +1,8 @@
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { modelService } from '@data/services/ModelService'
 import { providerService } from '@data/services/ProviderService'
-import { sessionService } from '@data/services/SessionService'
 import { ENDPOINT_TYPE, parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { formatApiHost } from '@shared/utils/api'
@@ -23,7 +23,7 @@ export async function buildClaudeCodeQueryRequestForAgentSession(
   sessionId: string,
   effectiveResume?: string
 ): Promise<ClaudeCodeAgentSessionQueryRequest | undefined> {
-  const session = await sessionService.getById(sessionId)
+  const session = await agentSessionService.getById(sessionId)
   if (!session?.agentId) return undefined
 
   const agent = await agentService.getAgent(session.agentId)

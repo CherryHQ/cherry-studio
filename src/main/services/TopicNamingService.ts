@@ -1,6 +1,6 @@
 import { agentService } from '@data/services/AgentService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { assistantDataService } from '@data/services/AssistantService'
-import { sessionService } from '@data/services/SessionService'
 import { topicService } from '@data/services/TopicService'
 import { loggerService } from '@logger'
 import type { AiGenerateRequest } from '@main/ai/AiService'
@@ -225,7 +225,7 @@ export class TopicNamingService {
 
     agentSessionRenameLocks.add(sessionId)
     try {
-      const session = await sessionService.getById(sessionId).catch(() => null)
+      const session = await agentSessionService.getById(sessionId).catch(() => null)
       if (!session || !session.agentId) return
       const agent = await agentService.getAgent(session.agentId).catch(() => null)
       if (!agent || !agent.model) return
@@ -245,7 +245,7 @@ export class TopicNamingService {
       const nextName = removeSpecialCharactersForTopicName(title)
       if (!nextName || nextName === (session.name ?? '').trim()) return
 
-      const updated = await sessionService.update(sessionId, { name: nextName })
+      const updated = await agentSessionService.update(sessionId, { name: nextName })
       if (updated) {
         this.notifyAgentSessionAutoRenamed(sessionId)
       }

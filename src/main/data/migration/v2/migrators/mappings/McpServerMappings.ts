@@ -4,7 +4,7 @@
  * Transforms legacy Redux McpServer objects to SQLite mcp_server table rows.
  */
 
-import type { McpServerInsert } from '@data/db/schemas/mcpServer'
+import type { InsertMcpServerRow } from '@data/db/schemas/mcpServer'
 import { v4 as uuidv4 } from 'uuid'
 
 function toNullable<T>(value: unknown): T | null {
@@ -16,7 +16,7 @@ function toRequired<T>(value: unknown, fallback: T): T {
 }
 
 export interface McpServerTransformResult {
-  row: McpServerInsert
+  row: InsertMcpServerRow
   oldId: string
 }
 

@@ -52,9 +52,9 @@ function providerRow(providerId: string, name: string, orderKey = generateOrderK
   return { providerId, name, orderKey }
 }
 
-type NewUserModel = typeof userModelTable.$inferInsert
+type InsertUserModelRow = typeof userModelTable.$inferInsert
 
-function modelRow(providerId: string, modelId: string, values: Partial<NewUserModel> = {}): NewUserModel {
+function modelRow(providerId: string, modelId: string, values: Partial<InsertUserModelRow> = {}): InsertUserModelRow {
   return {
     id: createUniqueModelId(providerId, modelId),
     providerId,
