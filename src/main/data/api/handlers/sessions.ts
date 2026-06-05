@@ -8,7 +8,7 @@
  */
 
 import { agentSessionMessageService as sessionMessageService } from '@data/services/AgentSessionMessageService'
-import { sessionService } from '@data/services/SessionService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { toDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
@@ -25,29 +25,29 @@ export const sessionHandlers: HandlersFor<SessionSchemas> = {
     GET: async ({ query }) => {
       const parsed = ListSessionsQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await sessionService.listByCursor(parsed.data)
+      return await agentSessionService.listByCursor(parsed.data)
     },
 
     POST: async ({ body }) => {
       const parsed = CreateSessionSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await sessionService.createSession(parsed.data)
+      return await agentSessionService.createSession(parsed.data)
     }
   },
 
   '/sessions/:sessionId': {
     GET: async ({ params }) => {
-      return await sessionService.getById(params.sessionId)
+      return await agentSessionService.getById(params.sessionId)
     },
 
     PATCH: async ({ params, body }) => {
       const parsed = UpdateSessionSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await sessionService.update(params.sessionId, parsed.data)
+      return await agentSessionService.update(params.sessionId, parsed.data)
     },
 
     DELETE: async ({ params }) => {
-      await sessionService.delete(params.sessionId)
+      await agentSessionService.delete(params.sessionId)
       return undefined
     }
   },
@@ -70,7 +70,7 @@ export const sessionHandlers: HandlersFor<SessionSchemas> = {
   '/sessions/:id/order': {
     PATCH: async ({ params, body }) => {
       const parsed = OrderRequestSchema.parse(body)
-      await sessionService.reorder(params.id, parsed)
+      await agentSessionService.reorder(params.id, parsed)
       return undefined
     }
   },
@@ -78,7 +78,7 @@ export const sessionHandlers: HandlersFor<SessionSchemas> = {
   '/sessions/order:batch': {
     PATCH: async ({ body }) => {
       const parsed = OrderBatchRequestSchema.parse(body)
-      await sessionService.reorderBatch(parsed.moves)
+      await agentSessionService.reorderBatch(parsed.moves)
       return undefined
     }
   }
