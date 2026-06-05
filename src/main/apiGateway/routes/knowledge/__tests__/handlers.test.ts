@@ -1,8 +1,5 @@
 import type { KnowledgeBase } from '@types'
-import type { Response } from 'express'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-import type { ValidationRequest } from '../validators/zodValidator'
 
 // Mock dependencies BEFORE importing handlers - no top-level variables
 vi.mock('@main/services/ReduxService', () => ({
@@ -50,22 +47,13 @@ function createMockKnowledgeBase(overrides: Partial<KnowledgeBase> = {}): Knowle
   } as KnowledgeBase
 }
 
+/** Read status + parsed JSON body from a Web Response. */
+async function readResponse(response: Response): Promise<{ status: number; body: any }> {
+  return { status: response.status, body: await response.json() }
+}
+
 describe('Knowledge Handlers', () => {
-  let req: ValidationRequest
-  let res: Partial<Response>
-  let jsonMock: ReturnType<typeof vi.fn>
-  let statusMock: ReturnType<typeof vi.fn>
-
   beforeEach(() => {
-    jsonMock = vi.fn()
-    statusMock = vi.fn(() => ({ json: jsonMock }))
-
-    req = {} as ValidationRequest
-    res = {
-      status: statusMock,
-      json: jsonMock
-    }
-
     vi.clearAllMocks()
   })
 
@@ -80,11 +68,10 @@ describe('Knowledge Handlers', () => {
       const { reduxService } = await import('@main/services/ReduxService')
       ;(reduxService.select as ReturnType<typeof vi.fn>).mockResolvedValue(mockBases)
 
-      req.validatedQuery = { limit: 2, offset: 0 }
+      const { status, body } = await readResponse(await listKnowledgeBases({ limit: 2, offset: 0 }))
 
-      await listKnowledgeBases(req, res as Response)
-
-      expect(jsonMock).toHaveBeenCalledWith({
+      expect(status).toBe(200)
+      expect(body).toEqual({
         knowledge_bases: mockBases.slice(0, 2),
         total: 3
       })
@@ -94,12 +81,10 @@ describe('Knowledge Handlers', () => {
       const { reduxService } = await import('@main/services/ReduxService')
       ;(reduxService.select as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Main window is not available'))
 
-      req.validatedQuery = { limit: 20, offset: 0 }
+      const { status, body } = await readResponse(await listKnowledgeBases({ limit: 20, offset: 0 }))
 
-      await listKnowledgeBases(req, res as Response)
-
-      expect(statusMock).toHaveBeenCalledWith(503)
-      expect(jsonMock).toHaveBeenCalledWith({
+      expect(status).toBe(503)
+      expect(body).toEqual({
         error: {
           message: 'Knowledge bases are only available when Cherry Studio window is open',
           type: 'service_unavailable',
@@ -115,23 +100,20 @@ describe('Knowledge Handlers', () => {
       const { reduxService } = await import('@main/services/ReduxService')
       ;(reduxService.select as ReturnType<typeof vi.fn>).mockResolvedValue([mockBase])
 
-      req.validatedParams = { id: 'kb-1' }
+      const { status, body } = await readResponse(await getKnowledgeBase('kb-1'))
 
-      await getKnowledgeBase(req, res as Response)
-
-      expect(jsonMock).toHaveBeenCalledWith(mockBase)
+      expect(status).toBe(200)
+      expect(body).toEqual(mockBase)
     })
 
     it('should return 404 when knowledge base not found', async () => {
       const { reduxService } = await import('@main/services/ReduxService')
       ;(reduxService.select as ReturnType<typeof vi.fn>).mockResolvedValue([])
 
-      req.validatedParams = { id: 'non-existent' }
+      const { status, body } = await readResponse(await getKnowledgeBase('non-existent'))
 
-      await getKnowledgeBase(req, res as Response)
-
-      expect(statusMock).toHaveBeenCalledWith(404)
-      expect(jsonMock).toHaveBeenCalledWith({
+      expect(status).toBe(404)
+      expect(body).toEqual({
         error: {
           message: 'Knowledge base not found: non-existent',
           type: 'invalid_request_error',
@@ -144,11 +126,9 @@ describe('Knowledge Handlers', () => {
       const { reduxService } = await import('@main/services/ReduxService')
       ;(reduxService.select as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Main window is not available'))
 
-      req.validatedParams = { id: 'kb-1' }
+      const { status } = await readResponse(await getKnowledgeBase('kb-1'))
 
-      await getKnowledgeBase(req, res as Response)
-
-      expect(statusMock).toHaveBeenCalledWith(503)
+      expect(status).toBe(503)
     })
   })
 
@@ -157,11 +137,10 @@ describe('Knowledge Handlers', () => {
       const { reduxService } = await import('@main/services/ReduxService')
       ;(reduxService.select as ReturnType<typeof vi.fn>).mockResolvedValue([])
 
-      req.validatedBody = { query: 'test query', document_count: 5 }
+      const { status, body } = await readResponse(await searchKnowledge({ query: 'test query', document_count: 5 }))
 
-      await searchKnowledge(req, res as Response)
-
-      expect(jsonMock).toHaveBeenCalledWith({
+      expect(status).toBe(200)
+      expect(body).toEqual({
         query: 'test query',
         results: [],
         total: 0,
@@ -174,16 +153,16 @@ describe('Knowledge Handlers', () => {
       const { reduxService } = await import('@main/services/ReduxService')
       ;(reduxService.select as ReturnType<typeof vi.fn>).mockResolvedValue([createMockKnowledgeBase({ id: 'kb-1' })])
 
-      req.validatedBody = {
-        query: 'test query',
-        knowledge_base_ids: ['non-existent'],
-        document_count: 5
-      }
+      const { status, body } = await readResponse(
+        await searchKnowledge({
+          query: 'test query',
+          knowledge_base_ids: ['non-existent'],
+          document_count: 5
+        })
+      )
 
-      await searchKnowledge(req, res as Response)
-
-      expect(statusMock).toHaveBeenCalledWith(404)
-      expect(jsonMock).toHaveBeenCalledWith({
+      expect(status).toBe(404)
+      expect(body).toEqual({
         error: {
           message: 'None of the specified knowledge bases were found',
           type: 'invalid_request_error',
@@ -196,11 +175,9 @@ describe('Knowledge Handlers', () => {
       const { reduxService } = await import('@main/services/ReduxService')
       ;(reduxService.select as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Main window is not available'))
 
-      req.validatedBody = { query: 'test query', document_count: 5 }
+      const { status } = await readResponse(await searchKnowledge({ query: 'test query', document_count: 5 }))
 
-      await searchKnowledge(req, res as Response)
-
-      expect(statusMock).toHaveBeenCalledWith(503)
+      expect(status).toBe(503)
     })
   })
 })

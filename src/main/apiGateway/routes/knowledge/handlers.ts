@@ -3,19 +3,21 @@
 //           Redux is blocked for new data-model features until v2.0.0.
 
 import { loggerService } from '@logger'
-import { knowledgeService } from '@main/services/KnowledgeService'
-import { reduxService } from '@main/services/ReduxService'
 import type { KnowledgeBase, KnowledgeBaseParams, Provider } from '@types'
-import type { Response } from 'express'
-import type * as z from 'zod'
-
-import type { KnowledgeSearchSchema } from './validators/zodSchemas'
-import type { ValidationRequest } from './validators/zodValidator'
 
 const logger = loggerService.withContext('KnowledgeHandlers')
 
-// Infer types from Zod schemas to avoid duplication
-type ValidatedSearchBody = z.infer<typeof KnowledgeSearchSchema>
+// These services pull heavy main-process graphs (and the deprecated v1 Redux
+// layer); load them lazily so importing this module doesn't eagerly pull them.
+const getReduxService = async () => (await import('@main/services/ReduxService')).reduxService
+const getKnowledgeService = async () => (await import('@main/services/KnowledgeService')).knowledgeService
+
+/** Build a JSON `Response` with a status code. */
+const json = (status: number, body: unknown): Response =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' }
+  })
 
 /**
  * Helper to detect Redux unavailability errors
@@ -28,10 +30,10 @@ function isReduxUnavailableError(error: unknown): boolean {
 /**
  * Get all knowledge bases
  */
-export const listKnowledgeBases = async (req: ValidationRequest, res: Response): Promise<Response> => {
+export const listKnowledgeBases = async (query: { limit?: number; offset?: number }): Promise<Response> => {
   try {
-    // Use Zod-validated values (defaults already applied by validator)
-    const { limit = 20, offset = 0 } = req.validatedQuery ?? {}
+    // Zod-validated values (defaults already applied by validator)
+    const { limit = 20, offset = 0 } = query
 
     logger.debug('Listing knowledge bases', { limit, offset })
 
@@ -40,11 +42,11 @@ export const listKnowledgeBases = async (req: ValidationRequest, res: Response):
     //           Redux access requires Cherry Studio window to be open.
     let bases: KnowledgeBase[]
     try {
-      bases = await reduxService.select<KnowledgeBase[]>('state.knowledge.bases')
+      bases = await (await getReduxService()).select<KnowledgeBase[]>('state.knowledge.bases')
     } catch (error) {
       if (isReduxUnavailableError(error)) {
         logger.warn('Redux store not available, returning 503')
-        return res.status(503).json({
+        return json(503, {
           error: {
             message: 'Knowledge bases are only available when Cherry Studio window is open',
             type: 'service_unavailable',
@@ -57,13 +59,13 @@ export const listKnowledgeBases = async (req: ValidationRequest, res: Response):
 
     const total = bases?.length || 0
     const paginatedBases = (bases || []).slice(offset, offset + limit)
-    return res.json({
+    return json(200, {
       knowledge_bases: paginatedBases,
       total
     })
   } catch (error) {
     logger.error('Failed to list knowledge bases', error as Error)
-    return res.status(500).json({
+    return json(500, {
       error: {
         message: 'Failed to list knowledge bases',
         type: 'internal_error',
@@ -76,19 +78,16 @@ export const listKnowledgeBases = async (req: ValidationRequest, res: Response):
 /**
  * Get a single knowledge base by ID
  */
-export const getKnowledgeBase = async (req: ValidationRequest, res: Response): Promise<Response> => {
+export const getKnowledgeBase = async (id: string): Promise<Response> => {
   try {
-    // Zod already validated id exists and is non-empty
-    const { id } = req.validatedParams ?? {}
-
     logger.debug(`Getting knowledge base: ${id}`)
 
     // TODO(v2): Migrate to V2 knowledge base storage (SQLite/Drizzle).
-    const bases = await reduxService.select<KnowledgeBase[]>('state.knowledge.bases')
+    const bases = await (await getReduxService()).select<KnowledgeBase[]>('state.knowledge.bases')
     const base = bases?.find((b) => b.id === id)
 
     if (!base) {
-      return res.status(404).json({
+      return json(404, {
         error: {
           message: `Knowledge base not found: ${id}`,
           type: 'invalid_request_error',
@@ -97,10 +96,10 @@ export const getKnowledgeBase = async (req: ValidationRequest, res: Response): P
       })
     }
 
-    return res.json(base)
+    return json(200, base)
   } catch (error) {
     if (isReduxUnavailableError(error)) {
-      return res.status(503).json({
+      return json(503, {
         error: {
           message: 'Knowledge bases are only available when Cherry Studio window is open',
           type: 'service_unavailable',
@@ -109,7 +108,7 @@ export const getKnowledgeBase = async (req: ValidationRequest, res: Response): P
       })
     }
     logger.error('Failed to get knowledge base', error as Error)
-    return res.status(500).json({
+    return json(500, {
       error: {
         message: 'Failed to get knowledge base',
         type: 'internal_error',
@@ -129,7 +128,7 @@ export const getKnowledgeBase = async (req: ValidationRequest, res: Response): P
  *       try/catch and converted to 503 responses via isReduxUnavailableError().
  */
 async function getProviderConfig(providerId: string): Promise<{ apiKey: string; baseURL: string } | null> {
-  const providers = await reduxService.select<Provider[]>('state.llm.providers')
+  const providers = await (await getReduxService()).select<Provider[]>('state.llm.providers')
   const provider = providers?.find((p) => p.id === providerId)
   if (!provider) {
     logger.warn(`Provider not found: ${providerId}`)
@@ -207,19 +206,23 @@ async function getKnowledgeBaseParams(base: KnowledgeBase): Promise<KnowledgeBas
  * This endpoint allows you to search through one or more knowledge bases
  * and retrieve relevant document chunks with similarity scores.
  */
-export const searchKnowledge = async (req: ValidationRequest, res: Response): Promise<Response> => {
+export const searchKnowledge = async (body: {
+  query: string
+  knowledge_base_ids?: string[]
+  document_count?: number
+}): Promise<Response> => {
   try {
-    // Use Zod-validated body (defaults already applied by validator)
-    const { query, knowledge_base_ids, document_count = 5 } = (req.validatedBody ?? {}) as ValidatedSearchBody
+    // Zod-validated body (defaults already applied by validator)
+    const { query, knowledge_base_ids, document_count = 5 } = body
 
     logger.debug(`Searching knowledge bases: "${query}"`, { knowledge_base_ids, document_count })
 
     // Get knowledge bases from Redux
     // TODO(v2): Migrate to V2 knowledge base storage (SQLite/Drizzle).
-    const bases = await reduxService.select<KnowledgeBase[]>('state.knowledge.bases')
+    const bases = await (await getReduxService()).select<KnowledgeBase[]>('state.knowledge.bases')
 
     if (!bases || bases.length === 0) {
-      return res.json({
+      return json(200, {
         query,
         results: [],
         total: 0,
@@ -232,7 +235,7 @@ export const searchKnowledge = async (req: ValidationRequest, res: Response): Pr
     const targetBases = knowledge_base_ids?.length ? bases.filter((b) => knowledge_base_ids.includes(b.id)) : bases
 
     if (knowledge_base_ids?.length && targetBases.length === 0) {
-      return res.status(404).json({
+      return json(404, {
         error: {
           message: 'None of the specified knowledge bases were found',
           type: 'invalid_request_error',
@@ -249,7 +252,7 @@ export const searchKnowledge = async (req: ValidationRequest, res: Response): Pr
         // WORKAROUND: knowledgeService.search() expects Electron.IpcMainInvokeEvent for IPC signature.
         // The @TraceMethod decorator doesn't currently access event properties, so passing {} is safe.
         // TODO(v2): Add searchInternal() method to knowledgeService for non-IPC calls.
-        const searchResults = await knowledgeService.search({} as Electron.IpcMainInvokeEvent, {
+        const searchResults = await (await getKnowledgeService()).search({} as Electron.IpcMainInvokeEvent, {
           search: query,
           base: params
         })
@@ -280,7 +283,7 @@ export const searchKnowledge = async (req: ValidationRequest, res: Response): Pr
     // Check if all searches failed
     const allFailed = resultsPerBase.every((r) => r.results.length === 0 && r.error)
     if (allFailed && resultsPerBase.length > 0) {
-      return res.status(502).json({
+      return json(502, {
         error: {
           message: 'All knowledge base searches failed. Check embedding provider configuration.',
           type: 'upstream_error',
@@ -300,7 +303,7 @@ export const searchKnowledge = async (req: ValidationRequest, res: Response): Pr
 
     logger.debug(`Found ${sortedResults.length} results for query: "${query}"`)
 
-    return res.json({
+    return json(200, {
       query,
       results: sortedResults,
       total: sortedResults.length,
@@ -309,7 +312,7 @@ export const searchKnowledge = async (req: ValidationRequest, res: Response): Pr
     })
   } catch (error) {
     if (isReduxUnavailableError(error)) {
-      return res.status(503).json({
+      return json(503, {
         error: {
           message: 'Knowledge bases are only available when Cherry Studio window is open',
           type: 'service_unavailable',
@@ -318,7 +321,7 @@ export const searchKnowledge = async (req: ValidationRequest, res: Response): Pr
       })
     }
     logger.error('Failed to search knowledge bases', error as Error)
-    return res.status(500).json({
+    return json(500, {
       error: {
         message: 'Failed to search knowledge bases',
         type: 'internal_error',

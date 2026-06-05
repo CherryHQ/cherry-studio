@@ -10,6 +10,10 @@
  * The gateway is assistant-agnostic: per-request sampling, client tools, and
  * provider options are passed as first-class `callOverrides` on the stream
  * request (merged at highest precedence inside `buildAgentParams`).
+ *
+ * Output is a Web-standard `Response`: streaming requests return a
+ * `text/event-stream` `ReadableStream`; non-streaming requests return a JSON
+ * `Response`. The Elysia route handlers return this `Response` directly.
  */
 
 import { providerService } from '@data/services/ProviderService'
@@ -20,7 +24,6 @@ import type { CallOverrides } from '@main/ai/types/requests'
 import { application } from '@main/core/application'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import type { Response } from 'express'
 import { v4 as uuidv4 } from 'uuid'
 
 import type { InputFormat, InputParamsMap, ISSEFormatter, IStreamAdapter, OutputFormat } from '../adapters'
@@ -34,24 +37,34 @@ type InputParams = InputParamsMap[InputFormat]
 
 /**
  * Configuration for a gateway message request (streaming or non-streaming).
- * Routes pass `{ response, params, inputFormat, outputFormat }`.
+ * Routes pass `{ params, inputFormat, outputFormat, signal }`.
  */
 export interface MessageConfig {
-  response: Response
   provider?: Provider
   modelId?: string
-  params: InputParams
+  /**
+   * The loosely-validated gateway request body. Routes validate only the fields
+   * the gateway needs (`model`, `messages`/`input`, …) and pass the rest through,
+   * so this is `unknown` at the boundary and narrowed to the format's SDK type
+   * below — the converters parse the full payload defensively.
+   */
+  params: unknown
   inputFormat?: InputFormat
   outputFormat?: OutputFormat
+  /** Request abort signal (`context.request.signal`); aborts the upstream stream on client disconnect. */
+  signal?: AbortSignal
   onError?: (error: unknown) => void
   onComplete?: () => void
 }
 
 /**
  * Process a gateway message request — auto-detects streaming from `params.stream`.
+ * Returns a Web `Response` (SSE stream or JSON) to be returned from the route.
  */
-export async function processMessage(config: MessageConfig): Promise<void> {
-  const { response, inputFormat = 'anthropic', outputFormat = 'anthropic', onError, onComplete, params } = config
+export async function processMessage(config: MessageConfig): Promise<Response> {
+  const { inputFormat = 'anthropic', outputFormat = 'anthropic', onError, onComplete, signal } = config
+  // Trust boundary: narrow the loosely-validated body to the format's SDK type once.
+  const params = config.params as InputParams
 
   // 1. Resolve model: the request `model` is "providerId:modelId" (split on FIRST ':').
   const modelString = 'model' in params ? (params as { model?: string }).model : undefined
@@ -109,6 +122,85 @@ export async function processMessage(config: MessageConfig): Promise<void> {
   const streamId = `gateway-${uuidv4()}`
   const aiStreamManager = application.get('AiStreamManager')
 
+  if (isStreaming) {
+    // Streaming: stream the adapter's formatted SSE frames out of a ReadableStream.
+    const encoder = new TextEncoder()
+    let closed = false
+
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const safeClose = () => {
+          if (closed) return
+          closed = true
+          try {
+            controller.close()
+          } catch {
+            // already closed
+          }
+        }
+
+        const onAbort = () => {
+          aiStreamManager.abort(streamId, 'gateway client disconnected')
+          safeClose()
+        }
+        if (signal) {
+          if (signal.aborted) onAbort()
+          else signal.addEventListener('abort', onAbort, { once: true })
+        }
+
+        const listener: StreamListener = new SseListener(
+          (data) => {
+            if (closed) return
+            controller.enqueue(encoder.encode(data))
+          },
+          () => {
+            safeClose()
+            logger.info('Message completed', { providerId, modelId, streaming: true })
+            onComplete?.()
+          },
+          () => !closed,
+          {
+            id: `gateway:${streamId}`,
+            // Stateful: each UIMessageChunk → 0..N formatted SSE frames (named event:/data:).
+            formatChunk: (chunk) => adapter.transformChunk(chunk).map((event) => formatter.formatEvent(event)),
+            // Terminal: flush the adapter's closing events (e.g. message_stop) + the format's done marker.
+            formatDone: () =>
+              adapter
+                .finalizeEvents()
+                .map((event) => formatter.formatEvent(event))
+                .join('') + formatter.formatDone(),
+            formatError: (error) => {
+              onError?.(error)
+              return `data: ${JSON.stringify({ type: 'error', error })}\n\n`
+            }
+          }
+        )
+
+        aiStreamManager.streamPrompt({
+          streamId,
+          uniqueModelId,
+          messages,
+          listener,
+          callOverrides
+        })
+      },
+      cancel() {
+        closed = true
+        aiStreamManager.abort(streamId, 'gateway client disconnected')
+      }
+    })
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+        'X-Accel-Buffering': 'no'
+      }
+    })
+  }
+
+  // Non-streaming: drive the adapter to accumulate state; respond with JSON at the end.
   // Terminal barrier: resolved on done/paused, rejected on error.
   let resolveDone!: () => void
   let rejectDone!: (error: unknown) => void
@@ -117,52 +209,26 @@ export async function processMessage(config: MessageConfig): Promise<void> {
     rejectDone = reject
   })
 
-  // Abort the stream if the client disconnects.
-  const handleDisconnect = () => {
+  let aborted = false
+  const onAbort = () => {
+    aborted = true
     aiStreamManager.abort(streamId, 'gateway client disconnected')
+    resolveDone()
   }
-  response.on('close', handleDisconnect)
+  if (signal) {
+    if (signal.aborted) onAbort()
+    else signal.addEventListener('abort', onAbort, { once: true })
+  }
 
-  const listener: StreamListener = isStreaming
-    ? new SseListener(
-        (data) => {
-          if (!response.writableEnded) response.write(data)
-        },
-        () => {
-          if (!response.writableEnded) response.end()
-          resolveDone()
-        },
-        () => !response.writableEnded,
-        {
-          id: `gateway:${streamId}`,
-          // Stateful: each UIMessageChunk → 0..N formatted SSE frames (named event:/data:).
-          formatChunk: (chunk) => adapter.transformChunk(chunk).map((event) => formatter.formatEvent(event)),
-          // Terminal: flush the adapter's closing events (e.g. message_stop) + the format's done marker.
-          formatDone: () =>
-            adapter
-              .finalizeEvents()
-              .map((event) => formatter.formatEvent(event))
-              .join('') + formatter.formatDone(),
-          formatError: (error) => `data: ${JSON.stringify({ type: 'error', error })}\n\n`
-        }
-      )
-    : {
-        // Non-streaming: drive the adapter to accumulate state; respond with JSON at the end.
-        id: `gateway:${streamId}`,
-        onChunk: (chunk) => {
-          adapter.transformChunk(chunk)
-        },
-        onDone: () => resolveDone(),
-        onPaused: () => resolveDone(),
-        onError: (result) => rejectDone(result.error),
-        isAlive: () => !response.writableEnded
-      }
-
-  if (isStreaming) {
-    response.setHeader('Content-Type', 'text/event-stream')
-    response.setHeader('Cache-Control', 'no-cache')
-    response.setHeader('Connection', 'keep-alive')
-    response.setHeader('X-Accel-Buffering', 'no')
+  const listener: StreamListener = {
+    id: `gateway:${streamId}`,
+    onChunk: (chunk) => {
+      adapter.transformChunk(chunk)
+    },
+    onDone: () => resolveDone(),
+    onPaused: () => resolveDone(),
+    onError: (result) => rejectDone(result.error),
+    isAlive: () => !aborted
   }
 
   try {
@@ -176,22 +242,21 @@ export async function processMessage(config: MessageConfig): Promise<void> {
 
     await done
 
-    if (!isStreaming) {
-      // Flush the adapter's finalize step, then emit the accumulated response.
-      adapter.finalizeEvents()
-      if (!response.writableEnded) {
-        response.json(adapter.buildNonStreamingResponse())
-      }
-    }
+    // Flush the adapter's finalize step, then emit the accumulated response.
+    adapter.finalizeEvents()
 
-    logger.info('Message completed', { providerId, modelId, streaming: isStreaming })
+    logger.info('Message completed', { providerId, modelId, streaming: false })
     onComplete?.()
+
+    return new Response(JSON.stringify(adapter.buildNonStreamingResponse()), {
+      headers: { 'Content-Type': 'application/json' }
+    })
   } catch (error) {
     logger.error('Error in message processing', error as Error, { providerId, modelId })
     onError?.(error)
     throw error
   } finally {
-    response.off('close', handleDisconnect)
+    signal?.removeEventListener('abort', onAbort)
   }
 }
 

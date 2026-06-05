@@ -1,10 +1,11 @@
+import type { ServerResponse } from 'node:http'
+
 import Anthropic from '@anthropic-ai/sdk'
 import type { MessageCreateParams, RawMessageStreamEvent } from '@anthropic-ai/sdk/resources'
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
 import { ENDPOINT_TYPE } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
-import type { Response } from 'express'
 
 const logger = loggerService.withContext('MessagesService')
 const EXCLUDED_FORWARD_HEADERS: ReadonlySet<string> = new Set([
@@ -32,7 +33,7 @@ export interface ErrorResponse {
 }
 
 export interface StreamConfig {
-  response: Response
+  response: ServerResponse
   onChunk?: (chunk: RawMessageStreamEvent) => void
   onError?: (error: any) => void
   onComplete?: () => void
@@ -164,7 +165,7 @@ export class MessagesService {
     response.setHeader('X-Accel-Buffering', 'no')
     response.flushHeaders()
 
-    const flushableResponse = response as Response & { flush?: () => void }
+    const flushableResponse = response as ServerResponse & { flush?: () => void }
     const flushStream = () => {
       if (typeof flushableResponse.flush !== 'function') {
         return

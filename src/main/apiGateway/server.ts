@@ -1,9 +1,8 @@
-import { createServer } from 'node:http'
-
 import { application } from '@application'
 import { loggerService } from '@logger'
+import type { Server } from 'http'
 
-import { createApp } from './app'
+import { type ApiGatewayApp, buildApp } from './app'
 
 const logger = loggerService.withContext('ApiGateway')
 
@@ -11,19 +10,28 @@ const GLOBAL_REQUEST_TIMEOUT_MS = 5 * 60_000
 const GLOBAL_HEADERS_TIMEOUT_MS = GLOBAL_REQUEST_TIMEOUT_MS + 5_000
 const GLOBAL_KEEPALIVE_TIMEOUT_MS = 60_000
 
+/** Minimal shape of the `serverInfo` object returned by `@elysia/node`'s listen callback. */
+interface NodeServerInfo {
+  raw?: {
+    node?: {
+      // Node's `http.Server` — exposes the timeout knobs we set below.
+      server?: Server
+    }
+    // srvx `NodeServer` instance: `ready()` resolves once listening (rejects on EADDRINUSE etc.).
+    ready?: () => Promise<unknown>
+  }
+  stop?: () => unknown
+}
+
 export class ApiGateway {
-  private server: ReturnType<typeof createServer> | null = null
+  private app: ApiGatewayApp | null = null
+  private serverInfo: NodeServerInfo | null = null
+  private running = false
 
   async start(): Promise<void> {
-    if (this.server && this.server.listening) {
+    if (this.running) {
       logger.warn('Server already running')
       return
-    }
-
-    // Clean up any failed server instance
-    if (this.server && !this.server.listening) {
-      logger.warn('Cleaning up failed server instance')
-      this.server = null
     }
 
     // Load config from preference service
@@ -31,45 +39,75 @@ export class ApiGateway {
     const port = preferenceService.get('feature.csaas.port')
     const host = preferenceService.get('feature.csaas.host')
 
-    // Create server with Express app
-    const app = createApp()
-    this.server = createServer(app)
-    this.applyServerTimeouts(this.server)
+    const app = buildApp()
+    this.app = app
 
-    // Start server
     return new Promise((resolve, reject) => {
-      this.server!.listen(port, host, () => {
-        logger.info('API server started', { host, port })
-        // Running state is published to the shared cache by ApiGatewayService
-        // (Main is authoritative); renderer reads it via useSharedCache.
-        resolve()
-      })
+      try {
+        app.listen({ port, hostname: host }, (serverInfo) => {
+          const info = serverInfo as unknown as NodeServerInfo
+          this.serverInfo = info
 
-      this.server!.on('error', (error) => {
-        // Clean up the server instance if listen fails
-        this.server = null
-        reject(error)
-      })
+          const http = info?.raw?.node?.server
+          if (http) {
+            this.applyServerTimeouts(http)
+          }
+
+          // The listen callback fires synchronously before the socket is bound;
+          // await the underlying NodeServer's `ready()` to surface listen errors
+          // (e.g. EADDRINUSE), mirroring the previous Express `'error'` handling.
+          const ready = info?.raw?.ready
+          if (typeof ready === 'function') {
+            ready
+              .call(info.raw)
+              .then(() => {
+                this.running = true
+                logger.info('API server started', { host, port })
+                resolve()
+              })
+              .catch((error: unknown) => {
+                this.cleanupFailedStart()
+                reject(error instanceof Error ? error : new Error(String(error)))
+              })
+          } else {
+            this.running = true
+            logger.info('API server started', { host, port })
+            resolve()
+          }
+        })
+      } catch (error) {
+        this.cleanupFailedStart()
+        reject(error instanceof Error ? error : new Error(String(error)))
+      }
     })
   }
 
-  private applyServerTimeouts(server: ReturnType<typeof createServer>): void {
+  private applyServerTimeouts(server: Server): void {
     server.requestTimeout = GLOBAL_REQUEST_TIMEOUT_MS
     server.headersTimeout = Math.max(GLOBAL_HEADERS_TIMEOUT_MS, server.requestTimeout + 1_000)
     server.keepAliveTimeout = GLOBAL_KEEPALIVE_TIMEOUT_MS
     server.setTimeout(0)
   }
 
-  async stop(): Promise<void> {
-    if (!this.server) return
+  private cleanupFailedStart(): void {
+    this.running = false
+    this.serverInfo = null
+    this.app = null
+  }
 
-    return new Promise((resolve) => {
-      this.server!.close(() => {
-        logger.info('API server stopped')
-        this.server = null
-        resolve()
-      })
-    })
+  async stop(): Promise<void> {
+    if (!this.app && !this.serverInfo) return
+
+    try {
+      // Close the underlying Node http server.
+      this.serverInfo?.stop?.()
+      await this.app?.stop?.()
+    } finally {
+      this.running = false
+      this.serverInfo = null
+      this.app = null
+      logger.info('API server stopped')
+    }
   }
 
   async restart(): Promise<void> {
@@ -78,12 +116,9 @@ export class ApiGateway {
   }
 
   isRunning(): boolean {
-    const hasServer = this.server !== null
-    const isListening = this.server?.listening || false
-    const result = hasServer && isListening
-
-    logger.debug('isRunning check', { hasServer, isListening, result })
-
+    const http = this.serverInfo?.raw?.node?.server
+    const result = this.running && (http?.listening ?? true)
+    logger.debug('isRunning check', { running: this.running, listening: http?.listening, result })
     return result
   }
 }

@@ -1,168 +1,117 @@
+import { cors } from '@elysia/cors'
+import { node } from '@elysia/node'
+import { openapi } from '@elysia/openapi'
 import { loggerService } from '@logger'
-import cors from 'cors'
-import express from 'express'
+import { Elysia } from 'elysia'
 import { v4 as uuidv4 } from 'uuid'
+import * as z from 'zod'
 
-import { LONG_POLL_TIMEOUT_MS } from './config/timeouts'
-import { authMiddleware } from './middleware/auth'
-import { errorHandler } from './middleware/error'
-import { setupOpenAPIDocumentation } from './middleware/openapi'
+import { gatewayErrorHandler } from './errors'
+import { authGuard } from './middleware/auth'
 import { chatRoutes } from './routes/chat'
-import { clawMcpRoutes } from './routes/claw-mcp'
 import { knowledgeRoutes } from './routes/knowledge'
-import { mcpRoutes } from './routes/mcp'
-import { messagesProviderRoutes, messagesRoutes } from './routes/messages'
+import { messagesRoutes } from './routes/messages'
 import { modelsRoutes } from './routes/models'
 import { responsesRoutes } from './routes/responses'
 
 const logger = loggerService.withContext('ApiGateway')
 
-const extendMessagesTimeout: express.RequestHandler = (req, res, next) => {
-  req.setTimeout(LONG_POLL_TIMEOUT_MS)
-  res.setTimeout(LONG_POLL_TIMEOUT_MS)
-  next()
-}
+/** Path under which OpenAPI docs (UI) and JSON spec (`${OPENAPI_PATH}/json`) are served. */
+export const OPENAPI_PATH = '/openapi'
 
-// TODO: The factory pattern is a timing workaround to avoid module-level side
-// effects (Express construction, OpenAPI setup, route mounting) running before
-// preboot. The apiGateway subsystem's internal coupling (app ↔ routes ↔ services)
-// needs a holistic refactor to properly separate concerns; this factory should
-// be revisited as part of that effort.
-export function createApp(): express.Application {
-  const app = express()
-  app.use(
-    express.json({
-      limit: '50mb'
+/**
+ * Protected `/v1` API routes. The auth guard is `scoped` so it propagates to
+ * every plugin mounted here, but NOT to the public app-level routes.
+ */
+const v1Routes = new Elysia({ prefix: '/v1' })
+  .guard({
+    as: 'scoped',
+    beforeHandle: authGuard
+  })
+  .use(chatRoutes)
+  .use(responsesRoutes)
+  .use(modelsRoutes)
+  .use(messagesRoutes)
+  .use(knowledgeRoutes)
+
+/**
+ * Build the Elysia application (Node adapter). Assembles CORS, OpenAPI docs,
+ * request logging + `X-Request-ID`, error handling, public info routes, and the
+ * protected API route plugins.
+ *
+ * Exported for both the runtime server (`server.ts`) and the integration tests.
+ */
+export function buildApp() {
+  const app = new Elysia({ adapter: node() })
+    .use(
+      cors({
+        origin: true,
+        allowedHeaders: ['Content-Type', 'Authorization'],
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+      })
+    )
+    .use(
+      openapi({
+        path: OPENAPI_PATH,
+        provider: 'scalar',
+        mapJsonSchema: { zod: z.toJSONSchema },
+        documentation: {
+          info: {
+            title: 'Cherry Studio API',
+            version: '1.0.0',
+            description: 'OpenAI-compatible API for Cherry Studio with additional Cherry-specific endpoints'
+          }
+        }
+      })
+    )
+    // Stamp a request id and record the start time for latency logging.
+    .onRequest(({ set }) => {
+      set.headers['x-request-id'] = uuidv4()
     })
-  )
-
-  // Global middleware
-  app.use((req, res, next) => {
-    const start = Date.now()
-    res.on('finish', () => {
-      const duration = Date.now() - start
+    .derive(() => ({ requestStartedAt: Date.now() }))
+    .onAfterResponse(({ request, path, set, requestStartedAt }) => {
+      const durationMs = typeof requestStartedAt === 'number' ? Date.now() - requestStartedAt : undefined
       logger.info('API request completed', {
-        method: req.method,
-        path: req.path,
-        statusCode: res.statusCode,
-        durationMs: duration
+        method: request.method,
+        path,
+        statusCode: set.status,
+        durationMs
       })
     })
-    next()
-  })
-
-  app.use((_req, res, next) => {
-    res.setHeader('X-Request-ID', uuidv4())
-    next()
-  })
-
-  app.use(
-    cors({
-      origin: '*',
-      allowedHeaders: ['Content-Type', 'Authorization'],
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
-    })
-  )
-
-  /**
-   * @swagger
-   * /health:
-   *   get:
-   *     summary: Health check endpoint
-   *     description: Check server status (no authentication required)
-   *     tags: [Health]
-   *     security: []
-   *     responses:
-   *       200:
-   *         description: Server is healthy
-   *         content:
-   *           application/json:
-   *             schema:
-   *               type: object
-   *               properties:
-   *                 status:
-   *                   type: string
-   *                   example: ok
-   *                 timestamp:
-   *                   type: string
-   *                   format: date-time
-   *                 version:
-   *                   type: string
-   *                   example: 1.0.0
-   */
-  app.get('/health', (_req, res) => {
-    res.json({
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-      version: process.env.npm_package_version || '1.0.0'
-    })
-  })
-
-  /**
-   * @swagger
-   * /:
-   *   get:
-   *     summary: API information
-   *     description: Get basic API information and available endpoints
-   *     tags: [General]
-   *     security: []
-   *     responses:
-   *       200:
-   *         description: API information
-   *         content:
-   *           application/json:
-   *             schema:
-   *               type: object
-   *               properties:
-   *                 name:
-   *                   type: string
-   *                   example: Cherry Studio API
-   *                 version:
-   *                   type: string
-   *                   example: 1.0.0
-   *                 endpoints:
-   *                   type: object
-   */
-  app.get('/', (_req, res) => {
-    res.json({
-      name: 'Cherry Studio API',
-      version: '1.0.0',
-      endpoints: {
-        health: 'GET /health',
-        docs: 'GET /api-docs',
-        docs_json: 'GET /api-docs.json',
-        chat_completions: 'POST /v1/chat/completions',
-        messages: 'POST /v1/messages',
-        messages_provider: 'POST /:provider/v1/messages',
-        mcps: 'GET /v1/mcps',
-        mcp_server: 'GET /v1/mcps/:server_id',
-        knowledge_bases: 'GET /v1/knowledge-bases',
-        knowledge_search: 'POST /v1/knowledge-bases/search'
-      }
-    })
-  })
-
-  // Setup OpenAPI documentation before protected routes so docs remain public
-  setupOpenAPIDocumentation(app)
-
-  // Provider-specific messages route requires authentication
-  app.use('/:provider/v1/messages', authMiddleware, extendMessagesTimeout, messagesProviderRoutes)
-
-  // API v1 routes with auth
-  const apiRouter = express.Router()
-  apiRouter.use(authMiddleware)
-  // Mount routes
-  apiRouter.use('/chat', chatRoutes)
-  apiRouter.use('/responses', extendMessagesTimeout, responsesRoutes)
-  apiRouter.use('/models', modelsRoutes)
-  apiRouter.use('/mcps', mcpRoutes)
-  apiRouter.use('/messages', extendMessagesTimeout, messagesRoutes)
-  apiRouter.use('/claw', clawMcpRoutes)
-  apiRouter.use('/knowledge-bases', knowledgeRoutes)
-  app.use('/v1', apiRouter)
-
-  // Error handling (must be last)
-  app.use(errorHandler)
+    // Global error handler — shapes errors into the OpenAI / Anthropic dialect
+    // matching the request path (see ./errors).
+    .onError(gatewayErrorHandler)
+    // Public health check (no authentication).
+    .get(
+      '/health',
+      () => ({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        version: process.env.npm_package_version || '1.0.0'
+      }),
+      { detail: { tags: ['Health'], summary: 'Health check endpoint' } }
+    )
+    // Public API information.
+    .get(
+      '/',
+      () => ({
+        name: 'Cherry Studio API',
+        version: '1.0.0',
+        endpoints: {
+          health: 'GET /health',
+          docs: `GET ${OPENAPI_PATH}`,
+          docs_json: `GET ${OPENAPI_PATH}/json`,
+          chat_completions: 'POST /v1/chat/completions',
+          messages: 'POST /v1/messages',
+          knowledge_bases: 'GET /v1/knowledge-bases',
+          knowledge_search: 'POST /v1/knowledge-bases/search'
+        }
+      }),
+      { detail: { tags: ['General'], summary: 'API information' } }
+    )
+    .use(v1Routes)
 
   return app
 }
+
+export type ApiGatewayApp = ReturnType<typeof buildApp>

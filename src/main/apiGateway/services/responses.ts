@@ -11,11 +11,12 @@
  * - Non-streaming request handling
  */
 
+import type { ServerResponse } from 'node:http'
+
 import OpenAI from '@cherrystudio/openai'
 import { loggerService } from '@logger'
 import type { Provider } from '@types'
 import { net } from 'electron'
-import type { Response } from 'express'
 
 // Use SDK namespace types
 type ResponseCreateParams = OpenAI.Responses.ResponseCreateParams
@@ -38,7 +39,7 @@ export interface ErrorResponse {
 }
 
 export interface StreamConfig {
-  response: Response
+  response: ServerResponse
   onChunk?: (chunk: ResponseStreamEvent) => void
   onError?: (error: unknown) => void
   onComplete?: () => void
@@ -126,7 +127,7 @@ export class ResponsesService {
     response.setHeader('X-Accel-Buffering', 'no')
     response.flushHeaders()
 
-    const flushableResponse = response as Response & { flush?: () => void }
+    const flushableResponse = response as ServerResponse & { flush?: () => void }
     const flushStream = () => {
       if (typeof flushableResponse.flush !== 'function') {
         return
