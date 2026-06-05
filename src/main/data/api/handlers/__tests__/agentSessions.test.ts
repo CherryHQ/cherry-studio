@@ -26,19 +26,19 @@ vi.mock('@data/services/AgentSessionMessageService', () => ({
   }
 }))
 
-import { sessionHandlers } from '../sessions'
+import { agentSessionHandlers } from '../agentSessions'
 
-describe('sessionHandlers', () => {
+describe('agentSessionHandlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  describe('/sessions/messages/search', () => {
+  describe('/agent-sessions/messages/search', () => {
     it('forwards normalized session message search query', async () => {
       const response = { items: [], nextCursor: undefined }
       searchSessionMessagesMock.mockResolvedValueOnce(response)
 
-      const result = await sessionHandlers['/sessions/messages/search'].GET({
+      const result = await agentSessionHandlers['/agent-sessions/messages/search'].GET({
         query: {
           q: '  needle  ',
           sessionId: 'session-1',

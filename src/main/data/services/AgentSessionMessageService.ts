@@ -13,13 +13,16 @@ import { DataApiErrorFactory } from '@shared/data/api'
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
 import type {
   AgentSessionMessageEntity,
+  AgentSessionSearchMessageResult,
   CreateAgentSessionMessageDto,
   CreateAgentSessionMessagesDto,
-  SearchSessionMessagesQueryParams,
-  SearchSessionMessagesResponse,
-  SessionSearchMessageResult
-} from '@shared/data/api/schemas/sessions'
-import { SESSION_MESSAGES_DEFAULT_LIMIT, SESSION_MESSAGES_MAX_LIMIT } from '@shared/data/api/schemas/sessions'
+  SearchAgentSessionMessagesQuery,
+  SearchAgentSessionMessagesResponse
+} from '@shared/data/api/schemas/agentSessions'
+import {
+  AGENT_SESSION_MESSAGES_DEFAULT_LIMIT,
+  AGENT_SESSION_MESSAGES_MAX_LIMIT
+} from '@shared/data/api/schemas/agentSessions'
 import { buildKeywordRegexes, splitKeywordsToTerms } from '@shared/utils/keywordSearch'
 import { buildSearchSnippet, stripMarkdownFormatting } from '@shared/utils/messageSearch'
 import { and, desc, eq, inArray, isNotNull, lt, or, sql } from 'drizzle-orm'
@@ -39,7 +42,7 @@ type SessionMessageSearchRow = {
   createdAt: number
 }
 
-type InternalSessionSearchMessageResult = SessionSearchMessageResult & {
+type InternalSessionSearchMessageResult = AgentSessionSearchMessageResult & {
   cursorCreatedAt: number
   cursorId: string
 }
@@ -80,7 +83,7 @@ function encodeMessageCursor(createdAt: number | string, id: string): string {
 }
 
 export class AgentSessionMessageService {
-  async search(query: SearchSessionMessagesQueryParams): Promise<SearchSessionMessagesResponse> {
+  async search(query: SearchAgentSessionMessagesQuery): Promise<SearchAgentSessionMessagesResponse> {
     const terms = splitKeywordsToTerms(query.q)
     if (terms.length === 0) return { items: [] }
 
@@ -197,7 +200,7 @@ export class AgentSessionMessageService {
       .limit(1)
     if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
 
-    const limit = Math.min(options.limit ?? SESSION_MESSAGES_DEFAULT_LIMIT, SESSION_MESSAGES_MAX_LIMIT)
+    const limit = Math.min(options.limit ?? AGENT_SESSION_MESSAGES_DEFAULT_LIMIT, AGENT_SESSION_MESSAGES_MAX_LIMIT)
     const cursor = options.cursor ? decodeMessageCursor(options.cursor) : null
 
     const filters = [eq(sessionMessagesTable.sessionId, sessionId)]

@@ -49,7 +49,7 @@ const Sessions = ({ onSelectItem }: SessionsProps) => {
 
   const listRef = useRef<DraggableVirtualListRef>(null)
 
-  const { data: channels } = useQuery('/channels')
+  const { data: channels } = useQuery('/agent-channels')
   const channelTypeMap = useMemo(() => {
     const map: Record<string, string> = {}
     for (const ch of channels ?? []) {

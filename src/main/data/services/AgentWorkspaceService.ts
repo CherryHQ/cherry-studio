@@ -7,7 +7,7 @@ import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
+import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { asc, eq } from 'drizzle-orm'
 import fs from 'fs'
 import path from 'path'
@@ -15,7 +15,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('AgentWorkspaceService')
 
-export function rowToWorkspace(row: AgentWorkspaceRow): WorkspaceEntity {
+export function rowToWorkspace(row: AgentWorkspaceRow): AgentWorkspaceEntity {
   return {
     id: row.id,
     name: row.name,
@@ -75,7 +75,7 @@ function cleanupPreparedWorkspaceDirectory(workspacePath: string): void {
 }
 
 export class AgentWorkspaceService {
-  async list(): Promise<WorkspaceEntity[]> {
+  async list(): Promise<AgentWorkspaceEntity[]> {
     const db = application.get('DbService').getDb()
     const rows = await db
       .select()
@@ -84,13 +84,13 @@ export class AgentWorkspaceService {
     return rows.map(rowToWorkspace)
   }
 
-  async getById(id: string): Promise<WorkspaceEntity> {
+  async getById(id: string): Promise<AgentWorkspaceEntity> {
     const db = application.get('DbService').getDb()
     const row = await this.getRowByIdTx(db, id)
     return rowToWorkspace(row)
   }
 
-  async getByIdTx(tx: DbOrTx, id: string): Promise<WorkspaceEntity> {
+  async getByIdTx(tx: DbOrTx, id: string): Promise<AgentWorkspaceEntity> {
     const row = await this.getRowByIdTx(tx, id)
     return rowToWorkspace(row)
   }
@@ -101,13 +101,17 @@ export class AgentWorkspaceService {
     return row
   }
 
-  async findOrCreateByPath(rawPath: string, options: { name?: string } = {}): Promise<WorkspaceEntity> {
+  async findOrCreateByPath(rawPath: string, options: { name?: string } = {}): Promise<AgentWorkspaceEntity> {
     const workspacePath = normalizeWorkspacePath(rawPath)
     ensureWorkspaceDirectory(workspacePath)
     return await this.findOrCreatePreparedPath(workspacePath, options)
   }
 
-  async findOrCreateByPathTx(tx: DbOrTx, rawPath: string, options: { name?: string } = {}): Promise<WorkspaceEntity> {
+  async findOrCreateByPathTx(
+    tx: DbOrTx,
+    rawPath: string,
+    options: { name?: string } = {}
+  ): Promise<AgentWorkspaceEntity> {
     const workspacePath = normalizeWorkspacePath(rawPath)
     const row = await withSqliteErrors(() => this.findOrCreateRowByNormalizedPathTx(tx, workspacePath, options), {
       ...defaultHandlersFor('Workspace', workspacePath),
@@ -126,7 +130,7 @@ export class AgentWorkspaceService {
     cleanupPreparedWorkspaceDirectory(workspacePath)
   }
 
-  async createDefaultWorkspace(): Promise<WorkspaceEntity> {
+  async createDefaultWorkspace(): Promise<AgentWorkspaceEntity> {
     const workspacePath = this.prepareDefaultWorkspaceDirectory()
     try {
       return await this.findOrCreatePreparedPath(workspacePath)
@@ -136,14 +140,14 @@ export class AgentWorkspaceService {
     }
   }
 
-  async createDefaultWorkspaceTx(tx: DbOrTx, workspacePath: string): Promise<WorkspaceEntity> {
+  async createDefaultWorkspaceTx(tx: DbOrTx, workspacePath: string): Promise<AgentWorkspaceEntity> {
     return await this.findOrCreateByPathTx(tx, workspacePath)
   }
 
   private async findOrCreatePreparedPath(
     workspacePath: string,
     options: { name?: string } = {}
-  ): Promise<WorkspaceEntity> {
+  ): Promise<AgentWorkspaceEntity> {
     const dbService = application.get('DbService')
     const row = await withSqliteErrors(
       () => dbService.withWriteTx((tx) => this.findOrCreateRowByNormalizedPathTx(tx, workspacePath, options)),
