@@ -105,7 +105,7 @@ describe('useProviderConnectionCheck', () => {
     })
   })
 
-  it('opens the connection drawer for multi-key providers instead of silently redirecting elsewhere', () => {
+  it('opens the connection drawer with rerank models available for checking', () => {
     const { result } = renderHook(() => useProviderConnectionCheck('cherryin'))
 
     act(() => {
@@ -114,7 +114,10 @@ describe('useProviderConnectionCheck', () => {
 
     expect(result.current.connectionCheckOpen).toBe(true)
     expect(result.current.checkableApiKeys).toEqual(['sk-a', 'sk-b'])
-    expect(result.current.checkableModels).toHaveLength(1)
+    expect(result.current.checkableModels.map((model) => model.id)).toEqual([
+      'cherryin::claude-4-sonnet',
+      'cherryin::rerank-1'
+    ])
   })
 
   it('uses the anthropic host for anthropic endpoint models and closes the drawer after checking', async () => {

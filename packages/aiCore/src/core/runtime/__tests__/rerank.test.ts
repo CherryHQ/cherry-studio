@@ -4,6 +4,7 @@ import { rerank as aiRerank } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { RuntimeExecutor } from '../executor'
+import { createExecutor } from '../index'
 
 vi.mock('ai', async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>
@@ -92,5 +93,32 @@ describe('RuntimeExecutor.rerank', () => {
       query: 'hello',
       documents: ['alpha']
     })
+  })
+
+  it('resolves CherryIN rerank models through the provider registry', async () => {
+    const cherryInExecutor = await createExecutor('cherryin', {
+      apiKey: 'test-key',
+      baseURL: 'https://open.cherryin.net/v1',
+      endpointType: 'jina-rerank'
+    })
+
+    await cherryInExecutor.rerank({
+      model: 'BAAI/bge-reranker-v2-m3(free)',
+      query: 'test',
+      documents: ['test'],
+      topN: 1
+    })
+
+    expect(aiRerank).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        model: expect.objectContaining({
+          provider: 'cherryin.rerank',
+          modelId: 'BAAI/bge-reranker-v2-m3(free)'
+        }),
+        query: 'test',
+        documents: ['test'],
+        topN: 1
+      })
+    )
   })
 })
