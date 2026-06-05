@@ -7075,23 +7075,6 @@
     "store": "Thư viện Trợ lý",
     "translate": "Dịch"
   },
-  "trace": {
-    "backList": "Quay lại danh sách",
-    "edasSupport": "Được cung cấp bởi Alibaba Cloud EDAS",
-    "endTime": "Thời gian kết thúc",
-    "inputs": "Đầu vào",
-    "label": "Chuỗi cuộc gọi",
-    "name": "Tên nút",
-    "noTraceList": "Không tìm thấy thông tin dấu vết",
-    "outputs": "Đầu ra",
-    "parentId": "Id Cha",
-    "spanDetail": "Chi tiết Span",
-    "spendTime": "Dành thời gian",
-    "startTime": "Thời gian bắt đầu",
-    "tag": "Nhãn",
-    "tokenUsage": "Sử dụng token",
-    "traceWindow": "Cửa sổ Chuỗi Gọi"
-  },
   "translate": {
     "alter_language": "Ngôn ngữ thay thế",
     "any": {

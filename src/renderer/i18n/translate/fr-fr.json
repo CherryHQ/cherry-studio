@@ -7075,23 +7075,6 @@
     "store": "Bibliothèque d'assistants",
     "translate": "Traduire"
   },
-  "trace": {
-    "backList": "Retour à la liste",
-    "edasSupport": "Propulsé par Alibaba Cloud EDAS",
-    "endTime": "Heure de fin",
-    "inputs": "Entrées",
-    "label": "Chaîne d'appel",
-    "name": "Nom du nœud",
-    "noTraceList": "Aucune information de trace trouvée",
-    "outputs": "Sorties",
-    "parentId": "ID parent",
-    "spanDetail": "Détails du span",
-    "spendTime": "Temps consommé",
-    "startTime": "Heure de début",
-    "tag": "Étiquette",
-    "tokenUsage": "Utilisation des tokens",
-    "traceWindow": "Fenêtre de chaîne d'appel"
-  },
   "translate": {
     "alter_language": "Langue de secours",
     "any": {

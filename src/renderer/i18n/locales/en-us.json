@@ -7075,23 +7075,6 @@
     "store": "Assistant Library",
     "translate": "Translate"
   },
-  "trace": {
-    "backList": "Back To List",
-    "edasSupport": "Powered by Alibaba Cloud EDAS",
-    "endTime": "End Time",
-    "inputs": "Inputs",
-    "label": "Call Chain",
-    "name": "Node Name",
-    "noTraceList": "No trace information found",
-    "outputs": "Outputs",
-    "parentId": "Parent Id",
-    "spanDetail": "Span Details",
-    "spendTime": "Spend Time",
-    "startTime": "Start Time",
-    "tag": "Tag",
-    "tokenUsage": "Token Usage",
-    "traceWindow": "Call Chain Window"
-  },
   "translate": {
     "alter_language": "Alternative Language",
     "any": {
