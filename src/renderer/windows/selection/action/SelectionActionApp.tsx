@@ -2,11 +2,10 @@ import { ToastProvider, useToasts } from '@renderer/components/TopView/toast'
 import AntdProvider from '@renderer/context/AntdProvider'
 import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
-import store, { persistor } from '@renderer/store'
+import store from '@renderer/store'
 import type { FC } from 'react'
 import { useEffect } from 'react'
 import { Provider } from 'react-redux'
-import { PersistGate } from 'redux-persist/integration/react'
 
 import ActionWindow from './ActionWindow'
 
@@ -26,11 +25,9 @@ const SelectionActionApp: FC = () => {
       <ThemeProvider>
         <AntdProvider>
           <CodeStyleProvider>
-            <PersistGate loading={null} persistor={persistor}>
-              <ToastProvider>
-                <SelectionActionToastBridge />
-              </ToastProvider>
-            </PersistGate>
+            <ToastProvider>
+              <SelectionActionToastBridge />
+            </ToastProvider>
           </CodeStyleProvider>
         </AntdProvider>
       </ThemeProvider>

@@ -1,5 +1,6 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
+import { WindowType } from '@main/core/window/types'
 import { nanoid } from '@reduxjs/toolkit'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -7,7 +8,6 @@ import { IpcChannel } from '@shared/IpcChannel'
 const logger = loggerService.withContext('ProtocolService:mcpInstall')
 
 function installMcpServer(server: McpServer) {
-  const mainWindow = application.get('MainWindowService').getMainWindow()
   const now = Date.now()
 
   const payload: McpServer = {
@@ -20,9 +20,7 @@ function installMcpServer(server: McpServer) {
     installedAt: server.installedAt ?? now
   }
 
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.webContents.send(IpcChannel.Mcp_AddServer, payload)
-  }
+  application.get('WindowManager').broadcastToType(WindowType.Main, IpcChannel.Mcp_AddServer, payload)
 }
 
 function installMcpServers(servers: Record<string, McpServer>) {

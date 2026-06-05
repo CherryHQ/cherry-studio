@@ -1336,22 +1336,26 @@ describe('WindowManager', () => {
   // ─── Queries ───────────────────────────────────────────
 
   describe('queries', () => {
-    it('getAllWindows() returns all managed windows', () => {
-      wm.open('default' as never)
-      wm.open('singleton' as never)
-      wm.open('pooled' as never)
-
-      const all = wm.getAllWindows()
-      expect(all).toHaveLength(3)
-    })
-
-    it('getWindowsByType() filters by type', () => {
-      wm.open('default' as never)
-      wm.open('default' as never)
+    it('getWindowsByType() returns live BrowserWindow instances filtered by type', () => {
+      const id1 = wm.open('default' as never)
+      const id2 = wm.open('default' as never)
       wm.open('singleton' as never)
 
       const defaults = wm.getWindowsByType('default' as never)
       expect(defaults).toHaveLength(2)
+      expect(defaults[0]).toBe(wm.getWindow(id1))
+      expect(defaults[1]).toBe(wm.getWindow(id2))
+    })
+
+    it('getWindowsByType() skips destroyed windows', () => {
+      const id1 = wm.open('default' as never)
+      const id2 = wm.open('default' as never)
+      const w1 = wm.getWindow(id1) as unknown as MockBrowserWindow
+      w1.isDestroyed.mockReturnValue(true)
+
+      const remaining = wm.getWindowsByType('default' as never)
+      expect(remaining).toHaveLength(1)
+      expect(remaining[0]).toBe(wm.getWindow(id2))
     })
 
     it('getWindowInfo() returns serializable info', () => {
@@ -1366,6 +1370,22 @@ describe('WindowManager', () => {
         isFocused: false
       })
       expect(info?.createdAt).toBeGreaterThan(0)
+    })
+
+    it('getWindowInfosByType() returns serializable info filtered by type', () => {
+      wm.open('default' as never)
+      wm.open('default' as never)
+      wm.open('singleton' as never)
+
+      const infos = wm.getWindowInfosByType('default' as never)
+      expect(infos).toHaveLength(2)
+      expect(infos[0]).toMatchObject({
+        type: 'default',
+        title: 'Test Window',
+        isVisible: true,
+        isFocused: false
+      })
+      expect(infos[0]).not.toHaveProperty('window')
     })
 
     it('count reflects current managed window count', () => {

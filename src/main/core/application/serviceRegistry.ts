@@ -23,6 +23,7 @@ import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { CherryInOauthService } from '@main/services/CherryInOauthService'
 import { CodeCliService } from '@main/services/CodeCliService'
+import { CommandService } from '@main/services/CommandService'
 import { FileManager } from '@main/services/file/FileManager'
 import { DirectoryTreeManager } from '@main/services/file/tree/DirectoryTreeManager'
 import { FileProcessingOrchestrationService, TesseractRuntimeService } from '@main/services/fileProcessing'
@@ -84,6 +85,7 @@ export const services = {
   AnalyticsService,
   AppMenuService,
   CodeCliService,
+  CommandService,
   LanTransferService,
   FileManager,
   DirectoryTreeManager,

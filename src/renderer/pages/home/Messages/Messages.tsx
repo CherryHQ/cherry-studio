@@ -3,9 +3,9 @@ import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { LoadingIcon } from '@renderer/components/Icons'
 import SelectionContextMenu from '@renderer/components/SelectionContextMenu'
+import { useCommandHandler } from '@renderer/features/command'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useChatContext } from '@renderer/hooks/useChatContext'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useV2Chat } from '@renderer/hooks/V2ChatContext'
 import SelectionBox from '@renderer/pages/home/Messages/SelectionBox'
@@ -208,7 +208,7 @@ const Messages: React.FC<MessagesProps> = ({
     )
   }, [hasMore, isLoadingMore, loadOlder, setTimeoutTimer])
 
-  useShortcut('chat.copy_last_message', () => {
+  useCommandHandler('chat.message.copy_last', () => {
     const lastMessage = last(messages)
     if (lastMessage) {
       const parts = partsMap?.[lastMessage.id]
@@ -218,7 +218,7 @@ const Messages: React.FC<MessagesProps> = ({
     }
   })
 
-  useShortcut('chat.edit_last_user_message', () => {
+  useCommandHandler('chat.message.edit_last_user', () => {
     const lastUserMessage = messagesRef.current.findLast((m) => m.role === 'user' && m.type !== 'clear')
     if (lastUserMessage) {
       void EventEmitter.emit(EVENT_NAMES.EDIT_MESSAGE, lastUserMessage.id)
