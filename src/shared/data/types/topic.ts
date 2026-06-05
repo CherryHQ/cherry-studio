@@ -26,7 +26,7 @@ export const TopicSchema = z.strictObject({
   name: TopicNameEntitySchema,
   /** Whether the name was manually edited by user */
   isNameManuallyEdited: z.boolean(),
-  /** Last-used assistant ID; null means the runtime default assistant. */
+  /** Last-used persisted assistant ID; null means no persisted assistant binding. */
   assistantId: z.string().nullable(),
   /** Active node ID in the message tree */
   activeNodeId: z.string().optional(),

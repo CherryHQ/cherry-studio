@@ -267,7 +267,7 @@ export type Topic = {
   id: string
   type?: TopicType
   /**
-   * Last-used assistant id. `null` means the runtime default assistant.
+   * Last-used persisted assistant id. `null` means no persisted assistant binding.
    */
   assistantId: string | null
   name: string

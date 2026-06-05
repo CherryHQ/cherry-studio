@@ -37,8 +37,8 @@ export interface UseTemporaryTopicOptions {
    */
   enabled?: boolean
   /**
-   * Optional assistant id to bind the temp topic to. `null` means the renderer
-   * runtime default assistant; `undefined` means the caller has not chosen yet.
+   * Optional assistant id to bind the temp topic to. `null` means no persisted
+   * assistant binding; `undefined` means the caller has not chosen yet.
    * Do not pass a string sentinel.
    */
   assistantId?: string | null

@@ -1,4 +1,5 @@
 import type { AiStreamOpenRequest } from '@shared/ai/transport'
+import { DataApiErrorFactory } from '@shared/data/api'
 import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -127,6 +128,17 @@ describe('TemporaryChatContextProvider', () => {
     const prepared = await provider.prepareDispatch(makeSubscriber(), openReq())
 
     expect(getAssistantByIdMock).not.toHaveBeenCalled()
+    expect(prepared.models[0].modelId).toBe('openai::gpt-4o')
+    expect(prepared.models[0].request.assistantId).toBeUndefined()
+  })
+
+  it('falls back to the default model when the persisted assistant is missing', async () => {
+    getTopicMock.mockReturnValueOnce({ id: '1', assistantId: 'deleted-assistant' })
+    getAssistantByIdMock.mockRejectedValueOnce(DataApiErrorFactory.notFound('Assistant', 'deleted-assistant'))
+
+    const prepared = await provider.prepareDispatch(makeSubscriber(), openReq())
+
+    expect(getAssistantByIdMock).toHaveBeenCalledWith('deleted-assistant')
     expect(prepared.models[0].modelId).toBe('openai::gpt-4o')
     expect(prepared.models[0].request.assistantId).toBeUndefined()
   })

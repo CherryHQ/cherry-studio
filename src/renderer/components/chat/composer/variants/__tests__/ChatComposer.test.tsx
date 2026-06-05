@@ -1,5 +1,6 @@
 import { cacheService } from '@data/CacheService'
 import { MessageEditingProvider, useMessageEditing } from '@renderer/context/MessageEditingContext'
+import { DataApiErrorFactory } from '@shared/data/api'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import { type Model, MODEL_CAPABILITY } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -33,7 +34,9 @@ const mocks = vi.hoisted(() => ({
   selectedKnowledgeBases: undefined as KnowledgeBase[] | undefined,
   knowledgeBases: [] as KnowledgeBase[],
   assistant: undefined as any,
+  assistantError: undefined as Error | undefined,
   model: undefined as Model | undefined,
+  defaultModel: undefined as Model | undefined,
   assistantLoading: false,
   modelPending: false,
   modelMissing: undefined as boolean | undefined,
@@ -358,6 +361,7 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
   useAssistant: () => ({
     assistant: mocks.assistant,
     isLoading: mocks.assistantLoading,
+    error: mocks.assistantError,
     model: mocks.model,
     isModelPending: mocks.modelPending,
     isModelMissing: mocks.modelMissing ?? (!mocks.assistantLoading && !mocks.modelPending && !mocks.model),
@@ -381,7 +385,7 @@ vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
 }))
 
 vi.mock('@renderer/hooks/useModel', () => ({
-  useDefaultModel: () => ({ setDefaultModel: mocks.setDefaultModel }),
+  useDefaultModel: () => ({ defaultModel: mocks.defaultModel ?? model, setDefaultModel: mocks.setDefaultModel }),
   useModels: () => ({ models: [model, modelB] })
 }))
 
@@ -530,7 +534,9 @@ describe('ChatComposer', () => {
       settings: { enableWebSearch: true },
       knowledgeBaseIds: []
     }
+    mocks.assistantError = undefined
     mocks.model = model
+    mocks.defaultModel = model
     mocks.assistantLoading = false
     mocks.modelPending = false
     mocks.modelMissing = undefined
@@ -805,6 +811,7 @@ describe('ChatComposer', () => {
   it('does not update the default model while a persisted assistant is loading', () => {
     mocks.assistant = undefined
     mocks.model = undefined
+    mocks.assistantLoading = true
 
     render(<ChatComposer topic={topic} onSend={vi.fn()} />)
 
@@ -878,17 +885,35 @@ describe('ChatComposer', () => {
     expect(screen.getByTestId('assistant-selector')).not.toHaveTextContent('button.select_assistant')
   })
 
-  it('blocks sends for missing-assistant topics until a new assistant is selected', async () => {
+  it('falls back to the default assistant for missing-assistant topics', async () => {
     mocks.assistant = undefined
+    mocks.assistantError = DataApiErrorFactory.notFound('Assistant', 'missing-assistant')
     const onSend = vi.fn()
 
     render(<ChatComposer topic={missingAssistantTopic} onSend={onSend} />)
 
     await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+
+    expect(screen.getByTestId('assistant-selector')).toHaveAttribute('data-value', '')
+    expect(screen.getByTestId('assistant-selector')).toHaveTextContent('Default Assistant')
+    expect(screen.getByTestId('model-selector')).toHaveTextContent('Model A | Provider')
+    expect(onSend).toHaveBeenCalledWith(
+      'hello',
+      expect.objectContaining({
+        mentionedModels: undefined
+      })
+    )
+    expect(mocks.toastError).not.toHaveBeenCalledWith('button.select_assistant')
+    expect(mocks.updateTopic).not.toHaveBeenCalled()
+  })
+
+  it('can replace a missing assistant by selecting a persisted assistant', () => {
+    mocks.assistant = undefined
+
+    render(<ChatComposer topic={missingAssistantTopic} onSend={vi.fn()} />)
+
     fireEvent.click(screen.getByText('select assistant 2'))
 
-    expect(onSend).not.toHaveBeenCalled()
-    expect(mocks.toastError).toHaveBeenCalledWith('button.select_assistant')
     expect(mocks.updateTopic).toHaveBeenCalledWith('topic-missing', { assistantId: 'assistant-2' })
     expect(mocks.setDefaultModel).not.toHaveBeenCalled()
   })

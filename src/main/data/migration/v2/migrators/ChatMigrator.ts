@@ -807,12 +807,12 @@ export class ChatMigrator extends BaseMigrator {
     }
 
     // Resolve topic.assistantId. v2 has no system-reserved 'default' row;
-    // any unresolved reference becomes NULL and the renderer composes a
-    // runtime default from Preference. Both orphan branches (no source id /
-    // dangling FK) bump the counter so the >50% diagnostic catches users with
-    // mass-orphaned topics. Legacy 'default' from Dexie is replayed through
-    // the AssistantMigrator id remap before the FK whitelist check, so a
-    // migrated v1 default still resolves under its new UUID.
+    // any unresolved reference becomes NULL and chat uses the default model
+    // preference as an assistant-less fallback. Both orphan branches (no source
+    // id / dangling FK) bump the counter so the >50% diagnostic catches users
+    // with mass-orphaned topics. Legacy 'default' from Dexie is replayed
+    // through the AssistantMigrator id remap before the FK whitelist check, so
+    // a migrated v1 default still resolves under its new UUID.
     const lookupHit = this.topicAssistantLookup.get(oldTopic.id) || oldTopic.assistantId
     const sourceAssistantId = lookupHit ? (this.legacyAssistantIdRemap.get(lookupHit) ?? lookupHit) : lookupHit
     let resolvedAssistantId: string | null

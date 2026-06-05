@@ -180,8 +180,7 @@ export function useAssistants() {
 
 /**
  * Returns the runtime default assistant display object. Use this only at UI
- * sites that need to render the "Default" option. Chat call sites should pass
- * `null` to `useAssistant()` and keep the runtime assistant id as `null`.
+ * sites that need to render the "Default" option for assistant-less topics.
  */
 export function useDefaultAssistant(): { assistant: RuntimeDefaultAssistant } {
   const { t } = useTranslation()
@@ -192,11 +191,11 @@ export function useDefaultAssistant(): { assistant: RuntimeDefaultAssistant } {
 }
 
 /**
- * Hook for one chat assistant identity. Null means the runtime default assistant
- * and uses `chat.default_model_id`, without querying Assistant DB.
+ * Hook for one chat assistant identity. Null means no persisted assistant
+ * binding and uses `chat.default_model_id`, without querying Assistant DB.
  *
  * Model contract:
- * - null assistant id: use the runtime default model preference;
+ * - null assistant id: use the default model preference;
  * - persisted assistant id: use only that assistant's `modelId`.
  *
  * Do not fall back from a persisted assistant with an empty `modelId` to the
