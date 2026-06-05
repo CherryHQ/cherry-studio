@@ -20,7 +20,6 @@ import {
 } from '@shared/data/types/knowledge'
 import { IpcChannel } from '@shared/IpcChannel'
 import { MetadataMode } from '@vectorstores/core'
-import { embedMany } from 'ai'
 
 import { createCheckFileProcessingResultJobHandler } from './jobs/checkFileProcessingResultJobHandler'
 import { createDeleteSubtreeJobHandler } from './jobs/deleteSubtreeJobHandler'
@@ -52,7 +51,7 @@ import {
   KnowledgeRuntimeSearchPayloadSchema
 } from './types/ipc'
 import { mapChunkDocument } from './utils/indexing/chunk'
-import { getEmbedModel } from './utils/model/embedding'
+import { embedKnowledgeQuery } from './utils/indexing/embed'
 import { applyRelevanceThreshold, getInitialSearchScoreKind, withSearchRanks } from './utils/search'
 
 const logger = loggerService.withContext('KnowledgeOrchestrationService')
@@ -246,12 +245,7 @@ export class KnowledgeOrchestrationService extends BaseService {
     }
 
     const base = await knowledgeBaseService.getById(baseId)
-    const embedResult = await embedMany({ model: getEmbedModel(base), values: [query] })
-    const queryEmbedding = embedResult.embeddings[0]
-
-    if (!queryEmbedding?.length) {
-      throw new Error('Failed to embed search query: model returned empty result')
-    }
+    const queryEmbedding = await embedKnowledgeQuery(base, query)
 
     const vectorStoreService = application.get('KnowledgeVectorStoreService')
     const vectorStore = await vectorStoreService.createStore(base)

@@ -14,9 +14,8 @@ import { loadKnowledgeItemDocuments } from '../readers/KnowledgeReader'
 import { knowledgeQueueName, reportKnowledgeProgress, toKnowledgeBaseId } from '../types'
 import type { IndexableKnowledgeItem } from '../types/items'
 import { chunkDocuments } from '../utils/indexing/chunk'
-import { embedDocuments } from '../utils/indexing/embed'
+import { embedKnowledgeDocuments } from '../utils/indexing/embed'
 import { isIndexableKnowledgeItem } from '../utils/items'
-import { getEmbedModel } from '../utils/model/embedding'
 import type { KnowledgeIndexDocumentsPayload } from './jobTypes'
 import { isDataApiNotFoundError, markKnowledgeItemFailedOnSettled } from './utils/settled'
 
@@ -28,7 +27,7 @@ type LoadedIndexDocumentsInput = {
 }
 type LoadedDocuments = Awaited<ReturnType<typeof loadKnowledgeItemDocuments>>
 type ChunkedDocuments = ReturnType<typeof chunkDocuments>
-type EmbeddedNodes = Awaited<ReturnType<typeof embedDocuments>>
+type EmbeddedNodes = Awaited<ReturnType<typeof embedKnowledgeDocuments>>
 
 export function createIndexDocumentsJobHandler(
   knowledgeLockManager: KnowledgeLockManager
@@ -148,7 +147,7 @@ async function embedItemChunks(
   chunks: ChunkedDocuments
 ): Promise<EmbeddedNodes> {
   ctx.signal.throwIfAborted()
-  return await embedDocuments(getEmbedModel(base), chunks, ctx.signal)
+  return await embedKnowledgeDocuments(base, chunks, ctx.signal)
 }
 
 async function writeItemVectors(

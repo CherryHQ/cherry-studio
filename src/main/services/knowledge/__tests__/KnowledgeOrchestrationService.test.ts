@@ -19,6 +19,7 @@ const {
   fileProcessingStartJobMock,
   getJobMock,
   getStoreIfExistsMock,
+  aiEmbedManyMock,
   knowledgeBaseCreateMock,
   knowledgeBaseDeleteMock,
   knowledgeBaseGetByIdMock,
@@ -46,6 +47,7 @@ const {
   fileProcessingStartJobMock: vi.fn(),
   getJobMock: vi.fn(),
   getStoreIfExistsMock: vi.fn(),
+  aiEmbedManyMock: vi.fn(),
   knowledgeBaseCreateMock: vi.fn(),
   knowledgeBaseDeleteMock: vi.fn(),
   knowledgeBaseGetByIdMock: vi.fn(),
@@ -84,6 +86,9 @@ vi.mock('@application', async () => {
       createStore: createStoreMock,
       deleteStore: deleteStoreMock,
       getStoreIfExists: getStoreIfExistsMock
+    },
+    AiService: {
+      embedMany: aiEmbedManyMock
     }
   } as Parameters<typeof mockApplicationFactory>[0])
 })
@@ -135,14 +140,6 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
     setSubtreeStatus: knowledgeItemSetSubtreeStatusMock,
     updateStatus: knowledgeItemUpdateStatusMock
   }
-}))
-
-vi.mock('ai', () => ({
-  embedMany: vi.fn().mockResolvedValue({ embeddings: [[0.1, 0.2, 0.3]] })
-}))
-
-vi.mock('../utils/model/embedding', () => ({
-  getEmbedModel: vi.fn(() => ({ modelId: 'mock-embed' }))
 }))
 
 vi.mock('../rerank/rerank', () => ({
@@ -314,6 +311,7 @@ describe('KnowledgeOrchestrationService', () => {
     vectorListByExternalIdMock.mockResolvedValue([])
     vectorQueryMock.mockResolvedValue({ nodes: [], similarities: [] })
     knowledgeItemGetRootItemsByBaseIdMock.mockResolvedValue([])
+    aiEmbedManyMock.mockResolvedValue({ embeddings: [[0.1, 0.2, 0.3]] })
   })
 
   it('uses WhenReady phase and depends on same-phase runtime services', () => {
@@ -1048,6 +1046,11 @@ describe('KnowledgeOrchestrationService', () => {
     await expect(service.search('kb-1', 'hello')).resolves.toEqual([
       expect.objectContaining({ chunkId: 'chunk-1', itemId: NOTE_ITEM_ID, rank: 1, score: 0.8 })
     ])
+    expect(aiEmbedManyMock).toHaveBeenCalledWith({
+      uniqueModelId: 'provider::embed',
+      values: ['hello'],
+      requestOptions: undefined
+    })
   })
 
   it('filters search results for missing or deleting items', async () => {
@@ -1097,6 +1100,15 @@ describe('KnowledgeOrchestrationService', () => {
     await expect(service.search('kb-1', 'hello')).resolves.toEqual([
       expect.objectContaining({ chunkId: 'chunk-active', itemId: NOTE_ITEM_ID, rank: 1, score: 0.9 })
     ])
+  })
+
+  it('throws when search query embedding returns no vector', async () => {
+    const service = new KnowledgeOrchestrationService()
+    aiEmbedManyMock.mockResolvedValueOnce({ embeddings: [[]] })
+
+    await expect(service.search('kb-1', 'hello')).rejects.toThrow(
+      "Invalid operation: embed knowledge content - Embedding model returned empty vector at index 0 for knowledge base 'kb-1'"
+    )
   })
 
   it('lists and deletes chunks after checking item ownership', async () => {

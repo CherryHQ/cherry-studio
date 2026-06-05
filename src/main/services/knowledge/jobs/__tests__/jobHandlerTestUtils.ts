@@ -105,13 +105,9 @@ vi.mock('../../utils/sources/prepare', () => ({
 }))
 
 vi.mock('../../utils/indexing/embed', () => ({
-  embedDocuments: vi.fn(async (_model, documents: unknown[]) =>
+  embedKnowledgeDocuments: vi.fn(async (_base, documents: unknown[]) =>
     documents.length === 0 ? [] : [{ id_: 'node-1', metadata: {}, getContent: () => 'chunk' }]
   )
-}))
-
-vi.mock('../../utils/model/embedding', () => ({
-  getEmbedModel: vi.fn(() => ({ modelId: 'mock-embed' }))
 }))
 
 export const { createDeleteSubtreeJobHandler } = await import('../deleteSubtreeJobHandler')

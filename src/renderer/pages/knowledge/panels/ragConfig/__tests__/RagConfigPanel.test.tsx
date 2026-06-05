@@ -127,7 +127,17 @@ vi.mock('@cherrystudio/ui', async () => {
 })
 
 vi.mock('../../../hooks', () => ({
-  useKnowledgeRagConfig: (base: KnowledgeBase) => mockUseKnowledgeRagConfig(base)
+  useKnowledgeRagConfig: (base: KnowledgeBase) => mockUseKnowledgeRagConfig(base),
+  useEmbeddingDimensions: () => ({
+    fetchDimensions: async (uniqueModelId: string) => {
+      const { embeddings } = await window.api.ai.embedMany({
+        uniqueModelId,
+        values: ['test']
+      })
+      return embeddings[0]?.length ?? 0
+    },
+    isFetchingDimensions: false
+  })
 }))
 
 vi.mock('react-i18next', () => ({
