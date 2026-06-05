@@ -1,10 +1,10 @@
 import { useAgentTools } from '@renderer/hooks/agents/useAgentTools'
-import { useAgentMutations, useAgentMutationsById } from '@renderer/pages/library/adapters/agentAdapter'
-import type { AgentDetail } from '@shared/data/types/agent'
 import type { FC } from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { useAgentMutations, useAgentMutationsById } from '../../adapters/agentAdapter'
+import type { AgentDetail } from '../../types'
 import { ConfigEditorShell } from '../ConfigEditorShell'
 import { useResourceEditorState } from '../useResourceEditorState'
 import {
@@ -45,12 +45,10 @@ const EMPTY_AGENT_FOR_CREATE: AgentDetail = {
   id: '',
   type: 'claude-code',
   name: '',
-  accessiblePaths: [],
-  model: '',
+  model: null,
   modelName: null,
   createdAt: '',
-  updatedAt: '',
-  tools: []
+  updatedAt: ''
 }
 
 /**
@@ -109,7 +107,12 @@ const AgentConfigPage: FC<Props> = ({ agent, onBack, onCreated }) => {
     },
     fallbackErrorMessage: t('library.config.save_failed')
   })
-  const { tools } = useAgentTools(editAgent?.type ?? 'claude-code', form.mcps)
+  const { tools } = useAgentTools({
+    type: editAgent?.type ?? 'claude-code',
+    mcps: form.mcps,
+    allowedTools: form.allowedTools,
+    permissionMode: form.permissionMode
+  })
   const onChange = useCallback(
     (patch: Partial<AgentFormState>) => {
       if (patch.soulEnabled === true && activeSection === 'permission') {

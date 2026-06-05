@@ -1,3 +1,4 @@
+import type { CommandId } from '@shared/command'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { ReactNode } from 'react'
@@ -15,6 +16,7 @@ interface ModelSelectorCommonProps {
   filter?: (model: Model) => boolean
   showTagFilter?: boolean
   showPinnedModels?: boolean
+  showPinActions?: boolean
   prioritizedProviderIds?: string[]
   side?: ModelSelectorSide
   align?: ModelSelectorAlign
@@ -24,6 +26,7 @@ interface ModelSelectorCommonProps {
   multiSelectMode?: boolean
   defaultMultiSelectMode?: boolean
   onMultiSelectModeChange?: (enabled: boolean) => void
+  shortcut?: CommandId
 }
 
 export interface ModelSelectorSingleModelProps extends ModelSelectorCommonProps {

@@ -1,11 +1,12 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources'
+import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import type { Provider } from '@types'
+import { parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
+import type { Provider } from '@shared/data/types/provider'
 import type { Request, Response } from 'express'
 import express from 'express'
 
 import { messagesService } from '../services/messages'
-import { getProviderById, validateModelId } from '../utils'
 
 const logger = loggerService.withContext('ApiServerMessagesRoutes')
 
@@ -13,7 +14,7 @@ const router = express.Router()
 const providerRouter = express.Router({ mergeParams: true })
 
 // Helper function for basic request validation
-async function validateRequestBody(req: Request): Promise<{ valid: boolean; error?: any }> {
+function validateRequestBody(req: Request): { valid: boolean; error?: any } {
   const request: MessageCreateParams = req.body
 
   if (!request) {
@@ -102,7 +103,7 @@ async function handleMessageProcessing({
  *             properties:
  *               model:
  *                 type: string
- *                 description: Model ID in format "provider:model_id"
+ *                 description: Model ID in format "providerId::modelId"
  *                 example: "my-anthropic:claude-3-5-sonnet-20241022"
  *               max_tokens:
  *                 type: integer
@@ -207,7 +208,7 @@ async function handleMessageProcessing({
  */
 router.post('/', async (req: Request, res: Response) => {
   // Validate request body
-  const bodyValidation = await validateRequestBody(req)
+  const bodyValidation = validateRequestBody(req)
   if (!bodyValidation.valid) {
     return res.status(400).json(bodyValidation.error)
   }
@@ -215,25 +216,27 @@ router.post('/', async (req: Request, res: Response) => {
   try {
     const request: MessageCreateParams = req.body
 
-    // Validate model ID and get provider
-    const modelValidation = await validateModelId(request.model)
-    if (!modelValidation.valid) {
-      const error = modelValidation.error!
-      logger.warn('Model validation failed', {
-        model: request.model,
-        error
-      })
+    // Parse model ID and resolve provider
+    let providerId: string
+    let modelId: string
+    try {
+      const parsed = parseUniqueModelId(request.model as UniqueModelId)
+      providerId = parsed.providerId
+      modelId = parsed.modelId
+    } catch {
       return res.status(400).json({
         type: 'error',
-        error: {
-          type: 'invalid_request_error',
-          message: error.message
-        }
+        error: { type: 'invalid_request_error', message: `Invalid model format: ${request.model}` }
       })
     }
 
-    const provider = modelValidation.provider!
-    const modelId = modelValidation.modelId!
+    const provider = await providerService.getByProviderId(providerId).catch(() => null)
+    if (!provider) {
+      return res.status(400).json({
+        type: 'error',
+        error: { type: 'invalid_request_error', message: `Provider '${providerId}' not found` }
+      })
+    }
 
     return handleMessageProcessing({ req, res, provider, request, modelId })
   } catch (error: any) {
@@ -361,7 +364,7 @@ router.post('/', async (req: Request, res: Response) => {
  */
 providerRouter.post('/', async (req: Request, res: Response) => {
   // Validate request body
-  const bodyValidation = await validateRequestBody(req)
+  const bodyValidation = validateRequestBody(req)
   if (!bodyValidation.valid) {
     return res.status(400).json(bodyValidation.error)
   }
@@ -380,7 +383,7 @@ providerRouter.post('/', async (req: Request, res: Response) => {
     }
 
     // Get provider directly by ID from URL path
-    const provider = await getProviderById(providerId)
+    const provider = await providerService.getByProviderId(providerId).catch(() => null)
     if (!provider) {
       return res.status(400).json({
         type: 'error',

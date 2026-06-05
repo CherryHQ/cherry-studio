@@ -14,10 +14,10 @@ describe('identity-scoped agent queries', () => {
   })
 
   it('disables keepPreviousData for session detail queries', () => {
-    renderHook(() => useSession('agent-1', 'session-1'))
+    renderHook(() => useSession('session-1'))
 
     expect(vi.mocked(useQuery)).toHaveBeenCalledWith(
-      '/agents/:agentId/sessions/:sessionId',
+      '/agent-sessions/:sessionId',
       expect.objectContaining({
         enabled: true,
         swrOptions: { keepPreviousData: false }
@@ -49,7 +49,7 @@ describe('identity-scoped agent queries', () => {
     renderHook(() => useChannels('telegram'))
 
     expect(vi.mocked(useQuery)).toHaveBeenCalledWith(
-      '/channels',
+      '/agent-channels',
       expect.objectContaining({
         query: { type: 'telegram' },
         swrOptions: { keepPreviousData: false }

@@ -355,4 +355,27 @@ describe('TranslateHistory', () => {
 
     await waitFor(() => expect(loadMoreMock).toHaveBeenCalledTimes(1))
   })
+
+  it('coalesces repeated near-bottom scroll events into one load request', async () => {
+    translateHistoryMock.useTranslateHistories.mockReturnValueOnce({
+      items: histories,
+      total: histories.length,
+      hasMore: true,
+      isLoadingMore: false,
+      loadMore: loadMoreMock,
+      status: 'success'
+    })
+
+    render(<TranslateHistory isOpen onHistoryItemClick={vi.fn()} onClose={vi.fn()} />)
+
+    const list = screen.getByTestId('virtual-list')
+    Object.defineProperty(list, 'scrollHeight', { configurable: true, value: 1000 })
+    Object.defineProperty(list, 'clientHeight', { configurable: true, value: 300 })
+    Object.defineProperty(list, 'scrollTop', { configurable: true, value: 650 })
+
+    fireEvent.scroll(list)
+    fireEvent.scroll(list)
+
+    await waitFor(() => expect(loadMoreMock).toHaveBeenCalledTimes(1))
+  })
 })

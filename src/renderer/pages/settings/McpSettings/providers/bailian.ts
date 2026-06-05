@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
-import type { MCPServer } from '@renderer/types'
+import type { McpServer } from '@renderer/types'
 import i18next from 'i18next'
 
 const logger = loggerService.withContext('BailianSyncUtils')
@@ -53,9 +53,7 @@ interface McpServerCherryDetailResponse {
 export interface BailianSyncResult {
   success: boolean
   message: string
-  addedServers: MCPServer[]
-  updatedServers: MCPServer[]
-  allServers: MCPServer[]
+  allServers: McpServer[]
   errorDetails?: string
 }
 
@@ -110,15 +108,13 @@ async function fetchAllMcpServers(token: string): Promise<BailianServer[]> {
 }
 
 // ========== 主同步函数 ==========
-export const syncBailianServers = async (token: string, existingServers: MCPServer[]): Promise<BailianSyncResult> => {
+export const syncBailianServers = async (token: string): Promise<BailianSyncResult> => {
   const t = i18next.t
 
   try {
     const servers = await fetchAllMcpServers(token)
 
-    const addedServers: MCPServer[] = []
-    const updatedServers: MCPServer[] = []
-    const allServers: MCPServer[] = []
+    const allServers: McpServer[] = []
 
     for (const server of servers) {
       try {
@@ -126,11 +122,8 @@ export const syncBailianServers = async (token: string, existingServers: MCPServ
           continue
         }
 
-        const id = `@bailian/${server.id}`
-        const existingServer = existingServers.find((s) => s.id === id)
-
-        const mcpServer: MCPServer = {
-          id,
+        const mcpServer: McpServer = {
+          id: `@bailian/${server.id}`,
           name: server.name || `Bailian Server ${nanoid()}`,
           description: server.description || '',
           type: server.type,
@@ -147,25 +140,15 @@ export const syncBailianServers = async (token: string, existingServers: MCPServ
             Authorization: `Bearer ${token}`
           }
         }
-
-        if (existingServer) {
-          updatedServers.push(mcpServer)
-        } else {
-          addedServers.push(mcpServer)
-        }
         allServers.push(mcpServer)
       } catch (err) {
         logger.error(`Error processing Bailian server ${server.id}:`, err as Error)
       }
     }
 
-    const totalServers = addedServers.length + updatedServers.length
-
     return {
       success: true,
-      message: t('settings.mcp.sync.success', { count: totalServers }),
-      addedServers,
-      updatedServers,
+      message: t('settings.mcp.sync.success', { count: allServers.length }),
       allServers
     }
   } catch (error) {
@@ -179,8 +162,6 @@ export const syncBailianServers = async (token: string, existingServers: MCPServ
       return {
         success: false,
         message,
-        addedServers: [],
-        updatedServers: [],
         allServers: []
       }
     }
@@ -192,8 +173,6 @@ export const syncBailianServers = async (token: string, existingServers: MCPServ
       return {
         success: false,
         message,
-        addedServers: [],
-        updatedServers: [],
         allServers: [],
         errorDetails
       }
@@ -206,8 +185,6 @@ export const syncBailianServers = async (token: string, existingServers: MCPServ
     return {
       success: false,
       message,
-      addedServers: [],
-      updatedServers: [],
       allServers: [],
       errorDetails
     }

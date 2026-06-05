@@ -298,7 +298,7 @@ export default function ProviderEditorDrawer({
   )
 
   return (
-    <ProviderSettingsDrawer open={open} onClose={onClose} title={title} size="compact" footer={footer}>
+    <ProviderSettingsDrawer open={open} onClose={onClose} title={title} footer={footer}>
       <div className="flex flex-col gap-5">
         {duplicateSource && duplicateSource.presetProviderId && <DuplicateHeader source={duplicateSource} />}
 
@@ -422,7 +422,7 @@ function AvatarSection({
           <PopoverTrigger asChild>
             <Button variant="outline">{t('settings.general.avatar.builtin')}</Button>
           </PopoverTrigger>
-          <PopoverContent align="center" sideOffset={8} className="w-auto border-none bg-transparent p-0 shadow-none">
+          <PopoverContent align="center" sideOffset={8} className="w-auto">
             <ProviderLogoPicker onProviderClick={onPick} />
           </PopoverContent>
         </Popover>
@@ -518,7 +518,7 @@ interface BaseUrlFieldProps {
 function BaseUrlField({ label, placeholder, value, onChange, required }: BaseUrlFieldProps) {
   return (
     <div className="space-y-2">
-      <label className="font-medium text-[13px] text-foreground/85">
+      <label className="font-medium text-[13px] text-foreground">
         {label}
         {required && <span className="ms-1 text-destructive/70">*</span>}
       </label>
@@ -544,7 +544,7 @@ function ApiKeyField({ value, onChange }: ApiKeyFieldProps) {
 
   return (
     <div className="space-y-2">
-      <label className="font-medium text-[13px] text-foreground/85">{t('settings.provider.api_key.label')}</label>
+      <label className="font-medium text-[13px] text-foreground">{t('settings.provider.api_key.label')}</label>
       <div className="relative">
         <Input
           type={visible ? 'text' : 'password'}

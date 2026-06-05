@@ -14,33 +14,31 @@ const DirectorySourceContent = ({ directories, onRemove, onSelectDirectory }: Di
   const { t } = useTranslation()
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3">
       <button
         type="button"
         data-testid="knowledge-source-directory-select"
         onClick={() => void onSelectDirectory()}
-        className="min-h-29.5 shrink-0 rounded-lg border-2 border-border/30 border-dashed bg-muted/[0.06] p-5 text-center text-foreground shadow-none transition-colors hover:border-border/30 hover:bg-muted/[0.06] hover:text-foreground">
-        <div className="flex flex-col items-center gap-2">
-          <div className="flex size-8 items-center justify-center rounded-full bg-muted/40 text-muted-foreground/55">
+        className="min-h-24 min-w-0 shrink-0 whitespace-normal rounded-md border border-border-muted border-dashed px-4 py-4 text-center text-foreground-muted shadow-none transition-colors hover:border-border-hover hover:bg-muted/30 hover:text-foreground-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+        <div className="flex min-w-0 flex-col items-center justify-center gap-2.5">
+          <div className="flex size-8 items-center justify-center rounded-full bg-accent text-foreground-muted">
             <Folder className="size-4" />
           </div>
-          <div className="space-y-1">
-            <p className="text-sm leading-4">{t('knowledge.data_source.add_dialog.directory.title')}</p>
-            <p className="text-muted-foreground/60 text-xs leading-4">
-              {t('knowledge.data_source.add_dialog.directory.description')}
-            </p>
+          <div className="min-w-0 space-y-1">
+            <p className="text-foreground text-sm leading-5">{t('knowledge.data_source.add_dialog.directory.title')}</p>
+            <p className="text-xs leading-5">{t('knowledge.data_source.add_dialog.directory.description')}</p>
           </div>
         </div>
       </button>
 
       {directories.length > 0 ? (
-        <div data-testid="knowledge-source-directory-list" className="max-h-52 overflow-y-auto">
+        <div data-testid="knowledge-source-directory-list" className="min-h-0 flex-1 overflow-y-auto">
           <div role="list" className="space-y-1.5 pr-1">
             {directories.map((directory) => (
               <SelectionListItem
                 key={directory.path}
                 icon={Folder}
-                iconClassName="size-2.5 shrink-0 text-amber-500"
+                iconClassName="size-3.5 shrink-0 text-amber-500"
                 name={directory.name}
                 meta={directory.path}
                 onRemove={() => onRemove(directory.path)}

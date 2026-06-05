@@ -106,12 +106,11 @@ Topic data is merged from Dexie + Redux before transformation:
 | `assistantId` | `assistantId` | Direct copy |
 | `modelId` | `modelId` | Direct copy |
 | (from Message.model) | `modelMeta` | Generated from model entity |
-| `traceId` | `traceId` | Direct copy |
 | `usage` + `metrics` | `stats` | Merged into single stats object |
 | `createdAt` | `createdAt` | ISO string → timestamp |
 | `updatedAt` | `updatedAt` | ISO string → timestamp |
 
-**Dropped fields**: `type`, `useful`, `enabledMCPs`, `agentSessionId`, `providerMetadata`, `multiModelMessageStyle`, `askId` (replaced by parentId), `foldSelected` (replaced by siblingsGroupId)
+**Dropped fields**: `type`, `useful`, `enabledMCPs`, `agentSessionId`, `traceId` (span detail files are not part of the v1 chat migration source set), `providerMetadata`, `multiModelMessageStyle`, `askId` (replaced by parentId), `foldSelected` (replaced by siblingsGroupId)
 
 ### Block Type Mapping
 

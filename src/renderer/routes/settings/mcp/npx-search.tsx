@@ -1,14 +1,14 @@
 import { useTheme } from '@renderer/context/ThemeProvider'
-import { SettingContainer } from '@renderer/pages/settings'
+import { SettingsContentColumn } from '@renderer/pages/settings'
 import NpxSearch from '@renderer/pages/settings/McpSettings/NpxSearch'
 import { createFileRoute } from '@tanstack/react-router'
 
 const NpxSearchWrapper = () => {
   const { theme } = useTheme()
   return (
-    <SettingContainer theme={theme}>
+    <SettingsContentColumn theme={theme} innerClassName="max-w-[1200px]">
       <NpxSearch />
-    </SettingContainer>
+    </SettingsContentColumn>
   )
 }
 

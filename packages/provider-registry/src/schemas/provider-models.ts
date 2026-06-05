@@ -9,6 +9,7 @@ import * as z from 'zod'
 
 import { ModelIdSchema, ProviderIdSchema, VersionSchema } from './common'
 import {
+  ImageGenerationSupportSchema,
   ModalitySchema,
   ModelCapabilityTypeSchema,
   ModelPricingSchema,
@@ -65,6 +66,21 @@ export const ProviderModelOverrideSchema = z.object({
   // Modality overrides (when provider supports different modalities than base model)
   inputModalities: z.array(ModalitySchema).optional(),
   outputModalities: z.array(ModalitySchema).optional(),
+
+  // Standalone model fields — used when the modelId has NO entry in models.json
+  // (vendor-exclusive models like ModelScope's `Tongyi-MAI/Z-Image-Turbo`, PPIO's
+  // bespoke endpoints, etc.). The resolver synthesizes a `ModelConfig` from
+  // these when no preset is found, so the model can live entirely in
+  // `provider-models.json` without polluting the global `models.json`.
+  name: z.string().optional(),
+  description: z.string().optional(),
+  family: z.string().optional(),
+  ownedBy: z.string().optional(),
+
+  // Painting-page metadata. When set on the override, takes precedence over
+  // `ModelConfig.imageGeneration` (so the same model id can declare different
+  // params per provider — useful for vendor-flavored variants).
+  imageGeneration: ImageGenerationSupportSchema.optional(),
 
   // Status control
   disabled: z.boolean().optional(),

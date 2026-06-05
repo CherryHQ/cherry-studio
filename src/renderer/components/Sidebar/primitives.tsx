@@ -58,7 +58,14 @@ export function SidebarTabIcon({
 
 /** Returns true if the string is NOT a URL — i.e., should be rendered as text (emoji or initial). */
 function isTextAvatar(str?: string): boolean {
-  if (!str || str.startsWith('data:') || str.startsWith('http') || str.startsWith('/') || str.startsWith('blob:')) {
+  if (
+    !str ||
+    str.startsWith('data:') ||
+    str.startsWith('http') ||
+    str.startsWith('/') ||
+    str.startsWith('blob:') ||
+    str.startsWith('file:')
+  ) {
     return false
   }
   return true

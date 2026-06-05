@@ -1,7 +1,7 @@
 import { Button } from '@cherrystudio/ui'
 import MarkdownEditor from '@renderer/components/MarkdownEditor'
 import { TopView } from '@renderer/components/TopView'
-import { useProvider } from '@renderer/hooks/useProviders'
+import { useProvider } from '@renderer/hooks/useProvider'
 import type { FC } from 'react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -64,7 +64,6 @@ const PopupContainer: FC<Props> = ({ providerId, resolve }) => {
 
   return (
     <ProviderSettingsDrawer
-      size="wide"
       title={t('settings.provider.notes.title')}
       open={open}
       onClose={onCancel}

@@ -9,6 +9,40 @@ export const DEFAULT_LANGUAGES = ['text', 'javascript', 'typescript', 'python', 
 export const DEFAULT_THEMES = ['one-light', 'material-theme-darker']
 
 const logger = loggerService.withContext('Shiki')
+const WHITE_TOKEN_COLOR_PATTERN = /^(?:white|#fff(?:fff)?)$/i
+const READABLE_TEXT_COLOR = 'var(--color-foreground)'
+
+// Literal white fallbacks (including #ffffffff with alpha). Shiki colorReplacements matches by exact, lowercased value, so enumerate each one.
+const LITERAL_WHITE_COLOR_REPLACEMENTS: Record<string, string> = {
+  white: READABLE_TEXT_COLOR,
+  '#fff': READABLE_TEXT_COLOR,
+  '#ffffff': READABLE_TEXT_COLOR,
+  '#ffffffff': READABLE_TEXT_COLOR
+}
+
+function isWhiteTokenColor(color: string): boolean {
+  return WHITE_TOKEN_COLOR_PATTERN.test(color)
+}
+
+/**
+ * Build the white-token color replacement map for light themes, to feed Shiki's native colorReplacements.
+ *
+ * Key insight: themes like one-light map a sentinel color (e.g. `#00000001`) to `white` via their own
+ * colorReplacements, and Shiki only replaces once, so using `white` as the key never matches. We therefore
+ * read the theme's own colorReplacements, rewrite any sentinel whose value is white to the readable color,
+ * and add the literal white spellings as a fallback.
+ */
+function getLightThemeWhiteColorReplacements(theme: {
+  colorReplacements?: Record<string, string>
+}): Record<string, string> {
+  const replacements: Record<string, string> = { ...LITERAL_WHITE_COLOR_REPLACEMENTS }
+  for (const [sentinel, value] of Object.entries(theme.colorReplacements ?? {})) {
+    if (isWhiteTokenColor(value)) {
+      replacements[sentinel] = READABLE_TEXT_COLOR
+    }
+  }
+  return replacements
+}
 
 /**
  * shiki 初始化器，避免并发问题
@@ -114,8 +148,8 @@ export function getReactStyleFromToken(
   const style = token.htmlStyle || getTokenStyleObject(token)
   const reactStyle: Record<string, string> = {}
   for (const [key, value] of Object.entries(style)) {
-    if (key === 'color' && !options?.isDarkTheme && ['white', '#fff', '#ffffff'].includes(value.toLowerCase())) {
-      reactStyle.color = 'var(--color-text)'
+    if (key === 'color' && !options?.isDarkTheme && isWhiteTokenColor(value)) {
+      reactStyle.color = READABLE_TEXT_COLOR
       continue
     }
 
@@ -140,14 +174,14 @@ export function getReactStyleFromToken(
 }
 
 /**
- * 获取 markdown-it，避免并发问题
+ * Cache the markdown-it constructor to avoid duplicate concurrent imports.
+ * Note: this returns the constructor, not a singleton instance — each render must create its own instance,
+ * otherwise a shared instance's options.highlight would overwrite one another (cross-contaminate) during
+ * concurrent renders / theme switches.
  */
 const mdInitializer = new AsyncInitializer(async () => {
   const md = await import('markdown-it')
-  return md.default({
-    linkify: true, // 自动转换 URL 为链接
-    typographer: true // 启用印刷格式优化
-  })
+  return md.default
 })
 
 /**
@@ -158,7 +192,12 @@ const mdInitializer = new AsyncInitializer(async () => {
 export async function getMarkdownIt(theme: string, markdown: string) {
   const highlighter = await getHighlighter()
   await loadMarkdownLanguage(markdown, highlighter)
-  const md = await mdInitializer.get()
+  // Create an independent markdown-it instance per render so a shared instance's options.highlight can't cross-contaminate under concurrency
+  const MarkdownIt = await mdInitializer.get()
+  const md = MarkdownIt({
+    linkify: true, // auto-convert URLs to links
+    typographer: true // enable typographic replacements
+  })
   const { fromHighlighter } = await import('@shikijs/markdown-it/core')
 
   let actualTheme = theme
@@ -178,12 +217,26 @@ export async function getMarkdownIt(theme: string, markdown: string) {
     themes[actualTheme] = actualTheme
   }
 
+  const actualThemeRegistration = highlighter.getTheme(actualTheme)
+  const isActualThemeDark = actualThemeRegistration.type === 'dark'
+
+  // Only when the default theme is light, use Shiki's native colorReplacements to rewrite white tokens to a
+  // readable color; nest it by theme name so dark themes are unaffected. colorReplacements is not part of the
+  // MarkdownItShikiSetupOptions type, but fromHighlighter forwards the whole options object to codeToHtml
+  // as-is, so we spread it in via a separate object.
+  const colorReplacementOption = isActualThemeDark
+    ? {}
+    : { colorReplacements: { [actualTheme]: getLightThemeWhiteColorReplacements(actualThemeRegistration) } }
+
   md.use(
     fromHighlighter(highlighter, {
       themes,
       defaultColor: actualTheme,
-      defaultLanguage: 'json',
-      fallbackLanguage: 'json'
+      // 'text' is Shiki's built-in plain language, not in the BundledLanguage union, hence the type assertion.
+      // defaultLanguage already defaults to 'text', so it doesn't need to be declared; fallbackLanguage must
+      // stay, otherwise an unloaded/unknown language would call codeToHtml with the original lang and throw.
+      fallbackLanguage: 'text' as BundledLanguage,
+      ...colorReplacementOption
     })
   )
 

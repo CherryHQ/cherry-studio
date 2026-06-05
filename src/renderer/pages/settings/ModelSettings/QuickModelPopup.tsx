@@ -41,13 +41,13 @@ export const TopicNamingSettings = () => {
     <section>
       <SettingSubtitle className="mt-0 mb-3">{t('settings.models.topic_naming.label')}</SettingSubtitle>
 
-      <ColFlex className="items-stretch rounded-md border border-border/60 bg-muted/20">
+      <ColFlex className="items-stretch rounded-md border border-border-muted">
         <RowFlex className="min-h-11 items-center justify-between gap-4 px-3 py-2.5">
           <div className="font-medium text-foreground text-sm">{t('settings.models.topic_naming.auto')}</div>
           <Switch checked={enableTopicNaming} onCheckedChange={setEnableTopicNaming} />
         </RowFlex>
 
-        <Divider style={{ margin: 0 }} />
+        <Divider className="m-0" />
 
         <div className="space-y-2 px-3 pt-3 pb-3.5">
           <Flex className="min-h-7 items-center justify-between gap-2">

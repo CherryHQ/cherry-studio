@@ -96,21 +96,88 @@ export function generateMcpToolFunctionName(
   return buildMcpToolName(serverName, toolName, { existingNames })
 }
 
+const FUNCTION_CALL_TOOL_NAME_MAX_LENGTH = 63
+/** `_` + a fixed-width base36 hash of the server name, reserved on truncation. */
+const SERVER_DISAMBIGUATOR_LENGTH = 7
+
+/**
+ * FNV-1a 32-bit hash of the server name as a fixed-width base36 string.
+ * Identifier-safe (`[0-9a-z]`) so it can sit inside a JS-identifier tool name.
+ */
+function hashServerName(serverName: string): string {
+  let h = 0x811c9dc5
+  for (let i = 0; i < serverName.length; i++) {
+    h ^= serverName.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return (h >>> 0).toString(36).padStart(SERVER_DISAMBIGUATOR_LENGTH, '0').slice(-SERVER_DISAMBIGUATOR_LENGTH)
+}
+
 /**
  * Builds a valid JavaScript function name for MCP tool calls.
- * Format: mcp__{serverName}__{toolName}
+ * Format: `mcp__{server}__{tool}` (camelCase), max 63 chars.
  *
- * @param serverName - The MCP server name
- * @param toolName - The tool name from the server
- * @returns A valid JS identifier in format mcp__{server}__{tool}, max 63 chars
+ * When the untruncated name exceeds the cap the tail is dropped — and for long
+ * server names the `__` delimiter and part of the server segment go with it,
+ * which would let two distinct servers/tools mint the same id (breaking both
+ * `filterServersByToolIds` and `scope.mcpToolIds` matching). In that case a
+ * server-derived suffix (`_<hash(serverName)>`) is appended so the id stays
+ * unique per server and remains attributable to it from the server name alone
+ * (see `isFunctionCallToolNameForServer`).
  *
  * @example
  * buildFunctionCallToolName('github', 'search_issues') // 'mcp__github__searchIssues'
  */
 export function buildFunctionCallToolName(serverName: string, toolName: string): string {
-  return buildMcpToolName(serverName, toolName, {
-    prefix: 'mcp__',
-    delimiter: '__',
-    maxLength: 63
-  })
+  const serverPart = serverName ? toCamelCase(serverName) : ''
+  const toolPart = toCamelCase(toolName)
+  const baseName = serverPart ? `mcp__${serverPart}__${toolPart}` : `mcp__${toolPart}`
+  if (baseName.length <= FUNCTION_CALL_TOOL_NAME_MAX_LENGTH) {
+    return baseName
+  }
+  const suffix = `_${hashServerName(serverName)}`
+  const body = truncateToLength(baseName, FUNCTION_CALL_TOOL_NAME_MAX_LENGTH - suffix.length)
+  return `${body}${suffix}`
+}
+
+export type McpFunctionCallToolNameParts = {
+  serverPart: string
+  toolPart: string
+}
+
+/**
+ * Parse MCP tool-call names in the Claude/AI-SDK format:
+ * `mcp__{server}__{tool}`.
+ */
+export function parseFunctionCallToolName(toolName: string): McpFunctionCallToolNameParts | null {
+  if (!toolName.startsWith('mcp__')) return null
+
+  const rest = toolName.slice('mcp__'.length)
+  const delimiterIndex = rest.lastIndexOf('__')
+  if (delimiterIndex <= 0 || delimiterIndex >= rest.length - 2) return null
+
+  return {
+    serverPart: rest.slice(0, delimiterIndex),
+    toolPart: rest.slice(delimiterIndex + 2)
+  }
+}
+
+/**
+ * Test whether a minted MCP function-call tool id (a `buildFunctionCallToolName`
+ * output) belongs to `serverName`.
+ *
+ * Untruncated ids keep the disambiguating `mcp__{server}__` prefix and match by
+ * prefix. Truncated ids carry the server-derived `_<hash(serverName)>` suffix
+ * (see `buildFunctionCallToolName`); for those we recompute the suffix and
+ * confirm the surviving body is a prefix-consistent slice of this server's id —
+ * so two distinct servers sharing a long camelCase prefix no longer over-match.
+ */
+export function isFunctionCallToolNameForServer(serverName: string, toolId: string): boolean {
+  const serverPart = toCamelCase(serverName)
+  if (toolId.startsWith(`mcp__${serverPart}__`)) return true
+  const suffix = `_${hashServerName(serverName)}`
+  if (!toolId.endsWith(suffix)) return false
+  const body = toolId.slice(0, toolId.length - suffix.length)
+  const serverCore = `mcp__${serverPart}`
+  return serverCore.startsWith(body) || body.startsWith(serverCore)
 }

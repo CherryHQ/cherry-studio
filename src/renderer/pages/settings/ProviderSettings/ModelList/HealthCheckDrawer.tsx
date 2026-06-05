@@ -1,11 +1,20 @@
-import { Avatar, AvatarFallback, Button, Input, RadioGroup, RadioGroupItem, Tooltip } from '@cherrystudio/ui'
+import {
+  Avatar,
+  AvatarFallback,
+  Button,
+  Input,
+  RadioGroup,
+  RadioGroupItem,
+  SegmentedControl,
+  Tooltip
+} from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { getModelLogo } from '@renderer/config/models'
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { cn } from '@renderer/utils'
 import { maskApiKey } from '@renderer/utils/api'
-import { AlertTriangle, CheckCircle2, Loader2, XCircle } from 'lucide-react'
+import { CheckCircle2, Loader2, XCircle } from 'lucide-react'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -118,13 +127,8 @@ export default function HealthCheckDrawer({
   )
 
   return (
-    <ProviderSettingsDrawer open={open} onClose={onClose} title={title} footer={footer} size="wide">
-      <div className="shrink-0 rounded-xl border border-warning/30 bg-warning/8 p-3 text-[12px] text-foreground/75 leading-[1.45]">
-        <div className="flex items-start gap-2">
-          <AlertTriangle size={14} className="mt-0.5 shrink-0 text-warning" />
-          <span>{t('settings.models.check.disclaimer')}</span>
-        </div>
-      </div>
+    <ProviderSettingsDrawer open={open} onClose={onClose} title={title} footer={footer}>
+      <p className={cn(drawerClasses.helpText, 'shrink-0')}>{t('settings.models.check.disclaimer')}</p>
 
       {showPipeline && progressStats ? (
         <div className="flex min-h-0 flex-1 flex-col gap-0">
@@ -156,9 +160,9 @@ export default function HealthCheckDrawer({
             <div className="mx-4 mt-3 mb-2 flex flex-wrap items-center gap-4 rounded-xl border border-border/60 bg-muted/50 px-3.5 py-2.5">
               <div className="flex items-center gap-1.5">
                 <div className="flex size-3.5 items-center justify-center rounded-full bg-muted">
-                  <CheckCircle2 size={9} className="text-muted-foreground" />
+                  <CheckCircle2 size={9} className="text-foreground-muted" />
                 </div>
-                <span className="text-muted-foreground text-xs">
+                <span className="text-foreground-muted text-xs">
                   {t('settings.models.check.outcome_success_short', { count: successCount })}
                 </span>
               </div>
@@ -279,50 +283,35 @@ export default function HealthCheckDrawer({
         <>
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-3">
-              <span className="font-medium text-[13px] text-foreground/85">
-                {t('settings.models.check.use_all_keys')}
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className={cn(
-                    drawerClasses.toggleButton,
-                    keyCheckMode === 'single' && 'border-primary/35 bg-primary/8'
-                  )}
-                  onClick={() => setKeyCheckMode('single')}>
-                  {t('settings.models.check.single')}
-                </button>
-                <button
-                  type="button"
-                  className={cn(drawerClasses.toggleButton, keyCheckMode === 'all' && 'border-primary/35 bg-primary/8')}
-                  onClick={() => setKeyCheckMode('all')}>
-                  {t('settings.models.check.all')}
-                </button>
-              </div>
+              <span className="font-medium text-foreground text-sm">{t('settings.models.check.use_all_keys')}</span>
+              <SegmentedControl
+                size="sm"
+                value={keyCheckMode}
+                onValueChange={(value) => setKeyCheckMode(value)}
+                options={[
+                  { value: 'single', label: t('settings.models.check.single') },
+                  { value: 'all', label: t('settings.models.check.all') }
+                ]}
+              />
             </div>
 
             <div className="flex items-center justify-between gap-3">
-              <span className="font-medium text-[13px] text-foreground/85">
+              <span className="font-medium text-foreground text-sm">
                 {t('settings.models.check.enable_concurrent')}
               </span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className={cn(drawerClasses.toggleButton, !isConcurrent && 'border-primary/35 bg-primary/8')}
-                  onClick={() => setIsConcurrent(false)}>
-                  {t('settings.models.check.disabled')}
-                </button>
-                <button
-                  type="button"
-                  className={cn(drawerClasses.toggleButton, isConcurrent && 'border-primary/35 bg-primary/8')}
-                  onClick={() => setIsConcurrent(true)}>
-                  {t('settings.models.check.enabled')}
-                </button>
-              </div>
+              <SegmentedControl
+                size="sm"
+                value={isConcurrent ? 'on' : 'off'}
+                onValueChange={(value) => setIsConcurrent(value === 'on')}
+                options={[
+                  { value: 'off', label: t('settings.models.check.disabled') },
+                  { value: 'on', label: t('settings.models.check.enabled') }
+                ]}
+              />
             </div>
 
             <div className="flex items-center justify-between gap-3">
-              <span className="font-medium text-[13px] text-foreground/85">{t('settings.models.check.timeout')}</span>
+              <span className="font-medium text-foreground text-sm">{t('settings.models.check.timeout')}</span>
               <div className="flex w-[112px] items-center gap-2">
                 <Input
                   type="number"
@@ -331,7 +320,7 @@ export default function HealthCheckDrawer({
                   value={String(timeoutSeconds)}
                   onChange={(event) => setTimeoutSeconds(Math.min(60, Math.max(5, Number(event.target.value) || 15)))}
                 />
-                <span className="text-[12px] text-muted-foreground/80">s</span>
+                <span className="text-foreground-muted text-xs">s</span>
               </div>
             </div>
           </div>

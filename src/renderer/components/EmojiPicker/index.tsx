@@ -1,133 +1,129 @@
-import 'emoji-picker-element'
-
-import TwemojiCountryFlagsWoff2 from '@renderer/assets/fonts/country-flag-fonts/TwemojiCountryFlags.woff2?url'
-import { useTheme } from '@renderer/context/ThemeProvider'
+import { Scrollbar } from '@cherrystudio/ui'
+import { cn } from '@cherrystudio/ui/lib/utils'
+import { loggerService } from '@logger'
+import { defaultLanguage } from '@shared/config/constant'
 import type { LanguageVarious } from '@shared/data/preference/preferenceTypes'
-import { polyfillCountryFlagEmojis } from 'country-flag-emoji-polyfill'
-// i18n translations from emoji-picker-element
-import de from 'emoji-picker-element/i18n/de'
-import en from 'emoji-picker-element/i18n/en'
-import es from 'emoji-picker-element/i18n/es'
-import fr from 'emoji-picker-element/i18n/fr'
-import ja from 'emoji-picker-element/i18n/ja'
-import pt_PT from 'emoji-picker-element/i18n/pt_PT'
-import ru_RU from 'emoji-picker-element/i18n/ru_RU'
-import zh_CN from 'emoji-picker-element/i18n/zh_CN'
-import type Picker from 'emoji-picker-element/picker'
-import type { EmojiClickEvent } from 'emoji-picker-element/shared'
-// Emoji data from emoji-picker-element-data (local, no CDN)
-// Using CLDR format for full multi-language search support (28 languages)
-import dataDE from 'emoji-picker-element-data/de/cldr/data.json?url'
-import dataEN from 'emoji-picker-element-data/en/cldr/data.json?url'
-import dataES from 'emoji-picker-element-data/es/cldr/data.json?url'
-import dataFR from 'emoji-picker-element-data/fr/cldr/data.json?url'
-import dataJA from 'emoji-picker-element-data/ja/cldr/data.json?url'
-import dataPT from 'emoji-picker-element-data/pt/cldr/data.json?url'
-import dataRU from 'emoji-picker-element-data/ru/cldr/data.json?url'
-import dataZH from 'emoji-picker-element-data/zh/cldr/data.json?url'
-import dataZH_HANT from 'emoji-picker-element-data/zh-hant/cldr/data.json?url'
 import type { FC } from 'react'
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
+
+import { EMOJI_CATEGORIES, RECENT_CATEGORY_LABEL_KEY } from './categories'
+import { type EmojiRecord, loadEmojiData } from './data'
+import { useRecentEmojis } from './useRecentEmojis'
+
+const logger = loggerService.withContext('EmojiPicker')
 
 interface Props {
   onEmojiClick: (emoji: string) => void
 }
 
-// Mapping from app locale to emoji-picker-element i18n
-const i18nMap: Record<LanguageVarious, typeof en> = {
-  'en-US': en,
-  'zh-CN': zh_CN,
-  'zh-TW': zh_CN, // Closest available
-  'de-DE': de,
-  'el-GR': en, // No Greek available, fallback to English
-  'es-ES': es,
-  'fr-FR': fr,
-  'ja-JP': ja,
-  'pt-PT': pt_PT,
-  'ro-RO': en, // No Romanian available, fallback to English
-  'ru-RU': ru_RU,
-  'vi-VN': en // No Vietnamese available, fallback to English
-}
-
-// Mapping from app locale to emoji data URL
-// Using CLDR format provides native language search support for all locales
-const dataSourceMap: Record<LanguageVarious, string> = {
-  'en-US': dataEN,
-  'zh-CN': dataZH,
-  'zh-TW': dataZH_HANT,
-  'de-DE': dataDE,
-  'el-GR': dataEN, // No Greek CLDR available, fallback to English
-  'es-ES': dataES,
-  'fr-FR': dataFR,
-  'ja-JP': dataJA,
-  'pt-PT': dataPT,
-  'ro-RO': dataEN, // No Romanian CLDR available, fallback to English
-  'ru-RU': dataRU,
-  'vi-VN': dataEN // No Vietnamese CLDR available, fallback to English
-}
-
-// Mapping from app locale to emoji-picker-element locale string
-// Must match the data source locale for proper IndexedDB caching
-const localeMap: Record<LanguageVarious, string> = {
-  'en-US': 'en',
-  'zh-CN': 'zh',
-  'zh-TW': 'zh-hant',
-  'de-DE': 'de',
-  'el-GR': 'en',
-  'es-ES': 'es',
-  'fr-FR': 'fr',
-  'ja-JP': 'ja',
-  'pt-PT': 'pt',
-  'ro-RO': 'en',
-  'ru-RU': 'ru',
-  'vi-VN': 'en'
-}
-
 const EmojiPicker: FC<Props> = ({ onEmojiClick }) => {
-  const { theme } = useTheme()
-  const { i18n } = useTranslation()
-  const ref = useRef<Picker>(null)
-  const currentLocale = i18n.language as LanguageVarious
+  const { t, i18n } = useTranslation()
+  const locale = i18n.language as LanguageVarious
+  const [emojis, setEmojis] = useState<EmojiRecord[]>([])
+  const { recent, pushRecent } = useRecentEmojis()
 
   useEffect(() => {
-    polyfillCountryFlagEmojis('Twemoji Mozilla', TwemojiCountryFlagsWoff2)
-  }, [])
+    let cancelled = false
+    void loadEmojiData(locale)
+      .catch((error) => {
+        logger.error('Failed to load emoji data', error)
+        if (locale === defaultLanguage) {
+          return []
+        }
 
-  // Configure picker with i18n and dataSource
-  useEffect(() => {
-    const picker = ref.current
-    if (picker) {
-      picker.i18n = i18nMap[currentLocale] || en
-      picker.dataSource = dataSourceMap[currentLocale] || dataEN
-      picker.locale = localeMap[currentLocale] || 'en'
+        return loadEmojiData(defaultLanguage as LanguageVarious)
+      })
+      .catch((error) => {
+        logger.error('Failed to load fallback emoji data', error)
+        return []
+      })
+      .then((records) => {
+        if (!cancelled) setEmojis(records)
+      })
+    return () => {
+      cancelled = true
     }
-  }, [currentLocale])
+  }, [locale])
 
-  useEffect(() => {
-    const picker = ref.current
-
-    if (picker) {
-      const handleEmojiClick = (event: EmojiClickEvent) => {
-        event.stopPropagation()
-        const { detail } = event
-        // Use detail.unicode (processed with skin tone) or fallback to emoji's unicode for native emoji
-        const unicode = detail.unicode || ('unicode' in detail.emoji ? detail.emoji.unicode : '')
-        onEmojiClick(unicode)
-      }
-      // 添加事件监听器
-      picker.addEventListener('emoji-click', handleEmojiClick)
-
-      // 清理事件监听器
-      return () => {
-        picker.removeEventListener('emoji-click', handleEmojiClick)
-      }
+  const groupedEmojis = useMemo(() => {
+    const groups = new Map<number, EmojiRecord[]>()
+    for (const record of emojis) {
+      const list = groups.get(record.group) ?? []
+      list.push(record)
+      groups.set(record.group, list)
     }
-    return
-  }, [onEmojiClick])
+    for (const list of groups.values()) {
+      list.sort((a, b) => a.order - b.order)
+    }
+    return groups
+  }, [emojis])
 
-  // @ts-ignore next-line
-  return <emoji-picker ref={ref} class={theme === 'dark' ? 'dark' : 'light'} style={{ border: 'none' }} />
+  const handleEmojiPick = (emoji: string) => {
+    pushRecent(emoji)
+    onEmojiClick(emoji)
+  }
+
+  const showRecentSection = recent.length > 0
+
+  return (
+    <div className="flex h-88 max-h-[min(22rem,calc(100vh-6rem))] w-72 max-w-[calc(100vw-2rem)] flex-col rounded-lg bg-card text-card-foreground">
+      <Scrollbar className="min-h-0 flex-1 overscroll-contain px-2.5 pb-2">
+        {showRecentSection ? (
+          <EmojiSection
+            title={t(RECENT_CATEGORY_LABEL_KEY)}
+            emojis={recent.map((emoji) => ({ emoji }))}
+            onPick={handleEmojiPick}
+          />
+        ) : null}
+        {EMOJI_CATEGORIES.map(({ group, labelKey }) => {
+          const records = groupedEmojis.get(group)
+          if (!records || records.length === 0) return null
+          return <EmojiSection key={group} title={t(labelKey)} emojis={records} onPick={handleEmojiPick} />
+        })}
+      </Scrollbar>
+    </div>
+  )
+}
+
+interface EmojiSectionProps {
+  title: string
+  emojis: Array<Pick<EmojiRecord, 'emoji'> & Partial<EmojiRecord>>
+  onPick: (emoji: string) => void
+}
+
+const EmojiSection: FC<EmojiSectionProps> = ({ title, emojis, onPick }) => {
+  return (
+    <div className="pt-1.5 first:pt-0">
+      <h3 className="sticky top-0 z-10 bg-card py-1.5 font-semibold text-foreground text-xs">{title}</h3>
+      <EmojiGrid emojis={emojis} onPick={onPick} />
+    </div>
+  )
+}
+
+interface EmojiGridProps {
+  emojis: Array<Pick<EmojiRecord, 'emoji'> & Partial<EmojiRecord>>
+  onPick: (emoji: string) => void
+}
+
+const EmojiGrid: FC<EmojiGridProps> = ({ emojis, onPick }) => {
+  return (
+    <div className="grid grid-cols-8 gap-0.5">
+      {emojis.map((record) => (
+        <button
+          key={record.emoji}
+          type="button"
+          aria-label={record.annotation ?? record.emoji}
+          onClick={() => onPick(record.emoji)}
+          className={cn(
+            'flex aspect-square items-center justify-center rounded-md text-base leading-none',
+            'transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none'
+          )}>
+          {record.emoji}
+        </button>
+      ))}
+    </div>
+  )
 }
 
 export default EmojiPicker

@@ -75,6 +75,12 @@ vi.mock('@cherrystudio/ui', () => ({
         </button>
       </div>
     ) : null,
+  EmptyState: ({ title, description }: { title?: ReactNode; description?: ReactNode }) => (
+    <div>
+      {title}
+      {description}
+    </div>
+  ),
   Scrollbar: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
     <div {...props}>{children}</div>
   )
