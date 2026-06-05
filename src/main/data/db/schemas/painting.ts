@@ -26,5 +26,5 @@ export const paintingTable = sqliteTable(
   (t) => [orderKeyIndex('painting')(t)]
 )
 
-export type Painting = typeof paintingTable.$inferSelect
-export type NewPainting = typeof paintingTable.$inferInsert
+export type PaintingRow = typeof paintingTable.$inferSelect
+export type InsertPaintingRow = typeof paintingTable.$inferInsert

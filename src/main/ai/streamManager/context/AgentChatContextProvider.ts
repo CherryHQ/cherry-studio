@@ -6,7 +6,7 @@
 
 import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
-import { sessionService } from '@data/services/SessionService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { application } from '@main/core/application'
 import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/sessions'
 import { parseUniqueModelId } from '@shared/data/types/model'
@@ -33,7 +33,7 @@ export class AgentChatContextProvider implements ChatContextProvider {
 
     const sessionId = extractAgentSessionId(req.topicId)
 
-    const session = await sessionService.getById(sessionId)
+    const session = await agentSessionService.getById(sessionId)
     if (!session.agentId) {
       throw new Error(`Cannot dispatch on orphan session ${sessionId} — its agent was deleted`)
     }

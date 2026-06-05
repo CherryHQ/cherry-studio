@@ -319,7 +319,7 @@ describe('AssistantMigrator', () => {
   describe('mergeOldAssistants', () => {
     // Direct unit tests against the merge function. The migrator-level tests
     // exercise the merge through prepare() but can only assert against the
-    // typed AssistantInsert row produced by transformAssistant — fields not
+    // typed InsertAssistantRow produced by transformAssistant — fields not
     // in OldAssistant aren't observable that way. These tests pin the
     // contracts documented in README-AssistantMigrator.md directly.
     type WithExtras = OldAssistant & Record<string, unknown>
