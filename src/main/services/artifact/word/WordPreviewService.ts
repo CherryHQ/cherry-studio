@@ -9,7 +9,7 @@ import {
   type WordPreviewErrorCode,
   type WordPreviewRequest,
   type WordPreviewResult
-} from '@shared/wordPreview'
+} from '@shared/types/wordPreview'
 import * as z from 'zod'
 
 const SUPPORTED_WORD_PREVIEW_EXTENSIONS = new Set(['.docx'])

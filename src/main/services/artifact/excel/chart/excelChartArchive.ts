@@ -1,7 +1,7 @@
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import type { ExcelImportDiagnostic, ExcelPreviewImageAnchor } from '@shared/excelPreview'
+import type { ExcelImportDiagnostic, ExcelPreviewImageAnchor } from '@shared/types/excelPreview'
 import { XMLParser } from 'fast-xml-parser'
 import type StreamZip from 'node-stream-zip'
 

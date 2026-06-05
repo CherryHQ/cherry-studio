@@ -1,4 +1,8 @@
-import type { ExcelImportDiagnostic, ExcelPreviewImageAnchor, ExcelPreviewImageRenderData } from '@shared/excelPreview'
+import type {
+  ExcelImportDiagnostic,
+  ExcelPreviewImageAnchor,
+  ExcelPreviewImageRenderData
+} from '@shared/types/excelPreview'
 
 export type ExcelChartKind = 'area' | 'bar' | 'column' | 'line' | 'pie' | 'scatter'
 

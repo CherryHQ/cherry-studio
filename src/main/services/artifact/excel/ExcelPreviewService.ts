@@ -12,7 +12,7 @@ import type {
   ExcelPreviewTableStringFilterInfo,
   ExcelWorkbookPreviewRequest,
   ExcelWorkbookPreviewResult
-} from '@shared/excelPreview'
+} from '@shared/types/excelPreview'
 import { XMLParser } from 'fast-xml-parser'
 import StreamZip from 'node-stream-zip'
 import * as z from 'zod'

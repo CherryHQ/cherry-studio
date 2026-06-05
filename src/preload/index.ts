@@ -58,7 +58,6 @@ import type {
   WebSearchResponse,
   WebSearchSearchKeywordsRequest
 } from '@shared/data/types/webSearch'
-import type { ExcelWorkbookPreviewRequest, ExcelWorkbookPreviewResult } from '@shared/excelPreview'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
 import type { FilePath } from '@shared/file/types/common'
 import type { FileHandle } from '@shared/file/types/handle'
@@ -71,7 +70,8 @@ import type {
 import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/file/types/tree'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
-import type { WordPreviewRequest, WordPreviewResult } from '@shared/wordPreview'
+import type { ExcelWorkbookPreviewRequest, ExcelWorkbookPreviewResult } from '@shared/types/excelPreview'
+import type { WordPreviewRequest, WordPreviewResult } from '@shared/types/wordPreview'
 import type {
   FileMetadata,
   GetApiServerStatusResult,

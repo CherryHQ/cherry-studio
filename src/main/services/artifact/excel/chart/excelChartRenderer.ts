@@ -1,4 +1,4 @@
-import type { ExcelPreviewImageRenderData } from '@shared/excelPreview'
+import type { ExcelPreviewImageRenderData } from '@shared/types/excelPreview'
 
 import { excelChartToEChartsOption } from './excelChartToECharts'
 import type { ExcelChartRenderModel } from './excelChartTypes'

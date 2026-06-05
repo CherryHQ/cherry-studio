@@ -7,7 +7,7 @@ import type {
   ExcelPreviewTableColumn,
   ExcelPreviewTableRange,
   ExcelWorkbookPreviewData
-} from '@shared/excelPreview'
+} from '@shared/types/excelPreview'
 import {
   BooleanNumber,
   BorderStyleTypes,

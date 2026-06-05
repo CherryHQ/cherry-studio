@@ -1,4 +1,4 @@
-import type { ExcelPreviewImageRenderData } from '@shared/excelPreview'
+import type { ExcelPreviewImageRenderData } from '@shared/types/excelPreview'
 import type StreamZip from 'node-stream-zip'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 

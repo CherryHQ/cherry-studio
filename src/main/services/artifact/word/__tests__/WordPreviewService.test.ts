@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 
-import { WORD_PREVIEW_MAX_SIZE_BYTES } from '@shared/wordPreview'
+import { WORD_PREVIEW_MAX_SIZE_BYTES } from '@shared/types/wordPreview'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { readWordPreview } from '../WordPreviewService'
