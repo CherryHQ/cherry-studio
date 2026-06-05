@@ -12,7 +12,7 @@ import { ChannelAdapterListener, type StreamListener } from '@main/ai/streamMana
 import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessionRun'
 import { application } from '@main/core/application'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent } from './ChannelAdapter'
 import { SLASH_COMMANDS } from './constants'
