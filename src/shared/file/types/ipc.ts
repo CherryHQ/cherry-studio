@@ -201,42 +201,6 @@ export interface BatchCreateResult {
   failed: Array<{ sourceRef: string; error: string }>
 }
 
-/** Whether a path resolves to a regular file or a directory. */
-export type PathStatusKind = 'file' | 'directory'
-
-/**
- * Params for {@link FileIpcApi.getPathStatus}.
- *
- * `expectedKind` asks the query to additionally assert the resolved kind; on a
- * mismatch the result is `not-file` / `not-directory` carrying the `actualKind`
- * that was found.
- */
-export interface GetPathStatusIpcParams {
-  path: string
-  expectedKind?: PathStatusKind
-}
-
-/**
- * Result of {@link FileIpcApi.getPathStatus} — a single `fs.stat` normalized
- * into a typed union.
- *
- * Failure arms and the fields they carry:
- * - `missing` — the path does not resolve. Folds together `ENOENT` (nothing
- *   there) and `ENOTDIR` (a path component is a non-directory, e.g.
- *   `stat('/etc/hosts/x')`); the distinction is intentionally not surfaced — no
- *   consumer branches on it, and error interpretation belongs on the main side
- *   (see {@link getPathStatus}). A blank `path` short-circuits here without an
- *   `fs.stat`.
- * - `inaccessible` — `fs.stat` failed with any other errno (`EACCES`, `EIO`,
- *   `EMFILE`, `ELOOP`, …); `detail` carries the message.
- * - `not-file` / `not-directory` — the path exists but its kind differs from
- *   the requested `expectedKind`; `actualKind` reports what was found.
- */
-export type PathStatus =
-  | { ok: true; kind: PathStatusKind }
-  | { ok: false; reason: 'missing' | 'inaccessible'; detail?: string }
-  | { ok: false; reason: 'not-file' | 'not-directory'; actualKind: PathStatusKind }
-
 // ─── File IPC API ───
 
 /**
@@ -253,7 +217,7 @@ export type PathStatus =
  *
  * | Phase 1 — wired | Phase 2 Batch 0 — wired | Phase 2 — type-only |
  * |---|---|---|
- * | `getDanglingState`, `batchGetDanglingStates`, `getPathStatus`, `getFileSize` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, `permanentDelete` | everything else |
+ * | `getDanglingState`, `batchGetDanglingStates`, `getWorkspacePathWarning`, `getFileSize` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, `permanentDelete` | everything else |
  *
  * Remaining `@phase 2` method shapes are *design drafts*; signatures may shift
  * when each channel actually lands alongside its first FileManager consumer.
@@ -555,46 +519,31 @@ export interface FileIpcApi {
   // Section status: mixed; check each method's `@phase` tag.
 
   /**
-   * Get status for an arbitrary filesystem path, optionally requiring a kind.
+   * Validate an agent workspace path and return the user-visible warning to
+   * display, or `null` when the path is a usable directory.
    *
-   * NOTE (architectural debt): error interpretation does not belong on the
-   * renderer. The errno lives in main, and the rules for turning it into
-   * user-facing text are main-side business — the renderer is only a display
-   * surface. Normalizing fs errors into a typed {@link PathStatus} union and
-   * shipping it across IPC for the renderer to switch-and-map text is therefore
-   * the wrong layering (and it leaks business validation, e.g. "can this path
-   * be a workspace?", into renderer switches that must change whenever the rule
-   * does). Target direction: main-side business produces the user-visible
-   * (i18n'd) message directly — failing operations throw an `Error` carrying
-   * that text; validation-style queries (e.g. the composer's workspace-path
-   * feedback) move to a business-level IPC returning `warningText | null` — and
-   * the renderer just displays it. At that point `File_GetPathStatus` is
-   * deleted: the util-layer `getPathStatus` (main-internal, already used by
-   * `settingsBuilder`) keeps its long-term value, and {@link PathStatus} retires
-   * from this shared IPC contract to a main-internal type. Kept here for now
-   * only as a transitional facade.
-   * @phase 1 — wired in `IpcChannel.File_GetPathStatus`
+   * The message is produced (and i18n'd) on the **main** side — the renderer
+   * shows it verbatim and does no error interpretation of its own. This is the
+   * business-level replacement for shipping a typed status union to the
+   * renderer; the path-status errno never crosses the IPC boundary.
+   * @phase 1 — wired in FileManager lifecycle IPC
    */
-  getPathStatus(params: GetPathStatusIpcParams): Promise<PathStatus>
+  getWorkspacePathWarning(path: string): Promise<string | null>
 
   /**
    * Read the size (in bytes) of a non-directory file at an arbitrary path.
    * Thin wrapper around `fs.stat`:
    * - Rejects with an explicit error when the path resolves to a directory.
    * - Missing / inaccessible paths surface as the underlying `fs.stat` error
-   *   verbatim — unlike `getPathStatus`, this method does NOT normalize the
-   *   errno into a typed `detail` / `code`, nor does it special-case sockets,
-   *   FIFOs, devices, or symlinks (any non-directory stat returns its `size`).
+   *   verbatim — it does NOT normalize the errno into a typed `detail` / `code`,
+   *   nor does it special-case sockets, FIFOs, devices, or symlinks (any
+   *   non-directory stat returns its `size`).
    *
-   * Separate from `getPathStatus` to keep each single-hop facade focused on one
-   * semantic concern (kind vs. measurement).
-   *
-   * NOTE (architectural debt): like {@link getPathStatus}, this is a thin
-   * `fs.stat` facade. It should fold into {@link getMetadata}'s path-handle
-   * branch (`getMetadata(createFilePathHandle(path)).size`) once that lands in
-   * phase 2, rather than remaining a parallel size-only channel. Tracked for the
-   * same phase-2 consolidation.
-   * @phase 1 — wired in `IpcChannel.File_GetFileSize`
+   * NOTE (architectural debt): this is a thin `fs.stat` facade. It should fold
+   * into {@link getMetadata}'s path-handle branch
+   * (`getMetadata(createFilePathHandle(path)).size`) once that lands in phase 2,
+   * rather than remaining a parallel size-only channel.
+   * @phase 1 — wired in FileManager lifecycle IPC
    */
   getFileSize(path: FilePath): Promise<number>
 

@@ -1,6 +1,5 @@
 import { cn } from '@renderer/utils'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import type { PathStatus } from '@shared/file/types/ipc'
 import { Folder, TriangleAlert } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,20 +12,23 @@ const WorkspaceSelector = ({ session }: WorkspaceSelectorProps) => {
   const { t } = useTranslation()
 
   const workspacePath = session.workspace?.path
-  const [workspaceStatus, setWorkspaceStatus] = useState<PathStatus | null>(null)
+  // The warning text is produced (and i18n'd) on the main side; the renderer
+  // just displays it and does no error interpretation of its own.
+  const [workspaceWarning, setWorkspaceWarning] = useState<string | undefined>(undefined)
 
   useEffect(() => {
     let disposed = false
-    setWorkspaceStatus(null)
+    setWorkspaceWarning(undefined)
     if (!workspacePath) return
 
     window.api.file
-      .getPathStatus({ path: workspacePath, expectedKind: 'directory' })
-      .then((status) => {
-        if (!disposed) setWorkspaceStatus(status)
+      .getWorkspacePathWarning(workspacePath)
+      .then((warning) => {
+        if (!disposed) setWorkspaceWarning(warning ?? undefined)
       })
       .catch(() => {
-        if (!disposed) setWorkspaceStatus({ ok: false, reason: 'inaccessible' })
+        // If the check itself fails, leave the warning unset rather than
+        // surfacing a synthesized one.
       })
 
     return () => {
@@ -34,19 +36,6 @@ const WorkspaceSelector = ({ session }: WorkspaceSelectorProps) => {
     }
   }, [workspacePath])
 
-  const getWorkspaceStatusMessage = (status: Exclude<PathStatus, { ok: true }>) => {
-    switch (status.reason) {
-      case 'missing':
-        return t('agent.session.workspace_status.missing', { path: workspacePath })
-      case 'not-directory':
-        return t('agent.session.workspace_status.not_directory', { path: workspacePath })
-      case 'not-file':
-      case 'inaccessible':
-        return t('agent.session.workspace_status.inaccessible', { path: workspacePath })
-    }
-  }
-
-  const workspaceWarning = workspaceStatus?.ok === false ? getWorkspaceStatusMessage(workspaceStatus) : undefined
   const workspaceLabel = session.workspace
     ? session.workspace.name || session.workspace.path
     : t('selector.workspace.placeholder')

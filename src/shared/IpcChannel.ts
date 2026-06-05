@@ -213,7 +213,7 @@ export enum IpcChannel {
   File_OpenWithRelativePath = 'file:openWithRelativePath',
   File_IsTextFile = 'file:isTextFile',
   File_IsDirectory = 'file:isDirectory',
-  File_GetPathStatus = 'file:getPathStatus',
+  File_GetWorkspacePathWarning = 'file:getWorkspacePathWarning',
   File_GetFileSize = 'file:getFileSize',
   File_ListDirectory = 'file:listDirectory',
   File_CheckFileName = 'file:checkFileName',
