@@ -2155,23 +2155,17 @@
         },
         "note": {
           "description": "Select existing notes as knowledge base sources",
-          "empty_description": "Selectable notes will appear here after the real notes list is connected. For now, use files, folders, URLs, or sitemaps.",
+          "empty_description": "Selectable notes will appear here after the real notes list is connected. For now, use files, folders, or URLs.",
           "empty_title": "Notes are not connected yet"
         },
         "placeholder": {
           "supported_formats": "Supports PDF, DOCX, MD, XLSX, TXT, CSV",
           "title": "Click to select files or drag them here"
         },
-        "sitemap": {
-          "description": "Enter a sitemap URL:",
-          "help": "Pages listed in the sitemap will be read and indexed",
-          "placeholder": "https://example.com/sitemap.xml"
-        },
         "sources": {
           "directory": "Folder",
           "file": "File",
           "note": "Note",
-          "sitemap": "Website",
           "url": "URL"
         },
         "submit": {
@@ -2209,9 +2203,6 @@
           "file": {
             "title": "File"
           },
-          "sitemap": {
-            "title": "Website Sync"
-          },
           "url": {
             "title": "URL"
           }
@@ -2224,7 +2215,6 @@
         "directory": "Folders",
         "file": "Files",
         "note": "Notes",
-        "sitemap": "Websites",
         "url": "URLs"
       },
       "preview": {

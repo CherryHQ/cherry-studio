@@ -2162,16 +2162,10 @@
           "supported_formats": "支持 PDF, DOCX, MD, XLSX, TXT, CSV",
           "title": "点击选择文件或拖拽到此处"
         },
-        "sitemap": {
-          "description": "输入 Sitemap 地址：",
-          "help": "将读取 Sitemap 中包含的页面并建立索引",
-          "placeholder": "https://example.com/sitemap.xml"
-        },
         "sources": {
           "directory": "目录",
           "file": "文件",
           "note": "笔记",
-          "sitemap": "网站",
           "url": "链接"
         },
         "submit": {
@@ -2209,9 +2203,6 @@
           "file": {
             "title": "文件"
           },
-          "sitemap": {
-            "title": "网站同步"
-          },
           "url": {
             "title": "链接"
           }
@@ -2224,7 +2215,6 @@
         "directory": "目录",
         "file": "文件",
         "note": "笔记",
-        "sitemap": "网站",
         "url": "链接"
       },
       "preview": {
