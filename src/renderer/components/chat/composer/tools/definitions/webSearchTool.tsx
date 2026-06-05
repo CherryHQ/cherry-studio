@@ -18,9 +18,7 @@ const webSearchTool = defineTool({
   requiresPersistedAssistant: true,
 
   composer: {
-    runtime: ({ context }) => (
-      <WebSearchToolRuntime assistantId={context.assistant!.id as string} launcher={context.launcher} />
-    )
+    runtime: ({ context }) => <WebSearchToolRuntime assistantId={context.assistant!.id} launcher={context.launcher} />
   }
 })
 

@@ -24,10 +24,6 @@ import { MessageEditingProvider, useMessageEditing } from '@renderer/context/Mes
 import { useIsActiveTab } from '@renderer/context/TabIdContext'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
-import {
-  isRuntimeDefaultAssistantId,
-  RUNTIME_DEFAULT_ASSISTANT_EMOJI
-} from '@renderer/domain/assistant/runtimeDefaultAssistant'
 import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
 import { useAssistant, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
@@ -40,6 +36,11 @@ import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { FileMetadata, Topic } from '@renderer/types'
 import { FILE_TYPE, TopicType } from '@renderer/types'
 import { cn, getLeadingEmoji } from '@renderer/utils'
+import {
+  isPersistedAssistant,
+  isRuntimeDefaultAssistantId,
+  RUNTIME_DEFAULT_ASSISTANT_EMOJI
+} from '@renderer/utils/assistant'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { canModelUseAssistantWebSearch } from '@renderer/utils/modelReconcile'
 import type { ComposerQueuedMessagePayload } from '@shared/ai/transport'
@@ -516,6 +517,7 @@ const ChatComposerInner = ({
   const isRuntimeAssistantSelected = isRuntimeDefaultAssistantId(selectedAssistantId)
   const displayAssistant =
     assistant ?? (isRuntimeAssistantSelected && !isAssistantLoading ? defaultAssistant : undefined)
+  const persistedAssistant = isPersistedAssistant(assistant) ? assistant : undefined
   const hasMissingPersistedAssistant = !isRuntimeAssistantSelected && !isAssistantLoading && !assistant
   const runtimeModel = displayAssistant ? model : undefined
   const runtimeModelPending = isAssistantLoading || (!!displayAssistant && isModelPending)
@@ -585,7 +587,9 @@ const ChatComposerInner = ({
     return []
   }, [canAddImageFile, canAddTextFile])
 
-  const configuredKnowledgeBaseIdsKey = (assistant?.knowledgeBaseIds ?? []).join(KNOWLEDGE_BASE_IDS_KEY_SEPARATOR)
+  const configuredKnowledgeBaseIdsKey = (persistedAssistant?.knowledgeBaseIds ?? []).join(
+    KNOWLEDGE_BASE_IDS_KEY_SEPARATOR
+  )
   const configuredKnowledgeBaseIdSet = useMemo(
     () =>
       new Set(
@@ -818,11 +822,11 @@ const ChatComposerInner = ({
         return setDefaultModel(nextModel)
       }
 
-      if (!assistant) return
+      if (!persistedAssistant) return
       const enabledWebSearch = canModelUseAssistantWebSearch(nextModel)
-      return setModel(nextModel, { enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch })
+      return setModel(nextModel, { enableWebSearch: enabledWebSearch && persistedAssistant.settings.enableWebSearch })
     },
-    [assistant, isRuntimeAssistantSelected, setDefaultModel, setModel]
+    [isRuntimeAssistantSelected, persistedAssistant, setDefaultModel, setModel]
   )
   const handleMentionedModelsSelect = useCallback(
     (nextModels: Model[]) => {
@@ -1135,7 +1139,7 @@ const ChatComposerInner = ({
   return (
     <ComposerToolDerivedStateProvider couldAddImageFile={canAddImageFile} extensions={supportedExts}>
       {displayAssistant && runtimeModel && (
-        <ComposerToolRuntimeHost scope={scope} assistant={displayAssistant} model={runtimeModel} />
+        <ComposerToolRuntimeHost scope={scope} assistant={persistedAssistant} model={runtimeModel} />
       )}
       <ComposerSurface
         text={text}

@@ -32,9 +32,8 @@ import type {
 import { getToolsForScope } from '@renderer/components/chat/composer/tools/types'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { useQuickPanel } from '@renderer/components/QuickPanel'
-import type { RuntimeAssistant } from '@renderer/domain/assistant/runtimeDefaultAssistant'
 import { useProvider } from '@renderer/hooks/useProvider'
-import type { FileMetadata } from '@renderer/types'
+import type { Assistant, FileMetadata } from '@renderer/types'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { Model } from '@shared/data/types/model'
 import { Plus } from 'lucide-react'
@@ -71,7 +70,7 @@ export const ComposerToolRuntimeProvider = ({ children, initialState, actions }:
 
 interface ComposerToolRuntimeBootstrapProps {
   scope: ComposerToolScope
-  assistant?: RuntimeAssistant
+  assistant?: Assistant
   model: Model
   session?: ToolContext['session']
 }

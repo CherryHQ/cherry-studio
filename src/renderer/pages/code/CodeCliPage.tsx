@@ -17,7 +17,6 @@ import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { ModelSelector } from '@renderer/components/Selector'
 import { isMac, isWin } from '@renderer/config/constant'
 import { usePersistCache } from '@renderer/data/hooks/useCache'
-import { useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useCodeCli } from '@renderer/hooks/useCodeCli'
 import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
@@ -28,6 +27,7 @@ import { getThinkingBudget } from '@shared/ai/reasoningBudget'
 import type { TerminalConfig } from '@shared/config/constant'
 import { codeCLI, terminalApps } from '@shared/config/constant'
 import { CLAUDE_OFFICIAL_SUPPORTED_PROVIDERS, isSiliconAnthropicCompatibleModel } from '@shared/config/providers'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { ApiKeyEntry } from '@shared/data/types/provider'
 import {
@@ -96,8 +96,7 @@ const CodeCliPage: FC = () => {
   } = useCodeCli()
   const { setTimeoutTimer } = useTimer()
 
-  const { assistant: defaultAssistant } = useDefaultAssistant()
-  const { maxTokens, reasoning_effort } = useMemo(() => defaultAssistant.settings, [defaultAssistant])
+  const { maxTokens, reasoning_effort } = DEFAULT_ASSISTANT_SETTINGS
 
   const [launchStatus, setLaunchStatus] = useState<LaunchStatus>('idle')
   const [isInstallingBun, setIsInstallingBun] = useState(false)

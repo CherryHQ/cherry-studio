@@ -17,6 +17,7 @@ import { loggerService } from '@logger'
 import type { ChatWriteActions } from '@renderer/hooks/ChatWriteContext'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import type { Topic } from '@renderer/types'
+import { isPersistedAssistant } from '@renderer/utils/assistant'
 import { DataApiError, ErrorCode } from '@shared/data/api'
 import type {
   BranchMessagesResponse,
@@ -52,7 +53,8 @@ interface Result {
 
 export function useChatWriteActions(params: Params): Result {
   const { topic, uiMessages, regenerate, setMessages, stop, refresh, cache, seedReservedMessages } = params
-  const { assistant } = useAssistant(topic.assistantId)
+  const assistantResult = useAssistant(topic.assistantId)
+  const assistant = isPersistedAssistant(assistantResult.assistant) ? assistantResult.assistant : undefined
   const {
     branchWithoutIds,
     seedOptimisticBranch,

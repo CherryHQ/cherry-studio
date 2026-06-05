@@ -147,7 +147,7 @@ const renderRuntime = (
   } = options
   const updateAssistantSettings = vi.fn()
 
-  mocks.useAssistant.mockReturnValue({ assistant, updateAssistantSettings })
+  mocks.useAssistant.mockReturnValue({ kind: 'persisted', assistant, updateAssistantSettings })
   mocks.getThinkModelType.mockReturnValue(modelType)
   mocks.isDoubaoThinkingAutoModel.mockReturnValue(false)
   mocks.isFixedReasoningModel.mockReturnValue(isFixedReasoning)

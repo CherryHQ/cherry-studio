@@ -11,10 +11,10 @@ import {
   QuickPanelReservedSymbol,
   useQuickPanel
 } from '@renderer/components/QuickPanel'
-import type { RuntimeAssistant } from '@renderer/domain/assistant/runtimeDefaultAssistant'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
 import { useMcpRuntimeStatusMap } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
+import type { Assistant } from '@renderer/types'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpMode } from '@shared/data/types/assistant'
 import type { McpServer } from '@shared/data/types/mcpServer'
@@ -39,7 +39,7 @@ const MCP_MODE_LABEL_KEYS: Record<McpMode, string> = {
 }
 
 interface BuildMcpStatusItemsOptions {
-  assistant?: RuntimeAssistant
+  assistant?: Assistant
   agent?: McpStatusAgent
   mcpServers: readonly McpServer[]
   mcpStatuses: Record<string, McpRuntimeStatus | undefined>

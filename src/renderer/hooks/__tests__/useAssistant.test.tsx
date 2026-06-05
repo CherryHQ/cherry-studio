@@ -49,9 +49,12 @@ describe('useDefaultAssistant', () => {
     const { result } = renderHook(() => useDefaultAssistant())
 
     expect(result.current.assistant).toBeDefined()
-    expect(result.current.assistant.settings).toBeDefined()
-    expect(result.current.assistant.mcpServerIds).toEqual([])
-    expect(result.current.assistant.knowledgeBaseIds).toEqual([])
+    expect(result.current.assistant).toEqual({
+      id: null,
+      name: expect.any(String),
+      emoji: '😀',
+      modelId: null
+    })
   })
 })
 

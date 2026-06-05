@@ -86,12 +86,7 @@ describe('composer tool visibility', () => {
     } as any
 
     const chatDefaultTools = getToolsForScope(TopicType.Chat, {
-      assistant: {
-        id: null,
-        settings: {},
-        mcpServerIds: [],
-        knowledgeBaseIds: []
-      } as any,
+      assistant: undefined,
       model
     }).map((tool) => tool.key)
 

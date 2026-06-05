@@ -21,6 +21,7 @@ import {
 import { cacheService } from '@renderer/data/CacheService'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import type { ThinkingOption } from '@renderer/types'
+import { isPersistedAssistant } from '@renderer/utils/assistant'
 import type { Model } from '@shared/data/types/model'
 import type { FC, SVGProps } from 'react'
 import { useCallback, useEffect, useMemo } from 'react'
@@ -43,14 +44,14 @@ const useThinkingToolController = ({
 }: Props) => {
   const { t } = useTranslation()
   const isControlled = controlledEffort !== undefined
-  const assistantResult = useAssistant(assistantId ?? null)
-  const assistant = assistantResult.assistant
+  const assistantResult = useAssistant(assistantId ?? undefined)
+  const persistedAssistant = isPersistedAssistant(assistantResult.assistant) ? assistantResult.assistant : undefined
 
   const currentReasoningEffort = useMemo<ThinkingOption>(() => {
     if (isControlled) return controlledEffort
-    const stored = assistant?.settings.reasoning_effort
+    const stored = persistedAssistant?.settings.reasoning_effort
     return (stored ?? 'none') as ThinkingOption
-  }, [isControlled, controlledEffort, assistant?.settings.reasoning_effort])
+  }, [isControlled, controlledEffort, persistedAssistant?.settings.reasoning_effort])
 
   // 确定当前模型支持的选项类型
   const modelType = useMemo(() => getThinkModelType(model), [model])
@@ -89,7 +90,7 @@ const useThinkingToolController = ({
       if (
         isOpenAIWebSearchModel(model) &&
         isGPT5SeriesReasoningModel(model) &&
-        assistant?.settings.enableWebSearch &&
+        persistedAssistant?.settings.enableWebSearch &&
         option === 'minimal'
       ) {
         window.toast.warning(t('chat.web_search.warning.openai'))
@@ -101,7 +102,15 @@ const useThinkingToolController = ({
         reasoning_effort: option
       })
     },
-    [isControlled, onReasoningEffortChange, assistantResult, assistantId, assistant?.settings.enableWebSearch, model, t]
+    [
+      isControlled,
+      onReasoningEffortChange,
+      assistantResult,
+      assistantId,
+      persistedAssistant?.settings.enableWebSearch,
+      model,
+      t
+    ]
   )
 
   const reasoningEffortOptionLabelMap = useMemo(

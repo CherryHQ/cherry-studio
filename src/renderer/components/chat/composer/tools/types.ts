@@ -1,7 +1,6 @@
 import { loggerService } from '@logger'
 import type { ComposerToolLauncher } from '@renderer/components/chat/composer/toolLauncher'
-import { isRuntimeDefaultAssistant, type RuntimeAssistant } from '@renderer/domain/assistant/runtimeDefaultAssistant'
-import { type ThinkingOption, TopicType } from '@renderer/types'
+import { type Assistant, type ThinkingOption, TopicType } from '@renderer/types'
 import type { InputBarToolType } from '@renderer/types/chat'
 import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -59,7 +58,7 @@ export interface ToolDependencies {
 export interface ToolContext {
   scope: ComposerToolScope
   /** Absent in Agent Session scope — Sessions have an `agentId` (see `session`), not an assistant row. */
-  assistant?: RuntimeAssistant
+  assistant?: Assistant
   model: Model
   // Resolved v2 provider for `model.providerId`. Injected by the React
   // dispatch site (ComposerToolRuntimeHost) so sync `condition()` predicates can run
@@ -167,7 +166,7 @@ export const getAllTools = (): ToolDefinition<any, any>[] => {
 }
 
 export function hasPersistedAssistantContext(context: Pick<ToolContext, 'assistant'>): boolean {
-  return !!context.assistant && !isRuntimeDefaultAssistant(context.assistant)
+  return !!context.assistant
 }
 
 export const getToolsForScope = (

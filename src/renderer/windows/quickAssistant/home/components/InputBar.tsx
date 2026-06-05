@@ -1,6 +1,6 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
-import type { RuntimeAssistant } from '@renderer/domain/assistant/runtimeDefaultAssistant'
 import { useTimer } from '@renderer/hooks/useTimer'
+import type { RuntimeAssistant } from '@renderer/utils/assistant'
 import type { Model } from '@shared/data/types/model'
 import { Input as AntdInput } from 'antd'
 import type { InputRef } from 'rc-input/lib/interface'

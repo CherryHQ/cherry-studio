@@ -2,7 +2,7 @@
  * Assistant data layer — three tiers in one module:
  *
  *  1. Runtime/default-assistant composition lives in
- *     `@renderer/domain/assistant/runtimeDefaultAssistant`.
+ *     `@renderer/utils/assistant`.
  *  2. DataApi tier — raw SQLite-backed queries/mutations
  *     (`useAssistantsApi` / `useAssistantApiById` / `useAssistantMutations`).
  *  3. Composed hooks — `useAssistants` / `useDefaultAssistant` / `useAssistant`.
@@ -21,19 +21,21 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
-import {
-  composeRuntimeDefaultAssistant,
-  isRuntimeDefaultAssistantId,
-  type RuntimeDefaultAssistant
-} from '@renderer/domain/assistant/runtimeDefaultAssistant'
 import { useModelById } from '@renderer/hooks/useModel'
 import type { Assistant, AssistantSettings } from '@renderer/types'
+import {
+  composeRuntimeDefaultAssistant,
+  isPersistedAssistant,
+  isRuntimeDefaultAssistantId,
+  type RuntimeDefaultAssistant
+} from '@renderer/utils/assistant'
 import { reconcileReasoningEffortForModel, reconcileWebSearchForModel } from '@renderer/utils/modelReconcile'
 import type { ConcreteApiPaths } from '@shared/data/api/apiTypes'
 import type { CreateAssistantDto, UpdateAssistantDto } from '@shared/data/api/schemas/assistants'
 import type { Model } from '@shared/data/types/model'
 import { type UniqueModelId } from '@shared/data/types/model'
 import { useCallback, useMemo, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
 
 const logger = loggerService.withContext('useAssistant')
 
@@ -182,9 +184,10 @@ export function useAssistants() {
  * `null` to `useAssistant()` and keep the runtime assistant id as `null`.
  */
 export function useDefaultAssistant(): { assistant: RuntimeDefaultAssistant } {
+  const { t } = useTranslation()
   const [defaultModelId] = usePreference('chat.default_model_id')
   const modelId = (defaultModelId ?? null) as UniqueModelId | null
-  const assistant = useMemo(() => composeRuntimeDefaultAssistant(modelId), [modelId])
+  const assistant = useMemo(() => composeRuntimeDefaultAssistant(modelId, t), [modelId, t])
   return { assistant }
 }
 
@@ -208,14 +211,15 @@ export function useAssistant(id: string): PersistedAssistantResult
 export function useAssistant(id: null): RuntimeDefaultAssistantResult
 export function useAssistant(id: string | null | undefined): UseAssistantResult
 export function useAssistant(id: string | null | undefined): UseAssistantResult {
+  const { t } = useTranslation()
   const isRuntimeDefaultAssistant = isRuntimeDefaultAssistantId(id)
   const { assistant, isLoading, error } = useAssistantApiById(isRuntimeDefaultAssistant ? undefined : (id ?? undefined))
   const { updateAssistant: patchAssistant } = useAssistantMutations()
   const [defaultModelId, setDefaultModelId] = usePreference('chat.default_model_id')
   const modelIdFromDefaultPreference = (defaultModelId ?? null) as UniqueModelId | null
   const runtimeDefaultAssistant = useMemo(
-    () => (isRuntimeDefaultAssistant ? composeRuntimeDefaultAssistant(modelIdFromDefaultPreference) : undefined),
-    [isRuntimeDefaultAssistant, modelIdFromDefaultPreference]
+    () => (isRuntimeDefaultAssistant ? composeRuntimeDefaultAssistant(modelIdFromDefaultPreference, t) : undefined),
+    [isRuntimeDefaultAssistant, modelIdFromDefaultPreference, t]
   )
   const resolvedAssistant = runtimeDefaultAssistant ?? assistant
   const idRef = useRef(id)
@@ -245,7 +249,7 @@ export function useAssistant(id: string | null | undefined): UseAssistantResult 
     if (isRuntimeDefaultAssistantId(currentId)) {
       return setDefaultModelIdRef.current(next.id)
     }
-    if (!currentId || !currentAssistant) return
+    if (!currentId || !isPersistedAssistant(currentAssistant)) return
     // reconcile* are v2-native; next.id is the UniqueModelId.
     const reasoning = reconcileReasoningEffortForModel(next, currentAssistant.settings.reasoning_effort, currentId)
     const webSearch = reconcileWebSearchForModel(next, currentAssistant.settings)

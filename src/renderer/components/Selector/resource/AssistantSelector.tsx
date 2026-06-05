@@ -1,12 +1,12 @@
 import { loggerService } from '@logger'
 import { useMutation, useQuery } from '@renderer/data/hooks/useDataApi'
-import { createRuntimeDefaultAssistantDisplay } from '@renderer/domain/assistant/runtimeDefaultAssistant'
 import { usePins } from '@renderer/hooks/usePins'
 import { isSelectableAssistantModel } from '@renderer/pages/library/dialogs/form/assistantModelFilter'
 import {
   ResourceCreateDialog,
   type ResourceCreateDialogValues
 } from '@renderer/pages/library/dialogs/ResourceCreateDialog'
+import { createRuntimeDefaultAssistantDisplay } from '@renderer/utils/assistant'
 import type { Assistant } from '@shared/data/types/assistant'
 import { lazy, type ReactElement, Suspense, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -19,6 +19,7 @@ import {
 } from './ResourceSelectorShell'
 
 const logger = loggerService.withContext('AssistantSelector')
+const DEFAULT_ASSISTANT_ITEM_ID = '__default_assistant__'
 const AssistantEditDialog = lazy(() =>
   import('@renderer/pages/library/dialogs/edit/AssistantEditDialog').then((module) => ({
     default: module.AssistantEditDialog
@@ -112,12 +113,17 @@ export function AssistantSelector(props: AssistantSelectorProps) {
   } = usePins('assistant')
   const isPinActionDisabled = isPinnedLoading || isPinsRefreshing || isPinsMutating
 
-  const items: AssistantSelectorItem[] = useMemo(() => {
-    const defaultItem: AssistantSelectorItem = {
-      ...createRuntimeDefaultAssistantDisplay(t),
+  const runtimeDefaultAssistantItem = useMemo<AssistantSelectorItem>(() => {
+    const display = createRuntimeDefaultAssistantDisplay(t)
+    return {
+      ...display,
+      id: DEFAULT_ASSISTANT_ITEM_ID,
       editable: false,
       pinnable: false
     }
+  }, [t])
+
+  const items: AssistantSelectorItem[] = useMemo(() => {
     const assistantItems = (data?.items ?? []).map((a) => ({
       id: a.id,
       name: a.name,
@@ -126,8 +132,8 @@ export function AssistantSelector(props: AssistantSelectorProps) {
       tags: (a.tags ?? []).map((tag) => tag.name)
     }))
 
-    return props.multi === true ? assistantItems : [defaultItem, ...assistantItems]
-  }, [data?.items, props.multi, t])
+    return props.multi === true ? assistantItems : [runtimeDefaultAssistantItem, ...assistantItems]
+  }, [data?.items, props.multi, runtimeDefaultAssistantItem])
 
   const tags = useMemo<ResourceSelectorShellTag[]>(() => {
     const byName = new Map<string, string | undefined>()
@@ -285,6 +291,28 @@ export function AssistantSelector(props: AssistantSelectorProps) {
 
   const multiToggleLabel = t('selector.assistant.multi_label')
   const multiToggleHint = t('selector.assistant.multi_hint')
+  const singleIdValue =
+    props.multi === false && props.selectionType !== 'item'
+      ? (props.value ?? DEFAULT_ASSISTANT_ITEM_ID)
+      : DEFAULT_ASSISTANT_ITEM_ID
+  const handleSingleIdChange = useCallback(
+    (value: string | null) => {
+      if (props.multi === true || props.selectionType === 'item') return
+      props.onChange(value === DEFAULT_ASSISTANT_ITEM_ID ? null : value)
+    },
+    [props]
+  )
+  const singleItemValue =
+    props.multi === false && props.selectionType === 'item'
+      ? (props.value ?? runtimeDefaultAssistantItem)
+      : runtimeDefaultAssistantItem
+  const handleSingleItemChange = useCallback(
+    (value: AssistantSelectorItem | null) => {
+      if (props.multi === true || props.selectionType !== 'item') return
+      props.onChange(value?.id === DEFAULT_ASSISTANT_ITEM_ID ? null : value)
+    },
+    [props]
+  )
 
   // Branch on each discriminated combination so TS can pass value/onChange to ResourceSelectorShell
   // without widening.
@@ -324,7 +352,12 @@ export function AssistantSelector(props: AssistantSelectorProps) {
   if (props.selectionType === 'item') {
     return (
       <>
-        <ResourceSelectorShell {...shared} selectionType="item" value={props.value} onChange={props.onChange} />
+        <ResourceSelectorShell
+          {...shared}
+          selectionType="item"
+          value={singleItemValue}
+          onChange={handleSingleItemChange}
+        />
         {createDialog}
         {editDialog}
       </>
@@ -332,7 +365,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
   }
   return (
     <>
-      <ResourceSelectorShell {...shared} value={props.value} onChange={props.onChange} />
+      <ResourceSelectorShell {...shared} value={singleIdValue} onChange={handleSingleIdChange} />
       {createDialog}
       {editDialog}
     </>

@@ -2,7 +2,6 @@ import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { useMultiplePreferences } from '@renderer/data/hooks/usePreference'
-import { createRuntimeDefaultAssistantDisplay } from '@renderer/domain/assistant/runtimeDefaultAssistant'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
 import {
   type AgentSessionStreamState,
@@ -33,6 +32,7 @@ import { createTopicActionContext, useTopicMenuPreset } from '@renderer/pages/ho
 import { fetchMessagesSummary } from '@renderer/services/ApiService'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { Topic as RendererTopic } from '@renderer/types'
+import { createRuntimeDefaultAssistantDisplay } from '@renderer/utils/assistant'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 import type { AgentEntity } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'

@@ -1,6 +1,6 @@
 import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import Scrollbar from '@renderer/components/Scrollbar'
-import type { RuntimeAssistant } from '@renderer/domain/assistant/runtimeDefaultAssistant'
+import type { RuntimeAssistant } from '@renderer/utils/assistant'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { FC } from 'react'
 import styled from 'styled-components'

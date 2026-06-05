@@ -21,10 +21,8 @@ import {
 } from '../model/ModelSelectorRow'
 import { SelectorShell, type SelectorShellMountStrategy, type SelectorShellProps } from '../shell/SelectorShell'
 
-export type ResourceSelectorShellItemId = string | null
-
 export type ResourceSelectorShellItem = {
-  id: ResourceSelectorShellItemId
+  id: string
   name: string
   emoji?: string
   description?: string
@@ -157,8 +155,8 @@ export type ResourceSelectorShellProps<T extends ResourceSelectorShellItem> =
  * Normalize value of any supported shape to an id list - used internally for selection display
  * and toolbar's initial state. Handles string, string[], item object, item[], and null.
  */
-function extractValueIds<T extends ResourceSelectorShellItem>(value: unknown): ResourceSelectorShellItemId[] {
-  if (value === null) return [null]
+function extractValueIds<T extends ResourceSelectorShellItem>(value: unknown): string[] {
+  if (value === null) return []
   if (value === undefined) return []
   if (typeof value === 'string') return [value]
   if (Array.isArray(value)) {
@@ -174,11 +172,6 @@ function extractValueIds<T extends ResourceSelectorShellItem>(value: unknown): R
 const DEFAULT_RESOURCE_TAG_COLOR = '#6372bd'
 const DEFAULT_MIN_LIST_HEIGHT = 144
 const DEFAULT_MAX_CONTENT_HEIGHT = 360
-const NULL_ITEM_DOM_ID = 'resource-selector-null-item'
-
-function getItemDomId(id: ResourceSelectorShellItemId): string {
-  return id ?? NULL_ITEM_DOM_ID
-}
 
 function normalizeTag(tag: ResourceSelectorShellTag) {
   return typeof tag === 'string' ? { name: tag, color: undefined } : tag
@@ -335,8 +328,8 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       )
     }
 
-    const pinned = filtered.filter((item) => item.id !== null && pinnedSet.has(item.id))
-    const unpinned = filtered.filter((item) => item.id === null || !pinnedSet.has(item.id))
+    const pinned = filtered.filter((item) => pinnedSet.has(item.id))
+    const unpinned = filtered.filter((item) => !pinnedSet.has(item.id))
     const pinnedOrdered = pinnedIds.map((id) => pinned.find((item) => item.id === id)).filter(Boolean) as T[]
     return { pinnedItems: pinnedOrdered, unpinnedItems: unpinned }
   }, [items, pinnedIds, pinnedSet, searchValue, selectedTagIds])
@@ -384,14 +377,14 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   }, [flatItems, firstEnabledIndex, initActiveIndex, open])
 
   const emitChange = useCallback(
-    (ids: ResourceSelectorShellItemId[]) => {
+    (ids: string[]) => {
       if (isMulti) {
         if (isItemType) {
-          const byId = new Map<ResourceSelectorShellItemId, T>(items.map((item) => [item.id, item]))
+          const byId = new Map<string, T>(items.map((item) => [item.id, item]))
           const mapped = ids.map((id) => byId.get(id)).filter(Boolean) as T[]
           ;(props.onChange as (value: T[]) => void)(mapped)
         } else {
-          ;(props.onChange as (value: string[]) => void)(ids.filter((id): id is string => id !== null))
+          ;(props.onChange as (value: string[]) => void)(ids)
         }
         return
       }
@@ -486,16 +479,12 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     if (activeIndex < 0) return
     const item = flatItems[activeIndex]
     if (!item) return
-    const element = listRef.current?.querySelector<HTMLElement>(
-      `[data-option-id="${CSS.escape(getItemDomId(item.id))}"]`
-    )
+    const element = listRef.current?.querySelector<HTMLElement>(`[data-option-id="${CSS.escape(item.id)}"]`)
     element?.scrollIntoView({ block: 'nearest' })
   }, [activeIndex, flatItems])
 
   const activeOptionDomId =
-    activeIndex >= 0 && flatItems[activeIndex]
-      ? `${listboxId}-opt-${getItemDomId(flatItems[activeIndex].id)}`
-      : undefined
+    activeIndex >= 0 && flatItems[activeIndex] ? `${listboxId}-opt-${flatItems[activeIndex].id}` : undefined
 
   const togglePin = useCallback(
     (id: string) => {
@@ -507,7 +496,6 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
 
   const renderPinAction = useCallback(
     (item: T) => {
-      if (item.id === null) return null
       if (item.pinnable === false) return null
 
       const itemId = item.id
@@ -532,7 +520,6 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
   const renderEditAction = useCallback(
     (item: T) => {
       if (!onEditItem) return null
-      if (item.id === null) return null
       if (item.editable === false) return null
 
       return (
@@ -560,7 +547,6 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
       if (next || !isMulti || valueIds.length < 2) return
 
       const firstId = valueIds[0]
-      if (firstId === null) return
       if (isItemType) {
         const firstItem = items.find((item) => item.id === firstId) ?? null
         ;(props.onChange as (value: T[]) => void)(firstItem ? [firstItem] : [])
@@ -603,7 +589,7 @@ export function ResourceSelectorShell<T extends ResourceSelectorShellItem>(props
     : undefined
 
   const renderOptionRow = (item: T, flatIndex: number) => {
-    const itemDomId = getItemDomId(item.id)
+    const itemDomId = item.id
     const isSelected = selectedSet.has(item.id)
     const isActive = flatIndex === activeIndex
     const editAction = renderEditAction(item)
