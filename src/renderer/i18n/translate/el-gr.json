@@ -7075,23 +7075,6 @@
     "store": "Βιβλιοθήκη βοηθών",
     "translate": "Μετάφραση"
   },
-  "trace": {
-    "backList": "Επιστροφή στη λίστα",
-    "edasSupport": "Λειτουργεί από το Alibaba Cloud EDAS",
-    "endTime": "Ώρα λήξης",
-    "inputs": "Είσοδοι",
-    "label": "Αλυσίδα κλήσης",
-    "name": "Όνομα κόμβου",
-    "noTraceList": "Δεν βρέθηκαν πληροφορίες ίχνους",
-    "outputs": "Έξοδοι",
-    "parentId": "Ανώτερο ID",
-    "spanDetail": "Λεπτομέρειες Span",
-    "spendTime": "Χρόνος κατανάλωσης",
-    "startTime": "Ώρα έναρξης",
-    "tag": "Ετικέτα",
-    "tokenUsage": "Χρήση token",
-    "traceWindow": "Παράθυρο αλυσίδας κλήσης"
-  },
   "translate": {
     "alter_language": "Εναλλακτική γλώσσα",
     "any": {

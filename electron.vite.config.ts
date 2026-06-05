@@ -115,7 +115,6 @@ export default defineConfig({
         '@logger': resolve('src/renderer/services/LoggerService'),
         '@data': resolve('src/renderer/data'),
         '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
-        '@mcp-trace/trace-web': resolve('packages/mcp-trace/trace-web'),
         '@cherrystudio/ai-core/provider': resolve('packages/aiCore/src/core/providers'),
         '@cherrystudio/ai-core/built-in/plugins': resolve('packages/aiCore/src/core/plugins/built-in'),
         '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
@@ -146,7 +145,6 @@ export default defineConfig({
           quickAssistant: resolve(__dirname, 'src/renderer/windows/quickAssistant/index.html'),
           selectionToolbar: resolve(__dirname, 'src/renderer/windows/selection/toolbar/index.html'),
           selectionAction: resolve(__dirname, 'src/renderer/windows/selection/action/index.html'),
-          traceWindow: resolve(__dirname, 'src/renderer/windows/trace/index.html'),
           migrationV2: resolve(__dirname, 'src/renderer/windows/migrationV2/index.html'),
           subWindow: resolve(__dirname, 'src/renderer/windows/subWindow/index.html')
         },
