@@ -1,22 +1,22 @@
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
-import type { WorkspaceSchemas } from '@shared/data/api/schemas/workspaces'
+import type { AgentWorkspaceSchemas } from '@shared/data/api/schemas/agentWorkspaces'
 
-export const workspaceHandlers: HandlersFor<WorkspaceSchemas> = {
-  '/workspaces': {
+export const agentWorkspaceHandlers: HandlersFor<AgentWorkspaceSchemas> = {
+  '/agent-workspaces': {
     GET: async () => {
       return await agentWorkspaceService.list()
     }
   },
 
-  '/workspaces/:workspaceId': {
+  '/agent-workspaces/:workspaceId': {
     GET: async ({ params }) => {
       return await agentWorkspaceService.getById(params.workspaceId)
     }
   },
 
-  '/workspaces/:id/order': {
+  '/agent-workspaces/:id/order': {
     PATCH: async ({ params, body }) => {
       const parsed = OrderRequestSchema.parse(body)
       await agentWorkspaceService.reorder(params.id, parsed)
@@ -24,7 +24,7 @@ export const workspaceHandlers: HandlersFor<WorkspaceSchemas> = {
     }
   },
 
-  '/workspaces/order:batch': {
+  '/agent-workspaces/order:batch': {
     PATCH: async ({ body }) => {
       const parsed = OrderBatchRequestSchema.parse(body)
       await agentWorkspaceService.reorderBatch(parsed.moves)

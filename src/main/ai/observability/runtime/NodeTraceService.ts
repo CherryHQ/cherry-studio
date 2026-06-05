@@ -9,14 +9,11 @@ import {
   Priority,
   ServicePhase
 } from '@main/core/lifecycle'
-import { WindowType } from '@main/core/window/types'
 // Heavy OTel modules (trace-core processors, trace-node, opentelemetry SDK) are loaded
 // via dynamic import() in initTracer() to avoid startup overhead when developer_mode is off.
 // Only type imports remain static as they are erased at compile time.
 import type { SpanContext } from '@opentelemetry/api'
 import { context, trace } from '@opentelemetry/api'
-import { IpcChannel } from '@shared/IpcChannel'
-import type { TraceWindowInitData } from '@shared/types/traceWindow'
 import { ipcMain } from 'electron'
 
 const TRACER_NAME = 'CherryStudio'
@@ -36,22 +33,21 @@ const logger = loggerService.withContext('NodeTraceService')
  */
 @Injectable('NodeTraceService')
 @ServicePhase(Phase.WhenReady)
-@DependsOn(['SpanCacheService', 'WindowManager'])
+@DependsOn(['SpanCacheService'])
 @Priority(0)
 export class NodeTraceService extends BaseService implements Activatable {
   // Stored from dynamic import, needed for shutdown in onDeactivate()
   private nodeTracer: { shutdown(): Promise<void> } | null = null
 
   /**
-   * IPC handlers are always registered (renderer may call them regardless).
-   * ipcMain.handle patch is applied only when developer_mode is enabled at startup.
+   * Registers no IPC handlers of its own.
+   * The ipcMain.handle patch is applied only when developer_mode is enabled at startup.
    * Runtime preference changes take effect after restart.
    */
   protected async onInit() {
     if (application.get('PreferenceService').get('app.developer_mode.enabled')) {
       this.patchIpcMainHandle()
     }
-    this.registerIpcHandlers()
   }
 
   /**
@@ -79,7 +75,6 @@ export class NodeTraceService extends BaseService implements Activatable {
    * until process exit. This is acceptable for shutdown-only deactivation.
    */
   async onDeactivate() {
-    this.destroyTraceWindow()
     if (this.nodeTracer) {
       await this.nodeTracer.shutdown()
       this.nodeTracer = null
@@ -140,49 +135,5 @@ export class NodeTraceService extends BaseService implements Activatable {
     this.registerDisposable(() => {
       ipcMain.handle = originalHandle
     })
-  }
-
-  private registerIpcHandlers() {
-    this.ipcHandle(
-      IpcChannel.TRACE_OPEN_WINDOW,
-      (_, topicId: string, traceId: string, autoOpen?: boolean, modelName?: string) =>
-        this.openTraceWindow(topicId, traceId, autoOpen, modelName)
-    )
-    this.ipcHandle(IpcChannel.TRACE_SET_TITLE, (_, title: string) => this.setTraceWindowTitle(title))
-  }
-
-  private openTraceWindow(topicId: string, traceId: string, autoOpen = true, modelName?: string) {
-    if (!this.isActivated) return
-
-    const windowManager = application.get('WindowManager')
-    const hasTraceWindow = windowManager.getWindowsByType(WindowType.Trace).length > 0
-    if (!hasTraceWindow && !autoOpen) {
-      return
-    }
-
-    windowManager.open<TraceWindowInitData>(WindowType.Trace, {
-      initData: {
-        topicId,
-        traceId,
-        modelName
-      }
-    })
-  }
-
-  private setTraceWindowTitle(title: string) {
-    const windowManager = application.get('WindowManager')
-    for (const { id } of windowManager.getWindowsByType(WindowType.Trace)) {
-      const window = windowManager.getWindow(id)
-      if (window && !window.isDestroyed()) {
-        window.setTitle(title)
-      }
-    }
-  }
-
-  private destroyTraceWindow() {
-    const windowManager = application.get('WindowManager')
-    for (const { id } of windowManager.getWindowsByType(WindowType.Trace)) {
-      windowManager.close(id)
-    }
   }
 }
