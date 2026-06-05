@@ -69,7 +69,7 @@ describe('showNativePopupMenu', () => {
   const neverExecute: ExecuteCommand = () => false
 
   it('builds a native menu from a resolved menu model', () => {
-    showNativePopupMenu(event, createModel(), { x: 10, y: 20 }, neverExecute)
+    void showNativePopupMenu(event, createModel(), { x: 10, y: 20 }, neverExecute)
 
     expect(menuMock.buildFromTemplate).toHaveBeenCalledWith([
       expect.objectContaining({
@@ -161,15 +161,15 @@ describe('showNativePopupMenu', () => {
   })
 
   it('rejects invalid menu payloads', () => {
-    showNativePopupMenu(event, { items: [{ type: 'command', command: 'unknown.command' }] }, undefined, neverExecute)
+    void showNativePopupMenu(event, { items: [{ type: 'command', command: 'unknown.command' }] }, undefined, neverExecute)
 
     expect(menuMock.buildFromTemplate).not.toHaveBeenCalled()
     expect(loggerMock.warn).toHaveBeenCalled()
   })
 
   it('rejects app and tray menu payloads because they are not popup menus', () => {
-    showNativePopupMenu(event, { ...createModel(), location: 'app.menu' }, undefined, neverExecute)
-    showNativePopupMenu(event, { ...createModel(), location: 'tray.menu' }, undefined, neverExecute)
+    void showNativePopupMenu(event, { ...createModel(), location: 'app.menu' }, undefined, neverExecute)
+    void showNativePopupMenu(event, { ...createModel(), location: 'tray.menu' }, undefined, neverExecute)
 
     expect(menuMock.buildFromTemplate).not.toHaveBeenCalled()
   })
