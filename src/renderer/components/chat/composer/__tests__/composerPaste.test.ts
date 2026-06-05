@@ -187,7 +187,16 @@ describe('composer paste handling', () => {
     expect(getComposerPlainTextPasteOverride('', {})).toBeNull()
   })
 
-  it('delegates text longer than the fixed threshold to the long-text file handler', () => {
-    expect(getComposerPlainTextPasteOverride('a'.repeat(1501), {})).toBeNull()
+  it('keeps long text as text when paste-as-file is disabled', () => {
+    expect(getComposerPlainTextPasteOverride('a'.repeat(1501), {})).toEqual([{ type: 'text', text: 'a'.repeat(1501) }])
+  })
+
+  it('delegates text longer than the configured threshold to the long-text file handler', () => {
+    expect(
+      getComposerPlainTextPasteOverride('a'.repeat(1501), {
+        pasteLongTextAsFile: true,
+        pasteLongTextThreshold: 1500
+      })
+    ).toBeNull()
   })
 })

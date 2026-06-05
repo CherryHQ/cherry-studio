@@ -5,7 +5,6 @@ import { useTimer } from '@renderer/hooks/useTimer'
 import type { Topic } from '@renderer/types'
 import { classNames, cn } from '@renderer/utils'
 import { scrollIntoView } from '@renderer/utils/dom'
-import type { CherryMessagePart } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import dayjs from 'dayjs'
 import type { FC } from 'react'
@@ -17,6 +16,7 @@ import {
   getMessageEnterMotionVariant,
   useMessageEnterMotionActive
 } from '../../motion/messageEnterMotion'
+import { useMessageParts } from '../blocks'
 import SiblingNavigator from '../list/SiblingNavigator'
 import {
   useMessageListActions,
@@ -29,7 +29,6 @@ import { defaultMessageRenderConfig, type MessageListItem } from '../types'
 import { getMessageListItemModel } from '../utils/messageListItem'
 import MessageAvatar from './MessageAvatar'
 import MessageContent from './MessageContent'
-import MessageEditor from './MessageEditor'
 import MessageErrorBoundary from './MessageErrorBoundary'
 import MessageHeader from './MessageHeader'
 import MessageMenuBar from './MessageMenuBar'
@@ -80,50 +79,19 @@ const MessageItem: FC<Props> = ({
   const messageStyle = renderConfig.messageStyle
 
   const messageContainerRef = useRef<HTMLDivElement>(null)
-  const { editingMessageId, startEditing, stopEditing } = useMessageEditing()
+  const messageParts = useMessageParts(message.id)
+  const { editingMessageId, startEditing } = useMessageEditing()
   const { setTimeoutTimer } = useTimer()
   const canEditMessage = !!actions.editMessage
-  const isEditing = canEditMessage && editingMessageId === message.id
+  const isEditing = editingMessageId === message.id
   const handleStartEditing = useCallback(
     (messageId: string) => {
-      if (canEditMessage) {
-        startEditing(messageId)
+      if (canEditMessage && messageId === message.id) {
+        startEditing(message, messageParts)
       }
     },
-    [canEditMessage, startEditing]
+    [canEditMessage, message, messageParts, startEditing]
   )
-
-  useEffect(() => {
-    if (isEditing && messageContainerRef.current) {
-      scrollIntoView(messageContainerRef.current, {
-        behavior: 'smooth',
-        block: 'center',
-        container: 'nearest'
-      })
-    }
-  }, [isEditing])
-
-  const handleEditSave = useCallback(
-    async (parts: CherryMessagePart[]) => {
-      if (!actions.editMessage) return
-      await actions.editMessage(message.id, parts)
-      stopEditing()
-    },
-    [actions, message.id, stopEditing]
-  )
-
-  const handleEditResend = useCallback(
-    async (parts: CherryMessagePart[]) => {
-      if (!actions.forkAndResendMessage) return
-      await actions.forkAndResendMessage(message.id, parts)
-      stopEditing()
-    },
-    [actions, message.id, stopEditing]
-  )
-
-  const handleEditCancel = useCallback(() => {
-    stopEditing()
-  }, [stopEditing])
 
   const isLastMessage = index === 0 || !!isGrouped
   const isAssistantMessage = message.role === 'assistant'
@@ -214,13 +182,7 @@ const MessageItem: FC<Props> = ({
     )
   }
 
-  const messageEditor = (
-    <MessageEditor message={message} onSave={handleEditSave} onResend={handleEditResend} onCancel={handleEditCancel} />
-  )
-
-  const plainMessageContent = isEditing ? (
-    messageEditor
-  ) : (
+  const plainMessageContent = (
     <Scrollbar
       className="message-content-container mt-0 max-w-full overflow-y-auto pl-0"
       style={{
@@ -289,29 +251,28 @@ const MessageItem: FC<Props> = ({
           'message group/message transform-[translateZ(0)] relative flex w-full flex-col rounded-[10px] pt-2.5 pb-0 transition-colors duration-300 will-change-transform [&:hover_.menubar]:opacity-100 [&_.menubar.show]:opacity-100 [&_.menubar]:opacity-0 [&_.menubar]:transition-opacity [&_.menubar]:duration-200': true,
           'message-assistant': isAssistantMessage,
           'message-user': !isAssistantMessage,
+          'bg-muted px-3 pb-2 opacity-70 outline-offset-[-1px] [outline:1px_solid_var(--color-border)]': isEditing,
           'cursor-pointer': isMultiSelectMode
         }),
         enterMotionAttributes?.className
       )}
+      aria-disabled={isEditing ? true : undefined}
       ref={messageContainerRef}
       onClickCapture={handleMessageSelectClick}>
       {isUserBubbleMessage ? (
-        isEditing ? (
-          messageEditor
-        ) : (
-          <UserBubbleMessage
-            message={message}
-            topic={topic}
-            isLastMessage={isLastMessage}
-            isGrouped={isGrouped}
-            isProcessing={isProcessing}
-            messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
-            onStartEditing={handleStartEditing}
-            onUpdateUseful={onUpdateUseful}
-            messageFont={messageFont}
-            fontSize={fontSize}
-          />
-        )
+        <UserBubbleMessage
+          message={message}
+          topic={topic}
+          isLastMessage={isLastMessage}
+          isGrouped={isGrouped}
+          isProcessing={isProcessing}
+          messageContainerRef={messageContainerRef as React.RefObject<HTMLDivElement>}
+          onStartEditing={handleStartEditing}
+          onUpdateUseful={onUpdateUseful}
+          messageFont={messageFont}
+          fontSize={fontSize}
+          isEditing={isEditing}
+        />
       ) : (
         <MessageHeader
           message={message}
@@ -338,7 +299,8 @@ const UserBubbleMessage = ({
   onStartEditing,
   onUpdateUseful,
   messageFont,
-  fontSize
+  fontSize,
+  isEditing
 }: {
   message: MessageListItem
   topic: Topic
@@ -350,6 +312,7 @@ const UserBubbleMessage = ({
   onUpdateUseful?: (msgId: string) => void
   messageFont: string
   fontSize: number
+  isEditing: boolean
 }) => {
   const actions = useMessageListActions()
   const meta = useMessageListMeta()
@@ -377,24 +340,26 @@ const UserBubbleMessage = ({
         </div>
         <MessageAvatar avatar={avatar} className="mt-1.5" onClick={canOpenUserProfile ? openUserProfile : undefined} />
       </div>
-      <div className="MessageFooter relative mt-1 mr-[30px] flex min-h-6.5 w-[calc(100%-30px)] max-w-full items-center justify-end text-foreground-muted text-xs leading-none">
-        <div className={cn(USER_MESSAGE_FOOTER_ACTIONS_CLASS, 'justify-end')}>
-          <span className="shrink-0">{dayjs(message.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
-          <MessageMenuBar
-            message={message}
-            topic={topic}
-            isLastMessage={isLastMessage}
-            isAssistantMessage={false}
-            isGrouped={isGrouped}
-            isProcessing={isProcessing}
-            messageContainerRef={messageContainerRef}
-            onStartEditing={onStartEditing}
-            onUpdateUseful={onUpdateUseful}
-            variant="header"
-          />
-          <SiblingNavigator messageId={message.id} />
+      {!isEditing && (
+        <div className="MessageFooter relative mt-1 mr-[30px] flex min-h-6.5 w-[calc(100%-30px)] max-w-full items-center justify-end text-foreground-muted text-xs leading-none">
+          <div className={cn(USER_MESSAGE_FOOTER_ACTIONS_CLASS, 'justify-end')}>
+            <span className="shrink-0">{dayjs(message.updatedAt ?? message.createdAt).format('MM/DD HH:mm')}</span>
+            <MessageMenuBar
+              message={message}
+              topic={topic}
+              isLastMessage={isLastMessage}
+              isAssistantMessage={false}
+              isGrouped={isGrouped}
+              isProcessing={isProcessing}
+              messageContainerRef={messageContainerRef}
+              onStartEditing={onStartEditing}
+              onUpdateUseful={onUpdateUseful}
+              variant="header"
+            />
+            <SiblingNavigator messageId={message.id} />
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }

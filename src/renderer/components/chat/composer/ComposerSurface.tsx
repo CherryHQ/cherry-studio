@@ -5,7 +5,6 @@ import NarrowLayout from '@renderer/components/chat/layout/NarrowLayout'
 import type { QuickPanelInputAdapter, QuickPanelInputEvent, QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol, QuickPanelView, useQuickPanel } from '@renderer/components/QuickPanel'
 import { useRichTextEditorKernel } from '@renderer/components/RichEditor/useRichTextEditorKernel'
-import { LONG_TEXT_PASTE_THRESHOLD } from '@renderer/config/constant'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { useFileDragDrop } from '@renderer/pages/home/Inputbar/hooks/useFileDragDrop'
@@ -15,9 +14,10 @@ import PasteService from '@renderer/services/PasteService'
 import type { FileMetadata } from '@renderer/types'
 import type { SendMessageShortcut } from '@shared/data/preference/preferenceTypes'
 import type { ComposerMessageToken } from '@shared/data/types/uiParts'
+import type { EditorOptions } from '@tiptap/core'
 import type { Editor } from '@tiptap/react'
 import { EditorContent } from '@tiptap/react'
-import { CirclePause, Maximize2, Minimize2 } from 'lucide-react'
+import { CirclePause, LocateFixed, Maximize2, Minimize2, X } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -40,6 +40,7 @@ import {
   createComposerSuggestionQuickPanelItem,
   createRootQuickPanelOpenOptions,
   getComposerCursorTextOffset,
+  getComposerInputLeafText,
   getComposerInputText,
   getComposerPositionAtTextOffset,
   getComposerSuggestionTriggerContext,
@@ -49,12 +50,22 @@ import {
 import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from './tokens'
 import type { ComposerToolLauncher } from './toolLauncher'
 
+const COMPOSER_INPUT_MAX_LENGTH = 50000
+type ComposerTextInputView = Parameters<NonNullable<NonNullable<EditorOptions['editorProps']>['handleTextInput']>>[0]
+
 export interface ComposerSurfaceActions {
   focus: () => void
   onTextChange: (updater: string | ((prev: string) => string)) => void
   toggleExpanded: (nextState?: boolean) => void
   removeToken: (tokenId: string) => void
   insertToken: (token: ComposerDraftToken) => void
+  getDraft: () => ComposerSerializedDraft
+}
+
+export interface ComposerSurfaceEditingState {
+  messageId: string
+  onCancel: () => void
+  onLocate?: () => void
 }
 
 export interface ComposerSurfaceProps {
@@ -83,6 +94,7 @@ export interface ComposerSurfaceProps {
   narrowMode: boolean
   onFocus?: () => void
   onActionsChange?: (actions: ComposerSurfaceActions) => void
+  editingState?: ComposerSurfaceEditingState
   getToolLaunchers?: () => ComposerToolLauncher[]
   resolveSkillMarker?: (marker: string) => ComposerDraftToken | null | undefined
   resolveKnowledgeBaseMarker?: (marker: string) => ComposerDraftToken | null | undefined
@@ -213,8 +225,27 @@ const getManagedTokenSignature = (
     .map((token) => `${token.kind}:${token.id}:${token.index}:${token.textOffset}`)
     .join('\n')
 
-function shouldDelegateLongTextPasteToFileHandler(text: string) {
-  return Boolean(text && text.length > LONG_TEXT_PASTE_THRESHOLD)
+function shouldDelegateLongTextPasteToFileHandler(
+  text: string,
+  pasteLongTextAsFile?: boolean,
+  pasteLongTextThreshold?: number
+) {
+  return Boolean(text && pasteLongTextAsFile && pasteLongTextThreshold && text.length > pasteLongTextThreshold)
+}
+
+function exceedsComposerInputMaxLength(currentText: string, nextText: string, replacedText = '') {
+  return currentText.length - replacedText.length + nextText.length > COMPOSER_INPUT_MAX_LENGTH
+}
+
+function getComposerReplacementText(view: ComposerTextInputView | null, from: number, to: number) {
+  if (!view || from >= to) return ''
+  return view.state.doc.textBetween(from, to, '\n', getComposerInputLeafText)
+}
+
+function getComposerSelectedText(editor: Editor) {
+  const { from, to } = editor.state.selection
+  if (from >= to) return ''
+  return editor.state.doc.textBetween(from, to, '\n', getComposerInputLeafText)
 }
 
 function isRestorableDraftToken(
@@ -311,6 +342,7 @@ export default function ComposerSurface({
   narrowMode,
   onFocus,
   onActionsChange,
+  editingState,
   getToolLaunchers,
   resolveSkillMarker,
   resolveKnowledgeBaseMarker,
@@ -322,6 +354,8 @@ export default function ComposerSurface({
   renderLeftControls,
   renderBelowControls
 }: ComposerSurfaceProps) {
+  const [pasteLongTextAsFile] = usePreference('chat.input.paste_long_text_as_file')
+  const [pasteLongTextThreshold] = usePreference('chat.input.paste_long_text_threshold')
   const [sendMessageShortcut] = usePreference('chat.input.send_message_shortcut')
   const { t } = useTranslation()
   const quickPanel = useQuickPanel()
@@ -372,6 +406,7 @@ export default function ComposerSurface({
 
   const applyComposerText = useCallback(
     (nextText: string) => {
+      if (nextText.length > COMPOSER_INPUT_MAX_LENGTH) return
       textRef.current = nextText
       pendingLocalTextEchoRef.current = nextText
       onTextChange(nextText)
@@ -391,6 +426,8 @@ export default function ComposerSurface({
   const { handlePaste } = usePasteHandler(text, setText, {
     supportedExts,
     setFiles,
+    pasteLongTextAsFile,
+    pasteLongTextThreshold,
     onResize: () => undefined,
     t
   })
@@ -496,15 +533,23 @@ export default function ComposerSurface({
     insertComposerTokenAtCursor(editor, token)
   }, [])
 
+  const getDraft = useCallback((): ComposerSerializedDraft => {
+    const editor = editorRef.current
+    if (!editor || editor.isDestroyed) return { text: textRef.current, tokens: [] }
+
+    return serializeComposerDocument(editor)
+  }, [])
+
   useEffect(() => {
     onActionsChange?.({
       focus: focusEditor,
       onTextChange: handleTextChangeFromTool,
       toggleExpanded: handleToggleExpanded,
       removeToken,
-      insertToken
+      insertToken,
+      getDraft
     })
-  }, [focusEditor, handleTextChangeFromTool, handleToggleExpanded, insertToken, onActionsChange, removeToken])
+  }, [focusEditor, getDraft, handleTextChangeFromTool, handleToggleExpanded, insertToken, onActionsChange, removeToken])
 
   const rootPanelOpenRefreshRequestedRef = useRef(false)
   const rootSuggestionStateRef = useRef({
@@ -752,11 +797,14 @@ export default function ComposerSurface({
 
         return false
       },
-      handleTextInput: (_view, _from, _to, insertedText) => {
+      handleTextInput: (view, from, to, insertedText) => {
         const editor = editorRef.current
         if (!editor || editor.isDestroyed) return false
         const selectedPromptVariable = getSelectedPromptVariableToken(editor)
-        if (!selectedPromptVariable) return false
+        if (!selectedPromptVariable) {
+          const replacedText = getComposerReplacementText(view, from, to)
+          return exceedsComposerInputMaxLength(textRef.current, insertedText, replacedText)
+        }
 
         const composingToken = promptVariableCompositionRef.current
         if (editor.view.composing || composingToken?.tokenId === selectedPromptVariable.token.id) {
@@ -773,7 +821,13 @@ export default function ComposerSurface({
         const editState = promptVariableEditRef.current
         const shouldAppend = editState?.tokenId === selectedPromptVariable.token.id && editState.started
         const baseText = shouldAppend ? (selectedPromptVariable.token.promptText ?? '') : ''
-        updateSelectedPromptVariableToken(editor, `${baseText}${insertedText}`)
+        const nextPromptText = `${baseText}${insertedText}`
+        if (
+          exceedsComposerInputMaxLength(textRef.current, nextPromptText, selectedPromptVariable.token.promptText ?? '')
+        ) {
+          return true
+        }
+        updateSelectedPromptVariableToken(editor, nextPromptText)
         promptVariableEditRef.current = { tokenId: selectedPromptVariable.token.id, started: true }
         return true
       },
@@ -811,6 +865,11 @@ export default function ComposerSurface({
           const data = 'data' in event && typeof event.data === 'string' ? event.data : ''
           const nextValue = data || composingToken.text
           if (!nextValue) return true
+          if (
+            exceedsComposerInputMaxLength(textRef.current, nextValue, selectedPromptVariable.token.promptText ?? '')
+          ) {
+            return true
+          }
 
           updateSelectedPromptVariableToken(editor, nextValue)
           promptVariableEditRef.current = { tokenId: selectedPromptVariable.token.id, started: true }
@@ -822,23 +881,35 @@ export default function ComposerSurface({
     handlePaste: (_view, event) => {
       const pastedText = event.clipboardData?.getData('text/plain') || event.clipboardData?.getData('text') || ''
       const editor = editorRef.current
-      if (editor && getSelectedPromptVariableToken(editor) && pastedText) {
+      const selectedPromptVariable = editor ? getSelectedPromptVariableToken(editor) : null
+      if (editor && selectedPromptVariable && pastedText) {
         event.preventDefault()
+        if (exceedsComposerInputMaxLength(textRef.current, pastedText, selectedPromptVariable.token.promptText ?? '')) {
+          return true
+        }
         updateSelectedPromptVariableToken(editor, pastedText)
-        const selectedPromptVariable = getSelectedPromptVariableToken(editor)
-        promptVariableEditRef.current = selectedPromptVariable
-          ? { tokenId: selectedPromptVariable.token.id, started: true }
-          : null
+        promptVariableEditRef.current = { tokenId: selectedPromptVariable.token.id, started: true }
         return true
       }
 
-      if (shouldDelegateLongTextPasteToFileHandler(pastedText)) {
+      if (shouldDelegateLongTextPasteToFileHandler(pastedText, pasteLongTextAsFile, pasteLongTextThreshold)) {
         event.preventDefault()
         void handlePaste(event)
         return true
       }
 
+      if (
+        editor &&
+        pastedText &&
+        exceedsComposerInputMaxLength(textRef.current, pastedText, getComposerSelectedText(editor))
+      ) {
+        event.preventDefault()
+        return true
+      }
+
       const plainTextOverride = getComposerPlainTextPasteOverride(pastedText, {
+        pasteLongTextAsFile,
+        pasteLongTextThreshold,
         promptVariableStartIndex: editor ? getNextPromptVariableIndex(editor) : 0,
         resolveSkillMarker,
         resolveKnowledgeBaseMarker
@@ -1010,6 +1081,41 @@ export default function ComposerSurface({
   const showPauseButton = isLoading && sendDisabled
   const belowControls = renderBelowControls?.(inputAdapter)
   const ExpandIcon = isExpanded ? Minimize2 : Maximize2
+  const editingModeBar = editingState ? (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-label={t('chat.input.editing_message')}
+      data-composer-editing-bar=""
+      className="mx-2 mb-1.5 flex min-h-8 items-center gap-2 rounded-lg border border-border bg-muted px-2.5 py-1.5 text-foreground-secondary text-xs">
+      <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-foreground-muted" />
+      <span className="min-w-0 flex-1 truncate font-medium">{t('chat.input.editing_message')}</span>
+      {editingState.onLocate ? (
+        <Tooltip content={t('chat.input.locate_editing_message')}>
+          <Button
+            type="button"
+            onClick={editingState.onLocate}
+            variant="ghost"
+            size="icon-sm"
+            className="size-6 shrink-0 rounded-full text-foreground-secondary hover:bg-accent"
+            aria-label={t('chat.input.locate_editing_message')}>
+            <LocateFixed size={14} />
+          </Button>
+        </Tooltip>
+      ) : null}
+      <Tooltip content={t('chat.input.cancel_editing')}>
+        <Button
+          type="button"
+          onClick={editingState.onCancel}
+          variant="ghost"
+          size="icon-sm"
+          className="size-6 shrink-0 rounded-full text-foreground-muted hover:bg-accent hover:text-foreground"
+          aria-label={t('chat.input.cancel_editing')}>
+          <X size={14} />
+        </Button>
+      </Tooltip>
+    </div>
+  ) : null
   const inputbarElement = (
     <div
       id="inputbar"
@@ -1045,6 +1151,7 @@ export default function ComposerSurface({
           <ExpandIcon className="transition-[scale] duration-300 ease-out group-focus-within/expand-corner:scale-110 group-hover/expand-corner:scale-110" />
         </Button>
       </div>
+      {editingModeBar}
       <div
         ref={editorFrameRef}
         className="overflow-hidden transition-[height] ease-out"

@@ -4,8 +4,7 @@ import type { MessageExportView } from '@renderer/types/messageExport'
 import type {
   ChatMessageStyle,
   MultiModelGridPopoverTrigger,
-  MultiModelMessageStyle,
-  SendMessageShortcut
+  MultiModelMessageStyle
 } from '@shared/data/preference/preferenceTypes'
 import type {
   CherryMessagePart,
@@ -15,7 +14,7 @@ import type {
   ModelSnapshot
 } from '@shared/data/types/message'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
-import type { DragEvent, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 
 export interface MessageUiState {
   foldSelected?: boolean
@@ -56,30 +55,10 @@ export interface MessageActivityState {
   isApprovalAnchor: boolean
 }
 
-export interface MessageEditorCapabilities {
-  canAddImageFile: boolean
-  canAddTextFile: boolean
-  canForkAndResend?: boolean
-}
-
-export interface MessageEditorPasteInput {
-  event: ClipboardEvent
-  extensions: string[]
-  addFiles: (files: FileMetadata[]) => void
-}
-
-export type MessageEditorPasteHandler = (event: ClipboardEvent) => Promise<boolean>
-
 export interface MessageFileView {
   displayName: string
   safePath?: string
   previewUrl?: string
-}
-
-export interface MessageEditorConfig {
-  fontSize: number
-  sendMessageShortcut: SendMessageShortcut
-  enableSpellCheck: boolean
 }
 
 export interface MessageMenuExportOptions {
@@ -249,12 +228,6 @@ export const defaultMessageRenderConfig: MessageRenderConfig = {
   multiModelGridPopoverTrigger: 'click'
 }
 
-export const defaultMessageEditorConfig: MessageEditorConfig = {
-  fontSize: defaultMessageRenderConfig.fontSize,
-  sendMessageShortcut: 'Enter',
-  enableSpellCheck: false
-}
-
 export type MessageRenderConfigUpdate = Partial<
   Pick<MessageRenderConfig, 'multiModelGridColumns' | 'multiModelGridPopoverTrigger'>
 >
@@ -274,15 +247,12 @@ export interface MessageListState {
   listKey?: string | null
   readonly?: boolean
   renderConfig: MessageRenderConfig
-  editorConfig?: MessageEditorConfig
   menuConfig?: MessageMenuConfig
   selection?: MessageListSelectionState
   translationLanguages?: TranslateLanguage[]
-  editorTranslationTargetLabel?: string
   getMessageUiState?: (messageId: string) => MessageUiState
   getMessageSiblings?: (messageId: string) => MessageSiblingInfo | null
   getMessageActivityState?: (message: MessageListItem) => MessageActivityState
-  getMessageEditorCapabilities?: (message: MessageListItem) => MessageEditorCapabilities
   getFileView?: (file: FileMetadata) => MessageFileView
   isToolAutoApproved?: (tool: McpTool, allowedTools?: string[]) => boolean
   externalCodeEditors?: ExternalAppInfo[]
@@ -342,13 +312,6 @@ export interface MessageListActions {
   removeMessageErrorPart?: (input: RemoveMessageErrorPartInput) => void | Promise<void>
   openErrorDetail?: (input: MessageErrorDetailInput) => void | Promise<void>
   navigateErrorTarget?: (target: string) => void | Promise<void>
-  selectFiles?: (options: { extensions: string[] }) => Promise<FileMetadata[] | null | undefined>
-  uploadEditorFiles?: (files: FileMetadata[]) => Promise<CherryMessagePart[]>
-  handleEditorPaste?: (input: MessageEditorPasteInput) => Promise<boolean>
-  bindEditorPasteHandler?: (handler: MessageEditorPasteHandler) => void | (() => void)
-  focusEditorPasteTarget?: () => void
-  getDroppedEditorFiles?: (event: DragEvent<HTMLDivElement>) => Promise<FileMetadata[] | null | undefined>
-  translateEditorText?: (text: string) => Promise<string | null | undefined>
   translateMessage?: (messageId: string, language: TranslateLanguage, sourceText: string) => void | Promise<void>
   abortMessageTranslation?: (messageId: string) => void | Promise<void>
   renderRegenerateModelPicker?: (options: MessageModelPickerRenderOptions) => ReactNode
@@ -360,7 +323,6 @@ export interface MessageListActions {
   updateMessageUiState?: (messageId: string, updates: MessageUiState) => void
   updateRenderConfig?: (updates: MessageRenderConfigUpdate) => void
   editMessage?: (messageId: string, parts: CherryMessagePart[]) => void | Promise<void>
-  forkAndResendMessage?: (messageId: string, parts: CherryMessagePart[]) => void | Promise<void>
   deleteMessage?: (messageId: string, traceOptions?: { traceId?: string; modelName?: string }) => void | Promise<void>
   startMessageBranch?: (messageId: string) => void | Promise<void>
   setActiveBranch?: (messageId: string) => void | Promise<void>

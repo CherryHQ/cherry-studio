@@ -10,8 +10,6 @@ import type {
 } from '@renderer/components/chat/messages/types'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
 import { useMessageActivityState } from '@renderer/pages/shared/messages/hooks/useMessageActivityState'
-import { useMessageEditorCapabilities } from '@renderer/pages/shared/messages/hooks/useMessageEditorCapabilities'
-import { useMessageEditorConfig } from '@renderer/pages/shared/messages/hooks/useMessageEditorConfig'
 import { useMessageErrorActions } from '@renderer/pages/shared/messages/hooks/useMessageErrorActions'
 import { useMessageExportActions } from '@renderer/pages/shared/messages/hooks/useMessageExportActions'
 import { useMessageHeaderCapabilities } from '@renderer/pages/shared/messages/hooks/useMessageHeaderCapabilities'
@@ -111,12 +109,10 @@ export function useAgentMessageListProviderValue({
 
   const getMessageActivityState = useMessageActivityState(topic.id, partsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
-  const editorConfig = useMessageEditorConfig(renderConfig.fontSize)
   const menuConfig = useMessageMenuConfig()
   const exportActions = useMessageExportActions({ topicName: topic.name })
   const errorActions = useMessageErrorActions()
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId })
-  const editorCapabilities = useMessageEditorCapabilities()
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()
   const selectionController = useMessageSelectionController({
@@ -193,7 +189,6 @@ export function useAgentMessageListProviderValue({
       listKey: topic.id,
       readonly: true,
       renderConfig,
-      editorConfig,
       menuConfig,
       selection: selectionController.selection,
       getMessageUiState: messageUiStateCache.getMessageUiState,
@@ -204,7 +199,6 @@ export function useAgentMessageListProviderValue({
       getMessageActivityState,
       hasOlder,
       isLoading,
-      editorConfig,
       leafCapabilities,
       menuConfig,
       messageUiStateCache.getMessageUiState,
@@ -225,7 +219,6 @@ export function useAgentMessageListProviderValue({
       ...exportActions,
       ...errorActions,
       ...pickMessageLeafActions(leafCapabilities),
-      ...editorCapabilities,
       navigateToRoute,
       ...pickMessageHeaderActions(headerCapabilities),
       respondToolApproval,
@@ -249,7 +242,6 @@ export function useAgentMessageListProviderValue({
       bindMessageGroupRuntime,
       bindMessageRuntime,
       deleteMessage,
-      editorCapabilities,
       errorActions,
       exportActions,
       headerCapabilities,

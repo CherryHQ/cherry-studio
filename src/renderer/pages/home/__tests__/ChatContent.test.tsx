@@ -368,6 +368,73 @@ describe('ChatContent', () => {
     expect(clearBranchDraft).not.toHaveBeenCalled()
   })
 
+  it('resend opens a regenerate stream and seeds reserved messages without waiting for stream terminal', async () => {
+    const historyUser = createUiMessage('history-user', 'user')
+    const historyAssistant = {
+      ...createUiMessage('history-assistant', 'assistant'),
+      metadata: { parentId: 'history-user', createdAt: '2026-01-01T00:00:01.000Z' }
+    } as CherryUIMessage
+    const reservedAssistant = {
+      id: 'reserved-assistant',
+      role: 'assistant',
+      parts: [],
+      metadata: {
+        createdAt: '2026-01-01T00:00:03.000Z',
+        modelId: 'provider::model-a',
+        parentId: 'history-user',
+        status: 'pending'
+      }
+    } as CherryUIMessage
+    const regenerate = vi.fn().mockResolvedValue(undefined)
+
+    ;(window.api.ai.streamOpen as any).mockResolvedValueOnce({
+      mode: 'started',
+      reservedMessages: [reservedAssistant]
+    })
+    mockUseTopicMessages.mockReturnValue({
+      uiMessages: [historyUser, historyAssistant],
+      siblingsMap: {},
+      isLoading: false,
+      refresh: vi.fn().mockResolvedValue([]),
+      activeNodeId: 'history-assistant',
+      loadOlder: vi.fn(),
+      hasOlder: false,
+      mutate: vi.fn().mockResolvedValue(undefined)
+    })
+    mockUseChatWithHistory.mockReturnValue({
+      sendMessage: vi.fn(),
+      regenerate,
+      stop: vi.fn(),
+      error: null,
+      status: 'ready',
+      setMessages: vi.fn(),
+      activeExecutions: []
+    })
+
+    render(<ChatContent topic={topic} />)
+
+    await act(async () => {
+      await mockChatWriteValue.current?.resend('history-user')
+    })
+
+    expect(window.api.ai.streamOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'history-user'
+      })
+    )
+    expect(regenerate).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(mockUseExecutionOverlay).toHaveBeenLastCalledWith(
+        'topic-1',
+        [{ executionId: 'provider::model-a', anchorMessageId: 'reserved-assistant' }],
+        expect.any(Array),
+        expect.any(Object)
+      )
+    })
+  })
+
   it('refreshes topic metadata after stream open so time-grouped sidebars can reorder', async () => {
     render(<ChatContent topic={topic} />)
 
@@ -675,8 +742,23 @@ describe('ChatContent', () => {
         }
       } as CherryUIMessage
     ])
+    const reservedAssistant = {
+      id: 'forked-assistant',
+      role: 'assistant',
+      parts: [],
+      metadata: {
+        parentId: 'forked-user',
+        modelId: 'forked-exec',
+        status: 'pending',
+        createdAt: '2026-01-01T00:00:04.000Z'
+      }
+    } as CherryUIMessage
     const setMessages = vi.fn()
     const regenerate = vi.fn().mockResolvedValue(undefined)
+    ;(window.api.ai.streamOpen as any).mockResolvedValueOnce({
+      mode: 'started',
+      reservedMessages: [reservedAssistant]
+    })
 
     mockUseMutation.mockImplementation((method: string, path: string) => ({
       trigger: method === 'POST' && path === '/messages/:id/siblings' ? createSiblingTrigger : vi.fn(),
@@ -715,14 +797,18 @@ describe('ChatContent', () => {
     })
     expect(refresh).toHaveBeenCalled()
     expect(setMessages).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ id: 'forked-user' })]))
-    expect(regenerate).toHaveBeenCalledWith({
-      messageId: 'forked-user',
-      body: expect.objectContaining({ parentAnchorId: 'forked-user' })
-    })
+    expect(window.api.ai.streamOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'forked-user'
+      })
+    )
+    expect(regenerate).not.toHaveBeenCalled()
     await waitFor(() => {
       expect(onBranchLiveStateChange).toHaveBeenCalledWith(
         expect.objectContaining({
-          activeNodeId: 'forked-user',
+          activeNodeId: 'forked-assistant',
           nodes: expect.arrayContaining([
             expect.objectContaining({
               id: 'forked-user',
@@ -731,6 +817,12 @@ describe('ChatContent', () => {
               preview: 'edited branch prompt',
               status: 'success',
               siblingsGroupId: 17
+            }),
+            expect.objectContaining({
+              id: 'forked-assistant',
+              parentId: 'forked-user',
+              role: 'assistant',
+              status: 'pending'
             })
           ])
         })
@@ -807,6 +899,22 @@ describe('ChatContent', () => {
         }
       } as CherryUIMessage
     ])
+    ;(window.api.ai.streamOpen as any).mockResolvedValueOnce({
+      mode: 'started',
+      reservedMessages: [
+        {
+          id: 'forked-root-assistant',
+          role: 'assistant',
+          parts: [],
+          metadata: {
+            parentId: 'forked-root-user',
+            modelId: 'provider::root-model',
+            status: 'pending',
+            createdAt: '2026-01-01T00:00:04.000Z'
+          }
+        } as CherryUIMessage
+      ]
+    })
 
     mockUseMutation.mockImplementation((method: string, path: string) => ({
       trigger: method === 'POST' && path === '/messages/:id/siblings' ? createSiblingTrigger : vi.fn(),
@@ -847,10 +955,14 @@ describe('ChatContent', () => {
     expect(setMessages).toHaveBeenCalledWith(
       expect.arrayContaining([expect.objectContaining({ id: 'forked-root-user', parts: editedParts })])
     )
-    expect(regenerate).toHaveBeenCalledWith({
-      messageId: 'forked-root-user',
-      body: expect.objectContaining({ parentAnchorId: 'forked-root-user' })
-    })
+    expect(window.api.ai.streamOpen).toHaveBeenCalledWith(
+      expect.objectContaining({
+        trigger: 'regenerate-message',
+        topicId: 'topic-1',
+        parentAnchorId: 'forked-root-user'
+      })
+    )
+    expect(regenerate).not.toHaveBeenCalled()
   })
 
   it('configures message writes to refresh the branch tree cache', () => {

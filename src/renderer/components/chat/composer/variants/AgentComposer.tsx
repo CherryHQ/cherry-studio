@@ -281,7 +281,8 @@ const emptyActions: ProviderActionHandlers = {
   onTextChange: () => undefined,
   toggleExpanded: () => undefined,
   removeToken: () => undefined,
-  insertToken: () => undefined
+  insertToken: () => undefined,
+  getDraft: () => ({ text: '', tokens: [] })
 }
 
 const createQuoteToken = (selectedText: string, label: string): ComposerDraftToken => ({

@@ -101,9 +101,22 @@ describe('ComposerToken', () => {
     expect(screen.getByTestId('composer-token-tooltip')).toBeInTheDocument()
     expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('notes.md')
 
-    expect(token).toHaveClass('h-6', 'items-center', 'rounded-md', 'border', 'bg-background', 'leading-[inherit]')
+    expect(token).toHaveClass(
+      'h-6',
+      'items-center',
+      'rounded-md',
+      'border',
+      'border-border',
+      'bg-background',
+      'hover:bg-accent',
+      'leading-[inherit]'
+    )
     expect(token).not.toHaveClass('bg-muted')
     expect(token).not.toHaveClass('py-0.5', 'leading-5')
+
+    const icon = token?.querySelector('[data-file-token-icon="fallback"]')
+    expect(icon).toHaveClass('size-4.5', 'rounded-[5px]', 'border-0', 'bg-accent', 'text-muted-foreground')
+    expect(icon).not.toHaveClass('border', 'border-border', 'bg-background')
   })
 
   it('renders image file tokens with image variant metadata and preview', () => {
@@ -128,7 +141,14 @@ describe('ComposerToken', () => {
 
     const token = container.querySelector('[data-composer-token-kind="file"]')
     expect(token).toHaveAttribute('data-file-token-variant', 'image')
-    expect(token?.querySelector('[data-file-token-icon="image"]')).toHaveClass('text-success')
+    expect(token).toHaveClass('border-border', 'bg-background', 'hover:bg-accent')
+    expect(token).not.toHaveClass('border-success', 'bg-[var(--color-success-bg)]')
+    expect(token?.querySelector('[data-file-token-icon="image"]')).toHaveClass(
+      'border-0',
+      'bg-[var(--color-success-bg)]',
+      'text-success'
+    )
+    expect(token?.querySelector('[data-file-token-icon="image"]')).not.toHaveClass('border-success', 'bg-background')
     expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('avatar-preview.png')
     expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('IMAGE')
     expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('2 KB')
@@ -156,7 +176,17 @@ describe('ComposerToken', () => {
 
     const token = container.querySelector('[data-composer-token-kind="file"]')
     expect(token).toHaveAttribute('data-file-token-variant', 'document')
-    expect(token?.querySelector('[data-file-token-icon="document"]')).toHaveClass('text-destructive')
+    expect(token).toHaveClass('border-border', 'bg-background', 'hover:bg-accent')
+    expect(token).not.toHaveClass('border-destructive', 'bg-[var(--color-error-bg)]')
+    expect(token?.querySelector('[data-file-token-icon="document"]')).toHaveClass(
+      'border-0',
+      'bg-[var(--color-error-bg)]',
+      'text-destructive'
+    )
+    expect(token?.querySelector('[data-file-token-icon="document"]')).not.toHaveClass(
+      'border-destructive',
+      'bg-background'
+    )
     expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('PDF')
     expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('2 KB')
   })
@@ -182,9 +212,23 @@ describe('ComposerToken', () => {
 
     const token = container.querySelector('[data-composer-token-kind="file"]')
     expect(token).toHaveAttribute('data-file-token-variant', 'text')
-    expect(token?.querySelector('[data-file-token-icon="text"]')).toHaveClass('text-info')
+    expect(token).toHaveClass('border-border', 'bg-background', 'hover:bg-accent')
+    expect(token).not.toHaveClass('border-info', 'bg-[var(--color-info-bg)]')
+    expect(token?.querySelector('[data-file-token-icon="text"]')).toHaveClass(
+      'border-0',
+      'bg-[var(--color-info-bg)]',
+      'text-info'
+    )
+    expect(token?.querySelector('[data-file-token-icon="text"]')).not.toHaveClass('border-info', 'bg-background')
     expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('TS')
     expect(screen.getByTestId('composer-token-tooltip-content')).toHaveTextContent('3 KB')
+  })
+
+  it('keeps selected file tokens highlighted with primary border and ring', () => {
+    const { container } = render(<ComposerToken token={{ id: 'file:1', kind: 'file', label: 'notes.md' }} selected />)
+
+    const token = container.querySelector('[data-composer-token-kind="file"]')
+    expect(token).toHaveClass('border-primary', 'ring-1', 'ring-ring')
   })
 
   it('shows quoted content in a tooltip for quote tokens', () => {

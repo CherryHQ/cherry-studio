@@ -6,7 +6,6 @@ import type {
   MessageListProviderValue,
   MessageListState
 } from '@renderer/components/chat/messages/types'
-import { useMessageEditorConfig } from '@renderer/pages/shared/messages/hooks/useMessageEditorConfig'
 import { useMessageErrorActions } from '@renderer/pages/shared/messages/hooks/useMessageErrorActions'
 import { useMessageHeaderCapabilities } from '@renderer/pages/shared/messages/hooks/useMessageHeaderCapabilities'
 import { useMessageLeafCapabilities } from '@renderer/pages/shared/messages/hooks/useMessageLeafCapabilities'
@@ -33,7 +32,6 @@ interface Props {
 export function HistoryMessageListProvider({ topic, messages, partsByMessageId, children }: Props) {
   const navigate = useNavigate()
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
-  const editorConfig = useMessageEditorConfig(renderConfig.fontSize)
   const errorActions = useMessageErrorActions()
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId })
   const headerCapabilities = useMessageHeaderCapabilities()
@@ -66,7 +64,6 @@ export function HistoryMessageListProvider({ topic, messages, partsByMessageId, 
       listKey: `history-${topic.id}`,
       readonly: true,
       renderConfig,
-      editorConfig,
       selection: {
         enabled: false,
         isMultiSelectMode: false,
@@ -80,15 +77,7 @@ export function HistoryMessageListProvider({ topic, messages, partsByMessageId, 
       }),
       ...pickMessageLeafState(leafCapabilities)
     }),
-    [
-      messages,
-      leafCapabilities,
-      messageUiStateCache.getMessageUiState,
-      partsByMessageId,
-      renderConfig,
-      editorConfig,
-      topic
-    ]
+    [messages, leafCapabilities, messageUiStateCache.getMessageUiState, partsByMessageId, renderConfig, topic]
   )
 
   const actions = useMemo<MessageListActions>(

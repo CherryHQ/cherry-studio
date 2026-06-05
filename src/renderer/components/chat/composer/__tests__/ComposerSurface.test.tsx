@@ -15,11 +15,14 @@ const mocks = vi.hoisted(() => ({
   setNodeSelection: vi.fn(),
   chainRun: vi.fn(),
   docDescendants: vi.fn(),
+  docTextBetween: vi.fn(),
   focus: vi.fn(),
   getJSON: vi.fn(),
   dispatch: vi.fn(),
   pasteHandler: vi.fn(),
   preferences: {
+    'chat.input.paste_long_text_as_file': true,
+    'chat.input.paste_long_text_threshold': 2000,
     'chat.input.send_message_shortcut': 'Enter'
   } as Record<string, unknown>,
   editorPresetOptions: undefined as any,
@@ -125,7 +128,8 @@ vi.mock('@renderer/components/RichEditor/useRichTextEditorKernel', () => ({
           return mocks.transaction
         },
         doc: {
-          descendants: mocks.docDescendants
+          descendants: mocks.docDescendants,
+          textBetween: mocks.docTextBetween
         }
       }
     }
@@ -247,12 +251,16 @@ describe('ComposerSurface', () => {
     mocks.setNodeSelection.mockReset()
     mocks.chainRun.mockReset()
     mocks.docDescendants.mockReset()
+    mocks.docTextBetween.mockReset()
+    mocks.docTextBetween.mockReturnValue('')
     mocks.focus.mockReset()
     mocks.getJSON.mockReset()
     mocks.getJSON.mockReturnValue({ type: 'doc', content: [{ type: 'paragraph' }] })
     mocks.dispatch.mockReset()
     mocks.pasteHandler.mockReset()
     mocks.preferences = {
+      'chat.input.paste_long_text_as_file': true,
+      'chat.input.paste_long_text_threshold': 2000,
       'chat.input.send_message_shortcut': 'Enter'
     }
     mocks.editorPresetOptions = undefined
@@ -356,6 +364,41 @@ describe('ComposerSurface', () => {
     expect(collapseButton).toHaveAttribute('aria-pressed', 'true')
     expect(collapseButton).toHaveClass('opacity-100', 'bg-accent/80', 'rotate-0')
     expect(cornerLine).toHaveClass('opacity-0', 'scale-50')
+  })
+
+  it('renders an editing mode bar with locate and cancel actions inside the inputbar', () => {
+    const onCancel = vi.fn()
+    const onLocate = vi.fn()
+
+    render(
+      <ComposerSurface
+        {...baseProps}
+        editingState={{
+          messageId: 'message-1',
+          onLocate,
+          onCancel
+        }}
+      />
+    )
+
+    const editingBar = screen.getByText('chat.input.editing_message').closest('[data-composer-editing-bar]')
+
+    expect(editingBar?.closest('[data-composer-inputbar]')).not.toBeNull()
+    expect(editingBar).toHaveClass('border-border-subtle', 'bg-muted/40', 'text-foreground-secondary')
+    expect(editingBar).not.toHaveClass('border-info/40', 'bg-[var(--color-info-bg)]', 'text-info', 'mb-2')
+
+    const locateButton = screen.getByRole('button', { name: 'chat.input.locate_editing_message' })
+    expect(locateButton).toHaveClass('text-foreground-secondary', 'hover:bg-accent')
+    fireEvent.click(locateButton)
+    expect(onLocate).toHaveBeenCalledTimes(1)
+
+    const cancelButton = screen.getByRole('button', { name: 'chat.input.cancel_editing' })
+    expect(cancelButton).toHaveClass('text-foreground-muted', 'hover:bg-accent', 'hover:text-foreground')
+    expect(cancelButton).not.toHaveClass('text-info', 'hover:bg-[var(--color-info-bg-hover)]')
+
+    fireEvent.click(cancelButton)
+
+    expect(onCancel).toHaveBeenCalledTimes(1)
   })
 
   it('sets quick phrase text as prompt variable token content', async () => {
@@ -499,6 +542,26 @@ describe('ComposerSurface', () => {
 
     expect(mocks.editorOptions.editorProps.handleTextInput(null, 5, 6, '上海')).toBe(true)
     expect(mocks.transaction.setNodeMarkup).toHaveBeenCalledTimes(1)
+  })
+
+  it('blocks typed input after the composer reaches the maximum text length', async () => {
+    render(<ComposerSurface {...baseProps} text={'a'.repeat(50000)} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    expect(
+      mocks.editorOptions.editorProps.handleTextInput({ state: { doc: { textBetween: vi.fn(() => '') } } }, 1, 1, 'b')
+    ).toBe(true)
+  })
+
+  it('allows typed replacement when the composer stays within the maximum text length', async () => {
+    render(<ComposerSurface {...baseProps} text={'a'.repeat(50000)} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    expect(
+      mocks.editorOptions.editorProps.handleTextInput({ state: { doc: { textBetween: vi.fn(() => 'a') } } }, 1, 2, 'b')
+    ).toBe(false)
   })
 
   it('opens the QuickPanel root from the slash suggestion bridge', async () => {
@@ -1128,7 +1191,7 @@ describe('ComposerSurface', () => {
     })
   })
 
-  it('delegates text longer than the fixed threshold to the long-text file handler', async () => {
+  it('delegates text longer than the configured threshold to the long-text file handler', async () => {
     render(<ComposerSurface {...baseProps} />)
 
     await waitFor(() => expect(mocks.editorOptions).toBeDefined())
@@ -1136,7 +1199,7 @@ describe('ComposerSurface', () => {
     const event = {
       preventDefault: vi.fn(),
       clipboardData: {
-        getData: vi.fn((type: string) => (type === 'text/plain' ? 'a'.repeat(1501) : ''))
+        getData: vi.fn((type: string) => (type === 'text/plain' ? 'a'.repeat(2001) : ''))
       }
     }
 
@@ -1145,6 +1208,47 @@ describe('ComposerSurface', () => {
     expect(handled).toBe(true)
     expect(event.preventDefault).toHaveBeenCalled()
     expect(mocks.pasteHandler).toHaveBeenCalledWith(event)
+  })
+
+  it('does not delegate long text paste when paste-as-file is disabled', async () => {
+    mocks.preferences['chat.input.paste_long_text_as_file'] = false
+
+    render(<ComposerSurface {...baseProps} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: vi.fn((type: string) => (type === 'text/plain' ? 'a'.repeat(2001) : ''))
+      }
+    }
+
+    const handled = mocks.editorOptions.handlePaste(null, event)
+
+    expect(handled).toBe(true)
+    expect(mocks.pasteHandler).not.toHaveBeenCalled()
+    expect(mocks.insertContent).toHaveBeenCalled()
+  })
+
+  it('blocks pasted text when it would exceed the composer maximum text length', async () => {
+    render(<ComposerSurface {...baseProps} text={'a'.repeat(50000)} />)
+
+    await waitFor(() => expect(mocks.editorOptions).toBeDefined())
+
+    const event = {
+      preventDefault: vi.fn(),
+      clipboardData: {
+        getData: vi.fn((type: string) => (type === 'text/plain' ? 'b' : ''))
+      }
+    }
+
+    const handled = mocks.editorOptions.handlePaste(null, event)
+
+    expect(handled).toBe(true)
+    expect(event.preventDefault).toHaveBeenCalled()
+    expect(mocks.insertContent).not.toHaveBeenCalled()
+    expect(mocks.pasteHandler).not.toHaveBeenCalled()
   })
 
   it('does not reapply serialized skill prompt text as visible editor content', async () => {

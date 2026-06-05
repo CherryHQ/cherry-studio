@@ -1,4 +1,3 @@
-import { LONG_TEXT_PASTE_THRESHOLD } from '@renderer/config/constant'
 import type { JSONContent } from '@tiptap/core'
 
 import {
@@ -10,6 +9,8 @@ import { createPromptVariableMarkerRule } from './promptVariables'
 import type { ComposerDraftToken } from './tokens'
 
 interface ComposerPlainTextPasteOptions {
+  pasteLongTextAsFile?: boolean
+  pasteLongTextThreshold?: number
   promptVariableStartIndex?: number
   resolveSkillMarker?: (marker: string) => ComposerDraftToken | null | undefined
   resolveKnowledgeBaseMarker?: (marker: string) => ComposerDraftToken | null | undefined
@@ -90,7 +91,7 @@ function createPlainTextPasteMarkerRules(options: ComposerPlainTextPasteOptions)
 export function getComposerPlainTextPasteOverride(text: string, options: ComposerPlainTextPasteOptions) {
   if (!text) return null
 
-  if (text.length > LONG_TEXT_PASTE_THRESHOLD) {
+  if (options.pasteLongTextAsFile && options.pasteLongTextThreshold && text.length > options.pasteLongTextThreshold) {
     return null
   }
 

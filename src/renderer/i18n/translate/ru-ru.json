@@ -6394,6 +6394,8 @@
       "input": {
         "confirm_delete_message": "Подтверждать перед удалением сообщений",
         "confirm_regenerate_message": "Подтверждать перед пересозданием сообщений",
+        "paste_long_text_as_file": "Вставлять длинный текст как файл",
+        "paste_long_text_threshold": "Длина вставки длинного текста",
         "send_shortcuts": "Горячие клавиши для отправки",
         "show_estimated_tokens": "Показывать затраты токенов",
         "title": "Настройки ввода"

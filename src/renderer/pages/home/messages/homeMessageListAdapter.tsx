@@ -20,14 +20,11 @@ import {
 } from '@renderer/components/chat/messages/utils/messageListItem'
 import { ModelSelector } from '@renderer/components/Selector'
 import { isVisionModel } from '@renderer/config/models'
-import { toSharedCompatModel } from '@renderer/config/models/bridge'
 import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
 import { useLanguages } from '@renderer/hooks/translate'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useMessageActivityState } from '@renderer/pages/shared/messages/hooks/useMessageActivityState'
-import { useMessageEditorCapabilities } from '@renderer/pages/shared/messages/hooks/useMessageEditorCapabilities'
-import { useMessageEditorConfig } from '@renderer/pages/shared/messages/hooks/useMessageEditorConfig'
 import { useMessageErrorActions } from '@renderer/pages/shared/messages/hooks/useMessageErrorActions'
 import { useMessageExportActions } from '@renderer/pages/shared/messages/hooks/useMessageExportActions'
 import { useMessageHeaderCapabilities } from '@renderer/pages/shared/messages/hooks/useMessageHeaderCapabilities'
@@ -42,11 +39,9 @@ import {
   pickMessageLeafState
 } from '@renderer/pages/shared/messages/messageListProviderBuilder'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
-import { translateInputText } from '@renderer/services/TranslateCommandService'
 import { translateText } from '@renderer/services/TranslateService'
 import type { Topic, TranslateLangCode } from '@renderer/types'
 import { formatErrorMessageWithPrefix, isAbortError } from '@renderer/utils/error'
-import { filterSupportedFiles } from '@renderer/utils/file'
 import { updateCodeBlock } from '@renderer/utils/markdown'
 import { getComposerTextFromParts } from '@renderer/utils/messageUtils/composerTokens'
 import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/data/types/message'
@@ -56,7 +51,7 @@ import {
   parseUniqueModelId,
   type UniqueModelId
 } from '@shared/data/types/model'
-import { isNonChatModel, isVisionModel as isSharedVisionModel } from '@shared/utils/model'
+import { isNonChatModel } from '@shared/utils/model'
 import { useNavigate } from '@tanstack/react-router'
 import { last } from 'lodash'
 import { use, useCallback, useEffect, useMemo, useRef } from 'react'
@@ -100,20 +95,16 @@ export function useHomeMessageListProviderValue({
   const navigate = useNavigate()
   const { assistant, model } = useAssistant(topic.assistantId)
   const [messageNavigation] = usePreference('chat.message.navigation_mode')
-  const [editorTranslationTargetLanguage] = usePreference('chat.input.translate.target_language')
-  const [showEditorTranslationConfirm] = usePreference('chat.input.translate.show_confirm')
   const { t } = useTranslation()
   const { languages: translationLanguages, getLabel: getTranslationLanguageLabel } = useLanguages()
   const chatWrite = useChatWrite()
   const siblingsContext = use(SiblingsContext)
   const getMessageActivityState = useMessageActivityState(topic.id, partsByMessageId)
   const { renderConfig, updateRenderConfig } = useMessageListRenderConfig()
-  const editorConfig = useMessageEditorConfig(renderConfig.fontSize)
   const menuConfig = useMessageMenuConfig()
   const exportActions = useMessageExportActions({ topicName: topic.name })
   const errorActions = useMessageErrorActions()
   const leafCapabilities = useMessageLeafCapabilities({ partsByMessageId })
-  const editorCapabilities = useMessageEditorCapabilities()
   const headerCapabilities = useMessageHeaderCapabilities()
   const messageUiStateCache = useMessageUiStateCache()
 
@@ -337,63 +328,6 @@ export function useHomeMessageListProviderValue({
     [t]
   )
 
-  const selectFiles = useCallback(
-    async ({ extensions }: { extensions: string[] }) => {
-      const useAllFiles = extensions.length > 20
-      const selectedFiles = await window.api.file.select({
-        properties: ['openFile', 'multiSelections'],
-        filters: [
-          {
-            name: 'Files',
-            extensions: useAllFiles ? ['*'] : extensions.map((extension) => extension.replace('.', ''))
-          }
-        ]
-      })
-
-      if (!selectedFiles) return selectedFiles
-      if (!useAllFiles) return selectedFiles
-
-      const supportedFiles = await filterSupportedFiles(selectedFiles, extensions)
-      if (supportedFiles.length !== selectedFiles.length) {
-        window.toast.info(
-          t('chat.input.file_not_supported_count', {
-            count: selectedFiles.length - supportedFiles.length
-          })
-        )
-      }
-
-      return supportedFiles
-    },
-    [t]
-  )
-
-  const getMessageEditorCapabilities = useCallback(
-    (message: MessageListItem) => {
-      const messageModel = getMessageListItemModel(message)
-      const editorModel = messageModel ? toSharedCompatModel(messageModel) : model
-
-      return {
-        canAddImageFile: editorModel ? isVisionModel(editorModel) : false,
-        canAddTextFile: true,
-        canForkAndResend: message.role === 'user'
-      }
-    },
-    [model]
-  )
-
-  const translateEditorText = useCallback(
-    async (text: string) => {
-      return translateInputText({
-        text,
-        targetLanguage: editorTranslationTargetLanguage,
-        languages: translationLanguages,
-        showConfirm: showEditorTranslationConfirm,
-        t
-      })
-    },
-    [editorTranslationTargetLanguage, showEditorTranslationConfirm, t, translationLanguages]
-  )
-
   const openPath = useCallback((path: string) => {
     return window.api.file.openPath(path)
   }, [])
@@ -528,11 +462,6 @@ export function useHomeMessageListProviderValue({
     [requireChatWrite]
   )
 
-  const forkAndResendMessage = useCallback<NonNullable<MessageListActions['forkAndResendMessage']>>(
-    (messageId, parts) => requireChatWrite('forkAndResendMessage').forkAndResend(messageId, parts),
-    [requireChatWrite]
-  )
-
   const deleteMessage = useCallback<NonNullable<MessageListActions['deleteMessage']>>(
     (messageId, traceOptions) => requireChatWrite('deleteMessage').deleteMessage(messageId, traceOptions),
     [requireChatWrite]
@@ -602,7 +531,7 @@ export function useHomeMessageListProviderValue({
       const mentionModelFilter = (model: SharedModel) => {
         if (isNonChatModel(model)) return false
         const needsVision = messageParts.some((part) => part.type === 'file' && part.mediaType?.startsWith('image/'))
-        if (needsVision && !isSharedVisionModel(model)) return false
+        if (needsVision && !isVisionModel(model)) return false
         return true
       }
 
@@ -658,24 +587,18 @@ export function useHomeMessageListProviderValue({
       listKey: assistant?.id ?? topic.assistantId,
       readonly: false,
       renderConfig,
-      editorConfig,
       menuConfig,
       selection: selectionController.selection,
       translationLanguages: translationLanguages ?? [],
-      editorTranslationTargetLabel: getTranslationLanguageLabel(editorTranslationTargetLanguage, false),
       getMessageUiState: messageUiStateCache.getMessageUiState,
       getMessageSiblings,
       getMessageActivityState,
-      getMessageEditorCapabilities,
       ...pickMessageLeafState(leafCapabilities),
       getTranslationLanguageLabel
     }),
     [
       assistant?.id,
-      editorTranslationTargetLanguage,
-      editorConfig,
       getMessageActivityState,
-      getMessageEditorCapabilities,
       getMessageSiblings,
       getTranslationLanguageLabel,
       hasOlder,
@@ -705,7 +628,6 @@ export function useHomeMessageListProviderValue({
       ...exportActions,
       ...errorActions,
       ...pickMessageLeafActions(leafCapabilities),
-      ...editorCapabilities,
       navigateToRoute,
       ...pickMessageHeaderActions(headerCapabilities),
       removeMessageErrorPart,
@@ -714,13 +636,10 @@ export function useHomeMessageListProviderValue({
       openCitationsPanel,
       showInFolder,
       abortTool,
-      selectFiles,
-      translateEditorText,
       ...selectionController.actions,
       updateMessageUiState: messageUiStateCache.updateMessageUiState,
       updateRenderConfig,
       editMessage,
-      forkAndResendMessage,
       deleteMessage,
       startMessageBranch,
       setActiveBranch,
@@ -743,8 +662,6 @@ export function useHomeMessageListProviderValue({
       editMessage,
       exportActions,
       errorActions,
-      editorCapabilities,
-      forkAndResendMessage,
       headerCapabilities,
       leafCapabilities,
       navigateToRoute,
@@ -758,13 +675,11 @@ export function useHomeMessageListProviderValue({
       renderRegenerateModelPicker,
       removeMessageErrorPart,
       saveCodeBlock,
-      selectFiles,
       setActiveBranch,
       showInFolder,
       startMessageBranch,
       startNewContext,
       selectionController.actions,
-      translateEditorText,
       translateMessage,
       updateRenderConfig
     ]

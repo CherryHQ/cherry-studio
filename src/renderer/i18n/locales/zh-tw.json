@@ -1367,6 +1367,7 @@
     },
     "input": {
       "auto_resize": "自動調整高度",
+      "cancel_editing": "[to be translated]:Cancel editing",
       "clear": {
         "content": "您想要清除目前話題的所有訊息嗎？",
         "label": "清除 {{Command}}",
@@ -1376,6 +1377,7 @@
       "context_count": {
         "tip": "上下文數 / 最大上下文數"
       },
+      "editing_message": "[to be translated]:Editing sent message",
       "estimated_tokens": {
         "tip": "預估 Token 數"
       },
@@ -1388,6 +1390,7 @@
       "knowledge_base": "知識庫",
       "knowledge_base_disabled_by_files": "移除附件後可使用知識庫",
       "knowledge_base_unavailable": "請選擇支援工具呼叫的模型，或啟用提示詞工具呼叫",
+      "locate_editing_message": "定位原訊息",
       "mcp_unavailable": "請選擇支援工具呼叫的模型，或啟用提示詞工具呼叫",
       "new": {
         "context": "清除上下文 {{Command}}"
@@ -1484,6 +1487,7 @@
       }
     },
     "message": {
+      "editing_current": "[to be translated]:This message is being edited in the composer",
       "flow": {
         "branches": "分支",
         "copy_topic": {
@@ -6463,6 +6467,8 @@
       "input": {
         "confirm_delete_message": "刪除訊息前確認",
         "confirm_regenerate_message": "重新產生訊息前確認",
+        "paste_long_text_as_file": "將長文字貼上為檔案",
+        "paste_long_text_threshold": "長文字長度",
         "send_shortcuts": "傳送快捷鍵",
         "show_estimated_tokens": "顯示預估 Token 數",
         "title": "輸入設定"

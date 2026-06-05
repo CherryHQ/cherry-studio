@@ -1070,18 +1070,18 @@
         {
           "originalKey": "pasteLongTextAsFile",
           "type": "boolean",
-          "defaultValue": false,
+          "defaultValue": true,
           "status": "classified",
-          "category": null,
-          "targetKey": null
+          "category": "preferences",
+          "targetKey": "chat.input.paste_long_text_as_file"
         },
         {
           "originalKey": "pasteLongTextThreshold",
           "type": "number",
-          "defaultValue": 1500,
+          "defaultValue": 2000,
           "status": "classified",
-          "category": null,
-          "targetKey": null
+          "category": "preferences",
+          "targetKey": "chat.input.paste_long_text_threshold"
         },
         {
           "originalKey": "clickAssistantToShowTopic",

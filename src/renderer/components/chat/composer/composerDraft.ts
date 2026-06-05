@@ -32,6 +32,7 @@ interface ComposerFilePartSource {
   ext?: string
   name?: string
   origin_name?: string
+  providerMetadata?: Extract<CherryMessagePart, { type: 'file' }>['providerMetadata']
 }
 
 function isEditorSource(source: ComposerSerializableSource): source is Pick<Editor, 'getJSON'> {
@@ -211,7 +212,8 @@ function createComposerFilePart(file: ComposerFilePartSource): CherryMessagePart
     type: 'file',
     url,
     mediaType: file.ext ?? 'application/octet-stream',
-    filename: file.origin_name ?? file.name
+    filename: file.origin_name ?? file.name,
+    ...(file.providerMetadata && { providerMetadata: file.providerMetadata })
   } as CherryMessagePart
 }
 

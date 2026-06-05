@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
     'chat.message.thought.auto_collapse': true,
     'chat.message.multi_model.style': 'horizontal',
     'chat.message.math.single_dollar': true,
+    'chat.input.paste_long_text_as_file': true,
+    'chat.input.paste_long_text_threshold': 2000,
     'chat.input.show_estimated_tokens': false,
     'chat.message.render_as_markdown': false,
     'chat.message.show_outline': false,
@@ -62,6 +64,10 @@ vi.mock('@renderer/context/CodeStyleProvider', () => ({
   useCodeStyle: () => ({ themeNames: ['auto', 'github'] })
 }))
 
+vi.mock('@renderer/components/EditableNumber', () => ({
+  default: ({ value }: { value?: number }) => <input aria-label="editable-number" readOnly value={value ?? ''} />
+}))
+
 vi.mock('@cherrystudio/ui/lib/utils', () => ({
   cn: (...classes: Array<string | false | null | undefined>) => classes.filter(Boolean).join(' ')
 }))
@@ -102,6 +108,8 @@ describe('ChatPreferenceSections', () => {
   beforeEach(() => {
     mocks.preferenceValues['chat.message.font_size'] = 14
     mocks.preferenceValues['chat.narrow_mode'] = false
+    mocks.preferenceValues['chat.input.paste_long_text_as_file'] = true
+    mocks.preferenceValues['chat.input.paste_long_text_threshold'] = 2000
     mocks.setPreference.mockClear()
   })
 
@@ -117,8 +125,18 @@ describe('ChatPreferenceSections', () => {
     expect(screen.queryByText('settings.messages.show_message_outline')).toBeNull()
     expect(screen.queryByText('message.message.multi_model_style.label')).toBeNull()
     expect(screen.queryByText('settings.messages.input.show_estimated_tokens')).toBeNull()
-    expect(screen.queryByText('settings.messages.input.paste_long_text_as_file')).toBeNull()
+    expect(screen.getByText('settings.messages.input.paste_long_text_as_file')).toBeInTheDocument()
+    expect(screen.getByText('settings.messages.input.paste_long_text_threshold')).toBeInTheDocument()
     expect(screen.queryByText('settings.messages.input.enable_quick_triggers')).toBeNull()
+  })
+
+  it('hides long-text threshold when paste-as-file is disabled', () => {
+    mocks.preferenceValues['chat.input.paste_long_text_as_file'] = false
+
+    render(<ChatPreferenceSections />)
+
+    expect(screen.getByText('settings.messages.input.paste_long_text_as_file')).toBeInTheDocument()
+    expect(screen.queryByText('settings.messages.input.paste_long_text_threshold')).toBeNull()
   })
 
   it('does not render input translation controls', () => {

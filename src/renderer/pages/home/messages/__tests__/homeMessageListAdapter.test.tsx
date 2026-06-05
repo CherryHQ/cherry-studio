@@ -1,6 +1,6 @@
 import type { MessageListProviderValue } from '@renderer/components/chat/messages/types'
 import type { Topic } from '@renderer/types'
-import { render, waitFor } from '@testing-library/react'
+import { render } from '@testing-library/react'
 import { type ReactNode, useEffect } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -86,14 +86,6 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
 
 vi.mock('@renderer/pages/shared/messages/hooks/useMessageActivityState', () => ({
   useMessageActivityState: () => vi.fn(() => undefined)
-}))
-
-vi.mock('@renderer/pages/shared/messages/hooks/useMessageEditorCapabilities', () => ({
-  useMessageEditorCapabilities: () => ({})
-}))
-
-vi.mock('@renderer/pages/shared/messages/hooks/useMessageEditorConfig', () => ({
-  useMessageEditorConfig: () => ({})
 }))
 
 vi.mock('@renderer/pages/shared/messages/hooks/useMessageErrorActions', () => ({
@@ -292,28 +284,5 @@ describe('useHomeMessageListProviderValue topic image actions', () => {
     expect(consumePendingTopicImageActions('topic-b')).toEqual([
       expect.objectContaining({ id: requestB.id, topic: expect.objectContaining({ id: 'topic-b' }) })
     ])
-  })
-
-  it('allows root user messages to resend from the editor', async () => {
-    let providerValue: MessageListProviderValue | undefined
-
-    render(<MessageListAdapterHarness topic={createTopic('topic-a')} onValue={(value) => (providerValue = value)} />)
-
-    await waitFor(() => expect(providerValue).toBeTruthy())
-
-    expect(
-      providerValue?.state.getMessageEditorCapabilities?.({
-        id: 'root-user',
-        role: 'user',
-        topicId: 'topic-a',
-        parentId: null,
-        createdAt: '2026-01-01T00:00:00.000Z',
-        status: 'success'
-      })
-    ).toEqual(
-      expect.objectContaining({
-        canForkAndResend: true
-      })
-    )
   })
 })

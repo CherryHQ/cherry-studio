@@ -6,7 +6,6 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { MessageListProvider } from '../../MessageListProvider'
 import {
-  defaultMessageEditorConfig,
   defaultMessageMenuConfig,
   defaultMessageRenderConfig,
   type MessageListItem,
@@ -105,7 +104,6 @@ function renderWithProvider(children: ReactNode) {
         ...defaultMessageRenderConfig,
         messageStyle: 'bubble'
       },
-      editorConfig: defaultMessageEditorConfig,
       selection: {
         enabled: false,
         isMultiSelectMode: false,

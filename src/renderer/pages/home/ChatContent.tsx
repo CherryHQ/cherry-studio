@@ -7,6 +7,7 @@ import {
 import type { TopicMessageFlowLiveState } from '@renderer/components/chat/messages/flow/topicMessageFlowLiveTree'
 import type { MessageListActions } from '@renderer/components/chat/messages/types'
 import ConversationStageCenter from '@renderer/components/chat/shell/ConversationStageCenter'
+import { MessageEditingProvider } from '@renderer/context/MessageEditingContext'
 import { ChatWriteProvider } from '@renderer/hooks/ChatWriteContext'
 import { SiblingsProvider } from '@renderer/hooks/SiblingsContext'
 import type { TemporaryConversation } from '@renderer/hooks/useTemporaryConversation'
@@ -209,42 +210,44 @@ const ChatContentInner: FC<InnerProps> = ({
         <RefreshProvider value={refresh}>
           <TranslationOverlaySetterProvider value={runtime.setTranslationOverlay}>
             <TranslationOverlayProvider value={runtime.translationOverlay}>
-              <ChatLayoutModeProvider>
-                {(() => {
-                  const main = (
-                    <ChatMain
-                      key={topic.id}
-                      topic={topic}
-                      messages={runtime.messages}
-                      partsByMessageId={runtime.partsByMessageId}
-                      isInitialLoading={isHistoryLoading}
-                      loadOlder={loadOlder}
-                      hasOlder={hasOlder}
-                      openCitationsPanel={onOpenCitationsPanel}
-                      openTrace={onOpenTrace}
-                    />
-                  )
-                  const composer = (
-                    <ChatComposerSlot
-                      isHome={runtime.shouldRenderHomeComposer}
-                      topic={topic}
-                      onSend={runtime.sendMessage}
-                      onTemporaryAssistantChange={onTemporaryAssistantChange}
-                      onNewTopic={onNewTopic}
-                      sendDisabled={isHistoryLoading}
-                    />
-                  )
-                  const placement = runtime.shouldRenderHomeComposer ? 'home' : 'docked'
-                  return (
-                    <ConversationStageCenter
-                      placement={placement}
-                      main={main}
-                      composer={composer}
-                      homeWelcomeText={t('chat.home.welcome_title')}
-                    />
-                  )
-                })()}
-              </ChatLayoutModeProvider>
+              <MessageEditingProvider>
+                <ChatLayoutModeProvider>
+                  {(() => {
+                    const main = (
+                      <ChatMain
+                        key={topic.id}
+                        topic={topic}
+                        messages={runtime.messages}
+                        partsByMessageId={runtime.partsByMessageId}
+                        isInitialLoading={isHistoryLoading}
+                        loadOlder={loadOlder}
+                        hasOlder={hasOlder}
+                        openCitationsPanel={onOpenCitationsPanel}
+                        openTrace={onOpenTrace}
+                      />
+                    )
+                    const composer = (
+                      <ChatComposerSlot
+                        isHome={runtime.shouldRenderHomeComposer}
+                        topic={topic}
+                        onSend={runtime.sendMessage}
+                        onTemporaryAssistantChange={onTemporaryAssistantChange}
+                        onNewTopic={onNewTopic}
+                        sendDisabled={isHistoryLoading}
+                      />
+                    )
+                    const placement = runtime.shouldRenderHomeComposer ? 'home' : 'docked'
+                    return (
+                      <ConversationStageCenter
+                        placement={placement}
+                        main={main}
+                        composer={composer}
+                        homeWelcomeText={t('chat.home.welcome_title')}
+                      />
+                    )
+                  })()}
+                </ChatLayoutModeProvider>
+              </MessageEditingProvider>
             </TranslationOverlayProvider>
           </TranslationOverlaySetterProvider>
         </RefreshProvider>

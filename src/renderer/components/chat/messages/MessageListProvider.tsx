@@ -22,13 +22,12 @@ import type {
  * - `MessageListMessagesContext` — the messages array itself. Streaming chunks
  *   land here.
  * - `MessageListUiStaticContext` — preference-driven static config (readonly,
- *   editorConfig, menuConfig, translationLanguages, editorTranslationTargetLabel,
- *   externalCodeEditors). Changes when the user flips a setting.
+ *   menuConfig, translationLanguages, externalCodeEditors). Changes when the
+ *   user flips a setting.
  * - `MessageListUiSelectorsContext` — per-message getter functions
  *   (getMessageUiState, getMessageSiblings, getMessageActivityState,
- *   getMessageEditorCapabilities, getFileView, isToolAutoApproved,
- *   getTranslationLanguageLabel). Reference changes when the underlying
- *   selectors are rebuilt (rare in practice).
+ *   getFileView, isToolAutoApproved, getTranslationLanguageLabel). Reference
+ *   changes when the underlying selectors are rebuilt (rare in practice).
  *
  * Existing consumers continue to use the merged `useMessageListUi()` /
  * `useMessageListData()` for back-compat; high-frequency consumers
@@ -54,12 +53,7 @@ type MessageListMessagesValue = MessageListItem[]
 
 type MessageListUiStaticValue = Pick<
   MessageListState,
-  | 'readonly'
-  | 'editorConfig'
-  | 'menuConfig'
-  | 'translationLanguages'
-  | 'editorTranslationTargetLabel'
-  | 'externalCodeEditors'
+  'readonly' | 'menuConfig' | 'translationLanguages' | 'externalCodeEditors'
 >
 
 type MessageListUiSelectorsValue = Pick<
@@ -67,7 +61,6 @@ type MessageListUiSelectorsValue = Pick<
   | 'getMessageUiState'
   | 'getMessageSiblings'
   | 'getMessageActivityState'
-  | 'getMessageEditorCapabilities'
   | 'getFileView'
   | 'isToolAutoApproved'
   | 'getTranslationLanguageLabel'
@@ -118,20 +111,11 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
   const uiStatic = useMemo<MessageListUiStaticValue>(
     () => ({
       readonly: state.readonly,
-      editorConfig: state.editorConfig,
       menuConfig: state.menuConfig,
       translationLanguages: state.translationLanguages,
-      editorTranslationTargetLabel: state.editorTranslationTargetLabel,
       externalCodeEditors: state.externalCodeEditors
     }),
-    [
-      state.readonly,
-      state.editorConfig,
-      state.menuConfig,
-      state.translationLanguages,
-      state.editorTranslationTargetLabel,
-      state.externalCodeEditors
-    ]
+    [state.readonly, state.menuConfig, state.translationLanguages, state.externalCodeEditors]
   )
 
   const uiSelectors = useMemo<MessageListUiSelectorsValue>(
@@ -139,7 +123,6 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       getMessageUiState: state.getMessageUiState,
       getMessageSiblings: state.getMessageSiblings,
       getMessageActivityState: state.getMessageActivityState,
-      getMessageEditorCapabilities: state.getMessageEditorCapabilities,
       getFileView: state.getFileView,
       isToolAutoApproved: state.isToolAutoApproved,
       getTranslationLanguageLabel: state.getTranslationLanguageLabel
@@ -148,7 +131,6 @@ export const MessageListProvider = ({ value, children }: { value: MessageListPro
       state.getMessageUiState,
       state.getMessageSiblings,
       state.getMessageActivityState,
-      state.getMessageEditorCapabilities,
       state.getFileView,
       state.isToolAutoApproved,
       state.getTranslationLanguageLabel

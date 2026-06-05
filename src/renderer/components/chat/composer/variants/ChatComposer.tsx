@@ -20,6 +20,7 @@ import EmojiIcon from '@renderer/components/EmojiIcon'
 import type { QuickPanelInputAdapter } from '@renderer/components/QuickPanel'
 import { AssistantSelector, ModelSelector } from '@renderer/components/Selector'
 import { isGenerateImageModel, isGenerateImageModels, isVisionModel, isVisionModels } from '@renderer/config/models'
+import { MessageEditingProvider, useMessageEditing } from '@renderer/context/MessageEditingContext'
 import { useIsActiveTab } from '@renderer/context/TabIdContext'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
@@ -37,7 +38,7 @@ import { useTopicAwaitingApproval, useTopicStreamStatus } from '@renderer/hooks/
 import type { AddNewTopicPayload } from '@renderer/pages/home/types'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import type { FileMetadata, Topic } from '@renderer/types'
-import { TopicType } from '@renderer/types'
+import { FILE_TYPE, TopicType } from '@renderer/types'
 import { cn, getLeadingEmoji } from '@renderer/utils'
 import { getSendMessageShortcutLabel } from '@renderer/utils/input'
 import { canModelUseAssistantWebSearch } from '@renderer/utils/modelReconcile'
@@ -47,6 +48,7 @@ import type { KnowledgeBase } from '@shared/data/types/knowledge'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
+import { readCherryMeta } from '@shared/data/types/uiParts'
 import { IpcChannel } from '@shared/IpcChannel'
 import { isNonChatModel } from '@shared/utils/model'
 import { Bot } from 'lucide-react'
@@ -54,7 +56,12 @@ import React, { useCallback, useEffect, useEffectEvent, useMemo, useRef, useStat
 import { useTranslation } from 'react-i18next'
 
 import { createComposerUserMessageParts } from '../composerDraft'
-import type { ComposerDraftToken, ComposerSerializedDraft, ComposerSerializedToken } from '../tokens'
+import {
+  type ComposerDraftToken,
+  type ComposerSerializedDraft,
+  type ComposerSerializedToken,
+  isComposerDraftTokenKind
+} from '../tokens'
 import {
   chatComposerTokenId,
   fileToComposerToken,
@@ -104,7 +111,89 @@ const emptyActions: ProviderActionHandlers = {
   onTextChange: () => undefined,
   toggleExpanded: () => undefined,
   removeToken: () => undefined,
-  insertToken: () => undefined
+  insertToken: () => undefined,
+  getDraft: () => ({ text: '', tokens: [] })
+}
+
+interface SavedComposerDraft {
+  text: string
+  draftTokens: ComposerSerializedToken[]
+  files: FileMetadata[]
+  selectedKnowledgeBases: KnowledgeBase[]
+}
+
+interface EditableMessageDraft {
+  text: string
+  draftTokens: ComposerSerializedToken[]
+  files: FileMetadata[]
+}
+
+type EditableFileMetadata = FileMetadata & Pick<Extract<CherryMessagePart, { type: 'file' }>, 'providerMetadata'>
+
+function getFileExtension(value: string | undefined, mediaType: string | undefined) {
+  const source = value ?? ''
+  const fileName = source.split(/[\\/]/).pop() ?? source
+  const extension = fileName.includes('.') ? `.${fileName.split('.').pop()}` : ''
+  if (extension !== '.') return extension.toLowerCase()
+  if (mediaType?.startsWith('image/')) return `.${mediaType.slice('image/'.length)}`
+  return ''
+}
+
+function createEditableFileMetadata(
+  part: Extract<CherryMessagePart, { type: 'file' }>,
+  index: number
+): EditableFileMetadata | null {
+  const path = part.url
+  if (!path) return null
+
+  const name = part.filename || path.split(/[\\/]/).pop() || `attachment-${index + 1}`
+  const ext = getFileExtension(name || path, part.mediaType)
+  return {
+    id: path,
+    name,
+    origin_name: name,
+    path,
+    size: 0,
+    ext,
+    type: part.mediaType?.startsWith('image/') ? FILE_TYPE.IMAGE : FILE_TYPE.DOCUMENT,
+    created_at: new Date().toISOString(),
+    count: 1,
+    ...(part.providerMetadata && { providerMetadata: part.providerMetadata })
+  }
+}
+
+function createEditableMessageDraft(parts: CherryMessagePart[]): EditableMessageDraft {
+  const textParts = parts.filter((part): part is Extract<CherryMessagePart, { type: 'text' }> => part.type === 'text')
+  const text = textParts.map((part) => part.text).join('\n\n')
+  const composer = textParts.length === 1 ? readCherryMeta(textParts[0])?.composer : undefined
+  const draftTokens =
+    composer?.tokens.flatMap((token) =>
+      isComposerDraftTokenKind(token.kind)
+        ? [
+            {
+              ...token,
+              kind: token.kind
+            }
+          ]
+        : []
+    ) ?? []
+  const files = parts.flatMap((part, index) => {
+    if (part.type !== 'file') return []
+    const file = createEditableFileMetadata(part, index)
+    return file ? [file] : []
+  })
+
+  return { text, draftTokens, files }
+}
+
+function getEditableKnowledgeBases(
+  draftTokens: readonly ComposerSerializedToken[],
+  selectableKnowledgeBases: readonly KnowledgeBase[]
+) {
+  const knowledgeTokenIds = getComposerTokenIds(draftTokens, 'knowledge')
+  if (knowledgeTokenIds.size === 0) return []
+
+  return selectableKnowledgeBases.filter((base) => knowledgeTokenIds.has(chatComposerTokenId.knowledge(base)))
 }
 
 const createQuoteToken = (selectedText: string, label: string): ComposerDraftToken => ({
@@ -342,23 +431,25 @@ const ChatComposerRoot = ({
   )
 
   return (
-    <ComposerToolRuntimeProvider
-      initialState={initialState}
-      actions={{
-        addNewTopic: () => actionsRef.current.addNewTopic(),
-        onTextChange: (updater) => actionsRef.current.onTextChange(updater)
-      }}>
-      <ChatComposerInner
-        topic={topic}
-        actionsRef={actionsRef}
-        onSend={onSend}
-        sendDisabled={sendDisabled}
-        useMentionedModelSelector={useMentionedModelSelector}
-        onTemporaryAssistantChange={onTemporaryAssistantChange}
-        onNewTopic={onNewTopic}
-        renderControls={renderControls}
-      />
-    </ComposerToolRuntimeProvider>
+    <MessageEditingProvider>
+      <ComposerToolRuntimeProvider
+        initialState={initialState}
+        actions={{
+          addNewTopic: () => actionsRef.current.addNewTopic(),
+          onTextChange: (updater) => actionsRef.current.onTextChange(updater)
+        }}>
+        <ChatComposerInner
+          topic={topic}
+          actionsRef={actionsRef}
+          onSend={onSend}
+          sendDisabled={sendDisabled}
+          useMentionedModelSelector={useMentionedModelSelector}
+          onTemporaryAssistantChange={onTemporaryAssistantChange}
+          onNewTopic={onNewTopic}
+          renderControls={renderControls}
+        />
+      </ComposerToolRuntimeProvider>
+    </MessageEditingProvider>
   )
 }
 
@@ -404,15 +495,22 @@ const ChatComposerInner = ({
   const [isMultiSelectMode] = useCache('chat.multi_select_mode')
   const { t } = useTranslation()
   const chatWrite = useChatWrite()
+  const { editingMessage, cancelEditing, stopEditing } = useMessageEditing()
+  const editingMessageForCurrentTopic = editingMessage?.message.topicId === topic.id ? editingMessage : null
+  const staleEditingMessage = editingMessage && !editingMessageForCurrentTopic
   const { isPending } = useTopicStreamStatus(topic.id)
   const selectedKnowledgeBasesScopeKeyRef = useRef<string | null>(null)
   const [isSending, setIsSending] = useState(false)
   const [text, setTextState] = useState(() => cacheService.getCasual<string>(INPUTBAR_DRAFT_CACHE_KEY) ?? '')
+  const [draftTokens, setDraftTokens] = useState<ComposerSerializedToken[] | undefined>(undefined)
   const [mentionedModelMultiSelectMode, setMentionedModelMultiSelectMode] = useState(false)
   const [mentionedModelSelectorValue, setMentionedModelSelectorValue] = useState<Model[]>([])
   const mentionedModelSelectorInitKeyRef = useRef<string | null>(null)
   const mentionedModelMultiSelectModeRef = useRef(mentionedModelMultiSelectMode)
   const mentionedModelsRef = useRef(mentionedModels)
+  const filesRef = useRef(files)
+  const selectedKnowledgeBasesRef = useRef(selectedKnowledgeBases)
+  const savedDraftBeforeEditingRef = useRef<SavedComposerDraft | null>(null)
   const selectAssistantMessage = t('button.select_assistant')
   const selectedAssistantId = topic.assistantId ?? null
   const isRuntimeAssistantSelected = isRuntimeDefaultAssistantId(selectedAssistantId)
@@ -431,6 +529,8 @@ const ChatComposerInner = ({
   const missingSelectedModelMessage =
     useMentionedModelSelector && mentionedModelSelectorValue.length === 0 ? t('code.model_required') : undefined
   mentionedModelsRef.current = mentionedModels
+  filesRef.current = files
+  selectedKnowledgeBasesRef.current = selectedKnowledgeBases
   mentionedModelMultiSelectModeRef.current = mentionedModelMultiSelectMode
 
   useEffect(() => {
@@ -540,10 +640,68 @@ const ChatComposerInner = ({
     [filterSelectableKnowledgeBases, isSelectedKnowledgeBasesScopeCurrent, selectedKnowledgeBases]
   )
 
-  const setText = useCallback((nextText: string) => {
-    setTextState(nextText)
-    cacheService.setCasual(INPUTBAR_DRAFT_CACHE_KEY, nextText, DRAFT_CACHE_TTL)
-  }, [])
+  const setText = useCallback(
+    (nextText: string) => {
+      setTextState(nextText)
+      if (!editingMessageForCurrentTopic) {
+        cacheService.setCasual(INPUTBAR_DRAFT_CACHE_KEY, nextText, DRAFT_CACHE_TTL)
+      }
+    },
+    [editingMessageForCurrentTopic]
+  )
+
+  const restoreSavedDraft = useCallback(() => {
+    const savedDraft = savedDraftBeforeEditingRef.current
+    savedDraftBeforeEditingRef.current = null
+
+    if (!savedDraft) return
+
+    setTextState(savedDraft.text)
+    cacheService.setCasual(INPUTBAR_DRAFT_CACHE_KEY, savedDraft.text, DRAFT_CACHE_TTL)
+    setDraftTokens(savedDraft.draftTokens)
+    setFiles(savedDraft.files)
+    setSelectedKnowledgeBases(savedDraft.selectedKnowledgeBases)
+  }, [setFiles, setSelectedKnowledgeBases])
+
+  const handleCancelEditing = useCallback(() => {
+    restoreSavedDraft()
+    cancelEditing()
+  }, [cancelEditing, restoreSavedDraft])
+  const editingMessageId = editingMessageForCurrentTopic?.message.id
+  const handleLocateEditingMessage = useCallback(() => {
+    if (!editingMessageId) return
+    void EventEmitter.emit(EVENT_NAMES.LOCATE_MESSAGE + ':' + editingMessageId, true)
+  }, [editingMessageId])
+
+  const restoreEditableMessageDraft = useEffectEvent((nextEditingMessage: NonNullable<typeof editingMessage>) => {
+    const editableDraft = createEditableMessageDraft(nextEditingMessage.parts)
+    setTextState(editableDraft.text)
+    setDraftTokens(editableDraft.draftTokens)
+    setFiles(editableDraft.files)
+    setSelectedKnowledgeBases(getEditableKnowledgeBases(editableDraft.draftTokens, selectableKnowledgeBases))
+  })
+
+  useEffect(() => {
+    if (!editingMessageForCurrentTopic) return
+    if (savedDraftBeforeEditingRef.current?.text === undefined) {
+      const currentDraft = actionsRef.current.getDraft()
+      savedDraftBeforeEditingRef.current = {
+        text: currentDraft.text,
+        draftTokens: currentDraft.tokens,
+        files: filesRef.current,
+        selectedKnowledgeBases: selectedKnowledgeBasesRef.current
+      }
+    }
+
+    restoreEditableMessageDraft(editingMessageForCurrentTopic)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `useEffectEvent` reads the current selectable knowledge bases without resetting the edit draft when they refresh.
+  }, [actionsRef, editingMessageForCurrentTopic])
+
+  useEffect(() => {
+    if (!staleEditingMessage) return
+    restoreSavedDraft()
+    stopEditing()
+  }, [restoreSavedDraft, staleEditingMessage, stopEditing])
 
   const initializeMentionedModelSelector = useEffectEvent((isInitialSelection: boolean, selectedModel?: Model) => {
     const currentMentionedModels = mentionedModelsRef.current
@@ -812,12 +970,71 @@ const ChatComposerInner = ({
 
   const clearCurrentDraft = useCallback(() => {
     setText('')
+    setDraftTokens(undefined)
     setFiles([])
     setSelectedKnowledgeBases([])
   }, [setFiles, setSelectedKnowledgeBases, setText])
 
+  const buildEditedMessageParts = useCallback(
+    (draft: ComposerSerializedDraft) => {
+      const tokenIds = getComposerTokenIds(draft.tokens)
+      const payloadFiles = files.filter((file) => tokenIds.has(chatComposerTokenId.file(file)))
+      const originalFilePartsByTokenId = new Map<string, Extract<CherryMessagePart, { type: 'file' }>>()
+
+      editingMessageForCurrentTopic?.parts.forEach((part, index) => {
+        if (part.type !== 'file') return
+        const file = createEditableFileMetadata(part, index)
+        if (file) originalFilePartsByTokenId.set(chatComposerTokenId.file(file), part)
+      })
+
+      const newFiles = payloadFiles.filter((file) => !originalFilePartsByTokenId.has(chatComposerTokenId.file(file)))
+      const rebuiltParts = createComposerUserMessageParts(draft, { files: newFiles })
+      const textPart = rebuiltParts[0]
+      const rebuiltFileParts = new Map<string, CherryMessagePart>()
+
+      rebuiltParts.slice(1).forEach((part, index) => {
+        const file = newFiles[index]
+        if (file) rebuiltFileParts.set(chatComposerTokenId.file(file), part)
+      })
+
+      return [
+        textPart,
+        ...payloadFiles.flatMap((file) => {
+          const tokenId = chatComposerTokenId.file(file)
+          const filePart = originalFilePartsByTokenId.get(tokenId) ?? rebuiltFileParts.get(tokenId)
+          return filePart ? [filePart] : []
+        })
+      ]
+    },
+    [editingMessageForCurrentTopic?.parts, files]
+  )
+
   const handleSendDraft = useCallback(
     async (draft: ComposerSerializedDraft) => {
+      if (staleEditingMessage) {
+        restoreSavedDraft()
+        stopEditing()
+        return
+      }
+
+      if (editingMessageForCurrentTopic) {
+        if (!chatWrite?.forkAndResend) {
+          window.toast?.error(t('message.error.operation_unavailable'))
+          return
+        }
+
+        const editedParts = buildEditedMessageParts(draft)
+        try {
+          await chatWrite.forkAndResend(editingMessageForCurrentTopic.message.id, editedParts)
+          restoreSavedDraft()
+          stopEditing()
+        } catch (error) {
+          logger.warn('edited message fork and resend failed', { error })
+          window.toast?.error(t('message.error.operation_unavailable'))
+        }
+        return
+      }
+
       if (missingAssistantMessage) {
         window.toast?.error(selectAssistantMessage)
         return
@@ -865,7 +1082,10 @@ const ChatComposerInner = ({
     },
     [
       buildQueuedPayload,
+      buildEditedMessageParts,
+      chatWrite,
       clearCurrentDraft,
+      editingMessageForCurrentTopic,
       files,
       handleModelSelect,
       loading,
@@ -881,6 +1101,9 @@ const ChatComposerInner = ({
       setFiles,
       setSelectedKnowledgeBases,
       setText,
+      staleEditingMessage,
+      stopEditing,
+      restoreSavedDraft,
       t,
       text
     ]
@@ -918,6 +1141,7 @@ const ChatComposerInner = ({
         text={text}
         onTextChange={setText}
         tokens={tokens}
+        draftTokens={draftTokens}
         managedTokenKinds={CHAT_MANAGED_TOKEN_KINDS}
         onTokensChange={handleTokensChange}
         resolveKnowledgeBaseMarker={resolveKnowledgeBaseMarker}
@@ -939,6 +1163,15 @@ const ChatComposerInner = ({
         }
         isLoading={loading}
         onSendDraft={handleSendDraft}
+        editingState={
+          editingMessageForCurrentTopic
+            ? {
+                messageId: editingMessageForCurrentTopic.message.id,
+                onLocate: handleLocateEditingMessage,
+                onCancel: handleCancelEditing
+              }
+            : undefined
+        }
         onPause={onPause}
         supportedExts={supportedExts}
         setFiles={setFiles}

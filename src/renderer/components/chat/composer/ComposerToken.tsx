@@ -16,6 +16,7 @@ import type { ActiveComposerInputToken, ActiveComposerInputTokenKind } from './t
 
 const tokenIconClassName = 'size-[1em] shrink-0 text-current opacity-80'
 const fileTokenIconClassName = 'size-3 shrink-0 text-current'
+const fileTokenContainerClassName = 'border-border bg-background hover:bg-accent'
 
 const tokenIconByKind: Record<ActiveComposerInputTokenKind, ReactNode> = {
   skill: <Zap className={tokenIconClassName} />,
@@ -107,8 +108,8 @@ function getFileTokenPresentation(file: FileMetadata | undefined, fallbackLabel:
     return {
       variant: 'image',
       icon: <FileImage className={fileTokenIconClassName} aria-hidden />,
-      containerClassName: 'border-success bg-[var(--color-success-bg)] hover:bg-[var(--color-success-bg-hover)]',
-      iconClassName: 'border-success bg-background text-success',
+      containerClassName: fileTokenContainerClassName,
+      iconClassName: 'bg-[var(--color-success-bg)] text-success',
       typeLabel: 'IMAGE',
       previewUrl: getFilePreviewUrl(file)
     }
@@ -118,8 +119,8 @@ function getFileTokenPresentation(file: FileMetadata | undefined, fallbackLabel:
     return {
       variant: 'document',
       icon: <FileText className={fileTokenIconClassName} aria-hidden />,
-      containerClassName: 'border-destructive bg-[var(--color-error-bg)] hover:bg-[var(--color-error-bg-hover)]',
-      iconClassName: 'border-destructive bg-background text-destructive',
+      containerClassName: fileTokenContainerClassName,
+      iconClassName: 'bg-[var(--color-error-bg)] text-destructive',
       typeLabel: extensionLabel || 'DOCUMENT'
     }
   }
@@ -128,8 +129,8 @@ function getFileTokenPresentation(file: FileMetadata | undefined, fallbackLabel:
     return {
       variant: 'text',
       icon: <FileCode2 className={fileTokenIconClassName} aria-hidden />,
-      containerClassName: 'border-info bg-[var(--color-info-bg)] hover:bg-[var(--color-info-bg-hover)]',
-      iconClassName: 'border-info bg-background text-info',
+      containerClassName: fileTokenContainerClassName,
+      iconClassName: 'bg-[var(--color-info-bg)] text-info',
       typeLabel: extensionLabel || 'TEXT'
     }
   }
@@ -137,8 +138,8 @@ function getFileTokenPresentation(file: FileMetadata | undefined, fallbackLabel:
   return {
     variant: 'fallback',
     icon: <File className={fileTokenIconClassName} aria-hidden />,
-    containerClassName: 'border-border bg-background hover:bg-accent',
-    iconClassName: 'border-border bg-background text-muted-foreground',
+    containerClassName: fileTokenContainerClassName,
+    iconClassName: 'bg-accent text-muted-foreground',
     typeLabel: extensionLabel || 'FILE'
   }
 }
@@ -197,7 +198,7 @@ export function FileComposerToken(props: ComposerTokenProps) {
       onMouseDown={props.onMouseDown}>
       <span
         className={cn(
-          'inline-flex size-4 shrink-0 items-center justify-center rounded-[4px] border leading-none',
+          'inline-flex size-4.5 shrink-0 items-center justify-center rounded-[5px] border-0 leading-none',
           presentation.iconClassName
         )}
         data-file-token-icon={presentation.variant}>

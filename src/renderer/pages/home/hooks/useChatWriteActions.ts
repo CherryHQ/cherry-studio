@@ -221,12 +221,50 @@ export function useChatWriteActions(params: Params): Result {
       // outer ChatContent hasn't re-rendered with the refreshed SWR
       // data yet), so the anchor lookup would miss the new user. We
       // already know the anchor is the new user's own id.
-      await regenerate({
-        messageId: newMessage.id,
-        body: { ...capabilityBody, parentAnchorId: newMessage.id }
+      const ack = await window.api.ai.streamOpen({
+        trigger: 'regenerate-message',
+        topicId: topic.id,
+        parentAnchorId: newMessage.id
       })
+
+      if (ack.mode === 'blocked') {
+        throw new Error(ack.message)
+      }
+
+      await seedReservedMessages(ack.reservedMessages ?? [])
     },
-    [createSiblingTrigger, seedReservedMessages, refresh, setMessages, regenerate, capabilityBody]
+    [createSiblingTrigger, seedReservedMessages, refresh, setMessages, topic.id]
+  )
+
+  const handleResend = useCallback<ChatWriteActions['resend']>(
+    async (messageId) => {
+      const target = messageId ? uiMessages.find((m) => m.id === messageId) : undefined
+      const parentAnchorId = target
+        ? target.role === 'user'
+          ? target.id
+          : (target.metadata?.parentId ?? undefined)
+        : undefined
+
+      if (!parentAnchorId) {
+        await regenerateWithCapabilities(messageId)
+        return
+      }
+
+      const modelId = target?.role === 'assistant' ? (target.metadata?.modelId as UniqueModelId | undefined) : undefined
+      const ack = await window.api.ai.streamOpen({
+        trigger: 'regenerate-message',
+        topicId: topic.id,
+        parentAnchorId,
+        ...(modelId && { mentionedModelIds: [modelId] })
+      })
+
+      if (ack.mode === 'blocked') {
+        throw new Error(ack.message)
+      }
+
+      await seedReservedMessages(ack.reservedMessages ?? [])
+    },
+    [regenerateWithCapabilities, seedReservedMessages, topic.id, uiMessages]
   )
 
   const handleSetActiveNode = useCallback<ChatWriteActions['setActiveNode']>(
@@ -282,7 +320,7 @@ export function useChatWriteActions(params: Params): Result {
   const actions = useMemo<ChatWriteActions>(
     () => ({
       regenerate: async (messageId, options) => regenerateWithCapabilities(messageId, options),
-      resend: async (messageId) => regenerateWithCapabilities(messageId),
+      resend: handleResend,
       deleteMessage: handleDeleteMessage,
       deleteMessageGroup: handleDeleteMessageGroup,
       pause: stop,
@@ -295,6 +333,7 @@ export function useChatWriteActions(params: Params): Result {
     }),
     [
       regenerateWithCapabilities,
+      handleResend,
       handleDeleteMessage,
       handleDeleteMessageGroup,
       stop,

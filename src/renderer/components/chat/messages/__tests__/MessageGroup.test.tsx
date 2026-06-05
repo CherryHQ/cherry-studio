@@ -36,7 +36,6 @@ const mocks = vi.hoisted(() => ({
   MessageGroupMenuBar: vi.fn(() => <div className="group-menu-bar">menu</div>),
   HorizontalScrollContainer: vi.fn(({ children }: { children: ReactNode }) => <div>{children}</div>),
   MessageContent: vi.fn(() => <div style={{ minHeight: 600 }}>Long message content</div>),
-  MessageEditor: vi.fn(() => <div>editor</div>),
   MessageErrorBoundary: vi.fn(({ children }: { children: ReactNode }) => <>{children}</>),
   MessageHeader: vi.fn(({ contentSlot, footerSlot }: { contentSlot?: ReactNode; footerSlot?: ReactNode }) => (
     <div className="message-header">
@@ -159,10 +158,6 @@ vi.mock('../frame/MessageContent', () => ({
   default: mocks.MessageContent
 }))
 
-vi.mock('../frame/MessageEditor', () => ({
-  default: mocks.MessageEditor
-}))
-
 vi.mock('../frame/MessageErrorBoundary', () => ({
   default: mocks.MessageErrorBoundary
 }))
@@ -265,6 +260,13 @@ describe('MessageGroup', () => {
       updateMessageUiState: vi.fn()
     })
     mocks.messageListSelection.mockReturnValue(undefined)
+    mocks.useMessageEditing.mockReturnValue({
+      editingMessageId: null,
+      editingMessage: null,
+      startEditing: vi.fn(),
+      cancelEditing: vi.fn(),
+      stopEditing: vi.fn()
+    })
   })
 
   it('does not apply horizontal padding on the message element itself', () => {
@@ -472,6 +474,82 @@ describe('MessageGroup', () => {
     expect(footer).not.toHaveClass('opacity-0')
     expect(footer?.querySelector('[aria-hidden="true"]')).toBeNull()
     expect(actions).toHaveClass('opacity-0', 'group-hover/message:opacity-100')
+  })
+
+  it('wraps the edited plain user message region with an editing outline', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'vertical',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'plain',
+      showMessageOutline: false
+    })
+    const message = {
+      ...createMessage('user-editing-1', 0, 'vertical'),
+      role: 'user'
+    } as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
+    mocks.useMessageEditing.mockReturnValue({
+      editingMessageId: 'user-editing-1',
+      editingMessage: { message, parts: [{ type: 'text', text: 'hello' }] },
+      startEditing: vi.fn(),
+      cancelEditing: vi.fn(),
+      stopEditing: vi.fn()
+    })
+
+    const { container } = render(<MessageGroup messages={[message]} topic={{ id: 'topic-1' } as Topic} />)
+
+    const messageElement = container.querySelector('#message-user-editing-1 .message')
+
+    expect(mocks.MessageContent).toHaveBeenCalled()
+    expect(messageElement).toHaveAttribute('aria-disabled', 'true')
+    expect(messageElement).toHaveClass(
+      'opacity-70',
+      '[outline:1px_solid_var(--color-border)]',
+      'outline-offset-[-1px]',
+      'bg-muted'
+    )
+    expect(container).not.toHaveTextContent('chat.message.editing_current')
+    expect(container.querySelector('#message-user-editing-1 .message-editing-hint')).toBeNull()
+    expect(container.querySelector('#message-user-editing-1 .message-menubar')).toBeNull()
+  })
+
+  it('wraps the edited bubble user message region with an editing outline', () => {
+    mocks.settings.mockReturnValue({
+      multiModelMessageStyle: 'vertical',
+      gridColumns: 2,
+      gridPopoverTrigger: 'click',
+      messageFont: 'system',
+      fontSize: 14,
+      messageStyle: 'bubble',
+      showMessageOutline: false
+    })
+    const message = {
+      ...createMessage('user-bubble-editing-1', 0, 'vertical'),
+      role: 'user'
+    } as MessageListItem & { index: number; multiModelMessageStyle: MultiModelMessageStyle }
+    mocks.useMessageEditing.mockReturnValue({
+      editingMessageId: 'user-bubble-editing-1',
+      editingMessage: { message, parts: [{ type: 'text', text: 'hello' }] },
+      startEditing: vi.fn(),
+      cancelEditing: vi.fn(),
+      stopEditing: vi.fn()
+    })
+
+    const { container } = render(<MessageGroup messages={[message]} topic={{ id: 'topic-1' } as Topic} />)
+    const messageElement = container.querySelector('#message-user-bubble-editing-1 .message')
+
+    expect(messageElement).toHaveAttribute('aria-disabled', 'true')
+    expect(messageElement).toHaveClass(
+      'opacity-70',
+      '[outline:1px_solid_var(--color-border)]',
+      'outline-offset-[-1px]',
+      'bg-muted'
+    )
+    expect(container).not.toHaveTextContent('chat.message.editing_current')
+    expect(container.querySelector('#message-user-bubble-editing-1 .message-editing-hint')).toBeNull()
+    expect(container.querySelector('#message-user-bubble-editing-1 .message-menubar')).toBeNull()
   })
 
   it('applies inline enter motion to newly inserted non-bubble user messages', () => {

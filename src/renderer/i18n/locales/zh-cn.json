@@ -1367,6 +1367,7 @@
     },
     "input": {
       "auto_resize": "自动调整高度",
+      "cancel_editing": "取消编辑",
       "clear": {
         "content": "确定要清除当前会话所有消息吗？",
         "label": "清空消息 {{Command}}",
@@ -1376,6 +1377,7 @@
       "context_count": {
         "tip": "上下文数 / 最大上下文数"
       },
+      "editing_message": "正在编辑已发送消息",
       "estimated_tokens": {
         "tip": "预估 Token 数"
       },
@@ -1388,6 +1390,7 @@
       "knowledge_base": "知识库",
       "knowledge_base_disabled_by_files": "移除附件后可使用知识库",
       "knowledge_base_unavailable": "请选择支持工具调用的模型，或启用提示词工具调用",
+      "locate_editing_message": "定位原消息",
       "mcp_unavailable": "请选择支持工具调用的模型，或启用提示词工具调用",
       "new": {
         "context": "清除上下文 {{Command}}"
@@ -1484,6 +1487,7 @@
       }
     },
     "message": {
+      "editing_current": "这条消息正在输入框中编辑",
       "flow": {
         "branches": "分支",
         "copy_topic": {
@@ -6463,6 +6467,8 @@
       "input": {
         "confirm_delete_message": "删除消息前确认",
         "confirm_regenerate_message": "重新生成消息前确认",
+        "paste_long_text_as_file": "长文本粘贴为文件",
+        "paste_long_text_threshold": "长文本长度",
         "send_shortcuts": "发送快捷键",
         "show_estimated_tokens": "显示预估 Token 数",
         "title": "输入设置"

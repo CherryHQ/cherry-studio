@@ -6394,6 +6394,8 @@
       "input": {
         "confirm_delete_message": "Xác nhận trước khi xóa tin nhắn",
         "confirm_regenerate_message": "Xác nhận trước khi tạo lại tin nhắn",
+        "paste_long_text_as_file": "Dán văn bản dài dưới dạng tệp",
+        "paste_long_text_threshold": "Độ dài văn bản dài",
         "send_shortcuts": "Gửi phím tắt",
         "show_estimated_tokens": "Hiển thị số token ước tính",
         "title": "Cài đặt đầu vào"

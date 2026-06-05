@@ -6394,6 +6394,8 @@
       "input": {
         "confirm_delete_message": "メッセージ削除前に確認",
         "confirm_regenerate_message": "メッセージ再生成前に確認",
+        "paste_long_text_as_file": "長いテキストをファイルとして貼り付け",
+        "paste_long_text_threshold": "長いテキストの長さ",
         "send_shortcuts": "送信ショートカット",
         "show_estimated_tokens": "推定トークン数を表示",
         "title": "入力設定"

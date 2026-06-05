@@ -44,13 +44,6 @@ const leafCapabilitiesMock = vi.hoisted(() => ({
   isToolAutoApproved: vi.fn(() => false),
   externalCodeEditors: []
 }))
-const editorCapabilitiesMock = vi.hoisted(() => ({
-  uploadEditorFiles: vi.fn(),
-  handleEditorPaste: vi.fn(),
-  bindEditorPasteHandler: vi.fn(),
-  focusEditorPasteTarget: vi.fn(),
-  getDroppedEditorFiles: vi.fn()
-}))
 const headerCapabilitiesMock = vi.hoisted(() => ({
   userProfile: { avatar: '🙂' },
   openUserProfile: vi.fn()
@@ -104,18 +97,6 @@ vi.mock('@renderer/pages/shared/messages/hooks/useMessageListRenderConfig', () =
   })
 }))
 
-vi.mock('@renderer/pages/shared/messages/hooks/useMessageEditorConfig', () => ({
-  useMessageEditorConfig: () => ({
-    fontSize: 14,
-    sendMessageShortcut: 'Enter',
-    enableSpellCheck: false
-  })
-}))
-
-vi.mock('@renderer/pages/shared/messages/hooks/useMessageEditorCapabilities', () => ({
-  useMessageEditorCapabilities: () => editorCapabilitiesMock
-}))
-
 vi.mock('@renderer/pages/shared/messages/hooks/useMessageMenuConfig', () => ({
   useMessageMenuConfig: () => ({
     confirmDeleteMessage: false,
@@ -160,6 +141,10 @@ vi.mock('@renderer/services/EventService', () => ({
     LOCATE_MESSAGE: 'LOCATE_MESSAGE'
   },
   EventEmitter: eventMocks
+}))
+
+vi.mock('@renderer/utils/export', () => ({
+  messagesToMarkdown: vi.fn(async () => 'markdown')
 }))
 
 const { useAgentMessageListProviderValue } = await import('../agentMessageListAdapter')
@@ -253,11 +238,6 @@ describe('useAgentMessageListProviderValue', () => {
       isMultiSelectMode: true,
       selectedMessageIds: ['user-1']
     })
-    expect(value?.state.editorConfig).toEqual({
-      fontSize: 14,
-      sendMessageShortcut: 'Enter',
-      enableSpellCheck: false
-    })
     expect(useMessageExportActionsMock).toHaveBeenCalledWith({
       topicName: 'Agent session'
     })
@@ -291,11 +271,6 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.openInExternalApp).toBe(leafCapabilitiesMock.openInExternalApp)
     expect(value?.actions.navigateToRoute).toEqual(expect.any(Function))
     expect(value?.actions.openUserProfile).toBe(headerCapabilitiesMock.openUserProfile)
-    expect(value?.actions.uploadEditorFiles).toBe(editorCapabilitiesMock.uploadEditorFiles)
-    expect(value?.actions.handleEditorPaste).toBe(editorCapabilitiesMock.handleEditorPaste)
-    expect(value?.actions.bindEditorPasteHandler).toBe(editorCapabilitiesMock.bindEditorPasteHandler)
-    expect(value?.actions.focusEditorPasteTarget).toBe(editorCapabilitiesMock.focusEditorPasteTarget)
-    expect(value?.actions.getDroppedEditorFiles).toBe(editorCapabilitiesMock.getDroppedEditorFiles)
     expect(value?.actions.copyText).toBe(leafCapabilitiesMock.copyText)
     expect(value?.actions.copyRichContent).toBe(leafCapabilitiesMock.copyRichContent)
     expect(value?.actions.copyImage).toBe(leafCapabilitiesMock.copyImage)
@@ -318,7 +293,7 @@ describe('useAgentMessageListProviderValue', () => {
     expect(value?.actions.bindMessageGroupRuntime).toEqual(expect.any(Function))
     expect(value?.actions.locateMessage).toEqual(expect.any(Function))
 
-    value?.actions.navigateToRoute?.({ path: '/settings/provider', query: { id: 'provider-1' } })
+    void value?.actions.navigateToRoute?.({ path: '/settings/provider', query: { id: 'provider-1' } })
     expect(navigateMock).toHaveBeenCalledWith({
       to: '/settings/provider',
       search: { id: 'provider-1' }

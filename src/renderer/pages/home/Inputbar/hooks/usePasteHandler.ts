@@ -5,6 +5,8 @@ import { useCallback } from 'react'
 
 export interface UsePasteHandlerOptions {
   supportedExts: string[]
+  pasteLongTextAsFile?: boolean
+  pasteLongTextThreshold?: number
   setFiles: (updater: (prevFiles: FileMetadata[]) => FileMetadata[]) => void
   onResize?: () => void
   t: TFunction
@@ -24,6 +26,8 @@ export interface UsePasteHandlerOptions {
  * ```tsx
  * const { handlePaste } = usePasteHandler(text, setText, {
  *   supportedExts: ['.png', '.jpg', '.pdf'],
+ *   pasteLongTextAsFile: true,
+ *   pasteLongTextThreshold: 2000,
  *   setFiles: (updater) => setFiles(updater),
  *   onResize: () => resize(),
  *   t: useTranslation().t
@@ -44,6 +48,8 @@ export function usePasteHandler(
         options.supportedExts,
         options.setFiles,
         setText,
+        options.pasteLongTextAsFile ?? true,
+        options.pasteLongTextThreshold ?? 2000,
         text,
         options.onResize ?? (() => {}),
         options.t

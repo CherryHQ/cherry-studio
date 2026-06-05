@@ -5,7 +5,7 @@ import { useMemo } from 'react'
 
 import { MessageListProvider } from './MessageListProvider'
 import type { MessageListActions, MessageListItem, MessageListProviderValue, MessageRenderConfig } from './types'
-import { defaultMessageEditorConfig, defaultMessageRenderConfig } from './types'
+import { defaultMessageRenderConfig } from './types'
 
 const EMPTY_MESSAGE_ACTIONS: MessageListActions = {}
 
@@ -48,14 +48,6 @@ export function MessageContentProvider({
     }),
     [renderConfig]
   )
-  const editorConfig = useMemo(
-    () => ({
-      ...defaultMessageEditorConfig,
-      fontSize: mergedRenderConfig.fontSize
-    }),
-    [mergedRenderConfig.fontSize]
-  )
-
   const value = useMemo<MessageListProviderValue>(
     () => ({
       state: {
@@ -69,7 +61,6 @@ export function MessageContentProvider({
         loadOlderDelayMs: 0,
         loadingResetDelayMs: 0,
         renderConfig: mergedRenderConfig,
-        editorConfig,
         selection: {
           enabled: false,
           isMultiSelectMode: false,
@@ -86,7 +77,7 @@ export function MessageContentProvider({
         selectionLayer: false
       }
     }),
-    [editorConfig, mergedRenderConfig, messages, partsByMessageId, resolvedActions, topic]
+    [mergedRenderConfig, messages, partsByMessageId, resolvedActions, topic]
   )
 
   return <MessageListProvider value={value}>{children}</MessageListProvider>

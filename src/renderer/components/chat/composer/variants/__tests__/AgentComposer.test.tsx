@@ -104,7 +104,8 @@ vi.mock('@renderer/components/chat/composer/ComposerSurface', () => {
         },
         toggleExpanded: vi.fn(),
         removeToken: vi.fn(),
-        insertToken: mocks.insertToken
+        insertToken: mocks.insertToken,
+        getDraft: () => ({ text: props.text, tokens: [...(props.draftTokens ?? [])] })
       })
     }, [props])
 
