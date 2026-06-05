@@ -2462,7 +2462,7 @@
           "accessible_paths": {
             "add": "新增目錄",
             "empty": "未設定（預設為工作區根目錄）",
-            "hint": "限制代理程式可以存取的目錄",
+            "hint": "限制代理程式可存取的目錄",
             "label": "可存取的目錄"
           },
           "allowed_tools": {
@@ -2474,9 +2474,9 @@
             "hint": "用於在資料庫和會話中識別它"
           },
           "description": {
-            "hint": "協助辨識此代理程式的用途",
+            "hint": "有助於識別此代理程式的用途",
             "label": "描述",
-            "placeholder": "這個代理的用途是…"
+            "placeholder": "這個代理的用途…"
           },
           "env_vars": {
             "help": "每行一個 KEY=VALUE",
@@ -2489,9 +2489,9 @@
             "label": "心跳間隔（分鐘）"
           },
           "instructions": {
-            "hint": "定義代理的角色與行為邊界",
+            "hint": "定義代理的角色與行為界限",
             "label": "系統提示",
-            "placeholder": "告訴代理人它是誰，以及它能做什麼…"
+            "placeholder": "告訴代理它是誰，以及它能做什麼……"
           },
           "max_turns": {
             "help": "0 表示使用預設值",
@@ -2499,7 +2499,7 @@
           },
           "mcps": {
             "add": "新增 MCP 伺服器",
-            "empty": "未綁定",
+            "empty": "無綁定",
             "label": "MCP 伺服器（id）"
           },
           "model": {
@@ -2508,9 +2508,9 @@
             "label": "主要模型（必填）"
           },
           "name": {
-            "hint": "顯示於圖書館和會議清單",
+            "hint": "顯示於圖書館和會話清單",
             "label": "代理人名稱",
-            "placeholder": "給代理人一個名字"
+            "placeholder": "給代理人取個名字"
           },
           "permission_mode": {
             "help": "切換到 bypassPermissions 等同於啟用靈魂模式",
@@ -2524,14 +2524,14 @@
           },
           "plan_model": {
             "hint": "任務分解與規劃",
-            "label": "方案模型（選填）"
+            "label": "計畫模型（可選）"
           },
           "small_model": {
             "hint": "輕量級檢查與格式化",
             "label": "小型模型（可選）"
           },
           "soul_enabled": {
-            "help": "啟用時，自動授予 bypassPermissions",
+            "help": "啟用後，將自動授予 bypassPermissions",
             "label": "靈魂模式"
           }
         },
@@ -2560,7 +2560,7 @@
           "tools": {
             "add": "新增",
             "desc": "MCP 伺服器、允許的工具與執行階段設定",
-            "label": "工具與執行環境",
+            "label": "工具與執行階段",
             "no_builtin_enabled": "未啟用任何內建工具",
             "no_mcp_bound": "未綁定任何 MCP 服務",
             "no_skills_enabled": "未啟用任何技能",
@@ -2572,12 +2572,12 @@
               "skills": "Skills",
               "tools": "內建工具"
             },
-            "title": "工具與執行環境"
+            "title": "工具與執行階段"
           }
         }
       },
       "basic": {
-        "context_count": "上下文計數",
+        "context_count": "情境計數",
         "creative": "創意",
         "custom_params": "自訂參數",
         "custom_params_add": "新增參數",
@@ -2597,37 +2597,37 @@
           },
           "description": {
             "hint": "有助於區分此助理的用途",
-            "placeholder": "這個助理的用途是..."
+            "placeholder": "這個助理的用途..."
           },
           "max_tokens": {
-            "hint": "[to be translated]:Caps response length when enabled"
+            "hint": "啟用時限制回覆長度"
           },
           "max_tool_calls": {
-            "hint": "[to be translated]:Limits tool-call loops when enabled"
+            "hint": "啟用時限制工具呼叫迴圈"
           },
           "model": {
-            "hint": "[to be translated]:Overrides the global default model for this assistant"
+            "hint": "覆寫此助理的全域預設模型"
           },
           "name": {
-            "hint": "[to be translated]:Shown in the library and assistant selectors",
-            "placeholder": "[to be translated]:Give the assistant a name"
+            "hint": "顯示於資料庫與助理選擇器中",
+            "placeholder": "給助理取個名字"
           },
           "stream_output": {
-            "hint": "[to be translated]:Shows responses as they are generated"
+            "hint": "在產生回應時即時顯示"
           },
           "tags": {
-            "hint": "[to be translated]:Used for filtering and organizing assistants"
+            "hint": "用於篩選與整理助理"
           },
           "temperature": {
-            "hint": "[to be translated]:Controls randomness when enabled"
+            "hint": "啟用時控制隨機性"
           },
           "top_p": {
-            "hint": "[to be translated]:Limits token sampling range when enabled"
+            "hint": "啟用時限制權杖取樣範圍"
           }
         },
         "json_invalid": "無效的 JSON 格式",
         "max_tokens": "最大權杖",
-        "max_tool_calls": "最大工具調用",
+        "max_tool_calls": "最大工具呼叫",
         "model": "預設模型",
         "model_clear": "清除",
         "model_not_found": "找不到模型（可能已被移除）：{{id}}",
@@ -2636,51 +2636,51 @@
         "precise": "精確",
         "stream_output": "串流輸出",
         "tag_empty": "無可用標籤",
-        "tag_hint": "若要新增標籤，請使用資料庫頂端列中的「+ Tag」項目",
+        "tag_hint": "若要新增標籤，請使用媒體庫頂端列中的「+ 標籤」項目",
         "tag_placeholder": "選擇標籤",
         "tag_search": "搜尋標籤",
         "tags": "標籤",
         "temperature": "溫度",
         "title": "基礎設定",
         "top_p": "Top-P",
-        "unlimited": "無限制"
+        "unlimited": "無限"
       },
       "breadcrumb": "圖書館",
       "knowledge": {
-        "add": "[to be translated]:Add knowledge base",
-        "desc": "[to be translated]:Link one or more knowledge bases; relevant snippets will be retrieved during chat",
-        "doc_count": "[to be translated]:{{count}} docs",
-        "empty_desc": "[to be translated]:Once linked, the assistant can answer based on document content",
-        "empty_title": "[to be translated]:No knowledge bases linked",
-        "invalid_suffix": "[to be translated]:... (unavailable)",
-        "linked": "[to be translated]:Linked knowledge bases",
-        "linked_hint": "[to be translated]:Controls which knowledge bases this assistant can retrieve from",
-        "no_more": "[to be translated]:No more knowledge bases available",
-        "remove_aria": "[to be translated]:Remove",
-        "search": "[to be translated]:Search knowledge bases...",
-        "title": "[to be translated]:Knowledge bases"
+        "add": "新增知識庫",
+        "desc": "連結一或多個知識庫；相關片段將在對話期間檢索",
+        "doc_count": "{{count}} 份文件",
+        "empty_desc": "一旦連結後，助理即可根據文件內容回答",
+        "empty_title": "未連結任何知識庫",
+        "invalid_suffix": "...（無法取得）",
+        "linked": "連結的知識庫",
+        "linked_hint": "控制此助理可從哪些知識庫檢索",
+        "no_more": "沒有更多可用的知識庫",
+        "remove_aria": "移除",
+        "search": "搜尋知識庫...",
+        "title": "知識庫"
       },
       "prompt": {
-        "create_title": "[to be translated]:New Prompt",
-        "dblclick_hint": "[to be translated]:Double-click the preview to switch back to edit",
-        "desc": "[to be translated]:The system prompt is sent as the opening context of the assistant",
-        "edit_title": "[to be translated]:Edit Prompt",
+        "create_title": "新提示",
+        "dblclick_hint": "雙擊預覽即可切換回編輯",
+        "desc": "系統提示作為助手的開場背景發送",
+        "edit_title": "編輯提示",
         "field": {
           "content": {
             "label": "內容",
-            "too_long": "內容必須在 {{max}} 個字元以內"
+            "too_long": "內容必須為 {{max}} 個字元或更少"
           },
           "name": {
             "label": "姓名",
             "too_long": "名稱不得超過 {{max}} 個字元"
           }
         },
-        "generate": "[to be translated]:Generate prompt",
-        "insert_variable": "[to be translated]:Insert variable",
-        "label": "[to be translated]:System prompt",
-        "placeholder": "[to be translated]:Enter the system prompt. Variables like {{date}} and {{model_name}} are supported...",
-        "title": "[to be translated]:Prompt",
-        "tokens_label": "[to be translated]:Tokens: ",
+        "generate": "產生提示",
+        "insert_variable": "插入變數",
+        "label": "系統提示",
+        "placeholder": "輸入系統提示。支援像 {{date}} 和 {{model_name}} 這樣的變數...",
+        "title": "提示",
+        "tokens_label": "代幣：",
         "variables_title": "可用變數",
         "vars": {
           "arch": "CPU 架構",
@@ -2722,10 +2722,10 @@
         "added": "已新增 MCP 伺服器",
         "added_hint": "手動模式僅公開此清單中的伺服器",
         "desc": "設定此助理在聊天期間可呼叫的 MCP 伺服器",
-        "empty_desc": "一旦新增後，助理就能呼叫外部工具",
+        "empty_desc": "新增後，助理即可呼叫外部工具",
         "empty_title": "未新增任何 MCP 伺服器",
-        "inactive_badge": "非活躍",
-        "info_main": "MCP（模型上下文協定）讓模型安全地呼叫外部工具。",
+        "inactive_badge": "非活動",
+        "info_main": "MCP（模型上下文協定）讓模型能安全地呼叫外部工具。",
         "info_sub": "僅啟用必要的伺服器可提升安全性與回應速度。",
         "mode": {
           "auto": {
@@ -2733,18 +2733,18 @@
             "label": "自動"
           },
           "disabled": {
-            "desc": "聊天期間沒有可用的 MCP 工具",
+            "desc": "聊天期間無可用的 MCP 工具",
             "label": "已停用"
           },
           "manual": {
-            "desc": "僅公開下方選取的 MCP 伺服器",
+            "desc": "僅公開下方所選的 MCP 伺服器",
             "label": "手冊"
           }
         },
         "no_more": "沒有可用的伺服器",
         "search": "搜尋可用的伺服器...",
         "switch_title_active": "關閉以移除",
-        "switch_title_inactive": "此伺服器已在 MCP 設定中停用；請將其移除以便稍後重新新增",
+        "switch_title_inactive": "此伺服器已在 MCP 設定中停用；請先移除，稍後再重新加入",
         "title": "工具"
       }
     },
@@ -2758,8 +2758,8 @@
         "title": "刪除代理"
       },
       "skill": {
-        "content": "您確定要解除安裝此技能嗎？它將從全域函式庫中移除，且所有代理工作區的符號連結都會被清理。",
-        "title": "解除安裝技能"
+        "content": "您確定要解除安裝此技能嗎？它將從全域函式庫中移除，且所有代理工作區的符號連結都會被清除。",
+        "title": "解除技能"
       }
     },
     "delete_confirm": {
@@ -2772,7 +2772,7 @@
     "duplicate_name": "{{name}}（副本）",
     "empty_state": {
       "description": "點選「新增」建立你的第一個資源",
-      "empty_description": "建立您的第一個代理或助理",
+      "empty_description": "建立您的第一位代理人或助理",
       "empty_title": "尚無資源",
       "no_match_description": "嘗試使用不同的搜尋關鍵字",
       "no_match_title": "沒有相符的資源",
@@ -2781,43 +2781,43 @@
     "export_assistant_failed": "匯出助理失敗",
     "import_dialog": {
       "clipboard": {
-        "button": "[to be translated]:Parse and import",
-        "placeholder": "[to be translated]:Paste JSON configuration here..."
+        "button": "解析並匯入",
+        "placeholder": "在此貼上 JSON 設定..."
       },
       "error": {
-        "content_too_large": "[to be translated]:Content too large (>5 MB)",
-        "file_too_large": "[to be translated]:File too large (>5 MB)",
-        "invalid_url": "[to be translated]:Invalid URL",
-        "response_too_large": "[to be translated]:Response too large (>5 MB)",
-        "timeout": "[to be translated]:Request timed out. Check that the URL is reachable.",
-        "unsupported_protocol": "[to be translated]:Only http or https URLs are supported"
+        "content_too_large": "內容過大（超過 5 MB）",
+        "file_too_large": "檔案過大（超過 5 MB）",
+        "invalid_url": "無效的網址",
+        "response_too_large": "回應過大（>5 MB）",
+        "timeout": "請求逾時。請確認該網址可以存取。",
+        "unsupported_protocol": "僅支援 http 或 https 的網址"
       },
       "failure": "匯入失敗：{{error}}",
       "file": {
-        "drop_hint": "[to be translated]:Drag and drop a file here, or click to pick one",
-        "formats": "[to be translated]:Supports .json"
+        "drop_hint": "拖曳檔案至此處，或點擊選擇檔案",
+        "formats": "支援 .json"
       },
-      "partial_success": "部分成功：{{success}} 已匯入，{{failed}} 失敗（{{first_name}}：{{first_error}}）",
-      "subtitle": "[to be translated]:JSON configuration files are supported",
+      "partial_success": "部分成功：{{success}} 筆匯入成功，{{failed}} 筆失敗（{{first_name}}：{{first_error}}）",
+      "subtitle": "支援 JSON 設定檔",
       "success": "已成功匯入：{{name}}",
       "tab": {
-        "clipboard": "[to be translated]:Clipboard",
-        "file": "[to be translated]:File upload",
-        "url": "[to be translated]:Import from URL"
+        "clipboard": "剪貼簿",
+        "file": "檔案上傳",
+        "url": "從網址匯入"
       },
       "url": {
-        "button": "[to be translated]:Fetch and import",
-        "hint": "[to be translated]:Import from a GitHub Gist, GitHub repo, or any public URL",
-        "supports": "[to be translated]:Raw file URLs are supported"
+        "button": "擷取並匯入",
+        "hint": "從 GitHub Gist、GitHub 儲存庫或任何公開網址匯入",
+        "supports": "支援原始檔案網址"
       }
     },
     "import_skill_dialog": {
       "local": {
-        "drop_hint": "[to be translated]:Drop a ZIP or directory here, or click to choose a ZIP",
-        "formats": "[to be translated]:Supports .zip files and directories containing SKILL.md"
+        "drop_hint": "將 ZIP 或資料夾拖曳至此處，或點擊選擇 ZIP",
+        "formats": "支援 .zip 檔案與包含 SKILL.md 的目錄"
       },
-      "subtitle": "[to be translated]:Install a skill from a ZIP file or directory",
-      "title": "[to be translated]:Import skill"
+      "subtitle": "從 ZIP 檔案或目錄安裝技能",
+      "title": "匯入技能"
     },
     "no_match": "無相符結果",
     "pending_backend": {
@@ -2825,12 +2825,12 @@
       "title": "資料層接入中"
     },
     "sidebar": {
-      "all_resources": "[to be translated]:All resources",
+      "all_resources": "所有資源",
       "all_tags": "全部標籤",
       "no_tags": "尚無標籤",
-      "subtitle": "[to be translated]:Manage your AI resources",
+      "subtitle": "管理您的 AI 資源",
       "tags": "標籤",
-      "title": "[to be translated]:Library"
+      "title": "圖書館"
     },
     "skill_detail": {
       "created_at": "建立時間",
@@ -2850,10 +2850,10 @@
     },
     "subtitle": "管理你的助手、智能體與技能",
     "tag_picker": {
-      "no_tags": "[to be translated]:No tags yet",
-      "placeholder": "[to be translated]:New tag name..."
+      "no_tags": "尚無標籤",
+      "placeholder": "新標籤名稱..."
     },
-    "tag_sync_failed": "無法同步標籤",
+    "tag_sync_failed": "同步標籤失敗",
     "time_ago": {
       "days": "{{count}} 天前",
       "hours": "{{count}} 小時前",
@@ -3337,7 +3337,7 @@
     },
     "title": "小工具",
     "unpin_failed": "取消固定小程式失敗",
-    "update_partial_failure": "{{total}} 次更新中有 {{failed}} 次失敗"
+    "update_partial_failure": "{{total}} 個更新中有 {{failed}} 個失敗"
   },
   "miniApps": {
     "ant-ling": "Ant Ling",
@@ -3931,7 +3931,7 @@
     "paint_course": "教學",
     "per_image": "每張圖片",
     "per_images": "每張圖片",
-    "person_generation": "產生人物",
+    "person_generation": "生成人物",
     "person_generation_options": {
       "allow_adult": "允許成人",
       "allow_all": "允許所有",
@@ -3980,7 +3980,7 @@
     "req_error_token": "請檢查權杖的有效性",
     "required_field": "必填欄位",
     "safety_tolerance": "安全容忍度",
-    "safety_tolerance_tip": "數值越高 = 過濾器越寬鬆；0 最嚴格，6 最寬鬆",
+    "safety_tolerance_tip": "數值越高 = 篩選條件越寬鬆；0 為最嚴格，6 為最寬鬆",
     "seed": "隨機種子",
     "seed_desc_tip": "相同的種子和提示詞可以產生相似的圖片，設定為 -1 時，每次結果都會不同",
     "seed_random": "隨機",
@@ -4009,10 +4009,10 @@
       "realistic": "寫實",
       "render_3d": "3D 渲染"
     },
-    "style_type_tip": "影像生成風格",
+    "style_type_tip": "圖像生成風格",
     "text_desc_required": "請先輸入圖片描述",
     "thinking_mode": "思考模式",
-    "thinking_mode_tip": "開啟時，生成品質較高，但會增加約 10–30 秒。",
+    "thinking_mode_tip": "開啟時，生成品質會更高，但會增加約 10–30 秒。",
     "title": "繪圖",
     "top_up": "儲值",
     "translating": "翻譯中...",
