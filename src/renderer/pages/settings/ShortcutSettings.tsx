@@ -318,11 +318,12 @@ const ShortcutSettings: FC = () => {
 
       return (
         <div className="relative flex flex-col items-end">
-          <button
+          <Button
             ref={(el) => {
               if (el) recorderRefs.current[record.key] = el
             }}
             type="button"
+            variant="ghost"
             className={cn(
               'h-8 w-36 rounded-lg border-border/60 bg-background text-center text-sm',
               !pendingDisplay && 'text-muted-foreground',
@@ -336,7 +337,7 @@ const ShortcutSettings: FC = () => {
               }
             }}>
             {pendingDisplay || t('settings.shortcuts.press_shortcut')}
-          </button>
+          </Button>
           {hasConflict && (
             <span className="absolute top-full right-0 mt-1 whitespace-nowrap text-red-500 text-xs">
               {conflictLabel ? t('settings.shortcuts.conflict_with', { name: conflictLabel }) : conflictMessage}
