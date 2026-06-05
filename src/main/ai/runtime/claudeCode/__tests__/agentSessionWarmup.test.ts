@@ -11,8 +11,8 @@ const mocks = vi.hoisted(() => ({
   buildSessionSettings: vi.fn()
 }))
 
-vi.mock('@data/services/SessionService', () => ({
-  sessionService: { getById: mocks.getSessionById }
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: { getById: mocks.getSessionById }
 }))
 
 vi.mock('@data/services/AgentService', () => ({

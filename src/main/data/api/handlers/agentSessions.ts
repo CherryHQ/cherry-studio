@@ -1,5 +1,5 @@
 /**
- * Session domain API handlers.
+ * Agent session domain API handlers.
  *
  * Sessions are pure agent instances. Cognitive config (model / instructions /
  * mcps / allowedTools / configuration) lives on the parent agent and is
@@ -8,77 +8,77 @@
  */
 
 import { agentSessionMessageService as sessionMessageService } from '@data/services/AgentSessionMessageService'
-import { sessionService } from '@data/services/SessionService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { toDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import {
-  CreateSessionSchema,
-  ListSessionsQuerySchema,
-  SessionMessagesListQuerySchema,
-  type SessionSchemas,
-  UpdateSessionSchema
-} from '@shared/data/api/schemas/sessions'
+  AgentSessionMessagesListQuerySchema,
+  type AgentSessionSchemas,
+  CreateAgentSessionSchema,
+  ListAgentSessionsQuerySchema,
+  UpdateAgentSessionSchema
+} from '@shared/data/api/schemas/agentSessions'
 
-export const sessionHandlers: HandlersFor<SessionSchemas> = {
-  '/sessions': {
+export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
+  '/agent-sessions': {
     GET: async ({ query }) => {
-      const parsed = ListSessionsQuerySchema.safeParse(query ?? {})
+      const parsed = ListAgentSessionsQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await sessionService.listByCursor(parsed.data)
+      return await agentSessionService.listByCursor(parsed.data)
     },
 
     POST: async ({ body }) => {
-      const parsed = CreateSessionSchema.safeParse(body)
+      const parsed = CreateAgentSessionSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await sessionService.createSession(parsed.data)
+      return await agentSessionService.createSession(parsed.data)
     }
   },
 
-  '/sessions/:sessionId': {
+  '/agent-sessions/:sessionId': {
     GET: async ({ params }) => {
-      return await sessionService.getById(params.sessionId)
+      return await agentSessionService.getById(params.sessionId)
     },
 
     PATCH: async ({ params, body }) => {
-      const parsed = UpdateSessionSchema.safeParse(body)
+      const parsed = UpdateAgentSessionSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await sessionService.update(params.sessionId, parsed.data)
+      return await agentSessionService.update(params.sessionId, parsed.data)
     },
 
     DELETE: async ({ params }) => {
-      await sessionService.delete(params.sessionId)
+      await agentSessionService.delete(params.sessionId)
       return undefined
     }
   },
 
-  '/sessions/:sessionId/messages': {
+  '/agent-sessions/:sessionId/messages': {
     GET: async ({ params, query }) => {
-      const parsed = SessionMessagesListQuerySchema.safeParse(query ?? {})
+      const parsed = AgentSessionMessagesListQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
       return await sessionMessageService.listSessionMessages(params.sessionId, parsed.data)
     }
   },
 
-  '/sessions/:sessionId/messages/:messageId': {
+  '/agent-sessions/:sessionId/messages/:messageId': {
     DELETE: async ({ params }) => {
       await sessionMessageService.deleteSessionMessage(params.sessionId, params.messageId)
       return undefined
     }
   },
 
-  '/sessions/:id/order': {
+  '/agent-sessions/:id/order': {
     PATCH: async ({ params, body }) => {
       const parsed = OrderRequestSchema.parse(body)
-      await sessionService.reorder(params.id, parsed)
+      await agentSessionService.reorder(params.id, parsed)
       return undefined
     }
   },
 
-  '/sessions/order:batch': {
+  '/agent-sessions/order:batch': {
     PATCH: async ({ body }) => {
       const parsed = OrderBatchRequestSchema.parse(body)
-      await sessionService.reorderBatch(parsed.moves)
+      await agentSessionService.reorderBatch(parsed.moves)
       return undefined
     }
   }

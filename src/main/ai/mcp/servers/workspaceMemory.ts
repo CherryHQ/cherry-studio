@@ -2,7 +2,7 @@ import { appendFile, mkdir, readdir, readFile, rename, stat, writeFile } from 'n
 import path from 'node:path'
 
 import { agentService } from '@data/services/AgentService'
-import { sessionService } from '@data/services/SessionService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Tool } from '@modelcontextprotocol/sdk/types.js'
@@ -161,7 +161,7 @@ class WorkspaceMemoryServer {
     // Workspace lives on the session (CMA Environment binding); this MCP
     // server is keyed by agentId, so resolve via the agent's most recent
     // session.
-    const sessions = await sessionService.listByCursor({ agentId: this.agentId, limit: 1 })
+    const sessions = await agentSessionService.listByCursor({ agentId: this.agentId, limit: 1 })
     const workspace = sessions.items[0]?.workspace?.path
     if (!workspace) throw new McpError(ErrorCode.InternalError, 'No session workspace available for this agent')
     return workspace

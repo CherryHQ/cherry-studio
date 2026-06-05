@@ -1,28 +1,28 @@
 import { application } from '@application'
 import { agentTable as agentsTable } from '@data/db/schemas/agent'
 import { type AgentSessionRow as SessionRow, agentSessionTable as sessionsTable } from '@data/db/schemas/agentSession'
-import { type WorkspaceRow, workspaceTable } from '@data/db/schemas/workspace'
+import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
+import { agentWorkspaceService, rowToWorkspace } from '@data/services/AgentWorkspaceService'
 import { pinService } from '@data/services/PinService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
-import { rowToWorkspace, workspaceService } from '@data/services/WorkspaceService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
   AgentSessionEntity,
-  CreateSessionDto,
-  ListSessionsQuery,
-  UpdateSessionDto
-} from '@shared/data/api/schemas/sessions'
+  CreateAgentSessionDto,
+  ListAgentSessionsQuery,
+  UpdateAgentSessionDto
+} from '@shared/data/api/schemas/agentSessions'
 import { and, asc, desc, eq, gt, or, type SQL } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 import { applyMoves, insertWithOrderKey } from './utils/orderKey'
 
-const logger = loggerService.withContext('SessionService')
+const logger = loggerService.withContext('AgentSessionService')
 
 const DEFAULT_LIMIT = 50
 const MAX_LIMIT = 200
@@ -46,7 +46,7 @@ function decodeSessionCursor(raw: string): { key: string; id: string } | null {
 
 type JoinedSessionRow = {
   session: SessionRow
-  workspace: WorkspaceRow | null
+  workspace: AgentWorkspaceRow | null
 }
 
 function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
@@ -67,11 +67,11 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
   }
 }
 
-export class SessionService {
-  async createSession(dto: CreateSessionDto): Promise<AgentSessionEntity> {
+export class AgentSessionService {
+  async createSession(dto: CreateAgentSessionDto): Promise<AgentSessionEntity> {
     const dbService = application.get('DbService')
     const id = uuidv4()
-    const defaultWorkspacePath = dto.workspaceId ? undefined : workspaceService.prepareDefaultWorkspaceDirectory()
+    const defaultWorkspacePath = dto.workspaceId ? undefined : agentWorkspaceService.prepareDefaultWorkspaceDirectory()
     let keepDefaultWorkspaceDirectory = false
 
     try {
@@ -85,7 +85,7 @@ export class SessionService {
       keepDefaultWorkspaceDirectory = usedDefaultWorkspace
     } finally {
       if (defaultWorkspacePath && !keepDefaultWorkspaceDirectory) {
-        workspaceService.cleanupPreparedWorkspaceDirectory(defaultWorkspacePath)
+        agentWorkspaceService.cleanupPreparedWorkspaceDirectory(defaultWorkspacePath)
       }
     }
 
@@ -95,7 +95,7 @@ export class SessionService {
   async createSessionTx(
     tx: DbOrTx,
     id: string,
-    dto: CreateSessionDto,
+    dto: CreateAgentSessionDto,
     defaultWorkspacePath?: string
   ): Promise<{ usedDefaultWorkspace: boolean }> {
     // Verify the agent exists; FK alone gives generic 404 — explicit check returns
@@ -110,7 +110,7 @@ export class SessionService {
     let workspaceId = dto.workspaceId
     let usedDefaultWorkspace = false
     if (workspaceId) {
-      await workspaceService.getByIdTx(tx, workspaceId)
+      await agentWorkspaceService.getByIdTx(tx, workspaceId)
     } else {
       const [sibling] = await tx
         .select({ workspaceId: sessionsTable.workspaceId })
@@ -124,7 +124,7 @@ export class SessionService {
         if (!defaultWorkspacePath) {
           throw DataApiErrorFactory.invalidOperation('create session', 'default workspace path was not prepared')
         }
-        workspaceId = (await workspaceService.createDefaultWorkspaceTx(tx, defaultWorkspacePath)).id
+        workspaceId = (await agentWorkspaceService.createDefaultWorkspaceTx(tx, defaultWorkspacePath)).id
         usedDefaultWorkspace = true
       }
     }
@@ -142,9 +142,9 @@ export class SessionService {
   async getById(id: string): Promise<AgentSessionEntity> {
     const db = application.get('DbService').getDb()
     const [row] = await db
-      .select({ session: sessionsTable, workspace: workspaceTable })
+      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
-      .leftJoin(workspaceTable, eq(sessionsTable.workspaceId, workspaceTable.id))
+      .leftJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .where(eq(sessionsTable.id, id))
       .limit(1)
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
@@ -160,16 +160,16 @@ export class SessionService {
   async findAgentWorkspacePath(agentId: string): Promise<string | null> {
     const db = application.get('DbService').getDb()
     const [row] = await db
-      .select({ path: workspaceTable.path })
+      .select({ path: agentWorkspaceTable.path })
       .from(sessionsTable)
-      .innerJoin(workspaceTable, eq(sessionsTable.workspaceId, workspaceTable.id))
+      .innerJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .where(eq(sessionsTable.agentId, agentId))
       .orderBy(desc(sessionsTable.createdAt))
       .limit(1)
     return row?.path ?? null
   }
 
-  async listByCursor(query: ListSessionsQuery = {}): Promise<CursorPaginationResponse<AgentSessionEntity>> {
+  async listByCursor(query: ListAgentSessionsQuery = {}): Promise<CursorPaginationResponse<AgentSessionEntity>> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor = query.cursor ? decodeSessionCursor(query.cursor) : null
@@ -187,9 +187,9 @@ export class SessionService {
     }
 
     const rows = await db
-      .select({ session: sessionsTable, workspace: workspaceTable })
+      .select({ session: sessionsTable, workspace: agentWorkspaceTable })
       .from(sessionsTable)
-      .leftJoin(workspaceTable, eq(sessionsTable.workspaceId, workspaceTable.id))
+      .leftJoin(agentWorkspaceTable, eq(sessionsTable.workspaceId, agentWorkspaceTable.id))
       .where(filters.length > 0 ? and(...filters) : undefined)
       .orderBy(asc(sessionsTable.orderKey), asc(sessionsTable.id))
       .limit(limit + 1)
@@ -202,8 +202,8 @@ export class SessionService {
     return { items, nextCursor }
   }
 
-  async update(id: string, dto: UpdateSessionDto): Promise<AgentSessionEntity> {
-    const patch: UpdateSessionDto = {}
+  async update(id: string, dto: UpdateAgentSessionDto): Promise<AgentSessionEntity> {
+    const patch: UpdateAgentSessionDto = {}
     if (dto.name !== undefined) patch.name = dto.name
     if (dto.description !== undefined) patch.description = dto.description
     if (dto.agentId !== undefined) patch.agentId = dto.agentId
@@ -217,7 +217,7 @@ export class SessionService {
     return await this.getById(id)
   }
 
-  async updateTx(tx: DbOrTx, id: string, patch: UpdateSessionDto): Promise<SessionRow | undefined> {
+  async updateTx(tx: DbOrTx, id: string, patch: UpdateAgentSessionDto): Promise<SessionRow | undefined> {
     const [row] = await tx.update(sessionsTable).set(patch).where(eq(sessionsTable.id, id)).returning()
     return row
   }
@@ -263,4 +263,4 @@ export class SessionService {
   }
 }
 
-export const sessionService = new SessionService()
+export const agentSessionService = new AgentSessionService()

@@ -17,7 +17,7 @@ import {
 } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import { application } from '@main/core/application'
 import type { Tool } from '@shared/ai/tool'
-import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
 
 import type {
   AgentRuntimeConnectInput,
