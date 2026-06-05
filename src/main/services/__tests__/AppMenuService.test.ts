@@ -1,43 +1,54 @@
-import type { MenuItemConstructorOptions } from 'electron'
+import type { BrowserWindow, MenuItemConstructorOptions } from 'electron'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { applicationMock, menuMock, shellMock, appMock, preferenceServiceMock, settingsWindowServiceMock } = vi.hoisted(
-  () => {
-    const preferenceServiceMock = {
-      get: vi.fn(),
-      subscribeChange: vi.fn(() => ({ dispose: vi.fn() }))
-    }
-    const settingsWindowServiceMock = {
-      open: vi.fn()
-    }
+const {
+  applicationMock,
+  menuMock,
+  shellMock,
+  appMock,
+  preferenceServiceMock,
+  settingsWindowServiceMock,
+  commandServiceMock
+} = vi.hoisted(() => {
+  const preferenceServiceMock = {
+    get: vi.fn(),
+    subscribeChange: vi.fn(() => ({ dispose: vi.fn() }))
+  }
+  const settingsWindowServiceMock = {
+    open: vi.fn()
+  }
+  const commandServiceMock = {
+    execute: vi.fn()
+  }
 
-    return {
-      preferenceServiceMock,
-      settingsWindowServiceMock,
-      applicationMock: {
-        get: vi.fn((name: string) => {
-          if (name === 'PreferenceService') return preferenceServiceMock
-          if (name === 'SettingsWindowService') return settingsWindowServiceMock
-          if (name === 'WindowManager') {
-            return { getWindowsByType: vi.fn(() => []) }
-          }
-          return undefined
-        })
-      },
-      menuMock: {
-        buildFromTemplate: vi.fn((template: MenuItemConstructorOptions[]) => ({ template })),
-        setApplicationMenu: vi.fn()
-      },
-      shellMock: {
-        openExternal: vi.fn()
-      },
-      appMock: {
-        name: 'Cherry Studio',
-        getLocale: vi.fn(() => 'en-US')
-      }
+  return {
+    preferenceServiceMock,
+    settingsWindowServiceMock,
+    commandServiceMock,
+    applicationMock: {
+      get: vi.fn((name: string) => {
+        if (name === 'PreferenceService') return preferenceServiceMock
+        if (name === 'SettingsWindowService') return settingsWindowServiceMock
+        if (name === 'CommandService') return commandServiceMock
+        if (name === 'WindowManager') {
+          return { getWindowsByType: vi.fn(() => []) }
+        }
+        return undefined
+      })
+    },
+    menuMock: {
+      buildFromTemplate: vi.fn((template: MenuItemConstructorOptions[]) => ({ template })),
+      setApplicationMenu: vi.fn()
+    },
+    shellMock: {
+      openExternal: vi.fn()
+    },
+    appMock: {
+      name: 'Cherry Studio',
+      getLocale: vi.fn(() => 'en-US')
     }
   }
-)
+})
 
 vi.mock('@application', () => ({
   application: applicationMock
@@ -63,17 +74,11 @@ vi.mock('@main/core/lifecycle', () => {
   }
 })
 
-vi.mock('@main/utils/zoom', () => ({
-  handleZoomFactor: vi.fn()
-}))
-
 vi.mock('electron', () => ({
   app: appMock,
   Menu: menuMock,
   shell: shellMock
 }))
-
-import { handleZoomFactor } from '@main/utils/zoom'
 
 import { AppMenuService } from '../AppMenuService'
 
@@ -100,7 +105,7 @@ describe('AppMenuService', () => {
 
     settingsItem?.click?.(undefined as never, undefined as never, undefined as never)
 
-    expect(settingsWindowServiceMock.open).toHaveBeenCalledWith('/settings/provider')
+    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.settings.open', undefined)
   })
 
   it('opens the About settings route from the native app menu', async () => {
@@ -117,6 +122,7 @@ describe('AppMenuService', () => {
   it('uses default zoom accelerators and wires them to zoom handling', async () => {
     await (service as any).onInit()
 
+    const window = { id: 1 } as BrowserWindow
     const viewSubmenu = latestTemplate()[3].submenu as MenuItemConstructorOptions[]
     const zoomInItem = viewSubmenu.find((item) => item.accelerator === 'CommandOrControl+=')
     const zoomOutItem = viewSubmenu.find((item) => item.accelerator === 'CommandOrControl+-')
@@ -126,12 +132,23 @@ describe('AppMenuService', () => {
     expect(zoomOutItem).toBeTruthy()
     expect(zoomResetItem).toBeTruthy()
 
-    zoomInItem?.click?.(undefined as never, undefined as never, undefined as never)
-    zoomOutItem?.click?.(undefined as never, undefined as never, undefined as never)
-    zoomResetItem?.click?.(undefined as never, undefined as never, undefined as never)
+    zoomInItem?.click?.(undefined as never, window, undefined as never)
+    zoomOutItem?.click?.(undefined as never, window, undefined as never)
+    zoomResetItem?.click?.(undefined as never, window, undefined as never)
 
-    expect(handleZoomFactor).toHaveBeenCalledWith([], 0.1)
-    expect(handleZoomFactor).toHaveBeenCalledWith([], -0.1)
-    expect(handleZoomFactor).toHaveBeenCalledWith([], 0, true)
+    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.in', window)
+    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.out', window)
+    expect(commandServiceMock.execute).toHaveBeenCalledWith('app.zoom.reset', window)
+  })
+
+  it('preserves native role menu items', async () => {
+    await (service as any).onInit()
+
+    const editSubmenu = latestTemplate()[2].submenu as MenuItemConstructorOptions[]
+    const copyItem = editSubmenu.find((item) => item.role === 'copy')
+    const quitItem = (latestTemplate()[0].submenu as MenuItemConstructorOptions[]).find((item) => item.role === 'quit')
+
+    expect(copyItem).toMatchObject({ role: 'copy', label: 'Copy' })
+    expect(quitItem).toMatchObject({ role: 'quit', label: 'Quit Cherry Studio' })
   })
 })

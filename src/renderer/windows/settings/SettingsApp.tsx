@@ -5,6 +5,7 @@ import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
 import { NotificationProvider } from '@renderer/context/NotificationProvider'
 import StyleSheetManager from '@renderer/context/StyleSheetManager'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
+import { CommandProvider, ContextKeyProvider } from '@renderer/features/command'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import i18n from '@renderer/i18n'
@@ -80,16 +81,20 @@ function SettingsApp({ initialPath }: { initialPath: string }): React.ReactEleme
               <NotificationProvider>
                 <CodeStyleProvider>
                   <PersistGate loading={null} persistor={persistor}>
-                    <TopViewContainer>
-                      <div
-                        className={cn(
-                          'flex h-screen w-screen overflow-hidden text-foreground',
-                          isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
-                        )}
-                        style={shellStyle}>
-                        <SettingsWindowRouter initialPath={initialPath} />
-                      </div>
-                    </TopViewContainer>
+                    <ContextKeyProvider>
+                      <CommandProvider>
+                        <TopViewContainer>
+                          <div
+                            className={cn(
+                              'flex h-screen w-screen overflow-hidden text-foreground',
+                              isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
+                            )}
+                            style={shellStyle}>
+                            <SettingsWindowRouter initialPath={initialPath} />
+                          </div>
+                        </TopViewContainer>
+                      </CommandProvider>
+                    </ContextKeyProvider>
                   </PersistGate>
                 </CodeStyleProvider>
               </NotificationProvider>

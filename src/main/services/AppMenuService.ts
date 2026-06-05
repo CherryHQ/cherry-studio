@@ -1,35 +1,43 @@
 import { application } from '@application'
 import { BaseService, Conditional, Injectable, onPlatform, Phase, ServicePhase } from '@main/core/lifecycle'
-import { WindowType } from '@main/core/window/types'
+import type { NativeCommandMenuItem, NativeMenuItem } from '@main/services/menu/adapters/nativeMenuAdapter'
+import { toElectronMenuTemplate } from '@main/services/menu/adapters/nativeMenuAdapter'
 import { getAppLanguage, locales } from '@main/utils/language'
-import { handleZoomFactor } from '@main/utils/zoom'
+import {
+  type CommandId,
+  evaluateContextExpr,
+  findCommandDefinition,
+  findKeybindingRule,
+  menuRegistry,
+  resolveCommandKeybinding,
+  type SupportedPlatform
+} from '@shared/command'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
-import { findShortcutDefinition } from '@shared/shortcuts/definitions'
-import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
-import { resolveShortcutPreference } from '@shared/shortcuts/utils'
-import type { MenuItemConstructorOptions } from 'electron'
+import type { BrowserWindow } from 'electron'
 import { app, Menu, shell } from 'electron'
 
-const zoomShortcutKeys: ShortcutPreferenceKey[] = [
-  'shortcut.general.zoom_in',
-  'shortcut.general.zoom_out',
-  'shortcut.general.zoom_reset'
-]
-const menuShortcutKeys: ShortcutPreferenceKey[] = ['shortcut.general.show_settings', ...zoomShortcutKeys]
+const appMenuCommands: CommandId[] = ['app.settings.open', 'app.zoom.in', 'app.zoom.out', 'app.zoom.reset']
 
-const getShortcutAccelerator = (key: ShortcutPreferenceKey): string | undefined => {
-  const definition = findShortcutDefinition(key)
-  if (!definition) return undefined
-  const rawPref = application.get('PreferenceService').get(key) as PreferenceShortcutType | undefined
-  const resolved = resolveShortcutPreference(definition, rawPref)
-  if (!resolved.enabled || !resolved.binding.length) {
+const appMenuShortcutCommands = new Set(appMenuCommands)
+
+const getShortcutAccelerator = (command: CommandId): string | undefined => {
+  const commandDefinition = findCommandDefinition(command)
+  const rule = findKeybindingRule(command)
+  if (!commandDefinition || !rule) return undefined
+
+  const context = { platform: process.platform }
+  if (!evaluateContextExpr(commandDefinition.enablement, context)) {
     return undefined
   }
-  return resolved.binding.join('+')
-}
 
-const getMainWindows = (): Electron.BrowserWindow[] =>
-  application.get('WindowManager').getWindowsByType(WindowType.Main)
+  const rawPref = application.get('PreferenceService').get(rule.preferenceKey) as PreferenceShortcutType | undefined
+  return resolveCommandKeybinding({
+    command,
+    preference: rawPref,
+    context,
+    platform: process.platform as SupportedPlatform
+  })?.accelerator
+}
 
 @Injectable('AppMenuService')
 @ServicePhase(Phase.WhenReady)
@@ -39,8 +47,13 @@ export class AppMenuService extends BaseService {
     const preferenceService = application.get('PreferenceService')
     this.registerDisposable(preferenceService.subscribeChange('app.language', () => this.setupApplicationMenu()))
 
-    for (const key of menuShortcutKeys) {
-      this.registerDisposable(preferenceService.subscribeChange(key, () => this.setupApplicationMenu()))
+    for (const command of appMenuCommands) {
+      const rule = findKeybindingRule(command)
+      if (rule) {
+        this.registerDisposable(
+          preferenceService.subscribeChange(rule.preferenceKey, () => this.setupApplicationMenu())
+        )
+      }
     }
 
     this.setupApplicationMenu()
@@ -50,112 +63,114 @@ export class AppMenuService extends BaseService {
     const locale = locales[getAppLanguage()]
     const { appMenu } = locale.translation
 
-    const settingsAccelerator = getShortcutAccelerator('shortcut.general.show_settings')
-    const zoomInAccelerator = getShortcutAccelerator('shortcut.general.zoom_in')
-    const zoomOutAccelerator = getShortcutAccelerator('shortcut.general.zoom_out')
-    const zoomResetAccelerator = getShortcutAccelerator('shortcut.general.zoom_reset')
+    const commandItems = this.resolveAppMenuCommandItems({
+      'app.settings.open': locale.translation.settings.title,
+      'app.zoom.reset': appMenu.resetZoom,
+      'app.zoom.in': appMenu.zoomIn,
+      'app.zoom.out': appMenu.zoomOut
+    })
+    const getCommandItem = (command: CommandId): NativeCommandMenuItem => {
+      const item = commandItems.get(command)
+      if (!item) {
+        throw new Error(`Missing app menu command contribution: ${command}`)
+      }
+      return item
+    }
 
-    const template: MenuItemConstructorOptions[] = [
+    const items: NativeMenuItem[] = [
       {
+        type: 'submenu',
         label: app.name,
-        submenu: [
+        children: [
           {
+            type: 'custom',
             label: appMenu.about + ' ' + app.name,
             click: () => {
               application.get('SettingsWindowService').open('/settings/about')
             }
           },
-          {
-            label: locale.translation.settings.title,
-            accelerator: settingsAccelerator,
-            click: () => {
-              application.get('SettingsWindowService').open('/settings/provider')
-            }
-          },
+          getCommandItem('app.settings.open'),
           { type: 'separator' },
-          { role: 'services', label: appMenu.services },
+          { type: 'role', role: 'services', label: appMenu.services },
           { type: 'separator' },
-          { role: 'hide', label: `${appMenu.hide} ${app.name}` },
-          { role: 'hideOthers', label: appMenu.hideOthers },
-          { role: 'unhide', label: appMenu.unhide },
+          { type: 'role', role: 'hide', label: `${appMenu.hide} ${app.name}` },
+          { type: 'role', role: 'hideOthers', label: appMenu.hideOthers },
+          { type: 'role', role: 'unhide', label: appMenu.unhide },
           { type: 'separator' },
-          { role: 'quit', label: `${appMenu.quit} ${app.name}` }
+          { type: 'role', role: 'quit', label: `${appMenu.quit} ${app.name}` }
         ]
       },
       {
+        type: 'submenu',
         label: appMenu.file,
-        submenu: [{ role: 'close', label: appMenu.close }]
+        children: [{ type: 'role', role: 'close', label: appMenu.close }]
       },
       {
+        type: 'submenu',
         label: appMenu.edit,
-        submenu: [
-          { role: 'undo', label: appMenu.undo },
-          { role: 'redo', label: appMenu.redo },
+        children: [
+          { type: 'role', role: 'undo', label: appMenu.undo },
+          { type: 'role', role: 'redo', label: appMenu.redo },
           { type: 'separator' },
-          { role: 'cut', label: appMenu.cut },
-          { role: 'copy', label: appMenu.copy },
-          { role: 'paste', label: appMenu.paste },
-          { role: 'delete', label: appMenu.delete },
-          { role: 'selectAll', label: appMenu.selectAll }
+          { type: 'role', role: 'cut', label: appMenu.cut },
+          { type: 'role', role: 'copy', label: appMenu.copy },
+          { type: 'role', role: 'paste', label: appMenu.paste },
+          { type: 'role', role: 'delete', label: appMenu.delete },
+          { type: 'role', role: 'selectAll', label: appMenu.selectAll }
         ]
       },
       {
+        type: 'submenu',
         label: appMenu.view,
-        submenu: [
-          { role: 'reload', label: appMenu.reload },
-          { role: 'forceReload', label: appMenu.forceReload },
-          { role: 'toggleDevTools', label: appMenu.toggleDevTools },
+        children: [
+          { type: 'role', role: 'reload', label: appMenu.reload },
+          { type: 'role', role: 'forceReload', label: appMenu.forceReload },
+          { type: 'role', role: 'toggleDevTools', label: appMenu.toggleDevTools },
           { type: 'separator' },
-          {
-            label: appMenu.resetZoom,
-            accelerator: zoomResetAccelerator,
-            click: () => handleZoomFactor(getMainWindows(), 0, true)
-          },
-          {
-            label: appMenu.zoomIn,
-            accelerator: zoomInAccelerator,
-            click: () => handleZoomFactor(getMainWindows(), 0.1)
-          },
-          {
-            label: appMenu.zoomOut,
-            accelerator: zoomOutAccelerator,
-            click: () => handleZoomFactor(getMainWindows(), -0.1)
-          },
+          getCommandItem('app.zoom.reset'),
+          getCommandItem('app.zoom.in'),
+          getCommandItem('app.zoom.out'),
           { type: 'separator' },
-          { role: 'togglefullscreen', label: appMenu.toggleFullscreen }
+          { type: 'role', role: 'togglefullscreen', label: appMenu.toggleFullscreen }
         ]
       },
       {
+        type: 'submenu',
         label: appMenu.window,
-        submenu: [
-          { role: 'minimize', label: appMenu.minimize },
-          { role: 'zoom', label: appMenu.zoom },
+        children: [
+          { type: 'role', role: 'minimize', label: appMenu.minimize },
+          { type: 'role', role: 'zoom', label: appMenu.zoom },
           { type: 'separator' },
-          { role: 'front', label: appMenu.front }
+          { type: 'role', role: 'front', label: appMenu.front }
         ]
       },
       {
+        type: 'submenu',
         label: appMenu.help,
-        submenu: [
+        children: [
           {
+            type: 'custom',
             label: appMenu.website,
             click: () => {
               void shell.openExternal('https://cherry-ai.com')
             }
           },
           {
+            type: 'custom',
             label: appMenu.documentation,
             click: () => {
               void shell.openExternal('https://cherry-ai.com/docs')
             }
           },
           {
+            type: 'custom',
             label: appMenu.feedback,
             click: () => {
               void shell.openExternal('https://github.com/CherryHQ/cherry-studio/issues/new/choose')
             }
           },
           {
+            type: 'custom',
             label: appMenu.releases,
             click: () => {
               void shell.openExternal('https://github.com/CherryHQ/cherry-studio/releases')
@@ -165,7 +180,37 @@ export class AppMenuService extends BaseService {
       }
     ]
 
+    const template = toElectronMenuTemplate(items, {
+      executeCommand: (command, context) => {
+        application.get('CommandService').execute(command, context.browserWindow as BrowserWindow | undefined)
+      }
+    })
     const menu = Menu.buildFromTemplate(template)
     Menu.setApplicationMenu(menu)
+  }
+
+  private resolveAppMenuCommandItems(
+    labels: Partial<Record<CommandId, string>>
+  ): Map<CommandId, NativeCommandMenuItem> {
+    const model = menuRegistry.resolve({
+      location: 'app.menu',
+      context: { platform: process.platform },
+      getCommandState: (command) => {
+        return {
+          label: labels[command] ?? command,
+          enabled: true,
+          shortcutLabel: '',
+          accelerator: appMenuShortcutCommands.has(command) ? getShortcutAccelerator(command) : undefined
+        }
+      }
+    })
+
+    const commandItems = new Map<CommandId, NativeCommandMenuItem>()
+    for (const item of model.items) {
+      if (item.type === 'command') {
+        commandItems.set(item.command, item)
+      }
+    }
+    return commandItems
   }
 }
