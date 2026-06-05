@@ -29,12 +29,7 @@ const getShortcutAccelerator = (key: ShortcutPreferenceKey): string | undefined 
 }
 
 const getMainWindows = (): Electron.BrowserWindow[] =>
-  application
-    .get('WindowManager')
-    .getAllWindows()
-    .filter((m) => m.type === WindowType.Main)
-    .map((m) => m.window)
-    .filter((w) => !w.isDestroyed())
+  application.get('WindowManager').getWindowsByType(WindowType.Main)
 
 @Injectable('AppMenuService')
 @ServicePhase(Phase.WhenReady)

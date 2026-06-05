@@ -19,7 +19,7 @@ const { applicationMock, menuMock, shellMock, appMock, preferenceServiceMock, se
           if (name === 'PreferenceService') return preferenceServiceMock
           if (name === 'SettingsWindowService') return settingsWindowServiceMock
           if (name === 'WindowManager') {
-            return { getAllWindows: vi.fn(() => []) }
+            return { getWindowsByType: vi.fn(() => []) }
           }
           return undefined
         })
