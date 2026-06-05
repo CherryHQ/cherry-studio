@@ -1056,6 +1056,12 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
   ],
   minimax: [
     {
+      id: 'MiniMax-M3',
+      provider: 'minimax',
+      name: 'MiniMax-M3',
+      group: 'M3'
+    },
+    {
       id: 'MiniMax-M2.7',
       provider: 'minimax',
       name: 'MiniMax-M2.7',
@@ -1066,52 +1072,16 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'minimax',
       name: 'MiniMax-M2.7-highspeed',
       group: 'M2.7'
-    },
-    {
-      id: 'MiniMax-M2.5',
-      provider: 'minimax',
-      name: 'MiniMax-M2.5',
-      group: 'M2.5'
-    },
-    {
-      id: 'MiniMax-M2.5-highspeed',
-      provider: 'minimax',
-      name: 'MiniMax-M2.5-highspeed',
-      group: 'M2.5'
-    },
-    {
-      id: 'MiniMax-M2.5-lightning',
-      provider: 'minimax',
-      name: 'MiniMax-M2.5-lightning',
-      group: 'M2.5'
-    },
-    {
-      id: 'MiniMax-M2.1',
-      provider: 'minimax',
-      name: 'MiniMax-M2.1',
-      group: 'M2.1'
-    },
-    {
-      id: 'MiniMax-M2.1-lightning',
-      provider: 'minimax',
-      name: 'MiniMax-M2.1-lightning',
-      group: 'M2.1'
-    },
-    {
-      id: 'MiniMax-M2',
-      provider: 'minimax',
-      name: 'MiniMax-M2',
-      group: 'M2'
-    },
-    {
-      id: 'M2-her',
-      provider: 'minimax',
-      name: 'M2-her',
-      group: 'M2'
     }
   ],
   'minimax-global': [
     {
+      id: 'MiniMax-M3',
+      provider: 'minimax-global',
+      name: 'MiniMax-M3',
+      group: 'M3'
+    },
+    {
       id: 'MiniMax-M2.7',
       provider: 'minimax-global',
       name: 'MiniMax-M2.7',
@@ -1122,48 +1092,6 @@ export const SYSTEM_MODELS: Record<SystemProviderId | 'defaultModel', Model[]> =
       provider: 'minimax-global',
       name: 'MiniMax-M2.7-highspeed',
       group: 'M2.7'
-    },
-    {
-      id: 'MiniMax-M2.5',
-      provider: 'minimax-global',
-      name: 'MiniMax-M2.5',
-      group: 'M2.5'
-    },
-    {
-      id: 'MiniMax-M2.5-highspeed',
-      provider: 'minimax-global',
-      name: 'MiniMax-M2.5-highspeed',
-      group: 'M2.5'
-    },
-    {
-      id: 'MiniMax-M2.5-lightning',
-      provider: 'minimax-global',
-      name: 'MiniMax-M2.5-lightning',
-      group: 'M2.5'
-    },
-    {
-      id: 'MiniMax-M2.1',
-      provider: 'minimax-global',
-      name: 'MiniMax-M2.1',
-      group: 'M2.1'
-    },
-    {
-      id: 'MiniMax-M2.1-lightning',
-      provider: 'minimax-global',
-      name: 'MiniMax-M2.1-lightning',
-      group: 'M2.1'
-    },
-    {
-      id: 'MiniMax-M2',
-      provider: 'minimax-global',
-      name: 'MiniMax-M2',
-      group: 'M2'
-    },
-    {
-      id: 'M2-her',
-      provider: 'minimax-global',
-      name: 'M2-her',
-      group: 'M2'
     }
   ],
   hyperbolic: [
