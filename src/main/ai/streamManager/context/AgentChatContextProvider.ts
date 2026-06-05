@@ -8,7 +8,7 @@ import { agentService } from '@data/services/AgentService'
 import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { application } from '@main/core/application'
-import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { v7 as uuidv7 } from 'uuid'
 

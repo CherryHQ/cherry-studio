@@ -39,7 +39,7 @@ describe('useChannels', () => {
 
   describe('channels list', () => {
     it('returns empty array when data is undefined', () => {
-      MockUseDataApiUtils.mockQueryLoading('/channels')
+      MockUseDataApiUtils.mockQueryLoading('/agent-channels')
 
       const { result } = renderHook(() => useChannels())
 
@@ -52,7 +52,7 @@ describe('useChannels', () => {
         { id: 'ch-1', type: 'telegram', name: 'Bot 1' },
         { id: 'ch-2', type: 'discord', name: 'Bot 2' }
       ]
-      MockUseDataApiUtils.mockQueryResult('/channels', {
+      MockUseDataApiUtils.mockQueryResult('/agent-channels', {
         data: mockChannels as any
       })
 
@@ -67,8 +67,8 @@ describe('useChannels', () => {
     it('calls the mutation trigger with the provided data', async () => {
       const newChannel = { id: 'ch-new', type: 'telegram', name: 'New Bot' }
       const mockTrigger = vi.fn().mockResolvedValue(newChannel)
-      MockUseDataApiUtils.mockMutationWithTrigger('POST', '/channels', mockTrigger)
-      MockUseDataApiUtils.mockQueryResult('/channels', { data: [] as any })
+      MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agent-channels', mockTrigger)
+      MockUseDataApiUtils.mockQueryResult('/agent-channels', { data: [] as any })
 
       const { result } = renderHook(() => useChannels())
       const channelData = { type: 'telegram' as const, name: 'New Bot', config: { bot_token: 'tok' }, isActive: true }
@@ -80,8 +80,8 @@ describe('useChannels', () => {
 
     it('toasts an error and returns null when trigger throws', async () => {
       const mockTrigger = vi.fn().mockRejectedValue(new Error('create failed'))
-      MockUseDataApiUtils.mockMutationWithTrigger('POST', '/channels', mockTrigger)
-      MockUseDataApiUtils.mockQueryResult('/channels', { data: [] as any })
+      MockUseDataApiUtils.mockMutationWithTrigger('POST', '/agent-channels', mockTrigger)
+      MockUseDataApiUtils.mockQueryResult('/agent-channels', { data: [] as any })
 
       const { result } = renderHook(() => useChannels())
       const created = await act(async () =>
@@ -102,8 +102,8 @@ describe('useChannels', () => {
     it('calls the mutation trigger with the provided id and updates', async () => {
       const updatedChannel = { id: 'ch-1', type: 'telegram', name: 'Updated Bot' }
       const mockTrigger = vi.fn().mockResolvedValue(updatedChannel)
-      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/channels/:channelId', mockTrigger)
-      MockUseDataApiUtils.mockQueryResult('/channels', { data: [] as any })
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agent-channels/:channelId', mockTrigger)
+      MockUseDataApiUtils.mockQueryResult('/agent-channels', { data: [] as any })
 
       const { result } = renderHook(() => useChannels())
       const updated = await act(async () => result.current.updateChannel('ch-1', { name: 'Updated Bot' }))
@@ -117,8 +117,8 @@ describe('useChannels', () => {
 
     it('toasts an error and returns null when trigger throws', async () => {
       const mockTrigger = vi.fn().mockRejectedValue(new Error('update failed'))
-      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/channels/:channelId', mockTrigger)
-      MockUseDataApiUtils.mockQueryResult('/channels', { data: [] as any })
+      MockUseDataApiUtils.mockMutationWithTrigger('PATCH', '/agent-channels/:channelId', mockTrigger)
+      MockUseDataApiUtils.mockQueryResult('/agent-channels', { data: [] as any })
 
       const { result } = renderHook(() => useChannels())
       const updated = await act(async () => result.current.updateChannel('ch-1', { name: 'Updated Bot' }))
@@ -131,8 +131,8 @@ describe('useChannels', () => {
   describe('deleteChannel', () => {
     it('calls the mutation trigger with the provided id', async () => {
       const mockTrigger = vi.fn().mockResolvedValue(undefined)
-      MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/channels/:channelId', mockTrigger)
-      MockUseDataApiUtils.mockQueryResult('/channels', { data: [] as any })
+      MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/agent-channels/:channelId', mockTrigger)
+      MockUseDataApiUtils.mockQueryResult('/agent-channels', { data: [] as any })
 
       const { result } = renderHook(() => useChannels())
       await act(async () => result.current.deleteChannel('ch-1'))
@@ -142,8 +142,8 @@ describe('useChannels', () => {
 
     it('toasts an error when trigger throws', async () => {
       const mockTrigger = vi.fn().mockRejectedValue(new Error('delete failed'))
-      MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/channels/:channelId', mockTrigger)
-      MockUseDataApiUtils.mockQueryResult('/channels', { data: [] as any })
+      MockUseDataApiUtils.mockMutationWithTrigger('DELETE', '/agent-channels/:channelId', mockTrigger)
+      MockUseDataApiUtils.mockQueryResult('/agent-channels', { data: [] as any })
 
       const { result } = renderHook(() => useChannels())
       await act(async () => result.current.deleteChannel('ch-1'))

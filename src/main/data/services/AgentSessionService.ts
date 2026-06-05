@@ -13,10 +13,10 @@ import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type {
   AgentSessionEntity,
-  CreateSessionDto,
-  ListSessionsQuery,
-  UpdateSessionDto
-} from '@shared/data/api/schemas/sessions'
+  CreateAgentSessionDto,
+  ListAgentSessionsQuery,
+  UpdateAgentSessionDto
+} from '@shared/data/api/schemas/agentSessions'
 import { and, asc, desc, eq, gt, or, type SQL } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -68,7 +68,7 @@ function rowToSession(row: JoinedSessionRow): AgentSessionEntity {
 }
 
 export class AgentSessionService {
-  async createSession(dto: CreateSessionDto): Promise<AgentSessionEntity> {
+  async createSession(dto: CreateAgentSessionDto): Promise<AgentSessionEntity> {
     const dbService = application.get('DbService')
     const id = uuidv4()
     const defaultWorkspacePath = dto.workspaceId ? undefined : agentWorkspaceService.prepareDefaultWorkspaceDirectory()
@@ -95,7 +95,7 @@ export class AgentSessionService {
   async createSessionTx(
     tx: DbOrTx,
     id: string,
-    dto: CreateSessionDto,
+    dto: CreateAgentSessionDto,
     defaultWorkspacePath?: string
   ): Promise<{ usedDefaultWorkspace: boolean }> {
     // Verify the agent exists; FK alone gives generic 404 — explicit check returns
@@ -169,7 +169,7 @@ export class AgentSessionService {
     return row?.path ?? null
   }
 
-  async listByCursor(query: ListSessionsQuery = {}): Promise<CursorPaginationResponse<AgentSessionEntity>> {
+  async listByCursor(query: ListAgentSessionsQuery = {}): Promise<CursorPaginationResponse<AgentSessionEntity>> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
     const cursor = query.cursor ? decodeSessionCursor(query.cursor) : null
@@ -202,8 +202,8 @@ export class AgentSessionService {
     return { items, nextCursor }
   }
 
-  async update(id: string, dto: UpdateSessionDto): Promise<AgentSessionEntity> {
-    const patch: UpdateSessionDto = {}
+  async update(id: string, dto: UpdateAgentSessionDto): Promise<AgentSessionEntity> {
+    const patch: UpdateAgentSessionDto = {}
     if (dto.name !== undefined) patch.name = dto.name
     if (dto.description !== undefined) patch.description = dto.description
     if (dto.agentId !== undefined) patch.agentId = dto.agentId
@@ -217,7 +217,7 @@ export class AgentSessionService {
     return await this.getById(id)
   }
 
-  async updateTx(tx: DbOrTx, id: string, patch: UpdateSessionDto): Promise<SessionRow | undefined> {
+  async updateTx(tx: DbOrTx, id: string, patch: UpdateAgentSessionDto): Promise<SessionRow | undefined> {
     const [row] = await tx.update(sessionsTable).set(patch).where(eq(sessionsTable.id, id)).returning()
     return row
   }
