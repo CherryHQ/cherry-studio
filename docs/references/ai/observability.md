@@ -34,8 +34,7 @@ The main-process observability boundary is `src/main/ai/observability`:
 
 `Message.traceId` is persisted with the assistant message row, but the span
 tree is first collected in the main-process `SpanCacheService` memory store.
-The durable history file is written by the stream terminal path, not by the
-trace UI:
+The durable history file is written by the stream terminal path:
 
 - `PersistentChatContextProvider` attaches a `TraceFlushListener` to normal
   chat turns.
@@ -45,9 +44,9 @@ trace UI:
   `TraceFlushListener` calls `SpanCacheService.saveSpans(topicId)`.
 - Flush errors are logged as warnings and do not affect message completion.
 
-Span readers are viewers only. They read spans through
-`SpanCacheService.getSpans(...)`, which falls back to the JSONL history file
-when the in-memory store has already been cleared.
+Collection and persistence are main-process only. Spans live in
+`SpanCacheService`'s in-memory store and are flushed to the JSONL history file
+on the terminal event. There is no renderer-side span reader or viewer.
 
 ## AdapterTracer
 
@@ -56,8 +55,8 @@ by the global provider. On every `startSpan` / `startActiveSpan` it:
 
 1. Patches `span.end()` to also call `AiSdkSpanAdapter.convertToSpanEntity(...)`
    and hand the result to the observability sink registry.
-2. Stamps `trace.topicId` and `trace.modelName` so spans are queryable
-   per topic in the dev-tools UI.
+2. Stamps `trace.topicId` and `trace.modelName` so the main-side
+   `SpanCacheService` can key spans per topic.
 
 `AdapterTracer` is intentionally only for AI SDK child spans:
 
@@ -69,7 +68,7 @@ by the global provider. On every `startSpan` / `startActiveSpan` it:
 ## AiSdkSpanAdapter
 
 `src/main/ai/observability/adapters/aiSdk/aiSdkSpanAdapter.ts` converts an OTel span into the
-shape the dev-tools UI consumes:
+`SpanEntity` shape `SpanCacheService` stores and persists:
 
 - Reads span name, attributes, events, status, links.
 - Recovers AI SDK's hierarchical attribute conventions:
@@ -104,14 +103,12 @@ dropping legitimate trace data. The accepted tradeoff is that capture is
 **local-only and developer-gated**; turning that into a redaction/threat-model
 guarantee is a deferred decision. Treat exported trace files as sensitive.
 
-## Where it shows up in the UI
+## Developer-mode gating
 
-Dev mode only. The dev-tools span viewer reads from the local observability
-projection (`SpanCacheService`) and renders the per-topic tree. Outside
-developer mode `buildTelemetry` returns `undefined`, so **no tracer is
-attached at all** and the AI SDK emits no spans — there is nothing to
-project. Viewer mount and tab close are not part of the
-trace persistence lifecycle.
+Dev mode only. The span projection (`SpanCacheService`) is built and persisted
+entirely in the main process; nothing in the renderer reads or renders it.
+Outside developer mode `buildTelemetry` returns `undefined`, so **no tracer is
+attached at all** and the AI SDK emits no spans — there is nothing to project.
 
 ## Where to read more
 
