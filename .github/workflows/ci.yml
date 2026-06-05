@@ -206,6 +206,9 @@ jobs:
       - name: Shared Package Test
         run: pnpm test:shared
 
+      - name: Provider Registry Package Test
+        run: pnpm test:provider-registry
+
       - name: Scripts Test
         run: pnpm test:scripts
 

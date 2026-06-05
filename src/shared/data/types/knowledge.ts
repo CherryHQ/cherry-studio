@@ -83,14 +83,11 @@ export const KnowledgeChunkOverlapSchema = z.number().int().min(0)
 export const KnowledgeThresholdSchema = z.number().min(0).max(1)
 export const KnowledgeDocumentCountSchema = z.number().int().positive()
 export const KnowledgeHybridAlphaSchema = z.number().min(0).max(1)
-export const KnowledgeBaseEmojiSchema = z.emoji()
-export type KnowledgeBaseEmoji = z.infer<typeof KnowledgeBaseEmojiSchema>
 export const KnowledgeBaseIdSchema = z.uuidv4()
 export const KnowledgeItemIdSchema = z.uuidv7()
 export const KnowledgeBaseGroupIdInputSchema = z.string().trim().pipe(GroupIdSchema)
 export const DEFAULT_KNOWLEDGE_BASE_CHUNK_SIZE = 1024
 export const DEFAULT_KNOWLEDGE_BASE_CHUNK_OVERLAP = 200
-export const DEFAULT_KNOWLEDGE_BASE_EMOJI = '📁'
 export const KNOWLEDGE_RUNTIME_ITEMS_MAX = 100
 export const KNOWLEDGE_NOTE_CONTENT_MAX = 1_000_000
 
@@ -105,7 +102,6 @@ export const KnowledgeBaseEntitySchema = z.strictObject({
   id: KnowledgeBaseIdSchema,
   name: z.string().trim().min(1),
   groupId: GroupIdSchema.nullable(),
-  emoji: KnowledgeBaseEmojiSchema,
   dimensions: z.number().int().positive().nullable(),
   embeddingModelId: z.string().trim().min(1).nullable(),
   status: KnowledgeBaseStatusSchema,
@@ -477,8 +473,7 @@ const refineRuntimeConfig = (value: z.infer<typeof KnowledgeBaseRuntimeConfigSch
  */
 export const CreateKnowledgeBaseSchema = KnowledgeBaseRuntimeConfigSchema.extend({
   name: z.string().trim().min(1),
-  groupId: KnowledgeBaseGroupIdInputSchema.optional(),
-  emoji: KnowledgeBaseEmojiSchema.optional()
+  groupId: KnowledgeBaseGroupIdInputSchema.optional()
 }).superRefine(refineRuntimeConfig)
 export type CreateKnowledgeBaseDto = z.input<typeof CreateKnowledgeBaseSchema>
 

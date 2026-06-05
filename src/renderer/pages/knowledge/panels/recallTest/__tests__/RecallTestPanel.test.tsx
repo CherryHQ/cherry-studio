@@ -66,6 +66,20 @@ vi.mock('@cherrystudio/ui', async () => {
     Button: ({ children, ...props }: { children: ReactNode; [key: string]: unknown }) => (
       <button {...props}>{children}</button>
     ),
+    EmptyState: ({
+      title,
+      description,
+      ...props
+    }: {
+      title?: ReactNode
+      description?: ReactNode
+      [key: string]: unknown
+    }) => (
+      <div {...props}>
+        {title ? <div>{title}</div> : null}
+        {description ? <div>{description}</div> : null}
+      </div>
+    ),
     Input: (props: { [key: string]: unknown }) => <input {...props} />
   }
 })

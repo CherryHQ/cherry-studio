@@ -1,0 +1,22 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`SiliconFlow image-model boundary > edit: input files inlined as image/image2 data URLs 1`] = `
+{
+  "image": "data:image/png;base64,AQID",
+  "image2": "data:image/jpeg;base64,BAUG",
+  "model": "Qwen/Qwen-Image-Edit-2509",
+  "prompt": "a fox",
+}
+`;
+
+exports[`SiliconFlow image-model boundary > text2image: image_size + seed + snake_case extras 1`] = `
+{
+  "guidance_scale": 7.5,
+  "image_size": "1024x1024",
+  "model": "Qwen/Qwen-Image",
+  "negative_prompt": "blur",
+  "num_inference_steps": 20,
+  "prompt": "a fox",
+  "seed": 7,
+}
+`;

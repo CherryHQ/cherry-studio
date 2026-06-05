@@ -1,16 +1,13 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
 import { permissionModeCards } from '@renderer/config/agent'
-import { useActiveSession } from '@renderer/hooks/agents/useActiveSession'
+import { defaultConfiguration } from '@renderer/hooks/agents/agentConfiguration'
 import { useAgent } from '@renderer/hooks/agents/useAgent'
-import { useUpdateAgent } from '@renderer/hooks/agents/useUpdateAgent'
-import { useUpdateSession } from '@renderer/hooks/agents/useUpdateSession'
-import { computeModeDefaults, defaultConfiguration } from '@renderer/pages/agents/AgentSettings/shared'
+import { useUpdateAgent } from '@renderer/hooks/agents/useAgent'
 import type { PermissionMode } from '@renderer/types'
 import { Tooltip } from 'antd'
-import { uniq } from 'lodash'
 import { FolderPen, Pointer, RefreshCcw, Route } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useCallback, useMemo } from 'react'
+import { useCallback } from 'react'
 
 import { defineTool, registerTool, TopicType } from '../types'
 
@@ -39,51 +36,33 @@ const permissionModeTool = defineTool({
   render: function PermissionModeRender(context) {
     const { t, session: sessionContext, quickPanelController } = context
     const agentId = sessionContext?.agentId
-    const { session } = useActiveSession()
     const { agent } = useAgent(agentId ?? '')
     const { updateAgent } = useUpdateAgent()
-    const { updateSession } = useUpdateSession(agentId ?? null)
 
-    const currentMode = session?.configuration?.permission_mode ?? 'default'
-    const availableTools = useMemo(() => session?.tools ?? [], [session?.tools])
-
+    // Permission mode, allowedTools, and the tool catalog all live on the agent
+    // — sessions are pure instances. UI writes the agent record directly.
+    const currentMode = agent?.configuration?.permission_mode ?? 'default'
     const handleSelectMode = useCallback(
       (nextMode: PermissionMode) => {
-        if (!session || nextMode === currentMode) return
+        if (!agentId || !agent || nextMode === currentMode) return
 
-        const configuration = session.configuration ?? defaultConfiguration
-        const currentAutoToolIds = computeModeDefaults(currentMode, availableTools)
-        const nextAutoToolIds = computeModeDefaults(nextMode, availableTools)
-
-        const currentAllowed = session.allowedTools ?? []
-        const userAddedIds = currentAllowed.filter((id) => !currentAutoToolIds.includes(id))
-        const mergedAllowed = uniq([...nextAutoToolIds, ...userAddedIds])
-
+        const configuration = agent.configuration ?? defaultConfiguration
         const updatedConfiguration = { ...configuration, permission_mode: nextMode }
 
-        // Disable soul mode on the agent when switching away from bypassPermissions
-        // Check agent-level soul_enabled since session may not have it
-        if (nextMode !== 'bypassPermissions' && agentId && agent?.configuration?.soul_enabled === true) {
+        // Disable soul mode when switching away from bypassPermissions
+        if (nextMode !== 'bypassPermissions' && configuration.soul_enabled === true) {
           updatedConfiguration.soul_enabled = false
-          void updateAgent(
-            {
-              id: agentId,
-              configuration: { ...agent.configuration, soul_enabled: false, permission_mode: nextMode }
-            },
-            { showSuccessToast: false }
-          )
         }
 
-        void updateSession(
+        void updateAgent(
           {
-            id: session.id,
-            configuration: updatedConfiguration,
-            allowedTools: mergedAllowed
+            id: agentId,
+            configuration: updatedConfiguration
           },
           { showSuccessToast: false }
         )
       },
-      [currentMode, session, availableTools, updateSession, agentId, agent, updateAgent]
+      [currentMode, agent, agentId, updateAgent]
     )
 
     const handleClick = useCallback(() => {

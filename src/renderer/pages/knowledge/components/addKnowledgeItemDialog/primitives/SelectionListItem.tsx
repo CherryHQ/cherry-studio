@@ -9,6 +9,13 @@ interface SelectionListItemProps {
   removeLabel: string
 }
 
+const getPathName = (value: string) => {
+  const normalizedValue = value.replace(/[/\\]+$/, '')
+  const name = normalizedValue.split(/[/\\]/).pop()?.trim()
+
+  return name || normalizedValue || value
+}
+
 const SelectionListItem = ({
   icon: Icon,
   iconClassName,
@@ -17,19 +24,29 @@ const SelectionListItem = ({
   onRemove,
   removeLabel
 }: SelectionListItemProps) => {
+  const displayName = getPathName(name)
+
   return (
-    <div role="listitem" className="flex items-center gap-1.5 rounded-md bg-accent/30 px-2 py-1">
+    <div
+      role="listitem"
+      className="grid min-w-0 max-w-full grid-cols-[auto_minmax(0,1fr)_minmax(0,max-content)_auto] items-center gap-1.5 overflow-hidden rounded-md bg-background-subtle px-2 py-1">
       <Icon className={iconClassName} />
 
-      <span className="min-w-0 flex-1 truncate text-foreground text-sm leading-4">{name}</span>
-      {meta ? <span className="shrink-0 text-muted-foreground/35 text-xs leading-4">{meta}</span> : null}
+      <span className="min-w-0 truncate text-foreground text-xs leading-4" title={name}>
+        {displayName}
+      </span>
+      {meta ? (
+        <span className="min-w-0 max-w-60 truncate text-foreground-muted text-xs leading-4" title={meta}>
+          {meta}
+        </span>
+      ) : null}
 
       <button
         type="button"
         aria-label={removeLabel}
-        className="shrink-0 text-muted-foreground/25 hover:text-red-500"
+        className="shrink-0 text-foreground-muted hover:text-destructive"
         onClick={onRemove}>
-        <X className="size-2.25" />
+        <X className="size-3" />
       </button>
     </div>
   )

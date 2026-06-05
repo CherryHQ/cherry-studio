@@ -2,8 +2,6 @@ import { usePersistCache } from '@data/hooks/useCache'
 import { usePreference } from '@data/hooks/usePreference'
 import { AppLogo } from '@renderer/config/env'
 import useAvatar from '@renderer/hooks/useAvatar'
-import { modelGenerating } from '@renderer/hooks/useModel'
-import { useSettings } from '@renderer/hooks/useSettings'
 import { useTabs } from '@renderer/hooks/useTabs'
 import { getSidebarIconLabelKey } from '@renderer/i18n/label'
 import { getDefaultRouteTitle } from '@renderer/utils/routeTitle'
@@ -14,14 +12,14 @@ import {
   Folder,
   Languages,
   LayoutGrid,
-  MessageSquare,
+  MessageCircle,
   MousePointerClick,
   NotepadText,
   Palette,
   Sparkle
 } from 'lucide-react'
 import type { Ref } from 'react'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { OpenClawSidebarIcon } from '../Icons/SvgIcon'
@@ -36,7 +34,7 @@ const noop = () => {}
 const routePrefixMap: Record<SidebarIconType, string> = {
   assistants: '/app/chat',
   agents: '/app/agents',
-  store: '/app/assistant',
+  store: '/app/library',
   paintings: '/app/paintings',
   translate: '/app/translate',
   mini_app: '/app/mini-app',
@@ -48,7 +46,7 @@ const routePrefixMap: Record<SidebarIconType, string> = {
 }
 
 const iconMap: Record<SidebarIconType, SidebarMenuItem['icon']> = {
-  assistants: MessageSquare,
+  assistants: MessageCircle,
   agents: MousePointerClick,
   store: Sparkle,
   paintings: Palette,
@@ -61,10 +59,7 @@ const iconMap: Record<SidebarIconType, SidebarMenuItem['icon']> = {
   openclaw: OpenClawSidebarIcon
 }
 
-function getMenuPath(icon: SidebarIconType, defaultPaintingProvider: string): string {
-  if (icon === 'paintings') {
-    return `/app/paintings/${defaultPaintingProvider}`
-  }
+function getMenuPath(icon: SidebarIconType): string {
   return routePrefixMap[icon] || ''
 }
 
@@ -80,17 +75,18 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const [userName] = usePreference('app.user.name')
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
   const { activeTab, updateTab, openTab } = useTabs()
-  const { defaultPaintingProvider } = useSettings()
 
-  // Sidebar width — persisted across restarts
-  const [persistedWidth, setPersistedWidth] = usePersistCache('ui.sidebar.width')
-  const [sidebarWidth, setSidebarWidth] = useState(persistedWidth)
+  // Sidebar width — persisted across restarts. Drive the CSS variable
+  // straight from the cached value so:
+  //   (1) cross-window updates flow without a local-state mirror
+  //   (2) the resize handler writes to the cache directly (event-handler
+  //       semantics) instead of via an effect on derived state, which
+  //       would loop on revalidation per the SWR write-back antipattern.
+  const [sidebarWidth, setSidebarWidth] = usePersistCache('ui.sidebar.width')
 
-  // Sync local width to CSS variable and persist cache
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.style.setProperty('--sidebar-width', `${sidebarWidth}px`)
-    setPersistedWidth(sidebarWidth)
-  }, [sidebarWidth, setPersistedWidth])
+  }, [sidebarWidth])
 
   // User avatar
   const avatar = useAvatar()
@@ -110,34 +106,32 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   // Menu items
   const pathname = activeTab?.url || '/'
 
-  const items: SidebarMenuItem[] = visibleSidebarIcons.flatMap((icon) => {
-    const path = getMenuPath(icon, defaultPaintingProvider)
-    const Icon = iconMap[icon]
-    if (!path || !Icon) {
-      return []
-    }
-    return [
-      {
-        id: icon,
-        label: t(getSidebarIconLabelKey(icon)),
-        icon: Icon
-      }
-    ]
-  })
+  const items = useMemo<SidebarMenuItem[]>(
+    () =>
+      visibleSidebarIcons.flatMap((icon) => {
+        const path = getMenuPath(icon)
+        const Icon = iconMap[icon]
+        if (!path || !Icon) {
+          return []
+        }
+        return [
+          {
+            id: icon,
+            label: t(getSidebarIconLabelKey(icon)),
+            icon: Icon
+          }
+        ]
+      }),
+    [visibleSidebarIcons]
+  )
 
   const activeItem = resolveActiveItem(pathname)
 
   const handleNavigate = useCallback(
     async (menuItemId: string) => {
       const menuId = menuItemId as SidebarIconType
-      const path = getMenuPath(menuId, defaultPaintingProvider)
+      const path = getMenuPath(menuId)
       if (!path) return
-
-      try {
-        await modelGenerating()
-      } catch {
-        return
-      }
 
       if (activeTab?.isPinned) {
         openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })
@@ -153,7 +147,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         openTab(path, { forceNew: true, title: getDefaultRouteTitle(path) })
       }
     },
-    [activeTab, updateTab, openTab, defaultPaintingProvider]
+    [activeTab, updateTab, openTab]
   )
 
   // Common props shared between normal and floating sidebar

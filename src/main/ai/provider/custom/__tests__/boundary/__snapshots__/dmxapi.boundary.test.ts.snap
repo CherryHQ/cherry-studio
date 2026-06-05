@@ -1,0 +1,51 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`DMXAPI request boundary > async qwen-image → /v1/images/generations: satisfies the wire contract and matches snapshot 1`] = `
+{
+  "model": "qwen-image",
+  "n": 1,
+  "prompt": "a fox",
+  "size": "1024x1024",
+}
+`;
+
+exports[`DMXAPI request boundary > doubao-seedream → /v1/responses (string input): satisfies the wire contract and matches snapshot 1`] = `
+{
+  "input": "a fox",
+  "model": "doubao-seedream-3-0",
+  "seed": 42,
+  "size": "1024x1024",
+  "stream": false,
+}
+`;
+
+exports[`DMXAPI request boundary > openai-flat → /v1/images/generations: satisfies the wire contract and matches snapshot 1`] = `
+{
+  "model": "flux-1",
+  "n": 2,
+  "prompt": "a fox",
+  "response_format": "url",
+  "size": "1328x1328",
+}
+`;
+
+exports[`DMXAPI request boundary > wan → /v1/responses (messages + inlined file): satisfies the wire contract and matches snapshot 1`] = `
+{
+  "input": {
+    "messages": [
+      {
+        "content": [
+          {
+            "text": "a fox",
+          },
+          {
+            "image": "data:image/png;base64,AQID",
+          },
+        ],
+        "role": "user",
+      },
+    ],
+  },
+  "model": "wan2.5",
+}
+`;

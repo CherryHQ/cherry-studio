@@ -1,4 +1,4 @@
-import { mockUsePaginatedQuery } from '@test-mocks/renderer/useDataApi'
+import { mockUseInfiniteQuery } from '@test-mocks/renderer/useDataApi'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -6,21 +6,17 @@ import { useTranslateHistories } from '../useTranslateHistories'
 
 type HistoryItem = { id: string }
 
-function buildPaginatedState(overrides: Record<string, unknown> = {}) {
+function buildInfiniteState(overrides: Record<string, unknown> = {}) {
   return {
-    items: [],
-    total: 0,
-    page: 1,
+    pages: [],
     isLoading: false,
     isRefreshing: false,
-    isValidating: false,
     error: undefined,
     hasNext: false,
-    hasPrev: false,
-    prevPage: vi.fn(),
-    nextPage: vi.fn(),
+    loadNext: vi.fn(),
     refresh: vi.fn(),
     reset: vi.fn(),
+    mutate: vi.fn(),
     ...overrides
   }
 }
@@ -35,26 +31,29 @@ describe('useTranslateHistories', () => {
     Object.defineProperty(window, 'toast', { value: toast, writable: true, configurable: true })
   })
 
-  it('accumulates items across paginated pages and exposes total from usePaginatedQuery', async () => {
+  it('flattens infinite query pages and exposes total from the first page', () => {
     const page1: HistoryItem[] = [{ id: 'a' }, { id: 'b' }]
     const page2: HistoryItem[] = [{ id: 'c' }, { id: 'd' }]
-    mockUsePaginatedQuery.mockReturnValue(buildPaginatedState({ items: page1, total: 5, page: 1, hasNext: true }))
+    mockUseInfiniteQuery.mockReturnValue(
+      buildInfiniteState({
+        pages: [
+          { items: page1, total: 5, nextCursor: 'cursor-2' },
+          { items: page2, total: 5 }
+        ],
+        hasNext: true
+      })
+    )
 
-    const { result, rerender } = renderHook(() => useTranslateHistories({ pageSize: 2 }))
-    await act(async () => {})
-
-    mockUsePaginatedQuery.mockReturnValue(buildPaginatedState({ items: page2, total: 5, page: 2, hasNext: true }))
-    rerender()
-    await act(async () => {})
+    const { result } = renderHook(() => useTranslateHistories({ pageSize: 2 }))
 
     expect(result.current.items.map((i) => i.id)).toEqual(['a', 'b', 'c', 'd'])
     expect(result.current.total).toBe(5)
     expect(result.current.hasMore).toBe(true)
   })
 
-  it('reports hasMore=false once loaded items reach the total', () => {
-    mockUsePaginatedQuery.mockReturnValue(
-      buildPaginatedState({ items: [{ id: 'a' }, { id: 'b' }], total: 2, hasNext: false })
+  it('reports hasMore=false when the infinite query has no next cursor', () => {
+    mockUseInfiniteQuery.mockReturnValue(
+      buildInfiniteState({ pages: [{ items: [{ id: 'a' }, { id: 'b' }], total: 2 }], hasNext: false })
     )
 
     const { result } = renderHook(() => useTranslateHistories())
@@ -62,10 +61,10 @@ describe('useTranslateHistories', () => {
     expect(result.current.hasMore).toBe(false)
   })
 
-  it('loadMore increments setSize when there are more pages to fetch', () => {
-    const nextPage = vi.fn()
-    mockUsePaginatedQuery.mockReturnValue(
-      buildPaginatedState({ items: [{ id: 'a' }, { id: 'b' }], total: 10, hasNext: true, nextPage })
+  it('loadMore loads the next infinite page when there are more pages to fetch', () => {
+    const loadNext = vi.fn()
+    mockUseInfiniteQuery.mockReturnValue(
+      buildInfiniteState({ pages: [{ items: [{ id: 'a' }, { id: 'b' }], total: 10 }], hasNext: true, loadNext })
     )
 
     const { result } = renderHook(() => useTranslateHistories({ pageSize: 2 }))
@@ -74,13 +73,13 @@ describe('useTranslateHistories', () => {
       result.current.loadMore()
     })
 
-    expect(nextPage).toHaveBeenCalledTimes(1)
+    expect(loadNext).toHaveBeenCalledTimes(1)
   })
 
   it('loadMore is a no-op when hasMore is false', () => {
-    const nextPage = vi.fn()
-    mockUsePaginatedQuery.mockReturnValue(
-      buildPaginatedState({ items: [{ id: 'a' }, { id: 'b' }], total: 2, hasNext: false, nextPage })
+    const loadNext = vi.fn()
+    mockUseInfiniteQuery.mockReturnValue(
+      buildInfiniteState({ pages: [{ items: [{ id: 'a' }, { id: 'b' }], total: 2 }], hasNext: false, loadNext })
     )
 
     const { result } = renderHook(() => useTranslateHistories())
@@ -89,15 +88,15 @@ describe('useTranslateHistories', () => {
       result.current.loadMore()
     })
 
-    expect(nextPage).not.toHaveBeenCalled()
+    expect(loadNext).not.toHaveBeenCalled()
   })
 
-  it('uses usePaginatedQuery with search, star, and pageSize query options', () => {
-    mockUsePaginatedQuery.mockReturnValue(buildPaginatedState())
+  it('uses useInfiniteQuery with search, star, and pageSize query options', () => {
+    mockUseInfiniteQuery.mockReturnValue(buildInfiniteState())
 
     renderHook(() => useTranslateHistories({ search: 'hello', star: true, pageSize: 5 }))
 
-    expect(mockUsePaginatedQuery).toHaveBeenCalledWith('/translate/histories', {
+    expect(mockUseInfiniteQuery).toHaveBeenCalledWith('/translate/histories', {
       query: { search: 'hello', star: true },
       limit: 5,
       swrOptions: { keepPreviousData: false }
@@ -105,8 +104,8 @@ describe('useTranslateHistories', () => {
   })
 
   it('exposes SWR errors so consumers can distinguish loading from failure', () => {
-    const failure = new Error('paginated fetch failed')
-    mockUsePaginatedQuery.mockReturnValue(buildPaginatedState({ error: failure }))
+    const failure = new Error('infinite fetch failed')
+    mockUseInfiniteQuery.mockReturnValue(buildInfiniteState({ error: failure }))
 
     const { result } = renderHook(() => useTranslateHistories())
 
@@ -121,7 +120,7 @@ describe('useTranslateHistories', () => {
 
   describe('status discriminator', () => {
     it("returns 'loading' while SWR has neither data nor error", () => {
-      mockUsePaginatedQuery.mockReturnValue(buildPaginatedState({ isLoading: true }))
+      mockUseInfiniteQuery.mockReturnValue(buildInfiniteState({ isLoading: true }))
 
       const { result } = renderHook(() => useTranslateHistories())
 
@@ -129,7 +128,7 @@ describe('useTranslateHistories', () => {
     })
 
     it("returns 'error' when the request failed without cached data", () => {
-      mockUsePaginatedQuery.mockReturnValue(buildPaginatedState({ error: new Error('boom') }))
+      mockUseInfiniteQuery.mockReturnValue(buildInfiniteState({ error: new Error('boom') }))
 
       const { result } = renderHook(() => useTranslateHistories())
 
@@ -137,7 +136,7 @@ describe('useTranslateHistories', () => {
     })
 
     it("returns 'ready' once data is resolved, even when the list is empty", () => {
-      mockUsePaginatedQuery.mockReturnValue(buildPaginatedState({ items: [], total: 0 }))
+      mockUseInfiniteQuery.mockReturnValue(buildInfiniteState({ pages: [{ items: [], total: 0 }] }))
 
       const { result } = renderHook(() => useTranslateHistories())
 

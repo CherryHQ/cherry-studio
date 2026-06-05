@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
-  settingsContentBodyClassName,
+  SettingsContentBody,
   settingsContentScrollClassName,
   settingsSubmenuItemClassName,
   settingsSubmenuItemLabelClassName,
@@ -52,7 +52,8 @@ const FileProcessingSettings: FC = () => {
     )
   }, [menuEntries])
 
-  const activeEntry = menuEntries.find((entry) => entry.key === activeKey)
+  const activeEntry = menuEntries.find((entry) => entry.key === activeKey) ?? menuEntries[0]
+  const activeEntryKey = activeEntry?.key ?? ''
 
   const isDefaultEntry = (entry: FileProcessingMenuEntry) =>
     entry.feature === 'image_to_text'
@@ -70,7 +71,7 @@ const FileProcessingSettings: FC = () => {
                 <MenuItem
                   key={entry.key}
                   label={t(getProcessorNameKey(entry.processor.id))}
-                  active={activeKey === entry.key}
+                  active={activeEntryKey === entry.key}
                   onClick={() => setActiveKey(entry.key)}
                   icon={
                     <ProcessorAvatar
@@ -95,7 +96,7 @@ const FileProcessingSettings: FC = () => {
         </div>
 
         <Scrollbar className={settingsContentScrollClassName}>
-          <div className={settingsContentBodyClassName}>
+          <SettingsContentBody>
             {availableProcessors.status === 'error' ? (
               <div className="flex h-full min-h-55 items-center justify-center text-foreground-muted text-sm">
                 {t('settings.tool.file_processing.errors.load_processors_failed')}
@@ -115,7 +116,7 @@ const FileProcessingSettings: FC = () => {
                 {t('common.no_results')}
               </div>
             )}
-          </div>
+          </SettingsContentBody>
         </Scrollbar>
       </div>
     </div>

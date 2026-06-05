@@ -14,12 +14,12 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
-  SettingContainer,
   SettingDescription,
   SettingDivider,
   SettingGroup,
   SettingRow,
   SettingRowTitle,
+  SettingsContentColumn,
   SettingTitle
 } from '..'
 import MacProcessTrustHintModal from './components/MacProcessTrustHintModal'
@@ -92,7 +92,7 @@ const SelectionAssistantSettings: FC = () => {
   }
 
   return (
-    <SettingContainer theme={theme}>
+    <SettingsContentColumn theme={theme}>
       <SettingGroup theme={theme}>
         <SettingTitle>
           <span className="font-semibold text-[15px]">{t('selection.name')}</span>
@@ -356,7 +356,7 @@ const SelectionAssistantSettings: FC = () => {
       )}
 
       {isMac && <MacProcessTrustHintModal open={isMacTrustModalOpen} onClose={() => setIsMacTrustModalOpen(false)} />}
-    </SettingContainer>
+    </SettingsContentColumn>
   )
 }
 

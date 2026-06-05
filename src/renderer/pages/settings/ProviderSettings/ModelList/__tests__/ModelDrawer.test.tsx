@@ -43,15 +43,30 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
         {String(checked)}
       </button>
     ),
+    DescriptionSwitch: ({ label, description, checked, onCheckedChange, ...props }: any) => (
+      <label>
+        <span>{label}</span>
+        {description ? <span>{description}</span> : null}
+        <button
+          type="button"
+          role="switch"
+          aria-label={label}
+          aria-checked={checked}
+          onClick={() => onCheckedChange(!checked)}
+          {...props}>
+          {String(checked)}
+        </button>
+      </label>
+    ),
     WarnTooltip: () => <span>warn</span>
   }
 })
 
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args)
 }))
 
-vi.mock('@renderer/hooks/useModels', () => ({
+vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: any[]) => useModelsMock(...args),
   useModelMutations: () => ({
     createModel: (...args: any[]) => createModelMock(...args),
@@ -267,6 +282,17 @@ describe('Model drawers', () => {
         pricing: expect.objectContaining({
           input: expect.objectContaining({ perMillionTokens: 12.5 })
         })
+      })
+    )
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole('switch', { name: 'settings.models.add.supported_text_delta.label' }))
+    })
+    expect(updateModelMock).toHaveBeenCalledWith(
+      'openai',
+      'claude-4-sonnet',
+      expect.objectContaining({
+        supportsStreaming: false
       })
     )
 

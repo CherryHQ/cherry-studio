@@ -6,7 +6,7 @@ import { useProviderDelete } from '../useProviderDelete'
 const removeProviderLogoMock = vi.fn()
 const useProviderActionsMock = vi.fn()
 
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProviderActions: (...args: any[]) => useProviderActionsMock(...args)
 }))
 

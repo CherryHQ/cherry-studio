@@ -36,7 +36,7 @@ describe('useReindexKnowledgeItem', () => {
     })
 
     expect(mockReindexItems).toHaveBeenCalledWith('base-1', ['note-1'])
-    expect(mockInvalidateCache).toHaveBeenCalledWith('/knowledge-bases/base-1/items')
+    expect(mockInvalidateCache).toHaveBeenCalledWith(['/knowledge-bases/base-1/items', '/knowledge-bases'])
     expect(mockReindexItems.mock.invocationCallOrder[0]).toBeLessThan(mockInvalidateCache.mock.invocationCallOrder[0])
     expect(result.current.error).toBeUndefined()
     expect(result.current.isReindexing).toBe(false)
@@ -52,7 +52,7 @@ describe('useReindexKnowledgeItem', () => {
       await expect(result.current.reindexItem(item)).rejects.toBe(reindexError)
     })
 
-    expect(mockInvalidateCache).toHaveBeenCalledWith('/knowledge-bases/base-1/items')
+    expect(mockInvalidateCache).toHaveBeenCalledWith(['/knowledge-bases/base-1/items', '/knowledge-bases'])
     expect(mockReindexItems.mock.invocationCallOrder[0]).toBeLessThan(mockInvalidateCache.mock.invocationCallOrder[0])
     expect(result.current.error).toBe(reindexError)
     expect(result.current.isReindexing).toBe(false)

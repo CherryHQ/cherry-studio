@@ -47,8 +47,8 @@ const WebSearchSettings: FC = () => {
   }, [activeEntry, activeKey])
 
   return (
-    <div className="flex flex-1">
-      <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full flex-1 flex-row overflow-hidden">
+    <div className="flex min-w-0 flex-1">
+      <div className="flex h-[calc(100vh-var(--navbar-height)-6px)] w-full min-w-0 flex-1 flex-row overflow-hidden">
         <div className={`flex flex-col ${settingsSubmenuScrollClassName}`}>
           <PageHeader title={t('settings.tool.websearch.title')} />
           <Scrollbar className="min-h-0 flex-1">
@@ -105,7 +105,7 @@ const WebSearchSettings: FC = () => {
             </MenuList>
           </Scrollbar>
         </div>
-        <div className={`${settingsContentScrollClassName} relative flex`}>
+        <div className={`${settingsContentScrollClassName} relative flex min-w-0 flex-col`}>
           {activeEntry ? (
             <WebSearchProviderSetting
               key={activeEntry.key}

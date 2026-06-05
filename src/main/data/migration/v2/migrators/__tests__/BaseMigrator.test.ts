@@ -35,13 +35,11 @@ class ProbeMigrator extends BaseMigrator {
 async function insertAgent(db: ReturnType<typeof setupTestDatabase>['db'], id: string) {
   await db
     .insert(agentTable)
-    .values({ id, type: 'claude-code', name: 'A', instructions: 'i', model: 'claude-3-5-sonnet', sortOrder: 0 })
+    .values({ id, type: 'claude-code', name: 'A', instructions: 'i', model: null, orderKey: 'a0' })
 }
 
 async function insertSession(db: ReturnType<typeof setupTestDatabase>['db'], id: string, agentId: string) {
-  await db
-    .insert(agentSessionTable)
-    .values({ id, agentType: 'claude-code', agentId, name: 'S', instructions: 'i', model: 'claude-3-5-sonnet' })
+  await db.insert(agentSessionTable).values({ id, agentId, name: 'S', orderKey: 'a0' })
 }
 
 describe('BaseMigrator.assertOwnedForeignKeys', () => {

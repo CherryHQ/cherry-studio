@@ -69,7 +69,6 @@
 | `id` | `id` | Direct copy |
 | `name` | `name` | Direct copy |
 | _no legacy grouping field_ | `groupId` | V1 knowledge bases do not carry group metadata; migrate as `null` |
-| _constant_ | `emoji` | Always `📁` during v1 migration |
 | `dimensions` | `dimensions` | Completed bases use legacy vector DB blob length (`length(vector)/4`); failed bases keep valid legacy dimensions or `null` |
 | `model` | `embeddingModelId` / `status` / `error` | Converted to `provider::modelId`, then resolved against `user_model`; missing/dangling references produce a failed recoverable base |
 | `rerankModel` | `rerankModelId` | Optional, converted to `provider::modelId`, then resolved against `user_model`; dangling references are cleared |

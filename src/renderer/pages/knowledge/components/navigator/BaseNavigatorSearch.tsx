@@ -1,5 +1,4 @@
-import { Input } from '@cherrystudio/ui'
-import { Search } from 'lucide-react'
+import { SearchInput } from '@cherrystudio/ui'
 import { useTranslation } from 'react-i18next'
 
 import type { BaseNavigatorSearchProps } from './types'
@@ -8,16 +7,14 @@ const BaseNavigatorSearch = ({ value, onValueChange }: BaseNavigatorSearchProps)
   const { t } = useTranslation()
 
   return (
-    <div className="px-2 pb-1.5">
-      <div className="flex h-5.5 items-center gap-1.5 rounded-sm border border-transparent bg-muted/30 px-2 transition-colors focus-within:border-border/50">
-        <Search className="size-3 shrink-0 text-muted-foreground/70" />
-        <Input
-          value={value}
-          onChange={(event) => onValueChange(event.target.value)}
-          placeholder={`${t('knowledge.search')}...`}
-          className="h-auto flex-1 border-0 bg-transparent px-0 py-0 text-foreground text-sm leading-4 shadow-none placeholder:text-muted-foreground/40 placeholder:text-sm focus-visible:border-0 focus-visible:ring-0"
-        />
-      </div>
+    <div className="[&_[data-slot=input-group-addon]]:px-2.5 [&_[data-slot=input-group-addon]]:text-foreground-muted [&_[data-slot=input-group-addon]_svg]:size-4 [&_[data-slot=input-group-control]]:h-8 [&_[data-slot=input-group-control]]:py-1 [&_[data-slot=input-group-control]]:text-sm [&_[data-slot=input-group-control]]:placeholder:text-foreground-muted [&_[data-slot=input-group]]:h-8 [&_[data-slot=input-group]]:rounded-[10px] [&_[data-slot=input-group]]:border-input [&_[data-slot=input-group]]:bg-background [&_[data-slot=input-group]]:shadow-none">
+      <SearchInput
+        value={value}
+        onChange={(event) => onValueChange(event.target.value)}
+        onClear={() => onValueChange('')}
+        clearLabel={t('common.clear')}
+        placeholder={`${t('knowledge.search')}...`}
+      />
     </div>
   )
 }

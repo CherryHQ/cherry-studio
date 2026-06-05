@@ -67,51 +67,41 @@
 - knowledge base DataApi 输入输出契约
 - 后续 renderer 左侧分组列表的数据来源
 
-### 2. 为 `knowledge_base` 增加 `emoji`
+### 2. 暂不为 `knowledge_base` 持久化图标字段
 
 #### 结论
 
-- 在 `knowledge_base` 上增加 `emoji` 字段，用于知识库的 icon 展示。
-- 存储方式与现有 `assistantTable` 保持一致：
-  - SQLite 使用 `emoji: text()`
-- 不单独引入图片、SVG、icon type 等扩展字段
-- `emoji` 是知识库主数据的一部分，不放到 renderer 本地状态或临时 UI 配置里。
-- API / service 层行为与 assistant 对齐：
-  - `KnowledgeBase.emoji` 始终返回非空值
-  - 默认值为 `📁`
+- 当前不在 `knowledge_base` 上持久化 `emoji` 或 `icon` 字段。
+- 未来知识库会支持自定义图标，但具体结构尚未确定；等图标模型确定后再补数据字段。
+- 当前知识库页面的固定图标只作为 UI 展示资产存在，不进入 DataApi / SQLite 主数据结构。
 
 #### 目的
 
-- 支撑 Knowledge V2 左侧列表、详情头部等位置的知识库图标展示。
-- 让 icon 成为可持久化业务数据，而不是 UI 层推导值。
-- 与现有 assistant 的 emoji 存储模式保持一致，降低理解和实现成本。
+- 避免在 V2 开发阶段引入很快会被自定义图标替换的临时数据字段。
+- 保持知识库主数据只包含当前已经确定的业务属性。
 
 #### 需要修改的结构
 
 1. SQLite Schema
    - `src/main/data/db/schemas/knowledge.ts`
-   - 在 `knowledgeBaseTable` 上新增：
-     - `emoji: text()`
+   - `knowledgeBaseTable` 不包含 `emoji` / `icon` 字段。
 
 2. Shared Data Types / API Schema
    - `src/shared/data/types/knowledge.ts`
    - `src/shared/data/api/schemas/knowledges.ts`
-   - 需要让 `KnowledgeBase`、`CreateKnowledgeBaseDto`、`UpdateKnowledgeBaseDto` 支持 `emoji`
+   - `KnowledgeBase`、`CreateKnowledgeBaseDto`、`UpdateKnowledgeBaseDto` 不暴露知识库图标字段。
 
 3. Data Service / Handler 约束
    - `KnowledgeBaseService`
    - knowledge 相关 handler
-   - 建议约束：
-     - 仅接受单个 emoji 字符，行为与 assistant 一致
-   - 与 assistant 一样，API 层保证返回值始终带 emoji
+   - 不接收、不生成、不返回知识库图标字段。
 
 4. Migration / 兼容策略
-   - 旧知识库数据当前没有 `emoji`
-   - 迁移阶段允许数据库中仍为 `null`
-   - 读取时由 service 层补默认值 `📁`
+   - V2 开发阶段不保留知识库 `emoji` 兼容逻辑。
 
 #### 当前不做
 
+- 不新增 `emoji`
 - 不新增 `icon`
 - 不新增 `iconType`
 - 不新增 `iconUrl`
@@ -122,7 +112,7 @@
 
 - `knowledge_base` 主数据结构
 - knowledge base DataApi 输入输出契约
-- renderer 中知识库列表与详情头部的图标数据来源
+- renderer 中知识库列表与详情头部的持久化图标数据来源
 
 ## 待补充
 

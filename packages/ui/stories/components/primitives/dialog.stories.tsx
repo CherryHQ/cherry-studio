@@ -53,6 +53,78 @@ export const Default: Story = {
   )
 }
 
+// Size Variants — sm (24rem) / default (32rem) / lg (36rem)
+// Use `sm` for single-field inputs (rename, short confirmations) so the dialog
+// does not feel empty. Use `lg` for multi-field forms or scrollable bodies.
+export const SizeVariants: Story = {
+  render: () => (
+    <div className="flex flex-wrap gap-4">
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button variant="outline">Size: sm</Button>
+        </DialogTrigger>
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>New group</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="size-sm-name" className="text-sm font-medium">
+              Name
+            </label>
+            <input
+              id="size-sm-name"
+              placeholder="Enter group name…"
+              className="h-9 rounded-md border px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+          </div>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button>Add</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button variant="outline">Size: default</Button>
+        </DialogTrigger>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit profile</DialogTitle>
+            <DialogDescription>Standard form with a handful of fields.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button variant="outline">Size: lg</Button>
+        </DialogTrigger>
+        <DialogContent size="lg">
+          <DialogHeader>
+            <DialogTitle>Add data source</DialogTitle>
+            <DialogDescription>Multi-field configuration or scrollable content.</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button>Add</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
 // Without Close Button
 export const WithoutCloseButton: Story = {
   render: () => (

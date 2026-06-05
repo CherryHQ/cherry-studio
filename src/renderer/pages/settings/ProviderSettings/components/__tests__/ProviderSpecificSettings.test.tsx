@@ -6,7 +6,7 @@ const useProviderMock = vi.fn()
 const useProviderMetaMock = vi.fn()
 const isProviderSupportAuthMock = vi.fn()
 
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args)
 }))
 
@@ -14,7 +14,7 @@ vi.mock('../../hooks/providerSetting/useProviderMeta', () => ({
   useProviderMeta: (...args: any[]) => useProviderMetaMock(...args)
 }))
 
-vi.mock('@renderer/pages/settings/ProviderSettings/utils/provider', () => ({
+vi.mock('@shared/utils/provider', () => ({
   isProviderSupportAuth: (...args: any[]) => isProviderSupportAuthMock(...args),
   isAwsBedrockProvider: (provider: any) => provider?.authType === 'iam-aws',
   isVertexProvider: (provider: any) => provider?.authType === 'iam-gcp',

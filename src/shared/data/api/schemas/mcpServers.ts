@@ -7,7 +7,7 @@
 
 import * as z from 'zod'
 
-import { type MCPServer, MCPServerSchema, MCPServerTypeSchema } from '../../types/mcpServer'
+import { type McpServer, McpServerSchema, McpServerTypeSchema } from '../../types/mcpServer'
 import type { OffsetPaginationResponse } from '../apiTypes'
 
 /**
@@ -53,35 +53,35 @@ const MCP_SERVER_MUTABLE_FIELDS = {
  * - `id` is excluded (auto-generated UUID by database)
  * - All other fields are optional
  */
-export const CreateMCPServerSchema = MCPServerSchema.pick(MCP_SERVER_MUTABLE_FIELDS).partial().required({ name: true })
-export type CreateMCPServerDto = z.infer<typeof CreateMCPServerSchema>
+export const CreateMcpServerSchema = McpServerSchema.pick(MCP_SERVER_MUTABLE_FIELDS).partial().required({ name: true })
+export type CreateMcpServerDto = z.infer<typeof CreateMcpServerSchema>
 
 /**
  * DTO for updating an existing MCP server. All fields optional, chain-derived from Create.
  */
-export const UpdateMCPServerSchema = CreateMCPServerSchema.partial()
-export type UpdateMCPServerDto = z.infer<typeof UpdateMCPServerSchema>
+export const UpdateMcpServerSchema = CreateMcpServerSchema.partial()
+export type UpdateMcpServerDto = z.infer<typeof UpdateMcpServerSchema>
 
 /**
  * Query parameters for listing MCP servers
  */
-export const ListMCPServersQuerySchema = z.object({
+export const ListMcpServersQuerySchema = z.object({
   /** Filter by server ID */
   id: z.string().optional(),
   /** Filter by active state */
   isActive: z.boolean().optional(),
   /** Filter by server type */
-  type: MCPServerTypeSchema.optional()
+  type: McpServerTypeSchema.optional()
 })
-export type ListMCPServersQuery = z.infer<typeof ListMCPServersQuerySchema>
+export type ListMcpServersQuery = z.infer<typeof ListMcpServersQuerySchema>
 
 /**
  * Body for reordering MCP servers
  */
-export const ReorderMCPServersSchema = z.object({
+export const ReorderMcpServersSchema = z.object({
   orderedIds: z.array(z.string().min(1))
 })
-export type ReorderMCPServersBody = z.infer<typeof ReorderMCPServersSchema>
+export type ReorderMcpServersBody = z.infer<typeof ReorderMcpServersSchema>
 
 // ============================================================================
 // API Schema Definitions
@@ -90,7 +90,7 @@ export type ReorderMCPServersBody = z.infer<typeof ReorderMCPServersSchema>
 /**
  * MCP Server API Schema definitions
  */
-export type MCPServerSchemas = {
+export type McpServerSchemas = {
   /**
    * MCP servers collection endpoint
    * @example GET /mcp-servers?isActive=true
@@ -99,17 +99,17 @@ export type MCPServerSchemas = {
   '/mcp-servers': {
     /** List all MCP servers with optional filters */
     GET: {
-      query?: ListMCPServersQuery
-      response: OffsetPaginationResponse<MCPServer>
+      query?: ListMcpServersQuery
+      response: OffsetPaginationResponse<McpServer>
     }
     /** Create a new MCP server */
     POST: {
-      body: CreateMCPServerDto
-      response: MCPServer
+      body: CreateMcpServerDto
+      response: McpServer
     }
     /** Partial update of the collection (reorder) */
     PATCH: {
-      body: ReorderMCPServersBody
+      body: ReorderMcpServersBody
       response: void
     }
   }
@@ -124,13 +124,13 @@ export type MCPServerSchemas = {
     /** Get an MCP server by ID */
     GET: {
       params: { id: string }
-      response: MCPServer
+      response: McpServer
     }
     /** Update an MCP server */
     PATCH: {
       params: { id: string }
-      body: UpdateMCPServerDto
-      response: MCPServer
+      body: UpdateMcpServerDto
+      response: McpServer
     }
     /** Delete an MCP server */
     DELETE: {

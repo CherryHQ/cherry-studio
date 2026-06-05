@@ -2,10 +2,10 @@ import fs from 'node:fs/promises'
 
 import { loggerService } from '@logger'
 import { fileStorage } from '@main/services/FileStorage'
-import type { Mistral } from '@mistralai/mistralai'
-import type { FileListResponse, FileMetadata, FileUploadResponse, Provider } from '@types'
+import { Mistral } from '@mistralai/mistralai'
+import { formatApiHost } from '@shared/utils/api'
+import type { FileListResponse, FileMetadata, FileUploadResponse } from '@types'
 
-import { mistralClientManager } from '../MistralClientManager'
 import { BaseFileService } from './BaseFileService'
 
 const logger = loggerService.withContext('MistralService')
@@ -13,11 +13,13 @@ const logger = loggerService.withContext('MistralService')
 export class MistralService extends BaseFileService {
   private readonly client: Mistral
 
-  constructor(provider: Provider) {
-    super(provider)
-    const clientManager = mistralClientManager
-    clientManager.initializeClient(provider)
-    this.client = clientManager.getClient()
+  constructor(apiKey: string, apiHost: string | undefined) {
+    super(apiKey, apiHost)
+    const serverURL = formatApiHost(apiHost, false) || undefined
+    this.client = new Mistral({
+      apiKey,
+      serverURL
+    })
   }
 
   async uploadFile(file: FileMetadata): Promise<FileUploadResponse> {

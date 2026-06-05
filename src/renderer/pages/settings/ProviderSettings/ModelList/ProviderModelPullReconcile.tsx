@@ -1,6 +1,5 @@
 import { Button } from '@cherrystudio/ui'
-import { cn } from '@renderer/utils'
-import { Download } from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 import type React from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -25,11 +24,11 @@ const ProviderModelPullReconcile: React.FC<ProviderModelPullReconcileProps> = ({
         type="button"
         variant="outline"
         size="sm"
-        className={cn(modelListClasses.fetchOutline, 'gap-1 px-2 py-[3px] text-xs')}
+        className={modelListClasses.fetchActionButton}
         disabled={disabled || pullReconcile.isBusy}
         loading={pullReconcile.isBusy}
         onClick={pullReconcile.openPullReconcile}>
-        <Download className={modelListClasses.toolbarDesignIcon} />
+        <RefreshCw className={modelListClasses.toolbarDesignIcon} />
         <span>{t('settings.models.toolbar.pull_short')}</span>
       </Button>
       <ModelListSyncDrawer
