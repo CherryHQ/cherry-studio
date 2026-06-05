@@ -23,6 +23,10 @@ export interface WarmQueryRequest {
   initializeTimeoutMs?: number
 }
 
+function isValidSessionId(sessionId: unknown): sessionId is string {
+  return typeof sessionId === 'string' && sessionId.length > 0
+}
+
 export function stripWarmQueryOptions(options: Options): Options {
   const {
     // oxlint-disable-next-line no-unused-vars
@@ -52,8 +56,32 @@ function normalizeForSignature(value: unknown, seen = new WeakSet<object>()): un
   return Object.fromEntries(entries.map(([key, item]) => [key, normalizeForSignature(item, seen)]))
 }
 
+/**
+ * Replace each MCP server's live `instance` (a circular `McpServer` SDK object)
+ * with a stable `{ type, name }` descriptor so the signature is built from a
+ * serializable subset instead of deep-normalizing the live SDK object graph.
+ */
+function sanitizeMcpServersForSignature(mcpServers: Options['mcpServers']): unknown {
+  if (!mcpServers || typeof mcpServers !== 'object') return mcpServers
+  const sanitized: Record<string, unknown> = {}
+  for (const [key, config] of Object.entries(mcpServers)) {
+    if (config && typeof config === 'object' && 'instance' in config) {
+      const rest = { ...(config as Record<string, unknown>) }
+      delete rest.instance
+      sanitized[key] = rest
+    } else {
+      sanitized[key] = config
+    }
+  }
+  return sanitized
+}
+
 export function createClaudeCodeWarmQuerySignature(options: Options): string {
-  return JSON.stringify(normalizeForSignature(stripWarmQueryOptions(options)))
+  const stripped = stripWarmQueryOptions(options)
+  const signatureSource = stripped.mcpServers
+    ? { ...stripped, mcpServers: sanitizeMcpServersForSignature(stripped.mcpServers) }
+    : stripped
+  return JSON.stringify(normalizeForSignature(signatureSource))
 }
 
 @Injectable('ClaudeCodeWarmQueryManager')
@@ -67,10 +95,18 @@ export class ClaudeCodeWarmQueryManager extends BaseService {
 
   private registerIpcHandlers(): void {
     this.ipcHandle(IpcChannel.Ai_AgentSession_Prewarm, async (_, req: AiAgentSessionWarmRequest) => {
+      if (!isValidSessionId(req?.sessionId)) {
+        logger.warn('Ignoring prewarm request with invalid sessionId', { sessionId: req?.sessionId })
+        return
+      }
       await this.prewarmAgentSession(req.sessionId)
     })
 
     this.ipcHandle(IpcChannel.Ai_AgentSession_CloseWarm, (_, req: AiAgentSessionWarmCloseRequest) => {
+      if (!isValidSessionId(req?.sessionId)) {
+        logger.warn('Ignoring close-warm request with invalid sessionId', { sessionId: req?.sessionId })
+        return
+      }
       this.closeAgentSessionWarm(req.sessionId)
     })
   }

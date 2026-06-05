@@ -42,7 +42,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { application } from '@application'
 import { fileEntryTable } from '@data/db/schemas/file'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
@@ -96,6 +95,7 @@ const logger = loggerService.withContext('ChatMappings')
  */
 export interface ChatMappingDeps {
   db: DbType
+  filesDataDir: string
 }
 
 // ============================================================================
@@ -321,7 +321,7 @@ export interface OldToolBlock extends OldMessageBlock {
       }
     | string
   metadata?: Record<string, unknown> & {
-    /** Full MCPToolResponse preserved at save time */
+    /** Full McpToolResponse preserved at save time */
     rawMcpToolResponse?: {
       id: string
       tool: { id: string; name: string; type: string; serverId?: string; serverName?: string; description?: string }
@@ -932,6 +932,7 @@ function mediaTypeFromDataUrl(dataUrl: Base64String): string {
 
 async function promoteBase64ToFileEntry(
   db: DbType,
+  filesDataDir: string,
   dataUrl: Base64String,
   blockId: string
 ): Promise<FileUIPart | null> {
@@ -942,7 +943,7 @@ async function promoteBase64ToFileEntry(
   const ext = mime.getExtension(mimeType)
   const id = uuidv7()
   const filename = ext ? `${id}.${ext}` : id
-  const physicalPath = application.getPath('feature.files.data', filename) as FilePath
+  const physicalPath = path.join(filesDataDir, filename) as FilePath
   const bytes = Buffer.from(payload, 'base64')
   let physicalWritten = false
 
@@ -1027,7 +1028,7 @@ async function collectImageFileParts(block: OldImageBlock, deps?: ChatMappingDep
     if (isBase64DataUrl(block.url)) {
       // `block.url` is now narrowed to `Base64String`; no `as` cast.
       if (deps?.db) {
-        const promoted = await promoteBase64ToFileEntry(deps.db, block.url, block.id)
+        const promoted = await promoteBase64ToFileEntry(deps.db, deps.filesDataDir, block.url, block.id)
         if (promoted) parts.push(promoted)
       } else {
         // No promoter → keep inline (fileProcessor passes data: through unchanged).
@@ -1048,7 +1049,7 @@ async function collectImageFileParts(block: OldImageBlock, deps?: ChatMappingDep
     if (deps?.db) {
       for (const raw of rawImages) {
         const dataUrl = toBase64DataUrl(raw, 'image/png')
-        const promoted = await promoteBase64ToFileEntry(deps.db, dataUrl, block.id)
+        const promoted = await promoteBase64ToFileEntry(deps.db, deps.filesDataDir, dataUrl, block.id)
         if (promoted) parts.push(promoted)
       }
     } else {

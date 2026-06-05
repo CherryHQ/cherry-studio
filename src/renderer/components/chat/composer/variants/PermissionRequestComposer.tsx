@@ -1,7 +1,7 @@
 import { Button } from '@cherrystudio/ui'
 import { loggerService } from '@logger'
 import type { MessageToolApprovalInput } from '@renderer/components/chat/messages/types'
-import type { MCPToolResponse, NormalToolResponse } from '@renderer/types'
+import type { McpToolResponse, NormalToolResponse } from '@renderer/types'
 import { cn } from '@renderer/utils/style'
 import { ArrowRight, Wrench } from 'lucide-react'
 import { useCallback, useState } from 'react'
@@ -30,7 +30,7 @@ type PermissionRequestComposerOverrideOptions = {
   onRespond: (input: MessageToolApprovalInput) => void | Promise<void>
 }
 
-function isMcpToolResponse(toolResponse: ToolResponseLike): toolResponse is MCPToolResponse {
+function isMcpToolResponse(toolResponse: ToolResponseLike): toolResponse is McpToolResponse {
   return toolResponse.tool.type === 'mcp'
 }
 
@@ -80,7 +80,7 @@ function BuiltinPermissionPreview({ toolResponse }: { toolResponse: NormalToolRe
   )
 }
 
-function McpPermissionPreview({ toolResponse }: { toolResponse: MCPToolResponse }) {
+function McpPermissionPreview({ toolResponse }: { toolResponse: McpToolResponse }) {
   const { t } = useTranslation()
   const args = normalizeArgs(toolResponse.arguments)
 

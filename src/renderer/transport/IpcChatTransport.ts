@@ -190,14 +190,14 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
 
         if (abortSignal) {
           if (abortSignal.aborted) {
-            void window.api.ai.streamAbort({ topicId })
+            window.api.ai.streamAbort({ topicId }).catch((e) => logger.warn('streamAbort failed', { topicId, e }))
             closeStream()
             return
           }
 
           const onAbort = () => {
             logger.info('Stream abort requested', { topicId })
-            void window.api.ai.streamAbort({ topicId })
+            window.api.ai.streamAbort({ topicId }).catch((e) => logger.warn('streamAbort failed', { topicId, e }))
             closeStream()
           }
           abortSignal.addEventListener('abort', onAbort, { once: true })
@@ -209,7 +209,7 @@ export class IpcChatTransport implements ChatTransport<CherryUIMessage> {
           isStreamClosed = true
           // Unmount / disposal: only detach this subscriber. Main keeps
           // generating and persists the result; abort is a separate IPC.
-          void window.api.ai.streamDetach({ topicId })
+          window.api.ai.streamDetach({ topicId }).catch((e) => logger.warn('streamDetach failed', { topicId, e }))
           cleanup()
         }
       }

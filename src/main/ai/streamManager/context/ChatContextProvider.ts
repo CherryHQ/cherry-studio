@@ -18,7 +18,11 @@ export interface PreparedDispatch {
   topicId: string
   models: ReadonlyArray<{ modelId: UniqueModelId; request: AiStreamRequest; rootSpan?: Span }>
   listeners: StreamListener[]
-  /** Follow-up user message for the inject path. Undefined when injection isn't supported. */
+  /**
+   * Caller bookkeeping only — the manager never consumes this row. The inject
+   * path surfaces the persisted user message back to the renderer via
+   * `userMessageId`, not this object. Undefined when injection isn't supported.
+   */
   userMessage?: Message
   /** DB id of the user message row this dispatch created, surfaced back to renderer for optimistic join. */
   userMessageId?: string

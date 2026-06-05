@@ -190,6 +190,70 @@ describe('MessageService', () => {
     })
   })
 
+  describe('markMessagesError', () => {
+    async function seedStatuses() {
+      await dbh.db.insert(topicTable).values({ id: 'topic-e', activeNodeId: 'm-a', orderKey: 'c0' })
+      await dbh.db.insert(messageTable).values([
+        {
+          id: 'm-a',
+          parentId: null,
+          topicId: 'topic-e',
+          role: 'assistant',
+          data: mainText(''),
+          status: 'pending',
+          siblingsGroupId: 1,
+          createdAt: 100,
+          updatedAt: 100
+        },
+        {
+          id: 'm-b',
+          parentId: null,
+          topicId: 'topic-e',
+          role: 'assistant',
+          data: mainText(''),
+          status: 'pending',
+          siblingsGroupId: 2,
+          createdAt: 110,
+          updatedAt: 110
+        },
+        {
+          id: 'm-keep',
+          parentId: null,
+          topicId: 'topic-e',
+          role: 'assistant',
+          data: mainText('done'),
+          status: 'success',
+          siblingsGroupId: 3,
+          createdAt: 120,
+          updatedAt: 120
+        }
+      ])
+    }
+
+    const statusOf = async (id: string) => {
+      const [row] = await dbh.db.select().from(messageTable).where(eq(messageTable.id, id))
+      return row?.status
+    }
+
+    it('flips only the listed rows to error and leaves others untouched', async () => {
+      await seedStatuses()
+
+      await messageService.markMessagesError(['m-a', 'm-b'])
+
+      expect(await statusOf('m-a')).toBe('error')
+      expect(await statusOf('m-b')).toBe('error')
+      expect(await statusOf('m-keep')).toBe('success')
+    })
+
+    it('is a no-op for an empty id list', async () => {
+      await seedStatuses()
+
+      await messageService.markMessagesError([])
+
+      expect(await statusOf('m-a')).toBe('pending')
+    })
+  })
+
   describe('getBranchMessages — regression for raw SQL casing bug', () => {
     it('returns camelCase fields (parentId, siblingsGroupId) for path messages', async () => {
       await seedMultiModelTree()

@@ -6,19 +6,20 @@ import { agentChannelService as channelService } from '@data/services/AgentChann
 import { agentService } from '@data/services/AgentService'
 import { sessionService } from '@data/services/SessionService'
 import { loggerService } from '@logger'
+import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
+import { isAgentSessionWorkspaceError } from '@main/ai/runtime/claudeCode/settingsBuilder'
 import { ChannelAdapterListener, type StreamListener } from '@main/ai/streamManager'
 import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessionRun'
+import { application } from '@main/core/application'
 import type { FileAttachment, ImageAttachment } from '@main/utils/downloadAsBase64'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
 
 import type { ChannelAdapter, ChannelCommandEvent, ChannelMessageEvent } from './ChannelAdapter'
 import { SLASH_COMMANDS } from './constants'
-import { sanitizeChannelOutput, wrapExternalContent } from './security'
-import { splitMessage } from './utils'
+import { wrapExternalContent } from './security'
 
 const logger = loggerService.withContext('ChannelMessageHandler')
 
-const MAX_MESSAGE_LENGTH = 4096
 const TYPING_INTERVAL_MS = 4000
 
 /** Max number of entries in the session tracker before evicting oldest entries. */
@@ -269,27 +270,22 @@ export class ChannelMessageHandler {
       )
 
       try {
-        const responseText = await this.collectStreamResponse(
-          session,
-          securedContent,
-          abortController,
-          adapter,
-          message.chatId
-        )
-
-        if (responseText) {
-          // Sanitize output to prevent accidental secret leakage through channels
-          const { text: sanitizedText } = sanitizeChannelOutput(responseText)
-          const finalized = await adapter.onStreamComplete(message.chatId, sanitizedText).catch(() => false)
-          if (!finalized) {
-            await this.sendChunked(adapter, message.chatId, sanitizedText)
-          }
-        }
+        // Delivery (streaming updates + the sanitized finalize) is owned by the
+        // `ChannelAdapterListener` registered inside `collectStreamResponse`; we only await
+        // turn completion here. (The old post-hoc finalize was dead — the sentinel's `c.text`
+        // read never accumulated — and reviving it would double-send.)
+        await this.collectStreamResponse(session, securedContent, abortController, adapter, message.chatId)
       } catch (streamError) {
-        // Notify adapter of the error so it can update streaming UI
-        adapter
-          .onStreamError(message.chatId, streamError instanceof Error ? streamError.message : String(streamError))
-          .catch(() => {})
+        const streamErrorMessage = streamError instanceof Error ? streamError.message : String(streamError)
+        if (isAgentSessionWorkspaceError(streamError)) {
+          // Thrown before streaming starts (validateSession), so no controller exists yet and
+          // onStreamError is a no-op on most adapters — send a plain message so the inbound
+          // message isn't silently dropped on Telegram/WeChat/QQ/Discord/Slack.
+          adapter.sendMessage(message.chatId, streamErrorMessage).catch(() => {})
+        } else {
+          // Mid-stream error: let the adapter update its streaming UI.
+          adapter.onStreamError(message.chatId, streamErrorMessage).catch(() => {})
+        }
         throw streamError
       } finally {
         this.activeAbortControllers.delete(session.id)
@@ -339,7 +335,12 @@ export class ChannelMessageHandler {
               adapter,
               command.chatId
             )
-            await adapter.sendMessage(command.chatId, response || 'Session compacted.')
+            // The `ChannelAdapterListener` registered inside `collectStreamResponse` already
+            // delivered any non-empty output; only send an explicit fallback when compact
+            // produced no text, so we don't double-send.
+            if (!response) {
+              await adapter.sendMessage(command.chatId, 'Session compacted.')
+            }
           } finally {
             clearInterval(typingInterval)
           }
@@ -415,12 +416,15 @@ export class ChannelMessageHandler {
       }
     }
     for (const sessionId of sessionIdsToAbort) {
-      this.activeAbortControllers.get(sessionId)?.abort()
+      this.abortSessionStream(sessionId, 'agent-cleared')
     }
     for (const [key, batch] of this.pendingBatches.entries()) {
       if (key.startsWith(`${agentId}:`)) {
         clearTimeout(batch.timer)
         this.pendingBatches.delete(key)
+        // Settle the discarded batch's callers so their .catch handlers fire
+        // instead of leaving handleIncoming promises hanging forever.
+        batch.resolvers.forEach((r) => r.reject(new Error('Agent removed; batch discarded')))
       }
     }
     for (const key of this.chatQueues.keys()) {
@@ -430,14 +434,22 @@ export class ChannelMessageHandler {
     }
   }
 
-  /** Abort an active stream for the given session. Returns true if aborted. */
+  /** Abort an active stream for the given session. Returns true if a stream was in flight. */
   abortSession(sessionId: string): boolean {
-    const controller = this.activeAbortControllers.get(sessionId)
-    if (controller) {
-      controller.abort()
-      return true
-    }
-    return false
+    if (!this.activeAbortControllers.has(sessionId)) return false
+    this.abortSessionStream(sessionId, 'channel-session-aborted')
+    return true
+  }
+
+  /**
+   * Stop the upstream agent-session turn for a session. The local `AbortController`
+   * is never passed to the running stream — it only flips a listener's `isAlive()`,
+   * which (because the manager prunes dead listeners before firing their terminal
+   * callback) would strand the completion sentinel. So abort through the manager,
+   * which settles the turn as `paused` and lets the still-alive sentinel resolve.
+   */
+  private abortSessionStream(sessionId: string, reason: string): void {
+    application.get('AiStreamManager').abort(buildAgentSessionTopicId(sessionId), reason)
   }
 
   private async resolveSession(
@@ -534,8 +546,8 @@ export class ChannelMessageHandler {
     const sentinel: StreamListener = {
       id: `channel-completion:${chatId}`,
       onChunk(chunk) {
-        const c = chunk as { type: string; text?: string }
-        if (c.type === 'text-delta' && c.text) accumulatedText += c.text
+        // `text-delta`'s field is `delta`, not `text` (AI SDK `UIMessageChunk`).
+        if (chunk.type === 'text-delta') accumulatedText += chunk.delta
       },
       onDone() {
         resolveExecution(accumulatedText.trim())
@@ -556,18 +568,6 @@ export class ChannelMessageHandler {
     })
 
     return executionDone
-  }
-
-  private async sendChunked(adapter: ChannelAdapter, chatId: string, text: string): Promise<void> {
-    if (text.length <= MAX_MESSAGE_LENGTH) {
-      await adapter.sendMessage(chatId, text)
-      return
-    }
-
-    const chunks = splitMessage(text, MAX_MESSAGE_LENGTH)
-    for (const chunk of chunks) {
-      await adapter.sendMessage(chatId, chunk)
-    }
   }
 
   /**

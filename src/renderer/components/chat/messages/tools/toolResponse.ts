@@ -1,4 +1,4 @@
-import type { BaseTool, MCPTool, MCPToolResponse, MCPToolResponseStatus, NormalToolResponse } from '@renderer/types'
+import type { BaseTool, McpTool, McpToolResponse, McpToolResponseStatus, NormalToolResponse } from '@renderer/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { parseFunctionCallToolName } from '@shared/mcp'
 import type { DynamicToolUIPart, ProviderMetadata, ToolUIPart, UIDataTypes, UIMessagePart, UITools } from 'ai'
@@ -25,7 +25,7 @@ type ToolMetadata = {
 
 type ToolResponsePart = ToolUIPart<UITools> | DynamicToolUIPart
 
-export type ToolResponseLike = MCPToolResponse | NormalToolResponse
+export type ToolResponseLike = McpToolResponse | NormalToolResponse
 
 export interface ToolRenderItem {
   id: string
@@ -45,7 +45,7 @@ function normalizeToolName(part: ToolResponsePart): string {
   return toolName.trim() || 'unknown'
 }
 
-function mapPartStateToStatus(state: string | undefined): MCPToolResponseStatus {
+function mapPartStateToStatus(state: string | undefined): McpToolResponseStatus {
   switch (state) {
     case 'output-available':
       return 'done'
@@ -148,7 +148,7 @@ function resolveToolType(part: ToolResponsePart, toolName: string, metadata?: To
   return 'builtin'
 }
 
-function buildMcpToolDescriptor(toolName: string, metadata?: ToolMetadata): MCPTool {
+function buildMcpToolDescriptor(toolName: string, metadata?: ToolMetadata): McpTool {
   const parsed = parseFunctionCallToolName(toolName)
   const serverId = metadata?.serverId ?? parsed?.serverPart ?? 'unknown'
   const serverName = metadata?.serverName ?? parsed?.serverPart ?? 'MCP'
@@ -202,10 +202,10 @@ export function buildToolResponseFromPart(part: CherryMessagePart, fallbackId?: 
 
   if (toolType === 'mcp') {
     const tool = buildMcpToolDescriptor(toolName, metadata)
-    const mcpResponse: MCPToolResponse = {
+    const mcpResponse: McpToolResponse = {
       id: toolCallId,
       tool,
-      arguments: toolPart.input as MCPToolResponse['arguments'],
+      arguments: toolPart.input as McpToolResponse['arguments'],
       status,
       response,
       toolCallId,

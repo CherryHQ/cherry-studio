@@ -75,6 +75,15 @@ export class ClaudeCodeTraceBridgeService extends BaseService implements Activat
     })
 
     const endpoint = await this.ensureServer()
+    // INTENTIONAL DEV-ONLY BEHAVIOR. This whole bridge only runs when developer_mode is
+    // enabled (see onReady), and these flags ask Claude Code to emit verbose telemetry —
+    // user prompts (OTEL_LOG_USER_PROMPTS), tool details/content, and raw API request/response
+    // bodies (OTEL_LOG_RAW_API_BODIES). Those payloads land in span attributes that
+    // SpanCacheService persists as plaintext JSONL trace files on disk, so they may contain
+    // secrets (e.g. authorization headers, API keys embedded in raw bodies). We do NOT redact
+    // here: redaction would require parsing arbitrary OTLP attribute structures across the
+    // ingest path and risk dropping legitimate trace data. The accepted tradeoff (local-only,
+    // developer-gated capture) needs a threat-model decision — see docs/references/ai/observability.md.
     return {
       CLAUDE_CODE_ENABLE_TELEMETRY: '1',
       CLAUDE_CODE_ENHANCED_TELEMETRY_BETA: '1',
@@ -252,9 +261,15 @@ async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   let body = Buffer.concat(chunks)
   const encoding = getHeaderValue(req.headers['content-encoding']).toLowerCase()
   if (encoding === 'gzip') {
-    body = gunzipSync(body)
-    if (body.length > MAX_BODY_BYTES) {
-      throw new Error('OTLP payload too large after gzip decompression')
+    try {
+      // Cap the decompressed output so a gzip bomb can't allocate gigabytes before any size check.
+      body = gunzipSync(body, { maxOutputLength: MAX_BODY_BYTES })
+    } catch (error) {
+      // zlib raises a RangeError (ERR_BUFFER_TOO_LARGE) when maxOutputLength is exceeded.
+      if (error instanceof RangeError) {
+        throw new Error('OTLP payload too large after gzip decompression')
+      }
+      throw error
     }
   } else if (encoding !== '' && encoding !== 'identity') {
     throw new UnsupportedContentEncodingError(`Unsupported OTLP content encoding: ${encoding}`)

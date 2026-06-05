@@ -12,6 +12,15 @@ import { ChannelAdapter, type ChannelAdapterConfig, type SendMessageOptions } fr
 import { registerAdapterFactory } from '../../ChannelManager'
 
 const TELEGRAM_MAX_LENGTH = 4096
+/**
+ * Plain-text chunk budget under MarkdownV2. We split the *plain* text (so each
+ * chunk has an index-aligned plain fallback) and then escape it; escaping only
+ * grows length, so this headroom keeps the formatted chunk within the 4096 hard
+ * limit for normal prose. A pathological all-special-char chunk could still
+ * overflow — Telegram then rejects it and the catch sends the plain chunk, which
+ * is always within budget.
+ */
+const TELEGRAM_MARKDOWN_CHUNK_BUDGET = 3200
 
 import { splitMessage } from '../../utils'
 
@@ -19,6 +28,21 @@ class TelegramAdapter extends ChannelAdapter {
   private bot: Bot | null = null
   private readonly botToken: string
   private readonly allowedChatIds: string[]
+
+  // Long-polling reconnect with backoff. grammY rethrows fatal polling errors (401/409) out of
+  // `bot.start()`; without this a recoverable 409/Conflict left the bot permanently down.
+  // Mirrors the WebSocket adapters (Slack/Discord/QQ).
+  private shouldStop = false
+  private reconnectAttempts = 0
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private stabilityTimer: ReturnType<typeof setTimeout> | null = null
+  private readonly reconnectDelays = [1000, 2000, 5000, 10000, 30000, 60000]
+  private readonly maxReconnectAttempts = 50
+  // Long polling has no "ready" event (a fatal 409 surfaces *after* `markConnected`), so
+  // resetting the backoff budget on connect would let a persistent failure loop forever and
+  // never hit the cap. Instead reset only after the bot has polled cleanly for this window —
+  // so transient failures spread over the adapter's lifetime don't monotonically exhaust it.
+  private readonly stabilityResetMs = 60_000
 
   constructor(config: ChannelAdapterConfig<'telegram'>) {
     super(config)
@@ -36,7 +60,12 @@ class TelegramAdapter extends ChannelAdapter {
     if (!this.botToken) {
       throw new Error('Telegram bot token is required')
     }
+    this.shouldStop = false
+    this.reconnectAttempts = 0
+    await this.startBot()
+  }
 
+  private async startBot(): Promise<void> {
     const bot = new Bot(this.botToken)
     this.bot = bot
 
@@ -158,18 +187,70 @@ class TelegramAdapter extends ChannelAdapter {
       this.log.error(`Bot error: ${msg}`)
     })
 
-    // Start long polling (fire-and-forget)
+    // Start long polling (fire-and-forget). `bot.start()` only resolves when the bot stops;
+    // a fatal polling error (e.g. 409 Conflict) rejects here — schedule a backoff reconnect.
     bot.start().catch((err) => {
       const msg = err instanceof Error ? err.message : String(err)
+      this.clearStabilityTimer()
       this.markDisconnected(msg)
       this.log.error(`Polling stopped: ${msg}`)
+      this.scheduleReconnect()
     })
 
     this.markConnected()
     this.log.info('Telegram bot polling started')
+
+    // Reset the reconnect budget once this connection has stayed up for the stability window.
+    // The `this.bot === bot` guard ensures a stale timer from a superseded connection no-ops.
+    this.clearStabilityTimer()
+    this.stabilityTimer = setTimeout(() => {
+      this.stabilityTimer = null
+      if (!this.shouldStop && this.bot === bot) this.reconnectAttempts = 0
+    }, this.stabilityResetMs)
+  }
+
+  private clearStabilityTimer(): void {
+    if (this.stabilityTimer) {
+      clearTimeout(this.stabilityTimer)
+      this.stabilityTimer = null
+    }
+  }
+
+  private scheduleReconnect(): void {
+    if (this.shouldStop || this.reconnectTimer) return
+
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      this.log.error('Telegram max reconnect attempts reached, giving up')
+      return
+    }
+
+    const delay = this.reconnectDelays[Math.min(this.reconnectAttempts, this.reconnectDelays.length - 1)]
+    this.reconnectAttempts++
+    this.log.info(`Telegram reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`)
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      if (this.shouldStop) return
+      this.startBot().catch((err) => {
+        const msg = err instanceof Error ? err.message : String(err)
+        this.markDisconnected(msg)
+        this.log.error(`Telegram reconnect failed: ${msg}`)
+        this.scheduleReconnect()
+      })
+    }, delay)
+  }
+
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
   }
 
   protected override async performDisconnect(): Promise<void> {
+    this.shouldStop = true
+    this.clearReconnectTimer()
+    this.clearStabilityTimer()
     if (this.bot) {
       await this.bot.stop()
       this.bot = null
@@ -225,33 +306,39 @@ class TelegramAdapter extends ChannelAdapter {
     }
 
     const parseMode = opts?.parseMode ?? 'MarkdownV2'
-    const formatted = parseMode === 'MarkdownV2' ? toMarkdownV2(text).trimEnd() : text
-    const chunks = splitMessage(formatted, TELEGRAM_MAX_LENGTH)
+    const isMarkdown = parseMode === 'MarkdownV2'
+    // Split the PLAIN text first and escape each chunk, so the MarkdownV2 send and
+    // its plain-text fallback share one chunk boundary. (Splitting the *formatted*
+    // text and then re-splitting the *raw* text by the same index misaligns — escaping
+    // changes lengths/boundaries — dropping, duplicating, or passing `undefined` chunks.)
+    const plainChunks = splitMessage(text, isMarkdown ? TELEGRAM_MARKDOWN_CHUNK_BUDGET : TELEGRAM_MAX_LENGTH)
 
-    for (let i = 0; i < chunks.length; i++) {
+    for (let i = 0; i < plainChunks.length; i++) {
+      const plain = plainChunks[i]
+      const formatted = isMarkdown ? toMarkdownV2(plain).trimEnd() : plain
       const replyParams =
         opts?.replyToMessageId && i === 0 ? { reply_parameters: { message_id: opts.replyToMessageId } } : {}
 
       try {
-        await this.bot.api.sendMessage(chatId, chunks[i], {
+        await this.bot.api.sendMessage(chatId, formatted, {
           parse_mode: parseMode,
           ...replyParams
         })
       } catch (error) {
-        // Fallback to plain text if MarkdownV2 parsing fails
-        if (parseMode === 'MarkdownV2') {
+        // Fallback to plain text if MarkdownV2 parsing fails — same chunk content.
+        if (isMarkdown) {
           this.log.warn('MarkdownV2 send failed, falling back to plain text', {
             chatId,
             error: error instanceof Error ? error.message : String(error)
           })
-          await this.bot.api.sendMessage(chatId, splitMessage(text, TELEGRAM_MAX_LENGTH)[i], replyParams)
+          await this.bot.api.sendMessage(chatId, plain, replyParams)
         } else {
           throw error
         }
       }
 
       // Small delay between chunks to avoid rate limiting
-      if (i < chunks.length - 1) {
+      if (i < plainChunks.length - 1) {
         await new Promise((resolve) => setTimeout(resolve, 100))
       }
     }

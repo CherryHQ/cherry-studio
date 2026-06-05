@@ -3,7 +3,7 @@ import type { Model } from '@shared/data/types/model'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { toSharedCompatModel } from '../_bridge'
+import { toSharedCompatModel } from '../bridge'
 import { isEmbeddingModel, isRerankModel } from '../embedding'
 import { isDeepSeekHybridInferenceModel } from '../reasoning'
 import { isFunctionCallingModel } from '../tooluse'

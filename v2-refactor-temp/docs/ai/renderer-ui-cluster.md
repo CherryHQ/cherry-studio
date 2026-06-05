@@ -132,6 +132,6 @@ assistant streams in.
 
 - The `ChatFlowHistory` modal is still functional but the design is
   pending UX iteration — see [branch-navigation.md](./branch-navigation.md).
-- Some v1 → v2 bridge code still lives in `_bridge.ts` / `legacy: only
+- Some v1 → v2 bridge code still lives in `bridge.ts` / `legacy: only
   present in v1 settings` annotations on types; deletion is gated on
   the renderer cleanup chain (see memory: v1→v2 renderer cleanup blockers).

@@ -5,6 +5,7 @@ import {
   agentChannelTaskTable as channelTaskSubscriptionsTable,
   type InsertAgentChannelRow as InsertChannelRow
 } from '@data/db/schemas/agentChannel'
+import type { DbOrTx } from '@data/db/types'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
@@ -157,6 +158,21 @@ export class AgentChannelService {
         and(eq(channelTaskSubscriptionsTable.channelId, channelId), eq(channelTaskSubscriptionsTable.taskId, taskId))
       )
     logger.info('Channel unsubscribed from task', { channelId, taskId })
+  }
+
+  async replaceTaskSubscriptions(taskId: string, channelIds: readonly string[]): Promise<void> {
+    await application.get('DbService').withWriteTx((tx) => this.replaceTaskSubscriptionsTx(tx, taskId, channelIds))
+    logger.info('Channel task subscriptions replaced', { taskId, channelCount: channelIds.length })
+  }
+
+  async replaceTaskSubscriptionsTx(tx: DbOrTx, taskId: string, channelIds: readonly string[]): Promise<void> {
+    await tx.delete(channelTaskSubscriptionsTable).where(eq(channelTaskSubscriptionsTable.taskId, taskId))
+    if (channelIds.length > 0) {
+      await tx
+        .insert(channelTaskSubscriptionsTable)
+        .values(channelIds.map((channelId) => ({ channelId, taskId })))
+        .onConflictDoNothing()
+    }
   }
 
   async getSubscribedChannels(taskId: string): Promise<AgentChannelEntity[]> {

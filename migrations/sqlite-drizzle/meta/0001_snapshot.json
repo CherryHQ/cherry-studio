@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "148107d8-c3eb-4d5a-98aa-8ac724e3f994",
+  "id": "59573691-4fea-468c-a9a2-1fe5aaae9b39",
   "prevId": "b2f4f492-7829-40d7-9ac6-94ec9384a926",
   "tables": {
     "agent": {
@@ -36,6 +36,14 @@
           "autoincrement": false,
           "default": "''"
         },
+        "accessible_paths": {
+          "name": "accessible_paths",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
         "instructions": {
           "name": "instructions",
           "type": "text",
@@ -47,7 +55,7 @@
           "name": "model",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "plan_model": {
@@ -88,12 +96,13 @@
           "autoincrement": false,
           "default": "'{}'"
         },
-        "order_key": {
-          "name": "order_key",
-          "type": "text",
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": 0
         },
         "created_at": {
           "name": "created_at",
@@ -128,41 +137,13 @@
           "columns": ["type"],
           "isUnique": false
         },
-        "agent_order_key_idx": {
-          "name": "agent_order_key_idx",
-          "columns": ["order_key"],
+        "agent_sort_order_idx": {
+          "name": "agent_sort_order_idx",
+          "columns": ["sort_order"],
           "isUnique": false
         }
       },
-      "foreignKeys": {
-        "agent_model_user_model_id_fk": {
-          "name": "agent_model_user_model_id_fk",
-          "tableFrom": "agent",
-          "tableTo": "user_model",
-          "columnsFrom": ["model"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_plan_model_user_model_id_fk": {
-          "name": "agent_plan_model_user_model_id_fk",
-          "tableFrom": "agent",
-          "tableTo": "user_model",
-          "columnsFrom": ["plan_model"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_small_model_user_model_id_fk": {
-          "name": "agent_small_model_user_model_id_fk",
-          "tableFrom": "agent",
-          "tableTo": "user_model",
-          "columnsFrom": ["small_model"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        }
-      },
+      "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
@@ -340,10 +321,10 @@
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
-        "agent_channel_task_task_id_job_schedule_id_fk": {
-          "name": "agent_channel_task_task_id_job_schedule_id_fk",
+        "agent_channel_task_task_id_agent_task_id_fk": {
+          "name": "agent_channel_task_task_id_agent_task_id_fk",
           "tableFrom": "agent_channel_task",
-          "tableTo": "job_schedule",
+          "tableTo": "agent_task",
           "columnsFrom": ["task_id"],
           "columnsTo": ["id"],
           "onDelete": "cascade",
@@ -488,11 +469,18 @@
           "notNull": true,
           "autoincrement": false
         },
+        "agent_type": {
+          "name": "agent_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "agent_id": {
           "name": "agent_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false
         },
         "name": {
@@ -510,19 +498,81 @@
           "autoincrement": false,
           "default": "''"
         },
-        "workspace_id": {
-          "name": "workspace_id",
+        "accessible_paths": {
+          "name": "accessible_paths",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
+        "instructions": {
+          "name": "instructions",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "plan_model": {
+          "name": "plan_model",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "order_key": {
-          "name": "order_key",
+        "small_model": {
+          "name": "small_model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "mcps": {
+          "name": "mcps",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": "'[]'"
+        },
+        "allowed_tools": {
+          "name": "allowed_tools",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
+        "slash_commands": {
+          "name": "slash_commands",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
+        "configuration": {
+          "name": "configuration",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
+        },
+        "sort_order": {
+          "name": "sort_order",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
         },
         "created_at": {
           "name": "created_at",
@@ -540,9 +590,19 @@
         }
       },
       "indexes": {
-        "agent_session_order_key_idx": {
-          "name": "agent_session_order_key_idx",
-          "columns": ["order_key"],
+        "agent_session_agent_id_idx": {
+          "name": "agent_session_agent_id_idx",
+          "columns": ["agent_id"],
+          "isUnique": false
+        },
+        "agent_session_model_idx": {
+          "name": "agent_session_model_idx",
+          "columns": ["model"],
+          "isUnique": false
+        },
+        "agent_session_sort_order_idx": {
+          "name": "agent_session_sort_order_idx",
+          "columns": ["sort_order"],
           "isUnique": false
         }
       },
@@ -553,16 +613,7 @@
           "tableTo": "agent",
           "columnsFrom": ["agent_id"],
           "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
-        },
-        "agent_session_workspace_id_agent_workspace_id_fk": {
-          "name": "agent_session_workspace_id_agent_workspace_id_fk",
-          "tableFrom": "agent_session",
-          "tableTo": "agent_workspace",
-          "columnsFrom": ["workspace_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -594,59 +645,22 @@
           "notNull": true,
           "autoincrement": false
         },
-        "data": {
-          "name": "data",
+        "content": {
+          "name": "content",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
         },
-        "searchable_text": {
-          "name": "searchable_text",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "''"
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'success'"
-        },
-        "model_id": {
-          "name": "model_id",
+        "agent_session_id": {
+          "name": "agent_session_id",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
         },
-        "model_snapshot": {
-          "name": "model_snapshot",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "trace_id": {
-          "name": "trace_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "stats": {
-          "name": "stats",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false,
-          "autoincrement": false
-        },
-        "runtime_resume_token": {
-          "name": "runtime_resume_token",
+        "metadata": {
+          "name": "metadata",
           "type": "text",
           "primaryKey": false,
           "notNull": false,
@@ -668,9 +682,9 @@
         }
       },
       "indexes": {
-        "agent_session_message_session_created_id_idx": {
-          "name": "agent_session_message_session_created_id_idx",
-          "columns": ["session_id", "created_at", "id"],
+        "agent_session_message_session_id_idx": {
+          "name": "agent_session_message_session_id_idx",
+          "columns": ["session_id"],
           "isUnique": false
         }
       },
@@ -683,29 +697,11 @@
           "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
-        },
-        "agent_session_message_model_id_user_model_id_fk": {
-          "name": "agent_session_message_model_id_user_model_id_fk",
-          "tableFrom": "agent_session_message",
-          "tableTo": "user_model",
-          "columnsFrom": ["model_id"],
-          "columnsTo": ["id"],
-          "onDelete": "set null",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {
-        "agent_session_message_role_check": {
-          "name": "agent_session_message_role_check",
-          "value": "\"agent_session_message\".\"role\" IN ('user', 'assistant', 'system')"
-        },
-        "agent_session_message_status_check": {
-          "name": "agent_session_message_status_check",
-          "value": "\"agent_session_message\".\"status\" IN ('pending', 'success', 'error', 'paused')"
-        }
-      }
+      "checkConstraints": {}
     },
     "agent_skill": {
       "name": "agent_skill",
@@ -787,6 +783,244 @@
       },
       "uniqueConstraints": {},
       "checkConstraints": {}
+    },
+    "agent_task_run_log": {
+      "name": "agent_task_run_log",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "task_id": {
+          "name": "task_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "session_id": {
+          "name": "session_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "run_at": {
+          "name": "run_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "duration_ms": {
+          "name": "duration_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "result": {
+          "name": "result",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "error": {
+          "name": "error",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "agent_task_run_log_task_id_idx": {
+          "name": "agent_task_run_log_task_id_idx",
+          "columns": ["task_id"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "agent_task_run_log_task_id_agent_task_id_fk": {
+          "name": "agent_task_run_log_task_id_agent_task_id_fk",
+          "tableFrom": "agent_task_run_log",
+          "tableTo": "agent_task",
+          "columnsFrom": ["task_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "agent_task_run_log_status_check": {
+          "name": "agent_task_run_log_status_check",
+          "value": "\"agent_task_run_log\".\"status\" IN ('running', 'success', 'error')"
+        }
+      }
+    },
+    "agent_task": {
+      "name": "agent_task",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "agent_id": {
+          "name": "agent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "prompt": {
+          "name": "prompt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "schedule_type": {
+          "name": "schedule_type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "schedule_value": {
+          "name": "schedule_value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "timeout_minutes": {
+          "name": "timeout_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 2
+        },
+        "next_run": {
+          "name": "next_run",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_run": {
+          "name": "last_run",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "last_result": {
+          "name": "last_result",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "agent_task_agent_id_idx": {
+          "name": "agent_task_agent_id_idx",
+          "columns": ["agent_id"],
+          "isUnique": false
+        },
+        "agent_task_next_run_idx": {
+          "name": "agent_task_next_run_idx",
+          "columns": ["next_run"],
+          "isUnique": false
+        },
+        "agent_task_status_idx": {
+          "name": "agent_task_status_idx",
+          "columns": ["status"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "agent_task_agent_id_agent_id_fk": {
+          "name": "agent_task_agent_id_agent_id_fk",
+          "tableFrom": "agent_task",
+          "tableTo": "agent",
+          "columnsFrom": ["agent_id"],
+          "columnsTo": ["id"],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "agent_task_schedule_type_check": {
+          "name": "agent_task_schedule_type_check",
+          "value": "\"agent_task\".\"schedule_type\" IN ('cron', 'interval', 'once')"
+        },
+        "agent_task_status_check": {
+          "name": "agent_task_status_check",
+          "value": "\"agent_task\".\"status\" IN ('active', 'paused', 'completed')"
+        }
+      }
     },
     "app_state": {
       "name": "app_state",
@@ -887,13 +1121,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "order_key": {
-          "name": "order_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "integer",
@@ -920,11 +1147,6 @@
         "assistant_created_at_idx": {
           "name": "assistant_created_at_idx",
           "columns": ["created_at"],
-          "isUnique": false
-        },
-        "assistant_order_key_idx": {
-          "name": "assistant_order_key_idx",
-          "columns": ["order_key"],
           "isUnique": false
         }
       },
@@ -3540,69 +3762,6 @@
         },
         "user_provider_order_key_idx": {
           "name": "user_provider_order_key_idx",
-          "columns": ["order_key"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {}
-    },
-    "agent_workspace": {
-      "name": "agent_workspace",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "path": {
-          "name": "path",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "order_key": {
-          "name": "order_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "agent_workspace_path_unique_idx": {
-          "name": "agent_workspace_path_unique_idx",
-          "columns": ["path"],
-          "isUnique": true
-        },
-        "agent_workspace_order_key_idx": {
-          "name": "agent_workspace_order_key_idx",
           "columns": ["order_key"],
           "isUnique": false
         }

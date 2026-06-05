@@ -250,7 +250,7 @@ describe('app Sidebar', () => {
     expect(mocks.emitResourceListReveal).not.toHaveBeenCalled()
   })
 
-  it('reuses the active unpinned tab instead of focusing an existing sidebar app tab', () => {
+  it('focuses an existing sidebar app tab instead of reusing the active tab', () => {
     mocks.visibleSidebarIcons = ['agents']
     mocks.activeTab = {
       id: 'chat',
@@ -263,15 +263,10 @@ describe('app Sidebar', () => {
     render(<Sidebar />)
     fireEvent.click(screen.getByTestId('sidebar-item-agents'))
 
-    expect(mocks.updateTab).toHaveBeenCalledWith('chat', {
-      url: '/app/agents',
-      title: 'Agent',
-      icon: undefined,
-      metadata: undefined
-    })
-    expect(mocks.emitResourceListReveal).toHaveBeenCalledWith({ source: 'agents', tabId: 'chat' })
+    expect(mocks.setActiveTab).toHaveBeenCalledWith('agents-1')
+    expect(mocks.emitResourceListReveal).toHaveBeenCalledWith({ source: 'agents', tabId: 'agents-1' })
+    expect(mocks.updateTab).not.toHaveBeenCalled()
     expect(mocks.openTab).not.toHaveBeenCalled()
-    expect(mocks.setActiveTab).not.toHaveBeenCalled()
   })
 
   it('clears stale instance metadata when reusing the active tab', () => {

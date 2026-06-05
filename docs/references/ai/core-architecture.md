@@ -41,7 +41,7 @@ each subsystem.
 │      listeners + executions                                          │
 │    runs N StreamExecution loops, fan-out per chunk to listeners       │
 │                                                                      │
-│  StreamExecution → runExecutionLoop → AiService.streamText(req,signal)│
+│  runExecutionLoop (AiStreamManager) → AiService.streamText(req,signal)│
 │    buildAgentParams: registry.selectActive + applyDeferExposition     │
 │    new Agent({tools, hookParts}) — composeHooks runs inside Agent     │
 │    → agent.stream(messages, signal)                                   │
@@ -84,11 +84,11 @@ each subsystem.
      ignored (the message was already enqueued on the session's `pendingTurns`).
    - **no live stream**: `send()` **starts** — evict any grace-period stream,
      create an `ActiveStream`, launch one `StreamExecution` per model.
-7. Each `StreamExecution`'s `runExecutionLoop` calls
-   `AiService.streamText(request, signal)`, which builds params
+7. For each `StreamExecution`, `AiStreamManager`'s private `runExecutionLoop`
+   calls `AiService.streamText(request, signal)`, which builds params
    (`buildAgentParamsFor → buildAgentParams`: `registry.selectActive` +
    `applyDeferExposition` + per-feature hooks), constructs an `Agent`
-   (`composeHooks` folds observers + features + caller inside `Agent`), and
+   (`composeHooks` folds observers + caller + features inside `Agent`), and
    calls `agent.stream(messages, signal)` — which opens AI SDK's stream and
    yields `UIMessageChunk`s. Agent-session runtime requests skip the generic
    agent loop here: `AiService.streamText()` calls

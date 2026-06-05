@@ -585,6 +585,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
     () =>
       createTopicDisplayGroupResolver<Topic>({
         assistantById,
+        defaultAssistant: defaultAssistantForTopics,
         mode: displayMode,
         labels: {
           pinned: t('selector.common.pinned_title'),
@@ -601,7 +602,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
         now: groupNow,
         pinnedAsSection: isAssistantDisplayMode
       }),
-    [assistantById, displayMode, groupNow, isAssistantDisplayMode, t]
+    [assistantById, defaultAssistantForTopics, displayMode, groupNow, isAssistantDisplayMode, t]
   )
 
   const topicSectionBy = useMemo(() => {
@@ -773,11 +774,10 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
 
       const payload = getCreateTopicPayloadForGroup(group.id)
       if (!payload && assistantGroupId === undefined) return null
-      const isRuntimeDefaultGroup = assistantGroupId === null
 
       return (
         <>
-          {assistantGroupId !== null && !isRuntimeDefaultGroup && (
+          {assistantGroupId !== null && (
             <Tooltip title={t('common.more')} delay={500}>
               <AssistantGroupMoreMenu
                 assistantId={assistantGroupId}
@@ -829,7 +829,7 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
       if (displayMode !== 'assistant') return null
 
       const assistantId = getAssistantIdFromTopicGroupId(group.id)
-      if (assistantId === undefined || assistantId === null || !assistantById.has(assistantId)) return null
+      if (!assistantId || !assistantById.has(assistantId)) return null
 
       const actionContext: AssistantGroupActionContext = {
         assistantId,
@@ -863,9 +863,11 @@ export function Topics({ activeTopic, onNewTopic, onOpenHistory, revealRequest, 
   )
 
   const getGroupHeaderIcon = useCallback(
-    (group: { id: string }) => {
+    (group: { id: string; label: string }) => {
       if (!isAssistantDisplayMode || group.id === TOPIC_PINNED_GROUP_ID) return undefined
-      if (group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) return null
+      if (group.id === TOPIC_UNLINKED_ASSISTANT_GROUP_ID) {
+        return null
+      }
 
       const assistantId = getAssistantIdFromTopicGroupId(group.id)
       const assistant = assistantId !== undefined ? assistantById.get(assistantId) : undefined

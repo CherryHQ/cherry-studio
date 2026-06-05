@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { MCPServer } from '../../../data/types/mcpServer'
+import type { McpServer } from '../../../data/types/mcpServer'
 import {
   isMcpToolDisabledBySource,
   isMcpToolForcePromptBySource,
@@ -14,7 +14,7 @@ const server = {
   isActive: true,
   disabledTools: [],
   disabledAutoApproveTools: []
-} as MCPServer
+} as McpServer
 
 const tool = {
   id: 'mcp__docs__searchDocs',
@@ -34,7 +34,7 @@ describe('mcpSourcePolicy', () => {
       ...server,
       disabledTools: ['search_docs'],
       disabledAutoApproveTools: ['mcp__docs__searchDocs']
-    } as MCPServer
+    } as McpServer
 
     expect(isMcpToolDisabledBySource(configured, tool)).toBe(true)
     expect(isMcpToolForcePromptBySource(configured, tool)).toBe(true)
@@ -43,10 +43,28 @@ describe('mcpSourcePolicy', () => {
 
   it('resolves source force-prompt for auto-approval opt-out', () => {
     expect(
-      resolveMcpSourceToolAccess({ ...server, disabledAutoApproveTools: ['search_docs'] } as MCPServer, tool)
+      resolveMcpSourceToolAccess({ ...server, disabledAutoApproveTools: ['search_docs'] } as McpServer, tool)
     ).toEqual({
       enabled: true,
       approval: 'prompt'
     })
+  })
+
+  // mcp-servers-3: the built-in browser `execute` runs arbitrary model JS against the
+  // user's real session; it must ALWAYS require approval, even with auto-approve config.
+  it('always force-prompts @cherry/browser execute, regardless of config', () => {
+    const browserServer = {
+      id: 'browser-id',
+      name: '@cherry/browser',
+      isActive: true,
+      disabledTools: [],
+      disabledAutoApproveTools: []
+    } as McpServer
+    const execute = { id: 'mcp__cherryBrowser__execute', name: 'execute' }
+
+    expect(isMcpToolForcePromptBySource(browserServer, execute)).toBe(true)
+    expect(resolveMcpSourceToolAccess(browserServer, execute)).toEqual({ enabled: true, approval: 'prompt' })
+    // A non-execute browser tool is unaffected by the built-in policy.
+    expect(isMcpToolForcePromptBySource(browserServer, { name: 'open' })).toBe(false)
   })
 })

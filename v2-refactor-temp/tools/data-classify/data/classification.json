@@ -1584,9 +1584,9 @@
               "defaultValue": [
                 "assistants",
                 "agents",
-                "store",
+                "paintings",
                 "translate",
-                "mini_app"
+                "store"
               ],
               "originalKey": "visible",
               "status": "pending",
@@ -1609,9 +1609,9 @@
           "defaultValue": [
             "assistants",
             "agents",
-            "store",
+            "paintings",
             "translate",
-            "mini_app"
+            "store"
           ],
           "status": "pending",
           "category": "preferences",

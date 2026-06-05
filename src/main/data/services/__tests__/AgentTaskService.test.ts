@@ -18,9 +18,12 @@ vi.mock('@application', async () => {
 const dbDeleteMock = vi.fn()
 const dbInsertMock = vi.fn()
 const dbSelectMock = vi.fn()
+const { replaceTaskSubscriptionsMock } = vi.hoisted(() => ({
+  replaceTaskSubscriptionsMock: vi.fn()
+}))
 
 vi.mock('@data/services/AgentChannelService', () => ({
-  agentChannelService: { getSubscribedChannels: vi.fn() }
+  agentChannelService: { getSubscribedChannels: vi.fn(), replaceTaskSubscriptions: replaceTaskSubscriptionsMock }
 }))
 vi.mock('@data/services/JobScheduleService', () => ({
   jobScheduleService: { getById: vi.fn(), listAll: vi.fn() }
@@ -142,6 +145,7 @@ describe('AgentTaskService (thin facade)', () => {
     dbDeleteMock.mockReset()
     vi.mocked(agentChannelService.getSubscribedChannels).mockReset()
     vi.mocked(agentChannelService.getSubscribedChannels).mockResolvedValue([])
+    replaceTaskSubscriptionsMock.mockReset()
     vi.mocked(jobScheduleService.getById).mockReset()
     vi.mocked(jobScheduleService.listAll).mockReset()
     vi.mocked(jobService.list).mockReset()
@@ -193,6 +197,32 @@ describe('AgentTaskService (thin facade)', () => {
       vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSnapshot())
 
       await expect(agentTaskService.createTask(AGENT_ID, validDto)).resolves.toMatchObject({ id: TASK_ID })
+    })
+
+    it('delegates task channel subscriptions to AgentChannelService', async () => {
+      setupApplicationMocks()
+      registerJobScheduleMock.mockResolvedValueOnce({ id: TASK_ID })
+      vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSnapshot())
+
+      await agentTaskService.createTask(AGENT_ID, { ...validDto, channelIds: ['channel-1', 'channel-2'] })
+
+      expect(replaceTaskSubscriptionsMock).toHaveBeenCalledWith(TASK_ID, ['channel-1', 'channel-2'])
+      expect(dbInsertMock).not.toHaveBeenCalled()
+    })
+
+    it('rolls back the registered schedule when channel subscription replacement fails', async () => {
+      setupApplicationMocks()
+      const error = new Error('bad channel')
+      registerJobScheduleMock.mockResolvedValueOnce({ id: TASK_ID })
+      replaceTaskSubscriptionsMock.mockRejectedValueOnce(error)
+      unregisterJobScheduleByIdMock.mockResolvedValueOnce(true)
+
+      await expect(
+        agentTaskService.createTask(AGENT_ID, { ...validDto, channelIds: ['missing-channel'] })
+      ).rejects.toThrow(error)
+
+      expect(unregisterJobScheduleByIdMock).toHaveBeenCalledWith(TASK_ID)
+      expect(vi.mocked(jobScheduleService.getById)).not.toHaveBeenCalled()
     })
   })
 
@@ -319,6 +349,20 @@ describe('AgentTaskService (thin facade)', () => {
       expect(updateJobScheduleMock).toHaveBeenCalledTimes(1)
       const patch = updateJobScheduleMock.mock.calls[0][1]
       expect(patch).not.toHaveProperty('jobInputTemplate')
+    })
+
+    it('delegates channel replacement when channelIds are patched', async () => {
+      setupApplicationMocks()
+      vi.mocked(jobScheduleService.getById)
+        .mockResolvedValueOnce(makeSnapshot())
+        .mockResolvedValueOnce(makeSnapshot())
+        .mockResolvedValueOnce(makeSnapshot())
+      updateJobScheduleMock.mockResolvedValueOnce(makeSnapshot())
+
+      await agentTaskService.updateTask(AGENT_ID, TASK_ID, { channelIds: ['channel-3'] })
+
+      expect(replaceTaskSubscriptionsMock).toHaveBeenCalledWith(TASK_ID, ['channel-3'])
+      expect(dbDeleteMock).not.toHaveBeenCalled()
     })
 
     it('returns null when the task does not exist', async () => {

@@ -1,4 +1,5 @@
 import { type FileAttachment, type ImageAttachment, MAX_FILE_SIZE_BYTES } from '@main/utils/downloadAsBase64'
+import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { net } from 'electron'
 import WebSocket from 'ws'
 
@@ -233,7 +234,7 @@ class QqAdapter extends ChannelAdapter {
       return
     }
 
-    if (payload.s !== undefined) {
+    if (payload.s !== undefined && payload.s !== null) {
       this.lastSeq = payload.s
     }
 
@@ -420,17 +421,23 @@ class QqAdapter extends ChannelAdapter {
         .map(async (att) => {
           try {
             const url = att.url.startsWith('http') ? att.url : `https://${att.url}`
-            const response = await net.fetch(url, {
+            // SSRF guard: reject local/private/credentialed/non-http(s) targets from the
+            // inbound payload before we fetch with the bot token (and before the retry).
+            const safeUrl = sanitizeRemoteUrl(url)
+            const response = await net.fetch(safeUrl, {
               headers: { Authorization: `QQBot ${token}`, 'X-Union-Appid': this.appId }
             })
             if (!response.ok) {
               // Retry without auth header (some CDN URLs are public)
-              const retry = await net.fetch(url)
+              const retry = await net.fetch(safeUrl)
               if (!retry.ok) return
               const buffer = Buffer.from(await retry.arrayBuffer())
+              // `att.size` is attacker-supplied metadata; cap on the real downloaded bytes.
+              if (buffer.length > MAX_FILE_SIZE_BYTES) return
               this.pushAttachment(att, buffer, images, files)
             } else {
               const buffer = Buffer.from(await response.arrayBuffer())
+              if (buffer.length > MAX_FILE_SIZE_BYTES) return
               this.pushAttachment(att, buffer, images, files)
             }
           } catch {

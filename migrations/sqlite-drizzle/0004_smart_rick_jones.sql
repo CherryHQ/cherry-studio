@@ -1,6 +1,6 @@
-ALTER TABLE `assistant` ADD `source` text DEFAULT 'user' NOT NULL;--> statement-breakpoint
 DROP INDEX `topic_group_id_order_key_idx`;--> statement-breakpoint
 CREATE INDEX `topic_order_key_idx` ON `topic` (`order_key`);--> statement-breakpoint
+ALTER TABLE `assistant` ADD `source` text DEFAULT 'user' NOT NULL;--> statement-breakpoint
 PRAGMA foreign_keys=OFF;--> statement-breakpoint
 CREATE TABLE `__new_agent_workspace` (
 	`id` text PRIMARY KEY NOT NULL,
@@ -13,7 +13,7 @@ CREATE TABLE `__new_agent_workspace` (
 	CONSTRAINT "agent_workspace_type_check" CHECK("__new_agent_workspace"."type" IN ('user', 'system'))
 );
 --> statement-breakpoint
-INSERT INTO `__new_agent_workspace`("id", "name", "path", "order_key", "created_at", "updated_at") SELECT "id", "name", "path", "order_key", "created_at", "updated_at" FROM `agent_workspace`;--> statement-breakpoint
+INSERT INTO `__new_agent_workspace`("id", "name", "path", "type", "order_key", "created_at", "updated_at") SELECT "id", "name", "path", 'user', "order_key", "created_at", "updated_at" FROM `agent_workspace`;--> statement-breakpoint
 DROP TABLE `agent_workspace`;--> statement-breakpoint
 ALTER TABLE `__new_agent_workspace` RENAME TO `agent_workspace`;--> statement-breakpoint
 PRAGMA foreign_keys=ON;--> statement-breakpoint

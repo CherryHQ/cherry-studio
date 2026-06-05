@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "6020b454-9545-44bd-a6dc-1fec738dfc43",
+  "id": "7d3a1018-0a36-43dd-a9a0-3aea2909de02",
   "prevId": "8e00d353-2e17-4881-af32-48ece83c10e9",
   "tables": {
     "agent": {
@@ -614,8 +614,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false,
-          "default": "'success'"
+          "autoincrement": false
         },
         "model_id": {
           "name": "model_id",
@@ -842,14 +841,6 @@
           "primaryKey": true,
           "notNull": true,
           "autoincrement": false
-        },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'user'"
         },
         "name": {
           "name": "name",
@@ -3020,9 +3011,9 @@
           "columns": ["updated_at"],
           "isUnique": false
         },
-        "topic_order_key_idx": {
-          "name": "topic_order_key_idx",
-          "columns": ["order_key"],
+        "topic_group_id_order_key_idx": {
+          "name": "topic_group_id_order_key_idx",
+          "columns": ["group_id", "order_key"],
           "isUnique": false
         },
         "topic_assistant_id_idx": {
@@ -3574,14 +3565,6 @@
           "notNull": true,
           "autoincrement": false
         },
-        "type": {
-          "name": "type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'user'"
-        },
         "order_key": {
           "name": "order_key",
           "type": "text",
@@ -3619,12 +3602,7 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {
-        "agent_workspace_type_check": {
-          "name": "agent_workspace_type_check",
-          "value": "\"agent_workspace\".\"type\" IN ('user', 'system')"
-        }
-      }
+      "checkConstraints": {}
     }
   },
   "views": {},

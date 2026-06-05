@@ -136,9 +136,11 @@ export class WorkspaceService {
     const workspacePath = normalizeWorkspacePath(rawPath)
     ensureWorkspaceDirectory(workspacePath)
 
-    const db = application.get('DbService').getDb()
     const row = await withSqliteErrors(
-      () => db.transaction((tx) => this.findOrCreateRowByNormalizedPathTx(tx, workspacePath, options)),
+      () =>
+        application
+          .get('DbService')
+          .withWriteTx((tx) => this.findOrCreateRowByNormalizedPathTx(tx, workspacePath, options)),
       {
         ...defaultHandlersFor('Workspace', workspacePath),
         unique: () => DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')

@@ -12,7 +12,8 @@ let preparedWithCtx: { hasLiveStream: boolean } | undefined
 const mocks = vi.hoisted(() => ({
   agentCanHandle: vi.fn<(topicId: string) => boolean>(),
   agentPrepare: vi.fn(),
-  persistentPrepare: vi.fn()
+  persistentPrepare: vi.fn(),
+  isWorkspaceErr: vi.fn<(error: unknown) => boolean>()
 }))
 
 const minimalPrepared = (topicId: string) => ({
@@ -40,7 +41,9 @@ vi.mock('../PersistentChatContextProvider', () => ({
     prepareDispatch: mocks.persistentPrepare
   }
 }))
-vi.mock('../../../runtime/claudeCode/settingsBuilder', () => ({ isAgentSessionWorkspaceError: () => false }))
+vi.mock('../../../runtime/claudeCode/settingsBuilder', () => ({
+  isAgentSessionWorkspaceError: mocks.isWorkspaceErr
+}))
 
 const { dispatchStreamRequest } = await import('../dispatch')
 
@@ -80,6 +83,7 @@ beforeEach(() => {
   preparedWithCtx = undefined
   vi.clearAllMocks()
   mocks.agentCanHandle.mockReturnValue(false)
+  mocks.isWorkspaceErr.mockReturnValue(false)
 })
 
 describe('dispatchStreamRequest — steer-restart ordering (#B4)', () => {
@@ -118,5 +122,33 @@ describe('dispatchStreamRequest — steer-restart ordering (#B4)', () => {
     expect(order).toEqual(['prepareDispatch', 'send'])
     // Agent session is untouched → prepareDispatch must still observe the live stream.
     expect(preparedWithCtx).toEqual({ hasLiveStream: true })
+  })
+
+  // stream-context-1: the workspace-blocked branch was uncovered (the only test stubbed
+  // isAgentSessionWorkspaceError to always-false).
+  it('returns mode:blocked without sending when prepareDispatch throws a workspace error', async () => {
+    mocks.agentCanHandle.mockReturnValue(true)
+    mocks.isWorkspaceErr.mockReturnValue(true)
+    mocks.agentPrepare.mockRejectedValue(new Error('workspace missing'))
+    const manager = makeManager(true)
+
+    const result = await dispatchStreamRequest(manager, makeSubscriber(), chatReq('agent-session:s1'))
+
+    expect(result).toMatchObject({
+      mode: 'blocked',
+      reason: 'agent-session-workspace',
+      message: 'workspace missing'
+    })
+    expect(manager.send).not.toHaveBeenCalled()
+  })
+
+  it('rethrows a non-workspace prepareDispatch error and does not send', async () => {
+    mocks.agentCanHandle.mockReturnValue(true)
+    mocks.isWorkspaceErr.mockReturnValue(false)
+    mocks.agentPrepare.mockRejectedValue(new Error('boom'))
+    const manager = makeManager(true)
+
+    await expect(dispatchStreamRequest(manager, makeSubscriber(), chatReq('agent-session:s1'))).rejects.toThrow('boom')
+    expect(manager.send).not.toHaveBeenCalled()
   })
 })

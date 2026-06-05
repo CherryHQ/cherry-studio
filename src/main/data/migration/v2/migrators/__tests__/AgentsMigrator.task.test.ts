@@ -258,3 +258,91 @@ describe('AgentsMigrator > migrateScheduledTasksTs', () => {
     expect(schedules).toHaveLength(3)
   })
 })
+
+describe('AgentsMigrator > migrateScheduledTasksTs > duplicate v1 task names', () => {
+  const dbh = setupTestDatabase()
+  let tempDir: string
+  let legacyPath: string
+
+  beforeAll(async () => {
+    tempDir = mkdtempSync(join(tmpdir(), 'cs-agents-task-dup-test-'))
+    legacyPath = join(tempDir, 'agents.db')
+    const client = createClient({ url: pathToFileURL(legacyPath).href })
+    try {
+      await client.execute(`
+        CREATE TABLE scheduled_tasks (
+          id TEXT PRIMARY KEY,
+          agent_id TEXT NOT NULL,
+          name TEXT NOT NULL,
+          prompt TEXT NOT NULL,
+          schedule_type TEXT NOT NULL,
+          schedule_value TEXT NOT NULL,
+          timeout_minutes INTEGER,
+          status TEXT NOT NULL
+        )
+      `)
+      await client.execute(`
+        CREATE TABLE channel_task_subscriptions (
+          channel_id TEXT NOT NULL,
+          task_id TEXT NOT NULL,
+          PRIMARY KEY (channel_id, task_id)
+        )
+      `)
+      // Two distinct v1 tasks sharing the SAME name. Both map to
+      // (type='agent.task', name='Daily standup') and would collide on the
+      // unique index unless the migrator disambiguates.
+      await client.execute({
+        sql: `INSERT INTO scheduled_tasks (id, agent_id, name, prompt, schedule_type, schedule_value, timeout_minutes, status)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: ['task-dup-1', AGENT_ID, 'Daily standup', 'Run standup A', 'cron', '0 9 * * *', 5, 'active']
+      })
+      await client.execute({
+        sql: `INSERT INTO scheduled_tasks (id, agent_id, name, prompt, schedule_type, schedule_value, timeout_minutes, status)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: ['task-dup-2', AGENT_ID, 'Daily standup', 'Run standup B', 'cron', '0 10 * * *', 5, 'active']
+      })
+    } finally {
+      client.close()
+    }
+  })
+
+  afterAll(() => {
+    rmSync(tempDir, { recursive: true, force: true })
+  })
+
+  beforeEach(async () => {
+    await dbh.db.insert(agentTable).values({
+      id: AGENT_ID,
+      type: 'claude-code',
+      name: 'V1 Agent',
+      instructions: 'helper',
+      model: null,
+      orderKey: 'a0'
+    })
+  })
+
+  it('migrates both same-named v1 tasks without throwing, disambiguating one name', async () => {
+    await dbh.db.run(sql.raw(`ATTACH DATABASE '${legacyPath}' AS agents_legacy`))
+    try {
+      const migrator = new AgentsMigrator()
+      await expect(
+        (
+          migrator as unknown as { migrateScheduledTasksTs: (db: typeof dbh.db) => Promise<void> }
+        ).migrateScheduledTasksTs(dbh.db)
+      ).resolves.toBeUndefined()
+    } finally {
+      await dbh.db.run(sql.raw('DETACH DATABASE agents_legacy'))
+    }
+
+    const schedules = await dbh.db.select().from(jobScheduleTable).where(eq(jobScheduleTable.type, 'agent.task'))
+    // Both v1 tasks survive — no row dropped, no UNIQUE abort.
+    expect(schedules).toHaveLength(2)
+
+    // Names are unique: one keeps 'Daily standup', the other falls back to a
+    // disambiguated `task_<id>` form.
+    const names = schedules.map((s) => s.name).sort()
+    expect(new Set(names).size).toBe(2)
+    expect(names).toContain('Daily standup')
+    expect(names.some((n) => n.startsWith('task_task-dup-'))).toBe(true)
+  })
+})

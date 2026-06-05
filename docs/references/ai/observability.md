@@ -82,6 +82,28 @@ shape the dev-tools UI consumes:
 Claude Code Agent SDK spans do not go through `AiSdkSpanAdapter`; they are
 converted by `src/main/ai/observability/adapters/claudeCode/ClaudeCodeOtlpAdapter.ts`.
 
+## Sensitive data capture & redaction
+
+> Cross-referenced from `ClaudeCodeTraceBridgeService.prepareTrace`.
+
+The Claude Code OTLP bridge runs **only when developer mode is enabled**. When
+it does, it intentionally turns on verbose Claude Code telemetry:
+
+- `OTEL_LOG_USER_PROMPTS` — user prompt text
+- `OTEL_LOG_TOOL_DETAILS` / `OTEL_LOG_TOOL_CONTENT` — tool calls and their content
+- `OTEL_LOG_RAW_API_BODIES` — raw API request/response bodies
+
+These payloads land in span attributes that `SpanCacheService` persists as
+**plaintext JSONL trace files on disk**, so a trace can contain secrets
+(authorization headers, API keys embedded in raw bodies) alongside the prompt
+and tool content.
+
+**Redaction is deliberately not done.** Stripping secrets would mean parsing
+arbitrary OTLP attribute structures across the ingest path and would risk
+dropping legitimate trace data. The accepted tradeoff is that capture is
+**local-only and developer-gated**; turning that into a redaction/threat-model
+guarantee is a deferred decision. Treat exported trace files as sensitive.
+
 ## Where it shows up in the UI
 
 Dev mode only. The dev-tools span viewer reads from the local observability

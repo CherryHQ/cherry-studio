@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { sanitizeFileProcessingRemoteUrl } from '../url'
+import { sanitizeRemoteUrl } from '../remoteUrlSafety'
 
 function expectPrivateHostRejected(rawUrl: string, hostname: string): void {
-  expect(() => sanitizeFileProcessingRemoteUrl(rawUrl)).toThrowError(
+  expect(() => sanitizeRemoteUrl(rawUrl)).toThrowError(
     `Unsafe remote url: local or private addresses are not allowed (${hostname})`
   )
 }
 
-describe('sanitizeFileProcessingRemoteUrl', () => {
+describe('sanitizeRemoteUrl', () => {
   it.each([
     'https://example.com/path?q=1',
     'http://example.com/path',
@@ -17,11 +17,11 @@ describe('sanitizeFileProcessingRemoteUrl', () => {
     'https://doc2x-pdf.oss-cn-beijing.aliyuncs.com/tmp/task-1.pdf?X-Amz-Signature=abc',
     'https://cdn-mineru.openxlab.org.cn/pdf/task-1.zip'
   ])('accepts public http and https urls: %s', (rawUrl) => {
-    expect(sanitizeFileProcessingRemoteUrl(rawUrl)).toBe(rawUrl)
+    expect(sanitizeRemoteUrl(rawUrl)).toBe(rawUrl)
   })
 
   it('normalizes valid public urls through URL parsing', () => {
-    expect(sanitizeFileProcessingRemoteUrl('https://[2001:4860:4860::8888]/a b?x=y z')).toBe(
+    expect(sanitizeRemoteUrl('https://[2001:4860:4860::8888]/a b?x=y z')).toBe(
       'https://[2001:4860:4860::8888]/a%20b?x=y%20z'
     )
   })
@@ -29,7 +29,7 @@ describe('sanitizeFileProcessingRemoteUrl', () => {
   it.each(['file:///etc/passwd', 'ftp://example.com/file', 'gopher://example.com/file'])(
     'rejects unsupported protocols: %s',
     (rawUrl) => {
-      expect(() => sanitizeFileProcessingRemoteUrl(rawUrl)).toThrowError(`Invalid remote url: ${rawUrl}`)
+      expect(() => sanitizeRemoteUrl(rawUrl)).toThrowError(`Invalid remote url: ${rawUrl}`)
     }
   )
 
@@ -65,14 +65,12 @@ describe('sanitizeFileProcessingRemoteUrl', () => {
   it.each(['https://user:pass@example.com/file', 'https://user@example.com/file'])(
     'rejects credential-bearing urls: %s',
     (rawUrl) => {
-      expect(() => sanitizeFileProcessingRemoteUrl(rawUrl)).toThrowError(
-        'Unsafe remote url: credentials are not allowed'
-      )
+      expect(() => sanitizeRemoteUrl(rawUrl)).toThrowError('Unsafe remote url: credentials are not allowed')
     }
   )
 
   it('rejects malformed urls before protocol checks', () => {
-    expect(() => sanitizeFileProcessingRemoteUrl('not-a-url')).toThrowError('Invalid remote url: not-a-url')
+    expect(() => sanitizeRemoteUrl('not-a-url')).toThrowError('Invalid remote url: not-a-url')
   })
 
   it.each([
@@ -81,7 +79,7 @@ describe('sanitizeFileProcessingRemoteUrl', () => {
     ['http://[::1]:8000/file', 'http://localhost:8000'],
     ['http://192.168.1.10:9000/file', 'http://192.168.1.10:9000']
   ])('allows provider secondary urls when they match the configured apiHost: %s', (rawUrl, configuredApiHost) => {
-    expect(sanitizeFileProcessingRemoteUrl(rawUrl, configuredApiHost)).toBe(rawUrl)
+    expect(sanitizeRemoteUrl(rawUrl, configuredApiHost)).toBe(rawUrl)
   })
 
   it.each([
@@ -91,7 +89,7 @@ describe('sanitizeFileProcessingRemoteUrl', () => {
     'still rejects provider secondary urls that do not match the configured apiHost: %s',
     (rawUrl, configuredApiHost, hostname) => {
       expectPrivateHostRejected(rawUrl, hostname)
-      expect(() => sanitizeFileProcessingRemoteUrl(rawUrl, configuredApiHost)).toThrowError(
+      expect(() => sanitizeRemoteUrl(rawUrl, configuredApiHost)).toThrowError(
         `Unsafe remote url: local or private addresses are not allowed (${hostname})`
       )
     }

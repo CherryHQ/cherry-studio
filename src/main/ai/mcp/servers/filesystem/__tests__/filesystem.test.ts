@@ -3,8 +3,12 @@ import path from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { resolveFilesystemBaseDir } from '../config'
+import { handleDeleteTool } from '../tools/delete'
+import { handleEditTool } from '../tools/edit'
 import { handleGlobTool } from '../tools/glob'
 import { handleLsTool } from '../tools/ls'
+import { handleReadTool } from '../tools/read'
+import { handleWriteTool } from '../tools/write'
 import * as types from '../types'
 import { validatePath } from '../types'
 
@@ -130,5 +134,80 @@ describe('filesystem MCP security', () => {
     expect(text).toContain('legit.txt')
     // The symlink entry itself may appear, but its children should not be listed
     expect(text).not.toContain('secret.txt')
+  })
+
+  describe('write/edit/delete/read reject escapes before mutating the filesystem', () => {
+    const ESCAPE_ERROR = 'outside the configured workspace root'
+
+    it('write rejects ../escape and a symlink pointing outside the root', async () => {
+      const workspaceRoot = await createTempDir('write-escape-root-')
+      const outsideRoot = await createTempDir('write-escape-outside-')
+      const outsideFile = path.join(outsideRoot, 'target.txt')
+      await fs.writeFile(outsideFile, 'original')
+
+      await expect(handleWriteTool({ file_path: '../escape.txt', content: 'pwned' }, workspaceRoot)).rejects.toThrow(
+        ESCAPE_ERROR
+      )
+      // No file leaked into the parent of the workspace root.
+      await expect(fs.stat(path.join(path.dirname(workspaceRoot), 'escape.txt'))).rejects.toMatchObject({
+        code: 'ENOENT'
+      })
+
+      // Symlink inside the workspace pointing outside it must be rejected before writing.
+      const symlinkPath = path.join(workspaceRoot, 'escape-link')
+      await fs.symlink(outsideFile, symlinkPath)
+      await expect(handleWriteTool({ file_path: 'escape-link', content: 'pwned' }, workspaceRoot)).rejects.toThrow(
+        ESCAPE_ERROR
+      )
+      await expect(fs.readFile(outsideFile, 'utf-8')).resolves.toBe('original')
+    })
+
+    it('edit rejects ../escape and a symlink pointing outside the root', async () => {
+      const workspaceRoot = await createTempDir('edit-escape-root-')
+      const outsideRoot = await createTempDir('edit-escape-outside-')
+      const outsideFile = path.join(outsideRoot, 'target.txt')
+      await fs.writeFile(outsideFile, 'original')
+
+      await expect(
+        handleEditTool({ file_path: '../target.txt', old_string: 'original', new_string: 'pwned' }, workspaceRoot)
+      ).rejects.toThrow(ESCAPE_ERROR)
+      await expect(fs.readFile(outsideFile, 'utf-8')).resolves.toBe('original')
+
+      const symlinkPath = path.join(workspaceRoot, 'escape-link')
+      await fs.symlink(outsideFile, symlinkPath)
+      await expect(
+        handleEditTool({ file_path: 'escape-link', old_string: 'original', new_string: 'pwned' }, workspaceRoot)
+      ).rejects.toThrow(ESCAPE_ERROR)
+      await expect(fs.readFile(outsideFile, 'utf-8')).resolves.toBe('original')
+    })
+
+    it('delete rejects ../escape and a symlink pointing outside the root', async () => {
+      const workspaceRoot = await createTempDir('delete-escape-root-')
+      const outsideRoot = await createTempDir('delete-escape-outside-')
+      const outsideFile = path.join(outsideRoot, 'target.txt')
+      await fs.writeFile(outsideFile, 'keep-me')
+
+      await expect(handleDeleteTool({ path: '../target.txt' }, workspaceRoot)).rejects.toThrow(ESCAPE_ERROR)
+      await expect(fs.readFile(outsideFile, 'utf-8')).resolves.toBe('keep-me')
+
+      const symlinkPath = path.join(workspaceRoot, 'escape-link')
+      await fs.symlink(outsideFile, symlinkPath)
+      await expect(handleDeleteTool({ path: 'escape-link' }, workspaceRoot)).rejects.toThrow(ESCAPE_ERROR)
+      // Both the symlink and its target must survive.
+      await expect(fs.readFile(outsideFile, 'utf-8')).resolves.toBe('keep-me')
+    })
+
+    it('read rejects ../escape and a symlink pointing outside the root', async () => {
+      const workspaceRoot = await createTempDir('read-escape-root-')
+      const outsideRoot = await createTempDir('read-escape-outside-')
+      const outsideFile = path.join(outsideRoot, 'secret.txt')
+      await fs.writeFile(outsideFile, 'top-secret')
+
+      await expect(handleReadTool({ file_path: '../secret.txt' }, workspaceRoot)).rejects.toThrow(ESCAPE_ERROR)
+
+      const symlinkPath = path.join(workspaceRoot, 'escape-link')
+      await fs.symlink(outsideFile, symlinkPath)
+      await expect(handleReadTool({ file_path: 'escape-link' }, workspaceRoot)).rejects.toThrow(ESCAPE_ERROR)
+    })
   })
 })

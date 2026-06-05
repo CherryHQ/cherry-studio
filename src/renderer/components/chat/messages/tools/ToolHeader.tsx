@@ -1,5 +1,5 @@
 import { Flex, Tooltip } from '@cherrystudio/ui'
-import type { MCPTool, MCPToolResponse, NormalToolResponse } from '@renderer/types'
+import type { McpTool, McpToolResponse, NormalToolResponse } from '@renderer/types'
 import {
   Bot,
   DoorOpen,
@@ -31,7 +31,7 @@ export interface ToolActivity {
 }
 
 export interface ToolHeaderProps {
-  toolResponse?: MCPToolResponse | NormalToolResponse
+  toolResponse?: McpToolResponse | NormalToolResponse
 
   label?: string
   toolName?: string
@@ -551,7 +551,7 @@ function getToolIconClassName(isIconBreathing: boolean): string {
 // ============ MCP Tool sub-renderer ============
 
 interface McpToolHeaderProps {
-  tool: MCPTool
+  tool: McpTool
   description?: ReactNode
   stats?: ReactNode
   showStatus: boolean
@@ -636,7 +636,7 @@ const ToolHeader: FC<ToolHeaderProps> = ({
   if (tool?.type === 'mcp') {
     return (
       <McpToolHeader
-        tool={tool as MCPTool}
+        tool={tool as McpTool}
         description={description}
         stats={stats}
         showStatus={showStatus}

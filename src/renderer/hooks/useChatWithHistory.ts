@@ -59,7 +59,9 @@ export function useChatWithHistory(
   })
 
   const stop = useCallback(async () => {
-    void window.api.ai.streamAbort({ topicId })
+    void window.api.ai.streamAbort({ topicId }).catch((err) => {
+      logger.warn('streamAbort failed', { topicId, err })
+    })
     await sdkStop()
   }, [sdkStop, topicId])
 

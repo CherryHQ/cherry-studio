@@ -183,7 +183,7 @@
           }
         }
       },
-      "MCPServer": {
+      "McpServer": {
         "type": "object",
         "properties": {
           "id": {
@@ -773,7 +773,7 @@
                     "data": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/MCPServer"
+                        "$ref": "#/components/schemas/McpServer"
                       }
                     }
                   }
@@ -831,7 +831,7 @@
                       "type": "boolean"
                     },
                     "data": {
-                      "$ref": "#/components/schemas/MCPServer"
+                      "$ref": "#/components/schemas/McpServer"
                     }
                   }
                 }

@@ -26,6 +26,11 @@ function makeRegistry(): ToolRegistry {
   return reg
 }
 
+/** Allow-all scope: keeps the pre-scope assertions about not-found / no-execute / approval intact. */
+function allowAll(name: string): ReadonlySet<string> {
+  return new Set([name])
+}
+
 async function callInvoke(tool: Tool, args: { name: string; params?: unknown }) {
   if (typeof tool.execute !== 'function') throw new Error('not executable')
   return tool.execute(args, {
@@ -43,7 +48,7 @@ describe('tool_invoke meta-tool', () => {
   it('forwards params to the inner tool execute', async () => {
     innerExecute.mockReset().mockResolvedValue({ ok: true })
     const reg = makeRegistry()
-    const tool = createToolInvokeTool(reg)
+    const tool = createToolInvokeTool(reg, allowAll('mcp__s1__t'))
 
     const result = await callInvoke(tool, { name: 'mcp__s1__t', params: { foo: 'bar' } })
     expect(result).toEqual({ ok: true })
@@ -54,7 +59,7 @@ describe('tool_invoke meta-tool', () => {
   it('passes empty object when params omitted', async () => {
     innerExecute.mockReset().mockResolvedValue('ok')
     const reg = makeRegistry()
-    const tool = createToolInvokeTool(reg)
+    const tool = createToolInvokeTool(reg, allowAll('mcp__s1__t'))
     await callInvoke(tool, { name: 'mcp__s1__t' })
     expect(innerExecute.mock.calls[0][0]).toEqual({})
   })
@@ -62,7 +67,7 @@ describe('tool_invoke meta-tool', () => {
   it('nests the toolCallId so telemetry can rebuild the call tree', async () => {
     innerExecute.mockReset().mockResolvedValue('ok')
     const reg = makeRegistry()
-    const tool = createToolInvokeTool(reg)
+    const tool = createToolInvokeTool(reg, allowAll('mcp__s1__t'))
     await callInvoke(tool, { name: 'mcp__s1__t', params: {} })
     const passedOptions = innerExecute.mock.calls[0][1]
     expect(passedOptions.toolCallId).toBe('outer-1::mcp__s1__t')
@@ -70,7 +75,7 @@ describe('tool_invoke meta-tool', () => {
 
   it('throws when target tool not registered', async () => {
     const reg = makeRegistry()
-    const tool = createToolInvokeTool(reg)
+    const tool = createToolInvokeTool(reg, allowAll('unknown'))
     await expect(callInvoke(tool, { name: 'unknown' })).rejects.toThrow(/Tool not found/)
   })
 
@@ -83,7 +88,7 @@ describe('tool_invoke meta-tool', () => {
       defer: 'auto',
       tool: { type: 'function', description: 'inert', inputSchema: {} } as unknown as Tool
     })
-    const tool = createToolInvokeTool(reg)
+    const tool = createToolInvokeTool(reg, allowAll('inert'))
     await expect(callInvoke(tool, { name: 'inert' })).rejects.toThrow(/no execute handler/)
   })
 
@@ -103,8 +108,17 @@ describe('tool_invoke meta-tool', () => {
         execute: innerExecute
       } as Tool
     })
-    const tool = createToolInvokeTool(reg)
+    const tool = createToolInvokeTool(reg, allowAll('mcp__s1__danger'))
     await expect(callInvoke(tool, { name: 'mcp__s1__danger', params: {} })).rejects.toThrow(/requires user approval/)
+    expect(innerExecute).not.toHaveBeenCalled()
+  })
+
+  it('refuses a tool outside the per-request allowed set without touching the registry', async () => {
+    innerExecute.mockReset().mockResolvedValue('ok')
+    const reg = makeRegistry()
+    // `mcp__s1__t` IS registered process-wide, but this request did not expose it.
+    const tool = createToolInvokeTool(reg, new Set(['mcp__other__allowed']))
+    await expect(callInvoke(tool, { name: 'mcp__s1__t', params: {} })).rejects.toThrow(/not available in this request/)
     expect(innerExecute).not.toHaveBeenCalled()
   })
 })

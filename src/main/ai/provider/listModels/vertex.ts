@@ -6,6 +6,7 @@ import { defaultAppHeaders } from '@shared/utils'
 import { withoutTrailingSlash } from '@shared/utils/api/utils'
 
 import { getBaseUrl } from '../../utils/provider'
+import { normalizeVertexCredentials } from '../config'
 
 const logger = loggerService.withContext('ModelListService')
 
@@ -77,9 +78,7 @@ export async function createVertexModelListRequest(
   }
 
   const { project, location, credentials } = authConfig
-  const creds = credentials ?? {}
-  const privateKey = (creds.privateKey ?? creds.private_key) as string | undefined
-  const clientEmail = (creds.clientEmail ?? creds.client_email) as string | undefined
+  const { privateKey, clientEmail } = normalizeVertexCredentials(credentials)
 
   const missing: string[] = []
   if (!project) missing.push('project')

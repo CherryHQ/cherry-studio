@@ -156,7 +156,7 @@ const DetailHeader = ({
                 side="bottom"
                 sideOffset={8}
                 collisionPadding={8}
-                className="w-27.5 min-w-27.5 rounded-lg border-border bg-popover p-1 shadow-md"
+                className="w-40 min-w-40 rounded-lg border-border bg-popover p-1 shadow-md"
                 onOpenAutoFocus={(event) => event.preventDefault()}
                 onCloseAutoFocus={(event) => event.preventDefault()}>
                 <MenuList>

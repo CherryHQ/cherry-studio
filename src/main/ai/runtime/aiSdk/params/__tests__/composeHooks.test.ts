@@ -117,6 +117,19 @@ describe('composeHooks', () => {
       expect(a).toHaveBeenCalledTimes(1)
       expect(b).toHaveBeenCalledTimes(1)
     })
+
+    it('isolates a throwing onError handler — later handlers still run', async () => {
+      const a = vi.fn(() => {
+        throw new Error('boom')
+      })
+      const b = vi.fn(() => 'retry' as const)
+      const composed = composeHooks([{ onError: a }, { onError: b }])
+      const ctx: ErrorContext = { error: new Error('x') }
+      // The throwing handler contributes no decision; b's 'retry' still wins.
+      expect(await composed.onError!(ctx)).toBe('retry')
+      expect(a).toHaveBeenCalledTimes(1)
+      expect(b).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe('prepareStep', () => {

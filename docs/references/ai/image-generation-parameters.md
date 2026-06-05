@@ -143,7 +143,7 @@ Empty / `undefined` / `null` values are dropped here — the server applies its
 own default; no client-side defaults are invented. The `'auto'` sentinel is
 **not** dropped at this stage: it's carried through and resolved to "omit the
 field" one stage later by the emitters (e.g. `toDashScopeSize` /
-`AiProvider.resolveImageSize`).
+`resolveSizeParameter` in `dashscopeTransport.ts`).
 
 ### 2. Transport routing hint (`paintingPipeline`)
 

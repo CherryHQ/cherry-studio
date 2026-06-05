@@ -1,10 +1,13 @@
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { sessionService } from '@data/services/SessionService'
+import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
+import { AgentSessionWorkspaceError } from '@main/ai/runtime/claudeCode/settingsBuilder'
 import { EventEmitter } from 'events'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { channelMessageHandler } from '../ChannelMessageHandler'
+import { sanitizeChannelOutput } from '../security'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -12,10 +15,18 @@ vi.mock('@logger', () => ({
   }
 }))
 
-vi.mock('../../security', () => ({
+vi.mock('../security', () => ({
   wrapExternalContent: vi.fn((text: string) => text),
   sanitizeChannelOutput: vi.fn((text: string) => ({ text, redacted: false }))
 }))
+
+// The global mock (tests/main.setup.ts) wires the default service set, which omits
+// AiStreamManager; the abort path reads it, so override locally with a captured spy.
+const { mockStreamAbort } = vi.hoisted(() => ({ mockStreamAbort: vi.fn() }))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({ AiStreamManager: { abort: mockStreamAbort } } as never)
+})
 
 vi.mock('@data/services/AgentService', () => ({
   agentService: {
@@ -56,23 +67,29 @@ vi.mock('@data/services/AgentChannelService', () => ({
 }))
 
 /**
- * Helper: configure mockStartAgentSessionRun to simulate streaming chunks then
- * calling onDone on the channel-completion sentinel listener so the
- * `executionDone` promise inside `collectStreamResponse` resolves.
+ * Helper: configure mockStartAgentSessionRun to simulate streaming chunks to ALL
+ * registered listeners (both the `channel-completion:` sentinel and the
+ * `ChannelAdapterListener` that owns delivery), then call onDone on each so the
+ * `executionDone` promise inside `collectStreamResponse` resolves and the listener
+ * finalizes delivery. `text-delta` chunks carry the payload on `delta` (AI SDK
+ * `UIMessageChunk`), not `text`.
  */
-function simulateStream(parts: Array<{ type: string; text?: string }>) {
+function simulateStream(parts: Array<{ type: string; delta?: string }>) {
   mockStartAgentSessionRun.mockImplementationOnce(
     async ({
       listeners
     }: {
-      listeners: Array<{ id: string; onChunk: (chunk: unknown) => void; onDone: (result: { status: string }) => void }>
+      listeners: Array<{
+        id: string
+        onChunk: (chunk: unknown) => void
+        onDone: (result: { status: string }) => void | Promise<void>
+      }>
     }) => {
-      const sentinel = listeners.find((l) => l.id.startsWith('channel-completion:'))
-      if (sentinel) {
+      for (const listener of listeners) {
         for (const part of parts) {
-          sentinel.onChunk(part)
+          listener.onChunk(part)
         }
-        sentinel.onDone({ status: 'success' })
+        await listener.onDone({ status: 'success' })
       }
     }
   )
@@ -138,10 +155,10 @@ describe('ChannelMessageHandler', () => {
 
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
     simulateStream([
-      { type: 'text-delta', text: 'Hello ' },
-      { type: 'text-delta', text: 'world!' },
+      { type: 'text-delta', delta: 'Hello ' },
+      { type: 'text-delta', delta: 'world!' },
       { type: 'text-end' },
-      { type: 'text-delta', text: '\n\nDone.' },
+      { type: 'text-delta', delta: '\n\nDone.' },
       { type: 'text-end' }
     ])
 
@@ -152,8 +169,74 @@ describe('ChannelMessageHandler', () => {
       text: 'Hi'
     })
 
-    // The sentinel accumulates all text-delta chunks and trims the result
+    // Delivery is owned by ChannelAdapterListener (the handler no longer post-sends);
+    // it accumulates all text-delta chunks via `.delta`, trims, and sends once.
+    expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Hello world!\n\nDone.')
+  })
+
+  // channels-core-3: the streaming delivery path (real ChannelAdapterListener) must route
+  // output through the OutputSanitizer before sending — otherwise secrets in the model reply
+  // leak to the IM platform. simulateStream drives the real listener, so a redacting sanitizer
+  // must be reflected in what the adapter sends.
+  it('routes channel output through the OutputSanitizer before delivery (REGRESSION channels-core-3)', async () => {
+    const adapter = createMockAdapter()
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      model: 'openai::gpt-4',
+      workspace: { path: '/tmp/test-workspace' },
+      configuration: {}
+    }
+    vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
+
+    vi.mocked(sanitizeChannelOutput).mockImplementation((text: string) => ({
+      text: text.replace('sk-SECRET', '<redacted>'),
+      redacted: text.includes('sk-SECRET')
+    }))
+    simulateStream([{ type: 'text-delta', delta: 'the key is sk-SECRET' }])
+
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'Hi'
+    })
+
+    expect(sanitizeChannelOutput).toHaveBeenCalled()
+    // The redacted text — not the raw secret — is what reaches the adapter.
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'the key is <redacted>')
+
+    // Restore the identity default so later tests are unaffected.
+    vi.mocked(sanitizeChannelOutput).mockImplementation((text: string) => ({ text, redacted: false }))
+  })
+
+  // stream-context-5: a workspace error is thrown before streaming starts, so onStreamError
+  // (a no-op without a live controller on most adapters) can't surface it. The handler must
+  // fall back to a plain sendMessage so the inbound message isn't silently dropped.
+  it('surfaces a pre-stream workspace error as a plain message (REGRESSION stream-context-5)', async () => {
+    const adapter = createMockAdapter()
+    const session = {
+      id: 'session-1',
+      agentId: 'agent-1',
+      agentType: 'claude-code',
+      model: 'openai::gpt-4',
+      workspace: { path: '/tmp/test-workspace' },
+      configuration: {}
+    }
+    vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
+    mockStartAgentSessionRun.mockRejectedValueOnce(new AgentSessionWorkspaceError('workspace is missing'))
+
+    await handleIncomingAndFlush(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'Hi'
+    })
+
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'workspace is missing')
+    expect(adapter.onStreamError).not.toHaveBeenCalled()
   })
 
   it('skips final send when adapter handles stream completion', async () => {
@@ -169,7 +252,7 @@ describe('ChannelMessageHandler', () => {
 
     adapter.onStreamComplete.mockResolvedValueOnce(true)
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
-    simulateStream([{ type: 'text-delta', text: 'Hello world!' }])
+    simulateStream([{ type: 'text-delta', delta: 'Hello world!' }])
 
     await handleIncomingAndFlush(adapter, {
       chatId: 'chat-1',
@@ -182,7 +265,7 @@ describe('ChannelMessageHandler', () => {
     expect(adapter.sendMessage).not.toHaveBeenCalled()
   })
 
-  it('sends chunked messages for long responses', async () => {
+  it('delivers a long response in a single send (platform splitting is the adapter concern)', async () => {
     const adapter = createMockAdapter()
     const session = {
       id: 'session-1',
@@ -196,7 +279,7 @@ describe('ChannelMessageHandler', () => {
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
 
     const longText = 'A'.repeat(5000)
-    simulateStream([{ type: 'text-delta', text: longText }])
+    simulateStream([{ type: 'text-delta', delta: longText }])
 
     await handleIncomingAndFlush(adapter, {
       chatId: 'chat-1',
@@ -205,7 +288,11 @@ describe('ChannelMessageHandler', () => {
       text: 'Hi'
     })
 
-    expect(adapter.sendMessage).toHaveBeenCalledTimes(2)
+    // The handler-level 4096-char chunking was dead code (post-hoc path never ran)
+    // and has been removed; ChannelAdapterListener delivers the full text once and
+    // each adapter splits per its own platform limit.
+    expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
+    expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', longText)
   })
 
   it('handleCommand /new creates a new session', async () => {
@@ -238,7 +325,7 @@ describe('ChannelMessageHandler', () => {
     }
 
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session as any)
-    simulateStream([{ type: 'text-delta', text: 'Compacted.' }])
+    simulateStream([{ type: 'text-delta', delta: 'Compacted.' }])
 
     await channelMessageHandler.handleCommand(adapter, {
       chatId: 'chat-1',
@@ -256,6 +343,9 @@ describe('ChannelMessageHandler', () => {
         ])
       })
     )
+    // ChannelAdapterListener delivers the compact output once; the handler no longer
+    // also sends it (would have been a double-send once the `.delta` read was fixed).
+    expect(adapter.sendMessage).toHaveBeenCalledTimes(1)
     expect(adapter.sendMessage).toHaveBeenCalledWith('chat-1', 'Compacted.')
   })
 
@@ -321,7 +411,7 @@ describe('ChannelMessageHandler', () => {
 
     // Now send a message — should use the tracked session
     vi.mocked(sessionService.getById).mockResolvedValueOnce(newSession as any)
-    simulateStream([{ type: 'text-delta', text: 'OK' }])
+    simulateStream([{ type: 'text-delta', delta: 'OK' }])
 
     await handleIncomingAndFlush(adapter, {
       chatId: 'chat-1',
@@ -346,7 +436,7 @@ describe('ChannelMessageHandler', () => {
 
     // First interaction creates a session
     vi.mocked(sessionService.createSession).mockResolvedValueOnce(session1 as any)
-    simulateStream([{ type: 'text-delta', text: 'R1' }])
+    simulateStream([{ type: 'text-delta', delta: 'R1' }])
 
     await handleIncomingAndFlush(adapter, {
       chatId: 'chat-1',
@@ -365,7 +455,7 @@ describe('ChannelMessageHandler', () => {
       permissionMode: null
     } as any)
     vi.mocked(sessionService.getById).mockResolvedValueOnce(session1 as any)
-    simulateStream([{ type: 'text-delta', text: 'R2' }])
+    simulateStream([{ type: 'text-delta', delta: 'R2' }])
 
     await handleIncomingAndFlush(adapter, {
       chatId: 'chat-1',
@@ -378,5 +468,45 @@ describe('ChannelMessageHandler', () => {
     expect(channelService.getChannel).toHaveBeenCalledWith('channel-1')
     // Only 1 createSession call (the first one), not 2
     expect(sessionService.createSession).toHaveBeenCalledTimes(1)
+  })
+
+  // channels-core-3: discarding a pending (un-flushed) batch must settle its callers'
+  // handleIncoming promises instead of leaving them hanging forever, so .catch fires.
+  it('clearSessionTracker rejects pending-batch handleIncoming promises', async () => {
+    const adapter = createMockAdapter()
+
+    // Start a batch but do NOT advance timers — it stays pending in pendingBatches.
+    const pending = channelMessageHandler.handleIncoming(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      text: 'Hi'
+    })
+    const rejection = expect(pending).rejects.toThrow('Agent removed; batch discarded')
+
+    // Clearing the agent's tracker discards the pending batch.
+    channelMessageHandler.clearSessionTracker('agent-1')
+
+    await rejection
+    expect(mockStartAgentSessionRun).not.toHaveBeenCalled()
+  })
+
+  // channels-core-2: a local AbortController only flips a listener's isAlive() — clearing
+  // a tracked session must stop the upstream agent-session turn via the manager.
+  it('clearSessionTracker aborts the upstream agent-session turn via the manager', async () => {
+    const adapter = createMockAdapter()
+    vi.mocked(sessionService.createSession).mockResolvedValueOnce({ id: 'sess-x' } as any)
+
+    await channelMessageHandler.handleCommand(adapter, {
+      chatId: 'chat-1',
+      userId: 'user-1',
+      userName: 'User',
+      command: 'new'
+    })
+    mockStreamAbort.mockClear()
+
+    channelMessageHandler.clearSessionTracker('agent-1')
+
+    expect(mockStreamAbort).toHaveBeenCalledWith(buildAgentSessionTopicId('sess-x'), 'agent-cleared')
   })
 })

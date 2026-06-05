@@ -78,6 +78,8 @@ describe('assembleSystemPrompt', () => {
     expect(out).toContain('<deferred-tools>')
     expect(out).toContain('</deferred-tools>')
     expect(out).toContain('tool_invoke')
+    // tool_exec is intentionally NOT advertised to the model (privilege-escalation surface).
+    expect(out).not.toContain('tool_exec')
   })
 
   it('lists deferred namespaces with counts when deferredEntries is supplied', async () => {

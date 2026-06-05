@@ -32,4 +32,9 @@ export class MessageServiceBackend implements PersistenceBackend {
       stats: this.opts.stats ?? stats
     })
   }
+
+  /** Best-effort: flip the placeholder to `error` so a failed persist doesn't leave a frozen `pending` row. */
+  async markTerminalError(): Promise<void> {
+    await messageService.update(this.opts.assistantMessageId, { status: 'error' })
+  }
 }

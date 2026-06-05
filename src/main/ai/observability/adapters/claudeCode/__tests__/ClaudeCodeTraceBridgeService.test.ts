@@ -1,3 +1,4 @@
+import type * as NodeZlib from 'node:zlib'
 import { gzipSync } from 'node:zlib'
 
 import { BaseService } from '@main/core/lifecycle'
@@ -7,8 +8,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   spanCacheSetTopicId: vi.fn(),
   spanCacheSaveEntity: vi.fn(),
-  spanCacheAddSpanEvent: vi.fn()
+  spanCacheAddSpanEvent: vi.fn(),
+  gunzipSync: vi.fn()
 }))
+
+// Spy on gunzipSync (passthrough to the real impl) so the gzip-bomb test can assert the
+// bounded-inflation option is actually passed — otherwise the test passes even pre-fix.
+vi.mock('node:zlib', async (importOriginal) => {
+  const actual = await importOriginal<typeof NodeZlib>()
+  mocks.gunzipSync.mockImplementation(actual.gunzipSync)
+  return { ...actual, gunzipSync: mocks.gunzipSync }
+})
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -198,6 +208,34 @@ describe('ClaudeCodeTraceBridgeService', () => {
 
     expect(response.status).toBe(200)
     expect(mocks.spanCacheSaveEntity).toHaveBeenCalledWith(expect.objectContaining({ id: '6'.repeat(16) }))
+
+    await service._doStop()
+  })
+
+  it('rejects a gzip payload that decompresses beyond the size cap (gzip bomb)', async () => {
+    const service = new ClaudeCodeTraceBridgeService()
+    await service._doInit()
+    const env = await service.prepareTrace(traceContext)
+
+    // ~11 MiB of repeating bytes gzips to a few KB (well under the 10 MiB input cap), but
+    // decompresses past the 10 MiB output cap — must be rejected without inflating it fully.
+    const response = await fetch(`${env?.BETA_TRACING_ENDPOINT}/v1/traces`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'content-encoding': 'gzip'
+      },
+      body: gzipSync(JSON.stringify({ pad: 'A'.repeat(11 * 1024 * 1024) }))
+    })
+
+    expect(response.status).toBe(400)
+    expect(mocks.spanCacheSaveEntity).not.toHaveBeenCalled()
+    // Asserts the security property (bounded inflation), not just that an oversize body 400s —
+    // fails if `maxOutputLength` is dropped (the pre-fix full-decompress-then-check also 400'd).
+    expect(mocks.gunzipSync).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      expect.objectContaining({ maxOutputLength: 10 * 1024 * 1024 })
+    )
 
     await service._doStop()
   })

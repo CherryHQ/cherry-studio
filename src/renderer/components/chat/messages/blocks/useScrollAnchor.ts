@@ -1,8 +1,25 @@
 import { useCallback, useRef } from 'react'
 
+/** Nearest actually-scrollable ancestor (overflow-y auto/scroll + scrollable content). */
+function findScrollParent(el: HTMLElement | null): HTMLElement | null {
+  let node = el?.parentElement ?? null
+  while (node) {
+    const overflowY = getComputedStyle(node).overflowY
+    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight) {
+      return node
+    }
+    node = node.parentElement
+  }
+  return null
+}
+
 /**
  * Preserves the user's visual scroll position when an element's height changes
- * (e.g. disclosure expand/collapse) inside the messages scroll container.
+ * (e.g. accordion expand/collapse) inside a scroll container.
+ *
+ * Resolves the real scroller as the nearest scrollable ancestor — the virtualized
+ * message list scrolls its own inner div, not the `overflow:hidden` `#messages`
+ * wrapper, so a hardcoded `#messages` lookup would write `scrollTop` to a non-scroller (no-op).
  *
  * Usage:
  *   const { anchorRef, withScrollAnchor } = useScrollAnchor()
@@ -19,7 +36,7 @@ export function useScrollAnchor<T extends HTMLElement = HTMLElement>() {
       return
     }
 
-    const scrollContainer = anchor.closest('#messages')
+    const scrollContainer = findScrollParent(anchor)
     if (!scrollContainer) {
       update()
       return

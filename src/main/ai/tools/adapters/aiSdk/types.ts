@@ -23,7 +23,7 @@ export interface ToolEntry {
   /**
    * Unique wire-name the LLM emits.
    *   builtin: 'web__search', 'web__fetch', 'kb__search'
-   *   mcp:     'mcp__{serverId}__{toolName}'
+   *   mcp:     'mcp__{camelCase(serverName)}__{camelCase(toolName)}' (see `buildFunctionCallToolName`)
    *   meta:    'tool_search', 'tool_invoke', 'exec'
    *
    * Double underscore is the segment separator so single `_` stays unambiguous.
@@ -33,7 +33,7 @@ export interface ToolEntry {
   /**
    * Grouping for `tool_search`. NOT part of the wire-name.
    *   builtin: 'web', 'kb'
-   *   mcp:     'mcp:{serverId}'
+   *   mcp:     'mcp:{serverName}'  (raw display name, not camelCased)
    *   meta:    'meta'  (excluded from search results)
    */
   namespace: string

@@ -12,7 +12,7 @@ import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { type ChannelConfig, ChannelConfigSchema } from '@shared/data/types/channel'
 import QRCode from 'qrcode'
 
-const logger = loggerService.withContext('MCPServer:Claw')
+const logger = loggerService.withContext('McpServer:Claw')
 
 /**
  * Parse a human-friendly duration string (e.g. '30m', '2h', '1h30m') into minutes.

@@ -3,7 +3,7 @@ import type { Model as V1Model } from '@renderer/types'
 import type { Model } from '@shared/data/types/model'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { toSharedCompatModel } from '../_bridge'
+import { toSharedCompatModel } from '../bridge'
 import { isOpenAIReasoningModel } from '../openai'
 import { isQwenMTModel } from '../qwen'
 import {

@@ -1,7 +1,10 @@
 import type { LanguageModelV3StreamPart } from '@ai-sdk/provider'
 import { definePlugin } from '@cherrystudio/ai-core'
 import { loggerService } from '@logger'
+import { isDeepSeekModel } from '@shared/utils/model'
 import type { LanguageModelMiddleware } from 'ai'
+
+import type { RequestFeature } from '../feature'
 
 const logger = loggerService.withContext('deepseekDsmlParser')
 
@@ -336,3 +339,15 @@ export const createDeepseekDsmlParserPlugin = () =>
       context.middlewares.push(createDeepseekDsmlParserMiddleware())
     }
   })
+
+/**
+ * Some DeepSeek deployments emit tool calls as `<｜｜DSML｜｜tool_calls>` markup inside text
+ * deltas instead of native `tool-call` parts; this re-extracts them. The middleware passes
+ * text straight through unless that distinctive markup appears, so gating to DeepSeek models
+ * is both sufficient (where the leak happens) and safe (no transform for non-DeepSeek).
+ */
+export const deepseekDsmlParserFeature: RequestFeature = {
+  name: 'deepseek-dsml-parser',
+  applies: (scope) => isDeepSeekModel(scope.model),
+  contributeModelAdapters: () => [createDeepseekDsmlParserPlugin()]
+}

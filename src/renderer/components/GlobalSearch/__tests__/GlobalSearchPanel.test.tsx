@@ -629,7 +629,7 @@ describe('GlobalSearchPanel', () => {
     await waitFor(() => {
       expect(mocks.setPreferences).toHaveBeenLastCalledWith({
         visible: ['assistants', 'translate'],
-        invisible: ['agents', 'knowledge', 'store', 'paintings', 'mini_app', 'files', 'code_tools', 'notes', 'openclaw']
+        invisible: ['agents', 'knowledge', 'paintings', 'store', 'mini_app', 'files', 'code_tools', 'notes', 'openclaw']
       })
     })
 
@@ -638,7 +638,7 @@ describe('GlobalSearchPanel', () => {
     await waitFor(() => {
       expect(mocks.setPreferences).toHaveBeenLastCalledWith({
         visible: ['assistants', 'agents', 'translate', 'knowledge'],
-        invisible: ['store', 'paintings', 'mini_app', 'files', 'code_tools', 'notes', 'openclaw']
+        invisible: ['paintings', 'store', 'mini_app', 'files', 'code_tools', 'notes', 'openclaw']
       })
     })
 
@@ -646,7 +646,7 @@ describe('GlobalSearchPanel', () => {
 
     await waitFor(() => {
       expect(mocks.setPreferences).toHaveBeenLastCalledWith({
-        visible: ['assistants', 'agents', 'store', 'translate', 'mini_app'],
+        visible: ['assistants', 'agents', 'paintings', 'translate', 'store'],
         invisible: []
       })
     })

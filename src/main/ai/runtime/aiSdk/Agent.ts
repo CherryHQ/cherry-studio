@@ -116,6 +116,7 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       await safeCall('onFinish', hooks.onFinish)
       return { text: result.text, usage: result.usage }
     } catch (err) {
+      logger.error('agent generate error', err as Error)
       if (hooks.onError) {
         try {
           await hooks.onError({ error: err instanceof Error ? err : new Error(String(err)) })
@@ -202,16 +203,25 @@ export class Agent<T extends AppProviderKey = AppProviderKey> {
       }
       if (readError) throw readError
 
+      // onFinish is success-only by current design: it fires only when the
+      // stream drains cleanly, never on the error/abort path below (which
+      // routes through invokeOnError + settleWriter instead). Failed-turn
+      // analytics must therefore accumulate via onStepFinish rather than rely
+      // on onFinish. Whether onFinish should become terminal (also firing on
+      // error/abort) is a deferred design decision — see agent-loop.md.
       await safeCall('onFinish', hooks.onFinish)
     })()
       .then(() => settleWriter())
       .catch(async (err) => {
         if (!signal.aborted) {
           const action = await invokeOnError(err)
-          if (action !== 'retry') {
+          if (action === 'retry') {
+            // TODO: retry logic
+            // retry is reserved for a future implementation — today the loop logs and aborts.
+            logger.warn('agentLoop onError returned retry; retry not implemented — aborting', err)
+          } else {
             logger.error('agentLoop error', err)
           }
-          // TODO: retry logic
         }
         await settleWriter(err)
       })

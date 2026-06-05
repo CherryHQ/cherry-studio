@@ -102,37 +102,6 @@ describe('streamDispatchCoordinator', () => {
     expect(window.toast.error).toHaveBeenCalledWith('Workspace path for session session-1 is not accessible: /missing')
   })
 
-  it('peek() returns the latest result for late subscribers', async () => {
-    const ack: AiStreamOpenResponse = {
-      mode: 'started',
-      userMessageId: 'u-1',
-      reservedMessages: [
-        {
-          id: 'u-1',
-          role: 'user',
-          parts: [{ type: 'text', text: 'hello' }],
-          metadata: { status: 'success', createdAt: '2026-05-23T00:00:00.000Z' }
-        },
-        {
-          id: 'a-1',
-          role: 'assistant',
-          parts: [],
-          metadata: {
-            status: 'pending',
-            createdAt: '2026-05-23T00:00:00.001Z',
-            modelId: 'openai:gpt-4o',
-            modelSnapshot: { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai' },
-            traceId: 'trace-a-1'
-          }
-        }
-      ]
-    }
-    streamOpen.mockResolvedValue(ack)
-    streamDispatchCoordinator.dispatch(TOPIC, req)
-    await flush()
-    expect(streamDispatchCoordinator.peek(TOPIC)).toEqual({ ok: true, topicId: TOPIC, ack })
-  })
-
   it('unsubscribe stops further delivery', async () => {
     streamOpen.mockResolvedValue({ mode: 'started' })
     const seen: unknown[] = []

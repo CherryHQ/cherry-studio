@@ -22,13 +22,30 @@ const ZERO_USAGE: LanguageModelUsage = {
   outputTokenDetails: { textTokens: undefined, reasoningTokens: undefined }
 }
 
+/** Sum two optional counts, staying `undefined` only when BOTH sides are absent. */
+const addOpt = (x: number | undefined, y: number | undefined): number | undefined =>
+  x === undefined && y === undefined ? undefined : (x ?? 0) + (y ?? 0)
+
 export function mergeUsage(a: LanguageModelUsage, b: LanguageModelUsage): LanguageModelUsage {
   return {
     inputTokens: (a.inputTokens ?? 0) + (b.inputTokens ?? 0),
     outputTokens: (a.outputTokens ?? 0) + (b.outputTokens ?? 0),
     totalTokens: (a.totalTokens ?? 0) + (b.totalTokens ?? 0),
-    inputTokenDetails: b.inputTokenDetails ?? a.inputTokenDetails,
-    outputTokenDetails: b.outputTokenDetails ?? a.outputTokenDetails
+    inputTokenDetails:
+      a.inputTokenDetails || b.inputTokenDetails
+        ? {
+            noCacheTokens: addOpt(a.inputTokenDetails?.noCacheTokens, b.inputTokenDetails?.noCacheTokens),
+            cacheReadTokens: addOpt(a.inputTokenDetails?.cacheReadTokens, b.inputTokenDetails?.cacheReadTokens),
+            cacheWriteTokens: addOpt(a.inputTokenDetails?.cacheWriteTokens, b.inputTokenDetails?.cacheWriteTokens)
+          }
+        : (undefined as unknown as LanguageModelUsage['inputTokenDetails']),
+    outputTokenDetails:
+      a.outputTokenDetails || b.outputTokenDetails
+        ? {
+            textTokens: addOpt(a.outputTokenDetails?.textTokens, b.outputTokenDetails?.textTokens),
+            reasoningTokens: addOpt(a.outputTokenDetails?.reasoningTokens, b.outputTokenDetails?.reasoningTokens)
+          }
+        : (undefined as unknown as LanguageModelUsage['outputTokenDetails'])
   }
 }
 

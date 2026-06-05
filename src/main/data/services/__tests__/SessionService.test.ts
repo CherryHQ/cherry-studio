@@ -11,7 +11,7 @@ import { eq } from 'drizzle-orm'
 import { mkdtemp, stat } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 describe('SessionService', () => {
   const dbh = setupTestDatabase()
@@ -25,8 +25,9 @@ describe('SessionService', () => {
       }
       return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
     })
-    const dbService = application.get('DbService') as any
-    dbService.withWriteTx.mockImplementation((fn: never) => dbh.db.transaction(fn))
+    ;(application.get('DbService').withWriteTx as Mock).mockImplementation(async (fn) =>
+      dbh.db.transaction(fn as never)
+    )
     await dbh.db.insert(agentTable).values({
       id: 'agent-session-test',
       type: 'claude-code',
@@ -38,8 +39,7 @@ describe('SessionService', () => {
   })
 
   afterEach(() => {
-    const dbService = application.get('DbService') as any
-    dbService.withWriteTx.mockImplementation((fn: (tx: unknown) => Promise<unknown>) => fn(dbService.getDb()))
+    ;(application.get('DbService').withWriteTx as Mock).mockReset()
     vi.restoreAllMocks()
   })
 
@@ -179,25 +179,17 @@ describe('SessionService', () => {
     })
   })
 
-  it('updates a session workspace', async () => {
+  it('ignores workspace updates even if callers bypass the schema', async () => {
     const firstWorkspace = await workspaceService.findOrCreateByPath(path.join(root, 'before-switch'))
     const secondWorkspace = await workspaceService.findOrCreateByPath(path.join(root, 'after-switch'))
     const session = await createSession('Workspace switch', firstWorkspace.id)
 
     const updated = await sessionService.update(session.id, {
       workspaceId: secondWorkspace.id
-    })
+    } as never)
 
-    expect(updated.workspaceId).toBe(secondWorkspace.id)
-    expect(updated.workspace?.path).toBe(secondWorkspace.path)
-  })
-
-  it('rejects missing workspace updates', async () => {
-    const session = await createSession('Missing workspace update')
-
-    await expect(sessionService.update(session.id, { workspaceId: 'missing-workspace' })).rejects.toMatchObject({
-      code: ErrorCode.NOT_FOUND
-    })
+    expect(updated.workspaceId).toBe(firstWorkspace.id)
+    expect(updated.workspace?.path).toBe(firstWorkspace.path)
   })
 
   it('deletes a session', async () => {

@@ -6,7 +6,9 @@ import {
 } from '@renderer/components/chat/resources/resourceListRevealEvents'
 import { AppLogo } from '@renderer/config/env'
 import {
+  findAppTabToFocus,
   getOrderedVisibleSidebarIcons,
+  getSidebarApp,
   getSidebarMenuPath,
   resolveSidebarActiveItem,
   SIDEBAR_ICON_COMPONENTS
@@ -41,7 +43,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const { t } = useTranslation()
   const [userName] = usePreference('app.user.name')
   const [visibleSidebarIcons] = usePreference('ui.sidebar.icons.visible')
-  const { activeTab, updateTab, openTab } = useTabs()
+  const { activeTab, tabs, updateTab, openTab, setActiveTab } = useTabs()
   const { defaultPaintingProvider } = useSettings()
 
   // Sidebar width — persisted across restarts. Drive the CSS variable
@@ -134,6 +136,21 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
       const title = getDefaultRouteTitle(path)
       const revealSource = getResourceListRevealSource(menuId)
 
+      // Uniqueness: if a tab for this app already exists, focus it instead of
+      // duplicating it (or clobbering the active tab into a second copy). Only
+      // fall through to reuse-active / open when no tab for the app exists yet.
+      const app = getSidebarApp(menuId)
+      const existingId = app ? findAppTabToFocus(app, tabs, { defaultPaintingProvider }) : undefined
+      if (existingId) {
+        if (existingId !== activeTab?.id) {
+          setActiveTab(existingId)
+        }
+        if (revealSource) {
+          emitResourceListReveal({ source: revealSource, tabId: existingId })
+        }
+        return
+      }
+
       if (activeTab?.isPinned) {
         const openedId = openTab(path, { forceNew: true, title })
         if (revealSource) {
@@ -160,7 +177,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
         emitResourceListReveal({ source: revealSource, tabId: openedId })
       }
     },
-    [activeTab, updateTab, openTab, defaultPaintingProvider]
+    [activeTab, tabs, updateTab, openTab, setActiveTab, defaultPaintingProvider]
   )
 
   // Common props shared between normal and floating sidebar

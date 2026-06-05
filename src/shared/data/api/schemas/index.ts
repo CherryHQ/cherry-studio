@@ -28,7 +28,7 @@ import type { GlobalSearchSchemas } from './globalSearch'
 import type { GroupSchemas } from './groups'
 import type { JobSchemas } from './jobs'
 import type { KnowledgeSchemas } from './knowledges'
-import type { MCPServerSchemas } from './mcpServers'
+import type { McpServerSchemas } from './mcpServers'
 import type { MessageSchemas } from './messages'
 import type { MiniAppSchemas } from './miniApps'
 import type { ModelSchemas } from './models'
@@ -66,7 +66,7 @@ export type ApiSchemas = AssertValidSchemas<
     PaintingsSchemas &
     TranslateSchemas &
     FileSchemas &
-    MCPServerSchemas &
+    McpServerSchemas &
     KnowledgeSchemas &
     MiniAppSchemas &
     NoteSchemas &

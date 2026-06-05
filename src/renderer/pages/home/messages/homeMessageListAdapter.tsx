@@ -20,7 +20,7 @@ import {
 } from '@renderer/components/chat/messages/utils/messageListItem'
 import { ModelSelector } from '@renderer/components/Selector'
 import { isVisionModel } from '@renderer/config/models'
-import { toSharedCompatModel } from '@renderer/config/models/_bridge'
+import { toSharedCompatModel } from '@renderer/config/models/bridge'
 import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
 import { SiblingsContext } from '@renderer/hooks/SiblingsContext'
 import { useLanguages } from '@renderer/hooks/translate'

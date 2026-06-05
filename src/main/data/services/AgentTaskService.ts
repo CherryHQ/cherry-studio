@@ -7,7 +7,6 @@
 
 import { application } from '@application'
 import { agentTable as agentsTable } from '@data/db/schemas/agent'
-import { agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
@@ -97,11 +96,19 @@ export class AgentTaskService {
     })
 
     if (dto.channelIds?.length) {
-      const database = application.get('DbService').getDb()
-      await database
-        .insert(agentChannelTaskTable)
-        .values(dto.channelIds.map((channelId) => ({ channelId, taskId: id })))
-        .onConflictDoNothing()
+      try {
+        await agentChannelService.replaceTaskSubscriptions(id, dto.channelIds)
+      } catch (error) {
+        try {
+          await application.get('JobManager').unregisterJobScheduleById(id)
+        } catch (rollbackError) {
+          logger.warn('Failed to rollback task schedule after channel subscription failure', {
+            taskId: id,
+            rollbackError
+          })
+        }
+        throw error
+      }
     }
 
     const snapshot = await jobScheduleService.getById(id)
@@ -178,14 +185,7 @@ export class AgentTaskService {
     if (!updated) return null
 
     if (patch.channelIds !== undefined) {
-      const database = application.get('DbService').getDb()
-      await database.delete(agentChannelTaskTable).where(eq(agentChannelTaskTable.taskId, taskId))
-      if (patch.channelIds.length > 0) {
-        await database
-          .insert(agentChannelTaskTable)
-          .values(patch.channelIds.map((channelId) => ({ channelId, taskId })))
-          .onConflictDoNothing()
-      }
+      await agentChannelService.replaceTaskSubscriptions(taskId, patch.channelIds)
     }
 
     logger.info('Task updated', { taskId, agentId })

@@ -38,6 +38,33 @@ describe('buildImageProviderOptions', () => {
     })
   })
 
+  it('forwards registry-declared vendor-bag fields (e.g. cfg) the fixed mapping omits, skipping callbacks', () => {
+    const onProgress = () => {}
+    const result = buildImageProviderOptions(
+      'openai-compatible',
+      params({
+        guidanceScale: 4.5,
+        providerOptions: { 'openai-compatible': { cfg: 7.5, onProgress } }
+      })
+    )
+    expect(result).toEqual({
+      'openai-compatible': {
+        cfg: 7.5,
+        guidance_scale: 4.5
+      }
+    })
+    // The non-JSON callback must not leak into the wire body.
+    expect((result['openai-compatible'] as Record<string, unknown>).onProgress).toBeUndefined()
+  })
+
+  it('lets a mapped canonical param win over a same-named raw bag field', () => {
+    const result = buildImageProviderOptions(
+      'openai-compatible',
+      params({ negativePrompt: 'mapped', providerOptions: { 'openai-compatible': { negative_prompt: 'bag' } } })
+    )
+    expect(result).toEqual({ 'openai-compatible': { negative_prompt: 'mapped' } })
+  })
+
   it('coerces a numeric seed string to a number and drops a non-numeric seed', () => {
     expect(buildImageProviderOptions('openai-compatible', params({ seed: '-7' }))).toEqual({
       'openai-compatible': { seed: -7 }

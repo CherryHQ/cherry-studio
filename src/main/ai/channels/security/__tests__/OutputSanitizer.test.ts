@@ -85,4 +85,28 @@ Done.`
     expect(text).toBe('The password is "abc"')
     expect(redacted).toBe(false)
   })
+
+  // --- Intended non-coverage (documents the false-positive tradeoff) ---
+  // These cases are deliberately NOT redacted. The sanitizer favors precision
+  // over recall: it only redacts AWS secret keys when preceded by the
+  // `aws_secret_access_key` assignment, and only redacts key=value pairs whose
+  // key is one of the allow-listed names. Locking this in prevents a future
+  // change from broadening coverage into a high-false-positive regex.
+  it('does not redact a bare 40-char value with no provider-prefixed key', () => {
+    // A standalone 40-char base64 string is indistinguishable from non-secret
+    // data; without the `aws_secret_access_key` prefix it is left untouched.
+    const input = 'output: wJalrXUtnFEMIK7MDENGbPxRfiCYEXAMPLEKEY01'
+    const { text, redacted } = sanitizeChannelOutput(input)
+    expect(text).toBe(input)
+    expect(redacted).toBe(false)
+  })
+
+  it('does not redact a key=value pair whose key is not in the allow-list', () => {
+    // `database_url` is not one of the listed secret key names, so its value
+    // passes through even though it exceeds the 16-char length threshold.
+    const input = 'database_url=postgres://user:pass@host:5432/db'
+    const { text, redacted } = sanitizeChannelOutput(input)
+    expect(text).toBe(input)
+    expect(redacted).toBe(false)
+  })
 })

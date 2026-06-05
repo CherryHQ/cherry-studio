@@ -1,8 +1,8 @@
 /**
  * AI SDK Span Adapter
  *
- * 将 AI SDK 的 telemetry 数据转换为现有的 SpanEntity 格式
- * 注意 AI SDK 的层级结构：ai.xxx 是一个层级，ai.xxx.xxx 是对应层级下的子集
+ * Converts AI SDK telemetry data into the existing SpanEntity format.
+ * Note the AI SDK hierarchy: ai.xxx is one level, ai.xxx.xxx is a child of that level.
  */
 
 import { loggerService } from '@logger'
@@ -18,7 +18,7 @@ export interface AiSdkSpanData {
   modelName?: string
 }
 
-// 扩展接口用于访问span的内部数据
+// Extended interface for accessing the span's internal data.
 interface SpanWithInternals extends Span {
   _spanProcessor?: any
   _attributes?: Record<string, any>
@@ -35,13 +35,13 @@ interface SpanWithInternals extends Span {
 
 export class AiSdkSpanAdapter {
   /**
-   * 将 AI SDK span 转换为 SpanEntity 格式
+   * Convert an AI SDK span into the SpanEntity format.
    */
   static convertToSpanEntity(spanData: AiSdkSpanData): SpanEntity {
     const { span, topicId, modelName } = spanData
     const spanContext = span.spanContext()
 
-    // 尝试从不同方式获取span数据
+    // Read span data via the various internal accessors the SDK may expose.
     const spanWithInternals = span as SpanWithInternals
     let attributes: Record<string, any> = {}
     let events: any[] = []
@@ -54,44 +54,23 @@ export class AiSdkSpanAdapter {
     let parentSpanId = ''
     let links: any[] = []
 
-    // 详细记录span的结构信息用于调试
-    logger.debug('Debugging span structure', {
-      hasInternalAttributes: !!spanWithInternals._attributes,
-      hasGetAttributes: typeof (span as any).getAttributes === 'function',
-      spanKeys: Object.keys(span),
-      spanInternalKeys: Object.keys(spanWithInternals),
-      spanContext: span.spanContext(),
-      // 尝试获取所有可能的属性路径
-      attributesPath1: spanWithInternals._attributes,
-      attributesPath2: (span as any).attributes,
-      attributesPath3: (span as any)._spanData?.attributes,
-      attributesPath4: (span as any).resource?.attributes
-    })
-
-    // 尝试多种方式获取attributes
+    // Resolve span attributes from whichever internal accessor the SDK exposes.
     if (spanWithInternals._attributes) {
       attributes = spanWithInternals._attributes
-      logger.debug('Found attributes via _attributes', { attributeCount: Object.keys(attributes).length })
     } else if (typeof (span as any).getAttributes === 'function') {
       attributes = (span as any).getAttributes()
-      logger.debug('Found attributes via getAttributes()', { attributeCount: Object.keys(attributes).length })
     } else if ((span as any).attributes) {
       attributes = (span as any).attributes
-      logger.debug('Found attributes via direct attributes property', {
-        attributeCount: Object.keys(attributes).length
-      })
     } else if ((span as any)._spanData?.attributes) {
       attributes = (span as any)._spanData.attributes
-      logger.debug('Found attributes via _spanData.attributes', { attributeCount: Object.keys(attributes).length })
     } else {
-      // 尝试从span的其他属性获取
-      logger.warn('无法获取span attributes，尝试备用方法', {
+      logger.warn('Failed to read span attributes; falling back to defaults', {
         availableKeys: Object.keys(span),
         spanType: span.constructor.name
       })
     }
 
-    // 获取其他属性
+    // Read the remaining span fields.
     if (spanWithInternals._events) {
       events = spanWithInternals._events
     }
@@ -116,7 +95,7 @@ export class AiSdkSpanAdapter {
     if (spanWithInternals.parentSpanId) {
       parentSpanId = spanWithInternals.parentSpanId
     }
-    // 兜底：尝试从 attributes 中读取我们注入的父信息
+    // Fallback: read the parent info we injected from attributes.
     if (!parentSpanId && attributes['trace.parentSpanId']) {
       parentSpanId = attributes['trace.parentSpanId']
     }
@@ -124,14 +103,13 @@ export class AiSdkSpanAdapter {
       links = spanWithInternals.links
     }
 
-    // 提取 AI SDK 特有的数据
+    // Extract AI SDK-specific data.
     const tokenUsage = this.extractTokenUsage(attributes)
     const { inputs, outputs } = this.extractInputsOutputs(attributes)
     const formattedSpanName = this.formatSpanName(spanName)
     const spanTag = this.extractSpanTag(spanName, attributes)
     const typeSpecificData = this.extractSpanTypeSpecificData(attributes)
 
-    // 详细记录转换过程
     const operationId = attributes['ai.operationId']
     logger.debug('Converting AI SDK span to SpanEntity', {
       spanName: spanName,
@@ -148,37 +126,7 @@ export class AiSdkSpanAdapter {
       traceId: spanContext.traceId
     })
 
-    if (tokenUsage) {
-      logger.debug('Token usage data found', {
-        spanName: spanName,
-        operationId,
-        usage: tokenUsage,
-        spanId: spanContext.spanId
-      })
-    }
-
-    if (inputs || outputs) {
-      logger.debug('Input/Output data extracted', {
-        spanName: spanName,
-        operationId,
-        hasInputs: !!inputs,
-        hasOutputs: !!outputs,
-        inputKeys: inputs ? Object.keys(inputs) : [],
-        outputKeys: outputs ? Object.keys(outputs) : [],
-        spanId: spanContext.spanId
-      })
-    }
-
-    if (Object.keys(typeSpecificData).length > 0) {
-      logger.debug('Type-specific data extracted', {
-        spanName: spanName,
-        operationId,
-        typeSpecificKeys: Object.keys(typeSpecificData),
-        spanId: spanContext.spanId
-      })
-    }
-
-    // 转换为 SpanEntity 格式
+    // Convert to SpanEntity format
     const spanEntity: SpanEntity = {
       id: spanContext.spanId,
       name: formattedSpanName,
@@ -220,18 +168,12 @@ export class AiSdkSpanAdapter {
   }
 
   /**
-   * 从 AI SDK attributes 中提取 token usage
-   * 支持多种格式：
-   * - AI SDK 标准格式: ai.usage.completionTokens, ai.usage.promptTokens
-   * - 完整usage对象格式: ai.usage (JSON字符串或对象)
+   * Extract token usage from AI SDK attributes.
+   * Supports multiple formats:
+   * - AI SDK standard format: ai.usage.completionTokens, ai.usage.promptTokens
+   * - Full usage object format: ai.usage (JSON string or object)
    */
   private static extractTokenUsage(attributes: Record<string, any>): TokenUsage | undefined {
-    logger.debug('Extracting token usage from attributes', {
-      attributeKeys: Object.keys(attributes),
-      usageRelatedKeys: Object.keys(attributes).filter((key) => key.includes('usage') || key.includes('token')),
-      fullAttributes: attributes
-    })
-
     const inputsTokenKeys = [
       // base span
       'ai.usage.promptTokens',
@@ -266,7 +208,7 @@ export class AiSdkSpanAdapter {
       return usage
     }
 
-    // 对于不包含token usage的spans（如tool calls），这是正常的
+    // Spans without token usage (e.g. tool calls) are expected.
     logger.debug('No token usage found in span attributes (normal for tool calls)', {
       availableKeys: Object.keys(attributes),
       usageKeys: Object.keys(attributes).filter((key) => key.includes('usage') || key.includes('token'))
@@ -276,8 +218,8 @@ export class AiSdkSpanAdapter {
   }
 
   /**
-   * 从 AI SDK attributes 中提取 inputs 和 outputs
-   * 根据AI SDK文档按不同span类型精确映射
+   * Extract inputs and outputs from AI SDK attributes.
+   * Maps precisely by span type per the AI SDK documentation.
    */
   private static extractInputsOutputs(attributes: Record<string, any>): { inputs?: any; outputs?: any } {
     const operationId = attributes['ai.operationId']
@@ -291,11 +233,11 @@ export class AiSdkSpanAdapter {
       )
     })
 
-    // 根据AI SDK文档按操作类型提取数据
+    // Extract data by operation type per the AI SDK documentation.
     switch (operationId) {
       case 'ai.generateText':
       case 'ai.streamText':
-        // 顶层LLM spans: ai.prompt 包含输入
+        // Top-level LLM spans: ai.prompt holds the input.
         inputs = {
           prompt: this.parseAttributeValue(attributes['ai.prompt'])
         }
@@ -304,7 +246,7 @@ export class AiSdkSpanAdapter {
 
       case 'ai.generateText.doGenerate':
       case 'ai.streamText.doStream':
-        // Provider spans: ai.prompt.messages 包含详细输入
+        // Provider spans: ai.prompt.messages holds the detailed input.
         inputs = {
           messages: this.parseAttributeValue(attributes['ai.prompt.messages']),
           tools: this.parseAttributeValue(attributes['ai.prompt.tools']),
@@ -314,7 +256,7 @@ export class AiSdkSpanAdapter {
         break
 
       case 'ai.toolCall':
-        // Tool call spans: 工具参数和结果
+        // Tool call spans: tool arguments and result.
         inputs = {
           toolName: attributes['ai.toolCall.name'],
           toolId: attributes['ai.toolCall.id'],
@@ -326,7 +268,7 @@ export class AiSdkSpanAdapter {
         break
 
       default:
-        // 回退到通用逻辑
+        // Fall back to the generic logic.
         inputs = this.extractGenericInputs(attributes)
         outputs = this.extractGenericOutputs(attributes)
         break
@@ -344,7 +286,7 @@ export class AiSdkSpanAdapter {
   }
 
   /**
-   * 提取LLM顶层spans的输出
+   * Extract outputs for top-level LLM spans.
    */
   private static extractLLMOutputs(attributes: Record<string, any>): any {
     const outputs: any = {}
@@ -366,7 +308,7 @@ export class AiSdkSpanAdapter {
   }
 
   /**
-   * 提取Provider spans的输出
+   * Extract outputs for provider spans.
    */
   private static extractProviderOutputs(attributes: Record<string, any>): any {
     const outputs: any = {}
@@ -381,7 +323,7 @@ export class AiSdkSpanAdapter {
       outputs.finishReason = attributes['ai.response.finishReason']
     }
 
-    // doStream特有的性能指标
+    // Performance metrics specific to doStream.
     if (attributes['ai.response.msToFirstChunk']) {
       outputs.msToFirstChunk = attributes['ai.response.msToFirstChunk']
     }
@@ -396,7 +338,7 @@ export class AiSdkSpanAdapter {
   }
 
   /**
-   * 通用输入提取（回退逻辑）
+   * Generic input extraction (fallback logic).
    */
   private static extractGenericInputs(attributes: Record<string, any>): any {
     const inputKeys = ['ai.prompt', 'ai.prompt.messages', 'ai.request', 'inputs']
@@ -410,7 +352,7 @@ export class AiSdkSpanAdapter {
   }
 
   /**
-   * 通用输出提取（回退逻辑）
+   * Generic output extraction (fallback logic).
    */
   private static extractGenericOutputs(attributes: Record<string, any>): any {
     const outputKeys = ['ai.response.text', 'ai.response', 'ai.output', 'outputs']
@@ -424,7 +366,7 @@ export class AiSdkSpanAdapter {
   }
 
   /**
-   * 解析属性值，处理字符串化的 JSON
+   * Parse an attribute value, handling stringified JSON.
    */
   private static parseAttributeValue(value: any): any {
     if (typeof value === 'string') {
@@ -438,11 +380,11 @@ export class AiSdkSpanAdapter {
   }
 
   /**
-   * 格式化 span 名称，处理 AI SDK 的层级结构
+   * Format the span name, handling the AI SDK hierarchy.
    */
   private static formatSpanName(name: string): string {
-    // AI SDK 的 span 名称可能是 ai.generateText, ai.streamText.doStream 等
-    // 保持原始名称，但可以添加一些格式化逻辑
+    // AI SDK span names may be ai.generateText, ai.streamText.doStream, etc.
+    // Keep the original name; formatting logic can be added here if needed.
     if (name.startsWith('ai.')) {
       return name
     }
@@ -450,7 +392,7 @@ export class AiSdkSpanAdapter {
   }
 
   /**
-   * 从AI SDK operationId中提取精确的span标签
+   * Extract a precise span tag from the AI SDK operationId.
    */
   private static extractSpanTag(name: string, attributes: Record<string, any>): string {
     const operationId = attributes['ai.operationId']
@@ -461,7 +403,7 @@ export class AiSdkSpanAdapter {
       operationName: attributes['operation.name']
     })
 
-    // 根据AI SDK文档的operationId精确分类
+    // Classify precisely by operationId per the AI SDK documentation.
     switch (operationId) {
       case 'ai.generateText':
         return 'LLM-GENERATE'
@@ -478,7 +420,7 @@ export class AiSdkSpanAdapter {
       case 'ai.embed':
         return 'EMBEDDING'
       default:
-        // 回退逻辑：基于span名称
+        // Fallback logic: based on the span name.
         if (name.includes('generateText') || name.includes('streamText')) {
           return 'LLM'
         }
@@ -492,13 +434,13 @@ export class AiSdkSpanAdapter {
           return 'TOOL'
         }
 
-        // 最终回退
+        // Final fallback.
         return attributes['ai.operationType'] || attributes['operation.type'] || 'AI_SDK'
     }
   }
 
   /**
-   * 根据span类型提取特定的额外数据
+   * Extract extra data specific to the span type.
    */
   private static extractSpanTypeSpecificData(attributes: Record<string, any>): Record<string, any> {
     const operationId = attributes['ai.operationId']
@@ -507,7 +449,7 @@ export class AiSdkSpanAdapter {
     switch (operationId) {
       case 'ai.generateText':
       case 'ai.streamText':
-        // LLM顶层spans的特定数据
+        // Data specific to top-level LLM spans.
         if (attributes['ai.settings.maxOutputTokens']) {
           specificData.maxOutputTokens = attributes['ai.settings.maxOutputTokens']
         }
@@ -518,13 +460,13 @@ export class AiSdkSpanAdapter {
 
       case 'ai.generateText.doGenerate':
       case 'ai.streamText.doStream':
-        // Provider spans的特定数据
+        // Data specific to provider spans.
         if (attributes['ai.model.id']) {
           specificData.providerId = attributes['ai.model.provider'] || 'unknown'
           specificData.modelId = attributes['ai.model.id']
         }
 
-        // doStream特有的性能数据
+        // Performance data specific to doStream.
         if (operationId === 'ai.streamText.doStream') {
           if (attributes['ai.response.msToFirstChunk']) {
             specificData.msToFirstChunk = attributes['ai.response.msToFirstChunk']
@@ -539,18 +481,18 @@ export class AiSdkSpanAdapter {
         break
 
       case 'ai.toolCall':
-        // Tool call spans的特定数据
+        // Data specific to tool call spans.
         specificData.toolName = attributes['ai.toolCall.name']
         specificData.toolId = attributes['ai.toolCall.id']
 
-        // 根据文档，tool call可能有不同的操作类型
+        // Per the documentation, a tool call may have different operation types.
         if (attributes['operation.name']) {
           specificData.operationName = attributes['operation.name']
         }
         break
 
       default:
-        // 通用的AI SDK属性
+        // Generic AI SDK attributes.
         if (attributes['ai.telemetry.functionId']) {
           specificData.telemetryFunctionId = attributes['ai.telemetry.functionId']
         }
@@ -560,7 +502,7 @@ export class AiSdkSpanAdapter {
         break
     }
 
-    // 添加通用的操作标识
+    // Add the generic operation identifiers.
     if (operationId) {
       specificData.operationType = operationId
     }
@@ -568,17 +510,11 @@ export class AiSdkSpanAdapter {
       specificData.operationName = attributes['operation.name']
     }
 
-    logger.debug('Extracted type-specific data', {
-      operationId,
-      specificDataKeys: Object.keys(specificData),
-      specificData
-    })
-
     return specificData
   }
 
   /**
-   * 从属性中提取模型名称
+   * Extract the model name from attributes.
    */
   private static extractModelFromAttributes(attributes: Record<string, any>): string | undefined {
     return (
@@ -591,12 +527,12 @@ export class AiSdkSpanAdapter {
   }
 
   /**
-   * 过滤相关的属性，移除不需要的系统属性
+   * Filter relevant attributes, removing unneeded system attributes.
    */
   private static filterRelevantAttributes(attributes: Record<string, any>): Record<string, any> {
     const filtered: Record<string, any> = {}
 
-    // 保留有用的属性，过滤掉已经单独处理的属性
+    // Keep useful attributes; drop those already handled separately.
     const excludeKeys = ['ai.usage', 'ai.prompt', 'ai.response', 'ai.input', 'ai.output', 'inputs', 'outputs']
 
     Object.entries(attributes).forEach(([key, value]) => {
@@ -609,7 +545,7 @@ export class AiSdkSpanAdapter {
   }
 
   /**
-   * 转换 span 状态
+   * Convert the span status.
    */
   private static convertSpanStatus(statusCode?: SpanStatusCode): string {
     switch (statusCode) {
@@ -624,7 +560,7 @@ export class AiSdkSpanAdapter {
   }
 
   /**
-   * 转换 span 类型
+   * Convert the span kind.
    */
   private static convertSpanKind(kind?: SpanKind): string {
     switch (kind) {
@@ -644,12 +580,14 @@ export class AiSdkSpanAdapter {
   }
 
   /**
-   * 转换时间戳格式
+   * Convert OpenTelemetry HrTime to integer milliseconds.
+   * Matches trace-core's spanConvert (Math.floor on the nanosecond term) so AI SDK spans
+   * use the same integer-millisecond representation as the rest of the pipeline.
    */
   private static convertTimestamp(timestamp: [number, number] | number): number {
     if (Array.isArray(timestamp)) {
-      // OpenTelemetry 高精度时间戳 [seconds, nanoseconds]
-      return timestamp[0] * 1000 + timestamp[1] / 1000000
+      // OpenTelemetry high-resolution timestamp [seconds, nanoseconds]
+      return timestamp[0] * 1e3 + Math.floor(timestamp[1] / 1e6)
     }
     return timestamp
   }

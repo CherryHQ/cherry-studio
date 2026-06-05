@@ -64,6 +64,23 @@ function under(key: string, fields: Record<string, JSONValue>): ProviderOptions 
 }
 
 /**
+ * Forward registry-declared vendor-bag fields that the structured params don't
+ * cover (e.g. SiliconFlow Qwen-Image's `cfg`). The bag may also carry non-JSON
+ * callbacks that ride through the plugin chain (e.g. the polling `onProgress`);
+ * those are consumed off-band, so skip anything not JSON-serializable rather than
+ * letting it leak into the request body.
+ */
+function jsonBagFields(bag: Record<string, unknown> | undefined): Record<string, JSONValue> {
+  if (!bag) return {}
+  const out: Record<string, JSONValue> = {}
+  for (const [k, v] of Object.entries(bag)) {
+    if (typeof v === 'function' || typeof v === 'symbol' || v === undefined) continue
+    out[k] = v as JSONValue
+  }
+  return out
+}
+
+/**
  * Dual-key the same field map under both `openai` and the resolved provider
  * id. The OpenAI image model reads `providerOptions.openai`; the OpenAI-
  * compatible model reads `providerOptions[<name>]`. Feeding both covers
@@ -160,8 +177,11 @@ const dmxapi: Emitter = (_id, p, seed) => {
 }
 
 // OpenAI-compatible / diffusion fallback (silicon, zhipu, deepseek, openrouter,
-// and any unrecognized provider id).
-const diffusion: Emitter = (id, p, seed) => under(id, diffusionBody(p, seed))
+// and any unrecognized provider id). Merge any registry-declared vendor-bag fields
+// (e.g. SiliconFlow's `cfg`) the fixed mapping below doesn't emit; mapped canonical
+// params still win over a raw bag entry of the same name.
+const diffusion: Emitter = (id, p, seed) =>
+  under(id, { ...jsonBagFields(p.providerOptions?.[id]), ...diffusionBody(p, seed) })
 
 /**
  * Provider id → emitter. Unlisted ids fall through to {@link diffusion}.

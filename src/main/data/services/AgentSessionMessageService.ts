@@ -22,7 +22,7 @@ import type {
 import { SESSION_MESSAGES_DEFAULT_LIMIT, SESSION_MESSAGES_MAX_LIMIT } from '@shared/data/api/schemas/sessions'
 import { buildKeywordRegexes, splitKeywordsToTerms } from '@shared/utils/keywordSearch'
 import { buildSearchSnippet, stripMarkdownFormatting } from '@shared/utils/messageSearch'
-import { and, desc, eq, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
 const logger = loggerService.withContext('SessionMessageService')
@@ -270,15 +270,40 @@ export class AgentSessionMessageService {
     if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
 
     const result = await withSqliteErrors(
-      () =>
-        database
-          .delete(sessionMessagesTable)
-          .where(and(eq(sessionMessagesTable.sessionId, sessionId), eq(sessionMessagesTable.id, messageId))),
+      () => application.get('DbService').withWriteTx((tx) => this.deleteSessionMessageTx(tx, sessionId, messageId)),
       defaultHandlersFor('Message', messageId)
     )
     if (result.rowsAffected === 0) {
       throw DataApiErrorFactory.notFound('Message', messageId)
     }
+  }
+
+  async deleteSessionMessageTx(tx: DbOrTx, sessionId: string, messageId: string): Promise<{ rowsAffected: number }> {
+    return tx
+      .delete(sessionMessagesTable)
+      .where(and(eq(sessionMessagesTable.id, messageId), eq(sessionMessagesTable.sessionId, sessionId)))
+  }
+
+  /**
+   * Ids of assistant rows still in `pending` — used by the agent-session boot reconcile to
+   * resolve turns a prior main-process crash left stuck (the runtime never reached its terminal
+   * write, and the in-memory entry map is empty after a restart, so nothing else settles them).
+   */
+  async findPendingAssistantMessageIds(): Promise<string[]> {
+    const database = application.get('DbService').getDb()
+    const rows = await database
+      .select({ id: sessionMessagesTable.id })
+      .from(sessionMessagesTable)
+      .where(and(eq(sessionMessagesTable.role, 'assistant'), eq(sessionMessagesTable.status, 'pending')))
+    return rows.map((row) => row.id)
+  }
+
+  /** Bulk-resolve the given rows to `error` — the boot reconcile of crash-orphaned `pending` rows. */
+  async markMessagesError(ids: string[]): Promise<void> {
+    if (ids.length === 0) return
+    await application.get('DbService').withWriteTx(async (tx) => {
+      await tx.update(sessionMessagesTable).set({ status: 'error' }).where(inArray(sessionMessagesTable.id, ids))
+    })
   }
 
   private rowToEntity(row: SessionMessageRow): AgentSessionMessageEntity {
@@ -289,10 +314,10 @@ export class AgentSessionMessageService {
       data: row.data,
       searchableText: row.searchableText,
       status: row.status as AgentSessionMessageEntity['status'],
-      modelId: row.modelId ?? null,
-      modelSnapshot: row.modelSnapshot ?? null,
-      traceId: row.traceId ?? null,
-      stats: row.stats ?? null,
+      modelId: row.modelId,
+      modelSnapshot: row.modelSnapshot,
+      traceId: row.traceId,
+      stats: row.stats,
       runtimeResumeToken: row.runtimeResumeToken,
       createdAt: timestampToISO(row.createdAt),
       updatedAt: timestampToISO(row.updatedAt)

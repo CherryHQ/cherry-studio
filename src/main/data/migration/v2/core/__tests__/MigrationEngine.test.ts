@@ -13,6 +13,7 @@ const mockPaths: MigrationPaths = {
   cherryHome: '/tmp/test-cherryhome',
   databaseFile: '/tmp/test-userdata/cherrystudio.sqlite',
   knowledgeBaseDir: '/tmp/test-userdata/Data/KnowledgeBase',
+  filesDataDir: '/tmp/test-userdata/Data/Files',
   versionLogFile: '/tmp/test-userdata/version.log',
   legacyAgentDbFile: '/tmp/test-userdata/Data/agents.db',
   agentWorkspacesDir: '/tmp/test-userdata/Data/AgentWorkspaces',

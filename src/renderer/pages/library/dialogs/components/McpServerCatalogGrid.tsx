@@ -4,7 +4,7 @@ import { useQuery } from '@renderer/data/hooks/useDataApi'
 import { useMcpRuntimeStatusMap } from '@renderer/hooks/useMcpRuntimeStatus'
 import { openSettingsWindow } from '@renderer/services/SettingsWindowService'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
-import type { MCPServer } from '@shared/data/types/mcpServer'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import type { TFunction } from 'i18next'
 import { Settings } from 'lucide-react'
 import { useMemo } from 'react'
@@ -42,7 +42,7 @@ function getStatusBadgeClassName(state: McpRuntimeStatus['state']) {
   }
 }
 
-function getServerState(server: MCPServer, status: McpRuntimeStatus | undefined): McpRuntimeStatus['state'] {
+function getServerState(server: McpServer, status: McpRuntimeStatus | undefined): McpRuntimeStatus['state'] {
   return server.isActive ? (status?.state ?? 'connecting') : 'disabled'
 }
 
@@ -61,7 +61,7 @@ export function McpServerCatalogGrid({
 }) {
   const { t } = useTranslation()
   const { data, isLoading } = useQuery('/mcp-servers', {})
-  const mcpServers = useMemo<MCPServer[]>(() => data?.items ?? [], [data])
+  const mcpServers = useMemo<McpServer[]>(() => data?.items ?? [], [data])
   const mcpStatuses = useMcpRuntimeStatusMap(mcpServers)
   const settingsLabel = title ? `${title} ${t('settings.title')}` : t('settings.mcp.title')
   const catalog = useMemo<CatalogItem[]>(

@@ -83,6 +83,7 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
   createSpan: (span: ReadableSpan) => void = (span: ReadableSpan) => {
     if (!this.isActivated) return
     const spanEntity = convertSpanToSpanEntity(span)
+    spanEntity.isEnd = false
     this.applyTraceMeta(spanEntity)
     this.store.setSpan(spanEntity)
     this.updateModelName(spanEntity)
@@ -102,6 +103,7 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
     spanEntity.attributes = span.attributes ? ({ ...span.attributes } as Attributes) : {}
     spanEntity.events = span.events
     spanEntity.links = span.links
+    spanEntity.isEnd = true
     this.updateModelName(spanEntity)
     this.store.setSpan(spanEntity)
   }
@@ -326,7 +328,16 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
 
     Object.keys(value).forEach((attrKey) => {
       const rawValue = (value as Record<string, AttributeValue>)[attrKey]
-      const jsonData = typeof rawValue === 'string' && rawValue.startsWith('{') ? JSON.parse(rawValue) : rawValue
+      // A `{`-prefixed string is not guaranteed to be valid JSON; an unguarded parse would
+      // throw and silently drop the whole span. Fall back to the raw value on parse failure.
+      let jsonData: unknown = rawValue
+      if (typeof rawValue === 'string' && rawValue.startsWith('{')) {
+        try {
+          jsonData = JSON.parse(rawValue)
+        } catch {
+          jsonData = rawValue
+        }
+      }
       if (
         savedAttrs[attrKey] !== undefined &&
         typeof jsonData === 'object' &&
@@ -342,45 +353,53 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
     savedEntity.attributes = savedAttrs
   }
 
-  private updateParentOutputs(spanId: string, modelName: string, context: string) {
-    const span = this.store.getSpan(spanId)
-    if (!span || !context) {
-      return
-    }
-    const attributes = span.attributes
-    if (attributes && span.modelName) {
-      const currentValue = attributes['outputs']
-      if (currentValue && typeof currentValue === 'object' && !Array.isArray(currentValue)) {
-        const allContext = (currentValue['streamText'] || '') + context
-        attributes['outputs'] = { ...currentValue, streamText: allContext }
+  // Walk the parent chain iteratively with a visited set. A renderer-saved cycle
+  // (e.g. `{id:'x',parentId:'x'}` or a→b→a) would otherwise recurse forever → main-process crash.
+  private updateParentOutputs(spanId: string | undefined, modelName: string, context: string) {
+    if (!context) return
+    const visited = new Set<string>()
+    let currentId = spanId
+    while (currentId && !visited.has(currentId)) {
+      visited.add(currentId)
+      const span = this.store.getSpan(currentId)
+      if (!span) return
+      const attributes = span.attributes
+      if (attributes && span.modelName) {
+        const currentValue = attributes['outputs']
+        if (currentValue && typeof currentValue === 'object' && !Array.isArray(currentValue)) {
+          const allContext = (currentValue['streamText'] || '') + context
+          attributes['outputs'] = { ...currentValue, streamText: allContext }
+        } else {
+          attributes['outputs'] = { streamText: context }
+        }
+        span.attributes = attributes
+      } else if (span.modelName) {
+        span.attributes = { outputs: { [`${modelName}`]: context } } as Attributes
       } else {
-        attributes['outputs'] = { streamText: context }
+        return
       }
-      span.attributes = attributes
-    } else if (span.modelName) {
-      span.attributes = { outputs: { [`${modelName}`]: context } } as Attributes
-    } else {
-      return
+      this.store.setSpan(span)
+      currentId = span.parentId ?? undefined
     }
-    this.store.setSpan(span)
-    this.updateParentOutputs(span.parentId, modelName, context)
   }
 
-  private updateParentUsage(spanId: string, usage: TokenUsage) {
-    const entity = this.store.getSpan(spanId)
-    if (!entity) {
-      return
-    }
-    if (!entity.usage) {
-      entity.usage = { ...usage }
-    } else {
-      entity.usage.prompt_tokens = entity.usage.prompt_tokens + usage.prompt_tokens
-      entity.usage.completion_tokens = entity.usage.completion_tokens + usage.completion_tokens
-      entity.usage.total_tokens = entity.usage.total_tokens + usage.total_tokens
-    }
-    this.store.setSpan(entity)
-    if (entity?.parentId) {
-      this.updateParentUsage(entity.parentId, usage)
+  // Iterative + visited set for the same cycle-safety reason as updateParentOutputs.
+  private updateParentUsage(spanId: string | undefined, usage: TokenUsage) {
+    const visited = new Set<string>()
+    let currentId = spanId
+    while (currentId && !visited.has(currentId)) {
+      visited.add(currentId)
+      const entity = this.store.getSpan(currentId)
+      if (!entity) return
+      if (!entity.usage) {
+        entity.usage = { ...usage }
+      } else {
+        entity.usage.prompt_tokens = entity.usage.prompt_tokens + usage.prompt_tokens
+        entity.usage.completion_tokens = entity.usage.completion_tokens + usage.completion_tokens
+        entity.usage.total_tokens = entity.usage.total_tokens + usage.total_tokens
+      }
+      this.store.setSpan(entity)
+      currentId = entity.parentId ?? undefined
     }
   }
 
@@ -437,11 +456,31 @@ export class SpanCacheService extends BaseService implements TraceCache, Activat
     return application.getPath('feature.trace')
   }
 
+  /**
+   * `topicId`/`traceId` arrive from renderer IPC and are joined into `fs.rm`/`readFile` paths.
+   * Reject anything that isn't a single safe path segment so a value like `../../../etc` can't
+   * escape the trace root into an arbitrary-delete/read primitive (reachable via an XSS pivot).
+   */
+  private assertSafeSegment(value: string, label: string): void {
+    if (
+      !value ||
+      value === '.' ||
+      value === '..' ||
+      value.includes('/') ||
+      value.includes('\\') ||
+      path.isAbsolute(value)
+    ) {
+      throw new Error(`SpanCacheService: invalid ${label} path segment`)
+    }
+  }
+
   private traceTopicDir(topicId: string): string {
+    this.assertSafeSegment(topicId, 'topicId')
     return path.join(this.traceRootDir(), topicId)
   }
 
   private traceFilePath(topicId: string, traceId: string): string {
+    this.assertSafeSegment(traceId, 'traceId')
     return path.join(this.traceTopicDir(topicId), traceId)
   }
 

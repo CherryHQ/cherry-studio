@@ -123,7 +123,7 @@ behind an explicit Preference key once there is a concrete need.
   `registry.selectActive`. Throws are caught and treated as "inactive"
   with a warning log.
 - `createAiRepair(...)` (`tools/adapters/aiSdk/repair.ts`) — passed to AI SDK as
-  `repairToolCall`. When the model emits **malformed args**
+  `experimental_repairToolCall`. When the model emits **malformed args**
   (`InvalidToolInputError`), the repair function gets one chance to fix it via a
   follow-up LLM call. Other failures (e.g. an unknown tool name) are
   returned unrepaired.

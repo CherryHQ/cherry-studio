@@ -11,36 +11,6 @@ import type { Model } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { describe, expect, it, vi } from 'vitest'
 
-vi.mock('../../../plugins/modelParamsPlugin', () => ({
-  createModelParamsPlugin: vi.fn(() => ({ name: 'model-params' }))
-}))
-vi.mock('../../../plugins/pdfCompatibilityPlugin', () => ({
-  createPdfCompatibilityPlugin: vi.fn(() => ({ name: 'pdf-compatibility' }))
-}))
-vi.mock('../../../plugins/reasoningExtractionPlugin', () => ({
-  createReasoningExtractionPlugin: vi.fn(() => ({ name: 'reasoning-extraction' }))
-}))
-vi.mock('../../../plugins/simulateStreamingPlugin', () => ({
-  createSimulateStreamingPlugin: vi.fn(() => ({ name: 'simulate-streaming' }))
-}))
-vi.mock('../../../plugins/anthropicCachePlugin', () => ({
-  createAnthropicCachePlugin: vi.fn(() => ({ name: 'anthropic-cache' }))
-}))
-vi.mock('../../../plugins/anthropicHeadersPlugin', () => ({
-  createAnthropicHeadersPlugin: vi.fn(() => ({ name: 'anthropic-headers' }))
-}))
-vi.mock('../../../plugins/openrouterReasoningPlugin', () => ({
-  createOpenrouterReasoningPlugin: vi.fn(() => ({ name: 'openrouter-reasoning' }))
-}))
-vi.mock('../../../plugins/noThinkPlugin', () => ({
-  createNoThinkPlugin: vi.fn(() => ({ name: 'no-think' }))
-}))
-vi.mock('../../../plugins/qwenThinkingPlugin', () => ({
-  createQwenThinkingPlugin: vi.fn(() => ({ name: 'qwen-thinking' }))
-}))
-vi.mock('../../../plugins/skipGeminiThoughtSignaturePlugin', () => ({
-  createSkipGeminiThoughtSignaturePlugin: vi.fn(() => ({ name: 'skip-gemini-thought-signature' }))
-}))
 vi.mock('@cherrystudio/ai-core/built-in/plugins', () => ({
   providerToolPlugin: vi.fn((kind: string) => ({ name: `provider-tool-${kind}` }))
 }))
@@ -190,5 +160,61 @@ describe('INTERNAL_FEATURES — decision matrix', () => {
       })
     )
     expect(names.slice(0, 2)).toEqual(['model-params', 'pdf-compatibility'])
+  })
+
+  // params-core-2: the documented hard invariant `reasoning-extraction` < `simulate-streaming`.
+  // Both gate predicates hold for an OpenAI-family adapter with streamOutput === false; a
+  // reorder of INTERNAL_FEATURES would otherwise pass unnoticed.
+  it('orders reasoning-extraction before simulate-streaming (OpenAI-family, non-streaming)', () => {
+    const names = activeNames(
+      makeScope({
+        provider: { id: 'openai' },
+        model: {},
+        aiSdkProviderId: 'openai-chat',
+        capabilities: { streamOutput: false }
+      })
+    )
+    const reasoning = names.indexOf('reasoning-extraction')
+    const simulate = names.indexOf('simulate-streaming')
+    expect(reasoning).toBeGreaterThanOrEqual(0)
+    expect(simulate).toBeGreaterThan(reasoning)
+  })
+
+  // params-features-3: the documented hard invariant `pdf-compatibility` < `anthropic-cache`
+  // (cache estimation must see the extracted PDF text). Both gate predicates hold for an
+  // anthropic-messages endpoint with cacheControl enabled.
+  it('orders pdf-compatibility before anthropic-cache (anthropic-messages, cache on)', () => {
+    const names = activeNames(
+      makeScope({
+        provider: { id: 'anthropic', settings: { cacheControl: { enabled: true, tokenThreshold: 1024 } } } as never,
+        model: {},
+        endpointType: 'anthropic-messages',
+        aiSdkProviderId: 'anthropic'
+      })
+    )
+    const pdf = names.indexOf('pdf-compatibility')
+    const cache = names.indexOf('anthropic-cache')
+    expect(pdf).toBeGreaterThanOrEqual(0)
+    expect(cache).toBeGreaterThan(pdf)
+  })
+
+  // params-core-2: the same hard invariants asserted as a STATIC contract over the
+  // declaration order of INTERNAL_FEATURES — by feature `name`, independent of any
+  // activation predicate. Unlike the activation-based tests above, this catches a
+  // reorder even if both members never co-activate for the chosen scope.
+  it('declares pdf-compatibility before anthropic-cache and reasoning-extraction before simulate-streaming', () => {
+    const indexOfName = (name: string) => INTERNAL_FEATURES.findIndex((f) => f.name === name)
+
+    const pdf = indexOfName('pdf-compatibility')
+    const cache = indexOfName('anthropic-cache')
+    expect(pdf).toBeGreaterThanOrEqual(0)
+    expect(cache).toBeGreaterThanOrEqual(0)
+    expect(pdf).toBeLessThan(cache)
+
+    const reasoning = indexOfName('reasoning-extraction')
+    const simulate = indexOfName('simulate-streaming')
+    expect(reasoning).toBeGreaterThanOrEqual(0)
+    expect(simulate).toBeGreaterThanOrEqual(0)
+    expect(reasoning).toBeLessThan(simulate)
   })
 })

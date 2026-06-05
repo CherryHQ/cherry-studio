@@ -349,6 +349,50 @@ describe('SlackAdapter', () => {
     expect(messageSpy.mock.calls[0][0].images).toHaveLength(1)
   })
 
+  it('skips an oversized image download (content-length over the cap)', async () => {
+    const adapter = await connectAdapter()
+    const messageSpy = vi.fn()
+    adapter.on('message', messageSpy)
+
+    const oversize = {
+      ok: true,
+      status: 200,
+      headers: new Headers({ 'content-type': 'image/png', 'content-length': String(500 * 1024 * 1024) }),
+      json: () => Promise.reject(new Error('not json')),
+      text: () => Promise.resolve(''),
+      arrayBuffer: () => Promise.resolve(Buffer.from('x').buffer)
+    } as unknown as Response
+
+    mockNetFetch.mockImplementation((url: string) => {
+      if (typeof url === 'string' && url.includes('files.slack.com')) {
+        return Promise.resolve(oversize)
+      }
+      if (url.includes('users.info')) {
+        return Promise.resolve(mockJsonResponse({ ok: true, user: { real_name: 'Test User' } }))
+      }
+      return Promise.resolve(mockJsonResponse({ ok: true }))
+    })
+
+    simulateMessageEvent({
+      channel: 'C0ALLOWED',
+      user: USER1_ID,
+      text: 'see attached',
+      subtype: 'file_share',
+      files: [
+        {
+          id: 'F1',
+          name: 'huge.png',
+          mimetype: 'image/png',
+          size: 1000,
+          url_private: 'https://files.slack.com/huge.png'
+        }
+      ]
+    })
+
+    await vi.waitFor(() => expect(messageSpy).toHaveBeenCalledTimes(1))
+    expect(messageSpy.mock.calls[0][0].images).toBeUndefined()
+  })
+
   it('ignores messages from the bot itself', async () => {
     const adapter = await connectAdapter()
     const messageSpy = vi.fn()

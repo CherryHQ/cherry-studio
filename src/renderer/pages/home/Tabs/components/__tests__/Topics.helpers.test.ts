@@ -247,22 +247,22 @@ describe('Topics helpers', () => {
     ])
   })
 
-  it('builds assistant display groups with pinned/known/unlinked buckets', () => {
+  it('builds assistant display groups with pinned/default/known/unlinked buckets', () => {
     const groupTopic = createTopicDisplayGroupResolver({
       assistantById: new Map([
-        [null, { id: null, name: 'Default Assistant' }],
         ['assistant-1', { id: 'assistant-1', name: 'Research' }],
         ['assistant-2', { id: 'assistant-2', name: 'Writing' }]
       ]),
+      defaultAssistant: { name: 'Default Assistant' },
       labels: TOPIC_GROUP_LABELS,
       mode: 'assistant'
     })
 
-    expect(groupTopic(createTopic({ id: 'pinned', pinned: true, assistantId: null }))).toEqual({
+    expect(groupTopic(createTopic({ id: 'pinned', pinned: true, assistantId: undefined }))).toEqual({
       id: 'topic:pinned',
       label: 'Pinned'
     })
-    expect(groupTopic(createTopic({ id: 'default', assistantId: null }))).toEqual({
+    expect(groupTopic(createTopic({ id: 'default', assistantId: undefined }))).toEqual({
       id: TOPIC_RUNTIME_ASSISTANT_GROUP_ID,
       label: 'Default Assistant'
     })

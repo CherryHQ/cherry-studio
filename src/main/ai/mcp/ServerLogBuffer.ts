@@ -1,4 +1,4 @@
-export type MCPServerLogEntry = {
+export type McpServerLogEntry = {
   timestamp: number
   level: 'debug' | 'info' | 'warn' | 'error' | 'stderr' | 'stdout'
   message: string
@@ -11,13 +11,13 @@ export type MCPServerLogEntry = {
  */
 export class ServerLogBuffer {
   private maxEntries: number
-  private logs: Map<string, MCPServerLogEntry[]> = new Map()
+  private logs: Map<string, McpServerLogEntry[]> = new Map()
 
   constructor(maxEntries = 200) {
     this.maxEntries = maxEntries
   }
 
-  append(serverKey: string, entry: MCPServerLogEntry) {
+  append(serverKey: string, entry: McpServerLogEntry) {
     const list = this.logs.get(serverKey) ?? []
     list.push(entry)
     if (list.length > this.maxEntries) {
@@ -26,7 +26,7 @@ export class ServerLogBuffer {
     this.logs.set(serverKey, list)
   }
 
-  get(serverKey: string): MCPServerLogEntry[] {
+  get(serverKey: string): McpServerLogEntry[] {
     return [...(this.logs.get(serverKey) ?? [])]
   }
 

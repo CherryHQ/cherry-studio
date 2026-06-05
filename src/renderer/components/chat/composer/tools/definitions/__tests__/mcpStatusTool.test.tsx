@@ -1,7 +1,7 @@
 import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import type { Assistant } from '@renderer/types'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
-import type { MCPServer } from '@shared/data/types/mcpServer'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('@renderer/hooks/agents/useAgent', () => ({
@@ -32,11 +32,11 @@ const translations: Record<string, string> = {
 
 const t = ((key: string, fallback?: string) => translations[key] ?? fallback ?? key) as any
 
-const server = (overrides: Partial<MCPServer> & Pick<MCPServer, 'id' | 'name' | 'isActive'>): MCPServer =>
+const server = (overrides: Partial<McpServer> & Pick<McpServer, 'id' | 'name' | 'isActive'>): McpServer =>
   ({
     type: 'stdio',
     ...overrides
-  }) as MCPServer
+  }) as McpServer
 
 const status = (state: McpRuntimeStatus['state']): McpRuntimeStatus => ({
   state,

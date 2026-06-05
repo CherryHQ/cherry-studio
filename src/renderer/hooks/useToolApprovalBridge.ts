@@ -33,7 +33,11 @@ export function useToolApprovalBridge(topicId: string): ToolApprovalRespondFn {
           topicId,
           anchorId: match.messageId
         })
-        if (!result.ok) throw new Error('Tool approval response was not accepted')
+        // Main signals failure via a resolved `{ ok: false }` (e.g. anchor deleted). Surface it as
+        // a rejection so the caller resets the card instead of leaving it stuck "submitting".
+        if (!result?.ok) {
+          throw new Error('Main rejected the tool-approval decision')
+        }
         if (result.status === 'expired') {
           window.toast.warning(t('agent.toolPermission.toast.timeout'))
         }
@@ -43,7 +47,7 @@ export function useToolApprovalBridge(topicId: string): ToolApprovalRespondFn {
           approved,
           error: error instanceof Error ? error.message : String(error)
         })
-        throw error
+        throw error instanceof Error ? error : new Error(String(error))
       }
     },
     [t, topicId]

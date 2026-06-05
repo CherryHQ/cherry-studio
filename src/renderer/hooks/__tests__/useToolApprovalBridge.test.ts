@@ -86,7 +86,7 @@ describe('useToolApprovalBridge', () => {
     const match = makeApprovalMatch()
     const { result } = renderHook(() => useToolApprovalBridge('topic-1'))
 
-    await expect(result.current({ match, approved: true })).rejects.toThrow('Tool approval response was not accepted')
+    await expect(result.current({ match, approved: true })).rejects.toThrow('Main rejected the tool-approval decision')
   })
 
   it('throws when delivery to main fails', async () => {

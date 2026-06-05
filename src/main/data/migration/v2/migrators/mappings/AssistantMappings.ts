@@ -88,7 +88,7 @@ export interface OldKnowledgeBase {
   [key: string]: unknown
 }
 
-/** Old MCPServer reference from Redux state */
+/** Old McpServer reference from Redux state */
 export interface OldMcpServer {
   id?: string
   [key: string]: unknown

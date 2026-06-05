@@ -63,8 +63,18 @@ export class ChatCompletionService {
     const endpointConfig = provider.endpointConfigs?.[ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]
     const baseURL = endpointConfig?.baseUrl || undefined
 
+    // Without an OpenAI-compatible baseURL, `new OpenAI({ apiKey })` defaults to
+    // https://api.openai.com/v1 and would send this (non-OpenAI) provider's key to
+    // OpenAI. Reject instead of constructing a client that leaks the key.
+    if (!baseURL) {
+      return {
+        ok: false,
+        message: `Provider '${providerId}' has no OpenAI-compatible chat-completions endpoint configured`
+      }
+    }
+
     const client = new OpenAI({
-      ...(baseURL ? { baseURL } : {}),
+      baseURL,
       apiKey
     })
 

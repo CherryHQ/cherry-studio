@@ -1,3 +1,4 @@
+import { Library } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -7,7 +8,8 @@ import {
   getRequiredSidebarIconsVisible,
   getSidebarIconPreferencesFromVisibleIcons,
   getSidebarMenuPath,
-  resolveSidebarActiveItem
+  resolveSidebarActiveItem,
+  SIDEBAR_ICON_COMPONENTS
 } from '../sidebar'
 
 describe('sidebar config helpers', () => {
@@ -15,9 +17,9 @@ describe('sidebar config helpers', () => {
     expect(buildSidebarIconManagerItems().slice(0, 6)).toEqual([
       'assistants',
       'agents',
-      'store',
       'paintings',
       'translate',
+      'store',
       'mini_app'
     ])
   })
@@ -31,9 +33,9 @@ describe('sidebar config helpers', () => {
       visible: ['assistants', 'files'],
       invisible: [
         'agents',
-        'store',
         'paintings',
         'translate',
+        'store',
         'mini_app',
         'knowledge',
         'code_tools',
@@ -50,7 +52,7 @@ describe('sidebar config helpers', () => {
       })
     ).toEqual({
       visible: ['assistants', 'translate'],
-      invisible: ['agents', 'store', 'paintings', 'mini_app', 'knowledge', 'files', 'code_tools', 'notes', 'openclaw']
+      invisible: ['agents', 'paintings', 'store', 'mini_app', 'knowledge', 'files', 'code_tools', 'notes', 'openclaw']
     })
   })
 
@@ -77,13 +79,17 @@ describe('sidebar config helpers', () => {
   it('resets to default visible sidebar icons without forcing non-default icons visible', () => {
     const reset = getDefaultSidebarIconPreferences()
 
-    expect(reset.visible).toEqual(['assistants', 'agents', 'store', 'translate', 'mini_app'])
+    expect(reset.visible).toEqual(['assistants', 'agents', 'paintings', 'translate', 'store'])
     expect(reset.invisible).toEqual([])
   })
 
   it('resolves menu paths and active items with the paintings provider route', () => {
     expect(getSidebarMenuPath('paintings', 'zhipu')).toBe('/app/paintings/zhipu')
     expect(resolveSidebarActiveItem('/app/paintings/zhipu')).toBe('paintings')
+  })
+
+  it('uses the library icon for the resource library sidebar item', () => {
+    expect(SIDEBAR_ICON_COMPONENTS.store).toBe(Library)
   })
 
   it('resolves the active item for query-keyed conversation routes', () => {

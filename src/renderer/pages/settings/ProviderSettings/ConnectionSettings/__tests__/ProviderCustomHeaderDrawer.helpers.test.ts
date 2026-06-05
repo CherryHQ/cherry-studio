@@ -6,9 +6,6 @@ vi.mock('@cherrystudio/ui', () => ({}))
 vi.mock('@logger', () => ({ loggerService: { withContext: () => ({ error: vi.fn() }) } }))
 vi.mock('@renderer/hooks/useCopilot', () => ({ useCopilot: () => ({}) }))
 vi.mock('@renderer/hooks/useProvider', () => ({ useProvider: () => ({}) }))
-vi.mock('@renderer/pages/settings/ProviderSettings/utils/providerTopology', () => ({
-  getProviderHostTopology: () => ({ primaryEndpoint: 'openai-chat-completions' })
-}))
 vi.mock('@renderer/utils', () => ({
   cn: (...a: any[]) => a.filter(Boolean).join(' '),
   // Delegation boundary: a simple http(s) shape is enough — validateApiHost

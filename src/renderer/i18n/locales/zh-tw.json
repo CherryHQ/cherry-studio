@@ -736,7 +736,7 @@
         }
       }
     },
-    "sidebar_title": "工作",
+    "sidebar_title": "任務",
     "todo": {
       "mock": {
         "actions": {
@@ -1406,6 +1406,7 @@
         "title": "資源"
       },
       "send": "傳送",
+      "send_failed": "訊息傳送失敗",
       "settings": "設定",
       "slash_commands": {
         "description": "Agent 工作階段斜線指令",

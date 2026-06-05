@@ -17,6 +17,7 @@ import { jobService } from '@data/services/JobService'
 import { sessionService } from '@data/services/SessionService'
 import { loggerService } from '@logger'
 import { readHeartbeat } from '@main/ai/agents/cherryclaw/heartbeat'
+import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { ChannelAdapterListener, type StreamListener } from '@main/ai/streamManager'
 import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessionRun'
 import { application } from '@main/core/application'
@@ -49,9 +50,15 @@ function makeRunSignal(
   if (!timeoutMinutes || timeoutMinutes <= 0) {
     return { signal: outerSignal, dispose: () => {} }
   }
-  const timeoutSignal = AbortSignal.timeout(timeoutMinutes * 60_000)
-  const signal = AbortSignal.any([outerSignal, timeoutSignal])
-  return { signal, dispose: () => {} }
+  // Own the timeout so `dispose()` can actually release the timer on normal
+  // completion (an `AbortSignal.timeout` keeps a live timer until it fires).
+  const timeoutController = new AbortController()
+  const timer = setTimeout(
+    () => timeoutController.abort(new Error(`Task timed out after ${timeoutMinutes} minute(s)`)),
+    timeoutMinutes * 60_000
+  )
+  const signal = AbortSignal.any([outerSignal, timeoutController.signal])
+  return { signal, dispose: () => clearTimeout(timer) }
 }
 
 export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<AgentTaskOutput> {
@@ -71,25 +78,28 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
 
   const config = agent.configuration ?? {}
 
-  // Always create a fresh session per fire. Scheduled tasks are discrete
-  // invocations; cross-fire session reuse would only carry stale model
-  // context. Persistent state lives in workspace files (heartbeat.md, etc.).
-  const session = await sessionService.createSession({ agentId, name: taskName ?? 'Scheduled task' })
-  const workspacePath = session.workspace?.path
+  const isHeartbeat = taskName === HEARTBEAT_TASK_NAME && prompt === HEARTBEAT_PROMPT_SENTINEL
 
   let effectivePrompt = prompt
 
-  // Heartbeat (name='heartbeat' + sentinel prompt) — skip when disabled or
-  // workspace missing; otherwise compose the periodic prompt from heartbeat.md.
-  if (taskName === HEARTBEAT_TASK_NAME && prompt === HEARTBEAT_PROMPT_SENTINEL) {
-    if (config.heartbeat_enabled === false || !workspacePath) {
-      logger.debug('Heartbeat skipped (disabled or no workspace)', { agentId, scheduleId })
-      return { sessionId: session.id, result: 'Skipped (disabled)' }
+  // All heartbeat skip decisions happen BEFORE we create a session — `createSession`
+  // lazily provisions a workspace, so creating one for a fire we're going to drop
+  // accretes a session row (and workspace) every interval. The agent's workspace is
+  // shared across its sessions, so we can read `heartbeat.md` without creating one.
+  if (isHeartbeat) {
+    if (config.heartbeat_enabled === false) {
+      logger.debug('Heartbeat skipped (disabled)', { agentId, scheduleId })
+      return { sessionId: null, result: 'Skipped (disabled)' }
+    }
+    const workspacePath = await sessionService.findAgentWorkspacePath(agentId)
+    if (!workspacePath) {
+      logger.debug('Heartbeat skipped (no workspace)', { agentId, scheduleId })
+      return { sessionId: null, result: 'Skipped (no file)' }
     }
     const content = await readHeartbeat(workspacePath)
     if (!content) {
       logger.debug('Heartbeat skipped (no heartbeat.md)', { agentId, scheduleId })
-      return { sessionId: session.id, result: 'Skipped (no file)' }
+      return { sessionId: null, result: 'Skipped (no file)' }
     }
     effectivePrompt = [
       '[Heartbeat]',
@@ -101,13 +111,20 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     ].join('\n')
   }
 
+  // Always create a fresh session per fire. Scheduled tasks are discrete
+  // invocations; cross-fire session reuse would only carry stale model
+  // context. Persistent state lives in workspace files (heartbeat.md, etc.).
+  const session = await sessionService.createSession({ agentId, name: taskName ?? 'Scheduled task' })
+
   const subscribedChannels = scheduleId ? await agentChannelService.getSubscribedChannels(scheduleId) : []
 
   const channelManager = application.get('ChannelManager')
   const channelListeners: StreamListener[] = subscribedChannels.flatMap((ch) => {
     const adapter = channelManager.getAdapter(ch.id)
     if (!adapter) return []
-    return adapter.notifyChatIds.map((chatId) => new ChannelAdapterListener(adapter, chatId))
+    // Suppress the listener's generic `Error: …` — `notifyTaskError` below sends a richer
+    // `[Task failed]` summary to the same chats, so leaving it on would double-notify.
+    return adapter.notifyChatIds.map((chatId) => new ChannelAdapterListener(adapter, chatId, true))
   })
 
   const { signal: runSignal, dispose } = makeRunSignal(ctx.signal, timeoutMinutes)
@@ -123,8 +140,10 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   const sentinel: StreamListener = {
     id: `agent-task:${scheduleId ?? ctx.jobId}`,
     onChunk(chunk) {
-      const c = chunk as { type: string; text?: string }
-      if (c.type === 'text-delta' && c.text) accumulatedText += c.text
+      // `text-delta`'s field is `delta`, not `text` (AI SDK `UIMessageChunk`) — the
+      // previous `as { text }` cast silently never accumulated, so the persisted
+      // result was always the `'Completed'` fallback.
+      if (chunk.type === 'text-delta') accumulatedText += chunk.delta
     },
     onDone() {
       resolveExecution(accumulatedText.trim())
@@ -140,8 +159,27 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     onError(result) {
       rejectExecution(new Error(result.error.message ?? 'Execution failed'))
     },
-    isAlive: () => !runSignal.aborted
+    // Keep `true`: the manager prunes a listener whose `isAlive()` is false BEFORE
+    // firing its terminal callback, so gating on `runSignal` here would make an
+    // aborted run's terminal event never settle `executionDone`. Abort is handled
+    // explicitly via `onRunAbort` below.
+    isAlive: () => true
   }
+
+  const topicId = buildAgentSessionTopicId(session.id)
+  // On JobManager cancel or per-task timeout, stop the upstream run: the execution's
+  // own controller never sees `runSignal`, so abort the live stream and settle
+  // `executionDone` here — otherwise the handler promise leaks until the JobManager's
+  // force-finalize timeout.
+  const onRunAbort = () => {
+    const reason = runSignal.reason
+    application
+      .get('AiStreamManager')
+      .abort(topicId, reason instanceof Error ? reason.message : String(reason ?? 'task-aborted'))
+    rejectExecution(reason instanceof Error ? reason : new Error(String(reason ?? 'Task aborted')))
+  }
+  if (runSignal.aborted) onRunAbort()
+  else runSignal.addEventListener('abort', onRunAbort, { once: true })
 
   let runError: Error | null = null
   let resultText = ''
@@ -169,6 +207,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
     }
     throw runError
   } finally {
+    runSignal.removeEventListener('abort', onRunAbort)
     dispose()
   }
 

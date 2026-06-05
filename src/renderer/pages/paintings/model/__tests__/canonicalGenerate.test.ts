@@ -79,6 +79,14 @@ describe('canonicalGenerate', () => {
     expect(call.providerBag).toBeUndefined()
   })
 
+  it("carries the 'auto' size sentinel through to imageSize untouched", async () => {
+    await canonicalGenerate(makeInput({ size: 'auto' }))
+
+    const call = lastGenerateCall()
+    // The custom-size block only special-cases 'custom'; 'auto' must survive.
+    expect(call.aiSdkParams.imageSize).toBe('auto')
+  })
+
   it('drops imageSize when the custom width/height pair is incomplete', async () => {
     await canonicalGenerate(makeInput({ size: 'custom', customSize_width: 512 }))
 

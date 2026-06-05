@@ -8,7 +8,7 @@
 import { topicService } from '@data/services/TopicService'
 import { messageService } from '@main/data/services/MessageService'
 import { topicNamingService } from '@main/services/TopicNamingService'
-import type { Span } from '@opentelemetry/api'
+import { type Span, SpanStatusCode } from '@opentelemetry/api'
 import { applyApprovalDecisions } from '@shared/ai/transport'
 import type { Message as SharedMessage } from '@shared/data/types/message'
 import type { Model } from '@shared/data/types/model'
@@ -50,6 +50,25 @@ function startTurnRootSpans(
     )
     return { model, span: turnTrace.rootSpan, traceId: turnTrace.traceId }
   })
+}
+
+/**
+ * End freshly-created turn root spans with an error status. Used to release
+ * spans that would otherwise leak when `prepareDispatch` throws after span
+ * creation but before the spans are handed off to the stream executions
+ * (which take over ending them). Each `end()` is isolated so one failure
+ * can't strand the rest.
+ */
+function endTurnRootSpansWithError(spans: Array<{ span: Span }>, error: unknown): void {
+  const message = error instanceof Error ? error.message : 'prepareDispatch failed before stream launch'
+  for (const { span } of spans) {
+    try {
+      span.setStatus({ code: SpanStatusCode.ERROR, message })
+      span.end()
+    } catch {
+      // Best-effort cleanup — a broken span must not mask the original error.
+    }
+  }
 }
 
 function toReservedUIMessage(message: SharedMessage): CherryUIMessage {
@@ -150,87 +169,96 @@ export class PersistentChatContextProvider implements ChatContextProvider {
           } as const)
         : ({ mode: 'existing' as const, id: req.parentAnchorId } as const)
 
-    // Span traceId == Message.traceId — the viewer keys on this.
+    // Span traceId == Message.traceId — the viewer keys on this. The spans are
+    // created before the DB write because the placeholder rows persist each
+    // span's traceId, so a failure between here and the handoff to `send()` must
+    // end them explicitly or they leak (never ended).
     const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, models)
-
-    const { userMessage, placeholders } = await messageService.createUserMessageWithPlaceholders({
-      topicId: req.topicId,
-      userMessage: userMessageInput,
-      siblingsGroupId,
-      placeholders: turnRootSpans.map(({ model, traceId }) => ({
-        role: 'assistant',
-        data: { parts: [] },
-        status: 'pending',
-        modelId: model.id,
-        modelSnapshot: {
-          id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
-          name: model.name,
-          provider: model.providerId
-        },
-        traceId
-      }))
-    })
-
-    const shouldAutoNameInitialTurn = !isRegenerate && !req.parentAnchorId
-    if (shouldAutoNameInitialTurn) {
-      void topicNamingService.maybeRenameFromFirstUserMessage(req.topicId, userMessage.id)
-    }
-
-    const assistantPlaceholders = turnRootSpans.map(({ model, span }, i) => ({
-      model,
-      placeholder: placeholders[i],
-      rootSpan: span
-    }))
-
-    // 1 subscriber + N per-model persistence listeners. Auto-rename attaches
-    // to the first backend only so it fires once for multi-model turns.
-    const listeners: StreamListener[] = [subscriber]
-    for (let i = 0; i < assistantPlaceholders.length; i++) {
-      const { model, placeholder } = assistantPlaceholders[i]
-      const attachAutoRename = shouldAutoNameInitialTurn && i === 0
-      listeners.push(
-        new PersistenceListener({
-          topicId: req.topicId,
+    try {
+      const { userMessage, placeholders } = await messageService.createUserMessageWithPlaceholders({
+        topicId: req.topicId,
+        userMessage: userMessageInput,
+        siblingsGroupId,
+        placeholders: turnRootSpans.map(({ model, traceId }) => ({
+          role: 'assistant',
+          data: { parts: [] },
+          status: 'pending',
           modelId: model.id,
-          backend: new MessageServiceBackend({
-            assistantMessageId: placeholder.id,
-            modelSnapshot: {
-              id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
-              name: model.name,
-              provider: model.providerId
-            },
-            afterPersist: attachAutoRename
-              ? async (finalMessage) => {
-                  await topicNamingService.maybeRenameFromConversationSummary(
-                    req.topicId,
-                    assistantId,
-                    userMessage.id,
-                    finalMessage
-                  )
-                }
-              : undefined
+          modelSnapshot: {
+            id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
+            name: model.name,
+            provider: model.providerId
+          },
+          traceId
+        }))
+      })
+
+      const shouldAutoNameInitialTurn = !isRegenerate && !req.parentAnchorId
+      if (shouldAutoNameInitialTurn) {
+        void topicNamingService.maybeRenameFromFirstUserMessage(req.topicId, userMessage.id)
+      }
+
+      const assistantPlaceholders = turnRootSpans.map(({ model, span }, i) => ({
+        model,
+        placeholder: placeholders[i],
+        rootSpan: span
+      }))
+
+      // 1 subscriber + N per-model persistence listeners. Auto-rename attaches
+      // to the first backend only so it fires once for multi-model turns.
+      const listeners: StreamListener[] = [subscriber]
+      for (let i = 0; i < assistantPlaceholders.length; i++) {
+        const { model, placeholder } = assistantPlaceholders[i]
+        const attachAutoRename = shouldAutoNameInitialTurn && i === 0
+        listeners.push(
+          new PersistenceListener({
+            topicId: req.topicId,
+            modelId: model.id,
+            backend: new MessageServiceBackend({
+              assistantMessageId: placeholder.id,
+              modelSnapshot: {
+                id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
+                name: model.name,
+                provider: model.providerId
+              },
+              afterPersist: attachAutoRename
+                ? async (finalMessage) => {
+                    await topicNamingService.maybeRenameFromConversationSummary(
+                      req.topicId,
+                      assistantId,
+                      userMessage.id,
+                      finalMessage
+                    )
+                  }
+                : undefined
+            }),
+            onPersistFailed: (error) =>
+              void subscriber.onError({ error, status: 'error', modelId: model.id, isTopicDone: true })
           })
-        })
-      )
-    }
-    listeners.push(new TraceFlushListener(req.topicId))
+        )
+      }
+      listeners.push(new TraceFlushListener(req.topicId))
 
-    // 7. Build per-model requests. The dispatcher runs `manager.send` itself.
-    const history = await this.buildHistory(userMessage.id)
-    const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
-      modelId: model.id,
-      request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, placeholder.id),
-      rootSpan
-    }))
+      // 7. Build per-model requests. The dispatcher runs `manager.send` itself.
+      const history = await this.buildHistory(userMessage.id)
+      const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
+        modelId: model.id,
+        request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, placeholder.id),
+        rootSpan
+      }))
 
-    return {
-      topicId: req.topicId,
-      models: models_,
-      listeners,
-      userMessageId: userMessage.id,
-      reservedMessages: [userMessage, ...placeholders].map(toReservedUIMessage),
-      siblingsGroupId,
-      isMultiModel
+      return {
+        topicId: req.topicId,
+        models: models_,
+        listeners,
+        userMessageId: userMessage.id,
+        reservedMessages: [userMessage, ...placeholders].map(toReservedUIMessage),
+        siblingsGroupId,
+        isMultiModel
+      }
+    } catch (error) {
+      endTurnRootSpansWithError(turnRootSpans, error)
+      throw error
     }
   }
 
@@ -258,47 +286,57 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     const beforeParts = anchor.data.parts ?? []
     const updatedParts = applyApprovalDecisions(beforeParts, req.approvalDecisions)
     // Continue uses the original assistant's model — switching mid-approval invalidates approval semantics.
-    const continueModelId = (anchor.modelId as UniqueModelId | undefined) ?? defaultModelId
+    // `anchor.modelId` is nullable; coalesce null/undefined away first, then a single boundary cast.
+    const continueModelId = (anchor.modelId ?? defaultModelId) as UniqueModelId
     const [model] = await resolveModels([continueModelId], defaultModelId)
 
-    const [{ span: rootSpan, traceId }] = startTurnRootSpans(req.topicId, req.trigger, [model])
+    // Created before the DB write so the anchor row can persist the span's
+    // traceId; end it explicitly if anything below throws or it leaks.
+    const turnRootSpans = startTurnRootSpans(req.topicId, req.trigger, [model])
+    const [{ span: rootSpan, traceId }] = turnRootSpans
+    try {
+      await messageService.update(req.parentAnchorId, {
+        data: { parts: updatedParts },
+        status: 'pending',
+        traceId
+      })
 
-    await messageService.update(req.parentAnchorId, {
-      data: { parts: updatedParts },
-      status: 'pending',
-      traceId
-    })
-
-    const listeners: StreamListener[] = [
-      subscriber,
-      new PersistenceListener({
-        topicId: req.topicId,
-        modelId: model.id,
-        backend: new MessageServiceBackend({
-          assistantMessageId: anchor.id,
-          modelSnapshot: anchor.modelSnapshot ?? {
-            id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
-            name: model.name,
-            provider: model.providerId
-          }
-        })
-      }),
-      new TraceFlushListener(req.topicId)
-    ]
-
-    const history = await this.buildHistory(anchor.id)
-    return {
-      topicId: req.topicId,
-      models: [
-        {
+      const listeners: StreamListener[] = [
+        subscriber,
+        new PersistenceListener({
+          topicId: req.topicId,
           modelId: model.id,
-          request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, anchor.id),
-          rootSpan
-        }
-      ],
-      listeners,
-      siblingsGroupId: undefined,
-      isMultiModel: false
+          backend: new MessageServiceBackend({
+            assistantMessageId: anchor.id,
+            modelSnapshot: anchor.modelSnapshot ?? {
+              id: model.apiModelId ?? parseUniqueModelId(model.id).modelId,
+              name: model.name,
+              provider: model.providerId
+            }
+          }),
+          onPersistFailed: (error) =>
+            void subscriber.onError({ error, status: 'error', modelId: model.id, isTopicDone: true })
+        }),
+        new TraceFlushListener(req.topicId)
+      ]
+
+      const history = await this.buildHistory(anchor.id)
+      return {
+        topicId: req.topicId,
+        models: [
+          {
+            modelId: model.id,
+            request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, anchor.id),
+            rootSpan
+          }
+        ],
+        listeners,
+        siblingsGroupId: undefined,
+        isMultiModel: false
+      }
+    } catch (error) {
+      endTurnRootSpansWithError(turnRootSpans, error)
+      throw error
     }
   }
 

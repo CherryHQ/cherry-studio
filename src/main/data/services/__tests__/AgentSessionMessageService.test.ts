@@ -21,6 +21,33 @@ describe('AgentSessionMessageService', () => {
     vi.restoreAllMocks()
   })
 
+  describe('findPendingAssistantMessageIds + markMessagesError (boot reconcile)', () => {
+    it('finds only pending assistant rows and resolves them to error', async () => {
+      const PENDING = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d010'
+      const DONE = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d011'
+      const PENDING_USER = '018f6ed6-73b8-7f40-8d0d-9bb2f8f1d012'
+      await agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { id: PENDING, role: 'assistant', status: 'pending', data: { parts: [] } }
+      })
+      await agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { id: DONE, role: 'assistant', status: 'success', data: { parts: [{ type: 'text', text: 'done' }] } }
+      })
+      await agentSessionMessageService.saveMessage({
+        sessionId: SESSION_ID,
+        message: { id: PENDING_USER, role: 'user', status: 'pending', data: { parts: [{ type: 'text', text: 'q' }] } }
+      })
+
+      expect(await agentSessionMessageService.findPendingAssistantMessageIds()).toEqual([PENDING])
+
+      await agentSessionMessageService.markMessagesError([PENDING])
+      expect(await agentSessionMessageService.findPendingAssistantMessageIds()).toEqual([])
+      const [row] = await dbh.db.select().from(agentSessionMessageTable).where(eq(agentSessionMessageTable.id, PENDING))
+      expect(row.status).toBe('error')
+    })
+  })
+
   it('creates messages with service-owned audit timestamps', async () => {
     vi.spyOn(Date, 'now').mockReturnValue(1_700_000_000_000)
 

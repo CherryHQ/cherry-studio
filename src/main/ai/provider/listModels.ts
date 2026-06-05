@@ -179,9 +179,12 @@ const geminiFetcher: ModelFetcher = {
     let baseUrl = withoutTrailingSlash(getBaseUrl(provider))
     baseUrl = baseUrl.replace(/\/v1(beta)?$/, '')
     const apiKey = await providerService.getRotatedApiKey(provider.id)
+    // Pass the key via the `x-goog-api-key` header (same as `@ai-sdk/google`'s chat path)
+    // instead of the `?key=` query param: on failure `APICallError.url` is logged, which
+    // would persist the key into local logs users attach to bug reports.
     const response = await getFromApi({
-      url: `${baseUrl}/v1beta/models?key=${apiKey}`,
-      headers: { ...defaultAppHeaders(), ...provider.settings?.extraHeaders },
+      url: `${baseUrl}/v1beta/models`,
+      headers: { ...defaultAppHeaders(), 'x-goog-api-key': apiKey, ...provider.settings?.extraHeaders },
       responseSchema: GeminiModelsResponseSchema,
       abortSignal: signal
     })
@@ -262,7 +265,10 @@ const vertexFetcher: ModelFetcher = {
       })
     })
 
-    const filteredModels = listedModels.filter((model) => isSupportedVertexPublisherModel(model.id ?? ''))
+    // Match against the bare model id (e.g. `gemini-2.0-flash`), not the `provider::model`
+    // unique id — the support patterns are anchored to the model name and would reject the
+    // prefixed form, dropping every listed model.
+    const filteredModels = listedModels.filter((model) => isSupportedVertexPublisherModel(model.apiModelId ?? ''))
 
     if (filteredModels.length !== listedModels.length) {
       logger.info('Filtered unsupported Vertex publisher models from model list', {

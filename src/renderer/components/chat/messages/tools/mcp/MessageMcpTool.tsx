@@ -4,7 +4,7 @@ import { CallToolResultSchema } from '@modelcontextprotocol/sdk/types.js'
 import { CopyIcon } from '@renderer/components/Icons'
 import { useCodeStyle } from '@renderer/context/CodeStyleProvider'
 import { useTimer } from '@renderer/hooks/useTimer'
-import type { MCPToolResponse } from '@renderer/types'
+import type { McpToolResponse } from '@renderer/types'
 import { Check, ShieldCheck, Wrench } from 'lucide-react'
 import { parse as parsePartialJson } from 'partial-json'
 import type { ComponentPropsWithoutRef, FC } from 'react'
@@ -24,7 +24,7 @@ import { truncateOutput } from '../shared/truncateOutput'
 import ToolApprovalActionsComponent from '../ToolApprovalActions'
 
 interface Props {
-  toolResponse: MCPToolResponse
+  toolResponse: McpToolResponse
 }
 
 const logger = loggerService.withContext('MessageTools')

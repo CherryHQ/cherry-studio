@@ -14,6 +14,7 @@ import type { UIMessage, UIMessageChunk } from 'ai'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const appendMessageMock = vi.fn()
+const messageUpdateMock = vi.fn()
 
 vi.mock('@main/data/services/TemporaryChatService', () => ({
   temporaryChatService: {
@@ -21,8 +22,15 @@ vi.mock('@main/data/services/TemporaryChatService', () => ({
   }
 }))
 
+vi.mock('@main/data/services/MessageService', () => ({
+  messageService: {
+    update: messageUpdateMock
+  }
+}))
+
 const { PersistenceListener } = await import('../PersistenceListener')
 const { TemporaryChatBackend } = await import('../../persistence/backends/TemporaryChatBackend')
+const { MessageServiceBackend } = await import('../../persistence/backends/MessageServiceBackend')
 
 function makeFinalMessage(partsText = 'hello'): CherryUIMessage {
   return {
@@ -132,7 +140,8 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
       timeCompletionMs: 1501
     })
     // `timeThinkingMs` is intentionally not projected: wall-clock reasoning
-    // may include interleaved tool execution. See stream-stats-followup TODO.
+    // may include interleaved tool execution. See the TODO(message-stats-redesign)
+    // rework in src/shared/data/types/message.ts.
     expect(payload.stats).not.toHaveProperty('timeThinkingMs')
   })
 
@@ -333,5 +342,56 @@ describe('PersistenceListener + TemporaryChatBackend', () => {
     const listener = makeListener()
 
     await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).resolves.toBeUndefined()
+  })
+})
+
+describe('PersistenceListener + MessageServiceBackend — failed persist recovery', () => {
+  beforeEach(() => {
+    messageUpdateMock.mockReset()
+  })
+
+  function makeMessageServiceListener() {
+    return new PersistenceListener({
+      topicId: 'topic-1',
+      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' })
+    })
+  }
+
+  it('drives the placeholder row to status=error when the persist write fails', async () => {
+    // First update() is persistAssistant (fails); second is markTerminalError (succeeds).
+    messageUpdateMock.mockRejectedValueOnce(new Error('write failed')).mockResolvedValueOnce({ id: 'assistant-1' })
+    const listener = makeMessageServiceListener()
+
+    await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).resolves.toBeUndefined()
+
+    expect(messageUpdateMock).toHaveBeenCalledTimes(2)
+    // The recovery write flips the frozen `pending` placeholder to a terminal `error`.
+    expect(messageUpdateMock).toHaveBeenLastCalledWith('assistant-1', { status: 'error' })
+  })
+
+  it('swallows a failure of the terminal-error recovery write itself', async () => {
+    messageUpdateMock.mockRejectedValue(new Error('db down'))
+    const listener = makeMessageServiceListener()
+
+    await expect(listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })).resolves.toBeUndefined()
+
+    expect(messageUpdateMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('notifies onPersistFailed so the live renderer can be corrected (C1)', async () => {
+    messageUpdateMock.mockRejectedValueOnce(new Error('write failed')).mockResolvedValueOnce({ id: 'assistant-1' })
+    const onPersistFailed = vi.fn()
+    const listener = new PersistenceListener({
+      topicId: 'topic-1',
+      backend: new MessageServiceBackend({ assistantMessageId: 'assistant-1' }),
+      onPersistFailed
+    })
+
+    await listener.onDone({ finalMessage: makeFinalMessage(), status: 'success' })
+
+    expect(onPersistFailed).toHaveBeenCalledTimes(1)
+    expect(onPersistFailed).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('write failed') })
+    )
   })
 })

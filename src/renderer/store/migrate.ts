@@ -19,7 +19,7 @@ import { nanoid } from '@reduxjs/toolkit'
 import { isMac } from '@renderer/config/constant'
 import { allMiniApps } from '@renderer/config/miniApps'
 import { isFunctionCallingModel, isNotSupportTextDeltaModel, qwenModel, SYSTEM_MODELS } from '@renderer/config/models'
-import { toSharedCompatModel } from '@renderer/config/models/_bridge'
+import { toSharedCompatModel } from '@renderer/config/models/bridge'
 import { BUILTIN_OCR_PROVIDERS, BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
 import { CHERRYAI_PROVIDER, SYSTEM_PROVIDERS } from '@renderer/config/providers'
 // import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
@@ -37,7 +37,7 @@ import type {
   SystemProviderId,
   WebSearchProvider
 } from '@renderer/types'
-import { isBuiltinMCPServer, isSystemProvider, SystemProviderIds } from '@renderer/types'
+import { isBuiltinMcpServer, isSystemProvider, SystemProviderIds } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
 import {
   API_SERVER_DEFAULTS,
@@ -2695,7 +2695,7 @@ const migrateConfig = {
     try {
       if (state?.mcp?.servers) {
         state.mcp.servers = state.mcp.servers.map((server) => {
-          const inferredSource = isBuiltinMCPServer(server) ? 'builtin' : 'unknown'
+          const inferredSource = isBuiltinMcpServer(server) ? 'builtin' : 'unknown'
           return {
             ...server,
             installSource: inferredSource

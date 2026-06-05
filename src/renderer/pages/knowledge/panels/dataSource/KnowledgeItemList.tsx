@@ -60,32 +60,42 @@ const KnowledgeItemList = ({
 
   return (
     <Scrollbar className={cn('min-h-0 flex-1 px-3 pt-3 pb-6', '[scrollbar-width:none] [&::-webkit-scrollbar]:hidden')}>
-      <Table className="border-separate border-spacing-x-0 border-spacing-y-1.5 text-sm">
+      <Table className="table-fixed border-separate border-spacing-x-0 border-spacing-y-1.5 text-sm">
+        <colgroup>
+          <col className="w-10" />
+          <col />
+          <col className="w-24" />
+          <col className="w-32" />
+          <col className="w-32" />
+          <col className="w-12" />
+        </colgroup>
         <TableHeader className="sticky top-0 z-10 bg-background">
-          <TableRow className="hover:bg-transparent [&>th]:border-border-muted [&>th]:border-b">
+          <TableRow className="hover:bg-transparent [&>th]:border-border-muted [&>th]:border-b [&>th]:py-0">
             <TableHead className="w-10 px-3">
-              <Checkbox
-                size="sm"
-                className={knowledgeDataSourceCheckboxClassName}
-                aria-label={t('knowledge.data_source.table.select_all')}
-                checked={allSelected ? true : someSelected ? 'indeterminate' : false}
-                onCheckedChange={(checked) => onToggleAll(checked === true)}
-              />
+              <div className="flex h-10 items-center">
+                <Checkbox
+                  size="sm"
+                  className={knowledgeDataSourceCheckboxClassName}
+                  aria-label={t('knowledge.data_source.table.select_all')}
+                  checked={allSelected ? true : someSelected ? 'indeterminate' : false}
+                  onCheckedChange={(checked) => onToggleAll(checked === true)}
+                />
+              </div>
             </TableHead>
             <TableHead className="font-medium text-foreground-muted text-xs">
-              <div className="flex min-w-0 items-center gap-2">
+              <div className="flex h-10 min-w-0 items-center gap-2">
                 <span className="size-6 shrink-0" aria-hidden="true" />
                 <span>{t('knowledge.data_source.table.columns.name')}</span>
               </div>
             </TableHead>
             <TableHead className="w-24 font-medium text-foreground-muted text-xs">
-              {t('knowledge.data_source.table.columns.type')}
+              <div className="flex h-10 items-center">{t('knowledge.data_source.table.columns.type')}</div>
             </TableHead>
             <TableHead className="w-32 font-medium text-foreground-muted text-xs">
-              {t('knowledge.data_source.table.columns.status')}
+              <div className="flex h-10 items-center">{t('knowledge.data_source.table.columns.status')}</div>
             </TableHead>
             <TableHead className="w-32 font-medium text-foreground-muted text-xs">
-              {t('knowledge.data_source.table.columns.updated_at')}
+              <div className="flex h-10 items-center">{t('knowledge.data_source.table.columns.updated_at')}</div>
             </TableHead>
             <TableHead className="w-12" />
           </TableRow>

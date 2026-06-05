@@ -8,11 +8,11 @@ import {
   ListToolsRequestSchema,
   type Tool as SdkTool
 } from '@modelcontextprotocol/sdk/types.js'
-import type { MCPTool } from '@types'
+import type { McpTool } from '@types'
 
 const logger = loggerService.withContext('SdkMcpBridge')
 
-function toSdkTool(tool: MCPTool): SdkTool {
+function toSdkTool(tool: McpTool): SdkTool {
   const sdkTool = { ...tool } as SdkTool & Record<'id' | 'serverId' | 'serverName' | 'type', unknown>
   Reflect.deleteProperty(sdkTool, 'id')
   Reflect.deleteProperty(sdkTool, 'serverId')

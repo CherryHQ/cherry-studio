@@ -7,7 +7,7 @@ import type { Tool as SDKTool } from '@modelcontextprotocol/sdk/types'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import { buildFunctionCallToolName } from '@shared/mcp'
-import type { MCPServer, MCPTool } from '@types'
+import type { McpServer, McpTool } from '@types'
 import * as z from 'zod'
 
 const logger = loggerService.withContext('McpCatalogService')
@@ -90,15 +90,15 @@ export class McpCatalogService extends BaseService {
     this.prewarmCancelled = true
   }
 
-  private async getServerById(serverId: string): Promise<MCPServer> {
+  private async getServerById(serverId: string): Promise<McpServer> {
     return await mcpServerService.getById(serverId)
   }
 
-  private writeToolsCache(serverId: string, tools: MCPTool[]): void {
+  private writeToolsCache(serverId: string, tools: McpTool[]): void {
     application.get('CacheService').setShared(mcpToolsCacheKey(serverId), tools)
   }
 
-  public clearToolsCache(server: MCPServer): void {
+  public clearToolsCache(server: McpServer): void {
     const serverKey = application.get('McpRuntimeService').getServerKey(server)
     application.get('CacheService').delete(`mcp:list_tool:${serverKey}`)
   }
@@ -111,16 +111,16 @@ export class McpCatalogService extends BaseService {
     return application.get('McpRuntimeService')
   }
 
-  private async filterEnabledTools(server: MCPServer, tools: MCPTool[]): Promise<MCPTool[]> {
+  private async filterEnabledTools(server: McpServer, tools: McpTool[]): Promise<McpTool[]> {
     const latestServer = await this.getServerById(server.id).catch(() => server)
     return tools.filter((tool) => !isMcpToolDisabledBySource(latestServer, tool))
   }
 
-  private async listToolsImpl(server: MCPServer): Promise<MCPTool[]> {
+  private async listToolsImpl(server: McpServer): Promise<McpTool[]> {
     try {
       const { tools } = await application.get('McpRuntimeService').withClient(server.id, (client) => client.listTools())
       return tools.map((tool: SDKTool) => {
-        const serverTool: MCPTool = {
+        const serverTool: McpTool = {
           ...tool,
           inputSchema: MCP_TOOL_INPUT_SCHEMA.parse(tool.inputSchema),
           outputSchema: tool.outputSchema ? MCP_TOOL_OUTPUT_SCHEMA.parse(tool.outputSchema) : undefined,
@@ -143,15 +143,15 @@ export class McpCatalogService extends BaseService {
     }
   }
 
-  private async listToolsForServer(server: MCPServer, options: ListToolsOptions = {}): Promise<MCPTool[]> {
+  private async listToolsForServer(server: McpServer, options: ListToolsOptions = {}): Promise<McpTool[]> {
     if (!server.isActive) {
       this.writeToolsCache(server.id, [])
       this.runtimeService().setServerStatus(server.id, 'disabled')
       return []
     }
 
-    const listFunc = (server: MCPServer) => {
-      const cachedListTools = withCache<[MCPServer], MCPTool[]>(
+    const listFunc = (server: McpServer) => {
+      const cachedListTools = withCache<[McpServer], McpTool[]>(
         this.listToolsImpl.bind(this),
         (server) => {
           const serverKey = application.get('McpRuntimeService').getServerKey(server)
@@ -176,7 +176,7 @@ export class McpCatalogService extends BaseService {
     }
   }
 
-  public async listTools(serverId: string, options: ListToolsOptions = {}): Promise<MCPTool[]> {
+  public async listTools(serverId: string, options: ListToolsOptions = {}): Promise<McpTool[]> {
     const server = await this.getServerById(serverId)
     return this.listToolsForServer(server, options)
   }

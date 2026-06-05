@@ -62,5 +62,7 @@ export function getThinkingBudget(
     return computeBudgetTokens(FALLBACK_TOKEN_LIMIT, ratio, maxTokens)
   }
 
-  return computeBudgetTokens(tokenLimit, effortRatioMap[reasoningEffort], maxTokens)
+  // Guard the same way as the fallback path: an unknown effort key would otherwise
+  // yield a NaN budget that the Anthropic/Claude SDK rejects.
+  return computeBudgetTokens(tokenLimit, effortRatioMap[reasoningEffort] ?? effortRatioMap.high, maxTokens)
 }

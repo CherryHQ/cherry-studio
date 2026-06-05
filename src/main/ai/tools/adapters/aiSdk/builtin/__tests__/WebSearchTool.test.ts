@@ -92,9 +92,28 @@ describe('web__search', () => {
     ])
   })
 
-  it('returns [] when webSearchService throws', async () => {
+  it('returns an error discriminant (not []) when webSearchService throws', async () => {
     searchKeywords.mockRejectedValue(new Error('upstream 503'))
-    expect(await callSearchExecute({ query: 'q' })).toEqual([])
+    const out = await callSearchExecute({ query: 'q' })
+    // Distinguishable from an empty-but-successful search: never [].
+    expect(out).toEqual({ error: 'upstream 503' })
+  })
+
+  it('toModelOutput surfaces a retry note on the error path', () => {
+    const toModelOutput = searchEntry.tool.toModelOutput!
+    const errorView = toModelOutput({ output: { error: 'upstream 503' } } as never)
+    expect(errorView).toEqual({
+      type: 'text',
+      value: 'Web search failed (network/provider error); retry or inform the user.'
+    })
+  })
+
+  it('toModelOutput passes results through as json (incl. the empty case)', () => {
+    const toModelOutput = searchEntry.tool.toModelOutput!
+    const results = [{ id: 1, title: 'A', url: 'https://a.com', content: 'about A' }]
+    expect(toModelOutput({ output: results } as never)).toEqual({ type: 'json', value: results })
+    // Empty results are a successful "no matches", NOT the error note.
+    expect(toModelOutput({ output: [] } as never)).toEqual({ type: 'json', value: [] })
   })
 
   describe('applies', () => {
@@ -149,9 +168,19 @@ describe('web__fetch', () => {
     ])
   })
 
-  it('returns [] when webSearchService throws', async () => {
+  it('returns an error discriminant (not []) when webSearchService throws', async () => {
     fetchUrls.mockRejectedValue(new Error('upstream 503'))
-    expect(await callFetchExecute({ urls: ['https://example.com'] })).toEqual([])
+    const out = await callFetchExecute({ urls: ['https://example.com'] })
+    expect(out).toEqual({ error: 'upstream 503' })
+  })
+
+  it('toModelOutput surfaces a retry note on the error path', () => {
+    const toModelOutput = fetchEntry.tool.toModelOutput!
+    const errorView = toModelOutput({ output: { error: 'upstream 503' } } as never)
+    expect(errorView).toEqual({
+      type: 'text',
+      value: 'Web search failed (network/provider error); retry or inform the user.'
+    })
   })
 
   describe('applies', () => {

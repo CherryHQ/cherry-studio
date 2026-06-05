@@ -9,7 +9,7 @@ import { application } from '@main/core/application'
 import { mcpServerService } from '@main/data/services/McpServerService'
 import { isMcpToolDisabledBySource } from '@shared/ai/tools/mcpSourcePolicy'
 import type { Assistant, McpMode } from '@shared/data/types/assistant'
-import type { MCPServer } from '@shared/data/types/mcpServer'
+import type { McpServer } from '@shared/data/types/mcpServer'
 
 const logger = loggerService.withContext('resolveAssistantMcpTools')
 
@@ -20,14 +20,14 @@ export function getEffectiveMcpMode(assistant: Assistant): McpMode {
   return assistant.mcpServerIds.length > 0 ? 'manual' : 'disabled'
 }
 
-async function resolveServersForAssistant(assistant: Assistant, mode: McpMode): Promise<MCPServer[]> {
+async function resolveServersForAssistant(assistant: Assistant, mode: McpMode): Promise<McpServer[]> {
   const { items: activeServers } = await mcpServerService.list({ isActive: true })
   if (mode === 'auto') return activeServers
   const linkedIds = new Set(assistant.mcpServerIds)
   return activeServers.filter((server) => linkedIds.has(server.id))
 }
 
-function isToolDisabled(server: MCPServer, tool: { name: string; id: string; description?: string }): boolean {
+function isToolDisabled(server: McpServer, tool: { name: string; id: string; description?: string }): boolean {
   return isMcpToolDisabledBySource(server, tool)
 }
 

@@ -44,13 +44,19 @@ export function applyDeferExposition(
   const { deferredNames } = shouldDefer(candidateEntries, contextWindow)
   if (deferredNames.size === 0) return { tools, deferredEntries: [] }
 
+  // Per-request scope for the meta-tools: every tool the request exposed (inline or deferred).
+  // `tool_invoke` / `tool_inspect` reach the process-wide registry, so without this they could
+  // resolve user-owned tools `applies()` excluded for this request. Captured before the meta-tools
+  // are added below — they don't address themselves.
+  const allowedNames = new Set(Object.keys(tools))
+
   const inlineTools: ToolSet = {}
   for (const [name, entry] of Object.entries(tools)) {
     if (!deferredNames.has(name)) inlineTools[name] = entry
   }
   inlineTools[TOOL_SEARCH_TOOL_NAME] = createToolSearchTool(registry, deferredNames)
-  inlineTools[TOOL_INSPECT_TOOL_NAME] = createToolInspectTool(registry)
-  inlineTools[TOOL_INVOKE_TOOL_NAME] = createToolInvokeTool(registry)
+  inlineTools[TOOL_INSPECT_TOOL_NAME] = createToolInspectTool(registry, allowedNames)
+  inlineTools[TOOL_INVOKE_TOOL_NAME] = createToolInvokeTool(registry, allowedNames)
   // `tool_exec` (worker-thread JS sandbox with full registry access) is
   // intentionally NOT injected by default — it is a meaningful privilege-
   // escalation surface vs the renderer's prior restrictions. Re-enable

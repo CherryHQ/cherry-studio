@@ -17,7 +17,7 @@ Cherry Studio is an Electron application with three process types:
 │  │ Lifecycle    │ │ Data Layer   │ │ Services                │ │
 │  │ Container    │ │              │ │                         │ │
 │  │ (IoC, phased│ │ DbService    │ │ MainWindowService           │ │
-│  │  bootstrap) │ │ CacheService │ │ MCPService              │ │
+│  │  bootstrap) │ │ CacheService │ │ McpService              │ │
 │  │              │ │ Preference   │ │ KnowledgeService        │ │
 │  │              │ │ DataApi      │ │ AgentBootstrapService   │ │
 │  │              │ │ BootConfig   │ │ SearchService           │ │
@@ -106,7 +106,7 @@ Application Bootstrap
   │     MainWindowService, ProxyManager, ThemeService, ShortcutService, ...
   │
   ├── Phase 3: Feature Services
-  │     MCPService, KnowledgeService, SearchService, ...
+  │     McpService, KnowledgeService, SearchService, ...
   │
   └── Phase 4: Late Services
         AppUpdaterService, AgentBootstrapService, ApiServerService, ...

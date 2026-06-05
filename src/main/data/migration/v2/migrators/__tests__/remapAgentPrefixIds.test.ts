@@ -62,6 +62,7 @@ describe('remapAgentPrefixIds', () => {
     await insertSession(dbh.db, sessionId, agentId)
     await dbh.db.insert(agentSessionMessageTable).values({
       sessionId,
+      status: 'success',
       role: 'user',
       data: { parts: [{ type: 'text', text: 'hello' }] } as never
     })

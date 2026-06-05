@@ -400,7 +400,7 @@ export class ChatMigrator extends BaseMigrator {
       // rows during transformMessage — written through the migration's
       // own DB handle, *not* through `application.get('FileManager')`:
       // migration runs in preboot, before any `WhenReady` service is up.
-      const mappingDeps: ChatMappingDeps = { db: ctx.db }
+      const mappingDeps: ChatMappingDeps = { db: ctx.db, filesDataDir: ctx.paths.filesDataDir }
 
       // Buffer all topics first; orderKey is stamped post-stream because per-batch
       // keys would collide across batches sharing a `groupId` partition.

@@ -19,7 +19,6 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger
 } from '@cherrystudio/ui'
-import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { isMac, platform } from '@renderer/config/constant'
 import {
@@ -32,18 +31,16 @@ import {
   menuRegistry,
   type NativePopupMenuItem,
   type NativePopupMenuModel,
-  REGISTERED_KEYBINDINGS,
   resolveCommandKeybinding,
   type ResolvedMenuItem,
   type ResolvedMenuModel,
   resolveMenuPresentationMode,
   type SupportedPlatform
 } from '@shared/commands'
-import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { useCommandRuntime } from './CommandProvider'
+import { useCommandMenuPresentationMode, useCommandRuntime, useCommandShortcutPreferences } from './CommandProvider'
 import { useCommandContextReader } from './ContextKeyProvider'
 
 type CommandIconRenderer = (iconKey: string | undefined) => React.ReactNode
@@ -90,10 +87,6 @@ const EMPTY_EXTRA_ITEMS: readonly CommandContextMenuExtraItem[] = []
 const isExtraMenuItem = (item: CommandContextMenuItem): item is ExtraRenderableMenuItem =>
   item.type === 'item' || (item.type === 'submenu' && 'id' in item)
 
-const shortcutPreferenceKeys = Object.fromEntries(
-  REGISTERED_KEYBINDINGS.map((rule) => [rule.command, rule.preferenceKey])
-) as Record<string, NonNullable<ReturnType<typeof findKeybindingRule>>['preferenceKey']>
-
 const removeEmptySeparators = <T extends { type: string }>(items: readonly T[]): readonly T[] => {
   const result: T[] = []
 
@@ -117,6 +110,13 @@ const removeEmptySeparators = <T extends { type: string }>(items: readonly T[]):
 
 const hasNonSeparatorItems = (items: readonly { type: string }[]): boolean =>
   items.some((item) => item.type !== 'separator')
+
+const hasShortcutCommands = (items: readonly CommandContextMenuExtraItem[]): boolean =>
+  items.some(
+    (item) =>
+      (item.type === 'item' && item.shortcutCommand !== undefined) ||
+      (item.type === 'submenu' && hasShortcutCommands(item.children))
+  )
 
 const toNativePopupMenuItem = (item: CommandContextMenuItem): NativePopupMenuItem<CommandId> => {
   if (item.type === 'item') {
@@ -171,7 +171,7 @@ export function useResolvedCommandMenu(location: MenuLocation): ResolvedMenuMode
   const { t } = useTranslation()
   const runtime = useCommandRuntime()
   const context = useCommandContextReader()
-  const [shortcutPreferences] = useMultiplePreferences(shortcutPreferenceKeys)
+  const shortcutPreferences = useCommandShortcutPreferences()
 
   return useMemo(
     () =>
@@ -181,7 +181,7 @@ export function useResolvedCommandMenu(location: MenuLocation): ResolvedMenuMode
         getCommandState: (command) => {
           const definition = findCommandDefinition(command)
           const rule = findKeybindingRule(command)
-          const preference = rule ? (shortcutPreferences[command] as PreferenceShortcutType | undefined) : undefined
+          const preference = rule ? shortcutPreferences[command] : undefined
           const keybinding = resolveCommandKeybinding({
             command,
             preference,
@@ -359,20 +359,20 @@ export function CommandContextMenu({
   pendingExtraItems?: readonly CommandContextMenuExtraItem[]
   getExtraItems?: CommandContextMenuExtraItemsResolver
 }): React.ReactNode {
-  const [preferredMode] = usePreference('menu.presentation_mode')
+  const preferredMode = useCommandMenuPresentationMode()
   const context = useCommandContextReader()
-  const [shortcutPreferences] = useMultiplePreferences(shortcutPreferenceKeys)
+  const shortcutPreferences = useCommandShortcutPreferences()
   const [resolvedExtraItems, setResolvedExtraItems] = useState<readonly CommandContextMenuExtraItem[] | null>(null)
   const extraItemsRequestIdRef = useRef(0)
   const runtime = useCommandRuntime()
   const model = useResolvedCommandMenu(location)
-  const mode = resolveMenuPresentationMode(location, preferredMode)
+  const mode = resolveMenuPresentationMode(location, preferredMode ?? 'cherry')
   const commandItems = useMemo(() => removeEmptySeparators(model.items), [model.items])
   const pendingItems = pendingExtraItems ?? extraItems
   const resolveShortcutLabel = useCallback(
     (command: CommandId) => {
       const rule = findKeybindingRule(command)
-      const preference = rule ? (shortcutPreferences[command] as PreferenceShortcutType | undefined) : undefined
+      const preference = rule ? shortcutPreferences[command] : undefined
 
       return getCommandShortcutLabel(command, preference, {
         context,
@@ -384,6 +384,7 @@ export function CommandContextMenu({
   )
   const resolveExtraItemShortcutLabels = useCallback(
     (items: readonly CommandContextMenuExtraItem[]): readonly CommandContextMenuExtraItem[] => {
+      if (!hasShortcutCommands(items)) return items
       const resolve = (source: readonly CommandContextMenuExtraItem[]): CommandContextMenuExtraItem[] =>
         source.map((item) => {
           if (item.type === 'submenu') {
@@ -729,19 +730,19 @@ export function CommandPopupMenu({
   renderIcon?: CommandIconRenderer
   extraItems?: readonly CommandContextMenuExtraItem[]
 }): React.ReactNode {
-  const [preferredMode] = usePreference('menu.presentation_mode')
+  const preferredMode = useCommandMenuPresentationMode()
   const context = useCommandContextReader()
-  const [shortcutPreferences] = useMultiplePreferences(shortcutPreferenceKeys)
+  const shortcutPreferences = useCommandShortcutPreferences()
   const runtime = useCommandRuntime()
   const model = useResolvedCommandMenu(location)
-  const mode = resolveMenuPresentationMode(location, preferredMode)
+  const mode = resolveMenuPresentationMode(location, preferredMode ?? 'cherry')
   const [internalOpen, setInternalOpen] = useState(defaultOpen ?? false)
   const currentOpen = open ?? internalOpen
   const commandItems = useMemo(() => removeEmptySeparators(model.items), [model.items])
   const resolveShortcutLabel = useCallback(
     (command: CommandId) => {
       const rule = findKeybindingRule(command)
-      const preference = rule ? (shortcutPreferences[command] as PreferenceShortcutType | undefined) : undefined
+      const preference = rule ? shortcutPreferences[command] : undefined
       return getCommandShortcutLabel(command, preference, {
         context,
         isMac,
@@ -751,6 +752,7 @@ export function CommandPopupMenu({
     [context, shortcutPreferences]
   )
   const decoratedExtraItems = useMemo<readonly CommandContextMenuExtraItem[]>(() => {
+    if (!hasShortcutCommands(extraItems)) return extraItems
     const decorate = (source: readonly CommandContextMenuExtraItem[]): CommandContextMenuExtraItem[] =>
       source.map((item) => {
         if (item.type === 'submenu') {
@@ -811,7 +813,7 @@ export function CommandPopupMenu({
     [handleCherryOpenChange]
   )
 
-  if (disabled) {
+  if (disabled || combinedItems.length === 0) {
     return <>{children}</>
   }
 

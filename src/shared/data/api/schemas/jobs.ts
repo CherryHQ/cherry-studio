@@ -147,38 +147,6 @@ export const JobProgressSchema = z.strictObject({
 })
 export type JobProgress = z.infer<typeof JobProgressSchema>
 
-// ============================================================================
-// DTO schemas (request payloads) — used by DataApi handlers + JobManager IPC
-// ============================================================================
-
-/**
- * Enqueue input. `type` is checked against the runtime handler registry by
- * JobManager.enqueue; the schema only enforces shape. `input` is unknown here
- * because JobRegistry compile-time mapping is main-process only.
- */
-export const EnqueueJobInputSchema = z.strictObject({
-  type: z.string().min(1),
-  input: z.unknown(),
-  queue: z.string().optional(),
-  priority: z.number().int().optional(),
-  idempotencyKey: z.string().optional(),
-  scheduledAt: z
-    .string()
-    .refine((s) => !Number.isNaN(Date.parse(s)), { message: 'scheduledAt must be a parseable ISO timestamp' })
-    .optional(),
-  parentId: z.string().optional(),
-  timeoutMs: z.number().int().min(1).optional(),
-  maxAttempts: z.number().int().min(1).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional()
-})
-export type EnqueueJobDto = z.infer<typeof EnqueueJobInputSchema>
-
-export const CancelJobInputSchema = z.strictObject({
-  /** Max 500 chars; enforced again in JobManager IPC validation. */
-  reason: z.string().max(500).optional()
-})
-export type CancelJobDto = z.infer<typeof CancelJobInputSchema>
-
 /**
  * Name soft-constraint validator. Length 1-200, no control chars, trim
  * surrounding whitespace, no `__` prefix (reserved for system schedules).
@@ -283,9 +251,6 @@ export const ListJobsQuerySchema = z.strictObject({
 /** Input shape (URL query strings). Use {@link ListJobsQuerySchema} to parse. */
 export type ListJobsQueryParams = z.input<typeof ListJobsQuerySchema>
 
-/** DELETE /jobs/:id query — optional `reason` (≤ 500 chars), mirrors body shape. */
-export type CancelJobQueryParams = z.input<typeof CancelJobInputSchema>
-
 export type JobSchemas = {
   '/jobs': {
     /** List jobs, ordered by createdAt DESC. Supports status/queue/type/scheduleId filters and pagination. */
@@ -293,23 +258,12 @@ export type JobSchemas = {
       query?: ListJobsQueryParams
       response: JobSnapshot[]
     }
-    /** Enqueue a job. `type` must match a registered handler in main; payload size ≤ 1MB. */
-    POST: {
-      body: EnqueueJobDto
-      response: JobSnapshot
-    }
   }
   '/jobs/:id': {
     /** Fetch a single job snapshot. 404 if id does not exist. */
     GET: {
       params: { id: string }
       response: JobSnapshot
-    }
-    /** Cancel a job. Idempotent — already-terminal jobs accept but do nothing. */
-    DELETE: {
-      params: { id: string }
-      query?: CancelJobQueryParams
-      response: void
     }
   }
 }

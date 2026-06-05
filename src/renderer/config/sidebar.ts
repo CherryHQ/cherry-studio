@@ -15,11 +15,11 @@ import {
   Folder,
   Languages,
   LayoutGrid,
+  Library,
   MessageSquare,
   MousePointerClick,
   NotepadText,
-  Palette,
-  Sparkle
+  Palette
 } from 'lucide-react'
 
 /**
@@ -104,11 +104,6 @@ export const SIDEBAR_APPS: readonly SidebarApp[] = [
     }
   },
   {
-    id: 'store',
-    icon: Sparkle,
-    routePrefix: '/app/library'
-  },
-  {
     id: 'paintings',
     icon: Palette,
     routePrefix: '/app/paintings',
@@ -118,6 +113,11 @@ export const SIDEBAR_APPS: readonly SidebarApp[] = [
     id: 'translate',
     icon: Languages,
     routePrefix: '/app/translate'
+  },
+  {
+    id: 'store',
+    icon: Library,
+    routePrefix: '/app/library'
   },
   {
     id: 'mini_app',

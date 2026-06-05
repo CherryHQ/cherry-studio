@@ -93,8 +93,8 @@ The builder table (`config.ts`, first match wins):
 | `isOllamaProvider` | `buildOllamaConfig` | |
 | `isAzureOpenAIProvider` | `buildAzureConfig` | returns `azure` / `azure-responses` / `azure-anthropic` (Claude on Azure) |
 | `id === 'bedrock'` | `buildBedrockConfig` | |
-| `id === 'google-vertex'` | `buildVertexConfig` | returns `google-vertex` or `google-vertex-anthropic` for Claude |
-| `id === 'cherryin'` | `buildCherryinConfig` | async — resolves relay base URLs |
+| `id === 'google-vertex'` | `buildVertexConfig` | returns `google-vertex` or `google-vertex-anthropic` for Claude; leaves `baseURL` undefined when no host is configured so the SDK derives the aiplatform host |
+| `provider.id === 'cherryin'` | `buildCherryinConfig` | matches the **provider id**, not the resolved variant — the default chat endpoint resolves to `cherryin-chat`, so an `id === 'cherryin'` check never fires; async — resolves relay base URLs |
 | `id === 'newapi'` | `buildNewApiConfig` | |
 | `id === 'aihubmix'` | `buildAiHubMixConfig` | |
 | _(no match)_ | `buildGenericProviderConfig` / `buildOpenAICompatibleConfig` | generic fallback |

@@ -58,7 +58,7 @@ export interface BuiltAgentParams {
 export async function buildAgentParams(input: BuildAgentParamsInput): Promise<BuiltAgentParams> {
   const { request, signal, provider, model, assistant, extraFeatures } = input
 
-  const sdkConfig = await resolveSdkConfig(provider, model, request.chatId)
+  const sdkConfig = await resolveSdkConfig(provider, model)
   const { tools, deferredEntries, mcpToolIds } = canModelConsumeTools(model)
     ? await resolveTools(request, assistant, model)
     : { tools: undefined, deferredEntries: [] as ToolEntry[], mcpToolIds: new Set<string>() }
@@ -105,8 +105,7 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   }
 }
 
-async function resolveSdkConfig(provider: Provider, model: Model, _chatId: string | undefined): Promise<SdkConfig> {
-  void _chatId
+async function resolveSdkConfig(provider: Provider, model: Model): Promise<SdkConfig> {
   return {
     ...(await providerToAiSdkConfig(provider, model)),
     modelId: model.apiModelId ?? model.id

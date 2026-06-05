@@ -17,7 +17,7 @@ import { useMcpRuntimeStatusMap } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useMcpServers } from '@renderer/hooks/useMcpServer'
 import type { McpRuntimeStatus } from '@shared/data/cache/cacheValueTypes'
 import type { McpMode } from '@shared/data/types/assistant'
-import type { MCPServer } from '@shared/data/types/mcpServer'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import type { TFunction } from 'i18next'
 import { Cable } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
@@ -41,7 +41,7 @@ const MCP_MODE_LABEL_KEYS: Record<McpMode, string> = {
 interface BuildMcpStatusItemsOptions {
   assistant?: RuntimeAssistant
   agent?: McpStatusAgent
-  mcpServers: readonly MCPServer[]
+  mcpServers: readonly McpServer[]
   mcpStatuses: Record<string, McpRuntimeStatus | undefined>
   scope: TopicType.Chat | TopicType.Session
   t: TFunction
@@ -65,7 +65,7 @@ function createEmptyMcpStatusItem(label: string): QuickPanelListItem {
 }
 
 function createMcpStatusItem(
-  server: MCPServer | undefined,
+  server: McpServer | undefined,
   id: string,
   status: McpRuntimeStatus | undefined,
   t: TFunction
@@ -82,13 +82,13 @@ function createMcpStatusItem(
   }
 }
 
-function mapServersById(servers: readonly MCPServer[]) {
+function mapServersById(servers: readonly McpServer[]) {
   return new Map(servers.map((server) => [server.id, server]))
 }
 
 function buildBoundServerItems(
   ids: readonly string[],
-  serverById: ReadonlyMap<string, MCPServer>,
+  serverById: ReadonlyMap<string, McpServer>,
   mcpStatuses: Record<string, McpRuntimeStatus | undefined>,
   t: TFunction
 ) {

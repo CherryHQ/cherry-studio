@@ -5,8 +5,6 @@
  */
 
 import type { RuntimeConfig } from '@cherrystudio/ai-core/core'
-import type { ModelConfig } from '@cherrystudio/ai-core/core/models/types'
-import type { RuntimeExecutor } from '@cherrystudio/ai-core/core/runtime'
 import type {
   ExtensionConfigToIdResolutionMap,
   ExtensionToSettingsMap,
@@ -67,10 +65,5 @@ function buildAppProviderIds(): ProviderIdsMap {
 
 export const appProviderIds = buildAppProviderIds()
 
-export type AppModelConfig<T extends StringKeys<AppProviderSettingsMap> = StringKeys<AppProviderSettingsMap>> =
-  ModelConfig<T, AppProviderSettingsMap>
-
 export type AppRuntimeConfig<T extends StringKeys<AppProviderSettingsMap> = StringKeys<AppProviderSettingsMap>> =
   RuntimeConfig<AppProviderSettingsMap, T>
-
-export type AppRuntimeExecutor = RuntimeExecutor<AppProviderSettingsMap>

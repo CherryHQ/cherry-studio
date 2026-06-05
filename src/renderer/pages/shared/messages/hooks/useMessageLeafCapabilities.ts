@@ -4,10 +4,10 @@ import { containsInlineFilePath } from '@renderer/components/chat/messages/utils
 import { useAttachment } from '@renderer/hooks/useAttachment'
 import { useExternalApps } from '@renderer/hooks/useExternalApps'
 import FileManager from '@renderer/services/FileManager'
-import { type MCPTool } from '@renderer/types'
+import { type McpTool } from '@renderer/types'
 import { parseFileTypes } from '@renderer/utils'
 import { buildEditorUrl } from '@renderer/utils/editorUtils'
-import type { MCPProgressEvent } from '@shared/config/types'
+import type { McpProgressEvent } from '@shared/config/types'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useCallback, useMemo } from 'react'
@@ -102,7 +102,7 @@ export function useMessageLeafCapabilities({
     (toolId, onProgress) => {
       const removeListener = window.electron.ipcRenderer.on(
         IpcChannel.Mcp_Progress,
-        (_event: Electron.IpcRendererEvent, data: MCPProgressEvent) => {
+        (_event: Electron.IpcRendererEvent, data: McpProgressEvent) => {
           if (data.callId === toolId) {
             onProgress(data.progress)
           }
@@ -123,7 +123,7 @@ export function useMessageLeafCapabilities({
   }, [])
 
   const isToolAutoApproved = useCallback<NonNullable<MessageListState['isToolAutoApproved']>>(
-    (tool: MCPTool, allowedTools?: string[]) => {
+    (tool: McpTool, allowedTools?: string[]) => {
       if (allowedTools?.includes(tool.id)) return true
       if (tool.serverId === 'hub') return tool.name === 'list' || tool.name === 'inspect'
       const server = mcpServers.find((item) => item.id === tool.serverId)

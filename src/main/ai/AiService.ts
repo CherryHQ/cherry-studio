@@ -10,12 +10,7 @@ import { modelService } from '@main/data/services/ModelService'
 import { providerService } from '@main/data/services/ProviderService'
 import { type TranslateOpenRequest, translateService } from '@main/services/translate/translateService'
 import { downloadImageAsBase64 } from '@main/utils/downloadAsBase64'
-import {
-  type AiToolApprovalRespondRequest,
-  type AiToolApprovalRespondResponse,
-  applyApprovalDecisions,
-  type ApprovalDecision
-} from '@shared/ai/transport'
+import { type AiToolApprovalRespondResponse, applyApprovalDecisions, type ApprovalDecision } from '@shared/ai/transport'
 import { type Assistant } from '@shared/data/types/assistant'
 import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import type { CherryMessagePart } from '@shared/data/types/message'
@@ -30,6 +25,7 @@ import {
   type ModelMessage,
   type UIMessageChunk
 } from 'ai'
+import * as z from 'zod'
 
 import { extractAgentSessionId, isAgentSessionTopic } from './agentSession/topic'
 import { resolveUIMessageFileUrls } from './messages/messageConverter'
@@ -39,7 +35,6 @@ import type { AgentLoopHooks } from './runtime/aiSdk/loop'
 import { mergeUsage, ZERO_USAGE } from './runtime/aiSdk/observers/usage'
 import { buildAgentParams } from './runtime/aiSdk/params/buildAgentParams'
 import type { RequestFeature } from './runtime/aiSdk/params/feature'
-import { dispatchStreamRequest } from './streamManager/context'
 import { WebContentsListener } from './streamManager/listeners/WebContentsListener'
 import { registerBuiltinTools } from './tools/adapters/aiSdk/builtin'
 import type { AppProviderSettingsMap } from './types'
@@ -142,6 +137,16 @@ export interface AiEmbedResult {
   usage?: EmbeddingModelUsage
 }
 
+/** Validates the `Ai_ToolApproval_Respond` IPC payload at the renderer boundary. */
+const ToolApprovalRespondSchema = z.object({
+  approvalId: z.string().min(1),
+  approved: z.boolean(),
+  reason: z.string().optional(),
+  updatedInput: z.record(z.string(), z.unknown()).optional(),
+  topicId: z.string().optional(),
+  anchorId: z.string().optional()
+})
+
 // ── Service ────────────────────────────────────────────────────────
 
 /**
@@ -210,7 +215,15 @@ export class AiService extends BaseService {
 
     this.ipcHandle(
       IpcChannel.Ai_ToolApproval_Respond,
-      async (event, payload: AiToolApprovalRespondRequest): Promise<AiToolApprovalRespondResponse> => {
+      async (event, rawPayload: unknown): Promise<AiToolApprovalRespondResponse> => {
+        // Validate the renderer payload at the IPC boundary before any registry dispatch or DB read.
+        const parsed = ToolApprovalRespondSchema.safeParse(rawPayload)
+        if (!parsed.success) {
+          logger.warn('Tool-approval response rejected: invalid payload', { issues: parsed.error.issues })
+          return { ok: false }
+        }
+        const payload = parsed.data
+
         const decision = {
           approvalId: payload.approvalId,
           approved: payload.approved,
@@ -218,6 +231,8 @@ export class AiService extends BaseService {
           ...(payload.updatedInput !== undefined && { updatedInput: payload.updatedInput })
         }
 
+        // Apply the decision to a still-live stream's in-memory snapshot so the running
+        // execution reflects it immediately (no-op when no active stream for the topic).
         if (payload.topicId) {
           application.get('AiStreamManager').applyApprovalDecision(payload.topicId, decision)
         }
@@ -228,8 +243,7 @@ export class AiService extends BaseService {
           reason: payload.reason,
           updatedInput: payload.updatedInput
         })
-
-        if (dispatched) return { ok: true, status: 'accepted' }
+        if (dispatched) return { ok: true }
 
         // MCP path: write decisions to DB, then dispatch continue-conversation when nothing is pending.
         if (!payload.topicId || !payload.anchorId) {
@@ -250,13 +264,22 @@ export class AiService extends BaseService {
         // explicitly in the IPC payload; apply it here to the DB-authoritative
         // parts (the original stream's terminal persistence wrote the
         // `approval-requested` part onto this row) and persist.
-        const anchor = await messageService.getById(payload.anchorId)
+        // A stale click on a deleted message must resolve through the documented
+        // result shape, not throw out of the handler (getById rejects when the
+        // anchor is missing), consistent with the no-context branch above.
+        let anchor: Awaited<ReturnType<typeof messageService.getById>>
+        try {
+          anchor = await messageService.getById(payload.anchorId)
+        } catch {
+          logger.warn('Tool-approval response anchor is missing or deleted', {
+            approvalId: payload.approvalId,
+            anchorId: payload.anchorId
+          })
+          return { ok: false }
+        }
         const beforeParts = anchor.data.parts ?? []
         const targetPresent = beforeParts.some(
-          (p) =>
-            isToolUIPart(p) &&
-            p.state === 'approval-requested' &&
-            (p as { approval?: { id?: string } }).approval?.id === decision.approvalId
+          (p) => isToolUIPart(p) && p.state === 'approval-requested' && p.approval?.id === decision.approvalId
         )
         const afterParts = applyApprovalDecisions(beforeParts, [decision])
         // Only write parts when this approval is present on the DB row.
@@ -269,26 +292,24 @@ export class AiService extends BaseService {
           await messageService.update(payload.anchorId, { data: { parts: afterParts } })
         }
 
-        if (dispatched) return { ok: true, status: 'accepted' }
-
         // Only resume once every approval on this turn is decided — a turn
         // can request several tools at once; the not-yet-decided ones keep
         // their cards.
         const anyStillPending = afterParts.some((p) => isToolUIPart(p) && p.state === 'approval-requested')
         if (anyStillPending) {
-          return { ok: true, status: 'accepted' }
+          return { ok: true }
         }
 
         const aiStreamManager = application.get('AiStreamManager')
         const subscriber = new WebContentsListener(event.sender, payload.topicId)
-        await dispatchStreamRequest(aiStreamManager, subscriber, {
+        await aiStreamManager.dispatch(subscriber, {
           trigger: 'continue-conversation',
           topicId: payload.topicId,
           parentAnchorId: payload.anchorId,
           // Idempotent against the conditional write above; safety net when the part wasn't on the row.
           approvalDecisions: [decision]
         })
-        return { ok: true, status: 'accepted' }
+        return { ok: true }
       }
     )
   }
@@ -492,6 +513,9 @@ export class AiService extends BaseService {
       model: sdkConfig.modelId,
       prompt: promptParam,
       n: request.n ?? 1,
+      // Client-side default: when the caller omits `size`, fall back to 1024x1024
+      // rather than letting the server pick its own default. Dropping this fallback
+      // (to truly let the server choose) is a behavior decision, not done here.
       size: (request.size ?? '1024x1024') as `${number}x${number}`,
       ...(request.negativePrompt ? { negativePrompt: request.negativePrompt } : {}),
       ...(request.seed !== undefined ? { seed: request.seed } : {}),

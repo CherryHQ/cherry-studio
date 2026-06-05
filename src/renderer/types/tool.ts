@@ -1,7 +1,7 @@
 export type ToolType = 'builtin' | 'provider' | 'mcp'
 
 /** Common shape shared by builtin/provider tools (non-MCP) when wrapped in
- *  `NormalToolResponse`. MCP tools have the richer `MCPTool` shape below. */
+ *  `NormalToolResponse`. MCP tools have the richer `McpTool` shape below. */
 export interface BaseTool {
   id: string
   name: string
@@ -13,7 +13,7 @@ export interface BaseTool {
  * MCP tool descriptor as seen by the renderer through shared cache. Main
  * process `McpCatalogService` is the sole producer.
  */
-export interface MCPTool {
+export interface McpTool {
   /** Wire-name; `${serverName}__${toolName}` for server tools, synthetic for descriptor-only. */
   id: string
   /** Original protocol-level tool name. */

@@ -3,6 +3,7 @@ import { type AgentRow, agentTable as agentsTable, type InsertAgentRow } from '@
 import { pinTable } from '@data/db/schemas/pin'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
+import type { DbOrTx } from '@data/db/types'
 import { pinService } from '@data/services/PinService'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { nullsToUndefined, timestampToISO } from '@data/services/utils/rowMappers'
@@ -81,8 +82,6 @@ export class AgentService {
   async createAgent(req: CreateAgentDto): Promise<AgentEntity> {
     const id = uuidv4()
 
-    const database = application.get('DbService').getDb()
-
     // Omit fields that are undefined so DB DEFAULTs (e.g. '', '[]', '{}') apply.
     // instructions has no DB DEFAULT — service supplies the product-strategic default.
     // orderKey is omitted — `insertWithOrderKey` computes the next fractional key.
@@ -101,17 +100,7 @@ export class AgentService {
     }
 
     const row = await withSqliteErrors(
-      () =>
-        database.transaction(async (tx) => {
-          await insertWithOrderKey(tx, agentsTable, insertData, { pkColumn: agentsTable.id })
-          const [joined] = await tx
-            .select({ agent: agentsTable, modelName: userModelTable.name })
-            .from(agentsTable)
-            .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
-            .where(eq(agentsTable.id, id))
-            .limit(1)
-          return joined ?? null
-        }),
+      () => application.get('DbService').withWriteTx((tx) => this.createAgentTx(tx, id, insertData)),
       defaultHandlersFor('Agent', id)
     )
     if (!row) {
@@ -121,6 +110,21 @@ export class AgentService {
     const agent = rowToAgent(row.agent, row.modelName || null)
     this._onAgentCreated.fire({ agentId: id, agent })
     return agent
+  }
+
+  async createAgentTx(
+    tx: DbOrTx,
+    id: string,
+    insertData: Omit<InsertAgentRow, 'orderKey'>
+  ): Promise<{ agent: AgentRow; modelName: string | null } | null> {
+    await insertWithOrderKey(tx, agentsTable, insertData, { pkColumn: agentsTable.id })
+    const [joined] = await tx
+      .select({ agent: agentsTable, modelName: userModelTable.name })
+      .from(agentsTable)
+      .leftJoin(userModelTable, eq(agentsTable.model, userModelTable.id))
+      .where(eq(agentsTable.id, id))
+      .limit(1)
+    return joined ?? null
   }
 
   private async findAgentRow(id: string, options: { includeDeleted?: boolean } = {}): Promise<AgentRow | undefined> {
@@ -236,10 +240,8 @@ export class AgentService {
       ;(updateData as Record<string, unknown>)[field] = value
     }
 
-    const database = application.get('DbService').getDb()
-
     await withSqliteErrors(
-      () => database.update(agentsTable).set(updateData).where(eq(agentsTable.id, id)),
+      () => application.get('DbService').withWriteTx((tx) => this.updateAgentTx(tx, id, updateData)),
       defaultHandlersFor('Agent', id)
     )
 
@@ -250,8 +252,11 @@ export class AgentService {
     return updated
   }
 
+  async updateAgentTx(tx: DbOrTx, id: string, updateData: Partial<AgentRow>): Promise<void> {
+    await tx.update(agentsTable).set(updateData).where(eq(agentsTable.id, id))
+  }
+
   async deleteAgent(id: string): Promise<boolean> {
-    const database = application.get('DbService').getDb()
     const agent = await this.findAgentRow(id)
 
     if (!agent) {
@@ -264,11 +269,7 @@ export class AgentService {
     // rows behind. `pin` has no FK back here, so this is the only purge
     // needed up-front.
     const result = await withSqliteErrors(
-      async () =>
-        database.transaction(async (tx) => {
-          await pinService.purgeForEntityTx(tx, 'agent', id)
-          return tx.delete(agentsTable).where(eq(agentsTable.id, id))
-        }),
+      async () => application.get('DbService').withWriteTx((tx) => this.deleteAgentTx(tx, id)),
       defaultHandlersFor('Agent', id)
     )
 
@@ -277,6 +278,11 @@ export class AgentService {
       this._onAgentDeleted.fire({ agentId: id })
     }
     return deleted
+  }
+
+  async deleteAgentTx(tx: DbOrTx, id: string): Promise<{ rowsAffected: number }> {
+    await pinService.purgeForEntityTx(tx, 'agent', id)
+    return tx.delete(agentsTable).where(eq(agentsTable.id, id))
   }
 
   async agentExists(id: string): Promise<boolean> {
@@ -289,37 +295,39 @@ export class AgentService {
    * single global scope, so no scope predicate is passed to `applyMoves`.
    */
   async reorder(id: string, anchor: OrderRequest): Promise<void> {
-    const database = application.get('DbService').getDb()
-    await database.transaction(async (tx) => {
-      const [target] = await tx
-        .select({ id: agentsTable.id })
-        .from(agentsTable)
-        .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
-        .limit(1)
-      if (!target) throw DataApiErrorFactory.notFound('Agent', id)
-
-      await applyMoves(tx, agentsTable, [{ id, anchor }], { pkColumn: agentsTable.id })
-    })
+    await application.get('DbService').withWriteTx((tx) => this.reorderTx(tx, id, anchor))
     logger.info('Reordered agent', { id })
+  }
+
+  async reorderTx(tx: DbOrTx, id: string, anchor: OrderRequest): Promise<void> {
+    const [target] = await tx
+      .select({ id: agentsTable.id })
+      .from(agentsTable)
+      .where(and(eq(agentsTable.id, id), isNull(agentsTable.deletedAt)))
+      .limit(1)
+    if (!target) throw DataApiErrorFactory.notFound('Agent', id)
+
+    await applyMoves(tx, agentsTable, [{ id, anchor }], { pkColumn: agentsTable.id })
   }
 
   async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
     if (moves.length === 0) return
-    const database = application.get('DbService').getDb()
-    await database.transaction(async (tx) => {
-      const ids = moves.map((m) => m.id)
-      const targets = await tx
-        .select({ id: agentsTable.id })
-        .from(agentsTable)
-        .where(and(inArray(agentsTable.id, ids), isNull(agentsTable.deletedAt)))
-      if (targets.length !== ids.length) {
-        const found = new Set(targets.map((t) => t.id))
-        const missing = ids.find((id) => !found.has(id)) ?? ids[0]
-        throw DataApiErrorFactory.notFound('Agent', missing)
-      }
+    await application.get('DbService').withWriteTx((tx) => this.reorderBatchTx(tx, moves))
+  }
 
-      await applyMoves(tx, agentsTable, moves, { pkColumn: agentsTable.id })
-    })
+  async reorderBatchTx(tx: DbOrTx, moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
+    const ids = moves.map((m) => m.id)
+    const targets = await tx
+      .select({ id: agentsTable.id })
+      .from(agentsTable)
+      .where(and(inArray(agentsTable.id, ids), isNull(agentsTable.deletedAt)))
+    if (targets.length !== ids.length) {
+      const found = new Set(targets.map((t) => t.id))
+      const missing = ids.find((id) => !found.has(id)) ?? ids[0]
+      throw DataApiErrorFactory.notFound('Agent', missing)
+    }
+
+    await applyMoves(tx, agentsTable, moves, { pkColumn: agentsTable.id })
   }
 }
 

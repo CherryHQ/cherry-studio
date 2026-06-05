@@ -8,7 +8,7 @@ import type { Request, Response } from 'express'
 import express from 'express'
 import type { IncomingMessage, ServerResponse } from 'http'
 
-const logger = loggerService.withContext('ClawMCPRoute')
+const logger = loggerService.withContext('ClawMcpRoute')
 
 // Per-session state: each MCP session gets its own Server + Transport pair.
 // The MCP SDK Server class only supports one transport at a time, so sharing

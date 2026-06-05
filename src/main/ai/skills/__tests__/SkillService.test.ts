@@ -310,6 +310,31 @@ describe('SkillService', () => {
       expect(row?.isEnabled).toBe(false)
     })
 
+    it('reverses already-applied symlinks when a later workspace fails mid-loop', async () => {
+      await seedAgent()
+      await seedSkills()
+      vi.spyOn(skillService as never, 'getAgentSessionWorkspaces').mockResolvedValue(['/ws/one', '/ws/two'])
+      // First workspace links fine; second throws → the first must be unlinked.
+      const linkSpy = vi
+        .spyOn(skillService, 'linkSkill')
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('symlink failed'))
+      const unlinkSpy = vi.spyOn(skillService, 'unlinkSkill').mockResolvedValue(undefined)
+
+      await expect(skillService.toggle({ agentId: AGENT_ID, skillId: SKILL_ID_1, isEnabled: true })).rejects.toThrow(
+        'symlink failed'
+      )
+
+      // The successfully-linked first workspace was reversed; the failed second was not.
+      expect(unlinkSpy).toHaveBeenCalledTimes(1)
+      expect(unlinkSpy).toHaveBeenCalledWith('skill-one', '/ws/one')
+      expect(linkSpy).toHaveBeenCalledTimes(2)
+
+      // DB row reverted back to disabled.
+      const [row] = await dbh.db.select().from(agentSkillTable).where(eq(agentSkillTable.skillId, SKILL_ID_1))
+      expect(row?.isEnabled).toBe(false)
+    })
+
     it('rolls back DB and throws AggregateError when symlink + rollback both fail', async () => {
       await seedAgent()
       await seedSkills()

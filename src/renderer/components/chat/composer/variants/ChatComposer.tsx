@@ -24,12 +24,11 @@ import { useIsActiveTab } from '@renderer/context/TabIdContext'
 import { useCache } from '@renderer/data/hooks/useCache'
 import { usePreference } from '@renderer/data/hooks/usePreference'
 import {
-  getRuntimeDefaultAssistantName,
   isRuntimeDefaultAssistantId,
   RUNTIME_DEFAULT_ASSISTANT_EMOJI
 } from '@renderer/domain/assistant/runtimeDefaultAssistant'
 import { useChatWrite } from '@renderer/hooks/ChatWriteContext'
-import { useAssistant } from '@renderer/hooks/useAssistant'
+import { useAssistant, useDefaultAssistant } from '@renderer/hooks/useAssistant'
 import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
@@ -384,6 +383,15 @@ const ChatComposerInner = ({
   const { files, mentionedModels, selectedKnowledgeBases, isExpanded } = useComposerToolState()
   const { setFiles, setMentionedModels, setSelectedKnowledgeBases, setIsExpanded } = useComposerToolDispatch()
   const { getLaunchers, dispatchLauncher } = useComposerToolLauncherActions()
+  const {
+    assistant,
+    isLoading: isAssistantLoading,
+    model,
+    isModelPending,
+    isModelMissing,
+    setModel
+  } = useAssistant(topic.assistantId)
+  const { assistant: defaultAssistant } = useDefaultAssistant()
   const { updateTopic } = useTopicMutations()
   const { setDefaultModel } = useDefaultModel()
   const { bases: allKnowledgeBases, isLoading: isKnowledgeBasesLoading } = useKnowledgeBases()
@@ -406,24 +414,20 @@ const ChatComposerInner = ({
   const mentionedModelMultiSelectModeRef = useRef(mentionedModelMultiSelectMode)
   const mentionedModelsRef = useRef(mentionedModels)
   const selectAssistantMessage = t('button.select_assistant')
-  const {
-    assistant,
-    isLoading: isAssistantLoading,
-    model,
-    isModelPending,
-    isModelMissing,
-    setModel
-  } = useAssistant(topic.assistantId)
-  const runtimeModel = assistant ? model : undefined
-  const runtimeModelPending = isAssistantLoading || (!!assistant && isModelPending)
-  const selectedModelForMissingAssistantDefault =
-    assistant && !assistant.modelId ? mentionedModelSelectorValue[0] : undefined
   const selectedAssistantId = topic.assistantId ?? null
   const isRuntimeAssistantSelected = isRuntimeDefaultAssistantId(selectedAssistantId)
-  const missingAssistantMessage =
-    !isRuntimeAssistantSelected && !isAssistantLoading && !assistant ? selectAssistantMessage : undefined
+  const displayAssistant =
+    assistant ?? (isRuntimeAssistantSelected && !isAssistantLoading ? defaultAssistant : undefined)
+  const hasMissingPersistedAssistant = !isRuntimeAssistantSelected && !isAssistantLoading && !assistant
+  const runtimeModel = displayAssistant ? model : undefined
+  const runtimeModelPending = isAssistantLoading || (!!displayAssistant && isModelPending)
+  const selectedModelForMissingAssistantDefault =
+    displayAssistant && !displayAssistant.modelId ? mentionedModelSelectorValue[0] : undefined
+  const missingAssistantMessage = hasMissingPersistedAssistant ? selectAssistantMessage : undefined
   const missingModelMessage =
-    assistant && isModelMissing && !selectedModelForMissingAssistantDefault ? t('code.model_required') : undefined
+    displayAssistant && isModelMissing && !selectedModelForMissingAssistantDefault
+      ? t('code.model_required')
+      : undefined
   const missingSelectedModelMessage =
     useMentionedModelSelector && mentionedModelSelectorValue.length === 0 ? t('code.model_required') : undefined
   mentionedModelsRef.current = mentionedModels
@@ -439,14 +443,9 @@ const ChatComposerInner = ({
 
   const loading = isPending || isSending || awaitingApproval
   const selectedKnowledgeBasesScopeKey = `${topic.id}:${selectedAssistantId ?? 'no-assistant'}`
-  const assistantName =
-    assistant?.name ??
-    (isRuntimeAssistantSelected
-      ? getRuntimeDefaultAssistantName(t)
-      : isAssistantLoading
-        ? t('common.loading')
-        : selectAssistantMessage)
-  const assistantEmoji = assistant?.emoji ?? (isRuntimeAssistantSelected ? RUNTIME_DEFAULT_ASSISTANT_EMOJI : undefined)
+  const assistantName = displayAssistant?.name ?? (isAssistantLoading ? t('common.loading') : selectAssistantMessage)
+  const assistantEmoji =
+    displayAssistant?.emoji ?? (isRuntimeAssistantSelected ? RUNTIME_DEFAULT_ASSISTANT_EMOJI : undefined)
   const providerName = useProviderDisplayName(runtimeModel?.providerId)
 
   const isVisionAssistant = useMemo(() => (runtimeModel ? isVisionModel(runtimeModel) : false), [runtimeModel])
@@ -657,11 +656,11 @@ const ChatComposerInner = ({
   const handleModelSelect = useCallback(
     (nextModel: Model | undefined) => {
       if (!nextModel) return
-      if (!assistant) return
       if (isRuntimeAssistantSelected) {
         return setDefaultModel(nextModel)
       }
 
+      if (!assistant) return
       const enabledWebSearch = canModelUseAssistantWebSearch(nextModel)
       return setModel(nextModel, { enableWebSearch: enabledWebSearch && assistant.settings.enableWebSearch })
     },
@@ -677,7 +676,7 @@ const ChatComposerInner = ({
 
       setMentionedModels([])
       const [nextModel] = nextModels
-      if (nextModel) handleModelSelect(nextModel)
+      if (nextModel) void handleModelSelect(nextModel)
     },
     [handleModelSelect, setMentionedModels]
   )
@@ -819,7 +818,7 @@ const ChatComposerInner = ({
 
   const handleSendDraft = useCallback(
     async (draft: ComposerSerializedDraft) => {
-      if (!assistant && !isRuntimeAssistantSelected) {
+      if (missingAssistantMessage) {
         window.toast?.error(selectAssistantMessage)
         return
       }
@@ -847,24 +846,43 @@ const ChatComposerInner = ({
         await handleModelSelect(selectedModelForMissingAssistantDefault)
       }
 
+      // Optimistically clear the draft so the cleared input doubles as the re-entry
+      // guard, but snapshot it first: a pre-stream failure never reaches the streaming
+      // UI, so restore the draft (text + files + knowledge bases; tokens re-derive) and
+      // surface the failure instead of silently discarding what the user typed.
+      const previousText = text
+      const previousFiles = files
+      const previousKnowledgeBases = selectedKnowledgeBases
+
       clearCurrentDraft()
-      await sendQueuedPayload(payload)
+      const sent = await sendQueuedPayload(payload)
+      if (!sent) {
+        setText(previousText)
+        setFiles(previousFiles)
+        setSelectedKnowledgeBases(previousKnowledgeBases)
+        window.toast?.error(t('chat.input.send_failed'))
+      }
     },
     [
-      assistant,
       buildQueuedPayload,
       clearCurrentDraft,
+      files,
       handleModelSelect,
-      isRuntimeAssistantSelected,
       loading,
+      missingAssistantMessage,
       missingSelectedModelMessage,
       runtimeModel,
       runtimeModelPending,
+      selectedKnowledgeBases,
       selectedModelForMissingAssistantDefault,
       sendDisabled,
       selectAssistantMessage,
       sendQueuedPayload,
-      t
+      setFiles,
+      setSelectedKnowledgeBases,
+      setText,
+      t,
+      text
     ]
   )
 
@@ -893,8 +911,8 @@ const ChatComposerInner = ({
 
   return (
     <ComposerToolDerivedStateProvider couldAddImageFile={canAddImageFile} extensions={supportedExts}>
-      {assistant && runtimeModel && (
-        <ComposerToolRuntimeHost scope={scope} assistant={assistant} model={runtimeModel} />
+      {displayAssistant && runtimeModel && (
+        <ComposerToolRuntimeHost scope={scope} assistant={displayAssistant} model={runtimeModel} />
       )}
       <ComposerSurface
         text={text}

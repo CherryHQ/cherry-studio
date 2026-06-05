@@ -106,7 +106,13 @@ function hasMatchingConfiguredOrigin(url: URL, configuredApiHost: string): boole
   )
 }
 
-export function sanitizeFileProcessingRemoteUrl(rawUrl: string, configuredApiHost?: string): string {
+/**
+ * SSRF guard for outbound fetch URLs: rejects non-http(s) schemes, embedded
+ * credentials, and local/private addresses, returning the normalized URL.
+ * Pass `configuredApiHost` to allow a provider's own loopback/private endpoint
+ * when it matches the user-configured host.
+ */
+export function sanitizeRemoteUrl(rawUrl: string, configuredApiHost?: string): string {
   const parsedUrl = parseRemoteUrl(rawUrl)
 
   const allowMatchingConfiguredOrigin =

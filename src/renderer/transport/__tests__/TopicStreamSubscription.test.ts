@@ -190,6 +190,46 @@ describe('TopicStreamSubscription', () => {
     sub.dispose()
   })
 
+  it('detaches once attach resolves when the execution unregistered while attach was in flight', async () => {
+    // Hold streamAttach open so register→unregister both happen before it resolves.
+    let resolveAttach!: (res: { status: 'attached'; bufferedChunks: StreamChunkPayload[] }) => void
+    mock.mockApi.streamAttach.mockImplementationOnce(
+      () =>
+        new Promise<{ status: 'attached'; bufferedChunks: StreamChunkPayload[] }>((resolve) => {
+          resolveAttach = resolve
+        })
+    )
+
+    const sub = new TopicStreamSubscription(TOPIC)
+    sub.register(A)
+    sub.unregister(A) // last execution gone, but #attached is still false → deferred-detach guard skips
+    await tick()
+    expect(mock.mockApi.streamDetach).not.toHaveBeenCalled()
+
+    // Resolving attach must detach once, with no branches left to keep Main's listener.
+    resolveAttach({ status: 'attached', bufferedChunks: [] })
+    await tick()
+    expect(mock.mockApi.streamDetach).toHaveBeenCalledTimes(1)
+    expect(mock.mockApi.streamDetach).toHaveBeenCalledWith({ topicId: TOPIC })
+    sub.dispose()
+  })
+
+  it('never detaches when the last execution is replaced by a new one within the same microtask', async () => {
+    const sub = new TopicStreamSubscription(TOPIC)
+    sub.register(A)
+    await tick() // attach resolves → #attached === true
+
+    // Unregister the last execution and immediately re-register a new one,
+    // synchronously, before the deferred-detach microtask runs.
+    sub.unregister(A)
+    sub.register(B)
+    await tick()
+
+    expect(mock.mockApi.streamDetach).not.toHaveBeenCalled()
+    expect(mock.mockApi.streamAttach).toHaveBeenCalledTimes(1) // still the same attach
+    sub.dispose()
+  })
+
   it('demuxes attach-replay bufferedChunks by executionId', async () => {
     mock.mockApi.streamAttach.mockResolvedValueOnce({
       status: 'attached',

@@ -99,6 +99,55 @@ describe('TelegramAdapter', () => {
     expect(mockBot.stop).toHaveBeenCalledTimes(1)
   })
 
+  // channel-adapters-2: grammY rethrows a fatal 409/Conflict out of bot.start(); the adapter
+  // must reconnect with backoff instead of staying permanently down.
+  it('reconnects with backoff when polling rejects (REGRESSION channel-adapters-2)', async () => {
+    vi.useFakeTimers()
+    const adapter = createAdapter()
+    mockBot.start.mockReset()
+    // First polling attempt fails (recoverable 409); the reconnect attempt succeeds.
+    mockBot.start.mockRejectedValueOnce(new Error('409: Conflict')).mockResolvedValue(undefined)
+
+    await adapter.connect()
+    await vi.advanceTimersByTimeAsync(0) // let the rejection handler schedule the reconnect
+    expect(mockBot.start).toHaveBeenCalledTimes(1)
+
+    await vi.advanceTimersByTimeAsync(1000) // first backoff delay
+    expect(mockBot.start).toHaveBeenCalledTimes(2) // reconnected
+  })
+
+  it('resets the reconnect budget after a stable polling window (REGRESSION channel-adapters-2)', async () => {
+    vi.useFakeTimers()
+    const adapter = createAdapter()
+    mockBot.start.mockReset()
+    // One transient failure bumps the attempt counter, then the reconnect stays up.
+    mockBot.start.mockRejectedValueOnce(new Error('409: Conflict')).mockResolvedValue(undefined)
+
+    await adapter.connect()
+    await vi.advanceTimersByTimeAsync(1000) // reconnect fires and succeeds
+    expect(adapter.reconnectAttempts).toBe(1)
+
+    // After the stability window the counter resets, so lifetime-cumulative transient
+    // failures can't monotonically exhaust maxReconnectAttempts.
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(adapter.reconnectAttempts).toBe(0)
+  })
+
+  it('does not reconnect after disconnect() (REGRESSION channel-adapters-2)', async () => {
+    vi.useFakeTimers()
+    const adapter = createAdapter()
+    mockBot.start.mockReset()
+    mockBot.start.mockRejectedValue(new Error('409: Conflict'))
+
+    await adapter.connect()
+    await vi.advanceTimersByTimeAsync(0) // a reconnect is now pending
+    await adapter.disconnect() // shouldStop + clear the pending reconnect timer
+
+    const callsAfterDisconnect = mockBot.start.mock.calls.length
+    await vi.advanceTimersByTimeAsync(60_000)
+    expect(mockBot.start.mock.calls.length).toBe(callsAfterDisconnect) // no further reconnect
+  })
+
   it('sendMessage() sends text with MarkdownV2 by default', async () => {
     const adapter = createAdapter()
     await adapter.connect()

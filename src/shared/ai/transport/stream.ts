@@ -112,7 +112,11 @@ export type AiStreamOpenRequest = {
   | {
       /** Brand-new user turn: create the user msg + N assistant placeholders. */
       trigger: 'submit-message'
-      /** Parent of the new user msg. Omit to auto-resolve to the active branch tip. */
+      /**
+       * Parent of the new user msg. Pass the active branch tip. Omit ONLY for the first
+       * message of an empty topic (creates the topic root) — main does not auto-resolve to
+       * the tip, and omitting it on a non-empty topic is rejected as a duplicate root.
+       */
       parentAnchorId?: string
       /** Content of the new user msg. */
       userMessageParts: CherryMessagePart[]

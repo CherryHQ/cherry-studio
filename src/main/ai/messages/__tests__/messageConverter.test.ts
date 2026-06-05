@@ -211,6 +211,26 @@ describe('prepareUIMessages — fileEntryId resolution', () => {
     expect(ui.parts[0]).toMatchObject({ type: 'text', text: 'keep me' })
   })
 
+  it('drops the part when fileEntryId is unresolvable and there is no file:// url to rescue', async () => {
+    getPhysicalPathMock.mockReset()
+    getPhysicalPathMock.mockRejectedValueOnce(new Error('entry not found'))
+    const msg = makeMessage({
+      parts: [
+        { type: 'text', text: 'keep me' },
+        {
+          type: 'file',
+          mediaType: 'image/png',
+          url: '',
+          providerMetadata: { cherry: { fileEntryId: 'entry-gone' } }
+        }
+      ] as CherryMessagePart[]
+    })
+    const [ui] = await prepareUIMessages([msg])
+    expect(ui.parts).toHaveLength(1)
+    expect(ui.parts[0]).toMatchObject({ type: 'text', text: 'keep me' })
+    expect(getPhysicalPathMock).toHaveBeenCalledWith('entry-gone')
+  })
+
   it('does not call FileManager when the part has only a url (no cherry meta)', async () => {
     getPhysicalPathMock.mockReset()
     const msg = makeMessage({

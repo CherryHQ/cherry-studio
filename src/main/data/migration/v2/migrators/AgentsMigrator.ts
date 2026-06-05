@@ -2,7 +2,6 @@ import { agentChannelTaskTable } from '@data/db/schemas/agentChannel'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { jobScheduleTable } from '@data/db/schemas/job'
 import type { DbType } from '@data/db/types'
-import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { loggerService } from '@logger'
 import type { Trigger } from '@shared/data/api/schemas/jobs'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
@@ -13,6 +12,7 @@ import { v4 as uuidv4, v7 as uuidv7 } from 'uuid'
 
 import type { MigrationContext } from '../core/MigrationContext'
 import { LegacyAgentsDbReader } from '../utils/LegacyAgentsDbReader'
+import { assignOrderKeysByScope, assignOrderKeysInSequence } from '../utils/orderKey'
 import { BaseMigrator } from './BaseMigrator'
 import {
   AGENTS_TABLE_MIGRATION_SPECS,
@@ -56,14 +56,12 @@ export class AgentsMigrator extends BaseMigrator {
   private sourceDbPath: string | null | undefined = undefined
   private sourceSchemaInfo: AgentsSchemaInfo = createEmptyAgentsSchemaInfo()
   private reader: LegacyAgentsDbReader | null = null
-  private derivedWorkspaceCount = 0
 
   override reset(): void {
     this.sourceCounts = this.createEmptyCounts()
     this.sourceDbPath = undefined
     this.sourceSchemaInfo = createEmptyAgentsSchemaInfo()
     this.reader = null
-    this.derivedWorkspaceCount = 0
   }
 
   async prepare(ctx: MigrationContext): Promise<PrepareResult> {
@@ -142,7 +140,7 @@ export class AgentsMigrator extends BaseMigrator {
       // it via setPragma), so no per-call toggle here.
       await ctx.db.run(sql.raw('BEGIN'))
 
-      this.derivedWorkspaceCount = await stageSessionWorkspaces(ctx, this.sourceSchemaInfo)
+      await stageSessionWorkspaces(ctx, this.sourceSchemaInfo)
 
       for (const statement of importStatements) {
         logger.debug('Executing SQL:', { sql: statement.substring(0, 200) })
@@ -154,15 +152,15 @@ export class AgentsMigrator extends BaseMigrator {
       // intermediate sentinel state (`order_key=''`).
       //
       // Order:
-      //   1. backfillAgentOrderKeys — joins `agents_legacy.agents`,
-      //      so MUST run while ATTACH is live and BEFORE remap rewrites ids.
-      //   2. backfillAgentSessionOrderKeys — joins `agents_legacy.sessions`,
+      //   1. backfillAgentOrderKeys — joins `agents_legacy.{agents,sessions}`,
       //      so MUST run while ATTACH is live and BEFORE remap rewrites ids.
       //   2. importLegacySessionMessages — generates UUID message ids instead
       //      of preserving legacy integer row ids, and writes final `data.parts`.
       await backfillAgentOrderKeys(ctx.db)
-      await backfillAgentSessionOrderKeys(ctx.db)
-      await importLegacySessionMessages(ctx.db, this.sourceSchemaInfo, { db: ctx.db })
+      await importLegacySessionMessages(ctx.db, this.sourceSchemaInfo, {
+        db: ctx.db,
+        filesDataDir: ctx.paths.filesDataDir
+      })
 
       await ctx.db.run(sql.raw('COMMIT'))
       committed = true
@@ -213,7 +211,7 @@ export class AgentsMigrator extends BaseMigrator {
 
     return {
       success: true,
-      processedCount: getTotalAgentsRowCount(this.sourceCounts) + this.derivedWorkspaceCount
+      processedCount: getTotalAgentsRowCount(this.sourceCounts)
     }
   }
 
@@ -253,29 +251,30 @@ export class AgentsMigrator extends BaseMigrator {
     await ctx.db.run(sql.raw(`ATTACH DATABASE ${quoteSqlitePath(dbPath)} AS agents_legacy`))
 
     try {
-      const expectedWorkspaces = await collectLegacySessionWorkspaces(ctx, this.sourceSchemaInfo)
+      // v1 has no workspace table. v2 agent_workspace rows are derived from
+      // session/agent accessible paths, or a generated default path per session.
+      const derivedWorkspaces = await deriveSessionWorkspaces(ctx, this.sourceSchemaInfo)
       const workspaceRows = await ctx.db.all<{ count: number }>(
         sql.raw('SELECT COUNT(*) AS count FROM agent_workspace')
       )
       const workspaceTargetCount = Number(workspaceRows[0]?.count ?? 0)
-      const workspaceExpectedCount = expectedWorkspaces.workspaces.length
-      this.derivedWorkspaceCount = workspaceExpectedCount
+      const workspaceExpectedCount = derivedWorkspaces.workspaces.length
       targetCount += workspaceTargetCount
       validationDetails.push({
-        table: 'workspace',
-        source: workspaceExpectedCount,
+        table: 'agent_workspace',
+        source: 0,
         expected: workspaceExpectedCount,
         target: workspaceTargetCount,
-        filtered: true,
+        filtered: false,
         ok: workspaceTargetCount === workspaceExpectedCount
       })
       if (workspaceTargetCount !== workspaceExpectedCount) {
         const direction = workspaceTargetCount < workspaceExpectedCount ? 'too low' : 'too high'
         errors.push({
-          key: 'workspace_count_mismatch',
+          key: 'agent_workspace_count_mismatch',
           expected: workspaceExpectedCount,
           actual: workspaceTargetCount,
-          message: `workspace count ${direction}: expected ${workspaceExpectedCount}, got ${workspaceTargetCount}`
+          message: `agent_workspace count ${direction}: expected ${workspaceExpectedCount}, got ${workspaceTargetCount}`
         })
       }
 
@@ -305,7 +304,7 @@ export class AgentsMigrator extends BaseMigrator {
            GROUP BY agent_workspace.path`
         )
       )
-      const expectedWorkspacePathCounts = countExpectedSessionWorkspacePaths(expectedWorkspaces)
+      const expectedWorkspacePathCounts = countExpectedSessionWorkspacePaths(derivedWorkspaces)
       const targetWorkspacePathCountMap = new Map(
         targetWorkspacePathCounts.map((row) => [row.path, Number(row.count ?? 0)])
       )
@@ -385,7 +384,7 @@ export class AgentsMigrator extends BaseMigrator {
       success: errors.length === 0,
       errors,
       stats: {
-        sourceCount: getTotalAgentsRowCount(this.sourceCounts) + this.derivedWorkspaceCount,
+        sourceCount: getTotalAgentsRowCount(this.sourceCounts),
         targetCount,
         skippedCount,
         mismatchReason: errors.length > 0 ? 'One or more agent_* tables did not match expected row counts' : undefined
@@ -440,6 +439,10 @@ export class AgentsMigrator extends BaseMigrator {
     )
 
     const idMap = new Map<string, string>()
+    // (type='agent.task', name) is UNIQUE in job_schedule. Two v1 tasks with the
+    // same name would collide and abort the whole migration, so track used names
+    // and disambiguate within this run.
+    const usedNames = new Set<string>()
     let migratedCount = 0
     let droppedNameCount = 0
 
@@ -458,11 +461,25 @@ export class AgentsMigrator extends BaseMigrator {
       // JobScheduleNameAtomSchema rejects on the application boundary. Sanitize
       // so v2 reads are well-formed end-to-end.
       const rawName = v1.name?.trim() ?? ''
-      const sanitizedName =
+      let sanitizedName =
         rawName && !rawName.startsWith('__') && !this.hasControlChars(rawName)
           ? rawName.slice(0, 200)
           : `task_${v1.id}`.slice(0, 200)
       if (sanitizedName !== rawName) droppedNameCount++
+
+      // Disambiguate on collision: fall back to the already-unique `task_<id>`
+      // form (v1.id is unique), then append a numeric suffix if even that clashes.
+      if (usedNames.has(sanitizedName)) {
+        let candidate = `task_${v1.id}`.slice(0, 200)
+        let suffix = 1
+        while (usedNames.has(candidate)) {
+          candidate = `task_${v1.id}_${suffix}`.slice(0, 200)
+          suffix++
+        }
+        droppedNameCount++
+        sanitizedName = candidate
+      }
+      usedNames.add(sanitizedName)
 
       const inserted = await db
         .insert(jobScheduleTable)
@@ -545,7 +562,7 @@ export class AgentsMigrator extends BaseMigrator {
   }
 }
 
-type LegacySessionWorkspaceRow = {
+type SessionWorkspaceSourceRow = {
   session_id: string
   agent_id: string
   session_accessible_paths: string | null
@@ -609,10 +626,10 @@ function selectLegacyAgentColumn(
   return schemaInfo.agents.columns.has(column) ? `agents.${column} AS ${alias}` : `${fallbackExpr} AS ${alias}`
 }
 
-async function selectLegacySessionWorkspaceRows(
+async function selectSessionWorkspaceSourceRows(
   db: DbType,
   schemaInfo: AgentsSchemaInfo
-): Promise<LegacySessionWorkspaceRow[]> {
+): Promise<SessionWorkspaceSourceRow[]> {
   if (
     !schemaInfo.agents.exists ||
     !schemaInfo.sessions.exists ||
@@ -642,7 +659,7 @@ async function selectLegacySessionWorkspaceRows(
        INNER JOIN agents_legacy.agents AS agents ON agents.id = sessions.agent_id
        ORDER BY ${sortOrder} ASC, ${createdAt} ASC, sessions.id ASC`
     )
-  )) as LegacySessionWorkspaceRow[]
+  )) as SessionWorkspaceSourceRow[]
 }
 
 function extractPrimaryWorkspacePath(rawPaths: string | null, source: 'session' | 'agent'): string | null {
@@ -707,11 +724,11 @@ function countExpectedSessionWorkspacePaths(derived: DerivedSessionWorkspaces): 
   return counts
 }
 
-async function collectLegacySessionWorkspaces(
+async function deriveSessionWorkspaces(
   ctx: MigrationContext,
   schemaInfo: AgentsSchemaInfo
 ): Promise<DerivedSessionWorkspaces> {
-  const rows = await selectLegacySessionWorkspaceRows(ctx.db, schemaInfo)
+  const rows = await selectSessionWorkspaceSourceRows(ctx.db, schemaInfo)
   const byPath = new Map<string, DerivedWorkspace>()
   const mappings: DerivedSessionWorkspaceMap[] = []
   const now = Date.now()
@@ -740,11 +757,7 @@ async function collectLegacySessionWorkspaces(
     mappings.push({ sessionId: row.session_id, workspaceId: workspace.id })
   }
 
-  const workspaces = Array.from(byPath.values())
-  const orderKeys = generateOrderKeySequence(workspaces.length)
-  for (let i = 0; i < workspaces.length; i++) {
-    workspaces[i].orderKey = orderKeys[i]
-  }
+  const workspaces = assignOrderKeysInSequence(Array.from(byPath.values()))
 
   return { workspaces, mappings }
 }
@@ -756,7 +769,7 @@ async function stageSessionWorkspaces(ctx: MigrationContext, schemaInfo: AgentsS
   )
   await db.run(sql.raw('DELETE FROM session_workspace_map'))
 
-  const derived = await collectLegacySessionWorkspaces(ctx, schemaInfo)
+  const derived = await deriveSessionWorkspaces(ctx, schemaInfo)
   for (const workspace of derived.workspaces) {
     await db.run(
       sql`INSERT INTO agent_workspace (id, name, path, order_key, created_at, updated_at)
@@ -769,7 +782,7 @@ async function stageSessionWorkspaces(ctx: MigrationContext, schemaInfo: AgentsS
     )
   }
 
-  logger.info('Staged legacy session workspaces', {
+  logger.info('Staged derived session workspaces', {
     workspaces: derived.workspaces.length,
     mappedSessions: derived.mappings.length
   })
@@ -917,10 +930,12 @@ export async function importLegacySessionMessages(
 }
 
 /**
- * Replace `''` placeholder agent orderKeys (set by INSERT...SELECT) with real
+ * Replace `''` placeholder orderKeys (set by INSERT...SELECT) with real
  * fractional-indexing keys, ordered by the source `sort_order`. Joins target
- * rows to `agents_legacy.agents` so this MUST run while the source DB is
- * attached AND before remapAgentPrefixIds rewrites target ids.
+ * rows to `agents_legacy.{agents,sessions}` so this MUST run while the source
+ * DB is attached AND before remapAgentPrefixIds rewrites target ids.
+ *
+ * Sessions are scoped per agentId.
  */
 export async function backfillAgentOrderKeys(db: DbType): Promise<void> {
   type Row = { id: string }
@@ -933,25 +948,12 @@ export async function backfillAgentOrderKeys(db: DbType): Promise<void> {
        ORDER BY COALESCE(s.sort_order, 0) ASC, a.id ASC`
     )
   )) as Row[]
-  if (agents.length === 0) return
-
-  const keys = generateOrderKeySequence(agents.length)
-  for (let i = 0; i < agents.length; i++) {
-    await db.run(sql`UPDATE agent SET order_key = ${keys[i]} WHERE id = ${agents[i].id}`)
+  if (agents.length > 0) {
+    for (const agent of assignOrderKeysInSequence(agents)) {
+      await db.run(sql`UPDATE agent SET order_key = ${agent.orderKey} WHERE id = ${agent.id}`)
+    }
+    logger.info(`Backfilled ${agents.length} agent order keys`)
   }
-  logger.info(`Backfilled ${agents.length} agent order keys`)
-}
-
-/**
- * Replace `''` placeholder session orderKeys (set by INSERT...SELECT) with real
- * fractional-indexing keys, ordered by the source `sort_order`. Joins target
- * rows to `agents_legacy.sessions` so this MUST run while the source DB is
- * attached AND before remapAgentPrefixIds rewrites target ids.
- *
- * Sessions are scoped per agentId.
- */
-export async function backfillAgentSessionOrderKeys(db: DbType): Promise<void> {
-  type Row = { id: string }
 
   const sessions = (await db.all(
     sql.raw(
@@ -963,18 +965,10 @@ export async function backfillAgentSessionOrderKeys(db: DbType): Promise<void> {
   )) as Array<Row & { agent_id: string }>
   if (sessions.length === 0) return
 
-  // Group by agentId and assign keys per group.
-  const buckets = new Map<string, Row[]>()
-  for (const row of sessions) {
-    const list = buckets.get(row.agent_id) ?? []
-    list.push({ id: row.id })
-    buckets.set(row.agent_id, list)
+  const stampedSessions = assignOrderKeysByScope(sessions, (row) => row.agent_id)
+  for (const session of stampedSessions) {
+    await db.run(sql`UPDATE agent_session SET order_key = ${session.orderKey} WHERE id = ${session.id}`)
   }
-  for (const [, group] of buckets) {
-    const keys = generateOrderKeySequence(group.length)
-    for (let i = 0; i < group.length; i++) {
-      await db.run(sql`UPDATE agent_session SET order_key = ${keys[i]} WHERE id = ${group[i].id}`)
-    }
-  }
-  logger.info(`Backfilled ${sessions.length} session order keys across ${buckets.size} agents`)
+  const agentCount = new Set(sessions.map((row) => row.agent_id)).size
+  logger.info(`Backfilled ${sessions.length} session order keys across ${agentCount} agents`)
 }

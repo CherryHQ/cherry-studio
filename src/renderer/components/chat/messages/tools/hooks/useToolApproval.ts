@@ -1,7 +1,7 @@
 import { loggerService } from '@logger'
 import { usePartsMap } from '@renderer/components/chat/messages/blocks'
 import { useMcpServerMutations, useMcpServers } from '@renderer/hooks/useMcpServer'
-import type { MCPTool, MCPToolResponse, NormalToolResponse } from '@renderer/types'
+import type { McpTool, McpToolResponse, NormalToolResponse } from '@renderer/types'
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
@@ -28,7 +28,7 @@ export interface ToolApprovalActions {
   autoApprove?: () => void | Promise<void>
 }
 
-type ToolApprovalTarget = MCPToolResponse | NormalToolResponse
+type ToolApprovalTarget = McpToolResponse | NormalToolResponse
 
 const IDLE: ToolApprovalState & ToolApprovalActions = {
   isWaiting: false,
@@ -55,7 +55,7 @@ export function useToolApproval(
    * reflects it and subsequent calls of this tool skip the approval card
    * (the mirror operation of `McpSettings.handleToggleAutoApprove`).
    */
-  mcpTool?: MCPTool
+  mcpTool?: McpTool
 ): ToolApprovalState & ToolApprovalActions {
   const { t } = useTranslation()
   const partsMap = usePartsMap()
@@ -131,9 +131,15 @@ export function useToolApproval(
     input: match.input as Record<string, unknown> | undefined,
     confirm: () => void respond(true),
     cancel: () => void respond(false),
-    autoApprove: () => {
-      void respond(true)
-      persistAutoApprove()
-    }
+    // `autoApprove` ("always allow") only persists for MCP tools (per-server
+    // `disabledAutoApproveTools`). Non-MCP (Claude-Agent) tools have no such store, so
+    // expose the action only when there's an `mcpTool` — otherwise the card renders a
+    // dead affordance that approves once and persists nothing.
+    ...(mcpTool && {
+      autoApprove: () => {
+        void respond(true)
+        persistAutoApprove()
+      }
+    })
   }
 }

@@ -216,8 +216,8 @@ export class MessagesService {
       logger.error('Stream error', streamError as Error, {
         provider: provider.id,
         model: request.model,
-        apiHost: provider.id,
-        anthropicApiHost: provider.presetProviderId
+        apiHost: provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl ?? 'https://api.anthropic.com',
+        presetProviderId: provider.presetProviderId
       })
       writeSse(undefined, {
         type: 'error',
@@ -306,8 +306,8 @@ export class MessagesService {
 
     logger.info('Processing anthropic messages request', {
       provider: provider.id,
-      apiHost: provider.id,
-      anthropicApiHost: provider.presetProviderId,
+      apiHost: provider.endpointConfigs?.[ENDPOINT_TYPE.ANTHROPIC_MESSAGES]?.baseUrl ?? 'https://api.anthropic.com',
+      presetProviderId: provider.presetProviderId,
       model: anthropicRequest.model,
       stream: !!anthropicRequest.stream,
       // systemPrompt: JSON.stringify(!!request.system),

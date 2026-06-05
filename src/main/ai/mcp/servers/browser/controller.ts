@@ -1,4 +1,5 @@
 import { isMac, isWin } from '@main/core/platform'
+import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { randomUUID } from 'crypto'
 import { app, BrowserView, BrowserWindow, nativeTheme } from 'electron'
 import TurndownService from 'turndown'
@@ -302,8 +303,8 @@ export class CdpBrowserController {
   private createTabBarView(windowInfo: WindowInfo): BrowserView {
     const tabBarView = new BrowserView({
       webPreferences: {
-        contextIsolation: false,
-        sandbox: false,
+        contextIsolation: true,
+        sandbox: true,
         nodeIntegration: false
       }
     })
@@ -601,6 +602,10 @@ export class CdpBrowserController {
    * @returns Object containing the current URL, page title, and tab ID after navigation
    */
   public async open(url: string, timeout = 10000, privateMode = false, newTab = false, showWindow = false) {
+    // Reject non-http(s) schemes (e.g. file://) and local/private hosts before navigating
+    // (covers fetch() too, which routes through open()) to prevent local-file read / SSRF.
+    url = sanitizeRemoteUrl(url)
+
     const { tabId: actualTabId, tab } = await this.getTab(privateMode, undefined, newTab, showWindow)
     const view = tab.view
     const windowKey = this.getWindowKey(privateMode)

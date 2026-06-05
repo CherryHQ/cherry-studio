@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AiStreamRequest } from '../../types/requests'
 import type {
   AiStreamManagerConfig,
+  CherryUIMessage,
   StreamDoneResult,
   StreamErrorResult,
   StreamListener,
@@ -773,6 +774,43 @@ describe('AiStreamManager', () => {
     })
   })
 
+  // ── idle timeout terminal classification ────────────────────────
+  // The idle-chunk timer (withIdleTimeout) aborts `exec.abortController`
+  // directly, never going through `mgr.abort`, so on the clean stream exit
+  // `exec.status` is still 'streaming'. The loop must promote it to 'aborted'
+  // and settle as `paused` — NOT a success `done`. Locks the recently-fixed
+  // mis-classification bug.
+
+  describe('idle timeout', () => {
+    it('settles a timed-out execution as paused, not done', async () => {
+      // readUIMessageStream's accumulator needs real microtask/timer
+      // scheduling; fake timers starve it. The idle timer is a short real
+      // `setTimeout`, so a brief real wait lets it fire.
+      vi.useRealTimers()
+
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        // 10ms idle timeout — the default pendingStream never emits, so the
+        // idle timer fires and aborts exec.abortController on its own.
+        request: { ...req('a'), requestOptions: { timeout: 10 } },
+        listeners: [listener]
+      })
+      expect(mgr.inspect('a')!.status).toBe('pending')
+
+      // Let the idle timer fire and the abort propagate through the loop.
+      await new Promise((resolve) => setTimeout(resolve, 60))
+
+      // Terminal is paused (truncated reply persisted as paused), never a
+      // success done.
+      expect(listener.pausedResults).toHaveLength(1)
+      expect(listener.doneResults).toHaveLength(0)
+      expect(listener.pausedResults[0].status).toBe('paused')
+      expect(mgr.inspect('a')!.status).toBe('aborted')
+    })
+  })
+
   // ── live finalMessage accumulation ──────────────────────────────
 
   describe('live finalMessage accumulation', () => {
@@ -836,6 +874,114 @@ describe('AiStreamManager', () => {
       // The same timings land in the terminal result the listener received
       // (snapshot copy, so equal-but-not-same-reference is expected).
       expect(listener.doneResults[0].timings).toEqual(timings)
+    })
+  })
+
+  // ── mid-stream error chunk ──────────────────────────────────────
+  // A provider can emit a terminal `{ type: 'error', errorText }` chunk
+  // instead of throwing. `pipeStreamLoop` captures it as `streamErrorText`,
+  // and `runExecutionLoop` routes it through `onExecutionError` with the
+  // chunk text translated via `errorFromStreamChunk` (name: 'StreamError').
+
+  describe('mid-stream error chunk', () => {
+    it('routes a terminal error chunk through onExecutionError with the translated stream error', async () => {
+      // readUIMessageStream's accumulator needs real microtask / timer
+      // scheduling; fake timers starve its reader loop (see live finalMessage
+      // test). The afterEach swaps fake timers back in.
+      vi.useRealTimers()
+
+      const controlled = controlledStream()
+      mockStreamText.mockImplementationOnce(async () => controlled.stream)
+
+      const listener = new FakeListener('l:a')
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request: req('a'),
+        listeners: [listener]
+      })
+
+      // Provider surfaces a terminal error chunk rather than throwing.
+      controlled.enqueue({ type: 'error', errorText: 'boom' } as UIMessageChunk)
+      controlled.close()
+
+      // Let the tee → broadcast → terminal chain drain on real timers.
+      await new Promise((resolve) => setTimeout(resolve, 50))
+
+      expect(listener.errorResults).toHaveLength(1)
+      // `errorFromStreamChunk('boom')` → { name: 'StreamError', message: 'boom', stack: null }.
+      expect(listener.errorResults[0].error).toEqual({ name: 'StreamError', message: 'boom', stack: null })
+      expect(listener.errorResults[0].status).toBe('error')
+      expect(mgr.inspect('a')!.status).toBe('error')
+    })
+  })
+
+  // ── continue-conversation accumulator seed ──────────────────────
+  // When the last incoming message is an assistant turn (the tool-approval
+  // continue / continue-conversation resume), `runExecutionLoop` seeds
+  // `readUIMessageStream` with it (AiStreamManager.ts ~803-805). Without the
+  // seed the accumulator's `getToolInvocation` throws on the resumed
+  // tool-part ids and silently halts, so `exec.finalMessage` never lands.
+
+  describe('continue-conversation accumulator seed', () => {
+    it('seeds the accumulator from a trailing assistant message so finalMessage accumulates', async () => {
+      // readUIMessageStream relies on real microtask / timer scheduling.
+      vi.useRealTimers()
+
+      const controlled = controlledStream()
+      mockStreamText.mockImplementationOnce(async () => controlled.stream)
+
+      // The resumed assistant turn carries a tool part still awaiting its
+      // output (input-available). The continuation stream below references
+      // that same toolCallId via `tool-output-available`; only the seed lets
+      // readUIMessageStream's `getToolInvocation` find the part instead of
+      // throwing "No tool invocation found" and halting the accumulator.
+      const resumedAssistant = {
+        id: 'assistant-resume',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-myTool',
+            toolCallId: 'tc-1',
+            state: 'input-available',
+            input: { q: 'x' }
+          }
+        ]
+      } as unknown as CherryUIMessage
+
+      const listener = new FakeListener('l:a')
+      const request = { ...req('a'), messages: [resumedAssistant] }
+      startSingle(mgr, {
+        topicId: 'a',
+        modelId: 'provider-a::model-a',
+        request,
+        listeners: [listener]
+      })
+
+      // Continuation: resolve the pre-existing tool call (references the seed's
+      // toolCallId), then append text. Without the seed, the tool-output chunk
+      // throws inside the accumulator and the later text never accumulates.
+      controlled.enqueue({ type: 'start', messageId: 'assistant-resume' } as UIMessageChunk)
+      controlled.enqueue({ type: 'tool-output-available', toolCallId: 'tc-1', output: { ok: true } } as UIMessageChunk)
+      controlled.enqueue({ type: 'text-start', id: 'p1' } as UIMessageChunk)
+      controlled.enqueue({ type: 'text-delta', id: 'p1', delta: 'continued' } as UIMessageChunk)
+      controlled.enqueue({ type: 'text-end', id: 'p1' } as UIMessageChunk)
+      controlled.enqueue({ type: 'finish' } as UIMessageChunk)
+      controlled.close()
+
+      await new Promise((resolve) => setTimeout(resolve, 50))
+
+      const snap = mgr.inspect('a')!
+      expect(snap.status).toBe('done')
+      // The accumulator did not halt — finalMessage landed with the appended
+      // text AND the resolved tool output.
+      const parts = (snap.executions[0].finalMessage?.parts ?? []) as Array<{
+        type: string
+        text?: string
+        state?: string
+      }>
+      expect(parts.some((p) => p.type === 'text' && p.text === 'continued')).toBe(true)
+      expect(parts.some((p) => p.type === 'tool-myTool' && p.state === 'output-available')).toBe(true)
     })
   })
 
@@ -996,6 +1142,49 @@ describe('AiStreamManager', () => {
       // pending → error directly; we never fabricate a `streaming` transition
       // when no chunks ever flowed.
       expect(statusSequence('t')).toEqual(['pending', 'error'])
+    })
+
+    it('records awaiting-approval when an execution completes paused on a tool-approval-request', async () => {
+      startSingle(mgr, {
+        topicId: 't',
+        modelId: 'p::m',
+        request: req('t'),
+        listeners: [new FakeListener('l:t')]
+      })
+
+      // `tool-approval-request` sets exec.awaitingApproval and flips pending → streaming.
+      mgr.onChunk('t', 'p::m', { type: 'tool-approval-request' } as UIMessageChunk)
+      expect(statusSequence('t')).toEqual(['pending', 'streaming'])
+
+      // MCP needsApproval ends the stream cleanly via `done`; resolveTerminalStatus
+      // overrides the would-be `done` to `awaiting-approval` because the execution
+      // is still paused on the approval request.
+      await mgr.onExecutionDone('t', 'p::m')
+      expect(statusSequence('t')).toEqual(['pending', 'streaming', 'awaiting-approval'])
+      expect(mgr.inspect('t')!.status).toBe('awaiting-approval')
+    })
+
+    it('clears awaiting-approval when a tool-output chunk resolves the approval before terminal', async () => {
+      startSingle(mgr, {
+        topicId: 't',
+        modelId: 'p::m',
+        request: req('t'),
+        listeners: [new FakeListener('l:t')]
+      })
+
+      // Approval request sets exec.awaitingApproval and flips pending → streaming.
+      mgr.onChunk('t', 'p::m', { type: 'tool-approval-request' } as UIMessageChunk)
+      expect(statusSequence('t')).toEqual(['pending', 'streaming'])
+
+      // The tool output for the same call resolves the approval: exec.awaitingApproval clears.
+      mgr.onChunk('t', 'p::m', { type: 'tool-output-available' } as UIMessageChunk)
+
+      // resolveTerminalStatus no longer finds a paused exec, so the terminal status is `done`,
+      // NOT stuck on `awaiting-approval`.
+      await mgr.onExecutionDone('t', 'p::m')
+      expect(statusSequence('t')).toEqual(['pending', 'streaming', 'done'])
+      expect(mgr.inspect('t')!.status).toBe('done')
+      expect(mgr.inspect('t')!.status).not.toBe('awaiting-approval')
     })
 
     it('multi-model: flips on first chunk from any execution and stays pending if an execution errors before any chunks', async () => {

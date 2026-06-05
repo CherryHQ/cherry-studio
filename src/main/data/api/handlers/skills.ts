@@ -3,7 +3,6 @@
  */
 
 import { agentGlobalSkillService as skillService } from '@data/services/AgentGlobalSkillService'
-import { agentService } from '@data/services/AgentService'
 import { DataApiErrorFactory, toDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { ListSkillsQuerySchema, type SkillSchemas } from '@shared/data/api/schemas/skills'
@@ -13,13 +12,6 @@ export const skillHandlers: HandlersFor<SkillSchemas> = {
     GET: async ({ query }) => {
       const parsed = ListSkillsQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
-      const { agentId } = parsed.data
-
-      if (agentId) {
-        const agent = await agentService.getAgent(agentId)
-        if (!agent) throw DataApiErrorFactory.notFound('Agent', agentId)
-      }
-
       return await skillService.list(parsed.data)
     }
   },

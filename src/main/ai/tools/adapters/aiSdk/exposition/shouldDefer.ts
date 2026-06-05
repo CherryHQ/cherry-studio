@@ -39,13 +39,18 @@ export function shouldDefer(entries: readonly ToolEntry[], contextWindow: number
   return { deferredNames, threshold }
 }
 
-//TODO： token api
+// TODO: replace the chars/4 heuristic with a real tokenizer token-count API
 function estimateAutoTokens(entries: readonly ToolEntry[]): number {
   let chars = 0
   for (const entry of entries) {
     chars += entry.name.length
     // LLM-visible cost is `tool.description` + `tool.inputSchema`; `entry.description`
     // is only shown by `tool_search`.
+    //
+    // The char count is a deliberately coarse, pre-normalization proxy: `inputSchema` may be
+    // Zod, a `jsonSchema` wrapper, or raw JSONSchema, so its stringified length differs from the
+    // canonical JSONSchema the model actually sees (cf. `asSchema(...).jsonSchema` in toolSearch).
+    // We skip that async normalization on purpose — this is only a defer/inline gate, not a budget.
     const tool = entry.tool as { description?: string; inputSchema?: unknown }
     if (typeof tool.description === 'string') chars += tool.description.length
     if (tool.inputSchema) chars += JSON.stringify(tool.inputSchema).length

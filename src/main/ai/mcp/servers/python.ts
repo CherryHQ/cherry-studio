@@ -2,8 +2,19 @@ import { application } from '@application'
 import { loggerService } from '@logger'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
+import * as z from 'zod'
 
-const logger = loggerService.withContext('MCPServer:Python')
+const logger = loggerService.withContext('McpServer:Python')
+
+const DEFAULT_TIMEOUT_MS = 60000
+const MIN_TIMEOUT_MS = 1000
+const MAX_TIMEOUT_MS = 10 * 60 * 1000
+
+const PythonExecuteArgsSchema = z.object({
+  code: z.string().min(1, 'Code parameter is required and must be a string'),
+  context: z.record(z.string(), z.any()).optional().default({}),
+  timeout: z.number().positive().optional().default(DEFAULT_TIMEOUT_MS)
+})
 
 /**
  * Python MCP Server for executing Python code using Pyodide
@@ -76,19 +87,14 @@ print('python code here')`,
       }
 
       try {
-        const {
-          code,
-          context = {},
-          timeout = 60000
-        } = args as {
-          code: string
-          context?: Record<string, any>
-          timeout?: number
+        const parsed = PythonExecuteArgsSchema.safeParse(args)
+        if (!parsed.success) {
+          throw new McpError(ErrorCode.InvalidParams, `Invalid arguments for python_execute: ${parsed.error.message}`)
         }
 
-        if (!code || typeof code !== 'string') {
-          throw new McpError(ErrorCode.InvalidParams, 'Code parameter is required and must be a string')
-        }
+        const { code, context } = parsed.data
+        // Clamp timeout to a sane range to prevent runaway or pointless executions.
+        const timeout = Math.min(Math.max(parsed.data.timeout, MIN_TIMEOUT_MS), MAX_TIMEOUT_MS)
 
         logger.debug('Executing Python code via Pyodide')
 

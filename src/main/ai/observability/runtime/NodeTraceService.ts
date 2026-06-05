@@ -23,9 +23,13 @@ const logger = loggerService.withContext('NodeTraceService')
 /**
  * Priority(0) ensures this service initializes before all other WhenReady services (default priority is 100).
  * This is critical because onInit() monkey-patches ipcMain.handle() to inject trace context propagation.
- * The patch must be applied BEFORE other services (e.g. MainWindowService, SpanCacheService) register
- * their IPC handlers via ipcMain.handle(), otherwise those handlers won't receive trace context
- * from the renderer process.
+ * The patch must be applied BEFORE other services (e.g. MainWindowService) register their IPC handlers
+ * via ipcMain.handle(), otherwise those handlers won't receive trace context from the renderer process.
+ *
+ * Note: SpanCacheService is intentionally excluded. The @DependsOn edge forces SpanCacheService to
+ * initialize (and register its TRACE_* handlers) BEFORE this service applies the patch, so those
+ * handlers do NOT participate in cross-process context propagation. This is fine — the trace handlers
+ * read/write the in-memory span store and do not rely on an inherited renderer trace context.
  */
 @Injectable('NodeTraceService')
 @ServicePhase(Phase.WhenReady)
@@ -66,7 +70,7 @@ export class NodeTraceService extends BaseService implements Activatable {
    * Only called during app shutdown (auto-deactivation in _doStop).
    * Runtime deactivation is not supported — developer_mode changes require restart.
    *
-   * Note: MCPNodeTracer.shutdown() only flushes the span processor.
+   * Note: McpNodeTracer.shutdown() only flushes the span processor.
    * Global OTel registrations (TracerProvider, ContextManager, Propagator) persist
    * until process exit. This is acceptable for shutdown-only deactivation.
    */

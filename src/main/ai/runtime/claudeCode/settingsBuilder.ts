@@ -32,6 +32,7 @@ import { isProvisioned, provisionBuiltinAgent } from '@main/ai/agents/builtin/Bu
 import { PromptBuilder } from '@main/ai/agents/cherryclaw/prompt'
 import AssistantServer from '@main/ai/mcp/servers/assistant'
 import ClawServer from '@main/ai/mcp/servers/claw'
+import WorkspaceMemoryServer from '@main/ai/mcp/servers/workspaceMemory'
 import { createSdkMcpServerInstance } from '@main/ai/runtime/claudeCode/createSdkMcpServerInstance'
 import { skillService } from '@main/ai/skills/SkillService'
 import { createClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
@@ -52,12 +53,12 @@ import {
 import { languageEnglishNameMap } from '@shared/config/languages'
 import type { AgentEntity } from '@shared/data/api/schemas/agents'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
-import type { MCPServer } from '@shared/data/types/mcpServer'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { CherryToolMeta } from '@shared/data/types/uiParts'
 import { toCamelCase } from '@shared/mcp'
-import type { MCPTool } from '@types'
+import type { McpTool } from '@types'
 import { app } from 'electron'
 
 import { toolApprovalRegistry } from './ToolApprovalRegistry'
@@ -76,6 +77,11 @@ function getToolApprovalEmitterHolder(sessionId: string): ToolApprovalEmitterHol
       dispose: () => {
         nextHolder.emit = undefined
         toolApprovalRegistry.abort(sessionId, 'stream-ended')
+        // Evict so the module-level Map doesn't grow unbounded across sessions;
+        // the holder is rebuilt lazily on the next settings build.
+        if (toolApprovalEmitters.get(sessionId) === nextHolder) {
+          toolApprovalEmitters.delete(sessionId)
+        }
       }
     }
     holder = nextHolder
@@ -105,10 +111,9 @@ async function buildAssistantContext(): Promise<string> {
     probeHost('google.com'),
     probeHost('docs.cherry-ai.com')
   ])
-  const networkLines = probeResults.map((r) => {
-    const v = r.status === 'fulfilled' ? r.value : { host: '?', ok: false, ms: 0 }
-    return `- ${v.host}: ${v.ok ? `reachable (${v.ms}ms)` : 'unreachable'}`
-  })
+  const networkLines = probeResults.map((r) =>
+    formatNetworkProbeLine(r.status === 'fulfilled' ? r.value : { host: '?', ok: false })
+  )
 
   return [
     '## Current Environment',
@@ -124,16 +129,25 @@ async function buildAssistantContext(): Promise<string> {
   ].join('\n')
 }
 
-async function probeHost(host: string): Promise<{ host: string; ok: boolean; ms: number }> {
-  const start = Date.now()
+/**
+ * Format a single network-probe line for the assistant context. Deliberately omits per-probe
+ * latency: this string feeds the assistant systemPrompt, which is part of the warm-query
+ * signature — volatile `(NNNms)` made prewarm/consume signatures differ so warm queries were
+ * never reused. `reachable`/`unreachable` is stable run-to-run.
+ */
+export function formatNetworkProbeLine(v: { host: string; ok: boolean }): string {
+  return `- ${v.host}: ${v.ok ? 'reachable' : 'unreachable'}`
+}
+
+async function probeHost(host: string): Promise<{ host: string; ok: boolean }> {
   try {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 2000)
     await fetch(`https://${host}`, { method: 'HEAD', signal: controller.signal })
     clearTimeout(timeout)
-    return { host, ok: true, ms: Date.now() - start }
+    return { host, ok: true }
   } catch {
-    return { host, ok: false, ms: Date.now() - start }
+    return { host, ok: false }
   }
 }
 
@@ -527,7 +541,7 @@ async function buildSystemPrompt(
   }
 }
 
-async function buildMcpServers(
+export async function buildMcpServers(
   session: AgentSessionEntity,
   agent: AgentEntity,
   soulEnabled: boolean,
@@ -558,7 +572,14 @@ async function buildMcpServers(
     const sourceChannelId = await resolveSourceChannel(agent.id, session.id)
     const clawServer = new ClawServer(agent.id, sourceChannelId)
     mcpList.claw = { type: 'sdk', name: 'claw', instance: clawServer.mcpServer }
-    logger.debug('Soul Mode: injected claw MCP server', {
+
+    // agent-memory — the FACT.md / JOURNAL.jsonl memory tool the CherryClaw prompt and the
+    // workspace bootstrap drive via `mcp__agent-memory__memory`. Without it the documented
+    // "log completion" step (and all memory writes) have no backing server.
+    const memoryServer = new WorkspaceMemoryServer(agent.id)
+    mcpList['agent-memory'] = { type: 'sdk', name: 'agent-memory', instance: memoryServer.mcpServer }
+
+    logger.debug('Soul Mode: injected claw + agent-memory MCP servers', {
       agentId: agent.id,
       totalMcpServers: Object.keys(mcpList).length
     })
@@ -588,8 +609,8 @@ function addMcpToolMetadataAlias(
 
 function addMcpToolMetadataAliases(
   metadataByName: Record<string, McpToolDisplayMetadata>,
-  server: MCPServer,
-  tool: MCPTool
+  server: McpServer,
+  tool: McpTool
 ): void {
   const metadata: McpToolDisplayMetadata = {
     type: 'mcp',
@@ -643,7 +664,7 @@ async function resolveSourceChannel(agentId: string, sessionId: string): Promise
  * Auto-approve MCP tools for injected built-in servers.
  * Claw and assistant tools must be in allowedTools for canUseTool to pass them.
  */
-function adjustAllowedToolsForMcp(
+export function adjustAllowedToolsForMcp(
   allowedTools: string[] | undefined,
   soulEnabled: boolean,
   isAssistant: boolean
@@ -654,6 +675,10 @@ function adjustAllowedToolsForMcp(
 
   if (soulEnabled && !result.includes('mcp__claw__*')) {
     result.push('mcp__claw__*')
+  }
+
+  if (soulEnabled && !result.includes('mcp__agent-memory__*')) {
+    result.push('mcp__agent-memory__*')
   }
 
   if (isAssistant && !result.includes('mcp__assistant__*')) {

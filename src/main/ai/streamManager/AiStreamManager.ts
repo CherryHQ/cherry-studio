@@ -12,6 +12,7 @@ import type {
   AiStreamAttachResponse,
   AiStreamDetachRequest,
   AiStreamOpenRequest,
+  AiStreamOpenResponse,
   ApprovalDecision
 } from '@shared/ai/transport'
 import { DEFAULT_TIMEOUT } from '@shared/config/constant'
@@ -20,10 +21,11 @@ import type { UniqueModelId } from '@shared/data/types/model'
 import { IpcChannel } from '@shared/IpcChannel'
 import { type SerializedError, serializeError } from '@shared/types/error'
 import { isToolUIPart, type UIMessageChunk } from 'ai'
+import * as z from 'zod'
 
 import type { AiStreamRequest } from '../types/requests'
 import { buildCompactReplay } from './buildCompactReplay'
-import { dispatchStreamRequest } from './context'
+import { dispatchStreamRequest, type MainDispatchRequest } from './context'
 import { KeyedMutex } from './KeyedMutex'
 import { createChatStreamLifecycle, promptStreamLifecycle, type StreamLifecycle } from './lifecycle'
 import { WebContentsListener } from './listeners/WebContentsListener'
@@ -41,6 +43,23 @@ import type {
 } from './types'
 
 const logger = loggerService.withContext('AiStreamManager')
+
+// ── IPC boundary validation ─────────────────────────────────────────
+// Renderer payloads are untrusted; reject malformed shapes before they
+// reach dispatch/attach. `safeParse` keeps the handlers free of throws on
+// the common path and lets us return/throw a sanitized error.
+
+/** Every stream channel keys on a non-empty `topicId`. */
+const TopicIdRequestSchema = z.object({ topicId: z.string().min(1) })
+
+/** `Ai_Stream_Open` — validates the discriminated trigger and its required fields. */
+const StreamOpenRequestSchema = z.intersection(
+  TopicIdRequestSchema,
+  z.discriminatedUnion('trigger', [
+    z.object({ trigger: z.literal('submit-message'), userMessageParts: z.array(z.unknown()) }),
+    z.object({ trigger: z.literal('regenerate-message'), parentAnchorId: z.string().min(1) })
+  ])
+)
 
 /** Idempotent: subsequent calls no-op because `exec.rootSpan` is cleared. */
 function endRootSpan(exec: StreamExecution, outcome: 'ok' | 'aborted' | 'error', error?: SerializedError): void {
@@ -216,27 +235,71 @@ export class AiStreamManager extends BaseService {
     // in-memory registry is empty, so every still-`pending` assistant row is stale.
     await this.reconcileStalePendingMessages()
 
-    this.ipcHandle(IpcChannel.Ai_Stream_Open, async (event, req: AiStreamOpenRequest) => {
+    this.ipcHandle(IpcChannel.Ai_Stream_Open, async (event, rawReq: unknown) => {
+      const parsed = StreamOpenRequestSchema.safeParse(rawReq)
+      if (!parsed.success) {
+        logger.warn('Ai_Stream_Open rejected: invalid request', { issues: parsed.error.issues })
+        throw new Error('Invalid Ai_Stream_Open request')
+      }
+      const req = rawReq as AiStreamOpenRequest
       const subscriber = new WebContentsListener(event.sender, req.topicId)
-      // Serialise per topic: `prepareDispatch` is async and writes a PENDING placeholder off a
-      // `hasLiveStream` snapshot; without this, two concurrent opens on one topic could both
-      // see "no live stream" and orphan a row.
-      return this.dispatchLock.runExclusive(req.topicId, () => dispatchStreamRequest(this, subscriber, req))
+      return this.dispatch(subscriber, req)
     })
 
-    this.ipcHandle(IpcChannel.Ai_Stream_Attach, (event, req: AiStreamAttachRequest) => {
-      return this.attach(event.sender, req)
+    this.ipcHandle(IpcChannel.Ai_Stream_Attach, (event, rawReq: unknown): AiStreamAttachResponse => {
+      const parsed = TopicIdRequestSchema.safeParse(rawReq)
+      if (!parsed.success) {
+        logger.warn('Ai_Stream_Attach rejected: invalid topicId', { issues: parsed.error.issues })
+        return { status: 'not-found' }
+      }
+      return this.attach(event.sender, rawReq as AiStreamAttachRequest)
     })
 
-    this.ipcHandle(IpcChannel.Ai_Stream_Detach, (event, req: AiStreamDetachRequest) => {
-      this.detach(event.sender, req)
+    this.ipcHandle(IpcChannel.Ai_Stream_Detach, (event, rawReq: unknown) => {
+      const parsed = TopicIdRequestSchema.safeParse(rawReq)
+      if (!parsed.success) {
+        logger.warn('Ai_Stream_Detach rejected: invalid topicId', { issues: parsed.error.issues })
+        return
+      }
+      this.detach(event.sender, rawReq as AiStreamDetachRequest)
     })
 
-    this.ipcHandle(IpcChannel.Ai_Stream_Abort, (_, req: AiStreamAbortRequest) => {
-      this.abort(req.topicId, 'user-requested')
+    this.ipcHandle(IpcChannel.Ai_Stream_Abort, (_, rawReq: unknown) => {
+      const parsed = TopicIdRequestSchema.safeParse(rawReq)
+      if (!parsed.success) {
+        logger.warn('Ai_Stream_Abort rejected: invalid topicId', { issues: parsed.error.issues })
+        return
+      }
+      this.abort((rawReq as AiStreamAbortRequest).topicId, 'user-requested')
     })
 
     logger.info('AiStreamManager initialized')
+  }
+
+  /**
+   * Single locked dispatch entry point for chat streams. Both `Ai_Stream_Open`
+   * and the tool-approval continue path (`AiService.Ai_ToolApproval_Respond`)
+   * route through here so the per-topic `dispatchLock` serialises every dispatch
+   * on a topic — not just opens. `prepareDispatch` is async and writes a PENDING
+   * placeholder off a `hasLiveStream` snapshot; without one lock covering both
+   * entry points, a concurrent open and approval-continue on the same topic could
+   * both see "no live stream" and orphan a row.
+   */
+  dispatch(subscriber: StreamListener, req: MainDispatchRequest): Promise<AiStreamOpenResponse> {
+    return this.withDispatchLock(req.topicId, () => dispatchStreamRequest(this, subscriber, req))
+  }
+
+  /**
+   * Run `fn` under the per-topic dispatch lock. The sole accessor of `dispatchLock`,
+   * so every dispatch entry point serialises through one place: `dispatch()` (the chat
+   * `Ai_Stream_Open` + approval-continue paths) and `startAgentSessionRun` (scheduler /
+   * channel-inbound agent-session runs), which can't use `dispatch()` because it carries
+   * extra listeners. Holding the same per-topic lock around their `hasLiveStream →
+   * prepareDispatch → send` window stops two runs on one topic from both seeing "no live
+   * stream" and orphaning a PENDING placeholder.
+   */
+  withDispatchLock<T>(topicId: string, fn: () => Promise<T>): Promise<T> {
+    return this.dispatchLock.runExclusive(topicId, fn)
   }
 
   /**
@@ -250,9 +313,7 @@ export class AiStreamManager extends BaseService {
       const stale = await messageService.findPendingAssistantMessages()
       if (stale.length === 0) return
       logger.info('Reconciling crash-orphaned pending assistant messages', { count: stale.length })
-      for (const message of stale) {
-        await messageService.update(message.id, { status: 'error' })
-      }
+      await messageService.markMessagesError(stale.map((message) => message.id))
     } catch (error) {
       logger.error('Failed to reconcile stale pending messages', { error })
     }
@@ -592,6 +653,27 @@ export class AiStreamManager extends BaseService {
     if (isTopicDone) this.runTerminalLifecycle(stream)
   }
 
+  /**
+   * Surface a stream error to a topic's transport subscribers WITHOUT mutating execution
+   * state or re-running persistence. Used when a post-stream persist fails after the renderer
+   * was already told the turn succeeded — the DB row is driven to `error` separately, but the
+   * live bubble must not stay a success. Persistence listeners are skipped (they just failed and
+   * would loop). No-op once the stream has drained.
+   */
+  broadcastTopicError(topicId: string, modelId: UniqueModelId | undefined, error: SerializedError): void {
+    const stream = this.activeStreams.get(topicId)
+    if (!stream) return
+    const result: StreamErrorResult = { error, status: 'error', modelId, isTopicDone: true }
+    for (const listener of stream.listeners.values()) {
+      if (listener.id.startsWith('persistence:')) continue
+      try {
+        void listener.onError(result)
+      } catch (err) {
+        logger.warn('broadcastTopicError listener threw', { topicId, err })
+      }
+    }
+  }
+
   /** Chat defers 30 s, prompt evicts immediately. */
   private runTerminalLifecycle(stream: ActiveStream): void {
     stream.lifecycle.onTerminal(stream)
@@ -830,7 +912,12 @@ export class AiStreamManager extends BaseService {
       return
     }
 
-    if (signal.aborted && exec.status === 'aborted') {
+    if (signal.aborted) {
+      // The idle-timeout path aborts `exec.abortController` directly (via `withIdleTimeout`)
+      // without going through `abort()`, so `exec.status` is still 'streaming' on this clean
+      // exit. Promote it so the truncated reply is persisted as `paused`, not `success`
+      // (onExecutionPaused is a no-op unless status is 'aborted').
+      if (exec.status === 'streaming') exec.status = 'aborted'
       await this.onExecutionPaused(topicId, modelId)
     } else if (result.streamErrorText !== undefined) {
       await this.onExecutionError(topicId, modelId, errorFromStreamChunk(result.streamErrorText))

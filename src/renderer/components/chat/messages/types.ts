@@ -1,4 +1,4 @@
-import type { Citation, FileMetadata, MCPTool, Topic, TranslateLangCode, TranslateLanguage } from '@renderer/types'
+import type { Citation, FileMetadata, McpTool, Topic, TranslateLangCode, TranslateLanguage } from '@renderer/types'
 import type { SerializedError } from '@renderer/types/error'
 import type { MessageExportView } from '@renderer/types/messageExport'
 import type {
@@ -284,7 +284,7 @@ export interface MessageListState {
   getMessageActivityState?: (message: MessageListItem) => MessageActivityState
   getMessageEditorCapabilities?: (message: MessageListItem) => MessageEditorCapabilities
   getFileView?: (file: FileMetadata) => MessageFileView
-  isToolAutoApproved?: (tool: MCPTool, allowedTools?: string[]) => boolean
+  isToolAutoApproved?: (tool: McpTool, allowedTools?: string[]) => boolean
   externalCodeEditors?: ExternalAppInfo[]
   getTranslationLanguageLabel?: (
     language: TranslateLangCode | TranslateLanguage | null,

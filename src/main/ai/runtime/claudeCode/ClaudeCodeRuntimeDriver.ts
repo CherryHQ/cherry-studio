@@ -8,6 +8,7 @@ import {
 } from '@anthropic-ai/claude-agent-sdk'
 
 type BetaUsage = SDKResultMessage['usage']
+import { loggerService } from '@logger'
 import type { ClaudeAgentToolPolicySnapshot } from '@main/ai/tools/adapters/claudeCode/agentTools'
 import {
   buildClaudeToolPolicy,
@@ -30,6 +31,8 @@ import { buildClaudeCodeQueryRequestForAgentSession } from './agentSessionWarmup
 import { AgentSessionWorkspaceError, assertClaudeCodeWorkspaceDirectory } from './settingsBuilder'
 import { ClaudeCodeStreamAdapter, convertClaudeCodeUsage } from './streamAdapter'
 import type { McpToolDisplayMetadata, ToolApprovalEmitterHolder } from './types'
+
+const logger = loggerService.withContext('ClaudeCodeRuntimeDriver')
 
 class AsyncEventQueue<T> implements AsyncIterable<T> {
   private readonly items: T[] = []
@@ -220,7 +223,12 @@ class ClaudeCodeRuntimeConnection implements AgentRuntimeConnection {
         }
 
         if (!this.adapter) {
-          if (message.type === 'result') this.updateResumeToken(message.session_id)
+          if (message.type === 'result') {
+            this.updateResumeToken(message.session_id)
+            logger.warn('Received a result message with no active turn; dropping turn-complete', {
+              sessionId: this.input.sessionId
+            })
+          }
           continue
         }
 

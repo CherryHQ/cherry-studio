@@ -736,7 +736,7 @@
         }
       }
     },
-    "sidebar_title": "工作",
+    "sidebar_title": "任务",
     "todo": {
       "mock": {
         "actions": {
@@ -1406,6 +1406,7 @@
         "title": "资源"
       },
       "send": "发送",
+      "send_failed": "消息发送失败",
       "settings": "设置",
       "slash_commands": {
         "description": "代理会话斜杠命令",

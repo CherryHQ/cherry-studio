@@ -34,6 +34,7 @@ export type TopicDisplayGroupLabels = {
 
 export type TopicDisplayGroupOptions = {
   assistantById?: ReadonlyMap<string | null, TopicDisplayAssistant>
+  defaultAssistant?: Pick<TopicDisplayAssistant, 'name'>
   labels: TopicDisplayGroupLabels
   mode: TopicDisplayMode
   now?: Parameters<typeof getResourceTimeBucket>[1]
@@ -212,6 +213,7 @@ export function getTopicAssistantIdForDisplay(topic: Pick<Topic, 'assistantId'>)
 
 export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistantId' | 'pinned' | 'updatedAt'>>({
   assistantById,
+  defaultAssistant,
   labels,
   mode,
   now,
@@ -244,6 +246,10 @@ export function createTopicDisplayGroupResolver<T extends Pick<Topic, 'assistant
           id: assistant.id === null ? 'assistant:null' : `assistant:${assistant.id}`,
           label: assistant.name
         }
+      }
+
+      if (assistantId === null && defaultAssistant) {
+        return { id: 'assistant:null', label: defaultAssistant.name }
       }
 
       return { id: 'assistant:unknown', label: labels.assistant.unlinked }

@@ -160,6 +160,24 @@ export class SessionService {
     return rowToSession(row)
   }
 
+  /**
+   * Resolve an agent's workspace path WITHOUT creating a session. Sessions for the same
+   * agent reuse the most-recent sibling's workspace (see `createSessionTx`), so this returns
+   * that shared path, or null when the agent has no session/workspace yet. Used by heartbeat
+   * scheduling to read `heartbeat.md` before deciding whether a fire warrants a session.
+   */
+  async findAgentWorkspacePath(agentId: string): Promise<string | null> {
+    const db = application.get('DbService').getDb()
+    const [row] = await db
+      .select({ path: workspaceTable.path })
+      .from(sessionsTable)
+      .innerJoin(workspaceTable, eq(sessionsTable.workspaceId, workspaceTable.id))
+      .where(eq(sessionsTable.agentId, agentId))
+      .orderBy(desc(sessionsTable.createdAt))
+      .limit(1)
+    return row?.path ?? null
+  }
+
   async listByCursor(query: ListSessionsQuery = {}): Promise<CursorPaginationResponse<AgentSessionEntity>> {
     const db = application.get('DbService').getDb()
     const limit = Math.min(query.limit ?? DEFAULT_LIMIT, MAX_LIMIT)
@@ -221,13 +239,16 @@ export class SessionService {
   }
 
   async update(id: string, dto: UpdateSessionDto): Promise<AgentSessionEntity> {
-    if (Object.keys(dto).length === 0) return this.getById(id)
+    // Workspace binding is insert-only: build an explicit patch so a caller that
+    // bypasses the schema (passing `workspaceId`) can't rebind the workspace.
+    const patch: UpdateSessionDto = {}
+    if (dto.name !== undefined) patch.name = dto.name
+    if (dto.description !== undefined) patch.description = dto.description
+    if (dto.agentId !== undefined) patch.agentId = dto.agentId
+    if (Object.keys(patch).length === 0) return this.getById(id)
     const db = application.get('DbService').getDb()
-    if (dto.workspaceId) {
-      await workspaceService.getById(dto.workspaceId)
-    }
     const [row] = await withSqliteErrors(
-      () => db.update(sessionsTable).set(dto).where(eq(sessionsTable.id, id)).returning(),
+      () => db.update(sessionsTable).set(patch).where(eq(sessionsTable.id, id)).returning(),
       defaultHandlersFor('Session', id)
     )
     if (!row) throw DataApiErrorFactory.notFound('Session', id)
@@ -408,8 +429,7 @@ export class SessionService {
   }
 
   async reorder(id: string, anchor: OrderRequest): Promise<void> {
-    const db = application.get('DbService').getDb()
-    await db.transaction(async (tx) => {
+    await application.get('DbService').withWriteTx(async (tx) => {
       const [target] = await tx
         .select({ id: sessionsTable.id })
         .from(sessionsTable)
@@ -423,8 +443,9 @@ export class SessionService {
 
   async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
     if (moves.length === 0) return
-    const db = application.get('DbService').getDb()
-    await db.transaction((tx) => applyMoves(tx, sessionsTable, moves, { pkColumn: sessionsTable.id }))
+    await application
+      .get('DbService')
+      .withWriteTx((tx) => applyMoves(tx, sessionsTable, moves, { pkColumn: sessionsTable.id }))
   }
 
   async exists(id: string): Promise<boolean> {

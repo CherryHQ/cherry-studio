@@ -93,8 +93,13 @@ export async function resolveFileUIPart(part: FileUIPart): Promise<FileUIPart | 
   if (fileEntryId) {
     const dataUrl = await fileEntryIdToDataUrl(fileEntryId, part.mediaType)
     if (dataUrl) return { ...part, url: dataUrl }
-    // fileEntry missing / unreadable — fall through to url-based path so a
-    // still-valid `file://` snapshot can rescue legacy / migrated rows.
+    // fileEntry missing / unreadable — try to rescue from a still-valid
+    // `file://` snapshot (legacy / migrated rows). If no usable file:// URL
+    // is available, drop the part rather than emit `{type:'file', data:''}`.
+    const url = part.url
+    if (!url || !url.startsWith('file://')) return null
+    const rescued = await fileUrlToDataUrl(url, part.mediaType)
+    return rescued ? { ...part, url: rescued } : null
   }
 
   const url = part.url

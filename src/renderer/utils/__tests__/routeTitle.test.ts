@@ -7,7 +7,7 @@ vi.mock('@renderer/i18n', () => ({
       const translations: Record<string, string> = {
         'common.chat': '聊天',
         'agent.session.group.conversation': '对话',
-        'agent.sidebar_title': '工作',
+        'agent.sidebar_title': '任务',
         'title.store': '资源',
         'title.paintings': '绘画',
         'title.translate': '翻译',
@@ -35,7 +35,7 @@ describe('routeTitle', () => {
     describe('exact route matches', () => {
       it.each([
         ['/app/chat', '对话'],
-        ['/app/agents', '工作'],
+        ['/app/agents', '任务'],
         ['/app/paintings', '绘画'],
         ['/app/translate', '翻译'],
         ['/app/mini-app', '小程序'],
@@ -53,7 +53,7 @@ describe('routeTitle', () => {
     describe('nested route matches', () => {
       it('should match base path for nested routes', () => {
         expect(getDefaultRouteTitle('/app/chat/topic-123')).toBe('对话')
-        expect(getDefaultRouteTitle('/app/agents/session-123')).toBe('工作')
+        expect(getDefaultRouteTitle('/app/agents/session-123')).toBe('任务')
         expect(getDefaultRouteTitle('/settings/provider')).toBe('设置')
         expect(getDefaultRouteTitle('/settings/mcp/servers')).toBe('设置')
         expect(getDefaultRouteTitle('/app/paintings/zhipu')).toBe('绘画')

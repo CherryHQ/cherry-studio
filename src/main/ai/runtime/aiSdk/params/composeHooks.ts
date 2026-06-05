@@ -48,13 +48,31 @@ function chainOnError(parts: ReadonlyArray<Partial<AgentLoopHooks>>): AgentLoopH
   return async (ctx: ErrorContext) => {
     let action: 'retry' | 'abort' = 'abort'
     for (const fn of fns) {
-      const r = await fn(ctx)
-      if (r === 'retry') action = 'retry'
+      try {
+        const r = await fn(ctx)
+        if (r === 'retry') action = 'retry'
+      } catch (err) {
+        // A throwing handler contributes no decision; isolate it and continue
+        // the chain so every handler is still invoked (mirrors chainVoid).
+        logger.warn('composed onError hook threw; continuing chain', err as Error)
+      }
     }
     return action
   }
 }
 
+/**
+ * Composes multiple `prepareStep` hooks into one.
+ *
+ * Threading semantics — read carefully: only `messages` is carried forward
+ * between chained invocations, so each downstream hook sees the message edits
+ * made by the hooks before it. Every other returned key (model, system,
+ * toolChoice, …) is NOT threaded into the next hook's `options`; instead all
+ * returned keys are shallow-merged last-wins into the single final result. A
+ * downstream hook therefore cannot observe an upstream hook's non-`messages`
+ * override, but the last writer of any given key still wins in the result the
+ * SDK consumes.
+ */
 function chainPrepareStep(parts: ReadonlyArray<Partial<AgentLoopHooks>>): AgentLoopHooks['prepareStep'] | undefined {
   const fns = parts.map((p) => p.prepareStep).filter((f): f is NonNullable<AgentLoopHooks['prepareStep']> => Boolean(f))
   if (fns.length === 0) return undefined

@@ -23,14 +23,15 @@ function createQwenThinkingMiddleware(enableThinking: boolean): LanguageModelMid
       if (transformedParams.prompt && Array.isArray(transformedParams.prompt)) {
         transformedParams.prompt = transformedParams.prompt.map((message) => {
           // Only process user messages
-          if (message.role === 'user') {
-            // Process content array
-            if (Array.isArray(message.content)) {
-              for (const part of message.content) {
-                if (part.type === 'text' && !part.text.endsWith('/think') && !part.text.endsWith('/no_think')) {
-                  part.text += suffix
-                }
-              }
+          if (message.role === 'user' && Array.isArray(message.content)) {
+            // Map to NEW part objects instead of mutating caller-owned parts in place.
+            return {
+              ...message,
+              content: message.content.map((part) =>
+                part.type === 'text' && !part.text.endsWith('/think') && !part.text.endsWith('/no_think')
+                  ? { ...part, text: part.text + suffix }
+                  : part
+              )
             }
           }
           return message

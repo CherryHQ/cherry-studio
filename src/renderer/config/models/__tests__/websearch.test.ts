@@ -48,7 +48,7 @@ import { SystemProviderIds } from '@renderer/types'
 import type { Model } from '@shared/data/types/model'
 import { MODEL_CAPABILITY } from '@shared/data/types/model'
 
-import { toSharedCompatModel } from '../_bridge'
+import { toSharedCompatModel } from '../bridge'
 import { isOpenAIDeepResearchModel } from '../openai'
 import {
   isHunyuanSearchModel,

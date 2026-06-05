@@ -5,7 +5,8 @@ import {
   CreateAgentSessionMessageSchema,
   CreateAgentSessionMessagesSchema,
   ListSessionsQuerySchema,
-  SearchSessionMessagesQuerySchema
+  SearchSessionMessagesQuerySchema,
+  UpdateSessionSchema
 } from '../sessions'
 
 describe('AgentSessionMessage schemas', () => {
@@ -97,5 +98,15 @@ describe('SearchSessionMessagesQuerySchema', () => {
 
   it('rejects invalid createdAtFrom', () => {
     expect(() => SearchSessionMessagesQuerySchema.parse({ q: 'plan', createdAtFrom: 'today' })).toThrow()
+  })
+})
+
+describe('AgentSession schemas', () => {
+  it('rejects workspace updates because workspace binding is insert-only', () => {
+    expect(
+      UpdateSessionSchema.safeParse({
+        workspaceId: 'workspace-1'
+      }).success
+    ).toBe(false)
   })
 })

@@ -36,7 +36,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   const { applyReorderedList } = useReorder('/providers')
   const { isSupported: isOvmsSupported } = useOvmsSupport()
 
-  const [filterMode, setFilterMode] = useState<ProviderFilterMode>(filterModeHint ?? 'enabled')
+  const [filterMode, setFilterMode] = useState<ProviderFilterMode>(filterModeHint ?? 'all')
   const [searchText, setSearchText] = useState('')
   const { models: allModels } = useModels(undefined, { fetchEnabled: Boolean(searchText.trim()) })
   const [dragging, setDragging] = useState(false)

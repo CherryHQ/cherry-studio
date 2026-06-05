@@ -47,6 +47,8 @@ export interface MigrationPaths {
   readonly databaseFile: string
   /** {userData}/Data/KnowledgeBase */
   readonly knowledgeBaseDir: string
+  /** {userData}/Data/Files */
+  readonly filesDataDir: string
   /** {userData}/version.log — v1 VersionService version history log. */
   readonly versionLogFile: string
   /** {userData}/Data/agents.db — legacy standalone agents SQLite location. */
@@ -160,15 +162,17 @@ export function resolveMigrationPaths(): MigrationPathsResult {
     }
   }
 
+  const filesDataDir = path.join(currentUserData, 'Data', 'Files')
   const paths: MigrationPaths = Object.freeze({
     userData: currentUserData,
     cherryHome: CHERRY_HOME,
     databaseFile: path.join(currentUserData, DB_NAME),
     knowledgeBaseDir: path.join(currentUserData, 'Data', 'KnowledgeBase'),
+    filesDataDir,
     versionLogFile: path.join(currentUserData, 'version.log'),
     legacyAgentDbFile: path.join(currentUserData, 'Data', 'agents.db'),
     agentWorkspacesDir: path.join(currentUserData, 'Data', 'Agents'),
-    customMiniAppsFile: path.join(currentUserData, 'Data', 'Files', 'custom-minapps.json'),
+    customMiniAppsFile: path.join(filesDataDir, 'custom-minapps.json'),
     legacyConfigFile,
     migrationsFolder: app.isPackaged
       ? path.join(process.resourcesPath, MIGRATIONS_BASE_PATH)

@@ -42,8 +42,8 @@ const IntegrationSettings: FC = () => {
   ]
 
   return (
-    <RowFlex className="flex-1">
-      <div className={`flex flex-col ${settingsSubmenuScrollClassName}`}>
+    <RowFlex className="min-w-0 flex-1">
+      <div className={`flex shrink-0 flex-col ${settingsSubmenuScrollClassName}`}>
         <PageHeader title={t('settings.integrations.title')} />
         <Scrollbar className="min-h-0 flex-1 [&_.iconfont]:text-current [&_.iconfont]:leading-4">
           <MenuList className={settingsSubmenuListClassName}>

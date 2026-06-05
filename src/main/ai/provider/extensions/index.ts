@@ -1,6 +1,10 @@
 /** App-specific Provider Extensions registered alongside `coreExtensions`. */
 
-import { type AmazonBedrockProviderSettings, createAmazonBedrock } from '@ai-sdk/amazon-bedrock'
+import {
+  type AmazonBedrockProvider,
+  type AmazonBedrockProviderSettings,
+  createAmazonBedrock
+} from '@ai-sdk/amazon-bedrock'
 import { type CerebrasProviderSettings, createCerebras } from '@ai-sdk/cerebras'
 import { createGateway, type GatewayProviderSettings } from '@ai-sdk/gateway'
 import { createVertexAnthropic, type GoogleVertexAnthropicProvider } from '@ai-sdk/google-vertex/anthropic/edge'
@@ -85,8 +89,22 @@ export const BedrockExtension = ProviderExtension.create({
   name: 'bedrock',
   aliases: ['aws-bedrock'] as const,
   supportsImageGeneration: true,
-  create: createAmazonBedrock
-} as const satisfies ProviderExtensionConfig<AmazonBedrockProviderSettings, ProviderV3, 'bedrock'>)
+  create: createAmazonBedrock,
+  // Bedrock runs Anthropic models, whose `tools` expose the same server-side
+  // web-search / web-fetch factories as the native `anthropic` extension.
+  toolFactories: {
+    webSearch:
+      (provider: AmazonBedrockProvider) =>
+      (config: NonNullable<Parameters<AmazonBedrockProvider['tools']['webSearch_20260209']>[0]>) => ({
+        tools: { webSearch: provider.tools.webSearch_20260209(config) }
+      }),
+    urlContext:
+      (provider: AmazonBedrockProvider) =>
+      (config: NonNullable<Parameters<AmazonBedrockProvider['tools']['webFetch_20260209']>[0]>) => ({
+        tools: { urlContext: provider.tools.webFetch_20260209(config) }
+      })
+  }
+} as const satisfies ProviderExtensionConfig<AmazonBedrockProviderSettings, AmazonBedrockProvider, 'bedrock'>)
 
 export const PerplexityExtension = ProviderExtension.create({
   name: 'perplexity',

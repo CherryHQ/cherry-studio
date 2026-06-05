@@ -47,6 +47,8 @@ import {
   transformMessage
 } from '../ChatMappings'
 
+const MIGRATION_FILES_DIR = '/mock/migration-userdata/Data/Files'
+
 /** Helper: create a minimal OldMessage stub */
 function msg(id: string, role: 'user' | 'assistant' = 'assistant', extra: Partial<OldMessage> = {}): OldMessage {
   return {
@@ -432,12 +434,14 @@ describe('transformBlocksToParts', () => {
 
     it('promotes inline data: URL to v2 file_entry when db dep is provided', async () => {
       const dataUrl = 'data:image/png;base64,iVBORw0KGgo='
-      const { parts } = await transformBlocksToParts([block('image', { url: dataUrl })], { db: dbh.db })
+      const { parts } = await transformBlocksToParts([block('image', { url: dataUrl })], {
+        db: dbh.db,
+        filesDataDir: MIGRATION_FILES_DIR
+      })
 
       expect(parts).toHaveLength(1)
       const part = parts[0] as FileUIPart
-      // mockApplicationFactory returns `/mock/<key>/<filename>` for getPath.
-      expect(part.url).toMatch(/^file:\/\/\/mock\/feature\.files\.data\/.+\.png$/)
+      expect(part.url).toMatch(/^file:\/\/\/mock\/migration-userdata\/Data\/Files\/.+\.png$/)
       expect(part.mediaType).toBe('image/png')
       const fileEntryId = readCherryMeta(part)?.fileEntryId
       expect(fileEntryId).toBeTruthy()
@@ -463,7 +467,7 @@ describe('transformBlocksToParts', () => {
             metadata: { generateImageResponse: { type: 'base64', images: [img1, img2] } }
           })
         ],
-        { db: dbh.db }
+        { db: dbh.db, filesDataDir: MIGRATION_FILES_DIR }
       )
 
       expect(parts).toHaveLength(2)
@@ -503,7 +507,7 @@ describe('transformBlocksToParts', () => {
             }
           })
         ],
-        { db: dbh.db }
+        { db: dbh.db, filesDataDir: MIGRATION_FILES_DIR }
       )
 
       // The remote URL is in generateImageResponse, not block.url — so no part for now;

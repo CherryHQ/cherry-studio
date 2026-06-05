@@ -3,7 +3,6 @@ import { createPaintingGenerateError } from '@shared/ai/paintingGenerateError'
 import type { CanonicalParamKey } from '@shared/data/types/model'
 
 import { checkProviderEnabled } from '../utils/checkProviderEnabled'
-import type { DownloadImagesOptions } from '../utils/downloadImages'
 import { generatePainting } from './generatePainting'
 import type { GenerateInput } from './types/generateInput'
 import type { PaintingData } from './types/paintingData'
@@ -79,11 +78,6 @@ export interface CanonicalGenerateOptions<T extends PaintingData> {
    * per-model rule when the standard check is skipped.
    */
   requirePrompt?: boolean | ((painting: T) => boolean)
-  /**
-   * Stamped on the `{ urls }` download branch — proxy warning toggle,
-   * mixed-url+data acceptance, etc.
-   */
-  downloadOptions?: DownloadImagesOptions
 }
 
 /**

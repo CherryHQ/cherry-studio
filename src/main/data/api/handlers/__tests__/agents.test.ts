@@ -355,13 +355,11 @@ describe('agentHandlers', () => {
       expect(result).toEqual([mockSkill])
     })
 
-    it('passes agentId to skillService.list when provided and agent exists', async () => {
-      getAgentMock.mockResolvedValueOnce(mockAgent)
+    it('passes agentId to skillService.list when provided', async () => {
       listSkillsMock.mockResolvedValueOnce([mockSkill])
 
       const result = await skillHandlers['/skills'].GET({ query: { agentId: AGENT_ID } } as never)
 
-      expect(getAgentMock).toHaveBeenCalledWith(AGENT_ID)
       expect(listSkillsMock).toHaveBeenCalledWith({ agentId: AGENT_ID })
       expect(result).toEqual([mockSkill])
     })
@@ -388,14 +386,14 @@ describe('agentHandlers', () => {
       expect(listSkillsMock).not.toHaveBeenCalled()
     })
 
-    it('throws notFound for /skills when agentId is provided but agent does not exist', async () => {
-      getAgentMock.mockResolvedValueOnce(null)
+    it('propagates notFound from /skills service when agentId does not exist', async () => {
+      listSkillsMock.mockRejectedValueOnce({ code: ErrorCode.NOT_FOUND })
 
       await expect(skillHandlers['/skills'].GET({ query: { agentId: AGENT_ID } } as never)).rejects.toMatchObject({
         code: ErrorCode.NOT_FOUND
       })
 
-      expect(listSkillsMock).not.toHaveBeenCalled()
+      expect(listSkillsMock).toHaveBeenCalledWith({ agentId: AGENT_ID })
     })
 
     it('rejects invalid skill query fields', async () => {

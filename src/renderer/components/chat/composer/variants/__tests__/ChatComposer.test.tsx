@@ -358,9 +358,12 @@ vi.mock('@renderer/hooks/useAssistant', () => ({
   }),
   useDefaultAssistant: () => ({
     assistant: {
-      id: 'default-assistant',
+      id: null,
       name: 'Default Assistant',
-      emoji: 'D'
+      emoji: 'D',
+      modelId: model.id,
+      settings: { enableWebSearch: true },
+      knowledgeBaseIds: []
     }
   })
 }))
@@ -430,7 +433,7 @@ const topic = {
 
 const unlinkedTopic = {
   id: 'topic-unlinked',
-  assistantId: null,
+  assistantId: undefined,
   type: 'chat'
 } as any
 
@@ -798,35 +801,37 @@ describe('ChatComposer', () => {
     expect(mocks.surfaceProps?.sendBlockedReason).toBe('code.model_required')
   })
 
-  it('shows the runtime default assistant for unlinked home topics', () => {
-    vi.mocked(cacheService.getCasual).mockReturnValue('hello')
-    mocks.assistant = {
-      id: null,
-      name: 'Default Assistant',
-      emoji: 'D',
-      modelId: model.id,
-      settings: { enableWebSearch: true },
-      knowledgeBaseIds: []
-    }
+  it('shows the default assistant for unlinked home topics', () => {
+    mocks.assistant = undefined
 
     render(<ChatHomeComposer topic={unlinkedTopic} onSend={vi.fn()} />)
 
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Default Assistant')
     expect(screen.getByTestId('composer-below-controls')).toHaveTextContent('Model A | Provider')
+    expect(screen.getByTestId('composer-below-controls')).not.toHaveTextContent('button.select_assistant')
     expect(screen.getByTestId('assistant-selector')).toHaveAttribute('data-value', '')
-    expect(mocks.surfaceProps?.sendDisabled).toBe(false)
     expect(mocks.surfaceProps?.sendBlockedReason).toBeUndefined()
   })
 
+  it('sends unlinked home topics through the default assistant display state', async () => {
+    mocks.assistant = undefined
+    const onSend = vi.fn()
+
+    render(<ChatHomeComposer topic={unlinkedTopic} onSend={onSend} />)
+
+    await mocks.surfaceProps?.onSendDraft({ text: 'hello', tokens: [] })
+
+    expect(onSend).toHaveBeenCalledWith(
+      'hello',
+      expect.objectContaining({
+        mentionedModels: undefined
+      })
+    )
+    expect(mocks.toastError).not.toHaveBeenCalled()
+  })
+
   it('updates the default model preference when the runtime default assistant selects a model', () => {
-    mocks.assistant = {
-      id: null,
-      name: 'Default Assistant',
-      emoji: 'D',
-      modelId: model.id,
-      settings: { enableWebSearch: true },
-      knowledgeBaseIds: []
-    }
+    mocks.assistant = undefined
 
     render(<ChatHomeComposer topic={unlinkedTopic} onSend={vi.fn()} />)
 
@@ -837,30 +842,12 @@ describe('ChatComposer', () => {
   })
 
   it('shows the runtime default assistant in the selector trigger when assistant id is empty', () => {
-    mocks.assistant = {
-      id: null,
-      name: 'Default Assistant',
-      emoji: 'D',
-      modelId: model.id,
-      settings: { enableWebSearch: true },
-      knowledgeBaseIds: []
-    }
+    mocks.assistant = undefined
 
     render(<ChatComposer topic={{ ...topic, assistantId: null }} onSend={vi.fn()} />)
 
     expect(screen.getByTestId('assistant-selector')).toHaveAttribute('data-value', '')
     expect(screen.getByTestId('assistant-selector')).toHaveTextContent('Default Assistant')
-    expect(screen.getByTestId('assistant-selector')).not.toHaveTextContent('button.select_assistant')
-  })
-
-  it('falls back to the runtime assistant trigger while runtime assistant data is absent', () => {
-    mocks.assistant = undefined
-    mocks.model = undefined
-
-    render(<ChatHomeComposer topic={unlinkedTopic} onSend={vi.fn()} />)
-
-    expect(screen.getByTestId('assistant-selector')).toHaveAttribute('data-value', '')
-    expect(screen.getByTestId('assistant-selector')).toHaveTextContent('chat.default.name')
     expect(screen.getByTestId('assistant-selector')).not.toHaveTextContent('button.select_assistant')
   })
 

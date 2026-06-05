@@ -26,33 +26,39 @@ function createSkipGeminiThoughtSignatureMiddleware(): LanguageModelMiddleware {
       // Process messages in prompt
       if (transformedParams.prompt && Array.isArray(transformedParams.prompt)) {
         transformedParams.prompt = transformedParams.prompt.map((message) => {
-          if (typeof message.content !== 'string') {
-            for (const part of message.content) {
-              const isToolCallPart = part.type === 'tool-call'
-
-              // Note: text part and reasoning part do not require thought signature validation
-              // They are handled by messageConverter now
-
+          // Tool-call parts only ever live in assistant messages.
+          if (message.role !== 'assistant') {
+            return message
+          }
+          // Note: text part and reasoning part do not require thought signature validation
+          // They are handled by messageConverter now.
+          // Map to NEW part objects instead of mutating caller-owned parts in place.
+          return {
+            ...message,
+            content: message.content.map((part) => {
               // Case: OpenAI-compatible path - add extra_content for tool-call parts
               // All tool-calls need the signature for Gemini OpenAI-compatible API
-              if (isToolCallPart) {
-                if (!part.providerOptions) {
-                  part.providerOptions = {}
-                }
-                if (!part.providerOptions.openaiCompatible) {
-                  part.providerOptions.openaiCompatible = {}
-                }
-                // Google OpenAI-compatible API expects extra_content.google.thought_signature
-                // See: https://ai.google.dev/gemini-api/docs/thought-signatures#openai
-                part.providerOptions.openaiCompatible.extra_content = {
-                  google: {
-                    thought_signature: MAGIC_STRING
+              if (part.type !== 'tool-call') {
+                return part
+              }
+              // Google OpenAI-compatible API expects extra_content.google.thought_signature
+              // See: https://ai.google.dev/gemini-api/docs/thought-signatures#openai
+              return {
+                ...part,
+                providerOptions: {
+                  ...part.providerOptions,
+                  openaiCompatible: {
+                    ...part.providerOptions?.openaiCompatible,
+                    extra_content: {
+                      google: {
+                        thought_signature: MAGIC_STRING
+                      }
+                    }
                   }
                 }
               }
-            }
+            })
           }
-          return message
         })
       }
 

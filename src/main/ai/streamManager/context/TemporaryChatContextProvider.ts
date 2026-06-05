@@ -81,7 +81,9 @@ export class TemporaryChatContextProvider implements ChatContextProvider {
       new PersistenceListener({
         topicId: req.topicId,
         modelId: model.id,
-        backend: new TemporaryChatBackend({ topicId: req.topicId, modelId: model.id, modelSnapshot })
+        backend: new TemporaryChatBackend({ topicId: req.topicId, modelId: model.id, modelSnapshot }),
+        onPersistFailed: (error) =>
+          void subscriber.onError({ error, status: 'error', modelId: model.id, isTopicDone: true })
       })
     ]
 

@@ -23,7 +23,7 @@ export interface AgentSessionMessageBackendOptions {
   sessionId: string
   /** Model id used for this assistant message. */
   modelId?: UniqueModelId
-  /** Opaque runtime resume token persisted for future recovery; empty string when unknown. */
+  /** Opaque runtime resume token persisted for future recovery; `undefined` when unknown. */
   runtimeResumeToken?: string | (() => string | undefined)
   /** Post-success hook — typically session auto-rename. */
   afterPersist?: (finalMessage: CherryUIMessage) => Promise<void>

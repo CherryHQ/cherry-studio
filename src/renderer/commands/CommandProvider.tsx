@@ -1,10 +1,11 @@
-import { useMultiplePreferences } from '@data/hooks/usePreference'
+import { useMultiplePreferences, usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { platform } from '@renderer/config/constant'
 import {
   type CommandId,
   type ContextReader,
   getShortcutBindingFromKeyboardEvent,
+  type MenuPresentationMode,
   REGISTERED_KEYBINDINGS,
   resolveCommandByKeybinding,
   type SupportedPlatform
@@ -41,7 +42,21 @@ interface CommandRuntime {
   registerHandler: (command: CommandId, handler: CommandHandler, options?: CommandHandlerOptions) => () => void
 }
 
+interface CommandSharedPreferences {
+  shortcutPreferences: Partial<Record<CommandId, PreferenceShortcutType>>
+  menuPresentationMode: MenuPresentationMode | undefined
+}
+
+const EMPTY_SHORTCUT_PREFERENCES: Partial<Record<CommandId, PreferenceShortcutType>> = {}
+
+const NO_OP_RUNTIME: CommandRuntime = {
+  execute: (command) => logger.warn(`No renderer command runtime mounted: ${command}`),
+  hasHandler: () => false,
+  registerHandler: () => () => {}
+}
+
 const CommandRuntimeContext = createContext<CommandRuntime | null>(null)
+const CommandSharedPreferencesContext = createContext<CommandSharedPreferences | null>(null)
 
 const shortcutPreferenceKeys = Object.fromEntries(
   REGISTERED_KEYBINDINGS.map((rule) => [rule.command, rule.preferenceKey])
@@ -50,6 +65,7 @@ const shortcutPreferenceKeys = Object.fromEntries(
 export function CommandProvider({ children }: { children: React.ReactNode }) {
   const contextSnapshot = useCommandContextSnapshot()
   const [shortcutPreferences] = useMultiplePreferences(shortcutPreferenceKeys)
+  const [menuPresentationMode] = usePreference('menu.presentation_mode')
 
   const nextHandlerIdRef = useRef(0)
   const handlersRef = useRef(new Map<CommandId, CommandHandlerEntry[]>())
@@ -163,11 +179,23 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
     [execute, hasHandler, registerHandler]
   )
 
+  const sharedPreferences = useMemo<CommandSharedPreferences>(
+    () => ({
+      shortcutPreferences: shortcutPreferences as Partial<Record<CommandId, PreferenceShortcutType>>,
+      menuPresentationMode: menuPresentationMode as MenuPresentationMode | undefined
+    }),
+    [shortcutPreferences, menuPresentationMode]
+  )
+
   useEffect(() => {
     return window.api.command?.onExecuteFromNativeMenu?.(execute)
   }, [execute])
 
-  return <CommandRuntimeContext value={value}>{children}</CommandRuntimeContext>
+  return (
+    <CommandRuntimeContext value={value}>
+      <CommandSharedPreferencesContext value={sharedPreferences}>{children}</CommandSharedPreferencesContext>
+    </CommandRuntimeContext>
+  )
 }
 
 export function useCommandHandler(command: CommandId, handler: CommandHandler, options?: CommandHandlerOptions): void {
@@ -182,14 +210,21 @@ export function useCommandHandler(command: CommandId, handler: CommandHandler, o
 }
 
 export function useCommandRuntime(): CommandRuntime {
-  const runtime = use(CommandRuntimeContext)
-  if (runtime) {
-    return runtime
-  }
+  return use(CommandRuntimeContext) ?? NO_OP_RUNTIME
+}
 
-  return {
-    execute: (command) => logger.warn(`No renderer command runtime mounted: ${command}`),
-    hasHandler: () => false,
-    registerHandler: () => () => {}
-  }
+/**
+ * Single-subscriber accessor for the shortcut preference map. Reads from the
+ * context populated by {@link CommandProvider}; falls back to an empty map
+ * outside any provider (tests, isolated windows).
+ *
+ * Direct `useMultiplePreferences(shortcutPreferenceKeys)` calls multiply IPC
+ * listeners per render — N consumers × ~24 keys froze the settings window.
+ */
+export function useCommandShortcutPreferences(): Partial<Record<CommandId, PreferenceShortcutType>> {
+  return use(CommandSharedPreferencesContext)?.shortcutPreferences ?? EMPTY_SHORTCUT_PREFERENCES
+}
+
+export function useCommandMenuPresentationMode(): MenuPresentationMode | undefined {
+  return use(CommandSharedPreferencesContext)?.menuPresentationMode
 }

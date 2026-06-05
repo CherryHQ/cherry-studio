@@ -11,8 +11,8 @@ import { resolveMcpSourceToolAccess } from '@shared/ai/tools/mcpSourcePolicy'
 import type { AgentConfiguration, AgentPermissionMode } from '@shared/data/api/schemas/agents'
 import type { SharedCacheKey } from '@shared/data/cache/cacheSchemas'
 import type { AgentType } from '@shared/data/types/agent'
-import type { MCPServer } from '@shared/data/types/mcpServer'
-import type { MCPTool } from '@types'
+import type { McpServer } from '@shared/data/types/mcpServer'
+import type { McpTool } from '@types'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 type McpToolsCacheKey = `mcp.tools.${string}`
@@ -27,16 +27,16 @@ export type AgentToolSource = {
   permissionMode?: AgentPermissionMode | string | null
 }
 
-function useMcpToolsCache(serverIds: readonly string[]): Record<string, MCPTool[]> {
+function useMcpToolsCache(serverIds: readonly string[]): Record<string, McpTool[]> {
   const uniqueIds = useMemo(() => Array.from(new Set(serverIds)).sort(), [serverIds])
   const cacheKeys = useMemo(() => uniqueIds.map((id) => mcpToolsCacheKey(id)), [uniqueIds])
 
   const readSnapshot = () =>
     Object.fromEntries(
       uniqueIds.map((id) => [id, cacheService.getShared(mcpToolsCacheKey(id) as SharedCacheKey) ?? []])
-    ) as Record<string, MCPTool[]>
+    ) as Record<string, McpTool[]>
 
-  const [snapshot, setSnapshot] = useState<Record<string, MCPTool[]>>(readSnapshot)
+  const [snapshot, setSnapshot] = useState<Record<string, McpTool[]>>(readSnapshot)
 
   useEffect(() => {
     setSnapshot(readSnapshot())
@@ -66,7 +66,7 @@ function toTool(descriptor: ClaudeToolDescriptor, source: AgentToolSource): Tool
   }
 }
 
-function mcpDescriptors(server: MCPServer, tools: readonly MCPTool[]): ClaudeToolDescriptor[] {
+function mcpDescriptors(server: McpServer, tools: readonly McpTool[]): ClaudeToolDescriptor[] {
   if (!server.isActive) return []
   return tools.flatMap((tool) => {
     const sourceAccess = resolveMcpSourceToolAccess(server, tool)

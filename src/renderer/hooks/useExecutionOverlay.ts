@@ -60,10 +60,15 @@ interface ReaderHandle {
 
 function pickSeed(uiMessages: CherryUIMessage[], anchorMessageId?: string): CherryUIMessage | undefined {
   if (!anchorMessageId) return undefined
-  return (
-    uiMessages.find((m) => m.id === anchorMessageId) ??
-    ({ id: anchorMessageId, role: 'assistant', parts: [] } as CherryUIMessage)
-  )
+  const found = uiMessages.find((m) => m.id === anchorMessageId)
+  if (!found) {
+    return { id: anchorMessageId, role: 'assistant', parts: [] } as CherryUIMessage
+  }
+  // readUIMessageStream mutates `message.parts` in place. `found` is the live, render-stable
+  // SWR-derived row whose `parts` array aliases the SWR cache, so seeding the reader with it
+  // would corrupt cached history and race the DB-authoritative refresh(). Clone the parts so
+  // the reader only ever writes to a throwaway. (DB parts are JSON-serializable.)
+  return { ...found, parts: structuredClone(found.parts ?? []) }
 }
 
 export function useExecutionOverlay(
@@ -85,18 +90,18 @@ export function useExecutionOverlay(
   onFinishRef.current = options.onFinish
   const readersRef = useRef<Map<UniqueModelId, ReaderHandle>>(new Map())
 
-  // Topic switch → drop all stale overlay state.
-  const prevTopicRef = useRef(topicId)
-  if (prevTopicRef.current !== topicId) {
-    prevTopicRef.current = topicId
-    for (const r of readersRef.current.values()) {
-      r.cancel()
-      r.unregister()
-    }
-    readersRef.current.clear()
-  }
+  // Topic switch → tear down the previous topic's readers and drop all stale
+  // overlay state. Runs as an effect (not in the render body) so the teardown
+  // happens after commit, never during a concurrent/abandoned render.
   useEffect(() => {
     setSnapshots({})
+    return () => {
+      for (const r of readersRef.current.values()) {
+        r.cancel()
+        r.unregister()
+      }
+      readersRef.current.clear()
+    }
   }, [topicId])
 
   useEffect(() => {

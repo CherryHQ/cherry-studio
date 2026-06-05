@@ -697,6 +697,19 @@ export class MessageService {
     return rows.map(rowToMessage)
   }
 
+  /**
+   * Flip the given rows to `error` in a single serialized write. Paired with
+   * {@link findPendingAssistantMessages} for the boot reconcile of crash-orphaned `pending`
+   * turns. Routes through `withWriteTx` so it serializes with any other write path active
+   * during the WhenReady boot phase.
+   */
+  async markMessagesError(ids: string[]): Promise<void> {
+    if (ids.length === 0) return
+    await application.get('DbService').withWriteTx(async (tx) => {
+      await tx.update(messageTable).set({ status: 'error' }).where(inArray(messageTable.id, ids))
+    })
+  }
+
   async search(query: SearchMessagesQueryParams): Promise<SearchMessagesResponse> {
     const terms = splitKeywordsToTerms(query.q)
     if (terms.length === 0) return { items: [] }
@@ -807,8 +820,9 @@ export class MessageService {
 
   /** Update siblingsGroupId for a single message. */
   async updateSiblingsGroupId(id: string, siblingsGroupId: number): Promise<void> {
-    const db = application.get('DbService').getDb()
-    await db.update(messageTable).set({ siblingsGroupId }).where(eq(messageTable.id, id))
+    await application.get('DbService').withWriteTx(async (tx) => {
+      await tx.update(messageTable).set({ siblingsGroupId }).where(eq(messageTable.id, id))
+    })
   }
 
   /**
@@ -830,9 +844,7 @@ export class MessageService {
    *   and resending the first user turn.
    */
   async createSibling(sourceId: string, data: MessageData): Promise<Message> {
-    const dbService = application.get('DbService')
-
-    return await dbService.withWriteTx(async (tx) => {
+    return await application.get('DbService').withWriteTx(async (tx) => {
       const [source] = await tx.select().from(messageTable).where(eq(messageTable.id, sourceId)).limit(1)
       if (!source) {
         throw DataApiErrorFactory.notFound('Message', sourceId)
@@ -879,9 +891,7 @@ export class MessageService {
    * - Topic activeNodeId update
    */
   async create(topicId: string, dto: CreateMessageDto): Promise<Message> {
-    const db = application.get('DbService').getDb()
-
-    return await db.transaction(async (tx) => {
+    return await application.get('DbService').withWriteTx(async (tx) => {
       // Step 1: Verify topic exists and fetch its current state.
       // We need the topic to check activeNodeId for parentId auto-resolution.
       const [topic] = await tx.select().from(topicTable).where(eq(topicTable.id, topicId)).limit(1)
@@ -1003,9 +1013,7 @@ export class MessageService {
   async createUserMessageWithPlaceholders(
     input: CreateUserMessageWithPlaceholdersInput
   ): Promise<CreateUserMessageWithPlaceholdersResult> {
-    const db = application.get('DbService').getDb()
-
-    return await db.transaction(async (tx) => {
+    return await application.get('DbService').withWriteTx(async (tx) => {
       // Validate topic
       const [topic] = await tx.select().from(topicTable).where(eq(topicTable.id, input.topicId)).limit(1)
       if (!topic) {
@@ -1048,7 +1056,7 @@ export class MessageService {
             role: dto.role,
             data: dto.data,
             status: dto.status ?? 'pending',
-            siblingsGroupId: dto.siblingsGroupId ?? 0,
+            ...(dto.siblingsGroupId !== undefined ? { siblingsGroupId: dto.siblingsGroupId } : {}),
             modelId: dto.modelId,
             modelSnapshot: dto.modelSnapshot,
             traceId: dto.traceId,
@@ -1090,7 +1098,7 @@ export class MessageService {
             role: p.role,
             data: p.data,
             status: p.status ?? 'pending',
-            siblingsGroupId: input.siblingsGroupId ?? 0,
+            ...(input.siblingsGroupId !== undefined ? { siblingsGroupId: input.siblingsGroupId } : {}),
             modelId: p.modelId,
             modelSnapshot: p.modelSnapshot,
             traceId: p.traceId,
@@ -1122,8 +1130,6 @@ export class MessageService {
    * Cycle check is performed outside transaction as a read-only safety check.
    */
   async update(id: string, dto: UpdateMessageDto): Promise<Message> {
-    const db = application.get('DbService').getDb()
-
     // Pre-transaction: Check for cycle if moving to new parent
     // This is done outside transaction since getDescendantIds uses its own db context
     // and cycle check is a safety check (worst case: reject valid operation)
@@ -1134,7 +1140,7 @@ export class MessageService {
       }
     }
 
-    return await db.transaction(async (tx) => {
+    return await application.get('DbService').withWriteTx(async (tx) => {
       // Get existing message within transaction
       const [existingRow] = await tx.select().from(messageTable).where(eq(messageTable.id, id)).limit(1)
 
@@ -1223,7 +1229,7 @@ export class MessageService {
     }
 
     // Use transaction for atomic delete + activeNodeId update
-    return await db.transaction(async (tx) => {
+    return await application.get('DbService').withWriteTx(async (tx) => {
       let deletedIds: string[]
       let reparentedIds: string[] | undefined
       let newActiveNodeId: string | null | undefined
@@ -1272,9 +1278,7 @@ export class MessageService {
       // Update topic.activeNodeId if needed
       if (newActiveNodeId !== undefined) {
         if (newActiveNodeId === null) {
-          // No remaining message to anchor to — clear directly. setActiveNodeTx
-          // would reject null because it can't validate "no message".
-          await tx.update(topicTable).set({ activeNodeId: null }).where(eq(topicTable.id, message.topicId))
+          await topicService.clearActiveNodeTx(tx, message.topicId)
         } else {
           await topicService.setActiveNodeTx(tx, message.topicId, newActiveNodeId, { assumeValid: true })
         }

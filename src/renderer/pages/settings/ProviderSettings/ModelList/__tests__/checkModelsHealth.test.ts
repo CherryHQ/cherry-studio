@@ -57,6 +57,22 @@ describe('checkModelsHealth', () => {
     await run
   })
 
+  it('probes once per model regardless of how many keys are configured (I7)', async () => {
+    checkApiMock.mockResolvedValue(okResult)
+
+    const results = await checkModelsHealth({
+      models: [{ id: 'model-a' }] as never,
+      apiKeys: ['sk-1', 'sk-2', 'sk-3'],
+      isConcurrent: true,
+      timeout: 1000
+    })
+
+    // One probe (the provider's rotated credential), not one per key.
+    expect(checkApiMock).toHaveBeenCalledTimes(1)
+    expect(results[0].kind).toBe('ok')
+    expect(results[0].keyResults).toHaveLength(3)
+  })
+
   it('rejects when the health check pipeline fails outside per-key results', async () => {
     checkApiMock.mockResolvedValue(okResult)
     vi.mocked(aggregateApiKeyResults).mockImplementationOnce(() => {

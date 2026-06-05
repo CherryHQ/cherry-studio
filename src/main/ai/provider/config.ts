@@ -103,8 +103,15 @@ export async function providerToAiSdkConfig(provider: Provider, model: Model): P
     { match: (p) => isOllamaProvider(p), build: buildOllamaConfig },
     { match: (p) => isAzureOpenAIProvider(p), build: buildAzureConfig },
     { match: (_, id) => id === 'bedrock', build: buildBedrockConfig },
-    { match: (_, id) => id === 'google-vertex', build: buildVertexConfig },
-    { match: (_, id) => id === 'cherryin', build: buildCherryinConfig },
+    // `google-vertex-anthropic` (Vertex on an anthropic-messages endpoint) must route here
+    // too — `buildVertexConfig` branches on `isAnthropic`. Otherwise it falls through to the
+    // generic builder, dropping project/location/googleCredentials and the publisher baseURL.
+    { match: (_, id) => id === 'google-vertex' || id === 'google-vertex-anthropic', build: buildVertexConfig },
+    // Match on the provider id, not the resolved aiSdkProviderId: the resolver upgrades the
+    // default chat endpoint to the `cherryin-chat` variant, so `id === 'cherryin'` is never true
+    // for the common path and the request would fall through to the generic builder, dropping the
+    // relay-resolved anthropic/gemini baseURLs and the `/v1` segment. (Mirrors `cherryai`/`copilot`.)
+    { match: (p) => p.id === SystemProviderIds.cherryin, build: buildCherryinConfig },
     { match: (_, id) => id === 'newapi', build: buildNewApiConfig },
     { match: (_, id) => id === 'aihubmix', build: buildAiHubMixConfig }
   ]
@@ -216,6 +223,26 @@ async function buildBedrockConfig(ctx: BuilderContext): Promise<ProviderConfig<'
   return { ...base, providerSettings: { ...ctx.baseConfig, baseURL } }
 }
 
+/**
+ * Vertex service-account credentials may arrive with either camelCase
+ * (`privateKey`/`clientEmail`) or snake_case (`private_key`/`client_email`)
+ * keys depending on how the JSON key file was stored. Normalize both shapes to
+ * the camelCase form the Vertex SDK expects. Shared with the model-listing path
+ * (`createVertexModelListRequest`).
+ */
+export function normalizeVertexCredentials(credentials: Record<string, unknown> | undefined): {
+  privateKey?: string
+  clientEmail?: string
+} {
+  if (!credentials) return {}
+  const privateKey = (credentials.privateKey ?? credentials.private_key) as string | undefined
+  const clientEmail = (credentials.clientEmail ?? credentials.client_email) as string | undefined
+  return {
+    ...(privateKey !== undefined && { privateKey }),
+    ...(clientEmail !== undefined && { clientEmail })
+  }
+}
+
 async function buildVertexConfig(ctx: BuilderContext): Promise<ProviderConfig<'google-vertex'>> {
   const authConfig = await providerService.getAuthConfig(ctx.actualProvider.id)
 
@@ -228,10 +255,17 @@ async function buildVertexConfig(ctx: BuilderContext): Promise<ProviderConfig<'g
 
   const modelId = ctx.model.apiModelId ?? ctx.model.id
   const isAnthropic = ctx.aiSdkProviderId === 'google-vertex-anthropic' || modelId.startsWith('claude')
-  const baseURL = ctx.baseConfig.baseURL + (isAnthropic ? '/publishers/anthropic/models' : '/publishers/google')
+  // Standard Vertex providers leave baseURL empty. Appending the publisher suffix to `''`
+  // yields a truthy host-less URL (`/publishers/google`), which the Vertex SDK's `?? ` default
+  // does NOT override — so it must stay `undefined` to let the SDK derive the full aiplatform
+  // host. Only append the suffix when a custom host is actually configured.
+  const baseURL = ctx.baseConfig.baseURL
+    ? ctx.baseConfig.baseURL + (isAnthropic ? '/publishers/anthropic/models' : '/publishers/google')
+    : undefined
 
+  const { privateKey, clientEmail } = normalizeVertexCredentials(googleCredentials)
   const creds = googleCredentials
-    ? { ...googleCredentials, privateKey: formatPrivateKey(googleCredentials.privateKey ?? '') }
+    ? { ...googleCredentials, clientEmail, privateKey: formatPrivateKey(privateKey ?? '') }
     : undefined
 
   return {

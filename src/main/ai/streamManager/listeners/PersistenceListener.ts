@@ -8,7 +8,7 @@
 import { loggerService } from '@logger'
 import type { CherryMessagePart, CherryUIMessage } from '@shared/data/types/message'
 import type { UniqueModelId } from '@shared/data/types/model'
-import type { SerializedError } from '@shared/types/error'
+import { type SerializedError, serializeError } from '@shared/types/error'
 import type { UIMessageChunk } from 'ai'
 
 import { normalizeAssistantMessageCitations } from '../persistence/normalizeCitations'
@@ -30,6 +30,12 @@ export interface PersistenceListenerOptions {
   /** Multi-model: one listener per execution, filter by modelId. Undefined = single-model "any". */
   modelId?: UniqueModelId
   backend: PersistenceBackend
+  /**
+   * Called when persistence fails after a terminal event. The DB row is already driven to
+   * `error`; this lets the caller also correct the LIVE renderer (which was told the turn
+   * succeeded) so the bubble doesn't stay a frozen success until reload.
+   */
+  onPersistFailed?: (error: SerializedError) => void
 }
 
 export class PersistenceListener implements StreamListener {
@@ -131,6 +137,20 @@ export class PersistenceListener implements StreamListener {
         status,
         err
       })
+      // The placeholder row stays `pending` forever (boot-time reconcile aside), so on reload it
+      // shows a frozen loading bubble. Best-effort drive it to a terminal `error` state instead.
+      try {
+        await this.opts.backend.markTerminalError?.()
+      } catch (markErr) {
+        logger.error('Failed to mark assistant message as terminal error after persist failure', {
+          backend: this.opts.backend.kind,
+          topicId: this.opts.topicId,
+          status,
+          err: markErr
+        })
+      }
+      // Correct the live renderer: it was already told this turn succeeded.
+      this.opts.onPersistFailed?.(serializeError(err))
       return
     }
 

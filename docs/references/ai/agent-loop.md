@@ -2,8 +2,9 @@
 
 ## What it is
 
-`Agent` (`src/main/ai/runtime/aiSdk/Agent.ts`) wraps AI SDK's
-`createAgent(...).stream()` with a `composeHooks` pipeline that folds N
+`Agent` (`src/main/ai/runtime/aiSdk/Agent.ts`) wraps `@cherrystudio/ai-core`'s
+`createAgent(...).stream()` (built on the AI SDK's `ToolLoopAgent`) with a
+`composeHooks` pipeline that folds N
 independent hook contributors (per-feature plugins, AiService analytics,
 internal observers) into a single `AgentLoopHooks` object with deterministic
 ordering, then bridges one streaming pass to a `ReadableStream<UIMessageChunk>`
@@ -77,10 +78,12 @@ All void hooks share the same `chainVoid` helper in `composeHooks.ts` —
 there is no `Promise.allSettled` / parallel path.
 
 Tool execution events (`onToolExecutionStart/End`) are emitted by a
-wrapper around each tool's `execute`. AI SDK v6 doesn't expose them
-directly; v7 introduces `experimental_onToolExecutionStart/End` on the
-Agent layer with the same shape — when v7 lands the wrapper is removed
-and hook signatures stay stable.
+wrapper around each tool's `execute`. No released AI SDK version brackets a
+single tool's execution: v6 exposes call-level (`experimental_onToolCallStart`)
+and input-level (`onInputStart` / `onInputDelta` / `onInputAvailable`) hooks, but
+nothing around `execute` itself — so we wrap. A future SDK version may add
+Agent-level execution hooks with the same shape, at which point the wrapper is
+removed and hook signatures stay stable.
 
 ## Steering
 

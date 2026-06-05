@@ -152,6 +152,21 @@ describe('useExecutionOverlay', () => {
     })
   })
 
+  it('N3b — leaves the SWR-cached seed row unmutated during streaming (REGRESSION renderer-transport-1)', async () => {
+    // The anchor row is the live SWR-derived projection; readUIMessageStream mutates its
+    // message.parts in place. The seed must be cloned so the cached row is never touched.
+    const priorParts: CherryUIMessage['parts'] = [{ type: 'text', text: 'PRIOR ' }]
+    const ui = [asst('anchor-a', priorParts)]
+    const { result } = renderHook(() => useExecutionOverlay(TOPIC, [exec(A, 'anchor-a')], ui))
+
+    streamText(A, 't2', 'CONTINUED')
+    await waitFor(() => expect(textOf(result.current.overlay['anchor-a'])).toContain('CONTINUED'))
+
+    // The original cached parts array is unchanged — streaming wrote to a clone.
+    expect(priorParts).toHaveLength(1)
+    expect(textOf(priorParts)).toBe('PRIOR ')
+  })
+
   it('N4 — terminal classification drives onFinish (success / paused / error)', async () => {
     const onFinish = vi.fn()
     const ui = [asst('anchor-a')]

@@ -102,9 +102,9 @@
       "defaultValue": [
         "assistants",
         "agents",
-        "store",
+        "paintings",
         "translate",
-        "mini_app"
+        "store"
       ],
       "status": "classified",
       "description": "Visible sidebar icons (complex migration: rewrite 'minapp' → 'mini_app')"

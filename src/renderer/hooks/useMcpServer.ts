@@ -1,10 +1,10 @@
 import { useMutation, useQuery } from '@data/hooks/useDataApi'
 import { loggerService } from '@logger'
 import NavigationService from '@renderer/services/NavigationService'
-import type { MCPTool } from '@renderer/types'
+import type { McpTool } from '@renderer/types'
 import { resolveMcpSourceToolAccess } from '@shared/ai/tools/mcpSourcePolicy'
-import type { CreateMCPServerDto, ListMCPServersQuery } from '@shared/data/api/schemas/mcpServers'
-import type { MCPServer } from '@shared/data/types/mcpServer'
+import type { CreateMcpServerDto, ListMcpServersQuery } from '@shared/data/api/schemas/mcpServers'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import { IpcChannel } from '@shared/IpcChannel'
 import { useCallback, useMemo } from 'react'
 
@@ -17,7 +17,7 @@ window.electron.ipcRenderer.on(IpcChannel.Mcp_AddServer, (_event, server: { id: 
 /**
  * MCP servers list hook — data fetching with optional filters and create mutation.
  */
-export const useMcpServers = (query?: ListMCPServersQuery) => {
+export const useMcpServers = (query?: ListMcpServersQuery) => {
   const { data, isLoading, mutate } = useQuery('/mcp-servers', { query })
 
   const mcpServers = useMemo(() => data?.items ?? [], [data])
@@ -26,14 +26,14 @@ export const useMcpServers = (query?: ListMCPServersQuery) => {
     refresh: ['/mcp-servers']
   })
 
-  const addMcpServer = useCallback((dto: CreateMCPServerDto) => createMcpServer({ body: dto }), [createMcpServer])
+  const addMcpServer = useCallback((dto: CreateMcpServerDto) => createMcpServer({ body: dto }), [createMcpServer])
 
   const { trigger: reorderTrigger } = useMutation('PATCH', '/mcp-servers', {
     refresh: ['/mcp-servers']
   })
 
   const reorderMcpServers = useCallback(
-    (reorderedList: MCPServer[]) => {
+    (reorderedList: McpServer[]) => {
       void mutate(data ? { ...data, items: reorderedList } : undefined, false)
       reorderTrigger({ body: { orderedIds: reorderedList.map((s) => s.id) } }).catch((error) => {
         loggerService.withContext('useMcpServer').warn('Failed to reorder MCP servers, reverting', error as Error)
@@ -76,7 +76,7 @@ export const useMcpServer = (id: string) => {
  * every renderer. Reads the server list from the shared `/mcp-servers` SWR
  * query.
  */
-export const useIsToolAutoApproved = (tool: MCPTool): boolean => {
+export const useIsToolAutoApproved = (tool: McpTool): boolean => {
   const { mcpServers } = useMcpServers()
   return useMemo(() => {
     const server = mcpServers.find((s) => s.id === tool.serverId)

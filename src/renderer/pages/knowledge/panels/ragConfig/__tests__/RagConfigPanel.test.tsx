@@ -481,7 +481,7 @@ describe('RagConfigPanel', () => {
     expect(screen.queryByRole('tooltip', { name: '混合检索中向量得分的权重。' })).not.toBeInTheDocument()
   })
 
-  it('shows hybrid alpha when the current search mode is hybrid', () => {
+  it('hides threshold for hybrid search mode without rerank', () => {
     mockUseKnowledgeRagConfig.mockReturnValueOnce({
       initialValues: {
         fileProcessorId: null,
@@ -526,7 +526,69 @@ describe('RagConfigPanel', () => {
     )
 
     expect(screen.getByText('Hybrid Alpha')).toBeInTheDocument()
-    expect(screen.getByRole('slider', { name: '相似度阈值' })).toBeDisabled()
-    expect(screen.getByRole('tooltip', { name: '该检索模式按排序返回结果，不使用相似度阈值。' })).toBeInTheDocument()
+    expect(screen.queryByRole('slider', { name: '相似度阈值' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('tooltip', { name: '该检索模式按排序返回结果，不使用相似度阈值。' })
+    ).not.toBeInTheDocument()
+  })
+
+  it('shows threshold for hybrid search mode when rerank is configured', async () => {
+    mockUseKnowledgeRagConfig.mockReturnValue({
+      initialValues: {
+        fileProcessorId: null,
+        chunkSize: '512',
+        chunkOverlap: '64',
+        embeddingModelId: 'openai::text-embedding-3-small',
+        rerankModelId: 'jina::rerank',
+        dimensions: '1536',
+        documentCount: 6,
+        threshold: 0.1,
+        searchMode: 'hybrid',
+        hybridAlpha: 0.6
+      },
+      fileProcessorOptions: [{ value: 'doc2x', label: 'Doc2X' }],
+      embeddingModelOptions: [{ value: 'openai::text-embedding-3-small', label: 'text-embedding-3-small · openai' }],
+      searchModeOptions: [
+        { value: 'hybrid', label: '混合检索（推荐）' },
+        { value: 'default', label: '向量检索' },
+        { value: 'bm25', label: '全文检索' }
+      ],
+      embeddingModels: [
+        {
+          id: 'openai::text-embedding-3-small',
+          providerId: 'openai',
+          apiModelId: 'text-embedding-3-small',
+          name: 'text-embedding-3-small',
+          capabilities: [MODEL_CAPABILITY.EMBEDDING],
+          endpointTypes: [ENDPOINT_TYPE.OPENAI_EMBEDDINGS],
+          supportsStreaming: false,
+          isEnabled: true,
+          isHidden: false
+        }
+      ],
+      rerankModelOptions: [{ value: 'jina::rerank', label: 'rerank · jina' }],
+      save: mockSave,
+      isLoading: false,
+      error: undefined
+    })
+
+    render(
+      <RagConfigPanel
+        base={createKnowledgeBase({ searchMode: 'hybrid', hybridAlpha: 0.6, rerankModelId: 'jina::rerank' })}
+        onRestoreBase={vi.fn()}
+      />
+    )
+
+    fireEvent.change(screen.getByRole('slider', { name: '相似度阈值' }), { target: { value: '0.7' } })
+    fireEvent.click(screen.getByRole('button', { name: '保存' }))
+
+    await waitFor(() => {
+      expect(mockSave).toHaveBeenCalledWith(
+        expect.objectContaining({
+          rerankModelId: 'jina::rerank',
+          threshold: 0.7
+        })
+      )
+    })
   })
 })

@@ -142,8 +142,8 @@ ${sections}`
  *    instructions. Returns a synchronous string — no I/O.
  *
  * Memory files layout (Soul Mode only):
- *   {workspace}/soul.md          — personality, tone, communication style
- *   {workspace}/user.md          — user profile, preferences, context
+ *   {workspace}/SOUL.md          — personality, tone, communication style
+ *   {workspace}/USER.md          — user profile, preferences, context
  *   {workspace}/memory/FACT.md   — durable project knowledge, technical decisions
  *   {workspace}/memory/JOURNAL.jsonl — timestamped event log (managed by memory tool)
  */

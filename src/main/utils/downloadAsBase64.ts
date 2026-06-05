@@ -1,4 +1,6 @@
 import { loggerService } from '@logger'
+import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
+import { MB } from '@shared/config/constant'
 import { net } from 'electron'
 
 const logger = loggerService.withContext('downloadAsBase64')
@@ -17,8 +19,8 @@ export type FileAttachment = {
   size: number // raw byte size (before base64 encoding)
 }
 
-/** Maximum file size we'll download (20 MB). */
-export const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024
+/** Maximum file size we'll download (100 MB). */
+export const MAX_FILE_SIZE_BYTES = 100 * MB
 
 /**
  * Download an image URL via Electron's net.fetch (respects system proxy) and
@@ -26,14 +28,27 @@ export const MAX_FILE_SIZE_BYTES = 20 * 1024 * 1024
  */
 export async function downloadImageAsBase64(url: string): Promise<ImageAttachment | null> {
   try {
-    const response = await net.fetch(url)
+    // Reject non-http(s) schemes and local/private hosts before fetching (SSRF guard).
+    const response = await net.fetch(sanitizeRemoteUrl(url))
     if (!response.ok) {
       logger.warn('Failed to download image', { url, status: response.status })
       return null
     }
+
+    const contentLength = response.headers.get('content-length')
+    if (contentLength && parseInt(contentLength, 10) > MAX_FILE_SIZE_BYTES) {
+      logger.warn('Image too large, skipping download', { url, size: contentLength })
+      return null
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer())
+    if (buffer.length > MAX_FILE_SIZE_BYTES) {
+      logger.warn('Image too large after download', { url, size: buffer.length })
+      return null
+    }
+
     const contentType = response.headers.get('content-type') || 'image/png'
     const mediaType = contentType.split(';')[0].trim()
-    const buffer = Buffer.from(await response.arrayBuffer())
     return { data: buffer.toString('base64'), media_type: mediaType }
   } catch (error) {
     logger.warn('Failed to fetch image', {
@@ -50,7 +65,8 @@ export async function downloadImageAsBase64(url: string): Promise<ImageAttachmen
  */
 export async function downloadFileAsBase64(url: string, filename: string): Promise<FileAttachment | null> {
   try {
-    const response = await net.fetch(url)
+    // Reject non-http(s) schemes and local/private hosts before fetching (SSRF guard).
+    const response = await net.fetch(sanitizeRemoteUrl(url))
     if (!response.ok) {
       logger.warn('Failed to download file', { url, filename, status: response.status })
       return null

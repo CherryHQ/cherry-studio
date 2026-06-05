@@ -1,13 +1,13 @@
-import type { MCPCallToolResponse } from '@types'
+import type { McpCallToolResponse } from '@types'
 import { describe, expect, it } from 'vitest'
 
 import { hasMultimodalContent, mcpResultToTextSummary } from '../utils'
 
 describe('mcpResultToTextSummary', () => {
   it('returns JSON string for null / invalid shapes', () => {
-    expect(mcpResultToTextSummary(null as unknown as MCPCallToolResponse)).toBe('null')
-    expect(mcpResultToTextSummary({} as MCPCallToolResponse)).toBe('{}')
-    expect(mcpResultToTextSummary({ content: 'not-an-array' } as unknown as MCPCallToolResponse)).toContain(
+    expect(mcpResultToTextSummary(null as unknown as McpCallToolResponse)).toBe('null')
+    expect(mcpResultToTextSummary({} as McpCallToolResponse)).toBe('{}')
+    expect(mcpResultToTextSummary({ content: 'not-an-array' } as unknown as McpCallToolResponse)).toContain(
       '"not-an-array"'
     )
   })
@@ -113,6 +113,6 @@ describe('hasMultimodalContent', () => {
 
   it('false for empty or malformed input', () => {
     expect(hasMultimodalContent({ content: [] })).toBe(false)
-    expect(hasMultimodalContent(null as unknown as MCPCallToolResponse)).toBe(false)
+    expect(hasMultimodalContent(null as unknown as McpCallToolResponse)).toBe(false)
   })
 })

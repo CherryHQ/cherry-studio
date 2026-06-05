@@ -381,8 +381,7 @@ export class TopicService {
   }
 
   async setActiveNode(topicId: string, nodeId: string): Promise<{ activeNodeId: string }> {
-    const db = application.get('DbService').getDb()
-    await db.transaction((tx) => this.setActiveNodeTx(tx, topicId, nodeId))
+    await application.get('DbService').withWriteTx((tx) => this.setActiveNodeTx(tx, topicId, nodeId))
     logger.info('Set active node', { topicId, activeNodeId: nodeId })
     return { activeNodeId: nodeId }
   }
@@ -420,6 +419,15 @@ export class TopicService {
     const updated = await tx
       .update(topicTable)
       .set({ activeNodeId: nodeId })
+      .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
+      .returning({ id: topicTable.id })
+    if (updated.length !== 1) throw DataApiErrorFactory.notFound('Topic', topicId)
+  }
+
+  async clearActiveNodeTx(tx: DbOrTx, topicId: string): Promise<void> {
+    const updated = await tx
+      .update(topicTable)
+      .set({ activeNodeId: null })
       .where(and(eq(topicTable.id, topicId), isNull(topicTable.deletedAt)))
       .returning({ id: topicTable.id })
     if (updated.length !== 1) throw DataApiErrorFactory.notFound('Topic', topicId)

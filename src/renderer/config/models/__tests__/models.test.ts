@@ -4,7 +4,7 @@ import {
   isSupportedThinkingTokenQwenModel as _isSupportedThinkingTokenQwenModel,
   isVisionModel as _isVisionModel
 } from '@renderer/config/models'
-import { toSharedCompatModel } from '@renderer/config/models/_bridge'
+import { toSharedCompatModel } from '@renderer/config/models/bridge'
 import { isQwen35to39Model as _isQwen35to39Model } from '@renderer/config/models/qwen'
 import type { Model as V1Model } from '@renderer/types'
 import type { Model } from '@shared/data/types/model'

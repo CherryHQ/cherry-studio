@@ -14,7 +14,7 @@ import {
   settingsSubmenuScrollClassName,
   settingsSubmenuSectionTitleClassName
 } from '..'
-import { getMCPProviderLogo, getProviderDisplayName, providers } from './providers/config'
+import { getMcpProviderLogo, getProviderDisplayName, providers } from './providers/config'
 
 const McpSettings: FC = () => {
   const { t } = useTranslation()
@@ -84,7 +84,7 @@ const McpSettings: FC = () => {
                   active={activeView === provider.key}
                   onClick={() => navigate({ to: `/settings/mcp/${provider.key}` })}
                   icon={(() => {
-                    const logo = getMCPProviderLogo(provider.key)
+                    const logo = getMcpProviderLogo(provider.key)
                     return logo ? <logo.Avatar size={24} shape="circle" /> : <FolderCog size={16} />
                   })()}
                   className={settingsSubmenuItemClassName}

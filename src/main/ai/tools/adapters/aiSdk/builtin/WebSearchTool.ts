@@ -23,6 +23,7 @@ import {
 } from '@shared/ai/builtinTools'
 import type { WebSearchResponse } from '@shared/data/types/webSearch'
 import { type InferToolInput, type InferToolOutput, tool } from 'ai'
+import * as z from 'zod'
 
 import { getToolCallContext } from '../context'
 import type { ToolEntry } from '../types'
@@ -30,6 +31,30 @@ import type { ToolEntry } from '../types'
 const logger = loggerService.withContext('WebSearchTool')
 
 export { WEB_FETCH_TOOL_NAME, WEB_SEARCH_TOOL_NAME }
+
+/**
+ * A failed lookup must be distinguishable from "ran fine, found nothing":
+ * both previously returned `[]`, so the model could not tell a network/provider
+ * error apart from an empty result set and would silently report "no results".
+ *
+ * `execute` now returns a discriminated result — the plain results array on
+ * success (keeps the persisted UI output shape, validated by
+ * `webSearchOutputSchema`) or `{ error }` on failure. `toModelOutput` renders a
+ * retry/inform note for the error branch so the model reacts instead of giving
+ * up. We never throw: throwing would abort the surrounding agentic loop.
+ */
+const webSearchErrorSchema = z.object({ error: z.string() })
+const webSearchResultSchema = z.union([webSearchOutputSchema, webSearchErrorSchema])
+const webFetchResultSchema = z.union([webFetchOutputSchema, webSearchErrorSchema])
+
+type WebSearchResult = WebSearchOutput | z.infer<typeof webSearchErrorSchema>
+type WebFetchResult = WebFetchOutput | z.infer<typeof webSearchErrorSchema>
+
+const WEB_LOOKUP_ERROR_NOTE = 'Web search failed (network/provider error); retry or inform the user.'
+
+function isWebLookupError(output: unknown): output is z.infer<typeof webSearchErrorSchema> {
+  return webSearchErrorSchema.safeParse(output).success
+}
 
 function mapWebSearchOutput(response: WebSearchResponse): WebSearchOutput {
   return response.results.map((result, index) => ({
@@ -61,11 +86,11 @@ You may call this multiple times with different queries to broaden coverage:
 
 Cite sources by [id] in your final answer.`,
   inputSchema: webSearchInputSchema,
-  outputSchema: webSearchOutputSchema,
+  outputSchema: webSearchResultSchema,
   // Provider-level constrained decoding where supported. Repair fallback
   // (in AiService) handles providers that don't honour `strict`.
   strict: true,
-  execute: async ({ query }, options): Promise<WebSearchOutput> => {
+  execute: async ({ query }, options): Promise<WebSearchResult> => {
     const { request } = getToolCallContext(options)
 
     try {
@@ -81,8 +106,14 @@ Cite sources by [id] in your final answer.`,
       logger.error('webSearchService.searchKeywords failed', error as Error, {
         query
       })
-      return []
+      return { error: error instanceof Error ? error.message : String(error) }
     }
+  },
+  toModelOutput: ({ output }) => {
+    if (isWebLookupError(output)) {
+      return { type: 'text' as const, value: WEB_LOOKUP_ERROR_NOTE }
+    }
+    return { type: 'json' as const, value: output }
   }
 })
 
@@ -98,9 +129,9 @@ Don't use this when you only have a topic or question; call web__search first.
 
 Cite sources by [id] in your final answer.`,
   inputSchema: webFetchInputSchema,
-  outputSchema: webFetchOutputSchema,
+  outputSchema: webFetchResultSchema,
   strict: true,
-  execute: async ({ urls }, options): Promise<WebFetchOutput> => {
+  execute: async ({ urls }, options): Promise<WebFetchResult> => {
     const { request } = getToolCallContext(options)
 
     try {
@@ -116,8 +147,14 @@ Cite sources by [id] in your final answer.`,
       logger.error('webSearchService.fetchUrls failed', error as Error, {
         urls
       })
-      return []
+      return { error: error instanceof Error ? error.message : String(error) }
     }
+  },
+  toModelOutput: ({ output }) => {
+    if (isWebLookupError(output)) {
+      return { type: 'text' as const, value: WEB_LOOKUP_ERROR_NOTE }
+    }
+    return { type: 'json' as const, value: output }
   }
 })
 

@@ -18,7 +18,7 @@ export const agentSessionMessageTable = sqliteTable(
     // JSON.stringify/parse automatically via `{ mode: 'json' }`.
     data: text({ mode: 'json' }).$type<MessageData>().notNull(),
     searchableText: text().notNull().default(''),
-    status: text().notNull().default('success'),
+    status: text().notNull(),
     modelId: text().references(() => userModelTable.id, { onDelete: 'set null' }),
     modelSnapshot: text({ mode: 'json' }).$type<ModelSnapshot>(),
     traceId: text(),

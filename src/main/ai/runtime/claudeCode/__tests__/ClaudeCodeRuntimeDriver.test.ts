@@ -1,3 +1,4 @@
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -251,6 +252,34 @@ describe('ClaudeCodeRuntimeDriver', () => {
     })
     // Turn completes cleanly — no `error` event surfaced for the dropped stream.
     await expect(events.next()).resolves.toMatchObject({ value: { type: 'turn-complete' } })
+    void connection.close()
+  })
+
+  it('warns and drops turn-complete when a result arrives with no active turn', async () => {
+    const queryQueue = createAsyncQueue<any>()
+    const query = { ...queryQueue.iterable, interrupt: vi.fn(), close: vi.fn() }
+    mocks.createClaudeQuery.mockReturnValue(query)
+    const connection = await new ClaudeCodeRuntimeDriver().connect({
+      sessionId: 'session-1',
+      agentId: 'agent-1',
+      modelId: 'claude-code::sonnet' as any
+    })
+    const events = connection.events[Symbol.asyncIterator]()
+
+    // No `send()` -> no active adapter; a stray result must not be silently dropped.
+    queryQueue.push({ type: 'result', subtype: 'success', session_id: 'resume-stray', usage: {} })
+
+    await expect(events.next()).resolves.toMatchObject({
+      value: { type: 'resume-token', token: 'resume-stray' }
+    })
+    expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+      'Received a result message with no active turn; dropping turn-complete',
+      { sessionId: 'session-1' }
+    )
+
+    // The stream closes with no turn-complete emitted for the stray result.
+    queryQueue.close()
+    await expect(events.next()).resolves.toMatchObject({ done: true })
     void connection.close()
   })
 

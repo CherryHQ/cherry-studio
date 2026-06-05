@@ -104,6 +104,11 @@ export class TranslateService {
     const { uniqueModelId, content } = await this.resolveTranslatePayload(req.text, targetLanguage)
 
     const listeners: StreamListener[] = []
+    // Built first so the persistence listener can surface a persist failure through it:
+    // TranslationBackend has no markTerminalError, so without this a post-stream persist
+    // failure would leave the renderer on a `success` it already received and silently lose
+    // the translation on reload.
+    const wcListener = new WebContentsListener(sender, req.streamId)
     if (req.messageId) {
       listeners.push(
         new PersistenceListener({
@@ -112,11 +117,12 @@ export class TranslateService {
             messageId: req.messageId,
             targetLanguage: req.targetLangCode,
             sourceLanguage: req.sourceLangCode
-          })
+          }),
+          onPersistFailed: (error) => wcListener.onError({ error, status: 'error', isTopicDone: true })
         })
       )
     }
-    listeners.push(new WebContentsListener(sender, req.streamId))
+    listeners.push(wcListener)
 
     const streamManager = application.get('AiStreamManager')
     streamManager.streamPrompt({ streamId: req.streamId, uniqueModelId, prompt: content, listener: listeners })

@@ -1,4 +1,6 @@
 import { BaseService } from '@main/core/lifecycle/BaseService'
+import { IpcChannel } from '@shared/IpcChannel'
+import { ipcMain } from 'electron'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { startupMock, buildWarmRequestMock, applicationGetMock, traceModeEnabledMock } = vi.hoisted(() => ({
@@ -136,5 +138,62 @@ describe('ClaudeCodeWarmQueryManager', () => {
 
     expect(buildWarmRequestMock).not.toHaveBeenCalled()
     expect(startupMock).not.toHaveBeenCalled()
+  })
+
+  function getIpcHandler(channel: string): (...args: any[]) => unknown {
+    const manager = new ClaudeCodeWarmQueryManager()
+    ;(manager as any).onInit()
+    const call = vi.mocked(ipcMain.handle).mock.calls.find(([registered]) => registered === channel)
+    if (!call) throw new Error(`No IPC handler registered for ${channel}`)
+    return call[1] as (...args: any[]) => unknown
+  }
+
+  it('ignores prewarm IPC requests with a missing or non-string sessionId', async () => {
+    const handler = getIpcHandler(IpcChannel.Ai_AgentSession_Prewarm)
+
+    await handler({}, { sessionId: '' })
+    await handler({}, { sessionId: 123 as any })
+    await handler({}, {})
+
+    expect(buildWarmRequestMock).not.toHaveBeenCalled()
+  })
+
+  it('ignores close-warm IPC requests with a missing or non-string sessionId', async () => {
+    const handler = getIpcHandler(IpcChannel.Ai_AgentSession_CloseWarm)
+    const closeSpy = vi.spyOn(ClaudeCodeWarmQueryManager.prototype, 'closeAgentSessionWarm')
+
+    handler({}, { sessionId: '' })
+    handler({}, { sessionId: null as any })
+    handler({}, {})
+
+    expect(closeSpy).not.toHaveBeenCalled()
+  })
+
+  it('drops the live MCP server instance when building the warm-query signature', () => {
+    const fakeInstance = { connect: vi.fn() }
+    // Reference itself so the live instance is circular, matching real SDK objects.
+    ;(fakeInstance as any).self = fakeInstance
+
+    const withInstance = createClaudeCodeWarmQuerySignature({
+      model: 'sonnet',
+      mcpServers: { claw: { type: 'sdk', name: 'claw', instance: fakeInstance } }
+    } as any)
+    const withoutInstance = createClaudeCodeWarmQuerySignature({
+      model: 'sonnet',
+      mcpServers: { claw: { type: 'sdk', name: 'claw' } }
+    } as any)
+
+    expect(withInstance).toBe(withoutInstance)
+    expect(withInstance).not.toContain('circular')
+  })
+
+  it('still distinguishes signatures by MCP server name and type', () => {
+    const withInstance = (name: string) =>
+      createClaudeCodeWarmQuerySignature({
+        model: 'sonnet',
+        mcpServers: { srv: { type: 'sdk', name, instance: { connect: vi.fn() } } }
+      } as any)
+
+    expect(withInstance('claw')).not.toBe(withInstance('assistant'))
   })
 })

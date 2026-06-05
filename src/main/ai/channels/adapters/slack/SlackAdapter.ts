@@ -476,9 +476,12 @@ class SlackAdapter extends ChannelAdapter {
         headers: { Authorization: `Bearer ${this.botToken}` }
       })
       if (!response.ok) return null
+      const contentLength = response.headers.get('content-length')
+      if (contentLength && Number.parseInt(contentLength, 10) > MAX_FILE_SIZE_BYTES) return null
       const contentType = response.headers.get('content-type') || 'image/png'
       const mediaType = contentType.split(';')[0].trim()
       const buffer = Buffer.from(await response.arrayBuffer())
+      if (buffer.length > MAX_FILE_SIZE_BYTES) return null
       return { data: buffer.toString('base64'), media_type: mediaType }
     } catch {
       return null

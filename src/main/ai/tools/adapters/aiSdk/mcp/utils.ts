@@ -1,9 +1,9 @@
 /** MCP tool-result formatters. */
 
-import type { MCPCallToolResponse } from '@types'
+import type { McpCallToolResponse } from '@types'
 
 /** True if the call produced any image / audio / binary resource. */
-export function hasMultimodalContent(result: MCPCallToolResponse): boolean {
+export function hasMultimodalContent(result: McpCallToolResponse): boolean {
   return (
     Array.isArray(result?.content) &&
     result.content.some(
@@ -16,7 +16,7 @@ export function hasMultimodalContent(result: MCPCallToolResponse): boolean {
  * Flatten for the model's view: text verbatim; image/audio/blob →
  * placeholder; text-backed resource → its `text`; unknown → JSON.
  */
-export function mcpResultToTextSummary(result: MCPCallToolResponse): string {
+export function mcpResultToTextSummary(result: McpCallToolResponse): string {
   if (!result || !result.content || !Array.isArray(result.content)) {
     return JSON.stringify(result)
   }

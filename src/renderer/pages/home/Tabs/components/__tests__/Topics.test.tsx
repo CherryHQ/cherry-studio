@@ -1,3 +1,4 @@
+import type * as AssistantHookModule from '@renderer/hooks/useAssistant'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -156,6 +157,20 @@ vi.mock('@renderer/hooks/useTopicStreamStatus', () => ({
     }
   }
 }))
+
+vi.mock('@renderer/hooks/useAssistant', async () => {
+  const actual = await vi.importActual<typeof AssistantHookModule>('@renderer/hooks/useAssistant')
+  return {
+    ...actual,
+    useDefaultAssistant: () => ({
+      assistant: {
+        id: 'default',
+        name: 'Default Assistant',
+        emoji: '😀'
+      }
+    })
+  }
+})
 
 vi.mock('@renderer/services/ApiService', () => ({
   fetchMessagesSummary: vi.fn().mockResolvedValue({ text: 'Auto title' })
@@ -1689,7 +1704,7 @@ describe('Topics', () => {
     expect(screen.getByRole('button', { name: 'Default Assistant' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByRole('button', { name: 'Alpha Assistant' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByRole('button', { name: 'Beta Assistant' })).toHaveAttribute('aria-expanded', 'false')
-    expect(screen.getByRole('button', { name: 'Unlinked Assistant' })).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.getByRole('button', { name: 'Default Assistant' })).toHaveAttribute('aria-expanded', 'false')
     expect(screen.getByText('Pinned unknown')).toBeInTheDocument()
     expect(screen.queryByText('Known alpha')).not.toBeInTheDocument()
     expect(screen.queryByText('Known beta')).not.toBeInTheDocument()
@@ -1697,6 +1712,7 @@ describe('Topics', () => {
     expect(screen.getByRole('button', { name: 'Default Assistant' }).closest('div')).toHaveTextContent('😀')
     expect(screen.getByRole('button', { name: 'Alpha Assistant' }).closest('div')).toHaveTextContent('🧪')
     expect(screen.getByRole('button', { name: 'Beta Assistant' }).closest('div')).toHaveTextContent('✍️')
+    expect(screen.getByRole('button', { name: 'Default Assistant' }).closest('div')).toHaveTextContent('😀')
 
     const defaultHeader = screen.getByRole('button', { name: 'Default Assistant' }).closest('div')
     expect(defaultHeader).toBeInTheDocument()

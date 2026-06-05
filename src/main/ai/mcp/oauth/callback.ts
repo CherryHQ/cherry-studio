@@ -147,11 +147,22 @@ export class CallBackServer {
     server.close()
   }
 
-  async waitForAuthCode(): Promise<string> {
-    return new Promise((resolve) => {
-      this.events.once('auth-code-received', (code) => {
+  /**
+   * Resolve with the OAuth authorization code, or reject if none arrives within
+   * `timeoutMs`. Without the reject path the caller's `await` hangs forever on a
+   * cancelled / never-completed callback, leaking the connect attempt and its status.
+   */
+  async waitForAuthCode(timeoutMs = 300_000): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const onCode = (code: string) => {
+        clearTimeout(timer)
         resolve(code)
-      })
+      }
+      const timer = setTimeout(() => {
+        this.events.off('auth-code-received', onCode)
+        reject(new Error(`Timed out waiting for OAuth authorization code after ${Math.round(timeoutMs / 1000)}s`))
+      }, timeoutMs)
+      this.events.once('auth-code-received', onCode)
     })
   }
 }

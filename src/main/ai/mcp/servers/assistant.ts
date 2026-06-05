@@ -9,7 +9,48 @@ import type { Tool } from '@modelcontextprotocol/sdk/types.js'
 import { CallToolRequestSchema, ErrorCode, ListToolsRequestSchema, McpError } from '@modelcontextprotocol/sdk/types.js'
 import { app } from 'electron'
 
-const logger = loggerService.withContext('MCPServer:Assistant')
+const logger = loggerService.withContext('McpServer:Assistant')
+
+/**
+ * Whether `read_source` must refuse a file as sensitive. Covers every dotenv variant
+ * (`.env`, `.env.local`, `.env.production`, …) except the `.env.example` template,
+ * credential files, SSH private keys, and private-key/cert material. Case-insensitive.
+ */
+export function isBlockedSourceFile(basename: string): boolean {
+  const name = basename.toLowerCase()
+  const isSensitiveEnv = name.startsWith('.env') && name !== '.env.example'
+  const isPrivateKeyOrCert = /\.(pem|key|p12|pfx)$/.test(name)
+  const isExactSensitive = ['credentials.json', 'id_rsa', 'id_dsa', 'id_ecdsa', 'id_ed25519'].includes(name)
+  return isSensitiveEnv || isPrivateKeyOrCert || isExactSensitive
+}
+
+/**
+ * Resolve a path through any symlinks, falling back to the nearest existing ancestor when the
+ * target itself does not exist yet. Mirrors the filesystem server's
+ * `resolveRealOrNearestExistingPath` so symlink escapes are caught before the containment check.
+ */
+function resolveRealOrNearestExistingPath(targetPath: string): string {
+  try {
+    return path.normalize(fs.realpathSync(targetPath))
+  } catch {
+    let currentPath = path.dirname(targetPath)
+
+    while (true) {
+      try {
+        const realCurrentPath = fs.realpathSync(currentPath)
+        const relativeSuffix = path.relative(currentPath, targetPath)
+        return path.normalize(path.join(realCurrentPath, relativeSuffix))
+      } catch {
+        const parentPath = path.dirname(currentPath)
+        if (parentPath === currentPath) {
+          logger.warn('Could not resolve any existing ancestor for path', { targetPath })
+          return path.normalize(targetPath)
+        }
+        currentPath = parentPath
+      }
+    }
+  }
+}
 
 // Allowed route prefixes to prevent arbitrary navigation
 const ALLOWED_ROUTES = [
@@ -655,17 +696,19 @@ class AssistantServer {
 
     // Resolve against app root (source repo in dev, app.asar in prod)
     const appRoot = app.getAppPath()
-    const resolved = path.resolve(appRoot, filePath)
+    // Realpath-resolve both the app root and the target (or its nearest existing ancestor) so a
+    // symlink inside appRoot cannot point outside it and bypass the containment / .env checks.
+    const realAppRoot = resolveRealOrNearestExistingPath(appRoot)
+    const resolved = resolveRealOrNearestExistingPath(path.resolve(appRoot, filePath))
 
     // Security: only allow reading within app root and node_modules
-    const allowedRoots = [appRoot, path.join(appRoot, 'node_modules')]
+    const allowedRoots = [realAppRoot, path.join(realAppRoot, 'node_modules')]
     if (!allowedRoots.some((root) => resolved.startsWith(root + path.sep) || resolved === root)) {
       throw new McpError(ErrorCode.InvalidParams, `Access denied: path must be within the app directory`)
     }
 
-    // Block sensitive files
-    const basename = path.basename(resolved).toLowerCase()
-    if (basename === '.env' || basename.endsWith('.env.local') || basename === 'credentials.json') {
+    // Block sensitive files (dotenv variants, credentials, private keys).
+    if (isBlockedSourceFile(path.basename(resolved))) {
       throw new McpError(ErrorCode.InvalidParams, `Access denied: cannot read sensitive files`)
     }
 

@@ -201,6 +201,10 @@ export class TopicStreamSubscription {
             this.#terminateAll({ isAbort: false, isError: true })
             break
         }
+        // If every execution unregistered while this attach was in flight, the
+        // deferred-detach guard in `unregister` saw `#attached === false` and skipped,
+        // so nothing else will release Main's listener. Detach now that attach resolved.
+        if (this.#branches.size === 0 && !this.#disposed) this.#detach()
       } catch (err) {
         logger.warn('streamAttach failed', { topicId: this.#topicId, err })
       } finally {

@@ -9,6 +9,7 @@
 import type { RequestFeature } from '../feature'
 import { anthropicCacheFeature } from './anthropicCache'
 import { anthropicHeadersFeature } from './anthropicHeaders'
+import { deepseekDsmlParserFeature } from './deepseekDsmlParserPlugin'
 import { devtoolsFeature } from './devtools'
 import { gatewayUsageNormalizeFeature } from './gatewayUsageNormalize'
 import { modelParamsFeature } from './modelParams'
@@ -27,6 +28,8 @@ export const INTERNAL_FEATURES: readonly RequestFeature[] = [
   gatewayUsageNormalizeFeature,
   modelParamsFeature,
   pdfCompatibilityFeature,
+  // DeepSeek-only: re-extract DSML-markup tool calls from text before reasoning extraction.
+  deepseekDsmlParserFeature,
   reasoningExtractionFeature,
   simulateStreamingFeature,
   anthropicCacheFeature,

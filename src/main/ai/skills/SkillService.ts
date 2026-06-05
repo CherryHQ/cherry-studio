@@ -83,6 +83,10 @@ export class SkillService {
     await agentGlobalSkillService.upsertJoin(options.agentId, options.skillId, options.isEnabled)
 
     if (workspaces.length > 0) {
+      // Track workspaces we already (un)linked so a mid-loop failure can reverse
+      // them — otherwise the catch only reverts the DB row, leaving the symlinks
+      // it already wrote to earlier workspaces orphaned and out of sync.
+      const applied: string[] = []
       try {
         for (const workspace of workspaces) {
           if (options.isEnabled) {
@@ -90,8 +94,27 @@ export class SkillService {
           } else {
             await this.unlinkSkill(skill.folderName, workspace)
           }
+          applied.push(workspace)
         }
       } catch (error) {
+        // Best-effort reverse the filesystem ops we managed to apply before the
+        // failure (linkSkill/unlinkSkill are idempotent), then revert the DB row.
+        for (const workspace of applied) {
+          try {
+            if (options.isEnabled) {
+              await this.unlinkSkill(skill.folderName, workspace)
+            } else {
+              await this.linkSkill(skill.folderName, workspace)
+            }
+          } catch (reverseError) {
+            logger.error('Failed to reverse skill symlink during rollback', {
+              agentId: options.agentId,
+              skillId: options.skillId,
+              workspace,
+              error: reverseError instanceof Error ? reverseError.message : String(reverseError)
+            })
+          }
+        }
         let rollbackError: unknown
         await agentGlobalSkillService.upsertJoin(options.agentId, options.skillId, !options.isEnabled).catch((e) => {
           rollbackError = e

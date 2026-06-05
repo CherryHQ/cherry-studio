@@ -108,8 +108,11 @@ stream"). A fresh reader per turn structurally cannot pollute.
 ```ts
 function pickSeed(uiMessages, anchorMessageId): CherryUIMessage | undefined {
   if (!anchorMessageId) return undefined
-  return uiMessages.find((m) => m.id === anchorMessageId)
-    ?? { id: anchorMessageId, role: 'assistant', parts: [] }
+  const found = uiMessages.find((m) => m.id === anchorMessageId)
+  if (!found) return { id: anchorMessageId, role: 'assistant', parts: [] }
+  // `readUIMessageStream` mutates `message.parts` in place, and `found` is the live
+  // SWR-derived row — clone the parts so the reader only ever writes to a throwaway.
+  return { ...found, parts: structuredClone(found.parts ?? []) }
 }
 ```
 
@@ -126,9 +129,10 @@ time. Two cases:
   `toolCallId`.
 
 The seed is re-derived from DB on every reader start; it never carries
-across turns. Combined with the fresh reader, this is the **structural**
-anti-pollution guarantee — not "force empty parts" or "diff against last
-frame".
+across turns, and its `parts` are cloned so the reader's in-place mutation
+never touches the SWR row. Combined with the fresh reader, this is the
+**structural** anti-pollution guarantee — not "force empty parts" or "diff
+against last frame".
 
 ### Lifecycle
 

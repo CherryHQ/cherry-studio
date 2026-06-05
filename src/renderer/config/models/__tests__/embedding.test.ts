@@ -36,7 +36,7 @@ vi.mock('@renderer/hooks/useSettings', () => ({
   getStoreSetting: vi.fn()
 }))
 
-import { toSharedCompatModel } from '../_bridge'
+import { toSharedCompatModel } from '../bridge'
 import { isEmbeddingModel, isRerankModel } from '../embedding'
 
 const createModel = (overrides: Partial<V1Model> = {}): Model =>

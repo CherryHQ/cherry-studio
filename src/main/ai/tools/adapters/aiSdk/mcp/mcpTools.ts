@@ -2,14 +2,9 @@ import { loggerService } from '@logger'
 import { application } from '@main/core/application'
 import { mcpServerService } from '@main/data/services/McpServerService'
 import { isMcpToolForcePromptBySource } from '@shared/ai/tools/mcpSourcePolicy'
-import { toCamelCase } from '@shared/mcp'
-import type { MCPCallToolResponse, MCPServer, MCPTool } from '@types'
+import { isFunctionCallToolNameForServer } from '@shared/mcp'
+import type { McpCallToolResponse, McpServer, McpTool } from '@types'
 import { jsonSchema, type JSONSchema7, type Tool } from 'ai'
-
-async function resolveServerById(serverId: string): Promise<MCPServer | undefined> {
-  const { items } = await mcpServerService.list({ isActive: true })
-  return items.find((s) => s.id === serverId)
-}
 
 import { registry, type ToolRegistry } from '../registry'
 import type { ToolEntry } from '../types'
@@ -17,19 +12,25 @@ import { mcpResultToTextSummary } from './utils'
 
 const logger = loggerService.withContext('mcpTools')
 
-/** Build the AI SDK Tool wrapper around a single MCPTool. */
-function createMcpTool(mcpTool: MCPTool, forcePrompt: boolean): Tool {
+async function resolveActiveServerById(serverId: string): Promise<McpServer | undefined> {
+  // Direct point lookup instead of listing every active server on each tool call.
+  const server = await mcpServerService.getById(serverId).catch(() => undefined)
+  return server?.isActive ? server : undefined
+}
+
+/** Build the AI SDK Tool wrapper around a single McpTool. */
+function createMcpTool(mcpTool: McpTool, forcePrompt: boolean): Tool {
   return {
     type: 'function',
     description: mcpTool.description || mcpTool.name,
     inputSchema: jsonSchema(mcpTool.inputSchema as JSONSchema7),
     needsApproval: async () => forcePrompt,
     execute: async (args: Record<string, unknown>, { toolCallId }) => {
-      const server = await resolveServerById(mcpTool.serverId)
+      const server = await resolveActiveServerById(mcpTool.serverId)
       if (!server) {
         throw new Error(`MCP server ${mcpTool.serverId} is not active or no longer registered`)
       }
-      const result: MCPCallToolResponse = await application.get('McpRuntimeService').callTool({
+      const result: McpCallToolResponse = await application.get('McpRuntimeService').callTool({
         serverId: server.id,
         name: mcpTool.name,
         args,
@@ -40,7 +41,7 @@ function createMcpTool(mcpTool: MCPTool, forcePrompt: boolean): Tool {
         throw new Error(mcpResultToTextSummary(result) || 'MCP tool call failed')
       }
 
-      // Full MCPCallToolResponse for the renderer's ToolUIPart (multimodal
+      // Full McpCallToolResponse for the renderer's ToolUIPart (multimodal
       // parts intact); `toModelOutput` below produces the string view.
       return {
         ...result,
@@ -52,13 +53,13 @@ function createMcpTool(mcpTool: MCPTool, forcePrompt: boolean): Tool {
       }
     },
     toModelOutput({ output }) {
-      const result = output as MCPCallToolResponse
+      const result = output as McpCallToolResponse
       return { type: 'text' as const, value: mcpResultToTextSummary(result) }
     }
   }
 }
 
-function toEntry(mcpTool: MCPTool, server: MCPServer): ToolEntry {
+function toEntry(mcpTool: McpTool, server: McpServer): ToolEntry {
   // A force-prompt (approval-gated) tool must never defer: deferring removes it from the SDK
   // tool-set, so the SDK's native `needsApproval` gate never fires and it becomes reachable only
   // via `tool_invoke` — which would run it with no approval card. Keep it inline. Reading
@@ -74,16 +75,15 @@ function toEntry(mcpTool: MCPTool, server: MCPServer): ToolEntry {
   }
 }
 
-/** Prefix `mcp__<camelCase(serverName)>__<rest>` matches `buildFunctionCallToolName`. */
+/** Keep servers that own at least one selected tool id (see `buildFunctionCallToolName`). */
 function filterServersByToolIds(
-  servers: readonly MCPServer[],
+  servers: readonly McpServer[],
   selectedToolIds: ReadonlySet<string>
-): readonly MCPServer[] {
+): readonly McpServer[] {
   if (!selectedToolIds.size) return []
   return servers.filter((server) => {
-    const prefix = `mcp__${toCamelCase(server.name)}__`
     for (const id of selectedToolIds) {
-      if (id.startsWith(prefix)) return true
+      if (isFunctionCallToolNameForServer(server.name, id)) return true
     }
     return false
   })
@@ -117,6 +117,10 @@ export async function syncMcpToolsToRegistry(
   const activeNamespaces = new Set(activeServers.map((s) => `mcp:${s.name}`))
 
   const freshNames = new Set<string>()
+  // Only namespaces whose `listTools` actually succeeded. A transient connection drop
+  // must NOT evict a still-active server's previously-registered tools — without this
+  // guard the eviction loop below sees every prior tool as `missing` and deregisters them.
+  const refreshedNamespaces = new Set<string>()
   for (const server of targetServers) {
     try {
       const enabledTools = await application.get('McpCatalogService').listTools(server.id, { includeDisabled: false })
@@ -124,6 +128,7 @@ export async function syncMcpToolsToRegistry(
         reg.register(toEntry(mcpTool, server))
         freshNames.add(mcpTool.id)
       }
+      refreshedNamespaces.add(`mcp:${server.name}`)
     } catch (error) {
       logger.error('Failed to list MCP tools for server', {
         serverId: server.id,
@@ -136,7 +141,9 @@ export async function syncMcpToolsToRegistry(
   for (const entry of reg.getAll()) {
     if (!entry.namespace.startsWith('mcp:')) continue
     const serverDeactivated = !activeNamespaces.has(entry.namespace)
-    const inSyncScope = targetNamespaces.has(entry.namespace)
+    // Gate the in-scope eviction on a successful refresh, so a failed `listTools` leaves
+    // the prior snapshot intact. A truly deactivated server is still evicted regardless.
+    const inSyncScope = targetNamespaces.has(entry.namespace) && refreshedNamespaces.has(entry.namespace)
     const missing = !freshNames.has(entry.name)
     if (serverDeactivated || (inSyncScope && missing)) {
       reg.deregister(entry.name)

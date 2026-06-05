@@ -24,13 +24,20 @@ vi.mock('@main/data/services/TranslateLanguageService', () => ({
   translateLanguageService: { getByLangCode: getByLangCodeMock }
 }))
 
+const messageGetByIdMock = vi.fn()
+const messageUpdateMock = vi.fn()
+vi.mock('@main/data/services/MessageService', () => ({
+  messageService: { getById: messageGetByIdMock, update: messageUpdateMock }
+}))
+
 // `WebContentsListener` writes to `event.sender.send(...)` — stub it so the
 // test doesn't need a real WebContents.
 vi.mock('../../../ai/streamManager/listeners/WebContentsListener', () => ({
   WebContentsListener: vi.fn().mockImplementation((sender: unknown, streamId: string) => ({
     id: `wc:test:${streamId}`,
     sender,
-    streamId
+    streamId,
+    onError: vi.fn()
   }))
 }))
 
@@ -50,6 +57,8 @@ beforeEach(() => {
   MockMainPreferenceServiceUtils.resetMocks()
   getByKeyMock.mockReset()
   getByLangCodeMock.mockReset()
+  messageGetByIdMock.mockReset()
+  messageUpdateMock.mockReset()
   streamPromptMock.mockReset()
   streamPromptMock.mockReturnValue({ mode: 'started' as const, executionIds: [] })
 })
@@ -164,6 +173,28 @@ describe('translateService.open', () => {
     // renderer can then trust the standard done IPC as "safe to refresh".
     expect(listeners[0].id).toContain('persistence:translation')
     expect(listeners[1].id).toBe(`wc:test:${streamId}`)
+  })
+
+  it('surfaces a persist failure to the renderer via WebContentsListener.onError (C1)', async () => {
+    // TranslationBackend has no markTerminalError, so the only live-renderer signal on a
+    // persist failure is onPersistFailed → wcListener.onError. Force the persist to throw.
+    messageGetByIdMock.mockRejectedValue(new Error('db down'))
+
+    const streamId = 'translate:persist-fail'
+    await translateService.open(fakeSender, { streamId, text: 'hello', targetLangCode: 'en-us', messageId: 'm1' })
+
+    const arg = (streamPromptMock.mock.calls as unknown as Array<[{ listener: any }]>)[0][0]
+    const listeners = Array.isArray(arg.listener) ? arg.listener : [arg.listener]
+    const persistence = listeners.find((l: { id: string }) => l.id.includes('persistence'))
+    const wc = listeners.find((l: { id: string }) => l.id.startsWith('wc:'))
+
+    await persistence.onDone({
+      finalMessage: { id: 'x', role: 'assistant', parts: [{ type: 'text', text: 'hola' }] },
+      status: 'success'
+    })
+
+    expect(wc.onError).toHaveBeenCalledTimes(1)
+    expect(wc.onError).toHaveBeenCalledWith(expect.objectContaining({ status: 'error', isTopicDone: true }))
   })
 
   it('rejects a streamId that does not carry the translate prefix', async () => {

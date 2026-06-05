@@ -1,5 +1,6 @@
 // port https://github.com/zcaceres/fetch-mcp/blob/main/src/index.ts
 
+import { sanitizeRemoteUrl } from '@main/utils/remoteUrlSafety'
 import { Server } from '@modelcontextprotocol/sdk/server/index.js'
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { net } from 'electron'
@@ -17,7 +18,12 @@ export type RequestPayload = z.infer<typeof RequestPayloadSchema>
 export class Fetcher {
   private static async _fetch({ url, headers }: RequestPayload): Promise<Response> {
     try {
-      const response = await net.fetch(url, {
+      // SSRF guard: the URL is model-supplied and `z.url()` accepts file://, localhost,
+      // RFC1918, and link-local (e.g. the 169.254.169.254 metadata endpoint). Reject
+      // non-http(s) schemes, credentials, and local/private/reserved hosts before fetching.
+      // Reuses the project's ipaddr.js-based guard (single blocklist).
+      const safeUrl = sanitizeRemoteUrl(url)
+      const response = await net.fetch(safeUrl, {
         headers: {
           'User-Agent':
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
