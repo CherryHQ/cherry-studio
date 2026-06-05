@@ -4,6 +4,7 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { TemporarySessionService } from '@data/services/TemporarySessionService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -107,6 +108,19 @@ describe('TemporarySessionService', () => {
 
     const persisted = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id))
     expect(persisted).toHaveLength(0)
+  })
+
+  it('sweeps stale system workspace rows while preserving active temporary leases', async () => {
+    const active = await service.createSession({ agentId: 'agent-a', name: 'Active', workspaceMode: 'system' })
+    const orphan = await agentWorkspaceService.createSystemWorkspaceForSession('stale-temporary-session')
+    const orphanWorkspacePath = orphan.path
+
+    await service.createSession({ agentId: 'agent-a', name: 'Next' })
+
+    await expect(stat(active.workspace!.path)).resolves.toMatchObject({ isDirectory: expect.any(Function) })
+    await expect(stat(orphanWorkspacePath)).rejects.toThrow()
+    const rows = await dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, orphan.id))
+    expect(rows).toHaveLength(0)
   })
 
   it('persists a no-project temporary session using the same system workspace', async () => {

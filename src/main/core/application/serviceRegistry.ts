@@ -2,7 +2,6 @@ import { CacheService } from '@data/CacheService'
 import { DataApiService } from '@data/DataApiService'
 import { DbService } from '@data/db/DbService'
 import { PreferenceService } from '@data/PreferenceService'
-import { AgentWorkspaceMaintenanceService } from '@data/services/AgentWorkspaceMaintenanceService'
 import { AgentJobsService } from '@main/ai/agents/AgentJobsService'
 import { AgentSessionRuntimeService } from '@main/ai/agentSession/AgentSessionRuntimeService'
 import { AiService } from '@main/ai/AiService'
@@ -77,7 +76,6 @@ import type { ServiceConstructor } from '../lifecycle/types'
 export const services = {
   WindowManager,
   DbService,
-  AgentWorkspaceMaintenanceService,
   CacheService,
   DataApiService,
   SubWindowService,

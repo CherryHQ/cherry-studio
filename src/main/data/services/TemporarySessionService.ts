@@ -3,11 +3,14 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { agentWorkspaceWorkflowService } from '@data/services/AgentWorkspaceWorkflowService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
+import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CreateTemporarySessionDto } from '@shared/data/api/schemas/temporaryChats'
 import { v4 as uuidv4 } from 'uuid'
+
+const logger = loggerService.withContext('TemporarySessionService')
 
 type TemporarySessionRow = {
   id: string
@@ -38,6 +41,8 @@ export class TemporarySessionService {
   private readonly sessions = new Map<string, TemporarySessionRow>()
 
   async createSession(dto: CreateTemporarySessionDto): Promise<AgentSessionEntity> {
+    await this.sweepOrphanSystemWorkspaces()
+
     const agentId = dto.agentId?.trim()
     if (!agentId) {
       throw DataApiErrorFactory.validation({ agentId: ['is required'] })
@@ -108,6 +113,25 @@ export class TemporarySessionService {
     } catch (err) {
       this.sessions.set(id, row)
       throw err
+    }
+  }
+
+  private getLeasedSystemWorkspaceIds(): string[] {
+    return Array.from(this.sessions.values())
+      .filter((session) => session.workspaceId && session.workspaceType === 'system')
+      .map((session) => session.workspaceId!)
+  }
+
+  private async sweepOrphanSystemWorkspaces(): Promise<void> {
+    try {
+      const removedCount = await agentWorkspaceWorkflowService.sweepOrphanSystemWorkspaces({
+        excludeWorkspaceIds: this.getLeasedSystemWorkspaceIds()
+      })
+      if (removedCount > 0) {
+        logger.info('Cleaned orphan system workspaces', { count: removedCount })
+      }
+    } catch (error) {
+      logger.warn('Failed to clean orphan system workspaces', { error })
     }
   }
 }
