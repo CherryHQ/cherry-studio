@@ -27,7 +27,7 @@ import { CommandService } from '@main/services/CommandService'
 import { FileManager } from '@main/services/file/FileManager'
 import { DirectoryTreeManager } from '@main/services/file/tree/DirectoryTreeManager'
 import { FileProcessingOrchestrationService, TesseractRuntimeService } from '@main/services/fileProcessing'
-import { KnowledgeOrchestrationService } from '@main/services/knowledge'
+import { KnowledgeService } from '@main/services/knowledge'
 import { KnowledgeVectorStoreService } from '@main/services/knowledge/vectorstore/KnowledgeVectorStoreService'
 import { LanTransferService } from '@main/services/lanTransfer'
 import { MainWindowService } from '@main/services/MainWindowService'
@@ -122,7 +122,7 @@ export const services = {
   AiService,
   ClaudeCodeWarmQueryManager,
   AiStreamManager,
-  KnowledgeOrchestrationService,
+  KnowledgeService,
   KnowledgeVectorStoreService,
   ApiServerService,
   AppUpdaterService,

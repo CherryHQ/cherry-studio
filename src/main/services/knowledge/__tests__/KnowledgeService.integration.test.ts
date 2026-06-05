@@ -50,14 +50,14 @@ vi.mock('@logger', () => ({
   }
 }))
 
-const { KnowledgeOrchestrationService } = await import('../KnowledgeOrchestrationService')
+const { KnowledgeService } = await import('../KnowledgeService')
 
 const SOURCE_BASE_ID = '11111111-1111-4111-8111-111111111111'
 const SOURCE_GROUP_ID = '22222222-2222-4222-8222-222222222222'
 const SOURCE_ROOT_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
 const SOURCE_CHILD_ITEM_ID = '0198f3f2-7d1b-7abc-8def-123456789abc'
 
-describe('KnowledgeOrchestrationService integration', () => {
+describe('KnowledgeService integration', () => {
   const dbh = setupTestDatabase()
   const embeddingModelId = createUniqueModelId('openai', 'text-embedding-3-small')
 
@@ -130,7 +130,7 @@ describe('KnowledgeOrchestrationService integration', () => {
   })
 
   it('restores a failed base into a new base and enqueues indexing for restored roots', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
 
     const restoredBase = await service.restoreBase({
       sourceBaseId: SOURCE_BASE_ID,

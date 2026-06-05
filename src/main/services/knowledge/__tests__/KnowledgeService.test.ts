@@ -146,7 +146,7 @@ vi.mock('../rerank/rerank', () => ({
   rerankKnowledgeSearchResults: vi.fn(async (_base, _query, results) => results)
 }))
 
-const { KnowledgeOrchestrationService } = await import('../KnowledgeOrchestrationService')
+const { KnowledgeService } = await import('../KnowledgeService')
 
 const NOTE_ITEM_ID = '0198f3f2-7d1a-7abc-8def-123456789abc'
 const DELETING_NOTE_ITEM_ID = '0198f3f2-7d1b-7abc-8def-123456789abc'
@@ -262,7 +262,7 @@ function flushMicrotasks(): Promise<void> {
 
 const createdItemBaseIds = new Map<string, string>()
 
-describe('KnowledgeOrchestrationService', () => {
+describe('KnowledgeService', () => {
   afterEach(() => {
     vi.useRealTimers()
   })
@@ -315,8 +315,8 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('uses WhenReady phase and depends on same-phase runtime services', () => {
-    expect(getPhase(KnowledgeOrchestrationService)).toBe(Phase.WhenReady)
-    expect(getDependencies(KnowledgeOrchestrationService)).toEqual([
+    expect(getPhase(KnowledgeService)).toBe(Phase.WhenReady)
+    expect(getDependencies(KnowledgeService)).toEqual([
       'KnowledgeVectorStoreService',
       'FileManager',
       'JobManager',
@@ -325,7 +325,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('registers formal knowledge job handlers and caller-facing IPC handlers', () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
 
     ;(service as unknown as { onInit: () => void }).onInit()
 
@@ -352,7 +352,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('does not cancel knowledge jobs during service shutdown', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     const stop = (service as unknown as { onStop?: () => Promise<void> }).onStop
 
     if (stop) {
@@ -363,7 +363,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('recovers deleting roots by enqueueing delete cleanup jobs after all services are ready', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     knowledgeItemGetDeletingRootGroupsMock.mockResolvedValueOnce([
       { baseId: 'kb-1', rootItemIds: ['note-1'] },
       { baseId: 'kb-2', rootItemIds: ['dir-1', 'note-2'] }
@@ -390,7 +390,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('recovers deleting roots in bounded chunks', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     const rootItemIds = Array.from({ length: 501 }, (_, index) => `note-${index + 1}`)
     knowledgeItemGetDeletingRootGroupsMock.mockResolvedValueOnce([{ baseId: 'kb-1', rootItemIds }])
 
@@ -418,7 +418,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('keeps recovering other deleting roots when one recovery enqueue fails', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     knowledgeItemGetDeletingRootGroupsMock.mockResolvedValueOnce([
       { baseId: 'kb-1', rootItemIds: ['note-1'] },
       { baseId: 'kb-2', rootItemIds: ['note-2'] }
@@ -435,7 +435,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('logs and stops startup deleting recovery when the initial scan fails', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     knowledgeItemGetDeletingRootGroupsMock.mockRejectedValueOnce(new Error('scan failed'))
 
     await expect((service as unknown as { onAllReady: () => Promise<void> }).onAllReady()).resolves.toBeUndefined()
@@ -444,7 +444,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('creates vector artifacts after creating the base and rolls back on artifact failure', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     const base = createBase({ id: 'created-base' })
     knowledgeBaseCreateMock.mockResolvedValueOnce(base)
 
@@ -461,7 +461,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('deletes base jobs before vector artifacts and SQLite base', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
 
     await service.deleteBase('kb-1')
 
@@ -479,7 +479,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('cancels file-processing jobs linked by active knowledge checks before deleting a base', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     listMock.mockResolvedValueOnce([
       {
         id: 'check-job',
@@ -505,7 +505,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('serializes concurrent deleteBase cleanup for the same base', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     const firstDeleteStoreEntered = createDeferred()
     const releaseFirstDeleteStore = createDeferred()
     const cleanupEvents: string[] = []
@@ -547,7 +547,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('restores a failed base by creating a new base and enqueueing restored root items', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     const restoredBase = createBase({ id: 'restored-kb', embeddingModelId: 'provider::new', dimensions: 6 })
     knowledgeBaseGetByIdMock
       .mockResolvedValueOnce(createBase({ id: 'source-kb', status: 'failed' }))
@@ -573,7 +573,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('restores a completed base when embedding model and dimensions are unchanged', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     const sourceBase = createBase({ id: 'source-kb', embeddingModelId: 'provider::embed', dimensions: 3 })
     const restoredBase = createBase({ id: 'restored-kb', embeddingModelId: 'provider::embed', dimensions: 3 })
     knowledgeBaseGetByIdMock.mockResolvedValueOnce(sourceBase)
@@ -599,7 +599,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('surfaces restored base id when restore item failure cleanup also fails', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     const sourceBase = createBase({ id: 'source-kb', embeddingModelId: 'provider::embed', dimensions: 3 })
     const restoredBase = createBase({ id: 'restored-kb', embeddingModelId: 'provider::embed', dimensions: 3 })
     knowledgeBaseGetByIdMock.mockResolvedValueOnce(sourceBase)
@@ -621,7 +621,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('schedules add, delete, and reindex through the new workflow jobs', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem('note-1'))
 
     await service.addItems('kb-1', [{ type: 'note', data: { source: 'note-1', content: 'hello' } }])
@@ -639,7 +639,7 @@ describe('KnowledgeOrchestrationService', () => {
   it('starts file processing and schedules a check job for supported document files when the base has a processor', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-04-08T00:00:00.000Z'))
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     const createdFile = createFileItem('file-1', 'kb-1', '/docs/source.pdf')
     const processingFile = createFileItem('file-1', 'kb-1', '/docs/source.pdf', 'processing')
     knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ fileProcessorId: 'doc2x' }))
@@ -681,7 +681,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('passes the parent job when starting file processing during reindex', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     const processingFile = createFileItem('file-1', 'kb-1', '/docs/source.pdf', 'processing')
     knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ fileProcessorId: 'doc2x' }))
     knowledgeItemGetByIdMock.mockResolvedValueOnce(processingFile)
@@ -726,7 +726,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('cancels the started file-processing job when check scheduling fails', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     const processingFile = createFileItem('file-1', 'kb-1', '/docs/source.pdf', 'processing')
     knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ fileProcessorId: 'doc2x' }))
     knowledgeItemGetByIdMock.mockResolvedValueOnce(processingFile)
@@ -747,7 +747,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('preserves check scheduling errors when rollback cancellation fails', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     const processingFile = createFileItem('file-1', 'kb-1', '/docs/source.pdf', 'processing')
     knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ fileProcessorId: 'doc2x' }))
     knowledgeItemGetByIdMock.mockResolvedValueOnce(processingFile)
@@ -767,7 +767,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('uses the parent job as the direct indexing idempotency scope during reindex', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     const processingFile = createFileItem('file-1', 'kb-1', '/docs/source.md', 'processing')
     knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ fileProcessorId: 'doc2x' }))
     knowledgeItemGetByIdMock.mockResolvedValueOnce(processingFile)
@@ -795,7 +795,7 @@ describe('KnowledgeOrchestrationService', () => {
   it('schedules follow-up file-processing checks with a five-second delay', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-04-08T00:00:00.000Z'))
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     const workflowService = (
       service as unknown as {
         workflowService: {
@@ -837,7 +837,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('schedules direct indexing for file items when the extension does not need file processing', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     const createdFile = createFileItem('file-1', 'kb-1', '/docs/source.md')
     const processingFile = createFileItem('file-1', 'kb-1', '/docs/source.md', 'processing')
     knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ fileProcessorId: 'doc2x' }))
@@ -860,7 +860,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('schedules direct indexing for document files when the base has no file processor', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     const createdFile = createFileItem('file-1', 'kb-1', '/docs/source.pdf')
     const processingFile = createFileItem('file-1', 'kb-1', '/docs/source.pdf', 'processing')
     knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ fileProcessorId: null }))
@@ -883,7 +883,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('marks accepted addItems rows failed when job scheduling fails', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     enqueueMock
       .mockResolvedValueOnce({ id: 'job-1', snapshot: {}, finished: Promise.resolve({}) })
       .mockRejectedValueOnce(new Error('enqueue failed'))
@@ -904,7 +904,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('rolls back every created addItems row when a status update fails', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     knowledgeItemUpdateStatusMock
       .mockResolvedValueOnce(createNoteItem('note-1', 'kb-1', null, 'processing'))
       .mockRejectedValueOnce(new Error('status failed'))
@@ -922,7 +922,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('keeps items deleting when delete cleanup enqueue fails', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem('note-1'))
     enqueueMock.mockRejectedValueOnce(new Error('enqueue failed'))
 
@@ -934,7 +934,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('collapses nested delete and reindex inputs to top-level roots', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     knowledgeItemGetOutermostSelectedItemIdsMock.mockResolvedValue(['dir-1'])
     knowledgeItemGetSubtreeItemsMock.mockResolvedValue([createDirectoryItem('dir-1', null, 'completed')])
 
@@ -959,7 +959,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('rejects reindex when any selected subtree item is not completed or failed', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     const root = createDirectoryItem('dir-1', null, 'completed')
     const processingChild = createNoteItem('note-1', 'kb-1', 'dir-1', 'processing')
     knowledgeItemGetByIdMock.mockResolvedValue(root)
@@ -978,7 +978,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('rejects a whole reindex batch when one root subtree is still active', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     const completedRoot = createNoteItem('note-1', 'kb-1', null, 'completed')
     const failedRoot = createNoteItem('note-2', 'kb-1', null, 'failed')
     const activeRoot = createNoteItem('note-3', 'kb-1', null, 'embedding')
@@ -1003,7 +1003,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('rejects runtime operations on failed bases before scheduling work', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     knowledgeBaseGetByIdMock.mockResolvedValue(
       createBase({ status: 'failed', error: KNOWLEDGE_BASE_ERROR_MISSING_EMBEDDING_MODEL })
     )
@@ -1025,7 +1025,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('searches vector store results and applies relevance threshold', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     knowledgeBaseGetByIdMock.mockResolvedValue(createBase({ threshold: 0.5 }))
     vectorQueryMock.mockResolvedValueOnce({
       nodes: [
@@ -1054,7 +1054,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('filters search results for missing or deleting items', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     knowledgeItemGetByIdMock.mockImplementation(async (id: string) => {
       if (id === MISSING_NOTE_ITEM_ID) {
         throw DataApiErrorFactory.notFound('KnowledgeItem', id)
@@ -1103,7 +1103,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('throws when search query embedding returns no vector', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     aiEmbedManyMock.mockResolvedValueOnce({ embeddings: [[]] })
 
     await expect(service.search('kb-1', 'hello')).rejects.toThrow(
@@ -1112,7 +1112,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('lists and deletes chunks after checking item ownership', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem('note-1', 'kb-1', null, 'completed'))
     vectorListByExternalIdMock.mockResolvedValueOnce([
       {
@@ -1131,7 +1131,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('lists chunks for completed directories without deleting children', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     knowledgeItemGetByIdMock.mockResolvedValueOnce(createDirectoryItem('dir-1', null, 'completed'))
     knowledgeItemGetSubtreeItemsMock
       .mockResolvedValueOnce([createNoteItem('note-1', 'kb-1', 'dir-1', 'completed')])
@@ -1152,7 +1152,7 @@ describe('KnowledgeOrchestrationService', () => {
   })
 
   it('rejects listing chunks for completed directories with deleting children', async () => {
-    const service = new KnowledgeOrchestrationService()
+    const service = new KnowledgeService()
     knowledgeItemGetByIdMock.mockResolvedValueOnce(createDirectoryItem('dir-1', null, 'completed'))
     knowledgeItemGetSubtreeItemsMock.mockResolvedValueOnce([
       createNoteItem('deleting-note', 'kb-1', 'dir-1', 'deleting')
@@ -1168,7 +1168,7 @@ describe('KnowledgeOrchestrationService', () => {
   it.each(['idle', 'processing', 'reading', 'embedding', 'failed', 'deleting'] as const)(
     'rejects chunk operations for %s leaf items',
     async (status) => {
-      const service = new KnowledgeOrchestrationService()
+      const service = new KnowledgeService()
       knowledgeItemGetByIdMock.mockResolvedValue(createNoteItem('note-1', 'kb-1', null, status))
 
       await expect(service.listItemChunks('kb-1', 'note-1')).rejects.toMatchObject({

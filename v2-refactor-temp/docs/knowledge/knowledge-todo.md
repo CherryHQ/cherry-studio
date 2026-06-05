@@ -74,7 +74,7 @@
   - 当前删除 base 会删除 SQLite 记录和向量 artifact。
   - 如果 artifact 清理失败，可能留下孤立向量文件。
   - 后续可以补 pending cleanup / 重试清理策略。
-  - 参考：`src/main/services/knowledge/KnowledgeOrchestrationService.ts`
+  - 参考：`src/main/services/knowledge/KnowledgeService.ts`
 
 ## 5. 迁移与存储边界
 

@@ -1,3 +1,3 @@
 export { KnowledgeLockManager } from './KnowledgeLockManager'
-export { KnowledgeOrchestrationService } from './KnowledgeOrchestrationService'
+export { KnowledgeService } from './KnowledgeService'
 export { KnowledgeWorkflowService } from './KnowledgeWorkflowService'

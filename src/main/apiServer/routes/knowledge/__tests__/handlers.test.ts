@@ -7,7 +7,7 @@ import type { ValidationRequest } from '../validators/zodValidator'
 
 const knowledgeBaseListMock = vi.fn()
 const knowledgeBaseGetByIdMock = vi.fn()
-const orchestratorSearchMock = vi.fn()
+const knowledgeServiceSearchMock = vi.fn()
 
 vi.mock('@data/services/KnowledgeBaseService', () => ({
   knowledgeBaseService: {
@@ -19,8 +19,8 @@ vi.mock('@data/services/KnowledgeBaseService', () => ({
 vi.mock('@application', () => ({
   application: {
     get: vi.fn((name: string) => {
-      if (name === 'KnowledgeOrchestrationService') {
-        return { search: orchestratorSearchMock }
+      if (name === 'KnowledgeService') {
+        return { search: knowledgeServiceSearchMock }
       }
       throw new Error(`Unexpected service: ${name}`)
     })
@@ -175,7 +175,7 @@ describe('Knowledge API handlers', () => {
       const firstBase = createKnowledgeBase({ id: '01900000-0000-7000-8000-000000000001', name: 'First' })
       const secondBase = createKnowledgeBase({ id: '01900000-0000-7000-8000-000000000002', name: 'Second' })
       knowledgeBaseListMock.mockResolvedValue({ items: [firstBase, secondBase], total: 2, page: 1 })
-      orchestratorSearchMock
+      knowledgeServiceSearchMock
         .mockResolvedValueOnce([createSearchResult({ score: 0.4, chunkId: 'low' })])
         .mockResolvedValueOnce([createSearchResult({ score: 0.9, chunkId: 'high' })])
 
@@ -187,8 +187,8 @@ describe('Knowledge API handlers', () => {
 
       await searchKnowledge(req, res as Response)
 
-      expect(orchestratorSearchMock).toHaveBeenCalledWith(firstBase.id, 'test query')
-      expect(orchestratorSearchMock).toHaveBeenCalledWith(secondBase.id, 'test query')
+      expect(knowledgeServiceSearchMock).toHaveBeenCalledWith(firstBase.id, 'test query')
+      expect(knowledgeServiceSearchMock).toHaveBeenCalledWith(secondBase.id, 'test query')
       expect(jsonMock).toHaveBeenCalledWith({
         query: 'test query',
         results: [createSearchResult({ score: 0.9, chunkId: 'high' })],
@@ -206,7 +206,7 @@ describe('Knowledge API handlers', () => {
       knowledgeBaseListMock
         .mockResolvedValueOnce({ items: [firstPageBase], total: 101, page: 1 })
         .mockResolvedValueOnce({ items: [secondPageBase], total: 101, page: 2 })
-      orchestratorSearchMock.mockResolvedValue([])
+      knowledgeServiceSearchMock.mockResolvedValue([])
 
       req.validatedBody = { query: 'test query', document_count: 5 }
 
@@ -214,8 +214,8 @@ describe('Knowledge API handlers', () => {
 
       expect(knowledgeBaseListMock).toHaveBeenNthCalledWith(1, { page: 1, limit: 100 })
       expect(knowledgeBaseListMock).toHaveBeenNthCalledWith(2, { page: 2, limit: 100 })
-      expect(orchestratorSearchMock).toHaveBeenCalledWith(firstPageBase.id, 'test query')
-      expect(orchestratorSearchMock).toHaveBeenCalledWith(secondPageBase.id, 'test query')
+      expect(knowledgeServiceSearchMock).toHaveBeenCalledWith(firstPageBase.id, 'test query')
+      expect(knowledgeServiceSearchMock).toHaveBeenCalledWith(secondPageBase.id, 'test query')
       expect(jsonMock).toHaveBeenCalledWith(
         expect.objectContaining({
           searchedBases: [
@@ -244,7 +244,7 @@ describe('Knowledge API handlers', () => {
           code: 'KB_NOT_FOUND'
         }
       })
-      expect(orchestratorSearchMock).not.toHaveBeenCalled()
+      expect(knowledgeServiceSearchMock).not.toHaveBeenCalled()
     })
 
     it('returns partial failure warnings when one base search fails', async () => {
@@ -252,7 +252,7 @@ describe('Knowledge API handlers', () => {
       const goodBase = createKnowledgeBase({ id: '01900000-0000-7000-8000-000000000002', name: 'Good' })
       const result = createSearchResult()
       knowledgeBaseListMock.mockResolvedValue({ items: [brokenBase, goodBase], total: 2, page: 1 })
-      orchestratorSearchMock.mockRejectedValueOnce(new Error('embed failed')).mockResolvedValueOnce([result])
+      knowledgeServiceSearchMock.mockRejectedValueOnce(new Error('embed failed')).mockResolvedValueOnce([result])
 
       req.validatedBody = { query: 'test query', document_count: 5 }
 
@@ -273,7 +273,7 @@ describe('Knowledge API handlers', () => {
     it('returns 502 when all base searches fail', async () => {
       const base = createKnowledgeBase({ name: 'Broken' })
       knowledgeBaseListMock.mockResolvedValue({ items: [base], total: 1, page: 1 })
-      orchestratorSearchMock.mockRejectedValue(new Error('embed failed'))
+      knowledgeServiceSearchMock.mockRejectedValue(new Error('embed failed'))
 
       req.validatedBody = { query: 'test query', document_count: 5 }
 

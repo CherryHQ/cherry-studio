@@ -1,7 +1,7 @@
 /**
  * Knowledge DataApi schemas.
  *
- * Runtime/index operations are exposed through KnowledgeOrchestrationService
+ * Runtime/index operations are exposed through KnowledgeService
  * IPC contracts in `src/main/services/knowledge/types/ipc`, not through DataApi.
  */
 

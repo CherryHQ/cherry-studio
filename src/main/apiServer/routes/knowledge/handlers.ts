@@ -151,11 +151,11 @@ export const searchKnowledge = async (req: ValidationRequest, res: Response): Pr
       })
     }
 
-    const orchestrator = application.get('KnowledgeOrchestrationService')
+    const knowledgeService = application.get('KnowledgeService')
     const resultsPerBase: SearchResultPerBase[] = await Promise.all(
       targetBases.map(async (base) => {
         try {
-          const results = await orchestrator.search(base.id, query)
+          const results = await knowledgeService.search(base.id, query)
           return { base, results }
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error)

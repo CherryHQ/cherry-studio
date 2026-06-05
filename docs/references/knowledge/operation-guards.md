@@ -30,7 +30,7 @@ Used by subtree id-based operations: `deleteItems` and `reindexItems`.
 
 This helper is not used by `addItems` because `addItems` receives new item payloads, not persisted item ids.
 
-### `KnowledgeOrchestrationService.getRootItemsInBase`
+### `KnowledgeService.getRootItemsInBase`
 
 Private helper used only by single-item chunk operations.
 
@@ -264,7 +264,7 @@ The child scheduling compensation mirrors `addItems`: once a child job was accep
 
 ## Shutdown
 
-`KnowledgeOrchestrationService` does not cancel knowledge jobs during service shutdown. Knowledge job handlers use JobManager `recovery: 'retry'`, so unfinished pending, delayed, or running rows are left for JobManager startup recovery instead of being terminal-cancelled while their knowledge items still show active statuses.
+`KnowledgeService` does not cancel knowledge jobs during service shutdown. Knowledge job handlers use JobManager `recovery: 'retry'`, so unfinished pending, delayed, or running rows are left for JobManager startup recovery instead of being terminal-cancelled while their knowledge items still show active statuses.
 
 ## Review Checklist
 

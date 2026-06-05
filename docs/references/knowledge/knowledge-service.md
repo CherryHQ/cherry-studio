@@ -20,7 +20,7 @@ The current implementation is split into four responsibility areas:
 2. Data API knowledge handlers
    - Expose database-backed list/get operations and base metadata/config patch.
    - Do not perform vector-store mutations.
-3. `KnowledgeOrchestrationService`
+3. `KnowledgeService`
    - Owns caller-facing runtime IPC workflow.
    - Creates/deletes/restores bases through data services and vector store services.
    - Registers Knowledge JobManager handlers.
@@ -38,7 +38,7 @@ caller
 
 caller
   -> preload knowledgeRuntime IPC
-     -> KnowledgeOrchestrationService
+     -> KnowledgeService
         -> KnowledgeWorkflowService
         -> JobManager
            -> knowledge.prepare-root / knowledge.index-documents
@@ -60,7 +60,7 @@ Current Data API knowledge endpoints are read/update-only for database state tha
 - `GET /knowledge-bases/:id/items`
 - `GET /knowledge-items/:id`
 
-Caller-facing create/delete/index/search operations go through `KnowledgeOrchestrationService` IPC.
+Caller-facing create/delete/index/search operations go through `KnowledgeService` IPC.
 
 The caller-facing add model is payload-based:
 
@@ -100,11 +100,11 @@ delete-items(baseId, itemIds)
 reindex-items(baseId, itemIds)
 ```
 
-`KnowledgeOrchestrationService` collapses nested selected ids to top-level roots before calling the workflow service.
+`KnowledgeService` collapses nested selected ids to top-level roots before calling the workflow service.
 
 ## IPC Surface
 
-`KnowledgeOrchestrationService` currently owns these public IPC entrypoints:
+`KnowledgeService` currently owns these public IPC entrypoints:
 
 - `knowledge-runtime:create-base`
 - `knowledge-runtime:restore-base`
@@ -126,7 +126,7 @@ Chunk IPC entrypoints are runtime inspection/mutation helpers:
 
 ## Runtime Behavior
 
-Knowledge runtime work is persisted in JobManager. `KnowledgeOrchestrationService.onInit` registers:
+Knowledge runtime work is persisted in JobManager. `KnowledgeService.onInit` registers:
 
 - `knowledge.prepare-root`
 - `knowledge.index-documents`
@@ -254,7 +254,7 @@ Only root items (`groupId = null`) are copied. Expanded directory children are i
 
 ## Search
 
-Search is executed by `KnowledgeOrchestrationService.search(baseId, query)`:
+Search is executed by `KnowledgeService.search(baseId, query)`:
 
 1. Reject failed bases.
 2. Reject queries without searchable tokens.
