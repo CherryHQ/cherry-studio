@@ -142,12 +142,6 @@ importers:
       '@vectorstores/readers':
         specifier: ^0.1.8
         version: 0.1.8(@vectorstores/core@0.1.8)(@vectorstores/env@0.1.0)(encoding@0.1.13)
-      echarts:
-        specifier: 6.1.0
-        version: 6.1.0
-      exceljs:
-        specifier: ^4.4.0
-        version: 4.4.0
       express:
         specifier: 5.1.0
         version: 5.1.0
@@ -836,6 +830,9 @@ importers:
       drizzle-orm:
         specifier: ^0.44.5
         version: 0.44.7(@libsql/client@0.15.15(patch_hash=735d1026dd9899a96d0e514ae92133da32447a436ff39216106dde0fec6e1f78))(@opentelemetry/api@1.9.0)
+      echarts:
+        specifier: 6.1.0
+        version: 6.1.0
       electron:
         specifier: 41.2.1
         version: 41.2.1
@@ -860,6 +857,9 @@ importers:
       electron-window-state:
         specifier: ^5.0.3
         version: 5.0.3
+      exceljs:
+        specifier: ^4.4.0
+        version: 4.4.0
       emittery:
         specifier: ^1.0.3
         version: 1.2.0
