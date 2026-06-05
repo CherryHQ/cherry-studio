@@ -7075,23 +7075,6 @@
     "store": "助手庫",
     "translate": "翻譯"
   },
-  "trace": {
-    "backList": "回到清單",
-    "edasSupport": "Powered by Alibaba Cloud EDAS",
-    "endTime": "結束時間",
-    "inputs": "輸入",
-    "label": "呼叫鏈",
-    "name": "節點名稱",
-    "noTraceList": "沒有找到 Trace 資訊",
-    "outputs": "輸出",
-    "parentId": "上級 Id",
-    "spanDetail": "Span 詳細資訊",
-    "spendTime": "消耗時間",
-    "startTime": "開始時間",
-    "tag": "標籤",
-    "tokenUsage": "Token 使用量",
-    "traceWindow": "呼叫鏈視窗"
-  },
   "translate": {
     "alter_language": "備用語言",
     "any": {

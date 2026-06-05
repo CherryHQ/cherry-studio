@@ -7075,23 +7075,6 @@
     "store": "Assistenten-Bibliothek",
     "translate": "Übersetzen"
   },
-  "trace": {
-    "backList": "Rückgängig-Liste",
-    "edasSupport": "Powered by Alibaba Cloud EDAS",
-    "endTime": "Endzeit",
-    "inputs": "Eingabe",
-    "label": "Aufrufkette",
-    "name": "Knotenname",
-    "noTraceList": "Trace-Informationen nicht gefunden",
-    "outputs": "Ausgabe",
-    "parentId": "Übergeordnete ID",
-    "spanDetail": "Span-Details",
-    "spendTime": "Verbrauchte Zeit",
-    "startTime": "Startzeit",
-    "tag": "Tags",
-    "tokenUsage": "Token-Verwendung",
-    "traceWindow": "Aufrufkette-Fenster"
-  },
   "translate": {
     "alter_language": "Alternative Sprache",
     "any": {

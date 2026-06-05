@@ -42,7 +42,6 @@ import {
   hasTextParts,
   hasTranslationParts
 } from '@renderer/utils/messageUtils/partsHelpers'
-import { TraceIcon } from '@renderer/windows/trace/pages/Component'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import {
   createUniqueModelId,
@@ -101,7 +100,6 @@ type MessageMenubarButtonContext = {
   deleteMessage: (traceId?: string, modelName?: string) => Promise<void>
   dropdownItems: MenuProps['items']
   enableDeveloperMode: boolean
-  handleTraceUserMessage: () => void | Promise<void>
   handleTranslate: (language: TranslateLanguage) => Promise<void>
   cancelTranslate: () => void
   hasTranslationBlocks: boolean
@@ -271,17 +269,6 @@ const MessageMenubar: FC<Props> = (props) => {
     },
     [isTranslating, runTranslate, mainTextContent]
   )
-
-  const handleTraceUserMessage = useCallback(async () => {
-    if (message.traceId) {
-      void window.api.trace.openWindow(
-        message.topicId,
-        message.traceId,
-        true,
-        message.role === 'user' ? undefined : message.model?.name
-      )
-    }
-  }, [message])
 
   const menubarScope: MessageMenubarScope = topic?.type ?? DEFAULT_MESSAGE_MENUBAR_SCOPE
   const { buttonIds, dropdownRootAllowKeys } = getMessageMenubarConfig(menubarScope)
@@ -516,7 +503,6 @@ const MessageMenubar: FC<Props> = (props) => {
     deleteMessage,
     dropdownItems,
     enableDeveloperMode,
-    handleTraceUserMessage,
     handleTranslate,
     cancelTranslate,
     hasTranslationBlocks,
@@ -870,19 +856,6 @@ const buttonRenderers: Record<MessageMenubarButtonId, MessageMenubarButtonRender
         $softHoverBg={softHoverBg}>
         {deleteTooltip}
       </ActionButton>
-    )
-  },
-  trace: ({ enableDeveloperMode, message, handleTraceUserMessage, t }) => {
-    if (!enableDeveloperMode || !message.traceId) {
-      return null
-    }
-
-    return (
-      <Tooltip content={t('trace.label')} delay={800}>
-        <ActionButton className="message-action-button" onClick={() => handleTraceUserMessage()}>
-          <TraceIcon size={16} className={'lucide lucide-trash'} />
-        </ActionButton>
-      </Tooltip>
     )
   },
   'inspect-data': ({ message, messageParts, enableDeveloperMode }) => {
