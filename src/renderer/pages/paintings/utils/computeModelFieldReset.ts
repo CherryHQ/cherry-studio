@@ -17,7 +17,8 @@ const logger = loggerService.withContext('paintings/modelFieldReset')
  *      for any field the user hasn't set yet — without this, widgets display
  *      a default visually via `item.initialValue` but never commit it to
  *      state, so `canonicalGenerate` reads `undefined` and downstream code
- *      falls back to its own default (e.g. `resolveImageSize('1024x1024')`).
+ *      falls back to its own default (e.g. the transport omits `size` and the
+ *      vendor applies its own).
  *   3. Resets carry-over values the new model can't accept: enum/select
  *      values absent from the new `options` list, and range/slider values
  *      outside the new `[min, max]` window. Transports forward these

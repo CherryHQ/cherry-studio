@@ -1,8 +1,8 @@
 import { NavbarHeader } from '@renderer/components/app/Navbar'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { useShortcut } from '@renderer/hooks/useShortcuts'
-import type { AgentEntity } from '@renderer/types'
 import { cn } from '@renderer/utils'
+import type { AgentEntity } from '@shared/data/types/agent'
 
 import AgentContent from './AgentContent'
 

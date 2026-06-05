@@ -120,15 +120,6 @@ import { topicTable } from '@data/db/schemas/topic'
 import { DataApiErrorFactory } from '@shared/data/api'
 
 export class TopicService {
-  private static instance: TopicService
-
-  static getInstance(): TopicService {
-    if (!this.instance) {
-      this.instance = new TopicService()
-    }
-    return this.instance
-  }
-
   private get db() {
     return application.get('DbService').getDb()
   }
@@ -181,7 +172,7 @@ export class TopicService {
   }
 }
 
-export const topicService = TopicService.getInstance()
+export const topicService = new TopicService()
 ```
 
 ### Write-path defaults
@@ -210,12 +201,12 @@ Each Entity Service provides a `rowToEntity` function that bridges a Drizzle row
 ```ts
 import { nullsToUndefined, timestampToISO } from './utils/rowMappers'
 
-function rowToMCPServer(row: typeof mcpServerTable.$inferSelect): MCPServer {
+function rowToMcpServer(row: typeof mcpServerTable.$inferSelect): McpServer {
   const clean = nullsToUndefined(row)
   return {
     ...clean,
-    type: clean.type as MCPServer['type'], // narrow enum
-    installSource: clean.installSource as MCPServer['installSource'],
+    type: clean.type as McpServer['type'], // narrow enum
+    installSource: clean.installSource as McpServer['installSource'],
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
   }

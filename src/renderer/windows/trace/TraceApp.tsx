@@ -1,10 +1,16 @@
+import { usePreference } from '@data/hooks/usePreference'
+import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import i18n from '@renderer/i18n'
+import { defaultLanguage } from '@shared/config/constant'
+import type { TraceWindowInitData } from '@shared/types/traceWindow'
 import { useEffect, useState } from 'react'
 
 import { TraceIcon } from './pages/Component'
 import { TracePage } from './pages/index'
 
 const TraceApp = () => {
+  const initData = useWindowInitData<TraceWindowInitData>()
+  const [language] = usePreference('app.language')
   const [traceId, setTraceId] = useState('')
   const [topicId, setTopicId] = useState('')
   const [modelName, setModelName] = useState<string | undefined>(undefined)
@@ -12,32 +18,20 @@ const TraceApp = () => {
   const [title, setTitle] = useState('Call Chain Window')
 
   useEffect(() => {
-    const setTraceHandler = (_, data) => {
-      if (data?.traceId && data?.topicId) {
-        setTraceId(data.traceId)
-        setTopicId(data.topicId)
-        setModelName(data.modelName)
-        setReload(!reload)
-      }
-    }
+    if (!initData?.traceId || !initData?.topicId) return
+    setTraceId(initData.traceId)
+    setTopicId(initData.topicId)
+    setModelName(initData.modelName)
+    setReload((value) => !value)
+  }, [initData])
 
-    const setLangHandler = (_, data) => {
-      void i18n.changeLanguage(data.lang)
-      const newTitle = i18n.t('trace.traceWindow')
-      if (newTitle !== title) {
-        void window.api.trace.setTraceWindowTitle(i18n.t('trace.traceWindow'))
-        setTitle(newTitle)
-      }
-    }
-
-    const removeTraceHandler = window.electron.ipcRenderer.once('set-trace', setTraceHandler)
-    const removeLanguageHandler = window.electron.ipcRenderer.once('set-language', setLangHandler)
-
-    return () => {
-      removeTraceHandler()
-      removeLanguageHandler()
-    }
-  }, [title, reload, modelName, traceId, topicId])
+  useEffect(() => {
+    void i18n.changeLanguage(language || navigator.language || defaultLanguage).then(() => {
+      const newTitle = initData?.title || i18n.t('trace.traceWindow')
+      setTitle(newTitle)
+      void window.api.trace.setTraceWindowTitle(newTitle)
+    })
+  }, [language, initData?.title])
 
   const handleFooterClick = () => {
     void window.api.shell.openExternal('https://www.aliyun.com/product/edas')

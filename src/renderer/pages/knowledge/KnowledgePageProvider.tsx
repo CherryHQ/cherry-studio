@@ -4,7 +4,7 @@ import {
   useKnowledgeBases,
   useRestoreKnowledgeBase,
   useUpdateKnowledgeBase
-} from '@renderer/hooks/useKnowledgeBases'
+} from '@renderer/hooks/useKnowledgeBase'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeBaseListItem } from '@shared/data/api/schemas/knowledges'
 import type { Group } from '@shared/data/types/group'

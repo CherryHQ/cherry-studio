@@ -183,7 +183,7 @@
           }
         }
       },
-      "MCPServer": {
+      "McpServer": {
         "type": "object",
         "properties": {
           "id": {
@@ -773,7 +773,7 @@
                     "data": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/MCPServer"
+                        "$ref": "#/components/schemas/McpServer"
                       }
                     }
                   }
@@ -831,7 +831,7 @@
                       "type": "boolean"
                     },
                     "data": {
-                      "$ref": "#/components/schemas/MCPServer"
+                      "$ref": "#/components/schemas/McpServer"
                     }
                   }
                 }
@@ -875,7 +875,7 @@
                 "properties": {
                   "model": {
                     "type": "string",
-                    "description": "Model ID in format \"provider:model_id\"",
+                    "description": "Model ID in format \"providerId::modelId\"",
                     "example": "my-anthropic:claude-3-5-sonnet-20241022"
                   },
                   "max_tokens": {

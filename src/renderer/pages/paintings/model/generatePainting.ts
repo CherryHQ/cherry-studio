@@ -1,117 +1,95 @@
-import { AiProvider } from '@renderer/aiCore'
-import { getProviderById } from '@renderer/services/ProviderService'
-import type { FileMetadata, GenerateImageParams, Model, Provider } from '@renderer/types'
+import type { FileMetadata, GenerateImageParams } from '@renderer/types'
 
-import type { DownloadImagesOptions } from '../utils/downloadImages'
+import { fileEntryToMetadata } from '../utils/fileEntryAdapter'
 import { runPainting } from './runPainting'
 import type { PaintingProviderRuntime } from './types/paintingProviderRuntime'
 
 /**
- * Shared painting generate skeleton — extracted from the 8 per-provider
- * `generate.ts` / `generateUnified.ts` files that all converged on the same
- * shape after the R1 cutover:
+ * Shared painting generate skeleton. Image generation runs in the MAIN process
+ * via the `Ai_GenerateImage` IPC (`window.api.ai.generateImage`): main resolves
+ * the provider from `uniqueModelId`, builds the AI SDK image request (including
+ * per-vendor `providerOptions` via `buildImageProviderOptions`), runs any async
+ * submit/poll loop, and returns base64 data URLs. The renderer only maps the
+ * canonical painting params onto the IPC payload and persists the results.
  *
- *   1. Build an `AiProvider` for the resolved (provider, modelId)
- *   2. Call `generatePaintingImage(...)` with provider-specific params
- *   3. Classify the returned `ClassifiedImage[]` into `{ urls, ... }` or
- *      `{ base64s }` and hand off to `resolvePaintingFiles`
- *
- * Per-vendor variation (request fields, provider-options bag, download
- * options, model lookup) is fed in by the caller — there is no per-provider
- * branching inside this helper. Validation (model required, prompt required,
- * mode-specific edit-image checks, custom-size pixel rules, etc.) stays in
- * each vendor's `generate.ts` because the rules genuinely differ; the goal
- * here is only to consolidate the rote orchestration that did NOT differ.
+ * Per-vendor variation (request fields, the `providerOptions` bag) is fed in by
+ * the caller — there is no per-provider branching here. Validation (model /
+ * prompt required, edit-image checks, custom-size rules, etc.) stays in the
+ * caller (`canonicalGenerate`).
  */
 export interface GeneratePaintingOptions {
   /** Painting provider runtime (id, name, apiHost, isEnabled). */
   readonly provider: PaintingProviderRuntime
   /** Abort signal — usually `input.abortController.signal`. */
   readonly signal: AbortSignal
-  /** Resolved API key. Pass `''` for vendors without auth (OVMS). */
-  readonly apiKey: string
   /** Model id chosen by the user; assumed non-empty (caller validates). */
   readonly modelId: string
   /** User-entered prompt; pass `''` when the model allows empty prompts. */
   readonly prompt: string
   /**
-   * AI-SDK call params (all fields except `model` / `prompt` / `signal` /
-   * `providerOptions`, which this helper fills in). `imageSize` /
-   * `batchSize` / `negativePrompt` / `seed` / etc. live here.
+   * Canonical AI SDK image params (all fields except `model` / `prompt` /
+   * `signal` / `providerOptions`). `imageSize` / `batchSize` / `negativePrompt`
+   * / `seed` / `aspectRatio` / `inputImages` (already encoded as data URLs) /
+   * etc. live here.
    */
   readonly aiSdkParams: Omit<GenerateImageParams, 'model' | 'prompt' | 'signal' | 'providerOptions'>
   /**
-   * `providerOptions[<provider.id>]` bag — forwarded by reference, so
-   * non-JSON callbacks (e.g. polling `onProgress`, async-submit
-   * `onSubmitTaskId`) survive the plugin chain. Omit when the vendor has no
-   * extras (silicon today).
+   * Vendor-exclusive params keyed by canonical name — forwarded to main as
+   * `providerOptions[<provider.id>]`, where `buildImageProviderOptions` maps
+   * them onto the vendor's real image-API field names. Omit when the vendor
+   * has no extras (silicon today).
    */
   readonly providerBag?: Record<string, unknown>
-  /**
-   * Stamped on the `{ urls }` return branch. Use `{ showProxyWarning: true }`
-   * for proxied CDN URLs (Ideogram), `{ allowBase64DataUrls: true }` for
-   * mixed url+data: responses (DMXAPI). Default: no options.
-   */
-  readonly downloadOptions?: DownloadImagesOptions
-  /**
-   * Override the synthesized `Model` placeholder when the caller already has
-   * a richer `Model` shape on hand. Most callers omit this and rely on the
-   * synthesized placeholder, which only needs `id` / `provider` / `name`.
-   */
-  readonly model?: Model
 }
 
 export function generatePainting(opts: GeneratePaintingOptions): Promise<FileMetadata[]> {
   return runPainting(async () => {
-    const model: Model = opts.model ?? {
-      id: opts.modelId,
-      provider: opts.provider.id,
-      name: opts.modelId,
-      group: ''
+    const { aiSdkParams, providerBag } = opts
+
+    const seedRaw = typeof aiSdkParams.seed === 'string' ? aiSdkParams.seed.trim() : ''
+    const seed = /^-?\d+$/.test(seedRaw) ? Number(seedRaw) : undefined
+    // canonicalGenerate encodes attached files as `data:` URL strings.
+    const inputImages = (aiSdkParams.inputImages ?? []).filter((img): img is string => typeof img === 'string')
+
+    const requestId = crypto.randomUUID()
+    const onAbort = () => window.api.ai.abortImage(requestId)
+    opts.signal.addEventListener('abort', onAbort, { once: true })
+    const result = await window.api.ai
+      .generateImage(
+        {
+          uniqueModelId: `${opts.provider.id}::${opts.modelId}`,
+          prompt: opts.prompt,
+          ...(inputImages.length > 0 && { inputImages }),
+          ...(aiSdkParams.batchSize !== undefined && { n: aiSdkParams.batchSize }),
+          ...(aiSdkParams.imageSize && { size: aiSdkParams.imageSize }),
+          ...(aiSdkParams.negativePrompt && { negativePrompt: aiSdkParams.negativePrompt }),
+          ...(seed !== undefined && { seed }),
+          ...(aiSdkParams.quality && { quality: aiSdkParams.quality }),
+          ...(aiSdkParams.numInferenceSteps !== undefined && { numInferenceSteps: aiSdkParams.numInferenceSteps }),
+          ...(aiSdkParams.guidanceScale !== undefined && { guidanceScale: aiSdkParams.guidanceScale }),
+          ...(aiSdkParams.promptEnhancement !== undefined && { promptEnhancement: aiSdkParams.promptEnhancement }),
+          ...(aiSdkParams.personGeneration && { personGeneration: aiSdkParams.personGeneration }),
+          ...(aiSdkParams.aspectRatio && { aspectRatio: aiSdkParams.aspectRatio }),
+          ...(aiSdkParams.background && { background: aiSdkParams.background }),
+          ...(aiSdkParams.moderation && { moderation: aiSdkParams.moderation }),
+          ...(aiSdkParams.style && { style: aiSdkParams.style }),
+          ...(providerBag && { providerOptions: { [opts.provider.id]: providerBag } })
+        },
+        requestId
+      )
+      .finally(() => opts.signal.removeEventListener('abort', onAbort))
+
+    if (opts.signal.aborted) {
+      throw new DOMException('Image generation aborted', 'AbortError')
+    }
+    if (result.files.length === 0) {
+      return undefined
     }
 
-    // Use the real store-side provider so AiProvider picks the right SDK
-    // builder (gemini → @ai-sdk/google, anthropic → @ai-sdk/anthropic, etc.)
-    // instead of forcing every painting call through the openai-compat path.
-    // Painting-resolved apiKey / apiHost / enabled override the store values.
-    const storeProvider = getProviderById(opts.provider.id)
-    const provider: Provider = storeProvider
-      ? {
-          ...storeProvider,
-          apiKey: opts.apiKey,
-          apiHost: opts.provider.apiHost,
-          enabled: opts.provider.isEnabled
-        }
-      : {
-          id: opts.provider.id,
-          type: 'openai',
-          name: opts.provider.name,
-          apiKey: opts.apiKey,
-          apiHost: opts.provider.apiHost,
-          models: [model],
-          enabled: opts.provider.isEnabled
-        }
-
-    const ai = new AiProvider(model, provider)
-
-    const providerOptions = opts.providerBag ? { [opts.provider.id]: opts.providerBag } : undefined
-
-    const out = await ai.generatePaintingImage({
-      ...opts.aiSdkParams,
-      model: opts.modelId,
-      prompt: opts.prompt,
-      ...(providerOptions && { providerOptions }),
-      signal: opts.signal
-    })
-
-    const urls = out.flatMap((o) => (o.type === 'url' ? [o.url] : []))
-    if (urls.length > 0) {
-      return opts.downloadOptions ? { urls, downloadOptions: opts.downloadOptions } : { urls }
-    }
-    const base64s = out.flatMap((o) => (o.type === 'base64' ? [o.base64] : []))
-    if (base64s.length > 0) {
-      return { base64s }
-    }
-    return undefined
+    // main already persisted the images (`createInternalEntry`); just adapt the
+    // returned v2 `FileEntry` rows to the v1 `FileMetadata` the painting state
+    // still consumes. No base64 round-trip.
+    const files = await Promise.all(result.files.map(fileEntryToMetadata))
+    return files.length > 0 ? { files } : undefined
   })
 }

@@ -4,7 +4,7 @@
  * 1. 文件过大 - 1100+ 行，难以维护
  * 2. 职责混乱 - 类型定义、运行时常量、工具函数混在一起，违反单一职责原则
  * 3. 工具函数不属于类型文件 - objectKeys, objectEntries, strip 等应移至 utils/
- * 4. 运行时常量不属于类型文件 - EFFORT_RATIO, WebSearchProviderIds, BuiltinMCPServerNames 等应移至 constants/
+ * 4. 运行时常量不属于类型文件 - EFFORT_RATIO, WebSearchProviderIds, BuiltinMcpServerNames 等应移至 constants/
  * 5. 类型守卫应分离 - isThinkModelType, isWebSearchProviderId 等函数应独立到 typeGuards 文件
  * 6. 部分类型应迁移到 src/shared/data/types/ 以便 main/renderer 进程共享
  */
@@ -16,19 +16,23 @@ export * from './file'
 export * from './note'
 export type { LanguageVarious, TranslateLangCode } from '@shared/data/preference/preferenceTypes'
 
-import type { MCPServer } from '@shared/data/types/mcpServer'
+import type {
+  Assistant as DataApiAssistant,
+  AssistantSettings as DataApiAssistantSettings,
+  McpMode as DataApiMcpMode
+} from '@shared/data/types/assistant'
+import type { McpServer } from '@shared/data/types/mcpServer'
 import type { TranslateLanguage } from '@shared/data/types/translate'
+
+export type { TranslateLanguage }
 import * as z from 'zod'
 
-import type { StreamTextParams } from './aiCoreTypes'
-import type { Chunk } from './chunk'
 import type { FileMetadata } from './file'
 import type { KnowledgeBase, KnowledgeReference } from './knowledge'
 import type { Message } from './newMessage'
-import type { BaseTool, MCPTool } from './tool'
+import type { BaseTool, McpTool } from './tool'
 
 export * from './agent'
-export * from './apiModels'
 export * from './apiServer'
 export * from './knowledge'
 export * from './mcp'
@@ -40,21 +44,39 @@ export * from './serialize'
 export * from './skill'
 export * from './websearch'
 
-export type McpMode = 'disabled' | 'auto' | 'manual'
+export type Assistant = DataApiAssistant
+export type AssistantSettings = DataApiAssistantSettings
+export type McpMode = DataApiMcpMode
 
-export type Assistant = {
+/**
+ * @deprecated removed in v2
+ */
+export type LegacyAssistantSettings = AssistantSettings & {
+  contextCount?: number
+  /** v1-only: tool-call mode (`function` | `prompt`). Removed from v2 AssistantSettings;
+   *  retained here solely so the deprecated store migrations in `store/migrate.ts` compile. */
+  toolUseMode?: 'function' | 'prompt'
+}
+
+/**
+ * @deprecated removed in v2
+ */
+export type LegacyAssistant = {
   id: string
   name: string
   prompt: string
   knowledge_bases?: KnowledgeBase[]
   topics: Topic[]
   type: string
+  group?: string[]
   emoji?: string
   description?: string
   model?: Model
   defaultModel?: Model
-  // This field should be considered as not Partial and not optional in v2
-  settings?: Partial<AssistantSettings>
+  settings?: Partial<LegacyAssistantSettings> & {
+    /** legacy: only present in v1 settings */
+    defaultModel?: Model
+  }
   messages?: AssistantMessage[]
   enableWebSearch?: boolean
   // enableUrlContext 是 Gemini/Anthropic 的特有功能
@@ -62,7 +84,7 @@ export type Assistant = {
   enableGenerateImage?: boolean
   /** MCP mode: 'disabled' (no MCP), 'auto' (hub server only), 'manual' (user selects servers) */
   mcpMode?: McpMode
-  mcpServers?: MCPServer[]
+  mcpServers?: McpServer[]
   knowledgeRecognition?: 'off' | 'on'
   regularPhrases?: QuickPhrase[] // Added for regular phrase
   tags?: string[] // 助手标签
@@ -71,30 +93,24 @@ export type Assistant = {
   targetLanguage?: TranslateLanguage
 }
 
-/**
- * Get the effective MCP mode for an assistant with backward compatibility.
- * Legacy assistants without mcpMode default based on mcpServers presence.
- */
-export function getEffectiveMcpMode(assistant: Assistant): McpMode {
-  if (assistant.mcpMode) return assistant.mcpMode
-  return (assistant.mcpServers?.length ?? 0) > 0 ? 'manual' : 'disabled'
-}
-
 export type TranslateAssistant = Assistant & {
   model: Model
   content: string
   targetLanguage: TranslateLanguage
 }
 
-export const isTranslateAssistant = (assistant: Assistant): assistant is TranslateAssistant => {
-  return Boolean(assistant.model && assistant.targetLanguage && typeof assistant.content === 'string')
-}
-
-// export type AssistantsSortType = 'tags' | 'list'
-
 export type AssistantMessage = {
   role: 'user' | 'assistant'
   content: string
+}
+
+/**
+ * Get the effective MCP mode for an assistant with backward compatibility.
+ * v2 keeps `mcpMode` inside `settings` and supplies a default — this helper
+ * stays as a thin facade so existing callers don't have to change.
+ */
+export function getEffectiveMcpMode(assistant: Assistant): McpMode {
+  return assistant.settings?.mcpMode ?? 'disabled'
 }
 
 export type AssistantSettingCustomParameters = {
@@ -182,28 +198,6 @@ export const EFFORT_RATIO: EffortRatio = {
   auto: 2
 }
 
-export type AssistantSettings = {
-  maxTokens?: number
-  enableMaxTokens?: boolean
-  temperature: number
-  enableTemperature?: boolean
-  topP: number
-  enableTopP?: boolean
-  contextCount: number
-  streamOutput: boolean
-  defaultModel?: Model
-  customParameters?: AssistantSettingCustomParameters[]
-  reasoning_effort: ReasoningEffortOption
-  qwenThinkMode?: boolean
-  toolUseMode: 'function' | 'prompt'
-  maxToolCalls?: number
-  enableMaxToolCalls?: boolean
-}
-
-export type AssistantPreset = Omit<Assistant, 'model'> & {
-  group?: string[]
-}
-
 export type LegacyMessage = {
   id: string
   assistantId: string
@@ -226,7 +220,7 @@ export type LegacyMessage = {
   askId?: string
   useful?: boolean
   error?: Record<string, any>
-  enabledMCPs?: MCPServer[]
+  enabledMCPs?: McpServer[]
   metadata?: {
     // Gemini
     groundingMetadata?: GroundingMetadata
@@ -239,7 +233,7 @@ export type LegacyMessage = {
     // Web search
     webSearch?: WebSearchProviderResponse
     // MCP Tools
-    mcpTools?: MCPToolResponse[]
+    mcpTools?: McpToolResponse[]
     // Generate Image
     generateImage?: GenerateImageResponse
     // knowledge
@@ -272,7 +266,13 @@ export enum TopicType {
 export type Topic = {
   id: string
   type?: TopicType
-  assistantId: string
+  /**
+   * Last-used assistant id. `undefined` means the topic has no associated
+   * assistant (e.g. a first-launch temp topic, or a topic created before any
+   * assistant was selected). Renderer code must NOT substitute a sentinel —
+   * callers should branch on `undefined` and fall back to UI defaults.
+   */
+  assistantId: string | undefined
   name: string
   createdAt: string
   updatedAt: string
@@ -637,8 +637,8 @@ export const isAutoDetectionMethod = (method: string): method is AutoDetectionMe
 }
 
 export type ExternalToolResult = {
-  mcpTools?: MCPTool[]
-  toolUse?: MCPToolResponse[]
+  mcpTools?: McpTool[]
+  toolUse?: McpToolResponse[]
   webSearch?: WebSearchResponse
   knowledge?: KnowledgeReference[]
   memories?: MemoryItem[]
@@ -727,29 +727,29 @@ export type WebSearchResponse = {
 export type { WebSearchPhase, WebSearchStatus } from '@shared/data/types/webSearch'
 
 // TODO: 把 mcp 相关类型定义迁移到独立文件中
-export type MCPArgType = 'string' | 'list' | 'number'
-export type MCPEnvType = 'string' | 'number'
-export type MCPArgParameter = { [key: string]: MCPArgType }
-export type MCPEnvParameter = { [key: string]: MCPEnvType }
+export type McpArgType = 'string' | 'list' | 'number'
+export type McpEnvType = 'string' | 'number'
+export type McpArgParameter = { [key: string]: McpArgType }
+export type McpEnvParameter = { [key: string]: McpEnvType }
 
-export interface MCPServerParameter {
+export interface McpServerParameter {
   name: string
-  type: MCPArgType | MCPEnvType
+  type: McpArgType | McpEnvType
   description: string
 }
 
-export type { MCPServer } from '@shared/data/types/mcpServer'
+export type { McpServer } from '@shared/data/types/mcpServer'
 
-export type BuiltinMCPServer = MCPServer & {
+export type BuiltinMcpServer = McpServer & {
   type: 'inMemory'
-  name: BuiltinMCPServerName
+  name: BuiltinMcpServerName
 }
 
-export const isBuiltinMCPServer = (server: MCPServer): server is BuiltinMCPServer => {
-  return server.type === 'inMemory' && isBuiltinMCPServerName(server.name)
+export const isBuiltinMcpServer = (server: McpServer): server is BuiltinMcpServer => {
+  return server.type === 'inMemory' && isBuiltinMcpServerName(server.name)
 }
 
-export const BuiltinMCPServerNames = {
+export const BuiltinMcpServerNames = {
   flomo: '@cherry/flomo',
   mcpAutoInstall: '@cherry/mcp-auto-install',
   memory: '@cherry/memory',
@@ -759,36 +759,36 @@ export const BuiltinMCPServerNames = {
   filesystem: '@cherry/filesystem',
   difyKnowledge: '@cherry/dify-knowledge',
   python: '@cherry/python',
-  didiMCP: '@cherry/didi-mcp',
+  didiMcp: '@cherry/didi-mcp',
   browser: '@cherry/browser',
   nowledgeMem: '@cherry/nowledge-mem',
   hub: '@cherry/hub'
 } as const
 
-export type BuiltinMCPServerName = (typeof BuiltinMCPServerNames)[keyof typeof BuiltinMCPServerNames]
+export type BuiltinMcpServerName = (typeof BuiltinMcpServerNames)[keyof typeof BuiltinMcpServerNames]
 
-export const BuiltinMCPServerNamesArray = Object.values(BuiltinMCPServerNames)
+export const BuiltinMcpServerNamesArray = Object.values(BuiltinMcpServerNames)
 
-export const isBuiltinMCPServerName = (name: string): name is BuiltinMCPServerName => {
-  return BuiltinMCPServerNamesArray.some((n) => n === name)
+export const isBuiltinMcpServerName = (name: string): name is BuiltinMcpServerName => {
+  return BuiltinMcpServerNamesArray.some((n) => n === name)
 }
 
-export interface MCPPromptArguments {
+export interface McpPromptArguments {
   name: string
   description?: string
   required?: boolean
 }
 
-export interface MCPPrompt {
+export interface McpPrompt {
   id: string
   name: string
   description?: string
-  arguments?: MCPPromptArguments[]
+  arguments?: McpPromptArguments[]
   serverId: string
   serverName: string
 }
 
-export interface GetMCPPromptResponse {
+export interface GetMcpPromptResponse {
   description?: string
   messages: {
     role: string
@@ -801,19 +801,19 @@ export interface GetMCPPromptResponse {
   }[]
 }
 
-export interface MCPConfig {
-  servers: MCPServer[]
+export interface McpConfig {
+  servers: McpServer[]
   isUvInstalled: boolean
   isBunInstalled: boolean
 }
 
-export type MCPToolResponseStatus = 'pending' | 'streaming' | 'cancelled' | 'invoking' | 'done' | 'error'
+export type McpToolResponseStatus = 'pending' | 'streaming' | 'cancelled' | 'invoking' | 'done' | 'error'
 
 interface BaseToolResponse {
   id: string // unique id
-  tool: BaseTool | MCPTool
+  tool: BaseTool | McpTool
   arguments: Record<string, unknown> | Record<string, unknown>[] | string | undefined
-  status: MCPToolResponseStatus
+  status: McpToolResponseStatus
   response?: any
   // Streaming arguments support
   partialArguments?: string // Accumulated partial JSON string during streaming
@@ -828,9 +828,9 @@ export interface ToolCallResponse extends BaseToolResponse {
   toolCallId?: string
 }
 
-// export type MCPToolResponse = ToolUseResponse | ToolCallResponse
-export interface MCPToolResponse extends Omit<ToolUseResponse | ToolCallResponse, 'tool'> {
-  tool: MCPTool
+// export type McpToolResponse = ToolUseResponse | ToolCallResponse
+export interface McpToolResponse extends Omit<ToolUseResponse | ToolCallResponse, 'tool'> {
+  tool: McpTool
   toolCallId?: string
   toolUseId?: string
   parentToolUseId?: string
@@ -842,7 +842,7 @@ export interface NormalToolResponse extends Omit<ToolCallResponse, 'tool'> {
   parentToolUseId?: string
 }
 
-export interface MCPToolResultContent {
+export interface McpToolResultContent {
   type: 'text' | 'image' | 'audio' | 'resource'
   text?: string
   data?: string
@@ -855,13 +855,13 @@ export interface MCPToolResultContent {
   }
 }
 
-export interface MCPCallToolResponse {
-  content: MCPToolResultContent[]
+export interface McpCallToolResponse {
+  content: McpToolResultContent[]
   structuredContent?: unknown
   isError?: boolean
 }
 
-export interface MCPResource {
+export interface McpResource {
   serverId: string
   serverName: string
   uri: string
@@ -874,7 +874,7 @@ export interface MCPResource {
 }
 
 export interface GetResourceResponse {
-  contents: MCPResource[]
+  contents: McpResource[]
 }
 
 export interface QuickPhrase {
@@ -1108,36 +1108,6 @@ export type HexColor = string
 export const isHexColor = (value: string): value is HexColor => {
   return /^#([0-9A-F]{3}){1,2}$/i.test(value)
 }
-
-export type FetchChatCompletionRequestOptions = {
-  signal?: AbortSignal
-  timeout?: number
-  headers?: Record<string, string>
-}
-
-type BaseParams = {
-  assistant: Assistant
-  requestOptions?: FetchChatCompletionRequestOptions
-  onChunkReceived: (chunk: Chunk) => void
-  topicId?: string // 添加 topicId 参数
-  allowedTools?: string[]
-  uiMessages?: Message[]
-}
-
-type MessagesParams = BaseParams & {
-  messages: StreamTextParams['messages']
-  prompt?: never
-}
-
-type PromptParams = BaseParams & {
-  messages?: never
-  // prompt: Just use string for convinience. Native prompt type unite more types, including messages type.
-  // we craete a non-intersecting prompt type to discriminate them.
-  // see https://github.com/vercel/ai/issues/8363
-  prompt: string
-}
-
-export type FetchChatCompletionParams = MessagesParams | PromptParams
 
 // More specific than NonNullable
 export type NotUndefined<T> = Exclude<T, undefined>

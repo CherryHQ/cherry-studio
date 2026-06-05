@@ -10,8 +10,8 @@ import {
   SelectTrigger,
   SelectValue
 } from '@cherrystudio/ui'
-import type { RestoreKnowledgeBaseInput } from '@renderer/hooks/useKnowledgeBases'
-import { useModels } from '@renderer/hooks/useModels'
+import type { RestoreKnowledgeBaseInput } from '@renderer/hooks/useKnowledgeBase'
+import { useModels } from '@renderer/hooks/useModel'
 import type { KnowledgeSelectOption } from '@renderer/pages/knowledge/types'
 import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeBase } from '@shared/data/types/knowledge'

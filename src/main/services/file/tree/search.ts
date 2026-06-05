@@ -81,19 +81,20 @@ const EXCLUDED_DIRS = new Set([
 
 function getRipgrepBinaryPath(): string | null {
   try {
+    const executable = isWin ? 'rg.exe' : 'rg'
     const arch = process.arch === 'arm64' ? 'arm64' : 'x64'
     const platform = isMac ? 'darwin' : isWin ? 'win32' : 'linux'
     const tail = path.join(
       'node_modules',
-      '@anthropic-ai',
-      'claude-agent-sdk',
+      '@cherrystudio',
+      'ripgrep',
       'vendor',
       'ripgrep',
       `${arch}-${platform}`,
-      isWin ? 'rg.exe' : 'rg'
+      executable
     )
 
-    // Walk up parents until we find a `node_modules/@anthropic-ai/claude-agent-sdk`
+    // Walk up parents until we find the vendored `@cherrystudio/ripgrep`
     // checkout. This is robust to: production bundle (`out/main/…`), source
     // layout (`src/main/services/file/tree/…` under vitest), and any future
     // re-layering. Also checks the asar-unpacked sibling at each step so
@@ -106,9 +107,16 @@ function getRipgrepBinaryPath(): string | null {
       if (unpacked !== candidate && fs.existsSync(unpacked)) return unpacked
 
       const parent = path.dirname(dir)
-      if (parent === dir) return null
+      if (parent === dir) break
       dir = parent
     }
+    const pathEntries = (process.env.PATH ?? '').split(path.delimiter).filter(Boolean)
+    for (const entry of pathEntries) {
+      const candidate = path.join(entry, executable)
+      if (fs.existsSync(candidate)) return candidate
+    }
+
+    return null
   } catch (error) {
     logger.error('Failed to locate ripgrep binary:', error as Error)
     return null

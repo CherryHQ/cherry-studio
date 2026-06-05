@@ -3,29 +3,29 @@ import { loggerService } from '@logger'
 import CollapsibleSearchBar from '@renderer/components/CollapsibleSearchBar'
 import Scrollbar from '@renderer/components/Scrollbar'
 import db from '@renderer/databases'
-import { useMcpServers } from '@renderer/hooks/useMcpServers'
-import type { MCPServer } from '@renderer/types'
+import { useMcpServers } from '@renderer/hooks/useMcpServer'
+import type { McpServer } from '@renderer/types'
 import { cn } from '@renderer/utils/style'
 import { Check, Plus, SquareArrowOutUpRight } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { getMCPProviderLogo, getProviderDisplayName, type ProviderConfig } from './providers/config'
+import { getMcpProviderLogo, getProviderDisplayName, type ProviderConfig } from './providers/config'
 import { isSameMcpServerCandidate, toCreateMcpServerDto } from './utils'
 
 const logger = loggerService.withContext('McpProviderSettings')
 
 interface Props {
   provider: ProviderConfig
-  existingServers: MCPServer[]
+  existingServers: McpServer[]
 }
 
 const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => {
   const { addMcpServer } = useMcpServers()
   const [isFetching, setIsFetching] = useState(false)
   const [token, setToken] = useState<string>('')
-  const [availableServers, setAvailableServers] = useState<MCPServer[]>([])
+  const [availableServers, setAvailableServers] = useState<McpServer[]>([])
   const [searchText, setSearchText] = useState('')
   const { t } = useTranslation()
 
@@ -118,7 +118,7 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
   }, [provider, t, token])
 
   const isFetchDisabled = !token
-  const ProviderLogo = getMCPProviderLogo(provider.key)
+  const ProviderLogo = getMcpProviderLogo(provider.key)
 
   return (
     <DetailContainer>
@@ -232,8 +232,12 @@ const McpProviderSettings: React.FC<Props> = ({ provider, existingServers }) => 
   )
 }
 
-const DetailContainer = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof Scrollbar>) => (
-  <Scrollbar className={cn('flex h-[calc(100vh-var(--navbar-height))] flex-col px-5 py-4', className)} {...props} />
+const DetailContainer = ({ className, children, ...props }: React.ComponentPropsWithoutRef<typeof Scrollbar>) => (
+  <Scrollbar className={cn('flex h-[calc(100vh-var(--navbar-height))] flex-col', className)} {...props}>
+    <div className="flex min-h-full w-full flex-col px-6 py-4">
+      <div className="mx-auto w-full max-w-3xl">{children}</div>
+    </div>
+  </Scrollbar>
 )
 
 const ProviderHeader = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

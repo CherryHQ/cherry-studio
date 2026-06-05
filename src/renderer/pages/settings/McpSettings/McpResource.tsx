@@ -8,16 +8,16 @@ import {
   EmptyState,
   Flex
 } from '@cherrystudio/ui'
-import type { MCPResource } from '@renderer/types'
+import type { McpResource } from '@renderer/types'
 import { useTranslation } from 'react-i18next'
 
 import { McpDetailItem, McpDetailList } from './McpDetailList'
 
-interface MCPResourcesSectionProps {
-  resources: MCPResource[]
+interface McpResourcesSectionProps {
+  resources: McpResource[]
 }
 
-const MCPResourcesSection = ({ resources }: MCPResourcesSectionProps) => {
+const McpResourcesSection = ({ resources }: McpResourcesSectionProps) => {
   const { t } = useTranslation()
 
   // Format file size to human-readable format
@@ -37,7 +37,7 @@ const MCPResourcesSection = ({ resources }: MCPResourcesSectionProps) => {
   }
 
   // Render resource properties
-  const renderResourceProperties = (resource: MCPResource) => {
+  const renderResourceProperties = (resource: McpResource) => {
     return (
       <McpDetailList>
         {resource.mimeType && (
@@ -100,4 +100,4 @@ const MCPResourcesSection = ({ resources }: MCPResourcesSectionProps) => {
   )
 }
 
-export default MCPResourcesSection
+export default McpResourcesSection

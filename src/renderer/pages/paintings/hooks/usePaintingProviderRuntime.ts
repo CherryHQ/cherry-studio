@@ -1,4 +1,4 @@
-import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProviders'
+import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { useMemo } from 'react'
 
 import {

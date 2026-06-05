@@ -14,7 +14,7 @@ vi.mock('@renderer/context/ThemeProvider', () => ({
   })
 }))
 
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProvider: (...args: any[]) => useProviderMock(...args)
 }))
 
@@ -57,6 +57,15 @@ describe('ProviderSetting', () => {
     expect(screen.getByText('provider-header-openai')).toBeInTheDocument()
     expect(screen.getByText('authentication-section-openai')).toBeInTheDocument()
     expect(screen.getByText('model-list-openai')).toBeInTheDocument()
+  })
+
+  it('renders the provider detail divider below the provider header, aligned to body content width', () => {
+    render(<ProviderSetting providerId="openai" />)
+
+    const innerWrap = screen.getByText('provider-header-openai').parentElement as HTMLElement
+    expect(innerWrap.className).toMatch(/(^|\s)border-b(\s|$)/)
+    expect(innerWrap.className).toMatch(/(^|\s)max-w-3xl(\s|$)/)
+    expect(innerWrap.className).toMatch(/(^|\s)mx-auto(\s|$)/)
   })
 
   it('keeps page-level coordination hooks at the page boundary', () => {

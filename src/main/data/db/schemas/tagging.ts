@@ -39,7 +39,7 @@ export const entityTagTable = sqliteTable(
   (t) => [primaryKey({ columns: [t.entityType, t.entityId, t.tagId] }), index('entity_tag_tag_id_idx').on(t.tagId)]
 )
 
-export type TagInsert = typeof tagTable.$inferInsert
-export type TagSelect = typeof tagTable.$inferSelect
-export type EntityTagInsert = typeof entityTagTable.$inferInsert
-export type EntityTagSelect = typeof entityTagTable.$inferSelect
+export type InsertTagRow = typeof tagTable.$inferInsert
+export type TagRow = typeof tagTable.$inferSelect
+export type InsertEntityTagRow = typeof entityTagTable.$inferInsert
+export type EntityTagRow = typeof entityTagTable.$inferSelect

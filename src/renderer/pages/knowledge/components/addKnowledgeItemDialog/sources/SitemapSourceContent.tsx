@@ -10,8 +10,8 @@ const SitemapSourceContent = ({ value, onValueChange }: SitemapSourceContentProp
   const { t } = useTranslation()
 
   return (
-    <div className="flex-1 overflow-y-auto">
-      <div>
+    <div className="min-w-0 flex-1 overflow-y-auto">
+      <div className="min-w-0">
         <p className="mb-1.5 text-foreground-muted text-xs leading-4">
           {t('knowledge.data_source.add_dialog.sitemap.description')}
         </p>
@@ -20,7 +20,7 @@ const SitemapSourceContent = ({ value, onValueChange }: SitemapSourceContentProp
           value={value}
           onChange={(event) => onValueChange(event.target.value)}
           placeholder={t('knowledge.data_source.add_dialog.sitemap.placeholder')}
-          className="w-full"
+          className="w-full rounded-md border-border-subtle bg-background px-2.5 py-1.25 text-foreground outline-none transition-colors focus-visible:border-border-active focus-visible:ring-0"
         />
         <p className="mt-1 text-foreground-muted text-xs leading-4">
           {t('knowledge.data_source.add_dialog.sitemap.help')}

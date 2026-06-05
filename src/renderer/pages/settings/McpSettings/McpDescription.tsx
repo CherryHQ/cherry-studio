@@ -11,7 +11,7 @@ interface McpDescriptionProps {
   searchKey: string
 }
 
-const MCPDescription: FC<McpDescriptionProps> = ({ searchKey }) => {
+const McpDescription: FC<McpDescriptionProps> = ({ searchKey }) => {
   const { t } = useTranslation()
   const { theme } = useTheme()
   const { shikiMarkdownIt } = useCodeStyle()
@@ -54,4 +54,4 @@ const MCPDescription: FC<McpDescriptionProps> = ({ searchKey }) => {
   )
 }
 
-export default memo(MCPDescription)
+export default memo(McpDescription)

@@ -16,7 +16,7 @@ import {
   type TranslateLanguage,
   TranslateLanguageSchema
 } from '../../types/translate'
-import type { OffsetPaginationResponse } from '../apiTypes'
+import type { CursorPaginationParams, CursorPaginationResponse } from '../apiTypes'
 
 // ============================================================================
 // Translate History DTOs & Query
@@ -49,28 +49,36 @@ export const UpdateTranslateHistorySchema = TranslateHistorySchema.pick({
  */
 export type UpdateTranslateHistoryDto = z.infer<typeof UpdateTranslateHistorySchema>
 
-export const TRANSLATE_HISTORY_DEFAULT_PAGE = 1
 export const TRANSLATE_HISTORY_DEFAULT_LIMIT = 20
 export const TRANSLATE_HISTORY_MAX_LIMIT = 100
 export const TRANSLATE_HISTORY_SEARCH_MAX_LENGTH = 200
 
-export const TranslateHistoryQuerySchema = z.object({
-  /** Positive integer, defaults to {@link TRANSLATE_HISTORY_DEFAULT_PAGE} */
-  page: z.int().positive().default(TRANSLATE_HISTORY_DEFAULT_PAGE),
-  /** Positive integer, max {@link TRANSLATE_HISTORY_MAX_LIMIT}, defaults to {@link TRANSLATE_HISTORY_DEFAULT_LIMIT} */
-  limit: z.int().positive().max(TRANSLATE_HISTORY_MAX_LIMIT).default(TRANSLATE_HISTORY_DEFAULT_LIMIT),
-  /**
-   * LIKE search on sourceText and targetText (wildcards are escaped).
-   * Bounded `[1, TRANSLATE_HISTORY_SEARCH_MAX_LENGTH]` so an empty value can't
-   * widen the query to `LIKE '%%'` (effectively returning everything) and an
-   * unbounded value can't be used to push expensive scans.
-   */
-  search: z.string().min(1).max(TRANSLATE_HISTORY_SEARCH_MAX_LENGTH).optional(),
-  /** Filter by starred status */
-  star: z.boolean().optional()
-})
-/** Query parameters for listing translate histories. */
+export const TranslateHistoryQuerySchema = z
+  .object({
+    /** Cursor returned by the previous page. Omitted for the first page. */
+    cursor: z.string().optional(),
+    /** Positive integer, max {@link TRANSLATE_HISTORY_MAX_LIMIT}, defaults to {@link TRANSLATE_HISTORY_DEFAULT_LIMIT} */
+    limit: z.int().positive().max(TRANSLATE_HISTORY_MAX_LIMIT).default(TRANSLATE_HISTORY_DEFAULT_LIMIT),
+    /**
+     * LIKE search on sourceText and targetText (wildcards are escaped).
+     * Bounded `[1, TRANSLATE_HISTORY_SEARCH_MAX_LENGTH]` so an empty value can't
+     * widen the query to `LIKE '%%'` (effectively returning everything) and an
+     * unbounded value can't be used to push expensive scans.
+     */
+    search: z.string().min(1).max(TRANSLATE_HISTORY_SEARCH_MAX_LENGTH).optional(),
+    /** Filter by starred status */
+    star: z.boolean().optional()
+  })
+  .strict()
+/** Parsed query parameters for listing translate histories. */
 export type TranslateHistoryQuery = z.infer<typeof TranslateHistoryQuerySchema>
+/** Input query parameters accepted by the API before schema defaults are applied. */
+export type TranslateHistoryQueryParams = z.input<typeof TranslateHistoryQuerySchema> & CursorPaginationParams
+
+export interface TranslateHistoryListResponse extends CursorPaginationResponse<TranslateHistory> {
+  items: TranslateHistory[]
+  total: number
+}
 
 // ============================================================================
 // Translate Language DTOs
@@ -105,8 +113,8 @@ export type TranslateSchemas = {
   '/translate/histories': {
     /** List translate histories with pagination, search, and star filter */
     GET: {
-      query?: TranslateHistoryQuery
-      response: OffsetPaginationResponse<TranslateHistory>
+      query?: TranslateHistoryQueryParams
+      response: TranslateHistoryListResponse
     }
     /** Create a new translate history record */
     POST: {

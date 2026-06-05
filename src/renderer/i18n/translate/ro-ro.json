@@ -221,9 +221,11 @@
         "intervalUnit": "minute",
         "lastRun": "Ultima rulare",
         "logs": {
+          "cancelled": "[to be translated]:Cancelled",
+          "completed": "[to be translated]:Completed",
           "duration": "Durată",
           "empty": "Nu există încă istoric de rulare.",
-          "error": "Eroare",
+          "failed": "[to be translated]:Failed",
           "justNow": "chiar acum",
           "label": "Istoric rulări",
           "loadError": "Nu s-a reușit încărcarea istoricului de execuție",
@@ -232,7 +234,6 @@
           "running": "Alergând...",
           "search": "Caută jurnalele...",
           "status": "Stare",
-          "success": "Succes",
           "viewSession": "Vizualizare sesiune"
         },
         "name": {
@@ -2615,9 +2616,6 @@
           "temperature": {
             "hint": "[to be translated]:Controls randomness when enabled"
           },
-          "tool_use_mode": {
-            "hint": "[to be translated]:Controls how tools are exposed to the model"
-          },
           "top_p": {
             "hint": "[to be translated]:Limits token sampling range when enabled"
           }
@@ -2639,9 +2637,6 @@
         "tags": "[to be translated]:Tags",
         "temperature": "[to be translated]:Temperature",
         "title": "[to be translated]:Basic settings",
-        "tool_use_function": "[to be translated]:Function",
-        "tool_use_mode": "[to be translated]:Tool call mode",
-        "tool_use_prompt": "[to be translated]:Prompt",
         "top_p": "[to be translated]:Top-P",
         "unlimited": "[to be translated]:Unlimited"
       },
@@ -3419,6 +3414,7 @@
     },
     "stream_output": "Ieșire flux",
     "type": {
+      "audio": "[to be translated]:Audio",
       "embedding": "Embedding",
       "free": "Gratuit",
       "function_calling": "Instrument",
@@ -3426,6 +3422,7 @@
       "rerank": "Reranker",
       "select": "Tipuri de modele",
       "text": "Text",
+      "video": "[to be translated]:Video",
       "vision": "Vizual",
       "websearch": "Căutare Web"
     }
@@ -6127,6 +6124,7 @@
         }
       },
       "api_key": "Cheie API",
+      "available_count": "{{count}} disponibile",
       "base_url": "URL de bază",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6441,7 +6439,6 @@
         "unnamed": "[to be translated]:API Key"
       },
       "api_version": "Versiune API",
-      "auth_connection_section": "Connection & authentication",
       "aws-bedrock": {
         "access_key_id": "ID cheie acces AWS",
         "access_key_id_help": "ID-ul tău de cheie de acces AWS pentru accesarea serviciilor AWS Bedrock",
@@ -6589,11 +6586,11 @@
         "balance_error": "[to be translated]:Failed to fetch balance",
         "button": "Conectare cu {{provider}}",
         "cherryIn": {
-          "account_title": "Cherry IN account",
           "description": "Autentifică-te cu serverul tău auto-găzduit New-API folosind OAuth 2.0 (PKCE)",
           "logged_in": "Conectat prin OAuth",
-          "login_button": "Conectare cu OAuth",
+          "login_button": "Autorizează cu CherryIN",
           "logout_button": "Deconectare",
+          "not_logged_in": "Neautentificat",
           "register_account": "Create account",
           "service_attribution": "This service is provided by <link>open.cherryin.ai</link>",
           "tagline": "After you sign in, you can use all model services",
@@ -6627,6 +6624,10 @@
       "save_failed": "[to be translated]:Failed to save provider settings",
       "search": "Caută furnizori...",
       "search_placeholder": "Caută id sau nume model",
+      "section": {
+        "account": "Cont",
+        "configuration": "Configurare"
+      },
       "title": "Furnizor model",
       "vertex_ai": {
         "api_host_help": "Gazda API pentru Vertex AI, nerecomandat de completat, aplicabil în general pentru reverse proxy",

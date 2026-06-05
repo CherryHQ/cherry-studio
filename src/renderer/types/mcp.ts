@@ -1,7 +1,7 @@
-import { MCPConfigSampleSchema } from '@shared/data/types/mcpServer'
+import { McpConfigSampleSchema } from '@shared/data/types/mcpServer'
 import * as z from 'zod'
 
-import { isBuiltinMCPServerName } from '.'
+import { isBuiltinMcpServerName } from '.'
 
 /**
  * 定义 MCP 服务器的通信类型。
@@ -22,8 +22,8 @@ export const McpServerTypeSchema = z
   })
   .pipe(z.union([z.literal('stdio'), z.literal('sse'), z.literal('streamableHttp'), z.literal('inMemory')])) // 大多数情况下默认使用 stdio
 
-export const MCPServerInstallSourceSchema = z.enum(['builtin', 'manual', 'protocol', 'unknown']).default('unknown')
-export type MCPServerInstallSource = z.infer<typeof MCPServerInstallSourceSchema>
+export const McpServerInstallSourceSchema = z.enum(['builtin', 'manual', 'protocol', 'unknown']).default('unknown')
+export type McpServerInstallSource = z.infer<typeof McpServerInstallSourceSchema>
 
 /**
  * 定义单个 MCP 服务器的配置。
@@ -151,7 +151,7 @@ export const McpServerConfigSchema = z
      * 配置示例
      * 可选。服务器配置的示例。
      */
-    configSample: MCPConfigSampleSchema.optional().describe('Configuration sample for the server'),
+    configSample: McpConfigSampleSchema.optional().describe('Configuration sample for the server'),
     /**
      * 禁用的工具列表
      * 可选。用于指定该服务器上禁用的工具。
@@ -175,7 +175,7 @@ export const McpServerConfigSchema = z
      * 可选。用于标识服务器是否处于激活状态。
      */
     isActive: z.boolean().optional().describe('Whether the server is active'),
-    installSource: MCPServerInstallSourceSchema.optional().describe('Where the MCP server was installed from'),
+    installSource: McpServerInstallSourceSchema.optional().describe('Where the MCP server was installed from'),
     isTrusted: z.boolean().optional().describe('Whether the MCP server has been trusted by user'),
     trustedAt: z.number().optional().describe('Timestamp when the server was trusted'),
     installedAt: z.number().optional().describe('Timestamp when the server was installed')
@@ -184,7 +184,7 @@ export const McpServerConfigSchema = z
   // 在这里定义额外的校验逻辑
   .refine(
     (schema) => {
-      if (schema.type === 'inMemory' && schema.name && !isBuiltinMCPServerName(schema.name)) {
+      if (schema.type === 'inMemory' && schema.name && !isBuiltinMcpServerName(schema.name)) {
         return false
       }
       return true
@@ -226,7 +226,7 @@ export const McpConfigSchema = z.object({
   // 不在这里 refine 服务器数量，因为在类型定义文件中不能用 i18n 处理错误信息
   mcpServers: McpServersMapSchema.describe('Mapping of server aliases to their configurations')
 })
-// 数据校验用类型，McpServerType 复用于 MCPServer
+// 数据校验用类型，McpServerType 复用于 McpServer
 
 export type McpServerType = z.infer<typeof McpServerTypeSchema>
 export type McpServerConfig = z.infer<typeof McpServerConfigSchema>

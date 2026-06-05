@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import { authConnectionClasses } from '../primitives/ProviderSettingsPrimitives'
+import { authConnectionClasses, sectionHeadingClasses } from '../primitives/ProviderSettingsPrimitives'
 import ProviderSpecificSettings from '../ProviderSpecific/ProviderSpecificSettings'
 
 interface AuthConnectionSlotsLayoutProps {
@@ -14,15 +14,17 @@ export default function AuthConnectionSlotsLayout({ providerId, children }: Auth
   const headingId = 'provider-auth-connection-heading'
 
   return (
-    <section className="shrink-0 space-y-2.5">
+    <section className="shrink-0 space-y-8">
       <ProviderSpecificSettings providerId={providerId} placement="beforeAuth" />
-      <div className={authConnectionClasses.shell} aria-labelledby={headingId}>
-        <h2 id={headingId} className={authConnectionClasses.blockTitle}>
-          {t('settings.provider.auth_connection_section')}
-        </h2>
-        <div className={authConnectionClasses.body}>
-          {children}
-          <ProviderSpecificSettings providerId={providerId} placement="afterAuth" />
+      <div className="flex flex-col gap-3" aria-labelledby={headingId}>
+        <h3 id={headingId} className={sectionHeadingClasses}>
+          {t('settings.provider.section.configuration')}
+        </h3>
+        <div className={authConnectionClasses.shell}>
+          <div className={authConnectionClasses.body}>
+            {children}
+            <ProviderSpecificSettings providerId={providerId} placement="afterAuth" />
+          </div>
         </div>
       </div>
     </section>

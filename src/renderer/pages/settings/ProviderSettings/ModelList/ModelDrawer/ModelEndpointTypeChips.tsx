@@ -1,5 +1,5 @@
-import { modelListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
-import { cn } from '@renderer/utils'
+import { Button } from '@cherrystudio/ui'
+import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { useTranslation } from 'react-i18next'
 
 import { MODEL_ENDPOINT_OPTIONS } from './helpers'
@@ -28,18 +28,19 @@ export function ModelEndpointTypeChips({ value, onChange }: ModelEndpointTypeChi
   }
 
   return (
-    <div className={modelListClasses.chipRow}>
+    <div className={drawerClasses.endpointChipRow}>
       {MODEL_ENDPOINT_OPTIONS.map((option) => {
         const active = selected.has(option.id as ModelDrawerEndpointType)
         return (
-          <button
+          <Button
             key={option.id}
             type="button"
+            variant={active ? 'secondary' : 'outline'}
+            size="sm"
             aria-pressed={active}
-            className={cn(active ? modelListClasses.chipActive : modelListClasses.chipIdle)}
             onClick={() => toggle(option.id as ModelDrawerEndpointType)}>
-            <span className={modelListClasses.chipLabel}>{t(option.label)}</span>
-          </button>
+            {t(option.label)}
+          </Button>
         )
       })}
     </div>

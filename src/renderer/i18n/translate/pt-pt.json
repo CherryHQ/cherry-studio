@@ -221,9 +221,11 @@
         "intervalUnit": "minutos",
         "lastRun": "Última execução",
         "logs": {
+          "cancelled": "[to be translated]:Cancelled",
+          "completed": "[to be translated]:Completed",
           "duration": "Duração",
           "empty": "Ainda sem histórico de execução.",
-          "error": "Erro",
+          "failed": "[to be translated]:Failed",
           "justNow": "agora mesmo",
           "label": "Histórico de execução",
           "loadError": "Falha ao carregar o histórico de execução",
@@ -232,7 +234,6 @@
           "running": "Correndo...",
           "search": "Pesquisar registros...",
           "status": "Estado",
-          "success": "Sucesso",
           "viewSession": "Ver sessão"
         },
         "name": {
@@ -2615,9 +2616,6 @@
           "temperature": {
             "hint": "[to be translated]:Controls randomness when enabled"
           },
-          "tool_use_mode": {
-            "hint": "[to be translated]:Controls how tools are exposed to the model"
-          },
           "top_p": {
             "hint": "[to be translated]:Limits token sampling range when enabled"
           }
@@ -2639,9 +2637,6 @@
         "tags": "[to be translated]:Tags",
         "temperature": "[to be translated]:Temperature",
         "title": "[to be translated]:Basic settings",
-        "tool_use_function": "[to be translated]:Function",
-        "tool_use_mode": "[to be translated]:Tool call mode",
-        "tool_use_prompt": "[to be translated]:Prompt",
         "top_p": "[to be translated]:Top-P",
         "unlimited": "[to be translated]:Unlimited"
       },
@@ -3419,6 +3414,7 @@
     },
     "stream_output": "Saída em fluxo",
     "type": {
+      "audio": "[to be translated]:Audio",
       "embedding": "inserção",
       "free": "Grátis",
       "function_calling": "chamada de função",
@@ -3426,6 +3422,7 @@
       "rerank": "Reclassificar",
       "select": "Tipos de modelo",
       "text": "texto",
+      "video": "[to be translated]:Video",
       "vision": "imagem",
       "websearch": "Procurar na web"
     }
@@ -6127,6 +6124,7 @@
         }
       },
       "api_key": "Chave API",
+      "available_count": "{{count}} disponíveis",
       "base_url": "URL Base",
       "bulk_disable": "Disable all",
       "bulk_enable": "Enable all",
@@ -6441,7 +6439,6 @@
         "unnamed": "[to be translated]:API Key"
       },
       "api_version": "Versão da API",
-      "auth_connection_section": "Connection & authentication",
       "aws-bedrock": {
         "access_key_id": "ID da chave de acesso da AWS",
         "access_key_id_help": "O seu ID da chave de acesso AWS, utilizado para aceder ao serviço AWS Bedrock",
@@ -6589,11 +6586,11 @@
         "balance_error": "[to be translated]:Failed to fetch balance",
         "button": "Entrar com a conta {{provider}}",
         "cherryIn": {
-          "account_title": "Cherry IN account",
           "description": "Faça login com seu servidor New-API auto-hospedado usando OAuth 2.0 (PKCE)",
           "logged_in": "Conectado via OAuth",
-          "login_button": "Entrar com OAuth",
+          "login_button": "Autorizar com CherryIN",
           "logout_button": "Sair",
+          "not_logged_in": "Sessão não iniciada",
           "register_account": "Create account",
           "service_attribution": "This service is provided by <link>open.cherryin.ai</link>",
           "tagline": "After you sign in, you can use all model services",
@@ -6627,6 +6624,10 @@
       "save_failed": "[to be translated]:Failed to save provider settings",
       "search": "Procurar plataforma de modelos...",
       "search_placeholder": "Procurar ID ou nome do modelo",
+      "section": {
+        "account": "Conta",
+        "configuration": "Configuração"
+      },
       "title": "Serviços de Modelos",
       "vertex_ai": {
         "api_host_help": "O endereço da API do Vertex AI, não é recomendado preencher, normalmente aplicável a proxy reverso",

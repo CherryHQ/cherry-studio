@@ -1,5 +1,5 @@
 import { loggerService } from '@logger'
-import { channelManager } from '@main/services/agents/services/channels'
+import { application } from '@main/core/application'
 import { toDataApiError } from '@shared/data/api'
 import {
   ActiveAgentChannelConfigSchemasByType,
@@ -16,7 +16,7 @@ export class AgentChannelWorkflowService {
     const channel = await agentChannelService.createChannel(data)
 
     try {
-      await channelManager.syncChannel(channel.id, { awaitConnect: true, strictDisconnect: true })
+      await application.get('ChannelManager').syncChannel(channel.id, { awaitConnect: true, strictDisconnect: true })
       return channel
     } catch (error) {
       await agentChannelService.deleteChannel(channel.id).catch((cleanupError) => {
@@ -25,12 +25,15 @@ export class AgentChannelWorkflowService {
           cleanupError: cleanupError instanceof Error ? cleanupError.message : String(cleanupError)
         })
       })
-      await channelManager.disconnectChannel(channel.id).catch((disconnectError) => {
-        logger.warn('Failed to disconnect channel after sync failure', {
-          channelId: channel.id,
-          disconnectError: disconnectError instanceof Error ? disconnectError.message : String(disconnectError)
+      await application
+        .get('ChannelManager')
+        .disconnectChannel(channel.id)
+        .catch((disconnectError) => {
+          logger.warn('Failed to disconnect channel after sync failure', {
+            channelId: channel.id,
+            disconnectError: disconnectError instanceof Error ? disconnectError.message : String(disconnectError)
+          })
         })
-      })
       throw error
     }
   }
@@ -66,7 +69,7 @@ export class AgentChannelWorkflowService {
     }
 
     try {
-      await channelManager.syncChannel(channelId, { awaitConnect: true, strictDisconnect: true })
+      await application.get('ChannelManager').syncChannel(channelId, { awaitConnect: true, strictDisconnect: true })
       return channel
     } catch (error) {
       // `existing` came from rowToEntity which runs nullsToUndefined; without
@@ -88,12 +91,15 @@ export class AgentChannelWorkflowService {
           restoreError: restoreError instanceof Error ? restoreError.message : String(restoreError)
         })
       })
-      await channelManager.syncChannel(channelId).catch((resyncError) => {
-        logger.warn('Failed to resync restored channel after sync failure', {
-          channelId,
-          resyncError: resyncError instanceof Error ? resyncError.message : String(resyncError)
+      await application
+        .get('ChannelManager')
+        .syncChannel(channelId)
+        .catch((resyncError) => {
+          logger.warn('Failed to resync restored channel after sync failure', {
+            channelId,
+            resyncError: resyncError instanceof Error ? resyncError.message : String(resyncError)
+          })
         })
-      })
       throw error
     }
   }
@@ -102,16 +108,19 @@ export class AgentChannelWorkflowService {
     const existing = await agentChannelService.getChannel(channelId)
     if (!existing) return false
 
-    await channelManager.disconnectChannel(channelId, { suppressErrors: false })
+    await application.get('ChannelManager').disconnectChannel(channelId, { suppressErrors: false })
     try {
       return await agentChannelService.deleteChannel(channelId)
     } catch (error) {
-      await channelManager.syncChannel(channelId).catch((resyncError) => {
-        logger.warn('Failed to resync channel after delete failure', {
-          channelId,
-          resyncError: resyncError instanceof Error ? resyncError.message : String(resyncError)
+      await application
+        .get('ChannelManager')
+        .syncChannel(channelId)
+        .catch((resyncError) => {
+          logger.warn('Failed to resync channel after delete failure', {
+            channelId,
+            resyncError: resyncError instanceof Error ? resyncError.message : String(resyncError)
+          })
         })
-      })
       throw error
     }
   }

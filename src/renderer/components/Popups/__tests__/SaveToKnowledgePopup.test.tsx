@@ -1,4 +1,4 @@
-import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBases'
+import { useKnowledgeBases } from '@renderer/hooks/useKnowledgeBase'
 import { useAddKnowledgeItems } from '@renderer/hooks/useKnowledgeItems'
 import type { FileMetadata } from '@renderer/types'
 import type { Message } from '@renderer/types/newMessage'
@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
   }
 }))
 
-vi.mock('@renderer/hooks/useKnowledgeBases', () => ({
+vi.mock('@renderer/hooks/useKnowledgeBase', () => ({
   useKnowledgeBases: vi.fn()
 }))
 
