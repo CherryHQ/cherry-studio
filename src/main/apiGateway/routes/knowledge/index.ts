@@ -4,8 +4,14 @@ import { application } from '@main/core/application'
 import { DataApiErrorFactory } from '@shared/data/api'
 import { Elysia } from 'elysia'
 
-import { KnowledgeBaseResponseSchema, ListKnowledgeBasesResponseSchema, SearchKnowledgeResponseSchema } from './schemas'
-import { KnowledgeBaseIdParamSchema, KnowledgeSearchSchema, PaginationQuerySchema } from './validators'
+import {
+  KnowledgeBaseIdParamSchema,
+  KnowledgeBaseResponseSchema,
+  KnowledgeSearchSchema,
+  ListKnowledgeBasesResponseSchema,
+  PaginationQuerySchema,
+  SearchKnowledgeResponseSchema
+} from './schemas'
 
 const logger = loggerService.withContext('KnowledgeRoutes')
 
