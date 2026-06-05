@@ -10,8 +10,8 @@ const UrlSourceContent = ({ value, onValueChange }: UrlSourceContentProps) => {
   const { t } = useTranslation()
 
   return (
-    <div className="flex-1 overflow-y-auto [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border/30 [&::-webkit-scrollbar]:w-0.75">
-      <div>
+    <div className="min-w-0 flex-1 overflow-y-auto">
+      <div className="min-w-0">
         <p className="mb-1.5 text-foreground-muted text-xs leading-4">
           {t('knowledge.data_source.add_dialog.url.description')}
         </p>

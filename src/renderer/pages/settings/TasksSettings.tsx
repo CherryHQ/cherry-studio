@@ -12,7 +12,6 @@ import {
   DialogTitle,
   EmptyState,
   Input as UIInput,
-  PageHeader,
   Select,
   SelectContent,
   SelectItem,
@@ -32,6 +31,7 @@ import { useChannels } from '@renderer/hooks/agents/useChannels'
 import { useCreateTask, useDeleteTask, useRunTask, useTaskLogs, useUpdateTask } from '@renderer/hooks/agents/useTasks'
 import type { CreateTaskRequest, ScheduledTaskEntity, TaskRunLogEntity, UpdateTaskRequest } from '@renderer/types'
 import type { AgentEntity } from '@renderer/types/agent'
+import type { Trigger } from '@shared/data/api/schemas/jobs'
 import { useNavigate } from '@tanstack/react-router'
 import {
   AlertTriangle,
@@ -50,15 +50,7 @@ import {
 import { type FC, useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
-import {
-  SettingDivider,
-  SettingGroup,
-  SettingRow,
-  SettingRowTitle,
-  SettingsContentColumn,
-  settingsSubmenuScrollClassName,
-  SettingTitle
-} from '.'
+import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingsContentColumn, SettingTitle } from '.'
 
 const logger = loggerService.withContext('TasksSettings')
 
@@ -71,6 +63,37 @@ const parseScheduleDate = (value: string) => {
   if (!value) return undefined
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? undefined : date
+}
+
+/** UI form state ↔ wire Trigger conversions. */
+type ScheduleKind = 'cron' | 'interval' | 'once'
+
+function triggerToFormState(trigger: Trigger): { kind: ScheduleKind; value: string } {
+  switch (trigger.kind) {
+    case 'cron':
+      return { kind: 'cron', value: trigger.expr }
+    case 'interval':
+      // Wire stores ms; UI shows minutes — round to keep "every 30m" stable on round-trip.
+      return { kind: 'interval', value: String(Math.max(1, Math.round(trigger.ms / 60_000))) }
+    case 'once':
+      return { kind: 'once', value: new Date(trigger.at).toISOString() }
+  }
+}
+
+function formStateToTrigger(kind: ScheduleKind, value: string): Trigger | null {
+  const trimmed = value.trim()
+  if (kind === 'cron') {
+    if (!trimmed) return null
+    return { kind: 'cron', expr: trimmed }
+  }
+  if (kind === 'interval') {
+    const minutes = parseInt(trimmed, 10)
+    if (!Number.isFinite(minutes) || minutes <= 0) return null
+    return { kind: 'interval', ms: minutes * 60_000 }
+  }
+  const at = Date.parse(trimmed)
+  if (!Number.isFinite(at)) return null
+  return { kind: 'once', at }
 }
 
 // --------------- Shared channel selector with warnings ---------------
@@ -158,22 +181,22 @@ const TaskDetail: FC<{
   }
   const agentName = agents.find((a) => a.id === task.agentId)?.name ?? task.agentId
 
+  const initialSchedule = triggerToFormState(task.trigger)
   const [name, setName] = useState(task.name)
   const [prompt, setPrompt] = useState(task.prompt)
   const [promptModalOpen, setPromptModalOpen] = useState(false)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-  const [agentId, setAgentId] = useState(task.agentId)
-  const [scheduleType, setScheduleType] = useState(task.scheduleType)
-  const [scheduleValue, setScheduleValue] = useState(task.scheduleValue)
+  const [scheduleType, setScheduleType] = useState<ScheduleKind>(initialSchedule.kind)
+  const [scheduleValue, setScheduleValue] = useState(initialSchedule.value)
   const [timeoutMinutes, setTimeoutMinutes] = useState<string>(task.timeoutMinutes?.toString() ?? '')
   const [channelIds, setChannelIds] = useState<string[]>(task.channelIds ?? [])
 
   useEffect(() => {
     setName(task.name)
     setPrompt(task.prompt)
-    setAgentId(task.agentId)
-    setScheduleType(task.scheduleType)
-    setScheduleValue(task.scheduleValue)
+    const next = triggerToFormState(task.trigger)
+    setScheduleType(next.kind)
+    setScheduleValue(next.value)
     setTimeoutMinutes(task.timeoutMinutes?.toString() ?? '')
     setChannelIds(task.channelIds ?? [])
   }, [task])
@@ -212,12 +235,12 @@ const TaskDetail: FC<{
   }
 
   const formatScheduleValue = () => {
-    if (task.scheduleType === 'cron') return task.scheduleValue
-    if (task.scheduleType === 'interval') return `${task.scheduleValue} ${t('agent.cherryClaw.tasks.intervalUnit')}`
-    if (task.scheduleType === 'once' && task.scheduleValue) {
-      return formatDateTime(task.scheduleValue)
+    if (task.trigger.kind === 'cron') return task.trigger.expr
+    if (task.trigger.kind === 'interval') {
+      const minutes = Math.max(1, Math.round(task.trigger.ms / 60_000))
+      return `${minutes} ${t('agent.cherryClaw.tasks.intervalUnit')}`
     }
-    return task.scheduleValue
+    return formatDateTime(new Date(task.trigger.at).toISOString())
   }
 
   return (
@@ -252,8 +275,8 @@ const TaskDetail: FC<{
         </SettingTitle>
         <SettingDivider />
         <div className="flex flex-wrap items-center gap-3 text-xs">
-          <Badge className={badgeColorClass(task.scheduleType)}>
-            {scheduleTypeLabels[task.scheduleType] ?? task.scheduleType}
+          <Badge className={badgeColorClass(task.trigger.kind)}>
+            {scheduleTypeLabels[task.trigger.kind] ?? task.trigger.kind}
           </Badge>
           <span className="inline-flex items-center gap-1 text-(--color-foreground-muted)">
             <Clock size={12} />
@@ -288,31 +311,9 @@ const TaskDetail: FC<{
               disabled={isCompleted}
             />
           </SettingRow>
-          {agents.length > 1 && (
-            <>
-              <SettingRow className="gap-2" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
-                <SettingRowTitle>{t('agent.cherryClaw.channels.bindAgent')}</SettingRowTitle>
-                <Select
-                  value={agentId}
-                  disabled={isCompleted}
-                  onValueChange={(value) => {
-                    setAgentId(value)
-                    saveField({ agentId: value })
-                  }}>
-                  <SelectTrigger size="sm" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {agents.map((a) => (
-                      <SelectItem key={a.id} value={a.id}>
-                        {a.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </SettingRow>
-            </>
-          )}
+          {/* Agent reassignment was never supported by the IPC contract (strict
+              schema dropped the field). Owning-agent display lives in the
+              header card. */}
           <SettingRow className="gap-2" style={{ flexDirection: 'column', alignItems: 'stretch' }}>
             <div className="flex items-center justify-between">
               <SettingRowTitle>{t('agent.cherryClaw.tasks.prompt.label')}</SettingRowTitle>
@@ -343,10 +344,10 @@ const TaskDetail: FC<{
               <Select
                 value={scheduleType}
                 disabled={isCompleted}
-                onValueChange={(value: 'cron' | 'interval' | 'once') => {
+                onValueChange={(value: ScheduleKind) => {
                   setScheduleType(value)
                   setScheduleValue('')
-                  saveField({ scheduleType: value, scheduleValue: '' })
+                  // Defer save: trigger requires a non-empty value field; user fills then onBlur saves.
                 }}>
                 <SelectTrigger className="w-full">
                   <SelectValue />
@@ -364,11 +365,12 @@ const TaskDetail: FC<{
                 <UIInput
                   value={scheduleValue}
                   onChange={(e) => setScheduleValue(e.target.value)}
-                  onBlur={() =>
-                    scheduleValue.trim() &&
-                    scheduleValue !== task.scheduleValue &&
-                    saveField({ scheduleValue: scheduleValue.trim() })
-                  }
+                  onBlur={() => {
+                    const trigger = formStateToTrigger(scheduleType, scheduleValue)
+                    if (!trigger) return
+                    if (JSON.stringify(trigger) === JSON.stringify(task.trigger)) return
+                    saveField({ trigger })
+                  }}
                   placeholder={t('agent.cherryClaw.tasks.cronPlaceholder')}
                   disabled={isCompleted}
                 />
@@ -380,11 +382,12 @@ const TaskDetail: FC<{
                     min={1}
                     value={scheduleValue}
                     onChange={(e) => setScheduleValue(e.target.value)}
-                    onBlur={() =>
-                      scheduleValue.trim() &&
-                      scheduleValue !== task.scheduleValue &&
-                      saveField({ scheduleValue: scheduleValue.trim() })
-                    }
+                    onBlur={() => {
+                      const trigger = formStateToTrigger(scheduleType, scheduleValue)
+                      if (!trigger) return
+                      if (JSON.stringify(trigger) === JSON.stringify(task.trigger)) return
+                      saveField({ trigger })
+                    }}
                     placeholder={t('agent.cherryClaw.tasks.intervalPlaceholder')}
                     disabled={isCompleted}
                     className="pr-10"
@@ -403,9 +406,8 @@ const TaskDetail: FC<{
                   triggerClassName="w-full"
                   onChange={(date) => {
                     if (!date) return
-                    const iso = date.toISOString()
-                    setScheduleValue(iso)
-                    saveField({ scheduleValue: iso })
+                    setScheduleValue(date.toISOString())
+                    saveField({ trigger: { kind: 'once', at: date.getTime() } })
                   }}
                   disabled={isCompleted}
                 />
@@ -498,24 +500,22 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
         log.result?.toLowerCase().includes(query) ||
         log.error?.toLowerCase().includes(query) ||
         log.status.toLowerCase().includes(query) ||
-        new Date(log.runAt).toLocaleString(locale).toLowerCase().includes(query)
+        new Date(log.startedAt).toLocaleString(locale).toLowerCase().includes(query)
     )
   }, [locale, logs, searchText])
 
   const navigateToSession = useCallback(
     (sessionId: string) => {
-      cacheService.set('agent.active_id', agentId)
-      const currentMap = cacheService.get('agent.session.active_id_map') ?? {}
-      cacheService.set('agent.session.active_id_map', { ...currentMap, [agentId]: sessionId })
+      cacheService.set('agent.active_session_id', sessionId)
       void navigate({ to: '/app/chat' })
     },
-    [agentId, navigate]
+    [navigate]
   )
 
   const columns = useMemo<ColumnDef<TaskRunLogEntity>[]>(
     () => [
       {
-        accessorKey: 'runAt',
+        accessorKey: 'startedAt',
         header: t('agent.cherryClaw.tasks.logs.runAt'),
         meta: { width: 160 },
         cell: ({ getValue }) =>
@@ -547,9 +547,10 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
         cell: ({ getValue }) => {
           const val = getValue() as string
           const logStatusLabels: Record<string, string> = {
-            success: t('agent.cherryClaw.tasks.logs.success'),
+            completed: t('agent.cherryClaw.tasks.logs.completed'),
             running: t('agent.cherryClaw.tasks.logs.running'),
-            error: t('agent.cherryClaw.tasks.logs.error')
+            failed: t('agent.cherryClaw.tasks.logs.failed'),
+            cancelled: t('agent.cherryClaw.tasks.logs.cancelled')
           }
           return <Badge className={badgeColorClass(val)}>{logStatusLabels[val] ?? val}</Badge>
         }
@@ -561,10 +562,11 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
         cell: ({ row }) => {
           const record = row.original
           const val = record.result
+          const isErrorStatus = record.status === 'failed' || record.status === 'cancelled'
           const text =
             record.status === 'running'
               ? t('agent.cherryClaw.tasks.logs.running', 'Running...')
-              : record.status === 'error'
+              : isErrorStatus
                 ? record.error
                 : (val ?? '-')
           const sessionId = record.sessionId
@@ -572,7 +574,7 @@ const TaskLogsInline: FC<{ taskId: string; agentId: string }> = ({ taskId, agent
           return (
             <div className="flex items-center gap-1">
               <span
-                className={record.status === 'error' ? 'text-red-500' : ''}
+                className={isErrorStatus ? 'text-red-500' : ''}
                 style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {text}
               </span>
@@ -705,14 +707,15 @@ const CreateForm: FC<{
 
   const handleCreate = useCallback(async () => {
     if (!agentId || !name.trim() || !prompt.trim() || !scheduleValue.trim()) return
+    const trigger = formStateToTrigger(scheduleType, scheduleValue.trim())
+    if (!trigger) return
     setSaving(true)
     try {
       const timeout = timeoutMinutes.trim() ? parseInt(timeoutMinutes, 10) : null
       await onCreate(agentId, {
         name: name.trim(),
         prompt: prompt.trim(),
-        scheduleType: scheduleType,
-        scheduleValue: scheduleValue.trim(),
+        trigger,
         timeoutMinutes: timeout && timeout > 0 ? timeout : undefined,
         channelIds: channelIds.length > 0 ? channelIds : undefined
       })
@@ -998,23 +1001,24 @@ const TasksSettings: FC = () => {
 
   const handleRun = useCallback(
     async (taskId: string) => {
-      const task = tasks.find((t) => t.id === taskId)
-      if (!task) return
-      await runTask(task.agentId, taskId)
+      await runTask(taskId)
       void loadData()
       // Task runs asynchronously — refresh again after a delay to capture completion
       setTimeout(() => {
         void loadData()
       }, 1000)
     },
-    [runTask, tasks, loadData]
+    [runTask, loadData]
   )
 
   const handleToggleStatus = useCallback(
     async (taskId: string, newStatus: string) => {
       const task = tasks.find((t) => t.id === taskId)
       if (!task) return
-      await updateTask(task.agentId, taskId, { status: newStatus as 'active' | 'paused' })
+      // newStatus is the renderer's existing 'active' | 'paused' contract — keep
+      // it so consumers don't need to think in terms of `enabled`, then translate
+      // at the IPC boundary.
+      await updateTask(task.agentId, taskId, { enabled: newStatus === 'active' })
       void loadData()
     },
     [updateTask, tasks, loadData]
@@ -1036,51 +1040,46 @@ const TasksSettings: FC = () => {
         className="flex w-full flex-1 flex-row overflow-hidden"
         style={{ height: 'calc(100vh - var(--navbar-height) - 6px)' }}>
         {/* Left panel: task list */}
-        <div className={`flex flex-col ${settingsSubmenuScrollClassName}`}>
-          <PageHeader title={t('settings.scheduledTasks.title')} />
-          <Scrollbar className="min-h-0 flex-1 pb-12">
-            <div className="px-2.5 pb-2">
-              <Button
-                variant="secondary"
-                className="h-8 w-full justify-start rounded-lg px-2.5 text-xs shadow-none"
-                disabled={agents.length === 0}
-                onClick={handleStartCreate}>
-                <Plus size={15} />
-                {t('common.add')}
-              </Button>
-            </div>
-            <div className="flex flex-col gap-1 px-2.5 pb-2.5">
-              {tasks.length === 0 && !creating ? (
-                <EmptyState
-                  compact
-                  preset="no-agent"
-                  description={
-                    agents.length === 0 ? t('settings.scheduledTasks.noAgents') : t('settings.scheduledTasks.noTasks')
+        <Scrollbar
+          className="flex flex-col gap-1.25 border-(--color-border) border-r-[0.5px] p-3 pb-12"
+          style={{ width: 'var(--settings-width)', height: 'calc(100vh - var(--navbar-height))' }}>
+          <div className="flex items-center justify-between">
+            <SettingTitle>{t('settings.scheduledTasks.title')}</SettingTitle>
+            <Button variant="ghost" size="icon-sm" disabled={agents.length === 0} onClick={handleStartCreate}>
+              <Plus size={14} />
+            </Button>
+          </div>
+          <div className="flex flex-col gap-1">
+            {tasks.length === 0 && !creating ? (
+              <EmptyState
+                compact
+                preset="no-agent"
+                description={
+                  agents.length === 0 ? t('settings.scheduledTasks.noAgents') : t('settings.scheduledTasks.noTasks')
+                }
+                className="mt-5 py-8"
+              />
+            ) : (
+              tasks.map((task) => (
+                <ListItem
+                  key={task.id}
+                  active={selectedTaskId === task.id && !creating}
+                  title={task.name}
+                  subtitle={`${getAgentName(task.agentId)} · ${scheduleTypeLabelsMap[task.trigger.kind] ?? task.trigger.kind}`}
+                  icon={
+                    <span
+                      className={`inline-block h-2 w-2 rounded-full ${statusDotColors[task.status] ?? 'bg-gray-400'}`}
+                    />
                   }
-                  className="mt-5 py-8"
+                  onClick={() => {
+                    setCreating(false)
+                    setSelectedTaskId(task.id)
+                  }}
                 />
-              ) : (
-                tasks.map((task) => (
-                  <ListItem
-                    key={task.id}
-                    active={selectedTaskId === task.id && !creating}
-                    title={task.name}
-                    subtitle={`${getAgentName(task.agentId)} · ${scheduleTypeLabelsMap[task.scheduleType] ?? task.scheduleType}`}
-                    icon={
-                      <span
-                        className={`inline-block h-2 w-2 rounded-full ${statusDotColors[task.status] ?? 'bg-gray-400'}`}
-                      />
-                    }
-                    onClick={() => {
-                      setCreating(false)
-                      setSelectedTaskId(task.id)
-                    }}
-                  />
-                ))
-              )}
-            </div>
-          </Scrollbar>
-        </div>
+              ))
+            )}
+          </div>
+        </Scrollbar>
 
         {/* Right panel */}
         <div className="relative flex flex-1">

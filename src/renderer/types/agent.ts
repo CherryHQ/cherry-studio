@@ -4,7 +4,20 @@
  *
  * WARNING: Any null value will be converted to undefined from api.
  */
-import { type AgentConfiguration, AgentConfigurationSchema } from '@shared/data/api/schemas/agents'
+import { type SlashCommand, SlashCommandSchema } from '@shared/ai/slashCommands'
+import { ToolSchema } from '@shared/ai/tool'
+import {
+  type AgentConfiguration,
+  AgentConfigurationSchema,
+  type CreateTaskDto as CreateTaskRequest,
+  CreateTaskSchema as CreateTaskRequestSchema,
+  type ScheduledTaskEntity,
+  ScheduledTaskEntitySchema,
+  type TaskRunLogEntity,
+  TaskRunLogEntitySchema,
+  type UpdateTaskDto as UpdateTaskRequest,
+  UpdateTaskSchema as UpdateTaskRequestSchema
+} from '@shared/data/api/schemas/agents'
 import type { ModelMessage, TextStreamPart } from 'ai'
 import * as z from 'zod'
 
@@ -48,74 +61,22 @@ export const isAgentType = (type: unknown): type is AgentType => {
   return AgentTypeSchema.safeParse(type).success
 }
 
-// ------------------ Tool metadata ------------------
-export const ToolSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  type: z.enum(['builtin', 'mcp', 'custom']),
-  description: z.string().optional(),
-  requirePermissions: z.boolean().optional()
-})
-
-export type Tool = z.infer<typeof ToolSchema>
-
-export const SlashCommandSchema = z.object({
-  command: z.string(), // e.g. '/status'
-  description: z.string().optional() // e.g. 'Show help information'
-})
-
-export type SlashCommand = z.infer<typeof SlashCommandSchema>
-
 // ------------------ Agent configuration & base schema ------------------
 export { type AgentConfiguration, AgentConfigurationSchema }
 
-/** @deprecated Use AgentConfiguration directly — all fields are now in AgentConfigurationSchema */
-export type CherryClawConfiguration = AgentConfiguration
-
 // ------------------ Scheduled Task types ------------------
-export const TaskScheduleTypeSchema = z.enum(['cron', 'interval', 'once'])
-export type TaskScheduleType = z.infer<typeof TaskScheduleTypeSchema>
-
-export const TaskStatusSchema = z.enum(['active', 'paused', 'completed'])
-export type TaskStatus = z.infer<typeof TaskStatusSchema>
-
-export const ScheduledTaskEntitySchema = z.object({
-  id: z.string(),
-  agentId: z.string(),
-  name: z.string(),
-  prompt: z.string(),
-  scheduleType: TaskScheduleTypeSchema,
-  scheduleValue: z.string(),
-  timeoutMinutes: z.number(),
-  channelIds: z.array(z.string()).optional(),
-  nextRun: z.string().nullable().optional(),
-  lastRun: z.string().nullable().optional(),
-  lastResult: z.string().nullable().optional(),
-  status: TaskStatusSchema,
-  createdAt: z.iso.datetime(),
-  updatedAt: z.iso.datetime()
-})
-
-export type ScheduledTaskEntity = z.infer<typeof ScheduledTaskEntitySchema>
-
-export const TaskRunLogEntitySchema = z.object({
-  id: z.string(),
-  taskId: z.string(),
-  sessionId: z.string().nullable().optional(),
-  runAt: z.string(),
-  durationMs: z.number(),
-  status: z.enum(['running', 'success', 'error']),
-  result: z.string().nullable().optional(),
-  error: z.string().nullable().optional()
-})
-
-export type TaskRunLogEntity = z.infer<typeof TaskRunLogEntitySchema>
+// Re-exports from @shared/data/api/schemas/agents: ScheduledTaskEntity, TaskRunLogEntity,
+// CreateTaskRequest (=CreateTaskDto), UpdateTaskRequest (=UpdateTaskDto).
+// The v1-era TaskScheduleType / TaskStatus enums no longer exist as standalone atoms —
+// task.trigger is now a discriminated union (cron / interval / once), and status is derived
+// on the read side from `enabled + trigger + nextRun`.
+export { ScheduledTaskEntitySchema, TaskRunLogEntitySchema }
+export type { ScheduledTaskEntity, TaskRunLogEntity }
 
 // Shared configuration interface for both agents and sessions
 export const AgentBaseSchema = z.object({
   name: z.string().optional(),
   description: z.string().optional(),
-  accessiblePaths: z.array(z.string()),
   instructions: z.string().optional(),
   model: z.string(),
   planModel: z.string().optional(),
@@ -147,6 +108,8 @@ export const isAgentBaseWithId = (value: unknown): value is AgentBaseWithId => {
 export const AgentEntitySchema = AgentBaseSchema.extend({
   id: z.string(),
   type: AgentTypeSchema,
+  name: z.string(),
+  modelName: z.string().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime()
 })
@@ -239,7 +202,6 @@ export type BaseAgentForm = {
   description?: string
   instructions?: string
   model: string
-  accessiblePaths: string[]
   allowedTools: string[]
   mcps?: string[]
   configuration?: AgentConfiguration
@@ -365,29 +327,8 @@ export const AgentServerErrorSchema = z.object({
 export type AgentServerError = z.infer<typeof AgentServerErrorSchema>
 
 // ------------------ Task API types ------------------
-export const CreateTaskRequestSchema = z.object({
-  name: z.string().min(1, 'Name is required'),
-  prompt: z.string().min(1, 'Prompt is required'),
-  scheduleType: TaskScheduleTypeSchema,
-  scheduleValue: z.string().min(1, 'Schedule value is required'),
-  timeoutMinutes: z.number().min(1).nullable().optional(),
-  channelIds: z.array(z.string()).optional()
-})
-
-export type CreateTaskRequest = z.infer<typeof CreateTaskRequestSchema>
-
-export const UpdateTaskRequestSchema = z.object({
-  name: z.string().min(1).optional(),
-  prompt: z.string().min(1).optional(),
-  agentId: z.string().min(1).optional(),
-  scheduleType: TaskScheduleTypeSchema.optional(),
-  scheduleValue: z.string().min(1).optional(),
-  timeoutMinutes: z.number().min(1).nullable().optional(),
-  channelIds: z.array(z.string()).optional(),
-  status: TaskStatusSchema.optional()
-})
-
-export type UpdateTaskRequest = z.infer<typeof UpdateTaskRequestSchema>
+export { CreateTaskRequestSchema, UpdateTaskRequestSchema }
+export type { CreateTaskRequest, UpdateTaskRequest }
 
 export const ListTasksResponseSchema = z.object({
   data: z.array(ScheduledTaskEntitySchema),

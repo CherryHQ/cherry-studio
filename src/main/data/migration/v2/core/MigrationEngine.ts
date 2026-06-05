@@ -9,7 +9,7 @@ import { agentGlobalSkillTable } from '@data/db/schemas/agentGlobalSkill'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
-import { agentTaskRunLogTable, agentTaskTable } from '@data/db/schemas/agentTask'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { appStateTable } from '@data/db/schemas/appState'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { assistantKnowledgeBaseTable, assistantMcpServerTable } from '@data/db/schemas/assistantRelations'
@@ -321,11 +321,11 @@ export class MigrationEngine {
       // Agents-domain tables — child → parent order
       { table: agentSessionMessageTable, name: 'agent_session_message' },
       { table: agentChannelTaskTable, name: 'agent_channel_task' },
-      { table: agentTaskRunLogTable, name: 'agent_task_run_log' },
       { table: agentChannelTable, name: 'agent_channel' },
-      { table: agentTaskTable, name: 'agent_task' },
+      // agent_task / agent_task_run_log dropped — migrated to JobManager (aac75929c5)
       { table: agentSkillTable, name: 'agent_skill' },
-      { table: agentSessionTable, name: 'agent_session' },
+      { table: agentSessionTable, name: 'agent_session' }, // FK → agent_workspace (ON DELETE set null)
+      { table: agentWorkspaceTable, name: 'agent_workspace' },
       { table: agentGlobalSkillTable, name: 'agent_global_skill' },
       { table: agentTable, name: 'agent' },
       // File-domain tables — child before parent (file_ref.fileEntryId CASCADEs from file_entry)

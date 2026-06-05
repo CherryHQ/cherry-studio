@@ -8,7 +8,7 @@
 
 import { application } from '@application'
 import { userModelTable } from '@data/db/schemas/userModel'
-import type { NewUserProvider, UserProvider } from '@data/db/schemas/userProvider'
+import type { InsertUserProviderRow, UserProviderRow } from '@data/db/schemas/userProvider'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
@@ -28,12 +28,12 @@ import type {
   RuntimeApiFeatures
 } from '@shared/data/types/provider'
 import { DEFAULT_API_FEATURES, DEFAULT_PROVIDER_SETTINGS } from '@shared/data/types/provider'
-import { asc, eq } from 'drizzle-orm'
+import { and, asc, eq, sql, type SQLWrapper } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('DataApi:ProviderService')
 
-type NewUserProviderInput = Omit<NewUserProvider, 'orderKey'>
+type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
 
 function normalizeApiKeyEntry(entry: ApiKeyEntry): ApiKeyEntry {
   const key = entry.key.trim()
@@ -69,7 +69,7 @@ function normalizeApiKeyEntries(apiKeys: ApiKeyEntry[]): ApiKeyEntry[] {
 /**
  * Convert database row to Provider entity
  */
-function rowToRuntimeProvider(row: UserProvider): Provider {
+function rowToRuntimeProvider(row: UserProviderRow): Provider {
   const presetMetadata = providerRegistryService.getProviderDisplayMetadata(
     row.providerId,
     row.presetProviderId ?? undefined
@@ -158,17 +158,26 @@ class ProviderService {
   async list(query: ListProvidersQuery): Promise<Provider[]> {
     const db = application.get('DbService').getDb()
 
-    let rows: UserProvider[]
+    const conditions: SQLWrapper[] = []
 
     if (query.enabled !== undefined) {
-      rows = await db
-        .select()
-        .from(userProviderTable)
-        .where(eq(userProviderTable.isEnabled, query.enabled))
-        .orderBy(asc(userProviderTable.orderKey))
-    } else {
-      rows = await db.select().from(userProviderTable).orderBy(asc(userProviderTable.orderKey))
+      conditions.push(eq(userProviderTable.isEnabled, query.enabled))
     }
+
+    if (query.endpointType !== undefined) {
+      // endpointConfigs is a JSON text column: { "anthropic-messages": {...}, "openai-chat": {...} }
+      // Check if the key exists and is not null
+      conditions.push(sql`json_extract(${userProviderTable.endpointConfigs}, ${'$.' + query.endpointType}) IS NOT NULL`)
+    }
+
+    const rows =
+      conditions.length > 0
+        ? await db
+            .select()
+            .from(userProviderTable)
+            .where(and(...conditions))
+            .orderBy(asc(userProviderTable.orderKey))
+        : await db.select().from(userProviderTable).orderBy(asc(userProviderTable.orderKey))
 
     return rows.map(rowToRuntimeProvider)
   }
@@ -210,7 +219,7 @@ class ProviderService {
         await db.transaction(async (tx) => {
           return (await insertWithOrderKey(tx, userProviderTable, values, {
             pkColumn: userProviderTable.providerId
-          })) as UserProvider
+          })) as UserProviderRow
         }),
       {
         unique: () => DataApiErrorFactory.conflict(`Provider '${dto.providerId}' already exists`, 'Provider')
@@ -229,7 +238,7 @@ class ProviderService {
     const db = application.get('DbService').getDb()
 
     // Build update object
-    const updates: Partial<NewUserProvider> = {}
+    const updates: Partial<InsertUserProviderRow> = {}
 
     if (dto.name !== undefined) updates.name = dto.name
     if (dto.endpointConfigs !== undefined) updates.endpointConfigs = dto.endpointConfigs

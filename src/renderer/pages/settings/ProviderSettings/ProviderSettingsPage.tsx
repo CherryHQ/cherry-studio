@@ -1,14 +1,14 @@
 import './assets/styles/provider-settings-scoped-theme.css'
 
 import { usePersistCache } from '@data/hooks/useCache'
-import { useProviders } from '@renderer/hooks/useProviders'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { useProviderDeepLinkImport } from './hooks/useProviderDeepLinkImport'
 import ProviderList from './ProviderList'
 import ProviderSetting from './ProviderSetting'
-import { isProviderSettingsListVisibleProvider } from './utils/provider'
+import { isProviderSettingsListVisibleProvider } from './utils/providerDisplay'
 
 interface ProviderSettingsPageProps {
   isOnboarding?: boolean

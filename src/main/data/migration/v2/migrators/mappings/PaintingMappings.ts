@@ -1,4 +1,4 @@
-import type { NewPainting } from '@data/db/schemas/painting'
+import type { InsertPaintingRow } from '@data/db/schemas/painting'
 import { createUniqueModelId, isUniqueModelId } from '@shared/data/types/model'
 import type { PaintingMode } from '@shared/data/types/painting'
 
@@ -40,7 +40,7 @@ export interface PaintingFilter {
  * `LegacyPaintingFileRefs` so the migrator can emit `file_ref` rows once the
  * painting and its referenced `file_entry` rows are both in place.
  */
-export interface NormalizedPaintingRow extends Omit<NewPainting, 'orderKey'> {
+export interface NormalizedPaintingRow extends Omit<InsertPaintingRow, 'orderKey'> {
   id: string
   providerId: string
   modelId: string | null

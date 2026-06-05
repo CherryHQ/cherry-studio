@@ -1,9 +1,9 @@
 import { Button, Tabs, TabsList, TabsTrigger } from '@cherrystudio/ui'
-import { AssistantPresetGroupIcon } from '@renderer/pages/store/assistants/presets/components/AssistantPresetGroupIcon'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { AssistantPresetGroupIcon } from './AssistantPresetGroupIcon'
 import { ASSISTANT_CATALOG_MY_TAB, type AssistantCatalogTab } from './useAssistantPresetCatalog'
 
 interface AssistantCatalogTabRailProps {

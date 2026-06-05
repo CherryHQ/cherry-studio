@@ -246,6 +246,16 @@ Numbered list:
         }
       })
 
+      it('should normalize AI SDK source-url citation links', () => {
+        const content = 'Text with [<sup>1</sup>](https://example.com) citation'
+        const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Test' }]
+        const citationMap = createCitationMap(citations)
+
+        const result = normalizeCitationMarks(content, citationMap, WEB_SEARCH_SOURCE.AISDK)
+
+        expect(result).toBe('Text with [cite:1] citation')
+      })
+
       it('should preserve non-matching OpenAI citations', () => {
         const content = 'Text with [<sup>3</sup>](https://missing.com) citation'
         const citations: Citation[] = [{ number: 1, url: 'https://example.com', title: 'Test' }]
@@ -254,6 +264,20 @@ Numbered list:
         for (const sourceType of [WEB_SEARCH_SOURCE.OPENAI, WEB_SEARCH_SOURCE.OPENAI_RESPONSE]) {
           const result = normalizeCitationMarks(content, citationMap, sourceType)
           expect(result).toBe('Text with [<sup>3</sup>](https://missing.com) citation')
+        }
+      })
+
+      it('should normalize plain bracket citations from OpenAI-compatible responses', () => {
+        const content = 'Moonshot Kimi K2.6[4][9]'
+        const citations: Citation[] = [
+          { number: 4, url: 'https://example4.com', title: 'Test 4' },
+          { number: 9, url: 'https://example9.com', title: 'Test 9' }
+        ]
+        const citationMap = createCitationMap(citations)
+
+        for (const sourceType of [WEB_SEARCH_SOURCE.OPENAI, WEB_SEARCH_SOURCE.OPENAI_RESPONSE]) {
+          const result = normalizeCitationMarks(content, citationMap, sourceType)
+          expect(result).toBe('Moonshot Kimi K2.6[cite:4][cite:9]')
         }
       })
     })
@@ -400,7 +424,7 @@ Numbered list:
 
         const result = normalizeCitationMarks(content, citationMap, WEB_SEARCH_SOURCE.OPENAI)
 
-        expect(result).toBe('Text with [1] and [cite:2] and other [3] formats')
+        expect(result).toBe('Text with [cite:1] and [cite:2] and other [3] formats')
       })
     })
   })
