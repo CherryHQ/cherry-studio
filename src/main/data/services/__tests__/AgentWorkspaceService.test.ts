@@ -3,8 +3,8 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { AgentWorkspaceService, agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { agentWorkspaceWorkflowService } from '@data/services/AgentWorkspaceWorkflowService'
 import { pinService } from '@data/services/PinService'
-import { workspaceWorkflowService } from '@data/services/WorkspaceWorkflowService'
 import { ErrorCode } from '@shared/data/api'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -133,7 +133,7 @@ describe('AgentWorkspaceService', () => {
     await pinService.pin({ entityType: 'session', entityId: session.id })
     await pinService.pin({ entityType: 'session', entityId: otherSession.id })
 
-    await workspaceWorkflowService.deleteWorkspace(workspace.id)
+    await agentWorkspaceWorkflowService.deleteWorkspace(workspace.id)
 
     await expect(agentWorkspaceService.getById(workspace.id)).rejects.toMatchObject({
       code: ErrorCode.NOT_FOUND
@@ -151,7 +151,7 @@ describe('AgentWorkspaceService', () => {
   })
 
   it('throws not found when deleting a missing workspace', async () => {
-    await expect(workspaceWorkflowService.deleteWorkspace('missing-workspace')).rejects.toMatchObject({
+    await expect(agentWorkspaceWorkflowService.deleteWorkspace('missing-workspace')).rejects.toMatchObject({
       code: ErrorCode.NOT_FOUND
     })
   })
@@ -239,22 +239,6 @@ describe('AgentWorkspaceService', () => {
     workspaces = await agentWorkspaceService.list()
     expect(workspaces.map((workspace) => workspace.id)).toEqual([second.id, first.id, third.id])
   })
-  it('creates default workspaces under the agents workspace root', async () => {
-    const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-default-'))
-    vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
-      if (key === 'feature.agents.workspaces') {
-        return filename ? path.join(root, filename) : root
-      }
-      return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
-    })
-
-    const workspace = await agentWorkspaceService.createDefaultWorkspace()
-
-    expect(workspace.path.startsWith(root)).toBe(true)
-    const stats = await stat(workspace.path)
-    expect(stats.isDirectory()).toBe(true)
-  })
-
   it('creates system workspaces under the isolated system subtree', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-system-'))
     vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
@@ -332,7 +316,7 @@ describe('AgentWorkspaceService', () => {
       new Date(2026, 4, 25, 14, 30, 12)
     )
 
-    await workspaceWorkflowService.deleteWorkspace(workspace.id, { includeSystem: true })
+    await agentWorkspaceWorkflowService.deleteWorkspace(workspace.id, { includeSystem: true })
 
     await expect(stat(workspace.path)).rejects.toThrow()
   })
@@ -351,7 +335,7 @@ describe('AgentWorkspaceService', () => {
     })
 
     await expect(
-      workspaceWorkflowService.deleteWorkspace(workspace.id, { includeSystem: true })
+      agentWorkspaceWorkflowService.deleteWorkspace(workspace.id, { includeSystem: true })
     ).resolves.toBeUndefined()
 
     await expect(agentWorkspaceService.getById(workspace.id, { includeSystem: true })).rejects.toMatchObject({

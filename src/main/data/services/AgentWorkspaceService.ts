@@ -169,16 +169,6 @@ export class AgentWorkspaceService {
     return rowToWorkspace(row)
   }
 
-  async createDefaultWorkspace(): Promise<AgentWorkspaceEntity> {
-    const workspacePath = this.prepareDefaultWorkspaceDirectory()
-    try {
-      return await this.findOrCreateByPath(workspacePath)
-    } catch (error) {
-      cleanupPreparedWorkspaceDirectory(workspacePath)
-      throw error
-    }
-  }
-
   prepareDefaultWorkspaceDirectory(): string {
     const workspacePath = path.join(application.getPath('feature.agents.workspaces'), uuidv4())
     ensureWorkspaceDirectory(workspacePath)

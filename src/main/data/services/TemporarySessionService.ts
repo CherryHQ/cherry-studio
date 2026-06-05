@@ -1,8 +1,8 @@
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { agentWorkspaceWorkflowService } from '@data/services/AgentWorkspaceWorkflowService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
-import { workspaceWorkflowService } from '@data/services/WorkspaceWorkflowService'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
@@ -81,7 +81,7 @@ export class TemporarySessionService {
       throw DataApiErrorFactory.notFound('TemporarySession', id)
     }
     if (row.workspaceId && row.workspaceType === 'system') {
-      await workspaceWorkflowService.deleteWorkspace(row.workspaceId, { includeSystem: true })
+      await agentWorkspaceWorkflowService.deleteWorkspace(row.workspaceId, { includeSystem: true })
     }
     this.sessions.delete(id)
   }

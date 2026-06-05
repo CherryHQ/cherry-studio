@@ -5,7 +5,7 @@ import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { and, eq, isNull } from 'drizzle-orm'
 
-export class WorkspaceWorkflowService {
+export class AgentWorkspaceWorkflowService {
   async deleteWorkspace(id: string, options: { includeSystem?: boolean } = {}): Promise<void> {
     let systemWorkspacePath: string | null = null
     const dbService = application.get('DbService')
@@ -39,4 +39,4 @@ export class WorkspaceWorkflowService {
   }
 }
 
-export const workspaceWorkflowService = new WorkspaceWorkflowService()
+export const agentWorkspaceWorkflowService = new AgentWorkspaceWorkflowService()

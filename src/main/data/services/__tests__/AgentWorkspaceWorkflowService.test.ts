@@ -2,7 +2,7 @@ import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
-import { WorkspaceWorkflowService } from '@data/services/WorkspaceWorkflowService'
+import { AgentWorkspaceWorkflowService } from '@data/services/AgentWorkspaceWorkflowService'
 import { ErrorCode } from '@shared/data/api'
 import { setupTestDatabase } from '@test-helpers/db'
 import { mkdtemp, stat } from 'fs/promises'
@@ -10,9 +10,9 @@ import { tmpdir } from 'os'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-describe('WorkspaceWorkflowService', () => {
+describe('AgentWorkspaceWorkflowService', () => {
   const dbh = setupTestDatabase()
-  const service = new WorkspaceWorkflowService()
+  const service = new AgentWorkspaceWorkflowService()
   let root: string
 
   beforeEach(async () => {
