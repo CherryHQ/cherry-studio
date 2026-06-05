@@ -1,9 +1,9 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
+import { useCommandHandler } from '@renderer/commands'
 import { NavbarHeader } from '@renderer/components/app/Navbar'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { t } from 'i18next'
 import { PanelLeftClose, PanelRightClose } from 'lucide-react'
 import type { FC } from 'react'
@@ -22,7 +22,7 @@ const HeaderNavbar: FC<Props> = ({ assistantId, topicId }) => {
   const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
   const { isTopNavbar } = useNavbarPosition()
 
-  useShortcut('general.search', () => {
+  useCommandHandler('app.search', () => {
     void SearchPopup.show()
   })
 

@@ -1,6 +1,7 @@
 import '@renderer/databases'
 
 import { preferenceService } from '@data/PreferenceService'
+import { CommandProvider, ContextKeyProvider } from '@renderer/commands'
 import TopViewContainer from '@renderer/components/TopView'
 import AntdProvider from '@renderer/context/AntdProvider'
 import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
@@ -36,11 +37,15 @@ function SubWindowApp(): React.ReactElement {
               <NotificationProvider>
                 <CodeStyleProvider>
                   <PersistGate loading={null} persistor={persistor}>
-                    <TabsProvider>
-                      <TopViewContainer>
-                        <SubWindowAppShell />
-                      </TopViewContainer>
-                    </TabsProvider>
+                    <ContextKeyProvider>
+                      <CommandProvider>
+                        <TabsProvider>
+                          <TopViewContainer>
+                            <SubWindowAppShell />
+                          </TopViewContainer>
+                        </TabsProvider>
+                      </CommandProvider>
+                    </ContextKeyProvider>
                   </PersistGate>
                 </CodeStyleProvider>
               </NotificationProvider>

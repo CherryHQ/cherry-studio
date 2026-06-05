@@ -1,8 +1,8 @@
 import { usePreference } from '@data/hooks/usePreference'
+import { useCommandHandler } from '@renderer/commands'
 import { Navbar, NavbarCenter, NavbarLeft, NavbarRight } from '@renderer/components/app/Navbar'
 import NavbarIcon from '@renderer/components/NavbarIcon'
 import SearchPopup from '@renderer/components/Popups/SearchPopup'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Menu, PanelLeftClose, PanelRightClose, Search } from 'lucide-react'
@@ -18,7 +18,7 @@ const AgentNavbar = () => {
   const [narrowMode, setNarrowMode] = usePreference('chat.narrow_mode')
   const [topicPosition] = usePreference('topic.position')
 
-  useShortcut('general.search', () => {
+  useCommandHandler('app.search', () => {
     void SearchPopup.show()
   })
 

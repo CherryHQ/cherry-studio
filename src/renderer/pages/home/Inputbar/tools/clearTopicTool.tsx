@@ -1,5 +1,4 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
-import { useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
 import { Tooltip } from 'antd'
 import { PaintbrushVertical } from 'lucide-react'
@@ -13,14 +12,9 @@ const clearTopicTool = defineTool({
   },
   render: function ClearTopicRender(context) {
     const { actions, t } = context
-    const clearTopicShortcut = useShortcutDisplay('chat.clear')
 
     return (
-      <Tooltip
-        placement="top"
-        title={t('chat.input.clear.label', { Command: clearTopicShortcut })}
-        mouseLeaveDelay={0}
-        arrow>
+      <Tooltip placement="top" title={t('chat.input.clear.label', { Command: '' })} mouseLeaveDelay={0} arrow>
         <ActionIconButton onClick={actions.clearTopic} icon={<PaintbrushVertical size={18} />}></ActionIconButton>
       </Tooltip>
     )

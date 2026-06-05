@@ -1,4 +1,5 @@
 import { Alert, Button } from '@cherrystudio/ui'
+import { CommandProvider, ContextKeyProvider } from '@renderer/commands'
 import TopViewContainer from '@renderer/components/TopView'
 import AntdProvider from '@renderer/context/AntdProvider'
 import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
@@ -80,16 +81,20 @@ function SettingsApp({ initialPath }: { initialPath: string }): React.ReactEleme
               <NotificationProvider>
                 <CodeStyleProvider>
                   <PersistGate loading={null} persistor={persistor}>
-                    <TopViewContainer>
-                      <div
-                        className={cn(
-                          'flex h-screen w-screen overflow-hidden text-foreground',
-                          isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
-                        )}
-                        style={shellStyle}>
-                        <SettingsWindowRouter initialPath={initialPath} />
-                      </div>
-                    </TopViewContainer>
+                    <ContextKeyProvider>
+                      <CommandProvider>
+                        <TopViewContainer>
+                          <div
+                            className={cn(
+                              'flex h-screen w-screen overflow-hidden text-foreground',
+                              isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
+                            )}
+                            style={shellStyle}>
+                            <SettingsWindowRouter initialPath={initialPath} />
+                          </div>
+                        </TopViewContainer>
+                      </CommandProvider>
+                    </ContextKeyProvider>
                   </PersistGate>
                 </CodeStyleProvider>
               </NotificationProvider>

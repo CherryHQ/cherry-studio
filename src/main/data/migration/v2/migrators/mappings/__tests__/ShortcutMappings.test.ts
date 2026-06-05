@@ -49,7 +49,7 @@ describe('transformShortcuts', () => {
     })
   })
 
-  it('prefers the renamed toggle_sidebar key over toggle_show_assistants', () => {
+  it('prefers the renamed toggle_sidebar key over toggle_show_assistants for the left sidebar shortcut', () => {
     const result = transformShortcuts({
       shortcuts: [
         {
@@ -65,10 +65,33 @@ describe('transformShortcuts', () => {
       ]
     })
 
-    expect(result['shortcut.general.toggle_sidebar']).toEqual({
+    expect(result['shortcut.app.sidebar.toggle']).toEqual({
       binding: ['CommandOrControl', 'Shift', '['],
       enabled: false
     })
+    expect(result).not.toHaveProperty('shortcut.general.toggle_sidebar')
+    expect(result).not.toHaveProperty('shortcut.general.toggle_left_sidebar')
+  })
+
+  it('maps legacy toggle_show_topics to the right sidebar shortcut', () => {
+    const result = transformShortcuts({
+      shortcuts: [
+        {
+          key: 'toggle_show_topics',
+          shortcut: ['CommandOrControl', ']'],
+          enabled: true
+        }
+      ]
+    })
+
+    expect(result).toEqual({
+      'shortcut.topic.sidebar.toggle': {
+        binding: ['CommandOrControl', ']'],
+        enabled: true
+      }
+    })
+    expect(result).not.toHaveProperty('shortcut.topic.toggle_show_topics')
+    expect(result).not.toHaveProperty('shortcut.general.toggle_right_sidebar')
   })
 
   it('skips malformed bindings instead of silently clearing them', () => {

@@ -2628,8 +2628,8 @@
                 "enabled": true
               },
               "originalKey": "toggle_show_topics",
-              "status": "classified",
-              "targetKey": "shortcut.topic.toggle_show_topics",
+              "status": "deleted",
+              "targetKey": "shortcut.topic.toggle_right_sidebar",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
@@ -2642,8 +2642,8 @@
                 "enabled": true
               },
               "originalKey": "toggle_show_assistants",
-              "status": "classified",
-              "targetKey": "shortcut.general.toggle_sidebar",
+              "status": "deleted",
+              "targetKey": "shortcut.topic.toggle_left_sidebar",
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
@@ -2706,7 +2706,7 @@
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
-              "category": "preferences",
+              "category": null,
               "defaultValue": {
                 "binding": [
                   "CommandOrControl",
@@ -2715,12 +2715,12 @@
                 "enabled": true
               },
               "originalKey": "clear_topic",
-              "status": "classified",
-              "targetKey": "shortcut.chat.clear",
+              "status": "deleted",
+              "targetKey": null,
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
-              "category": "preferences",
+              "category": null,
               "defaultValue": {
                 "binding": [
                   "CommandOrControl",
@@ -2729,8 +2729,8 @@
                 "enabled": true
               },
               "originalKey": "toggle_new_context",
-              "status": "classified",
-              "targetKey": "shortcut.chat.toggle_new_context",
+              "status": "deleted",
+              "targetKey": null,
               "type": "PreferenceTypes.PreferenceShortcutType"
             },
             {
