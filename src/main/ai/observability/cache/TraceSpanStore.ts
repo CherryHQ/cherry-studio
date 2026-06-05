@@ -107,27 +107,6 @@ export class TraceSpanStore {
     }
   }
 
-  clearTopic(topicId: string, traceId?: string, modelName?: string): void {
-    for (const span of this.spans.values()) {
-      if (
-        span.topicId === topicId &&
-        (!traceId || span.traceId === traceId) &&
-        this.matchesModel(span, modelName, false)
-      ) {
-        this.spans.delete(span.id)
-        this.untrackSpan(span.traceId, span.id)
-      }
-    }
-
-    if (!modelName) {
-      for (const [metaTraceId, meta] of this.traceMeta) {
-        if (meta.topicId === topicId && (!traceId || metaTraceId === traceId)) {
-          this.traceMeta.delete(metaTraceId)
-        }
-      }
-    }
-  }
-
   /**
    * Evict the oldest fully-ended trace(s) until the total span count is within the cap.
    * A trace is "fully-ended" when every span it holds has `isEnd === true`; in-flight
