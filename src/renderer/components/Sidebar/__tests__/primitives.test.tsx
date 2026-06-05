@@ -5,8 +5,7 @@ import { UserAvatar } from '../primitives'
 
 describe('UserAvatar', () => {
   it('renders file url avatars as images', () => {
-    const avatar =
-      'file:///Applications/Cherry%20Studio%20Next.app/Contents/Resources/app.asar/out/renderer/assets/avatar-Xp_AWgeD.png'
+    const avatar = 'file:///tmp/avatar.png'
 
     render(<UserAvatar user={{ name: 'User', avatar }} />)
 
