@@ -8,7 +8,7 @@
 
 import { application } from '@application'
 import { userModelTable } from '@data/db/schemas/userModel'
-import type { NewUserProvider, UserProvider } from '@data/db/schemas/userProvider'
+import type { InsertUserProviderRow, UserProviderRow } from '@data/db/schemas/userProvider'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
@@ -33,7 +33,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('DataApi:ProviderService')
 
-type NewUserProviderInput = Omit<NewUserProvider, 'orderKey'>
+type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
 
 function normalizeApiKeyEntry(entry: ApiKeyEntry): ApiKeyEntry {
   const key = entry.key.trim()
@@ -69,7 +69,7 @@ function normalizeApiKeyEntries(apiKeys: ApiKeyEntry[]): ApiKeyEntry[] {
 /**
  * Convert database row to Provider entity
  */
-function rowToRuntimeProvider(row: UserProvider): Provider {
+function rowToRuntimeProvider(row: UserProviderRow): Provider {
   const presetMetadata = providerRegistryService.getProviderDisplayMetadata(
     row.providerId,
     row.presetProviderId ?? undefined
@@ -219,7 +219,7 @@ class ProviderService {
         await db.transaction(async (tx) => {
           return (await insertWithOrderKey(tx, userProviderTable, values, {
             pkColumn: userProviderTable.providerId
-          })) as UserProvider
+          })) as UserProviderRow
         }),
       {
         unique: () => DataApiErrorFactory.conflict(`Provider '${dto.providerId}' already exists`, 'Provider')
@@ -238,7 +238,7 @@ class ProviderService {
     const db = application.get('DbService').getDb()
 
     // Build update object
-    const updates: Partial<NewUserProvider> = {}
+    const updates: Partial<InsertUserProviderRow> = {}
 
     if (dto.name !== undefined) updates.name = dto.name
     if (dto.endpointConfigs !== undefined) updates.endpointConfigs = dto.endpointConfigs

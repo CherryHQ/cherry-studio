@@ -16,8 +16,8 @@ const mocks = vi.hoisted(() => ({
   runtimeIsSessionBusy: vi.fn()
 }))
 
-vi.mock('@data/services/SessionService', () => ({
-  sessionService: { getById: mocks.getSession }
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: { getById: mocks.getSession }
 }))
 
 vi.mock('@data/services/AgentService', () => ({
