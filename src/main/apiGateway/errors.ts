@@ -1,41 +1,12 @@
-/**
- * Per-dialect error handling for the API gateway.
- *
- * Idiomatic Elysia: route handlers return success values (validated by their
- * `response` schemas) and THROW for failures. The response DIALECT is a property
- * of the request path — AI-proxy endpoints answer in their upstream provider's
- * dialect, Cherry's own endpoints answer in our REST dialect:
- *
- * - `anthropicErrorHandler` (`/v1/messages`): `{ type: 'error', error: { type, message } }`
- * - `openaiErrorHandler` (`/v1/chat`, `/v1/responses`): `{ error: { message, type, code } }`
- * - `restErrorHandler` (Cherry endpoints + fallback): `{ error: { code, message, details? } }`
- *
- * Elysia dispatches built-in failures (`VALIDATION`, `NOT_FOUND`, `PARSE`) and
- * uncaught throws to the OUTERMOST `onError`, which shadows any scoped per-group
- * handler — so a single root `gatewayErrorHandler` selects the dialect by path
- * (`dialectForPath`) and delegates. The app registers `.error({ DATA_API })` so
- * the `code` below is typed to include `'DATA_API'`; `DataApiError`s are mapped
- * here, provider/runtime errors are shaped per-dialect (Anthropic inline via
- * `transformAnthropicError`; OpenAI via `responsesService.transformError`).
- */
-
 import { loggerService } from '@logger'
 import { DataApiError } from '@shared/data/api'
+import type { ErrorHandler } from 'elysia'
 
 import { responsesService } from './services/responses'
 
 const logger = loggerService.withContext('ApiGatewayErrors')
 
-/** Minimal subset of Elysia's `onError` context that the handlers consume. */
-interface GatewayErrorContext {
-  // `code` is a string for built-in errors (`VALIDATION`, `NOT_FOUND`, …) and the
-  // registered `'DATA_API'`; a number for status-thrown errors.
-  code: string | number
-  error: unknown
-  /** Elysia's context `status(code, body)` helper — sets the status and wraps the body. */
-  status: (code: number, body: unknown) => unknown
-  request: Request
-}
+type GatewayErrorContext = Parameters<ErrorHandler<{ DATA_API: DataApiError }>>[0]
 
 const messageOf = (error: unknown, fallback: string): string =>
   error instanceof Error && error.message ? error.message : fallback

@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { loggerService } from '@logger'
-import type { Server } from 'http'
+import type { Server } from 'elysia/universal/server'
+import type { Server as HttpServer } from 'http'
 
 import { type ApiGatewayApp, buildApp } from './app'
 
@@ -10,17 +11,19 @@ const GLOBAL_REQUEST_TIMEOUT_MS = 5 * 60_000
 const GLOBAL_HEADERS_TIMEOUT_MS = GLOBAL_REQUEST_TIMEOUT_MS + 5_000
 const GLOBAL_KEEPALIVE_TIMEOUT_MS = 60_000
 
-/** Minimal shape of the `serverInfo` object returned by `@elysia/node`'s listen callback. */
-interface NodeServerInfo {
+/**
+ * `@elysia/node` resolves the listen callback's argument to Elysia's Bun-shaped
+ * `Server` (which provides `stop()`), but at runtime hands back a srvx-backed object
+ * that also carries `.raw` internals not present in that type. We widen the real
+ * `Server` with exactly the `.raw` shape we read — so no cast is needed.
+ */
+type NodeServerInfo = Server & {
   raw?: {
-    node?: {
-      // Node's `http.Server` — exposes the timeout knobs we set below.
-      server?: Server
-    }
-    // srvx `NodeServer` instance: `ready()` resolves once listening (rejects on EADDRINUSE etc.).
+    // Node's `http.Server` — exposes the timeout knobs we set below.
+    node?: { server?: HttpServer }
+    // srvx `NodeServer`: `ready()` resolves once listening (rejects on EADDRINUSE etc.).
     ready?: () => Promise<unknown>
   }
-  stop?: () => unknown
 }
 
 export class ApiGateway {
@@ -44,11 +47,10 @@ export class ApiGateway {
 
     return new Promise((resolve, reject) => {
       try {
-        app.listen({ port, hostname: host }, (serverInfo) => {
-          const info = serverInfo as unknown as NodeServerInfo
-          this.serverInfo = info
+        app.listen({ port, hostname: host }, (serverInfo: NodeServerInfo) => {
+          this.serverInfo = serverInfo
 
-          const http = info?.raw?.node?.server
+          const http = serverInfo.raw?.node?.server
           if (http) {
             this.applyServerTimeouts(http)
           }
@@ -56,10 +58,10 @@ export class ApiGateway {
           // The listen callback fires synchronously before the socket is bound;
           // await the underlying NodeServer's `ready()` to surface listen errors
           // (e.g. EADDRINUSE), mirroring the previous Express `'error'` handling.
-          const ready = info?.raw?.ready
+          const ready = serverInfo.raw?.ready
           if (typeof ready === 'function') {
             ready
-              .call(info.raw)
+              .call(serverInfo.raw)
               .then(() => {
                 this.running = true
                 logger.info('API server started', { host, port })
@@ -82,7 +84,7 @@ export class ApiGateway {
     })
   }
 
-  private applyServerTimeouts(server: Server): void {
+  private applyServerTimeouts(server: HttpServer): void {
     server.requestTimeout = GLOBAL_REQUEST_TIMEOUT_MS
     server.headersTimeout = Math.max(GLOBAL_HEADERS_TIMEOUT_MS, server.requestTimeout + 1_000)
     server.keepAliveTimeout = GLOBAL_KEEPALIVE_TIMEOUT_MS
