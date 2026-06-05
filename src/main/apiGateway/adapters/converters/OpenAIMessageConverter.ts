@@ -1,0 +1,235 @@
+/**
+ * OpenAI Message Converter
+ *
+ * Converts OpenAI Chat Completions API format to AI SDK format.
+ * Handles messages, tools, and extended features like reasoning_content.
+ */
+
+import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import type {
+  ChatCompletionAssistantMessageParam,
+  ChatCompletionMessageParam,
+  ChatCompletionUserMessageParam
+} from '@cherrystudio/openai/resources'
+import type { ChatCompletionCreateParamsBase } from '@cherrystudio/openai/resources/chat/completions'
+import type { Provider } from '@shared/data/types/provider'
+import type { DynamicToolUIPart, FileUIPart, ReasoningUIPart, TextUIPart, ToolSet, UIMessage, UIMessagePart } from 'ai'
+import { tool, zodSchema } from 'ai'
+
+import type { IMessageConverter, StreamTextOptions } from '../interfaces'
+import { type JsonSchemaLike, jsonSchemaToZod } from './json-schema-to-zod'
+import { mapReasoningEffortToProviderOptions } from './provider-options-mapper'
+
+let uiMessageSeq = 0
+function nextUIMessageId(): string {
+  return `gateway-msg-${Date.now()}-${uiMessageSeq++}`
+}
+
+/**
+ * Extended ChatCompletionCreateParams with reasoning_effort support
+ * Extends the base OpenAI params to inherit all standard parameters
+ */
+export interface ExtendedChatCompletionCreateParams extends ChatCompletionCreateParamsBase {
+  /**
+   * Allow additional provider-specific parameters
+   */
+  [key: string]: unknown
+}
+
+/**
+ * Extended assistant message with reasoning_content support (DeepSeek-style)
+ */
+interface ExtendedAssistantMessage extends ChatCompletionAssistantMessageParam {
+  reasoning_content?: string | null
+}
+
+/**
+ * OpenAI Message Converter
+ *
+ * Converts OpenAI Chat Completions API format to AI SDK format.
+ * Supports standard OpenAI messages plus extended features:
+ * - reasoning_content (DeepSeek-style thinking)
+ * - reasoning_effort parameter
+ */
+export class OpenAIMessageConverter implements IMessageConverter<ExtendedChatCompletionCreateParams> {
+  /**
+   * Convert OpenAI ChatCompletionCreateParams to AI SDK `UIMessage[]`.
+   *
+   * Tool results (OpenAI `role: 'tool'` messages) are folded into the matching
+   * assistant `dynamic-tool` part so `convertToModelMessages` reconstructs the
+   * call/result pair coherently.
+   */
+  toUIMessages(params: ExtendedChatCompletionCreateParams): UIMessage[] {
+    // tool_call_id → name (from assistant tool_calls) and → result output.
+    const toolCallIdToName = new Map<string, string>()
+    const toolResultOutputs = new Map<string, string>()
+    for (const msg of params.messages) {
+      if (msg.role === 'assistant') {
+        const assistantMsg = msg
+        for (const toolCall of assistantMsg.tool_calls ?? []) {
+          if (toolCall.type === 'function') toolCallIdToName.set(toolCall.id, toolCall.function.name)
+        }
+      } else if (msg.role === 'tool') {
+        const toolMsg = msg
+        toolResultOutputs.set(
+          toolMsg.tool_call_id,
+          typeof toolMsg.content === 'string' ? toolMsg.content : JSON.stringify(toolMsg.content)
+        )
+      }
+    }
+
+    const messages: UIMessage[] = []
+    for (const msg of params.messages) {
+      const converted = this.convertMessage(msg, toolResultOutputs)
+      if (converted) messages.push(converted)
+    }
+    return messages
+  }
+
+  /**
+   * Convert a single OpenAI message to a UIMessage (or null to skip).
+   */
+  private convertMessage(msg: ChatCompletionMessageParam, toolResultOutputs: Map<string, string>): UIMessage | null {
+    switch (msg.role) {
+      case 'system':
+        return this.convertSystemMessage(msg)
+      case 'user':
+        return this.convertUserMessage(msg)
+      case 'assistant':
+        return this.convertAssistantMessage(msg as ExtendedAssistantMessage, toolResultOutputs)
+      // 'tool' results are folded into the assistant part; standalone tool/function
+      // messages have no UIMessage representation here.
+      default:
+        return null
+    }
+  }
+
+  private convertSystemMessage(msg: ChatCompletionMessageParam): UIMessage | null {
+    if (msg.role !== 'system') return null
+
+    let text = ''
+    if (typeof msg.content === 'string') {
+      text = msg.content
+    } else if (Array.isArray(msg.content)) {
+      text = msg.content
+        .filter((part): part is { type: 'text'; text: string } => part.type === 'text')
+        .map((part) => part.text)
+        .join('\n')
+    }
+    if (!text) return null
+    return { id: nextUIMessageId(), role: 'system', parts: [{ type: 'text', text }] }
+  }
+
+  private convertUserMessage(msg: ChatCompletionUserMessageParam): UIMessage | null {
+    if (typeof msg.content === 'string') {
+      if (!msg.content) return null
+      return { id: nextUIMessageId(), role: 'user', parts: [{ type: 'text', text: msg.content }] }
+    }
+
+    if (Array.isArray(msg.content)) {
+      const parts: UIMessagePart<any, any>[] = []
+      for (const part of msg.content) {
+        if (part.type === 'text') {
+          const p: TextUIPart = { type: 'text', text: part.text }
+          parts.push(p)
+        } else if (part.type === 'image_url') {
+          const p: FileUIPart = { type: 'file', mediaType: 'image/png', url: part.image_url.url }
+          parts.push(p)
+        }
+      }
+      if (parts.length > 0) return { id: nextUIMessageId(), role: 'user', parts }
+    }
+
+    return null
+  }
+
+  private convertAssistantMessage(
+    msg: ExtendedAssistantMessage,
+    toolResultOutputs: Map<string, string>
+  ): UIMessage | null {
+    const parts: UIMessagePart<any, any>[] = []
+
+    // reasoning_content (DeepSeek-style thinking)
+    if (msg.reasoning_content) {
+      const p: ReasoningUIPart = { type: 'reasoning', text: msg.reasoning_content }
+      parts.push(p)
+    }
+
+    if (msg.content) {
+      if (typeof msg.content === 'string') {
+        parts.push({ type: 'text', text: msg.content })
+      } else if (Array.isArray(msg.content)) {
+        for (const part of msg.content) {
+          if (part.type === 'text') parts.push({ type: 'text', text: part.text })
+        }
+      }
+    }
+
+    for (const toolCall of msg.tool_calls ?? []) {
+      if (toolCall.type !== 'function') continue
+      let input: unknown
+      try {
+        input = JSON.parse(toolCall.function.arguments)
+      } catch {
+        input = { raw: toolCall.function.arguments }
+      }
+      const hasResult = toolResultOutputs.has(toolCall.id)
+      const base = { type: 'dynamic-tool' as const, toolName: toolCall.function.name, toolCallId: toolCall.id }
+      const part: DynamicToolUIPart = hasResult
+        ? { ...base, state: 'output-available', input, output: toolResultOutputs.get(toolCall.id) }
+        : { ...base, state: 'input-available', input }
+      parts.push(part)
+    }
+
+    if (parts.length > 0) return { id: nextUIMessageId(), role: 'assistant', parts }
+    return null
+  }
+
+  /**
+   * Convert OpenAI tools to an AI SDK `ToolSet` (client tools, no `execute`).
+   */
+  toAiSdkTools(params: ExtendedChatCompletionCreateParams): ToolSet | undefined {
+    const tools = params.tools
+    if (!tools || tools.length === 0) return undefined
+
+    const aiSdkTools: ToolSet = {}
+
+    for (const toolDef of tools) {
+      if (toolDef.type !== 'function') continue
+
+      const rawSchema = toolDef.function.parameters
+      const schema = rawSchema ? jsonSchemaToZod(rawSchema as JsonSchemaLike) : jsonSchemaToZod({ type: 'object' })
+
+      const aiTool = tool({
+        description: toolDef.function.description || '',
+        inputSchema: zodSchema(schema)
+      })
+
+      aiSdkTools[toolDef.function.name] = aiTool
+    }
+
+    return Object.keys(aiSdkTools).length > 0 ? aiSdkTools : undefined
+  }
+
+  /**
+   * Extract stream/generation options from OpenAI params
+   */
+  extractStreamOptions(params: ExtendedChatCompletionCreateParams): StreamTextOptions {
+    return {
+      maxOutputTokens: params.max_tokens as number | undefined,
+      temperature: params.temperature as number | undefined,
+      topP: params.top_p as number | undefined,
+      stopSequences: params.stop as string[] | undefined
+    }
+  }
+
+  /**
+   * Extract provider-specific options from OpenAI params
+   * Maps reasoning_effort to provider-specific thinking/reasoning parameters
+   */
+  extractProviderOptions(provider: Provider, params: ExtendedChatCompletionCreateParams): ProviderOptions | undefined {
+    return mapReasoningEffortToProviderOptions(provider, params.reasoning_effort)
+  }
+}
+
+export default OpenAIMessageConverter

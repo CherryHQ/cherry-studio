@@ -18,7 +18,7 @@ import { JobManager } from '@main/core/job/JobManager'
 import { SchedulerService } from '@main/core/scheduler/SchedulerService'
 import { WindowManager } from '@main/core/window/WindowManager'
 import { AnalyticsService } from '@main/services/AnalyticsService'
-import { ApiServerService } from '@main/services/ApiServerService'
+import { ApiGatewayService } from '@main/services/ApiGatewayService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
 import { CherryInOauthService } from '@main/services/CherryInOauthService'
@@ -120,7 +120,7 @@ export const services = {
   AiStreamManager,
   KnowledgeOrchestrationService,
   KnowledgeVectorStoreService,
-  ApiServerService,
+  ApiGatewayService,
   AppUpdaterService,
   SchedulerService,
   JobManager

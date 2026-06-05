@@ -1,3 +1,4 @@
+// Redux config type — stays `apiServer` (redux/v2 layer being deprecated)
 export type ApiServerConfig = {
   enabled: boolean
   host: string
@@ -5,12 +6,8 @@ export type ApiServerConfig = {
   apiKey: string
 }
 
-export type GetApiServerStatusResult = {
-  running: boolean
-  config: ApiServerConfig | null
-}
-
-export type StartApiServerStatusResult =
+// IPC result types — renamed to `apiGateway` (non-redux, survives v2 deprecation)
+export type StartApiGatewayStatusResult =
   | {
       success: true
     }
@@ -19,7 +16,7 @@ export type StartApiServerStatusResult =
       error: string
     }
 
-export type RestartApiServerStatusResult =
+export type RestartApiGatewayStatusResult =
   | {
       success: true
     }
@@ -28,7 +25,7 @@ export type RestartApiServerStatusResult =
       error: string
     }
 
-export type StopApiServerStatusResult =
+export type StopApiGatewayStatusResult =
   | {
       success: true
     }

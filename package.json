@@ -12,7 +12,7 @@
   },
   "scripts": {
     "start": "electron-vite preview",
-    "generate:openapi": "tsx scripts/generate-openapi-spec.ts && biome format --write src/main/apiServer/generated/openapi-spec.json",
+    "generate:openapi": "tsx scripts/generate-openapi-spec.ts && biome format --write src/main/apiGateway/generated/openapi-spec.json",
     "openapi:check": "tsx scripts/generate-openapi-spec.ts --check",
     "dev": "npm run generate:openapi && dotenv electron-vite dev",
     "dev:watch": "dotenv electron-vite dev -- -w",

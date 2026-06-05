@@ -80,7 +80,7 @@ const SettingsPage: FC = () => {
                 className={settingsSubmenuItemClassName}
                 labelClassName={settingsSubmenuItemLabelClassName}
                 icon={<Server />}
-                label={t('apiServer.title')}
+                label={t('apiGateway.title')}
                 active={isActive('/settings/api-server')}
                 onClick={() => go('/settings/api-server')}
               />

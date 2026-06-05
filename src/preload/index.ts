@@ -72,14 +72,13 @@ import { IpcChannel } from '@shared/IpcChannel'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
 import type {
   FileMetadata,
-  GetApiServerStatusResult,
   Notification,
   OcrProvider,
   OcrResult,
-  RestartApiServerStatusResult,
+  RestartApiGatewayStatusResult,
   S3Config,
-  StartApiServerStatusResult,
-  StopApiServerStatusResult,
+  StartApiGatewayStatusResult,
+  StopApiGatewayStatusResult,
   SupportedOcrFile,
   WebDavConfig
 } from '@types'
@@ -928,20 +927,10 @@ const api = {
       sourceLangCode?: string
     }): Promise<{ streamId: string }> => ipcRenderer.invoke(IpcChannel.Ai_Translate_Open, req)
   },
-  apiServer: {
-    getStatus: (): Promise<GetApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_GetStatus),
-    start: (): Promise<StartApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Start),
-    restart: (): Promise<RestartApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Restart),
-    stop: (): Promise<StopApiServerStatusResult> => ipcRenderer.invoke(IpcChannel.ApiServer_Stop),
-    onReady: (callback: () => void): (() => void) => {
-      const listener = () => {
-        callback()
-      }
-      ipcRenderer.on(IpcChannel.ApiServer_Ready, listener)
-      return () => {
-        ipcRenderer.removeListener(IpcChannel.ApiServer_Ready, listener)
-      }
-    }
+  apiGateway: {
+    start: (): Promise<StartApiGatewayStatusResult> => ipcRenderer.invoke(IpcChannel.ApiGateway_Start),
+    restart: (): Promise<RestartApiGatewayStatusResult> => ipcRenderer.invoke(IpcChannel.ApiGateway_Restart),
+    stop: (): Promise<StopApiGatewayStatusResult> => ipcRenderer.invoke(IpcChannel.ApiGateway_Stop)
   },
   skill: {
     list: (agentId?: string): Promise<SkillResult<InstalledSkill[]>> =>

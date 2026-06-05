@@ -785,7 +785,7 @@
       "server_not_running_description": "智能体功能需要 API 服务器运行。你可以直接启动服务器，或前往设置页面检查配置。"
     }
   },
-  "apiServer": {
+  "apiGateway": {
     "actions": {
       "copy": "复制",
       "regenerate": "重新生成",

@@ -3,7 +3,7 @@ import * as path from 'path'
 import swaggerJSDoc from 'swagger-jsdoc'
 
 const ROOT_DIR = path.resolve(__dirname, '..')
-const OUTPUT_DIR = path.resolve(ROOT_DIR, 'src/main/apiServer/generated')
+const OUTPUT_DIR = path.resolve(ROOT_DIR, 'src/main/apiGateway/generated')
 const OUTPUT_FILE = path.resolve(OUTPUT_DIR, 'openapi-spec.json')
 
 const swaggerOptions: swaggerJSDoc.Options = {
@@ -172,8 +172,8 @@ const swaggerOptions: swaggerJSDoc.Options = {
     ]
   },
   apis: [
-    path.resolve(ROOT_DIR, 'src/main/apiServer/routes/**/*.ts'),
-    path.resolve(ROOT_DIR, 'src/main/apiServer/app.ts')
+    path.resolve(ROOT_DIR, 'src/main/apiGateway/routes/**/*.ts'),
+    path.resolve(ROOT_DIR, 'src/main/apiGateway/app.ts')
   ]
 }
 

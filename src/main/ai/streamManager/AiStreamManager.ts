@@ -22,6 +22,7 @@ import { type SerializedError, serializeError } from '@shared/types/error'
 import { type UIMessageChunk } from 'ai'
 import * as z from 'zod'
 
+import type { RequestFeature } from '../runtime/aiSdk/params/feature'
 import type { AiStreamRequest } from '../types/requests'
 import { buildCompactReplay } from './buildCompactReplay'
 import { dispatchStreamRequest, type MainDispatchRequest } from './context'
@@ -86,6 +87,8 @@ export interface SendModelSpec {
   modelId: UniqueModelId
   request: AiStreamRequest
   rootSpan?: Span
+  /** Caller-supplied features merged after INTERNAL_FEATURES (e.g. API-gateway per-request overrides). */
+  extraFeatures?: readonly RequestFeature[]
 }
 
 export interface SendInput {
@@ -337,11 +340,18 @@ export class AiStreamManager extends BaseService {
     const isMultiModel = input.models.length > 1
     const executions = new Map<UniqueModelId, StreamExecution>()
 
-    for (const { modelId, request, rootSpan } of input.models) {
+    for (const { modelId, request, rootSpan, extraFeatures } of input.models) {
       if (executions.has(modelId)) {
         throw new Error(`send() got duplicate modelId ${modelId} for topic ${input.topicId}`)
       }
-      const exec = this.createAndLaunchExecution(input.topicId, modelId, request, input.siblingsGroupId, rootSpan)
+      const exec = this.createAndLaunchExecution(
+        input.topicId,
+        modelId,
+        request,
+        input.siblingsGroupId,
+        rootSpan,
+        extraFeatures
+      )
       executions.set(modelId, exec)
     }
 
@@ -377,6 +387,8 @@ export class AiStreamManager extends BaseService {
     prompt?: string
     messages?: CherryUIMessage[]
     listener: StreamListener | StreamListener[]
+    /** Per-request features merged after INTERNAL_FEATURES (API-gateway overrides: sampling/tools/providerOptions). */
+    extraFeatures?: readonly RequestFeature[]
   }): SendResult {
     const messages: CherryUIMessage[] =
       input.messages && input.messages.length > 0
@@ -391,7 +403,7 @@ export class AiStreamManager extends BaseService {
     }
     return this.send({
       topicId: input.streamId,
-      models: [{ modelId: input.uniqueModelId, request }],
+      models: [{ modelId: input.uniqueModelId, request, extraFeatures: input.extraFeatures }],
       listeners: Array.isArray(input.listener) ? input.listener : [input.listener],
       lifecycle: promptStreamLifecycle
     })
@@ -756,7 +768,8 @@ export class AiStreamManager extends BaseService {
     modelId: UniqueModelId,
     request: AiStreamRequest,
     siblingsGroupId?: number,
-    rootSpan?: Span
+    rootSpan?: Span,
+    extraFeatures?: readonly RequestFeature[]
   ): StreamExecution {
     // `loopPromise` is overwritten right after launch; initialise to a resolved sentinel
     // so the `exec` object reference is stable inside the arrow function below.
@@ -776,9 +789,9 @@ export class AiStreamManager extends BaseService {
     const launchLoop = rootSpan
       ? () =>
           otelContext.with(trace.setSpan(otelContext.active(), rootSpan), () =>
-            this.runExecutionLoop(topicId, modelId, request, exec)
+            this.runExecutionLoop(topicId, modelId, request, exec, extraFeatures)
           )
-      : () => this.runExecutionLoop(topicId, modelId, request, exec)
+      : () => this.runExecutionLoop(topicId, modelId, request, exec, extraFeatures)
 
     exec.loopPromise = launchLoop().catch((err) => {
       // Defensive funnel for sync throws (e.g. `streamText` rejects before returning a stream).
@@ -792,7 +805,8 @@ export class AiStreamManager extends BaseService {
     topicId: string,
     modelId: UniqueModelId,
     request: AiStreamRequest,
-    exec: StreamExecution
+    exec: StreamExecution,
+    extraFeatures?: readonly RequestFeature[]
   ): Promise<void> {
     const aiService = application.get('AiService')
     const signal = exec.abortController.signal
@@ -802,10 +816,13 @@ export class AiStreamManager extends BaseService {
       // Pre-stream rejection (model resolution, param build) routes through
       // the error path with no half-open stream to tear down.
       // `signal` is injected here because it's not IPC-serialisable.
-      rawStream = await aiService.streamText({
-        ...request,
-        requestOptions: { ...request.requestOptions, signal }
-      })
+      rawStream = await aiService.streamText(
+        {
+          ...request,
+          requestOptions: { ...request.requestOptions, signal }
+        },
+        extraFeatures
+      )
     } catch (err) {
       if (!signal.aborted) logger.error('streamText failed before stream start', { topicId, modelId, err })
       await this.onExecutionError(topicId, modelId, serializeError(err))
