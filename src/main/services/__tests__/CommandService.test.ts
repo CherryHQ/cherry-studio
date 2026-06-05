@@ -37,7 +37,7 @@ const {
     processSelectTextByShortcut: vi.fn()
   },
   windowManagerMock: {
-    getAllWindows: vi.fn((): Array<{ type: string; window: any }> => [])
+    getWindowsByType: vi.fn((): any[] => [])
   },
   handleZoomFactorMock: vi.fn(),
   showNativePopupMenuMock: vi.fn()
@@ -92,7 +92,7 @@ describe('CommandService', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     MockMainPreferenceServiceUtils.resetMocks()
-    windowManagerMock.getAllWindows.mockReturnValue([])
+    windowManagerMock.getWindowsByType.mockReturnValue([])
     service = new CommandService()
     await (service as any).onInit()
   })
@@ -131,12 +131,7 @@ describe('CommandService', () => {
   it('falls back to all main windows for zoom commands without an explicit target window', () => {
     const mainWindow = { isDestroyed: vi.fn(() => false) } as any
     const destroyedMainWindow = { isDestroyed: vi.fn(() => true) } as any
-    const settingsWindow = { isDestroyed: vi.fn(() => false) } as any
-    windowManagerMock.getAllWindows.mockReturnValue([
-      { type: 'main', window: mainWindow },
-      { type: 'main', window: destroyedMainWindow },
-      { type: 'settings', window: settingsWindow }
-    ])
+    windowManagerMock.getWindowsByType.mockReturnValue([mainWindow, destroyedMainWindow])
 
     service.execute('app.zoom.reset')
 

@@ -79,7 +79,9 @@ export class SubWindowService extends BaseService {
       // determined via WindowManager's own type index (not the service's private
       // map) so this branch does not depend on tabIdToWindowId staying in sync.
       const senderId = wm.getWindowIdByWebContents(event.sender)
-      const isSubWindow = senderId ? wm.getWindowsByType(WindowType.SubWindow).some((w) => w.id === senderId) : false
+      const isSubWindow = senderId
+        ? wm.getWindowInfosByType(WindowType.SubWindow).some((w) => w.id === senderId)
+        : false
       if (senderId && isSubWindow) {
         try {
           wm.close(senderId)
@@ -117,9 +119,8 @@ export class SubWindowService extends BaseService {
       IpcChannel.Tab_TryAttach,
       (_, payload: { tab: { id: string }; screenX: number; screenY: number }) => {
         const wm = application.get('WindowManager')
-        const mainInfo = wm.getWindowsByType(WindowType.Main)[0]
-        const mainWindow = mainInfo ? wm.getWindow(mainInfo.id) : undefined
-        if (!mainWindow || mainWindow.isDestroyed()) {
+        const mainWindow = wm.getWindowsByType(WindowType.Main)[0]
+        if (!mainWindow) {
           logger.warn('Tab_TryAttach failed: main window not available')
           return false
         }

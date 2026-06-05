@@ -15,9 +15,7 @@ type MainCommandHandler = (window?: BrowserWindow) => void | Promise<void>
 const getMainWindows = (): BrowserWindow[] =>
   application
     .get('WindowManager')
-    .getAllWindows()
-    .filter((managedWindow) => managedWindow.type === WindowType.Main)
-    .map((managedWindow) => managedWindow.window)
+    .getWindowsByType(WindowType.Main)
     .filter((window) => !window.isDestroyed())
 
 const getCommandTargetWindows = (window?: BrowserWindow): BrowserWindow[] => (window ? [window] : getMainWindows())

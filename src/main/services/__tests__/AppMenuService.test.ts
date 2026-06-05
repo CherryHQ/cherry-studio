@@ -31,7 +31,7 @@ const {
         if (name === 'SettingsWindowService') return settingsWindowServiceMock
         if (name === 'CommandService') return commandServiceMock
         if (name === 'WindowManager') {
-          return { getAllWindows: vi.fn(() => []) }
+          return { getWindowsByType: vi.fn(() => []) }
         }
         return undefined
       })
