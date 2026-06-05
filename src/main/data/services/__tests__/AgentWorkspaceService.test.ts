@@ -2,6 +2,7 @@ import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentSessionWorkflowService } from '@data/services/AgentSessionWorkflowService'
 import { AgentWorkspaceService, agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { agentWorkspaceWorkflowService } from '@data/services/AgentWorkspaceWorkflowService'
 import { pinService } from '@data/services/PinService'
@@ -120,12 +121,12 @@ describe('AgentWorkspaceService', () => {
       model: null,
       orderKey: 'a0'
     })
-    const session = await agentSessionService.createSession({
+    const session = await agentSessionWorkflowService.createSession({
       agentId: 'agent-with-deleted-workspace',
       name: 'Workspace binding clears',
       workspaceId: workspace.id
     })
-    const otherSession = await agentSessionService.createSession({
+    const otherSession = await agentSessionWorkflowService.createSession({
       agentId: 'agent-with-deleted-workspace',
       name: 'Other workspace session remains',
       workspaceId: otherWorkspace.id
@@ -168,7 +169,7 @@ describe('AgentWorkspaceService', () => {
       model: null,
       orderKey: 'a0'
     })
-    const session = await agentSessionService.createSession({
+    const session = await agentSessionWorkflowService.createSession({
       agentId: 'agent-with-missing-workspace-dir',
       name: 'Session keeps DB workspace',
       workspaceId: workspace.id

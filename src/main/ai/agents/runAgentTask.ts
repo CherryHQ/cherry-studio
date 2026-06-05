@@ -13,6 +13,7 @@
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentSessionWorkflowService } from '@data/services/AgentSessionWorkflowService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
@@ -114,7 +115,7 @@ export async function runAgentTask(ctx: JobContext<AgentTaskInput>): Promise<Age
   // Always create a fresh session per fire. Scheduled tasks are discrete
   // invocations; cross-fire session reuse would only carry stale model
   // context. Persistent state lives in workspace files (heartbeat.md, etc.).
-  const session = await agentSessionService.createSession({ agentId, name: taskName ?? 'Scheduled task' })
+  const session = await agentSessionWorkflowService.createSession({ agentId, name: taskName ?? 'Scheduled task' })
 
   const subscribedChannels = scheduleId ? await agentChannelService.getSubscribedChannels(scheduleId) : []
 

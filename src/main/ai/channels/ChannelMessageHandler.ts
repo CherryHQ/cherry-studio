@@ -5,6 +5,7 @@ import path from 'node:path'
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentSessionWorkflowService } from '@data/services/AgentSessionWorkflowService'
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { isAgentSessionWorkspaceError } from '@main/ai/runtime/claudeCode/settingsBuilder'
@@ -307,7 +308,7 @@ export class ChannelMessageHandler {
         case 'new': {
           // TODO(channel-perm-override): channel.permissionMode no longer
           // applied here — config lives on agent now. Tracked separately.
-          const newSession = await agentSessionService.createSession({ agentId, name: 'Channel session' })
+          const newSession = await agentSessionWorkflowService.createSession({ agentId, name: 'Channel session' })
           await channelService.updateChannel(adapter.channelId, { sessionId: newSession.id })
           const trackerKey = `${agentId}:${adapter.channelId}:${command.chatId}`
           this.sessionTracker.set(trackerKey, newSession.id)
@@ -518,7 +519,7 @@ export class ChannelMessageHandler {
       trackerKey
     })
 
-    const newSession = await agentSessionService.createSession({ agentId, name: 'Channel session' })
+    const newSession = await agentSessionWorkflowService.createSession({ agentId, name: 'Channel session' })
     await channelService.updateChannel(channelId, { sessionId: newSession.id })
     this.sessionTracker.set(trackerKey, newSession.id)
     this.evictSessionTracker()

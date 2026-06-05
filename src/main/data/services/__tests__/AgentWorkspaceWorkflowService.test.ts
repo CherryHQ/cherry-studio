@@ -1,6 +1,7 @@
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentSessionWorkflowService } from '@data/services/AgentSessionWorkflowService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { AgentWorkspaceWorkflowService } from '@data/services/AgentWorkspaceWorkflowService'
 import { ErrorCode } from '@shared/data/api'
@@ -39,7 +40,7 @@ describe('AgentWorkspaceWorkflowService', () => {
 
   it('deletes a user workspace and its sessions without removing the directory', async () => {
     const workspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'user-project'))
-    const session = await agentSessionService.createSession({
+    const session = await agentSessionWorkflowService.createSession({
       agentId: 'agent-workflow',
       name: 'User workspace session',
       workspaceId: workspace.id

@@ -7,7 +7,7 @@
  */
 
 import { agentService } from '@data/services/AgentService'
-import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentSessionWorkflowService } from '@data/services/AgentSessionWorkflowService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api'
@@ -111,7 +111,7 @@ export class TemporarySessionService {
     try {
       const workspaceInput =
         row.workspaceMode === 'system' ? { workspaceMode: row.workspaceMode } : { workspaceId: row.workspaceId }
-      return await agentSessionService.createSession(
+      return await agentSessionWorkflowService.createSession(
         {
           agentId: row.agentId,
           name: row.name,

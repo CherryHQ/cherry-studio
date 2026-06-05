@@ -9,6 +9,7 @@
 
 import { agentSessionMessageService as sessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentSessionWorkflowService } from '@data/services/AgentSessionWorkflowService'
 import { toDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
@@ -31,7 +32,7 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
     POST: async ({ body }) => {
       const parsed = CreateAgentSessionSchema.safeParse(body)
       if (!parsed.success) throw toDataApiError(parsed.error)
-      return await agentSessionService.createSession(parsed.data)
+      return await agentSessionWorkflowService.createSession(parsed.data)
     }
   },
 
@@ -47,7 +48,7 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
     },
 
     DELETE: async ({ params }) => {
-      await agentSessionService.delete(params.sessionId)
+      await agentSessionWorkflowService.deleteSession(params.sessionId)
       return undefined
     }
   },

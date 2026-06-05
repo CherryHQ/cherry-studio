@@ -45,7 +45,10 @@ vi.mock('@data/services/AgentService', () => ({
   agentService: { getAgent: vi.fn() }
 }))
 vi.mock('@data/services/AgentSessionService', () => ({
-  agentSessionService: { createSession: vi.fn(), findAgentWorkspacePath: vi.fn() }
+  agentSessionService: { findAgentWorkspacePath: vi.fn() }
+}))
+vi.mock('@data/services/AgentSessionWorkflowService', () => ({
+  agentSessionWorkflowService: { createSession: vi.fn() }
 }))
 vi.mock('@data/services/JobScheduleService', () => ({
   jobScheduleService: { getById: vi.fn() }
@@ -60,6 +63,7 @@ vi.mock('@main/ai/agents/cherryclaw/heartbeat', () => ({
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentSessionWorkflowService } from '@data/services/AgentSessionWorkflowService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { readHeartbeat } from '@main/ai/agents/cherryclaw/heartbeat'
@@ -164,7 +168,7 @@ describe('runAgentTask', () => {
     vi.mocked(jobService.getById).mockReset()
     vi.mocked(jobScheduleService.getById).mockReset()
     vi.mocked(agentService.getAgent).mockReset()
-    vi.mocked(agentSessionService.createSession).mockReset()
+    vi.mocked(agentSessionWorkflowService.createSession).mockReset()
     vi.mocked(agentSessionService.findAgentWorkspacePath).mockReset()
     vi.mocked(readHeartbeat).mockReset()
     vi.mocked(agentChannelService.getSubscribedChannels).mockReset().mockResolvedValue([])
@@ -197,7 +201,7 @@ describe('runAgentTask', () => {
     const out = await runAgentTask(makeCtx())
 
     expect(out).toEqual({ sessionId: null, result: 'Skipped (disabled)' })
-    expect(agentSessionService.createSession).not.toHaveBeenCalled()
+    expect(agentSessionWorkflowService.createSession).not.toHaveBeenCalled()
     expect(readHeartbeat).not.toHaveBeenCalled()
   })
 
@@ -210,7 +214,7 @@ describe('runAgentTask', () => {
     const out = await runAgentTask(makeCtx())
 
     expect(out).toEqual({ sessionId: null, result: 'Skipped (no file)' })
-    expect(agentSessionService.createSession).not.toHaveBeenCalled()
+    expect(agentSessionWorkflowService.createSession).not.toHaveBeenCalled()
     expect(readHeartbeat).not.toHaveBeenCalled()
   })
 
@@ -224,7 +228,7 @@ describe('runAgentTask', () => {
     const out = await runAgentTask(makeCtx())
 
     expect(out).toEqual({ sessionId: null, result: 'Skipped (no file)' })
-    expect(agentSessionService.createSession).not.toHaveBeenCalled()
+    expect(agentSessionWorkflowService.createSession).not.toHaveBeenCalled()
     expect(readHeartbeat).toHaveBeenCalledWith('/ws/a')
   })
 
@@ -234,7 +238,7 @@ describe('runAgentTask', () => {
     vi.mocked(agentService.getAgent).mockResolvedValueOnce(makeAgent({ heartbeat_enabled: true }))
     vi.mocked(agentSessionService.findAgentWorkspacePath).mockResolvedValueOnce('/ws/a')
     vi.mocked(readHeartbeat).mockResolvedValueOnce('check the inbox')
-    vi.mocked(agentSessionService.createSession).mockResolvedValueOnce(makeSession('/ws/a'))
+    vi.mocked(agentSessionWorkflowService.createSession).mockResolvedValueOnce(makeSession('/ws/a'))
 
     const promise = runAgentTask(makeCtx())
     await vi.waitFor(() => expect(mockStartRun).toHaveBeenCalled())
@@ -242,7 +246,7 @@ describe('runAgentTask', () => {
     await promise
 
     expect(readHeartbeat).toHaveBeenCalledWith('/ws/a')
-    expect(agentSessionService.createSession).toHaveBeenCalledWith({ agentId: 'a1', name: 'heartbeat' })
+    expect(agentSessionWorkflowService.createSession).toHaveBeenCalledWith({ agentId: 'a1', name: 'heartbeat' })
   })
 
   // C1 (agents-jobs-3): a `text-delta` chunk's payload is on `.delta`, not `.text`.
@@ -252,7 +256,7 @@ describe('runAgentTask', () => {
     vi.mocked(jobService.getById).mockResolvedValueOnce(makeJobSnapshot())
     vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSchedule('daily-summary'))
     vi.mocked(agentService.getAgent).mockResolvedValueOnce(makeAgent())
-    vi.mocked(agentSessionService.createSession).mockResolvedValueOnce(makeSession('/ws/a'))
+    vi.mocked(agentSessionWorkflowService.createSession).mockResolvedValueOnce(makeSession('/ws/a'))
 
     const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 0 } }))
 
@@ -274,7 +278,7 @@ describe('runAgentTask', () => {
     vi.mocked(jobService.getById).mockResolvedValueOnce(makeJobSnapshot('s1'))
     vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSchedule('daily-summary'))
     vi.mocked(agentService.getAgent).mockResolvedValueOnce(makeAgent())
-    vi.mocked(agentSessionService.createSession).mockResolvedValueOnce(makeSession('/ws/a'))
+    vi.mocked(agentSessionWorkflowService.createSession).mockResolvedValueOnce(makeSession('/ws/a'))
     vi.mocked(agentChannelService.getSubscribedChannels).mockResolvedValueOnce([{ id: 'ch1' }] as never)
 
     const adapter = {
@@ -311,7 +315,7 @@ describe('runAgentTask', () => {
     vi.mocked(jobService.getById).mockResolvedValueOnce(makeJobSnapshot())
     vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSchedule('daily-summary'))
     vi.mocked(agentService.getAgent).mockResolvedValueOnce(makeAgent())
-    vi.mocked(agentSessionService.createSession).mockResolvedValueOnce(makeSession('/ws/a'))
+    vi.mocked(agentSessionWorkflowService.createSession).mockResolvedValueOnce(makeSession('/ws/a'))
 
     const controller = new AbortController()
     const promise = runAgentTask(
@@ -334,7 +338,7 @@ describe('runAgentTask', () => {
       vi.mocked(jobService.getById).mockResolvedValueOnce(makeJobSnapshot())
       vi.mocked(jobScheduleService.getById).mockResolvedValueOnce(makeSchedule('daily-summary'))
       vi.mocked(agentService.getAgent).mockResolvedValueOnce(makeAgent())
-      vi.mocked(agentSessionService.createSession).mockResolvedValueOnce(makeSession('/ws/a'))
+      vi.mocked(agentSessionWorkflowService.createSession).mockResolvedValueOnce(makeSession('/ws/a'))
 
       const promise = runAgentTask(makeCtx({ input: { agentId: 'a1', prompt: 'hi', timeoutMinutes: 1 } }))
       const assertion = expect(promise).rejects.toThrow('Task timed out after 1 minute(s)')
