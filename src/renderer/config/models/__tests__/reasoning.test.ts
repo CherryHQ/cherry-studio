@@ -396,6 +396,10 @@ describe('Claude & regional providers', () => {
     expect(isMiniMaxReasoningModel(createModel({ id: 'minimax-m2-pro' }))).toBe(true)
     expect(isMiniMaxReasoningModel(createModel({ id: 'minimax-m2.7' }))).toBe(true)
     expect(isMiniMaxReasoningModel(createModel({ id: 'minimax-m2.7-highspeed' }))).toBe(true)
+    expect(isMiniMaxReasoningModel(createModel({ id: 'minimax-m3' }))).toBe(true)
+    expect(isMiniMaxReasoningModel(createModel({ id: 'minimax-m3.1' }))).toBe(true)
+    expect(isMiniMaxReasoningModel(createModel({ id: 'minimax-m3.5-pro' }))).toBe(true)
+    expect(isMiniMaxReasoningModel(createModel({ id: 'MiniMax-M3' }))).toBe(true)
   })
 })
 
@@ -2554,9 +2558,12 @@ describe('isInterleavedThinkingModel', () => {
       expect(isInterleavedThinkingModel(createModel({ id: 'minimax-m2.5-lite' }))).toBe(true)
     })
 
-    it('should return false for non-m2 minimax models', () => {
+    it('should return true for minimax-m3', () => {
+      expect(isInterleavedThinkingModel(createModel({ id: 'minimax-m3' }))).toBe(true)
+    })
+
+    it('should return false for non-m2/m3 minimax models', () => {
       expect(isInterleavedThinkingModel(createModel({ id: 'minimax-m1' }))).toBe(false)
-      expect(isInterleavedThinkingModel(createModel({ id: 'minimax-m3' }))).toBe(false)
       expect(isInterleavedThinkingModel(createModel({ id: 'minimax-pro' }))).toBe(false)
     })
 
