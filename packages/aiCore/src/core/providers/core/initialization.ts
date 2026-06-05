@@ -20,7 +20,7 @@ import type { ProviderV3 } from '@ai-sdk/provider'
 import type { XaiProvider, XaiProviderSettings } from '@ai-sdk/xai'
 import { createXai } from '@ai-sdk/xai'
 import type { CherryInProvider, CherryInProviderSettings } from '@cherrystudio/ai-sdk-provider'
-import { createCherryIn, DEFAULT_CHERRYIN_BASE_URL } from '@cherrystudio/ai-sdk-provider'
+import { createCherryIn } from '@cherrystudio/ai-sdk-provider'
 import type { OpenRouterProviderSettings } from '@openrouter/ai-sdk-provider'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { customProvider } from 'ai'
@@ -124,20 +124,6 @@ const CherryInExtension = ProviderExtension.create({
   name: 'cherryin',
   supportsImageGeneration: true,
   create: createCherryIn,
-  createRerankingModel: (modelId, settings) => {
-    const configuredHeaders = typeof settings.headers === 'function' ? settings.headers() : settings.headers
-    const headers = Object.fromEntries(
-      Object.entries(configuredHeaders ?? {}).filter((entry): entry is [string, string] => entry[1] !== undefined)
-    )
-
-    return createOpenAICompatibleRerankingModel(modelId, {
-      name: 'cherryin',
-      baseURL: settings.baseURL ?? DEFAULT_CHERRYIN_BASE_URL,
-      apiKey: settings.apiKey,
-      headers,
-      fetch: settings.fetch
-    })
-  },
 
   variants: [
     {

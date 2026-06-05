@@ -33,5 +33,11 @@ export const createCherryIn = (_options?: CherryInProviderSettings) => ({
     specificationVersion: 'v3',
     provider: 'cherryin',
     modelId: 'mock-embedding-model'
+  }),
+  // oxlint-disable-next-line no-unused-vars
+  rerankingModel: (modelId: string) => ({
+    specificationVersion: 'v3',
+    provider: 'cherryin.rerank',
+    modelId
   })
 })
