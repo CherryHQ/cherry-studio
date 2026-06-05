@@ -1,7 +1,6 @@
 // TODO(v2): All Redux store reads in this file (state.knowledge.bases, state.llm.providers)
-//           should migrate to the V2 SQLite/Drizzle data layer (src/main/services/agents/).
+//           should migrate to the V2 SQLite/Drizzle data layer.
 //           Redux is blocked for new data-model features until v2.0.0.
-//           See: src/main/services/agents/database/schema/index.ts
 
 import { loggerService } from '@logger'
 import { knowledgeService } from '@main/services/KnowledgeService'

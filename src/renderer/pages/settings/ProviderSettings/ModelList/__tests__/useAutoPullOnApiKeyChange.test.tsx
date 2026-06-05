@@ -6,11 +6,11 @@ import { useAutoPullOnApiKeyChange } from '../useAutoPullOnApiKeyChange'
 const useModelsMock = vi.fn()
 const useProviderApiKeysMock = vi.fn()
 
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProviderApiKeys: (...args: any[]) => useProviderApiKeysMock(...args)
 }))
 
-vi.mock('@renderer/hooks/useModels', () => ({
+vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: any[]) => useModelsMock(...args)
 }))
 

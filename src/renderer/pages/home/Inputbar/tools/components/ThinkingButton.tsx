@@ -22,7 +22,8 @@ import {
 import { cacheService } from '@renderer/data/CacheService'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import type { ToolQuickPanelApi } from '@renderer/pages/home/Inputbar/types'
-import type { Model, ThinkingOption } from '@renderer/types'
+import type { ThinkingOption } from '@renderer/types'
+import type { Model } from '@shared/data/types/model'
 import type { FC, ReactElement } from 'react'
 import { useCallback, useEffect, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -48,10 +49,11 @@ const ThinkingButton: FC<Props> = ({
   const isControlled = controlledEffort !== undefined
   const { assistant, updateAssistantSettings } = useAssistant(assistantId)
 
-  const currentReasoningEffort = useMemo(() => {
+  const currentReasoningEffort = useMemo<ThinkingOption>(() => {
     if (isControlled) return controlledEffort
-    return assistant.settings?.reasoning_effort || 'none'
-  }, [isControlled, controlledEffort, assistant.settings?.reasoning_effort])
+    const stored = assistant?.settings.reasoning_effort
+    return (stored ?? 'none') as ThinkingOption
+  }, [isControlled, controlledEffort, assistant?.settings.reasoning_effort])
 
   // 确定当前模型支持的选项类型
   const modelType = useMemo(() => getThinkModelType(model), [model])
@@ -81,15 +83,14 @@ const ThinkingButton: FC<Props> = ({
       if (!isEnabled) {
         cacheService.set(`assistant.reasoning_effort_cache.${assistantId}`, option)
         updateAssistantSettings({
-          reasoning_effort: option,
-          qwenThinkMode: false
+          reasoning_effort: option
         })
         return
       }
       if (
         isOpenAIWebSearchModel(model) &&
         isGPT5SeriesReasoningModel(model) &&
-        assistant.enableWebSearch &&
+        assistant?.settings.enableWebSearch &&
         option === 'minimal'
       ) {
         window.toast.warning(t('chat.web_search.warning.openai'))
@@ -97,11 +98,18 @@ const ThinkingButton: FC<Props> = ({
       }
       cacheService.set(`assistant.reasoning_effort_cache.${assistantId}`, option)
       updateAssistantSettings({
-        reasoning_effort: option,
-        qwenThinkMode: true
+        reasoning_effort: option
       })
     },
-    [isControlled, onReasoningEffortChange, updateAssistantSettings, assistantId, assistant.enableWebSearch, model, t]
+    [
+      isControlled,
+      onReasoningEffortChange,
+      updateAssistantSettings,
+      assistantId,
+      assistant?.settings.enableWebSearch,
+      model,
+      t
+    ]
   )
 
   const reasoningEffortOptionLabelMap = {

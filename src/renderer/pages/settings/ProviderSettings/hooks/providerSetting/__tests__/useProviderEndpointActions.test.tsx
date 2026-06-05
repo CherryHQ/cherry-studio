@@ -109,14 +109,7 @@ describe('useProviderEndpointActions', () => {
 
     expect(patchProviderMock).toHaveBeenCalledTimes(1)
     expect(syncProviderModelsMock).toHaveBeenCalledTimes(1)
-    expect(syncProviderModelsMock).toHaveBeenCalledWith({
-      ...provider,
-      endpointConfigs: {
-        [ENDPOINT_TYPE.OPENAI_CHAT_COMPLETIONS]: {
-          baseUrl: 'https://proxy.example.com'
-        }
-      }
-    })
+    expect(syncProviderModelsMock).toHaveBeenCalledWith()
   })
 
   it('returns success when the background model sync fails after saving the host', async () => {

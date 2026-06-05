@@ -4,17 +4,12 @@ import { permissionModeCards } from '@renderer/config/agent'
 import {
   computeModeDefaults,
   mergeAutoApprovedTools,
+  normalizeAllowedToolRules,
   normalizePermissionMode
 } from '@renderer/hooks/agents/permissionMode'
+import { useMcpRuntimeStatusMap } from '@renderer/hooks/useMcpRuntimeStatus'
 import { useInstalledSkills } from '@renderer/hooks/useSkills'
-import {
-  AddCatalogPopover,
-  BoundCatalogList,
-  type CatalogItem
-} from '@renderer/pages/library/editor/components/CatalogPicker'
-import { McpServerAvatar } from '@renderer/pages/library/editor/components/McpServerAvatar'
-import type { Tool } from '@renderer/types'
-import type { AgentDetail } from '@shared/data/types/agent'
+import type { Tool } from '@shared/ai/tool'
 import type { McpServer } from '@shared/data/types/mcpServer'
 import { uniq } from 'lodash'
 import { Network, Search, Sparkles, Wrench } from 'lucide-react'
@@ -22,6 +17,9 @@ import type { FC } from 'react'
 import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import type { AgentDetail } from '../../../types'
+import { AddCatalogPopover, BoundCatalogList, type CatalogItem } from '../../components/CatalogPicker'
+import { McpServerAvatar } from '../../components/McpServerAvatar'
 import type { AgentFormState } from '../descriptor'
 
 interface Props {
@@ -34,14 +32,13 @@ interface Props {
 type ToolTab = 'tools' | 'mcp' | 'skills'
 
 /**
- * Agent "能力扩展" editor — mirrors the legacy AgentSettings Tools/MCP/Skills
- * tabs collapsed into one section with three sub-tabs. Each sub-tab follows
+ * Agent "能力扩展" editor with Tools/MCP/Skills sub-tabs. Each sub-tab follows
  * the same interaction pattern (reused via `BoundCatalogList` +
  * `AddCatalogPopover`): the list area shows only currently-enabled items,
  * "+ 添加" opens a popover listing the rest.
  *
  * Data sources:
- * - **内置工具**: `tools` prop from `useAgentTools(form.mcps)`;
+ * - **内置工具**: `tools` prop from `useAgentTools(...)`;
  *   `form.allowedTools` stores manual approvals, while permission mode supplies auto-approved defaults.
  * - **MCP Server**: `useQuery('/mcp-servers').items`; `form.mcps` stores bound
  *   ids. Inactive servers remain visible in the bound list (with a "未启用"
@@ -62,11 +59,15 @@ const ToolsSection: FC<Props> = ({ agent, tools, form, onChange }) => {
     () => permissionModeCards.find((card) => card.mode === permissionMode),
     [permissionMode]
   )
-  const autoToolIds = useMemo(() => computeModeDefaults(permissionMode, tools), [permissionMode, tools])
+  const explicitToolIds = useMemo(() => normalizeAllowedToolRules(form.allowedTools, tools), [form.allowedTools, tools])
+  const autoToolIds = useMemo(
+    () => computeModeDefaults(permissionMode, tools).filter((id) => !explicitToolIds.includes(id)),
+    [explicitToolIds, permissionMode, tools]
+  )
   const builtinCatalog = useMemo<CatalogItem[]>(
     () =>
       tools
-        .filter((tool) => tool.type !== 'mcp')
+        .filter((tool) => tool.origin !== 'mcp')
         .map((tool) => {
           const isAuto = autoToolIds.includes(tool.id)
           const modeName = selectedModeCard
@@ -93,35 +94,58 @@ const ToolsSection: FC<Props> = ({ agent, tools, form, onChange }) => {
   )
   const allowedIds = useMemo(() => new Set(approvedToolIds), [approvedToolIds])
   const boundBuiltin = useMemo(() => builtinCatalog.filter((it) => allowedIds.has(it.id)), [builtinCatalog, allowedIds])
-  const enableBuiltin = (id: string) => onChange({ allowedTools: uniq([...approvedToolIds, id]) })
+  const enableBuiltin = (id: string) => onChange({ allowedTools: uniq([...explicitToolIds, id]) })
   const disableBuiltin = (id: string) => {
     if (autoToolIds.includes(id)) return
-    onChange({ allowedTools: uniq(approvedToolIds.filter((x) => x !== id).concat(autoToolIds)) })
+    onChange({ allowedTools: uniq(explicitToolIds.filter((x) => x !== id)) })
   }
 
   // --- MCP Server --------------------------------------------------------------
   const { data: mcpData, isLoading: mcpLoading } = useQuery('/mcp-servers', {})
   const mcpServers = useMemo<McpServer[]>(() => mcpData?.items ?? [], [mcpData])
+  const mcpStatuses = useMcpRuntimeStatusMap(mcpServers)
   const mcpCatalog = useMemo<CatalogItem[]>(
     () =>
-      mcpServers.map((s) => ({
-        id: s.id,
-        name: s.name,
-        description: s.description || s.baseUrl || s.command,
-        icon: (
-          <McpServerAvatar
-            server={s}
-            size={28}
-            fallbackIcon={Network}
-            fallbackIconClassName="text-blue-500/60"
-            fallbackIconScale={0.5}
-          />
-        ),
-        inactiveBadge: s.isActive ? undefined : t('library.config.tools.inactive_badge'),
-        // Hide inactive servers from the picker — same rule as assistant MCP.
-        pickable: s.isActive
-      })),
-    [mcpServers, t]
+      mcpServers.map((s) => {
+        const status = mcpStatuses[s.id]
+        const state = s.isActive ? (status?.state ?? 'connecting') : 'disabled'
+        const statusBadge =
+          state === 'connected'
+            ? t('settings.mcp.runtimeStatus.connected', 'Connected')
+            : state === 'connecting'
+              ? t('settings.mcp.runtimeStatus.connecting', 'Connecting')
+              : state === 'error'
+                ? t('settings.mcp.runtimeStatus.unavailable', 'Unavailable')
+                : undefined
+        const statusBadgeClassName =
+          state === 'connected'
+            ? 'bg-success/10 text-success'
+            : state === 'connecting'
+              ? 'bg-warning/10 text-warning'
+              : state === 'error'
+                ? 'bg-destructive/10 text-destructive'
+                : undefined
+        return {
+          id: s.id,
+          name: s.name,
+          description: s.description || s.baseUrl || s.command,
+          icon: (
+            <McpServerAvatar
+              server={s}
+              size={28}
+              fallbackIcon={Network}
+              fallbackIconClassName="text-blue-500/60"
+              fallbackIconScale={0.5}
+            />
+          ),
+          inactiveBadge: s.isActive ? undefined : t('library.config.tools.inactive_badge'),
+          statusBadge,
+          statusBadgeClassName,
+          // Keep inactive servers visible for status, but do not allow binding them.
+          pickable: s.isActive
+        }
+      }),
+    [mcpServers, mcpStatuses, t]
   )
   const mcpIds = useMemo(() => new Set(form.mcps), [form.mcps])
   const boundMcp = useMemo(() => mcpCatalog.filter((it) => mcpIds.has(it.id)), [mcpCatalog, mcpIds])

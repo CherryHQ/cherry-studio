@@ -59,8 +59,7 @@ describe('buildModelListSyncPreview', () => {
     ])
 
     const preview = await buildModelListSyncPreview({
-      providerId: 'openai',
-      provider: { id: 'openai' } as never
+      providerId: 'openai'
     })
 
     expect(dataApiService.get).toHaveBeenCalledWith('/models', { query: { providerId: 'openai' } })
@@ -101,8 +100,7 @@ describe('buildModelListSyncPreview', () => {
     ])
 
     const preview = await buildModelListSyncPreview({
-      providerId: 'openai',
-      provider: { id: 'openai' } as never
+      providerId: 'openai'
     })
 
     expect(preview.missing).toEqual([])
@@ -126,8 +124,7 @@ describe('buildModelListSyncPreview', () => {
     vi.mocked(fetchResolvedProviderModels).mockResolvedValue([])
 
     const preview = await buildModelListSyncPreview({
-      providerId: 'openai',
-      provider: { id: 'openai' } as never
+      providerId: 'openai'
     })
 
     expect(preview.missing.map((item) => item.model.id)).toEqual(['openai::gpt-4o'])

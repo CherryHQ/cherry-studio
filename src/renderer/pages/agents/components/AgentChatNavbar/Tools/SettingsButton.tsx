@@ -1,9 +1,10 @@
 import NavbarIcon from '@renderer/components/NavbarIcon'
-import AgentSettingsTab from '@renderer/pages/agents/AgentSettingsTab'
 import { Drawer, Tooltip } from 'antd'
 import { t } from 'i18next'
 import { Settings2 } from 'lucide-react'
 import { useState } from 'react'
+
+import ChatPreferencesTab from '../../../ChatPreferencesTab'
 
 const SettingsButton = () => {
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -22,7 +23,7 @@ const SettingsButton = () => {
         width="var(--assistants-width)"
         closable={false}
         styles={{ body: { padding: 0, paddingTop: 'var(--navbar-height)' } }}>
-        <AgentSettingsTab />
+        <ChatPreferencesTab />
       </Drawer>
     </>
   )

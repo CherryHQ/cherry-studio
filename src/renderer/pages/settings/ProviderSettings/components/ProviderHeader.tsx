@@ -1,5 +1,5 @@
 import { Button, Switch, Tooltip } from '@cherrystudio/ui'
-import { useProvider } from '@renderer/hooks/useProviders'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { ProviderAvatar } from '@renderer/pages/settings/ProviderSettings/components/ProviderAvatar'
 import { Bolt, BookOpen, ExternalLink } from 'lucide-react'
 import { useCallback, useState } from 'react'

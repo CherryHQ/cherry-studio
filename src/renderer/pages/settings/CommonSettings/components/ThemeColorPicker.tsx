@@ -57,8 +57,8 @@ const ThemeColorPicker = ({ value, presets, onChange, ariaLabel, className }: Th
   }
 
   return (
-    <RowFlex className={cn('items-center gap-3', className)}>
-      <RowFlex className="gap-3">
+    <RowFlex className={cn('min-w-0 max-w-full flex-wrap items-center gap-3', className)}>
+      <RowFlex className="min-w-0 max-w-full flex-wrap gap-3">
         {presets.map((color) => {
           const normalizedPreset = normalizeHexColor(color) ?? color
           const selected = normalizedPreset === normalizedValue

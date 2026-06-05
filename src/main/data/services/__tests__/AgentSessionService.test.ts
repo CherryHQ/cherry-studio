@@ -1,189 +1,233 @@
+import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
-import { agentSessionService, buildSessionUpdateData } from '@data/services/AgentSessionService'
+import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { ErrorCode } from '@shared/data/api'
 import { setupTestDatabase } from '@test-helpers/db'
-import { describe, expect, it } from 'vitest'
-
-// ─────────────────────────────────────────────────────────
-// buildSessionUpdateData — pure function, no DB needed
-// ─────────────────────────────────────────────────────────
-
-describe('buildSessionUpdateData', () => {
-  it('includes slashCommands in session updates', () => {
-    const updateData = buildSessionUpdateData(
-      {
-        name: 'Updated session',
-        slashCommands: [{ command: '/ship', description: 'Ship it' }]
-      },
-      123
-    )
-
-    expect(updateData).toMatchObject({
-      updatedAt: 123,
-      name: 'Updated session',
-      slashCommands: [{ command: '/ship', description: 'Ship it' }]
-    })
-  })
-
-  it('normalizes explicit undefined fields to null', () => {
-    const updateData = buildSessionUpdateData({ description: undefined }, 456)
-
-    expect(updateData).toMatchObject({
-      updatedAt: 456,
-      description: null
-    })
-  })
-})
-
-// ─────────────────────────────────────────────────────────
-// AgentSessionService — DB-backed tests
-// ─────────────────────────────────────────────────────────
+import { eq } from 'drizzle-orm'
+import { mkdtemp } from 'fs/promises'
+import { tmpdir } from 'os'
+import path from 'path'
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 describe('AgentSessionService', () => {
   const dbh = setupTestDatabase()
+  let root: string
 
-  async function insertAgent(id: string) {
-    await dbh.db.insert(agentTable).values({
-      id,
-      type: 'claude-code',
-      name: 'Test Agent',
-      instructions: 'You are a helpful assistant.',
-      model: 'claude-3-5-sonnet',
-      sortOrder: 0
+  beforeEach(async () => {
+    root = await mkdtemp(path.join(tmpdir(), 'cherry-session-'))
+    vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+      if (key === 'feature.agents.workspaces') {
+        return filename ? path.join(root, 'Agents', filename) : path.join(root, 'Agents')
+      }
+      return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
     })
-    return id
+    ;(application.get('DbService').withWriteTx as Mock).mockImplementation(async (fn) =>
+      dbh.db.transaction(fn as never)
+    )
+    await dbh.db.insert(agentTable).values({
+      id: 'agent-session-test',
+      type: 'claude-code',
+      name: 'Session Test Agent',
+      instructions: 'Test instructions',
+      model: null,
+      orderKey: 'a0'
+    })
+  })
+
+  afterEach(() => {
+    ;(application.get('DbService').withWriteTx as Mock).mockReset()
+    vi.restoreAllMocks()
+  })
+
+  async function createSession(name: string, workspaceId?: string) {
+    return await agentSessionService.createSession({
+      agentId: 'agent-session-test',
+      name,
+      workspaceId
+    })
   }
 
-  describe('createSession', () => {
-    it('creates a session inheriting agent defaults', async () => {
-      const agentId = await insertAgent(`agent_${Date.now()}_create`)
-      const session = await agentSessionService.createSession(agentId)
+  it('binds a session to an explicit workspace', async () => {
+    const workspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'explicit'))
 
-      expect(session).not.toBeNull()
-      expect(session!.agentId).toBe(agentId)
-      expect(session!.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
-      expect(session!.model).toBe('claude-3-5-sonnet')
-      expect(session!.agentType).toBe('claude-code')
+    const session = await agentSessionService.createSession({
+      agentId: 'agent-session-test',
+      name: 'Explicit',
+      workspaceId: workspace.id
     })
 
-    it('overrides agent defaults with provided fields', async () => {
-      const agentId = await insertAgent(`agent_${Date.now()}_override`)
-      const session = await agentSessionService.createSession(agentId, {
-        name: 'Custom Session',
-        model: 'claude-3-opus'
+    expect(session.workspaceId).toBe(workspace.id)
+    expect(session.workspace?.path).toBe(workspace.path)
+  })
+
+  it('inherits the latest sibling workspace when no workspace is provided', async () => {
+    const firstWorkspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'first'))
+    const secondWorkspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'second'))
+
+    await agentSessionService.createSession({
+      agentId: 'agent-session-test',
+      name: 'First',
+      workspaceId: firstWorkspace.id
+    })
+    await agentSessionService.createSession({
+      agentId: 'agent-session-test',
+      name: 'Second',
+      workspaceId: secondWorkspace.id
+    })
+
+    const inherited = await agentSessionService.createSession({
+      agentId: 'agent-session-test',
+      name: 'Inherited'
+    })
+
+    expect(inherited.workspaceId).toBe(secondWorkspace.id)
+    expect(inherited.workspace?.path).toBe(secondWorkspace.path)
+  })
+
+  it('creates and binds a default workspace when none can be inherited', async () => {
+    const session = await agentSessionService.createSession({
+      agentId: 'agent-session-test',
+      name: 'Default'
+    })
+
+    expect(session.workspaceId).toBeTruthy()
+    expect(session.workspace?.path).toBeTruthy()
+    const rows = await dbh.db.select().from(agentWorkspaceTable)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].id).toBe(session.workspaceId)
+  })
+
+  it('returns migrated sessions without a workspace binding', async () => {
+    await dbh.db.insert(agentSessionTable).values({
+      id: 'session-without-workspace',
+      agentId: 'agent-session-test',
+      name: 'Migrated',
+      orderKey: 'a0'
+    })
+
+    const session = await agentSessionService.getById('session-without-workspace')
+
+    expect(session.workspaceId).toBeNull()
+    expect(session.workspace).toBeNull()
+  })
+
+  it('throws not found for missing sessions', async () => {
+    await expect(agentSessionService.getById('missing-session')).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+  })
+
+  it('updates a session and returns the updated entity', async () => {
+    const session = await createSession('Before update')
+
+    const updated = await agentSessionService.update(session.id, {
+      name: 'After update',
+      description: 'Updated description'
+    })
+
+    expect(updated).toMatchObject({
+      id: session.id,
+      name: 'After update',
+      description: 'Updated description'
+    })
+  })
+
+  it('ignores workspace updates even if callers bypass the schema', async () => {
+    const firstWorkspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'before-switch'))
+    const secondWorkspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'after-switch'))
+    const session = await createSession('Workspace switch', firstWorkspace.id)
+
+    const updated = await agentSessionService.update(session.id, {
+      workspaceId: secondWorkspace.id
+    } as never)
+
+    expect(updated.workspaceId).toBe(firstWorkspace.id)
+    expect(updated.workspace?.path).toBe(firstWorkspace.path)
+  })
+
+  it('deletes a session', async () => {
+    const session = await createSession('Delete me')
+
+    await agentSessionService.delete(session.id)
+
+    await expect(agentSessionService.getById(session.id)).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+  })
+
+  it('reorders sessions with single and batch moves', async () => {
+    const first = await createSession('First')
+    const second = await createSession('Second')
+    const third = await createSession('Third')
+
+    await agentSessionService.reorder(first.id, { position: 'first' })
+    let list = await agentSessionService.listByCursor()
+    expect(list.items.map((item) => item.id)).toEqual([first.id, third.id, second.id])
+
+    await agentSessionService.reorderBatch([
+      { id: second.id, anchor: { before: first.id } },
+      { id: third.id, anchor: { position: 'last' } }
+    ])
+    list = await agentSessionService.listByCursor()
+    expect(list.items.map((item) => item.id)).toEqual([second.id, first.id, third.id])
+  })
+
+  it('paginates sessions with a cursor', async () => {
+    const first = await createSession('First')
+    const second = await createSession('Second')
+    const third = await createSession('Third')
+
+    const page1 = await agentSessionService.listByCursor({ limit: 2 })
+    expect(page1.items.map((item) => item.id)).toEqual([third.id, second.id])
+    expect(page1.nextCursor).toBeTruthy()
+
+    const page2 = await agentSessionService.listByCursor({ limit: 2, cursor: page1.nextCursor })
+    expect(page2.items.map((item) => item.id)).toEqual([first.id])
+    expect(page2.nextCursor).toBeUndefined()
+  })
+
+  it('clears workspace bindings when the workspace row is deleted', async () => {
+    const workspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'transient'))
+    const session = await createSession('Workspace delete', workspace.id)
+
+    await dbh.db.delete(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, workspace.id))
+
+    const refetched = await agentSessionService.getById(session.id)
+    expect(refetched.workspaceId).toBeNull()
+    expect(refetched.workspace).toBeNull()
+  })
+
+  it('throws when a corrupt session references a missing workspace', async () => {
+    await dbh.client.execute('PRAGMA foreign_keys = OFF')
+    try {
+      await dbh.db.insert(agentSessionTable).values({
+        id: 'corrupt-session',
+        agentId: 'agent-session-test',
+        name: 'Corrupt',
+        workspaceId: 'missing-workspace',
+        orderKey: 'a0'
       })
+    } finally {
+      await dbh.client.execute('PRAGMA foreign_keys = ON')
+    }
 
-      expect(session!.name).toBe('Custom Session')
-      expect(session!.model).toBe('claude-3-opus')
+    await expect(agentSessionService.listByCursor()).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
     })
+  })
 
-    it('throws NOT_FOUND when agent does not exist', async () => {
-      await expect(agentSessionService.createSession('nonexistent-agent')).rejects.toMatchObject({
-        code: 'NOT_FOUND'
+  it('does not leave an orphan default workspace row when session creation fails', async () => {
+    await expect(
+      agentSessionService.createSession({
+        agentId: 'agent-session-test',
+        name: null as never
       })
-    })
+    ).rejects.toThrow()
 
-    it('places newly created sessions at the top of asc(sortOrder) listings', async () => {
-      const agentId = await insertAgent(`agent_${Date.now()}_prepend`)
-      await agentSessionService.createSession(agentId, { name: 'older-1' })
-      await agentSessionService.createSession(agentId, { name: 'older-2' })
-      const newest = await agentSessionService.createSession(agentId, { name: 'newest' })
-
-      const { sessions } = await agentSessionService.listSessions(agentId)
-      expect(sessions[0]?.id).toBe(newest!.id)
-    })
-  })
-
-  describe('getSession', () => {
-    it('returns session by agentId and sessionId', async () => {
-      const agentId = await insertAgent(`agent_${Date.now()}_get`)
-      const created = await agentSessionService.createSession(agentId, { name: 'Get Test' })
-
-      const found = await agentSessionService.getSession(agentId, created!.id)
-      expect(found).not.toBeNull()
-      expect(found!.id).toBe(created!.id)
-      expect(found!.name).toBe('Get Test')
-    })
-
-    it('returns null when session does not exist', async () => {
-      const agentId = await insertAgent(`agent_${Date.now()}_getmiss`)
-      const result = await agentSessionService.getSession(agentId, 'nonexistent')
-      expect(result).toBeNull()
-    })
-
-    it('returns null when agentId does not match', async () => {
-      const agentId1 = await insertAgent(`agent_${Date.now()}_ga`)
-      const agentId2 = await insertAgent(`agent_${Date.now()}_gb`)
-      const session = await agentSessionService.createSession(agentId1)
-
-      const result = await agentSessionService.getSession(agentId2, session!.id)
-      expect(result).toBeNull()
-    })
-  })
-
-  describe('listSessions', () => {
-    it('lists sessions for an agent', async () => {
-      const agentId = await insertAgent(`agent_${Date.now()}_list`)
-      await agentSessionService.createSession(agentId, { name: 'S1' })
-      await agentSessionService.createSession(agentId, { name: 'S2' })
-
-      const { sessions, total } = await agentSessionService.listSessions(agentId)
-      expect(total).toBe(2)
-      expect(sessions).toHaveLength(2)
-    })
-
-    it('respects limit and offset', async () => {
-      const agentId = await insertAgent(`agent_${Date.now()}_paginate`)
-      await agentSessionService.createSession(agentId, { name: 'P1' })
-      await agentSessionService.createSession(agentId, { name: 'P2' })
-      await agentSessionService.createSession(agentId, { name: 'P3' })
-
-      const { sessions, total } = await agentSessionService.listSessions(agentId, { limit: 2, offset: 0 })
-      expect(total).toBe(3)
-      expect(sessions).toHaveLength(2)
-    })
-  })
-
-  describe('updateSession', () => {
-    it('updates session fields', async () => {
-      const agentId = await insertAgent(`agent_${Date.now()}_upd`)
-      const session = await agentSessionService.createSession(agentId, { name: 'Before' })
-
-      const updated = await agentSessionService.updateSession(agentId, session!.id, { name: 'After' })
-      expect(updated!.name).toBe('After')
-    })
-
-    it('returns null when session does not exist', async () => {
-      const agentId = await insertAgent(`agent_${Date.now()}_updmiss`)
-      const result = await agentSessionService.updateSession(agentId, 'nonexistent', { name: 'x' })
-      expect(result).toBeNull()
-    })
-
-    it('rejects empty accessiblePaths', async () => {
-      const agentId = await insertAgent(`agent_${Date.now()}_paths`)
-      const session = await agentSessionService.createSession(agentId)
-
-      await expect(
-        agentSessionService.updateSession(agentId, session!.id, { accessiblePaths: [] })
-      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
-    })
-  })
-
-  describe('deleteSession', () => {
-    it('deletes a session and returns true', async () => {
-      const agentId = await insertAgent(`agent_${Date.now()}_del`)
-      const session = await agentSessionService.createSession(agentId)
-
-      const deleted = await agentSessionService.deleteSession(agentId, session!.id)
-      expect(deleted).toBe(true)
-
-      const found = await agentSessionService.getSession(agentId, session!.id)
-      expect(found).toBeNull()
-    })
-
-    it('returns false when session does not exist', async () => {
-      const agentId = await insertAgent(`agent_${Date.now()}_delmiss`)
-      const result = await agentSessionService.deleteSession(agentId, 'nonexistent')
-      expect(result).toBe(false)
-    })
+    const rows = await dbh.db.select().from(agentWorkspaceTable)
+    expect(rows).toHaveLength(0)
   })
 })

@@ -29,10 +29,6 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
     return newNodes.map((newNode) => {
       const oldNode = oldMap.get(newNode.id)
       if (oldNode) {
-        // 如果旧节点已经结束，则直接返回旧节点
-        if (oldNode.endTime) {
-          return oldNode
-        }
         oldNode.children = mergeTraceModals(oldNode.children, newNode.children)
         Object.assign(oldNode, newNode)
         return oldNode
@@ -94,6 +90,9 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
     const matchedSpans = getRootSpan(datas)
     updatePercentAndStart(matchedSpans)
     setSpans((prev) => mergeTraceModals(prev, matchedSpans))
+    if (matchedSpans.length === 0) {
+      return false
+    }
     const isEnded = !matchedSpans.find((e) => !e.endTime || e.endTime <= 0)
     return isEnded
   }, [topicId, traceId, modelName, updatePercentAndStart, mergeTraceModals])
@@ -112,22 +111,28 @@ export const TracePage: React.FC<TracePageProp> = ({ topicId, traceId, modelName
   }
 
   useEffect(() => {
+    setSpans([])
+    setSelectNode(null)
+    setShowList(true)
+  }, [topicId, traceId, modelName])
+
+  useEffect(() => {
     const handleShowTrace = async () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current)
         intervalRef.current = null
       }
-      const ended = await getTraceData()
-      // 只有未结束时才启动定时刷新
-      if (!ended) {
-        intervalRef.current = setInterval(async () => {
-          const endedInner = await getTraceData()
-          if (endedInner && intervalRef.current) {
-            clearInterval(intervalRef.current)
-            intervalRef.current = null
-          }
-        }, 300)
+      let endedCount = 0
+      const poll = async () => {
+        const ended = await getTraceData()
+        endedCount = ended ? endedCount + 1 : 0
+        if (endedCount >= 3 && intervalRef.current) {
+          clearInterval(intervalRef.current)
+          intervalRef.current = null
+        }
       }
+      await poll()
+      intervalRef.current = setInterval(poll, 300)
     }
     void handleShowTrace()
     return () => {

@@ -6,7 +6,7 @@ import type {
   ResponseForPath,
   TemplateApiPaths
 } from '@shared/data/api/apiPaths'
-import type { ConcreteApiPaths, CursorPaginationResponse, PaginationResponse } from '@shared/data/api/apiTypes'
+import type { ConcreteApiPaths, PaginationResponse } from '@shared/data/api/apiTypes'
 import type { KeyedMutator } from 'swr'
 import { vi } from 'vitest'
 
@@ -238,46 +238,43 @@ export const mockUsePaginatedQuery = vi.fn(
 )
 
 /**
- * Mock useInfiniteQuery hook
+ * Mock useInfiniteQuery hook (cursor pagination).
+ * Default returns an empty single page; tests override per-call via
+ * mockUseInfiniteQuery.mockImplementation(...) or mockReturnValue(...).
  */
 export const mockUseInfiniteQuery = vi.fn(
   <TPath extends ApiPath>(
-    path: TPath,
+    _path: TPath,
     _options?: ParamsOption<TPath, 'GET'> & {
-      query?: Omit<QueryParamsForPath<TPath, 'GET'>, 'cursor' | 'limit'>
+      query?: Record<string, unknown>
       limit?: number
       enabled?: boolean
       swrOptions?: any
     }
-  ): {
-    pages: ResponseForPath<TPath, 'GET'>[]
-    isLoading: boolean
-    isRefreshing: boolean
-    error?: Error
-    hasNext: boolean
-    loadNext: () => void
-    refresh: () => Promise<unknown>
-    reset: () => void
-    mutate: KeyedMutator<ResponseForPath<TPath, 'GET'>[]>
-  } => {
-    const page = createMockDataForPath(path as string) as ResponseForPath<TPath, 'GET'>
-    return {
-      pages: [page],
-      isLoading: false,
-      isRefreshing: false,
-      error: undefined,
-      hasNext: false,
-      loadNext: vi.fn(),
-      refresh: vi.fn().mockResolvedValue([page]),
-      reset: vi.fn(),
-      mutate: vi.fn().mockResolvedValue([page]) as unknown as KeyedMutator<ResponseForPath<TPath, 'GET'>[]>
-    }
-  }
+  ) => ({
+    pages: [] as Array<{ items: unknown[]; nextCursor?: string }>,
+    isLoading: false,
+    isRefreshing: false,
+    error: undefined as Error | undefined,
+    hasNext: false,
+    loadNext: vi.fn(),
+    refresh: vi.fn().mockResolvedValue(undefined),
+    reset: vi.fn(),
+    mutate: vi.fn().mockResolvedValue(undefined)
+  })
 )
 
-export function useInfiniteFlatItems<P extends CursorPaginationResponse<any>>(pages: P[] | undefined): P['items'] {
-  return (pages?.flatMap((page) => page.items) ?? []) as P['items']
-}
+/**
+ * Mock useInfiniteFlatItems helper.
+ * Mirrors production: flattens `pages[].items` honoring optional reverse flags.
+ */
+export const mockUseInfiniteFlatItems = vi.fn(
+  <T>(pages: Array<{ items: T[] }> | undefined, options?: { reversePages?: boolean; reverseItems?: boolean }): T[] => {
+    if (!pages || pages.length === 0) return []
+    const ordered = options?.reversePages ? [...pages].reverse() : pages
+    return ordered.flatMap((p) => (options?.reverseItems ? [...p.items].reverse() : p.items))
+  }
+)
 
 /**
  * Mock useInvalidateCache hook
@@ -367,7 +364,7 @@ export const MockUseDataApi = {
   useQuery: mockUseQuery,
   useMutation: mockUseMutation,
   useInfiniteQuery: mockUseInfiniteQuery,
-  useInfiniteFlatItems,
+  useInfiniteFlatItems: mockUseInfiniteFlatItems,
   usePaginatedQuery: mockUsePaginatedQuery,
   useInvalidateCache: mockUseInvalidateCache,
   useReadCache: mockUseReadCache,
@@ -386,6 +383,7 @@ export const MockUseDataApiUtils = {
     mockUseQuery.mockClear()
     mockUseMutation.mockClear()
     mockUseInfiniteQuery.mockClear()
+    mockUseInfiniteFlatItems.mockClear()
     mockUsePaginatedQuery.mockClear()
     mockUseInvalidateCache.mockClear()
     mockUseReadCache.mockClear()

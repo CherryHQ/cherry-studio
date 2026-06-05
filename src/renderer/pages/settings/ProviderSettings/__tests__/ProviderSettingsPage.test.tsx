@@ -9,7 +9,7 @@ const navigateMock = vi.fn()
 const useProvidersMock = vi.fn()
 let searchMock: Record<string, string | undefined> = {}
 
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: (...args: unknown[]) => useProvidersMock(...args)
 }))
 
