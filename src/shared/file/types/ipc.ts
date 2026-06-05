@@ -201,13 +201,37 @@ export interface BatchCreateResult {
   failed: Array<{ sourceRef: string; error: string }>
 }
 
+/** Whether a path resolves to a regular file or a directory. */
 export type PathStatusKind = 'file' | 'directory'
 
+/**
+ * Params for {@link FileIpcApi.getPathStatus}.
+ *
+ * `expectedKind` asks the query to additionally assert the resolved kind; on a
+ * mismatch the result is `not-file` / `not-directory` carrying the `actualKind`
+ * that was found.
+ */
 export interface GetPathStatusIpcParams {
   path: string
   expectedKind?: PathStatusKind
 }
 
+/**
+ * Result of {@link FileIpcApi.getPathStatus} — a single `fs.stat` normalized
+ * into a typed union.
+ *
+ * Failure arms and the fields they carry:
+ * - `missing` — the path does not resolve. Folds together `ENOENT` (nothing
+ *   there) and `ENOTDIR` (a path component is a non-directory, e.g.
+ *   `stat('/etc/hosts/x')`); the distinction is intentionally not surfaced — no
+ *   consumer branches on it, and error interpretation belongs on the main side
+ *   (see {@link getPathStatus}). A blank `path` short-circuits here without an
+ *   `fs.stat`.
+ * - `inaccessible` — `fs.stat` failed with any other errno (`EACCES`, `EIO`,
+ *   `EMFILE`, `ELOOP`, …); `detail` carries the message.
+ * - `not-file` / `not-directory` — the path exists but its kind differs from
+ *   the requested `expectedKind`; `actualKind` reports what was found.
+ */
 export type PathStatus =
   | { ok: true; kind: PathStatusKind }
   | { ok: false; reason: 'missing' | 'inaccessible'; detail?: string }
@@ -532,6 +556,23 @@ export interface FileIpcApi {
 
   /**
    * Get status for an arbitrary filesystem path, optionally requiring a kind.
+   *
+   * NOTE (architectural debt): error interpretation does not belong on the
+   * renderer. The errno lives in main, and the rules for turning it into
+   * user-facing text are main-side business — the renderer is only a display
+   * surface. Normalizing fs errors into a typed {@link PathStatus} union and
+   * shipping it across IPC for the renderer to switch-and-map text is therefore
+   * the wrong layering (and it leaks business validation, e.g. "can this path
+   * be a workspace?", into renderer switches that must change whenever the rule
+   * does). Target direction: main-side business produces the user-visible
+   * (i18n'd) message directly — failing operations throw an `Error` carrying
+   * that text; validation-style queries (e.g. the composer's workspace-path
+   * feedback) move to a business-level IPC returning `warningText | null` — and
+   * the renderer just displays it. At that point `File_GetPathStatus` is
+   * deleted: the util-layer `getPathStatus` (main-internal, already used by
+   * `settingsBuilder`) keeps its long-term value, and {@link PathStatus} retires
+   * from this shared IPC contract to a main-internal type. Kept here for now
+   * only as a transitional facade.
    * @phase 1 — wired in `IpcChannel.File_GetPathStatus`
    */
   getPathStatus(params: GetPathStatusIpcParams): Promise<PathStatus>
@@ -547,6 +588,12 @@ export interface FileIpcApi {
    *
    * Separate from `getPathStatus` to keep each single-hop facade focused on one
    * semantic concern (kind vs. measurement).
+   *
+   * NOTE (architectural debt): like {@link getPathStatus}, this is a thin
+   * `fs.stat` facade. It should fold into {@link getMetadata}'s path-handle
+   * branch (`getMetadata(createFilePathHandle(path)).size`) once that lands in
+   * phase 2, rather than remaining a parallel size-only channel. Tracked for the
+   * same phase-2 consolidation.
    * @phase 1 — wired in `IpcChannel.File_GetFileSize`
    */
   getFileSize(path: FilePath): Promise<number>

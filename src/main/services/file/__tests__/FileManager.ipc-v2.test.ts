@@ -274,4 +274,35 @@ describe('FileManager v2 IPC handler registration', () => {
     const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_GetFileSize)?.[1]
     await expect(handler!({} as never, 'relative/file.bin')).rejects.toThrow()
   })
+
+  it('getPathStatus handler returns directory status for an existing directory', async () => {
+    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_GetPathStatus)?.[1]
+    expect(handler).toBeDefined()
+
+    await expect(handler!({} as never, { path: tmp })).resolves.toEqual({ ok: true, kind: 'directory' })
+  })
+
+  it('getPathStatus handler forwards expectedKind (directory expected, file found)', async () => {
+    const file = path.join(tmp, 'doc.txt')
+    await writeFile(file, 'x')
+
+    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_GetPathStatus)?.[1]
+    // Pins that the handler actually forwards `expectedKind` to the util — a
+    // handler that dropped it would return `{ ok: true, kind: 'file' }`.
+    await expect(handler!({} as never, { path: file, expectedKind: 'directory' })).resolves.toEqual({
+      ok: false,
+      reason: 'not-directory',
+      actualKind: 'file'
+    })
+  })
+
+  it('getPathStatus handler rejects params that violate the schema', async () => {
+    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_GetPathStatus)?.[1]
+    // unknown expectedKind
+    await expect(handler!({} as never, { path: tmp, expectedKind: 'socket' })).rejects.toThrow()
+    // missing path
+    await expect(handler!({} as never, {})).rejects.toThrow()
+    // extra key (strictObject)
+    await expect(handler!({} as never, { path: tmp, extra: 1 })).rejects.toThrow()
+  })
 })

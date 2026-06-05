@@ -35,6 +35,11 @@ export async function getPathStatus(path: string, options?: { expectedKind?: Pat
   } catch (error) {
     const code = errorCode(error)
     if (code === 'ENOENT' || code === 'ENOTDIR') {
+      // `ENOTDIR` (a path component is a non-directory) is intentionally folded
+      // into `missing` alongside `ENOENT`: for "does this path resolve?" both
+      // answer "no". The distinction is not surfaced because no consumer
+      // branches on it — error interpretation belongs on the main side (see the
+      // `getPathStatus` IPC JSDoc in `@shared/file/types/ipc`).
       return { ok: false, reason: 'missing', detail: errorDetail(error) }
     }
     // Truly-unexpected errno (EIO / EMFILE / ELOOP / EACCES …). Map to

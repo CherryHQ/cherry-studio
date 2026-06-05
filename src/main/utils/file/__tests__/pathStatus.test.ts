@@ -20,6 +20,20 @@ describe('pathStatus', () => {
     await expect(getPathStatus(target)).resolves.toMatchObject({ ok: false, reason: 'missing' })
   })
 
+  it('folds ENOTDIR (a file in the middle of the path) into missing', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'cherry-path-status-'))
+    const file = path.join(root, 'file.txt')
+    await writeFile(file, 'i am a file, not a directory')
+    // Stat-ing "<file>/child" makes a non-directory a path component → ENOTDIR.
+    const target = path.join(file, 'child')
+
+    await expect(getPathStatus(target)).resolves.toMatchObject({ ok: false, reason: 'missing' })
+  })
+
+  it('short-circuits a blank path to missing without touching the filesystem', async () => {
+    await expect(getPathStatus('   ')).resolves.toEqual({ ok: false, reason: 'missing' })
+  })
+
   it('returns not-directory when a file is expected to be a directory', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'cherry-path-status-'))
     const target = path.join(root, 'file.txt')
