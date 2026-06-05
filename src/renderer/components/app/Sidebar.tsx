@@ -122,7 +122,7 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
           }
         ]
       }),
-    [visibleSidebarIcons]
+    [visibleSidebarIcons, t]
   )
 
   const activeItem = resolveActiveItem(pathname)

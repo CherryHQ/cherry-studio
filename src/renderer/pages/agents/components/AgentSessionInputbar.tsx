@@ -108,7 +108,7 @@ const AgentSessionInputbar = ({
       createdAt: now,
       updatedAt: now
     } satisfies Assistant
-  }, [session, agent, agentId, sessionModel])
+  }, [session, agent, agentId, sessionModel, t])
 
   const sessionData = useMemo(() => {
     if (!session || !agent) return undefined
