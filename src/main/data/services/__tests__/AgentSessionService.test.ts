@@ -128,7 +128,19 @@ describe('AgentSessionService', () => {
     ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
   })
 
-  it('does not inherit a system workspace when legacy callers omit workspace options', async () => {
+  it('rejects binding a system workspace through workspaceId', async () => {
+    const systemWorkspace = await agentWorkspaceService.createSystemWorkspaceForSession('system-workspace-id')
+
+    await expect(
+      agentSessionService.createSession({
+        agentId: 'agent-session-test',
+        name: 'Invalid system id',
+        workspaceId: systemWorkspace.id
+      })
+    ).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+  })
+
+  it('does not inherit a system workspace when workspaceId is omitted', async () => {
     const systemSession = await agentSessionService.createSession({
       agentId: 'agent-session-test',
       name: 'No project',
@@ -137,11 +149,30 @@ describe('AgentSessionService', () => {
 
     const inherited = await agentSessionService.createSession({
       agentId: 'agent-session-test',
-      name: 'Legacy default'
+      name: 'Default workspace'
     })
 
     expect(inherited.workspaceId).not.toBe(systemSession.workspaceId)
     expect(inherited.workspace).toMatchObject({ type: 'user' })
+  })
+
+  it('finds only the latest user workspace path for an agent', async () => {
+    await agentSessionService.createSession({
+      agentId: 'agent-session-test',
+      name: 'No project',
+      workspaceMode: 'system'
+    })
+
+    await expect(agentSessionService.findAgentWorkspacePath('agent-session-test')).resolves.toBeNull()
+
+    const userWorkspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'runtime-user-workspace'))
+    await agentSessionService.createSession({
+      agentId: 'agent-session-test',
+      name: 'User workspace',
+      workspaceId: userWorkspace.id
+    })
+
+    await expect(agentSessionService.findAgentWorkspacePath('agent-session-test')).resolves.toBe(userWorkspace.path)
   })
 
   it('returns migrated sessions without a workspace binding', async () => {
@@ -200,6 +231,57 @@ describe('AgentSessionService', () => {
     await expect(agentSessionService.getById(session.id)).rejects.toMatchObject({
       code: ErrorCode.NOT_FOUND
     })
+  })
+
+  it('deletes the system workspace when deleting its last session reference', async () => {
+    const session = await agentSessionService.createSession({
+      agentId: 'agent-session-test',
+      name: 'No project',
+      workspaceMode: 'system'
+    })
+    const workspaceId = session.workspaceId!
+    const workspacePath = session.workspace!.path
+
+    await agentSessionService.delete(session.id)
+
+    await expect(agentSessionService.getById(session.id)).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+    await expect(agentWorkspaceService.getById(workspaceId, { includeSystem: true })).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+    await expect(stat(workspacePath)).rejects.toThrow()
+  })
+
+  it('keeps a shared system workspace until the last session reference is deleted', async () => {
+    const first = await agentSessionService.createSession({
+      agentId: 'agent-session-test',
+      name: 'No project',
+      workspaceMode: 'system'
+    })
+    const workspaceId = first.workspaceId!
+    const workspacePath = first.workspace!.path
+    await dbh.db.insert(agentSessionTable).values({
+      id: 'second-system-reference',
+      agentId: 'agent-session-test',
+      name: 'Second system reference',
+      workspaceId,
+      orderKey: 'a1'
+    })
+
+    await agentSessionService.delete(first.id)
+
+    await expect(agentWorkspaceService.getById(workspaceId, { includeSystem: true })).resolves.toMatchObject({
+      id: workspaceId
+    })
+    await expect(stat(workspacePath)).resolves.toMatchObject({ isDirectory: expect.any(Function) })
+
+    await agentSessionService.delete('second-system-reference')
+
+    await expect(agentWorkspaceService.getById(workspaceId, { includeSystem: true })).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+    await expect(stat(workspacePath)).rejects.toThrow()
   })
 
   it('reorders sessions with single and batch moves', async () => {

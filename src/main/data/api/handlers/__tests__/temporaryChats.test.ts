@@ -91,7 +91,9 @@ function fakeSession() {
     agentId: 'agent-a',
     name: 'Draft',
     description: '',
-    accessiblePaths: [],
+    workspaceId: null,
+    workspace: null,
+    workspaceMode: 'system',
     orderKey: '',
     createdAt: '2025-01-01T00:00:00.000Z',
     updatedAt: '2025-01-01T00:00:00.000Z'
@@ -221,9 +223,11 @@ describe('temporaryChatHandlers', () => {
       persistSessionMock.mockResolvedValue(session)
 
       await expect(
-        temporaryChatHandlers['/temporary/sessions'].POST(reqEnvelope({ body: { agentId: 'agent-a' } }))
+        temporaryChatHandlers['/temporary/sessions'].POST(
+          reqEnvelope({ body: { agentId: 'agent-a', workspaceMode: 'system' } })
+        )
       ).resolves.toBe(session)
-      expect(createSessionMock).toHaveBeenCalledWith({ agentId: 'agent-a' })
+      expect(createSessionMock).toHaveBeenCalledWith({ agentId: 'agent-a', workspaceMode: 'system' })
 
       await expect(
         temporaryChatHandlers['/temporary/sessions/:id'].DELETE(reqEnvelope({ params: { id: 'sid-123' } }))
@@ -237,6 +241,11 @@ describe('temporaryChatHandlers', () => {
     })
 
     it('validates temporary session create bodies before calling the service', async () => {
+      await expect(
+        temporaryChatHandlers['/temporary/sessions'].POST(reqEnvelope({ body: { agentId: 'agent-a' } }))
+      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+      expect(createSessionMock).not.toHaveBeenCalled()
+
       await expect(
         temporaryChatHandlers['/temporary/sessions'].POST(
           reqEnvelope({ body: { agentId: 'agent-a', workspaceMode: 'invalid' } })

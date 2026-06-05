@@ -1,16 +1,19 @@
+/**
+ * TemporarySessionService - in-memory backend for temporary agent sessions.
+ *
+ * Temporary sessions live only in main-process memory until explicitly
+ * persisted. Persisting promotes the draft through AgentSessionService using
+ * the same id; deleting the draft or exiting the process discards it.
+ */
+
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
-import { agentWorkspaceWorkflowService } from '@data/services/AgentWorkspaceWorkflowService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
-import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
-import type { CreateTemporarySessionDto } from '@shared/data/api/schemas/temporaryChats'
+import type { AgentSessionEntity, AgentWorkspaceMode } from '@shared/data/api/schemas/agentSessions'
+import type { CreateTemporarySessionDto, TemporarySessionEntity } from '@shared/data/api/schemas/temporaryChats'
 import { v4 as uuidv4 } from 'uuid'
-
-const logger = loggerService.withContext('TemporarySessionService')
 
 type TemporarySessionRow = {
   id: string
@@ -18,31 +21,46 @@ type TemporarySessionRow = {
   name: string
   description: string
   workspaceId?: string
-  workspaceType?: AgentWorkspaceEntity['type']
+  workspaceMode?: AgentWorkspaceMode
   createdAt: number
   updatedAt: number
 }
 
-function rowToSession(row: TemporarySessionRow, workspace: AgentWorkspaceEntity | null): AgentSessionEntity {
-  return {
+function rowToSession(
+  row: TemporarySessionRow,
+  workspace: TemporarySessionEntity['workspace']
+): TemporarySessionEntity {
+  const base = {
     id: row.id,
     agentId: row.agentId,
     name: row.name,
     description: row.description,
-    workspaceId: row.workspaceId ?? null,
-    workspace,
     orderKey: '',
     createdAt: timestampToISO(row.createdAt),
     updatedAt: timestampToISO(row.updatedAt)
+  }
+  if (row.workspaceMode === 'system') {
+    return {
+      ...base,
+      workspaceId: null,
+      workspace: null,
+      workspaceMode: 'system'
+    }
+  }
+  if (!row.workspaceId || !workspace) {
+    throw DataApiErrorFactory.invalidOperation('map temporary session', 'user workspace is missing')
+  }
+  return {
+    ...base,
+    workspaceId: row.workspaceId,
+    workspace
   }
 }
 
 export class TemporarySessionService {
   private readonly sessions = new Map<string, TemporarySessionRow>()
 
-  async createSession(dto: CreateTemporarySessionDto): Promise<AgentSessionEntity> {
-    await this.sweepOrphanSystemWorkspaces()
-
+  async createSession(dto: CreateTemporarySessionDto): Promise<TemporarySessionEntity> {
     const agentId = dto.agentId?.trim()
     if (!agentId) {
       throw DataApiErrorFactory.validation({ agentId: ['is required'] })
@@ -50,14 +68,7 @@ export class TemporarySessionService {
 
     const now = Date.now()
     const id = uuidv4()
-    // Resolve the workspace eagerly so the returned entity carries it for
-    // display; an invalid id surfaces as a precise 404 before the row is kept.
-    const workspace =
-      dto.workspaceMode === 'system'
-        ? await agentWorkspaceService.createSystemWorkspaceForSession(id)
-        : dto.workspaceId
-          ? await agentWorkspaceService.getById(dto.workspaceId)
-          : null
+    const workspace = dto.workspaceMode === 'system' ? null : await agentWorkspaceService.getById(dto.workspaceId)
 
     const row: TemporarySessionRow = {
       id,
@@ -65,7 +76,7 @@ export class TemporarySessionService {
       name: dto.name?.trim() || 'Untitled',
       description: dto.description ?? '',
       workspaceId: workspace?.id,
-      workspaceType: workspace?.type,
+      workspaceMode: dto.workspaceMode,
       createdAt: now,
       updatedAt: now
     }
@@ -78,9 +89,6 @@ export class TemporarySessionService {
     const row = this.sessions.get(id)
     if (!row) {
       throw DataApiErrorFactory.notFound('TemporarySession', id)
-    }
-    if (row.workspaceId && row.workspaceType === 'system') {
-      await agentWorkspaceWorkflowService.deleteWorkspace(row.workspaceId, { includeSystem: true })
     }
     this.sessions.delete(id)
   }
@@ -101,37 +109,20 @@ export class TemporarySessionService {
 
     this.sessions.delete(id)
     try {
+      const workspaceInput =
+        row.workspaceMode === 'system' ? { workspaceMode: row.workspaceMode } : { workspaceId: row.workspaceId }
       return await agentSessionService.createSession(
         {
           agentId: row.agentId,
           name: row.name,
           description: row.description,
-          workspaceId: row.workspaceId
+          ...workspaceInput
         },
-        { id: row.id, allowSystemWorkspaceId: row.workspaceType === 'system' }
+        { id: row.id }
       )
     } catch (err) {
       this.sessions.set(id, row)
       throw err
-    }
-  }
-
-  private getLeasedSystemWorkspaceIds(): string[] {
-    return Array.from(this.sessions.values())
-      .filter((session) => session.workspaceId && session.workspaceType === 'system')
-      .map((session) => session.workspaceId!)
-  }
-
-  private async sweepOrphanSystemWorkspaces(): Promise<void> {
-    try {
-      const removedCount = await agentWorkspaceWorkflowService.sweepOrphanSystemWorkspaces({
-        excludeWorkspaceIds: this.getLeasedSystemWorkspaceIds()
-      })
-      if (removedCount > 0) {
-        logger.info('Cleaned orphan system workspaces', { count: removedCount })
-      }
-    } catch (error) {
-      logger.warn('Failed to clean orphan system workspaces', { error })
     }
   }
 }

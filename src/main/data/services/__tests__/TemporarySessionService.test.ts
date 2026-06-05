@@ -59,101 +59,83 @@ describe('TemporarySessionService', () => {
     vi.restoreAllMocks()
   })
 
-  it('leases a temporary session without writing agent_session', async () => {
-    const session = await service.createSession({ agentId: 'agent-a', name: 'Draft' })
+  it('leases a user-workspace temporary session without writing agent_session', async () => {
+    const workspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'user-project'))
+    const session = await service.createSession({ agentId: 'agent-a', name: 'Draft', workspaceId: workspace.id })
 
     expect(session.id).toMatch(/^[0-9a-f-]{36}$/)
     expect(session.agentId).toBe('agent-a')
     expect(session.name).toBe('Draft')
+    expect(session.workspaceId).toBe(workspace.id)
+    expect(session.workspace?.path).toBe(workspace.path)
 
     const persisted = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id))
     expect(persisted).toHaveLength(0)
   })
 
-  it('persists with the same id and reuses SessionService workspace fallback', async () => {
+  it('persists a user-workspace temporary session with the same id', async () => {
     await seedAgent(dbh.db, 'agent-a', 'provider-a:model-a')
-    await dbh.db.insert(agentWorkspaceTable).values({
-      id: 'ws-a',
-      name: 'cherry-temporary-session-test',
-      path: '/private/tmp/cherry-temporary-session-test',
-      orderKey: 'a0'
-    })
-    await dbh.db.insert(agentSessionTable).values({
-      id: 'sibling-session',
-      agentId: 'agent-a',
-      name: 'Sibling',
-      workspaceId: 'ws-a',
-      orderKey: 'a0'
-    })
+    const workspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'user-project'))
 
-    const draft = await service.createSession({ agentId: 'agent-a', name: 'Draft' })
+    const draft = await service.createSession({ agentId: 'agent-a', name: 'Draft', workspaceId: workspace.id })
     const persisted = await service.persist(draft.id)
 
     expect(persisted.id).toBe(draft.id)
-    // No workspaceId supplied → SessionService inherits the latest sibling's workspace.
-    expect(persisted.workspaceId).toBe('ws-a')
-    expect(persisted.workspace?.path).toBe('/private/tmp/cherry-temporary-session-test')
+    expect(persisted.workspaceId).toBe(workspace.id)
+    expect(persisted.workspace?.path).toBe(workspace.path)
 
     const rows = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, draft.id))
     expect(rows).toHaveLength(1)
   })
 
-  it('leases a no-project temporary session with a system workspace', async () => {
+  it('leases a no-project temporary session without creating a system workspace', async () => {
     const session = await service.createSession({ agentId: 'agent-a', name: 'Draft', workspaceMode: 'system' })
 
-    expect(session.workspaceId).toBeTruthy()
-    expect(session.workspace).toMatchObject({ type: 'system' })
-    expect(session.workspace?.path).toContain(path.join('Agents', 'system'))
-    await expect(stat(session.workspace!.path)).resolves.toMatchObject({ isDirectory: expect.any(Function) })
+    expect(session.workspaceMode).toBe('system')
+    expect(session.workspaceId).toBeNull()
+    expect(session.workspace).toBeNull()
 
-    const persisted = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id))
-    expect(persisted).toHaveLength(0)
+    const sessions = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, session.id))
+    expect(sessions).toHaveLength(0)
+    const workspaces = await dbh.db.select().from(agentWorkspaceTable)
+    expect(workspaces).toHaveLength(0)
+    await expect(stat(path.join(root, 'Agents', 'system'))).rejects.toThrow()
   })
 
-  it('sweeps stale system workspace rows while preserving active temporary leases', async () => {
-    const active = await service.createSession({ agentId: 'agent-a', name: 'Active', workspaceMode: 'system' })
-    const orphan = await agentWorkspaceService.createSystemWorkspaceForSession('stale-temporary-session')
-    const orphanWorkspacePath = orphan.path
-
-    await service.createSession({ agentId: 'agent-a', name: 'Next' })
-
-    await expect(stat(active.workspace!.path)).resolves.toMatchObject({ isDirectory: expect.any(Function) })
-    await expect(stat(orphanWorkspacePath)).rejects.toThrow()
-    const rows = await dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, orphan.id))
-    expect(rows).toHaveLength(0)
-  })
-
-  it('persists a no-project temporary session using the same system workspace', async () => {
+  it('persists a no-project temporary session by creating a real system workspace', async () => {
     await seedAgent(dbh.db, 'agent-a', 'provider-a:model-a')
     const draft = await service.createSession({ agentId: 'agent-a', name: 'Draft', workspaceMode: 'system' })
-    const draftWorkspacePath = draft.workspace!.path
 
     const persisted = await service.persist(draft.id)
 
     expect(persisted.id).toBe(draft.id)
-    expect(persisted.workspaceId).toBe(draft.workspaceId)
-    expect(persisted.workspace).toMatchObject({ path: draftWorkspacePath, type: 'system' })
-    await expect(stat(draftWorkspacePath)).resolves.toMatchObject({ isDirectory: expect.any(Function) })
+    expect(persisted.workspaceId).toBeTruthy()
+    expect(persisted.workspace).toMatchObject({ type: 'system' })
+    expect(persisted.workspace?.path).toContain(path.join('Agents', 'system'))
+    await expect(stat(persisted.workspace!.path)).resolves.toMatchObject({ isDirectory: expect.any(Function) })
   })
 
-  it('deletes the system workspace when discarding a no-project temporary session', async () => {
+  it('discards a no-project temporary session without workspace side effects', async () => {
     const draft = await service.createSession({ agentId: 'agent-a', name: 'Draft', workspaceMode: 'system' })
-    const workspacePath = draft.workspace!.path
 
     await service.deleteSession(draft.id)
 
-    await expect(stat(workspacePath)).rejects.toThrow()
-    const rows = await dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, draft.workspaceId!))
+    await expect(service.persist(draft.id)).rejects.toThrow(/not found/i)
+    const rows = await dbh.db.select().from(agentWorkspaceTable)
     expect(rows).toHaveLength(0)
+    await expect(stat(path.join(root, 'Agents', 'system'))).rejects.toThrow()
   })
 
-  it('rejects persist when the agent has no model and leaves no real session', async () => {
+  it('rejects persist when the agent has no model and leaves no real session or system workspace', async () => {
     await seedAgent(dbh.db, 'agent-a', null)
-    const draft = await service.createSession({ agentId: 'agent-a', name: 'Draft' })
+    const draft = await service.createSession({ agentId: 'agent-a', name: 'Draft', workspaceMode: 'system' })
 
     await expect(service.persist(draft.id)).rejects.toThrow(/validation/i)
 
-    const rows = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, draft.id))
-    expect(rows).toHaveLength(0)
+    const sessions = await dbh.db.select().from(agentSessionTable).where(eq(agentSessionTable.id, draft.id))
+    expect(sessions).toHaveLength(0)
+    const workspaces = await dbh.db.select().from(agentWorkspaceTable)
+    expect(workspaces).toHaveLength(0)
+    await expect(stat(path.join(root, 'Agents', 'system'))).rejects.toThrow()
   })
 })

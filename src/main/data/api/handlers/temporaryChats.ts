@@ -1,15 +1,21 @@
 /**
- * Temporary Chat API Handlers
+ * Temporary runtime API handlers
  *
- * Implements the endpoints backing in-memory temporary chat sessions:
+ * Implements the endpoints backing in-memory temporary topics and agent
+ * sessions:
  * - POST   /temporary/topics
  * - PATCH  /temporary/topics/:id
  * - DELETE /temporary/topics/:id
  * - POST   /temporary/topics/:topicId/messages
  * - GET    /temporary/topics/:topicId/messages
  * - POST   /temporary/topics/:id/persist
+ * - POST   /temporary/sessions
+ * - DELETE /temporary/sessions/:id
+ * - POST   /temporary/sessions/:id/persist
  *
- * All routing / validation / storage logic lives in TemporaryChatService.
+ * Topic/message logic lives in TemporaryChatService. Agent session draft logic
+ * lives in TemporarySessionService. Handlers stay thin: validate request bodies
+ * when needed, then forward to the owning service.
  */
 
 import { temporaryChatService } from '@data/services/TemporaryChatService'
