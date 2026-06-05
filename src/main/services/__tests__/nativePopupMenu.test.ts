@@ -161,7 +161,12 @@ describe('showNativePopupMenu', () => {
   })
 
   it('rejects invalid menu payloads', () => {
-    void showNativePopupMenu(event, { items: [{ type: 'command', command: 'unknown.command' }] }, undefined, neverExecute)
+    void showNativePopupMenu(
+      event,
+      { items: [{ type: 'command', command: 'unknown.command' }] },
+      undefined,
+      neverExecute
+    )
 
     expect(menuMock.buildFromTemplate).not.toHaveBeenCalled()
     expect(loggerMock.warn).toHaveBeenCalled()
