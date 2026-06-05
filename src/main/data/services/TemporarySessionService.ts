@@ -43,12 +43,6 @@ export class TemporarySessionService {
       throw DataApiErrorFactory.validation({ agentId: ['is required'] })
     }
 
-    if (dto.workspaceMode === 'system' && dto.workspaceId) {
-      throw DataApiErrorFactory.validation({
-        workspaceId: ['must be omitted when workspaceMode is system']
-      })
-    }
-
     const now = Date.now()
     const id = uuidv4()
     // Resolve the workspace eagerly so the returned entity carries it for
