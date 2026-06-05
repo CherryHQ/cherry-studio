@@ -438,7 +438,6 @@
     "remark-stringify": "11.0.0",
     "remove-markdown": "^0.6.2",
     "rollup-plugin-visualizer": "^5.12.0",
-    "rxjs": "7.8.2",
     "semver": "7.7.1",
     "shiki": "^3.12.0",
     "stream-json": "^1.9.1",
