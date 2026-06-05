@@ -3,7 +3,13 @@ import { Search } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { SIDEBAR_FULL_THRESHOLD, SIDEBAR_ICON_WIDTH, SIDEBAR_SNAP_THRESHOLD } from '../constants'
+import {
+  getSidebarDisplayWidth,
+  normalizeSidebarWidth,
+  SIDEBAR_FULL_THRESHOLD,
+  SIDEBAR_ICON_WIDTH,
+  SIDEBAR_MAX_WIDTH
+} from '../constants'
 import { Sidebar } from '../Sidebar'
 import type { SidebarMenuItem } from '../types'
 
@@ -51,28 +57,59 @@ describe('Sidebar resize handle', () => {
     expect(resizeHandle).toHaveClass('[-webkit-app-region:no-drag]')
   })
 
-  it('snaps between icon and full after crossing the snap threshold', () => {
-    expect(dragResizeFrom(50, SIDEBAR_SNAP_THRESHOLD)).toHaveBeenCalledWith(SIDEBAR_FULL_THRESHOLD)
-    expect(dragResizeFrom(120, SIDEBAR_SNAP_THRESHOLD)).toHaveBeenCalledWith(SIDEBAR_ICON_WIDTH)
+  it('switches state only when drag delta is greater than 15px', () => {
+    const cases: Array<[number, number, number, number]> = [
+      [80, 65, 65, SIDEBAR_ICON_WIDTH],
+      [80, 66, 66, SIDEBAR_FULL_THRESHOLD],
+      [120, 105, 105, SIDEBAR_FULL_THRESHOLD],
+      [120, 104, 104, SIDEBAR_ICON_WIDTH],
+      [170, 110, 110, SIDEBAR_ICON_WIDTH]
+    ]
+
+    for (const [start, moveTo, tracked, released] of cases) {
+      const setWidth = dragResizeFrom(start, moveTo)
+
+      expect(setWidth).toHaveBeenNthCalledWith(1, tracked)
+      expect(setWidth).toHaveBeenLastCalledWith(released)
+    }
   })
 
-  it('keeps the current snap target before the snap threshold is crossed', () => {
-    const outwardDrag = dragResizeFrom(50, SIDEBAR_SNAP_THRESHOLD - 1)
-    expect(outwardDrag).toHaveBeenCalledWith(SIDEBAR_ICON_WIDTH)
-    expect(outwardDrag).not.toHaveBeenCalledWith(SIDEBAR_FULL_THRESHOLD)
+  it('keeps non-intermediate drag behavior', () => {
+    const cases: Array<[number, number]> = [
+      [10, 0],
+      [30, SIDEBAR_ICON_WIDTH],
+      [130, 130],
+      [300, SIDEBAR_MAX_WIDTH]
+    ]
 
-    const inwardDrag = dragResizeFrom(120, SIDEBAR_SNAP_THRESHOLD + 1)
-    expect(inwardDrag).toHaveBeenCalledWith(SIDEBAR_FULL_THRESHOLD)
-    expect(inwardDrag).not.toHaveBeenCalledWith(SIDEBAR_ICON_WIDTH)
+    for (const [moveTo, expected] of cases) {
+      const setWidth = dragResizeFrom(120, moveTo)
+
+      expect(setWidth).toHaveBeenCalledTimes(1)
+      expect(setWidth).toHaveBeenLastCalledWith(expected)
+    }
   })
 
-  it('renders intermediate widths without menu text', () => {
+  it('renders intermediate widths at icon width without menu text', () => {
     const { container, queryByText } = render(
       <Sidebar width={80} setWidth={vi.fn()} activeItem="chat" items={items} onItemClick={vi.fn()} />
     )
 
-    expect(container.firstElementChild).toHaveStyle({ width: '80px' })
+    expect(container.firstElementChild).toHaveStyle({ width: '50px' })
     expect(queryByText('Chat')).not.toBeInTheDocument()
+  })
+
+  it('resolves display widths for CSS variable consumers', () => {
+    expect(SIDEBAR_FULL_THRESHOLD).toBe(120)
+    expect(getSidebarDisplayWidth(30)).toBe(SIDEBAR_ICON_WIDTH)
+    expect(getSidebarDisplayWidth(80)).toBe(SIDEBAR_ICON_WIDTH)
+    expect(getSidebarDisplayWidth(120)).toBe(SIDEBAR_FULL_THRESHOLD)
+  })
+
+  it('normalizes persisted intermediate widths to icon width', () => {
+    expect(normalizeSidebarWidth(50)).toBe(SIDEBAR_ICON_WIDTH)
+    expect(normalizeSidebarWidth(80)).toBe(SIDEBAR_ICON_WIDTH)
+    expect(normalizeSidebarWidth(120)).toBe(SIDEBAR_FULL_THRESHOLD)
   })
 
   it('keeps the hidden-state hot zone full height without moving the resize binding', () => {

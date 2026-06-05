@@ -19,13 +19,13 @@ import {
   Sparkle
 } from 'lucide-react'
 import type { Ref } from 'react'
-import { useCallback, useLayoutEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { OpenClawSidebarIcon } from '../Icons/SvgIcon'
 import UserPopup from '../Popups/UserPopup'
 import { Sidebar as UISidebar } from '../Sidebar'
-import { getSidebarLayout, SIDEBAR_ICON_WIDTH } from '../Sidebar/constants'
+import { getSidebarDisplayWidth, getSidebarLayout, normalizeSidebarWidth } from '../Sidebar/constants'
 import type { SidebarMenuItem, SidebarUser } from '../Sidebar/types'
 
 const APP_LOGO = <img src={AppLogo} alt="Cherry Studio" className="h-9 w-9 rounded-lg" draggable={false} />
@@ -85,9 +85,15 @@ export default function Sidebar({ ref }: { ref?: Ref<HTMLDivElement | null> }) {
   const [sidebarWidth, setSidebarWidth] = usePersistCache('ui.sidebar.width')
 
   useLayoutEffect(() => {
-    const resolvedSidebarWidth = getSidebarLayout(sidebarWidth) === 'icon' ? SIDEBAR_ICON_WIDTH : sidebarWidth
-    document.documentElement.style.setProperty('--sidebar-width', `${resolvedSidebarWidth}px`)
+    document.documentElement.style.setProperty('--sidebar-width', `${getSidebarDisplayWidth(sidebarWidth)}px`)
   }, [sidebarWidth])
+
+  useEffect(() => {
+    const normalizedWidth = normalizeSidebarWidth(sidebarWidth)
+    if (normalizedWidth !== sidebarWidth) {
+      setSidebarWidth(normalizedWidth)
+    }
+  }, [setSidebarWidth, sidebarWidth])
 
   // User avatar
   const avatar = useAvatar()

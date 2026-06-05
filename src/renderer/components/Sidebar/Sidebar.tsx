@@ -4,7 +4,7 @@ import { cn } from '@renderer/utils'
 import { Search } from 'lucide-react'
 import React, { useCallback, useEffect, useRef } from 'react'
 
-import { getSidebarLayout, SIDEBAR_ICON_WIDTH } from './constants'
+import { getSidebarDisplayWidth, getSidebarLayout } from './constants'
 import { DefaultLogo } from './primitives'
 import { SidebarDocked } from './SidebarDocked'
 import { SidebarFooter } from './SidebarFooter'
@@ -170,7 +170,7 @@ export function Sidebar({
   }
 
   // --- Visible sidebar (icon / full) ---
-  const actualWidth = layout === 'icon' && width < SIDEBAR_ICON_WIDTH ? SIDEBAR_ICON_WIDTH : width
+  const actualWidth = getSidebarDisplayWidth(width)
 
   return (
     <div
