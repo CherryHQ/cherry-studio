@@ -27,6 +27,7 @@ vi.mock('react-i18next', () => ({
           'common.delete': '删除',
           'common.rename': '重命名',
           'common.save': '保存',
+          'library.toolbar.all_tags': '全部标签',
           'library.toolbar.tag_button': '标签'
         }) satisfies Record<string, string>
       )[key] ?? key
@@ -391,6 +392,45 @@ describe('ResourceGrid tag toolbar management', () => {
   beforeEach(() => {
     deleteTagMock.mockReset()
     renameTagMock.mockReset()
+  })
+
+  it('keeps unused tags collapsed behind the arrow before the add-tag button', async () => {
+    const user = userEvent.setup()
+
+    renderResourceGrid({
+      tags: [{ id: 'tag-alpha', name: 'alpha', color: '#111111', count: 1 }],
+      allTags: [
+        {
+          id: 'tag-alpha',
+          name: 'alpha',
+          color: '#111111',
+          createdAt: '2024-01-01T00:00:00.000Z',
+          updatedAt: '2024-01-01T00:00:00.000Z'
+        },
+        {
+          id: 'tag-beta',
+          name: 'beta',
+          color: '#222222',
+          createdAt: '2024-01-01T00:00:00.000Z',
+          updatedAt: '2024-01-01T00:00:00.000Z'
+        }
+      ]
+    })
+
+    const alphaTag = screen.getByRole('button', { name: /alpha/ })
+    const expandButton = screen.getByRole('button', { name: '全部标签' })
+    const addTagButton = screen.getByRole('button', { name: '标签' })
+
+    expect(screen.queryByRole('button', { name: /beta/ })).not.toBeInTheDocument()
+    expect(alphaTag.compareDocumentPosition(expandButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    expect(expandButton.compareDocumentPosition(addTagButton)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+
+    await user.click(expandButton)
+
+    const betaTag = screen.getByRole('button', { name: /beta/ })
+    expect(betaTag.compareDocumentPosition(screen.getByRole('button', { name: '全部标签' }))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING
+    )
   })
 
   it('renames a tag from the right-click menu', async () => {
