@@ -9,8 +9,8 @@ import type {
   NativePopupMenuModel,
   NativePopupMenuResult,
   ResolvedMenuItem
-} from '@shared/commands'
-import { findCommandDefinition } from '@shared/commands'
+} from '@shared/command'
+import { findCommandDefinition } from '@shared/command'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { IpcMainInvokeEvent } from 'electron'
 import { BrowserWindow, Menu } from 'electron'

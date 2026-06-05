@@ -11,7 +11,7 @@ import {
   menuRegistry,
   resolveCommandKeybinding,
   type SupportedPlatform
-} from '@shared/commands'
+} from '@shared/command'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import type { BrowserWindow } from 'electron'
 import { app, Menu, shell } from 'electron'

@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { BaseService, type Disposable, Injectable, Phase, ServicePhase, toDisposable } from '@main/core/lifecycle'
 import { WindowType } from '@main/core/window/types'
 import { handleZoomFactor } from '@main/utils/zoom'
-import { type CommandId, type ContextReader, evaluateContextExpr, findCommandDefinition } from '@shared/commands'
+import { type CommandId, type ContextReader, evaluateContextExpr, findCommandDefinition } from '@shared/command'
 import type { BrowserWindow } from 'electron'
 
 const logger = loggerService.withContext('CommandService')

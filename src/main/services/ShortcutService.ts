@@ -3,7 +3,7 @@ import { loggerService } from '@logger'
 import { BaseService, DependsOn, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isMac } from '@main/core/platform'
 import { WindowType } from '@main/core/window/types'
-import type { CommandShortcutPreferenceKey } from '@shared/commands'
+import type { CommandShortcutPreferenceKey } from '@shared/command'
 import {
   collectContextKeys,
   type CommandId,
@@ -14,7 +14,7 @@ import {
   REGISTERED_KEYBINDINGS,
   resolveCommandKeybinding,
   type SupportedPlatform
-} from '@shared/commands'
+} from '@shared/command'
 import type { PreferenceKeyType, PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import { IpcChannel } from '@shared/IpcChannel'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'

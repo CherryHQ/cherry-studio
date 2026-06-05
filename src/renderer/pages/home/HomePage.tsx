@@ -1,7 +1,7 @@
 import { cacheService } from '@data/CacheService'
 import { usePreference } from '@data/hooks/usePreference'
-import { useCommandHandler } from '@renderer/commands'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { useCommandHandler } from '@renderer/features/command'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useActiveTopic, useTopicMutations } from '@renderer/hooks/useTopic'

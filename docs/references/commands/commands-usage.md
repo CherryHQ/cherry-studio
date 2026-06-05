@@ -8,14 +8,14 @@ architecture, see [README.md](./README.md).
 Import from the barrel only:
 
 ```ts
-import { CommandContextMenu, CommandShortcut, CommandTooltip, useCommandHandler } from '@renderer/commands'
+import { CommandContextMenu, CommandShortcut, CommandTooltip, useCommandHandler } from '@renderer/features/command'
 ```
 
-Do not import subpaths such as `@renderer/commands/presentation` from business
+Do not import subpaths such as `@renderer/features/command/presentation` from business
 code. Keeping a narrow public API lets the runtime change without rewriting call
 sites.
 
-The renderer domain (`src/renderer/commands/`) is intentionally not under
+The renderer domain (`src/renderer/features/command/`) is intentionally not under
 `components/` — most files are runtime plumbing rather than generic UI. It owns no
 business state: business surfaces contribute only the minimal context keys and
 handlers they are responsible for.
@@ -23,7 +23,7 @@ handlers they are responsible for.
 ## Boundaries
 
 - Shared command metadata, keybindings, menu contributions, and context‑expression
-  parsing live in `src/shared/commands`.
+  parsing live in `src/shared/command`.
 - Main‑process command execution, native menu creation, and global shortcuts
   belong to main services.
 - Renderer business components must **not** parse shortcut preferences, format
@@ -70,7 +70,7 @@ stack semantics — the latest mounted value wins, unmounting restores the previ
 Use `CommandContextMenu` for renderer context menus that participate in the
 command system:
 
-- Command‑backed items come from `MenuRegistry` in `src/shared/commands`.
+- Command‑backed items come from `MenuRegistry` in `src/shared/command`.
 - Renderer‑only extra items use `extraItems` / `getExtraItems` (`type: 'item'` for
   actions, `type: 'submenu'` for nested groups).
 - Use `shortcutCommand` on an extra item so the menu resolves the platform label
@@ -92,7 +92,7 @@ Use these instead of assembling labels/shortcuts in feature components:
 
 ## Adding a command
 
-1. **Declare it** in `src/shared/commands/definitions.ts` — add an entry to
+1. **Declare it** in `src/shared/command/definitions.ts` — add an entry to
    `COMMAND_DEFINITIONS` (`id`, `titleKey`, `categoryKey`, `scope`, optional
    `keybinding` with a `defaultBinding`, optional `enablement`).
 2. **Add its shortcut preference key** `shortcut.<commandId>` through the
@@ -109,18 +109,18 @@ Use these instead of assembling labels/shortcuts in feature components:
    owning surface. Main‑scope: add a built‑in handler in
    `CommandService.registerBuiltInHandlers`.
 4. **Optional — contribute it to a menu** by adding a `MENU_CONTRIBUTIONS` entry
-   in `src/shared/commands/menus.ts` for the relevant `MenuLocation`.
+   in `src/shared/command/menus.ts` for the relevant `MenuLocation`.
 
 ## Tests
 
-Renderer command tests live in `src/renderer/commands/__tests__/`; shared
-declarations in `src/shared/commands/__tests__/`; main services in
+Renderer command tests live in `src/renderer/features/command/__tests__/`; shared
+declarations in `src/shared/command/__tests__/`; main services in
 `src/main/services/__tests__/`.
 
 Prefer targeted checks first:
 
 ```bash
-pnpm vitest run src/shared/commands src/renderer/commands
+pnpm vitest run src/shared/command src/renderer/features/command
 pnpm typecheck
 ```
 

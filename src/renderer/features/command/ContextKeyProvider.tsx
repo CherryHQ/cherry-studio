@@ -1,6 +1,6 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { platform } from '@renderer/config/constant'
-import { ContextKeyService, type ContextReader, type ContextValue } from '@shared/commands'
+import { ContextKeyService, type ContextReader, type ContextValue } from '@shared/command'
 import React, { createContext, use, useCallback, useEffect, useRef, useState } from 'react'
 
 export type RendererCommandContextKey =

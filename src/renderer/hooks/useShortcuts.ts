@@ -1,6 +1,6 @@
 import { useMultiplePreferences } from '@data/hooks/usePreference'
-import { useCommandContextReader } from '@renderer/commands'
 import { platform } from '@renderer/config/constant'
+import { useCommandContextReader } from '@renderer/features/command'
 import {
   type CommandId,
   type CommandShortcutPreferenceKey,
@@ -10,7 +10,7 @@ import {
   REGISTERED_KEYBINDINGS,
   resolveCommandShortcutPreference,
   type SupportedPlatform
-} from '@shared/commands'
+} from '@shared/command'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import { normalizeShortcutBinding } from '@shared/shortcuts/tokens'
 import type { ResolvedShortcut } from '@shared/shortcuts/types'

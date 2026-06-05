@@ -12,12 +12,7 @@ import {
 } from '@renderer/hooks/useShortcuts'
 import { useTimer } from '@renderer/hooks/useTimer'
 import { cn } from '@renderer/utils/style'
-import {
-  type CommandId,
-  findCommandDefinition,
-  findKeybindingConflicts,
-  type SupportedPlatform
-} from '@shared/commands'
+import { type CommandId, findCommandDefinition, findKeybindingConflicts, type SupportedPlatform } from '@shared/command'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import {
   convertKeyToAccelerator,

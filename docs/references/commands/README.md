@@ -44,7 +44,7 @@ Two consequences fall out of this split:
 
 | Concept | Where it lives | Example for `topic.create` |
 | --- | --- | --- |
-| Command definition | `COMMAND_DEFINITIONS` (`src/shared/commands/definitions.ts`) | `{ id: 'topic.create', scope: 'renderer', keybinding: { defaultBinding: ['CommandOrControl','N'] } }` |
+| Command definition | `COMMAND_DEFINITIONS` (`src/shared/command/definitions.ts`) | `{ id: 'topic.create', scope: 'renderer', keybinding: { defaultBinding: ['CommandOrControl','N'] } }` |
 | Default key binding | the command's `keybinding.defaultBinding` | `Cmd/Ctrl + N` |
 | **User override** | the preference `shortcut.<commandId>` | `shortcut.topic.create` → `{ binding, enabled }` |
 | Handler | a surface via `useCommandHandler` (renderer) or a built‑in (main) | `useCommandHandler('topic.create', addNewTopic)` |
@@ -67,7 +67,7 @@ declaration (`MENU_CONTRIBUTIONS`) keyed by the same `CommandId`s.
 
 ## Architecture — three layers
 
-### 1. Shared declarations — `src/shared/commands/`
+### 1. Shared declarations — `src/shared/command/`
 
 Pure data and pure functions, no Electron or React.
 
@@ -92,7 +92,7 @@ keeps only `ShortcutPreferenceKey` + `ResolvedShortcut`.
 | `ShortcutService` | registers `globalShortcut` accelerators from `REGISTERED_KEYBINDINGS` (non‑renderer scope) → `CommandService.execute` |
 | `AppMenuService` | builds the macOS app menu from `menuRegistry.resolve({ location: 'app.menu' })` via `menu/adapters/nativeMenuAdapter` → `CommandService.execute` |
 
-### 3. Renderer runtime — `src/renderer/commands/`
+### 3. Renderer runtime — `src/renderer/features/command/`
 
 | Piece | Responsibility |
 | --- | --- |

@@ -1,4 +1,4 @@
-import type { CommandId, ResolvedMenuItem } from '@shared/commands'
+import type { CommandId, ResolvedMenuItem } from '@shared/command'
 import type { KeyboardEvent, MenuItem, MenuItemConstructorOptions } from 'electron'
 
 export interface NativeMenuCommandExecutionContext {

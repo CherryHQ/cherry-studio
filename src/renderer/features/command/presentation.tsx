@@ -10,7 +10,7 @@ import {
   getCommandShortcutLabel,
   type ResolvedCommandState,
   type SupportedPlatform
-} from '@shared/commands'
+} from '@shared/command'
 import React, { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 

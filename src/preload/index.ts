@@ -15,7 +15,7 @@ import type {
   StreamDonePayload,
   StreamErrorPayload
 } from '@shared/ai/transport'
-import type { CommandId, MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/commands'
+import type { CommandId, MenuAnchor, NativePopupMenuModel, NativePopupMenuResult } from '@shared/command'
 import type { GitBashPathInfo, TerminalConfig } from '@shared/config/constant'
 import type { LogLevel, LogSourceWithContext } from '@shared/config/logger'
 import type {

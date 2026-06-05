@@ -9,7 +9,7 @@ import {
   REGISTERED_KEYBINDINGS,
   resolveCommandByKeybinding,
   type SupportedPlatform
-} from '@shared/commands'
+} from '@shared/command'
 import type { PreferenceShortcutType } from '@shared/data/preference/preferenceTypes'
 import React, { createContext, use, useCallback, useEffect, useMemo, useRef } from 'react'
 

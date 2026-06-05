@@ -1,4 +1,4 @@
-import type { CommandId } from '@shared/commands'
+import type { CommandId } from '@shared/command'
 import type { Model, UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import type { ReactNode } from 'react'

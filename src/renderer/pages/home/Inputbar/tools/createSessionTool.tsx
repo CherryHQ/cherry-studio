@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
-import { useResolvedCommand } from '@renderer/commands'
 import { ActionIconButton } from '@renderer/components/Buttons'
+import { useResolvedCommand } from '@renderer/features/command'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useSettings } from '@renderer/hooks/useSettings'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'

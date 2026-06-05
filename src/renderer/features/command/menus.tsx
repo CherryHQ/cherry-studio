@@ -36,7 +36,7 @@ import {
   type ResolvedMenuModel,
   resolveMenuPresentationMode,
   type SupportedPlatform
-} from '@shared/commands'
+} from '@shared/command'
 import React, { useCallback, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 

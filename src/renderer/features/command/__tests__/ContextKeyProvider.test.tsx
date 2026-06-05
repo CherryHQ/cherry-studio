@@ -1,4 +1,4 @@
-import type { ContextValue } from '@shared/commands'
+import type { ContextValue } from '@shared/command'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 

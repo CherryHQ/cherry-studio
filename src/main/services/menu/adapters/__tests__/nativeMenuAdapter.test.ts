@@ -1,4 +1,4 @@
-import type { CommandId, ResolvedMenuItem } from '@shared/commands'
+import type { CommandId, ResolvedMenuItem } from '@shared/command'
 import { describe, expect, it, vi } from 'vitest'
 
 import { toElectronMenuTemplate } from '../nativeMenuAdapter'
