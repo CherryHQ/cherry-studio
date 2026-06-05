@@ -25,16 +25,32 @@ export function useSidebarResize(width: number, setWidth: (width: number) => voi
       document.body.style.userSelect = 'none'
 
       const containerLeft = sidebarRef.current?.parentElement?.getBoundingClientRect().left ?? 0
-      const startWidth = width
-      let lastWidth: number | null = null
+      let snapTarget = width < SIDEBAR_FULL_THRESHOLD ? SIDEBAR_ICON_WIDTH : SIDEBAR_FULL_THRESHOLD
 
       const onMouseMove = (moveEvent: MouseEvent) => {
         if (!isResizing.current) return
         const nextWidth = moveEvent.clientX - containerLeft
-        if (nextWidth < SIDEBAR_HIDDEN_THRESHOLD) lastWidth = 0
-        else if (nextWidth < SIDEBAR_ICON_WIDTH) lastWidth = SIDEBAR_ICON_WIDTH
-        else lastWidth = Math.min(SIDEBAR_MAX_WIDTH, nextWidth)
-        setWidth(lastWidth)
+        let resolvedWidth = snapTarget
+
+        if (nextWidth < SIDEBAR_HIDDEN_THRESHOLD) {
+          snapTarget = SIDEBAR_ICON_WIDTH
+          resolvedWidth = 0
+        } else if (nextWidth <= SIDEBAR_ICON_WIDTH) {
+          snapTarget = SIDEBAR_ICON_WIDTH
+          resolvedWidth = SIDEBAR_ICON_WIDTH
+        } else if (nextWidth < SIDEBAR_FULL_THRESHOLD) {
+          if (snapTarget === SIDEBAR_ICON_WIDTH && nextWidth >= SIDEBAR_SNAP_THRESHOLD) {
+            snapTarget = SIDEBAR_FULL_THRESHOLD
+          } else if (snapTarget === SIDEBAR_FULL_THRESHOLD && nextWidth <= SIDEBAR_SNAP_THRESHOLD) {
+            snapTarget = SIDEBAR_ICON_WIDTH
+          }
+          resolvedWidth = snapTarget
+        } else {
+          snapTarget = SIDEBAR_FULL_THRESHOLD
+          resolvedWidth = Math.min(SIDEBAR_MAX_WIDTH, nextWidth)
+        }
+
+        setWidth(resolvedWidth)
       }
 
       const cleanup = () => {
@@ -46,16 +62,7 @@ export function useSidebarResize(width: number, setWidth: (width: number) => voi
         resizeCleanupRef.current = null
       }
 
-      const onMouseUp = () => {
-        if (lastWidth === null) {
-          cleanup()
-          return
-        }
-        if (lastWidth > SIDEBAR_SNAP_THRESHOLD && lastWidth < SIDEBAR_FULL_THRESHOLD) {
-          setWidth(lastWidth > startWidth ? SIDEBAR_FULL_THRESHOLD : SIDEBAR_SNAP_THRESHOLD)
-        }
-        cleanup()
-      }
+      const onMouseUp = () => cleanup()
 
       document.addEventListener('mousemove', onMouseMove)
       document.addEventListener('mouseup', onMouseUp)

@@ -313,7 +313,7 @@ export type RendererPersistCacheSchema = {
 export const DefaultRendererPersistCache: RendererPersistCacheSchema = {
   'ui.tab.pinned_tabs': [],
   'ui.sidebar.docked_tabs': [],
-  'ui.sidebar.width': 65,
+  'ui.sidebar.width': 50,
   'settings.provider.last_selected_provider_id': null,
   'settings.provider.openai.alert.dismissed': false,
   'feature.mcp.is_uv_installed': false,
