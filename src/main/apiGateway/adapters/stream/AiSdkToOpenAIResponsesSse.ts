@@ -21,7 +21,7 @@ import type { FinishReason, UIMessageChunk } from 'ai'
 import type { GatewayUsageMetadata, StreamAdapterOptions } from '../interfaces'
 import { BaseStreamAdapter } from './BaseStreamAdapter'
 
-const logger = loggerService.withContext('AiSdkToOpenAIResponsesSSE')
+const logger = loggerService.withContext('AiSdkToOpenAIResponsesSse')
 
 /**
  * Use SDK types for events
@@ -71,7 +71,7 @@ interface ToolCallState {
 /**
  * Adapter that converts AI SDK fullStream events to OpenAI Responses API SSE events
  */
-export class AiSdkToOpenAIResponsesSSE extends BaseStreamAdapter<ResponseStreamEvent> {
+export class AiSdkToOpenAIResponsesSse extends BaseStreamAdapter<ResponseStreamEvent> {
   private createdAt: number
   private sequenceNumber = 0
   private toolCalls: Map<string, ToolCallState> = new Map()
@@ -199,7 +199,7 @@ export class AiSdkToOpenAIResponsesSSE extends BaseStreamAdapter<ResponseStreamE
    * Process a single AI SDK chunk and emit corresponding Responses API events
    */
   protected processChunk(chunk: UIMessageChunk): void {
-    logger.silly('AiSdkToOpenAIResponsesSSE - Processing chunk:', { chunk: JSON.stringify(chunk) })
+    logger.silly('AiSdkToOpenAIResponsesSse - Processing chunk:', { chunk: JSON.stringify(chunk) })
 
     switch (chunk.type) {
       case 'text-delta':
@@ -420,4 +420,4 @@ export class AiSdkToOpenAIResponsesSSE extends BaseStreamAdapter<ResponseStreamE
   }
 }
 
-export default AiSdkToOpenAIResponsesSSE
+export default AiSdkToOpenAIResponsesSse

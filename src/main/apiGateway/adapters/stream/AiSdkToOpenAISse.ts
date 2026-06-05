@@ -25,7 +25,7 @@ import type { FinishReason, UIMessageChunk } from 'ai'
 import type { GatewayUsageMetadata, StreamAdapterOptions } from '../interfaces'
 import { BaseStreamAdapter } from './BaseStreamAdapter'
 
-const logger = loggerService.withContext('AiSdkToOpenAISSE')
+const logger = loggerService.withContext('AiSdkToOpenAISse')
 
 /**
  * Use official OpenAI SDK types as base
@@ -94,11 +94,11 @@ interface ToolCallState {
  *
  * Uses TransformStream for composable stream processing:
  * ```
- * const adapter = new AiSdkToOpenAISSE({ model: 'gpt-4' })
+ * const adapter = new AiSdkToOpenAISse({ model: 'gpt-4' })
  * const outputStream = adapter.transform(aiSdkStream)
  * ```
  */
-export class AiSdkToOpenAISSE extends BaseStreamAdapter<OpenAICompatibleChunk> {
+export class AiSdkToOpenAISse extends BaseStreamAdapter<OpenAICompatibleChunk> {
   private createdTimestamp: number
   private toolCalls: Map<string, ToolCallState> = new Map()
   private currentToolCallIndex = 0
@@ -146,7 +146,7 @@ export class AiSdkToOpenAISSE extends BaseStreamAdapter<OpenAICompatibleChunk> {
    * Process a single UIMessageChunk and emit corresponding OpenAI events
    */
   protected processChunk(chunk: UIMessageChunk): void {
-    logger.silly('AiSdkToOpenAISSE - Processing chunk:', { chunk: JSON.stringify(chunk) })
+    logger.silly('AiSdkToOpenAISse - Processing chunk:', { chunk: JSON.stringify(chunk) })
     switch (chunk.type) {
       // === Text Events ===
       // OpenAI has no separate text-start/text-end; only deltas matter.
@@ -399,4 +399,4 @@ export class AiSdkToOpenAISSE extends BaseStreamAdapter<OpenAICompatibleChunk> {
   }
 }
 
-export default AiSdkToOpenAISSE
+export default AiSdkToOpenAISse

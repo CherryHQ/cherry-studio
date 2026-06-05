@@ -101,9 +101,14 @@ export class ApiGateway {
     if (!this.app && !this.serverInfo) return
 
     try {
-      // Close the underlying Node http server.
-      this.serverInfo?.stop?.()
-      await this.app?.stop?.()
+      // Close the underlying Node http server. `serverInfo.stop()` returns
+      // `server.close()` (the authoritative port release) — await it.
+      //
+      // Do NOT call `app.stop()` here: with the `@elysia/node` adapter, `listen()`
+      // never assigns `app.server`, so Elysia core's web-standard `stop()` throws
+      // "Elysia isn't running". An unhandled throw would skip the cleanup below and
+      // leave the service stuck `_activated` with a stale `running` cache state.
+      await this.serverInfo?.stop?.()
     } finally {
       this.running = false
       this.serverInfo = null

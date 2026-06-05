@@ -17,8 +17,8 @@ import type { DynamicToolUIPart, FileUIPart, JSONValue, ReasoningUIPart, TextUIP
 import { tool, zodSchema } from 'ai'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
-import { type JsonSchemaLike, jsonSchemaToZod } from './json-schema-to-zod'
-import { mapAnthropicThinkingToProviderOptions } from './provider-options-mapper'
+import { type JsonSchemaLike, jsonSchemaToZod } from './jsonSchemaToZod'
+import { mapAnthropicThinkingToProviderOptions } from './providerOptionsMapper'
 
 const MAGIC_STRING = 'skip_thought_signature_validator'
 

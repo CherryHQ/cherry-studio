@@ -147,7 +147,7 @@ export interface IMessageConverter<TInputParams = unknown> {
  *
  * Formats events for Server-Sent Events streaming
  */
-export interface ISSEFormatter<TEvent = unknown> {
+export interface ISseFormatter<TEvent = unknown> {
   /**
    * Format an event for SSE streaming
    * @returns Formatted string like "event: type\ndata: {...}\n\n"
@@ -207,5 +207,5 @@ export type StreamAdapterConstructor<TOutputEvent = unknown> = new (
 export interface AdapterRegistryEntry<TOutputEvent = unknown> {
   format: OutputFormat
   adapterClass: StreamAdapterConstructor<TOutputEvent>
-  formatterClass: new () => ISSEFormatter<TOutputEvent>
+  formatterClass: new () => ISseFormatter<TOutputEvent>
 }

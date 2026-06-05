@@ -13,9 +13,9 @@ import type { DynamicToolUIPart, FileUIPart, TextUIPart, ToolSet } from 'ai'
 import { tool, zodSchema } from 'ai'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
-import { type JsonSchemaLike, jsonSchemaToZod } from './json-schema-to-zod'
-import type { ReasoningEffort } from './provider-options-mapper'
-import { mapReasoningEffortToProviderOptions } from './provider-options-mapper'
+import { type JsonSchemaLike, jsonSchemaToZod } from './jsonSchemaToZod'
+import type { ReasoningEffort } from './providerOptionsMapper'
+import { mapReasoningEffortToProviderOptions } from './providerOptionsMapper'
 
 let uiMessageSeq = 0
 function nextUIMessageId(): string {

@@ -18,8 +18,8 @@ import type { DynamicToolUIPart, FileUIPart, ReasoningUIPart, TextUIPart, ToolSe
 import { tool, zodSchema } from 'ai'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
-import { type JsonSchemaLike, jsonSchemaToZod } from './json-schema-to-zod'
-import { mapReasoningEffortToProviderOptions } from './provider-options-mapper'
+import { type JsonSchemaLike, jsonSchemaToZod } from './jsonSchemaToZod'
+import { mapReasoningEffortToProviderOptions } from './providerOptionsMapper'
 
 let uiMessageSeq = 0
 function nextUIMessageId(): string {

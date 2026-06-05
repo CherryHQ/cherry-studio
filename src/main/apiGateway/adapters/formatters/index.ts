@@ -1,2 +1,2 @@
-export { AnthropicSSEFormatter } from './AnthropicSSEFormatter'
-export { type ChatCompletionChunk, OpenAISSEFormatter } from './OpenAISSEFormatter'
+export { AnthropicSseFormatter } from './AnthropicSseFormatter'
+export { type ChatCompletionChunk, OpenAISseFormatter } from './OpenAiSseFormatter'

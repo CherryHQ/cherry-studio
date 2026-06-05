@@ -11,7 +11,7 @@
 
 import type OpenAI from '@cherrystudio/openai'
 
-import type { ISSEFormatter } from '../interfaces'
+import type { ISseFormatter } from '../interfaces'
 
 /**
  * Use SDK type for ResponseStreamEvent
@@ -24,7 +24,7 @@ type ResponseStreamEvent = OpenAI.Responses.ResponseStreamEvent
  * Unlike Chat Completions API which uses only `data:` lines,
  * Responses API uses named events with `event:` and `data:` lines.
  */
-export class OpenAIResponsesSSEFormatter implements ISSEFormatter<ResponseStreamEvent> {
+export class OpenAiResponsesSseFormatter implements ISseFormatter<ResponseStreamEvent> {
   /**
    * Format a Responses API event for SSE streaming
    *
@@ -47,4 +47,4 @@ export class OpenAIResponsesSSEFormatter implements ISSEFormatter<ResponseStream
   }
 }
 
-export default OpenAIResponsesSSEFormatter
+export default OpenAiResponsesSseFormatter

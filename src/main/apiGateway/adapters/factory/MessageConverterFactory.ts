@@ -8,11 +8,11 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 
 import { AnthropicMessageConverter, type ReasoningCache } from '../converters/AnthropicMessageConverter'
-import { type ExtendedChatCompletionCreateParams, OpenAIMessageConverter } from '../converters/OpenAIMessageConverter'
+import { type ExtendedChatCompletionCreateParams, OpenAIMessageConverter } from '../converters/OpenAiMessageConverter'
 import {
   OpenAIResponsesMessageConverter,
   type ResponsesCreateParams
-} from '../converters/OpenAIResponsesMessageConverter'
+} from '../converters/OpenAiResponsesMessageConverter'
 import type { IMessageConverter, InputFormat } from '../interfaces'
 
 /**

@@ -42,7 +42,7 @@ import { googleReasoningCache, openRouterReasoningCache } from '../../services/r
 import type { GatewayUsageMetadata, StreamAdapterOptions } from '../interfaces'
 import { BaseStreamAdapter } from './BaseStreamAdapter'
 
-const logger = loggerService.withContext('AiSdkToAnthropicSSE')
+const logger = loggerService.withContext('AiSdkToAnthropicSse')
 
 /**
  * Newer `@anthropic-ai/sdk` requires fields the gateway has no real source for
@@ -61,11 +61,11 @@ const NULL_CONTAINER = null
  *
  * Uses TransformStream for composable stream processing:
  * ```
- * const adapter = new AiSdkToAnthropicSSE({ model: 'claude-3' })
+ * const adapter = new AiSdkToAnthropicSse({ model: 'claude-3' })
  * const outputStream = adapter.transform(aiSdkStream)
  * ```
  */
-export class AiSdkToAnthropicSSE extends BaseStreamAdapter<RawMessageStreamEvent> {
+export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent> {
   constructor(options: StreamAdapterOptions) {
     super(options)
   }
@@ -113,7 +113,7 @@ export class AiSdkToAnthropicSSE extends BaseStreamAdapter<RawMessageStreamEvent
    * Process a single UIMessageChunk and emit corresponding Anthropic events
    */
   protected processChunk(chunk: UIMessageChunk): void {
-    logger.silly('AiSdkToAnthropicSSE - Processing chunk:', { chunk: JSON.stringify(chunk) })
+    logger.silly('AiSdkToAnthropicSse - Processing chunk:', { chunk: JSON.stringify(chunk) })
     switch (chunk.type) {
       // === Text Events ===
       case 'text-start':
@@ -531,4 +531,4 @@ export class AiSdkToAnthropicSSE extends BaseStreamAdapter<RawMessageStreamEvent
   }
 }
 
-export default AiSdkToAnthropicSSE
+export default AiSdkToAnthropicSse

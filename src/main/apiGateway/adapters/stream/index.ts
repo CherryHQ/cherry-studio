@@ -1,3 +1,3 @@
-export { AiSdkToAnthropicSSE } from './AiSdkToAnthropicSSE'
-export { AiSdkToOpenAISSE } from './AiSdkToOpenAISSE'
+export { AiSdkToAnthropicSse } from './AiSdkToAnthropicSse'
+export { AiSdkToOpenAISse } from './AiSdkToOpenAiSse'
 export { BaseStreamAdapter } from './BaseStreamAdapter'

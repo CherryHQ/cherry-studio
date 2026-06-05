@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { type ExtendedChatCompletionCreateParams, OpenAIMessageConverter } from '../converters/OpenAIMessageConverter'
+import { type ExtendedChatCompletionCreateParams, OpenAIMessageConverter } from '../converters/OpenAiMessageConverter'
 
 const converter = new OpenAIMessageConverter()
 

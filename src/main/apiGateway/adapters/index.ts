@@ -11,24 +11,24 @@
  */
 
 // Stream Adapters
-export { AiSdkToAnthropicSSE } from './stream/AiSdkToAnthropicSSE'
-export { AiSdkToOpenAIResponsesSSE } from './stream/AiSdkToOpenAIResponsesSSE'
-export { AiSdkToOpenAISSE } from './stream/AiSdkToOpenAISSE'
+export { AiSdkToAnthropicSse } from './stream/AiSdkToAnthropicSse'
+export { AiSdkToOpenAIResponsesSse } from './stream/AiSdkToOpenAiResponsesSse'
+export { AiSdkToOpenAISse } from './stream/AiSdkToOpenAiSse'
 export { BaseStreamAdapter } from './stream/BaseStreamAdapter'
 
 // Message Converters
 export { AnthropicMessageConverter, type ReasoningCache } from './converters/AnthropicMessageConverter'
-export { type JsonSchemaLike, jsonSchemaToZod } from './converters/json-schema-to-zod'
-export { type ExtendedChatCompletionCreateParams, OpenAIMessageConverter } from './converters/OpenAIMessageConverter'
+export { type JsonSchemaLike, jsonSchemaToZod } from './converters/jsonSchemaToZod'
+export { type ExtendedChatCompletionCreateParams, OpenAIMessageConverter } from './converters/OpenAiMessageConverter'
 export {
   OpenAIResponsesMessageConverter,
   type ResponsesCreateParams
-} from './converters/OpenAIResponsesMessageConverter'
+} from './converters/OpenAiResponsesMessageConverter'
 
 // SSE Formatters
-export { AnthropicSSEFormatter } from './formatters/AnthropicSSEFormatter'
-export { OpenAIResponsesSSEFormatter } from './formatters/OpenAIResponsesSSEFormatter'
-export { type ChatCompletionChunk, OpenAISSEFormatter } from './formatters/OpenAISSEFormatter'
+export { AnthropicSseFormatter } from './formatters/AnthropicSseFormatter'
+export { OpenAiResponsesSseFormatter } from './formatters/OpenAiResponsesSseFormatter'
+export { type ChatCompletionChunk, OpenAISseFormatter } from './formatters/OpenAiSseFormatter'
 
 // Factory
 export {
@@ -45,7 +45,7 @@ export type {
   ContentBlockState,
   IMessageConverter,
   InputFormat,
-  ISSEFormatter,
+  ISseFormatter,
   IStreamAdapter,
   OutputFormat,
   StreamAdapterConstructor,

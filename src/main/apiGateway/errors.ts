@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { isDev } from '@main/core/platform'
 import { DataApiError } from '@shared/data/api'
 import type { ErrorHandler } from 'elysia'
 
@@ -160,7 +161,11 @@ export function restErrorHandler({ code, error, status }: GatewayErrorContext) {
   }
 
   logger.error('API gateway request error', { code, error })
-  return status(500, restEnvelope('INTERNAL_SERVER_ERROR', messageOf(error, 'Internal server error')))
+  // Don't leak raw internal error messages to clients in production.
+  return status(
+    500,
+    restEnvelope('INTERNAL_SERVER_ERROR', isDev ? messageOf(error, 'Internal server error') : 'Internal server error')
+  )
 }
 
 /** Select the response dialect from the request path. */

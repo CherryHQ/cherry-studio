@@ -1,3 +1,4 @@
+import { cacheService } from '@data/CacheService'
 import { useSharedCache } from '@data/hooks/useCache'
 import { useMultiplePreferences } from '@data/hooks/usePreference'
 import { useCallback, useEffect, useState } from 'react'
@@ -27,8 +28,16 @@ export const useApiGateway = () => {
 
   const [apiGatewayRunning] = useSharedCache('feature.csaas.running', false)
 
-  // Tracks an in-flight start/stop/restart command (for button spinners).
-  const [apiGatewayLoading, setApiGatewayLoading] = useState(false)
+  // Tracks an in-flight start/stop/restart command (for button spinners) AND the
+  // initial shared-cache hydration window. Starts `true` until the shared cache is
+  // ready, so consumers (e.g. AgentPage) don't transiently read the default
+  // `running=false` and flash a "server stopped" screen before Main's value arrives.
+  const [apiGatewayLoading, setApiGatewayLoading] = useState(() => !cacheService.isSharedCacheReady())
+
+  useEffect(() => {
+    if (cacheService.isSharedCacheReady()) return
+    return cacheService.onSharedCacheReady(() => setApiGatewayLoading(false))
+  }, [])
 
   const setApiGatewayEnabled = useCallback(
     (enabled: boolean) => {
@@ -78,8 +87,8 @@ export const useApiGateway = () => {
     setApiGatewayLoading(true)
     try {
       const result = await window.api.apiGateway.restart()
-      setApiGatewayEnabled(result.success)
       if (result.success) {
+        setApiGatewayEnabled(result.success)
         window.toast.success(t('apiGateway.messages.restartSuccess'))
       } else {
         window.toast.error(t('apiGateway.messages.restartError') + result.error)

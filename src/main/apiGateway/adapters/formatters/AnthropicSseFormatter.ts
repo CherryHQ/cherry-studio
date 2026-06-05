@@ -6,7 +6,7 @@
 
 import type { RawMessageStreamEvent } from '@anthropic-ai/sdk/resources/messages'
 
-import type { ISSEFormatter } from '../interfaces'
+import type { ISseFormatter } from '../interfaces'
 
 /**
  * Anthropic SSE Formatter
@@ -17,7 +17,7 @@ import type { ISSEFormatter } from '../interfaces'
  *
  * @see https://docs.anthropic.com/en/api/messages-streaming
  */
-export class AnthropicSSEFormatter implements ISSEFormatter<RawMessageStreamEvent> {
+export class AnthropicSseFormatter implements ISseFormatter<RawMessageStreamEvent> {
   /**
    * Format an Anthropic event for SSE streaming
    */
@@ -33,4 +33,4 @@ export class AnthropicSSEFormatter implements ISSEFormatter<RawMessageStreamEven
   }
 }
 
-export default AnthropicSSEFormatter
+export default AnthropicSseFormatter

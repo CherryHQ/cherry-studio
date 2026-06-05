@@ -5,13 +5,13 @@
  * Supports extended features like reasoning_content used by DeepSeek and other providers.
  */
 
-import type { ISSEFormatter } from '../interfaces'
-import type { OpenAICompatibleChunk } from '../stream/AiSdkToOpenAISSE'
+import type { ISseFormatter } from '../interfaces'
+import type { OpenAICompatibleChunk } from '../stream/AiSdkToOpenAiSse'
 
 /**
  * Re-export the OpenAI-compatible chunk type for convenience
  */
-export type { OpenAICompatibleChunk as ChatCompletionChunk } from '../stream/AiSdkToOpenAISSE'
+export type { OpenAICompatibleChunk as ChatCompletionChunk } from '../stream/AiSdkToOpenAiSse'
 
 /**
  * OpenAI Compatible SSE Formatter
@@ -23,7 +23,7 @@ export type { OpenAICompatibleChunk as ChatCompletionChunk } from '../stream/AiS
  *
  * @see https://platform.openai.com/docs/api-reference/chat/streaming
  */
-export class OpenAISSEFormatter implements ISSEFormatter<OpenAICompatibleChunk> {
+export class OpenAISseFormatter implements ISseFormatter<OpenAICompatibleChunk> {
   /**
    * Format an OpenAI-compatible event for SSE streaming
    */
@@ -39,4 +39,4 @@ export class OpenAISSEFormatter implements ISSEFormatter<OpenAICompatibleChunk> 
   }
 }
 
-export default OpenAISSEFormatter
+export default OpenAISseFormatter

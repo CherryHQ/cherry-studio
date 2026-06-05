@@ -1,7 +1,6 @@
 import { Button, ButtonGroup, IndicatorLight, Input, Tooltip } from '@cherrystudio/ui'
 import { useTheme } from '@renderer/context/ThemeProvider'
 import { useApiGateway } from '@renderer/hooks/useApiGateway'
-import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import { API_SERVER_DEFAULTS } from '@shared/config/constant'
 import { Copy, ExternalLink, Play, RotateCcw, Server, Square, TriangleAlert } from 'lucide-react'
@@ -24,7 +23,6 @@ const ApiGatewaySettings: FC = () => {
     startApiGateway,
     stopApiGateway,
     restartApiGateway,
-    setApiGatewayEnabled,
     setApiGatewayConfig
   } = useApiGateway()
 
@@ -34,16 +32,13 @@ const ApiGatewaySettings: FC = () => {
   const apiKey = apiGatewayConfig.apiKey || ''
 
   const handleApiGatewayToggle = async (enabled: boolean) => {
-    try {
-      if (enabled) {
-        await startApiGateway()
-      } else {
-        await stopApiGateway()
-      }
-    } catch (error) {
-      window.toast.error(t('apiGateway.messages.operationFailed') + formatErrorMessage(error))
-    } finally {
-      setApiGatewayEnabled(enabled)
+    // `startApiGateway`/`stopApiGateway` already persist `enabled` on success and
+    // toast on failure. Do not force-write `enabled` here — a failed start must not
+    // leave the preference (and Main's lifecycle) believing the gateway is enabled.
+    if (enabled) {
+      await startApiGateway()
+    } else {
+      await stopApiGateway()
     }
   }
 

@@ -5,20 +5,20 @@
  * Uses a registry pattern for extensibility.
  */
 
-import { AnthropicSSEFormatter } from '../formatters/AnthropicSSEFormatter'
-import { OpenAIResponsesSSEFormatter } from '../formatters/OpenAIResponsesSSEFormatter'
-import { OpenAISSEFormatter } from '../formatters/OpenAISSEFormatter'
-import type { ISSEFormatter, IStreamAdapter, OutputFormat, StreamAdapterOptions } from '../interfaces'
-import { AiSdkToAnthropicSSE } from '../stream/AiSdkToAnthropicSSE'
-import { AiSdkToOpenAIResponsesSSE } from '../stream/AiSdkToOpenAIResponsesSSE'
-import { AiSdkToOpenAISSE } from '../stream/AiSdkToOpenAISSE'
+import { AnthropicSseFormatter } from '../formatters/AnthropicSseFormatter'
+import { OpenAiResponsesSseFormatter } from '../formatters/OpenAiResponsesSseFormatter'
+import { OpenAISseFormatter } from '../formatters/OpenAiSseFormatter'
+import type { ISseFormatter, IStreamAdapter, OutputFormat, StreamAdapterOptions } from '../interfaces'
+import { AiSdkToAnthropicSse } from '../stream/AiSdkToAnthropicSse'
+import { AiSdkToOpenAIResponsesSse } from '../stream/AiSdkToOpenAiResponsesSse'
+import { AiSdkToOpenAISse } from '../stream/AiSdkToOpenAiSse'
 
 /**
  * Registry entry for adapter and formatter classes
  */
 interface RegistryEntry {
   adapterClass: new (options: StreamAdapterOptions) => IStreamAdapter
-  formatterClass: new () => ISSEFormatter
+  formatterClass: new () => ISseFormatter
 }
 
 /**
@@ -43,22 +43,22 @@ export class StreamAdapterFactory {
     [
       'anthropic',
       {
-        adapterClass: AiSdkToAnthropicSSE,
-        formatterClass: AnthropicSSEFormatter
+        adapterClass: AiSdkToAnthropicSse,
+        formatterClass: AnthropicSseFormatter
       }
     ],
     [
       'openai',
       {
-        adapterClass: AiSdkToOpenAISSE,
-        formatterClass: OpenAISSEFormatter
+        adapterClass: AiSdkToOpenAISse,
+        formatterClass: OpenAISseFormatter
       }
     ],
     [
       'openai-responses',
       {
-        adapterClass: AiSdkToOpenAIResponsesSSE,
-        formatterClass: OpenAIResponsesSSEFormatter
+        adapterClass: AiSdkToOpenAIResponsesSse,
+        formatterClass: OpenAiResponsesSseFormatter
       }
     ]
   ])
@@ -88,7 +88,7 @@ export class StreamAdapterFactory {
    * @returns An SSE formatter instance
    * @throws Error if format is not supported
    */
-  static getFormatter(format: OutputFormat): ISSEFormatter {
+  static getFormatter(format: OutputFormat): ISseFormatter {
     const entry = this.registry.get(format)
     if (!entry) {
       throw new Error(
@@ -127,7 +127,7 @@ export class StreamAdapterFactory {
   static registerAdapter(
     format: OutputFormat,
     adapterClass: new (options: StreamAdapterOptions) => IStreamAdapter,
-    formatterClass: new () => ISSEFormatter
+    formatterClass: new () => ISseFormatter
   ): void {
     this.registry.set(format, { adapterClass, formatterClass })
   }

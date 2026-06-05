@@ -77,7 +77,16 @@ export function jsonSchemaToZod(schema: JsonSchemaLike): z.ZodTypeAny {
       let zodString = z.string()
       if (typeof schema.minLength === 'number') zodString = zodString.min(schema.minLength)
       if (typeof schema.maxLength === 'number') zodString = zodString.max(schema.maxLength)
-      if (typeof schema.pattern === 'string') zodString = zodString.regex(new RegExp(schema.pattern))
+      // `schema.pattern` comes from the untrusted request body (tool input schemas).
+      // An invalid pattern would otherwise throw synchronously here (surfaced as a
+      // 500 instead of a 400); drop the constraint rather than crash the request.
+      if (typeof schema.pattern === 'string') {
+        try {
+          zodString = zodString.regex(new RegExp(schema.pattern))
+        } catch {
+          // Ignore an invalid client-supplied regex pattern.
+        }
+      }
       return description ? zodString.describe(description) : zodString
     }
 

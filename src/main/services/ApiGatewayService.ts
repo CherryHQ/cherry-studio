@@ -4,7 +4,7 @@ import { loggerService } from '@logger'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
 import type {
-  ApiServerConfig,
+  ApiGatewayConfig,
   RestartApiGatewayStatusResult,
   StartApiGatewayStatusResult,
   StopApiGatewayStatusResult
@@ -115,13 +115,13 @@ export class ApiGatewayService extends BaseService implements Activatable {
     return this.apiGateway?.isRunning() ?? false
   }
 
-  getCurrentConfig(): ApiServerConfig {
+  getCurrentConfig(): ApiGatewayConfig {
     const config = application.get('PreferenceService').getMultiple({
       enabled: 'feature.csaas.enabled',
       host: 'feature.csaas.host',
       port: 'feature.csaas.port',
       apiKey: 'feature.csaas.api_key'
-    }) as ApiServerConfig
+    }) as ApiGatewayConfig
 
     return config
   }
@@ -174,7 +174,8 @@ export class ApiGatewayService extends BaseService implements Activatable {
   private async shouldAutoStart(): Promise<boolean> {
     try {
       const config = this.getCurrentConfig()
-      logger.info('API gateway config:', config)
+      // Never log the raw API key — redact before emitting.
+      logger.info('API gateway config:', { ...config, apiKey: config.apiKey ? '[redacted]' : null })
 
       if (config.enabled) {
         return true

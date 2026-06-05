@@ -26,7 +26,7 @@ import { createUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { v4 as uuidv4 } from 'uuid'
 
-import type { InputFormat, InputParamsMap, ISSEFormatter, IStreamAdapter, OutputFormat } from '../adapters'
+import type { InputFormat, InputParamsMap, ISseFormatter, IStreamAdapter, OutputFormat } from '../adapters'
 import { MessageConverterFactory, StreamAdapterFactory } from '../adapters'
 import { googleReasoningCache, openRouterReasoningCache } from './reasoning-cache'
 
@@ -117,7 +117,7 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   const adapter: IStreamAdapter = StreamAdapterFactory.createAdapter(outputFormat, {
     model: `${providerId}:${modelId}`
   })
-  const formatter: ISSEFormatter = StreamAdapterFactory.getFormatter(outputFormat)
+  const formatter: ISseFormatter = StreamAdapterFactory.getFormatter(outputFormat)
 
   const streamId = `gateway-${uuidv4()}`
   const aiStreamManager = application.get('AiStreamManager')
