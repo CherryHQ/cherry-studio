@@ -6168,8 +6168,6 @@
       "default_assistant_model": "Модель ассистента по умолчанию",
       "default_assistant_model_description": "Используется, если у ассистента нет модели.",
       "empty": "Модели не найдены",
-      "group_disable": "[to be translated]:Close this group",
-      "group_enable": "[to be translated]:Enable this group",
       "list_title": "Model list",
       "manage": {
         "add_custom_model": "Add custom model",
