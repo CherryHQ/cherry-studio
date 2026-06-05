@@ -8,7 +8,7 @@ It replaces three previously independent systems (keyboard shortcuts, the native
 application menu, and ad‑hoc context menus), each of which used to maintain its
 own definitions, key‑formatting, and dispatch wiring.
 
-- [commands-usage.md](./commands-usage.md) — how to register handlers, contribute
+- [command-usage.md](./command-usage.md) — how to register handlers, contribute
   menus, render command‑backed UI, and add a new command.
 
 ## Commands, shortcuts, and menus — the relationship
@@ -109,7 +109,7 @@ window root mounts it: `windows/main/MainApp.tsx`,
 
 - `shortcut.<commandId>` — `PreferenceShortcutType` (`{ binding, enabled }`), the
   editable binding per command. Generated through the data‑classify pipeline (see
-  [commands-usage.md](./commands-usage.md#adding-a-command)).
+  [command-usage.md](./command-usage.md#adding-a-command)).
 - `menu.presentation_mode` — `'cherry' | 'native'`, exposed in
   **Settings → Common → Menu** ("Context menu style").
 
