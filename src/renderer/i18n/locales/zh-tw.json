@@ -2499,7 +2499,7 @@
           },
           "mcps": {
             "add": "新增 MCP 伺服器",
-            "empty": "無界",
+            "empty": "未綁定",
             "label": "MCP 伺服器（id）"
           },
           "model": {
