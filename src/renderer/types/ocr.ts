@@ -1,4 +1,9 @@
 import type { TranslateLangCode } from '@shared/data/preference/preferenceTypes'
+import type {
+  OcrAsyncTaskResult,
+  OcrAsyncTaskStartResult,
+  OcrAsyncTaskStatus
+} from '@shared/ocr/async'
 import type Tesseract from 'tesseract.js'
 
 import type { FileMetadata, ImageFileMetadata } from '.'
@@ -138,7 +143,17 @@ export type OcrResult = {
   text: string
 }
 
+export type OcrTaskStartResult = OcrAsyncTaskStartResult
+export type OcrTaskStatus = OcrAsyncTaskStatus
+export type OcrTaskResult = OcrAsyncTaskResult
+
 export type OcrHandler = (file: SupportedOcrFile, options?: OcrProviderBaseConfig) => Promise<OcrResult>
+export type OcrTaskStartHandler = (
+  file: SupportedOcrFile,
+  options?: OcrProviderBaseConfig
+) => Promise<OcrTaskStartResult>
+export type OcrTaskStatusHandler = (taskId: string, options?: OcrProviderBaseConfig) => Promise<OcrTaskStatus>
+export type OcrTaskResultHandler = (taskId: string, options?: OcrProviderBaseConfig) => Promise<OcrTaskResult>
 
 export type OcrImageHandler = (file: ImageFileMetadata, options?: OcrProviderBaseConfig) => Promise<OcrResult>
 

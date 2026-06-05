@@ -1,243 +1,176 @@
-import fs from 'node:fs/promises'
+import { describe, expect, it, vi } from 'vitest'
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const { appendSpy, fetchMock } = vi.hoisted(() => ({
-  appendSpy: vi.fn(),
-  fetchMock: vi.fn()
+const {
+  startDocumentParsingMock,
+  getDocumentParsingStatusMock,
+  getDocumentParsingResultMock,
+  startImageOcrMock,
+  getImageOcrStatusMock,
+  getImageOcrResultMock
+} = vi.hoisted(() => ({
+  startDocumentParsingMock: vi.fn(),
+  getDocumentParsingStatusMock: vi.fn(),
+  getDocumentParsingResultMock: vi.fn(),
+  startImageOcrMock: vi.fn(),
+  getImageOcrStatusMock: vi.fn(),
+  getImageOcrResultMock: vi.fn()
 }))
 
-vi.mock('electron', () => ({
-  net: {
-    fetch: fetchMock
+vi.mock('@main/services/paddleocr/PaddleOcrSdkService', () => ({
+  paddleOcrSdkService: {
+    startDocumentParsing: startDocumentParsingMock,
+    getDocumentParsingStatus: getDocumentParsingStatusMock,
+    getDocumentParsingResult: getDocumentParsingResultMock,
+    startImageOcr: startImageOcrMock,
+    getImageOcrStatus: getImageOcrStatusMock,
+    getImageOcrResult: getImageOcrResultMock
   }
 }))
 
-vi.mock('form-data', () => ({
-  default: class MockFormData {
-    append = appendSpy
+import { FileInfoSchema } from '@shared/file/types'
 
-    getBuffer() {
-      return Buffer.from('multipart-body')
-    }
+import { paddleDocumentToMarkdownHandler } from '../document-to-markdown/handler'
+import { paddleImageToTextHandler } from '../image-to-text/handler'
 
-    getHeaders() {
-      return {
-        'content-type': 'multipart/form-data; boundary=test-boundary'
-      }
-    }
-  }
-}))
-
-import { buildPollResult } from '../document-to-markdown/handler'
-import type { PaddleJobResultData } from '../types'
-import { createJob, resolveJsonlResult } from '../utils'
-
-function createJobResult(resultUrl: PaddleJobResultData['resultUrl']): PaddleJobResultData {
-  return {
-    jobId: 'job-1',
-    state: 'done',
-    resultUrl
-  }
-}
-
-describe('paddle utils', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    appendSpy.mockReset()
-    vi.spyOn(fs, 'readFile').mockResolvedValue(Buffer.from('file-data'))
-  })
-
-  it('extracts text from jsonUrl results', async () => {
-    fetchMock.mockResolvedValueOnce(
-      new Response(
-        '{"result":{"layoutParsingResults":[{"markdown":{"text":"page 1"}}]}}\n' +
-          '{"result":{"ocrResults":[{"prunedResult":{"rec_texts":["page 2","line 2"]}}]}}',
-        {
-          status: 200,
-          statusText: 'OK'
-        }
-      )
-    )
-
-    await expect(
-      resolveJsonlResult(
-        'job-1',
-        createJobResult({ jsonUrl: 'https://download.example.com/output.jsonl' }),
-        'https://paddleocr.aistudio-app.com'
-      )
-    ).resolves.toBe('page 1\n\npage 2\nline 2')
-
-    expect(fetchMock).toHaveBeenCalledWith('https://download.example.com/output.jsonl', {
-      method: 'GET',
-      redirect: 'error',
-      signal: undefined
+describe('paddle file-processing handlers', () => {
+  it('starts document parsing through the shared paddle service', async () => {
+    startDocumentParsingMock.mockResolvedValue({
+      taskId: 'file-entry-1',
+      providerTaskId: 'paddle-1',
+      status: 'pending'
     })
-  })
 
-  it('rejects text extraction results without jsonUrl', async () => {
-    await expect(
-      resolveJsonlResult(
-        'job-1',
-        createJobResult({ markdownUrl: 'https://download.example.com/output.md' }),
-        'https://paddleocr.aistudio-app.com'
-      )
-    ).rejects.toThrow('PaddleOCR task job-1 completed without jsonUrl')
-
-    expect(fetchMock).not.toHaveBeenCalled()
-  })
-
-  it('extracts markdown conversion results from jsonUrl', async () => {
-    fetchMock.mockResolvedValueOnce(
-      new Response('{"result":{"layoutParsingResults":[{"markdown":{"text":"# output"}}]}}', {
-        status: 200,
-        statusText: 'OK'
-      })
-    )
-
-    await expect(
-      resolveJsonlResult(
-        'job-1',
-        createJobResult({ jsonUrl: 'https://download.example.com/output.jsonl' }),
-        'https://paddleocr.aistudio-app.com'
-      )
-    ).resolves.toBe('# output')
-
-    expect(fetchMock).toHaveBeenCalledWith('https://download.example.com/output.jsonl', {
-      method: 'GET',
-      redirect: 'error',
-      signal: undefined
-    })
-  })
-
-  it('rejects unsafe jsonUrl targets before downloading', async () => {
-    await expect(
-      resolveJsonlResult(
-        'job-1',
-        createJobResult({ jsonUrl: 'http://127.0.0.1:8080/output.jsonl' }),
-        'https://paddleocr.aistudio-app.com'
-      )
-    ).rejects.toThrow('Unsafe remote url: local or private addresses are not allowed (127.0.0.1)')
-
-    expect(fetchMock).not.toHaveBeenCalled()
-  })
-
-  it('allows local jsonUrl targets when they match the configured apiHost', async () => {
-    fetchMock.mockResolvedValueOnce(
-      new Response('{"result":{"layoutParsingResults":[{"markdown":{"text":"# local output"}}]}}', {
-        status: 200,
-        statusText: 'OK'
-      })
-    )
-
-    await expect(
-      resolveJsonlResult(
-        'job-1',
-        createJobResult({ jsonUrl: 'http://localhost:8080/output.jsonl' }),
-        'http://127.0.0.1:8080'
-      )
-    ).resolves.toBe('# local output')
-
-    expect(fetchMock).toHaveBeenCalledWith('http://localhost:8080/output.jsonl', {
-      method: 'GET',
-      redirect: 'error',
-      signal: undefined
-    })
-  })
-
-  it('rejects markdown conversion results without jsonUrl', async () => {
-    await expect(
-      resolveJsonlResult(
-        'job-1',
-        createJobResult({ markdownUrl: 'https://download.example.com/output.md' }),
-        'https://paddleocr.aistudio-app.com'
-      )
-    ).rejects.toThrow('PaddleOCR task job-1 completed without jsonUrl')
-
-    expect(fetchMock).not.toHaveBeenCalled()
-  })
-
-  it('rejects files that are 50MB or larger before job creation', async () => {
-    vi.spyOn(fs, 'stat').mockResolvedValue({ size: 50 * 1024 * 1024 } as never)
-
-    await expect(
-      createJob({
-        apiHost: 'https://paddle.example.com',
-        apiKey: 'secret',
-        feature: 'image_to_text',
-        file: {
-          path: '/tmp/large.pdf',
-          name: 'large'
-        }
-      } as never)
-    ).rejects.toThrow('PaddleOCR file is too large (must be smaller than 50MB)')
-  })
-
-  it('submits multipart form data through a stream body when creating a job', async () => {
-    vi.spyOn(fs, 'stat').mockResolvedValue({ size: 1024 } as never)
-    fetchMock.mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          code: 0,
-          data: {
-            jobId: 'job-1'
+    const prepared = await paddleDocumentToMarkdownHandler.prepare(
+      FileInfoSchema.parse({
+        path: '/tmp/a.pdf',
+        name: 'a',
+        ext: 'pdf',
+        size: 1,
+        mime: 'application/pdf',
+        type: 'document',
+        createdAt: 1,
+        modifiedAt: 1
+      }),
+      {
+        id: 'paddleocr',
+        type: 'api',
+        apiKeys: ['secret'],
+        capabilities: [
+          {
+            feature: 'document_to_markdown',
+            inputs: ['document'],
+            output: 'markdown',
+            apiHost: 'https://paddle.example.com',
+            modelId: 'PP-StructureV3'
           }
-        }),
-        {
-          status: 200,
-          statusText: 'OK'
-        }
-      )
+        ]
+      } as never,
+      undefined,
+      { fileEntryId: 'file-entry-1' as never }
     )
 
-    await expect(
-      createJob({
-        apiHost: 'https://paddle.example.com',
-        apiKey: 'secret',
-        feature: 'image_to_text',
-        model: 'PaddleOCR-VL-1.5',
-        file: {
-          path: '/tmp/file.pdf',
-          name: 'file',
-          ext: 'pdf'
-        }
-      } as never)
-    ).resolves.toEqual({
-      jobId: 'job-1'
+    expect(prepared.mode).toBe('remote-poll')
+
+    const started = await prepared.startRemote()
+
+    expect(startDocumentParsingMock).toHaveBeenCalledWith({
+      taskId: 'file-entry-1',
+      token: 'secret',
+      baseUrl: 'https://paddle.example.com',
+      filePath: '/tmp/a.pdf',
+      model: 'PP-StructureV3',
+      signal: undefined
     })
-
-    expect(fs.readFile).toHaveBeenCalledWith('/tmp/file.pdf')
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://paddle.example.com/api/v2/ocr/jobs',
-      expect.objectContaining({
-        method: 'POST',
-        headers: expect.objectContaining({
-          Authorization: 'Bearer secret',
-          'content-type': 'multipart/form-data; boundary=test-boundary'
-        }),
-        body: expect.any(Buffer)
-      })
-    )
-    expect(appendSpy).toHaveBeenNthCalledWith(1, 'model', 'PaddleOCR-VL-1.5')
-    expect(appendSpy).toHaveBeenNthCalledWith(
-      2,
-      'file',
-      expect.any(Buffer),
-      expect.objectContaining({
-        filename: 'file.pdf'
-      })
-    )
+    expect(started).toEqual({
+      providerTaskId: 'paddle-1',
+      status: 'pending',
+      progress: 0,
+      remoteContext: {
+        apiHost: 'https://paddle.example.com',
+        apiKey: 'secret'
+      }
+    })
   })
 
-  it('maps document-to-markdown poll states', async () => {
+  it('maps document-to-markdown poll states through the shared paddle service', async () => {
+    getDocumentParsingStatusMock
+      .mockResolvedValueOnce({
+        taskId: 'job-1',
+        providerTaskId: 'paddle-1',
+        status: 'pending',
+        progress: 0
+      })
+      .mockResolvedValueOnce({
+        taskId: 'job-1',
+        providerTaskId: 'paddle-1',
+        status: 'processing',
+        progress: 25
+      })
+      .mockResolvedValueOnce({
+        taskId: 'job-1',
+        providerTaskId: 'paddle-1',
+        status: 'failed',
+        progress: 0
+      })
+      .mockResolvedValueOnce({
+        taskId: 'job-1',
+        providerTaskId: 'paddle-1',
+        status: 'completed',
+        progress: 100
+      })
+    getDocumentParsingResultMock.mockResolvedValue({
+      taskId: 'job-1',
+      providerTaskId: 'paddle-1',
+      status: 'completed',
+      progress: 100,
+      result: {
+        markdown: '# output',
+        pages: [{ markdown: '# output' }]
+      }
+    })
+
+    const prepared = await paddleDocumentToMarkdownHandler.prepare(
+      FileInfoSchema.parse({
+        path: '/tmp/a.pdf',
+        name: 'a',
+        ext: 'pdf',
+        size: 1,
+        mime: 'application/pdf',
+        type: 'document',
+        createdAt: 1,
+        modifiedAt: 1
+      }),
+      {
+        id: 'paddleocr',
+        type: 'api',
+        apiKeys: ['secret'],
+        capabilities: [
+          {
+            feature: 'document_to_markdown',
+            inputs: ['document'],
+            output: 'markdown',
+            apiHost: 'https://paddle.example.com'
+          }
+        ]
+      } as never,
+      undefined,
+      { fileEntryId: 'job-1' as never }
+    )
+
+    if (prepared.mode !== 'remote-poll') {
+      throw new Error('Expected remote-poll prepared job')
+    }
+
     await expect(
-      buildPollResult(
-        'job-1',
+      prepared.pollRemote(
         {
-          jobId: 'job-1',
-          state: 'pending'
+          providerTaskId: 'paddle-1',
+          remoteContext: {
+            apiHost: 'https://paddle.example.com',
+            apiKey: 'secret'
+          }
         },
-        'https://paddleocr.aistudio-app.com'
+        undefined
       )
     ).resolves.toEqual({
       status: 'pending',
@@ -245,17 +178,15 @@ describe('paddle utils', () => {
     })
 
     await expect(
-      buildPollResult(
-        'job-1',
+      prepared.pollRemote(
         {
-          jobId: 'job-1',
-          state: 'running',
-          extractProgress: {
-            totalPages: 4,
-            extractedPages: 1
+          providerTaskId: 'paddle-1',
+          remoteContext: {
+            apiHost: 'https://paddle.example.com',
+            apiKey: 'secret'
           }
         },
-        'https://paddleocr.aistudio-app.com'
+        undefined
       )
     ).resolves.toEqual({
       status: 'processing',
@@ -263,38 +194,31 @@ describe('paddle utils', () => {
     })
 
     await expect(
-      buildPollResult(
-        'job-1',
+      prepared.pollRemote(
         {
-          jobId: 'job-1',
-          state: 'failed',
-          errorMsg: 'provider failed'
+          providerTaskId: 'paddle-1',
+          remoteContext: {
+            apiHost: 'https://paddle.example.com',
+            apiKey: 'secret'
+          }
         },
-        'https://paddleocr.aistudio-app.com'
+        undefined
       )
     ).resolves.toEqual({
       status: 'failed',
-      error: 'provider failed'
+      error: 'PaddleOCR markdown conversion failed (providerTaskId=paddle-1)'
     })
 
-    fetchMock.mockResolvedValueOnce(
-      new Response('{"result":{"layoutParsingResults":[{"markdown":{"text":"# output"}}]}}', {
-        status: 200,
-        statusText: 'OK'
-      })
-    )
-
     await expect(
-      buildPollResult(
-        'job-1',
+      prepared.pollRemote(
         {
-          jobId: 'job-1',
-          state: 'done',
-          resultUrl: {
-            jsonUrl: 'https://download.example.com/output.jsonl'
+          providerTaskId: 'paddle-1',
+          remoteContext: {
+            apiHost: 'https://paddle.example.com',
+            apiKey: 'secret'
           }
         },
-        'https://paddleocr.aistudio-app.com'
+        undefined
       )
     ).resolves.toEqual({
       status: 'completed',
@@ -303,5 +227,156 @@ describe('paddle utils', () => {
         markdownContent: '# output'
       }
     })
+  })
+
+  it('starts image OCR through the shared paddle service and completes via remote-poll', async () => {
+    startImageOcrMock.mockResolvedValue({
+      taskId: 'image-entry-1',
+      providerTaskId: 'paddle-2',
+      status: 'pending'
+    })
+    getImageOcrStatusMock
+      .mockResolvedValueOnce({
+        taskId: 'image-entry-1',
+        providerTaskId: 'paddle-2',
+        status: 'processing',
+        progress: 40
+      })
+      .mockResolvedValueOnce({
+        taskId: 'image-entry-1',
+        providerTaskId: 'paddle-2',
+        status: 'completed',
+        progress: 100
+      })
+    getImageOcrResultMock.mockResolvedValue({
+      taskId: 'image-entry-1',
+      providerTaskId: 'paddle-2',
+      status: 'completed',
+      progress: 100,
+      result: {
+        text: 'recognized text',
+        pages: [{ text: 'recognized text' }]
+      }
+    })
+
+    const prepared = await paddleImageToTextHandler.prepare(
+      FileInfoSchema.parse({
+        path: '/tmp/a.png',
+        name: 'a',
+        ext: 'png',
+        size: 1,
+        mime: 'image/png',
+        type: 'image',
+        createdAt: 1,
+        modifiedAt: 1
+      }),
+      {
+        id: 'paddleocr',
+        type: 'api',
+        apiKeys: ['secret'],
+        capabilities: [
+          {
+            feature: 'image_to_text',
+            inputs: ['image'],
+            output: 'text',
+            apiHost: 'https://paddle.example.com',
+            modelId: 'PP-OCRv5'
+          }
+        ]
+      } as never,
+      undefined,
+      { fileEntryId: 'image-entry-1' as never }
+    )
+
+    expect(prepared.mode).toBe('remote-poll')
+
+    const started = await prepared.startRemote()
+
+    expect(startImageOcrMock).toHaveBeenCalledWith({
+      taskId: 'image-entry-1',
+      token: 'secret',
+      baseUrl: 'https://paddle.example.com',
+      filePath: '/tmp/a.png',
+      model: 'PP-OCRv5',
+      signal: undefined
+    })
+    expect(started).toEqual({
+      providerTaskId: 'paddle-2',
+      status: 'pending',
+      progress: 0,
+      remoteContext: {
+        apiHost: 'https://paddle.example.com',
+        apiKey: 'secret'
+      }
+    })
+
+    if (prepared.mode !== 'remote-poll') {
+      throw new Error('Expected remote-poll prepared job')
+    }
+
+    await expect(
+      prepared.pollRemote(
+        {
+          providerTaskId: 'paddle-2',
+          remoteContext: {
+            apiHost: 'https://paddle.example.com',
+            apiKey: 'secret'
+          }
+        },
+        undefined
+      )
+    ).resolves.toEqual({
+      status: 'processing',
+      progress: 40
+    })
+
+    await expect(
+      prepared.pollRemote(
+        {
+          providerTaskId: 'paddle-2',
+          remoteContext: {
+            apiHost: 'https://paddle.example.com',
+            apiKey: 'secret'
+          }
+        },
+        undefined
+      )
+    ).resolves.toEqual({
+      status: 'completed',
+      output: {
+        kind: 'text',
+        text: 'recognized text'
+      }
+    })
+  })
+
+  it('keeps image OCR restricted to image files', () => {
+    expect(() =>
+      paddleImageToTextHandler.prepare(
+        FileInfoSchema.parse({
+          path: '/tmp/a.pdf',
+          name: 'a',
+          ext: 'pdf',
+          size: 1,
+          mime: 'application/pdf',
+          type: 'document',
+          createdAt: 1,
+          modifiedAt: 1
+        }),
+        {
+          id: 'paddleocr',
+          type: 'api',
+          apiKeys: ['secret'],
+          capabilities: [
+            {
+              feature: 'image_to_text',
+              inputs: ['image'],
+              output: 'text',
+              apiHost: 'https://paddle.example.com'
+            }
+          ]
+        } as never
+      )
+    ).toThrow('PaddleOCR text extraction only supports image files')
   })
 })

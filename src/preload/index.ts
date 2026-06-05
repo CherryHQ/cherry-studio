@@ -66,6 +66,9 @@ import type {
   Notification,
   OcrProvider,
   OcrResult,
+  OcrTaskResult,
+  OcrTaskStartResult,
+  OcrTaskStatus,
   Provider,
   RestartApiServerStatusResult,
   S3Config,
@@ -848,8 +851,12 @@ const api = {
       ipcRenderer.invoke(IpcChannel.CodeCli_RemoveCustomTerminalPath, terminalId)
   },
   ocr: {
-    ocr: (file: SupportedOcrFile, provider: OcrProvider): Promise<OcrResult> =>
-      ipcRenderer.invoke(IpcChannel.OCR_ocr, file, provider),
+    start: (file: SupportedOcrFile, provider: OcrProvider): Promise<OcrTaskStartResult> =>
+      ipcRenderer.invoke(IpcChannel.OCR_Start, file, provider),
+    getStatus: (taskId: string, provider: OcrProvider): Promise<OcrTaskStatus> =>
+      ipcRenderer.invoke(IpcChannel.OCR_GetStatus, taskId, provider),
+    getResult: (taskId: string, provider: OcrProvider): Promise<OcrTaskResult> =>
+      ipcRenderer.invoke(IpcChannel.OCR_GetResult, taskId, provider),
     listProviders: (): Promise<string[]> => ipcRenderer.invoke(IpcChannel.OCR_ListProviders)
   },
   fileProcessing: {

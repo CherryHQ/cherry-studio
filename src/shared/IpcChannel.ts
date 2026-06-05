@@ -409,7 +409,9 @@ export enum IpcChannel {
   CodeCli_RemoveCustomTerminalPath = 'code-cli:remove-custom-terminal-path',
 
   // OCR
-  OCR_ocr = 'ocr:ocr',
+  OCR_Start = 'ocr:start',
+  OCR_GetStatus = 'ocr:get-status',
+  OCR_GetResult = 'ocr:get-result',
   OCR_ListProviders = 'ocr:list-providers',
 
   // OVMS

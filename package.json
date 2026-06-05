@@ -97,6 +97,7 @@
     "@napi-rs/canvas": "0.1.80",
     "@napi-rs/system-ocr": "1.0.2",
     "@paymoapp/electron-shutdown-handler": "1.1.2",
+    "@paddleocr/api-sdk": "0.1.0",
     "@vectorstores/core": "^0.1.8",
     "@vectorstores/libsql": "workspace:*",
     "@vectorstores/readers": "^0.1.8",

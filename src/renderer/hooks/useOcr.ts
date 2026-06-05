@@ -1,6 +1,6 @@
 import { loggerService } from '@logger'
 import * as OcrService from '@renderer/services/ocr/OcrService'
-import type { ImageFileMetadata, SupportedOcrFile } from '@renderer/types'
+import type { ImageFileMetadata, OcrTaskResult, OcrTaskStartResult, SupportedOcrFile } from '@renderer/types'
 import { isImageFileMetadata } from '@renderer/types'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { useCallback } from 'react'
@@ -9,52 +9,81 @@ import { useTranslation } from 'react-i18next'
 import { useOcrProviders } from './useOcrProvider'
 
 const logger = loggerService.withContext('useOcr')
+const OCR_STATUS_POLL_INTERVAL_MS = 1000
+
+const sleep = async (ms: number) => {
+  await new Promise((resolve) => setTimeout(resolve, ms))
+}
 
 export const useOcr = () => {
   const { t } = useTranslation()
   const { imageProvider } = useOcrProviders()
 
-  /**
-   * 对图片文件进行OCR识别
-   * @param image 图片文件元数据
-   * @returns OCR识别结果的Promise
-   * @throws OCR失败时抛出错误
-   */
-  const ocrImage = useCallback(
-    async (image: ImageFileMetadata) => {
-      logger.debug('ocrImage', { config: imageProvider.config })
-      return OcrService.ocr(image, imageProvider)
+  const startImageOcr = useCallback(
+    async (image: ImageFileMetadata): Promise<OcrTaskStartResult> => {
+      logger.debug('startImageOcr', { config: imageProvider.config })
+      return OcrService.start(image, imageProvider)
     },
     [imageProvider]
   )
 
-  /**
-   * 对支持的文件进行OCR识别.
-   * @param file 支持OCR的文件
-   * @returns OCR识别结果的Promise
-   * @throws 当文件类型不支持或OCR失败时抛出错误
-   */
-  const ocr = async (file: SupportedOcrFile) => {
-    const _ocr = async () => {
+  const waitForImageOcrResult = useCallback(
+    async (taskId: string): Promise<OcrTaskResult> => {
+      while (true) {
+        const status = await OcrService.getStatus(taskId, imageProvider)
+
+        if (status.status === 'completed') {
+          return OcrService.getResult(taskId, imageProvider)
+        }
+
+        if (status.status === 'failed') {
+          throw new Error(`OCR task ${taskId} failed`)
+        }
+
+        await sleep(OCR_STATUS_POLL_INTERVAL_MS)
+      }
+    },
+    [imageProvider]
+  )
+
+  const start = async (file: SupportedOcrFile) => {
+    try {
+      if (isImageFileMetadata(file)) {
+        return await startImageOcr(file)
+      }
+
+      // @ts-expect-error all types should be covered
+      throw new Error(t('ocr.file.not_supported', { type: file.type }))
+    } catch (e) {
+      logger.error('Failed to start ocr.', e as Error)
+      window.toast.error(t('ocr.error.unknown') + ': ' + formatErrorMessage(e))
+      throw e
+    }
+  }
+
+  const getResult = async (taskId: string, file: SupportedOcrFile) => {
+    const getTaskResult = async () => {
       try {
         if (isImageFileMetadata(file)) {
-          return ocrImage(file)
-        } else {
-          // @ts-expect-error all types should be covered
-          throw new Error(t('ocr.file.not_supported', { type: file.type }))
+          return await waitForImageOcrResult(taskId)
         }
+
+        // @ts-expect-error all types should be covered
+        throw new Error(t('ocr.file.not_supported', { type: file.type }))
       } catch (e) {
-        logger.error('Failed to ocr.', e as Error)
+        logger.error('Failed to finish ocr.', e as Error)
         window.toast.error(t('ocr.error.unknown') + ': ' + formatErrorMessage(e))
         throw e
       }
     }
-    const promise = _ocr()
+
+    const promise = getTaskResult()
     window.toast.loading({ title: t('ocr.processing'), promise })
     return promise
   }
 
   return {
-    ocr
+    start,
+    getResult
   }
 }

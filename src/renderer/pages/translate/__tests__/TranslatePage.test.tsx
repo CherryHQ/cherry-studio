@@ -27,6 +27,10 @@ const translateCoreMock = vi.hoisted(() => ({
 }))
 const loggerWarnMock = vi.hoisted(() => vi.fn())
 const clipboardWriteTextMock = vi.hoisted(() => vi.fn())
+const ocrMock = vi.hoisted(() => ({
+  start: vi.fn(),
+  getResult: vi.fn()
+}))
 
 vi.mock('react-i18next', () => ({
   initReactI18next: {
@@ -110,7 +114,10 @@ vi.mock('@renderer/hooks/useModels', () => ({
 }))
 
 vi.mock('@renderer/hooks/useOcr', () => ({
-  useOcr: () => ({ ocr: vi.fn() })
+  useOcr: () => ({
+    start: ocrMock.start,
+    getResult: ocrMock.getResult
+  })
 }))
 
 vi.mock('@renderer/hooks/useTemporaryValue', () => ({
@@ -262,6 +269,8 @@ describe('TranslatePage', () => {
     translateCoreMock.formatErrorMessageWithPrefix.mockReset()
     translateCoreMock.formatErrorMessageWithPrefix.mockImplementation((_: unknown, prefix: string) => prefix)
     loggerWarnMock.mockReset()
+    ocrMock.start.mockReset()
+    ocrMock.getResult.mockReset()
     clipboardWriteTextMock.mockReset()
     clipboardWriteTextMock.mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', {
@@ -330,6 +339,36 @@ describe('TranslatePage', () => {
 
     await waitFor(() => expect(dropMock.getTextFromDropEvent).toHaveBeenCalled())
     expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('')
+  })
+
+  it('appends OCR text after image selection completes task polling', async () => {
+    fileMock.onSelectFile.mockResolvedValue([{ path: '/tmp/input.png', size: 10, type: 'image' }])
+    fileMock.isTextFile.mockResolvedValue(false)
+    ocrMock.start.mockResolvedValue({
+      taskId: 'ocr-task-1',
+      providerTaskId: 'provider-task-1',
+      status: 'processing'
+    })
+    ocrMock.getResult.mockResolvedValue({
+      taskId: 'ocr-task-1',
+      providerTaskId: 'provider-task-1',
+      status: 'completed',
+      progress: 100,
+      result: {
+        text: 'recognized text',
+        pages: [{ text: 'recognized text' }]
+      }
+    })
+
+    const { rerender } = render(<TranslatePage />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'translate.files.upload' }))
+
+    await waitFor(() => expect(ocrMock.start).toHaveBeenCalled())
+    await waitFor(() => expect(ocrMock.getResult).toHaveBeenCalledWith('ocr-task-1', { path: '/tmp/input.png', size: 10, type: 'image' }))
+    rerender(<TranslatePage />)
+
+    expect(screen.getByLabelText('translate.input.placeholder')).toHaveValue('recognized text')
   })
 
   it('keeps translating enabled for plain-text paste without entering file-processing state', async () => {

@@ -69,7 +69,7 @@ const TranslatePage: FC = () => {
   const { add: addHistory } = useTranslateHistory()
   const { shikiMarkdownIt } = useCodeStyle()
   const { onSelectFile, selecting, clearFiles } = useFiles({ extensions: [...imageExts, ...textExts, ...documentExts] })
-  const { ocr } = useOcr()
+  const { start: startOcr, getResult: getOcrResult } = useOcr()
   const { setTimeoutTimer } = useTimer()
   const [sourceLanguage, setSourceLanguage] = usePreference('feature.translate.page.source_language')
   const [targetLanguage, setTargetLanguage] = usePreference('feature.translate.page.target_language')
@@ -436,10 +436,11 @@ const TranslatePage: FC = () => {
 
   const ocrFile = useCallback(
     async (file: SupportedOcrFile) => {
-      const ocrResult = await ocr(file)
-      appendTranslateInput(ocrResult.text)
+      const task = await startOcr(file)
+      const ocrResult = await getOcrResult(task.taskId, file)
+      appendTranslateInput(ocrResult.result.text)
     },
-    [appendTranslateInput, ocr]
+    [appendTranslateInput, getOcrResult, startOcr]
   )
 
   const processFile = useCallback(

@@ -1,33 +1,38 @@
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import type { FileInfo } from '@shared/file/types'
 
+import { paddleOcrSdkService } from '@main/services/paddleocr/PaddleOcrSdkService'
+
 import { getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '../../../utils/provider'
 import type { FileProcessingCapabilityHandler, FileProcessingRemotePollResult } from '../../types'
-import type { PaddleJobResultData, PreparedPaddleQueryContext, PreparedPaddleStartContext } from '../types'
-import { createJob, getJobResult, mapProgress, resolveJsonlResult } from '../utils'
+import type { PaddleRemoteContext, PreparedPaddleStartContext } from '../types'
 
-type PaddleQueryContext = Omit<PreparedPaddleQueryContext, 'signal'>
+type PaddleDocumentRemoteContext = PaddleRemoteContext
 
 export const paddleDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
   'document_to_markdown',
-  PaddleQueryContext
+  PaddleDocumentRemoteContext
 > = {
   mode: 'remote-poll',
-  prepare(file, config, signal) {
+  prepare(file, config, signal, context) {
     signal?.throwIfAborted()
-    const startContext = prepareStartContext(file, config, signal)
+    const startContext = prepareStartContext(file, config, context?.fileEntryId, signal)
 
     return {
       mode: 'remote-poll',
       async startRemote(startSignal) {
-        const job = await createJob({
-          ...startContext,
+        const task = await paddleOcrSdkService.startDocumentParsing({
+          taskId: startContext.taskId,
+          token: startContext.apiKey,
+          baseUrl: startContext.apiHost,
+          filePath: startContext.file.path,
+          model: startContext.model,
           signal: startSignal
         })
 
         return {
-          providerTaskId: job.jobId,
-          status: 'pending',
+          providerTaskId: task.providerTaskId,
+          status: task.status,
           progress: 0,
           remoteContext: {
             apiHost: startContext.apiHost,
@@ -36,14 +41,43 @@ export const paddleDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
         }
       },
       async pollRemote(task, pollSignal) {
-        const context: PreparedPaddleQueryContext = {
-          apiHost: task.remoteContext.apiHost,
-          apiKey: task.remoteContext.apiKey,
+        const status = await paddleOcrSdkService.getDocumentParsingStatus({
+          taskId: startContext.taskId,
+          providerTaskId: task.providerTaskId,
+          token: task.remoteContext.apiKey,
+          baseUrl: task.remoteContext.apiHost,
           signal: pollSignal
-        }
-        const jobResult = await getJobResult(task.providerTaskId, context)
+        })
 
-        return buildPollResult(task.providerTaskId, jobResult, context.apiHost, context.signal)
+        if (status.status === 'failed') {
+          return {
+            status: 'failed',
+            error: `PaddleOCR markdown conversion failed (providerTaskId=${task.providerTaskId})`
+          }
+        }
+
+        if (status.status !== 'completed') {
+          return {
+            status: status.status,
+            progress: status.progress
+          }
+        }
+
+        const result = await paddleOcrSdkService.getDocumentParsingResult({
+          taskId: startContext.taskId,
+          providerTaskId: task.providerTaskId,
+          token: task.remoteContext.apiKey,
+          baseUrl: task.remoteContext.apiHost,
+          signal: pollSignal
+        })
+
+        return {
+          status: 'completed',
+          output: {
+            kind: 'markdown',
+            markdownContent: result.result.markdown
+          }
+        }
       },
       toPersistable(remoteContext, providerTaskId) {
         return {
@@ -70,6 +104,7 @@ export const paddleDocumentToMarkdownHandler: FileProcessingCapabilityHandler<
 function prepareStartContext(
   file: FileInfo,
   config: FileProcessorMerged,
+  taskId = file.path,
   signal?: AbortSignal
 ): PreparedPaddleStartContext {
   signal?.throwIfAborted()
@@ -83,35 +118,51 @@ function prepareStartContext(
     apiKey: getRequiredApiKey(config, 'paddleocr'),
     file,
     model,
-    feature: 'document_to_markdown'
+    taskId
   }
 }
 
 export async function buildPollResult(
   providerTaskId: string,
-  jobResult: PaddleJobResultData,
-  apiHost: string,
+  remoteContext: PaddleDocumentRemoteContext,
+  taskId = providerTaskId,
   signal?: AbortSignal
-): Promise<FileProcessingRemotePollResult<'document_to_markdown', PaddleQueryContext>> {
-  if (jobResult.state === 'failed') {
+): Promise<FileProcessingRemotePollResult<'document_to_markdown', PaddleDocumentRemoteContext>> {
+  const status = await paddleOcrSdkService.getDocumentParsingStatus({
+    taskId,
+    providerTaskId,
+    token: remoteContext.apiKey,
+    baseUrl: remoteContext.apiHost,
+    signal
+  })
+
+  if (status.status === 'failed') {
     return {
       status: 'failed',
-      error: jobResult.errorMsg || 'PaddleOCR markdown conversion failed'
+      error: `PaddleOCR markdown conversion failed (providerTaskId=${providerTaskId})`
     }
   }
 
-  if (jobResult.state !== 'done') {
+  if (status.status !== 'completed') {
     return {
-      status: jobResult.state === 'pending' ? 'pending' : 'processing',
-      progress: mapProgress(jobResult)
+      status: status.status,
+      progress: status.progress
     }
   }
+
+  const result = await paddleOcrSdkService.getDocumentParsingResult({
+    taskId,
+    providerTaskId,
+    token: remoteContext.apiKey,
+    baseUrl: remoteContext.apiHost,
+    signal
+  })
 
   return {
     status: 'completed',
     output: {
       kind: 'markdown',
-      markdownContent: await resolveJsonlResult(providerTaskId, jobResult, apiHost, signal)
+      markdownContent: result.result.markdown
     }
   }
 }

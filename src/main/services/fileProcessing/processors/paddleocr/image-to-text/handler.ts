@@ -1,38 +1,97 @@
 import type { FileProcessorMerged } from '@shared/data/presets/file-processing'
 import { FILE_TYPE, type FileInfo } from '@shared/file/types'
 
-import { getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '../../../utils/provider'
-import type { FileProcessingCapabilityHandler } from '../../types'
-import type { PreparedPaddleQueryContext, PreparedPaddleStartContext } from '../types'
-import { createJob, resolveJsonlResult, waitForJobCompletion } from '../utils'
+import { paddleOcrSdkService } from '@main/services/paddleocr/PaddleOcrSdkService'
 
-export const paddleImageToTextHandler: FileProcessingCapabilityHandler<'image_to_text'> = {
-  mode: 'background',
-  prepare(file, config, signal) {
+import { getRequiredApiHost, getRequiredApiKey, getRequiredCapability } from '../../../utils/provider'
+import type { FileProcessingCapabilityHandler, FileProcessingRemotePollResult } from '../../types'
+import type { PaddleRemoteContext, PreparedPaddleStartContext } from '../types'
+
+type PaddleImageRemoteContext = PaddleRemoteContext
+
+export const paddleImageToTextHandler: FileProcessingCapabilityHandler<'image_to_text', PaddleImageRemoteContext> = {
+  mode: 'remote-poll',
+  prepare(file, config, signal, context) {
     signal?.throwIfAborted()
-    const startContext = prepareStartContext(file, config, signal)
+    const startContext = prepareStartContext(file, config, context?.fileEntryId, signal)
 
     return {
-      mode: 'background',
-      async execute(executionContext) {
-        const job = await createJob({
-          ...startContext,
-          signal: executionContext.signal
+      mode: 'remote-poll',
+      async startRemote(startSignal) {
+        const task = await paddleOcrSdkService.startImageOcr({
+          taskId: startContext.taskId,
+          token: startContext.apiKey,
+          baseUrl: startContext.apiHost,
+          filePath: startContext.file.path,
+          model: startContext.model,
+          signal: startSignal
         })
-        const queryContext: PreparedPaddleQueryContext = {
-          apiHost: startContext.apiHost,
-          apiKey: startContext.apiKey,
-          signal: executionContext.signal
-        }
-        const jobResult = await waitForJobCompletion(job.jobId, queryContext)
-
-        if (jobResult.state === 'failed') {
-          throw new Error(jobResult.errorMsg || 'PaddleOCR text extraction failed')
-        }
 
         return {
-          kind: 'text',
-          text: await resolveJsonlResult(job.jobId, jobResult, queryContext.apiHost, queryContext.signal)
+          providerTaskId: task.providerTaskId,
+          status: task.status,
+          progress: 0,
+          remoteContext: {
+            apiHost: startContext.apiHost,
+            apiKey: startContext.apiKey
+          }
+        }
+      },
+      async pollRemote(task, pollSignal) {
+        const status = await paddleOcrSdkService.getImageOcrStatus({
+          taskId: startContext.taskId,
+          providerTaskId: task.providerTaskId,
+          token: task.remoteContext.apiKey,
+          baseUrl: task.remoteContext.apiHost,
+          signal: pollSignal
+        })
+
+        if (status.status === 'failed') {
+          return {
+            status: 'failed',
+            error: `PaddleOCR text extraction failed (providerTaskId=${task.providerTaskId})`
+          }
+        }
+
+        if (status.status !== 'completed') {
+          return {
+            status: status.status,
+            progress: status.progress
+          }
+        }
+
+        const result = await paddleOcrSdkService.getImageOcrResult({
+          taskId: startContext.taskId,
+          providerTaskId: task.providerTaskId,
+          token: task.remoteContext.apiKey,
+          baseUrl: task.remoteContext.apiHost,
+          signal: pollSignal
+        })
+
+        return {
+          status: 'completed',
+          output: {
+            kind: 'text',
+            text: result.result.text
+          }
+        }
+      },
+      toPersistable(remoteContext, providerTaskId) {
+        return {
+          providerTaskId,
+          apiHost: remoteContext.apiHost
+        }
+      },
+      rehydrate(persisted, restoredConfig) {
+        if (!persisted.apiHost) {
+          throw new Error('paddleocr rehydrate: missing apiHost in persisted remote state')
+        }
+        return {
+          providerTaskId: persisted.providerTaskId,
+          remoteContext: {
+            apiHost: persisted.apiHost,
+            apiKey: getRequiredApiKey(restoredConfig, 'paddleocr')
+          }
         }
       }
     }
@@ -42,6 +101,7 @@ export const paddleImageToTextHandler: FileProcessingCapabilityHandler<'image_to
 function prepareStartContext(
   file: FileInfo,
   config: FileProcessorMerged,
+  taskId = file.path,
   signal?: AbortSignal
 ): PreparedPaddleStartContext {
   signal?.throwIfAborted()
@@ -59,6 +119,51 @@ function prepareStartContext(
     apiKey: getRequiredApiKey(config, 'paddleocr'),
     file,
     model,
-    feature: 'image_to_text'
+    taskId
+  }
+}
+
+export async function buildPollResult(
+  providerTaskId: string,
+  remoteContext: PaddleImageRemoteContext,
+  taskId = providerTaskId,
+  signal?: AbortSignal
+): Promise<FileProcessingRemotePollResult<'image_to_text', PaddleImageRemoteContext>> {
+  const status = await paddleOcrSdkService.getImageOcrStatus({
+    taskId,
+    providerTaskId,
+    token: remoteContext.apiKey,
+    baseUrl: remoteContext.apiHost,
+    signal
+  })
+
+  if (status.status === 'failed') {
+    return {
+      status: 'failed',
+      error: `PaddleOCR text extraction failed (providerTaskId=${providerTaskId})`
+    }
+  }
+
+  if (status.status !== 'completed') {
+    return {
+      status: status.status,
+      progress: status.progress
+    }
+  }
+
+  const result = await paddleOcrSdkService.getImageOcrResult({
+    taskId,
+    providerTaskId,
+    token: remoteContext.apiKey,
+    baseUrl: remoteContext.apiHost,
+    signal
+  })
+
+  return {
+    status: 'completed',
+    output: {
+      kind: 'text',
+      text: result.result.text
+    }
   }
 }

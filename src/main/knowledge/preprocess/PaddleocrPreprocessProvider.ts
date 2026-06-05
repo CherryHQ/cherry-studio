@@ -2,88 +2,34 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
+import BasePreprocessProvider from '@main/knowledge/preprocess/BasePreprocessProvider'
+import { paddleOcrSdkService } from '@main/services/paddleocr/PaddleOcrSdkService'
 import { fileStorage } from '@main/services/FileStorage'
 import { getFileType } from '@main/utils/file'
 import { MB } from '@shared/config/constant'
 import type { FileMetadata, PreprocessProvider, PreprocessReadPdfResult } from '@types'
-import { net } from 'electron'
-import * as z from 'zod'
-
-import BasePreprocessProvider from './BasePreprocessProvider'
 
 const logger = loggerService.withContext('PaddleocrPreprocessProvider')
 
-/**
- * 单个文件大小不超过50MB，为避免处理超时，建议每个文件不超过100页。若超过100页，API只解析前100页，后续页将被忽略。
- * 来源：PaddleOCR 官方 API 调用说明 https://aistudio.baidu.com/paddleocr
- */
 export const PDF_SIZE_LIMIT_MB = 50
 export const PDF_PAGE_LIMIT = 100
 export const PDF_SIZE_LIMIT_BYTES = PDF_SIZE_LIMIT_MB * MB
-
-enum FileType {
-  PDF = 0,
-  Image = 1
-}
-
-const ApiResponseSchema = z.looseObject({
-  result: z
-    .looseObject({
-      layoutParsingResults: z
-        .array(
-          z.looseObject({
-            markdown: z.looseObject({
-              text: z.string().min(1, 'Markdown text cannot be empty')
-            })
-          })
-        )
-        .min(1, 'At least one layout parsing result required')
-        .optional(),
-      ocrResults: z
-        .array(
-          z.looseObject({
-            prunedResult: z.looseObject({
-              rec_texts: z.array(z.string())
-            })
-          })
-        )
-        .min(1, 'At least one ocr result required')
-        .optional()
-    })
-    .optional(),
-  errorCode: z.number().optional(),
-  errorMsg: z.string().optional()
-})
-
-type ApiResponse = z.infer<typeof ApiResponseSchema>
-
-const isApiSuccess = (response: ApiResponse): boolean => {
-  const hasNoError = !response.errorCode || response.errorCode === 0
-  const hasSuccessMsg = !response.errorMsg || /success/i.test(response.errorMsg)
-  return hasNoError && hasSuccessMsg
-}
-
-function formatZodError(error: z.ZodError): string {
-  return error.issues
-    .map((issue) => {
-      const path = issue.path.join('.')
-      const code = issue.code
-      const message = issue.message
-      return `[${code}] ${path}: ${message}`
-    })
-    .join('; ')
-}
+const DOCUMENT_POLL_INTERVAL_MS = 1000
 
 function getErrorMessage(error: unknown): string {
-  if (error instanceof z.ZodError) {
-    return formatZodError(error)
-  } else if (error instanceof Error) {
+  if (error instanceof Error) {
     return error.message
-  } else if (typeof error === 'string') {
-    return error
-  } else {
-    return 'Unknown error'
   }
+
+  if (typeof error === 'string') {
+    return error
+  }
+
+  return 'Unknown error'
+}
+
+function toPreprocessProgress(progress: number): number {
+  return Math.max(25, Math.min(99, 25 + Math.round((progress / 100) * 74)))
 }
 
 export default class PaddleocrPreprocessProvider extends BasePreprocessProvider {
@@ -91,55 +37,23 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
     super(provider, userId)
   }
 
-  /**
-   * 解析文件并通过 PaddleOCR 进行预处理（当前仅支持 PDF 文件）
-   * @param sourceId - 源任务ID，用于进度更新/日志追踪
-   * @param file - 待处理的文件元数据（仅支持 ext 为 .pdf 的文件）
-   * @returns {Promise<{processedFile: FileMetadata}>} 处理后的文件元数据
-   * @throws {Error} 若传入非 PDF 文件、文件大小超限、页数超限等会抛出异常
-   */
   public async parseFile(sourceId: string, file: FileMetadata): Promise<{ processedFile: FileMetadata }> {
     try {
       const filePath = fileStorage.getFilePathById(file)
       logger.info(`PaddleOCR preprocess processing started: ${filePath}`)
 
-      const fileBuffer = await this.validateFile(filePath)
-
-      // 进度条
+      await this.validateFile(filePath)
       await this.sendPreprocessProgress(sourceId, 25)
 
-      // 1.读取pdf文件并编码为base64
-      const fileData = fileBuffer.toString('base64')
-      await this.sendPreprocessProgress(sourceId, 50)
-
-      // 2. 调用PadlleOCR文档处理API
-      const apiResponse = await this.callPaddleOcrApi(fileData, FileType.PDF)
-      logger.info(`PaddleOCR API call completed`)
-
-      await this.sendPreprocessProgress(sourceId, 75)
-
-      // 3. 处理 API 错误场景
-      if (!isApiSuccess(apiResponse)) {
-        const errorCode = apiResponse.errorCode ?? -1
-        const errorMsg = apiResponse.errorMsg || 'Unknown error'
-        const fullErrorMsg = `PaddleOCR API processing failed [${errorCode}]: ${errorMsg}`
-        logger.error(fullErrorMsg)
-        throw new Error(fullErrorMsg)
-      }
-
-      // 4. 保存markdown文本
-      const outputDir = await this.saveResults(apiResponse.result, file)
-
+      const markdownText = await this.parseDocumentMarkdown(sourceId, filePath)
+      const outputDir = await this.saveResults(markdownText, file)
       await this.sendPreprocessProgress(sourceId, 100)
 
-      const processedFile = await this.createProcessedFileInfo(file, outputDir)
-
-      // 5. 创建处理后数据
       return {
-        processedFile
+        processedFile: await this.createProcessedFileInfo(file, outputDir)
       }
     } catch (error: unknown) {
-      logger.error(`PaddleOCR preprocess processing failed for:`, error as Error)
+      logger.error('PaddleOCR preprocess processing failed', error as Error)
       throw new Error(getErrorMessage(error))
     }
   }
@@ -148,15 +62,13 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
     return file.origin_name.replace(/\.(pdf|jpg|jpeg|png)$/i, '.md')
   }
 
-  private async validateFile(filePath: string): Promise<Buffer> {
-    // 阶段1：校验文件类型
+  private async validateFile(filePath: string): Promise<void> {
     logger.info(`Validating PDF file: ${filePath}`)
     const ext = path.extname(filePath).toLowerCase()
     if (ext !== '.pdf') {
       throw new Error(`File ${filePath} is not a PDF (extension: ${ext.slice(1)})`)
     }
 
-    // 阶段2：校验文件大小
     const stats = await fs.promises.stat(filePath)
     const fileSizeBytes = stats.size
     if (fileSizeBytes > PDF_SIZE_LIMIT_BYTES) {
@@ -164,14 +76,12 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
       throw new Error(`PDF file size (${fileSizeMB}MB) exceeds the limit of ${PDF_SIZE_LIMIT_MB}MB`)
     }
 
-    // 阶段3：校验页数（兼容 PDF 解析失败的场景）
     const pdfBuffer = await fs.promises.readFile(filePath)
     let doc: PreprocessReadPdfResult | undefined
 
     try {
       doc = await this.readPdf(pdfBuffer)
     } catch (error: unknown) {
-      // PDF 解析失败：跳过页数校验，继续交由 PaddleOCR API 处理
       const errorMsg = getErrorMessage(error)
       logger.warn(
         `Failed to parse PDF structure (file may be corrupted or use non-standard format). ` +
@@ -188,8 +98,6 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
     if (doc) {
       logger.info(`PDF validation passed: ${doc.numPages} pages, ${Math.round(fileSizeBytes / MB)}MB`)
     }
-
-    return pdfBuffer
   }
 
   private async createProcessedFileInfo(file: FileMetadata, outputDir: string): Promise<FileMetadata> {
@@ -210,95 +118,75 @@ export default class PaddleocrPreprocessProvider extends BasePreprocessProvider 
     }
   }
 
-  private async callPaddleOcrApi(fileData: string, fileType: number): Promise<ApiResponse> {
+  private async parseDocumentMarkdown(sourceId: string, filePath: string): Promise<string> {
     if (!this.provider.apiHost) {
       throw new Error('PaddleOCR API host is not configured')
     }
 
-    const endpoint = this.provider.apiHost
-    const payload = {
-      file: fileData,
-      fileType: fileType,
-      useDocOrientationClassify: false,
-      useDocUnwarping: false,
-      useTextlineOrientation: false,
-      useChartRecognition: false
+    if (!this.provider.apiKey) {
+      throw new Error('PaddleOCR API key is not configured')
     }
 
-    try {
-      const response = await net.fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Client-Platform': 'cherry-studio',
-          Authorization: `token ${this.provider.apiKey}`
-        },
-        body: JSON.stringify(payload)
+    const task = await paddleOcrSdkService.startDocumentParsing({
+      taskId: sourceId,
+      token: this.provider.apiKey,
+      baseUrl: this.provider.apiHost,
+      filePath,
+      model: this.provider.model?.trim() || undefined
+    })
+
+    logger.info(`Started PaddleOCR document parsing task: ${task.providerTaskId}`)
+
+    while (true) {
+      const status = await paddleOcrSdkService.getDocumentParsingStatus({
+        taskId: sourceId,
+        providerTaskId: task.providerTaskId,
+        token: this.provider.apiKey,
+        baseUrl: this.provider.apiHost
       })
 
-      if (!response.ok) {
-        const errorText = await response.text()
-        logger.error(`PaddleOCR API error: HTTP ${response.status} - ${errorText}`)
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      if (status.status === 'failed') {
+        throw new Error(`PaddleOCR document parsing failed for provider task ${task.providerTaskId}`)
       }
 
-      const rawData = await response.json()
-      logger.debug('PaddleOCR API response', { data: rawData })
+      if (status.status === 'completed') {
+        break
+      }
 
-      // Zod 校验响应结构（不合法则直接抛错）
-      const validatedData = ApiResponseSchema.parse(rawData)
-      return validatedData // 返回完整响应
-    } catch (error: unknown) {
-      const errorMsg = getErrorMessage(error)
-      logger.error(`Failed to call PaddleOCR API: ${errorMsg}`, { error })
-      throw new Error(`Failed to call PaddleOCR API: ${errorMsg}`)
+      await this.sendPreprocessProgress(sourceId, toPreprocessProgress(status.progress))
+      await this.delay(DOCUMENT_POLL_INTERVAL_MS)
     }
+
+    const result = await paddleOcrSdkService.getDocumentParsingResult({
+      taskId: sourceId,
+      providerTaskId: task.providerTaskId,
+      token: this.provider.apiKey,
+      baseUrl: this.provider.apiHost
+    })
+
+    const markdownText = result.result.markdown.trim()
+    if (!markdownText) {
+      throw new Error(`PaddleOCR returned empty markdown content for file ${filePath}`)
+    }
+
+    return markdownText
   }
 
-  private async saveResults(result: ApiResponse['result'], file: FileMetadata): Promise<string> {
+  private async saveResults(markdownText: string, file: FileMetadata): Promise<string> {
     const outputDir = path.join(this.storageDir, file.id)
 
-    // 确保输出目录存在且为空
     if (fs.existsSync(outputDir)) {
       fs.rmSync(outputDir, { recursive: true, force: true })
     }
     fs.mkdirSync(outputDir, { recursive: true })
 
-    // 处理 result 为 undefined 的场景（API 无解析结果）
-    if (!result) {
-      const errorMsg = `Parsing failed: No valid parsing result from PaddleOCR API for file [ID: ${file.id}]`
-      // Keep warning log for troubleshooting
-      logger.error(errorMsg)
-      // Throw exception to interrupt function execution (no empty file created)
-      throw new Error(errorMsg)
-    }
-
-    // Extract text from layoutParsingResults (PP-StructureV3) or ocrResults (PP-OCRv5)
-    let markdownText: string
-
-    if (result.layoutParsingResults && result.layoutParsingResults.length > 0) {
-      markdownText = result.layoutParsingResults
-        .filter((layoutResult) => layoutResult?.markdown?.text)
-        .map((layoutResult) => layoutResult.markdown.text)
-        .join('\n\n')
-    } else if (result.ocrResults && result.ocrResults.length > 0) {
-      markdownText = result.ocrResults
-        .filter((ocrResult) => ocrResult?.prunedResult?.rec_texts)
-        .map((ocrResult) => ocrResult.prunedResult.rec_texts.join('\n'))
-        .join('\n\n')
-    } else {
-      throw new Error(`No valid parsing result from PaddleOCR API for file [ID: ${file.id}]`)
-    }
-
     if (!markdownText.trim()) {
-      throw new Error(`PaddleOCR returned empty text content for file [ID: ${file.id}]`)
+      throw new Error(`PaddleOCR returned empty markdown content for file [ID: ${file.id}]`)
     }
 
-    // 直接构造目标文件名
     const finalMdFileName = this.getMarkdownFileName(file)
     const finalMdPath = path.join(outputDir, finalMdFileName)
 
-    // 保存 Markdown 文件
     fs.writeFileSync(finalMdPath, markdownText, 'utf-8')
 
     logger.info(`Saved markdown file: ${finalMdPath}`)
