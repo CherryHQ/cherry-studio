@@ -2,6 +2,7 @@ import { cors } from '@elysia/cors'
 import { node } from '@elysia/node'
 import { openapi } from '@elysia/openapi'
 import { loggerService } from '@logger'
+import { DataApiError } from '@shared/data/api'
 import { Elysia } from 'elysia'
 import { v4 as uuidv4 } from 'uuid'
 import * as z from 'zod'
@@ -17,21 +18,23 @@ import { responsesRoutes } from './routes/responses'
 const logger = loggerService.withContext('ApiGateway')
 
 /** Path under which OpenAPI docs (UI) and JSON spec (`${OPENAPI_PATH}/json`) are served. */
-export const OPENAPI_PATH = '/openapi'
+export const OPENAPI_PATH = '/openapi' as const
 
 /**
  * Protected `/v1` API routes. The auth guard is `scoped` so it propagates to
- * every plugin mounted here, but NOT to the public app-level routes.
+ * every plugin mounted here, but NOT to the public app-level routes. Errors are
+ * shaped by the single root `gatewayErrorHandler` (see `buildApp`), which selects
+ * the dialect by path.
  */
 const v1Routes = new Elysia({ prefix: '/v1' })
   .guard({
     as: 'scoped',
     beforeHandle: authGuard
   })
+  .use(messagesRoutes)
   .use(chatRoutes)
   .use(responsesRoutes)
   .use(modelsRoutes)
-  .use(messagesRoutes)
   .use(knowledgeRoutes)
 
 /**
@@ -79,8 +82,10 @@ export function buildApp() {
         durationMs
       })
     })
-    // Global error handler — shapes errors into the OpenAI / Anthropic dialect
-    // matching the request path (see ./errors).
+    // Single root error handler — shapes every error into the dialect matching
+    // the request path (see ./errors). `.error()` registers the v2 error type so
+    // the handler's `code` is typed to include `'DATA_API'`.
+    .error({ DATA_API: DataApiError })
     .onError(gatewayErrorHandler)
     // Public health check (no authentication).
     .get(

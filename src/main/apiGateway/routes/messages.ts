@@ -2,7 +2,6 @@ import type { MessageCreateParams } from '@anthropic-ai/sdk/resources'
 import { Elysia } from 'elysia'
 import { approximateTokenSize } from 'tokenx'
 
-import { messagesService } from '../services/messages'
 import { processMessage } from '../services/ProxyStreamService'
 import { CountTokensBodySchema, MessagesBodySchema } from './schemas'
 
@@ -74,42 +73,21 @@ const invalidRequest = (message: string) => ({
 })
 
 /**
- * Validate an Anthropic request (deeper per-message checks beyond the loose body
- * schema), then proxy it through the unified `AiService` path. The caller emits a
- * 400 in the Anthropic dialect when `ok` is false.
- */
-async function runAnthropic(
-  body: unknown,
-  signal: AbortSignal | undefined
-): Promise<{ ok: false; errors: string[] } | { ok: true; response: Response }> {
-  // Trust boundary: narrow the loosely-validated body to the Anthropic SDK type;
-  // `validateRequest` performs the deeper per-message checks.
-  const request = body as MessageCreateParams
-  const { isValid, errors } = messagesService.validateRequest(request)
-  if (!isValid) return { ok: false, errors }
-
-  const response = await processMessage({
-    params: request,
-    inputFormat: 'anthropic',
-    outputFormat: 'anthropic',
-    signal
-  })
-  return { ok: true, response }
-}
-
-/**
- * `/v1/messages` routes (mounted under `/v1`). Validation and provider errors are
- * shaped into the Anthropic error envelope by the global `onError` (path-based).
+ * `/v1/messages` routes (mounted under `/v1`). The body is validated declaratively
+ * by `MessagesBodySchema`; validation and provider errors are shaped into the
+ * Anthropic error envelope by the group's `anthropicErrorHandler` (see ../app.ts).
  */
 export const messagesRoutes = new Elysia({ prefix: '/messages' })
   .post(
     '/',
-    async ({ body, request, status }) => {
-      // `model` is "providerId:modelId"; ProxyStreamService resolves it.
-      const result = await runAnthropic(body, request.signal)
-      if (!result.ok) return status(400, invalidRequest(result.errors.join('; ')))
-      return result.response
-    },
+    // `model` is "providerId:modelId"; ProxyStreamService resolves it.
+    ({ body, request }) =>
+      processMessage({
+        params: body,
+        inputFormat: 'anthropic',
+        outputFormat: 'anthropic',
+        signal: request.signal
+      }),
     {
       body: MessagesBodySchema,
       detail: { tags: ['Messages'], summary: 'Create message' }

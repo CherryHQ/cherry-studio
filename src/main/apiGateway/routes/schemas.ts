@@ -43,7 +43,7 @@ export const ResponsesBodySchema = z.looseObject({
   stream: z.boolean().optional()
 })
 
-/** `POST /v1/messages` body (Anthropic). Deeper per-message checks stay in `messagesService.validateRequest`. */
+/** `POST /v1/messages` body (Anthropic). Loose by design — the converters parse the full payload. */
 export const MessagesBodySchema = z.looseObject({
   model: z.string().min(1, 'Model is required'),
   messages: z.array(MessageEntry).min(1, 'Messages are required'),

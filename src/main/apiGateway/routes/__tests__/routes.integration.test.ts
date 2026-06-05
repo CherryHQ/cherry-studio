@@ -44,10 +44,7 @@ vi.mock('../../services/models', () => ({
   modelsService: { getModels: mockGetModels }
 }))
 
-// errors.ts + messages.ts statically import these; stub them so buildApp stays hermetic.
-vi.mock('../../services/messages', () => ({
-  messagesService: { validateRequest: vi.fn(() => ({ isValid: true, errors: [] })), transformError: vi.fn() }
-}))
+// errors.ts statically imports responsesService; stub it so buildApp stays hermetic.
 vi.mock('../../services/responses', () => ({
   responsesService: { transformError: vi.fn() }
 }))
@@ -105,10 +102,23 @@ describe('API gateway routes (integration)', () => {
   })
 
   describe('not found', () => {
-    it('unmatched route → 404 envelope (does not crash onError)', async () => {
+    it('unmatched route → 404 Cherry REST envelope (does not crash onError)', async () => {
       const { status, body } = await read(await get(app, '/no-such-route', {}))
       expect(status).toBe(404)
-      expect(body.error.type).toBe('not_found_error')
+      // App-level fallback uses the Cherry REST dialect: { error: { code, message } }.
+      expect(body.error.code).toBe('NOT_FOUND')
+      expect(body.error.type).toBeUndefined()
+    })
+  })
+
+  describe("Cherry endpoints use Cherry's own REST error envelope", () => {
+    it('knowledge search missing `query` → 422 REST envelope (not OpenAI dialect)', async () => {
+      const { status, body } = await read(await post(app, '/v1/knowledge-bases/search', {}))
+      expect(status).toBe(422)
+      // REST dialect: { error: { code, message } } — no OpenAI `type`, no Anthropic top-level `type`.
+      expect(body.error.code).toBe('VALIDATION_ERROR')
+      expect(body.error.type).toBeUndefined()
+      expect(body.type).toBeUndefined()
     })
   })
 

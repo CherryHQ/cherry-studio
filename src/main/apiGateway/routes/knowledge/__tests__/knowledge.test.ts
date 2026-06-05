@@ -1,11 +1,12 @@
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiError, DataApiErrorFactory } from '@shared/data/api'
 import { Elysia } from 'elysia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Exercises the knowledge routes through a wrapper app that includes the real
- * global `gatewayErrorHandler`, so the full chain runs: v2 data services →
- * route logic → response schemas → centralized error shaping (DataApiError → 404).
+ * Cherry REST `restErrorHandler` (the dialect these endpoints use), so the full
+ * chain runs: v2 data services → route logic → response schemas → REST error
+ * shaping (DataApiError → `{ error: { code, message } }` with its HTTP status).
  */
 
 const { mockList, mockGetById, mockSearch } = vi.hoisted(() => ({
@@ -23,14 +24,13 @@ vi.mock('@main/core/application', () => ({
 vi.mock('@logger', () => ({
   loggerService: { withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() })) }
 }))
-// errors.ts (via gatewayErrorHandler) statically imports these; stub them.
-vi.mock('../../../services/messages', () => ({ messagesService: { transformError: vi.fn() } }))
+// errors.ts (via restErrorHandler) statically imports responsesService; stub it.
 vi.mock('../../../services/responses', () => ({ responsesService: { transformError: vi.fn() } }))
 
-import { gatewayErrorHandler } from '../../../errors'
+import { restErrorHandler } from '../../../errors'
 import { knowledgeRoutes } from '../index'
 
-const app = new Elysia().onError(gatewayErrorHandler).use(knowledgeRoutes)
+const app = new Elysia().error({ DATA_API: DataApiError }).onError(restErrorHandler).use(knowledgeRoutes)
 
 const kb = (id: string, name: string) => ({
   id,
@@ -79,12 +79,12 @@ describe('knowledge routes (v2)', () => {
     expect(body.id).toBe('kb-1')
   })
 
-  it('GET /knowledge-bases/:id maps a DataApiError NOT_FOUND → 404', async () => {
+  it('GET /knowledge-bases/:id maps a DataApiError NOT_FOUND → 404 REST envelope', async () => {
     mockGetById.mockRejectedValue(DataApiErrorFactory.notFound('KnowledgeBase', 'nope'))
     const { status, body } = await call('GET', '/knowledge-bases/nope')
     expect(status).toBe(404)
-    expect(body.type).toBeUndefined() // OpenAI dialect
-    expect(body.error.type).toBe('not_found_error')
+    expect(body.type).toBeUndefined() // Cherry REST dialect: { error: { code, message } }
+    expect(body.error.code).toBe('NOT_FOUND')
   })
 
   it('POST /search aggregates + sorts orchestrator results across bases', async () => {
@@ -111,7 +111,7 @@ describe('knowledge routes (v2)', () => {
     mockSearch.mockRejectedValue(new Error('vector store unavailable'))
     const { status, body } = await call('POST', '/knowledge-bases/search', { query: 'hi' })
     expect(status).toBe(500)
-    expect(body.error.type).toBe('server_error')
+    expect(body.error.code).toBe('INTERNAL_SERVER_ERROR')
   })
 
   it('POST /search → 404 when none of the specified bases exist', async () => {
@@ -121,6 +121,6 @@ describe('knowledge routes (v2)', () => {
       knowledge_base_ids: ['nope']
     })
     expect(status).toBe(404)
-    expect(body.error.type).toBe('not_found_error')
+    expect(body.error.code).toBe('NOT_FOUND')
   })
 })
