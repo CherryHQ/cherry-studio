@@ -10,7 +10,6 @@ export enum WindowType {
   Settings = 'settings',
   QuickAssistant = 'quickAssistant',
   SubWindow = 'subWindow',
-  Trace = 'trace',
   SelectionToolbar = 'selectionToolbar',
   SelectionAction = 'selectionAction'
 }

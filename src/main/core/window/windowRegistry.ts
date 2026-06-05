@@ -264,40 +264,6 @@ export const WINDOW_TYPE_REGISTRY: Partial<Record<WindowType, WindowTypeMetadata
     }
   },
 
-  // Trace window — singleton developer diagnostics surface.
-  // Managed by NodeTraceService: trace context flows via initData and
-  // useWindowInitData<TraceWindowInitData>() in the renderer.
-  [WindowType.Trace]: {
-    type: WindowType.Trace,
-    lifecycle: 'singleton',
-    htmlPath: 'traceWindow.html',
-    windowOptions: {
-      ...DEFAULT_WINDOW_CONFIG,
-      width: 600,
-      height: 800,
-      minWidth: 500,
-      minHeight: 600,
-      autoHideMenuBar: true,
-      closable: true,
-      focusable: true,
-      movable: true,
-      hasShadow: true,
-      roundedCorners: true,
-      maximizable: true,
-      minimizable: true,
-      resizable: true,
-      title: 'Call Chain Window',
-      frame: true,
-      titleBarOverlay: { height: 40 },
-      webPreferences: {
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: false,
-        devTools: isDev
-      }
-    }
-  },
-
   // Floating toolbar that appears near user text selections.
   // Managed by SelectionService: onActivate opens it (hidden), showToolbarAtPosition positions + shows.
   [WindowType.SelectionToolbar]: {
