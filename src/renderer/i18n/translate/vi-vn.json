@@ -4629,6 +4629,10 @@
     "alert": {
       "google_login": "Mẹo: Nếu bạn thấy thông báo 'trình duyệt không được tin cậy' khi đăng nhập vào Google, vui lòng đầu tiên đăng nhập qua ứng dụng nhỏ Google trong danh sách ứng dụng nhỏ, sau đó sử dụng đăng nhập Google trong các ứng dụng nhỏ khác"
     },
+    "assistant_unavailable": {
+      "clear_binding": "Clear binding",
+      "title": "Bound assistant unavailable"
+    },
     "clipboard": {
       "empty": "Khay nhớp trống"
     },

@@ -1,4 +1,5 @@
 import { useChat } from '@ai-sdk/react'
+import { Button } from '@cherrystudio/ui'
 import { usePreference } from '@data/hooks/usePreference'
 import { loggerService } from '@logger'
 import { toMessageListItem } from '@renderer/components/chat/messages/utils/messageListItem'
@@ -19,6 +20,7 @@ import type { CherryMessagePart, CherryUIMessage, ModelSnapshot } from '@shared/
 import { IpcChannel } from '@shared/IpcChannel'
 import { Divider } from 'antd'
 import { isEmpty } from 'lodash'
+import { AlertTriangle, XCircle } from 'lucide-react'
 import type { FC } from 'react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -41,7 +43,7 @@ type MiniRoute = 'home' | 'chat' | 'translate' | 'summary' | 'explanation'
 
 const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const [readClipboardAtStartup] = usePreference('feature.quick_assistant.read_clipboard_at_startup')
-  const [quickAssistantId] = usePreference('feature.quick_assistant.assistant_id')
+  const [quickAssistantId, setQuickAssistantId] = usePreference('feature.quick_assistant.assistant_id')
   const [language] = usePreference('app.language')
   const [windowStyle] = usePreference('ui.window_style')
   const { theme } = useTheme()
@@ -67,9 +69,16 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const featureMenusRef = useRef<FeatureMenusRef>(null)
 
   const quickAssistantPersistedId = normalizeAssistantId(quickAssistantId)
-  const { assistant: currentAssistant, model: currentModel } = useAssistant(quickAssistantPersistedId)
+  const {
+    assistant: currentAssistant,
+    model: currentModel,
+    isLoading: isAssistantLoading
+  } = useAssistant(quickAssistantPersistedId)
   const { quickModel } = useDefaultModel()
-  const effectiveModel = quickAssistantPersistedId ? currentModel : quickModel
+  const hasAssistantBinding = quickAssistantPersistedId !== null
+  const isAssistantBindingUnavailable = hasAssistantBinding && !isAssistantLoading && !currentAssistant
+  const effectiveModel = hasAssistantBinding ? currentModel : quickModel
+  const shouldLeaseTemporaryTopic = !hasAssistantBinding || !!currentAssistant
 
   // Lease a temporary topic for the quick-assistant conversation.
   // Lifecycle is tied to this component; resetting the conversation drops and leases a new one.
@@ -77,7 +86,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     topicId: temporaryTopicId,
     ready: isTopicReady,
     reset: resetTemporaryTopic
-  } = useTemporaryTopic({ enabled: true, assistantId: quickAssistantPersistedId })
+  } = useTemporaryTopic({
+    enabled: shouldLeaseTemporaryTopic,
+    assistantId: shouldLeaseTemporaryTopic && hasAssistantBinding ? quickAssistantPersistedId : null
+  })
 
   const referenceText = clipboardText || userInputText
 
@@ -289,6 +301,10 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
   const handleSendMessage = useCallback(
     async (prompt?: string) => {
       if (isEmpty(userContent)) return
+      if (isAssistantBindingUnavailable) {
+        setFlowError(t('quickAssistant.assistant_unavailable.title'))
+        return
+      }
       if (!isTopicReady || !temporaryTopicId) return
 
       try {
@@ -306,7 +322,15 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         logger.error('Error fetching result:', resolvedError)
       }
     },
-    [sendMessage, temporaryTopicId, isTopicReady, userContent, quickAssistantMentionedModels]
+    [
+      sendMessage,
+      temporaryTopicId,
+      isTopicReady,
+      userContent,
+      quickAssistantMentionedModels,
+      isAssistantBindingUnavailable,
+      t
+    ]
   )
 
   const handlePause = useCallback(() => {
@@ -336,6 +360,17 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     setRoute('home')
     setUserInputText('')
   }, [handleCloseWindow, handlePause, isLoading, resetConversation, route])
+
+  const handleClearUnavailableAssistantBinding = useCallback(() => {
+    void setQuickAssistantId(null)
+      .then(() => {
+        resetConversation()
+        setRoute('home')
+      })
+      .catch((error) => {
+        logger.error('Failed to clear quick assistant binding:', error)
+      })
+  }, [resetConversation, setQuickAssistantId])
 
   const handleCopy = useCallback(() => {
     if (!content) return
@@ -416,6 +451,17 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
     }),
     [route, isLoading, handleEsc, setIsPinned, isPinned]
   )
+
+  if (isAssistantBindingUnavailable && route !== 'translate') {
+    return (
+      <Container style={{ backgroundColor }} $draggable={draggable}>
+        <UnavailableAssistantNotice onClearBinding={handleClearUnavailableAssistantBinding} />
+        {flowError && <ErrorMsg>{flowError}</ErrorMsg>}
+        <Divider style={{ margin: '10px 0' }} />
+        <Footer key="footer" {...baseFooterProps} />
+      </Container>
+    )
+  }
 
   switch (route) {
     case 'chat':
@@ -528,5 +574,24 @@ const ErrorMsg = styled.div`
   font-size: 13px;
   word-break: break-all;
 `
+
+const UnavailableAssistantNotice = ({ onClearBinding }: { onClearBinding: () => void }) => {
+  const { t } = useTranslation()
+
+  return (
+    <div className="mt-2 flex min-w-0 items-center gap-2 text-[13px] text-warning [-webkit-app-region:no-drag]">
+      <AlertTriangle size={14} className="shrink-0" />
+      <span className="min-w-0 truncate">{t('quickAssistant.assistant_unavailable.title')}</span>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-[26px] shrink-0 px-1.5 text-warning hover:bg-warning/10"
+        onClick={onClearBinding}>
+        <XCircle size={13} />
+        {t('quickAssistant.assistant_unavailable.clear_binding')}
+      </Button>
+    </div>
+  )
+}
 
 export default HomeWindow

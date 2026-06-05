@@ -4629,6 +4629,10 @@
     "alert": {
       "google_login": "Sfat: Dacă vezi un mesaj 'browser not trusted' când te conectezi la Google, te rugăm să te conectezi mai întâi prin mini-aplicația Google din lista de mini-aplicații, apoi să folosești autentificarea Google în alte mini-aplicații"
     },
+    "assistant_unavailable": {
+      "clear_binding": "Clear binding",
+      "title": "Bound assistant unavailable"
+    },
     "clipboard": {
       "empty": "Clipboardul este gol"
     },

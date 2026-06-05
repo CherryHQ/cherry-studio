@@ -4691,6 +4691,10 @@
     "alert": {
       "google_login": "提示：若 Google 登入時顯示「不受信任的瀏覽器」，請先在小程式清單中的 Google 小程式完成帳號登入，再到其他小程式使用 Google 登入。"
     },
+    "assistant_unavailable": {
+      "clear_binding": "清除綁定",
+      "title": "綁定的助手已無法使用"
+    },
     "clipboard": {
       "empty": "剪貼簿為空"
     },

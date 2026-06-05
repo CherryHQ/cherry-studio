@@ -4629,6 +4629,10 @@
     "alert": {
       "google_login": "Совет: Если при входе в Google вы видите сообщение 'ненадежный браузер', сначала войдите в аккаунт через мини-приложение Google в списке мини-приложений, а затем используйте вход через Google в других мини-приложениях"
     },
+    "assistant_unavailable": {
+      "clear_binding": "Clear binding",
+      "title": "Bound assistant unavailable"
+    },
     "clipboard": {
       "empty": "Буфер обмена пуст"
     },

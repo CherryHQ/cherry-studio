@@ -24,7 +24,7 @@ import { normalizeAssistantId } from '@renderer/utils/assistant'
 import { cn } from '@renderer/utils/style'
 import HomeWindow from '@renderer/windows/quickAssistant/home/HomeWindow'
 import type { Model } from '@shared/data/types/model'
-import { Check, ChevronDown, Info } from 'lucide-react'
+import { AlertTriangle, Check, ChevronDown, Info, XCircle } from 'lucide-react'
 import type React from 'react'
 import type { FC } from 'react'
 import { useMemo, useState } from 'react'
@@ -52,8 +52,13 @@ const QuickAssistantSettings: FC = () => {
   const quickAssistantPersistedId = normalizeAssistantId(quickAssistantId)
   const assistantOptions = useMemo(() => assistants, [assistants])
   const selectedAssistant = assistantOptions.find((assistant) => assistant.id === quickAssistantPersistedId) ?? null
+  const isAssistantBindingUnavailable = !!quickAssistantPersistedId && !selectedAssistant
   const handleAssistantSelect = (assistantId: string) => {
     void setQuickAssistantId(assistantId)
+  }
+
+  const handleClearUnavailableAssistantBinding = () => {
+    void setQuickAssistantId(null)
   }
 
   const handleEnableQuickAssistant = async (enable: boolean) => {
@@ -132,7 +137,9 @@ const QuickAssistantSettings: FC = () => {
               <Spacer />
             </RowFlex>
             <RowFlex className="items-center gap-2.5">
-              {!quickAssistantPersistedId || !selectedAssistant ? null : (
+              {isAssistantBindingUnavailable ? (
+                <UnavailableAssistantBinding onClearBinding={handleClearUnavailableAssistantBinding} />
+              ) : !quickAssistantPersistedId || !selectedAssistant ? null : (
                 <RowFlex className="items-center">
                   <Popover open={assistantSelectOpen} onOpenChange={setAssistantSelectOpen}>
                     <PopoverTrigger asChild>
@@ -180,7 +187,7 @@ const QuickAssistantSettings: FC = () => {
               <ButtonGroup>
                 <Button
                   className="min-w-20"
-                  variant={quickAssistantPersistedId ? 'default' : 'outline'}
+                  variant={quickAssistantPersistedId && selectedAssistant ? 'default' : 'outline'}
                   disabled={assistantOptions.length === 0}
                   onClick={() => {
                     void setQuickAssistantId(selectedAssistant?.id ?? assistantOptions[0]?.id ?? null)
@@ -228,5 +235,24 @@ const AssistantName = ({ className, ...props }: React.ComponentPropsWithoutRef<'
 const Spacer = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (
   <div className={cn('flex-1', className)} {...props} />
 )
+
+const UnavailableAssistantBinding = ({ onClearBinding }: { onClearBinding: () => void }) => {
+  const { t } = useTranslation()
+
+  return (
+    <div className="flex min-w-0 items-center gap-1.5 text-warning">
+      <AlertTriangle size={13} className="shrink-0" />
+      <span className="max-w-[160px] truncate text-xs">{t('quickAssistant.assistant_unavailable.title')}</span>
+      <Button
+        variant="ghost"
+        size="sm"
+        className="h-7 shrink-0 px-1.5 text-warning hover:bg-warning/10"
+        onClick={onClearBinding}>
+        <XCircle size={13} />
+        {t('quickAssistant.assistant_unavailable.clear_binding')}
+      </Button>
+    </div>
+  )
+}
 
 export default QuickAssistantSettings

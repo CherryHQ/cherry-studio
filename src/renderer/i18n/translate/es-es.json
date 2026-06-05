@@ -4629,6 +4629,10 @@
     "alert": {
       "google_login": "Sugerencia: si aparece el mensaje de Google \"navegador no confiable\" al iniciar sesión, primero inicie sesión en su cuenta a través de la miniaplicación de Google en la lista de miniaplicaciones, y luego use el inicio de sesión de Google en otras miniaplicaciones"
     },
+    "assistant_unavailable": {
+      "clear_binding": "Clear binding",
+      "title": "Bound assistant unavailable"
+    },
     "clipboard": {
       "empty": "El portapapeles está vacío"
     },
