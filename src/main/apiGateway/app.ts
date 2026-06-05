@@ -1,3 +1,4 @@
+import { bearer } from '@elysia/bearer'
 import { cors } from '@elysia/cors'
 import { node } from '@elysia/node'
 import { openapi } from '@elysia/openapi'
@@ -8,7 +9,7 @@ import { v4 as uuidv4 } from 'uuid'
 import * as z from 'zod'
 
 import { gatewayErrorHandler } from './errors'
-import { authGuard } from './middleware/auth'
+import { authorizeApiRequest } from './middleware/auth'
 import { chatRoutes } from './routes/chat'
 import { knowledgeRoutes } from './routes/knowledge'
 import { messagesRoutes } from './routes/messages'
@@ -27,9 +28,16 @@ export const OPENAPI_PATH = '/openapi' as const
  * the dialect by path.
  */
 const v1Routes = new Elysia({ prefix: '/v1' })
+  // `@elysia/bearer` derives `bearer` from `Authorization: Bearer …` / `?access_token`.
+  .use(bearer())
   .guard({
     as: 'scoped',
-    beforeHandle: authGuard
+    beforeHandle: ({ bearer, headers, set }) => {
+      const failure = authorizeApiRequest(headers['x-api-key'], bearer)
+      if (!failure) return undefined
+      set.status = failure.status
+      return { error: failure.error }
+    }
   })
   .use(messagesRoutes)
   .use(chatRoutes)

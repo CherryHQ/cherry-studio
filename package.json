@@ -183,6 +183,7 @@
     "@electron-toolkit/tsconfig": "^1.0.1",
     "@electron-toolkit/utils": "^3.0.0",
     "@electron/notarize": "^2.5.0",
+    "@elysia/bearer": "^1.4.4",
     "@elysia/cors": "^1.4.2",
     "@elysia/node": "^1.4.6",
     "@elysia/openapi": "^1.4.15",

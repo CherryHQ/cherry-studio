@@ -10,75 +10,35 @@ const isValidToken = (token: string, apiKey: string): boolean => {
   return crypto.timingSafeEqual(tokenBuf, keyBuf)
 }
 
-/** Minimal slice of the Elysia context the auth guard needs. */
-interface AuthContext {
-  headers: Record<string, string | undefined>
-  set: { status?: number | string }
-}
+export type AuthFailure = { status: 401 | 403; error: string }
 
 /**
- * Authentication guard ported from the Express `authMiddleware`. Applied as an
- * `onBeforeHandle` hook to protected route groups only. Returning a value
- * short-circuits the request with that body; returning `undefined` lets the
- * request through.
+ * Validate the credentials presented to the protected `/v1` routes. Two dialects
+ * are accepted: the Anthropic `x-api-key` header (takes priority) and the OpenAI
+ * `Authorization: Bearer <token>` (extracted by the `@elysia/bearer` plugin in
+ * `app.ts` and passed here as `bearerToken`). Both are compared against
+ * `feature.csaas.api_key` with a timing-safe comparison.
+ *
+ * Returns an `AuthFailure` to short-circuit the request, or `undefined` to allow it.
  */
-export const authGuard = async ({ headers, set }: AuthContext): Promise<{ error: string } | undefined> => {
-  const auth = headers['authorization'] || ''
-  const xApiKey = headers['x-api-key'] || ''
+export const authorizeApiRequest = (
+  xApiKey: string | undefined,
+  bearerToken: string | undefined
+): AuthFailure | undefined => {
+  const token = xApiKey?.trim() || bearerToken?.trim()
 
-  // Fast rejection if neither credential header provided
-  if (!auth && !xApiKey) {
-    set.status = 401
-    return { error: 'Unauthorized: missing credentials' }
+  if (!token) {
+    return { status: 401, error: 'Unauthorized: missing credentials' }
   }
 
   const apiKey = application.get('PreferenceService').get('feature.csaas.api_key')
-
   if (!apiKey) {
-    set.status = 403
-    return { error: 'Forbidden' }
+    return { status: 403, error: 'Forbidden' }
   }
 
-  // Check API key first (priority)
-  if (xApiKey) {
-    const trimmedApiKey = xApiKey.trim()
-    if (!trimmedApiKey) {
-      set.status = 401
-      return { error: 'Unauthorized: empty x-api-key' }
-    }
-
-    if (isValidToken(trimmedApiKey, apiKey)) {
-      return undefined
-    } else {
-      set.status = 403
-      return { error: 'Forbidden' }
-    }
+  if (isValidToken(token, apiKey)) {
+    return undefined
   }
 
-  // Fallback to Bearer token
-  if (auth) {
-    const trimmed = auth.trim()
-    const bearerPrefix = /^Bearer\s+/i
-
-    if (!bearerPrefix.test(trimmed)) {
-      set.status = 401
-      return { error: 'Unauthorized: invalid authorization format' }
-    }
-
-    const token = trimmed.replace(bearerPrefix, '').trim()
-    if (!token) {
-      set.status = 401
-      return { error: 'Unauthorized: empty bearer token' }
-    }
-
-    if (isValidToken(token, apiKey)) {
-      return undefined
-    } else {
-      set.status = 403
-      return { error: 'Forbidden' }
-    }
-  }
-
-  set.status = 401
-  return { error: 'Unauthorized: invalid credentials format' }
+  return { status: 403, error: 'Forbidden' }
 }

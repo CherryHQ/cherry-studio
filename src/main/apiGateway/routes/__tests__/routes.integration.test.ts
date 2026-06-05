@@ -99,6 +99,16 @@ describe('API gateway routes (integration)', () => {
       expect(status).toBe(401)
       expect(body.error).toMatch(/Unauthorized/)
     })
+
+    it('authenticates a /v1 request via the Authorization: Bearer header (@elysia/bearer)', async () => {
+      const { status } = await read(await get(app, '/v1/models', { authorization: 'Bearer test-key' }))
+      expect(status).toBe(200)
+    })
+
+    it('rejects a /v1 request with an invalid Bearer token (403)', async () => {
+      const { status } = await read(await get(app, '/v1/models', { authorization: 'Bearer wrong-key' }))
+      expect(status).toBe(403)
+    })
   })
 
   describe('not found', () => {
