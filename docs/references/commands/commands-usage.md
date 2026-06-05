@@ -43,10 +43,13 @@ For the same command, the most recently mounted **enabled** handler wins; when i
 unmounts, the previous enabled handler becomes active again. A command with no
 registered handler never resolves (so the keypress falls through untouched).
 
-> The dispatcher skips `contenteditable` targets by design — commands do not fire
-> while the user is typing in a rich editor. Don't reach for a per‑component
-> keydown listener to work around this; if a command genuinely must fire inside an
-> editor, that's a context‑key/enablement decision to discuss.
+> **Status: planned.** The dispatcher does **not** yet skip `contenteditable`
+> targets — today it only skips IME composition (`event.isComposing`), so a command
+> shortcut *does* fire while the user is typing in a rich editor. Suppressing
+> shortcuts inside `contenteditable` (and other rich‑editor) targets is a planned
+> refinement. When it lands, don't reach for a per‑component keydown listener to
+> work around it; if a command genuinely must fire inside an editor, that's a
+> context‑key/enablement decision to discuss.
 
 ## Context keys
 

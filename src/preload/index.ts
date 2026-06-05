@@ -379,14 +379,7 @@ const api = {
       model: NativePopupMenuModel<CommandId>,
       anchor?: MenuAnchor
     ): Promise<NativePopupMenuResult<CommandId> | undefined> =>
-      ipcRenderer.invoke(IpcChannel.NativeCommandPopupMenu_Show, model, anchor),
-    onExecuteFromNativeMenu: (callback: (command: CommandId) => void): (() => void) => {
-      const listener = (_: Electron.IpcRendererEvent, command: CommandId) => callback(command)
-      ipcRenderer.on(IpcChannel.NativeCommandPopupMenu_ExecuteCommand, listener)
-      return () => {
-        ipcRenderer.removeListener(IpcChannel.NativeCommandPopupMenu_ExecuteCommand, listener)
-      }
-    }
+      ipcRenderer.invoke(IpcChannel.NativeCommandPopupMenu_Show, model, anchor)
   },
   selectionMenu: {
     action: (action: string) => ipcRenderer.invoke('selection-menu:action', action)

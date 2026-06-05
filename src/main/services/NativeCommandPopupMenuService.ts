@@ -147,14 +147,19 @@ export class NativeCommandPopupMenuService extends BaseService {
         return
       }
 
-      const window = BrowserWindow.fromWebContents(event.sender) ?? undefined
-      const menu = Menu.buildFromTemplate(template)
-      menu.popup({
-        window,
-        x: anchor?.x,
-        y: anchor?.y,
-        callback: () => settle(undefined)
-      })
+      try {
+        const window = BrowserWindow.fromWebContents(event.sender) ?? undefined
+        const menu = Menu.buildFromTemplate(template)
+        menu.popup({
+          window,
+          x: anchor?.x,
+          y: anchor?.y,
+          callback: () => settle(undefined)
+        })
+      } catch (error) {
+        logger.error('Failed to show native command popup menu', error as Error)
+        settle(undefined)
+      }
     })
   }
 

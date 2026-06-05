@@ -135,8 +135,7 @@ describe('CommandContextMenu', () => {
     preferenceValues['menu.presentation_mode'] = 'native'
     window.api = {
       command: {
-        showNativePopupMenu: showNativePopupMenuMock,
-        onExecuteFromNativeMenu: vi.fn(() => vi.fn())
+        showNativePopupMenu: showNativePopupMenuMock
       }
     } as never
   })

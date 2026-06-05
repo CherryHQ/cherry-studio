@@ -80,8 +80,12 @@ Pure data and pure functions, no Electron or React.
 | `types.ts` | all command/keybinding/menu/context types |
 
 Token formatting (typed shortcut vocabulary, normalization, display/accelerator
-formatting) lives in `src/shared/shortcuts/tokens.ts`; `src/shared/shortcuts/types.ts`
-keeps only `ShortcutPreferenceKey` + `ResolvedShortcut`.
+formatting) lives in `src/shared/shortcuts/tokens.ts`. `src/shared/shortcuts/types.ts`
+still carries the legacy shortcut types (`ShortcutDefinition`, `ShortcutScope`,
+`ShortcutCategory`, `SupportedPlatform`, `ShortcutPreferenceKey`,
+`ResolvedShortcut`, …) used by the current `ShortcutService` wiring; trimming it
+down to only the command‑system types is **planned** for when that legacy wiring
+is retired (see "Planned integration" below).
 
 ### 2. Main runtime — `src/main/services/`
 
@@ -89,8 +93,8 @@ keeps only `ShortcutPreferenceKey` + `ResolvedShortcut`.
 | --- | --- |
 | `CommandService` | holds the main‑side handler registry; `execute(command, window?, ctx?)` with context evaluation; wires built‑in handlers (window/zoom/settings/quick‑assistant/selection) |
 | `NativeCommandPopupMenuService` | materializes a renderer‑supplied menu model into an Electron native popup and reports the chosen command back |
-| `ShortcutService` | registers `globalShortcut` accelerators from `REGISTERED_KEYBINDINGS` (non‑renderer scope) → `CommandService.execute` |
-| `AppMenuService` | builds the macOS app menu from `menuRegistry.resolve({ location: 'app.menu' })` via `menu/adapters/nativeMenuAdapter` → `CommandService.execute` |
+| `ShortcutService` *(planned)* | **Not yet wired to commands.** Today it still registers `globalShortcut` accelerators from the legacy `SHORTCUT_DEFINITIONS` (`src/shared/shortcuts/definitions.ts`) and dispatches through the legacy path. The planned migration drives it from `REGISTERED_KEYBINDINGS` (non‑renderer scope) → `CommandService.execute`. |
+| `AppMenuService` *(planned)* | **Not yet wired to commands.** The planned migration builds the macOS app menu from `menuRegistry.resolve({ location: 'app.menu' })` via `menu/adapters/nativeMenuAdapter` → `CommandService.execute`. |
 
 ### 3. Renderer runtime — `src/renderer/commands/`
 
@@ -101,26 +105,34 @@ keeps only `ShortcutPreferenceKey` + `ResolvedShortcut`.
 | `presentation.tsx` | `CommandShortcut`, `CommandTooltip`, `CommandButton`, `useResolvedCommand` |
 | `menus.tsx` | `CommandContextMenu` — renders Cherry UI or a native popup based on `menu.presentation_mode` |
 
-Mount `<ContextKeyProvider><CommandProvider>` once per renderer window (the main
-window mounts it in `windows/main/MainApp.tsx`).
+Mount `<ContextKeyProvider><CommandProvider>` once per renderer window. **Planned:**
+no window mounts these providers yet — wiring the main window (in
+`windows/main/MainApp.tsx`) is part of the integration still to come, so the
+renderer keydown dispatcher is not active in the app today.
 
 ### Preferences
 
 - `shortcut.<commandId>` — `PreferenceShortcutType` (`{ binding, enabled }`), the
   editable binding per command. Generated through the data‑classify pipeline (see
   [commands-usage.md](./commands-usage.md#adding-a-command)).
-- `menu.presentation_mode` — `'cherry' | 'native'`, exposed in
-  **Settings → Common → Menu** ("Context menu style").
+- `menu.presentation_mode` — `'cherry' | 'native'`. **Planned:** there is no
+  settings UI for it yet; surfacing it in **Settings → Common → Menu** ("Context
+  menu style") is still to come. The preference key exists and `CommandContextMenu`
+  reads it, but it can only be changed programmatically today.
 
 ## Dispatch flows
 
 - **Keyboard (renderer):** `keydown` → `CommandProvider` →
   `getShortcutBindingFromKeyboardEvent` →
   `resolveCommandByKeybinding({ scope: 'renderer', canExecuteCommand: hasHandler })`
-  → active handler. The dispatcher skips `contenteditable` targets and only
-  `preventDefault`s when a command with a registered handler resolves.
-- **Keyboard (global):** OS `globalShortcut` → `ShortcutService` →
-  `CommandService.execute(command, window)`.
+  → active handler. The dispatcher skips only IME composition (`event.isComposing`)
+  and `preventDefault`s only when a command with a registered handler resolves.
+  Shortcuts therefore **do** fire while focus is in a `contenteditable` target
+  today; skipping `contenteditable` (and other rich‑editor) targets is **planned**.
+- **Keyboard (global):** OS `globalShortcut` → `ShortcutService`. **Planned:**
+  routing this to `CommandService.execute(command, window)` is part of the
+  `ShortcutService` migration above; today it still dispatches through the legacy
+  `SHORTCUT_DEFINITIONS` path.
 - **Native menu:** renderer builds a `NativePopupMenuModel` →
   `window.api.command.showNativePopupMenu` → `NativeCommandPopupMenuService`.
   Main‑handled commands run there; renderer‑handled ones are returned to the

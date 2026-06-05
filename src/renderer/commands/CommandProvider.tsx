@@ -187,10 +187,6 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
     [shortcutPreferences, menuPresentationMode]
   )
 
-  useEffect(() => {
-    return window.api.command?.onExecuteFromNativeMenu?.(execute)
-  }, [execute])
-
   return (
     <CommandRuntimeContext value={value}>
       <CommandSharedPreferencesContext value={sharedPreferences}>{children}</CommandSharedPreferencesContext>
