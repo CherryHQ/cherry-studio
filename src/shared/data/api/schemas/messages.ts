@@ -176,7 +176,7 @@ export interface SearchMessageResult {
   messageId: string
   topicId: string
   topicName: string
-  topicAssistantId?: string
+  topicAssistantId?: string | null
   role?: 'user' | 'assistant'
   topicCreatedAt: string
   topicUpdatedAt: string

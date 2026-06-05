@@ -160,6 +160,36 @@ describe('GlobalSearchService', () => {
     ])
   })
 
+  it('preserves null assistantId for runtime-default topic results', async () => {
+    await dbh.db.insert(topicTable).values({
+      id: '66666666-6666-4666-8666-666666666666',
+      name: 'Runtime Default Topic',
+      assistantId: null,
+      orderKey: 'a0'
+    })
+
+    const result = await service.search(
+      GlobalSearchQuerySchema.parse({ q: 'Runtime', types: ['topic'], limitPerType: 5 })
+    )
+
+    expect(result.groups).toEqual([
+      {
+        type: 'topic',
+        items: [
+          expect.objectContaining({
+            id: '66666666-6666-4666-8666-666666666666',
+            title: 'Runtime Default Topic',
+            subtitle: undefined,
+            target: {
+              topicId: '66666666-6666-4666-8666-666666666666',
+              assistantId: null
+            }
+          })
+        ]
+      }
+    ])
+  })
+
   it('honors type filters and limitPerType', async () => {
     await seedGlobalSearchRows()
     await dbh.db.insert(agentSessionTable).values({

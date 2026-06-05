@@ -23,7 +23,7 @@ export type GlobalSearchQuery = z.output<typeof GlobalSearchQuerySchema>
 export type GlobalSearchTarget =
   | { assistantId: string }
   | { agentId: string }
-  | { topicId: string; assistantId?: string }
+  | { topicId: string; assistantId?: string | null }
   | { sessionId: string; agentId: string | null }
   | { knowledgeBaseId: string }
 

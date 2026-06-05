@@ -7,6 +7,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { normalizeAssistantId } from '@renderer/domain/assistant/runtimeDefaultAssistant'
 import { useAssistant } from '@renderer/hooks/useAssistant'
 import { useExecutionOverlay } from '@renderer/hooks/useExecutionOverlay'
+import { useDefaultModel } from '@renderer/hooks/useModel'
 import { useTemporaryTopic } from '@renderer/hooks/useTemporaryTopic'
 import { useTopicStreamStatus } from '@renderer/hooks/useTopicStreamStatus'
 import i18n from '@renderer/i18n'
@@ -67,6 +68,8 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   const quickAssistantPersistedId = normalizeAssistantId(quickAssistantId)
   const { assistant: currentAssistant, model: currentModel } = useAssistant(quickAssistantPersistedId)
+  const { quickModel } = useDefaultModel()
+  const effectiveModel = quickAssistantPersistedId ? currentModel : quickModel
 
   // Lease a temporary topic for the quick-assistant conversation.
   // Lifecycle is tied to this component; resetting the conversation drops and leases a new one.
@@ -178,15 +181,19 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
 
   const quickAssistantModelSnapshot = useMemo<ModelSnapshot | undefined>(
     () =>
-      currentModel
+      effectiveModel
         ? {
-            id: currentModel.id,
-            name: currentModel.name,
-            provider: currentModel.providerId,
-            ...(currentModel.group && { group: currentModel.group })
+            id: effectiveModel.id,
+            name: effectiveModel.name,
+            provider: effectiveModel.providerId,
+            ...(effectiveModel.group && { group: effectiveModel.group })
           }
         : undefined,
-    [currentModel]
+    [effectiveModel]
+  )
+  const quickAssistantMentionedModels = useMemo(
+    () => (!quickAssistantPersistedId && quickModel?.id ? [quickModel.id] : undefined),
+    [quickAssistantPersistedId, quickModel?.id]
   )
 
   const messageItems = useMemo(
@@ -289,15 +296,17 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
         setIsFirstMessage(false)
         setUserInputText('')
         setIsPreparing(true)
-        // topicId comes from useChat id; Main resolves assistant/model from topic.assistantId.
-        void sendMessage({ text: [prompt, userContent].filter(Boolean).join('\n\n') })
+        void sendMessage(
+          { text: [prompt, userContent].filter(Boolean).join('\n\n') },
+          quickAssistantMentionedModels ? { body: { mentionedModels: quickAssistantMentionedModels } } : undefined
+        )
       } catch (streamError) {
         const resolvedError = streamError instanceof Error ? streamError : new Error('An error occurred')
         setFlowError(resolvedError.message)
         logger.error('Error fetching result:', resolvedError)
       }
     },
-    [sendMessage, temporaryTopicId, isTopicReady, userContent]
+    [sendMessage, temporaryTopicId, isTopicReady, userContent, quickAssistantMentionedModels]
   )
 
   const handlePause = useCallback(() => {
@@ -393,9 +402,9 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
       return t('quickAssistant.input.placeholder.title')
     }
     return t('quickAssistant.input.placeholder.empty', {
-      model: quickAssistantPersistedId ? (currentAssistant?.name ?? '') : (currentModel?.name ?? '')
+      model: quickAssistantPersistedId ? (currentAssistant?.name ?? '') : (effectiveModel?.name ?? '')
     })
-  }, [referenceText, route, t, quickAssistantPersistedId, currentAssistant, currentModel])
+  }, [referenceText, route, t, quickAssistantPersistedId, currentAssistant, effectiveModel])
 
   const baseFooterProps = useMemo(
     () => ({
@@ -419,7 +428,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
               <InputBar
                 text={userInputText}
                 assistant={currentAssistant}
-                model={currentModel}
+                model={effectiveModel}
                 referenceText={referenceText}
                 placeholder={inputPlaceholder}
                 loading={isLoading}
@@ -465,7 +474,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
             <InputBar
               text={userInputText}
               assistant={currentAssistant}
-              model={currentModel}
+              model={effectiveModel}
               referenceText={referenceText}
               placeholder={inputPlaceholder}
               loading={isLoading}

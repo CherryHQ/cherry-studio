@@ -71,7 +71,7 @@ const HomePage: FC = () => {
   const queuedTemporaryTopicTargetRef = useRef<{ assistantId: RuntimeAssistantTarget } | null>(null)
   const [ignoredTemporaryTopicId, setIgnoredTemporaryTopicId] = useState<string | null>(null)
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
-  const lastUsedAssistantIdRef = useRef<string | undefined>(lastUsedAssistantId ?? undefined)
+  const lastUsedAssistantIdRef = useRef<RuntimeAssistantTarget | undefined>(lastUsedAssistantId)
   const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
   const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)
@@ -185,15 +185,14 @@ const HomePage: FC = () => {
     : (temporaryTopicSnapshot ?? activeTopic ?? (isActiveTopicLoading ? lastVisibleTopicRef.current : undefined))
 
   useEffect(() => {
-    lastUsedAssistantIdRef.current = lastUsedAssistantId ?? undefined
+    lastUsedAssistantIdRef.current = lastUsedAssistantId
   }, [lastUsedAssistantId])
 
   useEffect(() => {
+    if (!activeTopic) return
     const assistantId = getTopicAssistantId(activeTopic)
-    if (assistantId) {
-      lastUsedAssistantIdRef.current = assistantId
-      setLastUsedAssistantId(assistantId)
-    }
+    lastUsedAssistantIdRef.current = assistantId
+    setLastUsedAssistantId(assistantId)
   }, [activeTopic, setLastUsedAssistantId])
 
   // All non-dormant tabs mount at once (Activity keep-alive), so each chat tab runs its

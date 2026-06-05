@@ -60,7 +60,11 @@ function mockPreviewInfiniteQuery(path: string) {
 }
 
 vi.mock('@renderer/components/chat/messages/MessageContentProvider', () => ({
-  MessageContentProvider: ({ children }: { children: ReactNode }) => <div>{children}</div>
+  MessageContentProvider: ({ children, topic }: { children: ReactNode; topic: { assistantId: string | null } }) => (
+    <div data-testid="preview-provider" data-topic-assistant-id={String(topic.assistantId)}>
+      {children}
+    </div>
+  )
 }))
 
 vi.mock('@renderer/components/chat/messages/frame/MessageContent', () => ({
@@ -162,7 +166,8 @@ describe('GlobalSearchMessagePreviewPanel', () => {
           sourceType: 'topic',
           topicId: 'topic-1',
           title: 'Topic A',
-          messageId: 'topic-message-2'
+          messageId: 'topic-message-2',
+          assistantId: null
         }}
         onClose={mocks.onClose}
         onOpenMessage={mocks.onOpenMessage}
@@ -171,6 +176,7 @@ describe('GlobalSearchMessagePreviewPanel', () => {
 
     expect(screen.getByText('Topic A')).toBeInTheDocument()
     expect(screen.getByText('Topic messages')).toBeInTheDocument()
+    expect(screen.getByTestId('preview-provider')).toHaveAttribute('data-topic-assistant-id', 'null')
     expect(screen.getByText('message-content:topic-message-1')).toBeInTheDocument()
     expect(screen.getByText('message-content:topic-message-2')).toBeInTheDocument()
     await waitFor(() => expect(screen.getAllByText('needle', { selector: 'mark' })).toHaveLength(2))

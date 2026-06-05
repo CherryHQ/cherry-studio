@@ -20,7 +20,7 @@ export type GlobalSearchMessagePreviewTarget =
       topicId: string
       title: string
       messageId: string
-      assistantId?: string
+      assistantId?: string | null
       createdAt?: string
       updatedAt?: string
     }
@@ -51,7 +51,7 @@ function getPreviewTopic(target: GlobalSearchMessagePreviewTarget): Topic {
   if (target.sourceType === 'topic') {
     return {
       id: target.topicId,
-      assistantId: target.assistantId ?? '',
+      assistantId: target.assistantId ?? null,
       name: target.title,
       createdAt: target.createdAt ?? '',
       updatedAt: target.updatedAt ?? target.createdAt ?? '',

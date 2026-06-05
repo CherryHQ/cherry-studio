@@ -734,29 +734,28 @@ describe('HomePage', () => {
     expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
   })
 
-  it('starts the remembered assistant when the active temporary topic has no assistant', async () => {
+  it('remembers the runtime default assistant and reuses its active temporary topic', async () => {
     homeMocks.locationState = undefined
     homeMocks.persistCacheValues.set('ui.chat.last_used_assistant_id', 'assistant-2')
     homeMocks.temporaryConversation = {
+      assistantId: null,
       id: 'temp-topic-empty',
       topic: { ...initialTopic, assistantId: null, id: 'temp-topic-empty' },
       topicId: 'temp-topic-empty',
       type: 'assistant'
     }
-    homeMocks.startTemporaryConversation.mockResolvedValue({
-      assistantId: 'assistant-2',
-      id: 'temp-topic-next',
-      topicId: 'temp-topic-next',
-      type: 'assistant'
-    })
 
     render(<HomePage />)
 
+    await waitFor(() => {
+      expect(homeMocks.cacheSetPersist).toHaveBeenCalledWith('ui.chat.last_used_assistant_id', null)
+    })
+
     fireEvent.click(screen.getByRole('button', { name: 'New topic' }))
 
-    await waitFor(() => {
-      expect(homeMocks.startTemporaryConversation).toHaveBeenCalledWith({ assistantId: 'assistant-2' })
-    })
+    expect(homeMocks.startTemporaryConversation).not.toHaveBeenCalled()
+    expect(screen.getByTestId('active-topic')).toHaveTextContent('temp-topic-empty')
+    expect(screen.getByTestId('active-topic-assistant')).toHaveTextContent('')
   })
 
   it('updates the active temporary topic assistant without changing the topic id', async () => {
