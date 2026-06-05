@@ -94,7 +94,8 @@ import { MockMainPreferenceServiceUtils } from '@test-mocks/main/PreferenceServi
 
 import { ShortcutService } from '../ShortcutService'
 
-const supportsSelectionShortcuts = ['darwin', 'win32'].includes(process.platform)
+// Mirrors the selection commands' supportedPlatforms (darwin/win32/linux) — SelectionService supports linux too.
+const supportsSelectionShortcuts = ['darwin', 'win32', 'linux'].includes(process.platform)
 const settingsShortcutHandledByNativeMenu = process.platform === 'darwin'
 
 class MockBrowserWindow {
