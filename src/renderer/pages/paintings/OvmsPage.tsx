@@ -440,7 +440,7 @@ const OvmsPage: FC<{ Options: string[] }> = ({ Options }) => {
     return (
       <div key={index}>
         <SettingTitle style={{ marginBottom: 5, marginTop: 15 }}>
-          {t(item.title!)}
+          {t(item.title)}
           {item.tooltip && (
             <Tooltip title={t(item.tooltip)}>
               <InfoIcon />
