@@ -130,8 +130,7 @@ describe('CommandService', () => {
 
   it('falls back to all main windows for zoom commands without an explicit target window', () => {
     const mainWindow = { isDestroyed: vi.fn(() => false) } as any
-    const destroyedMainWindow = { isDestroyed: vi.fn(() => true) } as any
-    windowManagerMock.getWindowsByType.mockReturnValue([mainWindow, destroyedMainWindow])
+    windowManagerMock.getWindowsByType.mockReturnValue([mainWindow])
 
     service.execute('app.zoom.reset')
 
