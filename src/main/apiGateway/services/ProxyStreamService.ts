@@ -32,6 +32,8 @@ import { googleReasoningCache, openRouterReasoningCache } from './reasoning-cach
 
 const logger = loggerService.withContext('ProxyStreamService')
 
+const GATEWAY_STREAM_IDLE_TIMEOUT_MS = 20 * 60_000
+
 /** Union of all supported input params. */
 type InputParams = InputParamsMap[InputFormat]
 
@@ -181,7 +183,8 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
           uniqueModelId,
           messages,
           listener,
-          callOverrides
+          callOverrides,
+          idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
         })
       },
       cancel() {
@@ -237,7 +240,8 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       uniqueModelId,
       messages,
       listener,
-      callOverrides
+      callOverrides,
+      idleTimeoutMs: GATEWAY_STREAM_IDLE_TIMEOUT_MS
     })
 
     await done

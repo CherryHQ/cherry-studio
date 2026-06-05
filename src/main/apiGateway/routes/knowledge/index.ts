@@ -1,7 +1,7 @@
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
 import { loggerService } from '@logger'
 import { application } from '@main/core/application'
-import { DataApiErrorFactory } from '@shared/data/api'
+import { DataApiError, DataApiErrorFactory, ERROR_STATUS_MAP, ErrorCode } from '@shared/data/api'
 import { Elysia } from 'elysia'
 
 import {
@@ -96,12 +96,14 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
       )
 
       // Every targeted search failed (e.g. broken embedding/vector-store config). Surface a
-      // server error instead of a 200 with empty results, so clients can tell infrastructure
-      // failure apart from "no matches".
+      // retryable upstream-dependency failure (503) instead of a 200 with empty results, so
+      // clients can tell infrastructure failure apart from "no matches".
       if (resultsPerBase.every((r) => r.error)) {
-        throw DataApiErrorFactory.internal(
-          new Error(resultsPerBase.map((r) => r.error).join('; ')),
-          'knowledge base search'
+        throw new DataApiError(
+          ErrorCode.SERVICE_UNAVAILABLE,
+          'All knowledge base searches failed',
+          ERROR_STATUS_MAP[ErrorCode.SERVICE_UNAVAILABLE],
+          { originalError: resultsPerBase.map((r) => r.error).join('; ') }
         )
       }
 
