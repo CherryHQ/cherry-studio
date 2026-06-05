@@ -12,6 +12,7 @@ export interface CountTokensInput {
   system?: MessageCreateParams['system']
 }
 
+// TODO: unified token estimator
 export function estimateTokenCount(input: CountTokensInput): number {
   const { messages, system } = input
   let totalTokens = 0
