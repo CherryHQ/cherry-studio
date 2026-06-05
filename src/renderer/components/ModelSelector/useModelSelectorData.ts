@@ -17,27 +17,117 @@ import { getProviderDisplayName } from './utils'
 
 const EMPTY_TAGS: ModelSelectorTag[] = []
 
-function matchKeywords(keywords: string, model: Model, provider: Provider) {
-  const normalizedKeywords = keywords.toLowerCase().split(/\s+/).filter(Boolean)
-  if (normalizedKeywords.length === 0) {
-    return true
+function normalizeSearchSegment(value: string) {
+  return value.toLowerCase().replace(/[\s._:/\\-]+/g, '')
+}
+
+function getSearchTokens(value: string) {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
+    .split(/[^a-zA-Z0-9]+/)
+    .flatMap((segment) => segment.match(/[a-zA-Z]+|\d+/g) ?? [])
+    .map((segment) => segment.toLowerCase())
+}
+
+function getTokenInitials(value: string) {
+  return getSearchTokens(value)
+    .map((token) => token[0])
+    .join('')
+}
+
+function getOrderedCharacterMatchSpan(keyword: string, text: string) {
+  let keywordIndex = 0
+  let startIndex = -1
+
+  for (let textIndex = 0; textIndex < text.length; textIndex += 1) {
+    const char = text[textIndex]
+    if (char === keyword[keywordIndex]) {
+      if (startIndex === -1) {
+        startIndex = textIndex
+      }
+
+      keywordIndex += 1
+    }
+
+    if (keywordIndex === keyword.length) {
+      return textIndex - startIndex + 1
+    }
   }
 
-  const searchableText = [
-    model.name,
-    model.id,
-    model.apiModelId,
-    provider.name,
-    provider.id,
-    provider.presetProviderId,
-    // UI 展示的 provider 名（内置 provider 走 i18n 翻译），确保用户按界面上看到的名字搜索能命中
-    getProviderDisplayName(provider)
-  ]
-    .filter(Boolean)
-    .join(' ')
-    .toLowerCase()
+  return null
+}
 
-  return normalizedKeywords.every((keyword) => searchableText.includes(keyword))
+function getKeywordMatchScore(keyword: string, model: Model, provider: Provider) {
+  const normalizedKeyword = normalizeSearchSegment(keyword)
+  const searchableFields = [
+    { value: model.name, weight: 0, allowAbbreviation: true },
+    { value: model.apiModelId, weight: 1, allowAbbreviation: true },
+    { value: model.id, weight: 1, allowAbbreviation: true },
+    { value: provider.name, weight: 2, allowAbbreviation: false },
+    { value: provider.id, weight: 2, allowAbbreviation: false },
+    { value: provider.presetProviderId, weight: 2, allowAbbreviation: false },
+    // UI 展示的 provider 名（内置 provider 走 i18n 翻译），确保用户按界面上看到的名字搜索能命中
+    { value: getProviderDisplayName(provider), weight: 2, allowAbbreviation: false }
+  ]
+
+  let bestScore: number | null = null
+
+  for (const field of searchableFields) {
+    if (!field.value) {
+      continue
+    }
+
+    const text = field.value.toLowerCase()
+    const textIndex = text.indexOf(keyword)
+    if (textIndex !== -1) {
+      const score = field.weight * 100 + textIndex
+      bestScore = bestScore === null ? score : Math.min(bestScore, score)
+    }
+
+    const normalizedText = normalizeSearchSegment(field.value)
+    const normalizedIndex = normalizedText.indexOf(normalizedKeyword)
+    if (normalizedIndex !== -1) {
+      const score = 1000 + field.weight * 100 + normalizedIndex
+      bestScore = bestScore === null ? score : Math.min(bestScore, score)
+    }
+
+    if (field.allowAbbreviation) {
+      const tokenInitials = getTokenInitials(field.value)
+      const tokenInitialsIndex = tokenInitials.indexOf(normalizedKeyword)
+      if (tokenInitialsIndex !== -1) {
+        const score = 1500 + field.weight * 100 + tokenInitialsIndex
+        bestScore = bestScore === null ? score : Math.min(bestScore, score)
+      }
+
+      const abbreviationSpan = getOrderedCharacterMatchSpan(normalizedKeyword, normalizedText)
+      if (abbreviationSpan !== null) {
+        const score = 2000 + field.weight * 100 + abbreviationSpan
+        bestScore = bestScore === null ? score : Math.min(bestScore, score)
+      }
+    }
+  }
+
+  return bestScore
+}
+
+function getModelSearchScore(keywords: string, model: Model, provider: Provider) {
+  const normalizedKeywords = keywords.toLowerCase().split(/\s+/).filter(Boolean)
+  if (normalizedKeywords.length === 0) {
+    return 0
+  }
+
+  let totalScore = 0
+
+  for (const keyword of normalizedKeywords) {
+    const keywordScore = getKeywordMatchScore(keyword, model, provider)
+    if (keywordScore === null) {
+      return null
+    }
+
+    totalScore += keywordScore
+  }
+
+  return totalScore
 }
 
 function getDuplicateModelNames<T extends Pick<Model, 'name'>>(models: T[]): Set<string> {
@@ -170,10 +260,16 @@ export function useModelSelectorData({
 
   const searchFilter = useCallback(
     (provider: Provider) => {
-      let providerModels = modelsByProvider.get(provider.id) ?? []
+      const providerModels = modelsByProvider.get(provider.id) ?? []
 
       if (searchText.trim()) {
-        providerModels = providerModels.filter((model) => matchKeywords(searchText, model, provider))
+        return sortBy(
+          providerModels.flatMap((model) => {
+            const searchScore = getModelSearchScore(searchText, model, provider)
+            return searchScore === null ? [] : [{ model, searchScore }]
+          }),
+          ['searchScore', 'model.group', 'model.name']
+        ).map(({ model }) => model)
       }
 
       return sortModels(providerModels)
