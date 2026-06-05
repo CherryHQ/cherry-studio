@@ -247,7 +247,8 @@ export class ResponsesService {
         errorCode = 'rate_limit_exceeded'
       }
     } else if (error instanceof Error) {
-      errorMessage = error.message
+      // Some errors (e.g. framework-thrown ones) have no `message`; keep the default.
+      errorMessage = error.message || errorMessage
 
       if (errorMessage.includes('API key') || errorMessage.includes('authentication')) {
         statusCode = 401

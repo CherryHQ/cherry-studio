@@ -87,6 +87,13 @@ describe('API gateway routes (integration)', () => {
       expect(status).toBe(200)
       expect(body.status).toBe('ok')
     })
+
+    it('GET / → 200 API info', async () => {
+      const { status, body } = await read(await get(app, '/', {}))
+      expect(status).toBe(200)
+      expect(body.name).toBe('Cherry Studio API')
+      expect(body.endpoints).toBeDefined()
+    })
   })
 
   describe('auth', () => {
@@ -94,6 +101,14 @@ describe('API gateway routes (integration)', () => {
       const { status, body } = await read(await get(app, '/v1/models', {}))
       expect(status).toBe(401)
       expect(body.error).toMatch(/Unauthorized/)
+    })
+  })
+
+  describe('not found', () => {
+    it('unmatched route → 404 envelope (does not crash onError)', async () => {
+      const { status, body } = await read(await get(app, '/no-such-route', {}))
+      expect(status).toBe(404)
+      expect(body.error.type).toBe('not_found_error')
     })
   })
 

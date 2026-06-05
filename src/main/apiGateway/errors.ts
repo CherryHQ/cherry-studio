@@ -70,6 +70,15 @@ export function gatewayErrorHandler({ code, error, status, request }: GatewayErr
     )
   }
 
+  // Elysia built-in errors for unmatched routes / unparseable bodies. Handle them
+  // explicitly so they never reach the provider `transformError` services.
+  if (code === 'NOT_FOUND') {
+    return status(404, envelope(anthropic, 'not_found_error', 'Not found', 'not_found'))
+  }
+  if (code === 'PARSE') {
+    return status(400, envelope(anthropic, 'invalid_request_error', 'Malformed request body', 'parse_error'))
+  }
+
   // v2 data-layer errors carry their own HTTP status + code (e.g. NOT_FOUND → 404).
   if (error instanceof DataApiError) {
     const type = typeForStatus(error.status)
