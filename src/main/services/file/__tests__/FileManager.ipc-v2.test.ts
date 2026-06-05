@@ -247,4 +247,37 @@ describe('FileManager v2 IPC handler registration', () => {
     // path-handle with a relative path
     await expect(deleteHandler!({} as never, { kind: 'path', path: 'relative.txt' })).rejects.toThrow()
   })
+
+  it('registers File:getMetadata IPC channel', () => {
+    const registeredChannels = vi.mocked(ipcMain.handle).mock.calls.map(([channel]) => channel)
+    expect(registeredChannels).toContain(IpcChannel.File_GetMetadata)
+  })
+
+  it('getMetadata path-handle returns file metadata for a regular file', async () => {
+    const file = path.join(tmp, 'meta.txt')
+    await writeFile(file, 'hello')
+
+    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_GetMetadata)?.[1]
+    expect(handler).toBeDefined()
+
+    const meta = await handler!({} as never, { kind: 'path', path: file })
+    expect(meta.kind).toBe('file')
+    expect(typeof meta.size).toBe('number')
+    expect(meta.size).toBe(5)
+  })
+
+  it('getMetadata path-handle returns directory metadata for a directory', async () => {
+    const dir = path.join(tmp, 'meta-dir')
+    await mkdir(dir, { recursive: true })
+
+    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_GetMetadata)?.[1]
+    const meta = await handler!({} as never, { kind: 'path', path: dir })
+    expect(meta.kind).toBe('directory')
+  })
+
+  it('getMetadata entry-handle is not yet wired (@phase 2)', async () => {
+    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_GetMetadata)?.[1]
+    const validEntryId = '123e4567-e89b-4d3c-a456-426614174000'
+    await expect(handler!({} as never, { kind: 'entry', entryId: validEntryId })).rejects.toThrow()
+  })
 })
