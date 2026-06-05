@@ -1,7 +1,7 @@
 import { agentService } from '@data/services/AgentService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { assistantDataService } from '@data/services/AssistantService'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
-import { sessionService } from '@data/services/SessionService'
 import { topicService } from '@data/services/TopicService'
 import type {
   GlobalSearchGroup,
@@ -141,7 +141,7 @@ export class GlobalSearchService {
     limit: number,
     updatedAtFromMs: number | undefined
   ): Promise<GlobalSearchItem[]> {
-    const items = await sessionService.listRecentSearchMatches({
+    const items = await agentSessionService.listRecentSearchMatches({
       search: q,
       limit,
       updatedAtFrom: updatedAtFromMs

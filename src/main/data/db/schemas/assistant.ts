@@ -33,5 +33,5 @@ export const assistantTable = sqliteTable(
   (t) => [index('assistant_created_at_idx').on(t.createdAt), orderKeyIndex('assistant')(t)]
 )
 
-export type AssistantInsert = typeof assistantTable.$inferInsert
-export type AssistantSelect = typeof assistantTable.$inferSelect
+export type InsertAssistantRow = typeof assistantTable.$inferInsert
+export type AssistantRow = typeof assistantTable.$inferSelect

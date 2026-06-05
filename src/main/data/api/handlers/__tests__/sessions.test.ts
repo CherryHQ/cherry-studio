@@ -6,8 +6,8 @@ const { listSessionMessagesMock, searchSessionMessagesMock, deleteSessionMessage
   deleteSessionMessageMock: vi.fn()
 }))
 
-vi.mock('@data/services/SessionService', () => ({
-  sessionService: {
+vi.mock('@data/services/AgentSessionService', () => ({
+  agentSessionService: {
     listByCursor: vi.fn(),
     createSession: vi.fn(),
     getById: vi.fn(),
