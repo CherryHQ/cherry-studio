@@ -1,5 +1,16 @@
 export type ModelSearchField = {
   value?: string | null
+  /**
+   * The weight multiplier for this field.
+   * Match score = tier_offset + field.weight * 100 + match_offset.
+   *
+   * RELATIONSHIP WITH TIER OFFSET:
+   * Score tiers are: raw substring (0) -> normalized substring (1000) -> token initials (1500) -> abbreviation (2000).
+   * Since lower scores are ranked higher (better relevance), setting a large weight (e.g. 30) for a field
+   * will shift its match score by weight * 100 (e.g. +3000), effectively deprioritizing even its exact, raw matches
+   * to rank below weaker match types (like abbreviations) of fields with lower weight (e.g. weight 0).
+   * This is useful for flagging fields (like 'description') as weak signals.
+   */
   weight: number
   allowAbbreviation?: boolean
 }

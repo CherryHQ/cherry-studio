@@ -41,4 +41,73 @@ describe('modelSearch', () => {
     // Low score is better/higher rank in sortBy
     expect(scoreExact).toBeLessThan(scoreAbbr!)
   })
+
+  it('should return null for queries with mixed punctuation tokens (where some normalize to empty)', () => {
+    // Current behavior: 'gpt :' splits into ['gpt', ':']. Since ':' normalizes to empty,
+    // getKeywordMatchScore(':', fields) returns null, which makes the whole search return null.
+    expect(getSearchMatchScore('gpt :', fields)).toBeNull()
+    expect(getSearchMatchScore('gpt ---', fields)).toBeNull()
+  })
+
+  describe('ranking and abbreviations contract tests', () => {
+    const testFields = [
+      { value: 'DeepSeek-V3', weight: 0, allowAbbreviation: true },
+      { value: 'DeepSeekV4', weight: 0, allowAbbreviation: true }
+    ]
+
+    it('should match token initials (e.g., dsv)', () => {
+      // dsv matches DeepSeek-V3 (initials is dsv)
+      const score = getSearchMatchScore('dsv', testFields)
+      expect(score).not.toBeNull()
+    })
+
+    it('should match ordered-character abbreviation (e.g., dv)', () => {
+      // dv matches DeepSeekV4 (d...v...) via ordered abbreviation
+      const score = getSearchMatchScore('dv', testFields)
+      expect(score).not.toBeNull()
+    })
+
+    it('should not match abbreviation when allowAbbreviation is false', () => {
+      const fieldsNoAbbr = [{ value: 'DeepSeek-V3', weight: 0, allowAbbreviation: false }]
+      expect(getSearchMatchScore('dsv', fieldsNoAbbr)).toBeNull()
+      expect(getSearchMatchScore('dv', fieldsNoAbbr)).toBeNull()
+    })
+
+    it('should rank name > apiModelId > id > group > description based on weights', () => {
+      const modelFields = [
+        { name: { value: 'test-model', weight: 0, allowAbbreviation: true } },
+        { apiModelId: { value: 'test-api-id', weight: 1, allowAbbreviation: true } },
+        { id: { value: 'test-id', weight: 1, allowAbbreviation: true } },
+        { group: { value: 'test-group', weight: 2, allowAbbreviation: true } },
+        { description: { value: 'test-desc', weight: 30, allowAbbreviation: true } }
+      ]
+
+      const scoreName = getSearchMatchScore('test', [modelFields[0].name])
+      const scoreApi = getSearchMatchScore('test', [modelFields[1].apiModelId])
+      const scoreId = getSearchMatchScore('test', [modelFields[2].id])
+      const scoreGroup = getSearchMatchScore('test', [modelFields[3].group])
+      const scoreDesc = getSearchMatchScore('test', [modelFields[4].description])
+
+      // Lower score is better
+      expect(scoreName!).toBeLessThan(scoreApi!)
+      expect(scoreApi!).toBe(scoreId!) // same weight
+      expect(scoreId!).toBeLessThan(scoreGroup!)
+      expect(scoreGroup!).toBeLessThan(scoreDesc!)
+    })
+
+    it('should rank a name abbreviation (weight 0) higher than a description raw match (weight 30)', () => {
+      const fieldsToCompare = [
+        { value: 'DeepSeek-V3', weight: 0, allowAbbreviation: true }, // name
+        { value: 'dsv-model-description', weight: 30, allowAbbreviation: false } // description
+      ]
+
+      // Search 'dsv':
+      // matches DeepSeek-V3 via token initials (tier offset 1500)
+      // matches description via raw substring (tier offset 0, but weight 30 -> 3000)
+      const scoreNameAbbr = getSearchMatchScore('dsv', [fieldsToCompare[0]])
+      const scoreDescRaw = getSearchMatchScore('dsv', [fieldsToCompare[1]])
+
+      expect(scoreNameAbbr!).toBeLessThan(scoreDescRaw!)
+    })
+  })
 })
