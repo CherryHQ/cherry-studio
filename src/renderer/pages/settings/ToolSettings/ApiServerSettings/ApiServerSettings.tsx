@@ -10,7 +10,7 @@ import type { FC } from 'react'
 import { useTranslation } from 'react-i18next'
 import { v4 as uuidv4 } from 'uuid'
 
-import { SettingContainer, SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '../..'
+import { SettingDivider, SettingGroup, SettingRow, SettingRowTitle, SettingsContentColumn, SettingTitle } from '../..'
 
 const ApiServerSettings: FC = () => {
   const { theme } = useTheme()
@@ -215,8 +215,8 @@ const ApiServerSettings: FC = () => {
   )
 }
 
-const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof SettingContainer>) => (
-  <SettingContainer className={cn('flex h-[calc(100vh-var(--navbar-height))] flex-col', className)} {...props} />
+const Container = ({ className, ...props }: React.ComponentPropsWithoutRef<typeof SettingsContentColumn>) => (
+  <SettingsContentColumn className={cn('flex h-[calc(100vh-var(--navbar-height))] flex-col', className)} {...props} />
 )
 
 const HeaderRow = ({ className, ...props }: React.ComponentPropsWithoutRef<'div'>) => (

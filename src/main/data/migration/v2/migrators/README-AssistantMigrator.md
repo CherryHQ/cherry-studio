@@ -58,6 +58,7 @@ The merged object is built as `{ ...secondary, ...primary, /* explicit overrides
 | All sources skipped | `totalRawSources > 0 && skippedCount > 0 && preparedResults.length === 0` | Fail prepare phase |
 | Dangling `model` ref | `userModelTable` lookup miss | Drop `modelId` (set to null), log warning |
 | Dangling MCP server ref | `mcpServerIdMapping` lookup miss | Drop the junction row, log warning |
+| Dangling knowledge base ref | `knowledgeBaseTable` lookup miss | Drop the `assistant_knowledge_base` row, log warning |
 | Missing `mcpServerIdMapping` while assistants reference MCP servers | `sharedData.get('mcpServerIdMapping') === undefined` | Throw — `McpServerMigrator` must run before this one |
 
 ## Legacy default-assistant remap
@@ -76,6 +77,19 @@ If v1 had no `'default'` source at all (no `assistants[0]/defaultAssistant`), no
 - `'legacyAssistantIdRemap'` — `Map<string, string>` of v1 → v2 id rewrites. Currently only used for `'default' → UUID` (see above), but the map shape is generic for future legacy-id translations.
 
 `ChatMigrator.prepare()` and `prepareTopicData()` consume both: the remap rewrites `topic.assistantId` references, then the FK whitelist validates the result.
+
+## Order-Key Backfill
+
+`transformAssistant()` leaves `orderKey` as an empty placeholder because legacy Redux assistants have no stable per-row fractional key. `AssistantMigrator.execute()` stamps the prepared assistant rows with `assignOrderKeysInSequence()` immediately before insert, preserving the merged source order used by `recordSource()`.
+
+## Dropped Relationship Rows
+
+The migrator keeps assistant rows even when optional relationship targets are missing, but drops junction rows that would violate foreign keys:
+
+- `assistant_mcp_server` rows whose legacy MCP server id was not remapped by `McpServerMigrator`.
+- `assistant_knowledge_base` rows whose knowledge base was deleted or skipped before this migrator inserts relationships.
+
+Both cases are logged. The dropped relationship does not drop the assistant itself.
 
 ## Implementation Files
 

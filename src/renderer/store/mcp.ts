@@ -16,12 +16,12 @@
  */
 import { loggerService } from '@logger'
 import { createSlice, nanoid, type PayloadAction } from '@reduxjs/toolkit'
-import { type BuiltinMCPServer, BuiltinMCPServerNames, type MCPConfig, type MCPServer } from '@renderer/types'
+import { type BuiltinMcpServer, BuiltinMcpServerNames, type McpConfig, type McpServer } from '@renderer/types'
 
 const logger = loggerService.withContext('Store:MCP')
 const filesystemManualApprovalTools = ['write', 'edit', 'delete'] as const
 
-export const initialState: MCPConfig = {
+export const initialState: McpConfig = {
   servers: [],
   isUvInstalled: true,
   isBunInstalled: true
@@ -31,22 +31,22 @@ const mcpSlice = createSlice({
   name: 'mcp',
   initialState,
   reducers: {
-    setMCPServers: (state, action: PayloadAction<MCPServer[]>) => {
+    setMcpServers: (state, action: PayloadAction<McpServer[]>) => {
       state.servers = action.payload
     },
-    addMCPServer: (state, action: PayloadAction<MCPServer>) => {
+    addMcpServer: (state, action: PayloadAction<McpServer>) => {
       state.servers.unshift(action.payload)
     },
-    updateMCPServer: (state, action: PayloadAction<MCPServer>) => {
+    updateMcpServer: (state, action: PayloadAction<McpServer>) => {
       const index = state.servers.findIndex((server) => server.id === action.payload.id)
       if (index !== -1) {
         state.servers[index] = action.payload
       }
     },
-    deleteMCPServer: (state, action: PayloadAction<string>) => {
+    deleteMcpServer: (state, action: PayloadAction<string>) => {
       state.servers = state.servers.filter((server) => server.id !== action.payload)
     },
-    setMCPServerActive: (state, action: PayloadAction<{ id: string; isActive: boolean }>) => {
+    setMcpServerActive: (state, action: PayloadAction<{ id: string; isActive: boolean }>) => {
       const index = state.servers.findIndex((server) => server.id === action.payload.id)
       if (index !== -1) {
         state.servers[index].isActive = action.payload.isActive
@@ -68,11 +68,11 @@ const mcpSlice = createSlice({
 })
 
 export const {
-  setMCPServers,
-  addMCPServer,
-  updateMCPServer,
-  deleteMCPServer,
-  setMCPServerActive,
+  setMcpServers,
+  addMcpServer,
+  updateMcpServer,
+  deleteMcpServer,
+  setMcpServerActive,
   setIsBunInstalled,
   setIsUvInstalled
 } = mcpSlice.actions
@@ -81,7 +81,7 @@ export const {
 export const { getActiveServers, getAllServers } = mcpSlice.selectors
 
 // Type-safe selector for accessing this slice from the root state
-export const selectMCP = (state: { mcp: MCPConfig }) => state.mcp
+export const selectMcp = (state: { mcp: McpConfig }) => state.mcp
 
 export { mcpSlice }
 // Export the reducer as default export
@@ -91,9 +91,9 @@ export default mcpSlice.reducer
  * Hub MCP server for auto mode - aggregates all MCP servers for LLM code mode.
  * This server is injected automatically when mcpMode === 'auto'.
  */
-export const hubMCPServer: BuiltinMCPServer = {
+export const hubMcpServer: BuiltinMcpServer = {
   id: 'hub',
-  name: BuiltinMCPServerNames.hub,
+  name: BuiltinMcpServerNames.hub,
   type: 'inMemory',
   isActive: true,
   provider: 'CherryAI',
@@ -109,10 +109,10 @@ export const hubMCPServer: BuiltinMCPServer = {
  * - It's designed for LLM code mode, not direct user interaction
  * - It should be auto-enabled internally when needed, not manually installed
  */
-export const builtinMCPServers: BuiltinMCPServer[] = [
+export const builtinMcpServers: BuiltinMcpServer[] = [
   {
     id: nanoid(),
-    name: BuiltinMCPServerNames.flomo,
+    name: BuiltinMcpServerNames.flomo,
     reference: 'https://flomoapp.com',
     type: 'inMemory',
     isActive: false,
@@ -122,7 +122,7 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
   },
   {
     id: nanoid(),
-    name: BuiltinMCPServerNames.mcpAutoInstall,
+    name: BuiltinMcpServerNames.mcpAutoInstall,
     reference: 'https://docs.cherry-ai.com/advanced-basic/mcp/auto-install',
     type: 'inMemory',
     command: 'npx',
@@ -134,7 +134,7 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
   },
   {
     id: nanoid(),
-    name: BuiltinMCPServerNames.memory,
+    name: BuiltinMcpServerNames.memory,
     reference: 'https://github.com/modelcontextprotocol/servers/tree/main/src/memory',
     type: 'inMemory',
     isActive: true,
@@ -148,7 +148,7 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
   },
   {
     id: nanoid(),
-    name: BuiltinMCPServerNames.sequentialThinking,
+    name: BuiltinMcpServerNames.sequentialThinking,
     type: 'inMemory',
     isActive: true,
     provider: 'CherryAI',
@@ -157,7 +157,7 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
   },
   {
     id: nanoid(),
-    name: BuiltinMCPServerNames.braveSearch,
+    name: BuiltinMcpServerNames.braveSearch,
     type: 'inMemory',
     isActive: false,
     env: {
@@ -170,7 +170,7 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
   },
   {
     id: nanoid(),
-    name: BuiltinMCPServerNames.fetch,
+    name: BuiltinMcpServerNames.fetch,
     type: 'inMemory',
     isActive: true,
     provider: 'CherryAI',
@@ -179,7 +179,7 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
   },
   {
     id: nanoid(),
-    name: BuiltinMCPServerNames.filesystem,
+    name: BuiltinMcpServerNames.filesystem,
     type: 'inMemory',
     args: ['/Users/username/Desktop'],
     disabledAutoApproveTools: [...filesystemManualApprovalTools],
@@ -191,7 +191,7 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
   },
   {
     id: nanoid(),
-    name: BuiltinMCPServerNames.difyKnowledge,
+    name: BuiltinMcpServerNames.difyKnowledge,
     type: 'inMemory',
     isActive: false,
     env: {
@@ -204,7 +204,7 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
   },
   {
     id: nanoid(),
-    name: BuiltinMCPServerNames.python,
+    name: BuiltinMcpServerNames.python,
     type: 'inMemory',
     isActive: false,
     provider: 'CherryAI',
@@ -227,7 +227,7 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
   },
   {
     id: nanoid(),
-    name: BuiltinMCPServerNames.browser,
+    name: BuiltinMcpServerNames.browser,
     type: 'inMemory',
     isActive: false,
     provider: 'CherryAI',
@@ -236,7 +236,7 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
   },
   {
     id: nanoid(),
-    name: BuiltinMCPServerNames.nowledgeMem,
+    name: BuiltinMcpServerNames.nowledgeMem,
     reference: 'https://mem.nowledge.co/',
     type: 'inMemory',
     isActive: false,
@@ -251,16 +251,16 @@ export const builtinMCPServers: BuiltinMCPServer[] = [
  * @param servers Array of MCP servers to add
  * @param dispatch Redux dispatch function
  */
-export const initializeMCPServers = (existingServers: MCPServer[], dispatch: (action: any) => void): void => {
+export const initializeMcpServers = (existingServers: McpServer[], dispatch: (action: any) => void): void => {
   // Check if the existing servers already contain the built-in servers
   const serverIds = new Set(existingServers.map((server) => server.name))
 
   // Filter out any built-in servers that are already present
-  const newServers = builtinMCPServers.filter((server) => !serverIds.has(server.name))
+  const newServers = builtinMcpServers.filter((server) => !serverIds.has(server.name))
 
   logger.info('Adding new servers:', newServers)
   // Add the new built-in servers to the existing servers
   newServers.forEach((server) => {
-    dispatch(addMCPServer(server))
+    dispatch(addMcpServer(server))
   })
 }

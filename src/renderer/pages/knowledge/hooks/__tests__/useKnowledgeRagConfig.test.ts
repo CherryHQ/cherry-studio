@@ -12,7 +12,7 @@ const mockLogger = vi.hoisted(() => ({
   error: vi.fn()
 }))
 
-vi.mock('@renderer/hooks/useModels', () => ({
+vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: unknown[]) => mockUseModels(...args)
 }))
 
@@ -58,7 +58,6 @@ const createKnowledgeBase = (overrides: Partial<KnowledgeBase> = {}): KnowledgeB
   id: 'base-1',
   name: 'Base 1',
   groupId: null,
-  emoji: '📁',
   dimensions: 1536,
   embeddingModelId: 'openai::text-embedding-3-small',
   rerankModelId: undefined,

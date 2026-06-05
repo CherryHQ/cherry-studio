@@ -241,7 +241,6 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
 
   return (
     <ProviderSettingsDrawer
-      size="form"
       title={title}
       open={open}
       onClose={() => void onCancel()}
@@ -322,7 +321,7 @@ const PopupContainer: React.FC<Props> = ({ title, resolve }) => {
             <div className={drawerClasses.healthProgressTrack}>
               <div className={drawerClasses.healthProgressFill} style={{ width: `${Math.round(progress)}%` }} />
             </div>
-            <div className="text-center text-muted-foreground text-sm">
+            <div className="text-center text-foreground-muted text-sm">
               {Math.round(progress)}% · {t('ovms.download.tip')}
             </div>
           </div>

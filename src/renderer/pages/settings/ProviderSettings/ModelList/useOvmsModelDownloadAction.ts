@@ -1,4 +1,4 @@
-import { useProvider } from '@renderer/hooks/useProviders'
+import { useProvider } from '@renderer/hooks/useProvider'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 

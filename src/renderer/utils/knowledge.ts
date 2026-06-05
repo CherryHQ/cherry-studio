@@ -1,4 +1,4 @@
-import { TopicManager } from '@renderer/hooks/useTopic'
+import { getTopicMessages } from '@renderer/hooks/useTopic'
 import i18n from '@renderer/i18n'
 import type { FileMetadata, Topic } from '@renderer/types'
 import type { Message, MessageBlock } from '@renderer/types/newMessage'
@@ -283,8 +283,7 @@ function processFileBlocks(block: MessageBlock): FileMetadata | null {
  * @returns 话题内容统计
  */
 export async function analyzeTopicContent(topic: Topic): Promise<TopicContentStats> {
-  // 获取话题的所有消息
-  const messages = await TopicManager.getTopicMessages(topic.id)
+  const messages = await getTopicMessages(topic.id)
 
   const stats: TopicContentStats = {
     text: 0,
@@ -326,8 +325,7 @@ export async function analyzeTopicContent(topic: Topic): Promise<TopicContentSta
  * @returns 话题预处理结果
  */
 export async function processTopicContent(topic: Topic, selectedTypes: ContentType[]): Promise<TopicPreprocessResult> {
-  // 获取话题的所有消息
-  const messages = await TopicManager.getTopicMessages(topic.id)
+  const messages = await getTopicMessages(topic.id)
 
   const textParts: string[] = []
   const files: FileMetadata[] = []

@@ -102,22 +102,12 @@ export class SettingsWindowService extends BaseService {
   // min/max width guards to keep the two-column settings layout usable across
   // small and ultra-wide main-window sizes.
   private getCenteredBoundsOptions(): Pick<WindowOptions, 'x' | 'y' | 'width' | 'height'> | undefined {
-    const wm = application.get('WindowManager')
-    const mainWindowInfo = wm.getWindowsByType(WindowType.Main)[0]
-    if (!mainWindowInfo) return undefined
-
-    const mainWindow = wm.getWindow(mainWindowInfo.id)
-    if (!mainWindow || mainWindow.isDestroyed()) {
-      logger.warn('Main window registered but not retrievable; falling back to default settings window size', {
-        mainWindowId: mainWindowInfo.id
-      })
-      return undefined
-    }
+    const mainWindow = application.get('WindowManager').getWindowsByType(WindowType.Main)[0]
+    if (!mainWindow) return undefined
 
     const { x, y, width: mainWidth, height: mainHeight } = mainWindow.getBounds()
     if (mainWidth <= 0 || mainHeight <= 0) {
       logger.warn('Main window reported non-positive bounds; falling back to default settings window size', {
-        mainWindowId: mainWindowInfo.id,
         bounds: { x, y, width: mainWidth, height: mainHeight }
       })
       return undefined

@@ -126,7 +126,7 @@ const CommandListPopover = ({
   const colors = useMemo(() => {
     const isDark = theme === 'dark'
     return {
-      background: isDark ? 'var(--color-background-subtle, #222222)' : 'white',
+      background: 'var(--color-popover)',
       border: isDark ? 'var(--color-border, #ffffff19)' : '#e1e5e9',
       selectedBackground: isDark ? 'var(--color-accent, rgba(40, 40, 40, 1))' : '#f0f0f0',
       boxShadow: isDark ? '0 4px 12px rgba(0, 0, 0, 0.3)' : '0 4px 12px rgba(0, 0, 0, 0.1)'

@@ -8,7 +8,6 @@ import { visualizer } from 'rollup-plugin-visualizer'
 // assert not supported by biome
 // import pkg from './package.json' assert { type: 'json' }
 import pkg from './package.json'
-import { buildProxyBootstrapPlugin } from './scripts/buildProxyBootstrapPlugin'
 
 const visualizerPlugin = (type: 'renderer' | 'main') => {
   return process.env[`VISUALIZER_${type.toUpperCase()}`] ? [visualizer({ open: true })] : []
@@ -23,14 +22,7 @@ const mainExternalDependencies = Object.keys(pkg.dependencies).filter(
 
 export default defineConfig({
   main: {
-    plugins: [
-      ...visualizerPlugin('main'),
-      buildProxyBootstrapPlugin({
-        dependencies: Object.keys(pkg.dependencies),
-        isProd,
-        rootDir: __dirname
-      })
-    ],
+    plugins: [...visualizerPlugin('main')],
     resolve: {
       alias: {
         '@main': resolve('src/main'),
@@ -41,6 +33,10 @@ export default defineConfig({
         '@logger': resolve('src/main/core/logger/LoggerService'),
         '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
         '@mcp-trace/trace-node': resolve('packages/mcp-trace/trace-node'),
+        '@cherrystudio/ai-core/provider': resolve('packages/aiCore/src/core/providers'),
+        '@cherrystudio/ai-core/built-in/plugins': resolve('packages/aiCore/src/core/plugins/built-in'),
+        '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
+        '@cherrystudio/ai-sdk-provider': resolve('packages/ai-sdk-provider/src'),
         '@vectorstores/libsql': resolve('packages/vectorstores/libsql/src/index.ts'),
         '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
         '@cherrystudio/provider-registry': resolve('packages/provider-registry/src'),
@@ -119,7 +115,6 @@ export default defineConfig({
         '@logger': resolve('src/renderer/services/LoggerService'),
         '@data': resolve('src/renderer/data'),
         '@mcp-trace/trace-core': resolve('packages/mcp-trace/trace-core'),
-        '@mcp-trace/trace-web': resolve('packages/mcp-trace/trace-web'),
         '@cherrystudio/ai-core/provider': resolve('packages/aiCore/src/core/providers'),
         '@cherrystudio/ai-core/built-in/plugins': resolve('packages/aiCore/src/core/plugins/built-in'),
         '@cherrystudio/ai-core': resolve('packages/aiCore/src'),
@@ -150,7 +145,6 @@ export default defineConfig({
           quickAssistant: resolve(__dirname, 'src/renderer/windows/quickAssistant/index.html'),
           selectionToolbar: resolve(__dirname, 'src/renderer/windows/selection/toolbar/index.html'),
           selectionAction: resolve(__dirname, 'src/renderer/windows/selection/action/index.html'),
-          traceWindow: resolve(__dirname, 'src/renderer/windows/trace/index.html'),
           migrationV2: resolve(__dirname, 'src/renderer/windows/migrationV2/index.html'),
           subWindow: resolve(__dirname, 'src/renderer/windows/subWindow/index.html')
         },

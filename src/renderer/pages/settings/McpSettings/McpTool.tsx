@@ -1,8 +1,8 @@
 import type { ColumnDef } from '@cherrystudio/ui'
 import { Badge, ColFlex, DataTable, Flex, InfoTooltip, Switch, Tooltip } from '@cherrystudio/ui'
 import { McpLogo } from '@renderer/components/Icons'
-import type { MCPServer, MCPTool } from '@renderer/types'
-import { isToolAutoApproved } from '@renderer/utils/mcpTools'
+import { useIsToolAutoApproved } from '@renderer/hooks/useMcpServer'
+import type { McpServer, McpTool } from '@renderer/types'
 import { Zap } from 'lucide-react'
 import type { Key } from 'react'
 import { useMemo, useState } from 'react'
@@ -10,30 +10,60 @@ import { useTranslation } from 'react-i18next'
 
 import { McpDetailItem, McpDetailList, RequiredMark } from './McpDetailList'
 
-interface MCPToolsSectionProps {
-  tools: MCPTool[]
-  server: MCPServer
+interface McpToolsSectionProps {
+  tools: McpTool[]
+  server: McpServer
   searchText: string
-  onToggleTool: (tool: MCPTool, enabled: boolean) => void
-  onToggleAutoApprove: (tool: MCPTool, autoApprove: boolean) => void
+  onToggleTool: (tool: McpTool, enabled: boolean) => void
+  onToggleAutoApprove: (tool: McpTool, autoApprove: boolean) => void
 }
 
-const MCPToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAutoApprove }: MCPToolsSectionProps) => {
+const AutoApproveCell = ({
+  tool,
+  enabled,
+  onToggle
+}: {
+  tool: McpTool
+  enabled: boolean
+  onToggle: (tool: McpTool, autoApprove: boolean) => void
+}) => {
+  const { t } = useTranslation()
+  const isAutoApproved = useIsToolAutoApproved(tool)
+  return (
+    <Tooltip
+      content={
+        !enabled
+          ? t('settings.mcp.tools.autoApprove.tooltip.howToEnable')
+          : isAutoApproved
+            ? t('settings.mcp.tools.autoApprove.tooltip.enabled')
+            : t('settings.mcp.tools.autoApprove.tooltip.disabled')
+      }>
+      <Switch
+        size="xs"
+        checked={isAutoApproved}
+        disabled={!enabled}
+        onCheckedChange={(checked) => onToggle(tool, checked)}
+      />
+    </Tooltip>
+  )
+}
+
+const McpToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAutoApprove }: McpToolsSectionProps) => {
   const { t } = useTranslation()
   const [expandedRowKeys, setExpandedRowKeys] = useState<Key[]>([])
 
   // Check if a tool is enabled (not in the disabledTools array)
-  const isToolEnabled = (tool: MCPTool) => {
+  const isToolEnabled = (tool: McpTool) => {
     return !server.disabledTools?.includes(tool.name)
   }
 
   // Handle tool toggle
-  const handleToggle = (tool: MCPTool, checked: boolean) => {
+  const handleToggle = (tool: McpTool, checked: boolean) => {
     onToggleTool(tool, checked)
   }
 
   // Handle auto-approve toggle
-  const handleAutoApproveToggle = (tool: MCPTool, checked: boolean) => {
+  const handleAutoApproveToggle = (tool: McpTool, checked: boolean) => {
     onToggleAutoApprove(tool, checked)
   }
 
@@ -120,7 +150,7 @@ const MCPToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
     )
   }
 
-  const renderToolProperties = (tool: MCPTool) => {
+  const renderToolProperties = (tool: McpTool) => {
     if (!tool.inputSchema?.properties) return null
     return renderSchemaProperties(tool.inputSchema.properties, tool.inputSchema.required)
   }
@@ -137,7 +167,7 @@ const MCPToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
     )
   }, [searchText, tools])
 
-  const columns: ColumnDef<MCPTool>[] = [
+  const columns: ColumnDef<McpTool>[] = [
     {
       id: 'name',
       header: () => <span className="font-medium">{t('settings.mcp.tools.availableTools')}</span>,
@@ -188,27 +218,9 @@ const MCPToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
         </Flex>
       ),
       meta: { width: 150, maxWidth: 150, align: 'center' },
-      cell: ({ row }) => {
-        const tool = row.original
-
-        return (
-          <Tooltip
-            content={
-              !isToolEnabled(tool)
-                ? t('settings.mcp.tools.autoApprove.tooltip.howToEnable')
-                : isToolAutoApproved(tool, server)
-                  ? t('settings.mcp.tools.autoApprove.tooltip.enabled')
-                  : t('settings.mcp.tools.autoApprove.tooltip.disabled')
-            }>
-            <Switch
-              size="xs"
-              checked={isToolAutoApproved(tool, server)}
-              disabled={!isToolEnabled(tool)}
-              onCheckedChange={(checked) => handleAutoApproveToggle(tool, checked)}
-            />
-          </Tooltip>
-        )
-      }
+      cell: ({ row }) => (
+        <AutoApproveCell tool={row.original} enabled={isToolEnabled(row.original)} onToggle={handleAutoApproveToggle} />
+      )
     }
   ]
 
@@ -226,4 +238,4 @@ const MCPToolsSection = ({ tools, server, searchText, onToggleTool, onToggleAuto
   )
 }
 
-export default MCPToolsSection
+export default McpToolsSection

@@ -1,10 +1,11 @@
+import { SettingsContentColumn } from '@renderer/pages/settings'
 import BuiltinMcpServerList from '@renderer/pages/settings/McpSettings/BuiltinMcpServerList'
 import { createFileRoute } from '@tanstack/react-router'
 
 const BuiltinWrapper = () => (
-  <div className="h-full overflow-y-auto p-5">
+  <SettingsContentColumn>
     <BuiltinMcpServerList />
-  </div>
+  </SettingsContentColumn>
 )
 
 export const Route = createFileRoute('/settings/mcp/builtin')({

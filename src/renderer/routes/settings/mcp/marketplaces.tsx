@@ -1,10 +1,11 @@
+import { SettingsContentColumn } from '@renderer/pages/settings'
 import McpMarketList from '@renderer/pages/settings/McpSettings/McpMarketList'
 import { createFileRoute } from '@tanstack/react-router'
 
 const MarketplacesWrapper = () => (
-  <div className="h-full overflow-y-auto p-5">
+  <SettingsContentColumn>
     <McpMarketList />
-  </div>
+  </SettingsContentColumn>
 )
 
 export const Route = createFileRoute('/settings/mcp/marketplaces')({

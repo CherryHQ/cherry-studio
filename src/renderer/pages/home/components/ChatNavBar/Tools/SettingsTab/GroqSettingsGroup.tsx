@@ -2,9 +2,9 @@ import Selector from '@renderer/components/Selector'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { SettingDivider, SettingRow } from '@renderer/pages/settings'
 import { CollapsibleSettingGroup } from '@renderer/pages/settings/SettingGroup'
-import type { GroqServiceTier, ServiceTier } from '@renderer/types'
 import { SystemProviderIds } from '@renderer/types'
 import { toOptionValue, toRealValue } from '@renderer/utils/select'
+import type { GroqServiceTier, ServiceTier } from '@shared/data/types/provider'
 import { Tooltip } from 'antd'
 import { CircleHelp } from 'lucide-react'
 import type { FC } from 'react'
@@ -21,13 +21,16 @@ interface Props {
 const GroqSettingsGroup: FC<Props> = ({ SettingGroup, SettingRowTitleSmall }) => {
   const { t } = useTranslation()
   const { provider, updateProvider } = useProvider(SystemProviderIds.groq)
-  const serviceTierMode = provider.serviceTier
+  const serviceTierMode = provider?.settings?.serviceTier as GroqServiceTier | undefined
 
   const setServiceTierMode = useCallback(
     (value: ServiceTier) => {
-      updateProvider({ serviceTier: value })
+      if (!provider) return
+      void updateProvider({
+        providerSettings: { ...provider.settings, serviceTier: value ?? undefined }
+      })
     },
-    [updateProvider]
+    [provider, updateProvider]
   )
 
   const serviceTierOptions = useMemo(() => {

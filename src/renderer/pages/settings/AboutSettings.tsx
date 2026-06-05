@@ -8,7 +8,7 @@ import { useTheme } from '@renderer/context/ThemeProvider'
 import { useAppUpdateState } from '@renderer/hooks/useAppUpdate'
 import { useMiniAppPopup } from '@renderer/hooks/useMiniAppPopup'
 import i18n from '@renderer/i18n'
-import { cn, runAsyncFunction } from '@renderer/utils'
+import { runAsyncFunction } from '@renderer/utils'
 import { ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import { debounce } from 'lodash'
 import { BadgeQuestionMark, Briefcase, Bug, Building2, Github, Globe, Mail, Rss } from 'lucide-react'
@@ -17,7 +17,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import Markdown from 'react-markdown'
 
-import { SettingGroup, SettingRow, SettingRowTitle, SettingTitle } from '.'
+import { SettingGroup, SettingRow, SettingRowTitle, SettingsContentColumn, SettingTitle } from '.'
 
 const AboutSettings: FC = () => {
   const [autoCheckUpdate, setAutoCheckUpdate] = usePreference('app.dist.auto_update.enabled')
@@ -165,7 +165,7 @@ const AboutSettings: FC = () => {
   const testChannels = getAvailableTestChannels()
 
   return (
-    <div className={cn('flex w-full flex-1 flex-col overflow-y-auto px-5 py-4 [&::-webkit-scrollbar]:hidden')}>
+    <SettingsContentColumn theme={theme}>
       <SettingGroup theme={theme}>
         <SettingTitle className="gap-2">
           <span className="font-semibold text-[15px]">{t('settings.about.title')}</span>
@@ -349,7 +349,7 @@ const AboutSettings: FC = () => {
           onAction={debug}
         />
       </SettingGroup>
-    </div>
+    </SettingsContentColumn>
   )
 }
 

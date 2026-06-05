@@ -1,7 +1,8 @@
-import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProviders'
-import { applyProviderApiKeySideEffects } from '@renderer/pages/settings/ProviderSettings/utils/providerSettingsSideEffects'
+import { useProvider, useProviderApiKeys } from '@renderer/hooks/useProvider'
 import { useAppDispatch } from '@renderer/store'
 import { useEffect } from 'react'
+
+import { applyProviderApiKeySideEffects } from '../../utils/providerSettingsSideEffects'
 
 /**
  * Transitional bridge: mirrors provider API keys into the legacy websearch

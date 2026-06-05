@@ -10,7 +10,7 @@ import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import {
-  SettingContainer,
+  SettingsContentColumn,
   settingsSubmenuDividerClassName,
   settingsSubmenuItemClassName,
   settingsSubmenuItemLabelClassName,
@@ -85,7 +85,7 @@ const DataSettings: FC = () => {
           </MenuList>
         </Scrollbar>
       </div>
-      <SettingContainer theme={theme} style={{ display: 'flex', flex: 1, height: '100%' }}>
+      <SettingsContentColumn theme={theme}>
         {menu === 'data' && <BasicDataSettings />}
         {menu === 'webdav' && <WebDavSettings />}
         {menu === 'nutstore' && <NutstoreSettings />}
@@ -94,7 +94,7 @@ const DataSettings: FC = () => {
         {menu === 'export_menu' && <ExportMenuOptions />}
         {menu === 'markdown_export' && <MarkdownExportSettings />}
         {menu === 'local_backup' && <LocalBackupSettings />}
-      </SettingContainer>
+      </SettingsContentColumn>
     </RowFlex>
   )
 }

@@ -1,9 +1,9 @@
 /**
  * Auto-generated preference mappings from classification.json
- * Generated at: 2026-05-11T09:55:37.835Z
+ * Generated at: 2026-06-02T09:40:02.540Z
  *
  * This file contains pure mapping relationships without default values.
- * Default values are managed in packages/shared/data/preferences.ts
+ * Default values are managed in src/shared/data/preferences.ts
  *
  * === AUTO-GENERATED CONTENT START ===
  */
@@ -77,10 +77,6 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'enableDeveloperMode',
       targetKey: 'app.developer_mode.enabled'
-    },
-    {
-      originalKey: 'showAssistants',
-      targetKey: 'assistant.tab.show'
     },
     {
       originalKey: 'showTopics',
@@ -569,6 +565,10 @@ export const REDUX_STORE_MAPPINGS = {
     {
       originalKey: 'localBackupSkipBackupFile',
       targetKey: 'data.backup.local.skip_backup_file'
+    },
+    {
+      originalKey: 'defaultPaintingProvider',
+      targetKey: 'feature.paintings.default_provider'
     },
     {
       originalKey: 's3.endpoint',

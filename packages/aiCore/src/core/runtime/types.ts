@@ -2,7 +2,7 @@
  * Runtime 层类型定义
  */
 import type { EmbeddingModelV3, ImageModelV3, ProviderV3 } from '@ai-sdk/provider'
-import type { embedMany, generateImage, generateText, streamText } from 'ai'
+import type { embedMany, Experimental_DownloadFunction, generateImage, generateText, streamText } from 'ai'
 
 import { type AiPlugin } from '../plugins'
 import type { CoreProviderSettingsMap, StringKeys } from '../providers/types'
@@ -31,6 +31,7 @@ export interface RuntimeConfig<
 
 export type generateImageParams = Omit<Parameters<typeof generateImage>[0], 'model'> & {
   model: string | ImageModelV3
+  experimental_download?: Experimental_DownloadFunction
 }
 export type generateImageResult = Awaited<ReturnType<typeof generateImage>>
 export type generateTextParams = Parameters<typeof generateText>[0]

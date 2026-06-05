@@ -16,21 +16,9 @@
  */
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSlice } from '@reduxjs/toolkit'
-import { DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE, isMac } from '@renderer/config/constant'
-import type {
-  ApiServerConfig,
-  CodeStyleVarious,
-  MathEngine,
-  OpenAIServiceTier,
-  PaintingProvider,
-  S3Config
-} from '@renderer/types'
-import type {
-  OpenAICompletionsStreamOptions,
-  OpenAIReasoningSummary,
-  OpenAIVerbosity
-} from '@renderer/types/aiCoreTypes'
-import { API_SERVER_DEFAULTS } from '@shared/config/constant'
+import { isMac } from '@renderer/config/constant'
+import type { ApiServerConfig, CodeStyleVarious, MathEngine, OpenAIServiceTier, S3Config } from '@renderer/types'
+import { API_SERVER_DEFAULTS, DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE } from '@shared/config/constant'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
 import type {
@@ -44,6 +32,7 @@ import type {
 } from '@shared/data/preference/preferenceTypes'
 import { parseTranslateLangCode, ThemeMode, UpgradeChannel } from '@shared/data/preference/preferenceTypes'
 import type { MiniAppRegionFilter } from '@shared/data/types/miniApp'
+import type { OpenAICompletionsStreamOptions, OpenAIReasoningSummary, OpenAIVerbosity } from '@shared/types/aiSdk'
 import { v4 as uuid } from 'uuid'
 
 import type { RemoteSyncState } from './backup'
@@ -244,7 +233,7 @@ export interface SettingsState {
   localBackupSyncInterval: number
   localBackupMaxBackups: number
   localBackupSkipBackupFile: boolean
-  defaultPaintingProvider: PaintingProvider
+  defaultPaintingProvider: string
   s3: S3Config
   // Developer mode
   enableDeveloperMode: boolean
@@ -868,7 +857,7 @@ const settingsSlice = createSlice({
     // setLocalBackupSkipBackupFile: (state, action: PayloadAction<boolean>) => {
     //   state.localBackupSkipBackupFile = action.payload
     // },
-    setDefaultPaintingProvider: (state, action: PayloadAction<PaintingProvider>) => {
+    setDefaultPaintingProvider: (state, action: PayloadAction<string>) => {
       state.defaultPaintingProvider = action.payload
     },
     // setS3: (state, action: PayloadAction<S3Config>) => {

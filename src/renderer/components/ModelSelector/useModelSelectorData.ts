@@ -1,6 +1,6 @@
-import { useModels } from '@renderer/hooks/useModels'
+import { useModels } from '@renderer/hooks/useModel'
 import { usePins } from '@renderer/hooks/usePins'
-import { useProviders } from '@renderer/hooks/useProviders'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { isUniqueModelId, type Model, parseUniqueModelId, type UniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { sortBy } from 'lodash'
@@ -95,12 +95,14 @@ export function useModelSelectorData({
   const { tagSelection, selectedTags, tagFilter, toggleTag, resetTags } = useModelTagFilter()
 
   const pinnedIds = useMemo(() => rawPinnedIds.filter(isUniqueModelId), [rawPinnedIds])
+  const availableProviders = providers
+  const availableModels = models
 
   const baseModelFilter = useCallback((model: Model) => filter?.(model) ?? true, [filter])
 
   const sortedProviders = useMemo(
-    () => sortProvidersByPriority(providers, prioritizedProviderIds),
-    [prioritizedProviderIds, providers]
+    () => sortProvidersByPriority(availableProviders, prioritizedProviderIds),
+    [availableProviders, prioritizedProviderIds]
   )
 
   // 交叉过滤：Provider.isEnabled 与 Model.isEnabled 互不联动，禁用 provider 下可能仍有启用 model。
@@ -109,7 +111,7 @@ export function useModelSelectorData({
     const enabledProviderIds = new Set(sortedProviders.map((provider) => provider.id))
     const grouped = new Map<string, Model[]>()
 
-    for (const model of models) {
+    for (const model of availableModels) {
       if (!enabledProviderIds.has(model.providerId) || !baseModelFilter(model)) {
         continue
       }
@@ -123,7 +125,7 @@ export function useModelSelectorData({
     }
 
     return grouped
-  }, [baseModelFilter, models, sortedProviders])
+  }, [availableModels, baseModelFilter, sortedProviders])
 
   const availableTags = useMemo(() => {
     const selectableModels = [...modelsByProvider.values()].flat()

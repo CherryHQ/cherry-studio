@@ -1,3 +1,4 @@
+import { Input } from '@cherrystudio/ui'
 import ProviderField from '@renderer/pages/settings/ProviderSettings/primitives/ProviderField'
 import { drawerClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { cn } from '@renderer/utils'
@@ -19,8 +20,6 @@ interface ModelBasicFieldsProps {
   onEndpointTypesChange: (next: readonly ModelDrawerEndpointType[]) => void
 }
 
-const drawerFieldTitleClassName = 'text-[13px] text-foreground/85'
-
 export function ModelBasicFields({
   values,
   showEndpointType,
@@ -36,9 +35,12 @@ export function ModelBasicFields({
 
   return (
     <>
-      <ProviderField title={t('settings.models.add.model_id.label')} titleClassName={drawerFieldTitleClassName}>
+      <ProviderField
+        title={t('settings.models.add.model_id.label')}
+        titleClassName={drawerClasses.fieldTitle}
+        className={drawerClasses.field}>
         <div className={drawerClasses.valueRow}>
-          <input
+          <Input
             required
             spellCheck={false}
             maxLength={200}
@@ -53,8 +55,11 @@ export function ModelBasicFields({
         </div>
       </ProviderField>
 
-      <ProviderField title={t('settings.models.add.model_name.label')} titleClassName={drawerFieldTitleClassName}>
-        <input
+      <ProviderField
+        title={t('settings.models.add.model_name.label')}
+        titleClassName={drawerClasses.fieldTitle}
+        className={drawerClasses.field}>
+        <Input
           spellCheck={false}
           aria-label={t('settings.models.add.model_name.label')}
           value={values.name}
@@ -64,8 +69,11 @@ export function ModelBasicFields({
         />
       </ProviderField>
 
-      <ProviderField title={t('settings.models.add.group_name.label')} titleClassName={drawerFieldTitleClassName}>
-        <input
+      <ProviderField
+        title={t('settings.models.add.group_name.label')}
+        titleClassName={drawerClasses.fieldTitle}
+        className={drawerClasses.field}>
+        <Input
           spellCheck={false}
           aria-label={t('settings.models.add.group_name.label')}
           value={values.group}
@@ -78,7 +86,8 @@ export function ModelBasicFields({
       {showEndpointType && (
         <ProviderField
           title={t('settings.models.add.endpoint_type.label')}
-          titleClassName={drawerFieldTitleClassName}
+          titleClassName={drawerClasses.fieldTitle}
+          className={drawerClasses.field}
           help={endpointTypeError ? <div className={drawerClasses.errorText}>{endpointTypeError}</div> : null}>
           <div data-testid="provider-settings-model-endpoint-type-field">
             <ModelEndpointTypeChips value={values.endpointTypes ?? []} onChange={onEndpointTypesChange} />

@@ -70,7 +70,6 @@ describe('KnowledgeItemService', () => {
     await dbh.db.insert(knowledgeBaseTable).values({
       id: KNOWLEDGE_BASE_ID,
       name: 'KB',
-      emoji: '📁',
       dimensions: 1024,
       embeddingModelId: createUniqueModelId('openai', 'text-embedding-3-large'),
       status: 'completed',
@@ -310,7 +309,6 @@ describe('KnowledgeItemService', () => {
       await dbh.db.insert(knowledgeBaseTable).values({
         id: 'kb-2',
         name: 'KB 2',
-        emoji: '📁',
         dimensions: 1024,
         embeddingModelId: createUniqueModelId('openai', 'text-embedding-3-large'),
         status: 'completed',

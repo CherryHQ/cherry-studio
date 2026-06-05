@@ -5,9 +5,9 @@
  */
 
 import { loggerService } from '@logger'
-import type { AgentType, BuiltinMCPServerName, BuiltinOcrProviderId } from '@renderer/types'
-import { BuiltinMCPServerNames } from '@renderer/types'
-import { SHORTCUT_DEFINITIONS, type ShortcutLabelKey } from '@shared/shortcuts/definitions'
+import type { BuiltinMcpServerName, BuiltinOcrProviderId } from '@renderer/types'
+import { BuiltinMcpServerNames } from '@renderer/types'
+import type { AgentType } from '@shared/data/types/agent'
 
 import i18n from './index'
 
@@ -207,14 +207,6 @@ export const getSidebarIconLabel = (key: string): string => {
   return getLabel(sidebarIconKeyMap, key)
 }
 
-const shortcutLabelKeyMap = Object.fromEntries(
-  SHORTCUT_DEFINITIONS.map((definition) => [definition.labelKey, `settings.shortcuts.${definition.labelKey}`])
-) as Record<ShortcutLabelKey, string>
-
-export const getShortcutLabel = (key: ShortcutLabelKey): string => {
-  return getLabel(shortcutLabelKeyMap, key)
-}
-
 const selectionDescriptionKeyMap = {
   linux: 'selection.settings.toolbar.trigger_mode.description_note.linux',
   mac: 'selection.settings.toolbar.trigger_mode.description_note.mac',
@@ -322,20 +314,20 @@ export const getFileFieldLabel = (key: string): string => {
   return getLabel(fileFieldKeyMap, key)
 }
 
-const builtInMcpDescriptionKeyMap: Record<BuiltinMCPServerName, string> = {
-  [BuiltinMCPServerNames.flomo]: 'settings.mcp.builtinServersDescriptions.flomo',
-  [BuiltinMCPServerNames.mcpAutoInstall]: 'settings.mcp.builtinServersDescriptions.mcp_auto_install',
-  [BuiltinMCPServerNames.memory]: 'settings.mcp.builtinServersDescriptions.memory',
-  [BuiltinMCPServerNames.sequentialThinking]: 'settings.mcp.builtinServersDescriptions.sequentialthinking',
-  [BuiltinMCPServerNames.braveSearch]: 'settings.mcp.builtinServersDescriptions.brave_search',
-  [BuiltinMCPServerNames.fetch]: 'settings.mcp.builtinServersDescriptions.fetch',
-  [BuiltinMCPServerNames.filesystem]: 'settings.mcp.builtinServersDescriptions.filesystem',
-  [BuiltinMCPServerNames.difyKnowledge]: 'settings.mcp.builtinServersDescriptions.dify_knowledge',
-  [BuiltinMCPServerNames.python]: 'settings.mcp.builtinServersDescriptions.python',
-  [BuiltinMCPServerNames.didiMCP]: 'settings.mcp.builtinServersDescriptions.didi_mcp',
-  [BuiltinMCPServerNames.browser]: 'settings.mcp.builtinServersDescriptions.browser',
-  [BuiltinMCPServerNames.nowledgeMem]: 'settings.mcp.builtinServersDescriptions.nowledge_mem',
-  [BuiltinMCPServerNames.hub]: 'settings.mcp.builtinServersDescriptions.hub'
+const builtInMcpDescriptionKeyMap: Record<BuiltinMcpServerName, string> = {
+  [BuiltinMcpServerNames.flomo]: 'settings.mcp.builtinServersDescriptions.flomo',
+  [BuiltinMcpServerNames.mcpAutoInstall]: 'settings.mcp.builtinServersDescriptions.mcp_auto_install',
+  [BuiltinMcpServerNames.memory]: 'settings.mcp.builtinServersDescriptions.memory',
+  [BuiltinMcpServerNames.sequentialThinking]: 'settings.mcp.builtinServersDescriptions.sequentialthinking',
+  [BuiltinMcpServerNames.braveSearch]: 'settings.mcp.builtinServersDescriptions.brave_search',
+  [BuiltinMcpServerNames.fetch]: 'settings.mcp.builtinServersDescriptions.fetch',
+  [BuiltinMcpServerNames.filesystem]: 'settings.mcp.builtinServersDescriptions.filesystem',
+  [BuiltinMcpServerNames.difyKnowledge]: 'settings.mcp.builtinServersDescriptions.dify_knowledge',
+  [BuiltinMcpServerNames.python]: 'settings.mcp.builtinServersDescriptions.python',
+  [BuiltinMcpServerNames.didiMcp]: 'settings.mcp.builtinServersDescriptions.didi_mcp',
+  [BuiltinMcpServerNames.browser]: 'settings.mcp.builtinServersDescriptions.browser',
+  [BuiltinMcpServerNames.nowledgeMem]: 'settings.mcp.builtinServersDescriptions.nowledge_mem',
+  [BuiltinMcpServerNames.hub]: 'settings.mcp.builtinServersDescriptions.hub'
 } as const
 
 export const getBuiltInMcpServerDescriptionLabel = (key: string): string => {

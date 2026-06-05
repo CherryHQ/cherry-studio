@@ -93,6 +93,25 @@ export default defineConfig({
           }
         }
       },
+      // provider-registry 包单元测试配置
+      {
+        extends: true,
+        resolve: {
+          alias: {
+            '@shared': resolve('src/shared'),
+            '@cherrystudio/provider-registry/node': resolve('packages/provider-registry/src/registry-loader'),
+            '@cherrystudio/provider-registry': resolve('packages/provider-registry/src')
+          }
+        },
+        test: {
+          name: 'provider-registry',
+          environment: 'node',
+          include: [
+            'packages/provider-registry/**/*.{test,spec}.{ts,tsx}',
+            'packages/provider-registry/**/__tests__/**/*.{test,spec}.{ts,tsx}'
+          ]
+        }
+      },
       // vectorstores 包单元测试配置
       {
         extends: true,

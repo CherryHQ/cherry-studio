@@ -1,31 +1,31 @@
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
-import type { MCPServer } from '@renderer/types'
+import type { McpServer } from '@renderer/types'
 import i18next from 'i18next'
 
-const logger = loggerService.withContext('MCPRouterSyncUtils')
+const logger = loggerService.withContext('McpRouterSyncUtils')
 
 // Token storage constants and utilities
 const TOKEN_STORAGE_KEY = 'mcprouter_token'
-export const MCPROUTER_HOST = 'https://mcprouter.co'
+export const McpROUTER_HOST = 'https://mcprouter.co'
 
-export const saveMCPRouterToken = (token: string): void => {
+export const saveMcpRouterToken = (token: string): void => {
   localStorage.setItem(TOKEN_STORAGE_KEY, token)
 }
 
-export const getMCPRouterToken = (): string | null => {
+export const getMcpRouterToken = (): string | null => {
   return localStorage.getItem(TOKEN_STORAGE_KEY)
 }
 
-export const clearMCPRouterToken = (): void => {
+export const clearMcpRouterToken = (): void => {
   localStorage.removeItem(TOKEN_STORAGE_KEY)
 }
 
-export const hasMCPRouterToken = (): boolean => {
-  return !!getMCPRouterToken()
+export const hasMcpRouterToken = (): boolean => {
+  return !!getMcpRouterToken()
 }
 
-interface MCPRouterServer {
+interface McpRouterServer {
   created_at: string
   updated_at: string
   name: string
@@ -38,20 +38,15 @@ interface MCPRouterServer {
   server_url: string
 }
 
-interface MCPRouterSyncResult {
+interface McpRouterSyncResult {
   success: boolean
   message: string
-  addedServers: MCPServer[]
-  updatedServers: MCPServer[]
-  allServers: MCPServer[]
+  allServers: McpServer[]
   errorDetails?: string
 }
 
-// Function to fetch and process MCPRouter servers
-export const syncMCPRouterServers = async (
-  token: string,
-  existingServers: MCPServer[]
-): Promise<MCPRouterSyncResult> => {
+// Function to fetch and process McpRouter servers
+export const syncMcpRouterServers = async (token: string): Promise<McpRouterSyncResult> => {
   const t = i18next.t
 
   try {
@@ -68,12 +63,10 @@ export const syncMCPRouterServers = async (
 
     // Handle authentication errors
     if (response.status === 401 || response.status === 403) {
-      clearMCPRouterToken()
+      clearMcpRouterToken()
       return {
         success: false,
         message: t('settings.mcp.sync.unauthorized', 'Sync Unauthorized'),
-        addedServers: [],
-        updatedServers: [],
         allServers: []
       }
     }
@@ -83,8 +76,6 @@ export const syncMCPRouterServers = async (
       return {
         success: false,
         message: t('settings.mcp.sync.error'),
-        addedServers: [],
-        updatedServers: [],
         allServers: [],
         errorDetails: `Status: ${response.status}`
       }
@@ -92,35 +83,28 @@ export const syncMCPRouterServers = async (
 
     // Process successful response
     const data = await response.json()
-    const servers: MCPRouterServer[] = data.data?.servers || []
+    const servers: McpRouterServer[] = data.data?.servers || []
 
     if (servers.length === 0) {
       return {
         success: true,
         message: t('settings.mcp.sync.noServersAvailable', 'No MCP servers available'),
-        addedServers: [],
-        updatedServers: [],
         allServers: []
       }
     }
 
-    // Transform MCPRouter servers to MCP servers format
-    const addedServers: MCPServer[] = []
-    const updatedServers: MCPServer[] = []
-    const allServers: MCPServer[] = []
+    // Transform McpRouter servers to MCP servers format
+    const allServers: McpServer[] = []
     for (const server of servers) {
       try {
-        // Check if server already exists using server_key
-        const existingServer = existingServers.find((s) => s.id === `@mcprouter/${server.server_key}`)
-
-        const mcpServer: MCPServer = {
+        const mcpServer: McpServer = {
           id: `@mcprouter/${server.server_key}`,
-          name: server.title || server.name || `MCPRouter Server ${nanoid()}`,
+          name: server.title || server.name || `McpRouter Server ${nanoid()}`,
           description: server.description || '',
           type: 'streamableHttp',
           baseUrl: server.server_url,
           isActive: true,
-          provider: 'MCPRouter',
+          provider: 'McpRouter',
           providerUrl: `https://mcprouter.co/${server.server_key}`,
           logoUrl: '',
           tags: [],
@@ -128,35 +112,22 @@ export const syncMCPRouterServers = async (
             Authorization: `Bearer ${token}`
           }
         }
-
-        if (existingServer) {
-          // Update existing server with corrected URL and latest info
-          updatedServers.push(mcpServer)
-        } else {
-          // Add new server
-          addedServers.push(mcpServer)
-        }
         allServers.push(mcpServer)
       } catch (err) {
-        logger.error('Error processing MCPRouter server:', err as Error)
+        logger.error('Error processing McpRouter server:', err as Error)
       }
     }
 
-    const totalServers = addedServers.length + updatedServers.length
     return {
       success: true,
-      message: t('settings.mcp.sync.success', { count: totalServers }),
-      addedServers,
-      updatedServers,
+      message: t('settings.mcp.sync.success', { count: allServers.length }),
       allServers
     }
   } catch (error) {
-    logger.error('MCPRouter sync error:', error as Error)
+    logger.error('McpRouter sync error:', error as Error)
     return {
       success: false,
       message: t('settings.mcp.sync.error'),
-      addedServers: [],
-      updatedServers: [],
       allServers: [],
       errorDetails: String(error)
     }

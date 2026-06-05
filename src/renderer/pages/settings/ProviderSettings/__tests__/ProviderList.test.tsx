@@ -34,12 +34,12 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
-vi.mock('@renderer/hooks/useProviders', () => ({
+vi.mock('@renderer/hooks/useProvider', () => ({
   useProviders: (...args: any[]) => useProvidersMock(...args),
   useProviderActions: (...args: any[]) => useProviderActionsMock(...args)
 }))
 
-vi.mock('@renderer/hooks/useModels', () => ({
+vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: any[]) => useModelsMock(...args)
 }))
 
@@ -93,8 +93,7 @@ describe('ProviderList', () => {
       endpointConfigs: {
         [ENDPOINT_TYPE.ANTHROPIC_MESSAGES]: { baseUrl: 'https://api.anthropic.com' }
       },
-      // The sidebar now defaults to the `enabled` filter, so both fixtures
-      // need `isEnabled: true` for the search / filter-hint tests to see them.
+      // The sidebar now defaults to the `all` filter.
       isEnabled: true
     }
   ] as any

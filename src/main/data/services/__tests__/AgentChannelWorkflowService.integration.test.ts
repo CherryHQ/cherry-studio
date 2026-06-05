@@ -19,12 +19,15 @@ const { syncChannelMock, disconnectChannelMock } = vi.hoisted(() => ({
   disconnectChannelMock: vi.fn()
 }))
 
-vi.mock('@main/services/agents/services/channels', () => ({
-  channelManager: {
-    syncChannel: syncChannelMock,
-    disconnectChannel: disconnectChannelMock
-  }
-}))
+vi.mock('@application', async () => {
+  const { mockApplicationFactory } = await import('@test-mocks/main/application')
+  return mockApplicationFactory({
+    ChannelManager: {
+      syncChannel: syncChannelMock,
+      disconnectChannel: disconnectChannelMock
+    }
+  } as Parameters<typeof mockApplicationFactory>[0])
+})
 
 // Import AFTER mocks
 import { agentChannelWorkflowService } from '../AgentChannelWorkflowService'
@@ -44,8 +47,8 @@ describe('AgentChannelWorkflowService.updateChannel — DB rollback integration'
       type: 'claude-code',
       name: `Agent ${id}`,
       instructions: 'test',
-      model: 'claude-3-5-sonnet',
-      sortOrder: 0
+      model: null,
+      orderKey: 'a0'
     })
   }
 

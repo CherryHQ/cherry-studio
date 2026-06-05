@@ -13,7 +13,7 @@ The current implementation is split into four responsibility areas:
 1. `KnowledgeBaseService` / `KnowledgeItemService`
    - Persist SQLite-backed knowledge base and knowledge item data.
    - Persist `knowledge_base.status` and `error`; migrated bases with missing embedding models remain as recoverable `failed` bases.
-   - Persist `knowledge_base.groupId`, `emoji`, and `dimensions`; `dimensions` is nullable only for failed bases whose embedding contract is unknown.
+   - Persist `knowledge_base.groupId` and `dimensions`; `dimensions` is nullable only for failed bases whose embedding contract is unknown.
    - Validate item `type` / `data` consistency.
    - Persist `knowledge_item.status` and `error`.
    - Reconcile container item status from child item state.
@@ -163,7 +163,6 @@ Current status writes are:
 Current persisted `knowledge_base` columns include:
 
 - `groupId`: nullable group assignment; `null` means ungrouped.
-- `emoji`: user-visible base icon, filled by service/migration defaults.
 - `dimensions`: positive embedding vector width for completed bases; nullable for failed migrated bases with unknown dimensions.
 - `status`: `completed` for runnable bases, `failed` for recoverable base-level migration failures.
 - `error`: nullable `KnowledgeBaseErrorCode`; currently `missing_embedding_model` for recoverable failed bases.

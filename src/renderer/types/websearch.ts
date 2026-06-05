@@ -1,6 +1,8 @@
-import type { PreferenceDefaultScopeType, WebSearchProviderId } from '@shared/data/preference/preferenceTypes'
-
-import type { WebSearchProvider } from './index'
+import type {
+  PreferenceDefaultScopeType,
+  WebSearchProvider,
+  WebSearchProviderId
+} from '@shared/data/preference/preferenceTypes'
 
 export type RendererCompressionConfig = {
   method: PreferenceDefaultScopeType['chat.web_search.compression.method']
