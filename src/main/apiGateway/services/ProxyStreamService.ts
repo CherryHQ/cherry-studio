@@ -8,15 +8,15 @@
  * from the listener via the adapter's push API.
  *
  * The gateway is assistant-agnostic: per-request sampling, client tools, and
- * provider options are injected through a single `createGatewayOverrideFeature`
- * feature threaded into the stream as `extraFeatures`.
+ * provider options are passed as first-class `callOverrides` on the stream
+ * request (merged at highest precedence inside `buildAgentParams`).
  */
 
 import { providerService } from '@data/services/ProviderService'
 import { loggerService } from '@logger'
-import { createGatewayOverrideFeature } from '@main/ai/gateway/createGatewayOverrideFeature'
 import { SseListener } from '@main/ai/streamManager'
-import type { CherryUIMessage, StreamListener } from '@main/ai/streamManager/types'
+import type { StreamListener } from '@main/ai/streamManager/types'
+import type { CallOverrides } from '@main/ai/types/requests'
 import { application } from '@main/core/application'
 import { createUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
@@ -93,12 +93,12 @@ export async function processMessage(config: MessageConfig): Promise<void> {
   }
   const providerOptions = provider ? converter.extractProviderOptions(provider, params) : undefined
 
-  // 3. Build the single per-request override feature (sampling / tools / provider options).
-  const feature = createGatewayOverrideFeature({
+  // 3. Assemble first-class per-request overrides (sampling / tools / provider options).
+  const callOverrides: CallOverrides = {
     ...streamOptions,
     ...(tools ? { tools } : {}),
     ...(providerOptions ? { providerOptions } : {})
-  })
+  }
 
   // 4. Adapter + formatter translate UIMessageChunk → output format.
   const adapter: IStreamAdapter = StreamAdapterFactory.createAdapter(outputFormat, {
@@ -169,10 +169,9 @@ export async function processMessage(config: MessageConfig): Promise<void> {
     aiStreamManager.streamPrompt({
       streamId,
       uniqueModelId,
-      // Gateway messages carry no Cherry metadata; cast at the boundary.
-      messages: messages as unknown as CherryUIMessage[],
+      messages,
       listener,
-      extraFeatures: [feature]
+      callOverrides
     })
 
     await done

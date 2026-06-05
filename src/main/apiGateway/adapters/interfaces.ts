@@ -8,8 +8,9 @@
  */
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Provider } from '@shared/data/types/provider'
-import type { ToolSet, UIMessage, UIMessageChunk } from 'ai'
+import type { ToolSet, UIMessageChunk } from 'ai'
 
 /**
  * Token usage projection carried on `message-metadata` UIMessageChunks emitted
@@ -120,7 +121,7 @@ export interface IMessageConverter<TInputParams = unknown> {
    * prompt becomes a leading `{ role: 'system' }` UIMessage — main's pipeline
    * runs `convertToModelMessages`, which lifts that into the SDK `system`.
    */
-  toUIMessages(params: TInputParams): UIMessage[]
+  toUIMessages(params: TInputParams): CherryUIMessage[]
 
   /**
    * Convert input tools to AI SDK `ToolSet`. Tools have NO `execute` (client
