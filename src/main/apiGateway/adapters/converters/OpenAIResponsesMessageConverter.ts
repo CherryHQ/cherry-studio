@@ -7,8 +7,9 @@
 
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type OpenAI from '@cherrystudio/openai'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Provider } from '@shared/data/types/provider'
-import type { DynamicToolUIPart, FileUIPart, TextUIPart, ToolSet, UIMessage, UIMessagePart } from 'ai'
+import type { DynamicToolUIPart, FileUIPart, TextUIPart, ToolSet } from 'ai'
 import { tool, zodSchema } from 'ai'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
@@ -37,14 +38,14 @@ export type ResponsesCreateParams = ResponseCreateParams & {
  */
 export class OpenAIResponsesMessageConverter implements IMessageConverter<ResponsesCreateParams> {
   /**
-   * Convert Responses API params to AI SDK `UIMessage[]`.
+   * Convert Responses API params to AI SDK `CherryUIMessage[]`.
    *
    * `instructions` become a leading system UIMessage. `function_call` +
    * `function_call_output` items are paired into a single assistant
    * `dynamic-tool` part so `convertToModelMessages` rebuilds the call/result.
    */
-  toUIMessages(params: ResponsesCreateParams): UIMessage[] {
-    const messages: UIMessage[] = []
+  toUIMessages(params: ResponsesCreateParams): CherryUIMessage[] {
+    const messages: CherryUIMessage[] = []
 
     if (params.instructions && typeof params.instructions === 'string') {
       messages.push({ id: nextUIMessageId(), role: 'system', parts: [{ type: 'text', text: params.instructions }] })
@@ -109,7 +110,7 @@ export class OpenAIResponsesMessageConverter implements IMessageConverter<Respon
   /**
    * Convert EasyInputMessage to a UIMessage (or null to skip).
    */
-  private convertEasyInputMessage(msg: EasyInputMessage): UIMessage | null {
+  private convertEasyInputMessage(msg: EasyInputMessage): CherryUIMessage | null {
     switch (msg.role) {
       case 'developer':
       case 'system':
@@ -123,7 +124,7 @@ export class OpenAIResponsesMessageConverter implements IMessageConverter<Respon
     }
   }
 
-  private convertSystemMessage(content: EasyInputMessage['content']): UIMessage | null {
+  private convertSystemMessage(content: EasyInputMessage['content']): CherryUIMessage | null {
     let text = ''
     if (typeof content === 'string') {
       text = content
@@ -137,13 +138,13 @@ export class OpenAIResponsesMessageConverter implements IMessageConverter<Respon
     return { id: nextUIMessageId(), role: 'system', parts: [{ type: 'text', text }] }
   }
 
-  private convertUserMessage(content: EasyInputMessage['content']): UIMessage | null {
+  private convertUserMessage(content: EasyInputMessage['content']): CherryUIMessage | null {
     if (typeof content === 'string') {
       if (!content) return null
       return { id: nextUIMessageId(), role: 'user', parts: [{ type: 'text', text: content }] }
     }
 
-    const parts: UIMessagePart<any, any>[] = []
+    const parts: CherryUIMessage['parts'] = []
     for (const part of content) {
       if (part.type === 'input_text') {
         const p: TextUIPart = { type: 'text', text: part.text }
@@ -161,8 +162,8 @@ export class OpenAIResponsesMessageConverter implements IMessageConverter<Respon
     return null
   }
 
-  private convertAssistantMessage(content: EasyInputMessage['content']): UIMessage | null {
-    const parts: UIMessagePart<any, any>[] = []
+  private convertAssistantMessage(content: EasyInputMessage['content']): CherryUIMessage | null {
+    const parts: CherryUIMessage['parts'] = []
 
     if (typeof content === 'string') {
       parts.push({ type: 'text', text: content })

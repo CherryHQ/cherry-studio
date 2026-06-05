@@ -12,8 +12,9 @@ import type {
   ChatCompletionUserMessageParam
 } from '@cherrystudio/openai/resources'
 import type { ChatCompletionCreateParamsBase } from '@cherrystudio/openai/resources/chat/completions'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Provider } from '@shared/data/types/provider'
-import type { DynamicToolUIPart, FileUIPart, ReasoningUIPart, TextUIPart, ToolSet, UIMessage, UIMessagePart } from 'ai'
+import type { DynamicToolUIPart, FileUIPart, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
 import { tool, zodSchema } from 'ai'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
@@ -53,13 +54,13 @@ interface ExtendedAssistantMessage extends ChatCompletionAssistantMessageParam {
  */
 export class OpenAIMessageConverter implements IMessageConverter<ExtendedChatCompletionCreateParams> {
   /**
-   * Convert OpenAI ChatCompletionCreateParams to AI SDK `UIMessage[]`.
+   * Convert OpenAI ChatCompletionCreateParams to AI SDK `CherryUIMessage[]`.
    *
    * Tool results (OpenAI `role: 'tool'` messages) are folded into the matching
    * assistant `dynamic-tool` part so `convertToModelMessages` reconstructs the
    * call/result pair coherently.
    */
-  toUIMessages(params: ExtendedChatCompletionCreateParams): UIMessage[] {
+  toUIMessages(params: ExtendedChatCompletionCreateParams): CherryUIMessage[] {
     // tool_call_id → name (from assistant tool_calls) and → result output.
     const toolCallIdToName = new Map<string, string>()
     const toolResultOutputs = new Map<string, string>()
@@ -78,7 +79,7 @@ export class OpenAIMessageConverter implements IMessageConverter<ExtendedChatCom
       }
     }
 
-    const messages: UIMessage[] = []
+    const messages: CherryUIMessage[] = []
     for (const msg of params.messages) {
       const converted = this.convertMessage(msg, toolResultOutputs)
       if (converted) messages.push(converted)
@@ -89,7 +90,10 @@ export class OpenAIMessageConverter implements IMessageConverter<ExtendedChatCom
   /**
    * Convert a single OpenAI message to a UIMessage (or null to skip).
    */
-  private convertMessage(msg: ChatCompletionMessageParam, toolResultOutputs: Map<string, string>): UIMessage | null {
+  private convertMessage(
+    msg: ChatCompletionMessageParam,
+    toolResultOutputs: Map<string, string>
+  ): CherryUIMessage | null {
     switch (msg.role) {
       case 'system':
         return this.convertSystemMessage(msg)
@@ -104,7 +108,7 @@ export class OpenAIMessageConverter implements IMessageConverter<ExtendedChatCom
     }
   }
 
-  private convertSystemMessage(msg: ChatCompletionMessageParam): UIMessage | null {
+  private convertSystemMessage(msg: ChatCompletionMessageParam): CherryUIMessage | null {
     if (msg.role !== 'system') return null
 
     let text = ''
@@ -120,14 +124,14 @@ export class OpenAIMessageConverter implements IMessageConverter<ExtendedChatCom
     return { id: nextUIMessageId(), role: 'system', parts: [{ type: 'text', text }] }
   }
 
-  private convertUserMessage(msg: ChatCompletionUserMessageParam): UIMessage | null {
+  private convertUserMessage(msg: ChatCompletionUserMessageParam): CherryUIMessage | null {
     if (typeof msg.content === 'string') {
       if (!msg.content) return null
       return { id: nextUIMessageId(), role: 'user', parts: [{ type: 'text', text: msg.content }] }
     }
 
     if (Array.isArray(msg.content)) {
-      const parts: UIMessagePart<any, any>[] = []
+      const parts: CherryUIMessage['parts'] = []
       for (const part of msg.content) {
         if (part.type === 'text') {
           const p: TextUIPart = { type: 'text', text: part.text }
@@ -146,8 +150,8 @@ export class OpenAIMessageConverter implements IMessageConverter<ExtendedChatCom
   private convertAssistantMessage(
     msg: ExtendedAssistantMessage,
     toolResultOutputs: Map<string, string>
-  ): UIMessage | null {
-    const parts: UIMessagePart<any, any>[] = []
+  ): CherryUIMessage | null {
+    const parts: CherryUIMessage['parts'] = []
 
     // reasoning_content (DeepSeek-style thinking)
     if (msg.reasoning_content) {

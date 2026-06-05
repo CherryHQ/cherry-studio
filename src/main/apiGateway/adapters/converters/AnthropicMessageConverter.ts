@@ -11,17 +11,9 @@ import type {
   Tool as AnthropicTool,
   ToolResultBlockParam
 } from '@anthropic-ai/sdk/resources/messages'
+import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Provider } from '@shared/data/types/provider'
-import type {
-  DynamicToolUIPart,
-  FileUIPart,
-  JSONValue,
-  ReasoningUIPart,
-  TextUIPart,
-  ToolSet,
-  UIMessage,
-  UIMessagePart
-} from 'ai'
+import type { DynamicToolUIPart, FileUIPart, JSONValue, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
 import { tool, zodSchema } from 'ai'
 
 import type { IMessageConverter, StreamTextOptions } from '../interfaces'
@@ -94,15 +86,15 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
   }
 
   /**
-   * Convert Anthropic MessageCreateParams to AI SDK `UIMessage[]`.
+   * Convert Anthropic MessageCreateParams to AI SDK `CherryUIMessage[]`.
    *
    * The leading system prompt is emitted as a `role: 'system'` UIMessage —
    * `convertToModelMessages` (run by main) lifts that to the SDK `system`.
    * Tool calls become `dynamic-tool` parts; a matching tool_result in a later
    * message upgrades the part to `output-available` so history stays coherent.
    */
-  toUIMessages(params: MessageCreateParams): UIMessage[] {
-    const messages: UIMessage[] = []
+  toUIMessages(params: MessageCreateParams): CherryUIMessage[] {
+    const messages: CherryUIMessage[] = []
 
     // System message
     if (params.system) {
@@ -143,7 +135,7 @@ export class AnthropicMessageConverter implements IMessageConverter<MessageCreat
       }
       if (!Array.isArray(msg.content)) continue
 
-      const parts: UIMessagePart<any, any>[] = []
+      const parts: CherryUIMessage['parts'] = []
 
       for (const block of msg.content) {
         if (block.type === 'text') {
