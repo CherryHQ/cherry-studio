@@ -16,7 +16,7 @@ vi.mock('react-i18next', async (importOriginal) => {
 })
 
 describe('ProviderSettings ModelTagsWithLabel', () => {
-  it('renders embedding, rerank, and free tags as icons when labels are disabled', () => {
+  it('renders embedding, rerank, and free tags as icons', () => {
     const { container } = render(
       <ModelTagsWithLabel
         model={
@@ -28,7 +28,6 @@ describe('ProviderSettings ModelTagsWithLabel', () => {
             endpointTypes: []
           } satisfies ModelTagsWithLabelModel
         }
-        showLabel={false}
         showTooltip={false}
       />
     )
