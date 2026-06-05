@@ -23,6 +23,10 @@ function getTokenInitials(value: string) {
 }
 
 function getOrderedCharacterMatchSpan(keyword: string, text: string) {
+  if (!keyword) {
+    return null
+  }
+
   let keywordIndex = 0
   let startIndex = -1
 
@@ -46,6 +50,10 @@ function getOrderedCharacterMatchSpan(keyword: string, text: string) {
 
 function getKeywordMatchScore(keyword: string, fields: ModelSearchField[]) {
   const normalizedKeyword = normalizeSearchSegment(keyword)
+  if (!normalizedKeyword) {
+    return null
+  }
+
   let bestScore: number | null = null
 
   for (const field of fields) {
