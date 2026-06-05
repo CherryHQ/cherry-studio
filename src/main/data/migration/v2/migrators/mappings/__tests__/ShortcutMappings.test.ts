@@ -1,6 +1,7 @@
+import { REGISTERED_KEYBINDINGS } from '@shared/command'
 import { describe, expect, it, vi } from 'vitest'
 
-import { transformShortcuts } from '../ShortcutMappings'
+import { LEGACY_KEY_TO_TARGET_KEY, transformShortcuts } from '../ShortcutMappings'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -34,15 +35,15 @@ describe('transformShortcuts', () => {
     })
 
     expect(result).toEqual({
-      'shortcut.feature.quick_assistant.toggle_window': {
+      'shortcut.quick_assistant.toggle': {
         binding: ['CommandOrControl', 'E'],
         enabled: false
       },
-      'shortcut.general.show_settings': {
+      'shortcut.app.settings.open': {
         binding: ['CommandOrControl', ','],
         enabled: true
       },
-      'shortcut.feature.selection.toggle_enabled': {
+      'shortcut.selection.toggle': {
         binding: [],
         enabled: false
       }
@@ -110,7 +111,7 @@ describe('transformShortcuts', () => {
       ]
     })
 
-    expect(result['shortcut.general.show_settings']).toEqual({
+    expect(result['shortcut.app.settings.open']).toEqual({
       binding: ['CommandOrControl', ','],
       enabled: true
     })
@@ -118,5 +119,16 @@ describe('transformShortcuts', () => {
 
   it('returns an empty result for non-array legacy sources', () => {
     expect(transformShortcuts({ shortcuts: 'nope' })).toEqual({})
+  })
+
+  it('maps every legacy key to a live command shortcut preference key', () => {
+    const registeredPreferenceKeys = new Set(REGISTERED_KEYBINDINGS.map((rule) => rule.preferenceKey))
+
+    for (const [legacyKey, targetKey] of Object.entries(LEGACY_KEY_TO_TARGET_KEY)) {
+      if (targetKey == null) continue
+      expect(registeredPreferenceKeys, `legacy key "${legacyKey}" maps to dead target "${targetKey}"`).toContain(
+        targetKey
+      )
+    }
   })
 })

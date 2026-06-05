@@ -15,7 +15,7 @@ const { commandServiceMock, menuMock, browserWindowMock, popupMock, windowMock }
     popupMock,
     windowMock,
     commandServiceMock: {
-      hasHandler: vi.fn(),
+      canExecute: vi.fn(),
       execute: vi.fn()
     },
     menuMock: {
@@ -90,7 +90,7 @@ describe('NativeCommandPopupMenuService', () => {
 
   beforeEach(async () => {
     vi.clearAllMocks()
-    commandServiceMock.hasHandler.mockReturnValue(false)
+    commandServiceMock.canExecute.mockReturnValue(false)
     sender = {
       send: vi.fn(),
       isDestroyed: vi.fn(() => false)
@@ -126,8 +126,8 @@ describe('NativeCommandPopupMenuService', () => {
     expect(commandServiceMock.execute).not.toHaveBeenCalled()
   })
 
-  it('executes main command handlers in main when available', async () => {
-    commandServiceMock.hasHandler.mockReturnValue(true)
+  it('executes main command handlers in main when executable', async () => {
+    commandServiceMock.canExecute.mockReturnValue(true)
     const handler = (service as any).handlers.get(IpcChannel.NativeCommandPopupMenu_Show)
     const result = handler({ sender }, createModel(), undefined)
 
@@ -137,6 +137,18 @@ describe('NativeCommandPopupMenuService', () => {
     await expect(result).resolves.toBeUndefined()
     expect(commandServiceMock.execute).toHaveBeenCalledWith('topic.create', windowMock)
     expect(sender.send).not.toHaveBeenCalled()
+  })
+
+  it('returns disabled commands to the caller instead of silently swallowing them', async () => {
+    commandServiceMock.canExecute.mockReturnValue(false)
+    const handler = (service as any).handlers.get(IpcChannel.NativeCommandPopupMenu_Show)
+    const result = handler({ sender }, createModel(), undefined)
+
+    const template = latestTemplate()
+    template[0].click?.()
+
+    await expect(result).resolves.toEqual({ type: 'command', command: 'topic.create' })
+    expect(commandServiceMock.execute).not.toHaveBeenCalled()
   })
 
   it('returns custom menu item clicks to the caller', async () => {

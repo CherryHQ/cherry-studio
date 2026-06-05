@@ -201,7 +201,7 @@ export class NativeCommandPopupMenuService extends BaseService {
     const commandService = application.get('CommandService')
     const window = BrowserWindow.fromWebContents(event.sender) ?? undefined
 
-    if (commandService.hasHandler(command)) {
+    if (commandService.canExecute(command)) {
       commandService.execute(command, window)
       settle(undefined)
       return

@@ -2,7 +2,7 @@
 title: Sidebar toggle shortcuts split into left / right
 category: shortcut
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: 15699
 date: 2026-06-01
 ---
 

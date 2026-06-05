@@ -11,12 +11,8 @@ const NewContextButton: FC<Props> = ({ onNewContext }) => {
   const { t } = useTranslation()
 
   return (
-    <Tooltip content={t('chat.input.new.context', { Command: '' })}>
-      <ActionIconButton
-        onClick={onNewContext}
-        aria-label={t('chat.input.new.context', { Command: '' })}
-        icon={<Eraser size={18} />}
-      />
+    <Tooltip content={t('chat.input.new.context')}>
+      <ActionIconButton onClick={onNewContext} aria-label={t('chat.input.new.context')} icon={<Eraser size={18} />} />
     </Tooltip>
   )
 }

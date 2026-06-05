@@ -190,7 +190,7 @@ export const getThemeModeLabel = (key: string): string => {
 }
 
 const sidebarIconKeyMap = {
-  assistants: 'agent.session.group.conversation',
+  assistants: 'assistants.title',
   agents: 'agent.sidebar_title',
   store: 'assistants.presets.title',
   paintings: 'paintings.title',

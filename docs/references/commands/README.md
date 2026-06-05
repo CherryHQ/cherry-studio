@@ -101,8 +101,9 @@ keeps only `ShortcutPreferenceKey` + `ResolvedShortcut`.
 | `presentation.tsx` | `CommandShortcut`, `CommandTooltip`, `CommandButton`, `useResolvedCommand` |
 | `menus.tsx` | `CommandContextMenu` — renders Cherry UI or a native popup based on `menu.presentation_mode` |
 
-Mount `<ContextKeyProvider><CommandProvider>` once per renderer window (the main
-window mounts it in `windows/main/MainApp.tsx`).
+Mount `<ContextKeyProvider><CommandProvider>` once per renderer window — every
+window root mounts it: `windows/main/MainApp.tsx`,
+`windows/settings/SettingsApp.tsx`, and `windows/subWindow/SubWindowApp.tsx`.
 
 ### Preferences
 

@@ -1191,7 +1191,7 @@
       "auto_resize": "自动调整高度",
       "clear": {
         "content": "确定要清除当前会话所有消息吗？",
-        "label": "清空消息 {{Command}}",
+        "label": "清空消息",
         "title": "清空消息"
       },
       "collapse": "收起",
@@ -1209,7 +1209,7 @@
       "generate_image_not_supported": "模型不支持生成图片",
       "knowledge_base": "知识库",
       "new": {
-        "context": "清除上下文 {{Command}}"
+        "context": "清除上下文"
       },
       "new_session": "新会话 {{Command}}",
       "new_topic": "新话题 {{Command}}",

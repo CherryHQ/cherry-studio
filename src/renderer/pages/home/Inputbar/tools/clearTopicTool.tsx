@@ -5,7 +5,7 @@ import { PaintbrushVertical } from 'lucide-react'
 
 const clearTopicTool = defineTool({
   key: 'clear_topic',
-  label: (t) => t('chat.input.clear.label', { Command: '' }),
+  label: (t) => t('chat.input.clear.label'),
   visibleInScopes: [TopicType.Chat],
   dependencies: {
     actions: ['clearTopic'] as const
@@ -14,7 +14,7 @@ const clearTopicTool = defineTool({
     const { actions, t } = context
 
     return (
-      <Tooltip placement="top" title={t('chat.input.clear.label', { Command: '' })} mouseLeaveDelay={0} arrow>
+      <Tooltip placement="top" title={t('chat.input.clear.label')} mouseLeaveDelay={0} arrow>
         <ActionIconButton onClick={actions.clearTopic} icon={<PaintbrushVertical size={18} />}></ActionIconButton>
       </Tooltip>
     )
