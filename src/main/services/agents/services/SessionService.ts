@@ -16,7 +16,15 @@ import {
 import { and, asc, count, desc, eq, isNull, type SQL, sql } from 'drizzle-orm'
 
 import { BaseService } from '../BaseService'
-import { agentsTable, type InsertSessionRow, type SessionRow, sessionsTable } from '../database/schema'
+import {
+  agentsTable,
+  channelsTable,
+  type InsertSessionRow,
+  sessionMessagesTable,
+  type SessionRow,
+  sessionsTable,
+  taskRunLogsTable
+} from '../database/schema'
 import type { AgentModelField } from '../errors'
 import { builtinSlashCommands } from './claudecode/commands'
 
@@ -316,11 +324,30 @@ export class SessionService extends BaseService {
 
   async deleteSession(agentId: string, id: string): Promise<boolean> {
     const database = await this.getDatabase()
-    const result = await database
-      .delete(sessionsTable)
-      .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))
 
-    return result.rowsAffected > 0
+    return await database.transaction(async (tx) => {
+      const sessionQuery = sql`SELECT ${sessionsTable.id} FROM ${sessionsTable} WHERE ${sessionsTable.id} = ${id} AND ${sessionsTable.agent_id} = ${agentId}`
+
+      await tx
+        .update(channelsTable)
+        .set({ sessionId: null })
+        .where(sql`${channelsTable.sessionId} IN (${sessionQuery})`)
+      await tx
+        .update(taskRunLogsTable)
+        .set({ session_id: null })
+        .where(sql`${taskRunLogsTable.session_id} IN (${sessionQuery})`)
+      await tx.delete(sessionMessagesTable).where(sql`${sessionMessagesTable.session_id} IN (${sessionQuery})`)
+
+      const result = await tx
+        .delete(sessionsTable)
+        .where(and(eq(sessionsTable.id, id), eq(sessionsTable.agent_id, agentId)))
+
+      if (result.rowsAffected > 0) {
+        logger.info('Session deleted', { agentId, id })
+      }
+
+      return result.rowsAffected > 0
+    })
   }
 
   async reorderSessions(agentId: string, orderedIds: string[]): Promise<void> {

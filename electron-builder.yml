@@ -142,14 +142,24 @@ artifactBuildCompleted: scripts/artifact-build-completed.js
 releaseInfo:
   releaseNotes: |
     <!--LANG:en-->
-    Cherry Studio 1.9.8 - Chat Experience Improvements
+    Cherry Studio 1.9.9 - Stability and Model Updates
 
-    💄 Improvements
-    - [Chat] Improved tool call displays with clearer grouping, smoother execution details, and better handling for ongoing tasks.
+    ✨ New Features
+    - [Models] Added MiniMax M3 to the built-in model list.
+
+    🐛 Bug Fixes
+    - [Mini Apps] Fixed an app crash that could occur when launching mini apps.
+    - [OCR] Fixed a Windows startup crash that could occur while detecting Intel OV OCR availability.
+    - [Agent] Fixed agent sessions automatically renaming after topic auto-renaming is disabled.
 
     <!--LANG:zh-CN-->
-    Cherry Studio 1.9.8 - 聊天体验改进
+    Cherry Studio 1.9.9 - 稳定性与模型更新
 
-    💄 改进
-    - [聊天] 改进工具调用展示，分组更清楚，执行详情更顺滑，进行中的任务也更容易查看。
+    ✨ 新功能
+    - [模型] 内置模型列表新增 MiniMax M3。
+
+    🐛 问题修复
+    - [小程序] 修复启动小程序时可能导致应用崩溃的问题。
+    - [OCR] 修复 Windows 启动时检测 Intel OV OCR 可用性可能导致崩溃的问题。
+    - [智能体] 修复关闭话题自动命名后，智能体会话仍会自动重命名的问题。
     <!--LANG:END-->
