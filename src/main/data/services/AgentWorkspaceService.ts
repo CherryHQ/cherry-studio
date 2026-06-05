@@ -7,7 +7,7 @@ import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
+import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import { and, asc, eq } from 'drizzle-orm'
 import fs from 'fs'
 import path from 'path'
@@ -23,7 +23,7 @@ type PreparedSystemWorkspace = {
   type: Extract<WorkspaceType, 'system'>
 }
 
-export function rowToWorkspace(row: AgentWorkspaceRow): WorkspaceEntity {
+export function rowToWorkspace(row: AgentWorkspaceRow): AgentWorkspaceEntity {
   return {
     id: row.id,
     name: row.name,
@@ -87,7 +87,7 @@ function ensureWorkspaceDirectory(workspacePath: string): void {
 }
 
 export class AgentWorkspaceService {
-  async list(options: WorkspaceLookupOptions = {}): Promise<WorkspaceEntity[]> {
+  async list(options: WorkspaceLookupOptions = {}): Promise<AgentWorkspaceEntity[]> {
     const db = application.get('DbService').getDb()
     const rows = await db
       .select()
@@ -97,13 +97,13 @@ export class AgentWorkspaceService {
     return rows.map(rowToWorkspace)
   }
 
-  async getById(id: string, options: WorkspaceLookupOptions = {}): Promise<WorkspaceEntity> {
+  async getById(id: string, options: WorkspaceLookupOptions = {}): Promise<AgentWorkspaceEntity> {
     const db = application.get('DbService').getDb()
     const row = await this.getRowByIdTx(db, id, options)
     return rowToWorkspace(row)
   }
 
-  async getByIdTx(tx: DbOrTx, id: string, options: WorkspaceLookupOptions = {}): Promise<WorkspaceEntity> {
+  async getByIdTx(tx: DbOrTx, id: string, options: WorkspaceLookupOptions = {}): Promise<AgentWorkspaceEntity> {
     const row = await this.getRowByIdTx(tx, id, options)
     return rowToWorkspace(row)
   }
@@ -125,7 +125,7 @@ export class AgentWorkspaceService {
     if (!row) throw DataApiErrorFactory.notFound('Workspace', id)
   }
 
-  async findOrCreateByPath(rawPath: string, options: { name?: string } = {}): Promise<WorkspaceEntity> {
+  async findOrCreateByPath(rawPath: string, options: { name?: string } = {}): Promise<AgentWorkspaceEntity> {
     const workspacePath = normalizeWorkspacePath(rawPath)
     ensureWorkspaceDirectory(workspacePath)
 
@@ -143,7 +143,11 @@ export class AgentWorkspaceService {
     return rowToWorkspace(row)
   }
 
-  async findOrCreateByPathTx(tx: DbOrTx, rawPath: string, options: { name?: string } = {}): Promise<WorkspaceEntity> {
+  async findOrCreateByPathTx(
+    tx: DbOrTx,
+    rawPath: string,
+    options: { name?: string } = {}
+  ): Promise<AgentWorkspaceEntity> {
     const workspacePath = normalizeWorkspacePath(rawPath)
     ensureWorkspaceDirectory(workspacePath)
     const row = await withSqliteErrors(() => this.findOrCreateRowByNormalizedPathTx(tx, workspacePath, options), {
@@ -153,12 +157,12 @@ export class AgentWorkspaceService {
     return rowToWorkspace(row)
   }
 
-  async createDefaultWorkspace(): Promise<WorkspaceEntity> {
+  async createDefaultWorkspace(): Promise<AgentWorkspaceEntity> {
     const workspacePath = path.join(application.getPath('feature.agents.workspaces'), uuidv4())
     return await this.findOrCreateByPath(workspacePath)
   }
 
-  async createDefaultWorkspaceTx(tx: DbOrTx): Promise<WorkspaceEntity> {
+  async createDefaultWorkspaceTx(tx: DbOrTx): Promise<AgentWorkspaceEntity> {
     const workspacePath = path.join(application.getPath('feature.agents.workspaces'), uuidv4())
     return await this.findOrCreateByPathTx(tx, workspacePath)
   }
@@ -180,12 +184,12 @@ export class AgentWorkspaceService {
     }
   }
 
-  async createPreparedSystemWorkspaceTx(tx: DbOrTx, prepared: PreparedSystemWorkspace): Promise<WorkspaceEntity> {
+  async createPreparedSystemWorkspaceTx(tx: DbOrTx, prepared: PreparedSystemWorkspace): Promise<AgentWorkspaceEntity> {
     const row = await this.insertWorkspaceRowTx(tx, prepared)
     return rowToWorkspace(row)
   }
 
-  async createSystemWorkspaceForSession(sessionId: string, now = new Date()): Promise<WorkspaceEntity> {
+  async createSystemWorkspaceForSession(sessionId: string, now = new Date()): Promise<AgentWorkspaceEntity> {
     const prepared = this.prepareSystemWorkspaceForSession(sessionId, now)
     try {
       const dbService = application.get('DbService')

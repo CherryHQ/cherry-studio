@@ -4,9 +4,9 @@ import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { workspaceWorkflowService } from '@data/services/WorkspaceWorkflowService'
 import { DataApiErrorFactory } from '@shared/data/api'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
+import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
 import type { CreateTemporarySessionDto } from '@shared/data/api/schemas/temporaryChats'
-import type { WorkspaceEntity } from '@shared/data/api/schemas/workspaces'
 import { v4 as uuidv4 } from 'uuid'
 
 type TemporarySessionRow = {
@@ -15,12 +15,12 @@ type TemporarySessionRow = {
   name: string
   description: string
   workspaceId?: string
-  workspaceType?: WorkspaceEntity['type']
+  workspaceType?: AgentWorkspaceEntity['type']
   createdAt: number
   updatedAt: number
 }
 
-function rowToSession(row: TemporarySessionRow, workspace: WorkspaceEntity | null): AgentSessionEntity {
+function rowToSession(row: TemporarySessionRow, workspace: AgentWorkspaceEntity | null): AgentSessionEntity {
   return {
     id: row.id,
     agentId: row.agentId,

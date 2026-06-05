@@ -15,8 +15,11 @@ import type {
   AgentSessionMessageEntity,
   CreateAgentSessionMessageDto,
   CreateAgentSessionMessagesDto
-} from '@shared/data/api/schemas/sessions'
-import { SESSION_MESSAGES_DEFAULT_LIMIT, SESSION_MESSAGES_MAX_LIMIT } from '@shared/data/api/schemas/sessions'
+} from '@shared/data/api/schemas/agentSessions'
+import {
+  AGENT_SESSION_MESSAGES_DEFAULT_LIMIT,
+  AGENT_SESSION_MESSAGES_MAX_LIMIT
+} from '@shared/data/api/schemas/agentSessions'
 import { and, desc, eq, inArray, isNotNull, lt, or } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
@@ -61,7 +64,7 @@ export class AgentSessionMessageService {
       .limit(1)
     if (!session) throw DataApiErrorFactory.notFound('Session', sessionId)
 
-    const limit = Math.min(options.limit ?? SESSION_MESSAGES_DEFAULT_LIMIT, SESSION_MESSAGES_MAX_LIMIT)
+    const limit = Math.min(options.limit ?? AGENT_SESSION_MESSAGES_DEFAULT_LIMIT, AGENT_SESSION_MESSAGES_MAX_LIMIT)
     const cursor = options.cursor ? decodeMessageCursor(options.cursor) : null
 
     const filters = [eq(sessionMessagesTable.sessionId, sessionId)]

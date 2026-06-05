@@ -4,8 +4,8 @@ import {
   AgentSessionMessageEntitySchema,
   CreateAgentSessionMessageSchema,
   CreateAgentSessionMessagesSchema,
-  UpdateSessionSchema
-} from '../sessions'
+  UpdateAgentSessionSchema
+} from '../agentSessions'
 
 describe('AgentSessionMessage schemas', () => {
   const baseMessage = {
@@ -52,7 +52,7 @@ describe('AgentSessionMessage schemas', () => {
 describe('AgentSession schemas', () => {
   it('rejects workspace updates because workspace binding is insert-only', () => {
     expect(
-      UpdateSessionSchema.safeParse({
+      UpdateAgentSessionSchema.safeParse({
         workspaceId: 'workspace-1'
       }).success
     ).toBe(false)

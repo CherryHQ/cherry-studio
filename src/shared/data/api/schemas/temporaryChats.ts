@@ -16,8 +16,8 @@ import type { Topic } from '@shared/data/types/topic'
 import * as z from 'zod'
 
 import { AgentNameAtomSchema } from './agents'
+import { type AgentSessionEntity, AgentWorkspaceModeSchema } from './agentSessions'
 import type { CreateMessageDto } from './messages'
-import { type AgentSessionEntity, WorkspaceModeSchema } from './sessions'
 import type { CreateTopicDto } from './topics'
 
 // ============================================================================
@@ -40,7 +40,7 @@ export const CreateTemporarySessionSchema = z
     name: AgentNameAtomSchema.optional(),
     description: z.string().optional(),
     workspaceId: z.string().min(1).optional(),
-    workspaceMode: WorkspaceModeSchema.optional()
+    workspaceMode: AgentWorkspaceModeSchema.optional()
   })
   .refine((dto) => !(dto.workspaceMode === 'system' && dto.workspaceId), {
     path: ['workspaceId'],
