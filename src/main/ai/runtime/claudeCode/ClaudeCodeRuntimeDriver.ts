@@ -331,12 +331,12 @@ export class ClaudeCodeRuntimeDriver implements AgentSessionRuntimeDriver {
   readonly type = 'claude-code'
   readonly capabilities = ['agent-session'] as const
 
-  validateSession(session: AgentSessionEntity): void {
+  async validateSession(session: AgentSessionEntity): Promise<void> {
     const cwd = session.workspace?.path
     if (!cwd) {
       throw new AgentSessionWorkspaceError(`Agent session ${session.id} has no workspace configured`)
     }
-    assertClaudeCodeWorkspaceDirectory(session.id, cwd)
+    await assertClaudeCodeWorkspaceDirectory(session.id, cwd)
   }
 
   async listAvailableTools(mcpIds: string[]): Promise<Tool[]> {
