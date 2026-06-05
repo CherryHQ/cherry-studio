@@ -83,6 +83,59 @@ describe('useEnableProviderWhenModelsAvailable', () => {
     expect(updateProvider).not.toHaveBeenCalled()
   })
 
+  it('no-ops for undefined, NaN, and negative model counts', async () => {
+    const updateProvider = vi.fn().mockResolvedValue(undefined)
+    const { result } = renderHook(() =>
+      useEnableProviderWhenModelsAvailable({
+        providerId: 'cherryin',
+        provider: disabledProvider,
+        updateProvider,
+        source: 'test'
+      })
+    )
+
+    await act(async () => {
+      // A non-array `.length` would surface here as undefined; `undefined <= 0`
+      // is false, so the helper must reject it via `!(modelCount > 0)`.
+      expect(await result.current(undefined as unknown as number)).toBe(false)
+      expect(await result.current(Number.NaN)).toBe(false)
+      expect(await result.current(-1)).toBe(false)
+    })
+
+    expect(updateProvider).not.toHaveBeenCalled()
+  })
+
+  it('dedupes concurrent in-flight calls into a single update', async () => {
+    let resolveUpdate: (() => void) | undefined
+    const updateProvider = vi.fn().mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveUpdate = resolve
+      })
+    )
+    const { result } = renderHook(() =>
+      useEnableProviderWhenModelsAvailable({
+        providerId: 'cherryin',
+        provider: disabledProvider,
+        updateProvider,
+        source: 'test'
+      })
+    )
+
+    let firstEnabled: boolean | undefined
+    let secondEnabled: boolean | undefined
+    await act(async () => {
+      const first = result.current(2)
+      const second = result.current(2)
+      resolveUpdate?.()
+      firstEnabled = await first
+      secondEnabled = await second
+    })
+
+    expect(updateProvider).toHaveBeenCalledTimes(1)
+    expect(firstEnabled).toBe(true)
+    expect(secondEnabled).toBe(false)
+  })
+
   it('no-ops when the provider has not resolved yet', async () => {
     const updateProvider = vi.fn().mockResolvedValue(undefined)
     const { result } = renderHook(() =>

@@ -194,6 +194,9 @@ describe('useProviderConnectionCheck', () => {
       error: saveError
     })
     expect(window.toast.error).toHaveBeenCalled()
+    // Key persistence runs before the success toast, so a save failure must not
+    // flash success-then-failure.
+    expect(window.toast.success).not.toHaveBeenCalled()
   })
 
   it('does not patch an already enabled provider after a successful model connection check', async () => {

@@ -106,15 +106,22 @@ export function useProviderConnectionCheck(providerId: string) {
 
         if (runId !== runIdRef.current) return
 
+        // Persist the pending key and enable the provider (if disabled) BEFORE
+        // surfacing success. A successful check confirms a working local model,
+        // but if persisting the key fails we must show only the failure path —
+        // not a success toast followed by a failure one. (enable swallows its
+        // own errors, so only commitInputApiKeyNow can throw into the catch.)
+        await commitInputApiKeyNow()
+        await enableProviderWhenModelsAvailable(checkableModels.length)
+
+        // The commit/enable awaits can interleave with a newer check; drop this
+        // run if it was superseded or aborted before touching success state.
+        if (runId !== runIdRef.current || controller.signal.aborted) return
+
         window.toast.success({
           timeout: 2000,
           title: i18n.t('message.api.connection.success')
         })
-
-        // A successful check confirms a working local model, so enable the
-        // provider if the user has it disabled (shared with the other model flows).
-        await commitInputApiKeyNow()
-        await enableProviderWhenModelsAvailable(checkableModels.length)
 
         setApiKeyConnectivity({ kind: 'ok', checking: false, status: HealthStatus.SUCCESS, model })
         setConnectionCheckOpen(false)
