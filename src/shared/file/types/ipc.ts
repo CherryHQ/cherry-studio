@@ -201,10 +201,6 @@ export interface BatchCreateResult {
   failed: Array<{ sourceRef: string; error: string }>
 }
 
-export type WorkspacePathStatusReason = 'missing' | 'not-directory' | 'inaccessible'
-
-export type WorkspacePathStatus = { ok: true } | { ok: false; reason: WorkspacePathStatusReason; detail?: string }
-
 export type PathStatusKind = 'file' | 'directory'
 
 export interface GetPathStatusIpcParams {

@@ -1,6 +1,6 @@
 import { cn } from '@renderer/utils'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
-import type { WorkspacePathStatus } from '@shared/file/types/ipc'
+import type { PathStatus } from '@shared/file/types/ipc'
 import { Folder, TriangleAlert } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -13,7 +13,7 @@ const WorkspaceSelector = ({ session }: WorkspaceSelectorProps) => {
   const { t } = useTranslation()
 
   const workspacePath = session.workspace?.path
-  const [workspaceStatus, setWorkspaceStatus] = useState<WorkspacePathStatus | null>(null)
+  const [workspaceStatus, setWorkspaceStatus] = useState<PathStatus | null>(null)
 
   useEffect(() => {
     let disposed = false
@@ -21,7 +21,7 @@ const WorkspaceSelector = ({ session }: WorkspaceSelectorProps) => {
     if (!workspacePath) return
 
     window.api.file
-      .checkWorkspacePath(workspacePath)
+      .getPathStatus({ path: workspacePath, expectedKind: 'directory' })
       .then((status) => {
         if (!disposed) setWorkspaceStatus(status)
       })
@@ -34,12 +34,13 @@ const WorkspaceSelector = ({ session }: WorkspaceSelectorProps) => {
     }
   }, [workspacePath])
 
-  const getWorkspaceStatusMessage = (status: Exclude<WorkspacePathStatus, { ok: true }>) => {
+  const getWorkspaceStatusMessage = (status: Exclude<PathStatus, { ok: true }>) => {
     switch (status.reason) {
       case 'missing':
         return t('agent.session.workspace_status.missing', { path: workspacePath })
       case 'not-directory':
         return t('agent.session.workspace_status.not_directory', { path: workspacePath })
+      case 'not-file':
       case 'inaccessible':
         return t('agent.session.workspace_status.inaccessible', { path: workspacePath })
     }

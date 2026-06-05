@@ -2,13 +2,19 @@ import { loggerService } from '@logger'
 import type { FilePath } from '@shared/file/types'
 import type { PathStatus, PathStatusKind } from '@shared/file/types/ipc'
 
-// `errorCode` / `errorDetail` are shared with the sync, workspace-scoped
-// `workspacePathStatus.ts`; see `./errno` for how the two path-status utilities
-// relate (this one is async/general, that one is sync/workspace-scoped).
-import { errorCode, errorDetail } from './errno'
 import { stat } from './fs'
 
 const logger = loggerService.withContext('utils/file/pathStatus')
+
+function errorCode(error: unknown): string | undefined {
+  return typeof error === 'object' && error !== null && 'code' in error
+    ? String((error as NodeJS.ErrnoException).code)
+    : undefined
+}
+
+function errorDetail(error: unknown): string | undefined {
+  return error instanceof Error ? error.message : String(error)
+}
 
 function mismatchReason(expectedKind: PathStatusKind): 'not-file' | 'not-directory' {
   return expectedKind === 'file' ? 'not-file' : 'not-directory'

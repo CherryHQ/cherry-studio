@@ -66,8 +66,7 @@ import type {
   EnsureExternalEntryIpcParams,
   GetPathStatusIpcParams,
   GetPhysicalPathIpcParams,
-  PathStatus,
-  WorkspacePathStatus
+  PathStatus
 } from '@shared/file/types/ipc'
 import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/file/types/tree'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -297,8 +296,6 @@ const api = {
     openFileWithRelativePath: (file: FileMetadata) => ipcRenderer.invoke(IpcChannel.File_OpenWithRelativePath, file),
     isTextFile: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsTextFile, filePath),
     isDirectory: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsDirectory, filePath),
-    checkWorkspacePath: (filePath: string): Promise<WorkspacePathStatus> =>
-      ipcRenderer.invoke(IpcChannel.File_CheckWorkspacePath, filePath),
     getPathStatus: (params: GetPathStatusIpcParams): Promise<PathStatus> =>
       ipcRenderer.invoke(IpcChannel.File_GetPathStatus, params),
     getFileSize: (filePath: FilePath): Promise<number> => ipcRenderer.invoke(IpcChannel.File_GetFileSize, filePath),

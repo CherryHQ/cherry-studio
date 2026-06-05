@@ -40,7 +40,7 @@ import { application } from '@main/core/application'
 import { isLinux, isWin } from '@main/core/platform'
 import { getProxyEnvironment } from '@main/services/proxy/nodeProxy'
 import { toAsarUnpackedPath } from '@main/utils'
-import { checkWorkspacePathStatus, formatWorkspacePathStatus } from '@main/utils/file/workspacePathStatus'
+import { formatPathStatusMessage, getPathStatus } from '@main/utils/file/pathStatus'
 import { getAppLanguage } from '@main/utils/language'
 import { autoDiscoverGitBash, getBinaryPath } from '@main/utils/process'
 import { rtkRewrite } from '@main/utils/rtk'
@@ -190,7 +190,7 @@ export async function buildClaudeCodeSessionSettings(
   if (!cwd) {
     throw new AgentSessionWorkspaceError(`Agent session ${session.id} has no workspace configured`)
   }
-  assertClaudeCodeWorkspaceDirectory(session.id, cwd)
+  await assertClaudeCodeWorkspaceDirectory(session.id, cwd)
   await skillService.reconcileAgentSkills(session.agentId, cwd)
 
   // 2. Environment variables
@@ -286,11 +286,11 @@ export function isAgentSessionWorkspaceError(error: unknown): error is AgentSess
   return error instanceof AgentSessionWorkspaceError
 }
 
-export function assertClaudeCodeWorkspaceDirectory(sessionId: string, cwd: string): void {
-  const status = checkWorkspacePathStatus(cwd)
+export async function assertClaudeCodeWorkspaceDirectory(sessionId: string, cwd: string): Promise<void> {
+  const status = await getPathStatus(cwd, { expectedKind: 'directory' })
   if (status.ok) return
   throw new AgentSessionWorkspaceError(
-    `Workspace path for session ${sessionId}: ${formatWorkspacePathStatus(cwd, status)}`
+    `Workspace path for session ${sessionId}: ${formatPathStatusMessage(cwd, status, 'Workspace path')}`
   )
 }
 
