@@ -1,6 +1,75 @@
-import { describe, expect, it } from 'vitest'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 
-import { escapeBatchText } from '../CodeToolsService'
+import { HOME_CHERRY_DIR } from '@shared/config/constant'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { codeToolsService, escapeBatchText } from '../CodeToolsService'
+
+type CodeToolsServiceInternals = {
+  claudeCodeNativeBinaryPathCache?: string
+  getClaudeCodeNativeBinaryPath(): string | null
+}
+
+const serviceInternals = codeToolsService as unknown as CodeToolsServiceInternals
+
+beforeEach(() => {
+  serviceInternals.claudeCodeNativeBinaryPathCache = undefined
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+  serviceInternals.claudeCodeNativeBinaryPathCache = undefined
+})
+
+describe('CodeToolsService - claude-code native binary', () => {
+  const homeDir = '/Users/test'
+  const globalInstallDir = path.join(homeDir, HOME_CHERRY_DIR, 'install', 'global')
+  const packageJsonPath = path.join(globalInstallDir, 'node_modules', '@anthropic-ai', 'claude-code', 'package.json')
+  const optionalPackageName = `@anthropic-ai/claude-code-${process.platform}-${process.arch}`
+  const binName = process.platform === 'win32' ? 'claude.exe' : 'claude'
+  const nativeBinaryPath = path.join(globalInstallDir, 'node_modules', ...optionalPackageName.split('/'), binName)
+  const packageJson = JSON.stringify({
+    optionalDependencies: {
+      [optionalPackageName]: '1.0.0'
+    }
+  })
+
+  it('memoizes the resolved native binary path for repeated checks', () => {
+    vi.spyOn(os, 'homedir').mockReturnValue(homeDir)
+    vi.spyOn(fs, 'existsSync').mockImplementation((filePath) => {
+      const normalizedPath = String(filePath)
+      return normalizedPath === packageJsonPath || normalizedPath === nativeBinaryPath
+    })
+    const readFileSync = vi.spyOn(fs, 'readFileSync').mockImplementation(() => packageJson)
+
+    expect(serviceInternals.getClaudeCodeNativeBinaryPath()).toBe(nativeBinaryPath)
+    expect(serviceInternals.getClaudeCodeNativeBinaryPath()).toBe(nativeBinaryPath)
+    // package.json is read only once; the second call is served from the cache.
+    expect(readFileSync).toHaveBeenCalledTimes(1)
+  })
+
+  it('re-validates the cache and re-resolves when the cached binary disappears', () => {
+    let binaryExists = true
+    vi.spyOn(os, 'homedir').mockReturnValue(homeDir)
+    vi.spyOn(fs, 'existsSync').mockImplementation((filePath) => {
+      const normalizedPath = String(filePath)
+      if (normalizedPath === nativeBinaryPath) {
+        return binaryExists
+      }
+      return normalizedPath === packageJsonPath
+    })
+    vi.spyOn(fs, 'readFileSync').mockImplementation(() => packageJson)
+
+    expect(serviceInternals.getClaudeCodeNativeBinaryPath()).toBe(nativeBinaryPath)
+
+    // Simulate issue #15347's broken state appearing after the path was cached.
+    binaryExists = false
+    expect(serviceInternals.getClaudeCodeNativeBinaryPath()).toBeNull()
+    expect(serviceInternals.claudeCodeNativeBinaryPathCache).toBeUndefined()
+  })
+})
 
 describe('CodeToolsService - escapeBatchText', () => {
   it('preserves normal text without special characters', () => {
