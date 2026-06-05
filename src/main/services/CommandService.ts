@@ -12,11 +12,7 @@ const logger = loggerService.withContext('CommandService')
 
 type MainCommandHandler = (window?: BrowserWindow) => void | Promise<void>
 
-const getMainWindows = (): BrowserWindow[] =>
-  application
-    .get('WindowManager')
-    .getWindowsByType(WindowType.Main)
-    .filter((window) => !window.isDestroyed())
+const getMainWindows = (): BrowserWindow[] => application.get('WindowManager').getWindowsByType(WindowType.Main)
 
 const getCommandTargetWindows = (window?: BrowserWindow): BrowserWindow[] => (window ? [window] : getMainWindows())
 
