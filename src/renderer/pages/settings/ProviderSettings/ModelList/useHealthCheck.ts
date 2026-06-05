@@ -6,7 +6,6 @@ import { checkModelsHealth } from '@renderer/pages/settings/ProviderSettings/Mod
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { splitApiKeyString } from '@renderer/utils/api'
-import { isRerankModel } from '@shared/utils/model'
 import { isEmpty } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -73,7 +72,7 @@ export const useHealthCheck = (providerId: string) => {
     async ({ apiKeys, isConcurrent, timeout }: { apiKeys: string[]; isConcurrent: boolean; timeout: number }) => {
       if (!provider) return
 
-      const modelsToCheck = models.filter((model) => !isRerankModel(model))
+      const modelsToCheck = models
 
       if (isEmpty(modelsToCheck)) {
         window.toast.error({

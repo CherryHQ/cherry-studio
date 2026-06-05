@@ -1,3 +1,4 @@
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -48,7 +49,13 @@ describe('useHealthCheck', () => {
     useModelsMock.mockReturnValue({
       models: [
         { id: 'openai::gpt-4o', providerId: 'openai', name: 'GPT-4o', capabilities: [] },
-        { id: 'openai::gpt-3.5', providerId: 'openai', name: 'GPT-3.5', capabilities: [] }
+        { id: 'openai::gpt-3.5', providerId: 'openai', name: 'GPT-3.5', capabilities: [] },
+        {
+          id: 'openai::rerank-1',
+          providerId: 'openai',
+          name: 'Rerank',
+          capabilities: [MODEL_CAPABILITY.RERANK]
+        }
       ]
     })
     useProviderApiKeysMock.mockReturnValue({
@@ -77,7 +84,12 @@ describe('useHealthCheck', () => {
       await Promise.resolve()
     })
     expect(result.current.isChecking).toBe(true)
-    expect(result.current.modelStatuses.length).toBe(2)
+    expect(result.current.modelStatuses.length).toBe(3)
+    expect(checkModelsHealthMock.mock.calls[0]?.[0].models.map((model: { id: string }) => model.id)).toEqual([
+      'openai::gpt-4o',
+      'openai::gpt-3.5',
+      'openai::rerank-1'
+    ])
 
     rerender({ providerId: 'anthropic' })
 
