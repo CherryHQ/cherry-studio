@@ -7,10 +7,11 @@ const logger = loggerService.withContext('utils/file/pathStatus')
 
 /**
  * Path-status types. These are **main-internal**: `getPathStatus` is a single
- * `fs.stat` consumed inside main (e.g. `settingsBuilder`, `workspacePathWarning`)
- * and the typed status never crosses the IPC boundary — error interpretation is
- * a main-side concern, so the renderer receives finished messages, not this
- * union. See `getWorkspacePathWarning` for the renderer-facing surface.
+ * `fs.stat` consumed inside main (e.g. `settingsBuilder`) and the typed status
+ * never crosses the IPC boundary — error interpretation is a main-side
+ * concern, so the renderer receives finished messages, not this union. See
+ * `assertClaudeCodeWorkspaceDirectory` (settingsBuilder) for how an invalid
+ * workspace surfaces at send time.
  */
 export type PathStatusKind = 'file' | 'directory'
 
@@ -51,8 +52,8 @@ export async function getPathStatus(path: string, options?: { expectedKind?: Pat
       // `ENOTDIR` (a path component is a non-directory) is intentionally folded
       // into `missing` alongside `ENOENT`: for "does this path resolve?" both
       // answer "no". The distinction is not surfaced because no consumer
-      // branches on it — error interpretation belongs on the main side (see the
-      // `getPathStatus` IPC JSDoc in `@shared/file/types/ipc`).
+      // branches on it — error interpretation belongs on the main side (see
+      // `assertClaudeCodeWorkspaceDirectory` in settingsBuilder).
       return { ok: false, reason: 'missing', detail: errorDetail(error) }
     }
     // Truly-unexpected errno (EIO / EMFILE / ELOOP / EACCES …). Map to

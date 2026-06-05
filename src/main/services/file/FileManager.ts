@@ -135,7 +135,6 @@ import { loggerService } from '@logger'
 import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { orphanCheckerRegistry } from '@main/services/file/orphanCheckerRegistry'
 import { remove as fsRemove, stat as fsStat } from '@main/utils/file/fs'
-import { getWorkspacePathWarning } from '@main/utils/file/workspacePathWarning'
 import type { DanglingState, FileEntry, FileEntryId } from '@shared/data/types/file'
 import { AbsolutePathSchema, FileEntryIdSchema } from '@shared/data/types/file'
 import { SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
@@ -691,15 +690,16 @@ export class FileManager extends BaseService implements IFileManager {
     this.ipcHandle(IpcChannel.File_BatchGetDanglingStates, async (_e, params: unknown) =>
       this.batchGetDanglingStates(BatchGetDanglingStatesIpcSchema.parse(params))
     )
-    this.ipcHandle(IpcChannel.File_GetWorkspacePathWarning, (_e, path: unknown) =>
-      getWorkspacePathWarning(z.string().parse(path))
-    )
-    // Gate the raw path arg at the boundary, mirroring `File_EnsureExternalEntry`
-    // (both reuse `AbsolutePathSchema`). The `as FilePath` re-applies the brand
-    // Zod can't reproduce — same pattern as the Phase 2 handlers below.
-    this.ipcHandle(IpcChannel.File_GetFileSize, async (_e, filePath: unknown) =>
-      this.getFileSize(AbsolutePathSchema.parse(filePath) as FilePath)
-    )
+    this.ipcHandle(IpcChannel.File_GetMetadata, async (_e, params: unknown) => {
+      const handle = FileHandleSchema.parse(params) as FileHandle
+      return dispatchHandle(
+        handle,
+        async () => {
+          throw new Error('getMetadata(FileEntryHandle) is not yet wired (@phase 2)')
+        },
+        (path) => this.getMetadataByPath(path)
+      )
+    })
     // Phase 2 channels.
     //
     // Zod outputs the structural shapes (`{ path: string }`, `{ kind: 'path';
@@ -909,12 +909,19 @@ export class FileManager extends BaseService implements IFileManager {
     return pathToFileURL(physicalPath).toString() as FileURLString
   }
 
-  private async getFileSize(filePath: FilePath): Promise<number> {
-    const s = await fsStat(filePath)
+  private async getMetadataByPath(path: FilePath): Promise<PhysicalFileMetadata> {
+    const s = await fsStat(path)
     if (s.isDirectory) {
-      throw new Error(`Cannot read size: path is a directory (${filePath})`)
+      return { kind: 'directory', size: s.size, createdAt: s.createdAt || s.modifiedAt, modifiedAt: s.modifiedAt }
     }
-    return s.size
+    return {
+      kind: 'file',
+      type: 'other',
+      size: s.size,
+      createdAt: s.createdAt || s.modifiedAt,
+      modifiedAt: s.modifiedAt,
+      mime: mime.getType(path) ?? 'application/octet-stream'
+    }
   }
 
   async getPhysicalPath(id: FileEntryId): Promise<FilePath> {

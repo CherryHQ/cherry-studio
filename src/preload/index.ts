@@ -59,7 +59,7 @@ import type {
   WebSearchSearchKeywordsRequest
 } from '@shared/data/types/webSearch'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
-import type { FilePath } from '@shared/file/types/common'
+import type { FilePath, PhysicalFileMetadata } from '@shared/file/types/common'
 import type { FileHandle } from '@shared/file/types/handle'
 import type {
   CreateInternalEntryIpcParams,
@@ -294,9 +294,8 @@ const api = {
     openFileWithRelativePath: (file: FileMetadata) => ipcRenderer.invoke(IpcChannel.File_OpenWithRelativePath, file),
     isTextFile: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsTextFile, filePath),
     isDirectory: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsDirectory, filePath),
-    getWorkspacePathWarning: (path: string): Promise<string | null> =>
-      ipcRenderer.invoke(IpcChannel.File_GetWorkspacePathWarning, path),
-    getFileSize: (filePath: FilePath): Promise<number> => ipcRenderer.invoke(IpcChannel.File_GetFileSize, filePath),
+    getMetadata: (handle: FileHandle): Promise<PhysicalFileMetadata> =>
+      ipcRenderer.invoke(IpcChannel.File_GetMetadata, handle),
     listDirectory: (dirPath: string, options?: DirectoryListOptions) =>
       ipcRenderer.invoke(IpcChannel.File_ListDirectory, dirPath, options),
     checkFileName: (dirPath: string, fileName: string, isFile: boolean) =>

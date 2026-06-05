@@ -40,8 +40,8 @@ import { application } from '@main/core/application'
 import { isLinux, isWin } from '@main/core/platform'
 import { getProxyEnvironment } from '@main/services/proxy/nodeProxy'
 import { toAsarUnpackedPath } from '@main/utils'
-import { formatPathStatusMessage, getPathStatus } from '@main/utils/file/pathStatus'
-import { getAppLanguage } from '@main/utils/language'
+import { formatPathStatusMessage, getPathStatus, type PathStatus } from '@main/utils/file/pathStatus'
+import { getAppLanguage, t } from '@main/utils/language'
 import { autoDiscoverGitBash, getBinaryPath } from '@main/utils/process'
 import { rtkRewrite } from '@main/utils/rtk'
 import getLoginShellEnvironment from '@main/utils/shell-env'
@@ -289,9 +289,27 @@ export function isAgentSessionWorkspaceError(error: unknown): error is AgentSess
 export async function assertClaudeCodeWorkspaceDirectory(sessionId: string, cwd: string): Promise<void> {
   const status = await getPathStatus(cwd, { expectedKind: 'directory' })
   if (status.ok) return
-  throw new AgentSessionWorkspaceError(
-    `Workspace path for session ${sessionId}: ${formatPathStatusMessage(cwd, status, 'Workspace path')}`
-  )
+  // The operation fails here, so this is where the workspace-path problem is
+  // reported. The user-facing message is produced (and i18n'd) on the main
+  // side — surfaced to the renderer via the dispatch `blocked` reason and to
+  // external channels via the adapter — while the English detail (with the
+  // session id) goes to the log for operators.
+  logger.warn(`Agent session ${sessionId} workspace invalid: ${formatPathStatusMessage(cwd, status, 'Workspace path')}`)
+  throw new AgentSessionWorkspaceError(workspacePathErrorMessage(cwd, status))
+}
+
+function workspacePathErrorMessage(path: string, status: Exclude<PathStatus, { ok: true }>): string {
+  switch (status.reason) {
+    case 'missing':
+      return t('agent.session.workspace_status.missing', { path })
+    case 'not-directory':
+      return t('agent.session.workspace_status.not_directory', { path })
+    // A workspace is always directory-expected, so `not-file` cannot occur;
+    // fold it (and any access failure) into the inaccessible message.
+    case 'not-file':
+    case 'inaccessible':
+      return t('agent.session.workspace_status.inaccessible', { path })
+  }
 }
 
 async function buildEnvironment(

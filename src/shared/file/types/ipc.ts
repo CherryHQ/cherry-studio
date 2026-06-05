@@ -217,7 +217,7 @@ export interface BatchCreateResult {
  *
  * | Phase 1 — wired | Phase 2 Batch 0 — wired | Phase 2 — type-only |
  * |---|---|---|
- * | `getDanglingState`, `batchGetDanglingStates`, `getWorkspacePathWarning`, `getFileSize` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, `permanentDelete` | everything else |
+ * | `getDanglingState`, `batchGetDanglingStates` | `createInternalEntry`, `ensureExternalEntry`, `getPhysicalPath`, `permanentDelete`, `getMetadata` | everything else |
  *
  * Remaining `@phase 2` method shapes are *design drafts*; signatures may shift
  * when each channel actually lands alongside its first FileManager consumer.
@@ -337,7 +337,9 @@ export interface FileIpcApi {
    *
    * Side effect: updates DanglingCache based on stat outcome (external only).
    *
-   * @phase 2 — not yet wired
+   * @phase 2 — path-handle branch wired (`IpcChannel.File_GetMetadata` →
+   * `FileManager.registerIpcHandlers`, direct `fs.stat`); the entry-id branch
+   * is still `@phase 2` (not yet wired).
    */
   getMetadata(handle: FileHandle): Promise<PhysicalFileMetadata>
 
@@ -517,35 +519,6 @@ export interface FileIpcApi {
   // ─── I. Path Queries (arbitrary path) ───
   //
   // Section status: mixed; check each method's `@phase` tag.
-
-  /**
-   * Validate an agent workspace path and return the user-visible warning to
-   * display, or `null` when the path is a usable directory.
-   *
-   * The message is produced (and i18n'd) on the **main** side — the renderer
-   * shows it verbatim and does no error interpretation of its own. This is the
-   * business-level replacement for shipping a typed status union to the
-   * renderer; the path-status errno never crosses the IPC boundary.
-   * @phase 1 — wired in FileManager lifecycle IPC
-   */
-  getWorkspacePathWarning(path: string): Promise<string | null>
-
-  /**
-   * Read the size (in bytes) of a non-directory file at an arbitrary path.
-   * Thin wrapper around `fs.stat`:
-   * - Rejects with an explicit error when the path resolves to a directory.
-   * - Missing / inaccessible paths surface as the underlying `fs.stat` error
-   *   verbatim — it does NOT normalize the errno into a typed `detail` / `code`,
-   *   nor does it special-case sockets, FIFOs, devices, or symlinks (any
-   *   non-directory stat returns its `size`).
-   *
-   * NOTE (architectural debt): this is a thin `fs.stat` facade. It should fold
-   * into {@link getMetadata}'s path-handle branch
-   * (`getMetadata(createFilePathHandle(path)).size`) once that lands in phase 2,
-   * rather than remaining a parallel size-only channel.
-   * @phase 1 — wired in FileManager lifecycle IPC
-   */
-  getFileSize(path: FilePath): Promise<number>
 
   /**
    * List contents of an arbitrary directory.

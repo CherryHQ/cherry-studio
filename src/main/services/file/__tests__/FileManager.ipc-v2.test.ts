@@ -248,39 +248,36 @@ describe('FileManager v2 IPC handler registration', () => {
     await expect(deleteHandler!({} as never, { kind: 'path', path: 'relative.txt' })).rejects.toThrow()
   })
 
-  it('getFileSize handler returns the byte size of a regular file', async () => {
-    const file = path.join(tmp, 'sized.bin')
-    await writeFile(file, new Uint8Array([1, 2, 3, 4, 5]))
+  it('registers File:getMetadata IPC channel', () => {
+    const registeredChannels = vi.mocked(ipcMain.handle).mock.calls.map(([channel]) => channel)
+    expect(registeredChannels).toContain(IpcChannel.File_GetMetadata)
+  })
 
-    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_GetFileSize)?.[1]
+  it('getMetadata path-handle returns file metadata for a regular file', async () => {
+    const file = path.join(tmp, 'meta.txt')
+    await writeFile(file, 'hello')
+
+    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_GetMetadata)?.[1]
     expect(handler).toBeDefined()
 
-    await expect(handler!({} as never, file)).resolves.toBe(5)
+    const meta = await handler!({} as never, { kind: 'path', path: file })
+    expect(meta.kind).toBe('file')
+    expect(typeof meta.size).toBe('number')
+    expect(meta.size).toBe(5)
   })
 
-  it('getFileSize handler rejects when the path is a directory', async () => {
-    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_GetFileSize)?.[1]
-    // `tmp` itself is an existing directory
-    await expect(handler!({} as never, tmp)).rejects.toThrow(/directory/)
+  it('getMetadata path-handle returns directory metadata for a directory', async () => {
+    const dir = path.join(tmp, 'meta-dir')
+    await mkdir(dir, { recursive: true })
+
+    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_GetMetadata)?.[1]
+    const meta = await handler!({} as never, { kind: 'path', path: dir })
+    expect(meta.kind).toBe('directory')
   })
 
-  it('getFileSize handler propagates ENOENT for a missing path', async () => {
-    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_GetFileSize)?.[1]
-    const missing = path.join(tmp, 'does-not-exist.bin')
-    await expect(handler!({} as never, missing)).rejects.toThrow()
-  })
-
-  it('getFileSize handler rejects a relative path at the schema boundary', async () => {
-    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_GetFileSize)?.[1]
-    await expect(handler!({} as never, 'relative/file.bin')).rejects.toThrow()
-  })
-
-  it('registers the getWorkspacePathWarning handler', () => {
-    // The warning-production logic (status → i18n'd message) is covered by
-    // `workspacePathWarning.test.ts`; here we only assert the channel is wired.
-    const handler = vi
-      .mocked(ipcMain.handle)
-      .mock.calls.find(([ch]) => ch === IpcChannel.File_GetWorkspacePathWarning)?.[1]
-    expect(handler).toBeDefined()
+  it('getMetadata entry-handle is not yet wired (@phase 2)', async () => {
+    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([ch]) => ch === IpcChannel.File_GetMetadata)?.[1]
+    const validEntryId = '123e4567-e89b-4d3c-a456-426614174000'
+    await expect(handler!({} as never, { kind: 'entry', entryId: validEntryId })).rejects.toThrow()
   })
 })
