@@ -571,13 +571,39 @@ describe('edit dialogs', () => {
     })
   })
 
-  it('does not render search or offer free-text tag creation in assistant editing', async () => {
+  it('creates and binds a new tag typed in assistant editing', async () => {
+    ensureTagsMock.mockResolvedValueOnce([
+      { id: 'tag-work', name: 'work', color: '#8b5cf6' },
+      { id: 'tag-new', name: 'new-tag', color: '#10b981' }
+    ])
     render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'work' }))
+    fireEvent.change(screen.getByPlaceholderText('Search tags'), { target: { value: 'new-tag' } })
+    fireEvent.click(await screen.findByText('new-tag'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect(screen.queryByPlaceholderText('Search tags')).not.toBeInTheDocument()
-    expect(screen.queryByText('new-tag')).not.toBeInTheDocument()
+    await waitFor(() => expect(ensureTagsMock).toHaveBeenCalledWith(['work', 'new-tag']))
+    expect(updateAssistantMock).toHaveBeenCalledWith({
+      body: expect.objectContaining({
+        tagIds: ['tag-work', 'tag-new']
+      })
+    })
+  })
+
+  it('does not expose typed tag names beyond the server-side max length', async () => {
+    render(<AssistantEditDialog open resource={ASSISTANT} onOpenChange={vi.fn()} onSaved={vi.fn()} />)
+    // Open the combobox popover (CommandInput only mounts once the trigger is active)
+    fireEvent.click(screen.getByRole('button', { name: 'work' }))
+    const atLimit = 'y'.repeat(64) // TagNameSchema.max(64)
+    const tooLong = 'x'.repeat(65) // one over the limit — server would reject
+    const searchInput = screen.getByPlaceholderText('Search tags')
+
+    fireEvent.change(searchInput, { target: { value: tooLong } })
+    expect(screen.queryByText(tooLong)).not.toBeInTheDocument()
+
+    fireEvent.change(searchInput, { target: { value: atLimit } })
+    expect(await screen.findByText(atLimit)).toBeInTheDocument()
   })
 
   it('submits agent instructions and model changes as a PATCH', async () => {

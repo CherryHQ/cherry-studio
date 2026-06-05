@@ -51,21 +51,28 @@ const DEFAULT_RESOURCE_TYPE = RESOURCE_TYPE_ORDER[0]
  * Build the top-bar chip list.
  *
  * Source: `resources` (so count reflects real bindings — unbound tags stay hidden,
- * matching the spec). Color is resolved against the backend `/tags` list; only
- * if the tag isn't in the list yet (SWR cache race) do we fall back to
- * `DEFAULT_TAG_COLOR`.
+ * matching the default collapsed state). Tag id/color are resolved from the
+ * backend `/tags` list and embedded assistant tag refs; only if neither has the
+ * tag yet (SWR cache race) do we fall back to `DEFAULT_TAG_COLOR`.
  */
 function buildTags(resources: ResourceItem[], backendTags: Tag[], filterType?: ResourceType): TagItem[] {
-  const colorByName = new Map(backendTags.map((t) => [t.name, t.color] as const))
+  const backendTagByName = new Map(backendTags.map((t) => [t.name, t] as const))
   const tagMap = new Map<string, number>()
   const list = filterType ? resources.filter((r) => r.type === filterType) : resources
-  list.forEach((r) => r.tags.forEach((t) => tagMap.set(t, (tagMap.get(t) || 0) + 1)))
+  list.forEach((r) => {
+    if (r.type === 'assistant') {
+      for (const tag of r.raw.tags ?? []) {
+        if (!backendTagByName.has(tag.name)) backendTagByName.set(tag.name, tag)
+      }
+    }
+    r.tags.forEach((t) => tagMap.set(t, (tagMap.get(t) || 0) + 1))
+  })
   return Array.from(tagMap.entries())
     .sort((a, b) => b[1] - a[1])
-    .map(([name, count], i) => ({
-      id: `tag-${i}`,
+    .map(([name, count], index) => ({
+      id: backendTagByName.get(name)?.id ?? `tag-${index}`,
       name,
-      color: colorByName.get(name) ?? DEFAULT_TAG_COLOR,
+      color: backendTagByName.get(name)?.color ?? DEFAULT_TAG_COLOR,
       count
     }))
 }
@@ -458,6 +465,7 @@ export default function LibraryPage() {
             }}
             onUpdateResourceTags={noop /* binding is executed inside FixedCardMenu via the tag hooks */}
             allTagNames={allTagNames}
+            allTags={tagList.tags}
             assistantCatalog={assistantCatalogProp}
           />
         )}

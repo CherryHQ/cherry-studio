@@ -1,8 +1,26 @@
-import { Button, EmptyState, Input, Skeleton } from '@cherrystudio/ui'
+import {
+  Button,
+  ConfirmDialog,
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuItemContent,
+  ContextMenuTrigger,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  EmptyState,
+  Input,
+  Skeleton
+} from '@cherrystudio/ui'
 import { loggerService } from '@logger'
+import { useDeleteTag, useRenameTag } from '@renderer/hooks/useTags'
 import type { Assistant } from '@shared/data/types/assistant'
+import type { Tag as BackendTag } from '@shared/data/types/tag'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { Plus, Search, Tag, Upload, X } from 'lucide-react'
+import { Pencil, Plus, Search, Tag, Trash2, Upload, X } from 'lucide-react'
 import type { FC, RefObject } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -55,6 +73,8 @@ interface Props {
   /** Replace the tag-name set for a single resource. Caller handles ensure-tag + bind. */
   onUpdateResourceTags: (resourceId: string, tags: string[]) => Promise<void> | void
   allTagNames: string[]
+  /** Full backend tag records (id + name + color). Distinct from `allTagNames` (names only). */
+  allTags: BackendTag[]
   assistantCatalog?: AssistantCatalogGridState
 }
 
@@ -111,15 +131,23 @@ export const ResourceGrid: FC<Props> = ({
   onAddTag,
   onUpdateResourceTags,
   allTagNames,
+  allTags,
   assistantCatalog
 }) => {
   const { t } = useTranslation()
+  const { renameTag } = useRenameTag()
+  const { deleteTag } = useDeleteTag()
   const scrollRef = useRef<HTMLDivElement>(null)
   const columnCount = useGridColumnCount(scrollRef)
   const [showAddTag, setShowAddTag] = useState(false)
   const [newTagName, setNewTagName] = useState('')
   const [addingTag, setAddingTag] = useState(false)
   const [addingPresetKeys, setAddingPresetKeys] = useState<Set<string>>(new Set())
+  const [renamingTag, setRenamingTag] = useState<TagItem | null>(null)
+  const [renameValue, setRenameValue] = useState('')
+  const [renaming, setRenaming] = useState(false)
+  const [deletingTag, setDeletingTag] = useState<TagItem | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const showingAssistantCatalogPresets =
     Boolean(assistantCatalog) && assistantCatalog?.activeTab !== ASSISTANT_CATALOG_MY_TAB
   const showTagToolbar =
@@ -143,6 +171,60 @@ export const ResourceGrid: FC<Props> = ({
       setAddingTag(false)
     }
   }
+
+  const handleOpenRenameTag = useCallback((tag: TagItem) => {
+    setRenamingTag(tag)
+    setRenameValue(tag.name)
+  }, [])
+
+  const handleRenameTag = useCallback(async () => {
+    const tag = renamingTag
+    const nextName = renameValue.trim()
+    if (!tag || renaming || !nextName) return
+
+    if (nextName === tag.name) {
+      setRenamingTag(null)
+      return
+    }
+
+    setRenaming(true)
+    try {
+      const updated = await renameTag(tag.id, nextName)
+      if (activeTag === tag.name) onTagFilter(updated.name)
+      setRenamingTag(null)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('library.tag_sync_failed')
+      window.toast.error(message)
+      logger.error('Failed to rename tag', error instanceof Error ? error : new Error(String(error)), {
+        id: tag.id,
+        name: tag.name,
+        nextName
+      })
+    } finally {
+      setRenaming(false)
+    }
+  }, [activeTag, onTagFilter, renameTag, renameValue, renaming, renamingTag, t])
+
+  const handleConfirmDeleteTag = useCallback(async () => {
+    const tag = deletingTag
+    if (!tag || deleting) return
+
+    setDeleting(true)
+    try {
+      await deleteTag(tag.id)
+      if (activeTag === tag.name) onTagFilter(null)
+      setDeletingTag(null)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : t('library.tag_sync_failed')
+      window.toast.error(message)
+      logger.error('Failed to delete tag', error instanceof Error ? error : new Error(String(error)), {
+        id: tag.id,
+        name: tag.name
+      })
+    } finally {
+      setDeleting(false)
+    }
+  }, [activeTag, deleteTag, deleting, deletingTag, onTagFilter, t])
 
   const handleAddPreset = useCallback(
     async (preset: AssistantCatalogPreset) => {
@@ -229,25 +311,39 @@ export const ResourceGrid: FC<Props> = ({
           <div className="flex items-center gap-1.5 overflow-x-auto px-5 pb-3 [&::-webkit-scrollbar]:h-0">
             <Tag size={12} className="mr-0.5 shrink-0 text-foreground-muted" />
             {tags.map((tag) => (
-              <Button
-                variant="ghost"
-                key={tag.id}
-                onClick={() => onTagFilter(activeTag === tag.name ? null : tag.name)}
-                className={`flex h-6 min-h-0 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs shadow-none ${
-                  activeTag === tag.name
-                    ? 'border-border-active bg-secondary text-foreground hover:bg-secondary-hover hover:text-foreground'
-                    : 'border-border-subtle text-foreground-muted hover:border-border-hover hover:bg-accent hover:text-foreground'
-                }`}>
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
-                <span>{tag.name}</span>
-                <span className="text-foreground-muted text-xs tabular-nums">{tag.count}</span>
-              </Button>
+              <ContextMenu key={tag.id}>
+                <ContextMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    onClick={() => onTagFilter(activeTag === tag.name ? null : tag.name)}
+                    className={`flex h-6 min-h-0 shrink-0 items-center gap-1.5 rounded-full border px-2.5 text-xs shadow-none ${
+                      activeTag === tag.name
+                        ? 'border-border-active bg-secondary text-foreground hover:bg-secondary-hover hover:text-foreground'
+                        : 'border-border-subtle text-foreground-muted hover:border-border-hover hover:bg-accent hover:text-foreground'
+                    }`}>
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: tag.color }} />
+                    <span>{tag.name}</span>
+                    <span className="text-foreground-muted text-xs tabular-nums">{tag.count}</span>
+                  </Button>
+                </ContextMenuTrigger>
+                <ContextMenuContent className="min-w-32">
+                  <ContextMenuItem onSelect={() => handleOpenRenameTag(tag)}>
+                    <ContextMenuItemContent icon={<Pencil size={12} />}>{t('common.rename')}</ContextMenuItemContent>
+                  </ContextMenuItem>
+                  <ContextMenuItem variant="destructive" onSelect={() => setDeletingTag(tag)}>
+                    <ContextMenuItemContent icon={<Trash2 size={12} />}>
+                      {t('assistants.tags.delete')}
+                    </ContextMenuItemContent>
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
             ))}
 
             {showAddTag ? (
               <div className="flex shrink-0 items-center gap-1">
                 <Input
                   autoFocus
+                  maxLength={64}
                   value={newTagName}
                   onChange={(e) => setNewTagName(e.target.value)}
                   onKeyDown={(e) => {
@@ -283,6 +379,56 @@ export const ResourceGrid: FC<Props> = ({
             )}
           </div>
         )}
+        <Dialog
+          open={Boolean(renamingTag)}
+          onOpenChange={(open) => {
+            if (!open && !renaming) setRenamingTag(null)
+          }}>
+          <DialogContent className="max-w-sm rounded-xl">
+            <DialogHeader>
+              <DialogTitle>{t('common.rename')}</DialogTitle>
+            </DialogHeader>
+            <Input
+              autoFocus
+              maxLength={64}
+              aria-label={t('common.rename')}
+              value={renameValue}
+              onChange={(event) => setRenameValue(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') void handleRenameTag()
+                if (event.key === 'Escape' && !renaming) setRenamingTag(null)
+              }}
+              disabled={renaming}
+              className="h-9 rounded-md border-input bg-background"
+            />
+            <DialogFooter>
+              <Button variant="outline" size="sm" disabled={renaming} onClick={() => setRenamingTag(null)}>
+                {t('common.cancel')}
+              </Button>
+              <Button
+                size="sm"
+                loading={renaming}
+                disabled={!renameValue.trim()}
+                onClick={() => void handleRenameTag()}>
+                {t('common.save')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <ConfirmDialog
+          open={Boolean(deletingTag)}
+          onOpenChange={(open) => {
+            if (!open && !deleting) setDeletingTag(null)
+          }}
+          title={t('assistants.tags.delete')}
+          description={t('assistants.tags.deleteConfirm')}
+          confirmText={t('common.delete')}
+          cancelText={t('common.cancel')}
+          destructive
+          confirmLoading={deleting}
+          onConfirm={handleConfirmDeleteTag}
+        />
       </div>
 
       <div

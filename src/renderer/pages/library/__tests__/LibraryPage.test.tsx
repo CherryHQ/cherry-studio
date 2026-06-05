@@ -554,6 +554,26 @@ describe('LibraryPage create flow', () => {
     expect(screen.getByTestId('assistant-edit-dialog')).toBeInTheDocument()
   })
 
+  it('keeps rendering assistant resources when stale raw data has no tags field', async () => {
+    const user = userEvent.setup()
+    allResourcesMock.push({
+      id: 'assistant-stale-tags',
+      type: 'assistant',
+      name: 'Stale Assistant',
+      description: '',
+      avatar: '💬',
+      tags: [],
+      createdAt: '2024-01-01T00:00:00.000Z',
+      updatedAt: '2024-01-01T00:00:00.000Z',
+      raw: { id: 'assistant-stale-tags', name: 'Stale Assistant' }
+    })
+
+    render(<LibraryPage />)
+    await user.click(screen.getByRole('button', { name: 'select assistant type' }))
+
+    expect(screen.getByTestId('resource-grid')).toBeInTheDocument()
+  })
+
   it('updates a prompt in a dialog while keeping the list visible', async () => {
     const user = userEvent.setup()
     allResourcesMock.push({
