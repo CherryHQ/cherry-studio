@@ -16,10 +16,10 @@
   - 后续要么接入更多 provider 的运行时能力，要么在 UI / 创建流程中限制不可运行的 provider。
   - 参考：`v2-refactor-temp/docs/knowledge/knowledge-backend-decisions.md`
 
-- 完成 rerank runtime 接入。
-  - 当前 `rerankModelId` 可以配置和持久化，但搜索运行时尚未真正启用 rerank。
-  - 后续需要补齐 provider / model runtime 解析和实际 rerank 调用链。
-  - 参考：`src/main/services/knowledge/rerank/rerank.ts`
+- 扩展 rerank provider 覆盖。
+  - 当前知识库 rerank 运行时走 `AiService`，可用范围取决于 ai-core / provider 层的 rerank 支持。
+  - 后续如需支持 Voyage / TEI 等 provider，应优先在 provider 层补齐运行时能力。
+  - 参考：`src/main/services/knowledge/utils/indexing/rerank.ts`
 
 - 为 chunk / RAG 配置变更提供明确 reindex 流程。
   - `chunkSize` / `chunkOverlap` 可更新，但不会自动重建已有 chunk 和向量。

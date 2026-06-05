@@ -29,7 +29,6 @@ import { createReindexSubtreeJobHandler } from './jobs/reindexSubtreeJobHandler'
 import { narrowKnowledgeJobInput } from './jobs/utils/jobInput'
 import { KnowledgeLockManager } from './KnowledgeLockManager'
 import { KnowledgeWorkflowService } from './KnowledgeWorkflowService'
-import { rerankKnowledgeSearchResults } from './rerank/rerank'
 import {
   KNOWLEDGE_ACTIVE_JOB_LIMIT,
   KNOWLEDGE_ACTIVE_JOB_STATUSES,
@@ -52,6 +51,7 @@ import {
 } from './types/ipc'
 import { mapChunkDocument } from './utils/indexing/chunk'
 import { embedKnowledgeQuery } from './utils/indexing/embed'
+import { rerankKnowledgeSearchResults } from './utils/indexing/rerank'
 import { applyRelevanceThreshold, getInitialSearchScoreKind, withSearchRanks } from './utils/search'
 
 const logger = loggerService.withContext('KnowledgeService')

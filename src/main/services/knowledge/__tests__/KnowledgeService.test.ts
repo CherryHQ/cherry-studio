@@ -35,6 +35,7 @@ const {
   knowledgeItemUpdateStatusMock,
   listMock,
   registerHandlerMock,
+  rerankKnowledgeSearchResultsMock,
   vectorDeleteByIdAndExternalIdMock,
   vectorListByExternalIdMock,
   vectorQueryMock
@@ -63,6 +64,7 @@ const {
   knowledgeItemUpdateStatusMock: vi.fn(),
   listMock: vi.fn(),
   registerHandlerMock: vi.fn(),
+  rerankKnowledgeSearchResultsMock: vi.fn(),
   vectorDeleteByIdAndExternalIdMock: vi.fn(),
   vectorListByExternalIdMock: vi.fn(),
   vectorQueryMock: vi.fn()
@@ -142,8 +144,8 @@ vi.mock('@data/services/KnowledgeItemService', () => ({
   }
 }))
 
-vi.mock('../rerank/rerank', () => ({
-  rerankKnowledgeSearchResults: vi.fn(async (_base, _query, results) => results)
+vi.mock('../utils/indexing/rerank', () => ({
+  rerankKnowledgeSearchResults: rerankKnowledgeSearchResultsMock
 }))
 
 const { KnowledgeService } = await import('../KnowledgeService')
@@ -312,6 +314,7 @@ describe('KnowledgeService', () => {
     vectorQueryMock.mockResolvedValue({ nodes: [], similarities: [] })
     knowledgeItemGetRootItemsByBaseIdMock.mockResolvedValue([])
     aiEmbedManyMock.mockResolvedValue({ embeddings: [[0.1, 0.2, 0.3]] })
+    rerankKnowledgeSearchResultsMock.mockImplementation(async (_base, _query, results) => results)
   })
 
   it('uses WhenReady phase and depends on same-phase runtime services', () => {
@@ -1051,6 +1054,43 @@ describe('KnowledgeService', () => {
       values: ['hello'],
       requestOptions: undefined
     })
+  })
+
+  it('applies rerank results before applying relevance threshold', async () => {
+    const service = new KnowledgeService()
+    const base = createBase({ threshold: 0.5, rerankModelId: 'jina::jina-reranker-v2-base-multilingual' })
+    knowledgeBaseGetByIdMock.mockResolvedValue(base)
+    vectorQueryMock.mockResolvedValueOnce({
+      nodes: [
+        {
+          id_: 'chunk-1',
+          metadata: { itemId: NOTE_ITEM_ID, itemType: 'note', source: 'note-1', chunkIndex: 0, tokenCount: 3 },
+          getContent: () => 'vector high rerank low'
+        },
+        {
+          id_: 'chunk-2',
+          metadata: { itemId: NOTE_ITEM_ID, itemType: 'note', source: 'note-1', chunkIndex: 1, tokenCount: 3 },
+          getContent: () => 'vector low rerank high'
+        }
+      ],
+      similarities: [0.8, 0.2]
+    })
+    rerankKnowledgeSearchResultsMock.mockImplementationOnce(async (_base, _query, results) => [
+      { ...results[1], score: 0.9, scoreKind: 'relevance', rank: 1 },
+      { ...results[0], score: 0.2, scoreKind: 'relevance', rank: 2 }
+    ])
+
+    await expect(service.search('kb-1', 'hello')).resolves.toEqual([
+      expect.objectContaining({ chunkId: 'chunk-2', rank: 1, score: 0.9 })
+    ])
+    expect(rerankKnowledgeSearchResultsMock).toHaveBeenCalledWith(
+      base,
+      'hello',
+      expect.arrayContaining([
+        expect.objectContaining({ chunkId: 'chunk-1', score: 0.8 }),
+        expect.objectContaining({ chunkId: 'chunk-2', score: 0.2 })
+      ])
+    )
   })
 
   it('filters search results for missing or deleting items', async () => {
