@@ -1,6 +1,6 @@
 import type { TokenUsageData } from '@cherrystudio/analytics-client'
 import { electronAPI } from '@electron-toolkit/preload'
-import type { SpanEntity, TokenUsage } from '@mcp-trace/trace-core'
+import type { SpanEntity } from '@mcp-trace/trace-core'
 import type { SpanContext } from '@opentelemetry/api'
 import type {
   AiAgentSessionWarmCloseRequest,
@@ -59,13 +59,12 @@ import type {
   WebSearchSearchKeywordsRequest
 } from '@shared/data/types/webSearch'
 import type { ExternalAppInfo } from '@shared/externalApp/types'
-import type { FilePath } from '@shared/file/types/common'
+import type { FilePath, PhysicalFileMetadata } from '@shared/file/types/common'
 import type { FileHandle } from '@shared/file/types/handle'
 import type {
   CreateInternalEntryIpcParams,
   EnsureExternalEntryIpcParams,
-  GetPhysicalPathIpcParams,
-  WorkspacePathStatus
+  GetPhysicalPathIpcParams
 } from '@shared/file/types/ipc'
 import type { CreateTreeIpcResult, DirectoryTreeOptions, TreeMutationPushPayload } from '@shared/file/types/tree'
 import { IpcChannel } from '@shared/IpcChannel'
@@ -294,8 +293,8 @@ const api = {
     openFileWithRelativePath: (file: FileMetadata) => ipcRenderer.invoke(IpcChannel.File_OpenWithRelativePath, file),
     isTextFile: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsTextFile, filePath),
     isDirectory: (filePath: string): Promise<boolean> => ipcRenderer.invoke(IpcChannel.File_IsDirectory, filePath),
-    checkWorkspacePath: (filePath: string): Promise<WorkspacePathStatus> =>
-      ipcRenderer.invoke(IpcChannel.File_CheckWorkspacePath, filePath),
+    getMetadata: (handle: FileHandle): Promise<PhysicalFileMetadata> =>
+      ipcRenderer.invoke(IpcChannel.File_GetMetadata, handle),
     listDirectory: (dirPath: string, options?: DirectoryListOptions) =>
       ipcRenderer.invoke(IpcChannel.File_ListDirectory, dirPath, options),
     checkFileName: (dirPath: string, fileName: string, isFile: boolean) =>
@@ -692,24 +691,12 @@ const api = {
   // setUseSystemTitleBar: (isActive: boolean) => ipcRenderer.invoke(IpcChannel.App_SetUseSystemTitleBar, isActive),
   trace: {
     saveData: (topicId: string) => ipcRenderer.invoke(IpcChannel.TRACE_SAVE_DATA, topicId),
-    getData: (topicId: string, traceId: string, modelName?: string) =>
-      ipcRenderer.invoke(IpcChannel.TRACE_GET_DATA, topicId, traceId, modelName),
     saveEntity: (entity: SpanEntity) => ipcRenderer.invoke(IpcChannel.TRACE_SAVE_ENTITY, entity),
     getEntity: (spanId: string) => ipcRenderer.invoke(IpcChannel.TRACE_GET_ENTITY, spanId),
     bindTopic: (topicId: string, traceId: string) => ipcRenderer.invoke(IpcChannel.TRACE_BIND_TOPIC, topicId, traceId),
-    tokenUsage: (spanId: string, usage: TokenUsage) => ipcRenderer.invoke(IpcChannel.TRACE_TOKEN_USAGE, spanId, usage),
     cleanHistory: (topicId: string, traceId: string, modelName?: string) =>
       ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_HISTORY, topicId, traceId, modelName),
-    cleanTopic: (topicId: string, traceId?: string) =>
-      ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_TOPIC, topicId, traceId),
-    openWindow: (topicId: string, traceId: string, autoOpen?: boolean, modelName?: string) =>
-      ipcRenderer.invoke(IpcChannel.TRACE_OPEN_WINDOW, topicId, traceId, autoOpen, modelName),
-    setTraceWindowTitle: (title: string) => ipcRenderer.invoke(IpcChannel.TRACE_SET_TITLE, title),
-    addEndMessage: (spanId: string, modelName: string, context: string) =>
-      ipcRenderer.invoke(IpcChannel.TRACE_ADD_END_MESSAGE, spanId, modelName, context),
-    cleanLocalData: () => ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_LOCAL_DATA),
-    addStreamMessage: (spanId: string, modelName: string, context: string, message: any) =>
-      ipcRenderer.invoke(IpcChannel.TRACE_ADD_STREAM_MESSAGE, spanId, modelName, context, message)
+    cleanLocalData: () => ipcRenderer.invoke(IpcChannel.TRACE_CLEAN_LOCAL_DATA)
   },
   codeCli: {
     run: (

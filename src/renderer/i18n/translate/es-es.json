@@ -7075,23 +7075,6 @@
     "store": "Biblioteca de asistentes",
     "translate": "Traducir"
   },
-  "trace": {
-    "backList": "Volver a la lista",
-    "edasSupport": "Funciona con Alibaba Cloud EDAS",
-    "endTime": "Hora de finalización",
-    "inputs": "Entradas",
-    "label": "Cadena de llamadas",
-    "name": "Nombre del nodo",
-    "noTraceList": "No se encontró información de traza",
-    "outputs": "Salidas",
-    "parentId": "ID superior",
-    "spanDetail": "Detalles del span",
-    "spendTime": "Tiempo consumido",
-    "startTime": "Hora de inicio",
-    "tag": "Etiqueta",
-    "tokenUsage": "Uso de tokens",
-    "traceWindow": "Ventana de cadena de llamadas"
-  },
   "translate": {
     "alter_language": "Idioma alternativo",
     "any": {

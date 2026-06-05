@@ -8,7 +8,7 @@
  *   `pathExists`, `directoryExists`, `isPathInside`, `untildify`,
  *   `hasWritePermission`, `resolveAndValidatePath`, …). Re-exported through
  *   this barrel; callers import with `from '@main/utils/file'`.
- * - `./{fs,metadata,path,shell}` — pure FS primitives. Access via
+ * - `./{fs,metadata,path,pathStatus,shell}` — pure FS primitives. Access via
  *   **explicit subpath imports**, e.g.
  *   `import { atomicWriteFile } from '@main/utils/file/fs'`. Not re-exported
  *   through the barrel to avoid symbol collisions with legacy helpers

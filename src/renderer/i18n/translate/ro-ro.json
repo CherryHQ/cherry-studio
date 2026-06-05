@@ -7075,23 +7075,6 @@
     "store": "Bibliotecă asistenți",
     "translate": "Traducere"
   },
-  "trace": {
-    "backList": "Înapoi la listă",
-    "edasSupport": "Susținut de Alibaba Cloud EDAS",
-    "endTime": "Timp final",
-    "inputs": "Intrări",
-    "label": "Lanț de apelare",
-    "name": "Nume nod",
-    "noTraceList": "Nu s-au găsit informații de urmărire",
-    "outputs": "Ieșiri",
-    "parentId": "ID părinte",
-    "spanDetail": "Detalii interval",
-    "spendTime": "Timp petrecut",
-    "startTime": "Timp de început",
-    "tag": "Etichetă",
-    "tokenUsage": "Utilizare token",
-    "traceWindow": "Fereastră lanț de apelare"
-  },
   "translate": {
     "alter_language": "Limbă alternativă",
     "any": {

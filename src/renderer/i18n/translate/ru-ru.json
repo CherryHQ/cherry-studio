@@ -7075,23 +7075,6 @@
     "store": "Библиотека помощников",
     "translate": "Перевод"
   },
-  "trace": {
-    "backList": "Вернуться к списку",
-    "edasSupport": "Powered by Alibaba Cloud EDAS",
-    "endTime": "время окончания",
-    "inputs": "входы",
-    "label": "Цепочка вызовов",
-    "name": "Имя узла",
-    "noTraceList": "Информация о следах не найдена",
-    "outputs": "выходы",
-    "parentId": "Родительский идентификатор",
-    "spanDetail": "Span Подробнее",
-    "spendTime": "тратитьВремя",
-    "startTime": "время начала",
-    "tag": "ярлык",
-    "tokenUsage": "Использование токена",
-    "traceWindow": "Окно цепочки вызовов"
-  },
   "translate": {
     "alter_language": "Альтернативный язык",
     "any": {
