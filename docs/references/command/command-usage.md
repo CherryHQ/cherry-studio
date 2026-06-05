@@ -43,10 +43,13 @@ For the same command, the most recently mounted **enabled** handler wins; when i
 unmounts, the previous enabled handler becomes active again. A command with no
 registered handler never resolves (so the keypress falls through untouched).
 
-> The dispatcher skips `contenteditable` targets by design — commands do not fire
-> while the user is typing in a rich editor. Don't reach for a per‑component
-> keydown listener to work around this; if a command genuinely must fire inside an
-> editor, that's a context‑key/enablement decision to discuss.
+> While an editable target (`<input>`, `<textarea>`, or a `contenteditable`
+> element) is focused, the dispatcher skips **no-modifier** shortcuts by design —
+> plain keys (Escape, single letters) don't fire commands while the user is
+> typing. Modifier shortcuts (Ctrl/Meta/Alt) still fire everywhere. Don't reach
+> for a per‑component keydown listener to work around this; if a no-modifier
+> command genuinely must fire inside an editor, that's a context‑key/enablement
+> decision to discuss.
 
 ## Context keys
 

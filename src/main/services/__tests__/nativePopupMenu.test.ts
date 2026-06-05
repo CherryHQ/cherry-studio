@@ -1,23 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: () => ({
-      warn: vi.fn()
-    })
-  }
-}))
-
-const { commandServiceMock, menuMock, browserWindowMock, popupMock, windowMock } = vi.hoisted(() => {
+const { loggerMock, menuMock, browserWindowMock, popupMock, windowMock } = vi.hoisted(() => {
   const popupMock = vi.fn()
   const windowMock = { id: 1 }
   return {
+    loggerMock: { warn: vi.fn(), error: vi.fn() },
     popupMock,
     windowMock,
-    commandServiceMock: {
-      canExecute: vi.fn(),
-      execute: vi.fn()
-    },
     menuMock: {
       buildFromTemplate: vi.fn(() => ({
         popup: popupMock
@@ -29,31 +18,11 @@ const { commandServiceMock, menuMock, browserWindowMock, popupMock, windowMock }
   }
 })
 
-vi.mock('@application', async () => {
-  const { mockApplicationFactory } = await import('@test-mocks/main/application')
-  return mockApplicationFactory({
-    CommandService: commandServiceMock
-  } as any)
-})
-
-vi.mock('@main/core/lifecycle', () => {
-  class MockBaseService {
-    protected readonly handlers = new Map<string, (...args: any[]) => unknown>()
-
-    protected ipcHandle(channel: string, handler: (...args: any[]) => unknown) {
-      this.handlers.set(channel, handler)
-      return { dispose: vi.fn() }
-    }
+vi.mock('@logger', () => ({
+  loggerService: {
+    withContext: () => loggerMock
   }
-
-  return {
-    BaseService: MockBaseService,
-    Injectable: () => (target: unknown) => target,
-    ServicePhase: () => (target: unknown) => target,
-    DependsOn: () => (target: unknown) => target,
-    Phase: { WhenReady: 'whenReady' }
-  }
-})
+}))
 
 vi.mock('electron', () => ({
   BrowserWindow: browserWindowMock,
@@ -61,9 +30,9 @@ vi.mock('electron', () => ({
 }))
 
 import type { NativePopupMenuModel } from '@shared/command'
-import { IpcChannel } from '@shared/IpcChannel'
+import type { IpcMainInvokeEvent } from 'electron'
 
-import { NativeCommandPopupMenuService } from '../NativeCommandPopupMenuService'
+import { type ExecuteCommand, showNativePopupMenu } from '../nativePopupMenu'
 
 const createModel = (): NativePopupMenuModel => ({
   location: 'chat.input.tools.context',
@@ -84,24 +53,23 @@ const latestTemplate = () => {
   return calls.at(-1)?.[0] ?? []
 }
 
-describe('NativeCommandPopupMenuService', () => {
-  let service: NativeCommandPopupMenuService
+describe('showNativePopupMenu', () => {
   let sender: { send: ReturnType<typeof vi.fn>; isDestroyed: ReturnType<typeof vi.fn> }
+  let event: IpcMainInvokeEvent
 
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks()
-    commandServiceMock.canExecute.mockReturnValue(false)
     sender = {
       send: vi.fn(),
       isDestroyed: vi.fn(() => false)
     }
-    service = new NativeCommandPopupMenuService()
-    await (service as any).onInit()
+    event = { sender } as unknown as IpcMainInvokeEvent
   })
 
+  const neverExecute: ExecuteCommand = () => false
+
   it('builds a native menu from a resolved menu model', () => {
-    const handler = (service as any).handlers.get(IpcChannel.NativeCommandPopupMenu_Show)
-    handler({ sender }, createModel(), { x: 10, y: 20 })
+    showNativePopupMenu(event, createModel(), { x: 10, y: 20 }, neverExecute)
 
     expect(menuMock.buildFromTemplate).toHaveBeenCalledWith([
       expect.objectContaining({
@@ -115,51 +83,47 @@ describe('NativeCommandPopupMenuService', () => {
   })
 
   it('returns renderer command clicks to the caller', async () => {
-    const handler = (service as any).handlers.get(IpcChannel.NativeCommandPopupMenu_Show)
-    const result = handler({ sender }, createModel(), undefined)
+    const result = showNativePopupMenu(event, createModel(), undefined, neverExecute)
 
     const template = latestTemplate()
     template[0].click?.()
 
     await expect(result).resolves.toEqual({ type: 'command', command: 'topic.create' })
     expect(sender.send).not.toHaveBeenCalled()
-    expect(commandServiceMock.execute).not.toHaveBeenCalled()
   })
 
-  it('executes main command handlers in main when executable', async () => {
-    commandServiceMock.canExecute.mockReturnValue(true)
-    const handler = (service as any).handlers.get(IpcChannel.NativeCommandPopupMenu_Show)
-    const result = handler({ sender }, createModel(), undefined)
+  it('executes commands in main when the executeCommand callback handles them', async () => {
+    const executeCommand = vi.fn<ExecuteCommand>(() => true)
+    const result = showNativePopupMenu(event, createModel(), undefined, executeCommand)
 
     const template = latestTemplate()
     template[0].click?.()
 
     await expect(result).resolves.toBeUndefined()
-    expect(commandServiceMock.execute).toHaveBeenCalledWith('topic.create', windowMock)
+    expect(executeCommand).toHaveBeenCalledWith('topic.create', windowMock)
     expect(sender.send).not.toHaveBeenCalled()
   })
 
   it('returns disabled commands to the caller instead of silently swallowing them', async () => {
-    commandServiceMock.canExecute.mockReturnValue(false)
-    const handler = (service as any).handlers.get(IpcChannel.NativeCommandPopupMenu_Show)
-    const result = handler({ sender }, createModel(), undefined)
+    const executeCommand = vi.fn<ExecuteCommand>(() => false)
+    const result = showNativePopupMenu(event, createModel(), undefined, executeCommand)
 
     const template = latestTemplate()
     template[0].click?.()
 
     await expect(result).resolves.toEqual({ type: 'command', command: 'topic.create' })
-    expect(commandServiceMock.execute).not.toHaveBeenCalled()
+    expect(executeCommand).toHaveBeenCalledWith('topic.create', windowMock)
   })
 
   it('returns custom menu item clicks to the caller', async () => {
-    const handler = (service as any).handlers.get(IpcChannel.NativeCommandPopupMenu_Show)
-    const result = handler(
-      { sender },
+    const result = showNativePopupMenu(
+      event,
       {
         location: 'chat.input.tools.context',
         items: [{ type: 'custom', id: 'tool:web-search', label: 'Web Search', checked: true }]
       } satisfies NativePopupMenuModel,
-      undefined
+      undefined,
+      neverExecute
     )
 
     const template = latestTemplate()
@@ -171,9 +135,8 @@ describe('NativeCommandPopupMenuService', () => {
   })
 
   it('returns custom submenu item clicks to the caller', async () => {
-    const handler = (service as any).handlers.get(IpcChannel.NativeCommandPopupMenu_Show)
-    const result = handler(
-      { sender },
+    const result = showNativePopupMenu(
+      event,
       {
         location: 'topic.context',
         items: [
@@ -185,7 +148,8 @@ describe('NativeCommandPopupMenuService', () => {
           }
         ]
       } satisfies NativePopupMenuModel,
-      undefined
+      undefined,
+      neverExecute
     )
 
     const submenu = (latestTemplate()[0] as any).submenu
@@ -197,18 +161,27 @@ describe('NativeCommandPopupMenuService', () => {
   })
 
   it('rejects invalid menu payloads', () => {
-    const handler = (service as any).handlers.get(IpcChannel.NativeCommandPopupMenu_Show)
-    handler({ sender }, { items: [{ type: 'command', command: 'unknown.command' }] }, undefined)
+    showNativePopupMenu(event, { items: [{ type: 'command', command: 'unknown.command' }] }, undefined, neverExecute)
+
+    expect(menuMock.buildFromTemplate).not.toHaveBeenCalled()
+    expect(loggerMock.warn).toHaveBeenCalled()
+  })
+
+  it('rejects app and tray menu payloads because they are not popup menus', () => {
+    showNativePopupMenu(event, { ...createModel(), location: 'app.menu' }, undefined, neverExecute)
+    showNativePopupMenu(event, { ...createModel(), location: 'tray.menu' }, undefined, neverExecute)
 
     expect(menuMock.buildFromTemplate).not.toHaveBeenCalled()
   })
 
-  it('rejects app and tray menu payloads because they are not popup menus', () => {
-    const handler = (service as any).handlers.get(IpcChannel.NativeCommandPopupMenu_Show)
+  it('settles undefined and logs when building or showing the menu throws', async () => {
+    menuMock.buildFromTemplate.mockImplementationOnce(() => {
+      throw new Error('build failed')
+    })
 
-    handler({ sender }, { ...createModel(), location: 'app.menu' }, undefined)
-    handler({ sender }, { ...createModel(), location: 'tray.menu' }, undefined)
+    const result = showNativePopupMenu(event, createModel(), undefined, neverExecute)
 
-    expect(menuMock.buildFromTemplate).not.toHaveBeenCalled()
+    await expect(result).resolves.toBeUndefined()
+    expect(loggerMock.error).toHaveBeenCalledWith('Failed to show native command popup menu', expect.any(Error))
   })
 })

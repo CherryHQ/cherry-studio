@@ -58,6 +58,25 @@ const NO_OP_RUNTIME: CommandRuntime = {
 const CommandRuntimeContext = createContext<CommandRuntime | null>(null)
 const CommandSharedPreferencesContext = createContext<CommandSharedPreferences | null>(null)
 
+/**
+ * True when the event target is a text-entry surface — an `<input>`,
+ * `<textarea>`, or any element with `contenteditable`. Used to suppress
+ * no-modifier shortcuts so plain keys (Escape, single letters) don't hijack
+ * typing.
+ */
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false
+  }
+  const tagName = target.tagName
+  if (tagName === 'INPUT' || tagName === 'TEXTAREA') {
+    return true
+  }
+  // `isContentEditable` reflects the inherited editing state in real browsers;
+  // the attribute fallback covers environments (jsdom) that don't compute it.
+  return target.isContentEditable || target.getAttribute('contenteditable') === 'true'
+}
+
 const shortcutPreferenceKeys = Object.fromEntries(
   REGISTERED_KEYBINDINGS.map((rule) => [rule.command, rule.preferenceKey])
 ) as Record<CommandId, (typeof REGISTERED_KEYBINDINGS)[number]['preferenceKey']>
@@ -142,6 +161,14 @@ export function CommandProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.isComposing) {
+        return
+      }
+
+      // Skip no-modifier shortcuts while an editable target is focused so plain
+      // keys (Escape, single letters) don't hijack typing. Modifier combos
+      // (Ctrl/Meta/Alt) still fire everywhere; Shift alone does not count.
+      const hasModifier = event.ctrlKey || event.metaKey || event.altKey
+      if (!hasModifier && isEditableTarget(event.target)) {
         return
       }
 

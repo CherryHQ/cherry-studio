@@ -87,8 +87,8 @@ keeps only `ShortcutPreferenceKey` + `ResolvedShortcut`.
 
 | Service | Responsibility |
 | --- | --- |
-| `CommandService` | holds the main‑side handler registry; `execute(command, window?, ctx?)` with context evaluation; wires built‑in handlers (window/zoom/settings/quick‑assistant/selection) |
-| `NativeCommandPopupMenuService` | materializes a renderer‑supplied menu model into an Electron native popup and reports the chosen command back |
+| `CommandService` | holds the main‑side handler registry; `execute(command, window?, ctx?)` with context evaluation; wires built‑in handlers (window/zoom/settings/quick‑assistant/selection); registers the native popup menu IPC (`NativeCommandPopupMenu_Show`) |
+| `nativePopupMenu.ts` | stateless module — materializes a renderer‑supplied menu model into an Electron native popup and reports the chosen command back; `CommandService` injects the execute/gate callback |
 | `ShortcutService` | registers `globalShortcut` accelerators from `REGISTERED_KEYBINDINGS` (non‑renderer scope) → `CommandService.execute` |
 | `AppMenuService` | builds the macOS app menu from `menuRegistry.resolve({ location: 'app.menu' })` via `menu/adapters/nativeMenuAdapter` → `CommandService.execute` |
 
@@ -110,19 +110,24 @@ window root mounts it: `windows/main/MainApp.tsx`,
 - `shortcut.<commandId>` — `PreferenceShortcutType` (`{ binding, enabled }`), the
   editable binding per command. Generated through the data‑classify pipeline (see
   [command-usage.md](./command-usage.md#adding-a-command)).
-- `menu.presentation_mode` — `'cherry' | 'native'`, exposed in
-  **Settings → Common → Menu** ("Context menu style").
+- `menu.presentation_mode` — `'cherry' | 'native'`. Read by `CommandProvider`
+  to choose the menu renderer. There is no settings UI for it yet (planned); it
+  currently defaults via the preference schema.
 
 ## Dispatch flows
 
 - **Keyboard (renderer):** `keydown` → `CommandProvider` →
   `getShortcutBindingFromKeyboardEvent` →
   `resolveCommandByKeybinding({ scope: 'renderer', canExecuteCommand: hasHandler })`
-  → active handler. The dispatcher skips `contenteditable` targets and only
-  `preventDefault`s when a command with a registered handler resolves.
+  → active handler. While an editable target (`<input>`, `<textarea>`, or a
+  `contenteditable` element) is focused the dispatcher skips no-modifier
+  shortcuts so typing isn't hijacked; modifier shortcuts (Ctrl/Meta/Alt) still
+  fire. It only `preventDefault`s when a command with a registered handler
+  resolves.
 - **Keyboard (global):** OS `globalShortcut` → `ShortcutService` →
   `CommandService.execute(command, window)`.
 - **Native menu:** renderer builds a `NativePopupMenuModel` →
-  `window.api.command.showNativePopupMenu` → `NativeCommandPopupMenuService`.
-  Main‑handled commands run there; renderer‑handled ones are returned to the
-  renderer runtime to execute.
+  `window.api.command.showNativePopupMenu` → `CommandService`'s
+  `NativeCommandPopupMenu_Show` handler → `showNativePopupMenu` (in
+  `nativePopupMenu.ts`). Main‑handled commands run there; renderer‑handled ones
+  are returned to the renderer runtime to execute.

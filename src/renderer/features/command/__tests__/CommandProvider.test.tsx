@@ -157,7 +157,43 @@ describe('CommandProvider', () => {
     expect(onExecute).not.toHaveBeenCalled()
   })
 
-  it('dispatches shortcuts even when focus is in a contenteditable input', () => {
+  it('skips no-modifier shortcuts when an editable target is focused', () => {
+    const onExecute = vi.fn()
+    renderProvider(
+      <>
+        <RegisteredCommand command="app.fullscreen.exit" onExecute={onExecute} />
+        <div contentEditable="true" data-testid="editable" />
+      </>
+    )
+
+    fireEvent.keyDown(screen.getByTestId('editable'), {
+      key: 'Escape',
+      code: 'Escape',
+      cancelable: true
+    })
+
+    expect(onExecute).not.toHaveBeenCalled()
+  })
+
+  it('skips no-modifier shortcuts when an input is focused', () => {
+    const onExecute = vi.fn()
+    renderProvider(
+      <>
+        <RegisteredCommand command="app.fullscreen.exit" onExecute={onExecute} />
+        <input data-testid="text-input" />
+      </>
+    )
+
+    fireEvent.keyDown(screen.getByTestId('text-input'), {
+      key: 'Escape',
+      code: 'Escape',
+      cancelable: true
+    })
+
+    expect(onExecute).not.toHaveBeenCalled()
+  })
+
+  it('still dispatches modifier shortcuts when an editable target is focused', () => {
     const onExecute = vi.fn()
     renderProvider(
       <>
@@ -174,24 +210,6 @@ describe('CommandProvider', () => {
     })
 
     expect(onExecute).toHaveBeenCalledOnce()
-  })
-
-  it('does not trigger a command for plain keystrokes while typing', () => {
-    const onExecute = vi.fn()
-    renderProvider(
-      <>
-        <RegisteredCommand command="topic.create" onExecute={onExecute} />
-        <div contentEditable="true" data-testid="editable" />
-      </>
-    )
-
-    fireEvent.keyDown(screen.getByTestId('editable'), {
-      key: 'n',
-      code: 'KeyN',
-      cancelable: true
-    })
-
-    expect(onExecute).not.toHaveBeenCalled()
   })
 
   it('warns when executing a command without an active handler', () => {
