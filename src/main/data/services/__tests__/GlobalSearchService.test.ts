@@ -1,7 +1,9 @@
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { knowledgeBaseTable } from '@data/db/schemas/knowledge'
+import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
@@ -9,9 +11,14 @@ import { GlobalSearchService } from '@data/services/GlobalSearchService'
 import { generateOrderKeySequence } from '@data/services/utils/orderKey'
 import { GlobalSearchQuerySchema } from '@shared/data/api/schemas/globalSearch'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
+import type { MessageData } from '@shared/data/types/message'
 import { createUniqueModelId } from '@shared/data/types/model'
 import { setupTestDatabase } from '@test-helpers/db'
 import { beforeEach, describe, expect, it } from 'vitest'
+
+function partsText(content: string): MessageData {
+  return { parts: [{ type: 'text', text: content }] as MessageData['parts'] }
+}
 
 describe('GlobalSearchService', () => {
   const dbh = setupTestDatabase()
@@ -177,6 +184,67 @@ describe('GlobalSearchService', () => {
     expect(result.groups).toHaveLength(1)
     expect(result.groups[0].type).toBe('session')
     expect(result.groups[0].items).toHaveLength(1)
+  })
+
+  it('merges topic and agent-session message previews in global search', async () => {
+    await seedGlobalSearchRows()
+    await dbh.db.insert(messageTable).values([
+      {
+        id: 'm-global-old',
+        parentId: null,
+        topicId: '33333333-3333-4333-8333-333333333333',
+        role: 'assistant',
+        data: partsText('Needle topic old preview'),
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 100,
+        updatedAt: 100
+      },
+      {
+        id: 'm-global-topic',
+        parentId: 'm-global-old',
+        topicId: '33333333-3333-4333-8333-333333333333',
+        role: 'assistant',
+        data: partsText('Needle topic preview'),
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 200,
+        updatedAt: 200
+      }
+    ])
+    await dbh.db.insert(agentSessionMessageTable).values({
+      id: 'm-global-session',
+      sessionId: '44444444-4444-4444-8444-444444444444',
+      role: 'assistant',
+      data: partsText('Needle session preview'),
+      status: 'success',
+      createdAt: 300,
+      updatedAt: 300
+    })
+
+    const result = await service.search(
+      GlobalSearchQuerySchema.parse({
+        q: 'Needle',
+        limitPerType: 5,
+        includeMessages: true,
+        updatedAtFrom: '1970-01-01T00:00:00.150Z'
+      })
+    )
+
+    expect(result.messageItems.map((item) => [item.sourceType, item.messageId])).toEqual([
+      ['session', 'm-global-session'],
+      ['topic', 'm-global-topic']
+    ])
+    expect(result.messageItems[0]).toMatchObject({
+      sourceType: 'session',
+      sessionId: '44444444-4444-4444-8444-444444444444',
+      sessionName: 'Needle Session'
+    })
+    expect(result.messageItems[1]).toMatchObject({
+      sourceType: 'topic',
+      topicId: '33333333-3333-4333-8333-333333333333',
+      topicName: 'Needle Topic'
+    })
   })
 
   it('orders assistant matches by updatedAt', async () => {

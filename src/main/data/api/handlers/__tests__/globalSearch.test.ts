@@ -19,7 +19,7 @@ describe('globalSearchHandlers', () => {
 
   describe('/global-search', () => {
     it('parses query defaults and delegates to GlobalSearchService', async () => {
-      const response = { query: 'agent', groups: [] }
+      const response = { query: 'agent', groups: [], messageItems: [] }
       searchMock.mockResolvedValueOnce(response)
 
       const result = await globalSearchHandlers['/global-search'].GET({
@@ -35,14 +35,15 @@ describe('globalSearchHandlers', () => {
     })
 
     it('forwards type, time, and explicit limit filters', async () => {
-      searchMock.mockResolvedValueOnce({ query: 'agent', groups: [] })
+      searchMock.mockResolvedValueOnce({ query: 'agent', groups: [], messageItems: [] })
 
       await globalSearchHandlers['/global-search'].GET({
         query: {
           q: 'agent',
           types: ['agent', 'session'],
           updatedAtFrom: '2026-05-01T00:00:00.000Z',
-          limitPerType: 500
+          limitPerType: 500,
+          includeMessages: true
         }
       } as never)
 
@@ -50,7 +51,8 @@ describe('globalSearchHandlers', () => {
         q: 'agent',
         types: ['agent', 'session'],
         updatedAtFrom: '2026-05-01T00:00:00.000Z',
-        limitPerType: 500
+        limitPerType: 500,
+        includeMessages: true
       })
     })
 

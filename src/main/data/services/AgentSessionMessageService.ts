@@ -47,22 +47,21 @@ type InternalSessionSearchMessageResult = AgentSessionSearchMessageResult & {
   cursorId: string
 }
 
-// Cursor wire format: `<createdAt-ms>:<id>`. Stale/legacy cursors fall back
-// to first page (warn) instead of throwing — opaque server-issued tokens.
-function decodeMessageCursor(raw: string): { createdAt: number; id: string } | null {
+// Cursor wire format: `<createdAt-ms>:<id>` — opaque server-issued tokens.
+function decodeMessageCursor(raw: string): { createdAt: number; id: string } {
   const sep = raw.indexOf(':')
   if (sep < 0) {
-    logger.warn('decodeMessageCursor: missing separator, falling back to first page', { cursor: raw })
-    return null
+    throw DataApiErrorFactory.validation({ cursor: ['must be a valid message cursor'] }, 'Invalid message cursor')
   }
   const key = raw.slice(0, sep)
   const id = raw.slice(sep + 1)
   if (!key || !id) {
-    logger.warn('decodeMessageCursor: empty key or id, falling back to first page', { cursor: raw })
-    return null
+    throw DataApiErrorFactory.validation({ cursor: ['must be a valid message cursor'] }, 'Invalid message cursor')
   }
   const createdAt = Number(key)
-  if (!Number.isFinite(createdAt)) return null
+  if (!Number.isFinite(createdAt)) {
+    throw DataApiErrorFactory.validation({ cursor: ['must be a valid message cursor'] }, 'Invalid message cursor')
+  }
   return { createdAt, id }
 }
 

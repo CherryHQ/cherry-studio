@@ -84,18 +84,16 @@ const PREVIEW_LENGTH = 50
 const DEFAULT_LIMIT = 20
 const SEARCH_CHUNK_SIZE = 200
 
-function decodeMessageSearchCursor(raw: string): { key: string; id: string } | null {
+function decodeMessageSearchCursor(raw: string): { key: string; id: string } {
   const sep = raw.indexOf(':')
   if (sep < 0) {
-    logger.warn('search: cursor missing separator, falling back to first page', { cursor: raw })
-    return null
+    throw DataApiErrorFactory.validation({ cursor: ['must be a valid search cursor'] }, 'Invalid message search cursor')
   }
 
   const key = raw.slice(0, sep)
   const id = raw.slice(sep + 1)
   if (!key || !id) {
-    logger.warn('search: cursor has empty key or id, falling back to first page', { cursor: raw })
-    return null
+    throw DataApiErrorFactory.validation({ cursor: ['must be a valid search cursor'] }, 'Invalid message search cursor')
   }
 
   return { key, id }
@@ -186,12 +184,9 @@ function decodeSearchCursor(raw: string | undefined): MessageSearchCursorRow | u
   if (!raw) return undefined
 
   const decoded = decodeMessageSearchCursor(raw)
-  if (!decoded) return undefined
-
   const createdAt = Number(decoded.key)
   if (!Number.isFinite(createdAt)) {
-    logger.warn('search: cursor has invalid createdAt, falling back to first page', { cursor: raw })
-    return undefined
+    throw DataApiErrorFactory.validation({ cursor: ['must be a valid search cursor'] }, 'Invalid message search cursor')
   }
 
   return { createdAt, id: decoded.id }
