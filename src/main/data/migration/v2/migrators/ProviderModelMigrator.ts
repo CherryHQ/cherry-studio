@@ -13,9 +13,9 @@ import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/prov
 import { buildRuntimeEndpointConfigs } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
 import { pinTable } from '@data/db/schemas/pin'
-import type { NewUserModel } from '@data/db/schemas/userModel'
+import type { InsertUserModelRow } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
-import type { NewUserProvider } from '@data/db/schemas/userProvider'
+import type { InsertUserProviderRow } from '@data/db/schemas/userProvider'
 import { userProviderTable } from '@data/db/schemas/userProvider'
 import { assignOrderKeysByScope, assignOrderKeysInSequence } from '@data/migration/v2/utils/orderKey'
 import { applyUserOverlay } from '@data/services/ModelService'
@@ -41,7 +41,7 @@ const PROVIDER_MODEL_MIGRATION_ERROR_IDS = {
   validate: 'provider_model_validate_failed'
 } as const
 
-type NewUserProviderInput = Omit<NewUserProvider, 'orderKey'>
+type NewUserProviderInput = Omit<InsertUserProviderRow, 'orderKey'>
 
 function toError(error: unknown): Error {
   return error instanceof Error ? error : new Error(String(error))
@@ -213,9 +213,9 @@ export class ProviderModelMigrator extends BaseMigrator {
    * `ModelService.create` uses for new models.
    */
   private enrichModelRow(
-    row: Omit<NewUserModel, 'orderKey'>,
-    providerRow: NewUserProvider
-  ): Omit<NewUserModel, 'orderKey'> {
+    row: Omit<InsertUserModelRow, 'orderKey'>,
+    providerRow: InsertUserProviderRow
+  ): Omit<InsertUserModelRow, 'orderKey'> {
     const loader = this.getLoader()
     const presetModel = loader.findModel(row.modelId)
     if (!presetModel) return row

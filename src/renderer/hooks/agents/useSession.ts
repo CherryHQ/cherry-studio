@@ -82,7 +82,7 @@ export const useSessions = (agentId?: string | null, pageSize = DEFAULT_SESSION_
   // Cache key includes the query, so reorder operates on the same key.
   const { applyReorderedList } = useReorder('/sessions')
 
-  // Server returns pinned-first via the two-section cursor in SessionService —
+  // Server returns pinned-first via the two-section cursor in AgentSessionService —
   // see `listByCursor` (`pin:` / `session:` / `session:` sentinel). The `/pins`
   // map is kept only for the per-row pinned indicator and the toggle handler.
   const sessions = useInfiniteFlatItems(pages)
@@ -146,7 +146,7 @@ export const useSessions = (agentId?: string | null, pageSize = DEFAULT_SESSION_
   )
 
   // Server returns pinned-first via the two-section cursor in
-  // `SessionService.listByCursor`, so pin-state changes affect `/sessions`
+  // `AgentSessionService.listByCursor`, so pin-state changes affect `/sessions`
   // page ordering, not just `/pins` membership. Refresh both keys so the
   // row visibly relocates after pin/unpin.
   const { trigger: pinTrigger } = useMutation('POST', '/pins', { refresh: ['/pins', '/sessions'] })

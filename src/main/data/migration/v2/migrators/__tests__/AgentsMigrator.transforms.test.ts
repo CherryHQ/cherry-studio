@@ -1,7 +1,7 @@
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSessionMessageTable } from '@data/db/schemas/agentSessionMessage'
-import { workspaceTable } from '@data/db/schemas/workspace'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq, sql } from 'drizzle-orm'
 import { validate as isUuid } from 'uuid'
@@ -46,7 +46,7 @@ describe('importLegacySessionMessages', () => {
 
   async function seedSession(id: string): Promise<void> {
     const workspaceId = `workspace-${id}`
-    await dbh.db.insert(workspaceTable).values({
+    await dbh.db.insert(agentWorkspaceTable).values({
       id: workspaceId,
       name: workspaceId,
       path: `/tmp/${workspaceId}`,
