@@ -95,7 +95,10 @@ export class OpenAIMessageConverter implements IMessageConverter<ExtendedChatCom
     toolResultOutputs: Map<string, string>
   ): CherryUIMessage | null {
     switch (msg.role) {
+      // `developer` is the renamed instruction role for newer/o-series models; same
+      // semantics as `system`, so map it identically rather than dropping it.
       case 'system':
+      case 'developer':
         return this.convertSystemMessage(msg)
       case 'user':
         return this.convertUserMessage(msg)
@@ -109,7 +112,7 @@ export class OpenAIMessageConverter implements IMessageConverter<ExtendedChatCom
   }
 
   private convertSystemMessage(msg: ChatCompletionMessageParam): CherryUIMessage | null {
-    if (msg.role !== 'system') return null
+    if (msg.role !== 'system' && msg.role !== 'developer') return null
 
     let text = ''
     if (typeof msg.content === 'string') {
@@ -220,7 +223,8 @@ export class OpenAIMessageConverter implements IMessageConverter<ExtendedChatCom
    */
   extractStreamOptions(params: ExtendedChatCompletionCreateParams): StreamTextOptions {
     return {
-      maxOutputTokens: params.max_tokens as number | undefined,
+      // Prefer max_completion_tokens (current param for newer/o-series models); fall back to legacy max_tokens.
+      maxOutputTokens: (params.max_completion_tokens ?? params.max_tokens) as number | undefined,
       temperature: params.temperature as number | undefined,
       topP: params.top_p as number | undefined,
       stopSequences: params.stop as string[] | undefined
