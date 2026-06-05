@@ -47,7 +47,7 @@ vi.mock('@data/services/AgentService', () => ({
 vi.mock('@data/services/AgentSessionService', () => ({
   agentSessionService: { findAgentWorkspacePath: vi.fn() }
 }))
-vi.mock('@data/services/AgentSessionWorkflowService', () => ({
+vi.mock('@main/services/agentWorkspace/AgentSessionWorkflowService', () => ({
   agentSessionWorkflowService: { createSession: vi.fn() }
 }))
 vi.mock('@data/services/JobScheduleService', () => ({
@@ -63,11 +63,11 @@ vi.mock('@main/ai/agents/cherryclaw/heartbeat', () => ({
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { agentSessionWorkflowService } from '@data/services/AgentSessionWorkflowService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { readHeartbeat } from '@main/ai/agents/cherryclaw/heartbeat'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
+import { agentSessionWorkflowService } from '@main/services/agentWorkspace/AgentSessionWorkflowService'
 
 import { runAgentTask } from '../runAgentTask'
 

@@ -4,19 +4,15 @@ import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { timestampToISO } from '@data/services/utils/rowMappers'
-import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AgentWorkspaceEntity, AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 import { and, asc, eq } from 'drizzle-orm'
-import fs from 'fs'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 
-const logger = loggerService.withContext('AgentWorkspaceService')
-
 type WorkspaceLookupOptions = { includeSystem?: boolean }
-type PreparedSystemWorkspace = {
+export type PreparedSystemWorkspace = {
   id: string
   name: string
   path: string
@@ -48,55 +44,6 @@ function normalizeWorkspacePath(rawPath: string): string {
 
 function defaultWorkspaceName(workspacePath: string): string {
   return path.basename(workspacePath) || workspacePath
-}
-
-function pad2(value: number): string {
-  return String(value).padStart(2, '0')
-}
-
-function formatSystemWorkspaceDate(now: Date): { datePart: string; timePart: string; label: string } {
-  const datePart = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`
-  const timePart = `${pad2(now.getHours())}${pad2(now.getMinutes())}${pad2(now.getSeconds())}`
-  const label = `${datePart} ${pad2(now.getHours())}:${pad2(now.getMinutes())}:${pad2(now.getSeconds())}`
-  return { datePart, timePart, label }
-}
-
-function sanitizeSessionIdSegment(sessionId: string): string {
-  const sanitized = sessionId.replace(/[^a-zA-Z0-9._-]+/g, '-').replace(/^-+|-+$/g, '')
-  return (sanitized || uuidv4()).slice(0, 8)
-}
-
-function ensureWorkspaceDirectory(workspacePath: string): void {
-  if (fs.existsSync(workspacePath)) {
-    const stats = fs.statSync(workspacePath)
-    if (!stats.isDirectory()) {
-      throw DataApiErrorFactory.validation({ path: ['Workspace path must be a directory'] })
-    }
-    return
-  }
-
-  try {
-    fs.mkdirSync(workspacePath, { recursive: true })
-  } catch (error) {
-    logger.error('Failed to create workspace directory', {
-      path: workspacePath,
-      error: error instanceof Error ? error.message : String(error)
-    })
-    throw error
-  }
-}
-
-function cleanupPreparedWorkspaceDirectory(workspacePath: string): void {
-  try {
-    fs.rmdirSync(workspacePath)
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code
-    if (code === 'ENOENT') return
-    logger.warn('Failed to clean up prepared workspace directory', {
-      path: workspacePath,
-      error: error instanceof Error ? error.message : String(error)
-    })
-  }
 }
 
 export class AgentWorkspaceService {
@@ -140,7 +87,6 @@ export class AgentWorkspaceService {
 
   async findOrCreateByPath(rawPath: string, options: { name?: string } = {}): Promise<AgentWorkspaceEntity> {
     const workspacePath = normalizeWorkspacePath(rawPath)
-    ensureWorkspaceDirectory(workspacePath)
 
     const row = await withSqliteErrors(
       () =>
@@ -169,96 +115,13 @@ export class AgentWorkspaceService {
     return rowToWorkspace(row)
   }
 
-  prepareDefaultWorkspaceDirectory(): string {
-    const workspacePath = path.join(application.getPath('feature.agents.workspaces'), uuidv4())
-    ensureWorkspaceDirectory(workspacePath)
-    return workspacePath
-  }
-
-  cleanupPreparedWorkspaceDirectory(workspacePath: string): void {
-    cleanupPreparedWorkspaceDirectory(workspacePath)
-  }
-
   async createDefaultWorkspaceTx(tx: DbOrTx, workspacePath: string): Promise<AgentWorkspaceEntity> {
     return await this.findOrCreateByPathTx(tx, workspacePath)
-  }
-
-  prepareSystemWorkspaceForSession(sessionId: string, now = new Date()): PreparedSystemWorkspace {
-    const { datePart, timePart, label } = formatSystemWorkspaceDate(now)
-    const workspacePath = path.join(
-      application.getPath('feature.agents.workspaces'),
-      'system',
-      datePart,
-      `${timePart}-${sanitizeSessionIdSegment(sessionId)}`
-    )
-    ensureWorkspaceDirectory(workspacePath)
-    return {
-      id: uuidv4(),
-      name: `No project ${label}`,
-      path: workspacePath,
-      type: 'system'
-    }
   }
 
   async createPreparedSystemWorkspaceTx(tx: DbOrTx, prepared: PreparedSystemWorkspace): Promise<AgentWorkspaceEntity> {
     const row = await this.insertWorkspaceRowTx(tx, prepared)
     return rowToWorkspace(row)
-  }
-
-  async createSystemWorkspaceForSession(sessionId: string, now = new Date()): Promise<AgentWorkspaceEntity> {
-    const prepared = this.prepareSystemWorkspaceForSession(sessionId, now)
-    try {
-      const dbService = application.get('DbService')
-      return await withSqliteErrors(
-        () => dbService.withWriteTx((tx) => this.createPreparedSystemWorkspaceTx(tx, prepared)),
-        {
-          ...defaultHandlersFor('Workspace', prepared.id),
-          unique: () => DataApiErrorFactory.conflict(`Workspace path '${prepared.path}' already exists`, 'Workspace')
-        }
-      )
-    } catch (error) {
-      this.deletePreparedSystemWorkspaceDirectory(prepared)
-      throw error
-    }
-  }
-
-  assertSystemWorkspacePath(workspacePath: string): void {
-    const systemRoot = path.resolve(application.getPath('feature.agents.workspaces'), 'system')
-    const targetPath = path.resolve(workspacePath)
-    const relative = path.relative(systemRoot, targetPath)
-    if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
-      throw DataApiErrorFactory.validation({ path: ['System workspace path is outside the system workspace root'] })
-    }
-  }
-
-  deleteSystemWorkspaceDirectory(workspacePath: string): void {
-    this.assertSystemWorkspacePath(workspacePath)
-    fs.rmSync(workspacePath, { recursive: true, force: true })
-  }
-
-  deleteSystemWorkspaceDirectoryAfterCommit(workspacePath: string): void {
-    try {
-      this.deleteSystemWorkspaceDirectory(workspacePath)
-    } catch (error) {
-      logger.error('Failed to delete system workspace directory after database delete', {
-        path: workspacePath,
-        error: error instanceof Error ? error.message : String(error)
-      })
-    }
-  }
-
-  deletePreparedSystemWorkspaceDirectory(prepared: PreparedSystemWorkspace): void {
-    try {
-      this.assertSystemWorkspacePath(prepared.path)
-      fs.rmdirSync(prepared.path)
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code
-      if (code === 'ENOENT') return
-      logger.warn('Failed to clean prepared system workspace directory', {
-        path: prepared.path,
-        error: error instanceof Error ? error.message : String(error)
-      })
-    }
   }
 
   private async findOrCreateRowByNormalizedPathTx(

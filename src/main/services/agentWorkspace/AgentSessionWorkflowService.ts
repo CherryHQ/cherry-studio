@@ -8,6 +8,8 @@ import type { AgentSessionEntity, CreateAgentSessionDto } from '@shared/data/api
 import { eq } from 'drizzle-orm'
 import { v4 as uuidv4 } from 'uuid'
 
+import { agentWorkspaceDirectoryService } from './AgentWorkspaceDirectoryService'
+
 export class AgentSessionWorkflowService {
   async createSession(dto: CreateAgentSessionDto, options: { id?: string } = {}): Promise<AgentSessionEntity> {
     if (dto.workspaceMode === 'system' && dto.workspaceId) {
@@ -32,7 +34,7 @@ export class AgentSessionWorkflowService {
     let defaultWorkspacePath: string | null = null
     let keepDefaultWorkspaceDirectory = false
     const preparedSystemWorkspace =
-      dto.workspaceMode === 'system' ? agentWorkspaceService.prepareSystemWorkspaceForSession(id) : null
+      dto.workspaceMode === 'system' ? agentWorkspaceDirectoryService.prepareSystemWorkspaceForSession(id) : null
 
     try {
       const createInTx = async () =>
@@ -72,7 +74,7 @@ export class AgentSessionWorkflowService {
       })
 
       if (result.needsDefaultWorkspace) {
-        defaultWorkspacePath = agentWorkspaceService.prepareDefaultWorkspaceDirectory()
+        defaultWorkspacePath = agentWorkspaceDirectoryService.prepareDefaultWorkspaceDirectory()
         result = await withSqliteErrors(createInTx, {
           ...defaultHandlersFor('Session', id),
           foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
@@ -82,12 +84,12 @@ export class AgentSessionWorkflowService {
       keepDefaultWorkspaceDirectory = result.usedDefaultWorkspace
     } catch (error) {
       if (preparedSystemWorkspace) {
-        agentWorkspaceService.deletePreparedSystemWorkspaceDirectory(preparedSystemWorkspace)
+        agentWorkspaceDirectoryService.deletePreparedSystemWorkspaceDirectory(preparedSystemWorkspace)
       }
       throw error
     } finally {
       if (defaultWorkspacePath && !keepDefaultWorkspaceDirectory) {
-        agentWorkspaceService.cleanupPreparedWorkspaceDirectory(defaultWorkspacePath)
+        agentWorkspaceDirectoryService.cleanupPreparedWorkspaceDirectory(defaultWorkspacePath)
       }
     }
 
@@ -100,7 +102,7 @@ export class AgentSessionWorkflowService {
       systemWorkspacePath = await agentSessionService.deleteTx(tx, id)
     })
     if (systemWorkspacePath) {
-      agentWorkspaceService.deleteSystemWorkspaceDirectoryAfterCommit(systemWorkspacePath)
+      agentWorkspaceDirectoryService.deleteSystemWorkspaceDirectoryAfterCommit(systemWorkspacePath)
     }
   }
 }

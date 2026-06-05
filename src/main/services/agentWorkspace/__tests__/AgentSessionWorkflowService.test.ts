@@ -3,8 +3,9 @@ import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { agentSessionWorkflowService } from '@data/services/AgentSessionWorkflowService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { agentSessionWorkflowService } from '@main/services/agentWorkspace/AgentSessionWorkflowService'
+import { agentWorkspaceWorkflowService } from '@main/services/agentWorkspace/AgentWorkspaceWorkflowService'
 import { ErrorCode } from '@shared/data/api'
 import { setupTestDatabase } from '@test-helpers/db'
 import { mkdtemp, readdir, stat } from 'fs/promises'
@@ -43,7 +44,7 @@ describe('AgentSessionWorkflowService', () => {
   })
 
   it('binds a session to an explicit workspace', async () => {
-    const workspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'explicit'))
+    const workspace = await agentWorkspaceWorkflowService.findOrCreateWorkspaceByPath(path.join(root, 'explicit'))
 
     const session = await agentSessionWorkflowService.createSession({
       agentId: 'agent-session-test',
@@ -56,8 +57,8 @@ describe('AgentSessionWorkflowService', () => {
   })
 
   it('inherits the latest sibling workspace without preparing a default workspace', async () => {
-    const firstWorkspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'first'))
-    const secondWorkspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'second'))
+    const firstWorkspace = await agentWorkspaceWorkflowService.findOrCreateWorkspaceByPath(path.join(root, 'first'))
+    const secondWorkspace = await agentWorkspaceWorkflowService.findOrCreateWorkspaceByPath(path.join(root, 'second'))
 
     await agentSessionWorkflowService.createSession({
       agentId: 'agent-session-test',
@@ -109,7 +110,7 @@ describe('AgentSessionWorkflowService', () => {
   })
 
   it('rejects system workspace mode combined with an explicit workspace id', async () => {
-    const workspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'explicit'))
+    const workspace = await agentWorkspaceWorkflowService.findOrCreateWorkspaceByPath(path.join(root, 'explicit'))
 
     await expect(
       agentSessionWorkflowService.createSession({
@@ -122,7 +123,7 @@ describe('AgentSessionWorkflowService', () => {
   })
 
   it('rejects binding a system workspace through workspaceId', async () => {
-    const systemWorkspace = await agentWorkspaceService.createSystemWorkspaceForSession('system-workspace-id')
+    const systemWorkspace = await agentWorkspaceWorkflowService.createSystemWorkspaceForSession('system-workspace-id')
 
     await expect(
       agentSessionWorkflowService.createSession({

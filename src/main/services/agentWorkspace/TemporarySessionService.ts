@@ -7,13 +7,14 @@
  */
 
 import { agentService } from '@data/services/AgentService'
-import { agentSessionWorkflowService } from '@data/services/AgentSessionWorkflowService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { AgentSessionEntity, AgentWorkspaceMode } from '@shared/data/api/schemas/agentSessions'
 import type { CreateTemporarySessionDto, TemporarySessionEntity } from '@shared/data/api/schemas/temporaryChats'
 import { v4 as uuidv4 } from 'uuid'
+
+import { agentSessionWorkflowService } from './AgentSessionWorkflowService'
 
 type TemporarySessionRow = {
   id: string

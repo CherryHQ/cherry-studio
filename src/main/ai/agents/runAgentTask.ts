@@ -13,7 +13,6 @@
 import { agentChannelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { agentSessionWorkflowService } from '@data/services/AgentSessionWorkflowService'
 import { jobScheduleService } from '@data/services/JobScheduleService'
 import { jobService } from '@data/services/JobService'
 import { loggerService } from '@logger'
@@ -23,6 +22,7 @@ import { ChannelAdapterListener, type StreamListener } from '@main/ai/streamMana
 import { startAgentSessionRun } from '@main/ai/streamManager/api/startAgentSessionRun'
 import { application } from '@main/core/application'
 import type { JobContext } from '@main/core/job/types'
+import { agentSessionWorkflowService } from '@main/services/agentWorkspace/AgentSessionWorkflowService'
 
 const logger = loggerService.withContext('runAgentTask')
 

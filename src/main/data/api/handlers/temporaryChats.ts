@@ -14,12 +14,13 @@
  * - POST   /temporary/sessions/:id/persist
  *
  * Topic/message logic lives in TemporaryChatService. Agent session draft logic
- * lives in TemporarySessionService. Handlers stay thin: validate request bodies
- * when needed, then forward to the owning service.
+ * lives in main-side TemporarySessionService because persisting drafts runs
+ * workspace/session workflow side effects. Handlers stay thin: validate request
+ * bodies when needed, then forward to the owning service.
  */
 
 import { temporaryChatService } from '@data/services/TemporaryChatService'
-import { temporarySessionService } from '@data/services/TemporarySessionService'
+import { temporarySessionService } from '@main/services/agentWorkspace/TemporarySessionService'
 import { toDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import {

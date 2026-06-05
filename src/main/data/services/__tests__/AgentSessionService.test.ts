@@ -4,10 +4,10 @@ import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
+import { agentWorkspaceWorkflowService } from '@main/services/agentWorkspace/AgentWorkspaceWorkflowService'
 import { ErrorCode } from '@shared/data/api'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { mkdtemp } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
@@ -18,7 +18,7 @@ describe('AgentSessionService', () => {
   let sessionCounter = 0
 
   beforeEach(async () => {
-    root = await mkdtemp(path.join(tmpdir(), 'cherry-session-'))
+    root = path.join(tmpdir(), `cherry-session-${Date.now()}-${Math.random().toString(16).slice(2)}`)
     sessionCounter = 0
     vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
       if (key === 'feature.agents.workspaces') {
@@ -58,7 +58,7 @@ describe('AgentSessionService', () => {
   }
 
   it('finds only the latest user workspace path for an agent', async () => {
-    const systemWorkspace = await agentWorkspaceService.createSystemWorkspaceForSession('system-session')
+    const systemWorkspace = await agentWorkspaceWorkflowService.createSystemWorkspaceForSession('system-session')
     await createSession('No project', systemWorkspace.id)
 
     await expect(agentSessionService.findAgentWorkspacePath('agent-session-test')).resolves.toBeNull()

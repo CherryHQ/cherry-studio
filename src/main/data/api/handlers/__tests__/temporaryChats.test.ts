@@ -36,7 +36,7 @@ vi.mock('@data/services/TemporaryChatService', () => ({
   }
 }))
 
-vi.mock('@data/services/TemporarySessionService', () => ({
+vi.mock('@main/services/agentWorkspace/TemporarySessionService', () => ({
   temporarySessionService: {
     createSession: createSessionMock,
     deleteSession: deleteSessionMock,

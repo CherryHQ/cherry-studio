@@ -1,5 +1,5 @@
 import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
-import { agentWorkspaceWorkflowService } from '@data/services/AgentWorkspaceWorkflowService'
+import { agentWorkspaceWorkflowService } from '@main/services/agentWorkspace/AgentWorkspaceWorkflowService'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
 import type { AgentWorkspaceSchemas } from '@shared/data/api/schemas/agentWorkspaces'

@@ -79,7 +79,7 @@ export class AgentSessionService {
 
   /**
    * Resolve an agent's workspace path WITHOUT creating a session. Sessions for the same
-   * agent reuse the most-recent sibling's workspace (see `AgentSessionWorkflowService.createSession`),
+   * agent reuse the most-recent sibling's workspace (see main-side `AgentSessionWorkflowService.createSession`),
    * so this returns that shared path, or null when the agent has no session/workspace yet. Used by
    * heartbeat scheduling to read `heartbeat.md` before deciding whether a fire warrants a session.
    */

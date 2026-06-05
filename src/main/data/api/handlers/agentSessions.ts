@@ -9,7 +9,7 @@
 
 import { agentSessionMessageService as sessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
-import { agentSessionWorkflowService } from '@data/services/AgentSessionWorkflowService'
+import { agentSessionWorkflowService } from '@main/services/agentWorkspace/AgentSessionWorkflowService'
 import { toDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import { OrderBatchRequestSchema, OrderRequestSchema } from '@shared/data/api/schemas/_endpointHelpers'
