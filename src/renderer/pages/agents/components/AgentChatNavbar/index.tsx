@@ -12,9 +12,18 @@ interface Props {
   tools?: ReactNode
   className?: string
   showSidebarControls?: boolean
+  sidebarOpen?: boolean
+  onSidebarToggle?: () => void
 }
 
-const AgentChatNavbar = ({ activeAgent, tools, className, showSidebarControls = true }: Props) => {
+const AgentChatNavbar = ({
+  activeAgent,
+  tools,
+  className,
+  showSidebarControls = true,
+  sidebarOpen,
+  onSidebarToggle
+}: Props) => {
   useCommandHandler('app.search', () => {
     void SearchPopup.show()
   })
@@ -26,7 +35,13 @@ const AgentChatNavbar = ({ activeAgent, tools, className, showSidebarControls = 
         className
       )}>
       <div className="-mx-1 flex h-full min-w-0 flex-1 shrink items-center overflow-auto">
-        <AgentContent activeAgent={activeAgent} tools={tools} showSidebarControls={showSidebarControls} />
+        <AgentContent
+          activeAgent={activeAgent}
+          tools={tools}
+          showSidebarControls={showSidebarControls}
+          sidebarOpen={sidebarOpen}
+          onSidebarToggle={onSidebarToggle}
+        />
       </div>
     </NavbarHeader>
   )

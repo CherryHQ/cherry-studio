@@ -57,8 +57,8 @@ const AgentPage = () => {
   const tabMetadataSessionId = currentTab ? getTabInstanceKey(currentTab, 'agents') : undefined
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeSessionId
   const isWindowFrame = useWindowFrame().mode === 'window'
-  const effectiveShowSidebar = !isMessageOnlyView && !isWindowFrame && showSidebar
-  const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
+  const [windowSidebarOpen, setWindowSidebarOpen] = useState(false)
+  const effectiveShowSidebar = !isMessageOnlyView && (isWindowFrame ? windowSidebarOpen : showSidebar)
   const { session: routeSession, isLoading: isRouteSessionLoading } = useSession(
     isMessageOnlyView ? routeSessionId : null
   )
@@ -175,12 +175,26 @@ const AgentPage = () => {
     instanceKey: tabInstanceSessionId ?? null
   })
 
+  const setResourceListOpen = useCallback(
+    (open: boolean) => {
+      if (isWindowFrame) {
+        setWindowSidebarOpen(open)
+        return
+      }
+
+      void setShowSidebar(open)
+    },
+    [isWindowFrame, setShowSidebar]
+  )
+  const toggleResourceListOpen = useCallback(() => {
+    setResourceListOpen(!effectiveShowSidebar)
+  }, [effectiveShowSidebar, setResourceListOpen])
   useCommandHandler(
     'app.sidebar.toggle',
     () => {
       if (isMessageOnlyView) return
 
-      toggleShowSidebar()
+      toggleResourceListOpen()
     },
     { enabled: isActiveTab }
   )
@@ -240,7 +254,7 @@ const AgentPage = () => {
     (sessionId: string | null, messageId?: string) => {
       if (sessionId && conversationNav.focusExistingTab(sessionId, { excludeTabId: currentTabId ?? undefined })) return
       pendingSelectedSessionRef.current = null
-      void setShowSidebar(true)
+      setResourceListOpen(true)
       void discardTemporaryConversation()
       setMissingAgentDraft(false)
       setPendingLocateMessageId(messageId)
@@ -256,7 +270,7 @@ const AgentPage = () => {
         requestId: sessionRevealRequestIdRef.current
       })
     },
-    [conversationNav, currentTabId, discardTemporaryConversation, setShowSidebar]
+    [conversationNav, currentTabId, discardTemporaryConversation, setResourceListOpen]
   )
   const handleGlobalSearchSessionSelect = useEffectEvent((sessionId: string, messageId?: string) => {
     handleHistorySessionSelect(sessionId, messageId)
@@ -546,8 +560,10 @@ const AgentPage = () => {
           lockedSessionLoading={isMessageOnlyView && isRouteSessionLoading}
           paneOpen={effectiveShowSidebar}
           panePosition={panePosition}
-          onPaneCollapse={() => void setShowSidebar(false)}
-          showResourceListControls={!isMessageOnlyView && !isWindowFrame}
+          onPaneCollapse={() => setResourceListOpen(false)}
+          showResourceListControls={!isMessageOnlyView}
+          sidebarOpen={effectiveShowSidebar}
+          onSidebarToggle={toggleResourceListOpen}
           temporaryConversation={isMessageOnlyView ? null : visibleTemporaryAgentConversation}
           missingAgentDraft={
             !isMessageOnlyView &&

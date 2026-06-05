@@ -12,12 +12,28 @@ type AgentContentProps = {
   activeAgent: AgentEntity | null
   tools?: ReactNode
   showSidebarControls?: boolean
+  sidebarOpen?: boolean
+  onSidebarToggle?: () => void
 }
 
-const AgentContent = ({ activeAgent, tools, showSidebarControls = true }: AgentContentProps) => {
+const AgentContent = ({
+  activeAgent,
+  tools,
+  showSidebarControls = true,
+  sidebarOpen,
+  onSidebarToggle
+}: AgentContentProps) => {
   const { t } = useTranslation()
-  const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
-  const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
+  const [preferredShowSidebar, setShowSidebar] = usePreference('topic.tab.show')
+  const showSidebar = sidebarOpen ?? preferredShowSidebar
+  const toggleShowSidebar = () => {
+    if (onSidebarToggle) {
+      onSidebarToggle()
+      return
+    }
+
+    void setShowSidebar(!showSidebar)
+  }
 
   return (
     <div className="flex w-full justify-between">

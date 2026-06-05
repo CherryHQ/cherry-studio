@@ -1,3 +1,5 @@
+import { TITLE_BAR_HEIGHT_PX } from '@renderer/components/layout/titleBar'
+import { WindowFrameProvider } from '@renderer/context/WindowFrameContext'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { HTMLAttributes, PropsWithChildren, ReactNode, Ref } from 'react'
 import { useEffect, useState } from 'react'
@@ -214,6 +216,18 @@ describe('ChatAppShell', () => {
     expect(document.documentElement.style.getPropertyValue('--assistants-width')).toBe(
       `${RESOURCE_LIST_PANE_MIN_WIDTH}px`
     )
+  })
+
+  it('insets the left resource pane below the title bar in window mode', () => {
+    const { container } = render(
+      <WindowFrameProvider value={{ mode: 'window' }}>
+        <ChatAppShell pane={<aside>topics</aside>} paneOpen main={<div />} />
+      </WindowFrameProvider>
+    )
+
+    expect(container.querySelector('[data-resource-list-pane]')).toHaveStyle({
+      paddingTop: TITLE_BAR_HEIGHT_PX
+    })
   })
 
   it('saves drag width at or above the minimum and cleans document resize styles', () => {

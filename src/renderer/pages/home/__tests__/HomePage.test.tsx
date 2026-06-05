@@ -1,4 +1,5 @@
 import { useCommandHandler } from '@renderer/commands'
+import { WindowFrameProvider } from '@renderer/context/WindowFrameContext'
 import type { Topic } from '@renderer/types'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
@@ -415,6 +416,30 @@ describe('HomePage', () => {
     })
 
     expect(homeMocks.setShowSidebar).toHaveBeenCalledWith(false)
+  })
+
+  it('starts a detached chat window with the topic sidebar collapsed but still toggleable', () => {
+    homeMocks.preferenceValues.set('topic.tab.show', true)
+
+    render(
+      <WindowFrameProvider value={{ mode: 'window' }}>
+        <HomePage />
+      </WindowFrameProvider>
+    )
+
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
+    expect(screen.getByTestId('show-resource-list-controls')).toHaveTextContent('true')
+
+    const shortcutHandler = vi
+      .mocked(useCommandHandler)
+      .mock.calls.find(([command]) => command === 'app.sidebar.toggle')?.[1]
+
+    act(() => {
+      void shortcutHandler?.()
+    })
+
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
+    expect(homeMocks.setShowSidebar).not.toHaveBeenCalled()
   })
 
   it('uses the compact minimum window width even while the topic sidebar is open', async () => {

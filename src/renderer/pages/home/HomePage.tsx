@@ -86,10 +86,11 @@ const HomePage: FC = () => {
   const tabMetadataTopicId = currentTab ? getTabInstanceKey(currentTab, 'assistants') : undefined
   const routeAssistantId = routeTopicId ? undefined : routeSearch.assistantId
   const isMessageOnlyView = routeSearch.view === 'message' && !!routeTopicId
-  // In a detached window the user popped this topic out to focus on it — hide the
-  // topic list pane and its toggle, locking the window to one topic.
+  // Detached windows start focused on one topic, but users can still reopen the
+  // list locally to switch topics inside that window.
   const isWindowFrame = useWindowFrame().mode === 'window'
-  const effectiveShowSidebar = !isMessageOnlyView && !isWindowFrame && showSidebar
+  const [windowSidebarOpen, setWindowSidebarOpen] = useState(false)
+  const effectiveShowSidebar = !isMessageOnlyView && (isWindowFrame ? windowSidebarOpen : showSidebar)
   const { topic: routeApiTopic, isLoading: isRouteTopicLoading } = useTopicById(
     isMessageOnlyView ? routeTopicId : undefined
   )
@@ -298,19 +299,31 @@ const HomePage: FC = () => {
     },
     [persistTemporaryConversation, refreshTopics]
   )
-  useCommandHandler('app.sidebar.toggle', () => {
+  const setResourceListOpen = useCallback(
+    (open: boolean) => {
+      if (isWindowFrame) {
+        setWindowSidebarOpen(open)
+        return
+      }
+
+      void setShowSidebar(open)
+    },
+    [isWindowFrame, setShowSidebar]
+  )
+  const toggleResourceListOpen = useCallback(() => {
     if (isMessageOnlyView) return
 
-    if (showSidebar) {
-      void setShowSidebar(false)
+    if (effectiveShowSidebar) {
+      setResourceListOpen(false)
       return
     }
 
-    void setShowSidebar(true)
+    setResourceListOpen(true)
     requestAnimationFrame(() => {
       void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
     })
-  })
+  }, [effectiveShowSidebar, isMessageOnlyView, setResourceListOpen])
+  useCommandHandler('app.sidebar.toggle', toggleResourceListOpen)
 
   useEffect(() => {
     if (isMessageOnlyView) return
@@ -450,7 +463,7 @@ const HomePage: FC = () => {
   const handleHistoryTopicSelect = useCallback(
     (topic: Topic, messageId?: string) => {
       if (!setActiveTopicAndDiscardTemporary(topic)) return
-      void setShowSidebar(true)
+      setResourceListOpen(true)
       setPendingLocateMessageId(messageId)
       topicRevealRequestIdRef.current += 1
       setTopicRevealRequest({
@@ -460,7 +473,7 @@ const HomePage: FC = () => {
         requestId: topicRevealRequestIdRef.current
       })
     },
-    [setActiveTopicAndDiscardTemporary, setShowSidebar]
+    [setActiveTopicAndDiscardTemporary, setResourceListOpen]
   )
   const handleGlobalSearchTopicSelect = useEffectEvent((topic: Topic, messageId?: string) => {
     handleHistoryTopicSelect(topic, messageId)
@@ -538,9 +551,11 @@ const HomePage: FC = () => {
           }
           paneOpen={effectiveShowSidebar}
           panePosition={panePosition}
-          onPaneCollapse={() => void setShowSidebar(false)}
+          onPaneCollapse={() => setResourceListOpen(false)}
           onNewTopic={isMessageOnlyView ? undefined : startTemporaryTopic}
-          showResourceListControls={!isMessageOnlyView && !isWindowFrame}
+          showResourceListControls={!isMessageOnlyView}
+          sidebarOpen={effectiveShowSidebar}
+          onSidebarToggle={toggleResourceListOpen}
           // Wire the persist callback only while the temp lease is the
           // currently-active topic. If the user clicks a sidebar topic
           // before sending, the active id no longer matches the lease and

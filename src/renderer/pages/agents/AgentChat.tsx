@@ -62,6 +62,8 @@ interface AgentChatProps {
   lockedSession?: AgentSessionEntity | null
   lockedSessionLoading?: boolean
   showResourceListControls?: boolean
+  sidebarOpen?: boolean
+  onSidebarToggle?: () => void
   locateMessageId?: string
   onLocateMessageHandled?: () => void
   onPaneCollapse?: () => void
@@ -88,6 +90,8 @@ const AgentChat = ({
   lockedSession,
   lockedSessionLoading = false,
   showResourceListControls = true,
+  sidebarOpen,
+  onSidebarToggle,
   locateMessageId,
   onLocateMessageHandled,
   onPaneCollapse,
@@ -239,7 +243,14 @@ const AgentChat = ({
           paneOpen={paneOpen}
           panePosition={panePosition}
           onPaneCollapse={onPaneCollapse}
-          topBar={<AgentChatNavbar activeAgent={null} showSidebarControls={showResourceListControls} />}
+          topBar={
+            <AgentChatNavbar
+              activeAgent={null}
+              showSidebarControls={showResourceListControls}
+              sidebarOpen={sidebarOpen}
+              onSidebarToggle={onSidebarToggle}
+            />
+          }
           center={
             <ConversationStageCenter
               placement="home"
@@ -318,6 +329,8 @@ const AgentChat = ({
       paneOpen={paneOpen}
       panePosition={panePosition}
       showResourceListControls={showResourceListControls}
+      sidebarOpen={sidebarOpen}
+      onSidebarToggle={onSidebarToggle}
       session={sessionSnapshot}
       placement={isDraftTemporarySession ? 'home' : 'docked'}
       homeComposer={homeComposer}
@@ -363,6 +376,8 @@ interface AgentChatSessionFrameProps {
   paneOpen?: boolean
   panePosition?: ChatPanePosition
   showResourceListControls?: boolean
+  sidebarOpen?: boolean
+  onSidebarToggle?: () => void
   sidePanel?: ReactNode
   session: AgentSessionEntity
   placement: ConversationComposerPlacement
@@ -403,6 +418,8 @@ const AgentChatSessionFrame = ({
   paneOpen,
   panePosition,
   showResourceListControls = true,
+  sidebarOpen,
+  onSidebarToggle,
   sidePanel,
   session,
   placement,
@@ -529,6 +546,8 @@ const AgentChatSessionFrame = ({
             className="min-w-0"
             activeAgent={activeAgent ?? null}
             showSidebarControls={showResourceListControls}
+            sidebarOpen={sidebarOpen}
+            onSidebarToggle={onSidebarToggle}
           />
         }
         topRightTool={<AgentRightPane.FilesToggle disabled={rightPaneDisabled} />}

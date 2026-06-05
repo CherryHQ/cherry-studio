@@ -1,3 +1,5 @@
+import { useCommandHandler } from '@renderer/commands'
+import { WindowFrameProvider } from '@renderer/context/WindowFrameContext'
 import { MIN_WINDOW_HEIGHT, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -37,6 +39,10 @@ const activeSessionMocks = vi.hoisted(() => ({
   session: null as any,
   isLoading: false,
   sessionSource: 'none' as 'query' | 'pending' | 'none'
+}))
+
+vi.mock('@renderer/commands', () => ({
+  useCommandHandler: vi.fn()
 }))
 
 vi.mock('@data/hooks/usePreference', async () => {
@@ -227,6 +233,7 @@ vi.mock('../AgentChat', () => ({
     locateMessageId,
     pane,
     paneOpen,
+    showResourceListControls,
     onPaneCollapse
   }: {
     activeSession?: { id: string } | null
@@ -246,6 +253,7 @@ vi.mock('../AgentChat', () => ({
     locateMessageId?: string
     pane?: ReactNode
     paneOpen?: boolean
+    showResourceListControls?: boolean
     onPaneCollapse?: () => void
   }) => (
     <section>
@@ -254,6 +262,7 @@ vi.mock('../AgentChat', () => ({
       <output data-testid="missing-agent-draft">{String(Boolean(missingAgentDraft))}</output>
       <output data-testid="locate-message-id">{locateMessageId ?? ''}</output>
       <output data-testid="pane-open">{String(paneOpen)}</output>
+      <output data-testid="show-resource-list-controls">{String(showResourceListControls)}</output>
       <button type="button" onClick={() => void onDraftWorkspaceChange?.('workspace-next')}>
         Select workspace
       </button>
@@ -504,6 +513,30 @@ describe('AgentPage', () => {
 
     await waitFor(() => expect(agentPageMocks.setShowSidebar).toHaveBeenCalledWith(false))
     expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
+  })
+
+  it('starts a detached agent window with the session sidebar collapsed but still toggleable', () => {
+    agentPageMocks.showSidebar = true
+
+    render(
+      <WindowFrameProvider value={{ mode: 'window' }}>
+        <AgentPage />
+      </WindowFrameProvider>
+    )
+
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('false')
+    expect(screen.getByTestId('show-resource-list-controls')).toHaveTextContent('true')
+
+    const shortcutHandler = vi
+      .mocked(useCommandHandler)
+      .mock.calls.find(([command]) => command === 'app.sidebar.toggle')?.[1]
+
+    act(() => {
+      void shortcutHandler?.()
+    })
+
+    expect(screen.getByTestId('pane-open')).toHaveTextContent('true')
+    expect(agentPageMocks.setShowSidebar).not.toHaveBeenCalled()
   })
 
   it('uses the compact minimum window width even while the agent sidebar is open', async () => {

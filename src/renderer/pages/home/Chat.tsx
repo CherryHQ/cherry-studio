@@ -34,6 +34,8 @@ interface Props {
   panePosition?: ChatPanePosition
   onNewTopic?: (payload?: AddNewTopicPayload) => void | Promise<void>
   showResourceListControls?: boolean
+  sidebarOpen?: boolean
+  onSidebarToggle?: () => void
   onTemporaryAssistantChange?: (assistantId: string | null) => void | Promise<void>
   locateMessageId?: string
   onLocateMessageHandled?: () => void
@@ -231,7 +233,13 @@ const ChatInner: FC<Props> = (props) => {
       paneOpen={props.paneOpen}
       panePosition={props.panePosition}
       onPaneCollapse={props.onPaneCollapse}
-      topBar={<ChatNavbar showSidebarControls={props.showResourceListControls} />}
+      topBar={
+        <ChatNavbar
+          showSidebarControls={props.showResourceListControls}
+          sidebarOpen={props.sidebarOpen}
+          onSidebarToggle={props.onSidebarToggle}
+        />
+      }
       topRightTool={<TopicRightPane.Toggle disabled={branchPaneDisabled} />}
       sidePanel={
         <CitationsPanel

@@ -4,6 +4,7 @@ import {
   resolveImmersiveNavbar
 } from '@renderer/components/chat/layout/ImmersiveNavbarContext'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { TITLE_BAR_HEIGHT_PX } from '@renderer/components/layout/titleBar'
 import { useWindowFrame } from '@renderer/context/WindowFrameContext'
 import { cn } from '@renderer/utils'
 import { motion } from 'motion/react'
@@ -163,7 +164,10 @@ export function ChatAppShell({
       id={rootId}
       className={cn('relative flex min-w-0 flex-1 flex-col overflow-hidden', rootClassName)}>
       <div id={contentId} className="flex min-w-0 flex-1 shrink flex-row overflow-hidden">
-        <PageSidebar open={leftPaneOpen} onPaneCollapse={onPaneCollapse}>
+        <PageSidebar
+          open={leftPaneOpen}
+          style={isWindow ? { paddingTop: TITLE_BAR_HEIGHT_PX } : undefined}
+          onPaneCollapse={onPaneCollapse}>
           {pane}
         </PageSidebar>
 

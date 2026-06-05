@@ -8,11 +8,21 @@ import type { FC } from 'react'
 
 interface HeaderNavbarProps {
   showSidebarControls?: boolean
+  sidebarOpen?: boolean
+  onSidebarToggle?: () => void
 }
 
-const HeaderNavbar: FC<HeaderNavbarProps> = ({ showSidebarControls = true }) => {
-  const [showSidebar, setShowSidebar] = usePreference('topic.tab.show')
-  const toggleShowSidebar = () => void setShowSidebar(!showSidebar)
+const HeaderNavbar: FC<HeaderNavbarProps> = ({ showSidebarControls = true, sidebarOpen, onSidebarToggle }) => {
+  const [preferredShowSidebar, setShowSidebar] = usePreference('topic.tab.show')
+  const showSidebar = sidebarOpen ?? preferredShowSidebar
+  const toggleShowSidebar = () => {
+    if (onSidebarToggle) {
+      onSidebarToggle()
+      return
+    }
+
+    void setShowSidebar(!showSidebar)
+  }
 
   return (
     <NavbarHeader
