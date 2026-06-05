@@ -25,7 +25,7 @@ const WordPreviewRequestSchema = z.strictObject({
   workspacePath: AbsolutePathSchema
 })
 
-const logger = loggerService.withContext('WordPreviewService')
+const logger = loggerService.withContext('OfficePreview.Word')
 
 const fail = (code: WordPreviewErrorCode, message: string): WordPreviewResult => ({
   error: { code, message },

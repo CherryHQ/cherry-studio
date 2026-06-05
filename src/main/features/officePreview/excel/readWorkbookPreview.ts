@@ -49,7 +49,7 @@ const ExcelWorkbookPreviewRequestSchema = z.strictObject({
   workspacePath: AbsolutePathSchema
 })
 
-const logger = loggerService.withContext('ExcelPreviewService')
+const logger = loggerService.withContext('OfficePreview.Excel')
 const XLSX_CHART_ENTRY_PATTERN = /^xl\/charts\/[^/]+[.]xml$/i
 const excelArchiveXmlParser = new XMLParser({
   attributeNamePrefix: '',

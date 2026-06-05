@@ -25,9 +25,9 @@ import { app, BrowserWindow, dialog, ipcMain, session, shell, systemPreferences,
 import fontList from 'font-list'
 
 import { skillService } from './ai/skills/SkillService'
+import { readExcelWorkbookPreview } from './features/officePreview/excel/readWorkbookPreview'
+import { readWordPreview } from './features/officePreview/word/readPreview'
 import { appService } from './services/AppService'
-import { readExcelWorkbookPreview } from './services/artifact/excel/ExcelPreviewService'
-import { readWordPreview } from './services/artifact/word/WordPreviewService'
 import { ConfigKeys, configManager } from './services/ConfigManager'
 import { copilotService } from './services/CopilotService'
 import { ExportService } from './services/ExportService'

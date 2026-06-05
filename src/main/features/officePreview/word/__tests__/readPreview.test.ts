@@ -5,7 +5,7 @@ import path from 'node:path'
 import { WORD_PREVIEW_MAX_SIZE_BYTES } from '@shared/types/wordPreview'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { readWordPreview } from '../WordPreviewService'
+import { readWordPreview } from '../readPreview'
 
 vi.mock('@logger', () => ({
   loggerService: {
@@ -24,7 +24,7 @@ const writeWorkspaceFile = async (relativePath: string, data: string | Uint8Arra
   await writeFile(filePath, data)
 }
 
-describe('WordPreviewService', () => {
+describe('readWordPreview', () => {
   beforeEach(async () => {
     tempDir = await mkdtemp(path.join(tmpdir(), 'cherry-word-preview-'))
   })

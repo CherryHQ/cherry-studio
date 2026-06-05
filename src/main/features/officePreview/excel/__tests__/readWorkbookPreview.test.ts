@@ -7,8 +7,8 @@ import AdmZip from 'adm-zip'
 import ExcelJS from 'exceljs'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
-import { EXCEL_PREVIEW_MAX_SIZE_BYTES, readExcelWorkbookPreview } from '../ExcelPreviewService'
 import { excelJsWorkbookToPreviewData, mergeExcelImportDiagnostics } from '../excelToUniverWorkbook'
+import { EXCEL_PREVIEW_MAX_SIZE_BYTES, readExcelWorkbookPreview } from '../readWorkbookPreview'
 
 const ONE_PIXEL_PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lZRtWQAAAABJRU5ErkJggg=='
@@ -319,7 +319,7 @@ const writeWorkbookWithTableFilter = (customerFilter = '*Acme*'): string =>
 </table>`
   })
 
-describe('ExcelPreviewService', () => {
+describe('readExcelWorkbookPreview', () => {
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cherry-excel-preview-'))
   })
