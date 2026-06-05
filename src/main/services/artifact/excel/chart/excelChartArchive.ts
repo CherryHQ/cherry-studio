@@ -1,11 +1,16 @@
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import type { ExcelPreviewImageAnchor } from '@shared/excelPreview'
+import type { ExcelImportDiagnostic, ExcelPreviewImageAnchor } from '@shared/excelPreview'
 import { XMLParser } from 'fast-xml-parser'
 import type StreamZip from 'node-stream-zip'
 
-import type { ExcelWorkbookPreviewBudget } from '../excelToUniverWorkbook'
+import {
+  createExcelMetadataPartialDiagnostic,
+  createUnsupportedExcelChartsDiagnostic,
+  type ExcelWorkbookPreviewBudget,
+  ExcelWorkbookPreviewBudgetExceededError
+} from '../excelToUniverWorkbook'
 import { getExcelChartRenderSize, renderExcelChartImage } from './excelChartRenderer'
 import type {
   ExcelChartImageCollection,
@@ -187,12 +192,6 @@ const asArray = <T>(value: T | T[] | undefined): T[] => {
 
 const toError = (err: unknown) => (err instanceof Error ? err : new Error(String(err)))
 
-const createChartBudgetExceededError = (message: string): Error => {
-  const error = new Error(message)
-  error.name = 'ExcelWorkbookPreviewBudgetExceededError'
-  return error
-}
-
 const parseNumber = (value: number | string | undefined): number | undefined => {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : undefined
@@ -231,13 +230,20 @@ const readArchiveEntryText = async (zip: StreamZip.StreamZipAsync, entryName: st
 
 const readRelationshipsById = async (
   zip: StreamZip.StreamZipAsync,
-  relationshipPath: string
+  relationshipPath: string,
+  diagnostics?: ExcelImportDiagnostic[]
 ): Promise<Map<string, ParsedRelationship>> => {
   const relsXml = await readArchiveEntryText(zip, relationshipPath)
   if (!relsXml) return new Map()
 
-  const relationships = asArray((xmlParser.parse(relsXml) as ParsedRelationshipsXml).Relationships?.Relationship)
-  return new Map(relationships.flatMap((relationship) => (relationship.Id ? [[relationship.Id, relationship]] : [])))
+  try {
+    const relationships = asArray((xmlParser.parse(relsXml) as ParsedRelationshipsXml).Relationships?.Relationship)
+    return new Map(relationships.flatMap((relationship) => (relationship.Id ? [[relationship.Id, relationship]] : [])))
+  } catch (err) {
+    logger.warn(`Failed to parse Excel chart relationships: ${relationshipPath}`, toError(err))
+    diagnostics?.push(createExcelMetadataPartialDiagnostic())
+    return new Map()
+  }
 }
 
 const emuToPixels = (value: number | string | undefined): number | undefined => {
@@ -325,12 +331,21 @@ const toStringArray = (values: unknown[]): string[] => {
   return values.map((value) => String(value))
 }
 
-const readSharedStrings = async (zip: StreamZip.StreamZipAsync): Promise<string[]> => {
+const readSharedStrings = async (
+  zip: StreamZip.StreamZipAsync,
+  diagnostics?: ExcelImportDiagnostic[]
+): Promise<string[]> => {
   const sharedStringsXml = await readArchiveEntryText(zip, 'xl/sharedStrings.xml')
   if (!sharedStringsXml) return []
 
-  const sharedStrings = xmlParser.parse(sharedStringsXml) as ParsedSharedStringsXml
-  return asArray(sharedStrings.sst?.si).map((item) => toText(item) ?? '')
+  try {
+    const sharedStrings = xmlParser.parse(sharedStringsXml) as ParsedSharedStringsXml
+    return asArray(sharedStrings.sst?.si).map((item) => toText(item) ?? '')
+  } catch (err) {
+    logger.warn('Failed to parse Excel shared strings for chart preview.', toError(err))
+    diagnostics?.push(createExcelMetadataPartialDiagnostic())
+    return []
+  }
 }
 
 const collectWorksheetCellValues = (worksheet: ParsedWorksheetXml, sharedStrings: string[] = []): CellValueMap => {
@@ -536,19 +551,26 @@ export const collectWorksheetChartImages = async ({
   const drawingRelationshipId = worksheet.worksheet?.drawing?.id
   if (!drawingRelationshipId) return { diagnostics: [], images: [] }
 
-  const worksheetRels = await readRelationshipsById(zip, `xl/worksheets/_rels/sheet${fileNumber}.xml.rels`)
+  const diagnostics: ExcelImportDiagnostic[] = []
+  const worksheetRels = await readRelationshipsById(zip, `xl/worksheets/_rels/sheet${fileNumber}.xml.rels`, diagnostics)
   const drawingPath = toArchiveTargetPath('xl/worksheets', worksheetRels.get(drawingRelationshipId)?.Target)
-  if (!drawingPath) return { diagnostics: [], images: [] }
+  if (!drawingPath) return { diagnostics, images: [] }
 
   const [drawingXml, drawingRels] = await Promise.all([
     readArchiveEntryText(zip, drawingPath),
-    readRelationshipsById(zip, toRelationshipPath(drawingPath))
+    readRelationshipsById(zip, toRelationshipPath(drawingPath), diagnostics)
   ])
-  if (!drawingXml) return { diagnostics: [], images: [] }
+  if (!drawingXml) return { diagnostics, images: [] }
 
-  const drawing = xmlParser.parse(drawingXml) as ParsedDrawingXml
+  let drawing: ParsedDrawingXml
+  try {
+    drawing = xmlParser.parse(drawingXml) as ParsedDrawingXml
+  } catch (err) {
+    logger.warn(`Failed to parse Excel drawing metadata: ${drawingPath}`, toError(err))
+    return { diagnostics: [...diagnostics, createExcelMetadataPartialDiagnostic()], images: [] }
+  }
   const anchors = toDrawingAnchors(drawing)
-  const sharedStrings = await readSharedStrings(zip)
+  const sharedStrings = await readSharedStrings(zip, diagnostics)
   const cells = collectWorksheetCellValues(worksheet, sharedStrings)
   const images: ExcelChartImageCollection['images'] = []
   let unsupportedCount = 0
@@ -566,7 +588,15 @@ export const collectWorksheetChartImages = async ({
     }
 
     const chartXml = await readArchiveEntryText(zip, chartPath)
-    const model = chartXml ? parseChartModel(chartXml, `${sheetId}-chart-${index + 1}`, anchor, cells, sheetName) : null
+    let model: ExcelChartRenderModel | null = null
+    if (chartXml) {
+      try {
+        model = parseChartModel(chartXml, `${sheetId}-chart-${index + 1}`, anchor, cells, sheetName)
+      } catch (err) {
+        logger.warn(`Failed to parse Excel chart metadata: ${chartPath}`, toError(err))
+        diagnostics.push(createExcelMetadataPartialDiagnostic())
+      }
+    }
     if (!model) {
       unsupportedCount += 1
       continue
@@ -574,7 +604,7 @@ export const collectWorksheetChartImages = async ({
 
     const { height, width } = getExcelChartRenderSize(model)
     if (height * width > (budget?.maxChartPixels ?? DEFAULT_MAX_CHART_PIXELS)) {
-      throw createChartBudgetExceededError('Excel chart preview image is too large.')
+      throw new ExcelWorkbookPreviewBudgetExceededError('Excel chart preview image is too large.')
     }
 
     try {
@@ -586,12 +616,12 @@ export const collectWorksheetChartImages = async ({
 
       chartPayloadBytes += image.source.length
       if (chartPayloadBytes > (budget?.maxChartPayloadBytes ?? DEFAULT_MAX_CHART_PAYLOAD_BYTES)) {
-        throw createChartBudgetExceededError('Excel chart preview payload is too large.')
+        throw new ExcelWorkbookPreviewBudgetExceededError('Excel chart preview payload is too large.')
       }
       images.push(image)
     } catch (err) {
       const error = toError(err)
-      if (error.name === 'ExcelWorkbookPreviewBudgetExceededError') throw error
+      if (error instanceof ExcelWorkbookPreviewBudgetExceededError) throw error
 
       logger.warn(`Failed to render Excel chart: ${chartPath}`, error)
       unsupportedCount += 1
@@ -599,16 +629,10 @@ export const collectWorksheetChartImages = async ({
   }
 
   return {
-    diagnostics: unsupportedCount
-      ? [
-          {
-            code: 'unsupported_excel_charts',
-            count: unsupportedCount,
-            message: 'Charts are not rendered in Excel preview yet.',
-            severity: 'warning'
-          }
-        ]
-      : [],
+    diagnostics: [
+      ...diagnostics,
+      ...(unsupportedCount ? [createUnsupportedExcelChartsDiagnostic(unsupportedCount)] : [])
+    ],
     images
   }
 }

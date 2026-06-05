@@ -8,7 +8,7 @@ import ExcelJS from 'exceljs'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import { EXCEL_PREVIEW_MAX_SIZE_BYTES, readExcelWorkbookPreview } from '../ExcelPreviewService'
-import { excelJsWorkbookToPreviewData } from '../excelToUniverWorkbook'
+import { excelJsWorkbookToPreviewData, mergeExcelImportDiagnostics } from '../excelToUniverWorkbook'
 
 const ONE_PIXEL_PNG_BASE64 =
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lZRtWQAAAABJRU5ErkJggg=='
@@ -31,6 +31,12 @@ const writeZipWorkbook = (fileName: string, entries: Record<string, string>): st
   zip.writeZip(filePath)
   return filePath
 }
+
+const previewRequest = (filePath: string, fileName = path.basename(filePath)) => ({
+  fileName,
+  filePath: path.relative(tempDir, filePath),
+  workspacePath: tempDir
+})
 
 const writeWorkbookWithChartDrawing = (): string =>
   writeZipWorkbook('chart-drawing.xlsx', {
@@ -359,7 +365,7 @@ describe('ExcelPreviewService', () => {
     worksheet.mergeCells('A1:B1')
 
     const filePath = await writeWorkbook('report.xlsx', workbook)
-    const result = await readExcelWorkbookPreview({ filePath, fileName: 'report.xlsx' })
+    const result = await readExcelWorkbookPreview(previewRequest(filePath, 'report.xlsx'))
 
     expect(result.success).toBe(true)
     if (!result.success) return
@@ -436,7 +442,7 @@ describe('ExcelPreviewService', () => {
     })
 
     const filePath = await writeWorkbook('sales-table.xlsx', workbook)
-    const result = await readExcelWorkbookPreview({ filePath, fileName: 'sales-table.xlsx' })
+    const result = await readExcelWorkbookPreview(previewRequest(filePath, 'sales-table.xlsx'))
 
     expect(result.success).toBe(true)
     if (!result.success) return
@@ -501,10 +507,19 @@ describe('ExcelPreviewService', () => {
     })
   })
 
+  it('merges diagnostics with the same code by max count and highest severity', () => {
+    expect(
+      mergeExcelImportDiagnostics(
+        [{ code: 'unsupported_excel_charts', count: 1, severity: 'warning' }],
+        [{ code: 'unsupported_excel_charts', count: 3, severity: 'error' }]
+      )
+    ).toEqual([{ code: 'unsupported_excel_charts', count: 3, severity: 'error' }])
+  })
+
   it('extracts common active table filters from table parts', async () => {
     const filePath = writeWorkbookWithTableFilter()
 
-    const result = await readExcelWorkbookPreview({ filePath, fileName: 'table-filter.xlsx' })
+    const result = await readExcelWorkbookPreview(previewRequest(filePath, 'table-filter.xlsx'))
 
     expect(result.success).toBe(true)
     if (!result.success) return
@@ -549,7 +564,7 @@ describe('ExcelPreviewService', () => {
   it('preserves escaped wildcard values as literal text filters', async () => {
     const filePath = writeWorkbookWithTableFilter('Acme~*')
 
-    const result = await readExcelWorkbookPreview({ filePath, fileName: 'table-filter.xlsx' })
+    const result = await readExcelWorkbookPreview(previewRequest(filePath, 'table-filter.xlsx'))
 
     expect(result.success).toBe(true)
     if (!result.success) return
@@ -587,7 +602,7 @@ describe('ExcelPreviewService', () => {
   it('renders basic chart drawings as worksheet images', async () => {
     const filePath = writeWorkbookWithBarChartDrawing()
 
-    const result = await readExcelWorkbookPreview({ filePath, fileName: 'bar-chart.xlsx' })
+    const result = await readExcelWorkbookPreview(previewRequest(filePath, 'bar-chart.xlsx'))
 
     expect(result).toMatchObject({ success: true })
     if (!result.success) return
@@ -612,10 +627,28 @@ describe('ExcelPreviewService', () => {
     expect(sheet.columnCount).toBeGreaterThanOrEqual(7)
   })
 
+  it('surfaces a warning when chart metadata cannot be parsed', async () => {
+    const filePath = writeWorkbookWithBarChartDrawing()
+    const zip = new AdmZip(filePath)
+    zip.updateFile('xl/charts/chart1.xml', Buffer.from('<broken'))
+    zip.writeZip(filePath)
+
+    const result = await readExcelWorkbookPreview(previewRequest(filePath, 'bar-chart.xlsx'))
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+
+    expect(result.data.diagnostics).toContainEqual({
+      code: 'excel_metadata_partial',
+      message: 'Some Excel preview metadata could not be read.',
+      severity: 'warning'
+    })
+  })
+
   it('falls back to a cell-only preview when workbook sheet id differs from its sheet file number', async () => {
     const filePath = writeWorkbookWithChartDrawing()
 
-    const result = await readExcelWorkbookPreview({ filePath, fileName: 'chart-drawing.xlsx' })
+    const result = await readExcelWorkbookPreview(previewRequest(filePath, 'chart-drawing.xlsx'))
 
     expect(result.success).toBe(true)
     if (!result.success) return
@@ -635,7 +668,7 @@ describe('ExcelPreviewService', () => {
   })
 
   it('returns unsupported for legacy xls files', async () => {
-    const result = await readExcelWorkbookPreview({ filePath: path.join(tempDir, 'legacy.xls') })
+    const result = await readExcelWorkbookPreview(previewRequest(path.join(tempDir, 'legacy.xls')))
 
     expect(result).toMatchObject({
       success: false,
@@ -646,7 +679,10 @@ describe('ExcelPreviewService', () => {
   })
 
   it('rejects invalid preview requests before reading files', async () => {
-    const result = await readExcelWorkbookPreview({ filePath: 'relative/report.xlsx' })
+    const result = await readExcelWorkbookPreview({
+      filePath: path.join(tempDir, 'report.xlsx'),
+      workspacePath: tempDir
+    })
 
     expect(result).toMatchObject({
       success: false,
@@ -656,12 +692,49 @@ describe('ExcelPreviewService', () => {
     })
   })
 
+  it('rejects paths that escape the workspace with parent segments', async () => {
+    const result = await readExcelWorkbookPreview({
+      filePath: '../outside.xlsx',
+      workspacePath: tempDir
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        code: 'invalid_excel_preview_request'
+      }
+    })
+  })
+
+  it('rejects workspace symlinks that resolve outside the workspace', async () => {
+    const outsideDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cherry-excel-preview-outside-'))
+    try {
+      const outsidePath = path.join(outsideDir, 'outside.xlsx')
+      await fs.writeFile(outsidePath, 'outside')
+      await fs.symlink(outsidePath, path.join(tempDir, 'link.xlsx'))
+
+      const result = await readExcelWorkbookPreview({
+        filePath: 'link.xlsx',
+        workspacePath: tempDir
+      })
+
+      expect(result).toMatchObject({
+        success: false,
+        error: {
+          code: 'invalid_excel_preview_request'
+        }
+      })
+    } finally {
+      await fs.rm(outsideDir, { force: true, recursive: true })
+    }
+  })
+
   it('returns a clear error for files above the Excel preview size limit', async () => {
     const filePath = path.join(tempDir, 'huge.xlsx')
     await fs.writeFile(filePath, '')
     await fs.truncate(filePath, EXCEL_PREVIEW_MAX_SIZE_BYTES + 1)
 
-    const result = await readExcelWorkbookPreview({ filePath })
+    const result = await readExcelWorkbookPreview(previewRequest(filePath))
 
     expect(result).toMatchObject({
       success: false,
@@ -678,7 +751,7 @@ describe('ExcelPreviewService', () => {
     worksheet.getCell('A2').value = 2
     const filePath = await writeWorkbook('complex.xlsx', workbook)
 
-    const result = await readExcelWorkbookPreview({ filePath }, { budget: { maxCells: 1 } })
+    const result = await readExcelWorkbookPreview(previewRequest(filePath), { budget: { maxCells: 1 } })
 
     expect(result).toMatchObject({
       success: false,
@@ -691,7 +764,7 @@ describe('ExcelPreviewService', () => {
   it('returns a clear error when the workbook exceeds chart count limits', async () => {
     const filePath = writeWorkbookWithBarChartDrawing()
 
-    const result = await readExcelWorkbookPreview({ filePath }, { budget: { maxCharts: 0 } })
+    const result = await readExcelWorkbookPreview(previewRequest(filePath), { budget: { maxCharts: 0 } })
 
     expect(result).toMatchObject({
       success: false,

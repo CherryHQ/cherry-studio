@@ -7,7 +7,7 @@ export type ExcelImportDiagnosticCode =
   | 'excel_file_too_large'
   | 'excel_preview_too_complex'
   | 'unsupported_excel_charts'
-  | 'unsupported_excel_images'
+  | 'excel_metadata_partial'
   | 'excel_parse_error'
 
 export type ExcelImportDiagnosticSeverity = 'warning' | 'error'
@@ -62,11 +62,17 @@ export interface ExcelPreviewTableManualFilter {
   values: string[]
 }
 
-export interface ExcelPreviewTableNumberFilterInfo {
-  compareType: 'equal' | 'notEqual' | 'greaterThan' | 'greaterThanOrEqual' | 'lessThan' | 'lessThanOrEqual' | 'between'
-  conditionType: 'number'
-  expectedValue: number | [number, number]
-}
+export type ExcelPreviewTableNumberFilterInfo =
+  | {
+      compareType: 'equal' | 'notEqual' | 'greaterThan' | 'greaterThanOrEqual' | 'lessThan' | 'lessThanOrEqual'
+      conditionType: 'number'
+      expectedValue: number
+    }
+  | {
+      compareType: 'between'
+      conditionType: 'number'
+      expectedValue: [number, number]
+    }
 
 export interface ExcelPreviewTableStringFilterInfo {
   compareType: 'equal' | 'notEqual' | 'contains' | 'notContains' | 'startsWith' | 'endsWith'
@@ -96,6 +102,7 @@ export interface ExcelPreviewTable {
 export interface ExcelWorkbookPreviewRequest {
   fileName?: string
   filePath: string
+  workspacePath: string
 }
 
 export interface ExcelWorkbookPreviewData {

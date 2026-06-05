@@ -90,7 +90,7 @@ export interface ExcelWorkbookPreviewBudget {
   maxStyles?: number
 }
 
-type NormalizedExcelWorkbookPreviewBudget = Required<ExcelWorkbookPreviewBudget>
+export type NormalizedExcelWorkbookPreviewBudget = Required<ExcelWorkbookPreviewBudget>
 
 export const DEFAULT_EXCEL_WORKBOOK_PREVIEW_BUDGET: NormalizedExcelWorkbookPreviewBudget = {
   maxChartPayloadBytes: 4 * 1024 * 1024,
@@ -129,13 +129,15 @@ export class ExcelWorkbookPreviewBudgetExceededError extends Error {
   }
 }
 
-const normalizeBudget = (budget?: ExcelWorkbookPreviewBudget): NormalizedExcelWorkbookPreviewBudget => ({
+export const normalizeExcelWorkbookPreviewBudget = (
+  budget?: ExcelWorkbookPreviewBudget
+): NormalizedExcelWorkbookPreviewBudget => ({
   ...DEFAULT_EXCEL_WORKBOOK_PREVIEW_BUDGET,
   ...budget
 })
 
 const createWorkbookBuildContext = (date1904: boolean, budget?: ExcelWorkbookPreviewBudget): WorkbookBuildContext => ({
-  budget: normalizeBudget(budget),
+  budget: normalizeExcelWorkbookPreviewBudget(budget),
   counters: {
     cells: 0,
     merges: 0,
@@ -907,6 +909,14 @@ export const createUnsupportedExcelChartsDiagnostic = (count: number): ExcelImpo
   code: 'unsupported_excel_charts',
   count,
   message: 'Charts are not rendered in Excel preview yet.',
+  severity: 'warning'
+})
+
+export const createExcelMetadataPartialDiagnostic = (
+  message = 'Some Excel preview metadata could not be read.'
+): ExcelImportDiagnostic => ({
+  code: 'excel_metadata_partial',
+  message,
   severity: 'warning'
 })
 

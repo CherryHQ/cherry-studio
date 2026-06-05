@@ -86,4 +86,8 @@ describe('excelChartToEChartsOption', () => {
       type: 'scatter'
     })
   })
+
+  it('returns null for charts without series', () => {
+    expect(excelChartToEChartsOption({ ...baseModel('line'), series: [] })).toBeNull()
+  })
 })

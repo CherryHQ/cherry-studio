@@ -96,6 +96,32 @@ describe('WordPreviewService', () => {
     })
   })
 
+  it('rejects docx paths that are not files', async () => {
+    await mkdir(path.join(tempDir, 'folder.docx'))
+
+    const result = await readWordPreview({
+      filePath: 'folder.docx',
+      workspacePath: tempDir
+    })
+
+    expect(result).toMatchObject({
+      error: { code: 'invalid_word_preview_request' },
+      success: false
+    })
+  })
+
+  it('returns read_failed when the workspace cannot be resolved', async () => {
+    const result = await readWordPreview({
+      filePath: 'missing.docx',
+      workspacePath: path.join(tempDir, 'missing-workspace')
+    })
+
+    expect(result).toMatchObject({
+      error: { code: 'word_read_failed' },
+      success: false
+    })
+  })
+
   it('rejects docx files above the Word preview size cap', async () => {
     await writeWorkspaceFile('large.docx', new Uint8Array(WORD_PREVIEW_MAX_SIZE_BYTES + 1))
 
