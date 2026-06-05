@@ -10,6 +10,7 @@ import { NotificationProvider } from '@renderer/context/NotificationProvider'
 import StyleSheetManager from '@renderer/context/StyleSheetManager'
 import { TabsProvider } from '@renderer/context/TabsContext'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
+import { CommandProvider, ContextKeyProvider } from '@renderer/features/command'
 import store, { persistor } from '@renderer/store'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Provider } from 'react-redux'
@@ -41,11 +42,15 @@ function MainApp(): React.ReactElement {
               <NotificationProvider>
                 <CodeStyleProvider>
                   <PersistGate loading={null} persistor={persistor}>
-                    <TabsProvider>
-                      <TopViewContainer>
-                        <AppShell />
-                      </TopViewContainer>
-                    </TabsProvider>
+                    <ContextKeyProvider>
+                      <CommandProvider>
+                        <TabsProvider>
+                          <TopViewContainer>
+                            <AppShell />
+                          </TopViewContainer>
+                        </TabsProvider>
+                      </CommandProvider>
+                    </ContextKeyProvider>
                   </PersistGate>
                 </CodeStyleProvider>
               </NotificationProvider>
