@@ -274,6 +274,7 @@ export class ProviderExtension<
       finalProvider = baseProvider as TProvider
     }
 
+    // Variant transforms can return a new provider object, so attach to the final instance too.
     this.attachRerankingModel(finalProvider, mergedSettings)
     this.instances.set(hash, finalProvider)
 

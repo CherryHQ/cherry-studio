@@ -531,7 +531,7 @@ export class AiService extends BaseService {
       ranking: result.ranking.map((item) => ({
         originalIndex: item.originalIndex,
         score: item.score,
-        document: request.documents[item.originalIndex] ?? String(item.document)
+        document: request.documents[item.originalIndex]
       }))
     }
   }
@@ -554,7 +554,7 @@ export class AiService extends BaseService {
 
   // ── API validation ──
 
-  /** Dispatches to `embedMany` for embedding models, `generateText` otherwise. */
+  /** Dispatches to `rerank` / `embedMany` for those model types, `generateText` otherwise. */
   async checkModel(request: AiBaseRequest & { timeout?: number }): Promise<{ latency: number }> {
     const { model } = await this.getProviderAndModel(request)
     const start = performance.now()

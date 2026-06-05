@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
+import { createDashScopeProvider } from '../../dashscope/dashscopeProvider'
 import { createDashScopeTransport } from '../../dashscope/dashscopeTransport'
 import type { ImageGenerationSubmitInput } from '../../imageGenerationModel'
 import { captureImageRequest } from './captureRequest'
@@ -165,4 +166,34 @@ describe('DashScope request boundary', () => {
       expect(req.body).toMatchSnapshot()
     })
   }
+
+  it('posts rerank requests to the DashScope compatible-api reranks endpoint', async () => {
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          results: [{ index: 1, relevance_score: 0.92 }]
+        })
+      )
+    )
+    const provider = createDashScopeProvider({
+      apiKey: 'ds-key',
+      baseURL: `${host}/compatible-mode/v1`,
+      fetch
+    })
+
+    await provider.rerankingModel('gte-rerank-v2').doRerank({
+      query: 'hello',
+      documents: { type: 'text', values: ['alpha', 'beta'] },
+      topN: 1
+    })
+
+    expect(fetch).toHaveBeenCalledWith(`${host}/compatible-api/v1/reranks`, expect.objectContaining({ method: 'POST' }))
+    const init = fetch.mock.calls[0]?.[1] as RequestInit
+    expect(JSON.parse(init.body as string)).toEqual({
+      model: 'gte-rerank-v2',
+      query: 'hello',
+      documents: ['alpha', 'beta'],
+      top_n: 1
+    })
+  })
 })

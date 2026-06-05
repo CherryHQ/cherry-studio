@@ -1,0 +1,19 @@
+import type { JSONObject } from '@ai-sdk/provider'
+import { describe, expectTypeOf, it } from 'vitest'
+
+import type { RerankResult } from '../types'
+
+describe('Runtime rerank types', () => {
+  it('defaults rerank documents to string', () => {
+    type Document = RerankResult['ranking'][number]['document']
+
+    expectTypeOf<Document>().toEqualTypeOf<string>()
+  })
+
+  it('preserves object document generics', () => {
+    type DocumentValue = JSONObject & { text: string }
+    type Document = RerankResult<DocumentValue>['ranking'][number]['document']
+
+    expectTypeOf<Document>().toEqualTypeOf<DocumentValue>()
+  })
+})

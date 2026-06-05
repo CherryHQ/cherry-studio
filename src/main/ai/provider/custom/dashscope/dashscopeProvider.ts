@@ -24,6 +24,7 @@ export interface DashScopeProviderSettings {
   imageBaseURL?: string
   headers?: Record<string, string>
   fetch?: FetchFunction
+  includeUsage?: boolean
 }
 
 export interface DashScopeProvider extends ProviderV3 {
@@ -70,7 +71,8 @@ export function createDashScopeProvider(settings: DashScopeProviderSettings = {}
       provider: `${DASHSCOPE_PROVIDER_NAME}.chat`,
       url,
       headers: authHeaders,
-      fetch: customFetch
+      fetch: customFetch,
+      includeUsage: settings.includeUsage
     })
 
   const transport = createDashScopeTransport({
