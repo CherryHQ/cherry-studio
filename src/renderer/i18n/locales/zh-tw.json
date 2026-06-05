@@ -3246,6 +3246,7 @@
     "title": "資源庫",
     "toolbar": {
       "add_tag_placeholder": "標籤名稱...",
+      "all_tags": "全部標籤",
       "new_resource": "新資源",
       "search_placeholder": "搜尋資源...",
       "tag_button": "標籤"

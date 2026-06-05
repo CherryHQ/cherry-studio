@@ -3245,10 +3245,11 @@
     },
     "title": "Biblioteca",
     "toolbar": {
-      "add_tag_placeholder": "Nombre de la etiqueta...",
-      "new_resource": "Nuevo recurso",
-      "search_placeholder": "Buscar recursos...",
-      "tag_button": "Etiqueta"
+"add_tag_placeholder": "Nombre de la etiqueta...",
+"all_tags": "[to be translated]:All tags",
+"new_resource": "Nuevo recurso",
+"search_placeholder": "Buscar recursos...",
+"tag_button": "Etiqueta"
     },
     "type": {
       "agent": "Agente",

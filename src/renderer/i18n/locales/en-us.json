@@ -3246,6 +3246,7 @@
     "title": "Library",
     "toolbar": {
       "add_tag_placeholder": "Tag name...",
+      "all_tags": "All tags",
       "new_resource": "New resource",
       "search_placeholder": "Search by name or description...",
       "tag_button": "Tag"

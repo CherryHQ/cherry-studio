@@ -3245,10 +3245,11 @@
     },
     "title": "Thư viện",
     "toolbar": {
-      "add_tag_placeholder": "Tên thẻ...",
-      "new_resource": "Tài nguyên mới",
-      "search_placeholder": "Tìm kiếm tài nguyên...",
-      "tag_button": "Thẻ"
+"add_tag_placeholder": "Tên thẻ...",
+"all_tags": "[to be translated]:All tags",
+"new_resource": "Tài nguyên mới",
+"search_placeholder": "Tìm kiếm tài nguyên...",
+"tag_button": "Thẻ"
     },
     "type": {
       "agent": "Đặc vụ",

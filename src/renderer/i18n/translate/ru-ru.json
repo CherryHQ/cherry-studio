@@ -3245,10 +3245,11 @@
     },
     "title": "Библиотека",
     "toolbar": {
-      "add_tag_placeholder": "Имя тега...",
-      "new_resource": "Новый ресурс",
-      "search_placeholder": "Поиск ресурсов...",
-      "tag_button": "Тег"
+"add_tag_placeholder": "Имя тега...",
+"all_tags": "[to be translated]:All tags",
+"new_resource": "Новый ресурс",
+"search_placeholder": "Поиск ресурсов...",
+"tag_button": "Тег"
     },
     "type": {
       "agent": "Агент",

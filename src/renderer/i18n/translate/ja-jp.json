@@ -3245,10 +3245,11 @@
     },
     "title": "図書館",
     "toolbar": {
-      "add_tag_placeholder": "タグ名...",
-      "new_resource": "新しいリソース",
-      "search_placeholder": "リソースを検索...",
-      "tag_button": "タグ"
+"add_tag_placeholder": "タグ名...",
+"all_tags": "[to be translated]:All tags",
+"new_resource": "新しいリソース",
+"search_placeholder": "リソースを検索...",
+"tag_button": "タグ"
     },
     "type": {
       "agent": "エージェント",

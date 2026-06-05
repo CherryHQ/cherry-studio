@@ -3245,10 +3245,11 @@
     },
     "title": "Bibliotecă",
     "toolbar": {
-      "add_tag_placeholder": "Nume etichetă...",
-      "new_resource": "Resursă nouă",
-      "search_placeholder": "Caută resurse...",
-      "tag_button": "Etichetă"
+"add_tag_placeholder": "Nume etichetă...",
+"all_tags": "[to be translated]:All tags",
+"new_resource": "Resursă nouă",
+"search_placeholder": "Caută resurse...",
+"tag_button": "Etichetă"
     },
     "type": {
       "agent": "Agent",

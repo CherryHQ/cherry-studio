@@ -3245,10 +3245,11 @@
     },
     "title": "Βιβλιοθήκη",
     "toolbar": {
-      "add_tag_placeholder": "Όνομα ετικέτας...",
-      "new_resource": "Νέος πόρος",
-      "search_placeholder": "Αναζήτηση πόρων...",
-      "tag_button": "Ετικέτα"
+"add_tag_placeholder": "Όνομα ετικέτας...",
+"all_tags": "[to be translated]:All tags",
+"new_resource": "Νέος πόρος",
+"search_placeholder": "Αναζήτηση πόρων...",
+"tag_button": "Ετικέτα"
     },
     "type": {
       "agent": "Πράκτορας",

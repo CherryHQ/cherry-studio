@@ -3246,6 +3246,7 @@
     "title": "资源",
     "toolbar": {
       "add_tag_placeholder": "标签名...",
+      "all_tags": "全部标签",
       "new_resource": "新建资源",
       "search_placeholder": "搜索资源名称、描述...",
       "tag_button": "标签"
