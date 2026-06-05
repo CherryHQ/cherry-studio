@@ -132,7 +132,7 @@ export class GlobalSearchService {
       title: item.name,
       subtitle: item.assistantId ? assistantNames.get(item.assistantId) : undefined,
       updatedAt: item.updatedAt,
-      target: { topicId: item.id, assistantId: item.assistantId }
+      target: { topicId: item.id, assistantId: item.assistantId ?? undefined }
     }))
   }
 

@@ -427,9 +427,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
             <>
               <InputBar
                 text={userInputText}
-                assistant={currentAssistant}
                 model={effectiveModel}
-                referenceText={referenceText}
                 placeholder={inputPlaceholder}
                 loading={isLoading}
                 handleKeyDown={handleKeyDown}
@@ -446,7 +444,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
           )}
           <ChatWindow
             route={route}
-            assistant={currentAssistant ?? null}
+            assistantKey={currentAssistant ? (currentAssistant.id ?? 'runtime-default-assistant') : null}
             isOutputted={isOutputted}
             messages={messageItems}
             partsByMessageId={partsByMessageId}
@@ -473,9 +471,7 @@ const HomeWindow: FC<{ draggable?: boolean }> = ({ draggable = true }) => {
           {currentAssistant && (
             <InputBar
               text={userInputText}
-              assistant={currentAssistant}
               model={effectiveModel}
-              referenceText={referenceText}
               placeholder={inputPlaceholder}
               loading={isLoading}
               handleKeyDown={handleKeyDown}

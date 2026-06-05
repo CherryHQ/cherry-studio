@@ -34,7 +34,7 @@ import type { AddNewTopicPayload } from './types'
 
 const logger = loggerService.withContext('HomePage')
 const LAST_USED_ASSISTANT_CACHE_KEY = 'ui.chat.last_used_assistant_id'
-type RuntimeAssistantTarget = string | null
+type AssistantTargetId = string | null
 
 /**
  * Synthesise a renderer Topic shape from a freshly-leased temporary id.
@@ -66,12 +66,12 @@ const HomePage: FC = () => {
   const [topicRevealRequest, setTopicRevealRequest] = useState<ResourceListRevealRequest>()
   const topicRevealRequestIdRef = useRef(0)
   const startingTemporaryTopicRef = useRef(false)
-  const startingTemporaryAssistantIdRef = useRef<RuntimeAssistantTarget | undefined>(undefined)
+  const startingTemporaryAssistantIdRef = useRef<AssistantTargetId | undefined>(undefined)
   const pendingTemporaryTopicRef = useRef<{ topicId: string; assistantId?: string | null } | null>(null)
-  const queuedTemporaryTopicTargetRef = useRef<{ assistantId: RuntimeAssistantTarget } | null>(null)
+  const queuedTemporaryTopicTargetRef = useRef<{ assistantId: AssistantTargetId } | null>(null)
   const [ignoredTemporaryTopicId, setIgnoredTemporaryTopicId] = useState<string | null>(null)
   const [lastUsedAssistantId, setLastUsedAssistantId] = usePersistCache(LAST_USED_ASSISTANT_CACHE_KEY)
-  const lastUsedAssistantIdRef = useRef<RuntimeAssistantTarget | undefined>(lastUsedAssistantId)
+  const lastUsedAssistantIdRef = useRef<AssistantTargetId | undefined>(lastUsedAssistantId)
   const [, setLastUsedTopicId] = usePersistCache('ui.chat.last_used_topic_id')
   const [recentItems, setRecentItems] = usePersistCache('ui.global_search.recent_items')
   const lastRecordedRecentTopicRef = useRef<string | undefined>(undefined)

@@ -19,12 +19,20 @@ import {
 } from './ResourceSelectorShell'
 
 const logger = loggerService.withContext('AssistantSelector')
-const DEFAULT_ASSISTANT_ITEM_ID = '__default_assistant__'
+const RUNTIME_DEFAULT_ASSISTANT_SELECTOR_ID = '__runtime_default_assistant__'
 const AssistantEditDialog = lazy(() =>
   import('@renderer/pages/library/dialogs/edit/AssistantEditDialog').then((module) => ({
     default: module.AssistantEditDialog
   }))
 )
+
+function toSelectorAssistantId(id: string | null): string {
+  return id ?? RUNTIME_DEFAULT_ASSISTANT_SELECTOR_ID
+}
+
+function fromSelectorAssistantId(id: string | null): string | null {
+  return id === RUNTIME_DEFAULT_ASSISTANT_SELECTOR_ID ? null : id
+}
 
 /**
  * Row shape the selector operates on — derived from the Assistant DTO. `selectionType: 'item'`
@@ -117,7 +125,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
     const display = createRuntimeDefaultAssistantDisplay(t)
     return {
       ...display,
-      id: DEFAULT_ASSISTANT_ITEM_ID,
+      id: RUNTIME_DEFAULT_ASSISTANT_SELECTOR_ID,
       editable: false,
       pinnable: false
     }
@@ -293,12 +301,12 @@ export function AssistantSelector(props: AssistantSelectorProps) {
   const multiToggleHint = t('selector.assistant.multi_hint')
   const singleIdValue =
     props.multi === false && props.selectionType !== 'item'
-      ? (props.value ?? DEFAULT_ASSISTANT_ITEM_ID)
-      : DEFAULT_ASSISTANT_ITEM_ID
+      ? toSelectorAssistantId(props.value)
+      : RUNTIME_DEFAULT_ASSISTANT_SELECTOR_ID
   const handleSingleIdChange = useCallback(
     (value: string | null) => {
       if (props.multi === true || props.selectionType === 'item') return
-      props.onChange(value === DEFAULT_ASSISTANT_ITEM_ID ? null : value)
+      props.onChange(fromSelectorAssistantId(value))
     },
     [props]
   )
@@ -309,7 +317,7 @@ export function AssistantSelector(props: AssistantSelectorProps) {
   const handleSingleItemChange = useCallback(
     (value: AssistantSelectorItem | null) => {
       if (props.multi === true || props.selectionType !== 'item') return
-      props.onChange(value?.id === DEFAULT_ASSISTANT_ITEM_ID ? null : value)
+      props.onChange(value?.id === RUNTIME_DEFAULT_ASSISTANT_SELECTOR_ID ? null : value)
     },
     [props]
   )

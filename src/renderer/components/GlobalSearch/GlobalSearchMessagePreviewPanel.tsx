@@ -20,7 +20,7 @@ export type GlobalSearchMessagePreviewTarget =
       topicId: string
       title: string
       messageId: string
-      assistantId?: string | null
+      assistantId?: string
       createdAt?: string
       updatedAt?: string
     }

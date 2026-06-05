@@ -4,7 +4,6 @@ import type { MessageListItem } from '@renderer/components/chat/messages/types'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { useMessageListRenderConfig } from '@renderer/pages/shared/messages/hooks/useMessageListRenderConfig'
 import { useMessagePlatformActions } from '@renderer/pages/shared/messages/hooks/useMessagePlatformActions'
-import type { RuntimeAssistant } from '@renderer/utils/assistant'
 import type { CherryMessagePart } from '@shared/data/types/message'
 import type { FC } from 'react'
 import styled from 'styled-components'
@@ -12,7 +11,7 @@ import styled from 'styled-components'
 import MessageItem from './Message'
 
 interface Props {
-  assistant: RuntimeAssistant
+  assistantKey: string
   route: string
   isOutputted: boolean
   messages: MessageListItem[]
@@ -23,7 +22,7 @@ interface ContainerProps {
   right?: boolean
 }
 
-const Messages: FC<Props> = ({ assistant, route, isOutputted, messages, partsByMessageId }) => {
+const Messages: FC<Props> = ({ assistantKey, route, isOutputted, messages, partsByMessageId }) => {
   const { renderConfig } = useMessageListRenderConfig()
   const platformActions = useMessagePlatformActions()
 
@@ -33,7 +32,7 @@ const Messages: FC<Props> = ({ assistant, route, isOutputted, messages, partsByM
       partsByMessageId={partsByMessageId}
       renderConfig={renderConfig}
       actions={platformActions}>
-      <Container id="messages" key={assistant.id ?? 'runtime-default-assistant'}>
+      <Container id="messages" key={assistantKey}>
         {!isOutputted && <LoadingOutlined style={{ fontSize: 16 }} spin />}
         {[...messages].reverse().map((message, index) => (
           <MessageItem key={message.id} message={message} index={index} total={messages.length} route={route} />

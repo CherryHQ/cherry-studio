@@ -1,15 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@renderer/services/AssistantService', () => ({
-  getAssistantSettings: vi.fn(),
-  getDefaultAssistant: vi.fn().mockReturnValue({
-    id: 'default',
-    name: 'Default Assistant',
-    prompt: '',
-    settings: {}
-  })
-}))
-
 vi.mock('@renderer/store', () => ({
   __esModule: true,
   default: {

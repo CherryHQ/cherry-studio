@@ -775,7 +775,7 @@ export class MessageService {
           messageId: row.id,
           topicId: row.topicId,
           topicName: row.topicName,
-          topicAssistantId: row.topicAssistantId,
+          topicAssistantId: row.topicAssistantId ?? undefined,
           role: ['user', 'assistant'].includes(row.role) ? (row.role as 'user' | 'assistant') : undefined,
           topicCreatedAt: timestampToISO(Number(row.topicCreatedAt)),
           topicUpdatedAt: timestampToISO(Number(row.topicUpdatedAt)),

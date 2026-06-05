@@ -12,7 +12,7 @@ The `AssistantMigrator` migrates assistants and presets from the v1 Redux state 
 
 ### Why the v1 Slice Has Two Default Slots
 
-The v1 slice's `initialState` seeds **both** `state.assistants.defaultAssistant` and `state.assistants[0]` from the same `getDefaultAssistant()` factory (id=`default`). Reducers then update one or the other independently:
+Historical v1 Redux state can contain **both** `state.assistants.defaultAssistant` and `state.assistants[0]` with the same id (`default`). Reducers then update one or the other independently:
 
 - `updateDefaultAssistant` writes only to the slot.
 - `updateAssistant` / `updateAssistantSettings` / `addTopic` write only to `assistants[]`.

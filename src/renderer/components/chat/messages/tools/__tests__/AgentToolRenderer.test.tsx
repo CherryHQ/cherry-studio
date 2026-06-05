@@ -6,19 +6,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AgentToolRenderer, isValidAgentToolsType } from '../agent'
 import MessageTool from '../MessageTool'
 
-vi.mock('@renderer/services/AssistantService', () => ({
-  getDefaultAssistant: vi.fn(() => ({
-    id: 'test-assistant',
-    name: 'Test Assistant',
-    settings: {}
-  })),
-  getDefaultTopic: vi.fn(() => ({
-    id: 'test-topic',
-    assistantId: 'test-assistant',
-    createdAt: new Date().toISOString()
-  }))
-}))
-
 // Mock dependencies
 const mockUseTranslation = vi.fn()
 

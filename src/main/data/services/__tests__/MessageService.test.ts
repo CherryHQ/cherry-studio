@@ -326,7 +326,7 @@ describe('MessageService', () => {
         messageId: 'm-search-1',
         topicId: 'topic-search',
         topicName: '',
-        topicAssistantId: null,
+        topicAssistantId: undefined,
         role: 'assistant',
         topicCreatedAt: expect.any(String),
         topicUpdatedAt: expect.any(String)

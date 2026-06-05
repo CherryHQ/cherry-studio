@@ -102,23 +102,6 @@ vi.mock('@renderer/store', () => ({
   }
 }))
 
-// FIXME: Idk why it's imported. Maybe circular dependency somewhere
-vi.mock('@renderer/services/AssistantService.ts', () => ({
-  getDefaultAssistant: () => {
-    return {
-      id: 'default',
-      name: 'default',
-      emoji: '😀',
-      prompt: '',
-      topics: [],
-      messages: [],
-      type: 'assistant',
-      regularPhrases: [],
-      settings: {}
-    }
-  }
-}))
-
 vi.mock('../embedding', () => ({
   isEmbeddingModel: vi.fn(),
   isRerankModel: vi.fn()

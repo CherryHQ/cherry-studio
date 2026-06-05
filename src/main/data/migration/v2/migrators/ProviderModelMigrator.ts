@@ -12,7 +12,6 @@ import { application } from '@application'
 import type { EndpointType, Modality, ModelCapability } from '@cherrystudio/provider-registry'
 import { buildRuntimeEndpointConfigs } from '@cherrystudio/provider-registry'
 import { RegistryLoader } from '@cherrystudio/provider-registry/node'
-import { ensureCherryAIDefaultProviderAndModelTx } from '@data/cherryaiDefaultModel'
 import { pinTable } from '@data/db/schemas/pin'
 import type { NewUserModel } from '@data/db/schemas/userModel'
 import { userModelTable } from '@data/db/schemas/userModel'
@@ -139,14 +138,6 @@ export class ProviderModelMigrator extends BaseMigrator {
   private pinnedModelIds: UniqueModelId[] = []
   private loader: RegistryLoader | null = null
 
-  private getExpectedProviderCount(): number {
-    return this.providers.length + 1
-  }
-
-  private getExpectedModelCount(): number {
-    return this.totalModelCount + 1
-  }
-
   override reset(): void {
     this.providers = []
     this.settings = {}
@@ -270,7 +261,7 @@ export class ProviderModelMigrator extends BaseMigrator {
 
       if (!llmState?.providers || !Array.isArray(llmState.providers)) {
         logger.warn('No llm.providers found in Redux state')
-        warnings.push('No provider data found - only builtin CherryAI default model will be migrated')
+        warnings.push('No provider data found - skipping provider/model migration')
       }
 
       // Filter out corrupted v1 rows before dedup. Missing/empty providerId
@@ -317,7 +308,7 @@ export class ProviderModelMigrator extends BaseMigrator {
         }
         if (provider.id === CHERRYAI_PROVIDER_ID) {
           skippedCherryAIProviders++
-          logger.info('Legacy CherryAI provider skipped; canonical CherryAI default model will be backfilled')
+          logger.info('Legacy CherryAI provider skipped; default CherryAI rows are managed by database seeding')
           continue
         }
         seenIds.add(provider.id)
@@ -354,22 +345,20 @@ export class ProviderModelMigrator extends BaseMigrator {
       }
       if (skippedCherryAIProviders > 0) {
         warnings.push(
-          `Skipped ${skippedCherryAIProviders} legacy CherryAI provider(s); canonical CherryAI default will be backfilled`
+          `Skipped ${skippedCherryAIProviders} legacy CherryAI provider(s); default CherryAI rows are managed by seeding`
         )
       }
 
       logger.info('Preparation completed', {
-        providerCount: this.getExpectedProviderCount(),
-        legacyProviderCount: this.providers.length,
+        providerCount: this.providers.length,
         skippedProviders,
-        modelCount: this.getExpectedModelCount(),
-        legacyModelCount: this.totalModelCount,
+        modelCount: this.totalModelCount,
         pinnedModelCount: this.pinnedModelIds.length
       })
 
       return {
         success: true,
-        itemCount: this.getExpectedProviderCount(),
+        itemCount: this.providers.length,
         warnings: warnings.length > 0 ? warnings : undefined
       }
     } catch (error) {
@@ -423,10 +412,6 @@ export class ProviderModelMigrator extends BaseMigrator {
           )
         }
 
-        const cherryAIBackfill = await ensureCherryAIDefaultProviderAndModelTx(tx)
-        processedProviders += cherryAIBackfill.insertedProviderCount
-        processedModels += cherryAIBackfill.insertedModelCount
-
         const pinRows = assignOrderKeysInSequence(
           this.pinnedModelIds.map((entityId) => ({
             entityType: 'model' as const,
@@ -476,20 +461,18 @@ export class ProviderModelMigrator extends BaseMigrator {
       const targetProviderCount = providerResult?.count ?? 0
       const targetModelCount = modelResult?.count ?? 0
       const targetPinCount = pinResult?.count ?? 0
-      const expectedProviderCount = this.getExpectedProviderCount()
-      const expectedModelCount = this.getExpectedModelCount()
 
-      if (targetProviderCount !== expectedProviderCount) {
+      if (targetProviderCount !== this.providers.length) {
         errors.push({
           key: 'provider_count_mismatch',
-          message: `Expected ${expectedProviderCount} providers but found ${targetProviderCount}`
+          message: `Expected ${this.providers.length} providers but found ${targetProviderCount}`
         })
       }
 
-      if (targetModelCount !== expectedModelCount) {
+      if (targetModelCount !== this.totalModelCount) {
         errors.push({
           key: 'model_count_mismatch',
-          message: `Expected ${expectedModelCount} models but found ${targetModelCount}`
+          message: `Expected ${this.totalModelCount} models but found ${targetModelCount}`
         })
       }
 
@@ -497,30 +480,6 @@ export class ProviderModelMigrator extends BaseMigrator {
         errors.push({
           key: 'pin_count_mismatch',
           message: `Expected ${this.pinnedModelIds.length} model pins but found ${targetPinCount}`
-        })
-      }
-
-      const [cherryAIProvider] = await ctx.db
-        .select({ providerId: userProviderTable.providerId })
-        .from(userProviderTable)
-        .where(eq(userProviderTable.providerId, CHERRYAI_PROVIDER_ID))
-        .limit(1)
-      if (!cherryAIProvider) {
-        errors.push({
-          key: 'missing_cherryai_provider',
-          message: 'Expected canonical CherryAI provider to exist'
-        })
-      }
-
-      const [cherryAIModel] = await ctx.db
-        .select({ id: userModelTable.id })
-        .from(userModelTable)
-        .where(eq(userModelTable.id, CHERRYAI_DEFAULT_UNIQUE_MODEL_ID))
-        .limit(1)
-      if (!cherryAIModel) {
-        errors.push({
-          key: 'missing_cherryai_default_model',
-          message: 'Expected canonical CherryAI default model to exist'
         })
       }
 
@@ -539,7 +498,7 @@ export class ProviderModelMigrator extends BaseMigrator {
         success: errors.length === 0,
         errors,
         stats: {
-          sourceCount: expectedProviderCount,
+          sourceCount: this.providers.length,
           targetCount: targetProviderCount,
           skippedCount: 0
         }
@@ -556,7 +515,7 @@ export class ProviderModelMigrator extends BaseMigrator {
           }
         ],
         stats: {
-          sourceCount: this.getExpectedProviderCount(),
+          sourceCount: this.providers.length,
           targetCount: 0,
           skippedCount: 0
         }

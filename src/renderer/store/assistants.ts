@@ -18,9 +18,9 @@
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { createSelector, createSlice } from '@reduxjs/toolkit'
 import i18n from '@renderer/i18n'
-import { DEFAULT_ASSISTANT_SETTINGS, getDefaultAssistant } from '@renderer/services/AssistantService'
 import type { LegacyAssistant as Assistant, LegacyAssistant as AssistantPreset, Model, Topic } from '@renderer/types'
 import { DEFAULT_CONTEXTCOUNT, DEFAULT_TEMPERATURE } from '@shared/config/constant'
+import { DEFAULT_ASSISTANT_SETTINGS } from '@shared/data/types/assistant'
 import { isEmpty, uniqBy } from 'lodash'
 import { v4 as uuid } from 'uuid'
 
@@ -46,7 +46,7 @@ import type { RootState } from '.'
 type AssistantSettings = Assistant['settings']
 
 export interface AssistantsState {
-  defaultAssistant: Assistant
+  defaultAssistant: Assistant | null
   assistants: Assistant[]
   tagsOrder: string[]
   collapsedTags: Record<string, boolean>
@@ -56,8 +56,8 @@ export interface AssistantsState {
 }
 
 const initialState: AssistantsState = {
-  defaultAssistant: getDefaultAssistant(),
-  assistants: [getDefaultAssistant()],
+  defaultAssistant: null,
+  assistants: [],
   tagsOrder: [],
   collapsedTags: {},
   presets: [],

@@ -31,7 +31,6 @@ export function composeRuntimeDefaultAssistant(modelId: UniqueModelId | null, t:
 }
 
 export type RuntimeDefaultAssistant = ReturnType<typeof composeRuntimeDefaultAssistant>
-export type RuntimeAssistant = Assistant | RuntimeDefaultAssistant
 
 export function normalizeAssistantId(id: string | null | undefined): string | null {
   return id && id.trim().length > 0 ? id : null
@@ -41,7 +40,9 @@ export function isRuntimeDefaultAssistantId(id: string | null | undefined): id i
   return id === RUNTIME_DEFAULT_ASSISTANT_ID
 }
 
-export function isPersistedAssistant(assistant: RuntimeAssistant | null | undefined): assistant is Assistant {
+export function isPersistedAssistant(
+  assistant: Assistant | RuntimeDefaultAssistant | null | undefined
+): assistant is Assistant {
   return !!assistant && !isRuntimeDefaultAssistantId(assistant.id)
 }
 

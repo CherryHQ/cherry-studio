@@ -1,6 +1,5 @@
 import ModelAvatar from '@renderer/components/Avatar/ModelAvatar'
 import { useTimer } from '@renderer/hooks/useTimer'
-import type { RuntimeAssistant } from '@renderer/utils/assistant'
 import type { Model } from '@shared/data/types/model'
 import { Input as AntdInput } from 'antd'
 import type { InputRef } from 'rc-input/lib/interface'
@@ -9,9 +8,7 @@ import styled from 'styled-components'
 
 interface InputBarProps {
   text: string
-  assistant: RuntimeAssistant
   model?: Model
-  referenceText: string
   placeholder: string
   loading: boolean
   handleKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void

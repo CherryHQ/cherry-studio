@@ -166,8 +166,7 @@ describe('GlobalSearchMessagePreviewPanel', () => {
           sourceType: 'topic',
           topicId: 'topic-1',
           title: 'Topic A',
-          messageId: 'topic-message-2',
-          assistantId: null
+          messageId: 'topic-message-2'
         }}
         onClose={mocks.onClose}
         onOpenMessage={mocks.onOpenMessage}

@@ -40,16 +40,6 @@ vi.mock('@renderer/store', () => ({
 const isEmbeddingModelMock = vi.fn()
 const isRerankModelMock = vi.fn()
 
-vi.mock('@renderer/services/AssistantService', () => ({
-  getAssistantSettings: vi.fn(),
-  getDefaultAssistant: vi.fn().mockReturnValue({
-    id: 'default',
-    name: 'Default Assistant',
-    prompt: '',
-    settings: {}
-  })
-}))
-
 vi.mock('@renderer/config/models/embedding', () => ({
   isEmbeddingModel: (...args: any[]) => isEmbeddingModelMock(...args),
   isRerankModel: (...args: any[]) => isRerankModelMock(...args)

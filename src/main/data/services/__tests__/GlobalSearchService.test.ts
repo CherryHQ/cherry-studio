@@ -160,7 +160,7 @@ describe('GlobalSearchService', () => {
     ])
   })
 
-  it('preserves null assistantId for runtime-default topic results', async () => {
+  it('omits assistantId for runtime-default topic results', async () => {
     await dbh.db.insert(topicTable).values({
       id: '66666666-6666-4666-8666-666666666666',
       name: 'Runtime Default Topic',
@@ -181,8 +181,7 @@ describe('GlobalSearchService', () => {
             title: 'Runtime Default Topic',
             subtitle: undefined,
             target: {
-              topicId: '66666666-6666-4666-8666-666666666666',
-              assistantId: null
+              topicId: '66666666-6666-4666-8666-666666666666'
             }
           })
         ]
