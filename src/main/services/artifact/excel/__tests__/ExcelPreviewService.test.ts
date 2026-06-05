@@ -678,6 +678,20 @@ describe('ExcelPreviewService', () => {
     })
   })
 
+  it('returns a parse error for corrupt xlsx files', async () => {
+    const filePath = path.join(tempDir, 'corrupt.xlsx')
+    await fs.writeFile(filePath, 'not a zip')
+
+    const result = await readExcelWorkbookPreview(previewRequest(filePath))
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        code: 'excel_parse_error'
+      }
+    })
+  })
+
   it('rejects invalid preview requests before reading files', async () => {
     const result = await readExcelWorkbookPreview({
       filePath: path.join(tempDir, 'report.xlsx'),

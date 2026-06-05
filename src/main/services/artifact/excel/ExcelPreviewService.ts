@@ -33,6 +33,7 @@ import {
   type ExcelWorksheetTableData,
   normalizeExcelWorkbookPreviewBudget
 } from './excelToUniverWorkbook'
+import { asArray, decodeCellRange, toError } from './internal/excelPreviewUtils'
 
 export const EXCEL_PREVIEW_MAX_SIZE_BYTES = 25 * 1024 * 1024
 
@@ -183,8 +184,6 @@ const fail = (code: ExcelImportDiagnosticCode, message: string): ExcelWorkbookPr
   diagnostics: [{ code, message, severity: 'error' }]
 })
 
-const toError = (err: unknown) => (err instanceof Error ? err : new Error(String(err)))
-
 const normalizeFileName = (request: ExcelWorkbookPreviewRequest) => {
   return request.fileName || path.basename(request.filePath)
 }
@@ -195,11 +194,6 @@ const isUnsupportedExcelDrawingError = (error: Error): boolean => {
   // ExcelJS throws this internal drawing error on chart workbooks; streaming
   // mode preserves cells when chart metadata was already collected separately.
   return error.message.includes("reading 'anchors'") || error.message.includes('reading "anchors"')
-}
-
-const asArray = <T>(value: T | T[] | undefined): T[] => {
-  if (value === undefined) return []
-  return Array.isArray(value) ? value : [value]
 }
 
 const readArchiveEntryText = async (zip: StreamZip.StreamZipAsync, entryName: string): Promise<string | undefined> => {
@@ -224,43 +218,8 @@ const getWorksheetFileNumberFromRelationshipTarget = (target: string | undefined
   return match?.[1]
 }
 
-const decodeColumn = (letters: string): number | null => {
-  let column = 0
-  for (const char of letters.toUpperCase()) {
-    const code = char.charCodeAt(0)
-    if (code < 65 || code > 90) return null
-    column = column * 26 + code - 64
-  }
-  return column - 1
-}
-
-const decodeCellAddress = (address: string): { column: number; row: number } | null => {
-  const match = /^([A-Z]+)(\d+)$/i.exec(address.replace(/\$/g, ''))
-  if (!match) return null
-
-  const column = decodeColumn(match[1])
-  const row = Number(match[2])
-  if (column === null || !Number.isInteger(row) || row < 1) return null
-
-  return { column, row: row - 1 }
-}
-
-const decodeMergeRange = (range: string): ExcelWorksheetMergeData[number] | null => {
-  const [startRaw, endRaw = startRaw] = range.split(':')
-  const start = decodeCellAddress(startRaw)
-  const end = decodeCellAddress(endRaw)
-  if (!start || !end) return null
-
-  return {
-    startRow: Math.min(start.row, end.row),
-    startColumn: Math.min(start.column, end.column),
-    endRow: Math.max(start.row, end.row),
-    endColumn: Math.max(start.column, end.column)
-  }
-}
-
 const decodeTableRange = (range: string | undefined): ExcelPreviewTableRange | null => {
-  const decodedRange = range ? decodeMergeRange(range) : null
+  const decodedRange = range ? decodeCellRange(range) : null
   return decodedRange ? { ...decodedRange } : null
 }
 
@@ -306,7 +265,7 @@ const parseWorksheetMergeData = (worksheet: ParsedWorksheetXml): ExcelWorksheetM
   const mergeCells = asArray(worksheet.worksheet?.mergeCells?.mergeCell)
 
   return mergeCells.flatMap((mergeCell) => {
-    const merge = decodeMergeRange(mergeCell.ref ?? '')
+    const merge = decodeCellRange(mergeCell.ref ?? '')
     return merge ? [merge] : []
   })
 }

@@ -11,6 +11,7 @@ import {
   type ExcelWorkbookPreviewBudget,
   ExcelWorkbookPreviewBudgetExceededError
 } from '../excelToUniverWorkbook'
+import { asArray, decodeCellRange, toError } from '../internal/excelPreviewUtils'
 import { getExcelChartRenderSize, renderExcelChartImage } from './excelChartRenderer'
 import type {
   ExcelChartImageCollection,
@@ -184,13 +185,6 @@ interface WorksheetChartImageOptions {
 type CellValue = number | string
 type CellValueMap = Map<string, CellValue>
 type ParsedChartPlotArea = NonNullable<NonNullable<ParsedChartXml['chartSpace']>['chart']>['plotArea']
-
-const asArray = <T>(value: T | T[] | undefined): T[] => {
-  if (value === undefined) return []
-  return Array.isArray(value) ? value : [value]
-}
-
-const toError = (err: unknown) => (err instanceof Error ? err : new Error(String(err)))
 
 const parseNumber = (value: number | string | undefined): number | undefined => {
   const parsed = Number(value)
@@ -376,16 +370,6 @@ const collectWorksheetCellValues = (worksheet: ParsedWorksheetXml, sharedStrings
   return values
 }
 
-const decodeColumn = (letters: string): number | null => {
-  let column = 0
-  for (const char of letters.toUpperCase()) {
-    const code = char.charCodeAt(0)
-    if (code < 65 || code > 90) return null
-    column = column * 26 + code - 64
-  }
-  return column - 1
-}
-
 const encodeColumn = (column: number): string => {
   let value = column + 1
   let letters = ''
@@ -399,17 +383,6 @@ const encodeColumn = (column: number): string => {
   return letters
 }
 
-const decodeCellAddress = (address: string): { column: number; row: number } | null => {
-  const match = /^([A-Z]+)(\d+)$/i.exec(address.replace(/\$/g, ''))
-  if (!match) return null
-
-  const column = decodeColumn(match[1])
-  const row = Number(match[2])
-  if (column === null || !Number.isInteger(row) || row < 1) return null
-
-  return { column, row: row - 1 }
-}
-
 const parseFormulaRange = (formula: string | undefined, currentSheetName?: string) => {
   if (!formula) return null
 
@@ -417,17 +390,7 @@ const parseFormulaRange = (formula: string | undefined, currentSheetName?: strin
   const sheetName = sheetNameRaw?.replace(/^'|'$/g, '').replace(/''/g, "'")
   if (sheetName && currentSheetName && sheetName !== currentSheetName) return null
 
-  const [startRaw, endRaw = startRaw] = rangeRaw.split(':')
-  const start = decodeCellAddress(startRaw)
-  const end = decodeCellAddress(endRaw)
-  if (!start || !end) return null
-
-  return {
-    endColumn: Math.max(start.column, end.column),
-    endRow: Math.max(start.row, end.row),
-    startColumn: Math.min(start.column, end.column),
-    startRow: Math.min(start.row, end.row)
-  }
+  return decodeCellRange(rangeRaw)
 }
 
 const resolveFormulaValues = (
