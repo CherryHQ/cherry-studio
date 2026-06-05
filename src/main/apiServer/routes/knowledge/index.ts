@@ -3,7 +3,6 @@ import express from 'express'
 import { getKnowledgeBase, listKnowledgeBases, searchKnowledge } from './handlers'
 import { validateKnowledgeBaseId, validateKnowledgeSearch, validatePagination } from './validators'
 
-// Create main knowledge router
 const knowledgeRouter = express.Router()
 
 /**
@@ -19,62 +18,65 @@ const knowledgeRouter = express.Router()
  *         name:
  *           type: string
  *           description: Knowledge base name
- *         description:
+ *         groupId:
  *           type: string
- *           description: Knowledge base description
- *         model:
- *           type: object
- *           properties:
- *             id:
- *               type: string
- *             provider:
- *               type: string
- *           description: Embedding model configuration
+ *           nullable: true
+ *           description: Knowledge base group ID
  *         dimensions:
  *           type: integer
+ *           nullable: true
  *           description: Embedding dimensions
+ *         embeddingModelId:
+ *           type: string
+ *           nullable: true
+ *           description: Embedding model ID in provider::model format
+ *         status:
+ *           type: string
+ *           enum: [completed, failed]
+ *         error:
+ *           type: string
+ *           nullable: true
+ *         rerankModelId:
+ *           type: string
+ *           nullable: true
+ *         fileProcessorId:
+ *           type: string
+ *           nullable: true
  *         chunkSize:
  *           type: integer
  *           description: Chunk size for document splitting
  *         chunkOverlap:
  *           type: integer
  *           description: Overlap between chunks
- *         documentCount:
- *           type: integer
- *           description: Number of documents
- *         version:
- *           type: integer
- *           description: Schema version
  *         threshold:
  *           type: number
  *           description: Similarity threshold
- *         rerankModel:
- *           type: object
- *           properties:
- *             id:
- *               type: string
- *             provider:
- *               type: string
- *           description: Rerank model configuration
- *         preprocessProvider:
- *           type: object
- *           properties:
- *             type:
- *               type: string
- *             provider:
- *               type: string
- *           description: Preprocess provider configuration
- *         items:
- *           type: array
- *           items:
- *             type: object
- *           description: Knowledge items
- *         created_at:
+ *         documentCount:
+ *           type: integer
+ *           description: Number of documents
+ *         searchMode:
+ *           type: string
+ *           enum: [default, bm25, hybrid]
+ *         hybridAlpha:
  *           type: number
+ *           description: Hybrid vector/BM25 weight
+ *         createdAt:
+ *           type: string
+ *           format: date-time
  *           description: Creation timestamp
- *         updated_at:
- *           type: number
+ *         updatedAt:
+ *           type: string
+ *           format: date-time
  *           description: Last update timestamp
+ *
+ *     KnowledgeBaseListItem:
+ *       allOf:
+ *         - $ref: '#/components/schemas/KnowledgeBaseEntity'
+ *         - type: object
+ *           properties:
+ *             itemCount:
+ *               type: integer
+ *               description: Number of non-deleting knowledge items
  *
  *     KnowledgeSearchResult:
  *       type: object
@@ -85,26 +87,35 @@ const knowledgeRouter = express.Router()
  *         score:
  *           type: number
  *           description: Similarity score
+ *         scoreKind:
+ *           type: string
+ *           enum: [relevance, ranking]
+ *         rank:
+ *           type: integer
+ *           description: Result rank
  *         metadata:
  *           type: object
  *           description: Document metadata
- *         knowledge_base_id:
+ *         itemId:
  *           type: string
- *           description: Source knowledge base ID
- *         knowledge_base_name:
+ *           description: Source knowledge item ID
+ *         chunkId:
  *           type: string
- *           description: Source knowledge base name
+ *           description: Source vector chunk ID
  *
  *     ListKnowledgeBasesResponse:
  *       type: object
  *       properties:
- *         knowledge_bases:
+ *         items:
  *           type: array
  *           items:
- *             $ref: '#/components/schemas/KnowledgeBaseEntity'
+ *             $ref: '#/components/schemas/KnowledgeBaseListItem'
  *         total:
  *           type: integer
  *           description: Total number of knowledge bases
+ *         page:
+ *           type: integer
+ *           description: Current v2 page number
  *
  *     SearchKnowledgeRequest:
  *       type: object
@@ -141,7 +152,7 @@ const knowledgeRouter = express.Router()
  *         total:
  *           type: integer
  *           description: Total number of results
- *         searched_bases:
+ *         searchedBases:
  *           type: array
  *           items:
  *             type: object
@@ -163,7 +174,7 @@ const knowledgeRouter = express.Router()
  * /v1/knowledge-bases:
  *   get:
  *     summary: List all knowledge bases
- *     description: Returns a list of all configured knowledge bases
+ *     description: Returns a v2-native paginated list of configured knowledge bases.
  *     tags: [Knowledge]
  *     parameters:
  *       - in: query
@@ -200,12 +211,6 @@ const knowledgeRouter = express.Router()
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *       503:
- *         description: Service unavailable (Redux store not accessible)
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 knowledgeRouter.get('/', validatePagination, listKnowledgeBases)
 
@@ -214,6 +219,7 @@ knowledgeRouter.get('/', validatePagination, listKnowledgeBases)
  * /v1/knowledge-bases/{id}:
  *   get:
  *     summary: Get a knowledge base by ID
+ *     description: Returns a v2-native knowledge base.
  *     tags: [Knowledge]
  *     parameters:
  *       - in: path
@@ -241,12 +247,6 @@ knowledgeRouter.get('/', validatePagination, listKnowledgeBases)
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/ErrorResponse'
- *       503:
- *         description: Service unavailable (Redux store not accessible)
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
  */
 knowledgeRouter.get('/:id', validateKnowledgeBaseId, getKnowledgeBase)
 
@@ -256,15 +256,16 @@ knowledgeRouter.get('/:id', validateKnowledgeBaseId, getKnowledgeBase)
  *   post:
  *     summary: Search knowledge bases
  *     description: |
- *       Search across one or more knowledge bases and retrieve relevant document chunks.
+ *       Search across one or more v2 knowledge bases and retrieve relevant document chunks.
  *
  *       Each result includes:
  *       - `pageContent`: The text content of the matching chunk
- *       - `score`: Similarity score (higher = more relevant)
- *       - `metadata`: Additional information about the source document
- *       - `knowledge_base_id` & `knowledge_base_name`: Source of the result
+ *       - `score`: Similarity or ranking score
+ *       - `scoreKind`: Whether the score is relevance or ranking based
+ *       - `rank`: Result rank within the v2 knowledge runtime
+ *       - `metadata`: Source item and chunk metadata
  *
- *       Results are sorted by relevance score in descending order.
+ *       Results are sorted by score in descending order.
  *     tags: [Knowledge]
  *     requestBody:
  *       required: true
@@ -288,13 +289,17 @@ knowledgeRouter.get('/:id', validateKnowledgeBaseId, getKnowledgeBase)
  *               results:
  *                 - pageContent: "To use Ollama embeddings, set the base URL to http://localhost:11434"
  *                   score: 0.89
+ *                   scoreKind: "relevance"
+ *                   rank: 1
  *                   metadata:
  *                     source: "/path/to/doc.md"
- *                     type: "file"
- *                   knowledge_base_id: "kb-uuid-1"
- *                   knowledge_base_name: "My Docs"
+ *                     itemType: "file"
+ *                     chunkIndex: 0
+ *                     tokenCount: 24
+ *                   itemId: "01900000-0000-7000-8000-000000000000"
+ *                   chunkId: "chunk-1"
  *               total: 1
- *               searched_bases:
+ *               searchedBases:
  *                 - id: "kb-uuid-1"
  *                   name: "My Docs"
  *       400:
@@ -305,12 +310,6 @@ knowledgeRouter.get('/:id', validateKnowledgeBaseId, getKnowledgeBase)
  *               $ref: '#/components/schemas/ErrorResponse'
  *       502:
  *         description: All knowledge base searches failed
- *         content:
- *           application/json:
- *             schema:
- *               $ref: '#/components/schemas/ErrorResponse'
- *       503:
- *         description: Service unavailable (Redux store not accessible)
  *         content:
  *           application/json:
  *             schema:

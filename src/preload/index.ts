@@ -341,12 +341,6 @@ const api = {
     getFiles: (vaultName: string) => ipcRenderer.invoke(IpcChannel.Obsidian_GetFiles, vaultName)
   },
   openPath: (path: string) => ipcRenderer.invoke(IpcChannel.Open_Path, path),
-  knowledgeBase: {
-    // v1 renderer knowledge path retired (T4.2). Only base deletion remains,
-    // still invoked by the v1 Redux store/knowledge slice until that slice is
-    // removed in the unified step. v2 knowledge runs via window.api.knowledgeRuntime.*.
-    delete: (id: string) => ipcRenderer.invoke(IpcChannel.KnowledgeBase_Delete, id)
-  },
   knowledgeRuntime: {
     createBase: (base: CreateKnowledgeBaseDto): Promise<KnowledgeBase> =>
       ipcRenderer.invoke(IpcChannel.KnowledgeRuntime_CreateBase, { base }),

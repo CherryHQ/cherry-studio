@@ -30,8 +30,7 @@ class FileStorage {
   // singleton at the bottom of this file
   // (`export const fileStorage = new FileStorage()`). That singleton is
   // instantiated during the static import graph of `src/main/index.ts`
-  // (via both `ipc.ts` and the `ApiServerService → ApiServer → routes
-  // → KnowledgeService` chain), BEFORE `application.bootstrap()` runs
+  // (via both `ipc.ts` and legacy service import paths), BEFORE `application.bootstrap()` runs
   // and builds the path registry. The previous shape used field
   // initializers (`private storageDir = application.getPath(...)`),
   // which threw "PATHS not initialized" at module-load time.

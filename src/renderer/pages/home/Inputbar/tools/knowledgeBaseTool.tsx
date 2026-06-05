@@ -19,7 +19,7 @@ const knowledgeBaseTool = defineTool({
   condition: ({ model }) => isSupportedToolUse(model),
 
   dependencies: {
-    state: ['selectedKnowledgeBases', 'files'] as const,
+    state: ['selectedKnowledgeBases', 'availableKnowledgeBases', 'files'] as const,
     actions: ['setSelectedKnowledgeBases'] as const
   },
 
@@ -38,6 +38,7 @@ const knowledgeBaseTool = defineTool({
     return (
       <KnowledgeBaseButton
         quickPanel={quickPanel}
+        bases={state.availableKnowledgeBases}
         selectedBases={state.selectedKnowledgeBases}
         onSelect={handleSelect}
         disabled={Array.isArray(state.files) && state.files.length > 0}

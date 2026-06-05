@@ -118,7 +118,8 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
   const config = getInputbarConfig(scope)
 
   const { files, mentionedModels, selectedKnowledgeBases } = useInputbarToolsState()
-  const { setFiles, setMentionedModels, setSelectedKnowledgeBases } = useInputbarToolsDispatch()
+  const { setFiles, setMentionedModels, setSelectedKnowledgeBases, setAvailableKnowledgeBases } =
+    useInputbarToolsDispatch()
   const { setCouldAddImageFile } = useInputbarToolsInternalDispatch()
 
   const { text, setText } = useInputText({
@@ -368,6 +369,10 @@ const InputbarInner: FC<InputbarInnerProps> = ({ setActiveTopic, topic, actionsR
     }
     setSelectedKnowledgeBases(allKnowledgeBases.filter((kb) => ids.includes(kb.id)) as unknown as KnowledgeBase[])
   }, [assistant?.knowledgeBaseIds, allKnowledgeBases, setSelectedKnowledgeBases])
+
+  useEffect(() => {
+    setAvailableKnowledgeBases(allKnowledgeBases as unknown as KnowledgeBase[])
+  }, [allKnowledgeBases, setAvailableKnowledgeBases])
 
   if (isMultiSelectMode) {
     return null
