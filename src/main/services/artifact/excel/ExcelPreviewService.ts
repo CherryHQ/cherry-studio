@@ -192,6 +192,8 @@ const normalizeFileName = (request: ExcelWorkbookPreviewRequest) => {
 const normalizeRelativeFilePath = (filePath: string): string => filePath.replace(/[\\/]+/g, path.sep)
 
 const isUnsupportedExcelDrawingError = (error: Error): boolean => {
+  // ExcelJS throws this internal drawing error on chart workbooks; streaming
+  // mode preserves cells when chart metadata was already collected separately.
   return error.message.includes("reading 'anchors'") || error.message.includes('reading "anchors"')
 }
 
@@ -380,6 +382,8 @@ const toStringFilterInfo = (operator: string | undefined, value: string): ExcelP
   const starPositions = getUnescapedExcelWildcardPositions(value, '*')
   const hasQuestionWildcard = getUnescapedExcelWildcardPositions(value, '?').length > 0
 
+  // Excel stores text contains/startsWith/endsWith filters as wildcard equality
+  // expressions, with "~" escaping literal wildcard characters.
   if (value.length > 1 && !hasQuestionWildcard) {
     const excludesMatches = operator === 'notEqual'
     const hasLeadingWildcard = starPositions.includes(0)

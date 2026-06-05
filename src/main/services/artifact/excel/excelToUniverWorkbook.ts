@@ -170,6 +170,8 @@ const estimateCellPayloadBytes = (cell: ICellData): number => {
 }
 
 const dateToExcelSerial = (value: Date, date1904: boolean): number => {
+  // Excel serial dates are day offsets; Date#getTime supplies the UTC-based
+  // millisecond value that ExcelJS parsed from the workbook.
   return EXCEL_UNIX_EPOCH_OFFSET_DAYS + value.getTime() / MS_PER_DAY - (date1904 ? EXCEL_1904_OFFSET_DAYS : 0)
 }
 
@@ -901,10 +903,6 @@ const toWorksheetData = (
   }
 }
 
-const collectImportDiagnostics = (): ExcelImportDiagnostic[] => {
-  return []
-}
-
 export const createUnsupportedExcelChartsDiagnostic = (count: number): ExcelImportDiagnostic => ({
   code: 'unsupported_excel_charts',
   count,
@@ -1141,11 +1139,9 @@ export function excelJsWorkbookToPreviewData(
   })
 
   return {
-    diagnostics: collectImportDiagnostics(),
+    diagnostics: [],
     fileName,
     ...(tables.length ? { tables } : {}),
     workbookData: excelJsWorkbookToUniverWorkbook(workbook, fileName, budget, sheetMetadataIndex)
   }
 }
-
-export const isUniverWorkbookEmpty = (workbook: IWorkbookData): boolean => workbook.sheetOrder.length === 0

@@ -645,7 +645,7 @@ describe('ExcelPreviewService', () => {
     })
   })
 
-  it('falls back to a cell-only preview when workbook sheet id differs from its sheet file number', async () => {
+  it('uses archive metadata when workbook sheet id differs from its sheet file number', async () => {
     const filePath = writeWorkbookWithChartDrawing()
 
     const result = await readExcelWorkbookPreview(previewRequest(filePath, 'chart-drawing.xlsx'))
