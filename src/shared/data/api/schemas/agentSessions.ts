@@ -14,7 +14,7 @@ import * as z from 'zod'
 import type { CursorPaginationResponse } from '../apiTypes'
 import type { OrderEndpoints } from './_endpointHelpers'
 import { AgentNameAtomSchema } from './agents'
-import { AgentWorkspaceEntitySchema, AgentWorkspaceTypeSchema } from './agentWorkspaces'
+import { AgentWorkspaceEntitySchema } from './agentWorkspaces'
 
 /** Cursor-paginated query for `/agent-sessions/:sessionId/messages`. Walks history
  *  newest-first; an absent `cursor` returns the most recent page, then each
@@ -92,7 +92,7 @@ export const AgentSessionEntitySchema = z.strictObject({
 export type AgentSessionEntity = z.infer<typeof AgentSessionEntitySchema>
 
 // Create requires a real `agentId` — orphans only happen via cascade, never on insert.
-export const AgentWorkspaceModeSchema = AgentWorkspaceTypeSchema
+export const AgentWorkspaceModeSchema = z.literal('system')
 export type AgentWorkspaceMode = z.infer<typeof AgentWorkspaceModeSchema>
 
 // `workspaceId` is optional at create time — when omitted, the service inherits

@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   createTopicMock,
+  updateTopicMock,
   deleteTopicMock,
   appendMessageMock,
   listMessagesMock,
@@ -14,6 +15,7 @@ const {
   persistSessionMock
 } = vi.hoisted(() => ({
   createTopicMock: vi.fn(),
+  updateTopicMock: vi.fn(),
   deleteTopicMock: vi.fn(),
   appendMessageMock: vi.fn(),
   listMessagesMock: vi.fn(),
@@ -26,6 +28,7 @@ const {
 vi.mock('@data/services/TemporaryChatService', () => ({
   temporaryChatService: {
     createTopic: createTopicMock,
+    updateTopic: updateTopicMock,
     deleteTopic: deleteTopicMock,
     appendMessage: appendMessageMock,
     listMessages: listMessagesMock,
@@ -104,6 +107,7 @@ function reqEnvelope<T extends object>(parts: T): any {
 describe('temporaryChatHandlers', () => {
   beforeEach(() => {
     createTopicMock.mockReset()
+    updateTopicMock.mockReset()
     deleteTopicMock.mockReset()
     appendMessageMock.mockReset()
     listMessagesMock.mockReset()
@@ -122,6 +126,36 @@ describe('temporaryChatHandlers', () => {
       )
       expect(createTopicMock).toHaveBeenCalledWith({ name: 'draft', assistantId: 'asst_1' })
       expect(result).toBe(topic)
+    })
+  })
+
+  describe('PATCH /temporary/topics/:id', () => {
+    it('validates and forwards the parsed patch body', async () => {
+      const topic = fakeTopic({ assistantId: 'assistant-2' })
+      updateTopicMock.mockResolvedValue(topic)
+
+      const result = await temporaryChatHandlers['/temporary/topics/:id'].PATCH(
+        reqEnvelope({ params: { id: 'tid-xyz' }, body: { assistantId: 'assistant-2' } })
+      )
+
+      expect(updateTopicMock).toHaveBeenCalledWith('tid-xyz', { assistantId: 'assistant-2' })
+      expect(result).toBe(topic)
+    })
+
+    it('rejects invalid patch bodies before calling the service', async () => {
+      await expect(
+        temporaryChatHandlers['/temporary/topics/:id'].PATCH(
+          reqEnvelope({ params: { id: 'tid-xyz' }, body: { assistantId: 123 } })
+        )
+      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+
+      await expect(
+        temporaryChatHandlers['/temporary/topics/:id'].PATCH(
+          reqEnvelope({ params: { id: 'tid-xyz' }, body: { assistantId: 'assistant-2', extra: 'nope' } })
+        )
+      ).rejects.toMatchObject({ code: ErrorCode.VALIDATION_ERROR })
+
+      expect(updateTopicMock).not.toHaveBeenCalled()
     })
   })
 

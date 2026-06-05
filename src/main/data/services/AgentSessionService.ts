@@ -90,13 +90,19 @@ export class AgentSessionService {
     if (!agent) throw DataApiErrorFactory.notFound('Agent', dto.agentId)
 
     const id = options.id ?? uuidv4()
+    const defaultWorkspacePath =
+      !dto.workspaceId && dto.workspaceMode !== 'system'
+        ? agentWorkspaceService.prepareDefaultWorkspaceDirectory()
+        : null
     const preparedSystemWorkspace =
       dto.workspaceMode === 'system' ? agentWorkspaceService.prepareSystemWorkspaceForSession(id) : null
+    let keepDefaultWorkspaceDirectory = false
     try {
-      await withSqliteErrors(
+      const { usedDefaultWorkspace } = await withSqliteErrors(
         () =>
           application.get('DbService').withWriteTx(async (tx) => {
             let workspaceId = dto.workspaceId
+            let usedDefaultWorkspace = false
             if (workspaceId) {
               await agentWorkspaceService.getByIdTx(tx, workspaceId, { includeSystem: options.allowSystemWorkspaceId })
             } else if (preparedSystemWorkspace) {
@@ -110,26 +116,43 @@ export class AgentSessionService {
                 .where(and(eq(sessionsTable.agentId, dto.agentId), eq(agentWorkspaceTable.type, 'user')))
                 .orderBy(desc(sessionsTable.createdAt))
                 .limit(1)
-              workspaceId = sibling?.workspaceId ?? (await agentWorkspaceService.createDefaultWorkspaceTx(tx)).id
+              if (sibling?.workspaceId) {
+                workspaceId = sibling.workspaceId
+              } else {
+                if (!defaultWorkspacePath) {
+                  throw DataApiErrorFactory.invalidOperation(
+                    'create session',
+                    'default workspace path was not prepared'
+                  )
+                }
+                workspaceId = (await agentWorkspaceService.createDefaultWorkspaceTx(tx, defaultWorkspacePath)).id
+                usedDefaultWorkspace = true
+              }
             }
 
-            return insertWithOrderKey(
+            await insertWithOrderKey(
               tx,
               sessionsTable,
               { id, agentId: dto.agentId, name: dto.name, description: dto.description, workspaceId },
               { pkColumn: sessionsTable.id, position: 'first' }
             )
+            return { usedDefaultWorkspace }
           }),
         {
           ...defaultHandlersFor('Session', id),
           foreignKey: () => DataApiErrorFactory.notFound('Agent or Workspace')
         }
       )
+      keepDefaultWorkspaceDirectory = usedDefaultWorkspace
     } catch (error) {
       if (preparedSystemWorkspace) {
         agentWorkspaceService.deletePreparedSystemWorkspaceDirectory(preparedSystemWorkspace)
       }
       throw error
+    } finally {
+      if (defaultWorkspacePath && !keepDefaultWorkspaceDirectory) {
+        agentWorkspaceService.cleanupPreparedWorkspaceDirectory(defaultWorkspacePath)
+      }
     }
 
     return await this.getById(id)

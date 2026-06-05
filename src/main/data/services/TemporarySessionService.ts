@@ -81,7 +81,7 @@ export class TemporarySessionService {
       throw DataApiErrorFactory.notFound('TemporarySession', id)
     }
     if (row.workspaceId && row.workspaceType === 'system') {
-      await workspaceWorkflowService.deleteWorkspace(row.workspaceId)
+      await workspaceWorkflowService.deleteWorkspace(row.workspaceId, { includeSystem: true })
     }
     this.sessions.delete(id)
   }

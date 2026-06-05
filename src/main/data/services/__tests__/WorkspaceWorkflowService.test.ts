@@ -52,15 +52,53 @@ describe('WorkspaceWorkflowService', () => {
     await expect(stat(workspace.path)).resolves.toMatchObject({ isDirectory: expect.any(Function) })
   })
 
-  it('deletes a system workspace and removes its backing directory', async () => {
+  it('hides system workspaces from default delete callers', async () => {
     const workspace = await agentWorkspaceService.createSystemWorkspaceForSession('workflow-system-session')
 
-    await service.deleteWorkspace(workspace.id)
+    await expect(service.deleteWorkspace(workspace.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+
+    await expect(agentWorkspaceService.getById(workspace.id, { includeSystem: true })).resolves.toMatchObject({
+      id: workspace.id
+    })
+    await expect(stat(workspace.path)).resolves.toMatchObject({ isDirectory: expect.any(Function) })
+  })
+
+  it('deletes a system workspace and removes its backing directory when explicitly allowed', async () => {
+    const workspace = await agentWorkspaceService.createSystemWorkspaceForSession('workflow-system-session')
+
+    await service.deleteWorkspace(workspace.id, { includeSystem: true })
 
     await expect(agentWorkspaceService.getById(workspace.id, { includeSystem: true })).rejects.toMatchObject({
       code: ErrorCode.NOT_FOUND
     })
     await expect(stat(workspace.path)).rejects.toThrow()
+  })
+
+  it('sweeps only unreferenced system workspaces', async () => {
+    const orphan = await agentWorkspaceService.createSystemWorkspaceForSession('orphan-system-session')
+    const referenced = await agentWorkspaceService.createSystemWorkspaceForSession('referenced-system-session')
+    const session = await agentSessionService.createSession(
+      {
+        agentId: 'agent-workflow',
+        name: 'Referenced system workspace',
+        workspaceId: referenced.id
+      },
+      { allowSystemWorkspaceId: true }
+    )
+
+    await expect(service.sweepOrphanSystemWorkspaces()).resolves.toBe(1)
+
+    await expect(agentWorkspaceService.getById(orphan.id, { includeSystem: true })).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+    await expect(stat(orphan.path)).rejects.toThrow()
+    await expect(agentWorkspaceService.getById(referenced.id, { includeSystem: true })).resolves.toMatchObject({
+      id: referenced.id
+    })
+    await expect(agentSessionService.getById(session.id)).resolves.toMatchObject({
+      workspaceId: referenced.id
+    })
+    await expect(stat(referenced.path)).resolves.toMatchObject({ isDirectory: expect.any(Function) })
   })
 
   it('throws not found when deleting a missing workspace', async () => {

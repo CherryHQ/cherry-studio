@@ -8,7 +8,7 @@ import { workspaceWorkflowService } from '@data/services/WorkspaceWorkflowServic
 import { ErrorCode } from '@shared/data/api'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { mkdtemp, rm, stat, writeFile } from 'fs/promises'
+import { mkdir, mkdtemp, rm, stat, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -277,6 +277,48 @@ describe('AgentWorkspaceService', () => {
     await expect(stat(workspace.path)).resolves.toMatchObject({ isDirectory: expect.any(Function) })
   })
 
+  it('rejects system workspace paths outside the isolated system subtree', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-system-guard-'))
+    const outsideRoot = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-outside-'))
+    vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+      if (key === 'feature.agents.workspaces') {
+        return filename ? path.join(root, filename) : root
+      }
+      return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
+    })
+
+    expect(() =>
+      agentWorkspaceService.assertSystemWorkspacePath(path.join(root, 'system', '2026-05-25', 'valid'))
+    ).not.toThrow()
+    expect(() =>
+      agentWorkspaceService.assertSystemWorkspacePath(path.join(outsideRoot, 'system', '2026-05-25'))
+    ).toThrow()
+    expect(() => agentWorkspaceService.assertSystemWorkspacePath(path.join(root, 'system', '..', 'escaped'))).toThrow()
+  })
+
+  it('does not recursively delete non-empty prepared system workspace directories', async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-system-prepared-cleanup-'))
+    vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
+      if (key === 'feature.agents.workspaces') {
+        return filename ? path.join(root, filename) : root
+      }
+      return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
+    })
+    const workspacePath = path.join(root, 'system', '2026-05-25', 'prepared')
+    const sentinelPath = path.join(workspacePath, 'keep.txt')
+    await mkdir(workspacePath, { recursive: true })
+    await writeFile(sentinelPath, 'keep')
+
+    agentWorkspaceService.deletePreparedSystemWorkspaceDirectory({
+      id: 'prepared-system-workspace',
+      name: 'Prepared',
+      path: workspacePath,
+      type: 'system'
+    })
+
+    await expect(stat(sentinelPath)).resolves.toMatchObject({ isFile: expect.any(Function) })
+  })
+
   it('deletes the backing directory for system workspaces only', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-system-delete-'))
     vi.spyOn(application, 'getPath').mockImplementation((key: string, filename?: string) => {
@@ -290,7 +332,7 @@ describe('AgentWorkspaceService', () => {
       new Date(2026, 4, 25, 14, 30, 12)
     )
 
-    await workspaceWorkflowService.deleteWorkspace(workspace.id)
+    await workspaceWorkflowService.deleteWorkspace(workspace.id, { includeSystem: true })
 
     await expect(stat(workspace.path)).rejects.toThrow()
   })
@@ -308,7 +350,9 @@ describe('AgentWorkspaceService', () => {
       throw new Error('rm failed')
     })
 
-    await expect(workspaceWorkflowService.deleteWorkspace(workspace.id)).resolves.toBeUndefined()
+    await expect(
+      workspaceWorkflowService.deleteWorkspace(workspace.id, { includeSystem: true })
+    ).resolves.toBeUndefined()
 
     await expect(agentWorkspaceService.getById(workspace.id, { includeSystem: true })).rejects.toMatchObject({
       code: ErrorCode.NOT_FOUND

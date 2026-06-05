@@ -55,6 +55,20 @@ describe('AgentWorkspaceEntitySchema', () => {
     expect(
       CreateAgentSessionSchema.parse({ agentId: 'agent-1', name: 'Session', workspaceId: workspace.id }).workspaceId
     ).toBe(workspace.id)
+    expect(
+      CreateAgentSessionSchema.parse({ agentId: 'agent-1', name: 'Session', workspaceMode: 'system' }).workspaceMode
+    ).toBe('system')
+    expect(
+      CreateAgentSessionSchema.safeParse({ agentId: 'agent-1', name: 'Session', workspaceMode: 'user' }).success
+    ).toBe(false)
+    expect(
+      CreateAgentSessionSchema.safeParse({
+        agentId: 'agent-1',
+        name: 'Session',
+        workspaceId: workspace.id,
+        workspaceMode: 'system'
+      }).success
+    ).toBe(false)
     expect(UpdateAgentSessionSchema.safeParse({ workspaceId: workspace.id }).success).toBe(false)
   })
 })

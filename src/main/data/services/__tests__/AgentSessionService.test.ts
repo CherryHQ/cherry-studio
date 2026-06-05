@@ -7,7 +7,7 @@ import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { ErrorCode } from '@shared/data/api'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
-import { mkdtemp, stat } from 'fs/promises'
+import { mkdtemp, readdir, stat } from 'fs/promises'
 import { tmpdir } from 'os'
 import path from 'path'
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
@@ -85,6 +85,7 @@ describe('AgentSessionService', () => {
 
     expect(inherited.workspaceId).toBe(secondWorkspace.id)
     expect(inherited.workspace?.path).toBe(secondWorkspace.path)
+    await expect(readdir(path.join(root, 'Agents'))).resolves.toEqual([])
   })
 
   it('creates and binds a default workspace when none can be inherited', async () => {
@@ -272,5 +273,6 @@ describe('AgentSessionService', () => {
 
     const rows = await dbh.db.select().from(agentWorkspaceTable)
     expect(rows).toHaveLength(0)
+    await expect(readdir(path.join(root, 'Agents'))).resolves.toEqual([])
   })
 })

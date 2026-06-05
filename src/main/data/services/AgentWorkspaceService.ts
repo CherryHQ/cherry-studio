@@ -1,5 +1,5 @@
 import { application } from '@application'
-import { type AgentWorkspaceRow, agentWorkspaceTable, type WorkspaceType } from '@data/db/schemas/agentWorkspace'
+import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
@@ -7,7 +7,7 @@ import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { OrderRequest } from '@shared/data/api/schemas/_endpointHelpers'
-import type { AgentWorkspaceEntity } from '@shared/data/api/schemas/agentWorkspaces'
+import type { AgentWorkspaceEntity, AgentWorkspaceType } from '@shared/data/api/schemas/agentWorkspaces'
 import { and, asc, eq } from 'drizzle-orm'
 import fs from 'fs'
 import path from 'path'
@@ -20,7 +20,7 @@ type PreparedSystemWorkspace = {
   id: string
   name: string
   path: string
-  type: Extract<WorkspaceType, 'system'>
+  type: Extract<AgentWorkspaceType, 'system'>
 }
 
 export function rowToWorkspace(row: AgentWorkspaceRow): AgentWorkspaceEntity {
@@ -83,6 +83,19 @@ function ensureWorkspaceDirectory(workspacePath: string): void {
       error: error instanceof Error ? error.message : String(error)
     })
     throw error
+  }
+}
+
+function cleanupPreparedWorkspaceDirectory(workspacePath: string): void {
+  try {
+    fs.rmdirSync(workspacePath)
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === 'ENOENT') return
+    logger.warn('Failed to clean up prepared workspace directory', {
+      path: workspacePath,
+      error: error instanceof Error ? error.message : String(error)
+    })
   }
 }
 
@@ -149,7 +162,6 @@ export class AgentWorkspaceService {
     options: { name?: string } = {}
   ): Promise<AgentWorkspaceEntity> {
     const workspacePath = normalizeWorkspacePath(rawPath)
-    ensureWorkspaceDirectory(workspacePath)
     const row = await withSqliteErrors(() => this.findOrCreateRowByNormalizedPathTx(tx, workspacePath, options), {
       ...defaultHandlersFor('Workspace', workspacePath),
       unique: () => DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
@@ -158,12 +170,26 @@ export class AgentWorkspaceService {
   }
 
   async createDefaultWorkspace(): Promise<AgentWorkspaceEntity> {
-    const workspacePath = path.join(application.getPath('feature.agents.workspaces'), uuidv4())
-    return await this.findOrCreateByPath(workspacePath)
+    const workspacePath = this.prepareDefaultWorkspaceDirectory()
+    try {
+      return await this.findOrCreateByPath(workspacePath)
+    } catch (error) {
+      cleanupPreparedWorkspaceDirectory(workspacePath)
+      throw error
+    }
   }
 
-  async createDefaultWorkspaceTx(tx: DbOrTx): Promise<AgentWorkspaceEntity> {
+  prepareDefaultWorkspaceDirectory(): string {
     const workspacePath = path.join(application.getPath('feature.agents.workspaces'), uuidv4())
+    ensureWorkspaceDirectory(workspacePath)
+    return workspacePath
+  }
+
+  cleanupPreparedWorkspaceDirectory(workspacePath: string): void {
+    cleanupPreparedWorkspaceDirectory(workspacePath)
+  }
+
+  async createDefaultWorkspaceTx(tx: DbOrTx, workspacePath: string): Promise<AgentWorkspaceEntity> {
     return await this.findOrCreateByPathTx(tx, workspacePath)
   }
 
@@ -233,8 +259,11 @@ export class AgentWorkspaceService {
 
   deletePreparedSystemWorkspaceDirectory(prepared: PreparedSystemWorkspace): void {
     try {
-      this.deleteSystemWorkspaceDirectory(prepared.path)
+      this.assertSystemWorkspacePath(prepared.path)
+      fs.rmdirSync(prepared.path)
     } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code
+      if (code === 'ENOENT') return
       logger.warn('Failed to clean prepared system workspace directory', {
         path: prepared.path,
         error: error instanceof Error ? error.message : String(error)
@@ -261,7 +290,7 @@ export class AgentWorkspaceService {
 
   private async insertWorkspaceRowTx(
     tx: DbOrTx,
-    workspace: { id: string; name: string; path: string; type: WorkspaceType }
+    workspace: { id: string; name: string; path: string; type: AgentWorkspaceType }
   ): Promise<AgentWorkspaceRow> {
     return (await insertWithOrderKey(tx, agentWorkspaceTable, workspace, {
       pkColumn: agentWorkspaceTable.id,

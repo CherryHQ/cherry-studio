@@ -38,7 +38,7 @@ const logger = loggerService.withContext('DataApiService')
  */
 @Injectable('DataApiService')
 @ServicePhase(Phase.BeforeReady)
-@DependsOn(['DbService'])
+@DependsOn(['DbService', 'AgentWorkspaceMaintenanceService'])
 export class DataApiService extends BaseService {
   private apiServer: ApiServer
   private ipcAdapter: IpcAdapter

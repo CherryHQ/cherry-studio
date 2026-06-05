@@ -48,9 +48,10 @@ export const CreateTemporarySessionSchema = z
   })
 export type CreateTemporarySessionDto = z.infer<typeof CreateTemporarySessionSchema>
 
-export interface UpdateTemporaryTopicDto {
-  assistantId?: string | null
-}
+export const UpdateTemporaryTopicSchema = z.strictObject({
+  assistantId: z.string().nullable().optional()
+})
+export type UpdateTemporaryTopicDto = z.infer<typeof UpdateTemporaryTopicSchema>
 
 // ============================================================================
 // API Schema Definitions
