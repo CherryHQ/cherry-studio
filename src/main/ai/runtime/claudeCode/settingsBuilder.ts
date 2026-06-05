@@ -40,8 +40,8 @@ import { application } from '@main/core/application'
 import { isLinux, isWin } from '@main/core/platform'
 import { getProxyEnvironment } from '@main/services/proxy/nodeProxy'
 import { toAsarUnpackedPath } from '@main/utils'
-import { checkWorkspacePathStatus, formatWorkspacePathStatus } from '@main/utils/file/workspacePathStatus'
-import { getAppLanguage } from '@main/utils/language'
+import { getPathStatus, type PathStatus } from '@main/utils/file/pathStatus'
+import { getAppLanguage, t } from '@main/utils/language'
 import { autoDiscoverGitBash, getBinaryPath } from '@main/utils/process'
 import { rtkRewrite } from '@main/utils/rtk'
 import getLoginShellEnvironment from '@main/utils/shell-env'
@@ -190,7 +190,7 @@ export async function buildClaudeCodeSessionSettings(
   if (!cwd) {
     throw new AgentSessionWorkspaceError(`Agent session ${session.id} has no workspace configured`)
   }
-  assertClaudeCodeWorkspaceDirectory(session.id, cwd)
+  await assertClaudeCodeWorkspaceDirectory(session.id, cwd)
   await skillService.reconcileAgentSkills(session.agentId, cwd)
 
   // 2. Environment variables
@@ -286,12 +286,26 @@ export function isAgentSessionWorkspaceError(error: unknown): error is AgentSess
   return error instanceof AgentSessionWorkspaceError
 }
 
-export function assertClaudeCodeWorkspaceDirectory(sessionId: string, cwd: string): void {
-  const status = checkWorkspacePathStatus(cwd)
-  if (status.ok) return
-  throw new AgentSessionWorkspaceError(
-    `Workspace path for session ${sessionId}: ${formatWorkspacePathStatus(cwd, status)}`
-  )
+export async function assertClaudeCodeWorkspaceDirectory(sessionId: string, cwd: string): Promise<void> {
+  const status = await getPathStatus(cwd)
+  if (status.ok && status.kind === 'directory') return
+  // The operation fails here, so this is where the workspace-path problem is
+  // reported: the directory policy and the user-facing (i18n'd) message both
+  // live on this consumer, surfaced to the renderer via the dispatch `blocked`
+  // reason / channel adapters; the session id goes to the log for operators.
+  logger.warn(`Agent session ${sessionId} workspace invalid: ${cwd}`)
+  throw new AgentSessionWorkspaceError(workspacePathErrorMessage(cwd, status))
+}
+
+function workspacePathErrorMessage(path: string, status: PathStatus): string {
+  // The directory case returned already, so an `ok` status here means the path
+  // exists but is a file — i.e. "not a directory".
+  if (status.ok) {
+    return t('agent.session.workspace_status.not_directory', { path })
+  }
+  return status.reason === 'missing'
+    ? t('agent.session.workspace_status.missing', { path })
+    : t('agent.session.workspace_status.inaccessible', { path })
 }
 
 async function buildEnvironment(
