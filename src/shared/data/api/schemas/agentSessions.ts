@@ -1,5 +1,5 @@
 /**
- * Session domain API Schema definitions.
+ * Agent session domain API Schema definitions.
  */
 
 import {
@@ -14,21 +14,21 @@ import * as z from 'zod'
 import type { CursorPaginationResponse } from '../apiTypes'
 import type { OrderEndpoints } from './_endpointHelpers'
 import { AgentNameAtomSchema } from './agents'
-import { WorkspaceEntitySchema } from './workspaces'
+import { AgentWorkspaceEntitySchema } from './agentWorkspaces'
 
-/** Cursor-paginated query for `/sessions/:sessionId/messages`. Walks history
+/** Cursor-paginated query for `/agent-sessions/:sessionId/messages`. Walks history
  *  newest-first; an absent `cursor` returns the most recent page, then each
  *  `nextCursor` walks one page older. Limit caps at 200 — the renderer
  *  flattens with `useInfiniteFlatItems` and the virtualizer scrolls older
  *  pages in on demand, so per-page size never has to cover a whole session. */
-export const SESSION_MESSAGES_MAX_LIMIT = 200
-export const SESSION_MESSAGES_DEFAULT_LIMIT = 50
+export const AGENT_SESSION_MESSAGES_MAX_LIMIT = 200
+export const AGENT_SESSION_MESSAGES_DEFAULT_LIMIT = 50
 
-export const SessionMessagesListQuerySchema = z.strictObject({
+export const AgentSessionMessagesListQuerySchema = z.strictObject({
   cursor: z.string().optional(),
-  limit: z.coerce.number().int().positive().max(SESSION_MESSAGES_MAX_LIMIT).optional()
+  limit: z.coerce.number().int().positive().max(AGENT_SESSION_MESSAGES_MAX_LIMIT).optional()
 })
-export type SessionMessagesListQuery = z.infer<typeof SessionMessagesListQuerySchema>
+export type AgentSessionMessagesListQuery = z.infer<typeof AgentSessionMessagesListQuerySchema>
 
 // ============================================================================
 // Entity & DTOs (Rule C: derive DTOs via .pick())
@@ -84,7 +84,7 @@ export const AgentSessionEntitySchema = z.strictObject({
   name: AgentNameAtomSchema,
   description: z.string().optional(),
   workspaceId: z.string().nullable(),
-  workspace: WorkspaceEntitySchema.nullable(),
+  workspace: AgentWorkspaceEntitySchema.nullable(),
   orderKey: z.string(),
   createdAt: z.string(),
   updatedAt: z.string()
@@ -94,54 +94,54 @@ export type AgentSessionEntity = z.infer<typeof AgentSessionEntitySchema>
 // Create requires a real `agentId` — orphans only happen via cascade, never on insert.
 // `workspaceId` is optional at create time — when omitted, the service inherits
 // from the latest sibling session of the same agent, or creates a default workspace.
-export const CreateSessionSchema = z.strictObject({
+export const CreateAgentSessionSchema = z.strictObject({
   agentId: z.string().min(1),
   name: AgentNameAtomSchema,
   description: z.string().optional(),
   workspaceId: z.string().min(1).optional()
 })
-export type CreateSessionDto = z.infer<typeof CreateSessionSchema>
+export type CreateAgentSessionDto = z.infer<typeof CreateAgentSessionSchema>
 
-export const UpdateSessionSchema = z.strictObject({
+export const UpdateAgentSessionSchema = z.strictObject({
   name: AgentNameAtomSchema.optional(),
   description: z.string().optional(),
   agentId: z.string().min(1).optional()
 })
 
-export type UpdateSessionDto = z.infer<typeof UpdateSessionSchema>
+export type UpdateAgentSessionDto = z.infer<typeof UpdateAgentSessionSchema>
 
-/** Query for `GET /sessions` (cursor pagination + optional agent filter). */
-export const ListSessionsQuerySchema = z.strictObject({
+/** Query for `GET /agent-sessions` (cursor pagination + optional agent filter). */
+export const ListAgentSessionsQuerySchema = z.strictObject({
   agentId: z.string().optional(),
   cursor: z.string().optional(),
   limit: z.coerce.number().int().positive().max(200).optional()
 })
-export type ListSessionsQuery = z.infer<typeof ListSessionsQuerySchema>
+export type ListAgentSessionsQuery = z.infer<typeof ListAgentSessionsQuerySchema>
 
 // ============================================================================
 // API Schema definitions
 // ============================================================================
 
-export type SessionSchemas = {
-  '/sessions': {
+export type AgentSessionSchemas = {
+  '/agent-sessions': {
     GET: {
-      query?: ListSessionsQuery
+      query?: ListAgentSessionsQuery
       response: CursorPaginationResponse<AgentSessionEntity>
     }
     POST: {
-      body: CreateSessionDto
+      body: CreateAgentSessionDto
       response: AgentSessionEntity
     }
   }
 
-  '/sessions/:sessionId': {
+  '/agent-sessions/:sessionId': {
     GET: {
       params: { sessionId: string }
       response: AgentSessionEntity
     }
     PATCH: {
       params: { sessionId: string }
-      body: UpdateSessionDto
+      body: UpdateAgentSessionDto
       response: AgentSessionEntity
     }
     DELETE: {
@@ -150,18 +150,18 @@ export type SessionSchemas = {
     }
   }
 
-  '/sessions/:sessionId/messages': {
+  '/agent-sessions/:sessionId/messages': {
     GET: {
       params: { sessionId: string }
-      query?: SessionMessagesListQuery
+      query?: AgentSessionMessagesListQuery
       response: CursorPaginationResponse<z.infer<typeof AgentSessionMessageEntitySchema>>
     }
   }
 
-  '/sessions/:sessionId/messages/:messageId': {
+  '/agent-sessions/:sessionId/messages/:messageId': {
     DELETE: {
       params: { sessionId: string; messageId: string }
       response: void
     }
   }
-} & OrderEndpoints<'/sessions'>
+} & OrderEndpoints<'/agent-sessions'>

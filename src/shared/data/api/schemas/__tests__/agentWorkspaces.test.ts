@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { AgentSessionEntitySchema, CreateSessionSchema, UpdateSessionSchema } from '../sessions'
-import { WorkspaceEntitySchema } from '../workspaces'
+import { AgentSessionEntitySchema, CreateAgentSessionSchema, UpdateAgentSessionSchema } from '../agentSessions'
+import { AgentWorkspaceEntitySchema } from '../agentWorkspaces'
 
-describe('WorkspaceEntitySchema', () => {
+describe('AgentWorkspaceEntitySchema', () => {
   const workspace = {
     id: '550e8400-e29b-41d4-a716-446655440000',
     name: 'workspace',
@@ -14,7 +14,7 @@ describe('WorkspaceEntitySchema', () => {
   }
 
   it('describes normalized workspace rows', () => {
-    expect(WorkspaceEntitySchema.parse(workspace)).toEqual(workspace)
+    expect(AgentWorkspaceEntitySchema.parse(workspace)).toEqual(workspace)
   })
 
   it('exposes workspace on sessions instead of accessiblePaths', () => {
@@ -52,8 +52,8 @@ describe('WorkspaceEntitySchema', () => {
 
   it('allows workspace selection on session create only', () => {
     expect(
-      CreateSessionSchema.parse({ agentId: 'agent-1', name: 'Session', workspaceId: workspace.id }).workspaceId
+      CreateAgentSessionSchema.parse({ agentId: 'agent-1', name: 'Session', workspaceId: workspace.id }).workspaceId
     ).toBe(workspace.id)
-    expect(UpdateSessionSchema.safeParse({ workspaceId: workspace.id }).success).toBe(false)
+    expect(UpdateAgentSessionSchema.safeParse({ workspaceId: workspace.id }).success).toBe(false)
   })
 })

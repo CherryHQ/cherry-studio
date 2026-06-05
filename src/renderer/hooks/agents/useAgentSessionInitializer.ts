@@ -15,7 +15,7 @@ import { useEffect } from 'react'
  */
 export const useAgentSessionInitializer = () => {
   const [activeSessionId, setActiveSessionId] = useCache('agent.active_session_id')
-  const { data } = useQuery('/sessions', {
+  const { data } = useQuery('/agent-sessions', {
     query: { limit: 1 },
     enabled: !activeSessionId
   })
