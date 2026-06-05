@@ -1,113 +1,70 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { applicationMock, windowManagerMock } = vi.hoisted(() => {
-  type WindowInfoMock = { id: string }
-  type TraceWindowMock = { isDestroyed: () => boolean; setTitle: (title: string) => void }
-  const windowManagerMock = {
-    open: vi.fn(() => 'trace-window-id'),
-    getWindow: vi.fn<(id: string) => TraceWindowMock | undefined>(() => undefined),
-    getWindowsByType: vi.fn<() => WindowInfoMock[]>(() => [])
-  }
+const { applicationMock, ipcMainMock, preferenceServiceMock } = vi.hoisted(() => {
   const preferenceServiceMock = {
     get: vi.fn(() => false)
   }
   const applicationMock = {
     get: vi.fn((name: string) => {
-      if (name === 'WindowManager') return windowManagerMock
       if (name === 'PreferenceService') return preferenceServiceMock
       throw new Error(`unexpected service: ${name}`)
     })
   }
-  return { applicationMock, windowManagerMock }
+  const ipcMainMock = {
+    handle: vi.fn()
+  }
+  return { applicationMock, ipcMainMock, preferenceServiceMock }
 })
 
 vi.mock('@application', () => ({ application: applicationMock }))
+vi.mock('electron', () => ({ ipcMain: ipcMainMock }))
 
 vi.mock('@main/core/lifecycle', async () => {
   const actual = (await vi.importActual('@main/core/lifecycle')) as Record<string, unknown>
   class StubBase {
-    public isActivated = true
     protected ipcHandle = vi.fn()
     protected registerDisposable = vi.fn(<T>(disposable: T) => disposable)
   }
   return { ...actual, BaseService: StubBase }
 })
 
-import { WindowType } from '@main/core/window/types'
-import { IpcChannel } from '@shared/IpcChannel'
-
 import { NodeTraceService } from '../NodeTraceService'
 
-function getIpcHandleHandler(service: NodeTraceService, channel: string) {
-  const call = (service as any).ipcHandle.mock.calls.find(
-    ([registeredChannel]: [string]) => registeredChannel === channel
-  )
-  if (!call) throw new Error(`ipcHandle handler not registered for channel: ${channel}`)
-  return call[1]
-}
-
 describe('NodeTraceService', () => {
-  let service: NodeTraceService
-
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks()
-    windowManagerMock.open.mockReturnValue('trace-window-id')
-    windowManagerMock.getWindow.mockReturnValue(undefined)
-    windowManagerMock.getWindowsByType.mockReturnValue([])
-    service = new NodeTraceService()
+    preferenceServiceMock.get.mockReturnValue(false)
+    // patchIpcMainHandle() reassigns ipcMain.handle and the stubbed
+    // registerDisposable never reverts it, so reset to a fresh fn per test.
+    ipcMainMock.handle = vi.fn()
+  })
+
+  it('does not register standalone trace window IPC handlers', async () => {
+    const service = new NodeTraceService()
+
     await (service as any).onInit()
+
+    expect((service as any).ipcHandle).not.toHaveBeenCalled()
   })
 
-  it('opens trace windows through WindowManager init data', () => {
-    const handler = getIpcHandleHandler(service, IpcChannel.TRACE_OPEN_WINDOW)
+  it('still patches IPC handlers for trace context when developer mode is enabled', async () => {
+    preferenceServiceMock.get.mockReturnValue(true)
+    const service = new NodeTraceService()
+    const originalHandle = ipcMainMock.handle
 
-    handler({}, 'topic-a', 'trace-a', true, 'model-a')
+    await (service as any).onInit()
 
-    expect(windowManagerMock.open).toHaveBeenCalledWith(WindowType.Trace, {
-      initData: {
-        topicId: 'topic-a',
-        traceId: 'trace-a',
-        modelName: 'model-a'
-      }
-    })
+    expect((service as any).registerDisposable).toHaveBeenCalledTimes(1)
+    // patchIpcMainHandle() must have replaced ipcMain.handle with its wrapper.
+    expect(ipcMainMock.handle).not.toBe(originalHandle)
   })
 
-  it('does not create a trace window for passive auto-open when no trace window exists', () => {
-    const handler = getIpcHandleHandler(service, IpcChannel.TRACE_OPEN_WINDOW)
+  it('leaves ipcMain.handle untouched when developer mode is disabled', async () => {
+    const service = new NodeTraceService()
+    const originalHandle = ipcMainMock.handle
 
-    handler({}, 'topic-a', 'trace-a', false)
+    await (service as any).onInit()
 
-    expect(windowManagerMock.open).not.toHaveBeenCalled()
-  })
-
-  it('reuses an existing trace singleton for passive auto-open', () => {
-    windowManagerMock.getWindowsByType.mockReturnValue([{ id: 'trace-window-id' }])
-    const handler = getIpcHandleHandler(service, IpcChannel.TRACE_OPEN_WINDOW)
-
-    handler({}, 'topic-a', 'trace-a', false)
-
-    expect(windowManagerMock.open).toHaveBeenCalledWith(
-      WindowType.Trace,
-      expect.objectContaining({
-        initData: expect.objectContaining({
-          topicId: 'topic-a',
-          traceId: 'trace-a'
-        })
-      })
-    )
-  })
-
-  it('updates the native title on managed trace windows', () => {
-    const window = {
-      isDestroyed: vi.fn(() => false),
-      setTitle: vi.fn()
-    }
-    windowManagerMock.getWindowsByType.mockReturnValue([{ id: 'trace-window-id' }])
-    windowManagerMock.getWindow.mockReturnValue(window)
-    const handler = getIpcHandleHandler(service, IpcChannel.TRACE_SET_TITLE)
-
-    handler({}, 'Trace')
-
-    expect(window.setTitle).toHaveBeenCalledWith('Trace')
+    expect(ipcMainMock.handle).toBe(originalHandle)
   })
 })

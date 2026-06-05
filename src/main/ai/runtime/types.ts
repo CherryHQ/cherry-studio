@@ -1,6 +1,6 @@
 import type { Tool } from '@shared/ai/tool'
 import type { AgentEntity, AgentPermissionMode } from '@shared/data/api/schemas/agents'
-import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity, AgentSessionMessageEntity } from '@shared/data/api/schemas/agentSessions'
 import type { UniqueModelId } from '@shared/data/types/model'
 import type { UIMessageChunk } from 'ai'
 

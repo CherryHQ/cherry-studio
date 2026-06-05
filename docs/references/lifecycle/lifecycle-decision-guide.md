@@ -29,6 +29,8 @@
 
 #### When should IPC handlers live inside a service?
 
+**Placement, not promotion.** This table assumes the service is *already* lifecycle (it owns resources or stateful handlers) and only decides whether a handler lives *inside* it. None of these rows promotes a class into lifecycle on its own — least of all row 3: "belongs to the domain" means *co-locate into the existing domain service*, never *create a lifecycle service just to host IPC registration*.
+
 A lifecycle service should self-contain its IPC handlers when **any** of the following is true:
 
 | Condition | Why |
@@ -37,7 +39,7 @@ A lifecycle service should self-contain its IPC handlers when **any** of the fol
 | Service needs `stop()` / `start()` / `restart()` support | Orphaned handlers would reference stale state after restart |
 | Handler semantically belongs to the service's domain | Co-location improves maintainability and discoverability |
 
-If the handler is purely stateless (e.g., returns `app.getVersion()`), it does not require lifecycle management.
+If the handler is purely stateless (e.g., returns `app.getVersion()`), it does not require lifecycle management — a class whose only job is registering stateless IPC is **not** a lifecycle service. Fold the handler into its domain service, or register it from a direct-import singleton.
 
 BaseService provides built-in IPC tracking for self-contained handlers — see [IPC Handler Management](./lifecycle-usage.md#ipc-handler-management).
 
@@ -191,3 +193,5 @@ Does the service need to be entirely excluded on some platforms?
 6. **Awaiting business work inside `onAllReady`** — `onAllReady` is a post-bootstrap supplement, not part of initialization. The framework invokes every service's hook in parallel and **does not await completion** (fire-and-forget). An `await someLongRunning()` inside `onAllReady` becomes silent background work; bootstrap proceeds without it. If the service truly needs deferred business work (e.g. a quiet window then recovery), schedule it via `setTimeout`, track the Promise on the instance, and join it from `onStop`. See [Lifecycle Usage — onAllReady patterns](./lifecycle-usage.md#onallready-business-work-pattern) for the template.
 
 7. **Treating `ALL_SERVICES_READY` as "all side effects done"** — the event fires immediately after every `onAllReady` hook has been **invoked**, not after they complete. A listener that needs to wait on a specific service's deferred work must coordinate with that service directly (e.g. a `Signal` emitted by the service when its work finishes), not subscribe to `ALL_SERVICES_READY`.
+
+8. **"Lifecycle service as an IPC bucket"** — a class that exists only to register IPC handlers is not lifecycle by default. Registration is a side effect, but a *stateless* handler needs no shutdown undo, and "belongs to the domain" (the IPC table's row 3) only decides placement inside an *already-lifecycle* service — it never promotes an IPC-only class. Fold such handlers into the owning domain service, or use a direct-import singleton.

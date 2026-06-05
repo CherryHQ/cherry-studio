@@ -2,7 +2,7 @@ import { sqliteTable, text } from 'drizzle-orm/sqlite-core'
 
 import { createUpdateTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey } from './_columnHelpers'
 import { agentTable } from './agent'
-import { workspaceTable } from './workspace'
+import { agentWorkspaceTable } from './agentWorkspace'
 
 export const agentSessionTable = sqliteTable(
   'agent_session',
@@ -11,7 +11,7 @@ export const agentSessionTable = sqliteTable(
     agentId: text().references(() => agentTable.id, { onDelete: 'set null' }),
     name: text().notNull(),
     description: text().notNull().default(''),
-    workspaceId: text().references(() => workspaceTable.id, { onDelete: 'set null' }),
+    workspaceId: text().references(() => agentWorkspaceTable.id, { onDelete: 'set null' }),
     ...orderKeyColumns,
     ...createUpdateTimestamps
   },

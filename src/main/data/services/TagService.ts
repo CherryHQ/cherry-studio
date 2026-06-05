@@ -28,7 +28,7 @@
  */
 
 import { application } from '@application'
-import { entityTagTable, type TagSelect, tagTable } from '@data/db/schemas/tagging'
+import { entityTagTable, type TagRow, tagTable } from '@data/db/schemas/tagging'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
 import { loggerService } from '@logger'
@@ -76,7 +76,7 @@ function buildEntityBindingCondition(entities: Array<{ entityType: string; entit
 /**
  * Convert database row to Tag entity
  */
-function rowToTag(row: TagSelect): Tag {
+function rowToTag(row: TagRow): Tag {
   return {
     id: row.id,
     name: row.name,

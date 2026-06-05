@@ -25,7 +25,6 @@ Each subdirectory is one renderer window: an HTML entry, a thin bootstrap, and a
 | `subWindow` | `SubWindowApp` | `SubWindowAppShell` |
 | `quickAssistant` | `QuickAssistantApp` | `HomeWindow` |
 | `migrationV2` | `MigrationApp` | in-component (`components/`) |
-| `trace` | `TraceApp` | `pages/` (`TracePage`) |
 | `selection/action` | `SelectionActionApp` | `ActionWindow` |
 | `selection/toolbar` | `SelectionToolbarApp` | `SelectionToolbar` (reused in settings pages) |
 

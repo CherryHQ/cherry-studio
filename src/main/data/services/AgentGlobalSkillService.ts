@@ -7,7 +7,7 @@ import {
 } from '@data/db/schemas/agentGlobalSkill'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentSkillTable } from '@data/db/schemas/agentSkill'
-import { workspaceTable } from '@data/db/schemas/workspace'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import type { DbOrTx } from '@data/db/types'
 import { agentService } from '@data/services/AgentService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
@@ -173,9 +173,9 @@ export class AgentGlobalSkillService {
    */
   async listAgentSessionWorkspacePaths(agentId: string): Promise<string[]> {
     const rows = await this.db
-      .select({ workspacePath: workspaceTable.path })
+      .select({ workspacePath: agentWorkspaceTable.path })
       .from(agentSessionTable)
-      .leftJoin(workspaceTable, eq(agentSessionTable.workspaceId, workspaceTable.id))
+      .leftJoin(agentWorkspaceTable, eq(agentSessionTable.workspaceId, agentWorkspaceTable.id))
       .where(eq(agentSessionTable.agentId, agentId))
     const seen = new Set<string>()
     const paths: string[] = []
