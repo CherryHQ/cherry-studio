@@ -2,7 +2,6 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isPathInside } from '@main/utils/file/path'
 import { AbsolutePathSchema } from '@shared/data/types/file'
 import type {
@@ -14,7 +13,6 @@ import type {
   ExcelWorkbookPreviewRequest,
   ExcelWorkbookPreviewResult
 } from '@shared/excelPreview'
-import { IpcChannel } from '@shared/IpcChannel'
 import { XMLParser } from 'fast-xml-parser'
 import StreamZip from 'node-stream-zip'
 import * as z from 'zod'
@@ -801,24 +799,5 @@ export async function readExcelWorkbookPreview(
       return fail(error.code, error.message)
     }
     return fail('excel_parse_error', 'Failed to read Excel workbook preview.')
-  }
-}
-
-@Injectable('ExcelPreviewService')
-@ServicePhase(Phase.WhenReady)
-export class ExcelPreviewService extends BaseService {
-  protected override onInit(): void {
-    this.registerIpcHandlers()
-  }
-
-  private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.Excel_ReadWorkbookPreview, async (_event, params: unknown) => {
-      const parsed = ExcelWorkbookPreviewRequestSchema.safeParse(params)
-      if (!parsed.success) {
-        return fail('invalid_excel_preview_request', 'Invalid Excel preview request.')
-      }
-
-      return readExcelWorkbookPreview(parsed.data)
-    })
   }
 }

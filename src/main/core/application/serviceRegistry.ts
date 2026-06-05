@@ -21,7 +21,6 @@ import { AnalyticsService } from '@main/services/AnalyticsService'
 import { ApiServerService } from '@main/services/ApiServerService'
 import { AppMenuService } from '@main/services/AppMenuService'
 import { AppUpdaterService } from '@main/services/AppUpdaterService'
-import { ExcelPreviewService, WordPreviewService } from '@main/services/artifact'
 import { CherryInOauthService } from '@main/services/CherryInOauthService'
 import { CodeCliService } from '@main/services/CodeCliService'
 import { FileManager } from '@main/services/file/FileManager'
@@ -85,8 +84,6 @@ export const services = {
   AnalyticsService,
   AppMenuService,
   CodeCliService,
-  ExcelPreviewService,
-  WordPreviewService,
   LanTransferService,
   FileManager,
   DirectoryTreeManager,

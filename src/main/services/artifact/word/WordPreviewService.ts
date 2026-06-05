@@ -2,10 +2,8 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
 import { loggerService } from '@logger'
-import { BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { isPathInside } from '@main/utils/file/path'
 import { AbsolutePathSchema } from '@shared/data/types/file'
-import { IpcChannel } from '@shared/IpcChannel'
 import {
   WORD_PREVIEW_MAX_SIZE_BYTES,
   type WordPreviewErrorCode,
@@ -80,20 +78,5 @@ export async function readWordPreview(request: WordPreviewRequest): Promise<Word
     const normalized = err instanceof Error ? err : new Error(String(err))
     logger.error(`Failed to read Word preview: ${resolvedFilePath}`, normalized)
     return fail('word_read_failed', 'Failed to read Word document preview.')
-  }
-}
-
-@Injectable('WordPreviewService')
-@ServicePhase(Phase.WhenReady)
-export class WordPreviewService extends BaseService {
-  protected override onInit(): void {
-    this.ipcHandle(IpcChannel.Word_ReadPreview, async (_event, params: unknown) => {
-      const parsed = WordPreviewRequestSchema.safeParse(params)
-      if (!parsed.success) {
-        return fail('invalid_word_preview_request', 'Invalid Word preview request.')
-      }
-
-      return readWordPreview(parsed.data)
-    })
   }
 }
