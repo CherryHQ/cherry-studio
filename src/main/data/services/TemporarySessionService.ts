@@ -1,7 +1,7 @@
 import { agentService } from '@data/services/AgentService'
-import { sessionService } from '@data/services/SessionService'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
-import { workspaceService } from '@data/services/WorkspaceService'
 import { workspaceWorkflowService } from '@data/services/WorkspaceWorkflowService'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
@@ -55,9 +55,9 @@ export class TemporarySessionService {
     // display; an invalid id surfaces as a precise 404 before the row is kept.
     const workspace =
       dto.workspaceMode === 'system'
-        ? await workspaceService.createSystemWorkspaceForSession(id)
+        ? await agentWorkspaceService.createSystemWorkspaceForSession(id)
         : dto.workspaceId
-          ? await workspaceService.getById(dto.workspaceId)
+          ? await agentWorkspaceService.getById(dto.workspaceId)
           : null
 
     const row: TemporarySessionRow = {
@@ -102,7 +102,7 @@ export class TemporarySessionService {
 
     this.sessions.delete(id)
     try {
-      return await sessionService.createSession(
+      return await agentSessionService.createSession(
         {
           agentId: row.agentId,
           name: row.name,

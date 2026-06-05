@@ -1,7 +1,7 @@
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
-import { sessionService } from '@data/services/SessionService'
-import { workspaceService } from '@data/services/WorkspaceService'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { WorkspaceWorkflowService } from '@data/services/WorkspaceWorkflowService'
 import { ErrorCode } from '@shared/data/api'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -38,8 +38,8 @@ describe('WorkspaceWorkflowService', () => {
   })
 
   it('deletes a user workspace and its sessions without removing the directory', async () => {
-    const workspace = await workspaceService.findOrCreateByPath(path.join(root, 'user-project'))
-    const session = await sessionService.createSession({
+    const workspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'user-project'))
+    const session = await agentSessionService.createSession({
       agentId: 'agent-workflow',
       name: 'User workspace session',
       workspaceId: workspace.id
@@ -47,17 +47,17 @@ describe('WorkspaceWorkflowService', () => {
 
     await service.deleteWorkspace(workspace.id)
 
-    await expect(workspaceService.getById(workspace.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
-    await expect(sessionService.getById(session.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    await expect(agentWorkspaceService.getById(workspace.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    await expect(agentSessionService.getById(session.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
     await expect(stat(workspace.path)).resolves.toMatchObject({ isDirectory: expect.any(Function) })
   })
 
   it('deletes a system workspace and removes its backing directory', async () => {
-    const workspace = await workspaceService.createSystemWorkspaceForSession('workflow-system-session')
+    const workspace = await agentWorkspaceService.createSystemWorkspaceForSession('workflow-system-session')
 
     await service.deleteWorkspace(workspace.id)
 
-    await expect(workspaceService.getById(workspace.id, { includeSystem: true })).rejects.toMatchObject({
+    await expect(agentWorkspaceService.getById(workspace.id, { includeSystem: true })).rejects.toMatchObject({
       code: ErrorCode.NOT_FOUND
     })
     await expect(stat(workspace.path)).rejects.toThrow()

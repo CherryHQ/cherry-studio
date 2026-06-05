@@ -1,9 +1,9 @@
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { agentSessionTable } from '@data/db/schemas/agentSession'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { userModelTable } from '@data/db/schemas/userModel'
 import { userProviderTable } from '@data/db/schemas/userProvider'
-import { workspaceTable } from '@data/db/schemas/workspace'
 import { TemporarySessionService } from '@data/services/TemporarySessionService'
 import { setupTestDatabase } from '@test-helpers/db'
 import { eq } from 'drizzle-orm'
@@ -71,7 +71,7 @@ describe('TemporarySessionService', () => {
 
   it('persists with the same id and reuses SessionService workspace fallback', async () => {
     await seedAgent(dbh.db, 'agent-a', 'provider-a:model-a')
-    await dbh.db.insert(workspaceTable).values({
+    await dbh.db.insert(agentWorkspaceTable).values({
       id: 'ws-a',
       name: 'cherry-temporary-session-test',
       path: '/private/tmp/cherry-temporary-session-test',
@@ -129,7 +129,7 @@ describe('TemporarySessionService', () => {
     await service.deleteSession(draft.id)
 
     await expect(stat(workspacePath)).rejects.toThrow()
-    const rows = await dbh.db.select().from(workspaceTable).where(eq(workspaceTable.id, draft.workspaceId!))
+    const rows = await dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.id, draft.workspaceId!))
     expect(rows).toHaveLength(0)
   })
 

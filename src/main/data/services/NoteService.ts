@@ -1,5 +1,5 @@
 import { application } from '@application'
-import { type NoteSelect, noteTable } from '@data/db/schemas/note'
+import { type NoteRow, noteTable } from '@data/db/schemas/note'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import { DataApiErrorFactory } from '@shared/data/api'
 import type { DeleteNoteQuery, RewriteNotePathDto, UpsertNoteDto } from '@shared/data/api/schemas/notes'
@@ -8,7 +8,7 @@ import { and, asc, eq, inArray, not, sql } from 'drizzle-orm'
 
 import { timestampToISO } from './utils/rowMappers'
 
-function rowToNote(row: NoteSelect): Note {
+function rowToNote(row: NoteRow): Note {
   return {
     id: row.id,
     rootPath: row.rootPath,
@@ -48,7 +48,7 @@ export class NoteService {
   }
 
   async upsert(dto: UpsertNoteDto): Promise<Note | null> {
-    const updateValues: Partial<Pick<NoteSelect, 'isStarred' | 'isExpanded'>> = {}
+    const updateValues: Partial<Pick<NoteRow, 'isStarred' | 'isExpanded'>> = {}
     if (dto.isStarred !== undefined) {
       updateValues.isStarred = dto.isStarred
     }

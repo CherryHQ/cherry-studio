@@ -1,9 +1,9 @@
 import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
-import { workspaceTable } from '@data/db/schemas/workspace'
+import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
+import { agentSessionService } from '@data/services/AgentSessionService'
+import { AgentWorkspaceService, agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { pinService } from '@data/services/PinService'
-import { sessionService } from '@data/services/SessionService'
-import { WorkspaceService, workspaceService } from '@data/services/WorkspaceService'
 import { workspaceWorkflowService } from '@data/services/WorkspaceWorkflowService'
 import { ErrorCode } from '@shared/data/api'
 import { setupTestDatabase } from '@test-helpers/db'
@@ -13,15 +13,15 @@ import { tmpdir } from 'os'
 import path from 'path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-describe('WorkspaceService', () => {
+describe('AgentWorkspaceService', () => {
   const dbh = setupTestDatabase()
 
   afterEach(() => {
     vi.restoreAllMocks()
   })
 
-  it('should export a module-level singleton of WorkspaceService', () => {
-    expect(workspaceService).toBeInstanceOf(WorkspaceService)
+  it('should export a module-level singleton of AgentWorkspaceService', () => {
+    expect(agentWorkspaceService).toBeInstanceOf(AgentWorkspaceService)
   })
 
   it('normalizes paths, creates the directory, and dedupes by path', async () => {
@@ -29,8 +29,8 @@ describe('WorkspaceService', () => {
     const rawPath = path.join(root, 'project', '..', 'project')
     const normalizedPath = path.join(root, 'project')
 
-    const first = await workspaceService.findOrCreateByPath(rawPath)
-    const second = await workspaceService.findOrCreateByPath(normalizedPath)
+    const first = await agentWorkspaceService.findOrCreateByPath(rawPath)
+    const second = await agentWorkspaceService.findOrCreateByPath(normalizedPath)
 
     expect(second.id).toBe(first.id)
     expect(first).toMatchObject({
@@ -41,16 +41,16 @@ describe('WorkspaceService', () => {
     const stats = await stat(normalizedPath)
     expect(stats.isDirectory()).toBe(true)
 
-    const rows = await dbh.db.select().from(workspaceTable).where(eq(workspaceTable.path, normalizedPath))
+    const rows = await dbh.db.select().from(agentWorkspaceTable).where(eq(agentWorkspaceTable.path, normalizedPath))
     expect(rows).toHaveLength(1)
   })
 
   it('inserts newly created workspaces at the front of the list', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-'))
-    const first = await workspaceService.findOrCreateByPath(path.join(root, 'first'))
-    const second = await workspaceService.findOrCreateByPath(path.join(root, 'second'))
+    const first = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'first'))
+    const second = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'second'))
 
-    const workspaces = await workspaceService.list()
+    const workspaces = await agentWorkspaceService.list()
 
     expect(workspaces.map((workspace) => workspace.id)).toEqual([second.id, first.id])
   })
@@ -63,18 +63,18 @@ describe('WorkspaceService', () => {
       }
       return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
     })
-    const userWorkspace = await workspaceService.findOrCreateByPath(path.join(root, 'user-project'))
-    const systemWorkspace = await workspaceService.createSystemWorkspaceForSession(
+    const userWorkspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'user-project'))
+    const systemWorkspace = await agentWorkspaceService.createSystemWorkspaceForSession(
       '12345678-1234-4000-8000-123456789abc',
       new Date(2026, 4, 25, 14, 30, 12)
     )
 
-    await expect(workspaceService.getById(systemWorkspace.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
-    await expect(workspaceService.getById(systemWorkspace.id, { includeSystem: true })).resolves.toMatchObject({
+    await expect(agentWorkspaceService.getById(systemWorkspace.id)).rejects.toMatchObject({ code: ErrorCode.NOT_FOUND })
+    await expect(agentWorkspaceService.getById(systemWorkspace.id, { includeSystem: true })).resolves.toMatchObject({
       id: systemWorkspace.id,
       type: 'system'
     })
-    expect((await workspaceService.list()).map((workspace) => workspace.id)).toEqual([userWorkspace.id])
+    expect((await agentWorkspaceService.list()).map((workspace) => workspace.id)).toEqual([userWorkspace.id])
   })
 
   it('does not return a system workspace from findOrCreateByPath', async () => {
@@ -85,24 +85,24 @@ describe('WorkspaceService', () => {
       }
       return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
     })
-    const systemWorkspace = await workspaceService.createSystemWorkspaceForSession(
+    const systemWorkspace = await agentWorkspaceService.createSystemWorkspaceForSession(
       '12345678-1234-4000-8000-123456789abc',
       new Date(2026, 4, 25, 14, 30, 12)
     )
 
-    await expect(workspaceService.findOrCreateByPath(systemWorkspace.path)).rejects.toMatchObject({
+    await expect(agentWorkspaceService.findOrCreateByPath(systemWorkspace.path)).rejects.toMatchObject({
       code: ErrorCode.CONFLICT
     })
   })
 
   it('rejects relative workspace paths', async () => {
-    await expect(workspaceService.findOrCreateByPath('relative/project')).rejects.toMatchObject({
+    await expect(agentWorkspaceService.findOrCreateByPath('relative/project')).rejects.toMatchObject({
       code: ErrorCode.VALIDATION_ERROR
     })
   })
 
   it('throws not found for missing workspaces', async () => {
-    await expect(workspaceService.getById('missing-workspace')).rejects.toMatchObject({
+    await expect(agentWorkspaceService.getById('missing-workspace')).rejects.toMatchObject({
       code: ErrorCode.NOT_FOUND
     })
   })
@@ -110,8 +110,8 @@ describe('WorkspaceService', () => {
   it('deletes the workspace row and associated sessions without removing the directory', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-'))
     const workspacePath = path.join(root, 'db-only-delete')
-    const workspace = await workspaceService.findOrCreateByPath(workspacePath)
-    const otherWorkspace = await workspaceService.findOrCreateByPath(path.join(root, 'kept-workspace'))
+    const workspace = await agentWorkspaceService.findOrCreateByPath(workspacePath)
+    const otherWorkspace = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'kept-workspace'))
     await dbh.db.insert(agentTable).values({
       id: 'agent-with-deleted-workspace',
       type: 'claude-code',
@@ -120,12 +120,12 @@ describe('WorkspaceService', () => {
       model: null,
       orderKey: 'a0'
     })
-    const session = await sessionService.createSession({
+    const session = await agentSessionService.createSession({
       agentId: 'agent-with-deleted-workspace',
       name: 'Workspace binding clears',
       workspaceId: workspace.id
     })
-    const otherSession = await sessionService.createSession({
+    const otherSession = await agentSessionService.createSession({
       agentId: 'agent-with-deleted-workspace',
       name: 'Other workspace session remains',
       workspaceId: otherWorkspace.id
@@ -135,15 +135,15 @@ describe('WorkspaceService', () => {
 
     await workspaceWorkflowService.deleteWorkspace(workspace.id)
 
-    await expect(workspaceService.getById(workspace.id)).rejects.toMatchObject({
+    await expect(agentWorkspaceService.getById(workspace.id)).rejects.toMatchObject({
       code: ErrorCode.NOT_FOUND
     })
     const stats = await stat(workspacePath)
     expect(stats.isDirectory()).toBe(true)
-    await expect(sessionService.getById(session.id)).rejects.toMatchObject({
+    await expect(agentSessionService.getById(session.id)).rejects.toMatchObject({
       code: ErrorCode.NOT_FOUND
     })
-    await expect(sessionService.getById(otherSession.id)).resolves.toMatchObject({
+    await expect(agentSessionService.getById(otherSession.id)).resolves.toMatchObject({
       id: otherSession.id,
       workspaceId: otherWorkspace.id
     })
@@ -159,7 +159,7 @@ describe('WorkspaceService', () => {
   it('returns database workspace data when the backing directory is missing', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-'))
     const workspacePath = path.join(root, 'deleted-on-disk')
-    const workspace = await workspaceService.findOrCreateByPath(workspacePath)
+    const workspace = await agentWorkspaceService.findOrCreateByPath(workspacePath)
     await dbh.db.insert(agentTable).values({
       id: 'agent-with-missing-workspace-dir',
       type: 'claude-code',
@@ -168,7 +168,7 @@ describe('WorkspaceService', () => {
       model: null,
       orderKey: 'a0'
     })
-    const session = await sessionService.createSession({
+    const session = await agentSessionService.createSession({
       agentId: 'agent-with-missing-workspace-dir',
       name: 'Session keeps DB workspace',
       workspaceId: workspace.id
@@ -177,11 +177,11 @@ describe('WorkspaceService', () => {
     await rm(workspacePath, { recursive: true, force: true })
 
     await expect(stat(workspacePath)).rejects.toThrow()
-    await expect(workspaceService.getById(workspace.id)).resolves.toMatchObject({
+    await expect(agentWorkspaceService.getById(workspace.id)).resolves.toMatchObject({
       id: workspace.id,
       path: workspacePath
     })
-    await expect(sessionService.getById(session.id)).resolves.toMatchObject({
+    await expect(agentSessionService.getById(session.id)).resolves.toMatchObject({
       id: session.id,
       workspaceId: workspace.id,
       workspace: {
@@ -196,13 +196,13 @@ describe('WorkspaceService', () => {
     const filePath = path.join(root, 'not-a-directory')
     await writeFile(filePath, 'file blocks recursive mkdir')
 
-    await expect(workspaceService.findOrCreateByPath(path.join(filePath, 'child'))).rejects.toThrow()
+    await expect(agentWorkspaceService.findOrCreateByPath(path.join(filePath, 'child'))).rejects.toThrow()
   })
 
   it('translates findOrCreateByPathTx unique races to conflict errors', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-'))
     const workspacePath = path.join(root, 'race')
-    await workspaceService.findOrCreateByPath(workspacePath)
+    await agentWorkspaceService.findOrCreateByPath(workspacePath)
 
     const emptyRows = { limit: async () => [] }
     const afterWhere = { ...emptyRows, orderBy: () => emptyRows }
@@ -217,26 +217,26 @@ describe('WorkspaceService', () => {
       insert: dbh.db.insert.bind(dbh.db)
     }
 
-    await expect(workspaceService.findOrCreateByPathTx(racingTx as never, workspacePath)).rejects.toMatchObject({
+    await expect(agentWorkspaceService.findOrCreateByPathTx(racingTx as never, workspacePath)).rejects.toMatchObject({
       code: ErrorCode.CONFLICT
     })
   })
 
   it('reorders workspaces with single and batch moves', async () => {
     const root = await mkdtemp(path.join(tmpdir(), 'cherry-workspace-'))
-    const first = await workspaceService.findOrCreateByPath(path.join(root, 'first'))
-    const second = await workspaceService.findOrCreateByPath(path.join(root, 'second'))
-    const third = await workspaceService.findOrCreateByPath(path.join(root, 'third'))
+    const first = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'first'))
+    const second = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'second'))
+    const third = await agentWorkspaceService.findOrCreateByPath(path.join(root, 'third'))
 
-    await workspaceService.reorder(first.id, { position: 'first' })
-    let workspaces = await workspaceService.list()
+    await agentWorkspaceService.reorder(first.id, { position: 'first' })
+    let workspaces = await agentWorkspaceService.list()
     expect(workspaces.map((workspace) => workspace.id)).toEqual([first.id, third.id, second.id])
 
-    await workspaceService.reorderBatch([
+    await agentWorkspaceService.reorderBatch([
       { id: second.id, anchor: { before: first.id } },
       { id: third.id, anchor: { position: 'last' } }
     ])
-    workspaces = await workspaceService.list()
+    workspaces = await agentWorkspaceService.list()
     expect(workspaces.map((workspace) => workspace.id)).toEqual([second.id, first.id, third.id])
   })
   it('creates default workspaces under the agents workspace root', async () => {
@@ -248,7 +248,7 @@ describe('WorkspaceService', () => {
       return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
     })
 
-    const workspace = await workspaceService.createDefaultWorkspace()
+    const workspace = await agentWorkspaceService.createDefaultWorkspace()
 
     expect(workspace.path.startsWith(root)).toBe(true)
     const stats = await stat(workspace.path)
@@ -264,7 +264,7 @@ describe('WorkspaceService', () => {
       return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
     })
 
-    const workspace = await workspaceService.createSystemWorkspaceForSession(
+    const workspace = await agentWorkspaceService.createSystemWorkspaceForSession(
       '12345678-1234-4000-8000-123456789abc',
       new Date(2026, 4, 25, 14, 30, 12)
     )
@@ -285,7 +285,7 @@ describe('WorkspaceService', () => {
       }
       return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
     })
-    const workspace = await workspaceService.createSystemWorkspaceForSession(
+    const workspace = await agentWorkspaceService.createSystemWorkspaceForSession(
       '12345678-1234-4000-8000-123456789abc',
       new Date(2026, 4, 25, 14, 30, 12)
     )
@@ -303,14 +303,14 @@ describe('WorkspaceService', () => {
       }
       return filename ? path.join('/mock', key, filename) : path.join('/mock', key)
     })
-    const workspace = await workspaceService.createSystemWorkspaceForSession('cleanup-failure-session')
-    vi.spyOn(workspaceService, 'deleteSystemWorkspaceDirectory').mockImplementation(() => {
+    const workspace = await agentWorkspaceService.createSystemWorkspaceForSession('cleanup-failure-session')
+    vi.spyOn(agentWorkspaceService, 'deleteSystemWorkspaceDirectory').mockImplementation(() => {
       throw new Error('rm failed')
     })
 
     await expect(workspaceWorkflowService.deleteWorkspace(workspace.id)).resolves.toBeUndefined()
 
-    await expect(workspaceService.getById(workspace.id, { includeSystem: true })).rejects.toMatchObject({
+    await expect(agentWorkspaceService.getById(workspace.id, { includeSystem: true })).rejects.toMatchObject({
       code: ErrorCode.NOT_FOUND
     })
     await expect(stat(workspace.path)).resolves.toMatchObject({ isDirectory: expect.any(Function) })

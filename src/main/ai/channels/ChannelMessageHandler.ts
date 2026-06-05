@@ -4,7 +4,7 @@ import path from 'node:path'
 
 import { agentChannelService as channelService } from '@data/services/AgentChannelService'
 import { agentService } from '@data/services/AgentService'
-import { sessionService } from '@data/services/SessionService'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { loggerService } from '@logger'
 import { buildAgentSessionTopicId } from '@main/ai/agentSession/topic'
 import { isAgentSessionWorkspaceError } from '@main/ai/runtime/claudeCode/settingsBuilder'
@@ -307,7 +307,7 @@ export class ChannelMessageHandler {
         case 'new': {
           // TODO(channel-perm-override): channel.permissionMode no longer
           // applied here — config lives on agent now. Tracked separately.
-          const newSession = await sessionService.createSession({ agentId, name: 'Channel session' })
+          const newSession = await agentSessionService.createSession({ agentId, name: 'Channel session' })
           await channelService.updateChannel(adapter.channelId, { sessionId: newSession.id })
           const trackerKey = `${agentId}:${adapter.channelId}:${command.chatId}`
           this.sessionTracker.set(trackerKey, newSession.id)
@@ -481,7 +481,7 @@ export class ChannelMessageHandler {
     trackerKey: string
   ): Promise<AgentSessionEntity | null> {
     const channelRow = await channelService.getChannel(channelId)
-    const lookup = async (sessionId: string) => sessionService.getById(sessionId).catch(() => null)
+    const lookup = async (sessionId: string) => agentSessionService.getById(sessionId).catch(() => null)
 
     // Check tracker first
     const trackedId = this.sessionTracker.get(trackerKey)
@@ -518,7 +518,7 @@ export class ChannelMessageHandler {
       trackerKey
     })
 
-    const newSession = await sessionService.createSession({ agentId, name: 'Channel session' })
+    const newSession = await agentSessionService.createSession({ agentId, name: 'Channel session' })
     await channelService.updateChannel(channelId, { sessionId: newSession.id })
     this.sessionTracker.set(trackerKey, newSession.id)
     this.evictSessionTracker()

@@ -1,5 +1,5 @@
 import { application } from '@application'
-import { type WorkspaceRow, workspaceTable, type WorkspaceType } from '@data/db/schemas/workspace'
+import { type AgentWorkspaceRow, agentWorkspaceTable, type WorkspaceType } from '@data/db/schemas/agentWorkspace'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
@@ -13,7 +13,7 @@ import fs from 'fs'
 import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 
-const logger = loggerService.withContext('WorkspaceService')
+const logger = loggerService.withContext('AgentWorkspaceService')
 
 type WorkspaceLookupOptions = { includeSystem?: boolean }
 type PreparedSystemWorkspace = {
@@ -23,7 +23,7 @@ type PreparedSystemWorkspace = {
   type: Extract<WorkspaceType, 'system'>
 }
 
-export function rowToWorkspace(row: WorkspaceRow): WorkspaceEntity {
+export function rowToWorkspace(row: AgentWorkspaceRow): WorkspaceEntity {
   return {
     id: row.id,
     name: row.name,
@@ -86,14 +86,14 @@ function ensureWorkspaceDirectory(workspacePath: string): void {
   }
 }
 
-export class WorkspaceService {
+export class AgentWorkspaceService {
   async list(options: WorkspaceLookupOptions = {}): Promise<WorkspaceEntity[]> {
     const db = application.get('DbService').getDb()
     const rows = await db
       .select()
-      .from(workspaceTable)
-      .where(options.includeSystem ? undefined : eq(workspaceTable.type, 'user'))
-      .orderBy(asc(workspaceTable.orderKey), asc(workspaceTable.id))
+      .from(agentWorkspaceTable)
+      .where(options.includeSystem ? undefined : eq(agentWorkspaceTable.type, 'user'))
+      .orderBy(asc(agentWorkspaceTable.orderKey), asc(agentWorkspaceTable.id))
     return rows.map(rowToWorkspace)
   }
 
@@ -108,17 +108,20 @@ export class WorkspaceService {
     return rowToWorkspace(row)
   }
 
-  async getRowByIdTx(tx: DbOrTx, id: string, options: WorkspaceLookupOptions = {}): Promise<WorkspaceRow> {
+  async getRowByIdTx(tx: DbOrTx, id: string, options: WorkspaceLookupOptions = {}): Promise<AgentWorkspaceRow> {
     const predicate = options.includeSystem
-      ? eq(workspaceTable.id, id)
-      : and(eq(workspaceTable.id, id), eq(workspaceTable.type, 'user'))
-    const [row] = await tx.select().from(workspaceTable).where(predicate).limit(1)
+      ? eq(agentWorkspaceTable.id, id)
+      : and(eq(agentWorkspaceTable.id, id), eq(agentWorkspaceTable.type, 'user'))
+    const [row] = await tx.select().from(agentWorkspaceTable).where(predicate).limit(1)
     if (!row) throw DataApiErrorFactory.notFound('Workspace', id)
     return row
   }
 
   async deleteByIdTx(tx: DbOrTx, id: string): Promise<void> {
-    const [row] = await tx.delete(workspaceTable).where(eq(workspaceTable.id, id)).returning({ id: workspaceTable.id })
+    const [row] = await tx
+      .delete(agentWorkspaceTable)
+      .where(eq(agentWorkspaceTable.id, id))
+      .returning({ id: agentWorkspaceTable.id })
     if (!row) throw DataApiErrorFactory.notFound('Workspace', id)
   }
 
@@ -239,11 +242,11 @@ export class WorkspaceService {
     tx: DbOrTx,
     workspacePath: string,
     options: { name?: string } = {}
-  ): Promise<WorkspaceRow> {
+  ): Promise<AgentWorkspaceRow> {
     const [existing] = await tx
       .select()
-      .from(workspaceTable)
-      .where(and(eq(workspaceTable.path, workspacePath), eq(workspaceTable.type, 'user')))
+      .from(agentWorkspaceTable)
+      .where(and(eq(agentWorkspaceTable.path, workspacePath), eq(agentWorkspaceTable.type, 'user')))
       .limit(1)
     if (existing) return existing
 
@@ -255,11 +258,11 @@ export class WorkspaceService {
   private async insertWorkspaceRowTx(
     tx: DbOrTx,
     workspace: { id: string; name: string; path: string; type: WorkspaceType }
-  ): Promise<WorkspaceRow> {
-    return (await insertWithOrderKey(tx, workspaceTable, workspace, {
-      pkColumn: workspaceTable.id,
+  ): Promise<AgentWorkspaceRow> {
+    return (await insertWithOrderKey(tx, agentWorkspaceTable, workspace, {
+      pkColumn: agentWorkspaceTable.id,
       position: 'first'
-    })) as WorkspaceRow
+    })) as AgentWorkspaceRow
   }
 
   async reorder(id: string, anchor: OrderRequest): Promise<void> {
@@ -267,9 +270,12 @@ export class WorkspaceService {
   }
 
   async reorderTx(tx: DbOrTx, id: string, anchor: OrderRequest): Promise<void> {
-    const [target] = await tx.select({ id: workspaceTable.id }).from(workspaceTable).where(eq(workspaceTable.id, id))
+    const [target] = await tx
+      .select({ id: agentWorkspaceTable.id })
+      .from(agentWorkspaceTable)
+      .where(eq(agentWorkspaceTable.id, id))
     if (!target) throw DataApiErrorFactory.notFound('Workspace', id)
-    await applyMoves(tx, workspaceTable, [{ id, anchor }], { pkColumn: workspaceTable.id })
+    await applyMoves(tx, agentWorkspaceTable, [{ id, anchor }], { pkColumn: agentWorkspaceTable.id })
   }
 
   async reorderBatch(moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
@@ -278,8 +284,8 @@ export class WorkspaceService {
   }
 
   async reorderBatchTx(tx: DbOrTx, moves: Array<{ id: string; anchor: OrderRequest }>): Promise<void> {
-    await applyMoves(tx, workspaceTable, moves, { pkColumn: workspaceTable.id })
+    await applyMoves(tx, agentWorkspaceTable, moves, { pkColumn: agentWorkspaceTable.id })
   }
 }
 
-export const workspaceService = new WorkspaceService()
+export const agentWorkspaceService = new AgentWorkspaceService()

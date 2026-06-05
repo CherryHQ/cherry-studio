@@ -9,7 +9,7 @@
 
 import { application } from '@application'
 import type { ModelLookupResult } from '@cherrystudio/provider-registry'
-import type { NewUserModel, UserModel } from '@data/db/schemas/userModel'
+import type { InsertUserModelRow, UserModelRow } from '@data/db/schemas/userModel'
 import { isRegistryEnrichableField, userModelTable } from '@data/db/schemas/userModel'
 import { defaultHandlersFor, type SqliteErrorHandlers, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbType } from '@data/db/types'
@@ -159,7 +159,7 @@ export interface CreateModelInput {
   registryData?: CreateModelRegistryData
 }
 
-type NewUserModelInput = Omit<NewUserModel, 'orderKey'>
+type NewUserModelInput = Omit<InsertUserModelRow, 'orderKey'>
 
 function createModelsSqliteHandlers(values: NewUserModelInput[]): SqliteErrorHandlers {
   const providerIds = [...new Set(values.map((value) => value.providerId))]
@@ -181,7 +181,7 @@ function createModelsSqliteHandlers(values: NewUserModelInput[]): SqliteErrorHan
  * Entries are either a shared key name, or [dtoKey, dbColumn] when names differ.
  * Exported for test coverage — ensures no DTO field is silently dropped.
  */
-export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateModelDto, keyof NewUserModel]> = [
+export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateModelDto, keyof InsertUserModelRow]> = [
   'name',
   'description',
   'group',
@@ -202,7 +202,7 @@ export const UPDATE_MODEL_FIELD_MAP: Array<keyof UpdateModelDto | [keyof UpdateM
   'notes'
 ]
 
-/** Convert CreateModelDto to a NewUserModel row (shared by preset and custom paths). */
+/** Convert CreateModelDto to an InsertUserModelRow (shared by preset and custom paths). */
 function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
   return {
     id: createUniqueModelId(dto.providerId, dto.modelId),
@@ -228,7 +228,7 @@ function dtoToNewUserModel(dto: CreateModelDto): NewUserModelInput {
   }
 }
 
-/** Convert a merged Model back to a NewUserModel row for DB insert. */
+/** Convert a merged Model back to an InsertUserModelRow for DB insert. */
 function mergedModelToNewUserModel(
   providerId: string,
   modelId: string,
@@ -265,7 +265,7 @@ function mergedModelToNewUserModel(
  * Since user_model stores fully resolved data (merged at add-time),
  * this is a direct field mapping with no runtime merge needed.
  */
-function rowToRuntimeModel(row: UserModel): Model {
+function rowToRuntimeModel(row: UserModelRow): Model {
   return {
     id: createUniqueModelId(row.providerId, row.modelId),
     providerId: row.providerId,
@@ -528,13 +528,13 @@ class ModelService {
     const rows = await withSqliteErrors(
       () =>
         db.transaction(async (tx) => {
-          const results: UserModel[] = []
+          const results: UserModelRow[] = []
           for (const providerId of new Set(values.map((value) => value.providerId))) {
             const scopedValues = values.filter((value) => value.providerId === providerId)
             const inserted = (await insertManyWithOrderKey(tx, userModelTable, scopedValues, {
               pkColumn: userModelTable.id,
               scope: eq(userModelTable.providerId, providerId)
-            })) as UserModel[]
+            })) as UserModelRow[]
             results.push(...inserted)
           }
           return results
@@ -585,9 +585,9 @@ class ModelService {
       throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
     }
 
-    const updates: Partial<NewUserModel> = {}
+    const updates: Partial<InsertUserModelRow> = {}
     for (const entry of UPDATE_MODEL_FIELD_MAP) {
-      const [dtoKey, dbKey] = Array.isArray(entry) ? entry : [entry, entry as keyof NewUserModel]
+      const [dtoKey, dbKey] = Array.isArray(entry) ? entry : [entry, entry as keyof InsertUserModelRow]
       if (dto[dtoKey] !== undefined) {
         ;(updates as Record<string, unknown>)[dbKey] = dto[dtoKey]
       }
@@ -655,9 +655,9 @@ class ModelService {
           throw DataApiErrorFactory.notFound('Model', `${providerId}/${modelId}`)
         }
 
-        const updates: Partial<NewUserModel> = {}
+        const updates: Partial<InsertUserModelRow> = {}
         for (const entry of UPDATE_MODEL_FIELD_MAP) {
-          const [dtoKey, dbKey] = Array.isArray(entry) ? entry : [entry, entry as keyof NewUserModel]
+          const [dtoKey, dbKey] = Array.isArray(entry) ? entry : [entry, entry as keyof InsertUserModelRow]
           if (patch[dtoKey] !== undefined) {
             ;(updates as Record<string, unknown>)[dbKey] = patch[dtoKey]
           }
@@ -748,7 +748,7 @@ class ModelService {
             .select()
             .from(userModelTable)
             .where(eq(userModelTable.providerId, providerId))
-            .orderBy(asc(userModelTable.orderKey))) as UserModel[]
+            .orderBy(asc(userModelTable.orderKey))) as UserModelRow[]
         }),
       createModelsSqliteHandlers(values)
     )
@@ -802,7 +802,7 @@ class ModelService {
    * Inserts new models, updates existing ones.
    * Respects `userOverrides`: fields the user has explicitly modified are not overwritten.
    */
-  async batchUpsert(models: NewUserModel[]): Promise<void> {
+  async batchUpsert(models: InsertUserModelRow[]): Promise<void> {
     if (models.length === 0) return
 
     const db = application.get('DbService').getDb()
@@ -830,7 +830,7 @@ class ModelService {
         const userOverrides = overridesMap.get(`${model.providerId}:${model.modelId}`)
 
         // Build the update set, skipping user-overridden fields
-        const set: Partial<NewUserModel> = {
+        const set: Partial<InsertUserModelRow> = {
           presetModelId: model.presetModelId
         }
         const enrichableFields = {

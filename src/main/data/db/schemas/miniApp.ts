@@ -54,5 +54,5 @@ export const miniAppTable = sqliteTable(
   ]
 )
 
-export type MiniAppSelect = typeof miniAppTable.$inferSelect
-export type MiniAppInsert = typeof miniAppTable.$inferInsert
+export type MiniAppRow = typeof miniAppTable.$inferSelect
+export type InsertMiniAppRow = typeof miniAppTable.$inferInsert

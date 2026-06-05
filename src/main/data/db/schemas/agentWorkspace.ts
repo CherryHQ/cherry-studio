@@ -5,7 +5,7 @@ import { createUpdateTimestamps, orderKeyColumns, orderKeyIndex, uuidPrimaryKey 
 
 export type WorkspaceType = 'user' | 'system'
 
-export const workspaceTable = sqliteTable(
+export const agentWorkspaceTable = sqliteTable(
   'agent_workspace',
   {
     id: uuidPrimaryKey(),
@@ -22,5 +22,5 @@ export const workspaceTable = sqliteTable(
   ]
 )
 
-export type WorkspaceRow = typeof workspaceTable.$inferSelect
-export type InsertWorkspaceRow = typeof workspaceTable.$inferInsert
+export type AgentWorkspaceRow = typeof agentWorkspaceTable.$inferSelect
+export type InsertAgentWorkspaceRow = typeof agentWorkspaceTable.$inferInsert
