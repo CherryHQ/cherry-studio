@@ -221,11 +221,11 @@
         "intervalUnit": "議事録",
         "lastRun": "前回の実行",
         "logs": {
-          "cancelled": "[to be translated]:Cancelled",
-          "completed": "[to be translated]:Completed",
+          "cancelled": "キャンセル",
+          "completed": "完了",
           "duration": "所要時間",
           "empty": "実行履歴がありません。",
-          "failed": "[to be translated]:Failed",
+          "failed": "失敗",
           "justNow": "さっき",
           "label": "実行履歴",
           "loadError": "実行履歴の読み込みに失敗しました",
@@ -399,6 +399,11 @@
         "error": {
           "failed": "セッションの更新に失敗しました"
         }
+      },
+      "workspace_status": {
+        "inaccessible": "ワークスペースパスにアクセスできません: {{path}}",
+        "missing": "ワークスペースパスが存在しません: {{path}}",
+        "not_directory": "ワークスペースパスがディレクトリではありません: {{path}}"
       }
     },
     "settings": {
@@ -581,95 +586,95 @@
     "todo": {
       "mock": {
         "actions": {
-          "complete": "[to be translated]:Complete",
-          "dismiss": "[to be translated]:Dismiss"
+          "complete": "完了",
+          "dismiss": "閉じる"
         },
         "details": {
           "addRouter": {
-            "summary": "[to be translated]:Configuring client routing with react-router-dom v6...",
-            "title": "[to be translated]:Add React Router"
+            "summary": "react-router-dom v6でクライアントルーティングを設定する…",
+            "title": "React Routerを追加"
           },
           "configureProject": {
             "resources": {
-              "createdMeta": "[to be translated]:created",
-              "postcssConfig": "[to be translated]:postcss.config.js",
-              "tailwindConfig": "[to be translated]:tailwind.config.js",
-              "updatedMeta": "[to be translated]:updated",
-              "viteConfig": "[to be translated]:vite.config.ts - port 3001"
+              "createdMeta": "作成",
+              "postcssConfig": "postcss.config.js",
+              "tailwindConfig": "tailwind.config.js",
+              "updatedMeta": "更新済み",
+              "viteConfig": "vite.config.ts - ポート3001"
             },
-            "title": "[to be translated]:Configure project"
+            "title": "プロジェクトを構成する"
           },
           "installDependencies": {
             "resources": {
-              "dependenciesMeta": "[to be translated]:dependencies",
-              "devDependenciesMeta": "[to be translated]:devDependencies",
-              "reactDeps": "[to be translated]:react@18.3.1, react-dom@18.3.1",
-              "tailwindDeps": "[to be translated]:tailwindcss@3.4.4, postcss@8.4.38",
-              "typescriptDeps": "[to be translated]:typescript@5.4.5, vite@5.3.0"
+              "dependenciesMeta": "依存関係",
+              "devDependenciesMeta": "devDependencies",
+              "reactDeps": "react@18.3.1, react-dom@18.3.1",
+              "tailwindDeps": "tailwindcss@3.4.4, postcss@8.4.38",
+              "typescriptDeps": "typescript@5.4.5, vite@5.3.0"
             },
-            "summary": "[to be translated]:Installed react, react-dom, tailwindcss, postcss, autoprefixer, and TypeScript.",
-            "title": "[to be translated]:Install dependencies"
+            "summary": "react、react-dom、tailwindcss、postcss、autoprefixer、TypeScript をインストールしました。",
+            "title": "依存関係をインストール"
           },
           "reviewReferences": {
-            "collectionTitle": "[to be translated]:Reviewed references",
+            "collectionTitle": "レビュー済みの参考文献",
             "resources": {
-              "npmCreateVite": "[to be translated]:npm create vite - Official Scaffolding",
-              "npmMeta": "[to be translated]:npmjs.com",
-              "reactDocs": "[to be translated]:React Documentation - Quick Start",
-              "reactMeta": "[to be translated]:react.dev",
-              "tailwindDocs": "[to be translated]:Tailwind CSS - Installation Guide",
-              "tailwindMeta": "[to be translated]:tailwindcss.com",
-              "viteDocs": "[to be translated]:Vite - Next Generation Frontend Tooling",
-              "viteMeta": "[to be translated]:vitejs.dev"
+              "npmCreateVite": "npm create vite - 公式スキャフォルディング",
+              "npmMeta": "npmjs.com",
+              "reactDocs": "React ドキュメント - クイックスタート",
+              "reactMeta": "react.dev",
+              "tailwindDocs": "Tailwind CSS - インストールガイド",
+              "tailwindMeta": "tailwindcss.com",
+              "viteDocs": "Vite - 次世代フロントエンドツール",
+              "viteMeta": "vitejs.dev"
             },
-            "title": "[to be translated]:Review references"
+            "title": "参考文献を確認する"
           },
           "searchWeb": {
             "resources": {
-              "reactViteQuery": "[to be translated]:React Vite TypeScript starter 2025 best practices"
+              "reactViteQuery": "React Vite TypeScript スターター 2025 ベストプラクティス"
             },
-            "summary": "[to be translated]:Collected current references for React + Vite scaffolding and best practices.",
-            "title": "[to be translated]:Search web references"
+            "summary": "React + Vite のスキャフォールドおよびベストプラクティスに関する最新の参考文献を収集しました。",
+            "title": "ウェブ参照を検索"
           },
-          "title": "[to be translated]:Execution details",
+          "title": "実行の詳細",
           "writeComponents": {
-            "collectionTitle": "[to be translated]:Created files",
+            "collectionTitle": "作成されたファイル",
             "resources": {
-              "app": "[to be translated]:src/App.tsx",
-              "button": "[to be translated]:src/components/Button.tsx",
-              "card": "[to be translated]:src/components/Card.tsx",
-              "footer": "[to be translated]:src/components/Footer.tsx",
-              "header": "[to be translated]:src/components/Header.tsx",
-              "layout": "[to be translated]:src/components/Layout.tsx",
-              "modifiedMeta": "[to be translated]:modified",
-              "newMeta": "[to be translated]:new",
-              "updatedMeta": "[to be translated]:updated"
+              "app": "src/App.tsx",
+              "button": "src/components/Button.tsx",
+              "card": "src/components/Card.tsx",
+              "footer": "src/components/Footer.tsx",
+              "header": "src/components/Header.tsx",
+              "layout": "src/components/Layout.tsx",
+              "modifiedMeta": "修正済み",
+              "newMeta": "新",
+              "updatedMeta": "更新済み"
             },
-            "title": "[to be translated]:Write components"
+            "title": "コンポーネントを書く"
           },
           "writePages": {
             "resources": {
-              "about": "[to be translated]:src/pages/About.tsx",
-              "home": "[to be translated]:src/pages/Home.tsx",
-              "newMeta": "[to be translated]:new"
+              "about": "src/pages/About.tsx",
+              "home": "src/pages/Home.tsx",
+              "newMeta": "新"
             },
-            "title": "[to be translated]:Write pages"
+            "title": "ページを書く"
           }
         },
-        "progress": "[to be translated]:{{completed}}/{{total}} tasks completed",
+        "progress": "{{completed}}/{{total}} タスク完了",
         "tasks": {
-          "addLinting": "[to be translated]:Add ESLint + Prettier",
-          "addRouter": "[to be translated]:Add React Router",
-          "buildDeploy": "[to be translated]:Build and deploy",
-          "configureProject": "[to be translated]:Configure project",
-          "finish": "[to be translated]:Finish",
-          "installDependencies": "[to be translated]:Install dependencies",
-          "reviewReferences": "[to be translated]:Review references",
-          "searchWeb": "[to be translated]:Search web references",
-          "writeComponents": "[to be translated]:Write components",
-          "writePages": "[to be translated]:Write pages"
+          "addLinting": "ESLint + Prettier を追加",
+          "addRouter": "React Router を追加",
+          "buildDeploy": "ビルドしてデプロイ",
+          "configureProject": "プロジェクトを構成する",
+          "finish": "終了",
+          "installDependencies": "依存関係をインストール",
+          "reviewReferences": "参考文献を確認",
+          "searchWeb": "ウェブ参照を検索",
+          "writeComponents": "コンポーネントを書く",
+          "writePages": "ページを書く"
         },
-        "title": "[to be translated]:Tasks"
+        "title": "タスク"
       },
       "panel": {
         "title": "{{completed}}/{{total}} タスク完了"
@@ -939,7 +944,7 @@
         "agent": "アシスタントをエクスポート"
       },
       "import": {
-        "action": "[to be translated]:Import Assistant",
+        "action": "インポートアシスタント",
         "button": "インポート",
         "error": {
           "fetch_failed": "URLからのデータ取得に失敗しました",
@@ -950,8 +955,8 @@
         "file_filter": "JSONファイル",
         "select_file": "ファイルを選択",
         "subscribe": {
-          "title": "[to be translated]:Agent Subscription",
-          "url_placeholder": "[to be translated]:Subscription URL"
+          "title": "エージェントサブスクリプション",
+          "url_placeholder": "サブスクリプションURL"
         },
         "title": "外部からインポート",
         "type": {
@@ -1056,15 +1061,15 @@
         "xhigh_description": "超高度な推論"
       },
       "regular_phrases": {
-        "add": "[to be translated]:Add Phrase",
-        "contentLabel": "[to be translated]:Content",
-        "contentPlaceholder": "[to be translated]:Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
-        "delete": "[to be translated]:Delete Phrase",
-        "deleteConfirm": "[to be translated]:Are you sure to delete this phrase?",
-        "edit": "[to be translated]:Edit Phrase",
-        "title": "[to be translated]:Regular Phrase",
-        "titleLabel": "[to be translated]:Title",
-        "titlePlaceholder": "[to be translated]:Enter title"
+        "add": "フレーズを追加",
+        "contentLabel": "コンテンツ",
+        "contentPlaceholder": "フレーズの内容を入力してください。変数を使用することもでき、Tabキーを押すと変数を素早く見つけて修正できます。  \n例：  \n${from}から${to}までのルートを計画し、${email}に送信してください。",
+        "delete": "フレーズを削除",
+        "deleteConfirm": "このフレーズを削除してもよろしいですか？",
+        "edit": "フレーズを編集",
+        "title": "通常のフレーズ",
+        "titleLabel": "タイトル",
+        "titlePlaceholder": "タイトルを入力"
       },
       "title": "アシスタント設定",
       "tool_use_mode": {
@@ -1208,7 +1213,7 @@
       },
       "new_session": "新しいセッション {{Command}}",
       "new_topic": "新しいトピック {{Command}}",
-      "paste_text_file": "[to be translated]:Paste into input",
+      "paste_text_file": "入力に貼り付け",
       "pause": "一時停止",
       "placeholder": "ここにメッセージを入力し、{{key}} を押して送信...",
       "placeholder_without_triggers": "ここにメッセージを入力し、{{key}} を押して送信...",
@@ -1231,6 +1236,7 @@
         "title": "リソース"
       },
       "send": "送信",
+      "send_failed": "メッセージの送信に失敗しました",
       "settings": "設定",
       "slash_commands": {
         "description": "エージェントセッションスラッシュコマンド",
@@ -1381,7 +1387,7 @@
           "no_knowledge_base": "利用可能なナレッジベースがありません。まず作成してください"
         },
         "error": {
-          "file_partial_failed": "[to be translated]:{{count}} file(s) could not be saved",
+          "file_partial_failed": "{{count}}個のファイルを保存できませんでした",
           "invalid_base": "選択されたナレッジベースが正しく設定されていません",
           "no_content_selected": "少なくとも1つのコンテンツタイプを選択してください",
           "save_failed": "保存に失敗しました。ナレッジベースの設定を確認してください"
@@ -1505,7 +1511,7 @@
         "title_tip": "ヒント: トピック名をダブルクリックすると、直接その場で名前を変更できます"
       },
       "export": {
-        "failed": "[to be translated]:Export failed",
+        "failed": "エクスポートに失敗しました",
         "image": "画像としてエクスポート",
         "image_saved": "画像が正常に保存されました",
         "joplin": "Joplin にエクスポート",
@@ -1620,7 +1626,7 @@
     "env_vars_help": "環境変数を設定して、CLI ツールの実行時に使用します。各変数は 1 行ごとに設定してください。",
     "environment_variables": "環境変数",
     "folder_placeholder": "作業ディレクトリを選択してください",
-    "hero_tagline": "[to be translated]:Pick a CLI tool to configure",
+    "hero_tagline": "CLIツールを選択して設定してください",
     "install_bun": "Bun をインストール",
     "installing_bun": "インストール中...",
     "launch": {
@@ -1644,14 +1650,14 @@
     "terminal_placeholder": "ターミナルアプリを選択",
     "title": "コードツール",
     "tool_description": {
-      "claude_code": "[to be translated]:Anthropic's official command-line AI coding assistant",
-      "gemini_cli": "[to be translated]:Google's official Gemini command-line assistant",
-      "github_copilot_cli": "[to be translated]:GitHub's official Copilot command-line companion",
-      "iflow_cli": "[to be translated]:iFlow's multi-model command-line assistant",
-      "kimi_cli": "[to be translated]:Moonshot's Kimi command-line assistant",
-      "openai_codex": "[to be translated]:OpenAI's official code generation CLI",
-      "opencode": "[to be translated]:Open-source multi-model coding agent",
-      "qwen_code": "[to be translated]:Alibaba Tongyi's open-source CLI coding tool"
+      "claude_code": "Anthropicの公式コマンドラインAIコーディングアシスタント",
+      "gemini_cli": "Googleの公式Geminiコマンドラインアシスタント",
+      "github_copilot_cli": "GitHubの公式Copilotコマンドラインコンパニオン",
+      "iflow_cli": "iFlowのマルチモデルコマンドラインアシスタント",
+      "kimi_cli": "MoonshotのKimiコマンドラインアシスタント",
+      "openai_codex": "OpenAIの公式コード生成CLI",
+      "opencode": "オープンソースのマルチモデルコーディングエージェント",
+      "qwen_code": "Alibaba TongyiのオープンソースCLIコーディングツール"
     },
     "update_options": "更新オプション",
     "working_directory": "作業ディレクトリ",
@@ -1771,7 +1777,7 @@
     "models": "モデル",
     "more": "もっと",
     "name": "名前",
-    "next": "[to be translated]:Next",
+    "next": "次",
     "next_match": "次の試合",
     "no_results": "検索結果なし",
     "none": "無",
@@ -1779,7 +1785,6 @@
     "on": "オン",
     "open": "開く",
     "open_in": "{{name}}で開く",
-    "parameter": "パラメータ",
     "paste": "貼り付け",
     "placeholders": {
       "select": {
@@ -1788,7 +1793,7 @@
     },
     "powered_by": "搭載",
     "preview": "プレビュー",
-    "previous": "[to be translated]:Previous",
+    "previous": "前",
     "previous_match": "前回の試合",
     "prompt": "プロンプト",
     "provider": "プロバイダー",
@@ -1801,7 +1806,7 @@
     "reset": "リセット",
     "retry": "リトライ",
     "save": "保存",
-    "save_failed": "[to be translated]:Save failed",
+    "save_failed": "保存に失敗しました",
     "saved": "保存されました",
     "search": "検索",
     "select": "選択",
@@ -1851,20 +1856,20 @@
   },
   "emoji_picker": {
     "categories": {
-      "activities": "[to be translated]:Activities",
-      "animals_nature": "[to be translated]:Animals & Nature",
-      "flags": "[to be translated]:Flags",
-      "food_drink": "[to be translated]:Food & Drink",
-      "objects": "[to be translated]:Objects",
-      "people_body": "[to be translated]:People & Body",
-      "recent": "[to be translated]:Frequently used",
-      "smileys_emotion": "[to be translated]:Smileys & Emotion",
-      "symbols": "[to be translated]:Symbols",
-      "travel_places": "[to be translated]:Travel & Places"
+      "activities": "活動",
+      "animals_nature": "動物と自然",
+      "flags": "フラグ",
+      "food_drink": "フード＆ドリンク",
+      "objects": "オブジェクト",
+      "people_body": "人々と体",
+      "recent": "よく使われる",
+      "smileys_emotion": "スマイリーと感情",
+      "symbols": "記号",
+      "travel_places": "旅行と場所"
     },
-    "clear_recent": "[to be translated]:Clear recent",
-    "no_results": "[to be translated]:No matching emoji",
-    "search": "[to be translated]:Search"
+    "clear_recent": "最近の項目をクリア",
+    "no_results": "絵文字が見つかりません",
+    "search": "検索"
   },
   "endpoint_type": {
     "anthropic": "Anthropic",
@@ -2120,276 +2125,276 @@
   },
   "knowledge": {
     "add": {
-      "group": "[to be translated]:Group",
-      "submit": "[to be translated]:Create",
-      "title": "[to be translated]:New Knowledge Base"
+      "group": "グループ",
+      "submit": "作成",
+      "title": "新しいナレッジベース"
     },
     "context": {
-      "delete": "[to be translated]:Delete Knowledge Base",
-      "delete_confirm_description": "[to be translated]:This knowledge base cannot be recovered after deletion.",
-      "delete_confirm_title": "[to be translated]:Delete Knowledge Base?",
-      "move_to": "[to be translated]:Move to",
-      "rename": "[to be translated]:Rename"
+      "delete": "ナレッジベースを削除",
+      "delete_confirm_description": "このナレッジベースは削除後に復元することはできません。",
+      "delete_confirm_title": "ナレッジベースを削除しますか？",
+      "move_to": "移動",
+      "rename": "名前を変更"
     },
     "data_source": {
       "actions": {
-        "delete": "[to be translated]:Delete",
-        "preview_source": "[to be translated]:Preview Source",
-        "reindex": "[to be translated]:Reindex",
-        "view_chunks": "[to be translated]:View Chunks"
+        "delete": "削除",
+        "preview_source": "プレビュー ソース",
+        "reindex": "再インデックス",
+        "view_chunks": "チャンクを表示"
       },
       "add_dialog": {
         "directory": {
-          "description": "[to be translated]:Recursively import supported files from a folder",
-          "title": "[to be translated]:Click to select a folder"
+          "description": "フォルダからサポートされているファイルを再帰的にインポート",
+          "title": "フォルダを選択するにはクリックしてください"
         },
         "footer": {
-          "selected_directories": "[to be translated]:{{count}} directories selected",
-          "selected_files": "[to be translated]:{{count}} files selected",
-          "selected_notes": "[to be translated]:{{count}} notes selected"
+          "selected_directories": "{{count}}個のディレクトリが選択されています",
+          "selected_files": "{{count}}個のファイルが選択されています",
+          "selected_notes": "{{count}} 個のノートが選択されています"
         },
         "note": {
-          "description": "[to be translated]:Select existing notes as knowledge base sources",
-          "empty_description": "[to be translated]:Selectable notes will appear here after the real notes list is connected. For now, use files, folders, URLs, or sitemaps.",
-          "empty_title": "[to be translated]:Notes are not connected yet"
+          "description": "既存のノートをナレッジベースのソースとして選択",
+          "empty_description": "実際のノートリストが接続されると、ここに選択可能なノートが表示されます。現時点では、ファイル、フォルダ、URL、またはサイトマップを使用してください。",
+          "empty_title": "ノートはまだ接続されていません"
         },
         "placeholder": {
-          "supported_formats": "[to be translated]:Supports PDF, DOCX, MD, XLSX, TXT, CSV",
-          "title": "[to be translated]:Click to select files or drag them here"
+          "supported_formats": "PDF、DOCX、MD、XLSX、TXT、CSVに対応",
+          "title": "ファイルを選択するにはクリックするか、ここにドラッグしてください"
         },
         "sitemap": {
-          "description": "[to be translated]:Enter a sitemap URL:",
-          "help": "[to be translated]:Pages listed in the sitemap will be read and indexed",
-          "placeholder": "[to be translated]:https://docs.cherry-ai.com/sitemap-pages.xml"
+          "description": "サイトマップのURLを入力してください:",
+          "help": "サイトマップに記載されているページは読み込まれ、インデックスされます。",
+          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
         },
         "sources": {
-          "directory": "[to be translated]:Folder",
-          "file": "[to be translated]:File",
-          "note": "[to be translated]:Note",
-          "sitemap": "[to be translated]:Website",
-          "url": "[to be translated]:URL"
+          "directory": "フォルダ",
+          "file": "ファイル",
+          "note": "注",
+          "sitemap": "ウェブサイト",
+          "url": "URL"
         },
         "submit": {
-          "error": "[to be translated]:Failed to add data source",
-          "success": "[to be translated]:Data source added to knowledge base"
+          "error": "データソースの追加に失敗しました",
+          "success": "ナレッジベースにデータソースが追加されました"
         },
-        "title": "[to be translated]:Add Data Source",
+        "title": "データソースを追加",
         "url": {
-          "description": "[to be translated]:Enter a webpage URL:",
-          "help": "[to be translated]:Page text will be fetched, chunked, and indexed automatically",
-          "input_label": "[to be translated]:Webpage URL",
-          "placeholder": "[to be translated]:https://docs.cherry-ai.com/",
-          "title": "[to be translated]:Import a single webpage"
+          "description": "ウェブページのURLを入力してください：",
+          "help": "ページのテキストは自動的に取得され、チャンク化され、インデックスされます",
+          "input_label": "ウェブページURL",
+          "placeholder": "https://docs.cherry-ai.com/",
+          "title": "単一のウェブページをインポート"
         }
       },
       "bulk": {
-        "cancel": "[to be translated]:Cancel",
-        "delete": "[to be translated]:Delete",
-        "delete_confirm_description": "[to be translated]:Delete {{count}} selected data sources? This cannot be undone.",
-        "delete_confirm_title": "[to be translated]:Delete Selected Data Sources?",
-        "reindex": "[to be translated]:Reindex",
-        "selected_count": "[to be translated]:{{count}} selected"
+        "cancel": "キャンセル",
+        "delete": "削除",
+        "delete_confirm_description": "{{count}}件の選択したデータソースを削除しますか？この操作は取り消せません。",
+        "delete_confirm_title": "選択したデータソースを削除しますか？",
+        "reindex": "再インデックス",
+        "selected_count": "{{count}} 件選択"
       },
-      "chunk_delete_confirm_description": "[to be translated]:After deletion, this chunk will no longer be used for retrieval. Reindexing the data source will generate it again.",
-      "chunk_delete_confirm_title": "[to be translated]:Delete Chunk?",
-      "chunks_count": "[to be translated]:{{count}} chunks",
-      "delete_confirm_description": "[to be translated]:This data source and its index data cannot be recovered after deletion.",
-      "delete_confirm_title": "[to be translated]:Delete Data Source?",
-      "delete_failed": "[to be translated]:Failed to delete data source",
+      "chunk_delete_confirm_description": "削除後、このチャンクは検索に使用されなくなります。データソースの再インデックスにより、再度生成されます。",
+      "chunk_delete_confirm_title": "チャンクを削除しますか？",
+      "chunks_count": "{{count}} チャンク",
+      "delete_confirm_description": "このデータソースとそのインデックスデータは、削除後に回復できません。",
+      "delete_confirm_title": "データソースを削除しますか？",
+      "delete_failed": "データソースの削除に失敗しました",
       "empty": {
         "shortcuts": {
           "directory": {
-            "title": "[to be translated]:Folder Import"
+            "title": "フォルダーのインポート"
           },
           "file": {
-            "title": "[to be translated]:File"
+            "title": "ファイル"
           },
           "sitemap": {
-            "title": "[to be translated]:Website Sync"
+            "title": "ウェブサイト同期"
           },
           "url": {
-            "title": "[to be translated]:URL"
+            "title": "URL"
           }
         },
-        "title": "[to be translated]:Upload Your First Data Source"
+        "title": "最初のデータソースをアップロードしてください"
       },
-      "empty_description": "[to be translated]:No data sources yet",
+      "empty_description": "まだデータソースがありません",
       "filters": {
-        "all": "[to be translated]:All",
-        "directory": "[to be translated]:Folders",
-        "file": "[to be translated]:Files",
-        "note": "[to be translated]:Notes",
-        "sitemap": "[to be translated]:Websites",
-        "url": "[to be translated]:URLs"
+        "all": "すべて",
+        "directory": "フォルダ",
+        "file": "ファイル",
+        "note": "メモ",
+        "sitemap": "ウェブサイト",
+        "url": "URL"
       },
       "preview": {
-        "failed": "[to be translated]:Failed to preview source",
-        "unavailable": "[to be translated]:This data source has no source to preview"
+        "failed": "ソースのプレビューに失敗しました",
+        "unavailable": "このデータソースにはプレビューできるソースがありません"
       },
-      "ready_summary": "[to be translated]:{{ready}}/{{total}} ready",
-      "reindex_failed": "[to be translated]:Failed to reindex data source",
+      "ready_summary": "{{ready}}/{{total}} 準備完了",
+      "reindex_failed": "データソースの再インデックスに失敗しました",
       "status": {
-        "chunking": "[to be translated]:Chunking",
-        "embedding": "[to be translated]:Embedding",
-        "error": "[to be translated]:Error",
-        "pending": "[to be translated]:Waiting",
-        "ready": "[to be translated]:Ready"
+        "chunking": "チャンキング",
+        "embedding": "埋め込み",
+        "error": "エラー",
+        "pending": "待機中",
+        "ready": "準備完了"
       },
       "table": {
         "columns": {
-          "actions": "[to be translated]:Actions",
-          "name": "[to be translated]:Name",
-          "status": "[to be translated]:Status",
-          "type": "[to be translated]:Type",
-          "updated_at": "[to be translated]:Updated"
+          "actions": "アクション",
+          "name": "名前",
+          "status": "ステータス",
+          "type": "タイプ",
+          "updated_at": "更新済み"
         },
-        "select_all": "[to be translated]:Select all",
-        "select_row": "[to be translated]:Select row"
+        "select_all": "すべて選択",
+        "select_row": "行を選択"
       },
       "toolbar": {
-        "add": "[to be translated]:Add Data Source",
-        "no_search_results": "[to be translated]:No matching data sources",
-        "search_placeholder": "[to be translated]:Search data sources"
+        "add": "データソースを追加",
+        "no_search_results": "一致するデータソースがありません",
+        "search_placeholder": "データソースを検索"
       }
     },
-    "dimensions": "[to be translated]:Embedding Dimensions",
+    "dimensions": "埋め込み次元",
     "dimensions_auto_set": "埋め込み次元を自動設定",
     "dimensions_error_invalid": "無効な埋め込み次元",
     "dimensions_size_placeholder": "次元数を設定しない場合は空欄のままにしてください",
     "drag_file": "ファイルをここにドラッグ",
-    "embedding_model": "[to be translated]:Embedding Model",
-    "embedding_model_required": "[to be translated]:Knowledge base embedding model is required",
-    "empty": "[to be translated]:No knowledge bases",
+    "embedding_model": "埋め込みモデル",
+    "embedding_model_required": "ナレッジベース埋め込みモデルが必要です",
+    "empty": "ナレッジベースなし",
     "error": {
-      "failed_base_unknown": "[to be translated]:This knowledge base failed during migration. Rebuild it and choose a new embedding model.",
-      "failed_to_create": "[to be translated]:Failed to create knowledge base",
-      "failed_to_delete": "[to be translated]:Failed to delete knowledge base",
-      "failed_to_edit": "[to be translated]:Failed to edit knowledge base",
-      "failed_to_move": "[to be translated]:Failed to move knowledge base",
-      "missing_embedding_model": "[to be translated]:The embedding model used by this knowledge base was not found during migration. Rebuild the knowledge base and choose a new embedding model.",
+      "failed_base_unknown": "このナレッジベースは移行中に失敗しました。再構築して、新しい埋め込みモデルを選択してください。",
+      "failed_to_create": "ナレッジベースの作成に失敗しました",
+      "failed_to_delete": "ナレッジベースの削除に失敗しました",
+      "failed_to_edit": "ナレッジベースの編集に失敗しました",
+      "failed_to_move": "ナレッジベースの移動に失敗しました",
+      "missing_embedding_model": "このナレッジベースで使用されていた埋め込みモデルは移行中に見つかりませんでした。ナレッジベースを再構築し、新しい埋め込みモデルを選択してください。",
       "model_invalid": "モデルが選択されていません"
     },
     "file_hint": "{{file_types}} 形式をサポート",
     "groups": {
-      "add": "[to be translated]:New Group",
-      "create_base_here": "[to be translated]:Create here",
-      "default": "[to be translated]:Default",
-      "delete": "[to be translated]:Delete Group",
-      "delete_confirm_description": "[to be translated]:Knowledge bases in this group will be moved to Ungrouped after deletion.",
-      "delete_confirm_title": "[to be translated]:Delete Group?",
+      "add": "新しいグループ",
+      "create_base_here": "ここに作成",
+      "default": "デフォルト",
+      "delete": "グループを削除",
+      "delete_confirm_description": "このグループ内のナレッジベースは、削除後に「グループなし」に移動されます。",
+      "delete_confirm_title": "グループを削除しますか？",
       "error": {
-        "failed_to_create": "[to be translated]:Failed to create group",
-        "failed_to_delete": "[to be translated]:Failed to delete group",
-        "failed_to_update": "[to be translated]:Failed to rename group"
+        "failed_to_create": "グループの作成に失敗しました",
+        "failed_to_delete": "グループの削除に失敗しました",
+        "failed_to_update": "グループの名前変更に失敗しました"
       },
-      "name_placeholder": "[to be translated]:Enter group name...",
-      "name_required": "[to be translated]:Group name is required",
-      "rename": "[to be translated]:Rename",
-      "rename_title": "[to be translated]:Rename Group",
-      "ungrouped": "[to be translated]:Ungrouped"
+      "name_placeholder": "グループ名を入力...",
+      "name_required": "グループ名は必須です",
+      "rename": "名前を変更",
+      "rename_title": "グループ名を変更",
+      "ungrouped": "グループ化されていない"
     },
     "meta": {
-      "data_sources_count": "[to be translated]:{{count}} sources",
-      "documents_count": "[to be translated]:{{count}} documents",
-      "updated_at": "[to be translated]:Updated {{time}}"
+      "data_sources_count": "{{count}}件の情報源",
+      "documents_count": "{{count}} 件の文書",
+      "updated_at": "更新日時 {{time}}"
     },
-    "name_required": "[to be translated]:Knowledge base name is required",
-    "not_set": "[to be translated]:Not Set",
+    "name_required": "ナレッジベース名は必須です",
+    "not_set": "未設定",
     "provider_not_found": "プロバイダーが見つかりません",
     "rag": {
-      "chunk_overlap": "[to be translated]:Overlap Size",
-      "chunk_overlap_invalid": "[to be translated]:Chunk overlap must be greater than or equal to 0",
-      "chunk_overlap_must_be_smaller": "[to be translated]:Chunk overlap must be smaller than chunk size",
-      "chunk_overlap_requires_chunk_size": "[to be translated]:Chunk size is required when chunk overlap is set",
-      "chunk_size": "[to be translated]:Chunk Size",
-      "chunk_size_change_warning": "[to be translated]:Chunk size and overlap changes only apply to newly added content",
-      "chunk_size_invalid": "[to be translated]:Chunk size must be greater than 0",
-      "chunking": "[to be translated]:Chunking",
-      "default_separator": "[to be translated]:Auto (recommended)",
-      "dimensions": "[to be translated]:Vector Dimensions",
-      "document_count": "[to be translated]:Document Count",
-      "embedding_model": "[to be translated]:Embedding Model",
-      "embedding_model_select": "[to be translated]:Model Selection",
-      "file_processing": "[to be translated]:File Processing",
-      "file_processing_hint": "[to be translated]:File processing runs automatically during document import. Choosing the right provider can improve document parsing quality.",
+      "chunk_overlap": "オーバーラップサイズ",
+      "chunk_overlap_invalid": "チャンクオーバーラップは0以上でなければなりません",
+      "chunk_overlap_must_be_smaller": "チャンクのオーバーラップはチャンクサイズより小さくする必要があります",
+      "chunk_overlap_requires_chunk_size": "チャンクオーバーラップが設定されている場合、チャンクサイズの指定が必要です",
+      "chunk_size": "チャンクサイズ",
+      "chunk_size_change_warning": "チャンクサイズとオーバーラップの変更は、新しく追加されるコンテンツにのみ適用されます",
+      "chunk_size_invalid": "チャンクサイズは0より大きくなければなりません",
+      "chunking": "チャンキング",
+      "default_separator": "自動（推奨）",
+      "dimensions": "ベクトル次元",
+      "document_count": "文書数",
+      "embedding_model": "埋め込みモデル",
+      "embedding_model_select": "モデル選択",
+      "file_processing": "ファイル処理",
+      "file_processing_hint": "ファイルの処理はドキュメントのインポート時に自動的に実行されます。適切なプロバイダーを選択することで、ドキュメントの解析品質を向上させることができます。",
       "hints": {
-        "chunk_overlap": "[to be translated]:Number of overlapping tokens kept between adjacent chunks to reduce semantic breaks.",
-        "chunk_size": "[to be translated]:Target token count for each document chunk. This affects retrieval granularity and context length.",
-        "dimensions": "[to be translated]:The vector dimension output by the current embedding model, used to create and match vector indexes.",
-        "document_count": "[to be translated]:Maximum number of document chunks returned for each retrieval. Higher values cover more content but use more context.",
-        "embedding_model": "[to be translated]:Used to convert knowledge base content into vectors. Changing the model usually requires reindexing existing content.",
-        "hybrid_alpha": "[to be translated]:Vector score weight in hybrid retrieval. Higher values favor semantic matching.",
-        "processor": "[to be translated]:Parser used when importing files to extract body text, tables, and related content.",
-        "rerank_model": "[to be translated]:Model used to rerank initial retrieval results and improve final chunk relevance.",
-        "search_mode": "[to be translated]:Choose a retrieval mode: vector search for semantic matching, full-text search for keywords, or hybrid search for both.",
-        "threshold": "[to be translated]:Similarity threshold for filtering low-relevance chunks. Higher values make retrieval stricter.",
-        "threshold_disabled": "[to be translated]:This retrieval mode returns ordered results and does not use a similarity threshold."
+        "chunk_overlap": "隣接するチャンク間でセマンティックな途切れを減らすために保持される重複トークンの数。",
+        "chunk_size": "各ドキュメントチャンクのターゲットトークン数。これは検索の粒度とコンテキスト長に影響します。",
+        "dimensions": "現在の埋め込みモデルが出力するベクトル次元。ベクトルインデックスの作成とマッチングに使用される。",
+        "document_count": "各検索ごとに返されるドキュメントチャンクの最大数。値を大きくするとより多くのコンテンツをカバーできますが、より多くのコンテキストを使用します。",
+        "embedding_model": "ナレッジベースのコンテンツをベクトルに変換するために使用されます。モデルを変更すると、通常は既存のコンテンツの再インデックスが必要になります。",
+        "hybrid_alpha": "ハイブリッド検索におけるベクトルスコアの重み。値が高いほどセマンティックマッチングが優先される。",
+        "processor": "ファイルをインポートする際に本文、表、および関連コンテンツを抽出するために使用されるパーサー。",
+        "rerank_model": "初期検索結果を再ランキングし、最終チャンクの関連性を向上させるために使用されるモデル。",
+        "search_mode": "検索モードを選択してください：セマンティックマッチングにはベクトル検索、キーワードには全文検索、両方にはハイブリッド検索をお使いください。",
+        "threshold": "低関連度チャンクをフィルタリングするための類似度閾値。値を高くすると検索がより厳格になります。",
+        "threshold_disabled": "この検索モードは順序付けられた結果を返し、類似度の閾値は使用しません。"
       },
-      "hybrid_alpha": "[to be translated]:Hybrid Alpha",
-      "hybrid_alpha_hint": "[to be translated]:Only configurable in Hybrid retrieval mode",
-      "processor": "[to be translated]:Processing Provider",
-      "refresh_dimensions": "[to be translated]:Refresh vector dimensions",
-      "rerank_disabled": "[to be translated]:Disabled",
-      "rerank_model": "[to be translated]:Rerank Model",
-      "reset_action": "[to be translated]:Restore Defaults",
-      "reset_defaults": "[to be translated]:Reset Defaults",
-      "retrieval": "[to be translated]:Retrieval Settings",
-      "save_action": "[to be translated]:Save",
-      "saved": "[to be translated]:Saved",
+      "hybrid_alpha": "ハイブリッド・アルファ",
+      "hybrid_alpha_hint": "ハイブリッド検索モードでのみ設定可能",
+      "processor": "処理プロバイダ",
+      "refresh_dimensions": "ベクトル次元を更新",
+      "rerank_disabled": "無効",
+      "rerank_model": "リランクモデル",
+      "reset_action": "デフォルトに戻す",
+      "reset_defaults": "デフォルトにリセット",
+      "retrieval": "検索設定",
+      "save_action": "保存",
+      "saved": "保存済み",
       "search_mode": {
-        "bm25": "[to be translated]:Full-text Search",
-        "default": "[to be translated]:Vector Search",
-        "hybrid": "[to be translated]:Hybrid Search (recommended)",
-        "title": "[to be translated]:Search Mode"
+        "bm25": "全文検索",
+        "default": "ベクターサーチ",
+        "hybrid": "ハイブリッド検索（推奨）",
+        "title": "検索モード"
       },
-      "separator_rule": "[to be translated]:Separator Rule",
-      "threshold": "[to be translated]:Similarity Threshold",
-      "tokens_unit": "[to be translated]:tokens"
+      "separator_rule": "セパレータルール",
+      "threshold": "類似度閾値",
+      "tokens_unit": "トークン"
     },
     "recall": {
-      "collapse": "[to be translated]:Collapse Chunk",
-      "copy": "[to be translated]:Copy Chunk",
-      "duration": "[to be translated]:{{duration}}ms",
-      "empty_description": "[to be translated]:Matched document chunks and scores will appear here",
-      "empty_title": "[to be translated]:Enter a query to test retrieval",
-      "expand": "[to be translated]:Expand Chunk",
-      "history_clear": "[to be translated]:Clear",
-      "history_remove": "[to be translated]:Remove History",
-      "history_title": "[to be translated]:Search History",
-      "placeholder": "[to be translated]:Enter test query...",
-      "ranking_only": "[to be translated]:Ordered results",
-      "result_count": "[to be translated]:{{count}} results",
-      "result_rank": "[to be translated]:Rank #{{rank}}",
-      "result_relevance": "[to be translated]:Relevance {{score}}",
-      "search_failed": "[to be translated]:Failed to run recall test",
-      "searching": "[to be translated]:Searching...",
-      "submit": "[to be translated]:Search",
-      "top_score": "[to be translated]:Top: {{score}}"
+      "collapse": "折りたたみチャンク",
+      "copy": "チャンクをコピー",
+      "duration": "{{duration}}ミリ秒",
+      "empty_description": "一致したドキュメントチャンクとスコアがここに表示されます",
+      "empty_title": "検索をテストするためのクエリを入力してください",
+      "expand": "チャンクを展開",
+      "history_clear": "クリア",
+      "history_remove": "履歴を削除",
+      "history_title": "検索履歴",
+      "placeholder": "テストクエリを入力してください...",
+      "ranking_only": "順序付けられた結果",
+      "result_count": "{{count}}件の結果",
+      "result_rank": "ランク #{{rank}}",
+      "result_relevance": "関連性 {{score}}",
+      "search_failed": "リコールテストの実行に失敗しました",
+      "searching": "検索中…",
+      "submit": "検索",
+      "top_score": "トップ: {{score}}"
     },
-    "rename_title": "[to be translated]:Rename Knowledge Base",
+    "rename_title": "ナレッジベースの名前を変更",
     "restore": {
-      "action": "[to be translated]:Rebuild knowledge base",
-      "default_name": "[to be translated]:{{name}}_bak",
-      "failed_to_restore": "[to be translated]:Failed to rebuild knowledge base",
-      "submit": "[to be translated]:Rebuild",
-      "title": "[to be translated]:Rebuild Knowledge Base"
+      "action": "ナレッジベースを再構築する",
+      "default_name": "{{name}}_bak",
+      "failed_to_restore": "ナレッジベースの再構築に失敗しました",
+      "submit": "リビルド",
+      "title": "ナレッジベースを再構築"
     },
-    "search": "[to be translated]:Search Knowledge Base",
+    "search": "ナレッジベースを検索",
     "search_placeholder": "検索するテキストを入力",
     "status": {
-      "completed": "[to be translated]:Ready",
-      "failed": "[to be translated]:Failed",
-      "processing": "[to be translated]:Processing"
+      "completed": "準備完了",
+      "failed": "失敗しました",
+      "processing": "処理"
     },
     "status_embedding_failed": "埋め込み失敗",
     "status_preprocess_failed": "前処理に失敗しました",
     "subtitle_file": "字幕ファイル",
     "tabs": {
-      "data_source": "[to be translated]:Data Sources",
-      "rag_config": "[to be translated]:RAG Config",
-      "recall_test": "[to be translated]:Recall Test"
+      "data_source": "データソース",
+      "rag_config": "RAG設定",
+      "recall_test": "リコールテスト"
     },
-    "title": "[to be translated]:Knowledge Base",
+    "title": "ナレッジベース",
     "videos_file": "動画ファイル"
   },
   "languages": {
@@ -2417,465 +2422,465 @@
   },
   "launchpad": {
     "apps": "アプリ",
-    "minapps": "[to be translated]:Minapps",
+    "minapps": "ミニアプリ",
     "miniApps": "アプリ"
   },
   "library": {
     "action": {
-      "create": "[to be translated]:New",
-      "delete": "[to be translated]:Delete",
-      "disable": "[to be translated]:Disable",
-      "duplicate": "[to be translated]:Duplicate",
-      "edit": "[to be translated]:Edit",
-      "enable": "[to be translated]:Enable",
-      "manage_tags": "[to be translated]:Manage tags",
-      "uninstall": "[to be translated]:Uninstall"
+      "create": "新",
+      "delete": "削除",
+      "disable": "無効にする",
+      "duplicate": "重複",
+      "edit": "編集",
+      "enable": "有効にする",
+      "manage_tags": "タグを管理",
+      "uninstall": "アンインストール"
     },
     "assistant_catalog": {
-      "add": "[to be translated]:Add",
-      "add_failed": "[to be translated]:Failed to add assistant",
-      "browse_label": "[to be translated]:Assistant categories",
-      "empty_description": "[to be translated]:This category has no assistant presets yet.",
-      "empty_title": "[to be translated]:No assistants to add",
-      "mine": "[to be translated]:Mine",
-      "no_match_description": "[to be translated]:Try a different search keyword",
-      "no_match_title": "[to be translated]:No matching assistants",
-      "preview": "[to be translated]:Preview",
-      "preview_description": "[to be translated]:Overview",
-      "preview_prompt": "[to be translated]:Prompt",
-      "scroll_left": "[to be translated]:Scroll categories left",
-      "scroll_right": "[to be translated]:Scroll categories right"
+      "add": "追加",
+      "add_failed": "アシスタントの追加に失敗しました",
+      "browse_label": "アシスタントカテゴリー",
+      "empty_description": "このカテゴリにはまだアシスタントプリセットがありません。",
+      "empty_title": "追加するアシスタントはありません",
+      "mine": "私の",
+      "no_match_description": "別の検索キーワードを試してください",
+      "no_match_title": "一致するアシスタントがいません",
+      "preview": "プレビュー",
+      "preview_description": "概要",
+      "preview_prompt": "プロンプト",
+      "scroll_left": "カテゴリーを左にスクロール",
+      "scroll_right": "カテゴリを右にスクロール"
     },
     "badge": {
-      "update": "[to be translated]:Update"
+      "update": "更新"
     },
     "config": {
       "agent": {
-        "create_banner": "[to be translated]:Save before binding tools and MCP servers",
-        "create_title": "[to be translated]:New agent",
+        "create_banner": "ツールおよび MCP サーバーをバインドする前に保存してください",
+        "create_title": "新しいエージェント",
         "field": {
           "accessible_paths": {
-            "add": "[to be translated]:Add directory",
-            "empty": "[to be translated]:Not set (defaults to the workspace root)",
-            "hint": "[to be translated]:Limits directories the agent can access",
-            "label": "[to be translated]:Accessible directories"
+            "add": "ディレクトリを追加",
+            "empty": "設定されていません（ワークスペースルートがデフォルトになります）",
+            "hint": "エージェントがアクセスできるディレクトリを制限する",
+            "label": "アクセス可能なディレクトリ"
           },
           "allowed_tools": {
-            "add": "[to be translated]:Add tool",
-            "empty": "[to be translated]:Leave empty to use the permission mode default",
-            "label": "[to be translated]:Allowed tools"
+            "add": "ツールを追加",
+            "empty": "空欄のままにすると、パーミッションモードのデフォルトが使用されます",
+            "label": "許可されたツール"
           },
           "avatar": {
-            "hint": "[to be translated]:Used to identify it in the library and sessions"
+            "hint": "ライブラリやセッション内でそれを識別するために使用されます"
           },
           "description": {
-            "hint": "[to be translated]:Helps identify what this agent is for",
-            "label": "[to be translated]:Description",
-            "placeholder": "[to be translated]:What this agent is for…"
+            "hint": "このエージェントの用途を識別するのに役立ちます",
+            "label": "説明",
+            "placeholder": "このエージェントの目的…"
           },
           "env_vars": {
-            "help": "[to be translated]:One KEY=VALUE per line",
-            "label": "[to be translated]:Environment variables"
+            "help": "1行に1つのKEY=VALUE",
+            "label": "環境変数"
           },
           "heartbeat_enabled": {
-            "label": "[to be translated]:Heartbeat check"
+            "label": "ハートビートチェック"
           },
           "heartbeat_interval": {
-            "label": "[to be translated]:Heartbeat interval (minutes)"
+            "label": "ハートビート間隔（分）"
           },
           "instructions": {
-            "hint": "[to be translated]:Defines the agent's role and behavior boundaries",
-            "label": "[to be translated]:System prompt",
-            "placeholder": "[to be translated]:Tell the agent who it is and what it can do…"
+            "hint": "エージェントの役割と行動の境界を定義する",
+            "label": "システムプロンプト",
+            "placeholder": "エージェントに、それが何者であり、何ができるのかを伝えてください…"
           },
           "max_turns": {
-            "help": "[to be translated]:0 means use the default",
-            "label": "[to be translated]:Max conversation turns"
+            "help": "0 はデフォルトを使用することを意味します",
+            "label": "最大会話ターン数"
           },
           "mcps": {
-            "add": "[to be translated]:Add MCP server",
-            "empty": "[to be translated]:None bound",
-            "label": "[to be translated]:MCP servers (id)"
+            "add": "MCPサーバーを追加",
+            "empty": "バインドされていません",
+            "label": "MCPサーバー (id)"
           },
           "model": {
-            "help": "[to be translated]:UniqueModelId; will switch to a picker backed by /models later",
-            "hint": "[to be translated]:Main reasoning and execution",
-            "label": "[to be translated]:Primary model (required)"
+            "help": "UniqueModelId; 後で /models をバックエンドにしたピッカーに切り替わります",
+            "hint": "主な推論と実行",
+            "label": "プライマリモデル（必須）"
           },
           "name": {
-            "hint": "[to be translated]:Shown in the library and session lists",
-            "label": "[to be translated]:Agent name",
-            "placeholder": "[to be translated]:Give the agent a name"
+            "hint": "ライブラリおよびセッションリストに表示",
+            "label": "エージェント名",
+            "placeholder": "エージェントに名前を付けてください"
           },
           "permission_mode": {
-            "help": "[to be translated]:Switching to bypassPermissions is equivalent to enabling Soul mode",
-            "label": "[to be translated]:Permission mode",
+            "help": "bypassPermissionsに切り替えることは、Soulモードを有効にすることと同等です。",
+            "label": "パーミッションモード",
             "option": {
-              "acceptEdits": "[to be translated]:Accept edits",
-              "bypassPermissions": "[to be translated]:Bypass permissions (Soul)",
-              "default": "[to be translated]:Default",
-              "plan": "[to be translated]:Plan mode"
+              "acceptEdits": "編集を承認する",
+              "bypassPermissions": "権限をバイパス（ソウル）",
+              "default": "デフォルト",
+              "plan": "プラン モード"
             }
           },
           "plan_model": {
-            "hint": "[to be translated]:Task decomposition and planning",
-            "label": "[to be translated]:Plan model (optional)"
+            "hint": "タスクの分解と計画",
+            "label": "プラン モデル (オプション)"
           },
           "small_model": {
-            "hint": "[to be translated]:Lightweight checks and formatting",
-            "label": "[to be translated]:Small model (optional)"
+            "hint": "軽量なチェックとフォーマット",
+            "label": "小型モデル（オプション）"
           },
           "soul_enabled": {
-            "help": "[to be translated]:When enabled, automatically grants bypassPermissions",
-            "label": "[to be translated]:Soul mode"
+            "help": "有効にすると、bypassPermissions を自動的に付与します",
+            "label": "ソウルモード"
           }
         },
-        "model_config": "[to be translated]:Model configuration",
+        "model_config": "モデル構成",
         "section": {
           "advanced": {
-            "desc": "[to be translated]:Execution limits and runtime parameters",
-            "label": "[to be translated]:Advanced",
-            "title": "[to be translated]:Advanced"
+            "desc": "実行制限とランタイムパラメータ",
+            "label": "高度な",
+            "title": "高度な"
           },
           "basic": {
-            "desc": "[to be translated]:Agent name, description, and primary model",
-            "label": "[to be translated]:Basic",
-            "title": "[to be translated]:Basic"
+            "desc": "エージェント名、説明、およびプライマリモデル",
+            "label": "基本",
+            "title": "基本"
           },
           "permission": {
-            "desc": "[to be translated]:Authorization scope for agent actions",
-            "label": "[to be translated]:Permission mode",
-            "title": "[to be translated]:Permission mode"
+            "desc": "エージェントアクションの認可範囲",
+            "label": "パーミッションモード",
+            "title": "パーミッションモード"
           },
           "prompt": {
-            "desc": "[to be translated]:System prompt and behavioral constraints",
-            "label": "[to be translated]:Prompt",
-            "title": "[to be translated]:Prompt"
+            "desc": "システムプロンプトと行動制約",
+            "label": "プロンプト",
+            "title": "プロンプト"
           },
           "tools": {
-            "add": "[to be translated]:Add",
-            "desc": "[to be translated]:MCP servers, allowed tools, and runtime settings",
-            "label": "[to be translated]:Tools & runtime",
-            "no_builtin_enabled": "[to be translated]:No built-in tools enabled",
-            "no_mcp_bound": "[to be translated]:No MCP servers bound",
-            "no_skills_enabled": "[to be translated]:No skills enabled",
-            "search_placeholder": "[to be translated]:Search tools or servers...",
-            "skills_coming_soon": "[to be translated]:Skill bindings coming soon",
-            "skills_require_save": "[to be translated]:Save before enabling skills",
+            "add": "追加",
+            "desc": "MCPサーバー、許可されたツール、およびランタイム設定",
+            "label": "ツールとランタイム",
+            "no_builtin_enabled": "組み込みツールは有効になっていません",
+            "no_mcp_bound": "バインドされた MCP サーバーはありません",
+            "no_skills_enabled": "スキルが有効になっていません",
+            "search_placeholder": "検索ツールまたはサーバー...",
+            "skills_coming_soon": "スキルバインディング、近日公開",
+            "skills_require_save": "スキルを有効にする前に保存してください",
             "tab": {
-              "mcp": "[to be translated]:MCP Server",
-              "skills": "[to be translated]:Skills",
-              "tools": "[to be translated]:Built-in tools"
+              "mcp": "MCPサーバー",
+              "skills": "スキル",
+              "tools": "組み込みツール"
             },
-            "title": "[to be translated]:Tools & runtime"
+            "title": "ツールとランタイム"
           }
         }
       },
       "basic": {
-        "context_count": "[to be translated]:Context count",
-        "creative": "[to be translated]:Creative",
-        "custom_params": "[to be translated]:Custom parameters",
-        "custom_params_add": "[to be translated]:Add parameter",
-        "custom_params_name": "[to be translated]:Parameter name",
-        "default_value": "[to be translated]:Model default",
-        "desc": "[to be translated]:Configure the assistant's identity and model parameters",
-        "description_label": "[to be translated]:Description",
+        "context_count": "コンテキストカウント",
+        "creative": "クリエイティブ",
+        "custom_params": "カスタムパラメータ",
+        "custom_params_add": "パラメータを追加",
+        "custom_params_name": "パラメータ名",
+        "default_value": "モデル デフォルト",
+        "desc": "アシスタントのIDとモデルパラメータを設定します",
+        "description_label": "説明",
         "field": {
           "avatar": {
-            "hint": "[to be translated]:Used to identify the assistant in the library and chats"
+            "hint": "ライブラリおよびチャット内でアシスタントを識別するために使用されます"
           },
           "context_count": {
-            "hint": "[to be translated]:Number of recent messages kept as context"
+            "hint": "コンテキストとして保持される最近のメッセージ数"
           },
           "custom_params": {
-            "hint": "[to be translated]:Extra provider parameters sent with requests"
+            "hint": "リクエストと共に送信される追加プロバイダーパラメータ"
           },
           "description": {
-            "hint": "[to be translated]:Helps distinguish what this assistant is for",
-            "placeholder": "[to be translated]:What this assistant is for..."
+            "hint": "このアシスタントの用途を区別するのに役立ちます",
+            "placeholder": "このアシスタントの用途は…"
           },
           "max_tokens": {
-            "hint": "[to be translated]:Caps response length when enabled"
+            "hint": "有効にした場合のCaps応答の長さ"
           },
           "max_tool_calls": {
-            "hint": "[to be translated]:Limits tool-call loops when enabled"
+            "hint": "有効にすると、ツール呼び出しのループを制限します"
           },
           "model": {
-            "hint": "[to be translated]:Overrides the global default model for this assistant"
+            "hint": "このアシスタントに対してグローバルなデフォルトモデルを上書きします"
           },
           "name": {
-            "hint": "[to be translated]:Shown in the library and assistant selectors",
-            "placeholder": "[to be translated]:Give the assistant a name"
+            "hint": "ライブラリおよびアシスタントセレクターに表示",
+            "placeholder": "アシスタントに名前をつけてください"
           },
           "stream_output": {
-            "hint": "[to be translated]:Shows responses as they are generated"
+            "hint": "応答が生成されるとすぐに表示する"
           },
           "tags": {
-            "hint": "[to be translated]:Used for filtering and organizing assistants"
+            "hint": "アシスタントのフィルタリングおよび整理に使用されます"
           },
           "temperature": {
-            "hint": "[to be translated]:Controls randomness when enabled"
+            "hint": "有効にすると、ランダム性を制御します"
           },
           "top_p": {
-            "hint": "[to be translated]:Limits token sampling range when enabled"
+            "hint": "有効にすると、トークンサンプリングの範囲を制限します"
           }
         },
-        "json_invalid": "[to be translated]:Invalid JSON format",
-        "max_tokens": "[to be translated]:Max tokens",
-        "max_tool_calls": "[to be translated]:Max tool calls",
-        "model": "[to be translated]:Default model",
-        "model_clear": "[to be translated]:Clear",
-        "model_not_found": "[to be translated]:Model not found (may have been removed): {{id}}",
-        "model_pick": "[to be translated]:+ Pick model",
-        "pick_avatar": "[to be translated]:Pick avatar",
-        "precise": "[to be translated]:Precise",
-        "stream_output": "[to be translated]:Stream output",
-        "tag_empty": "[to be translated]:No tags available",
-        "tag_hint": "[to be translated]:To add a new tag, use the \"+ Tag\" entry in the library top bar",
-        "tag_placeholder": "[to be translated]:Select tags",
-        "tag_search": "[to be translated]:Search tags",
-        "tags": "[to be translated]:Tags",
-        "temperature": "[to be translated]:Temperature",
-        "title": "[to be translated]:Basic settings",
-        "top_p": "[to be translated]:Top-P",
-        "unlimited": "[to be translated]:Unlimited"
+        "json_invalid": "無効なJSON形式",
+        "max_tokens": "最大トークン",
+        "max_tool_calls": "最大ツール呼び出し",
+        "model": "デフォルトモデル",
+        "model_clear": "クリア",
+        "model_not_found": "モデルが見つかりません（削除された可能性があります）: {{id}}",
+        "model_pick": "+ モデルを選択",
+        "pick_avatar": "アバターを選択",
+        "precise": "正確",
+        "stream_output": "ストリーム出力",
+        "tag_empty": "タグがありません",
+        "tag_hint": "新しいタグを追加するには、ライブラリの上部バーの「+ Tag」エントリを使用してください。",
+        "tag_placeholder": "タグを選択",
+        "tag_search": "検索タグ",
+        "tags": "タグ",
+        "temperature": "温度",
+        "title": "基本設定",
+        "top_p": "Top-P",
+        "unlimited": "無制限"
       },
-      "breadcrumb": "[to be translated]:Library",
+      "breadcrumb": "図書館",
       "knowledge": {
-        "add": "[to be translated]:Add knowledge base",
-        "desc": "[to be translated]:Link one or more knowledge bases; relevant snippets will be retrieved during chat",
-        "doc_count": "[to be translated]:{{count}} docs",
-        "empty_desc": "[to be translated]:Once linked, the assistant can answer based on document content",
-        "empty_title": "[to be translated]:No knowledge bases linked",
-        "invalid_suffix": "[to be translated]:... (unavailable)",
-        "linked": "[to be translated]:Linked knowledge bases",
-        "linked_hint": "[to be translated]:Controls which knowledge bases this assistant can retrieve from",
-        "no_more": "[to be translated]:No more knowledge bases available",
-        "remove_aria": "[to be translated]:Remove",
-        "search": "[to be translated]:Search knowledge bases...",
-        "title": "[to be translated]:Knowledge bases"
+        "add": "ナレッジベースを追加",
+        "desc": "1つ以上のナレッジベースをリンクしてください。チャット中に関連するスニペットが取得されます。",
+        "doc_count": "{{count}} 件のドキュメント",
+        "empty_desc": "リンクが完了すると、アシスタントはドキュメントの内容に基づいて回答できます",
+        "empty_title": "リンクされているナレッジベースはありません",
+        "invalid_suffix": "...（利用不可）",
+        "linked": "リンクされたナレッジベース",
+        "linked_hint": "このアシスタントが検索できるナレッジベースを制御します",
+        "no_more": "これ以上利用可能なナレッジベースはありません",
+        "remove_aria": "削除",
+        "search": "ナレッジベースを検索...",
+        "title": "ナレッジベース"
       },
       "prompt": {
-        "create_title": "[to be translated]:New Prompt",
-        "dblclick_hint": "[to be translated]:Double-click the preview to switch back to edit",
-        "desc": "[to be translated]:The system prompt is sent as the opening context of the assistant",
-        "edit_title": "[to be translated]:Edit Prompt",
+        "create_title": "新しいプロンプト",
+        "dblclick_hint": "プレビューをダブルクリックすると編集に戻ります",
+        "desc": "システムプロンプトはアシスタントの最初の文脈として送信されます",
+        "edit_title": "プロンプトを編集",
         "field": {
           "content": {
-            "label": "[to be translated]:Content",
-            "too_long": "[to be translated]:Content must be {{max}} characters or fewer"
+            "label": "コンテンツ",
+            "too_long": "コンテンツは{{max}}文字以内でなければなりません"
           },
           "name": {
-            "label": "[to be translated]:Name",
-            "too_long": "[to be translated]:Name must be {{max}} characters or fewer"
+            "label": "名前",
+            "too_long": "名前は{{max}}文字以内で入力してください"
           }
         },
-        "generate": "[to be translated]:Generate prompt",
-        "insert_variable": "[to be translated]:Insert variable",
-        "label": "[to be translated]:System prompt",
-        "placeholder": "[to be translated]:Enter the system prompt. Variables like {{date}} and {{model_name}} are supported...",
-        "title": "[to be translated]:Prompt",
-        "tokens_label": "[to be translated]:Tokens: ",
-        "variables_title": "[to be translated]:Available variables",
+        "generate": "プロンプトを生成",
+        "insert_variable": "変数を挿入",
+        "label": "システムプロンプト",
+        "placeholder": "システムプロンプトを入力してください。{{date}}や{{model_name}}のような変数がサポートされています...",
+        "title": "プロンプト",
+        "tokens_label": "トークン:",
+        "variables_title": "利用可能な変数",
         "vars": {
-          "arch": "[to be translated]:CPU architecture",
-          "date": "[to be translated]:Date",
-          "datetime": "[to be translated]:Date and time",
-          "language": "[to be translated]:Language",
-          "model_name": "[to be translated]:Model name",
-          "os": "[to be translated]:Operating system",
-          "time": "[to be translated]:Time",
-          "username": "[to be translated]:Username"
+          "arch": "CPUアーキテクチャ",
+          "date": "日付",
+          "datetime": "日付と時刻",
+          "language": "言語",
+          "model_name": "モデル名",
+          "os": "オペレーティングシステム",
+          "time": "時間",
+          "username": "ユーザー名"
         }
       },
-      "save_failed": "[to be translated]:Save failed",
-      "saving": "[to be translated]:Saving...",
+      "save_failed": "保存に失敗しました",
+      "saving": "保存中...",
       "section": {
         "basic": {
-          "desc": "[to be translated]:Name, avatar, model parameters",
-          "label": "[to be translated]:Basic"
+          "desc": "名前、アバター、モデルパラメータ",
+          "label": "基本"
         },
         "knowledge": {
-          "desc": "[to be translated]:Linked knowledge bases and retrieval",
-          "label": "[to be translated]:Knowledge"
+          "desc": "リンクされたナレッジベースと検索",
+          "label": "知識"
         },
         "more": {
-          "desc": "[to be translated]:Model, tags, and parameters",
-          "label": "[to be translated]:More settings"
+          "desc": "モデル、タグ、およびパラメータ",
+          "label": "その他の設定"
         },
         "prompt": {
-          "desc": "[to be translated]:System prompt and variables",
-          "label": "[to be translated]:Prompt"
+          "desc": "システムプロンプトと変数",
+          "label": "プロンプト"
         },
         "tools": {
-          "desc": "[to be translated]:MCP servers and tool configuration",
-          "label": "[to be translated]:Tools"
+          "desc": "MCPサーバーとツール設定",
+          "label": "ツール"
         }
       },
       "tools": {
-        "add_mcp": "[to be translated]:Add MCP server",
-        "added": "[to be translated]:Added MCP servers",
-        "added_hint": "[to be translated]:Manual mode exposes only the servers in this list",
-        "desc": "[to be translated]:Configure the MCP servers this assistant can call during chat",
-        "empty_desc": "[to be translated]:Once added, the assistant can invoke external tools",
-        "empty_title": "[to be translated]:No MCP servers added",
-        "inactive_badge": "[to be translated]:Inactive",
-        "info_main": "[to be translated]:MCP (Model Context Protocol) lets the model safely invoke external tools.",
-        "info_sub": "[to be translated]:Enabling only necessary servers improves safety and response speed.",
+        "add_mcp": "MCPサーバーを追加",
+        "added": "MCPサーバーが追加されました",
+        "added_hint": "マニュアルモードでは、このリスト内のサーバーのみが公開されます",
+        "desc": "このアシスタントがチャット中に呼び出せるMCPサーバーを設定してください",
+        "empty_desc": "追加されると、アシスタントは外部ツールを呼び出せるようになります",
+        "empty_title": "MCPサーバーが追加されていません",
+        "inactive_badge": "非アクティブ",
+        "info_main": "MCP（Model Context Protocol）は、モデルが外部ツールを安全に呼び出すことを可能にします。",
+        "info_sub": "必要なサーバーのみを有効にすることで、安全性と応答速度が向上します。",
         "mode": {
           "auto": {
-            "desc": "[to be translated]:The model decides which enabled MCP tools to call",
-            "label": "[to be translated]:Auto"
+            "desc": "モデルは、有効化されている MCP ツールのうちどれを呼び出すかを決定します。",
+            "label": "自動"
           },
           "disabled": {
-            "desc": "[to be translated]:No MCP tools are available during chat",
-            "label": "[to be translated]:Disabled"
+            "desc": "チャット中に利用可能な MCP ツールはありません",
+            "label": "無効"
           },
           "manual": {
-            "desc": "[to be translated]:Expose only the MCP servers selected below",
-            "label": "[to be translated]:Manual"
+            "desc": "以下で選択された MCP サーバーのみを公開してください",
+            "label": "マニュアル"
           }
         },
-        "no_more": "[to be translated]:No more servers available",
-        "search": "[to be translated]:Search available servers...",
-        "switch_title_active": "[to be translated]:Toggle off to remove",
-        "switch_title_inactive": "[to be translated]:This server is disabled in MCP settings; remove it to re-add later",
-        "title": "[to be translated]:Tools"
+        "no_more": "利用可能なサーバーがありません",
+        "search": "利用可能なサーバーを検索中...",
+        "switch_title_active": "オフに切り替えると削除されます",
+        "switch_title_inactive": "このサーバーはMCP設定で無効化されています。後で再追加するには削除してください。",
+        "title": "ツール"
       }
     },
     "create_menu": {
-      "create": "[to be translated]:New {{type}}",
-      "import": "[to be translated]:Import {{type}}"
+      "create": "新しい{{type}}",
+      "import": "{{type}}をインポート"
     },
     "delete": {
       "agent": {
-        "content": "[to be translated]:Are you sure you want to delete this agent? This action cannot be undone.",
-        "title": "[to be translated]:Delete agent"
+        "content": "このエージェントを削除してもよろしいですか？この操作は元に戻せません。",
+        "title": "エージェントを削除"
       },
       "skill": {
-        "content": "[to be translated]:Are you sure you want to uninstall this skill? It will be removed from the global library and all agent workspace symlinks will be cleaned up.",
-        "title": "[to be translated]:Uninstall skill"
+        "content": "このスキルをアンインストールしてもよろしいですか？グローバルライブラリから削除され、すべてのエージェントワークスペースのシンボリックリンクがクリーンアップされます。",
+        "title": "スキルをアンインストール"
       }
     },
     "delete_confirm": {
-      "cancel": "[to be translated]:Cancel",
-      "confirm": "[to be translated]:Delete",
-      "description": "[to be translated]:Delete \"{{name}}\"? This action cannot be undone.",
-      "title": "[to be translated]:Delete"
+      "cancel": "キャンセル",
+      "confirm": "削除",
+      "description": "「{{name}}」を削除しますか？この操作は取り消せません。",
+      "title": "削除"
     },
-    "duplicate_assistant_failed": "[to be translated]:Failed to duplicate assistant",
-    "duplicate_name": "[to be translated]:{{name}} (copy)",
+    "duplicate_assistant_failed": "アシスタントの複製に失敗しました",
+    "duplicate_name": "{{name}} (コピー)",
     "empty_state": {
-      "description": "[to be translated]:Click \"New\" to create your first resource.",
-      "empty_description": "[to be translated]:Create your first agent or assistant",
-      "empty_title": "[to be translated]:No resources yet",
-      "no_match_description": "[to be translated]:Try a different search keyword",
-      "no_match_title": "[to be translated]:No matching resources",
-      "title": "[to be translated]:No resources"
+      "description": "「新規」をクリックして、最初のリソースを作成します。",
+      "empty_description": "最初のエージェントまたはアシスタントを作成してください",
+      "empty_title": "まだリソースがありません",
+      "no_match_description": "別の検索キーワードを試してください",
+      "no_match_title": "一致するリソースがありません",
+      "title": "リソースなし"
     },
-    "export_assistant_failed": "[to be translated]:Failed to export assistant",
+    "export_assistant_failed": "アシスタントのエクスポートに失敗しました",
     "import_dialog": {
       "clipboard": {
-        "button": "[to be translated]:Parse and import",
-        "placeholder": "[to be translated]:Paste JSON configuration here..."
+        "button": "解析してインポート",
+        "placeholder": "ここにJSON設定を貼り付けてください..."
       },
       "error": {
-        "content_too_large": "[to be translated]:Content too large (>5 MB)",
-        "file_too_large": "[to be translated]:File too large (>5 MB)",
-        "invalid_url": "[to be translated]:Invalid URL",
-        "response_too_large": "[to be translated]:Response too large (>5 MB)",
-        "timeout": "[to be translated]:Request timed out. Check that the URL is reachable.",
-        "unsupported_protocol": "[to be translated]:Only http or https URLs are supported"
+        "content_too_large": "コンテンツが大きすぎます（5 MB超）",
+        "file_too_large": "ファイルが大きすぎます（5 MB超）",
+        "invalid_url": "無効なURL",
+        "response_too_large": "レスポンスが大きすぎます（5 MB超過）",
+        "timeout": "リクエストがタイムアウトしました。URLにアクセス可能か確認してください。",
+        "unsupported_protocol": "http または https の URL のみがサポートされています"
       },
-      "failure": "[to be translated]:Import failed: {{error}}",
+      "failure": "インポートに失敗しました: {{error}}",
       "file": {
-        "drop_hint": "[to be translated]:Drag and drop a file here, or click to pick one",
-        "formats": "[to be translated]:Supports .json"
+        "drop_hint": "ファイルをここにドラッグ＆ドロップするか、クリックして選択してください",
+        "formats": ".jsonに対応"
       },
-      "partial_success": "[to be translated]:Partial success: {{success}} imported, {{failed}} failed ({{first_name}}: {{first_error}})",
-      "subtitle": "[to be translated]:JSON configuration files are supported",
-      "success": "[to be translated]:Imported successfully: {{name}}",
+      "partial_success": "部分的な成功: {{success}}件がインポートされ、{{failed}}件が失敗しました ({{first_name}}: {{first_error}})",
+      "subtitle": "JSON設定ファイルがサポートされています",
+      "success": "インポートに成功しました: {{name}}",
       "tab": {
-        "clipboard": "[to be translated]:Clipboard",
-        "file": "[to be translated]:File upload",
-        "url": "[to be translated]:Import from URL"
+        "clipboard": "クリップボード",
+        "file": "ファイルアップロード",
+        "url": "URLからインポート"
       },
       "url": {
-        "button": "[to be translated]:Fetch and import",
-        "hint": "[to be translated]:Import from a GitHub Gist, GitHub repo, or any public URL",
-        "supports": "[to be translated]:Raw file URLs are supported"
+        "button": "フェッチしてインポート",
+        "hint": "GitHub Gist、GitHubリポジトリ、または任意の公開URLからインポート",
+        "supports": "生ファイルURLもサポートされています"
       }
     },
     "import_skill_dialog": {
       "local": {
-        "drop_hint": "[to be translated]:Drop a ZIP or directory here, or click to choose a ZIP",
-        "formats": "[to be translated]:Supports .zip files and directories containing SKILL.md"
+        "drop_hint": "ここにZIPファイルまたはディレクトリをドロップするか、クリックしてZIPを選択してください",
+        "formats": ".zip ファイルおよび SKILL.md を含むディレクトリに対応しています"
       },
-      "subtitle": "[to be translated]:Install a skill from a ZIP file or directory",
-      "title": "[to be translated]:Import skill"
+      "subtitle": "ZIPファイルまたはディレクトリからスキルをインストールする",
+      "title": "スキルをインポート"
     },
-    "no_match": "[to be translated]:No matching results",
+    "no_match": "一致する結果はありません",
     "pending_backend": {
-      "description": "[to be translated]:Write operations for this resource are coming soon. This view is a placeholder.",
-      "title": "[to be translated]:Backend setup in progress"
+      "description": "このリソースへの書き込み操作は近日公開予定です。このビューはプレースホルダーです。",
+      "title": "バックエンドのセットアップ進行中"
     },
     "sidebar": {
-      "all_resources": "[to be translated]:All resources",
-      "all_tags": "[to be translated]:All tags",
-      "no_tags": "[to be translated]:No tags yet",
-      "subtitle": "[to be translated]:Manage your AI resources",
-      "tags": "[to be translated]:Tags",
-      "title": "[to be translated]:Library"
+      "all_resources": "すべてのリソース",
+      "all_tags": "すべてのタグ",
+      "no_tags": "まだタグはありません",
+      "subtitle": "AIリソースを管理する",
+      "tags": "タグ",
+      "title": "図書館"
     },
     "skill_detail": {
-      "created_at": "[to be translated]:Created",
-      "delete_description": "[to be translated]:Remove this skill and all of its configuration. This action cannot be undone.",
-      "delete_title": "[to be translated]:Delete skill",
-      "description": "[to be translated]:Description",
-      "file_preview": "[to be translated]:File preview",
-      "installed": "[to be translated]:Installed",
-      "no_description": "[to be translated]:No description",
-      "source_files": "[to be translated]:Source files",
-      "updated_at": "[to be translated]:Recently updated"
+      "created_at": "作成済",
+      "delete_description": "このスキルとそのすべての設定を削除します。この操作は元に戻せません",
+      "delete_title": "スキルを削除",
+      "description": "説明",
+      "file_preview": "ファイルプレビュー",
+      "installed": "インストール済み",
+      "no_description": "説明なし",
+      "source_files": "ソースファイル",
+      "updated_at": "最近更新"
     },
     "sort": {
-      "created": "[to be translated]:Sort by created",
-      "name": "[to be translated]:Sort by name",
-      "updated": "[to be translated]:Sort by updated"
+      "created": "作成日時でソート",
+      "name": "名前でソート",
+      "updated": "更新日時でソート"
     },
-    "subtitle": "[to be translated]:Manage your assistants, agents and skills",
+    "subtitle": "アシスタント、エージェント、スキルを管理する",
     "tag_picker": {
-      "no_tags": "[to be translated]:No tags yet",
-      "placeholder": "[to be translated]:New tag name..."
+      "no_tags": "まだタグはありません",
+      "placeholder": "新しいタグ名..."
     },
-    "tag_sync_failed": "[to be translated]:Failed to sync tags",
+    "tag_sync_failed": "タグの同期に失敗しました",
     "time_ago": {
-      "days": "[to be translated]:{{count}} day(s) ago",
-      "hours": "[to be translated]:{{count}} hour(s) ago",
-      "just_now": "[to be translated]:Just now",
-      "minutes": "[to be translated]:{{count}} minute(s) ago",
-      "months": "[to be translated]:{{count}} month(s) ago"
+      "days": "{{count}}日前",
+      "hours": "{{count}}時間前",
+      "just_now": "たった今",
+      "minutes": "{{count}}分前",
+      "months": "{{count}} か月前"
     },
-    "title": "[to be translated]:Library",
+    "title": "図書館",
     "toolbar": {
-      "add_tag_placeholder": "[to be translated]:Tag name...",
-      "new_resource": "[to be translated]:New resource",
-      "search_placeholder": "[to be translated]:Search resources...",
-      "tag_button": "[to be translated]:Tag"
+      "add_tag_placeholder": "タグ名...",
+      "new_resource": "新しいリソース",
+      "search_placeholder": "リソースを検索...",
+      "tag_button": "タグ"
     },
     "type": {
-      "agent": "[to be translated]:Agent",
-      "assistant": "[to be translated]:Assistant",
-      "new_agent": "[to be translated]:New agent",
-      "new_assistant": "[to be translated]:New assistant",
-      "new_prompt": "[to be translated]:New Prompt",
-      "prompt": "[to be translated]:Prompt",
-      "skill": "[to be translated]:Skill"
+      "agent": "エージェント",
+      "assistant": "アシスタント",
+      "new_agent": "新しいエージェント",
+      "new_assistant": "新しいアシスタント",
+      "new_prompt": "新しいプロンプト",
+      "prompt": "プロンプト",
+      "skill": "スキル"
     },
-    "uninstall_failed": "[to be translated]:Failed to uninstall",
+    "uninstall_failed": "アンインストールに失敗しました",
     "view": {
-      "grid": "[to be translated]:Grid view",
-      "list": "[to be translated]:List view"
+      "grid": "グリッドビュー",
+      "list": "リストビュー"
     }
   },
   "lmstudio": {
@@ -3230,72 +3235,72 @@
     }
   },
   "minapp": {
-    "add_to_launchpad": "[to be translated]:Add to Launchpad",
-    "add_to_sidebar": "[to be translated]:Add to Sidebar",
+    "add_to_launchpad": "Launchpadに追加",
+    "add_to_sidebar": "サイドバーに追加",
     "popup": {
-      "close": "[to be translated]:Close MinApp",
-      "devtools": "[to be translated]:Developer Tools",
-      "goBack": "[to be translated]:Go Back",
-      "goForward": "[to be translated]:Go Forward",
-      "minimize": "[to be translated]:Minimize MinApp",
-      "openExternal": "[to be translated]:Open in Browser",
-      "open_link_external_off": "[to be translated]:Current: Open links in default window",
-      "open_link_external_on": "[to be translated]:Current: Open links in browser",
-      "refresh": "[to be translated]:Refresh",
-      "rightclick_copyurl": "[to be translated]:Right-click to copy URL"
+      "close": "ミニアプリを閉じる",
+      "devtools": "開発者ツール",
+      "goBack": "戻る",
+      "goForward": "前進",
+      "minimize": "最小化 MinApp",
+      "openExternal": "ブラウザで開く",
+      "open_link_external_off": "現在: デフォルトウィンドウでリンクを開く",
+      "open_link_external_on": "現在: ブラウザでリンクを開く",
+      "refresh": "更新",
+      "rightclick_copyurl": "右クリックしてURLをコピー"
     },
-    "remove_from_launchpad": "[to be translated]:Remove from Launchpad",
-    "remove_from_sidebar": "[to be translated]:Remove from Sidebar",
+    "remove_from_launchpad": "Launchpadから削除",
+    "remove_from_sidebar": "サイドバーから削除",
     "sidebar": {
       "close": {
-        "title": "[to be translated]:Close"
+        "title": "閉じる"
       },
       "closeall": {
-        "title": "[to be translated]:Close All"
+        "title": "すべて閉じる"
       },
       "hide": {
-        "title": "[to be translated]:Hide"
+        "title": "隠す"
       },
       "remove_custom": {
-        "title": "[to be translated]:Delete Custom App"
+        "title": "カスタムアプリを削除"
       }
     },
-    "title": "[to be translated]:MinApp"
+    "title": "MinApp"
   },
   "minapps": {
-    "ant-ling": "[to be translated]:Ant Ling",
-    "baichuan": "[to be translated]:Baichuan",
-    "baidu-ai-search": "[to be translated]:Baidu AI Search",
-    "chatglm": "[to be translated]:ChatGLM",
-    "dangbei": "[to be translated]:Dangbei",
-    "doubao": "[to be translated]:Doubao",
-    "hailuo": "[to be translated]:Hailuo",
-    "ima": "[to be translated]:ima",
-    "metaso": "[to be translated]:Metaso",
-    "minimax-agent": "[to be translated]:Minimax Agent CN",
-    "minimax-global": "[to be translated]:Minimax Agent",
-    "nami-ai": "[to be translated]:Nami AI",
-    "nami-ai-search": "[to be translated]:Nami AI Search",
-    "qwen": "[to be translated]:Qwen",
-    "sensechat": "[to be translated]:SenseChat",
-    "stepfun": "[to be translated]:Stepfun",
-    "tencent-yuanbao": "[to be translated]:Yuanbao",
-    "tiangong-ai": "[to be translated]:Skywork",
-    "wanzhi": "[to be translated]:Wanzhi",
-    "wenxin": "[to be translated]:ERNIE",
-    "wps-copilot": "[to be translated]:WPS Copilot",
-    "xiaoyi": "[to be translated]:Xiaoyi",
-    "zhihu": "[to be translated]:Zhihu"
+    "ant-ling": "アント・リン",
+    "baichuan": "バイチュアン",
+    "baidu-ai-search": "百度 AI 検索",
+    "chatglm": "チャットGLM",
+    "dangbei": "ダンベイ",
+    "doubao": "豆包",
+    "hailuo": "ハイルオ",
+    "ima": "今",
+    "metaso": "メタソ",
+    "minimax-agent": "ミニマックスエージェント CN",
+    "minimax-global": "ミニマックスエージェント",
+    "nami-ai": "ナミ AI",
+    "nami-ai-search": "ナミ AI サーチ",
+    "qwen": "クウェン",
+    "sensechat": "センスチャット",
+    "stepfun": "ステップファン",
+    "tencent-yuanbao": "元宝",
+    "tiangong-ai": "スカイワーク",
+    "wanzhi": "ワンジ",
+    "wenxin": "ERNIE",
+    "wps-copilot": "WPS Copilot",
+    "xiaoyi": "シャオイ",
+    "zhihu": "知乎"
   },
   "miniApp": {
     "add_to_launchpad": "スタート画面に追加",
     "add_to_sidebar": "サイドバーに追加",
     "error": {
-      "load_failed": "[to be translated]:Failed to load app",
-      "not_found": "[to be translated]:App not found"
+      "load_failed": "アプリの読み込みに失敗しました",
+      "not_found": "アプリが見つかりません"
     },
     "hide_failed": "Failed to hide mini-app",
-    "pin_failed": "[to be translated]:Failed to pin mini-app",
+    "pin_failed": "ミニアプリをピン留めできませんでした",
     "popup": {
       "close": "ミニアプリを閉じる",
       "devtools": "開発者ツール",
@@ -3311,9 +3316,9 @@
     "remove_from_sidebar": "サイドバーから削除",
     "reorder_failed": "Failed to reorder mini-apps",
     "shortcut": {
-      "failed": "[to be translated]:Failed: {{message}}",
-      "html_saved": "[to be translated]:HTML saved to: {{path}}",
-      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+      "failed": "失敗: {{message}}",
+      "html_saved": "HTMLを保存しました: {{path}}",
+      "pdf_saved": "PDFを保存しました: {{path}}"
     },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
@@ -3331,8 +3336,8 @@
       }
     },
     "title": "ミニアプリ",
-    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
-    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
+    "unpin_failed": "ミニアプリのピン留め解除に失敗しました",
+    "update_partial_failure": "{{total}}件中{{failed}}件の更新に失敗しました"
   },
   "miniApps": {
     "ant-ling": "Ant Ling",
@@ -3414,7 +3419,7 @@
     },
     "stream_output": "ストリーム出力",
     "type": {
-      "audio": "[to be translated]:Audio",
+      "audio": "オーディオ",
       "embedding": "埋め込み",
       "free": "無料",
       "function_calling": "ツール",
@@ -3422,7 +3427,7 @@
       "rerank": "再順序付け",
       "select": "モデルタイプ",
       "text": "テキスト",
-      "video": "[to be translated]:Video",
+      "video": "ビデオ",
       "vision": "画像",
       "websearch": "ウェブ検索"
     }
@@ -3452,12 +3457,12 @@
     "collapse": "閉じる",
     "content_placeholder": "メモの内容を入力してください...",
     "copyContent": "コンテンツをコピーします",
-    "create_folder_failed": "[to be translated]:Failed to create folder",
-    "create_note_failed": "[to be translated]:Failed to create note",
+    "create_folder_failed": "フォルダの作成に失敗しました",
+    "create_note_failed": "ノートの作成に失敗しました",
     "crossPlatformRestoreWarning": "クロスプラットフォーム設定は復元されましたが、ノートディレクトリが空です。ノートファイルを次の場所にコピーしてください：{{path}}",
     "delete": "削除",
     "delete_confirm": "この{{type}}を本当に削除しますか？",
-    "delete_failed": "[to be translated]:Failed to delete note",
+    "delete_failed": "メモの削除に失敗しました",
     "delete_folder_confirm": "「{{name}}」フォルダーとそのすべての内容を削除してもよろしいですか？",
     "delete_note_confirm": "メモ \"{{name}}\" を削除してもよろしいですか？",
     "drop_markdown_hint": ".md ファイルまたはディレクトリをここにドラッグ＆ドロップしてインポートしてください",
@@ -3469,11 +3474,11 @@
     "export_success": "知識ベースへのエクスポートが成功しました",
     "export_to_word_failed": "Wordへのエクスポートに失敗しました",
     "folder": "フォルダー",
-    "load_failed": "[to be translated]:Failed to load note",
-    "load_failed_description": "[to be translated]:The file could not be read. Editing is disabled to protect the note content.",
-    "metadata_sync_failed": "[to be translated]:File updated, but note state sync failed. Please retry the operation.",
-    "metadata_update_failed": "[to be translated]:Failed to update note state",
-    "move_failed": "[to be translated]:Failed to move note",
+    "load_failed": "ノートの読み込みに失敗しました",
+    "load_failed_description": "ファイルを読み取ることができませんでした。ノートの内容を保護するため、編集は無効になっています。",
+    "metadata_sync_failed": "ファイルは更新されましたが、状態の同期に失敗しました。操作を再試行してください。",
+    "metadata_update_failed": "ノートの状態を更新できませんでした",
+    "move_failed": "ノートの移動に失敗しました",
     "new_folder": "新しいフォルダーを作成する",
     "new_note": "新規ノート作成",
     "no_content_to_copy": "コピーするコンテンツはありません",
@@ -3485,10 +3490,10 @@
     "open_outside": "外部から開く",
     "rename": "名前の変更",
     "rename_changed": "セキュリティポリシーにより、ファイル名は{{original}}から{{final}}に変更されました",
-    "rename_failed": "[to be translated]:Failed to rename note",
+    "rename_failed": "ノートの名前を変更できませんでした",
     "save": "メモに保存する",
-    "save_blocked_load_failed": "[to be translated]:Save blocked because the note failed to load",
-    "save_failed": "[to be translated]:Failed to save note",
+    "save_blocked_load_failed": "保存がブロックされました。ノートの読み込みに失敗しました。",
+    "save_failed": "メモの保存に失敗しました",
     "search": {
       "both": "名称+内容",
       "content": "内容",
@@ -3544,7 +3549,7 @@
         },
         "view_mode_description": "新しいタブページのデフォルトビューモードを設定します。"
       },
-      "save_failed": "[to be translated]:Failed to save notes settings",
+      "save_failed": "ノート設定の保存に失敗しました",
       "title": "その他のオプション"
     },
     "show_starred": "お気に入りのノートを表示する",
@@ -3558,18 +3563,18 @@
     "spell_check_tooltip": "スペルチェックの有効/無効",
     "star": "お気に入りのノート",
     "starred_notes": "収集したノート",
-    "target_name_exists": "[to be translated]:A note or folder with this name already exists",
+    "target_name_exists": "この名前のノートまたはフォルダは既に存在します",
     "title": "ノート",
-    "tree_load_failed": "[to be translated]:Failed to load notes directory",
+    "tree_load_failed": "ノートディレクトリの読み込みに失敗しました",
     "unsaved_changes": "保存されていないコンテンツがあります。本当に離れますか？",
     "unstar": "お気に入りを解除する",
     "untitled_folder": "新ファイル夹",
     "untitled_note": "無題のメモ",
-    "upload_all_failed": "[to be translated]:Failed to upload {{failed}} notes",
+    "upload_all_failed": "{{failed}}件のノートをアップロードできませんでした",
     "upload_failed": "ノートのアップロードに失敗しました",
     "upload_files": "ファイルをアップロード",
     "upload_folder": "アップロードフォルダ",
-    "upload_partial_failed": "[to be translated]:Uploaded {{uploaded}} notes, {{failed}} failed",
+    "upload_partial_failed": "{{uploaded}}件のノートをアップロードしました、{{failed}}件が失敗しました",
     "upload_success": "ノートのアップロードが成功しました",
     "uploading_files": "{{count}} 個のファイルをアップロード中..."
   },
@@ -3768,10 +3773,10 @@
       "success": "ダウンロード成功",
       "success_desc": "モデル\"{{modelName}}\"-\"{{modelId}}\"ダウンロード成功、OVMS管理インターフェースに移動してモデルを追加してください",
       "task": {
-        "embeddings": "[to be translated]:Embeddings",
-        "image_generation": "[to be translated]:Image Generation",
-        "rerank": "[to be translated]:Rerank",
-        "text_generation": "[to be translated]:Text Generation"
+        "embeddings": "埋め込み",
+        "image_generation": "画像生成",
+        "rerank": "リランク",
+        "text_generation": "テキスト生成"
       },
       "tip": "モデルはダウンロードされていますが、時には数時間かかります。我慢してください...",
       "title": "Intel OpenVINOモデルをダウンロード"
@@ -3824,49 +3829,49 @@
         "image": "新しい画像"
       },
       "select": {
-        "image": "[to be translated]:Select Image"
+        "image": "画像を選択"
       }
     },
     "custom_size": "カスタムサイズ",
     "dashscope": {
-      "bottom_scale": "[to be translated]:Expand Bottom",
-      "enable_interleave": "[to be translated]:Text+Image Mixed Mode",
-      "enable_interleave_tip": "[to be translated]:When on, generates text-and-image mixed output without requiring an input image. Turn off to use edit mode (requires 1–4 input images).",
-      "function": "[to be translated]:Edit Function",
+      "bottom_scale": "下部を展開",
+      "enable_interleave": "テキスト＋画像混在モード",
+      "enable_interleave_tip": "オンにすると、入力画像なしでテキストと画像が混在した出力を生成します。オフにすると編集モードになります（1～4枚の入力画像が必要）。",
+      "function": "編集機能",
       "function_options": {
-        "colorization": "[to be translated]:Colorization",
-        "control_cartoon_feature": "[to be translated]:Cartoon Reference",
-        "description_edit": "[to be translated]:Instruction Edit",
-        "description_edit_with_mask": "[to be translated]:Masked Edit",
-        "doodle": "[to be translated]:Doodle to Image",
-        "expand": "[to be translated]:Expand",
-        "remove_watermark": "[to be translated]:Remove Watermark",
-        "stylization_all": "[to be translated]:Global Stylization",
-        "stylization_local": "[to be translated]:Local Stylization",
-        "super_resolution": "[to be translated]:Super Resolution"
+        "colorization": "カラーリゼーション",
+        "control_cartoon_feature": "漫画の参考",
+        "description_edit": "指示編集",
+        "description_edit_with_mask": "マスクドエディット",
+        "doodle": "落書きを画像へ",
+        "expand": "拡張",
+        "remove_watermark": "透かしを削除",
+        "stylization_all": "グローバルスタイリゼーション",
+        "stylization_local": "ローカルスタイリゼーション",
+        "super_resolution": "スーパー レゾリューション"
       },
-      "is_sketch": "[to be translated]:Sketch Input",
-      "left_scale": "[to be translated]:Expand Left",
-      "ref_mode": "[to be translated]:Reference Mode",
+      "is_sketch": "スケッチ入力",
+      "left_scale": "左に展開",
+      "ref_mode": "リファレンスモード",
       "ref_mode_options": {
-        "refonly": "[to be translated]:Reference only",
-        "repaint": "[to be translated]:Repaint"
+        "refonly": "参考のみ",
+        "repaint": "再塗装"
       },
-      "ref_strength": "[to be translated]:Reference Strength",
-      "right_scale": "[to be translated]:Expand Right",
-      "source_lang": "[to be translated]:Source Language",
-      "strength": "[to be translated]:Strength",
-      "target_lang": "[to be translated]:Target Language",
-      "top_scale": "[to be translated]:Expand Top",
-      "upscale_factor": "[to be translated]:Upscale Factor"
+      "ref_strength": "基準強度",
+      "right_scale": "右に展開",
+      "source_lang": "ソース言語",
+      "strength": "強さ",
+      "target_lang": "ターゲット言語",
+      "top_scale": "上に展開",
+      "upscale_factor": "アップスケール係数"
     },
     "dmxapi": {
       "generating_tip": "公式モデルで生成中です。最良の結果のため、推定待機時間は2〜5分です。この操作のコストについては、DMXAPIバックエンドログをご確認ください。",
-      "max_images": "[to be translated]:Max Images",
-      "sequential_image_generation": "[to be translated]:Sequential Image Generation",
+      "max_images": "最大画像数",
+      "sequential_image_generation": "逐次画像生成",
       "sequential_image_generation_options": {
-        "auto": "[to be translated]:Auto",
-        "disabled": "[to be translated]:Disabled"
+        "auto": "自動",
+        "disabled": "無効"
       }
     },
     "edit": {
@@ -3895,7 +3900,7 @@
     "image_size_options": {
       "auto": "自動"
     },
-    "image_weight": "[to be translated]:Image Weight",
+    "image_weight": "画像の重み",
     "inference_steps": "推論ステップ数",
     "inference_steps_tip": "実行する推論ステップ数。ステップ数が多いほど品質が向上しますが、時間がかかります",
     "input_image": "入力画像",
@@ -3924,16 +3929,15 @@
     "number_images_tip": "生成する画像の数（1-4）",
     "operation_failed": "操作に失敗しました。後でもう一度お試しください。",
     "paint_course": "チュートリアル",
-    "parameters": "パラメータ",
     "per_image": "1枚あたり",
     "per_images": "複数枚あたり",
-    "person_generation": "[to be translated]:Generate people",
+    "person_generation": "人を生成する",
     "person_generation_options": {
       "allow_adult": "許可する",
       "allow_all": "許可する",
       "allow_none": "許可しない"
     },
-    "person_generation_tip": "[to be translated]:Allow the model to generate images of people",
+    "person_generation_tip": "モデルに人物の画像を生成させることを許可する",
     "ppio": {
       "edit_prompt_tip": "画像から削除するオブジェクトまたは領域を指定します。例：'犬' または '帽子'",
       "mask_image": "マスク画像",
@@ -3950,16 +3954,16 @@
     "prompt_placeholder": "作成したい画像を説明します。例：夕日の湖畔、遠くに山々",
     "prompt_placeholder_edit": "画像の説明を入力します。テキスト描画には '二重引用符' を使用します",
     "prompt_placeholder_en": "「英語」の説明を入力します。は現在、英語のプロンプト語のみをサポートしています",
-    "prompt_required": "[to be translated]:Please enter a prompt",
+    "prompt_required": "プロンプトを入力してください",
     "proxy_required": "打開代理並開啟TUN模式查看生成圖片或複製到瀏覽器開啟，後續會支持國內直連",
     "quality": "品質",
     "quality_options": {
       "auto": "自動",
-      "hd": "[to be translated]:HD",
+      "hd": "HD",
       "high": "高",
       "low": "低",
       "medium": "中",
-      "standard": "[to be translated]:Standard"
+      "standard": "標準"
     },
     "regenerate": {
       "confirm": "これにより、既存の生成画像が置き換えられます。続行しますか？"
@@ -3975,40 +3979,40 @@
     "req_error_text": "サーバーが混雑しているか、プロンプトに「著作権用語」または「敏感な用語」が含まれています。もう一度お試しください。",
     "req_error_token": "トークンの有効性を確認してください",
     "required_field": "必須項目",
-    "safety_tolerance": "[to be translated]:Safety Tolerance",
-    "safety_tolerance_tip": "[to be translated]:Higher = more permissive filter; 0 is strictest, 6 is most permissive",
+    "safety_tolerance": "安全許容範囲",
+    "safety_tolerance_tip": "高いほどフィルターが緩やかになります。0が最も厳しく、6が最も緩やかです。",
     "seed": "シード",
     "seed_desc_tip": "同じシードとプロンプトで類似した画像を生成できますが、-1 に設定すると毎回異なる結果が生成されます",
     "seed_random": "ランダム",
     "seed_tip": "同じシードとプロンプトで似た画像を生成できます",
     "select_model": "モデルを選択",
     "style_options": {
-      "anime": "[to be translated]:Anime",
-      "auto": "[to be translated]:Auto",
-      "cartoon_3d": "[to be translated]:3D Cartoon",
-      "chinese_painting": "[to be translated]:Chinese Painting",
-      "flat_illustration": "[to be translated]:Flat Illustration",
-      "natural": "[to be translated]:Natural",
-      "oil_painting": "[to be translated]:Oil Painting",
-      "photography": "[to be translated]:Photography",
-      "portrait": "[to be translated]:Portrait",
-      "sketch": "[to be translated]:Sketch",
-      "vivid": "[to be translated]:Vivid",
-      "watercolor": "[to be translated]:Watercolor"
+      "anime": "アニメ",
+      "auto": "自動",
+      "cartoon_3d": "3D カートゥーン",
+      "chinese_painting": "中国絵画",
+      "flat_illustration": "フラットイラスト",
+      "natural": "自然",
+      "oil_painting": "油絵",
+      "photography": "写真",
+      "portrait": "ポートレート",
+      "sketch": "スケッチ",
+      "vivid": "鮮やか",
+      "watercolor": "水彩画"
     },
-    "style_type": "[to be translated]:Style",
+    "style_type": "スタイル",
     "style_type_options": {
-      "anime": "[to be translated]:Anime",
-      "auto": "[to be translated]:Auto",
-      "design": "[to be translated]:Design",
-      "general": "[to be translated]:General",
-      "realistic": "[to be translated]:Realistic",
-      "render_3d": "[to be translated]:3D Render"
+      "anime": "アニメ",
+      "auto": "自動",
+      "design": "デザイン",
+      "general": "一般",
+      "realistic": "リアリスティック",
+      "render_3d": "3Dレンダリング"
     },
-    "style_type_tip": "[to be translated]:Image generation style",
+    "style_type_tip": "画像生成スタイル",
     "text_desc_required": "画像の説明を先に入力してください",
-    "thinking_mode": "[to be translated]:Thinking Mode",
-    "thinking_mode_tip": "[to be translated]:When on, generation quality is higher but adds about 10–30 seconds.",
+    "thinking_mode": "思考モード",
+    "thinking_mode_tip": "オンにすると生成品質が向上しますが、約10〜30秒の追加時間がかかります。",
     "title": "画像",
     "top_up": "チャージする",
     "translating": "翻訳中...",
@@ -4101,25 +4105,25 @@
     "uninstalling": "アンインストール中..."
   },
   "preview": {
-    "close": "[to be translated]:Close Preview",
+    "close": "プレビューを閉じる",
     "copy": {
       "image": "画像としてコピー",
       "src": "画像ソースをコピー"
     },
     "dialog": "ダイアログを開く",
-    "flip_horizontal": "[to be translated]:Flip Horizontal",
-    "flip_vertical": "[to be translated]:Flip Vertical",
+    "flip_horizontal": "左右反転",
+    "flip_vertical": "垂直反転",
     "label": "プレビュー",
-    "next": "[to be translated]:Next Image",
+    "next": "次の画像",
     "pan": "パン",
     "pan_down": "下にパン",
     "pan_left": "左にパン",
     "pan_right": "右にパン",
     "pan_up": "上にパン",
-    "previous": "[to be translated]:Previous Image",
+    "previous": "前の画像",
     "reset": "リセット",
-    "rotate_left": "[to be translated]:Rotate Left",
-    "rotate_right": "[to be translated]:Rotate Right",
+    "rotate_left": "左回転",
+    "rotate_right": "右に回転",
     "source": "ソースコードを表示",
     "zoom_in": "拡大",
     "zoom_out": "縮小"
@@ -4143,13 +4147,13 @@
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
-    "cherryai": "[to be translated]:CherryAI",
+    "cherryai": "CherryAI",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud",
     "deepseek": "DeepSeek",
     "dmxapi": "DMXAPI",
-    "doc2x": "[to be translated]:Doc2X",
+    "doc2x": "Doc2X",
     "doubao": "Volcengine",
     "fireworks": "Fireworks",
     "gemini": "Gemini",
@@ -4167,7 +4171,7 @@
     "lmstudio": "LM Studio",
     "longcat": "トトロ",
     "mimo": "シャオミ・ミモ",
-    "mineru": "[to be translated]:MinerU",
+    "mineru": "MinerU",
     "minimax": "MiniMax CN",
     "minimax-global": "Minimax",
     "mistral": "Mistral",
@@ -4178,12 +4182,12 @@
     "o3": "O3",
     "ocoolai": "ocoolAI",
     "ollama": "Ollama",
-    "open-mineru": "[to be translated]:Open MinerU",
+    "open-mineru": "Open MinerU",
     "openai": "OpenAI",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
-    "ovocr": "[to be translated]:Intel OV(NPU) OCR",
-    "paddleocr": "[to be translated]:PaddleOCR",
+    "ovocr": "Intel OV(NPU) OCR",
+    "paddleocr": "PaddleOCR",
     "perplexity": "Perplexity",
     "ph8": "PH8",
     "poe": "Poe",
@@ -4193,9 +4197,9 @@
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
-    "system": "[to be translated]:System OCR",
+    "system": "システムOCR",
     "tencent-cloud-ti": "Tencent Cloud TI",
-    "tesseract": "[to be translated]:Tesseract",
+    "tesseract": "テッセラクト",
     "together": "Together",
     "tokenflux": "TokenFlux",
     "vertexai": "Vertex AI",
@@ -4490,7 +4494,7 @@
       },
       "translate": {
         "error": {
-          "no_selected_text": "[to be translated]:No text selected to translate"
+          "no_selected_text": "翻訳するテキストが選択されていません"
         },
         "smart_translate_tips": "スマート翻訳：内容は優先的に目標言語に翻訳されます。すでに目標言語の場合は、備用言語に翻訳されます。"
       },
@@ -4703,6 +4707,10 @@
       },
       "sort_label": "並び替え",
       "unpin": "ピン留めを解除"
+    },
+    "workspace": {
+      "empty_text": "まだワークスペースはありません",
+      "placeholder": "ワークスペースを選択"
     }
   },
   "settings": {
@@ -4787,7 +4795,7 @@
         "valueProp": "現在値"
       },
       "agentTodoList": {
-        "title": "[to be translated]:Agent Todo List"
+        "title": "エージェントのToDoリスト"
       },
       "assistantSelector": {
         "clearSelection": "クリア",
@@ -4806,42 +4814,42 @@
       "description": "開発環境でのみ表示され、アプリ内で直接新しいモデルセレクタをテストするためのものです。",
       "fileProcessing": {
         "artifact": {
-          "file": "[to be translated]:Markdown file",
-          "text": "[to be translated]:Text result"
+          "file": "Markdownファイル",
+          "text": "テキスト結果"
         },
-        "description": "[to be translated]:Run every configured file processor through the real file processing IPC and compare results.",
-        "duration": "[to be translated]:{{seconds}}s",
-        "jobId": "[to be translated]:Job ID",
+        "description": "設定済みのすべてのファイルプロセッサーを実際のファイル処理 IPC を通じて実行し、結果を比較します。",
+        "duration": "{{seconds}}秒",
+        "jobId": "ジョブID",
         "markdown": {
-          "description": "[to be translated]:Select a document and run all document-to-markdown processors.",
-          "fileFilterName": "[to be translated]:Documents",
-          "noFile": "[to be translated]:No document selected",
-          "select": "[to be translated]:Select document",
-          "start": "[to be translated]:Test markdown",
-          "title": "[to be translated]:Markdown"
+          "description": "ドキュメントを選択し、すべてのドキュメント→マークダウンプロセッサーを実行します。",
+          "fileFilterName": "文書",
+          "noFile": "文書が選択されていません",
+          "select": "ドキュメントを選択",
+          "start": "Test markdown",
+          "title": "Markdown"
         },
-        "noProcessors": "[to be translated]:No processors support this feature.",
+        "noProcessors": "この機能をサポートするプロセッサはありません。",
         "ocr": {
-          "description": "[to be translated]:Select an image and run all OCR processors.",
-          "fileFilterName": "[to be translated]:Images",
-          "noFile": "[to be translated]:No image selected",
-          "select": "[to be translated]:Select image",
-          "start": "[to be translated]:Test OCR",
-          "title": "[to be translated]:OCR"
+          "description": "画像を選択して、すべてのOCRプロセッサを実行します。",
+          "fileFilterName": "画像",
+          "noFile": "画像が選択されていません",
+          "select": "画像を選択",
+          "start": "テストOCR",
+          "title": "OCR"
         },
-        "processorCount": "[to be translated]:{{count}} processors",
+        "processorCount": "{{count}} プロセッサ",
         "status": {
-          "cancelled": "[to be translated]:Cancelled",
-          "completed": "[to be translated]:Completed",
-          "delayed": "[to be translated]:Delayed",
-          "failed": "[to be translated]:Failed",
-          "idle": "[to be translated]:Idle",
-          "pending": "[to be translated]:Pending",
-          "processing": "[to be translated]:Processing",
-          "running": "[to be translated]:Running",
-          "starting": "[to be translated]:Starting"
+          "cancelled": "キャンセル",
+          "completed": "完了",
+          "delayed": "遅延",
+          "failed": "失敗",
+          "idle": "アイドル",
+          "pending": "保留中",
+          "processing": "処理",
+          "running": "走っている",
+          "starting": "開始"
         },
-        "title": "[to be translated]:Document Parsing"
+        "title": "ドキュメント解析"
       },
       "label": "コンポーネントラボ",
       "modelSelector": {
@@ -5538,7 +5546,7 @@
           "icon": "ナレッジのアイコンを表示"
         },
         "minapp": {
-          "icon": "[to be translated]:Show MinApp icon"
+          "icon": "ミニアプリアイコンを表示"
         },
         "miniApp": {
           "icon": "ミニアプリのアイコンを表示"
@@ -5693,7 +5701,7 @@
       },
       "addSuccess": "サーバーが正常に追加されました",
       "advancedSettings": "詳細設定",
-      "allServers": "[to be translated]:MCP Servers",
+      "allServers": "MCPサーバー",
       "args": "引数",
       "argsTooltip": "1行に1つの引数を入力してください",
       "baseUrlTooltip": "リモートURLアドレス",
@@ -5843,7 +5851,7 @@
       "serverPlural": "サーバー",
       "serverSingular": "サーバー",
       "servers": "MCPサーバー",
-      "shortTitle": "[to be translated]:MCP",
+      "shortTitle": "MCP",
       "sse": "サーバー送信イベント (sse)",
       "startError": "起動に失敗しました",
       "stdio": "標準入力/出力 (stdio)",
@@ -6001,13 +6009,13 @@
       },
       "disabled": "非表示のミニアプリ",
       "display_title": "ミニアプリ表示設定",
-      "empty": "[to be translated]:Click the hide icon on an app on the left and it will move here",
+      "empty": "左側のアプリの非表示アイコンをクリックすると、ここに移動します",
       "group": {
-        "display": "[to be translated]:Display management",
-        "preferences": "[to be translated]:Preferences"
+        "display": "ディスプレイ管理",
+        "preferences": "設定"
       },
       "open_link_external": {
-        "description": "[to be translated]:When enabled, links that open a new window inside a mini app open in your default browser",
+        "description": "有効にすると、ミニアプリ内で新しいウィンドウを開くリンクは既定のブラウザで開かれます",
         "title": "新視窗のリンクをブラウザで開く"
       },
       "region": {
@@ -6022,59 +6030,59 @@
       "visible": "表示するミニアプリ"
     },
     "miniapps": {
-      "cache_change_notice": "[to be translated]:Changes will take effect when the number of open mini apps reaches the set value",
-      "cache_description": "[to be translated]:Set the maximum number of active mini apps to keep in memory",
-      "cache_settings": "[to be translated]:Cache Settings",
-      "cache_title": "[to be translated]:Mini App Cache Limit",
+      "cache_change_notice": "変更は、開いているミニアプリの数が設定値に達した時点で有効になります",
+      "cache_description": "メモリに保持するアクティブなミニアプリの最大数を設定します",
+      "cache_settings": "キャッシュ設定",
+      "cache_title": "ミニアプリキャッシュ制限",
       "custom": {
-        "conflicting_ids": "[to be translated]:Conflicting IDs with default apps: {{ids}}",
-        "duplicate_ids": "[to be translated]:Duplicate IDs found: {{ids}}",
-        "edit_description": "[to be translated]:Edit custom mini app configuration here. Each app should include id, name, url, and logo fields.",
-        "edit_title": "[to be translated]:Edit Custom Mini App",
-        "id": "[to be translated]:ID",
-        "id_error": "[to be translated]:ID is required.",
-        "id_placeholder": "[to be translated]:Enter ID",
-        "logo": "[to be translated]:Logo",
-        "logo_file": "[to be translated]:Upload Logo File",
-        "logo_upload_button": "[to be translated]:Upload",
-        "logo_upload_error": "[to be translated]:Failed to upload logo.",
-        "logo_upload_label": "[to be translated]:Upload Logo",
-        "logo_upload_success": "[to be translated]:Logo uploaded successfully.",
-        "logo_url": "[to be translated]:Logo URL",
-        "logo_url_label": "[to be translated]:Logo URL",
-        "logo_url_placeholder": "[to be translated]:Enter logo URL",
-        "name": "[to be translated]:Name",
-        "name_error": "[to be translated]:Name is required.",
-        "name_placeholder": "[to be translated]:Enter name",
-        "placeholder": "[to be translated]:Enter custom mini app configuration (JSON format)",
-        "remove_error": "[to be translated]:Failed to remove custom mini app.",
-        "remove_success": "[to be translated]:Custom mini app removed successfully.",
-        "save": "[to be translated]:Save",
-        "save_error": "[to be translated]:Failed to save custom mini app.",
-        "save_success": "[to be translated]:Custom mini app saved successfully.",
-        "title": "[to be translated]:Custom",
-        "url": "[to be translated]:URL",
-        "url_error": "[to be translated]:URL is required.",
-        "url_placeholder": "[to be translated]:Enter URL"
+        "conflicting_ids": "デフォルトアプリとのID競合: {{ids}}",
+        "duplicate_ids": "重複したIDが見つかりました: {{ids}}",
+        "edit_description": "ここでカスタムミニアプリの設定を編集します。各アプリには id、name、url、および logo フィールドを含める必要があります。",
+        "edit_title": "カスタムミニアプリを編集",
+        "id": "ID",
+        "id_error": "IDが必要です。",
+        "id_placeholder": "IDを入力してください",
+        "logo": "ロゴ",
+        "logo_file": "ロゴファイルをアップロード",
+        "logo_upload_button": "アップロード",
+        "logo_upload_error": "ロゴのアップロードに失敗しました。",
+        "logo_upload_label": "ロゴをアップロード",
+        "logo_upload_success": "ロゴが正常にアップロードされました。",
+        "logo_url": "ロゴURL",
+        "logo_url_label": "ロゴURL",
+        "logo_url_placeholder": "ロゴのURLを入力してください",
+        "name": "名前",
+        "name_error": "名前は必須です。",
+        "name_placeholder": "名前を入力してください",
+        "placeholder": "カスタムミニアプリ設定を入力（JSON形式）",
+        "remove_error": "カスタムミニアプリの削除に失敗しました。",
+        "remove_success": "カスタムミニアプリが正常に削除されました。",
+        "save": "保存",
+        "save_error": "カスタムミニアプリの保存に失敗しました。",
+        "save_success": "カスタムミニアプリが正常に保存されました。",
+        "title": "カスタム",
+        "url": "URL",
+        "url_error": "URLが必要です。",
+        "url_placeholder": "URLを入力してください"
       },
-      "disabled": "[to be translated]:Hidden Mini Apps",
-      "display_title": "[to be translated]:Mini App Display Settings",
-      "empty": "[to be translated]:Click the hide icon on an app on the left and it will move here",
+      "disabled": "隠しミニアプリ",
+      "display_title": "ミニアプリ表示設定",
+      "empty": "左側のアプリの非表示アイコンをクリックすると、ここに移動します",
       "open_link_external": {
-        "title": "[to be translated]:Open new-window links in browser"
+        "title": "ブラウザで新しいウィンドウのリンクを開く"
       },
       "region": {
-        "auto": "[to be translated]:Auto detect",
-        "cn": "[to be translated]:China",
-        "description": "[to be translated]:Filtering unsupported mini-programs based on the region",
-        "global": "[to be translated]:Global",
-        "title": "[to be translated]:Mini Program filter"
+        "auto": "自動検出",
+        "cn": "中国",
+        "description": "地域に基づいてサポートされていないミニプログラムをフィルタリング",
+        "global": "グローバル",
+        "title": "ミニプログラムフィルター"
       },
-      "reset_tooltip": "[to be translated]:Reset to default",
-      "sidebar_description": "[to be translated]:Show active mini apps in the sidebar",
-      "sidebar_title": "[to be translated]:Sidebar Active Mini Apps Display",
-      "title": "[to be translated]:Mini Apps Settings",
-      "visible": "[to be translated]:Visible Mini Apps"
+      "reset_tooltip": "デフォルトにリセット",
+      "sidebar_description": "サイドバーにアクティブなミニアプリを表示",
+      "sidebar_title": "サイドバー アクティブ ミニアプリ表示",
+      "title": "ミニアプリの設定",
+      "visible": "見えるミニアプリ"
     },
     "model": "デフォルトモデル",
     "models": {
@@ -6082,13 +6090,13 @@
         "add_model": "モデルを追加",
         "batch_add_models": "モデルを一括追加",
         "context_window": {
-          "label": "[to be translated]:Context window",
-          "placeholder": "[to be translated]:e.g. 128000"
+          "label": "コンテキストウィンドウ",
+          "placeholder": "例: 128000"
         },
         "endpoint_type": {
           "label": "エンドポイントタイプ",
           "placeholder": "エンドポイントタイプを選択",
-          "remove_chip": "[to be translated]:Remove",
+          "remove_chip": "削除",
           "required": "エンドポイントタイプを選択してください",
           "tooltip": "APIエンドポイントタイプフォーマットを選択"
         },
@@ -6098,12 +6106,12 @@
           "tooltip": "例：ChatGPT"
         },
         "max_input_tokens": {
-          "label": "[to be translated]:Max input tokens",
-          "placeholder": "[to be translated]:e.g. 128000"
+          "label": "最大入力トークン",
+          "placeholder": "例: 128000"
         },
         "max_output_tokens": {
-          "label": "[to be translated]:Max output tokens",
-          "placeholder": "[to be translated]:e.g. 4096"
+          "label": "最大出力トークン",
+          "placeholder": "例: 4096"
         },
         "model_id": {
           "label": "モデルID",
@@ -6138,7 +6146,7 @@
         "enable_concurrent": "並行チェック",
         "enabled": "開く",
         "failed": "失敗",
-        "failed_to_start": "[to be translated]:Failed to start health check",
+        "failed_to_start": "ヘルスチェックの開始に失敗しました",
         "keys_status_count": "合格：{{count_passed}}個のキー、不合格：{{count_failed}}個のキー",
         "model_status_failed": "{{count}} 個のモデルが完全にアクセスできません",
         "model_status_partial": "{{count}} 個のモデルが一部のキーでアクセスできません",
@@ -6164,7 +6172,7 @@
         "title": "モデル健康チェック",
         "use_all_keys": "キー"
       },
-      "copy_model_id_tooltip": "[to be translated]:Click to copy model ID: {{id}}",
+      "copy_model_id_tooltip": "モデルIDをコピーするにはクリック: {{id}}",
       "default_assistant_model": "デフォルトアシスタントモデル",
       "default_assistant_model_description": "アシスタントにモデルがない場合に使用されます",
       "empty": "モデルが見つかりません",
@@ -6192,7 +6200,7 @@
         "filter_add_all": "Add all in view",
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
-        "large_group_hidden": "[to be translated]:Show {{count}} more models",
+        "large_group_hidden": "さらに {{count}} 件のモデルを表示",
         "operation_failed": "Model operation failed.",
         "refetch_list": "モデルリストを再取得",
         "reload_catalog": "Refresh list",
@@ -6334,16 +6342,16 @@
     "prompts": {
       "add": "プロンプトを追加",
       "contentLabel": "内容",
-      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "contentPlaceholder": "プロンプトの内容を入力します。${variables} をサポート；Tab キーで変数間を移動します。例：\n${from} から ${to} へのルートを計画し、${email} に送信してください。",
       "delete": "プロンプトを削除",
       "deleteConfirm": "プロンプトは完全に削除されます。続行しますか？",
       "edit": "プロンプトを編集",
       "errors": {
-        "createFailed": "[to be translated]:Failed to create prompt",
-        "deleteFailed": "[to be translated]:Failed to delete prompt",
-        "loadFailed": "[to be translated]:Failed to load prompts",
-        "reorderFailed": "[to be translated]:Failed to reorder prompts",
-        "updateFailed": "[to be translated]:Failed to update prompt"
+        "createFailed": "プロンプトの作成に失敗しました",
+        "deleteFailed": "プロンプトの削除に失敗しました",
+        "loadFailed": "プロンプトの読み込みに失敗しました",
+        "reorderFailed": "プロンプトの並び替えに失敗しました",
+        "updateFailed": "プロンプトの更新に失敗しました"
       },
       "title": "プロンプト管理",
       "titleLabel": "タイトル",
@@ -6420,23 +6428,23 @@
         }
       },
       "api_host": "APIホスト",
-      "api_host_drawer_hint": "[to be translated]:Custom API request URL; leave empty when the catalog default applies.",
+      "api_host_drawer_hint": "カスタムAPIリクエストURL; カタログのデフォルトが適用される場合は空のままにしてください。",
       "api_host_no_valid": "APIアドレスが無効です",
-      "api_host_placeholder": "[to be translated]:Not configured",
+      "api_host_placeholder": "未設定",
       "api_host_preview": "プレビュー：{{url}}",
       "api_host_tooltip": "サービスプロバイダーがカスタムOpenAI互換アドレスを必要とする場合のみ上書きしてください。",
       "api_key": {
-        "copy": "[to be translated]:Copy",
-        "enabled_suffix": "[to be translated]:enabled",
-        "hide_key": "[to be translated]:Hide key",
+        "copy": "コピー",
+        "enabled_suffix": "有効",
+        "hide_key": "キーを隠す",
         "label": "APIキー",
-        "label_placeholder": "[to be translated]:Label",
-        "list_description": "[to be translated]:Manage multiple API keys for this provider",
-        "placeholder": "[to be translated]:Use commas to separate multiple keys",
+        "label_placeholder": "ラベル",
+        "list_description": "このプロバイダーの複数のAPIキーを管理する",
+        "placeholder": "複数のキーはコンマで区切ってください",
         "save_failed": "APIキーの保存に失敗しました",
-        "show_key": "[to be translated]:Show key",
+        "show_key": "キーを表示",
         "tip": "複数のキーはカンマまたはスペースで区切ります",
-        "unnamed": "[to be translated]:API Key"
+        "unnamed": "APIキー"
       },
       "api_version": "APIバージョン",
       "aws-bedrock": {
@@ -6451,7 +6459,7 @@
         "description": "AWS Bedrock は、Amazon が提供する完全に管理されたベースモデルサービスで、さまざまな最先端の大言語モデルをサポートしています",
         "region": "AWS リージョン",
         "region_help": "あなたの AWS サービスリージョン、例：us-east-1",
-        "region_required": "[to be translated]:Enter an AWS region before saving",
+        "region_required": "保存する前に AWS リージョンを入力してください",
         "secret_access_key": "AWS アクセスキー",
         "secret_access_key_help": "あなたの AWS アクセスキー、安全に保管してください",
         "title": "AWS Bedrock 設定"
@@ -6463,8 +6471,8 @@
       },
       "balance": "バランス",
       "base_url": {
-        "label": "[to be translated]:Base URL",
-        "placeholder": "[to be translated]:https://api.example.com"
+        "label": "ベースURL",
+        "placeholder": "https://api.example.com"
       },
       "basic_auth": {
         "label": "HTTP 認証",
@@ -6485,9 +6493,9 @@
       "check_multiple_keys": "複数のAPIキーをチェック",
       "cherryin": {
         "api_host": {
-          "acceleration": "[to be translated]:Acceleration domain",
-          "backup": "[to be translated]:Backup domain",
-          "international": "[to be translated]:International domain"
+          "acceleration": "加速度領域",
+          "backup": "バックアップドメイン",
+          "international": "国際ドメイン"
         }
       },
       "copilot": {
@@ -6509,7 +6517,7 @@
         "header_name_placeholder": "Header name",
         "header_value_placeholder": "Header value",
         "headers_description": "Custom request headers (JSON format)",
-        "headers_json_placeholder": "[to be translated]:{\n  \"X-Custom-Header\": \"value\"\n}",
+        "headers_json_placeholder": "{\n  \"Xency-Custom-Header\": \"value\"\n}",
         "invalid_json": "JSONフォーマットエラー",
         "login": "GitHubにログインする",
         "logout": "GitHubから退出する",
@@ -6531,11 +6539,11 @@
         "step_copy_code_detail": "認証コードは自動的にコピーされましたが、手動でもコピーできます",
         "step_get_code": "認証コードを取得",
         "step_get_code_desc": "デバイス認証コードを生成",
-        "toggle_headers_editor_json": "[to be translated]:Switch to JSON editor",
-        "toggle_headers_editor_list": "[to be translated]:Switch to header list"
+        "toggle_headers_editor_json": "JSONエディターに切り替える",
+        "toggle_headers_editor_list": "ヘッダーリストに切り替える"
       },
       "create_custom": {
-        "title": "[to be translated]:Add Custom Provider"
+        "title": "カスタムプロバイダーを追加"
       },
       "delete": {
         "content": "このプロバイダーを削除してもよろしいですか？",
@@ -6550,29 +6558,29 @@
       "docs_check": "チェック",
       "docs_more_details": "詳細を確認",
       "duplicate": {
-        "add_another": "[to be translated]:Add {{name}} instance",
-        "drawer_title": "[to be translated]:Add {{name}} instance",
-        "fill_after_create": "[to be translated]:Authentication fields can be filled after create",
-        "menu_label": "[to be translated]:Add instance"
+        "add_another": "{{name}} インスタンスを追加",
+        "drawer_title": "{{name}}インスタンスを追加",
+        "fill_after_create": "認証フィールドは作成後に入力できます",
+        "menu_label": "インスタンスを追加"
       },
       "filter": {
         "agent": "エージェントサポート",
         "all": "すべてのプロバイダー",
-        "disabled": "[to be translated]:Disabled Only",
-        "enabled": "[to be translated]:Enabled Only",
-        "label": "[to be translated]:Filter providers"
+        "disabled": "障害者専用",
+        "enabled": "有効のみ",
+        "label": "フィルタープロバイダー"
       },
       "filter_agent": "フィルターエージェント対応プロバイダー",
       "get_api_key": "APIキーを取得",
-      "logo_upload_failed": "[to be translated]:Failed to process the selected image",
+      "logo_upload_failed": "選択した画像を処理できませんでした",
       "misc": "その他",
       "more_endpoints": {
-        "add": "[to be translated]:Add Endpoint",
-        "anthropic": "[to be translated]:Anthropic Messages",
-        "gemini": "[to be translated]:Google Gemini",
-        "openai_chat": "[to be translated]:OpenAI Chat Completions",
-        "openai_responses": "[to be translated]:OpenAI Responses",
-        "toggle": "[to be translated]:More Endpoints"
+        "add": "エンドポイントを追加",
+        "anthropic": "Anthropic メッセージ",
+        "gemini": "Google Gemini",
+        "openai_chat": "OpenAI チャット コンプリーション",
+        "openai_responses": "OpenAI レスポンス",
+        "toggle": "さらなるエンドポイント"
       },
       "no_models_for_check": "チェックするモデルがありません（例：会話モデル）",
       "not_checked": "未チェック",
@@ -6583,7 +6591,7 @@
       },
       "oauth": {
         "balance": "残高",
-        "balance_error": "[to be translated]:Failed to fetch balance",
+        "balance_error": "残高の取得に失敗しました",
         "button": "{{provider}} アカウントでログイン",
         "cherryIn": {
           "description": "セルフホストしたNew-APIサーバーでOAuth 2.0（PKCE）を使用してログイン",
@@ -6618,10 +6626,10 @@
       },
       "remove_duplicate_keys": "重複キーを削除",
       "remove_invalid_keys": "無効なキーを削除",
-      "reorder_failed": "[to be translated]:Failed to reorder providers",
-      "request_configuration": "[to be translated]:Request configuration",
-      "request_configuration_tooltip": "[to be translated]:Configure API Host and custom request headers",
-      "save_failed": "[to be translated]:Failed to save provider settings",
+      "reorder_failed": "プロバイダーの並び替えに失敗しました",
+      "request_configuration": "リクエスト設定",
+      "request_configuration_tooltip": "APIホストとカスタムリクエストヘッダーを設定する",
+      "save_failed": "プロバイダー設定の保存に失敗しました",
       "search": "プロバイダーを検索...",
       "search_placeholder": "モデルIDまたは名前を検索",
       "section": {
@@ -6688,18 +6696,18 @@
       "title": "クイックメニュー"
     },
     "quickPhrase": {
-      "add": "[to be translated]:Add Phrase",
-      "assistant": "[to be translated]:Assistant Phrases",
-      "contentLabel": "[to be translated]:Content",
-      "contentPlaceholder": "[to be translated]:Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
-      "delete": "[to be translated]:Delete Phrase",
-      "deleteConfirm": "[to be translated]:The phrase cannot be recovered after deletion, continue?",
-      "edit": "[to be translated]:Edit Phrase",
-      "global": "[to be translated]:Global Phrases",
-      "locationLabel": "[to be translated]:Add Location",
-      "title": "[to be translated]:Quick Phrases",
-      "titleLabel": "[to be translated]:Title",
-      "titlePlaceholder": "[to be translated]:Please enter phrase title"
+      "add": "フレーズを追加",
+      "assistant": "アシスタントフレーズ",
+      "contentLabel": "コンテンツ",
+      "contentPlaceholder": "フレーズの内容を入力してください。変数を使用することもでき、Tabキーで変数を素早く見つけて修正できます。  \n例：  \n${from}から${to}へのルートを計画し、${email}に送信してください。",
+      "delete": "フレーズを削除",
+      "deleteConfirm": "このフレーズは削除後に復元できません。続行しますか？",
+      "edit": "フレーズを編集",
+      "global": "グローバルなフレーズ",
+      "locationLabel": "場所を追加",
+      "title": "クイックフレーズ",
+      "titleLabel": "タイトル",
+      "titlePlaceholder": "フレーズのタイトルを入力してください"
     },
     "scheduledTasks": {
       "description": "すべてのエージェントにわたるスケジュールされたタスクを管理します。タスクは設定されたスケジュールに従って自動的に実行されます。",
@@ -6812,80 +6820,80 @@
     "tool": {
       "file_processing": {
         "actions": {
-          "set_as_default": "[to be translated]:Set as default"
+          "set_as_default": "デフォルトに設定"
         },
         "errors": {
-          "invalid_api_host": "[to be translated]:Invalid API host",
-          "load_processors_failed": "[to be translated]:Failed to load available processors",
-          "save_failed": "[to be translated]:Save failed"
+          "invalid_api_host": "無効なAPIホスト",
+          "load_processors_failed": "利用可能なプロセッサの読み込みに失敗しました",
+          "save_failed": "保存に失敗しました"
         },
         "features": {
           "document_to_markdown": {
-            "title": "[to be translated]:Document Processing"
+            "title": "ドキュメント処理"
           },
           "image_to_text": {
-            "title": "[to be translated]:OCR"
+            "title": "OCR"
           }
         },
         "fields": {
-          "api_base_url": "[to be translated]:API Base URL",
-          "api_key": "[to be translated]:API Key",
-          "api_keys_placeholder": "[to be translated]:Separate multiple keys with commas",
-          "languages": "[to be translated]:Languages"
+          "api_base_url": "APIベースURL",
+          "api_key": "APIキー",
+          "api_keys_placeholder": "複数のキーはカンマで区切ってください",
+          "languages": "言語"
         },
         "processors": {
           "doc2x": {
-            "description": "[to be translated]:Advanced file restoration engine.",
-            "name": "[to be translated]:Doc2x"
+            "description": "高度なファイル復元エンジン。",
+            "name": "Doc2x"
           },
           "mineru": {
-            "description": "[to be translated]:OpenDataLab's open-source high-quality PDF extraction tool.",
-            "name": "[to be translated]:MinerU"
+            "description": "OpenDataLabのオープンソース高品質PDF抽出ツール",
+            "name": "MinerU"
           },
           "mistral": {
-            "description": "[to be translated]:File parsing and understanding service.",
-            "name": "[to be translated]:Mistral"
+            "description": "ファイルの解析および理解サービス",
+            "name": "ミストラル"
           },
           "open_mineru": {
-            "description": "[to be translated]:Self-hostable MinerU service for teams that want more control over the processing pipeline.",
-            "name": "[to be translated]:Open MinerU"
+            "description": "処理パイプラインをより細かく制御したいチーム向けのセルフホスト可能な MinerU サービス。",
+            "name": "Open MinerU"
           },
           "ovocr": {
-            "description": "[to be translated]:Intel OpenVINO OCR engine that runs locally with NPU acceleration.",
-            "name": "[to be translated]:Intel OV OCR"
+            "description": "ローカルでNPUアクセラレーションを利用するIntel OpenVINO OCRエンジン。",
+            "name": "Intel OV OCR"
           },
           "paddleocr": {
             "deployment": {
-              "description": "[to be translated]:You can deploy PaddleOCR locally with the officially supported Docker image, then enter the API address here.",
-              "docs": "[to be translated]:View Docker deployment docs"
+              "description": "公式にサポートされているDockerイメージを使用してPaddleOCRをローカルにデプロイし、次にAPIアドレスをここに入力してください。",
+              "docs": "Docker デプロイメントのドキュメントを見る"
             },
-            "description": "[to be translated]:Baidu PaddleOCR recognition system.",
+            "description": "Baidu PaddleOCR認識システム",
             "fields": {
-              "parse_model": "[to be translated]:Parse Model"
+              "parse_model": "パースモデル"
             },
-            "name": "[to be translated]:PaddleOCR"
+            "name": "PaddleOCR"
           },
           "system": {
-            "description": "[to be translated]:Native operating system OCR engine.",
-            "name": "[to be translated]:System OCR",
+            "description": "ネイティブオペレーティングシステムOCRエンジン。",
+            "name": "システムOCR",
             "status": {
-              "available": "[to be translated]:Detected available macOS Live Text / Windows OCR engine.",
-              "no_configuration": "[to be translated]:System OCR calls the native system engine directly. It is fastest, but accuracy depends on the OS version."
+              "available": "利用可能な macOS Live Text / Windows OCR エンジンを検出しました。",
+              "no_configuration": "システム OCR はネイティブのシステムエンジンを直接呼び出します。最も高速ですが、精度は OS のバージョンに依存します。"
             }
           },
           "tesseract": {
-            "description": "[to be translated]:Google's open-source OCR engine that runs fully locally.",
-            "name": "[to be translated]:Tesseract OCR"
+            "description": "GoogleのオープンソースOCRエンジンで、完全にローカルで動作します。",
+            "name": "Tesseract OCR"
           }
         },
         "sections": {
-          "authentication": "[to be translated]:Authentication",
-          "description": "[to be translated]:Description",
-          "language_packs": "[to be translated]:Language Packs",
-          "model_parameters": "[to be translated]:Model Parameters",
-          "status": "[to be translated]:Status"
+          "authentication": "認証",
+          "description": "説明",
+          "language_packs": "言語パック",
+          "model_parameters": "モデルパラメータ",
+          "status": "ステータス"
         },
-        "title": "[to be translated]:Document Parsing"
+        "title": "ドキュメント解析"
       },
       "title": "その他の設定",
       "websearch": {
@@ -6898,7 +6906,7 @@
         "apikey": "APIキー",
         "blacklist": "ブラックリスト",
         "blacklist_description": "以下のウェブサイトの結果は検索結果に表示されません",
-        "blacklist_invalid_entries": "[to be translated]:Invalid blacklist entries: {{entries}}",
+        "blacklist_invalid_entries": "無効なブラックリストエントリー: {{entries}}",
         "blacklist_tooltip": "以下の形式を使用してください(改行区切り)\nexample.com\nhttps://www.example.com\nhttps://example.com\n*://*.example.com",
         "check": "チェック",
         "check_failed": "検証に失敗しました",
@@ -6926,10 +6934,10 @@
         "content_limit_tooltip": "検索結果のコンテンツの長さを制限します。制限を超えるコンテンツは切り捨てられます。",
         "default_provider": "デフォルトプロバイダー",
         "errors": {
-          "save_failed": "[to be translated]:Save failed",
-          "zhipu_sync_failed": "[to be translated]:Failed to sync Zhipu API key to Web Search. Please re-save the key or check Web Search settings."
+          "save_failed": "保存に失敗しました",
+          "zhipu_sync_failed": "Zhipu APIキーのWeb Searchへの同期に失敗しました。キーを再保存するか、Web Searchの設定を確認してください。"
         },
-        "fetch_urls_provider": "[to be translated]:Default URL fetch provider",
+        "fetch_urls_provider": "デフォルトのURL取得プロバイダー",
         "free": "無料",
         "is_default": "デフォルト",
         "local_provider": {
@@ -6942,15 +6950,15 @@
         "overwrite": "検索サービスを上書き",
         "overwrite_tooltip": "LLMの代わりに検索サービスを強制的に使用する",
         "provider_description": {
-          "bocha": "[to be translated]:Chinese AI search API with real-time web and structured results.",
-          "exa": "[to be translated]:Neural search API for AI apps, tuned for semantic web retrieval.",
-          "exa_mcp": "[to be translated]:Expose Exa search to agents through the Exa MCP Server.",
-          "fetch": "[to be translated]:Built-in URL fetch provider. Fetches web page content from a URL to enrich search results.",
-          "jina": "[to be translated]:Jina Reader search and read APIs for retrieving clean web content.",
-          "querit": "[to be translated]:Search service for AI apps with web retrieval results.",
-          "searxng": "[to be translated]:Self-hostable free internet metasearch engine across many sources.",
-          "tavily": "[to be translated]:Search engine optimized for LLMs.",
-          "zhipu": "[to be translated]:Zhipu GLM Web Search for live web retrieval and current information."
+          "bocha": "リアルタイムのウェブと構造化された結果を持つ中国のAI検索API",
+          "exa": "AIアプリ向けニューラル検索API、セマンティックWeb検索に最適化されています。",
+          "exa_mcp": "Exa MCPサーバーを通じて、エージェントにExa検索を公開する。",
+          "fetch": "組み込みURLフェッチプロバイダー。URLからウェブページのコンテンツを取得し、検索結果を充実させます。",
+          "jina": "Jina Reader の検索および読み取り API は、クリーンな Web コンテンツを取得するためのものです。",
+          "querit": "AIアプリ向けのWeb検索結果を含む検索サービス",
+          "searxng": "多くのソースにまたがる、セルフホスティング可能な無料インターネットメタ検索エンジン。",
+          "tavily": "LLM向けに最適化された検索エンジン。",
+          "zhipu": "Zhipu GLM Web Searchは、ライブなWeb検索と最新情報の取得を可能にします。"
         },
         "search_max_result": {
           "label": "検索結果の数",
@@ -7047,7 +7055,7 @@
   },
   "tab": {
     "close": "タブを閉じる",
-    "move_to_first": "[to be translated]:Move to First",
+    "move_to_first": "最初へ移動",
     "new": "新しいタブ",
     "pin": "タブをピン留め",
     "unpin": "タブを固定解除"
@@ -7115,7 +7123,7 @@
         },
         "label": "自動検出方法",
         "llm": {
-          "label": "[to be translated]:LLM",
+          "label": "大規模言語モデル",
           "tip": "高速モデルを使用して言語検出を行い、少量のトークンを消費します。"
         },
         "placeholder": "自動検出方法を選択してください",
@@ -7129,12 +7137,12 @@
     "detecting": "検出中...",
     "empty": "翻訳内容が空です",
     "error": {
-      "auto_copy_failed": "[to be translated]:Failed to auto-copy translation result",
+      "auto_copy_failed": "翻訳結果を自動的にコピーできませんでした",
       "chat_qwen_mt": "Qwen MT モデルは対話で使用できません。翻訳ページに移動してください",
       "detect": {
-        "empty": "[to be translated]:Detected language is empty",
-        "failed": "[to be translated]:Language detection failed",
-        "invalid": "[to be translated]:Detected language is not supported",
+        "empty": "検出された言語は空です",
+        "failed": "言語検出に失敗しました",
+        "invalid": "検出された言語はサポートされていません",
         "qwen_mt": "QwenMTモデルは言語検出に使用できません",
         "unknown": "検出された言語は不明です",
         "update_setting": "設定に失敗しました"
@@ -7142,7 +7150,7 @@
       "empty": "翻訳結果が空の内容です",
       "failed": "翻訳に失敗しました",
       "invalid_source": "無効なソース言語",
-      "languages_load_failed": "[to be translated]:Failed to load translate languages. Some features may be unavailable.",
+      "languages_load_failed": "言語の読み込みに失敗しました。一部の機能が利用できない場合があります。",
       "not_configured": "翻訳モデルが設定されていません",
       "not_supported": "サポートされていない言語 {{language}}",
       "unknown": "翻訳中に不明なエラーが発生しました"
@@ -7155,43 +7163,43 @@
       "error": {
         "check_type": "ファイルタイプの確認中にエラーが発生しました",
         "multiple": "複数のファイルのアップロードは許可されていません",
-        "ocr": "[to be translated]:Failed to recognize image text",
+        "ocr": "画像内のテキストを認識できませんでした",
         "too_large": "ファイルが大きすぎます",
         "unknown": "ファイルの内容を読み取るのに失敗しました"
       },
       "reading": "ファイルの内容を読み込んでいます...",
-      "upload": "[to be translated]:Drop or click to upload image/document"
+      "upload": "画像またはドキュメントをドロップするか、クリックしてアップロード"
     },
     "history": {
-      "back": "[to be translated]:Back to list",
+      "back": "リストに戻る",
       "clear": "履歴をクリア",
       "clear_description": "履歴をクリアすると、すべての翻訳履歴が削除されます。続行しますか？",
-      "copy_target": "[to be translated]:Copy result",
+      "copy_target": "結果をコピー",
       "delete": "翻訳履歴を削除する",
-      "delete_description": "[to be translated]:Delete this translation history record? This action cannot be undone.",
+      "delete_description": "この翻訳履歴レコードを削除しますか？この操作は取り消せません。",
       "empty": "翻訳履歴がありません",
       "error": {
-        "add": "[to be translated]:Failed to add translation history",
-        "clear": "[to be translated]:Failed to clear translation history",
+        "add": "翻訳履歴の追加に失敗しました",
+        "clear": "翻訳履歴をクリアできませんでした",
         "delete": "削除に失敗しました",
         "load": "翻訳履歴の読み込みに失敗しました。",
         "save": "保存翻訳履歴に失敗しました"
       },
       "filter": {
-        "starred": "[to be translated]:Only starred"
+        "starred": "スター付きのみ"
       },
-      "reuse": "[to be translated]:Reuse",
+      "reuse": "再利用",
       "search": {
-        "placeholder": "[to be translated]:Search translation history"
+        "placeholder": "翻訳履歴を検索"
       },
-      "source": "[to be translated]:Source",
+      "source": "ソース",
       "success": {
-        "add": "[to be translated]:Saved to history",
-        "clear": "[to be translated]:History cleared",
-        "delete": "[to be translated]:Deleted",
-        "update": "[to be translated]:Saved"
+        "add": "履歴に保存されました",
+        "clear": "履歴はクリアされました",
+        "delete": "削除済み",
+        "update": "保存済み"
       },
-      "target": "[to be translated]:Target",
+      "target": "ターゲット",
       "title": "翻訳履歴"
     },
     "info": {
@@ -7221,7 +7229,7 @@
       "bidirectional": "双方向翻訳設定",
       "bidirectional_tip": "有効にすると、ソース言語と目標言語間の双方向翻訳のみがサポートされます",
       "error": {
-        "save": "[to be translated]:Failed to save translation settings"
+        "save": "翻訳設定の保存に失敗しました"
       },
       "model": "モデル設定",
       "model_desc": "翻訳サービスで使用されるモデル",
@@ -7231,7 +7239,7 @@
       "scroll_sync": "スクロール同期設定",
       "title": "翻訳設定"
     },
-    "source_language": "[to be translated]:Source Language",
+    "source_language": "ソース言語",
     "stop": "翻訳を停止",
     "success": {
       "custom": {

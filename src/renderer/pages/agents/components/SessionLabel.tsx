@@ -1,5 +1,5 @@
 import { cn } from '@renderer/utils'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 
 export type SessionLabelProps = {
   session?: AgentSessionEntity

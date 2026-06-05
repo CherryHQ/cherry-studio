@@ -6517,7 +6517,7 @@
         "header_name_placeholder": "请求头名称",
         "header_value_placeholder": "请求头取值",
         "headers_description": "自定义请求头（JSON 格式）",
-        "headers_json_placeholder": "[to be translated]:{\n  \"X-Custom-Header\": \"value\"\n}",
+        "headers_json_placeholder": "{\n  \"X-Custom-Header\": \"value\"\n}",
         "invalid_json": "JSON 格式错误",
         "login": "登录 Github",
         "logout": "退出 Github",

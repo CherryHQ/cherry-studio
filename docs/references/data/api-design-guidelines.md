@@ -13,6 +13,27 @@ Guidelines for designing RESTful APIs in the Cherry Studio Data API system.
 | Express hierarchy via nesting | `/topics/:topicId/messages` | Parent-child relationships |
 | Avoid verbs for CRUD operations | `/topics` not `/getTopics` | HTTP methods express action |
 
+## Resource ↔ Table Naming
+
+When a route is backed by a SQLite table, the route, table, and type names MUST express one shared domain noun, each in its own layer's casing:
+
+| Layer | Convention | Example |
+|---|---|---|
+| DB table | singular snake_case | `agent_session` |
+| REST route (collection) | plural kebab-case | `/agent-sessions` |
+| Schema / entity type | singular PascalCase | `AgentSessionEntity` |
+| Inferred row type | `XxxRow` ([§5.3](../naming-conventions.md#53-drizzle-schema-inferred-row-types)) | `AgentSessionRow` |
+
+A route noun that diverges from its backing table's concept is drift — fix the route, not the table.
+
+**Exceptions** (noun diverges from a single table):
+
+| Case | Example |
+|---|---|
+| Shared / library resource | `/skills`, `/models` |
+| Nested sub-resource | `/agents/:agentId/tasks` |
+| Aggregate / derived / non-CRUD | `/topics/search`, `/topics/stats` |
+
 ## HTTP Method Semantics
 
 | Method | Purpose | Idempotent | Typical Response |
