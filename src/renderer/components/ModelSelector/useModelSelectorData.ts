@@ -203,10 +203,18 @@ export function useModelSelectorData({
     const pinnedIdSet = new Set(pinnedIds)
     const providerById = new Map(sortedProviders.map((provider) => [provider.id, provider]))
     const finalModelFilter = (model: Model) => (!showTagFilter || tagFilter(model)) && baseModelFilter(model)
+    // `searchFilter(provider)` runs fuzzy scoring + sort per provider; cache the tag-filtered
+    // result so duplicate-name detection and the list below share one pass per provider.
+    const tagFilteredModelsByProvider = new Map<string, Model[]>(
+      sortedProviders.map((provider) => [
+        provider.id,
+        searchFilter(provider).filter((model) => (!showTagFilter ? true : tagFilter(model)))
+      ])
+    )
     const duplicateNamesByProvider = new Map<string, Set<string>>(
       sortedProviders.map((provider) => [
         provider.id,
-        getDuplicateModelNames(searchFilter(provider).filter((model) => (!showTagFilter ? true : tagFilter(model))))
+        getDuplicateModelNames(tagFilteredModelsByProvider.get(provider.id) ?? [])
       ])
     )
 
@@ -235,9 +243,9 @@ export function useModelSelectorData({
     }
 
     sortedProviders.forEach((provider) => {
-      const filteredModels = searchFilter(provider)
-        .filter((model) => (!showTagFilter ? true : tagFilter(model)))
-        .filter((model) => !showPinnedModels || searchText.length > 0 || !pinnedIdSet.has(model.id))
+      const filteredModels = (tagFilteredModelsByProvider.get(provider.id) ?? []).filter(
+        (model) => !showPinnedModels || searchText.length > 0 || !pinnedIdSet.has(model.id)
+      )
 
       if (filteredModels.length === 0) {
         return
