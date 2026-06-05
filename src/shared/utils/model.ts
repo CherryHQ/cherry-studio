@@ -656,7 +656,7 @@ export function inferReasoningFromModelId(rawModelId: string): boolean {
     id.includes('gemma4') ||
     id.includes('step-3') ||
     id.includes('step-r1-v-mini') ||
-    ['minimax-m1', 'minimax-m2', 'minimax-m2.1'].some((m) => id.includes(m)) ||
+    ['minimax-m1', 'minimax-m2', 'minimax-m2.1', 'minimax-m3'].some((m) => id.includes(m)) ||
     id === 'baichuan-m2' ||
     id === 'baichuan-m3' ||
     ['ring-1t', 'ring-mini', 'ring-flash'].some((m) => id.includes(m)) ||
