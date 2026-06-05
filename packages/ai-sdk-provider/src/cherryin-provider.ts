@@ -17,11 +17,18 @@ import {
   type JSONValue,
   type LanguageModelV3,
   type ProviderV3,
+  type RerankingModelV3,
   type SpeechModelV3,
   type TranscriptionModelV3
 } from '@ai-sdk/provider'
-import type { FetchFunction } from '@ai-sdk/provider-utils'
-import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
+import {
+  combineHeaders,
+  createStatusCodeErrorResponseHandler,
+  type FetchFunction,
+  loadApiKey,
+  postJsonToApi,
+  withoutTrailingSlash
+} from '@ai-sdk/provider-utils'
 
 export const CHERRYIN_PROVIDER_NAME = 'cherryin' as const
 export const DEFAULT_CHERRYIN_BASE_URL = 'https://open.cherryin.net/v1'
@@ -89,6 +96,7 @@ export interface CherryInProvider extends ProviderV3 {
   transcriptionModel(modelId: string): TranscriptionModelV3
   speech(modelId: string): SpeechModelV3
   speechModel(modelId: string): SpeechModelV3
+  rerankingModel(modelId: string): RerankingModelV3
 }
 
 const resolveApiKey = (options: CherryInProviderSettings): string =>
@@ -137,6 +145,71 @@ class CherryInOpenAIChatLanguageModel extends OpenAICompatibleChatLanguageModel 
   }
 }
 
+type DoRerankOptions = Parameters<RerankingModelV3['doRerank']>[0]
+type DoRerankResult = Awaited<ReturnType<RerankingModelV3['doRerank']>>
+type RerankRanking = DoRerankResult['ranking']
+
+type CherryInRerankResponseItem = {
+  index: number
+  relevance_score: number
+}
+
+type CherryInRerankResponse = {
+  results?: CherryInRerankResponseItem[]
+}
+
+class CherryInRerankingModel implements RerankingModelV3 {
+  readonly specificationVersion = 'v3'
+
+  constructor(
+    readonly modelId: string,
+    private readonly config: {
+      provider: string
+      url: (options: { path: string; modelId: string }) => string
+      headers: () => Record<string, HeaderValue>
+      fetch?: FetchFunction
+    }
+  ) {}
+
+  get provider(): string {
+    return this.config.provider
+  }
+
+  async doRerank({ documents, headers, query, topN, abortSignal }: DoRerankOptions): Promise<DoRerankResult> {
+    if (documents.type !== 'text') {
+      throw new Error('CherryIN reranking model only supports text documents')
+    }
+
+    const { value, rawValue } = await postJsonToApi({
+      url: this.config.url({ path: '/rerank', modelId: this.modelId }),
+      headers: combineHeaders(this.config.headers(), headers),
+      body: {
+        model: this.modelId,
+        query,
+        documents: documents.values,
+        top_n: topN
+      },
+      failedResponseHandler: createStatusCodeErrorResponseHandler(),
+      successfulResponseHandler: async ({ response }) => {
+        const rawValue = await response.json()
+        return {
+          value: parseRerankResponse(rawValue),
+          rawValue
+        }
+      },
+      abortSignal,
+      fetch: this.config.fetch
+    })
+
+    return {
+      ranking: value,
+      response: {
+        body: rawValue
+      }
+    }
+  }
+}
+
 const resolveConfiguredHeaders = (headers?: HeadersInput): Record<string, HeaderValue> => {
   if (typeof headers === 'function') {
     return { ...headers() }
@@ -145,6 +218,20 @@ const resolveConfiguredHeaders = (headers?: HeadersInput): Record<string, Header
 }
 
 const toBearerToken = (authorization?: string) => (authorization ? authorization.replace(/^Bearer\s+/i, '') : undefined)
+
+function parseRerankResponse(body: unknown): RerankRanking {
+  const results = (body as CherryInRerankResponse).results
+  if (!Array.isArray(results)) {
+    throw new Error('Rerank response must contain a results array')
+  }
+
+  return results.map((result) => {
+    if (typeof result.index !== 'number' || typeof result.relevance_score !== 'number') {
+      throw new Error('Rerank response results must contain numeric index and relevance_score')
+    }
+    return { index: result.index, relevanceScore: result.relevance_score }
+  })
+}
 
 const normalizePersonGeneration = (value: unknown) => {
   if (typeof value !== 'string') return undefined
@@ -418,6 +505,14 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
       fetch
     })
 
+  const createRerankingModel = (modelId: string) =>
+    new CherryInRerankingModel(modelId, {
+      provider: `${CHERRYIN_PROVIDER_NAME}.rerank`,
+      url,
+      headers: getJsonHeaders,
+      fetch
+    })
+
   const provider = (modelId: string, settings?: OpenAIProviderSettings) => createChatModel(modelId, settings)
   provider.specificationVersion = 'v3' as const
   provider.languageModel = createChatModel
@@ -437,6 +532,8 @@ export const createCherryIn = (options: CherryInProviderSettings = {}): CherryIn
 
   provider.speech = createSpeechModel
   provider.speechModel = createSpeechModel
+
+  provider.rerankingModel = createRerankingModel
 
   return provider as CherryInProvider
 }
