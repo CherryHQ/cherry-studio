@@ -221,11 +221,11 @@
         "intervalUnit": "Minuten",
         "lastRun": "Letzte Ausführung",
         "logs": {
-          "cancelled": "[to be translated]:Cancelled",
-          "completed": "[to be translated]:Completed",
+          "cancelled": "Storniert",
+          "completed": "Abgeschlossen",
           "duration": "Dauer",
           "empty": "Noch keine Ausführungshistorie.",
-          "failed": "[to be translated]:Failed",
+          "failed": "Fehlgeschlagen",
           "justNow": "soeben",
           "label": "Ausführungshistorie",
           "loadError": "Fehler beim Laden des Laufverlaufs",
@@ -399,6 +399,11 @@
         "error": {
           "failed": "Sitzung aktualisieren fehlgeschlagen"
         }
+      },
+      "workspace_status": {
+        "inaccessible": "Arbeitsbereichspfad ist nicht zugänglich: {{path}}",
+        "missing": "Arbeitsbereichspfad existiert nicht: {{path}}",
+        "not_directory": "Der Workspace-Pfad ist kein Verzeichnis: {{path}}"
       }
     },
     "settings": {
@@ -581,95 +586,95 @@
     "todo": {
       "mock": {
         "actions": {
-          "complete": "[to be translated]:Complete",
-          "dismiss": "[to be translated]:Dismiss"
+          "complete": "Vollständig",
+          "dismiss": "Verwerfen"
         },
         "details": {
           "addRouter": {
-            "summary": "[to be translated]:Configuring client routing with react-router-dom v6...",
-            "title": "[to be translated]:Add React Router"
+            "summary": "Konfiguration des Client-Routings mit react-router-dom v6...",
+            "title": "React Router hinzufügen"
           },
           "configureProject": {
             "resources": {
-              "createdMeta": "[to be translated]:created",
-              "postcssConfig": "[to be translated]:postcss.config.js",
-              "tailwindConfig": "[to be translated]:tailwind.config.js",
-              "updatedMeta": "[to be translated]:updated",
-              "viteConfig": "[to be translated]:vite.config.ts - port 3001"
+              "createdMeta": "erstellt",
+              "postcssConfig": "postcss.config.js",
+              "tailwindConfig": "tailwind.config.js",
+              "updatedMeta": "aktualisiert",
+              "viteConfig": "vite.config.ts - Port 3001"
             },
-            "title": "[to be translated]:Configure project"
+            "title": "Projekt konfigurieren"
           },
           "installDependencies": {
             "resources": {
-              "dependenciesMeta": "[to be translated]:dependencies",
-              "devDependenciesMeta": "[to be translated]:devDependencies",
-              "reactDeps": "[to be translated]:react@18.3.1, react-dom@18.3.1",
-              "tailwindDeps": "[to be translated]:tailwindcss@3.4.4, postcss@8.4.38",
-              "typescriptDeps": "[to be translated]:typescript@5.4.5, vite@5.3.0"
+              "dependenciesMeta": "Abhängigkeiten",
+              "devDependenciesMeta": "devDependencies",
+              "reactDeps": "react@18.3.1, react-dom@18.3.1",
+              "tailwindDeps": "tailwindcss@3.4.4, postcss@8.4.38",
+              "typescriptDeps": "typescript@5.4.5, vite@5.3.0"
             },
-            "summary": "[to be translated]:Installed react, react-dom, tailwindcss, postcss, autoprefixer, and TypeScript.",
-            "title": "[to be translated]:Install dependencies"
+            "summary": "React, react-dom, tailwindcss, postcss, autoprefixer und TypeScript installiert.",
+            "title": "Abhängigkeiten installieren"
           },
           "reviewReferences": {
-            "collectionTitle": "[to be translated]:Reviewed references",
+            "collectionTitle": "Überprüfte Referenzen",
             "resources": {
-              "npmCreateVite": "[to be translated]:npm create vite - Official Scaffolding",
-              "npmMeta": "[to be translated]:npmjs.com",
-              "reactDocs": "[to be translated]:React Documentation - Quick Start",
-              "reactMeta": "[to be translated]:react.dev",
-              "tailwindDocs": "[to be translated]:Tailwind CSS - Installation Guide",
-              "tailwindMeta": "[to be translated]:tailwindcss.com",
-              "viteDocs": "[to be translated]:Vite - Next Generation Frontend Tooling",
-              "viteMeta": "[to be translated]:vitejs.dev"
+              "npmCreateVite": "npm create vite – Offizielles Scaffolding",
+              "npmMeta": "npmjs.com",
+              "reactDocs": "React-Dokumentation – Schnellstart",
+              "reactMeta": "react.dev",
+              "tailwindDocs": "Tailwind CSS - Installationsanleitung",
+              "tailwindMeta": "tailwindcss.com",
+              "viteDocs": "Vite – Frontend-Tooling der nächsten Generation",
+              "viteMeta": "vitejs.dev"
             },
-            "title": "[to be translated]:Review references"
+            "title": "Überprüfungsreferenzen"
           },
           "searchWeb": {
             "resources": {
-              "reactViteQuery": "[to be translated]:React Vite TypeScript starter 2025 best practices"
+              "reactViteQuery": "React Vite TypeScript Starter 2025 – Best Practices"
             },
-            "summary": "[to be translated]:Collected current references for React + Vite scaffolding and best practices.",
-            "title": "[to be translated]:Search web references"
+            "summary": "Gesammelte aktuelle Referenzen für React + Vite-Scaffolding und Best Practices.",
+            "title": "Web-Referenzen suchen"
           },
-          "title": "[to be translated]:Execution details",
+          "title": "Ausführungsdetails",
           "writeComponents": {
-            "collectionTitle": "[to be translated]:Created files",
+            "collectionTitle": "Erstellte Dateien",
             "resources": {
-              "app": "[to be translated]:src/App.tsx",
-              "button": "[to be translated]:src/components/Button.tsx",
-              "card": "[to be translated]:src/components/Card.tsx",
-              "footer": "[to be translated]:src/components/Footer.tsx",
-              "header": "[to be translated]:src/components/Header.tsx",
-              "layout": "[to be translated]:src/components/Layout.tsx",
-              "modifiedMeta": "[to be translated]:modified",
-              "newMeta": "[to be translated]:new",
-              "updatedMeta": "[to be translated]:updated"
+              "app": "src/App.tsx",
+              "button": "src/components/Button.tsx",
+              "card": "src/components/Card.tsx",
+              "footer": "src/components/Footer.tsx",
+              "header": "src/components/Header.tsx",
+              "layout": "src/components/Layout.tsx",
+              "modifiedMeta": "modifiziert",
+              "newMeta": "neu",
+              "updatedMeta": "aktualisiert"
             },
-            "title": "[to be translated]:Write components"
+            "title": "Komponenten schreiben"
           },
           "writePages": {
             "resources": {
-              "about": "[to be translated]:src/pages/About.tsx",
-              "home": "[to be translated]:src/pages/Home.tsx",
-              "newMeta": "[to be translated]:new"
+              "about": "src/pages/About.tsx",
+              "home": "src/pages/Home.tsx",
+              "newMeta": "neu"
             },
-            "title": "[to be translated]:Write pages"
+            "title": "Seiten schreiben"
           }
         },
-        "progress": "[to be translated]:{{completed}}/{{total}} tasks completed",
+        "progress": "{{completed}}/{{total}} Aufgaben abgeschlossen",
         "tasks": {
-          "addLinting": "[to be translated]:Add ESLint + Prettier",
-          "addRouter": "[to be translated]:Add React Router",
-          "buildDeploy": "[to be translated]:Build and deploy",
-          "configureProject": "[to be translated]:Configure project",
-          "finish": "[to be translated]:Finish",
-          "installDependencies": "[to be translated]:Install dependencies",
-          "reviewReferences": "[to be translated]:Review references",
-          "searchWeb": "[to be translated]:Search web references",
-          "writeComponents": "[to be translated]:Write components",
-          "writePages": "[to be translated]:Write pages"
+          "addLinting": "ESLint + Prettier hinzufügen",
+          "addRouter": "React Router hinzufügen",
+          "buildDeploy": "Erstellen und bereitstellen",
+          "configureProject": "Projekt konfigurieren",
+          "finish": "Fertig",
+          "installDependencies": "Abhängigkeiten installieren",
+          "reviewReferences": "Überprüfe Referenzen",
+          "searchWeb": "Web-Referenzen suchen",
+          "writeComponents": "Komponenten schreiben",
+          "writePages": "Seiten schreiben"
         },
-        "title": "[to be translated]:Tasks"
+        "title": "Aufgaben"
       },
       "panel": {
         "title": "{{completed}}/{{total}} Aufgaben abgeschlossen"
@@ -939,7 +944,7 @@
         "agent": "Assistent exportieren"
       },
       "import": {
-        "action": "[to be translated]:Import Assistant",
+        "action": "Import-Assistent",
         "button": "Importieren",
         "error": {
           "fetch_failed": "Daten von URL abrufen fehlgeschlagen",
@@ -950,8 +955,8 @@
         "file_filter": "JSON-Datei",
         "select_file": "Datei auswählen",
         "subscribe": {
-          "title": "[to be translated]:Agent Subscription",
-          "url_placeholder": "[to be translated]:Subscription URL"
+          "title": "Agentenabonnement",
+          "url_placeholder": "Abonnement-URL"
         },
         "title": "Von extern importieren",
         "type": {
@@ -1056,15 +1061,15 @@
         "xhigh_description": "Extra hohes Denkvermögen"
       },
       "regular_phrases": {
-        "add": "[to be translated]:Add Phrase",
-        "contentLabel": "[to be translated]:Content",
-        "contentPlaceholder": "[to be translated]:Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
-        "delete": "[to be translated]:Delete Phrase",
-        "deleteConfirm": "[to be translated]:Are you sure to delete this phrase?",
-        "edit": "[to be translated]:Edit Phrase",
-        "title": "[to be translated]:Regular Phrase",
-        "titleLabel": "[to be translated]:Title",
-        "titlePlaceholder": "[to be translated]:Enter title"
+        "add": "Phrase hinzufügen",
+        "contentLabel": "Inhalt",
+        "contentPlaceholder": "Bitte geben Sie den Phraseninhalt ein, unterstützen Sie die Verwendung von Variablen und drücken Sie die Tab-Taste, um schnell zur zu ändernden Variable zu springen. Beispiel:  \nHilf mir, eine Route von ${from} nach ${to} zu planen und sende sie an ${email}.",
+        "delete": "Ausdruck löschen",
+        "deleteConfirm": "Sind Sie sicher, dass Sie diese Phrase löschen möchten?",
+        "edit": "Ausdruck bearbeiten",
+        "title": "Reguläre Phrase",
+        "titleLabel": "Titel",
+        "titlePlaceholder": "Titel eingeben"
       },
       "title": "Assistenteneinstellungen",
       "tool_use_mode": {
@@ -1208,7 +1213,7 @@
       },
       "new_session": "Neue Sitzung {{Command}}",
       "new_topic": "Neues Thema {{Command}}",
-      "paste_text_file": "[to be translated]:Paste into input",
+      "paste_text_file": "In die Eingabe einfügen",
       "pause": "Pause",
       "placeholder": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden - @ für Modellauswahl, / für Tools",
       "placeholder_without_triggers": "Geben Sie hier eine Nachricht ein, drücken Sie {{key}} zum Senden",
@@ -1231,6 +1236,7 @@
         "title": "Ressourcen"
       },
       "send": "Senden",
+      "send_failed": "Nachricht konnte nicht gesendet werden",
       "settings": "Einstellungen",
       "slash_commands": {
         "description": "Agent-Session-Slash-Befehle",
@@ -1381,7 +1387,7 @@
           "no_knowledge_base": "Keine Wissensdatenbank verfügbar, bitte erstellen Sie zuerst eine"
         },
         "error": {
-          "file_partial_failed": "[to be translated]:{{count}} file(s) could not be saved",
+          "file_partial_failed": "{{count}} Datei(en) konnte(n) nicht gespeichert werden",
           "invalid_base": "Die ausgewählte Wissensdatenbank ist nicht korrekt konfiguriert",
           "no_content_selected": "Bitte wählen Sie mindestens einen Inhaltstyp aus",
           "save_failed": "Speichern fehlgeschlagen, bitte überprüfen Sie die Wissensdatenbank-Konfiguration"
@@ -1505,7 +1511,7 @@
         "title_tip": "Tipp: Doppelklicken Sie auf den Themennamen, um ihn direkt umzubenennen"
       },
       "export": {
-        "failed": "[to be translated]:Export failed",
+        "failed": "Export fehlgeschlagen",
         "image": "Als Bild exportieren",
         "image_saved": "Bild erfolgreich gespeichert",
         "joplin": "Nach Joplin exportieren",
@@ -1620,7 +1626,7 @@
     "env_vars_help": "Benutzerdefinierte Umgebungsvariablen eingeben (eine pro Zeile, Format: KEY=value)",
     "environment_variables": "Umgebungsvariablen",
     "folder_placeholder": "Arbeitsverzeichnis auswählen",
-    "hero_tagline": "[to be translated]:Pick a CLI tool to configure",
+    "hero_tagline": "Wähle ein CLI-Tool zur Konfiguration",
     "install_bun": "Bun installieren",
     "installing_bun": "Wird installiert...",
     "launch": {
@@ -1644,14 +1650,14 @@
     "terminal_placeholder": "Terminal-Anwendung auswählen",
     "title": "Code-Tools",
     "tool_description": {
-      "claude_code": "[to be translated]:Anthropic's official command-line AI coding assistant",
-      "gemini_cli": "[to be translated]:Google's official Gemini command-line assistant",
-      "github_copilot_cli": "[to be translated]:GitHub's official Copilot command-line companion",
-      "iflow_cli": "[to be translated]:iFlow's multi-model command-line assistant",
-      "kimi_cli": "[to be translated]:Moonshot's Kimi command-line assistant",
-      "openai_codex": "[to be translated]:OpenAI's official code generation CLI",
-      "opencode": "[to be translated]:Open-source multi-model coding agent",
-      "qwen_code": "[to be translated]:Alibaba Tongyi's open-source CLI coding tool"
+      "claude_code": "Anthropics offizieller KI-Coding-Assistent für die Kommandozeile",
+      "gemini_cli": "Googles offizieller Gemini-Befehlszeilenassistent",
+      "github_copilot_cli": "Offizieller Copilot-Befehlszeilenbegleiter von GitHub",
+      "iflow_cli": "iFlows Multi-Model-Kommandozeilenassistent",
+      "kimi_cli": "Moonshots Kommandozeilenassistent Kimi",
+      "openai_codex": "Offizielle Code-Generierungs-CLI von OpenAI",
+      "opencode": "Open-Source-Multi-Model-Coding-Agent",
+      "qwen_code": "Alibaba Tongyis Open-Source-CLI-Coding-Tool"
     },
     "update_options": "Update-Optionen",
     "working_directory": "Arbeitsverzeichnis",
@@ -1771,7 +1777,7 @@
     "models": "Modelle",
     "more": "Mehr",
     "name": "Name",
-    "next": "[to be translated]:Next",
+    "next": "Weiter",
     "next_match": "Nächstes Spiel",
     "no_results": "Keine Ergebnisse",
     "none": "Keine",
@@ -1779,7 +1785,6 @@
     "on": "An",
     "open": "Öffnen",
     "open_in": "In {{name}} öffnen",
-    "parameter": "Parameter",
     "paste": "Einfügen",
     "placeholders": {
       "select": {
@@ -1788,7 +1793,7 @@
     },
     "powered_by": "Bereitgestellt von",
     "preview": "Vorschau",
-    "previous": "[to be translated]:Previous",
+    "previous": "Vorherige",
     "previous_match": "Vorheriges Spiel",
     "prompt": "Prompt",
     "provider": "Anbieter",
@@ -1801,7 +1806,7 @@
     "reset": "Zurücksetzen",
     "retry": "Wiederholen",
     "save": "Speichern",
-    "save_failed": "[to be translated]:Save failed",
+    "save_failed": "Speichern fehlgeschlagen",
     "saved": "Gespeichert",
     "search": "Suchen",
     "select": "Auswählen",
@@ -1851,20 +1856,20 @@
   },
   "emoji_picker": {
     "categories": {
-      "activities": "[to be translated]:Activities",
-      "animals_nature": "[to be translated]:Animals & Nature",
-      "flags": "[to be translated]:Flags",
-      "food_drink": "[to be translated]:Food & Drink",
-      "objects": "[to be translated]:Objects",
-      "people_body": "[to be translated]:People & Body",
-      "recent": "[to be translated]:Frequently used",
-      "smileys_emotion": "[to be translated]:Smileys & Emotion",
-      "symbols": "[to be translated]:Symbols",
-      "travel_places": "[to be translated]:Travel & Places"
+      "activities": "Aktivitäten",
+      "animals_nature": "Tiere & Natur",
+      "flags": "Flaggen",
+      "food_drink": "Essen & Trinken",
+      "objects": "Objekte",
+      "people_body": "Menschen & Körper",
+      "recent": "Häufig verwendet",
+      "smileys_emotion": "Smileys & Emotion",
+      "symbols": "Symbole",
+      "travel_places": "Reisen & Orte"
     },
-    "clear_recent": "[to be translated]:Clear recent",
-    "no_results": "[to be translated]:No matching emoji",
-    "search": "[to be translated]:Search"
+    "clear_recent": "Letzte löschen",
+    "no_results": "Kein passendes Emoji",
+    "search": "Suche"
   },
   "endpoint_type": {
     "anthropic": "Anthropic",
@@ -2120,276 +2125,276 @@
   },
   "knowledge": {
     "add": {
-      "group": "[to be translated]:Group",
-      "submit": "[to be translated]:Create",
-      "title": "[to be translated]:New Knowledge Base"
+      "group": "Gruppe",
+      "submit": "Erstellen",
+      "title": "Neue Wissensdatenbank"
     },
     "context": {
-      "delete": "[to be translated]:Delete Knowledge Base",
-      "delete_confirm_description": "[to be translated]:This knowledge base cannot be recovered after deletion.",
-      "delete_confirm_title": "[to be translated]:Delete Knowledge Base?",
-      "move_to": "[to be translated]:Move to",
-      "rename": "[to be translated]:Rename"
+      "delete": "Wissensbasis löschen",
+      "delete_confirm_description": "Diese Wissensdatenbank kann nach dem Löschen nicht wiederhergestellt werden.",
+      "delete_confirm_title": "Wissensbasis löschen?",
+      "move_to": "Verschieben nach",
+      "rename": "Umbenennen"
     },
     "data_source": {
       "actions": {
-        "delete": "[to be translated]:Delete",
-        "preview_source": "[to be translated]:Preview Source",
-        "reindex": "[to be translated]:Reindex",
-        "view_chunks": "[to be translated]:View Chunks"
+        "delete": "Löschen",
+        "preview_source": "Vorschau Quelle",
+        "reindex": "Neuindizierung",
+        "view_chunks": "Ansicht Chunks"
       },
       "add_dialog": {
         "directory": {
-          "description": "[to be translated]:Recursively import supported files from a folder",
-          "title": "[to be translated]:Click to select a folder"
+          "description": "Unterstützte Dateien rekursiv aus einem Ordner importieren",
+          "title": "Klicken, um einen Ordner auszuwählen"
         },
         "footer": {
-          "selected_directories": "[to be translated]:{{count}} directories selected",
-          "selected_files": "[to be translated]:{{count}} files selected",
-          "selected_notes": "[to be translated]:{{count}} notes selected"
+          "selected_directories": "{{count}} Verzeichnisse ausgewählt",
+          "selected_files": "{{count}} Dateien ausgewählt",
+          "selected_notes": "{{count}} Notizen ausgewählt"
         },
         "note": {
-          "description": "[to be translated]:Select existing notes as knowledge base sources",
-          "empty_description": "[to be translated]:Selectable notes will appear here after the real notes list is connected. For now, use files, folders, URLs, or sitemaps.",
-          "empty_title": "[to be translated]:Notes are not connected yet"
+          "description": "Wählen Sie vorhandene Notizen als Wissensbasisquellen aus",
+          "empty_description": "Auswählbare Notizen erscheinen hier, nachdem die echte Notizenliste verbunden wurde. Verwenden Sie bis dahin Dateien, Ordner, URLs oder Sitemaps.",
+          "empty_title": "Notizen sind noch nicht verbunden"
         },
         "placeholder": {
-          "supported_formats": "[to be translated]:Supports PDF, DOCX, MD, XLSX, TXT, CSV",
-          "title": "[to be translated]:Click to select files or drag them here"
+          "supported_formats": "Unterstützt PDF, DOCX, MD, XLSX, TXT, CSV",
+          "title": "Klicken Sie, um Dateien auszuwählen, oder ziehen Sie sie hierher"
         },
         "sitemap": {
-          "description": "[to be translated]:Enter a sitemap URL:",
-          "help": "[to be translated]:Pages listed in the sitemap will be read and indexed",
-          "placeholder": "[to be translated]:https://docs.cherry-ai.com/sitemap-pages.xml"
+          "description": "Gib eine Sitemap-URL ein:",
+          "help": "Die in der Sitemap aufgeführten Seiten werden gelesen und indiziert.",
+          "placeholder": "https://docs.cherry-ai.com/sitemap-pages.xml"
         },
         "sources": {
-          "directory": "[to be translated]:Folder",
-          "file": "[to be translated]:File",
-          "note": "[to be translated]:Note",
-          "sitemap": "[to be translated]:Website",
-          "url": "[to be translated]:URL"
+          "directory": "Ordner",
+          "file": "Datei",
+          "note": "Hinweis",
+          "sitemap": "Website",
+          "url": "URL"
         },
         "submit": {
-          "error": "[to be translated]:Failed to add data source",
-          "success": "[to be translated]:Data source added to knowledge base"
+          "error": "Fehler beim Hinzufügen der Datenquelle",
+          "success": "Datenquelle zur Wissensbasis hinzugefügt"
         },
-        "title": "[to be translated]:Add Data Source",
+        "title": "Datenquelle hinzufügen",
         "url": {
-          "description": "[to be translated]:Enter a webpage URL:",
-          "help": "[to be translated]:Page text will be fetched, chunked, and indexed automatically",
-          "input_label": "[to be translated]:Webpage URL",
-          "placeholder": "[to be translated]:https://docs.cherry-ai.com/",
-          "title": "[to be translated]:Import a single webpage"
+          "description": "Gib eine Webseiten-URL ein:",
+          "help": "Der Seitentext wird automatisch abgerufen, in Blöcke unterteilt und indiziert.",
+          "input_label": "Webseiten-URL",
+          "placeholder": "https://docs.cherry-ai.com/",
+          "title": "Importiere eine einzelne Webseite"
         }
       },
       "bulk": {
-        "cancel": "[to be translated]:Cancel",
-        "delete": "[to be translated]:Delete",
-        "delete_confirm_description": "[to be translated]:Delete {{count}} selected data sources? This cannot be undone.",
-        "delete_confirm_title": "[to be translated]:Delete Selected Data Sources?",
-        "reindex": "[to be translated]:Reindex",
-        "selected_count": "[to be translated]:{{count}} selected"
+        "cancel": "Abbrechen",
+        "delete": "Löschen",
+        "delete_confirm_description": "{{count}} ausgewählte Datenquellen löschen? Dies kann nicht rückgängig gemacht werden.",
+        "delete_confirm_title": "Ausgewählte Datenquellen löschen?",
+        "reindex": "Neuindizierung",
+        "selected_count": "{{count}} ausgewählt"
       },
-      "chunk_delete_confirm_description": "[to be translated]:After deletion, this chunk will no longer be used for retrieval. Reindexing the data source will generate it again.",
-      "chunk_delete_confirm_title": "[to be translated]:Delete Chunk?",
-      "chunks_count": "[to be translated]:{{count}} chunks",
-      "delete_confirm_description": "[to be translated]:This data source and its index data cannot be recovered after deletion.",
-      "delete_confirm_title": "[to be translated]:Delete Data Source?",
-      "delete_failed": "[to be translated]:Failed to delete data source",
+      "chunk_delete_confirm_description": "Nach dem Löschen wird dieser Chunk nicht mehr für die Abfrage verwendet. Die erneute Indizierung der Datenquelle wird ihn erneut generieren.",
+      "chunk_delete_confirm_title": "Chunk löschen?",
+      "chunks_count": "{{count}} Chunks",
+      "delete_confirm_description": "Diese Datenquelle und ihre Indexdaten können nach dem Löschen nicht wiederhergestellt werden.",
+      "delete_confirm_title": "Datenquelle löschen?",
+      "delete_failed": "Fehler beim Löschen der Datenquelle",
       "empty": {
         "shortcuts": {
           "directory": {
-            "title": "[to be translated]:Folder Import"
+            "title": "Ordnerimport"
           },
           "file": {
-            "title": "[to be translated]:File"
+            "title": "Datei"
           },
           "sitemap": {
-            "title": "[to be translated]:Website Sync"
+            "title": "Website-Synchronisierung"
           },
           "url": {
-            "title": "[to be translated]:URL"
+            "title": "URL"
           }
         },
-        "title": "[to be translated]:Upload Your First Data Source"
+        "title": "Laden Sie Ihre erste Datenquelle hoch"
       },
-      "empty_description": "[to be translated]:No data sources yet",
+      "empty_description": "Noch keine Datenquellen",
       "filters": {
-        "all": "[to be translated]:All",
-        "directory": "[to be translated]:Folders",
-        "file": "[to be translated]:Files",
-        "note": "[to be translated]:Notes",
-        "sitemap": "[to be translated]:Websites",
-        "url": "[to be translated]:URLs"
+        "all": "Alle",
+        "directory": "Ordner",
+        "file": "Dateien",
+        "note": "Notizen",
+        "sitemap": "Websites",
+        "url": "URLs"
       },
       "preview": {
-        "failed": "[to be translated]:Failed to preview source",
-        "unavailable": "[to be translated]:This data source has no source to preview"
+        "failed": "Fehler beim Vorschauen der Quelle",
+        "unavailable": "Diese Datenquelle hat keine Quelle zur Vorschau."
       },
-      "ready_summary": "[to be translated]:{{ready}}/{{total}} ready",
-      "reindex_failed": "[to be translated]:Failed to reindex data source",
+      "ready_summary": "{{ready}}/{{total}} bereit",
+      "reindex_failed": "Fehler beim Neuerstellen des Datenquellen-Index",
       "status": {
-        "chunking": "[to be translated]:Chunking",
-        "embedding": "[to be translated]:Embedding",
-        "error": "[to be translated]:Error",
-        "pending": "[to be translated]:Waiting",
-        "ready": "[to be translated]:Ready"
+        "chunking": "Chunking",
+        "embedding": "Einbettung",
+        "error": "Fehler",
+        "pending": "Warten",
+        "ready": "Bereit"
       },
       "table": {
         "columns": {
-          "actions": "[to be translated]:Actions",
-          "name": "[to be translated]:Name",
-          "status": "[to be translated]:Status",
-          "type": "[to be translated]:Type",
-          "updated_at": "[to be translated]:Updated"
+          "actions": "Aktionen",
+          "name": "Name",
+          "status": "Status",
+          "type": "Typ",
+          "updated_at": "Aktualisiert"
         },
-        "select_all": "[to be translated]:Select all",
-        "select_row": "[to be translated]:Select row"
+        "select_all": "Alle auswählen",
+        "select_row": "Zeile auswählen"
       },
       "toolbar": {
-        "add": "[to be translated]:Add Data Source",
-        "no_search_results": "[to be translated]:No matching data sources",
-        "search_placeholder": "[to be translated]:Search data sources"
+        "add": "Datenquelle hinzufügen",
+        "no_search_results": "Keine übereinstimmenden Datenquellen",
+        "search_placeholder": "Datenquellen durchsuchen"
       }
     },
-    "dimensions": "[to be translated]:Embedding Dimensions",
+    "dimensions": "Einbettungsdimensionen",
     "dimensions_auto_set": "Embedding-Dimensionen automatisch setzen",
     "dimensions_error_invalid": "Ungültige Embedding-Dimensionen",
     "dimensions_size_placeholder": "Leer lassen, um nicht zu setzen",
     "drag_file": "Datei hierher ziehen",
-    "embedding_model": "[to be translated]:Embedding Model",
-    "embedding_model_required": "[to be translated]:Knowledge base embedding model is required",
-    "empty": "[to be translated]:No knowledge bases",
+    "embedding_model": "Einbettungsmodell",
+    "embedding_model_required": "Ein Einbettungsmodell für die Wissensbasis ist erforderlich",
+    "empty": "Keine Wissensdatenbanken",
     "error": {
-      "failed_base_unknown": "[to be translated]:This knowledge base failed during migration. Rebuild it and choose a new embedding model.",
-      "failed_to_create": "[to be translated]:Failed to create knowledge base",
-      "failed_to_delete": "[to be translated]:Failed to delete knowledge base",
-      "failed_to_edit": "[to be translated]:Failed to edit knowledge base",
-      "failed_to_move": "[to be translated]:Failed to move knowledge base",
-      "missing_embedding_model": "[to be translated]:The embedding model used by this knowledge base was not found during migration. Rebuild the knowledge base and choose a new embedding model.",
+      "failed_base_unknown": "Diese Wissensbasis ist während der Migration fehlgeschlagen. Erstellen Sie sie neu und wählen Sie ein neues Einbettungsmodell.",
+      "failed_to_create": "Fehler beim Erstellen der Wissensdatenbank",
+      "failed_to_delete": "Fehler beim Löschen der Wissensdatenbank",
+      "failed_to_edit": "Bearbeitung der Wissensdatenbank fehlgeschlagen",
+      "failed_to_move": "Fehler beim Verschieben der Wissensdatenbank",
+      "missing_embedding_model": "Das Embedding-Modell, das von dieser Wissensbasis verwendet wurde, wurde während der Migration nicht gefunden. Erstellen Sie die Wissensbasis neu und wählen Sie ein neues Embedding-Modell.",
       "model_invalid": "Kein Modell ausgewählt"
     },
     "file_hint": "{{file_types}}-Formate werden unterstützt",
     "groups": {
-      "add": "[to be translated]:New Group",
-      "create_base_here": "[to be translated]:Create here",
-      "default": "[to be translated]:Default",
-      "delete": "[to be translated]:Delete Group",
-      "delete_confirm_description": "[to be translated]:Knowledge bases in this group will be moved to Ungrouped after deletion.",
-      "delete_confirm_title": "[to be translated]:Delete Group?",
+      "add": "Neue Gruppe",
+      "create_base_here": "Erstelle hier",
+      "default": "Standard",
+      "delete": "Gruppe löschen",
+      "delete_confirm_description": "Wissensdatenbanken in dieser Gruppe werden nach dem Löschen in „Nicht gruppiert“ verschoben.",
+      "delete_confirm_title": "Gruppe löschen?",
       "error": {
-        "failed_to_create": "[to be translated]:Failed to create group",
-        "failed_to_delete": "[to be translated]:Failed to delete group",
-        "failed_to_update": "[to be translated]:Failed to rename group"
+        "failed_to_create": "Fehler beim Erstellen der Gruppe",
+        "failed_to_delete": "Fehler beim Löschen der Gruppe",
+        "failed_to_update": "Fehler beim Umbenennen der Gruppe"
       },
-      "name_placeholder": "[to be translated]:Enter group name...",
-      "name_required": "[to be translated]:Group name is required",
-      "rename": "[to be translated]:Rename",
-      "rename_title": "[to be translated]:Rename Group",
-      "ungrouped": "[to be translated]:Ungrouped"
+      "name_placeholder": "Gruppennamen eingeben...",
+      "name_required": "Gruppenname ist erforderlich",
+      "rename": "Umbenennen",
+      "rename_title": "Gruppe umbenennen",
+      "ungrouped": "Nicht gruppiert"
     },
     "meta": {
-      "data_sources_count": "[to be translated]:{{count}} sources",
-      "documents_count": "[to be translated]:{{count}} documents",
-      "updated_at": "[to be translated]:Updated {{time}}"
+      "data_sources_count": "{{count}} Quellen",
+      "documents_count": "{{count}} Dokumente",
+      "updated_at": "Aktualisiert {{time}}"
     },
-    "name_required": "[to be translated]:Knowledge base name is required",
-    "not_set": "[to be translated]:Not Set",
+    "name_required": "Wissensbasis-Name ist erforderlich",
+    "not_set": "Nicht festgelegt",
     "provider_not_found": "Anbieter nicht gefunden",
     "rag": {
-      "chunk_overlap": "[to be translated]:Overlap Size",
-      "chunk_overlap_invalid": "[to be translated]:Chunk overlap must be greater than or equal to 0",
-      "chunk_overlap_must_be_smaller": "[to be translated]:Chunk overlap must be smaller than chunk size",
-      "chunk_overlap_requires_chunk_size": "[to be translated]:Chunk size is required when chunk overlap is set",
-      "chunk_size": "[to be translated]:Chunk Size",
-      "chunk_size_change_warning": "[to be translated]:Chunk size and overlap changes only apply to newly added content",
-      "chunk_size_invalid": "[to be translated]:Chunk size must be greater than 0",
-      "chunking": "[to be translated]:Chunking",
-      "default_separator": "[to be translated]:Auto (recommended)",
-      "dimensions": "[to be translated]:Vector Dimensions",
-      "document_count": "[to be translated]:Document Count",
-      "embedding_model": "[to be translated]:Embedding Model",
-      "embedding_model_select": "[to be translated]:Model Selection",
-      "file_processing": "[to be translated]:File Processing",
-      "file_processing_hint": "[to be translated]:File processing runs automatically during document import. Choosing the right provider can improve document parsing quality.",
+      "chunk_overlap": "Überlappungsgröße",
+      "chunk_overlap_invalid": "Der Chunk-Überlapp muss größer oder gleich 0 sein",
+      "chunk_overlap_must_be_smaller": "Der Chunk-Overlap muss kleiner als die Chunk-Größe sein.",
+      "chunk_overlap_requires_chunk_size": "Chunk-Größe ist erforderlich, wenn Chunk-Überlappung festgelegt ist",
+      "chunk_size": "Chunk-Größe",
+      "chunk_size_change_warning": "Änderungen an Chunk-Größe und Überlappung gelten nur für neu hinzugefügte Inhalte.",
+      "chunk_size_invalid": "Die Chunk-Größe muss größer als 0 sein",
+      "chunking": "Chunking",
+      "default_separator": "Auto (empfohlen)",
+      "dimensions": "Vektordimensionen",
+      "document_count": "Dokumentanzahl",
+      "embedding_model": "Einbettungsmodell",
+      "embedding_model_select": "Modellauswahl",
+      "file_processing": "Dateiverarbeitung",
+      "file_processing_hint": "Die Dateiverarbeitung läuft automatisch während des Dokumentenimports. Die Wahl des richtigen Anbieters kann die Qualität der Dokumentenanalyse verbessern.",
       "hints": {
-        "chunk_overlap": "[to be translated]:Number of overlapping tokens kept between adjacent chunks to reduce semantic breaks.",
-        "chunk_size": "[to be translated]:Target token count for each document chunk. This affects retrieval granularity and context length.",
-        "dimensions": "[to be translated]:The vector dimension output by the current embedding model, used to create and match vector indexes.",
-        "document_count": "[to be translated]:Maximum number of document chunks returned for each retrieval. Higher values cover more content but use more context.",
-        "embedding_model": "[to be translated]:Used to convert knowledge base content into vectors. Changing the model usually requires reindexing existing content.",
-        "hybrid_alpha": "[to be translated]:Vector score weight in hybrid retrieval. Higher values favor semantic matching.",
-        "processor": "[to be translated]:Parser used when importing files to extract body text, tables, and related content.",
-        "rerank_model": "[to be translated]:Model used to rerank initial retrieval results and improve final chunk relevance.",
-        "search_mode": "[to be translated]:Choose a retrieval mode: vector search for semantic matching, full-text search for keywords, or hybrid search for both.",
-        "threshold": "[to be translated]:Similarity threshold for filtering low-relevance chunks. Higher values make retrieval stricter.",
-        "threshold_disabled": "[to be translated]:This retrieval mode returns ordered results and does not use a similarity threshold."
+        "chunk_overlap": "Anzahl der überlappenden Tokens, die zwischen benachbarten Chunks beibehalten werden, um semantische Brüche zu reduzieren.",
+        "chunk_size": "Ziel-Token-Anzahl für jedes Dokument-Chunk. Dies beeinflusst die Granularität der Abrufe und die Kontextlänge.",
+        "dimensions": "Die Vektordimension, die vom aktuellen Einbettungsmodell ausgegeben wird, wird verwendet, um Vektorindizes zu erstellen und abzugleichen.",
+        "document_count": "Maximale Anzahl der Dokumentblöcke, die für jede Abfrage zurückgegeben werden. Höhere Werte decken mehr Inhalt ab, verbrauchen jedoch mehr Kontext.",
+        "embedding_model": "Wird verwendet, um Inhalte der Wissensdatenbank in Vektoren zu konvertieren. Eine Änderung des Modells erfordert in der Regel eine erneute Indizierung der vorhandenen Inhalte.",
+        "hybrid_alpha": "Vektor-Bewertungsgewicht in der hybriden Suche. Höhere Werte bevorzugen semantische Übereinstimmung.",
+        "processor": "Parser, der beim Import von Dateien verwendet wird, um Fließtext, Tabellen und verwandte Inhalte zu extrahieren.",
+        "rerank_model": "Modell zur Neusortierung der anfänglichen Abrufergebnisse und zur Verbesserung der Relevanz der endgültigen Blöcke.",
+        "search_mode": "Wählen Sie einen Abrufmodus: Vektorsuche für semantisches Matching, Volltextsuche für Schlüsselwörter oder hybride Suche für beides.",
+        "threshold": "Ähnlichkeitsschwelle zum Filtern von wenig relevanten Chunks. Höhere Werte machen die Abfrage strenger.",
+        "threshold_disabled": "Dieser Abrufmodus liefert geordnete Ergebnisse und verwendet keinen Ähnlichkeitsschwellenwert."
       },
-      "hybrid_alpha": "[to be translated]:Hybrid Alpha",
-      "hybrid_alpha_hint": "[to be translated]:Only configurable in Hybrid retrieval mode",
-      "processor": "[to be translated]:Processing Provider",
-      "refresh_dimensions": "[to be translated]:Refresh vector dimensions",
-      "rerank_disabled": "[to be translated]:Disabled",
-      "rerank_model": "[to be translated]:Rerank Model",
-      "reset_action": "[to be translated]:Restore Defaults",
-      "reset_defaults": "[to be translated]:Reset Defaults",
-      "retrieval": "[to be translated]:Retrieval Settings",
-      "save_action": "[to be translated]:Save",
-      "saved": "[to be translated]:Saved",
+      "hybrid_alpha": "Hybrid Alpha",
+      "hybrid_alpha_hint": "Nur im Hybrid-Retrieval-Modus konfigurierbar",
+      "processor": "Verarbeitungsanbieter",
+      "refresh_dimensions": "Vektordimensionen aktualisieren",
+      "rerank_disabled": "Deaktiviert",
+      "rerank_model": "Rerank-Modell",
+      "reset_action": "Standardeinstellungen wiederherstellen",
+      "reset_defaults": "Standards zurücksetzen",
+      "retrieval": "Abrufeinstellungen",
+      "save_action": "Speichern",
+      "saved": "G",
       "search_mode": {
-        "bm25": "[to be translated]:Full-text Search",
-        "default": "[to be translated]:Vector Search",
-        "hybrid": "[to be translated]:Hybrid Search (recommended)",
-        "title": "[to be translated]:Search Mode"
+        "bm25": "Volltextsuche",
+        "default": "Vektorsuche",
+        "hybrid": "Hybrid-Suche (empfohlen)",
+        "title": "Suchmodus"
       },
-      "separator_rule": "[to be translated]:Separator Rule",
-      "threshold": "[to be translated]:Similarity Threshold",
-      "tokens_unit": "[to be translated]:tokens"
+      "separator_rule": "Trennregel",
+      "threshold": "Ähnlichkeitsschwelle",
+      "tokens_unit": "Token"
     },
     "recall": {
-      "collapse": "[to be translated]:Collapse Chunk",
-      "copy": "[to be translated]:Copy Chunk",
-      "duration": "[to be translated]:{{duration}}ms",
-      "empty_description": "[to be translated]:Matched document chunks and scores will appear here",
-      "empty_title": "[to be translated]:Enter a query to test retrieval",
-      "expand": "[to be translated]:Expand Chunk",
-      "history_clear": "[to be translated]:Clear",
-      "history_remove": "[to be translated]:Remove History",
-      "history_title": "[to be translated]:Search History",
-      "placeholder": "[to be translated]:Enter test query...",
-      "ranking_only": "[to be translated]:Ordered results",
-      "result_count": "[to be translated]:{{count}} results",
-      "result_rank": "[to be translated]:Rank #{{rank}}",
-      "result_relevance": "[to be translated]:Relevance {{score}}",
-      "search_failed": "[to be translated]:Failed to run recall test",
-      "searching": "[to be translated]:Searching...",
-      "submit": "[to be translated]:Search",
-      "top_score": "[to be translated]:Top: {{score}}"
+      "collapse": "Chunk einklappen",
+      "copy": "Chunk kopieren",
+      "duration": "{{duration}} ms",
+      "empty_description": "Zugeordnete Dokumentenabschnitte und Bewertungen werden hier angezeigt",
+      "empty_title": "Geben Sie eine Abfrage ein, um die Abfrage zu testen",
+      "expand": "Chunk erweitern",
+      "history_clear": "Klar",
+      "history_remove": "Verlauf entfernen",
+      "history_title": "Suchverlauf",
+      "placeholder": "Testabfrage eingeben...",
+      "ranking_only": "Geordnete Ergebnisse",
+      "result_count": "{{count}} Ergebnisse",
+      "result_rank": "Rang #{{rank}}",
+      "result_relevance": "Relevanz {{score}}",
+      "search_failed": "Fehler beim Ausführen des Abruftests",
+      "searching": "Suchen...",
+      "submit": "Suchen",
+      "top_score": "Oben: {{score}}"
     },
-    "rename_title": "[to be translated]:Rename Knowledge Base",
+    "rename_title": "Wissensbasis umbenennen",
     "restore": {
-      "action": "[to be translated]:Rebuild knowledge base",
-      "default_name": "[to be translated]:{{name}}_bak",
-      "failed_to_restore": "[to be translated]:Failed to rebuild knowledge base",
-      "submit": "[to be translated]:Rebuild",
-      "title": "[to be translated]:Rebuild Knowledge Base"
+      "action": "Wissensbasis neu aufbauen",
+      "default_name": "{{name}}_bak",
+      "failed_to_restore": "Fehler beim Wiederaufbau der Wissensdatenbank",
+      "submit": "Wiederaufbau",
+      "title": "Wissensdatenbank neu aufbauen"
     },
-    "search": "[to be translated]:Search Knowledge Base",
+    "search": "Wissensdatenbank durchsuchen",
     "search_placeholder": "Suchanfrage eingeben",
     "status": {
-      "completed": "[to be translated]:Ready",
-      "failed": "[to be translated]:Failed",
-      "processing": "[to be translated]:Processing"
+      "completed": "Bereit",
+      "failed": "Fehlgeschlagen",
+      "processing": "Verarbeitung"
     },
     "status_embedding_failed": "Embedding fehlgeschlagen",
     "status_preprocess_failed": "Vorverarbeitung fehlgeschlagen",
     "subtitle_file": "Untertiteldatei",
     "tabs": {
-      "data_source": "[to be translated]:Data Sources",
-      "rag_config": "[to be translated]:RAG Config",
-      "recall_test": "[to be translated]:Recall Test"
+      "data_source": "Datenquellen",
+      "rag_config": "RAG-Konfiguration",
+      "recall_test": "Abruf-Test"
     },
-    "title": "[to be translated]:Knowledge Base",
+    "title": "Wissensdatenbank",
     "videos_file": "Videodatei"
   },
   "languages": {
@@ -2417,465 +2422,465 @@
   },
   "launchpad": {
     "apps": "Apps",
-    "minapps": "[to be translated]:Minapps",
+    "minapps": "Minapps",
     "miniApps": "Mini-Apps"
   },
   "library": {
     "action": {
-      "create": "[to be translated]:New",
-      "delete": "[to be translated]:Delete",
-      "disable": "[to be translated]:Disable",
-      "duplicate": "[to be translated]:Duplicate",
-      "edit": "[to be translated]:Edit",
-      "enable": "[to be translated]:Enable",
-      "manage_tags": "[to be translated]:Manage tags",
-      "uninstall": "[to be translated]:Uninstall"
+      "create": "Neu",
+      "delete": "Löschen",
+      "disable": "Deaktivieren",
+      "duplicate": "Duplikat",
+      "edit": "Bearbeiten",
+      "enable": "Aktivieren",
+      "manage_tags": "Tags verwalten",
+      "uninstall": "Deinstallieren"
     },
     "assistant_catalog": {
-      "add": "[to be translated]:Add",
-      "add_failed": "[to be translated]:Failed to add assistant",
-      "browse_label": "[to be translated]:Assistant categories",
-      "empty_description": "[to be translated]:This category has no assistant presets yet.",
-      "empty_title": "[to be translated]:No assistants to add",
-      "mine": "[to be translated]:Mine",
-      "no_match_description": "[to be translated]:Try a different search keyword",
-      "no_match_title": "[to be translated]:No matching assistants",
-      "preview": "[to be translated]:Preview",
-      "preview_description": "[to be translated]:Overview",
-      "preview_prompt": "[to be translated]:Prompt",
-      "scroll_left": "[to be translated]:Scroll categories left",
-      "scroll_right": "[to be translated]:Scroll categories right"
+      "add": "Hinzufügen",
+      "add_failed": "Fehler beim Hinzufügen des Assistenten",
+      "browse_label": "Assistentenkategorien",
+      "empty_description": "Diese Kategorie hat noch keine Assistenten-Voreinstellungen.",
+      "empty_title": "Keine Assistenten zum Hinzufügen",
+      "mine": "Mein",
+      "no_match_description": "Versuchen Sie ein anderes Suchschlüsselwort.",
+      "no_match_title": "Keine passenden Assistenten",
+      "preview": "Vorschau",
+      "preview_description": "Übersicht",
+      "preview_prompt": "Aufforderung",
+      "scroll_left": "Kategorien nach links scrollen",
+      "scroll_right": "Kategorien nach rechts scrollen"
     },
     "badge": {
-      "update": "[to be translated]:Update"
+      "update": "Aktualisierung"
     },
     "config": {
       "agent": {
-        "create_banner": "[to be translated]:Save before binding tools and MCP servers",
-        "create_title": "[to be translated]:New agent",
+        "create_banner": "Speichern, bevor Tools und MCP-Server gebunden werden",
+        "create_title": "Neuer Agent",
         "field": {
           "accessible_paths": {
-            "add": "[to be translated]:Add directory",
-            "empty": "[to be translated]:Not set (defaults to the workspace root)",
-            "hint": "[to be translated]:Limits directories the agent can access",
-            "label": "[to be translated]:Accessible directories"
+            "add": "Verzeichnis hinzufügen",
+            "empty": "Nicht festgelegt (Standard ist das Stammverzeichnis des Arbeitsbereichs)",
+            "hint": "Beschränkt die Verzeichnisse, auf die der Agent zugreifen kann",
+            "label": "Zugängliche Verzeichnisse"
           },
           "allowed_tools": {
-            "add": "[to be translated]:Add tool",
-            "empty": "[to be translated]:Leave empty to use the permission mode default",
-            "label": "[to be translated]:Allowed tools"
+            "add": "Werkzeug hinzufügen",
+            "empty": "Leer lassen, um den Berechtigungsmodus-Standard zu verwenden",
+            "label": "Erlaubte Werkzeuge"
           },
           "avatar": {
-            "hint": "[to be translated]:Used to identify it in the library and sessions"
+            "hint": "Dient zur Identifizierung in der Bibliothek und in Sitzungen"
           },
           "description": {
-            "hint": "[to be translated]:Helps identify what this agent is for",
-            "label": "[to be translated]:Description",
-            "placeholder": "[to be translated]:What this agent is for…"
+            "hint": "Hilft dabei zu erkennen, wofür dieser Agent bestimmt ist",
+            "label": "Beschreibung",
+            "placeholder": "Wofür dieser Agent gedacht ist…"
           },
           "env_vars": {
-            "help": "[to be translated]:One KEY=VALUE per line",
-            "label": "[to be translated]:Environment variables"
+            "help": "Ein SCHLÜSSEL=WERT pro Zeile",
+            "label": "Umgebungsvariablen"
           },
           "heartbeat_enabled": {
-            "label": "[to be translated]:Heartbeat check"
+            "label": "Heartbeat-Check"
           },
           "heartbeat_interval": {
-            "label": "[to be translated]:Heartbeat interval (minutes)"
+            "label": "Heartbeat-Intervall (Minuten)"
           },
           "instructions": {
-            "hint": "[to be translated]:Defines the agent's role and behavior boundaries",
-            "label": "[to be translated]:System prompt",
-            "placeholder": "[to be translated]:Tell the agent who it is and what it can do…"
+            "hint": "Definiert die Rolle des Agenten und die Grenzen seines Verhaltens",
+            "label": "Systemaufforderung",
+            "placeholder": "Sagen Sie dem Agenten, wer er ist und was er kann…"
           },
           "max_turns": {
-            "help": "[to be translated]:0 means use the default",
-            "label": "[to be translated]:Max conversation turns"
+            "help": "0 bedeutet, den Standardwert zu verwenden",
+            "label": "Maximale Gesprächsdurchläufe"
           },
           "mcps": {
-            "add": "[to be translated]:Add MCP server",
-            "empty": "[to be translated]:None bound",
-            "label": "[to be translated]:MCP servers (id)"
+            "add": "MCP-Server hinzufügen",
+            "empty": "Keine gebunden",
+            "label": "MCP-Server (id)"
           },
           "model": {
-            "help": "[to be translated]:UniqueModelId; will switch to a picker backed by /models later",
-            "hint": "[to be translated]:Main reasoning and execution",
-            "label": "[to be translated]:Primary model (required)"
+            "help": "UniqueModelId; wird später zu einem Picker, der auf /models basiert, wechseln",
+            "hint": "Hauptbeweisführung und Ausführung",
+            "label": "Primärmodell (erforderlich)"
           },
           "name": {
-            "hint": "[to be translated]:Shown in the library and session lists",
-            "label": "[to be translated]:Agent name",
-            "placeholder": "[to be translated]:Give the agent a name"
+            "hint": "In der Bibliothek und in den Sitzungslisten angezeigt",
+            "label": "Agentenname",
+            "placeholder": "Gib dem Agenten einen Namen"
           },
           "permission_mode": {
-            "help": "[to be translated]:Switching to bypassPermissions is equivalent to enabling Soul mode",
-            "label": "[to be translated]:Permission mode",
+            "help": "Das Wechseln zu bypassPermissions entspricht dem Aktivieren des Soul-Modus",
+            "label": "Berechtigungsmodus",
             "option": {
-              "acceptEdits": "[to be translated]:Accept edits",
-              "bypassPermissions": "[to be translated]:Bypass permissions (Soul)",
-              "default": "[to be translated]:Default",
-              "plan": "[to be translated]:Plan mode"
+              "acceptEdits": "Änderungen übernehmen",
+              "bypassPermissions": "Berechtigungen umgehen (Seele)",
+              "default": "Standard",
+              "plan": "Plan-Modus"
             }
           },
           "plan_model": {
-            "hint": "[to be translated]:Task decomposition and planning",
-            "label": "[to be translated]:Plan model (optional)"
+            "hint": "Aufgabenzerlegung und Planung",
+            "label": "Plan-Modell (optional)"
           },
           "small_model": {
-            "hint": "[to be translated]:Lightweight checks and formatting",
-            "label": "[to be translated]:Small model (optional)"
+            "hint": "Leichtgewichtige Überprüfungen und Formatierung",
+            "label": "Kleines Modell (optional)"
           },
           "soul_enabled": {
-            "help": "[to be translated]:When enabled, automatically grants bypassPermissions",
-            "label": "[to be translated]:Soul mode"
+            "help": "Wenn aktiviert, wird bypassPermissions automatisch gewährt",
+            "label": "Seelenmodus"
           }
         },
-        "model_config": "[to be translated]:Model configuration",
+        "model_config": "Modellkonfiguration",
         "section": {
           "advanced": {
-            "desc": "[to be translated]:Execution limits and runtime parameters",
-            "label": "[to be translated]:Advanced",
-            "title": "[to be translated]:Advanced"
+            "desc": "Ausführungslimits und Laufzeitparameter",
+            "label": "Fortgeschritten",
+            "title": "Fortgeschritten"
           },
           "basic": {
-            "desc": "[to be translated]:Agent name, description, and primary model",
-            "label": "[to be translated]:Basic",
-            "title": "[to be translated]:Basic"
+            "desc": "Agent-Name, Beschreibung und primäres Modell",
+            "label": "Grundlegend",
+            "title": "Grundlegend"
           },
           "permission": {
-            "desc": "[to be translated]:Authorization scope for agent actions",
-            "label": "[to be translated]:Permission mode",
-            "title": "[to be translated]:Permission mode"
+            "desc": "Autorisierungsumfang für Agentenaktionen",
+            "label": "Berechtigungsmodus",
+            "title": "Berechtigungsmodus"
           },
           "prompt": {
-            "desc": "[to be translated]:System prompt and behavioral constraints",
-            "label": "[to be translated]:Prompt",
-            "title": "[to be translated]:Prompt"
+            "desc": "Systemaufforderung und Verhaltensbeschränkungen",
+            "label": "Aufforderung",
+            "title": "Aufforderung"
           },
           "tools": {
-            "add": "[to be translated]:Add",
-            "desc": "[to be translated]:MCP servers, allowed tools, and runtime settings",
-            "label": "[to be translated]:Tools & runtime",
-            "no_builtin_enabled": "[to be translated]:No built-in tools enabled",
-            "no_mcp_bound": "[to be translated]:No MCP servers bound",
-            "no_skills_enabled": "[to be translated]:No skills enabled",
-            "search_placeholder": "[to be translated]:Search tools or servers...",
-            "skills_coming_soon": "[to be translated]:Skill bindings coming soon",
-            "skills_require_save": "[to be translated]:Save before enabling skills",
+            "add": "Hinzufügen",
+            "desc": "MCP-Server, erlaubte Tools und Laufzeiteinstellungen",
+            "label": "Tools & Laufzeit",
+            "no_builtin_enabled": "Keine integrierten Tools aktiviert",
+            "no_mcp_bound": "Keine MCP-Server gebunden",
+            "no_skills_enabled": "Keine Fähigkeiten aktiviert",
+            "search_placeholder": "Suchwerkzeuge oder Server...",
+            "skills_coming_soon": "Fertigkeitszuordnungen kommen bald",
+            "skills_require_save": "Vor dem Aktivieren von Fähigkeiten speichern",
             "tab": {
-              "mcp": "[to be translated]:MCP Server",
-              "skills": "[to be translated]:Skills",
-              "tools": "[to be translated]:Built-in tools"
+              "mcp": "MCP-Server",
+              "skills": "Fähigkeiten",
+              "tools": "Integrierte Werkzeuge"
             },
-            "title": "[to be translated]:Tools & runtime"
+            "title": "Tools & Runtime"
           }
         }
       },
       "basic": {
-        "context_count": "[to be translated]:Context count",
-        "creative": "[to be translated]:Creative",
-        "custom_params": "[to be translated]:Custom parameters",
-        "custom_params_add": "[to be translated]:Add parameter",
-        "custom_params_name": "[to be translated]:Parameter name",
-        "default_value": "[to be translated]:Model default",
-        "desc": "[to be translated]:Configure the assistant's identity and model parameters",
-        "description_label": "[to be translated]:Description",
+        "context_count": "Kontextzählung",
+        "creative": "Kreativ",
+        "custom_params": "Benutzerdefinierte Parameter",
+        "custom_params_add": "Parameter hinzufügen",
+        "custom_params_name": "Parametername",
+        "default_value": "Modell-Standard",
+        "desc": "Konfigurieren Sie die Identität des Assistenten und die Modellparameter",
+        "description_label": "Beschreibung",
         "field": {
           "avatar": {
-            "hint": "[to be translated]:Used to identify the assistant in the library and chats"
+            "hint": "Wird verwendet, um den Assistenten in der Bibliothek und in Chats zu identifizieren"
           },
           "context_count": {
-            "hint": "[to be translated]:Number of recent messages kept as context"
+            "hint": "Anzahl der kürzlichen Nachrichten, die als Kontext beibehalten werden"
           },
           "custom_params": {
-            "hint": "[to be translated]:Extra provider parameters sent with requests"
+            "hint": "Zusätzliche Provider-Parameter, die mit Anfragen gesendet werden"
           },
           "description": {
-            "hint": "[to be translated]:Helps distinguish what this assistant is for",
-            "placeholder": "[to be translated]:What this assistant is for..."
+            "hint": "Hilft dabei zu erkennen, wofür dieser Assistent gedacht ist",
+            "placeholder": "Wofür dieser Assistent gedacht ist..."
           },
           "max_tokens": {
-            "hint": "[to be translated]:Caps response length when enabled"
+            "hint": "Antwortlänge von Caps, wenn aktiviert"
           },
           "max_tool_calls": {
-            "hint": "[to be translated]:Limits tool-call loops when enabled"
+            "hint": "Begrenzt Tool-Call-Schleifen, wenn aktiviert"
           },
           "model": {
-            "hint": "[to be translated]:Overrides the global default model for this assistant"
+            "hint": "Überschreibt das globale Standardmodell für diesen Assistenten"
           },
           "name": {
-            "hint": "[to be translated]:Shown in the library and assistant selectors",
-            "placeholder": "[to be translated]:Give the assistant a name"
+            "hint": "In der Bibliothek und in den Assistentenauswahlmenüs angezeigt",
+            "placeholder": "Gib dem Assistenten einen Namen"
           },
           "stream_output": {
-            "hint": "[to be translated]:Shows responses as they are generated"
+            "hint": "Zeigt Antworten an, während sie generiert werden"
           },
           "tags": {
-            "hint": "[to be translated]:Used for filtering and organizing assistants"
+            "hint": "Zur Filterung und Organisation von Assistenten verwendet"
           },
           "temperature": {
-            "hint": "[to be translated]:Controls randomness when enabled"
+            "hint": "Steuert die Zufälligkeit, wenn aktiviert"
           },
           "top_p": {
-            "hint": "[to be translated]:Limits token sampling range when enabled"
+            "hint": "Begrenzt den Bereich der Token-Auswahl, wenn aktiviert"
           }
         },
-        "json_invalid": "[to be translated]:Invalid JSON format",
-        "max_tokens": "[to be translated]:Max tokens",
-        "max_tool_calls": "[to be translated]:Max tool calls",
-        "model": "[to be translated]:Default model",
-        "model_clear": "[to be translated]:Clear",
-        "model_not_found": "[to be translated]:Model not found (may have been removed): {{id}}",
-        "model_pick": "[to be translated]:+ Pick model",
-        "pick_avatar": "[to be translated]:Pick avatar",
-        "precise": "[to be translated]:Precise",
-        "stream_output": "[to be translated]:Stream output",
-        "tag_empty": "[to be translated]:No tags available",
-        "tag_hint": "[to be translated]:To add a new tag, use the \"+ Tag\" entry in the library top bar",
-        "tag_placeholder": "[to be translated]:Select tags",
-        "tag_search": "[to be translated]:Search tags",
-        "tags": "[to be translated]:Tags",
-        "temperature": "[to be translated]:Temperature",
-        "title": "[to be translated]:Basic settings",
-        "top_p": "[to be translated]:Top-P",
-        "unlimited": "[to be translated]:Unlimited"
+        "json_invalid": "Ungültiges JSON-Format",
+        "max_tokens": "Maximale Token",
+        "max_tool_calls": "Maximale Tool-Aufrufe",
+        "model": "Standardmodell",
+        "model_clear": "Klar",
+        "model_not_found": "Modell nicht gefunden (möglicherweise entfernt): {{id}}",
+        "model_pick": "+ Modell auswählen",
+        "pick_avatar": "Avatar auswählen",
+        "precise": "Präzise",
+        "stream_output": "Stream-Ausgabe",
+        "tag_empty": "Keine Tags verfügbar",
+        "tag_hint": "Um ein neues Tag hinzuzufügen, verwenden Sie den Eintrag „+ Tag“ in der oberen Leiste der Bibliothek.",
+        "tag_placeholder": "Tags auswählen",
+        "tag_search": "Suchbegriffe",
+        "tags": "Tags",
+        "temperature": "Temperatur",
+        "title": "Grundeinstellungen",
+        "top_p": "Top-P",
+        "unlimited": "Unbegrenzt"
       },
-      "breadcrumb": "[to be translated]:Library",
+      "breadcrumb": "Bibliothek",
       "knowledge": {
-        "add": "[to be translated]:Add knowledge base",
-        "desc": "[to be translated]:Link one or more knowledge bases; relevant snippets will be retrieved during chat",
-        "doc_count": "[to be translated]:{{count}} docs",
-        "empty_desc": "[to be translated]:Once linked, the assistant can answer based on document content",
-        "empty_title": "[to be translated]:No knowledge bases linked",
-        "invalid_suffix": "[to be translated]:... (unavailable)",
-        "linked": "[to be translated]:Linked knowledge bases",
-        "linked_hint": "[to be translated]:Controls which knowledge bases this assistant can retrieve from",
-        "no_more": "[to be translated]:No more knowledge bases available",
-        "remove_aria": "[to be translated]:Remove",
-        "search": "[to be translated]:Search knowledge bases...",
-        "title": "[to be translated]:Knowledge bases"
+        "add": "Wissensbasis hinzufügen",
+        "desc": "Verknüpfen Sie eine oder mehrere Wissensdatenbanken; relevante Auszüge werden während des Chats abgerufen",
+        "doc_count": "{{count}} Dokumente",
+        "empty_desc": "Sobald verknüpft, kann der Assistent auf Basis des Dokumenteninhalts antworten",
+        "empty_title": "Keine Wissensdatenbanken verknüpft",
+        "invalid_suffix": "... (nicht verfügbar)",
+        "linked": "Verknüpfte Wissensdatenbanken",
+        "linked_hint": "Steuert, aus welchen Wissensdatenbanken dieser Assistent abrufen kann",
+        "no_more": "Keine weiteren Wissensdatenbanken verfügbar",
+        "remove_aria": "Entfernen",
+        "search": "Wissensdatenbanken durchsuchen...",
+        "title": "Wissensdatenbanken"
       },
       "prompt": {
-        "create_title": "[to be translated]:New Prompt",
-        "dblclick_hint": "[to be translated]:Double-click the preview to switch back to edit",
-        "desc": "[to be translated]:The system prompt is sent as the opening context of the assistant",
-        "edit_title": "[to be translated]:Edit Prompt",
+        "create_title": "Neue Aufforderung",
+        "dblclick_hint": "Doppelklicken Sie auf die Vorschau, um zum Bearbeiten zurückzukehren",
+        "desc": "Die Systemaufforderung wird als eröffnender Kontext des Assistenten gesendet.",
+        "edit_title": "Prompt bearbeiten",
         "field": {
           "content": {
-            "label": "[to be translated]:Content",
-            "too_long": "[to be translated]:Content must be {{max}} characters or fewer"
+            "label": "Inhalt",
+            "too_long": "Inhalt darf maximal {{max}} Zeichen lang sein."
           },
           "name": {
-            "label": "[to be translated]:Name",
-            "too_long": "[to be translated]:Name must be {{max}} characters or fewer"
+            "label": "Name",
+            "too_long": "Name darf maximal {{max}} Zeichen lang sein"
           }
         },
-        "generate": "[to be translated]:Generate prompt",
-        "insert_variable": "[to be translated]:Insert variable",
-        "label": "[to be translated]:System prompt",
-        "placeholder": "[to be translated]:Enter the system prompt. Variables like {{date}} and {{model_name}} are supported...",
-        "title": "[to be translated]:Prompt",
-        "tokens_label": "[to be translated]:Tokens: ",
-        "variables_title": "[to be translated]:Available variables",
+        "generate": "Prompt generieren",
+        "insert_variable": "Variable einfügen",
+        "label": "Systemaufforderung",
+        "placeholder": "Gib die Systemaufforderung ein. Variablen wie {{date}} und {{model_name}} werden unterstützt...",
+        "title": "Aufforderung",
+        "tokens_label": "Token",
+        "variables_title": "Verfügbare Variablen",
         "vars": {
-          "arch": "[to be translated]:CPU architecture",
-          "date": "[to be translated]:Date",
-          "datetime": "[to be translated]:Date and time",
-          "language": "[to be translated]:Language",
-          "model_name": "[to be translated]:Model name",
-          "os": "[to be translated]:Operating system",
-          "time": "[to be translated]:Time",
-          "username": "[to be translated]:Username"
+          "arch": "CPU-Architektur",
+          "date": "Datum",
+          "datetime": "Datum und Uhrzeit",
+          "language": "Sprache",
+          "model_name": "Modellname",
+          "os": "Betriebssystem",
+          "time": "Zeit",
+          "username": "Benutzername"
         }
       },
-      "save_failed": "[to be translated]:Save failed",
-      "saving": "[to be translated]:Saving...",
+      "save_failed": "Speichern fehlgeschlagen",
+      "saving": "Speichern...",
       "section": {
         "basic": {
-          "desc": "[to be translated]:Name, avatar, model parameters",
-          "label": "[to be translated]:Basic"
+          "desc": "Name, Avatar, Modellparameter",
+          "label": "Grundlegend"
         },
         "knowledge": {
-          "desc": "[to be translated]:Linked knowledge bases and retrieval",
-          "label": "[to be translated]:Knowledge"
+          "desc": "Verknüpfte Wissensdatenbanken und Abruf",
+          "label": "Wissen"
         },
         "more": {
-          "desc": "[to be translated]:Model, tags, and parameters",
-          "label": "[to be translated]:More settings"
+          "desc": "Modell, Tags und Parameter",
+          "label": "Weitere Einstellungen"
         },
         "prompt": {
-          "desc": "[to be translated]:System prompt and variables",
-          "label": "[to be translated]:Prompt"
+          "desc": "Systemaufforderung und Variablen",
+          "label": "Aufforderung"
         },
         "tools": {
-          "desc": "[to be translated]:MCP servers and tool configuration",
-          "label": "[to be translated]:Tools"
+          "desc": "MCP-Server und Tool-Konfiguration",
+          "label": "Werkzeuge"
         }
       },
       "tools": {
-        "add_mcp": "[to be translated]:Add MCP server",
-        "added": "[to be translated]:Added MCP servers",
-        "added_hint": "[to be translated]:Manual mode exposes only the servers in this list",
-        "desc": "[to be translated]:Configure the MCP servers this assistant can call during chat",
-        "empty_desc": "[to be translated]:Once added, the assistant can invoke external tools",
-        "empty_title": "[to be translated]:No MCP servers added",
-        "inactive_badge": "[to be translated]:Inactive",
-        "info_main": "[to be translated]:MCP (Model Context Protocol) lets the model safely invoke external tools.",
-        "info_sub": "[to be translated]:Enabling only necessary servers improves safety and response speed.",
+        "add_mcp": "MCP-Server hinzufügen",
+        "added": "Hinzugefügte MCP-Server",
+        "added_hint": "Der manuelle Modus gibt nur die Server in dieser Liste frei",
+        "desc": "Konfigurieren Sie die MCP-Server, die dieser Assistent während des Chats aufrufen kann",
+        "empty_desc": "Sobald hinzugefügt, kann der Assistent externe Tools aufrufen.",
+        "empty_title": "Keine MCP-Server hinzugefügt",
+        "inactive_badge": "Inaktiv",
+        "info_main": "MCP (Model Context Protocol) ermöglicht es dem Modell, externe Tools sicher aufzurufen.",
+        "info_sub": "Das Aktivieren nur der notwendigen Server verbessert die Sicherheit und die Reaktionsgeschwindigkeit.",
         "mode": {
           "auto": {
-            "desc": "[to be translated]:The model decides which enabled MCP tools to call",
-            "label": "[to be translated]:Auto"
+            "desc": "Das Modul entscheidet, welche aktivierten MCP-Tools aufgerufen werden.",
+            "label": "Auto"
           },
           "disabled": {
-            "desc": "[to be translated]:No MCP tools are available during chat",
-            "label": "[to be translated]:Disabled"
+            "desc": "Keine MCP-Tools sind während des Chats verfügbar",
+            "label": "Deaktiviert"
           },
           "manual": {
-            "desc": "[to be translated]:Expose only the MCP servers selected below",
-            "label": "[to be translated]:Manual"
+            "desc": "Nur die unten ausgewählten MCP-Server freigeben",
+            "label": "Handbuch"
           }
         },
-        "no_more": "[to be translated]:No more servers available",
-        "search": "[to be translated]:Search available servers...",
-        "switch_title_active": "[to be translated]:Toggle off to remove",
-        "switch_title_inactive": "[to be translated]:This server is disabled in MCP settings; remove it to re-add later",
-        "title": "[to be translated]:Tools"
+        "no_more": "Keine Server mehr verfügbar",
+        "search": "Verfügbare Server suchen...",
+        "switch_title_active": "Ausschalten zum Entfernen",
+        "switch_title_inactive": "Dieser Server ist in den MCP-Einstellungen deaktiviert; entfernen Sie ihn, um ihn später erneut hinzuzufügen.",
+        "title": "Werkzeuge"
       }
     },
     "create_menu": {
-      "create": "[to be translated]:New {{type}}",
-      "import": "[to be translated]:Import {{type}}"
+      "create": "Neuer {{type}}",
+      "import": "Import {{type}}"
     },
     "delete": {
       "agent": {
-        "content": "[to be translated]:Are you sure you want to delete this agent? This action cannot be undone.",
-        "title": "[to be translated]:Delete agent"
+        "content": "Sind Sie sicher, dass Sie diesen Agenten löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.",
+        "title": "Agent löschen"
       },
       "skill": {
-        "content": "[to be translated]:Are you sure you want to uninstall this skill? It will be removed from the global library and all agent workspace symlinks will be cleaned up.",
-        "title": "[to be translated]:Uninstall skill"
+        "content": "Sind Sie sicher, dass Sie diese Fähigkeit deinstallieren möchten? Sie wird aus der globalen Bibliothek entfernt und alle Symlinks im Agent-Arbeitsbereich werden bereinigt.",
+        "title": "Skill deinstallieren"
       }
     },
     "delete_confirm": {
-      "cancel": "[to be translated]:Cancel",
-      "confirm": "[to be translated]:Delete",
-      "description": "[to be translated]:Delete \"{{name}}\"? This action cannot be undone.",
-      "title": "[to be translated]:Delete"
+      "cancel": "Abbrechen",
+      "confirm": "Löschen",
+      "description": "„{{name}}“ löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
+      "title": "Löschen"
     },
-    "duplicate_assistant_failed": "[to be translated]:Failed to duplicate assistant",
-    "duplicate_name": "[to be translated]:{{name}} (copy)",
+    "duplicate_assistant_failed": "Assistent konnte nicht dupliziert werden",
+    "duplicate_name": "{{name}} (Kopie)",
     "empty_state": {
-      "description": "[to be translated]:Click \"New\" to create your first resource.",
-      "empty_description": "[to be translated]:Create your first agent or assistant",
-      "empty_title": "[to be translated]:No resources yet",
-      "no_match_description": "[to be translated]:Try a different search keyword",
-      "no_match_title": "[to be translated]:No matching resources",
-      "title": "[to be translated]:No resources"
+      "description": "Klicken Sie auf „Neu“, um Ihre erste Ressource zu erstellen.",
+      "empty_description": "Erstellen Sie Ihren ersten Agenten oder Assistenten",
+      "empty_title": "Noch keine Ressourcen",
+      "no_match_description": "Versuchen Sie ein anderes Suchschlüsselwort.",
+      "no_match_title": "Keine passenden Ressourcen",
+      "title": "Keine Ressourcen"
     },
-    "export_assistant_failed": "[to be translated]:Failed to export assistant",
+    "export_assistant_failed": "Export des Assistenten fehlgeschlagen",
     "import_dialog": {
       "clipboard": {
-        "button": "[to be translated]:Parse and import",
-        "placeholder": "[to be translated]:Paste JSON configuration here..."
+        "button": "Parsen und importieren",
+        "placeholder": "Fügen Sie hier die JSON-Konfiguration ein..."
       },
       "error": {
-        "content_too_large": "[to be translated]:Content too large (>5 MB)",
-        "file_too_large": "[to be translated]:File too large (>5 MB)",
-        "invalid_url": "[to be translated]:Invalid URL",
-        "response_too_large": "[to be translated]:Response too large (>5 MB)",
-        "timeout": "[to be translated]:Request timed out. Check that the URL is reachable.",
-        "unsupported_protocol": "[to be translated]:Only http or https URLs are supported"
+        "content_too_large": "Inhalt zu groß (>5 MB)",
+        "file_too_large": "Datei zu groß (>5 MB)",
+        "invalid_url": "Ungültige URL",
+        "response_too_large": "Antwort zu groß (>5 MB)",
+        "timeout": "Zeitüberschreitung der Anfrage. Überprüfen Sie, ob die URL erreichbar ist.",
+        "unsupported_protocol": "Nur http- oder https-URLs werden unterstützt"
       },
-      "failure": "[to be translated]:Import failed: {{error}}",
+      "failure": "Import fehlgeschlagen: {{error}}",
       "file": {
-        "drop_hint": "[to be translated]:Drag and drop a file here, or click to pick one",
-        "formats": "[to be translated]:Supports .json"
+        "drop_hint": "Ziehen Sie eine Datei hierher, oder klicken Sie, um eine auszuwählen",
+        "formats": "Unterstützt .json"
       },
-      "partial_success": "[to be translated]:Partial success: {{success}} imported, {{failed}} failed ({{first_name}}: {{first_error}})",
-      "subtitle": "[to be translated]:JSON configuration files are supported",
-      "success": "[to be translated]:Imported successfully: {{name}}",
+      "partial_success": "Teilweise erfolgreich: {{success}} importiert, {{failed}} fehlgeschlagen ({{first_name}}: {{first_error}})",
+      "subtitle": "JSON-Konfigurationsdateien werden unterstützt",
+      "success": "Erfolgreich importiert: {{name}}",
       "tab": {
-        "clipboard": "[to be translated]:Clipboard",
-        "file": "[to be translated]:File upload",
-        "url": "[to be translated]:Import from URL"
+        "clipboard": "Zwischenablage",
+        "file": "Datei-Upload",
+        "url": "Importieren aus URL"
       },
       "url": {
-        "button": "[to be translated]:Fetch and import",
-        "hint": "[to be translated]:Import from a GitHub Gist, GitHub repo, or any public URL",
-        "supports": "[to be translated]:Raw file URLs are supported"
+        "button": "Abrufen und importieren",
+        "hint": "Import aus einem GitHub Gist, GitHub-Repo oder einer beliebigen öffentlichen URL",
+        "supports": "Rohdatei-URLs werden unterstützt"
       }
     },
     "import_skill_dialog": {
       "local": {
-        "drop_hint": "[to be translated]:Drop a ZIP or directory here, or click to choose a ZIP",
-        "formats": "[to be translated]:Supports .zip files and directories containing SKILL.md"
+        "drop_hint": "ZIP-Datei oder Ordner hier ablegen oder klicken, um eine ZIP-Datei auszuwählen",
+        "formats": "Unterstützt .zip-Dateien und Verzeichnisse, die SKILL.md enthalten"
       },
-      "subtitle": "[to be translated]:Install a skill from a ZIP file or directory",
-      "title": "[to be translated]:Import skill"
+      "subtitle": "Installiere eine Fähigkeit aus einer ZIP-Datei oder einem Verzeichnis",
+      "title": "Import-Fähigkeit"
     },
-    "no_match": "[to be translated]:No matching results",
+    "no_match": "Keine übereinstimmenden Ergebnisse",
     "pending_backend": {
-      "description": "[to be translated]:Write operations for this resource are coming soon. This view is a placeholder.",
-      "title": "[to be translated]:Backend setup in progress"
+      "description": "Schreiboperationen für diese Ressource folgen in Kürze. Diese Ansicht ist ein Platzhalter.",
+      "title": "Backend-Einrichtung läuft"
     },
     "sidebar": {
-      "all_resources": "[to be translated]:All resources",
-      "all_tags": "[to be translated]:All tags",
-      "no_tags": "[to be translated]:No tags yet",
-      "subtitle": "[to be translated]:Manage your AI resources",
-      "tags": "[to be translated]:Tags",
-      "title": "[to be translated]:Library"
+      "all_resources": "Alle Ressourcen",
+      "all_tags": "Alle Tags",
+      "no_tags": "Noch keine Tags",
+      "subtitle": "Verwalten Sie Ihre KI-Ressourcen",
+      "tags": "Tags",
+      "title": "Bibliothek"
     },
     "skill_detail": {
-      "created_at": "[to be translated]:Created",
-      "delete_description": "[to be translated]:Remove this skill and all of its configuration. This action cannot be undone.",
-      "delete_title": "[to be translated]:Delete skill",
-      "description": "[to be translated]:Description",
-      "file_preview": "[to be translated]:File preview",
-      "installed": "[to be translated]:Installed",
-      "no_description": "[to be translated]:No description",
-      "source_files": "[to be translated]:Source files",
-      "updated_at": "[to be translated]:Recently updated"
+      "created_at": "Erstellt",
+      "delete_description": "Entferne diese Fähigkeit und ihre gesamte Konfiguration. Diese Aktion kann nicht rückgängig gemacht werden.",
+      "delete_title": "Fähigkeit löschen",
+      "description": "Beschreibung",
+      "file_preview": "Dateivorschau",
+      "installed": "Installiert",
+      "no_description": "Keine Beschreibung",
+      "source_files": "Quelldateien",
+      "updated_at": "Kürzlich aktualisiert"
     },
     "sort": {
-      "created": "[to be translated]:Sort by created",
-      "name": "[to be translated]:Sort by name",
-      "updated": "[to be translated]:Sort by updated"
+      "created": "Nach Erstellungsdatum sortieren",
+      "name": "Nach Name sortieren",
+      "updated": "Nach Aktualisierung sortieren"
     },
-    "subtitle": "[to be translated]:Manage your assistants, agents and skills",
+    "subtitle": "Verwalten Sie Ihre Assistenten, Agenten und Fähigkeiten",
     "tag_picker": {
-      "no_tags": "[to be translated]:No tags yet",
-      "placeholder": "[to be translated]:New tag name..."
+      "no_tags": "Noch keine Tags",
+      "placeholder": "Neuer Tag-Name..."
     },
-    "tag_sync_failed": "[to be translated]:Failed to sync tags",
+    "tag_sync_failed": "Synchronisierung der Tags fehlgeschlagen",
     "time_ago": {
-      "days": "[to be translated]:{{count}} day(s) ago",
-      "hours": "[to be translated]:{{count}} hour(s) ago",
-      "just_now": "[to be translated]:Just now",
-      "minutes": "[to be translated]:{{count}} minute(s) ago",
-      "months": "[to be translated]:{{count}} month(s) ago"
+      "days": "vor {{count}} Tag(en)",
+      "hours": "{{count}} Stunde(n) her",
+      "just_now": "Gerade eben",
+      "minutes": "vor {{count}} Minute(n)",
+      "months": "vor {{count}} Monat/Monaten"
     },
-    "title": "[to be translated]:Library",
+    "title": "Bibliothek",
     "toolbar": {
-      "add_tag_placeholder": "[to be translated]:Tag name...",
-      "new_resource": "[to be translated]:New resource",
-      "search_placeholder": "[to be translated]:Search resources...",
-      "tag_button": "[to be translated]:Tag"
+      "add_tag_placeholder": "Tag-Name...",
+      "new_resource": "Neue Ressource",
+      "search_placeholder": "Ressourcen durchsuchen...",
+      "tag_button": "Tag"
     },
     "type": {
-      "agent": "[to be translated]:Agent",
-      "assistant": "[to be translated]:Assistant",
-      "new_agent": "[to be translated]:New agent",
-      "new_assistant": "[to be translated]:New assistant",
-      "new_prompt": "[to be translated]:New Prompt",
-      "prompt": "[to be translated]:Prompt",
-      "skill": "[to be translated]:Skill"
+      "agent": "Agent",
+      "assistant": "Assistent",
+      "new_agent": "Neuer Agent",
+      "new_assistant": "Neuer Assistent",
+      "new_prompt": "Neue Aufforderung",
+      "prompt": "Aufforderung",
+      "skill": "Fähigkeit"
     },
-    "uninstall_failed": "[to be translated]:Failed to uninstall",
+    "uninstall_failed": "Deinstallation fehlgeschlagen",
     "view": {
-      "grid": "[to be translated]:Grid view",
-      "list": "[to be translated]:List view"
+      "grid": "Rasteransicht",
+      "list": "Listenansicht"
     }
   },
   "lmstudio": {
@@ -3230,72 +3235,72 @@
     }
   },
   "minapp": {
-    "add_to_launchpad": "[to be translated]:Add to Launchpad",
-    "add_to_sidebar": "[to be translated]:Add to Sidebar",
+    "add_to_launchpad": "Zum Launchpad hinzufügen",
+    "add_to_sidebar": "Zur Seitenleiste hinzufügen",
     "popup": {
-      "close": "[to be translated]:Close MinApp",
-      "devtools": "[to be translated]:Developer Tools",
-      "goBack": "[to be translated]:Go Back",
-      "goForward": "[to be translated]:Go Forward",
-      "minimize": "[to be translated]:Minimize MinApp",
-      "openExternal": "[to be translated]:Open in Browser",
-      "open_link_external_off": "[to be translated]:Current: Open links in default window",
-      "open_link_external_on": "[to be translated]:Current: Open links in browser",
-      "refresh": "[to be translated]:Refresh",
-      "rightclick_copyurl": "[to be translated]:Right-click to copy URL"
+      "close": "MinApp schließen",
+      "devtools": "Entwicklertools",
+      "goBack": "Zurück",
+      "goForward": "Weiter gehen",
+      "minimize": "Minimieren MinApp",
+      "openExternal": "Im Browser öffnen",
+      "open_link_external_off": "Aktuell: Links im Standardfenster öffnen",
+      "open_link_external_on": "Aktuell: Links im Browser öffnen",
+      "refresh": "Aktualisieren",
+      "rightclick_copyurl": "Rechtsklick, um die URL zu kopieren"
     },
-    "remove_from_launchpad": "[to be translated]:Remove from Launchpad",
-    "remove_from_sidebar": "[to be translated]:Remove from Sidebar",
+    "remove_from_launchpad": "Von Launchpad entfernen",
+    "remove_from_sidebar": "Aus der Seitenleiste entfernen",
     "sidebar": {
       "close": {
-        "title": "[to be translated]:Close"
+        "title": "Schließen"
       },
       "closeall": {
-        "title": "[to be translated]:Close All"
+        "title": "Alle schließen"
       },
       "hide": {
-        "title": "[to be translated]:Hide"
+        "title": "Verstecken"
       },
       "remove_custom": {
-        "title": "[to be translated]:Delete Custom App"
+        "title": "Benutzerdefinierte App löschen"
       }
     },
-    "title": "[to be translated]:MinApp"
+    "title": "MinApp"
   },
   "minapps": {
-    "ant-ling": "[to be translated]:Ant Ling",
-    "baichuan": "[to be translated]:Baichuan",
-    "baidu-ai-search": "[to be translated]:Baidu AI Search",
-    "chatglm": "[to be translated]:ChatGLM",
-    "dangbei": "[to be translated]:Dangbei",
-    "doubao": "[to be translated]:Doubao",
-    "hailuo": "[to be translated]:Hailuo",
-    "ima": "[to be translated]:ima",
-    "metaso": "[to be translated]:Metaso",
-    "minimax-agent": "[to be translated]:Minimax Agent CN",
-    "minimax-global": "[to be translated]:Minimax Agent",
-    "nami-ai": "[to be translated]:Nami AI",
-    "nami-ai-search": "[to be translated]:Nami AI Search",
-    "qwen": "[to be translated]:Qwen",
-    "sensechat": "[to be translated]:SenseChat",
-    "stepfun": "[to be translated]:Stepfun",
-    "tencent-yuanbao": "[to be translated]:Yuanbao",
-    "tiangong-ai": "[to be translated]:Skywork",
-    "wanzhi": "[to be translated]:Wanzhi",
-    "wenxin": "[to be translated]:ERNIE",
-    "wps-copilot": "[to be translated]:WPS Copilot",
-    "xiaoyi": "[to be translated]:Xiaoyi",
-    "zhihu": "[to be translated]:Zhihu"
+    "ant-ling": "Ameisenling",
+    "baichuan": "Baichuan",
+    "baidu-ai-search": "Baidu AI-Suche",
+    "chatglm": "ChatGLM",
+    "dangbei": "Dangbei",
+    "doubao": "Doubao",
+    "hailuo": "Hailuo",
+    "ima": "ima",
+    "metaso": "Metaso",
+    "minimax-agent": "Minimax-Agent CN",
+    "minimax-global": "Minimax-Agent",
+    "nami-ai": "Nami AI",
+    "nami-ai-search": "Nami KI-Suche",
+    "qwen": "Qwen",
+    "sensechat": "SenseChat",
+    "stepfun": "Stepfun",
+    "tencent-yuanbao": "Yuanbao",
+    "tiangong-ai": "Skywork",
+    "wanzhi": "Wanzhi",
+    "wenxin": "ERNIE",
+    "wps-copilot": "WPS Copilot",
+    "xiaoyi": "Xiaoyi",
+    "zhihu": "Zhihu"
   },
   "miniApp": {
     "add_to_launchpad": "Zu Launchpad hinzufügen",
     "add_to_sidebar": "Zur Seitenleiste hinzufügen",
     "error": {
-      "load_failed": "[to be translated]:Failed to load app",
-      "not_found": "[to be translated]:App not found"
+      "load_failed": "Fehler beim Laden der App",
+      "not_found": "App nicht gefunden"
     },
     "hide_failed": "Failed to hide mini-app",
-    "pin_failed": "[to be translated]:Failed to pin mini-app",
+    "pin_failed": "Fehler beim Anheften der Mini-App",
     "popup": {
       "close": "Mini-App schließen",
       "devtools": "Entwicklertools",
@@ -3311,9 +3316,9 @@
     "remove_from_sidebar": "Aus Seitenleiste entfernen",
     "reorder_failed": "Failed to reorder mini-apps",
     "shortcut": {
-      "failed": "[to be translated]:Failed: {{message}}",
-      "html_saved": "[to be translated]:HTML saved to: {{path}}",
-      "pdf_saved": "[to be translated]:PDF saved to: {{path}}"
+      "failed": "Fehlgeschlagen: {{message}}",
+      "html_saved": "HTML gespeichert unter: {{path}}",
+      "pdf_saved": "PDF gespeichert unter: {{path}}"
     },
     "show_failed": "Failed to show mini-app",
     "sidebar": {
@@ -3331,8 +3336,8 @@
       }
     },
     "title": "Mini-Apps",
-    "unpin_failed": "[to be translated]:Failed to unpin mini-app",
-    "update_partial_failure": "[to be translated]:{{failed}} of {{total}} updates failed"
+    "unpin_failed": "Fehler beim Lösen der Mini-App",
+    "update_partial_failure": "{{failed}} von {{total}} Aktualisierungen sind fehlgeschlagen"
   },
   "miniApps": {
     "ant-ling": "Ant Ling",
@@ -3414,7 +3419,7 @@
     },
     "stream_output": "Stream-Ausgabe",
     "type": {
-      "audio": "[to be translated]:Audio",
+      "audio": "Audio",
       "embedding": "Embedding",
       "free": "Kostenlos",
       "function_calling": "Tools",
@@ -3422,7 +3427,7 @@
       "rerank": "Rerank",
       "select": "Modelltyp",
       "text": "Text",
-      "video": "[to be translated]:Video",
+      "video": "Video",
       "vision": "Vision",
       "websearch": "Online"
     }
@@ -3452,12 +3457,12 @@
     "collapse": "Einklappen",
     "content_placeholder": "Bitte Notizinhalt eingeben...",
     "copyContent": "Inhalt kopieren",
-    "create_folder_failed": "[to be translated]:Failed to create folder",
-    "create_note_failed": "[to be translated]:Failed to create note",
+    "create_folder_failed": "Ordner konnte nicht erstellt werden",
+    "create_note_failed": "Fehler beim Erstellen der Notiz",
     "crossPlatformRestoreWarning": "Plattformübergreifende Konfiguration wiederhergestellt, aber das Notizenverzeichnis ist leer. Bitte kopieren Sie Ihre Notizdateien nach: {{path}}",
     "delete": "Löschen",
     "delete_confirm": "Möchten Sie diesen {{type}} wirklich löschen?",
-    "delete_failed": "[to be translated]:Failed to delete note",
+    "delete_failed": "Fehler beim Löschen der Notiz",
     "delete_folder_confirm": "Möchten Sie Ordner \"{{name}}\" und alle seine Inhalte wirklich löschen?",
     "delete_note_confirm": "Möchten Sie Notiz \"{{name}}\" wirklich löschen?",
     "drop_markdown_hint": ".md-Datei oder Verzeichnis hierher ziehen zum Importieren",
@@ -3469,11 +3474,11 @@
     "export_success": "Erfolgreich in Wissensdatenbank exportiert",
     "export_to_word_failed": "Export nach Word fehlgeschlagen",
     "folder": "Ordner",
-    "load_failed": "[to be translated]:Failed to load note",
-    "load_failed_description": "[to be translated]:The file could not be read. Editing is disabled to protect the note content.",
-    "metadata_sync_failed": "[to be translated]:File updated, but note state sync failed. Please retry the operation.",
-    "metadata_update_failed": "[to be translated]:Failed to update note state",
-    "move_failed": "[to be translated]:Failed to move note",
+    "load_failed": "Fehler beim Laden der Notiz",
+    "load_failed_description": "Die Datei konnte nicht gelesen werden. Die Bearbeitung ist deaktiviert, um den Inhalt der Notiz zu schützen.",
+    "metadata_sync_failed": "Datei aktualisiert, aber beachte: Status-Synchronisierung fehlgeschlagen. Bitte versuche die Operation erneut.",
+    "metadata_update_failed": "Fehler beim Aktualisieren des Notizstatus",
+    "move_failed": "Fehler beim Verschieben der Notiz",
     "new_folder": "Neuer Ordner",
     "new_note": "Neue Notiz",
     "no_content_to_copy": "Kein Inhalt zum Kopieren",
@@ -3485,10 +3490,10 @@
     "open_outside": "Extern öffnen",
     "rename": "Umbenennen",
     "rename_changed": "Aus Sicherheitsgründen wurde der Dateiname von {{original}} zu {{final}} geändert",
-    "rename_failed": "[to be translated]:Failed to rename note",
+    "rename_failed": "Fehler beim Umbenennen der Notiz",
     "save": "In Notizen speichern",
-    "save_blocked_load_failed": "[to be translated]:Save blocked because the note failed to load",
-    "save_failed": "[to be translated]:Failed to save note",
+    "save_blocked_load_failed": "Speichern blockiert, da die Notiz nicht geladen werden konnte",
+    "save_failed": "Fehler beim Speichern der Notiz",
     "search": {
       "both": "Name + Inhalt",
       "content": "Inhalt",
@@ -3544,7 +3549,7 @@
         },
         "view_mode_description": "Legen Sie den Standard-Ansichtsmodus für neue Tabs fest."
       },
-      "save_failed": "[to be translated]:Failed to save notes settings",
+      "save_failed": "Fehler beim Speichern der Notiz-Einstellungen",
       "title": "Notizen"
     },
     "show_starred": "Markierte Notizen anzeigen",
@@ -3558,18 +3563,18 @@
     "spell_check_tooltip": "Rechtschreibprüfung aktivieren/deaktivieren",
     "star": "Notiz markieren",
     "starred_notes": "Markierte Notizen",
-    "target_name_exists": "[to be translated]:A note or folder with this name already exists",
+    "target_name_exists": "Eine Notiz oder ein Ordner mit diesem Namen existiert bereits",
     "title": "Notizen",
-    "tree_load_failed": "[to be translated]:Failed to load notes directory",
+    "tree_load_failed": "Fehler beim Laden des Notizenverzeichnisses",
     "unsaved_changes": "Sie haben ungespeicherte Änderungen. Möchten Sie wirklich gehen?",
     "unstar": "Markierung aufheben",
     "untitled_folder": "Neuer Ordner",
     "untitled_note": "Unbenannte Notiz",
-    "upload_all_failed": "[to be translated]:Failed to upload {{failed}} notes",
+    "upload_all_failed": "Fehler beim Hochladen von {{failed}} Notizen",
     "upload_failed": "Notizen-Upload fehlgeschlagen",
     "upload_files": "Dateien hochladen",
     "upload_folder": "Ordner hochladen",
-    "upload_partial_failed": "[to be translated]:Uploaded {{uploaded}} notes, {{failed}} failed",
+    "upload_partial_failed": "{{uploaded}} Notizen hochgeladen, {{failed}} fehlgeschlagen",
     "upload_success": "Notizen erfolgreich hochgeladen",
     "uploading_files": "Lade {{count}} Dateien hoch..."
   },
@@ -3768,10 +3773,10 @@
       "success": "Erfolgreich heruntergeladen",
       "success_desc": "Modell \"{{modelName}}\"-\"{{modelId}}\" erfolgreich heruntergeladen. Bitte gehen Sie zur OVMS-Verwaltungsoberfläche, um das Modell hinzuzufügen",
       "task": {
-        "embeddings": "[to be translated]:Embeddings",
-        "image_generation": "[to be translated]:Image Generation",
-        "rerank": "[to be translated]:Rerank",
-        "text_generation": "[to be translated]:Text Generation"
+        "embeddings": "Einbettungen",
+        "image_generation": "Bildgenerierung",
+        "rerank": "Neusortierung",
+        "text_generation": "Textgenerierung"
       },
       "tip": "Modell wird heruntergeladen, dies kann mehrere Stunden dauern. Bitte haben Sie Geduld...",
       "title": "Intel OpenVINO-Modell herunterladen"
@@ -3824,49 +3829,49 @@
         "image": "Neues Bild"
       },
       "select": {
-        "image": "[to be translated]:Select Image"
+        "image": "Bild auswählen"
       }
     },
     "custom_size": "Benutzerdefinierte Größe",
     "dashscope": {
-      "bottom_scale": "[to be translated]:Expand Bottom",
-      "enable_interleave": "[to be translated]:Text+Image Mixed Mode",
-      "enable_interleave_tip": "[to be translated]:When on, generates text-and-image mixed output without requiring an input image. Turn off to use edit mode (requires 1–4 input images).",
-      "function": "[to be translated]:Edit Function",
+      "bottom_scale": "Erweitern unten",
+      "enable_interleave": "Text+Bild-Mixed-Modus",
+      "enable_interleave_tip": "Wenn aktiviert, wird eine gemischte Text- und Bildausgabe erzeugt, ohne dass ein Eingabebild erforderlich ist. Deaktivieren Sie diese Option, um den Bearbeitungsmodus zu verwenden (benötigt 1–4 Eingabebilder).",
+      "function": "Funktion bearbeiten",
       "function_options": {
-        "colorization": "[to be translated]:Colorization",
-        "control_cartoon_feature": "[to be translated]:Cartoon Reference",
-        "description_edit": "[to be translated]:Instruction Edit",
-        "description_edit_with_mask": "[to be translated]:Masked Edit",
-        "doodle": "[to be translated]:Doodle to Image",
-        "expand": "[to be translated]:Expand",
-        "remove_watermark": "[to be translated]:Remove Watermark",
-        "stylization_all": "[to be translated]:Global Stylization",
-        "stylization_local": "[to be translated]:Local Stylization",
-        "super_resolution": "[to be translated]:Super Resolution"
+        "colorization": "Kolorierung",
+        "control_cartoon_feature": "Cartoon-Referenz",
+        "description_edit": "Anweisung Bearbeiten",
+        "description_edit_with_mask": "Maskierte Bearbeitung",
+        "doodle": "Doodle zu Bild",
+        "expand": "Erweitern",
+        "remove_watermark": "Wasserzeichen entfernen",
+        "stylization_all": "Globale Stilisierung",
+        "stylization_local": "Lokale Stilisierung",
+        "super_resolution": "Superauflösung"
       },
-      "is_sketch": "[to be translated]:Sketch Input",
-      "left_scale": "[to be translated]:Expand Left",
-      "ref_mode": "[to be translated]:Reference Mode",
+      "is_sketch": "Skizzen-Eingabe",
+      "left_scale": "Nach links erweitern",
+      "ref_mode": "Referenzmodus",
       "ref_mode_options": {
-        "refonly": "[to be translated]:Reference only",
-        "repaint": "[to be translated]:Repaint"
+        "refonly": "Nur zur Referenz",
+        "repaint": "Neu streichen"
       },
-      "ref_strength": "[to be translated]:Reference Strength",
-      "right_scale": "[to be translated]:Expand Right",
-      "source_lang": "[to be translated]:Source Language",
-      "strength": "[to be translated]:Strength",
-      "target_lang": "[to be translated]:Target Language",
-      "top_scale": "[to be translated]:Expand Top",
-      "upscale_factor": "[to be translated]:Upscale Factor"
+      "ref_strength": "Referenzfestigkeit",
+      "right_scale": "Nach rechts erweitern",
+      "source_lang": "Quellsprache",
+      "strength": "Stärke",
+      "target_lang": "Zielsprache",
+      "top_scale": "Erweitern Oben",
+      "upscale_factor": "Skalierungsfaktor"
     },
     "dmxapi": {
       "generating_tip": "Generierung mit dem offiziellen Modell, geschätzte Wartezeit beträgt 2–5 Minuten für beste Ergebnisse. Bitte überprüfe die DMXAPI-Backend-Logs für die Kosten dieses Vorgangs.",
-      "max_images": "[to be translated]:Max Images",
-      "sequential_image_generation": "[to be translated]:Sequential Image Generation",
+      "max_images": "Max Bilder",
+      "sequential_image_generation": "Sequentielle Bildgenerierung",
       "sequential_image_generation_options": {
-        "auto": "[to be translated]:Auto",
-        "disabled": "[to be translated]:Disabled"
+        "auto": "Auto",
+        "disabled": "Deaktiviert"
       }
     },
     "edit": {
@@ -3895,7 +3900,7 @@
     "image_size_options": {
       "auto": "Automatisch"
     },
-    "image_weight": "[to be translated]:Image Weight",
+    "image_weight": "Bildgewicht",
     "inference_steps": "Inference-Schritte",
     "inference_steps_tip": "Anzahl der auszuführenden Inference-Schritte. Mehr Schritte bedeuten höhere Qualität, aber längere Dauer",
     "input_image": "Eingabebild",
@@ -3924,16 +3929,15 @@
     "number_images_tip": "Anzahl der Bilder pro Generierung (1-4)",
     "operation_failed": "Vorgang fehlgeschlagen, bitte versuchen Sie es später erneut",
     "paint_course": "Tutorial",
-    "parameters": "Parameter",
     "per_image": "Pro Bild",
     "per_images": "Pro Bild",
-    "person_generation": "[to be translated]:Generate people",
+    "person_generation": "Menschen generieren",
     "person_generation_options": {
       "allow_adult": "Erwachsene erlauben",
       "allow_all": "Alle erlauben",
       "allow_none": "Keine erlauben"
     },
-    "person_generation_tip": "[to be translated]:Allow the model to generate images of people",
+    "person_generation_tip": "Erlauben Sie dem Modell, Bilder von Menschen zu generieren",
     "ppio": {
       "edit_prompt_tip": "Gibt das zu entfernende Objekt oder den Bereich an, z.B. 'Hund' oder 'Hut'",
       "mask_image": "Maskenbild",
@@ -3950,16 +3954,16 @@
     "prompt_placeholder": "Beschreiben Sie das gewünschte Bild, z.B.: Ein ruhiger See bei Sonnenuntergang mit Bergen in der Ferne",
     "prompt_placeholder_edit": "Geben Sie Ihre Bildbeschreibung ein. Text zum Rendern in \"Anführungszeichen\" setzen",
     "prompt_placeholder_en": "Geben Sie \"englische\" Bildbeschreibung ein, derzeit nur englische Prompts unterstützt",
-    "prompt_required": "[to be translated]:Please enter a prompt",
+    "prompt_required": "Bitte geben Sie eine Eingabeaufforderung ein",
     "proxy_required": "Öffnen Sie Proxy und aktivieren Sie \"TUN-Modus\", um generierte Bilder anzuzeigen, oder kopieren Sie in Browser. Direkte Verbindung wird später unterstützt",
     "quality": "Qualität",
     "quality_options": {
       "auto": "Automatisch",
-      "hd": "[to be translated]:HD",
+      "hd": "HD",
       "high": "Hoch",
       "low": "Niedrig",
       "medium": "Mittel",
-      "standard": "[to be translated]:Standard"
+      "standard": "Standard"
     },
     "regenerate": {
       "confirm": "Dies überschreibt das generierte Bild. Fortfahren?"
@@ -3975,40 +3979,40 @@
     "req_error_text": "Server ausgelastet oder Prompt enthält \"urheberrechtlich geschützte\" oder \"sensible Wörter\". Bitte erneut versuchen.",
     "req_error_token": "Bitte Token-Gültigkeit überprüfen",
     "required_field": "Pflichtfeld",
-    "safety_tolerance": "[to be translated]:Safety Tolerance",
-    "safety_tolerance_tip": "[to be translated]:Higher = more permissive filter; 0 is strictest, 6 is most permissive",
+    "safety_tolerance": "Sicherheitstoleranz",
+    "safety_tolerance_tip": "Höher = permissiverer Filter; 0 ist am strengsten, 6 ist am permissivsten",
     "seed": "Seed",
     "seed_desc_tip": "Gleicher Seed und Prompt können ähnliche Bilder generieren, -1 für unterschiedliche Ergebnisse bei jeder Generierung",
     "seed_random": "Zufällig",
     "seed_tip": "Gleicher Seed und Prompt können ähnliche Bilder generieren",
     "select_model": "Modell auswählen",
     "style_options": {
-      "anime": "[to be translated]:Anime",
-      "auto": "[to be translated]:Auto",
-      "cartoon_3d": "[to be translated]:3D Cartoon",
-      "chinese_painting": "[to be translated]:Chinese Painting",
-      "flat_illustration": "[to be translated]:Flat Illustration",
-      "natural": "[to be translated]:Natural",
-      "oil_painting": "[to be translated]:Oil Painting",
-      "photography": "[to be translated]:Photography",
-      "portrait": "[to be translated]:Portrait",
-      "sketch": "[to be translated]:Sketch",
-      "vivid": "[to be translated]:Vivid",
-      "watercolor": "[to be translated]:Watercolor"
+      "anime": "Anime",
+      "auto": "Auto",
+      "cartoon_3d": "3D-Cartoon",
+      "chinese_painting": "Chinesische Malerei",
+      "flat_illustration": "Flache Illustration",
+      "natural": "Natürlich",
+      "oil_painting": "Ölgemälde",
+      "photography": "Fotografie",
+      "portrait": "Porträt",
+      "sketch": "Skizze",
+      "vivid": "Lebhaft",
+      "watercolor": "Aquarell"
     },
-    "style_type": "[to be translated]:Style",
+    "style_type": "Stil",
     "style_type_options": {
-      "anime": "[to be translated]:Anime",
-      "auto": "[to be translated]:Auto",
-      "design": "[to be translated]:Design",
-      "general": "[to be translated]:General",
-      "realistic": "[to be translated]:Realistic",
-      "render_3d": "[to be translated]:3D Render"
+      "anime": "Anime",
+      "auto": "Auto",
+      "design": "Design",
+      "general": "Allgemein",
+      "realistic": "Realistisch",
+      "render_3d": "3D-Render"
     },
-    "style_type_tip": "[to be translated]:Image generation style",
+    "style_type_tip": "Bilderzeugungsstil",
     "text_desc_required": "Bitte geben Sie zuerst eine Bildbeschreibung ein",
-    "thinking_mode": "[to be translated]:Thinking Mode",
-    "thinking_mode_tip": "[to be translated]:When on, generation quality is higher but adds about 10–30 seconds.",
+    "thinking_mode": "Denkmodus",
+    "thinking_mode_tip": "Wenn aktiviert, ist die Generierungsqualität höher, fügt aber etwa 10–30 Sekunden hinzu.",
     "title": "Bilder",
     "top_up": "Aufladen",
     "translating": "Wird übersetzt...",
@@ -4101,25 +4105,25 @@
     "uninstalling": "Deinstallation läuft..."
   },
   "preview": {
-    "close": "[to be translated]:Close Preview",
+    "close": "Vorschau schließen",
     "copy": {
       "image": "Als Bild kopieren",
       "src": "Bildquelle kopieren"
     },
     "dialog": "Vorschaufenster öffnen",
-    "flip_horizontal": "[to be translated]:Flip Horizontal",
-    "flip_vertical": "[to be translated]:Flip Vertical",
+    "flip_horizontal": "Horizontal spiegeln",
+    "flip_vertical": "Vertikal spiegeln",
     "label": "Vorschau",
-    "next": "[to be translated]:Next Image",
+    "next": "Nächstes Bild",
     "pan": "Verschieben",
     "pan_down": "Nach unten",
     "pan_left": "Nach links",
     "pan_right": "Nach rechts",
     "pan_up": "Nach oben",
-    "previous": "[to be translated]:Previous Image",
+    "previous": "Vorheriges Bild",
     "reset": "Zurücksetzen",
-    "rotate_left": "[to be translated]:Rotate Left",
-    "rotate_right": "[to be translated]:Rotate Right",
+    "rotate_left": "Nach links drehen",
+    "rotate_right": "Nach rechts drehen",
     "source": "Quellcode anzeigen",
     "zoom_in": "Vergrößern",
     "zoom_out": "Verkleinern"
@@ -4143,13 +4147,13 @@
     "burncloud": "BurnCloud",
     "cephalon": "Cephalon",
     "cerebras": "Cerebras AI",
-    "cherryai": "[to be translated]:CherryAI",
+    "cherryai": "CherryAI",
     "cherryin": "CherryIN",
     "copilot": "GitHub Copilot",
     "dashscope": "Alibaba Cloud Bailian",
     "deepseek": "DeepSeek",
     "dmxapi": "DMXAPI",
-    "doc2x": "[to be translated]:Doc2X",
+    "doc2x": "Doc2X",
     "doubao": "Volcano Engine",
     "fireworks": "Fireworks",
     "gemini": "Gemini",
@@ -4167,7 +4171,7 @@
     "lmstudio": "LM Studio",
     "longcat": "Meißner Riesenhamster",
     "mimo": "Xiaomi MiMo",
-    "mineru": "[to be translated]:MinerU",
+    "mineru": "MinerU",
     "minimax": "MiniMax CN",
     "minimax-global": "MiniMax",
     "mistral": "Mistral",
@@ -4178,12 +4182,12 @@
     "o3": "O3",
     "ocoolai": "ocoolAI",
     "ollama": "Ollama",
-    "open-mineru": "[to be translated]:Open MinerU",
+    "open-mineru": "Open MinerU",
     "openai": "OpenAI",
     "openrouter": "OpenRouter",
     "ovms": "Intel OVMS",
-    "ovocr": "[to be translated]:Intel OV(NPU) OCR",
-    "paddleocr": "[to be translated]:PaddleOCR",
+    "ovocr": "Intel OV(NPU) OCR",
+    "paddleocr": "PaddleOCR",
     "perplexity": "Perplexity",
     "ph8": "PH8",
     "poe": "Poe",
@@ -4193,9 +4197,9 @@
     "silicon": "SiliconFlow",
     "sophnet": "SophNet",
     "stepfun": "StepFun",
-    "system": "[to be translated]:System OCR",
+    "system": "System-OCR",
     "tencent-cloud-ti": "Tencent Cloud TI",
-    "tesseract": "[to be translated]:Tesseract",
+    "tesseract": "Tesseract",
     "together": "Together",
     "tokenflux": "TokenFlux",
     "vertexai": "Vertex AI",
@@ -4490,7 +4494,7 @@
       },
       "translate": {
         "error": {
-          "no_selected_text": "[to be translated]:No text selected to translate"
+          "no_selected_text": "Kein Text zum Übersetzen ausgewählt"
         },
         "smart_translate_tips": "Intelligente Übersetzung: Inhalt wird bevorzugt in Zielsprache übersetzt; wenn Inhalt bereits in Zielsprache, Übersetzung in Alternativsprache"
       },
@@ -4703,6 +4707,10 @@
       },
       "sort_label": "Sortieren",
       "unpin": "Lösen"
+    },
+    "workspace": {
+      "empty_text": "Noch keine Arbeitsbereiche",
+      "placeholder": "Arbeitsbereich auswählen"
     }
   },
   "settings": {
@@ -4787,7 +4795,7 @@
         "valueProp": "Aktueller Wert"
       },
       "agentTodoList": {
-        "title": "[to be translated]:Agent Todo List"
+        "title": "Agent-Aufgabenliste"
       },
       "assistantSelector": {
         "clearSelection": "Klar",
@@ -4806,42 +4814,42 @@
       "description": "Nur in der Entwicklung sichtbar, um die neue Modellauswahl direkt in der App zu testen.",
       "fileProcessing": {
         "artifact": {
-          "file": "[to be translated]:Markdown file",
-          "text": "[to be translated]:Text result"
+          "file": "Markdown-Datei",
+          "text": "Textergebnis"
         },
-        "description": "[to be translated]:Run every configured file processor through the real file processing IPC and compare results.",
-        "duration": "[to be translated]:{{seconds}}s",
-        "jobId": "[to be translated]:Job ID",
+        "description": "Führe jeden konfigurierten Dateiprozessor über die echte Dateiverarbeitungs-IPC aus und vergleiche die Ergebnisse.",
+        "duration": "{{seconds}}s",
+        "jobId": "Auftrags-ID",
         "markdown": {
-          "description": "[to be translated]:Select a document and run all document-to-markdown processors.",
-          "fileFilterName": "[to be translated]:Documents",
-          "noFile": "[to be translated]:No document selected",
-          "select": "[to be translated]:Select document",
-          "start": "[to be translated]:Test markdown",
-          "title": "[to be translated]:Markdown"
+          "description": "Wählen Sie ein Dokument aus und führen Sie alle Dokument-zu-Markdown-Prozessoren aus.",
+          "fileFilterName": "Dokumente",
+          "noFile": "Kein Dokument ausgewählt",
+          "select": "Dokument auswählen",
+          "start": "Test markdown",
+          "title": "Markdown"
         },
-        "noProcessors": "[to be translated]:No processors support this feature.",
+        "noProcessors": "Keine Prozessoren unterstützen diese Funktion.",
         "ocr": {
-          "description": "[to be translated]:Select an image and run all OCR processors.",
-          "fileFilterName": "[to be translated]:Images",
-          "noFile": "[to be translated]:No image selected",
-          "select": "[to be translated]:Select image",
-          "start": "[to be translated]:Test OCR",
-          "title": "[to be translated]:OCR"
+          "description": "Wählen Sie ein Bild aus und führen Sie alle OCR-Prozessoren aus.",
+          "fileFilterName": "Bilder",
+          "noFile": "Kein Bild ausgewählt",
+          "select": "Bild auswählen",
+          "start": "Test-OCR",
+          "title": "OCR"
         },
-        "processorCount": "[to be translated]:{{count}} processors",
+        "processorCount": "{{count}} Prozessoren",
         "status": {
-          "cancelled": "[to be translated]:Cancelled",
-          "completed": "[to be translated]:Completed",
-          "delayed": "[to be translated]:Delayed",
-          "failed": "[to be translated]:Failed",
-          "idle": "[to be translated]:Idle",
-          "pending": "[to be translated]:Pending",
-          "processing": "[to be translated]:Processing",
-          "running": "[to be translated]:Running",
-          "starting": "[to be translated]:Starting"
+          "cancelled": "Abgesagt",
+          "completed": "Abgeschlossen",
+          "delayed": "Verzögert",
+          "failed": "Fehlgeschlagen",
+          "idle": "Leerlauf",
+          "pending": "Ausstehend",
+          "processing": "Verarbeitung",
+          "running": "Laufen",
+          "starting": "Start"
         },
-        "title": "[to be translated]:Document Parsing"
+        "title": "Dokumentenanalyse"
       },
       "label": "Komponentenlabor",
       "modelSelector": {
@@ -5538,7 +5546,7 @@
           "icon": "Wissens-Symbol anzeigen"
         },
         "minapp": {
-          "icon": "[to be translated]:Show MinApp icon"
+          "icon": "MinApp-Symbol anzeigen"
         },
         "miniApp": {
           "icon": "Mini-App-Symbol anzeigen"
@@ -5693,7 +5701,7 @@
       },
       "addSuccess": "Server erfolgreich hinzugefügt",
       "advancedSettings": "Erweiterte Einstellungen",
-      "allServers": "[to be translated]:MCP Servers",
+      "allServers": "MCP-Server",
       "args": "Parameter",
       "argsTooltip": "Ein Parameter pro Zeile",
       "baseUrlTooltip": "Remote-URL-Adresse",
@@ -5843,7 +5851,7 @@
       "serverPlural": "Server",
       "serverSingular": "Server",
       "servers": "MCP-Server",
-      "shortTitle": "[to be translated]:MCP",
+      "shortTitle": "MCP",
       "sse": "Server-Sende-Ereignisse (sse)",
       "startError": "Start fehlgeschlagen",
       "stdio": "Standard-Eingabe / -Ausgabe (stdio)",
@@ -6001,13 +6009,13 @@
       },
       "disabled": "Ausgeblendete Mini-Apps",
       "display_title": "Mini-App-Anzeigeeinstellungen",
-      "empty": "[to be translated]:Click the hide icon on an app on the left and it will move here",
+      "empty": "Klicke auf das Ausblenden-Symbol bei einer App links, und sie wird hierher verschoben",
       "group": {
-        "display": "[to be translated]:Display management",
-        "preferences": "[to be translated]:Preferences"
+        "display": "Anzeigeverwaltung",
+        "preferences": "Einstellungen"
       },
       "open_link_external": {
-        "description": "[to be translated]:When enabled, links that open a new window inside a mini app open in your default browser",
+        "description": "Wenn aktiviert, öffnen Links, die in einem Mini-App-Fenster ein neues Fenster öffnen, in Ihrem Standardbrowser.",
         "title": "Neue Fensterlinks im Browser öffnen"
       },
       "region": {
@@ -6022,59 +6030,59 @@
       "visible": "Angezeigte Mini-Apps"
     },
     "miniapps": {
-      "cache_change_notice": "[to be translated]:Changes will take effect when the number of open mini apps reaches the set value",
-      "cache_description": "[to be translated]:Set the maximum number of active mini apps to keep in memory",
-      "cache_settings": "[to be translated]:Cache Settings",
-      "cache_title": "[to be translated]:Mini App Cache Limit",
+      "cache_change_notice": "Die Änderungen treten in Kraft, wenn die Anzahl der geöffneten Mini-Apps den festgelegten Wert erreicht.",
+      "cache_description": "Legen Sie die maximale Anzahl aktiver Mini-Apps fest, die im Speicher gehalten werden sollen.",
+      "cache_settings": "Cache-Einstellungen",
+      "cache_title": "Mini-App-Cache-Limit",
       "custom": {
-        "conflicting_ids": "[to be translated]:Conflicting IDs with default apps: {{ids}}",
-        "duplicate_ids": "[to be translated]:Duplicate IDs found: {{ids}}",
-        "edit_description": "[to be translated]:Edit custom mini app configuration here. Each app should include id, name, url, and logo fields.",
-        "edit_title": "[to be translated]:Edit Custom Mini App",
-        "id": "[to be translated]:ID",
-        "id_error": "[to be translated]:ID is required.",
-        "id_placeholder": "[to be translated]:Enter ID",
-        "logo": "[to be translated]:Logo",
-        "logo_file": "[to be translated]:Upload Logo File",
-        "logo_upload_button": "[to be translated]:Upload",
-        "logo_upload_error": "[to be translated]:Failed to upload logo.",
-        "logo_upload_label": "[to be translated]:Upload Logo",
-        "logo_upload_success": "[to be translated]:Logo uploaded successfully.",
-        "logo_url": "[to be translated]:Logo URL",
-        "logo_url_label": "[to be translated]:Logo URL",
-        "logo_url_placeholder": "[to be translated]:Enter logo URL",
-        "name": "[to be translated]:Name",
-        "name_error": "[to be translated]:Name is required.",
-        "name_placeholder": "[to be translated]:Enter name",
-        "placeholder": "[to be translated]:Enter custom mini app configuration (JSON format)",
-        "remove_error": "[to be translated]:Failed to remove custom mini app.",
-        "remove_success": "[to be translated]:Custom mini app removed successfully.",
-        "save": "[to be translated]:Save",
-        "save_error": "[to be translated]:Failed to save custom mini app.",
-        "save_success": "[to be translated]:Custom mini app saved successfully.",
-        "title": "[to be translated]:Custom",
-        "url": "[to be translated]:URL",
-        "url_error": "[to be translated]:URL is required.",
-        "url_placeholder": "[to be translated]:Enter URL"
+        "conflicting_ids": "Konfliktierende IDs mit Standard-Apps: {{ids}}",
+        "duplicate_ids": "Doppelte IDs gefunden: {{ids}}",
+        "edit_description": "Bearbeiten Sie hier die benutzerdefinierte Mini-App-Konfiguration. Jede App sollte die Felder id, name, url und logo enthalten.",
+        "edit_title": "Benutzerdefinierte Mini-App bearbeiten",
+        "id": "ID",
+        "id_error": "ID ist erforderlich.",
+        "id_placeholder": "ID eingeben",
+        "logo": "Logo",
+        "logo_file": "Logo-Datei hochladen",
+        "logo_upload_button": "Hochladen",
+        "logo_upload_error": "Logo-Upload fehlgeschlagen.",
+        "logo_upload_label": "Logo hochladen",
+        "logo_upload_success": "Logo erfolgreich hochgeladen.",
+        "logo_url": "Logo-URL",
+        "logo_url_label": "Logo-URL",
+        "logo_url_placeholder": "Logo-URL eingeben",
+        "name": "Name",
+        "name_error": "Name ist erforderlich.",
+        "name_placeholder": "Name eingeben",
+        "placeholder": "Benutzerdefinierte Mini-App-Konfiguration eingeben (JSON-Format)",
+        "remove_error": "Fehler beim Entfernen der benutzerdefinierten Mini-App.",
+        "remove_success": "Benutzerdefinierte Mini-App erfolgreich entfernt.",
+        "save": "Speichern",
+        "save_error": "Fehler beim Speichern der benutzerdefinierten Mini-App.",
+        "save_success": "Benutzerdefinierte Mini-App erfolgreich gespeichert.",
+        "title": "Benutzerdefiniert",
+        "url": "URL",
+        "url_error": "URL ist erforderlich.",
+        "url_placeholder": "URL eingeben"
       },
-      "disabled": "[to be translated]:Hidden Mini Apps",
-      "display_title": "[to be translated]:Mini App Display Settings",
-      "empty": "[to be translated]:Click the hide icon on an app on the left and it will move here",
+      "disabled": "Versteckte Mini-Apps",
+      "display_title": "Mini-App-Anzeigeeinstellungen",
+      "empty": "Klicke auf das Ausblenden-Symbol bei einer App links, und sie wird hierher verschoben",
       "open_link_external": {
-        "title": "[to be translated]:Open new-window links in browser"
+        "title": "Neue-Fenster-Links im Browser öffnen"
       },
       "region": {
-        "auto": "[to be translated]:Auto detect",
-        "cn": "[to be translated]:China",
-        "description": "[to be translated]:Filtering unsupported mini-programs based on the region",
-        "global": "[to be translated]:Global",
-        "title": "[to be translated]:Mini Program filter"
+        "auto": "Automatisch erkennen",
+        "cn": "China",
+        "description": "Filtern nicht unterstützter Mini-Programme basierend auf der Region",
+        "global": "Global",
+        "title": "Mini-Programm-Filter"
       },
-      "reset_tooltip": "[to be translated]:Reset to default",
-      "sidebar_description": "[to be translated]:Show active mini apps in the sidebar",
-      "sidebar_title": "[to be translated]:Sidebar Active Mini Apps Display",
-      "title": "[to be translated]:Mini Apps Settings",
-      "visible": "[to be translated]:Visible Mini Apps"
+      "reset_tooltip": "Auf Standard zurücksetzen",
+      "sidebar_description": "Aktive Mini-Apps in der Seitenleiste anzeigen",
+      "sidebar_title": "Seitenleiste Aktive Mini-Apps-Anzeige",
+      "title": "Mini-Apps-Einstellungen",
+      "visible": "Sichtbare Mini-Apps"
     },
     "model": "Standardmodell",
     "models": {
@@ -6082,13 +6090,13 @@
         "add_model": "Modell hinzufügen",
         "batch_add_models": "Modelle stapelweise hinzufügen",
         "context_window": {
-          "label": "[to be translated]:Context window",
-          "placeholder": "[to be translated]:e.g. 128000"
+          "label": "Kontextfenster",
+          "placeholder": "z. B. 128000"
         },
         "endpoint_type": {
           "label": "Endpunkttyp",
           "placeholder": "Endpunkttyp auswählen",
-          "remove_chip": "[to be translated]:Remove",
+          "remove_chip": "Entfernen",
           "required": "Endpunkttyp auswählen",
           "tooltip": "API-Endpunkttyp-Format auswählen"
         },
@@ -6098,12 +6106,12 @@
           "tooltip": "Beispiel: ChatGPT"
         },
         "max_input_tokens": {
-          "label": "[to be translated]:Max input tokens",
-          "placeholder": "[to be translated]:e.g. 128000"
+          "label": "Maximale Eingabe-Token",
+          "placeholder": "z. B. 128000"
         },
         "max_output_tokens": {
-          "label": "[to be translated]:Max output tokens",
-          "placeholder": "[to be translated]:e.g. 4096"
+          "label": "Maximale Ausgabe-Token",
+          "placeholder": "z. B. 4096"
         },
         "model_id": {
           "label": "Modell-ID",
@@ -6138,7 +6146,7 @@
         "enable_concurrent": "Parallele Erkennung",
         "enabled": "Einschalten",
         "failed": "Fehlgeschlagen",
-        "failed_to_start": "[to be translated]:Failed to start health check",
+        "failed_to_start": "Fehler beim Start der Gesundheitsprüfung",
         "keys_status_count": "Erfolgreich: {{count_passed}} Schlüssel, Fehlgeschlagen: {{count_failed}} Schlüssel",
         "model_status_failed": "{{count}} Modelle vollständig nicht zugänglich",
         "model_status_partial": "{{count}} Modelle mit einigen Schlüsseln nicht zugänglich",
@@ -6164,7 +6172,7 @@
         "title": "Modell-Gesundheitscheck",
         "use_all_keys": "Schlüssel verwenden"
       },
-      "copy_model_id_tooltip": "[to be translated]:Click to copy model ID: {{id}}",
+      "copy_model_id_tooltip": "Klicken, um Modell-ID zu kopieren: {{id}}",
       "default_assistant_model": "Standard-Assistent-Modell",
       "default_assistant_model_description": "Wird verwendet, wenn ein Assistent kein Modell hat.",
       "empty": "Kein Modell",
@@ -6192,7 +6200,7 @@
         "filter_add_all": "Add all in view",
         "filter_remove_all": "Remove from provider",
         "footer_done": "Done",
-        "large_group_hidden": "[to be translated]:Show {{count}} more models",
+        "large_group_hidden": "Zeige {{count}} weitere Modelle",
         "operation_failed": "Model operation failed.",
         "refetch_list": "Modellliste erneut abrufen",
         "reload_catalog": "Refresh list",
@@ -6334,16 +6342,16 @@
     "prompts": {
       "add": "Prompt hinzufügen",
       "contentLabel": "Inhalt",
-      "contentPlaceholder": "[to be translated]:Enter prompt content. Supports ${variables}; press Tab to jump between variables. Example:\nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
+      "contentPlaceholder": "Gib Eingabeaufforderungsinhalt ein. Unterstützt ${Variablen}; drücke Tab, um zwischen Variablen zu springen. Beispiel:\nHilf mir, eine Route von ${from} nach ${to} zu planen und sende sie an ${email}.",
       "delete": "Prompt löschen",
       "deleteConfirm": "Der Prompt wird dauerhaft gelöscht. Fortfahren?",
       "edit": "Prompt bearbeiten",
       "errors": {
-        "createFailed": "[to be translated]:Failed to create prompt",
-        "deleteFailed": "[to be translated]:Failed to delete prompt",
-        "loadFailed": "[to be translated]:Failed to load prompts",
-        "reorderFailed": "[to be translated]:Failed to reorder prompts",
-        "updateFailed": "[to be translated]:Failed to update prompt"
+        "createFailed": "Fehler beim Erstellen der Eingabeaufforderung",
+        "deleteFailed": "Fehler beim Löschen der Eingabeaufforderung",
+        "loadFailed": "Fehler beim Laden der Aufforderungen",
+        "reorderFailed": "Fehler beim Neuanordnen der Eingabeaufforderungen",
+        "updateFailed": "Fehler beim Aktualisieren der Eingabeaufforderung"
       },
       "title": "Prompt-Verwaltung",
       "titleLabel": "Titel",
@@ -6420,23 +6428,23 @@
         }
       },
       "api_host": "API-Adresse",
-      "api_host_drawer_hint": "[to be translated]:Custom API request URL; leave empty when the catalog default applies.",
+      "api_host_drawer_hint": "Benutzerdefinierte API-Anfrage-URL; leer lassen, wenn der Katalogstandard gilt.",
       "api_host_no_valid": "API-Adresse ist ungültig",
-      "api_host_placeholder": "[to be translated]:Not configured",
+      "api_host_placeholder": "Nicht konfiguriert",
       "api_host_preview": "Vorschau: {{url}}",
       "api_host_tooltip": "Nur bei Anbietern, die ein OpenAI-kompatibles Endpunkt anbieten. Eine / am Ende ignoriert automatisch hinzugefügtes v1, ein # am Ende erzwingt die Verwendung der ursprünglichen Adresse.",
       "api_key": {
-        "copy": "[to be translated]:Copy",
-        "enabled_suffix": "[to be translated]:enabled",
-        "hide_key": "[to be translated]:Hide key",
+        "copy": "Kopieren",
+        "enabled_suffix": "aktiviert",
+        "hide_key": "Schlüssel ausblenden",
         "label": "API-Schlüssel",
-        "label_placeholder": "[to be translated]:Label",
-        "list_description": "[to be translated]:Manage multiple API keys for this provider",
-        "placeholder": "[to be translated]:Use commas to separate multiple keys",
+        "label_placeholder": "Beschriftung",
+        "list_description": "Verwalten Sie mehrere API-Schlüssel für diesen Anbieter",
+        "placeholder": "Verwenden Sie Kommas, um mehrere Schlüssel zu trennen",
         "save_failed": "API-Schlüssel konnten nicht gespeichert werden",
-        "show_key": "[to be translated]:Show key",
+        "show_key": "Schlüssel anzeigen",
         "tip": "Mehrere Schlüssel durch Komma oder Leerzeichen trennen",
-        "unnamed": "[to be translated]:API Key"
+        "unnamed": "API-Schlüssel"
       },
       "api_version": "API-Version",
       "aws-bedrock": {
@@ -6451,7 +6459,7 @@
         "description": "AWS Bedrock ist ein vollständig verwalteter Basismodell-Dienst von Amazon, der eine Vielzahl moderner großer Sprachmodelle unterstützt",
         "region": "AWS-Region",
         "region_help": "Ihre AWS-Serviceregion, z.B. us-east-1",
-        "region_required": "[to be translated]:Enter an AWS region before saving",
+        "region_required": "Geben Sie eine AWS-Region ein, bevor Sie speichern",
         "secret_access_key": "AWS-Zugriffsschlüssel",
         "secret_access_key_help": "Ihre AWS-Zugriffsschlüssel, bitte sorgfältig aufbewahren",
         "title": "AWS Bedrock-Konfiguration"
@@ -6463,8 +6471,8 @@
       },
       "balance": "Guthaben",
       "base_url": {
-        "label": "[to be translated]:Base URL",
-        "placeholder": "[to be translated]:https://api.example.com"
+        "label": "Basis-URL",
+        "placeholder": "https://api.example.com"
       },
       "basic_auth": {
         "label": "HTTP-Authentifizierung",
@@ -6485,9 +6493,9 @@
       "check_multiple_keys": "Mehrere API-Schlüssel testen",
       "cherryin": {
         "api_host": {
-          "acceleration": "[to be translated]:Acceleration domain",
-          "backup": "[to be translated]:Backup domain",
-          "international": "[to be translated]:International domain"
+          "acceleration": "Beschleunigungsdomäne",
+          "backup": "Sicherungsdomäne",
+          "international": "Internationale Domäne"
         }
       },
       "copilot": {
@@ -6509,7 +6517,7 @@
         "header_name_placeholder": "Header name",
         "header_value_placeholder": "Header value",
         "headers_description": "Custom request headers (JSON format)",
-        "headers_json_placeholder": "[to be translated]:{\n  \"X-Custom-Header\": \"value\"\n}",
+        "headers_json_placeholder": "{\n  \"X-Custom-Header\": \"value\"\n}",
         "invalid_json": "JSON-Formatfehler",
         "login": "Bei GitHub anmelden",
         "logout": "Von GitHub abmelden",
@@ -6531,11 +6539,11 @@
         "step_copy_code_detail": "Autorisierungscode automatisch kopiert, Sie können auch manuell kopieren",
         "step_get_code": "Autorisierungscode abrufen",
         "step_get_code_desc": "Geräte-Autorisierungscode generieren",
-        "toggle_headers_editor_json": "[to be translated]:Switch to JSON editor",
-        "toggle_headers_editor_list": "[to be translated]:Switch to header list"
+        "toggle_headers_editor_json": "Zum JSON-Editor wechseln",
+        "toggle_headers_editor_list": "Zur Kopfzeilenliste wechseln"
       },
       "create_custom": {
-        "title": "[to be translated]:Add Custom Provider"
+        "title": "Benutzerdefinierten Anbieter hinzufügen"
       },
       "delete": {
         "content": "Diesen Modellanbieter wirklich löschen?",
@@ -6550,29 +6558,29 @@
       "docs_check": "Anzeigen",
       "docs_more_details": "Weitere Details anzeigen",
       "duplicate": {
-        "add_another": "[to be translated]:Add {{name}} instance",
-        "drawer_title": "[to be translated]:Add {{name}} instance",
-        "fill_after_create": "[to be translated]:Authentication fields can be filled after create",
-        "menu_label": "[to be translated]:Add instance"
+        "add_another": "{{name}}-Instanz hinzufügen",
+        "drawer_title": "{{name}}-Instanz hinzufügen",
+        "fill_after_create": "Authentifizierungsfelder können nach der Erstellung ausgefüllt werden",
+        "menu_label": "Instanz hinzufügen"
       },
       "filter": {
         "agent": "Vom Agenten unterstützt",
         "all": "Alle Anbieter",
-        "disabled": "[to be translated]:Disabled Only",
-        "enabled": "[to be translated]:Enabled Only",
-        "label": "[to be translated]:Filter providers"
+        "disabled": "Nur für Behinderte",
+        "enabled": "Nur aktiviert",
+        "label": "Filteranbieter"
       },
       "filter_agent": "Von Filter-Agent unterstützte Anbieter",
       "get_api_key": "Hier klicken um Schlüssel zu erhalten",
-      "logo_upload_failed": "[to be translated]:Failed to process the selected image",
+      "logo_upload_failed": "Verarbeitung des ausgewählten Bildes fehlgeschlagen",
       "misc": "Sonstige",
       "more_endpoints": {
-        "add": "[to be translated]:Add Endpoint",
-        "anthropic": "[to be translated]:Anthropic Messages",
-        "gemini": "[to be translated]:Google Gemini",
-        "openai_chat": "[to be translated]:OpenAI Chat Completions",
-        "openai_responses": "[to be translated]:OpenAI Responses",
-        "toggle": "[to be translated]:More Endpoints"
+        "add": "Endpunkt hinzufügen",
+        "anthropic": "Anthropic Nachrichten",
+        "gemini": "Google Gemini",
+        "openai_chat": "OpenAI Chat Completions",
+        "openai_responses": "OpenAI-Antworten",
+        "toggle": "Weitere Endpunkte"
       },
       "no_models_for_check": "Keine testbaren Modelle (z.B. Chat-Modelle)",
       "not_checked": "Nicht getestet",
@@ -6583,7 +6591,7 @@
       },
       "oauth": {
         "balance": "Guthaben",
-        "balance_error": "[to be translated]:Failed to fetch balance",
+        "balance_error": "Fehler beim Abrufen des Guthabens",
         "button": "Mit {{provider}}-Konto anmelden",
         "cherryIn": {
           "description": "Melden Sie sich mit Ihrem selbst gehosteten New-API-Server über OAuth 2.0 (PKCE) an.",
@@ -6618,10 +6626,10 @@
       },
       "remove_duplicate_keys": "Doppelte Schlüssel entfernen",
       "remove_invalid_keys": "Ungültige Schlüssel löschen",
-      "reorder_failed": "[to be translated]:Failed to reorder providers",
-      "request_configuration": "[to be translated]:Request configuration",
-      "request_configuration_tooltip": "[to be translated]:Configure API Host and custom request headers",
-      "save_failed": "[to be translated]:Failed to save provider settings",
+      "reorder_failed": "Fehler beim Neuanordnen der Anbieter",
+      "request_configuration": "Anfragekonfiguration",
+      "request_configuration_tooltip": "API-Host und benutzerdefinierte Anfrage-Header konfigurieren",
+      "save_failed": "Fehler beim Speichern der Anbieter-Einstellungen",
       "search": "Modellplattform suchen...",
       "search_placeholder": "Modell-ID oder Name suchen",
       "section": {
@@ -6688,18 +6696,18 @@
       "title": "Schnellmenü"
     },
     "quickPhrase": {
-      "add": "[to be translated]:Add Phrase",
-      "assistant": "[to be translated]:Assistant Phrases",
-      "contentLabel": "[to be translated]:Content",
-      "contentPlaceholder": "[to be translated]:Please enter phrase content, support using variables, and press Tab to quickly locate the variable to modify. For example: \nHelp me plan a route from ${from} to ${to}, and send it to ${email}.",
-      "delete": "[to be translated]:Delete Phrase",
-      "deleteConfirm": "[to be translated]:The phrase cannot be recovered after deletion, continue?",
-      "edit": "[to be translated]:Edit Phrase",
-      "global": "[to be translated]:Global Phrases",
-      "locationLabel": "[to be translated]:Add Location",
-      "title": "[to be translated]:Quick Phrases",
-      "titleLabel": "[to be translated]:Title",
-      "titlePlaceholder": "[to be translated]:Please enter phrase title"
+      "add": "Phrase hinzufügen",
+      "assistant": "Assistent-Phrasen",
+      "contentLabel": "Inhalt",
+      "contentPlaceholder": "Bitte geben Sie den Phraseninhalt ein, unterstützen Sie die Verwendung von Variablen und drücken Sie Tab, um schnell zur zu ändernden Variable zu springen. Zum Beispiel:  \nHilf mir, eine Route von ${from} nach ${to} zu planen und sende sie an ${email}.",
+      "delete": "Phrase löschen",
+      "deleteConfirm": "Der Ausdruck kann nach dem Löschen nicht wiederhergestellt werden, fortfahren?",
+      "edit": "Phrase bearbeiten",
+      "global": "Globale Ausdrücke",
+      "locationLabel": "Standort hinzufügen",
+      "title": "Schnelle Phrasen",
+      "titleLabel": "Titel",
+      "titlePlaceholder": "Bitte geben Sie den Titel der Phrase ein"
     },
     "scheduledTasks": {
       "description": "Verwalten Sie geplante Aufgaben über alle Agents hinweg. Aufgaben werden automatisch nach dem konfigurierten Zeitplan ausgeführt.",
@@ -6812,80 +6820,80 @@
     "tool": {
       "file_processing": {
         "actions": {
-          "set_as_default": "[to be translated]:Set as default"
+          "set_as_default": "Als Standard festlegen"
         },
         "errors": {
-          "invalid_api_host": "[to be translated]:Invalid API host",
-          "load_processors_failed": "[to be translated]:Failed to load available processors",
-          "save_failed": "[to be translated]:Save failed"
+          "invalid_api_host": "Ungültiger API-Host",
+          "load_processors_failed": "Fehler beim Laden der verfügbaren Prozessoren",
+          "save_failed": "Speichern fehlgeschlagen"
         },
         "features": {
           "document_to_markdown": {
-            "title": "[to be translated]:Document Processing"
+            "title": "Dokumentenverarbeitung"
           },
           "image_to_text": {
-            "title": "[to be translated]:OCR"
+            "title": "OCR"
           }
         },
         "fields": {
-          "api_base_url": "[to be translated]:API Base URL",
-          "api_key": "[to be translated]:API Key",
-          "api_keys_placeholder": "[to be translated]:Separate multiple keys with commas",
-          "languages": "[to be translated]:Languages"
+          "api_base_url": "API-Basis-URL",
+          "api_key": "API-Schlüssel",
+          "api_keys_placeholder": "Mehrere Schlüssel mit Kommas trennen",
+          "languages": "Sprachen"
         },
         "processors": {
           "doc2x": {
-            "description": "[to be translated]:Advanced file restoration engine.",
-            "name": "[to be translated]:Doc2x"
+            "description": "Erweiterte Dateiwiederherstellungs-Engine.",
+            "name": "Doc2x"
           },
           "mineru": {
-            "description": "[to be translated]:OpenDataLab's open-source high-quality PDF extraction tool.",
-            "name": "[to be translated]:MinerU"
+            "description": "OpenDataLabs quelloffenes, hochwertiges PDF-Extraktionswerkzeug.",
+            "name": "MinerU"
           },
           "mistral": {
-            "description": "[to be translated]:File parsing and understanding service.",
-            "name": "[to be translated]:Mistral"
+            "description": "Dienst zur Analyse und zum Verständnis von Dateien.",
+            "name": "Mistral"
           },
           "open_mineru": {
-            "description": "[to be translated]:Self-hostable MinerU service for teams that want more control over the processing pipeline.",
-            "name": "[to be translated]:Open MinerU"
+            "description": "Selbst hostbarer MinerU-Dienst für Teams, die mehr Kontrolle über die Verarbeitungspipeline wünschen.",
+            "name": "Open MinerU"
           },
           "ovocr": {
-            "description": "[to be translated]:Intel OpenVINO OCR engine that runs locally with NPU acceleration.",
-            "name": "[to be translated]:Intel OV OCR"
+            "description": "Intel OpenVINO OCR-Engine, der lokal mit NPU-Beschleunigung läuft.",
+            "name": "Intel OV OCR"
           },
           "paddleocr": {
             "deployment": {
-              "description": "[to be translated]:You can deploy PaddleOCR locally with the officially supported Docker image, then enter the API address here.",
-              "docs": "[to be translated]:View Docker deployment docs"
+              "description": "Sie können PaddleOCR lokal mit dem offiziell unterstützten Docker-Image bereitstellen und dann hier die API-Adresse eingeben.",
+              "docs": "Docker-Bereitstellungsdokumentation anzeigen"
             },
-            "description": "[to be translated]:Baidu PaddleOCR recognition system.",
+            "description": "Baidu PaddleOCR-Erkennungssystem.",
             "fields": {
-              "parse_model": "[to be translated]:Parse Model"
+              "parse_model": "Parse-Modell"
             },
-            "name": "[to be translated]:PaddleOCR"
+            "name": "PaddleOCR"
           },
           "system": {
-            "description": "[to be translated]:Native operating system OCR engine.",
-            "name": "[to be translated]:System OCR",
+            "description": "Native-Betriebssystem-OCR-Engine.",
+            "name": "System-OCR",
             "status": {
-              "available": "[to be translated]:Detected available macOS Live Text / Windows OCR engine.",
-              "no_configuration": "[to be translated]:System OCR calls the native system engine directly. It is fastest, but accuracy depends on the OS version."
+              "available": "Erkannte verfügbare macOS Live Live Text / Windows-OCR-Engine.",
+              "no_configuration": "System-OCR greift direkt auf die native Systemengine zu. Es ist am schnellsten, aber die Genauigkeit hängt von der Betriebssystemversion ab."
             }
           },
           "tesseract": {
-            "description": "[to be translated]:Google's open-source OCR engine that runs fully locally.",
-            "name": "[to be translated]:Tesseract OCR"
+            "description": "Googles quelloffene OCR-Engine, die vollständig lokal läuft.",
+            "name": "Tesseract-OCR"
           }
         },
         "sections": {
-          "authentication": "[to be translated]:Authentication",
-          "description": "[to be translated]:Description",
-          "language_packs": "[to be translated]:Language Packs",
-          "model_parameters": "[to be translated]:Model Parameters",
-          "status": "[to be translated]:Status"
+          "authentication": "Authentifizierung",
+          "description": "Beschreibung",
+          "language_packs": "Sprachpakete",
+          "model_parameters": "Modellparameter",
+          "status": "Status"
         },
-        "title": "[to be translated]:Document Parsing"
+        "title": "Dokumentenanalyse"
       },
       "title": "Weitere Einstellungen",
       "websearch": {
@@ -6898,7 +6906,7 @@
         "apikey": "API-Schlüssel",
         "blacklist": "Schwarze Liste",
         "blacklist_description": "Folgende Websites werden nicht in Suchergebnissen angezeigt",
-        "blacklist_invalid_entries": "[to be translated]:Invalid blacklist entries: {{entries}}",
+        "blacklist_invalid_entries": "Ungültige Blacklist-Einträge: {{entries}}",
         "blacklist_tooltip": "Verwenden Sie das folgende Format (Zeilenumbruch getrennt)\nÜbereinstimmungsmodus: *://*.example.com/*\nRegex: /example\\.(net|org)/",
         "check": "Erkennen",
         "check_failed": "Erkennung fehlgeschlagen",
@@ -6926,10 +6934,10 @@
         "content_limit_tooltip": "Begrenzen Sie die Länge der Suchergebnisse, überschreitende Inhalte werden abgeschnitten",
         "default_provider": "Standardanbieter",
         "errors": {
-          "save_failed": "[to be translated]:Save failed",
-          "zhipu_sync_failed": "[to be translated]:Failed to sync Zhipu API key to Web Search. Please re-save the key or check Web Search settings."
+          "save_failed": "Speichern fehlgeschlagen",
+          "zhipu_sync_failed": "Synchronisierung des Zhipu-API-Schlüssels mit der Websuche fehlgeschlagen. Bitte speichern Sie den Schlüssel erneut oder überprüfen Sie die Einstellungen der Websuche."
         },
-        "fetch_urls_provider": "[to be translated]:Default URL fetch provider",
+        "fetch_urls_provider": "Standard-URL-Abrufanbieter",
         "free": "Kostenlos",
         "is_default": "Standard",
         "local_provider": {
@@ -6942,15 +6950,15 @@
         "overwrite": "Suchanbieter statt LLM für Suche erzwingen",
         "overwrite_tooltip": "Suchanbieter statt LLM für Suche erzwingen",
         "provider_description": {
-          "bocha": "[to be translated]:Chinese AI search API with real-time web and structured results.",
-          "exa": "[to be translated]:Neural search API for AI apps, tuned for semantic web retrieval.",
-          "exa_mcp": "[to be translated]:Expose Exa search to agents through the Exa MCP Server.",
-          "fetch": "[to be translated]:Built-in URL fetch provider. Fetches web page content from a URL to enrich search results.",
-          "jina": "[to be translated]:Jina Reader search and read APIs for retrieving clean web content.",
-          "querit": "[to be translated]:Search service for AI apps with web retrieval results.",
-          "searxng": "[to be translated]:Self-hostable free internet metasearch engine across many sources.",
-          "tavily": "[to be translated]:Search engine optimized for LLMs.",
-          "zhipu": "[to be translated]:Zhipu GLM Web Search for live web retrieval and current information."
+          "bocha": "Chinesische KI-Such-API mit Echtzeit-Web- und strukturierten Ergebnissen.",
+          "exa": "Neural Search-API für KI-Anwendungen, optimiert für die semantische Webabfrage.",
+          "exa_mcp": "Stelle Exa-Suche Agenten über den Exa MCP Server zur Verfügung.",
+          "fetch": "Integrierter URL-Abruf-Provider. Ruft Webseiteninhalte von einer URL ab, um Suchergebnisse zu erweitern.",
+          "jina": "Jina Reader-Such- und Lese-APIs zum Abrufen von sauberem Webinhalt.",
+          "querit": "Suchdienst für KI-Anwendungen mit Web-Abruf-Ergebnissen.",
+          "searxng": "Selbst hostbare kostenlose Internet-Metasuchmaschine über viele Quellen.",
+          "tavily": "Für LLMs optimierte Suchmaschine.",
+          "zhipu": "Zhipu GLM Web Search für Live-Webabfragen und aktuelle Informationen."
         },
         "search_max_result": {
           "label": "Anzahl Suchergebnisse",
@@ -7047,7 +7055,7 @@
   },
   "tab": {
     "close": "Tab schließen",
-    "move_to_first": "[to be translated]:Move to First",
+    "move_to_first": "Zum Anfang verschieben",
     "new": "Neuer Tab",
     "pin": "Tab anheften",
     "unpin": "Tab lösen"
@@ -7115,7 +7123,7 @@
         },
         "label": "Automatische Erkennungsmethode",
         "llm": {
-          "label": "[to be translated]:LLM",
+          "label": "LLM",
           "tip": "Verwenden Sie das Schnellmodell für die Spracherkennung, was wenige Token kostet."
         },
         "placeholder": "Automatische Erkennungsmethode auswählen",
@@ -7129,12 +7137,12 @@
     "detecting": "Erkenne...",
     "empty": "Übersetzungsinhalt leer",
     "error": {
-      "auto_copy_failed": "[to be translated]:Failed to auto-copy translation result",
+      "auto_copy_failed": "Fehler beim automatischen Kopieren des Übersetzungsergebnisses",
       "chat_qwen_mt": "Qwen MT-Modell kann nicht in der Konversation verwendet werden, bitte gehen Sie zur Übersetzungsseite",
       "detect": {
-        "empty": "[to be translated]:Detected language is empty",
-        "failed": "[to be translated]:Language detection failed",
-        "invalid": "[to be translated]:Detected language is not supported",
+        "empty": "Erkannte Sprache ist leer",
+        "failed": "Spracherkennung fehlgeschlagen",
+        "invalid": "Erkannte Sprache wird nicht unterstützt",
         "qwen_mt": "QwenMT-Modell kann nicht für die Spracherkennung verwendet werden",
         "unknown": "Unbekannte Sprache erkannt",
         "update_setting": "Einstellung fehlgeschlagen"
@@ -7142,7 +7150,7 @@
       "empty": "Übersetzungsergebnis ist leer",
       "failed": "Übersetzung fehlgeschlagen",
       "invalid_source": "Ungültige Quellsprache",
-      "languages_load_failed": "[to be translated]:Failed to load translate languages. Some features may be unavailable.",
+      "languages_load_failed": "Fehler beim Laden der Übersetzungssprachen. Einige Funktionen sind möglicherweise nicht verfügbar.",
       "not_configured": "Übersetzungsmodell nicht konfiguriert",
       "not_supported": "Sprache {{language}} wird nicht unterstützt",
       "unknown": "Unbekannter Fehler während Übersetzung"
@@ -7155,43 +7163,43 @@
       "error": {
         "check_type": "Fehler beim Überprüfen des Dateityps",
         "multiple": "Mehrfach-Upload nicht erlaubt",
-        "ocr": "[to be translated]:Failed to recognize image text",
+        "ocr": "Erkennung des Bildtextes fehlgeschlagen",
         "too_large": "Datei zu groß",
         "unknown": "Dateiinhalt lesen fehlgeschlagen"
       },
       "reading": "Dateiinhalt wird gelesen...",
-      "upload": "[to be translated]:Drop or click to upload image/document"
+      "upload": "Bild/Dokument hier ablegen oder klicken, um hochzuladen"
     },
     "history": {
-      "back": "[to be translated]:Back to list",
+      "back": "Zurück zur Liste",
       "clear": "Verlauf löschen",
       "clear_description": "Verlauf löschen entfernt alle Übersetzungshistorien. Fortfahren?",
-      "copy_target": "[to be translated]:Copy result",
+      "copy_target": "Ergebnis kopieren",
       "delete": "Übersetzungshistorie löschen",
-      "delete_description": "[to be translated]:Delete this translation history record? This action cannot be undone.",
+      "delete_description": "Diesen Übersetzungsverlaufseintrag löschen? Diese Aktion kann nicht rückgängig gemacht werden.",
       "empty": "Keine Übersetzungshistorie",
       "error": {
-        "add": "[to be translated]:Failed to add translation history",
-        "clear": "[to be translated]:Failed to clear translation history",
+        "add": "Fehler beim Hinzufügen des Übersetzungsverlaufs",
+        "clear": "Fehler beim Löschen des Übersetzungsverlaufs",
         "delete": "Löschen fehlgeschlagen",
         "load": "Übersetzungsverlauf konnte nicht geladen werden",
         "save": "Speichern der Übersetzungshistorie fehlgeschlagen"
       },
       "filter": {
-        "starred": "[to be translated]:Only starred"
+        "starred": "Nur mit Stern"
       },
-      "reuse": "[to be translated]:Reuse",
+      "reuse": "Wiederverwendung",
       "search": {
-        "placeholder": "[to be translated]:Search translation history"
+        "placeholder": "Übersetzungsverlauf durchsuchen"
       },
-      "source": "[to be translated]:Source",
+      "source": "Quelle",
       "success": {
-        "add": "[to be translated]:Saved to history",
-        "clear": "[to be translated]:History cleared",
-        "delete": "[to be translated]:Deleted",
-        "update": "[to be translated]:Saved"
+        "add": "In der Historie gespeichert",
+        "clear": "Verlauf gelöscht",
+        "delete": "Gelöscht",
+        "update": "Gespeichert"
       },
-      "target": "[to be translated]:Target",
+      "target": "Ziel",
       "title": "Übersetzungsverlauf"
     },
     "info": {
@@ -7221,7 +7229,7 @@
       "bidirectional": "Bidirektionale Übersetzungseinstellungen",
       "bidirectional_tip": "Nach Aktivierung nur bidirektionale Übersetzung zwischen Quell- und Zielsprache unterstützt",
       "error": {
-        "save": "[to be translated]:Failed to save translation settings"
+        "save": "Fehler beim Speichern der Übersetzungseinstellungen"
       },
       "model": "Modelleinstellungen",
       "model_desc": "Verwendete Modelle für die Übersetzung",
@@ -7231,7 +7239,7 @@
       "scroll_sync": "Scroll-Synchronisierungs-Einstellungen",
       "title": "Übersetzungseinstellungen"
     },
-    "source_language": "[to be translated]:Source Language",
+    "source_language": "Quellsprache",
     "stop": "Übersetzung stoppen",
     "success": {
       "custom": {
