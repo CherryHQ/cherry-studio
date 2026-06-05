@@ -1,5 +1,5 @@
 import { cn } from '@renderer/utils'
-import type { AgentSessionEntity } from '@shared/data/api/schemas/sessions'
+import type { AgentSessionEntity } from '@shared/data/api/schemas/agentSessions'
 import type { WorkspacePathStatus } from '@shared/file/types/ipc'
 import { Folder, TriangleAlert } from 'lucide-react'
 import { useEffect, useState } from 'react'
