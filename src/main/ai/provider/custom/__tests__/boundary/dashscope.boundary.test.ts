@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import * as z from 'zod'
 
+import { createDashScopeProvider } from '../../dashscope/dashscopeProvider'
 import { createDashScopeTransport } from '../../dashscope/dashscopeTransport'
 import type { ImageGenerationSubmitInput } from '../../imageGenerationModel'
 import { captureImageRequest } from './captureRequest'
@@ -165,4 +166,53 @@ describe('DashScope request boundary', () => {
       expect(req.body).toMatchSnapshot()
     })
   }
+
+  it.each([
+    {
+      name: 'cn host',
+      baseURL: `${host}/compatible-mode/v1`,
+      expectedURL: `${host}/compatible-api/v1/reranks`
+    },
+    {
+      name: 'intl host',
+      baseURL: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+      expectedURL: 'https://dashscope-intl.aliyuncs.com/compatible-api/v1/reranks'
+    },
+    {
+      name: 'proxy path',
+      baseURL: 'https://proxy.example.com/ds/compatible-mode/v1',
+      expectedURL: 'https://proxy.example.com/ds/compatible-api/v1/reranks'
+    }
+  ])(
+    'posts rerank requests to the DashScope compatible-api reranks endpoint on $name',
+    async ({ baseURL, expectedURL }) => {
+      const fetch = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            results: [{ index: 1, relevance_score: 0.92 }]
+          })
+        )
+      )
+      const provider = createDashScopeProvider({
+        apiKey: 'ds-key',
+        baseURL,
+        fetch
+      })
+
+      await provider.rerankingModel('gte-rerank-v2').doRerank({
+        query: 'hello',
+        documents: { type: 'text', values: ['alpha', 'beta'] },
+        topN: 1
+      })
+
+      expect(fetch).toHaveBeenCalledWith(expectedURL, expect.objectContaining({ method: 'POST' }))
+      const init = fetch.mock.calls[0]?.[1] as RequestInit
+      expect(JSON.parse(init.body as string)).toEqual({
+        model: 'gte-rerank-v2',
+        query: 'hello',
+        documents: ['alpha', 'beta'],
+        top_n: 1
+      })
+    }
+  )
 })

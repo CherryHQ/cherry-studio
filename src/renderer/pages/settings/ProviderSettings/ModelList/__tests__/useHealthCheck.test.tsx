@@ -164,8 +164,14 @@ describe('useHealthCheck', () => {
     await waitFor(() => expect(abortSignal?.aborted).toBe(true))
   })
 
-  it('marks generation models as skipped without probing them', async () => {
+  it('marks generation models as skipped without probing them while still probing rerank models', async () => {
     const chatModel = { id: 'openai::gpt-4o', providerId: 'openai', name: 'GPT-4o', capabilities: [] }
+    const rerankModel = {
+      id: 'openai::rerank-1',
+      providerId: 'openai',
+      name: 'Rerank',
+      capabilities: [MODEL_CAPABILITY.RERANK]
+    }
     const imageModel = {
       id: 'openai::gpt-image-1',
       providerId: 'openai',
@@ -178,7 +184,7 @@ describe('useHealthCheck', () => {
       name: 'Sora',
       capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION]
     }
-    useModelsMock.mockReturnValue({ models: [chatModel, imageModel, videoModel] })
+    useModelsMock.mockReturnValue({ models: [chatModel, imageModel, rerankModel, videoModel] })
     checkModelsHealthMock.mockImplementation(async (options, onChecked) => {
       onChecked(
         {
@@ -191,6 +197,17 @@ describe('useHealthCheck', () => {
         },
         0
       )
+      onChecked(
+        {
+          kind: 'ok',
+          model: options.models[1],
+          status: HealthStatus.SUCCESS,
+          checking: false,
+          keyResults: [],
+          latency: 2
+        },
+        1
+      )
       return []
     })
 
@@ -201,15 +218,16 @@ describe('useHealthCheck', () => {
     })
 
     expect(checkModelsHealthMock).toHaveBeenCalledTimes(1)
-    expect(checkModelsHealthMock.mock.calls[0]?.[0].models).toEqual([chatModel])
-    expect(result.current.modelStatuses).toHaveLength(3)
+    expect(checkModelsHealthMock.mock.calls[0]?.[0].models).toEqual([chatModel, rerankModel])
+    expect(result.current.modelStatuses).toHaveLength(4)
     expect(result.current.modelStatuses[0]).toMatchObject({ kind: 'ok', model: chatModel })
     expect(result.current.modelStatuses[1]).toMatchObject({
       kind: 'skipped',
       model: imageModel,
       skipReason: { kind: 'generation_cost', output: 'image' }
     })
-    expect(result.current.modelStatuses[2]).toMatchObject({
+    expect(result.current.modelStatuses[2]).toMatchObject({ kind: 'ok', model: rerankModel })
+    expect(result.current.modelStatuses[3]).toMatchObject({
       kind: 'skipped',
       model: videoModel,
       skipReason: { kind: 'generation_cost', output: 'video' }

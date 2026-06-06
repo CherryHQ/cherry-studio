@@ -2,6 +2,7 @@
  * Runtime 层类型定义
  */
 import type { EmbeddingModelV3, ImageModelV3, ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
+import type { JSONObject } from '@ai-sdk/provider'
 import type { embedMany, Experimental_DownloadFunction, generateImage, generateText, rerank, streamText } from 'ai'
 
 import { type AiPlugin } from '../plugins'
@@ -43,7 +44,11 @@ export type EmbedManyParams = Omit<Parameters<typeof embedMany>[0], 'model'> & {
 }
 export type EmbedManyResult = Awaited<ReturnType<typeof embedMany>>
 
-export type RerankParams = Omit<Parameters<typeof rerank>[0], 'model'> & {
+// Keep the model override so string ids can be resolved through RuntimeExecutor's provider registry.
+export type RerankParams<VALUE extends JSONObject | string = string> = Omit<
+  Parameters<typeof rerank<VALUE>>[0],
+  'model'
+> & {
   model: string | RerankingModelV3
 }
-export type RerankResult = Awaited<ReturnType<typeof rerank>>
+export type RerankResult<VALUE extends JSONObject | string = string> = Awaited<ReturnType<typeof rerank<VALUE>>>

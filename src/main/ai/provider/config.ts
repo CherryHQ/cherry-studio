@@ -425,7 +425,8 @@ function buildDashScopeConfig(ctx: BuilderContext): ProviderConfig<'dashscope'> 
     endpoint: ctx.endpoint,
     providerSettings: {
       ...ctx.baseConfig,
-      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) }
+      headers: { ...defaultAppHeaders(), ...getExtraHeaders(ctx.actualProvider) },
+      includeUsage: ctx.actualProvider.apiFeatures.streamOptions
     }
   }
 }

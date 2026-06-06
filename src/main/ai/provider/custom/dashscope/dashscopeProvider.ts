@@ -2,14 +2,15 @@ import { OpenAICompatibleChatLanguageModel, OpenAICompatibleEmbeddingModel } fro
 import type { EmbeddingModelV3, ImageModelV3, LanguageModelV3, ProviderV3, RerankingModelV3 } from '@ai-sdk/provider'
 import type { FetchFunction } from '@ai-sdk/provider-utils'
 import { loadApiKey, withoutTrailingSlash } from '@ai-sdk/provider-utils'
-import { OpenAICompatibleRerankingModel } from '@cherrystudio/ai-core/provider'
+import { OpenAICompatibleRerankingModel } from '@cherrystudio/ai-sdk-provider'
 
 import { createImageGenerationModel } from '../imageGenerationModel'
 import { createDashScopeTransport, DEFAULT_DASHSCOPE_IMAGE_BASE_URL } from './dashscopeTransport'
 
 export const DASHSCOPE_PROVIDER_NAME = 'dashscope' as const
 
-const DASHSCOPE_RERANK_BASE_URL = 'https://dashscope.aliyuncs.com/compatible-api/v1'
+const DASHSCOPE_CHAT_BASE_PATH = '/compatible-mode/v1'
+const DASHSCOPE_RERANK_BASE_PATH = '/compatible-api/v1'
 
 export interface DashScopeProviderSettings {
   apiKey?: string
@@ -24,6 +25,7 @@ export interface DashScopeProviderSettings {
   imageBaseURL?: string
   headers?: Record<string, string>
   fetch?: FetchFunction
+  includeUsage?: boolean
 }
 
 export interface DashScopeProvider extends ProviderV3 {
@@ -32,6 +34,13 @@ export interface DashScopeProvider extends ProviderV3 {
   embeddingModel(modelId: string): EmbeddingModelV3
   imageModel(modelId: string): ImageModelV3
   rerankingModel(modelId: string): RerankingModelV3
+}
+
+const getDashScopeRerankBaseURL = (baseURL: string) => {
+  const normalized = withoutTrailingSlash(baseURL) ?? baseURL
+  return normalized.endsWith(DASHSCOPE_CHAT_BASE_PATH)
+    ? `${normalized.slice(0, -DASHSCOPE_CHAT_BASE_PATH.length)}${DASHSCOPE_RERANK_BASE_PATH}`
+    : normalized
 }
 
 /**
@@ -60,17 +69,18 @@ export function createDashScopeProvider(settings: DashScopeProviderSettings = {}
 
   const url = ({ path }: { path: string; modelId: string }) => `${withoutTrailingSlash(baseURL)}${path}`
 
-  // DashScope chat uses /compatible-mode/v1, but Bailian rerank's OpenAI-compatible API
-  // is fixed at /compatible-api/v1/reranks. See https://help.aliyun.com/zh/model-studio/rerank
+  // DashScope chat uses /compatible-mode/v1; rerank uses /compatible-api/v1 on the same user-configured host.
+  const rerankBaseURL = getDashScopeRerankBaseURL(baseURL)
   const rerankUrl = ({ path }: { path: string; modelId: string }) =>
-    `${DASHSCOPE_RERANK_BASE_URL}${path === '/rerank' ? '/reranks' : path}`
+    `${rerankBaseURL}${path === '/rerank' ? '/reranks' : path}`
 
   const createChatModel = (modelId: string) =>
     new OpenAICompatibleChatLanguageModel(modelId, {
       provider: `${DASHSCOPE_PROVIDER_NAME}.chat`,
       url,
       headers: authHeaders,
-      fetch: customFetch
+      fetch: customFetch,
+      includeUsage: settings.includeUsage
     })
 
   const transport = createDashScopeTransport({

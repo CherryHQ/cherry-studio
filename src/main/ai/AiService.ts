@@ -133,7 +133,6 @@ export interface AiRerankResult {
   ranking: Array<{
     originalIndex: number
     score: number
-    document: string
   }>
 }
 
@@ -530,8 +529,7 @@ export class AiService extends BaseService {
     return {
       ranking: result.ranking.map((item) => ({
         originalIndex: item.originalIndex,
-        score: item.score,
-        document: request.documents[item.originalIndex] ?? String(item.document)
+        score: item.score
       }))
     }
   }
@@ -554,7 +552,7 @@ export class AiService extends BaseService {
 
   // ── API validation ──
 
-  /** Dispatches to `embedMany` for embedding models, `generateText` otherwise. */
+  /** Dispatches to `rerank` / `embedMany` for those model types, `generateText` otherwise. */
   async checkModel(request: AiBaseRequest & { timeout?: number }): Promise<{ latency: number }> {
     const { model } = await this.getProviderAndModel(request)
     const start = performance.now()
@@ -576,7 +574,12 @@ export class AiService extends BaseService {
     }
     let probe: Promise<unknown>
     if (isRerankModel(model)) {
-      probe = this.rerank({ ...probeRequest, query: 'test', documents: ['test'], topN: 1 })
+      probe = this.rerank({ ...probeRequest, query: 'test', documents: ['test'], topN: 1 }).then((result) => {
+        if (result.ranking.length === 0) {
+          throw new Error('Rerank health check returned empty ranking')
+        }
+        return result
+      })
     } else if (isEmbeddingModel(model)) {
       probe = this.embedMany({ ...probeRequest, values: ['test'] })
     } else {
