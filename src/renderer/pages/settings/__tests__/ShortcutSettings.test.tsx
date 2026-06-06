@@ -142,12 +142,20 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
 })
 
 const makeShortcut = (binding: string[] = []) => ({
-  key: 'shortcut.general.search',
+  command: 'app.search',
+  key: 'shortcut.app.search',
   label: 'Search everywhere',
+  group: 'general',
   definition: {
-    key: 'shortcut.general.search',
+    key: 'shortcut.app.search',
     category: 'general',
     editable: true
+  },
+  keybinding: {
+    command: 'app.search',
+    scope: 'renderer',
+    preferenceKey: 'shortcut.app.search',
+    defaultBinding: ['CommandOrControl', 'Shift', 'F']
   },
   preference: {
     binding,
@@ -215,7 +223,7 @@ describe('ShortcutSettings shortcut recorder', () => {
 
     expect(parentKeyDown).not.toHaveBeenCalled()
     await waitFor(() => {
-      expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.general.search', {
+      expect(shortcutsMock.updatePreference).toHaveBeenCalledWith('shortcut.app.search', {
         binding: ['CommandOrControl', 'K'],
         enabled: true
       })
