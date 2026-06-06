@@ -5,8 +5,8 @@ import i18n from '@renderer/i18n'
 import { checkModelsHealth } from '@renderer/pages/settings/ProviderSettings/ModelList/checkModelsHealth'
 import type { ModelWithStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
 import { HealthStatus } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
+import { getModelHealthCheckSkipReason } from '@renderer/pages/settings/ProviderSettings/utils/healthCheck'
 import { splitApiKeyString } from '@renderer/utils/api'
-import { isRerankModel } from '@shared/utils/model'
 import { isEmpty } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -73,9 +73,13 @@ export const useHealthCheck = (providerId: string) => {
     async ({ apiKeys, isConcurrent, timeout }: { apiKeys: string[]; isConcurrent: boolean; timeout: number }) => {
       if (!provider) return
 
-      const modelsToCheck = models.filter((model) => !isRerankModel(model))
+      const modelCheckEntries = models.map((model, index) => ({
+        model,
+        index,
+        skipReason: getModelHealthCheckSkipReason(model)
+      }))
 
-      if (isEmpty(modelsToCheck)) {
+      if (isEmpty(modelCheckEntries)) {
         window.toast.error({
           timeout: 5000,
           title: i18n.t('settings.provider.no_models_for_check')
@@ -84,27 +88,46 @@ export const useHealthCheck = (providerId: string) => {
         return
       }
 
-      const keys = apiKeys.length > 0 ? [...apiKeys] : ['']
       abortControllerRef.current?.abort()
-      const abortController = new AbortController()
-      abortControllerRef.current = abortController
+      abortControllerRef.current = null
       const runId = runIdRef.current + 1
       runIdRef.current = runId
 
-      const initialStatuses: ModelWithStatus[] = modelsToCheck.map((model) => ({
-        kind: 'checking',
-        model,
-        checking: true,
-        status: HealthStatus.NOT_CHECKED,
-        keyResults: []
-      }))
+      const initialStatuses: ModelWithStatus[] = modelCheckEntries.map(({ model, skipReason }) =>
+        skipReason
+          ? {
+              kind: 'skipped',
+              model,
+              checking: false,
+              status: HealthStatus.NOT_CHECKED,
+              keyResults: [],
+              skipReason
+            }
+          : {
+              kind: 'checking',
+              model,
+              checking: true,
+              status: HealthStatus.NOT_CHECKED,
+              keyResults: []
+            }
+      )
       setModelStatuses(initialStatuses)
+
+      const checkableEntries = modelCheckEntries.filter((entry) => entry.skipReason == null)
+      if (isEmpty(checkableEntries)) {
+        setIsChecking(false)
+        return
+      }
+
+      const keys = apiKeys.length > 0 ? [...apiKeys] : ['']
+      const abortController = new AbortController()
+      abortControllerRef.current = abortController
       setIsChecking(true)
 
       try {
         await checkModelsHealth(
           {
-            models: modelsToCheck,
+            models: checkableEntries.map((entry) => entry.model),
             apiKeys: keys,
             isConcurrent,
             timeout,
@@ -114,10 +137,14 @@ export const useHealthCheck = (providerId: string) => {
             if (runIdRef.current !== runId) {
               return
             }
+            const originalIndex = checkableEntries[index]?.index
+            if (originalIndex == null) {
+              return
+            }
             setModelStatuses((current) => {
               const updated = [...current]
-              if (updated[index]) {
-                updated[index] = checkResult
+              if (updated[originalIndex]) {
+                updated[originalIndex] = checkResult
               }
               return updated
             })
