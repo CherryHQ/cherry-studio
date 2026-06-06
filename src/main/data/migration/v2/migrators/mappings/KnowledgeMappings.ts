@@ -339,7 +339,10 @@ export const transformKnowledgeItem = (
   } else if (item.type === 'note') {
     const note = deps.noteById.get(item.id)
     const content = note?.content ?? (typeof item.content === 'string' ? item.content : '')
-    const source = note?.sourceUrl ?? item.sourceUrl ?? content
+    // `||`, not `??`: an empty-string sourceUrl must fall through to a
+    // recoverable non-empty content instead of short-circuiting the chain
+    // and getting the note dropped as invalid below.
+    const source = note?.sourceUrl || item.sourceUrl || content
 
     // Sibling branches all guard their source against blank values because
     // the read path requires `source: trim().min(1)`; a note with neither

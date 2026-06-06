@@ -335,6 +335,37 @@ describe('KnowledgeMappings', () => {
     })
   })
 
+  it('transformKnowledgeItem keeps a note with an empty-string sourceUrl but non-empty content', () => {
+    // The source chain must use `||`, not `??`: an empty-string sourceUrl
+    // would short-circuit a nullish chain and get a recoverable note
+    // dropped as invalid_note despite its non-empty content.
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'note-blank-url',
+        type: 'note',
+        content: 'recoverable body',
+        sourceUrl: ''
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        type: 'note',
+        data: {
+          source: 'recoverable body',
+          content: 'recoverable body',
+          sourceUrl: ''
+        }
+      })
+    })
+  })
+
   it('transformKnowledgeItem resolves file metadata by file id fallback', () => {
     const result = transformKnowledgeItem(
       'kb-1',
