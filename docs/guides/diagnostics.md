@@ -45,6 +45,7 @@ Both dev and packaged runs write to the **app logs directory** (`~/Library/Logs/
 | Slow IPC handlers | `[Diagnostics/ipc]` | `BaseService.ipcHandle` | Any service IPC handler >50ms: duration + channel. Covers handlers registered via `this.ipcHandle()` (most); direct `ipcMain.handle` in `ipc.ts` is not covered. |
 | Window creation | `[Diagnostics/window]` | `WindowManager.createWindow` | Per window: synchronous construction cost, then `ready-to-show` paint latency from the same start. |
 | Slow DataApi requests | `[Diagnostics/dataapi]` | `ApiServer.handleRequest` | Any DataApi request >50ms: duration + `method path`. Duration is measured monotonically (`performance.now()`) and only computed when enabled. |
+| Verbose logging | — | `LoggerService` (main + renderer) | The flag makes the logger behave exactly as in dev: file level drops to `silly`, console output turns on, and the `CSLOGGER_*` filters become active in the packaged build. See [Logging](./logging.md#filtering-logs-with-environment-variables). |
 
 The `slow-*` thresholds are defined in one place — `SLOW_THRESHOLD_MS` in `src/main/core/diagnostics.ts`.
 
