@@ -120,7 +120,6 @@ function deriveSampleSource(item: KnowledgeItem): string | null {
       return value ? value : null
     }
     case 'url':
-    case 'sitemap':
       return item.data.url.trim() || null
     case 'directory':
       return item.data.path.trim() || null

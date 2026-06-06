@@ -8,6 +8,7 @@
 > Canonical reference: [docs/references/knowledge/workflow-architecture.md](../../../docs/references/knowledge/workflow-architecture.md).
 > Operation guard reference: [docs/references/knowledge/operation-guards.md](../../../docs/references/knowledge/operation-guards.md).
 > `v2-refactor-temp` 下的文档会在 v2 收尾时移除。
+> 当前实现已经移除 V2 `sitemap` 数据源；本文中涉及 `sitemap` 的内容只代表早期 RFC 背景，当前实现以 canonical reference 为准。
 
 ---
 

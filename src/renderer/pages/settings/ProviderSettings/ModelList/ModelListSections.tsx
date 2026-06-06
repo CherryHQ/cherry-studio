@@ -20,6 +20,8 @@ interface ModelListSectionsProps {
   pendingModelIds: Set<string>
   onEditModel: (model: Model) => void
   onToggleModel: (model: Model, enabled: boolean) => Promise<void>
+  onToggleModels: (models: Model[], enabled: boolean) => Promise<void>
+  bulkActionDisabled?: boolean
   enabledSectionActions?: React.ReactNode
   disabledSectionActions?: React.ReactNode
 }
@@ -36,6 +38,8 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
   pendingModelIds,
   onEditModel,
   onToggleModel,
+  onToggleModels,
+  bulkActionDisabled,
   enabledSectionActions,
   disabledSectionActions
 }) => {
@@ -79,9 +83,13 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
                   items={items}
                   defaultOpen={index <= 5}
                   disabled={disabled}
+                  bulkActionDisabled={bulkActionDisabled}
+                  bulkToggleEnabled={false}
+                  bulkToggleLabel={t('settings.models.group_disable')}
                   pendingModelIds={pendingModelIds}
                   onEditModel={onEditModel}
                   onToggleModel={onToggleModel}
+                  onToggleModels={onToggleModels}
                 />
               ))}
             </div>
@@ -106,9 +114,13 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
                   items={items}
                   defaultOpen={index <= 2}
                   disabled={disabled}
+                  bulkActionDisabled={bulkActionDisabled}
+                  bulkToggleEnabled
+                  bulkToggleLabel={t('settings.models.group_enable')}
                   pendingModelIds={pendingModelIds}
                   onEditModel={onEditModel}
                   onToggleModel={onToggleModel}
+                  onToggleModels={onToggleModels}
                 />
               ))}
             </div>

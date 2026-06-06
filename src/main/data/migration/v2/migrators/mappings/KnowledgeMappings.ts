@@ -304,17 +304,18 @@ export const transformKnowledgeItem = (
       url: item.content
     }
   } else if (item.type === 'sitemap') {
-    if (typeof item.content !== 'string' || item.content.trim() === '') {
+    const content = typeof item.content === 'string' ? item.content.trim() : ''
+    if (content === '') {
       return {
         ok: false,
         reason: 'invalid_sitemap'
       }
     }
 
-    type = 'sitemap'
+    type = 'url'
     data = {
-      source: item.content,
-      url: item.content
+      source: content,
+      url: content
     }
   } else if (item.type === 'directory') {
     if (typeof item.content !== 'string' || item.content.trim() === '') {
