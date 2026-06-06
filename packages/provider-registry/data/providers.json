@@ -1080,42 +1080,30 @@
       }
     },
     {
-      "id": "hunyuan",
-      "name": "hunyuan",
-      "description": "hunyuan - AI model provider",
+      "id": "tokenhub",
+      "name": "TokenHub",
+      "description": "TokenHub - AI model provider",
       "defaultChatEndpoint": "openai-chat-completions",
       "endpointConfigs": {
         "openai-chat-completions": {
-          "baseUrl": "https://api.hunyuan.cloud.tencent.com",
+          "baseUrl": "https://tokenhub.tencentmaas.com/v1",
           "adapterFamily": "openai-compatible"
+        },
+        "anthropic-messages": {
+          "baseUrl": "https://tokenhub.tencentmaas.com",
+          "adapterFamily": "anthropic"
+        },
+        "openai-responses": {
+          "baseUrl": "https://tokenhub.tencentmaas.com/v1",
+          "adapterFamily": "openai"
         }
       },
       "metadata": {
         "website": {
-          "official": "https://cloud.tencent.com/product/hunyuan",
-          "apiKey": "https://console.cloud.tencent.com/hunyuan/api-key",
-          "docs": "https://cloud.tencent.com/document/product/1729/111007",
-          "models": "https://cloud.tencent.com/document/product/1729/104753"
-        }
-      }
-    },
-    {
-      "id": "tencent-cloud-ti",
-      "name": "Tencent Cloud TI",
-      "description": "Tencent Cloud TI - AI model provider",
-      "defaultChatEndpoint": "openai-chat-completions",
-      "endpointConfigs": {
-        "openai-chat-completions": {
-          "baseUrl": "https://api.lkeap.cloud.tencent.com",
-          "adapterFamily": "openai-compatible"
-        }
-      },
-      "metadata": {
-        "website": {
-          "official": "https://cloud.tencent.com/product/ti",
-          "apiKey": "https://console.cloud.tencent.com/lkeap/api",
-          "docs": "https://cloud.tencent.com/document/product/1772",
-          "models": "https://console.cloud.tencent.com/tione/v2/aimarket"
+          "official": "https://cloud.tencent.com/product/tokenhub",
+          "apiKey": "https://console.cloud.tencent.com/tokenhub/inference",
+          "docs": "https://cloud.tencent.com/document/product/1823",
+          "models": "https://cloud.tencent.com/document/product/1823/130079"
         }
       }
     },

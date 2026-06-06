@@ -187,6 +187,7 @@ const PROVIDER_ID_ALIASES: Record<string, string> = {
   'azure-openai': 'azureai',
   'new-api': 'newapi',
   'tencent-cloud-ti': 'tencent-cloud-ti',
+  tokenhub: 'tencent-cloud-ti',
   'baidu-cloud': 'baidu-cloud',
   'aws-bedrock': 'aws-bedrock',
   'gitee-ai': 'gitee-ai',

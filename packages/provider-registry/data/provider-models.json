@@ -27680,6 +27680,175 @@
       },
       "modelId": "qwen-image",
       "providerId": "dmxapi"
+    },
+    {
+      "apiModelId": "hy3-preview",
+      "capabilities": {
+        "force": ["reasoning", "function-call"]
+      },
+      "endpointTypes": ["openai-responses", "openai-chat-completions", "anthropic-messages"],
+      "family": "hunyuan",
+      "inputModalities": ["text"],
+      "modelId": "hy3-preview",
+      "name": "Hunyuan3 Preview",
+      "outputModalities": ["text"],
+      "ownedBy": "tencent",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "hy-mt2-pro",
+      "capabilities": {
+        "force": ["function-call", "structured-output"]
+      },
+      "family": "hunyuan",
+      "inputModalities": ["text"],
+      "modelId": "hy-mt2-pro",
+      "name": "Hunyuan-MT2-Pro",
+      "outputModalities": ["text"],
+      "ownedBy": "tencent",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "deepseek-v4-flash-202605",
+      "capabilities": {
+        "force": ["reasoning", "function-call"]
+      },
+      "family": "deepseek",
+      "inputModalities": ["text"],
+      "modelId": "deepseek-v4-flash-202605",
+      "name": "DeepSeek-V4-Flash-202605",
+      "outputModalities": ["text"],
+      "ownedBy": "deepseek",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "deepseek-v4-pro-202606",
+      "capabilities": {
+        "force": ["reasoning", "function-call"]
+      },
+      "family": "deepseek",
+      "inputModalities": ["text"],
+      "modelId": "deepseek-v4-pro-202606",
+      "name": "DeepSeek-V4-Pro-202606",
+      "outputModalities": ["text"],
+      "ownedBy": "deepseek",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "deepseek-v4-flash",
+      "capabilities": {
+        "force": ["reasoning", "function-call"]
+      },
+      "family": "deepseek",
+      "inputModalities": ["text"],
+      "modelId": "deepseek-v4-flash",
+      "name": "DeepSeek-V4-Flash",
+      "outputModalities": ["text"],
+      "ownedBy": "deepseek",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "deepseek-v4-pro",
+      "capabilities": {
+        "force": ["reasoning", "function-call"]
+      },
+      "family": "deepseek",
+      "inputModalities": ["text"],
+      "modelId": "deepseek-v4-pro",
+      "name": "DeepSeek-V4-Pro",
+      "outputModalities": ["text"],
+      "ownedBy": "deepseek",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "glm-5.1",
+      "capabilities": {
+        "force": ["reasoning", "function-call"]
+      },
+      "family": "glm",
+      "inputModalities": ["text"],
+      "modelId": "glm-5-1",
+      "name": "GLM-5.1",
+      "outputModalities": ["text"],
+      "ownedBy": "zhipu",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "glm-5v-turbo",
+      "capabilities": {
+        "force": ["reasoning", "function-call", "image-recognition"]
+      },
+      "family": "glm",
+      "inputModalities": ["text", "image"],
+      "modelId": "glm-5v-turbo",
+      "name": "GLM-5V-Turbo",
+      "outputModalities": ["text"],
+      "ownedBy": "zhipu",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "glm-5-turbo",
+      "capabilities": {
+        "force": ["reasoning", "function-call"]
+      },
+      "family": "glm",
+      "inputModalities": ["text"],
+      "modelId": "glm-5-turbo",
+      "name": "GLM-5-Turbo",
+      "outputModalities": ["text"],
+      "ownedBy": "zhipu",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "kimi-k2.6",
+      "capabilities": {
+        "force": ["reasoning", "function-call", "image-recognition", "video-recognition"]
+      },
+      "family": "kimi",
+      "inputModalities": ["text", "image", "video"],
+      "modelId": "kimi-k2-6",
+      "name": "Kimi K2.6",
+      "outputModalities": ["text"],
+      "ownedBy": "moonshot",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "minimax-m3",
+      "capabilities": {
+        "force": ["reasoning", "function-call"]
+      },
+      "family": "minimax",
+      "inputModalities": ["text"],
+      "modelId": "minimax-m3",
+      "name": "MiniMax-M3",
+      "outputModalities": ["text"],
+      "ownedBy": "minimax",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "minimax-m2.7",
+      "capabilities": {
+        "force": ["reasoning", "function-call"]
+      },
+      "family": "minimax",
+      "inputModalities": ["text"],
+      "modelId": "minimax-m2-7",
+      "name": "MiniMax-M2.7",
+      "outputModalities": ["text"],
+      "ownedBy": "minimax",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "qwen3.5-flash",
+      "endpointTypes": ["openai-responses", "openai-chat-completions", "anthropic-messages"],
+      "modelId": "qwen3-5-flash",
+      "providerId": "tokenhub"
+    },
+    {
+      "apiModelId": "qwen3.5-plus",
+      "endpointTypes": ["openai-responses", "openai-chat-completions", "anthropic-messages"],
+      "modelId": "qwen3-5-plus",
+      "providerId": "tokenhub"
     }
   ],
   "version": "2026.05.28"
