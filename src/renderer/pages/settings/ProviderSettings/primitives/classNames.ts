@@ -32,10 +32,10 @@ export const providerSettingsTypography = {
  * (`.provider-settings-default-scope` — `--border`, `--foreground`, `--cherry-*`).
  * The provider detail shell should include `provider-settings-default-scope` so these inherit correctly.
  */
-/** Connection — `bg-muted/50` strip + `border-section-border` (`provider-settings-scoped-theme.css`).
+/** Connection — transparent input body + same muted border as model search.
  * Fixed `h-8` (32px) so all input groups in this page line up regardless of trailing-control height. */
 const providerSettingsInputGroupBase =
-  'h-8 rounded-lg border border-[color:var(--section-border)] bg-muted/50 px-2.5 shadow-none'
+  'h-8 rounded-lg border border-[color:var(--color-border-fg-muted)] bg-transparent px-2.5 shadow-none'
 
 /** Softer focus ring than `@cherrystudio/ui` InputGroup default (`ring-[3px]`) — business-layer override only. */
 const providerSettingsInputGroupFocusOverride =
@@ -51,7 +51,7 @@ export const sectionHeadingClasses = cn(sectionHeadingBase, 'font-[weight:var(--
  * Authentication card: bordered container + section title.
  */
 export const authConnectionClasses = {
-  shell: 'rounded-[length:var(--radius-xl)] border border-[color:var(--section-border)] px-3.5 py-3',
+  shell: '',
   body: 'flex flex-col gap-2'
 } as const
 
@@ -64,7 +64,7 @@ export const providerDetailColumnClasses = {
   contentMaxWidth: 'mx-auto w-full max-w-3xl',
   /** Header inner wrapper: same max-width as body content + bottom divider aligned to content edges. */
   headerContentMaxWidth: 'mx-auto w-full max-w-3xl border-b border-border pb-2',
-  sectionStack: 'mx-auto flex min-h-full w-full min-w-0 max-w-3xl flex-col gap-8'
+  sectionStack: 'mx-auto flex min-h-full w-full min-w-0 max-w-3xl flex-col gap-6'
 } as const
 
 /** Connection-field actions; composes atomic `--space-*`, `--font-size-caption`, `--color-*-soft` from scope CSS. */
@@ -251,14 +251,14 @@ export const modelListClasses = {
   capabilityFilterMenu: 'w-fit min-w-40 rounded-xl p-1.5',
   capabilityFilterMenuItem: 'h-8 rounded-lg px-2.5 text-sm',
   capabilityTabIcon: 'size-3 shrink-0',
-  subsectionRow: 'flex min-w-0 items-center gap-2',
+  subsectionRow: 'flex min-w-0 items-center gap-2 px-1',
   subsectionTitleWrap: 'flex min-w-0 items-center gap-2',
-  subsectionActions: 'ml-1.5 flex shrink-0 items-center gap-2',
+  subsectionActions: 'ml-0.5 flex shrink-0 items-center gap-2',
   subsectionIconButton:
     'inline-flex size-5 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/80 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground disabled:opacity-40',
   subsectionIcon: 'size-4 shrink-0',
   listActionTriggerButton:
-    'inline-flex size-6 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/80 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground disabled:opacity-40',
+    'inline-flex size-6 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/55 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground/80 disabled:opacity-40',
   listActionTriggerIcon: 'size-4 shrink-0',
   listActionMenu: 'w-fit min-w-40 rounded-xl p-1.5',
   listActionMenuItem: 'h-9 rounded-lg px-3 text-sm',

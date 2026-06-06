@@ -67,7 +67,7 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
     <div className={modelListClasses.listScroller}>
       <div className="flex min-h-full w-full min-w-0 flex-col gap-4">
         {!isEmpty(enabledSections) && (
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className={modelListClasses.subsectionRow}>
               <div className={modelListClasses.subsectionTitleWrap}>
                 <p className={modelListClasses.subsectionTitleEnabled}>{t('settings.models.enabled_models')}</p>
@@ -99,7 +99,7 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
           </div>
         )}
         {!isEmpty(disabledSections) && (
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className={modelListClasses.subsectionRow}>
               <div className={modelListClasses.subsectionTitleWrap}>
                 <p className={modelListClasses.subsectionTitleDisabled}>{t('settings.models.not_enabled_models')}</p>
