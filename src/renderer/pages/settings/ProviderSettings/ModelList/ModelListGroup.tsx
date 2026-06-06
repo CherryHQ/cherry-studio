@@ -80,6 +80,10 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
     <div className={modelListClasses.groupCard}>
       <div className={modelListClasses.groupHeader}>
         <button type="button" className={modelListClasses.groupToggleButton} aria-expanded={open} onClick={toggleOpen}>
+          <ChevronRight
+            className={cn(modelListClasses.groupChevron, open && modelListClasses.groupChevronOpen)}
+            aria-hidden
+          />
           <span className={modelListClasses.groupTitle}>{groupLabel}</span>
         </button>
         <div className={modelListClasses.groupHeaderActions}>
@@ -97,14 +101,6 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
               </Button>
             </Tooltip>
           ) : null}
-          <button
-            type="button"
-            className={modelListClasses.groupChevronButton}
-            aria-expanded={open}
-            aria-label={t(open ? 'common.collapse' : 'common.expand')}
-            onClick={toggleOpen}>
-            <ChevronRight className={cn(modelListClasses.groupChevron, open && modelListClasses.groupChevronOpen)} />
-          </button>
         </div>
       </div>
       {open && (

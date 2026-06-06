@@ -303,12 +303,10 @@ export const modelListClasses = {
   groupHeader:
     'group/groupRow flex w-full items-center justify-between gap-2 bg-transparent text-left outline-none focus-visible:outline-none',
   groupToggleButton:
-    'flex min-w-0 flex-1 items-center bg-transparent text-left outline-none focus-visible:outline-none',
+    'flex min-w-0 flex-1 items-center gap-1 bg-transparent text-left outline-none focus-visible:outline-none',
   groupHeaderActions: 'flex shrink-0 items-center gap-1',
   groupTitle:
     'min-w-0 flex-1 truncate text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted font-[weight:var(--font-weight-normal)] transition-colors group-hover/groupRow:text-foreground',
-  groupChevronButton:
-    'inline-flex size-5 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/65 shadow-none transition-colors hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground focus-visible:outline-none disabled:opacity-40',
   groupChevron:
     'size-4 shrink-0 text-muted-foreground/65 transition-[transform,color] duration-150 group-hover/groupRow:text-foreground',
   groupChevronOpen: 'rotate-90',
