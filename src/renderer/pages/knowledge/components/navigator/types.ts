@@ -61,14 +61,11 @@ export interface BaseNavigatorResizeHandleProps {
   onResizeStart: (event: ReactMouseEvent<HTMLDivElement>) => void
 }
 
-export interface NavigatorMoreButtonProps {
-  visible: boolean
-  className?: string
-  onClick: (event: ReactMouseEvent<HTMLButtonElement>) => void
-}
-
 export interface NavigatorRowMenuProps {
+  open: boolean
   menuPosition: MenuPosition | null
+  trigger: ReactNode
+  onOpenChange: (open: boolean) => void
   onClose: () => void
   children: ReactNode
 }
@@ -84,7 +81,10 @@ export interface KnowledgeBaseRowProps {
 }
 
 export interface KnowledgeBaseRowMenuProps {
+  open: boolean
   menuPosition: MenuPosition | null
+  trigger: ReactNode
+  onOpenChange: (open: boolean) => void
   availableGroups: Group[]
   onClose: () => void
   onRename: () => void
@@ -102,7 +102,10 @@ export interface KnowledgeGroupRowProps {
 }
 
 export interface KnowledgeGroupRowMenuProps {
+  open: boolean
   menuPosition: MenuPosition | null
+  trigger: ReactNode
+  onOpenChange: (open: boolean) => void
   onClose: () => void
   onRename: () => void
   onCreateBase: () => void
