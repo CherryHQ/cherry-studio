@@ -2155,24 +2155,18 @@
         },
         "note": {
           "description": "选择已有笔记作为知识库数据源",
-          "empty_description": "真实笔记列表接入后，将在这里展示可多选的笔记。当前可先使用文件、目录、网址或站点地图。",
+          "empty_description": "真實筆記清單接入後，將在這裡展示可多選的筆記。當前可先使用檔案、目錄或連結。",
           "empty_title": "暂未接入笔记数据源"
         },
         "placeholder": {
           "supported_formats": "支持 PDF, DOCX, MD, XLSX, TXT, CSV",
           "title": "点击选择文件或拖拽到此处"
         },
-        "sitemap": {
-          "description": "输入 Sitemap 地址：",
-          "help": "将读取 Sitemap 中包含的页面并建立索引",
-          "placeholder": "https://example.com/sitemap.xml"
-        },
         "sources": {
           "directory": "目录",
           "file": "文件",
           "note": "笔记",
-          "sitemap": "网站",
-          "url": "网址"
+          "url": "連結"
         },
         "submit": {
           "error": "添加数据源失败",
@@ -2209,11 +2203,8 @@
           "file": {
             "title": "檔案"
           },
-          "sitemap": {
-            "title": "網站同步"
-          },
           "url": {
-            "title": "網址"
+            "title": "連結"
           }
         },
         "title": "上傳第一個資料來源"
@@ -2224,8 +2215,7 @@
         "directory": "目录",
         "file": "文件",
         "note": "笔记",
-        "sitemap": "网站",
-        "url": "网址"
+        "url": "連結"
       },
       "preview": {
         "failed": "預覽原文失敗",
@@ -6147,6 +6137,9 @@
         "enabled": "已啟用",
         "failed": "失敗",
         "failed_to_start": "健康檢查啟動失敗",
+        "generation_output_audio": "音訊",
+        "generation_output_image": "圖片",
+        "generation_output_video": "影片",
         "keys_status_count": "成功：{{count_passed}} 個金鑰，失敗：{{count_failed}} 個金鑰",
         "model_status_failed": "{{count}} 個模型完全無法存取",
         "model_status_partial": "其中 {{count}} 個模型用某些金鑰無法存取",
@@ -6155,6 +6148,7 @@
         "no_api_keys": "未找到 API 金鑰，請先新增 API 金鑰",
         "no_results": "無結果",
         "outcome_fail_short": "{{count}} 失敗",
+        "outcome_skipped_short": "{{count}} 跳過",
         "outcome_success_short": "{{count}} 成功",
         "outcome_total": "共 {{count}} 項",
         "passed": "成功",
@@ -6166,8 +6160,11 @@
         "retry": "重新檢測",
         "select_api_key": "選擇要使用的 API 金鑰：",
         "single": "單個",
+        "skip_reason_generation_cost": "此模型檢測會實際生成{{output}}並消耗額度，預設跳過。",
+        "skip_reason_unsupported_probe": "此類模型暫無低成本健康檢測方式，預設跳過。",
         "start": "開始",
         "status_checking": "檢查中…",
+        "status_skipped": "已跳過",
         "timeout": "逾時",
         "title": "模型健康檢查",
         "use_all_keys": "使用金鑰"
@@ -6176,6 +6173,8 @@
       "default_assistant_model": "預設助手模型",
       "default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
       "empty": "找不到模型",
+      "group_disable": "關閉此分組",
+      "group_enable": "開啟此分組",
       "list_title": "模型列表",
       "manage": {
         "add_custom_model": "添加自訂模型",

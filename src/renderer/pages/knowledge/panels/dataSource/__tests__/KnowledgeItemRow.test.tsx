@@ -164,8 +164,7 @@ vi.mock('react-i18next', () => ({
           'knowledge.data_source.filters.file': '文件',
           'knowledge.data_source.filters.note': '笔记',
           'knowledge.data_source.filters.directory': '目录',
-          'knowledge.data_source.filters.url': '网址',
-          'knowledge.data_source.filters.sitemap': '网站',
+          'knowledge.data_source.filters.url': '链接',
           'knowledge.data_source.table.select_row': '选择行',
           'common.more': '更多',
           'knowledge.rag.file_processing': '文件处理'

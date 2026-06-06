@@ -39,8 +39,8 @@ The workflow service owns all branching:
 
 ```text
 scheduleItem(baseId, itemId)
-  directory / sitemap -> enqueue knowledge.prepare-root
-  file / note / url   -> source planning
+  directory         -> enqueue knowledge.prepare-root
+  file / note / url -> source planning
        direct         -> enqueue knowledge.index-documents
        invalid        -> mark item failed
        needs processing -> Round 2 FileProcessing path
@@ -50,7 +50,7 @@ Job handlers do not decide whether an item is a root, nested container, direct l
 
 ## Recursive Container Expansion
 
-`knowledge.prepare-root` expands a `directory` or `sitemap` item and creates or replaces its child rows. Expansion results must not assume every child is a leaf:
+`knowledge.prepare-root` expands a `directory` item and creates or replaces its child rows. Expansion results must not assume every child is a leaf:
 
 ```text
 prepare-root(container)
@@ -59,7 +59,7 @@ prepare-root(container)
        workflowService.scheduleItem(baseId, childId)
 ```
 
-If a child is another `directory` or `sitemap`, `scheduleItem` queues another `knowledge.prepare-root`. If a child is `file`, `note`, or `url`, `scheduleItem` routes it to source planning and indexing. Recursive processing therefore lives in the workflow service loop, not inside a reader-specific branch.
+If a child is another `directory`, `scheduleItem` queues another `knowledge.prepare-root`. If a child is `file`, `note`, or `url`, `scheduleItem` routes it to source planning and indexing. Recursive processing therefore lives in the workflow service loop, not inside a reader-specific branch.
 
 ## Future Rename
 

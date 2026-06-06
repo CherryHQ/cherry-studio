@@ -3,18 +3,20 @@ import { formatErrorMessageWithPrefix } from '@renderer/utils/error'
 import type { KnowledgeItem } from '@shared/data/types/knowledge'
 import { useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+import { sanitizeUrl } from 'strict-url-sanitise'
 
 import { normalizeKnowledgeError } from '../utils'
 
 const logger = loggerService.withContext('usePreviewKnowledgeSource')
 
-const isHttpUrl = (source: string) => {
+const sanitizeHttpUrl = (source: string): string | null => {
   try {
-    const url = new URL(source)
+    const sanitizedUrl = sanitizeUrl(source)
+    const url = new URL(sanitizedUrl)
 
-    return url.protocol === 'http:' || url.protocol === 'https:'
+    return url.protocol === 'http:' || url.protocol === 'https:' ? sanitizedUrl : null
   } catch {
-    return false
+    return null
   }
 }
 
@@ -31,18 +33,14 @@ export const usePreviewKnowledgeSource = () => {
       }
 
       try {
-        if (item.type === 'url' || item.type === 'sitemap') {
-          await window.api.shell.openExternal(source)
-          return
-        }
-
-        if (item.type === 'note') {
-          if (!isHttpUrl(source)) {
+        if (item.type === 'url' || item.type === 'note') {
+          const previewUrl = sanitizeHttpUrl(source)
+          if (!previewUrl) {
             window.toast.warning(t('knowledge.data_source.preview.unavailable'))
             return
           }
 
-          await window.api.shell.openExternal(source)
+          await window.api.shell.openExternal(previewUrl)
           return
         }
 

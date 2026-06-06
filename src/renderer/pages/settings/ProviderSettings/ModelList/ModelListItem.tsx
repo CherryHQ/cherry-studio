@@ -92,7 +92,7 @@ const ModelListItem: React.FC<ModelListItemProps> = ({ ref, model, disabled, onE
         <div className={modelListClasses.rowActionsCluster}>
           <div className={modelListClasses.rowCapabilityStrip}>
             <div className={modelListClasses.rowCapabilityTagCluster}>
-              <ModelTagsWithLabel model={model} size={10} showLabel={false} style={{ flexWrap: 'nowrap' }} />
+              <ModelTagsWithLabel model={model} size={10} style={{ flexWrap: 'nowrap' }} />
             </div>
             <FreeTrialModelTag modelId={model.id} providerId={model.providerId} />
           </div>

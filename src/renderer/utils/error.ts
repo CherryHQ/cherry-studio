@@ -360,6 +360,15 @@ export function serializeHealthCheckError(error: unknown): SerializedError {
   if (AISDKError.isInstance(error)) {
     return serializeError(error)
   }
+
+  if (error instanceof Error) {
+    return {
+      name: error.name || null,
+      message: error.message || null,
+      stack: error.stack || null
+    }
+  }
+
   return {
     name: null,
     message: safeToString(error),

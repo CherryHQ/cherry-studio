@@ -84,7 +84,7 @@ The 14 migrators are mostly complete; only the following have explicit unfinishe
 
 Documented intentional skips (must be called out in release notes):
 
-- Knowledge: `video` / `memory` items not migrated; directory / sitemap children not rebuilt; grouping metadata lost (`groupId = null`).
+- Knowledge: `video` / `memory` items not migrated; directory children not rebuilt; legacy sitemap items migrate as URL items; grouping metadata lost (`groupId = null`).
 - KnowledgeVector: `.embedjs.bak` must survive until migration completes; no cleanup trigger currently.
 - Note: `activeFilePath` / `activeNodeId` not migrated, re-established at runtime.
 - MCP: provider cache not migrated, re-fetched at runtime.

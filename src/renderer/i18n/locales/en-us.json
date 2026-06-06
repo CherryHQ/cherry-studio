@@ -2155,23 +2155,17 @@
         },
         "note": {
           "description": "Select existing notes as knowledge base sources",
-          "empty_description": "Selectable notes will appear here after the real notes list is connected. For now, use files, folders, URLs, or sitemaps.",
+          "empty_description": "Selectable notes will appear here after the real notes list is connected. For now, use files, folders, or URLs.",
           "empty_title": "Notes are not connected yet"
         },
         "placeholder": {
           "supported_formats": "Supports PDF, DOCX, MD, XLSX, TXT, CSV",
           "title": "Click to select files or drag them here"
         },
-        "sitemap": {
-          "description": "Enter a sitemap URL:",
-          "help": "Pages listed in the sitemap will be read and indexed",
-          "placeholder": "https://example.com/sitemap.xml"
-        },
         "sources": {
           "directory": "Folder",
           "file": "File",
           "note": "Note",
-          "sitemap": "Website",
           "url": "URL"
         },
         "submit": {
@@ -2209,9 +2203,6 @@
           "file": {
             "title": "File"
           },
-          "sitemap": {
-            "title": "Website Sync"
-          },
           "url": {
             "title": "URL"
           }
@@ -2224,7 +2215,6 @@
         "directory": "Folders",
         "file": "Files",
         "note": "Notes",
-        "sitemap": "Websites",
         "url": "URLs"
       },
       "preview": {
@@ -6147,6 +6137,9 @@
         "enabled": "Enabled",
         "failed": "Failed",
         "failed_to_start": "Failed to start health check",
+        "generation_output_audio": "audio",
+        "generation_output_image": "an image",
+        "generation_output_video": "a video",
         "keys_status_count": "Passed: {{count_passed}} keys, failed: {{count_failed}} keys",
         "model_status_failed": "{{count}} models completely inaccessible",
         "model_status_partial": "{{count}} models had inaccessible keys",
@@ -6155,6 +6148,7 @@
         "no_api_keys": "No API keys found, please add API keys first.",
         "no_results": "No results",
         "outcome_fail_short": "{{count}} failed",
+        "outcome_skipped_short": "{{count}} skipped",
         "outcome_success_short": "{{count}} passed",
         "outcome_total": "{{count}} total",
         "passed": "Passed",
@@ -6166,8 +6160,11 @@
         "retry": "Check again",
         "select_api_key": "Select the API key to use:",
         "single": "Single",
+        "skip_reason_generation_cost": "This model's health check would generate {{output}} and consume quota, so it is skipped by default.",
+        "skip_reason_unsupported_probe": "This model type does not have a low-cost health check yet, so it is skipped by default.",
         "start": "Start",
         "status_checking": "Checking…",
+        "status_skipped": "Skipped",
         "timeout": "Timeout",
         "title": "Model health check",
         "use_all_keys": "Key(s)"
@@ -6176,6 +6173,8 @@
       "default_assistant_model": "Default Assistant Model",
       "default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
       "empty": "No models found",
+      "group_disable": "Close this group",
+      "group_enable": "Enable this group",
       "list_title": "Model list",
       "manage": {
         "add_custom_model": "Add custom model",

@@ -3,7 +3,7 @@
  */
 
 import type { ProviderV3 } from '@ai-sdk/provider'
-import { createMockProviderV3 } from '@test-utils'
+import { createMockProviderV3, createMockRerankingModel } from '@test-utils'
 import { describe, expect, it, vi } from 'vitest'
 
 import { ProviderExtension } from '../core/ProviderExtension'
@@ -339,6 +339,58 @@ describe('ProviderExtension', () => {
       })
 
       expect(configured.config.defaultOptions?.baseURL).toBe('https://api.test.com')
+    })
+  })
+
+  describe('createRerankingModel', () => {
+    interface TestSettings {
+      apiKey?: string
+      baseURL?: string
+    }
+
+    it('should add fallback rerankingModel when provider lacks native rerankingModel', async () => {
+      const fallbackModel = createMockRerankingModel({ modelId: 'fallback-reranker' })
+      const fallbackFactory = vi.fn(() => fallbackModel)
+      const createFn = vi.fn(() => {
+        const provider = createMockProviderV3({ provider: 'test-provider' })
+        delete (provider as Partial<ProviderV3>).rerankingModel
+        return provider
+      })
+      const extension = new ProviderExtension<TestSettings>({
+        name: 'test-provider',
+        create: createFn as any,
+        defaultOptions: { apiKey: 'default-key' },
+        createRerankingModel: fallbackFactory
+      })
+
+      const provider = await extension.createProvider({ baseURL: 'https://api.example.com' })
+
+      expect(provider.rerankingModel?.('rerank-model')).toBe(fallbackModel)
+      expect(fallbackFactory).toHaveBeenCalledWith('rerank-model', {
+        apiKey: 'default-key',
+        baseURL: 'https://api.example.com'
+      })
+    })
+
+    it('should preserve native provider.rerankingModel', async () => {
+      const nativeModel = createMockRerankingModel({ modelId: 'native-reranker' })
+      const fallbackFactory = vi.fn(() => createMockRerankingModel({ modelId: 'fallback-reranker' }))
+      const nativeFactory = vi.fn(() => nativeModel)
+      const extension = new ProviderExtension<TestSettings>({
+        name: 'test-provider',
+        create: (() =>
+          createMockProviderV3({
+            provider: 'test-provider',
+            rerankingModel: nativeFactory
+          })) as any,
+        createRerankingModel: fallbackFactory
+      })
+
+      const provider = await extension.createProvider({ apiKey: 'test-key' })
+
+      expect(provider.rerankingModel?.('rerank-model')).toBe(nativeModel)
+      expect(nativeFactory).toHaveBeenCalledWith('rerank-model')
+      expect(fallbackFactory).not.toHaveBeenCalled()
     })
   })
 
