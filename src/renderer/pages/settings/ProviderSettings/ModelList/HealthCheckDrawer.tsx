@@ -11,6 +11,7 @@ import {
 import Scrollbar from '@renderer/components/Scrollbar'
 import { getModelLogo } from '@renderer/config/models'
 import type {
+  ModelHealthCheckGenerationOutput,
   ModelHealthCheckSkipReason,
   ModelWithStatus
 } from '@renderer/pages/settings/ProviderSettings/types/healthCheck'
@@ -72,10 +73,23 @@ export default function HealthCheckDrawer({
   const failCount = useMemo(() => modelStatuses.filter((s) => s.status === HealthStatus.FAILED).length, [modelStatuses])
   const skippedCount = useMemo(() => modelStatuses.filter((s) => s.kind === 'skipped').length, [modelStatuses])
 
+  const getGenerationOutputText = (output: ModelHealthCheckGenerationOutput) => {
+    switch (output) {
+      case 'image':
+        return t('settings.models.check.generation_output_image')
+      case 'video':
+        return t('settings.models.check.generation_output_video')
+      case 'audio':
+        return t('settings.models.check.generation_output_audio')
+    }
+  }
+
   const getSkipReasonText = (reason: ModelHealthCheckSkipReason) => {
-    switch (reason) {
-      case 'image_generation_cost':
-        return t('settings.models.check.skip_reason_image_generation_cost')
+    switch (reason.kind) {
+      case 'generation_cost':
+        return t('settings.models.check.skip_reason_generation_cost', {
+          output: getGenerationOutputText(reason.output)
+        })
       case 'unsupported_probe':
         return t('settings.models.check.skip_reason_unsupported_probe')
     }

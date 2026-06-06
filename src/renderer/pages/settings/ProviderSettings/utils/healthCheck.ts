@@ -10,7 +10,12 @@ import {
   isTextToSpeechModel
 } from '@shared/utils/model'
 
-import type { ApiKeyWithStatus, ModelHealthCheckSkipReason, ModelWithStatus } from '../types/healthCheck'
+import type {
+  ApiKeyWithStatus,
+  ModelHealthCheckGenerationOutput,
+  ModelHealthCheckSkipReason,
+  ModelWithStatus
+} from '../types/healthCheck'
 import { HealthStatus } from '../types/healthCheck'
 
 export function healthCheckErrorToDisplayString(error: SerializedError | string | undefined | null): string {
@@ -58,19 +63,33 @@ export function aggregateApiKeyResults(keyResults: ApiKeyWithStatus[]): {
   }
 }
 
-export function getModelHealthCheckSkipReason(model: Model): ModelHealthCheckSkipReason | null {
+export function getModelHealthCheckGenerationOutput(model: Model): ModelHealthCheckGenerationOutput | null {
   if (isGenerateImageModel(model)) {
-    return 'image_generation_cost'
+    return 'image'
   }
 
-  if (
-    isRerankModel(model) ||
-    isGenerateVideoModel(model) ||
-    isGenerateAudioModel(model) ||
-    isTextToSpeechModel(model) ||
-    isSpeechToTextModel(model)
-  ) {
-    return 'unsupported_probe'
+  if (isGenerateVideoModel(model)) {
+    return 'video'
+  }
+
+  if (isGenerateAudioModel(model)) {
+    return 'audio'
+  }
+
+  return null
+}
+
+export function getModelHealthCheckSkipReason(model: Model): ModelHealthCheckSkipReason | null {
+  const generationOutput = getModelHealthCheckGenerationOutput(model)
+  if (generationOutput) {
+    return {
+      kind: 'generation_cost',
+      output: generationOutput
+    }
+  }
+
+  if (isRerankModel(model) || isTextToSpeechModel(model) || isSpeechToTextModel(model)) {
+    return { kind: 'unsupported_probe' }
   }
 
   return null

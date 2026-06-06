@@ -153,7 +153,7 @@ describe('useHealthCheck', () => {
     await waitFor(() => expect(abortSignal?.aborted).toBe(true))
   })
 
-  it('marks image-generation models as skipped without probing them', async () => {
+  it('marks generation models as skipped without probing them', async () => {
     const chatModel = { id: 'openai::gpt-4o', providerId: 'openai', name: 'GPT-4o', capabilities: [] }
     const imageModel = {
       id: 'openai::gpt-image-1',
@@ -161,7 +161,13 @@ describe('useHealthCheck', () => {
       name: 'GPT Image',
       capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
     }
-    useModelsMock.mockReturnValue({ models: [chatModel, imageModel] })
+    const videoModel = {
+      id: 'openai::sora',
+      providerId: 'openai',
+      name: 'Sora',
+      capabilities: [MODEL_CAPABILITY.VIDEO_GENERATION]
+    }
+    useModelsMock.mockReturnValue({ models: [chatModel, imageModel, videoModel] })
     checkModelsHealthMock.mockImplementation(async (options, onChecked) => {
       onChecked(
         {
@@ -185,12 +191,17 @@ describe('useHealthCheck', () => {
 
     expect(checkModelsHealthMock).toHaveBeenCalledTimes(1)
     expect(checkModelsHealthMock.mock.calls[0]?.[0].models).toEqual([chatModel])
-    expect(result.current.modelStatuses).toHaveLength(2)
+    expect(result.current.modelStatuses).toHaveLength(3)
     expect(result.current.modelStatuses[0]).toMatchObject({ kind: 'ok', model: chatModel })
     expect(result.current.modelStatuses[1]).toMatchObject({
       kind: 'skipped',
       model: imageModel,
-      skipReason: 'image_generation_cost'
+      skipReason: { kind: 'generation_cost', output: 'image' }
+    })
+    expect(result.current.modelStatuses[2]).toMatchObject({
+      kind: 'skipped',
+      model: videoModel,
+      skipReason: { kind: 'generation_cost', output: 'video' }
     })
   })
 })

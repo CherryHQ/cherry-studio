@@ -42,7 +42,16 @@ export type ApiKeyWithStatus = ApiKeyConnectivity & {
   key: string
 }
 
-export type ModelHealthCheckSkipReason = 'image_generation_cost' | 'unsupported_probe'
+export type ModelHealthCheckGenerationOutput = 'image' | 'video' | 'audio'
+
+export type ModelHealthCheckSkipReason =
+  | {
+      kind: 'generation_cost'
+      output: ModelHealthCheckGenerationOutput
+    }
+  | {
+      kind: 'unsupported_probe'
+    }
 
 export type ModelWithStatus =
   | {
