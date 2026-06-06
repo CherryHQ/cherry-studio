@@ -6124,8 +6124,8 @@
       "api_key": "API 密钥",
       "available_count": "可用模型 {{count}} 个",
       "base_url": "基础 URL",
-      "bulk_disable": "全部关闭",
-      "bulk_enable": "全选",
+      "bulk_disable": "全部禁用",
+      "bulk_enable": "全部启用",
       "check": {
         "all": "所有",
         "all_models_passed": "所有模型检测通过",
@@ -6170,10 +6170,12 @@
         "title": "模型健康检测",
         "use_all_keys": "使用密钥"
       },
+      "collapse_all": "全部折叠",
       "copy_model_id_tooltip": "点击复制模型 ID：{{id}}",
       "default_assistant_model": "默认助手模型",
       "default_assistant_model_description": "创建新助手时使用的模型，如果助手未设置模型，则使用此模型",
       "empty": "没有模型",
+      "expand_all": "全部展开",
       "filter": {
         "clear": "清除模型筛选",
         "label": "筛选模型"
@@ -6245,6 +6247,7 @@
         "sync_switch_to_deprecate": "改为标记弃用",
         "sync_will_deprecate": "将标记为弃用"
       },
+      "more_actions": "更多模型列表操作",
       "provider_id": "服务商 ID",
       "provider_key_add_confirm": "是否要为 {{provider}} 添加 API 密钥？",
       "provider_key_add_failed_by_empty_data": "添加服务商 API 密钥失败，数据为空",

@@ -1,9 +1,9 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
+import { Switch, Tooltip } from '@cherrystudio/ui'
 import { cn } from '@renderer/utils'
 import type { Model } from '@shared/data/types/model'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { ChevronRight, ToggleLeft, ToggleRight } from 'lucide-react'
-import React, { memo, useCallback, useMemo, useRef, useState } from 'react'
+import { ChevronRight } from 'lucide-react'
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
@@ -23,6 +23,7 @@ interface ModelListGroupProps {
   onEditModel: (model: Model) => void
   onToggleModel: (model: Model, enabled: boolean) => Promise<void>
   onToggleModels?: (models: Model[], enabled: boolean) => Promise<void>
+  expansionCommand?: { expanded: boolean; version: number }
 }
 
 const ModelListGroup: React.FC<ModelListGroupProps> = ({
@@ -36,7 +37,8 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
   pendingModelIds,
   onEditModel,
   onToggleModel,
-  onToggleModels
+  onToggleModels,
+  expansionCommand
 }) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(defaultOpen)
@@ -48,7 +50,7 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
   const hasPendingModel = groupModels.some((model) => pendingModelIds.has(model.id))
   const canToggleGroupModels =
     typeof bulkToggleEnabled === 'boolean' && bulkToggleLabel !== undefined && onToggleModels !== undefined
-  const BulkToggleIcon = bulkToggleEnabled ? ToggleRight : ToggleLeft
+  const groupSwitchChecked = bulkToggleEnabled === false
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scrollerRef.current,
@@ -61,19 +63,24 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
     setOpen((prev) => !prev)
   }, [])
 
-  const handleToggleGroupModels = useCallback(
-    (event: React.MouseEvent<HTMLButtonElement>) => {
-      event.stopPropagation()
+  useEffect(() => {
+    if (!expansionCommand) {
+      return
+    }
+    setOpen(expansionCommand.expanded)
+  }, [expansionCommand])
 
-      if (!canToggleGroupModels || bulkToggleEnabled === undefined || onToggleModels === undefined) {
+  const handleToggleGroupModels = useCallback(
+    (enabled: boolean) => {
+      if (!canToggleGroupModels || onToggleModels === undefined) {
         return
       }
 
-      void onToggleModels(groupModels, bulkToggleEnabled).catch(() => {
+      void onToggleModels(groupModels, enabled).catch(() => {
         window.toast.error(t('settings.models.manage.operation_failed'))
       })
     },
-    [bulkToggleEnabled, canToggleGroupModels, groupModels, onToggleModels, t]
+    [canToggleGroupModels, groupModels, onToggleModels, t]
   )
 
   return (
@@ -88,17 +95,15 @@ const ModelListGroup: React.FC<ModelListGroupProps> = ({
         </button>
         <div className={modelListClasses.groupHeaderActions}>
           {canToggleGroupModels ? (
-            <Tooltip content={bulkToggleLabel} classNames={{ placeholder: modelListClasses.subsectionTooltipTrigger }}>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
+            <Tooltip content={bulkToggleLabel} classNames={{ placeholder: modelListClasses.groupSwitchTooltipTrigger }}>
+              <Switch
+                checked={groupSwitchChecked}
                 aria-label={bulkToggleLabel}
-                className={modelListClasses.subsectionIconButton}
+                size="sm"
                 disabled={disabled || bulkActionDisabled || hasPendingModel}
-                onClick={handleToggleGroupModels}>
-                <BulkToggleIcon className={modelListClasses.subsectionIcon} />
-              </Button>
+                onClick={(event) => event.stopPropagation()}
+                onCheckedChange={handleToggleGroupModels}
+              />
             </Tooltip>
           ) : null}
         </div>

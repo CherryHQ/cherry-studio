@@ -253,10 +253,16 @@ export const modelListClasses = {
   capabilityTabIcon: 'size-3 shrink-0',
   subsectionRow: 'flex min-w-0 items-center justify-between gap-2',
   subsectionTitleWrap: 'flex min-w-0 items-center gap-2',
-  subsectionActions: 'flex shrink-0 items-center gap-2 pr-1',
+  subsectionActions: 'flex shrink-0 items-center gap-2',
   subsectionIconButton:
     'inline-flex size-5 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/80 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground disabled:opacity-40',
   subsectionIcon: 'size-4 shrink-0',
+  listActionTriggerButton:
+    'inline-flex size-6 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/80 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground disabled:opacity-40',
+  listActionTriggerIcon: 'size-4 shrink-0',
+  listActionMenu: 'w-fit min-w-40 rounded-xl p-1.5',
+  listActionMenuItem: 'h-9 rounded-lg px-3 text-sm',
+  listActionMenuIcon: 'size-3.5 text-muted-foreground/70',
   subsectionTooltipTrigger: 'inline-flex size-5 min-h-0 shrink-0 items-center justify-center leading-none',
   subsectionTitleEnabled:
     'text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted',
@@ -302,14 +308,15 @@ export const modelListClasses = {
    * Replaces the antd-coupled wrapper; rows render inside the same card on expand.
    */
   groupCard:
-    'min-w-0 w-full rounded-[length:var(--radius-lg)] border border-[color:var(--color-border-fg-muted)] bg-transparent px-3 py-2',
+    'group/modelGroup min-w-0 w-full rounded-[length:var(--radius-lg)] border border-[color:var(--color-border-fg-muted)] bg-transparent px-3 py-2',
   groupHeader:
-    'group/groupRow flex w-full items-center justify-between gap-2 bg-transparent text-left outline-none focus-visible:outline-none',
+    'group/groupRow flex min-h-7 w-full items-center justify-between gap-2 bg-transparent text-left outline-none focus-visible:outline-none',
   groupToggleButton:
     'flex min-w-0 flex-1 items-center gap-1 bg-transparent text-left outline-none focus-visible:outline-none',
-  groupHeaderActions: 'flex shrink-0 items-center gap-1',
+  groupHeaderActions: 'flex h-7 shrink-0 items-center gap-1',
+  groupSwitchTooltipTrigger: 'inline-flex h-7 shrink-0 items-center justify-center leading-none',
   groupTitle:
-    'min-w-0 flex-1 truncate text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted font-[weight:var(--font-weight-normal)] transition-colors group-hover/groupRow:text-foreground',
+    'min-w-0 flex-1 truncate text-[length:var(--font-size-body-sm)] leading-[var(--line-height-body-sm)] text-foreground font-[weight:var(--font-weight-medium)]',
   groupChevron:
     'size-4 shrink-0 text-muted-foreground/65 transition-[transform,color] duration-150 group-hover/groupRow:text-foreground',
   groupChevronOpen: 'rotate-90',

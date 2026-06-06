@@ -6124,8 +6124,8 @@
       "api_key": "API Key",
       "available_count": "{{count}} available",
       "base_url": "Base URL",
-      "bulk_disable": "Close all",
-      "bulk_enable": "Select all",
+      "bulk_disable": "Disable all",
+      "bulk_enable": "Enable all",
       "check": {
         "all": "All",
         "all_models_passed": "All models check passed",
@@ -6170,10 +6170,12 @@
         "title": "Model health check",
         "use_all_keys": "Key(s)"
       },
+      "collapse_all": "Collapse all",
       "copy_model_id_tooltip": "Click to copy model ID: {{id}}",
       "default_assistant_model": "Default Assistant Model",
       "default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
       "empty": "No models found",
+      "expand_all": "Expand all",
       "filter": {
         "clear": "Clear model filter",
         "label": "Filter models"
@@ -6245,6 +6247,7 @@
         "sync_switch_to_deprecate": "Mark deprecated instead",
         "sync_will_deprecate": "Will be marked deprecated"
       },
+      "more_actions": "More model list actions",
       "provider_id": "Provider ID",
       "provider_key_add_confirm": "Do you want to add the API key for {{provider}}?",
       "provider_key_add_failed_by_empty_data": "Failed to add provider API key, data is empty",

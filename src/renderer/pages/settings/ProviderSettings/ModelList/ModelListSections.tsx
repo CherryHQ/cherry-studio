@@ -22,6 +22,7 @@ interface ModelListSectionsProps {
   onToggleModel: (model: Model, enabled: boolean) => Promise<void>
   onToggleModels: (models: Model[], enabled: boolean) => Promise<void>
   bulkActionDisabled?: boolean
+  expansionCommand?: { expanded: boolean; version: number }
   enabledSectionActions?: React.ReactNode
   disabledSectionActions?: React.ReactNode
 }
@@ -40,6 +41,7 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
   onToggleModel,
   onToggleModels,
   bulkActionDisabled,
+  expansionCommand,
   enabledSectionActions,
   disabledSectionActions
 }) => {
@@ -90,6 +92,7 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
                   onEditModel={onEditModel}
                   onToggleModel={onToggleModel}
                   onToggleModels={onToggleModels}
+                  expansionCommand={expansionCommand}
                 />
               ))}
             </div>
@@ -121,6 +124,7 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
                   onEditModel={onEditModel}
                   onToggleModel={onToggleModel}
                   onToggleModels={onToggleModels}
+                  expansionCommand={expansionCommand}
                 />
               ))}
             </div>

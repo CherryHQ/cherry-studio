@@ -1,7 +1,7 @@
-import { Button, Tooltip } from '@cherrystudio/ui'
-import { ToggleLeft, ToggleRight } from 'lucide-react'
+import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
+import { ChevronsDown, ChevronsUp, MoreVertical, ToggleLeft, ToggleRight } from 'lucide-react'
 import type React from 'react'
-import { useCallback } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { modelListClasses } from '../primitives/ProviderSettingsPrimitives'
@@ -31,18 +31,147 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({
   const toolbarDisabled = disabled || modelList.isBulkUpdating
   const bulkCloseLabel = t('settings.models.bulk_disable')
   const bulkEnableLabel = t('settings.models.bulk_enable')
+  const expandAllLabel = t('settings.models.expand_all')
+  const collapseAllLabel = t('settings.models.collapse_all')
+  const [openMenu, setOpenMenu] = useState<'enabled' | 'disabled' | null>(null)
+  const [expansionCommand, setExpansionCommand] = useState<{ expanded: boolean; version: number }>()
+  const [groupsExpanded, setGroupsExpanded] = useState(false)
+  const expandToggleLabel = groupsExpanded ? collapseAllLabel : expandAllLabel
 
   const handleCloseVisibleModels = useCallback(() => {
+    setOpenMenu(null)
     void Promise.resolve(modelList.header.onToggleVisibleModels(false)).catch(() => {
       window.toast.error(t('settings.models.manage.operation_failed'))
     })
   }, [modelList.header, t])
 
   const handleEnableVisibleModels = useCallback(() => {
+    setOpenMenu(null)
     void Promise.resolve(modelList.header.onToggleVisibleModels(true)).catch(() => {
       window.toast.error(t('settings.models.manage.operation_failed'))
     })
   }, [modelList.header, t])
+
+  const handleExpandAll = useCallback(() => {
+    setOpenMenu(null)
+    setGroupsExpanded(true)
+    setExpansionCommand((prev) => ({ expanded: true, version: (prev?.version ?? 0) + 1 }))
+  }, [])
+
+  const handleCollapseAll = useCallback(() => {
+    setOpenMenu(null)
+    setGroupsExpanded(false)
+    setExpansionCommand((prev) => ({ expanded: false, version: (prev?.version ?? 0) + 1 }))
+  }, [])
+
+  const enabledListActionMenu = useMemo(
+    () => (
+      <Popover open={openMenu === 'enabled'} onOpenChange={(open) => setOpenMenu(open ? 'enabled' : null)}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t('settings.models.more_actions')}
+            className={modelListClasses.listActionTriggerButton}
+            disabled={!modelList.header.hasVisibleModels || toolbarDisabled}>
+            <MoreVertical className={modelListClasses.listActionTriggerIcon} />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className={modelListClasses.listActionMenu}>
+          <MenuList className="gap-1">
+            <MenuItem
+              label={bulkCloseLabel}
+              className={modelListClasses.listActionMenuItem}
+              icon={<ToggleLeft className={modelListClasses.listActionMenuIcon} />}
+              disabled={!modelList.header.hasVisibleModels || toolbarDisabled}
+              onClick={handleCloseVisibleModels}
+            />
+            <MenuItem
+              label={expandToggleLabel}
+              className={modelListClasses.listActionMenuItem}
+              icon={
+                groupsExpanded ? (
+                  <ChevronsUp className={modelListClasses.listActionMenuIcon} />
+                ) : (
+                  <ChevronsDown className={modelListClasses.listActionMenuIcon} />
+                )
+              }
+              disabled={!modelList.header.hasVisibleModels || toolbarDisabled}
+              onClick={groupsExpanded ? handleCollapseAll : handleExpandAll}
+            />
+          </MenuList>
+        </PopoverContent>
+      </Popover>
+    ),
+    [
+      bulkCloseLabel,
+      expandToggleLabel,
+      groupsExpanded,
+      handleCloseVisibleModels,
+      handleCollapseAll,
+      handleExpandAll,
+      modelList.header.hasVisibleModels,
+      t,
+      toolbarDisabled,
+      openMenu
+    ]
+  )
+
+  const disabledListActionMenu = useMemo(
+    () => (
+      <Popover open={openMenu === 'disabled'} onOpenChange={(open) => setOpenMenu(open ? 'disabled' : null)}>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={t('settings.models.more_actions')}
+            className={modelListClasses.listActionTriggerButton}
+            disabled={!modelList.header.hasVisibleModels || toolbarDisabled}>
+            <MoreVertical className={modelListClasses.listActionTriggerIcon} />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className={modelListClasses.listActionMenu}>
+          <MenuList className="gap-1">
+            <MenuItem
+              label={bulkEnableLabel}
+              className={modelListClasses.listActionMenuItem}
+              icon={<ToggleRight className={modelListClasses.listActionMenuIcon} />}
+              disabled={!modelList.header.hasVisibleModels || modelList.header.allEnabled || toolbarDisabled}
+              onClick={handleEnableVisibleModels}
+            />
+            <MenuItem
+              label={expandToggleLabel}
+              className={modelListClasses.listActionMenuItem}
+              icon={
+                groupsExpanded ? (
+                  <ChevronsUp className={modelListClasses.listActionMenuIcon} />
+                ) : (
+                  <ChevronsDown className={modelListClasses.listActionMenuIcon} />
+                )
+              }
+              disabled={!modelList.header.hasVisibleModels || toolbarDisabled}
+              onClick={groupsExpanded ? handleCollapseAll : handleExpandAll}
+            />
+          </MenuList>
+        </PopoverContent>
+      </Popover>
+    ),
+    [
+      bulkEnableLabel,
+      expandToggleLabel,
+      groupsExpanded,
+      handleCollapseAll,
+      handleEnableVisibleModels,
+      handleExpandAll,
+      modelList.header.allEnabled,
+      modelList.header.hasVisibleModels,
+      t,
+      toolbarDisabled,
+      openMenu
+    ]
+  )
 
   return (
     <>
@@ -75,40 +204,17 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({
           onToggleModel={modelList.sections.onToggleModel}
           onToggleModels={modelList.sections.onToggleModels}
           bulkActionDisabled={toolbarDisabled}
+          expansionCommand={expansionCommand}
           enabledSectionActions={
             <>
-              <Tooltip content={bulkCloseLabel}>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label={bulkCloseLabel}
-                  className={modelListClasses.subsectionIconButton}
-                  disabled={!modelList.header.hasVisibleModels || toolbarDisabled}
-                  onClick={handleCloseVisibleModels}>
-                  <ToggleLeft className={modelListClasses.subsectionIcon} />
-                </Button>
-              </Tooltip>
+              {enabledListActionMenu}
               {enabledSectionActions?.({
                 disabled: toolbarDisabled,
                 hasVisibleModels: modelList.header.hasVisibleModels
               })}
             </>
           }
-          disabledSectionActions={
-            <Tooltip content={bulkEnableLabel}>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                aria-label={bulkEnableLabel}
-                className={modelListClasses.subsectionIconButton}
-                disabled={!modelList.header.hasVisibleModels || modelList.header.allEnabled || toolbarDisabled}
-                onClick={handleEnableVisibleModels}>
-                <ToggleRight className={modelListClasses.subsectionIcon} />
-              </Button>
-            </Tooltip>
-          }
+          disabledSectionActions={disabledListActionMenu}
         />
       </div>
       <EditModelDrawer

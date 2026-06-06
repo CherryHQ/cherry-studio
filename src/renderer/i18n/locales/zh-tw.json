@@ -6124,8 +6124,8 @@
       "api_key": "API 金鑰",
       "available_count": "可用模型 {{count}} 個",
       "base_url": "基礎 URL",
-      "bulk_disable": "全部關閉",
-      "bulk_enable": "全選",
+      "bulk_disable": "全部停用",
+      "bulk_enable": "全部啟用",
       "check": {
         "all": "所有",
         "all_models_passed": "所有模型檢查皆成功",
@@ -6170,10 +6170,12 @@
         "title": "模型健康檢查",
         "use_all_keys": "使用金鑰"
       },
+      "collapse_all": "全部折疊",
       "copy_model_id_tooltip": "點選複製模型 ID：{{id}}",
       "default_assistant_model": "預設助手模型",
       "default_assistant_model_description": "建立新助手時使用的模型，如果助手未設定模型，則使用此模型",
       "empty": "找不到模型",
+      "expand_all": "全部展開",
       "filter": {
         "clear": "清除模型篩選",
         "label": "篩選模型"
@@ -6245,6 +6247,7 @@
         "sync_switch_to_deprecate": "改為標記棄用",
         "sync_will_deprecate": "將標記為棄用"
       },
+      "more_actions": "更多模型列表操作",
       "provider_id": "提供者 ID",
       "provider_key_add_confirm": "是否要為 {{provider}} 新增 API 金鑰？",
       "provider_key_add_failed_by_empty_data": "新增提供者 API 金鑰失敗，資料為空",
