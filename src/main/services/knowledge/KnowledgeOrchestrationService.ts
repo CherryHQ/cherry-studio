@@ -456,7 +456,7 @@ export class KnowledgeOrchestrationService extends BaseService {
   }
 
   private async assertCompletedContainerHasNoDeletingChildren(baseId: string, item: KnowledgeItem): Promise<void> {
-    if (item.type !== 'directory' && item.type !== 'sitemap') {
+    if (item.type !== 'directory') {
       return
     }
 

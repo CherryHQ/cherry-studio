@@ -2,7 +2,7 @@ import { formatRelativeTime } from '@renderer/pages/knowledge/utils'
 import type { FileEntry } from '@shared/data/types/file'
 import type { KnowledgeItemOf, KnowledgeItemStatus, KnowledgeItemType } from '@shared/data/types/knowledge'
 import type { LucideIcon } from 'lucide-react'
-import { FileText, Folder, Globe, Link2, StickyNote } from 'lucide-react'
+import { FileText, Folder, Link2, StickyNote } from 'lucide-react'
 
 export type DataSourceStatus = 'completed' | 'processing' | 'failed'
 export type DataSourceStatusIcon = 'check' | 'loader' | 'alert'
@@ -182,17 +182,6 @@ export const dataSourceTypeDisplayConfig: DataSourceTypeDisplayConfigMap = {
     icon: {
       icon: Link2,
       iconClassName: 'text-cyan-500'
-    },
-    getTitle: (item) => item.data.source,
-    getSuffix: () => '',
-    getMetaParts: (item, { language }) => getRelativeMetaParts(item.updatedAt, language),
-    getStatus: resolveDataSourceStatusViewModel
-  },
-  sitemap: {
-    filterLabelKey: 'knowledge.data_source.filters.sitemap',
-    icon: {
-      icon: Globe,
-      iconClassName: 'text-emerald-500'
     },
     getTitle: (item) => item.data.source,
     getSuffix: () => '',

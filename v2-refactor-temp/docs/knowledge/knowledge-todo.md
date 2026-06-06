@@ -38,9 +38,9 @@
   - 后续需要接入真实 note picker / note 数据源 API，并替换占位 UI。
   - 参考：`src/renderer/pages/knowledge.v2/components/addKnowledgeItemDialog/sources/NoteSourceContent.tsx`
 
-- 继续保持 `directory` / `sitemap` 展开由 main runtime 负责。
-  - renderer 只提交 owner item 语义，不在页面里展开目录或 sitemap。
-  - 如果未来允许 nested directory / sitemap，需要先重新设计 interrupt / reconcile 语义。
+- 继续保持 `directory` 展开由 main runtime 负责。
+  - renderer 只提交 owner item 语义，不在页面里展开目录。
+  - 如果未来允许 nested directory，需要先重新设计 interrupt / reconcile 语义。
   - 参考：`src/renderer/pages/knowledge.v2/plans/add-source-confirm-submit.md`
 
 ## 3. UI 交互补齐
@@ -50,11 +50,6 @@
   - 非终态 item 目前靠轮询刷新。
   - 后续应根据数据规模和 UI 稿补分页 / 虚拟列表 / 排序 / 批量处理等能力。
   - 参考：`src/renderer/hooks/useKnowledgeItems.ts`
-
-- 统一 sitemap 的用户可见文案。
-  - 当前语义已经收敛到 `sitemap`，但部分中文文案仍可能显示为“网站”。
-  - 后续需要按最终产品命名统一 i18n。
-  - 参考：`src/renderer/pages/knowledge.v2/plans/add-source-confirm-submit.md`
 
 - 补齐更多语言的 `knowledge_v2` 翻译。
   - 当前主要覆盖 `zh-cn` / `zh-tw` / `en-us`。
