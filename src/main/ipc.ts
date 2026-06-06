@@ -40,6 +40,29 @@ export async function registerIpc() {
 
   // MainWindow_Reload handler moved into MainWindowService.registerIpcHandlers.
   // Application_Quit is registered by Application.registerApplicationIpc()
+<<<<<<< HEAD
+=======
+  ipcMain.handle(IpcChannel.Open_Website, (_, url: string) => {
+    if (!isSafeExternalUrl(url)) {
+      logger.warn(`Blocked shell.openExternal for untrusted URL scheme: ${url}`)
+      return
+    }
+    return shell.openExternal(url)
+  })
+
+  // spell check
+  ipcMain.handle(IpcChannel.App_SetEnableSpellCheck, (_, isEnable: boolean) => {
+    const windows = BrowserWindow.getAllWindows()
+    windows.forEach((window) => {
+      window.webContents.session.setSpellCheckerEnabled(isEnable)
+    })
+    const webviews = webContents.getAllWebContents()
+    webviews.forEach((webview) => {
+      webview.session.setSpellCheckerEnabled(isEnable)
+    })
+    void application.get('PreferenceService').set('app.spell_check.enabled', isEnable)
+  })
+>>>>>>> 1b59c6f193 (fix: remove use of ConfigManager in ipc.ts)
 
   // spell check languages
   ipcMain.handle(IpcChannel.App_SetSpellCheckLanguages, (_, languages: string[]) => {
