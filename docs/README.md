@@ -72,6 +72,8 @@
 
 | Document | Description |
 |----------|-------------|
+| [Agent-Managed Knowledge Product](./references/knowledge/agent-managed-knowledge-product.md) | Product semantics for folder-based, Agent-managed knowledge bases |
+| [Knowledge UI Presentation](./references/knowledge/knowledge-ui-presentation-options.md) | Product decision for file-manager-style knowledge UI, with ASCII layouts and operation flows |
 | [KnowledgeService](./references/knowledge/knowledge-service.md) | Concurrency control and workload management |
 | [Knowledge Operation Guards](./references/knowledge/operation-guards.md) | Guard, enqueue failure, and recovery semantics for add/delete/reindex |
 
