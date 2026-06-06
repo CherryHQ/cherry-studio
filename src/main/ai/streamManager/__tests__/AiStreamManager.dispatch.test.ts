@@ -29,11 +29,11 @@ vi.mock('../context', () => ({
 }))
 
 // Boot-sweep reconcile reads/writes through MessageService.
-const findPendingAssistantMessages = vi.fn<() => Promise<Array<{ id: string }>>>(async () => [])
+const findPendingAssistantMessageIds = vi.fn<() => Promise<string[]>>(async () => [])
 const markMessagesError = vi.fn<(ids: string[]) => Promise<void>>(async () => undefined)
 vi.mock('@main/data/services/MessageService', () => ({
   messageService: {
-    findPendingAssistantMessages: () => findPendingAssistantMessages(),
+    findPendingAssistantMessageIds: () => findPendingAssistantMessageIds(),
     markMessagesError: (ids: string[]) => markMessagesError(ids)
   }
 }))
@@ -76,7 +76,7 @@ describe('AiStreamManager.dispatch — per-topic serialization', () => {
     vi.clearAllMocks()
     dispatchEvents.length = 0
     dispatchResolvers.length = 0
-    findPendingAssistantMessages.mockResolvedValue([])
+    findPendingAssistantMessageIds.mockResolvedValue([])
     mgr = createManager()
   })
 
@@ -128,7 +128,7 @@ describe('AiStreamManager IPC handlers — boundary validation', () => {
     vi.clearAllMocks()
     dispatchEvents.length = 0
     dispatchResolvers.length = 0
-    findPendingAssistantMessages.mockResolvedValue([])
+    findPendingAssistantMessageIds.mockResolvedValue([])
     handlers.clear()
     vi.mocked(ipcMain.handle).mockImplementation(((channel: string, listener: never) => {
       handlers.set(channel, listener as unknown as (event: unknown, ...args: unknown[]) => unknown)
@@ -209,7 +209,7 @@ describe('AiStreamManager.onInit — boot sweep ordering', () => {
 
   it('flips orphaned pending → error before the Ai_Stream_Open handler is registered', async () => {
     const order: string[] = []
-    findPendingAssistantMessages.mockResolvedValue([{ id: 'stale-1' }, { id: 'stale-2' }])
+    findPendingAssistantMessageIds.mockResolvedValue(['stale-1', 'stale-2'])
     markMessagesError.mockImplementation(async (ids: string[]) => {
       order.push(`sweep:${ids.join(',')}`)
     })

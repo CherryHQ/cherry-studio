@@ -560,19 +560,18 @@ export class MessageService {
   }
 
   /**
-   * Assistant rows still in `pending`. Used at boot to reconcile turns a prior main-process
-   * crash left stuck — the streaming loop never reached its terminal write, and the in-memory
-   * stream registry is empty after a restart, so nothing else would resolve them.
+   * Ids of assistant rows still in `pending` — used by the boot reconcile of crash-orphaned turns.
+   * Selects only `id` (reconcile just flips them to `error`); backed by `message_status_idx`.
    */
-  async findPendingAssistantMessages(): Promise<Message[]> {
+  async findPendingAssistantMessageIds(): Promise<string[]> {
     const db = application.get('DbService').getDb()
     const rows = await db
-      .select()
+      .select({ id: messageTable.id })
       .from(messageTable)
       .where(
         and(eq(messageTable.role, 'assistant'), eq(messageTable.status, 'pending'), isNull(messageTable.deletedAt))
       )
-    return rows.map(rowToMessage)
+    return rows.map((row) => row.id)
   }
 
   /**
