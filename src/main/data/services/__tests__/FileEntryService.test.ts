@@ -1022,5 +1022,58 @@ describe('FileEntryService', () => {
       const entries = await fileEntryService.findUnreferenced()
       expect(entries.map((e) => e.id)).toEqual([goodId])
     })
+
+    it('findCaseInsensitivePeers isolates a corrupt external row instead of throwing', async () => {
+      // The functional unique index `fe_external_path_lower_unique_idx`
+      // makes "a good and a bad row sharing a case-insensitive
+      // externalPath" unrepresentable, so the corrupt row IS the only
+      // possible match for its path: fault isolation must turn the
+      // would-be throw into an empty result plus one warning.
+      const badExternalId = '019606a0-0000-7000-8000-00000000aa03' as FileEntryId
+      const goodExternalId = '019606a0-0000-7000-8000-00000000aa04' as FileEntryId
+      const now = Date.now()
+      await dbh.db.insert(fileEntryTable).values([
+        {
+          id: badExternalId,
+          origin: 'external',
+          name: 'C:\\Users\\x\\bad-peer',
+          ext: 'txt',
+          size: null,
+          externalPath: '/Users/me/BAD-PEER.TXT',
+          deletedAt: null,
+          createdAt: now,
+          updatedAt: now
+        },
+        {
+          id: goodExternalId,
+          origin: 'external',
+          name: 'good-peer',
+          ext: 'txt',
+          size: null,
+          externalPath: '/Users/me/GOOD-PEER.TXT',
+          deletedAt: null,
+          createdAt: now + 1,
+          updatedAt: now + 1
+        }
+      ])
+      mockMainLoggerService.warn.mockClear()
+
+      // Corrupt match → excluded with one warning, not a throw.
+      const badPeers = await fileEntryService.findCaseInsensitivePeers(
+        '/users/me/bad-peer.txt' as CanonicalExternalPath
+      )
+      expect(badPeers).toEqual([])
+      expect(mockMainLoggerService.warn).toHaveBeenCalledTimes(1)
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
+        expect.stringContaining('un-parseable'),
+        expect.objectContaining({ id: badExternalId })
+      )
+
+      // Good rows still surface through the same method.
+      const goodPeers = await fileEntryService.findCaseInsensitivePeers(
+        '/users/me/good-peer.txt' as CanonicalExternalPath
+      )
+      expect(goodPeers.map((e) => e.id)).toEqual([goodExternalId])
+    })
   })
 })
