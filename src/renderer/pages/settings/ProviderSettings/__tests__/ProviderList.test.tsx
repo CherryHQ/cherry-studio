@@ -11,6 +11,9 @@ const useModelsMock = vi.fn()
 const useReorderMock = vi.fn()
 const useOvmsSupportMock = vi.fn()
 const deleteProviderMock = vi.fn()
+const scrollIntoViewMock = vi.fn()
+let providerItemRects: Record<string, { bottom: number; top: number }> = {}
+let scrollerRect = { bottom: 100, top: 0 }
 
 vi.mock('@cherrystudio/ui', async (importOriginal) => {
   const actual = await importOriginal<any>()
@@ -43,6 +46,29 @@ vi.mock('@renderer/hooks/useModel', () => ({
   useModels: (...args: any[]) => useModelsMock(...args)
 }))
 
+vi.mock('@renderer/components/Scrollbar', () => ({
+  default: ({ children, className, ref: passedRef }: any) => (
+    <div
+      className={className}
+      data-testid="provider-list-scrollbar"
+      ref={(element) => {
+        if (element) {
+          element.getBoundingClientRect = () =>
+            ({
+              bottom: scrollerRect.bottom,
+              top: scrollerRect.top
+            }) as DOMRect
+        }
+
+        if (typeof passedRef === 'function') {
+          passedRef(element)
+        }
+      }}>
+      {children}
+    </div>
+  )
+}))
+
 vi.mock('@data/hooks/useReorder', () => ({
   useReorder: (...args: any[]) => useReorderMock(...args)
 }))
@@ -58,8 +84,24 @@ vi.mock('../ProviderList/useProviderDelete', () => ({
 }))
 
 vi.mock('../ProviderList/ProviderListItemWithContextMenu', () => ({
-  default: ({ provider, selected, onSelect, onDelete, showManagementActions }: any) => (
-    <div data-testid={`provider-list-item-${provider.id}`} data-selected={selected ? 'true' : 'false'}>
+  default: ({ provider, selected, onSelect, onDelete, showManagementActions, onSetListItemRef }: any) => (
+    <div
+      data-testid={`provider-list-item-${provider.id}`}
+      data-selected={selected ? 'true' : 'false'}
+      ref={(element) => {
+        if (element) {
+          element.scrollIntoView = scrollIntoViewMock
+          element.getBoundingClientRect = () => {
+            const rect = providerItemRects[provider.id] ?? { bottom: 40, top: 20 }
+            return {
+              bottom: rect.bottom,
+              top: rect.top
+            } as DOMRect
+          }
+        }
+
+        onSetListItemRef(provider.id, element)
+      }}>
       <button type="button" onClick={onSelect}>
         {provider.name}
       </button>
@@ -115,6 +157,19 @@ describe('ProviderList', () => {
     useOvmsSupportMock.mockReturnValue({ isSupported: true })
     useModelsMock.mockReturnValue({ models: [] })
     deleteProviderMock.mockResolvedValue(undefined)
+    providerItemRects = {}
+    scrollerRect = { bottom: 100, top: 0 }
+    Object.defineProperty(window, 'requestAnimationFrame', {
+      configurable: true,
+      value: (callback: FrameRequestCallback) => {
+        callback(0)
+        return 1
+      }
+    })
+    Object.defineProperty(window, 'cancelAnimationFrame', {
+      configurable: true,
+      value: vi.fn()
+    })
     ;(window as any).api = {
       ...(window as any).api,
       getAppInfo: vi.fn().mockResolvedValue({ appDataPath: '' })
@@ -176,12 +231,53 @@ describe('ProviderList', () => {
 
     render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
 
+    expect(useReorderMock).toHaveBeenCalledWith('/providers', { revalidateOnSuccess: false })
     expect(screen.getByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'false')
     fireEvent.click(screen.getByRole('button', { name: /添加/i }))
     expect(screen.getByTestId('provider-editor-drawer')).toHaveAttribute('data-open', 'true')
 
     fireEvent.click(screen.getByRole('button', { name: 'trigger-reorder' }))
     expect(reorderSpy).toHaveBeenCalledWith([reorderableProviders[1], reorderableProviders[0]])
+  })
+
+  it('does not scroll back to the selected provider after drag reorder changes provider order', () => {
+    const reorderableProviders = [
+      { ...providers[0], isEnabled: true },
+      { ...providers[1], isEnabled: true }
+    ]
+    let currentProviders = reorderableProviders
+
+    providerItemRects.openai = { bottom: 40, top: 20 }
+    useProvidersMock.mockImplementation(() => ({
+      providers: currentProviders,
+      createProvider: vi.fn()
+    }))
+
+    const { rerender } = render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    expect(scrollIntoViewMock).not.toHaveBeenCalled()
+
+    providerItemRects.openai = { bottom: -60, top: -80 }
+    fireEvent.click(screen.getByRole('button', { name: 'trigger-reorder' }))
+    currentProviders = [reorderableProviders[1], reorderableProviders[0]]
+
+    rerender(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    expect(reorderSpy).toHaveBeenCalledWith([reorderableProviders[1], reorderableProviders[0]])
+    expect(scrollIntoViewMock).not.toHaveBeenCalled()
+  })
+
+  it('scrolls the selected provider into view when selection changes outside reorder', () => {
+    providerItemRects.openai = { bottom: 40, top: 20 }
+    providerItemRects.anthropic = { bottom: 160, top: 120 }
+
+    const { rerender } = render(<ProviderList selectedProviderId="openai" onSelectProvider={vi.fn()} />)
+
+    expect(scrollIntoViewMock).not.toHaveBeenCalled()
+
+    rerender(<ProviderList selectedProviderId="anthropic" onSelectProvider={vi.fn()} />)
+
+    expect(scrollIntoViewMock).toHaveBeenCalledTimes(1)
   })
 
   it('labels the provider filter icon button for assistive technology', () => {

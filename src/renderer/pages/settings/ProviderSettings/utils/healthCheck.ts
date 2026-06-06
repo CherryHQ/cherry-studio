@@ -5,7 +5,6 @@ import {
   isGenerateAudioModel,
   isGenerateImageModel,
   isGenerateVideoModel,
-  isRerankModel,
   isSpeechToTextModel,
   isTextToSpeechModel
 } from '@shared/utils/model'
@@ -88,7 +87,7 @@ export function getModelHealthCheckSkipReason(model: Model): ModelHealthCheckSki
     }
   }
 
-  if (isRerankModel(model) || isTextToSpeechModel(model) || isSpeechToTextModel(model)) {
+  if (isTextToSpeechModel(model) || isSpeechToTextModel(model)) {
     return { kind: 'unsupported_probe' }
   }
 

@@ -1,4 +1,8 @@
-import { embedMany as aiCoreEmbedMany, generateImage as aiCoreGenerateImage } from '@cherrystudio/ai-core'
+import {
+  embedMany as aiCoreEmbedMany,
+  generateImage as aiCoreGenerateImage,
+  rerank as aiCoreRerank
+} from '@cherrystudio/ai-core'
 import { assistantDataService } from '@data/services/AssistantService'
 import type { PersonGeneration } from '@google/genai'
 import { loggerService } from '@logger'
@@ -15,7 +19,7 @@ import type { FileEntry } from '@shared/data/types/file/fileEntry'
 import { type Model, parseUniqueModelId } from '@shared/data/types/model'
 import type { Base64String } from '@shared/file/types/common'
 import { IpcChannel } from '@shared/IpcChannel'
-import { isEmbeddingModel } from '@shared/utils/model'
+import { isEmbeddingModel, isRerankModel } from '@shared/utils/model'
 import {
   type EmbeddingModelUsage,
   isToolUIPart,
@@ -118,6 +122,19 @@ const ToolApprovalRespondSchema = z.object({
   topicId: z.string().optional(),
   anchorId: z.string().optional()
 })
+
+export interface AiRerankRequest extends AiBaseRequest {
+  query: string
+  documents: string[]
+  topN?: number
+}
+
+export interface AiRerankResult {
+  ranking: Array<{
+    originalIndex: number
+    score: number
+  }>
+}
 
 // ── Service ────────────────────────────────────────────────────────
 
@@ -479,6 +496,44 @@ export class AiService extends BaseService {
     return { embeddings: result.embeddings, usage: result.usage }
   }
 
+  // ── Reranking ──
+
+  async rerank(request: AsInProcess<AiRerankRequest>): Promise<AiRerankResult> {
+    logger.info('rerank started', { assistantId: request.assistantId, count: request.documents.length })
+    const signal = request.requestOptions?.signal
+
+    const { sdkConfig, options = {} } = await this.buildAgentParamsFor(request, signal)
+    const headers = options.headers
+      ? (Object.fromEntries(Object.entries(options.headers).filter(([, value]) => value !== undefined)) as Record<
+          string,
+          string
+        >)
+      : undefined
+
+    const rerankParams = {
+      model: sdkConfig.modelId,
+      query: request.query,
+      documents: request.documents,
+      ...(request.topN !== undefined ? { topN: request.topN } : {}),
+      ...(headers && Object.keys(headers).length > 0 ? { headers } : {}),
+      ...(options.maxRetries !== undefined ? { maxRetries: options.maxRetries } : {}),
+      ...(signal ? { abortSignal: signal } : {})
+    }
+
+    const result = await aiCoreRerank<AppProviderSettingsMap>(
+      sdkConfig.providerId,
+      sdkConfig.providerSettings,
+      rerankParams
+    )
+
+    return {
+      ranking: result.ranking.map((item) => ({
+        originalIndex: item.originalIndex,
+        score: item.score
+      }))
+    }
+  }
+
   // ── Model listing ──
   async listModels(request: ListModelsRequest): Promise<Partial<Model>[]> {
     let providerId = request.providerId
@@ -497,7 +552,7 @@ export class AiService extends BaseService {
 
   // ── API validation ──
 
-  /** Dispatches to `embedMany` for embedding models, `generateText` otherwise. */
+  /** Dispatches to `rerank` / `embedMany` for those model types, `generateText` otherwise. */
   async checkModel(request: AiBaseRequest & { timeout?: number }): Promise<{ latency: number }> {
     const { model } = await this.getProviderAndModel(request)
     const start = performance.now()
@@ -517,9 +572,19 @@ export class AiService extends BaseService {
       ...request,
       requestOptions: { ...request.requestOptions, signal: controller.signal }
     }
-    const probe = isEmbeddingModel(model)
-      ? this.embedMany({ ...probeRequest, values: ['test'] })
-      : this.generateText({ ...probeRequest, system: 'test', prompt: 'hi' })
+    let probe: Promise<unknown>
+    if (isRerankModel(model)) {
+      probe = this.rerank({ ...probeRequest, query: 'test', documents: ['test'], topN: 1 }).then((result) => {
+        if (result.ranking.length === 0) {
+          throw new Error('Rerank health check returned empty ranking')
+        }
+        return result
+      })
+    } else if (isEmbeddingModel(model)) {
+      probe = this.embedMany({ ...probeRequest, values: ['test'] })
+    } else {
+      probe = this.generateText({ ...probeRequest, system: 'test', prompt: 'hi' })
+    }
 
     try {
       await Promise.race([probe, timeoutPromise])
