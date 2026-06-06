@@ -186,7 +186,7 @@ export default function ProviderApiKeyListDrawer({ providerId, open, onClose }: 
           </Button>
         </div>
       }>
-      <div className={apiKeyListClasses.shell}>
+      <div className="space-y-4">
         <div className={apiKeyListClasses.listWrap}>
           <Scrollbar className={apiKeyListClasses.listScroller}>
             {apiKeys.length === 0 && !draft ? (
