@@ -6,10 +6,12 @@ import EmbeddingsFactory from './EmbeddingsFactory'
 
 export default class Embeddings {
   private sdk: BaseEmbeddings
+  private readonly dimensions?: number
+
   constructor({ embedApiClient, dimensions }: { embedApiClient: ApiClient; dimensions?: number }) {
+    this.dimensions = dimensions
     this.sdk = EmbeddingsFactory.create({
-      embedApiClient,
-      dimensions
+      embedApiClient
     })
   }
   public async init(): Promise<void> {
@@ -18,7 +20,7 @@ export default class Embeddings {
 
   @TraceMethod({ spanName: 'dimensions', tag: 'Embeddings' })
   public async getDimensions(): Promise<number> {
-    return this.sdk.getDimensions()
+    return this.dimensions ?? this.sdk.getDimensions()
   }
 
   @TraceMethod({ spanName: 'embedDocuments', tag: 'Embeddings' })
