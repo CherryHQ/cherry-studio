@@ -16,7 +16,7 @@
     "openapi:check": "tsx scripts/generate-openapi-spec.ts --check",
     "dev": "npm run generate:openapi && dotenv electron-vite dev",
     "dev:watch": "dotenv electron-vite dev -- -w",
-    "debug": "electron-vite -- --inspect --sourcemap --remote-debugging-port=9222",
+    "debug": "dotenv electron-vite -- --inspect --sourcemap --remote-debugging-port=9222",
     "build": "npm run generate:openapi && npm run typecheck && electron-vite build",
     "build:check": "pnpm lint && pnpm openapi:check && pnpm docs:check-links && pnpm test",
     "build:unpack": "dotenv npm run build && electron-builder --dir",
