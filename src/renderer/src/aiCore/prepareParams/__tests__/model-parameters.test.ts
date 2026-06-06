@@ -192,13 +192,16 @@ describe('modelParameters', () => {
       expect(getTemperature(assistant, model)).toBe(0.8)
     })
 
-    it('always returns undefined for Claude Opus 4.7 (rejects sampling parameters)', () => {
+    it.each([
+      { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', group: 'Claude 4.7' },
+      { id: 'claude-opus-4-8', name: 'Claude Opus 4.8', group: 'Claude 4.8' }
+    ])('always returns undefined for $name (rejects sampling parameters)', ({ id, name, group }) => {
       const assistant = createAssistant({ enableTemperature: true, temperature: 0.5 })
       const model = createModel({
-        id: 'claude-opus-4-7',
-        name: 'Claude Opus 4.7',
+        id,
+        name,
         provider: 'anthropic',
-        group: 'Claude 4.7'
+        group
       })
 
       expect(getTemperature(assistant, model)).toBeUndefined()
@@ -267,13 +270,16 @@ describe('modelParameters', () => {
       expect(getTopP(assistant, model)).toBeUndefined()
     })
 
-    it('always returns undefined for Claude Opus 4.7 (rejects sampling parameters)', () => {
+    it.each([
+      { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', group: 'Claude 4.7' },
+      { id: 'claude-opus-4-8', name: 'Claude Opus 4.8', group: 'Claude 4.8' }
+    ])('always returns undefined for $name (rejects sampling parameters)', ({ id, name, group }) => {
       const assistant = createAssistant({ enableTopP: true, topP: 0.95 })
       const model = createModel({
-        id: 'claude-opus-4-7',
-        name: 'Claude Opus 4.7',
+        id,
+        name,
         provider: 'anthropic',
-        group: 'Claude 4.7'
+        group
       })
 
       expect(getTopP(assistant, model)).toBeUndefined()
@@ -316,12 +322,20 @@ describe('modelParameters', () => {
   })
 
   describe('filterStandardParams', () => {
-    const opus47 = createModel({
-      id: 'claude-opus-4-7',
-      name: 'Claude Opus 4.7',
-      provider: 'anthropic',
-      group: 'Claude 4.7'
-    })
+    const opus47PlusModels = [
+      createModel({
+        id: 'claude-opus-4-7',
+        name: 'Claude Opus 4.7',
+        provider: 'anthropic',
+        group: 'Claude 4.7'
+      }),
+      createModel({
+        id: 'claude-opus-4-8',
+        name: 'Claude Opus 4.8',
+        provider: 'anthropic',
+        group: 'Claude 4.8'
+      })
+    ]
     const sonnet = createModel({
       id: 'claude-sonnet-4.5',
       name: 'Claude Sonnet 4.5',
@@ -329,23 +343,29 @@ describe('modelParameters', () => {
       group: 'claude'
     })
 
-    it('drops topK for Claude Opus 4.7', () => {
-      expect(filterStandardParams({ topK: 40, frequencyPenalty: 0.1 }, opus47)).toEqual({ frequencyPenalty: 0.1 })
+    it('drops topK for Claude Opus 4.7+', () => {
+      for (const model of opus47PlusModels) {
+        expect(filterStandardParams({ topK: 40, frequencyPenalty: 0.1 }, model)).toEqual({ frequencyPenalty: 0.1 })
+      }
     })
 
-    it('returns the same object when topK is absent for Opus 4.7', () => {
-      const input = { frequencyPenalty: 0.1, seed: 42 }
-      expect(filterStandardParams(input, opus47)).toBe(input)
+    it('returns the same object when topK is absent for Opus 4.7+', () => {
+      for (const model of opus47PlusModels) {
+        const input = { frequencyPenalty: 0.1, seed: 42 }
+        expect(filterStandardParams(input, model)).toBe(input)
+      }
     })
 
-    it('keeps topK for non-Opus-4.7 models', () => {
+    it('keeps topK for non-Opus-4.7+ models', () => {
       const input = { topK: 40 }
       expect(filterStandardParams(input, sonnet)).toBe(input)
     })
 
     it('returns the same object when standardParams is empty', () => {
-      const input = {}
-      expect(filterStandardParams(input, opus47)).toBe(input)
+      for (const model of opus47PlusModels) {
+        const input = {}
+        expect(filterStandardParams(input, model)).toBe(input)
+      }
     })
 
     it('drops topK for Gemini 3.x models', () => {
@@ -395,6 +415,16 @@ describe('modelParameters', () => {
       const model = createModel({ id: 'claude-sonnet-4-6', provider: 'anthropic', group: 'claude' })
 
       expect(getMaxTokens(assistant, model)).toBe(64000)
+    })
+
+    it.each([
+      { id: 'claude-opus-4-7', name: 'Claude Opus 4.7' },
+      { id: 'claude-opus-4-8', name: 'Claude Opus 4.8' }
+    ])('returns user-configured maxTokens for $name without subtraction', ({ id }) => {
+      const assistant = createAssistant({ enableMaxTokens: true, maxTokens: 128000 })
+      const model = createModel({ id, provider: 'anthropic', group: 'claude' })
+
+      expect(getMaxTokens(assistant, model)).toBe(128000)
     })
 
     it('subtracts thinking budget for non-4.6 Claude models with anthropic provider', () => {

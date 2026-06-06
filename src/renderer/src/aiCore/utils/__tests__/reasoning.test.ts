@@ -965,28 +965,59 @@ describe('reasoning utils', () => {
       })
     })
 
-    it('should use adaptive thinking with native xhigh effort and summarized display for Claude Opus 4.7', async () => {
+    it.each([
+      { id: 'claude-opus-4-7', name: 'Claude Opus 4.7' },
+      { id: 'claude-opus-4-8', name: 'Claude Opus 4.8' }
+    ])(
+      'should use adaptive thinking with native xhigh effort and summarized display for $name',
+      async ({ id, name }) => {
+        const { isReasoningModel, isSupportedThinkingTokenClaudeModel } = await import('@renderer/config/models')
+
+        vi.mocked(isReasoningModel).mockReturnValue(true)
+        vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(true)
+
+        const model: Model = {
+          id,
+          name,
+          provider: SystemProviderIds.anthropic
+        } as Model
+
+        const assistant: Assistant = {
+          id: 'test',
+          name: 'Test',
+          settings: { reasoning_effort: 'xhigh' }
+        } as Assistant
+
+        const result = getAnthropicReasoningParams(assistant, model)
+        expect(result).toEqual({
+          thinking: { type: 'adaptive', display: 'summarized' },
+          effort: 'xhigh'
+        })
+      }
+    )
+
+    it('should use adaptive thinking for future Claude Opus 4 minor versions by default', async () => {
       const { isReasoningModel, isSupportedThinkingTokenClaudeModel } = await import('@renderer/config/models')
 
       vi.mocked(isReasoningModel).mockReturnValue(true)
       vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(true)
 
       const model: Model = {
-        id: 'claude-opus-4-7',
-        name: 'Claude Opus 4.7',
+        id: 'claude-opus-4-10',
+        name: 'Claude Opus 4.10',
         provider: SystemProviderIds.anthropic
       } as Model
 
       const assistant: Assistant = {
         id: 'test',
         name: 'Test',
-        settings: { reasoning_effort: 'xhigh' }
+        settings: { reasoning_effort: 'low' }
       } as Assistant
 
       const result = getAnthropicReasoningParams(assistant, model)
       expect(result).toEqual({
         thinking: { type: 'adaptive', display: 'summarized' },
-        effort: 'xhigh'
+        effort: 'low'
       })
     })
 
@@ -1921,6 +1952,36 @@ describe('reasoning utils', () => {
         reasoningConfig: {
           type: 'enabled',
           budgetTokens: 4096
+        }
+      })
+    })
+
+    it('should use adaptive reasoning config for Claude Opus 4.8 on Bedrock', async () => {
+      const { isReasoningModel, isSupportedThinkingTokenClaudeModel } = await import('@renderer/config/models')
+
+      vi.mocked(isReasoningModel).mockReturnValue(true)
+      vi.mocked(isSupportedThinkingTokenClaudeModel).mockReturnValue(true)
+
+      const model: Model = {
+        id: 'anthropic.claude-opus-4-8-v1:0',
+        name: 'Claude Opus 4.8',
+        provider: 'bedrock'
+      } as Model
+
+      const assistant: Assistant = {
+        id: 'test',
+        name: 'Test',
+        settings: {
+          reasoning_effort: 'xhigh',
+          maxTokens: 4096
+        }
+      } as Assistant
+
+      const result = getBedrockReasoningParams(assistant, model)
+      expect(result).toEqual({
+        reasoningConfig: {
+          type: 'adaptive',
+          maxReasoningEffort: 'max'
         }
       })
     })

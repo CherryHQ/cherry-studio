@@ -23,12 +23,12 @@ import {
 import {
   GEMINI_FLASH_MODEL_REGEX,
   isClaude46SeriesModel,
-  isClaude47SeriesModel,
   isGemini3FlashModel,
   isGemini3ProModel,
   isGemini31FlashLiteModel,
   isGemini31ProModel,
   isKimi25OrNewerModel,
+  isSupportAdaptiveThinkingClaudeModel,
   withModelIdAndNameAsId
 } from './utils'
 import { isTextToImageModel } from './vision'
@@ -141,9 +141,9 @@ const _getThinkModelType = (model: Model): ThinkingModelType => {
   const modelId = getLowerBaseModelName(model.id)
   if (isClaudeReasoningModel(model)) {
     thinkingModelType = 'claude'
-    // 4.7 reuses the 4.6 effort list (low/medium/high/xhigh); provider-level
-    // mapping still distinguishes them (4.7 sends native 'xhigh', 4.6 sends 'max').
-    if (isClaude46SeriesModel(model) || isClaude47SeriesModel(model)) {
+    // Opus 4.7+ reuses the 4.6 effort list (low/medium/high/xhigh); provider-level
+    // mapping still distinguishes them (Opus 4.7+ sends native 'xhigh', 4.6 sends 'max').
+    if (isClaude46SeriesModel(model) || isSupportAdaptiveThinkingClaudeModel(model)) {
       thinkingModelType = 'claude46'
     }
   } else if (isOpenAIDeepResearchModel(model)) {
@@ -879,9 +879,9 @@ const THINKING_TOKEN_MAP: Record<string, { min: number; max: number }> = {
   'qwen3-(?!max).*$': { min: 1024, max: 38_912 },
 
   // Claude models (supports AWS Bedrock 'anthropic.' prefix, GCP Vertex AI '@' separator, and '-v1:0' suffix)
-  // Opus 4.7 supports 128K output tokens. Uses adaptive thinking (no budgetTokens sent),
+  // Opus 4.7+ supports 128K output tokens. Uses adaptive thinking (no budgetTokens sent),
   // but the limit entry is still consulted for the Poe / openai-compatible fallback paths.
-  '(?:anthropic\\.)?claude-opus-4[.-]7(?:[@\\-:][\\w\\-:]+)?$': { min: 1024, max: 128_000 },
+  '(?:anthropic\\.)?claude-opus-4[.-](?:[7-9]|[1-9]\\d)(?:[@\\-:][\\w\\-:]+)?$': { min: 1024, max: 128_000 },
   // Opus 4.6 supports 128K output tokens
   '(?:anthropic\\.)?claude-opus-4[.-]6(?:[@\\-:][\\w\\-:]+)?$': { min: 1024, max: 128_000 },
   // Sonnet 4.6, and Haiku is assumed to be also 64k

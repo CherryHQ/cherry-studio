@@ -11,7 +11,6 @@ import {
   GEMINI_FLASH_MODEL_REGEX,
   getModelSupportedReasoningEffortOptions,
   isClaude46SeriesModel,
-  isClaude47SeriesModel,
   isDeepSeekHybridInferenceModel,
   isDeepSeekV4PlusModel,
   isDoubaoSeed18Model,
@@ -29,6 +28,7 @@ import {
   isQwenAlwaysThinkModel,
   isQwenReasoningModel,
   isReasoningModel,
+  isSupportAdaptiveThinkingClaudeModel,
   isSupportedReasoningEffortGrokModel,
   isSupportedReasoningEffortModel,
   isSupportedReasoningEffortOpenAIModel,
@@ -704,6 +704,8 @@ function getFallbackBudgetTokens(reasoningEffort: string | undefined): number {
  * Extracted from AnthropicAPIClient logic.
  *
  * Returns different parameter shapes depending on the model:
+ * - **Claude Opus 4.7+**: `{ thinking: { type: 'adaptive', display: 'summarized' }, effort?: 'low' | 'medium' | 'high' | 'xhigh' }`
+ *   Uses the new adaptive thinking API with effort-based control.
  * - **Claude 4.6**: `{ thinking: { type: 'adaptive' }, effort: 'low' | 'medium' | 'high' | 'max' }`
  *   Uses the new adaptive thinking API with effort-based control.
  * - **Other Claude models** (4.0, 4.1, 4.5, etc.): `{ thinking: { type: 'enabled', budgetTokens: number } }`
@@ -741,10 +743,10 @@ export function getAnthropicReasoningParams(
 
   // Claude reasoning parameters
   if (isSupportedThinkingTokenClaudeModel(model)) {
-    // Claude 4.7: adaptive thinking + native 'xhigh' effort.
+    // Claude Opus 4.7+: adaptive thinking + native 'xhigh' effort.
     // Also requires thinking.display: 'summarized' — API defaults to 'omitted'
     // (no reasoning text in response), which would break Cherry's thinking UI.
-    if (isClaude47SeriesModel(model)) {
+    if (isSupportAdaptiveThinkingClaudeModel(model)) {
       const effort47Map = {
         default: undefined,
         auto: undefined,
@@ -1017,10 +1019,10 @@ export function getBedrockReasoningParams(
     return {}
   }
 
-  // Claude 4.6 / 4.7 use adaptive thinking + maxReasoningEffort.
-  // Bedrock's maxReasoningEffort enum doesn't yet include 'xhigh', so 4.7 xhigh
+  // Claude 4.6 / Opus 4.7+ use adaptive thinking + maxReasoningEffort.
+  // Bedrock's maxReasoningEffort enum doesn't yet include 'xhigh', so Opus 4.7+ xhigh
   // falls back to 'max' here (matches the 4.6 mapping).
-  if (isClaude46SeriesModel(model) || isClaude47SeriesModel(model)) {
+  if (isClaude46SeriesModel(model) || isSupportAdaptiveThinkingClaudeModel(model)) {
     const effortMap = {
       auto: undefined,
       minimal: 'low',
