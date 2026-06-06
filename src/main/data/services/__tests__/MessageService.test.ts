@@ -115,7 +115,7 @@ describe('MessageService', () => {
     await dbh.db.insert(messageTable).values(messages)
   }
 
-  describe('findPendingAssistantMessages', () => {
+  describe('findPendingAssistantMessageIds', () => {
     it('returns only non-deleted assistant rows still in pending', async () => {
       await dbh.db.insert(topicTable).values({ id: 'topic-p', activeNodeId: 'm-pending', orderKey: 'b0' })
       await dbh.db.insert(messageTable).values([
@@ -180,8 +180,8 @@ describe('MessageService', () => {
         }
       ])
 
-      const pending = await messageService.findPendingAssistantMessages()
-      expect(pending.map((m) => m.id)).toEqual(['m-pending'])
+      const pendingIds = await messageService.findPendingAssistantMessageIds()
+      expect(pendingIds).toEqual(['m-pending'])
     })
   })
 

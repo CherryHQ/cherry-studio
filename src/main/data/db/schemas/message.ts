@@ -52,6 +52,9 @@ export const messageTable = sqliteTable(
     index('message_parent_id_idx').on(t.parentId),
     index('message_topic_created_idx').on(t.topicId, t.createdAt),
     index('message_trace_id_idx').on(t.traceId),
+    // Backs findPendingAssistantMessageIds (boot reconcile); without it that lookup full-SCANs.
+    // Plain, not partial — Drizzle binds `status = ?`, which SQLite can't match to a partial index.
+    index('message_status_idx').on(t.status),
     // Check constraints for enum fields
     check('message_role_check', sql`${t.role} IN ('user', 'assistant', 'system')`),
     check('message_status_check', sql`${t.status} IN ('pending', 'success', 'error', 'paused')`)
