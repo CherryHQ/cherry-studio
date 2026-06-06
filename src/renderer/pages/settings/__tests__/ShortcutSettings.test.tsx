@@ -1,5 +1,7 @@
 import type * as RendererConstantModule from '@renderer/config/constant'
 import type { ShortcutListItem } from '@renderer/hooks/useShortcuts'
+import { type CommandId, commandShortcutPreferenceKey } from '@shared/command'
+import type { ShortcutBinding } from '@shared/shortcuts/tokens'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import type React from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -126,31 +128,31 @@ vi.mock('@cherrystudio/ui', async (importOriginal) => {
   }
 })
 
-const makeShortcut = (binding: string[] = []) => ({
-  command: 'app.search',
-  key: 'shortcut.app.search',
-  label: 'Search everywhere',
-  group: 'general',
-  definition: {
-    key: 'shortcut.app.search',
-    category: 'general',
-    editable: true
-  },
-  keybinding: {
-    command: 'app.search',
-    scope: 'renderer',
-    preferenceKey: 'shortcut.app.search',
-    defaultBinding: ['CommandOrControl', 'Shift', 'F']
-  },
-  preference: {
-    binding,
-    enabled: binding.length > 0
-  },
-  defaultPreference: {
-    binding: [],
-    enabled: false
+const makeShortcut = (binding: ShortcutBinding = []): ShortcutListItem => {
+  const command: CommandId = 'app.search'
+  const key = commandShortcutPreferenceKey(command)
+
+  return {
+    command,
+    key,
+    label: 'Search everywhere',
+    group: 'general',
+    keybinding: {
+      command,
+      scope: 'renderer',
+      preferenceKey: key,
+      defaultBinding: ['CommandOrControl', 'Shift', 'F']
+    },
+    preference: {
+      binding,
+      enabled: binding.length > 0
+    },
+    defaultPreference: {
+      binding: [],
+      enabled: false
+    }
   }
-})
+}
 
 const renderShortcutSettings = (onKeyDown?: React.KeyboardEventHandler<HTMLDivElement>) =>
   render(
