@@ -39,8 +39,8 @@ export class ApiGateway {
 
     // Load config from preference service
     const preferenceService = application.get('PreferenceService')
-    const port = preferenceService.get('feature.csaas.port')
-    const host = preferenceService.get('feature.csaas.host')
+    const port = preferenceService.get('feature.api_gateway.port')
+    const host = preferenceService.get('feature.api_gateway.host')
 
     const app = buildApp()
     this.app = app

@@ -15,7 +15,7 @@ is translated back into the caller's dialect by the adapter system.
 
 > **Naming.** The code, IPC, preload, hook, and UI all use the
 > **`apiGateway`** name. The persisted **preference / shared-cache** namespace
-> is **`feature.csaas.*`** (Cherry-Studio-as-a-Service) — same feature, two
+> is **`feature.api_gateway.*`** (Cherry-Studio-as-a-Service) — same feature, two
 > names. The legacy v1 Redux layer (`apiServer.*`) is deprecated and reaches v2
 > only through the migrators; do not add fallbacks for it.
 
@@ -180,19 +180,19 @@ state.
 
 | Hook | Responsibility |
 |---|---|
-| `onInit` | Register the start/stop/restart IPC handlers; subscribe to `feature.csaas.enabled` changes (toggling the preference activates/deactivates the gateway). |
-| `onReady` | `shouldAutoStart()` → activate if `feature.csaas.enabled` **or** at least one agent exists. |
+| `onInit` | Register the start/stop/restart IPC handlers; subscribe to `feature.api_gateway.enabled` changes (toggling the preference activates/deactivates the gateway). |
+| `onReady` | `shouldAutoStart()` → activate if `feature.api_gateway.enabled` **or** at least one agent exists. |
 | `onActivate` | `ensureValidApiKey()` → `new ApiGateway()` → `start()` → publish `running = true`. On failure, tears down partial state and republishes `false`. |
 | `onDeactivate` | `stop()` the server, publish `running = false`. |
 
 `ensureValidApiKey()` generates a `cs-sk-<uuid>` key into
-`feature.csaas.api_key` the first time it is missing.
+`feature.api_gateway.api_key` the first time it is missing.
 
 ### Running state — Shared Cache, not IPC
 
-`publishRunningState()` writes `feature.csaas.running` (boolean) into the
+`publishRunningState()` writes `feature.api_gateway.running` (boolean) into the
 **Shared Cache** via `CacheService.setShared(...)`. **Main is authoritative**;
-the renderer reads it reactively with `useSharedCache('feature.csaas.running')`.
+the renderer reads it reactively with `useSharedCache('feature.api_gateway.running')`.
 There is deliberately **no status/config pull IPC** — pulling running state or
 config over IPC would be an anti-pattern, since running lives in the shared
 cache and config lives in the preference (DataApi) layer.
@@ -207,14 +207,14 @@ cache and config lives in the preference (DataApi) layer.
 
 Preload exposes these as `window.api.apiGateway.{start,stop,restart}`.
 
-### Preferences (`feature.csaas.*`)
+### Preferences (`feature.api_gateway.*`)
 
 | Key | Type | Default | Notes |
 |---|---|---|---|
-| `feature.csaas.enabled` | `boolean` | `false` | Auto-start on launch / toggled from settings |
-| `feature.csaas.host` | `string` | `'127.0.0.1'` | Bind address |
-| `feature.csaas.port` | `number` | `23333` | TCP port (UI clamps 1000–65535) |
-| `feature.csaas.api_key` | `string \| null` | `null` | Auto-generated `cs-sk-<uuid>` on first activate |
+| `feature.api_gateway.enabled` | `boolean` | `false` | Auto-start on launch / toggled from settings |
+| `feature.api_gateway.host` | `string` | `'127.0.0.1'` | Bind address |
+| `feature.api_gateway.port` | `number` | `23333` | TCP port (UI clamps 1000–65535) |
+| `feature.api_gateway.api_key` | `string \| null` | `null` | Auto-generated `cs-sk-<uuid>` on first activate |
 
 Migrated from v1 `redux/settings/apiServer.{enabled,host,port,apiKey}` via the
 v2 preference migrators. Edit `classification.json` (not the generated schemas)
@@ -238,7 +238,7 @@ under the `apiGateway` i18n namespace.
 1. Token = trimmed `x-api-key` header (Anthropic style, takes priority) **or**
    `Authorization: Bearer <token>` (OpenAI style, parsed by `@elysia/bearer`).
 2. No token → **401** `Unauthorized: missing credentials`.
-3. No `feature.csaas.api_key` configured → **403** `Forbidden`.
+3. No `feature.api_gateway.api_key` configured → **403** `Forbidden`.
 4. Compare against the configured key with **`crypto.timingSafeEqual`**
    (length-checked first). Match → allow; mismatch → **403** `Forbidden`.
 
@@ -268,12 +268,12 @@ REST handler never leaks raw internal messages.
   as the renderer and IM channels; nothing special-cases it upstream.
 - **Assistant-agnostic.** No assistant/topic context. Sampling, client tools,
   and provider options ride as per-request `CallOverrides`.
-- **Main owns running state.** `feature.csaas.running` in the Shared Cache is
+- **Main owns running state.** `feature.api_gateway.running` in the Shared Cache is
   the one source of truth; the renderer mirrors it, never sets it.
 - **Dialect is chosen by path, both directions.** Input format is fixed per
   route; output envelope (success and error) is chosen from the path, so a
   client always gets back the protocol it spoke.
-- **Auth key is the persisted preference.** `feature.csaas.api_key`, compared
+- **Auth key is the persisted preference.** `feature.api_gateway.api_key`, compared
   timing-safe; auto-generated on first activation.
 
 ## Related references
@@ -283,6 +283,6 @@ REST handler never leaks raw internal messages.
   (`SseListener`, `WebContentsListener`).
 - [Service Lifecycle](../lifecycle/README.md) — `BaseService`, `Activatable`,
   `@ServicePhase`, `serviceRegistry.ts`.
-- [Data Layer](../data/README.md) — Preference (`feature.csaas.*`) and Cache
-  (`feature.csaas.running`) systems; `ProviderService`, `KnowledgeBaseService`.
+- [Data Layer](../data/README.md) — Preference (`feature.api_gateway.*`) and Cache
+  (`feature.api_gateway.running`) systems; `ProviderService`, `KnowledgeBaseService`.
 ```

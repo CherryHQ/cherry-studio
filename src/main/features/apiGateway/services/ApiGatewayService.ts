@@ -11,7 +11,7 @@ import type {
 } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
-import { ApiGateway } from '../features/apiGateway'
+import { ApiGateway } from '../server'
 
 const logger = loggerService.withContext('ApiGatewayService')
 
@@ -23,7 +23,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   protected async onInit(): Promise<void> {
     this.registerIpcHandlers()
     this.registerDisposable(
-      application.get('PreferenceService').subscribeChange('feature.csaas.enabled', (enabled) => {
+      application.get('PreferenceService').subscribeChange('feature.api_gateway.enabled', (enabled) => {
         if (enabled) {
           this.activate().catch((error) => logger.error('Auto-start on preference change failed', error as Error))
         } else {
@@ -69,12 +69,12 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   /**
    * Publish the running state to the shared cache (Main is authoritative). The
-   * renderer reads it reactively via `useSharedCache('feature.csaas.running')`.
+   * renderer reads it reactively via `useSharedCache('feature.api_gateway.running')`.
    * This replaces the previous IPC ready-broadcast + EventEmitter listener.
    */
   private publishRunningState(running: boolean): void {
     try {
-      application.get('CacheService').setShared('feature.csaas.running', running)
+      application.get('CacheService').setShared('feature.api_gateway.running', running)
     } catch (error) {
       logger.warn('Failed to publish API gateway running state', error as Error)
     }
@@ -117,10 +117,10 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   getCurrentConfig(): ApiGatewayConfig {
     const config = application.get('PreferenceService').getMultiple({
-      enabled: 'feature.csaas.enabled',
-      host: 'feature.csaas.host',
-      port: 'feature.csaas.port',
-      apiKey: 'feature.csaas.api_key'
+      enabled: 'feature.api_gateway.enabled',
+      host: 'feature.api_gateway.host',
+      port: 'feature.api_gateway.port',
+      apiKey: 'feature.api_gateway.api_key'
     }) as ApiGatewayConfig
 
     return config
@@ -128,10 +128,10 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   async ensureValidApiKey(): Promise<string> {
     const preferenceService = application.get('PreferenceService')
-    let apiKey = preferenceService.get('feature.csaas.api_key')
+    let apiKey = preferenceService.get('feature.api_gateway.api_key')
     if (typeof apiKey !== 'string' || apiKey.trim() === '') {
       apiKey = `cs-sk-${uuidv4()}`
-      await preferenceService.set('feature.csaas.api_key', apiKey)
+      await preferenceService.set('feature.api_gateway.api_key', apiKey)
       logger.info('Generated new API key')
     }
     return apiKey
@@ -167,7 +167,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
     // NOTE: No status/config pull handlers. Running state is published to the
     // shared cache (Main authoritative; read via useSharedCache) and config
-    // lives in the DataApi preference layer (feature.csaas.*) — pulling either
+    // lives in the DataApi preference layer (feature.api_gateway.*) — pulling either
     // over IPC would be an anti-pattern.
   }
 

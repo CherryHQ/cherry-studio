@@ -5,16 +5,16 @@ import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 const API_GATEWAY_PREFERENCE_KEYS = {
-  enabled: 'feature.csaas.enabled',
-  host: 'feature.csaas.host',
-  port: 'feature.csaas.port',
-  apiKey: 'feature.csaas.api_key'
+  enabled: 'feature.api_gateway.enabled',
+  host: 'feature.api_gateway.host',
+  port: 'feature.api_gateway.port',
+  apiKey: 'feature.api_gateway.api_key'
 } as const
 
 /**
  * API Gateway hook.
  *
- * - Config flows through the DataApi preference layer (`feature.csaas.*`).
+ * - Config flows through the DataApi preference layer (`feature.api_gateway.*`).
  * - Running state is published by Main to the shared cache (Main is
  *   authoritative); the renderer reads it reactively via `useSharedCache`.
  *   No IPC ready-broadcast or EventEmitter listener is involved.
@@ -26,7 +26,7 @@ export const useApiGateway = () => {
 
   const [apiGatewayConfig, setApiGatewayConfig] = useMultiplePreferences(API_GATEWAY_PREFERENCE_KEYS)
 
-  const [apiGatewayRunning] = useSharedCache('feature.csaas.running', false)
+  const [apiGatewayRunning] = useSharedCache('feature.api_gateway.running', false)
 
   // Tracks an in-flight start/stop/restart command (for button spinners) AND the
   // initial shared-cache hydration window. Starts `true` until the shared cache is

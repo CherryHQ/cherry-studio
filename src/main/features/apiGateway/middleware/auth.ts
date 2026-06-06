@@ -17,7 +17,7 @@ export type AuthFailure = { status: 401 | 403; error: string }
  * are accepted: the Anthropic `x-api-key` header (takes priority) and the OpenAI
  * `Authorization: Bearer <token>` (extracted by the `@elysia/bearer` plugin in
  * `app.ts` and passed here as `bearerToken`). Both are compared against
- * `feature.csaas.api_key` with a timing-safe comparison.
+ * `feature.api_gateway.api_key` with a timing-safe comparison.
  *
  * Returns an `AuthFailure` to short-circuit the request, or `undefined` to allow it.
  */
@@ -31,7 +31,7 @@ export const authorizeApiRequest = (
     return { status: 401, error: 'Unauthorized: missing credentials' }
   }
 
-  const apiKey = application.get('PreferenceService').get('feature.csaas.api_key')
+  const apiKey = application.get('PreferenceService').get('feature.api_gateway.api_key')
   if (!apiKey) {
     return { status: 403, error: 'Forbidden' }
   }
