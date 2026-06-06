@@ -24,9 +24,13 @@ is translated back into the caller's dialect by the adapter system.
 
 ```
 src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
-├── server.ts                        ← `ApiGateway` class: listen / stop / restart, http timeouts
+├── server.ts                        ← `ApiGateway` class: listen / stop, http timeouts
 ├── app.ts                           ← `buildApp()`: CORS, OpenAPI docs, request-id, error handler, route mounting
-├── errors.ts                        ← `gatewayErrorHandler` — path → dialect (anthropic / openai / rest) error envelopes
+├── errors.ts                        ← `gatewayErrorHandler` (path → anthropic/openai/rest envelopes),
+│                                       `buildStreamErrorFrame` (streaming error/timeout frames), `transformOpenAiError`
+├── ApiGatewayService.ts             ← lifecycle owner (start/stop, IPC, auto-start, running-state)
+├── proxyStream.ts                   ← `processMessage()` — the core request → stream → response engine
+├── reasoningCache.ts                ← google / openrouter reasoning-signature caches
 ├── middleware/
 │   └── auth.ts                      ← `authorizeApiRequest` (x-api-key | Bearer, timing-safe)
 ├── routes/
@@ -36,11 +40,8 @@ src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
 │   ├── models.ts                    ← GET  /v1/models
 │   ├── knowledge/                   ← GET/POST /v1/knowledge-bases[/search|/:id]
 │   └── schemas.ts                   ← loose Zod body schemas (validate only what the gateway needs)
-├── services/
-│   ├── ProxyStreamService.ts        ← `processMessage()` — the core request → stream → response engine
-│   ├── models.ts                    ← `modelsService.getModels()` (never throws)
-│   ├── responses.ts                 ← `responsesService.transformError()` (OpenAI error shaping)
-│   └── reasoningCache.ts           ← google / openrouter reasoning-signature caches
+├── utils/
+│   └── models.ts                    ← `getModels()` — the /v1/models data path (never throws)
 └── adapters/
     ├── interfaces.ts                ← `IMessageConverter` / `IStreamAdapter` / `ISseFormatter` contracts
     ├── converters/                  ← input dialect → AI SDK `UIMessage[]` + tools + options
@@ -48,7 +49,6 @@ src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
     ├── formatters/                  ← output event → SSE wire string
     └── factory/                     ← `MessageConverterFactory`, `StreamAdapterFactory`
 
-src/main/features/apiGateway/services/ApiGatewayService.ts   ← lifecycle owner (start/stop, IPC, auto-start, running-state)
 src/preload/index.ts                      ← `window.api.apiGateway.{start,stop,restart}`
 src/renderer/hooks/useApiGateway.ts       ← renderer state (config + running + loading) and actions
 src/renderer/pages/settings/ToolSettings/ApiGatewaySettings/   ← settings UI
@@ -100,7 +100,7 @@ The model in every chat/messages/responses body is `"<providerId>:<modelId>"`
 
 All three streaming endpoints are thin route wrappers that call
 `processMessage({ params, inputFormat, outputFormat, signal })` in
-`services/ProxyStreamService.ts`. That function is the heart of the gateway:
+`proxyStream.ts`. That function is the heart of the gateway:
 
 1. **Resolve model.** Read `params.model`, split on the first `:` into
    `providerId` / `modelId`, build a `uniqueModelId` via `createUniqueModelId`.
@@ -129,16 +129,18 @@ All three streaming endpoints are thin route wrappers that call
    no status broadcast, no attach/reconnect, no persistence; the stream evicts
    immediately at terminal.
    - **Streaming**: an `SseListener` with a push-API `formatChunk` /
-     `formatDone` / `formatError` pipes the adapter's events through the
-     formatter into a `text/event-stream` `ReadableStream`.
+     `formatDone` / `formatPaused` / `formatError` pipes the adapter's events
+     through the formatter into a `text/event-stream` `ReadableStream`.
    - **Non-streaming**: a plain `StreamListener` feeds every chunk into the
      adapter to accumulate state, then `adapter.buildNonStreamingResponse()` is
      returned as a JSON `Response`.
 6. **Abort & timeout.** The route's `request.signal` (client disconnect) calls
-   `aiStreamManager.abort(streamId, …)`. Idle (no-chunk) timeout is
-   **20 minutes** (`GATEWAY_STREAM_IDLE_TIMEOUT_MS`); the server's per-request
-   timeout is **5 minutes** (`server.ts`), with `setTimeout(0)` so live SSE
-   connections are not socket-timed-out.
+   `aiStreamManager.abort(streamId, …)`. An idle (no-chunk) timeout —
+   **20 minutes** (`GATEWAY_STREAM_IDLE_TIMEOUT_MS`) — and any mid-stream abort
+   surface as a **failure**, not a truncated success: streaming emits a
+   per-dialect error frame (`buildStreamErrorFrame`), non-streaming returns a
+   **504**. The server's per-request timeout is **5 minutes** (`server.ts`), with
+   `setTimeout(0)` so live SSE connections are not socket-timed-out.
 
 ```
 client  ──HTTP──▶  route  ──▶  processMessage
@@ -162,9 +164,8 @@ Two independent dialect axes, chosen by `inputFormat` / `outputFormat`:
 | **Stream adapter** (`UIMessageChunk` → events) | `IStreamAdapter` | `AiSdkToAnthropicSse`, `AiSdkToOpenAiSse`, `AiSdkToOpenAiResponsesSse` |
 | **Formatter** (event → SSE string) | `ISseFormatter` | `AnthropicSseFormatter`, `OpenAiSseFormatter`, `OpenAiResponsesSseFormatter` |
 
-The registered output formats are **`anthropic`**, **`openai`**, and
-**`openai-responses`** (`StreamAdapterFactory`); `gemini` exists in the
-`OutputFormat` union as a placeholder but is not wired.
+The output formats are **`anthropic`**, **`openai`**, and **`openai-responses`**
+— the full `OutputFormat` union, each registered in `StreamAdapterFactory`.
 
 Adapters consume the AI SDK **`UIMessageChunk`** stream (not `fullStream`):
 
@@ -178,7 +179,7 @@ Adapters consume the AI SDK **`UIMessageChunk`** stream (not `fullStream`):
 
 ## Lifecycle & configuration
 
-### `ApiGatewayService` (`src/main/features/apiGateway/services/ApiGatewayService.ts`)
+### `ApiGatewayService` (`src/main/features/apiGateway/ApiGatewayService.ts`)
 
 A `BaseService` — `@Injectable('ApiGatewayService')`,
 `@ServicePhase(Phase.WhenReady)`, implements **`Activatable`** — registered one
@@ -195,6 +196,14 @@ running state.
 
 `ensureValidApiKey()` generates a `cs-sk-<uuid>` key into
 `feature.api_gateway.api_key` the first time it is missing.
+
+All activation/deactivation flows through one `reconcile()` loop — the **sole**
+caller of `activate`/`deactivate`, driven by `onReady`, the
+`feature.api_gateway.enabled` subscription, and the IPC `start`/`stop`/`restart`.
+It converges the running state to the latest desired value (looping against the
+actual activated state), so an opposing toggle that lands mid-transition can't
+leave the gateway diverged from intent; a still-current failure isn't retried (no
+spin). `restart()` is `stop()` then `start()`.
 
 ### Running state — Shared Cache, not IPC
 
@@ -265,8 +274,12 @@ request **path**, so every endpoint speaks its caller's dialect:
 their own `status`/`code` and are mapped straight into the selected envelope.
 Built-in Elysia `VALIDATION` / `NOT_FOUND` / `PARSE` codes map to 400/404/400
 (422 for REST validation). Unknown provider/runtime errors are shaped by
-`transformAnthropicError` / `responsesService.transformError`; in production the
-REST handler never leaks raw internal messages.
+`transformAnthropicError` / `transformOpenAiError` — **status-driven**: they read
+`statusCode` off the AI-SDK `SerializedError`, so a provider 401/429/… keeps its
+real status and message instead of flattening to 500. Internal-error messages are
+gated behind `isDev`, and the AI-SDK error extras (`stack` / `url` /
+request+response bodies) are dropped — for both the JSON handlers and the
+streaming `buildStreamErrorFrame`.
 
 ## Key invariants
 
