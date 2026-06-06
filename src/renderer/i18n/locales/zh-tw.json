@@ -781,8 +781,8 @@
       "enable_and_start": "啟用並啟動",
       "enable_server": "啟用 API 閘道以使用 Agent。",
       "enable_server_description": "智能體功能需要啟用 API 閘道。你可以直接啟用，或前往設定頁面進行配置。",
-      "server_not_running": "API 閘道已啟用但未執行。請檢查伺服器設定。",
-      "server_not_running_description": "智能體功能需要 API 閘道運行。你可以直接啟動伺服器，或前往設定頁面檢查配置。"
+      "server_not_running": "API 閘道已啟用但未執行。請檢查閘道設定。",
+      "server_not_running_description": "智能體功能需要 API 閘道運行。你可以直接啟動閘道，或前往設定頁面檢查配置。"
     }
   },
   "apiGateway": {
