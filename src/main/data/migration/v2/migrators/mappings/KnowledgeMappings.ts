@@ -237,7 +237,12 @@ export const transformKnowledgeBase = (
 
   const transformedBase: NewKnowledgeBase = {
     id: uuidv4(),
-    name: base.name,
+    // The identity guard only checks `name !== ''`, so an all-whitespace v1
+    // name reaches here — but the read path (KnowledgeBaseSchema) requires
+    // `trim().min(1)` and one such row poisons the whole list query.
+    // Write-side validation must be >= read-side: trim, and fall back to
+    // the v1 base id (locatable in migration logs) when nothing remains.
+    name: base.name.trim() || base.id,
     groupId: null,
     dimensions,
     embeddingModelId,

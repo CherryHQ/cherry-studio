@@ -57,6 +57,43 @@ describe('KnowledgeMappings', () => {
     })
   })
 
+  it('transformKnowledgeBase falls back to the v1 base id for an all-whitespace name', () => {
+    // Write-side guard only checked `name !== ''`, but the read path
+    // (KnowledgeBaseSchema `name: trim().min(1)`) rejects whitespace-only
+    // names — one such row used to poison the whole list query.
+    expect(
+      transformKnowledgeBase(
+        {
+          id: 'kb-blank-name',
+          name: '   '
+        },
+        1024
+      )
+    ).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        name: 'kb-blank-name'
+      })
+    })
+  })
+
+  it('transformKnowledgeBase trims surrounding whitespace from a valid name', () => {
+    expect(
+      transformKnowledgeBase(
+        {
+          id: 'kb-padded-name',
+          name: '  My KB  '
+        },
+        1024
+      )
+    ).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        name: 'My KB'
+      })
+    })
+  })
+
   it('transformKnowledgeBase fills default chunk config when legacy values are missing', () => {
     expect(
       transformKnowledgeBase(
