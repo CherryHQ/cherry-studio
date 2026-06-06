@@ -74,12 +74,12 @@ describe('AgentWorkspaceService', () => {
     expect((await agentWorkspaceService.list()).map((workspace) => workspace.id)).toEqual([userWorkspace.id])
   })
 
-  it('creates prepared system workspaces as hidden system rows', async () => {
+  it('creates system workspaces as hidden system rows', async () => {
     const systemWorkspacePath = workspacePath('prepared-system')
 
-    const workspace = await agentWorkspaceService.createPreparedSystemWorkspace({
+    const workspace = await agentWorkspaceService.createSystemWorkspace({
       path: systemWorkspacePath,
-      label: '2026-05-25 14:30:12'
+      name: 'No project 2026-05-25 14:30:12'
     })
 
     expect(workspace).toMatchObject({
@@ -97,9 +97,9 @@ describe('AgentWorkspaceService', () => {
   })
 
   it('deletes a workspace with its sessions and returns the system path when needed', async () => {
-    const workspace = await agentWorkspaceService.createPreparedSystemWorkspace({
+    const workspace = await agentWorkspaceService.createSystemWorkspace({
       path: workspacePath('system-delete'),
-      label: '2026-05-25 14:30:12'
+      name: 'No project 2026-05-25 14:30:12'
     })
     await dbh.db.insert(agentSessionTable).values({
       id: 'session-for-system-workspace',

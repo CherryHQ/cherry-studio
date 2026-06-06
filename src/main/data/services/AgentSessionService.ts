@@ -4,7 +4,11 @@ import { type AgentSessionRow as SessionRow, agentSessionTable as sessionsTable 
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
-import { agentWorkspaceService, rowToWorkspace } from '@data/services/AgentWorkspaceService'
+import {
+  agentWorkspaceService,
+  type CreateSystemWorkspaceInput,
+  rowToWorkspace
+} from '@data/services/AgentWorkspaceService'
 import { pinService } from '@data/services/PinService'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { loggerService } from '@logger'
@@ -48,15 +52,10 @@ type JoinedSessionRow = {
   workspace: AgentWorkspaceRow | null
 }
 
-type PreparedSystemWorkspaceDirectory = {
-  path: string
-  label: string
-}
-
 type CreateWithWorkspaceResolutionOptions = {
   id: string
   defaultWorkspacePath?: string | null
-  systemWorkspace?: PreparedSystemWorkspaceDirectory | null
+  systemWorkspace?: CreateSystemWorkspaceInput | null
 }
 
 export type CreateWithWorkspaceResolutionResult =
@@ -129,7 +128,7 @@ export class AgentSessionService {
     if (workspaceId) {
       await agentWorkspaceService.getByIdTx(tx, workspaceId)
     } else if (options.systemWorkspace) {
-      workspaceId = (await agentWorkspaceService.createPreparedSystemWorkspaceTx(tx, options.systemWorkspace)).id
+      workspaceId = (await agentWorkspaceService.createSystemWorkspaceTx(tx, options.systemWorkspace)).id
     } else {
       workspaceId = await this.findLatestUserWorkspaceIdTx(tx, dto.agentId)
       if (!workspaceId) {

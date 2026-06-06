@@ -13,9 +13,9 @@ import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 
 type WorkspaceLookupOptions = { includeSystem?: boolean }
-type PreparedSystemWorkspaceDirectory = {
+export type CreateSystemWorkspaceInput = {
   path: string
-  label: string
+  name: string
 }
 
 export function rowToWorkspace(row: AgentWorkspaceRow): AgentWorkspaceEntity {
@@ -43,10 +43,6 @@ function normalizeWorkspacePath(rawPath: string): string {
 
 function defaultWorkspaceName(workspacePath: string): string {
   return path.basename(workspacePath) || workspacePath
-}
-
-function systemWorkspaceName(label: string): string {
-  return `No project ${label}`
 }
 
 export class AgentWorkspaceService {
@@ -122,13 +118,13 @@ export class AgentWorkspaceService {
     return await this.findOrCreateByPathTx(tx, workspacePath)
   }
 
-  async createPreparedSystemWorkspace(prepared: PreparedSystemWorkspaceDirectory): Promise<AgentWorkspaceEntity> {
-    const workspacePath = normalizeWorkspacePath(prepared.path)
+  async createSystemWorkspace(input: CreateSystemWorkspaceInput): Promise<AgentWorkspaceEntity> {
+    const workspacePath = normalizeWorkspacePath(input.path)
     const row = await withSqliteErrors(
       () =>
         application
           .get('DbService')
-          .withWriteTx((tx) => this.createPreparedSystemWorkspaceRowTx(tx, { ...prepared, path: workspacePath })),
+          .withWriteTx((tx) => this.createSystemWorkspaceRowTx(tx, { ...input, path: workspacePath })),
       {
         ...defaultHandlersFor('Workspace', workspacePath),
         unique: () => DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
@@ -137,22 +133,16 @@ export class AgentWorkspaceService {
     return rowToWorkspace(row)
   }
 
-  async createPreparedSystemWorkspaceTx(
-    tx: DbOrTx,
-    prepared: PreparedSystemWorkspaceDirectory
-  ): Promise<AgentWorkspaceEntity> {
-    const row = await this.createPreparedSystemWorkspaceRowTx(tx, prepared)
+  async createSystemWorkspaceTx(tx: DbOrTx, input: CreateSystemWorkspaceInput): Promise<AgentWorkspaceEntity> {
+    const row = await this.createSystemWorkspaceRowTx(tx, input)
     return rowToWorkspace(row)
   }
 
-  private async createPreparedSystemWorkspaceRowTx(
-    tx: DbOrTx,
-    prepared: PreparedSystemWorkspaceDirectory
-  ): Promise<AgentWorkspaceRow> {
-    const workspacePath = normalizeWorkspacePath(prepared.path)
+  private async createSystemWorkspaceRowTx(tx: DbOrTx, input: CreateSystemWorkspaceInput): Promise<AgentWorkspaceRow> {
+    const workspacePath = normalizeWorkspacePath(input.path)
     return await this.insertWorkspaceRowTx(tx, {
       id: uuidv4(),
-      name: systemWorkspaceName(prepared.label),
+      name: input.name,
       path: workspacePath,
       type: 'system'
     })

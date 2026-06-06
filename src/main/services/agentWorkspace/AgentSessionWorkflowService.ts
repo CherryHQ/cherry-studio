@@ -23,6 +23,8 @@ export class AgentSessionWorkflowService {
       let result = await agentSessionService.createWithWorkspaceResolution(dto, {
         id,
         systemWorkspace: preparedSystemWorkspace
+          ? { path: preparedSystemWorkspace.path, name: `No project ${preparedSystemWorkspace.label}` }
+          : null
       })
 
       if (result.needsDefaultWorkspace) {
@@ -31,6 +33,8 @@ export class AgentSessionWorkflowService {
           id,
           defaultWorkspacePath,
           systemWorkspace: preparedSystemWorkspace
+            ? { path: preparedSystemWorkspace.path, name: `No project ${preparedSystemWorkspace.label}` }
+            : null
         })
       }
 

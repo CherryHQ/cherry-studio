@@ -57,7 +57,7 @@ describe('AgentSessionService', () => {
     return await agentSessionService.getById(id)
   }
 
-  it('signals when a default workspace directory must be prepared', async () => {
+  it('signals when a default workspace path must be supplied', async () => {
     const result = await agentSessionService.createWithWorkspaceResolution(
       {
         agentId: 'agent-session-test',
@@ -76,7 +76,7 @@ describe('AgentSessionService', () => {
     })
   })
 
-  it('creates a session with a prepared default workspace path', async () => {
+  it('creates a session with a default workspace path', async () => {
     const defaultWorkspacePath = path.join(root, 'prepared-default')
 
     const result = await agentSessionService.createWithWorkspaceResolution(
@@ -222,9 +222,9 @@ describe('AgentSessionService', () => {
   })
 
   it('delete wrapper returns a deleted system workspace path', async () => {
-    const workspace = await agentWorkspaceService.createPreparedSystemWorkspace({
+    const workspace = await agentWorkspaceService.createSystemWorkspace({
       path: path.join(root, 'system-workspace-for-delete'),
-      label: '2026-05-25 14:30:12'
+      name: 'No project 2026-05-25 14:30:12'
     })
     const session = await createSession('System delete', workspace.id)
 

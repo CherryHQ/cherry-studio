@@ -12,7 +12,10 @@ export class AgentWorkspaceWorkflowService {
   async createSystemWorkspaceForSession(sessionId: string, now = new Date()): Promise<AgentWorkspaceEntity> {
     const prepared = agentWorkspaceDirectoryService.prepareSystemWorkspaceForSession(sessionId, now)
     try {
-      return await agentWorkspaceService.createPreparedSystemWorkspace(prepared)
+      return await agentWorkspaceService.createSystemWorkspace({
+        path: prepared.path,
+        name: `No project ${prepared.label}`
+      })
     } catch (error) {
       agentWorkspaceDirectoryService.deletePreparedSystemWorkspaceDirectory(prepared)
       throw error
