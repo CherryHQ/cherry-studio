@@ -94,7 +94,7 @@ const McpSettings: FC = () => {
             </MenuList>
           </Scrollbar>
         </div>
-        <div className="relative min-w-0 flex-1 overflow-hidden">
+        <div className="relative flex min-w-0 flex-1 overflow-hidden">
           <Outlet />
         </div>
       </div>
