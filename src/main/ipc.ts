@@ -98,7 +98,7 @@ export async function registerIpc() {
     webviews.forEach((webview) => {
       webview.session.setSpellCheckerEnabled(isEnable)
     })
-    configManager.set('enableSpellCheck', isEnable)
+    void application.get('PreferenceService').set('app.spell_check.enabled', isEnable)
   })
 
   // spell check languages
