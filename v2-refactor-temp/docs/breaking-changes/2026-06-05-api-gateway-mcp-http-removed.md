@@ -14,7 +14,7 @@ The v1 API server exposed MCP (Model Context Protocol) over HTTP for agents. The
 - `GET /v1/mcps/:server_id` — MCP server info + tool list
 - `ALL /v1/claw/:agentId/claw-mcp` — the Claw agent's Streamable-HTTP MCP transport (session create/init/timeout/close + JSON-RPC dispatch)
 
-The agent-deletion hook that tore down a Claw MCP server (`cleanupClawServer`) is also gone.
+A v1 agent-deletion hook for tearing down a Claw MCP server (`cleanupClawServer`) is also absent — though it was already uncalled dead code in the v1 tree, so its removal orphans no live call site.
 
 ## Why this matters to the user
 
@@ -26,4 +26,4 @@ TBD — pending product decision on whether MCP-over-HTTP returns in a later v2 
 
 ## Notes for release manager
 
-The v2 data services backing the read endpoints still exist (`mcpServerService`, `McpCatalogService`), so `/v1/mcps` and `/v1/mcps/:id` are a thin re-port if we decide to restore them. The Claw Streamable-HTTP transport is the heavier piece — it needs its session/lifecycle machinery and the `cleanupClawServer` deletion hook re-homed in the gateway. Confirm with the agents owner whether any shipped agent flow depends on the Claw HTTP transport before finalizing this as a permanent removal.
+The v2 data services backing the read endpoints still exist (`mcpServerService`, `McpCatalogService`), so `/v1/mcps` and `/v1/mcps/:id` are a thin re-port if we decide to restore them. The Claw Streamable-HTTP transport is the heavier piece — it needs its session/lifecycle machinery rebuilt in the gateway. (The old `cleanupClawServer` deletion hook was already dead code, so there is no existing hook to re-home — a restored transport would need its teardown written fresh.) Confirm with the agents owner whether any shipped agent flow depends on the Claw HTTP transport before finalizing this as a permanent removal.

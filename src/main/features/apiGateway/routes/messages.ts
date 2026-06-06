@@ -75,7 +75,8 @@ const invalidRequest = (message: string) => ({
 /**
  * `/v1/messages` routes (mounted under `/v1`). The body is validated declaratively
  * by `MessagesBodySchema`; validation and provider errors are shaped into the
- * Anthropic error envelope by the group's `anthropicErrorHandler` (see ../app.ts).
+ * Anthropic error envelope by the app's single root `onError` (`gatewayErrorHandler`),
+ * which dispatches by request path to `anthropicErrorHandler` (see ../errors.ts).
  */
 export const messagesRoutes = new Elysia({ prefix: '/messages' })
   .post(

@@ -15,9 +15,10 @@ is translated back into the caller's dialect by the adapter system.
 
 > **Naming.** The code, IPC, preload, hook, and UI all use the
 > **`apiGateway`** name. The persisted **preference / shared-cache** namespace
-> is **`feature.api_gateway.*`** (Cherry-Studio-as-a-Service) — same feature, two
-> names. The legacy v1 Redux layer (`apiServer.*`) is deprecated and reaches v2
-> only through the migrators; do not add fallbacks for it.
+> is **`feature.api_gateway.*`** — same feature, two names. (`api_gateway` is the
+> current namespace token; it replaced the retired `csaas` alias.) The legacy v1
+> Redux layer (`apiServer.*`) is deprecated and reaches v2 only through the
+> migrators; do not add fallbacks for it.
 
 ## Where the code lives
 
@@ -65,8 +66,15 @@ and its latency logged on completion.
 |---|---|
 | `GET /` | API information (name, version, endpoint map) |
 | `GET /health` | Health check (`{ status, timestamp, version }`) |
-| `GET /openapi` | Scalar API docs UI |
-| `GET /openapi/json` | OpenAPI JSON spec |
+| `GET /openapi` | Scalar API docs UI (front-end assets load from a CDN — see note) |
+| `GET /openapi/json` | OpenAPI JSON spec (fully local) |
+
+> **Offline note.** `@elysia/openapi`'s Scalar provider serves an HTML page that
+> pulls its UI bundle from a CDN, so `GET /openapi` (the human docs UI) needs
+> network. `GET /openapi/json` — the machine-readable spec that programmatic
+> clients/SDKs consume — is always served locally and is unaffected. To make the
+> UI work fully offline, pass a self-hosted `cdn` URL to the `openapi({...})` config
+> in `app.ts`.
 
 ### Protected (`/v1`, requires API key)
 
