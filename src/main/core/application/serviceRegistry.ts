@@ -43,6 +43,7 @@ import { SearchService } from '@main/services/SearchService'
 import { SelectionService } from '@main/services/selection/SelectionService'
 import { SettingsWindowService } from '@main/services/SettingsWindowService'
 import { ShortcutService } from '@main/services/ShortcutService'
+import { StorageMonitorService } from '@main/services/StorageMonitorService'
 import { SubWindowService } from '@main/services/SubWindowService'
 import { ThemeService } from '@main/services/ThemeService'
 import { TrayService } from '@main/services/TrayService'
@@ -102,6 +103,7 @@ export const services = {
   OvmsManager,
   ProtocolService,
   ProxyManager,
+  StorageMonitorService,
   PythonService,
   TrayService,
   WebSearchService,
