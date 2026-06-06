@@ -11,7 +11,7 @@ import type {
 } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
-import { ApiGateway } from '../apiGateway'
+import { ApiGateway } from '../features/apiGateway'
 
 const logger = loggerService.withContext('ApiGatewayService')
 

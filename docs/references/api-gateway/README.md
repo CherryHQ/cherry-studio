@@ -39,7 +39,7 @@ src/main/apiGateway/                 ← the HTTP server (Elysia + @elysia/node)
 │   ├── ProxyStreamService.ts        ← `processMessage()` — the core request → stream → response engine
 │   ├── models.ts                    ← `modelsService.getModels()` (never throws)
 │   ├── responses.ts                 ← `responsesService.transformError()` (OpenAI error shaping)
-│   └── reasoning-cache.ts           ← google / openrouter reasoning-signature caches
+│   └── reasoningCache.ts           ← google / openrouter reasoning-signature caches
 └── adapters/
     ├── interfaces.ts                ← `IMessageConverter` / `IStreamAdapter` / `ISseFormatter` contracts
     ├── converters/                  ← input dialect → AI SDK `UIMessage[]` + tools + options
@@ -166,7 +166,7 @@ Adapters consume the AI SDK **`UIMessageChunk`** stream (not `fullStream`):
   breakdown** on this channel.
 - **`finishReason`** comes from the `finish` chunk; reasoning **signatures**
   come from the reasoning part's `providerMetadata` (cached per provider via
-  `reasoning-cache.ts` so split signatures survive across chunks).
+  `reasoningCache.ts` so split signatures survive across chunks).
 
 ## Lifecycle & configuration
 

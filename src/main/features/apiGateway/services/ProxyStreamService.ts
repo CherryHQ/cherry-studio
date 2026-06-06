@@ -28,7 +28,7 @@ import { v4 as uuidv4 } from 'uuid'
 
 import type { InputFormat, InputParamsMap, ISseFormatter, IStreamAdapter, OutputFormat } from '../adapters'
 import { MessageConverterFactory, StreamAdapterFactory } from '../adapters'
-import { googleReasoningCache, openRouterReasoningCache } from './reasoning-cache'
+import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache'
 
 const logger = loggerService.withContext('ProxyStreamService')
 
