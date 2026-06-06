@@ -775,6 +775,41 @@ describe('readExcelWorkbookPreview', () => {
     })
   })
 
+  it('returns a clear error when an archive entry exceeds decompressed size limits', async () => {
+    const filePath = writeZipWorkbook('large-entry.xlsx', {
+      'xl/workbook.xml': 'a'.repeat(16)
+    })
+
+    const result = await readExcelWorkbookPreview(previewRequest(filePath), {
+      budget: { maxArchiveEntryBytes: 8, maxArchiveUncompressedBytes: 1024 }
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        code: 'excel_preview_too_complex'
+      }
+    })
+  })
+
+  it('returns a clear error when archive decompressed size exceeds the aggregate limit', async () => {
+    const filePath = writeZipWorkbook('large-archive.xlsx', {
+      'xl/workbook.xml': 'a'.repeat(8),
+      'xl/_rels/workbook.xml.rels': 'b'.repeat(8)
+    })
+
+    const result = await readExcelWorkbookPreview(previewRequest(filePath), {
+      budget: { maxArchiveEntryBytes: 16, maxArchiveUncompressedBytes: 12 }
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      error: {
+        code: 'excel_preview_too_complex'
+      }
+    })
+  })
+
   it('returns a clear error when the workbook exceeds chart count limits', async () => {
     const filePath = writeWorkbookWithBarChartDrawing()
 

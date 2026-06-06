@@ -6,6 +6,7 @@ import { XMLParser } from 'fast-xml-parser'
 import type StreamZip from 'node-stream-zip'
 
 import {
+  assertExcelArchiveEntryBudget,
   createExcelMetadataPartialDiagnostic,
   createUnsupportedExcelChartsDiagnostic,
   type ExcelWorkbookPreviewBudget,
@@ -210,13 +211,20 @@ const toRelationshipPath = (entryPath: string): string => {
   return path.posix.join(entryDir, '_rels', `${path.posix.basename(entryPath)}.rels`)
 }
 
-const readArchiveEntryText = async (zip: StreamZip.StreamZipAsync, entryName: string): Promise<string | undefined> => {
+const readArchiveEntryText = async (
+  zip: StreamZip.StreamZipAsync,
+  entryName: string,
+  budget?: ExcelWorkbookPreviewBudget
+): Promise<string | undefined> => {
   try {
     const entry = await zip.entry(entryName)
     if (!entry) return undefined
 
+    assertExcelArchiveEntryBudget(entry, budget)
     return (await zip.entryData(entry)).toString('utf8')
   } catch (err) {
+    if (err instanceof ExcelWorkbookPreviewBudgetExceededError) throw err
+
     logger.warn(`Failed to read Excel chart archive entry: ${entryName}`, toError(err))
     return undefined
   }
@@ -225,9 +233,10 @@ const readArchiveEntryText = async (zip: StreamZip.StreamZipAsync, entryName: st
 const readRelationshipsById = async (
   zip: StreamZip.StreamZipAsync,
   relationshipPath: string,
-  diagnostics?: ExcelImportDiagnostic[]
+  diagnostics?: ExcelImportDiagnostic[],
+  budget?: ExcelWorkbookPreviewBudget
 ): Promise<Map<string, ParsedRelationship>> => {
-  const relsXml = await readArchiveEntryText(zip, relationshipPath)
+  const relsXml = await readArchiveEntryText(zip, relationshipPath, budget)
   if (!relsXml) return new Map()
 
   try {
@@ -327,9 +336,10 @@ const toStringArray = (values: unknown[]): string[] => {
 
 const readSharedStrings = async (
   zip: StreamZip.StreamZipAsync,
-  diagnostics?: ExcelImportDiagnostic[]
+  diagnostics?: ExcelImportDiagnostic[],
+  budget?: ExcelWorkbookPreviewBudget
 ): Promise<string[]> => {
-  const sharedStringsXml = await readArchiveEntryText(zip, 'xl/sharedStrings.xml')
+  const sharedStringsXml = await readArchiveEntryText(zip, 'xl/sharedStrings.xml', budget)
   if (!sharedStringsXml) return []
 
   try {
@@ -515,13 +525,18 @@ export const collectWorksheetChartImages = async ({
   if (!drawingRelationshipId) return { diagnostics: [], images: [] }
 
   const diagnostics: ExcelImportDiagnostic[] = []
-  const worksheetRels = await readRelationshipsById(zip, `xl/worksheets/_rels/sheet${fileNumber}.xml.rels`, diagnostics)
+  const worksheetRels = await readRelationshipsById(
+    zip,
+    `xl/worksheets/_rels/sheet${fileNumber}.xml.rels`,
+    diagnostics,
+    budget
+  )
   const drawingPath = toArchiveTargetPath('xl/worksheets', worksheetRels.get(drawingRelationshipId)?.Target)
   if (!drawingPath) return { diagnostics, images: [] }
 
   const [drawingXml, drawingRels] = await Promise.all([
-    readArchiveEntryText(zip, drawingPath),
-    readRelationshipsById(zip, toRelationshipPath(drawingPath), diagnostics)
+    readArchiveEntryText(zip, drawingPath, budget),
+    readRelationshipsById(zip, toRelationshipPath(drawingPath), diagnostics, budget)
   ])
   if (!drawingXml) return { diagnostics, images: [] }
 
@@ -533,7 +548,7 @@ export const collectWorksheetChartImages = async ({
     return { diagnostics: [...diagnostics, createExcelMetadataPartialDiagnostic()], images: [] }
   }
   const anchors = toDrawingAnchors(drawing)
-  const sharedStrings = await readSharedStrings(zip, diagnostics)
+  const sharedStrings = await readSharedStrings(zip, diagnostics, budget)
   const cells = collectWorksheetCellValues(worksheet, sharedStrings)
   const images: ExcelChartImageCollection['images'] = []
   let unsupportedCount = 0
@@ -550,7 +565,7 @@ export const collectWorksheetChartImages = async ({
       continue
     }
 
-    const chartXml = await readArchiveEntryText(zip, chartPath)
+    const chartXml = await readArchiveEntryText(zip, chartPath, budget)
     let model: ExcelChartRenderModel | null = null
     if (chartXml) {
       try {

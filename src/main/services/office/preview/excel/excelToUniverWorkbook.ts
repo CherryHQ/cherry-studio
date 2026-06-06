@@ -80,6 +80,8 @@ export interface ExcelStreamSheetMetadataIndex {
 }
 
 export interface ExcelWorkbookPreviewBudget {
+  maxArchiveEntryBytes?: number
+  maxArchiveUncompressedBytes?: number
   maxChartPayloadBytes?: number
   maxChartPixels?: number
   maxCharts?: number
@@ -95,6 +97,8 @@ export interface ExcelWorkbookPreviewBudget {
 export type NormalizedExcelWorkbookPreviewBudget = Required<ExcelWorkbookPreviewBudget>
 
 export const DEFAULT_EXCEL_WORKBOOK_PREVIEW_BUDGET: NormalizedExcelWorkbookPreviewBudget = {
+  maxArchiveEntryBytes: 20 * 1024 * 1024,
+  maxArchiveUncompressedBytes: 80 * 1024 * 1024,
   maxChartPayloadBytes: 4 * 1024 * 1024,
   maxChartPixels: 4_000_000,
   maxCharts: 20,
@@ -153,6 +157,54 @@ const createWorkbookBuildContext = (date1904: boolean, budget?: ExcelWorkbookPre
 
 const assertBudget = (condition: boolean, message: string): void => {
   if (!condition) throw new ExcelWorkbookPreviewBudgetExceededError(message)
+}
+
+interface ExcelArchiveBudgetEntry {
+  isFile?: boolean
+  name?: string
+  size?: number
+}
+
+const getArchiveEntrySize = (entry: ExcelArchiveBudgetEntry): number => {
+  return typeof entry.size === 'number' && Number.isFinite(entry.size) ? entry.size : 0
+}
+
+export const assertExcelArchiveEntryBudget = (
+  entry: ExcelArchiveBudgetEntry,
+  budget?: ExcelWorkbookPreviewBudget
+): void => {
+  if (entry.isFile === false) return
+
+  const normalizedBudget = normalizeExcelWorkbookPreviewBudget(budget)
+  const entrySize = getArchiveEntrySize(entry)
+  assertBudget(
+    entrySize <= normalizedBudget.maxArchiveEntryBytes,
+    `Excel archive entry "${entry.name ?? 'unknown'}" is too large to preview.`
+  )
+}
+
+export const assertExcelArchiveBudget = (
+  entries: Iterable<ExcelArchiveBudgetEntry>,
+  budget?: ExcelWorkbookPreviewBudget
+): void => {
+  const normalizedBudget = normalizeExcelWorkbookPreviewBudget(budget)
+  let uncompressedBytes = 0
+
+  for (const entry of entries) {
+    if (entry.isFile === false) continue
+
+    const entrySize = getArchiveEntrySize(entry)
+    assertBudget(
+      entrySize <= normalizedBudget.maxArchiveEntryBytes,
+      `Excel archive entry "${entry.name ?? 'unknown'}" is too large to preview.`
+    )
+
+    uncompressedBytes += entrySize
+    assertBudget(
+      uncompressedBytes <= normalizedBudget.maxArchiveUncompressedBytes,
+      'Excel workbook archive is too large to preview.'
+    )
+  }
 }
 
 const registerPayloadBytes = (context: WorkbookBuildContext, bytes: number): void => {

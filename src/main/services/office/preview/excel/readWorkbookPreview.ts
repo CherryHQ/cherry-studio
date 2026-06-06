@@ -19,6 +19,8 @@ import * as z from 'zod'
 
 import { collectWorksheetChartImages } from './chart/excelChartArchive'
 import {
+  assertExcelArchiveBudget,
+  assertExcelArchiveEntryBudget,
   createExcelMetadataPartialDiagnostic,
   createUnsupportedExcelChartsDiagnostic,
   DEFAULT_EXCEL_WORKBOOK_PREVIEW_BUDGET,
@@ -194,13 +196,20 @@ const isUnsupportedExcelDrawingError = (error: Error): boolean => {
   return error.message.includes("reading 'anchors'") || error.message.includes('reading "anchors"')
 }
 
-const readArchiveEntryText = async (zip: StreamZip.StreamZipAsync, entryName: string): Promise<string | undefined> => {
+const readArchiveEntryText = async (
+  zip: StreamZip.StreamZipAsync,
+  entryName: string,
+  budget?: ExcelWorkbookPreviewBudget
+): Promise<string | undefined> => {
   try {
     const entry = await zip.entry(entryName)
     if (!entry) return undefined
 
+    assertExcelArchiveEntryBudget(entry, budget)
     return (await zip.entryData(entry)).toString('utf8')
   } catch (err) {
+    if (err instanceof ExcelWorkbookPreviewBudgetExceededError) throw err
+
     logger.warn(`Failed to read Excel archive entry: ${entryName}`, toError(err))
     return undefined
   }
@@ -485,12 +494,13 @@ const collectWorksheetTableData = async (
   zip: StreamZip.StreamZipAsync,
   fileNumber: string,
   worksheet: ParsedWorksheetXml,
-  diagnostics: ExcelImportDiagnostic[]
+  diagnostics: ExcelImportDiagnostic[],
+  budget?: ExcelWorkbookPreviewBudget
 ): Promise<ExcelWorksheetTableData[]> => {
   const tableParts = asArray(worksheet.worksheet?.tableParts?.tablePart)
   if (!tableParts.length) return []
 
-  const relsXml = await readArchiveEntryText(zip, `xl/worksheets/_rels/sheet${fileNumber}.xml.rels`)
+  const relsXml = await readArchiveEntryText(zip, `xl/worksheets/_rels/sheet${fileNumber}.xml.rels`, budget)
   if (!relsXml) return []
 
   let relationships: ParsedWorkbookRelationship[] = []
@@ -510,7 +520,7 @@ const collectWorksheetTableData = async (
     const tablePath = toArchiveTargetPath('xl/worksheets', relationship?.Target)
     if (!tablePath) continue
 
-    const tableXml = await readArchiveEntryText(zip, tablePath)
+    const tableXml = await readArchiveEntryText(zip, tablePath, budget)
     let parsedTable: ExcelWorksheetTableData | null = null
     try {
       parsedTable = tableXml ? parseArchiveTableData(tableXml, index) : null
@@ -531,7 +541,7 @@ const collectArchiveWorksheetMetadata = async (
   sheetName?: string,
   budget?: ExcelWorkbookPreviewBudget
 ): Promise<ExcelArchiveWorksheetMetadata> => {
-  const worksheetXml = await readArchiveEntryText(zip, `xl/worksheets/sheet${fileNumber}.xml`)
+  const worksheetXml = await readArchiveEntryText(zip, `xl/worksheets/sheet${fileNumber}.xml`, budget)
   if (!worksheetXml) return { chartImages: [], columnData: {}, diagnostics: [], mergeData: [], tableData: [] }
 
   const diagnostics: ExcelImportDiagnostic[] = []
@@ -557,7 +567,7 @@ const collectArchiveWorksheetMetadata = async (
     worksheetXml,
     zip
   })
-  const tableData = await collectWorksheetTableData(zip, fileNumber, worksheet, diagnostics)
+  const tableData = await collectWorksheetTableData(zip, fileNumber, worksheet, diagnostics, budget)
 
   return {
     chartImages: chartImages.images,
@@ -573,8 +583,8 @@ const collectArchiveSheetMetadata = async (
   budget?: ExcelWorkbookPreviewBudget
 ): Promise<Pick<ExcelArchiveMetadata, 'diagnostics' | 'sheetMetadataIndex'>> => {
   const [workbookXml, workbookRelsXml] = await Promise.all([
-    readArchiveEntryText(zip, 'xl/workbook.xml'),
-    readArchiveEntryText(zip, 'xl/_rels/workbook.xml.rels')
+    readArchiveEntryText(zip, 'xl/workbook.xml', budget),
+    readArchiveEntryText(zip, 'xl/_rels/workbook.xml.rels', budget)
   ])
   const sheetMetadataIndex: ExcelStreamSheetMetadataIndex = {
     byFileNumber: {},
@@ -658,6 +668,7 @@ const collectArchiveMetadata = async (
 
   try {
     const entries = await zip.entries()
+    assertExcelArchiveBudget(Object.values(entries), budget)
     const entryNames = Object.keys(entries)
     const chartCount = entryNames.filter((entryName) => XLSX_CHART_ENTRY_PATTERN.test(entryName)).length
     if (chartCount > (budget?.maxCharts ?? DEFAULT_EXCEL_WORKBOOK_PREVIEW_BUDGET.maxCharts)) {
