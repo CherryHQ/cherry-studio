@@ -651,3 +651,69 @@ describe('FileMigrator cross-platform recovery (#15733)', () => {
     expect(joined).toContain(FIXTURE_WINDOWS_ROW.id)
   })
 })
+
+// ─── Name degradation chain (spec R3/R4) ────────────────────────────────────
+
+describe('FileMigrator name degradation chain', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('derives name from origin_name with extension stripped (normal path, no warning)', async () => {
+    const row = makeInternalRow({ origin_name: 'My Report.v2.pdf' })
+    const { ctx, insertValues } = createMockContext([row])
+    const m = new FileMigrator()
+    const result = await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    const inserted = insertValues.mock.calls[0][0]
+    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
+    expect(firstRow.name).toBe('My Report.v2')
+    const joined = (result.warnings ?? []).join('\n')
+    expect(joined).not.toContain('Sanitized name')
+  })
+
+  it('sanitizes an origin_name containing separators instead of skipping the row (AC4)', async () => {
+    const row = makeInternalRow({ origin_name: 'evil\\dir/report.pdf' })
+    const { ctx, insertValues } = createMockContext([row])
+    const m = new FileMigrator()
+    const result = await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    expect(insertValues).toHaveBeenCalled()
+    const inserted = insertValues.mock.calls[0][0]
+    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
+    expect(firstRow.name).toBe('report')
+    const joined = (result.warnings ?? []).join('\n')
+    expect(joined).toContain('Sanitized name')
+    expect(joined).toContain(row.id)
+  })
+
+  it('falls back to the row id when sanitization cannot produce a safe name (AC4)', async () => {
+    const row = makeInternalRow({ origin_name: '..' })
+    const { ctx, insertValues } = createMockContext([row])
+    const m = new FileMigrator()
+    const result = await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    expect(insertValues).toHaveBeenCalled()
+    const inserted = insertValues.mock.calls[0][0]
+    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
+    expect(firstRow.name).toBe(row.id)
+    const joined = (result.warnings ?? []).join('\n')
+    expect(joined).toContain('falling back to row id')
+  })
+
+  it('falls back to v1 storage name when origin_name is empty', async () => {
+    const row = makeInternalRow({ origin_name: '' })
+    const { ctx, insertValues } = createMockContext([row])
+    const m = new FileMigrator()
+    await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    const inserted = insertValues.mock.calls[0][0]
+    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
+    // makeInternalRow: name='report' (no dot) → stays as-is
+    expect(firstRow.name).toBe('report')
+  })
+})

@@ -6,7 +6,7 @@ import path from 'node:path'
 import { fileEntryTable } from '@data/db/schemas/file'
 import { loggerService } from '@logger'
 import type { ExecuteResult, PrepareResult, ValidateResult, ValidationError } from '@shared/data/migration/v2/types'
-import { SafeExtSchema } from '@shared/data/types/file/essential'
+import { SafeExtSchema, SafeNameSchema } from '@shared/data/types/file/essential'
 import type { FileMetadata } from '@shared/data/types/file/legacyFileMetadata'
 import { sql } from 'drizzle-orm'
 
@@ -49,6 +49,44 @@ function parseTimestamp(dateStr: string | undefined | null, onInvalid?: (raw: st
     return Date.now()
   }
   return ms
+}
+
+/**
+ * Last path segment, treating both '/' and '\' as separators. v1 rows can
+ * carry foreign-platform paths (#15733), so platform-default `path.basename`
+ * must never be applied to v1-persisted strings.
+ */
+function basenameAnySep(p: string): string {
+  return p.split(/[\\/]/).pop() || p
+}
+
+/** Strip a trailing `.ext`; leading-dot names (`.gitignore`) stay intact. */
+function stripExt(base: string): string {
+  const dot = base.lastIndexOf('.')
+  return dot > 0 ? base.slice(0, dot) : base
+}
+
+/**
+ * Derive a SafeNameSchema-conformant display name from the v1 name source.
+ *
+ * Degradation chain (spec R4): raw → sanitized (last segment, trimmed) →
+ * row id. Never asks the caller to skip the row: a skipped internal row
+ * strands its physical file, which the startup FS sweep then reclaims —
+ * real data loss. `name` does not participate in physical paths
+ * (`{id}.{ext}`), so degrading it is always safe.
+ */
+function deriveSafeName(nameSource: string, rowId: string, onWarning: (message: string) => void): string {
+  const raw = stripExt(nameSource)
+  if (SafeNameSchema.safeParse(raw).success) return raw
+
+  const sanitized = stripExt(basenameAnySep(nameSource)).trim()
+  if (SafeNameSchema.safeParse(sanitized).success) {
+    onWarning(`Sanitized name for file id=${rowId}: ${JSON.stringify(nameSource)} -> ${JSON.stringify(sanitized)}`)
+    return sanitized
+  }
+
+  onWarning(`Name for file id=${rowId} cannot be sanitized; falling back to row id. raw=${JSON.stringify(nameSource)}`)
+  return rowId
 }
 
 /**
@@ -137,9 +175,7 @@ function toFileEntry(
   return {
     id: row.id,
     origin: 'internal',
-    name: row.origin_name
-      ? path.basename(row.origin_name, row.origin_name.includes('.') ? path.extname(row.origin_name) : '')
-      : row.name,
+    name: deriveSafeName(row.origin_name || row.name, row.id, onWarning),
     ext,
     size: row.size,
     externalPath: null,
