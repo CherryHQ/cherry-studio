@@ -33,10 +33,10 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
 
   return (
     <div className={modelListClasses.headerToolStack}>
+      <h2 className={modelListClasses.sectionTitle}>{t('settings.models.list_title')}</h2>
       <div className={modelListClasses.titleRow}>
         <div className="min-w-0">
           <div className={modelListClasses.titleWrap}>
-            <h2 className={modelListClasses.sectionTitle}>{t('settings.models.list_title')}</h2>
             <div className={modelListClasses.searchWrap}>
               <Search className={modelListClasses.searchIcon} />
               <input

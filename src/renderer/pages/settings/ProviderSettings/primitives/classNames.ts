@@ -205,7 +205,7 @@ export const modelListClasses = {
   headerBlock: 'flex min-h-0 min-w-0 w-full flex-1 flex-col gap-[length:var(--space-stack-lg)]',
   titleRow: 'flex min-w-0 w-full flex-wrap items-center justify-between gap-3',
   /** Model list header stack — matches model list block. */
-  headerToolStack: 'flex min-w-0 w-full flex-col gap-[length:var(--space-stack-lg)]',
+  headerToolStack: 'flex min-w-0 w-full flex-col gap-2.5',
   titleWrap: 'flex min-w-0 items-center gap-[length:var(--space-inline-md)]',
   titleActions: 'flex max-w-full flex-1 flex-wrap items-center justify-end gap-2',
   toolbarDesignIcon: 'size-4 shrink-0',
