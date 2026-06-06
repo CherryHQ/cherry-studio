@@ -192,9 +192,17 @@ export class PersistentChatContextProvider implements ChatContextProvider {
 
       // 7. Build per-model requests. The dispatcher runs `manager.send` itself.
       const history = await this.buildHistory(userMessage.id)
+      const temporarySystemPrompt = req.trigger === 'submit-message' ? req.temporarySystemPrompt : undefined
       const models_ = assistantPlaceholders.map(({ model, placeholder, rootSpan }) => ({
         modelId: model.id,
-        request: this.buildStreamRequest(req.topicId, assistantId, model.id, history, placeholder.id),
+        request: this.buildStreamRequest(
+          req.topicId,
+          assistantId,
+          model.id,
+          history,
+          placeholder.id,
+          temporarySystemPrompt
+        ),
         rootSpan
       }))
 
@@ -309,7 +317,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
     assistantId: string | undefined,
     uniqueModelId: UniqueModelId,
     history: CherryUIMessage[],
-    messageId: string
+    messageId: string,
+    temporarySystemPrompt?: string
   ): AiStreamRequest {
     return {
       chatId: topicId,
@@ -317,7 +326,8 @@ export class PersistentChatContextProvider implements ChatContextProvider {
       assistantId,
       uniqueModelId,
       messages: history,
-      messageId
+      messageId,
+      ...(temporarySystemPrompt !== undefined && { temporarySystemPrompt })
     }
   }
 }

@@ -360,3 +360,79 @@ describe('PersistentChatContextProvider — prepareContinueDispatch (resume-afte
     expect(toolPart?.state).toBe('approval-responded')
   })
 })
+
+describe('PersistentChatContextProvider — temporarySystemPrompt', () => {
+  const dbh = setupTestDatabase()
+  const provider = new PersistentChatContextProvider()
+
+  beforeEach(async () => {
+    const [providerKey, modelKey] = generateOrderKeySequence(2)
+    await dbh.db.insert(userProviderTable).values({ providerId: 'openai', name: 'OpenAI', orderKey: providerKey })
+    await dbh.db.insert(userModelTable).values({
+      id: MODEL_ID,
+      providerId: 'openai',
+      modelId: 'gpt-4o',
+      presetModelId: 'gpt-4o',
+      name: 'GPT-4o',
+      isEnabled: true,
+      isHidden: false,
+      orderKey: modelKey
+    })
+    await dbh.db.insert(topicTable).values({ id: 'topic-tmp', activeNodeId: null, orderKey: 'b0' })
+  })
+
+  it('passes temporarySystemPrompt into the stream request when provided', async () => {
+    const prepared = await provider.prepareDispatch(makeSubscriber(), {
+      trigger: 'submit-message',
+      topicId: 'topic-tmp',
+      userMessageParts: [{ type: 'text', text: 'hello' }],
+      temporarySystemPrompt: 'You are a title strategist.'
+    } as AiStreamOpenRequest)
+
+    expect(prepared.models[0].request.temporarySystemPrompt).toBe('You are a title strategist.')
+  })
+
+  it('passes empty string temporarySystemPrompt (not coerced to undefined)', async () => {
+    const prepared = await provider.prepareDispatch(makeSubscriber(), {
+      trigger: 'submit-message',
+      topicId: 'topic-tmp',
+      userMessageParts: [{ type: 'text', text: 'hello' }],
+      temporarySystemPrompt: ''
+    } as AiStreamOpenRequest)
+
+    expect(prepared.models[0].request.temporarySystemPrompt).toBe('')
+  })
+
+  it('omits temporarySystemPrompt from stream request when not provided', async () => {
+    const prepared = await provider.prepareDispatch(makeSubscriber(), {
+      trigger: 'submit-message',
+      topicId: 'topic-tmp',
+      userMessageParts: [{ type: 'text', text: 'hello' }]
+    } as AiStreamOpenRequest)
+
+    expect(prepared.models[0].request.temporarySystemPrompt).toBeUndefined()
+  })
+
+  it('does not set temporarySystemPrompt on regenerate-message', async () => {
+    await dbh.db.insert(messageTable).values([
+      {
+        id: 'u-regen',
+        parentId: null,
+        topicId: 'topic-tmp',
+        role: 'user',
+        data: { parts: [{ type: 'text', text: 'regen me' }] },
+        status: 'success',
+        siblingsGroupId: 0,
+        createdAt: 100,
+        updatedAt: 100
+      }
+    ])
+    const prepared = await provider.prepareDispatch(makeSubscriber(), {
+      trigger: 'regenerate-message',
+      topicId: 'topic-tmp',
+      parentAnchorId: 'u-regen'
+    } as AiStreamOpenRequest)
+
+    expect(prepared.models[0].request.temporarySystemPrompt).toBeUndefined()
+  })
+})

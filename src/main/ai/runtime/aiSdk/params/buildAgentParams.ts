@@ -93,7 +93,15 @@ export async function buildAgentParams(input: BuildAgentParamsInput): Promise<Bu
   const features = extraFeatures?.length ? [...INTERNAL_FEATURES, ...extraFeatures] : INTERNAL_FEATURES
   const contributions = collectFromFeatures(scope, features)
 
-  const system = await assembleSystemPrompt({ assistant, model, tools, deferredEntries })
+  // When temporarySystemPrompt is defined (even empty string), override only the prompt field.
+  // All other assistant settings (MCP, tools, temperature, etc.) continue to use the original assistant.
+  const effectiveAssistant =
+    request.temporarySystemPrompt !== undefined && assistant
+      ? { ...assistant, prompt: request.temporarySystemPrompt }
+      : request.temporarySystemPrompt !== undefined
+        ? ({ prompt: request.temporarySystemPrompt } as typeof assistant)
+        : assistant
+  const system = await assembleSystemPrompt({ assistant: effectiveAssistant, model, tools, deferredEntries })
   const options = buildAgentOptions(scope)
 
   return {

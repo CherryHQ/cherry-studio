@@ -1,4 +1,5 @@
 import type { ToolActionKey, ToolRenderContext, ToolStateKey } from '@renderer/pages/home/Inputbar/types'
+import type { Assistant } from '@renderer/types'
 import type React from 'react'
 
 import { useMentionModelsPanel } from './useMentionModelsPanel'
@@ -11,8 +12,8 @@ const MentionModelsQuickPanelManager = ({ context }: ManagerProps) => {
   const {
     quickPanel,
     quickPanelController,
-    state: { mentionedModels, files, couldMentionNotVisionModel },
-    actions: { setMentionedModels, onTextChange }
+    state: { mentionedModels, mentionedAssistant, files, couldMentionNotVisionModel },
+    actions: { setMentionedModels, setMentionedAssistant, onTextChange }
   } = context
 
   useMentionModelsPanel(
@@ -21,6 +22,8 @@ const MentionModelsQuickPanelManager = ({ context }: ManagerProps) => {
       quickPanelController,
       mentionedModels: mentionedModels,
       setMentionedModels: setMentionedModels,
+      mentionedAssistant: mentionedAssistant,
+      setMentionedAssistant: setMentionedAssistant as React.Dispatch<React.SetStateAction<Assistant | null>>,
       couldMentionNotVisionModel,
       files: files,
       setText: onTextChange as React.Dispatch<React.SetStateAction<string>>

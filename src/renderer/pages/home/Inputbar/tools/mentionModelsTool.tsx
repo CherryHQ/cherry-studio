@@ -1,4 +1,5 @@
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
+import type { Assistant } from '@renderer/types'
 import type React from 'react'
 
 import MentionModelsButton from './components/MentionModelsButton'
@@ -16,14 +17,14 @@ const mentionModelsTool = defineTool({
 
   visibleInScopes: [TopicType.Chat, 'quick-assistant'],
   dependencies: {
-    state: ['mentionedModels', 'files', 'couldMentionNotVisionModel'] as const,
-    actions: ['setMentionedModels', 'onTextChange'] as const
+    state: ['mentionedModels', 'mentionedAssistant', 'files', 'couldMentionNotVisionModel'] as const,
+    actions: ['setMentionedModels', 'setMentionedAssistant', 'onTextChange'] as const
   },
 
   render: function MentionModelsToolRender(context) {
     const { state, actions, quickPanel, quickPanelController } = context
-    const { mentionedModels, files, couldMentionNotVisionModel } = state
-    const { setMentionedModels, onTextChange } = actions
+    const { mentionedModels, mentionedAssistant, files, couldMentionNotVisionModel } = state
+    const { setMentionedModels, setMentionedAssistant, onTextChange } = actions
 
     return (
       <MentionModelsButton
@@ -31,6 +32,8 @@ const mentionModelsTool = defineTool({
         quickPanelController={quickPanelController}
         mentionedModels={mentionedModels}
         setMentionedModels={setMentionedModels}
+        mentionedAssistant={mentionedAssistant}
+        setMentionedAssistant={setMentionedAssistant as React.Dispatch<React.SetStateAction<Assistant | null>>}
         couldMentionNotVisionModel={couldMentionNotVisionModel}
         files={files}
         setText={onTextChange as React.Dispatch<React.SetStateAction<string>>}

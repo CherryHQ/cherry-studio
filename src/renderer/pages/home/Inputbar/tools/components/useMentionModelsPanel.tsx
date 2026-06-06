@@ -3,10 +3,11 @@ import type { QuickPanelListItem } from '@renderer/components/QuickPanel'
 import { QuickPanelReservedSymbol } from '@renderer/components/QuickPanel'
 import { getModelLogo, isEmbeddingModel, isRerankModel, isVisionModel } from '@renderer/config/models'
 import db from '@renderer/databases'
+import { useAssistantsApi } from '@renderer/hooks/useAssistant'
 import { useModels } from '@renderer/hooks/useModel'
 import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
 import type { ToolQuickPanelApi, ToolQuickPanelController } from '@renderer/pages/home/Inputbar/types'
-import type { FileMetadata } from '@renderer/types'
+import type { Assistant, FileMetadata } from '@renderer/types'
 import { FILE_TYPE } from '@renderer/types'
 import type { Model } from '@shared/data/types/model'
 import { useNavigate } from '@tanstack/react-router'
@@ -26,6 +27,8 @@ interface Params {
   quickPanelController: ToolQuickPanelController
   mentionedModels: Model[]
   setMentionedModels: React.Dispatch<React.SetStateAction<Model[]>>
+  mentionedAssistant: Assistant | null
+  setMentionedAssistant: React.Dispatch<React.SetStateAction<Assistant | null>>
   couldMentionNotVisionModel: boolean
   files: FileMetadata[]
   setText: React.Dispatch<React.SetStateAction<string>>
@@ -37,6 +40,7 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
     quickPanelController,
     mentionedModels,
     setMentionedModels,
+    setMentionedAssistant,
     couldMentionNotVisionModel,
     files,
     setText
@@ -45,6 +49,7 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
   const { open, close, updateList, isVisible, symbol } = quickPanelController
   const { providers } = useProviders()
   const { models: v2Models } = useModels()
+  const { assistants } = useAssistantsApi()
   const modelsByProvider = useMemo(() => {
     const map = new Map<string, Model[]>()
     for (const m of v2Models) {
@@ -60,6 +65,7 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
   const hasModelActionRef = useRef(false)
   const triggerInfoRef = useRef<MentionTriggerInfo | undefined>(undefined)
   const filesRef = useRef(files)
+  const currentSearchRef = useRef('')
 
   const removeAtSymbolAndText = useCallback(
     (currentText: string, caretPosition: number, searchText?: string, fallbackPosition?: number) => {
@@ -136,123 +142,199 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
     []
   )
 
-  const modelItems = useMemo(() => {
-    const items: QuickPanelListItem[] = []
+  const validAssistants = useMemo(() => assistants.filter((a) => a.id && a.name && a.name.trim() !== ''), [assistants])
 
-    if (pinnedModels.length > 0) {
-      const pinnedItems = providers.flatMap((provider) =>
-        (modelsByProvider.get(provider.id) ?? [])
-          .filter((model) => !isEmbeddingModel(model) && !isRerankModel(model))
-          .filter((model) => pinnedModels.includes(model.id))
-          .filter((model) => couldMentionNotVisionModel || (!couldMentionNotVisionModel && isVisionModel(model)))
-          .map((model) => ({
+  const buildModelItems = useCallback(
+    (searchText: string): QuickPanelListItem[] => {
+      const lower = searchText.toLowerCase()
+      const items: QuickPanelListItem[] = []
+
+      if (pinnedModels.length > 0) {
+        const pinnedItems = providers.flatMap((provider) =>
+          (modelsByProvider.get(provider.id) ?? [])
+            .filter((model) => !isEmbeddingModel(model) && !isRerankModel(model))
+            .filter((model) => pinnedModels.includes(model.id))
+            .filter((model) => couldMentionNotVisionModel || isVisionModel(model))
+            .filter((model) => !lower || (getProviderDisplayName(provider) + model.name).toLowerCase().includes(lower))
+            .map((model) => ({
+              label: (
+                <>
+                  <ProviderName>{getProviderDisplayName(provider)}</ProviderName>
+                  <span style={{ opacity: 0.8 }}> | {model.name}</span>
+                </>
+              ),
+              description: <ModelTagsWithLabel model={model} showLabel={false} size={10} style={{ opacity: 0.8 }} />,
+              icon: (() => {
+                const Icon = getModelLogo(model)
+                return Icon ? <Icon.Avatar size={20} /> : <Avatar size={20}>{first(model.name)}</Avatar>
+              })(),
+              filterText: getProviderDisplayName(provider) + model.name,
+              action: () => onMentionModel(model),
+              isSelected: mentionedModels.some((selected) => selected.id === model.id)
+            }))
+        )
+        if (pinnedItems.length > 0) items.push(...sortBy(pinnedItems, ['label']))
+      }
+
+      providers.forEach((provider) => {
+        const providerModels = sortBy(
+          (modelsByProvider.get(provider.id) ?? [])
+            .filter((model) => !isEmbeddingModel(model) && !isRerankModel(model))
+            .filter((model) => !pinnedModels.includes(model.id))
+            .filter((model) => couldMentionNotVisionModel || isVisionModel(model))
+            .filter((model) => !lower || (getProviderDisplayName(provider) + model.name).toLowerCase().includes(lower)),
+          ['group', 'name']
+        )
+        const providerItems = providerModels.map((model) => ({
+          label: (
+            <>
+              <ProviderName>{getProviderDisplayName(provider)}</ProviderName>
+              <span style={{ opacity: 0.8 }}> | {model.name}</span>
+            </>
+          ),
+          description: <ModelTagsWithLabel model={model} showLabel={false} size={10} style={{ opacity: 0.8 }} />,
+          icon: (() => {
+            const Icon = getModelLogo(model)
+            return Icon ? <Icon.Avatar size={20} /> : <Avatar size={20}>{first(model.name)}</Avatar>
+          })(),
+          filterText: getProviderDisplayName(provider) + model.name,
+          action: () => onMentionModel(model),
+          isSelected: mentionedModels.some((selected) => selected.id === model.id)
+        }))
+        if (providerItems.length > 0) items.push(...providerItems)
+      })
+
+      return items
+    },
+    [couldMentionNotVisionModel, mentionedModels, onMentionModel, pinnedModels, providers, modelsByProvider]
+  )
+
+  const buildSectionedList = useCallback(
+    (searchText: string): QuickPanelListItem[] => {
+      const lower = searchText.toLowerCase()
+
+      const filteredAssistants = lower
+        ? validAssistants.filter((a) => a.name.toLowerCase().includes(lower))
+        : validAssistants
+
+      const modelItems = buildModelItems(searchText)
+
+      const result: QuickPanelListItem[] = []
+
+      // "Clear" always-visible item
+      result.push({
+        label: t('settings.input.clear.all'),
+        description: t('settings.input.clear.models'),
+        icon: <CircleX />,
+        alwaysVisible: true,
+        isSelected: false,
+        action: ({ context }) => {
+          onClearMentionModels()
+          if (triggerInfoRef.current?.type === 'input') {
+            setText((currentText) => {
+              const textArea = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
+              const caret = textArea ? (textArea.selectionStart ?? currentText.length) : currentText.length
+              return removeAtSymbolAndText(currentText, caret, undefined, triggerInfoRef.current?.position)
+            })
+          }
+          context.close()
+        }
+      })
+
+      // Assistants section
+      if (filteredAssistants.length > 0) {
+        result.push({
+          label: <SectionLabel>{t('chat.input.mention_assistant.section_label')}</SectionLabel>,
+          icon: null,
+          filterText: '',
+          disabled: true,
+          action: () => {}
+        })
+        for (const a of filteredAssistants) {
+          result.push({
             label: (
-              <>
-                <ProviderName>{getProviderDisplayName(provider)}</ProviderName>
-                <span style={{ opacity: 0.8 }}> | {model.name}</span>
-              </>
+              <span>
+                {a.emoji ? <span style={{ marginRight: 4 }}>{a.emoji}</span> : null}
+                {a.name}
+              </span>
             ),
-            description: <ModelTagsWithLabel model={model} showLabel={false} size={10} style={{ opacity: 0.8 }} />,
-            icon: (() => {
-              const Icon = getModelLogo(model)
-              return Icon ? <Icon.Avatar size={20} /> : <Avatar size={20}>{first(model.name)}</Avatar>
-            })(),
-            filterText: getProviderDisplayName(provider) + model.name,
-            action: () => onMentionModel(model),
-            isSelected: mentionedModels.some((selected) => selected.id === model.id)
-          }))
-      )
-
-      if (pinnedItems.length > 0) {
-        items.push(...sortBy(pinnedItems, ['label']))
-      }
-    }
-
-    providers.forEach((provider) => {
-      const providerModels = sortBy(
-        (modelsByProvider.get(provider.id) ?? [])
-          .filter((model) => !isEmbeddingModel(model) && !isRerankModel(model))
-          .filter((model) => !pinnedModels.includes(model.id))
-          .filter((model) => couldMentionNotVisionModel || (!couldMentionNotVisionModel && isVisionModel(model))),
-        ['group', 'name']
-      )
-
-      const providerItems = providerModels.map((model) => ({
-        label: (
-          <>
-            <ProviderName>{getProviderDisplayName(provider)}</ProviderName>
-            <span style={{ opacity: 0.8 }}> | {model.name}</span>
-          </>
-        ),
-        description: <ModelTagsWithLabel model={model} showLabel={false} size={10} style={{ opacity: 0.8 }} />,
-        icon: (() => {
-          const Icon = getModelLogo(model)
-          return Icon ? <Icon.Avatar size={20} /> : <Avatar size={20}>{first(model.name)}</Avatar>
-        })(),
-        filterText: getProviderDisplayName(provider) + model.name,
-        action: () => onMentionModel(model),
-        isSelected: mentionedModels.some((selected) => selected.id === model.id)
-      }))
-
-      if (providerItems.length > 0) {
-        items.push(...providerItems)
-      }
-    })
-
-    items.push({
-      label: t('settings.models.add.add_model') + '...',
-      icon: <Plus />,
-      action: () => navigate({ to: '/settings/provider' }),
-      isSelected: false
-    })
-
-    items.unshift({
-      label: t('settings.input.clear.all'),
-      description: t('settings.input.clear.models'),
-      icon: <CircleX />,
-      alwaysVisible: true,
-      isSelected: false,
-      action: ({ context }) => {
-        onClearMentionModels()
-
-        if (triggerInfoRef.current?.type === 'input') {
-          setText((currentText) => {
-            const textArea = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
-            const caret = textArea ? (textArea.selectionStart ?? currentText.length) : currentText.length
-            return removeAtSymbolAndText(currentText, caret, undefined, triggerInfoRef.current?.position)
+            icon: <span style={{ fontSize: 16 }}>{a.emoji || '🤖'}</span>,
+            filterText: a.name,
+            isSelected: false,
+            action: ({ context }) => {
+              setMentionedAssistant(a)
+              hasModelActionRef.current = true
+              if (triggerInfoRef.current?.type === 'input') {
+                setText((currentText) => {
+                  const textArea = document.querySelector<HTMLTextAreaElement>('.inputbar textarea')
+                  const caret = textArea ? (textArea.selectionStart ?? currentText.length) : currentText.length
+                  return removeAtSymbolAndText(
+                    currentText,
+                    caret,
+                    currentSearchRef.current || '',
+                    triggerInfoRef.current?.position
+                  )
+                })
+              }
+              context.close()
+            }
           })
         }
-
-        context.close()
       }
-    })
 
-    return items
-  }, [
-    couldMentionNotVisionModel,
-    mentionedModels,
-    navigate,
-    onClearMentionModels,
-    onMentionModel,
-    pinnedModels,
-    providers,
-    modelsByProvider,
-    removeAtSymbolAndText,
-    setText,
-    t
-  ])
+      // Models section
+      if (modelItems.length > 0) {
+        result.push({
+          label: <SectionLabel>{t('chat.input.mention_assistant.section_models_label')}</SectionLabel>,
+          icon: null,
+          filterText: '',
+          disabled: true,
+          action: () => {}
+        })
+        result.push(...modelItems)
+      }
+
+      // "Add model" footer (only show when no search or model section visible)
+      if (modelItems.length > 0 || !lower) {
+        result.push({
+          label: t('settings.models.add.add_model') + '...',
+          icon: <Plus />,
+          action: () => navigate({ to: '/settings/provider' }),
+          isSelected: false
+        })
+      }
+
+      return result
+    },
+    [
+      validAssistants,
+      buildModelItems,
+      onClearMentionModels,
+      setMentionedAssistant,
+      removeAtSymbolAndText,
+      setText,
+      navigate,
+      t
+    ]
+  )
 
   const openQuickPanel = useCallback(
     (triggerInfo?: MentionTriggerInfo) => {
       hasModelActionRef.current = false
       triggerInfoRef.current = triggerInfo
+      currentSearchRef.current = ''
 
       open({
         title: t('assistants.presets.edit.model.select.title'),
-        list: modelItems,
+        list: buildSectionedList(''),
         symbol: QuickPanelReservedSymbol.MentionModels,
         multiple: true,
+        manageListExternally: true,
         triggerInfo: triggerInfo || { type: 'button' },
+        onSearchChange: (searchText) => {
+          currentSearchRef.current = searchText
+          updateList(buildSectionedList(searchText))
+        },
         afterAction({ item }) {
           item.isSelected = !item.isSelected
         },
@@ -268,10 +350,11 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
             }
           }
           triggerInfoRef.current = undefined
+          currentSearchRef.current = ''
         }
       })
     },
-    [modelItems, open, removeAtSymbolAndText, setText, t]
+    [buildSectionedList, open, updateList, removeAtSymbolAndText, setText, t]
   )
 
   const handleOpenQuickPanel = useCallback(() => {
@@ -295,9 +378,9 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
   useEffect(() => {
     if (role !== 'manager') return
     if (isVisible && symbol === QuickPanelReservedSymbol.MentionModels) {
-      updateList(modelItems)
+      updateList(buildSectionedList(currentSearchRef.current))
     }
-  }, [isVisible, modelItems, role, symbol, updateList])
+  }, [isVisible, buildSectionedList, role, symbol, updateList])
 
   useEffect(() => {
     if (role !== 'manager') return
@@ -330,4 +413,13 @@ export const useMentionModelsPanel = (params: Params, role: 'button' | 'manager'
 
 const ProviderName = styled.span`
   font-weight: 500;
+`
+
+const SectionLabel = styled.span`
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.5;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  pointer-events: none;
 `

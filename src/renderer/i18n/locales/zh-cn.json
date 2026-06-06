@@ -1208,6 +1208,11 @@
       "generate_image": "生成图片",
       "generate_image_not_supported": "模型不支持生成图片",
       "knowledge_base": "知识库",
+      "mention_assistant": {
+        "section_label": "助手",
+        "section_models_label": "模型",
+        "tag_prefix": "助手"
+      },
       "new": {
         "context": "清除上下文"
       },

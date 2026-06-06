@@ -240,7 +240,10 @@ const V2ChatContentInner: FC<InnerProps> = ({
   })
 
   const handleSendV2 = useCallback(
-    async (text: string, options?: { files?: FileMetadata[]; mentionedModels?: UniqueModelId[] }) => {
+    async (
+      text: string,
+      options?: { files?: FileMetadata[]; mentionedModels?: UniqueModelId[]; temporarySystemPrompt?: string }
+    ) => {
       if (isFreshTemporaryTopic && onPersistTemporaryTopic) {
         try {
           // Seed the new topic with the user's first message as a placeholder
@@ -272,6 +275,9 @@ const V2ChatContentInner: FC<InnerProps> = ({
           body: {
             parentAnchorId: activeNodeId ?? undefined,
             mentionedModels: options?.mentionedModels,
+            ...(options?.temporarySystemPrompt !== undefined && {
+              temporarySystemPrompt: options.temporarySystemPrompt
+            }),
             ...capabilityBody
           }
         }
