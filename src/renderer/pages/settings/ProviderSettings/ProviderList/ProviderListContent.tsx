@@ -1,8 +1,8 @@
-import { ReorderableList } from '@cherrystudio/ui'
+import { type Active, closestCenter, ReorderableList, Sortable } from '@cherrystudio/ui'
 import Scrollbar from '@renderer/components/Scrollbar'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import type { Provider } from '@shared/data/types/provider'
-import { type ReactNode, useMemo } from 'react'
+import { type ReactNode, useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { groupProvidersByPreset } from './providerGrouping'
@@ -27,6 +27,60 @@ interface ProviderListContentProps {
   renderItem: (provider: Provider, index: number, state: ProviderListContentItemState) => ReactNode
 }
 
+type ProviderListSortableItem =
+  | { id: string; kind: 'single'; provider: Provider; providerIds: string[] }
+  | {
+      id: string
+      kind: 'group'
+      presetProviderId: string
+      members: [Provider, ...Provider[]]
+      providerIds: string[]
+    }
+
+function reorderProviderBlocks({
+  providers,
+  items,
+  oldIndex,
+  newIndex
+}: {
+  providers: Provider[]
+  items: ProviderListSortableItem[]
+  oldIndex: number
+  newIndex: number
+}): Provider[] {
+  if (oldIndex === newIndex) {
+    return providers
+  }
+
+  const source = items[oldIndex]
+  const target = items[newIndex]
+
+  if (!source || !target) {
+    return providers
+  }
+
+  const sourceIds = new Set(source.providerIds)
+  const targetIds = new Set(target.providerIds)
+  const moving = providers.filter((provider) => sourceIds.has(provider.id))
+  const remaining = providers.filter((provider) => !sourceIds.has(provider.id))
+
+  if (moving.length === 0) {
+    return providers
+  }
+
+  const targetIndexes = remaining.flatMap((provider, index) => (targetIds.has(provider.id) ? [index] : []))
+  const targetIndex = oldIndex < newIndex ? targetIndexes.at(-1) : targetIndexes[0]
+
+  if (targetIndex === undefined) {
+    return providers
+  }
+
+  const insertIndex = oldIndex < newIndex ? targetIndex + 1 : targetIndex
+  const nextProviders = [...remaining]
+  nextProviders.splice(insertIndex, 0, ...moving)
+  return nextProviders
+}
+
 export default function ProviderListContent({
   providers,
   visibleProviders,
@@ -42,8 +96,14 @@ export default function ProviderListContent({
   renderItem
 }: ProviderListContentProps) {
   const { t } = useTranslation()
+  const [activeOuterItemId, setActiveOuterItemId] = useState<string | null>(null)
+  const [groupBodyHeights, setGroupBodyHeights] = useState<Record<string, number>>({})
   const entries = useMemo(() => groupProvidersByPreset(visibleProviders), [visibleProviders])
   const hasResults = visibleProviders.length > 0
+  const visibleIndexById = useMemo(
+    () => new Map(visibleProviders.map((provider, index) => [provider.id, index])),
+    [visibleProviders]
+  )
 
   const renderFlat = () => (
     <ReorderableList
@@ -60,71 +120,116 @@ export default function ProviderListContent({
     />
   )
 
-  // When the section has at least one real group, coalesce consecutive singles
-  // into one ReorderableList chunk and render groups as their own units. This
-  // avoids spawning a separate DnD list per ungrouped row.
-  const renderGrouped = () => {
-    const chunks: Array<{ kind: 'singles'; providers: Provider[] } | { kind: 'group'; index: number }> = []
-    for (let i = 0; i < entries.length; i++) {
-      const entry = entries[i]
-      if (entry.kind === 'single') {
-        const last = chunks[chunks.length - 1]
-        if (last && last.kind === 'singles') {
-          last.providers.push(entry.provider)
-        } else {
-          chunks.push({ kind: 'singles', providers: [entry.provider] })
-        }
-      } else {
-        chunks.push({ kind: 'group', index: i })
+  const handleGroupBodyHeightChange = useCallback((presetProviderId: string, height: number) => {
+    setGroupBodyHeights((current) => {
+      if (current[presetProviderId] === height) {
+        return current
       }
+
+      return { ...current, [presetProviderId]: height }
+    })
+  }, [])
+
+  // A visible group represents multiple provider rows in the persisted list,
+  // so grouped sorting needs a provider-list adapter instead of ReorderableList.
+  const renderGrouped = () => {
+    const sortableItems = entries.map<ProviderListSortableItem>((entry) => {
+      if (entry.kind === 'single') {
+        return {
+          id: `single:${entry.provider.id}`,
+          kind: 'single',
+          provider: entry.provider,
+          providerIds: [entry.provider.id]
+        }
+      }
+
+      return {
+        id: `group:${entry.presetProviderId}`,
+        kind: 'group',
+        presetProviderId: entry.presetProviderId,
+        members: entry.members,
+        providerIds: providers
+          .filter((provider) => provider.presetProviderId === entry.presetProviderId)
+          .map((provider) => provider.id)
+      }
+    })
+
+    const handleSortEnd = ({ oldIndex, newIndex }: { oldIndex: number; newIndex: number }) => {
+      const nextProviders = reorderProviderBlocks({ providers, items: sortableItems, oldIndex, newIndex })
+
+      if (nextProviders === providers) {
+        return
+      }
+
+      void Promise.resolve(onReorder(nextProviders)).catch((error: unknown) => {
+        onReorderError?.(error)
+      })
+    }
+
+    const handleDragStart = ({ active }: { active: Active }) => {
+      setActiveOuterItemId(String(active.id))
+      onDragStateChange(true)
+    }
+
+    const handleDragEnd = () => {
+      setActiveOuterItemId(null)
+      onDragStateChange(false)
+    }
+
+    const getItemStyle = (item: ProviderListSortableItem): React.CSSProperties | undefined => {
+      if (item.kind !== 'group') {
+        return undefined
+      }
+
+      const expanded = searchActive || (expandedGroups[item.presetProviderId] ?? false)
+      const bodyHeight = groupBodyHeights[item.presetProviderId] ?? 0
+
+      return expanded && bodyHeight > 0 ? { marginBottom: bodyHeight } : undefined
     }
 
     return (
-      <div className="flex flex-col gap-[var(--provider-list-row-gap)]">
-        {chunks.map((chunk, chunkIndex) => {
-          if (chunk.kind === 'singles') {
-            return (
-              <ReorderableList
-                key={`singles:${chunkIndex}:${chunk.providers.map((p) => p.id).join(',')}`}
-                items={providers}
-                visibleItems={chunk.providers}
-                getId={(provider) => provider.id}
-                onDragStateChange={onDragStateChange}
-                onReorder={onReorder}
-                onReorderError={onReorderError}
-                className="w-full"
-                gap="var(--provider-list-row-gap)"
-                restrictions={{ scrollableAncestor: true }}
-                renderItem={renderItem}
-              />
-            )
+      <Sortable
+        items={sortableItems}
+        itemKey={(item) => item.id}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragEnd}
+        onSortEnd={handleSortEnd}
+        collisionDetection={closestCenter}
+        className="w-full"
+        gap="var(--provider-list-row-gap)"
+        itemStyle={getItemStyle}
+        restrictions={{ scrollableAncestor: true }}
+        renderItem={(item, state) => {
+          if (item.kind === 'single') {
+            return renderItem(item.provider, visibleIndexById.get(item.provider.id) ?? -1, state)
           }
 
-          const entry = entries[chunk.index]
-          if (entry.kind !== 'group') return null
           // Force-expand while searching: the user is actively looking for
           // matches and shouldn't have to click through a chevron to see them.
-          const expanded = searchActive || (expandedGroups[entry.presetProviderId] ?? false)
-          const containsSelected = !!selectedProviderId && entry.members.some((m) => m.id === selectedProviderId)
+          const expanded = searchActive || (expandedGroups[item.presetProviderId] ?? false)
+          const containsSelected = !!selectedProviderId && item.members.some((m) => m.id === selectedProviderId)
+          const dragging = state.dragging || activeOuterItemId === item.id
 
           return (
             <ProviderListGroup
-              key={`group:${entry.presetProviderId}`}
-              presetProviderId={entry.presetProviderId}
-              members={entry.members}
+              presetProviderId={item.presetProviderId}
+              members={item.members}
               items={providers}
               expanded={expanded}
               containsSelected={containsSelected}
-              onToggle={() => onToggleGroup(entry.presetProviderId)}
+              dragging={dragging}
+              onToggle={() => onToggleGroup(item.presetProviderId)}
               onAddAnother={onAddAnotherInGroup}
+              onBodyHeightChange={handleGroupBodyHeightChange}
               onDragStateChange={onDragStateChange}
               onReorder={onReorder}
               onReorderError={onReorderError}
               renderItem={renderItem}
             />
           )
-        })}
-      </div>
+        }}
+      />
     )
   }
 

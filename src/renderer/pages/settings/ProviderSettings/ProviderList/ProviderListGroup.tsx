@@ -5,7 +5,7 @@ import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/p
 import { cn } from '@renderer/utils'
 import type { Provider } from '@shared/data/types/provider'
 import { ChevronRight, Plus } from 'lucide-react'
-import { type ReactNode, useId } from 'react'
+import { type ReactNode, useCallback, useId, useLayoutEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import type { ProviderListContentItemState } from './ProviderListContent'
@@ -23,8 +23,10 @@ export interface ProviderListGroupProps {
   items: Provider[]
   expanded: boolean
   containsSelected: boolean
+  dragging?: boolean
   onToggle: () => void
   onAddAnother?: (template: Provider) => void
+  onBodyHeightChange?: (presetProviderId: string, height: number) => void
   onDragStateChange: (dragging: boolean) => void
   onReorder: (reorderedProviders: Provider[]) => void | Promise<void>
   onReorderError?: (error: unknown) => void
@@ -34,10 +36,10 @@ export interface ProviderListGroupProps {
 /**
  * Collapsible sidebar group for ≥2 providers sharing a `presetProviderId`.
  *
- * The header itself isn't selectable/draggable — it just toggles expansion.
- * Children render through the same `<ReorderableList>` the flat list uses, so
- * in-group drag-reorder and the parent's orderKey diffing keep working
- * unchanged.
+ * The header is the group's outer drag surface and still toggles expansion on
+ * click. Children render through the same `<ReorderableList>` the flat list
+ * uses, so in-group drag-reorder and the parent's orderKey diffing keep
+ * working unchanged.
  */
 export default function ProviderListGroup({
   presetProviderId,
@@ -45,8 +47,10 @@ export default function ProviderListGroup({
   items,
   expanded,
   containsSelected,
+  dragging = false,
   onToggle,
   onAddAnother,
+  onBodyHeightChange,
   onDragStateChange,
   onReorder,
   onReorderError,
@@ -54,11 +58,41 @@ export default function ProviderListGroup({
 }: ProviderListGroupProps) {
   const { t } = useTranslation()
   const bodyId = useId()
+  const bodyRef = useRef<HTMLDivElement | null>(null)
   const label = getProviderLabel(presetProviderId)
   const headerHighlight = !expanded && containsSelected
 
+  const reportBodyHeight = useCallback(() => {
+    const height = bodyRef.current?.getBoundingClientRect().height ?? 0
+    onBodyHeightChange?.(presetProviderId, height)
+  }, [onBodyHeightChange, presetProviderId])
+
+  useLayoutEffect(() => {
+    if (!expanded) {
+      onBodyHeightChange?.(presetProviderId, 0)
+      return
+    }
+
+    if (dragging) {
+      return
+    }
+
+    reportBodyHeight()
+
+    if (!bodyRef.current || typeof ResizeObserver === 'undefined') {
+      return
+    }
+
+    const observer = new ResizeObserver(reportBodyHeight)
+    observer.observe(bodyRef.current)
+
+    return () => {
+      observer.disconnect()
+    }
+  }, [dragging, expanded, onBodyHeightChange, presetProviderId, reportBodyHeight])
+
   return (
-    <div className="w-full">
+    <div className="relative w-full">
       <button
         type="button"
         aria-expanded={expanded}
@@ -66,7 +100,11 @@ export default function ProviderListGroup({
         data-testid={`provider-list-group-${presetProviderId}`}
         data-has-selected={containsSelected ? 'true' : 'false'}
         onClick={onToggle}
-        className={cn(providerListClasses.groupHeader, headerHighlight && providerListClasses.groupHeaderHasSelected)}>
+        className={cn(
+          providerListClasses.groupHeader,
+          headerHighlight && providerListClasses.groupHeaderHasSelected,
+          dragging && 'opacity-65'
+        )}>
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <ProviderAvatar
             provider={{ id: presetProviderId, name: label }}
@@ -81,8 +119,13 @@ export default function ProviderListGroup({
           className={cn(providerListClasses.groupChevron, expanded && providerListClasses.groupChevronOpen)}
         />
       </button>
-      {expanded && (
-        <div id={bodyId} className={providerListClasses.groupBody}>
+      {expanded && !dragging && (
+        <div
+          ref={bodyRef}
+          id={bodyId}
+          className={cn(providerListClasses.groupBody, 'absolute top-full right-0 left-0')}
+          onPointerDown={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}>
           <ReorderableList
             items={items}
             visibleItems={members}
