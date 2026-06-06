@@ -159,8 +159,8 @@ export interface DataResponse<T = any> {
   error?: SerializedDataApiError
   /** Response metadata */
   metadata?: {
-    /** Request processing duration in milliseconds */
-    duration: number
+    /** Request processing duration in milliseconds — only set when CS_DIAGNOSTICS is on */
+    duration?: number
     /** Whether response was served from cache */
     cached?: boolean
     /** Cache TTL if applicable */

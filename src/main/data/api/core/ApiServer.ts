@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
 import type { RequestContext as ErrorRequestContext } from '@shared/data/api/apiErrors'
 import { DataApiError, DataApiErrorFactory, toDataApiError } from '@shared/data/api/apiErrors'
 import type { ApiImplementation } from '@shared/data/api/apiTypes'
@@ -66,6 +67,8 @@ export class ApiServer {
   async handleRequest(request: DataRequest): Promise<DataResponse> {
     const { method, path } = request
     const startTime = Date.now()
+    // Opt-in (CS_DIAGNOSTICS): monotonic clock for the duration measurement only.
+    const perfStart = DIAGNOSTICS_ENABLED ? performance.now() : 0
 
     // Build error request context for tracking
     const errorContext: ErrorRequestContext = {
@@ -96,11 +99,16 @@ export class ApiServer {
         await this.executeHandler(requestContext, handlerMatch)
       }
 
-      // Set timing metadata
-      requestContext.response.metadata = {
-        ...requestContext.response.metadata,
-        duration: Date.now() - startTime,
-        timestamp: Date.now()
+      // Opt-in (CS_DIAGNOSTICS): attach request duration and log slow requests.
+      if (DIAGNOSTICS_ENABLED) {
+        const duration = performance.now() - perfStart
+        requestContext.response.metadata = {
+          ...requestContext.response.metadata,
+          duration,
+          timestamp: Date.now()
+        }
+        if (duration > SLOW_THRESHOLD_MS.dataApiRequest)
+          logger.info(`[Diagnostics/dataapi] ${duration.toFixed(1)}ms ${method} ${path}`)
       }
 
       return requestContext.response
@@ -114,10 +122,9 @@ export class ApiServer {
         id: request.id,
         status: apiError.status,
         error: apiError.toJSON(), // Serialize for IPC transmission
-        metadata: {
-          duration: Date.now() - startTime,
-          timestamp: Date.now()
-        }
+        metadata: DIAGNOSTICS_ENABLED
+          ? { duration: performance.now() - perfStart, timestamp: Date.now() }
+          : { timestamp: Date.now() }
       }
     }
   }

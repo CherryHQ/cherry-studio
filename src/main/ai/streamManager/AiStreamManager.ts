@@ -272,10 +272,10 @@ export class AiStreamManager extends BaseService {
    */
   private async reconcileStalePendingMessages(): Promise<void> {
     try {
-      const stale = await messageService.findPendingAssistantMessages()
-      if (stale.length === 0) return
-      logger.info('Reconciling crash-orphaned pending assistant messages', { count: stale.length })
-      await messageService.markMessagesError(stale.map((message) => message.id))
+      const staleIds = await messageService.findPendingAssistantMessageIds()
+      if (staleIds.length === 0) return
+      logger.info('Reconciling crash-orphaned pending assistant messages', { count: staleIds.length })
+      await messageService.markMessagesError(staleIds)
     } catch (error) {
       logger.error('Failed to reconcile stale pending messages', { error })
     }
