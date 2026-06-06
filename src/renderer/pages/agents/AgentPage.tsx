@@ -1,12 +1,12 @@
 import { usePreference } from '@data/hooks/usePreference'
 import { Navbar, NavbarCenter } from '@renderer/components/app/Navbar'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
+import { useCommandHandler } from '@renderer/features/command'
 import { useAgents } from '@renderer/hooks/agents/useAgent'
 import { useAgentSessionInitializer } from '@renderer/hooks/agents/useAgentSessionInitializer'
 import { useApiServer } from '@renderer/hooks/useApiServer'
 import { useNavbarPosition } from '@renderer/hooks/useNavbar'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { useShortcut } from '@renderer/hooks/useShortcuts'
 import { EVENT_NAMES, EventEmitter } from '@renderer/services/EventService'
 import { cn } from '@renderer/utils'
 import { MIN_WINDOW_HEIGHT, MIN_WINDOW_WIDTH, SECOND_MIN_WINDOW_WIDTH } from '@shared/config/constant'
@@ -32,7 +32,7 @@ const AgentPage = () => {
   // Seed `agent.active_session_id` to the most-recent session when nothing is set.
   useAgentSessionInitializer()
 
-  useShortcut('general.toggle_sidebar', () => {
+  useCommandHandler('app.sidebar.toggle', () => {
     if (topicPosition === 'left') {
       toggleShowSidebar()
       return
@@ -41,7 +41,7 @@ const AgentPage = () => {
     void EventEmitter.emit(EVENT_NAMES.SHOW_ASSISTANTS)
   })
 
-  useShortcut('topic.toggle_show_topics', () => {
+  useCommandHandler('topic.sidebar.toggle', () => {
     if (topicPosition === 'right') {
       toggleShowSidebar()
     } else {

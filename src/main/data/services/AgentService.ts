@@ -189,7 +189,11 @@ export class AgentService {
       .orderBy(
         sql`CASE WHEN ${pinTable.orderKey} IS NULL THEN 1 ELSE 0 END`,
         asc(pinTable.orderKey),
-        orderFn(sortField)
+        orderFn(sortField),
+        // Deterministic tiebreaker: createdAt is Date.now() (ms) and can collide across
+        // rapid inserts, so equal-sortField rows would otherwise fall back to query-plan
+        // order. Matches the house pattern (JobService/KnowledgeItemService list).
+        orderFn(agentsTable.id)
       )
 
     const result =

@@ -5,12 +5,13 @@ import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
 import { NotificationProvider } from '@renderer/context/NotificationProvider'
 import StyleSheetManager from '@renderer/context/StyleSheetManager'
 import { ThemeProvider } from '@renderer/context/ThemeProvider'
+import { CommandProvider, ContextKeyProvider } from '@renderer/features/command'
 import useMacTransparentWindow from '@renderer/hooks/useMacTransparentWindow'
 import { useWindowInitData } from '@renderer/hooks/useWindowInitData'
 import i18n from '@renderer/i18n'
 import { routeTree } from '@renderer/routeTree.gen'
 import NavigationService from '@renderer/services/NavigationService'
-import store, { persistor } from '@renderer/store'
+import store from '@renderer/store'
 import { formatErrorMessage } from '@renderer/utils/error'
 import { cn } from '@renderer/utils/style'
 import { normalizeSettingsPath } from '@shared/data/types/settingsPath'
@@ -18,7 +19,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryHistory, createRouter, RouterProvider } from '@tanstack/react-router'
 import { type CSSProperties, useEffect, useMemo } from 'react'
 import { Provider } from 'react-redux'
-import { PersistGate } from 'redux-persist/integration/react'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -79,18 +79,20 @@ function SettingsApp({ initialPath }: { initialPath: string }): React.ReactEleme
             <AntdProvider>
               <NotificationProvider>
                 <CodeStyleProvider>
-                  <PersistGate loading={null} persistor={persistor}>
-                    <TopViewContainer>
-                      <div
-                        className={cn(
-                          'flex h-screen w-screen overflow-hidden text-foreground',
-                          isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
-                        )}
-                        style={shellStyle}>
-                        <SettingsWindowRouter initialPath={initialPath} />
-                      </div>
-                    </TopViewContainer>
-                  </PersistGate>
+                  <ContextKeyProvider>
+                    <CommandProvider>
+                      <TopViewContainer>
+                        <div
+                          className={cn(
+                            'flex h-screen w-screen overflow-hidden text-foreground',
+                            isMacTransparentWindow ? 'bg-transparent' : 'bg-background'
+                          )}
+                          style={shellStyle}>
+                          <SettingsWindowRouter initialPath={initialPath} />
+                        </div>
+                      </TopViewContainer>
+                    </CommandProvider>
+                  </ContextKeyProvider>
                 </CodeStyleProvider>
               </NotificationProvider>
             </AntdProvider>
