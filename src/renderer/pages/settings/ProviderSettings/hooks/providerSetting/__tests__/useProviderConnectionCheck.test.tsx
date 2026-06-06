@@ -157,7 +157,7 @@ describe('useProviderConnectionCheck', () => {
     expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: true })
   })
 
-  it('saves a pending API key before enabling a provider after a successful connection check', async () => {
+  it('persists the pending API key before running the check and before enabling the provider', async () => {
     const { result } = renderHook(() => useProviderConnectionCheck('cherryin'))
 
     await act(async () => {
@@ -169,12 +169,13 @@ describe('useProviderConnectionCheck', () => {
 
     expect(commitInputApiKeyNowMock).toHaveBeenCalledTimes(1)
     expect(updateProviderMock).toHaveBeenCalledWith({ isEnabled: true })
-    expect(commitInputApiKeyNowMock.mock.invocationCallOrder[0]).toBeLessThan(
-      updateProviderMock.mock.invocationCallOrder[0]
-    )
+    // commit must run before the check (so the check validates the pending key,
+    // not a stale saved one) and before enabling the provider.
+    expect(commitInputApiKeyNowMock.mock.invocationCallOrder[0]).toBeLessThan(checkApiMock.mock.invocationCallOrder[0])
+    expect(checkApiMock.mock.invocationCallOrder[0]).toBeLessThan(updateProviderMock.mock.invocationCallOrder[0])
   })
 
-  it('does not enable the provider when saving the pending API key fails after a successful check', async () => {
+  it('does not run the check or enable the provider when saving the pending API key fails', async () => {
     const saveError = new Error('save failed')
     commitInputApiKeyNowMock.mockRejectedValueOnce(saveError)
     const { result } = renderHook(() => useProviderConnectionCheck('cherryin'))
@@ -186,7 +187,10 @@ describe('useProviderConnectionCheck', () => {
       })
     })
 
-    expect(checkApiMock).toHaveBeenCalled()
+    // Key persistence now runs before the check, so a save failure aborts before
+    // probing (the check would otherwise validate a stale saved key) and before
+    // enabling, surfacing only the failure path — never success-then-failure.
+    expect(checkApiMock).not.toHaveBeenCalled()
     expect(updateProviderMock).not.toHaveBeenCalled()
     expect(loggerErrorMock).toHaveBeenCalledWith('Provider connection check failed', {
       providerId: 'cherryin',
@@ -194,8 +198,6 @@ describe('useProviderConnectionCheck', () => {
       error: saveError
     })
     expect(window.toast.error).toHaveBeenCalled()
-    // Key persistence runs before the success toast, so a save failure must not
-    // flash success-then-failure.
     expect(window.toast.success).not.toHaveBeenCalled()
   })
 

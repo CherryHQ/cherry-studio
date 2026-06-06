@@ -102,20 +102,28 @@ export function useProviderConnectionCheck(providerId: string) {
       try {
         setApiKeyConnectivity({ kind: 'checking', checking: true, status: HealthStatus.NOT_CHECKED, model })
 
+        // Persist the pending key BEFORE running the check. The check resolves
+        // credentials from the saved provider (getRotatedApiKey in main), so
+        // without flushing first it would validate a stale saved key: a new bad
+        // key typed within the input debounce window could pass against an old
+        // good key and then enable the provider on never-checked credentials.
+        // If saving fails it throws into the catch, surfacing only the failure
+        // path. Committing changes provider.apiKeys but not provider.id / host /
+        // inputApiKey, so it does not trip the abort effect.
+        await commitInputApiKeyNow()
+
+        if (runId !== runIdRef.current || controller.signal.aborted) return
+
         await runCheckApi(model.id, { signal: controller.signal })
 
         if (runId !== runIdRef.current) return
 
-        // Persist the pending key and enable the provider (if disabled) BEFORE
-        // surfacing success. A successful check confirms a working local model,
-        // but if persisting the key fails we must show only the failure path —
-        // not a success toast followed by a failure one. (enable swallows its
-        // own errors, so only commitInputApiKeyNow can throw into the catch.)
-        await commitInputApiKeyNow()
+        // Enable the provider (if disabled) only after a successful check. Enable
+        // swallows its own errors, so it never diverts to the failure path.
         await enableProviderWhenModelsAvailable(checkableModels.length)
 
-        // The commit/enable awaits can interleave with a newer check; drop this
-        // run if it was superseded or aborted before touching success state.
+        // The enable await can interleave with a newer check; drop this run if it
+        // was superseded or aborted before touching success state.
         if (runId !== runIdRef.current || controller.signal.aborted) return
 
         window.toast.success({
