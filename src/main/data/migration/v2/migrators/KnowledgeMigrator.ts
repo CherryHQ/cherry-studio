@@ -525,7 +525,9 @@ export class KnowledgeMigrator extends BaseMigrator {
           continue
         }
 
-        const baseResult = transformKnowledgeBase(validBase, resolvedDimensions.dimensions)
+        const baseResult = transformKnowledgeBase(validBase, resolvedDimensions.dimensions, (msg) =>
+          this.recordWarning(msg)
+        )
         const preparedBase = { ...baseResult.value }
 
         if (embeddingResolution.kind === 'resolved') {

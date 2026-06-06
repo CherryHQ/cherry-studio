@@ -231,19 +231,25 @@ export const resolveLegacyFileEntryId = (
 
 export const transformKnowledgeBase = (
   base: LegacyKnowledgeBaseWithIdentity,
-  dimensions: number | null
+  dimensions: number | null,
+  onWarning?: (message: string) => void
 ): KnowledgeBaseTransformResult => {
   const embeddingModelId = legacyModelToUniqueId(base.model ?? null)
   const rerankModelId = legacyModelToUniqueId(base.rerankModel ?? null)
 
+  // The identity guard only checks `name !== ''`, so an all-whitespace v1
+  // name reaches here — but the read path (KnowledgeBaseSchema) requires
+  // `trim().min(1)` and one such row poisons the whole list query.
+  // Write-side validation must be >= read-side: trim, and fall back to
+  // the v1 base id when nothing remains.
+  const trimmedName = base.name.trim()
+  if (trimmedName === '') {
+    onWarning?.(`Knowledge base ${base.id} has a blank v1 name; falling back to the base id`)
+  }
+
   const transformedBase: NewKnowledgeBase = {
     id: uuidv4(),
-    // The identity guard only checks `name !== ''`, so an all-whitespace v1
-    // name reaches here — but the read path (KnowledgeBaseSchema) requires
-    // `trim().min(1)` and one such row poisons the whole list query.
-    // Write-side validation must be >= read-side: trim, and fall back to
-    // the v1 base id (locatable in migration logs) when nothing remains.
-    name: base.name.trim() || base.id,
+    name: trimmedName || base.id,
     groupId: null,
     dimensions,
     embeddingModelId,

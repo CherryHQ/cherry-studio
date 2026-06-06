@@ -61,13 +61,15 @@ describe('KnowledgeMappings', () => {
     // Write-side guard only checked `name !== ''`, but the read path
     // (KnowledgeBaseSchema `name: trim().min(1)`) rejects whitespace-only
     // names — one such row used to poison the whole list query.
+    const warnings: string[] = []
     expect(
       transformKnowledgeBase(
         {
           id: 'kb-blank-name',
           name: '   '
         },
-        1024
+        1024,
+        (msg) => warnings.push(msg)
       )
     ).toStrictEqual({
       ok: true,
@@ -75,6 +77,10 @@ describe('KnowledgeMappings', () => {
         name: 'kb-blank-name'
       })
     })
+    // The fallback leaves a diagnostic trail in the migration log.
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('kb-blank-name')
+    expect(warnings[0]).toContain('blank v1 name')
   })
 
   it('transformKnowledgeBase trims surrounding whitespace from a valid name', () => {
