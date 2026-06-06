@@ -206,8 +206,8 @@ export const modelListClasses = {
   titleRow: 'flex min-w-0 w-full flex-wrap items-center justify-between gap-3',
   /** Model list header stack — matches model list block. */
   headerToolStack: 'flex min-w-0 w-full flex-col gap-2.5',
-  titleWrap: 'flex min-w-0 items-center gap-[length:var(--space-inline-md)]',
-  titleActions: 'flex max-w-full flex-1 flex-wrap items-center justify-end gap-2',
+  titleWrap: 'flex w-full min-w-0 items-center gap-[length:var(--space-inline-md)]',
+  titleActions: 'flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2',
   toolbarDesignIcon: 'size-4 shrink-0',
   /** Connected top-row model list actions; uses shared ButtonGroup + Button outline primitives. */
   toolbarButtonGroup: 'max-w-full shrink-0',
@@ -228,7 +228,7 @@ export const modelListClasses = {
   searchRow: 'flex min-w-0 w-full flex-wrap items-center gap-2',
   searchActions: 'flex max-w-full shrink-0 flex-wrap items-center gap-2',
   searchWrap:
-    'flex h-8 w-full min-w-[260px] max-w-[420px] items-center gap-1 rounded-[10px] border border-[color:var(--color-border-fg-muted)] bg-background px-2.5 py-1',
+    'flex h-8 min-w-[260px] flex-1 items-center gap-1 rounded-[10px] border border-[color:var(--color-border-fg-muted)] bg-background px-2.5 py-1',
   searchIcon: 'size-3 shrink-0 text-muted-foreground/65',
   searchInput:
     'min-w-0 flex-1 border-none bg-transparent text-sm leading-5 text-foreground/80 outline-none placeholder:text-muted-foreground/75 disabled:cursor-not-allowed disabled:opacity-60',
@@ -251,9 +251,9 @@ export const modelListClasses = {
   capabilityFilterMenu: 'w-fit min-w-40 rounded-xl p-1.5',
   capabilityFilterMenuItem: 'h-8 rounded-lg px-2.5 text-sm',
   capabilityTabIcon: 'size-3 shrink-0',
-  subsectionRow: 'flex min-w-0 items-center justify-between gap-2',
+  subsectionRow: 'flex min-w-0 items-center gap-2',
   subsectionTitleWrap: 'flex min-w-0 items-center gap-2',
-  subsectionActions: 'flex shrink-0 items-center gap-2',
+  subsectionActions: 'ml-1.5 flex shrink-0 items-center gap-2',
   subsectionIconButton:
     'inline-flex size-5 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/80 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground disabled:opacity-40',
   subsectionIcon: 'size-4 shrink-0',

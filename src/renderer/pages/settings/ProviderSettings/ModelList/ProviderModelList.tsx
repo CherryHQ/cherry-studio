@@ -1,5 +1,5 @@
 import { Button, MenuItem, MenuList, Popover, PopoverContent, PopoverTrigger } from '@cherrystudio/ui'
-import { ChevronsDown, ChevronsUp, MoreVertical, ToggleLeft, ToggleRight } from 'lucide-react'
+import { ChevronsDown, ChevronsUp, MoreHorizontal, ToggleLeft, ToggleRight } from 'lucide-react'
 import type React from 'react'
 import { useCallback, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -75,7 +75,7 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({
             aria-label={t('settings.models.more_actions')}
             className={modelListClasses.listActionTriggerButton}
             disabled={!modelList.header.hasVisibleModels || toolbarDisabled}>
-            <MoreVertical className={modelListClasses.listActionTriggerIcon} />
+            <MoreHorizontal className={modelListClasses.listActionTriggerIcon} />
           </Button>
         </PopoverTrigger>
         <PopoverContent align="end" className={modelListClasses.listActionMenu}>
@@ -129,7 +129,7 @@ const ProviderModelList: React.FC<ProviderModelListProps> = ({
             aria-label={t('settings.models.more_actions')}
             className={modelListClasses.listActionTriggerButton}
             disabled={!modelList.header.hasVisibleModels || toolbarDisabled}>
-            <MoreVertical className={modelListClasses.listActionTriggerIcon} />
+            <MoreHorizontal className={modelListClasses.listActionTriggerIcon} />
           </Button>
         </PopoverTrigger>
         <PopoverContent align="end" className={modelListClasses.listActionMenu}>

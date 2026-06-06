@@ -72,10 +72,10 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
               <div className={modelListClasses.subsectionTitleWrap}>
                 <p className={modelListClasses.subsectionTitleEnabled}>{t('settings.models.enabled_models')}</p>
                 <span className={modelListClasses.subsectionCountEnabled}>{displayEnabledModelCount}</span>
+                {enabledSectionActions ? (
+                  <div className={modelListClasses.subsectionActions}>{enabledSectionActions}</div>
+                ) : null}
               </div>
-              {enabledSectionActions ? (
-                <div className={modelListClasses.subsectionActions}>{enabledSectionActions}</div>
-              ) : null}
             </div>
             <div className="flex flex-col gap-3">
               {enabledSections.map(({ groupName, items }, index) => (
@@ -104,10 +104,10 @@ const ModelListSections: React.FC<ModelListSectionsProps> = ({
               <div className={modelListClasses.subsectionTitleWrap}>
                 <p className={modelListClasses.subsectionTitleDisabled}>{t('settings.models.not_enabled_models')}</p>
                 <span className={modelListClasses.subsectionCountDisabled}>{displayDisabledModelCount}</span>
+                {disabledSectionActions ? (
+                  <div className={modelListClasses.subsectionActions}>{disabledSectionActions}</div>
+                ) : null}
               </div>
-              {disabledSectionActions ? (
-                <div className={modelListClasses.subsectionActions}>{disabledSectionActions}</div>
-              ) : null}
             </div>
             <div className="flex flex-col gap-3">
               {disabledSections.map(({ groupName, items }, index) => (
