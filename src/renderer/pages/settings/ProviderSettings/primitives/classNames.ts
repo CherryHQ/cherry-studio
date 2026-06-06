@@ -183,7 +183,10 @@ export const drawerClasses = {
   switchCard:
     'rounded-[length:var(--radius-md)] border border-border bg-background px-3 py-3 [&_[data-slot=switch]]:mt-0.5',
   endpointChipRow: 'flex min-w-0 flex-wrap items-center gap-2',
+  splitFooter: 'flex w-full items-center justify-between gap-3',
   footer: 'flex items-center justify-end gap-2',
+  footerTextButton:
+    'h-auto min-h-0 rounded-md px-0 py-0 text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground-muted/60 shadow-none hover:bg-transparent hover:text-foreground-muted',
   healthCostWarning:
     'shrink-0 rounded-[length:var(--radius-lg)] border-[color:var(--color-warning-base)] bg-[color:var(--color-warning-bg)] px-3 py-2.5 text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-[color:var(--color-warning-base)] shadow-none [&_[data-slot=alert-icon]]:mt-0 [&_[data-slot=alert-icon]_svg]:size-4 [&_[data-slot=alert-message]]:font-[weight:var(--font-weight-medium)]',
   /** Model health-check drawer: determinate progress (scoped neutral track + primary fill). */
@@ -313,19 +316,19 @@ export const modelListClasses = {
   groupBody: 'mt-1.5 flex flex-col gap-0.5',
   groupOverflowHint:
     'mt-1 rounded-lg px-3 py-2 text-left text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-muted-foreground/70 transition-colors hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground',
-  row: 'group flex items-center gap-3 rounded-xl px-3 py-[10px] text-foreground leading-none transition-colors hover:bg-[var(--color-surface-fg-subtle)]',
-  rowMain: 'min-w-0 flex-1 items-center gap-3',
+  row: 'group flex min-h-11 items-center gap-3 py-2 text-foreground leading-none',
+  rowMain: 'min-w-0 flex-1 items-center gap-3 self-center',
   rowAvatar: 'h-[26px] w-[26px] shrink-0 rounded-lg',
-  rowBody: 'min-w-0 max-w-full flex-1 overflow-hidden',
-  /** Model name opens the edit drawer; copy stays on explicit trailing controls. */
-  rowNameCopyable: 'cursor-pointer transition-colors hover:text-primary',
+  rowBody: 'flex min-w-0 max-w-full flex-1 items-center overflow-hidden',
+  /** Model name opens the edit drawer; the settings icon is the explicit secondary action. */
+  rowNameCopyable: 'cursor-pointer',
   /** Shown when model id !== name; hidden in narrow container via `.ps-model-list-id` rule. */
   modelIdBadge:
     'ps-model-list-id min-w-0 max-w-[50%] shrink truncate rounded-md bg-foreground/[0.05] px-1.5 py-[1px] font-mono text-[length:var(--font-size-body-xs)] text-foreground-muted leading-[var(--line-height-body-xs)]',
   rowBadges: 'mt-1 flex min-h-[18px] min-w-0 max-w-full flex-wrap items-center gap-1.5',
   /** Capability / trial tags to the left of the enable switch; design: single line with the toggle. */
   rowCapabilityStrip:
-    'flex min-w-0 max-w-[min(100%,20rem)] shrink items-center gap-1.5 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
+    'flex h-7 min-w-0 max-w-[min(100%,20rem)] shrink items-center gap-1.5 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
   /** Wraps `ModelTagsWithLabel` only; pairs with `.ps-model-list-cap-strip` rules in `provider-settings-scoped-theme.css`. */
   rowCapabilityTagCluster: 'ps-compact-cap-strip flex min-w-0 shrink items-center',
   rowMeta:
@@ -333,7 +336,7 @@ export const modelListClasses = {
   /** Wraps `HealthStatusIndicator` so latency (antd Typography) can be hidden via container query. */
   healthStatusSlot: 'ps-model-list-health shrink-0',
   /** Trailing column: health + (capability strip + enable) on one row. */
-  rowActionsCluster: 'flex min-w-0 items-center gap-2',
+  rowActionsCluster: 'flex min-h-7 min-w-0 items-center gap-2',
   rowActions: 'min-w-0 shrink-0 items-center gap-1.5 self-center',
   rowIconButton:
     'size-7 rounded-lg border border-[color:var(--color-border-fg-muted)] bg-transparent text-muted-foreground/70 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground'

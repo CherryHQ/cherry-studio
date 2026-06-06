@@ -6141,6 +6141,7 @@
         "generation_output_image": "图片",
         "generation_output_video": "视频",
         "keys_status_count": "通过：{{count_passed}} 个密钥，失败：{{count_failed}} 个密钥",
+        "model_button_caption": "检测所有模型",
         "model_status_failed": "{{count}} 个模型完全无法访问",
         "model_status_partial": "其中 {{count}} 个模型用某些密钥无法访问",
         "model_status_passed": "{{count}} 个模型通过健康检测",

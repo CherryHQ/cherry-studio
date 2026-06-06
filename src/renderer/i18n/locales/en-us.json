@@ -6141,6 +6141,7 @@
         "generation_output_image": "an image",
         "generation_output_video": "a video",
         "keys_status_count": "Passed: {{count_passed}} keys, failed: {{count_failed}} keys",
+        "model_button_caption": "Check all models",
         "model_status_failed": "{{count}} models completely inaccessible",
         "model_status_partial": "{{count}} models had inaccessible keys",
         "model_status_passed": "{{count}} models passed health checks",

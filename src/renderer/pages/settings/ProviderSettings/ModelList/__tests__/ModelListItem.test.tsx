@@ -93,7 +93,7 @@ describe('ModelListItem', () => {
     })
   })
 
-  it('opens the model drawer from the model name and only copies from the copy button', async () => {
+  it('opens the model drawer from the model name and settings button', async () => {
     const onEdit = vi.fn()
 
     render(
@@ -118,9 +118,9 @@ describe('ModelListItem', () => {
     expect(navigator.clipboard.writeText).not.toHaveBeenCalled()
 
     onEdit.mockClear()
-    fireEvent.click(screen.getByLabelText('settings.models.copy_model_id_tooltip'))
+    fireEvent.click(screen.getByLabelText('common.settings'))
 
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('alpha')
-    expect(onEdit).not.toHaveBeenCalled()
+    expect(onEdit).toHaveBeenCalledWith(expect.objectContaining({ id: 'openai::alpha' }))
+    expect(navigator.clipboard.writeText).not.toHaveBeenCalled()
   })
 })

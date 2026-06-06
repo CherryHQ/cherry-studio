@@ -15,6 +15,7 @@ interface ProviderConnectionCheckDrawerProps {
   isSubmitting: boolean
   onClose: () => void
   onStart: (config: { model: Model; apiKey: string }) => Promise<void>
+  onOpenModelHealthCheck?: () => void
 }
 
 export default function ProviderConnectionCheckDrawer({
@@ -23,7 +24,8 @@ export default function ProviderConnectionCheckDrawer({
   apiKeys,
   isSubmitting,
   onClose,
-  onStart
+  onStart,
+  onOpenModelHealthCheck
 }: ProviderConnectionCheckDrawerProps) {
   const { t } = useTranslation()
   const sortedModels = useMemo(() => sortBy(models, 'name'), [models])
@@ -46,18 +48,31 @@ export default function ProviderConnectionCheckDrawer({
 
   const selectedApiKey = apiKeys[selectedKeyIndex] ?? apiKeys[0] ?? ''
   const hasMultipleKeys = apiKeys.length > 1
+  const handleOpenModelHealthCheck = () => {
+    onClose()
+    onOpenModelHealthCheck?.()
+  }
 
   const footer = (
-    <div className={drawerClasses.footer}>
-      <Button variant="outline" onClick={onClose}>
-        {t('common.cancel')}
-      </Button>
-      <Button
-        disabled={!selectedModel || !selectedApiKey}
-        loading={isSubmitting}
-        onClick={() => selectedModel && void onStart({ model: selectedModel, apiKey: selectedApiKey })}>
-        {t('settings.models.check.start')}
-      </Button>
+    <div className={drawerClasses.splitFooter}>
+      <div>
+        {onOpenModelHealthCheck ? (
+          <Button variant="ghost" className={drawerClasses.footerTextButton} onClick={handleOpenModelHealthCheck}>
+            {t('settings.models.check.model_button_caption')}
+          </Button>
+        ) : null}
+      </div>
+      <div className={drawerClasses.footer}>
+        <Button variant="outline" onClick={onClose}>
+          {t('common.cancel')}
+        </Button>
+        <Button
+          disabled={!selectedModel || !selectedApiKey}
+          loading={isSubmitting}
+          onClick={() => selectedModel && void onStart({ model: selectedModel, apiKey: selectedApiKey })}>
+          {t('settings.models.check.start')}
+        </Button>
+      </div>
     </div>
   )
 

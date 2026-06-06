@@ -6141,6 +6141,7 @@
         "generation_output_image": "圖片",
         "generation_output_video": "影片",
         "keys_status_count": "成功：{{count_passed}} 個金鑰，失敗：{{count_failed}} 個金鑰",
+        "model_button_caption": "檢查所有模型",
         "model_status_failed": "{{count}} 個模型完全無法存取",
         "model_status_partial": "其中 {{count}} 個模型用某些金鑰無法存取",
         "model_status_passed": "{{count}} 個模型健康檢查成功",
