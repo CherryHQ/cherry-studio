@@ -212,13 +212,7 @@ function getGpuInfos() {
     const psOutput = execSync(psCommand).toString()
     const gpuData = JSON.parse(psOutput)
 
-    // Exclude GPUs with "remote" or "virtual" in their name
-    const isPhysicalGpu = (gpu) => {
-      const name = (gpu.Name || '').toLowerCase()
-      return !name.includes('remote') && !name.includes('virtual')
-    }
-
-    return (Array.isArray(gpuData) ? gpuData : [gpuData]).filter(isPhysicalGpu).map((gpu) => ({
+    return (Array.isArray(gpuData) ? gpuData : [gpuData]).map((gpu) => ({
       name: gpu.Name || '',
       id: gpu.PNPDeviceID || ''
     }))
