@@ -2,6 +2,7 @@ import { application } from '@application'
 import type { Client } from '@libsql/client'
 import { createClient } from '@libsql/client'
 import { loggerService } from '@logger'
+import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
 import { BaseService, ErrorHandling, Injectable, Priority, ServicePhase } from '@main/core/lifecycle'
 import { Phase } from '@main/core/lifecycle'
 import { Mutex } from 'async-mutex'
@@ -53,12 +54,82 @@ export class DbService extends BaseService {
       const url = pathToFileURL(application.getPath('app.database.file')).href
       this.client = createClient({ url })
       this.db = drizzle({ client: this.client, casing: 'snake_case' })
+      if (DIAGNOSTICS_ENABLED) this.installSlowQueryProbe()
       logger.info('Database connection initialized', {
         dbPath: application.getPath('app.database.file')
       })
     } catch (error) {
       logger.error('Failed to initialize database connection', error as Error)
       throw new Error('Database initialization failed')
+    }
+  }
+
+  /**
+   * Opt-in (CS_DIAGNOSTICS): log any libsql call slower than 15ms with its SQL,
+   * row count, and the caller's stack (esbuild keeps function names, so the
+   * endpoint/service that issued the query is identifiable). libsql's local
+   * `file:` driver runs queries synchronously on the main thread, so a large
+   * result set blocks the loop — this pins which one. Covers single statements,
+   * batches, and interactive transactions: drizzle routes transaction statements
+   * through the tx object returned by `client.transaction()`, not the client, so
+   * each surface is wrapped.
+   */
+  private installSlowQueryProbe(): void {
+    type AsyncFn = (...args: unknown[]) => Promise<unknown>
+
+    const sqlOf = (stmt: unknown): string => {
+      if (typeof stmt === 'string') return stmt
+      if (Array.isArray(stmt)) return String(stmt[0] ?? '?')
+      return (stmt as { sql?: string })?.sql ?? '?'
+    }
+    const describeExecute = (args: unknown[], res: unknown): string =>
+      `rows=${(res as { rows?: unknown[] })?.rows?.length ?? '?'} sql=${sqlOf(args[0]).slice(0, 160)}`
+    const describeBatch = (args: unknown[]): string => {
+      const stmts = (args[0] as unknown[]) ?? []
+      return `batch(${stmts.length}) sql=${stmts.map(sqlOf).join('; ').slice(0, 160)}`
+    }
+    const frames = (stack: string | undefined): string =>
+      (stack ?? '')
+        .split('\n')
+        .filter((l) => l.includes('index.js'))
+        .slice(0, 8)
+        .map((l) => l.trim())
+        .join(' <- ')
+
+    // Wrap one async method in-place; time it and log when slow.
+    const instrument = (
+      target: Record<string, AsyncFn>,
+      method: string,
+      label: string,
+      describe: (args: unknown[], res: unknown) => string
+    ): void => {
+      const orig = target[method].bind(target)
+      target[method] = async (...args: unknown[]) => {
+        const callerStack = new Error().stack
+        const t0 = performance.now()
+        const res = await orig(...args)
+        const dt = performance.now() - t0
+        if (dt > SLOW_THRESHOLD_MS.dbQuery) {
+          logger.info(
+            `[Diagnostics/slow-query] ${dt.toFixed(1)}ms ${label} ${describe(args, res)} | ${frames(callerStack)}`
+          )
+        }
+        return res
+      }
+    }
+
+    const client = this.client as unknown as Record<string, AsyncFn>
+    instrument(client, 'execute', 'execute', describeExecute)
+    instrument(client, 'batch', 'batch', describeBatch)
+
+    // Interactive transactions bypass the client wrappers above — wrap the tx
+    // object drizzle calls execute/batch on (a fresh one per transaction()).
+    const origTransaction = client.transaction.bind(client)
+    client.transaction = async (...args: unknown[]) => {
+      const tx = (await origTransaction(...args)) as Record<string, AsyncFn>
+      instrument(tx, 'execute', 'tx.execute', describeExecute)
+      instrument(tx, 'batch', 'tx.batch', describeBatch)
+      return tx
     }
   }
 

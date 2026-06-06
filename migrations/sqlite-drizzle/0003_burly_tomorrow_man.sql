@@ -92,4 +92,6 @@ DROP TABLE `agent_session_message`;--> statement-breakpoint
 ALTER TABLE `__new_agent_session_message` RENAME TO `agent_session_message`;--> statement-breakpoint
 CREATE INDEX `agent_session_message_session_created_id_idx` ON `agent_session_message` (`session_id`,`created_at`,`id`);--> statement-breakpoint
 ALTER TABLE `assistant` ADD `order_key` text DEFAULT '' NOT NULL;--> statement-breakpoint
-CREATE INDEX `assistant_order_key_idx` ON `assistant` (`order_key`);
+CREATE INDEX `assistant_order_key_idx` ON `assistant` (`order_key`);--> statement-breakpoint
+CREATE INDEX `message_status_idx` ON `message` (`status`);--> statement-breakpoint
+CREATE INDEX `agent_session_message_status_idx` ON `agent_session_message` (`status`);
