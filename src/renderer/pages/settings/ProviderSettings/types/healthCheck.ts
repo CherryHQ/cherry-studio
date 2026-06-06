@@ -42,6 +42,17 @@ export type ApiKeyWithStatus = ApiKeyConnectivity & {
   key: string
 }
 
+export type ModelHealthCheckGenerationOutput = 'image' | 'video' | 'audio'
+
+export type ModelHealthCheckSkipReason =
+  | {
+      kind: 'generation_cost'
+      output: ModelHealthCheckGenerationOutput
+    }
+  | {
+      kind: 'unsupported_probe'
+    }
+
 export type ModelWithStatus =
   | {
       kind: 'checking'
@@ -78,6 +89,16 @@ export type ModelWithStatus =
       checking: false
       latency?: number
       error?: SerializedError
+    }
+  | {
+      kind: 'skipped'
+      model: Model
+      status: HealthStatus.NOT_CHECKED
+      keyResults: []
+      checking: false
+      latency?: never
+      error?: never
+      skipReason: ModelHealthCheckSkipReason
     }
 
 export interface ModelCheckOptions {
