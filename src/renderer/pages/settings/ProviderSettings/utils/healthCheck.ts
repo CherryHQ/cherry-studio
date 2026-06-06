@@ -1,7 +1,16 @@
 import i18n from '@renderer/i18n'
 import type { SerializedError } from '@renderer/types/error'
+import type { Model } from '@shared/data/types/model'
+import {
+  isGenerateAudioModel,
+  isGenerateImageModel,
+  isGenerateVideoModel,
+  isRerankModel,
+  isSpeechToTextModel,
+  isTextToSpeechModel
+} from '@shared/utils/model'
 
-import type { ApiKeyWithStatus, ModelWithStatus } from '../types/healthCheck'
+import type { ApiKeyWithStatus, ModelHealthCheckSkipReason, ModelWithStatus } from '../types/healthCheck'
 import { HealthStatus } from '../types/healthCheck'
 
 export function healthCheckErrorToDisplayString(error: SerializedError | string | undefined | null): string {
@@ -47,6 +56,24 @@ export function aggregateApiKeyResults(keyResults: ApiKeyWithStatus[]): {
     status: HealthStatus.SUCCESS,
     latency: successResults.length > 0 ? Math.min(...successResults.map((result) => result.latency!)) : undefined
   }
+}
+
+export function getModelHealthCheckSkipReason(model: Model): ModelHealthCheckSkipReason | null {
+  if (isGenerateImageModel(model)) {
+    return 'image_generation_cost'
+  }
+
+  if (
+    isRerankModel(model) ||
+    isGenerateVideoModel(model) ||
+    isGenerateAudioModel(model) ||
+    isTextToSpeechModel(model) ||
+    isSpeechToTextModel(model)
+  ) {
+    return 'unsupported_probe'
+  }
+
+  return null
 }
 
 export function summarizeHealthResults(results: ModelWithStatus[], providerName?: string): string {

@@ -1,6 +1,8 @@
+import { MODEL_CAPABILITY } from '@shared/data/types/model'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { HealthStatus } from '../../types/healthCheck'
 import { useHealthCheck } from '../useHealthCheck'
 
 const useProviderMock = vi.fn()
@@ -149,5 +151,46 @@ describe('useHealthCheck', () => {
     expect(abortSignal?.aborted).toBe(false)
     unmount()
     await waitFor(() => expect(abortSignal?.aborted).toBe(true))
+  })
+
+  it('marks image-generation models as skipped without probing them', async () => {
+    const chatModel = { id: 'openai::gpt-4o', providerId: 'openai', name: 'GPT-4o', capabilities: [] }
+    const imageModel = {
+      id: 'openai::gpt-image-1',
+      providerId: 'openai',
+      name: 'GPT Image',
+      capabilities: [MODEL_CAPABILITY.IMAGE_GENERATION]
+    }
+    useModelsMock.mockReturnValue({ models: [chatModel, imageModel] })
+    checkModelsHealthMock.mockImplementation(async (options, onChecked) => {
+      onChecked(
+        {
+          kind: 'ok',
+          model: options.models[0],
+          status: HealthStatus.SUCCESS,
+          checking: false,
+          keyResults: [],
+          latency: 1
+        },
+        0
+      )
+      return []
+    })
+
+    const { result } = renderHook(() => useHealthCheck('openai'))
+
+    await act(async () => {
+      await result.current.startHealthCheck({ apiKeys: ['sk-a'], isConcurrent: false, timeout: 5000 })
+    })
+
+    expect(checkModelsHealthMock).toHaveBeenCalledTimes(1)
+    expect(checkModelsHealthMock.mock.calls[0]?.[0].models).toEqual([chatModel])
+    expect(result.current.modelStatuses).toHaveLength(2)
+    expect(result.current.modelStatuses[0]).toMatchObject({ kind: 'ok', model: chatModel })
+    expect(result.current.modelStatuses[1]).toMatchObject({
+      kind: 'skipped',
+      model: imageModel,
+      skipReason: 'image_generation_cost'
+    })
   })
 })
