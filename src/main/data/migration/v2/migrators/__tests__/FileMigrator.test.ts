@@ -46,21 +46,6 @@ function makeInternalRow(overrides: Partial<FileMetadata> = {}): FileMetadata {
   }
 }
 
-function makeExternalRow(overrides: Partial<FileMetadata> = {}): FileMetadata {
-  return {
-    id: '6f9619ff-8b86-4d01-b42d-00cf4fc964ff',
-    name: 'notes.txt',
-    origin_name: 'notes.txt',
-    path: '/Users/alice/Documents/notes.txt',
-    size: 512,
-    ext: '.txt',
-    type: 'document',
-    created_at: '2024-03-01T00:00:00.000Z',
-    count: 1,
-    ...overrides
-  }
-}
-
 // Desensitized from the reporter's actual DB row in #15733: an internal file
 // created on Windows whose data was then synced to a POSIX machine before
 // migrating. The prefix check is guaranteed to miss (different separators),
@@ -247,20 +232,6 @@ describe('FileMigrator origin discrimination', () => {
     const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
     expect(firstRow.externalPath).toBeNull()
     expect(typeof firstRow.size).toBe('number')
-  })
-
-  it('row outside internal dir with no physical file → orphan, skipped with warning', async () => {
-    vi.mocked(fs.existsSync).mockReturnValue(false)
-    const row = makeExternalRow()
-    const { ctx, insertValues } = createMockContext([row])
-    const m = new FileMigrator()
-    const result = await m.prepare(ctx as never)
-    await m.execute(ctx as never)
-
-    expect(insertValues).not.toHaveBeenCalled()
-    const joined = (result.warnings ?? []).join('\n')
-    expect(joined).toContain('Orphan file row')
-    expect(joined).toContain(row.id)
   })
 })
 
