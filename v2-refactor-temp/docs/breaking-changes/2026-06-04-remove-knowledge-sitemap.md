@@ -2,7 +2,7 @@
 title: Sitemap knowledge source removed
 category: removed
 severity: notice
-introduced_in_pr: TBD
+introduced_in_pr: "#15682"
 date: 2026-06-04
 ---
 

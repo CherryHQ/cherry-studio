@@ -2155,7 +2155,7 @@
         },
         "note": {
           "description": "选择已有笔记作为知识库数据源",
-          "empty_description": "真实笔记列表接入后，将在这里展示可多选的笔记。当前可先使用文件、目录或連結。",
+          "empty_description": "真實筆記清單接入後，將在這裡展示可多選的筆記。當前可先使用檔案、目錄或連結。",
           "empty_title": "暂未接入笔记数据源"
         },
         "placeholder": {

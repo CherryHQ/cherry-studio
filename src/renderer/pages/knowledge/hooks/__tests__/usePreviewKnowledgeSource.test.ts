@@ -83,6 +83,41 @@ describe('usePreviewKnowledgeSource', () => {
     expect(mockOpenPath).not.toHaveBeenCalled()
   })
 
+  it('sanitizes url sources before opening them', async () => {
+    const { result } = renderHook(() => usePreviewKnowledgeSource())
+
+    await act(async () => {
+      await result.current.previewSource(createUrlItem({ id: 'url-1', source: ' HTTPS://Example.COM/a/../b?x=1#h ' }))
+    })
+
+    expect(mockOpenExternal).toHaveBeenCalledWith('https://example.com/b?x=1#h')
+    expect(mockOpenPath).not.toHaveBeenCalled()
+  })
+
+  it('shows an unavailable toast for non-http url sources', async () => {
+    const { result } = renderHook(() => usePreviewKnowledgeSource())
+
+    await act(async () => {
+      await result.current.previewSource(createUrlItem({ id: 'url-1', source: 'mailto:test@example.com' }))
+    })
+
+    expect(mockOpenPath).not.toHaveBeenCalled()
+    expect(mockOpenExternal).not.toHaveBeenCalled()
+    expect(mockToastWarning).toHaveBeenCalledWith('当前数据源没有可预览的原文')
+  })
+
+  it('shows an unavailable toast for invalid url sources', async () => {
+    const { result } = renderHook(() => usePreviewKnowledgeSource())
+
+    await act(async () => {
+      await result.current.previewSource(createUrlItem({ id: 'url-1', source: 'not a url' }))
+    })
+
+    expect(mockOpenPath).not.toHaveBeenCalled()
+    expect(mockOpenExternal).not.toHaveBeenCalled()
+    expect(mockToastWarning).toHaveBeenCalledWith('当前数据源没有可预览的原文')
+  })
+
   it('opens note sources only when the source is an http url', async () => {
     const { result } = renderHook(() => usePreviewKnowledgeSource())
 
@@ -92,6 +127,18 @@ describe('usePreviewKnowledgeSource', () => {
 
     expect(mockOpenExternal).toHaveBeenCalledWith('https://example.com/note')
     expect(mockToastWarning).not.toHaveBeenCalled()
+  })
+
+  it('shows an unavailable toast for non-http note sources', async () => {
+    const { result } = renderHook(() => usePreviewKnowledgeSource())
+
+    await act(async () => {
+      await result.current.previewSource(createNoteItem({ id: 'note-1', source: 'obsidian://open?vault=notes' }))
+    })
+
+    expect(mockOpenPath).not.toHaveBeenCalled()
+    expect(mockOpenExternal).not.toHaveBeenCalled()
+    expect(mockToastWarning).toHaveBeenCalledWith('当前数据源没有可预览的原文')
   })
 
   it('shows an unavailable toast for notes without a previewable source', async () => {
