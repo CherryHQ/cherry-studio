@@ -693,6 +693,23 @@ describe('FileMigrator name degradation chain', () => {
     expect(joined).toContain(row.id)
   })
 
+  it('falls back to the row id when the name exceeds the 255-char SafeNameSchema limit', async () => {
+    // Sanitization (last segment + trim) cannot shorten a separator-free
+    // over-long name, so the chain must terminate at the row id.
+    const row = makeInternalRow({ origin_name: `${'x'.repeat(300)}.pdf` })
+    const { ctx, insertValues } = createMockContext([row])
+    const m = new FileMigrator()
+    const result = await m.prepare(ctx as never)
+    await m.execute(ctx as never)
+
+    expect(insertValues).toHaveBeenCalled()
+    const inserted = insertValues.mock.calls[0][0]
+    const firstRow = Array.isArray(inserted) ? inserted[0] : inserted
+    expect(firstRow.name).toBe(row.id)
+    const joined = (result.warnings ?? []).join('\n')
+    expect(joined).toContain('falling back to row id')
+  })
+
   it('falls back to the row id when sanitization cannot produce a safe name', async () => {
     const row = makeInternalRow({ origin_name: '..' })
     const { ctx, insertValues } = createMockContext([row])
