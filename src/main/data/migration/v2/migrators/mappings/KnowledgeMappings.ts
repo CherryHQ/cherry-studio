@@ -92,6 +92,7 @@ export type KnowledgeItemTransformResult =
         | 'invalid_url'
         | 'invalid_sitemap'
         | 'invalid_directory'
+        | 'invalid_note'
     }
 
 const hasCompleteFileMetadata = (value: LegacyKnowledgeItem['content'] | FileMetadata): value is FileMetadata =>
@@ -338,10 +339,21 @@ export const transformKnowledgeItem = (
   } else if (item.type === 'note') {
     const note = deps.noteById.get(item.id)
     const content = note?.content ?? (typeof item.content === 'string' ? item.content : '')
+    const source = note?.sourceUrl ?? item.sourceUrl ?? content
+
+    // Sibling branches all guard their source against blank values because
+    // the read path requires `source: trim().min(1)`; a note with neither
+    // sourceUrl nor content has nothing to recover — skip it.
+    if (source.trim() === '') {
+      return {
+        ok: false,
+        reason: 'invalid_note'
+      }
+    }
 
     type = 'note'
     data = {
-      source: note?.sourceUrl ?? item.sourceUrl ?? content,
+      source,
       content,
       sourceUrl: note?.sourceUrl ?? item.sourceUrl
     }

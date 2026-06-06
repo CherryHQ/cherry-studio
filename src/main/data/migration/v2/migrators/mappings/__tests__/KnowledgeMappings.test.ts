@@ -270,6 +270,71 @@ describe('KnowledgeMappings', () => {
     })
   })
 
+  it('transformKnowledgeItem skips a note with neither sourceUrl nor content', () => {
+    // Sibling branches (file/url/directory) all guard their source, but the
+    // note branch let `source: ''` through — the read path requires
+    // `source: trim().min(1)` and one such row breaks the item list query.
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'note-empty',
+        type: 'note',
+        content: ''
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result).toStrictEqual({ ok: false, reason: 'invalid_note' })
+  })
+
+  it('transformKnowledgeItem skips a note whose content is whitespace-only', () => {
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'note-blank',
+        type: 'note',
+        content: '  \n  '
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result).toStrictEqual({ ok: false, reason: 'invalid_note' })
+  })
+
+  it('transformKnowledgeItem keeps a note that has a sourceUrl but empty content', () => {
+    const result = transformKnowledgeItem(
+      'kb-1',
+      {
+        id: 'note-url-only',
+        type: 'note',
+        content: '',
+        sourceUrl: 'https://example.com/origin'
+      },
+      {
+        noteById: new Map(),
+        filesById: new Map()
+      }
+    )
+
+    expect(result).toStrictEqual({
+      ok: true,
+      value: expect.objectContaining({
+        type: 'note',
+        data: {
+          source: 'https://example.com/origin',
+          content: '',
+          sourceUrl: 'https://example.com/origin'
+        }
+      })
+    })
+  })
+
   it('transformKnowledgeItem resolves file metadata by file id fallback', () => {
     const result = transformKnowledgeItem(
       'kb-1',
