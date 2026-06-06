@@ -119,7 +119,7 @@ describe('ComplexPreferenceMappings', () => {
       expect(keys).toContain('feature.translate.model_id')
       expect(keys).toContain('feature.openclaw.gateway_port')
       expect(keys).toContain('feature.openclaw.selected_model_id')
-      expect(keys).toContain('shortcut.general.zoom_in')
+      expect(keys).toContain('shortcut.app.zoom.in')
       expect(keys).toContain('ui.sidebar.icons.visible')
       expect(keys).toContain('ui.sidebar.icons.invisible')
       expect(keys).toContain('feature.translate.action.preferred_lang')

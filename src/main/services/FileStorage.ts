@@ -487,7 +487,8 @@ class FileStorage {
   }
 
   public createTempFile = async (_: Electron.IpcMainInvokeEvent, fileName: string): Promise<string> => {
-    return path.join(this.tempDir, `temp_file_${uuidv4()}_${fileName}`)
+    // `fileName` is renderer-supplied; basename it so a value like `../../evil` can't escape tempDir.
+    return path.join(this.tempDir, `temp_file_${uuidv4()}_${path.basename(fileName)}`)
   }
 
   public writeFile = async (

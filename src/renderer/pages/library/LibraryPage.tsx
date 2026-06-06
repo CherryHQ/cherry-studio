@@ -1,6 +1,6 @@
 import { Alert, Button } from '@cherrystudio/ui'
 import { useEnsureTags, useTagList } from '@renderer/hooks/useTags'
-import type { AgentDetail, InstalledSkill } from '@shared/data/types/agent'
+import type { InstalledSkill } from '@shared/data/types/agent'
 import type { Assistant } from '@shared/data/types/assistant'
 import type { Prompt } from '@shared/data/types/prompt'
 import type { Tag } from '@shared/data/types/tag'
@@ -30,7 +30,7 @@ import {
 } from './list/useAssistantPresetCatalog'
 import { useResourceLibrary } from './list/useResourceLibrary'
 import { buildLibraryListSearch, LIBRARY_ROUTE, parseLibraryRouteSearch } from './routeSearch'
-import type { LibrarySidebarFilter, ResourceItem, ResourceType, TagItem } from './types'
+import type { AgentDetail, LibrarySidebarFilter, ResourceItem, ResourceType, TagItem } from './types'
 
 type ConfigView =
   | { type: 'list' }

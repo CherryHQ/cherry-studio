@@ -303,25 +303,43 @@ describe('AddKnowledgeItemDialog', () => {
     expect(screen.getByText('将递归导入文件夹中的支持文件')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
 
-    mockSelectFolder.mockResolvedValueOnce('/Users/me/docs')
+    mockSelectFolder.mockResolvedValueOnce('/Users/me/projects/downloads')
     fireEvent.click(screen.getByTestId('knowledge-source-directory-select'))
 
     await waitFor(() => {
-      expect(screen.getByText('docs')).toBeInTheDocument()
+      expect(screen.getByText('downloads')).toBeInTheDocument()
     })
-    expect(screen.getByText('/Users/me/docs')).toBeInTheDocument()
+    const directoryName = screen.getByText('downloads')
+    const directoryPath = screen.getByText('/Users/me/projects/downloads')
+    const directoryItem = directoryName.closest('[role="listitem"]')
+
+    expect(screen.getByText('/Users/me/projects/downloads')).toBeInTheDocument()
+    expect(directoryItem).toHaveClass('min-w-0')
+    expect(directoryItem).toHaveClass('max-w-full')
+    expect(directoryItem).toHaveClass('overflow-hidden')
+    expect(directoryItem).toHaveClass('grid')
+    expect(directoryName).toHaveClass('min-w-0')
+    expect(directoryName).toHaveClass('truncate')
+    expect(directoryName).toHaveAttribute('title', 'downloads')
+    expect(directoryPath).toHaveClass('min-w-0')
+    expect(directoryPath).toHaveClass('max-w-60')
+    expect(directoryPath).toHaveClass('truncate')
+    expect(directoryPath).toHaveAttribute('title', '/Users/me/projects/downloads')
+    expect(screen.getByTestId('knowledge-source-directory-list')).toHaveClass('min-h-0')
+    expect(screen.getByTestId('knowledge-source-directory-list')).toHaveClass('flex-1')
+    expect(screen.getByTestId('knowledge-source-directory-list')).toHaveClass('overflow-y-auto')
     expect(screen.getByText('已选 1 个目录')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
 
-    mockSelectFolder.mockResolvedValueOnce('/Users/me/docs')
+    mockSelectFolder.mockResolvedValueOnce('/Users/me/projects/downloads')
     fireEvent.click(screen.getByTestId('knowledge-source-directory-select'))
     await waitFor(() => {
       expect(mockSelectFolder).toHaveBeenCalledTimes(2)
     })
-    expect(screen.getAllByText('docs')).toHaveLength(1)
+    expect(screen.getAllByText('downloads')).toHaveLength(1)
 
     fireEvent.click(screen.getByRole('button', { name: '删除' }))
-    expect(screen.queryByText('docs')).not.toBeInTheDocument()
+    expect(screen.queryByText('downloads')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
   })
 
@@ -345,9 +363,15 @@ describe('AddKnowledgeItemDialog', () => {
   it('enables url and sitemap submit only after input', () => {
     setPendingAddSource('url')
     const { rerender } = render(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
+    const urlInput = screen.getByPlaceholderText('https://example.com')
 
     expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
-    fireEvent.change(screen.getByPlaceholderText('https://example.com'), {
+    expect(urlInput.parentElement).toHaveClass('min-w-0')
+    expect(urlInput.parentElement?.parentElement).toHaveClass('min-w-0')
+    expect(urlInput).toHaveClass('w-full')
+    expect(urlInput).toHaveClass('border-border-subtle')
+    expect(urlInput).toHaveClass('focus-visible:ring-0')
+    fireEvent.change(urlInput, {
       target: { value: 'https://example.com' }
     })
     expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()
@@ -356,7 +380,13 @@ describe('AddKnowledgeItemDialog', () => {
     rerender(<AddKnowledgeItemDialog open onOpenChange={vi.fn()} />)
 
     expect(screen.getByRole('button', { name: '添加' })).toBeDisabled()
-    fireEvent.change(screen.getByPlaceholderText('https://example.com/sitemap.xml'), {
+    const sitemapInput = screen.getByPlaceholderText('https://example.com/sitemap.xml')
+    expect(sitemapInput.parentElement).toHaveClass('min-w-0')
+    expect(sitemapInput.parentElement?.parentElement).toHaveClass('min-w-0')
+    expect(sitemapInput).toHaveClass('w-full')
+    expect(sitemapInput).toHaveClass('border-border-subtle')
+    expect(sitemapInput).toHaveClass('focus-visible:ring-0')
+    fireEvent.change(sitemapInput, {
       target: { value: 'https://example.com/sitemap.xml' }
     })
     expect(screen.getByRole('button', { name: '添加' })).toBeEnabled()

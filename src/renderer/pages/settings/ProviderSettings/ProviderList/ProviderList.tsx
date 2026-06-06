@@ -1,15 +1,14 @@
 import { PageHeader } from '@cherrystudio/ui'
 import { useReorder } from '@data/hooks/useReorder'
-import { useModels } from '@renderer/hooks/useModels'
-import { useProviders } from '@renderer/hooks/useProviders'
+import { useModels } from '@renderer/hooks/useModel'
+import { useProviders } from '@renderer/hooks/useProvider'
 import { providerListClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import {
-  canManageProvider,
-  isAnthropicSupportedProvider,
   isProviderSettingsListVisibleProvider,
   matchKeywordsInProvider
-} from '@renderer/pages/settings/ProviderSettings/utils/provider'
+} from '@renderer/pages/settings/ProviderSettings/utils/providerDisplay'
 import type { Provider } from '@shared/data/types/provider'
+import { canManageProvider, isAnthropicSupportedProvider } from '@shared/utils/provider'
 import { Plus } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -38,7 +37,7 @@ export default function ProviderList({ selectedProviderId, filterModeHint, onSel
   const { applyReorderedList } = useReorder('/providers', { revalidateOnSuccess: false })
   const { isSupported: isOvmsSupported } = useOvmsSupport()
 
-  const [filterMode, setFilterMode] = useState<ProviderFilterMode>(filterModeHint ?? 'enabled')
+  const [filterMode, setFilterMode] = useState<ProviderFilterMode>(filterModeHint ?? 'all')
   const [searchText, setSearchText] = useState('')
   const [dragging, setDragging] = useState(false)
   const [contextProviderId, setContextProviderId] = useState<string | null>(null)

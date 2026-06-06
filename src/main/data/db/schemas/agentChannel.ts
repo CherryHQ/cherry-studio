@@ -4,7 +4,7 @@ import { check, index, integer, primaryKey, sqliteTable, text } from 'drizzle-or
 import { createUpdateTimestamps, uuidPrimaryKey } from './_columnHelpers'
 import { agentTable } from './agent'
 import { agentSessionTable } from './agentSession'
-import { agentTaskTable } from './agentTask'
+import { jobScheduleTable } from './job'
 
 export const agentChannelTable = sqliteTable(
   'agent_channel',
@@ -38,9 +38,12 @@ export const agentChannelTaskTable = sqliteTable(
     channelId: text()
       .notNull()
       .references(() => agentChannelTable.id, { onDelete: 'cascade' }),
+    // FK target switched to jobScheduleTable as part of the agent.task → JobManager
+    // migration. Column name stays `task_id` to keep the renderer / channel API
+    // field access unchanged (the value semantically is the schedule id now).
     taskId: text()
       .notNull()
-      .references(() => agentTaskTable.id, { onDelete: 'cascade' })
+      .references(() => jobScheduleTable.id, { onDelete: 'cascade' })
   },
   (t) => [
     primaryKey({ columns: [t.channelId, t.taskId] }),

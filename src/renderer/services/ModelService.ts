@@ -1,38 +1,33 @@
-import { getStoreProviders } from '@renderer/hooks/useStore'
-import type { Model } from '@renderer/types'
-import { pick } from 'lodash'
+import { dataApiService } from '@data/DataApiService'
+import { preferenceService } from '@data/PreferenceService'
+import type { Model, UniqueModelId } from '@shared/data/types/model'
 
-import { getProviderName } from './ProviderService'
-
-export const getModelUniqId = (m?: Model) => {
-  return m?.id ? JSON.stringify(pick(m, ['id', 'provider'])) : ''
+/**
+ * Async resolver for the user's chosen default model.
+ *
+ * Composition is split across two stores:
+ *   - id lives in Preference (`chat.default_model_id`)
+ *   - shape lives in DataApi (`/models/:uniqueId`)
+ *
+ * For React contexts use the {@link useDefaultModel} hook; this exists for
+ * non-React callers (services, utils) that need a one-shot read.
+ */
+export async function readDefaultModel(): Promise<Model | undefined> {
+  const id = (await preferenceService.get('chat.default_model_id')) as UniqueModelId | undefined
+  if (!id) return undefined
+  return (await dataApiService.get(`/models/${id}`)) ?? undefined
 }
 
-export const hasModel = (m?: Model) => {
-  const allModels = getStoreProviders()
-    .filter((p) => p.enabled)
-    .map((p) => p.models)
-    .flat()
-
-  return allModels.find((model) => model.id === m?.id)
+export async function readQuickModel(): Promise<Model | undefined> {
+  const id = ((await preferenceService.get('feature.quick_assistant.model_id')) ??
+    (await preferenceService.get('chat.default_model_id'))) as UniqueModelId | undefined
+  if (!id) return undefined
+  return (await dataApiService.get(`/models/${id}`)) ?? undefined
 }
 
-export function getModelName(model?: Model) {
-  const modelName = model?.name || model?.id || ''
-  const provider = getStoreProviders().find((p) => p.id === model?.provider)
-
-  if (provider) {
-    const providerName = getProviderName(model as Model)
-    return `${modelName} | ${providerName}`
-  }
-
-  return modelName
-}
-
-export function getModelById(modelId: string) {
-  const allModels = getStoreProviders()
-    .filter((p) => p.enabled)
-    .map((p) => p.models)
-    .flat()
-  return allModels.find((m) => m.id === modelId)
+export async function readTranslateModel(): Promise<Model | undefined> {
+  const id = ((await preferenceService.get('feature.translate.model_id')) ??
+    (await preferenceService.get('chat.default_model_id'))) as UniqueModelId | undefined
+  if (!id) return undefined
+  return (await dataApiService.get(`/models/${id}`)) ?? undefined
 }

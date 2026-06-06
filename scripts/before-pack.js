@@ -9,6 +9,14 @@ const workspaceConfigPath = path.join(__dirname, '..', 'pnpm-workspace.yaml')
 // if you want to add new prebuild binaries packages with different architectures, you can add them here
 // please add to allX64 and allArm64 from pnpm-lock.yaml
 const packages = [
+  '@anthropic-ai/claude-agent-sdk-darwin-arm64',
+  '@anthropic-ai/claude-agent-sdk-darwin-x64',
+  '@anthropic-ai/claude-agent-sdk-linux-arm64',
+  '@anthropic-ai/claude-agent-sdk-linux-arm64-musl',
+  '@anthropic-ai/claude-agent-sdk-linux-x64',
+  '@anthropic-ai/claude-agent-sdk-linux-x64-musl',
+  '@anthropic-ai/claude-agent-sdk-win32-arm64',
+  '@anthropic-ai/claude-agent-sdk-win32-x64',
   '@img/sharp-darwin-arm64',
   '@img/sharp-darwin-x64',
   '@img/sharp-libvips-darwin-arm64',
@@ -132,7 +140,7 @@ exports.default = async function (context) {
       }
       return f !== `${arch}-${platform}`
     })
-    .map((f) => '!node_modules/@anthropic-ai/claude-agent-sdk/vendor/ripgrep/' + f + '/**')
+    .map((f) => '!node_modules/@cherrystudio/ripgrep/vendor/ripgrep/' + f + '/**')
 
   // Exclude rtk binaries for other platform-arch combinations
   const currentPlatformKey = `${platform}-${arch}`

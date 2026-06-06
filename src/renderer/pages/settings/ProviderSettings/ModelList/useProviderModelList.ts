@@ -1,4 +1,4 @@
-import { useModelMutations, useModels } from '@renderer/hooks/useModels'
+import { useModelMutations, useModels } from '@renderer/hooks/useModel'
 import type { Model } from '@shared/data/types/model'
 import { parseUniqueModelId } from '@shared/data/types/model'
 import { startTransition, useCallback, useDeferredValue, useEffect, useMemo, useState } from 'react'
@@ -176,6 +176,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
   const displayState = useMemo<DisplayedSectionState>(() => {
     const enabledModels: Model[] = []
     const disabledModels: Model[] = []
+    const preserveGroupOrder = Boolean(searchText.trim())
 
     // Final grouping happens only once here because the displayed section can
     // diverge from persisted `isEnabled` while local optimistic/session
@@ -190,8 +191,8 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
     }
 
     const sections: ModelSections = {
-      enabled: groupModels(enabledModels),
-      disabled: groupModels(disabledModels)
+      enabled: groupModels(enabledModels, preserveGroupOrder),
+      disabled: groupModels(disabledModels, preserveGroupOrder)
     }
 
     return {
@@ -199,7 +200,7 @@ export function useProviderModelList({ providerId, disabled = false }: UseProvid
       displayEnabledModelCount: countModelsInGroups(sections.enabled),
       displayDisabledModelCount: countModelsInGroups(sections.disabled)
     }
-  }, [derivedState.filteredModels, sessionPlacementByModelId])
+  }, [derivedState.filteredModels, searchText, sessionPlacementByModelId])
 
   const openEditModelDrawer = useCallback((model: Model) => {
     setEditingModel(model)

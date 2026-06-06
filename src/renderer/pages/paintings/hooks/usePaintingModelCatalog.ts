@@ -1,6 +1,5 @@
-import { useModels } from '@renderer/hooks/useModels'
-import { useProviders } from '@renderer/hooks/useProviders'
-import { getProviderNameById } from '@renderer/services/ProviderService'
+import { useModels } from '@renderer/hooks/useModel'
+import { getProviderDisplayName, useProviders } from '@renderer/hooks/useProvider'
 import { createUniqueModelId, type Model, MODEL_CAPABILITY, type UniqueModelId } from '@shared/data/types/model'
 import { DEFAULT_API_FEATURES, type Provider } from '@shared/data/types/provider'
 import { useCallback, useMemo } from 'react'
@@ -36,7 +35,7 @@ function createSelectorProvider(providerId: string, provider: Provider | undefin
   return {
     id: providerId,
     presetProviderId: provider?.presetProviderId,
-    name: provider?.name || getProviderNameById(providerId) || providerId,
+    name: getProviderDisplayName(provider) || providerId,
     apiKeys: [],
     authType: 'api-key',
     apiFeatures: DEFAULT_API_FEATURES,

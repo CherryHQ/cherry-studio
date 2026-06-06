@@ -1,12 +1,8 @@
 import { Tooltip } from '@cherrystudio/ui'
 import { ActionIconButton } from '@renderer/components/Buttons'
-import { useAssistant } from '@renderer/hooks/useAssistant'
-import { useTimer } from '@renderer/hooks/useTimer'
-import { getEffectiveMcpMode } from '@renderer/types'
-import { isToolUseModeFunction } from '@renderer/utils/assistant'
 import { Link } from 'lucide-react'
 import type { FC } from 'react'
-import { memo, useCallback } from 'react'
+import { memo, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 export interface UrlContextButtonRef {
@@ -15,44 +11,27 @@ export interface UrlContextButtonRef {
 
 interface Props {
   ref?: React.RefObject<UrlContextButtonRef | null>
-  assistantId: string
+  // Kept for callsite compatibility — the toggle is now per-inputbar transient
+  // state, decoupled from any persisted assistant field. Will be removed once
+  // all inputbar tool consumers stop forwarding the prop.
+  assistantId?: string
 }
 
-const UrlContextButton: FC<Props> = ({ assistantId }) => {
+const UrlContextButton: FC<Props> = () => {
   const { t } = useTranslation()
-  const { assistant, updateAssistant } = useAssistant(assistantId)
-  const { setTimeoutTimer } = useTimer()
-
-  const urlContentNewState = !assistant.enableUrlContext
+  const [enabled, setEnabled] = useState(false)
 
   const handleToggle = useCallback(() => {
-    setTimeoutTimer(
-      'handleToggle',
-      () => {
-        const update = { ...assistant }
-        if (
-          getEffectiveMcpMode(assistant) !== 'disabled' &&
-          urlContentNewState === true &&
-          isToolUseModeFunction(assistant)
-        ) {
-          update.enableUrlContext = false
-          window.toast.warning(t('chat.mcp.warning.url_context'))
-        } else {
-          update.enableUrlContext = urlContentNewState
-        }
-        updateAssistant(update)
-      },
-      100
-    )
-  }, [setTimeoutTimer, assistant, urlContentNewState, updateAssistant, t])
+    setEnabled((prev) => !prev)
+  }, [])
 
   return (
     <Tooltip content={t('chat.input.url_context')}>
       <ActionIconButton
         onClick={handleToggle}
-        active={assistant.enableUrlContext}
+        active={enabled}
         aria-label={t('chat.input.url_context')}
-        aria-pressed={assistant.enableUrlContext}
+        aria-pressed={enabled}
         icon={<Link size={18} />}
       />
     </Tooltip>

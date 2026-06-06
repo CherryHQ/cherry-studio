@@ -159,8 +159,8 @@ export interface DataResponse<T = any> {
   error?: SerializedDataApiError
   /** Response metadata */
   metadata?: {
-    /** Request processing duration in milliseconds */
-    duration: number
+    /** Request processing duration in milliseconds — only set when CS_DIAGNOSTICS is on */
+    duration?: number
     /** Whether response was served from cache */
     cached?: boolean
     /** Cache TTL if applicable */
@@ -227,6 +227,16 @@ export interface SortParams {
  */
 export interface SearchParams {
   /** Search query string */
+  search?: string
+}
+
+/** Service-layer pagination convention used by main-side list queries. */
+export interface ListOptions {
+  limit?: number
+  offset?: number
+  sortBy?: 'createdAt' | 'updatedAt' | 'name' | 'orderKey'
+  orderBy?: 'asc' | 'desc'
+  /** LIKE %kw% match against name OR description (case-insensitive). */
   search?: string
 }
 

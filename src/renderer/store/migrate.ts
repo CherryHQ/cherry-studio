@@ -16,38 +16,35 @@
  */
 import { loggerService } from '@logger'
 import { nanoid } from '@reduxjs/toolkit'
-import {
-  DEFAULT_CONTEXTCOUNT,
-  DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE,
-  DEFAULT_TEMPERATURE,
-  isMac
-} from '@renderer/config/constant'
+import { isMac } from '@renderer/config/constant'
 import { allMiniApps } from '@renderer/config/miniApps'
 import { isFunctionCallingModel, isNotSupportTextDeltaModel, qwenModel, SYSTEM_MODELS } from '@renderer/config/models'
+import { toSharedCompatModel } from '@renderer/config/models/bridge'
 import { BUILTIN_OCR_PROVIDERS, BUILTIN_OCR_PROVIDERS_MAP, DEFAULT_OCR_PROVIDER } from '@renderer/config/ocr'
-import { SYSTEM_PROVIDERS } from '@renderer/config/providers'
+import { CHERRYAI_PROVIDER, SYSTEM_PROVIDERS } from '@renderer/config/providers'
 // import { DEFAULT_SIDEBAR_ICONS } from '@renderer/config/sidebar'
 import db from '@renderer/databases'
-import { getModel } from '@renderer/hooks/useModel'
 import i18n from '@renderer/i18n'
 import { DEFAULT_ASSISTANT_SETTINGS } from '@renderer/services/AssistantService'
+import store from '@renderer/store'
 import { defaultPreprocessProviders } from '@renderer/store/preprocess'
 import type {
-  Assistant,
   BuiltinOcrProvider,
+  LegacyAssistant as Assistant,
   Model,
   Provider,
   ProviderApiOptions,
+  SystemProviderId,
   WebSearchProvider
 } from '@renderer/types'
 import { isBuiltinMcpServer, isSystemProvider, SystemProviderIds } from '@renderer/types'
 import { getDefaultGroupName, getLeadingEmoji, runAsyncFunction, uuid } from '@renderer/utils'
 import {
-  isSupportArrayContentProvider,
-  isSupportDeveloperRoleProvider,
-  isSupportStreamOptionsProvider
-} from '@renderer/utils/provider'
-import { API_SERVER_DEFAULTS } from '@shared/config/constant'
+  API_SERVER_DEFAULTS,
+  DEFAULT_CONTEXTCOUNT,
+  DEFAULT_STREAM_OPTIONS_INCLUDE_USAGE,
+  DEFAULT_TEMPERATURE
+} from '@shared/config/constant'
 import { defaultByPassRules } from '@shared/config/constant'
 import { TRANSLATE_PROMPT } from '@shared/config/prompts'
 import { DefaultPreferences } from '@shared/data/preference/preferenceSchemas'
@@ -65,6 +62,42 @@ import { initialState as settingsInitialState } from './settings'
 import { initialState as shortcutsInitialState } from './shortcuts'
 import { defaultWebSearchProviders } from './websearch'
 const logger = loggerService.withContext('Migrate')
+
+// Inlined verbatim from the deleted v1 `@renderer/utils/provider` — this v1
+// Redux-persist migration was its only remaining source consumer.
+const NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS = [
+  'deepseek',
+  'baichuan',
+  'minimax',
+  'xirang',
+  'poe',
+  'cephalon'
+] as const satisfies SystemProviderId[]
+
+const isSupportArrayContentProvider = (provider: Provider) => {
+  return (
+    provider.apiOptions?.isNotSupportArrayContent !== true &&
+    !NOT_SUPPORT_ARRAY_CONTENT_PROVIDERS.some((pid) => pid === provider.id)
+  )
+}
+
+const NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS = ['poe', 'qiniu'] as const satisfies SystemProviderId[]
+
+const isSupportDeveloperRoleProvider = (provider: Provider) => {
+  return (
+    provider.apiOptions?.isSupportDeveloperRole === true ||
+    (isSystemProvider(provider) && !NOT_SUPPORT_DEVELOPER_ROLE_PROVIDERS.some((pid) => pid === provider.id))
+  )
+}
+
+const NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS = ['mistral'] as const satisfies SystemProviderId[]
+
+const isSupportStreamOptionsProvider = (provider: Provider) => {
+  return (
+    provider.apiOptions?.isNotSupportStreamOptions !== true &&
+    !NOT_SUPPORT_STREAM_OPTIONS_PROVIDERS.some((pid) => pid === provider.id)
+  )
+}
 
 // remove logo base64 data to reduce the size of the state
 function removeMiniAppIconsFromState(state: RootState) {
@@ -1946,7 +1979,11 @@ const migrateConfig = {
       }
 
       for (const assistant of state.assistants.assistants) {
-        if (assistant.settings?.toolUseMode === 'prompt' && isFunctionCallingModel(assistant.model)) {
+        if (
+          assistant.settings?.toolUseMode === 'prompt' &&
+          assistant.model &&
+          isFunctionCallingModel(toSharedCompatModel(assistant.model))
+        ) {
           assistant.settings.toolUseMode = 'function'
         }
       }
@@ -2007,7 +2044,7 @@ const migrateConfig = {
       const updateModelTextDelta = (model?: Model) => {
         if (model) {
           model.supported_text_delta = true
-          if (isNotSupportTextDeltaModel(model)) {
+          if (model && isNotSupportTextDeltaModel(toSharedCompatModel(model))) {
             model.supported_text_delta = false
           }
         }
@@ -2745,7 +2782,7 @@ const migrateConfig = {
         if (!preset.settings) {
           preset.settings = DEFAULT_ASSISTANT_SETTINGS
         } else if (!preset.settings.toolUseMode) {
-          preset.settings.toolUseMode = DEFAULT_ASSISTANT_SETTINGS.toolUseMode
+          preset.settings.toolUseMode = 'function'
         }
       })
 
@@ -3009,7 +3046,7 @@ const migrateConfig = {
       // Reset toolUseMode to function for assistants
       state.assistants.assistants.forEach((assistant) => {
         if (assistant.settings?.toolUseMode === 'prompt') {
-          if (assistant.model && isFunctionCallingModel(assistant.model)) {
+          if (assistant.model && isFunctionCallingModel(toSharedCompatModel(assistant.model))) {
             assistant.settings.toolUseMode = 'function'
           }
         }
@@ -3085,14 +3122,20 @@ const migrateConfig = {
       // @ts-ignore
       const memoryEmbeddingApiClient = state?.memory?.memoryConfig?.embedderApiClient
 
+      const allModels = store
+        .getState()
+        .llm.providers.concat([CHERRYAI_PROVIDER])
+        .flatMap((p) => p.models)
+      const findModel = (id: string, provider: string) => allModels.find((m) => m.id === id && m.provider === provider)
+
       if (memoryLlmApiClient) {
-        state.memory.memoryConfig.llmModel = getModel(memoryLlmApiClient.model, memoryLlmApiClient.provider)
+        state.memory.memoryConfig.llmModel = findModel(memoryLlmApiClient.model, memoryLlmApiClient.provider)
         // @ts-ignore
         delete state.memory.memoryConfig.llmApiClient
       }
 
       if (memoryEmbeddingApiClient) {
-        state.memory.memoryConfig.embeddingModel = getModel(
+        state.memory.memoryConfig.embeddingModel = findModel(
           memoryEmbeddingApiClient.model,
           memoryEmbeddingApiClient.provider
         )

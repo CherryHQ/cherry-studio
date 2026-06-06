@@ -7,8 +7,7 @@ import {
   Library,
   MessageCircle,
   MousePointerClick,
-  NotepadText,
-  Sparkle
+  NotepadText
 } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
 
@@ -36,7 +35,6 @@ function webviewTab(url: string): Tab {
 describe('getTabIcon', () => {
   it.each([
     ['/app/agents', MousePointerClick],
-    ['/app/assistant', Sparkle],
     ['/app/knowledge', FileSearch],
     ['/app/files', Folder],
     ['/app/notes', NotepadText],

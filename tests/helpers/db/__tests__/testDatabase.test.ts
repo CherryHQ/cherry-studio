@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { application } from '@application'
 import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
-import { BlockType, type MessageData } from '@shared/data/types/message'
+import type { MessageData } from '@shared/data/types/message'
 import { eq } from 'drizzle-orm'
 import { afterAll, describe, expect, it } from 'vitest'
 
@@ -11,7 +11,7 @@ import { truncateAll } from '../internal/truncate'
 import { setupTestDatabase } from '../testDatabase'
 
 function mainText(content: string): MessageData {
-  return { blocks: [{ type: BlockType.MAIN_TEXT, content, createdAt: 0 }] }
+  return { parts: [{ type: 'text', text: content }] }
 }
 
 describe('setupTestDatabase — basic lifecycle and schema', () => {
@@ -132,13 +132,13 @@ describe('setupTestDatabase — FTS5 triggers and truncate cascade', () => {
 
   it('truncateAll does not throw when message has no extractable text', async () => {
     await seedTopic('topic-null-fts')
-    // data.blocks contains no main_text — trigger COALESCE the missing concat to ''.
+    // No extractable text — the FTS trigger COALESCEs the missing concat to ''.
     await dbh.db.insert(messageTable).values({
       id: 'msg-null-fts',
       parentId: null,
       topicId: 'topic-null-fts',
       role: 'user',
-      data: { blocks: [] },
+      data: { parts: [] },
       status: 'success',
       siblingsGroupId: 0,
       createdAt: 1,

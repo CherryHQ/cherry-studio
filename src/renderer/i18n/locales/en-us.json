@@ -221,9 +221,11 @@
         "intervalUnit": "minutes",
         "lastRun": "Last Run",
         "logs": {
+          "cancelled": "Cancelled",
+          "completed": "Completed",
           "duration": "Duration",
           "empty": "No run history yet.",
-          "error": "Error",
+          "failed": "Failed",
           "justNow": "just now",
           "label": "Run History",
           "loadError": "Failed to load run history",
@@ -232,7 +234,6 @@
           "running": "Running...",
           "search": "Search logs...",
           "status": "Status",
-          "success": "Success",
           "viewSession": "View session"
         },
         "name": {
@@ -398,6 +399,11 @@
         "error": {
           "failed": "Failed to update the session"
         }
+      },
+      "workspace_status": {
+        "inaccessible": "Workspace path is not accessible: {{path}}",
+        "missing": "Workspace path does not exist: {{path}}",
+        "not_directory": "Workspace path is not a directory: {{path}}"
       }
     },
     "settings": {
@@ -1185,7 +1191,7 @@
       "auto_resize": "Auto resize height",
       "clear": {
         "content": "Do you want to clear all messages of the current topic?",
-        "label": "Clear {{Command}}",
+        "label": "Clear",
         "title": "Clear all messages?"
       },
       "collapse": "Collapse",
@@ -1203,7 +1209,7 @@
       "generate_image_not_supported": "The model does not support generating images.",
       "knowledge_base": "Knowledge Base",
       "new": {
-        "context": "Clear Context {{Command}}"
+        "context": "Clear Context"
       },
       "new_session": "New Session {{Command}}",
       "new_topic": "New Topic {{Command}}",
@@ -1230,6 +1236,7 @@
         "title": "Resources"
       },
       "send": "Send",
+      "send_failed": "Failed to send message",
       "settings": "Settings",
       "slash_commands": {
         "description": "Agent session slash commands",
@@ -2614,9 +2621,6 @@
           "temperature": {
             "hint": "Controls randomness when enabled"
           },
-          "tool_use_mode": {
-            "hint": "Controls how tools are exposed to the model"
-          },
           "top_p": {
             "hint": "Limits token sampling range when enabled"
           }
@@ -2638,9 +2642,6 @@
         "tags": "Tags",
         "temperature": "Temperature",
         "title": "Basic settings",
-        "tool_use_function": "Function",
-        "tool_use_mode": "Tool call mode",
-        "tool_use_prompt": "Prompt",
         "top_p": "Top-P",
         "unlimited": "Unlimited"
       },
@@ -3418,6 +3419,7 @@
     },
     "stream_output": "Stream output",
     "type": {
+      "audio": "Audio",
       "embedding": "Embedding",
       "free": "Free",
       "function_calling": "Tool",
@@ -3425,6 +3427,7 @@
       "rerank": "Reranker",
       "select": "Model Types",
       "text": "Text",
+      "video": "Video",
       "vision": "Vision",
       "websearch": "WebSearch"
     }
@@ -4704,6 +4707,10 @@
       },
       "sort_label": "Sort",
       "unpin": "Unpin"
+    },
+    "workspace": {
+      "empty_text": "No workspaces yet",
+      "placeholder": "Select workspace"
     }
   },
   "settings": {
@@ -7067,23 +7074,6 @@
     "settings": "Settings",
     "store": "Assistant Library",
     "translate": "Translate"
-  },
-  "trace": {
-    "backList": "Back To List",
-    "edasSupport": "Powered by Alibaba Cloud EDAS",
-    "endTime": "End Time",
-    "inputs": "Inputs",
-    "label": "Call Chain",
-    "name": "Node Name",
-    "noTraceList": "No trace information found",
-    "outputs": "Outputs",
-    "parentId": "Parent Id",
-    "spanDetail": "Span Details",
-    "spendTime": "Spend Time",
-    "startTime": "Start Time",
-    "tag": "Tag",
-    "tokenUsage": "Token Usage",
-    "traceWindow": "Call Chain Window"
   },
   "translate": {
     "alter_language": "Alternative Language",

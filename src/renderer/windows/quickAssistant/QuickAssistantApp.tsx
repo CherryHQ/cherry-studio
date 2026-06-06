@@ -2,18 +2,19 @@ import '@renderer/databases'
 
 import { usePreference } from '@data/hooks/usePreference'
 import { ErrorBoundary } from '@renderer/components/ErrorBoundary'
-import { ToastProvider, useToasts } from '@renderer/components/TopView/toast'
-import AntdProvider from '@renderer/context/AntdProvider'
-import { CodeStyleProvider } from '@renderer/context/CodeStyleProvider'
-import { ThemeProvider } from '@renderer/context/ThemeProvider'
-import store, { persistor } from '@renderer/store'
+import { getToastUtilities, useToasts } from '@renderer/components/TopView/toast'
 import { useEffect } from 'react'
-import { Provider } from 'react-redux'
-import { PersistGate } from 'redux-persist/integration/react'
 
+import AntdProvider from '../../context/AntdProvider'
+import { CodeStyleProvider } from '../../context/CodeStyleProvider'
+import { ThemeProvider } from '../../context/ThemeProvider'
 import HomeWindow from './home/HomeWindow'
 
-// Inner component that uses the hook after Redux is initialized
+// Initialise toast utilities once at module import (advanced-init-once). The
+// selection-toolbar window follows the same pattern — consistent across
+// detached windows that don't have a dedicated entry-point bootstrap line.
+window.toast = getToastUtilities()
+
 function QuickAssistantContent(): React.ReactElement {
   const [customCss] = usePreference('ui.custom_css')
   const toast = useToasts()
@@ -39,23 +40,27 @@ function QuickAssistantContent(): React.ReactElement {
   return <HomeWindow />
 }
 
+/**
+ * No react-redux `<Provider>` — the quick-assistant window intentionally stays
+ * Redux-Provider-free (continuation of b5343606a). Downstream assistant/model
+ * data now comes from the v2 Preference + DataApi layer (`usePreference`,
+ * `useQuery('/models/:id')` via `useDefaultAssistant` / `useDefaultModel`), so
+ * there is no dependency on Redux rehydration and no `<PersistGate>` is needed.
+ *
+ * Why not migrate further to DataApi `useQuery('/assistants/:id')`: see the
+ * design note above `currentAssistant` in HomeWindow.
+ */
 function QuickAssistantApp(): React.ReactElement {
   return (
-    <Provider store={store}>
-      <ThemeProvider>
-        <AntdProvider>
-          <CodeStyleProvider>
-            <PersistGate loading={null} persistor={persistor}>
-              <ErrorBoundary>
-                <ToastProvider>
-                  <QuickAssistantContent />
-                </ToastProvider>
-              </ErrorBoundary>
-            </PersistGate>
-          </CodeStyleProvider>
-        </AntdProvider>
-      </ThemeProvider>
-    </Provider>
+    <ThemeProvider>
+      <AntdProvider>
+        <CodeStyleProvider>
+          <ErrorBoundary>
+            <QuickAssistantContent />
+          </ErrorBoundary>
+        </CodeStyleProvider>
+      </AntdProvider>
+    </ThemeProvider>
   )
 }
 

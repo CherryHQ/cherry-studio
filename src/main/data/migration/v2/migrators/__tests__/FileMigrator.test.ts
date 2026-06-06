@@ -487,7 +487,7 @@ describe('FileMigrator validate physical file sampling', () => {
     existsSyncMock.mockReset?.()
   })
 
-  it('validate records missing physical files as non-fatal warnings (orphan sweep cleans them at runtime)', async () => {
+  it('validate logs warnings for missing physical files instead of failing', async () => {
     const row = makeInternalRow()
     const { ctx } = createMockContext([row])
     const m = new FileMigrator()
@@ -505,10 +505,12 @@ describe('FileMigrator validate physical file sampling', () => {
     const existsSyncMock = fs.existsSync as unknown as { mockReturnValue: (v: boolean) => void }
     existsSyncMock.mockReturnValue(false)
 
+    loggerWarnMock.mockClear()
     const result = await m.validate(ctx as never)
 
     expect(result.success).toBe(true)
     expect(result.errors).toEqual([])
+    expect(loggerWarnMock).toHaveBeenCalledWith(expect.stringContaining(`Physical file missing for entry id=${row.id}`))
   })
 
   it('validate succeeds when all sampled physical files exist', async () => {
