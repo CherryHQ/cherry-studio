@@ -22,7 +22,7 @@ is translated back into the caller's dialect by the adapter system.
 ## Where the code lives
 
 ```
-src/main/apiGateway/                 ← the HTTP server (Elysia + @elysia/node)
+src/main/features/apiGateway/        ← the HTTP server (Elysia + @elysia/node)
 ├── server.ts                        ← `ApiGateway` class: listen / stop / restart, http timeouts
 ├── app.ts                           ← `buildApp()`: CORS, OpenAPI docs, request-id, error handler, route mounting
 ├── errors.ts                        ← `gatewayErrorHandler` — path → dialect (anthropic / openai / rest) error envelopes
@@ -47,7 +47,7 @@ src/main/apiGateway/                 ← the HTTP server (Elysia + @elysia/node)
     ├── formatters/                  ← output event → SSE wire string
     └── factory/                     ← `MessageConverterFactory`, `StreamAdapterFactory`
 
-src/main/services/ApiGatewayService.ts   ← lifecycle owner (start/stop, IPC, auto-start, running-state)
+src/main/features/apiGateway/services/ApiGatewayService.ts   ← lifecycle owner (start/stop, IPC, auto-start, running-state)
 src/preload/index.ts                      ← `window.api.apiGateway.{start,stop,restart}`
 src/renderer/hooks/useApiGateway.ts       ← renderer state (config + running + loading) and actions
 src/renderer/pages/settings/ToolSettings/ApiGatewaySettings/   ← settings UI
@@ -170,7 +170,7 @@ Adapters consume the AI SDK **`UIMessageChunk`** stream (not `fullStream`):
 
 ## Lifecycle & configuration
 
-### `ApiGatewayService` (`src/main/services/ApiGatewayService.ts`)
+### `ApiGatewayService` (`src/main/features/apiGateway/services/ApiGatewayService.ts`)
 
 A `BaseService` — `@Injectable('ApiGatewayService')`,
 `@ServicePhase(Phase.WhenReady)`, implements **`Activatable`** — registered one
