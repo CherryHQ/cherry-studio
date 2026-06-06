@@ -219,7 +219,7 @@ export default function HealthCheckDrawer({
             </div>
           ) : null}
 
-          <Scrollbar className="max-h-[min(56vh,30rem)] min-h-0 flex-1 px-2 pb-0">
+          <Scrollbar className="min-h-0 flex-1 px-2 pb-0">
             <ul className="divide-y divide-border/50 pt-1 pb-0">
               {modelStatuses.map((row) => {
                 const { model, checking, status, latency, error } = row

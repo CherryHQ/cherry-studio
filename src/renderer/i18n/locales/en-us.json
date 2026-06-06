@@ -6173,6 +6173,8 @@
       "default_assistant_model": "Default Assistant Model",
       "default_assistant_model_description": "Model used when creating a new assistant, if the assistant is not set, this model will be used",
       "empty": "No models found",
+      "group_disable": "Close this group",
+      "group_enable": "Enable this group",
       "list_title": "Model list",
       "manage": {
         "add_custom_model": "Add custom model",
