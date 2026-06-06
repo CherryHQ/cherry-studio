@@ -431,15 +431,34 @@ export function isClaude46SeriesModel(model: Model | undefined | null): boolean 
   return regex.test(modelId)
 }
 
-/**
- * Check if the model is Claude Opus 4.7.
- * 4.7 rejects temperature/top_p/top_k and natively supports xhigh reasoning effort.
- */
-export function isClaude47SeriesModel(model: Model | undefined | null): boolean {
+function isClaudeOpus47OrNewerModel(model: Model | undefined | null): boolean {
   if (!model) {
     return false
   }
   const modelId = getLowerBaseModelName(model.id, '/')
-  const regex = /(?:anthropic\.)?claude-opus-4[.-]7(?:[@\-:][\w\-:]+)?$/i
+  const regex = /(?:anthropic\.)?claude-opus-4[.-](?:[7-9]|[1-9]\d)(?:[@\-:][\w\-:]+)?$/i
   return regex.test(modelId)
+}
+
+/**
+ * Check if the Claude model uses adaptive thinking rather than budget-token thinking.
+ */
+export function isSupportAdaptiveThinkingClaudeModel(model: Model | undefined | null): boolean {
+  return isClaudeOpus47OrNewerModel(model)
+}
+
+/**
+ * Claude sampling-parameter rejection predicates intentionally stay separate from
+ * adaptive-thinking support so each API rule can diverge independently later.
+ */
+export function isClaudeModelRejectsTemperature(model: Model | undefined | null): boolean {
+  return isClaudeOpus47OrNewerModel(model)
+}
+
+export function isClaudeModelRejectsTopP(model: Model | undefined | null): boolean {
+  return isClaudeOpus47OrNewerModel(model)
+}
+
+export function isClaudeModelRejectsTopK(model: Model | undefined | null): boolean {
+  return isClaudeOpus47OrNewerModel(model)
 }
