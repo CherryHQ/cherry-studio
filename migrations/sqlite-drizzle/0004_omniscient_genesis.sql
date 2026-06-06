@@ -10,7 +10,7 @@ CREATE TABLE `__new_agent_workspace` (
 	CONSTRAINT "agent_workspace_type_check" CHECK("__new_agent_workspace"."type" IN ('user', 'system'))
 );
 --> statement-breakpoint
-INSERT INTO `__new_agent_workspace`("id", "name", "path", "order_key", "created_at", "updated_at") SELECT "id", "name", "path", "order_key", "created_at", "updated_at" FROM `agent_workspace`;--> statement-breakpoint
+INSERT INTO `__new_agent_workspace`("id", "name", "path", "type", "order_key", "created_at", "updated_at") SELECT "id", "name", "path", "type", "order_key", "created_at", "updated_at" FROM `agent_workspace`;--> statement-breakpoint
 DROP TABLE `agent_workspace`;--> statement-breakpoint
 ALTER TABLE `__new_agent_workspace` RENAME TO `agent_workspace`;--> statement-breakpoint
 PRAGMA foreign_keys=ON;--> statement-breakpoint

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "7d18eea5-47de-486e-8ecf-a8e1264c09f1",
+  "id": "68b21d35-8d6a-4dd0-919d-3247ff2c18bc",
   "prevId": "7d3a1018-0a36-43dd-a9a0-3aea2909de02",
   "tables": {
     "agent": {
@@ -671,6 +671,11 @@
           "name": "agent_session_message_session_created_id_idx",
           "columns": ["session_id", "created_at", "id"],
           "isUnique": false
+        },
+        "agent_session_message_status_idx": {
+          "name": "agent_session_message_status_idx",
+          "columns": ["status"],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -786,6 +791,82 @@
       },
       "uniqueConstraints": {},
       "checkConstraints": {}
+    },
+    "agent_workspace": {
+      "name": "agent_workspace",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "path": {
+          "name": "path",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'user'"
+        },
+        "order_key": {
+          "name": "order_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "agent_workspace_path_unique_idx": {
+          "name": "agent_workspace_path_unique_idx",
+          "columns": ["path"],
+          "isUnique": true
+        },
+        "agent_workspace_order_key_idx": {
+          "name": "agent_workspace_order_key_idx",
+          "columns": ["order_key"],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "agent_workspace_type_check": {
+          "name": "agent_workspace_type_check",
+          "value": "\"agent_workspace\".\"type\" IN ('user', 'system')"
+        }
+      }
     },
     "app_state": {
       "name": "app_state",
@@ -2328,6 +2409,11 @@
           "name": "message_trace_id_idx",
           "columns": ["trace_id"],
           "isUnique": false
+        },
+        "message_status_idx": {
+          "name": "message_status_idx",
+          "columns": ["status"],
+          "isUnique": false
         }
       },
       "foreignKeys": {
@@ -3540,82 +3626,6 @@
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "checkConstraints": {}
-    },
-    "agent_workspace": {
-      "name": "agent_workspace",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "path": {
-          "name": "path",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "type": {
-          "name": "type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false,
-          "default": "'user'"
-        },
-        "order_key": {
-          "name": "order_key",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "autoincrement": false
-        }
-      },
-      "indexes": {
-        "agent_workspace_path_unique_idx": {
-          "name": "agent_workspace_path_unique_idx",
-          "columns": ["path"],
-          "isUnique": true
-        },
-        "agent_workspace_order_key_idx": {
-          "name": "agent_workspace_order_key_idx",
-          "columns": ["order_key"],
-          "isUnique": false
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "checkConstraints": {
-        "agent_workspace_type_check": {
-          "name": "agent_workspace_type_check",
-          "value": "\"agent_workspace\".\"type\" IN ('user', 'system')"
-        }
-      }
     }
   },
   "views": {},
