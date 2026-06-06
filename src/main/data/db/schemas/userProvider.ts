@@ -54,7 +54,7 @@ export const userProviderTable = sqliteTable(
     providerSettings: text({ mode: 'json' }).$type<ProviderSettings>(),
 
     /** Whether this provider is enabled */
-    isEnabled: integer({ mode: 'boolean' }).notNull().default(true),
+    isEnabled: integer({ mode: 'boolean' }).notNull().default(false),
 
     /** Fractional-indexing order key used by standard reorder endpoints */
     ...orderKeyColumns,
