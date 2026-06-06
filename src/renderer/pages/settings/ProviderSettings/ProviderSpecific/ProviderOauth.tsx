@@ -4,10 +4,7 @@ import OauthButton from '@renderer/components/Oauth/OauthButton'
 import { PROVIDER_URLS } from '@renderer/config/providers'
 import { useProvider } from '@renderer/hooks/useProvider'
 import { getProviderLabel } from '@renderer/i18n/label'
-import {
-  oauthCardClasses,
-  sectionHeadingClasses
-} from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
+import { oauthCardClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { providerBills, providerCharge } from '@renderer/utils/oauth'
 import { hasApiKeys } from '@shared/utils/provider'
 import { CircleDollarSign, ReceiptText } from 'lucide-react'
@@ -50,19 +47,18 @@ const ProviderOauth: FC<Props> = ({ providerId }) => {
     />
   )
 
-  // Logged-out: align with the CherryIN account card (section heading + bordered shell + one row:
+  // Logged-out: align with the CherryIN account card (bordered shell + one row:
   // avatar/name/description on the left, login button on the right).
   if (!hasApiKeys(provider)) {
     return (
-      <div className="flex flex-col gap-3">
-        <h3 className={sectionHeadingClasses}>{t('settings.provider.section.account')}</h3>
+      <div className={oauthCardClasses.container}>
         <div className={oauthCardClasses.shell}>
           <div className={oauthCardClasses.loggedInRow}>
             <div className={oauthCardClasses.profileMeta}>
               {Icon ? (
-                <Icon.Avatar size={48} />
+                <Icon.Avatar size={40} />
               ) : (
-                <div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-(--color-background-soft) font-bold text-[20px]">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-(--color-background-soft) font-bold text-[18px]">
                   {provider.name[0]}
                 </div>
               )}

@@ -64,7 +64,7 @@ export const providerDetailColumnClasses = {
   contentMaxWidth: 'mx-auto w-full max-w-3xl',
   /** Header inner wrapper: same max-width as body content + bottom divider aligned to content edges. */
   headerContentMaxWidth: 'mx-auto w-full max-w-3xl border-b border-border pb-2',
-  sectionStack: 'mx-auto flex min-h-full w-full min-w-0 max-w-3xl flex-col gap-6'
+  sectionStack: 'mx-auto flex min-h-full w-full min-w-0 max-w-3xl flex-col gap-5'
 } as const
 
 /** Connection-field actions; composes atomic `--space-*`, `--font-size-caption`, `--color-*-soft` from scope CSS. */
@@ -202,10 +202,10 @@ export const modelListClasses = {
   /** Inline-size container for `@container model-list` rules in `provider-settings-scoped-theme.css` (replaces JS width measurement). */
   cqRoot: 'ps-model-list-cq flex h-full min-h-0 min-w-0 w-full flex-1 flex-col gap-[length:var(--space-stack-sm)]',
   section: 'flex h-full min-h-0 min-w-0 w-full flex-1 flex-col gap-[length:var(--space-stack-sm)]',
-  headerBlock: 'flex min-h-0 min-w-0 w-full flex-1 flex-col gap-[length:var(--space-stack-lg)]',
-  titleRow: 'flex min-w-0 w-full flex-wrap items-center justify-between gap-3',
+  headerBlock: 'flex min-h-0 min-w-0 w-full flex-1 flex-col gap-4',
+  titleRow: 'flex min-w-0 w-full flex-wrap items-center justify-between gap-2.5',
   /** Model list header stack — matches model list block. */
-  headerToolStack: 'flex min-w-0 w-full flex-col gap-2.5',
+  headerToolStack: 'flex min-w-0 w-full flex-col gap-2',
   titleWrap: 'flex w-full min-w-0 items-center gap-[length:var(--space-inline-md)]',
   titleActions: 'flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2',
   toolbarDesignIcon: 'size-4 shrink-0',
@@ -251,9 +251,9 @@ export const modelListClasses = {
   capabilityFilterMenu: 'w-fit min-w-40 rounded-xl p-1.5',
   capabilityFilterMenuItem: 'h-8 rounded-lg px-2.5 text-sm',
   capabilityTabIcon: 'size-3 shrink-0',
-  subsectionRow: 'flex min-w-0 items-center gap-2 px-1',
+  subsectionRow: 'flex min-w-0 items-center justify-between gap-3 px-1',
   subsectionTitleWrap: 'flex min-w-0 items-center gap-2',
-  subsectionActions: 'ml-0.5 flex shrink-0 items-center gap-2',
+  subsectionActions: 'flex shrink-0 items-center gap-2',
   subsectionIconButton:
     'inline-flex size-5 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/80 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground disabled:opacity-40',
   subsectionIcon: 'size-4 shrink-0',
@@ -308,7 +308,7 @@ export const modelListClasses = {
    * Replaces the antd-coupled wrapper; rows render inside the same card on expand.
    */
   groupCard:
-    'group/modelGroup min-w-0 w-full rounded-[length:var(--radius-lg)] border border-[color:var(--color-border-fg-muted)] bg-transparent px-3 py-2',
+    'group/modelGroup min-w-0 w-full rounded-[length:var(--radius-md)] border border-[color:var(--color-border-fg-hairline)] bg-transparent px-2.5 py-1.5',
   groupHeader:
     'group/groupRow flex min-h-7 w-full items-center justify-between gap-2 bg-transparent text-left outline-none focus-visible:outline-none',
   groupToggleButton:
@@ -320,7 +320,7 @@ export const modelListClasses = {
   groupChevron:
     'size-4 shrink-0 text-muted-foreground/65 transition-[transform,color] duration-150 group-hover/groupRow:text-foreground',
   groupChevronOpen: 'rotate-90',
-  groupBody: 'mt-1.5 flex flex-col gap-0.5',
+  groupBody: 'mt-1 flex flex-col gap-0.5',
   groupOverflowHint:
     'mt-1 rounded-lg px-3 py-2 text-left text-[length:var(--font-size-caption)] leading-[var(--line-height-caption)] text-muted-foreground/70 transition-colors hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground',
   row: 'group flex min-h-11 items-center gap-3 py-2 text-foreground leading-none',
@@ -468,7 +468,7 @@ export const oauthCardClasses = {
   container: 'w-full min-w-0',
   /** Aligned with `authConnectionClasses.shell`: `--section-border` hairline, `--radius-xl` (large card), no shadow / fill. */
   shell:
-    'w-full min-w-0 overflow-hidden rounded-[length:var(--radius-xl)] border border-[color:var(--section-border)] px-3.5 py-3',
+    'w-full min-w-0 overflow-hidden rounded-[length:var(--radius-xl)] border border-[color:var(--color-border-fg-hairline)] px-3 py-2.5',
   loginFooterRow: 'mt-2.5 flex items-center justify-center gap-4',
   loginFooterLink:
     'h-auto min-h-0 p-0 text-[length:var(--font-size-body-xs)] text-muted-foreground/60 shadow-none hover:bg-transparent hover:text-foreground',
@@ -478,7 +478,7 @@ export const oauthCardClasses = {
     'mt-1 inline-block text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-primary hover:underline',
   /** Logged-in CherryIN: mock CherryIN account section — one row, no stat grid. */
   shellLoggedIn:
-    'w-full min-w-0 overflow-hidden rounded-[length:var(--radius-xl)] border border-[color:var(--section-border)] p-3.5',
+    'w-full min-w-0 overflow-hidden rounded-[length:var(--radius-xl)] border border-[color:var(--color-border-fg-hairline)] px-3 py-2.5',
   loggedInRow: 'flex w-full min-w-0 flex-wrap items-center justify-between gap-3',
   profileMeta: 'flex min-w-0 flex-1 items-center gap-3',
   /** Avatar: 32px round avatar, primary fill, initials (/ CherryIN row). */

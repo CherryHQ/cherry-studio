@@ -2,10 +2,7 @@ import { Button, Skeleton } from '@cherrystudio/ui'
 import { Cherryin } from '@cherrystudio/ui/icons'
 import { loggerService } from '@logger'
 import { useProvider, useProviderAuthConfig } from '@renderer/hooks/useProvider'
-import {
-  oauthCardClasses,
-  sectionHeadingClasses
-} from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
+import { oauthCardClasses } from '@renderer/pages/settings/ProviderSettings/primitives/ProviderSettingsPrimitives'
 import { oauthWithCherryIn } from '@renderer/utils/oauth'
 import { hasApiKeys } from '@shared/utils/provider'
 import type { FC } from 'react'
@@ -183,12 +180,11 @@ const CherryInOauth: FC<CherryInOauthProps> = ({ providerId }) => {
 
   if (!isOAuthLoggedIn) {
     return (
-      <div className="flex flex-col gap-3">
-        <h3 className={sectionHeadingClasses}>{t('settings.provider.section.account')}</h3>
+      <div className={oauthCardClasses.container}>
         <div className={oauthCardClasses.shell}>
           <div className={oauthCardClasses.loggedInRow}>
             <div className={oauthCardClasses.profileMeta}>
-              <Cherryin.Avatar shape="circle" size={48} />
+              <Cherryin.Avatar shape="circle" size={40} />
               <div className={oauthCardClasses.nameBlock}>
                 <div className={oauthCardClasses.loggedInName}>
                   {t('settings.provider.oauth.cherryIn.not_logged_in')}
