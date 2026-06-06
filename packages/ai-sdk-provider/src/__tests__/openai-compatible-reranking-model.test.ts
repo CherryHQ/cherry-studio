@@ -92,15 +92,24 @@ describe('createOpenAICompatibleRerankingModel', () => {
       )
     })
 
-    const error = await model
-      .doRerank({
+    let error: unknown
+    try {
+      await model.doRerank({
         query: 'hello',
         documents: { type: 'text', values: ['alpha'] }
       })
-      .catch((error) => error)
+    } catch (cause) {
+      error = cause
+    }
 
     expect(error).toBeInstanceOf(Error)
+    if (!(error instanceof Error)) {
+      throw new Error('Expected rerank to reject with an Error')
+    }
     expect(error.cause).toBeInstanceOf(Error)
+    if (!(error.cause instanceof Error)) {
+      throw new Error('Expected rerank error cause to be an Error')
+    }
     expect(error.cause.message).toBe('Rerank response results must contain numeric index and relevance_score')
   })
 
