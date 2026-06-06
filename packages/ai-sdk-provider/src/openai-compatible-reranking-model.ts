@@ -65,7 +65,7 @@ export class OpenAICompatibleRerankingModel implements RerankingModelV3 {
       successfulResponseHandler: async ({ response }) => {
         const rawValue = await response.json()
         return {
-          value: parseRerankResponse(rawValue),
+          value: parseRerankResponse(rawValue, documents.values.length),
           rawValue
         }
       },
@@ -82,16 +82,25 @@ export class OpenAICompatibleRerankingModel implements RerankingModelV3 {
   }
 }
 
-function parseRerankResponse(body: unknown): RerankRanking {
+function parseRerankResponse(body: unknown, documentCount: number): RerankRanking {
   const results = (body as OpenAICompatibleRerankResponse).results
   if (!Array.isArray(results)) {
     throw new Error('Rerank response must contain a results array')
   }
 
   return results.map((result) => {
+    if (typeof result !== 'object' || result === null) {
+      throw new Error('Rerank response results must be objects')
+    }
+
     if (typeof result.index !== 'number' || typeof result.relevance_score !== 'number') {
       throw new Error('Rerank response results must contain numeric index and relevance_score')
     }
+
+    if (!Number.isInteger(result.index) || result.index < 0 || result.index >= documentCount) {
+      throw new Error('Rerank response results must reference a valid document index')
+    }
+
     return { index: result.index, relevanceScore: result.relevance_score }
   })
 }

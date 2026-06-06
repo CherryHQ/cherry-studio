@@ -113,6 +113,40 @@ describe('createOpenAICompatibleRerankingModel', () => {
     expect(error.cause.message).toBe('Rerank response results must contain numeric index and relevance_score')
   })
 
+  it.each([-1, 1.5, 99])('rejects invalid rerank response index %s', async (index) => {
+    const model = createOpenAICompatibleRerankingModel('rerank-model', {
+      name: 'openai-compatible',
+      baseURL: 'https://api.example.com/v1',
+      fetch: vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            results: [{ index, relevance_score: 0.7 }]
+          })
+        )
+      )
+    })
+
+    let error: unknown
+    try {
+      await model.doRerank({
+        query: 'hello',
+        documents: { type: 'text', values: ['alpha', 'beta'] }
+      })
+    } catch (cause) {
+      error = cause
+    }
+
+    expect(error).toBeInstanceOf(Error)
+    if (!(error instanceof Error)) {
+      throw new Error('Expected rerank to reject with an Error')
+    }
+    expect(error.cause).toBeInstanceOf(Error)
+    if (!(error.cause instanceof Error)) {
+      throw new Error('Expected rerank error cause to be an Error')
+    }
+    expect(error.cause.message).toBe('Rerank response results must reference a valid document index')
+  })
+
   it('rejects non-2xx responses', async () => {
     const model = createOpenAICompatibleRerankingModel('rerank-model', {
       name: 'openai-compatible',
