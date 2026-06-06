@@ -26,10 +26,15 @@ export class AnthropicSseFormatter implements ISseFormatter<RawMessageStreamEven
   }
 
   /**
-   * Format the stream termination marker
+   * Format the stream termination marker.
+   *
+   * Anthropic streams have no `[DONE]` sentinel: they end with the `message_stop`
+   * event (emitted by the adapter's finalize step) followed by the server closing
+   * the connection. Emitting OpenAI's `data: [DONE]` here would append an invalid
+   * frame that strict Anthropic SDK clients fail to parse, so return nothing.
    */
   formatDone(): string {
-    return 'data: [DONE]\n\n'
+    return ''
   }
 }
 

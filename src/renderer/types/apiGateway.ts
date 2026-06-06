@@ -2,7 +2,7 @@ export type ApiGatewayConfig = {
   enabled: boolean
   host: string
   port: number
-  apiKey: string
+  apiKey: string | null
 }
 
 export type StartApiGatewayStatusResult =

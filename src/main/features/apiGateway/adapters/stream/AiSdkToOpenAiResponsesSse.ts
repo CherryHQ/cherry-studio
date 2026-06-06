@@ -199,7 +199,8 @@ export class AiSdkToOpenAIResponsesSse extends BaseStreamAdapter<ResponseStreamE
    * Process a single AI SDK chunk and emit corresponding Responses API events
    */
   protected processChunk(chunk: UIMessageChunk): void {
-    logger.silly('AiSdkToOpenAIResponsesSse - Processing chunk:', { chunk: JSON.stringify(chunk) })
+    // Log only the chunk type — full payloads can carry prompt/tool/reasoning content.
+    logger.silly('AiSdkToOpenAIResponsesSse - Processing chunk', { type: chunk.type })
 
     switch (chunk.type) {
       case 'text-delta':

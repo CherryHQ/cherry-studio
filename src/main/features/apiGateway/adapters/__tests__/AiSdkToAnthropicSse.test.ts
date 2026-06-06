@@ -484,11 +484,11 @@ describe('AiSdkToAnthropicSse', () => {
       expect(formatted.endsWith('\n\n')).toBe(true)
     })
 
-    it('should format SSE done marker correctly', () => {
+    it('should emit no done marker (Anthropic streams end with message_stop)', () => {
       const formatter = new AnthropicSseFormatter()
       const done = formatter.formatDone()
 
-      expect(done).toBe('data: [DONE]\n\n')
+      expect(done).toBe('')
     })
   })
 

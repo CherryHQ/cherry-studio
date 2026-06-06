@@ -146,7 +146,8 @@ export class AiSdkToOpenAISse extends BaseStreamAdapter<OpenAICompatibleChunk> {
    * Process a single UIMessageChunk and emit corresponding OpenAI events
    */
   protected processChunk(chunk: UIMessageChunk): void {
-    logger.silly('AiSdkToOpenAISse - Processing chunk:', { chunk: JSON.stringify(chunk) })
+    // Log only the chunk type — full payloads can carry prompt/tool/reasoning content.
+    logger.silly('AiSdkToOpenAISse - Processing chunk', { type: chunk.type })
     switch (chunk.type) {
       // === Text Events ===
       // OpenAI has no separate text-start/text-end; only deltas matter.

@@ -123,4 +123,14 @@ describe('knowledge routes (v2)', () => {
     expect(status).toBe(404)
     expect(body.error.code).toBe('NOT_FOUND')
   })
+
+  it('POST /search propagates a non-NOT_FOUND getById failure instead of masking it as 404', async () => {
+    mockGetById.mockRejectedValue(new Error('database unavailable'))
+    const { status, body } = await call('POST', '/knowledge-bases/search', {
+      query: 'hi',
+      knowledge_base_ids: ['kb-1']
+    })
+    expect(status).toBe(500)
+    expect(body.error.code).toBe('INTERNAL_SERVER_ERROR')
+  })
 })

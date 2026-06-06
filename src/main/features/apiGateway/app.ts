@@ -57,7 +57,14 @@ export function buildApp() {
     .use(
       cors({
         origin: true,
-        allowedHeaders: ['Content-Type', 'Authorization'],
+        // Reflect the client's requested headers (the @elysia/cors default for
+        // `allowedHeaders: true`) rather than a fixed allowlist. Browser SDK clients
+        // send dialect-specific headers — Anthropic's `x-api-key` / `anthropic-version`
+        // / `anthropic-beta`, OpenAI's `Authorization` / `openai-organization`, etc. —
+        // and a static list silently fails their preflight. CORS is not the auth
+        // boundary here (the API key is; non-browser clients ignore CORS entirely), so
+        // reflecting the requested headers is the correct, maintenance-free choice.
+        allowedHeaders: true,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
       })
     )

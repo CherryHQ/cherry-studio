@@ -9,6 +9,7 @@ import type { ProviderOptions } from '@ai-sdk/provider-utils'
 import type OpenAI from '@cherrystudio/openai'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Provider } from '@shared/data/types/provider'
+import { parseDataUrl } from '@shared/utils'
 import type { DynamicToolUIPart, FileUIPart, TextUIPart, ToolSet } from 'ai'
 import { tool, zodSchema } from 'ai'
 
@@ -152,7 +153,8 @@ export class OpenAIResponsesMessageConverter implements IMessageConverter<Respon
       } else if (part.type === 'input_image') {
         const img = part
         if (img.image_url) {
-          const p: FileUIPart = { type: 'file', mediaType: 'image/png', url: img.image_url }
+          const mediaType = parseDataUrl(img.image_url)?.mediaType ?? 'image/*'
+          const p: FileUIPart = { type: 'file', mediaType, url: img.image_url }
           parts.push(p)
         }
       }

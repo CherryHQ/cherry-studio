@@ -14,6 +14,7 @@ import type {
 import type { ChatCompletionCreateParamsBase } from '@cherrystudio/openai/resources/chat/completions'
 import type { CherryUIMessage } from '@shared/data/types/message'
 import type { Provider } from '@shared/data/types/provider'
+import { parseDataUrl } from '@shared/utils'
 import type { DynamicToolUIPart, FileUIPart, ReasoningUIPart, TextUIPart, ToolSet } from 'ai'
 import { tool, zodSchema } from 'ai'
 
@@ -140,7 +141,11 @@ export class OpenAIMessageConverter implements IMessageConverter<ExtendedChatCom
           const p: TextUIPart = { type: 'text', text: part.text }
           parts.push(p)
         } else if (part.type === 'image_url') {
-          const p: FileUIPart = { type: 'file', mediaType: 'image/png', url: part.image_url.url }
+          const url = part.image_url.url
+          // Derive the MIME from a `data:` URL; fall back to `image/*` for remote
+          // URLs so JPEG/WebP/etc. aren't mislabeled as PNG downstream.
+          const mediaType = parseDataUrl(url)?.mediaType ?? 'image/*'
+          const p: FileUIPart = { type: 'file', mediaType, url }
           parts.push(p)
         }
       }
@@ -222,12 +227,17 @@ export class OpenAIMessageConverter implements IMessageConverter<ExtendedChatCom
    * Extract stream/generation options from OpenAI params
    */
   extractStreamOptions(params: ExtendedChatCompletionCreateParams): StreamTextOptions {
+    // OpenAI `stop` is `string | string[] | null`; normalize to `string[] | undefined`
+    // so a single-string stop isn't passed through as a bogus array downstream.
+    const stop = params.stop
+    const stopSequences = typeof stop === 'string' ? [stop] : Array.isArray(stop) ? stop : undefined
+
     return {
       // Prefer max_completion_tokens (current param for newer/o-series models); fall back to legacy max_tokens.
       maxOutputTokens: (params.max_completion_tokens ?? params.max_tokens) as number | undefined,
       temperature: params.temperature as number | undefined,
       topP: params.top_p as number | undefined,
-      stopSequences: params.stop as string[] | undefined
+      stopSequences
     }
   }
 

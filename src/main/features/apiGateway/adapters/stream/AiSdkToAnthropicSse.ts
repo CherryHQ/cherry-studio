@@ -113,7 +113,8 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
    * Process a single UIMessageChunk and emit corresponding Anthropic events
    */
   protected processChunk(chunk: UIMessageChunk): void {
-    logger.silly('AiSdkToAnthropicSse - Processing chunk:', { chunk: JSON.stringify(chunk) })
+    // Log only the chunk type — full payloads can carry prompt/tool/reasoning content.
+    logger.silly('AiSdkToAnthropicSse - Processing chunk', { type: chunk.type })
     switch (chunk.type) {
       // === Text Events ===
       case 'text-start':
@@ -354,7 +355,9 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
     const index = this.allocateBlockIndex()
     this.state.toolBlocks.set(toolCallId, index)
 
-    const inputJson = JSON.stringify(args)
+    // Default arg-less tool calls to `{}` — `JSON.stringify(undefined)` is `undefined`,
+    // which would drop `partial_json` from the emitted `input_json_delta`.
+    const inputJson = JSON.stringify(args ?? {})
 
     this.state.blocks.set(index, {
       type: 'tool_use',

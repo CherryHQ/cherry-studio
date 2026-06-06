@@ -129,7 +129,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   async ensureValidApiKey(): Promise<string> {
     const preferenceService = application.get('PreferenceService')
     let apiKey = preferenceService.get('feature.csaas.api_key')
-    if (apiKey === null) {
+    if (typeof apiKey !== 'string' || apiKey.trim() === '') {
       apiKey = `cs-sk-${uuidv4()}`
       await preferenceService.set('feature.csaas.api_key', apiKey)
       logger.info('Generated new API key')

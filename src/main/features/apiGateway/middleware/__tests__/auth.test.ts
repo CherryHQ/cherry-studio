@@ -119,5 +119,15 @@ describe('authorizeApiRequest', () => {
     it('rejects a same-length but different Bearer token', () => {
       expect(authorizeApiRequest(undefined, 'valid-api-key-124')).toEqual({ status: 403, error: 'Forbidden' })
     })
+
+    it('rejects a multibyte token of equal char length without throwing', () => {
+      // Same UTF-16 char count as the 17-char key but more UTF-8 bytes (each CJK
+      // char is 1 code unit / 3 bytes) — comparing byte lengths must short-circuit
+      // to 403 rather than letting timingSafeEqual throw on unequal buffer sizes.
+      const multibyte = '中'.repeat(validApiKey.length)
+      expect(multibyte.length).toBe(validApiKey.length)
+      expect(Buffer.byteLength(multibyte)).not.toBe(Buffer.byteLength(validApiKey))
+      expect(authorizeApiRequest(multibyte, undefined)).toEqual({ status: 403, error: 'Forbidden' })
+    })
   })
 })

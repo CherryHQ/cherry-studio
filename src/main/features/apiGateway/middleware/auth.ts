@@ -2,11 +2,11 @@ import { application } from '@application'
 import crypto from 'crypto'
 
 const isValidToken = (token: string, apiKey: string): boolean => {
-  if (token.length !== apiKey.length) {
+  const tokenBuf = Buffer.from(token, 'utf8')
+  const keyBuf = Buffer.from(apiKey, 'utf8')
+  if (tokenBuf.length !== keyBuf.length) {
     return false
   }
-  const tokenBuf = Buffer.from(token)
-  const keyBuf = Buffer.from(apiKey)
   return crypto.timingSafeEqual(tokenBuf, keyBuf)
 }
 

@@ -53,7 +53,14 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
             knowledgeBaseService
               .getById(id)
               .then((base) => ({ id: base.id, name: base.name }))
-              .catch(() => null)
+              // Only a genuine "not found" maps to null (→ filtered out); real
+              // service/DB failures must propagate so they aren't misreported as 404.
+              .catch((error: unknown) => {
+                if (error instanceof DataApiError && error.code === ErrorCode.NOT_FOUND) {
+                  return null
+                }
+                throw error
+              })
           )
         )
         targetBases = resolved.filter((base): base is { id: string; name: string } => base !== null)
