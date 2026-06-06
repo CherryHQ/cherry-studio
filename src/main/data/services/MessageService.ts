@@ -13,13 +13,11 @@ import { messageTable } from '@data/db/schemas/message'
 import { topicTable } from '@data/db/schemas/topic'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
+import type { TopicMessageContentSearchItem } from '@shared/data/api/schemas/contentSearch'
 import type {
   ActiveNodeStrategy,
   CreateMessageDto,
   DeleteMessageResponse,
-  SearchMessageResult,
-  SearchMessagesQuery,
-  SearchMessagesResponse,
   UpdateMessageDto
 } from '@shared/data/api/schemas/messages'
 import type {
@@ -174,8 +172,16 @@ type MessageSearchRow = {
   createdAt: number
 }
 
-type InternalSearchMessageResult = SearchMessageResult & {
+type InternalSearchMessageResult = TopicMessageContentSearchItem & {
   cursorCreatedAt: number
+}
+
+type MessageContentSearchInput = {
+  q: string
+  cursor?: string
+  limit?: number
+  createdAtFrom?: string
+  topicId?: string
 }
 
 export class MessageService {
@@ -616,21 +622,22 @@ export class MessageService {
     })
   }
 
-  async search(query: SearchMessagesQuery): Promise<SearchMessagesResponse> {
+  async search(query: MessageContentSearchInput) {
     const db = application.get('DbService').getDb()
     const topicConditionForMessageAlias = query.topicId ? sql`message.topic_id = ${query.topicId}` : sql`1 = 1`
 
-    return await searchMessagesWithCursor<MessageSearchRow, InternalSearchMessageResult, SearchMessageResult>({
-      q: query.q,
-      limit: query.limit,
-      cursor: query.cursor,
-      createdAtFrom: query.createdAtFrom,
-      cursorConfig: MESSAGE_SEARCH_CURSOR_CONFIG,
-      fetchRows: async ({ ftsConditions, cursor, createdAtFromMs, offset, chunkSize }: MessageSearchFetchContext) => {
-        const createdAtConditionForMessageAlias =
-          createdAtFromMs !== undefined ? sql`message.created_at >= ${createdAtFromMs}` : sql`1 = 1`
+    return await searchMessagesWithCursor<MessageSearchRow, InternalSearchMessageResult, TopicMessageContentSearchItem>(
+      {
+        q: query.q,
+        limit: query.limit,
+        cursor: query.cursor,
+        createdAtFrom: query.createdAtFrom,
+        cursorConfig: MESSAGE_SEARCH_CURSOR_CONFIG,
+        fetchRows: async ({ ftsConditions, cursor, createdAtFromMs, offset, chunkSize }: MessageSearchFetchContext) => {
+          const createdAtConditionForMessageAlias =
+            createdAtFromMs !== undefined ? sql`message.created_at >= ${createdAtFromMs}` : sql`1 = 1`
 
-        return await db.all<MessageSearchRow>(sql`
+          return await db.all<MessageSearchRow>(sql`
           SELECT
             message.id,
             message.topic_id AS "topicId",
@@ -659,34 +666,35 @@ export class MessageService {
           LIMIT ${chunkSize}
           OFFSET ${offset}
         `)
-      },
-      getSearchableText: (row) => row.searchableText,
-      mapRow: (row, { snippet }) => ({
-        messageId: row.id,
-        topicId: row.topicId,
-        topicName: row.topicName,
-        topicAssistantId: row.topicAssistantId ?? undefined,
-        role: coerceSearchRole(row.role, TOPIC_MESSAGE_SEARCH_ROLES),
-        topicCreatedAt: timestampToISO(Number(row.topicCreatedAt)),
-        topicUpdatedAt: timestampToISO(Number(row.topicUpdatedAt)),
-        snippet,
-        createdAt: timestampToISO(Number(row.createdAt)),
-        cursorCreatedAt: Number(row.createdAt)
-      }),
-      toPublicItem: (item) => ({
-        messageId: item.messageId,
-        topicId: item.topicId,
-        topicName: item.topicName,
-        topicAssistantId: item.topicAssistantId,
-        role: item.role,
-        topicCreatedAt: item.topicCreatedAt,
-        topicUpdatedAt: item.topicUpdatedAt,
-        snippet: item.snippet,
-        createdAt: item.createdAt
-      }),
-      getCursorCreatedAt: (item) => item.cursorCreatedAt,
-      getCursorId: (item) => item.messageId
-    })
+        },
+        getSearchableText: (row) => row.searchableText,
+        mapRow: (row, { snippet }) => ({
+          messageId: row.id,
+          topicId: row.topicId,
+          topicName: row.topicName,
+          topicAssistantId: row.topicAssistantId ?? undefined,
+          role: coerceSearchRole(row.role, TOPIC_MESSAGE_SEARCH_ROLES),
+          topicCreatedAt: timestampToISO(Number(row.topicCreatedAt)),
+          topicUpdatedAt: timestampToISO(Number(row.topicUpdatedAt)),
+          snippet,
+          createdAt: timestampToISO(Number(row.createdAt)),
+          cursorCreatedAt: Number(row.createdAt)
+        }),
+        toPublicItem: (item) => ({
+          messageId: item.messageId,
+          topicId: item.topicId,
+          topicName: item.topicName,
+          topicAssistantId: item.topicAssistantId,
+          role: item.role,
+          topicCreatedAt: item.topicCreatedAt,
+          topicUpdatedAt: item.topicUpdatedAt,
+          snippet: item.snippet,
+          createdAt: item.createdAt
+        }),
+        getCursorCreatedAt: (item) => item.cursorCreatedAt,
+        getCursorId: (item) => item.messageId
+      }
+    )
   }
 
   /** Get all children of a message (messages whose parentId = given id). */

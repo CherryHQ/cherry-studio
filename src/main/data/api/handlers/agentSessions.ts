@@ -17,7 +17,6 @@ import {
   type AgentSessionSchemas,
   CreateAgentSessionSchema,
   ListAgentSessionsQuerySchema,
-  SearchAgentSessionMessagesQuerySchema,
   UpdateAgentSessionSchema
 } from '@shared/data/api/schemas/agentSessions'
 
@@ -58,14 +57,6 @@ export const agentSessionHandlers: HandlersFor<AgentSessionSchemas> = {
       const parsed = AgentSessionMessagesListQuerySchema.safeParse(query ?? {})
       if (!parsed.success) throw toDataApiError(parsed.error)
       return await agentSessionMessageService.listSessionMessages(params.sessionId, parsed.data)
-    }
-  },
-
-  '/agent-sessions/messages/search': {
-    GET: async ({ query }) => {
-      const parsed = SearchAgentSessionMessagesQuerySchema.safeParse(query)
-      if (!parsed.success) throw toDataApiError(parsed.error)
-      return await agentSessionMessageService.search(parsed.data)
     }
   },
 

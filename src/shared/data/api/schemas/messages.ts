@@ -5,14 +5,8 @@
  * Includes endpoints for tree visualization and conversation view.
  */
 
-import type { CursorPaginationParams, CursorPaginationResponse } from '@shared/data/api/apiTypes'
-import type {
-  BranchMessagesResponse,
-  Message,
-  MessageData,
-  MessageRole,
-  TreeResponse
-} from '@shared/data/types/message'
+import type { CursorPaginationParams } from '@shared/data/api/apiTypes'
+import type { BranchMessagesResponse, Message, MessageData, TreeResponse } from '@shared/data/types/message'
 import {
   MessageDataSchema,
   MessageRoleSchema,
@@ -163,29 +157,6 @@ export const PathThroughQuerySchema = z.strictObject({
 })
 export type PathThroughQueryParams = z.infer<typeof PathThroughQuerySchema>
 
-export const SearchMessagesQuerySchema = z.strictObject({
-  q: z.string().trim().min(1),
-  topicId: z.string().min(1).optional(),
-  cursor: z.string().optional(),
-  limit: z.coerce.number().int().positive().max(1000).optional(),
-  createdAtFrom: z.iso.datetime().optional()
-})
-export type SearchMessagesQueryParams = z.input<typeof SearchMessagesQuerySchema>
-export type SearchMessagesQuery = z.output<typeof SearchMessagesQuerySchema>
-
-export interface SearchMessageResult {
-  messageId: string
-  topicId: string
-  topicName: string
-  topicAssistantId?: string
-  role?: Extract<MessageRole, 'user' | 'assistant'>
-  topicCreatedAt: string
-  topicUpdatedAt: string
-  snippet: string
-  createdAt: string
-}
-export type SearchMessagesResponse = CursorPaginationResponse<SearchMessageResult>
-
 // ============================================================================
 // API Schema Definitions
 // ============================================================================
@@ -199,13 +170,6 @@ export type SearchMessagesResponse = CursorPaginationResponse<SearchMessageResul
  * - /messages/:id - Individual message operations
  */
 export type MessageSchemas = {
-  '/messages/search': {
-    GET: {
-      query: SearchMessagesQueryParams
-      response: SearchMessagesResponse
-    }
-  }
-
   /**
    * Tree query endpoint for visualization
    * @example GET /topics/abc123/tree?depth=1

@@ -13,16 +13,14 @@ import { DataApiErrorFactory } from '@shared/data/api'
 import type { CursorPaginationResponse } from '@shared/data/api/apiTypes'
 import type {
   AgentSessionMessageEntity,
-  AgentSessionSearchMessageResult,
   CreateAgentSessionMessageDto,
-  CreateAgentSessionMessagesDto,
-  SearchAgentSessionMessagesQuery,
-  SearchAgentSessionMessagesResponse
+  CreateAgentSessionMessagesDto
 } from '@shared/data/api/schemas/agentSessions'
 import {
   AGENT_SESSION_MESSAGES_DEFAULT_LIMIT,
   AGENT_SESSION_MESSAGES_MAX_LIMIT
 } from '@shared/data/api/schemas/agentSessions'
+import type { SessionMessageContentSearchItem } from '@shared/data/api/schemas/contentSearch'
 import { and, desc, eq, inArray, isNotNull, lt, or, sql } from 'drizzle-orm'
 import { v7 as uuidv7, validate as isUuid } from 'uuid'
 
@@ -52,9 +50,17 @@ type SessionMessageSearchRow = {
   createdAt: number
 }
 
-type InternalSessionSearchMessageResult = AgentSessionSearchMessageResult & {
+type InternalSessionSearchMessageResult = SessionMessageContentSearchItem & {
   cursorCreatedAt: number
   cursorId: string
+}
+
+type SessionMessageContentSearchInput = {
+  q: string
+  cursor?: string
+  limit?: number
+  createdAtFrom?: string
+  sessionId?: string
 }
 
 // Cursor wire format: `<createdAt-ms>:<id>` — opaque server-issued tokens.
@@ -63,14 +69,14 @@ function decodeMessageCursor(raw: string): { createdAt: number; id: string } {
 }
 
 export class AgentSessionMessageService {
-  async search(query: SearchAgentSessionMessagesQuery): Promise<SearchAgentSessionMessagesResponse> {
+  async search(query: SessionMessageContentSearchInput) {
     const db = application.get('DbService').getDb()
     const messageSessionCondition = query.sessionId ? sql`sm.session_id = ${query.sessionId}` : sql`1 = 1`
 
     return await searchMessagesWithCursor<
       SessionMessageSearchRow,
       InternalSessionSearchMessageResult,
-      AgentSessionSearchMessageResult
+      SessionMessageContentSearchItem
     >({
       q: query.q,
       limit: query.limit,

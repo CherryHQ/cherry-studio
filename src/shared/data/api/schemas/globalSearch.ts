@@ -8,9 +8,6 @@
 
 import * as z from 'zod'
 
-import type { AgentSessionSearchMessageResult } from './agentSessions'
-import type { SearchMessageResult } from './messages'
-
 export type GlobalSearchTarget =
   | { type: 'assistant'; target: { assistantId: string } }
   | { type: 'agent'; target: { agentId: string } }
@@ -19,15 +16,21 @@ export type GlobalSearchTarget =
   | { type: 'knowledge-base'; target: { knowledgeBaseId: string } }
 
 export type GlobalSearchType = GlobalSearchTarget['type']
-export const GlobalSearchTypeSchema = z.enum(['assistant', 'agent', 'topic', 'session', 'knowledge-base'])
+export const globalSearchTypes = [
+  'assistant',
+  'agent',
+  'topic',
+  'session',
+  'knowledge-base'
+] as const satisfies readonly GlobalSearchType[]
+export const GlobalSearchTypeSchema = z.enum(globalSearchTypes)
 export const GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE = 200
 
 export const GlobalSearchQuerySchema = z.strictObject({
   q: z.string().trim().min(1),
   types: z.array(GlobalSearchTypeSchema).min(1).optional(),
   updatedAtFrom: z.iso.datetime().optional(),
-  limitPerType: z.coerce.number().int().positive().max(GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE).optional(),
-  includeMessages: z.boolean().optional()
+  limitPerType: z.coerce.number().int().positive().max(GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE).optional()
 })
 export type GlobalSearchQueryParams = z.input<typeof GlobalSearchQuerySchema>
 export type GlobalSearchQuery = z.output<typeof GlobalSearchQuerySchema>
@@ -45,14 +48,9 @@ export type GlobalSearchGroup = {
   items: GlobalSearchItem[]
 }
 
-export type GlobalSearchMessageItem =
-  | (SearchMessageResult & { sourceType: 'topic' })
-  | (AgentSessionSearchMessageResult & { sourceType: 'session' })
-
 export type GlobalSearchResponse = {
   query: string
   groups: GlobalSearchGroup[]
-  messageItems: GlobalSearchMessageItem[]
 }
 
 export type GlobalSearchSchemas = {

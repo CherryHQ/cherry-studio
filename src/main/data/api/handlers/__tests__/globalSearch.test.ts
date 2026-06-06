@@ -21,7 +21,7 @@ describe('globalSearchHandlers', () => {
 
   describe('/global-search', () => {
     it('parses query defaults and delegates to GlobalSearchService', async () => {
-      const response = { query: 'agent', groups: [], messageItems: [] }
+      const response = { query: 'agent', groups: [] }
       searchMock.mockResolvedValueOnce(response)
 
       const result = await globalSearchHandlers['/global-search'].GET({
@@ -37,15 +37,14 @@ describe('globalSearchHandlers', () => {
     })
 
     it('forwards type, time, and explicit limit filters', async () => {
-      searchMock.mockResolvedValueOnce({ query: 'agent', groups: [], messageItems: [] })
+      searchMock.mockResolvedValueOnce({ query: 'agent', groups: [] })
 
       await globalSearchHandlers['/global-search'].GET({
         query: {
           q: 'agent',
           types: ['agent', 'session'],
           updatedAtFrom: '2026-05-01T00:00:00.000Z',
-          limitPerType: GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE,
-          includeMessages: true
+          limitPerType: GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE
         }
       } as never)
 
@@ -53,9 +52,21 @@ describe('globalSearchHandlers', () => {
         q: 'agent',
         types: ['agent', 'session'],
         updatedAtFrom: '2026-05-01T00:00:00.000Z',
-        limitPerType: GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE,
-        includeMessages: true
+        limitPerType: GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE
       })
+    })
+
+    it('rejects includeMessages before calling the service', async () => {
+      await expect(
+        globalSearchHandlers['/global-search'].GET({
+          query: {
+            q: 'agent',
+            includeMessages: true
+          }
+        } as never)
+      ).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+
+      expect(searchMock).not.toHaveBeenCalled()
     })
 
     it('rejects blank q before calling the service', async () => {

@@ -2,26 +2,27 @@ import { application } from '@application'
 import { agentTable } from '@data/db/schemas/agent'
 import { assistantTable } from '@data/db/schemas/assistant'
 import { agentService } from '@data/services/AgentService'
-import { agentSessionMessageService } from '@data/services/AgentSessionMessageService'
 import { agentSessionService } from '@data/services/AgentSessionService'
 import { assistantDataService } from '@data/services/AssistantService'
 import { knowledgeBaseService } from '@data/services/KnowledgeBaseService'
-import { messageService } from '@data/services/MessageService'
 import { topicService } from '@data/services/TopicService'
 import type {
   GlobalSearchGroup,
   GlobalSearchItem,
-  GlobalSearchMessageItem,
   GlobalSearchQuery,
   GlobalSearchResponse,
   GlobalSearchType
 } from '@shared/data/api/schemas/globalSearch'
-import { GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE } from '@shared/data/api/schemas/globalSearch'
+import { GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE, globalSearchTypes } from '@shared/data/api/schemas/globalSearch'
 import { and, inArray, isNull } from 'drizzle-orm'
 
-const GLOBAL_SEARCH_TYPES: GlobalSearchType[] = ['assistant', 'agent', 'topic', 'session', 'knowledge-base']
 const GLOBAL_SEARCH_DEFAULT_LIMIT_PER_TYPE = 50
-const GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT = 5
+
+type GlobalSearchSourceAdapter = (
+  q: string,
+  limit: number,
+  updatedAtFromMs: number | undefined
+) => Promise<GlobalSearchItem[]>
 
 function getUpdatedAtFromMs(updatedAtFrom: string | undefined): number | undefined {
   if (!updatedAtFrom) return undefined
@@ -36,54 +37,36 @@ function getAgentAvatar(configuration: unknown): string | undefined {
 }
 
 export class GlobalSearchService {
+  private readonly sourceAdapters = {
+    assistant: (q, limit, updatedAtFromMs) => this.searchAssistants(q, limit, updatedAtFromMs),
+    agent: (q, limit, updatedAtFromMs) => this.searchAgents(q, limit, updatedAtFromMs),
+    topic: (q, limit, updatedAtFromMs) => this.searchTopics(q, limit, updatedAtFromMs),
+    session: (q, limit, updatedAtFromMs) => this.searchSessions(q, limit, updatedAtFromMs),
+    'knowledge-base': (q, limit, updatedAtFromMs) => this.searchKnowledgeBases(q, limit, updatedAtFromMs)
+  } satisfies Record<GlobalSearchType, GlobalSearchSourceAdapter>
+
   private get db() {
     return application.get('DbService').getDb()
   }
 
   async search(query: GlobalSearchQuery): Promise<GlobalSearchResponse> {
-    const requestedTypes = new Set(query.types ?? GLOBAL_SEARCH_TYPES)
-    const types = GLOBAL_SEARCH_TYPES.filter((type) => requestedTypes.has(type))
+    const requestedTypes = new Set(query.types ?? globalSearchTypes)
+    const types = globalSearchTypes.filter((type) => requestedTypes.has(type))
     const updatedAtFromMs = getUpdatedAtFromMs(query.updatedAtFrom)
     const limit = Math.min(query.limitPerType ?? GLOBAL_SEARCH_DEFAULT_LIMIT_PER_TYPE, GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE)
 
-    const [groups, messageItems] = await Promise.all([
-      Promise.all(
-        types.map(
-          async (type): Promise<GlobalSearchGroup> => ({
-            type,
-            items: await this.searchType(type, query.q, limit, updatedAtFromMs)
-          })
-        )
-      ),
-      query.includeMessages
-        ? this.searchMessages(query.q, Math.min(limit, GLOBAL_SEARCH_MESSAGE_PREVIEW_LIMIT), query.updatedAtFrom)
-        : Promise.resolve([])
-    ])
+    const groups = await Promise.all(
+      types.map(
+        async (type): Promise<GlobalSearchGroup> => ({
+          type,
+          items: await this.sourceAdapters[type](query.q, limit, updatedAtFromMs)
+        })
+      )
+    )
 
     return {
       query: query.q,
-      groups,
-      messageItems
-    }
-  }
-
-  private async searchType(
-    type: GlobalSearchType,
-    q: string,
-    limit: number,
-    updatedAtFromMs: number | undefined
-  ): Promise<GlobalSearchItem[]> {
-    switch (type) {
-      case 'assistant':
-        return await this.searchAssistants(q, limit, updatedAtFromMs)
-      case 'agent':
-        return await this.searchAgents(q, limit, updatedAtFromMs)
-      case 'topic':
-        return await this.searchTopics(q, limit, updatedAtFromMs)
-      case 'session':
-        return await this.searchSessions(q, limit, updatedAtFromMs)
-      case 'knowledge-base':
-        return await this.searchKnowledgeBases(q, limit, updatedAtFromMs)
+      groups
     }
   }
 
@@ -198,30 +181,6 @@ export class GlobalSearchService {
       updatedAt: item.updatedAt,
       target: { knowledgeBaseId: item.id }
     }))
-  }
-
-  private async searchMessages(
-    q: string,
-    limit: number,
-    createdAtFrom: string | undefined
-  ): Promise<GlobalSearchMessageItem[]> {
-    const [topicMessages, sessionMessages] = await Promise.all([
-      messageService.search({ q, limit, createdAtFrom }),
-      agentSessionMessageService.search({ q, limit, createdAtFrom })
-    ])
-
-    return [
-      ...topicMessages.items.map((item) => ({ ...item, sourceType: 'topic' as const })),
-      ...sessionMessages.items.map((item) => ({ ...item, sourceType: 'session' as const }))
-    ]
-      .sort((a, b) => {
-        const timeA = Date.parse(a.createdAt) || 0
-        const timeB = Date.parse(b.createdAt) || 0
-        if (timeA !== timeB) return timeB - timeA
-        if (a.sourceType !== b.sourceType) return a.sourceType === 'topic' ? -1 : 1
-        return b.messageId.localeCompare(a.messageId)
-      })
-      .slice(0, limit)
   }
 
   private async getAssistantNameMap(ids: Array<string | undefined>): Promise<Map<string, string>> {

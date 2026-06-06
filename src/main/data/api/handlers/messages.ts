@@ -8,7 +8,6 @@
  */
 
 import { messageService } from '@data/services/MessageService'
-import { toDataApiError } from '@shared/data/api'
 import type { HandlersFor } from '@shared/data/api/apiTypes'
 import {
   BranchMessagesQuerySchema,
@@ -16,21 +15,12 @@ import {
   DeleteMessageQuerySchema,
   type MessageSchemas,
   PathThroughQuerySchema,
-  SearchMessagesQuerySchema,
   TreeQuerySchema,
   UpdateMessageSchema
 } from '@shared/data/api/schemas/messages'
 import { MessageDataSchema } from '@shared/data/types/message'
 
 export const messageHandlers: HandlersFor<MessageSchemas> = {
-  '/messages/search': {
-    GET: async ({ query }) => {
-      const parsed = SearchMessagesQuerySchema.safeParse(query)
-      if (!parsed.success) throw toDataApiError(parsed.error)
-      return await messageService.search(parsed.data)
-    }
-  },
-
   '/topics/:topicId/tree': {
     GET: async ({ params, query }) => {
       const q = TreeQuerySchema.parse(query ?? {})

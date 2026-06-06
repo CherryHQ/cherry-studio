@@ -16,25 +16,24 @@ describe('GlobalSearchQuerySchema', () => {
         q: 'agent',
         types: ['agent', 'session'],
         updatedAtFrom: '2026-05-01T00:00:00.000Z',
-        limitPerType: GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE,
-        includeMessages: true
+        limitPerType: GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE
       })
     ).toEqual({
       q: 'agent',
       types: ['agent', 'session'],
       updatedAtFrom: '2026-05-01T00:00:00.000Z',
-      limitPerType: GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE,
-      includeMessages: true
+      limitPerType: GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE
     })
   })
 
-  it('rejects blank q, invalid updatedAtFrom, and out-of-range limits', () => {
+  it('rejects blank q, invalid updatedAtFrom, out-of-range limits, and message flags', () => {
     expect(() => GlobalSearchQuerySchema.parse({ q: '   ' })).toThrow()
     expect(() => GlobalSearchQuerySchema.parse({ q: 'agent', updatedAtFrom: 'today' })).toThrow()
     expect(() => GlobalSearchQuerySchema.parse({ q: 'agent', limitPerType: 0 })).toThrow()
     expect(() =>
       GlobalSearchQuerySchema.parse({ q: 'agent', limitPerType: GLOBAL_SEARCH_MAX_LIMIT_PER_TYPE + 1 })
     ).toThrow()
+    expect(() => GlobalSearchQuerySchema.parse({ q: 'agent', includeMessages: true })).toThrow()
   })
 
   it('narrows target by result type at compile time', () => {

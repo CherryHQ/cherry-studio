@@ -25,6 +25,7 @@ import type { AgentSchemas } from './agents'
 import type { AgentSessionSchemas } from './agentSessions'
 import type { AgentWorkspaceSchemas } from './agentWorkspaces'
 import type { AssistantSchemas } from './assistants'
+import type { ContentSearchSchemas } from './contentSearch'
 import type { FileSchemas } from './files'
 import type { GlobalSearchSchemas } from './globalSearch'
 import type { GroupSchemas } from './groups'
@@ -81,5 +82,6 @@ export type ApiSchemas = AssertValidSchemas<
     AgentWorkspaceSchemas &
     AgentChannelSchemas &
     JobSchemas &
+    ContentSearchSchemas &
     GlobalSearchSchemas
 >
