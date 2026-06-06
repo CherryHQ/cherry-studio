@@ -183,8 +183,8 @@ Adapters consume the AI SDK **`UIMessageChunk`** stream (not `fullStream`):
 A `BaseService` — `@Injectable('ApiGatewayService')`,
 `@ServicePhase(Phase.WhenReady)`, implements **`Activatable`** — registered one
 line in `src/main/core/application/serviceRegistry.ts`. It owns the `ApiGateway`
-HTTP server (`src/main/apiGateway`) and is the single authority for running
-state.
+HTTP server (`src/main/features/apiGateway`) and is the single authority for
+running state.
 
 | Hook | Responsibility |
 |---|---|

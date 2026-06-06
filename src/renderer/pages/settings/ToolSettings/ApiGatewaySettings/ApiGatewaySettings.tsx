@@ -46,11 +46,16 @@ const ApiGatewaySettings: FC = () => {
     await restartApiGateway()
   }
 
-  const copyApiKey = () => {
-    if (apiKey) {
-      void navigator.clipboard.writeText(apiKey)
+  const copyApiKey = async () => {
+    if (!apiKey) return
+    try {
+      await navigator.clipboard.writeText(apiKey)
+      window.toast.success(t('apiGateway.messages.apiKeyCopied'))
+    } catch {
+      // Clipboard write can be denied (permissions / insecure context); don't
+      // report a copy that didn't happen.
+      window.toast.error(t('apiGateway.messages.operationFailed'))
     }
-    window.toast.success(t('apiGateway.messages.apiKeyCopied'))
   }
 
   const generateApiKey = () => {

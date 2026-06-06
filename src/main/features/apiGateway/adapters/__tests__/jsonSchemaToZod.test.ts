@@ -86,6 +86,17 @@ describe('jsonSchemaToZod', () => {
     expect(schema.safeParse({ closed: 'x' }).success).toBe(false)
   })
 
+  it('honors `required` for boolean property schemas (non-required → optional)', () => {
+    const schema = jsonSchemaToZod({
+      type: 'object',
+      properties: { maybe: true } as unknown as JsonSchemaLike['properties'],
+      required: []
+    })
+    // `maybe` accepts anything but is not required, so it may be omitted.
+    expect(schema.safeParse({}).success).toBe(true)
+    expect(schema.safeParse({ maybe: 1 }).success).toBe(true)
+  })
+
   it('falls back to unknown for an unspecified type', () => {
     const schema = jsonSchemaToZod({} as JsonSchemaLike)
     expect(schema.safeParse({ anything: true }).success).toBe(true)

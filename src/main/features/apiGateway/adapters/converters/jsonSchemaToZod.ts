@@ -129,7 +129,8 @@ export function jsonSchemaToZod(schema: JsonSchemaLike): z.ZodTypeAny {
       if (properties && typeof properties === 'object') {
         for (const [key, propSchema] of Object.entries(properties)) {
           if (typeof propSchema === 'boolean') {
-            shape[key] = propSchema ? z.unknown() : z.never()
+            const base = propSchema ? z.unknown() : z.never()
+            shape[key] = required.includes(key) ? base : base.optional()
           } else {
             const zodProp = jsonSchemaToZod(propSchema)
             shape[key] = required.includes(key) ? zodProp : zodProp.optional()

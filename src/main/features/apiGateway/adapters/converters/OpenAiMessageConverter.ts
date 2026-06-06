@@ -233,10 +233,12 @@ export class OpenAIMessageConverter implements IMessageConverter<ExtendedChatCom
     const stopSequences = typeof stop === 'string' ? [stop] : Array.isArray(stop) ? stop : undefined
 
     return {
-      // Prefer max_completion_tokens (current param for newer/o-series models); fall back to legacy max_tokens.
-      maxOutputTokens: (params.max_completion_tokens ?? params.max_tokens) as number | undefined,
-      temperature: params.temperature as number | undefined,
-      topP: params.top_p as number | undefined,
+      // Prefer max_completion_tokens (current param for newer/o-series models); fall back to legacy
+      // max_tokens. `?? undefined` normalizes the SDK's `number | null` fields to `number | undefined`,
+      // so an explicit null isn't passed downstream as a bogus value.
+      maxOutputTokens: params.max_completion_tokens ?? params.max_tokens ?? undefined,
+      temperature: params.temperature ?? undefined,
+      topP: params.top_p ?? undefined,
       stopSequences
     }
   }

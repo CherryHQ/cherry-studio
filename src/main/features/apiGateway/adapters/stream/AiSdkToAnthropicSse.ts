@@ -498,7 +498,10 @@ export class AiSdkToAnthropicSse extends BaseStreamAdapter<RawMessageStreamEvent
         case 'thinking':
           content.push({
             type: 'thinking',
-            thinking: block.content
+            thinking: block.content,
+            // ThinkingBlock requires a signature; the gateway has no real one to
+            // forward, matching the empty signature used when the block is opened.
+            signature: ''
           } as ThinkingBlock)
           break
         case 'tool_use':
