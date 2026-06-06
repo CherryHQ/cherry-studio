@@ -92,12 +92,16 @@ describe('createOpenAICompatibleRerankingModel', () => {
       )
     })
 
-    await expect(
-      model.doRerank({
+    const error = await model
+      .doRerank({
         query: 'hello',
         documents: { type: 'text', values: ['alpha'] }
       })
-    ).rejects.toThrow('Failed to process successful response')
+      .catch((error) => error)
+
+    expect(error).toBeInstanceOf(Error)
+    expect(error.cause).toBeInstanceOf(Error)
+    expect(error.cause.message).toBe('Rerank response results must contain numeric index and relevance_score')
   })
 
   it('rejects non-2xx responses', async () => {
