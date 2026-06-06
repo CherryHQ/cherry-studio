@@ -61,9 +61,10 @@ function makeExternalRow(overrides: Partial<FileMetadata> = {}): FileMetadata {
   }
 }
 
-// 脱敏自 #15733 报告者的真实数据:Windows 上创建的 internal 文件,数据同步到
-// POSIX 机器后迁移。前缀匹配必然失败(分隔符不同),唯一可靠的判别是物理文件
-// 是否存在于本机 Files 目录。
+// Desensitized from the reporter's actual DB row in #15733: an internal file
+// created on Windows whose data was then synced to a POSIX machine before
+// migrating. The prefix check is guaranteed to miss (different separators),
+// so physical presence in the local Files dir is the only reliable signal.
 const FIXTURE_WINDOWS_ROW: FileMetadata = {
   id: '11111111-1111-4111-8111-111111111111',
   name: '11111111-1111-4111-8111-111111111111.png',
@@ -626,7 +627,7 @@ describe('FileMigrator cross-platform recovery (#15733)', () => {
     vi.clearAllMocks()
   })
 
-  it('recovers a Windows-origin internal row on POSIX when the physical file is present (AC1)', async () => {
+  it('recovers a Windows-origin internal row on POSIX when the physical file is present', async () => {
     vi.mocked(fs.existsSync).mockImplementation((p) => p === `${MOCK_USER_DATA}/Data/Files/${FIXTURE_WINDOWS_ROW.name}`)
     const { ctx, insertValues } = createMockContext([FIXTURE_WINDOWS_ROW])
     const m = new FileMigrator()
@@ -642,7 +643,7 @@ describe('FileMigrator cross-platform recovery (#15733)', () => {
     expect(firstRow.externalPath).toBeNull()
   })
 
-  it('skips the same row as orphan when the physical file is absent (AC2)', async () => {
+  it('skips the same row as orphan when the physical file is absent', async () => {
     vi.mocked(fs.existsSync).mockReturnValue(false)
     const { ctx, insertValues } = createMockContext([FIXTURE_WINDOWS_ROW])
     const m = new FileMigrator()
@@ -656,7 +657,7 @@ describe('FileMigrator cross-platform recovery (#15733)', () => {
   })
 })
 
-// ─── Name degradation chain (spec R3/R4) ────────────────────────────────────
+// ─── Name degradation chain ──────────────────────────────────────────────
 
 describe('FileMigrator name degradation chain', () => {
   beforeEach(() => {
@@ -677,7 +678,7 @@ describe('FileMigrator name degradation chain', () => {
     expect(joined).not.toContain('Sanitized name')
   })
 
-  it('sanitizes an origin_name containing separators instead of skipping the row (AC4)', async () => {
+  it('sanitizes an origin_name containing separators instead of skipping the row', async () => {
     const row = makeInternalRow({ origin_name: 'evil\\dir/report.pdf' })
     const { ctx, insertValues } = createMockContext([row])
     const m = new FileMigrator()
@@ -693,7 +694,7 @@ describe('FileMigrator name degradation chain', () => {
     expect(joined).toContain(row.id)
   })
 
-  it('falls back to the row id when sanitization cannot produce a safe name (AC4)', async () => {
+  it('falls back to the row id when sanitization cannot produce a safe name', async () => {
     const row = makeInternalRow({ origin_name: '..' })
     const { ctx, insertValues } = createMockContext([row])
     const m = new FileMigrator()
@@ -722,14 +723,14 @@ describe('FileMigrator name degradation chain', () => {
   })
 })
 
-// ─── Write-side ≥ read-side validation invariant (spec R5) ──────────────────
+// ─── Write-side ≥ read-side validation invariant ────────────────────────────
 
 describe('FileMigrator write/read validation invariant', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('every prepared entry passes the runtime read schema (AC5)', async () => {
+  it('every prepared entry passes the runtime read schema', async () => {
     const rows = [
       makeInternalRow(),
       makeInternalRow({

@@ -70,8 +70,8 @@ function stripExt(base: string): string {
 /**
  * Derive a SafeNameSchema-conformant display name from the v1 name source.
  *
- * Degradation chain (spec R4): raw → sanitized (last segment, trimmed) →
- * row id. Never asks the caller to skip the row: a skipped internal row
+ * Degradation chain: raw → sanitized (last segment, trimmed) → row id.
+ * Never asks the caller to skip the row: a skipped internal row
  * strands its physical file, which the startup FS sweep then reclaims —
  * real data loss. `name` does not participate in physical paths
  * (`{id}.{ext}`), so degrading it is always safe.
@@ -185,7 +185,7 @@ function toFileEntry(
     updatedAt: createdAt
   }
 
-  // Spec R5: write-side validation must be >= read-side validation. Probe
+  // Write-side validation must be >= read-side validation. Probe
   // through the same schema the runtime read path applies (rowToFileEntry →
   // FileEntrySchema.parse) so a malformed row can never reach SQLite and
   // detonate at read time (#15733). Unreachable by construction today —
