@@ -74,6 +74,8 @@
 |----------|-------------|
 | [Agent-Managed Knowledge Product](./references/knowledge/agent-managed-knowledge-product.md) | Product semantics for folder-based, Agent-managed knowledge bases |
 | [Knowledge UI Presentation](./references/knowledge/knowledge-ui-presentation-options.md) | Product decision for file-manager-style knowledge UI, with ASCII layouts and operation flows |
+| [Current v2 Knowledge Index Migration Plan](./references/knowledge/current-v2-knowledge-index-migration-plan.md) | Technical plan for changing current v2 knowledge storage, processing, and indexing toward the folder-compatible schema |
+| [Knowledge index.sqlite Schema](./references/knowledge/index-sqlite-schema-design.md) | Per-knowledge-base SQLite schema for folder-based, Agent-managed knowledge indexes |
 | [KnowledgeService](./references/knowledge/knowledge-service.md) | Concurrency control and workload management |
 | [Knowledge Operation Guards](./references/knowledge/operation-guards.md) | Guard, enqueue failure, and recovery semantics for add/delete/reindex |
 
