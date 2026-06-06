@@ -24,8 +24,6 @@ vi.mock('@main/core/application', () => ({
 vi.mock('@logger', () => ({
   loggerService: { withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() })) }
 }))
-// errors.ts (via restErrorHandler) statically imports responsesService; stub it.
-vi.mock('../../../services/responses', () => ({ responsesService: { transformError: vi.fn() } }))
 
 import { restErrorHandler } from '../../../errors'
 import { knowledgeRoutes } from '../index'
@@ -63,13 +61,31 @@ describe('knowledge routes (v2)', () => {
     vi.clearAllMocks()
   })
 
-  it('GET /knowledge-bases lists bases and maps offset/limit → page', async () => {
-    mockList.mockResolvedValue({ items: [kb('kb-1', 'KB 1')], total: 3, page: 2 })
+  it('GET /knowledge-bases applies a true offset/limit window', async () => {
+    // The service is page-based; the route fetches [0, offset+limit) from page 1
+    // and slices the exact window, so page-aligned offsets still work end-to-end.
+    const items = Array.from({ length: 40 }, (_, i) => kb(`kb-${i}`, `KB ${i}`))
+    mockList.mockResolvedValue({ items, total: 100, page: 1 })
     const { status, body } = await call('GET', '/knowledge-bases?limit=20&offset=20')
     expect(status).toBe(200)
-    expect(body.knowledge_bases).toHaveLength(1)
-    expect(body.total).toBe(3)
-    expect(mockList).toHaveBeenCalledWith({ page: 2, limit: 20 })
+    expect(mockList).toHaveBeenCalledWith({ page: 1, limit: 40 })
+    expect(body.knowledge_bases).toHaveLength(20)
+    expect(body.knowledge_bases[0].id).toBe('kb-20')
+    expect(body.knowledge_bases[19].id).toBe('kb-39')
+    expect(body.total).toBe(100)
+  })
+
+  it('GET /knowledge-bases honors a non-page-aligned offset (v1 regression guard)', async () => {
+    // offset=5, limit=20 → must return items 5..24 (the v1 server sliced; the first
+    // port floored to a page and returned 0..19, dropping the offset%limit remainder).
+    const items = Array.from({ length: 25 }, (_, i) => kb(`kb-${i}`, `KB ${i}`))
+    mockList.mockResolvedValue({ items, total: 25, page: 1 })
+    const { status, body } = await call('GET', '/knowledge-bases?limit=20&offset=5')
+    expect(status).toBe(200)
+    expect(mockList).toHaveBeenCalledWith({ page: 1, limit: 25 })
+    expect(body.knowledge_bases).toHaveLength(20)
+    expect(body.knowledge_bases[0].id).toBe('kb-5')
+    expect(body.knowledge_bases[19].id).toBe('kb-24')
   })
 
   it('GET /knowledge-bases/:id returns a base', async () => {

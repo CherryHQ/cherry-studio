@@ -72,14 +72,12 @@ import { IpcChannel } from '@shared/IpcChannel'
 import type { ShortcutPreferenceKey } from '@shared/shortcuts/types'
 import type { StorageHealth } from '@shared/types/storageMonitor'
 import type {
+  ApiGatewayStatusResult,
   FileMetadata,
   Notification,
   OcrProvider,
   OcrResult,
-  RestartApiGatewayStatusResult,
   S3Config,
-  StartApiGatewayStatusResult,
-  StopApiGatewayStatusResult,
   SupportedOcrFile,
   WebDavConfig
 } from '@types'
@@ -935,9 +933,9 @@ const api = {
     }): Promise<{ streamId: string }> => ipcRenderer.invoke(IpcChannel.Ai_Translate_Open, req)
   },
   apiGateway: {
-    start: (): Promise<StartApiGatewayStatusResult> => ipcRenderer.invoke(IpcChannel.ApiGateway_Start),
-    restart: (): Promise<RestartApiGatewayStatusResult> => ipcRenderer.invoke(IpcChannel.ApiGateway_Restart),
-    stop: (): Promise<StopApiGatewayStatusResult> => ipcRenderer.invoke(IpcChannel.ApiGateway_Stop)
+    start: (): Promise<ApiGatewayStatusResult> => ipcRenderer.invoke(IpcChannel.ApiGateway_Start),
+    restart: (): Promise<ApiGatewayStatusResult> => ipcRenderer.invoke(IpcChannel.ApiGateway_Restart),
+    stop: (): Promise<ApiGatewayStatusResult> => ipcRenderer.invoke(IpcChannel.ApiGateway_Stop)
   },
   skill: {
     list: (agentId?: string): Promise<SkillResult<InstalledSkill[]>> =>

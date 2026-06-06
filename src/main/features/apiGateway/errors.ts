@@ -3,7 +3,7 @@ import { isDev } from '@main/core/platform'
 import { DataApiError } from '@shared/data/api'
 import type { ErrorHandler } from 'elysia'
 
-import { responsesService } from './services/responses'
+import type { OutputFormat } from './adapters'
 
 const logger = loggerService.withContext('ApiGatewayErrors')
 
@@ -33,60 +33,120 @@ const restEnvelope = (code: string, message: string, details?: Record<string, un
 })
 
 /**
+ * Best-effort `{ status, message, type }` from any thrown value — a real `Error`,
+ * an OpenAI / AI-SDK error, or a `SerializedError` plain object (carrying
+ * `statusCode` / `message`, as produced by `AiStreamManager.onError` and thrown by
+ * `processMessage`). Reads only status/message/type; the AI-SDK `APICallError`
+ * extras (`stack`, `url`, `requestBodyValues`, `responseBody`, `responseHeaders`)
+ * are intentionally ignored so they never reach the client.
+ */
+function extractError(error: unknown): { status?: number; message?: string; type?: string } {
+  if (error === null || typeof error !== 'object') return {}
+  const e = error as {
+    status?: unknown
+    statusCode?: unknown
+    message?: unknown
+    error?: { type?: unknown; message?: unknown }
+  }
+  // Prefer `status` (HTTP libs / OpenAI APIError), then `statusCode` (AI-SDK APICallError / SerializedError).
+  const status = typeof e.status === 'number' ? e.status : typeof e.statusCode === 'number' ? e.statusCode : undefined
+  // Prefer a structured provider message, then the error's own `message`.
+  const message =
+    typeof e.error?.message === 'string' ? e.error.message : typeof e.message === 'string' ? e.message : undefined
+  const type = typeof e.error?.type === 'string' ? e.error.type : undefined
+  return { status, message, type }
+}
+
+/**
+ * Resolve the client-facing message. Provider errors (those carrying a real HTTP
+ * status) surface their own message — that's the v1 passthrough behaviour, and the
+ * message is not the leak this guards against (the AI-SDK extras are, and those are
+ * dropped in `extractError`). Unexpected internal errors (no status) are gated
+ * behind `isDev` so internal detail never ships to clients in production.
+ */
+function safeMessage(status: number | undefined, message: string | undefined): string {
+  const fallback = 'Internal server error'
+  if (status !== undefined) return message && message.length > 0 ? message : fallback
+  return isDev && message && message.length > 0 ? message : fallback
+}
+
+/** Anthropic error `type` for a status (the Anthropic vocabulary uses `api_error` for 5xx). */
+const anthropicTypeForStatus = (status: number): string => {
+  if (status === 401 || status === 403) return 'authentication_error'
+  if (status === 404) return 'not_found_error'
+  if (status === 429) return 'rate_limit_error'
+  if (status >= 500) return 'api_error'
+  return 'invalid_request_error'
+}
+
+/**
  * Shape an unknown provider/runtime error into the Anthropic error envelope.
- * Inlined from the former `MessagesService` — this is its only remaining consumer.
+ * Inlined from the former `MessagesService`. Status-driven so it correctly maps the
+ * `SerializedError` plain objects `processMessage` now throws (which carry
+ * `statusCode`, not `status`) instead of flattening every provider error to 500.
  */
 function transformAnthropicError(error: unknown): {
   statusCode: number
   errorResponse: { type: 'error'; error: { type: string; message: string; requestId?: string } }
 } {
-  const err = error as { status?: unknown; error?: { type?: unknown; message?: unknown }; request_id?: unknown }
-  let statusCode = 500
-  let errorType = 'api_error'
-  let errorMessage = 'Internal server error'
-
-  const anthropicStatus = typeof err.status === 'number' ? err.status : undefined
-  const anthropicError = err.error
-
-  if (anthropicStatus) {
-    statusCode = anthropicStatus
-  }
-  if (typeof anthropicError?.type === 'string') {
-    errorType = anthropicError.type
-  }
-  if (typeof anthropicError?.message === 'string') {
-    errorMessage = anthropicError.message
-  } else if (error instanceof Error && error.message) {
-    errorMessage = error.message
-  }
-
-  // Without a structured Anthropic error, fall back to the error's own `.status`.
-  // Don't regex-match `error.message`: upstreams already expose `.status`/`.code`,
-  // and a genuine 500 whose message mentions "connection" must not become a 502.
-  if (!anthropicStatus && error instanceof Error) {
-    const maybeStatus = (error as { status?: unknown }).status
-    const status = typeof maybeStatus === 'number' ? maybeStatus : null
-    if (status !== null) {
-      statusCode = status
-      errorType =
-        status === 401 || status === 403
-          ? 'authentication_error'
-          : status === 429
-            ? 'rate_limit_error'
-            : status >= 500 && status < 600
-              ? 'api_error'
-              : 'invalid_request_error'
-    }
-  }
-
-  const safeErrorMessage =
-    typeof errorMessage === 'string' && errorMessage.length > 0 ? errorMessage : 'Internal server error'
-  const requestId = typeof err.request_id === 'string' ? err.request_id : undefined
-
+  const { status, message, type } = extractError(error)
+  const statusCode = status ?? 500
+  const errorType = type ?? anthropicTypeForStatus(statusCode)
+  const requestId =
+    error !== null && typeof error === 'object' && typeof (error as { request_id?: unknown }).request_id === 'string'
+      ? (error as { request_id: string }).request_id
+      : undefined
   return {
     statusCode,
-    errorResponse: { type: 'error', error: { type: errorType, message: safeErrorMessage, requestId } }
+    errorResponse: { type: 'error', error: { type: errorType, message: safeMessage(status, message), requestId } }
   }
+}
+
+/** OpenAI error `{ type, code }` for a status. */
+const openaiTypeAndCodeForStatus = (status: number): { type: string; code: string } => {
+  if (status === 401) return { type: 'authentication_error', code: 'invalid_api_key' }
+  if (status === 403) return { type: 'forbidden_error', code: 'forbidden' }
+  if (status === 404) return { type: 'not_found_error', code: 'not_found' }
+  if (status === 429) return { type: 'rate_limit_error', code: 'rate_limit_exceeded' }
+  if (status >= 500) return { type: 'server_error', code: 'internal_error' }
+  return { type: 'invalid_request_error', code: 'bad_request' }
+}
+
+/**
+ * Shape an unknown provider/runtime error into the OpenAI error envelope (used by
+ * `/v1/chat` and `/v1/responses`). Replaces the former `ResponsesService.transformError`:
+ * status-driven rather than `instanceof OpenAI.APIError` + message regex, so it
+ * correctly maps the `SerializedError` plain objects `processMessage` now throws.
+ */
+function transformOpenAiError(error: unknown): {
+  statusCode: number
+  errorResponse: { error: { message: string; type: string; code: string } }
+} {
+  const { status, message } = extractError(error)
+  const statusCode = status ?? 500
+  const { type, code } = openaiTypeAndCodeForStatus(statusCode)
+  return { statusCode, errorResponse: { error: { message: safeMessage(status, message), type, code } } }
+}
+
+/**
+ * Build a per-dialect SSE error frame for a terminal stream error or idle-timeout.
+ * Reuses the same envelopes the HTTP handlers emit (message/type only — never the
+ * AI-SDK error extras), so the streaming and non-streaming error shapes match and
+ * neither leaks `stack` / `url` / request/response bodies to the client.
+ */
+export function buildStreamErrorFrame(outputFormat: OutputFormat, error: unknown): string {
+  if (outputFormat === 'anthropic') {
+    const { errorResponse } = transformAnthropicError(error)
+    return `event: error\ndata: ${JSON.stringify(errorResponse)}\n\n`
+  }
+  const { errorResponse } = transformOpenAiError(error)
+  if (outputFormat === 'openai-responses') {
+    // Responses streams use named events; `type: 'error'` is the event discriminator,
+    // distinct from the OpenAI error `type` (carried as part of the message envelope).
+    const { message, code } = errorResponse.error
+    return `event: error\ndata: ${JSON.stringify({ type: 'error', code, message })}\n\n`
+  }
+  return `data: ${JSON.stringify(errorResponse)}\n\n`
 }
 
 /**
@@ -116,7 +176,7 @@ export function anthropicErrorHandler({ code, error, status }: GatewayErrorConte
 /**
  * OpenAI-dialect error handler (`/v1/chat`, `/v1/responses`). Shapes built-in
  * failures and `DataApiError`s into the OpenAI envelope; delegates
- * provider/runtime errors to `responsesService.transformError`.
+ * provider/runtime errors to `transformOpenAiError`.
  */
 export function openaiErrorHandler({ code, error, status }: GatewayErrorContext) {
   if (code === 'VALIDATION') {
@@ -136,7 +196,7 @@ export function openaiErrorHandler({ code, error, status }: GatewayErrorContext)
   }
 
   logger.error('API gateway request error', { code, error })
-  const { statusCode, errorResponse } = responsesService.transformError(error)
+  const { statusCode, errorResponse } = transformOpenAiError(error)
   return status(statusCode, errorResponse)
 }
 

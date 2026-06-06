@@ -26,6 +26,7 @@ export class SseListener implements StreamListener {
   private readonly mapChunk?: (chunk: UIMessageChunk) => unknown | null
   private readonly formatChunk?: (chunk: UIMessageChunk) => string | string[] | null
   private readonly formatDone?: () => string
+  private readonly formatPaused?: () => string
   private readonly formatError?: (error: StreamErrorResult['error']) => string
 
   constructor(
@@ -38,8 +39,14 @@ export class SseListener implements StreamListener {
       mapChunk?: (chunk: UIMessageChunk) => unknown | null
       /** Map UIMessageChunk to pre-formatted SSE frame string(s), written verbatim. Takes precedence over mapChunk. */
       formatChunk?: (chunk: UIMessageChunk) => string | string[] | null
-      /** Terminal marker written on done/paused. Default: `data: [DONE]\n\n`. */
+      /** Terminal marker written on a clean done. Default: `data: [DONE]\n\n`. */
       formatDone?: () => string
+      /**
+       * Terminal frame written on pause (idle-timeout / mid-stream abort). Lets a
+       * consumer signal truncation instead of a clean completion. Default: same as
+       * `formatDone` (the historical behaviour).
+       */
+      formatPaused?: () => string
       /** Format a terminal stream error into an SSE frame. Default: a generic `{type:'error'}` JSON frame. */
       formatError?: (error: StreamErrorResult['error']) => string
     }
@@ -48,6 +55,7 @@ export class SseListener implements StreamListener {
     this.mapChunk = options?.mapChunk
     this.formatChunk = options?.formatChunk
     this.formatDone = options?.formatDone
+    this.formatPaused = options?.formatPaused
     this.formatError = options?.formatError
   }
 
@@ -79,7 +87,11 @@ export class SseListener implements StreamListener {
   // oxlint-disable-next-line no-unused-vars
   onPaused(_result: StreamPausedResult): void {
     if (!this.alive()) return
-    this.write(this.formatDone ? this.formatDone() : 'data: [DONE]\n\n')
+    if (this.formatPaused) {
+      this.write(this.formatPaused())
+    } else {
+      this.write(this.formatDone ? this.formatDone() : 'data: [DONE]\n\n')
+    }
     this.end()
   }
 

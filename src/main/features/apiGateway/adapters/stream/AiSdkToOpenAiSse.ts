@@ -257,18 +257,6 @@ export class AiSdkToOpenAISse extends BaseStreamAdapter<OpenAICompatibleChunk> {
       arguments: argsString
     })
 
-    // Track in state
-    const blockIndex = this.allocateBlockIndex()
-    this.state.blocks.set(blockIndex, {
-      type: 'tool_use',
-      index: blockIndex,
-      started: true,
-      content: argsString,
-      toolId: toolCallId,
-      toolName,
-      toolInput: argsString
-    })
-
     // Emit tool call chunk
     const chunk = this.createBaseChunk({
       tool_calls: [

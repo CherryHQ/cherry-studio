@@ -3,12 +3,7 @@ import { agentService } from '@data/services/AgentService'
 import { loggerService } from '@logger'
 import { type Activatable, BaseService, Injectable, Phase, ServicePhase } from '@main/core/lifecycle'
 import { IpcChannel } from '@shared/IpcChannel'
-import type {
-  ApiGatewayConfig,
-  RestartApiGatewayStatusResult,
-  StartApiGatewayStatusResult,
-  StopApiGatewayStatusResult
-} from '@types'
+import type { ApiGatewayConfig, ApiGatewayStatusResult } from '@types'
 import { v4 as uuidv4 } from 'uuid'
 
 import { ApiGateway } from '../server'
@@ -19,24 +14,55 @@ const logger = loggerService.withContext('ApiGatewayService')
 @ServicePhase(Phase.WhenReady)
 export class ApiGatewayService extends BaseService implements Activatable {
   private apiGateway: ApiGateway | null = null
+  /** Latest desired running state — the `enabled` preference, or the boot auto-start decision. */
+  private desiredEnabled = false
+  /** True while `reconcile()` is converging; re-entrant callers just update `desiredEnabled`. */
+  private reconciling = false
 
   protected async onInit(): Promise<void> {
     this.registerIpcHandlers()
     this.registerDisposable(
       application.get('PreferenceService').subscribeChange('feature.api_gateway.enabled', (enabled) => {
-        if (enabled) {
-          this.activate().catch((error) => logger.error('Auto-start on preference change failed', error as Error))
-        } else {
-          this.deactivate().catch((error) => logger.error('Auto-stop on preference change failed', error as Error))
-        }
+        this.desiredEnabled = enabled
+        void this.reconcile()
       })
     )
   }
 
   protected async onReady(): Promise<void> {
-    const shouldStart = await this.shouldAutoStart()
-    if (shouldStart) {
-      await this.activate()
+    this.desiredEnabled = await this.shouldAutoStart()
+    await this.reconcile()
+  }
+
+  /**
+   * Converge the gateway's running state to `desiredEnabled`. The lifecycle's
+   * `activate`/`deactivate` short-circuit while a transition is in flight (`_activating`),
+   * which would silently drop an opposing toggle that lands during the boot bind window.
+   * Rather than a queue, this re-reads `desiredEnabled` after each transition settles: a
+   * re-entrant call just updates the desired state and returns, and the running loop picks
+   * it up. A transition that throws is logged and NOT retried for the same target, so a
+   * persistent failure (e.g. port in use) can't spin the loop.
+   */
+  private async reconcile(): Promise<void> {
+    if (this.reconciling) return
+    this.reconciling = true
+    try {
+      let applied: boolean | undefined
+      while (applied !== this.desiredEnabled) {
+        const target = this.desiredEnabled
+        try {
+          if (target) {
+            await this.activate()
+          } else {
+            await this.deactivate()
+          }
+        } catch (error) {
+          logger.error(`API gateway ${target ? 'activation' : 'deactivation'} during reconcile failed`, error as Error)
+        }
+        applied = target
+      }
+    } finally {
+      this.reconciling = false
     }
   }
 
@@ -82,6 +108,8 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   async start(): Promise<void> {
     try {
+      // Keep the desired state coherent so a later reconcile() doesn't undo this.
+      this.desiredEnabled = true
       await this.activate()
       logger.info('API Gateway started successfully')
     } catch (error: any) {
@@ -92,6 +120,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   async stop(): Promise<void> {
     try {
+      this.desiredEnabled = false
       await this.deactivate()
       logger.info('API Gateway stopped successfully')
     } catch (error: any) {
@@ -102,6 +131,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
 
   async restart(): Promise<void> {
     try {
+      this.desiredEnabled = true
       await this.deactivate()
       await this.activate()
       logger.info('API Gateway restarted successfully')
@@ -138,7 +168,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
   }
 
   private registerIpcHandlers(): void {
-    this.ipcHandle(IpcChannel.ApiGateway_Start, async (): Promise<StartApiGatewayStatusResult> => {
+    this.ipcHandle(IpcChannel.ApiGateway_Start, async (): Promise<ApiGatewayStatusResult> => {
       try {
         await this.start()
         return { success: true }
@@ -147,7 +177,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
       }
     })
 
-    this.ipcHandle(IpcChannel.ApiGateway_Stop, async (): Promise<StopApiGatewayStatusResult> => {
+    this.ipcHandle(IpcChannel.ApiGateway_Stop, async (): Promise<ApiGatewayStatusResult> => {
       try {
         await this.stop()
         return { success: true }
@@ -156,7 +186,7 @@ export class ApiGatewayService extends BaseService implements Activatable {
       }
     })
 
-    this.ipcHandle(IpcChannel.ApiGateway_Restart, async (): Promise<RestartApiGatewayStatusResult> => {
+    this.ipcHandle(IpcChannel.ApiGateway_Restart, async (): Promise<ApiGatewayStatusResult> => {
       try {
         await this.restart()
         return { success: true }

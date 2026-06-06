@@ -28,11 +28,27 @@ import { v4 as uuidv4 } from 'uuid'
 
 import type { InputFormat, InputParamsMap, ISseFormatter, IStreamAdapter, OutputFormat } from '../adapters'
 import { MessageConverterFactory, StreamAdapterFactory } from '../adapters'
+import { buildStreamErrorFrame } from '../errors'
 import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache'
 
 const logger = loggerService.withContext('ProxyStreamService')
 
 const GATEWAY_STREAM_IDLE_TIMEOUT_MS = 20 * 60_000
+
+/**
+ * Terminal error for a stream that paused without finishing — the 20-minute idle
+ * timeout firing, or a mid-stream abort. `AiStreamManager` classifies both as
+ * `paused` (not `error`), so the gateway must synthesize a failure: a 504 for the
+ * non-streaming path and a dialect error frame for the streaming path. Without
+ * this, a truncated reply is indistinguishable from a real completion.
+ */
+function streamInterruptedError(): Error & { status: number } {
+  const error = new Error('Upstream stream ended before completion (idle timeout or abort)') as Error & {
+    status: number
+  }
+  error.status = 504
+  return error
+}
 
 /** Union of all supported input params. */
 type InputParams = InputParamsMap[InputFormat]
@@ -171,9 +187,22 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
                 .finalizeEvents()
                 .map((event) => formatter.formatEvent(event))
                 .join('') + formatter.formatDone(),
+            // Pause = idle-timeout / mid-stream abort (never a clean finish). Emit a
+            // dialect error frame so the client can tell a truncation from completion.
+            // (Skipped when the client itself disconnected — `closed` is already set.)
+            formatPaused: () => {
+              logger.warn('Gateway stream paused before completion; emitting truncation error frame', {
+                providerId,
+                modelId,
+                streamId
+              })
+              return buildStreamErrorFrame(outputFormat, streamInterruptedError())
+            },
+            // Project the error into the per-dialect, isDev-gated envelope — never the
+            // raw SerializedError (which would leak stack / url / request+response bodies).
             formatError: (error) => {
               onError?.(error)
-              return `data: ${JSON.stringify({ type: 'error', error })}\n\n`
+              return buildStreamErrorFrame(outputFormat, error)
             }
           }
         )
@@ -229,7 +258,22 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
       adapter.transformChunk(chunk)
     },
     onDone: () => resolveDone(),
-    onPaused: () => resolveDone(),
+    onPaused: () => {
+      // Pause = idle-timeout / abort, not a clean completion. If the client
+      // disconnected (`aborted`), the response is moot and `done` is already
+      // resolved by `onAbort`; otherwise surface a 504 so a truncated reply is
+      // not returned as a successful 200.
+      if (aborted) {
+        resolveDone()
+        return
+      }
+      logger.warn('Gateway non-streaming request paused before completion (idle timeout)', {
+        providerId,
+        modelId,
+        streamId
+      })
+      rejectDone(streamInterruptedError())
+    },
     onError: (result) => rejectDone(result.error),
     isAlive: () => !aborted
   }

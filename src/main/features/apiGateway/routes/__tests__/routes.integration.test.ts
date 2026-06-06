@@ -44,11 +44,6 @@ vi.mock('../../services/models', () => ({
   modelsService: { getModels: mockGetModels }
 }))
 
-// errors.ts statically imports responsesService; stub it so buildApp stays hermetic.
-vi.mock('../../services/responses', () => ({
-  responsesService: { transformError: vi.fn() }
-}))
-
 // Knowledge routes use the v2 KB service (pulled in by buildApp); stubbed so
 // building the app stays hermetic (knowledge behaviour tested separately).
 vi.mock('@data/services/KnowledgeBaseService', () => ({
@@ -174,6 +169,58 @@ describe('API gateway routes (integration)', () => {
       expect(status).toBe(200)
       expect(body.object).toBe('list')
       expect(body.data).toHaveLength(1)
+    })
+  })
+
+  describe('thrown provider errors → dialect status mapping (not a flat 500)', () => {
+    const chat = { model: 'openai:gpt-4', messages: [{ role: 'user', content: 'hi' }] }
+
+    it('chat: a 429 SerializedError → OpenAI 429 envelope, message preserved, extras dropped', async () => {
+      mockProcessMessage.mockRejectedValueOnce({
+        name: 'AI_APICallError',
+        message: 'rate limited',
+        stack: 'secret stack',
+        statusCode: 429,
+        url: 'https://provider/v1',
+        requestBodyValues: { prompt: 'SECRET PROMPT' },
+        responseBody: 'secret body'
+      })
+      const { status, body } = await read(await post(app, '/v1/chat/completions', chat))
+      expect(status).toBe(429)
+      expect(body.error.type).toBe('rate_limit_error')
+      expect(body.error.message).toBe('rate limited')
+      const serialized = JSON.stringify(body)
+      expect(serialized).not.toContain('secret stack')
+      expect(serialized).not.toContain('SECRET PROMPT')
+      expect(serialized).not.toContain('secret body')
+      expect(serialized).not.toContain('https://provider/v1')
+    })
+
+    it('chat: a 403 SerializedError → OpenAI 403 forbidden envelope', async () => {
+      mockProcessMessage.mockRejectedValueOnce({ name: 'Error', message: 'no access', stack: null, statusCode: 403 })
+      const { status, body } = await read(await post(app, '/v1/chat/completions', chat))
+      expect(status).toBe(403)
+      expect(body.error.type).toBe('forbidden_error')
+    })
+
+    it('messages: a 401 SerializedError → Anthropic 401 authentication envelope', async () => {
+      mockProcessMessage.mockRejectedValueOnce({ name: 'Error', message: 'bad key', stack: null, statusCode: 401 })
+      const { status, body } = await read(
+        await post(app, '/v1/messages', { model: 'anthropic:claude', messages: [{ role: 'user', content: 'hi' }] })
+      )
+      expect(status).toBe(401)
+      expect(body.type).toBe('error') // Anthropic envelope
+      expect(body.error.type).toBe('authentication_error')
+      expect(body.error.message).toBe('bad key')
+    })
+
+    it('responses: an internal error with no status → 500 with the message gated out', async () => {
+      mockProcessMessage.mockRejectedValueOnce(new Error('internal detail leak'))
+      const { status, body } = await read(await post(app, '/v1/responses', { model: 'openai:gpt-4', input: 'hi' }))
+      expect(status).toBe(500)
+      expect(body.error.type).toBe('server_error')
+      // NODE_ENV !== 'development' under test → internal messages are not leaked.
+      expect(body.error.message).toBe('Internal server error')
     })
   })
 })

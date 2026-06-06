@@ -31,6 +31,7 @@ type ResponseStreamEvent = OpenAI.Responses.ResponseStreamEvent
 type ResponseUsage = OpenAI.Responses.ResponseUsage
 type ResponseOutputMessage = OpenAI.Responses.ResponseOutputMessage
 type ResponseOutputText = OpenAI.Responses.ResponseOutputText
+type ResponseFunctionToolCall = OpenAI.Responses.ResponseFunctionToolCall
 
 /**
  * Minimal response fields required for streaming.
@@ -63,6 +64,10 @@ type ResponsesFinishReason = 'stop' | 'max_output_tokens' | 'content_filter' | '
  */
 interface ToolCallState {
   index: number
+  /** Position in the response `output[]` (the message item occupies index 0). */
+  outputIndex: number
+  /** The function_call output item's id (`fc_<callId>`). */
+  itemId: string
   callId: string
   name: string
   arguments: string
@@ -260,7 +265,12 @@ export class AiSdkToOpenAIResponsesSse extends BaseStreamAdapter<ResponseStreamE
   }
 
   /**
-   * Handle tool call
+   * Handle a tool call. Client tools resolve in a single `tool-input-available`
+   * chunk (full args, no incremental deltas), so the function_call output item's
+   * whole lifecycle is emitted at once: `output_item.added` →
+   * `function_call_arguments.delta` → `function_call_arguments.done` →
+   * `output_item.done`. The items are also surfaced in the terminal
+   * `response.completed` output[] and in the non-streaming response.
    */
   private handleToolCall(params: { toolCallId: string; toolName: string; args: unknown }): void {
     const { toolCallId, toolName, args } = params
@@ -270,16 +280,75 @@ export class AiSdkToOpenAIResponsesSse extends BaseStreamAdapter<ResponseStreamE
     }
 
     const index = this.currentToolCallIndex++
-    const argsString = JSON.stringify(args)
+    // The message item occupies output_index 0; function calls follow it.
+    const outputIndex = index + 1
+    const itemId = `fc_${toolCallId}`
+    // Default arg-less calls to `{}` — `JSON.stringify(undefined)` is `undefined`,
+    // which would emit an invalid (empty) arguments string.
+    const argsString = JSON.stringify(args ?? {})
 
     this.toolCalls.set(toolCallId, {
       index,
+      outputIndex,
+      itemId,
       callId: toolCallId,
       name: toolName,
       arguments: argsString
     })
 
+    const inProgressItem: ResponseFunctionToolCall = {
+      type: 'function_call',
+      id: itemId,
+      call_id: toolCallId,
+      name: toolName,
+      arguments: '',
+      status: 'in_progress'
+    }
+
+    this.emit({
+      type: 'response.output_item.added',
+      output_index: outputIndex,
+      item: inProgressItem,
+      sequence_number: this.nextSequence()
+    })
+
+    this.emit({
+      type: 'response.function_call_arguments.delta',
+      item_id: itemId,
+      output_index: outputIndex,
+      delta: argsString,
+      sequence_number: this.nextSequence()
+    })
+
+    this.emit({
+      type: 'response.function_call_arguments.done',
+      item_id: itemId,
+      output_index: outputIndex,
+      name: toolName,
+      arguments: argsString,
+      sequence_number: this.nextSequence()
+    })
+
+    this.emit({
+      type: 'response.output_item.done',
+      output_index: outputIndex,
+      item: { ...inProgressItem, arguments: argsString, status: 'completed' },
+      sequence_number: this.nextSequence()
+    })
+
     this.finishReason = 'tool_calls'
+  }
+
+  /** The accumulated function_call output items (completed), in call order. */
+  private buildFunctionCallItems(): ResponseFunctionToolCall[] {
+    return Array.from(this.toolCalls.values()).map((tc) => ({
+      type: 'function_call',
+      id: tc.itemId,
+      call_id: tc.callId,
+      name: tc.name,
+      arguments: tc.arguments,
+      status: 'completed'
+    }))
   }
 
   /**
@@ -363,25 +432,24 @@ export class AiSdkToOpenAIResponsesSse extends BaseStreamAdapter<ResponseStreamE
     this.emit(outputItemDoneEvent)
 
     // Emit response.completed
+    const completedMessage: ResponseOutputMessage = {
+      type: 'message',
+      id: this.outputItemId,
+      status: 'completed',
+      role: 'assistant',
+      content: [
+        {
+          type: 'output_text',
+          text: this.textContent,
+          annotations: []
+        } as ResponseOutputText
+      ]
+    }
     const completedEvent: ResponseStreamEvent = {
       type: 'response.completed',
       response: {
         ...this.buildResponseForEvent('completed'),
-        output: [
-          {
-            type: 'message',
-            id: this.outputItemId,
-            status: 'completed',
-            role: 'assistant',
-            content: [
-              {
-                type: 'output_text',
-                text: this.textContent,
-                annotations: []
-              } as ResponseOutputText
-            ]
-          }
-        ]
+        output: [completedMessage, ...this.buildFunctionCallItems()]
       },
       sequence_number: this.nextSequence()
     }
@@ -413,7 +481,7 @@ export class AiSdkToOpenAIResponsesSse extends BaseStreamAdapter<ResponseStreamE
       created_at: this.createdAt,
       status: 'completed',
       model: this.state.model,
-      output: [outputMessage],
+      output: [outputMessage, ...this.buildFunctionCallItems()],
       usage: this.buildUsage()
     }
 

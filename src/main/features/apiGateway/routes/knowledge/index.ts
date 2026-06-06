@@ -26,13 +26,16 @@ export const knowledgeRoutes = new Elysia({ prefix: '/knowledge-bases' })
   .get(
     '/',
     async ({ query }) => {
-      // Gateway exposes offset/limit; the data service is page-based.
+      // Gateway exposes a true offset/limit; the data service is page-based
+      // (offset = (page-1)*limit), so a non-page-aligned offset can't be expressed
+      // as a single page. Fetch the window from the start and slice the exact range.
+      // The KB list is small (bounded by the user's configured bases), matching the
+      // `limit: 1000` fetch-all pattern used by `/search` below.
       const limit = query.limit ?? 20
       const offset = query.offset ?? 0
-      const page = Math.floor(offset / limit) + 1
 
-      const { items, total } = await knowledgeBaseService.list({ page, limit })
-      return { knowledge_bases: items, total }
+      const { items, total } = await knowledgeBaseService.list({ page: 1, limit: offset + limit })
+      return { knowledge_bases: items.slice(offset, offset + limit), total }
     },
     {
       query: PaginationQuerySchema,
