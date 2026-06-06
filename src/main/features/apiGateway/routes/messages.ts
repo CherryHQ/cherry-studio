@@ -16,12 +16,17 @@ export function estimateTokenCount(input: CountTokensInput): number {
   const { messages, system } = input
   let totalTokens = 0
 
+  // The body is only loosely validated (`content: z.unknown()`), so every block
+  // is untrusted — guard each access so a malformed entry yields a best-effort
+  // estimate instead of throwing a 500.
   if (system) {
     if (typeof system === 'string') {
       totalTokens += approximateTokenSize(system)
     } else if (Array.isArray(system)) {
       for (const block of system) {
-        if (block.type === 'text' && block.text) totalTokens += approximateTokenSize(block.text)
+        if (block && block.type === 'text' && typeof block.text === 'string') {
+          totalTokens += approximateTokenSize(block.text)
+        }
       }
     }
   }
@@ -31,18 +36,18 @@ export function estimateTokenCount(input: CountTokensInput): number {
       totalTokens += approximateTokenSize(msg.content)
     } else if (Array.isArray(msg.content)) {
       for (const block of msg.content) {
-        if (block.type === 'text' && block.text) {
+        if (!block || typeof block !== 'object') continue
+        if (block.type === 'text' && typeof block.text === 'string') {
           totalTokens += approximateTokenSize(block.text)
         } else if (block.type === 'image') {
-          if (block.source.type === 'base64') {
-            const dataSize = block.source.data.length * 0.75
-            totalTokens += Math.floor(dataSize / 100)
+          if (block.source?.type === 'base64' && typeof block.source.data === 'string') {
+            totalTokens += Math.floor((block.source.data.length * 0.75) / 100)
           } else {
             totalTokens += 1000
           }
         } else if (block.type === 'tool_use') {
-          if (block.name) totalTokens += approximateTokenSize(block.name)
-          if (block.input) totalTokens += approximateTokenSize(JSON.stringify(block.input))
+          if (typeof block.name === 'string') totalTokens += approximateTokenSize(block.name)
+          if (block.input !== undefined) totalTokens += approximateTokenSize(JSON.stringify(block.input))
           totalTokens += 10
         } else if (block.type === 'tool_result') {
           if (typeof block.content === 'string') {
@@ -51,7 +56,7 @@ export function estimateTokenCount(input: CountTokensInput): number {
             for (const item of block.content) {
               if (typeof item === 'string') {
                 totalTokens += approximateTokenSize(item)
-              } else if (item.type === 'text' && item.text) {
+              } else if (item && typeof item === 'object' && item.type === 'text' && typeof item.text === 'string') {
                 totalTokens += approximateTokenSize(item.text)
               }
             }
