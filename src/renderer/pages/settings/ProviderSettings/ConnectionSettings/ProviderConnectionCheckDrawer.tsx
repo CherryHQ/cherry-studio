@@ -10,7 +10,7 @@ import { drawerClasses } from '../primitives/ProviderSettingsPrimitives'
 
 interface ProviderConnectionCheckDrawerProps {
   open: boolean
-  models: Model[]
+  models: readonly Model[]
   apiKeys: string[]
   isSubmitting: boolean
   onClose: () => void
