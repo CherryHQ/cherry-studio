@@ -1,4 +1,5 @@
 import { loggerService } from '@logger'
+import { DIAGNOSTICS_ENABLED, SLOW_THRESHOLD_MS } from '@main/core/diagnostics'
 import { ipcMain, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
 
 import { getServiceName } from './decorators'
@@ -114,7 +115,19 @@ export abstract class BaseService {
     channel: string,
     listener: (event: IpcMainInvokeEvent, ...args: any[]) => Promise<any> | any
   ): Disposable {
-    ipcMain.handle(channel, listener)
+    // Opt-in (CS_DIAGNOSTICS): time each invocation, log handlers slower than 50ms.
+    const handler = DIAGNOSTICS_ENABLED
+      ? async (event: IpcMainInvokeEvent, ...args: any[]) => {
+          const t0 = performance.now()
+          try {
+            return await listener(event, ...args)
+          } finally {
+            const dt = performance.now() - t0
+            if (dt > SLOW_THRESHOLD_MS.ipcHandler) logger.info(`[Diagnostics/ipc] ${dt.toFixed(1)}ms ${channel}`)
+          }
+        }
+      : listener
+    ipcMain.handle(channel, handler)
     return this.registerDisposable(() => ipcMain.removeHandler(channel))
   }
 
@@ -232,6 +245,20 @@ export abstract class BaseService {
    * Called by LifecycleManager
    */
   public async _doInit(): Promise<void> {
+    if (DIAGNOSTICS_ENABLED) {
+      const name = getServiceName(this.constructor as ServiceConstructor)
+      const t0 = performance.now()
+      this._state = LifecycleState.Initializing
+      await this.onInit()
+      const t1 = performance.now()
+      this._state = LifecycleState.Ready
+      await this.onReady()
+      const t2 = performance.now()
+      logger.info(
+        `[Diagnostics/_doInit] ${name}  onInit=${(t1 - t0).toFixed(1)}ms  onReady=${(t2 - t1).toFixed(1)}ms  total=${(t2 - t0).toFixed(1)}ms`
+      )
+      return
+    }
     this._state = LifecycleState.Initializing
     await this.onInit()
     this._state = LifecycleState.Ready
