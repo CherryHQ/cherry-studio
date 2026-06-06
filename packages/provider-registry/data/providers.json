@@ -737,6 +737,10 @@
         "anthropic-messages": {
           "baseUrl": "https://dashscope.aliyuncs.com/apps/anthropic",
           "adapterFamily": "anthropic"
+        },
+        "openai-responses": {
+          "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1/",
+          "adapterFamily": "openai"
         }
       },
       "metadata": {
@@ -777,6 +781,10 @@
         "openai-chat-completions": {
           "baseUrl": "https://ark.cn-beijing.volces.com/api/v3/",
           "adapterFamily": "openai-compatible"
+        },
+        "openai-responses": {
+          "baseUrl": "https://ark.cn-beijing.volces.com/api/v3/",
+          "adapterFamily": "openai"
         }
       },
       "metadata": {

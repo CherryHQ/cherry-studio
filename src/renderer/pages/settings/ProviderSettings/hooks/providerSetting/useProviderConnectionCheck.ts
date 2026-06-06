@@ -8,7 +8,6 @@ import { checkApi as runCheckApi } from '@renderer/services/ApiService'
 import { formatApiKeys, splitApiKeyString } from '@renderer/utils/api'
 import { serializeHealthCheckError } from '@renderer/utils/error'
 import type { Model } from '@shared/data/types/model'
-import { isRerankModel } from '@shared/utils/model'
 import { isEmpty } from 'lodash'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -37,7 +36,7 @@ export function useProviderConnectionCheck(providerId: string) {
     checking: false
   })
 
-  const checkableModels = useMemo(() => models.filter((model) => !isRerankModel(model)), [models])
+  const checkableModels = models
   const checkableApiKeys = useMemo(() => splitApiKeyString(formatApiKeys(inputApiKey)).filter(Boolean), [inputApiKey])
 
   // AbortController + runId pair guards against stale callbacks landing on the
