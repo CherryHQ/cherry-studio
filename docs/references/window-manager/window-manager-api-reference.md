@@ -38,12 +38,14 @@ These operate on the declarative `behavior` layer per instance and are exposed o
 
 ## Queries
 
+Naming convention: methods with `Info` in the name return serializable `WindowInfo` snapshots (safe across IPC); methods without it return live `BrowserWindow` instances.
+
 | Method | Signature | Description |
 |--------|-----------|-------------|
 | `getWindow` | `(windowId: string) => BrowserWindow \| undefined` | Get BrowserWindow instance by ID. |
 | `getWindowInfo` | `(windowId: string) => WindowInfo \| undefined` | Get serializable window metadata. |
-| `getAllWindows` | `() => ManagedWindow[]` | Get all managed windows. |
-| `getWindowsByType` | `(type: WindowType) => WindowInfo[]` | Get all windows of a specific type. |
+| `getWindowsByType` | `(type: WindowType) => BrowserWindow[]` | Get all live window instances of a specific type (skips destroyed). |
+| `getWindowInfosByType` | `(type: WindowType) => WindowInfo[]` | Get serializable metadata for all windows of a specific type. |
 | `getWindowId` | `(window: BrowserWindow) => string \| undefined` | Resolve window ID from BrowserWindow. |
 | `getWindowIdByWebContents` | `(wc: WebContents) => string \| undefined` | Resolve window ID from WebContents (e.g., IPC `event.sender`). |
 | `count` | `(getter)` | Number of managed windows. |

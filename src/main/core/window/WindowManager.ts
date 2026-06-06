@@ -630,13 +630,17 @@ export class WindowManager extends BaseService {
     }
   }
 
-  /** Get all managed windows info */
-  public getAllWindows(): ManagedWindow[] {
-    return Array.from(this.windows.values())
+  /** Get all live BrowserWindow instances of a specific type (skips destroyed) */
+  public getWindowsByType(type: WindowType): BrowserWindow[] {
+    const windowIds = this.windowsByType.get(type)
+    if (!windowIds) return []
+    return Array.from(windowIds)
+      .map((id) => this.windows.get(id)?.window)
+      .filter((window): window is BrowserWindow => window !== undefined && !window.isDestroyed())
   }
 
-  /** Get all windows of a specific type */
-  public getWindowsByType(type: WindowType): WindowInfo[] {
+  /** Get serializable metadata for all windows of a specific type */
+  public getWindowInfosByType(type: WindowType): WindowInfo[] {
     const windowIds = this.windowsByType.get(type)
     if (!windowIds) return []
     return Array.from(windowIds)

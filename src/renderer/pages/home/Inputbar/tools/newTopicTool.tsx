@@ -1,5 +1,5 @@
 import { ActionIconButton } from '@renderer/components/Buttons'
-import { useShortcutDisplay } from '@renderer/hooks/useShortcuts'
+import { useResolvedCommand } from '@renderer/features/command'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
 import { Tooltip } from 'antd'
 import { MessageSquareDiff } from 'lucide-react'
@@ -16,7 +16,7 @@ const newTopicTool = defineTool({
 
   render: function NewTopicRender(context) {
     const { actions, t } = context
-    const newTopicShortcut = useShortcutDisplay('topic.new')
+    const newTopicShortcut = useResolvedCommand('topic.create').shortcutLabel
 
     return (
       <Tooltip

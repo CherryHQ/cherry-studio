@@ -1,8 +1,8 @@
 import { loggerService } from '@logger'
 import { ActionIconButton } from '@renderer/components/Buttons'
+import { useResolvedCommand } from '@renderer/features/command'
 import { useCreateDefaultSession } from '@renderer/hooks/agents/useCreateDefaultSession'
 import { useSettings } from '@renderer/hooks/useSettings'
-import { useShortcutDisplay } from '@renderer/hooks/useShortcuts'
 import { defineTool, registerTool, TopicType } from '@renderer/pages/home/Inputbar/types'
 import { Tooltip } from 'antd'
 import { MessageSquareDiff } from 'lucide-react'
@@ -17,7 +17,7 @@ const createSessionTool = defineTool({
 
   render: function CreateSessionRender(context) {
     const { t, assistant, session } = context
-    const newTopicShortcut = useShortcutDisplay('topic.new')
+    const newTopicShortcut = useResolvedCommand('topic.create').shortcutLabel
     const { apiServer } = useSettings()
     const sessionAgentId = session?.agentId
 

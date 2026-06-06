@@ -186,7 +186,15 @@ export class AgentService {
     const orderByClauses =
       sortBy === 'updatedAt'
         ? [orderFn(sortField), asc(agentsTable.id)]
-        : [sql`CASE WHEN ${pinTable.orderKey} IS NULL THEN 1 ELSE 0 END`, asc(pinTable.orderKey), orderFn(sortField)]
+        : [
+            sql`CASE WHEN ${pinTable.orderKey} IS NULL THEN 1 ELSE 0 END`,
+            asc(pinTable.orderKey),
+            orderFn(sortField),
+            // Deterministic tiebreaker: createdAt is Date.now() (ms) and can collide across
+            // rapid inserts, so equal-sortField rows would otherwise fall back to query-plan
+            // order. Matches the house pattern (JobService/KnowledgeItemService list).
+            orderFn(agentsTable.id)
+          ]
 
     // Default lists remain pin-aware. The updatedAt branch is pure recency so
     // global search ranks agents the same way as assistants.
