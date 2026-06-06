@@ -6173,6 +6173,8 @@
       "default_assistant_model": "默认助手模型",
       "default_assistant_model_description": "创建新助手时使用的模型，如果助手未设置模型，则使用此模型",
       "empty": "没有模型",
+      "group_disable": "关闭此分组",
+      "group_enable": "开启此分组",
       "list_title": "模型列表",
       "manage": {
         "add_custom_model": "添加自定义模型",
