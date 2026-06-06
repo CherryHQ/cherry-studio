@@ -108,8 +108,9 @@ for the deprecated v1 constant.
 ```
 preboot/
 ├── singleInstance.ts    claims Electron's single-instance lock and exits
-│                        second instances. Runs FIRST so second instances
-│                        never reach resolveUserDataLocation/initPathRegistry.
+│                        second instances. Runs after userData resolution so
+│                        dev instances with different userData suffixes use
+│                        isolated locks.
 ├── userDataLocation.ts  decides where userData lives (dev suffix or
 │                        BootConfig-driven), performs relaunch copy
 ├── chromiumFlags.ts     Chromium startup flags (command-line switches and
@@ -130,6 +131,29 @@ preboot/
 The directory is intentionally flat. New domains add a sibling file rather
 than a subdirectory. Subdirectories are reserved for the case where one
 domain genuinely needs multiple files.
+
+### Development userData suffix
+
+Unpackaged development runs never read packaged BootConfig relocation state.
+Instead, `userDataLocation.ts` appends a suffix to Electron's default
+`userData` directory before the path registry and single-instance lock are
+initialized. The default suffix is `Dev`.
+
+Set `MAIN_VITE_USER_DATA_DEV_SUFFIX` to run multiple development instances with
+isolated app data and locks. Use `.env` for a persistent local default:
+
+```bash
+MAIN_VITE_USER_DATA_DEV_SUFFIX=DevQuito
+```
+
+Or pass it inline for a single dev process:
+
+```bash
+MAIN_VITE_USER_DATA_DEV_SUFFIX=DevQuito pnpm dev
+```
+
+The trimmed suffix is appended to the default path. Empty or whitespace-only
+values fall back to `Dev`.
 
 ### No barrel export
 
