@@ -30,7 +30,6 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
   actions
 }) => {
   const { t } = useTranslation()
-  const totalModelCount = capabilityModelCounts.all ?? 0
 
   return (
     <div className={modelListClasses.headerToolStack}>
@@ -38,9 +37,14 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
         <div className="min-w-0">
           <div className={modelListClasses.titleWrap}>
             <h2 className={modelListClasses.sectionTitle}>{t('settings.models.list_title')}</h2>
-            <span className={modelListClasses.countMeta}>
-              {t('settings.models.available_count', { count: totalModelCount })}
-            </span>
+            {!hasNoModels ? (
+              <ModelListCapabilityChips
+                capabilityOptions={capabilityOptions}
+                selectedCapabilityFilter={selectedCapabilityFilter}
+                capabilityModelCounts={capabilityModelCounts}
+                onSelectCapabilityFilter={setSelectedCapabilityFilter}
+              />
+            ) : null}
           </div>
         </div>
         <div className={modelListClasses.titleActions}>
@@ -67,15 +71,6 @@ const ModelListHeader: React.FC<ModelListHeaderProps> = ({
           {actions}
         </div>
       </div>
-
-      {!hasNoModels ? (
-        <ModelListCapabilityChips
-          capabilityOptions={capabilityOptions}
-          selectedCapabilityFilter={selectedCapabilityFilter}
-          capabilityModelCounts={capabilityModelCounts}
-          onSelectCapabilityFilter={setSelectedCapabilityFilter}
-        />
-      ) : null}
     </div>
   )
 }

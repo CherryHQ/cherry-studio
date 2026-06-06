@@ -206,7 +206,7 @@ export const modelListClasses = {
   titleRow: 'flex min-w-0 w-full flex-wrap items-center justify-between gap-3',
   /** Model list header stack — matches model list block. */
   headerToolStack: 'flex min-w-0 w-full flex-col gap-[length:var(--space-stack-lg)]',
-  titleWrap: 'flex min-w-0 items-baseline gap-[length:var(--space-inline-md)]',
+  titleWrap: 'flex min-w-0 items-center gap-[length:var(--space-inline-md)]',
   titleActions: 'flex max-w-full flex-1 flex-wrap items-center justify-end gap-2',
   toolbarDesignIcon: 'size-4 shrink-0',
   /** Connected top-row model list actions; uses shared ButtonGroup + Button outline primitives. */
@@ -240,17 +240,17 @@ export const modelListClasses = {
     'size-8 min-h-0 rounded-[length:var(--cs-radius-md)] border-[color:var(--color-border-fg-muted)] bg-background p-0 text-foreground shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground disabled:opacity-40 [&_svg]:size-3.5',
   addIconButton:
     'size-8 rounded-lg border-[color:var(--color-border-fg-muted)] bg-transparent text-muted-foreground/70 shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground',
-  capabilityTabsRoot: 'relative block min-w-0 w-full overflow-hidden',
-  capabilityTabsList:
-    'flex h-[30px] min-w-0 max-w-full items-center justify-start gap-3 overflow-x-auto overflow-y-hidden p-0 pr-8 scroll-ps-[100px] scroll-pe-[100px] scroll-smooth [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden',
-  capabilityTabActive:
-    'ps-model-list-cap-chip relative h-[30px] min-h-0 min-w-0 max-w-full shrink-0 gap-1.5 rounded-none px-1.5 py-1.5 text-foreground shadow-none hover:bg-transparent hover:text-foreground after:absolute after:bottom-0 after:left-1.5 after:right-1.5 after:h-[2px] after:bg-foreground after:content-[""]',
-  capabilityTabIdle:
-    'ps-model-list-cap-chip relative h-[30px] min-h-0 min-w-0 max-w-full shrink-0 gap-1.5 rounded-none px-1.5 py-1.5 text-foreground-muted shadow-none hover:bg-transparent hover:text-foreground/80 after:absolute after:bottom-0 after:left-1.5 after:right-1.5 after:h-[2px] after:bg-transparent after:content-[""]',
+  capabilityFilterRoot: 'flex min-w-0 shrink-0 items-center gap-1',
+  capabilityFilterButton:
+    'h-7 min-h-0 max-w-[170px] gap-1.5 rounded-[length:var(--cs-radius-md)] border-[color:var(--color-border-fg-muted)] bg-background px-2 py-0 text-[length:var(--font-size-body-xs)] leading-[var(--line-height-body-xs)] text-foreground shadow-none hover:bg-[var(--color-surface-fg-subtle)] hover:text-foreground disabled:opacity-40',
+  capabilityFilterButtonIconOnly: 'size-7 px-0',
+  capabilityFilterButtonActive: 'border-[color:var(--color-border-active)] bg-[var(--color-surface-fg-subtle)]',
+  capabilityFilterLabel: 'min-w-0 truncate',
+  capabilityFilterClear:
+    'inline-flex size-5 min-h-0 shrink-0 items-center justify-center rounded-md p-0 text-muted-foreground/45 transition-colors hover:bg-[var(--color-surface-fg-subtle)] hover:text-muted-foreground/80',
+  capabilityFilterMenu: 'w-fit min-w-40 rounded-xl p-1.5',
+  capabilityFilterMenuItem: 'h-8 rounded-lg px-2.5 text-sm',
   capabilityTabIcon: 'size-3 shrink-0',
-  capabilityTabLabel: 'min-w-0 truncate text-xs leading-4',
-  capabilityTabsFadeMask:
-    'pointer-events-none absolute inset-y-0 right-0 w-[100px] bg-[linear-gradient(to_right,transparent_0%,var(--background)_85%)]',
   subsectionRow: 'flex min-w-0 items-center justify-between gap-2',
   subsectionTitleWrap: 'flex min-w-0 items-center gap-2',
   subsectionActions: 'flex shrink-0 items-center gap-2 pr-1',
