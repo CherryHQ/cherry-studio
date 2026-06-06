@@ -16,7 +16,7 @@ const { mockStart, mockStop, captured } = vi.hoisted(() => ({
   captured: { prefHandler: undefined as ((enabled: boolean) => void) | undefined }
 }))
 
-vi.mock('../../server', () => ({
+vi.mock('../server', () => ({
   ApiGateway: vi.fn(() => ({ start: mockStart, stop: mockStop, isRunning: () => true }))
 }))
 
@@ -104,5 +104,30 @@ describe('ApiGatewayService reconcile', () => {
     await new Promise((resolve) => setTimeout(resolve, 20))
     expect(mockStart).toHaveBeenCalledTimes(1)
     expect(service.isActivated).toBe(false)
+  })
+
+  it('converges when a pref change opposes an in-flight direct IPC start (single owner)', async () => {
+    // The residual race: a direct IPC start() in flight + an opposing pref change.
+    // With start() routed through the same queue, the pref change can't be dropped.
+    const service = new ApiGatewayService()
+    await service._doInit()
+
+    // Attach the settle handler synchronously so the in-flight rejection (start() ends
+    // up !isActivated because desired flipped) is never an unhandled rejection.
+    const startSettled = service.start().then(
+      () => 'resolved',
+      () => 'rejected'
+    )
+    await vi.waitFor(() => expect(mockStart).toHaveBeenCalledTimes(1))
+
+    // Opposing disable lands while the IPC activation is still in flight.
+    captured.prefHandler!(false)
+
+    // Complete the activation; the running reconcile must then deactivate to converge.
+    startResolvers[0]()
+    await vi.waitFor(() => expect(mockStop).toHaveBeenCalledTimes(1))
+    await startSettled
+
+    expect(service.isActivated).toBe(false) // converged to desiredEnabled === false
   })
 })
