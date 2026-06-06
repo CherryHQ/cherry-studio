@@ -2489,6 +2489,10 @@
       "completed": "Завершено",
       "error": "Произошла ошибка",
       "groupHeader": "{{count}} вызовов инструментов",
+      "groupHeaderMessages": "{{count}} сообщений",
+      "groupHeaderThinking": "{{count}} размышлений",
+      "groupHeaderWithDetails": "{{toolCount}} вызовов инструментов · {{thinkingCount}} размышлений · {{messageCount}} сообщений",
+      "groupHeaderWithMessages": "{{toolCount}} вызовов инструментов · {{messageCount}} сообщений",
       "invoking": "Вызов",
       "labels": {
         "bash": "Баш",
@@ -2907,6 +2911,11 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "notice": "Продолжая, вы подтверждаете, что прочитали и соглашаетесь с",
+      "period": ".",
+      "policy": "Политика конфиденциальности"
+    },
     "select_model": {
       "change_later": "Вы можете изменить это в любое время в настройках",
       "start": "Начать",

@@ -2489,6 +2489,10 @@
       "completed": "Hoàn thành",
       "error": "Đã xảy ra lỗi",
       "groupHeader": "{{count}} appels d’outil",
+      "groupHeaderMessages": "{{count}} messages",
+      "groupHeaderThinking": "{{count}} thoughts",
+      "groupHeaderWithDetails": "{{toolCount}} appels d’outil · {{thinkingCount}} thoughts · {{messageCount}} messages",
+      "groupHeaderWithMessages": "{{toolCount}} appels d’outil · {{messageCount}} messages",
       "invoking": "Invocando",
       "labels": {
         "bash": "Bash",
@@ -2907,6 +2911,11 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "notice": "Bằng cách tiếp tục, bạn xác nhận rằng bạn đã đọc và đồng ý với",
+      "period": ".",
+      "policy": "Chính sách quyền riêng tư"
+    },
     "select_model": {
       "change_later": "Bạn có thể thay đổi điều này bất cứ lúc nào trong phần cài đặt",
       "start": "Bắt đầu",

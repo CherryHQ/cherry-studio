@@ -2489,6 +2489,10 @@
       "completed": "Abgeschlossen",
       "error": "Fehler aufgetreten",
       "groupHeader": "{{count}} Toolaufrufe",
+      "groupHeaderMessages": "{{count}} Nachrichten",
+      "groupHeaderThinking": "{{count}} Gedanken",
+      "groupHeaderWithDetails": "{{toolCount}} Toolaufrufe · {{thinkingCount}} Gedanken · {{messageCount}} Nachrichten",
+      "groupHeaderWithMessages": "{{toolCount}} Toolaufrufe · {{messageCount}} Nachrichten",
       "invoking": "Wird aufgerufen",
       "labels": {
         "bash": "Bash",
@@ -2907,6 +2911,11 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "notice": "Durch die Fortsetzung bestätigen Sie, dass Sie gelesen haben und zustimmen",
+      "period": ".",
+      "policy": "Datenschutzerklärung"
+    },
     "select_model": {
       "change_later": "Sie können dies jederzeit in den Einstellungen ändern.",
       "start": "Loslegen",

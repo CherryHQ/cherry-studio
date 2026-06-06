@@ -8,24 +8,27 @@ import { computeModeDefaults, defaultConfiguration } from '@renderer/pages/setti
 import type { PermissionMode } from '@renderer/types'
 import { Tooltip } from 'antd'
 import { uniq } from 'lodash'
-import { FolderPen, Pointer, RefreshCcw, Route } from 'lucide-react'
+import { Check, FolderPen, Pointer, Route, ShieldAlert } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { useCallback, useMemo } from 'react'
 
 import { defineTool, registerTool, TopicType } from '../types'
 
+const FULL_AUTO_MODE_COLOR = '#ff7a45'
+const AUTO_EDIT_MODE_COLOR = '#9254de'
+
 const getPermissionModeIcon = (mode: PermissionMode): ReactNode => {
   switch (mode) {
     case 'default':
-      return <Pointer size={18} color="#00b96b" />
+      return <Pointer size={18} color="var(--color-primary)" />
     case 'plan':
-      return <Route size={18} color="#faad14" />
+      return <Route size={18} color="var(--color-link)" />
     case 'acceptEdits':
-      return <FolderPen size={18} color="#52c41a" />
+      return <FolderPen size={18} color={AUTO_EDIT_MODE_COLOR} />
     case 'bypassPermissions':
-      return <RefreshCcw size={18} color="#722ed1" />
+      return <ShieldAlert size={18} color={FULL_AUTO_MODE_COLOR} />
     default:
-      return <Pointer size={18} color="#00b96b" />
+      return <Pointer size={18} color="var(--color-primary)" />
   }
 }
 
@@ -97,10 +100,19 @@ const permissionModeTool = defineTool({
         title: t('agent.settings.permissionMode.title', 'Permission Mode'),
         symbol: SYMBOL,
         list: permissionModeCards.map((card) => ({
-          label: t(card.titleKey, card.titleFallback),
+          label:
+            card.mode === 'bypassPermissions' ? (
+              <span style={{ color: FULL_AUTO_MODE_COLOR }}>{t(card.titleKey, card.titleFallback)}</span>
+            ) : (
+              t(card.titleKey, card.titleFallback)
+            ),
           description: t(card.descriptionKey, card.descriptionFallback),
           icon: getPermissionModeIcon(card.mode),
           isSelected: card.mode === currentMode,
+          suffix:
+            card.mode === 'bypassPermissions' && card.mode === currentMode ? (
+              <Check size={16} color={FULL_AUTO_MODE_COLOR} />
+            ) : undefined,
           action: () => handleSelectMode(card.mode)
         }))
       })

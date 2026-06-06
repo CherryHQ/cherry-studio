@@ -2489,6 +2489,10 @@
       "completed": "Ολοκληρώθηκε",
       "error": "Προέκυψε σφάλμα",
       "groupHeader": "{{count}} κλήσεις εργαλείων",
+      "groupHeaderMessages": "{{count}} μηνύματα",
+      "groupHeaderThinking": "{{count}} σκέψεις",
+      "groupHeaderWithDetails": "{{toolCount}} κλήσεις εργαλείων · {{thinkingCount}} σκέψεις · {{messageCount}} μηνύματα",
+      "groupHeaderWithMessages": "{{toolCount}} κλήσεις εργαλείων · {{messageCount}} μηνύματα",
       "invoking": "κλήση σε εξέλιξη",
       "labels": {
         "bash": "Μπας",
@@ -2907,6 +2911,11 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "notice": "Συνεχίζοντας, επιβεβαιώνετε ότι έχετε διαβάσει και συμφωνείτε με τους",
+      "period": ".",
+      "policy": "Πολιτική Απορρήτου"
+    },
     "select_model": {
       "change_later": "Μπορείς να το αλλάξεις οποιαδήποτε στιγμή από τις ρυθμίσεις",
       "start": "Ξεκινήστε",

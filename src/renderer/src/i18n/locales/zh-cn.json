@@ -1600,6 +1600,7 @@
     "copy_failed": "复制失败",
     "current": "当前",
     "cut": "剪切",
+    "decline": "拒绝",
     "default": "默认",
     "delete": "删除",
     "delete_confirm": "确定要删除吗？",
@@ -2489,6 +2490,10 @@
       "completed": "已完成",
       "error": "发生错误",
       "groupHeader": "{{count}} 个工具调用",
+      "groupHeaderMessages": "{{count}} 条消息",
+      "groupHeaderThinking": "{{count}} 次思考",
+      "groupHeaderWithDetails": "{{toolCount}} 个工具调用 · {{thinkingCount}} 次思考 · {{messageCount}} 条消息",
+      "groupHeaderWithMessages": "{{toolCount}} 个工具调用 · {{messageCount}} 条消息",
       "invoking": "调用中",
       "labels": {
         "bash": "执行命令",
@@ -2907,6 +2912,12 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "accept_and_continue": "同意并继续",
+      "notice": "继续即表示你已阅读并同意",
+      "period": "。",
+      "policy": "隐私政策"
+    },
     "select_model": {
       "change_later": "您可以随时在设置中更改",
       "start": "开始使用",
@@ -3384,6 +3395,14 @@
     "source": "查看源代码",
     "zoom_in": "放大",
     "zoom_out": "缩小"
+  },
+  "privacy_policy": {
+    "title": "隐私协议"
+  },
+  "privacy_policy_update": {
+    "description_before_link": "我们更新了隐私协议。请查看最新的",
+    "policy": "隐私协议",
+    "title": "隐私协议更新"
   },
   "prompts": {
     "explanation": "帮我解释一下这个概念",

@@ -2489,6 +2489,10 @@
       "completed": "Completado",
       "error": "Se ha producido un error",
       "groupHeader": "{{count}} llamadas a herramientas",
+      "groupHeaderMessages": "{{count}} mensajes",
+      "groupHeaderThinking": "{{count}} pensamientos",
+      "groupHeaderWithDetails": "{{toolCount}} llamadas a herramientas · {{thinkingCount}} pensamientos · {{messageCount}} mensajes",
+      "groupHeaderWithMessages": "{{toolCount}} llamadas a herramientas · {{messageCount}} mensajes",
       "invoking": "En llamada",
       "labels": {
         "bash": "Bash",
@@ -2907,6 +2911,11 @@
     "title": "Ollama"
   },
   "onboarding": {
+    "privacy": {
+      "notice": "Al continuar, confirmas que has leído y aceptas el",
+      "period": ".",
+      "policy": "Política de Privacidad"
+    },
     "select_model": {
       "change_later": "Puedes cambiar esto en cualquier momento desde la configuración.",
       "start": "Comenzar",
