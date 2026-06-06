@@ -2,7 +2,7 @@ import type { MessageCreateParams } from '@anthropic-ai/sdk/resources'
 import { Elysia } from 'elysia'
 import { approximateTokenSize } from 'tokenx'
 
-import { processMessage } from '../services/ProxyStreamService'
+import { processMessage } from '../proxyStream'
 import { CountTokensBodySchema, MessagesBodySchema } from './schemas'
 
 /** Estimate token count from Anthropic-format messages (Claude Code SDK uses this). */

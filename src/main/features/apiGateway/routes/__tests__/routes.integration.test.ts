@@ -35,13 +35,13 @@ vi.mock('@logger', () => ({
 
 // Heavy services are stubbed so building the app + exercising handlers never
 // touches the real AiService / data layer.
-vi.mock('../../services/ProxyStreamService', () => ({
+vi.mock('../../proxyStream', () => ({
   processMessage: mockProcessMessage,
   default: { processMessage: mockProcessMessage }
 }))
 
-vi.mock('../../services/models', () => ({
-  modelsService: { getModels: mockGetModels }
+vi.mock('../../utils/models', () => ({
+  getModels: mockGetModels
 }))
 
 // Knowledge routes use the v2 KB service (pulled in by buildApp); stubbed so

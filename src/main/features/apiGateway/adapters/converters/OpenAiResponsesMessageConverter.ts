@@ -37,7 +37,7 @@ export type ResponsesCreateParams = ResponseCreateParams & {
 /**
  * OpenAI Responses Message Converter
  */
-export class OpenAIResponsesMessageConverter implements IMessageConverter<ResponsesCreateParams> {
+export class OpenAiResponsesMessageConverter implements IMessageConverter<ResponsesCreateParams> {
   /**
    * Convert Responses API params to AI SDK `CherryUIMessage[]`.
    *
@@ -225,4 +225,4 @@ export class OpenAIResponsesMessageConverter implements IMessageConverter<Respon
   }
 }
 
-export default OpenAIResponsesMessageConverter
+export default OpenAiResponsesMessageConverter

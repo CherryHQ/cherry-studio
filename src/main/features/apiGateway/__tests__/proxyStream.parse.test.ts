@@ -26,7 +26,7 @@ vi.mock('@data/services/ProviderService', () => ({
 vi.mock('@logger', () => ({
   loggerService: { withContext: vi.fn(() => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() })) }
 }))
-vi.mock('../../adapters', () => ({
+vi.mock('../adapters', () => ({
   MessageConverterFactory: {
     create: () => ({
       toUIMessages: () => [],
@@ -45,7 +45,7 @@ vi.mock('../../adapters', () => ({
   }
 }))
 
-import { processMessage } from '../ProxyStreamService'
+import { processMessage } from '../proxyStream'
 
 beforeEach(() => {
   vi.clearAllMocks()

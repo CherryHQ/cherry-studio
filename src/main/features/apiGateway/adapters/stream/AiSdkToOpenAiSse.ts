@@ -25,7 +25,7 @@ import type { FinishReason, UIMessageChunk } from 'ai'
 import type { GatewayUsageMetadata, StreamAdapterOptions } from '../interfaces'
 import { BaseStreamAdapter } from './BaseStreamAdapter'
 
-const logger = loggerService.withContext('AiSdkToOpenAISse')
+const logger = loggerService.withContext('AiSdkToOpenAiSse')
 
 /**
  * Use official OpenAI SDK types as base
@@ -36,7 +36,7 @@ type ChatCompletion = OpenAI.Chat.Completions.ChatCompletion
 /**
  * Extended delta type with reasoning_content support (DeepSeek-style)
  */
-interface OpenAICompatibleDelta {
+interface OpenAiCompatibleDelta {
   role?: 'assistant'
   content?: string | null
   reasoning_content?: string | null
@@ -46,10 +46,10 @@ interface OpenAICompatibleDelta {
 /**
  * Extended ChatCompletionChunk with reasoning_content support
  */
-export interface OpenAICompatibleChunk extends Omit<ChatCompletionChunkBase, 'choices'> {
+export interface OpenAiCompatibleChunk extends Omit<ChatCompletionChunkBase, 'choices'> {
   choices: Array<{
     index: number
-    delta: OpenAICompatibleDelta
+    delta: OpenAiCompatibleDelta
     finish_reason: ChatCompletionChunkBase['choices'][0]['finish_reason']
     logprobs?: ChatCompletionChunkBase['choices'][0]['logprobs']
   }>
@@ -58,17 +58,17 @@ export interface OpenAICompatibleChunk extends Omit<ChatCompletionChunkBase, 'ch
 /**
  * Extended ChatCompletion message with reasoning_content support
  */
-interface OpenAICompatibleMessage extends OpenAI.Chat.Completions.ChatCompletionMessage {
+interface OpenAiCompatibleMessage extends OpenAI.Chat.Completions.ChatCompletionMessage {
   reasoning_content?: string | null
 }
 
 /**
  * Extended ChatCompletion with reasoning_content support
  */
-export interface OpenAICompatibleCompletion extends Omit<ChatCompletion, 'choices'> {
+export interface OpenAiCompatibleCompletion extends Omit<ChatCompletion, 'choices'> {
   choices: Array<{
     index: number
-    message: OpenAICompatibleMessage
+    message: OpenAiCompatibleMessage
     finish_reason: ChatCompletion['choices'][0]['finish_reason']
     logprobs: ChatCompletion['choices'][0]['logprobs']
   }>
@@ -77,7 +77,7 @@ export interface OpenAICompatibleCompletion extends Omit<ChatCompletion, 'choice
 /**
  * OpenAI finish reasons
  */
-type OpenAIFinishReason = 'stop' | 'length' | 'tool_calls' | 'content_filter' | null
+type OpenAiFinishReason = 'stop' | 'length' | 'tool_calls' | 'content_filter' | null
 
 /**
  * Tool call state for tracking incremental tool calls
@@ -94,15 +94,15 @@ interface ToolCallState {
  *
  * Uses TransformStream for composable stream processing:
  * ```
- * const adapter = new AiSdkToOpenAISse({ model: 'gpt-4' })
+ * const adapter = new AiSdkToOpenAiSse({ model: 'gpt-4' })
  * const outputStream = adapter.transform(aiSdkStream)
  * ```
  */
-export class AiSdkToOpenAISse extends BaseStreamAdapter<OpenAICompatibleChunk> {
+export class AiSdkToOpenAiSse extends BaseStreamAdapter<OpenAiCompatibleChunk> {
   private createdTimestamp: number
   private toolCalls: Map<string, ToolCallState> = new Map()
   private currentToolCallIndex = 0
-  private finishReason: OpenAIFinishReason = null
+  private finishReason: OpenAiFinishReason = null
   private reasoningContent = ''
 
   constructor(options: StreamAdapterOptions) {
@@ -113,7 +113,7 @@ export class AiSdkToOpenAISse extends BaseStreamAdapter<OpenAICompatibleChunk> {
   /**
    * Create a base chunk structure
    */
-  private createBaseChunk(delta: OpenAICompatibleDelta): OpenAICompatibleChunk {
+  private createBaseChunk(delta: OpenAiCompatibleDelta): OpenAiCompatibleChunk {
     return {
       id: `chatcmpl-${this.state.messageId}`,
       object: 'chat.completion.chunk',
@@ -147,7 +147,7 @@ export class AiSdkToOpenAISse extends BaseStreamAdapter<OpenAICompatibleChunk> {
    */
   protected processChunk(chunk: UIMessageChunk): void {
     // Log only the chunk type — full payloads can carry prompt/tool/reasoning content.
-    logger.silly('AiSdkToOpenAISse - Processing chunk', { type: chunk.type })
+    logger.silly('AiSdkToOpenAiSse - Processing chunk', { type: chunk.type })
     switch (chunk.type) {
       // === Text Events ===
       // OpenAI has no separate text-start/text-end; only deltas matter.
@@ -306,7 +306,7 @@ export class AiSdkToOpenAISse extends BaseStreamAdapter<OpenAICompatibleChunk> {
    */
   protected finalize(): void {
     // Emit final chunk with finish_reason and usage
-    const finalChunk: OpenAICompatibleChunk = {
+    const finalChunk: OpenAiCompatibleChunk = {
       id: `chatcmpl-${this.state.messageId}`,
       object: 'chat.completion.chunk',
       created: this.createdTimestamp,
@@ -331,7 +331,7 @@ export class AiSdkToOpenAISse extends BaseStreamAdapter<OpenAICompatibleChunk> {
   /**
    * Build a complete ChatCompletion object for non-streaming responses
    */
-  buildNonStreamingResponse(): OpenAICompatibleCompletion {
+  buildNonStreamingResponse(): OpenAiCompatibleCompletion {
     // Collect text content
     let content: string | null = null
     const textBlock = this.state.blocks.get(0)
@@ -358,7 +358,7 @@ export class AiSdkToOpenAISse extends BaseStreamAdapter<OpenAICompatibleChunk> {
       }
     }))
 
-    const message: OpenAICompatibleMessage = {
+    const message: OpenAiCompatibleMessage = {
       role: 'assistant',
       content,
       refusal: null,
@@ -388,4 +388,4 @@ export class AiSdkToOpenAISse extends BaseStreamAdapter<OpenAICompatibleChunk> {
   }
 }
 
-export default AiSdkToOpenAISse
+export default AiSdkToOpenAiSse

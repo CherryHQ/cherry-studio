@@ -7,11 +7,11 @@
 
 import { AnthropicSseFormatter } from '../formatters/AnthropicSseFormatter'
 import { OpenAiResponsesSseFormatter } from '../formatters/OpenAiResponsesSseFormatter'
-import { OpenAISseFormatter } from '../formatters/OpenAiSseFormatter'
+import { OpenAiSseFormatter } from '../formatters/OpenAiSseFormatter'
 import type { ISseFormatter, IStreamAdapter, OutputFormat, StreamAdapterOptions } from '../interfaces'
 import { AiSdkToAnthropicSse } from '../stream/AiSdkToAnthropicSse'
-import { AiSdkToOpenAIResponsesSse } from '../stream/AiSdkToOpenAiResponsesSse'
-import { AiSdkToOpenAISse } from '../stream/AiSdkToOpenAiSse'
+import { AiSdkToOpenAiResponsesSse } from '../stream/AiSdkToOpenAiResponsesSse'
+import { AiSdkToOpenAiSse } from '../stream/AiSdkToOpenAiSse'
 
 /**
  * Registry entry for adapter and formatter classes
@@ -50,14 +50,14 @@ export class StreamAdapterFactory {
     [
       'openai',
       {
-        adapterClass: AiSdkToOpenAISse,
-        formatterClass: OpenAISseFormatter
+        adapterClass: AiSdkToOpenAiSse,
+        formatterClass: OpenAiSseFormatter
       }
     ],
     [
       'openai-responses',
       {
-        adapterClass: AiSdkToOpenAIResponsesSse,
+        adapterClass: AiSdkToOpenAiResponsesSse,
         formatterClass: OpenAiResponsesSseFormatter
       }
     ]

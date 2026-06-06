@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
-import { type ExtendedChatCompletionCreateParams, OpenAIMessageConverter } from '../converters/OpenAiMessageConverter'
+import { type ExtendedChatCompletionCreateParams, OpenAiMessageConverter } from '../converters/OpenAiMessageConverter'
 
-const converter = new OpenAIMessageConverter()
+const converter = new OpenAiMessageConverter()
 
 /** Build a minimal valid params object; spread overrides the fields under test. */
 const params = (overrides: Partial<ExtendedChatCompletionCreateParams>): ExtendedChatCompletionCreateParams =>
   ({ model: 'provider:model', messages: [], ...overrides }) as ExtendedChatCompletionCreateParams
 
-describe('OpenAIMessageConverter', () => {
+describe('OpenAiMessageConverter', () => {
   it('maps a developer message to a system UIMessage instead of dropping it', () => {
     const messages = converter.toUIMessages(params({ messages: [{ role: 'developer', content: 'Be terse.' }] }))
     expect(messages).toHaveLength(1)

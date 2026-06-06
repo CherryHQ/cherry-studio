@@ -3,7 +3,7 @@ import type { FinishReason, UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
 
 import { OpenAiResponsesSseFormatter } from '../formatters/OpenAiResponsesSseFormatter'
-import { AiSdkToOpenAIResponsesSse } from '../stream/AiSdkToOpenAiResponsesSse'
+import { AiSdkToOpenAiResponsesSse } from '../stream/AiSdkToOpenAiResponsesSse'
 
 type ResponseStreamEvent = OpenAI.Responses.ResponseStreamEvent
 
@@ -53,10 +53,10 @@ async function collectEvents(stream: ReadableStream<ResponseStreamEvent>): Promi
 
 const typesOf = (events: ResponseStreamEvent[]) => events.map((e) => e.type)
 
-describe('AiSdkToOpenAIResponsesSse', () => {
+describe('AiSdkToOpenAiResponsesSse', () => {
   describe('Text Processing', () => {
     it('emits the full lifecycle for a text-only response', async () => {
-      const adapter = new AiSdkToOpenAIResponsesSse({ model: 'openai:gpt-4' })
+      const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-4' })
       const stream = createMockStream([createTextDelta('Hello'), createTextDelta(' world'), createFinish('stop')])
       const events = await collectEvents(adapter.transform(stream))
       const types = typesOf(events)
@@ -86,7 +86,7 @@ describe('AiSdkToOpenAIResponsesSse', () => {
 
   describe('Tool Call Processing (regression: function_call must not be dropped)', () => {
     it('emits a function_call output item lifecycle and includes it in response.completed', async () => {
-      const adapter = new AiSdkToOpenAIResponsesSse({ model: 'openai:gpt-4' })
+      const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-4' })
       const stream = createMockStream([
         { type: 'tool-input-available', toolCallId: 'call_1', toolName: 'get_weather', input: { city: 'SF' } },
         createFinish('tool-calls')
@@ -130,7 +130,7 @@ describe('AiSdkToOpenAIResponsesSse', () => {
     })
 
     it('does not emit duplicate function_call items for the same toolCallId', async () => {
-      const adapter = new AiSdkToOpenAIResponsesSse({ model: 'openai:gpt-4' })
+      const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-4' })
       const toolCall: UIMessageChunk = {
         type: 'tool-input-available',
         toolCallId: 'call_1',
@@ -146,7 +146,7 @@ describe('AiSdkToOpenAIResponsesSse', () => {
 
   describe('Non-Streaming Response', () => {
     it('assembles text plus function_call items into output[]', async () => {
-      const adapter = new AiSdkToOpenAIResponsesSse({ model: 'openai:gpt-4' })
+      const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-4' })
       const stream = createMockStream([
         createTextDelta('Hello'),
         { type: 'tool-input-available', toolCallId: 'call_1', toolName: 'test', input: { a: 1 } },
@@ -175,7 +175,7 @@ describe('AiSdkToOpenAIResponsesSse', () => {
 
   describe('Error Handling', () => {
     it('throws on error chunks (pull path)', async () => {
-      const adapter = new AiSdkToOpenAIResponsesSse({ model: 'openai:gpt-4' })
+      const adapter = new AiSdkToOpenAiResponsesSse({ model: 'openai:gpt-4' })
       const stream = createMockStream([{ type: 'error', errorText: 'boom' }])
       await expect(collectEvents(adapter.transform(stream))).rejects.toThrow('boom')
     })

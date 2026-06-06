@@ -26,9 +26,9 @@ import { createUniqueModelId } from '@shared/data/types/model'
 import type { Provider } from '@shared/data/types/provider'
 import { v4 as uuidv4 } from 'uuid'
 
-import type { InputFormat, InputParamsMap, ISseFormatter, IStreamAdapter, OutputFormat } from '../adapters'
-import { MessageConverterFactory, StreamAdapterFactory } from '../adapters'
-import { buildStreamErrorFrame } from '../errors'
+import type { InputFormat, InputParamsMap, ISseFormatter, IStreamAdapter, OutputFormat } from './adapters'
+import { MessageConverterFactory, StreamAdapterFactory } from './adapters'
+import { buildStreamErrorFrame } from './errors'
 import { googleReasoningCache, openRouterReasoningCache } from './reasoningCache'
 
 const logger = loggerService.withContext('ProxyStreamService')
@@ -306,8 +306,4 @@ export async function processMessage(config: MessageConfig): Promise<Response> {
   } finally {
     signal?.removeEventListener('abort', onAbort)
   }
-}
-
-export default {
-  processMessage
 }

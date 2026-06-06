@@ -1,8 +1,8 @@
 import type { FinishReason, UIMessageChunk } from 'ai'
 import { describe, expect, it } from 'vitest'
 
-import { OpenAISseFormatter } from '../formatters/OpenAiSseFormatter'
-import { AiSdkToOpenAISse, type OpenAICompatibleChunk } from '../stream/AiSdkToOpenAiSse'
+import { OpenAiSseFormatter } from '../formatters/OpenAiSseFormatter'
+import { AiSdkToOpenAiSse, type OpenAiCompatibleChunk } from '../stream/AiSdkToOpenAiSse'
 
 const createTextDelta = (text: string, id = 'text_0'): UIMessageChunk => ({ type: 'text-delta', id, delta: text })
 const createReasoningDelta = (text: string, id = 'reason_0'): UIMessageChunk => ({
@@ -38,8 +38,8 @@ function createMockStream(events: readonly UIMessageChunk[]) {
   })
 }
 
-async function collectEvents(stream: ReadableStream<OpenAICompatibleChunk>): Promise<OpenAICompatibleChunk[]> {
-  const events: OpenAICompatibleChunk[] = []
+async function collectEvents(stream: ReadableStream<OpenAiCompatibleChunk>): Promise<OpenAiCompatibleChunk[]> {
+  const events: OpenAiCompatibleChunk[] = []
   const reader = stream.getReader()
   try {
     for (;;) {
@@ -53,10 +53,10 @@ async function collectEvents(stream: ReadableStream<OpenAICompatibleChunk>): Pro
   return events
 }
 
-describe('AiSdkToOpenAISse', () => {
+describe('AiSdkToOpenAiSse', () => {
   describe('Text Processing', () => {
     it('emits an initial role chunk, content deltas, and a terminal finish chunk', async () => {
-      const adapter = new AiSdkToOpenAISse({ model: 'openai:gpt-4' })
+      const adapter = new AiSdkToOpenAiSse({ model: 'openai:gpt-4' })
       const stream = createMockStream([createTextDelta('Hello'), createTextDelta(' world'), createFinish('stop')])
       const events = await collectEvents(adapter.transform(stream))
 
@@ -75,7 +75,7 @@ describe('AiSdkToOpenAISse', () => {
     })
 
     it('does not emit a chunk for empty text deltas', async () => {
-      const adapter = new AiSdkToOpenAISse({ model: 'openai:gpt-4' })
+      const adapter = new AiSdkToOpenAiSse({ model: 'openai:gpt-4' })
       const stream = createMockStream([createTextDelta(''), createFinish('stop')])
       const events = await collectEvents(adapter.transform(stream))
 
@@ -85,7 +85,7 @@ describe('AiSdkToOpenAISse', () => {
 
   describe('Reasoning Processing', () => {
     it('emits reasoning_content deltas (DeepSeek-style)', async () => {
-      const adapter = new AiSdkToOpenAISse({ model: 'openai:deepseek' })
+      const adapter = new AiSdkToOpenAiSse({ model: 'openai:deepseek' })
       const stream = createMockStream([createReasoningDelta('thinking...'), createTextDelta('answer'), createFinish()])
       const events = await collectEvents(adapter.transform(stream))
 
@@ -96,7 +96,7 @@ describe('AiSdkToOpenAISse', () => {
 
   describe('Tool Call Processing', () => {
     it('emits a tool_calls delta and sets finish_reason to tool_calls', async () => {
-      const adapter = new AiSdkToOpenAISse({ model: 'openai:gpt-4' })
+      const adapter = new AiSdkToOpenAiSse({ model: 'openai:gpt-4' })
       const stream = createMockStream([
         { type: 'tool-input-available', toolCallId: 'call_1', toolName: 'get_weather', input: { city: 'SF' } },
         createFinish('tool-calls')
@@ -114,7 +114,7 @@ describe('AiSdkToOpenAISse', () => {
     })
 
     it('does not emit duplicate tool_calls for the same toolCallId', async () => {
-      const adapter = new AiSdkToOpenAISse({ model: 'openai:gpt-4' })
+      const adapter = new AiSdkToOpenAiSse({ model: 'openai:gpt-4' })
       const toolCall: UIMessageChunk = {
         type: 'tool-input-available',
         toolCallId: 'call_1',
@@ -137,7 +137,7 @@ describe('AiSdkToOpenAISse', () => {
         { aiSdkReason: 'content-filter', expected: 'content_filter' }
       ]
       for (const { aiSdkReason, expected } of cases) {
-        const adapter = new AiSdkToOpenAISse({ model: 'openai:gpt-4' })
+        const adapter = new AiSdkToOpenAiSse({ model: 'openai:gpt-4' })
         const events = await collectEvents(adapter.transform(createMockStream([createFinish(aiSdkReason)])))
         expect(events.at(-1)!.choices[0].finish_reason).toBe(expected)
       }
@@ -146,7 +146,7 @@ describe('AiSdkToOpenAISse', () => {
 
   describe('Usage Tracking', () => {
     it('projects prompt/completion tokens onto the terminal usage', async () => {
-      const adapter = new AiSdkToOpenAISse({ model: 'openai:gpt-4' })
+      const adapter = new AiSdkToOpenAiSse({ model: 'openai:gpt-4' })
       const stream = createMockStream([
         createTextDelta('hi'),
         createFinish('stop', { inputTokens: 12, outputTokens: 7 })
@@ -158,7 +158,7 @@ describe('AiSdkToOpenAISse', () => {
 
   describe('Non-Streaming Response', () => {
     it('assembles content, reasoning_content, and tool_calls into a single completion', async () => {
-      const adapter = new AiSdkToOpenAISse({ model: 'openai:gpt-4' })
+      const adapter = new AiSdkToOpenAiSse({ model: 'openai:gpt-4' })
       const stream = createMockStream([
         createReasoningDelta('because'),
         createTextDelta('Hello world'),
@@ -190,7 +190,7 @@ describe('AiSdkToOpenAISse', () => {
 
   describe('Error Handling', () => {
     it('throws on error chunks (pull path)', async () => {
-      const adapter = new AiSdkToOpenAISse({ model: 'openai:gpt-4' })
+      const adapter = new AiSdkToOpenAiSse({ model: 'openai:gpt-4' })
       const stream = createMockStream([{ type: 'error', errorText: 'boom' }])
       await expect(collectEvents(adapter.transform(stream))).rejects.toThrow('boom')
     })
@@ -198,7 +198,7 @@ describe('AiSdkToOpenAISse', () => {
 
   describe('Edge Cases', () => {
     it('handles an empty stream (still emits role + finish)', async () => {
-      const adapter = new AiSdkToOpenAISse({ model: 'openai:gpt-4' })
+      const adapter = new AiSdkToOpenAiSse({ model: 'openai:gpt-4' })
       const empty = new ReadableStream<UIMessageChunk>({
         start(controller) {
           controller.close()
@@ -210,9 +210,9 @@ describe('AiSdkToOpenAISse', () => {
     })
   })
 
-  describe('OpenAISseFormatter', () => {
+  describe('OpenAiSseFormatter', () => {
     it('formats events as `data: <json>` frames', () => {
-      const formatter = new OpenAISseFormatter()
+      const formatter = new OpenAiSseFormatter()
       const frame = formatter.formatEvent({
         id: 'chatcmpl-1',
         object: 'chat.completion.chunk',
@@ -226,7 +226,7 @@ describe('AiSdkToOpenAISse', () => {
     })
 
     it('emits `data: [DONE]` as the done marker', () => {
-      expect(new OpenAISseFormatter().formatDone()).toBe('data: [DONE]\n\n')
+      expect(new OpenAiSseFormatter().formatDone()).toBe('data: [DONE]\n\n')
     })
   })
 })

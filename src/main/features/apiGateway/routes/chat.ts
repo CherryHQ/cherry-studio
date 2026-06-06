@@ -1,6 +1,6 @@
 import { Elysia } from 'elysia'
 
-import { processMessage } from '../services/ProxyStreamService'
+import { processMessage } from '../proxyStream'
 import { ChatCompletionBodySchema } from './schemas'
 
 /**

@@ -12,23 +12,23 @@
 
 // Stream Adapters
 export { AiSdkToAnthropicSse } from './stream/AiSdkToAnthropicSse'
-export { AiSdkToOpenAIResponsesSse } from './stream/AiSdkToOpenAiResponsesSse'
-export { AiSdkToOpenAISse } from './stream/AiSdkToOpenAiSse'
+export { AiSdkToOpenAiResponsesSse } from './stream/AiSdkToOpenAiResponsesSse'
+export { AiSdkToOpenAiSse } from './stream/AiSdkToOpenAiSse'
 export { BaseStreamAdapter } from './stream/BaseStreamAdapter'
 
 // Message Converters
 export { AnthropicMessageConverter, type ReasoningCache } from './converters/AnthropicMessageConverter'
 export { type JsonSchemaLike, jsonSchemaToZod } from './converters/jsonSchemaToZod'
-export { type ExtendedChatCompletionCreateParams, OpenAIMessageConverter } from './converters/OpenAiMessageConverter'
+export { type ExtendedChatCompletionCreateParams, OpenAiMessageConverter } from './converters/OpenAiMessageConverter'
 export {
-  OpenAIResponsesMessageConverter,
+  OpenAiResponsesMessageConverter,
   type ResponsesCreateParams
 } from './converters/OpenAiResponsesMessageConverter'
 
 // SSE Formatters
 export { AnthropicSseFormatter } from './formatters/AnthropicSseFormatter'
 export { OpenAiResponsesSseFormatter } from './formatters/OpenAiResponsesSseFormatter'
-export { type ChatCompletionChunk, OpenAISseFormatter } from './formatters/OpenAiSseFormatter'
+export { type ChatCompletionChunk, OpenAiSseFormatter } from './formatters/OpenAiSseFormatter'
 
 // Factory
 export {

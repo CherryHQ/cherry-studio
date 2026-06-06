@@ -6,12 +6,12 @@
  */
 
 import type { ISseFormatter } from '../interfaces'
-import type { OpenAICompatibleChunk } from '../stream/AiSdkToOpenAiSse'
+import type { OpenAiCompatibleChunk } from '../stream/AiSdkToOpenAiSse'
 
 /**
  * Re-export the OpenAI-compatible chunk type for convenience
  */
-export type { OpenAICompatibleChunk as ChatCompletionChunk } from '../stream/AiSdkToOpenAiSse'
+export type { OpenAiCompatibleChunk as ChatCompletionChunk } from '../stream/AiSdkToOpenAiSse'
 
 /**
  * OpenAI Compatible SSE Formatter
@@ -23,11 +23,11 @@ export type { OpenAICompatibleChunk as ChatCompletionChunk } from '../stream/AiS
  *
  * @see https://platform.openai.com/docs/api-reference/chat/streaming
  */
-export class OpenAISseFormatter implements ISseFormatter<OpenAICompatibleChunk> {
+export class OpenAiSseFormatter implements ISseFormatter<OpenAiCompatibleChunk> {
   /**
    * Format an OpenAI-compatible event for SSE streaming
    */
-  formatEvent(event: OpenAICompatibleChunk): string {
+  formatEvent(event: OpenAiCompatibleChunk): string {
     return `data: ${JSON.stringify(event)}\n\n`
   }
 
@@ -39,4 +39,4 @@ export class OpenAISseFormatter implements ISseFormatter<OpenAICompatibleChunk> 
   }
 }
 
-export default OpenAISseFormatter
+export default OpenAiSseFormatter

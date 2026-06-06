@@ -53,7 +53,7 @@ interface ExtendedAssistantMessage extends ChatCompletionAssistantMessageParam {
  * - reasoning_content (DeepSeek-style thinking)
  * - reasoning_effort parameter
  */
-export class OpenAIMessageConverter implements IMessageConverter<ExtendedChatCompletionCreateParams> {
+export class OpenAiMessageConverter implements IMessageConverter<ExtendedChatCompletionCreateParams> {
   /**
    * Convert OpenAI ChatCompletionCreateParams to AI SDK `CherryUIMessage[]`.
    *
@@ -252,4 +252,4 @@ export class OpenAIMessageConverter implements IMessageConverter<ExtendedChatCom
   }
 }
 
-export default OpenAIMessageConverter
+export default OpenAiMessageConverter

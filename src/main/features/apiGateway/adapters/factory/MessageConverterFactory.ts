@@ -8,9 +8,9 @@
 import type { MessageCreateParams } from '@anthropic-ai/sdk/resources/messages'
 
 import { AnthropicMessageConverter, type ReasoningCache } from '../converters/AnthropicMessageConverter'
-import { type ExtendedChatCompletionCreateParams, OpenAIMessageConverter } from '../converters/OpenAiMessageConverter'
+import { type ExtendedChatCompletionCreateParams, OpenAiMessageConverter } from '../converters/OpenAiMessageConverter'
 import {
-  OpenAIResponsesMessageConverter,
+  OpenAiResponsesMessageConverter,
   type ResponsesCreateParams
 } from '../converters/OpenAiResponsesMessageConverter'
 import type { IMessageConverter, InputFormat } from '../interfaces'
@@ -61,10 +61,10 @@ export class MessageConverterFactory {
     options: ConverterOptions = {}
   ): IMessageConverter<InputParamsMap[T]> {
     if (format === 'openai') {
-      return new OpenAIMessageConverter() as IMessageConverter<InputParamsMap[T]>
+      return new OpenAiMessageConverter() as IMessageConverter<InputParamsMap[T]>
     }
     if (format === 'openai-responses') {
-      return new OpenAIResponsesMessageConverter() as IMessageConverter<InputParamsMap[T]>
+      return new OpenAiResponsesMessageConverter() as IMessageConverter<InputParamsMap[T]>
     }
     return new AnthropicMessageConverter({
       googleReasoningCache: options.googleReasoningCache,

@@ -1,7 +1,7 @@
 import { Elysia } from 'elysia'
 import * as z from 'zod'
 
-import { modelsService } from '../services/models'
+import { getModels } from '../utils/models'
 
 /** Query filter for `/v1/models`. Coerces string query params to numbers. */
 const ApiModelsFilterSchema = z.object({
@@ -10,10 +10,10 @@ const ApiModelsFilterSchema = z.object({
 })
 
 /**
- * `GET /v1/models`. `modelsService.getModels` never throws (returns an empty
+ * `GET /v1/models`. `getModels` never throws (returns an empty
  * list on failure), so unexpected errors fall through to the global `onError`.
  */
-export const modelsRoutes = new Elysia({ prefix: '/models' }).get('/', ({ query }) => modelsService.getModels(query), {
+export const modelsRoutes = new Elysia({ prefix: '/models' }).get('/', ({ query }) => getModels(query), {
   query: ApiModelsFilterSchema,
   detail: { tags: ['Models'], summary: 'List available models' }
 })

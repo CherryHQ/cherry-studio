@@ -1,16 +1,16 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  OpenAIResponsesMessageConverter,
+  OpenAiResponsesMessageConverter,
   type ResponsesCreateParams
 } from '../converters/OpenAiResponsesMessageConverter'
 
-const converter = new OpenAIResponsesMessageConverter()
+const converter = new OpenAiResponsesMessageConverter()
 
 const params = (overrides: Partial<ResponsesCreateParams>): ResponsesCreateParams =>
   ({ model: 'openai:gpt-4', ...overrides }) as ResponsesCreateParams
 
-describe('OpenAIResponsesMessageConverter.toUIMessages', () => {
+describe('OpenAiResponsesMessageConverter.toUIMessages', () => {
   it('emits a leading system message from instructions and a user message from a string input', () => {
     const msgs = converter.toUIMessages(params({ instructions: 'Be terse.', input: 'hi' }))
     expect(msgs[0]).toMatchObject({ role: 'system', parts: [{ type: 'text', text: 'Be terse.' }] })
@@ -77,7 +77,7 @@ describe('OpenAIResponsesMessageConverter.toUIMessages', () => {
   })
 })
 
-describe('OpenAIResponsesMessageConverter.toAiSdkTools', () => {
+describe('OpenAiResponsesMessageConverter.toAiSdkTools', () => {
   it('builds a ToolSet from function tools and skips non-function tools', () => {
     const tools = converter.toAiSdkTools(
       params({
@@ -95,7 +95,7 @@ describe('OpenAIResponsesMessageConverter.toAiSdkTools', () => {
   })
 })
 
-describe('OpenAIResponsesMessageConverter.extractStreamOptions', () => {
+describe('OpenAiResponsesMessageConverter.extractStreamOptions', () => {
   it('maps Responses sampling params to common options', () => {
     expect(converter.extractStreamOptions(params({ max_output_tokens: 200, temperature: 0.3, top_p: 0.8 }))).toEqual({
       maxOutputTokens: 200,

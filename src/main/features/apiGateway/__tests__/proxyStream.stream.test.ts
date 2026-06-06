@@ -33,7 +33,7 @@ vi.mock('@logger', () => ({
 }))
 
 // Deterministic converter + adapter + formatter so frame output is predictable.
-vi.mock('../../adapters', () => ({
+vi.mock('../adapters', () => ({
   MessageConverterFactory: {
     create: () => ({
       toUIMessages: () => [],
@@ -55,7 +55,7 @@ vi.mock('../../adapters', () => ({
   }
 }))
 
-import { processMessage } from '../ProxyStreamService'
+import { processMessage } from '../proxyStream'
 
 beforeEach(() => {
   vi.clearAllMocks()

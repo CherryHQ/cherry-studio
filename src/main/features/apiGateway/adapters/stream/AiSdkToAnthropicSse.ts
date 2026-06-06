@@ -38,7 +38,7 @@ import type {
 import { loggerService } from '@logger'
 import type { FinishReason, UIMessageChunk } from 'ai'
 
-import { googleReasoningCache, openRouterReasoningCache } from '../../services/reasoningCache'
+import { googleReasoningCache, openRouterReasoningCache } from '../../reasoningCache'
 import type { GatewayUsageMetadata, StreamAdapterOptions } from '../interfaces'
 import { BaseStreamAdapter } from './BaseStreamAdapter'
 
