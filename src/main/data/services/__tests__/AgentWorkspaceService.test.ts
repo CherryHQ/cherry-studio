@@ -1,3 +1,4 @@
+import { agentSessionTable } from '@data/db/schemas/agentSession'
 import { agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { AgentWorkspaceService, agentWorkspaceService } from '@data/services/AgentWorkspaceService'
 import { ErrorCode } from '@shared/data/api'
@@ -71,6 +72,54 @@ describe('AgentWorkspaceService', () => {
       type: 'system'
     })
     expect((await agentWorkspaceService.list()).map((workspace) => workspace.id)).toEqual([userWorkspace.id])
+  })
+
+  it('creates prepared system workspaces as hidden system rows', async () => {
+    const systemWorkspacePath = workspacePath('prepared-system')
+
+    const workspace = await agentWorkspaceService.createPreparedSystemWorkspace({
+      path: systemWorkspacePath,
+      label: '2026-05-25 14:30:12'
+    })
+
+    expect(workspace).toMatchObject({
+      name: 'No project 2026-05-25 14:30:12',
+      path: systemWorkspacePath,
+      type: 'system'
+    })
+    await expect(agentWorkspaceService.getById(workspace.id)).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+    await expect(agentWorkspaceService.getById(workspace.id, { includeSystem: true })).resolves.toMatchObject({
+      id: workspace.id,
+      type: 'system'
+    })
+  })
+
+  it('deletes a workspace with its sessions and returns the system path when needed', async () => {
+    const workspace = await agentWorkspaceService.createPreparedSystemWorkspace({
+      path: workspacePath('system-delete'),
+      label: '2026-05-25 14:30:12'
+    })
+    await dbh.db.insert(agentSessionTable).values({
+      id: 'session-for-system-workspace',
+      name: 'System session',
+      workspaceId: workspace.id,
+      orderKey: 'a0'
+    })
+
+    await expect(
+      agentWorkspaceService.deleteWorkspaceWithSessions(workspace.id, { includeSystem: true })
+    ).resolves.toBe(workspace.path)
+
+    await expect(agentWorkspaceService.getById(workspace.id, { includeSystem: true })).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+    const sessions = await dbh.db
+      .select()
+      .from(agentSessionTable)
+      .where(eq(agentSessionTable.id, 'session-for-system-workspace'))
+    expect(sessions).toHaveLength(0)
   })
 
   it('does not return a system workspace from findOrCreateByPath', async () => {

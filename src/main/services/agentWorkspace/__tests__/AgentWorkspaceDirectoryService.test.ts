@@ -45,9 +45,8 @@ describe('AgentWorkspaceDirectoryService', () => {
     )
 
     expect(workspace).toMatchObject({
-      name: 'No project 2026-05-25 14:30:12',
       path: path.join(root, 'system', '2026-05-25', '143012-12345678'),
-      type: 'system'
+      label: '2026-05-25 14:30:12'
     })
     await expect(stat(workspace.path)).resolves.toMatchObject({ isDirectory: expect.any(Function) })
   })
@@ -73,10 +72,7 @@ describe('AgentWorkspaceDirectoryService', () => {
     await writeFile(sentinelPath, 'keep')
 
     agentWorkspaceDirectoryService.deletePreparedSystemWorkspaceDirectory({
-      id: 'prepared-system-workspace',
-      name: 'Prepared',
-      path: workspacePath,
-      type: 'system'
+      path: workspacePath
     })
 
     await expect(stat(sentinelPath)).resolves.toMatchObject({ isFile: expect.any(Function) })

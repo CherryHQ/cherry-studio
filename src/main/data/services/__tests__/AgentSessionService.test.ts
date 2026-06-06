@@ -57,6 +57,49 @@ describe('AgentSessionService', () => {
     return await agentSessionService.getById(id)
   }
 
+  it('signals when a default workspace directory must be prepared', async () => {
+    const result = await agentSessionService.createWithWorkspaceResolution(
+      {
+        agentId: 'agent-session-test',
+        name: 'Needs default'
+      },
+      { id: 'session-needs-default' }
+    )
+
+    expect(result).toEqual({
+      needsDefaultWorkspace: true,
+      usedDefaultWorkspace: false,
+      session: null
+    })
+    await expect(agentSessionService.getById('session-needs-default')).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+  })
+
+  it('creates a session with a prepared default workspace path', async () => {
+    const defaultWorkspacePath = path.join(root, 'prepared-default')
+
+    const result = await agentSessionService.createWithWorkspaceResolution(
+      {
+        agentId: 'agent-session-test',
+        name: 'Default'
+      },
+      { id: 'session-with-default', defaultWorkspacePath }
+    )
+
+    expect(result).toMatchObject({
+      needsDefaultWorkspace: false,
+      usedDefaultWorkspace: true,
+      session: {
+        id: 'session-with-default',
+        workspace: {
+          path: defaultWorkspacePath,
+          type: 'user'
+        }
+      }
+    })
+  })
+
   it('finds only the latest user workspace path for an agent', async () => {
     const systemWorkspace = await agentWorkspaceWorkflowService.createSystemWorkspaceForSession('system-session')
     await createSession('No project', systemWorkspace.id)
@@ -174,6 +217,23 @@ describe('AgentSessionService', () => {
     }
 
     await expect(agentSessionService.listByCursor()).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+  })
+
+  it('delete wrapper returns a deleted system workspace path', async () => {
+    const workspace = await agentWorkspaceService.createPreparedSystemWorkspace({
+      path: path.join(root, 'system-workspace-for-delete'),
+      label: '2026-05-25 14:30:12'
+    })
+    const session = await createSession('System delete', workspace.id)
+
+    await expect(agentSessionService.delete(session.id)).resolves.toBe(workspace.path)
+
+    await expect(agentSessionService.getById(session.id)).rejects.toMatchObject({
+      code: ErrorCode.NOT_FOUND
+    })
+    await expect(agentWorkspaceService.getById(workspace.id, { includeSystem: true })).rejects.toMatchObject({
       code: ErrorCode.NOT_FOUND
     })
   })

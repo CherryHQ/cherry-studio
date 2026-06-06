@@ -2,6 +2,7 @@ import { application } from '@application'
 import { type AgentWorkspaceRow, agentWorkspaceTable } from '@data/db/schemas/agentWorkspace'
 import { defaultHandlersFor, withSqliteErrors } from '@data/db/sqliteErrors'
 import type { DbOrTx } from '@data/db/types'
+import { agentSessionService } from '@data/services/AgentSessionService'
 import { applyMoves, insertWithOrderKey } from '@data/services/utils/orderKey'
 import { timestampToISO } from '@data/services/utils/rowMappers'
 import { DataApiErrorFactory } from '@shared/data/api'
@@ -12,11 +13,9 @@ import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 
 type WorkspaceLookupOptions = { includeSystem?: boolean }
-export type PreparedSystemWorkspace = {
-  id: string
-  name: string
+type PreparedSystemWorkspaceDirectory = {
   path: string
-  type: Extract<AgentWorkspaceType, 'system'>
+  label: string
 }
 
 export function rowToWorkspace(row: AgentWorkspaceRow): AgentWorkspaceEntity {
@@ -44,6 +43,10 @@ function normalizeWorkspacePath(rawPath: string): string {
 
 function defaultWorkspaceName(workspacePath: string): string {
   return path.basename(workspacePath) || workspacePath
+}
+
+function systemWorkspaceName(label: string): string {
+  return `No project ${label}`
 }
 
 export class AgentWorkspaceService {
@@ -119,9 +122,40 @@ export class AgentWorkspaceService {
     return await this.findOrCreateByPathTx(tx, workspacePath)
   }
 
-  async createPreparedSystemWorkspaceTx(tx: DbOrTx, prepared: PreparedSystemWorkspace): Promise<AgentWorkspaceEntity> {
-    const row = await this.insertWorkspaceRowTx(tx, prepared)
+  async createPreparedSystemWorkspace(prepared: PreparedSystemWorkspaceDirectory): Promise<AgentWorkspaceEntity> {
+    const workspacePath = normalizeWorkspacePath(prepared.path)
+    const row = await withSqliteErrors(
+      () =>
+        application
+          .get('DbService')
+          .withWriteTx((tx) => this.createPreparedSystemWorkspaceRowTx(tx, { ...prepared, path: workspacePath })),
+      {
+        ...defaultHandlersFor('Workspace', workspacePath),
+        unique: () => DataApiErrorFactory.conflict(`Workspace path '${workspacePath}' already exists`, 'Workspace')
+      }
+    )
     return rowToWorkspace(row)
+  }
+
+  async createPreparedSystemWorkspaceTx(
+    tx: DbOrTx,
+    prepared: PreparedSystemWorkspaceDirectory
+  ): Promise<AgentWorkspaceEntity> {
+    const row = await this.createPreparedSystemWorkspaceRowTx(tx, prepared)
+    return rowToWorkspace(row)
+  }
+
+  private async createPreparedSystemWorkspaceRowTx(
+    tx: DbOrTx,
+    prepared: PreparedSystemWorkspaceDirectory
+  ): Promise<AgentWorkspaceRow> {
+    const workspacePath = normalizeWorkspacePath(prepared.path)
+    return await this.insertWorkspaceRowTx(tx, {
+      id: uuidv4(),
+      name: systemWorkspaceName(prepared.label),
+      path: workspacePath,
+      type: 'system'
+    })
   }
 
   private async findOrCreateRowByNormalizedPathTx(
@@ -149,6 +183,25 @@ export class AgentWorkspaceService {
       pkColumn: agentWorkspaceTable.id,
       position: 'first'
     })) as AgentWorkspaceRow
+  }
+
+  async deleteWorkspaceWithSessions(id: string, options: WorkspaceLookupOptions = {}): Promise<string | null> {
+    return await withSqliteErrors(
+      () => application.get('DbService').withWriteTx((tx) => this.deleteWorkspaceWithSessionsTx(tx, id, options)),
+      defaultHandlersFor('Workspace', id)
+    )
+  }
+
+  async deleteWorkspaceWithSessionsTx(
+    tx: DbOrTx,
+    id: string,
+    options: WorkspaceLookupOptions = {}
+  ): Promise<string | null> {
+    const workspace = await this.getRowByIdTx(tx, id, options)
+    const systemWorkspacePath = workspace.type === 'system' ? workspace.path : null
+    await agentSessionService.deleteByWorkspaceTx(tx, id)
+    await this.deleteByIdTx(tx, id)
+    return systemWorkspacePath
   }
 
   async reorder(id: string, anchor: OrderRequest): Promise<void> {

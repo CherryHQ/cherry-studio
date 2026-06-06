@@ -1,5 +1,4 @@
 import { application } from '@application'
-import type { PreparedSystemWorkspace } from '@data/services/AgentWorkspaceService'
 import { loggerService } from '@logger'
 import { DataApiErrorFactory } from '@shared/data/api'
 import fs from 'fs'
@@ -7,6 +6,11 @@ import path from 'path'
 import { v4 as uuidv4 } from 'uuid'
 
 const logger = loggerService.withContext('AgentWorkspaceDirectoryService')
+
+export type PreparedSystemWorkspaceDirectory = {
+  path: string
+  label: string
+}
 
 function normalizeWorkspacePath(rawPath: string): string {
   const trimmed = rawPath.trim()
@@ -75,7 +79,7 @@ export class AgentWorkspaceDirectoryService {
     }
   }
 
-  prepareSystemWorkspaceForSession(sessionId: string, now = new Date()): PreparedSystemWorkspace {
+  prepareSystemWorkspaceForSession(sessionId: string, now = new Date()): PreparedSystemWorkspaceDirectory {
     const { datePart, timePart, label } = formatSystemWorkspaceDate(now)
     const workspacePath = this.ensureWorkspaceDirectory(
       path.join(
@@ -86,10 +90,8 @@ export class AgentWorkspaceDirectoryService {
       )
     )
     return {
-      id: uuidv4(),
-      name: `No project ${label}`,
       path: workspacePath,
-      type: 'system'
+      label
     }
   }
 
@@ -118,7 +120,7 @@ export class AgentWorkspaceDirectoryService {
     }
   }
 
-  deletePreparedSystemWorkspaceDirectory(prepared: PreparedSystemWorkspace): void {
+  deletePreparedSystemWorkspaceDirectory(prepared: { path: string }): void {
     try {
       this.assertSystemWorkspacePath(prepared.path)
       fs.rmdirSync(prepared.path)
