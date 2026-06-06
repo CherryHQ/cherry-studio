@@ -111,7 +111,6 @@ const KnowledgeBaseRow = ({
             onOpenChange={handleMenuOpenChange}
             availableGroups={availableGroups}
             canMoveToUngrouped={base.groupId !== null}
-            onClose={closeContextMenu}
             onRename={handleRenameBase}
             onMove={handleMoveBase}
             onRequestDelete={handleRequestDelete}

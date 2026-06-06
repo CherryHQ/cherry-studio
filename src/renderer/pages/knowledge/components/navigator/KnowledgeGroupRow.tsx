@@ -73,7 +73,6 @@ const KnowledgeGroupRow = ({
               </Button>
             }
             onOpenChange={handleMenuOpenChange}
-            onClose={closeContextMenu}
             onRename={handleRenameGroup}
             onCreateBase={handleCreateBase}
             onRequestDelete={handleRequestDelete}

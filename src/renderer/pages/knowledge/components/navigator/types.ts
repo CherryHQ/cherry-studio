@@ -66,7 +66,6 @@ export interface NavigatorRowMenuProps {
   menuPosition: MenuPosition | null
   trigger: ReactNode
   onOpenChange: (open: boolean) => void
-  onClose: () => void
   children: ReactNode
 }
 
@@ -86,7 +85,6 @@ export interface KnowledgeBaseRowMenuProps {
   trigger: ReactNode
   onOpenChange: (open: boolean) => void
   availableGroups: Group[]
-  onClose: () => void
   onRename: () => void
   canMoveToUngrouped: boolean
   onMove: (groupId: string | null) => Promise<void> | void
@@ -106,7 +104,6 @@ export interface KnowledgeGroupRowMenuProps {
   menuPosition: MenuPosition | null
   trigger: ReactNode
   onOpenChange: (open: boolean) => void
-  onClose: () => void
   onRename: () => void
   onCreateBase: () => void
   onRequestDelete: () => void

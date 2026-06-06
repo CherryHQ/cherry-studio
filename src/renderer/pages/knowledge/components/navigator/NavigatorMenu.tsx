@@ -40,24 +40,9 @@ const NavigatorRowDeleteMenuItem = ({
   )
 }
 
-export const NavigatorRowMenu = ({
-  open,
-  menuPosition,
-  trigger,
-  onOpenChange,
-  onClose,
-  children
-}: NavigatorRowMenuProps) => {
+export const NavigatorRowMenu = ({ open, menuPosition, trigger, onOpenChange, children }: NavigatorRowMenuProps) => {
   return (
-    <Popover
-      open={open}
-      onOpenChange={(open) => {
-        onOpenChange(open)
-
-        if (!open) {
-          onClose()
-        }
-      }}>
+    <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
 
       {menuPosition ? (
@@ -91,7 +76,6 @@ export const KnowledgeBaseRowMenu = ({
   onOpenChange,
   availableGroups,
   canMoveToUngrouped,
-  onClose,
   onRename,
   onMove,
   onRequestDelete
@@ -99,12 +83,7 @@ export const KnowledgeBaseRowMenu = ({
   const { t } = useTranslation()
 
   return (
-    <NavigatorRowMenu
-      open={open}
-      menuPosition={menuPosition}
-      trigger={trigger}
-      onOpenChange={onOpenChange}
-      onClose={onClose}>
+    <NavigatorRowMenu open={open} menuPosition={menuPosition} trigger={trigger} onOpenChange={onOpenChange}>
       <MenuList className="gap-1">
         <NavigatorRowMenuItem
           icon={<PencilLine className="size-3.5" />}
@@ -154,7 +133,6 @@ export const KnowledgeGroupRowMenu = ({
   menuPosition,
   trigger,
   onOpenChange,
-  onClose,
   onRename,
   onCreateBase,
   onRequestDelete
@@ -162,12 +140,7 @@ export const KnowledgeGroupRowMenu = ({
   const { t } = useTranslation()
 
   return (
-    <NavigatorRowMenu
-      open={open}
-      menuPosition={menuPosition}
-      trigger={trigger}
-      onOpenChange={onOpenChange}
-      onClose={onClose}>
+    <NavigatorRowMenu open={open} menuPosition={menuPosition} trigger={trigger} onOpenChange={onOpenChange}>
       <MenuList className="gap-1">
         <NavigatorRowMenuItem
           icon={<PencilLine className="size-3.5" />}
