@@ -2,6 +2,7 @@ import { agentSessionMessageService } from '@data/services/AgentSessionMessageSe
 import { messageService } from '@data/services/MessageService'
 import { DataApiErrorFactory, ErrorCode, isDataApiError } from '@shared/data/api'
 import type {
+  ContentSearchFilters,
   ContentSearchGroup,
   ContentSearchQuery,
   ContentSearchResponse,
@@ -13,28 +14,16 @@ import {
   contentSearchSourceTypes
 } from '@shared/data/api/schemas/contentSearch'
 
-type ContentSearchAdapterInput = {
+type ContentSearchAdapterInput<T extends ContentSearchSourceType> = {
   q: string
   cursor?: string
   limit: number
   createdAtFrom?: string
-}
-
-type TopicMessageContentSearchAdapterInput = ContentSearchAdapterInput & {
-  topicId?: string
-}
-
-type SessionMessageContentSearchAdapterInput = ContentSearchAdapterInput & {
-  sessionId?: string
-}
-
-type ContentSearchAdapterInputBySource = {
-  'topic-message': TopicMessageContentSearchAdapterInput
-  'session-message': SessionMessageContentSearchAdapterInput
+  filter?: ContentSearchFilters[T]
 }
 
 type ContentSearchSourceAdapter<T extends ContentSearchSourceType> = {
-  search(input: ContentSearchAdapterInputBySource[T]): Promise<Extract<ContentSearchGroup, { sourceType: T }>>
+  search(input: ContentSearchAdapterInput<T>): Promise<Extract<ContentSearchGroup, { sourceType: T }>>
 }
 
 function toSourceCursorError(sourceType: ContentSearchSourceType, error: unknown): unknown {
@@ -52,7 +41,7 @@ export const CONTENT_SEARCH_SOURCE_ADAPTERS = {
     async search(input) {
       const result = await messageService.search({
         q: input.q,
-        ...(input.topicId ? { topicId: input.topicId } : {}),
+        ...(input.filter?.topicId ? { topicId: input.filter.topicId } : {}),
         cursor: input.cursor,
         limit: input.limit,
         createdAtFrom: input.createdAtFrom
@@ -69,7 +58,7 @@ export const CONTENT_SEARCH_SOURCE_ADAPTERS = {
     async search(input) {
       const result = await agentSessionMessageService.search({
         q: input.q,
-        ...(input.sessionId ? { sessionId: input.sessionId } : {}),
+        ...(input.filter?.sessionId ? { sessionId: input.filter.sessionId } : {}),
         cursor: input.cursor,
         limit: input.limit,
         createdAtFrom: input.createdAtFrom
@@ -84,6 +73,24 @@ export const CONTENT_SEARCH_SOURCE_ADAPTERS = {
   }
 } satisfies { [K in ContentSearchSourceType]: ContentSearchSourceAdapter<K> }
 
+async function searchContentSource<T extends ContentSearchSourceType>(
+  sourceType: T,
+  query: ContentSearchQuery,
+  limit: number
+): Promise<ContentSearchGroup> {
+  try {
+    return await CONTENT_SEARCH_SOURCE_ADAPTERS[sourceType].search({
+      q: query.q,
+      cursor: query.cursors?.[sourceType],
+      limit,
+      createdAtFrom: query.createdAtFrom,
+      filter: query.filters?.[sourceType]
+    })
+  } catch (error) {
+    throw toSourceCursorError(sourceType, error)
+  }
+}
+
 export class ContentSearchService {
   async search(query: ContentSearchQuery): Promise<ContentSearchResponse> {
     const requestedSources = new Set(query.sources ?? contentSearchSourceTypes)
@@ -93,31 +100,7 @@ export class ContentSearchService {
       CONTENT_SEARCH_MAX_LIMIT_PER_SOURCE
     )
 
-    const groups = await Promise.all(
-      sources.map(async (sourceType) => {
-        try {
-          if (sourceType === 'topic-message') {
-            return await CONTENT_SEARCH_SOURCE_ADAPTERS[sourceType].search({
-              q: query.q,
-              cursor: query.cursors?.[sourceType],
-              limit,
-              createdAtFrom: query.createdAtFrom,
-              topicId: query.filters?.[sourceType]?.topicId
-            })
-          }
-
-          return await CONTENT_SEARCH_SOURCE_ADAPTERS[sourceType].search({
-            q: query.q,
-            cursor: query.cursors?.[sourceType],
-            limit,
-            createdAtFrom: query.createdAtFrom,
-            sessionId: query.filters?.[sourceType]?.sessionId
-          })
-        } catch (error) {
-          throw toSourceCursorError(sourceType, error)
-        }
-      })
-    )
+    const groups = await Promise.all(sources.map((sourceType) => searchContentSource(sourceType, query, limit)))
 
     return {
       query: query.q,
