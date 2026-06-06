@@ -3,23 +3,12 @@ import { DataApiError, ErrorCode } from '@shared/data/api'
 import type { CanonicalExternalPath, FileEntryId } from '@shared/data/types/file'
 import { setupTestDatabase } from '@test-helpers/db'
 import { MockMainDbServiceUtils } from '@test-mocks/main/DbService'
+import { mockMainLoggerService } from '@test-mocks/MainLoggerService'
 import { eq } from 'drizzle-orm'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { loggerWarnMock } = vi.hoisted(() => ({
-  loggerWarnMock: vi.fn()
-}))
-
-vi.mock('@logger', () => ({
-  loggerService: {
-    withContext: vi.fn(() => ({
-      info: vi.fn(),
-      warn: loggerWarnMock,
-      error: vi.fn(),
-      debug: vi.fn()
-    }))
-  }
-}))
+// `@logger` is mocked globally by tests/main.setup.ts with the unified
+// MockMainLoggerService singleton — assert on `mockMainLoggerService.warn`.
 
 vi.mock('@application', async () => {
   const { mockApplicationFactory } = await import('@test-mocks/main/application')
@@ -1004,12 +993,12 @@ describe('FileEntryService', () => {
 
     it('findMany returns parseable rows and warns once per bad row', async () => {
       await seedOneGoodOneBad()
-      loggerWarnMock.mockClear()
+      mockMainLoggerService.warn.mockClear()
 
       const entries = await fileEntryService.findMany()
       expect(entries.map((e) => e.id)).toEqual([goodId])
-      expect(loggerWarnMock).toHaveBeenCalledTimes(1)
-      expect(loggerWarnMock).toHaveBeenCalledWith(
+      expect(mockMainLoggerService.warn).toHaveBeenCalledTimes(1)
+      expect(mockMainLoggerService.warn).toHaveBeenCalledWith(
         expect.stringContaining('un-parseable'),
         expect.objectContaining({ id: badId })
       )
