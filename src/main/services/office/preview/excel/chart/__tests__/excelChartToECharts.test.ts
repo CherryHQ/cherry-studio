@@ -20,7 +20,11 @@ const baseModel = (kind: ExcelChartKind): ExcelChartRenderModel => ({
   title: 'Sales'
 })
 
-const getFirstSeries = (option: NonNullable<ReturnType<typeof excelChartToEChartsOption>>) => {
+const getFirstSeries = (option: ReturnType<typeof excelChartToEChartsOption>) => {
+  if (!option) {
+    throw new Error('Expected chart option to be generated')
+  }
+
   const series = Array.isArray(option.series) ? option.series : [option.series]
   return series[0] as Record<string, unknown>
 }
