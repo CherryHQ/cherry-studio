@@ -48,6 +48,7 @@ This document records the current V2 knowledge target schema, migration constrai
 
 - `video` is not a target `knowledge_item.type`.
 - `memory` is not a target `knowledge_item.type`.
+- `sitemap` is not a target `knowledge_item.type`; legacy sitemap entries are migrated as `url` items.
 - Legacy runtime-only item fields are not stored as standalone SQLite columns:
   - `uniqueId`
   - `uniqueIds`
@@ -57,7 +58,7 @@ This document records the current V2 knowledge target schema, migration constrai
 - `remark` is not part of the V2 SQLite schema.
 - `sourceUrl` is not a standalone `knowledge_item` column:
   - for notes, it may exist inside `data.sourceUrl`
-  - for url/sitemap items, the URL is stored inside the typed `data` payload
+  - for url items, the URL is stored inside the typed `data` payload
 - Official v1 legacy exports do not contain `groupId`.
 
 ## `groupId` Semantics
@@ -65,7 +66,7 @@ This document records the current V2 knowledge target schema, migration constrai
 - `knowledge_item` is modeled as a flat same-base item collection.
 - `groupId` is an optional stable grouping key inside one knowledge base.
   - Typical usage: items from the same imported source/container
-  - Examples: one directory import, one sitemap expansion, one URL collection
+  - Examples: one directory import, one URL collection
   - When one item is the logical container/owner of a group, downstream items use `groupId = containerItem.id`
   - The schema enforces same-base ownership:
     - `(baseId, groupId)` must reference `(baseId, id)` in `knowledge_item`
@@ -143,7 +144,7 @@ This document records the current V2 knowledge target schema, migration constrai
   - `failed`
   - `deleting`
 - Current runtime writes:
-  - `preparing` while a `directory` / `sitemap` root or nested directory is being expanded
+  - `preparing` while a `directory` root or nested directory is being expanded
   - `reading` while a leaf item is reading source documents
   - `embedding` while a leaf item is embedding / writing vectors
   - `processing` while a container has active descendants but is not itself expanding
@@ -164,14 +165,13 @@ This document records the current V2 knowledge target schema, migration constrai
   - `file` -> file reader by extension
   - `url` -> fetch markdown through Jina Reader
   - `note` -> inline note content
-  - `sitemap` -> sitemap reader code path is present, but current runtime does not index `sitemap` items directly
   - `directory` -> currently treated as a container placeholder and returns no documents
-- This means `directory` and `sitemap` remain valid persisted `knowledge_item.type` values, but they are prepared before leaf indexing rather than indexed directly.
+- `sitemap` is no longer a valid persisted V2 `knowledge_item.type`. Legacy v1 sitemap items are mapped to `url` during migration and indexed through the URL path.
 - Runtime add flow accepts new item payloads:
   - leaf payloads create `knowledge_item` rows and enqueue `index-leaf`
-  - `directory` / `sitemap` payloads create root rows and enqueue `prepare-root`
-- `prepare-root` expands the owner inside the runtime queue, creates child rows, and enqueues concrete leaf children as `index-leaf`.
-- Callers must not create user-supplied nested `directory` / `sitemap` items under another item. Nested directory rows may still be created internally by directory expansion to preserve filesystem hierarchy.
+  - `directory` payloads create root rows and enqueue `prepare-root`
+- `prepare-root` expands a directory owner inside the runtime queue, creates child rows, and enqueues concrete leaf children as `index-leaf`.
+- Callers must not create user-supplied nested `directory` items under another item. Nested directory rows may still be created internally by directory expansion to preserve filesystem hierarchy.
 - Runtime embedding model resolution currently expects `knowledge_base.embeddingModelId` in `providerId::modelId` format and only supports `ollama` as the active provider.
 
 ## Implementation Status

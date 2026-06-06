@@ -32,11 +32,12 @@
 
 2. Unified item payload migration
    - Legacy item `content` is transformed into the new `knowledge_item.data` union payload by item type.
-   - Supported migrated item types are `file`, `url`, `note`, `sitemap`, and `directory`.
+   - Supported migrated item types are `file`, `url`, `note`, and `directory`.
+   - Legacy `sitemap` items with valid string content are migrated as ordinary `url` items.
    - V2 models `knowledge_item` as a flat item list with optional `groupId`.
    - Official v1 exports do not provide grouping metadata.
    - Migrated items are therefore inserted with `groupId = null` by design.
-   - `directory` and `sitemap` are container/source declarations in `knowledge_item`; their own container-level vectors are handled by `KnowledgeVectorMigrator` as non-indexable and are not written to the V2 vector store.
+   - `directory` is a container/source declaration in `knowledge_item`; its own container-level vectors are handled by `KnowledgeVectorMigrator` as non-indexable and are not written to the V2 vector store.
 
 3. Note content source priority
    - Prefer Dexie `knowledge_notes` content.
@@ -88,7 +89,7 @@
 | `id` | `id` | Direct copy |
 | base owner `id` | `baseId` | From parent base |
 | _no legacy grouping field_ | `groupId` | V1 exports are flat; migrated items are inserted without grouping metadata (`null`) |
-| `type` | `type` | Supported: file/url/note/sitemap/directory |
+| `type` | `type` | Supported target types: file/url/note/directory. Legacy sitemap maps to url. |
 | `content` + Dexie lookups | `data` | Type-specific transform |
 | `uniqueId` | `status` | `uniqueId` non-empty => `completed`, otherwise `idle` |
 | `processingError` | `error` | Direct copy |
@@ -103,13 +104,14 @@
 - Invalid/malformed items are skipped and recorded as warnings in `prepare`.
 - Invalid knowledge-base tuning fields are normalized during migration; they do not cause the base or its items to be skipped.
 
-## Directory and Sitemap Semantics
+## Directory and Legacy Sitemap Semantics
 
-- `directory` and `sitemap` items are migrated into `knowledge_item` when their legacy payload is valid.
-- They preserve the source/root declaration needed to show the original knowledge entry in V2.
-- V1 does not provide separate child `knowledge_item` ids for every expanded directory or sitemap child document.
+- `directory` items are migrated into `knowledge_item` as container/source declarations when their legacy payload is valid.
+- Legacy `sitemap` items are migrated into `knowledge_item` as `url` items when their legacy payload is valid.
+- V1 does not provide separate child `knowledge_item` ids for every expanded directory child document.
 - Therefore this migrator does not synthesize child item rows during v1 migration.
-- Any legacy vector rows that map back to the root `directory` or `sitemap` item are considered container-level vectors and are skipped by `KnowledgeVectorMigrator` with warnings.
+- Any legacy vector rows that map back to a root `directory` item are considered container-level vectors and are skipped by `KnowledgeVectorMigrator` with warnings.
+- Legacy vector rows that map back to a legacy `sitemap` item are migrated as URL vectors because the item now maps to target type `url`.
 - Child content vectors are only migrated when they can be mapped to an existing migrated `file`, `url`, or `note` item id.
 
 ## Current Constraint Decisions

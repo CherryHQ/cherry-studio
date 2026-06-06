@@ -2,7 +2,7 @@ import { FileEntrySchema } from '@shared/data/types/file'
 import { describe, expect, it } from 'vitest'
 
 import { getItemStatus, getItemTitle, getReadyCount } from '../utils/selectors'
-import { createDirectoryItem, createFileItem, createNoteItem, createSitemapItem, createUrlItem } from './testUtils'
+import { createDirectoryItem, createFileItem, createNoteItem, createUrlItem } from './testUtils'
 
 describe('dataSourcePanel.selectors', () => {
   it('gets titles from the correct source field for each item type', () => {
@@ -65,12 +65,6 @@ describe('dataSourcePanel.selectors', () => {
       icon: 'loader'
     })
     expect(getItemStatus(createDirectoryItem({ id: 'directory-1', status: 'processing' }))).toEqual({
-      kind: 'processing',
-      labelKey: 'knowledge.status.processing',
-      textClassName: 'text-yellow-500/70',
-      icon: 'loader'
-    })
-    expect(getItemStatus(createSitemapItem({ id: 'sitemap-1', status: 'processing' }))).toEqual({
       kind: 'processing',
       labelKey: 'knowledge.status.processing',
       textClassName: 'text-yellow-500/70',

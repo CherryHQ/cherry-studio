@@ -70,7 +70,7 @@ Used by `listItemChunks` and `deleteItemChunk`.
 - Rejects failed bases through `assertBaseCanRunRuntimeOperation`.
 - Loads the requested item and rejects items outside the requested `baseId`.
 - Allows chunk list/delete only when the requested item itself is `completed`.
-- For completed `directory` / `sitemap` list requests, also rejects if any descendant is `deleting`.
+- For completed `directory` list requests, also rejects if any descendant is `deleting`.
 
 The UI should only expose chunk viewing for completed rows, but the service guard remains the backend authority for stale or direct IPC calls. The extra container descendant check exists because container reconciliation ignores `deleting` children, so a container can stay `completed` while cleanup is still pending below it.
 

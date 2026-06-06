@@ -51,7 +51,6 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [selectedDirectories, setSelectedDirectories] = useState<DirectoryItem[]>([])
   const [urlValue, setUrlValue] = useState('')
-  const [sitemapValue, setSitemapValue] = useState('')
   const [submitErrorMessage, setSubmitErrorMessage] = useState('')
   const [isResolvingSubmit, setIsResolvingSubmit] = useState(false)
   const { submit: submitKnowledgeItems, isSubmitting: isSubmittingItems } = useAddKnowledgeItems(selectedBaseId)
@@ -61,7 +60,6 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     setSelectedFiles([])
     setSelectedDirectories([])
     setUrlValue('')
-    setSitemapValue('')
     setSubmitErrorMessage('')
     setIsResolvingSubmit(false)
   }, [])
@@ -146,12 +144,10 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
         return selectedDirectories.length > 0
       case 'url':
         return urlValue.trim().length > 0
-      case 'sitemap':
-        return sitemapValue.trim().length > 0
       case 'note':
         return false
     }
-  }, [activeSource, selectedBaseId, selectedDirectories.length, selectedFiles.length, sitemapValue, urlValue])
+  }, [activeSource, selectedBaseId, selectedDirectories.length, selectedFiles.length, urlValue])
 
   const handleSubmit = useCallback(() => {
     if (!canSubmit || isResolvingSubmit) {
@@ -198,19 +194,6 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
         ])
       }
 
-      if (activeSource === 'sitemap') {
-        const url = sitemapValue.trim()
-        return submitKnowledgeItems([
-          {
-            type: 'sitemap' as const,
-            data: {
-              source: url,
-              url
-            }
-          }
-        ])
-      }
-
       return Promise.resolve()
     })()
 
@@ -231,7 +214,6 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
     isResolvingSubmit,
     selectedDirectories,
     selectedFiles,
-    sitemapValue,
     submitKnowledgeItems,
     t,
     urlValue
@@ -248,16 +230,11 @@ const AddKnowledgeItemDialog = ({ open, onOpenChange }: AddKnowledgeItemDialogPr
             activeSource={activeSource}
             selectedDirectories={selectedDirectories}
             selectedFiles={selectedFiles}
-            sitemapValue={sitemapValue}
             urlValue={urlValue}
             onDirectoryRemove={handleDirectoryRemove}
             onDirectorySelect={handleDirectorySelect}
             onFileDrop={handleFileDrop}
             onFileRemove={handleFileRemove}
-            onSitemapValueChange={(value) => {
-              setSubmitErrorMessage('')
-              setSitemapValue(value)
-            }}
             onUrlValueChange={(value) => {
               setSubmitErrorMessage('')
               setUrlValue(value)
